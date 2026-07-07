@@ -110,40 +110,42 @@ function handleLogin() {
 }
 
 .login-box {
-  width: 360px;
+  width: 320px;
+  height: 460px;
   background: #ffffff;
   border-radius: 16px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
-  padding: 48px 32px 32px;
+  padding: 36px 24px 24px;
   display: flex;
   flex-direction: column;
   align-items: center;
   z-index: 2;
+  box-sizing: border-box;
 }
 
 .logo-area {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 40px;
+  margin-bottom: 32px;
 }
 
 .logo-img {
-  width: 72px;
-  height: 72px;
-  margin-bottom: 16px;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 12px;
 }
 
 .app-title {
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 600;
   color: #333;
-  margin: 0 0 8px;
+  margin: 0 0 6px;
   letter-spacing: 1px;
 }
 
 .app-subtitle {
-  font-size: 14px;
+  font-size: 12px;
   color: #999;
   margin: 0;
 }
@@ -152,12 +154,12 @@ function handleLogin() {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 .login-input {
   --n-border-radius: 8px !important;
-  --n-height: 46px !important;
+  --n-height: 42px !important;
   background: #f7f7f7;
 }
 
@@ -177,13 +179,14 @@ function handleLogin() {
 }
 
 .login-btn {
-  height: 46px;
+  height: 42px;
   border-radius: 8px;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 500;
   letter-spacing: 4px;
   background: #12b7f5;
   border-color: #12b7f5;
+  margin-top: 4px;
 }
 
 .login-btn:hover {
@@ -192,7 +195,8 @@ function handleLogin() {
 }
 
 .login-footer {
-  margin-top: 32px;
+  margin-top: auto;
+  padding-bottom: 8px;
   display: flex;
   align-items: center;
   gap: 12px;

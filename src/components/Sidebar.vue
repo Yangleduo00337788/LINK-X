@@ -68,16 +68,8 @@ function handleSettingsClick() {
 }
 
 function handleLogoutClick() {
-  dialog.warning({
-    title: '退出登录',
-    content: '确定要退出当前账号吗？',
-    positiveText: '确定退出',
-    negativeText: '取消',
-    onPositiveClick: () => {
-      message.success('已安全退出账号')
-      logout()
-    }
-  })
+  message.success('已安全退出账号')
+  logout()
 }
 </script>
 
@@ -107,7 +99,7 @@ function handleLogoutClick() {
         <n-icon :component="PhonePortraitOutline" :size="20" />
       </div>
 
-      <n-popover placement="right-end" trigger="click" :show-arrow="false" style="padding: 0; border-radius: 8px;">
+      <n-popover placement="right-end" trigger="click" :show-arrow="false" style="padding: 0; border-radius: 9px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.12);">
         <template #trigger>
           <div
             class="nav-item"
@@ -260,6 +252,7 @@ function handleLogoutClick() {
   background: #ffffff;
   display: flex;
   flex-direction: column;
+  border-radius: 9px;
 }
 
 .menu-top-icons {

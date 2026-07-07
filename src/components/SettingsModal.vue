@@ -205,9 +205,10 @@ const messageDetail = ref(true)
 }
 
 :deep(.n-tabs-nav) {
-  width: 180px !important;
-  background: var(--lx-bg-panel-deep, #f7f7f7);
-  padding: 16px 0;
+  width: 160px !important;
+  background: var(--lx-bg-panel, #ffffff);
+  border-right: 1px solid rgba(0, 0, 0, 0.05);
+  padding: 24px 0;
 }
 
 :deep(.n-tabs-pad) {
@@ -215,18 +216,20 @@ const messageDetail = ref(true)
 }
 
 :deep(.n-tabs-tab) {
-  padding: 12px 24px !important;
+  padding: 12px 20px !important;
   justify-content: flex-start !important;
   border-radius: 0;
   transition: all 0.2s ease;
+  margin: 4px 12px;
+  border-radius: 8px;
 }
 
 :deep(.n-tabs-tab:hover) {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(0, 0, 0, 0.03);
 }
 
 :deep(.n-tabs-tab--active) {
-  background: rgba(18, 183, 245, 0.1) !important;
+  background: rgba(18, 183, 245, 0.08) !important;
   color: #12b7f5 !important;
   font-weight: 500;
 }
@@ -243,25 +246,34 @@ const messageDetail = ref(true)
 }
 
 .settings-content {
-  padding: 24px 32px;
+  padding: 32px 40px;
   height: 100%;
   overflow-y: auto;
   box-sizing: border-box;
+  background: #ffffff;
 }
 
 .section-title {
   font-size: 13px;
-  color: #999;
+  color: #12b7f5;
   font-weight: 500;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   margin-top: 0;
+  letter-spacing: 0.5px;
 }
 
 .setting-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 0;
+  padding: 12px 16px;
+  margin: 0 -16px;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.setting-item:hover {
+  background: rgba(0, 0, 0, 0.02);
 }
 
 .setting-info {
