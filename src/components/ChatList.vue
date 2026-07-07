@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { NIcon } from 'naive-ui'
-import { PhonePortraitOutline, NotificationsOffOutline } from '@vicons/ionicons5'
+import { NIcon, NSkeleton } from 'naive-ui'
+import { PhonePortraitOutline, NotificationsOffOutline, WarningOutline } from '@vicons/ionicons5'
 import PanelSearchBar from './PanelSearchBar.vue'
 import Avatar from './Avatar.vue'
+import EmptyState from './common/EmptyState.vue'
 import { useAppState } from '../composables/useAppState'
 import { useChatModals } from '../composables/useChatModals'
 import type { ChatSession } from '../types'
 
-const { sessions, currentSessionId, selectSession } = useAppState()
+const { sessions, currentSessionId, selectSession, isLoading, isOffline } = useAppState()
 const { openCreateGroup, openComprehensiveSearch } = useChatModals()
 const searchValue = ref('')
 
@@ -48,10 +49,34 @@ function onAddSelect(key: string) {
       :add-options="addOptions"
       @add-select="onAddSelect"
     />
+    
+    <!-- 断网提示 -->
+    <div v-if="isOffline" class="offline-banner">
+      <n-icon :component="WarningOutline" :size="16" />
+      <span>网络连接已断开，请检查网络设置</span>
+    </div>
 
     <div class="session-list">
-      <div
-        v-for="session in filteredSessions"
+      <!-- 加载中骨架屏 -->
+      <template v-if="isLoading">
+        <div class="skeleton-item" v-for="i in 8" :key="i">
+          <n-skeleton circle size="large" class="skeleton-avatar" />
+          <div class="skeleton-info">
+            <n-skeleton text width="60%" height="16px" class="skeleton-title" />
+            <n-skeleton text width="80%" height="14px" class="skeleton-desc" />
+          </div>
+        </div>
+      </template>
+
+      <!-- 搜索无结果 -->
+      <template v-else-if="filteredSessions.length === 0">
+        <EmptyState title="无匹配的会话" description="请尝试其他关键词" />
+      </template>
+
+      <!-- 正常列表 -->
+      <template v-else>
+        <div
+          v-for="session in filteredSessions"
         :key="session.id"
         class="session-item"
         :class="{ active: currentSessionId === session.id }"
@@ -86,7 +111,8 @@ function onAddSelect(key: string) {
             <span class="last-message">{{ session.lastMessage }}</span>
           </div>
         </div>
-      </div>
+        </div>
+      </template>
     </div>
   </div>
 </template>
@@ -100,6 +126,18 @@ function onAddSelect(key: string) {
   flex-direction: column;
   border-right: none;
   flex-shrink: 0;
+}
+
+.offline-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: #fff1f0;
+  color: #fa5151;
+  padding: 8px;
+  font-size: 12px;
+  border-bottom: 1px solid #ffccc7;
 }
 
 .session-list {
@@ -200,5 +238,19 @@ function onAddSelect(key: string) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.skeleton-item {
+  display: flex;
+  padding: 12px 14px;
+  gap: 10px;
+  align-items: center;
+}
+
+.skeleton-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 </style>

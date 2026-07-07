@@ -22,7 +22,7 @@ import { useSettings } from '../composables/useSettings'
 import { useAppState } from '../composables/useAppState'
 
 const { isSettingsModalVisible } = useSettings()
-const { userProfile, theme, toggleTheme } = useAppState()
+const { userProfile, theme, toggleTheme, toggleOffline, isOffline, simulateIncomingMessage, isLoading } = useAppState()
 
 const activeTab = ref('general')
 
@@ -148,6 +148,36 @@ const messageDetail = ref(true)
                 <div class="preview-color" style="background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);"></div>
                 <span>落日橘</span>
               </div>
+            </div>
+          </div>
+        </n-tab-pane>
+
+        <n-tab-pane name="prototype">
+          <template #tab>
+            <div class="tab-label">
+              <span>原型演示工具</span>
+            </div>
+          </template>
+          <div class="settings-content">
+            <h3 class="section-title">边缘状态触发</h3>
+            
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-name">模拟网络断开</span>
+                <span class="setting-desc" style="font-size: 12px; color: #999; display: block;">开启后将在聊天列表顶部显示断网提示</span>
+              </div>
+              <n-switch :value="isOffline" @update:value="toggleOffline" size="small" />
+            </div>
+
+            <n-divider style="margin: 8px 0" />
+
+            <h3 class="section-title">系统通知</h3>
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-name">模拟接收新消息</span>
+                <span class="setting-desc" style="font-size: 12px; color: #999; display: block;">将触发 Electron 桌面系统通知和未读角标</span>
+              </div>
+              <n-button size="small" type="primary" @click="simulateIncomingMessage">触发通知</n-button>
             </div>
           </div>
         </n-tab-pane>

@@ -1,17 +1,18 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { NIcon, NCollapse, NCollapseItem } from 'naive-ui'
+import { NIcon, NCollapse, NCollapseItem, NSkeleton } from 'naive-ui'
 import { ChevronForwardOutline, PersonAddOutline } from '@vicons/ionicons5'
 import PanelSearchBar from './PanelSearchBar.vue'
 import Avatar from './Avatar.vue'
+import EmptyState from './common/EmptyState.vue'
 import { contacts } from '../data/mockData'
 import { sessionFromContact } from '../data/mockData'
 import { useAppState } from '../composables/useAppState'
 import { useChatModals } from '../composables/useChatModals'
 import type { ContactItem } from '../types'
 
-const { ensureSession, contactsActiveView, currentSessionId } = useAppState()
-const { openCreateGroup, openComprehensiveSearch } = useChatModals()
+const { ensureSession, contactsActiveView, currentSessionId, isLoading } = useAppState()
+const { openCreateGroup, openComprehensiveSearch, openContactProfile } = useChatModals()
 const search = ref('')
 const activeTab = ref<'friends' | 'groups'>('friends')
 
@@ -31,9 +32,17 @@ function onAddSelect(key: string) {
 }
 
 // Define friend groups and group chat categories with counts
-const friendGroups = [
-  { name: '我的好友', online: 6, total: 10, items: contacts.filter(c => c.group === '我的好友') },
-]
+const filteredContacts = computed(() => {
+  const q = search.value.trim().toLowerCase()
+  if (!q) return contacts
+  return contacts.filter(c => c.name.toLowerCase().includes(q))
+})
+
+const friendGroups = computed(() => {
+  return [
+    { name: '我的好友', online: 6, total: 10, items: filteredContacts.value.filter(c => c.group === '我的好友') },
+  ]
+})
 
 const chatGroups = [
   { name: '置顶群聊', total: 0, items: [] },
@@ -43,9 +52,9 @@ const chatGroups = [
   { name: '我加入的群聊', total: 19, items: [] },
 ]
 
-function openChat(c: ContactItem) {
-  contactsActiveView.value = 'none'
-  ensureSession(sessionFromContact(c))
+function handleContactClick(c: ContactItem) {
+  // 先打开联系人资料弹窗
+  openContactProfile(c)
 }
 
 function setView(view: 'friend-notifs' | 'group-notifs') {
@@ -83,8 +92,26 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
     </div>
 
     <div class="list-container">
-      <n-collapse v-if="activeTab === 'friends'" :default-expanded-names="['我的好友']" accordion class="custom-collapse">
-        <n-collapse-item v-for="group in friendGroups" :key="group.name" :name="group.name">
+      <!-- 加载中骨架屏 -->
+      <template v-if="isLoading">
+        <div class="skeleton-item" v-for="i in 8" :key="i">
+          <n-skeleton circle size="large" class="skeleton-avatar" />
+          <div class="skeleton-info">
+            <n-skeleton text width="50%" height="16px" class="skeleton-title" />
+            <n-skeleton text width="30%" height="12px" class="skeleton-desc" />
+          </div>
+        </div>
+      </template>
+
+      <!-- 无搜索结果 -->
+      <template v-else-if="filteredContacts.length === 0 && search">
+        <EmptyState title="无匹配联系人" description="换个关键词试试" />
+      </template>
+
+      <!-- 列表 -->
+      <template v-else>
+        <n-collapse v-if="activeTab === 'friends'" :default-expanded-names="['我的好友']" accordion class="custom-collapse">
+          <n-collapse-item v-for="group in friendGroups" :key="group.name" :name="group.name">
           <template #header>
             <div class="collapse-header">
               <span class="group-name">{{ group.name }}</span>
@@ -97,7 +124,7 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
               :key="item.id"
               class="contact-row"
               :class="{ active: currentSessionId === item.id }"
-              @click="openChat(item)"
+              @click="handleContactClick(item)"
             >
               <Avatar :text="item.avatarText" :color="item.avatarColor" :size="44" />
               <div class="info">
@@ -109,16 +136,17 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
         </n-collapse-item>
       </n-collapse>
 
-      <n-collapse v-if="activeTab === 'groups'" accordion class="custom-collapse">
-        <n-collapse-item v-for="group in chatGroups" :key="group.name" :name="group.name">
-          <template #header>
-            <div class="collapse-header">
-              <span class="group-name">{{ group.name }}</span>
-              <span class="group-count">{{ group.total }}</span>
-            </div>
-          </template>
-        </n-collapse-item>
-      </n-collapse>
+        <n-collapse v-if="activeTab === 'groups'" accordion class="custom-collapse">
+          <n-collapse-item v-for="group in chatGroups" :key="group.name" :name="group.name">
+            <template #header>
+              <div class="collapse-header">
+                <span class="group-name">{{ group.name }}</span>
+                <span class="group-count">{{ group.total }}</span>
+              </div>
+            </template>
+          </n-collapse-item>
+        </n-collapse>
+      </template>
     </div>
   </div>
 </template>
@@ -295,7 +323,21 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
 }
 
 .status {
-  font-size: 12px;
-  color: #999;
+  font-size: 11px;
+  color: var(--lx-text-muted, #999);
+}
+
+.skeleton-item {
+  display: flex;
+  padding: 12px 16px;
+  gap: 12px;
+  align-items: center;
+}
+
+.skeleton-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 </style>

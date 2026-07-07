@@ -22,6 +22,7 @@ import GroupFilesModal from './chat/GroupFilesModal.vue'
 import GroupAlbumModal from './chat/GroupAlbumModal.vue'
 import GroupEssenceModal from './chat/GroupEssenceModal.vue'
 import GroupAnnouncementModal from './chat/GroupAnnouncementModal.vue'
+import ContactProfileModal from './chat/ContactProfileModal.vue'
 import SettingsModal from './SettingsModal.vue'
 import { useAppState } from '../composables/useAppState'
 
@@ -71,9 +72,8 @@ const showPlaceholder = computed(() =>
       </main>
     </div>
 
+    <!-- 弹窗/抽屉层 -->
     <MenuDrawer />
-    <!-- 弹窗/抽屉统一容器（仅在此渲染主窗口弹窗） -->
-    <OverlayHost />
     <ChatMoreDrawer />
     <GroupInfoDrawer />
     <CreateGroupModal />
@@ -85,7 +85,9 @@ const showPlaceholder = computed(() =>
     <GroupAlbumModal />
     <GroupEssenceModal />
     <GroupAnnouncementModal />
+    <ContactProfileModal />
     <SettingsModal />
+    <OverlayHost />
   </div>
 </template>
 

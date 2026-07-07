@@ -15,6 +15,8 @@ const userProfile = ref({
 })
 
 const isLoggedIn = ref(true)
+const isLoading = ref(false)
+const isOffline = ref(false)
 
 export function useAppState() {
   const currentSession = computed(() =>
@@ -94,6 +96,58 @@ export function useAppState() {
 
   function login() {
     isLoggedIn.value = true
+    isLoading.value = true
+    setTimeout(() => {
+      isLoading.value = false
+    }, 1500)
+  }
+
+  function toggleOffline() {
+    isOffline.value = !isOffline.value
+  }
+
+  function simulateIncomingMessage() {
+    const id = currentSessionId.value
+    if (!id) return
+    const now = new Date()
+    const time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`
+    const msg: ChatMessage = {
+      id: `msg-${Date.now()}`,
+      sessionId: id,
+      content: '这是一条模拟的测试消息',
+      time,
+      isSelf: false,
+      type: 'text'
+    }
+    
+    if (!messagesBySession.value[id]) {
+      messagesBySession.value[id] = []
+    }
+    messagesBySession.value[id].push(msg)
+    
+    const session = sessions.value.find(s => s.id === id)
+    if (session) {
+      session.lastMessage = msg.content
+      session.time = time
+      session.unread = (session.unread || 0) + 1
+      
+      // 触发 Electron 原生桌面通知
+      if (window.Notification && Notification.permission === 'granted') {
+        new Notification(session.name, {
+          body: msg.content,
+          silent: false
+        })
+      } else if (window.Notification && Notification.permission !== 'denied') {
+        Notification.requestPermission().then(permission => {
+          if (permission === 'granted') {
+            new Notification(session.name, {
+              body: msg.content,
+              silent: false
+            })
+          }
+        })
+      }
+    }
   }
 
   return {
@@ -107,11 +161,15 @@ export function useAppState() {
     userProfile,
     contactsActiveView,
     isLoggedIn,
+    isLoading,
+    isOffline,
     setNav,
     selectSession,
     ensureSession,
     sendMessage,
     toggleTheme,
+    toggleOffline,
+    simulateIncomingMessage,
     updateSignature,
     updateNickname,
     logout,

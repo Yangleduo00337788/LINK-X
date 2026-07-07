@@ -13,6 +13,8 @@ const groupFilesOpen = ref(false)
 const groupAlbumOpen = ref(false)
 const groupEssenceOpen = ref(false)
 const groupAnnouncementOpen = ref(false)
+const contactProfileOpen = ref(false)
+const currentContactProfile = ref<any>(null)
 
 export function useChatModals() {
   function openMore() {
@@ -89,6 +91,14 @@ export function useChatModals() {
     groupAnnouncementOpen.value = false
   }
 
+  function openContactProfile(contact: any) {
+    currentContactProfile.value = contact
+    contactProfileOpen.value = true
+  }
+  function closeContactProfile() {
+    contactProfileOpen.value = false
+  }
+
   /** @deprecated 使用 openCreateGroup */
   function openSelectContacts() {
     openCreateGroup()
@@ -111,6 +121,8 @@ export function useChatModals() {
     groupAlbumOpen,
     groupEssenceOpen,
     groupAnnouncementOpen,
+    contactProfileOpen,
+    currentContactProfile,
     openMore,
     closeMore,
     openGroupInfo,
@@ -136,6 +148,8 @@ export function useChatModals() {
     openGroupEssence,
     closeGroupEssence,
     openGroupAnnouncement,
-    closeGroupAnnouncement
+    closeGroupAnnouncement,
+    openContactProfile,
+    closeContactProfile
   }
 }

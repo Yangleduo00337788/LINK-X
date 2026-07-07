@@ -36,7 +36,7 @@ export interface ChatMessage {
   content: string
   time: string
   isSelf: boolean
-  senderName: string
+  senderName?: string
   senderAvatar?: string
   type?: 'text' | 'image' | 'file' | 'link' | 'system'
   linkUrl?: string
