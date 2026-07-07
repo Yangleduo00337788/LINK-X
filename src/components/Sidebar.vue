@@ -42,7 +42,13 @@ function handleClick(key: NavKey | 'menu') {
     return
   }
   if (key === 'favorites') {
-    openMomentsModal()
+    // 调用 Electron API 打开独立的 X友圈 窗口
+    if (window.electronAPI) {
+      window.electronAPI.openMoments()
+    } else {
+      // 网页版回退逻辑（如果需要的话，也可以保持原本的 Modal 方式）
+      openMomentsModal()
+    }
     return
   }
   setNav(key)

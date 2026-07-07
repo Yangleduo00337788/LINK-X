@@ -79,6 +79,51 @@ function registerWindowIpc() {
 
 registerWindowIpc()
 
+let momentsWindow: BrowserWindow | null = null
+
+function createMomentsWindow() {
+  if (momentsWindow) {
+    if (momentsWindow.isMinimized()) momentsWindow.restore()
+    momentsWindow.focus()
+    return
+  }
+
+  momentsWindow = new BrowserWindow({
+    width: 440,
+    height: 560,
+    resizable: false,
+    frame: false,
+    titleBarStyle: 'hidden',
+    transparent: true,
+    show: false,
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false
+    }
+  })
+
+  momentsWindow.once('ready-to-show', () => {
+    momentsWindow?.show()
+  })
+
+  if (isDev && process.env.VITE_DEV_SERVER_URL) {
+    // 加载同一个开发服务器地址，但我们可以通过 hash 路由或者给个查询参数区分页面
+    momentsWindow.loadURL(process.env.VITE_DEV_SERVER_URL + '#/moments')
+  } else {
+    momentsWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: 'moments' })
+  }
+
+  momentsWindow.on('closed', () => {
+    momentsWindow = null
+  })
+}
+
+ipcMain.on('window-open-moments', () => {
+  createMomentsWindow()
+})
+
 function createWindow() {
   if (isDev) {
     console.log('[electron] preload:', preloadPath, 'exists:', fs.existsSync(preloadPath))

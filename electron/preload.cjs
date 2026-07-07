@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   minimize: () => ipcRenderer.invoke('window:minimize'),
   maximize: () => ipcRenderer.invoke('window:maximize'),
   close: () => ipcRenderer.invoke('window:close'),
+  openMoments: () => ipcRenderer.send('window-open-moments'),
   isMaximized: () => ipcRenderer.invoke('window:is-maximized'),
   onMaximizedChange: callback => {
     if (typeof callback !== 'function') return () => {}

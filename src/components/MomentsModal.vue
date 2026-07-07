@@ -119,22 +119,26 @@ function showMessage() {
 }
 
 function minimizeMoments() {
-  // 因为目前朋友圈是作为主窗口内的弹窗（Modal）实现，并没有独立操作系统的任务栏图标
-  // 这里点击“最小化”目前执行与“关闭”相同的操作（将其隐藏）。
-  // 如果后续将其改为独立的多窗口架构，这里可以调用 window.electronAPI.minimize()
-  closeMomentsModal()
+  if (window.electronAPI) {
+    window.electronAPI.minimize()
+  } else {
+    closeMomentsModal()
+  }
+}
+
+function closeMoments() {
+  if (window.electronAPI) {
+    window.electronAPI.close()
+  } else {
+    closeMomentsModal()
+  }
 }
 </script>
 
 <template>
-  <n-modal
-    v-model:show="momentsModalOpen"
-    :mask-closable="true"
-    class="moments-modal"
-  >
-    <div class="moments-wrapper">
-      <!-- 可滚动的内容区 -->
-      <div class="moments-scroll-container" @scroll="handleScroll">
+  <div class="moments-wrapper standalone-window">
+    <!-- 可滚动的内容区 -->
+    <div class="moments-scroll-container" @scroll="handleScroll">
         <div class="moments-header">
           <div class="header-banner">
             <!-- 占满上半部分页面 (280px) -->
@@ -225,16 +229,22 @@ function minimizeMoments() {
           <div class="action-btn minimize-btn" title="最小化" @click.stop="minimizeMoments">
             <n-icon :component="RemoveOutline" size="24" />
           </div>
-          <div class="action-btn close-btn" title="关闭" @click.stop="closeMomentsModal">
+          <div class="action-btn close-btn" title="关闭" @click.stop="closeMoments">
             <n-icon :component="CloseOutline" size="24" />
           </div>
         </div>
       </div>
     </div>
-  </n-modal>
 </template>
 
 <style scoped>
+.standalone-window {
+  width: 100vw !important;
+  height: 100vh !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+}
+
 .moments-wrapper {
   position: relative;
   width: 440px;
@@ -261,12 +271,14 @@ function minimizeMoments() {
   transition: background-color 0.3s ease, color 0.3s ease;
   box-sizing: border-box;
   pointer-events: none;
+  -webkit-app-region: drag; /* 允许拖动窗口 */
 }
 
 .header-left, .header-right {
   display: flex;
   align-items: center;
   gap: 8px;
+  -webkit-app-region: no-drag; /* 按钮区域不可拖动 */
 }
 
 .header-center {

@@ -13,17 +13,16 @@ import PlaceholderMainView from './PlaceholderMainView.vue'
 import MenuDrawer from './MenuDrawer.vue'
 import OverlayHost from './overlay/OverlayHost.vue'
 import ChatMoreDrawer from './chat/ChatMoreDrawer.vue'
-import MomentsModal from './MomentsModal.vue'
+import GroupInfoDrawer from './chat/GroupInfoDrawer.vue'
 import CreateGroupModal from './chat/CreateGroupModal.vue'
 import ComprehensiveSearchModal from './chat/ComprehensiveSearchModal.vue'
-import GroupInfoDrawer from './chat/GroupInfoDrawer.vue'
+import VoiceCallModal from './chat/VoiceCallModal.vue'
+import VideoCallModal from './chat/VideoCallModal.vue'
 import AddGroupMembersModal from './chat/AddGroupMembersModal.vue'
 import GroupFilesModal from './chat/GroupFilesModal.vue'
 import GroupAlbumModal from './chat/GroupAlbumModal.vue'
 import GroupEssenceModal from './chat/GroupEssenceModal.vue'
 import GroupAnnouncementModal from './chat/GroupAnnouncementModal.vue'
-import VoiceCallModal from './chat/VoiceCallModal.vue'
-import VideoCallModal from './chat/VideoCallModal.vue'
 import { useAppState } from '../composables/useAppState'
 
 const { navKey } = useAppState()
@@ -74,9 +73,9 @@ const showPlaceholder = computed(() =>
     </div>
 
     <MenuDrawer />
+    <!-- 弹窗/抽屉统一容器（仅在此渲染主窗口弹窗） -->
     <OverlayHost />
     <ChatMoreDrawer />
-    <MomentsModal />
     <GroupInfoDrawer />
     <CreateGroupModal />
     <ComprehensiveSearchModal />
