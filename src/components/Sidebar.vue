@@ -4,8 +4,6 @@ import {
   PersonOutline,
   DocumentTextOutline,
   MenuOutline,
-  MailOutline,
-  PhonePortraitOutline,
   BookmarkOutline,
   FolderOutline,
   ColorPaletteOutline,
@@ -55,14 +53,6 @@ function handleClick(key: NavKey | 'menu') {
   setNav(key)
 }
 
-function openMail() {
-  setNav('chat')
-}
-
-function openPhoneLink() {
-  setNav('chat')
-}
-
 function handleSettingsClick() {
   openSettings()
 }
@@ -89,16 +79,6 @@ function handleLogoutClick() {
     </div>
 
     <div class="nav-bottom">
-      <div class="nav-item nav-item--subtle" title="邮箱" @click="openMail">
-        <div class="icon-wrap">
-          <n-icon :component="MailOutline" :size="20" />
-          <span class="dot-badge" />
-        </div>
-      </div>
-      <div class="nav-item nav-item--subtle" title="我的设备" @click="openPhoneLink">
-        <n-icon :component="PhonePortraitOutline" :size="20" />
-      </div>
-
       <n-popover placement="right-end" trigger="click" :show-arrow="false" style="padding: 0; border-radius: 9px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.12);">
         <template #trigger>
           <div
@@ -229,23 +209,7 @@ function handleLogoutClick() {
   color: #12b7f5;
 }
 
-.icon-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
 
-.dot-badge {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #fa5151;
-  border: 1px solid #f5f5f5;
-}
 
 .more-menu {
   width: 220px;
