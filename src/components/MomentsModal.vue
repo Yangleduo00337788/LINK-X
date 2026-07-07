@@ -117,6 +117,13 @@ function refresh() {
 function showMessage() {
   message.info('暂无新消息')
 }
+
+function minimizeMoments() {
+  // 因为目前朋友圈是作为主窗口内的弹窗（Modal）实现，并没有独立操作系统的任务栏图标
+  // 这里点击“最小化”目前执行与“关闭”相同的操作（将其隐藏）。
+  // 如果后续将其改为独立的多窗口架构，这里可以调用 window.electronAPI.minimize()
+  closeMomentsModal()
+}
 </script>
 
 <template>
@@ -215,6 +222,9 @@ function showMessage() {
           X友圈
         </div>
         <div class="header-right">
+          <div class="action-btn minimize-btn" title="最小化" @click.stop="minimizeMoments">
+            <n-icon :component="RemoveOutline" size="24" />
+          </div>
           <div class="action-btn close-btn" title="关闭" @click.stop="closeMomentsModal">
             <n-icon :component="CloseOutline" size="24" />
           </div>
