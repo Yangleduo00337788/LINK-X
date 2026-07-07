@@ -126,7 +126,7 @@ const notifications = [
   padding: 4px;
   color: #666;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--lx-radius);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -156,7 +156,7 @@ const notifications = [
   align-items: flex-start;
   background: #ffffff;
   padding: 20px;
-  border-radius: 8px;
+  border-radius: var(--lx-radius);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
   gap: 16px;
 }

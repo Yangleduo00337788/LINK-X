@@ -154,7 +154,7 @@ function onAddSelect(key: string) {
   padding: 0 10px 0 12px;
   margin: 0 6px;
   gap: 12px;
-  border-radius: var(--lx-radius-md, 10px);
+  border-radius: var(--lx-radius);
   cursor: pointer;
   transition: background 0.16s ease;
 }
@@ -179,7 +179,7 @@ function onAddSelect(key: string) {
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
-  border-radius: 10px;
+  border-radius: var(--lx-radius);
   background: linear-gradient(180deg, #ff6b6b 0%, #f04040 100%);
   color: #fff;
   font-size: 10px;

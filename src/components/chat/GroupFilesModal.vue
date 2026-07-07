@@ -109,7 +109,7 @@ function close() {
   width: min(720px, 96vw);
   height: min(560px, 88vh);
   background: #fff;
-  border-radius: 12px;
+  border-radius: var(--lx-radius);
   display: flex;
   flex-direction: column;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
@@ -145,7 +145,7 @@ function close() {
   width: 100%;
   height: 32px;
   border: 1px solid #e8e8e8;
-  border-radius: 9px;
+  border-radius: var(--lx-radius);
   padding: 0 12px;
   font-size: 14px;
   outline: none;
@@ -210,7 +210,7 @@ function close() {
   height: 32px;
   padding: 0 16px;
   border: none;
-  border-radius: 9px;
+  border-radius: var(--lx-radius);
   background: #12b7f5;
   color: #fff;
   font-size: 13px;

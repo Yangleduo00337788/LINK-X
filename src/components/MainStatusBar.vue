@@ -273,7 +273,7 @@ function openProfile() {
   border: none;
   background: none;
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: var(--lx-radius);
 }
 
 .weather:hover {

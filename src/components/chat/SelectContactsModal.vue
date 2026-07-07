@@ -104,7 +104,7 @@ function cancel() {
   width: min(720px, 92vw);
   height: min(520px, 85vh);
   background: #f5f5f5;
-  border-radius: 12px;
+  border-radius: var(--lx-radius);
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.18);
   display: flex;
   flex-direction: column;
@@ -126,7 +126,7 @@ function cancel() {
   min-height: 0;
   margin: 0 16px;
   background: #fff;
-  border-radius: 10px;
+  border-radius: var(--lx-radius);
   overflow: hidden;
 }
 
@@ -164,7 +164,7 @@ function cancel() {
   padding: 8px;
   border: none;
   background: transparent;
-  border-radius: 8px;
+  border-radius: var(--lx-radius);
   cursor: pointer;
   text-align: left;
   font-size: 14px;
@@ -198,7 +198,7 @@ function cancel() {
 .btn {
   min-width: 88px;
   height: 36px;
-  border-radius: 9px;
+  border-radius: var(--lx-radius);
   border: 1px solid #ddd;
   background: #fff;
   font-size: 14px;

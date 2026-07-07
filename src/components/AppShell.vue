@@ -98,7 +98,7 @@ const showPlaceholder = computed(() =>
   display: flex;
   flex-direction: column;
   background: transparent;
-  border-radius: 8px;
+  border-radius: var(--lx-radius);
   overflow: hidden;
   position: relative;
 }

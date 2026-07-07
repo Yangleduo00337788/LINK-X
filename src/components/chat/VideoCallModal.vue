@@ -78,7 +78,7 @@ function hangUp() {
 .call-window {
   width: min(480px, 92vw);
   background: #1e1e1e;
-  border-radius: 12px;
+  border-radius: var(--lx-radius);
   overflow: hidden;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
 }
@@ -119,7 +119,7 @@ function hangUp() {
   width: 100px;
   height: 72px;
   background: #444;
-  border-radius: 6px;
+  border-radius: var(--lx-radius);
   border: 2px solid rgba(255, 255, 255, 0.2);
   display: flex;
   align-items: flex-end;

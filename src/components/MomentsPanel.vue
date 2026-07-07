@@ -86,7 +86,7 @@ const filtered = computed(() => {
 
 .moment-card {
   background: rgba(255, 255, 255, 0.65);
-  border-radius: 10px;
+  border-radius: var(--lx-radius);
   padding: 12px;
   margin-bottom: 8px;
   box-shadow: var(--lx-shadow-soft, 0 1px 2px rgba(0, 0, 0, 0.04));

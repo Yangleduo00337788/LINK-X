@@ -168,7 +168,7 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
 .add-btn {
   width: 32px;
   height: 32px;
-  border-radius: 4px;
+  border-radius: var(--lx-radius);
   background: #f0f0f0;
   border: none;
   display: flex;
@@ -200,7 +200,7 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
   align-items: center;
   justify-content: space-between;
   padding: 10px 12px;
-  border-radius: 9px;
+  border-radius: var(--lx-radius);
   cursor: pointer;
   font-size: 14px;
   color: #333;
@@ -221,7 +221,7 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
   position: relative;
   margin: 16px 12px 8px;
   background: #ebebeb;
-  border-radius: 9px;
+  border-radius: var(--lx-radius);
   padding: 3px;
 }
 
@@ -232,7 +232,7 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
   width: calc(50% - 3px);
   height: calc(100% - 6px);
   background: #ffffff;
-  border-radius: 7px;
+  border-radius: var(--lx-radius);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
   transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
   z-index: 1;
@@ -249,7 +249,7 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
   font-size: 13px;
   color: #666;
   cursor: pointer;
-  border-radius: 7px;
+  border-radius: var(--lx-radius);
   position: relative;
   z-index: 2;
   transition: color 0.3s ease;
@@ -297,7 +297,7 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
   padding: 0 12px;
   margin-bottom: 4px;
   gap: 12px;
-  border-radius: 9px;
+  border-radius: var(--lx-radius);
   cursor: pointer;
   transition: background 0.2s ease;
   background: #fff;

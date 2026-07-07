@@ -97,7 +97,7 @@ function openItem(item: FavoriteItem) {
 .icon-wrap {
   width: 40px;
   height: 40px;
-  border-radius: 8px;
+  border-radius: var(--lx-radius);
   background: #e6f2ff;
   display: flex;
   align-items: center;

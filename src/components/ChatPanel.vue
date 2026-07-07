@@ -496,7 +496,7 @@ function demoToast(tip: string) {
   min-width: 148px;
   padding: 6px;
   background: #fff;
-  border-radius: 9px;
+  border-radius: var(--lx-radius);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
   border: 1px solid rgba(0, 0, 0, 0.06);
 }
@@ -509,7 +509,7 @@ function demoToast(tip: string) {
   font-size: 14px;
   color: #333;
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: var(--lx-radius);
   margin: 0;
 }
 
@@ -563,7 +563,7 @@ function demoToast(tip: string) {
   height: 36px;
   border: none;
   background: transparent;
-  border-radius: 6px;
+  border-radius: var(--lx-radius);
   color: #555;
   cursor: pointer;
   display: flex;
@@ -629,7 +629,7 @@ function demoToast(tip: string) {
   max-width: min(420px, 72%);
   background: #fff;
   padding: 10px 12px;
-  border-radius: 4px 10px 10px 10px;
+  border-radius: var(--lx-radius);
   font-size: 14px;
   line-height: 1.55;
   color: #1a1a1a;
@@ -638,7 +638,7 @@ function demoToast(tip: string) {
 
 .qq-bubble.self {
   background: #c9e7ff;
-  border-radius: 10px 4px 10px 10px;
+  border-radius: var(--lx-radius);
 }
 
 .qq-bubble.link .qq-bubble-text {
@@ -660,7 +660,7 @@ function demoToast(tip: string) {
 .qq-file-card {
   max-width: min(300px, 75%);
   background: #fff;
-  border-radius: 6px;
+  border-radius: var(--lx-radius);
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
@@ -675,7 +675,7 @@ function demoToast(tip: string) {
 .qq-file-icon {
   width: 44px;
   height: 44px;
-  border-radius: 8px;
+  border-radius: var(--lx-radius);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -715,7 +715,7 @@ function demoToast(tip: string) {
 .data-card {
   width: 280px;
   background: #fff;
-  border-radius: 12px;
+  border-radius: var(--lx-radius);
   padding: 14px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
@@ -756,7 +756,7 @@ function demoToast(tip: string) {
   color: #0099ff;
   background: #e6f2ff;
   padding: 2px 8px;
-  border-radius: 10px;
+  border-radius: var(--lx-radius);
 }
 
 .card-divider {
@@ -777,7 +777,7 @@ function demoToast(tip: string) {
 
 .file-card {
   background: #fff;
-  border-radius: 10px;
+  border-radius: var(--lx-radius);
   width: 260px;
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
@@ -793,7 +793,7 @@ function demoToast(tip: string) {
 .file-icon {
   width: 44px;
   height: 44px;
-  border-radius: 8px;
+  border-radius: var(--lx-radius);
   background: #e6f2ff;
   color: #0099ff;
   display: flex;
@@ -940,7 +940,7 @@ function demoToast(tip: string) {
 .send-btn {
   min-width: 72px;
   height: 32px;
-  border-radius: 9px;
+  border-radius: var(--lx-radius);
   background: #12b7f5 !important;
   border: none !important;
   font-size: 13px;
@@ -949,7 +949,7 @@ function demoToast(tip: string) {
 /* 右键菜单 */
 .msg-context-menu {
   background: #fff;
-  border-radius: 6px;
+  border-radius: var(--lx-radius);
   min-width: 100px;
   padding: 4px;
 }
@@ -959,7 +959,7 @@ function demoToast(tip: string) {
   font-size: 13px;
   color: #333;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--lx-radius);
 }
 
 .menu-item:hover {
@@ -980,7 +980,7 @@ function demoToast(tip: string) {
   color: #666;
   background: rgba(0, 0, 0, 0.04);
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: var(--lx-radius);
   margin-bottom: 6px;
   border-left: 2px solid #12b7f5;
   white-space: nowrap;
@@ -992,7 +992,7 @@ function demoToast(tip: string) {
 .qq-bubble-image {
   max-width: 200px;
   max-height: 200px;
-  border-radius: 6px;
+  border-radius: var(--lx-radius);
   object-fit: cover;
   cursor: pointer;
 }
@@ -1004,7 +1004,7 @@ function demoToast(tip: string) {
   justify-content: space-between;
   padding: 6px 10px;
   background: #f5f5f5;
-  border-radius: 6px;
+  border-radius: var(--lx-radius);
   margin-bottom: 8px;
   border-left: 3px solid #12b7f5;
 }

@@ -73,7 +73,7 @@ function close() {
   width: min(520px, 94vw);
   max-height: min(520px, 85vh);
   background: #fff;
-  border-radius: 12px;
+  border-radius: var(--lx-radius);
   display: flex;
   flex-direction: column;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
@@ -141,7 +141,7 @@ function close() {
   gap: 12px;
   padding: 12px;
   background: #f5f5f5;
-  border-radius: 8px;
+  border-radius: var(--lx-radius);
 }
 
 .play {

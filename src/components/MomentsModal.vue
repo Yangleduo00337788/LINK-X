@@ -250,7 +250,7 @@ function closeMoments() {
   width: 440px;
   height: 560px;
   background: #ffffff;
-  border-radius: 12px;
+  border-radius: var(--lx-radius);
   overflow: hidden;
   text-align: left;
   margin: auto;
@@ -296,7 +296,7 @@ function closeMoments() {
 .action-btn {
   width: 32px;
   height: 32px;
-  border-radius: 6px;
+  border-radius: var(--lx-radius);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -453,7 +453,7 @@ function closeMoments() {
   width: 32px;
   height: 22px;
   background: #f5f5f5;
-  border-radius: 4px;
+  border-radius: var(--lx-radius);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -468,7 +468,7 @@ function closeMoments() {
   transform: translateY(-50%) scale(0.9);
   transform-origin: right center;
   background: #4c5154;
-  border-radius: 4px;
+  border-radius: var(--lx-radius);
   display: flex;
   align-items: center;
   padding: 0 12px;
@@ -507,7 +507,7 @@ function closeMoments() {
 /* 点赞和评论区 */
 .post-interactions {
   background: #f7f7f7;
-  border-radius: 4px;
+  border-radius: var(--lx-radius);
   padding: 8px 10px;
   position: relative;
   margin-top: 10px;

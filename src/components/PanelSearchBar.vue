@@ -66,10 +66,10 @@ function onAdd(key: string) {
 
 .search-input {
   flex: 1;
-  --search-radius: 9px;
+  --search-radius: var(--lx-radius);
   --n-color: #ebebeb !important;
   --n-color-focus: #ebebeb !important;
-  --n-border-radius: 9px !important;
+  --n-border-radius: var(--lx-radius) !important;
   --n-border: 1px solid transparent !important;
   --n-border-hover: 1px solid transparent !important;
   --n-border-focus: 1px solid transparent !important;
@@ -94,7 +94,7 @@ function onAdd(key: string) {
 .add-btn {
   width: 32px;
   height: 32px;
-  border-radius: 9px;
+  border-radius: var(--lx-radius);
   background: #ebebeb;
   display: flex;
   align-items: center;

@@ -79,7 +79,7 @@ function handleLogoutClick() {
     </div>
 
     <div class="nav-bottom">
-      <n-popover placement="right-end" trigger="click" :show-arrow="false" style="padding: 0; border-radius: 9px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.12);">
+      <n-popover placement="right-end" trigger="click" :show-arrow="false" style="padding: 0; border-radius: var(--lx-radius); overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.12);">
         <template #trigger>
           <div
             class="nav-item"
@@ -179,7 +179,7 @@ function handleLogoutClick() {
 .nav-item {
   width: 40px;
   height: 40px;
-  border-radius: var(--lx-radius-sm, 8px);
+  border-radius: var(--lx-radius);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -216,7 +216,7 @@ function handleLogoutClick() {
   background: #ffffff;
   display: flex;
   flex-direction: column;
-  border-radius: 9px;
+  border-radius: var(--lx-radius);
 }
 
 .menu-top-icons {
@@ -233,7 +233,7 @@ function handleLogoutClick() {
   color: #333;
   cursor: pointer;
   padding: 8px;
-  border-radius: 6px;
+  border-radius: var(--lx-radius);
   transition: background 0.15s;
 }
 
@@ -262,7 +262,7 @@ function handleLogoutClick() {
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  border-radius: 6px;
+  border-radius: var(--lx-radius);
   cursor: pointer;
   color: #333;
   font-size: 14px;

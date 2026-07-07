@@ -76,7 +76,7 @@ function hangUp() {
 .call-window {
   width: min(420px, 90vw);
   background: linear-gradient(180deg, #3a3a3a 0%, #2a2a2a 100%);
-  border-radius: 12px;
+  border-radius: var(--lx-radius);
   padding: 24px 20px 28px;
   color: #fff;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);

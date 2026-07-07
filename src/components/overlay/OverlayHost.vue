@@ -317,14 +317,14 @@ function createChannelDone() {
   text-align: center;
   padding: 24px;
   background: #fff;
-  border-radius: 12px;
+  border-radius: var(--lx-radius);
 }
 
 .logo {
   width: 72px;
   height: 72px;
   margin: 0 auto 16px;
-  border-radius: 16px;
+  border-radius: var(--lx-radius);
   background: #0099ff;
   color: #fff;
   font-size: 28px;
@@ -351,7 +351,7 @@ function createChannelDone() {
   background: linear-gradient(135deg, #0099ff, #66b3ff);
   color: #fff;
   padding: 32px;
-  border-radius: 16px;
+  border-radius: var(--lx-radius);
   text-align: center;
 }
 
@@ -364,14 +364,14 @@ function createChannelDone() {
   text-align: center;
   padding: 24px;
   background: #fff;
-  border-radius: 12px;
+  border-radius: var(--lx-radius);
 }
 
 .app-icon-lg {
   width: 80px;
   height: 80px;
   margin: 0 auto 16px;
-  border-radius: 16px;
+  border-radius: var(--lx-radius);
   color: #fff;
   font-size: 32px;
   display: flex;
@@ -395,7 +395,7 @@ function createChannelDone() {
   height: 240px;
   margin: 0 auto 16px;
   background: #e8e8e8;
-  border-radius: 8px;
+  border-radius: var(--lx-radius);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -405,7 +405,7 @@ function createChannelDone() {
 .history-list {
   margin-top: 12px;
   background: #fff;
-  border-radius: 8px;
+  border-radius: var(--lx-radius);
   padding: 12px;
 }
 

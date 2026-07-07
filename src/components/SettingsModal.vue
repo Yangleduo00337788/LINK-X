@@ -40,7 +40,7 @@ const messageDetail = ref(true)
     :bordered="false"
     :show-icon="false"
     title="设置"
-    style="width: 720px; border-radius: 12px; overflow: hidden; padding: 0;"
+    style="width: 720px; border-radius: var(--lx-radius); overflow: hidden; padding: 0;"
   >
     <div class="settings-container">
       <n-tabs
@@ -242,7 +242,7 @@ const messageDetail = ref(true)
   border-radius: 0;
   transition: all 0.2s ease;
   margin: 4px 12px;
-  border-radius: 8px;
+  border-radius: var(--lx-radius);
 }
 
 :deep(.n-tabs-tab:hover) {
@@ -289,7 +289,7 @@ const messageDetail = ref(true)
   align-items: center;
   padding: 12px 16px;
   margin: 0 -16px;
-  border-radius: 8px;
+  border-radius: var(--lx-radius);
   transition: background 0.2s;
 }
 
@@ -355,7 +355,7 @@ const messageDetail = ref(true)
 .preview-color {
   width: 80px;
   height: 120px;
-  border-radius: 8px;
+  border-radius: var(--lx-radius);
   border: 2px solid transparent;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   transition: all 0.2s ease;

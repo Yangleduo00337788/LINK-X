@@ -55,7 +55,7 @@ function handleMore() {
     preset="card"
     :bordered="false"
     :show-icon="false"
-    style="width: 320px; border-radius: 12px; padding: 0; overflow: hidden;"
+    style="width: 320px; border-radius: var(--lx-radius); padding: 0; overflow: hidden;"
   >
     <div class="profile-header">
       <Avatar 
@@ -192,7 +192,7 @@ function handleMore() {
 .action-btn {
   width: 100%;
   height: 40px;
-  border-radius: 9px;
+  border-radius: var(--lx-radius);
   font-size: 15px;
   background: #12b7f5 !important;
 }

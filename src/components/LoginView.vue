@@ -113,7 +113,7 @@ function handleLogin() {
   width: 320px;
   height: 460px;
   background: #ffffff;
-  border-radius: 16px;
+  border-radius: var(--lx-radius);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
   padding: 36px 24px 24px;
   display: flex;
@@ -158,7 +158,7 @@ function handleLogin() {
 }
 
 .login-input {
-  --n-border-radius: 8px !important;
+  --n-border-radius: var(--lx-radius) !important;
   --n-height: 42px !important;
   background: #f7f7f7;
 }
@@ -180,7 +180,7 @@ function handleLogin() {
 
 .login-btn {
   height: 42px;
-  border-radius: 8px;
+  border-radius: var(--lx-radius);
   font-size: 15px;
   font-weight: 500;
   letter-spacing: 4px;

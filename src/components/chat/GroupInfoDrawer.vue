@@ -193,7 +193,7 @@ function demo(t: string) {
 .share-btn {
   min-width: 88px;
   height: 32px;
-  border-radius: 9px;
+  border-radius: var(--lx-radius);
   border: 1px solid #ddd;
   background: #fff;
   font-size: 13px;
@@ -332,7 +332,7 @@ function demo(t: string) {
   height: 40px;
   border: none;
   background: #f5f5f5;
-  border-radius: 9px;
+  border-radius: var(--lx-radius);
   font-size: 14px;
   color: #333;
   cursor: pointer;

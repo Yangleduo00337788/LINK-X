@@ -54,7 +54,7 @@ function close() {
   width: min(480px, 94vw);
   max-height: min(420px, 80vh);
   background: #fff;
-  border-radius: 12px;
+  border-radius: var(--lx-radius);
   display: flex;
   flex-direction: column;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
@@ -119,7 +119,7 @@ function close() {
   color: #fa8c16;
   background: #fff7e6;
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: var(--lx-radius);
 }
 
 .time {
@@ -136,7 +136,7 @@ function close() {
   color: #12b7f5;
   background: #e6f7ff;
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: var(--lx-radius);
 }
 
 .post-body {

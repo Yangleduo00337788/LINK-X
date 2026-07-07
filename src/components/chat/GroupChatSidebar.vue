@@ -152,7 +152,7 @@ const members = [
   align-items: center;
   gap: 10px;
   padding: 8px 4px;
-  border-radius: 8px;
+  border-radius: var(--lx-radius);
 }
 
 .member-row:hover {

@@ -144,7 +144,7 @@ function joinGroup(name: string) {
   width: min(920px, 96vw);
   height: min(640px, 90vh);
   background: #fff;
-  border-radius: 12px;
+  border-radius: var(--lx-radius);
   box-shadow: 0 16px 56px rgba(0, 0, 0, 0.2);
   display: flex;
   flex-direction: column;
@@ -169,7 +169,7 @@ function joinGroup(name: string) {
   flex: 1;
   height: 36px;
   border: 1px solid #e0e0e0;
-  border-radius: 9px;
+  border-radius: var(--lx-radius);
   padding: 0 14px;
   font-size: 14px;
   outline: none;
@@ -183,7 +183,7 @@ function joinGroup(name: string) {
   min-width: 72px;
   height: 36px;
   border: none;
-  border-radius: 9px;
+  border-radius: var(--lx-radius);
   background: #12b7f5;
   color: #fff;
   font-size: 14px;
@@ -240,7 +240,7 @@ function joinGroup(name: string) {
 .g-avatar {
   width: 48px;
   height: 48px;
-  border-radius: 10px;
+  border-radius: var(--lx-radius);
   background: linear-gradient(135deg, #6eb5ff, #12b7f5);
   color: #fff;
   font-size: 18px;
@@ -276,7 +276,7 @@ function joinGroup(name: string) {
 .tag {
   background: #f5f5f5;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--lx-radius);
   color: #666;
 }
 
@@ -291,7 +291,7 @@ function joinGroup(name: string) {
   min-width: 64px;
   height: 32px;
   border: 1px solid #12b7f5;
-  border-radius: 9px;
+  border-radius: var(--lx-radius);
   background: #fff;
   color: #12b7f5;
   font-size: 13px;

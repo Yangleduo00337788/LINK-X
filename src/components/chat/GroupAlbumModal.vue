@@ -85,7 +85,7 @@ function upload() {
   width: min(680px, 96vw);
   height: min(480px, 85vh);
   background: #fff;
-  border-radius: 12px;
+  border-radius: var(--lx-radius);
   display: flex;
   flex-direction: column;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
@@ -167,7 +167,7 @@ function upload() {
   height: 30px;
   padding: 0 12px;
   border: none;
-  border-radius: 9px;
+  border-radius: var(--lx-radius);
   background: #12b7f5;
   color: #fff;
   font-size: 12px;
@@ -195,7 +195,7 @@ function upload() {
   height: 36px;
   padding: 0 24px;
   border: none;
-  border-radius: 9px;
+  border-radius: var(--lx-radius);
   background: #12b7f5;
   color: #fff;
   font-size: 14px;

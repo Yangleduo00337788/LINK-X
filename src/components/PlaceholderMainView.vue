@@ -64,7 +64,7 @@ const emptyHint = computed(() => {
 .detail-card {
   max-width: 480px;
   background: #fff;
-  border-radius: 12px;
+  border-radius: var(--lx-radius);
   padding: 24px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
@@ -95,7 +95,7 @@ const emptyHint = computed(() => {
 .big-icon {
   width: 72px;
   height: 72px;
-  border-radius: 16px;
+  border-radius: var(--lx-radius);
   color: #fff;
   font-size: 32px;
   display: flex;

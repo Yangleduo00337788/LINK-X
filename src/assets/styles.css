@@ -8,8 +8,9 @@
   --lx-text-muted: #8e8e93;
   --lx-border: rgba(0, 0, 0, 0.055);
   --lx-divider: #dcdce0;
-  --lx-radius-sm: 8px;
-  --lx-radius-md: 10px;
+  --lx-radius: 9px;
+  --lx-radius-sm: 9px;
+  --lx-radius-md: 9px;
   --lx-shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.05);
   --lx-shadow-panel: 0 0 0 1px rgba(0, 0, 0, 0.04);
 }
@@ -109,7 +110,7 @@ html, body, #app {
 }
 
 .n-dropdown-option {
-  border-radius: 6px !important;
+  border-radius: var(--lx-radius) !important;
 }
 
 /* 群应用下拉：与搜索栏 9px 圆角一致 */
