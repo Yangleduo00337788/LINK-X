@@ -167,17 +167,15 @@ const showPlaceholder = computed(() =>
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #dcdce1;
+  background: transparent;
   border-radius: var(--lx-radius);
   overflow: hidden;
   position: relative;
-  transition: background 0.3s ease;
 }
 
 .app-shell.is-focused {
-  background: rgba(220, 220, 225, 0.75);
-  backdrop-filter: blur(40px) saturate(150%);
-  -webkit-backdrop-filter: blur(40px) saturate(150%);
+  /* 使用 Windows 官方 Mica 材质，不再使用 CSS 模拟 */
+  background: transparent;
 }
 
 .top-status {

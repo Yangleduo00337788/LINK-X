@@ -110,7 +110,8 @@ function createMomentsWindow() {
     resizable: false,
     frame: false,
     titleBarStyle: 'hidden',
-    transparent: true,
+    transparent: false,
+    backgroundMaterial: 'acrylic',
     show: false,
     webPreferences: {
       preload: preloadPath,
@@ -156,7 +157,8 @@ function createNoteEditorWindow() {
     minHeight: 400,
     frame: false,
     titleBarStyle: 'hidden',
-    transparent: true,
+    transparent: false,
+    backgroundMaterial: 'mica',
     show: false,
     webPreferences: {
       preload: preloadPath,
@@ -204,7 +206,8 @@ function createWindow() {
     minHeight: 676,
     frame: false,
     titleBarStyle: 'hidden',
-    transparent: true,
+    transparent: false,
+    backgroundMaterial: 'mica',
     show: false,
     webPreferences: {
       preload: preloadPath,
