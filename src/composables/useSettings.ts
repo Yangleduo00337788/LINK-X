@@ -1,9 +1,11 @@
 import { ref } from 'vue'
 
 const isSettingsModalVisible = ref(false)
+const settingsActiveTab = ref('general')
 
 export function useSettings() {
-  function openSettings() {
+  function openSettings(tab = 'general') {
+    settingsActiveTab.value = tab
     isSettingsModalVisible.value = true
   }
 
@@ -13,6 +15,7 @@ export function useSettings() {
 
   return {
     isSettingsModalVisible,
+    settingsActiveTab,
     openSettings,
     closeSettings
   }

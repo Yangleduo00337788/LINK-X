@@ -2,22 +2,27 @@
 import { ref, onMounted } from 'vue'
 import AppShell from './components/AppShell.vue'
 import MomentsModal from './components/MomentsModal.vue'
+import NoteEditor from './components/NoteEditor.vue'
 import LoginView from './components/LoginView.vue'
 import { useAppState } from './composables/useAppState'
 
 const { isLoggedIn } = useAppState()
 const isMomentsWindow = ref(false)
+const isNoteEditorWindow = ref(false)
 
 onMounted(() => {
-  // 根据 URL hash 判断当前是否是朋友圈独立窗口
+  // 根据 URL hash 判断当前是否是独立窗口
   if (window.location.hash.includes('moments')) {
     isMomentsWindow.value = true
+  } else if (window.location.hash.includes('note-editor')) {
+    isNoteEditorWindow.value = true
   }
 })
 </script>
 
 <template>
   <MomentsModal v-if="isMomentsWindow" />
+  <NoteEditor v-else-if="isNoteEditorWindow" />
   <template v-else>
     <AppShell v-if="isLoggedIn" />
     <LoginView v-else />

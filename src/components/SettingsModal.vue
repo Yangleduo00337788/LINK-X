@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import {
   NModal,
   NTabs,
@@ -21,10 +21,17 @@ import {
 import { useSettings } from '../composables/useSettings'
 import { useAppState } from '../composables/useAppState'
 
-const { isSettingsModalVisible } = useSettings()
+const { isSettingsModalVisible, settingsActiveTab } = useSettings()
 const { userProfile, theme, toggleTheme, toggleOffline, isOffline, simulateIncomingMessage, isLoading } = useAppState()
 
 const activeTab = ref('general')
+
+// 监听从外部传进来的 Tab 激活状态
+watch(settingsActiveTab, (newVal) => {
+  if (newVal) {
+    activeTab.value = newVal
+  }
+}, { immediate: true })
 
 // 模拟的设置状态
 const autoStart = ref(true)
@@ -218,7 +225,7 @@ const messageDetail = ref(true)
 .settings-container {
   display: flex;
   height: 480px;
-  background: var(--lx-bg-panel, #ffffff);
+  background: #ffffff;
 }
 
 :deep(.n-tabs) {
@@ -226,9 +233,9 @@ const messageDetail = ref(true)
 }
 
 :deep(.n-tabs-nav) {
-  width: 160px !important;
-  background: var(--lx-bg-panel, #ffffff);
-  border-right: 1px solid rgba(0, 0, 0, 0.05);
+  width: 140px !important;
+  background: #f7f7f7 !important;
+  border-right: none !important;
   padding: 24px 0;
 }
 
@@ -237,32 +244,33 @@ const messageDetail = ref(true)
 }
 
 :deep(.n-tabs-tab) {
-  padding: 12px 20px !important;
-  justify-content: flex-start !important;
-  border-radius: 0;
+  padding: 8px 16px !important;
+  justify-content: center !important;
+  border-radius: 6px !important;
   transition: all 0.2s ease;
   margin: 4px 12px;
-  border-radius: var(--lx-radius);
+  color: #333 !important;
 }
 
 :deep(.n-tabs-tab:hover) {
-  background: rgba(0, 0, 0, 0.03);
+  background: #ebebeb;
 }
 
 :deep(.n-tabs-tab--active) {
-  background: rgba(18, 183, 245, 0.08) !important;
-  color: #12b7f5 !important;
+  background: #e2e2e2 !important;
+  color: #000 !important;
   font-weight: 500;
 }
 
 :deep(.n-tabs-tab__label) {
   width: 100%;
+  text-align: center;
 }
 
 .tab-label {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
   font-size: 14px;
 }
 
@@ -276,8 +284,8 @@ const messageDetail = ref(true)
 
 .section-title {
   font-size: 13px;
-  color: #12b7f5;
-  font-weight: 500;
+  color: #999;
+  font-weight: normal;
   margin-bottom: 12px;
   margin-top: 0;
   letter-spacing: 0.5px;
@@ -294,7 +302,7 @@ const messageDetail = ref(true)
 }
 
 .setting-item:hover {
-  background: rgba(0, 0, 0, 0.02);
+  background: #f5f5f5;
 }
 
 .setting-info {

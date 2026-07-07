@@ -1,51 +1,40 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { NIcon } from 'naive-ui'
-import { DocumentTextOutline, ImageOutline, LinkOutline, FolderOutline } from '@vicons/ionicons5'
+import { DocumentTextOutline, FolderOutline, ImageOutline, FilmOutline, MusicalNotesOutline } from '@vicons/ionicons5'
 import PanelSearchBar from './PanelSearchBar.vue'
-import { favorites as favList } from '../data/mockData'
 import { useSecondaryView } from '../composables/useSecondaryView'
-import type { FavoriteItem } from '../types'
 
-const { activeFavorite } = useSecondaryView()
+const { activeFavorite } = useSecondaryView() // 复用以控制详情面板展示
 const search = ref('')
-const activeTab = ref('all') // all, link, image, file, note
+const activeTab = ref('recent') // recent, document, image, media, other
 
-const addOptions = [
-  { label: '写笔记', key: 'note' }
+// 模拟文件数据
+const mockFiles = [
+  { id: 'f1', title: '产品需求文档_v2.docx', size: '1.2 MB', time: '10:30', type: 'document', sender: '张三' },
+  { id: 'f2', title: 'Q3季度总结PPT.pptx', size: '4.5 MB', time: '昨天', type: 'document', sender: '李四' },
+  { id: 'f3', title: '设计稿_切图.zip', size: '12.8 MB', time: '昨天', type: 'other', sender: '王五' },
+  { id: 'f4', title: '会议录屏.mp4', size: '105.2 MB', time: '星期一', type: 'media', sender: '赵六' },
+  { id: 'f5', title: 'UI视觉规范.png', size: '3.1 MB', time: '星期一', type: 'image', sender: '张三' },
+  { id: 'f6', title: 'API接口联调.json', size: '12 KB', time: '10-05', type: 'other', sender: '系统' }
 ]
 
-function onAddSelect(key: string) {
-  if (key === 'note') {
-    if (window.electronAPI) {
-      window.electronAPI.openNoteEditor()
-    } else {
-      // 浏览器环境 fallback，如打开一个 modal 等
-      window.location.hash = 'note-editor'
-    }
-  }
-}
-
 const filtered = computed(() => {
-  let list = favList
-  if (activeTab.value !== 'all') {
+  let list = mockFiles
+  if (activeTab.value !== 'recent') {
     list = list.filter(f => f.type === activeTab.value)
   }
   
   const q = search.value.trim().toLowerCase()
   if (!q) return list
-  return list.filter(f => f.title.toLowerCase().includes(q) || f.preview.toLowerCase().includes(q))
+  return list.filter(f => f.title.toLowerCase().includes(q) || f.sender.toLowerCase().includes(q))
 })
 
-function iconFor(type: FavoriteItem['type']) {
+function iconFor(type: string) {
   if (type === 'image') return ImageOutline
-  if (type === 'link') return LinkOutline
-  if (type === 'file') return FolderOutline
-  return DocumentTextOutline
-}
-
-function openItem(item: FavoriteItem) {
-  activeFavorite.value = item
+  if (type === 'media') return FilmOutline
+  if (type === 'document') return DocumentTextOutline
+  return FolderOutline
 }
 
 function setTab(tab: string) {
@@ -54,47 +43,44 @@ function setTab(tab: string) {
 </script>
 
 <template>
-  <div class="fav-panel">
-    <PanelSearchBar
-      v-model="search"
-      placeholder="搜索收藏"
-      :add-options="addOptions"
-      @add-select="onAddSelect"
-    />
-    <div class="fav-tabs">
-      <div class="tab-item" :class="{ active: activeTab === 'all' }" @click="setTab('all')">全部</div>
-      <div class="tab-item" :class="{ active: activeTab === 'link' }" @click="setTab('link')">链接</div>
+  <div class="files-panel">
+    <PanelSearchBar v-model="search" placeholder="搜索文件 / 发送者" />
+    <div class="files-tabs">
+      <div class="tab-item" :class="{ active: activeTab === 'recent' }" @click="setTab('recent')">最近</div>
+      <div class="tab-item" :class="{ active: activeTab === 'document' }" @click="setTab('document')">文档</div>
       <div class="tab-item" :class="{ active: activeTab === 'image' }" @click="setTab('image')">图片</div>
-      <div class="tab-item" :class="{ active: activeTab === 'file' }" @click="setTab('file')">文件</div>
-      <div class="tab-item" :class="{ active: activeTab === 'note' }" @click="setTab('note')">笔记</div>
+      <div class="tab-item" :class="{ active: activeTab === 'media' }" @click="setTab('media')">音视频</div>
+      <div class="tab-item" :class="{ active: activeTab === 'other' }" @click="setTab('other')">其他</div>
     </div>
     <div class="list">
       <div
         v-for="item in filtered"
         :key="item.id"
         class="row"
-        :class="{ active: activeFavorite?.id === item.id }"
-        @click="openItem(item)"
       >
         <div class="icon-wrap" :class="item.type">
-          <n-icon :component="iconFor(item.type)" :size="20" />
+          <n-icon :component="iconFor(item.type)" :size="24" />
         </div>
         <div class="info">
           <div class="title">{{ item.title }}</div>
-          <div class="preview">{{ item.preview }}</div>
+          <div class="meta">
+            <span>{{ item.size }}</span>
+            <span class="dot">·</span>
+            <span>来自: {{ item.sender }}</span>
+          </div>
         </div>
         <span class="time">{{ item.time }}</span>
       </div>
       
       <div v-if="filtered.length === 0" class="empty-state">
-        无匹配的收藏内容
+        没有找到相关文件
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.fav-panel {
+.files-panel {
   width: 100%;
   height: 100%;
   background: var(--lx-bg-panel, #f5f5f5);
@@ -104,7 +90,7 @@ function setTab(tab: string) {
   flex-shrink: 0;
 }
 
-.fav-tabs {
+.files-tabs {
   display: flex;
   padding: 8px 16px 4px;
   gap: 16px;
@@ -161,44 +147,45 @@ function setTab(tab: string) {
   background: rgba(0, 0, 0, 0.04);
 }
 
-.row.active {
-  background: rgba(18, 183, 245, 0.1);
-}
-
 .icon-wrap {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--lx-radius);
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.icon-wrap.link { background: #e6f2ff; color: #0099ff; }
+.icon-wrap.document { background: #e6f2ff; color: #0099ff; }
 .icon-wrap.image { background: #fff0e6; color: #ff8800; }
-.icon-wrap.file { background: #e6ffed; color: #00cc44; }
-.icon-wrap.note { background: #f2e6ff; color: #8800ff; }
+.icon-wrap.media { background: #f2e6ff; color: #8800ff; }
+.icon-wrap.other { background: #e6ffed; color: #00cc44; }
 
 .info {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .title {
   font-size: 14px;
   color: #333;
-  margin-bottom: 2px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.preview {
+.meta {
   font-size: 12px;
   color: #999;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+}
+
+.dot {
+  margin: 0 4px;
 }
 
 .time {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { NIcon } from 'naive-ui'
-import { CloudyOutline } from '@vicons/ionicons5'
+import { PushOutline } from '@vicons/ionicons5'
 import WindowControls from './WindowControls.vue'
 import { useAppState } from '../composables/useAppState'
 import { useOverlay } from '../composables/useOverlay'
@@ -11,14 +11,12 @@ withDefaults(
     variant?: 'profile' | 'chat' | 'module'
     title?: string
     subtitle?: string
-    weatherText?: string
     showTheme?: boolean
   }>(),
   {
     variant: 'profile',
     title: '',
     subtitle: '',
-    weatherText: '阴',
     showTheme: true
   }
 )
@@ -35,8 +33,18 @@ const centerTitle = computed(() => {
   return ''
 })
 
-function openWeather() {
-  openOverlay('weather')
+const isPinned = ref(false)
+
+onMounted(async () => {
+  if (window.electronAPI && window.electronAPI.isPinned) {
+    isPinned.value = await window.electronAPI.isPinned()
+  }
+})
+
+async function togglePin() {
+  if (window.electronAPI && window.electronAPI.togglePin) {
+    isPinned.value = await window.electronAPI.togglePin()
+  }
 }
 
 function openProfile() {
@@ -86,9 +94,8 @@ function openProfile() {
     </div>
 
     <div class="status-right">
-      <button type="button" class="weather" title="天气" @click="openWeather">
-        <n-icon :component="CloudyOutline" :size="16" />
-        <span>{{ weatherText }}</span>
+      <button type="button" class="pin-btn" :class="{ active: isPinned }" title="置顶窗口" @click="togglePin">
+        <n-icon :component="PushOutline" :size="16" />
       </button>
     </div>
 
@@ -262,22 +269,27 @@ function openProfile() {
   -webkit-app-region: no-drag;
 }
 
-.weather {
+.pin-btn {
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
   color: #8c8c8c;
-  font-size: 12px;
   cursor: pointer;
-  white-space: nowrap;
   border: none;
   background: none;
-  padding: 4px 8px;
+  width: 28px;
+  height: 28px;
   border-radius: var(--lx-radius);
+  transition: all 0.2s;
 }
 
-.weather:hover {
+.pin-btn:hover {
   color: #666;
   background: rgba(0, 0, 0, 0.04);
+}
+
+.pin-btn.active {
+  color: #12b7f5;
+  background: rgba(18, 183, 245, 0.1);
 }
 </style>

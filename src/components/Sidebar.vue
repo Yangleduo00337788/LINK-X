@@ -2,7 +2,7 @@
 import {
   ChatbubbleEllipsesOutline,
   PersonOutline,
-  DocumentTextOutline,
+  ApertureOutline,
   MenuOutline,
   BookmarkOutline,
   FolderOutline,
@@ -22,7 +22,7 @@ import { useChatModals } from '../composables/useChatModals'
 import { useSettings } from '../composables/useSettings'
 import type { NavKey } from '../types'
 
-const { navKey, setNav, logout } = useAppState()
+const { navKey, setNav, logout, toggleTheme, lock } = useAppState()
 const { menuOpen } = useSecondaryView()
 const { openMomentsModal } = useChatModals()
 const { openSettings } = useSettings()
@@ -33,7 +33,9 @@ const message = useMessage()
 const mainNav: { key: NavKey; icon: typeof ChatbubbleEllipsesOutline }[] = [
   { key: 'chat', icon: ChatbubbleEllipsesOutline },
   { key: 'contacts', icon: PersonOutline },
-  { key: 'moments', icon: DocumentTextOutline }
+  { key: 'favorites', icon: BookmarkOutline },
+  { key: 'files', icon: FolderOutline },
+  { key: 'moments', icon: ApertureOutline }
 ]
 
 function handleClick(key: NavKey | 'menu') {
@@ -50,7 +52,39 @@ function handleClick(key: NavKey | 'menu') {
     }
     return
   }
+  if (key === 'files') {
+    handleFilesClick()
+    return
+  }
   setNav(key)
+}
+
+function handleFavoritesClick() {
+  setNav('favorites')
+}
+
+function handleFilesClick() {
+  setNav('files')
+}
+
+function handlePaletteClick() {
+  openSettings('appearance')
+}
+
+function handleHistoryClick() {
+  message.info('聊天记录管理功能开发中')
+}
+
+function handleUpdateClick() {
+  message.success('当前已是最新版本：LinkX v1.0.0')
+}
+
+function handleHelpClick() {
+  message.info('帮助与反馈中心')
+}
+
+function handleLockClick() {
+  lock()
 }
 
 function handleSettingsClick() {
@@ -79,6 +113,14 @@ function handleLogoutClick() {
     </div>
 
     <div class="nav-bottom">
+      <div
+        class="nav-item"
+        title="主题调色盘"
+        @click="handlePaletteClick"
+      >
+        <n-icon :component="ColorPaletteOutline" :size="20" />
+      </div>
+
       <n-popover placement="right-end" trigger="click" :show-arrow="false" style="padding: 0; border-radius: var(--lx-radius); overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.12);">
         <template #trigger>
           <div
@@ -89,36 +131,21 @@ function handleLogoutClick() {
           </div>
         </template>
         <div class="more-menu">
-          <div class="menu-top-icons">
-            <div class="icon-btn">
-              <n-icon :component="BookmarkOutline" :size="20" />
-              <span>收藏</span>
-            </div>
-            <div class="icon-btn">
-              <n-icon :component="FolderOutline" :size="20" />
-              <span>文件</span>
-            </div>
-            <div class="icon-btn">
-              <n-icon :component="ColorPaletteOutline" :size="20" />
-              <span>调色盘</span>
-            </div>
-          </div>
-          <div class="menu-divider"></div>
           <div class="menu-list">
-            <div class="menu-list-item">
+            <div class="menu-list-item" @click="handleHistoryClick">
               <n-icon :component="TimeOutline" :size="16" />
               <span>聊天记录管理</span>
             </div>
-            <div class="menu-list-item">
+            <div class="menu-list-item" @click="handleUpdateClick">
               <n-icon :component="RefreshOutline" :size="16" />
               <span>检查更新</span>
             </div>
-            <div class="menu-list-item">
+            <div class="menu-list-item" @click="handleHelpClick">
               <n-icon :component="HelpCircleOutline" :size="16" />
               <span>帮助</span>
               <n-icon :component="ChevronForwardOutline" class="arrow" />
             </div>
-            <div class="menu-list-item">
+            <div class="menu-list-item" @click="handleLockClick">
               <n-icon :component="LockClosedOutline" :size="16" />
               <span>锁定</span>
             </div>
@@ -141,7 +168,7 @@ function handleLogoutClick() {
 .sidebar {
   width: 52px;
   height: 100%;
-  background: var(--lx-bg-panel-deep, #ececec);
+  background: transparent;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -217,38 +244,6 @@ function handleLogoutClick() {
   display: flex;
   flex-direction: column;
   border-radius: var(--lx-radius);
-}
-
-.menu-top-icons {
-  display: flex;
-  padding: 12px 16px;
-  justify-content: space-between;
-}
-
-.icon-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  color: #333;
-  cursor: pointer;
-  padding: 8px;
-  border-radius: var(--lx-radius);
-  transition: background 0.15s;
-}
-
-.icon-btn:hover {
-  background: #f0f0f0;
-}
-
-.icon-btn span {
-  font-size: 12px;
-}
-
-.menu-divider {
-  height: 1px;
-  background: #ebebeb;
-  margin: 0 16px;
 }
 
 .menu-list {

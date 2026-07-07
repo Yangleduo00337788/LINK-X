@@ -75,6 +75,19 @@ function registerWindowIpc() {
     const win = winFromSender(event)
     return win ? win.isMaximized() : false
   })
+  ipcMain.handle('window:is-pinned', event => {
+    const win = winFromSender(event)
+    return win ? win.isAlwaysOnTop() : false
+  })
+  ipcMain.handle('window:toggle-pin', event => {
+    const win = winFromSender(event)
+    if (win) {
+      const isPinned = !win.isAlwaysOnTop()
+      win.setAlwaysOnTop(isPinned)
+      return isPinned
+    }
+    return false
+  })
 }
 
 registerWindowIpc()
@@ -122,6 +135,58 @@ function createMomentsWindow() {
 
 ipcMain.on('window-open-moments', () => {
   createMomentsWindow()
+})
+
+let noteEditorWindow: BrowserWindow | null = null
+
+function createNoteEditorWindow() {
+  if (noteEditorWindow) {
+    if (noteEditorWindow.isMinimized()) noteEditorWindow.restore()
+    noteEditorWindow.focus()
+    return
+  }
+
+  noteEditorWindow = new BrowserWindow({
+    width: 800,
+    height: 600,
+    minWidth: 600,
+    minHeight: 400,
+    frame: false,
+    titleBarStyle: 'hidden',
+    transparent: true,
+    show: false,
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false
+    }
+  })
+
+  noteEditorWindow.once('ready-to-show', () => {
+    noteEditorWindow?.show()
+  })
+
+  if (isDev && process.env.VITE_DEV_SERVER_URL) {
+    noteEditorWindow.loadURL(process.env.VITE_DEV_SERVER_URL + '#/note-editor')
+  } else {
+    noteEditorWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: 'note-editor' })
+  }
+
+  noteEditorWindow.on('maximize', () => {
+    if (noteEditorWindow) pushMaximizedState(noteEditorWindow)
+  })
+  noteEditorWindow.on('unmaximize', () => {
+    if (noteEditorWindow) pushMaximizedState(noteEditorWindow)
+  })
+
+  noteEditorWindow.on('closed', () => {
+    noteEditorWindow = null
+  })
+}
+
+ipcMain.on('window-open-note-editor', () => {
+  createNoteEditorWindow()
 })
 
 function createWindow() {

@@ -17,6 +17,7 @@ const userProfile = ref({
 const isLoggedIn = ref(true)
 const isLoading = ref(false)
 const isOffline = ref(false)
+const isLocked = ref(false)
 
 export function useAppState() {
   const currentSession = computed(() =>
@@ -102,6 +103,14 @@ export function useAppState() {
     }, 1500)
   }
 
+  function lock() {
+    isLocked.value = true
+  }
+
+  function unlock() {
+    isLocked.value = false
+  }
+
   function toggleOffline() {
     isOffline.value = !isOffline.value
   }
@@ -163,6 +172,7 @@ export function useAppState() {
     isLoggedIn,
     isLoading,
     isOffline,
+    isLocked,
     setNav,
     selectSession,
     ensureSession,
@@ -173,6 +183,8 @@ export function useAppState() {
     updateSignature,
     updateNickname,
     logout,
-    login
+    login,
+    lock,
+    unlock
   }
 }

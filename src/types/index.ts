@@ -1,4 +1,4 @@
-export type NavKey = 'chat' | 'contacts' | 'favorites' | 'moments' | 'menu'
+export type NavKey = 'chat' | 'contacts' | 'favorites' | 'files' | 'moments' | 'menu'
 
 export type OverlayPage =
   | 'settings'

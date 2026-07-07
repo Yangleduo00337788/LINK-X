@@ -7,7 +7,10 @@ declare global {
       maximize: () => Promise<void>
       close: () => Promise<void>
       openMoments: () => void
+      openNoteEditor: () => void
       isMaximized: () => Promise<boolean>
+      isPinned: () => Promise<boolean>
+      togglePin: () => Promise<boolean>
       onMaximizedChange: (callback: (maximized: boolean) => void) => () => void
       isElectron?: boolean
     }
