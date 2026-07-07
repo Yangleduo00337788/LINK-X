@@ -2,9 +2,7 @@
 import {
   ChatbubbleEllipsesOutline,
   PersonOutline,
-  StarOutline,
   DocumentTextOutline,
-  GridOutline,
   MenuOutline,
   MailOutline,
   PhonePortraitOutline,
@@ -32,16 +30,14 @@ const { openMomentsModal } = useChatModals()
 const mainNav: { key: NavKey; icon: typeof ChatbubbleEllipsesOutline }[] = [
   { key: 'chat', icon: ChatbubbleEllipsesOutline },
   { key: 'contacts', icon: PersonOutline },
-  { key: 'favorites', icon: StarOutline },
-  { key: 'moments', icon: DocumentTextOutline },
-  { key: 'apps', icon: GridOutline }
+  { key: 'moments', icon: DocumentTextOutline }
 ]
 
 function handleClick(key: NavKey | 'menu') {
   if (key === 'menu') {
     return
   }
-  if (key === 'favorites') {
+  if (key === 'moments') {
     // 调用 Electron API 打开独立的 X友圈 窗口
     if (window.electronAPI) {
       window.electronAPI.openMoments()
