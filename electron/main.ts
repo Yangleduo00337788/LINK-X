@@ -64,6 +64,9 @@ function registerWindowIpc() {
   ipcMain.removeAllListeners('window-maximize')
   ipcMain.removeAllListeners('window-close')
 
+  ipcMain.removeHandler('window:is-pinned')
+  ipcMain.removeHandler('window:toggle-pin')
+
   ipcMain.on('window-minimize', onMinimize)
   ipcMain.on('window-maximize', onMaximize)
   ipcMain.on('window-close', onClose)
