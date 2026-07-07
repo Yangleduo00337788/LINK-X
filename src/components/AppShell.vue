@@ -110,9 +110,9 @@ const showPlaceholder = computed(() =>
   width: 100%;
   z-index: 2;
   position: relative;
-  background: rgba(232, 232, 232, 0.65);
-  backdrop-filter: blur(30px) saturate(150%);
-  -webkit-backdrop-filter: blur(30px) saturate(150%);
+  background: rgba(245, 245, 245, 0.85);
+  backdrop-filter: blur(40px) saturate(150%);
+  -webkit-backdrop-filter: blur(40px) saturate(150%);
 }
 
 .main-panel {
