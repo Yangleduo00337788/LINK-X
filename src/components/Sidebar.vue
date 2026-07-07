@@ -139,7 +139,7 @@ function handleLogoutClick() {
 
 <style scoped>
 .sidebar {
-  width: 58px;
+  width: 52px;
   height: 100%;
   background: var(--lx-bg-panel-deep, #ececec);
   display: flex;

@@ -51,7 +51,7 @@ const showPlaceholder = computed(() =>
 
 <template>
   <div class="app-shell">
-    <header class="top-status liquid-glass-bar">
+    <header class="top-status">
       <MainStatusBar variant="profile" weather-text="阴" />
     </header>
 
@@ -110,9 +110,7 @@ const showPlaceholder = computed(() =>
   width: 100%;
   z-index: 2;
   position: relative;
-  background: rgba(232, 232, 232, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: var(--lx-bg-window, #e8e8e8);
 }
 
 .main-panel {
@@ -142,9 +140,9 @@ const showPlaceholder = computed(() =>
 }
 
 .col-menu {
-  width: 58px;
-  min-width: 58px;
-  max-width: 58px;
+  width: 52px;
+  min-width: 52px;
+  max-width: 52px;
   height: 100%;
   flex-shrink: 0;
 }

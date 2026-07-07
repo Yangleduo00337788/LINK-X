@@ -30,63 +30,6 @@ html, body, #app {
   box-sizing: border-box;
 }
 
-/* 顶栏：透亮液体玻璃 */
-.liquid-glass-bar {
-  position: relative;
-  isolation: isolate;
-  overflow: visible;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.72) 0%,
-    rgba(255, 255, 255, 0.42) 45%,
-    rgba(245, 245, 247, 0.38) 100%
-  );
-  backdrop-filter: blur(28px) saturate(180%) brightness(1.02);
-  -webkit-backdrop-filter: blur(28px) saturate(180%) brightness(1.02);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.35),
-    0 1px 0 rgba(0, 0, 0, 0.04);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.55);
-}
-
-.liquid-glass-bar::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(
-    105deg,
-    rgba(255, 255, 255, 0.55) 0%,
-    rgba(255, 255, 255, 0.12) 38%,
-    transparent 62%
-  );
-  z-index: 0;
-}
-
-.liquid-glass-bar::after {
-  content: '';
-  position: absolute;
-  left: 8%;
-  right: 8%;
-  top: 0;
-  height: 1px;
-  pointer-events: none;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.9) 20%,
-    rgba(255, 255, 255, 0.9) 80%,
-    transparent
-  );
-  z-index: 0;
-}
-
-.liquid-glass-bar > * {
-  position: relative;
-  z-index: 1;
-}
-
 /* 主内容区 */
 .func-card {
   background: var(--lx-bg-panel);
