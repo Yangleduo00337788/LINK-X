@@ -110,42 +110,37 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
 
       <!-- 列表 -->
       <template v-else>
-        <n-collapse v-if="activeTab === 'friends'" :default-expanded-names="['我的好友']" accordion class="custom-collapse">
-          <n-collapse-item v-for="group in friendGroups" :key="group.name" :name="group.name">
-          <template #header>
-            <div class="collapse-header">
-              <span class="group-name">{{ group.name }}</span>
-              <span class="group-count">{{ group.online }}/{{ group.total }}</span>
-            </div>
-          </template>
-          <div class="contact-list" v-if="group.items.length > 0">
-            <div
-              v-for="item in group.items"
-              :key="item.id"
-              class="contact-row"
-              :class="{ active: currentSessionId === item.id }"
-              @click="handleContactClick(item)"
-            >
-              <Avatar :text="item.avatarText" :color="item.avatarColor" :size="44" />
-              <div class="info">
+        <div v-if="activeTab === 'friends'" class="contacts-list">
+          <div class="group-header">
+            <span class="group-name">我的好友</span>
+            <span class="group-count">{{ friendGroups[0].online }}/{{ friendGroups[0].total }}</span>
+          </div>
+          <div
+            v-for="item in friendGroups[0].items"
+            :key="item.id"
+            class="contact-row"
+            :class="{ active: currentSessionId === item.id }"
+            @click="handleContactClick(item)"
+          >
+            <Avatar :text="item.avatarText" :color="item.avatarColor" :size="46" />
+            <div class="info">
+              <div class="name-row">
                 <span class="name">{{ item.name }}</span>
-                <span class="status">{{ item.online ? '在线' : '离线' }}</span>
+                <span class="status-dot" :class="{ online: item.online }"></span>
               </div>
+              <span class="status">{{ item.online ? '在线' : '离线' }}</span>
             </div>
           </div>
-        </n-collapse-item>
-      </n-collapse>
+        </div>
 
-        <n-collapse v-if="activeTab === 'groups'" accordion class="custom-collapse">
-          <n-collapse-item v-for="group in chatGroups" :key="group.name" :name="group.name">
-            <template #header>
-              <div class="collapse-header">
-                <span class="group-name">{{ group.name }}</span>
-                <span class="group-count">{{ group.total }}</span>
-              </div>
-            </template>
-          </n-collapse-item>
-        </n-collapse>
+        <div v-if="activeTab === 'groups'" class="groups-list">
+          <div v-for="group in chatGroups" :key="group.name" class="group-section">
+            <div class="group-header">
+              <span class="group-name">{{ group.name }}</span>
+              <span class="group-count">{{ group.total }}</span>
+            </div>
+          </div>
+        </div>
       </template>
     </div>
   </div>
@@ -155,7 +150,7 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
 .contacts-panel {
   width: 100%;
   height: 100%;
-  background: var(--lx-bg-panel, #f3f3f3);
+  background: var(--lx-bg-panel, #f5f5f5);
   display: flex;
   flex-direction: column;
   border-right: none;
@@ -205,18 +200,19 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
   align-items: center;
   justify-content: space-between;
   padding: 10px 12px;
-  border-radius: 6px;
+  border-radius: 9px;
   cursor: pointer;
   font-size: 14px;
   color: #333;
+  background: #fff;
 }
 
 .action-item:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: #f7f7f7;
 }
 
 .action-item.active {
-  background: rgba(18, 183, 245, 0.14);
+  background: rgba(18, 183, 245, 0.08);
   color: #12b7f5;
 }
 
@@ -226,18 +222,18 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
   margin: 16px 12px 8px;
   background: #ebebeb;
   border-radius: 9px;
-  padding: 2px;
+  padding: 3px;
 }
 
 .tab-slider {
   position: absolute;
-  top: 2px;
-  left: 2px;
-  width: calc(50% - 2px);
-  height: calc(100% - 4px);
+  top: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  height: calc(100% - 6px);
   background: #ffffff;
   border-radius: 7px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
   transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
   z-index: 1;
 }
@@ -249,7 +245,7 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
 .tab-item {
   flex: 1;
   text-align: center;
-  padding: 6px 0;
+  padding: 8px 0;
   font-size: 13px;
   color: #666;
   cursor: pointer;
@@ -267,64 +263,88 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
 .list-container {
   flex: 1;
   overflow-y: auto;
+  background: #f5f5f5;
 }
 
-.collapse-header {
+.contacts-list,
+.groups-list {
+  padding: 0 12px;
+}
+
+.group-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  width: 100%;
-  padding-right: 12px;
+  padding: 12px 8px 8px;
   font-size: 13px;
-  color: #333;
+  color: #888;
+  font-weight: 500;
 }
 
-.group-count {
-  color: #999;
+.group-name {
   font-size: 12px;
 }
 
-:deep(.n-collapse-item__header) {
-  padding: 12px 8px !important;
-}
-
-:deep(.n-collapse-item__header-main) {
-  flex: 1;
+.group-count {
+  font-size: 12px;
+  color: #999;
 }
 
 .contact-row {
-  height: 68px;
+  height: 72px;
   display: flex;
   align-items: center;
-  padding: 0 10px 0 12px;
-  margin: 0 6px;
+  padding: 0 12px;
+  margin-bottom: 4px;
   gap: 12px;
-  border-radius: var(--lx-radius-md, 10px);
+  border-radius: 9px;
   cursor: pointer;
-  transition: background 0.16s ease;
+  transition: background 0.2s ease;
+  background: #fff;
 }
 
 .contact-row:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: #f7f7f7;
 }
 
 .contact-row.active {
-  background: rgba(18, 183, 245, 0.14);
+  background: rgba(18, 183, 245, 0.08);
 }
 
 .info {
   display: flex;
   flex-direction: column;
+  gap: 2px;
+}
+
+.name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .name {
   font-size: 14px;
-  color: #333;
+  color: #1a1a1a;
+  font-weight: 500;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ccc;
+  flex-shrink: 0;
+}
+
+.status-dot.online {
+  background: #52c41a;
+  box-shadow: 0 0 0 2px rgba(82, 196, 26, 0.2);
 }
 
 .status {
-  font-size: 11px;
-  color: var(--lx-text-muted, #999);
+  font-size: 12px;
+  color: #888;
 }
 
 .skeleton-item {

@@ -834,7 +834,7 @@ function demoToast(tip: string) {
 }
 
 .input-area--qq {
-  background: transparent;
+  background: #fff;
 }
 
 .input-area--group {
@@ -842,10 +842,12 @@ function demoToast(tip: string) {
   border-top: 1px solid #e8e8e8;
 }
 
+.input-area--qq .input-compose,
 .input-area--group .input-compose {
   background: #fff;
 }
 
+.input-area--qq .message-input :deep(.n-input__textarea-el),
 .input-area--group .message-input :deep(.n-input__textarea-el) {
   background: #fff !important;
 }
@@ -857,6 +859,7 @@ function demoToast(tip: string) {
   padding: 8px 14px 0;
 }
 
+.input-area--qq .input-toolbar,
 .input-area--group .input-toolbar {
   background: #fff;
   padding: 10px 14px 0;
