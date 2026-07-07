@@ -17,15 +17,20 @@ import {
   LogOutOutline,
   ChevronForwardOutline
 } from '@vicons/ionicons5'
-import { NIcon, NPopover } from 'naive-ui'
+import { NIcon, NPopover, useDialog, useMessage } from 'naive-ui'
 import { useAppState } from '../composables/useAppState'
 import { useSecondaryView } from '../composables/useSecondaryView'
 import { useChatModals } from '../composables/useChatModals'
+import { useSettings } from '../composables/useSettings'
 import type { NavKey } from '../types'
 
-const { navKey, setNav } = useAppState()
+const { navKey, setNav, logout } = useAppState()
 const { menuOpen } = useSecondaryView()
 const { openMomentsModal } = useChatModals()
+const { openSettings } = useSettings()
+
+const dialog = useDialog()
+const message = useMessage()
 
 const mainNav: { key: NavKey; icon: typeof ChatbubbleEllipsesOutline }[] = [
   { key: 'chat', icon: ChatbubbleEllipsesOutline },
@@ -56,6 +61,23 @@ function openMail() {
 
 function openPhoneLink() {
   setNav('chat')
+}
+
+function handleSettingsClick() {
+  openSettings()
+}
+
+function handleLogoutClick() {
+  dialog.warning({
+    title: '退出登录',
+    content: '确定要退出当前账号吗？',
+    positiveText: '确定退出',
+    negativeText: '取消',
+    onPositiveClick: () => {
+      message.success('已安全退出账号')
+      logout()
+    }
+  })
 }
 </script>
 
@@ -128,11 +150,11 @@ function openPhoneLink() {
               <n-icon :component="LockClosedOutline" :size="16" />
               <span>锁定</span>
             </div>
-            <div class="menu-list-item">
+            <div class="menu-list-item" @click="handleSettingsClick">
               <n-icon :component="SettingsOutline" :size="16" />
               <span>设置</span>
             </div>
-            <div class="menu-list-item danger">
+            <div class="menu-list-item danger" @click="handleLogoutClick">
               <n-icon :component="LogOutOutline" :size="16" />
               <span>退出账号</span>
             </div>

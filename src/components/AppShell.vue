@@ -8,7 +8,6 @@ import ContactsPanel from './ContactsPanel.vue'
 import ContactsMainView from './ContactsMainView.vue'
 import FavoritesPanel from './FavoritesPanel.vue'
 import MomentsPanel from './MomentsPanel.vue'
-import AppsPanel from './AppsPanel.vue'
 import PlaceholderMainView from './PlaceholderMainView.vue'
 import MenuDrawer from './MenuDrawer.vue'
 import OverlayHost from './overlay/OverlayHost.vue'
@@ -23,6 +22,7 @@ import GroupFilesModal from './chat/GroupFilesModal.vue'
 import GroupAlbumModal from './chat/GroupAlbumModal.vue'
 import GroupEssenceModal from './chat/GroupEssenceModal.vue'
 import GroupAnnouncementModal from './chat/GroupAnnouncementModal.vue'
+import SettingsModal from './SettingsModal.vue'
 import { useAppState } from '../composables/useAppState'
 
 const { navKey } = useAppState()
@@ -37,8 +37,6 @@ const middleComponent = computed(() => {
       return FavoritesPanel
     case 'moments':
       return MomentsPanel
-    case 'apps':
-      return AppsPanel
     default:
       return ChatList
   }
@@ -66,6 +64,7 @@ const showPlaceholder = computed(() =>
       </section>
       <div class="panel-divider" aria-hidden="true" />
       <main class="col-chat">
+        <!-- 右侧主内容区域（动态组件） -->
         <ChatPanel v-if="showChatPanel" />
         <ContactsMainView v-else-if="navKey === 'contacts'" />
         <PlaceholderMainView v-else-if="showPlaceholder" :nav="navKey" />
@@ -86,6 +85,7 @@ const showPlaceholder = computed(() =>
     <GroupAlbumModal />
     <GroupEssenceModal />
     <GroupAnnouncementModal />
+    <SettingsModal />
   </div>
 </template>
 

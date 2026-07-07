@@ -2,7 +2,10 @@
 import { ref, onMounted } from 'vue'
 import AppShell from './components/AppShell.vue'
 import MomentsModal from './components/MomentsModal.vue'
+import LoginView from './components/LoginView.vue'
+import { useAppState } from './composables/useAppState'
 
+const { isLoggedIn } = useAppState()
 const isMomentsWindow = ref(false)
 
 onMounted(() => {
@@ -15,7 +18,10 @@ onMounted(() => {
 
 <template>
   <MomentsModal v-if="isMomentsWindow" />
-  <AppShell v-else />
+  <template v-else>
+    <AppShell v-if="isLoggedIn" />
+    <LoginView v-else />
+  </template>
 </template>
 
 <style scoped>

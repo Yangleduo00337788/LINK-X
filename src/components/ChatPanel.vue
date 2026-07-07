@@ -15,7 +15,8 @@ import {
   MicOutline,
   GiftOutline,
   DocumentOutline,
-  LinkOutline
+  LinkOutline,
+  CloseOutline
 } from '@vicons/ionicons5'
 import Avatar from './Avatar.vue'
 import PenguinWatermark from './PenguinWatermark.vue'
@@ -24,6 +25,7 @@ import { useAppState } from '../composables/useAppState'
 import { useOverlay } from '../composables/useOverlay'
 import { useChatModals } from '../composables/useChatModals'
 import type { ChatMessage } from '../types'
+import { v4 as uuidv4 } from 'uuid'
 
 const message = useMessage()
 const { currentSession, currentMessages, sendMessage } = useAppState()
@@ -100,8 +102,25 @@ function pickEmoji(e: string) {
 
 function send() {
   if (!inputValue.value.trim()) return
-  sendMessage(inputValue.value)
+  
+  // 支持发送图片（通过指令 /img 模拟）
+  if (inputValue.value.startsWith('/img ')) {
+    const url = inputValue.value.replace('/img ', '').trim()
+    sendMessage(url, 'image')
+  } else {
+    sendMessage(inputValue.value, 'text', replyingTo.value)
+  }
+  
   inputValue.value = ''
+  replyingTo.value = undefined
+  
+  // 模拟滚动到最底部
+  setTimeout(() => {
+    const messageArea = document.querySelector('.message-area')
+    if (messageArea) {
+      messageArea.scrollTo({ top: messageArea.scrollHeight, behavior: 'smooth' })
+    }
+  }, 100)
 }
 
 function onEnter(e: KeyboardEvent) {
@@ -109,6 +128,30 @@ function onEnter(e: KeyboardEvent) {
     e.preventDefault()
     send()
   }
+}
+
+const replyingTo = ref<ChatMessage | undefined>()
+
+function copyMessage(msg: ChatMessage) {
+  navigator.clipboard.writeText(msg.content)
+  message.success('已复制')
+}
+
+function replyMessage(msg: ChatMessage) {
+  replyingTo.value = msg
+  document.querySelector<HTMLTextAreaElement>('.message-input textarea')?.focus()
+}
+
+function recallMessage(msg: ChatMessage) {
+  const index = currentMessages.value.findIndex(m => m.id === msg.id)
+  if (index !== -1) {
+    currentMessages.value.splice(index, 1)
+    message.success('已撤回')
+  }
+}
+
+function cancelReply() {
+  replyingTo.value = undefined
 }
 
 function openFileView() {
@@ -273,18 +316,37 @@ function demoToast(tip: string) {
               :class="msg.isSelf ? 'right' : 'left'"
             >
               <Avatar v-if="!msg.isSelf" v-bind="peerAvatarProps(36)" />
-              <div
-                class="qq-bubble"
-                :class="{ self: msg.isSelf, link: isLinkMsg(msg) }"
-              >
-                <p class="qq-bubble-text">{{ msg.content }}</p>
-                <n-icon
-                  v-if="isLinkMsg(msg)"
-                  class="qq-link-ico"
-                  :component="LinkOutline"
-                  :size="14"
-                />
-              </div>
+              <n-popover trigger="contextMenu" placement="bottom" :show-arrow="false">
+                <template #trigger>
+                  <div
+                    class="qq-bubble"
+                    :class="{ self: msg.isSelf, link: isLinkMsg(msg) }"
+                  >
+                    <!-- 引用消息内容展示 -->
+                    <div v-if="msg.replyTo" class="qq-bubble-reply">
+                      {{ msg.replyTo.senderName }}: {{ msg.replyTo.content }}
+                    </div>
+                    
+                    <!-- 文本内容 -->
+                    <p class="qq-bubble-text" v-if="!msg.isImage">{{ msg.content }}</p>
+                    
+                    <!-- 图片消息 -->
+                    <img v-if="msg.isImage" :src="msg.content" class="qq-bubble-image" />
+                    
+                    <n-icon
+                      v-if="isLinkMsg(msg)"
+                      class="qq-link-ico"
+                      :component="LinkOutline"
+                      :size="14"
+                    />
+                  </div>
+                </template>
+                <div class="msg-context-menu">
+                  <div class="menu-item" @click="copyMessage(msg)">复制</div>
+                  <div class="menu-item" @click="replyMessage(msg)">回复</div>
+                  <div class="menu-item danger" v-if="msg.isSelf" @click="recallMessage(msg)">撤回</div>
+                </div>
+              </n-popover>
               <Avatar v-if="msg.isSelf" text="我" color="#52c41a" :size="36" />
             </div>
           </template>
@@ -354,6 +416,12 @@ function demoToast(tip: string) {
           />
         </div>
         <div class="input-compose">
+          <!-- 引用预览 -->
+          <div v-if="replyingTo" class="reply-preview">
+            <div class="reply-content">回复 {{ replyingTo.senderName }}: {{ replyingTo.content }}</div>
+            <n-icon :component="CloseOutline" class="reply-close" @click="cancelReply" />
+          </div>
+          
           <n-input
             v-model:value="inputValue"
             type="textarea"
@@ -873,6 +941,88 @@ function demoToast(tip: string) {
   background: #12b7f5 !important;
   border: none !important;
   font-size: 13px;
+}
+
+/* 右键菜单 */
+.msg-context-menu {
+  background: #fff;
+  border-radius: 6px;
+  min-width: 100px;
+  padding: 4px;
+}
+
+.menu-item {
+  padding: 8px 16px;
+  font-size: 13px;
+  color: #333;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.menu-item:hover {
+  background: #f5f5f5;
+}
+
+.menu-item.danger {
+  color: #fa5151;
+}
+
+.menu-item.danger:hover {
+  background: #fff0f0;
+}
+
+/* 引用消息展示 */
+.qq-bubble-reply {
+  font-size: 12px;
+  color: #666;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 4px 8px;
+  border-radius: 4px;
+  margin-bottom: 6px;
+  border-left: 2px solid #12b7f5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.qq-bubble-image {
+  max-width: 200px;
+  max-height: 200px;
+  border-radius: 6px;
+  object-fit: cover;
+  cursor: pointer;
+}
+
+/* 输入框引用预览 */
+.reply-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: #f5f5f5;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  border-left: 3px solid #12b7f5;
+}
+
+.reply-content {
+  font-size: 12px;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.reply-close {
+  cursor: pointer;
+  color: #999;
+  padding: 2px;
+}
+
+.reply-close:hover {
+  color: #fa5151;
 }
 
 .emoji-grid {

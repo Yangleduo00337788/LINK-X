@@ -13,13 +13,15 @@
     "electron:preview": "electron dist-electron/main/main.js"
   },
   "dependencies": {
-    "vue": "^3.4.21",
-    "naive-ui": "^2.38.2",
+    "@vicons/fa": "^0.12.0",
     "@vicons/ionicons5": "^0.12.0",
     "@vicons/material": "^0.12.0",
-    "@vicons/fa": "^0.12.0"
+    "naive-ui": "^2.38.2",
+    "uuid": "^14.0.1",
+    "vue": "^3.4.21"
   },
   "devDependencies": {
+    "@types/uuid": "^10.0.0",
     "@vitejs/plugin-vue": "^5.0.4",
     "electron": "^31.0.2",
     "electron-builder": "^24.13.3",

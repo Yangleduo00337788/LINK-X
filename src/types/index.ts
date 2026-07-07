@@ -1,4 +1,4 @@
-export type NavKey = 'chat' | 'contacts' | 'favorites' | 'moments' | 'apps' | 'menu'
+export type NavKey = 'chat' | 'contacts' | 'favorites' | 'moments' | 'menu'
 
 export type OverlayPage =
   | 'settings'
@@ -36,12 +36,22 @@ export interface ChatMessage {
   content: string
   time: string
   isSelf: boolean
+  senderName: string
+  senderAvatar?: string
   type?: 'text' | 'image' | 'file' | 'link' | 'system'
+  linkUrl?: string
+  
+  // 对于 file 类型的扩展
   fileName?: string
   fileSize?: string
-  linkUrl?: string
   /** 文件卡片底栏：已发送 / 已下载 */
   fileStatus?: string
+  
+  // 对于 image 类型的扩展
+  isImage?: boolean
+  
+  // 消息引用
+  replyTo?: ChatMessage
 }
 
 export interface ContactItem {

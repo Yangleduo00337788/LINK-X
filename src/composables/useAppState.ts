@@ -14,6 +14,8 @@ const userProfile = ref({
   signature: '编辑个性签名'
 })
 
+const isLoggedIn = ref(true)
+
 export function useAppState() {
   const currentSession = computed(() =>
     sessions.value.find(s => s.id === currentSessionId.value) ?? null
@@ -86,6 +88,14 @@ export function useAppState() {
     userProfile.value.nickname = name
   }
 
+  function logout() {
+    isLoggedIn.value = false
+  }
+
+  function login() {
+    isLoggedIn.value = true
+  }
+
   return {
     navKey,
     sessions,
@@ -96,12 +106,15 @@ export function useAppState() {
     theme,
     userProfile,
     contactsActiveView,
+    isLoggedIn,
     setNav,
     selectSession,
     ensureSession,
     sendMessage,
     toggleTheme,
     updateSignature,
-    updateNickname
+    updateNickname,
+    logout,
+    login
   }
 }
