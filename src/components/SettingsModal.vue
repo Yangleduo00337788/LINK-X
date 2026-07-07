@@ -53,7 +53,6 @@ const messageDetail = ref(true)
         <n-tab-pane name="general">
           <template #tab>
             <div class="tab-label">
-              <n-icon :component="SettingsOutline" size="18" />
               <span>通用设置</span>
             </div>
           </template>
@@ -62,26 +61,24 @@ const messageDetail = ref(true)
             <div class="setting-item">
               <div class="setting-info">
                 <span class="setting-name">开机自动启动</span>
-                <span class="setting-desc">在电脑开机时自动运行 LinkX</span>
               </div>
-              <n-switch v-model:value="autoStart" />
+              <n-switch v-model:value="autoStart" size="small" />
             </div>
 
-            <n-divider />
+            <n-divider style="margin: 8px 0" />
 
             <h3 class="section-title">消息与通知</h3>
             <div class="setting-item">
               <div class="setting-info">
                 <span class="setting-name">新消息声音提示</span>
               </div>
-              <n-switch v-model:value="soundNotify" />
+              <n-switch v-model:value="soundNotify" size="small" />
             </div>
             <div class="setting-item">
               <div class="setting-info">
                 <span class="setting-name">通知显示消息详情</span>
-                <span class="setting-desc">在系统通知中显示发送者和内容摘要</span>
               </div>
-              <n-switch v-model:value="messageDetail" />
+              <n-switch v-model:value="messageDetail" size="small" />
             </div>
           </div>
         </n-tab-pane>
@@ -89,7 +86,6 @@ const messageDetail = ref(true)
         <n-tab-pane name="account">
           <template #tab>
             <div class="tab-label">
-              <n-icon :component="ShieldCheckmarkOutline" size="18" />
               <span>账号与安全</span>
             </div>
           </template>
@@ -102,20 +98,18 @@ const messageDetail = ref(true)
               </div>
             </div>
 
-            <n-divider />
+            <n-divider style="margin: 8px 0" />
 
             <h3 class="section-title">安全设置</h3>
             <div class="setting-item">
               <div class="setting-info">
                 <span class="setting-name">登录密码</span>
-                <span class="setting-desc">已设置</span>
               </div>
               <n-button size="small" tertiary>修改</n-button>
             </div>
             <div class="setting-item">
               <div class="setting-info">
                 <span class="setting-name">设备管理</span>
-                <span class="setting-desc">管理已登录的设备</span>
               </div>
               <n-button size="small" tertiary>查看</n-button>
             </div>
@@ -125,7 +119,6 @@ const messageDetail = ref(true)
         <n-tab-pane name="appearance">
           <template #tab>
             <div class="tab-label">
-              <n-icon :component="ColorPaletteOutline" size="18" />
               <span>外观与显示</span>
             </div>
           </template>
@@ -134,12 +127,11 @@ const messageDetail = ref(true)
             <div class="setting-item">
               <div class="setting-info">
                 <span class="setting-name">深色模式</span>
-                <span class="setting-desc">切换深色/浅色主题界面</span>
               </div>
-              <n-switch :value="theme === 'dark'" @update:value="toggleTheme" />
+              <n-switch :value="theme === 'dark'" @update:value="toggleTheme" size="small" />
             </div>
 
-            <n-divider />
+            <n-divider style="margin: 8px 0" />
 
             <h3 class="section-title">聊天背景</h3>
             <div class="theme-preview-list">
@@ -163,7 +155,6 @@ const messageDetail = ref(true)
         <n-tab-pane name="about">
           <template #tab>
             <div class="tab-label">
-              <n-icon :component="InformationCircleOutline" size="18" />
               <span>关于</span>
             </div>
           </template>
