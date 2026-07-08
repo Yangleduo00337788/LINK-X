@@ -26,13 +26,15 @@ import { useAppStore } from '../stores/app'
 import { useOverlayStore } from '../stores/overlay'
 import { useChatModalsStore } from '../stores/chatModals'
 import type { ChatMessage } from '../types'
+import { CHAT_EMOJIS } from '../constants/emojis'
+import { formatFileSize, readFileAsDataUrl, MAX_IMAGE_BYTES } from '../utils/file'
 
 const message = useMessage()
 const appStore = useAppStore()
 const overlayStore = useOverlayStore()
 const chatModalsStore = useChatModalsStore()
 const { currentSession, currentMessages } = storeToRefs(appStore)
-const { sendMessage } = appStore
+const { sendMessage, recallMessage: recallMessageInStore } = appStore
 const { open: openOverlay } = overlayStore
 const {
   openMore,
@@ -73,11 +75,15 @@ const showPhoneDemo = computed(
   () => isMyPhone.value && currentMessages.value.filter(m => m.type !== 'system').length === 0
 )
 
+const emojis = [...CHAT_EMOJIS]
+
+const imageInputRef = ref<HTMLInputElement | null>(null)
+const fileInputRef = ref<HTMLInputElement | null>(null)
+
 const chatMessages = computed(() =>
   currentMessages.value.filter(m => m.type !== 'system')
 )
 
-const emojis = ['��', '��', '��', '❤️', '🎉', '🔥', '✨', '🙏']
 
 function peerAvatarProps(size = 36) {
   const s = currentSession.value
@@ -95,8 +101,60 @@ function isLinkMsg(msg: ChatMessage) {
 }
 
 function toolFile() {
-  sendMessage('[文件] project-spec.pdf · 1.2 MB', 'file')
-  message.success('文件已发送（演示）')
+  fileInputRef.value?.click()
+}
+
+function toolImage() {
+  imageInputRef.value?.click()
+}
+
+async function onImagePicked(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+
+  if (!file.type.startsWith('image/')) {
+    message.warning('请选择图片文件')
+    return
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    message.warning(`图片不能超过 ${formatFileSize(MAX_IMAGE_BYTES)}`)
+    return
+  }
+
+  try {
+    const dataUrl = await readFileAsDataUrl(file)
+    sendMessage(dataUrl, { type: 'image', isImage: true })
+    message.success('图片已发送')
+    scrollToBottom()
+  } catch {
+    message.error('图片读取失败')
+  }
+}
+
+function onFilePicked(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+
+  sendMessage(file.name, {
+    type: 'file',
+    fileName: file.name,
+    fileSize: formatFileSize(file.size)
+  })
+  message.success('文件已发送')
+  scrollToBottom()
+}
+
+function scrollToBottom() {
+  setTimeout(() => {
+    const messageArea = document.querySelector('.message-area')
+    if (messageArea) {
+      messageArea.scrollTo({ top: messageArea.scrollHeight, behavior: 'smooth' })
+    }
+  }, 100)
 }
 
 function pickEmoji(e: string) {
@@ -106,25 +164,17 @@ function pickEmoji(e: string) {
 
 function send() {
   if (!inputValue.value.trim()) return
-  
-  // 支持发送图片（通过指令 /img 模拟）
+
   if (inputValue.value.startsWith('/img ')) {
     const url = inputValue.value.replace('/img ', '').trim()
-    sendMessage(url, 'image')
+    sendMessage(url, { type: 'image', isImage: true })
   } else {
-    sendMessage(inputValue.value, 'text', replyingTo.value)
+    sendMessage(inputValue.value, { type: 'text', replyTo: replyingTo.value })
   }
-  
+
   inputValue.value = ''
   replyingTo.value = undefined
-  
-  // 模拟滚动到最底部
-  setTimeout(() => {
-    const messageArea = document.querySelector('.message-area')
-    if (messageArea) {
-      messageArea.scrollTo({ top: messageArea.scrollHeight, behavior: 'smooth' })
-    }
-  }, 100)
+  scrollToBottom()
 }
 
 function onEnter(e: KeyboardEvent) {
@@ -147,9 +197,7 @@ function replyMessage(msg: ChatMessage) {
 }
 
 function recallMessage(msg: ChatMessage) {
-  const index = currentMessages.value.findIndex(m => m.id === msg.id)
-  if (index !== -1) {
-    currentMessages.value.splice(index, 1)
+  if (recallMessageInStore(msg.id)) {
     message.success('已撤回')
   }
 }
@@ -313,7 +361,29 @@ function demoToast(tip: string) {
               <Avatar v-if="msg.isSelf" text="我" color="var(--lx-success)" :size="36" />
             </div>
 
-            <!-- 链接 / 长文本 -->
+            <!-- 图片消息 -->
+            <div
+              v-else-if="msg.type === 'image' || msg.isImage"
+              class="message-row"
+              :class="msg.isSelf ? 'right' : 'left'"
+            >
+              <Avatar v-if="!msg.isSelf" v-bind="peerAvatarProps(36)" />
+              <n-popover trigger="click" placement="bottom" :show-arrow="false">
+                <template #trigger>
+                  <div class="qq-bubble image-bubble" :class="{ self: msg.isSelf }">
+                    <img :src="msg.content" class="qq-bubble-image" alt="图片消息" />
+                  </div>
+                </template>
+                <div class="msg-context-menu">
+                  <div class="menu-item" @click="copyMessage(msg)">复制链接</div>
+                  <div class="menu-item" @click="replyMessage(msg)">回复</div>
+                  <div class="menu-item danger" v-if="msg.isSelf" @click="recallMessage(msg)">撤回</div>
+                </div>
+              </n-popover>
+              <Avatar v-if="msg.isSelf" text="我" color="var(--lx-success)" :size="36" />
+            </div>
+
+            <!-- 链接 / 文本 -->
             <div
               v-else
               class="message-row"
@@ -326,17 +396,10 @@ function demoToast(tip: string) {
                     class="qq-bubble"
                     :class="{ self: msg.isSelf, link: isLinkMsg(msg) }"
                   >
-                    <!-- 引用消息内容展示 -->
                     <div v-if="msg.replyTo" class="qq-bubble-reply">
                       {{ msg.replyTo.senderName }}: {{ msg.replyTo.content }}
                     </div>
-                    
-                    <!-- 文本内容 -->
-                    <p class="qq-bubble-text" v-if="!msg.isImage">{{ msg.content }}</p>
-                    
-                    <!-- 图片消息 -->
-                    <img v-if="msg.isImage" :src="msg.content" class="qq-bubble-image" />
-                    
+                    <p class="qq-bubble-text">{{ msg.content }}</p>
                     <n-icon
                       v-if="isLinkMsg(msg)"
                       class="qq-link-ico"
@@ -364,6 +427,19 @@ function demoToast(tip: string) {
         class="input-area"
         :class="{ 'input-area--qq': isFriendChat, 'input-area--group': isGroupChat }"
       >
+        <input
+          ref="imageInputRef"
+          type="file"
+          accept="image/*"
+          class="hidden-file-input"
+          @change="onImagePicked"
+        />
+        <input
+          ref="fileInputRef"
+          type="file"
+          class="hidden-file-input"
+          @change="onFilePicked"
+        />
         <div class="input-toolbar">
           <div class="toolbar-left">
             <n-popover v-model:show="showEmoji" trigger="click" placement="top-start">
@@ -394,7 +470,7 @@ function demoToast(tip: string) {
               :size="22"
               class="tool-icon"
               title="图片"
-              @click="demoToast('发送图片（演示）')"
+              @click="toolImage"
             />
             <n-icon
               :component="MicOutline"
@@ -999,6 +1075,16 @@ function demoToast(tip: string) {
   border-radius: var(--lx-radius);
   object-fit: cover;
   cursor: pointer;
+  display: block;
+}
+
+.image-bubble {
+  padding: 4px;
+  background: var(--lx-bg-card);
+}
+
+.hidden-file-input {
+  display: none;
 }
 
 /* 输入框引用预览 */

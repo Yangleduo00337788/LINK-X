@@ -1,34 +1,56 @@
 ﻿<script setup lang="ts">
-import { ref } from 'vue'
-import { NInput, NButton, NIcon, NCheckbox } from 'naive-ui'
+import { ref, onMounted } from 'vue'
+import { NInput, NButton, NIcon, NCheckbox, useMessage } from 'naive-ui'
 import { LockClosedOutline, PersonOutline } from '@vicons/ionicons5'
+import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
 
+const message = useMessage()
 const appStore = useAppStore()
+const { savedLogin } = storeToRefs(appStore)
 const { login } = appStore
 
-const username = ref('linkx_888888')
-const password = ref('123456')
+const username = ref('')
+const password = ref('')
 const rememberMe = ref(true)
 const autoLogin = ref(false)
 const isLoading = ref(false)
 
+onMounted(() => {
+  username.value = savedLogin.value.username || 'linkx_888888'
+  rememberMe.value = savedLogin.value.rememberMe
+  autoLogin.value = savedLogin.value.autoLogin
+})
+
 function handleLogin() {
-  if (!username.value || !password.value) return
+  const user = username.value.trim()
+  const pass = password.value.trim()
+
+  if (!user) {
+    message.warning('请输入 LinkX ID 或手机号')
+    return
+  }
+  if (!pass) {
+    message.warning('请输入密码')
+    return
+  }
+
   isLoading.value = true
-  // 模拟网络请求延迟
   setTimeout(() => {
     isLoading.value = false
-    login()
-  }, 800)
+    login(user, {
+      rememberMe: rememberMe.value,
+      autoLogin: autoLogin.value
+    })
+    message.success(`欢迎回来，${user}`)
+  }, 500)
 }
 </script>
 
 <template>
   <div class="login-container">
-    <!-- 顶部控制栏区域占位，用于拖拽 -->
     <div class="drag-bar" style="-webkit-app-region: drag"></div>
-    
+
     <div class="login-box">
       <div class="logo-area">
         <img src="../assets/logo-linkx.svg" alt="LinkX" class="logo-img" />
@@ -64,7 +86,7 @@ function handleLogin() {
         </n-input>
 
         <div class="form-options">
-          <n-checkbox v-model:checked="rememberMe">记住密码</n-checkbox>
+          <n-checkbox v-model:checked="rememberMe">记住账号</n-checkbox>
           <n-checkbox v-model:checked="autoLogin">自动登录</n-checkbox>
         </div>
 
@@ -79,11 +101,11 @@ function handleLogin() {
           登 录
         </n-button>
       </div>
-      
+
       <div class="login-footer">
-        <a href="#" class="footer-link">注册账号</a>
+        <a href="#" class="footer-link" @click.prevent="message.info('注册功能开发中')">注册账号</a>
         <span class="divider">|</span>
-        <a href="#" class="footer-link">找回密码</a>
+        <a href="#" class="footer-link" @click.prevent="message.info('找回密码功能开发中')">找回密码</a>
       </div>
     </div>
   </div>
