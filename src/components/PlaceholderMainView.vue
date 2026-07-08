@@ -4,6 +4,7 @@ import PenguinWatermark from './PenguinWatermark.vue'
 import AppWebView from './AppWebView.vue'
 import { storeToRefs } from 'pinia'
 import { useSecondaryViewStore } from '../stores/secondaryView'
+import { useOverlayStore } from '../stores/overlay'
 import type { NavKey } from '../types'
 
 const props = defineProps<{
@@ -11,7 +12,9 @@ const props = defineProps<{
 }>()
 
 const secondaryViewStore = useSecondaryViewStore()
+const overlayStore = useOverlayStore()
 const { activeApp, activeFavorite } = storeToRefs(secondaryViewStore)
+const { open: openOverlay } = overlayStore
 
 const emptyHint = computed(() => {
   if (props.nav === 'contacts') return '在左侧选择联系人发起会话'
@@ -20,6 +23,25 @@ const emptyHint = computed(() => {
   if (props.nav === 'apps') return '在左侧点击应用打开'
   return ''
 })
+
+function openFavoriteLink() {
+  const fav = activeFavorite.value
+  if (!fav || fav.type !== 'link') return
+  const url = fav.preview.startsWith('http') ? fav.preview : `https://${fav.preview}`
+  window.open(url, '_blank', 'noopener')
+}
+
+function previewFavoriteImage() {
+  const fav = activeFavorite.value
+  if (!fav || fav.type !== 'image') return
+  openOverlay('file-preview', {
+    filePreview: {
+      fileName: fav.title,
+      fileUrl: fav.preview.startsWith('data:') || fav.preview.startsWith('http') ? fav.preview : undefined,
+      isImage: true
+    }
+  })
+}
 </script>
 
 <template>
@@ -44,6 +66,24 @@ const emptyHint = computed(() => {
           <h2>{{ activeFavorite.title }}</h2>
           <p class="preview">{{ activeFavorite.preview }}</p>
           <p class="meta">更新于 {{ activeFavorite.time }}</p>
+          <div class="fav-actions">
+            <button
+              v-if="activeFavorite.type === 'link'"
+              type="button"
+              class="action-btn"
+              @click="openFavoriteLink"
+            >
+              打开链接
+            </button>
+            <button
+              v-if="activeFavorite.type === 'image'"
+              type="button"
+              class="action-btn"
+              @click="previewFavoriteImage"
+            >
+              预览图片
+            </button>
+          </div>
         </div>
       </template>
       <template v-else>
@@ -122,5 +162,24 @@ const emptyHint = computed(() => {
 
 .preview {
   white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.fav-actions {
+  margin-top: 16px;
+}
+
+.action-btn {
+  border: none;
+  background: var(--lx-accent);
+  color: #fff;
+  border-radius: var(--lx-radius);
+  padding: 8px 16px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.action-btn:hover {
+  opacity: 0.9;
 }
 </style>

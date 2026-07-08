@@ -325,7 +325,7 @@ function closeMoments() {
 .post-user {
   font-size: 15px;
   font-weight: 600;
-  color: #576b95;
+  color: var(--lx-accent);
   margin-bottom: 4px;
 }
 
@@ -374,7 +374,7 @@ function closeMoments() {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #576b95;
+  color: var(--lx-accent);
   cursor: pointer;
 }
 
@@ -465,7 +465,7 @@ function closeMoments() {
 .likes-list {
   display: flex;
   align-items: flex-start;
-  color: #576b95;
+  color: var(--lx-accent);
   font-size: 13px;
   line-height: 1.5;
   word-break: break-all;
@@ -496,7 +496,7 @@ function closeMoments() {
 }
 
 .comment-user {
-  color: #576b95;
+  color: var(--lx-accent);
   font-weight: 500;
 }
 

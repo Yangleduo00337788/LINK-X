@@ -224,11 +224,11 @@ function handleForgot() {
 .login-input {
   --n-border-radius: var(--lx-radius) !important;
   --n-height: 42px !important;
-  background: #f7f7f7;
+  background: var(--lx-bg-panel);
 }
 
 :deep(.n-input) {
-  background-color: #f7f7f7 !important;
+  background-color: var(--lx-bg-panel) !important;
 }
 :deep(.n-input:focus-within) {
   background-color: var(--lx-bg-card) !important;

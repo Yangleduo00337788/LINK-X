@@ -26,6 +26,7 @@ import { useAppStore } from '../stores/app'
 import { useOverlayStore } from '../stores/overlay'
 import { useChatModalsStore } from '../stores/chatModals'
 import { useAppSettingsStore } from '../stores/appSettings'
+import { useGroupMetaStore } from '../stores/groupMeta'
 import type { ChatMessage } from '../types'
 import { CHAT_EMOJIS } from '../constants/emojis'
 import { useFilesStore } from '../stores/files'
@@ -39,7 +40,8 @@ const appStore = useAppStore()
 const overlayStore = useOverlayStore()
 const chatModalsStore = useChatModalsStore()
 const appSettingsStore = useAppSettingsStore()
-const { currentSession, currentMessages } = storeToRefs(appStore)
+const groupMetaStore = useGroupMetaStore()
+const { currentSession, currentMessages, userProfile, currentSessionId } = storeToRefs(appStore)
 const { chatBackground } = storeToRefs(appSettingsStore)
 const { sendMessage, recallMessage: recallMessageInStore } = appStore
 const { open: openOverlay } = overlayStore
@@ -105,9 +107,12 @@ const chatBgStyle = computed(() => {
 })
 
 const isRecording = ref(false)
+const playingVoiceId = ref<string | null>(null)
 let recordStart = 0
 let mediaRecorder: MediaRecorder | null = null
 let recordStream: MediaStream | null = null
+let voiceChunks: BlobPart[] = []
+let voiceAudio: HTMLAudioElement | null = null
 
 
 function peerAvatarProps(size = 36) {
@@ -171,7 +176,15 @@ function onFilePicked(e: Event) {
     fileSize: formatFileSize(file.size),
     fileUrl
   })
-  filesStore.addFromChat(file.name, formatFileSize(file.size), '我')
+  filesStore.addFromChat(file.name, formatFileSize(file.size), '我', fileUrl)
+  if (isGroupChat.value && currentSessionId.value) {
+    groupMetaStore.addFile(currentSessionId.value, {
+      name: file.name,
+      size: formatFileSize(file.size),
+      user: userProfile.value?.nickname || '我',
+      fileUrl
+    })
+  }
   message.success('文件已发送')
   scrollToBottom()
 }
@@ -179,8 +192,12 @@ function onFilePicked(e: Event) {
 async function toggleVoiceRecord() {
   if (!isRecording.value) {
     try {
+      voiceChunks = []
       recordStream = await navigator.mediaDevices.getUserMedia({ audio: true })
       mediaRecorder = new MediaRecorder(recordStream)
+      mediaRecorder.ondataavailable = e => {
+        if (e.data.size) voiceChunks.push(e.data)
+      }
       recordStart = Date.now()
       mediaRecorder.start()
       isRecording.value = true
@@ -194,18 +211,64 @@ async function toggleVoiceRecord() {
   }
 
   const duration = Math.max(1, Math.round((Date.now() - recordStart) / 1000))
-  mediaRecorder?.stop()
+  const recorder = mediaRecorder
+  if (recorder && recorder.state !== 'inactive') {
+    await new Promise<void>(resolve => {
+      recorder.onstop = () => {
+        const blob = new Blob(voiceChunks, { type: 'audio/webm' })
+        const voiceUrl = URL.createObjectURL(blob)
+        sendMessage('', { type: 'voice', voiceDuration: duration, voiceUrl })
+        message.success('语音消息已发送')
+        scrollToBottom()
+        resolve()
+      }
+      recorder.stop()
+    })
+  } else {
+    sendMessage('', { type: 'voice', voiceDuration: duration })
+    message.success('语音消息已发送')
+    scrollToBottom()
+  }
+
   recordStream?.getTracks().forEach(t => t.stop())
   mediaRecorder = null
   recordStream = null
+  voiceChunks = []
   isRecording.value = false
-  sendMessage('', { type: 'voice', voiceDuration: duration })
-  message.success('语音消息已发送')
-  scrollToBottom()
+}
+
+function playVoice(msg: ChatMessage) {
+  if (!msg.voiceUrl) {
+    message.info(`语音 ${formatVoiceDuration(msg.voiceDuration)}`)
+    return
+  }
+  if (playingVoiceId.value === msg.id) {
+    voiceAudio?.pause()
+    playingVoiceId.value = null
+    return
+  }
+  voiceAudio?.pause()
+  voiceAudio = new Audio(msg.voiceUrl)
+  playingVoiceId.value = msg.id
+  voiceAudio.play().catch(() => message.error('无法播放语音'))
+  voiceAudio.onended = () => {
+    playingVoiceId.value = null
+  }
+}
+
+function openImageView(msg: ChatMessage) {
+  openOverlay('file-preview', {
+    filePreview: {
+      fileName: '图片消息',
+      fileUrl: msg.content,
+      isImage: true
+    }
+  })
 }
 
 onUnmounted(() => {
   recordStream?.getTracks().forEach(t => t.stop())
+  voiceAudio?.pause()
 })
 
 function openFileView(msg?: ChatMessage) {
@@ -530,6 +593,7 @@ function demoToast(tip: string) {
                 class="qq-bubble image-bubble"
                 :class="{ self: msg.isSelf }"
                 @contextmenu="onMsgContext($event, msg)"
+                @click="openImageView(msg)"
               >
                 <img :src="msg.content" class="qq-bubble-image" alt="图片消息" />
               </div>
@@ -545,8 +609,9 @@ function demoToast(tip: string) {
               <Avatar v-if="!msg.isSelf" v-bind="peerAvatarProps(36)" />
               <div
                 class="qq-bubble voice-bubble"
-                :class="{ self: msg.isSelf }"
+                :class="{ self: msg.isSelf, playing: playingVoiceId === msg.id }"
                 @contextmenu="onMsgContext($event, msg)"
+                @click="playVoice(msg)"
               >
                 <n-icon :component="MicOutline" :size="16" class="voice-ico" />
                 <span>{{ formatVoiceDuration(msg.voiceDuration) }}</span>
@@ -1225,7 +1290,11 @@ function demoToast(tip: string) {
   align-items: center;
   gap: 8px;
   min-width: 72px;
-  cursor: default;
+  cursor: pointer;
+}
+
+.voice-bubble.playing {
+  color: var(--lx-accent);
 }
 
 .voice-ico {

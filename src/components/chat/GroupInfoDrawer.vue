@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { NIcon, NSwitch, useMessage, useDialog } from 'naive-ui'
 import { SearchOutline } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
@@ -7,7 +7,6 @@ import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
 import { useGroupMetaStore } from '../../stores/groupMeta'
-import { GROUP_ANNOUNCEMENT_SHORT } from '../../data/groupDemo'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -25,7 +24,26 @@ const {
 } = appStore
 
 const groupRemark = ref('')
-const announcement = GROUP_ANNOUNCEMENT_SHORT
+
+const announcement = computed(() => {
+  const id = currentSessionId.value
+  return id ? groupMetaStore.announcementShort(id) : ''
+})
+
+watch(
+  currentSessionId,
+  id => {
+    groupRemark.value = id ? groupMetaStore.remarkFor(id) : ''
+  },
+  { immediate: true }
+)
+
+function saveRemark() {
+  const id = currentSessionId.value
+  if (!id) return
+  groupMetaStore.setRemark(id, groupRemark.value)
+  message.success('群备注已保存')
+}
 
 const groupId = computed(() => currentSessionId.value?.replace(/\D/g, '').slice(-10) || '1007446249')
 
@@ -133,7 +151,13 @@ function reportGroup() {
 
               <section class="block">
                 <div class="row-item"><span>群聊备注</span></div>
-                <input v-model="groupRemark" type="text" class="remark-input" placeholder="填写备注" />
+                <input
+                  v-model="groupRemark"
+                  type="text"
+                  class="remark-input"
+                  placeholder="填写备注"
+                  @blur="saveRemark"
+                />
               </section>
 
               <div class="switch-block">

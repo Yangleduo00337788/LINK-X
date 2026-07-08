@@ -55,6 +55,7 @@ export interface ChatMessage {
 
   /** 语音消息时长（秒） */
   voiceDuration?: number
+  voiceUrl?: string
 
   /** 红包 */
   redPacketGreeting?: string

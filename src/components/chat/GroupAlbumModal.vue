@@ -1,20 +1,35 @@
 ﻿<script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
+import { useGroupMetaStore } from '../../stores/groupMeta'
+import { useOverlayStore } from '../../stores/overlay'
 import { useMessage } from 'naive-ui'
+import { readFileAsDataUrl } from '../../utils/file'
 
 const message = useMessage()
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
+const groupMetaStore = useGroupMetaStore()
+const overlayStore = useOverlayStore()
 const { groupAlbumOpen } = storeToRefs(chatModalsStore)
 const { closeGroupAlbum } = chatModalsStore
-const { currentSession } = storeToRefs(appStore)
+const { currentSession, currentSessionId, userProfile } = storeToRefs(appStore)
+const { open: openOverlay } = overlayStore
 
 const tab = ref<'feed' | 'albums' | 'me'>('feed')
 const albumInputRef = ref<HTMLInputElement | null>(null)
-const albumCount = ref(0)
+
+const albumItems = computed(() => {
+  const id = currentSessionId.value
+  if (!id) return []
+  const list = groupMetaStore.albumFor(id)
+  if (tab.value === 'me') {
+    return list.filter(i => i.user === userProfile.value.nickname)
+  }
+  return list
+})
 
 function close() {
   closeGroupAlbum()
@@ -24,17 +39,42 @@ function upload() {
   albumInputRef.value?.click()
 }
 
-function onAlbumPicked(e: Event) {
+async function onAlbumPicked(e: Event) {
   const input = e.target as HTMLInputElement
-  if (input.files?.length) {
-    albumCount.value += input.files.length
-    message.success(`已上传 ${input.files.length} 张图片到群相册`)
-  }
+  const files = input.files
   input.value = ''
+  if (!files?.length || !currentSessionId.value) return
+
+  const user = userProfile.value.nickname
+  const items: { url: string; name: string; user: string }[] = []
+
+  for (const file of Array.from(files)) {
+    try {
+      const url = await readFileAsDataUrl(file)
+      items.push({ url, name: file.name, user })
+    } catch {
+      /* skip */
+    }
+  }
+
+  if (items.length) {
+    groupMetaStore.addAlbumImages(currentSessionId.value, items)
+    message.success(`已上传 ${items.length} 张图片到群相册`)
+  }
+}
+
+function previewImage(item: { url: string; name: string }) {
+  openOverlay('file-preview', {
+    filePreview: {
+      fileName: item.name,
+      fileUrl: item.url,
+      isImage: true
+    }
+  })
 }
 
 function createAlbum() {
-  message.success('相册「新相册」已创建')
+  message.success('默认相册已就绪，直接上传即可')
 }
 </script>
 
@@ -47,28 +87,13 @@ function createAlbum() {
           <button type="button" class="close-x" @click="close">×</button>
         </header>
         <div class="tabs-row">
-          <button
-            type="button"
-            class="tab"
-            :class="{ active: tab === 'feed' }"
-            @click="tab = 'feed'"
-          >
+          <button type="button" class="tab" :class="{ active: tab === 'feed' }" @click="tab = 'feed'">
             群动态
           </button>
-          <button
-            type="button"
-            class="tab"
-            :class="{ active: tab === 'albums' }"
-            @click="tab = 'albums'"
-          >
+          <button type="button" class="tab" :class="{ active: tab === 'albums' }" @click="tab = 'albums'">
             相册
           </button>
-          <button
-            type="button"
-            class="tab"
-            :class="{ active: tab === 'me' }"
-            @click="tab = 'me'"
-          >
+          <button type="button" class="tab" :class="{ active: tab === 'me' }" @click="tab = 'me'">
             与我相关
           </button>
           <div class="tabs-actions">
@@ -77,9 +102,21 @@ function createAlbum() {
             <button type="button" class="primary-sm" @click="upload">上传至相册</button>
           </div>
         </div>
-        <div class="empty-area">
+        <div v-if="albumItems.length" class="album-grid">
+          <button
+            v-for="item in albumItems"
+            :key="item.id"
+            type="button"
+            class="album-thumb"
+            @click="previewImage(item)"
+          >
+            <img :src="item.url" :alt="item.name" />
+            <span class="thumb-meta">{{ item.user }} · {{ item.time }}</span>
+          </button>
+        </div>
+        <div v-else class="empty-area">
           <div class="empty-ico">🖼</div>
-          <p>{{ albumCount ? `已上传 ${albumCount} 张图片` : '马上上传照片，与群友分享。' }}</p>
+          <p>马上上传照片，与群友分享。</p>
           <button type="button" class="primary-lg" @click="upload">上传至相册</button>
         </div>
       </div>
@@ -114,13 +151,14 @@ function createAlbum() {
   align-items: center;
   justify-content: space-between;
   padding: 14px 18px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--lx-border-light);
 }
 
 .win-head h2 {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
+  color: var(--lx-text-body);
 }
 
 .close-x {
@@ -136,7 +174,7 @@ function createAlbum() {
   align-items: center;
   gap: 20px;
   padding: 0 18px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--lx-border-light);
   flex-wrap: wrap;
 }
 
@@ -190,6 +228,43 @@ function createAlbum() {
   color: var(--lx-bg-card);
   font-size: 12px;
   cursor: pointer;
+}
+
+.album-grid {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 18px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+  align-content: start;
+}
+
+.album-thumb {
+  border: none;
+  padding: 0;
+  background: var(--lx-bg-panel);
+  border-radius: var(--lx-radius);
+  overflow: hidden;
+  cursor: pointer;
+  text-align: left;
+}
+
+.album-thumb img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+}
+
+.thumb-meta {
+  display: block;
+  font-size: 10px;
+  color: var(--lx-text-muted);
+  padding: 4px 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .empty-area {

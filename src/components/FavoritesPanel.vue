@@ -6,10 +6,12 @@ import PanelSearchBar from './PanelSearchBar.vue'
 import { storeToRefs } from 'pinia'
 import { useFavoritesStore } from '../stores/favorites'
 import { useSecondaryViewStore } from '../stores/secondaryView'
+import { useRouter } from 'vue-router'
 import type { FavoriteItem } from '../types'
 
 const favoritesStore = useFavoritesStore()
 const secondaryViewStore = useSecondaryViewStore()
+const router = useRouter()
 const message = useMessage()
 const { remove } = favoritesStore
 const { items: favList } = storeToRefs(favoritesStore)
@@ -26,8 +28,7 @@ function onAddSelect(key: string) {
     if (window.electronAPI) {
       window.electronAPI.openNoteEditor()
     } else {
-      // 浏览器环境 fallback，如打开一个 modal 等
-      window.location.hash = 'note-editor'
+      router.push('/note-editor')
     }
   }
 }

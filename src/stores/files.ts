@@ -7,6 +7,7 @@ export interface LocalFileItem {
   time: string
   type: 'document' | 'image' | 'media' | 'other'
   sender: string
+  fileUrl?: string
 }
 
 const initialFiles: LocalFileItem[] = [
@@ -23,7 +24,7 @@ export const useFilesStore = defineStore('files', {
   }),
 
   actions: {
-    addFromChat(fileName: string, fileSize: string, sender: string) {
+    addFromChat(fileName: string, fileSize: string, sender: string, fileUrl?: string) {
       const ext = fileName.split('.').pop()?.toLowerCase() ?? ''
       let type: LocalFileItem['type'] = 'other'
       if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) type = 'image'
@@ -36,7 +37,8 @@ export const useFilesStore = defineStore('files', {
         size: fileSize,
         time: '刚刚',
         type,
-        sender
+        sender,
+        fileUrl
       })
     },
 

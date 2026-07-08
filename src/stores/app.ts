@@ -12,6 +12,7 @@ export interface SendMessageOptions {
   fileUrl?: string
   isImage?: boolean
   voiceDuration?: number
+  voiceUrl?: string
   redPacketGreeting?: string
   redPacketAmount?: string
 }
@@ -327,6 +328,7 @@ export const useAppStore = defineStore('app', {
         isImage,
         fileStatus: type === 'file' ? '已发送' : undefined,
         voiceDuration: options.voiceDuration,
+        voiceUrl: options.voiceUrl,
         redPacketGreeting: options.redPacketGreeting,
         redPacketAmount: options.redPacketAmount,
         redPacketOpened: type === 'redPacket' ? true : undefined

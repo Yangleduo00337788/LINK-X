@@ -148,6 +148,18 @@ export const initialMessages: Record<string, ChatMessage[]> = {
       linkUrl: 'https://v.douyin.com/example2'
     },
     {
+      id: 'zwz-rp1',
+      sessionId: 'f-zwz',
+      content: '恭喜发财，大吉大利',
+      time: '15:35',
+      isSelf: false,
+      senderName: '吱唔猪',
+      type: 'redPacket',
+      redPacketGreeting: '恭喜发财，大吉大利',
+      redPacketAmount: '8.88',
+      redPacketOpened: false
+    },
+    {
       id: 'zwz-t2',
       sessionId: 'f-zwz',
       content: 'Flet (Python版的Flutter)',

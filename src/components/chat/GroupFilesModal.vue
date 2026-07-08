@@ -1,32 +1,49 @@
 ﻿<script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
-import { useFilesStore } from '../../stores/files'
+import { useGroupMetaStore } from '../../stores/groupMeta'
+import { useOverlayStore } from '../../stores/overlay'
 import { useMessage } from 'naive-ui'
 import { formatFileSize } from '../../utils/file'
 
 const message = useMessage()
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
-const filesStore = useFilesStore()
+const groupMetaStore = useGroupMetaStore()
+const overlayStore = useOverlayStore()
 const { groupFilesOpen } = storeToRefs(chatModalsStore)
 const { closeGroupFiles } = chatModalsStore
-const { currentSession } = storeToRefs(appStore)
+const { currentSession, currentSessionId, userProfile } = storeToRefs(appStore)
+const { open: openOverlay } = overlayStore
 
 const search = ref('')
 const uploadInputRef = ref<HTMLInputElement | null>(null)
 
-const fileGroups = [
-  {
-    month: '2026年7月',
-    files: [
-      { name: 'sub2api.2026-07-04_08-04-03.json', size: '58.4 KB', dl: 12, user: '蓬蒿人', date: '07/04' },
-      { name: 'Cursor 账号3万+.txt', size: '15.7 MB', dl: 120, user: '打工人', date: '07/01' }
-    ]
+const allFiles = computed(() => {
+  const id = currentSessionId.value
+  if (!id) return []
+  return groupMetaStore.filesFor(id)
+})
+
+const filteredFiles = computed(() => {
+  const q = search.value.trim().toLowerCase()
+  if (!q) return allFiles.value
+  return allFiles.value.filter(
+    f => f.name.toLowerCase().includes(q) || f.user.toLowerCase().includes(q)
+  )
+})
+
+const fileGroups = computed(() => {
+  const map = new Map<string, typeof filteredFiles.value>()
+  for (const f of filteredFiles.value) {
+    const month = '2026年7月'
+    if (!map.has(month)) map.set(month, [])
+    map.get(month)!.push(f)
   }
-]
+  return [...map.entries()].map(([month, files]) => ({ month, files }))
+})
 
 function close() {
   closeGroupFiles()
@@ -36,12 +53,33 @@ function triggerUpload() {
   uploadInputRef.value?.click()
 }
 
+function openFile(f: { name: string; size: string; fileUrl?: string }) {
+  openOverlay('file-preview', {
+    filePreview: {
+      fileName: f.name,
+      fileSize: f.size,
+      fileUrl: f.fileUrl,
+      isImage: /\.(png|jpe?g|gif|webp)$/i.test(f.name)
+    }
+  })
+}
+
 function onUploadPicked(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
   input.value = ''
-  if (!file) return
-  filesStore.addFromChat(file.name, formatFileSize(file.size), currentSession.value?.name || '群聊')
+  if (!file || !currentSessionId.value) return
+
+  const fileUrl = URL.createObjectURL(file)
+  const size = formatFileSize(file.size)
+  const user = userProfile.value.nickname
+
+  groupMetaStore.addFile(currentSessionId.value, {
+    name: file.name,
+    size,
+    user,
+    fileUrl
+  })
   message.success(`已上传「${file.name}」到群文件`)
 }
 </script>
@@ -60,22 +98,28 @@ function onUploadPicked(e: Event) {
         <div class="file-scroll">
           <section v-for="g in fileGroups" :key="g.month" class="month-block">
             <h3 class="month-title">{{ g.month }}</h3>
-            <div v-for="(f, i) in g.files" :key="i" class="file-row">
+            <div
+              v-for="f in g.files"
+              :key="f.id"
+              class="file-row"
+              @click="openFile(f)"
+            >
               <div class="file-ico">📄</div>
               <div class="file-main">
                 <div class="file-name">{{ f.name }}</div>
                 <div class="file-meta">
                   <span>{{ f.size }}</span>
-                  <span>{{ f.dl }}次下载</span>
+                  <span>{{ f.downloads }}次下载</span>
                   <span>{{ f.user }}</span>
                   <span>{{ f.date }}</span>
                 </div>
               </div>
             </div>
           </section>
+          <p v-if="!filteredFiles.length" class="empty">暂无群文件</p>
         </div>
         <footer class="win-foot">
-          <span>共 {{ fileGroups[0].files.length }} 个文件</span>
+          <span>共 {{ filteredFiles.length }} 个文件</span>
           <input ref="uploadInputRef" type="file" hidden @change="onUploadPicked" />
           <button type="button" class="upload-btn" @click="triggerUpload">上传文件</button>
         </footer>
@@ -138,6 +182,8 @@ function onUploadPicked(e: Event) {
   border: 1px solid var(--lx-border-light);
   border-radius: var(--lx-radius);
   padding: 0 12px;
+  background: var(--lx-bg-card);
+  color: var(--lx-text);
 }
 
 .file-scroll {
@@ -157,6 +203,11 @@ function onUploadPicked(e: Event) {
   gap: 12px;
   padding: 10px 0;
   border-bottom: 1px solid var(--lx-border-light);
+  cursor: pointer;
+}
+
+.file-row:hover {
+  background: var(--lx-bg-panel);
 }
 
 .file-name {
@@ -170,6 +221,13 @@ function onUploadPicked(e: Event) {
   display: flex;
   gap: 8px;
   margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.empty {
+  text-align: center;
+  color: var(--lx-text-muted);
+  padding: 32px;
 }
 
 .win-foot {

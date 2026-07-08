@@ -1,29 +1,31 @@
 ﻿<script setup lang="ts">
+import { computed } from 'vue'
 import { NIcon } from 'naive-ui'
 import { SearchOutline, ChevronForwardOutline } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
+import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
-import { GROUP_ANNOUNCEMENT_SHORT } from '../../data/groupDemo'
+import { useAppStore } from '../../stores/app'
+import { useGroupMetaStore } from '../../stores/groupMeta'
 
 const chatModalsStore = useChatModalsStore()
+const appStore = useAppStore()
+const groupMetaStore = useGroupMetaStore()
 const { openGroupAnnouncement } = chatModalsStore
+const { currentSessionId } = storeToRefs(appStore)
 
-const members = [
-  { name: '有BB机的小豆包', text: '有', color: '#f56c6c', badge: '群主' },
-  { name: '颜笙', text: '颜', color: 'var(--lx-accent)', badge: '管理员' },
-  { name: '重生之我用Pc', text: '重', color: '#722ed1', badge: '管理员' },
-  { name: '嫉妒群主的坏蛋', text: '嫉', color: '#fa541c', badge: '管理员' },
-  { name: 'jeffy', text: 'J', color: 'var(--lx-success)', badge: '管理员' },
-  { name: '李子', text: '李', color: '#fa8c16', badge: '管理员' },
-  { name: 'MCP拼车老队', text: 'M', color: '#1890ff', badge: '管理员' },
-  { name: 'Q群管家', text: 'Q', color: 'var(--lx-accent)', badge: '机器人' },
-  { name: '我不是车神', text: '我', color: '#eb2f96', badge: '管理员' },
-  { name: '小程序APP开发', text: '小', color: '#13c2c2', badge: '管理员' },
-  { name: '雪飞扬', text: '雪', color: '#2f54eb', badge: '管理员' },
-  { name: '执法大队', text: '执', color: '#595959', badge: '管理员' },
-  { name: '33', text: '3', color: '#8c8c8c', badge: '管理员' },
-  { name: 'a', text: 'a', color: '#bfbfbf', badge: '管理员' }
-]
+const announcementText = computed(() => {
+  const id = currentSessionId.value
+  return id ? groupMetaStore.announcementShort(id) : ''
+})
+
+const members = computed(() => {
+  const id = currentSessionId.value
+  if (!id) return []
+  return groupMetaStore.membersFor(id)
+})
+
+const memberCount = computed(() => members.value.length)
 </script>
 
 <template>
@@ -36,17 +38,17 @@ const members = [
         </button>
       </div>
       <button type="button" class="announce-text-btn" @click="openGroupAnnouncement">
-        {{ GROUP_ANNOUNCEMENT_SHORT }}
+        {{ announcementText }}
       </button>
     </section>
     <section class="members-block">
       <div class="members-head">
-        <span class="side-title">群聊成员 1136</span>
+        <span class="side-title">群聊成员 {{ memberCount }}</span>
         <n-icon :component="SearchOutline" :size="18" class="search-ico" title="搜索成员" />
       </div>
       <div class="member-list">
-        <div v-for="m in members" :key="m.name" class="member-row">
-          <Avatar :text="m.text" :color="m.color" :size="36" />
+        <div v-for="m in members" :key="m.id" class="member-row">
+          <Avatar :text="m.avatarText" :color="m.avatarColor" :size="36" />
           <div class="m-info">
             <span class="m-name">{{ m.name }}</span>
             <span v-if="m.badge" class="m-badge">{{ m.badge }}</span>
@@ -63,7 +65,7 @@ const members = [
   flex-shrink: 0;
   height: 100%;
   background: var(--lx-bg-panel);
-  border-left: 1px solid #e0e0e0;
+  border-left: 1px solid var(--lx-border-light);
   display: flex;
   flex-direction: column;
   overflow: hidden;

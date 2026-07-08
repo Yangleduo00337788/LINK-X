@@ -8,7 +8,6 @@ import {
   CheckmarkCircle
 } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
-import { initialSessions } from '../../data/mockData'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
@@ -21,6 +20,7 @@ const appStore = useAppStore()
 const contactsStore = useContactsStore()
 const { createGroupOpen } = storeToRefs(chatModalsStore)
 const { closeCreateGroup, openSelectContacts } = chatModalsStore
+const { sessions } = storeToRefs(appStore)
 const { createGroup } = appStore
 
 const search = ref('')
@@ -43,7 +43,7 @@ const extraRecent: PickRow[] = [
 ]
 
 const recentContacts = computed(() => {
-  const fromSessions: PickRow[] = initialSessions
+  const fromSessions: PickRow[] = sessions.value
     .filter(s => !s.isGroup && s.name !== '我的手机' && s.name !== 'QQ游戏中心')
     .slice(0, 6)
     .map(s => ({

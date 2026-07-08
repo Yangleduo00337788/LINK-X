@@ -53,6 +53,14 @@ function exportLogs() {
   message.success('日志已输出到开发者控制台')
 }
 
+function changePassword() {
+  message.info('修改密码需对接后端账号服务')
+}
+
+function manageDevices() {
+  message.info('当前设备：本机 · Windows（本地演示）')
+}
+
 watch(settingsActiveTab, (newVal) => {
   if (newVal) {
     activeTab.value = newVal
@@ -149,13 +157,13 @@ function applyAutoStart() {
               <div class="setting-info">
                 <span class="setting-name">登录密码</span>
               </div>
-              <n-button size="small" tertiary>修改</n-button>
+              <n-button size="small" tertiary @click="changePassword">修改</n-button>
             </div>
             <div class="setting-item">
               <div class="setting-info">
                 <span class="setting-name">设备管理</span>
               </div>
-              <n-button size="small" tertiary>查看</n-button>
+              <n-button size="small" tertiary @click="manageDevices">查看</n-button>
             </div>
 
             <n-divider style="margin: 8px 0" />
@@ -307,7 +315,7 @@ function applyAutoStart() {
 
 :deep(.n-tabs-nav) {
   width: 140px !important;
-  background: #f7f7f7 !important;
+  background: var(--lx-bg-panel) !important;
   border-right: none !important;
   padding: 24px 0;
 }
@@ -330,8 +338,8 @@ function applyAutoStart() {
 }
 
 :deep(.n-tabs-tab--active) {
-  background: #e2e2e2 !important;
-  color: #000 !important;
+  background: var(--lx-bg-hover) !important;
+  color: var(--lx-text-body) !important;
   font-weight: 500;
 }
 
@@ -509,7 +517,7 @@ function applyAutoStart() {
 
 .copyright {
   font-size: 12px;
-  color: #bbb;
+  color: var(--lx-text-muted);
   margin-top: auto;
 }
 </style>

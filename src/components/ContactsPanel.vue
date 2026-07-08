@@ -250,7 +250,7 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
 }
 
 .action-item:hover {
-  background: #f7f7f7;
+  background: var(--lx-bg-panel);
 }
 
 .action-item.active {
@@ -346,7 +346,7 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
 }
 
 .contact-row:hover {
-  background: #f7f7f7;
+  background: var(--lx-bg-panel);
 }
 
 .contact-row.active {

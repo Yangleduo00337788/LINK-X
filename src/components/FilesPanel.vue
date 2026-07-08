@@ -5,14 +5,18 @@ import { DocumentTextOutline, FolderOutline, ImageOutline, FilmOutline, TrashOut
 import PanelSearchBar from './PanelSearchBar.vue'
 import { storeToRefs } from 'pinia'
 import { useFilesStore } from '../stores/files'
+import { useOverlayStore } from '../stores/overlay'
+import type { LocalFileItem } from '../stores/files'
 
 const message = useMessage()
 const filesStore = useFilesStore()
+const overlayStore = useOverlayStore()
 const { remove } = filesStore
-const { items: mockFiles } = storeToRefs(filesStore)
+const { items: fileItems } = storeToRefs(filesStore)
+const { open: openOverlay } = overlayStore
 
 const filtered = computed(() => {
-  let list = mockFiles.value
+  let list = fileItems.value
   if (activeTab.value !== 'recent') {
     list = list.filter(f => f.type === activeTab.value)
   }
@@ -34,6 +38,21 @@ const activeTab = ref('recent')
 
 function setTab(tab: string) {
   activeTab.value = tab
+}
+
+function openFile(item: LocalFileItem) {
+  if (item.fileUrl) {
+    openOverlay('file-preview', {
+      filePreview: {
+        fileName: item.title,
+        fileSize: item.size,
+        fileUrl: item.fileUrl,
+        isImage: item.type === 'image'
+      }
+    })
+    return
+  }
+  message.info(`「${item.title}」暂无本地预览，请从聊天中重新发送`)
 }
 
 function removeFile(e: Event, id: string) {
@@ -58,6 +77,7 @@ function removeFile(e: Event, id: string) {
         v-for="item in filtered"
         :key="item.id"
         class="row"
+        @click="openFile(item)"
       >
         <div class="icon-wrap" :class="item.type">
           <n-icon :component="iconFor(item.type)" :size="24" />
@@ -75,7 +95,7 @@ function removeFile(e: Event, id: string) {
           <n-icon :component="TrashOutline" :size="16" />
         </button>
       </div>
-      
+
       <div v-if="filtered.length === 0" class="empty-state">
         没有找到相关文件
       </div>
@@ -98,20 +118,15 @@ function removeFile(e: Event, id: string) {
   display: flex;
   padding: 8px 16px 4px;
   gap: 16px;
-  border-bottom: 1px solid var(--lx-bg-hover);
+  border-bottom: 1px solid var(--lx-border-light);
 }
 
 .tab-item {
   font-size: 13px;
-  color: var(--lx-text-secondary);
+  color: var(--lx-text-muted);
   cursor: pointer;
   padding-bottom: 6px;
   position: relative;
-  transition: color 0.2s;
-}
-
-.tab-item:hover {
-  color: var(--lx-text-body);
 }
 
 .tab-item.active {
@@ -122,29 +137,26 @@ function removeFile(e: Event, id: string) {
 .tab-item.active::after {
   content: '';
   position: absolute;
+  left: 0;
+  right: 0;
   bottom: 0;
-  left: 10%;
-  width: 80%;
   height: 2px;
   background: var(--lx-accent);
-  border-radius: 2px;
 }
 
 .list {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
+  padding: 8px 0;
 }
 
 .row {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px;
+  padding: 10px 16px;
   cursor: pointer;
-  border-radius: var(--lx-radius);
-  margin-bottom: 4px;
-  transition: background 0.2s;
+  transition: background 0.15s;
 }
 
 .row:hover {
@@ -152,40 +164,41 @@ function removeFile(e: Event, id: string) {
 }
 
 .icon-wrap {
-  width: 44px;
-  height: 44px;
-  border-radius: 8px;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--lx-radius);
   display: flex;
   align-items: center;
   justify-content: center;
+  background: var(--lx-bg-card);
+  color: var(--lx-accent);
 }
 
-.icon-wrap.document { background: var(--lx-accent-bg-soft); color: var(--lx-accent); }
-.icon-wrap.image { background: #fff0e6; color: #ff8800; }
-.icon-wrap.media { background: #f2e6ff; color: #8800ff; }
-.icon-wrap.other { background: #e6ffed; color: #00cc44; }
+.icon-wrap.image {
+  color: #52c41a;
+}
+
+.icon-wrap.media {
+  color: #722ed1;
+}
 
 .info {
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
 }
 
 .title {
   font-size: 14px;
   color: var(--lx-text-body);
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .meta {
   font-size: 12px;
   color: var(--lx-text-muted);
-  display: flex;
-  align-items: center;
+  margin-top: 2px;
 }
 
 .dot {
@@ -193,28 +206,33 @@ function removeFile(e: Event, id: string) {
 }
 
 .time {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--lx-text-muted);
   flex-shrink: 0;
 }
 
 .del-btn {
   border: none;
-  background: transparent;
+  background: none;
   color: var(--lx-text-muted);
   cursor: pointer;
   padding: 4px;
   opacity: 0;
+  transition: opacity 0.15s;
 }
 
 .row:hover .del-btn {
   opacity: 1;
 }
 
+.del-btn:hover {
+  color: #e34d59;
+}
+
 .empty-state {
   text-align: center;
-  padding: 40px 0;
   color: var(--lx-text-muted);
+  padding: 40px 16px;
   font-size: 13px;
 }
 </style>
