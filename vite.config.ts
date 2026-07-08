@@ -20,11 +20,13 @@ export default defineConfig(({ mode }) => {
 
   return {
     base: './',
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          'naive-ui': ['naive-ui'],
-          'vue-vendor': ['vue', 'vue-router', 'pinia']
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'naive-ui': ['naive-ui'],
+            'vue-vendor': ['vue', 'vue-router', 'pinia']
+          }
         }
       }
     },

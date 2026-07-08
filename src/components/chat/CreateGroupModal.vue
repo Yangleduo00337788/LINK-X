@@ -263,7 +263,7 @@ function cancel() {
   font-size: 17px;
   font-weight: 600;
   text-align: left;
-  color: #222;
+  color: var(--lx-text-body);
 }
 
 .modal-body {
@@ -297,7 +297,7 @@ function cancel() {
   padding: 0 12px;
   font-size: 14px;
   outline: none;
-  background: #fafafa;
+  background: var(--lx-bg-panel);
   box-sizing: border-box;
 }
 
@@ -389,7 +389,7 @@ function cancel() {
 
 .right-pane {
   flex: 1;
-  background: #fafafa;
+  background: var(--lx-bg-panel);
   min-width: 0;
 }
 

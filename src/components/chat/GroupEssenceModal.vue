@@ -1,34 +1,22 @@
 ﻿<script setup lang="ts">
+import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
+import { useGroupMetaStore } from '../../stores/groupMeta'
 
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
+const groupMetaStore = useGroupMetaStore()
 const { groupEssenceOpen } = storeToRefs(chatModalsStore)
 const { closeGroupEssence } = chatModalsStore
-const { currentSession } = storeToRefs(appStore)
+const { currentSession, currentSessionId } = storeToRefs(appStore)
 
-const items = [
-  {
-    user: '有BB机的小豆包',
-    date: '05-29',
-    type: 'link',
-    content: 'https://millionweekend.feishu.cn/wiki/JS47wPzs6iDHLZkLMHAc8rhun0e'
-  },
-  {
-    user: '一杆大铁枪',
-    date: '05-08',
-    type: 'video',
-    content: '新手教程.mp4'
-  },
-  {
-    user: '33',
-    date: '04-21',
-    type: 'link',
-    content: 'https://mcp.sukeyun.com/'
-  }
-]
+const items = computed(() => {
+  const id = currentSessionId.value
+  if (!id) return []
+  return groupMetaStore.essenceFor(id)
+})
 
 function close() {
   closeGroupEssence()
@@ -44,17 +32,14 @@ function close() {
           <button type="button" class="close-x" @click="close">×</button>
         </header>
         <div class="list">
-          <article v-for="(item, i) in items" :key="i" class="essence-card">
+          <article v-for="item in items" :key="item.id" class="essence-card">
             <div class="card-head">
               <span class="user">{{ item.user }}</span>
               <span class="date">{{ item.date }}</span>
             </div>
-            <div v-if="item.type === 'video'" class="video-thumb">
-              <span class="play">▶</span>
-              <span class="vname">{{ item.content }}</span>
-            </div>
-            <a v-else class="link-text" href="#" @click.prevent>{{ item.content }}</a>
+            <p class="content">{{ item.content }}</p>
           </article>
+          <p v-if="!items.length" class="empty">暂无群精华</p>
         </div>
       </div>
     </div>
@@ -65,7 +50,7 @@ function close() {
 .modal-root {
   position: fixed;
   inset: 0;
-  z-index: 2200;
+  z-index: 2250;
   background: var(--lx-bg-overlay);
   display: flex;
   align-items: center;
@@ -75,12 +60,12 @@ function close() {
 
 .essence-window {
   width: min(520px, 94vw);
-  max-height: min(520px, 85vh);
+  max-height: min(480px, 85vh);
   background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
 }
 
 .win-head {
@@ -88,13 +73,14 @@ function close() {
   align-items: center;
   justify-content: space-between;
   padding: 14px 18px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--lx-border-light);
 }
 
 .win-head h2 {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
+  color: var(--lx-text-body);
 }
 
 .close-x {
@@ -112,56 +98,37 @@ function close() {
 }
 
 .essence-card {
-  padding: 14px 0;
-  border-bottom: 1px solid #f0f0f0;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--lx-border-light);
 }
 
 .card-head {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 10px;
-  font-size: 13px;
+  margin-bottom: 6px;
 }
 
 .user {
+  font-size: 14px;
+  font-weight: 600;
   color: var(--lx-text-body);
-  font-weight: 500;
 }
 
 .date {
+  font-size: 12px;
   color: var(--lx-text-muted);
 }
 
-.link-text {
+.content {
+  margin: 0;
   font-size: 13px;
-  color: var(--lx-accent);
+  color: var(--lx-text-secondary);
   word-break: break-all;
-  text-decoration: none;
 }
 
-.video-thumb {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  background: var(--lx-bg-panel);
-  border-radius: var(--lx-radius);
-}
-
-.play {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: var(--lx-accent);
-  color: var(--lx-bg-card);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-}
-
-.vname {
-  font-size: 13px;
-  color: var(--lx-text-body);
+.empty {
+  text-align: center;
+  color: var(--lx-text-muted);
+  padding: 32px;
 }
 </style>

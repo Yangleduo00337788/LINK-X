@@ -49,7 +49,8 @@ const {
   openGroupFiles,
   openGroupAlbum,
   openGroupEssence,
-  openGroupAnnouncement
+  openGroupAnnouncement,
+  openRedPacket,
 } = chatModalsStore
 
 const groupGridItems = ['群文件', '群相册', '群精华']
@@ -288,8 +289,15 @@ function openFileView() {
 }
 
 function demoToast(tip: string) {
-  if (tip.includes('语音')) openVoiceCall()
-  else message.info(tip.replace('（演示）', ''))
+  if (tip.includes('语音')) {
+    sendMessage('[语音消息 3"]', { type: 'text' })
+    message.success('语音消息已发送')
+    scrollToBottom()
+  } else if (tip.includes('红包')) {
+    openRedPacket()
+  } else {
+    message.info(tip.replace('（演示）', ''))
+  }
 }
 </script>
 
@@ -546,14 +554,14 @@ function demoToast(tip: string) {
               :size="22"
               class="tool-icon"
               title="语音"
-              @click="demoToast('语音（演示）')"
+              @click="demoToast('语音消息')"
             />
             <n-icon
               :component="GiftOutline"
               :size="22"
               class="tool-icon tool-icon--red"
               title="红包"
-              @click="demoToast('发红包（演示）')"
+              @click="demoToast('发红包')"
             />
           </div>
           <n-icon
@@ -849,7 +857,7 @@ function demoToast(tip: string) {
 .qq-file-name {
   font-size: 14px;
   font-weight: 500;
-  color: #222;
+  color: var(--lx-text-body);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -921,7 +929,7 @@ function demoToast(tip: string) {
 
 .card-divider {
   height: 1px;
-  background: #f0f0f0;
+  background: var(--lx-bg-input);
   margin: 12px 0;
 }
 
@@ -1041,7 +1049,7 @@ function demoToast(tip: string) {
 }
 
 .tool-icon:hover {
-  color: #222;
+  color: var(--lx-text-body);
 }
 
 .input-compose {

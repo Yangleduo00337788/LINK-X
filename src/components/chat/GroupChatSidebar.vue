@@ -73,7 +73,7 @@ const members = [
   flex-shrink: 0;
   padding: 14px 12px;
   border-bottom: 1px solid var(--lx-bg-panel-deep);
-  background: #fafafa;
+  background: var(--lx-bg-panel);
 }
 
 .announce-head {

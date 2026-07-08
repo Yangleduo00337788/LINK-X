@@ -6,12 +6,14 @@ import Avatar from '../Avatar.vue'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
+import { useGroupMetaStore } from '../../stores/groupMeta'
 import { GROUP_ANNOUNCEMENT_SHORT } from '../../data/groupDemo'
 
 const message = useMessage()
 const dialog = useDialog()
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
+const groupMetaStore = useGroupMetaStore()
 const { groupInfoDrawerOpen } = storeToRefs(chatModalsStore)
 const { closeGroupInfo, openGroupAnnouncement, openAddMembers } = chatModalsStore
 const { currentSession, currentSessionId, userProfile } = storeToRefs(appStore)
@@ -27,18 +29,11 @@ const announcement = GROUP_ANNOUNCEMENT_SHORT
 
 const groupId = computed(() => currentSessionId.value?.replace(/\D/g, '').slice(-10) || '1007446249')
 
-const memberPreview = [
-  { text: '有', color: '#f56c6c' },
-  { text: '颜', color: 'var(--lx-accent)' },
-  { text: '重', color: '#722ed1' },
-  { text: '嫉', color: '#fa541c' },
-  { text: 'J', color: 'var(--lx-success)' },
-  { text: '李', color: '#fa8c16' },
-  { text: 'M', color: '#1890ff' },
-  { text: 'Q', color: 'var(--lx-accent)' },
-  { text: '我', color: '#eb2f96' },
-  { text: '小', color: '#13c2c2' }
-]
+const members = computed(() => {
+  const id = currentSessionId.value
+  if (!id) return []
+  return groupMetaStore.membersFor(id)
+})
 
 function setPin(val: boolean) {
   if (!currentSessionId.value || !!currentSession.value?.pinned === val) return
@@ -117,8 +112,8 @@ function reportGroup() {
                   <n-icon :component="SearchOutline" :size="18" class="ico" />
                 </div>
                 <div class="avatar-grid">
-                  <div v-for="(m, i) in memberPreview" :key="i" class="av">
-                    <Avatar :text="m.text" :color="m.color" :size="40" />
+                  <div v-for="m in members.slice(0, 14)" :key="m.id" class="av">
+                    <Avatar :text="m.avatarText" :color="m.avatarColor" :size="40" />
                   </div>
                   <button type="button" class="av invite" title="邀请" @click="openAddMembers">+</button>
                 </div>

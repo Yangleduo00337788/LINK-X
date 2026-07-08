@@ -334,7 +334,7 @@ const showUsers = computed(() => mainTab.value === 'all' || mainTab.value === 'u
 .g-desc {
   margin: 0;
   font-size: 12px;
-  color: #888;
+  color: var(--lx-text-muted);
 }
 
 .join-btn {

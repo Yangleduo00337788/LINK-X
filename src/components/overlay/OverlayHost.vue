@@ -455,7 +455,7 @@ function createChannelDone() {
   display: flex;
   gap: 12px;
   padding: 8px 0;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--lx-border-light);
   font-size: 14px;
 }
 

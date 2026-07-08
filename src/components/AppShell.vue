@@ -23,6 +23,7 @@ import GroupFilesModal from './chat/GroupFilesModal.vue'
 import GroupAlbumModal from './chat/GroupAlbumModal.vue'
 import GroupEssenceModal from './chat/GroupEssenceModal.vue'
 import GroupAnnouncementModal from './chat/GroupAnnouncementModal.vue'
+import RedPacketModal from './chat/RedPacketModal.vue'
 import ContactProfileModal from './chat/ContactProfileModal.vue'
 import SettingsModal from './SettingsModal.vue'
 import LockScreen from './LockScreen.vue'
@@ -144,6 +145,7 @@ const showPlaceholder = computed(() =>
     <GroupAlbumModal />
     <GroupEssenceModal />
     <GroupAnnouncementModal />
+    <RedPacketModal />
     <ContactProfileModal />
     <SettingsModal />
     <OverlayHost />

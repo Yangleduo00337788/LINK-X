@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import type { NavKey, ChatSession, ChatMessage, ContactItem } from '../types'
 import { initialSessions, initialMessages, sessionFromContact } from '../data/mockData'
 import { useContactsStore } from './contacts'
+import { useGroupMetaStore } from './groupMeta'
 
 export interface SendMessageOptions {
   type?: ChatMessage['type']
@@ -83,6 +84,9 @@ export const useAppStore = defineStore('app', {
         if (!a.pinned && b.pinned) return 1
         return 0
       })
+    },
+    groupSessions(state): ChatSession[] {
+      return state.sessions.filter(s => s.isGroup)
     }
   },
 
@@ -103,15 +107,31 @@ export const useAppStore = defineStore('app', {
     },
 
     ensureSession(session: ChatSession) {
-      const exists = this.sessions.find(s => s.id === session.id)
-      if (!exists) {
-        this.sessions.unshift(session)
+      const exists =
+        this.sessions.find(s => s.id === session.id) ??
+        (!session.isGroup
+          ? this.sessions.find(s => !s.isGroup && s.name === session.name)
+          : undefined)
+      if (exists) {
+        this.selectSession(exists)
+        this.navKey = 'chat'
+        return exists
       }
+      this.sessions.unshift(session)
       this.selectSession(session)
       this.navKey = 'chat'
+      return session
     },
 
     startChatWithContact(contact: ContactItem) {
+      const existing = this.sessions.find(
+        s => !s.isGroup && (s.id === contact.id || s.name === contact.name)
+      )
+      if (existing) {
+        this.selectSession(existing)
+        this.navKey = 'chat'
+        return
+      }
       this.ensureSession(sessionFromContact(contact))
     },
 
@@ -240,6 +260,7 @@ export const useAppStore = defineStore('app', {
 
     inviteGroupMembers(sessionId: string, names: string[]) {
       if (!names.length) return
+      useGroupMetaStore().addMembers(sessionId, names)
       const time = nowTime()
       const text = `系统：${this.userProfile.nickname} 邀请了 ${names.join('、')} 加入群聊`
       if (!this.messagesBySession[sessionId]) {

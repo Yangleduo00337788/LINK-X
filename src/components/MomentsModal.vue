@@ -388,7 +388,7 @@ function closeMoments() {
 .post-item {
   display: flex;
   padding: 16px 0;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--lx-border-light);
 }
 
 .post-avatar {

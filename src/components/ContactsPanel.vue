@@ -15,8 +15,8 @@ const contactsStore = useContactsStore()
 const { items: contacts } = storeToRefs(contactsStore)
 const appStore = useAppStore()
 const chatModalsStore = useChatModalsStore()
-const { contactsActiveView, currentSessionId, isLoading } = storeToRefs(appStore)
-const { startChatWithContact } = appStore
+const { contactsActiveView, currentSessionId, isLoading, sessions } = storeToRefs(appStore)
+const { startChatWithContact, selectSession } = appStore
 const { openCreateGroup, openComprehensiveSearch, openContactProfile } = chatModalsStore
 const search = ref('')
 const activeTab = ref<'friends' | 'groups'>('friends')
@@ -51,13 +51,26 @@ const friendGroups = computed(() => {
   ]
 })
 
-const chatGroups = [
-  { name: '置顶群聊', total: 0, items: [] },
-  { name: '未命名的群聊', total: 1, items: [] },
-  { name: '我创建的群聊', total: 1, items: [] },
-  { name: '我管理的群聊', total: 0, items: [] },
-  { name: '我加入的群聊', total: 19, items: [] },
-]
+const chatGroups = computed(() => {
+  const q = search.value.trim().toLowerCase()
+  let list = sessions.value.filter(s => s.isGroup)
+  if (q) list = list.filter(s => s.name.toLowerCase().includes(q))
+  const pinned = list.filter(s => s.pinned)
+  const joined = list.filter(s => !s.pinned)
+  return [
+    { name: '置顶群聊', total: pinned.length, items: pinned },
+    { name: '我加入的群聊', total: joined.length, items: joined }
+  ].filter(g => g.total > 0 || !q)
+})
+
+function contactSessionId(c: ContactItem) {
+  const s = sessions.value.find(x => !x.isGroup && (x.id === c.id || x.name === c.name))
+  return s?.id ?? c.id
+}
+
+function openGroupSession(session: import('../types').ChatSession) {
+  selectSession(session)
+}
 
 function handleContactClick(c: ContactItem) {
   openContactProfile(c)
@@ -129,7 +142,7 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
             v-for="item in friendGroups[0].items"
             :key="item.id"
             class="contact-row"
-            :class="{ active: currentSessionId === item.id }"
+            :class="{ active: currentSessionId === contactSessionId(item) }"
             @click="handleContactClick(item)"
             @dblclick="handleContactDblClick(item)"
           >
@@ -145,12 +158,30 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
         </div>
 
         <div v-if="activeTab === 'groups'" class="groups-list">
-          <div v-for="group in chatGroups" :key="group.name" class="group-section">
-            <div class="group-header">
-              <span class="group-name">{{ group.name }}</span>
-              <span class="group-count">{{ group.total }}</span>
+          <template v-if="chatGroups.length === 0">
+            <EmptyState title="暂无群聊" description="发起群聊或加入群聊后将显示在这里" />
+          </template>
+          <template v-else>
+            <div v-for="group in chatGroups" :key="group.name" class="group-section">
+              <div class="group-header">
+                <span class="group-name">{{ group.name }}</span>
+                <span class="group-count">{{ group.total }}</span>
+              </div>
+              <div
+                v-for="item in group.items"
+                :key="item.id"
+                class="contact-row"
+                :class="{ active: currentSessionId === item.id }"
+                @click="openGroupSession(item)"
+              >
+                <Avatar :text="item.avatarText" :color="item.avatarColor" :size="46" />
+                <div class="info">
+                  <span class="name">{{ item.name }}</span>
+                  <span class="status">{{ item.lastMessage }}</span>
+                </div>
+              </div>
             </div>
-          </div>
+          </template>
         </div>
       </template>
     </div>
@@ -180,7 +211,7 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
   width: 32px;
   height: 32px;
   border-radius: var(--lx-radius);
-  background: #f0f0f0;
+  background: var(--lx-bg-input);
   border: none;
   display: flex;
   align-items: center;
@@ -288,7 +319,7 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
   align-items: center;
   padding: 12px 8px 8px;
   font-size: 13px;
-  color: #888;
+  color: var(--lx-text-muted);
   font-weight: 500;
 }
 
@@ -355,7 +386,7 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
 
 .status {
   font-size: 12px;
-  color: #888;
+  color: var(--lx-text-muted);
 }
 
 .skeleton-item {

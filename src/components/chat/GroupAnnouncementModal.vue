@@ -1,18 +1,45 @@
 ﻿<script setup lang="ts">
+import { computed, ref } from 'vue'
+import { NInput, NButton, useMessage } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
-import { GROUP_ANNOUNCEMENT_FULL } from '../../data/groupDemo'
+import { useGroupMetaStore } from '../../stores/groupMeta'
 import Avatar from '../Avatar.vue'
 
+const message = useMessage()
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
+const groupMetaStore = useGroupMetaStore()
 const { groupAnnouncementOpen } = storeToRefs(chatModalsStore)
 const { closeGroupAnnouncement } = chatModalsStore
-const { currentSession } = storeToRefs(appStore)
+const { currentSession, currentSessionId, userProfile } = storeToRefs(appStore)
+
+const editing = ref(false)
+const draft = ref('')
+
+const announcement = computed(() => {
+  const id = currentSessionId.value
+  if (!id) return null
+  return groupMetaStore.announcementFor(id)
+})
 
 function close() {
+  editing.value = false
   closeGroupAnnouncement()
+}
+
+function startEdit() {
+  draft.value = announcement.value?.content ?? ''
+  editing.value = true
+}
+
+function save() {
+  const id = currentSessionId.value
+  if (!id || !draft.value.trim()) return
+  groupMetaStore.updateAnnouncement(id, draft.value.trim())
+  message.success('群公告已更新')
+  editing.value = false
 }
 </script>
 
@@ -24,18 +51,25 @@ function close() {
           <h2>{{ currentSession?.name || '群聊' }}</h2>
           <button type="button" class="close-x" @click="close">×</button>
         </header>
-        <div class="post">
+        <div v-if="announcement" class="post">
           <div class="post-head">
-            <Avatar text="有" color="#f56c6c" :size="40" />
+            <Avatar :text="userProfile.nickname.charAt(0)" color="var(--lx-accent)" :size="40" />
             <div class="post-meta">
-              <span class="author">有BB机的小豆包</span>
-              <span class="role">群主</span>
-              <span class="time">昨天 20:27</span>
+              <span class="author">{{ announcement.author }}</span>
+              <span class="role">{{ announcement.role }}</span>
+              <span class="time">{{ announcement.time }}</span>
             </div>
             <span class="pin-tag">置顶</span>
           </div>
-          <pre class="post-body">{{ GROUP_ANNOUNCEMENT_FULL }}</pre>
-          <button type="button" class="expand-btn">展开 ▾</button>
+          <pre v-if="!editing" class="post-body">{{ announcement.content }}</pre>
+          <n-input v-else v-model:value="draft" type="textarea" :rows="6" />
+          <div class="actions">
+            <n-button v-if="!editing" size="small" @click="startEdit">编辑公告</n-button>
+            <template v-else>
+              <n-button size="small" @click="editing = false">取消</n-button>
+              <n-button size="small" type="primary" @click="save">保存</n-button>
+            </template>
+          </div>
         </div>
       </div>
     </div>
@@ -61,7 +95,7 @@ function close() {
   border-radius: var(--lx-radius);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--lx-shadow-modal);
 }
 
 .win-head {
@@ -69,7 +103,7 @@ function close() {
   align-items: center;
   justify-content: space-between;
   padding: 14px 18px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--lx-border-light);
 }
 
 .win-head h2 {
@@ -80,6 +114,7 @@ function close() {
   text-overflow: ellipsis;
   white-space: nowrap;
   padding-right: 12px;
+  color: var(--lx-text-body);
 }
 
 .close-x {
@@ -138,7 +173,7 @@ function close() {
   right: 0;
   font-size: 11px;
   color: var(--lx-accent);
-  background: #e6f7ff;
+  background: var(--lx-accent-bg-soft);
   padding: 2px 8px;
   border-radius: var(--lx-radius);
 }
@@ -153,13 +188,10 @@ function close() {
   word-break: break-word;
 }
 
-.expand-btn {
+.actions {
   margin-top: 12px;
-  border: none;
-  background: none;
-  color: var(--lx-accent);
-  font-size: 13px;
-  cursor: pointer;
-  float: right;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
 }
 </style>

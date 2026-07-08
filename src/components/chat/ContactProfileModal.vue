@@ -1,23 +1,29 @@
 ﻿<script setup lang="ts">
 import { computed } from 'vue'
-import { NModal, NButton, NIcon, NDivider, useMessage } from 'naive-ui'
-import { 
-  ChatbubbleEllipsesOutline, 
-  CallOutline, 
-  VideocamOutline, 
-  EllipsisHorizontalOutline 
+import { NModal, NButton, NIcon, NDivider, NPopover, useMessage } from 'naive-ui'
+import {
+  ChatbubbleEllipsesOutline,
+  CallOutline,
+  VideocamOutline,
+  EllipsisHorizontalOutline,
+  ShareOutline,
+  BanOutline,
+  PersonRemoveOutline
 } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
+import { useContactsStore } from '../../stores/contacts'
 import type { ContactItem } from '../../types'
 
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
+const contactsStore = useContactsStore()
 const { contactProfileOpen, currentContactProfile } = storeToRefs(chatModalsStore)
 const { closeContactProfile, openVoiceCall, openVideoCall } = chatModalsStore
-const { startChatWithContact } = appStore
+const { startChatWithContact, deleteSession, toggleSessionBlock } = appStore
+const { remove: removeContact } = contactsStore
 const message = useMessage()
 
 const contact = computed<ContactItem | null>(() => currentContactProfile.value)
@@ -38,8 +44,30 @@ function handleVideoCall() {
   closeContactProfile()
 }
 
-function handleMore() {
-  message.info('更多操作')
+function shareCard() {
+  if (!contact.value) return
+  navigator.clipboard.writeText(`LinkX 名片：${contact.value.name} (${contact.value.id})`)
+  message.success('名片链接已复制')
+}
+
+function blockContact() {
+  if (!contact.value) return
+  const session = appStore.sessions.find(
+    s => !s.isGroup && (s.id === contact.value!.id || s.name === contact.value!.name)
+  )
+  if (session) toggleSessionBlock(session.id)
+  message.success(`已屏蔽「${contact.value.name}」`)
+  closeContactProfile()
+}
+
+function deleteFriend() {
+  if (!contact.value) return
+  const c = contact.value
+  const session = appStore.sessions.find(s => !s.isGroup && (s.id === c.id || s.name === c.name))
+  if (session) deleteSession(session.id)
+  removeContact(c.id)
+  message.success(`已删除好友「${c.name}」`)
+  closeContactProfile()
 }
 </script>
 
@@ -54,10 +82,10 @@ function handleMore() {
   >
     <template v-if="contact">
     <div class="profile-header">
-      <Avatar 
-        :text="contact.avatarText || contact.name.charAt(0)" 
-        :color="contact.avatarColor || 'var(--lx-accent)'" 
-        :size="72" 
+      <Avatar
+        :text="contact.avatarText || contact.name.charAt(0)"
+        :color="contact.avatarColor || 'var(--lx-accent)'"
+        :size="72"
       />
       <div class="profile-basic">
         <div class="profile-name">
@@ -99,11 +127,26 @@ function handleMore() {
             <n-icon :component="VideocamOutline" />
           </template>
         </n-button>
-        <n-button class="icon-btn" tertiary circle @click="handleMore" title="更多">
-          <template #icon>
-            <n-icon :component="EllipsisHorizontalOutline" />
+        <n-popover trigger="click" placement="bottom">
+          <template #trigger>
+            <n-button class="icon-btn" tertiary circle title="更多">
+              <template #icon>
+                <n-icon :component="EllipsisHorizontalOutline" />
+              </template>
+            </n-button>
           </template>
-        </n-button>
+          <div class="more-menu">
+            <button type="button" class="more-item" @click="shareCard">
+              <n-icon :component="ShareOutline" /> 分享名片
+            </button>
+            <button type="button" class="more-item" @click="blockContact">
+              <n-icon :component="BanOutline" /> 屏蔽此人
+            </button>
+            <button type="button" class="more-item danger" @click="deleteFriend">
+              <n-icon :component="PersonRemoveOutline" /> 删除好友
+            </button>
+          </div>
+        </n-popover>
       </div>
     </div>
     </template>
@@ -131,7 +174,7 @@ function handleMore() {
 .profile-name {
   font-size: 20px;
   font-weight: 600;
-  color: var(--lx-text);
+  color: var(--lx-text-body);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -143,7 +186,6 @@ function handleMore() {
   height: 8px;
   border-radius: 50%;
   background: var(--lx-success);
-  box-shadow: 0 0 0 2px rgba(82, 196, 26, 0.2);
 }
 
 .profile-id {
@@ -174,13 +216,13 @@ function handleMore() {
 }
 
 .info-value {
-  color: var(--lx-text);
+  color: var(--lx-text-body);
   flex: 1;
 }
 
 .profile-actions {
   padding: 24px;
-  background: #f7f7f7;
+  background: var(--lx-bg-panel);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -189,9 +231,6 @@ function handleMore() {
 .action-btn {
   width: 100%;
   height: 40px;
-  border-radius: var(--lx-radius);
-  font-size: 15px;
-  background: var(--lx-accent) !important;
 }
 
 .secondary-actions {
@@ -200,9 +239,30 @@ function handleMore() {
   gap: 24px;
 }
 
-.icon-btn {
-  width: 40px;
-  height: 40px;
-  font-size: 20px;
+.more-menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+}
+
+.more-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--lx-text-body);
+  border-radius: var(--lx-radius);
+}
+
+.more-item:hover {
+  background: var(--lx-bg-hover);
+}
+
+.more-item.danger {
+  color: #e34d59;
 }
 </style>

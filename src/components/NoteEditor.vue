@@ -53,8 +53,33 @@ function closeWindow() {
   }
 }
 
+const imageInputRef = ref<HTMLInputElement | null>(null)
+const fileInputRef = ref<HTMLInputElement | null>(null)
+
+function insertImage(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  content.value += `\n[图片: ${file.name}]\n`
+  message.success('图片已插入笔记')
+  noteStore.save()
+}
+
+function insertFile(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  content.value += `\n[附件: ${file.name}]\n`
+  message.success('附件已插入笔记')
+  noteStore.save()
+}
+
 function handleToolClick(toolName: string) {
-  message.info(`「${toolName}」功能即将上线`)
+  if (toolName === '插入图片') imageInputRef.value?.click()
+  else if (toolName === '插入附件') fileInputRef.value?.click()
+  else message.info(`「${toolName}」将在后续版本支持`)
 }
 
 let cleanupMaximizedListener: (() => void) | undefined
@@ -99,6 +124,8 @@ onUnmounted(() => {
     </div>
 
     <div class="toolbar no-drag">
+      <input ref="imageInputRef" type="file" accept="image/*" hidden @change="insertImage" />
+      <input ref="fileInputRef" type="file" hidden @change="insertFile" />
       <button type="button" class="tool-btn" title="图片" @click="handleToolClick('插入图片')">
         <n-icon :component="ImageOutline" size="18" />
       </button>

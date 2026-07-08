@@ -208,11 +208,12 @@ export const apps: AppItem[] = [
 
 export function sessionFromContact(c: ContactItem): ChatSession {
   return {
-    id: `chat-${c.id}`,
+    id: c.id,
     name: c.name,
     lastMessage: '点击开始聊天',
     time: '刚刚',
     avatarText: c.avatarText,
-    avatarColor: c.avatarColor
+    avatarColor: c.avatarColor,
+    online: c.online
   }
 }
