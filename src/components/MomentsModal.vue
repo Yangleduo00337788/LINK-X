@@ -4,6 +4,7 @@ import { NIcon, useMessage } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../stores/chatModals'
 import { useAppStore } from '../stores/app'
+import { useMomentsStore } from '../stores/moments'
 import {
   NotificationsOutline,
   RefreshOutline,
@@ -17,17 +18,21 @@ import {
 
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
+const momentsStore = useMomentsStore()
 const { closeMomentsModal } = chatModalsStore
 const { userProfile } = storeToRefs(appStore)
+const { posts } = storeToRefs(momentsStore)
+const { toggleLike, toggleActions, isActionsOpen } = momentsStore
 const message = useMessage()
 
 const scrollTop = ref(0)
-const handleScroll = (e: Event) => {
-  const target = e.target as HTMLElement
-  scrollTop.value = target.scrollTop
+const commentDraft = ref('')
+const commentPostId = ref<string | null>(null)
+
+function handleScroll(e: Event) {
+  scrollTop.value = (e.target as HTMLElement).scrollTop
 }
 
-// 控制顶部导航栏的状态
 const showTitle = computed(() => scrollTop.value > 250)
 const headerBgOpacity = computed(() => {
   const opacity = Math.min(scrollTop.value / 200, 1)
@@ -35,85 +40,27 @@ const headerBgOpacity = computed(() => {
 })
 const headerIconColor = computed(() => (scrollTop.value > 200 ? 'var(--lx-text)' : 'var(--lx-bg-card)'))
 
-interface Comment {
-  id: string
-  user: string
-  content: string
+function onToggleLike(postId: string) {
+  toggleLike(postId, userProfile.value.nickname || '我')
 }
 
-interface Post {
-  id: string
-  user: string
-  avatar: string
-  content: string
-  images?: string[]
-  time: string
-  liked: boolean
-  likes: string[]
-  comments: Comment[]
-  showActions: boolean
+function onComment(post: { id: string }) {
+  commentPostId.value = post.id
+  toggleActions(post.id)
 }
 
-// 模拟朋友圈数据
-const posts = ref<Post[]>([
-  {
-    id: '1',
-    user: '张三',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=张三',
-    content: '今天天气真不错，出去放松一下心情！大家周末都在干嘛呢？',
-    images: ['https://images.unsplash.com/photo-1506744626753-1fa44df14c28?w=400&h=400&fit=crop'],
-    time: '1小时前',
-    liked: false,
-    likes: ['李四', '王五'],
-    comments: [
-      { id: 'c1', user: '李四', content: '去哪里玩了呀？' },
-      { id: 'c2', user: '张三', content: '回复 李四: 就在附近的公园转转~' }
-    ],
-    showActions: false
-  },
-  {
-    id: '2',
-    user: '李四',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=李四',
-    content: '刚刚完成了一个大项目，好累但很有成就感！准备好好睡一觉。',
-    time: '3小时前',
-    liked: true,
-    likes: ['养乐多', '王五'],
-    comments: [],
-    showActions: false
-  },
-  {
-    id: '3',
-    user: '王五',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=王五',
-    content: '分享一首好听的歌 🎵',
-    time: '昨天',
-    liked: false,
-    likes: [],
-    comments: [
-      { id: 'c3', user: '养乐多', content: '确实好听！' }
-    ],
-    showActions: false
-  }
-])
-
-function toggleLike(post: Post) {
-  post.liked = !post.liked
-  if (post.liked) {
-    post.likes.push(userProfile.value.nickname || '我')
-  } else {
-    post.likes = post.likes.filter(name => name !== (userProfile.value.nickname || '我'))
-  }
-  post.showActions = false
+function submitComment(postId: string) {
+  const text = commentDraft.value.trim()
+  if (!text) return
+  momentsStore.addComment(postId, userProfile.value.nickname, text)
+  commentDraft.value = ''
+  commentPostId.value = null
+  message.success('评论已发送')
 }
 
 function refresh() {
-  // 模拟刷新动画
   scrollTop.value = 0
-  const container = document.querySelector('.moments-scroll-container')
-  if (container) {
-    container.scrollTo({ top: 0, behavior: 'smooth' })
-  }
+  document.querySelector('.moments-scroll-container')?.scrollTo({ top: 0, behavior: 'smooth' })
   message.success('刷新成功')
 }
 
@@ -122,122 +69,101 @@ function showMessage() {
 }
 
 function minimizeMoments() {
-  if (window.electronAPI) {
-    window.electronAPI.minimize()
-  } else {
-    closeMomentsModal()
-  }
+  if (window.electronAPI) window.electronAPI.minimize()
+  else closeMomentsModal()
 }
 
 function closeMoments() {
-  if (window.electronAPI) {
-    window.electronAPI.close()
-  } else {
-    closeMomentsModal()
-  }
+  if (window.electronAPI) window.electronAPI.close()
+  else closeMomentsModal()
 }
 </script>
 
 <template>
   <div class="moments-wrapper standalone-window">
-    <!-- 可滚动的内容区 -->
     <div class="moments-scroll-container" @scroll="handleScroll">
-        <div class="moments-header">
-          <div class="header-banner">
-            <!-- 占满上半部分页面 (280px) -->
-            <img src="https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&q=80&w=1000" alt="Banner" class="banner-img" />
-          </div>
-          <div class="user-info">
-            <span class="username">{{ userProfile.nickname }}</span>
-            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=qq-user" alt="Avatar" class="avatar-img" />
-          </div>
+      <div class="moments-header">
+        <div class="header-banner">
+          <img src="https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&q=80&w=1000" alt="Banner" class="banner-img" />
         </div>
+        <div class="user-info">
+          <span class="username">{{ userProfile.nickname }}</span>
+          <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=qq-user" alt="Avatar" class="avatar-img" />
+        </div>
+      </div>
 
-        <div class="moments-content">
-          <!-- 动态列表 -->
-          <div v-for="post in posts" :key="post.id" class="post-item">
-            <img :src="post.avatar" alt="Avatar" class="post-avatar" />
-            <div class="post-main">
-              <div class="post-user">{{ post.user }}</div>
-              <div class="post-text">{{ post.content }}</div>
-              
-              <div class="post-images" v-if="post.images && post.images.length > 0">
-                <img v-for="(img, index) in post.images" :key="index" :src="img" class="post-image" />
-              </div>
-
-              <div class="post-footer">
-                <span class="post-time">{{ post.time }}</span>
-                <div class="post-action-wrap">
-                  <!-- 展开的操作面板 -->
-                  <div class="action-panel" :class="{ 'show': post.showActions }">
-                    <div class="action-btn-item" @click="toggleLike(post)">
-                      <n-icon :component="post.liked ? Heart : HeartOutline" size="16" />
-                      <span>{{ post.liked ? '取消' : '赞' }}</span>
-                    </div>
-                    <div class="action-divider"></div>
-                    <div class="action-btn-item" @click="post.showActions = false">
-                      <n-icon :component="ChatbubbleOutline" size="16" />
-                      <span>评论</span>
-                    </div>
+      <div class="moments-content">
+        <div v-for="post in posts" :key="post.id" class="post-item">
+          <img :src="post.avatar" alt="Avatar" class="post-avatar" />
+          <div class="post-main">
+            <div class="post-user">{{ post.user }}</div>
+            <div class="post-text">{{ post.content }}</div>
+            <div v-if="post.images?.length" class="post-images">
+              <img v-for="(img, index) in post.images" :key="index" :src="img" class="post-image" />
+            </div>
+            <div class="post-footer">
+              <span class="post-time">{{ post.time }}</span>
+              <div class="post-action-wrap">
+                <div class="action-panel" :class="{ show: isActionsOpen(post.id) }">
+                  <div class="action-btn-item" @click="onToggleLike(post.id)">
+                    <n-icon :component="post.liked ? Heart : HeartOutline" size="16" />
+                    <span>{{ post.liked ? '取消' : '赞' }}</span>
                   </div>
-                  <!-- 触发按钮 -->
-                  <div class="action-trigger" @click.stop="post.showActions = !post.showActions">
-                    <n-icon :component="EllipsisHorizontal" size="18" />
+                  <div class="action-divider" />
+                  <div class="action-btn-item" @click="onComment(post)">
+                    <n-icon :component="ChatbubbleOutline" size="16" />
+                    <span>评论</span>
                   </div>
                 </div>
-              </div>
-
-              <!-- 点赞和评论区域 -->
-              <div class="post-interactions" v-if="post.likes.length > 0 || post.comments.length > 0">
-                <!-- 小三角 -->
-                <div class="interaction-arrow"></div>
-                
-                <div class="likes-list" v-if="post.likes.length > 0">
-                  <n-icon :component="HeartOutline" size="14" class="like-icon" />
-                  <span class="like-users">{{ post.likes.join('，') }}</span>
+                <div class="action-trigger" @click.stop="toggleActions(post.id)">
+                  <n-icon :component="EllipsisHorizontal" size="18" />
                 </div>
-                
-                <div class="interaction-divider" v-if="post.likes.length > 0 && post.comments.length > 0"></div>
-                
-                <div class="comments-list" v-if="post.comments.length > 0">
-                  <div v-for="comment in post.comments" :key="comment.id" class="comment-item">
-                    <span class="comment-user">{{ comment.user }}：</span>
-                    <span class="comment-text">{{ comment.content }}</span>
-                  </div>
+              </div>
+            </div>
+            <div v-if="commentPostId === post.id" class="comment-input-row">
+              <input v-model="commentDraft" class="comment-input" placeholder="写评论…" @keyup.enter="submitComment(post.id)" />
+              <button type="button" class="comment-send" @click="submitComment(post.id)">发送</button>
+            </div>
+            <div v-if="post.likedBy.length || post.comments.length" class="post-interactions">
+              <div class="interaction-arrow" />
+              <div v-if="post.likedBy.length" class="likes-list">
+                <n-icon :component="HeartOutline" size="14" class="like-icon" />
+                <span class="like-users">{{ post.likedBy.join('，') }}</span>
+              </div>
+              <div v-if="post.likedBy.length && post.comments.length" class="interaction-divider" />
+              <div v-if="post.comments.length" class="comments-list">
+                <div v-for="comment in post.comments" :key="comment.id" class="comment-item">
+                  <span class="comment-user">{{ comment.user }}：</span>
+                  <span class="comment-text">{{ comment.content }}</span>
                 </div>
               </div>
             </div>
           </div>
-          
-          <div class="bottom-tip">
-            没有更多了
-          </div>
+        </div>
+        <div class="bottom-tip">没有更多了</div>
+      </div>
+    </div>
+
+    <div class="fixed-header" :style="{ backgroundColor: headerBgOpacity, color: headerIconColor }">
+      <div class="header-left">
+        <div class="action-btn" title="消息" @click.stop="showMessage">
+          <n-icon :component="NotificationsOutline" size="22" />
+        </div>
+        <div class="action-btn" title="刷新" @click.stop="refresh">
+          <n-icon :component="RefreshOutline" size="22" />
         </div>
       </div>
-
-      <!-- 固定的顶部导航栏 -->
-      <div class="fixed-header" :style="{ backgroundColor: headerBgOpacity, color: headerIconColor }">
-        <div class="header-left">
-          <div class="action-btn" title="消息" @click.stop="showMessage">
-            <n-icon :component="NotificationsOutline" size="22" />
-          </div>
-          <div class="action-btn" title="刷新" @click.stop="refresh">
-            <n-icon :component="RefreshOutline" size="22" />
-          </div>
+      <div class="header-center" :class="{ visible: showTitle }">X友圈</div>
+      <div class="header-right">
+        <div class="action-btn minimize-btn" title="最小化" @click.stop="minimizeMoments">
+          <n-icon :component="RemoveOutline" size="24" />
         </div>
-        <div class="header-center" :class="{ 'visible': showTitle }">
-          X友圈
-        </div>
-        <div class="header-right">
-          <div class="action-btn minimize-btn" title="最小化" @click.stop="minimizeMoments">
-            <n-icon :component="RemoveOutline" size="24" />
-          </div>
-          <div class="action-btn close-btn" title="关闭" @click.stop="closeMoments">
-            <n-icon :component="CloseOutline" size="24" />
-          </div>
+        <div class="action-btn close-btn" title="关闭" @click.stop="closeMoments">
+          <n-icon :component="CloseOutline" size="24" />
         </div>
       </div>
     </div>
+  </div>
 </template>
 
 <style scoped>
@@ -259,7 +185,6 @@ function closeMoments() {
   margin: auto;
 }
 
-/* 固定头部 */
 .fixed-header {
   position: absolute;
   top: 0;
@@ -274,14 +199,14 @@ function closeMoments() {
   transition: background-color 0.3s ease, color 0.3s ease;
   box-sizing: border-box;
   pointer-events: none;
-  -webkit-app-region: drag; /* 允许拖动窗口 */
+  -webkit-app-region: drag;
 }
 
 .header-left, .header-right {
   display: flex;
   align-items: center;
   gap: 8px;
-  -webkit-app-region: no-drag; /* 按钮区域不可拖动 */
+  -webkit-app-region: no-drag;
 }
 
 .header-center {
@@ -317,7 +242,6 @@ function closeMoments() {
   color: var(--lx-bg-card) !important;
 }
 
-/* 滚动区域 */
 .moments-scroll-container {
   height: 100%;
   overflow-y: auto;
@@ -328,22 +252,20 @@ function closeMoments() {
   width: 100%;
 }
 
-/* 隐藏滚动条 */
 .moments-scroll-container::-webkit-scrollbar {
   width: 0;
   background: transparent;
 }
 
-/* 头部背景和个人信息 */
 .moments-header {
   position: relative;
-  height: 320px; /* 给下方留出一点空间显示头像 */
+  height: 320px;
   background: var(--lx-bg-card);
 }
 
 .header-banner {
   width: 100%;
-  height: 280px; /* 占满一半尺寸 (560/2) */
+  height: 280px;
   overflow: hidden;
 }
 
@@ -373,14 +295,13 @@ function closeMoments() {
 .avatar-img {
   width: 68px;
   height: 68px;
-  border-radius: 50%; /* 圆形头像 */
+  border-radius: 50%;
   border: 2px solid var(--lx-bg-card);
   background: var(--lx-bg-card);
   object-fit: cover;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
-/* 动态列表 */
 .moments-content {
   padding: 0 20px 20px;
 }
@@ -394,25 +315,18 @@ function closeMoments() {
 .post-avatar {
   width: 42px;
   height: 42px;
-  border-radius: 50%; /* 圆形头像 */
+  border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
   margin-right: 12px;
   background: var(--lx-bg-panel);
-  cursor: pointer;
-}
-
-.post-main {
-  flex: 1;
-  min-width: 0;
 }
 
 .post-user {
   font-size: 15px;
   font-weight: 600;
-  color: #576b95; /* 微信朋友圈用户名的经典蓝色 */
+  color: #576b95;
   margin-bottom: 4px;
-  cursor: pointer;
 }
 
 .post-text {
@@ -497,19 +411,40 @@ function closeMoments() {
   white-space: nowrap;
 }
 
-.action-btn-item:hover {
-  opacity: 0.8;
-}
-
 .action-divider {
   width: 1px;
   height: 16px;
   background: #393d40;
 }
 
-/* 点赞和评论区 */
+.comment-input-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.comment-input {
+  flex: 1;
+  border: 1px solid var(--lx-border-light);
+  border-radius: var(--lx-radius);
+  padding: 6px 10px;
+  font-size: 13px;
+  background: var(--lx-bg-card);
+  color: var(--lx-text);
+}
+
+.comment-send {
+  border: none;
+  background: var(--lx-accent);
+  color: #fff;
+  border-radius: var(--lx-radius);
+  padding: 0 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
 .post-interactions {
-  background: #f7f7f7;
+  background: var(--lx-bg-panel);
   border-radius: var(--lx-radius);
   padding: 8px 10px;
   position: relative;
@@ -524,7 +459,7 @@ function closeMoments() {
   height: 0;
   border-left: 8px solid transparent;
   border-right: 8px solid transparent;
-  border-bottom: 8px solid #f7f7f7;
+  border-bottom: 8px solid var(--lx-bg-panel);
 }
 
 .likes-list {
@@ -540,10 +475,6 @@ function closeMoments() {
   margin-top: 3px;
   margin-right: 6px;
   flex-shrink: 0;
-}
-
-.like-users {
-  font-weight: 500;
 }
 
 .interaction-divider {
@@ -567,11 +498,6 @@ function closeMoments() {
 .comment-user {
   color: #576b95;
   font-weight: 500;
-  cursor: pointer;
-}
-
-.comment-text {
-  color: var(--lx-text);
 }
 
 .bottom-tip {

@@ -16,6 +16,8 @@ export const useChatModalsStore = defineStore('chatModals', {
     groupEssenceOpen: false,
     groupAnnouncementOpen: false,
     redPacketOpen: false,
+    redPacketReceiveOpen: false,
+    redPacketReceiveMsgId: null as string | null,
     contactProfileOpen: false,
     currentContactProfile: null as ContactItem | null
   }),
@@ -102,6 +104,14 @@ export const useChatModalsStore = defineStore('chatModals', {
     },
     closeRedPacket() {
       this.redPacketOpen = false
+    },
+    openRedPacketReceive(messageId: string) {
+      this.redPacketReceiveMsgId = messageId
+      this.redPacketReceiveOpen = true
+    },
+    closeRedPacketReceive() {
+      this.redPacketReceiveOpen = false
+      this.redPacketReceiveMsgId = null
     },
     openContactProfile(contact: ContactItem) {
       this.currentContactProfile = contact

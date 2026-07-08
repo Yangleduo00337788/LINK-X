@@ -1,4 +1,4 @@
-import type { ChatSession, ChatMessage, ContactItem, FavoriteItem, ChannelItem, AppItem } from '../types'
+import type { ChatSession, ChatMessage, ContactItem, FavoriteItem, AppItem } from '../types'
 
 export const initialSessions: ChatSession[] = [
   {
@@ -193,17 +193,11 @@ export const favorites: FavoriteItem[] = [
   { id: 'f3', title: 'API 文档', preview: 'https://docs.example.com', time: '3天前', type: 'link' }
 ]
 
-export const channels: ChannelItem[] = [
-  { id: 'ch1', name: '科技前沿', desc: '每日 AI 与开发资讯', members: 12800, avatarText: '科', avatarColor: '#1890ff', joined: true },
-  { id: 'ch2', name: '游戏速递', desc: '新游与活动', members: 5600, avatarText: '游', avatarColor: '#f5222d', joined: false },
-  { id: 'ch3', name: '生活百科', desc: '实用小技巧', members: 3200, avatarText: '生', avatarColor: '#13c2c2', joined: false }
-]
-
 export const apps: AppItem[] = [
-  { id: 'a1', name: '腾讯文档', desc: '在线协作', icon: '文', color: '#1890ff' },
-  { id: 'a2', name: '微云', desc: '网盘备份', icon: '云', color: '#52c41a' },
-  { id: 'a3', name: 'QQ音乐', desc: '听歌', icon: '乐', color: '#fa541c' },
-  { id: 'a4', name: '小游戏', desc: '休闲娱乐', icon: '戏', color: '#722ed1' }
+  { id: 'a1', name: '腾讯文档', desc: '在线协作', icon: '文', color: '#1890ff', url: 'https://docs.qq.com/' },
+  { id: 'a2', name: '微云', desc: '网盘备份', icon: '云', color: '#52c41a', url: 'https://www.weiyun.com/' },
+  { id: 'a3', name: 'QQ音乐', desc: '听歌', icon: '乐', color: '#fa541c', url: 'https://y.qq.com/' },
+  { id: 'a4', name: '小游戏', desc: '休闲娱乐', icon: '戏', color: '#722ed1', url: 'https://example.com/' }
 ]
 
 export function sessionFromContact(c: ContactItem): ChatSession {

@@ -15,17 +15,20 @@ import {
 } from 'naive-ui'
 import { ArrowBackOutline } from '@vicons/ionicons5'
 import WindowControls from '../WindowControls.vue'
+import AppWebView from '../AppWebView.vue'
 import { storeToRefs } from 'pinia'
 import { useAppSettingsStore } from '../../stores/appSettings'
 import { useOverlayStore } from '../../stores/overlay'
 import { useAppStore } from '../../stores/app'
+import { useContactsStore } from '../../stores/contacts'
 import type { OverlayPage } from '../../types'
 
 const message = useMessage()
 const overlayStore = useOverlayStore()
 const appSettingsStore = useAppSettingsStore()
 const appStore = useAppStore()
-const { currentPage, overlayApp, overlayFileName } = storeToRefs(overlayStore)
+const contactsStore = useContactsStore()
+const { currentPage, overlayApp, filePreview } = storeToRefs(overlayStore)
 const { close } = overlayStore
 const {
   theme,
@@ -37,8 +40,16 @@ const {
   toggleTheme,
   setNav,
   updateNickname,
-  updateSignature
+  updateSignature,
+  createGroup
 } = appStore
+
+const addFriendAccount = ref('')
+const addFriendMsg = ref('我是…')
+const createGroupName = ref('')
+const createGroupMembers = ref('')
+const channelName = ref('')
+const channelDesc = ref('')
 
 const {
   autoStart,
@@ -68,6 +79,8 @@ const historyMessages = computed(() =>
 function historyPreview(msg: (typeof currentMessages.value)[number]) {
   if (msg.type === 'file') return `[文件] ${msg.fileName || msg.content}`
   if (msg.type === 'image' || msg.isImage) return '[图片]'
+  if (msg.type === 'voice') return '[语音]'
+  if (msg.type === 'redPacket') return `[红包] ${msg.redPacketGreeting || msg.content}`
   return msg.content
 }
 
@@ -129,17 +142,67 @@ function saveDemo(label: string) {
   close()
 }
 
-function createGroupAndEnter() {
-  appStore.joinGroup('新建群聊')
-  setNav('chat')
-  message.success('群聊已创建')
+function submitAddFriend() {
+  const account = addFriendAccount.value.trim()
+  if (!account) {
+    message.warning('请输入账号')
+    return
+  }
+  appStore.addFriendSession(account)
+  contactsStore.addByName(account)
+  message.success(`已向「${account}」发送好友申请（本地模拟）`)
+  addFriendAccount.value = ''
   close()
 }
 
-function createChannelDone() {
-  setNav('moments')
-  message.success('频道已创建')
+function submitCreateGroup() {
+  const name = createGroupName.value.trim() || '新建群聊'
+  const memberNames = createGroupMembers.value
+    .split(/[,，、\s]+/)
+    .map(s => s.trim())
+    .filter(Boolean)
+  const members = memberNames.map((n, i) => ({
+    id: `invite-${i}-${Date.now()}`,
+    name: n,
+    avatarText: n.charAt(0) || '?',
+    avatarColor: '#12b7f5'
+  }))
+  if (!members.length) {
+    members.push({
+      id: `invite-self-${Date.now()}`,
+      name: userProfile.value.nickname,
+      avatarText: userProfile.value.nickname.charAt(0) || '我',
+      avatarColor: '#12b7f5'
+    })
+  }
+  createGroup(members, name)
+  setNav('chat')
+  message.success('群聊已创建')
+  createGroupName.value = ''
+  createGroupMembers.value = ''
   close()
+}
+
+function submitCreateChannel() {
+  const name = channelName.value.trim()
+  if (!name) {
+    message.warning('请输入频道名称')
+    return
+  }
+  contactsStore.addByName(name)
+  setNav('moments')
+  message.success(`频道「${name}」已创建`)
+  channelName.value = ''
+  channelDesc.value = ''
+  close()
+}
+
+function createGroupAndEnter() {
+  submitCreateGroup()
+}
+
+function createChannelDone() {
+  submitCreateChannel()
 }
 </script>
 
@@ -243,24 +306,24 @@ function createChannelDone() {
 
       <template v-else-if="currentPage === 'add-friend'">
         <n-form>
-          <n-form-item label="QQ号 / 手机号"><n-input placeholder="输入账号" /></n-form-item>
-          <n-form-item label="验证信息"><n-input placeholder="我是…" /></n-form-item>
+          <n-form-item label="LinkX ID / 手机号"><n-input v-model:value="addFriendAccount" placeholder="输入账号" /></n-form-item>
+          <n-form-item label="验证信息"><n-input v-model:value="addFriendMsg" placeholder="我是…" /></n-form-item>
         </n-form>
-        <n-button type="primary" @click="saveDemo('好友申请')">发送申请</n-button>
+        <n-button type="primary" @click="submitAddFriend">发送申请</n-button>
       </template>
 
       <template v-else-if="currentPage === 'create-group'">
         <n-form>
-          <n-form-item label="群名称"><n-input placeholder="起个群名" /></n-form-item>
-          <n-form-item label="邀请成员"><n-input placeholder="搜索好友" /></n-form-item>
+          <n-form-item label="群名称"><n-input v-model:value="createGroupName" placeholder="起个群名" /></n-form-item>
+          <n-form-item label="邀请成员"><n-input v-model:value="createGroupMembers" placeholder="多个成员用逗号分隔" /></n-form-item>
         </n-form>
         <n-button type="primary" @click="createGroupAndEnter">创建并进入</n-button>
       </template>
 
       <template v-else-if="currentPage === 'create-channel'">
         <n-form>
-          <n-form-item label="频道名称"><n-input placeholder="频道名" /></n-form-item>
-          <n-form-item label="简介"><n-input type="textarea" placeholder="介绍频道" /></n-form-item>
+          <n-form-item label="频道名称"><n-input v-model:value="channelName" placeholder="频道名" /></n-form-item>
+          <n-form-item label="简介"><n-input v-model:value="channelDesc" type="textarea" placeholder="介绍频道" /></n-form-item>
         </n-form>
         <n-button type="primary" @click="createChannelDone">创建频道</n-button>
       </template>
@@ -274,20 +337,36 @@ function createChannelDone() {
       </template>
 
       <template v-else-if="currentPage === 'app-runner' && overlayApp">
-        <div class="app-run">
+        <div v-if="overlayApp.url" class="app-run-embed">
+          <AppWebView :url="overlayApp.url" :title="overlayApp.name" />
+        </div>
+        <div v-else class="app-run">
           <div class="app-icon-lg" :style="{ background: overlayApp.color }">{{ overlayApp.icon }}</div>
           <h2>{{ overlayApp.name }}</h2>
           <p>{{ overlayApp.desc }}</p>
-          <p class="tip">此处可嵌入 WebView 或调用后端打开第三方应用。</p>
-          <n-button type="primary" @click="message.success('应用已打开')">进入应用</n-button>
+          <p class="tip">该应用暂未配置内嵌 URL。</p>
         </div>
       </template>
 
       <template v-else-if="currentPage === 'file-preview'">
         <div class="file-preview">
-          <div class="preview-box">📷</div>
-          <p>{{ overlayFileName || 'Screenshot 2026-07-05-18-48.png' }}</p>
-          <p class="muted">355.33 KB · 已下载到本地</p>
+          <div v-if="filePreview?.fileUrl && filePreview.isImage" class="preview-box preview-img-wrap">
+            <img :src="filePreview.fileUrl" :alt="filePreview.fileName" class="preview-img" />
+          </div>
+          <div v-else class="preview-box">{{ filePreview?.isImage ? '🖼️' : '📄' }}</div>
+          <p>{{ filePreview?.fileName || '文件' }}</p>
+          <p class="muted">{{ filePreview?.fileSize || '—' }} · 本地预览</p>
+          <n-button
+            v-if="filePreview?.fileUrl"
+            tag="a"
+            :href="filePreview.fileUrl"
+            target="_blank"
+            rel="noopener"
+            type="primary"
+            class="mt"
+          >
+            下载 / 打开
+          </n-button>
         </div>
       </template>
 
@@ -425,6 +504,23 @@ function createChannelDone() {
   color: var(--lx-accent);
   font-size: 13px;
   margin: 16px 0;
+}
+
+.app-run-embed {
+  height: min(520px, 70vh);
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-img-wrap {
+  padding: 0;
+  overflow: hidden;
+}
+
+.preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .file-preview {

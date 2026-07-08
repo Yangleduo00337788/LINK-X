@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch, onUnmounted } from 'vue'
 import { NIcon } from 'naive-ui'
 import {
   MicOutline,
@@ -16,13 +16,53 @@ import { useAppStore } from '../../stores/app'
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
 const { voiceCallOpen } = storeToRefs(chatModalsStore)
-const { closeVoiceCall } = chatModalsStore
+const { closeVoiceCall, openVideoCall } = chatModalsStore
 const { currentSession } = storeToRefs(appStore)
 
 const micOn = ref(true)
+const phase = ref<'ringing' | 'connected'>('ringing')
+const seconds = ref(0)
+
+let ringTimer: ReturnType<typeof setTimeout> | null = null
+let durationTimer: ReturnType<typeof setInterval> | null = null
+
+function cleanupTimers() {
+  if (ringTimer) clearTimeout(ringTimer)
+  if (durationTimer) clearInterval(durationTimer)
+  ringTimer = null
+  durationTimer = null
+}
+
+watch(voiceCallOpen, open => {
+  cleanupTimers()
+  if (open) {
+    phase.value = 'ringing'
+    seconds.value = 0
+    ringTimer = setTimeout(() => {
+      phase.value = 'connected'
+      durationTimer = setInterval(() => {
+        seconds.value++
+      }, 1000)
+    }, 1800)
+  }
+})
+
+onUnmounted(cleanupTimers)
+
+const statusText = () => {
+  if (phase.value === 'ringing') return '等待对方接听...'
+  const m = Math.floor(seconds.value / 60).toString().padStart(2, '0')
+  const s = (seconds.value % 60).toString().padStart(2, '0')
+  return `通话中 ${m}:${s}`
+}
 
 function hangUp() {
   closeVoiceCall()
+}
+
+function switchToVideo() {
+  closeVoiceCall()
+  openVideoCall()
 }
 </script>
 
@@ -31,7 +71,7 @@ function hangUp() {
     <div v-if="voiceCallOpen" class="call-root">
       <div class="call-window">
         <div class="call-top">
-          <span class="status">等待对方接听...</span>
+          <span class="status">{{ statusText() }}</span>
         </div>
         <div class="call-center">
           <Avatar
@@ -48,11 +88,11 @@ function hangUp() {
             <n-icon :component="micOn ? MicOutline : MicOffOutline" :size="26" />
             <span>{{ micOn ? '关闭麦克风' : '开启麦克风' }}</span>
           </button>
-          <button type="button" class="ctl muted">
+          <button type="button" class="ctl" @click="switchToVideo">
             <n-icon :component="VideocamOutline" :size="26" />
             <span>开启视频</span>
           </button>
-          <button type="button" class="ctl muted">
+          <button type="button" class="ctl muted" title="屏幕共享（后续版本）">
             <n-icon :component="DesktopOutline" :size="26" />
             <span>屏幕共享</span>
           </button>
@@ -137,6 +177,7 @@ function hangUp() {
 
 .ctl.muted {
   opacity: 0.55;
+  cursor: default;
 }
 
 .ctl.hangup {

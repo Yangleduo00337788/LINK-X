@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch, onUnmounted } from 'vue'
 import { NIcon } from 'naive-ui'
 import {
   MicOutline,
@@ -18,24 +18,88 @@ const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
 const { videoCallOpen } = storeToRefs(chatModalsStore)
 const { closeVideoCall } = chatModalsStore
-const { userProfile } = storeToRefs(appStore)
+const { userProfile, currentSession } = storeToRefs(appStore)
 
 const micOn = ref(true)
 const videoOn = ref(true)
+const phase = ref<'ringing' | 'connected'>('ringing')
+const localVideoRef = ref<HTMLVideoElement | null>(null)
+const hasLocalVideo = ref(false)
+let mediaStream: MediaStream | null = null
+let ringTimer: ReturnType<typeof setTimeout> | null = null
+
+async function startCamera() {
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+    hasLocalVideo.value = true
+    if (localVideoRef.value) {
+      localVideoRef.value.srcObject = mediaStream
+    }
+  } catch {
+    /* 无摄像头时保留占位 UI */
+  }
+}
+
+function stopCamera() {
+  mediaStream?.getTracks().forEach(t => t.stop())
+  mediaStream = null
+  hasLocalVideo.value = false
+  if (localVideoRef.value) {
+    localVideoRef.value.srcObject = null
+  }
+}
+
+watch(videoCallOpen, open => {
+  if (ringTimer) clearTimeout(ringTimer)
+  if (open) {
+    phase.value = 'ringing'
+    ringTimer = setTimeout(async () => {
+      phase.value = 'connected'
+      if (videoOn.value) await startCamera()
+    }, 1500)
+  } else {
+    stopCamera()
+    phase.value = 'ringing'
+  }
+})
+
+watch(videoOn, async on => {
+  if (!videoCallOpen.value || phase.value !== 'connected') return
+  if (on) await startCamera()
+  else stopCamera()
+})
+
+onUnmounted(() => {
+  if (ringTimer) clearTimeout(ringTimer)
+  stopCamera()
+})
 
 function hangUp() {
   closeVideoCall()
 }
+
+const statusText = () =>
+  phase.value === 'ringing'
+    ? `正在呼叫 ${currentSession.value?.name || '好友'}…`
+    : `与 ${currentSession.value?.name || '好友'} 视频通话中`
 </script>
 
 <template>
   <Teleport to="body">
     <div v-if="videoCallOpen" class="call-root">
       <div class="call-window">
-        <p class="status">等待对方接听...</p>
+        <p class="status">{{ statusText() }}</p>
         <div class="video-stage">
-          <div class="video-placeholder">
-            <span class="ph-text">本地预览</span>
+          <video
+            v-if="phase === 'connected' && videoOn && hasLocalVideo"
+            ref="localVideoRef"
+            class="local-video"
+            autoplay
+            muted
+            playsinline
+          />
+          <div v-else class="video-placeholder">
+            <span class="ph-text">{{ phase === 'ringing' ? '等待接听' : '摄像头已关闭' }}</span>
           </div>
           <div class="pip">
             <span class="pip-name">{{ userProfile.nickname }}</span>
@@ -50,11 +114,11 @@ function hangUp() {
             <n-icon :component="videoOn ? VideocamOutline : VideocamOffOutline" :size="24" />
             <span>{{ videoOn ? '关闭视频' : '开启视频' }}</span>
           </button>
-          <button type="button" class="ctl dim">
+          <button type="button" class="ctl dim" title="后续版本">
             <n-icon :component="DesktopOutline" :size="24" />
             <span>屏幕共享</span>
           </button>
-          <button type="button" class="ctl dim">
+          <button type="button" class="ctl dim" title="后续版本">
             <n-icon :component="GridOutline" :size="24" />
             <span>宫格模式</span>
           </button>
@@ -100,6 +164,13 @@ function hangUp() {
   position: relative;
   height: 320px;
   background: #2c2c2c;
+}
+
+.local-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
 }
 
 .video-placeholder {
@@ -158,6 +229,7 @@ function hangUp() {
 
 .ctl.dim {
   opacity: 0.5;
+  cursor: default;
 }
 
 .ctl.hangup :deep(svg) {

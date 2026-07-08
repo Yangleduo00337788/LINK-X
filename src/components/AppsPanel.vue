@@ -4,12 +4,9 @@ import PanelSearchBar from './PanelSearchBar.vue'
 import { apps } from '../data/mockData'
 import { storeToRefs } from 'pinia'
 import { useSecondaryViewStore } from '../stores/secondaryView'
-import { useOverlayStore } from '../stores/overlay'
 
 const secondaryViewStore = useSecondaryViewStore()
-const overlayStore = useOverlayStore()
 const { activeApp } = storeToRefs(secondaryViewStore)
-const { open } = overlayStore
 const search = ref('')
 
 const filtered = computed(() => {
@@ -20,7 +17,6 @@ const filtered = computed(() => {
 
 function openApp(app: (typeof apps)[number]) {
   activeApp.value = app
-  open('app-runner', { app })
 }
 </script>
 

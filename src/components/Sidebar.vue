@@ -19,18 +19,15 @@ import {
 import { NIcon, NPopover, useMessage } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
-import { useSecondaryViewStore } from '../stores/secondaryView'
 import { useChatModalsStore } from '../stores/chatModals'
 import { useSettingsStore } from '../stores/settings'
 import { useOverlayStore } from '../stores/overlay'
 import type { NavKey } from '../types'
 
 const appStore = useAppStore()
-const secondaryViewStore = useSecondaryViewStore()
 const chatModalsStore = useChatModalsStore()
 const settingsStore = useSettingsStore()
 const { navKey } = storeToRefs(appStore)
-const { menuOpen } = storeToRefs(secondaryViewStore)
 const { setNav, logout, lock } = appStore
 const { openMomentsModal } = chatModalsStore
 const { openSettings } = settingsStore
@@ -112,7 +109,7 @@ function handleLogoutClick() {
         v-for="item in mainNav"
         :key="item.key"
         class="nav-item"
-        :class="{ active: navKey === item.key && !menuOpen }"
+        :class="{ active: navKey === item.key }"
         @click="handleClick(item.key)"
       >
         <n-icon :component="item.icon" :size="22" />

@@ -1,6 +1,7 @@
 ﻿<script setup lang="ts">
 import { computed } from 'vue'
 import PenguinWatermark from './PenguinWatermark.vue'
+import AppWebView from './AppWebView.vue'
 import { storeToRefs } from 'pinia'
 import { useSecondaryViewStore } from '../stores/secondaryView'
 import type { NavKey } from '../types'
@@ -25,11 +26,17 @@ const emptyHint = computed(() => {
   <div class="placeholder-main">
     <div class="functional-region body">
       <template v-if="nav === 'apps' && activeApp">
-        <div class="detail-card">
+        <AppWebView
+          v-if="activeApp.url"
+          :url="activeApp.url"
+          :title="activeApp.name"
+          class="app-embed"
+        />
+        <div v-else class="detail-card">
           <div class="big-icon" :style="{ background: activeApp.color }">{{ activeApp.icon }}</div>
           <h2>{{ activeApp.name }}</h2>
           <p>{{ activeApp.desc }}</p>
-          <p class="tip">应用内页 / WebView 待对接后端或第三方 URL。</p>
+          <p class="tip">该应用暂未配置内嵌 URL。</p>
         </div>
       </template>
       <template v-else-if="nav === 'favorites' && activeFavorite">
@@ -59,8 +66,15 @@ const emptyHint = computed(() => {
 .functional-region.body {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden;
   padding: 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-embed {
+  flex: 1;
+  min-height: 0;
 }
 
 .detail-card {
@@ -109,6 +123,4 @@ const emptyHint = computed(() => {
 .preview {
   white-space: pre-wrap;
 }
-
-
 </style>

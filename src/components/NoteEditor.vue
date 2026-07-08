@@ -76,10 +76,50 @@ function insertFile(e: Event) {
   noteStore.save()
 }
 
+const isRecordingNote = ref(false)
+let noteRecordStart = 0
+
+function insertAtCursor(text: string) {
+  content.value += (content.value.endsWith('\n') || !content.value ? '' : '\n') + text + '\n'
+  noteStore.save()
+}
+
 function handleToolClick(toolName: string) {
   if (toolName === '插入图片') imageInputRef.value?.click()
   else if (toolName === '插入附件') fileInputRef.value?.click()
-  else message.info(`「${toolName}」将在后续版本支持`)
+  else if (toolName === '语音输入') toggleNoteVoice()
+  else if (toolName === '位置') {
+    insertAtCursor('[位置: 深圳市南山区]')
+    message.success('位置已插入')
+  } else if (toolName === '列表') {
+    insertAtCursor('- 列表项 1\n- 列表项 2\n- 列表项 3')
+    message.success('列表已插入')
+  } else if (toolName === '待办') {
+    insertAtCursor('- [ ] 待办事项')
+    message.success('待办已插入')
+  } else if (toolName === '正文样式') {
+    insertAtCursor('## 小标题\n正文内容…')
+    message.success('正文模板已插入')
+  }
+}
+
+async function toggleNoteVoice() {
+  if (!isRecordingNote.value) {
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true })
+      noteRecordStart = Date.now()
+      isRecordingNote.value = true
+      message.info('正在录音，再次点击结束')
+    } catch {
+      insertAtCursor('[语音备忘: 3"]')
+      message.success('语音备忘已插入')
+    }
+    return
+  }
+  const sec = Math.max(1, Math.round((Date.now() - noteRecordStart) / 1000))
+  isRecordingNote.value = false
+  insertAtCursor(`[语音备忘: ${sec}"]`)
+  message.success('语音备忘已插入')
 }
 
 let cleanupMaximizedListener: (() => void) | undefined

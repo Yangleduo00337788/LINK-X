@@ -24,14 +24,21 @@ import GroupAlbumModal from './chat/GroupAlbumModal.vue'
 import GroupEssenceModal from './chat/GroupEssenceModal.vue'
 import GroupAnnouncementModal from './chat/GroupAnnouncementModal.vue'
 import RedPacketModal from './chat/RedPacketModal.vue'
+import RedPacketReceiveModal from './chat/RedPacketReceiveModal.vue'
 import ContactProfileModal from './chat/ContactProfileModal.vue'
+import MomentsModal from './MomentsModal.vue'
 import SettingsModal from './SettingsModal.vue'
 import LockScreen from './LockScreen.vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
+import { useChatModalsStore } from '../stores/chatModals'
 
 const appStore = useAppStore()
+const chatModalsStore = useChatModalsStore()
 const { navKey, isLocked } = storeToRefs(appStore)
+const { momentsModalOpen } = storeToRefs(chatModalsStore)
+
+const isElectron = !!window.electronAPI
 
 const listWidth = ref(260)
 const isDragging = ref(false)
@@ -146,7 +153,11 @@ const showPlaceholder = computed(() =>
     <GroupEssenceModal />
     <GroupAnnouncementModal />
     <RedPacketModal />
+    <RedPacketReceiveModal />
     <ContactProfileModal />
+    <div v-if="momentsModalOpen && !isElectron" class="moments-modal-backdrop">
+      <MomentsModal />
+    </div>
     <SettingsModal />
     <OverlayHost />
     
@@ -265,5 +276,15 @@ const showPlaceholder = computed(() =>
   display: flex;
   flex-direction: column;
   position: relative;
+}
+
+.moments-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2100;
+  background: var(--lx-bg-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 </style>

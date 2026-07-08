@@ -9,7 +9,11 @@ export interface SendMessageOptions {
   replyTo?: ChatMessage
   fileName?: string
   fileSize?: string
+  fileUrl?: string
   isImage?: boolean
+  voiceDuration?: number
+  redPacketGreeting?: string
+  redPacketAmount?: string
 }
 
 export interface SavedLogin {
@@ -31,6 +35,8 @@ const GROUP_COLORS = ['#12b7f5', '#52c41a', '#722ed1', '#fa8c16', '#eb2f96', '#1
 function messagePreview(msg: ChatMessage): string {
   if (msg.type === 'file') return `[文件] ${msg.fileName || msg.content}`
   if (msg.type === 'image' || msg.isImage) return '[图片]'
+  if (msg.type === 'voice') return '[语音]'
+  if (msg.type === 'redPacket') return `[红包] ${msg.redPacketGreeting || '恭喜发财'}`
   return msg.content
 }
 
@@ -294,6 +300,8 @@ export const useAppStore = defineStore('app', {
 
       if (type === 'text' && !trimmed) return
       if (type === 'image' && !trimmed) return
+      if (type === 'voice' && !options.voiceDuration) return
+      if (type === 'redPacket' && !options.redPacketAmount) return
 
       const time = nowTime()
       const isImage = options.isImage ?? type === 'image'
@@ -301,15 +309,27 @@ export const useAppStore = defineStore('app', {
       const msg: ChatMessage = {
         id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         sessionId: id,
-        content: type === 'file' ? (options.fileName || trimmed || '文件') : (trimmed || content),
+        content:
+          type === 'file'
+            ? (options.fileName || trimmed || '文件')
+            : type === 'voice'
+              ? '[语音消息]'
+              : type === 'redPacket'
+                ? (options.redPacketGreeting || trimmed || '恭喜发财')
+                : (trimmed || content),
         time,
         isSelf: true,
         type,
         replyTo: options.replyTo,
         fileName: options.fileName,
         fileSize: options.fileSize,
+        fileUrl: options.fileUrl,
         isImage,
-        fileStatus: type === 'file' ? '已发送' : undefined
+        fileStatus: type === 'file' ? '已发送' : undefined,
+        voiceDuration: options.voiceDuration,
+        redPacketGreeting: options.redPacketGreeting,
+        redPacketAmount: options.redPacketAmount,
+        redPacketOpened: type === 'redPacket' ? true : undefined
       }
 
       if (!this.messagesBySession[id]) {
@@ -346,6 +366,16 @@ export const useAppStore = defineStore('app', {
         }
       }
 
+      return true
+    },
+
+    openRedPacketMessage(messageId: string) {
+      const sessionId = this.currentSessionId
+      if (!sessionId) return false
+      const msgs = this.messagesBySession[sessionId]
+      const msg = msgs?.find(m => m.id === messageId)
+      if (!msg || msg.type !== 'redPacket' || msg.redPacketOpened) return false
+      msg.redPacketOpened = true
       return true
     },
 

@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import type { ChatBackgroundId } from '../types'
 
 export const useAppSettingsStore = defineStore('appSettings', {
   state: () => ({
@@ -10,10 +11,15 @@ export const useAppSettingsStore = defineStore('appSettings', {
     privacyVerifyFriend: true,
     privacyAllowStranger: false,
     privacyShowOnline: true,
-    language: 'zh-CN'
+    language: 'zh-CN',
+    chatBackground: 'default' as ChatBackgroundId
   }),
 
   actions: {
+    setChatBackground(id: ChatBackgroundId) {
+      this.chatBackground = id
+    },
+
     reset() {
       this.autoStart = false
       this.soundNotify = true
@@ -23,6 +29,7 @@ export const useAppSettingsStore = defineStore('appSettings', {
       this.privacyVerifyFriend = true
       this.privacyAllowStranger = false
       this.privacyShowOnline = true
+      this.chatBackground = 'default'
     }
   },
 
@@ -37,7 +44,8 @@ export const useAppSettingsStore = defineStore('appSettings', {
       'privacyVerifyFriend',
       'privacyAllowStranger',
       'privacyShowOnline',
-      'language'
+      'language',
+      'chatBackground'
     ]
   }
 })

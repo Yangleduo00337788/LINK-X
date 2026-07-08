@@ -8,7 +8,8 @@ import {
   NButton,
   NAvatar,
   NDivider,
-  NIcon
+  NIcon,
+  useMessage
 } from 'naive-ui'
 import { CheckmarkCircleOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
@@ -29,11 +30,28 @@ const {
   notifySound,
   privacyVerifyFriend,
   privacyAllowStranger,
-  privacyShowOnline
+  privacyShowOnline,
+  chatBackground
 } = storeToRefs(appSettingsStore)
 const { toggleTheme, toggleOffline, simulateIncomingMessage } = appStore
+const { setChatBackground } = appSettingsStore
 
 const activeTab = ref('general')
+const message = useMessage()
+
+function pickChatBackground(id: 'default' | 'purple' | 'orange') {
+  setChatBackground(id)
+  message.success('聊天背景已更新')
+}
+
+function checkUpdate() {
+  message.success('当前已是最新版本 1.0.0')
+}
+
+function exportLogs() {
+  console.info('[LinkX] 系统日志导出', { theme: theme.value, chatBackground: chatBackground.value })
+  message.success('日志已输出到开发者控制台')
+}
 
 watch(settingsActiveTab, (newVal) => {
   if (newVal) {
@@ -183,18 +201,32 @@ function applyAutoStart() {
 
             <h3 class="section-title">聊天背景</h3>
             <div class="theme-preview-list">
-              <div class="theme-preview active">
+              <div
+                class="theme-preview"
+                :class="{ active: chatBackground === 'default' }"
+                @click="pickChatBackground('default')"
+              >
                 <div class="preview-color" style="background: #f5f6f7;"></div>
                 <span>默认纯色</span>
-                <n-icon class="check-icon" :component="CheckmarkCircleOutline" />
+                <n-icon v-if="chatBackground === 'default'" class="check-icon" :component="CheckmarkCircleOutline" />
               </div>
-              <div class="theme-preview">
+              <div
+                class="theme-preview"
+                :class="{ active: chatBackground === 'purple' }"
+                @click="pickChatBackground('purple')"
+              >
                 <div class="preview-color" style="background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);"></div>
                 <span>梦幻紫</span>
+                <n-icon v-if="chatBackground === 'purple'" class="check-icon" :component="CheckmarkCircleOutline" />
               </div>
-              <div class="theme-preview">
+              <div
+                class="theme-preview"
+                :class="{ active: chatBackground === 'orange' }"
+                @click="pickChatBackground('orange')"
+              >
                 <div class="preview-color" style="background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);"></div>
                 <span>落日橘</span>
+                <n-icon v-if="chatBackground === 'orange'" class="check-icon" :component="CheckmarkCircleOutline" />
               </div>
             </div>
           </div>
@@ -243,8 +275,8 @@ function applyAutoStart() {
             <p class="app-desc">一款极简、高效、安全的企业级即时通讯工具。</p>
             
             <div class="about-actions">
-              <n-button type="primary" secondary>检查更新</n-button>
-              <n-button tertiary>系统日志</n-button>
+              <n-button type="primary" secondary @click="checkUpdate">检查更新</n-button>
+              <n-button tertiary @click="exportLogs">系统日志</n-button>
             </div>
             
             <p class="copyright">© 2026 LinkX Team. All rights reserved.</p>

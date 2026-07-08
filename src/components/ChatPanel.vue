@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 import { NIcon, NInput, NButton, NPopover, NDropdown, useMessage, type DropdownOption } from 'naive-ui'
 import {
   ImagesOutline,
@@ -25,6 +25,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
 import { useOverlayStore } from '../stores/overlay'
 import { useChatModalsStore } from '../stores/chatModals'
+import { useAppSettingsStore } from '../stores/appSettings'
 import type { ChatMessage } from '../types'
 import { CHAT_EMOJIS } from '../constants/emojis'
 import { useFilesStore } from '../stores/files'
@@ -37,7 +38,9 @@ const favoritesStore = useFavoritesStore()
 const appStore = useAppStore()
 const overlayStore = useOverlayStore()
 const chatModalsStore = useChatModalsStore()
+const appSettingsStore = useAppSettingsStore()
 const { currentSession, currentMessages } = storeToRefs(appStore)
+const { chatBackground } = storeToRefs(appSettingsStore)
 const { sendMessage, recallMessage: recallMessageInStore } = appStore
 const { open: openOverlay } = overlayStore
 const {
@@ -51,6 +54,7 @@ const {
   openGroupEssence,
   openGroupAnnouncement,
   openRedPacket,
+  openRedPacketReceive,
 } = chatModalsStore
 
 const groupGridItems = ['群文件', '群相册', '群精华']
@@ -88,6 +92,22 @@ const fileInputRef = ref<HTMLInputElement | null>(null)
 const chatMessages = computed(() =>
   currentMessages.value.filter(m => m.type !== 'system')
 )
+
+const chatBgStyle = computed(() => {
+  const id = chatBackground.value
+  if (id === 'purple') {
+    return { background: 'linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%)' }
+  }
+  if (id === 'orange') {
+    return { background: 'linear-gradient(135deg, #f6d365 0%, #fda085 100%)' }
+  }
+  return { background: 'var(--lx-bg-panel-deep, #f5f6f7)' }
+})
+
+const isRecording = ref(false)
+let recordStart = 0
+let mediaRecorder: MediaRecorder | null = null
+let recordStream: MediaStream | null = null
 
 
 function peerAvatarProps(size = 36) {
@@ -144,14 +164,73 @@ function onFilePicked(e: Event) {
   input.value = ''
   if (!file) return
 
+  const fileUrl = URL.createObjectURL(file)
   sendMessage(file.name, {
     type: 'file',
     fileName: file.name,
-    fileSize: formatFileSize(file.size)
+    fileSize: formatFileSize(file.size),
+    fileUrl
   })
   filesStore.addFromChat(file.name, formatFileSize(file.size), '我')
   message.success('文件已发送')
   scrollToBottom()
+}
+
+async function toggleVoiceRecord() {
+  if (!isRecording.value) {
+    try {
+      recordStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      mediaRecorder = new MediaRecorder(recordStream)
+      recordStart = Date.now()
+      mediaRecorder.start()
+      isRecording.value = true
+      message.info('正在录音，再次点击结束')
+    } catch {
+      sendMessage('', { type: 'voice', voiceDuration: 3 })
+      message.success('语音消息已发送')
+      scrollToBottom()
+    }
+    return
+  }
+
+  const duration = Math.max(1, Math.round((Date.now() - recordStart) / 1000))
+  mediaRecorder?.stop()
+  recordStream?.getTracks().forEach(t => t.stop())
+  mediaRecorder = null
+  recordStream = null
+  isRecording.value = false
+  sendMessage('', { type: 'voice', voiceDuration: duration })
+  message.success('语音消息已发送')
+  scrollToBottom()
+}
+
+onUnmounted(() => {
+  recordStream?.getTracks().forEach(t => t.stop())
+})
+
+function openFileView(msg?: ChatMessage) {
+  const fileName = msg?.fileName || msg?.content || 'Screenshot 2026-07-05-18-48.png'
+  openOverlay('file-preview', {
+    filePreview: {
+      fileName,
+      fileUrl: msg?.fileUrl,
+      fileSize: msg?.fileSize,
+      isImage: msg?.type === 'image' || msg?.isImage
+    }
+  })
+}
+
+function onRedPacketClick(msg: ChatMessage) {
+  if (msg.isSelf) {
+    message.info('这是您发出的红包')
+    return
+  }
+  openRedPacketReceive(msg.id)
+}
+
+function formatVoiceDuration(sec?: number) {
+  const s = sec ?? 0
+  return s < 60 ? `${s}"` : `${Math.floor(s / 60)}'${s % 60}"`
 }
 
 function scrollToBottom() {
@@ -284,20 +363,8 @@ function cancelReply() {
   replyingTo.value = undefined
 }
 
-function openFileView() {
-  openOverlay('file-preview', { fileName: 'Screenshot 2026-07-05-18-48.png' })
-}
-
 function demoToast(tip: string) {
-  if (tip.includes('语音')) {
-    sendMessage('[语音消息 3"]', { type: 'text' })
-    message.success('语音消息已发送')
-    scrollToBottom()
-  } else if (tip.includes('红包')) {
-    openRedPacket()
-  } else {
-    message.info(tip.replace('（演示）', ''))
-  }
+  message.info(tip.replace('（演示）', ''))
 }
 </script>
 
@@ -376,7 +443,7 @@ function demoToast(tip: string) {
 
       <div class="chat-body-row">
         <div class="chat-main-col">
-      <div class="message-area" :class="{ 'message-area--friend': isFriendChat }">
+      <div class="message-area" :class="{ 'message-area--friend': isFriendChat }" :style="chatBgStyle">
         <template v-if="showPhoneDemo">
           <div class="message-time">18:48</div>
           <div class="message-row left">
@@ -415,7 +482,7 @@ function demoToast(tip: string) {
               </div>
               <div class="file-footer">
                 <span>已下载</span>
-                <span class="file-view" @click="openFileView">查看</span>
+                <span class="file-view" @click="openFileView()">查看</span>
               </div>
             </div>
           </div>
@@ -434,6 +501,7 @@ function demoToast(tip: string) {
                 class="qq-file-card"
                 :class="{ self: msg.isSelf }"
                 @contextmenu="onMsgContext($event, msg)"
+                @click="openFileView(msg)"
               >
                 <div class="qq-file-main">
                   <div class="qq-file-icon apk">
@@ -464,6 +532,48 @@ function demoToast(tip: string) {
                 @contextmenu="onMsgContext($event, msg)"
               >
                 <img :src="msg.content" class="qq-bubble-image" alt="图片消息" />
+              </div>
+              <Avatar v-if="msg.isSelf" text="我" color="var(--lx-success)" :size="36" />
+            </div>
+
+            <!-- 语音消息 -->
+            <div
+              v-else-if="msg.type === 'voice'"
+              class="message-row"
+              :class="msg.isSelf ? 'right' : 'left'"
+            >
+              <Avatar v-if="!msg.isSelf" v-bind="peerAvatarProps(36)" />
+              <div
+                class="qq-bubble voice-bubble"
+                :class="{ self: msg.isSelf }"
+                @contextmenu="onMsgContext($event, msg)"
+              >
+                <n-icon :component="MicOutline" :size="16" class="voice-ico" />
+                <span>{{ formatVoiceDuration(msg.voiceDuration) }}</span>
+              </div>
+              <Avatar v-if="msg.isSelf" text="我" color="var(--lx-success)" :size="36" />
+            </div>
+
+            <!-- 红包消息 -->
+            <div
+              v-else-if="msg.type === 'redPacket'"
+              class="message-row"
+              :class="msg.isSelf ? 'right' : 'left'"
+            >
+              <Avatar v-if="!msg.isSelf" v-bind="peerAvatarProps(36)" />
+              <div
+                class="red-packet-card"
+                :class="{ self: msg.isSelf, opened: msg.redPacketOpened }"
+                @click="onRedPacketClick(msg)"
+                @contextmenu="onMsgContext($event, msg)"
+              >
+                <div class="rp-icon">福</div>
+                <div class="rp-text">
+                  <div class="rp-title">{{ msg.redPacketGreeting || msg.content }}</div>
+                  <div class="rp-sub">
+                    {{ msg.redPacketOpened ? '已领取' : msg.isSelf ? '红包' : '领取红包' }}
+                  </div>
+                </div>
               </div>
               <Avatar v-if="msg.isSelf" text="我" color="var(--lx-success)" :size="36" />
             </div>
@@ -553,15 +663,16 @@ function demoToast(tip: string) {
               :component="MicOutline"
               :size="22"
               class="tool-icon"
+              :class="{ 'tool-icon--recording': isRecording }"
               title="语音"
-              @click="demoToast('语音消息')"
+              @click="toggleVoiceRecord"
             />
             <n-icon
               :component="GiftOutline"
               :size="22"
               class="tool-icon tool-icon--red"
               title="红包"
-              @click="demoToast('发红包')"
+              @click="openRedPacket()"
             />
           </div>
           <n-icon
@@ -1097,6 +1208,75 @@ function demoToast(tip: string) {
 
 .tool-icon--red:hover {
   color: #c93d48 !important;
+}
+
+.tool-icon--recording {
+  color: #e34d59 !important;
+  animation: pulse-rec 1s infinite;
+}
+
+@keyframes pulse-rec {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.voice-bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 72px;
+  cursor: default;
+}
+
+.voice-ico {
+  flex-shrink: 0;
+}
+
+.red-packet-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 200px;
+  max-width: 260px;
+  padding: 12px 14px;
+  border-radius: var(--lx-radius);
+  background: linear-gradient(135deg, #e84c3d, #c0392b);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(232, 76, 61, 0.35);
+}
+
+.red-packet-card.opened {
+  opacity: 0.85;
+}
+
+.rp-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.rp-title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.rp-sub {
+  font-size: 12px;
+  opacity: 0.85;
+  margin-top: 2px;
+}
+
+.qq-file-card {
+  cursor: pointer;
 }
 
 .send-row {

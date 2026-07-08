@@ -80,7 +80,7 @@ function submitComment(postId: string) {
           </div>
         </div>
         <div class="foot">
-          <button type="button" class="foot-btn" @click="toggleLike(m.id)">
+          <button type="button" class="foot-btn" @click="toggleLike(m.id, userProfile.nickname)">
             <n-icon :component="m.liked ? Heart : HeartOutline" :size="16" />
             {{ m.likes }}
           </button>

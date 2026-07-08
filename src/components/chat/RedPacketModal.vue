@@ -22,7 +22,11 @@ function close() {
 function send() {
   const amt = amount.value.trim() || '0.01'
   const text = greeting.value.trim() || '恭喜发财'
-  sendMessage(`[红包] ${text} ¥${amt}`)
+  sendMessage(text, {
+    type: 'redPacket',
+    redPacketGreeting: text,
+    redPacketAmount: amt
+  })
   message.success('红包已发送')
   close()
 }
