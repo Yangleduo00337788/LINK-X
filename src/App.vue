@@ -4,9 +4,11 @@ import AppShell from './components/AppShell.vue'
 import MomentsModal from './components/MomentsModal.vue'
 import NoteEditor from './components/NoteEditor.vue'
 import LoginView from './components/LoginView.vue'
-import { useAppState } from './composables/useAppState'
+import { storeToRefs } from 'pinia'
+import { useAppStore } from './stores/app'
 
-const { isLoggedIn } = useAppState()
+const appStore = useAppStore()
+const { isLoggedIn } = storeToRefs(appStore)
 const isMomentsWindow = ref(false)
 const isNoteEditorWindow = ref(false)
 

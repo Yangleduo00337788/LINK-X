@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useChatModals } from '../../composables/useChatModals'
-import { useAppState } from '../../composables/useAppState'
+import { storeToRefs } from 'pinia'
+import { useChatModalsStore } from '../../stores/chatModals'
+import { useAppStore } from '../../stores/app'
 import { useMessage } from 'naive-ui'
 
 const message = useMessage()
-const { groupFilesOpen, closeGroupFiles } = useChatModals()
-const { currentSession } = useAppState()
+const chatModalsStore = useChatModalsStore()
+const appStore = useAppStore()
+const { groupFilesOpen } = storeToRefs(chatModalsStore)
+const { closeGroupFiles } = chatModalsStore
+const { currentSession } = storeToRefs(appStore)
 
 const search = ref('')
 

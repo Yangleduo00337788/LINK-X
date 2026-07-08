@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { NSwitch, useMessage } from 'naive-ui'
-import { useChatModals } from '../../composables/useChatModals'
-import { useAppState } from '../../composables/useAppState'
+import { storeToRefs } from 'pinia'
+import { useChatModalsStore } from '../../stores/chatModals'
+import { useAppStore } from '../../stores/app'
 
+const chatModalsStore = useChatModalsStore()
+const appStore = useAppStore()
 const message = useMessage()
-const { moreDrawerOpen, closeMore } = useChatModals()
-const { currentSession } = useAppState()
+const { moreDrawerOpen } = storeToRefs(chatModalsStore)
+const { closeMore } = chatModalsStore
+const { currentSession } = storeToRefs(appStore)
 
 const pinTop = ref(false)
 const mute = ref(false)

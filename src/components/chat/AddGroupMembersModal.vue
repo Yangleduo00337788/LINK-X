@@ -8,11 +8,14 @@ import {
   CheckmarkCircle
 } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
-import { useChatModals } from '../../composables/useChatModals'
+import { storeToRefs } from 'pinia'
+import { useChatModalsStore } from '../../stores/chatModals'
 import { useMessage } from 'naive-ui'
 
 const message = useMessage()
-const { addMembersOpen, closeAddMembers } = useChatModals()
+const chatModalsStore = useChatModalsStore()
+const { addMembersOpen } = storeToRefs(chatModalsStore)
+const { closeAddMembers } = chatModalsStore
 
 const search = ref('')
 const selected = ref<Set<string>>(new Set(['r-dou']))

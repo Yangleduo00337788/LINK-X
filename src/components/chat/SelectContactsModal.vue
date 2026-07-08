@@ -5,11 +5,14 @@ import { ChevronForwardOutline, CheckmarkCircle, EllipseOutline } from '@vicons/
 import PanelSearchBar from '../PanelSearchBar.vue'
 import Avatar from '../Avatar.vue'
 import { contacts } from '../../data/mockData'
-import { useChatModals } from '../../composables/useChatModals'
+import { storeToRefs } from 'pinia'
+import { useChatModalsStore } from '../../stores/chatModals'
 import { useMessage } from 'naive-ui'
 
 const message = useMessage()
-const { selectContactsOpen, closeSelectContacts } = useChatModals()
+const chatModalsStore = useChatModalsStore()
+const { selectContactsOpen } = storeToRefs(chatModalsStore)
+const { closeSelectContacts } = chatModalsStore
 
 const search = ref('')
 const selected = ref<Set<string>>(new Set(['c1']))

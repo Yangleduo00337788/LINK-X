@@ -21,15 +21,19 @@ import {
 import Avatar from './Avatar.vue'
 import PenguinWatermark from './PenguinWatermark.vue'
 import GroupChatSidebar from './chat/GroupChatSidebar.vue'
-import { useAppState } from '../composables/useAppState'
-import { useOverlay } from '../composables/useOverlay'
-import { useChatModals } from '../composables/useChatModals'
+import { storeToRefs } from 'pinia'
+import { useAppStore } from '../stores/app'
+import { useOverlayStore } from '../stores/overlay'
+import { useChatModalsStore } from '../stores/chatModals'
 import type { ChatMessage } from '../types'
-import { v4 as uuidv4 } from 'uuid'
 
 const message = useMessage()
-const { currentSession, currentMessages, sendMessage } = useAppState()
-const { open: openOverlay } = useOverlay()
+const appStore = useAppStore()
+const overlayStore = useOverlayStore()
+const chatModalsStore = useChatModalsStore()
+const { currentSession, currentMessages } = storeToRefs(appStore)
+const { sendMessage } = appStore
+const { open: openOverlay } = overlayStore
 const {
   openMore,
   openGroupInfo,
@@ -40,7 +44,7 @@ const {
   openGroupAlbum,
   openGroupEssence,
   openGroupAnnouncement
-} = useChatModals()
+} = chatModalsStore
 
 const groupGridItems = ['群文件', '群相册', '群精华']
 
@@ -316,7 +320,7 @@ function demoToast(tip: string) {
               :class="msg.isSelf ? 'right' : 'left'"
             >
               <Avatar v-if="!msg.isSelf" v-bind="peerAvatarProps(36)" />
-              <n-popover trigger="contextMenu" placement="bottom" :show-arrow="false">
+              <n-popover trigger="click" placement="bottom" :show-arrow="false">
                 <template #trigger>
                   <div
                     class="qq-bubble"

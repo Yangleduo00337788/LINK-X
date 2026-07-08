@@ -2,9 +2,12 @@
 import { ref } from 'vue'
 import { NInput, NButton, NAvatar, NIcon } from 'naive-ui'
 import { LockClosedOutline, ArrowForwardOutline } from '@vicons/ionicons5'
-import { useAppState } from '../composables/useAppState'
+import { storeToRefs } from 'pinia'
+import { useAppStore } from '../stores/app'
 
-const { userProfile, unlock } = useAppState()
+const appStore = useAppStore()
+const { userProfile } = storeToRefs(appStore)
+const { unlock } = appStore
 
 const password = ref('')
 const errorMsg = ref('')

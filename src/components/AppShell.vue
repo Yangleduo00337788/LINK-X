@@ -26,9 +26,11 @@ import GroupAnnouncementModal from './chat/GroupAnnouncementModal.vue'
 import ContactProfileModal from './chat/ContactProfileModal.vue'
 import SettingsModal from './SettingsModal.vue'
 import LockScreen from './LockScreen.vue'
-import { useAppState } from '../composables/useAppState'
+import { storeToRefs } from 'pinia'
+import { useAppStore } from '../stores/app'
 
-const { navKey, isLocked } = useAppState()
+const appStore = useAppStore()
+const { navKey, isLocked } = storeToRefs(appStore)
 
 const listWidth = ref(260)
 const isDragging = ref(false)

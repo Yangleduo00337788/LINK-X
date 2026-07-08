@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useMessage } from 'naive-ui'
-import { useChatModals } from '../../composables/useChatModals'
+import { storeToRefs } from 'pinia'
+import { useChatModalsStore } from '../../stores/chatModals'
 
 const message = useMessage()
-const { comprehensiveSearchOpen, closeComprehensiveSearch } = useChatModals()
+const chatModalsStore = useChatModalsStore()
+const { comprehensiveSearchOpen } = storeToRefs(chatModalsStore)
+const { closeComprehensiveSearch } = chatModalsStore
 
 const keyword = ref('')
 const mainTab = ref<'all' | 'user' | 'group'>('all')

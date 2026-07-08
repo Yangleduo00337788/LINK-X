@@ -9,11 +9,15 @@ import {
   CallOutline
 } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
-import { useChatModals } from '../../composables/useChatModals'
-import { useAppState } from '../../composables/useAppState'
+import { storeToRefs } from 'pinia'
+import { useChatModalsStore } from '../../stores/chatModals'
+import { useAppStore } from '../../stores/app'
 
-const { voiceCallOpen, closeVoiceCall } = useChatModals()
-const { currentSession } = useAppState()
+const chatModalsStore = useChatModalsStore()
+const appStore = useAppStore()
+const { voiceCallOpen } = storeToRefs(chatModalsStore)
+const { closeVoiceCall } = chatModalsStore
+const { currentSession } = storeToRefs(appStore)
 
 const micOn = ref(true)
 

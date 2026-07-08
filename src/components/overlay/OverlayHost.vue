@@ -15,23 +15,29 @@ import {
 } from 'naive-ui'
 import { ArrowBackOutline } from '@vicons/ionicons5'
 import WindowControls from '../WindowControls.vue'
-import { useOverlay } from '../../composables/useOverlay'
-import { useAppState } from '../../composables/useAppState'
+import { storeToRefs } from 'pinia'
+import { useOverlayStore } from '../../stores/overlay'
+import { useAppStore } from '../../stores/app'
 import type { OverlayPage } from '../../types'
 
 const message = useMessage()
-const { currentPage, close, overlayApp, overlayFileName } = useOverlay()
+const overlayStore = useOverlayStore()
+const appStore = useAppStore()
+const { currentPage, overlayApp, overlayFileName } = storeToRefs(overlayStore)
+const { close } = overlayStore
 const {
   theme,
-  toggleTheme,
   currentSession,
   currentMessages,
+  userProfile
+} = storeToRefs(appStore)
+const {
+  toggleTheme,
   ensureSession,
   setNav,
-  userProfile,
   updateNickname,
   updateSignature
-} = useAppState()
+} = appStore
 
 const profileNick = ref(userProfile.value.nickname)
 const profileSig = ref(userProfile.value.signature)
@@ -176,7 +182,7 @@ function createChannelDone() {
       <template v-else-if="currentPage === 'about'">
         <div class="about-card">
           <div class="logo">LX</div>
-          <h2>LinkX / QQ Replica</h2>
+          <h2>LinkX</h2>
           <p>版本 1.0.0（前端演示）</p>
           <p class="muted">Electron + Vue 3 + Naive UI</p>
           <p class="muted">下一步：对接 Java 后端 API</p>

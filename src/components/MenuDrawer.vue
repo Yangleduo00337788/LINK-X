@@ -9,14 +9,19 @@ import {
   InformationCircleOutline,
   PersonOutline
 } from '@vicons/ionicons5'
-import { useSecondaryView } from '../composables/useSecondaryView'
-import { useAppState } from '../composables/useAppState'
-import { useOverlay } from '../composables/useOverlay'
+import { storeToRefs } from 'pinia'
+import { useSecondaryViewStore } from '../stores/secondaryView'
+import { useAppStore } from '../stores/app'
+import { useOverlayStore } from '../stores/overlay'
 import type { OverlayPage } from '../types'
 
-const { menuOpen } = useSecondaryView()
-const { theme, toggleTheme } = useAppState()
-const { open: openOverlay } = useOverlay()
+const secondaryViewStore = useSecondaryViewStore()
+const appStore = useAppStore()
+const overlayStore = useOverlayStore()
+const { menuOpen } = storeToRefs(secondaryViewStore)
+const { theme } = storeToRefs(appStore)
+const { toggleTheme } = appStore
+const { open: openOverlay } = overlayStore
 
 const darkMode = computed({
   get: () => theme.value === 'dark',

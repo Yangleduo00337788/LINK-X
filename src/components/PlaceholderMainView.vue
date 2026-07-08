@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import PenguinWatermark from './PenguinWatermark.vue'
-import { useSecondaryView } from '../composables/useSecondaryView'
+import { storeToRefs } from 'pinia'
+import { useSecondaryViewStore } from '../stores/secondaryView'
 import type { NavKey } from '../types'
 
 const props = defineProps<{
   nav: NavKey
 }>()
 
-const { activeApp, activeFavorite } = useSecondaryView()
+const secondaryViewStore = useSecondaryViewStore()
+const { activeApp, activeFavorite } = storeToRefs(secondaryViewStore)
 
 const emptyHint = computed(() => {
   if (props.nav === 'contacts') return '在左侧选择联系人发起会话'

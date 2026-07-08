@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { NModal, NIcon, useMessage } from 'naive-ui'
-import { useChatModals } from '../composables/useChatModals'
-import { useAppState } from '../composables/useAppState'
+import { NIcon, useMessage } from 'naive-ui'
+import { storeToRefs } from 'pinia'
+import { useChatModalsStore } from '../stores/chatModals'
+import { useAppStore } from '../stores/app'
 import {
   NotificationsOutline,
   RefreshOutline,
@@ -14,8 +15,10 @@ import {
   EllipsisHorizontal
 } from '@vicons/ionicons5'
 
-const { momentsModalOpen, closeMomentsModal } = useChatModals()
-const { userProfile } = useAppState()
+const chatModalsStore = useChatModalsStore()
+const appStore = useAppStore()
+const { closeMomentsModal } = chatModalsStore
+const { userProfile } = storeToRefs(appStore)
 const message = useMessage()
 
 const scrollTop = ref(0)

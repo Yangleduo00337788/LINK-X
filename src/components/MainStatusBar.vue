@@ -3,8 +3,9 @@ import { ref, computed, onMounted } from 'vue'
 import { NIcon } from 'naive-ui'
 import { PushOutline } from '@vicons/ionicons5'
 import WindowControls from './WindowControls.vue'
-import { useAppState } from '../composables/useAppState'
-import { useOverlay } from '../composables/useOverlay'
+import { storeToRefs } from 'pinia'
+import { useAppStore } from '../stores/app'
+import { useOverlayStore } from '../stores/overlay'
 
 withDefaults(
   defineProps<{
@@ -21,8 +22,10 @@ withDefaults(
   }
 )
 
-const { userProfile, navKey, currentSession } = useAppState()
-const { open: openOverlay } = useOverlay()
+const appStore = useAppStore()
+const overlayStore = useOverlayStore()
+const { userProfile, navKey, currentSession } = storeToRefs(appStore)
+const { open: openOverlay } = overlayStore
 
 const displayName = computed(() => userProfile.value.nickname)
 

@@ -1,11 +1,15 @@
 <script setup lang="ts">
-import { useChatModals } from '../../composables/useChatModals'
-import { useAppState } from '../../composables/useAppState'
+import { storeToRefs } from 'pinia'
+import { useChatModalsStore } from '../../stores/chatModals'
+import { useAppStore } from '../../stores/app'
 import { GROUP_ANNOUNCEMENT_FULL } from '../../data/groupDemo'
 import Avatar from '../Avatar.vue'
 
-const { groupAnnouncementOpen, closeGroupAnnouncement } = useChatModals()
-const { currentSession } = useAppState()
+const chatModalsStore = useChatModalsStore()
+const appStore = useAppStore()
+const { groupAnnouncementOpen } = storeToRefs(chatModalsStore)
+const { closeGroupAnnouncement } = chatModalsStore
+const { currentSession } = storeToRefs(appStore)
 
 function close() {
   closeGroupAnnouncement()

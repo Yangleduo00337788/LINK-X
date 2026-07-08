@@ -10,11 +10,15 @@ import {
   GridOutline,
   CallOutline
 } from '@vicons/ionicons5'
-import { useChatModals } from '../../composables/useChatModals'
-import { useAppState } from '../../composables/useAppState'
+import { storeToRefs } from 'pinia'
+import { useChatModalsStore } from '../../stores/chatModals'
+import { useAppStore } from '../../stores/app'
 
-const { videoCallOpen, closeVideoCall } = useChatModals()
-const { userProfile } = useAppState()
+const chatModalsStore = useChatModalsStore()
+const appStore = useAppStore()
+const { videoCallOpen } = storeToRefs(chatModalsStore)
+const { closeVideoCall } = chatModalsStore
+const { userProfile } = storeToRefs(appStore)
 
 const micOn = ref(true)
 const videoOn = ref(true)

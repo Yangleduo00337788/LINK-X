@@ -2,9 +2,10 @@
 import { ref } from 'vue'
 import { NInput, NButton, NIcon, NCheckbox } from 'naive-ui'
 import { LockClosedOutline, PersonOutline } from '@vicons/ionicons5'
-import { useAppState } from '../composables/useAppState'
+import { useAppStore } from '../stores/app'
 
-const { login } = useAppState()
+const appStore = useAppStore()
+const { login } = appStore
 
 const username = ref('linkx_888888')
 const password = ref('123456')

@@ -15,19 +15,24 @@ import {
   LogOutOutline,
   ChevronForwardOutline
 } from '@vicons/ionicons5'
-import { NIcon, NPopover, useDialog, useMessage } from 'naive-ui'
-import { useAppState } from '../composables/useAppState'
-import { useSecondaryView } from '../composables/useSecondaryView'
-import { useChatModals } from '../composables/useChatModals'
-import { useSettings } from '../composables/useSettings'
+import { NIcon, NPopover, useMessage } from 'naive-ui'
+import { storeToRefs } from 'pinia'
+import { useAppStore } from '../stores/app'
+import { useSecondaryViewStore } from '../stores/secondaryView'
+import { useChatModalsStore } from '../stores/chatModals'
+import { useSettingsStore } from '../stores/settings'
 import type { NavKey } from '../types'
 
-const { navKey, setNav, logout, toggleTheme, lock } = useAppState()
-const { menuOpen } = useSecondaryView()
-const { openMomentsModal } = useChatModals()
-const { openSettings } = useSettings()
+const appStore = useAppStore()
+const secondaryViewStore = useSecondaryViewStore()
+const chatModalsStore = useChatModalsStore()
+const settingsStore = useSettingsStore()
+const { navKey } = storeToRefs(appStore)
+const { menuOpen } = storeToRefs(secondaryViewStore)
+const { setNav, logout, lock } = appStore
+const { openMomentsModal } = chatModalsStore
+const { openSettings } = settingsStore
 
-const dialog = useDialog()
 const message = useMessage()
 
 const mainNav: { key: NavKey; icon: typeof ChatbubbleEllipsesOutline }[] = [
@@ -57,10 +62,6 @@ function handleClick(key: NavKey | 'menu') {
     return
   }
   setNav(key)
-}
-
-function handleFavoritesClick() {
-  setNav('favorites')
 }
 
 function handleFilesClick() {

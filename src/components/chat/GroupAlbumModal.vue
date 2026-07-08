@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useChatModals } from '../../composables/useChatModals'
-import { useAppState } from '../../composables/useAppState'
+import { storeToRefs } from 'pinia'
+import { useChatModalsStore } from '../../stores/chatModals'
+import { useAppStore } from '../../stores/app'
 import { useMessage } from 'naive-ui'
 
 const message = useMessage()
-const { groupAlbumOpen, closeGroupAlbum } = useChatModals()
-const { currentSession } = useAppState()
+const chatModalsStore = useChatModalsStore()
+const appStore = useAppStore()
+const { groupAlbumOpen } = storeToRefs(chatModalsStore)
+const { closeGroupAlbum } = chatModalsStore
+const { currentSession } = storeToRefs(appStore)
 
 const tab = ref<'feed' | 'albums' | 'me'>('feed')
 

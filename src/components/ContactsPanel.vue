@@ -1,18 +1,20 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { NIcon, NCollapse, NCollapseItem, NSkeleton } from 'naive-ui'
-import { ChevronForwardOutline, PersonAddOutline } from '@vicons/ionicons5'
+import { NIcon, NSkeleton } from 'naive-ui'
+import { ChevronForwardOutline } from '@vicons/ionicons5'
 import PanelSearchBar from './PanelSearchBar.vue'
 import Avatar from './Avatar.vue'
 import EmptyState from './common/EmptyState.vue'
 import { contacts } from '../data/mockData'
-import { sessionFromContact } from '../data/mockData'
-import { useAppState } from '../composables/useAppState'
-import { useChatModals } from '../composables/useChatModals'
+import { storeToRefs } from 'pinia'
+import { useAppStore } from '../stores/app'
+import { useChatModalsStore } from '../stores/chatModals'
 import type { ContactItem } from '../types'
 
-const { ensureSession, contactsActiveView, currentSessionId, isLoading } = useAppState()
-const { openCreateGroup, openComprehensiveSearch, openContactProfile } = useChatModals()
+const appStore = useAppStore()
+const chatModalsStore = useChatModalsStore()
+const { contactsActiveView, currentSessionId, isLoading } = storeToRefs(appStore)
+const { openCreateGroup, openComprehensiveSearch, openContactProfile } = chatModalsStore
 const search = ref('')
 const activeTab = ref<'friends' | 'groups'>('friends')
 

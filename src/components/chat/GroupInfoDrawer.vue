@@ -3,14 +3,17 @@ import { ref } from 'vue'
 import { NIcon, NSwitch } from 'naive-ui'
 import { SearchOutline } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
-import { useChatModals } from '../../composables/useChatModals'
-import { useAppState } from '../../composables/useAppState'
+import { storeToRefs } from 'pinia'
+import { useChatModalsStore } from '../../stores/chatModals'
+import { useAppStore } from '../../stores/app'
 import { useMessage } from 'naive-ui'
 
 const message = useMessage()
-const { groupInfoDrawerOpen, closeGroupInfo, openGroupAnnouncement, openAddMembers } =
-  useChatModals()
-const { currentSession, userProfile } = useAppState()
+const chatModalsStore = useChatModalsStore()
+const appStore = useAppStore()
+const { groupInfoDrawerOpen } = storeToRefs(chatModalsStore)
+const { closeGroupInfo, openGroupAnnouncement, openAddMembers } = chatModalsStore
+const { currentSession, userProfile } = storeToRefs(appStore)
 
 const pinTop = ref(false)
 const mute = ref(true)

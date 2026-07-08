@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import { useChatModals } from '../../composables/useChatModals'
-import { useAppState } from '../../composables/useAppState'
+import { storeToRefs } from 'pinia'
+import { useChatModalsStore } from '../../stores/chatModals'
+import { useAppStore } from '../../stores/app'
 
-const { groupEssenceOpen, closeGroupEssence } = useChatModals()
-const { currentSession } = useAppState()
+const chatModalsStore = useChatModalsStore()
+const appStore = useAppStore()
+const { groupEssenceOpen } = storeToRefs(chatModalsStore)
+const { closeGroupEssence } = chatModalsStore
+const { currentSession } = storeToRefs(appStore)
 
 const items = [
   {

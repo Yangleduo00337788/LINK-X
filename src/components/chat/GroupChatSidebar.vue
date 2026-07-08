@@ -2,10 +2,11 @@
 import { NIcon } from 'naive-ui'
 import { SearchOutline, ChevronForwardOutline } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
-import { useChatModals } from '../../composables/useChatModals'
+import { useChatModalsStore } from '../../stores/chatModals'
 import { GROUP_ANNOUNCEMENT_SHORT } from '../../data/groupDemo'
 
-const { openGroupAnnouncement } = useChatModals()
+const chatModalsStore = useChatModalsStore()
+const { openGroupAnnouncement } = chatModalsStore
 
 const members = [
   { name: '有BB机的小豆包', text: '有', color: '#f56c6c', badge: '群主' },

@@ -4,10 +4,12 @@ import { NInput, NIcon, NButton } from 'naive-ui'
 import { SearchOutline } from '@vicons/ionicons5'
 import Avatar from './Avatar.vue'
 import { channels as channelList } from '../data/mockData'
-import { useSecondaryView } from '../composables/useSecondaryView'
+import { storeToRefs } from 'pinia'
+import { useSecondaryViewStore } from '../stores/secondaryView'
 import type { ChannelItem } from '../types'
 
-const { activeChannel } = useSecondaryView()
+const secondaryViewStore = useSecondaryViewStore()
+const { activeChannel } = storeToRefs(secondaryViewStore)
 const search = ref('')
 const joinedIds = ref(new Set(channelList.filter(c => c.joined).map(c => c.id)))
 

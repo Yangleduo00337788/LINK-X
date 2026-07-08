@@ -4,10 +4,12 @@ import { NIcon } from 'naive-ui'
 import { DocumentTextOutline, ImageOutline, LinkOutline, FolderOutline } from '@vicons/ionicons5'
 import PanelSearchBar from './PanelSearchBar.vue'
 import { favorites as favList } from '../data/mockData'
-import { useSecondaryView } from '../composables/useSecondaryView'
+import { storeToRefs } from 'pinia'
+import { useSecondaryViewStore } from '../stores/secondaryView'
 import type { FavoriteItem } from '../types'
 
-const { activeFavorite } = useSecondaryView()
+const secondaryViewStore = useSecondaryViewStore()
+const { activeFavorite } = storeToRefs(secondaryViewStore)
 const search = ref('')
 const activeTab = ref('all') // all, link, image, file, note
 

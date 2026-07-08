@@ -8,21 +8,26 @@ import {
   EllipsisHorizontalOutline 
 } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
-import { useChatModals } from '../../composables/useChatModals'
-import { useAppState } from '../../composables/useAppState'
+import { storeToRefs } from 'pinia'
+import { useChatModalsStore } from '../../stores/chatModals'
+import { useAppStore } from '../../stores/app'
+import type { ContactItem } from '../../types'
 
-const { contactProfileOpen, closeContactProfile, currentContactProfile } = useChatModals()
-const { ensureSession } = useAppState()
+const chatModalsStore = useChatModalsStore()
+const appStore = useAppStore()
+const { contactProfileOpen, currentContactProfile } = storeToRefs(chatModalsStore)
+const { closeContactProfile } = chatModalsStore
+const { ensureSession } = appStore
 const message = useMessage()
 
-const contact = computed(() => currentContactProfile.value || {})
+const contact = computed<ContactItem | null>(() => currentContactProfile.value)
 
 function handleSendMessage() {
-  // Convert contact to session format
+  if (!contact.value) return
   const session = {
     id: contact.value.id,
     name: contact.value.name,
-    avatarText: contact.value.avatarText || contact.value.name?.charAt(0) || '?',
+    avatarText: contact.value.avatarText || contact.value.name.charAt(0) || '?',
     avatarColor: contact.value.avatarColor || '#12b7f5',
     lastMessage: '',
     time: '',
@@ -57,9 +62,10 @@ function handleMore() {
     :show-icon="false"
     style="width: 320px; border-radius: var(--lx-radius); padding: 0; overflow: hidden;"
   >
+    <template v-if="contact">
     <div class="profile-header">
       <Avatar 
-        :text="contact.avatarText || (contact.name ? contact.name.charAt(0) : '?')" 
+        :text="contact.avatarText || contact.name.charAt(0)" 
         :color="contact.avatarColor || '#12b7f5'" 
         :size="72" 
       />
@@ -68,7 +74,7 @@ function handleMore() {
           {{ contact.name }}
           <span v-if="contact.online" class="online-dot" title="在线"></span>
         </div>
-        <div class="profile-id">LinkX ID: {{ contact.id || '未知' }}</div>
+        <div class="profile-id">LinkX ID: {{ contact.id }}</div>
       </div>
     </div>
 
@@ -79,7 +85,7 @@ function handleMore() {
       </div>
       <div class="info-row">
         <span class="info-label">个性签名</span>
-        <span class="info-value">{{ contact.signature || '这个人很懒，什么都没写' }}</span>
+        <span class="info-value">这个人很懒，什么都没写</span>
       </div>
     </div>
 
@@ -110,6 +116,7 @@ function handleMore() {
         </n-button>
       </div>
     </div>
+    </template>
   </n-modal>
 </template>
 

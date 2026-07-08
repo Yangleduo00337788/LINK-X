@@ -1,5 +1,6 @@
 {
-  "name": "qq-replica",
+  "name": "linkx",
+  "description": "LinkX — 企业级即时通讯与协同平台桌面客户端",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -17,6 +18,7 @@
     "@vicons/ionicons5": "^0.12.0",
     "@vicons/material": "^0.12.0",
     "naive-ui": "^2.38.2",
+    "pinia": "^2.3.1",
     "uuid": "^14.0.1",
     "vue": "^3.4.21"
   },
@@ -33,8 +35,8 @@
     "vue-tsc": "^2.0.11"
   },
   "build": {
-    "appId": "com.example.qq-replica",
-    "productName": "QQ Replica",
+    "appId": "com.linkx.app",
+    "productName": "LinkX",
     "directories": {
       "output": "release",
       "buildResources": "build"

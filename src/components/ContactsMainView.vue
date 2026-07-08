@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useAppState } from '../composables/useAppState'
+import { storeToRefs } from 'pinia'
+import { useAppStore } from '../stores/app'
 import FriendNotifications from './contacts/FriendNotifications.vue'
 import GroupNotifications from './contacts/GroupNotifications.vue'
 import PlaceholderMainView from './PlaceholderMainView.vue'
 
-const { contactsActiveView, navKey } = useAppState()
+const appStore = useAppStore()
+const { contactsActiveView, navKey } = storeToRefs(appStore)
 </script>
 
 <template>

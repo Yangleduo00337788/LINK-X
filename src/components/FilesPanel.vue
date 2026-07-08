@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { NIcon } from 'naive-ui'
-import { DocumentTextOutline, FolderOutline, ImageOutline, FilmOutline, MusicalNotesOutline } from '@vicons/ionicons5'
+import { DocumentTextOutline, FolderOutline, ImageOutline, FilmOutline } from '@vicons/ionicons5'
 import PanelSearchBar from './PanelSearchBar.vue'
-import { useSecondaryView } from '../composables/useSecondaryView'
 
-const { activeFavorite } = useSecondaryView() // 复用以控制详情面板展示
 const search = ref('')
 const activeTab = ref('recent') // recent, document, image, media, other
 

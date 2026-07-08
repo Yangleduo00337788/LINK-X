@@ -6,23 +6,20 @@ import {
   NTabPane,
   NSwitch,
   NButton,
-  NInput,
   NAvatar,
   NDivider,
   NIcon
 } from 'naive-ui'
-import {
-  SettingsOutline,
-  ShieldCheckmarkOutline,
-  ColorPaletteOutline,
-  InformationCircleOutline,
-  CheckmarkCircleOutline
-} from '@vicons/ionicons5'
-import { useSettings } from '../composables/useSettings'
-import { useAppState } from '../composables/useAppState'
+import { CheckmarkCircleOutline } from '@vicons/ionicons5'
+import { storeToRefs } from 'pinia'
+import { useSettingsStore } from '../stores/settings'
+import { useAppStore } from '../stores/app'
 
-const { isSettingsModalVisible, settingsActiveTab } = useSettings()
-const { userProfile, theme, toggleTheme, toggleOffline, isOffline, simulateIncomingMessage, isLoading } = useAppState()
+const settingsStore = useSettingsStore()
+const appStore = useAppStore()
+const { isSettingsModalVisible, settingsActiveTab } = storeToRefs(settingsStore)
+const { userProfile, theme, isOffline } = storeToRefs(appStore)
+const { toggleTheme, toggleOffline, simulateIncomingMessage } = appStore
 
 const activeTab = ref('general')
 

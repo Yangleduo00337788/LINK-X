@@ -5,12 +5,16 @@ import { PhonePortraitOutline, NotificationsOffOutline, WarningOutline } from '@
 import PanelSearchBar from './PanelSearchBar.vue'
 import Avatar from './Avatar.vue'
 import EmptyState from './common/EmptyState.vue'
-import { useAppState } from '../composables/useAppState'
-import { useChatModals } from '../composables/useChatModals'
+import { storeToRefs } from 'pinia'
+import { useAppStore } from '../stores/app'
+import { useChatModalsStore } from '../stores/chatModals'
 import type { ChatSession } from '../types'
 
-const { sessions, currentSessionId, selectSession, isLoading, isOffline } = useAppState()
-const { openCreateGroup, openComprehensiveSearch } = useChatModals()
+const appStore = useAppStore()
+const chatModalsStore = useChatModalsStore()
+const { sessions, currentSessionId, isLoading, isOffline } = storeToRefs(appStore)
+const { selectSession } = appStore
+const { openCreateGroup, openComprehensiveSearch } = chatModalsStore
 const searchValue = ref('')
 
 const filteredSessions = computed(() => {
