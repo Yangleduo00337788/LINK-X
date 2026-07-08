@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref } from 'vue'
 import { NIcon } from 'naive-ui'
 import {
@@ -73,7 +73,7 @@ function hangUp() {
   position: fixed;
   inset: 0;
   z-index: 2200;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--lx-bg-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -84,7 +84,7 @@ function hangUp() {
   background: #1e1e1e;
   border-radius: var(--lx-radius);
   overflow: hidden;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 16px 48px var(--lx-bg-overlay);
 }
 
 .status {
@@ -112,7 +112,7 @@ function hangUp() {
 }
 
 .ph-text {
-  color: #666;
+  color: var(--lx-text-secondary);
   font-size: 13px;
 }
 
@@ -132,7 +132,7 @@ function hangUp() {
 
 .pip-name {
   font-size: 10px;
-  color: #fff;
+  color: var(--lx-bg-card);
   text-shadow: 0 1px 2px #000;
 }
 
@@ -150,7 +150,7 @@ function hangUp() {
   gap: 6px;
   border: none;
   background: transparent;
-  color: #fff;
+  color: var(--lx-bg-card);
   font-size: 10px;
   cursor: pointer;
   max-width: 64px;

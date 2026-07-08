@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { NIcon, useMessage } from 'naive-ui'
 import {
@@ -144,7 +144,7 @@ onUnmounted(() => {
 .note-editor {
   display: flex;
   flex-direction: column;
-  background: #ffffff;
+  background: var(--lx-bg-card);
   overflow: hidden;
   height: 100vh;
 }
@@ -155,8 +155,8 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 0 12px;
-  background: #f5f5f5;
-  border-bottom: 1px solid #ebebeb;
+  background: var(--lx-bg-panel);
+  border-bottom: 1px solid var(--lx-divider);
   flex-shrink: 0;
 }
 
@@ -171,7 +171,7 @@ onUnmounted(() => {
 .header-left .title {
   font-size: 14px;
   font-weight: 500;
-  color: #333;
+  color: var(--lx-text-body);
 }
 
 .header-right {
@@ -189,16 +189,16 @@ onUnmounted(() => {
   justify-content: center;
   cursor: pointer;
   transition: background 0.2s;
-  color: #333;
+  color: var(--lx-text-body);
 }
 
 .action-btn:hover {
-  background: rgba(0, 0, 0, 0.1);
+  background: var(--lx-bg-active);
 }
 
 .close-btn:hover {
   background: #fa5151;
-  color: #ffffff;
+  color: var(--lx-bg-card);
 }
 
 .editor-container {
@@ -213,8 +213,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   padding: 0 24px;
-  background: #ffffff;
-  border-bottom: 1px solid #ebebeb;
+  background: var(--lx-bg-card);
+  border-bottom: 1px solid var(--lx-divider);
   flex-shrink: 0;
 }
 
@@ -231,20 +231,20 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #666;
+  color: var(--lx-text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .tool-btn:hover {
   background: #f0f0f0;
-  color: #333;
+  color: var(--lx-text-body);
 }
 
 .toolbar-divider {
   width: 1px;
   height: 16px;
-  background: #ebebeb;
+  background: var(--lx-bg-input);
   margin: 0 12px;
 }
 
@@ -259,7 +259,7 @@ onUnmounted(() => {
 .title-input {
   font-size: 22px;
   font-weight: 600;
-  color: #333;
+  color: var(--lx-text-body);
   border: none;
   outline: none;
   background: transparent;
@@ -273,7 +273,7 @@ onUnmounted(() => {
 
 .divider {
   height: 1px;
-  background: #ebebeb;
+  background: var(--lx-bg-input);
   margin-bottom: 16px;
   flex-shrink: 0;
 }
@@ -282,7 +282,7 @@ onUnmounted(() => {
   flex: 1;
   font-size: 15px;
   line-height: 1.8;
-  color: #333;
+  color: var(--lx-text-body);
   border: none;
   outline: none;
   background: transparent;

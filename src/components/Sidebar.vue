@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import {
   ChatbubbleEllipsesOutline,
   PersonOutline,
@@ -122,7 +122,7 @@ function handleLogoutClick() {
         <n-icon :component="ColorPaletteOutline" :size="20" />
       </div>
 
-      <n-popover placement="right-end" trigger="click" :show-arrow="false" style="padding: 0; border-radius: var(--lx-radius); overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.12);">
+      <n-popover placement="right-end" trigger="click" :show-arrow="false" style="padding: 0; border-radius: var(--lx-radius); overflow: hidden; box-shadow: 0 4px 24px var(--lx-shadow-color);">
         <template #trigger>
           <div
             class="nav-item"
@@ -191,7 +191,7 @@ function handleLogoutClick() {
 .nav-divider {
   width: 22px;
   height: 1px;
-  background: rgba(0, 0, 0, 0.08);
+  background: var(--lx-bg-active);
   margin: 6px 0;
 }
 
@@ -211,37 +211,37 @@ function handleLogoutClick() {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #5c5c5c;
+  color: var(--lx-text-nav);
   cursor: pointer;
   transition: background 0.18s ease, color 0.18s ease, transform 0.12s ease;
   flex-shrink: 0;
 }
 
 .nav-item--subtle {
-  color: #7a7a7a;
+  color: var(--lx-text-nav-subtle);
 }
 
 .nav-item:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: #333;
+  background: var(--lx-bg-hover);
+  color: var(--lx-text-body);
 }
 
 .nav-item.active {
-  color: #12b7f5;
+  color: var(--lx-accent);
   background: transparent;
   box-shadow: none;
 }
 
 .nav-item.active:hover {
-  background: rgba(0, 0, 0, 0.04);
-  color: #12b7f5;
+  background: var(--lx-bg-hover);
+  color: var(--lx-accent);
 }
 
 
 
 .more-menu {
   width: 220px;
-  background: #ffffff;
+  background: var(--lx-bg-card);
   display: flex;
   flex-direction: column;
   border-radius: var(--lx-radius);
@@ -260,7 +260,7 @@ function handleLogoutClick() {
   padding: 10px 12px;
   border-radius: var(--lx-radius);
   cursor: pointer;
-  color: #333;
+  color: var(--lx-text-body);
   font-size: 14px;
   transition: background 0.15s;
 }
@@ -271,7 +271,7 @@ function handleLogoutClick() {
 
 .menu-list-item .arrow {
   margin-left: auto;
-  color: #999;
+  color: var(--lx-text-muted);
 }
 
 .menu-list-item.danger:hover {

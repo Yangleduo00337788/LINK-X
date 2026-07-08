@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, computed } from 'vue'
 import { NIcon, useMessage } from 'naive-ui'
 import { storeToRefs } from 'pinia'
@@ -33,7 +33,7 @@ const headerBgOpacity = computed(() => {
   const opacity = Math.min(scrollTop.value / 200, 1)
   return `rgba(245, 245, 245, ${opacity})`
 })
-const headerIconColor = computed(() => (scrollTop.value > 200 ? '#1a1a1a' : '#ffffff'))
+const headerIconColor = computed(() => (scrollTop.value > 200 ? 'var(--lx-text)' : 'var(--lx-bg-card)'))
 
 interface Comment {
   id: string
@@ -252,7 +252,7 @@ function closeMoments() {
   position: relative;
   width: 440px;
   height: 560px;
-  background: #ffffff;
+  background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
   overflow: hidden;
   text-align: left;
@@ -309,12 +309,12 @@ function closeMoments() {
 }
 
 .action-btn:hover {
-  background: rgba(0, 0, 0, 0.1);
+  background: var(--lx-bg-active);
 }
 
 .close-btn:hover {
   background: #fa5151;
-  color: #ffffff !important;
+  color: var(--lx-bg-card) !important;
 }
 
 /* 滚动区域 */
@@ -338,7 +338,7 @@ function closeMoments() {
 .moments-header {
   position: relative;
   height: 320px; /* 给下方留出一点空间显示头像 */
-  background: #ffffff;
+  background: var(--lx-bg-card);
 }
 
 .header-banner {
@@ -363,7 +363,7 @@ function closeMoments() {
 }
 
 .username {
-  color: #ffffff;
+  color: var(--lx-bg-card);
   font-size: 20px;
   font-weight: 600;
   text-shadow: 0 1px 4px rgba(0,0,0,0.6);
@@ -374,8 +374,8 @@ function closeMoments() {
   width: 68px;
   height: 68px;
   border-radius: 50%; /* 圆形头像 */
-  border: 2px solid #ffffff;
-  background: #ffffff;
+  border: 2px solid var(--lx-bg-card);
+  background: var(--lx-bg-card);
   object-fit: cover;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
@@ -398,7 +398,7 @@ function closeMoments() {
   object-fit: cover;
   flex-shrink: 0;
   margin-right: 12px;
-  background: #f5f5f5;
+  background: var(--lx-bg-panel);
   cursor: pointer;
 }
 
@@ -417,7 +417,7 @@ function closeMoments() {
 
 .post-text {
   font-size: 15px;
-  color: #1a1a1a;
+  color: var(--lx-text);
   line-height: 1.5;
   margin-bottom: 8px;
   word-break: break-all;
@@ -443,7 +443,7 @@ function closeMoments() {
 
 .post-time {
   font-size: 12px;
-  color: #999;
+  color: var(--lx-text-muted);
 }
 
 .post-action-wrap {
@@ -455,7 +455,7 @@ function closeMoments() {
 .action-trigger {
   width: 32px;
   height: 22px;
-  background: #f5f5f5;
+  background: var(--lx-bg-panel);
   border-radius: var(--lx-radius);
   display: flex;
   align-items: center;
@@ -490,7 +490,7 @@ function closeMoments() {
   display: flex;
   align-items: center;
   gap: 4px;
-  color: #ffffff;
+  color: var(--lx-bg-card);
   font-size: 13px;
   padding: 10px 12px;
   cursor: pointer;
@@ -548,7 +548,7 @@ function closeMoments() {
 
 .interaction-divider {
   height: 1px;
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--lx-bg-hover);
   margin: 6px 0;
 }
 
@@ -571,12 +571,12 @@ function closeMoments() {
 }
 
 .comment-text {
-  color: #1a1a1a;
+  color: var(--lx-text);
 }
 
 .bottom-tip {
   text-align: center;
-  color: #999;
+  color: var(--lx-text-muted);
   font-size: 13px;
   padding: 30px 0;
 }

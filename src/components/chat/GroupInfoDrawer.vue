@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref } from 'vue'
 import { NIcon, NSwitch } from 'naive-ui'
 import { SearchOutline } from '@vicons/ionicons5'
@@ -21,13 +21,13 @@ const groupRemark = ref('')
 
 const memberPreview = [
   { text: '有', color: '#f56c6c' },
-  { text: '颜', color: '#12b7f5' },
+  { text: '颜', color: 'var(--lx-accent)' },
   { text: '重', color: '#722ed1' },
   { text: '嫉', color: '#fa541c' },
-  { text: 'J', color: '#52c41a' },
+  { text: 'J', color: 'var(--lx-success)' },
   { text: '李', color: '#fa8c16' },
   { text: 'M', color: '#1890ff' },
-  { text: 'Q', color: '#0099ff' },
+  { text: 'Q', color: 'var(--lx-accent)' },
   { text: '我', color: '#eb2f96' },
   { text: '小', color: '#13c2c2' },
   { text: '雪', color: '#2f54eb' },
@@ -147,7 +147,7 @@ function demo(t: string) {
   position: fixed;
   inset: 0;
   z-index: 2000;
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--lx-shadow-color-heavy);
 }
 
 .drawer-panel {
@@ -156,8 +156,8 @@ function demo(t: string) {
   right: 0;
   width: min(320px, 88vw);
   height: 100%;
-  background: #fff;
-  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.12);
+  background: var(--lx-bg-card);
+  box-shadow: -4px 0 24px var(--lx-shadow-color);
   display: flex;
   flex-direction: column;
 }
@@ -190,7 +190,7 @@ function demo(t: string) {
 .g-id {
   margin: 0 0 12px;
   font-size: 12px;
-  color: #999;
+  color: var(--lx-text-muted);
 }
 
 .share-btn {
@@ -198,15 +198,15 @@ function demo(t: string) {
   height: 32px;
   border-radius: var(--lx-radius);
   border: 1px solid #ddd;
-  background: #fff;
+  background: var(--lx-bg-card);
   font-size: 13px;
   cursor: pointer;
-  color: #333;
+  color: var(--lx-text-body);
 }
 
 .block {
   padding: 12px 0;
-  border-bottom: 1px solid #f5f5f5;
+  border-bottom: 1px solid var(--lx-bg-panel);
 }
 
 .block-head {
@@ -215,12 +215,12 @@ function demo(t: string) {
   justify-content: space-between;
   font-size: 14px;
   font-weight: 600;
-  color: #333;
+  color: var(--lx-text-body);
   margin-bottom: 10px;
 }
 
 .ico {
-  color: #999;
+  color: var(--lx-text-muted);
   cursor: pointer;
 }
 
@@ -240,10 +240,10 @@ function demo(t: string) {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  border: 1px dashed #ccc;
+  border: 1px dashed var(--lx-border-strong);
   background: #fafafa;
   font-size: 22px;
-  color: #999;
+  color: var(--lx-text-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -254,7 +254,7 @@ function demo(t: string) {
 .link-row {
   border: none;
   background: none;
-  color: #12b7f5;
+  color: var(--lx-accent);
   font-size: 13px;
   cursor: pointer;
   padding: 4px 0;
@@ -270,7 +270,7 @@ function demo(t: string) {
   margin: 0;
   font-size: 12px;
   line-height: 1.5;
-  color: #666;
+  color: var(--lx-text-secondary);
   word-break: break-all;
 }
 
@@ -284,7 +284,7 @@ function demo(t: string) {
 }
 
 .announce-btn:hover {
-  color: #12b7f5;
+  color: var(--lx-accent);
 }
 
 .row-item {
@@ -292,11 +292,11 @@ function demo(t: string) {
   justify-content: space-between;
   align-items: center;
   font-size: 14px;
-  color: #333;
+  color: var(--lx-text-body);
 }
 
 .muted {
-  color: #999;
+  color: var(--lx-text-muted);
   font-size: 13px;
 }
 
@@ -308,7 +308,7 @@ function demo(t: string) {
   border-bottom: 1px solid #eee;
   font-size: 13px;
   outline: none;
-  color: #333;
+  color: var(--lx-text-body);
 }
 
 .switch-block {
@@ -321,23 +321,23 @@ function demo(t: string) {
   align-items: center;
   padding: 12px 0;
   font-size: 14px;
-  color: #333;
+  color: var(--lx-text-body);
 }
 
 .hint {
   margin: -4px 0 0;
   font-size: 12px;
-  color: #999;
+  color: var(--lx-text-muted);
 }
 
 .action-btn {
   width: 100%;
   height: 40px;
   border: none;
-  background: #f5f5f5;
+  background: var(--lx-bg-panel);
   border-radius: var(--lx-radius);
   font-size: 14px;
-  color: #333;
+  color: var(--lx-text-body);
   cursor: pointer;
   margin-bottom: 10px;
 }
@@ -354,7 +354,7 @@ function demo(t: string) {
 }
 
 .report a {
-  color: #12b7f5;
+  color: var(--lx-accent);
   text-decoration: none;
 }
 

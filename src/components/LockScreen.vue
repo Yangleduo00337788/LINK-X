@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref } from 'vue'
 import { NInput, NButton, NAvatar, NIcon } from 'naive-ui'
 import { LockClosedOutline, ArrowForwardOutline } from '@vicons/ionicons5'
@@ -76,7 +76,7 @@ function handleUnlock() {
   left: -20px;
   right: -20px;
   bottom: -20px;
-  background: var(--lx-bg-window, #e8e8e8);
+  background: var(--lx-bg-window, var(--lx-bg-panel-deep));
   filter: blur(20px);
   z-index: 1;
 }
@@ -90,32 +90,32 @@ function handleUnlock() {
   background: rgba(255, 255, 255, 0.85);
   padding: 40px 60px;
   border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 32px var(--lx-bg-active);
   backdrop-filter: blur(20px);
 }
 
 .lock-icon-wrapper {
   margin-bottom: 24px;
-  color: #555;
+  color: var(--lx-text-nav);
 }
 
 .avatar {
   margin-bottom: 16px;
-  border: 2px solid #fff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 2px solid var(--lx-bg-card);
+  box-shadow: 0 2px 8px var(--lx-bg-active);
 }
 
 .nickname {
   margin: 0 0 8px;
   font-size: 20px;
   font-weight: 500;
-  color: #333;
+  color: var(--lx-text-body);
 }
 
 .status {
   margin: 0 0 32px;
   font-size: 14px;
-  color: #666;
+  color: var(--lx-text-secondary);
 }
 
 .unlock-form {

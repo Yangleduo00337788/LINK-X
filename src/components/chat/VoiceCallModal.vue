@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref } from 'vue'
 import { NIcon } from 'naive-ui'
 import {
@@ -71,7 +71,7 @@ function hangUp() {
   position: fixed;
   inset: 0;
   z-index: 2200;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--lx-bg-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -82,8 +82,8 @@ function hangUp() {
   background: linear-gradient(180deg, #3a3a3a 0%, #2a2a2a 100%);
   border-radius: var(--lx-radius);
   padding: 24px 20px 28px;
-  color: #fff;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+  color: var(--lx-bg-card);
+  box-shadow: 0 16px 48px var(--lx-bg-overlay);
 }
 
 .call-top {
@@ -140,7 +140,7 @@ function hangUp() {
 }
 
 .ctl.hangup {
-  color: #fff;
+  color: var(--lx-bg-card);
 }
 
 .ctl.hangup :deep(svg) {

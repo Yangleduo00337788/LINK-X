@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import MainStatusBar from './MainStatusBar.vue'
 import Sidebar from './Sidebar.vue'
@@ -207,11 +207,11 @@ const showPlaceholder = computed(() =>
   flex: 1;
   display: flex;
   flex-direction: row;
-  background: #ffffff;
+  background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
   overflow: hidden;
-  --lx-bg-panel: #ffffff; /* 强制功能区和详细区的背景均为白色，融为一体 */
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --lx-bg-panel: var(--lx-bg-card); /* 强制功能区和详细区的背景均为白色，融为一体 */
+  box-shadow: var(--lx-shadow-soft);
   min-width: 0;
 }
 
@@ -233,7 +233,7 @@ const showPlaceholder = computed(() =>
 
 .resizer {
   width: 1px;
-  background: rgba(0, 0, 0, 0.08);
+  background: var(--lx-bg-active);
   cursor: col-resize;
   position: relative;
   z-index: 10;
@@ -252,7 +252,7 @@ const showPlaceholder = computed(() =>
 
 .resizer:hover,
 .resizer.dragging {
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--lx-shadow-color-heavy);
 }
 
 .col-chat {

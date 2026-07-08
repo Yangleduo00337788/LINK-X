@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { NIcon } from 'naive-ui'
 import { PushOutline } from '@vicons/ionicons5'
@@ -60,7 +60,7 @@ function openProfile() {
     <div class="status-left">
       <div class="brand-block" title="LinkX">
         <svg class="brand-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="24" height="24" rx="6" fill="#1a1a1a"/>
+          <rect width="24" height="24" rx="6" fill="var(--lx-text)"/>
           <path d="M8 8L16 16M16 8L8 16" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
         <span class="brand-text">LinkX</span>
@@ -155,7 +155,7 @@ function openProfile() {
 .brand-text {
   font-size: 16px;
   font-weight: 700;
-  color: #1a1a1a;
+  color: var(--lx-text);
   letter-spacing: -0.01em;
   line-height: 1;
 }
@@ -170,10 +170,10 @@ function openProfile() {
   overflow: hidden;
   cursor: pointer;
   flex-shrink: 0;
-  background: #e8e8e8;
+  background: var(--lx-bg-panel-deep);
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.8),
-    0 0 0 2px rgba(0, 0, 0, 0.06);
+    0 0 0 2px var(--lx-border-light);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -205,7 +205,7 @@ function openProfile() {
 .nickname {
   font-size: 13px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--lx-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -233,7 +233,7 @@ function openProfile() {
 }
 
 .signature-link:hover {
-  color: #12b7f5;
+  color: var(--lx-accent);
 }
 
 .signature-link.static {
@@ -255,7 +255,7 @@ function openProfile() {
 .session-title {
   font-size: 13px;
   font-weight: 500;
-  color: #333;
+  color: var(--lx-text-body);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -287,12 +287,12 @@ function openProfile() {
 }
 
 .pin-btn:hover {
-  color: #666;
-  background: rgba(0, 0, 0, 0.04);
+  color: var(--lx-text-secondary);
+  background: var(--lx-bg-hover);
 }
 
 .pin-btn.active {
-  color: #12b7f5;
+  color: var(--lx-accent);
   background: rgba(18, 183, 245, 0.1);
 }
 </style>

@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref } from 'vue'
 import { useMessage } from 'naive-ui'
 import { storeToRefs } from 'pinia'
@@ -135,7 +135,7 @@ function joinGroup(name: string) {
   position: fixed;
   inset: 0;
   z-index: 2150;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--lx-bg-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -146,7 +146,7 @@ function joinGroup(name: string) {
   position: relative;
   width: min(920px, 96vw);
   height: min(640px, 90vh);
-  background: #fff;
+  background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
   box-shadow: 0 16px 56px rgba(0, 0, 0, 0.2);
   display: flex;
@@ -179,7 +179,7 @@ function joinGroup(name: string) {
 }
 
 .search-input:focus {
-  border-color: #12b7f5;
+  border-color: var(--lx-accent);
 }
 
 .search-btn {
@@ -187,8 +187,8 @@ function joinGroup(name: string) {
   height: 36px;
   border: none;
   border-radius: var(--lx-radius);
-  background: #12b7f5;
-  color: #fff;
+  background: var(--lx-accent);
+  color: var(--lx-bg-card);
   font-size: 14px;
   cursor: pointer;
 }
@@ -205,13 +205,13 @@ function joinGroup(name: string) {
   background: none;
   padding: 10px 0;
   font-size: 14px;
-  color: #666;
+  color: var(--lx-text-secondary);
   cursor: pointer;
   position: relative;
 }
 
 .main-tab.active {
-  color: #12b7f5;
+  color: var(--lx-accent);
   font-weight: 600;
 }
 
@@ -222,7 +222,7 @@ function joinGroup(name: string) {
   right: 0;
   bottom: 0;
   height: 2px;
-  background: #12b7f5;
+  background: var(--lx-accent);
   border-radius: 1px;
 }
 
@@ -244,8 +244,8 @@ function joinGroup(name: string) {
   width: 48px;
   height: 48px;
   border-radius: var(--lx-radius);
-  background: linear-gradient(135deg, #6eb5ff, #12b7f5);
-  color: #fff;
+  background: linear-gradient(135deg, var(--lx-accent-light), var(--lx-accent));
+  color: var(--lx-bg-card);
   font-size: 18px;
   font-weight: 600;
   display: flex;
@@ -269,7 +269,7 @@ function joinGroup(name: string) {
 .g-meta {
   margin: 0 0 4px;
   font-size: 12px;
-  color: #999;
+  color: var(--lx-text-muted);
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -277,10 +277,10 @@ function joinGroup(name: string) {
 }
 
 .tag {
-  background: #f5f5f5;
+  background: var(--lx-bg-panel);
   padding: 2px 6px;
   border-radius: var(--lx-radius);
-  color: #666;
+  color: var(--lx-text-secondary);
 }
 
 .g-desc {
@@ -293,10 +293,10 @@ function joinGroup(name: string) {
   flex-shrink: 0;
   min-width: 64px;
   height: 32px;
-  border: 1px solid #12b7f5;
+  border: 1px solid var(--lx-accent);
   border-radius: var(--lx-radius);
-  background: #fff;
-  color: #12b7f5;
+  background: var(--lx-bg-card);
+  color: var(--lx-accent);
   font-size: 13px;
   cursor: pointer;
 }
@@ -314,12 +314,12 @@ function joinGroup(name: string) {
   border: none;
   background: transparent;
   font-size: 22px;
-  color: #999;
+  color: var(--lx-text-muted);
   cursor: pointer;
   line-height: 1;
 }
 
 .close-fab:hover {
-  color: #333;
+  color: var(--lx-text-body);
 }
 </style>

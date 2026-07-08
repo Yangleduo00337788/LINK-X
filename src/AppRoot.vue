@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { NMessageProvider, NDialogProvider, NConfigProvider, GlobalThemeOverrides } from 'naive-ui'
 import App from './App.vue'
+import { naiveThemeColors } from './theme/vars'
 
 const themeOverrides: GlobalThemeOverrides = {
   common: {
-    borderRadius: '9px',
-    borderRadiusSmall: '9px',
-    primaryColor: '#12b7f5',
-    primaryColorHover: '#39c2f6',
-    primaryColorPressed: '#12b7f5',
+    borderRadius: naiveThemeColors.borderRadius,
+    borderRadiusSmall: naiveThemeColors.borderRadius,
+    primaryColor: naiveThemeColors.primaryColor,
+    primaryColorHover: naiveThemeColors.primaryColorHover,
+    primaryColorPressed: naiveThemeColors.primaryColorPressed,
   }
 }
 </script>

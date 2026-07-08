@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { NIcon } from 'naive-ui'
 import { SearchOutline, ChevronForwardOutline } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
@@ -10,13 +10,13 @@ const { openGroupAnnouncement } = chatModalsStore
 
 const members = [
   { name: '有BB机的小豆包', text: '有', color: '#f56c6c', badge: '群主' },
-  { name: '颜笙', text: '颜', color: '#12b7f5', badge: '管理员' },
+  { name: '颜笙', text: '颜', color: 'var(--lx-accent)', badge: '管理员' },
   { name: '重生之我用Pc', text: '重', color: '#722ed1', badge: '管理员' },
   { name: '嫉妒群主的坏蛋', text: '嫉', color: '#fa541c', badge: '管理员' },
-  { name: 'jeffy', text: 'J', color: '#52c41a', badge: '管理员' },
+  { name: 'jeffy', text: 'J', color: 'var(--lx-success)', badge: '管理员' },
   { name: '李子', text: '李', color: '#fa8c16', badge: '管理员' },
   { name: 'MCP拼车老队', text: 'M', color: '#1890ff', badge: '管理员' },
-  { name: 'Q群管家', text: 'Q', color: '#0099ff', badge: '机器人' },
+  { name: 'Q群管家', text: 'Q', color: 'var(--lx-accent)', badge: '机器人' },
   { name: '我不是车神', text: '我', color: '#eb2f96', badge: '管理员' },
   { name: '小程序APP开发', text: '小', color: '#13c2c2', badge: '管理员' },
   { name: '雪飞扬', text: '雪', color: '#2f54eb', badge: '管理员' },
@@ -62,7 +62,7 @@ const members = [
   width: 240px;
   flex-shrink: 0;
   height: 100%;
-  background: #f5f5f5;
+  background: var(--lx-bg-panel);
   border-left: 1px solid #e0e0e0;
   display: flex;
   flex-direction: column;
@@ -72,7 +72,7 @@ const members = [
 .announce-block {
   flex-shrink: 0;
   padding: 14px 12px;
-  border-bottom: 1px solid #e8e8e8;
+  border-bottom: 1px solid var(--lx-bg-panel-deep);
   background: #fafafa;
 }
 
@@ -87,13 +87,13 @@ const members = [
   margin: 0;
   font-size: 13px;
   font-weight: 600;
-  color: #333;
+  color: var(--lx-text-body);
 }
 
 .arrow-btn {
   border: none;
   background: transparent;
-  color: #999;
+  color: var(--lx-text-muted);
   cursor: pointer;
   padding: 4px;
   display: flex;
@@ -101,7 +101,7 @@ const members = [
 }
 
 .arrow-btn:hover {
-  color: #12b7f5;
+  color: var(--lx-accent);
 }
 
 .announce-text-btn {
@@ -113,13 +113,13 @@ const members = [
   margin: 0;
   font-size: 12px;
   line-height: 1.45;
-  color: #666;
+  color: var(--lx-text-secondary);
   word-break: break-all;
   cursor: pointer;
 }
 
 .announce-text-btn:hover {
-  color: #12b7f5;
+  color: var(--lx-accent);
 }
 
 .members-block {
@@ -138,7 +138,7 @@ const members = [
 }
 
 .search-ico {
-  color: #999;
+  color: var(--lx-text-muted);
   cursor: pointer;
 }
 
@@ -157,7 +157,7 @@ const members = [
 }
 
 .member-row:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--lx-bg-hover);
 }
 
 .m-info {
@@ -170,7 +170,7 @@ const members = [
 
 .m-name {
   font-size: 13px;
-  color: #333;
+  color: var(--lx-text-body);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -178,6 +178,6 @@ const members = [
 
 .m-badge {
   font-size: 11px;
-  color: #12b7f5;
+  color: var(--lx-accent);
 }
 </style>

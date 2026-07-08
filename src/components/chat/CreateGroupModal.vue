@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, computed } from 'vue'
 import { NIcon } from 'naive-ui'
 import {
@@ -31,10 +31,10 @@ type PickRow = {
 }
 
 const extraRecent: PickRow[] = [
-  { id: 'r-bei', name: '北挽', avatarText: '北', avatarColor: '#8e8e93' },
+  { id: 'r-bei', name: '北挽', avatarText: '北', avatarColor: 'var(--lx-text-muted)' },
   { id: 'r-dou', name: '有BB机的小豆包', avatarText: '豆', avatarColor: '#f56c6c' },
   { id: 'r-ling', name: '____Z铃ღ', avatarText: '铃', avatarColor: '#9b59b6' },
-  { id: 'r-qing', name: '清风', avatarText: '清', avatarColor: '#52c41a' }
+  { id: 'r-qing', name: '清风', avatarText: '清', avatarColor: 'var(--lx-success)' }
 ]
 
 const recentContacts = computed(() => {
@@ -137,7 +137,7 @@ function cancel() {
                   <n-icon
                     :component="selected.has(c.id) ? CheckmarkCircle : EllipseOutline"
                     :size="20"
-                    :color="selected.has(c.id) ? '#12b7f5' : '#d0d0d0'"
+                    :color="selected.has(c.id) ? 'var(--lx-accent)' : 'var(--lx-border-strong)'"
                   />
                   <Avatar
                     :text="c.avatarText"
@@ -192,7 +192,7 @@ function cancel() {
   position: fixed;
   inset: 0;
   z-index: 2100;
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--lx-bg-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -202,7 +202,7 @@ function cancel() {
 .modal-card {
   width: min(760px, 94vw);
   height: min(560px, 88vh);
-  background: #fff;
+  background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.18);
   display: flex;
@@ -235,7 +235,7 @@ function cancel() {
   display: flex;
   flex-direction: column;
   border-right: 1px solid #eee;
-  background: #fff;
+  background: var(--lx-bg-card);
 }
 
 .search-wrap {
@@ -245,7 +245,7 @@ function cancel() {
 .search-field {
   width: 100%;
   height: 32px;
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--lx-bg-panel-deep);
   border-radius: var(--lx-radius);
   padding: 0 12px;
   font-size: 14px;
@@ -255,8 +255,8 @@ function cancel() {
 }
 
 .search-field:focus {
-  border-color: #12b7f5;
-  background: #fff;
+  border-color: var(--lx-accent);
+  background: var(--lx-bg-card);
 }
 
 .category-row {
@@ -268,23 +268,23 @@ function cancel() {
   border: none;
   background: transparent;
   font-size: 14px;
-  color: #333;
+  color: var(--lx-text-body);
   cursor: pointer;
-  border-bottom: 1px solid #f5f5f5;
+  border-bottom: 1px solid var(--lx-bg-panel);
 }
 
 .more-link {
   display: flex;
   align-items: center;
   gap: 2px;
-  color: #999;
+  color: var(--lx-text-muted);
   font-size: 13px;
 }
 
 .section-hint {
   padding: 10px 14px 4px;
   font-size: 13px;
-  color: #666;
+  color: var(--lx-text-secondary);
 }
 
 .scroll-list {
@@ -302,7 +302,7 @@ function cancel() {
   border: none;
   background: transparent;
   font-size: 14px;
-  color: #333;
+  color: var(--lx-text-body);
   cursor: pointer;
   text-align: left;
 }
@@ -330,7 +330,7 @@ function cancel() {
 }
 
 .contact-row:hover {
-  background: #f5f5f5;
+  background: var(--lx-bg-panel);
 }
 
 .c-name {
@@ -366,7 +366,7 @@ function cancel() {
   gap: 6px;
   width: 64px;
   font-size: 11px;
-  color: #666;
+  color: var(--lx-text-secondary);
   text-align: center;
   word-break: break-all;
 }
@@ -383,23 +383,23 @@ function cancel() {
   height: 36px;
   border-radius: var(--lx-radius);
   border: 1px solid #ddd;
-  background: #fff;
+  background: var(--lx-bg-card);
   font-size: 14px;
   cursor: pointer;
-  color: #333;
+  color: var(--lx-text-body);
 }
 
 .btn.primary {
-  background: #12b7f5;
-  border-color: #12b7f5;
-  color: #fff;
+  background: var(--lx-accent);
+  border-color: var(--lx-accent);
+  color: var(--lx-bg-card);
 }
 
 .btn.primary.disabled {
   background: #b8e8fa;
   border-color: #b8e8fa;
   cursor: not-allowed;
-  color: #fff;
+  color: var(--lx-bg-card);
 }
 
 .btn:hover:not(:disabled) {

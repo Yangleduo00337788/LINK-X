@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, computed } from 'vue'
 import PanelSearchBar from './PanelSearchBar.vue'
 import Avatar from './Avatar.vue'
@@ -10,7 +10,7 @@ const moments = ref([
     id: '1',
     name: '晚香玉',
     avatarText: '晚',
-    avatarColor: '#12b7f5',
+    avatarColor: 'var(--lx-accent)',
     time: '2小时前',
     text: '今天天气不错，适合写代码 ☁️',
     likes: 12,
@@ -73,7 +73,7 @@ const filtered = computed(() => {
 .moments-panel {
   width: 100%;
   height: 100%;
-  background: var(--lx-bg-panel, #f3f3f3);
+  background: var(--lx-bg-panel);
   display: flex;
   flex-direction: column;
 }
@@ -89,7 +89,7 @@ const filtered = computed(() => {
   border-radius: var(--lx-radius);
   padding: 12px;
   margin-bottom: 8px;
-  box-shadow: var(--lx-shadow-soft, 0 1px 2px rgba(0, 0, 0, 0.04));
+  box-shadow: var(--lx-shadow-soft, 0 1px 2px var(--lx-bg-hover));
 }
 
 .moment-head {
@@ -108,12 +108,12 @@ const filtered = computed(() => {
 .name {
   font-size: 14px;
   font-weight: 600;
-  color: #333;
+  color: var(--lx-text-body);
 }
 
 .time {
   font-size: 11px;
-  color: #999;
+  color: var(--lx-text-muted);
 }
 
 .text {

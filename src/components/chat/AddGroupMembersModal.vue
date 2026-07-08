@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, computed } from 'vue'
 import { NIcon } from 'naive-ui'
 import {
@@ -26,9 +26,9 @@ const recentContacts = computed(() => {
   const extra = [
     { id: 'r-yld', name: '养乐多', text: '养', color: '#f39c12' },
     { id: 'f-zwz', name: '吱唔猪', text: '吱', color: '#7cb342' },
-    { id: 'r-bei', name: '北挽', text: '北', color: '#8e8e93' },
+    { id: 'r-bei', name: '北挽', text: '北', color: 'var(--lx-text-muted)' },
     { id: 'r-ling', name: '____Z铃ღ', text: '铃', color: '#9b59b6' },
-    { id: 'r-qing', name: '清风', text: '清', color: '#52c41a' },
+    { id: 'r-qing', name: '清风', text: '清', color: 'var(--lx-success)' },
     { id: 'r-dou', name: '有BB机的小豆包', text: '有', color: '#f56c6c' }
   ]
   const q = search.value.trim().toLowerCase()
@@ -86,7 +86,7 @@ function cancel() {
                   <n-icon
                     :component="selected.has(c.id) ? CheckmarkCircle : EllipseOutline"
                     :size="20"
-                    :color="selected.has(c.id) ? '#12b7f5' : '#d0d0d0'"
+                    :color="selected.has(c.id) ? 'var(--lx-accent)' : 'var(--lx-border-strong)'"
                   />
                   <Avatar :text="c.text" :color="c.color" :size="36" />
                   <span class="c-name">{{ c.name }}</span>
@@ -134,7 +134,7 @@ function cancel() {
   position: fixed;
   inset: 0;
   z-index: 2200;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--lx-bg-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -144,7 +144,7 @@ function cancel() {
 .modal-card {
   width: min(760px, 94vw);
   height: min(560px, 88vh);
-  background: #fff;
+  background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
   display: flex;
@@ -183,7 +183,7 @@ function cancel() {
 .search-field {
   width: 100%;
   height: 32px;
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--lx-bg-panel-deep);
   border-radius: var(--lx-radius);
   padding: 0 12px;
   font-size: 14px;
@@ -228,7 +228,7 @@ function cancel() {
 }
 
 .contact-row:hover {
-  background: #f5f5f5;
+  background: var(--lx-bg-panel);
 }
 
 .right-pane {
@@ -240,7 +240,7 @@ function cancel() {
   margin: 0 0 12px;
   font-size: 14px;
   font-weight: 600;
-  color: #666;
+  color: var(--lx-text-secondary);
 }
 
 .selected-list {
@@ -257,7 +257,7 @@ function cancel() {
   width: 72px;
   font-size: 11px;
   text-align: center;
-  color: #666;
+  color: var(--lx-text-secondary);
 }
 
 .modal-footer {
@@ -274,12 +274,12 @@ function cancel() {
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: #666;
+  color: var(--lx-text-secondary);
   cursor: pointer;
 }
 
 .history-link {
-  color: #12b7f5;
+  color: var(--lx-accent);
 }
 
 .footer-btns {
@@ -293,14 +293,14 @@ function cancel() {
   height: 36px;
   border-radius: var(--lx-radius);
   border: 1px solid #ddd;
-  background: #fff;
+  background: var(--lx-bg-card);
   font-size: 14px;
   cursor: pointer;
 }
 
 .btn.primary {
-  background: #12b7f5;
-  border-color: #12b7f5;
-  color: #fff;
+  background: var(--lx-accent);
+  border-color: var(--lx-accent);
+  color: var(--lx-bg-card);
 }
 </style>

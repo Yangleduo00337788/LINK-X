@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { NIcon } from 'naive-ui'
 
 defineProps<{
@@ -28,7 +28,7 @@ defineProps<{
   height: 100%;
   padding: 32px;
   text-align: center;
-  color: var(--lx-text-muted, #8e8e93);
+  color: var(--lx-text-muted, var(--lx-text-muted));
   background: transparent;
 }
 
@@ -40,7 +40,7 @@ defineProps<{
   width: 64px;
   height: 64px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.03);
+  background: var(--lx-bg-hover);
 }
 
 .empty-icon {
@@ -51,7 +51,7 @@ defineProps<{
 .empty-title {
   font-size: 15px;
   font-weight: 500;
-  color: var(--lx-text, #1a1a1a);
+  color: var(--lx-text, var(--lx-text));
   margin-bottom: 6px;
 }
 

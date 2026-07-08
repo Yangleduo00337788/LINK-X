@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { NIcon } from 'naive-ui'
 import { computed } from 'vue'
 import type { Component } from 'vue'
@@ -37,7 +37,7 @@ const fontSize = computed(() => `${size.value * 0.38}px`)
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--lx-bg-card);
   font-weight: 500;
   flex-shrink: 0;
   overflow: hidden;

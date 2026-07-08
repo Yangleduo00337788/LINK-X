@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, watch } from 'vue'
 import {
   NModal,
@@ -168,7 +168,7 @@ const messageDetail = ref(true)
             <div class="setting-item">
               <div class="setting-info">
                 <span class="setting-name">模拟网络断开</span>
-                <span class="setting-desc" style="font-size: 12px; color: #999; display: block;">开启后将在聊天列表顶部显示断网提示</span>
+                <span class="setting-desc" style="font-size: 12px; color: var(--lx-text-muted); display: block;">开启后将在聊天列表顶部显示断网提示</span>
               </div>
               <n-switch :value="isOffline" @update:value="toggleOffline" size="small" />
             </div>
@@ -179,7 +179,7 @@ const messageDetail = ref(true)
             <div class="setting-item">
               <div class="setting-info">
                 <span class="setting-name">模拟接收新消息</span>
-                <span class="setting-desc" style="font-size: 12px; color: #999; display: block;">将触发 Electron 桌面系统通知和未读角标</span>
+                <span class="setting-desc" style="font-size: 12px; color: var(--lx-text-muted); display: block;">将触发 Electron 桌面系统通知和未读角标</span>
               </div>
               <n-button size="small" type="primary" @click="simulateIncomingMessage">触发通知</n-button>
             </div>
@@ -222,7 +222,7 @@ const messageDetail = ref(true)
 .settings-container {
   display: flex;
   height: 480px;
-  background: #ffffff;
+  background: var(--lx-bg-card);
 }
 
 :deep(.n-tabs) {
@@ -246,11 +246,11 @@ const messageDetail = ref(true)
   border-radius: 6px !important;
   transition: all 0.2s ease;
   margin: 4px 12px;
-  color: #333 !important;
+  color: var(--lx-text-body) !important;
 }
 
 :deep(.n-tabs-tab:hover) {
-  background: #ebebeb;
+  background: var(--lx-bg-input);
 }
 
 :deep(.n-tabs-tab--active) {
@@ -276,12 +276,12 @@ const messageDetail = ref(true)
   height: 100%;
   overflow-y: auto;
   box-sizing: border-box;
-  background: #ffffff;
+  background: var(--lx-bg-card);
 }
 
 .section-title {
   font-size: 13px;
-  color: #999;
+  color: var(--lx-text-muted);
   font-weight: normal;
   margin-bottom: 12px;
   margin-top: 0;
@@ -299,7 +299,7 @@ const messageDetail = ref(true)
 }
 
 .setting-item:hover {
-  background: #f5f5f5;
+  background: var(--lx-bg-panel);
 }
 
 .setting-info {
@@ -310,12 +310,12 @@ const messageDetail = ref(true)
 
 .setting-name {
   font-size: 14px;
-  color: #333;
+  color: var(--lx-text-body);
 }
 
 .setting-desc {
   font-size: 12px;
-  color: #999;
+  color: var(--lx-text-muted);
 }
 
 .account-profile {
@@ -334,12 +334,12 @@ const messageDetail = ref(true)
 .nickname {
   font-size: 18px;
   font-weight: 500;
-  color: #333;
+  color: var(--lx-text-body);
 }
 
 .linkx-id {
   font-size: 13px;
-  color: #666;
+  color: var(--lx-text-secondary);
 }
 
 .theme-preview-list {
@@ -362,31 +362,31 @@ const messageDetail = ref(true)
   height: 120px;
   border-radius: var(--lx-radius);
   border: 2px solid transparent;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 8px var(--lx-bg-hover);
   transition: all 0.2s ease;
 }
 
 .theme-preview:hover .preview-color {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px var(--lx-bg-active);
 }
 
 .theme-preview.active .preview-color {
-  border-color: #12b7f5;
+  border-color: var(--lx-accent);
 }
 
 .theme-preview span {
   font-size: 13px;
-  color: #666;
+  color: var(--lx-text-secondary);
 }
 
 .check-icon {
   position: absolute;
   top: -8px;
   right: -8px;
-  color: #12b7f5;
+  color: var(--lx-accent);
   font-size: 20px;
-  background: #fff;
+  background: var(--lx-bg-card);
   border-radius: 50%;
 }
 
@@ -408,18 +408,18 @@ const messageDetail = ref(true)
   font-size: 24px;
   font-weight: 600;
   margin: 0 0 8px;
-  color: #333;
+  color: var(--lx-text-body);
 }
 
 .app-version {
   font-size: 14px;
-  color: #666;
+  color: var(--lx-text-secondary);
   margin: 0 0 16px;
 }
 
 .app-desc {
   font-size: 14px;
-  color: #999;
+  color: var(--lx-text-muted);
   max-width: 280px;
   line-height: 1.5;
   margin: 0 0 32px;

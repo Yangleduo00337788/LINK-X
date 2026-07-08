@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { NIcon } from 'naive-ui'
 import { RemoveOutline, SquareOutline, CloseOutline, CopyOutline } from '@vicons/ionicons5'
@@ -86,7 +86,7 @@ function onClick(action: 'minimize' | 'maximize' | 'close', e: MouseEvent) {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #5c5c5c;
+  color: var(--lx-text-nav);
   cursor: pointer;
   border: none;
   padding: 0;
@@ -105,12 +105,12 @@ function onClick(action: 'minimize' | 'maximize' | 'close', e: MouseEvent) {
 }
 
 .qq-win-btn:hover {
-  background: rgba(0, 0, 0, 0.06);
-  color: #333;
+  background: var(--lx-border-light);
+  color: var(--lx-text-body);
 }
 
 .qq-win-btn.close:hover {
   background: #e81123;
-  color: #fff;
+  color: var(--lx-bg-card);
 }
 </style>

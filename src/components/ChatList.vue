@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, computed } from 'vue'
 import { NIcon, NSkeleton } from 'naive-ui'
 import { PhonePortraitOutline, NotificationsOffOutline, WarningOutline } from '@vicons/ionicons5'
@@ -125,7 +125,7 @@ function onAddSelect(key: string) {
 .chat-list {
   width: 100%;
   height: 100%;
-  background: var(--lx-bg-panel, #f3f3f3);
+  background: var(--lx-bg-panel);
   display: flex;
   flex-direction: column;
   border-right: none;
@@ -147,7 +147,7 @@ function onAddSelect(key: string) {
 .session-list {
   flex: 1;
   overflow-y: auto;
-  background: var(--lx-bg-panel, #f3f3f3);
+  background: var(--lx-bg-panel);
   padding: 4px 0;
 }
 
@@ -164,7 +164,7 @@ function onAddSelect(key: string) {
 }
 
 .session-item:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--lx-bg-hover);
 }
 
 .session-item.active {
@@ -185,13 +185,13 @@ function onAddSelect(key: string) {
   padding: 0 5px;
   border-radius: var(--lx-radius);
   background: linear-gradient(180deg, #ff6b6b 0%, #f04040 100%);
-  color: #fff;
+  color: var(--lx-bg-card);
   font-size: 10px;
   font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid var(--lx-bg-panel, #f3f3f3);
+  border: 2px solid var(--lx-bg-panel);
   box-shadow: 0 1px 3px rgba(240, 64, 64, 0.35);
 }
 
@@ -213,7 +213,7 @@ function onAddSelect(key: string) {
 
 .session-name {
   font-size: 14px;
-  color: #333;
+  color: var(--lx-text-body);
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -233,12 +233,12 @@ function onAddSelect(key: string) {
 
 .session-time {
   font-size: 12px;
-  color: #999;
+  color: var(--lx-text-muted);
 }
 
 .last-message {
   font-size: 12px;
-  color: #999;
+  color: var(--lx-text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

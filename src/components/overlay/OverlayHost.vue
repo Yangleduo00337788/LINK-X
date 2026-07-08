@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import {
   NButton,
@@ -96,7 +96,7 @@ function createGroupAndEnter() {
     lastMessage: '欢迎加入',
     time: '刚刚',
     avatarText: '群',
-    avatarColor: '#0099ff',
+    avatarColor: 'var(--lx-accent)',
     isGroup: true
   })
   setNav('chat')
@@ -274,7 +274,7 @@ function createChannelDone() {
   position: absolute;
   inset: 0;
   z-index: 100;
-  background: #f5f5f5;
+  background: var(--lx-bg-panel);
   display: flex;
   flex-direction: column;
 }
@@ -285,8 +285,8 @@ function createChannelDone() {
   align-items: center;
   justify-content: space-between;
   padding: 0 8px 0 4px;
-  border-bottom: 1px solid #e8e8e8;
-  background: #f5f5f5;
+  border-bottom: 1px solid var(--lx-bg-panel-deep);
+  background: var(--lx-bg-panel);
   -webkit-app-region: drag;
 }
 
@@ -300,7 +300,7 @@ function createChannelDone() {
 .title {
   font-size: 16px;
   font-weight: 500;
-  color: #333;
+  color: var(--lx-text-body);
 }
 
 .overlay-body {
@@ -315,14 +315,14 @@ function createChannelDone() {
 }
 
 .para {
-  color: #666;
+  color: var(--lx-text-secondary);
   line-height: 1.6;
 }
 
 .about-card {
   text-align: center;
   padding: 24px;
-  background: #fff;
+  background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
 }
 
@@ -331,8 +331,8 @@ function createChannelDone() {
   height: 72px;
   margin: 0 auto 16px;
   border-radius: var(--lx-radius);
-  background: #0099ff;
-  color: #fff;
+  background: var(--lx-accent);
+  color: var(--lx-bg-card);
   font-size: 28px;
   font-weight: 700;
   display: flex;
@@ -341,7 +341,7 @@ function createChannelDone() {
 }
 
 .muted {
-  color: #999;
+  color: var(--lx-text-muted);
   font-size: 13px;
 }
 
@@ -354,8 +354,8 @@ function createChannelDone() {
 }
 
 .weather-card {
-  background: linear-gradient(135deg, #0099ff, #66b3ff);
-  color: #fff;
+  background: linear-gradient(135deg, var(--lx-accent), var(--lx-accent-light));
+  color: var(--lx-bg-card);
   padding: 32px;
   border-radius: var(--lx-radius);
   text-align: center;
@@ -369,7 +369,7 @@ function createChannelDone() {
 .app-run {
   text-align: center;
   padding: 24px;
-  background: #fff;
+  background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
 }
 
@@ -378,7 +378,7 @@ function createChannelDone() {
   height: 80px;
   margin: 0 auto 16px;
   border-radius: var(--lx-radius);
-  color: #fff;
+  color: var(--lx-bg-card);
   font-size: 32px;
   display: flex;
   align-items: center;
@@ -386,7 +386,7 @@ function createChannelDone() {
 }
 
 .tip {
-  color: #0099ff;
+  color: var(--lx-accent);
   font-size: 13px;
   margin: 16px 0;
 }
@@ -400,7 +400,7 @@ function createChannelDone() {
   max-width: 400px;
   height: 240px;
   margin: 0 auto 16px;
-  background: #e8e8e8;
+  background: var(--lx-bg-panel-deep);
   border-radius: var(--lx-radius);
   display: flex;
   align-items: center;
@@ -410,7 +410,7 @@ function createChannelDone() {
 
 .history-list {
   margin-top: 12px;
-  background: #fff;
+  background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
   padding: 12px;
 }
@@ -424,12 +424,12 @@ function createChannelDone() {
 }
 
 .history-row .t {
-  color: #999;
+  color: var(--lx-text-muted);
   flex-shrink: 0;
   width: 48px;
 }
 
 .history-row .self {
-  color: #0099ff;
+  color: var(--lx-accent);
 }
 </style>

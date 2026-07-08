@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { NIcon } from 'naive-ui'
 import { FilterOutline, TrashOutline } from '@vicons/ionicons5'
 
@@ -96,7 +96,7 @@ const notifications = [
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--lx-bg-window, #f5f5f5);
+  background: var(--lx-bg-window, var(--lx-bg-panel));
 }
 
 .header {
@@ -105,13 +105,13 @@ const notifications = [
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
-  border-bottom: 1px solid var(--lx-divider, #ebebeb);
+  border-bottom: 1px solid var(--lx-divider);
 }
 
 .title {
   font-size: 18px;
   font-weight: 500;
-  color: #333;
+  color: var(--lx-text-body);
   margin: 0;
 }
 
@@ -124,7 +124,7 @@ const notifications = [
   background: none;
   border: none;
   padding: 4px;
-  color: #666;
+  color: var(--lx-text-secondary);
   cursor: pointer;
   border-radius: var(--lx-radius);
   display: flex;
@@ -133,8 +133,8 @@ const notifications = [
 }
 
 .action-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: #333;
+  background: var(--lx-bg-hover);
+  color: var(--lx-text-body);
 }
 
 .content {
@@ -154,7 +154,7 @@ const notifications = [
 .notif-card {
   display: flex;
   align-items: flex-start;
-  background: #ffffff;
+  background: var(--lx-bg-card);
   padding: 20px;
   border-radius: var(--lx-radius);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
@@ -186,28 +186,28 @@ const notifications = [
 .name {
   font-size: 15px;
   font-weight: 500;
-  color: #333;
-  color: #12b7f5;
+  color: var(--lx-text-body);
+  color: var(--lx-accent);
 }
 
 .action-text {
   font-size: 14px;
-  color: #333;
+  color: var(--lx-text-body);
 }
 
 .date {
   font-size: 13px;
-  color: #999;
+  color: var(--lx-text-muted);
 }
 
 .message, .source {
   font-size: 13px;
-  color: #666;
+  color: var(--lx-text-secondary);
 }
 
 .status {
   font-size: 14px;
-  color: #999;
+  color: var(--lx-text-muted);
   padding-left: 16px;
   white-space: nowrap;
 }

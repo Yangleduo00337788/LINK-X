@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, computed } from 'vue'
 import { NInput, NIcon, NButton } from 'naive-ui'
 import { SearchOutline } from '@vicons/ionicons5'
@@ -38,7 +38,7 @@ function toggleJoin(c: ChannelItem) {
     <div class="search-bar">
       <n-input v-model:value="search" placeholder="搜索频道" round size="small" class="search-input">
         <template #prefix>
-          <n-icon :component="SearchOutline" :size="16" color="#999" />
+          <n-icon :component="SearchOutline" :size="16" color="var(--lx-text-muted)" />
         </template>
       </n-input>
     </div>
@@ -75,10 +75,10 @@ function toggleJoin(c: ChannelItem) {
 .channels-panel {
   width: 100%;
   height: 100%;
-  background: #f5f5f5;
+  background: var(--lx-bg-panel);
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #ebebeb;
+  border-right: 1px solid var(--lx-divider);
   flex-shrink: 0;
 }
 
@@ -87,8 +87,8 @@ function toggleJoin(c: ChannelItem) {
   display: flex;
   align-items: center;
   padding: 0 10px;
-  background: #f5f5f5;
-  border-bottom: 1px solid #ebebeb;
+  background: var(--lx-bg-panel);
+  border-bottom: 1px solid var(--lx-divider);
 }
 
 .search-input {
@@ -106,12 +106,12 @@ function toggleJoin(c: ChannelItem) {
   gap: 12px;
   padding: 12px;
   cursor: pointer;
-  border-bottom: 1px solid #f5f5f5;
+  border-bottom: 1px solid var(--lx-bg-panel);
 }
 
 .row:hover,
 .row.active {
-  background: #e6f2ff;
+  background: var(--lx-accent-bg-soft);
 }
 
 .info {
@@ -122,19 +122,19 @@ function toggleJoin(c: ChannelItem) {
 .name {
   font-size: 14px;
   font-weight: 500;
-  color: #333;
+  color: var(--lx-text-body);
 }
 
 .desc,
 .members {
   font-size: 12px;
-  color: #999;
+  color: var(--lx-text-muted);
 }
 
 .hint {
   padding: 8px 12px;
   font-size: 11px;
-  color: #666;
+  color: var(--lx-text-secondary);
   background: #fafafa;
   border-top: 1px solid #eee;
 }

@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, computed } from 'vue'
 import { NIcon, NSkeleton } from 'naive-ui'
 import { ChevronForwardOutline } from '@vicons/ionicons5'
@@ -152,7 +152,7 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
 .contacts-panel {
   width: 100%;
   height: 100%;
-  background: var(--lx-bg-panel, #f5f5f5);
+  background: var(--lx-bg-panel);
   display: flex;
   flex-direction: column;
   border-right: none;
@@ -177,11 +177,11 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #666;
+  color: var(--lx-text-secondary);
 }
 
 .add-btn:hover {
-  background: #e8e8e8;
+  background: var(--lx-bg-panel-deep);
 }
 
 .top-actions {
@@ -205,8 +205,8 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
   border-radius: var(--lx-radius);
   cursor: pointer;
   font-size: 14px;
-  color: #333;
-  background: #fff;
+  color: var(--lx-text-body);
+  background: var(--lx-bg-card);
 }
 
 .action-item:hover {
@@ -215,14 +215,14 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
 
 .action-item.active {
   background: rgba(18, 183, 245, 0.08);
-  color: #12b7f5;
+  color: var(--lx-accent);
 }
 
 .tabs {
   display: flex;
   position: relative;
   margin: 16px 12px 8px;
-  background: #ebebeb;
+  background: var(--lx-bg-input);
   border-radius: var(--lx-radius);
   padding: 3px;
 }
@@ -233,9 +233,9 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
   left: 3px;
   width: calc(50% - 3px);
   height: calc(100% - 6px);
-  background: #ffffff;
+  background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 4px var(--lx-border-light);
   transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
   z-index: 1;
 }
@@ -249,7 +249,7 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
   text-align: center;
   padding: 8px 0;
   font-size: 13px;
-  color: #666;
+  color: var(--lx-text-secondary);
   cursor: pointer;
   border-radius: var(--lx-radius);
   position: relative;
@@ -258,14 +258,14 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
 }
 
 .tab-item.active {
-  color: #1a1a1a;
+  color: var(--lx-text);
   font-weight: 500;
 }
 
 .list-container {
   flex: 1;
   overflow-y: auto;
-  background: #f5f5f5;
+  background: var(--lx-bg-panel);
 }
 
 .contacts-list,
@@ -289,7 +289,7 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
 
 .group-count {
   font-size: 12px;
-  color: #999;
+  color: var(--lx-text-muted);
 }
 
 .contact-row {
@@ -302,7 +302,7 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
   border-radius: var(--lx-radius);
   cursor: pointer;
   transition: background 0.2s ease;
-  background: #fff;
+  background: var(--lx-bg-card);
 }
 
 .contact-row:hover {
@@ -327,7 +327,7 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
 
 .name {
   font-size: 14px;
-  color: #1a1a1a;
+  color: var(--lx-text);
   font-weight: 500;
 }
 
@@ -335,12 +335,12 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #ccc;
+  background: var(--lx-border-strong);
   flex-shrink: 0;
 }
 
 .status-dot.online {
-  background: #52c41a;
+  background: var(--lx-success);
   box-shadow: 0 0 0 2px rgba(82, 196, 26, 0.2);
 }
 

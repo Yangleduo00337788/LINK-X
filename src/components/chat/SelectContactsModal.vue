@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, computed } from 'vue'
 import { NIcon } from 'naive-ui'
 import { ChevronForwardOutline, CheckmarkCircle, EllipseOutline } from '@vicons/ionicons5'
@@ -63,7 +63,7 @@ function cancel() {
                 <n-icon
                   :component="selected.has(c.id) ? CheckmarkCircle : EllipseOutline"
                   :size="20"
-                  :color="selected.has(c.id) ? '#12b7f5' : '#ccc'"
+                  :color="selected.has(c.id) ? 'var(--lx-accent)' : 'var(--lx-border-strong)'"
                 />
                 <Avatar :text="c.avatarText" :color="c.avatarColor" :size="36" />
                 <span class="c-name">{{ c.name }}</span>
@@ -75,7 +75,7 @@ function cancel() {
                 class="group-row"
                 @click="message.info('展开分组（演示）')"
               >
-                <n-icon :component="ChevronForwardOutline" :size="16" color="#999" />
+                <n-icon :component="ChevronForwardOutline" :size="16" color="var(--lx-text-muted)" />
                 <span>{{ g }}</span>
               </button>
             </div>
@@ -96,7 +96,7 @@ function cancel() {
   position: fixed;
   inset: 0;
   z-index: 2100;
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--lx-bg-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -106,7 +106,7 @@ function cancel() {
 .modal-card {
   width: min(720px, 92vw);
   height: min(520px, 85vh);
-  background: #f5f5f5;
+  background: var(--lx-bg-panel);
   border-radius: var(--lx-radius);
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.18);
   display: flex;
@@ -128,7 +128,7 @@ function cancel() {
   display: flex;
   min-height: 0;
   margin: 0 16px;
-  background: #fff;
+  background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
   overflow: hidden;
 }
@@ -154,7 +154,7 @@ function cancel() {
 
 .section-label {
   font-size: 12px;
-  color: #999;
+  color: var(--lx-text-muted);
   padding: 8px 8px 4px;
 }
 
@@ -171,12 +171,12 @@ function cancel() {
   cursor: pointer;
   text-align: left;
   font-size: 14px;
-  color: #333;
+  color: var(--lx-text-body);
 }
 
 .contact-row:hover,
 .group-row:hover {
-  background: #f5f5f5;
+  background: var(--lx-bg-panel);
 }
 
 .c-name {
@@ -203,16 +203,16 @@ function cancel() {
   height: 36px;
   border-radius: var(--lx-radius);
   border: 1px solid #ddd;
-  background: #fff;
+  background: var(--lx-bg-card);
   font-size: 14px;
   cursor: pointer;
-  color: #333;
+  color: var(--lx-text-body);
 }
 
 .btn.primary {
-  background: #12b7f5;
-  border-color: #12b7f5;
-  color: #fff;
+  background: var(--lx-accent);
+  border-color: var(--lx-accent);
+  color: var(--lx-bg-card);
 }
 
 .btn:hover {

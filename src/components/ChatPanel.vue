@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, computed } from 'vue'
 import { NIcon, NInput, NButton, NPopover, useMessage } from 'naive-ui'
 import {
@@ -83,7 +83,7 @@ function peerAvatarProps(size = 36) {
   const s = currentSession.value
   return {
     text: s?.avatarText || '?',
-    color: s?.avatarColor || '#0099ff',
+    color: s?.avatarColor || 'var(--lx-accent)',
     size,
     imageUrl: s?.avatarUrl,
     icon: isMyPhone.value ? PhonePortraitOutline : undefined
@@ -299,7 +299,7 @@ function demoToast(tip: string) {
               <div class="qq-file-card" :class="{ self: msg.isSelf }">
                 <div class="qq-file-main">
                   <div class="qq-file-icon apk">
-                    <n-icon :component="DocumentOutline" :size="26" color="#fff" />
+                    <n-icon :component="DocumentOutline" :size="26" color="var(--lx-bg-card)" />
                   </div>
                   <div class="qq-file-meta">
                     <div class="qq-file-name">{{ msg.fileName || msg.content || '文件' }}</div>
@@ -310,7 +310,7 @@ function demoToast(tip: string) {
                   {{ msg.fileStatus || (msg.isSelf ? '已发送' : '已接收') }}
                 </div>
               </div>
-              <Avatar v-if="msg.isSelf" text="我" color="#52c41a" :size="36" />
+              <Avatar v-if="msg.isSelf" text="我" color="var(--lx-success)" :size="36" />
             </div>
 
             <!-- 链接 / 长文本 -->
@@ -351,7 +351,7 @@ function demoToast(tip: string) {
                   <div class="menu-item danger" v-if="msg.isSelf" @click="recallMessage(msg)">撤回</div>
                 </div>
               </n-popover>
-              <Avatar v-if="msg.isSelf" text="我" color="#52c41a" :size="36" />
+              <Avatar v-if="msg.isSelf" text="我" color="var(--lx-success)" :size="36" />
             </div>
           </template>
         </template>
@@ -458,7 +458,7 @@ function demoToast(tip: string) {
 .chat-panel {
   width: 100%;
   height: 100%;
-  background: var(--lx-bg-panel, #f5f5f5);
+  background: var(--lx-bg-panel);
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -499,10 +499,10 @@ function demoToast(tip: string) {
   flex-direction: column;
   min-width: 148px;
   padding: 6px;
-  background: #fff;
+  background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: var(--lx-shadow-dropdown);
+  border: 1px solid var(--lx-border-light);
 }
 
 .grid-menu-item {
@@ -511,14 +511,14 @@ function demoToast(tip: string) {
   text-align: left;
   padding: 10px 14px;
   font-size: 14px;
-  color: #333;
+  color: var(--lx-text-body);
   cursor: pointer;
   border-radius: var(--lx-radius);
   margin: 0;
 }
 
 .grid-menu-item:hover {
-  background: #f5f5f5;
+  background: var(--lx-bg-panel);
 }
 
 /* 好友顶栏 */
@@ -529,7 +529,7 @@ function demoToast(tip: string) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #f5f5f5;
+  background: var(--lx-bg-panel);
   border-bottom: 1px solid #e0e0e0;
 }
 
@@ -543,7 +543,7 @@ function demoToast(tip: string) {
 .chat-peer-name {
   font-size: 15px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--lx-text);
   white-space: nowrap;
 }
 
@@ -551,7 +551,7 @@ function demoToast(tip: string) {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #52c41a;
+  background: var(--lx-success);
   flex-shrink: 0;
   box-shadow: 0 0 0 2px rgba(82, 196, 26, 0.25);
 }
@@ -568,7 +568,7 @@ function demoToast(tip: string) {
   border: none;
   background: transparent;
   border-radius: var(--lx-radius);
-  color: #555;
+  color: var(--lx-text-nav);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -576,21 +576,21 @@ function demoToast(tip: string) {
 }
 
 .hdr-btn:hover {
-  background: rgba(0, 0, 0, 0.06);
-  color: #333;
+  background: var(--lx-border-light);
+  color: var(--lx-text-body);
 }
 
 .session-subheader {
   flex-shrink: 0;
   padding: 10px 20px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  border-bottom: 1px solid var(--lx-border-light);
   background: rgba(255, 255, 255, 0.35);
 }
 
 .session-subheader-title {
   font-size: 15px;
   font-weight: 500;
-  color: #333;
+  color: var(--lx-text-body);
 }
 
 .message-area {
@@ -609,7 +609,7 @@ function demoToast(tip: string) {
 
 .message-time {
   text-align: center;
-  color: #999;
+  color: var(--lx-text-muted);
   font-size: 12px;
 }
 
@@ -631,13 +631,13 @@ function demoToast(tip: string) {
 .qq-bubble {
   position: relative;
   max-width: min(420px, 72%);
-  background: #fff;
+  background: var(--lx-bg-card);
   padding: 10px 12px;
   border-radius: var(--lx-radius);
   font-size: 14px;
   line-height: 1.55;
-  color: #1a1a1a;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  color: var(--lx-text);
+  box-shadow: 0 1px 2px var(--lx-border-light);
 }
 
 .qq-bubble.self {
@@ -663,10 +663,10 @@ function demoToast(tip: string) {
 /* QQ 文件卡片 */
 .qq-file-card {
   max-width: min(300px, 75%);
-  background: #fff;
+  background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px var(--lx-bg-active);
 }
 
 .qq-file-main {
@@ -701,7 +701,7 @@ function demoToast(tip: string) {
 
 .qq-file-size {
   font-size: 12px;
-  color: #999;
+  color: var(--lx-text-muted);
   margin-top: 4px;
 }
 
@@ -718,10 +718,10 @@ function demoToast(tip: string) {
 
 .data-card {
   width: 280px;
-  background: #fff;
+  background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
   padding: 14px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--lx-shadow-card);
 }
 
 .card-header {
@@ -734,8 +734,8 @@ function demoToast(tip: string) {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: #0099ff;
-  color: #fff;
+  background: var(--lx-accent);
+  color: var(--lx-bg-card);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -752,13 +752,13 @@ function demoToast(tip: string) {
 
 .card-sub {
   font-size: 11px;
-  color: #999;
+  color: var(--lx-text-muted);
 }
 
 .card-tag {
   font-size: 11px;
-  color: #0099ff;
-  background: #e6f2ff;
+  color: var(--lx-accent);
+  background: var(--lx-accent-bg-soft);
   padding: 2px 8px;
   border-radius: var(--lx-radius);
 }
@@ -771,7 +771,7 @@ function demoToast(tip: string) {
 
 .card-body .card-label {
   font-size: 12px;
-  color: #999;
+  color: var(--lx-text-muted);
 }
 
 .card-value {
@@ -780,11 +780,11 @@ function demoToast(tip: string) {
 }
 
 .file-card {
-  background: #fff;
+  background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
   width: 260px;
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--lx-shadow-card);
 }
 
 .file-body {
@@ -798,8 +798,8 @@ function demoToast(tip: string) {
   width: 44px;
   height: 44px;
   border-radius: var(--lx-radius);
-  background: #e6f2ff;
-  color: #0099ff;
+  background: var(--lx-accent-bg-soft);
+  color: var(--lx-accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -814,7 +814,7 @@ function demoToast(tip: string) {
 
 .file-meta {
   font-size: 11px;
-  color: #999;
+  color: var(--lx-text-muted);
 }
 
 .file-footer {
@@ -822,7 +822,7 @@ function demoToast(tip: string) {
   justify-content: space-between;
   padding: 6px 12px;
   background: #4a4a4a;
-  color: #fff;
+  color: var(--lx-bg-card);
   font-size: 11px;
 }
 
@@ -838,22 +838,22 @@ function demoToast(tip: string) {
 }
 
 .input-area--qq {
-  background: #fff;
+  background: var(--lx-bg-card);
 }
 
 .input-area--group {
-  background: #fff;
-  border-top: 1px solid #e8e8e8;
+  background: var(--lx-bg-card);
+  border-top: 1px solid var(--lx-bg-panel-deep);
 }
 
 .input-area--qq .input-compose,
 .input-area--group .input-compose {
-  background: #fff;
+  background: var(--lx-bg-card);
 }
 
 .input-area--qq .message-input :deep(.n-input__textarea-el),
 .input-area--group .message-input :deep(.n-input__textarea-el) {
-  background: #fff !important;
+  background: var(--lx-bg-card) !important;
 }
 
 .input-toolbar {
@@ -865,7 +865,7 @@ function demoToast(tip: string) {
 
 .input-area--qq .input-toolbar,
 .input-area--group .input-toolbar {
-  background: #fff;
+  background: var(--lx-bg-card);
   padding: 10px 14px 0;
 }
 
@@ -880,7 +880,7 @@ function demoToast(tip: string) {
 }
 
 .tool-icon {
-  color: #5c5c5c;
+  color: var(--lx-text-nav);
   cursor: pointer;
 }
 
@@ -924,7 +924,7 @@ function demoToast(tip: string) {
   font-size: 14px;
   line-height: 1.55;
   padding: 0 2px !important;
-  color: #1a1a1a;
+  color: var(--lx-text);
 }
 
 .tool-icon--red {
@@ -945,14 +945,14 @@ function demoToast(tip: string) {
   min-width: 72px;
   height: 32px;
   border-radius: var(--lx-radius);
-  background: #12b7f5 !important;
+  background: var(--lx-accent) !important;
   border: none !important;
   font-size: 13px;
 }
 
 /* 右键菜单 */
 .msg-context-menu {
-  background: #fff;
+  background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
   min-width: 100px;
   padding: 4px;
@@ -961,13 +961,13 @@ function demoToast(tip: string) {
 .menu-item {
   padding: 8px 16px;
   font-size: 13px;
-  color: #333;
+  color: var(--lx-text-body);
   cursor: pointer;
   border-radius: var(--lx-radius);
 }
 
 .menu-item:hover {
-  background: #f5f5f5;
+  background: var(--lx-bg-panel);
 }
 
 .menu-item.danger {
@@ -981,12 +981,12 @@ function demoToast(tip: string) {
 /* 引用消息展示 */
 .qq-bubble-reply {
   font-size: 12px;
-  color: #666;
-  background: rgba(0, 0, 0, 0.04);
+  color: var(--lx-text-secondary);
+  background: var(--lx-bg-hover);
   padding: 4px 8px;
   border-radius: var(--lx-radius);
   margin-bottom: 6px;
-  border-left: 2px solid #12b7f5;
+  border-left: 2px solid var(--lx-accent);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1007,15 +1007,15 @@ function demoToast(tip: string) {
   align-items: center;
   justify-content: space-between;
   padding: 6px 10px;
-  background: #f5f5f5;
+  background: var(--lx-bg-panel);
   border-radius: var(--lx-radius);
   margin-bottom: 8px;
-  border-left: 3px solid #12b7f5;
+  border-left: 3px solid var(--lx-accent);
 }
 
 .reply-content {
   font-size: 12px;
-  color: #666;
+  color: var(--lx-text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1024,7 +1024,7 @@ function demoToast(tip: string) {
 
 .reply-close {
   cursor: pointer;
-  color: #999;
+  color: var(--lx-text-muted);
   padding: 2px;
 }
 

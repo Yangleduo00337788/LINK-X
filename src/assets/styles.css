@@ -1,26 +1,111 @@
+/* ============================================================
+   LinkX Design Tokens
+   ============================================================ */
 :root {
+  /* 背景层级 */
   --lx-bg-window: #f5f5f5;
   --lx-bg-panel: #f5f5f5;
-  --lx-bg-panel-deep: #f5f5f5;
+  --lx-bg-panel-deep: #ebebeb;
+  --lx-bg-card: #ffffff;
+  --lx-bg-input: #ebebeb;
+  --lx-bg-hover: rgba(0, 0, 0, 0.05);
+  --lx-bg-active: rgba(0, 0, 0, 0.08);
+  --lx-bg-overlay: rgba(0, 0, 0, 0.45);
+
+  /* 品牌色 */
   --lx-accent: #12b7f5;
+  --lx-accent-hover: #39c2f6;
+  --lx-accent-light: #6eb5ff;
   --lx-accent-soft: rgba(18, 183, 245, 0.14);
+  --lx-accent-bg-soft: #e6f2ff;
+
+  /* 文字 */
   --lx-text: #1a1a1a;
-  --lx-text-muted: #8e8e93;
+  --lx-text-body: #333333;
+  --lx-text-secondary: #666666;
+  --lx-text-muted: #999999;
+  --lx-text-nav: #5c5c5c;
+  --lx-text-nav-subtle: #7a7a7a;
+  --lx-text-on-accent: #ffffff;
+
+  /* 边框 / 分割线 */
   --lx-border: rgba(0, 0, 0, 0.055);
-  --lx-divider: #dcdce0;
+  --lx-border-light: rgba(0, 0, 0, 0.06);
+  --lx-border-strong: #cccccc;
+  --lx-divider: #ebebeb;
+
+  /* 功能色 */
+  --lx-success: #52c41a;
+  --lx-danger: #e74c3c;
+  --lx-warning: #faad14;
+
+  /* 圆角 */
   --lx-radius: 9px;
   --lx-radius-sm: 9px;
   --lx-radius-md: 9px;
+
+  /* 阴影 */
   --lx-shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.05);
   --lx-shadow-panel: 0 0 0 1px rgba(0, 0, 0, 0.04);
+  --lx-shadow-card: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --lx-shadow-dropdown: 0 4px 16px rgba(0, 0, 0, 0.12);
+  --lx-shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.08);
+  --lx-shadow-color: rgba(0, 0, 0, 0.12);
+  --lx-shadow-color-heavy: rgba(0, 0, 0, 0.25);
+
+  /* 渐变 */
+  --lx-gradient-accent: linear-gradient(135deg, var(--lx-accent-light), var(--lx-accent));
+  --lx-gradient-brand: linear-gradient(135deg, var(--lx-accent), var(--lx-accent-light));
 }
 
-html, body, #app {
+/* 暗色主题 */
+[data-theme='dark'] {
+  --lx-bg-window: #1a1a1a;
+  --lx-bg-panel: #222222;
+  --lx-bg-panel-deep: #2a2a2a;
+  --lx-bg-card: #2c2c2c;
+  --lx-bg-input: #383838;
+  --lx-bg-hover: rgba(255, 255, 255, 0.06);
+  --lx-bg-active: rgba(255, 255, 255, 0.1);
+  --lx-bg-overlay: rgba(0, 0, 0, 0.65);
+
+  --lx-accent-soft: rgba(18, 183, 245, 0.2);
+  --lx-accent-bg-soft: rgba(18, 183, 245, 0.15);
+
+  --lx-text: #f0f0f0;
+  --lx-text-body: #e0e0e0;
+  --lx-text-secondary: #aaaaaa;
+  --lx-text-muted: #777777;
+  --lx-text-nav: #bbbbbb;
+  --lx-text-nav-subtle: #888888;
+
+  --lx-border: rgba(255, 255, 255, 0.08);
+  --lx-border-light: rgba(255, 255, 255, 0.1);
+  --lx-border-strong: #555555;
+  --lx-divider: #3a3a3a;
+
+  --lx-shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --lx-shadow-panel: 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --lx-shadow-card: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --lx-shadow-dropdown: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --lx-shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.6);
+  --lx-shadow-color: rgba(0, 0, 0, 0.45);
+  --lx-shadow-color-heavy: rgba(0, 0, 0, 0.6);
+}
+
+/* ============================================================
+   全局基础
+   ============================================================ */
+html,
+body,
+#app {
   margin: 0;
   padding: 0;
   width: 100%;
   height: 100%;
   overflow: hidden;
+  color: var(--lx-text-body);
+  background: var(--lx-bg-window);
   font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -30,7 +115,21 @@ html, body, #app {
   box-sizing: border-box;
 }
 
-/* 主内容区 */
+/* 隐藏滚动条，仍可滚轮/触控滑动 */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* ============================================================
+   公共工具类
+   ============================================================ */
 .func-card {
   background: var(--lx-bg-panel);
   border-radius: 0;
@@ -38,34 +137,109 @@ html, body, #app {
   box-shadow: none;
 }
 
-/* 隐藏滚动条，仍可滚轮/触控滑动 */
-* {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+.lx-text-muted {
+  color: var(--lx-text-muted);
 }
 
-/* 消息页 + 号菜单圆角 */
+.lx-text-secondary {
+  color: var(--lx-text-secondary);
+}
+
+.lx-text-accent {
+  color: var(--lx-accent);
+}
+
+.lx-bg-panel {
+  background: var(--lx-bg-panel);
+}
+
+.lx-bg-card {
+  background: var(--lx-bg-card);
+}
+
+.lx-bg-input {
+  background: var(--lx-bg-input);
+}
+
+.lx-shadow-dropdown {
+  box-shadow: var(--lx-shadow-dropdown);
+}
+
+.lx-shadow-card {
+  box-shadow: var(--lx-shadow-card);
+}
+
+.lx-radius {
+  border-radius: var(--lx-radius);
+}
+
+/* 搜索栏输入框（PanelSearchBar 等复用） */
+.lx-search-input {
+  --search-radius: var(--lx-radius);
+  --n-color: var(--lx-bg-input) !important;
+  --n-color-focus: var(--lx-bg-input) !important;
+  --n-border-radius: var(--lx-radius) !important;
+  --n-border: 1px solid transparent !important;
+  --n-border-hover: 1px solid transparent !important;
+  --n-border-focus: 1px solid transparent !important;
+  --n-box-shadow-focus: none !important;
+}
+
+.lx-search-input :deep(.n-input-wrapper) {
+  border-radius: var(--search-radius);
+  background-color: var(--lx-bg-input) !important;
+}
+
+.lx-search-input :deep(.n-input__border),
+.lx-search-input :deep(.n-input__state-border) {
+  border-radius: var(--search-radius);
+  border: none !important;
+}
+
+.lx-search-input :deep(.n-input__input-el) {
+  height: 32px;
+}
+
+.lx-icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--lx-radius);
+  background: var(--lx-bg-input);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--lx-text-nav);
+  cursor: pointer;
+  transition: background 0.18s ease, transform 0.12s ease;
+  flex-shrink: 0;
+}
+
+.lx-icon-btn:hover {
+  background: var(--lx-bg-active);
+  color: var(--lx-text-body);
+}
+
+.lx-icon-btn:active {
+  transform: scale(0.96);
+}
+
+/* ============================================================
+   Naive UI 全局覆盖
+   ============================================================ */
 .n-dropdown-menu {
-  border-radius: 9px !important;
+  border-radius: var(--lx-radius) !important;
   overflow: hidden;
   padding: 4px !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12) !important;
+  box-shadow: var(--lx-shadow-dropdown) !important;
 }
 
 .n-dropdown-option {
   border-radius: var(--lx-radius) !important;
 }
 
-/* 群应用下拉：与搜索栏 9px 圆角一致 */
 .n-popover.group-apps-popover {
-  border-radius: 9px !important;
+  border-radius: var(--lx-radius) !important;
   overflow: hidden;
   padding: 0 !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12) !important;
-}
-
-::-webkit-scrollbar {
-  display: none;
-  width: 0;
-  height: 0;
+  box-shadow: var(--lx-shadow-dropdown) !important;
 }

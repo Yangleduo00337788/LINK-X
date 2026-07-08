@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
@@ -66,7 +66,7 @@ function close() {
   position: fixed;
   inset: 0;
   z-index: 2200;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--lx-bg-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -76,7 +76,7 @@ function close() {
 .essence-window {
   width: min(520px, 94vw);
   max-height: min(520px, 85vh);
-  background: #fff;
+  background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
   display: flex;
   flex-direction: column;
@@ -101,7 +101,7 @@ function close() {
   border: none;
   background: none;
   font-size: 22px;
-  color: #999;
+  color: var(--lx-text-muted);
   cursor: pointer;
 }
 
@@ -124,17 +124,17 @@ function close() {
 }
 
 .user {
-  color: #333;
+  color: var(--lx-text-body);
   font-weight: 500;
 }
 
 .date {
-  color: #999;
+  color: var(--lx-text-muted);
 }
 
 .link-text {
   font-size: 13px;
-  color: #12b7f5;
+  color: var(--lx-accent);
   word-break: break-all;
   text-decoration: none;
 }
@@ -144,7 +144,7 @@ function close() {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: #f5f5f5;
+  background: var(--lx-bg-panel);
   border-radius: var(--lx-radius);
 }
 
@@ -152,8 +152,8 @@ function close() {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: #12b7f5;
-  color: #fff;
+  background: var(--lx-accent);
+  color: var(--lx-bg-card);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -162,6 +162,6 @@ function close() {
 
 .vname {
   font-size: 13px;
-  color: #333;
+  color: var(--lx-text-body);
 }
 </style>

@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed } from 'vue'
 import { NModal, NButton, NIcon, NDivider, useMessage } from 'naive-ui'
 import { 
@@ -28,7 +28,7 @@ function handleSendMessage() {
     id: contact.value.id,
     name: contact.value.name,
     avatarText: contact.value.avatarText || contact.value.name.charAt(0) || '?',
-    avatarColor: contact.value.avatarColor || '#12b7f5',
+    avatarColor: contact.value.avatarColor || 'var(--lx-accent)',
     lastMessage: '',
     time: '',
     isGroup: false,
@@ -66,7 +66,7 @@ function handleMore() {
     <div class="profile-header">
       <Avatar 
         :text="contact.avatarText || contact.name.charAt(0)" 
-        :color="contact.avatarColor || '#12b7f5'" 
+        :color="contact.avatarColor || 'var(--lx-accent)'" 
         :size="72" 
       />
       <div class="profile-basic">
@@ -131,7 +131,7 @@ function handleMore() {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  background: #fff;
+  background: var(--lx-bg-card);
 }
 
 .profile-basic {
@@ -141,7 +141,7 @@ function handleMore() {
 .profile-name {
   font-size: 20px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--lx-text);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -152,19 +152,19 @@ function handleMore() {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #52c41a;
+  background: var(--lx-success);
   box-shadow: 0 0 0 2px rgba(82, 196, 26, 0.2);
 }
 
 .profile-id {
   font-size: 13px;
-  color: #8e8e93;
+  color: var(--lx-text-muted);
   margin-top: 4px;
 }
 
 .profile-body {
   padding: 0 24px 24px;
-  background: #fff;
+  background: var(--lx-bg-card);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -179,12 +179,12 @@ function handleMore() {
 
 .info-label {
   width: 72px;
-  color: #8e8e93;
+  color: var(--lx-text-muted);
   flex-shrink: 0;
 }
 
 .info-value {
-  color: #1a1a1a;
+  color: var(--lx-text);
   flex: 1;
 }
 
@@ -201,7 +201,7 @@ function handleMore() {
   height: 40px;
   border-radius: var(--lx-radius);
   font-size: 15px;
-  background: #12b7f5 !important;
+  background: var(--lx-accent) !important;
 }
 
 .secondary-actions {

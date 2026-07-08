@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
@@ -78,7 +78,7 @@ function upload() {
   position: fixed;
   inset: 0;
   z-index: 2200;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--lx-bg-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -88,7 +88,7 @@ function upload() {
 .album-window {
   width: min(680px, 96vw);
   height: min(480px, 85vh);
-  background: #fff;
+  background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
   display: flex;
   flex-direction: column;
@@ -113,7 +113,7 @@ function upload() {
   border: none;
   background: none;
   font-size: 22px;
-  color: #999;
+  color: var(--lx-text-muted);
   cursor: pointer;
 }
 
@@ -131,13 +131,13 @@ function upload() {
   background: none;
   padding: 12px 0;
   font-size: 14px;
-  color: #666;
+  color: var(--lx-text-secondary);
   cursor: pointer;
   position: relative;
 }
 
 .tab.active {
-  color: #12b7f5;
+  color: var(--lx-accent);
   font-weight: 600;
 }
 
@@ -148,7 +148,7 @@ function upload() {
   right: 0;
   bottom: 0;
   height: 2px;
-  background: #12b7f5;
+  background: var(--lx-accent);
 }
 
 .tabs-actions {
@@ -162,7 +162,7 @@ function upload() {
 .link-btn {
   border: none;
   background: none;
-  color: #666;
+  color: var(--lx-text-secondary);
   font-size: 13px;
   cursor: pointer;
 }
@@ -172,8 +172,8 @@ function upload() {
   padding: 0 12px;
   border: none;
   border-radius: var(--lx-radius);
-  background: #12b7f5;
-  color: #fff;
+  background: var(--lx-accent);
+  color: var(--lx-bg-card);
   font-size: 12px;
   cursor: pointer;
 }
@@ -184,7 +184,7 @@ function upload() {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #999;
+  color: var(--lx-text-muted);
   font-size: 14px;
 }
 
@@ -200,8 +200,8 @@ function upload() {
   padding: 0 24px;
   border: none;
   border-radius: var(--lx-radius);
-  background: #12b7f5;
-  color: #fff;
+  background: var(--lx-accent);
+  color: var(--lx-bg-card);
   font-size: 14px;
   cursor: pointer;
 }

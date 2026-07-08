@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref } from 'vue'
 import { NSwitch, useMessage } from 'naive-ui'
 import { storeToRefs } from 'pinia'
@@ -71,7 +71,7 @@ function demo(action: string) {
   position: fixed;
   inset: 0;
   z-index: 2000;
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--lx-shadow-color-heavy);
 }
 
 .drawer-panel {
@@ -80,8 +80,8 @@ function demo(action: string) {
   right: 0;
   width: min(280px, 42vw);
   height: 100%;
-  background: #fff;
-  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.12);
+  background: var(--lx-bg-card);
+  box-shadow: -4px 0 24px var(--lx-shadow-color);
   display: flex;
   flex-direction: column;
 }
@@ -96,7 +96,7 @@ function demo(action: string) {
   border: none;
   background: none;
   font-size: 14px;
-  color: #333;
+  color: var(--lx-text-body);
   padding: 14px 0;
   border-bottom: 1px solid #f0f0f0;
 }
@@ -109,11 +109,11 @@ function demo(action: string) {
 
 .link-row {
   cursor: pointer;
-  color: #333;
+  color: var(--lx-text-body);
 }
 
 .link-row:hover {
-  color: #12b7f5;
+  color: var(--lx-accent);
 }
 
 .danger-text {
@@ -129,7 +129,7 @@ function demo(action: string) {
 }
 
 .report a {
-  color: #12b7f5;
+  color: var(--lx-accent);
   text-decoration: none;
 }
 

@@ -13,6 +13,8 @@ const isMomentsWindow = ref(false)
 const isNoteEditorWindow = ref(false)
 
 onMounted(() => {
+  document.documentElement.setAttribute('data-theme', appStore.theme)
+
   // 根据 URL hash 判断当前是否是独立窗口
   if (window.location.hash.includes('moments')) {
     isMomentsWindow.value = true

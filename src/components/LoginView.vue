@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref } from 'vue'
 import { NInput, NButton, NIcon, NCheckbox } from 'naive-ui'
 import { LockClosedOutline, PersonOutline } from '@vicons/ionicons5'
@@ -96,7 +96,7 @@ function handleLogin() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--lx-bg-panel, #e8e8e8);
+  background: var(--lx-bg-panel, var(--lx-bg-panel-deep));
   position: relative;
   overflow: hidden;
 }
@@ -113,9 +113,9 @@ function handleLogin() {
 .login-box {
   width: 320px;
   height: 460px;
-  background: #ffffff;
+  background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--lx-shadow-modal);
   padding: 36px 24px 24px;
   display: flex;
   flex-direction: column;
@@ -140,14 +140,14 @@ function handleLogin() {
 .app-title {
   font-size: 24px;
   font-weight: 600;
-  color: #333;
+  color: var(--lx-text-body);
   margin: 0 0 6px;
   letter-spacing: 1px;
 }
 
 .app-subtitle {
   font-size: 12px;
-  color: #999;
+  color: var(--lx-text-muted);
   margin: 0;
 }
 
@@ -168,7 +168,7 @@ function handleLogin() {
   background-color: #f7f7f7 !important;
 }
 :deep(.n-input:focus-within) {
-  background-color: #fff !important;
+  background-color: var(--lx-bg-card) !important;
 }
 
 .form-options {
@@ -185,14 +185,14 @@ function handleLogin() {
   font-size: 15px;
   font-weight: 500;
   letter-spacing: 4px;
-  background: #12b7f5;
-  border-color: #12b7f5;
+  background: var(--lx-accent);
+  border-color: var(--lx-accent);
   margin-top: 4px;
 }
 
 .login-btn:hover {
-  background: #39c2f6;
-  border-color: #39c2f6;
+  background: var(--lx-accent-hover);
+  border-color: var(--lx-accent-hover);
 }
 
 .login-footer {
@@ -205,13 +205,13 @@ function handleLogin() {
 }
 
 .footer-link {
-  color: #666;
+  color: var(--lx-text-secondary);
   text-decoration: none;
   transition: color 0.2s;
 }
 
 .footer-link:hover {
-  color: #12b7f5;
+  color: var(--lx-accent);
 }
 
 .divider {

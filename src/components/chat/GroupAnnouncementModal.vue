@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
@@ -47,7 +47,7 @@ function close() {
   position: fixed;
   inset: 0;
   z-index: 2250;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--lx-bg-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -57,7 +57,7 @@ function close() {
 .announce-window {
   width: min(480px, 94vw);
   max-height: min(420px, 80vh);
-  background: #fff;
+  background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
   display: flex;
   flex-direction: column;
@@ -86,7 +86,7 @@ function close() {
   border: none;
   background: none;
   font-size: 22px;
-  color: #999;
+  color: var(--lx-text-muted);
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -115,7 +115,7 @@ function close() {
 .author {
   font-size: 14px;
   font-weight: 600;
-  color: #333;
+  color: var(--lx-text-body);
 }
 
 .role {
@@ -128,7 +128,7 @@ function close() {
 
 .time {
   font-size: 12px;
-  color: #999;
+  color: var(--lx-text-muted);
   width: 100%;
 }
 
@@ -137,7 +137,7 @@ function close() {
   top: 0;
   right: 0;
   font-size: 11px;
-  color: #12b7f5;
+  color: var(--lx-accent);
   background: #e6f7ff;
   padding: 2px 8px;
   border-radius: var(--lx-radius);
@@ -148,7 +148,7 @@ function close() {
   font-family: inherit;
   font-size: 14px;
   line-height: 1.6;
-  color: #333;
+  color: var(--lx-text-body);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -157,7 +157,7 @@ function close() {
   margin-top: 12px;
   border: none;
   background: none;
-  color: #12b7f5;
+  color: var(--lx-accent);
   font-size: 13px;
   cursor: pointer;
   float: right;

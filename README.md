@@ -118,7 +118,10 @@ LinkX/
 ├── src/
 │   ├── api/
 │   │   └── client.ts          # 后端 API 占位层
-│   ├── assets/                # 静态资源与全局样式
+│   ├── assets/
+│   │   └── styles.css         # 全局 Design Tokens + 公共工具类
+│   ├── theme/
+│   │   └── vars.ts            # JS/Naive UI 引用的主题常量
 │   ├── components/            # Vue 组件
 │   │   ├── chat/              # 聊天相关弹窗与抽屉
 │   │   ├── contacts/          # 联系人通知
@@ -168,6 +171,40 @@ const { setNav, sendMessage } = appStore
 ```
 
 > 组件中读取响应式状态时请使用 `storeToRefs`；调用 action 时直接解构 store 实例。
+
+---
+
+## 样式与设计规范
+
+项目采用 **CSS Design Tokens** 统一管理视觉变量，定义于 `src/assets/styles.css`。
+
+### Token 分类
+
+| 类别 | 变量示例 | 说明 |
+|------|----------|------|
+| 背景 | `--lx-bg-panel` / `--lx-bg-card` / `--lx-bg-input` | 面板、卡片、输入框背景 |
+| 品牌色 | `--lx-accent` / `--lx-accent-hover` | 主色 `#12b7f5`（已统一，废弃 `#0099ff`） |
+| 文字 | `--lx-text` / `--lx-text-body` / `--lx-text-muted` | 主文字 / 正文 / 次要文字 |
+| 边框 | `--lx-border` / `--lx-divider` | 边框与分割线 |
+| 圆角 | `--lx-radius` | 全局 9px |
+| 阴影 | `--lx-shadow-soft` / `--lx-shadow-dropdown` | 卡片与下拉阴影 |
+
+### 暗色主题
+
+通过 `data-theme="dark"` 切换，`useAppStore().toggleTheme()` 会自动同步到 `<html>` 元素。
+
+### 公共工具类
+
+| 类名 | 用途 |
+|------|------|
+| `.lx-search-input` | 搜索栏 Naive Input 统一样式 |
+| `.lx-icon-btn` | 32px 圆角图标按钮 |
+| `.lx-text-muted` | 次要文字色 |
+| `.lx-bg-panel` / `.lx-bg-card` | 背景色快捷类 |
+
+### 脚本中使用
+
+模板内 `n-icon` 等 props 引用 CSS 变量时，使用 `src/theme/vars.ts` 中的 `lxVar` 对象；Naive UI `themeOverrides` 使用 `naiveThemeColors`（须与 `--lx-accent` 保持一致）。
 
 ---
 

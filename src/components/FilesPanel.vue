@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, computed } from 'vue'
 import { NIcon } from 'naive-ui'
 import { DocumentTextOutline, FolderOutline, ImageOutline, FilmOutline } from '@vicons/ionicons5'
@@ -81,7 +81,7 @@ function setTab(tab: string) {
 .files-panel {
   width: 100%;
   height: 100%;
-  background: var(--lx-bg-panel, #f5f5f5);
+  background: var(--lx-bg-panel);
   display: flex;
   flex-direction: column;
   border-right: none;
@@ -92,12 +92,12 @@ function setTab(tab: string) {
   display: flex;
   padding: 8px 16px 4px;
   gap: 16px;
-  border-bottom: 1px solid rgba(0,0,0,0.05);
+  border-bottom: 1px solid var(--lx-bg-hover);
 }
 
 .tab-item {
   font-size: 13px;
-  color: #666;
+  color: var(--lx-text-secondary);
   cursor: pointer;
   padding-bottom: 6px;
   position: relative;
@@ -105,11 +105,11 @@ function setTab(tab: string) {
 }
 
 .tab-item:hover {
-  color: #333;
+  color: var(--lx-text-body);
 }
 
 .tab-item.active {
-  color: #12b7f5;
+  color: var(--lx-accent);
   font-weight: 500;
 }
 
@@ -120,7 +120,7 @@ function setTab(tab: string) {
   left: 10%;
   width: 80%;
   height: 2px;
-  background: #12b7f5;
+  background: var(--lx-accent);
   border-radius: 2px;
 }
 
@@ -142,7 +142,7 @@ function setTab(tab: string) {
 }
 
 .row:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--lx-bg-hover);
 }
 
 .icon-wrap {
@@ -154,7 +154,7 @@ function setTab(tab: string) {
   justify-content: center;
 }
 
-.icon-wrap.document { background: #e6f2ff; color: #0099ff; }
+.icon-wrap.document { background: var(--lx-accent-bg-soft); color: var(--lx-accent); }
 .icon-wrap.image { background: #fff0e6; color: #ff8800; }
 .icon-wrap.media { background: #f2e6ff; color: #8800ff; }
 .icon-wrap.other { background: #e6ffed; color: #00cc44; }
@@ -169,7 +169,7 @@ function setTab(tab: string) {
 
 .title {
   font-size: 14px;
-  color: #333;
+  color: var(--lx-text-body);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -177,7 +177,7 @@ function setTab(tab: string) {
 
 .meta {
   font-size: 12px;
-  color: #999;
+  color: var(--lx-text-muted);
   display: flex;
   align-items: center;
 }
@@ -195,7 +195,7 @@ function setTab(tab: string) {
 .empty-state {
   text-align: center;
   padding: 40px 0;
-  color: #999;
+  color: var(--lx-text-muted);
   font-size: 13px;
 }
 </style>

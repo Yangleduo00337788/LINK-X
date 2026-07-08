@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
@@ -102,7 +102,7 @@ function close() {
   position: fixed;
   inset: 0;
   z-index: 2200;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--lx-bg-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -112,7 +112,7 @@ function close() {
 .files-window {
   width: min(720px, 96vw);
   height: min(560px, 88vh);
-  background: #fff;
+  background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
   display: flex;
   flex-direction: column;
@@ -137,7 +137,7 @@ function close() {
   border: none;
   background: none;
   font-size: 22px;
-  color: #999;
+  color: var(--lx-text-muted);
   cursor: pointer;
 }
 
@@ -148,7 +148,7 @@ function close() {
 .search-field {
   width: 100%;
   height: 32px;
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--lx-bg-panel-deep);
   border-radius: var(--lx-radius);
   padding: 0 12px;
   font-size: 14px;
@@ -165,7 +165,7 @@ function close() {
 .month-title {
   margin: 12px 0 8px;
   font-size: 13px;
-  color: #999;
+  color: var(--lx-text-muted);
   font-weight: 500;
 }
 
@@ -173,7 +173,7 @@ function close() {
   display: flex;
   gap: 12px;
   padding: 12px 0;
-  border-bottom: 1px solid #f5f5f5;
+  border-bottom: 1px solid var(--lx-bg-panel);
 }
 
 .file-ico {
@@ -190,7 +190,7 @@ function close() {
 
 .file-meta {
   font-size: 12px;
-  color: #999;
+  color: var(--lx-text-muted);
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
@@ -207,7 +207,7 @@ function close() {
   padding: 12px 18px;
   border-top: 1px solid #eee;
   font-size: 12px;
-  color: #666;
+  color: var(--lx-text-secondary);
 }
 
 .upload-btn {
@@ -215,8 +215,8 @@ function close() {
   padding: 0 16px;
   border: none;
   border-radius: var(--lx-radius);
-  background: #12b7f5;
-  color: #fff;
+  background: var(--lx-accent);
+  color: var(--lx-bg-card);
   font-size: 13px;
   cursor: pointer;
 }

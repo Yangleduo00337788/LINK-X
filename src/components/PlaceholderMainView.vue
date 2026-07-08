@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed } from 'vue'
 import PenguinWatermark from './PenguinWatermark.vue'
 import { storeToRefs } from 'pinia'
@@ -50,7 +50,7 @@ const emptyHint = computed(() => {
 .placeholder-main {
   flex: 1;
   height: 100%;
-  background: var(--lx-bg-panel, #f3f3f3);
+  background: var(--lx-bg-panel);
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -65,40 +65,40 @@ const emptyHint = computed(() => {
 
 .detail-card {
   max-width: 480px;
-  background: #fff;
+  background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
   padding: 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--lx-shadow-card);
 }
 
 .detail-card h2 {
   margin: 0 0 12px;
   font-size: 20px;
-  color: #333;
+  color: var(--lx-text-body);
 }
 
 .detail-card p {
   margin: 0 0 8px;
-  color: #666;
+  color: var(--lx-text-secondary);
   line-height: 1.6;
 }
 
 .meta {
   font-size: 13px;
-  color: #999;
+  color: var(--lx-text-muted);
 }
 
 .tip {
   margin-top: 16px !important;
   font-size: 12px;
-  color: #0099ff;
+  color: var(--lx-accent);
 }
 
 .big-icon {
   width: 72px;
   height: 72px;
   border-radius: var(--lx-radius);
-  color: #fff;
+  color: var(--lx-bg-card);
   font-size: 32px;
   display: flex;
   align-items: center;
