@@ -1,24 +1,26 @@
 ﻿<script setup lang="ts">
 import { ref } from 'vue'
-import { NInput, NButton, NAvatar, NIcon } from 'naive-ui'
+import { NInput, NButton, NAvatar, NIcon, useMessage } from 'naive-ui'
 import { LockClosedOutline, ArrowForwardOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
 
+const message = useMessage()
 const appStore = useAppStore()
 const { userProfile } = storeToRefs(appStore)
-const { unlock } = appStore
+const { unlock, verifyLockPassword } = appStore
 
 const password = ref('')
 const errorMsg = ref('')
 
 function handleUnlock() {
-  if (password.value === '123456' || password.value === '') { // 简单模拟，任意密码或空密码都能解锁
+  if (verifyLockPassword(password.value)) {
     unlock()
     password.value = ''
     errorMsg.value = ''
   } else {
-    errorMsg.value = '密码错误，请重试 (提示: 可以直接按回车解锁)'
+    errorMsg.value = '密码错误，请重试'
+    message.error('解锁密码不正确')
   }
 }
 </script>
@@ -30,17 +32,17 @@ function handleUnlock() {
       <div class="lock-icon-wrapper">
         <n-icon :component="LockClosedOutline" :size="32" class="lock-icon" />
       </div>
-      
-      <n-avatar :size="80" src="https://07akioni.oss-cn-beijing.aliyuncs.com/07akioni.jpeg" round class="avatar" />
-      
+
+      <n-avatar :size="80" src="https://api.dicebear.com/7.x/avataaars/svg?seed=qq-user" round class="avatar" />
+
       <h2 class="nickname">{{ userProfile.nickname }}</h2>
       <p class="status">LinkX 已锁定</p>
-      
+
       <div class="unlock-form">
         <n-input
           v-model:value="password"
           type="password"
-          placeholder="输入密码解锁"
+          placeholder="输入登录密码解锁"
           class="password-input"
           @keyup.enter="handleUnlock"
         >
@@ -50,7 +52,7 @@ function handleUnlock() {
             </n-button>
           </template>
         </n-input>
-        <div class="error-msg" v-if="errorMsg">{{ errorMsg }}</div>
+        <div v-if="errorMsg" class="error-msg">{{ errorMsg }}</div>
       </div>
     </div>
   </div>
@@ -76,8 +78,8 @@ function handleUnlock() {
   left: -20px;
   right: -20px;
   bottom: -20px;
-  background: var(--lx-bg-window, var(--lx-bg-panel-deep));
-  filter: blur(20px);
+  background: var(--lx-bg-overlay);
+  backdrop-filter: blur(20px);
   z-index: 1;
 }
 
@@ -87,11 +89,10 @@ function handleUnlock() {
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: rgba(255, 255, 255, 0.85);
+  background: var(--lx-bg-card);
   padding: 40px 60px;
   border-radius: 16px;
-  box-shadow: 0 8px 32px var(--lx-bg-active);
-  backdrop-filter: blur(20px);
+  box-shadow: var(--lx-shadow-modal);
 }
 
 .lock-icon-wrapper {
@@ -102,7 +103,7 @@ function handleUnlock() {
 .avatar {
   margin-bottom: 16px;
   border: 2px solid var(--lx-bg-card);
-  box-shadow: 0 2px 8px var(--lx-bg-active);
+  box-shadow: var(--lx-shadow-soft);
 }
 
 .nickname {

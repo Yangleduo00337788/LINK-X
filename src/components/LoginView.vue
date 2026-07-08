@@ -38,7 +38,7 @@ function handleLogin() {
   isLoading.value = true
   setTimeout(() => {
     isLoading.value = false
-    login(user, {
+    login(user, pass, {
       rememberMe: rememberMe.value,
       autoLogin: autoLogin.value
     })

@@ -3,12 +3,14 @@ import { ref, computed } from 'vue'
 import { NIcon } from 'naive-ui'
 import { DocumentTextOutline, ImageOutline, LinkOutline, FolderOutline } from '@vicons/ionicons5'
 import PanelSearchBar from './PanelSearchBar.vue'
-import { favorites as favList } from '../data/mockData'
 import { storeToRefs } from 'pinia'
+import { useFavoritesStore } from '../stores/favorites'
 import { useSecondaryViewStore } from '../stores/secondaryView'
 import type { FavoriteItem } from '../types'
 
+const favoritesStore = useFavoritesStore()
 const secondaryViewStore = useSecondaryViewStore()
+const { items: favList } = storeToRefs(favoritesStore)
 const { activeFavorite } = storeToRefs(secondaryViewStore)
 const search = ref('')
 const activeTab = ref('all') // all, link, image, file, note
@@ -29,11 +31,11 @@ function onAddSelect(key: string) {
 }
 
 const filtered = computed(() => {
-  let list = favList
+  let list = favList.value
   if (activeTab.value !== 'all') {
     list = list.filter(f => f.type === activeTab.value)
   }
-  
+
   const q = search.value.trim().toLowerCase()
   if (!q) return list
   return list.filter(f => f.title.toLowerCase().includes(q) || f.preview.toLowerCase().includes(q))

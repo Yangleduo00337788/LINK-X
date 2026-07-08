@@ -1,7 +1,7 @@
 ﻿<script setup lang="ts">
 import { ref, computed } from 'vue'
-import { NIcon, NSkeleton } from 'naive-ui'
-import { PhonePortraitOutline, NotificationsOffOutline, WarningOutline } from '@vicons/ionicons5'
+import { NIcon, NSkeleton, NDropdown, useMessage, type DropdownOption } from 'naive-ui'
+import { PhonePortraitOutline, NotificationsOffOutline, WarningOutline, PinOutline } from '@vicons/ionicons5'
 import PanelSearchBar from './PanelSearchBar.vue'
 import Avatar from './Avatar.vue'
 import EmptyState from './common/EmptyState.vue'
@@ -10,19 +10,36 @@ import { useAppStore } from '../stores/app'
 import { useChatModalsStore } from '../stores/chatModals'
 import type { ChatSession } from '../types'
 
+const message = useMessage()
 const appStore = useAppStore()
 const chatModalsStore = useChatModalsStore()
-const { sessions, currentSessionId, isLoading, isOffline } = storeToRefs(appStore)
-const { selectSession } = appStore
+const { sortedSessions, currentSessionId, isLoading, isOffline } = storeToRefs(appStore)
+const { selectSession, toggleSessionPin, toggleSessionMute, deleteSession } = appStore
 const { openCreateGroup, openComprehensiveSearch } = chatModalsStore
 const searchValue = ref('')
 
+const contextSession = ref<ChatSession | null>(null)
+const contextMenuShow = ref(false)
+const contextMenuX = ref(0)
+const contextMenuY = ref(0)
+
 const filteredSessions = computed(() => {
   const q = searchValue.value.trim().toLowerCase()
-  if (!q) return sessions.value
-  return sessions.value.filter(
+  if (!q) return sortedSessions.value
+  return sortedSessions.value.filter(
     s => s.name.toLowerCase().includes(q) || s.lastMessage.toLowerCase().includes(q)
   )
+})
+
+const contextMenuOptions = computed<DropdownOption[]>(() => {
+  const s = contextSession.value
+  if (!s) return []
+  return [
+    { label: s.pinned ? '取消置顶' : '置顶', key: 'pin' },
+    { label: s.muted ? '取消免打扰' : '免打扰', key: 'mute' },
+    { type: 'divider', key: 'd1' },
+    { label: '删除会话', key: 'delete' }
+  ]
 })
 
 const addOptions = [
@@ -43,6 +60,32 @@ function onAddSelect(key: string) {
     openComprehensiveSearch()
   }
 }
+
+function onSessionContext(e: MouseEvent, session: ChatSession) {
+  e.preventDefault()
+  contextSession.value = session
+  contextMenuX.value = e.clientX
+  contextMenuY.value = e.clientY
+  contextMenuShow.value = true
+}
+
+function onContextMenuSelect(key: string) {
+  const s = contextSession.value
+  if (!s) return
+  if (key === 'pin') {
+    const wasPinned = s.pinned
+    toggleSessionPin(s.id)
+    message.success(wasPinned ? '已取消置顶' : '已置顶')
+  } else if (key === 'mute') {
+    const wasMuted = s.muted
+    toggleSessionMute(s.id)
+    message.success(wasMuted ? '已取消免打扰' : '已开启免打扰')
+  } else if (key === 'delete') {
+    deleteSession(s.id)
+    message.success('已删除会话')
+  }
+  contextMenuShow.value = false
+}
 </script>
 
 <template>
@@ -53,15 +96,13 @@ function onAddSelect(key: string) {
       :add-options="addOptions"
       @add-select="onAddSelect"
     />
-    
-    <!-- 断网提示 -->
+
     <div v-if="isOffline" class="offline-banner">
       <n-icon :component="WarningOutline" :size="16" />
       <span>网络连接已断开，请检查网络设置</span>
     </div>
 
     <div class="session-list">
-      <!-- 加载中骨架屏 -->
       <template v-if="isLoading">
         <div class="skeleton-item" v-for="i in 8" :key="i">
           <n-skeleton circle size="large" class="skeleton-avatar" />
@@ -72,52 +113,65 @@ function onAddSelect(key: string) {
         </div>
       </template>
 
-      <!-- 搜索无结果 -->
       <template v-else-if="filteredSessions.length === 0">
         <EmptyState title="无匹配的会话" description="请尝试其他关键词" />
       </template>
 
-      <!-- 正常列表 -->
       <template v-else>
         <div
           v-for="session in filteredSessions"
-        :key="session.id"
-        class="session-item"
-        :class="{ active: currentSessionId === session.id }"
-        @click="onSelect(session)"
-      >
-        <div class="avatar-wrapper">
-          <Avatar
-            :text="session.avatarText"
-            :color="session.avatarColor"
-            :size="44"
-            :icon="session.name === '我的手机' ? PhonePortraitOutline : undefined"
-          />
-          <div v-if="session.unread && !session.muted" class="unread-badge">
-            {{ session.unread > 99 ? '99+' : session.unread }}
+          :key="session.id"
+          class="session-item"
+          :class="{ active: currentSessionId === session.id, pinned: session.pinned }"
+          @click="onSelect(session)"
+          @contextmenu="onSessionContext($event, session)"
+        >
+          <div class="avatar-wrapper">
+            <Avatar
+              :text="session.avatarText"
+              :color="session.avatarColor"
+              :size="44"
+              :icon="session.name === '我的手机' ? PhonePortraitOutline : undefined"
+            />
+            <div v-if="session.unread && !session.muted" class="unread-badge">
+              {{ session.unread > 99 ? '99+' : session.unread }}
+            </div>
           </div>
-        </div>
 
-        <div class="session-content">
-          <div class="session-top">
-            <span class="session-name">{{ session.name }}</span>
-            <span class="session-meta">
-              <n-icon
-                v-if="session.muted"
-                :component="NotificationsOffOutline"
-                :size="14"
-                class="mute-icon"
-              />
-              <span class="session-time">{{ session.time }}</span>
-            </span>
+          <div class="session-content">
+            <div class="session-top">
+              <span class="session-name">
+                <n-icon v-if="session.pinned" :component="PinOutline" :size="12" class="pin-icon" />
+                {{ session.name }}
+              </span>
+              <span class="session-meta">
+                <n-icon
+                  v-if="session.muted"
+                  :component="NotificationsOffOutline"
+                  :size="14"
+                  class="mute-icon"
+                />
+                <span class="session-time">{{ session.time }}</span>
+              </span>
+            </div>
+            <div class="session-bottom">
+              <span class="last-message">{{ session.lastMessage }}</span>
+            </div>
           </div>
-          <div class="session-bottom">
-            <span class="last-message">{{ session.lastMessage }}</span>
-          </div>
-        </div>
         </div>
       </template>
     </div>
+
+    <n-dropdown
+      trigger="manual"
+      placement="bottom-start"
+      :show="contextMenuShow"
+      :x="contextMenuX"
+      :y="contextMenuY"
+      :options="contextMenuOptions"
+      @select="onContextMenuSelect"
+      @clickoutside="contextMenuShow = false"
+    />
   </div>
 </template>
 
@@ -161,6 +215,10 @@ function onAddSelect(key: string) {
   border-radius: var(--lx-radius);
   cursor: pointer;
   transition: background 0.16s ease;
+}
+
+.session-item.pinned {
+  background: rgba(18, 183, 245, 0.06);
 }
 
 .session-item:hover {
@@ -218,6 +276,14 @@ function onAddSelect(key: string) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pin-icon {
+  color: var(--lx-accent);
+  flex-shrink: 0;
 }
 
 .session-meta {

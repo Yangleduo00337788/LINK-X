@@ -12,28 +12,38 @@ import {
 } from 'naive-ui'
 import { CheckmarkCircleOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
+import { useAppSettingsStore } from '../stores/appSettings'
 import { useSettingsStore } from '../stores/settings'
 import { useAppStore } from '../stores/app'
 
 const settingsStore = useSettingsStore()
+const appSettingsStore = useAppSettingsStore()
 const appStore = useAppStore()
 const { isSettingsModalVisible, settingsActiveTab } = storeToRefs(settingsStore)
 const { userProfile, theme, isOffline } = storeToRefs(appStore)
+const {
+  autoStart,
+  soundNotify,
+  messageDetail,
+  notifyAtMe,
+  notifySound,
+  privacyVerifyFriend,
+  privacyAllowStranger,
+  privacyShowOnline
+} = storeToRefs(appSettingsStore)
 const { toggleTheme, toggleOffline, simulateIncomingMessage } = appStore
 
 const activeTab = ref('general')
 
-// 监听从外部传进来的 Tab 激活状态
 watch(settingsActiveTab, (newVal) => {
   if (newVal) {
     activeTab.value = newVal
   }
 }, { immediate: true })
 
-// 模拟的设置状态
-const autoStart = ref(true)
-const soundNotify = ref(true)
-const messageDetail = ref(true)
+function applyAutoStart() {
+  window.electronAPI?.setAutoStart?.(autoStart.value)
+}
 </script>
 
 <template>
@@ -66,7 +76,7 @@ const messageDetail = ref(true)
               <div class="setting-info">
                 <span class="setting-name">开机自动启动</span>
               </div>
-              <n-switch v-model:value="autoStart" size="small" />
+              <n-switch v-model:value="autoStart" size="small" @update:value="applyAutoStart" />
             </div>
 
             <n-divider style="margin: 8px 0" />
@@ -83,6 +93,18 @@ const messageDetail = ref(true)
                 <span class="setting-name">通知显示消息详情</span>
               </div>
               <n-switch v-model:value="messageDetail" size="small" />
+            </div>
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-name">群聊 @ 我</span>
+              </div>
+              <n-switch v-model:value="notifyAtMe" size="small" />
+            </div>
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-name">通知声音</span>
+              </div>
+              <n-switch v-model:value="notifySound" size="small" />
             </div>
           </div>
         </n-tab-pane>
@@ -116,6 +138,28 @@ const messageDetail = ref(true)
                 <span class="setting-name">设备管理</span>
               </div>
               <n-button size="small" tertiary>查看</n-button>
+            </div>
+
+            <n-divider style="margin: 8px 0" />
+
+            <h3 class="section-title">隐私</h3>
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-name">加好友需验证</span>
+              </div>
+              <n-switch v-model:value="privacyVerifyFriend" size="small" />
+            </div>
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-name">允许陌生人会话</span>
+              </div>
+              <n-switch v-model:value="privacyAllowStranger" size="small" />
+            </div>
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-name">在线状态可见</span>
+              </div>
+              <n-switch v-model:value="privacyShowOnline" size="small" />
             </div>
           </div>
         </n-tab-pane>

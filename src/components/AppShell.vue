@@ -10,7 +10,6 @@ import FavoritesPanel from './FavoritesPanel.vue'
 import FilesPanel from './FilesPanel.vue'
 import MomentsPanel from './MomentsPanel.vue'
 import PlaceholderMainView from './PlaceholderMainView.vue'
-import MenuDrawer from './MenuDrawer.vue'
 import OverlayHost from './overlay/OverlayHost.vue'
 import ChatMoreDrawer from './chat/ChatMoreDrawer.vue'
 import GroupInfoDrawer from './chat/GroupInfoDrawer.vue'
@@ -131,7 +130,6 @@ const showPlaceholder = computed(() =>
     </div>
 
     <!-- 弹窗/抽屉层 -->
-    <MenuDrawer />
     <ChatMoreDrawer />
     <GroupInfoDrawer />
     <CreateGroupModal />

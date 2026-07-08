@@ -11,12 +11,15 @@ import Avatar from '../Avatar.vue'
 import { contacts, initialSessions } from '../../data/mockData'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
+import { useAppStore } from '../../stores/app'
 import { useMessage } from 'naive-ui'
 
 const message = useMessage()
 const chatModalsStore = useChatModalsStore()
+const appStore = useAppStore()
 const { createGroupOpen } = storeToRefs(chatModalsStore)
 const { closeCreateGroup } = chatModalsStore
+const { createGroup } = appStore
 
 const search = ref('')
 const selected = ref<Set<string>>(new Set())
@@ -87,7 +90,17 @@ function toggle(id: string) {
 
 function confirm() {
   if (!canConfirm.value) return
-  message.success(`已创建群聊，${selected.value.size} 人（演示）`)
+  const members = selectedList.value.map(c => ({
+    id: c.id,
+    name: c.name,
+    avatarText: c.avatarText,
+    avatarColor: c.avatarColor
+  }))
+  const session = createGroup(members)
+  if (session) {
+    message.success(`已创建群聊「${session.name}」`)
+  }
+  selected.value = new Set()
   closeCreateGroup()
 }
 

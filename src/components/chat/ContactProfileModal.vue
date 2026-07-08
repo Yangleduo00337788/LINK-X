@@ -16,40 +16,30 @@ import type { ContactItem } from '../../types'
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
 const { contactProfileOpen, currentContactProfile } = storeToRefs(chatModalsStore)
-const { closeContactProfile } = chatModalsStore
-const { ensureSession } = appStore
+const { closeContactProfile, openVoiceCall, openVideoCall } = chatModalsStore
+const { startChatWithContact } = appStore
 const message = useMessage()
 
 const contact = computed<ContactItem | null>(() => currentContactProfile.value)
 
 function handleSendMessage() {
   if (!contact.value) return
-  const session = {
-    id: contact.value.id,
-    name: contact.value.name,
-    avatarText: contact.value.avatarText || contact.value.name.charAt(0) || '?',
-    avatarColor: contact.value.avatarColor || 'var(--lx-accent)',
-    lastMessage: '',
-    time: '',
-    isGroup: false,
-    online: contact.value.online
-  }
-  ensureSession(session)
+  startChatWithContact(contact.value)
   closeContactProfile()
 }
 
 function handleVoiceCall() {
-  message.info('发起语音通话 (演示)')
+  openVoiceCall()
   closeContactProfile()
 }
 
 function handleVideoCall() {
-  message.info('发起视频通话 (演示)')
+  openVideoCall()
   closeContactProfile()
 }
 
 function handleMore() {
-  message.info('更多操作 (演示)')
+  message.info('更多操作')
 }
 </script>
 

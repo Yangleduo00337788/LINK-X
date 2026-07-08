@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, globalShortcut, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -29,6 +29,7 @@ app.commandLine.appendSwitch('--disable-software-rasterizer')
 app.setPath('userData', path.join(os.tmpdir(), 'linkx-electron'))
 
 let mainWindow: BrowserWindow | null = null
+let tray: Tray | null = null
 
 function winFromSender(event: IpcMainEvent | IpcMainInvokeEvent): BrowserWindow | null {
   return BrowserWindow.fromWebContents(event.sender) ?? mainWindow
@@ -66,6 +67,8 @@ function registerWindowIpc() {
 
   ipcMain.removeHandler('window:is-pinned')
   ipcMain.removeHandler('window:toggle-pin')
+  ipcMain.removeHandler('app:set-auto-start')
+  ipcMain.removeHandler('app:get-auto-start')
 
   ipcMain.on('window-minimize', onMinimize)
   ipcMain.on('window-maximize', onMaximize)
@@ -91,9 +94,73 @@ function registerWindowIpc() {
     }
     return false
   })
+
+  ipcMain.handle('app:set-auto-start', (_event, enabled: boolean) => {
+    app.setLoginItemSettings({
+      openAtLogin: !!enabled,
+      openAsHidden: false
+    })
+    return true
+  })
+
+  ipcMain.handle('app:get-auto-start', () => {
+    return app.getLoginItemSettings().openAtLogin
+  })
 }
 
 registerWindowIpc()
+
+function createTrayIcon(): Electron.NativeImage {
+  const size = 16
+  const canvas = Buffer.alloc(size * size * 4)
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const i = (y * size + x) * 4
+      const inCircle = (x - 7.5) ** 2 + (y - 7.5) ** 2 <= 49
+      if (inCircle) {
+        canvas[i] = 18
+        canvas[i + 1] = 183
+        canvas[i + 2] = 245
+        canvas[i + 3] = 255
+      }
+    }
+  }
+  return nativeImage.createFromBuffer(canvas, { width: size, height: size })
+}
+
+function showMainWindow() {
+  if (!mainWindow) {
+    createWindow()
+    return
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+}
+
+function createTray() {
+  if (tray) return
+  tray = new Tray(createTrayIcon())
+  tray.setToolTip('LinkX')
+  const contextMenu = Menu.buildFromTemplate([
+    { label: '显示主窗口', click: () => showMainWindow() },
+    { type: 'separator' },
+    { label: '退出', click: () => app.quit() }
+  ])
+  tray.setContextMenu(contextMenu)
+  tray.on('double-click', () => showMainWindow())
+}
+
+function registerGlobalShortcuts() {
+  globalShortcut.unregisterAll()
+  globalShortcut.register('CommandOrControl+Shift+L', () => {
+    if (mainWindow?.isVisible()) {
+      mainWindow.hide()
+    } else {
+      showMainWindow()
+    }
+  })
+}
 
 let momentsWindow: BrowserWindow | null = null
 
@@ -126,7 +193,6 @@ function createMomentsWindow() {
   })
 
   if (isDev && process.env.VITE_DEV_SERVER_URL) {
-    // 加载同一个开发服务器地址，但我们可以通过 hash 路由或者给个查询参数区分页面
     momentsWindow.loadURL(process.env.VITE_DEV_SERVER_URL + '#/moments')
   } else {
     momentsWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: 'moments' })
@@ -252,6 +318,13 @@ function createWindow() {
       .catch(() => {})
   })
 
+  mainWindow.on('close', (e) => {
+    if (process.platform === 'darwin') return
+    if (!tray) return
+    e.preventDefault()
+    mainWindow?.hide()
+  })
+
   mainWindow.on('closed', () => {
     mainWindow = null
   })
@@ -260,12 +333,20 @@ function createWindow() {
 app.whenReady().then(() => {
   registerWindowIpc()
   createWindow()
+  createTray()
+  registerGlobalShortcuts()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow()
+    } else {
+      showMainWindow()
     }
   })
+})
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll()
 })
 
 app.on('window-all-closed', () => {

@@ -14,6 +14,7 @@ import type { ContactItem } from '../types'
 const appStore = useAppStore()
 const chatModalsStore = useChatModalsStore()
 const { contactsActiveView, currentSessionId, isLoading } = storeToRefs(appStore)
+const { startChatWithContact } = appStore
 const { openCreateGroup, openComprehensiveSearch, openContactProfile } = chatModalsStore
 const search = ref('')
 const activeTab = ref<'friends' | 'groups'>('friends')
@@ -55,8 +56,11 @@ const chatGroups = [
 ]
 
 function handleContactClick(c: ContactItem) {
-  // 先打开联系人资料弹窗
   openContactProfile(c)
+}
+
+function handleContactDblClick(c: ContactItem) {
+  startChatWithContact(c)
 }
 
 function setView(view: 'friend-notifs' | 'group-notifs') {
@@ -123,6 +127,7 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
             class="contact-row"
             :class="{ active: currentSessionId === item.id }"
             @click="handleContactClick(item)"
+            @dblclick="handleContactDblClick(item)"
           >
             <Avatar :text="item.avatarText" :color="item.avatarColor" :size="46" />
             <div class="info">

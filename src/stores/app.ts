@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
-import type { NavKey, ChatSession, ChatMessage } from '../types'
-import { initialSessions, initialMessages } from '../data/mockData'
+import type { NavKey, ChatSession, ChatMessage, ContactItem } from '../types'
+import { initialSessions, initialMessages, sessionFromContact } from '../data/mockData'
 
 export interface SendMessageOptions {
   type?: ChatMessage['type']
@@ -12,9 +12,19 @@ export interface SendMessageOptions {
 
 export interface SavedLogin {
   username: string
+  password: string
   rememberMe: boolean
   autoLogin: boolean
 }
+
+export interface CreateGroupMember {
+  id: string
+  name: string
+  avatarText: string
+  avatarColor: string
+}
+
+const GROUP_COLORS = ['#12b7f5', '#52c41a', '#722ed1', '#fa8c16', '#eb2f96', '#13c2c2']
 
 function messagePreview(msg: ChatMessage): string {
   if (msg.type === 'file') return `[文件] ${msg.fileName || msg.content}`
@@ -25,6 +35,12 @@ function messagePreview(msg: ChatMessage): string {
 function nowTime(): string {
   const now = new Date()
   return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`
+}
+
+function pickGroupColor(seed: string): string {
+  let hash = 0
+  for (let i = 0; i < seed.length; i++) hash += seed.charCodeAt(i)
+  return GROUP_COLORS[hash % GROUP_COLORS.length]
 }
 
 export const useAppStore = defineStore('app', {
@@ -45,6 +61,7 @@ export const useAppStore = defineStore('app', {
     isLocked: false,
     savedLogin: {
       username: '',
+      password: '',
       rememberMe: true,
       autoLogin: false
     } as SavedLogin
@@ -58,6 +75,13 @@ export const useAppStore = defineStore('app', {
       const id = state.currentSessionId
       if (!id) return []
       return state.messagesBySession[id] ?? []
+    },
+    sortedSessions(state): ChatSession[] {
+      return [...state.sessions].sort((a, b) => {
+        if (a.pinned && !b.pinned) return -1
+        if (!a.pinned && b.pinned) return 1
+        return 0
+      })
     }
   },
 
@@ -84,6 +108,118 @@ export const useAppStore = defineStore('app', {
       }
       this.selectSession(session)
       this.navKey = 'chat'
+    },
+
+    startChatWithContact(contact: ContactItem) {
+      this.ensureSession(sessionFromContact(contact))
+    },
+
+    createGroup(members: CreateGroupMember[], groupName?: string) {
+      if (members.length === 0) return null
+      const id = `group-${Date.now()}`
+      const time = nowTime()
+      const name =
+        groupName?.trim() ||
+        (members.length <= 2
+          ? members.map(m => m.name).join('、')
+          : `群聊（${members.length + 1}人）`)
+      const session: ChatSession = {
+        id,
+        name,
+        lastMessage: '系统：欢迎加入群聊',
+        time,
+        avatarText: name.charAt(0) || '群',
+        avatarColor: pickGroupColor(name),
+        isGroup: true
+      }
+      this.messagesBySession[id] = [
+        {
+          id: `msg-sys-${Date.now()}`,
+          sessionId: id,
+          content: `系统：${this.userProfile.nickname} 发起了群聊`,
+          time,
+          isSelf: false,
+          type: 'system'
+        }
+      ]
+      this.ensureSession(session)
+      return session
+    },
+
+    joinGroup(groupName: string) {
+      const exists = this.sessions.find(s => s.isGroup && s.name === groupName)
+      if (exists) {
+        this.selectSession(exists)
+        this.navKey = 'chat'
+        return exists
+      }
+      const id = `group-join-${Date.now()}`
+      const time = nowTime()
+      const session: ChatSession = {
+        id,
+        name: groupName,
+        lastMessage: '系统：欢迎加入群聊',
+        time,
+        avatarText: groupName.charAt(0) || '群',
+        avatarColor: pickGroupColor(groupName),
+        isGroup: true
+      }
+      this.messagesBySession[id] = [
+        {
+          id: `msg-sys-${Date.now()}`,
+          sessionId: id,
+          content: '系统：你已加入群聊',
+          time,
+          isSelf: false,
+          type: 'system'
+        }
+      ]
+      this.ensureSession(session)
+      return session
+    },
+
+    addFriendSession(name: string) {
+      const id = `friend-${Date.now()}`
+      const time = nowTime()
+      const session: ChatSession = {
+        id,
+        name,
+        lastMessage: '我们已经是好友了，开始聊天吧',
+        time,
+        avatarText: name.charAt(0) || '?',
+        avatarColor: pickGroupColor(name),
+        online: true
+      }
+      this.messagesBySession[id] = [
+        {
+          id: `msg-sys-${Date.now()}`,
+          sessionId: id,
+          content: '系统：你们已成为好友',
+          time,
+          isSelf: false,
+          type: 'system'
+        }
+      ]
+      this.ensureSession(session)
+      return session
+    },
+
+    toggleSessionPin(sessionId: string) {
+      const s = this.sessions.find(x => x.id === sessionId)
+      if (s) s.pinned = !s.pinned
+    },
+
+    toggleSessionMute(sessionId: string) {
+      const s = this.sessions.find(x => x.id === sessionId)
+      if (s) s.muted = !s.muted
+    },
+
+    deleteSession(sessionId: string) {
+      this.sessions = this.sessions.filter(s => s.id !== sessionId)
+      delete this.messagesBySession[sessionId]
+      if (this.currentSessionId === sessionId) {
+        this.currentSessionId = this.sessions[0]?.id ?? null
+      }
     },
 
     sendMessage(content: string, options: SendMessageOptions = {}) {
@@ -140,7 +276,7 @@ export const useAppStore = defineStore('app', {
 
       if (wasLast) {
         const session = this.sessions.find(s => s.id === sessionId)
-        const last = msgs[msgs.length - 1]
+        const last = msgs.filter(m => m.type !== 'system').pop() ?? msgs[msgs.length - 1]
         if (session) {
           session.lastMessage = last ? messagePreview(last) : ''
           if (last) session.time = last.time
@@ -168,15 +304,17 @@ export const useAppStore = defineStore('app', {
       this.isLocked = false
       if (!this.savedLogin.rememberMe) {
         this.savedLogin.username = ''
+        this.savedLogin.password = ''
         this.savedLogin.autoLogin = false
       }
     },
 
-    login(username: string, opts?: { rememberMe?: boolean; autoLogin?: boolean }) {
+    login(username: string, password: string, opts?: { rememberMe?: boolean; autoLogin?: boolean }) {
       const rememberMe = opts?.rememberMe ?? this.savedLogin.rememberMe
       const autoLogin = opts?.autoLogin ?? this.savedLogin.autoLogin
 
       this.savedLogin.username = rememberMe ? username : ''
+      this.savedLogin.password = rememberMe ? password : ''
       this.savedLogin.rememberMe = rememberMe
       this.savedLogin.autoLogin = autoLogin
 
@@ -201,6 +339,11 @@ export const useAppStore = defineStore('app', {
         this.userProfile.nickname = this.savedLogin.username
         this.isLoggedIn = true
       }
+    },
+
+    verifyLockPassword(password: string): boolean {
+      const expected = this.savedLogin.password || '123456'
+      return password === expected
     },
 
     lock() {
@@ -237,7 +380,9 @@ export const useAppStore = defineStore('app', {
       if (session) {
         session.lastMessage = msg.content
         session.time = time
-        session.unread = (session.unread || 0) + 1
+        if (!session.muted) {
+          session.unread = (session.unread || 0) + 1
+        }
 
         if (window.Notification && Notification.permission === 'granted') {
           new Notification(session.name, {
@@ -268,7 +413,8 @@ export const useAppStore = defineStore('app', {
       'userProfile',
       'isLoggedIn',
       'savedLogin',
-      'navKey'
+      'navKey',
+      'isOffline'
     ]
   }
 })

@@ -12,6 +12,8 @@ declare global {
       isPinned: () => Promise<boolean>
       togglePin: () => Promise<boolean>
       onMaximizedChange: (callback: (maximized: boolean) => void) => () => void
+      setAutoStart?: (enabled: boolean) => Promise<boolean>
+      getAutoStart?: () => Promise<boolean>
       isElectron?: boolean
     }
   }

@@ -24,6 +24,7 @@ export interface ChatSession {
   avatarColor: string
   unread?: number
   muted?: boolean
+  pinned?: boolean
   isGroup?: boolean
   /** 好友在线状态（单聊） */
   online?: boolean

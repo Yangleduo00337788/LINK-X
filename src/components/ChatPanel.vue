@@ -27,9 +27,11 @@ import { useOverlayStore } from '../stores/overlay'
 import { useChatModalsStore } from '../stores/chatModals'
 import type { ChatMessage } from '../types'
 import { CHAT_EMOJIS } from '../constants/emojis'
+import { useFilesStore } from '../stores/files'
 import { formatFileSize, readFileAsDataUrl, MAX_IMAGE_BYTES } from '../utils/file'
 
 const message = useMessage()
+const filesStore = useFilesStore()
 const appStore = useAppStore()
 const overlayStore = useOverlayStore()
 const chatModalsStore = useChatModalsStore()
@@ -144,6 +146,7 @@ function onFilePicked(e: Event) {
     fileName: file.name,
     fileSize: formatFileSize(file.size)
   })
+  filesStore.addFromChat(file.name, formatFileSize(file.size), '我')
   message.success('文件已发送')
   scrollToBottom()
 }
@@ -244,10 +247,10 @@ function demoToast(tip: string) {
           <span class="chat-peer-name chat-peer-name--group">{{ currentSession?.name }}</span>
         </div>
         <div class="chat-header-actions">
-          <button type="button" class="hdr-btn" title="语音通话" @click="demoToast('群语音（演示）')">
+          <button type="button" class="hdr-btn" title="语音通话" @click="openVoiceCall">
             <n-icon :component="CallOutline" :size="20" />
           </button>
-          <button type="button" class="hdr-btn" title="视频通话" @click="demoToast('群视频（演示）')">
+          <button type="button" class="hdr-btn" title="视频通话" @click="openVideoCall">
             <n-icon :component="VideocamOutline" :size="20" />
           </button>
           <n-popover
@@ -344,20 +347,29 @@ function demoToast(tip: string) {
               :class="msg.isSelf ? 'right' : 'left'"
             >
               <Avatar v-if="!msg.isSelf" v-bind="peerAvatarProps(36)" />
-              <div class="qq-file-card" :class="{ self: msg.isSelf }">
-                <div class="qq-file-main">
-                  <div class="qq-file-icon apk">
-                    <n-icon :component="DocumentOutline" :size="26" color="var(--lx-bg-card)" />
+              <n-popover trigger="click" placement="bottom" :show-arrow="false">
+                <template #trigger>
+                  <div class="qq-file-card" :class="{ self: msg.isSelf }">
+                    <div class="qq-file-main">
+                      <div class="qq-file-icon apk">
+                        <n-icon :component="DocumentOutline" :size="26" color="var(--lx-bg-card)" />
+                      </div>
+                      <div class="qq-file-meta">
+                        <div class="qq-file-name">{{ msg.fileName || msg.content || '文件' }}</div>
+                        <div class="qq-file-size">{{ msg.fileSize || '' }}</div>
+                      </div>
+                    </div>
+                    <div class="qq-file-bar">
+                      {{ msg.fileStatus || (msg.isSelf ? '已发送' : '已接收') }}
+                    </div>
                   </div>
-                  <div class="qq-file-meta">
-                    <div class="qq-file-name">{{ msg.fileName || msg.content || '文件' }}</div>
-                    <div class="qq-file-size">{{ msg.fileSize || '' }}</div>
-                  </div>
+                </template>
+                <div class="msg-context-menu">
+                  <div class="menu-item" @click="copyMessage(msg)">复制文件名</div>
+                  <div class="menu-item" @click="replyMessage(msg)">回复</div>
+                  <div class="menu-item danger" v-if="msg.isSelf" @click="recallMessage(msg)">撤回</div>
                 </div>
-                <div class="qq-file-bar">
-                  {{ msg.fileStatus || (msg.isSelf ? '已发送' : '已接收') }}
-                </div>
-              </div>
+              </n-popover>
               <Avatar v-if="msg.isSelf" text="我" color="var(--lx-success)" :size="36" />
             </div>
 

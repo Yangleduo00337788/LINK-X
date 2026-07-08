@@ -17,5 +17,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(MAX_CHANGED, listener)
     return () => ipcRenderer.removeListener(MAX_CHANGED, listener)
   },
+  setAutoStart: enabled => ipcRenderer.invoke('app:set-auto-start', enabled),
+  getAutoStart: () => ipcRenderer.invoke('app:get-auto-start'),
   isElectron: true
 })

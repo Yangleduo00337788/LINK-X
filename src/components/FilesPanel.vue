@@ -7,22 +7,18 @@ import PanelSearchBar from './PanelSearchBar.vue'
 const search = ref('')
 const activeTab = ref('recent') // recent, document, image, media, other
 
-// 模拟文件数据
-const mockFiles = [
-  { id: 'f1', title: '产品需求文档_v2.docx', size: '1.2 MB', time: '10:30', type: 'document', sender: '张三' },
-  { id: 'f2', title: 'Q3季度总结PPT.pptx', size: '4.5 MB', time: '昨天', type: 'document', sender: '李四' },
-  { id: 'f3', title: '设计稿_切图.zip', size: '12.8 MB', time: '昨天', type: 'other', sender: '王五' },
-  { id: 'f4', title: '会议录屏.mp4', size: '105.2 MB', time: '星期一', type: 'media', sender: '赵六' },
-  { id: 'f5', title: 'UI视觉规范.png', size: '3.1 MB', time: '星期一', type: 'image', sender: '张三' },
-  { id: 'f6', title: 'API接口联调.json', size: '12 KB', time: '10-05', type: 'other', sender: '系统' }
-]
+import { storeToRefs } from 'pinia'
+import { useFilesStore } from '../stores/files'
+
+const filesStore = useFilesStore()
+const { items: mockFiles } = storeToRefs(filesStore)
 
 const filtered = computed(() => {
-  let list = mockFiles
+  let list = mockFiles.value
   if (activeTab.value !== 'recent') {
     list = list.filter(f => f.type === activeTab.value)
   }
-  
+
   const q = search.value.trim().toLowerCase()
   if (!q) return list
   return list.filter(f => f.title.toLowerCase().includes(q) || f.sender.toLowerCase().includes(q))

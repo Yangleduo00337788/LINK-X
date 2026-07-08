@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { NIcon, useMessage } from 'naive-ui'
 import {
   RemoveOutline,
@@ -14,18 +14,25 @@ import {
   CheckboxOutline,
   TextOutline
 } from '@vicons/ionicons5'
+import { storeToRefs } from 'pinia'
+import { useNoteStore } from '../stores/note'
 
 const message = useMessage()
-
-const title = ref('')
-const content = ref('')
+const noteStore = useNoteStore()
+const { title, content } = storeToRefs(noteStore)
 
 const isMaximized = ref(false)
+let saveTimer: ReturnType<typeof setTimeout> | null = null
+
+function scheduleSave() {
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => noteStore.save(), 400)
+}
+
+watch([title, content], scheduleSave)
 
 function minimizeWindow() {
-  if (window.electronAPI) {
-    window.electronAPI.minimize()
-  }
+  window.electronAPI?.minimize()
 }
 
 function toggleMaximize() {
@@ -38,6 +45,7 @@ function toggleMaximize() {
 }
 
 function closeWindow() {
+  noteStore.save()
   if (window.electronAPI) {
     window.electronAPI.close()
   } else {
@@ -46,12 +54,13 @@ function closeWindow() {
 }
 
 function handleToolClick(toolName: string) {
-  message.info(`点击了：${toolName}`)
+  message.info(`「${toolName}」功能即将上线`)
 }
 
 let cleanupMaximizedListener: (() => void) | undefined
 
 onMounted(() => {
+  noteStore.load()
   if (window.electronAPI?.onMaximizedChange) {
     cleanupMaximizedListener = window.electronAPI.onMaximizedChange((maximized) => {
       isMaximized.value = maximized
@@ -60,9 +69,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (cleanupMaximizedListener) {
-    cleanupMaximizedListener()
-  }
+  if (saveTimer) clearTimeout(saveTimer)
+  cleanupMaximizedListener?.()
 })
 </script>
 
@@ -79,218 +87,145 @@ onUnmounted(() => {
         <div class="action-btn" title="最大化" @click="toggleMaximize">
           <n-icon :component="isMaximized ? CopyOutline : SquareOutline" size="14" />
         </div>
-        <div class="action-btn close-btn" title="关闭" @click="closeWindow">
+        <div class="action-btn close" title="关闭" @click="closeWindow">
           <n-icon :component="CloseOutline" size="18" />
         </div>
       </div>
     </div>
-    
-    <div class="editor-container no-drag">
-      <div class="toolbar">
-        <div class="toolbar-group">
-          <div class="tool-btn" title="图片" @click="handleToolClick('图片')">
-            <n-icon :component="ImageOutline" size="20" />
-          </div>
-          <div class="tool-btn" title="文件" @click="handleToolClick('文件')">
-            <n-icon :component="FolderOpenOutline" size="20" />
-          </div>
-          <div class="tool-btn" title="语音" @click="handleToolClick('语音')">
-            <n-icon :component="MicOutline" size="20" />
-          </div>
-          <div class="tool-btn" title="位置" @click="handleToolClick('位置')">
-            <n-icon :component="LocationOutline" size="20" />
-          </div>
-        </div>
-        <div class="toolbar-divider"></div>
-        <div class="toolbar-group">
-          <div class="tool-btn" title="文本格式" @click="handleToolClick('文本格式')">
-            <n-icon :component="TextOutline" size="20" />
-          </div>
-          <div class="tool-btn" title="列表" @click="handleToolClick('列表')">
-            <n-icon :component="ListOutline" size="20" />
-          </div>
-          <div class="tool-btn" title="待办" @click="handleToolClick('待办')">
-            <n-icon :component="CheckboxOutline" size="20" />
-          </div>
-        </div>
-      </div>
 
-      <div class="editor-body">
-        <input
-          v-model="title"
-          type="text"
-          placeholder="请填写标题"
-          class="title-input"
-        />
-        <div class="divider"></div>
-        <textarea
-          v-model="content"
-          placeholder="请填写正文"
-          class="content-input"
-        ></textarea>
-      </div>
+    <div class="editor-body">
+      <input v-model="title" class="title-input" placeholder="标题" />
+      <textarea v-model="content" class="content-input" placeholder="开始记录…" />
+    </div>
+
+    <div class="toolbar no-drag">
+      <button type="button" class="tool-btn" title="图片" @click="handleToolClick('插入图片')">
+        <n-icon :component="ImageOutline" size="18" />
+      </button>
+      <button type="button" class="tool-btn" title="附件" @click="handleToolClick('插入附件')">
+        <n-icon :component="FolderOpenOutline" size="18" />
+      </button>
+      <button type="button" class="tool-btn" title="语音" @click="handleToolClick('语音输入')">
+        <n-icon :component="MicOutline" size="18" />
+      </button>
+      <button type="button" class="tool-btn" title="位置" @click="handleToolClick('位置')">
+        <n-icon :component="LocationOutline" size="18" />
+      </button>
+      <button type="button" class="tool-btn" title="列表" @click="handleToolClick('列表')">
+        <n-icon :component="ListOutline" size="18" />
+      </button>
+      <button type="button" class="tool-btn" title="待办" @click="handleToolClick('待办')">
+        <n-icon :component="CheckboxOutline" size="18" />
+      </button>
+      <button type="button" class="tool-btn" title="正文" @click="handleToolClick('正文样式')">
+        <n-icon :component="TextOutline" size="18" />
+      </button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.standalone-window {
-  width: 100vw !important;
-  height: 100vh !important;
-  border-radius: 0 !important;
-  margin: 0 !important;
-}
-
 .note-editor {
+  width: 100vw;
+  height: 100vh;
   display: flex;
   flex-direction: column;
   background: var(--lx-bg-card);
-  overflow: hidden;
-  height: 100vh;
+  color: var(--lx-text-body);
 }
 
 .header {
-  height: 40px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 12px;
+  border-bottom: 1px solid var(--lx-border-light);
   background: var(--lx-bg-panel);
-  border-bottom: 1px solid var(--lx-divider);
-  flex-shrink: 0;
-}
-
-.drag-area {
-  -webkit-app-region: drag;
-}
-
-.no-drag {
-  -webkit-app-region: no-drag;
 }
 
 .header-left .title {
   font-size: 14px;
   font-weight: 500;
-  color: var(--lx-text-body);
 }
 
 .header-right {
   display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.action-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: var(--lx-radius);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background 0.2s;
-  color: var(--lx-text-body);
-}
-
-.action-btn:hover {
-  background: var(--lx-bg-active);
-}
-
-.close-btn:hover {
-  background: #fa5151;
-  color: var(--lx-bg-card);
-}
-
-.editor-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.toolbar {
-  height: 48px;
-  display: flex;
-  align-items: center;
-  padding: 0 24px;
-  background: var(--lx-bg-card);
-  border-bottom: 1px solid var(--lx-divider);
-  flex-shrink: 0;
-}
-
-.toolbar-group {
-  display: flex;
-  align-items: center;
   gap: 8px;
 }
 
-.tool-btn {
+.action-btn {
   width: 32px;
   height: 32px;
-  border-radius: var(--lx-radius);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--lx-text-secondary);
+  border-radius: var(--lx-radius);
   cursor: pointer;
-  transition: all 0.2s;
+  color: var(--lx-text-secondary);
 }
 
-.tool-btn:hover {
-  background: #f0f0f0;
-  color: var(--lx-text-body);
+.action-btn:hover {
+  background: var(--lx-bg-hover);
 }
 
-.toolbar-divider {
-  width: 1px;
-  height: 16px;
-  background: var(--lx-bg-input);
-  margin: 0 12px;
+.action-btn.close:hover {
+  background: #ff4d4f;
+  color: #fff;
 }
 
 .editor-body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 24px 40px;
-  overflow-y: auto;
+  padding: 16px 24px;
+  gap: 12px;
+  overflow: hidden;
 }
 
 .title-input {
-  font-size: 22px;
-  font-weight: 600;
-  color: var(--lx-text-body);
   border: none;
   outline: none;
+  font-size: 22px;
+  font-weight: 600;
   background: transparent;
-  padding: 0 0 16px 0;
-}
-
-.title-input::placeholder {
-  color: #c0c0c0;
-  font-weight: 500;
-}
-
-.divider {
-  height: 1px;
-  background: var(--lx-bg-input);
-  margin-bottom: 16px;
-  flex-shrink: 0;
+  color: var(--lx-text-body);
 }
 
 .content-input {
   flex: 1;
-  font-size: 15px;
-  line-height: 1.8;
-  color: var(--lx-text-body);
   border: none;
   outline: none;
-  background: transparent;
   resize: none;
-  padding: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  background: transparent;
+  color: var(--lx-text-body);
 }
 
-.content-input::placeholder {
-  color: #c0c0c0;
+.toolbar {
+  display: flex;
+  gap: 4px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--lx-border-light);
+  background: var(--lx-bg-panel);
+}
+
+.tool-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  border-radius: var(--lx-radius);
+  cursor: pointer;
+  color: var(--lx-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tool-btn:hover {
+  background: var(--lx-bg-hover);
+  color: var(--lx-accent);
 }
 </style>

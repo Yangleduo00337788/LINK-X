@@ -16,12 +16,14 @@ import {
 import { ArrowBackOutline } from '@vicons/ionicons5'
 import WindowControls from '../WindowControls.vue'
 import { storeToRefs } from 'pinia'
+import { useAppSettingsStore } from '../../stores/appSettings'
 import { useOverlayStore } from '../../stores/overlay'
 import { useAppStore } from '../../stores/app'
 import type { OverlayPage } from '../../types'
 
 const message = useMessage()
 const overlayStore = useOverlayStore()
+const appSettingsStore = useAppSettingsStore()
 const appStore = useAppStore()
 const { currentPage, overlayApp, overlayFileName } = storeToRefs(overlayStore)
 const { close } = overlayStore
@@ -33,11 +35,21 @@ const {
 } = storeToRefs(appStore)
 const {
   toggleTheme,
-  ensureSession,
   setNav,
   updateNickname,
   updateSignature
 } = appStore
+
+const {
+  autoStart,
+  soundNotify,
+  messageDetail,
+  notifyAtMe,
+  notifySound,
+  privacyVerifyFriend,
+  privacyAllowStranger,
+  privacyShowOnline
+} = storeToRefs(appSettingsStore)
 
 const profileNick = ref(userProfile.value.nickname)
 const profileSig = ref(userProfile.value.signature)
@@ -49,10 +61,20 @@ watch(currentPage, p => {
   }
 })
 
+const historyMessages = computed(() =>
+  currentMessages.value.filter(m => m.type !== 'system')
+)
+
+function historyPreview(msg: (typeof currentMessages.value)[number]) {
+  if (msg.type === 'file') return `[文件] ${msg.fileName || msg.content}`
+  if (msg.type === 'image' || msg.isImage) return '[图片]'
+  return msg.content
+}
+
 function saveProfile() {
   updateNickname(profileNick.value.trim() || '晚香玉')
   updateSignature(profileSig.value.trim() || '编辑个性签名')
-  message.success('资料已保存（演示）')
+  message.success('资料已保存')
   close()
 }
 
@@ -80,33 +102,43 @@ const pageTitle = computed(() => {
 })
 
 const notifyEnabled = computed({
-  get: () => true,
-  set: () => message.success('已保存（演示）')
+  get: () => soundNotify.value,
+  set: (v: boolean) => { soundNotify.value = v }
 })
 
+function saveSettings() {
+  if (window.electronAPI?.setAutoStart) {
+    window.electronAPI.setAutoStart(autoStart.value)
+  }
+  message.success('设置已保存')
+  close()
+}
+
+function saveNotifications() {
+  message.success('通知设置已保存')
+  close()
+}
+
+function savePrivacy() {
+  message.success('隐私设置已保存')
+  close()
+}
+
 function saveDemo(label: string) {
-  message.success(`${label}已保存（演示，待对接后端）`)
+  message.success(`${label}已提交`)
   close()
 }
 
 function createGroupAndEnter() {
-  ensureSession({
-    id: `new-${Date.now()}`,
-    name: '新建群聊',
-    lastMessage: '欢迎加入',
-    time: '刚刚',
-    avatarText: '群',
-    avatarColor: 'var(--lx-accent)',
-    isGroup: true
-  })
+  appStore.joinGroup('新建群聊')
   setNav('chat')
-  message.success('群聊已创建（演示）')
+  message.success('群聊已创建')
   close()
 }
 
 function createChannelDone() {
   setNav('moments')
-  message.success('频道已创建（演示）')
+  message.success('频道已创建')
   close()
 }
 </script>
@@ -138,10 +170,10 @@ function createChannelDone() {
             <n-switch :value="theme === 'dark'" @update:value="toggleTheme" />
           </n-form-item>
           <n-form-item label="开机自启">
-            <n-switch />
+            <n-switch v-model:value="autoStart" />
           </n-form-item>
         </n-form>
-        <n-button type="primary" @click="saveDemo('设置')">保存</n-button>
+        <n-button type="primary" @click="saveSettings">保存</n-button>
       </template>
 
       <template v-else-if="currentPage === 'notifications'">
@@ -152,23 +184,27 @@ function createChannelDone() {
           </n-list-item>
           <n-list-item>
             <n-thing title="群聊 @ 我" />
-            <template #suffix><n-switch :default-value="true" /></template>
+            <template #suffix><n-switch v-model:value="notifyAtMe" /></template>
           </n-list-item>
           <n-list-item>
             <n-thing title="声音" />
-            <template #suffix><n-switch :default-value="false" /></template>
+            <template #suffix><n-switch v-model:value="notifySound" /></template>
+          </n-list-item>
+          <n-list-item>
+            <n-thing title="通知显示消息详情" />
+            <template #suffix><n-switch v-model:value="messageDetail" /></template>
           </n-list-item>
         </n-list>
-        <n-button type="primary" class="mt" @click="saveDemo('通知设置')">保存</n-button>
+        <n-button type="primary" class="mt" @click="saveNotifications">保存</n-button>
       </template>
 
       <template v-else-if="currentPage === 'privacy'">
         <n-list>
-          <n-list-item><n-thing title="加我为好友时需要验证" /><template #suffix><n-switch :default-value="true" /></template></n-list-item>
-          <n-list-item><n-thing title="允许陌生人临时会话" /><template #suffix><n-switch /></template></n-list-item>
-          <n-list-item><n-thing title="在线状态对他人可见" /><template #suffix><n-switch :default-value="true" /></template></n-list-item>
+          <n-list-item><n-thing title="加我为好友时需要验证" /><template #suffix><n-switch v-model:value="privacyVerifyFriend" /></template></n-list-item>
+          <n-list-item><n-thing title="允许陌生人临时会话" /><template #suffix><n-switch v-model:value="privacyAllowStranger" /></template></n-list-item>
+          <n-list-item><n-thing title="在线状态对他人可见" /><template #suffix><n-switch v-model:value="privacyShowOnline" /></template></n-list-item>
         </n-list>
-        <n-button type="primary" class="mt" @click="saveDemo('隐私设置')">保存</n-button>
+        <n-button type="primary" class="mt" @click="savePrivacy">保存</n-button>
       </template>
 
       <template v-else-if="currentPage === 'help'">
@@ -183,7 +219,7 @@ function createChannelDone() {
         <div class="about-card">
           <div class="logo">LX</div>
           <h2>LinkX</h2>
-          <p>版本 1.0.0（前端演示）</p>
+          <p>版本 1.0.0</p>
           <p class="muted">Electron + Vue 3 + Naive UI</p>
           <p class="muted">下一步：对接 Java 后端 API</p>
         </div>
@@ -258,11 +294,11 @@ function createChannelDone() {
       <template v-else-if="currentPage === 'chat-history'">
         <p class="muted">当前会话：{{ currentSession?.name || '—' }}</p>
         <div class="history-list">
-          <div v-for="msg in currentMessages" :key="msg.id" class="history-row">
+          <div v-for="msg in historyMessages" :key="msg.id" class="history-row">
             <span class="t">{{ msg.time }}</span>
-            <span :class="{ self: msg.isSelf }">{{ msg.content || `[${msg.type}]` }}</span>
+            <span :class="{ self: msg.isSelf }">{{ historyPreview(msg) }}</span>
           </div>
-          <p v-if="!currentMessages.length" class="muted">暂无消息</p>
+          <p v-if="!historyMessages.length" class="muted">暂无消息</p>
         </div>
       </template>
     </div>

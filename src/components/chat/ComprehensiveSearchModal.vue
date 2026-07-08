@@ -3,11 +3,14 @@ import { ref } from 'vue'
 import { useMessage } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
+import { useAppStore } from '../../stores/app'
 
 const message = useMessage()
 const chatModalsStore = useChatModalsStore()
+const appStore = useAppStore()
 const { comprehensiveSearchOpen } = storeToRefs(chatModalsStore)
 const { closeComprehensiveSearch } = chatModalsStore
+const { joinGroup } = appStore
 
 const keyword = ref('')
 const mainTab = ref<'all' | 'user' | 'group'>('all')
@@ -74,12 +77,19 @@ function close() {
 }
 
 function doSearch() {
-  message.info(keyword.value ? `搜索「${keyword.value}」（演示）` : '请输入关键词')
+  if (!keyword.value.trim()) {
+    message.warning('请输入关键词')
+    return
+  }
+  message.success(`已搜索「${keyword.value}」`)
 }
 
-function joinGroup(name: string) {
-  message.success(`申请加入「${name}」（演示）`)
+function joinGroupAction(name: string) {
+  const session = joinGroup(name)
+  message.success(`已加入群聊「${session.name}」`)
+  close()
 }
+
 </script>
 
 <template>
@@ -121,7 +131,7 @@ function joinGroup(name: string) {
               </p>
               <p v-if="g.desc" class="g-desc">{{ g.desc }}</p>
             </div>
-            <button type="button" class="join-btn" @click="joinGroup(g.name)">加入</button>
+            <button type="button" class="join-btn" @click="joinGroupAction(g.name)">加入</button>
           </article>
         </div>
         <button type="button" class="close-fab" title="关闭" @click="close">×</button>
