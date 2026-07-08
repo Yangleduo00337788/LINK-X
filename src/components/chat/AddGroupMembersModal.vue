@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, computed } from 'vue'
 import { NIcon } from 'naive-ui'
 import {
@@ -10,30 +10,34 @@ import {
 import Avatar from '../Avatar.vue'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
+import { useAppStore } from '../../stores/app'
+import { useContactsStore } from '../../stores/contacts'
 import { useMessage } from 'naive-ui'
 
 const message = useMessage()
 const chatModalsStore = useChatModalsStore()
+const appStore = useAppStore()
+const contactsStore = useContactsStore()
 const { addMembersOpen } = storeToRefs(chatModalsStore)
 const { closeAddMembers } = chatModalsStore
+const { currentSessionId } = storeToRefs(appStore)
+const { inviteGroupMembers } = appStore
 
 const search = ref('')
-const selected = ref<Set<string>>(new Set(['r-dou']))
+const selected = ref<Set<string>>(new Set())
 const recentExpanded = ref(true)
 const attachHistory = ref(true)
 
 const recentContacts = computed(() => {
-  const extra = [
-    { id: 'r-yld', name: '养乐多', text: '养', color: '#f39c12' },
-    { id: 'f-zwz', name: '吱唔猪', text: '吱', color: '#7cb342' },
-    { id: 'r-bei', name: '北挽', text: '北', color: 'var(--lx-text-muted)' },
-    { id: 'r-ling', name: '____Z铃ღ', text: '铃', color: '#9b59b6' },
-    { id: 'r-qing', name: '清风', text: '清', color: 'var(--lx-success)' },
-    { id: 'r-dou', name: '有BB机的小豆包', text: '有', color: '#f56c6c' }
-  ]
+  const list = contactsStore.friends.map(c => ({
+    id: c.id,
+    name: c.name,
+    text: c.avatarText,
+    color: c.avatarColor
+  }))
   const q = search.value.trim().toLowerCase()
-  if (!q) return extra
-  return extra.filter(c => c.name.toLowerCase().includes(q))
+  if (!q) return list
+  return list.filter(c => c.name.toLowerCase().includes(q))
 })
 
 const selectedList = computed(() => recentContacts.value.filter(c => selected.value.has(c.id)))
@@ -46,7 +50,14 @@ function toggle(id: string) {
 }
 
 function confirm() {
-  message.success(`已邀请 ${selected.value.size} 人（演示）`)
+  if (!currentSessionId.value || selected.value.size === 0) {
+    message.warning('请选择要邀请的成员')
+    return
+  }
+  const names = selectedList.value.map(c => c.name)
+  inviteGroupMembers(currentSessionId.value, names)
+  message.success(`已邀请 ${names.length} 人加入群聊`)
+  selected.value = new Set()
   closeAddMembers()
 }
 

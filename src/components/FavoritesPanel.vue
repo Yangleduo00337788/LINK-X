@@ -1,7 +1,7 @@
 ﻿<script setup lang="ts">
 import { ref, computed } from 'vue'
-import { NIcon } from 'naive-ui'
-import { DocumentTextOutline, ImageOutline, LinkOutline, FolderOutline } from '@vicons/ionicons5'
+import { NIcon, useMessage } from 'naive-ui'
+import { DocumentTextOutline, ImageOutline, LinkOutline, FolderOutline, TrashOutline } from '@vicons/ionicons5'
 import PanelSearchBar from './PanelSearchBar.vue'
 import { storeToRefs } from 'pinia'
 import { useFavoritesStore } from '../stores/favorites'
@@ -10,6 +10,8 @@ import type { FavoriteItem } from '../types'
 
 const favoritesStore = useFavoritesStore()
 const secondaryViewStore = useSecondaryViewStore()
+const message = useMessage()
+const { remove } = favoritesStore
 const { items: favList } = storeToRefs(favoritesStore)
 const { activeFavorite } = storeToRefs(secondaryViewStore)
 const search = ref('')
@@ -52,6 +54,13 @@ function openItem(item: FavoriteItem) {
   activeFavorite.value = item
 }
 
+function removeItem(e: Event, id: string) {
+  e.stopPropagation()
+  remove(id)
+  if (activeFavorite.value?.id === id) activeFavorite.value = null
+  message.success('已删除收藏')
+}
+
 function setTab(tab: string) {
   activeTab.value = tab
 }
@@ -88,6 +97,9 @@ function setTab(tab: string) {
           <div class="preview">{{ item.preview }}</div>
         </div>
         <span class="time">{{ item.time }}</span>
+        <button type="button" class="del-btn" title="删除" @click="removeItem($event, item.id)">
+          <n-icon :component="TrashOutline" :size="16" />
+        </button>
       </div>
       
       <div v-if="filtered.length === 0" class="empty-state">
@@ -207,8 +219,28 @@ function setTab(tab: string) {
 
 .time {
   font-size: 11px;
-  color: #bbb;
+  color: var(--lx-text-muted);
   flex-shrink: 0;
+}
+
+.del-btn {
+  border: none;
+  background: transparent;
+  color: var(--lx-text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--lx-radius);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.row:hover .del-btn {
+  opacity: 1;
+}
+
+.del-btn:hover {
+  color: #fa5151;
+  background: rgba(250, 81, 81, 0.1);
 }
 
 .empty-state {

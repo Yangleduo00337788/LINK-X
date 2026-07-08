@@ -1,59 +1,34 @@
 ﻿<script setup lang="ts">
-import { NIcon } from 'naive-ui'
+import { useMessage } from 'naive-ui'
 import { FilterOutline, TrashOutline } from '@vicons/ionicons5'
+import { storeToRefs } from 'pinia'
+import { useNotificationsStore } from '../../stores/notifications'
+import { useAppStore } from '../../stores/app'
 
-const notifications = [
-  {
-    id: 1,
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=zling',
-    name: 'Z铃ღ',
-    action: '请求加为好友',
-    date: '2026/06/07',
-    message: '我是来自群聊“cursor分享群”的____Z铃ღ',
-    source: 'QQ群-cursor分享群',
-    status: '已同意'
-  },
-  {
-    id: 2,
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=ooo',
-    name: 'o',
-    action: '正在验证你的邀请',
-    date: '2025/07/21',
-    message: '请求添加对方为好友',
-    source: '',
-    status: '等待验证'
-  },
-  {
-    id: 3,
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=gg',
-    name: '哥哥你干嘛',
-    action: '正在验证你的邀请',
-    date: '2025/02/24',
-    message: '请求添加对方为好友',
-    source: '',
-    status: '等待验证'
-  },
-  {
-    id: 4,
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=yh',
-    name: 'yh',
-    action: '请求加为好友',
-    date: '2025/01/29',
-    message: '我是yh',
-    source: 'QQ号查找',
-    status: '已同意'
-  },
-  {
-    id: 5,
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=zwz',
-    name: '吱唔猪',
-    action: '请求加为好友',
-    date: '2024/07/18',
-    message: '我是',
-    source: 'QQ号查找',
-    status: '已同意'
+const message = useMessage()
+const notificationsStore = useNotificationsStore()
+const appStore = useAppStore()
+const { friendNotifs } = storeToRefs(notificationsStore)
+const { acceptFriend, rejectFriend, clearFriendNotifs } = notificationsStore
+const { addFriendSession } = appStore
+
+function handleAccept(id: string) {
+  const n = acceptFriend(id)
+  if (n) {
+    addFriendSession(n.name)
+    message.success(`已同意「${n.name}」的好友请求`)
   }
-]
+}
+
+function handleReject(id: string) {
+  rejectFriend(id)
+  message.success('已拒绝好友请求')
+}
+
+function handleClear() {
+  clearFriendNotifs()
+  message.success('已清空通知')
+}
 </script>
 
 <template>
@@ -61,17 +36,18 @@ const notifications = [
     <div class="header">
       <h2 class="title">好友通知</h2>
       <div class="actions">
-        <button class="action-btn">
-          <n-icon :component="FilterOutline" :size="20" />
-        </button>
-        <button class="action-btn">
+        <button class="action-btn" title="清空" @click="handleClear">
           <n-icon :component="TrashOutline" :size="20" />
+        </button>
+        <button class="action-btn" title="筛选">
+          <n-icon :component="FilterOutline" :size="20" />
         </button>
       </div>
     </div>
     <div class="content">
-      <div class="notif-list">
-        <div v-for="item in notifications" :key="item.id" class="notif-card">
+      <div v-if="!friendNotifs.length" class="empty">暂无好友通知</div>
+      <div v-else class="notif-list">
+        <div v-for="item in friendNotifs" :key="item.id" class="notif-card">
           <img :src="item.avatar" class="avatar" alt="" />
           <div class="info">
             <div class="title-line">
@@ -82,9 +58,11 @@ const notifications = [
             <div class="message">留言: {{ item.message }}</div>
             <div v-if="item.source" class="source">来源: {{ item.source }}</div>
           </div>
-          <div class="status" :class="{ 'waiting': item.status === '等待验证' }">
-            {{ item.status }}
+          <div v-if="item.status === '等待验证'" class="actions-right">
+            <button type="button" class="btn accept" @click="handleAccept(item.id)">同意</button>
+            <button type="button" class="btn reject" @click="handleReject(item.id)">拒绝</button>
           </div>
+          <div v-else class="status">{{ item.status }}</div>
         </div>
       </div>
     </div>
@@ -117,16 +95,17 @@ const notifications = [
 
 .actions {
   display: flex;
-  gap: 16px;
+  gap: 8px;
 }
 
 .action-btn {
-  background: none;
+  width: 32px;
+  height: 32px;
   border: none;
-  padding: 4px;
-  color: var(--lx-text-secondary);
-  cursor: pointer;
+  background: transparent;
   border-radius: var(--lx-radius);
+  cursor: pointer;
+  color: var(--lx-text-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -134,85 +113,111 @@ const notifications = [
 
 .action-btn:hover {
   background: var(--lx-bg-hover);
-  color: var(--lx-text-body);
 }
 
 .content {
   flex: 1;
   overflow-y: auto;
-  padding: 24px;
+  padding: 16px 24px;
+}
+
+.empty {
+  text-align: center;
+  color: var(--lx-text-muted);
+  padding: 40px;
 }
 
 .notif-list {
-  max-width: 720px;
-  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .notif-card {
   display: flex;
-  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
   background: var(--lx-bg-card);
-  padding: 20px;
   border-radius: var(--lx-radius);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
-  gap: 16px;
+  align-items: flex-start;
 }
 
 .avatar {
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  object-fit: cover;
-  background: #f0f0f0;
+  flex-shrink: 0;
 }
 
 .info {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  min-width: 0;
 }
 
 .title-line {
   display: flex;
-  align-items: baseline;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
+  align-items: baseline;
+  margin-bottom: 4px;
 }
 
 .name {
-  font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--lx-text-body);
-  color: var(--lx-accent);
 }
 
 .action-text {
-  font-size: 14px;
-  color: var(--lx-text-body);
-}
-
-.date {
-  font-size: 13px;
-  color: var(--lx-text-muted);
-}
-
-.message, .source {
   font-size: 13px;
   color: var(--lx-text-secondary);
 }
 
-.status {
-  font-size: 14px;
+.date {
+  font-size: 12px;
   color: var(--lx-text-muted);
-  padding-left: 16px;
-  white-space: nowrap;
+  margin-left: auto;
+}
+
+.message,
+.source {
+  font-size: 13px;
+  color: var(--lx-text-secondary);
+  margin-top: 2px;
+}
+
+.actions-right {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.btn {
+  min-width: 56px;
+  height: 28px;
+  border-radius: var(--lx-radius);
+  border: none;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btn.accept {
+  background: var(--lx-accent);
+  color: var(--lx-bg-card);
+}
+
+.btn.reject {
+  background: var(--lx-bg-panel);
+  color: var(--lx-text-secondary);
+}
+
+.status {
+  font-size: 12px;
+  color: var(--lx-text-muted);
+  flex-shrink: 0;
 }
 
 .status.waiting {
-  color: #ff9800;
+  color: var(--lx-accent);
 }
 </style>

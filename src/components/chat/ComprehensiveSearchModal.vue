@@ -1,16 +1,19 @@
-﻿<script setup lang="ts">
-import { ref } from 'vue'
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import Avatar from '../Avatar.vue'
 import { useMessage } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
+import { useContactsStore } from '../../stores/contacts'
 
 const message = useMessage()
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
+const contactsStore = useContactsStore()
 const { comprehensiveSearchOpen } = storeToRefs(chatModalsStore)
 const { closeComprehensiveSearch } = chatModalsStore
-const { joinGroup } = appStore
+const { joinGroup, addFriendSession } = appStore
 
 const keyword = ref('')
 const mainTab = ref<'all' | 'user' | 'group'>('all')
@@ -90,6 +93,16 @@ function joinGroupAction(name: string) {
   close()
 }
 
+function addFriendAction(name: string) {
+  const session = addFriendSession(name)
+  message.success(`已添加好友「${session.name}」`)
+  close()
+}
+
+const filteredUsers = computed(() => contactsStore.searchUsers(keyword.value))
+
+const showGroups = computed(() => mainTab.value === 'all' || mainTab.value === 'group')
+const showUsers = computed(() => mainTab.value === 'all' || mainTab.value === 'user')
 </script>
 
 <template>
@@ -120,7 +133,20 @@ function joinGroupAction(name: string) {
           </button>
         </div>
         <div class="result-list">
-          <article v-for="g in groups" :key="g.id" class="group-card">
+          <template v-if="showUsers">
+            <h4 v-if="filteredUsers.length" class="section-label">用户</h4>
+            <article v-for="u in filteredUsers" :key="u.id" class="group-card user-card">
+              <Avatar :text="u.avatarText" :color="u.avatarColor" :size="48" />
+              <div class="g-body">
+                <h3 class="g-name">{{ u.name }}</h3>
+                <p class="g-meta"><span>{{ u.online ? '在线' : '离线' }}</span></p>
+              </div>
+              <button type="button" class="join-btn" @click="addFriendAction(u.name)">加好友</button>
+            </article>
+          </template>
+          <template v-if="showGroups">
+            <h4 v-if="showUsers && groups.length" class="section-label">群聊</h4>
+            <article v-for="g in groups" :key="g.id" class="group-card">
             <div class="g-avatar">群</div>
             <div class="g-body">
               <h3 class="g-name">{{ g.name }}</h3>
@@ -133,6 +159,7 @@ function joinGroupAction(name: string) {
             </div>
             <button type="button" class="join-btn" @click="joinGroupAction(g.name)">加入</button>
           </article>
+          </template>
         </div>
         <button type="button" class="close-fab" title="关闭" @click="close">×</button>
       </div>
@@ -169,7 +196,7 @@ function joinGroupAction(name: string) {
   padding: 16px 20px 8px;
   font-size: 16px;
   font-weight: 600;
-  color: #222;
+  color: var(--lx-text-body);
 }
 
 .search-row {
@@ -242,12 +269,23 @@ function joinGroupAction(name: string) {
   padding: 0 20px 20px;
 }
 
+.section-label {
+  margin: 12px 0 8px;
+  font-size: 13px;
+  color: var(--lx-text-muted);
+  font-weight: 600;
+}
+
+.user-card .g-avatar {
+  display: none;
+}
+
 .group-card {
   display: flex;
   align-items: flex-start;
   gap: 12px;
   padding: 14px 0;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--lx-border-light);
 }
 
 .g-avatar {
@@ -273,7 +311,7 @@ function joinGroupAction(name: string) {
   margin: 0 0 6px;
   font-size: 15px;
   font-weight: 600;
-  color: #222;
+  color: var(--lx-text-body);
 }
 
 .g-meta {

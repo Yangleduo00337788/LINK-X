@@ -1,6 +1,6 @@
 ﻿<script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { NInput, NButton, NIcon, NCheckbox, useMessage } from 'naive-ui'
+import { NInput, NButton, NIcon, NCheckbox, NModal, useMessage } from 'naive-ui'
 import { LockClosedOutline, PersonOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
@@ -15,6 +15,11 @@ const password = ref('')
 const rememberMe = ref(true)
 const autoLogin = ref(false)
 const isLoading = ref(false)
+const showRegister = ref(false)
+const showForgot = ref(false)
+const regUser = ref('')
+const regPass = ref('')
+const forgotUser = ref('')
 
 onMounted(() => {
   username.value = savedLogin.value.username || 'linkx_888888'
@@ -44,6 +49,25 @@ function handleLogin() {
     })
     message.success(`欢迎回来，${user}`)
   }, 500)
+}
+
+function handleRegister() {
+  if (!regUser.value.trim() || !regPass.value.trim()) {
+    message.warning('请填写完整注册信息')
+    return
+  }
+  message.success(`账号「${regUser.value.trim()}」注册成功，请登录`)
+  username.value = regUser.value.trim()
+  showRegister.value = false
+}
+
+function handleForgot() {
+  if (!forgotUser.value.trim()) {
+    message.warning('请输入 LinkX ID 或手机号')
+    return
+  }
+  message.success('重置链接已发送到绑定邮箱（本地模拟）')
+  showForgot.value = false
 }
 </script>
 
@@ -103,11 +127,28 @@ function handleLogin() {
       </div>
 
       <div class="login-footer">
-        <a href="#" class="footer-link" @click.prevent="message.info('注册功能开发中')">注册账号</a>
+        <a href="#" class="footer-link" @click.prevent="showRegister = true">注册账号</a>
         <span class="divider">|</span>
-        <a href="#" class="footer-link" @click.prevent="message.info('找回密码功能开发中')">找回密码</a>
+        <a href="#" class="footer-link" @click.prevent="showForgot = true">找回密码</a>
       </div>
     </div>
+
+    <n-modal v-model:show="showRegister" preset="dialog" title="注册 LinkX 账号">
+      <n-input v-model:value="regUser" placeholder="LinkX ID / 手机号" class="login-input" />
+      <n-input v-model:value="regPass" type="password" placeholder="设置密码" class="login-input" style="margin-top: 12px" />
+      <template #action>
+        <n-button @click="showRegister = false">取消</n-button>
+        <n-button type="primary" @click="handleRegister">注册</n-button>
+      </template>
+    </n-modal>
+
+    <n-modal v-model:show="showForgot" preset="dialog" title="找回密码">
+      <n-input v-model:value="forgotUser" placeholder="LinkX ID / 手机号" />
+      <template #action>
+        <n-button @click="showForgot = false">取消</n-button>
+        <n-button type="primary" @click="handleForgot">发送重置链接</n-button>
+      </template>
+    </n-modal>
   </div>
 </template>
 

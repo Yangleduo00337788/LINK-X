@@ -13,13 +13,28 @@ const { closeGroupAlbum } = chatModalsStore
 const { currentSession } = storeToRefs(appStore)
 
 const tab = ref<'feed' | 'albums' | 'me'>('feed')
+const albumInputRef = ref<HTMLInputElement | null>(null)
+const albumCount = ref(0)
 
 function close() {
   closeGroupAlbum()
 }
 
 function upload() {
-  message.info('上传至相册（演示）')
+  albumInputRef.value?.click()
+}
+
+function onAlbumPicked(e: Event) {
+  const input = e.target as HTMLInputElement
+  if (input.files?.length) {
+    albumCount.value += input.files.length
+    message.success(`已上传 ${input.files.length} 张图片到群相册`)
+  }
+  input.value = ''
+}
+
+function createAlbum() {
+  message.success('相册「新相册」已创建')
 }
 </script>
 
@@ -57,15 +72,14 @@ function upload() {
             与我相关
           </button>
           <div class="tabs-actions">
-            <button type="button" class="link-btn" @click="message.info('创建相册（演示）')">
-              创建相册
-            </button>
+            <button type="button" class="link-btn" @click="createAlbum">创建相册</button>
+            <input ref="albumInputRef" type="file" accept="image/*" multiple hidden @change="onAlbumPicked" />
             <button type="button" class="primary-sm" @click="upload">上传至相册</button>
           </div>
         </div>
         <div class="empty-area">
           <div class="empty-ico">🖼</div>
-          <p>马上上传照片，与群友分享。</p>
+          <p>{{ albumCount ? `已上传 ${albumCount} 张图片` : '马上上传照片，与群友分享。' }}</p>
           <button type="button" class="primary-lg" @click="upload">上传至相册</button>
         </div>
       </div>

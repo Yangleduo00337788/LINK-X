@@ -1,30 +1,46 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, computed } from 'vue'
 import { NIcon } from 'naive-ui'
 import { ChevronForwardOutline, CheckmarkCircle, EllipseOutline } from '@vicons/ionicons5'
 import PanelSearchBar from '../PanelSearchBar.vue'
 import Avatar from '../Avatar.vue'
-import { contacts } from '../../data/mockData'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
+import { useAppStore } from '../../stores/app'
+import { useContactsStore } from '../../stores/contacts'
 import { useMessage } from 'naive-ui'
 
 const message = useMessage()
 const chatModalsStore = useChatModalsStore()
+const appStore = useAppStore()
+const contactsStore = useContactsStore()
 const { selectContactsOpen } = storeToRefs(chatModalsStore)
 const { closeSelectContacts } = chatModalsStore
+const { createGroup } = appStore
 
 const search = ref('')
-const selected = ref<Set<string>>(new Set(['c1']))
+const selected = ref<Set<string>>(new Set())
+const expandedGroup = ref<string | null>(null)
+
+const groups = ['特别关心', '我的好友', '朋友', '家人', '同学']
 
 const recent = computed(() => {
   const q = search.value.trim().toLowerCase()
-  const list = contacts.slice(0, 8)
+  const list = contactsStore.friends
   if (!q) return list
   return list.filter(c => c.name.toLowerCase().includes(q))
 })
 
-const groups = ['特别关心', '我的好友', '朋友', '家人', '同学']
+const groupContacts = computed(() => (group: string) => {
+  const q = search.value.trim().toLowerCase()
+  let list = contactsStore.items.filter(c => c.group === group)
+  if (!q) return list
+  return list.filter(c => c.name.toLowerCase().includes(q))
+})
+
+const selectedList = computed(() =>
+  contactsStore.items.filter(c => selected.value.has(c.id))
+)
 
 function toggle(id: string) {
   const s = new Set(selected.value)
@@ -33,8 +49,24 @@ function toggle(id: string) {
   selected.value = s
 }
 
+function toggleGroup(g: string) {
+  expandedGroup.value = expandedGroup.value === g ? null : g
+}
+
 function confirm() {
-  message.success(`已选择 ${selected.value.size} 人（演示）`)
+  if (selected.value.size === 0) {
+    message.warning('请至少选择一位联系人')
+    return
+  }
+  const members = selectedList.value.map(c => ({
+    id: c.id,
+    name: c.name,
+    avatarText: c.avatarText,
+    avatarColor: c.avatarColor
+  }))
+  const session = createGroup(members)
+  if (session) message.success(`已创建群聊「${session.name}」`)
+  selected.value = new Set()
   closeSelectContacts()
 }
 
@@ -68,19 +100,45 @@ function cancel() {
                 <Avatar :text="c.avatarText" :color="c.avatarColor" :size="36" />
                 <span class="c-name">{{ c.name }}</span>
               </button>
-              <button
-                v-for="g in groups"
-                :key="g"
-                type="button"
-                class="group-row"
-                @click="message.info('展开分组（演示）')"
-              >
-                <n-icon :component="ChevronForwardOutline" :size="16" color="var(--lx-text-muted)" />
-                <span>{{ g }}</span>
-              </button>
+              <template v-for="g in groups" :key="g">
+                <button type="button" class="group-row" @click="toggleGroup(g)">
+                  <n-icon
+                    :component="ChevronForwardOutline"
+                    :size="16"
+                    color="var(--lx-text-muted)"
+                    :class="{ expanded: expandedGroup === g }"
+                  />
+                  <span>{{ g }}</span>
+                </button>
+                <template v-if="expandedGroup === g">
+                  <button
+                    v-for="c in groupContacts(g)"
+                    :key="c.id"
+                    type="button"
+                    class="contact-row indent"
+                    @click="toggle(c.id)"
+                  >
+                    <n-icon
+                      :component="selected.has(c.id) ? CheckmarkCircle : EllipseOutline"
+                      :size="20"
+                      :color="selected.has(c.id) ? 'var(--lx-accent)' : 'var(--lx-border-strong)'"
+                    />
+                    <Avatar :text="c.avatarText" :color="c.avatarColor" :size="36" />
+                    <span class="c-name">{{ c.name }}</span>
+                  </button>
+                </template>
+              </template>
             </div>
           </div>
-          <div class="right-pane" />
+          <div class="right-pane">
+            <div v-if="selectedList.length" class="selected-chips">
+              <div v-for="c in selectedList" :key="c.id" class="chip">
+                <Avatar :text="c.avatarText" :color="c.avatarColor" :size="40" />
+                <span>{{ c.name }}</span>
+              </div>
+            </div>
+            <p v-else class="empty-hint">已选联系人将显示在这里</p>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn primary" @click="confirm">确定</button>
@@ -120,7 +178,7 @@ function cancel() {
   font-size: 18px;
   font-weight: 600;
   text-align: center;
-  color: #222;
+  color: var(--lx-text-body);
 }
 
 .modal-body {
@@ -138,7 +196,7 @@ function cancel() {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #eee;
+  border-right: 1px solid var(--lx-border-light);
 }
 
 .left-pane :deep(.panel-search-bar) {
@@ -174,9 +232,17 @@ function cancel() {
   color: var(--lx-text-body);
 }
 
+.contact-row.indent {
+  padding-left: 28px;
+}
+
 .contact-row:hover,
 .group-row:hover {
   background: var(--lx-bg-panel);
+}
+
+.group-row .expanded {
+  transform: rotate(90deg);
 }
 
 .c-name {
@@ -188,7 +254,31 @@ function cancel() {
 
 .right-pane {
   flex: 1;
-  background: #fafafa;
+  background: var(--lx-bg-panel);
+  padding: 16px;
+}
+
+.selected-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 64px;
+  font-size: 11px;
+  text-align: center;
+}
+
+.empty-hint {
+  color: var(--lx-text-muted);
+  font-size: 13px;
+  text-align: center;
+  margin-top: 40px;
 }
 
 .modal-footer {
@@ -202,7 +292,7 @@ function cancel() {
   min-width: 88px;
   height: 36px;
   border-radius: var(--lx-radius);
-  border: 1px solid #ddd;
+  border: 1px solid var(--lx-border-strong);
   background: var(--lx-bg-card);
   font-size: 14px;
   cursor: pointer;
@@ -213,9 +303,5 @@ function cancel() {
   background: var(--lx-accent);
   border-color: var(--lx-accent);
   color: var(--lx-bg-card);
-}
-
-.btn:hover {
-  opacity: 0.92;
 }
 </style>

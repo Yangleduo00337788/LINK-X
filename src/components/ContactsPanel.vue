@@ -1,16 +1,18 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, computed } from 'vue'
 import { NIcon, NSkeleton } from 'naive-ui'
 import { ChevronForwardOutline } from '@vicons/ionicons5'
 import PanelSearchBar from './PanelSearchBar.vue'
 import Avatar from './Avatar.vue'
 import EmptyState from './common/EmptyState.vue'
-import { contacts } from '../data/mockData'
+import { useContactsStore } from '../stores/contacts'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
 import { useChatModalsStore } from '../stores/chatModals'
 import type { ContactItem } from '../types'
 
+const contactsStore = useContactsStore()
+const { items: contacts } = storeToRefs(contactsStore)
 const appStore = useAppStore()
 const chatModalsStore = useChatModalsStore()
 const { contactsActiveView, currentSessionId, isLoading } = storeToRefs(appStore)
@@ -37,13 +39,15 @@ function onAddSelect(key: string) {
 // Define friend groups and group chat categories with counts
 const filteredContacts = computed(() => {
   const q = search.value.trim().toLowerCase()
-  if (!q) return contacts
-  return contacts.filter(c => c.name.toLowerCase().includes(q))
+  if (!q) return contacts.value
+  return contacts.value.filter(c => c.name.toLowerCase().includes(q))
 })
 
 const friendGroups = computed(() => {
+  const friends = filteredContacts.value.filter(c => c.group === '我的好友')
+  const online = friends.filter(c => c.online).length
   return [
-    { name: '我的好友', online: 6, total: 10, items: filteredContacts.value.filter(c => c.group === '我的好友') },
+    { name: '我的好友', online, total: friends.length, items: friends }
   ]
 })
 

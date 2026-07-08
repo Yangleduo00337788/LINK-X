@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import MainStatusBar from './MainStatusBar.vue'
 import Sidebar from './Sidebar.vue'
@@ -9,6 +9,7 @@ import ContactsMainView from './ContactsMainView.vue'
 import FavoritesPanel from './FavoritesPanel.vue'
 import FilesPanel from './FilesPanel.vue'
 import MomentsPanel from './MomentsPanel.vue'
+import AppsPanel from './AppsPanel.vue'
 import PlaceholderMainView from './PlaceholderMainView.vue'
 import OverlayHost from './overlay/OverlayHost.vue'
 import ChatMoreDrawer from './chat/ChatMoreDrawer.vue'
@@ -91,6 +92,8 @@ const middleComponent = computed(() => {
       return FilesPanel
     case 'moments':
       return MomentsPanel
+    case 'apps':
+      return AppsPanel
     default:
       return ChatList
   }

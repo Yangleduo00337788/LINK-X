@@ -25,6 +25,7 @@ export interface ChatSession {
   unread?: number
   muted?: boolean
   pinned?: boolean
+  blocked?: boolean
   isGroup?: boolean
   /** 好友在线状态（单聊） */
   online?: boolean

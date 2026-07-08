@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import type { NavKey, ChatSession, ChatMessage, ContactItem } from '../types'
 import { initialSessions, initialMessages, sessionFromContact } from '../data/mockData'
+import { useContactsStore } from './contacts'
 
 export interface SendMessageOptions {
   type?: ChatMessage['type']
@@ -175,6 +176,7 @@ export const useAppStore = defineStore('app', {
         }
       ]
       this.ensureSession(session)
+      useContactsStore().syncFriendFromSession(session)
       return session
     },
 
@@ -201,6 +203,7 @@ export const useAppStore = defineStore('app', {
         }
       ]
       this.ensureSession(session)
+      useContactsStore().syncFriendFromSession(session)
       return session
     },
 
@@ -220,6 +223,45 @@ export const useAppStore = defineStore('app', {
       if (this.currentSessionId === sessionId) {
         this.currentSessionId = this.sessions[0]?.id ?? null
       }
+    },
+
+    clearSessionMessages(sessionId: string) {
+      this.messagesBySession[sessionId] = []
+      const session = this.sessions.find(s => s.id === sessionId)
+      if (session) {
+        session.lastMessage = ''
+      }
+    },
+
+    toggleSessionBlock(sessionId: string) {
+      const s = this.sessions.find(x => x.id === sessionId)
+      if (s) s.blocked = !s.blocked
+    },
+
+    inviteGroupMembers(sessionId: string, names: string[]) {
+      if (!names.length) return
+      const time = nowTime()
+      const text = `系统：${this.userProfile.nickname} 邀请了 ${names.join('、')} 加入群聊`
+      if (!this.messagesBySession[sessionId]) {
+        this.messagesBySession[sessionId] = []
+      }
+      this.messagesBySession[sessionId].push({
+        id: `msg-sys-${Date.now()}`,
+        sessionId,
+        content: text,
+        time,
+        isSelf: false,
+        type: 'system'
+      })
+      const session = this.sessions.find(s => s.id === sessionId)
+      if (session) {
+        session.lastMessage = text
+        session.time = time
+      }
+    },
+
+    leaveGroup(sessionId: string) {
+      this.deleteSession(sessionId)
     },
 
     sendMessage(content: string, options: SendMessageOptions = {}) {

@@ -1,6 +1,6 @@
 ﻿<script setup lang="ts">
 import { ref, computed } from 'vue'
-import { NIcon, NInput, NButton, NPopover, useMessage } from 'naive-ui'
+import { NIcon, NInput, NButton, NPopover, NDropdown, useMessage, type DropdownOption } from 'naive-ui'
 import {
   ImagesOutline,
   FolderOutline,
@@ -28,10 +28,12 @@ import { useChatModalsStore } from '../stores/chatModals'
 import type { ChatMessage } from '../types'
 import { CHAT_EMOJIS } from '../constants/emojis'
 import { useFilesStore } from '../stores/files'
+import { useFavoritesStore } from '../stores/favorites'
 import { formatFileSize, readFileAsDataUrl, MAX_IMAGE_BYTES } from '../utils/file'
 
 const message = useMessage()
 const filesStore = useFilesStore()
+const favoritesStore = useFavoritesStore()
 const appStore = useAppStore()
 const overlayStore = useOverlayStore()
 const chatModalsStore = useChatModalsStore()
@@ -190,8 +192,80 @@ function onEnter(e: KeyboardEvent) {
 const replyingTo = ref<ChatMessage | undefined>()
 
 function copyMessage(msg: ChatMessage) {
-  navigator.clipboard.writeText(msg.content)
+  const text =
+    msg.type === 'file'
+      ? msg.fileName || msg.content
+      : msg.content
+  navigator.clipboard.writeText(text)
   message.success('已复制')
+}
+
+function favoriteMessage(msg: ChatMessage) {
+  if (msg.type === 'file') {
+    favoritesStore.add({
+      title: msg.fileName || msg.content,
+      preview: msg.fileSize || '',
+      type: 'file'
+    })
+  } else if (msg.type === 'image' || msg.isImage) {
+    favoritesStore.add({
+      title: '图片消息',
+      preview: msg.content.slice(0, 80),
+      type: 'image'
+    })
+  } else if (isLinkMsg(msg)) {
+    favoritesStore.add({
+      title: msg.content.slice(0, 30),
+      preview: msg.content,
+      type: 'link'
+    })
+  } else {
+    favoritesStore.add({
+      title: msg.content.slice(0, 20) || '消息',
+      preview: msg.content,
+      type: 'note'
+    })
+  }
+  message.success('已收藏')
+}
+
+const ctxMsg = ref<ChatMessage | null>(null)
+const ctxShow = ref(false)
+const ctxX = ref(0)
+const ctxY = ref(0)
+
+const ctxOptions = computed<DropdownOption[]>(() => {
+  const msg = ctxMsg.value
+  if (!msg) return []
+  const copyLabel =
+    msg.type === 'file' ? '复制文件名' : msg.type === 'image' || msg.isImage ? '复制链接' : '复制'
+  const opts: DropdownOption[] = [
+    { label: copyLabel, key: 'copy' },
+    { label: '收藏', key: 'fav' },
+    { label: '回复', key: 'reply' }
+  ]
+  if (msg.isSelf) {
+    opts.push({ type: 'divider', key: 'd' }, { label: '撤回', key: 'recall' })
+  }
+  return opts
+})
+
+function onMsgContext(e: MouseEvent, msg: ChatMessage) {
+  e.preventDefault()
+  ctxMsg.value = msg
+  ctxX.value = e.clientX
+  ctxY.value = e.clientY
+  ctxShow.value = true
+}
+
+function onCtxSelect(key: string) {
+  const msg = ctxMsg.value
+  if (!msg) return
+  if (key === 'copy') copyMessage(msg)
+  else if (key === 'fav') favoriteMessage(msg)
+  else if (key === 'reply') replyMessage(msg)
+  else if (key === 'recall') recallMessage(msg)
+  ctxShow.value = false
 }
 
 function replyMessage(msg: ChatMessage) {
@@ -214,7 +288,8 @@ function openFileView() {
 }
 
 function demoToast(tip: string) {
-  message.info(tip)
+  if (tip.includes('语音')) openVoiceCall()
+  else message.info(tip.replace('（演示）', ''))
 }
 </script>
 
@@ -347,29 +422,24 @@ function demoToast(tip: string) {
               :class="msg.isSelf ? 'right' : 'left'"
             >
               <Avatar v-if="!msg.isSelf" v-bind="peerAvatarProps(36)" />
-              <n-popover trigger="click" placement="bottom" :show-arrow="false">
-                <template #trigger>
-                  <div class="qq-file-card" :class="{ self: msg.isSelf }">
-                    <div class="qq-file-main">
-                      <div class="qq-file-icon apk">
-                        <n-icon :component="DocumentOutline" :size="26" color="var(--lx-bg-card)" />
-                      </div>
-                      <div class="qq-file-meta">
-                        <div class="qq-file-name">{{ msg.fileName || msg.content || '文件' }}</div>
-                        <div class="qq-file-size">{{ msg.fileSize || '' }}</div>
-                      </div>
-                    </div>
-                    <div class="qq-file-bar">
-                      {{ msg.fileStatus || (msg.isSelf ? '已发送' : '已接收') }}
-                    </div>
+              <div
+                class="qq-file-card"
+                :class="{ self: msg.isSelf }"
+                @contextmenu="onMsgContext($event, msg)"
+              >
+                <div class="qq-file-main">
+                  <div class="qq-file-icon apk">
+                    <n-icon :component="DocumentOutline" :size="26" color="var(--lx-bg-card)" />
                   </div>
-                </template>
-                <div class="msg-context-menu">
-                  <div class="menu-item" @click="copyMessage(msg)">复制文件名</div>
-                  <div class="menu-item" @click="replyMessage(msg)">回复</div>
-                  <div class="menu-item danger" v-if="msg.isSelf" @click="recallMessage(msg)">撤回</div>
+                  <div class="qq-file-meta">
+                    <div class="qq-file-name">{{ msg.fileName || msg.content || '文件' }}</div>
+                    <div class="qq-file-size">{{ msg.fileSize || '' }}</div>
+                  </div>
                 </div>
-              </n-popover>
+                <div class="qq-file-bar">
+                  {{ msg.fileStatus || (msg.isSelf ? '已发送' : '已接收') }}
+                </div>
+              </div>
               <Avatar v-if="msg.isSelf" text="我" color="var(--lx-success)" :size="36" />
             </div>
 
@@ -380,18 +450,13 @@ function demoToast(tip: string) {
               :class="msg.isSelf ? 'right' : 'left'"
             >
               <Avatar v-if="!msg.isSelf" v-bind="peerAvatarProps(36)" />
-              <n-popover trigger="click" placement="bottom" :show-arrow="false">
-                <template #trigger>
-                  <div class="qq-bubble image-bubble" :class="{ self: msg.isSelf }">
-                    <img :src="msg.content" class="qq-bubble-image" alt="图片消息" />
-                  </div>
-                </template>
-                <div class="msg-context-menu">
-                  <div class="menu-item" @click="copyMessage(msg)">复制链接</div>
-                  <div class="menu-item" @click="replyMessage(msg)">回复</div>
-                  <div class="menu-item danger" v-if="msg.isSelf" @click="recallMessage(msg)">撤回</div>
-                </div>
-              </n-popover>
+              <div
+                class="qq-bubble image-bubble"
+                :class="{ self: msg.isSelf }"
+                @contextmenu="onMsgContext($event, msg)"
+              >
+                <img :src="msg.content" class="qq-bubble-image" alt="图片消息" />
+              </div>
               <Avatar v-if="msg.isSelf" text="我" color="var(--lx-success)" :size="36" />
             </div>
 
@@ -402,30 +467,22 @@ function demoToast(tip: string) {
               :class="msg.isSelf ? 'right' : 'left'"
             >
               <Avatar v-if="!msg.isSelf" v-bind="peerAvatarProps(36)" />
-              <n-popover trigger="click" placement="bottom" :show-arrow="false">
-                <template #trigger>
-                  <div
-                    class="qq-bubble"
-                    :class="{ self: msg.isSelf, link: isLinkMsg(msg) }"
-                  >
-                    <div v-if="msg.replyTo" class="qq-bubble-reply">
-                      {{ msg.replyTo.senderName }}: {{ msg.replyTo.content }}
-                    </div>
-                    <p class="qq-bubble-text">{{ msg.content }}</p>
-                    <n-icon
-                      v-if="isLinkMsg(msg)"
-                      class="qq-link-ico"
-                      :component="LinkOutline"
-                      :size="14"
-                    />
-                  </div>
-                </template>
-                <div class="msg-context-menu">
-                  <div class="menu-item" @click="copyMessage(msg)">复制</div>
-                  <div class="menu-item" @click="replyMessage(msg)">回复</div>
-                  <div class="menu-item danger" v-if="msg.isSelf" @click="recallMessage(msg)">撤回</div>
+              <div
+                class="qq-bubble"
+                :class="{ self: msg.isSelf, link: isLinkMsg(msg) }"
+                @contextmenu="onMsgContext($event, msg)"
+              >
+                <div v-if="msg.replyTo" class="qq-bubble-reply">
+                  {{ msg.replyTo.senderName }}: {{ msg.replyTo.content }}
                 </div>
-              </n-popover>
+                <p class="qq-bubble-text">{{ msg.content }}</p>
+                <n-icon
+                  v-if="isLinkMsg(msg)"
+                  class="qq-link-ico"
+                  :component="LinkOutline"
+                  :size="14"
+                />
+              </div>
               <Avatar v-if="msg.isSelf" text="我" color="var(--lx-success)" :size="36" />
             </div>
           </template>
@@ -539,6 +596,17 @@ function demoToast(tip: string) {
         <GroupChatSidebar v-if="isGroupChat" />
       </div>
     </div>
+
+    <n-dropdown
+      trigger="manual"
+      placement="bottom-start"
+      :show="ctxShow"
+      :x="ctxX"
+      :y="ctxY"
+      :options="ctxOptions"
+      @select="onCtxSelect"
+      @clickoutside="ctxShow = false"
+    />
   </div>
 </template>
 

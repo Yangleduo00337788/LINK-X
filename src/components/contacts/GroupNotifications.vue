@@ -1,25 +1,34 @@
 ﻿<script setup lang="ts">
-import { NIcon, NButton } from 'naive-ui'
+import { NIcon, useMessage } from 'naive-ui'
 import { FilterOutline, TrashOutline } from '@vicons/ionicons5'
+import { storeToRefs } from 'pinia'
+import { useNotificationsStore } from '../../stores/notifications'
+import { useAppStore } from '../../stores/app'
 
-const notifications = [
-  {
-    id: 1,
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=hy',
-    name: '寒夜慢慢',
-    date: '星期六 23:34',
-    message: '邀请你加入 速云17聚合ai模型api调用 claude,gpt,grok,deepseek,veo,gemi...',
-    actionBtn: '发消息'
-  },
-  {
-    id: 2,
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=morning',
-    name: 'MORNING',
-    date: '2026/06/28 16:54',
-    message: '邀请你加入 极客软件园A12',
-    actionBtn: '发消息'
+const message = useMessage()
+const notificationsStore = useNotificationsStore()
+const appStore = useAppStore()
+const { groupNotifs } = storeToRefs(notificationsStore)
+const { acceptGroup, rejectGroup, clearGroupNotifs } = notificationsStore
+const { joinGroup } = appStore
+
+function handleAccept(id: string) {
+  const n = acceptGroup(id)
+  if (n) {
+    joinGroup(n.groupName)
+    message.success(`已加入群聊「${n.groupName}」`)
   }
-]
+}
+
+function handleReject(id: string) {
+  rejectGroup(id)
+  message.success('已拒绝群邀请')
+}
+
+function handleClear() {
+  clearGroupNotifs()
+  message.success('已清空通知')
+}
 </script>
 
 <template>
@@ -27,30 +36,31 @@ const notifications = [
     <div class="header">
       <h2 class="title">群通知</h2>
       <div class="actions">
-        <button class="action-btn">
-          <n-icon :component="FilterOutline" :size="20" />
-        </button>
-        <button class="action-btn">
+        <button class="action-btn" title="清空" @click="handleClear">
           <n-icon :component="TrashOutline" :size="20" />
+        </button>
+        <button class="action-btn" title="筛选">
+          <n-icon :component="FilterOutline" :size="20" />
         </button>
       </div>
     </div>
     <div class="content">
-      <div class="notif-list">
-        <div v-for="item in notifications" :key="item.id" class="notif-card">
-          <img :src="item.avatar" class="avatar" alt="" />
+      <div v-if="!groupNotifs.length" class="empty">暂无群通知</div>
+      <div v-else class="notif-list">
+        <div v-for="item in groupNotifs" :key="item.id" class="notif-card">
+          <div class="group-icon">群</div>
           <div class="info">
             <div class="title-line">
-              <span class="name">{{ item.name }}</span>
+              <span class="name">{{ item.groupName }}</span>
               <span class="date">{{ item.date }}</span>
             </div>
-            <div class="message">{{ item.message }}</div>
+            <div class="message">{{ item.inviter }}：{{ item.message }}</div>
           </div>
-          <div class="actions-right">
-            <n-button round size="small" type="default" class="send-msg-btn">
-              {{ item.actionBtn }}
-            </n-button>
+          <div v-if="item.status === '等待验证'" class="actions-right">
+            <button type="button" class="btn accept" @click="handleAccept(item.id)">同意</button>
+            <button type="button" class="btn reject" @click="handleReject(item.id)">拒绝</button>
           </div>
+          <div v-else class="status">{{ item.status }}</div>
         </div>
       </div>
     </div>
@@ -83,16 +93,17 @@ const notifications = [
 
 .actions {
   display: flex;
-  gap: 16px;
+  gap: 8px;
 }
 
 .action-btn {
-  background: none;
+  width: 32px;
+  height: 32px;
   border: none;
-  padding: 4px;
-  color: var(--lx-text-secondary);
-  cursor: pointer;
+  background: transparent;
   border-radius: var(--lx-radius);
+  cursor: pointer;
+  color: var(--lx-text-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -100,79 +111,104 @@ const notifications = [
 
 .action-btn:hover {
   background: var(--lx-bg-hover);
-  color: var(--lx-text-body);
 }
 
 .content {
   flex: 1;
   overflow-y: auto;
-  padding: 24px;
+  padding: 16px 24px;
+}
+
+.empty {
+  text-align: center;
+  color: var(--lx-text-muted);
+  padding: 40px;
 }
 
 .notif-list {
-  max-width: 720px;
-  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .notif-card {
   display: flex;
-  align-items: center;
+  gap: 12px;
+  padding: 16px;
   background: var(--lx-bg-card);
-  padding: 20px;
   border-radius: var(--lx-radius);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
-  gap: 16px;
+  align-items: flex-start;
 }
 
-.avatar {
+.group-icon {
   width: 48px;
   height: 48px;
-  border-radius: 50%;
-  object-fit: cover;
-  background: #f0f0f0;
+  border-radius: var(--lx-radius);
+  background: var(--lx-accent-soft);
+  color: var(--lx-accent);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .info {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
   min-width: 0;
 }
 
 .title-line {
   display: flex;
-  align-items: baseline;
+  justify-content: space-between;
   gap: 8px;
+  margin-bottom: 4px;
 }
 
 .name {
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--lx-accent);
+  font-weight: 600;
+  color: var(--lx-text-body);
 }
 
 .date {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--lx-text-muted);
 }
 
 .message {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--lx-text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .actions-right {
-  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
-.send-msg-btn {
-  padding: 0 20px;
+.btn {
+  min-width: 56px;
+  height: 28px;
+  border-radius: var(--lx-radius);
+  border: none;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btn.accept {
+  background: var(--lx-accent);
+  color: var(--lx-bg-card);
+}
+
+.btn.reject {
+  background: var(--lx-bg-panel);
+  color: var(--lx-text-secondary);
+}
+
+.status {
+  font-size: 12px;
+  color: var(--lx-text-muted);
+  flex-shrink: 0;
 }
 </style>

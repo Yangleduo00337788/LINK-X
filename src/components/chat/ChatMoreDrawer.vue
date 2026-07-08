@@ -1,28 +1,90 @@
-﻿<script setup lang="ts">
-import { ref } from 'vue'
-import { NSwitch, useMessage } from 'naive-ui'
+<script setup lang="ts">
+import { NSwitch, useMessage, useDialog } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
+import { useOverlayStore } from '../../stores/overlay'
+import { useContactsStore } from '../../stores/contacts'
 
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
+const overlayStore = useOverlayStore()
+const contactsStore = useContactsStore()
 const message = useMessage()
+const dialog = useDialog()
 const { moreDrawerOpen } = storeToRefs(chatModalsStore)
 const { closeMore } = chatModalsStore
-const { currentSession } = storeToRefs(appStore)
+const { currentSession, currentSessionId } = storeToRefs(appStore)
+const {
+  toggleSessionPin,
+  toggleSessionMute,
+  toggleSessionBlock,
+  clearSessionMessages,
+  deleteSession,
+  setNav
+} = appStore
+const { open: openOverlay } = overlayStore
 
-const pinTop = ref(false)
-const mute = ref(false)
-const block = ref(false)
+function setPin(val: boolean) {
+  if (!currentSessionId.value || !!currentSession.value?.pinned === val) return
+  toggleSessionPin(currentSessionId.value)
+}
+
+function setMute(val: boolean) {
+  if (!currentSessionId.value || !!currentSession.value?.muted === val) return
+  toggleSessionMute(currentSessionId.value)
+}
+
+function setBlock(val: boolean) {
+  if (!currentSessionId.value || !!currentSession.value?.blocked === val) return
+  toggleSessionBlock(currentSessionId.value)
+}
 
 function onBackdrop() {
   closeMore()
 }
 
-function demo(action: string) {
-  message.info(`${action}（演示）`)
-  if (action.includes('删除聊天记录')) closeMore()
+function openFileTransfer() {
+  setNav('files')
+  closeMore()
+  message.success('已打开文件传输列表')
+}
+
+function clearChat() {
+  if (!currentSessionId.value) return
+  dialog.warning({
+    title: '删除聊天记录',
+    content: '确定清空当前会话的所有消息？',
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: () => {
+      clearSessionMessages(currentSessionId.value!)
+      message.success('聊天记录已清空')
+      closeMore()
+    }
+  })
+}
+
+function deleteFriend() {
+  if (!currentSession.value || !currentSessionId.value) return
+  dialog.warning({
+    title: '删除好友',
+    content: `确定删除好友「${currentSession.value.name}」并移除会话？`,
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: () => {
+      contactsStore.remove(currentSessionId.value!)
+      deleteSession(currentSessionId.value!)
+      message.success('已删除好友')
+      closeMore()
+    }
+  })
+}
+
+function reportUser() {
+  openOverlay('help')
+  closeMore()
+  message.info('请在帮助与反馈中提交举报')
 }
 </script>
 
@@ -35,27 +97,27 @@ function demo(action: string) {
             <div class="drawer-inner">
               <div class="row switch-row">
                 <span>设为置顶</span>
-                <n-switch v-model:value="pinTop" size="small" />
+                <n-switch :value="!!currentSession?.pinned" size="small" @update:value="setPin" />
               </div>
               <div class="row switch-row">
                 <span>消息免打扰</span>
-                <n-switch v-model:value="mute" size="small" />
+                <n-switch :value="!!currentSession?.muted" size="small" @update:value="setMute" />
               </div>
               <div class="row switch-row">
                 <span>屏蔽此人</span>
-                <n-switch v-model:value="block" size="small" />
+                <n-switch :value="!!currentSession?.blocked" size="small" @update:value="setBlock" />
               </div>
-              <button type="button" class="row link-row" @click="demo('文件传输列表')">
+              <button type="button" class="row link-row" @click="openFileTransfer">
                 文件传输列表
               </button>
-              <button type="button" class="row danger-text" @click="demo('删除聊天记录')">
+              <button type="button" class="row danger-text" @click="clearChat">
                 删除聊天记录
               </button>
-              <button type="button" class="row danger-text" @click="demo('删除好友')">
+              <button type="button" class="row danger-text" @click="deleteFriend">
                 删除好友
               </button>
               <p class="report">
-                <a href="#" @click.prevent="demo('举报该用户')">被骚扰了？举报该用户</a>
+                <a href="#" @click.prevent="reportUser">被骚扰了？举报该用户</a>
               </p>
               <p v-if="currentSession" class="hint-name">{{ currentSession.name }}</p>
             </div>
@@ -98,7 +160,7 @@ function demo(action: string) {
   font-size: 14px;
   color: var(--lx-text-body);
   padding: 14px 0;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--lx-border-light);
 }
 
 .switch-row {

@@ -1,16 +1,14 @@
 ﻿<script setup lang="ts">
 import { ref, computed } from 'vue'
-import { NIcon } from 'naive-ui'
-import { DocumentTextOutline, FolderOutline, ImageOutline, FilmOutline } from '@vicons/ionicons5'
+import { NIcon, useMessage } from 'naive-ui'
+import { DocumentTextOutline, FolderOutline, ImageOutline, FilmOutline, TrashOutline } from '@vicons/ionicons5'
 import PanelSearchBar from './PanelSearchBar.vue'
-
-const search = ref('')
-const activeTab = ref('recent') // recent, document, image, media, other
-
 import { storeToRefs } from 'pinia'
 import { useFilesStore } from '../stores/files'
 
+const message = useMessage()
 const filesStore = useFilesStore()
+const { remove } = filesStore
 const { items: mockFiles } = storeToRefs(filesStore)
 
 const filtered = computed(() => {
@@ -31,8 +29,17 @@ function iconFor(type: string) {
   return FolderOutline
 }
 
+const search = ref('')
+const activeTab = ref('recent')
+
 function setTab(tab: string) {
   activeTab.value = tab
+}
+
+function removeFile(e: Event, id: string) {
+  e.stopPropagation()
+  remove(id)
+  message.success('已删除文件记录')
 }
 </script>
 
@@ -64,6 +71,9 @@ function setTab(tab: string) {
           </div>
         </div>
         <span class="time">{{ item.time }}</span>
+        <button type="button" class="del-btn" title="删除" @click="removeFile($event, item.id)">
+          <n-icon :component="TrashOutline" :size="16" />
+        </button>
       </div>
       
       <div v-if="filtered.length === 0" class="empty-state">
@@ -184,8 +194,21 @@ function setTab(tab: string) {
 
 .time {
   font-size: 11px;
-  color: #bbb;
+  color: var(--lx-text-muted);
   flex-shrink: 0;
+}
+
+.del-btn {
+  border: none;
+  background: transparent;
+  color: var(--lx-text-muted);
+  cursor: pointer;
+  padding: 4px;
+  opacity: 0;
+}
+
+.row:hover .del-btn {
+  opacity: 1;
 }
 
 .empty-state {

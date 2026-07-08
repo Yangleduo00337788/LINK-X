@@ -8,17 +8,19 @@ import {
   CheckmarkCircle
 } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
-import { contacts, initialSessions } from '../../data/mockData'
+import { initialSessions } from '../../data/mockData'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
+import { useContactsStore } from '../../stores/contacts'
 import { useMessage } from 'naive-ui'
 
 const message = useMessage()
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
+const contactsStore = useContactsStore()
 const { createGroupOpen } = storeToRefs(chatModalsStore)
-const { closeCreateGroup } = chatModalsStore
+const { closeCreateGroup, openSelectContacts } = chatModalsStore
 const { createGroup } = appStore
 
 const search = ref('')
@@ -61,10 +63,18 @@ const recentContacts = computed(() => {
 })
 
 const collapsedGroups = ['特别关心', '我的好友', '朋友']
+const expandedGroup = ref<string | null>(null)
+
+const groupContacts = (group: string) => {
+  const q = search.value.trim().toLowerCase()
+  let list = contactsStore.items.filter(c => c.group === group)
+  if (!q) return list
+  return list.filter(c => c.name.toLowerCase().includes(q))
+}
 
 const allPickable = computed(() => {
   const rows = [...recentContacts.value]
-  for (const c of contacts) {
+  for (const c of contactsStore.items) {
     if (!rows.some(r => r.id === c.id)) {
       rows.push({
         id: c.id,
@@ -124,7 +134,7 @@ function cancel() {
                 placeholder="搜索"
               />
             </div>
-            <button type="button" class="category-row" @click="message.info('按分类创建（演示）')">
+            <button type="button" class="category-row" @click="openSelectContacts">
               <span>按分类创建</span>
               <span class="more-link">更多 <n-icon :component="ChevronForwardOutline" :size="14" /></span>
             </button>
@@ -166,11 +176,35 @@ function cancel() {
                 :key="g"
                 type="button"
                 class="group-head"
-                @click="message.info(`展开「${g}」（演示）`)"
+                @click="expandedGroup = expandedGroup === g ? null : g"
               >
-                <n-icon :component="ChevronForwardOutline" :size="16" class="chev collapsed" />
+                <n-icon
+                  :component="ChevronForwardOutline"
+                  :size="16"
+                  class="chev"
+                  :class="{ collapsed: expandedGroup !== g }"
+                />
                 <span>{{ g }}</span>
               </button>
+              <template v-for="g in collapsedGroups" :key="'items-' + g">
+                <template v-if="expandedGroup === g">
+                  <button
+                    v-for="c in groupContacts(g)"
+                    :key="c.id"
+                    type="button"
+                    class="contact-row"
+                    @click="toggle(c.id)"
+                  >
+                    <n-icon
+                      :component="selected.has(c.id) ? CheckmarkCircle : EllipseOutline"
+                      :size="20"
+                      :color="selected.has(c.id) ? 'var(--lx-accent)' : 'var(--lx-border-strong)'"
+                    />
+                    <Avatar :text="c.avatarText" :color="c.avatarColor" :size="36" />
+                    <span class="c-name">{{ c.name }}</span>
+                  </button>
+                </template>
+              </template>
             </div>
           </div>
           <div class="right-pane">

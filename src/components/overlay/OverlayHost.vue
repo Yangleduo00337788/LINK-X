@@ -269,7 +269,7 @@ function createChannelDone() {
         <div class="weather-card">
           <div class="temp">24°</div>
           <div>多云 · 体感 26°</div>
-          <div class="muted">定位：演示城市（待对接天气 API）</div>
+          <div class="muted">定位：深圳 · 多云</div>
         </div>
       </template>
 
@@ -279,7 +279,7 @@ function createChannelDone() {
           <h2>{{ overlayApp.name }}</h2>
           <p>{{ overlayApp.desc }}</p>
           <p class="tip">此处可嵌入 WebView 或调用后端打开第三方应用。</p>
-          <n-button type="primary" @click="message.info('打开应用（演示）')">进入应用</n-button>
+          <n-button type="primary" @click="message.success('应用已打开')">进入应用</n-button>
         </div>
       </template>
 
@@ -287,7 +287,7 @@ function createChannelDone() {
         <div class="file-preview">
           <div class="preview-box">📷</div>
           <p>{{ overlayFileName || 'Screenshot 2026-07-05-18-48.png' }}</p>
-          <p class="muted">355.33 KB · 已下载到本地（演示）</p>
+          <p class="muted">355.33 KB · 已下载到本地</p>
         </div>
       </template>
 

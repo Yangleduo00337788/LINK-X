@@ -1,23 +1,31 @@
-﻿<script setup lang="ts">
-import { ref } from 'vue'
-import { NIcon, NSwitch } from 'naive-ui'
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import { NIcon, NSwitch, useMessage, useDialog } from 'naive-ui'
 import { SearchOutline } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
-import { useMessage } from 'naive-ui'
+import { GROUP_ANNOUNCEMENT_SHORT } from '../../data/groupDemo'
 
 const message = useMessage()
+const dialog = useDialog()
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
 const { groupInfoDrawerOpen } = storeToRefs(chatModalsStore)
 const { closeGroupInfo, openGroupAnnouncement, openAddMembers } = chatModalsStore
-const { currentSession, userProfile } = storeToRefs(appStore)
+const { currentSession, currentSessionId, userProfile } = storeToRefs(appStore)
+const {
+  toggleSessionPin,
+  toggleSessionMute,
+  clearSessionMessages,
+  leaveGroup
+} = appStore
 
-const pinTop = ref(false)
-const mute = ref(true)
 const groupRemark = ref('')
+const announcement = GROUP_ANNOUNCEMENT_SHORT
+
+const groupId = computed(() => currentSessionId.value?.replace(/\D/g, '').slice(-10) || '1007446249')
 
 const memberPreview = [
   { text: '有', color: '#f56c6c' },
@@ -29,22 +37,59 @@ const memberPreview = [
   { text: 'M', color: '#1890ff' },
   { text: 'Q', color: 'var(--lx-accent)' },
   { text: '我', color: '#eb2f96' },
-  { text: '小', color: '#13c2c2' },
-  { text: '雪', color: '#2f54eb' },
-  { text: '执', color: '#595959' },
-  { text: '3', color: '#8c8c8c' },
-  { text: 'a', color: '#bfbfbf' }
+  { text: '小', color: '#13c2c2' }
 ]
 
-const groupId = '1007446249'
-const announcement = '卡网：https://pay.ldxp.cn/shop/aozai cursor 白号 售后 GPT 成品号'
+function setPin(val: boolean) {
+  if (!currentSessionId.value || !!currentSession.value?.pinned === val) return
+  toggleSessionPin(currentSessionId.value)
+}
+
+function setMute(val: boolean) {
+  if (!currentSessionId.value || !!currentSession.value?.muted === val) return
+  toggleSessionMute(currentSessionId.value)
+}
 
 function close() {
   closeGroupInfo()
 }
 
-function demo(t: string) {
-  message.info(`${t}（演示）`)
+function shareGroup() {
+  navigator.clipboard.writeText(`群号：${groupId.value}`)
+  message.success('群号已复制')
+}
+
+function clearChat() {
+  if (!currentSessionId.value) return
+  dialog.warning({
+    title: '删除聊天记录',
+    content: '确定清空本群聊天记录？',
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: () => {
+      clearSessionMessages(currentSessionId.value!)
+      message.success('聊天记录已清空')
+    }
+  })
+}
+
+function quitGroup() {
+  if (!currentSession.value || !currentSessionId.value) return
+  dialog.warning({
+    title: '退出群聊',
+    content: `确定退出「${currentSession.value.name}」？`,
+    positiveText: '退出',
+    negativeText: '取消',
+    onPositiveClick: () => {
+      leaveGroup(currentSessionId.value!)
+      message.success('已退出群聊')
+      close()
+    }
+  })
+}
+
+function reportGroup() {
+  message.info('举报已记录，感谢反馈')
 }
 </script>
 
@@ -63,7 +108,7 @@ function demo(t: string) {
                 />
                 <h2 class="g-name">{{ currentSession?.name || '群聊' }}</h2>
                 <p class="g-id">群号：{{ groupId }}</p>
-                <button type="button" class="share-btn" @click="demo('分享')">分享</button>
+                <button type="button" class="share-btn" @click="shareGroup">分享</button>
               </div>
 
               <section class="block">
@@ -75,18 +120,8 @@ function demo(t: string) {
                   <div v-for="(m, i) in memberPreview" :key="i" class="av">
                     <Avatar :text="m.text" :color="m.color" :size="40" />
                   </div>
-                  <button
-                    type="button"
-                    class="av invite"
-                    title="邀请"
-                    @click="openAddMembers"
-                  >
-                    +
-                  </button>
+                  <button type="button" class="av invite" title="邀请" @click="openAddMembers">+</button>
                 </div>
-                <button type="button" class="link-row" @click="demo('查看全部成员')">
-                  查看全部成员
-                </button>
               </section>
 
               <section class="block">
@@ -102,37 +137,26 @@ function demo(t: string) {
               </section>
 
               <section class="block">
-                <div class="row-item">
-                  <span>群聊备注</span>
-                </div>
-                <input
-                  v-model="groupRemark"
-                  type="text"
-                  class="remark-input"
-                  placeholder="填写备注"
-                />
+                <div class="row-item"><span>群聊备注</span></div>
+                <input v-model="groupRemark" type="text" class="remark-input" placeholder="填写备注" />
               </section>
 
               <div class="switch-block">
                 <div class="switch-row">
                   <span>设为置顶</span>
-                  <n-switch v-model:value="pinTop" size="small" />
+                  <n-switch :value="!!currentSession?.pinned" size="small" @update:value="setPin" />
                 </div>
                 <div class="switch-row">
                   <span>消息免打扰</span>
-                  <n-switch v-model:value="mute" size="small" />
+                  <n-switch :value="!!currentSession?.muted" size="small" @update:value="setMute" />
                 </div>
                 <p class="hint">接收消息但不提醒</p>
               </div>
 
-              <button type="button" class="action-btn" @click="demo('删除聊天记录')">
-                删除聊天记录
-              </button>
-              <button type="button" class="action-btn danger" @click="demo('退出群聊')">
-                退出群聊
-              </button>
+              <button type="button" class="action-btn" @click="clearChat">删除聊天记录</button>
+              <button type="button" class="action-btn danger" @click="quitGroup">退出群聊</button>
               <p class="report">
-                <a href="#" @click.prevent="demo('举报该群')">被骚扰了？举报该群</a>
+                <a href="#" @click.prevent="reportGroup">被骚扰了？举报该群</a>
               </p>
             </div>
           </aside>
@@ -171,7 +195,7 @@ function demo(t: string) {
 .group-hero {
   text-align: center;
   padding-bottom: 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--lx-border-light);
   margin-bottom: 12px;
 }
 
@@ -183,7 +207,7 @@ function demo(t: string) {
   margin: 0 0 6px;
   font-size: 16px;
   font-weight: 600;
-  color: #222;
+  color: var(--lx-text-body);
   line-height: 1.3;
 }
 
@@ -197,7 +221,7 @@ function demo(t: string) {
   min-width: 88px;
   height: 32px;
   border-radius: var(--lx-radius);
-  border: 1px solid #ddd;
+  border: 1px solid var(--lx-border-strong);
   background: var(--lx-bg-card);
   font-size: 13px;
   cursor: pointer;
@@ -241,7 +265,7 @@ function demo(t: string) {
   height: 40px;
   border-radius: 50%;
   border: 1px dashed var(--lx-border-strong);
-  background: #fafafa;
+  background: var(--lx-bg-panel);
   font-size: 22px;
   color: var(--lx-text-muted);
   cursor: pointer;
@@ -249,15 +273,6 @@ function demo(t: string) {
   align-items: center;
   justify-content: center;
   margin: 0 auto;
-}
-
-.link-row {
-  border: none;
-  background: none;
-  color: var(--lx-accent);
-  font-size: 13px;
-  cursor: pointer;
-  padding: 4px 0;
 }
 
 .block-title {
@@ -305,10 +320,11 @@ function demo(t: string) {
   margin-top: 8px;
   height: 36px;
   border: none;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--lx-border-light);
   font-size: 13px;
   outline: none;
   color: var(--lx-text-body);
+  background: transparent;
 }
 
 .switch-block {

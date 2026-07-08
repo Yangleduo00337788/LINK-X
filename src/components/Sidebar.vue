@@ -1,9 +1,10 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import {
   ChatbubbleEllipsesOutline,
   PersonOutline,
   ApertureOutline,
   MenuOutline,
+  GridOutline,
   BookmarkOutline,
   FolderOutline,
   ColorPaletteOutline,
@@ -21,6 +22,7 @@ import { useAppStore } from '../stores/app'
 import { useSecondaryViewStore } from '../stores/secondaryView'
 import { useChatModalsStore } from '../stores/chatModals'
 import { useSettingsStore } from '../stores/settings'
+import { useOverlayStore } from '../stores/overlay'
 import type { NavKey } from '../types'
 
 const appStore = useAppStore()
@@ -33,13 +35,15 @@ const { setNav, logout, lock } = appStore
 const { openMomentsModal } = chatModalsStore
 const { openSettings } = settingsStore
 
-const message = useMessage()
+const overlayStore = useOverlayStore()
+const { open: openOverlay } = overlayStore
 
 const mainNav: { key: NavKey; icon: typeof ChatbubbleEllipsesOutline }[] = [
   { key: 'chat', icon: ChatbubbleEllipsesOutline },
   { key: 'contacts', icon: PersonOutline },
   { key: 'favorites', icon: BookmarkOutline },
   { key: 'files', icon: FolderOutline },
+  { key: 'apps', icon: GridOutline },
   { key: 'moments', icon: ApertureOutline }
 ]
 
@@ -72,8 +76,11 @@ function handlePaletteClick() {
   openSettings('appearance')
 }
 
+const message = useMessage()
+
 function handleHistoryClick() {
-  message.info('聊天记录管理功能开发中')
+  setNav('chat')
+  openOverlay('chat-history')
 }
 
 function handleUpdateClick() {
@@ -81,7 +88,7 @@ function handleUpdateClick() {
 }
 
 function handleHelpClick() {
-  message.info('帮助与反馈中心')
+  openOverlay('help')
 }
 
 function handleLockClick() {
@@ -266,7 +273,7 @@ function handleLogoutClick() {
 }
 
 .menu-list-item:hover {
-  background: #f0f0f0;
+  background: var(--lx-bg-hover);
 }
 
 .menu-list-item .arrow {
