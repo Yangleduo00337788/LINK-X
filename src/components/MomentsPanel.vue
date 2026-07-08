@@ -1,12 +1,14 @@
 ﻿<script setup lang="ts">
 import { ref, computed } from 'vue'
 import { NInput, NButton, NIcon, useMessage } from 'naive-ui'
-import { HeartOutline, Heart, ChatbubbleOutline } from '@vicons/ionicons5'
+import { HeartOutline, Heart, ChatbubbleOutline, ImageOutline, CloseOutline } from '@vicons/ionicons5'
 import PanelSearchBar from './PanelSearchBar.vue'
 import Avatar from './Avatar.vue'
+import EmptyState from './common/EmptyState.vue'
 import { storeToRefs } from 'pinia'
 import { useMomentsStore } from '../stores/moments'
 import { useAppStore } from '../stores/app'
+import { readFileAsDataUrl, MAX_IMAGE_BYTES } from '../utils/file'
 
 const message = useMessage()
 const momentsStore = useMomentsStore()
@@ -17,6 +19,8 @@ const { addPost, toggleLike, addComment } = momentsStore
 
 const search = ref('')
 const newPost = ref('')
+const composeImages = ref<string[]>([])
+const imageInputRef = ref<HTMLInputElement | null>(null)
 const commentDrafts = ref<Record<string, string>>({})
 const showCommentFor = ref<string | null>(null)
 
@@ -28,14 +32,45 @@ const filtered = computed(() => {
   )
 })
 
+async function onPickImages(e: Event) {
+  const input = e.target as HTMLInputElement
+  const files = Array.from(input.files ?? [])
+  input.value = ''
+  for (const file of files) {
+    if (composeImages.value.length >= 9) {
+      message.warning('最多添加 9 张图片')
+      break
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      message.warning(`「${file.name}」超过 2MB，已跳过`)
+      continue
+    }
+    try {
+      composeImages.value.push(await readFileAsDataUrl(file))
+    } catch {
+      message.error(`「${file.name}」读取失败`)
+    }
+  }
+}
+
+function removeComposeImage(index: number) {
+  composeImages.value.splice(index, 1)
+}
+
 function publish() {
   const text = newPost.value.trim()
-  if (!text) {
-    message.warning('请输入动态内容')
+  if (!text && !composeImages.value.length) {
+    message.warning('请输入动态内容或添加图片')
     return
   }
-  addPost(text, userProfile.value.nickname, 'https://api.dicebear.com/7.x/avataaars/svg?seed=me')
+  addPost(
+    text || '分享图片',
+    userProfile.value.nickname,
+    'https://api.dicebear.com/7.x/avataaars/svg?seed=me',
+    composeImages.value.length ? [...composeImages.value] : undefined
+  )
   newPost.value = ''
+  composeImages.value = []
   message.success('动态已发布')
 }
 
@@ -51,7 +86,7 @@ function submitComment(postId: string) {
 
 <template>
   <div class="moments-panel">
-    <PanelSearchBar v-model="search" placeholder="搜索朋友圈" />
+    <PanelSearchBar v-model="search" placeholder="搜索友链" />
     <div class="composer">
       <n-input
         v-model:value="newPost"
@@ -59,10 +94,30 @@ function submitComment(postId: string) {
         placeholder="分享新鲜事…"
         :rows="2"
       />
-      <n-button type="primary" size="small" class="publish-btn" @click="publish">发布</n-button>
+      <div v-if="composeImages.length" class="compose-images">
+        <div v-for="(img, i) in composeImages" :key="i" class="compose-thumb-wrap">
+          <img :src="img" alt="" class="compose-thumb" />
+          <button type="button" class="compose-remove" @click="removeComposeImage(i)">
+            <n-icon :component="CloseOutline" :size="12" />
+          </button>
+        </div>
+      </div>
+      <div class="composer-actions">
+        <input ref="imageInputRef" type="file" accept="image/*" multiple hidden @change="onPickImages" />
+        <button type="button" class="compose-tool" title="添加图片" @click="imageInputRef?.click()">
+          <n-icon :component="ImageOutline" :size="18" />
+        </button>
+        <n-button type="primary" size="small" class="publish-btn" @click="publish">发布</n-button>
+      </div>
     </div>
     <div class="list">
-      <article v-for="m in filtered" :key="m.id" class="moment-card">
+      <EmptyState
+        v-if="!filtered.length"
+        :title="search.trim() ? '未找到相关动态' : '暂无动态'"
+        :description="search.trim() ? '换个关键词试试' : '发布第一条友链动态吧'"
+      />
+      <template v-else>
+        <article v-for="m in filtered" :key="m.id" class="moment-card">
         <div class="moment-head">
           <Avatar :text="m.user.charAt(0)" color="var(--lx-accent)" :size="40" :image-url="m.avatar" />
           <div class="meta">
@@ -99,6 +154,7 @@ function submitComment(postId: string) {
           <n-button size="tiny" type="primary" @click="submitComment(m.id)">发送</n-button>
         </div>
       </article>
+      </template>
     </div>
   </div>
 </template>
@@ -118,6 +174,65 @@ function submitComment(postId: string) {
   flex-direction: column;
   gap: 8px;
   border-bottom: 1px solid var(--lx-border-light);
+}
+
+.composer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.compose-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.compose-thumb-wrap {
+  position: relative;
+  width: 64px;
+  height: 64px;
+}
+
+.compose-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--lx-radius);
+}
+
+.compose-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: var(--lx-danger);
+  color: var(--lx-text-on-accent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.compose-tool {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--lx-radius);
+  background: var(--lx-bg-input);
+  color: var(--lx-text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.compose-tool:hover {
+  color: var(--lx-accent);
+  background: var(--lx-accent-soft);
 }
 
 .publish-btn {

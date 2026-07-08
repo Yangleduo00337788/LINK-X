@@ -35,13 +35,13 @@ const { openSettings } = settingsStore
 const overlayStore = useOverlayStore()
 const { open: openOverlay } = overlayStore
 
-const mainNav: { key: NavKey; icon: typeof ChatbubbleEllipsesOutline }[] = [
-  { key: 'chat', icon: ChatbubbleEllipsesOutline },
-  { key: 'contacts', icon: PersonOutline },
-  { key: 'favorites', icon: BookmarkOutline },
-  { key: 'files', icon: FolderOutline },
-  { key: 'apps', icon: GridOutline },
-  { key: 'moments', icon: ApertureOutline }
+const mainNav: { key: NavKey; icon: typeof ChatbubbleEllipsesOutline; label: string }[] = [
+  { key: 'chat', icon: ChatbubbleEllipsesOutline, label: '消息' },
+  { key: 'contacts', icon: PersonOutline, label: '联系人' },
+  { key: 'favorites', icon: BookmarkOutline, label: '收藏' },
+  { key: 'files', icon: FolderOutline, label: '文件' },
+  { key: 'apps', icon: GridOutline, label: '应用' },
+  { key: 'moments', icon: ApertureOutline, label: '友链' }
 ]
 
 function handleClick(key: NavKey | 'menu') {
@@ -49,7 +49,7 @@ function handleClick(key: NavKey | 'menu') {
     return
   }
   if (key === 'moments') {
-    // 调用 Electron API 打开独立的 X友圈 窗口
+    // 调用 Electron API 打开独立的友链窗口
     if (window.electronAPI) {
       window.electronAPI.openMoments()
     } else {
@@ -110,6 +110,7 @@ function handleLogoutClick() {
         :key="item.key"
         class="nav-item"
         :class="{ active: navKey === item.key }"
+        :title="item.label"
         @click="handleClick(item.key)"
       >
         <n-icon :component="item.icon" :size="22" />
@@ -279,6 +280,6 @@ function handleLogoutClick() {
 }
 
 .menu-list-item.danger:hover {
-  color: #fa5151;
+  color: var(--lx-danger);
 }
 </style>

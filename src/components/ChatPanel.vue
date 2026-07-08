@@ -1310,7 +1310,7 @@ function demoToast(tip: string) {
   padding: 12px 14px;
   border-radius: var(--lx-radius);
   background: linear-gradient(135deg, #e84c3d, #c0392b);
-  color: #fff;
+  color: var(--lx-text-on-accent);
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(232, 76, 61, 0.35);
 }
@@ -1384,11 +1384,11 @@ function demoToast(tip: string) {
 }
 
 .menu-item.danger {
-  color: #fa5151;
+  color: var(--lx-danger);
 }
 
 .menu-item.danger:hover {
-  background: #fff0f0;
+  background: var(--lx-danger-bg);
 }
 
 /* 引用消息展示 */
@@ -1452,7 +1452,7 @@ function demoToast(tip: string) {
 }
 
 .reply-close:hover {
-  color: #fa5151;
+  color: var(--lx-danger);
 }
 
 .emoji-grid {

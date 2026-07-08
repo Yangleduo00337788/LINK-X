@@ -14,6 +14,7 @@ declare global {
       onMaximizedChange: (callback: (maximized: boolean) => void) => () => void
       setAutoStart?: (enabled: boolean) => Promise<boolean>
       getAutoStart?: () => Promise<boolean>
+      notifyThemeChange?: (theme: 'light' | 'dark') => void
       isElectron?: boolean
     }
   }

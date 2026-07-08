@@ -3,6 +3,7 @@ import type { NavKey, ChatSession, ChatMessage, ContactItem } from '../types'
 import { initialSessions, initialMessages, sessionFromContact } from '../data/mockData'
 import { useContactsStore } from './contacts'
 import { useGroupMetaStore } from './groupMeta'
+import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
 
 export interface SendMessageOptions {
   type?: ChatMessage['type']
@@ -383,7 +384,8 @@ export const useAppStore = defineStore('app', {
 
     toggleTheme() {
       this.theme = this.theme === 'light' ? 'dark' : 'light'
-      document.documentElement.setAttribute('data-theme', this.theme)
+      applyDocumentTheme(this.theme)
+      notifyElectronTheme(this.theme)
     },
 
     updateSignature(text: string) {

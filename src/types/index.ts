@@ -1,11 +1,7 @@
 export type NavKey = 'chat' | 'contacts' | 'favorites' | 'files' | 'moments' | 'apps'
 
 export type OverlayPage =
-  | 'settings'
-  | 'notifications'
-  | 'privacy'
   | 'help'
-  | 'about'
   | 'profile'
   | 'add-friend'
   | 'create-group'

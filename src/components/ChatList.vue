@@ -191,8 +191,8 @@ function onContextMenuSelect(key: string) {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  background: #fff1f0;
-  color: #fa5151;
+  background: var(--lx-danger-bg-soft);
+  color: var(--lx-danger);
   padding: 8px;
   font-size: 12px;
   border-bottom: 1px solid #ffccc7;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import MainStatusBar from './MainStatusBar.vue'
 import Sidebar from './Sidebar.vue'
 import ChatList from './ChatList.vue'
@@ -14,21 +14,22 @@ import PlaceholderMainView from './PlaceholderMainView.vue'
 import OverlayHost from './overlay/OverlayHost.vue'
 import ChatMoreDrawer from './chat/ChatMoreDrawer.vue'
 import GroupInfoDrawer from './chat/GroupInfoDrawer.vue'
-import CreateGroupModal from './chat/CreateGroupModal.vue'
-import ComprehensiveSearchModal from './chat/ComprehensiveSearchModal.vue'
-import VoiceCallModal from './chat/VoiceCallModal.vue'
-import VideoCallModal from './chat/VideoCallModal.vue'
-import AddGroupMembersModal from './chat/AddGroupMembersModal.vue'
-import GroupFilesModal from './chat/GroupFilesModal.vue'
-import GroupAlbumModal from './chat/GroupAlbumModal.vue'
-import GroupEssenceModal from './chat/GroupEssenceModal.vue'
-import GroupAnnouncementModal from './chat/GroupAnnouncementModal.vue'
-import RedPacketModal from './chat/RedPacketModal.vue'
-import RedPacketReceiveModal from './chat/RedPacketReceiveModal.vue'
-import ContactProfileModal from './chat/ContactProfileModal.vue'
-import MomentsModal from './MomentsModal.vue'
 import SettingsModal from './SettingsModal.vue'
 import LockScreen from './LockScreen.vue'
+
+const CreateGroupModal = defineAsyncComponent(() => import('./chat/CreateGroupModal.vue'))
+const ComprehensiveSearchModal = defineAsyncComponent(() => import('./chat/ComprehensiveSearchModal.vue'))
+const VoiceCallModal = defineAsyncComponent(() => import('./chat/VoiceCallModal.vue'))
+const VideoCallModal = defineAsyncComponent(() => import('./chat/VideoCallModal.vue'))
+const AddGroupMembersModal = defineAsyncComponent(() => import('./chat/AddGroupMembersModal.vue'))
+const GroupFilesModal = defineAsyncComponent(() => import('./chat/GroupFilesModal.vue'))
+const GroupAlbumModal = defineAsyncComponent(() => import('./chat/GroupAlbumModal.vue'))
+const GroupEssenceModal = defineAsyncComponent(() => import('./chat/GroupEssenceModal.vue'))
+const GroupAnnouncementModal = defineAsyncComponent(() => import('./chat/GroupAnnouncementModal.vue'))
+const RedPacketModal = defineAsyncComponent(() => import('./chat/RedPacketModal.vue'))
+const RedPacketReceiveModal = defineAsyncComponent(() => import('./chat/RedPacketReceiveModal.vue'))
+const ContactProfileModal = defineAsyncComponent(() => import('./chat/ContactProfileModal.vue'))
+const MomentsModal = defineAsyncComponent(() => import('./MomentsModal.vue'))
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
 import { useChatModalsStore } from '../stores/chatModals'

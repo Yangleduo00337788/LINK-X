@@ -16,10 +16,14 @@ import {
 } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useNoteStore } from '../stores/note'
+import { useAppStore } from '../stores/app'
+import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
 
 const message = useMessage()
 const noteStore = useNoteStore()
+const appStore = useAppStore()
 const { title, content } = storeToRefs(noteStore)
+const { theme } = storeToRefs(appStore)
 
 const isMaximized = ref(false)
 let saveTimer: ReturnType<typeof setTimeout> | null = null
@@ -125,12 +129,19 @@ async function toggleNoteVoice() {
 let cleanupMaximizedListener: (() => void) | undefined
 
 onMounted(() => {
+  applyDocumentTheme(appStore.theme)
+  notifyElectronTheme(appStore.theme)
   noteStore.load()
   if (window.electronAPI?.onMaximizedChange) {
     cleanupMaximizedListener = window.electronAPI.onMaximizedChange((maximized) => {
       isMaximized.value = maximized
     })
   }
+})
+
+watch(theme, t => {
+  applyDocumentTheme(t)
+  notifyElectronTheme(t)
 })
 
 onUnmounted(() => {
@@ -237,8 +248,8 @@ onUnmounted(() => {
 }
 
 .action-btn.close:hover {
-  background: #ff4d4f;
-  color: #fff;
+  background: var(--lx-danger-hover);
+  color: var(--lx-text-on-accent);
 }
 
 .editor-body {

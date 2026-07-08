@@ -132,7 +132,7 @@ function handleUnlock() {
 
 .error-msg {
   margin-top: 12px;
-  color: #fa5151;
+  color: var(--lx-danger);
   font-size: 12px;
   text-align: center;
 }

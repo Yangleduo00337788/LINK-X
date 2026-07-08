@@ -19,7 +19,7 @@ const { open: openOverlay } = overlayStore
 const emptyHint = computed(() => {
   if (props.nav === 'contacts') return '在左侧选择联系人发起会话'
   if (props.nav === 'favorites') return '在左侧点击收藏项查看详情'
-  if (props.nav === 'moments') return '浏览左侧朋友圈动态'
+  if (props.nav === 'moments') return '浏览左侧友链动态'
   if (props.nav === 'apps') return '在左侧点击应用打开'
   return ''
 })

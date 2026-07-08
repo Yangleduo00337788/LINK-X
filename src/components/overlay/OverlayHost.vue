@@ -6,18 +6,18 @@ import {
   NForm,
   NFormItem,
   NInput,
-  NSwitch,
-  NSelect,
-  NList,
-  NListItem,
-  NThing,
   useMessage
 } from 'naive-ui'
-import { ArrowBackOutline } from '@vicons/ionicons5'
+import {
+  ArrowBackOutline,
+  HelpCircleOutline,
+  ChatbubblesOutline,
+  PersonOutline
+} from '@vicons/ionicons5'
 import WindowControls from '../WindowControls.vue'
 import AppWebView from '../AppWebView.vue'
+import EmptyState from '../common/EmptyState.vue'
 import { storeToRefs } from 'pinia'
-import { useAppSettingsStore } from '../../stores/appSettings'
 import { useOverlayStore } from '../../stores/overlay'
 import { useAppStore } from '../../stores/app'
 import { useContactsStore } from '../../stores/contacts'
@@ -25,24 +25,12 @@ import type { OverlayPage } from '../../types'
 
 const message = useMessage()
 const overlayStore = useOverlayStore()
-const appSettingsStore = useAppSettingsStore()
 const appStore = useAppStore()
 const contactsStore = useContactsStore()
 const { currentPage, overlayApp, filePreview } = storeToRefs(overlayStore)
 const { close } = overlayStore
-const {
-  theme,
-  currentSession,
-  currentMessages,
-  userProfile
-} = storeToRefs(appStore)
-const {
-  toggleTheme,
-  setNav,
-  updateNickname,
-  updateSignature,
-  createGroup
-} = appStore
+const { currentSession, currentMessages, userProfile } = storeToRefs(appStore)
+const { setNav, updateNickname, updateSignature, createGroup } = appStore
 
 const addFriendAccount = ref('')
 const addFriendMsg = ref('我是…')
@@ -50,17 +38,7 @@ const createGroupName = ref('')
 const createGroupMembers = ref('')
 const channelName = ref('')
 const channelDesc = ref('')
-
-const {
-  autoStart,
-  soundNotify,
-  messageDetail,
-  notifyAtMe,
-  notifySound,
-  privacyVerifyFriend,
-  privacyAllowStranger,
-  privacyShowOnline
-} = storeToRefs(appSettingsStore)
+const feedbackText = ref('')
 
 const profileNick = ref(userProfile.value.nickname)
 const profileSig = ref(userProfile.value.signature)
@@ -92,11 +70,7 @@ function saveProfile() {
 }
 
 const titleMap: Record<OverlayPage, string> = {
-  settings: '设置',
-  notifications: '消息通知',
-  privacy: '隐私与安全',
   help: '帮助与反馈',
-  about: '关于 LinkX',
   profile: '个人资料',
   'add-friend': '添加好友',
   'create-group': '发起群聊',
@@ -114,31 +88,15 @@ const pageTitle = computed(() => {
   return titleMap[p]
 })
 
-const notifyEnabled = computed({
-  get: () => soundNotify.value,
-  set: (v: boolean) => { soundNotify.value = v }
-})
-
-function saveSettings() {
-  if (window.electronAPI?.setAutoStart) {
-    window.electronAPI.setAutoStart(autoStart.value)
+function submitFeedback() {
+  const text = feedbackText.value.trim()
+  if (!text) {
+    message.warning('请先描述您遇到的问题')
+    return
   }
-  message.success('设置已保存')
-  close()
-}
-
-function saveNotifications() {
-  message.success('通知设置已保存')
-  close()
-}
-
-function savePrivacy() {
-  message.success('隐私设置已保存')
-  close()
-}
-
-function saveDemo(label: string) {
-  message.success(`${label}已提交`)
+  console.info('[LinkX] 用户反馈', text)
+  message.success('反馈已提交，感谢您的建议')
+  feedbackText.value = ''
   close()
 }
 
@@ -196,14 +154,6 @@ function submitCreateChannel() {
   channelDesc.value = ''
   close()
 }
-
-function createGroupAndEnter() {
-  submitCreateGroup()
-}
-
-function createChannelDone() {
-  submitCreateChannel()
-}
 </script>
 
 <template>
@@ -221,140 +171,142 @@ function createChannelDone() {
     </div>
 
     <div class="overlay-body">
-      <template v-if="currentPage === 'settings'">
-        <n-form label-placement="left" label-width="100">
-          <n-form-item label="账号">
-            <n-input value="demo@linkx.local" disabled />
-          </n-form-item>
-          <n-form-item label="语言">
-            <n-select :value="'zh-CN'" :options="[{ label: '简体中文', value: 'zh-CN' }]" />
-          </n-form-item>
-          <n-form-item label="深色模式">
-            <n-switch :value="theme === 'dark'" @update:value="toggleTheme" />
-          </n-form-item>
-          <n-form-item label="开机自启">
-            <n-switch v-model:value="autoStart" />
-          </n-form-item>
-        </n-form>
-        <n-button type="primary" @click="saveSettings">保存</n-button>
-      </template>
+      <template v-if="currentPage === 'help'">
+        <section class="group-card">
+          <div class="group-head">
+            <n-icon :component="HelpCircleOutline" :size="18" class="group-ico" />
+            <span>常见问题</span>
+          </div>
+          <div class="faq-item">
+            <div class="faq-q">如何同步消息？</div>
+            <div class="faq-a">对接后端 WebSocket 后即可实时同步，当前为本地 Mock 演示。</div>
+          </div>
+          <div class="faq-item">
+            <div class="faq-q">如何切换深色模式？</div>
+            <div class="faq-a">点击侧栏调色盘图标，或进入设置 → 外观与显示。</div>
+          </div>
+          <div class="faq-item">
+            <div class="faq-q">友链独立窗口如何使用？</div>
+            <div class="faq-a">在 Electron 客户端点击侧栏友链图标，将打开独立浏览窗口。</div>
+          </div>
+        </section>
 
-      <template v-else-if="currentPage === 'notifications'">
-        <n-list>
-          <n-list-item>
-            <n-thing title="新消息提醒" description="收到消息时通知" />
-            <template #suffix><n-switch v-model:value="notifyEnabled" /></template>
-          </n-list-item>
-          <n-list-item>
-            <n-thing title="群聊 @ 我" />
-            <template #suffix><n-switch v-model:value="notifyAtMe" /></template>
-          </n-list-item>
-          <n-list-item>
-            <n-thing title="声音" />
-            <template #suffix><n-switch v-model:value="notifySound" /></template>
-          </n-list-item>
-          <n-list-item>
-            <n-thing title="通知显示消息详情" />
-            <template #suffix><n-switch v-model:value="messageDetail" /></template>
-          </n-list-item>
-        </n-list>
-        <n-button type="primary" class="mt" @click="saveNotifications">保存</n-button>
-      </template>
-
-      <template v-else-if="currentPage === 'privacy'">
-        <n-list>
-          <n-list-item><n-thing title="加我为好友时需要验证" /><template #suffix><n-switch v-model:value="privacyVerifyFriend" /></template></n-list-item>
-          <n-list-item><n-thing title="允许陌生人临时会话" /><template #suffix><n-switch v-model:value="privacyAllowStranger" /></template></n-list-item>
-          <n-list-item><n-thing title="在线状态对他人可见" /><template #suffix><n-switch v-model:value="privacyShowOnline" /></template></n-list-item>
-        </n-list>
-        <n-button type="primary" class="mt" @click="savePrivacy">保存</n-button>
-      </template>
-
-      <template v-else-if="currentPage === 'help'">
-        <h3>常见问题</h3>
-        <p class="para">如何同步消息？对接后端 WebSocket 后即可实时同步。</p>
-        <h3>反馈</h3>
-        <n-input type="textarea" placeholder="描述你遇到的问题…" :rows="4" />
-        <n-button type="primary" class="mt" @click="saveDemo('反馈')">提交反馈</n-button>
-      </template>
-
-      <template v-else-if="currentPage === 'about'">
-        <div class="about-card">
-          <div class="logo">LX</div>
-          <h2>LinkX</h2>
-          <p>版本 1.0.0</p>
-          <p class="muted">Electron + Vue 3 + Naive UI</p>
-          <p class="muted">下一步：对接 Java 后端 API</p>
-        </div>
+        <section class="group-card">
+          <div class="group-head">
+            <span>问题反馈</span>
+          </div>
+          <n-input
+            v-model:value="feedbackText"
+            type="textarea"
+            placeholder="描述你遇到的问题或建议…"
+            :rows="4"
+          />
+          <n-button type="primary" class="mt" @click="submitFeedback">提交反馈</n-button>
+        </section>
       </template>
 
       <template v-else-if="currentPage === 'profile'">
-        <div class="profile">
+        <section class="profile-card">
           <img
             src="https://api.dicebear.com/7.x/avataaars/svg?seed=qq-user"
             alt=""
             class="big-avatar"
           />
-          <n-form class="mt">
-            <n-form-item label="昵称"><n-input v-model:value="profileNick" /></n-form-item>
-            <n-form-item label="签名"><n-input v-model:value="profileSig" /></n-form-item>
-            <n-form-item label="QQ号"><n-input value="10086" disabled /></n-form-item>
+          <div class="profile-meta">
+            <div class="profile-name">{{ profileNick || userProfile.nickname }}</div>
+            <div class="profile-id">LinkX ID · linkx_888888</div>
+          </div>
+        </section>
+
+        <section class="group-card">
+          <div class="group-head">
+            <n-icon :component="PersonOutline" :size="18" class="group-ico" />
+            <span>基本信息</span>
+          </div>
+          <n-form label-placement="top">
+            <n-form-item label="昵称">
+              <n-input v-model:value="profileNick" placeholder="输入昵称" />
+            </n-form-item>
+            <n-form-item label="个性签名">
+              <n-input v-model:value="profileSig" placeholder="编辑个性签名" />
+            </n-form-item>
+            <n-form-item label="LinkX ID">
+              <n-input value="linkx_888888" disabled />
+            </n-form-item>
           </n-form>
           <n-button type="primary" @click="saveProfile">保存资料</n-button>
-        </div>
+        </section>
       </template>
 
       <template v-else-if="currentPage === 'add-friend'">
-        <n-form>
-          <n-form-item label="LinkX ID / 手机号"><n-input v-model:value="addFriendAccount" placeholder="输入账号" /></n-form-item>
-          <n-form-item label="验证信息"><n-input v-model:value="addFriendMsg" placeholder="我是…" /></n-form-item>
-        </n-form>
-        <n-button type="primary" @click="submitAddFriend">发送申请</n-button>
+        <section class="group-card">
+          <n-form label-placement="top">
+            <n-form-item label="LinkX ID / 手机号">
+              <n-input v-model:value="addFriendAccount" placeholder="输入账号" />
+            </n-form-item>
+            <n-form-item label="验证信息">
+              <n-input v-model:value="addFriendMsg" placeholder="我是…" />
+            </n-form-item>
+          </n-form>
+          <n-button type="primary" @click="submitAddFriend">发送申请</n-button>
+        </section>
       </template>
 
       <template v-else-if="currentPage === 'create-group'">
-        <n-form>
-          <n-form-item label="群名称"><n-input v-model:value="createGroupName" placeholder="起个群名" /></n-form-item>
-          <n-form-item label="邀请成员"><n-input v-model:value="createGroupMembers" placeholder="多个成员用逗号分隔" /></n-form-item>
-        </n-form>
-        <n-button type="primary" @click="createGroupAndEnter">创建并进入</n-button>
+        <section class="group-card">
+          <n-form label-placement="top">
+            <n-form-item label="群名称">
+              <n-input v-model:value="createGroupName" placeholder="起个群名" />
+            </n-form-item>
+            <n-form-item label="邀请成员">
+              <n-input v-model:value="createGroupMembers" placeholder="多个成员用逗号分隔" />
+            </n-form-item>
+          </n-form>
+          <n-button type="primary" @click="submitCreateGroup">创建并进入</n-button>
+        </section>
       </template>
 
       <template v-else-if="currentPage === 'create-channel'">
-        <n-form>
-          <n-form-item label="频道名称"><n-input v-model:value="channelName" placeholder="频道名" /></n-form-item>
-          <n-form-item label="简介"><n-input v-model:value="channelDesc" type="textarea" placeholder="介绍频道" /></n-form-item>
-        </n-form>
-        <n-button type="primary" @click="createChannelDone">创建频道</n-button>
+        <section class="group-card">
+          <n-form label-placement="top">
+            <n-form-item label="频道名称">
+              <n-input v-model:value="channelName" placeholder="频道名" />
+            </n-form-item>
+            <n-form-item label="简介">
+              <n-input v-model:value="channelDesc" type="textarea" placeholder="介绍频道" />
+            </n-form-item>
+          </n-form>
+          <n-button type="primary" @click="submitCreateChannel">创建频道</n-button>
+        </section>
       </template>
 
       <template v-else-if="currentPage === 'weather'">
-        <div class="weather-card">
+        <section class="weather-card">
           <div class="temp">24°</div>
           <div>多云 · 体感 26°</div>
           <div class="muted">定位：深圳 · 多云</div>
-        </div>
+        </section>
       </template>
 
       <template v-else-if="currentPage === 'app-runner' && overlayApp">
         <div v-if="overlayApp.url" class="app-run-embed">
           <AppWebView :url="overlayApp.url" :title="overlayApp.name" />
         </div>
-        <div v-else class="app-run">
+        <section v-else class="group-card app-run">
           <div class="app-icon-lg" :style="{ background: overlayApp.color }">{{ overlayApp.icon }}</div>
           <h2>{{ overlayApp.name }}</h2>
           <p>{{ overlayApp.desc }}</p>
           <p class="tip">该应用暂未配置内嵌 URL。</p>
-        </div>
+        </section>
       </template>
 
       <template v-else-if="currentPage === 'file-preview'">
-        <div class="file-preview">
+        <section class="group-card file-preview">
           <div v-if="filePreview?.fileUrl && filePreview.isImage" class="preview-box preview-img-wrap">
             <img :src="filePreview.fileUrl" :alt="filePreview.fileName" class="preview-img" />
           </div>
           <div v-else class="preview-box">{{ filePreview?.isImage ? '🖼️' : '📄' }}</div>
-          <p>{{ filePreview?.fileName || '文件' }}</p>
+          <p class="file-name">{{ filePreview?.fileName || '文件' }}</p>
           <p class="muted">{{ filePreview?.fileSize || '—' }} · 本地预览</p>
           <n-button
             v-if="filePreview?.fileUrl"
@@ -367,18 +319,28 @@ function createChannelDone() {
           >
             下载 / 打开
           </n-button>
-        </div>
+        </section>
       </template>
 
       <template v-else-if="currentPage === 'chat-history'">
-        <p class="muted">当前会话：{{ currentSession?.name || '—' }}</p>
-        <div class="history-list">
-          <div v-for="msg in historyMessages" :key="msg.id" class="history-row">
-            <span class="t">{{ msg.time }}</span>
-            <span :class="{ self: msg.isSelf }">{{ historyPreview(msg) }}</span>
+        <section class="group-card">
+          <div class="group-head">
+            <n-icon :component="ChatbubblesOutline" :size="18" class="group-ico" />
+            <span>{{ currentSession?.name || '—' }}</span>
           </div>
-          <p v-if="!historyMessages.length" class="muted">暂无消息</p>
-        </div>
+          <p class="muted session-tip">共 {{ historyMessages.length }} 条消息</p>
+          <div v-if="historyMessages.length" class="history-list">
+            <div v-for="msg in historyMessages" :key="msg.id" class="history-row">
+              <span class="t">{{ msg.time }}</span>
+              <span :class="{ self: msg.isSelf }">{{ historyPreview(msg) }}</span>
+            </div>
+          </div>
+          <EmptyState
+            v-else
+            title="暂无消息"
+            description="当前会话还没有聊天记录"
+          />
+        </section>
       </template>
     </div>
   </div>
@@ -400,7 +362,7 @@ function createChannelDone() {
   align-items: center;
   justify-content: space-between;
   padding: 0 8px 0 4px;
-  border-bottom: 1px solid var(--lx-bg-panel-deep);
+  border-bottom: 1px solid var(--lx-border-light);
   background: var(--lx-bg-panel);
   -webkit-app-region: drag;
 }
@@ -421,38 +383,88 @@ function createChannelDone() {
 .overlay-body {
   flex: 1;
   overflow-y: auto;
-  padding: 24px;
-  max-width: 640px;
+  padding: 20px 24px 32px;
+  max-width: 680px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.group-card {
+  background: var(--lx-bg-card);
+  border: 1px solid var(--lx-border-light);
+  border-radius: var(--lx-radius);
+  padding: 16px 18px;
+}
+
+.group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--lx-text-body);
+  margin-bottom: 14px;
+}
+
+.group-ico {
+  color: var(--lx-accent);
+}
+
+.profile-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  border-radius: var(--lx-radius);
+  background: linear-gradient(135deg, var(--lx-accent-soft), var(--lx-bg-card));
+  border: 1px solid var(--lx-border-light);
+}
+
+.big-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.profile-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--lx-text-body);
+}
+
+.profile-id {
+  font-size: 13px;
+  color: var(--lx-text-muted);
+  margin-top: 4px;
+}
+
+.faq-item {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--lx-border-light);
+}
+
+.faq-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.faq-q {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--lx-text-body);
+  margin-bottom: 4px;
+}
+
+.faq-a {
+  font-size: 13px;
+  color: var(--lx-text-secondary);
+  line-height: 1.5;
 }
 
 .mt {
   margin-top: 16px;
-}
-
-.para {
-  color: var(--lx-text-secondary);
-  line-height: 1.6;
-}
-
-.about-card {
-  text-align: center;
-  padding: 24px;
-  background: var(--lx-bg-card);
-  border-radius: var(--lx-radius);
-}
-
-.logo {
-  width: 72px;
-  height: 72px;
-  margin: 0 auto 16px;
-  border-radius: var(--lx-radius);
-  background: var(--lx-accent);
-  color: var(--lx-bg-card);
-  font-size: 28px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .muted {
@@ -460,17 +472,13 @@ function createChannelDone() {
   font-size: 13px;
 }
 
-.profile .big-avatar {
-  width: 96px;
-  height: 96px;
-  border-radius: 50%;
-  display: block;
-  margin: 0 auto;
+.session-tip {
+  margin: -8px 0 12px;
 }
 
 .weather-card {
   background: linear-gradient(135deg, var(--lx-accent), var(--lx-accent-light));
-  color: var(--lx-bg-card);
+  color: var(--lx-text-on-accent);
   padding: 32px;
   border-radius: var(--lx-radius);
   text-align: center;
@@ -483,9 +491,6 @@ function createChannelDone() {
 
 .app-run {
   text-align: center;
-  padding: 24px;
-  background: var(--lx-bg-card);
-  border-radius: var(--lx-radius);
 }
 
 .app-icon-lg {
@@ -493,7 +498,7 @@ function createChannelDone() {
   height: 80px;
   margin: 0 auto 16px;
   border-radius: var(--lx-radius);
-  color: var(--lx-bg-card);
+  color: var(--lx-text-on-accent);
   font-size: 32px;
   display: flex;
   align-items: center;
@@ -503,28 +508,27 @@ function createChannelDone() {
 .tip {
   color: var(--lx-accent);
   font-size: 13px;
-  margin: 16px 0;
+  margin: 16px 0 0;
 }
 
 .app-run-embed {
   height: min(520px, 70vh);
   display: flex;
   flex-direction: column;
-}
-
-.preview-img-wrap {
-  padding: 0;
+  border-radius: var(--lx-radius);
   overflow: hidden;
-}
-
-.preview-img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+  border: 1px solid var(--lx-border-light);
 }
 
 .file-preview {
   text-align: center;
+}
+
+.file-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--lx-text-body);
+  margin: 0 0 4px;
 }
 
 .preview-box {
@@ -540,19 +544,33 @@ function createChannelDone() {
   font-size: 64px;
 }
 
+.preview-img-wrap {
+  padding: 0;
+  overflow: hidden;
+  max-width: 100%;
+}
+
+.preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
 .history-list {
-  margin-top: 12px;
-  background: var(--lx-bg-card);
-  border-radius: var(--lx-radius);
-  padding: 12px;
+  max-height: 420px;
+  overflow-y: auto;
 }
 
 .history-row {
   display: flex;
   gap: 12px;
-  padding: 8px 0;
+  padding: 10px 0;
   border-bottom: 1px solid var(--lx-border-light);
   font-size: 14px;
+}
+
+.history-row:last-child {
+  border-bottom: none;
 }
 
 .history-row .t {

@@ -192,7 +192,7 @@ function setTab(tab: string) {
 }
 
 .icon-wrap.link { background: var(--lx-accent-bg-soft); color: var(--lx-accent); }
-.icon-wrap.image { background: #fff0e6; color: #ff8800; }
+.icon-wrap.image { background: var(--lx-icon-image-bg); color: var(--lx-icon-image-color); }
 .icon-wrap.file { background: #e6ffed; color: #00cc44; }
 .icon-wrap.note { background: #f2e6ff; color: #8800ff; }
 
@@ -240,7 +240,7 @@ function setTab(tab: string) {
 }
 
 .del-btn:hover {
-  color: #fa5151;
+  color: var(--lx-danger);
   background: rgba(250, 81, 81, 0.1);
 }
 

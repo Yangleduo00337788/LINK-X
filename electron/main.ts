@@ -110,6 +110,19 @@ function registerWindowIpc() {
 
 registerWindowIpc()
 
+function windowBackgroundColor(theme?: string) {
+  return theme === 'dark' ? '#1a1a1a' : '#f5f5f5'
+}
+
+function applyAllWindowBackgrounds(theme: string) {
+  const color = windowBackgroundColor(theme)
+  BrowserWindow.getAllWindows().forEach(win => win.setBackgroundColor(color))
+}
+
+ipcMain.on('theme-changed', (_e, theme: string) => {
+  applyAllWindowBackgrounds(theme)
+})
+
 function createTrayIcon(): Electron.NativeImage {
   const size = 16
   const canvas = Buffer.alloc(size * size * 4)
@@ -179,6 +192,7 @@ function createMomentsWindow() {
     titleBarStyle: 'hidden',
     transparent: false,
     backgroundMaterial: 'acrylic',
+    backgroundColor: '#f5f5f5',
     show: false,
     webPreferences: {
       preload: preloadPath,
@@ -225,6 +239,7 @@ function createNoteEditorWindow() {
     titleBarStyle: 'hidden',
     transparent: false,
     backgroundMaterial: 'mica',
+    backgroundColor: '#f5f5f5',
     show: false,
     webPreferences: {
       preload: preloadPath,
@@ -274,6 +289,7 @@ function createWindow() {
     titleBarStyle: 'hidden',
     transparent: false,
     backgroundMaterial: 'mica',
+    backgroundColor: '#f5f5f5',
     show: false,
     webPreferences: {
       preload: preloadPath,

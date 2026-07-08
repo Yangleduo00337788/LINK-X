@@ -156,7 +156,7 @@ function save() {
 .role {
   font-size: 11px;
   color: #fa8c16;
-  background: #fff7e6;
+  background: var(--lx-warning-bg);
   padding: 1px 6px;
   border-radius: var(--lx-radius);
 }

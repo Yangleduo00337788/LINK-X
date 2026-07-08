@@ -1,10 +1,13 @@
 ﻿<script setup lang="ts">
-import { ref, computed } from 'vue'
-import { NIcon, useMessage } from 'naive-ui'
+import { ref, computed, onMounted, watch } from 'vue'
+import { NIcon, NInput, NButton, useMessage } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../stores/chatModals'
 import { useAppStore } from '../stores/app'
 import { useMomentsStore } from '../stores/moments'
+import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
+import { readFileAsDataUrl, MAX_IMAGE_BYTES } from '../utils/file'
+import EmptyState from './common/EmptyState.vue'
 import {
   NotificationsOutline,
   RefreshOutline,
@@ -13,32 +16,111 @@ import {
   HeartOutline,
   Heart,
   ChatbubbleOutline,
-  EllipsisHorizontal
+  EllipsisHorizontal,
+  SearchOutline,
+  ImageOutline
 } from '@vicons/ionicons5'
 
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
 const momentsStore = useMomentsStore()
 const { closeMomentsModal } = chatModalsStore
-const { userProfile } = storeToRefs(appStore)
+const { userProfile, theme } = storeToRefs(appStore)
 const { posts } = storeToRefs(momentsStore)
-const { toggleLike, toggleActions, isActionsOpen } = momentsStore
+const { addPost, toggleLike, toggleActions, isActionsOpen } = momentsStore
 const message = useMessage()
 
 const scrollTop = ref(0)
 const commentDraft = ref('')
 const commentPostId = ref<string | null>(null)
+const searchQuery = ref('')
+const showSearch = ref(false)
+const composeText = ref('')
+const composeImages = ref<string[]>([])
+const imageInputRef = ref<HTMLInputElement | null>(null)
+
+const filteredPosts = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return posts.value
+  return posts.value.filter(
+    p => p.user.toLowerCase().includes(q) || p.content.toLowerCase().includes(q)
+  )
+})
 
 function handleScroll(e: Event) {
   scrollTop.value = (e.target as HTMLElement).scrollTop
 }
 
-const showTitle = computed(() => scrollTop.value > 250)
+const showTitle = computed(() => scrollTop.value > 250 || showSearch.value)
 const headerBgOpacity = computed(() => {
+  if (showSearch.value) {
+    const rgb = theme.value === 'dark' ? '34, 34, 34' : '245, 245, 245'
+    return `rgba(${rgb}, 1)`
+  }
   const opacity = Math.min(scrollTop.value / 200, 1)
-  return `rgba(245, 245, 245, ${opacity})`
+  const rgb = theme.value === 'dark' ? '34, 34, 34' : '245, 245, 245'
+  return `rgba(${rgb}, ${opacity})`
 })
-const headerIconColor = computed(() => (scrollTop.value > 200 ? 'var(--lx-text)' : 'var(--lx-bg-card)'))
+const headerIconColor = computed(() =>
+  scrollTop.value > 200 || showSearch.value ? 'var(--lx-text)' : 'var(--lx-text-on-accent)'
+)
+
+onMounted(() => {
+  applyDocumentTheme(appStore.theme)
+  notifyElectronTheme(appStore.theme)
+})
+
+watch(theme, t => {
+  applyDocumentTheme(t)
+  notifyElectronTheme(t)
+})
+
+async function onPickImages(e: Event) {
+  const input = e.target as HTMLInputElement
+  const files = Array.from(input.files ?? [])
+  input.value = ''
+  for (const file of files) {
+    if (composeImages.value.length >= 9) {
+      message.warning('最多添加 9 张图片')
+      break
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      message.warning(`「${file.name}」超过 2MB，已跳过`)
+      continue
+    }
+    try {
+      composeImages.value.push(await readFileAsDataUrl(file))
+    } catch {
+      message.error(`「${file.name}」读取失败`)
+    }
+  }
+}
+
+function removeComposeImage(index: number) {
+  composeImages.value.splice(index, 1)
+}
+
+function publishPost() {
+  const text = composeText.value.trim()
+  if (!text && !composeImages.value.length) {
+    message.warning('请输入内容或添加图片')
+    return
+  }
+  addPost(
+    text || '分享图片',
+    userProfile.value.nickname,
+    'https://api.dicebear.com/7.x/avataaars/svg?seed=qq-user',
+    composeImages.value.length ? [...composeImages.value] : undefined
+  )
+  composeText.value = ''
+  composeImages.value = []
+  message.success('动态已发布')
+}
+
+function toggleSearch() {
+  showSearch.value = !showSearch.value
+  if (!showSearch.value) searchQuery.value = ''
+}
 
 function onToggleLike(postId: string) {
   toggleLike(postId, userProfile.value.nickname || '我')
@@ -93,7 +175,32 @@ function closeMoments() {
       </div>
 
       <div class="moments-content">
-        <div v-for="post in posts" :key="post.id" class="post-item">
+        <section class="compose-card">
+          <n-input
+            v-model:value="composeText"
+            type="textarea"
+            placeholder="分享新鲜事…"
+            :rows="2"
+            :autosize="{ minRows: 2, maxRows: 4 }"
+          />
+          <div v-if="composeImages.length" class="compose-images">
+            <div v-for="(img, i) in composeImages" :key="i" class="compose-thumb-wrap">
+              <img :src="img" alt="" class="compose-thumb" />
+              <button type="button" class="compose-remove" @click="removeComposeImage(i)">
+                <n-icon :component="CloseOutline" :size="12" />
+              </button>
+            </div>
+          </div>
+          <div class="compose-actions">
+            <input ref="imageInputRef" type="file" accept="image/*" multiple hidden @change="onPickImages" />
+            <button type="button" class="compose-tool" title="添加图片" @click="imageInputRef?.click()">
+              <n-icon :component="ImageOutline" :size="18" />
+            </button>
+            <n-button type="primary" size="small" @click="publishPost">发布</n-button>
+          </div>
+        </section>
+
+        <div v-for="post in filteredPosts" :key="post.id" class="post-item">
           <img :src="post.avatar" alt="Avatar" class="post-avatar" />
           <div class="post-main">
             <div class="post-user">{{ post.user }}</div>
@@ -140,12 +247,20 @@ function closeMoments() {
             </div>
           </div>
         </div>
-        <div class="bottom-tip">没有更多了</div>
+        <EmptyState
+          v-if="!filteredPosts.length"
+          :title="searchQuery.trim() ? '未找到相关动态' : '暂无动态'"
+          :description="searchQuery.trim() ? '换个关键词试试' : '发布第一条友链动态吧'"
+        />
+        <div v-else class="bottom-tip">没有更多了</div>
       </div>
     </div>
 
     <div class="fixed-header" :style="{ backgroundColor: headerBgOpacity, color: headerIconColor }">
       <div class="header-left">
+        <div class="action-btn" title="搜索" @click.stop="toggleSearch">
+          <n-icon :component="SearchOutline" size="22" />
+        </div>
         <div class="action-btn" title="消息" @click.stop="showMessage">
           <n-icon :component="NotificationsOutline" size="22" />
         </div>
@@ -153,7 +268,16 @@ function closeMoments() {
           <n-icon :component="RefreshOutline" size="22" />
         </div>
       </div>
-      <div class="header-center" :class="{ visible: showTitle }">X友圈</div>
+      <div class="header-center" :class="{ visible: showTitle }">
+        <span v-if="!showSearch">友链</span>
+        <input
+          v-else
+          v-model="searchQuery"
+          class="header-search"
+          placeholder="搜索友链"
+          @click.stop
+        />
+      </div>
       <div class="header-right">
         <div class="action-btn minimize-btn" title="最小化" @click.stop="minimizeMoments">
           <n-icon :component="RemoveOutline" size="24" />
@@ -172,6 +296,7 @@ function closeMoments() {
   height: 100vh !important;
   border-radius: 0 !important;
   margin: 0 !important;
+  background: var(--lx-bg-window);
 }
 
 .moments-wrapper {
@@ -183,6 +308,13 @@ function closeMoments() {
   overflow: hidden;
   text-align: left;
   margin: auto;
+}
+
+.standalone-window.moments-wrapper {
+  width: 100vw !important;
+  height: 100vh !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
 }
 
 .fixed-header {
@@ -210,15 +342,109 @@ function closeMoments() {
 }
 
 .header-center {
+  flex: 1;
+  text-align: center;
   font-size: 16px;
   font-weight: 600;
   opacity: 0;
   transition: opacity 0.3s ease;
   pointer-events: none;
+  min-width: 0;
+  padding: 0 8px;
 }
 
 .header-center.visible {
   opacity: 1;
+  pointer-events: auto;
+}
+
+.header-search {
+  width: 100%;
+  max-width: 200px;
+  border: none;
+  outline: none;
+  background: var(--lx-bg-input);
+  color: var(--lx-text-body);
+  border-radius: var(--lx-radius);
+  padding: 6px 10px;
+  font-size: 14px;
+}
+
+.close-btn:hover {
+  background: var(--lx-danger);
+  color: var(--lx-text-on-accent) !important;
+}
+
+.compose-card {
+  background: var(--lx-bg-panel);
+  border-radius: var(--lx-radius);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.compose-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.compose-thumb-wrap {
+  position: relative;
+  width: 72px;
+  height: 72px;
+}
+
+.compose-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--lx-radius);
+}
+
+.compose-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: var(--lx-danger);
+  color: var(--lx-text-on-accent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.compose-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+
+.compose-tool {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--lx-radius);
+  background: var(--lx-bg-input);
+  color: var(--lx-text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.compose-tool:hover {
+  color: var(--lx-accent);
+  background: var(--lx-accent-soft);
+}
+
+.moments-content {
+  padding: 0 20px 20px;
 }
 
 .action-btn {
@@ -237,11 +463,6 @@ function closeMoments() {
   background: var(--lx-bg-active);
 }
 
-.close-btn:hover {
-  background: #fa5151;
-  color: var(--lx-bg-card) !important;
-}
-
 .moments-scroll-container {
   height: 100%;
   overflow-y: auto;
@@ -250,6 +471,7 @@ function closeMoments() {
   top: 0;
   left: 0;
   width: 100%;
+  background: var(--lx-bg-card);
 }
 
 .moments-scroll-container::-webkit-scrollbar {
@@ -300,10 +522,6 @@ function closeMoments() {
   background: var(--lx-bg-card);
   object-fit: cover;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-.moments-content {
-  padding: 0 20px 20px;
 }
 
 .post-item {
@@ -436,7 +654,7 @@ function closeMoments() {
 .comment-send {
   border: none;
   background: var(--lx-accent);
-  color: #fff;
+  color: var(--lx-text-on-accent);
   border-radius: var(--lx-radius);
   padding: 0 12px;
   font-size: 13px;

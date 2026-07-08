@@ -36,8 +36,14 @@
 
   /* 功能色 */
   --lx-success: #52c41a;
-  --lx-danger: #e74c3c;
+  --lx-danger: #fa5151;
+  --lx-danger-hover: #ff4d4f;
+  --lx-danger-bg: #fff0f0;
+  --lx-danger-bg-soft: #fff1f0;
   --lx-warning: #faad14;
+  --lx-warning-bg: #fff7e6;
+  --lx-icon-image-bg: #fff0e6;
+  --lx-icon-image-color: #ff8800;
 
   /* 圆角 */
   --lx-radius: 9px;
@@ -91,6 +97,12 @@
   --lx-shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.6);
   --lx-shadow-color: rgba(0, 0, 0, 0.45);
   --lx-shadow-color-heavy: rgba(0, 0, 0, 0.6);
+
+  --lx-danger-bg: rgba(250, 81, 81, 0.12);
+  --lx-danger-bg-soft: rgba(250, 81, 81, 0.08);
+  --lx-warning-bg: rgba(250, 173, 20, 0.12);
+  --lx-icon-image-bg: rgba(255, 136, 0, 0.15);
+  --lx-icon-image-color: #ff9933;
 }
 
 /* ============================================================
@@ -242,4 +254,25 @@ body,
   overflow: hidden;
   padding: 0 !important;
   box-shadow: var(--lx-shadow-dropdown) !important;
+}
+
+/* Naive UI Modal / Card 暗色适配 */
+[data-theme='dark'] .n-card.n-modal,
+[data-theme='dark'] .n-modal .n-card {
+  background-color: var(--lx-bg-card) !important;
+  color: var(--lx-text-body);
+  border: 1px solid var(--lx-border-light);
+}
+
+[data-theme='dark'] .n-card-header {
+  background-color: var(--lx-bg-card) !important;
+  border-bottom: 1px solid var(--lx-border-light);
+}
+
+[data-theme='dark'] .n-card-header__main {
+  color: var(--lx-text-body) !important;
+}
+
+[data-theme='dark'] .n-card__content {
+  background-color: var(--lx-bg-card) !important;
 }
