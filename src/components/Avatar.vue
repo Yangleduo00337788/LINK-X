@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { NIcon } from 'naive-ui'
 import { computed } from 'vue'
 import type { Component } from 'vue'
@@ -33,7 +33,7 @@ const fontSize = computed(() => `${size.value * 0.38}px`)
 
 <style scoped>
 .avatar {
-  border-radius: 50%;
+  border-radius: var(--lx-avatar-radius);
   display: flex;
   align-items: center;
   justify-content: center;

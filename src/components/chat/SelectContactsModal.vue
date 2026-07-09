@@ -14,8 +14,8 @@ const message = useMessage()
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
 const contactsStore = useContactsStore()
-const { selectContactsOpen } = storeToRefs(chatModalsStore)
-const { closeSelectContacts } = chatModalsStore
+const { createGroupOpen } = storeToRefs(chatModalsStore)
+const { closeCreateGroup } = chatModalsStore
 const { createGroup } = appStore
 
 const search = ref('')
@@ -67,17 +67,17 @@ function confirm() {
   const session = createGroup(members)
   if (session) message.success(`已创建群聊「${session.name}」`)
   selected.value = new Set()
-  closeSelectContacts()
+  closeCreateGroup()
 }
 
 function cancel() {
-  closeSelectContacts()
+  closeCreateGroup()
 }
 </script>
 
 <template>
   <Teleport to="body">
-    <div v-if="selectContactsOpen" class="modal-root" @click.self="cancel">
+    <div v-if="createGroupOpen" class="modal-root" @click.self="cancel">
       <div class="modal-card" @click.stop>
         <h2 class="modal-title">选择联系人</h2>
         <div class="modal-body">

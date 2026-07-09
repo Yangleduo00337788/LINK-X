@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { NIcon, useMessage } from 'naive-ui'
 import { FilterOutline, TrashOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
@@ -143,7 +143,7 @@ function handleClear() {
 .group-icon {
   width: 48px;
   height: 48px;
-  border-radius: var(--lx-radius);
+  border-radius: var(--lx-avatar-radius);
   background: var(--lx-accent-soft);
   color: var(--lx-accent);
   font-weight: 600;

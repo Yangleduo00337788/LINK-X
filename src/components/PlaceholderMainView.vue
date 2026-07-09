@@ -1,5 +1,6 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import PenguinWatermark from './PenguinWatermark.vue'
 import AppWebView from './AppWebView.vue'
 import { storeToRefs } from 'pinia'
@@ -11,15 +12,17 @@ const props = defineProps<{
   nav: NavKey
 }>()
 
+const router = useRouter()
 const secondaryViewStore = useSecondaryViewStore()
 const overlayStore = useOverlayStore()
-const { activeApp, activeFavorite } = storeToRefs(secondaryViewStore)
+const { activeApp, activeFavorite, activeFile } = storeToRefs(secondaryViewStore)
 const { open: openOverlay } = overlayStore
 
 const emptyHint = computed(() => {
   if (props.nav === 'contacts') return '在左侧选择联系人发起会话'
   if (props.nav === 'favorites') return '在左侧点击收藏项查看详情'
-  if (props.nav === 'moments') return '浏览左侧友链动态'
+  if (props.nav === 'files') return '在左侧选择文件查看详情'
+  if (props.nav === 'moments') return '在左侧浏览友链动态，可发布与评论'
   if (props.nav === 'apps') return '在左侧点击应用打开'
   return ''
 })
@@ -42,16 +45,39 @@ function previewFavoriteImage() {
     }
   })
 }
+
+function openFavoriteNote() {
+  if (window.electronAPI?.openNoteEditor) {
+    window.electronAPI.openNoteEditor()
+  } else {
+    router.push('/note-editor')
+  }
+}
+
+function previewActiveFile() {
+  const file = activeFile.value
+  if (!file?.fileUrl) return
+  openOverlay('file-preview', {
+    filePreview: {
+      fileName: file.title,
+      fileSize: file.size,
+      fileUrl: file.fileUrl,
+      isImage: file.type === 'image'
+    }
+  })
+}
 </script>
 
 <template>
   <div class="placeholder-main">
-    <div class="functional-region body">
+    <div class="functional-region body" :class="{ 'body--embed': nav === 'apps' && activeApp }">
       <template v-if="nav === 'apps' && activeApp">
         <AppWebView
           v-if="activeApp.url"
           :url="activeApp.url"
           :title="activeApp.name"
+          :app-kind="activeApp.appKind"
+          :app-id="activeApp.id"
           class="app-embed"
         />
         <div v-else class="detail-card">
@@ -83,6 +109,34 @@ function previewFavoriteImage() {
             >
               预览图片
             </button>
+            <button
+              v-if="activeFavorite.type === 'note'"
+              type="button"
+              class="action-btn"
+              @click="openFavoriteNote"
+            >
+              打开笔记编辑器
+            </button>
+          </div>
+        </div>
+      </template>
+      <template v-else-if="nav === 'files' && activeFile">
+        <div class="detail-card">
+          <h2>{{ activeFile.title }}</h2>
+          <p class="meta">{{ activeFile.size }} · 来自 {{ activeFile.sender }}</p>
+          <p class="meta">接收时间 {{ activeFile.time }}</p>
+          <div v-if="activeFile.type === 'image' && activeFile.fileUrl" class="file-preview-wrap">
+            <img :src="activeFile.fileUrl" :alt="activeFile.title" class="file-preview-img" />
+          </div>
+          <div class="fav-actions">
+            <button
+              v-if="activeFile.fileUrl"
+              type="button"
+              class="action-btn"
+              @click="previewActiveFile"
+            >
+              全屏预览
+            </button>
           </div>
         </div>
       </template>
@@ -110,6 +164,10 @@ function previewFavoriteImage() {
   padding: 24px;
   display: flex;
   flex-direction: column;
+}
+
+.functional-region.body.body--embed {
+  padding: 0;
 }
 
 .app-embed {
@@ -167,6 +225,9 @@ function previewFavoriteImage() {
 
 .fav-actions {
   margin-top: 16px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .action-btn {
@@ -181,5 +242,20 @@ function previewFavoriteImage() {
 
 .action-btn:hover {
   opacity: 0.9;
+}
+
+.file-preview-wrap {
+  margin: 16px 0;
+  border-radius: var(--lx-radius);
+  overflow: hidden;
+  border: 1px solid var(--lx-border-light);
+}
+
+.file-preview-img {
+  display: block;
+  max-width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+  background: var(--lx-bg-panel);
 }
 </style>

@@ -16,7 +16,7 @@ const { items: contacts } = storeToRefs(contactsStore)
 const appStore = useAppStore()
 const chatModalsStore = useChatModalsStore()
 const { contactsActiveView, currentSessionId, isLoading, sessions } = storeToRefs(appStore)
-const { startChatWithContact, selectSession } = appStore
+const { startChatWithContact, selectSession, resetContactsView } = appStore
 const { openCreateGroup, openComprehensiveSearch, openContactProfile } = chatModalsStore
 const search = ref('')
 const activeTab = ref<'friends' | 'groups'>('friends')
@@ -69,20 +69,28 @@ function contactSessionId(c: ContactItem) {
 }
 
 function openGroupSession(session: import('../types').ChatSession) {
+  resetContactsView()
   selectSession(session)
 }
 
-function handleContactClick(c: ContactItem) {
-  openContactProfile(c)
+function handleContactClick(c: ContactItem, e: MouseEvent) {
+  resetContactsView()
+  openContactProfile(c, e)
 }
 
 function handleContactDblClick(c: ContactItem) {
+  resetContactsView()
   startChatWithContact(c)
 }
 
 function setView(view: 'friend-notifs' | 'group-notifs') {
   currentSessionId.value = null
   contactsActiveView.value = view
+}
+
+function onTabChange(tab: 'friends' | 'groups') {
+  activeTab.value = tab
+  resetContactsView()
 }
 </script>
 
@@ -110,15 +118,15 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
 
     <div class="tabs" :class="activeTab">
       <div class="tab-slider"></div>
-      <div class="tab-item" :class="{ active: activeTab === 'friends' }" @click="activeTab = 'friends'">好友</div>
-      <div class="tab-item" :class="{ active: activeTab === 'groups' }" @click="activeTab = 'groups'">群聊</div>
+      <div class="tab-item" :class="{ active: activeTab === 'friends' }" @click="onTabChange('friends')">好友</div>
+      <div class="tab-item" :class="{ active: activeTab === 'groups' }" @click="onTabChange('groups')">群聊</div>
     </div>
 
     <div class="list-container">
       <!-- 加载中骨架屏 -->
       <template v-if="isLoading">
         <div class="skeleton-item" v-for="i in 8" :key="i">
-          <n-skeleton circle size="large" class="skeleton-avatar" />
+          <n-skeleton size="large" class="skeleton-avatar" />
           <div class="skeleton-info">
             <n-skeleton text width="50%" height="16px" class="skeleton-title" />
             <n-skeleton text width="30%" height="12px" class="skeleton-desc" />
@@ -143,7 +151,7 @@ function setView(view: 'friend-notifs' | 'group-notifs') {
             :key="item.id"
             class="contact-row"
             :class="{ active: currentSessionId === contactSessionId(item) }"
-            @click="handleContactClick(item)"
+            @click="handleContactClick(item, $event)"
             @dblclick="handleContactDblClick(item)"
           >
             <Avatar :text="item.avatarText" :color="item.avatarColor" :size="46" />

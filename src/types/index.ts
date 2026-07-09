@@ -1,4 +1,4 @@
-export type NavKey = 'chat' | 'contacts' | 'favorites' | 'files' | 'moments' | 'apps'
+export type NavKey = 'chat' | 'contacts' | 'favorites' | 'files' | 'calendar' | 'moments' | 'apps'
 
 export type OverlayPage =
   | 'help'
@@ -87,6 +87,8 @@ export interface AppItem {
   color: string
   /** 内嵌 WebView / iframe 地址 */
   url?: string
+  /** 应用类型，用于播放状态与内嵌策略 */
+  appKind?: 'netease' | 'douyin' | 'generic'
 }
 
 export type ChatBackgroundId = 'default' | 'purple' | 'orange'

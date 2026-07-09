@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, computed } from 'vue'
 import { NIcon } from 'naive-ui'
 import {
@@ -19,7 +19,7 @@ const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
 const contactsStore = useContactsStore()
 const { createGroupOpen } = storeToRefs(chatModalsStore)
-const { closeCreateGroup, openSelectContacts } = chatModalsStore
+const { closeCreateGroup } = chatModalsStore
 const { sessions } = storeToRefs(appStore)
 const { createGroup } = appStore
 
@@ -134,7 +134,7 @@ function cancel() {
                 placeholder="搜索"
               />
             </div>
-            <button type="button" class="category-row" @click="openSelectContacts">
+            <button type="button" class="category-row" @click="message.info('可在下方列表中按分组选择好友')">
               <span>按分类创建</span>
               <span class="more-link">更多 <n-icon :component="ChevronForwardOutline" :size="14" /></span>
             </button>

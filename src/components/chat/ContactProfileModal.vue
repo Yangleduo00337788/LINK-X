@@ -1,268 +1,212 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed } from 'vue'
-import { NModal, NButton, NIcon, NDivider, NPopover, useMessage } from 'naive-ui'
-import {
-  ChatbubbleEllipsesOutline,
-  CallOutline,
-  VideocamOutline,
-  EllipsisHorizontalOutline,
-  ShareOutline,
-  BanOutline,
-  PersonRemoveOutline
-} from '@vicons/ionicons5'
+import { NIcon } from 'naive-ui'
+import { ChatbubbleEllipsesOutline, ChevronForwardOutline } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
-import { useContactsStore } from '../../stores/contacts'
+import { useMomentsStore } from '../../stores/moments'
 import type { ContactItem } from '../../types'
 
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
-const contactsStore = useContactsStore()
-const { contactProfileOpen, currentContactProfile } = storeToRefs(chatModalsStore)
-const { closeContactProfile, openVoiceCall, openVideoCall } = chatModalsStore
-const { startChatWithContact, deleteSession, toggleSessionBlock } = appStore
-const { remove: removeContact } = contactsStore
-const message = useMessage()
+const momentsStore = useMomentsStore()
+const { contactProfileOpen, currentContactProfile, profileCardPos, profileCardIsSelf } = storeToRefs(chatModalsStore)
+const { closeContactProfile } = chatModalsStore
+const { userProfile, savedLogin } = storeToRefs(appStore)
+const { startChatWithContact } = appStore
+const { posts } = storeToRefs(momentsStore)
 
 const contact = computed<ContactItem | null>(() => currentContactProfile.value)
+
+const displayId = computed(() => {
+  if (!contact.value) return ''
+  if (profileCardIsSelf.value) {
+    return savedLogin.value.username || userProfile.value.nickname || 'linkx_888888'
+  }
+  const id = contact.value.id.replace(/^f-/, '')
+  return `linkx_${id}`
+})
+
+const momentPreviews = computed(() => {
+  if (!contact.value) return [] as string[]
+  const images: string[] = []
+  for (const post of posts.value) {
+    if (post.user !== contact.value.name) continue
+    if (post.images?.length) images.push(...post.images)
+    if (images.length >= 4) break
+  }
+  if (images.length) return images.slice(0, 4)
+  return Array.from({ length: 4 }, (_, i) =>
+    `https://picsum.photos/seed/${encodeURIComponent(contact.value!.name)}-${i}/120/120`
+  )
+})
 
 function handleSendMessage() {
   if (!contact.value) return
   startChatWithContact(contact.value)
   closeContactProfile()
 }
-
-function handleVoiceCall() {
-  openVoiceCall()
-  closeContactProfile()
-}
-
-function handleVideoCall() {
-  openVideoCall()
-  closeContactProfile()
-}
-
-function shareCard() {
-  if (!contact.value) return
-  navigator.clipboard.writeText(`LinkX 名片：${contact.value.name} (${contact.value.id})`)
-  message.success('名片链接已复制')
-}
-
-function blockContact() {
-  if (!contact.value) return
-  const session = appStore.sessions.find(
-    s => !s.isGroup && (s.id === contact.value!.id || s.name === contact.value!.name)
-  )
-  if (session) toggleSessionBlock(session.id)
-  message.success(`已屏蔽「${contact.value.name}」`)
-  closeContactProfile()
-}
-
-function deleteFriend() {
-  if (!contact.value) return
-  const c = contact.value
-  const session = appStore.sessions.find(s => !s.isGroup && (s.id === c.id || s.name === c.name))
-  if (session) deleteSession(session.id)
-  removeContact(c.id)
-  message.success(`已删除好友「${c.name}」`)
-  closeContactProfile()
-}
 </script>
 
 <template>
-  <n-modal
-    v-model:show="contactProfileOpen"
-    class="contact-profile-modal"
-    preset="card"
-    :bordered="false"
-    :show-icon="false"
-    style="width: 320px; border-radius: var(--lx-radius); padding: 0; overflow: hidden;"
-  >
-    <template v-if="contact">
-    <div class="profile-header">
-      <Avatar
-        :text="contact.avatarText || contact.name.charAt(0)"
-        :color="contact.avatarColor || 'var(--lx-accent)'"
-        :size="72"
-      />
-      <div class="profile-basic">
-        <div class="profile-name">
-          {{ contact.name }}
-          <span v-if="contact.online" class="online-dot" title="在线"></span>
-        </div>
-        <div class="profile-id">LinkX ID: {{ contact.id }}</div>
-      </div>
-    </div>
-
-    <div class="profile-body">
-      <div class="info-row">
-        <span class="info-label">地区</span>
-        <span class="info-value">中国 广东 深圳</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">个性签名</span>
-        <span class="info-value">这个人很懒，什么都没写</span>
-      </div>
-    </div>
-
-    <n-divider style="margin: 0;" />
-
-    <div class="profile-actions">
-      <n-button class="action-btn" type="primary" @click="handleSendMessage">
-        <template #icon>
-          <n-icon :component="ChatbubbleEllipsesOutline" />
-        </template>
-        发消息
-      </n-button>
-      <div class="secondary-actions">
-        <n-button class="icon-btn" tertiary circle @click="handleVoiceCall" title="语音通话">
-          <template #icon>
-            <n-icon :component="CallOutline" />
-          </template>
-        </n-button>
-        <n-button class="icon-btn" tertiary circle @click="handleVideoCall" title="视频通话">
-          <template #icon>
-            <n-icon :component="VideocamOutline" />
-          </template>
-        </n-button>
-        <n-popover trigger="click" placement="bottom">
-          <template #trigger>
-            <n-button class="icon-btn" tertiary circle title="更多">
-              <template #icon>
-                <n-icon :component="EllipsisHorizontalOutline" />
-              </template>
-            </n-button>
-          </template>
-          <div class="more-menu">
-            <button type="button" class="more-item" @click="shareCard">
-              <n-icon :component="ShareOutline" /> 分享名片
-            </button>
-            <button type="button" class="more-item" @click="blockContact">
-              <n-icon :component="BanOutline" /> 屏蔽此人
-            </button>
-            <button type="button" class="more-item danger" @click="deleteFriend">
-              <n-icon :component="PersonRemoveOutline" /> 删除好友
-            </button>
+  <Teleport to="body">
+    <div
+      v-if="contactProfileOpen && contact"
+      class="profile-overlay"
+      @click.self="closeContactProfile"
+    >
+      <div
+        class="profile-card"
+        :style="{ left: `${profileCardPos.x}px`, top: `${profileCardPos.y}px` }"
+        @click.stop
+      >
+        <section class="card-head">
+          <Avatar
+            :text="contact.avatarText || contact.name.charAt(0)"
+            :color="contact.avatarColor || 'var(--lx-accent)'"
+            :size="64"
+          />
+          <div class="head-meta">
+            <div class="profile-name">{{ contact.name }}</div>
+            <div class="profile-id">LinkX ID: {{ displayId }}</div>
           </div>
-        </n-popover>
+        </section>
+
+        <section class="moments-row">
+          <span class="moments-label">友链</span>
+          <div class="moments-thumbs">
+            <img
+              v-for="(img, i) in momentPreviews"
+              :key="i"
+              :src="img"
+              alt=""
+              class="thumb"
+            />
+          </div>
+          <n-icon :component="ChevronForwardOutline" :size="16" class="moments-arrow" />
+        </section>
+
+        <button v-if="!profileCardIsSelf" type="button" class="send-btn" @click="handleSendMessage">
+          <n-icon :component="ChatbubbleEllipsesOutline" :size="18" />
+          <span>发消息</span>
+        </button>
       </div>
     </div>
-    </template>
-  </n-modal>
+  </Teleport>
 </template>
 
 <style scoped>
-.contact-profile-modal :deep(.n-card-header) {
-  display: none !important;
+.profile-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  background: transparent;
 }
 
-.profile-header {
-  padding: 32px 24px 24px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
+.profile-card {
+  position: fixed;
+  width: 320px;
   background: var(--lx-bg-card);
+  border-radius: 14px;
+  box-shadow: var(--lx-shadow-modal);
+  border: 1px solid var(--lx-border-light);
+  overflow: hidden;
+  animation: card-in 0.18s ease-out;
 }
 
-.profile-basic {
-  margin-top: 16px;
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 18px 16px;
+}
+
+.head-meta {
+  min-width: 0;
+  flex: 1;
 }
 
 .profile-name {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--lx-text-body);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-.online-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--lx-success);
+  line-height: 1.3;
 }
 
 .profile-id {
-  font-size: 13px;
-  color: var(--lx-text-muted);
   margin-top: 4px;
+  font-size: 12px;
+  color: var(--lx-text-muted);
 }
 
-.profile-body {
-  padding: 0 24px 24px;
-  background: var(--lx-bg-card);
+.moments-row {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--lx-border-light);
+  border-bottom: 1px solid var(--lx-border-light);
+  cursor: default;
 }
 
-.info-row {
-  display: flex;
-  align-items: flex-start;
+.moments-label {
   font-size: 14px;
-  line-height: 1.5;
+  color: var(--lx-text-body);
+  flex-shrink: 0;
 }
 
-.info-label {
-  width: 72px;
+.moments-thumbs {
+  flex: 1;
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  object-fit: cover;
+  background: var(--lx-bg-panel-deep);
+  flex-shrink: 0;
+}
+
+.moments-arrow {
   color: var(--lx-text-muted);
   flex-shrink: 0;
 }
 
-.info-value {
-  color: var(--lx-text-body);
-  flex: 1;
-}
-
-.profile-actions {
-  padding: 24px;
-  background: var(--lx-bg-panel);
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.action-btn {
+.send-btn {
   width: 100%;
-  height: 40px;
-}
-
-.secondary-actions {
-  display: flex;
-  justify-content: center;
-  gap: 24px;
-}
-
-.more-menu {
-  display: flex;
-  flex-direction: column;
-  min-width: 140px;
-}
-
-.more-item {
+  border: none;
+  background: var(--lx-bg-card);
+  color: var(--lx-accent);
+  font-size: 15px;
+  font-weight: 500;
+  padding: 14px 18px;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  padding: 8px 12px;
-  border: none;
-  background: none;
   cursor: pointer;
-  font-size: 13px;
-  color: var(--lx-text-body);
-  border-radius: var(--lx-radius);
+  transition: background 0.15s;
 }
 
-.more-item:hover {
-  background: var(--lx-bg-hover);
-}
-
-.more-item.danger {
-  color: #e34d59;
+.send-btn:hover {
+  background: var(--lx-accent-soft);
 }
 </style>

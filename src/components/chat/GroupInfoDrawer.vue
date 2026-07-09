@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { NIcon, NSwitch, useMessage, useDialog } from 'naive-ui'
 import { SearchOutline } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
+import PinIcon from '../icons/PinIcon.vue'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
@@ -107,12 +108,10 @@ function reportGroup() {
 </script>
 
 <template>
-  <Teleport to="body">
-    <Transition name="drawer-fade">
-      <div v-if="groupInfoDrawerOpen" class="drawer-root" @click.self="close">
-        <Transition name="drawer-slide">
-          <aside v-if="groupInfoDrawerOpen" class="drawer-panel" @click.stop>
-            <div class="drawer-scroll">
+  <Transition name="chat-drawer">
+    <div v-if="groupInfoDrawerOpen" class="drawer-root" @click.self="close">
+      <aside class="drawer-panel" @click.stop>
+        <div class="drawer-scroll">
               <div class="group-hero">
                 <Avatar
                   :text="currentSession?.avatarText || '群'"
@@ -162,7 +161,10 @@ function reportGroup() {
 
               <div class="switch-block">
                 <div class="switch-row">
-                  <span>设为置顶</span>
+                  <span class="switch-label">
+                    <PinIcon :size="16" />
+                    设为置顶
+                  </span>
                   <n-switch :value="!!currentSession?.pinned" size="small" @update:value="setPin" />
                 </div>
                 <div class="switch-row">
@@ -177,32 +179,32 @@ function reportGroup() {
               <p class="report">
                 <a href="#" @click.prevent="reportGroup">被骚扰了？举报该群</a>
               </p>
-            </div>
-          </aside>
-        </Transition>
-      </div>
-    </Transition>
-  </Teleport>
+        </div>
+      </aside>
+    </div>
+  </Transition>
 </template>
 
 <style scoped>
 .drawer-root {
-  position: fixed;
+  position: absolute;
   inset: 0;
-  z-index: 2000;
-  background: var(--lx-shadow-color-heavy);
+  z-index: 30;
+  background: var(--lx-bg-overlay);
 }
 
 .drawer-panel {
   position: absolute;
   top: 0;
   right: 0;
-  width: min(320px, 88vw);
-  height: 100%;
+  bottom: 0;
+  width: min(320px, 88%);
+  max-width: 360px;
   background: var(--lx-bg-card);
   box-shadow: -4px 0 24px var(--lx-shadow-color);
   display: flex;
   flex-direction: column;
+  will-change: transform;
 }
 
 .drawer-scroll {
@@ -282,7 +284,7 @@ function reportGroup() {
 .invite {
   width: 40px;
   height: 40px;
-  border-radius: 50%;
+  border-radius: var(--lx-avatar-radius);
   border: 1px dashed var(--lx-border-strong);
   background: var(--lx-bg-panel);
   font-size: 22px;
@@ -359,6 +361,12 @@ function reportGroup() {
   color: var(--lx-text-body);
 }
 
+.switch-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .hint {
   margin: -4px 0 0;
   font-size: 12px;
@@ -393,23 +401,23 @@ function reportGroup() {
   text-decoration: none;
 }
 
-.drawer-fade-enter-active,
-.drawer-fade-leave-active {
+.chat-drawer-enter-active,
+.chat-drawer-leave-active {
   transition: opacity 0.25s ease;
 }
 
-.drawer-fade-enter-from,
-.drawer-fade-leave-to {
+.chat-drawer-enter-active .drawer-panel,
+.chat-drawer-leave-active .drawer-panel {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.chat-drawer-enter-from,
+.chat-drawer-leave-to {
   opacity: 0;
 }
 
-.drawer-slide-enter-active,
-.drawer-slide-leave-active {
-  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.drawer-slide-enter-from,
-.drawer-slide-leave-to {
+.chat-drawer-enter-from .drawer-panel,
+.chat-drawer-leave-to .drawer-panel {
   transform: translateX(100%);
 }
 </style>

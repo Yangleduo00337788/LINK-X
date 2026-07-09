@@ -69,6 +69,7 @@ function registerWindowIpc() {
   ipcMain.removeHandler('window:toggle-pin')
   ipcMain.removeHandler('app:set-auto-start')
   ipcMain.removeHandler('app:get-auto-start')
+  ipcMain.removeHandler('window:set-mode')
 
   ipcMain.on('window-minimize', onMinimize)
   ipcMain.on('window-maximize', onMaximize)
@@ -105,6 +106,27 @@ function registerWindowIpc() {
 
   ipcMain.handle('app:get-auto-start', () => {
     return app.getLoginItemSettings().openAtLogin
+  })
+
+  ipcMain.handle('window:set-mode', (event, mode: 'login' | 'main') => {
+    const win = winFromSender(event)
+    if (!win) return
+    if (mode === 'login') {
+      if (win.isMaximized()) win.unmaximize()
+      win.setResizable(false)
+      win.setMinimumSize(380, 520)
+      win.setMaximumSize(380, 520)
+      win.setSize(380, 520, false)
+      win.center()
+      return
+    }
+    win.setResizable(true)
+    win.setMaximumSize(99999, 99999)
+    win.setMinimumSize(966, 676)
+    if (!win.isMaximized()) {
+      win.setSize(1083, 833, false)
+      win.center()
+    }
   })
 }
 
@@ -281,10 +303,13 @@ function createWindow() {
   }
 
   mainWindow = new BrowserWindow({
-    width: 966,
-    height: 676,
-    minWidth: 966,
-    minHeight: 676,
+    width: 380,
+    height: 520,
+    minWidth: 380,
+    minHeight: 520,
+    maxWidth: 380,
+    maxHeight: 520,
+    resizable: false,
     frame: false,
     titleBarStyle: 'hidden',
     transparent: false,
@@ -295,7 +320,8 @@ function createWindow() {
       preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: false,
+      webviewTag: true
     }
   })
 

@@ -206,10 +206,24 @@ export const favorites: FavoriteItem[] = [
 ]
 
 export const apps: AppItem[] = [
-  { id: 'a1', name: '腾讯文档', desc: '在线协作', icon: '文', color: '#1890ff', url: 'https://docs.qq.com/' },
-  { id: 'a2', name: '微云', desc: '网盘备份', icon: '云', color: '#52c41a', url: 'https://www.weiyun.com/' },
-  { id: 'a3', name: 'QQ音乐', desc: '听歌', icon: '乐', color: '#fa541c', url: 'https://y.qq.com/' },
-  { id: 'a4', name: '小游戏', desc: '休闲娱乐', icon: '戏', color: '#722ed1', url: 'https://example.com/' }
+  {
+    id: 'netease-music',
+    name: '网易云音乐',
+    desc: '登录后播放音乐',
+    icon: '云',
+    color: '#c20c0c',
+    url: 'https://music.163.com/',
+    appKind: 'netease'
+  },
+  {
+    id: 'douyin',
+    name: '抖音',
+    desc: '登录后刷短视频',
+    icon: '抖',
+    color: '#111111',
+    url: 'https://www.douyin.com/',
+    appKind: 'douyin'
+  }
 ]
 
 export function sessionFromContact(c: ContactItem): ChatSession {

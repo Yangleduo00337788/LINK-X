@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, ref } from 'vue'
 import { NInput, NButton, useMessage } from 'naive-ui'
 import { storeToRefs } from 'pinia'
@@ -6,6 +6,7 @@ import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
 import { useGroupMetaStore } from '../../stores/groupMeta'
 import Avatar from '../Avatar.vue'
+import PinIcon from '../icons/PinIcon.vue'
 
 const message = useMessage()
 const chatModalsStore = useChatModalsStore()
@@ -59,7 +60,10 @@ function save() {
               <span class="role">{{ announcement.role }}</span>
               <span class="time">{{ announcement.time }}</span>
             </div>
-            <span class="pin-tag">置顶</span>
+            <span class="pin-tag">
+              <PinIcon :size="11" />
+              置顶
+            </span>
           </div>
           <pre v-if="!editing" class="post-body">{{ announcement.content }}</pre>
           <n-input v-else v-model:value="draft" type="textarea" :rows="6" />
@@ -171,6 +175,9 @@ function save() {
   position: absolute;
   top: 0;
   right: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   font-size: 11px;
   color: var(--lx-accent);
   background: var(--lx-accent-bg-soft);

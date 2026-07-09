@@ -20,5 +20,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setAutoStart: enabled => ipcRenderer.invoke('app:set-auto-start', enabled),
   getAutoStart: () => ipcRenderer.invoke('app:get-auto-start'),
   notifyThemeChange: theme => ipcRenderer.send('theme-changed', theme),
+  setWindowMode: mode => ipcRenderer.invoke('window:set-mode', mode),
   isElectron: true
 })

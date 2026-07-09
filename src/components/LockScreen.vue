@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref } from 'vue'
 import { NInput, NButton, NAvatar, NIcon, useMessage } from 'naive-ui'
 import { LockClosedOutline, ArrowForwardOutline } from '@vicons/ionicons5'
@@ -26,14 +26,13 @@ function handleUnlock() {
 </script>
 
 <template>
-  <div class="lock-screen">
-    <div class="lock-glass"></div>
+  <div class="lock-screen" role="dialog" aria-modal="true" aria-label="LinkX 已锁定">
     <div class="lock-content">
       <div class="lock-icon-wrapper">
         <n-icon :component="LockClosedOutline" :size="32" class="lock-icon" />
       </div>
 
-      <n-avatar :size="80" src="https://api.dicebear.com/7.x/avataaars/svg?seed=qq-user" round class="avatar" />
+      <n-avatar :size="80" src="https://api.dicebear.com/7.x/avataaars/svg?seed=qq-user" class="avatar" />
 
       <h2 class="nickname">{{ userProfile.nickname }}</h2>
       <p class="status">LinkX 已锁定</p>
@@ -42,8 +41,9 @@ function handleUnlock() {
         <n-input
           v-model:value="password"
           type="password"
-          placeholder="输入登录密码解锁"
+          placeholder="输入登录密码解锁（未设置密码时任意 4 位以上）"
           class="password-input"
+          autofocus
           @keyup.enter="handleUnlock"
         >
           <template #suffix>
@@ -60,79 +60,77 @@ function handleUnlock() {
 
 <style scoped>
 .lock-screen {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 9999;
+  position: fixed;
+  inset: 0;
+  z-index: 30000;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-}
-
-.lock-glass {
-  position: absolute;
-  top: -20px;
-  left: -20px;
-  right: -20px;
-  bottom: -20px;
-  background: var(--lx-bg-overlay);
-  backdrop-filter: blur(20px);
-  z-index: 1;
+  background: rgba(18, 18, 22, 0.92);
+  -webkit-app-region: no-drag;
 }
 
 .lock-content {
   position: relative;
-  z-index: 2;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: var(--lx-bg-card);
+  background: #ffffff;
   padding: 40px 60px;
   border-radius: 16px;
-  box-shadow: var(--lx-shadow-modal);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35);
+  min-width: 320px;
+}
+
+[data-theme='dark'] .lock-content {
+  background: #2c2c2c;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
 }
 
 .lock-icon-wrapper {
   margin-bottom: 24px;
-  color: var(--lx-text-nav);
+  color: var(--lx-accent, #12b7f5);
 }
 
 .avatar {
   margin-bottom: 16px;
-  border: 2px solid var(--lx-bg-card);
-  box-shadow: var(--lx-shadow-soft);
+  border: 2px solid #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+[data-theme='dark'] .avatar {
+  border-color: #2c2c2c;
 }
 
 .nickname {
   margin: 0 0 8px;
   font-size: 20px;
   font-weight: 500;
-  color: var(--lx-text-body);
+  color: var(--lx-text-body, #333333);
 }
 
 .status {
   margin: 0 0 32px;
   font-size: 14px;
-  color: var(--lx-text-secondary);
+  color: var(--lx-text-secondary, #666666);
 }
 
 .unlock-form {
-  width: 240px;
+  width: 280px;
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
 .password-input {
-  border-radius: var(--lx-radius);
+  border-radius: var(--lx-radius, 8px);
 }
 
 .error-msg {
   margin-top: 12px;
-  color: var(--lx-danger);
+  color: var(--lx-danger, #ff4d4f);
   font-size: 12px;
   text-align: center;
 }

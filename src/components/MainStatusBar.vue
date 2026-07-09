@@ -1,11 +1,9 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { NIcon } from 'naive-ui'
-import { PushOutline } from '@vicons/ionicons5'
+import PinIcon from './icons/PinIcon.vue'
 import WindowControls from './WindowControls.vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
-import { useOverlayStore } from '../stores/overlay'
 
 withDefaults(
   defineProps<{
@@ -23,11 +21,7 @@ withDefaults(
 )
 
 const appStore = useAppStore()
-const overlayStore = useOverlayStore()
-const { userProfile, navKey, currentSession } = storeToRefs(appStore)
-const { open: openOverlay } = overlayStore
-
-const displayName = computed(() => userProfile.value.nickname)
+const { navKey, currentSession } = storeToRefs(appStore)
 
 const centerTitle = computed(() => {
   if (navKey.value === 'chat' && currentSession.value) {
@@ -49,10 +43,6 @@ async function togglePin() {
     isPinned.value = await window.electronAPI.togglePin()
   }
 }
-
-function openProfile() {
-  openOverlay('profile')
-}
 </script>
 
 <template>
@@ -65,19 +55,8 @@ function openProfile() {
         </svg>
         <span class="brand-text">LinkX</span>
       </div>
-      <button type="button" class="status-avatar" title="个人资料" @click="openProfile">
-        <img
-          src="https://api.dicebear.com/7.x/avataaars/svg?seed=qq-user"
-          alt=""
-          class="status-avatar-img"
-        />
-      </button>
 
-      <div v-if="variant === 'profile'" class="profile-col">
-        <span class="nickname">{{ displayName }}</span>
-      </div>
-
-      <template v-else-if="variant === 'chat'">
+      <template v-if="variant === 'chat'">
         <div class="profile-col">
           <span class="nickname single">{{ title || '请选择会话' }}</span>
           <span v-if="subtitle" class="signature-link static">{{ subtitle }}</span>
@@ -98,7 +77,7 @@ function openProfile() {
 
     <div class="status-right">
       <button type="button" class="pin-btn" :class="{ active: isPinned }" title="置顶窗口" @click="togglePin">
-        <n-icon :component="PushOutline" :size="16" />
+        <PinIcon :size="16" />
       </button>
     </div>
 
@@ -158,37 +137,6 @@ function openProfile() {
   color: var(--lx-text);
   letter-spacing: -0.01em;
   line-height: 1;
-}
-
-.status-avatar {
-  border: none;
-  padding: 0;
-  margin: 0 8px 0 0;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  overflow: hidden;
-  cursor: pointer;
-  flex-shrink: 0;
-  background: var(--lx-bg-panel-deep);
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.8),
-    0 0 0 2px var(--lx-border-light);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-.status-avatar:hover {
-  transform: scale(1.04);
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.9),
-    0 0 0 2px rgba(18, 183, 245, 0.35);
-}
-
-.status-avatar-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
 }
 
 .profile-col {
@@ -293,6 +241,11 @@ function openProfile() {
 
 .pin-btn.active {
   color: var(--lx-accent);
-  background: rgba(18, 183, 245, 0.1);
+  background: none;
+}
+
+.pin-btn.active:hover {
+  color: var(--lx-accent);
+  background: var(--lx-bg-hover);
 }
 </style>

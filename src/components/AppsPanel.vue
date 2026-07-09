@@ -4,9 +4,12 @@ import PanelSearchBar from './PanelSearchBar.vue'
 import { apps } from '../data/mockData'
 import { storeToRefs } from 'pinia'
 import { useSecondaryViewStore } from '../stores/secondaryView'
+import { useAppStore } from '../stores/app'
 
 const secondaryViewStore = useSecondaryViewStore()
+const appStore = useAppStore()
 const { activeApp } = storeToRefs(secondaryViewStore)
+const { setNav } = appStore
 const search = ref('')
 
 const filtered = computed(() => {
@@ -17,6 +20,7 @@ const filtered = computed(() => {
 
 function openApp(app: (typeof apps)[number]) {
   activeApp.value = app
+  setNav('apps')
 }
 </script>
 

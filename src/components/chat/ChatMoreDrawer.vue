@@ -5,6 +5,7 @@ import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
 import { useOverlayStore } from '../../stores/overlay'
 import { useContactsStore } from '../../stores/contacts'
+import PinIcon from '../icons/PinIcon.vue'
 
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
@@ -38,6 +39,7 @@ function setMute(val: boolean) {
 function setBlock(val: boolean) {
   if (!currentSessionId.value || !!currentSession.value?.blocked === val) return
   toggleSessionBlock(currentSessionId.value)
+  if (val) message.info('已屏蔽该联系人，将无法发送消息')
 }
 
 function onBackdrop() {
@@ -89,67 +91,69 @@ function reportUser() {
 </script>
 
 <template>
-  <Teleport to="body">
-    <Transition name="drawer-fade">
-      <div v-if="moreDrawerOpen" class="drawer-root" @click.self="onBackdrop">
-        <Transition name="drawer-slide">
-          <aside v-if="moreDrawerOpen" class="drawer-panel" @click.stop>
-            <div class="drawer-inner">
-              <div class="row switch-row">
-                <span>设为置顶</span>
-                <n-switch :value="!!currentSession?.pinned" size="small" @update:value="setPin" />
-              </div>
-              <div class="row switch-row">
-                <span>消息免打扰</span>
-                <n-switch :value="!!currentSession?.muted" size="small" @update:value="setMute" />
-              </div>
-              <div class="row switch-row">
-                <span>屏蔽此人</span>
-                <n-switch :value="!!currentSession?.blocked" size="small" @update:value="setBlock" />
-              </div>
-              <button type="button" class="row link-row" @click="openFileTransfer">
-                文件传输列表
-              </button>
-              <button type="button" class="row danger-text" @click="clearChat">
-                删除聊天记录
-              </button>
-              <button type="button" class="row danger-text" @click="deleteFriend">
-                删除好友
-              </button>
-              <p class="report">
-                <a href="#" @click.prevent="reportUser">被骚扰了？举报该用户</a>
-              </p>
-              <p v-if="currentSession" class="hint-name">{{ currentSession.name }}</p>
-            </div>
-          </aside>
-        </Transition>
-      </div>
-    </Transition>
-  </Teleport>
+  <Transition name="chat-drawer">
+    <div v-if="moreDrawerOpen" class="drawer-root" @click.self="onBackdrop">
+      <aside class="drawer-panel" @click.stop>
+        <div class="drawer-inner">
+          <div class="row switch-row">
+            <span class="switch-label">
+              <PinIcon :size="16" />
+              设为置顶
+            </span>
+            <n-switch :value="!!currentSession?.pinned" size="small" @update:value="setPin" />
+          </div>
+          <div class="row switch-row">
+            <span>消息免打扰</span>
+            <n-switch :value="!!currentSession?.muted" size="small" @update:value="setMute" />
+          </div>
+          <div class="row switch-row">
+            <span>屏蔽此人</span>
+            <n-switch :value="!!currentSession?.blocked" size="small" @update:value="setBlock" />
+          </div>
+          <button type="button" class="row link-row" @click="openFileTransfer">
+            文件传输列表
+          </button>
+          <button type="button" class="row danger-text" @click="clearChat">
+            删除聊天记录
+          </button>
+          <button type="button" class="row danger-text" @click="deleteFriend">
+            删除好友
+          </button>
+          <p class="report">
+            <a href="#" @click.prevent="reportUser">被骚扰了？举报该用户</a>
+          </p>
+        </div>
+      </aside>
+    </div>
+  </Transition>
 </template>
 
 <style scoped>
 .drawer-root {
-  position: fixed;
+  position: absolute;
   inset: 0;
-  z-index: 2000;
-  background: var(--lx-shadow-color-heavy);
+  z-index: 30;
+  background: var(--lx-bg-overlay);
 }
 
 .drawer-panel {
   position: absolute;
   top: 0;
   right: 0;
-  width: min(280px, 42vw);
-  height: 100%;
+  bottom: 0;
+  width: min(280px, 88%);
+  max-width: 320px;
   background: var(--lx-bg-card);
   box-shadow: -4px 0 24px var(--lx-shadow-color);
   display: flex;
   flex-direction: column;
+  will-change: transform;
 }
 
 .drawer-inner {
   padding: 20px 18px 24px;
+  overflow-y: auto;
+  flex: 1;
 }
 
 .row {
@@ -169,6 +173,12 @@ function reportUser() {
   justify-content: space-between;
 }
 
+.switch-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .link-row {
   cursor: pointer;
   color: var(--lx-text-body);
@@ -180,7 +190,7 @@ function reportUser() {
 
 .danger-text {
   cursor: pointer;
-  color: #e34d59;
+  color: var(--lx-danger, #e34d59);
   font-size: 14px;
 }
 
@@ -195,27 +205,23 @@ function reportUser() {
   text-decoration: none;
 }
 
-.hint-name {
-  display: none;
-}
-
-.drawer-fade-enter-active,
-.drawer-fade-leave-active {
+.chat-drawer-enter-active,
+.chat-drawer-leave-active {
   transition: opacity 0.25s ease;
 }
 
-.drawer-fade-enter-from,
-.drawer-fade-leave-to {
+.chat-drawer-enter-active .drawer-panel,
+.chat-drawer-leave-active .drawer-panel {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.chat-drawer-enter-from,
+.chat-drawer-leave-to {
   opacity: 0;
 }
 
-.drawer-slide-enter-active,
-.drawer-slide-leave-active {
-  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.drawer-slide-enter-from,
-.drawer-slide-leave-to {
+.chat-drawer-enter-from .drawer-panel,
+.chat-drawer-leave-to .drawer-panel {
   transform: translateX(100%);
 }
 </style>

@@ -10,12 +10,11 @@ import FavoritesPanel from './FavoritesPanel.vue'
 import FilesPanel from './FilesPanel.vue'
 import MomentsPanel from './MomentsPanel.vue'
 import AppsPanel from './AppsPanel.vue'
+import CalendarPanel from './CalendarPanel.vue'
+import CalendarMainView from './CalendarMainView.vue'
 import PlaceholderMainView from './PlaceholderMainView.vue'
+import MediaNowPlayingBar from './MediaNowPlayingBar.vue'
 import OverlayHost from './overlay/OverlayHost.vue'
-import ChatMoreDrawer from './chat/ChatMoreDrawer.vue'
-import GroupInfoDrawer from './chat/GroupInfoDrawer.vue'
-import SettingsModal from './SettingsModal.vue'
-import LockScreen from './LockScreen.vue'
 
 const CreateGroupModal = defineAsyncComponent(() => import('./chat/CreateGroupModal.vue'))
 const ComprehensiveSearchModal = defineAsyncComponent(() => import('./chat/ComprehensiveSearchModal.vue'))
@@ -36,7 +35,7 @@ import { useChatModalsStore } from '../stores/chatModals'
 
 const appStore = useAppStore()
 const chatModalsStore = useChatModalsStore()
-const { navKey, isLocked } = storeToRefs(appStore)
+const { navKey } = storeToRefs(appStore)
 const { momentsModalOpen } = storeToRefs(chatModalsStore)
 
 const isElectron = !!window.electronAPI
@@ -61,9 +60,11 @@ function startDrag() {
   document.body.style.userSelect = 'none'
 }
 
+const SIDEBAR_WIDTH = 64
+
 function onDrag(e: MouseEvent) {
   if (!isDragging.value) return
-  let newWidth = e.clientX - 52 // 52px 侧边栏宽度
+  let newWidth = e.clientX - SIDEBAR_WIDTH
   if (newWidth < 200) newWidth = 200
   if (newWidth > 500) newWidth = 500
   listWidth.value = newWidth
@@ -99,6 +100,8 @@ const middleComponent = computed(() => {
       return FavoritesPanel
     case 'files':
       return FilesPanel
+    case 'calendar':
+      return CalendarPanel
     case 'moments':
       return MomentsPanel
     case 'apps':
@@ -109,6 +112,7 @@ const middleComponent = computed(() => {
 })
 
 const showChatPanel = computed(() => navKey.value === 'chat')
+const showCalendarMain = computed(() => navKey.value === 'calendar')
 const showPlaceholder = computed(() =>
   ['contacts', 'favorites', 'files', 'moments', 'apps'].includes(navKey.value)
 )
@@ -135,15 +139,16 @@ const showPlaceholder = computed(() =>
         <main class="col-chat">
           <!-- 右侧主内容区域（动态组件） -->
           <ChatPanel v-if="showChatPanel" />
+          <CalendarMainView v-else-if="showCalendarMain" />
           <ContactsMainView v-else-if="navKey === 'contacts'" />
           <PlaceholderMainView v-else-if="showPlaceholder" :nav="navKey" />
         </main>
       </div>
     </div>
 
+    <MediaNowPlayingBar />
+
     <!-- 弹窗/抽屉层 -->
-    <ChatMoreDrawer />
-    <GroupInfoDrawer />
     <CreateGroupModal />
     <ComprehensiveSearchModal />
     <VoiceCallModal />
@@ -159,26 +164,11 @@ const showPlaceholder = computed(() =>
     <div v-if="momentsModalOpen && !isElectron" class="moments-modal-backdrop">
       <MomentsModal />
     </div>
-    <SettingsModal />
     <OverlayHost />
-    
-    <!-- 锁屏层 -->
-    <Transition name="fade">
-      <LockScreen v-if="isLocked" />
-    </Transition>
   </div>
 </template>
 
 <style scoped>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
 .app-shell {
   width: 100%;
   height: 100%;
@@ -225,17 +215,18 @@ const showPlaceholder = computed(() =>
   background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
   overflow: hidden;
-  --lx-bg-panel: var(--lx-bg-card); /* 强制功能区和详细区的背景均为白色，融为一体 */
   box-shadow: var(--lx-shadow-soft);
   min-width: 0;
 }
 
 .col-menu {
-  width: 52px;
-  min-width: 52px;
-  max-width: 52px;
+  width: var(--lx-sidebar-width);
+  min-width: var(--lx-sidebar-width);
+  max-width: var(--lx-sidebar-width);
   height: 100%;
   flex-shrink: 0;
+  display: flex;
+  justify-content: center;
 }
 
 .col-list {
@@ -244,11 +235,13 @@ const showPlaceholder = computed(() =>
   display: flex;
   flex-direction: column;
   position: relative;
+  background: var(--lx-bg-list);
+  --lx-bg-panel: var(--lx-bg-list);
 }
 
 .resizer {
   width: 1px;
-  background: var(--lx-bg-active);
+  background: transparent;
   cursor: col-resize;
   position: relative;
   z-index: 10;
@@ -267,7 +260,7 @@ const showPlaceholder = computed(() =>
 
 .resizer:hover,
 .resizer.dragging {
-  background: var(--lx-shadow-color-heavy);
+  background: var(--lx-separator-fade, rgba(0, 0, 0, 0.06));
 }
 
 .col-chat {
@@ -277,6 +270,8 @@ const showPlaceholder = computed(() =>
   display: flex;
   flex-direction: column;
   position: relative;
+  background: var(--lx-bg-card);
+  --lx-bg-panel: var(--lx-bg-card);
 }
 
 .moments-modal-backdrop {

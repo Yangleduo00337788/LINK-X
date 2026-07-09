@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, computed } from 'vue'
 import { NIcon, useMessage } from 'naive-ui'
 import { DocumentTextOutline, FolderOutline, ImageOutline, FilmOutline, TrashOutline } from '@vicons/ionicons5'
@@ -6,13 +6,16 @@ import PanelSearchBar from './PanelSearchBar.vue'
 import { storeToRefs } from 'pinia'
 import { useFilesStore } from '../stores/files'
 import { useOverlayStore } from '../stores/overlay'
+import { useSecondaryViewStore } from '../stores/secondaryView'
 import type { LocalFileItem } from '../stores/files'
 
 const message = useMessage()
 const filesStore = useFilesStore()
 const overlayStore = useOverlayStore()
+const secondaryViewStore = useSecondaryViewStore()
 const { remove } = filesStore
 const { items: fileItems } = storeToRefs(filesStore)
+const { activeFile } = storeToRefs(secondaryViewStore)
 const { open: openOverlay } = overlayStore
 
 const filtered = computed(() => {
@@ -40,24 +43,34 @@ function setTab(tab: string) {
   activeTab.value = tab
 }
 
-function openFile(item: LocalFileItem) {
-  if (item.fileUrl) {
-    openOverlay('file-preview', {
-      filePreview: {
-        fileName: item.title,
-        fileSize: item.size,
-        fileUrl: item.fileUrl,
-        isImage: item.type === 'image'
-      }
-    })
+function selectFile(item: LocalFileItem) {
+  activeFile.value = item
+}
+
+function openFilePreview(item: LocalFileItem) {
+  if (!item.fileUrl) {
+    message.info(`「${item.title}」暂无本地预览，请从聊天中重新发送`)
     return
   }
-  message.info(`「${item.title}」暂无本地预览，请从聊天中重新发送`)
+  openOverlay('file-preview', {
+    filePreview: {
+      fileName: item.title,
+      fileSize: item.size,
+      fileUrl: item.fileUrl,
+      isImage: item.type === 'image'
+    }
+  })
+}
+
+function openFile(item: LocalFileItem) {
+  selectFile(item)
+  if (item.fileUrl) openFilePreview(item)
 }
 
 function removeFile(e: Event, id: string) {
   e.stopPropagation()
   remove(id)
+  if (activeFile.value?.id === id) activeFile.value = null
   message.success('已删除文件记录')
 }
 </script>
@@ -77,6 +90,7 @@ function removeFile(e: Event, id: string) {
         v-for="item in filtered"
         :key="item.id"
         class="row"
+        :class="{ active: activeFile?.id === item.id }"
         @click="openFile(item)"
       >
         <div class="icon-wrap" :class="item.type">
@@ -163,6 +177,10 @@ function removeFile(e: Event, id: string) {
   background: var(--lx-bg-hover);
 }
 
+.row.active {
+  background: rgba(18, 183, 245, 0.08);
+}
+
 .icon-wrap {
   width: 40px;
   height: 40px;
@@ -226,7 +244,7 @@ function removeFile(e: Event, id: string) {
 }
 
 .del-btn:hover {
-  color: #e34d59;
+  color: var(--lx-danger, #e34d59);
 }
 
 .empty-state {

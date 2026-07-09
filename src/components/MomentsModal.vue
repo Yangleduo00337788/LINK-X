@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { NIcon, NInput, NButton, useMessage } from 'naive-ui'
 import { storeToRefs } from 'pinia'
@@ -517,7 +517,7 @@ function closeMoments() {
 .avatar-img {
   width: 68px;
   height: 68px;
-  border-radius: 50%;
+  border-radius: var(--lx-avatar-radius);
   border: 2px solid var(--lx-bg-card);
   background: var(--lx-bg-card);
   object-fit: cover;
@@ -533,7 +533,7 @@ function closeMoments() {
 .post-avatar {
   width: 42px;
   height: 42px;
-  border-radius: 50%;
+  border-radius: var(--lx-avatar-radius);
   object-fit: cover;
   flex-shrink: 0;
   margin-right: 12px;

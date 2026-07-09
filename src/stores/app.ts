@@ -4,6 +4,8 @@ import { initialSessions, initialMessages, sessionFromContact } from '../data/mo
 import { useContactsStore } from './contacts'
 import { useGroupMetaStore } from './groupMeta'
 import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
+import { sanitizeAppPersistState } from '../utils/persistSanitize'
+import { resetSessionUi } from '../utils/resetSessionUi'
 
 export interface SendMessageOptions {
   type?: ChatMessage['type']
@@ -101,9 +103,17 @@ export const useAppStore = defineStore('app', {
   actions: {
     setNav(key: NavKey) {
       this.navKey = key
+      if (key !== 'contacts') {
+        this.contactsActiveView = 'none'
+      }
+    },
+
+    resetContactsView() {
+      this.contactsActiveView = 'none'
     },
 
     selectSession(session: ChatSession) {
+      this.contactsActiveView = 'none'
       this.currentSessionId = session.id
       const s = this.sessions.find(x => x.id === session.id)
       if (s?.unread) {
@@ -297,6 +307,9 @@ export const useAppStore = defineStore('app', {
       const id = this.currentSessionId
       if (!id) return
 
+      const session = this.sessions.find(s => s.id === id)
+      if (session?.blocked) return
+
       const type = options.type ?? 'text'
       const trimmed = content.trim()
 
@@ -332,7 +345,7 @@ export const useAppStore = defineStore('app', {
         voiceUrl: options.voiceUrl,
         redPacketGreeting: options.redPacketGreeting,
         redPacketAmount: options.redPacketAmount,
-        redPacketOpened: type === 'redPacket' ? true : undefined
+        redPacketOpened: type === 'redPacket' ? false : undefined
       }
 
       if (!this.messagesBySession[id]) {
@@ -340,7 +353,6 @@ export const useAppStore = defineStore('app', {
       }
       this.messagesBySession[id].push(msg)
 
-      const session = this.sessions.find(s => s.id === id)
       if (session) {
         session.lastMessage = messagePreview(msg)
         session.time = time
@@ -397,8 +409,9 @@ export const useAppStore = defineStore('app', {
     },
 
     logout() {
-      this.isLoggedIn = false
+      resetSessionUi()
       this.isLocked = false
+      this.isLoggedIn = false
       if (!this.savedLogin.rememberMe) {
         this.savedLogin.username = ''
         this.savedLogin.password = ''
@@ -439,8 +452,10 @@ export const useAppStore = defineStore('app', {
     },
 
     verifyLockPassword(password: string): boolean {
-      const expected = this.savedLogin.password || '123456'
-      return password === expected
+      if (!this.savedLogin.password) {
+        return password.length >= 4
+      }
+      return password === this.savedLogin.password
     },
 
     lock() {
@@ -453,6 +468,10 @@ export const useAppStore = defineStore('app', {
 
     toggleOffline() {
       this.isOffline = !this.isOffline
+    },
+
+    setOffline(value: boolean) {
+      this.isOffline = value
     },
 
     simulateIncomingMessage() {
@@ -512,6 +531,10 @@ export const useAppStore = defineStore('app', {
       'savedLogin',
       'navKey',
       'isOffline'
-    ]
+    ],
+    serializer: {
+      serialize: value => JSON.stringify(sanitizeAppPersistState(value as Record<string, unknown>)),
+      deserialize: value => JSON.parse(value)
+    }
   }
 })

@@ -13,10 +13,12 @@ const appStore = useAppStore()
 const contactsStore = useContactsStore()
 const { comprehensiveSearchOpen } = storeToRefs(chatModalsStore)
 const { closeComprehensiveSearch } = chatModalsStore
-const { joinGroup, addFriendSession } = appStore
+const { groupSessions } = storeToRefs(appStore)
+const { joinGroup: joinGroupAction, addFriendSession: addFriendAction } = appStore
 
 const keyword = ref('')
 const mainTab = ref<'all' | 'user' | 'group'>('all')
+const searched = ref(false)
 
 const mainTabs = [
   { key: 'all', label: '全部' },
@@ -24,59 +26,9 @@ const mainTabs = [
   { key: 'group', label: '群聊' }
 ] as const
 
-const groups = [
-  {
-    id: '1',
-    name: 'cursor, Kiro, Windsurf, GPT, 交流群',
-    count: '717/2000',
-    age: '4个月',
-    desc: '禁止广告',
-    tags: [] as string[]
-  },
-  {
-    id: '2',
-    name: '三角洲行动撞车沟通群',
-    count: '1984/2000',
-    age: '6年',
-    desc: '',
-    tags: ['00后多', '三角洲行动']
-  },
-  {
-    id: '3',
-    name: '洛克王国世界官方Q群96群',
-    count: '1984/2000',
-    age: '1年',
-    desc: '',
-    tags: ['00后多', '洛克王国：世界']
-  },
-  {
-    id: '4',
-    name: 'KIRO倒车',
-    count: '807/1000',
-    age: '5个月',
-    desc: '',
-    tags: [] as string[]
-  },
-  {
-    id: '5',
-    name: 'Cursor&Windsurf Shifter用户交流群',
-    count: '450/500',
-    age: '8个月',
-    desc: '',
-    tags: ['cursor']
-  },
-  {
-    id: '6',
-    name: '重装机兵 · 域轮安静群',
-    count: '551/1000',
-    age: '4个月',
-    desc: '',
-    tags: [] as string[]
-  }
-]
-
 function close() {
   closeComprehensiveSearch()
+  searched.value = false
 }
 
 function doSearch() {
@@ -84,25 +36,34 @@ function doSearch() {
     message.warning('请输入关键词')
     return
   }
-  message.success(`已搜索「${keyword.value}」`)
+  searched.value = true
 }
 
-function joinGroupAction(name: string) {
-  const session = joinGroup(name)
+const filteredUsers = computed(() => {
+  if (!searched.value) return []
+  return contactsStore.searchUsers(keyword.value)
+})
+
+const filteredGroups = computed(() => {
+  if (!searched.value) return []
+  const q = keyword.value.trim().toLowerCase()
+  return groupSessions.value.filter(s => s.name.toLowerCase().includes(q))
+})
+
+const showGroups = computed(() => mainTab.value === 'all' || mainTab.value === 'group')
+const showUsers = computed(() => mainTab.value === 'all' || mainTab.value === 'user')
+
+function joinGroupByName(name: string) {
+  const session = joinGroupAction(name)
   message.success(`已加入群聊「${session.name}」`)
   close()
 }
 
-function addFriendAction(name: string) {
-  const session = addFriendSession(name)
+function addFriendByName(name: string) {
+  const session = addFriendAction(name)
   message.success(`已添加好友「${session.name}」`)
   close()
 }
-
-const filteredUsers = computed(() => contactsStore.searchUsers(keyword.value))
-
-const showGroups = computed(() => mainTab.value === 'all' || mainTab.value === 'group')
-const showUsers = computed(() => mainTab.value === 'all' || mainTab.value === 'user')
 </script>
 
 <template>
@@ -133,32 +94,36 @@ const showUsers = computed(() => mainTab.value === 'all' || mainTab.value === 'u
           </button>
         </div>
         <div class="result-list">
-          <template v-if="showUsers">
-            <h4 v-if="filteredUsers.length" class="section-label">用户</h4>
-            <article v-for="u in filteredUsers" :key="u.id" class="group-card user-card">
-              <Avatar :text="u.avatarText" :color="u.avatarColor" :size="48" />
-              <div class="g-body">
-                <h3 class="g-name">{{ u.name }}</h3>
-                <p class="g-meta"><span>{{ u.online ? '在线' : '离线' }}</span></p>
-              </div>
-              <button type="button" class="join-btn" @click="addFriendAction(u.name)">加好友</button>
-            </article>
+          <template v-if="!searched">
+            <p class="empty-tip">输入关键词后搜索本地联系人与群聊</p>
           </template>
-          <template v-if="showGroups">
-            <h4 v-if="showUsers && groups.length" class="section-label">群聊</h4>
-            <article v-for="g in groups" :key="g.id" class="group-card">
-            <div class="g-avatar">群</div>
-            <div class="g-body">
-              <h3 class="g-name">{{ g.name }}</h3>
-              <p class="g-meta">
-                <span>{{ g.count }}</span>
-                <span v-for="tag in g.tags" :key="tag" class="tag">{{ tag }}</span>
-                <span class="age">群年龄 {{ g.age }}</span>
-              </p>
-              <p v-if="g.desc" class="g-desc">{{ g.desc }}</p>
-            </div>
-            <button type="button" class="join-btn" @click="joinGroupAction(g.name)">加入</button>
-          </article>
+          <template v-else>
+            <template v-if="showUsers">
+              <h4 v-if="filteredUsers.length" class="section-label">用户</h4>
+              <article v-for="u in filteredUsers" :key="u.id" class="group-card user-card">
+                <Avatar :text="u.avatarText" :color="u.avatarColor" :size="48" />
+                <div class="g-body">
+                  <h3 class="g-name">{{ u.name }}</h3>
+                  <p class="g-meta"><span>{{ u.online ? '在线' : '离线' }}</span></p>
+                </div>
+                <button type="button" class="join-btn" @click="addFriendByName(u.name)">加好友</button>
+              </article>
+              <p v-if="showUsers && !filteredUsers.length && mainTab !== 'group'" class="empty-tip">未找到匹配用户</p>
+            </template>
+            <template v-if="showGroups">
+              <h4 v-if="filteredGroups.length" class="section-label">群聊</h4>
+              <article v-for="g in filteredGroups" :key="g.id" class="group-card">
+                <div class="g-avatar">{{ g.avatarText.charAt(0) }}</div>
+                <div class="g-body">
+                  <h3 class="g-name">{{ g.name }}</h3>
+                  <p class="g-meta">
+                    <span>{{ g.lastMessage || '暂无消息' }}</span>
+                  </p>
+                </div>
+                <button type="button" class="join-btn" @click="joinGroupByName(g.name)">进入</button>
+              </article>
+              <p v-if="showGroups && !filteredGroups.length && mainTab !== 'user'" class="empty-tip">未找到匹配群聊</p>
+            </template>
           </template>
         </div>
         <button type="button" class="close-fab" title="关闭" @click="close">×</button>
@@ -208,11 +173,13 @@ const showUsers = computed(() => mainTab.value === 'all' || mainTab.value === 'u
 .search-input {
   flex: 1;
   height: 36px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--lx-border-light);
   border-radius: var(--lx-radius);
   padding: 0 14px;
   font-size: 14px;
   outline: none;
+  background: var(--lx-bg-card);
+  color: var(--lx-text-body);
 }
 
 .search-input:focus {
@@ -234,7 +201,7 @@ const showUsers = computed(() => mainTab.value === 'all' || mainTab.value === 'u
   display: flex;
   gap: 24px;
   padding: 0 20px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--lx-border-light);
 }
 
 .main-tab {
@@ -274,6 +241,13 @@ const showUsers = computed(() => mainTab.value === 'all' || mainTab.value === 'u
   font-size: 13px;
   color: var(--lx-text-muted);
   font-weight: 600;
+}
+
+.empty-tip {
+  padding: 32px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--lx-text-muted);
 }
 
 .user-card .g-avatar {
@@ -324,19 +298,6 @@ const showUsers = computed(() => mainTab.value === 'all' || mainTab.value === 'u
   align-items: center;
 }
 
-.tag {
-  background: var(--lx-bg-panel);
-  padding: 2px 6px;
-  border-radius: var(--lx-radius);
-  color: var(--lx-text-secondary);
-}
-
-.g-desc {
-  margin: 0;
-  font-size: 12px;
-  color: var(--lx-text-muted);
-}
-
 .join-btn {
   flex-shrink: 0;
   min-width: 64px;
@@ -350,7 +311,7 @@ const showUsers = computed(() => mainTab.value === 'all' || mainTab.value === 'u
 }
 
 .join-btn:hover {
-  background: #e6f7ff;
+  background: var(--lx-accent-soft);
 }
 
 .close-fab {

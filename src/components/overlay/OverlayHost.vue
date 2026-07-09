@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import {
   NButton,
@@ -12,7 +12,12 @@ import {
   ArrowBackOutline,
   HelpCircleOutline,
   ChatbubblesOutline,
-  PersonOutline
+  PersonOutline,
+  CloudOutline,
+  MoonOutline,
+  ApertureOutline,
+  MailOutline,
+  TimeOutline
 } from '@vicons/ionicons5'
 import WindowControls from '../WindowControls.vue'
 import AppWebView from '../AppWebView.vue'
@@ -39,6 +44,25 @@ const createGroupMembers = ref('')
 const channelName = ref('')
 const channelDesc = ref('')
 const feedbackText = ref('')
+const expandedFaq = ref<number | null>(0)
+
+const faqItems = [
+  {
+    icon: CloudOutline,
+    q: '如何同步消息？',
+    a: '对接后端 WebSocket 后即可实时同步，当前为本地 Mock 演示。'
+  },
+  {
+    icon: MoonOutline,
+    q: '如何切换深色模式？',
+    a: '点击侧栏调色盘图标，或进入设置 → 外观与显示。'
+  },
+  {
+    icon: ApertureOutline,
+    q: '友链独立窗口如何使用？',
+    a: '在 Electron 客户端点击侧栏友链图标，将打开独立浏览窗口。'
+  }
+]
 
 const profileNick = ref(userProfile.value.nickname)
 const profileSig = ref(userProfile.value.signature)
@@ -172,37 +196,58 @@ function submitCreateChannel() {
 
     <div class="overlay-body">
       <template v-if="currentPage === 'help'">
-        <section class="group-card">
-          <div class="group-head">
-            <n-icon :component="HelpCircleOutline" :size="18" class="group-ico" />
-            <span>常见问题</span>
-          </div>
-          <div class="faq-item">
-            <div class="faq-q">如何同步消息？</div>
-            <div class="faq-a">对接后端 WebSocket 后即可实时同步，当前为本地 Mock 演示。</div>
-          </div>
-          <div class="faq-item">
-            <div class="faq-q">如何切换深色模式？</div>
-            <div class="faq-a">点击侧栏调色盘图标，或进入设置 → 外观与显示。</div>
-          </div>
-          <div class="faq-item">
-            <div class="faq-q">友链独立窗口如何使用？</div>
-            <div class="faq-a">在 Electron 客户端点击侧栏友链图标，将打开独立浏览窗口。</div>
-          </div>
-        </section>
+        <div class="page-wrap help-page">
+          <section class="panel-card">
+            <div class="panel-head">
+              <div class="panel-head-icon">
+                <n-icon :component="HelpCircleOutline" :size="20" />
+              </div>
+              <div>
+                <h2 class="panel-title">常见问题</h2>
+                <p class="panel-sub">快速了解 LinkX 常用功能</p>
+              </div>
+            </div>
+            <div class="faq-list">
+              <button
+                v-for="(item, index) in faqItems"
+                :key="item.q"
+                type="button"
+                class="faq-row"
+                :class="{ open: expandedFaq === index }"
+                @click="expandedFaq = expandedFaq === index ? null : index"
+              >
+                <div class="faq-row-head">
+                  <n-icon :component="item.icon" :size="18" class="faq-ico" />
+                  <span class="faq-q">{{ item.q }}</span>
+                  <span class="faq-chevron">{{ expandedFaq === index ? '−' : '+' }}</span>
+                </div>
+                <p v-if="expandedFaq === index" class="faq-a">{{ item.a }}</p>
+              </button>
+            </div>
+          </section>
 
-        <section class="group-card">
-          <div class="group-head">
-            <span>问题反馈</span>
-          </div>
-          <n-input
-            v-model:value="feedbackText"
-            type="textarea"
-            placeholder="描述你遇到的问题或建议…"
-            :rows="4"
-          />
-          <n-button type="primary" class="mt" @click="submitFeedback">提交反馈</n-button>
-        </section>
+          <section class="panel-card feedback-card">
+            <div class="panel-head compact">
+              <div class="panel-head-icon soft">
+                <n-icon :component="MailOutline" :size="20" />
+              </div>
+              <div>
+                <h2 class="panel-title">问题反馈</h2>
+                <p class="panel-sub">你的建议会帮助我们改进产品</p>
+              </div>
+            </div>
+            <n-input
+              v-model:value="feedbackText"
+              type="textarea"
+              placeholder="描述你遇到的问题或建议…"
+              :rows="5"
+              class="feedback-input"
+            />
+            <div class="feedback-actions">
+              <n-button type="primary" @click="submitFeedback">提交反馈</n-button>
+            </div>
+          </section>
+        </div>
       </template>
 
       <template v-else-if="currentPage === 'profile'">
@@ -323,24 +368,41 @@ function submitCreateChannel() {
       </template>
 
       <template v-else-if="currentPage === 'chat-history'">
-        <section class="group-card">
-          <div class="group-head">
-            <n-icon :component="ChatbubblesOutline" :size="18" class="group-ico" />
-            <span>{{ currentSession?.name || '—' }}</span>
-          </div>
-          <p class="muted session-tip">共 {{ historyMessages.length }} 条消息</p>
-          <div v-if="historyMessages.length" class="history-list">
-            <div v-for="msg in historyMessages" :key="msg.id" class="history-row">
-              <span class="t">{{ msg.time }}</span>
-              <span :class="{ self: msg.isSelf }">{{ historyPreview(msg) }}</span>
+        <div class="page-wrap history-page">
+          <section class="panel-card history-card">
+            <div class="history-hero">
+              <div class="history-avatar">
+                <n-icon :component="ChatbubblesOutline" :size="28" />
+              </div>
+              <div class="history-meta">
+                <h2 class="history-name">{{ currentSession?.name || '—' }}</h2>
+                <p class="history-sub">
+                  <n-icon :component="TimeOutline" :size="14" />
+                  共 {{ historyMessages.length }} 条消息
+                </p>
+              </div>
             </div>
-          </div>
-          <EmptyState
-            v-else
-            title="暂无消息"
-            description="当前会话还没有聊天记录"
-          />
-        </section>
+
+            <div v-if="historyMessages.length" class="history-scroll">
+              <div
+                v-for="msg in historyMessages"
+                :key="msg.id"
+                class="history-item"
+                :class="{ self: msg.isSelf }"
+              >
+                <div class="history-bubble">
+                  <p class="history-text">{{ historyPreview(msg) }}</p>
+                  <span class="history-time">{{ msg.time }}</span>
+                </div>
+              </div>
+            </div>
+            <EmptyState
+              v-else
+              title="暂无消息"
+              description="当前会话还没有聊天记录"
+            />
+          </section>
+        </div>
       </template>
     </div>
   </div>
@@ -383,11 +445,225 @@ function submitCreateChannel() {
 .overlay-body {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 24px 32px;
-  max-width: 680px;
+  padding: 24px;
+  background: var(--lx-bg-list, var(--lx-bg-panel));
+  display: flex;
+  justify-content: center;
+}
+
+.page-wrap {
+  width: 100%;
+  max-width: 760px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.panel-card {
+  background: var(--lx-bg-card);
+  border: 1px solid var(--lx-border-light);
+  border-radius: 12px;
+  padding: 20px 22px;
+  box-shadow: var(--lx-shadow-soft, 0 2px 12px rgba(0, 0, 0, 0.04));
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.panel-head.compact {
+  margin-bottom: 14px;
+}
+
+.panel-head-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--lx-accent-soft);
+  color: var(--lx-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.panel-head-icon.soft {
+  background: var(--lx-bg-panel);
+}
+
+.panel-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--lx-text-body);
+}
+
+.panel-sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--lx-text-muted);
+}
+
+.faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.faq-row {
+  width: 100%;
+  border: 1px solid var(--lx-border-light);
+  background: var(--lx-bg-panel);
+  border-radius: 10px;
+  padding: 12px 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.faq-row:hover,
+.faq-row.open {
+  border-color: rgba(18, 183, 245, 0.35);
+  background: var(--lx-accent-soft);
+}
+
+.faq-row-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.faq-ico {
+  color: var(--lx-accent);
+  flex-shrink: 0;
+}
+
+.faq-q {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--lx-text-body);
+}
+
+.faq-chevron {
+  color: var(--lx-text-muted);
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.faq-a {
+  margin: 10px 0 0 28px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--lx-text-secondary);
+}
+
+.feedback-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.feedback-input :deep(textarea) {
+  border-radius: 10px;
+}
+
+.feedback-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+.history-card {
+  display: flex;
+  flex-direction: column;
+  min-height: min(560px, calc(100vh - 140px));
+}
+
+.history-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--lx-border-light);
+  margin-bottom: 16px;
+}
+
+.history-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--lx-accent-soft), var(--lx-accent-light, #8ec5fc));
+  color: var(--lx-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.history-name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--lx-text-body);
+}
+
+.history-sub {
+  margin: 6px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--lx-text-muted);
+}
+
+.history-scroll {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 4px;
+}
+
+.history-item {
+  display: flex;
+}
+
+.history-item.self {
+  justify-content: flex-end;
+}
+
+.history-bubble {
+  max-width: min(88%, 520px);
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--lx-bg-panel);
+  border: 1px solid var(--lx-border-light);
+}
+
+.history-item.self .history-bubble {
+  background: var(--lx-accent-soft);
+  border-color: rgba(18, 183, 245, 0.2);
+}
+
+.history-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--lx-text-body);
+  word-break: break-word;
+}
+
+.history-time {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--lx-text-muted);
+  text-align: right;
 }
 
 .group-card {
@@ -424,7 +700,7 @@ function submitCreateChannel() {
 .big-avatar {
   width: 72px;
   height: 72px;
-  border-radius: 50%;
+  border-radius: var(--lx-avatar-radius);
   flex-shrink: 0;
 }
 
@@ -554,32 +830,5 @@ function submitCreateChannel() {
   width: 100%;
   height: 100%;
   object-fit: contain;
-}
-
-.history-list {
-  max-height: 420px;
-  overflow-y: auto;
-}
-
-.history-row {
-  display: flex;
-  gap: 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--lx-border-light);
-  font-size: 14px;
-}
-
-.history-row:last-child {
-  border-bottom: none;
-}
-
-.history-row .t {
-  color: var(--lx-text-muted);
-  flex-shrink: 0;
-  width: 48px;
-}
-
-.history-row .self {
-  color: var(--lx-accent);
 }
 </style>

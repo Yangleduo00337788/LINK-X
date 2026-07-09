@@ -1,7 +1,8 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, computed } from 'vue'
 import { NIcon, NSkeleton, NDropdown, useMessage, type DropdownOption } from 'naive-ui'
-import { PhonePortraitOutline, NotificationsOffOutline, WarningOutline, PinOutline } from '@vicons/ionicons5'
+import { PhonePortraitOutline, NotificationsOffOutline, WarningOutline } from '@vicons/ionicons5'
+import PinIcon from './icons/PinIcon.vue'
 import PanelSearchBar from './PanelSearchBar.vue'
 import Avatar from './Avatar.vue'
 import EmptyState from './common/EmptyState.vue'
@@ -105,7 +106,7 @@ function onContextMenuSelect(key: string) {
     <div class="session-list">
       <template v-if="isLoading">
         <div class="skeleton-item" v-for="i in 8" :key="i">
-          <n-skeleton circle size="large" class="skeleton-avatar" />
+          <n-skeleton size="large" class="skeleton-avatar" />
           <div class="skeleton-info">
             <n-skeleton text width="60%" height="16px" class="skeleton-title" />
             <n-skeleton text width="80%" height="14px" class="skeleton-desc" />
@@ -141,7 +142,7 @@ function onContextMenuSelect(key: string) {
           <div class="session-content">
             <div class="session-top">
               <span class="session-name">
-                <n-icon v-if="session.pinned" :component="PinOutline" :size="12" class="pin-icon" />
+                <PinIcon v-if="session.pinned" :size="12" class="pin-icon" />
                 {{ session.name }}
               </span>
               <span class="session-meta">

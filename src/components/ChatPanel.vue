@@ -1,34 +1,40 @@
-﻿<script setup lang="ts">
-import { ref, computed, onUnmounted } from 'vue'
-import { NIcon, NInput, NButton, NPopover, NDropdown, useMessage, type DropdownOption } from 'naive-ui'
+<script setup lang="ts">
+import { ref, computed, onUnmounted, watch } from 'vue'
+import { NIcon, NInput, NPopover, NDropdown, useMessage, type DropdownOption } from 'naive-ui'
 import {
   ImagesOutline,
   FolderOutline,
   HappyOutline,
   PhonePortraitOutline,
-  TimeOutline,
   CallOutline,
   VideocamOutline,
   GridOutline,
   AddOutline,
   EllipsisHorizontalOutline,
   MicOutline,
-  GiftOutline,
   DocumentOutline,
   LinkOutline,
-  CloseOutline
+  CloseOutline,
+  CutOutline,
+  VolumeHighOutline,
+  GiftOutline
 } from '@vicons/ionicons5'
 import Avatar from './Avatar.vue'
 import PenguinWatermark from './PenguinWatermark.vue'
 import GroupChatSidebar from './chat/GroupChatSidebar.vue'
+import ChatMoreDrawer from './chat/ChatMoreDrawer.vue'
+import GroupInfoDrawer from './chat/GroupInfoDrawer.vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
 import { useOverlayStore } from '../stores/overlay'
 import { useChatModalsStore } from '../stores/chatModals'
 import { useAppSettingsStore } from '../stores/appSettings'
 import { useGroupMetaStore } from '../stores/groupMeta'
-import type { ChatMessage } from '../types'
+import { useContactsStore } from '../stores/contacts'
+import { useSecondaryViewStore } from '../stores/secondaryView'
+import type { ChatMessage, ContactItem, AppItem } from '../types'
 import { CHAT_EMOJIS } from '../constants/emojis'
+import { apps as chatApps } from '../data/mockData'
 import { useFilesStore } from '../stores/files'
 import { useFavoritesStore } from '../stores/favorites'
 import { formatFileSize, readFileAsDataUrl, MAX_IMAGE_BYTES } from '../utils/file'
@@ -41,13 +47,18 @@ const overlayStore = useOverlayStore()
 const chatModalsStore = useChatModalsStore()
 const appSettingsStore = useAppSettingsStore()
 const groupMetaStore = useGroupMetaStore()
-const { currentSession, currentMessages, userProfile, currentSessionId } = storeToRefs(appStore)
+const contactsStore = useContactsStore()
+const secondaryViewStore = useSecondaryViewStore()
+const { currentSession, currentMessages, userProfile, currentSessionId, savedLogin } = storeToRefs(appStore)
 const { chatBackground } = storeToRefs(appSettingsStore)
-const { sendMessage, recallMessage: recallMessageInStore } = appStore
+const { sendMessage, recallMessage: recallMessageInStore, setNav } = appStore
+const { activeApp } = storeToRefs(secondaryViewStore)
 const { open: openOverlay } = overlayStore
 const {
-  openMore,
-  openGroupInfo,
+  toggleMore,
+  toggleGroupInfo,
+  closeMore,
+  closeGroupInfo,
   openVoiceCall,
   openVideoCall,
   openAddMembers,
@@ -55,18 +66,19 @@ const {
   openGroupAlbum,
   openGroupEssence,
   openGroupAnnouncement,
-  openRedPacket,
   openRedPacketReceive,
+  openRedPacket,
+  openContactProfile,
+  openSelfProfile,
 } = chatModalsStore
 
-const groupGridItems = ['群文件', '群相册', '群精华']
+const groupGridItems = ['群文件', '群相册', '群精华', '群公告']
 
 function onGroupAppClick(item: string) {
   if (item === '群文件') openGroupFiles()
   else if (item === '群相册') openGroupAlbum()
   else if (item === '群精华') openGroupEssence()
   else if (item === '群公告') openGroupAnnouncement()
-  else demoToast(`${item}（演示）`)
 }
 
 const isGroupChat = computed(
@@ -75,6 +87,7 @@ const isGroupChat = computed(
 
 const inputValue = ref('')
 const showEmoji = ref(false)
+const showApps = ref(false)
 
 const isMyPhone = computed(() => currentSession.value?.name === '我的手机')
 const hasSession = computed(() => !!currentSession.value)
@@ -103,7 +116,7 @@ const chatBgStyle = computed(() => {
   if (id === 'orange') {
     return { background: 'linear-gradient(135deg, #f6d365 0%, #fda085 100%)' }
   }
-  return { background: 'var(--lx-bg-panel-deep, #f5f6f7)' }
+  return { background: 'var(--lx-bg-panel)' }
 })
 
 const isRecording = ref(false)
@@ -126,6 +139,39 @@ function peerAvatarProps(size = 36) {
   }
 }
 
+function openPeerProfile(e: MouseEvent) {
+  e.stopPropagation()
+  if (!isFriendChat.value || !currentSession.value) return
+  const session = currentSession.value
+  const found = contactsStore.items.find(c => c.id === session.id || c.name === session.name)
+  const contact: ContactItem = found ?? {
+    id: session.id,
+    name: session.name,
+    avatarText: session.avatarText,
+    avatarColor: session.avatarColor,
+    group: '我的好友',
+    online: session.online
+  }
+  openContactProfile(contact, e)
+}
+
+function openSelfProfileClick(e: MouseEvent) {
+  e.stopPropagation()
+  openSelfProfile(
+    {
+      nickname: userProfile.value.nickname,
+      username: savedLogin.value.username || undefined,
+      avatarText: userProfile.value.nickname.charAt(0) || '我'
+    },
+    e
+  )
+}
+
+watch(currentSessionId, () => {
+  closeMore()
+  closeGroupInfo()
+})
+
 function isLinkMsg(msg: ChatMessage) {
   return msg.type === 'link' || /https?:\/\//.test(msg.content) || msg.content.includes('抖音')
 }
@@ -134,15 +180,52 @@ function toolFile() {
   fileInputRef.value?.click()
 }
 
-function toolImage() {
-  imageInputRef.value?.click()
+async function toolScreenshot() {
+  if (!ensureCanSend()) return
+  if (!navigator.mediaDevices?.getDisplayMedia) {
+    message.warning('当前环境不支持屏幕截图')
+    return
+  }
+  try {
+    const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
+    const video = document.createElement('video')
+    video.srcObject = stream
+    await video.play()
+    const canvas = document.createElement('canvas')
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    canvas.getContext('2d')?.drawImage(video, 0, 0)
+    stream.getTracks().forEach(t => t.stop())
+    const dataUrl = canvas.toDataURL('image/png')
+    if (dataUrl.length > MAX_IMAGE_BYTES * 1.4) {
+      message.warning('截图过大，请缩小选区后重试')
+      return
+    }
+    sendMessage(dataUrl, { type: 'image', isImage: true })
+    message.success('截图已发送')
+    scrollToBottom()
+  } catch {
+    message.info('已取消截图')
+  }
+}
+
+function openChatApp(app: AppItem) {
+  activeApp.value = app
+  setNav('apps')
+  showApps.value = false
+  message.success(`已打开「${app.name}」`)
+}
+
+function toolRedPacket() {
+  if (isMyPhone.value) return
+  openRedPacket()
 }
 
 async function onImagePicked(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
   input.value = ''
-  if (!file) return
+  if (!file || !ensureCanSend()) return
 
   if (!file.type.startsWith('image/')) {
     message.warning('请选择图片文件')
@@ -167,7 +250,7 @@ function onFilePicked(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
   input.value = ''
-  if (!file) return
+  if (!file || !ensureCanSend()) return
 
   const fileUrl = URL.createObjectURL(file)
   sendMessage(file.name, {
@@ -191,6 +274,7 @@ function onFilePicked(e: Event) {
 
 async function toggleVoiceRecord() {
   if (!isRecording.value) {
+    if (!ensureCanSend()) return
     try {
       voiceChunks = []
       recordStream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -312,6 +396,10 @@ function pickEmoji(e: string) {
 
 function send() {
   if (!inputValue.value.trim()) return
+  if (currentSession.value?.blocked) {
+    message.warning('你已屏蔽该联系人，无法发送消息')
+    return
+  }
 
   if (inputValue.value.startsWith('/img ')) {
     const url = inputValue.value.replace('/img ', '').trim()
@@ -426,8 +514,13 @@ function cancelReply() {
   replyingTo.value = undefined
 }
 
-function demoToast(tip: string) {
-  message.info(tip.replace('（演示）', ''))
+
+function ensureCanSend(): boolean {
+  if (currentSession.value?.blocked) {
+    message.warning('你已屏蔽该联系人，无法发送消息')
+    return false
+  }
+  return true
 }
 </script>
 
@@ -437,7 +530,10 @@ function demoToast(tip: string) {
       <!-- QQ 好友顶栏 -->
       <header v-if="isFriendChat" class="chat-header">
         <div class="chat-header-left">
-          <Avatar v-bind="peerAvatarProps(32)" />
+          <button v-if="isFriendChat" type="button" class="avatar-btn" @click="openPeerProfile">
+            <Avatar v-bind="peerAvatarProps(32)" />
+          </button>
+          <Avatar v-else v-bind="peerAvatarProps(32)" />
           <span class="chat-peer-name">{{ currentSession?.name }}</span>
           <span v-if="currentSession?.online" class="online-dot" title="在线" />
         </div>
@@ -448,7 +544,7 @@ function demoToast(tip: string) {
           <button type="button" class="hdr-btn" title="视频通话" @click="openVideoCall">
             <n-icon :component="VideocamOutline" :size="20" />
           </button>
-          <button type="button" class="hdr-btn" title="更多" @click="openMore">
+          <button type="button" class="hdr-btn" title="更多" @click="toggleMore">
             <n-icon :component="EllipsisHorizontalOutline" :size="20" />
           </button>
         </div>
@@ -493,7 +589,7 @@ function demoToast(tip: string) {
           <button type="button" class="hdr-btn" title="邀请" @click="openAddMembers">
             <n-icon :component="AddOutline" :size="20" />
           </button>
-          <button type="button" class="hdr-btn" title="更多" @click="openGroupInfo">
+          <button type="button" class="hdr-btn" title="更多" @click="toggleGroupInfo">
             <n-icon :component="EllipsisHorizontalOutline" :size="20" />
           </button>
         </div>
@@ -506,11 +602,15 @@ function demoToast(tip: string) {
 
       <div class="chat-body-row">
         <div class="chat-main-col">
+          <div class="chat-content-stack">
       <div class="message-area" :class="{ 'message-area--friend': isFriendChat }" :style="chatBgStyle">
         <template v-if="showPhoneDemo">
           <div class="message-time">18:48</div>
           <div class="message-row left">
-            <Avatar v-bind="peerAvatarProps(36)" />
+            <button v-if="isFriendChat" type="button" class="avatar-btn" @click="openPeerProfile">
+              <Avatar v-bind="peerAvatarProps(36)" />
+            </button>
+            <Avatar v-else v-bind="peerAvatarProps(36)" />
             <div class="message-content">
               <div class="data-card">
                 <div class="card-header">
@@ -532,7 +632,10 @@ function demoToast(tip: string) {
             </div>
           </div>
           <div class="message-row left">
-            <Avatar v-bind="peerAvatarProps(36)" />
+            <button v-if="isFriendChat" type="button" class="avatar-btn" @click="openPeerProfile">
+              <Avatar v-bind="peerAvatarProps(36)" />
+            </button>
+            <Avatar v-else v-bind="peerAvatarProps(36)" />
             <div class="file-card">
               <div class="file-body">
                 <div class="file-icon">
@@ -559,7 +662,10 @@ function demoToast(tip: string) {
               class="message-row"
               :class="msg.isSelf ? 'right' : 'left'"
             >
-              <Avatar v-if="!msg.isSelf" v-bind="peerAvatarProps(36)" />
+              <button v-if="!msg.isSelf && isFriendChat" type="button" class="avatar-btn" @click="openPeerProfile">
+                <Avatar v-bind="peerAvatarProps(36)" />
+              </button>
+              <Avatar v-else-if="!msg.isSelf" v-bind="peerAvatarProps(36)" />
               <div
                 class="qq-file-card"
                 :class="{ self: msg.isSelf }"
@@ -579,7 +685,9 @@ function demoToast(tip: string) {
                   {{ msg.fileStatus || (msg.isSelf ? '已发送' : '已接收') }}
                 </div>
               </div>
-              <Avatar v-if="msg.isSelf" text="我" color="var(--lx-success)" :size="36" />
+              <button v-if="msg.isSelf" type="button" class="avatar-btn" @click="openSelfProfileClick">
+                <Avatar text="我" color="var(--lx-success)" :size="36" />
+              </button>
             </div>
 
             <!-- 图片消息 -->
@@ -588,7 +696,10 @@ function demoToast(tip: string) {
               class="message-row"
               :class="msg.isSelf ? 'right' : 'left'"
             >
-              <Avatar v-if="!msg.isSelf" v-bind="peerAvatarProps(36)" />
+              <button v-if="!msg.isSelf && isFriendChat" type="button" class="avatar-btn" @click="openPeerProfile">
+                <Avatar v-bind="peerAvatarProps(36)" />
+              </button>
+              <Avatar v-else-if="!msg.isSelf" v-bind="peerAvatarProps(36)" />
               <div
                 class="qq-bubble image-bubble"
                 :class="{ self: msg.isSelf }"
@@ -597,7 +708,9 @@ function demoToast(tip: string) {
               >
                 <img :src="msg.content" class="qq-bubble-image" alt="图片消息" />
               </div>
-              <Avatar v-if="msg.isSelf" text="我" color="var(--lx-success)" :size="36" />
+              <button v-if="msg.isSelf" type="button" class="avatar-btn" @click="openSelfProfileClick">
+                <Avatar text="我" color="var(--lx-success)" :size="36" />
+              </button>
             </div>
 
             <!-- 语音消息 -->
@@ -606,7 +719,10 @@ function demoToast(tip: string) {
               class="message-row"
               :class="msg.isSelf ? 'right' : 'left'"
             >
-              <Avatar v-if="!msg.isSelf" v-bind="peerAvatarProps(36)" />
+              <button v-if="!msg.isSelf && isFriendChat" type="button" class="avatar-btn" @click="openPeerProfile">
+                <Avatar v-bind="peerAvatarProps(36)" />
+              </button>
+              <Avatar v-else-if="!msg.isSelf" v-bind="peerAvatarProps(36)" />
               <div
                 class="qq-bubble voice-bubble"
                 :class="{ self: msg.isSelf, playing: playingVoiceId === msg.id }"
@@ -616,7 +732,9 @@ function demoToast(tip: string) {
                 <n-icon :component="MicOutline" :size="16" class="voice-ico" />
                 <span>{{ formatVoiceDuration(msg.voiceDuration) }}</span>
               </div>
-              <Avatar v-if="msg.isSelf" text="我" color="var(--lx-success)" :size="36" />
+              <button v-if="msg.isSelf" type="button" class="avatar-btn" @click="openSelfProfileClick">
+                <Avatar text="我" color="var(--lx-success)" :size="36" />
+              </button>
             </div>
 
             <!-- 红包消息 -->
@@ -625,7 +743,10 @@ function demoToast(tip: string) {
               class="message-row"
               :class="msg.isSelf ? 'right' : 'left'"
             >
-              <Avatar v-if="!msg.isSelf" v-bind="peerAvatarProps(36)" />
+              <button v-if="!msg.isSelf && isFriendChat" type="button" class="avatar-btn" @click="openPeerProfile">
+                <Avatar v-bind="peerAvatarProps(36)" />
+              </button>
+              <Avatar v-else-if="!msg.isSelf" v-bind="peerAvatarProps(36)" />
               <div
                 class="red-packet-card"
                 :class="{ self: msg.isSelf, opened: msg.redPacketOpened }"
@@ -640,7 +761,9 @@ function demoToast(tip: string) {
                   </div>
                 </div>
               </div>
-              <Avatar v-if="msg.isSelf" text="我" color="var(--lx-success)" :size="36" />
+              <button v-if="msg.isSelf" type="button" class="avatar-btn" @click="openSelfProfileClick">
+                <Avatar text="我" color="var(--lx-success)" :size="36" />
+              </button>
             </div>
 
             <!-- 链接 / 文本 -->
@@ -649,7 +772,10 @@ function demoToast(tip: string) {
               class="message-row"
               :class="msg.isSelf ? 'right' : 'left'"
             >
-              <Avatar v-if="!msg.isSelf" v-bind="peerAvatarProps(36)" />
+              <button v-if="!msg.isSelf && isFriendChat" type="button" class="avatar-btn" @click="openPeerProfile">
+                <Avatar v-bind="peerAvatarProps(36)" />
+              </button>
+              <Avatar v-else-if="!msg.isSelf" v-bind="peerAvatarProps(36)" />
               <div
                 class="qq-bubble"
                 :class="{ self: msg.isSelf, link: isLinkMsg(msg) }"
@@ -666,7 +792,9 @@ function demoToast(tip: string) {
                   :size="14"
                 />
               </div>
-              <Avatar v-if="msg.isSelf" text="我" color="var(--lx-success)" :size="36" />
+              <button v-if="msg.isSelf" type="button" class="avatar-btn" @click="openSelfProfileClick">
+                <Avatar text="我" color="var(--lx-success)" :size="36" />
+              </button>
             </div>
           </template>
         </template>
@@ -677,7 +805,7 @@ function demoToast(tip: string) {
       <div
         v-if="hasSession"
         class="input-area"
-        :class="{ 'input-area--qq': isFriendChat, 'input-area--group': isGroupChat }"
+        :class="{ 'input-area--friend': isFriendChat, 'input-area--group': isGroupChat }"
       >
         <input
           ref="imageInputRef"
@@ -692,92 +820,111 @@ function demoToast(tip: string) {
           class="hidden-file-input"
           @change="onFilePicked"
         />
-        <div class="input-toolbar">
-          <div class="toolbar-left">
-            <n-popover v-model:show="showEmoji" trigger="click" placement="top-start">
-              <template #trigger>
-                <n-icon :component="HappyOutline" :size="22" class="tool-icon" title="表情" />
-              </template>
-              <div class="emoji-grid">
-                <button
-                  v-for="e in emojis"
-                  :key="e"
-                  type="button"
-                  class="emoji-btn"
-                  @click="pickEmoji(e)"
-                >
-                  {{ e }}
-                </button>
-              </div>
-            </n-popover>
-            <n-icon
-              :component="FolderOutline"
-              :size="22"
-              class="tool-icon"
-              title="发送文件"
-              @click="toolFile"
-            />
-            <n-icon
-              :component="ImagesOutline"
-              :size="22"
-              class="tool-icon"
-              title="图片"
-              @click="toolImage"
-            />
-            <n-icon
-              :component="MicOutline"
-              :size="22"
-              class="tool-icon"
-              :class="{ 'tool-icon--recording': isRecording }"
-              title="语音"
-              @click="toggleVoiceRecord"
-            />
-            <n-icon
-              :component="GiftOutline"
-              :size="22"
-              class="tool-icon tool-icon--red"
-              title="红包"
-              @click="openRedPacket()"
+
+        <div class="input-box">
+          <div class="input-compose">
+            <div v-if="replyingTo" class="reply-preview">
+              <div class="reply-content">回复 {{ replyingTo.senderName }}: {{ replyingTo.content }}</div>
+              <n-icon :component="CloseOutline" class="reply-close" @click="cancelReply" />
+            </div>
+
+            <n-input
+              v-model:value="inputValue"
+              type="textarea"
+              :autosize="{ minRows: 3, maxRows: 8 }"
+              placeholder=""
+              class="message-input"
+              :bordered="false"
+              @keydown.enter="onEnter"
             />
           </div>
-          <n-icon
-            :component="TimeOutline"
-            :size="22"
-            class="tool-icon"
-            title="聊天记录"
-            @click="openOverlay('chat-history')"
-          />
-        </div>
-        <div class="input-compose">
-          <!-- 引用预览 -->
-          <div v-if="replyingTo" class="reply-preview">
-            <div class="reply-content">回复 {{ replyingTo.senderName }}: {{ replyingTo.content }}</div>
-            <n-icon :component="CloseOutline" class="reply-close" @click="cancelReply" />
-          </div>
-          
-          <n-input
-            v-model:value="inputValue"
-            type="textarea"
-            :autosize="{ minRows: 4, maxRows: 10 }"
-            placeholder=""
-            class="message-input"
-            :bordered="false"
-            @keydown.enter="onEnter"
-          />
-          <div class="send-row">
-            <n-button
-              type="primary"
-              class="send-btn"
-              :disabled="!inputValue.trim()"
-              @click="send"
-            >
-              发送
-            </n-button>
+
+          <div class="input-toolbar">
+            <div class="toolbar-left">
+              <n-popover v-model:show="showEmoji" trigger="click" placement="top-start">
+                <template #trigger>
+                  <button type="button" class="tool-btn" title="表情">
+                    <n-icon :component="HappyOutline" :size="20" />
+                  </button>
+                </template>
+                <div class="emoji-grid">
+                  <button
+                    v-for="e in emojis"
+                    :key="e"
+                    type="button"
+                    class="emoji-btn"
+                    @click="pickEmoji(e)"
+                  >
+                    {{ e }}
+                  </button>
+                </div>
+              </n-popover>
+              <n-popover v-model:show="showApps" trigger="click" placement="top-start">
+                <template #trigger>
+                  <button type="button" class="tool-btn" title="应用">
+                    <n-icon :component="GridOutline" :size="20" />
+                  </button>
+                </template>
+                <div class="apps-quick-grid">
+                  <button
+                    v-for="app in chatApps"
+                    :key="app.id"
+                    type="button"
+                    class="apps-quick-item"
+                    @click="openChatApp(app)"
+                  >
+                    <span class="apps-quick-icon" :style="{ background: app.color }">{{ app.icon }}</span>
+                    <span>{{ app.name }}</span>
+                  </button>
+                </div>
+              </n-popover>
+              <button type="button" class="tool-btn" title="发送文件" @click="toolFile">
+                <n-icon :component="FolderOutline" :size="20" />
+              </button>
+              <button type="button" class="tool-btn" title="截图" @click="toolScreenshot">
+                <n-icon :component="CutOutline" :size="20" />
+              </button>
+              <button
+                v-if="!isMyPhone"
+                type="button"
+                class="tool-btn"
+                title="红包"
+                @click="toolRedPacket"
+              >
+                <n-icon :component="GiftOutline" :size="20" />
+              </button>
+              <button
+                type="button"
+                class="tool-btn"
+                :class="{ 'tool-btn--recording': isRecording }"
+                title="语音"
+                @click="toggleVoiceRecord"
+              >
+                <n-icon :component="MicOutline" :size="20" />
+              </button>
+            </div>
+
+            <div class="toolbar-right">
+              <button type="button" class="tool-btn" title="语音通话" @click="openVoiceCall">
+                <n-icon :component="VolumeHighOutline" :size="20" />
+              </button>
+              <button
+                type="button"
+                class="send-btn"
+                :disabled="!inputValue.trim()"
+                @click="send"
+              >
+                发送
+              </button>
+            </div>
           </div>
         </div>
       </div>
+      <ChatMoreDrawer v-if="isFriendChat" />
+          </div>
         </div>
         <GroupChatSidebar v-if="isGroupChat" />
+        <GroupInfoDrawer v-if="isGroupChat" />
       </div>
     </div>
 
@@ -810,6 +957,7 @@ function demoToast(tip: string) {
   display: flex;
   flex-direction: column;
   background: transparent;
+  position: relative;
 }
 
 .chat-body-row {
@@ -818,6 +966,7 @@ function demoToast(tip: string) {
   display: flex;
   flex-direction: row;
   overflow: hidden;
+  position: relative;
 }
 
 .chat-main-col {
@@ -826,6 +975,17 @@ function demoToast(tip: string) {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
+}
+
+.chat-content-stack {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  isolation: isolate;
 }
 
 .chat-peer-name--group {
@@ -870,7 +1030,10 @@ function demoToast(tip: string) {
   align-items: center;
   justify-content: space-between;
   background: var(--lx-bg-panel);
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: none;
+  box-shadow: 0 1px 0 var(--lx-separator-fade, rgba(0, 0, 0, 0.04));
+  position: relative;
+  z-index: 31;
 }
 
 .chat-header-left {
@@ -923,7 +1086,8 @@ function demoToast(tip: string) {
 .session-subheader {
   flex-shrink: 0;
   padding: 10px 20px;
-  border-bottom: 1px solid var(--lx-border-light);
+  border-bottom: none;
+  box-shadow: 0 1px 0 var(--lx-separator-fade, rgba(0, 0, 0, 0.04));
   background: rgba(255, 255, 255, 0.35);
 }
 
@@ -965,6 +1129,26 @@ function demoToast(tip: string) {
 
 .message-row.right {
   justify-content: flex-end;
+}
+
+.avatar-btn {
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--lx-avatar-radius);
+  flex-shrink: 0;
+  line-height: 0;
+}
+
+.avatar-btn:hover {
+  opacity: 0.88;
+}
+
+.avatar-btn:focus-visible {
+  outline: 2px solid var(--lx-accent);
+  outline-offset: 2px;
 }
 
 /* QQ 气泡 */
@@ -1170,66 +1354,74 @@ function demoToast(tip: string) {
   cursor: pointer;
 }
 
-/* 输入区 QQ */
+/* 输入区 — 微信风格 */
 .input-area {
   flex-shrink: 0;
-  background: transparent;
-  border-top: 1px solid var(--lx-border, #d8d8d8);
+  padding: 10px 14px 14px;
+  background: var(--lx-bg-panel);
+  border-top: none;
+  box-shadow: inset 0 1px 0 var(--lx-separator-fade, rgba(0, 0, 0, 0.04));
 }
 
-.input-area--qq {
+.input-box {
+  display: flex;
+  flex-direction: column;
   background: var(--lx-bg-card);
+  border: 1px solid var(--lx-border-light);
+  border-radius: 10px;
+  overflow: hidden;
+  min-height: 148px;
 }
 
-.input-area--group {
-  background: var(--lx-bg-card);
-  border-top: 1px solid var(--lx-bg-panel-deep);
-}
-
-.input-area--qq .input-compose,
-.input-area--group .input-compose {
-  background: var(--lx-bg-card);
-}
-
-.input-area--qq .message-input :deep(.n-input__textarea-el),
-.input-area--group .message-input :deep(.n-input__textarea-el) {
-  background: var(--lx-bg-card) !important;
+.input-compose {
+  flex: 1;
+  min-height: 0;
+  padding: 10px 14px 4px;
 }
 
 .input-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 14px 0;
-}
-
-.input-area--qq .input-toolbar,
-.input-area--group .input-toolbar {
-  background: var(--lx-bg-card);
-  padding: 10px 14px 0;
+  padding: 4px 10px 10px;
+  flex-shrink: 0;
 }
 
 .toolbar-left {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 2px;
 }
 
-.tool-spacer {
-  display: none;
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-.tool-icon {
+.tool-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--lx-text-nav);
   cursor: pointer;
+  padding: 0;
+  transition: background 0.15s, color 0.15s;
 }
 
-.tool-icon:hover {
+.tool-btn:hover {
+  background: var(--lx-bg-hover);
   color: var(--lx-text-body);
 }
 
-.input-compose {
-  padding: 4px 14px 12px;
+.tool-btn--recording {
+  color: var(--lx-danger) !important;
+  animation: pulse-rec 1s infinite;
 }
 
 .message-input {
@@ -1238,6 +1430,7 @@ function demoToast(tip: string) {
 
 .message-input :deep(.n-input-wrapper) {
   padding: 0 !important;
+  background: transparent !important;
 }
 
 .message-input :deep(.n-input) {
@@ -1248,36 +1441,46 @@ function demoToast(tip: string) {
   --n-box-shadow-focus: none !important;
 }
 
-.message-input :deep(.n-input-wrapper) {
-  background: transparent !important;
-  padding: 0 !important;
-}
-
 .message-input :deep(.n-input__border),
 .message-input :deep(.n-input__state-border) {
   display: none !important;
 }
 
 .message-input :deep(.n-input__textarea-el) {
-  min-height: 88px !important;
+  min-height: 72px !important;
   background: transparent !important;
   font-size: 14px;
   line-height: 1.55;
-  padding: 0 2px !important;
+  padding: 0 !important;
   color: var(--lx-text);
+  resize: none;
 }
 
-.tool-icon--red {
-  color: #e34d59 !important;
+.send-btn {
+  min-width: 64px;
+  height: 28px;
+  padding: 0 14px;
+  border-radius: 6px;
+  border: none;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  background: #e9e9e9;
+  color: #ffffff;
+  transition: background 0.15s;
 }
 
-.tool-icon--red:hover {
-  color: #c93d48 !important;
+.send-btn:not(:disabled) {
+  background: var(--lx-accent);
+  color: var(--lx-text-on-accent);
 }
 
-.tool-icon--recording {
-  color: #e34d59 !important;
-  animation: pulse-rec 1s infinite;
+.send-btn:not(:disabled):hover {
+  background: var(--lx-accent-hover);
+}
+
+.send-btn:disabled {
+  cursor: not-allowed;
 }
 
 @keyframes pulse-rec {
@@ -1346,21 +1549,6 @@ function demoToast(tip: string) {
 
 .qq-file-card {
   cursor: pointer;
-}
-
-.send-row {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 4px;
-}
-
-.send-btn {
-  min-width: 72px;
-  height: 32px;
-  border-radius: var(--lx-radius);
-  background: var(--lx-accent) !important;
-  border: none !important;
-  font-size: 13px;
 }
 
 /* 右键菜单 */
@@ -1467,5 +1655,42 @@ function demoToast(tip: string) {
   background: transparent;
   font-size: 22px;
   cursor: pointer;
+}
+
+.apps-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 4px;
+  min-width: 200px;
+}
+
+.apps-quick-item {
+  border: none;
+  background: var(--lx-bg-panel);
+  border-radius: var(--lx-radius);
+  padding: 10px 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--lx-text-body);
+}
+
+.apps-quick-item:hover {
+  background: var(--lx-bg-hover);
+}
+
+.apps-quick-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--lx-radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 16px;
 }
 </style>

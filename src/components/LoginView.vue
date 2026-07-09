@@ -1,7 +1,8 @@
-﻿<script setup lang="ts">
-import { ref, onMounted } from 'vue'
+<script setup lang="ts">
+import { ref, onMounted, computed } from 'vue'
 import { NInput, NButton, NIcon, NCheckbox, NModal, useMessage } from 'naive-ui'
 import { LockClosedOutline, PersonOutline } from '@vicons/ionicons5'
+import WindowControls from './WindowControls.vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
 
@@ -9,6 +10,8 @@ const message = useMessage()
 const appStore = useAppStore()
 const { savedLogin } = storeToRefs(appStore)
 const { login } = appStore
+
+const isElectron = !!window.electronAPI?.isElectron
 
 const username = ref('')
 const password = ref('')
@@ -21,10 +24,12 @@ const regUser = ref('')
 const regPass = ref('')
 const forgotUser = ref('')
 
+const compact = computed(() => isElectron)
+
 onMounted(() => {
   username.value = savedLogin.value.username || 'linkx_888888'
-  rememberMe.value = savedLogin.value.rememberMe
-  autoLogin.value = savedLogin.value.autoLogin
+  rememberMe.value = savedLogin.value.rememberMe ?? true
+  autoLogin.value = savedLogin.value.autoLogin ?? false
 })
 
 function handleLogin() {
@@ -48,7 +53,7 @@ function handleLogin() {
       autoLogin: autoLogin.value
     })
     message.success(`欢迎回来，${user}`)
-  }, 500)
+  }, 400)
 }
 
 function handleRegister() {
@@ -72,26 +77,30 @@ function handleForgot() {
 </script>
 
 <template>
-  <div class="login-container">
-    <div class="drag-bar" style="-webkit-app-region: drag"></div>
+  <div class="login-page" :class="{ 'login-page--compact': compact }">
+    <div v-if="isElectron" class="login-win-bar">
+      <div class="drag-area" />
+      <WindowControls />
+    </div>
 
-    <div class="login-box">
-      <div class="logo-area">
-        <img src="../assets/logo-linkx.svg" alt="LinkX" class="logo-img" />
-        <h1 class="app-title">LinkX</h1>
-        <p class="app-subtitle">企业级即时通讯与协同平台</p>
+    <div class="login-card">
+      <div class="brand">
+        <img src="../assets/logo-linkx.svg" alt="" class="brand-logo" width="56" height="56" />
+        <h1 class="brand-name">LinkX</h1>
+        <p class="brand-desc">企业级即时通讯与协同平台</p>
       </div>
 
-      <div class="form-area">
+      <div class="form">
         <n-input
           v-model:value="username"
           size="large"
-          placeholder="请输入 LinkX ID 或手机号"
-          class="login-input"
+          placeholder="linkx_888888"
+          class="field"
+          :bordered="true"
           @keyup.enter="handleLogin"
         >
           <template #prefix>
-            <n-icon :component="PersonOutline" />
+            <n-icon :component="PersonOutline" :size="18" class="field-ico" />
           </template>
         </n-input>
 
@@ -101,17 +110,18 @@ function handleForgot() {
           show-password-on="click"
           size="large"
           placeholder="请输入密码"
-          class="login-input"
+          class="field"
+          :bordered="true"
           @keyup.enter="handleLogin"
         >
           <template #prefix>
-            <n-icon :component="LockClosedOutline" />
+            <n-icon :component="LockClosedOutline" :size="18" class="field-ico" />
           </template>
         </n-input>
 
-        <div class="form-options">
-          <n-checkbox v-model:checked="rememberMe">记住账号</n-checkbox>
-          <n-checkbox v-model:checked="autoLogin">自动登录</n-checkbox>
+        <div class="options">
+          <n-checkbox v-model:checked="rememberMe" size="small">记住账号</n-checkbox>
+          <n-checkbox v-model:checked="autoLogin" size="small">自动登录</n-checkbox>
         </div>
 
         <n-button
@@ -119,23 +129,28 @@ function handleForgot() {
           size="large"
           block
           :loading="isLoading"
-          class="login-btn"
+          class="submit-btn"
           @click="handleLogin"
         >
           登 录
         </n-button>
       </div>
 
-      <div class="login-footer">
+      <div class="footer">
         <a href="#" class="footer-link" @click.prevent="showRegister = true">注册账号</a>
-        <span class="divider">|</span>
+        <span class="footer-sep">|</span>
         <a href="#" class="footer-link" @click.prevent="showForgot = true">找回密码</a>
       </div>
     </div>
 
     <n-modal v-model:show="showRegister" preset="dialog" title="注册 LinkX 账号">
-      <n-input v-model:value="regUser" placeholder="LinkX ID / 手机号" class="login-input" />
-      <n-input v-model:value="regPass" type="password" placeholder="设置密码" class="login-input" style="margin-top: 12px" />
+      <n-input v-model:value="regUser" placeholder="LinkX ID / 手机号" />
+      <n-input
+        v-model:value="regPass"
+        type="password"
+        placeholder="设置密码"
+        style="margin-top: 12px"
+      />
       <template #action>
         <n-button @click="showRegister = false">取消</n-button>
         <n-button type="primary" @click="handleRegister">注册</n-button>
@@ -153,131 +168,153 @@ function handleForgot() {
 </template>
 
 <style scoped>
-.login-container {
+.login-page {
   width: 100%;
   height: 100%;
+  min-height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--lx-bg-panel, var(--lx-bg-panel-deep));
-  position: relative;
-  overflow: hidden;
-}
-
-.drag-bar {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 40px;
-  z-index: 10;
-}
-
-.login-box {
-  width: 320px;
-  height: 460px;
-  background: var(--lx-bg-card);
-  border-radius: var(--lx-radius);
-  box-shadow: var(--lx-shadow-modal);
-  padding: 36px 24px 24px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  z-index: 2;
+  background: #e8e8e8;
   box-sizing: border-box;
+  padding: 16px;
 }
 
-.logo-area {
+.login-page--compact {
+  background: #ffffff;
+  padding: 0;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.login-win-bar {
+  flex-shrink: 0;
+  height: 32px;
+  display: flex;
+  align-items: stretch;
+  -webkit-app-region: no-drag;
+}
+
+.drag-area {
+  flex: 1;
+  -webkit-app-region: drag;
+}
+
+.login-card {
+  width: 360px;
+  min-height: 480px;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 40px 36px 28px;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 32px;
 }
 
-.logo-img {
-  width: 64px;
-  height: 64px;
-  margin-bottom: 12px;
+.login-page--compact .login-card {
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 36px 40px 24px;
 }
 
-.app-title {
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--lx-text-body);
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 28px;
+}
+
+.brand-logo {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.brand-name {
   margin: 0 0 6px;
-  letter-spacing: 1px;
+  font-size: 22px;
+  font-weight: 600;
+  color: #1a1a1a;
+  letter-spacing: 0.5px;
 }
 
-.app-subtitle {
-  font-size: 12px;
-  color: var(--lx-text-muted);
+.brand-desc {
   margin: 0;
+  font-size: 12px;
+  color: #999;
+  line-height: 1.4;
 }
 
-.form-area {
+.form {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
 }
 
-.login-input {
-  --n-border-radius: var(--lx-radius) !important;
-  --n-height: 42px !important;
-  background: var(--lx-bg-panel);
+.field :deep(.n-input-wrapper) {
+  background: #f5f5f5;
+  border-radius: 6px;
 }
 
-:deep(.n-input) {
-  background-color: var(--lx-bg-panel) !important;
-}
-:deep(.n-input:focus-within) {
-  background-color: var(--lx-bg-card) !important;
+.field :deep(.n-input__input-el) {
+  font-size: 14px;
 }
 
-.form-options {
+.field-ico {
+  color: #b0b0b0;
+}
+
+.options {
   display: flex;
   justify-content: space-between;
-  padding: 0 4px;
-  margin-top: -4px;
-  margin-bottom: 8px;
+  align-items: center;
+  padding: 0 2px;
+  margin-top: 2px;
 }
 
-.login-btn {
-  height: 42px;
-  border-radius: var(--lx-radius);
+.options :deep(.n-checkbox__label) {
+  font-size: 13px;
+  color: #666;
+}
+
+.submit-btn {
+  height: 40px;
+  margin-top: 6px;
+  border-radius: 6px;
   font-size: 15px;
   font-weight: 500;
-  letter-spacing: 4px;
-  background: var(--lx-accent);
-  border-color: var(--lx-accent);
-  margin-top: 4px;
+  letter-spacing: 6px;
+  text-indent: 6px;
 }
 
-.login-btn:hover {
-  background: var(--lx-accent-hover);
-  border-color: var(--lx-accent-hover);
-}
-
-.login-footer {
+.footer {
   margin-top: auto;
-  padding-bottom: 8px;
+  padding-top: 28px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  font-size: 13px;
+  justify-content: center;
+  gap: 10px;
+  font-size: 12px;
 }
 
 .footer-link {
-  color: var(--lx-text-secondary);
+  color: #888;
   text-decoration: none;
-  transition: color 0.2s;
 }
 
 .footer-link:hover {
-  color: var(--lx-accent);
+  color: var(--lx-accent, #12b7f5);
 }
 
-.divider {
+.footer-sep {
   color: #ddd;
+  user-select: none;
 }
 </style>

@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { useMessage } from 'naive-ui'
 import { FilterOutline, TrashOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
@@ -145,7 +145,7 @@ function handleClear() {
 .avatar {
   width: 48px;
   height: 48px;
-  border-radius: 50%;
+  border-radius: var(--lx-avatar-radius);
   flex-shrink: 0;
 }
 

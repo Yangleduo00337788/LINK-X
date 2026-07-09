@@ -15,6 +15,7 @@ declare global {
       setAutoStart?: (enabled: boolean) => Promise<boolean>
       getAutoStart?: () => Promise<boolean>
       notifyThemeChange?: (theme: 'light' | 'dark') => void
+      setWindowMode?: (mode: 'login' | 'main') => Promise<void>
       isElectron?: boolean
     }
   }

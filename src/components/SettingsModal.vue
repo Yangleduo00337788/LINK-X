@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import {
   NModal,
@@ -46,7 +46,7 @@ const {
   privacyShowOnline,
   chatBackground
 } = storeToRefs(appSettingsStore)
-const { toggleTheme, toggleOffline, simulateIncomingMessage } = appStore
+const { toggleTheme, setOffline, simulateIncomingMessage } = appStore
 const { setChatBackground } = appSettingsStore
 const { closeSettings } = settingsStore
 
@@ -106,9 +106,11 @@ function applyAutoStart() {
     v-model:show="isSettingsModalVisible"
     class="settings-modal"
     preset="card"
+    to="body"
     :bordered="false"
     :show-icon="false"
     :closable="false"
+    :z-index="10001"
     style="width: 760px; max-width: 94vw; border-radius: 12px; overflow: hidden; padding: 0;"
   >
     <div class="settings-shell">
@@ -229,7 +231,6 @@ function applyAutoStart() {
         <div v-show="activeTab === 'account'" class="settings-scroll">
           <section class="profile-card">
             <n-avatar
-              round
               :size="72"
               src="https://api.dicebear.com/7.x/avataaars/svg?seed=qq-user"
               class="profile-avatar"
@@ -356,7 +357,7 @@ function applyAutoStart() {
                 <span class="setting-name">模拟网络断开</span>
                 <span class="setting-desc">开启后将在聊天列表顶部显示断网提示</span>
               </div>
-              <n-switch :value="isOffline" size="small" @update:value="toggleOffline" />
+              <n-switch :value="isOffline" size="small" @update:value="setOffline" />
             </div>
           </section>
 
