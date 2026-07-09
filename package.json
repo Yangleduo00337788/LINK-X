@@ -26,10 +26,14 @@
     "vue-router": "^4.6.4"
   },
   "devDependencies": {
+    "@types/dompurify": "^3.0.5",
+    "@types/marked": "^5.0.2",
     "@types/uuid": "^10.0.0",
     "@vitejs/plugin-vue": "^5.0.4",
+    "dompurify": "^3.4.11",
     "electron": "^31.0.2",
     "electron-builder": "^24.13.3",
+    "marked": "^18.0.5",
     "typescript": "^5.4.5",
     "unocss": "^0.59.4",
     "vite": "^5.2.8",

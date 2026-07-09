@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onUnmounted, watch } from 'vue'
-import { NIcon, NPopover, NDropdown, useMessage, type DropdownOption } from 'naive-ui'
+import { ref, computed, onUnmounted, watch, nextTick } from 'vue'
+import { NIcon, NPopover, NDropdown, NVirtualList, useMessage, type DropdownOption } from 'naive-ui'
 import {
   CallOutline,
   VideocamOutline,
@@ -73,12 +73,6 @@ const hasSession = computed(() => !!currentSession.value)
 const isFriendChat = computed(
   () => hasSession.value && !currentSession.value?.isGroup && !isMyPhone.value
 )
-
-const showPhoneDemo = computed(
-  () => isMyPhone.value && currentMessages.value.filter(m => m.type !== 'system').length === 0
-)
-
-
 
 const chatMessages = computed(() =>
   currentMessages.value.filter(m => m.type !== 'system')
@@ -210,19 +204,22 @@ function formatVoiceDuration(sec?: number) {
   return s < 60 ? `${s}"` : `${Math.floor(s / 60)}'${s % 60}"`
 }
 
-function scrollToBottom() {
-  setTimeout(() => {
-    const messageArea = document.querySelector('.message-area')
-    if (messageArea) {
-      messageArea.scrollTo({ top: messageArea.scrollHeight, behavior: 'smooth' })
-    }
-  }, 100)
-}
-
-
-
-
 const replyingTo = ref<ChatMessage | undefined>()
+const virtualListRef = ref<InstanceType<typeof NVirtualList> | null>(null)
+const chatInputRef = ref<InstanceType<typeof ChatInputBox> | null>(null)
+
+function scrollToBottom() {
+  nextTick(() => {
+    if (virtualListRef.value) {
+      virtualListRef.value.scrollTo({ position: 'bottom', behavior: 'smooth' })
+    } else {
+      const messageArea = document.querySelector('.message-area')
+      if (messageArea) {
+        messageArea.scrollTo({ top: messageArea.scrollHeight, behavior: 'smooth' })
+      }
+    }
+  })
+}
 
 function copyMessage(msg: ChatMessage) {
   const text =
@@ -312,12 +309,45 @@ function recallMessage(msg: ChatMessage) {
   }
 }
 
+const isDraggingFile = ref(false)
 
+function onDragOver(e: DragEvent) {
+  e.preventDefault()
+  if (hasSession.value) {
+    isDraggingFile.value = true
+  }
+}
+
+function onDragLeave(e: DragEvent) {
+  e.preventDefault()
+  isDraggingFile.value = false
+}
+
+function onDrop(e: DragEvent) {
+  e.preventDefault()
+  isDraggingFile.value = false
+  if (!hasSession.value) return
+  const files = e.dataTransfer?.files
+  if (files && files.length > 0) {
+    for (let i = 0; i < files.length; i++) {
+      chatInputRef.value?.handleFileSend(files[i])
+    }
+  }
+}
 
 </script>
 
 <template>
-  <div class="chat-panel" :class="{ 'chat-panel--group': isGroupChat }">
+  <div class="chat-panel" :class="{ 'chat-panel--group': isGroupChat }"
+       @dragover="onDragOver"
+       @dragleave="onDragLeave"
+       @drop="onDrop">
+    <div v-if="isDraggingFile" class="drag-overlay">
+      <div class="drag-overlay-content">
+        <n-icon :component="ImagesOutline" :size="48" />
+        <span>松开以发送文件</span>
+      </div>
+    </div>
     <div class="functional-region">
       <!-- QQ 好友顶栏 -->
       <header v-if="isFriendChat" class="chat-header">
@@ -396,76 +426,38 @@ function recallMessage(msg: ChatMessage) {
         <div class="chat-main-col">
           <div class="chat-content-stack">
       <div class="message-area" :class="{ 'message-area--friend': isFriendChat }" :style="chatBgStyle">
-        <template v-if="showPhoneDemo">
-          <div class="message-time">18:48</div>
-          <div class="message-row left">
-            <button v-if="isFriendChat" type="button" class="avatar-btn" @click="openPeerProfile">
-              <Avatar v-bind="peerAvatarProps(36)" />
-            </button>
-            <Avatar v-else v-bind="peerAvatarProps(36)" />
-            <div class="message-content">
-              <div class="data-card">
-                <div class="card-header">
-                  <div class="card-icon">
-                    <n-icon :component="PhonePortraitOutline" :size="20" />
-                  </div>
-                  <div class="card-info">
-                    <div class="card-title">知流</div>
-                    <div class="card-sub">中国移动流量</div>
-                  </div>
-                  <div class="card-tag">套餐</div>
-                </div>
-                <div class="card-divider" />
-                <div class="card-body">
-                  <div class="card-label">已用移动流量</div>
-                  <div class="card-value">14.79 GB</div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="message-row left">
-            <button v-if="isFriendChat" type="button" class="avatar-btn" @click="openPeerProfile">
-              <Avatar v-bind="peerAvatarProps(36)" />
-            </button>
-            <Avatar v-else v-bind="peerAvatarProps(36)" />
-            <div class="file-card">
-              <div class="file-body">
-                <div class="file-icon">
-                  <n-icon :component="ImagesOutline" :size="28" />
-                </div>
-                <div class="file-info">
-                  <div class="file-name">Screenshot 2026-07-05-18-...</div>
-                  <div class="file-meta">355.33 KB</div>
-                </div>
-              </div>
-              <div class="file-footer">
-                <span>已下载</span>
-                <span class="file-view" @click="openFileView()">查看</span>
-              </div>
-            </div>
-          </div>
-        </template>
 
-        <template v-else-if="hasSession && chatMessages.length">
-          <ChatMessageItem
-            v-for="msg in chatMessages"
-            :key="msg.id"
-            :msg="msg"
-            :playing-voice-id="playingVoiceId"
-            @contextmenu="onMsgContext"
-            @play-voice="playVoice"
-            @open-file-view="openFileView"
-            @open-image-view="openImageView"
-            @click-red-packet="onRedPacketClick"
-            @open-peer-profile="openPeerProfile"
-            @open-self-profile="openSelfProfileClick"
-          />
-        </template>
+        <n-virtual-list
+          v-if="hasSession && chatMessages.length"
+          ref="virtualListRef"
+          :items="chatMessages"
+          :item-size="80"
+          item-resizable
+          item-key="id"
+          style="flex: 1; height: 100%; min-height: 0;"
+        >
+          <template #default="{ item: msg }">
+            <div style="padding-bottom: 14px;">
+              <ChatMessageItem
+                :msg="msg"
+                :playing-voice-id="playingVoiceId"
+                @contextmenu="onMsgContext"
+                @play-voice="playVoice"
+                @open-file-view="openFileView"
+                @open-image-view="openImageView"
+                @click-red-packet="onRedPacketClick"
+                @open-peer-profile="openPeerProfile"
+                @open-self-profile="openSelfProfileClick"
+              />
+            </div>
+          </template>
+        </n-virtual-list>
 
         <PenguinWatermark v-else :hint="hasSession ? '' : '在左侧选择会话开始聊天'" />
       </div>
 
       <ChatInputBox
+        ref="chatInputRef"
         v-if="hasSession"
         :is-my-phone="isMyPhone"
         :is-friend-chat="isFriendChat"
@@ -511,6 +503,35 @@ function recallMessage(msg: ChatMessage) {
   flex-direction: column;
   background: transparent;
   position: relative;
+}
+
+.drag-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.drag-overlay-content {
+  background: var(--lx-bg-panel);
+  padding: 32px 48px;
+  border-radius: var(--lx-radius);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  color: var(--lx-accent);
+  font-size: 18px;
+  font-weight: 600;
+  box-shadow: var(--lx-shadow-dropdown);
+  pointer-events: none;
 }
 
 .chat-body-row {

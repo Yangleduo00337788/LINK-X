@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { NIcon, NSkeleton, NDropdown, useMessage, type DropdownOption } from 'naive-ui'
+import { NIcon, NSkeleton, NDropdown, NVirtualList, useMessage, type DropdownOption } from 'naive-ui'
 import { PhonePortraitOutline, NotificationsOffOutline, WarningOutline } from '@vicons/ionicons5'
 import PinIcon from './icons/PinIcon.vue'
 import PanelSearchBar from './PanelSearchBar.vue'
@@ -119,47 +119,54 @@ function onContextMenuSelect(key: string) {
       </template>
 
       <template v-else>
-        <div
-          v-for="session in filteredSessions"
-          :key="session.id"
-          class="session-item"
-          :class="{ active: currentSessionId === session.id, pinned: session.pinned }"
-          @click="onSelect(session)"
-          @contextmenu="onSessionContext($event, session)"
+        <n-virtual-list
+          style="max-height: 100%; height: 100%"
+          :item-size="68"
+          :items="filteredSessions"
+          item-key="id"
         >
-          <div class="avatar-wrapper">
-            <Avatar
-              :text="session.avatarText"
-              :color="session.avatarColor"
-              :size="44"
-              :icon="session.name === '我的手机' ? PhonePortraitOutline : undefined"
-            />
-            <div v-if="session.unread && !session.muted" class="unread-badge">
-              {{ session.unread > 99 ? '99+' : session.unread }}
-            </div>
-          </div>
-
-          <div class="session-content">
-            <div class="session-top">
-              <span class="session-name">
-                <PinIcon v-if="session.pinned" :size="12" class="pin-icon" />
-                {{ session.name }}
-              </span>
-              <span class="session-meta">
-                <n-icon
-                  v-if="session.muted"
-                  :component="NotificationsOffOutline"
-                  :size="14"
-                  class="mute-icon"
+          <template #default="{ item: session }">
+            <div
+              class="session-item"
+              :class="{ active: currentSessionId === session.id, pinned: session.pinned }"
+              @click="onSelect(session)"
+              @contextmenu="onSessionContext($event, session)"
+            >
+              <div class="avatar-wrapper">
+                <Avatar
+                  :text="session.avatarText"
+                  :color="session.avatarColor"
+                  :size="44"
+                  :icon="session.name === '我的手机' ? PhonePortraitOutline : undefined"
                 />
-                <span class="session-time">{{ session.time }}</span>
-              </span>
+                <div v-if="session.unread && !session.muted" class="unread-badge">
+                  {{ session.unread > 99 ? '99+' : session.unread }}
+                </div>
+              </div>
+
+              <div class="session-content">
+                <div class="session-top">
+                  <span class="session-name">
+                    <PinIcon v-if="session.pinned" :size="12" class="pin-icon" />
+                    {{ session.name }}
+                  </span>
+                  <span class="session-meta">
+                    <n-icon
+                      v-if="session.muted"
+                      :component="NotificationsOffOutline"
+                      :size="14"
+                      class="mute-icon"
+                    />
+                    <span class="session-time">{{ session.time }}</span>
+                  </span>
+                </div>
+                <div class="session-bottom">
+                  <span class="last-message">{{ session.lastMessage }}</span>
+                </div>
+              </div>
             </div>
-            <div class="session-bottom">
-              <span class="last-message">{{ session.lastMessage }}</span>
-            </div>
-          </div>
-        </div>
+          </template>
+        </n-virtual-list>
       </template>
     </div>
 

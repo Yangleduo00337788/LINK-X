@@ -28,13 +28,28 @@ watch(isLoggedIn, syncWindowMode, { immediate: true, flush: 'post' })
 </script>
 
 <template>
-  <AppShell v-if="isLoggedIn" />
-  <LoginView v-else />
+  <transition name="fade-slide" mode="out-in">
+    <AppShell v-if="isLoggedIn" />
+    <LoginView v-else />
+  </transition>
 </template>
 
 <style scoped>
 :deep(.app-shell) {
   width: 100%;
   height: 100%;
+}
+
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.fade-slide-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
 }
 </style>

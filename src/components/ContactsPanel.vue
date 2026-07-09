@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { NIcon, NSkeleton } from 'naive-ui'
+import { NIcon, NSkeleton, NVirtualList } from 'naive-ui'
 import { ChevronForwardOutline } from '@vicons/ionicons5'
 import PanelSearchBar from './PanelSearchBar.vue'
 import Avatar from './Avatar.vue'
@@ -141,28 +141,35 @@ function onTabChange(tab: 'friends' | 'groups') {
 
       <!-- 列表 -->
       <template v-else>
-        <div v-if="activeTab === 'friends'" class="contacts-list">
-          <div class="group-header">
+        <div v-if="activeTab === 'friends'" class="contacts-list" style="height: 100%; display: flex; flex-direction: column;">
+          <div class="group-header" style="flex-shrink: 0;">
             <span class="group-name">我的好友</span>
             <span class="group-count">{{ friendGroups[0].online }}/{{ friendGroups[0].total }}</span>
           </div>
-          <div
-            v-for="item in friendGroups[0].items"
-            :key="item.id"
-            class="contact-row"
-            :class="{ active: currentSessionId === contactSessionId(item) }"
-            @click="handleContactClick(item, $event)"
-            @dblclick="handleContactDblClick(item)"
+          <n-virtual-list
+            style="flex: 1; height: 100%; min-height: 0;"
+            :item-size="76"
+            :items="friendGroups[0].items"
+            item-key="id"
           >
-            <Avatar :text="item.avatarText" :color="item.avatarColor" :size="46" />
-            <div class="info">
-              <div class="name-row">
-                <span class="name">{{ item.name }}</span>
-                <span class="status-dot" :class="{ online: item.online }"></span>
+            <template #default="{ item }">
+              <div
+                class="contact-row"
+                :class="{ active: currentSessionId === contactSessionId(item) }"
+                @click="handleContactClick(item, $event)"
+                @dblclick="handleContactDblClick(item)"
+              >
+                <Avatar :text="item.avatarText" :color="item.avatarColor" :size="46" />
+                <div class="info">
+                  <div class="name-row">
+                    <span class="name">{{ item.name }}</span>
+                    <span class="status-dot" :class="{ online: item.online }"></span>
+                  </div>
+                  <span class="status">{{ item.online ? '在线' : '离线' }}</span>
+                </div>
               </div>
-              <span class="status">{{ item.online ? '在线' : '离线' }}</span>
-            </div>
-          </div>
+            </template>
+          </n-virtual-list>
         </div>
 
         <div v-if="activeTab === 'groups'" class="groups-list">
@@ -314,6 +321,8 @@ function onTabChange(tab: 'friends' | 'groups') {
   flex: 1;
   overflow-y: auto;
   background: var(--lx-bg-panel);
+  display: flex;
+  flex-direction: column;
 }
 
 .contacts-list,

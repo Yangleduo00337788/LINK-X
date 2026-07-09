@@ -36,7 +36,7 @@ export interface ChatMessage {
   isSelf: boolean
   senderName?: string
   senderAvatar?: string
-  type?: 'text' | 'image' | 'file' | 'link' | 'system' | 'voice' | 'redPacket'
+  type?: 'text' | 'image' | 'file' | 'link' | 'system' | 'voice' | 'redPacket' | 'dataCard'
   linkUrl?: string
   
   // 对于 file 类型的扩展
@@ -57,6 +57,12 @@ export interface ChatMessage {
   redPacketGreeting?: string
   redPacketAmount?: string
   redPacketOpened?: boolean
+
+  /** 数据卡片（知流等） */
+  dataCardTitle?: string
+  dataCardSub?: string
+  dataCardLabel?: string
+  dataCardValue?: string
   
   // 消息引用
   replyTo?: ChatMessage

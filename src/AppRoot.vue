@@ -8,7 +8,9 @@ import {
   type GlobalThemeOverrides
 } from 'naive-ui'
 import App from './App.vue'
-import SettingsModal from './components/SettingsModal.vue'
+import { defineAsyncComponent } from 'vue'
+
+const SettingsModal = defineAsyncComponent(() => import('./components/SettingsModal.vue'))
 import LockScreen from './components/LockScreen.vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from './stores/app'

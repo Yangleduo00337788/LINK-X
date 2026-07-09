@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { NIcon, NDropdown, useMessage } from 'naive-ui'
 import type { DropdownOption } from 'naive-ui'
 import {
@@ -11,7 +11,8 @@ import {
   ArrowUndoOutline,
   ArrowRedoOutline,
   EllipsisHorizontalOutline,
-  ReorderTwoOutline
+  ReorderTwoOutline,
+  EyeOutline
 } from '@vicons/ionicons5'
 import PinIcon from './icons/PinIcon.vue'
 import WindowControls from './WindowControls.vue'
@@ -19,6 +20,8 @@ import { storeToRefs } from 'pinia'
 import { useNoteStore } from '../stores/note'
 import { useAppStore } from '../stores/app'
 import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 
 const message = useMessage()
 const noteStore = useNoteStore()
@@ -29,6 +32,12 @@ const { theme } = storeToRefs(appStore)
 const contentRef = ref<HTMLTextAreaElement | null>(null)
 const isPinned = ref(false)
 const isRecordingNote = ref(false)
+const showPreview = ref(false)
+
+const compiledMarkdown = computed(() => {
+  const rawHtml = marked(content.value) as string
+  return DOMPurify.sanitize(rawHtml)
+})
 
 const imageInputRef = ref<HTMLInputElement | null>(null)
 const fileInputRef = ref<HTMLInputElement | null>(null)
@@ -306,15 +315,30 @@ onUnmounted(() => {
           <n-icon :component="EllipsisHorizontalOutline" :size="18" />
         </button>
       </n-dropdown>
+
+      <span class="v-sep" />
+
+      <button
+        type="button"
+        class="icon-btn"
+        :class="{ active: showPreview }"
+        title="实时预览"
+        @click="showPreview = !showPreview"
+      >
+        <n-icon :component="EyeOutline" :size="18" />
+      </button>
     </div>
 
     <main class="editor-area">
       <textarea
+        v-show="!showPreview || content"
         ref="contentRef"
         v-model="content"
         class="editor-input"
+        :class="{ 'half-width': showPreview }"
         placeholder="按住 Ctrl + Win 可以使用语音输入文字，记录的文字、图片等内容将自动保存。"
       />
+      <div v-if="showPreview" class="markdown-preview markdown-body" v-html="compiledMarkdown"></div>
     </main>
   </div>
 </template>
@@ -466,6 +490,57 @@ onUnmounted(() => {
   background: transparent;
   color: var(--lx-text-body);
   font-family: inherit;
+}
+
+.editor-input.half-width {
+  width: 50%;
+  flex: 0 0 50%;
+  border-right: 1px solid var(--lx-border-light);
+}
+
+.markdown-preview {
+  flex: 1;
+  width: 50%;
+  padding: 14px 18px 20px;
+  overflow-y: auto;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--lx-text-body);
+  background: var(--lx-bg-panel);
+}
+
+.markdown-preview :deep(h1),
+.markdown-preview :deep(h2),
+.markdown-preview :deep(h3) {
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  font-weight: 600;
+  color: var(--lx-text);
+}
+
+.markdown-preview :deep(p) {
+  margin-bottom: 1em;
+}
+
+.markdown-preview :deep(ul),
+.markdown-preview :deep(ol) {
+  padding-left: 2em;
+  margin-bottom: 1em;
+}
+
+.markdown-preview :deep(img) {
+  max-width: 100%;
+  border-radius: var(--lx-radius);
+}
+
+.markdown-preview :deep(blockquote) {
+  border-left: 4px solid var(--lx-accent);
+  padding-left: 1em;
+  color: var(--lx-text-secondary);
+  margin-left: 0;
+  background: var(--lx-bg-hover);
+  padding: 8px 12px;
+  border-radius: 0 var(--lx-radius) var(--lx-radius) 0;
 }
 
 .editor-input::placeholder {

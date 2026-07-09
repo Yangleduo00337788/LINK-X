@@ -122,51 +122,75 @@ async function onImagePicked(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
   input.value = ''
-  if (!file || !ensureCanSend()) return
-
-  if (!file.type.startsWith('image/')) {
-    message.warning('请选择图片文件')
-    return
-  }
-  if (file.size > MAX_IMAGE_BYTES) {
-    message.warning(`图片不能超过 ${formatFileSize(MAX_IMAGE_BYTES)}`)
-    return
-  }
-
-  try {
-    const dataUrl = await readFileAsDataUrl(file)
-    sendMessage(dataUrl, { type: 'image', isImage: true })
-    message.success('图片已发送')
-    emit('scrollToBottom')
-  } catch {
-    message.error('图片读取失败')
-  }
+  if (!file) return
+  handleFileSend(file)
 }
 
 function onFilePicked(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
   input.value = ''
-  if (!file || !ensureCanSend()) return
+  if (!file) return
+  handleFileSend(file)
+}
 
-  const fileUrl = URL.createObjectURL(file)
-  sendMessage(file.name, {
-    type: 'file',
-    fileName: file.name,
-    fileSize: formatFileSize(file.size),
-    fileUrl
-  })
-  filesStore.addFromChat(file.name, formatFileSize(file.size), '我', fileUrl)
-  if (props.isGroupChat && currentSessionId.value) {
-    groupMetaStore.addFile(currentSessionId.value, {
-      name: file.name,
-      size: formatFileSize(file.size),
-      user: userProfile.value?.nickname || '我',
+async function handleFileSend(file: File) {
+  if (!ensureCanSend()) return
+
+  if (file.type.startsWith('image/')) {
+    if (file.size > MAX_IMAGE_BYTES) {
+      message.warning(`图片不能超过 ${formatFileSize(MAX_IMAGE_BYTES)}`)
+      return
+    }
+    try {
+      const dataUrl = await readFileAsDataUrl(file)
+      sendMessage(dataUrl, { type: 'image', isImage: true })
+      message.success('图片已发送')
+      emit('scrollToBottom')
+    } catch {
+      message.error('图片读取失败')
+    }
+  } else {
+    const fileUrl = URL.createObjectURL(file)
+    sendMessage(file.name, {
+      type: 'file',
+      fileName: file.name,
+      fileSize: formatFileSize(file.size),
       fileUrl
     })
+    filesStore.addFromChat(file.name, formatFileSize(file.size), '我', fileUrl)
+    if (props.isGroupChat && currentSessionId.value) {
+      groupMetaStore.addFile(currentSessionId.value, {
+        name: file.name,
+        size: formatFileSize(file.size),
+        user: userProfile.value?.nickname || '我',
+        fileUrl
+      })
+    }
+    message.success('文件已发送')
+    emit('scrollToBottom')
   }
-  message.success('文件已发送')
-  emit('scrollToBottom')
+}
+
+function onPaste(e: ClipboardEvent) {
+  if (!e.clipboardData) return
+  const items = e.clipboardData.items
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]
+    if (item.type.startsWith('image/')) {
+      const file = item.getAsFile()
+      if (file) {
+        e.preventDefault()
+        handleFileSend(file)
+      }
+    } else if (item.kind === 'file') {
+      const file = item.getAsFile()
+      if (file) {
+        e.preventDefault()
+        handleFileSend(file)
+      }
+    }
+  }
 }
 
 async function toggleVoiceRecord() {
@@ -249,6 +273,10 @@ function onEnter(e: KeyboardEvent) {
 function cancelReply() {
   emit('update:replyingTo', undefined)
 }
+
+defineExpose({
+  handleFileSend
+})
 </script>
 
 <template>
@@ -285,6 +313,7 @@ function cancelReply() {
           class="message-input"
           :bordered="false"
           @keydown.enter="onEnter"
+          @paste="onPaste"
         />
       </div>
 

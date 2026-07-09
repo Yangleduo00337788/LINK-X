@@ -179,7 +179,30 @@ export const initialMessages: Record<string, ChatMessage[]> = {
     }
   ],
   '6': [
-    { id: 'm1', sessionId: '6', content: '', time: '18:48', isSelf: false, type: 'system' }
+    {
+      id: 'm1-data',
+      sessionId: '6',
+      content: '',
+      time: '18:48',
+      isSelf: false,
+      type: 'dataCard',
+      dataCardTitle: '知流',
+      dataCardSub: '中国移动流量',
+      dataCardLabel: '已用移动流量',
+      dataCardValue: '14.79 GB'
+    },
+    {
+      id: 'm1-file',
+      sessionId: '6',
+      content: '',
+      time: '18:48',
+      isSelf: false,
+      type: 'file',
+      fileName: 'Screenshot 2026-07-05-18-...',
+      fileSize: '355.33 KB',
+      isImage: true,
+      fileStatus: '已下载'
+    }
   ],
   '1': [
     { id: 'm2', sessionId: '1', content: '大家好，今晚有人一起写代码吗？', time: '19:50', isSelf: false },

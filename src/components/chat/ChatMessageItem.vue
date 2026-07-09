@@ -11,6 +11,7 @@ import ImageBubble from './bubbles/ImageBubble.vue'
 import VoiceBubble from './bubbles/VoiceBubble.vue'
 import RedPacketBubble from './bubbles/RedPacketBubble.vue'
 import TextBubble from './bubbles/TextBubble.vue'
+import DataCardBubble from './bubbles/DataCardBubble.vue'
 
 defineProps<{
   msg: ChatMessage
@@ -58,6 +59,7 @@ function peerAvatarProps(size = 36) {
       <ImageBubble v-else-if="msg.type === 'image' || msg.isImage" :msg="msg" @click="emit('openImageView', msg)" />
       <VoiceBubble v-else-if="msg.type === 'voice'" :msg="msg" :playing="playingVoiceId === msg.id" @click="emit('playVoice', msg)" />
       <RedPacketBubble v-else-if="msg.type === 'redPacket'" :msg="msg" @click="emit('clickRedPacket', msg)" />
+      <DataCardBubble v-else-if="msg.type === 'dataCard'" :msg="msg" />
       <TextBubble v-else :msg="msg" />
     </div>
 
