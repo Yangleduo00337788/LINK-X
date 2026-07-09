@@ -1,0 +1,711 @@
+<script setup lang="ts">
+/**
+ * 聊天输入框组件。
+ * <p>
+ * 提供文本输入、表情、文件/图片发送、截图、语音录制、红包与快捷应用入口。
+ * 支持回复预览、粘贴图片/文件、Enter 发送（Shift+Enter 换行）。
+ * </p>
+ */
+// Vue 响应式 API 与生命周期
+import { ref, onUnmounted } from 'vue'
+// Naive UI 组件与消息提示
+import { NIcon, NInput, NPopover, useMessage } from 'naive-ui'
+// 工具栏图标（Ionicons5）
+import {
+  FolderOutline,
+  HappyOutline,
+  CutOutline,
+  VolumeHighOutline,
+  GiftOutline,
+  MicOutline,
+  GridOutline,
+  CloseOutline
+} from '@vicons/ionicons5'
+// Pinia 响应式解构
+import { storeToRefs } from 'pinia'
+// 主应用状态：会话、用户信息、发送消息
+import { useAppStore } from '../../stores/app'
+// 聊天弹窗/抽屉状态：语音通话、红包
+import { useChatModalsStore } from '../../stores/chatModals'
+// 二级视图：当前激活的应用
+import { useSecondaryViewStore } from '../../stores/secondaryView'
+// 文件列表 store：聊天发送的文件同步记录
+import { useFilesStore } from '../../stores/files'
+// 群元数据：群文件列表
+import { useGroupMetaStore } from '../../stores/groupMeta'
+// 消息与应用类型定义
+import type { ChatMessage, AppItem } from '../../types'
+// 聊天表情常量列表
+import { CHAT_EMOJIS } from '../../constants/emojis'
+// 聊天内可快捷打开的应用 mock 数据
+import { apps as chatApps } from '../../data/mockData'
+// 文件工具：大小格式化、DataURL 读取、图片大小上限
+import { formatFileSize, readFileAsDataUrl, MAX_IMAGE_BYTES } from '../../utils/file'
+
+// 组件入参：会话类型与可选的回复目标消息
+const props = defineProps<{
+  isMyPhone: boolean
+  isFriendChat: boolean
+  isGroupChat: boolean
+  replyingTo?: ChatMessage
+}>()
+
+// 向父组件抛出：更新回复目标、滚动到底部
+const emit = defineEmits<{
+  (e: 'update:replyingTo', val?: ChatMessage): void
+  (e: 'scrollToBottom'): void
+}>()
+
+// Naive UI 全局消息实例
+const message = useMessage()
+// 各 Pinia store 实例
+const appStore = useAppStore()
+const chatModalsStore = useChatModalsStore()
+const secondaryViewStore = useSecondaryViewStore()
+const filesStore = useFilesStore()
+const groupMetaStore = useGroupMetaStore()
+
+// 从 appStore 解构响应式会话与用户信息
+const { currentSession, currentSessionId, userProfile } = storeToRefs(appStore)
+// 从 appStore 解构方法（非响应式）
+const { sendMessage, setNav } = appStore
+// 当前激活的应用（二级视图）
+const { activeApp } = storeToRefs(secondaryViewStore)
+// 打开语音通话、红包弹窗
+const { openVoiceCall, openRedPacket } = chatModalsStore
+
+// 文本输入框绑定值
+const inputValue = ref('')
+// 表情面板是否展开
+const showEmoji = ref(false)
+// 应用快捷面板是否展开
+const showApps = ref(false)
+// 是否正在录音
+const isRecording = ref(false)
+
+// 隐藏的图片选择 input 引用
+const imageInputRef = ref<HTMLInputElement | null>(null)
+// 隐藏的文件选择 input 引用
+const fileInputRef = ref<HTMLInputElement | null>(null)
+
+// 表情列表副本（供模板 v-for）
+const emojis = [...CHAT_EMOJIS]
+
+// 录音开始时间戳（毫秒）
+let recordStart = 0
+// MediaRecorder 实例
+let mediaRecorder: MediaRecorder | null = null
+// 麦克风 MediaStream
+let recordStream: MediaStream | null = null
+// 录音数据块集合
+let voiceChunks: BlobPart[] = []
+
+// 组件卸载时释放麦克风轨道，避免占用设备
+onUnmounted(() => {
+  recordStream?.getTracks().forEach(t => t.stop())
+})
+
+/**
+ * 发送前校验：当前会话是否已屏蔽对方。
+ *
+ * @returns 允许发送返回 true，否则提示并返回 false
+ */
+function ensureCanSend(): boolean {
+  if (currentSession.value?.blocked) {
+    message.warning('你已屏蔽该联系人，无法发送消息')
+    return false
+  }
+  return true
+}
+
+/** 触发隐藏的文件选择器（图片/任意文件共用同一 input 逻辑入口） */
+function toolFile() {
+  fileInputRef.value?.click()
+}
+
+/**
+ * 屏幕截图并作为图片消息发送。
+ * 使用 getDisplayMedia 捕获屏幕，绘制到 canvas 后转 DataURL。
+ */
+async function toolScreenshot() {
+  if (!ensureCanSend()) return
+  if (!navigator.mediaDevices?.getDisplayMedia) {
+    message.warning('当前环境不支持屏幕截图')
+    return
+  }
+  try {
+    // 请求屏幕共享流（仅视频）
+    const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
+    const video = document.createElement('video')
+    video.srcObject = stream
+    await video.play()
+    const canvas = document.createElement('canvas')
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    canvas.getContext('2d')?.drawImage(video, 0, 0)
+    // 停止所有轨道，关闭选区 UI
+    stream.getTracks().forEach(t => t.stop())
+    const dataUrl = canvas.toDataURL('image/png')
+    // DataURL 约为原二进制 1.37 倍，用 1.4 倍阈值估算
+    if (dataUrl.length > MAX_IMAGE_BYTES * 1.4) {
+      message.warning('截图过大，请缩小选区后重试')
+      return
+    }
+    sendMessage(dataUrl, { type: 'image', isImage: true })
+    message.success('截图已发送')
+    emit('scrollToBottom')
+  } catch {
+    // 用户取消选区或权限拒绝
+    message.info('已取消截图')
+  }
+}
+
+/**
+ * 从聊天工具栏打开指定应用。
+ * 设置 activeApp 并切换到 apps 导航。
+ */
+function openChatApp(app: AppItem) {
+  activeApp.value = app
+  setNav('apps')
+  showApps.value = false
+  message.success(`已打开「${app.name}」`)
+}
+
+/** 打开发红包弹窗；「我的手机」会话不支持红包 */
+function toolRedPacket() {
+  if (props.isMyPhone) return
+  openRedPacket()
+}
+
+/** 图片 input change：取首个文件后交给 handleFileSend */
+async function onImagePicked(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  handleFileSend(file)
+}
+
+/** 文件 input change：逻辑与图片选择相同 */
+function onFilePicked(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  handleFileSend(file)
+}
+
+/**
+ * 统一处理文件/图片发送。
+ * 图片转 DataURL；其他文件用 Object URL，并写入 filesStore 与群文件列表。
+ */
+async function handleFileSend(file: File) {
+  if (!ensureCanSend()) return
+
+  if (file.type.startsWith('image/')) {
+    if (file.size > MAX_IMAGE_BYTES) {
+      message.warning(`图片不能超过 ${formatFileSize(MAX_IMAGE_BYTES)}`)
+      return
+    }
+    try {
+      const dataUrl = await readFileAsDataUrl(file)
+      sendMessage(dataUrl, { type: 'image', isImage: true })
+      message.success('图片已发送')
+      emit('scrollToBottom')
+    } catch {
+      message.error('图片读取失败')
+    }
+  } else {
+    const fileUrl = URL.createObjectURL(file)
+    sendMessage(file.name, {
+      type: 'file',
+      fileName: file.name,
+      fileSize: formatFileSize(file.size),
+      fileUrl
+    })
+    // 同步到全局文件传输列表
+    filesStore.addFromChat(file.name, formatFileSize(file.size), '我', fileUrl)
+    // 群聊时追加到群文件元数据
+    if (props.isGroupChat && currentSessionId.value) {
+      groupMetaStore.addFile(currentSessionId.value, {
+        name: file.name,
+        size: formatFileSize(file.size),
+        user: userProfile.value?.nickname || '我',
+        fileUrl
+      })
+    }
+    message.success('文件已发送')
+    emit('scrollToBottom')
+  }
+}
+
+/**
+ * 粘贴事件：剪贴板中的图片或文件自动发送。
+ */
+function onPaste(e: ClipboardEvent) {
+  if (!e.clipboardData) return
+  const items = e.clipboardData.items
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]
+    if (item.type.startsWith('image/')) {
+      const file = item.getAsFile()
+      if (file) {
+        e.preventDefault()
+        handleFileSend(file)
+      }
+    } else if (item.kind === 'file') {
+      const file = item.getAsFile()
+      if (file) {
+        e.preventDefault()
+        handleFileSend(file)
+      }
+    }
+  }
+}
+
+/**
+ * 切换语音录制状态。
+ * 首次点击开始录音；再次点击结束并发送 voice 类型消息。
+ * 无麦克风权限时降级为发送占位语音（3 秒）。
+ */
+async function toggleVoiceRecord() {
+  if (!isRecording.value) {
+    if (!ensureCanSend()) return
+    try {
+      voiceChunks = []
+      recordStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      mediaRecorder = new MediaRecorder(recordStream)
+      mediaRecorder.ondataavailable = e => {
+        if (e.data.size) voiceChunks.push(e.data)
+      }
+      recordStart = Date.now()
+      mediaRecorder.start()
+      isRecording.value = true
+      message.info('正在录音，再次点击结束')
+    } catch {
+      // 权限失败：发送无 URL 的占位语音
+      sendMessage('', { type: 'voice', voiceDuration: 3 })
+      message.success('语音消息已发送')
+      emit('scrollToBottom')
+    }
+    return
+  }
+
+  // 结束录音：计算时长并组装 Blob URL
+  const duration = Math.max(1, Math.round((Date.now() - recordStart) / 1000))
+  const recorder = mediaRecorder
+  if (recorder && recorder.state !== 'inactive') {
+    await new Promise<void>(resolve => {
+      recorder.onstop = () => {
+        const blob = new Blob(voiceChunks, { type: 'audio/webm' })
+        const voiceUrl = URL.createObjectURL(blob)
+        sendMessage('', { type: 'voice', voiceDuration: duration, voiceUrl })
+        message.success('语音消息已发送')
+        emit('scrollToBottom')
+        resolve()
+      }
+      recorder.stop()
+    })
+  } else {
+    sendMessage('', { type: 'voice', voiceDuration: duration })
+    message.success('语音消息已发送')
+    emit('scrollToBottom')
+  }
+
+  // 清理录音资源
+  recordStream?.getTracks().forEach(t => t.stop())
+  mediaRecorder = null
+  recordStream = null
+  voiceChunks = []
+  isRecording.value = false
+}
+
+/** 选中表情追加到输入框并关闭表情面板 */
+function pickEmoji(e: string) {
+  inputValue.value += e
+  showEmoji.value = false
+}
+
+/**
+ * 发送文本或 /img 命令图片。
+ * 清空输入并取消回复引用。
+ */
+function send() {
+  if (!inputValue.value.trim()) return
+  if (!ensureCanSend()) return
+
+  if (inputValue.value.startsWith('/img ')) {
+    const url = inputValue.value.replace('/img ', '').trim()
+    sendMessage(url, { type: 'image', isImage: true })
+  } else {
+    sendMessage(inputValue.value, { type: 'text', replyTo: props.replyingTo })
+  }
+
+  inputValue.value = ''
+  emit('update:replyingTo', undefined)
+  emit('scrollToBottom')
+}
+
+/** Enter 发送，Shift+Enter 保留默认换行 */
+function onEnter(e: KeyboardEvent) {
+  if (!e.shiftKey) {
+    e.preventDefault()
+    send()
+  }
+}
+
+/** 取消当前回复引用 */
+function cancelReply() {
+  emit('update:replyingTo', undefined)
+}
+
+// 暴露给父组件：拖拽/外部调用文件发送
+defineExpose({
+  handleFileSend
+})
+</script>
+
+<template>
+  <!-- 聊天底部输入区域：好友/群聊样式区分 -->
+  <div
+    class="input-area"
+    :class="{ 'input-area--friend': isFriendChat, 'input-area--group': isGroupChat }"
+  >
+    <!-- 隐藏的文件选择器：图片与通用文件 -->
+    <input
+      ref="imageInputRef"
+      type="file"
+      accept="image/*"
+      class="hidden-file-input"
+      @change="onImagePicked"
+    />
+    <input
+      ref="fileInputRef"
+      type="file"
+      class="hidden-file-input"
+      @change="onFilePicked"
+    />
+
+    <div class="input-box">
+      <!-- 回复预览 + 多行文本输入 -->
+      <div class="input-compose">
+        <div v-if="replyingTo" class="reply-preview">
+          <div class="reply-content">回复 {{ replyingTo.senderName }}: {{ replyingTo.content }}</div>
+          <n-icon :component="CloseOutline" class="reply-close" @click="cancelReply" />
+        </div>
+
+        <n-input
+          v-model:value="inputValue"
+          type="textarea"
+          :autosize="{ minRows: 3, maxRows: 8 }"
+          placeholder=""
+          class="message-input"
+          :bordered="false"
+          @keydown.enter="onEnter"
+          @paste="onPaste"
+        />
+      </div>
+
+      <!-- 工具栏：表情、应用、文件、截图、红包、语音、通话、发送 -->
+      <div class="input-toolbar">
+        <div class="toolbar-left">
+          <n-popover v-model:show="showEmoji" trigger="click" placement="top-start">
+            <template #trigger>
+              <button type="button" class="tool-btn" title="表情">
+                <n-icon :component="HappyOutline" :size="20" />
+              </button>
+            </template>
+            <div class="emoji-grid">
+              <button
+                v-for="e in emojis"
+                :key="e"
+                type="button"
+                class="emoji-btn"
+                @click="pickEmoji(e)"
+              >
+                {{ e }}
+              </button>
+            </div>
+          </n-popover>
+          <n-popover v-model:show="showApps" trigger="click" placement="top-start">
+            <template #trigger>
+              <button type="button" class="tool-btn" title="应用">
+                <n-icon :component="GridOutline" :size="20" />
+              </button>
+            </template>
+            <div class="apps-quick-grid">
+              <button
+                v-for="app in chatApps"
+                :key="app.id"
+                type="button"
+                class="apps-quick-item"
+                @click="openChatApp(app)"
+              >
+                <span class="apps-quick-icon" :style="{ background: app.color }">{{ app.icon }}</span>
+                <span>{{ app.name }}</span>
+              </button>
+            </div>
+          </n-popover>
+          <button type="button" class="tool-btn" title="发送文件" @click="toolFile">
+            <n-icon :component="FolderOutline" :size="20" />
+          </button>
+          <button type="button" class="tool-btn" title="截图" @click="toolScreenshot">
+            <n-icon :component="CutOutline" :size="20" />
+          </button>
+          <button
+            v-if="!isMyPhone"
+            type="button"
+            class="tool-btn"
+            title="红包"
+            @click="toolRedPacket"
+          >
+            <n-icon :component="GiftOutline" :size="20" />
+          </button>
+          <button
+            type="button"
+            class="tool-btn"
+            :class="{ 'tool-btn--recording': isRecording }"
+            title="语音"
+            @click="toggleVoiceRecord"
+          >
+            <n-icon :component="MicOutline" :size="20" />
+          </button>
+        </div>
+
+        <div class="toolbar-right">
+          <button type="button" class="tool-btn" title="语音通话" @click="openVoiceCall">
+            <n-icon :component="VolumeHighOutline" :size="20" />
+          </button>
+          <button
+            type="button"
+            class="send-btn"
+            :disabled="!inputValue.trim()"
+            @click="send"
+          >
+            发送
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.input-area {
+  flex-shrink: 0;
+  padding: 10px 14px 14px;
+  background: var(--lx-bg-panel);
+  border-top: none;
+  box-shadow: inset 0 1px 0 var(--lx-separator-fade, rgba(0, 0, 0, 0.04));
+}
+
+.input-box {
+  display: flex;
+  flex-direction: column;
+  background: var(--lx-bg-card);
+  border: 1px solid var(--lx-border-light);
+  border-radius: 10px;
+  overflow: hidden;
+  min-height: 148px;
+}
+
+.input-compose {
+  flex: 1;
+  min-height: 0;
+  padding: 10px 14px 4px;
+}
+
+.input-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px 10px;
+  flex-shrink: 0;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tool-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--lx-text-nav);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tool-btn:hover {
+  background: var(--lx-bg-hover);
+  color: var(--lx-text-body);
+}
+
+.tool-btn--recording {
+  color: var(--lx-danger) !important;
+  animation: pulse-rec 1s infinite;
+}
+
+.message-input {
+  flex: 1;
+}
+
+.message-input :deep(.n-input-wrapper) {
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+.message-input :deep(.n-input) {
+  background: transparent !important;
+  --n-border: transparent !important;
+  --n-border-hover: transparent !important;
+  --n-border-focus: transparent !important;
+  --n-box-shadow-focus: none !important;
+}
+
+.message-input :deep(.n-input__border),
+.message-input :deep(.n-input__state-border) {
+  display: none !important;
+}
+
+.message-input :deep(.n-input__textarea-el) {
+  min-height: 72px !important;
+  background: transparent !important;
+  font-size: 14px;
+  line-height: 1.55;
+  padding: 0 !important;
+  color: var(--lx-text);
+  resize: none;
+}
+
+.send-btn {
+  min-width: 64px;
+  height: 28px;
+  padding: 0 14px;
+  border-radius: 6px;
+  border: none;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  background: #e9e9e9;
+  color: #ffffff;
+  transition: background 0.15s;
+}
+
+.send-btn:not(:disabled) {
+  background: var(--lx-accent);
+  color: var(--lx-text-on-accent);
+}
+
+.send-btn:not(:disabled):hover {
+  background: var(--lx-accent-hover);
+}
+
+.send-btn:disabled {
+  cursor: not-allowed;
+}
+
+@keyframes pulse-rec {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+.reply-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--lx-bg-panel);
+  border-radius: var(--lx-radius);
+  margin-bottom: 8px;
+  border-left: 3px solid var(--lx-accent);
+}
+
+.reply-content {
+  font-size: 12px;
+  color: var(--lx-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.reply-close {
+  cursor: pointer;
+  color: var(--lx-text-muted);
+  padding: 2px;
+}
+
+.reply-close:hover {
+  color: var(--lx-danger);
+}
+
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 4px;
+}
+
+.emoji-btn {
+  border: none;
+  background: transparent;
+  font-size: 22px;
+  cursor: pointer;
+}
+
+.apps-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 4px;
+  min-width: 200px;
+}
+
+.apps-quick-item {
+  border: none;
+  background: var(--lx-bg-panel);
+  border-radius: var(--lx-radius);
+  padding: 10px 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--lx-text-body);
+}
+
+.apps-quick-item:hover {
+  background: var(--lx-bg-hover);
+}
+
+.apps-quick-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--lx-radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 16px;
+}
+</style>
