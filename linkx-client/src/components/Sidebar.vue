@@ -7,7 +7,7 @@
  * </p>
  */
 // Vue 渲染函数、nextTick 与组件类型
-import { h, nextTick, type Component } from 'vue'
+import { h, nextTick, ref, type Component } from 'vue'
 // Ionicons5 导航与菜单图标
 import {
   ChatbubbleEllipsesOutline,
@@ -61,6 +61,9 @@ const { open: openOverlay, closeAll: closeOverlay } = overlayStore
 
 // 获取 Naive UI 消息提示实例
 const message = useMessage()
+
+// 更多菜单下拉显隐（受控，登出前先关闭避免残留遮罩）
+const menuDropdownShow = ref(false)
 
 // 渲染下拉菜单项图标的工厂函数
 function renderIcon(icon: Component) {
@@ -179,10 +182,11 @@ function handleMenuSelect(key: string | number) {
       })
       break
     case 'logout':
+      menuDropdownShow.value = false
       runMenuAction(() => {
         prepareMenuAction()
         settingsStore.closeSettings()
-        logout() // 退出登录
+        void logout()
       })
       break
   }
@@ -243,6 +247,7 @@ function handleSelfAvatarClick(e: MouseEvent) {
       </button>
 
       <n-dropdown
+        v-model:show="menuDropdownShow"
         trigger="click"
         placement="right-end"
         :show-arrow="false"

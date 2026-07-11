@@ -22,7 +22,7 @@ import { applyDocumentTheme } from '../utils/themeSync'
 // 获取应用 Store 实例
 const appStore = useAppStore()
 // 解构登录状态的响应式引用
-const { isLoggedIn } = storeToRefs(appStore)
+const { isLoggedIn, authInitializing } = storeToRefs(appStore)
 
 // 根据登录状态同步 Electron 窗口模式（login / main）
 async function syncWindowMode(loggedIn: boolean) {
@@ -38,9 +38,9 @@ async function syncWindowMode(loggedIn: boolean) {
 }
 
 // 组件挂载：尝试自动登录并应用主题
-onMounted(() => {
-  appStore.tryAutoLogin() // 若开启自动登录则尝试恢复会话
-  applyDocumentTheme(appStore.theme) // 同步 HTML 文档主题
+onMounted(async () => {
+  await appStore.tryAutoLogin()
+  applyDocumentTheme(appStore.theme)
 })
 
 // 登录状态变化时同步窗口模式，immediate 确保首次渲染也执行
@@ -48,31 +48,31 @@ watch(isLoggedIn, syncWindowMode, { immediate: true, flush: 'post' })
 </script>
 
 <template>
-  <!-- 登录/主界面切换过渡 -->
-  <transition name="fade-slide" mode="out-in">
-    <!-- 已登录：渲染主壳层 -->
-    <AppShell v-if="isLoggedIn" />
-    <!-- 未登录：渲染登录页 -->
+  <div class="home-root">
+    <!-- 自动登录恢复会话时显示加载态，避免登录页闪烁 -->
+    <div v-if="authInitializing" class="auth-loading" aria-busy="true" aria-label="正在恢复登录状态" />
+    <!-- 直接切换，不用 transition，避免登出时父容器高度塌陷导致白屏 -->
+    <AppShell v-else-if="isLoggedIn" />
     <LoginView v-else />
-  </transition>
+  </div>
 </template>
 
 <style scoped>
+.home-root {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  overflow: hidden;
+}
+
 :deep(.app-shell) {
   width: 100%;
   height: 100%;
 }
 
-.fade-slide-enter-active,
-.fade-slide-leave-active {
-  transition: opacity 0.3s ease, transform 0.3s ease;
-}
-.fade-slide-enter-from {
-  opacity: 0;
-  transform: translateY(10px);
-}
-.fade-slide-leave-to {
-  opacity: 0;
-  transform: translateY(-10px);
+.auth-loading {
+  width: 100%;
+  height: 100%;
+  background: var(--lx-bg-panel, #f5f5f5);
 }
 </style>

@@ -1,11 +1,24 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, globalShortcut, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, globalShortcut, safeStorage, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import os from 'node:os'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL)
+
+const SECURE_DIR = () => path.join(app.getPath('userData'), 'secure')
+
+function ensureSecureDir() {
+  const dir = SECURE_DIR()
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true })
+  }
+  return dir
+}
+
+function secureFilePath(key: string) {
+  return path.join(ensureSecureDir(), `${key}.bin`)
+}
 
 /** 使用原生 CJS preload，避免 Vite 打出 ESM 导致 Windows 上无法注入 */
 function resolvePreloadPath(): string {
@@ -24,9 +37,9 @@ function resolvePreloadPath(): string {
 
 const preloadPath = resolvePreloadPath()
 
-app.commandLine.appendSwitch('--no-sandbox')
-app.commandLine.appendSwitch('--disable-software-rasterizer')
-app.setPath('userData', path.join(os.tmpdir(), 'linkx-electron'))
+if (isDev) {
+  app.commandLine.appendSwitch('--disable-software-rasterizer')
+}
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -70,6 +83,10 @@ function registerWindowIpc() {
   ipcMain.removeHandler('app:set-auto-start')
   ipcMain.removeHandler('app:get-auto-start')
   ipcMain.removeHandler('window:set-mode')
+  ipcMain.removeHandler('secure-storage:is-available')
+  ipcMain.removeHandler('secure-storage:get')
+  ipcMain.removeHandler('secure-storage:set')
+  ipcMain.removeHandler('secure-storage:remove')
 
   ipcMain.on('window-minimize', onMinimize)
   ipcMain.on('window-maximize', onMaximize)
@@ -127,6 +144,35 @@ function registerWindowIpc() {
       win.setSize(1083, 833, false)
       win.center()
     }
+  })
+
+  ipcMain.handle('secure-storage:is-available', () => safeStorage.isEncryptionAvailable())
+
+  ipcMain.handle('secure-storage:get', (_event, key: string) => {
+    if (!safeStorage.isEncryptionAvailable()) return null
+    const file = secureFilePath(key)
+    if (!fs.existsSync(file)) return null
+    try {
+      const encrypted = fs.readFileSync(file)
+      return safeStorage.decryptString(encrypted)
+    } catch {
+      return null
+    }
+  })
+
+  ipcMain.handle('secure-storage:set', (_event, key: string, value: string) => {
+    if (!safeStorage.isEncryptionAvailable()) return false
+    const encrypted = safeStorage.encryptString(value)
+    fs.writeFileSync(secureFilePath(key), encrypted)
+    return true
+  })
+
+  ipcMain.handle('secure-storage:remove', (_event, key: string) => {
+    const file = secureFilePath(key)
+    if (fs.existsSync(file)) {
+      fs.unlinkSync(file)
+    }
+    return true
   })
 }
 

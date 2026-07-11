@@ -25,7 +25,13 @@ const api = {
   minimize: () => windowAction('minimize'),
   maximize: () => windowAction('maximize'),
   close: () => windowAction('close'),
-  isElectron: true as const
+  isElectron: true as const,
+  secureStorage: {
+    isAvailable: () => ipcRenderer.invoke('secure-storage:is-available'),
+    get: (key: string) => ipcRenderer.invoke('secure-storage:get', key),
+    set: (key: string, value: string) => ipcRenderer.invoke('secure-storage:set', key, value),
+    remove: (key: string) => ipcRenderer.invoke('secure-storage:remove', key)
+  }
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)

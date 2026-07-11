@@ -1,151 +1,195 @@
 <script setup lang="ts">
-/**
- * 登录页组件。
- * <p>
- * 提供账号密码登录、记住账号、自动登录、注册与找回密码功能，
- * 在 Electron 环境下显示自定义标题栏与窗口控制。
- * </p>
- */
-// Vue 响应式、挂载钩子与计算属性
-import { ref, onMounted, computed } from 'vue'
-// Naive UI 表单控件、弹窗与消息提示
+import { ref, onMounted, computed, watch } from 'vue'
 import { NInput, NButton, NIcon, NCheckbox, NModal, useMessage } from 'naive-ui'
-// Ionicons5 锁与用户图标
-import { LockClosedOutline, PersonOutline } from '@vicons/ionicons5'
-// Electron 窗口控制按钮
+import { LockClosedOutline, PersonOutline, RefreshOutline } from '@vicons/ionicons5'
 import WindowControls from './WindowControls.vue'
-// Pinia 响应式解构
 import { storeToRefs } from 'pinia'
-// 应用全局状态 Store
 import { useAppStore } from '../stores/app'
-// HTTP API 客户端
-import { apiClient } from '../api/client'
+import * as authApi from '../api/auth'
+import { validateUsername, validatePassword, validateNickname } from '../utils/validation'
 
-// 获取 Naive UI 消息提示实例
 const message = useMessage()
-// 获取应用 Store 实例
 const appStore = useAppStore()
-// 解构已保存登录信息与加载状态
 const { savedLogin, isLoading } = storeToRefs(appStore)
-// 解构登录方法
 const { login } = appStore
 
-// 是否在 Electron 环境中运行
 const isElectron = !!window.electronAPI?.isElectron
 
-// 登录表单字段
-const username = ref('') // LinkX ID 或手机号
-const password = ref('') // 登录密码
-const rememberMe = ref(true) // 是否记住账号
-const autoLogin = ref(false) // 是否自动登录
+const username = ref('')
+const password = ref('')
+const rememberMe = ref(true)
+const autoLogin = ref(false)
 
-// 注册弹窗相关
-const showRegister = ref(false) // 是否显示注册弹窗
-const regUser = ref('') // 注册用户名
-const regPass = ref('') // 注册密码
+const captchaId = ref('')
+const captchaImage = ref('')
+const captchaCode = ref('')
 
-// 找回密码弹窗相关
-const showForgot = ref(false) // 是否显示找回密码弹窗
-const forgotUser = ref('') // 找回密码账号
+const showRegister = ref(false)
+const regUser = ref('')
+const regPass = ref('')
+const regNickname = ref('')
+const regCaptchaCode = ref('')
+const regCaptchaId = ref('')
+const regCaptchaImage = ref('')
 
-// Electron 环境下使用紧凑布局（无外边距背景）
+const showForgot = ref(false)
+const forgotUser = ref('')
+
 const compact = computed(() => isElectron)
 
-// 挂载时从本地存储恢复上次登录信息
+async function loadCaptcha(target: 'login' | 'register' = 'login') {
+  try {
+    const res = await authApi.fetchCaptcha()
+    if (res.code === 200 && res.data) {
+      if (target === 'login') {
+        captchaId.value = res.data.captchaId
+        captchaImage.value = res.data.imageBase64
+        captchaCode.value = ''
+      } else {
+        regCaptchaId.value = res.data.captchaId
+        regCaptchaImage.value = res.data.imageBase64
+        regCaptchaCode.value = ''
+      }
+    }
+  } catch {
+    message.error('验证码加载失败')
+  }
+}
+
 onMounted(() => {
-  username.value = savedLogin.value.username || 'linkx_888888' // 恢复用户名或默认值
-  rememberMe.value = savedLogin.value.rememberMe ?? true // 恢复记住账号选项
-  autoLogin.value = savedLogin.value.autoLogin ?? false // 恢复自动登录选项
+  username.value = savedLogin.value.username || ''
+  rememberMe.value = savedLogin.value.rememberMe ?? true
+  autoLogin.value = savedLogin.value.autoLogin ?? false
+  void loadCaptcha('login')
 })
 
-// 处理登录提交
-async function handleLogin() {
-  const user = username.value.trim() // 去除首尾空格
-  const pass = password.value.trim()
+watch(rememberMe, val => {
+  if (!val) autoLogin.value = false
+})
 
-  if (!user) {
-    message.warning('请输入 LinkX ID 或手机号')
+watch(autoLogin, val => {
+  if (val) rememberMe.value = true
+})
+
+async function handleLogin() {
+  const user = username.value.trim()
+  const pass = password.value
+
+  const userErr = validateUsername(user)
+  if (userErr) {
+    message.warning(userErr)
     return
   }
-  if (!pass) {
-    message.warning('请输入密码')
+  const passErr = validatePassword(pass)
+  if (passErr) {
+    message.warning(passErr)
+    return
+  }
+  if (!captchaCode.value.trim()) {
+    message.warning('请输入验证码')
     return
   }
 
   try {
-    // 调用 Store 登录方法，传入记住账号与自动登录选项
     await login(user, pass, {
       rememberMe: rememberMe.value,
-      autoLogin: autoLogin.value
+      autoLogin: autoLogin.value,
+      captchaId: captchaId.value,
+      captchaCode: captchaCode.value.trim()
     })
     message.success(`欢迎回来，${user}`)
-  } catch (error: any) {
-    message.error(error.message || '登录失败，请检查账号密码')
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || '登录失败，请检查账号密码')
+    await loadCaptcha('login')
   }
 }
 
-// 处理注册提交
+async function openRegister() {
+  showRegister.value = true
+  regNickname.value = regUser.value.trim()
+  await loadCaptcha('register')
+}
+
 async function handleRegister() {
-  if (!regUser.value.trim() || !regPass.value.trim()) {
-    message.warning('请填写完整注册信息')
+  const user = regUser.value.trim()
+  const pass = regPass.value
+  const nickname = regNickname.value.trim() || user
+
+  const userErr = validateUsername(user)
+  if (userErr) {
+    message.warning(userErr)
     return
   }
-  
+  const passErr = validatePassword(pass, true)
+  if (passErr) {
+    message.warning(passErr)
+    return
+  }
+  const nickErr = validateNickname(nickname)
+  if (nickErr) {
+    message.warning(nickErr)
+    return
+  }
+  if (!regCaptchaCode.value.trim()) {
+    message.warning('请输入验证码')
+    return
+  }
+
   try {
-    // 调用后端注册接口
-    const res: any = await apiClient.post('/auth/register', {
-      username: regUser.value.trim(),
-      password: regPass.value.trim(),
-      nickname: regUser.value.trim() // 默认昵称与账号相同
+    const res = await authApi.register({
+      username: user,
+      password: pass,
+      nickname,
+      captchaId: regCaptchaId.value,
+      captchaCode: regCaptchaCode.value.trim()
     })
     if (res.code === 200) {
-      message.success(`账号「${regUser.value.trim()}」注册成功，请登录`)
-      username.value = regUser.value.trim() // 回填到登录表单
-      password.value = regPass.value.trim()
-      showRegister.value = false // 关闭注册弹窗
+      message.success('注册成功，请登录')
+      username.value = user
+      password.value = ''
+      showRegister.value = false
+      await loadCaptcha('login')
     } else {
-      message.error(res.message || '注册失败')
+      message.error(res.message || '注册失败，请检查信息后重试')
+      await loadCaptcha('register')
     }
-  } catch (error: any) {
-    message.error(error.response?.data?.message || error.message || '注册请求失败')
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || '注册请求失败')
+    await loadCaptcha('register')
   }
 }
 
-// 处理找回密码（本地模拟）
 function handleForgot() {
   if (!forgotUser.value.trim()) {
-    message.warning('请输入 LinkX ID 或手机号')
+    message.warning('请输入 LinkX ID')
     return
   }
-  message.success('重置链接已发送到绑定邮箱（本地模拟）')
-  showForgot.value = false // 关闭找回密码弹窗
+  message.info('找回密码功能即将上线')
+  showForgot.value = false
 }
 </script>
 
 <template>
-  <!-- 登录页根容器，Electron 下附加紧凑样式 -->
   <div class="login-page" :class="{ 'login-page--compact': compact }">
-    <!-- Electron 自定义标题栏 -->
     <div v-if="isElectron" class="login-win-bar">
       <div class="drag-area" />
       <WindowControls />
     </div>
 
-    <!-- 登录卡片 -->
     <div class="login-card">
-      <!-- 品牌区 -->
       <div class="brand">
         <img src="../assets/logo-linkx.svg" alt="" class="brand-logo" width="56" height="56" />
         <h1 class="brand-name">LinkX</h1>
         <p class="brand-desc">企业级即时通讯与协同平台</p>
       </div>
 
-      <!-- 登录表单 -->
       <div class="form">
         <n-input
           v-model:value="username"
           size="large"
-          placeholder="linkx_888888"
+          placeholder="用户名（4-32位字母数字下划线）"
           class="field"
           :bordered="true"
           @keyup.enter="handleLogin"
@@ -160,7 +204,7 @@ function handleForgot() {
           type="password"
           show-password-on="click"
           size="large"
-          placeholder="请输入密码"
+          placeholder="密码（8-64位）"
           class="field"
           :bordered="true"
           @keyup.enter="handleLogin"
@@ -170,7 +214,30 @@ function handleForgot() {
           </template>
         </n-input>
 
-        <!-- 记住账号与自动登录选项 -->
+        <div class="captcha-row">
+          <img
+            v-if="captchaImage"
+            :src="captchaImage"
+            alt="验证码"
+            class="captcha-img"
+            title="点击刷新"
+            @click="loadCaptcha('login')"
+          />
+          <n-input
+            v-model:value="captchaCode"
+            size="large"
+            placeholder="验证码"
+            class="captcha-input"
+            maxlength="6"
+            @keyup.enter="handleLogin"
+          />
+          <n-button quaternary circle @click="loadCaptcha('login')">
+            <template #icon>
+              <n-icon :component="RefreshOutline" />
+            </template>
+          </n-button>
+        </div>
+
         <div class="options">
           <n-checkbox v-model:checked="rememberMe" size="small">记住账号</n-checkbox>
           <n-checkbox v-model:checked="autoLogin" size="small">自动登录</n-checkbox>
@@ -188,32 +255,49 @@ function handleForgot() {
         </n-button>
       </div>
 
-      <!-- 底部链接：注册与找回密码 -->
       <div class="footer">
-        <a href="#" class="footer-link" @click.prevent="showRegister = true">注册账号</a>
+        <a href="#" class="footer-link" @click.prevent="openRegister">注册账号</a>
         <span class="footer-sep">|</span>
         <a href="#" class="footer-link" @click.prevent="showForgot = true">找回密码</a>
       </div>
     </div>
 
-    <!-- 注册弹窗 -->
     <n-modal v-model:show="showRegister" preset="dialog" title="注册 LinkX 账号">
-      <n-input v-model:value="regUser" placeholder="LinkX ID / 手机号" />
+      <n-input v-model:value="regUser" placeholder="用户名" />
       <n-input
         v-model:value="regPass"
         type="password"
-        placeholder="设置密码"
+        placeholder="密码（8位以上，含字母和数字）"
         style="margin-top: 12px"
       />
+      <n-input
+        v-model:value="regNickname"
+        placeholder="昵称"
+        style="margin-top: 12px"
+      />
+      <div class="captcha-row" style="margin-top: 12px">
+        <img
+          v-if="regCaptchaImage"
+          :src="regCaptchaImage"
+          alt="验证码"
+          class="captcha-img"
+          @click="loadCaptcha('register')"
+        />
+        <n-input v-model:value="regCaptchaCode" placeholder="验证码" maxlength="6" />
+        <n-button quaternary circle @click="loadCaptcha('register')">
+          <template #icon>
+            <n-icon :component="RefreshOutline" />
+          </template>
+        </n-button>
+      </div>
       <template #action>
         <n-button @click="showRegister = false">取消</n-button>
         <n-button type="primary" @click="handleRegister">注册</n-button>
       </template>
     </n-modal>
 
-    <!-- 找回密码弹窗 -->
     <n-modal v-model:show="showForgot" preset="dialog" title="找回密码">
-      <n-input v-model:value="forgotUser" placeholder="LinkX ID / 手机号" />
+      <n-input v-model:value="forgotUser" placeholder="LinkX ID" />
       <template #action>
         <n-button @click="showForgot = false">取消</n-button>
         <n-button type="primary" @click="handleForgot">发送重置链接</n-button>
@@ -240,6 +324,7 @@ function handleForgot() {
   padding: 0;
   flex-direction: column;
   align-items: stretch;
+  min-height: 520px;
 }
 
 .login-win-bar {
@@ -257,7 +342,7 @@ function handleForgot() {
 
 .login-card {
   width: 360px;
-  min-height: 480px;
+  min-height: 520px;
   background: #ffffff;
   border-radius: 8px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
@@ -311,6 +396,25 @@ function handleForgot() {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.captcha-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.captcha-img {
+  width: 120px;
+  height: 40px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  flex-shrink: 0;
+}
+
+.captcha-input {
+  flex: 1;
 }
 
 .field :deep(.n-input-wrapper) {

@@ -2,11 +2,12 @@
 package com.linkx.server;
 
 // 导入 MyBatis-Flex 提供的 Mapper 扫描注解，用于自动注册 Mapper 接口
+import com.linkx.server.config.LinkxProperties;
 import org.mybatis.spring.annotation.MapperScan;
-// 导入 Spring Boot 应用启动类
 import org.springframework.boot.SpringApplication;
-// 导入 Spring Boot 自动配置注解
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.scheduling.annotation.EnableAsync;
 
 /**
  * LinkX 后端服务启动入口类。
@@ -14,8 +15,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * 负责启动 Spring Boot 容器，并扫描注册 MyBatis Mapper 接口。
  * </p>
  */
-@SpringBootApplication // 标记为 Spring Boot 主应用，开启自动配置与组件扫描
-@MapperScan("com.linkx.server.mapper") // 扫描 mapper 包下所有接口，注册为 MyBatis Mapper Bean
+@SpringBootApplication
+@MapperScan("com.linkx.server.mapper")
+@EnableConfigurationProperties(LinkxProperties.class)
+@EnableAsync
 public class LinkXServerApplication {
 
     /**

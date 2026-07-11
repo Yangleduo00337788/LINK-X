@@ -18,9 +18,12 @@ import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
 // 持久化前清理敏感或过大字段
 import { sanitizeAppPersistState } from '../utils/persistSanitize'
 // 登出时重置其它 UI Store
-import { resetSessionUi } from '../utils/resetSessionUi'
-// HTTP 客户端（登录接口）
-import { apiClient } from '../api/client'
+import { resetSessionUi, cleanupNaiveUiOverlays } from '../utils/resetSessionUi'
+// HTTP 客户端与认证 API
+import * as authApi from '../api/auth'
+import { clearTokens, getRefreshToken, hasRefreshToken, saveTokenPair } from '../utils/tokenStorage'
+import { hasLockPin as isLockPinConfigured, verifyLockPin as verifyLockPinHash, saveLockPinHash } from '../utils/lockPin'
+import { validateLockPin } from '../utils/validation'
 
 /** sendMessage 可选参数：扩展消息类型与附件字段 */
 export interface SendMessageOptions {
@@ -36,10 +39,9 @@ export interface SendMessageOptions {
   redPacketAmount?: string         // 红包金额
 }
 
-/** 记住密码 / 自动登录相关本地保存结构 */
+/** 记住账号 / 自动登录（不存储密码） */
 export interface SavedLogin {
   username: string
-  password: string
   rememberMe: boolean
   autoLogin: boolean
 }
@@ -94,16 +96,16 @@ export const useAppStore = defineStore('app', {
     theme: 'light' as 'light' | 'dark',                          // 明暗主题
     contactsActiveView: 'none' as 'none' | 'friend-notifs' | 'group-notifs', // 通讯录子视图
     userProfile: {
-      nickname: '晚香玉',      // 当前用户昵称
-      signature: '编辑个性签名' // 个性签名
+      nickname: '',           // 登录后由后端返回
+      signature: '编辑个性签名'
     },
     isLoggedIn: false,   // 是否已登录
     isLoading: false,    // 登录等异步操作加载中
+    authInitializing: false, // 仅在 Refresh Token 自动登录期间为 true
     isOffline: false,    // 离线模式（演示用）
     isLocked: false,     // 是否处于锁屏状态
     savedLogin: {
       username: '',
-      password: '',
       rememberMe: true,
       autoLogin: false
     } as SavedLogin
@@ -513,19 +515,28 @@ export const useAppStore = defineStore('app', {
     },
 
     /**
-     * 登出：重置 UI、清 token、按 rememberMe 决定是否保留账号密码
+     * 登出：先切回登录页并清理本地状态，再异步通知后端吊销 token
      */
-    logout() {
+    async logout() {
+      const refresh = await getRefreshToken()
+
       resetSessionUi()
       this.isLocked = false
       this.isLoggedIn = false
+      this.userProfile.nickname = ''
+      this.userProfile.signature = '编辑个性签名'
       if (!this.savedLogin.rememberMe) {
         this.savedLogin.username = ''
-        this.savedLogin.password = ''
         this.savedLogin.autoLogin = false
       }
-      localStorage.removeItem('accessToken')
-      localStorage.removeItem('refreshToken')
+      cleanupNaiveUiOverlays()
+      await clearTokens()
+
+      try {
+        await authApi.logout(refresh)
+      } catch {
+        // 本地已清理，服务端吊销失败可忽略
+      }
     },
 
     /**
@@ -535,60 +546,90 @@ export const useAppStore = defineStore('app', {
      * @param opts 记住我 / 自动登录
      * @returns 是否登录成功
      */
-    async login(username: string, password: string, opts?: { rememberMe?: boolean; autoLogin?: boolean }) {
+    async login(username: string, password: string, opts?: { rememberMe?: boolean; autoLogin?: boolean; captchaId?: string; captchaCode?: string }) {
       const rememberMe = opts?.rememberMe ?? this.savedLogin.rememberMe
       const autoLogin = opts?.autoLogin ?? this.savedLogin.autoLogin
 
       this.isLoading = true
       try {
-        const res: any = await apiClient.post('/auth/login', { username, password })
-        if (res.code === 200) {
+        const res = await authApi.login({
+          username,
+          password,
+          captchaId: opts?.captchaId,
+          captchaCode: opts?.captchaCode
+        })
+        if (res.code === 200 && res.data) {
           const { accessToken, refreshToken, user } = res.data
-          localStorage.setItem('accessToken', accessToken)
-          localStorage.setItem('refreshToken', refreshToken)
+          await saveTokenPair(accessToken, refreshToken)
 
           this.userProfile.nickname = user.nickname || user.username
           this.userProfile.signature = user.signature || '编辑个性签名'
 
           this.savedLogin.username = rememberMe ? username : ''
-          this.savedLogin.password = rememberMe ? password : ''
           this.savedLogin.rememberMe = rememberMe
           this.savedLogin.autoLogin = autoLogin
 
           this.isLoggedIn = true
           return true
-        } else {
-          throw new Error(res.message || '登录失败')
         }
+        throw new Error(res.message || '登录失败')
       } finally {
         this.isLoading = false
       }
     },
 
     /**
-     * 启动时尝试自动登录（仅本地演示：有 autoLogin + rememberMe + username 即视为已登录）
+     * 启动时用 Refresh Token 恢复会话（须开启自动登录且存在 refreshToken）
      */
-    tryAutoLogin() {
-      if (
-        !this.isLoggedIn &&
-        this.savedLogin.autoLogin &&
-        this.savedLogin.rememberMe &&
-        this.savedLogin.username
-      ) {
-        this.userProfile.nickname = this.savedLogin.username
-        this.isLoggedIn = true
+    async tryAutoLogin() {
+      if (this.isLoggedIn) return
+      if (!this.savedLogin.autoLogin || !this.savedLogin.rememberMe || !this.savedLogin.username) {
+        return
+      }
+      if (!(await hasRefreshToken())) {
+        return
+      }
+
+      this.authInitializing = true
+      this.isLoading = true
+      try {
+        const refresh = await getRefreshToken()
+        if (!refresh) return
+        const res = await authApi.refreshToken(refresh)
+        if (res.code === 200 && res.data) {
+          await saveTokenPair(res.data.accessToken, res.data.refreshToken)
+          const user = res.data.user
+          this.userProfile.nickname = user.nickname || user.username
+          this.userProfile.signature = user.signature || '编辑个性签名'
+          this.isLoggedIn = true
+        }
+      } catch {
+        await clearTokens()
+        this.isLoggedIn = false
+      } finally {
+        this.isLoading = false
+        this.authInitializing = false
       }
     },
 
-    /**
-     * 锁屏密码校验
-     * 未保存密码时任意长度>=4 即通过；否则需与 savedLogin.password 一致
-     */
-    verifyLockPassword(password: string): boolean {
-      if (!this.savedLogin.password) {
-        return password.length >= 4
+    /** 设置锁屏 PIN（4-6 位数字，与登录密码独立） */
+    async setLockPin(pin: string) {
+      const err = validateLockPin(pin)
+      if (err) throw new Error(err)
+      await saveLockPinHash(pin)
+    },
+
+    /** 是否已设置锁屏 PIN */
+    hasLockPin() {
+      return isLockPinConfigured()
+    },
+
+    /** 锁屏 PIN 校验 */
+    async verifyLockPin(pin: string): Promise<boolean> {
+      if (!isLockPinConfigured()) {
+        return false
       }
-      return password === this.savedLogin.password
+      return verifyLockPinHash(pin)
     },
 
     /** 进入锁屏 */
@@ -670,7 +711,6 @@ export const useAppStore = defineStore('app', {
       'currentSessionId',
       'theme',
       'userProfile',
-      'isLoggedIn',
       'savedLogin',
       'navKey',
       'isOffline'

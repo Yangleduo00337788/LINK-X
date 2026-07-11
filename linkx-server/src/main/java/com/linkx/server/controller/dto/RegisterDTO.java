@@ -1,29 +1,27 @@
-// 数据传输对象（DTO）包
 package com.linkx.server.controller.dto;
 
-// 非空字符串校验注解
 import jakarta.validation.constraints.NotBlank;
-// Lombok 数据类注解
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
-/**
- * 注册请求参数对象。
- * <p>
- * 对应前端 POST /auth/register 的请求体 JSON。
- * </p>
- */
-@Data // 自动生成 getter/setter，简化 POJO 编写
+@Data
 public class RegisterDTO {
 
-    // 用户注册账号，全局唯一，对应 sys_user.username
     @NotBlank(message = "用户名不能为空")
+    @Size(min = 4, max = 32, message = "用户名长度为 4-32 个字符")
+    @Pattern(regexp = "^[a-zA-Z0-9_]+$", message = "用户名只能包含字母、数字和下划线")
     private String username;
 
-    // 用户设置的明文密码，入库前会 BCrypt 加密
     @NotBlank(message = "密码不能为空")
+    @Size(min = 8, max = 64, message = "密码长度为 8-64 个字符")
+    @Pattern(regexp = "^(?=.*[A-Za-z])(?=.*\\d).+$", message = "密码须同时包含字母和数字")
     private String password;
 
-    // 用户昵称，展示在聊天界面与个人资料中
     @NotBlank(message = "昵称不能为空")
+    @Size(min = 1, max = 64, message = "昵称长度为 1-64 个字符")
     private String nickname;
+
+    private String captchaId;
+    private String captchaCode;
 }

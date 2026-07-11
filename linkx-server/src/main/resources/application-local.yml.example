@@ -1,0 +1,25 @@
+# 本地开发配置模板 — 复制为 application-local.yml 后使用（该文件已 gitignore）
+#
+#   cp application-local.yml.example application-local.yml
+
+spring:
+  datasource:
+    password: linkx_password
+  data:
+    redis:
+      password: linkx_redis_password
+
+linkx:
+  jwt:
+    # 至少 32 字符，仅用于本地开发，勿用于生产
+    secret: dev-local-jwt-secret-change-me-32chars!!
+  auth:
+    captcha-enabled: true
+  # 生产环境在 application-local.yml 或环境变量中覆盖
+  cors:
+    allowed-origins:
+      - http://localhost:5173
+      - http://127.0.0.1:5173
+      # - https://your-domain.com
+  security:
+    require-https: false

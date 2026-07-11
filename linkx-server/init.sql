@@ -23,10 +23,6 @@ CREATE TABLE IF NOT EXISTS `sys_user` (
   UNIQUE KEY `uk_username` (`username`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统用户表';
 
--- 插入一条测试数据 (密码为 123456 的 BCrypt Hash)
-INSERT IGNORE INTO `sys_user` (`id`, `username`, `password`, `nickname`, `avatar`) 
-VALUES (1, 'admin', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', '系统管理员', 'https://api.dicebear.com/7.x/adventurer/svg?seed=admin');
-
 -- ==============================================
 -- 2. 好友关系表
 -- ==============================================
@@ -44,3 +40,20 @@ CREATE TABLE IF NOT EXISTS `sys_user_relation` (
   KEY `idx_user_id` (`user_id`),
   KEY `idx_friend_id` (`friend_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户好友关系表';
+
+-- ==============================================
+-- 3. 登录审计表
+-- ==============================================
+CREATE TABLE IF NOT EXISTS `sys_login_audit` (
+  `id` BIGINT NOT NULL COMMENT '主键ID(雪花算法)',
+  `user_id` BIGINT DEFAULT NULL COMMENT '用户ID',
+  `username` VARCHAR(64) NOT NULL COMMENT '登录账号',
+  `ip` VARCHAR(64) DEFAULT NULL COMMENT '客户端IP',
+  `user_agent` VARCHAR(512) DEFAULT NULL COMMENT 'User-Agent',
+  `success` TINYINT NOT NULL DEFAULT 0 COMMENT '是否成功(1:成功 0:失败)',
+  `reason` VARCHAR(255) DEFAULT NULL COMMENT '结果说明',
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '记录时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_username` (`username`),
+  KEY `idx_create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='登录审计日志';

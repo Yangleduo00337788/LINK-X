@@ -11,23 +11,15 @@ import { RouterView } from 'vue-router'
 </script>
 
 <template>
-  <!-- 路由出口：根据当前路由动态渲染对应页面 -->
   <RouterView v-slot="{ Component }">
-    <!-- 路由切换时的淡入淡出过渡 -->
-    <transition name="fade-app" mode="out-in">
-      <component :is="Component" />
-    </transition>
+    <component :is="Component" class="route-view" />
   </RouterView>
 </template>
 
 <style>
-.fade-app-enter-active,
-.fade-app-leave-active {
-  transition: opacity 0.2s ease;
-}
-
-.fade-app-enter-from,
-.fade-app-leave-to {
-  opacity: 0;
+.route-view {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
 }
 </style>

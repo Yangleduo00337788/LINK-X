@@ -1,25 +1,22 @@
-// 数据传输对象（DTO）包：接收前端请求参数
 package com.linkx.server.controller.dto;
 
-// JSR-380 校验：字段不能为空且不能全是空白字符
 import jakarta.validation.constraints.NotBlank;
-// Lombok：自动生成 getter/setter 等
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
-/**
- * 登录请求参数对象。
- * <p>
- * 对应前端 POST /auth/login 的请求体 JSON。
- * </p>
- */
-@Data // 编译期生成访问器，供 Jackson 反序列化与校验框架使用
+@Data
 public class LoginDTO {
 
-    // 登录账号（LinkX ID），不能为空
-    @NotBlank(message = "用户名不能为空") // 校验失败时返回该提示信息
+    @NotBlank(message = "用户名不能为空")
+    @Size(min = 4, max = 32, message = "用户名长度为 4-32 个字符")
+    @Pattern(regexp = "^[a-zA-Z0-9_]+$", message = "用户名只能包含字母、数字和下划线")
     private String username;
 
-    // 登录密码明文，服务端会用 BCrypt 与库中哈希比对
     @NotBlank(message = "密码不能为空")
+    @Size(min = 8, max = 64, message = "密码长度为 8-64 个字符")
     private String password;
+
+    private String captchaId;
+    private String captchaCode;
 }

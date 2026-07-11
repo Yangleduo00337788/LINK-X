@@ -21,5 +21,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAutoStart: () => ipcRenderer.invoke('app:get-auto-start'),
   notifyThemeChange: theme => ipcRenderer.send('theme-changed', theme),
   setWindowMode: mode => ipcRenderer.invoke('window:set-mode', mode),
-  isElectron: true
+  isElectron: true,
+  secureStorage: {
+    isAvailable: () => ipcRenderer.invoke('secure-storage:is-available'),
+    get: key => ipcRenderer.invoke('secure-storage:get', key),
+    set: (key, value) => ipcRenderer.invoke('secure-storage:set', key, value),
+    remove: key => ipcRenderer.invoke('secure-storage:remove', key)
+  }
 })
