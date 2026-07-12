@@ -12,11 +12,14 @@ import com.linkx.server.service.TokenService;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
+import java.util.Collections;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +27,16 @@ public class TokenServiceImpl implements TokenService {
 
     private static final String ACCESS_KEY_PREFIX = "linkx:token:access:";
     private static final String REFRESH_KEY_PREFIX = "linkx:token:refresh:";
+    private static final String REFRESH_LOCK_PREFIX = "linkx:token:refresh:lock:";
+
+    // Lua 脚本：原子性地验证并删除 refresh token
+    private static final String REFRESH_TOKEN_LUA_SCRIPT =
+            "local key = KEYS[1] " +
+            "local expectedJti = ARGV[1] " +
+            "local value = redis.call('get', key) " +
+            "if not value then return -1 end " +  // -1: token 不存在或已过期
+            "redis.call('del', key) " +
+            "return value";  // 返回 userId
 
     private final JwtUtils jwtUtils;
     private final StringRedisTemplate redisTemplate;
@@ -55,27 +68,51 @@ public class TokenServiceImpl implements TokenService {
             throw new CustomException(401, "refreshToken 无效");
         }
 
-        Claims claims = parseClaims(refreshToken);
+        // 先解析 token 获取 jti（不验证存储，仅解析 JWT）
+        Claims claims;
+        try {
+            claims = jwtUtils.parseToken(refreshToken);
+        } catch (Exception e) {
+            throw new CustomException(401, "refreshToken 无效或已过期");
+        }
+
         if (jwtUtils.getTokenType(refreshToken) != TokenType.REFRESH) {
             throw new CustomException(401, "refreshToken 无效");
         }
 
         String refreshJti = claims.getId();
         String refreshKey = REFRESH_KEY_PREFIX + refreshJti;
-        String userIdValue = redisTemplate.opsForValue().get(refreshKey);
-        if (!StringUtils.hasText(userIdValue)) {
-            throw new CustomException(401, "refreshToken 已失效");
+        String lockKey = REFRESH_LOCK_PREFIX + refreshJti;
+
+        // 使用分布式锁防止并发刷新导致的 Token 重复发放问题
+        Boolean locked = redisTemplate.opsForValue().setIfAbsent(lockKey, "1", Duration.ofSeconds(5));
+        if (!Boolean.TRUE.equals(locked)) {
+            throw new CustomException(429, "Token 刷新过于频繁，请稍后重试");
         }
 
-        Long userId = Long.valueOf(userIdValue);
-        SysUser user = sysUserMapper.selectOneById(userId);
-        if (user == null || user.getStatus() != 1) {
-            redisTemplate.delete(refreshKey);
-            throw new CustomException(401, "账号不可用");
-        }
+        try {
+            // 使用 Lua 脚本原子性地验证并删除 refresh token
+            DefaultRedisScript<String> script = new DefaultRedisScript<>();
+            script.setScriptText(REFRESH_TOKEN_LUA_SCRIPT);
+            script.setResultType(String.class);
 
-        redisTemplate.delete(refreshKey);
-        return issueTokenPair(user);
+            String userIdValue = redisTemplate.execute(script, Collections.singletonList(refreshKey), refreshJti);
+
+            if (userIdValue == null || "-1".equals(userIdValue)) {
+                throw new CustomException(401, "refreshToken 已失效");
+            }
+
+            Long userId = Long.valueOf(userIdValue);
+            SysUser user = sysUserMapper.selectOneById(userId);
+            if (user == null || user.getStatus() != 1) {
+                throw new CustomException(401, "账号不可用");
+            }
+
+            return issueTokenPair(user);
+        } finally {
+            // 释放锁
+            redisTemplate.delete(lockKey);
+        }
     }
 
     @Override

@@ -1,0 +1,59 @@
+# 测试环境配置
+server:
+  port: 0  # 随机端口
+
+spring:
+  application:
+    name: linkx-server-test
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=MySQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+    schema: classpath:schema.sql  # 自动执行建表脚本
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 1
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: true
+
+# JWT 配置
+linkx:
+  jwt:
+    secret: test-secret-key-for-jwt-generation-at-least-32-chars-long-key
+    access-expire: 7200000      # 2小时
+    refresh-expire: 604800000   # 7天
+  auth:
+    captcha-enabled: false      # 测试环境关闭验证码
+    login-max-attempts: 5
+    lock-duration-minutes: 15
+    rate-limit-login-per-minute: 10
+    rate-limit-register-per-minute: 5
+  cors:
+    allowed-origins:
+      - http://localhost:5173
+  security:
+    require-https: false
+  im:
+    websocket-port: 0  # 测试环境随机端口
+
+# 日志配置
+logging:
+  level:
+    com.linkx.server: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.data.redis: DEBUG

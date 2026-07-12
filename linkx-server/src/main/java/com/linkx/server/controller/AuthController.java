@@ -40,23 +40,15 @@ public class AuthController {
 
     @PostMapping("/register")
     public Result<Void> register(@Validated @RequestBody RegisterDTO registerDTO, HttpServletRequest request) {
-        rateLimitService.check(
-                "register:" + clientIp(request),
-                linkxProperties.getAuth().getRateLimitRegisterPerMinute(),
-                60);
         validateCaptchaIfEnabled(registerDTO.getCaptchaId(), registerDTO.getCaptchaCode());
-        sysUserService.register(registerDTO);
+        sysUserService.register(registerDTO, request);
         return Result.success(null);
     }
 
     @PostMapping("/login")
     public Result<TokenVO> login(@Validated @RequestBody LoginDTO loginDTO, HttpServletRequest request) {
-        rateLimitService.check(
-                "login:" + clientIp(request),
-                linkxProperties.getAuth().getRateLimitLoginPerMinute(),
-                60);
         validateCaptchaIfEnabled(loginDTO.getCaptchaId(), loginDTO.getCaptchaCode());
-        TokenVO tokenVO = sysUserService.login(loginDTO, clientIp(request), request.getHeader("User-Agent"));
+        TokenVO tokenVO = sysUserService.login(loginDTO, clientIp(request), request.getHeader("User-Agent"), request);
         return Result.success(tokenVO);
     }
 

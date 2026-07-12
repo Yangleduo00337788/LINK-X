@@ -9,31 +9,30 @@ import com.linkx.server.entity.SysUser;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.LoginAuditService;
+import com.linkx.server.service.RateLimitService;
 import com.linkx.server.service.SysUserService;
 import com.linkx.server.service.TokenService;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.mindrot.jbcrypt.BCrypt;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
-
-import java.time.Duration;
 
 @Service
 @RequiredArgsConstructor
 public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> implements SysUserService {
 
-    private static final String LOGIN_FAIL_PREFIX = "linkx:login:fail:";
-    private static final String LOGIN_LOCK_PREFIX = "linkx:login:lock:";
     private static final String DEFAULT_AVATAR = "/default-avatar.svg";
 
     private final TokenService tokenService;
     private final LoginAuditService loginAuditService;
-    private final StringRedisTemplate redisTemplate;
-    private final LinkxProperties linkxProperties;
+    private final RateLimitService rateLimitService;
 
     @Override
-    public void register(RegisterDTO registerDTO) {
+    public void register(RegisterDTO registerDTO, HttpServletRequest request) {
+        // IP 级别注册限流
+        rateLimitService.checkRegisterRateLimit(request);
+
         long count = queryChain()
                 .where(SysUser::getUsername).eq(registerDTO.getUsername())
                 .count();
@@ -55,54 +54,44 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     }
 
     @Override
-    public TokenVO login(LoginDTO loginDTO, String ip, String userAgent) {
+    public TokenVO login(LoginDTO loginDTO, String ip, String userAgent, HttpServletRequest request) {
         String username = loginDTO.getUsername();
-        assertAccountNotLocked(username);
+
+        // 检查账号是否被锁定
+        if (rateLimitService.isAccountLocked(username, request)) {
+            throw new CustomException(429, "登录失败次数过多，请稍后再试");
+        }
 
         SysUser user = queryChain()
                 .where(SysUser::getUsername).eq(username)
                 .one();
 
-        if (user == null || !BCrypt.checkpw(loginDTO.getPassword(), user.getPassword())) {
-            recordLoginFailure(username);
+        // 防御时间侧信道攻击：无论用户是否存在，都执行耗时操作
+        String dummyHash = "$2a$10$xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
+        boolean passwordValid = false;
+        if (user != null) {
+            passwordValid = BCrypt.checkpw(loginDTO.getPassword(), user.getPassword());
+        } else {
+            // 用户不存在时执行假校验，消耗相同时间
+            BCrypt.checkpw(loginDTO.getPassword(), dummyHash);
+        }
+
+        if (user == null || !passwordValid) {
+            // 记录失败并检查限流
+            rateLimitService.checkLoginRateLimit(username, request);
             loginAuditService.record(null, username, ip, userAgent, false, "用户名或密码错误");
             throw new CustomException(400, "用户名或密码错误");
         }
 
+        // 用户存在且密码正确，继续检查账号状态
         if (user.getStatus() != 1) {
             loginAuditService.record(user.getId(), username, ip, userAgent, false, "账号已停用");
             throw new CustomException(403, "账号已被停用");
         }
 
-        clearLoginFailure(username);
+        // 登录成功，清除失败记录
+        rateLimitService.clearLoginFailure(username, request);
         loginAuditService.record(user.getId(), username, ip, userAgent, true, "登录成功");
         return tokenService.issueTokenPair(user);
-    }
-
-    private void assertAccountNotLocked(String username) {
-        String lockKey = LOGIN_LOCK_PREFIX + username;
-        if (Boolean.TRUE.equals(redisTemplate.hasKey(lockKey))) {
-            throw new CustomException(429, "登录失败次数过多，请稍后再试");
-        }
-    }
-
-    private void recordLoginFailure(String username) {
-        String failKey = LOGIN_FAIL_PREFIX + username;
-        Long count = redisTemplate.opsForValue().increment(failKey);
-        if (count != null && count == 1L) {
-            redisTemplate.expire(failKey, Duration.ofMinutes(linkxProperties.getAuth().getLockDurationMinutes()));
-        }
-        if (count != null && count >= linkxProperties.getAuth().getLoginMaxAttempts()) {
-            redisTemplate.opsForValue().set(
-                    LOGIN_LOCK_PREFIX + username,
-                    "1",
-                    Duration.ofMinutes(linkxProperties.getAuth().getLockDurationMinutes()));
-            redisTemplate.delete(failKey);
-        }
-    }
-
-    private void clearLoginFailure(String username) {
-        redisTemplate.delete(LOGIN_FAIL_PREFIX + username);
-        redisTemplate.delete(LOGIN_LOCK_PREFIX + username);
     }
 }
