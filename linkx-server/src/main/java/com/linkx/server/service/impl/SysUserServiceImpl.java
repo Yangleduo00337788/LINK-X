@@ -4,10 +4,12 @@ import com.linkx.server.common.JwtUtils;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.controller.dto.LoginDTO;
 import com.linkx.server.controller.dto.RegisterDTO;
+import com.linkx.server.controller.dto.UpdateProfileDTO;
 import com.linkx.server.controller.vo.TokenVO;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.SysUserMapper;
+import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.LoginAuditService;
 import com.linkx.server.service.RateLimitService;
 import com.linkx.server.service.SysUserService;
@@ -27,6 +29,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     private final TokenService tokenService;
     private final LoginAuditService loginAuditService;
     private final RateLimitService rateLimitService;
+    private final FileStorageService fileStorageService;
 
     @Override
     public void register(RegisterDTO registerDTO, HttpServletRequest request) {
@@ -93,5 +96,54 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         rateLimitService.clearLoginFailure(username, request);
         loginAuditService.record(user.getId(), username, ip, userAgent, true, "登录成功");
         return tokenService.issueTokenPair(user);
+    }
+
+    @Override
+    public SysUser updateProfile(Long userId, UpdateProfileDTO dto) {
+        SysUser user = getById(userId);
+        if (user == null) {
+            throw new CustomException(404, "用户不存在");
+        }
+
+        boolean updated = false;
+
+        // 更新昵称
+        if (dto.getNickname() != null && !dto.getNickname().isEmpty()) {
+            user.setNickname(dto.getNickname());
+            updated = true;
+        }
+
+        // 更新个性签名
+        if (dto.getSignature() != null) {
+            user.setSignature(dto.getSignature());
+            updated = true;
+        }
+
+        if (updated) {
+            updateById(user);
+        }
+
+        return user;
+    }
+
+    @Override
+    public void updateAvatar(Long userId, String avatarUrl) {
+        SysUser user = getById(userId);
+        if (user == null) {
+            throw new CustomException(404, "用户不存在");
+        }
+
+        // 删除旧头像（如果不是默认头像）
+        String oldAvatar = user.getAvatar();
+        if (oldAvatar != null && !oldAvatar.equals(DEFAULT_AVATAR) && !oldAvatar.isEmpty()) {
+            try {
+                fileStorageService.deleteFile(oldAvatar);
+            } catch (Exception e) {
+                // 删除失败不影响新头像上传
+            }
+        }
+
+        user.setAvatar(avatarUrl);
+        updateById(user);
     }
 }

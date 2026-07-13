@@ -21,6 +21,7 @@ import { sanitizeAppPersistState } from '../utils/persistSanitize'
 import { resetSessionUi, cleanupNaiveUiOverlays } from '../utils/resetSessionUi'
 // HTTP 客户端与认证 API
 import * as authApi from '../api/auth'
+import * as userApi from '../api/user'
 import { clearTokens, getRefreshToken, hasRefreshToken, saveTokenPair } from '../utils/tokenStorage'
 import { hasLockPin as isLockPinConfigured, verifyLockPin as verifyLockPinHash, saveLockPinHash } from '../utils/lockPin'
 import { validateLockPin } from '../utils/validation'
@@ -97,7 +98,9 @@ export const useAppStore = defineStore('app', {
     contactsActiveView: 'none' as 'none' | 'friend-notifs' | 'group-notifs', // 通讯录子视图
     userProfile: {
       nickname: '',           // 登录后由后端返回
-      signature: '编辑个性签名'
+      signature: '编辑个性签名',
+      avatar: '',             // 头像 URL
+      userId: 0               // 用户 ID
     },
     isLoggedIn: false,   // 是否已登录
     isLoading: false,    // 登录等异步操作加载中
@@ -504,14 +507,61 @@ export const useAppStore = defineStore('app', {
       notifyElectronTheme(this.theme)
     },
 
-    /** 更新个性签名 */
-    updateSignature(text: string) {
-      this.userProfile.signature = text
+    /** 更新个性签名（本地+后端） */
+    async updateSignature(text: string) {
+      try {
+        const res = await userApi.updateProfile({ signature: text })
+        if (res.code === 200 && res.data) {
+          this.userProfile.signature = res.data.signature || text
+        } else {
+          this.userProfile.signature = text
+        }
+      } catch {
+        this.userProfile.signature = text
+      }
     },
 
-    /** 更新昵称 */
-    updateNickname(name: string) {
-      this.userProfile.nickname = name
+    /** 更新昵称（本地+后端） */
+    async updateNickname(name: string) {
+      try {
+        const res = await userApi.updateProfile({ nickname: name })
+        if (res.code === 200 && res.data) {
+          this.userProfile.nickname = res.data.nickname || name
+        } else {
+          this.userProfile.nickname = name
+        }
+      } catch {
+        this.userProfile.nickname = name
+      }
+    },
+
+    /** 更新头像 */
+    async updateAvatar(file: File) {
+      const res = await userApi.uploadAvatar(file)
+      if (res.code === 200 && res.data) {
+        this.userProfile.avatar = res.data
+        return res.data
+      }
+      throw new Error(res.message || '上传失败')
+    },
+
+    /** 获取当前用户信息 */
+    async fetchCurrentUser() {
+      try {
+        const res = await userApi.getCurrentUser()
+        if (res.code === 200 && res.data) {
+          this.userProfile = {
+            nickname: res.data.nickname || res.data.username,
+            signature: res.data.signature || '编辑个性签名',
+            avatar: res.data.avatar || '',
+            userId: res.data.id
+          }
+          return res.data
+        }
+      } catch (e) {
+        console.error('获取用户信息失败:', e)
+      }
+      return null
     },
 
     /**
@@ -525,6 +575,8 @@ export const useAppStore = defineStore('app', {
       this.isLoggedIn = false
       this.userProfile.nickname = ''
       this.userProfile.signature = '编辑个性签名'
+      this.userProfile.avatar = ''
+      this.userProfile.userId = 0
       if (!this.savedLogin.rememberMe) {
         this.savedLogin.username = ''
         this.savedLogin.autoLogin = false
@@ -564,6 +616,8 @@ export const useAppStore = defineStore('app', {
 
           this.userProfile.nickname = user.nickname || user.username
           this.userProfile.signature = user.signature || '编辑个性签名'
+          this.userProfile.avatar = user.avatar || ''
+          this.userProfile.userId = user.id
 
           this.savedLogin.username = rememberMe ? username : ''
           this.savedLogin.rememberMe = rememberMe
@@ -601,6 +655,8 @@ export const useAppStore = defineStore('app', {
           const user = res.data.user
           this.userProfile.nickname = user.nickname || user.username
           this.userProfile.signature = user.signature || '编辑个性签名'
+          this.userProfile.avatar = user.avatar || ''
+          this.userProfile.userId = user.id
           this.isLoggedIn = true
         }
       } catch {

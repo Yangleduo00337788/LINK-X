@@ -16,6 +16,16 @@ public class LinkxProperties {
     private final Auth auth = new Auth();
     private final Cors cors = new Cors();
     private final Security security = new Security();
+    private final Minio minio = new Minio();
+
+    @Data
+    public static class Minio {
+        private String endpoint = "http://localhost:9000";
+        private String accessKey = "minioadmin";
+        private String secretKey = "minioadmin";
+        private String bucketName = "linkx";
+        private long maxFileSize = 10 * 1024 * 1024; // 默认10MB
+    }
 
     @Data
     public static class Jwt {

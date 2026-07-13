@@ -2,6 +2,7 @@ package com.linkx.server.service;
 
 import com.linkx.server.controller.dto.LoginDTO;
 import com.linkx.server.controller.dto.RegisterDTO;
+import com.linkx.server.controller.dto.UpdateProfileDTO;
 import com.linkx.server.controller.vo.TokenVO;
 import com.linkx.server.entity.SysUser;
 import com.mybatisflex.core.service.IService;
@@ -12,4 +13,21 @@ public interface SysUserService extends IService<SysUser> {
     void register(RegisterDTO registerDTO, HttpServletRequest request);
 
     TokenVO login(LoginDTO loginDTO, String ip, String userAgent, HttpServletRequest request);
+
+    /**
+     * 更新用户资料
+     *
+     * @param userId 用户 ID
+     * @param dto    更新内容
+     * @return 更新后的用户
+     */
+    SysUser updateProfile(Long userId, UpdateProfileDTO dto);
+
+    /**
+     * 更新用户头像
+     *
+     * @param userId    用户 ID
+     * @param avatarUrl 头像 URL
+     */
+    void updateAvatar(Long userId, String avatarUrl);
 }

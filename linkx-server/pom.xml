@@ -102,6 +102,20 @@
             <version>0.4</version>
         </dependency>
 
+        <!-- MinIO 对象存储 -->
+        <dependency>
+            <groupId>io.minio</groupId>
+            <artifactId>minio</artifactId>
+            <version>8.5.7</version>
+        </dependency>
+
+        <!-- Servlet 用于文件上传 -->
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
         <!-- MyBatis-Flex 代码生成器 -->
         <dependency>
             <groupId>com.mybatis-flex</groupId>
