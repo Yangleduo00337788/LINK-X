@@ -1,50 +1,51 @@
 <script setup lang="ts">
-// Vue 响应式 API
 import { ref } from 'vue'
-// Naive UI 按钮、表单与消息提示
 import { NButton, NForm, NFormItem, NInput, useMessage } from 'naive-ui'
-// 应用全局状态 Store
-import { useAppStore } from '../../../stores/app'
-// 联系人 Store
-import { useContactsStore } from '../../../stores/contacts'
-// 全屏覆盖层 Store
 import { useOverlayStore } from '../../../stores/overlay'
+import { useNotificationsStore } from '../../../stores/notifications'
+import * as friendApi from '../../../api/friend'
 
-// 消息提示实例
 const message = useMessage()
-// 应用 Store 实例
-const appStore = useAppStore()
-// 联系人 Store 实例
-const contactsStore = useContactsStore()
-// 覆盖层 Store 实例
 const overlayStore = useOverlayStore()
-// 关闭覆盖层的方法
+const notificationsStore = useNotificationsStore()
 const { close } = overlayStore
 
-// 要添加的好友账号
 const addFriendAccount = ref('')
-// 好友申请验证信息
 const addFriendMsg = ref('我是…')
+const submitting = ref(false)
 
-// 提交好友申请（本地模拟）
-function submitAddFriend() {
+async function submitAddFriend() {
   const account = addFriendAccount.value.trim()
   if (!account) {
     message.warning('请输入账号')
     return
   }
-  appStore.addFriendSession(account)
-  contactsStore.addByName(account)
-  message.success(`已向「${account}」发送好友申请（本地模拟）`)
-  addFriendAccount.value = ''
-  close()
+
+  submitting.value = true
+  try {
+    const res = await friendApi.sendFriendRequest({
+      username: account,
+      message: addFriendMsg.value.trim() || undefined
+    })
+    if (res.code === 200) {
+      message.success(`已向「${account}」发送好友申请`)
+      addFriendAccount.value = ''
+      await notificationsStore.fetchFriendRequests()
+      close()
+      return
+    }
+    message.error(res.message || '发送好友申请失败')
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || '发送好友申请失败')
+  } finally {
+    submitting.value = false
+  }
 }
 </script>
 
 <template>
-  <!-- 添加好友页面 -->
   <div class="page-wrap add-friend-page">
-    <!-- 账号与验证信息表单 -->
     <section class="group-card">
       <n-form label-placement="top">
         <n-form-item label="LinkX ID / 手机号">
@@ -54,7 +55,7 @@ function submitAddFriend() {
           <n-input v-model:value="addFriendMsg" placeholder="我是…" />
         </n-form-item>
       </n-form>
-      <n-button type="primary" @click="submitAddFriend">发送申请</n-button>
+      <n-button type="primary" :loading="submitting" @click="submitAddFriend">发送申请</n-button>
     </section>
   </div>
 </template>

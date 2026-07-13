@@ -60,7 +60,10 @@ onMounted(() => {
   username.value = savedLogin.value.username || ''
   rememberMe.value = savedLogin.value.rememberMe ?? true
   autoLogin.value = savedLogin.value.autoLogin ?? false
-  void loadCaptcha('login')
+  // 首屏先绘制登录表单，验证码异步加载避免阻塞交互
+  requestAnimationFrame(() => {
+    void loadCaptcha('login')
+  })
 })
 
 watch(rememberMe, val => {

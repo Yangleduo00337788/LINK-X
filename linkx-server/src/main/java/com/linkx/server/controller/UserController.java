@@ -2,16 +2,17 @@ package com.linkx.server.controller;
 
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.Result;
+import com.linkx.server.common.UserProfileMapper;
 import com.linkx.server.controller.dto.UpdateProfileDTO;
 import com.linkx.server.controller.vo.UserProfileVO;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.SysUserService;
-import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -107,38 +108,36 @@ public class UserController {
             return Result.error(404, "用户不存在");
         }
 
-        return Result.success(buildUserProfileVO(user));
-    }
-
-    /**
-     * 从请求中获取当前用户 ID
-     */
-    private Long getCurrentUserId(HttpServletRequest request) {
-        String token = request.getHeader("Authorization");
-        if (token == null || !token.startsWith("Bearer ")) {
-            return null;
-        }
-
-        token = token.substring(7);
-        Claims claims = jwtUtils.parseToken(token);
-        if (claims == null) {
-            return null;
-        }
-
-        return Long.valueOf(claims.getSubject());
+        return Result.success(UserProfileMapper.toProfileVO(user));
     }
 
     /**
      * 构建 UserProfileVO
      */
     private UserProfileVO buildUserProfileVO(SysUser user) {
-        return UserProfileVO.builder()
-                .id(user.getId())
-                .username(user.getUsername())
-                .nickname(user.getNickname())
-                .avatar(user.getAvatar())
-                .signature(user.getSignature())
-                .createTime(user.getCreateTime())
-                .build();
+        return UserProfileMapper.toProfileVO(user);
+    }
+
+    /**
+     * 从拦截器写入的 request 属性或 Authorization 头解析当前用户 ID
+     */
+    private Long getCurrentUserId(HttpServletRequest request) {
+        Object userIdAttr = request.getAttribute("userId");
+        if (userIdAttr instanceof Long userId) {
+            return userId;
+        }
+
+        String token = request.getHeader("Authorization");
+        if (!StringUtils.hasText(token)) {
+            return null;
+        }
+        if (token.startsWith("Bearer ")) {
+            token = token.substring(7);
+        }
+        try {
+            return jwtUtils.getUserIdFromToken(token);
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

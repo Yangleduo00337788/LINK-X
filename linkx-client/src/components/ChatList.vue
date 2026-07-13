@@ -74,7 +74,7 @@ const contextMenuOptions = computed<DropdownOption[]>(() => {
 // 添加按钮下拉选项
 const addOptions = [
   { label: '发起群聊', key: 'group' },
-  { label: '添加好友', key: 'friend' }
+  { label: '添加好友/群聊', key: 'friend' }
 ]
 
 // 点击会话项选中该会话
@@ -89,7 +89,7 @@ function onAddSelect(key: string) {
     return
   }
   if (key === 'friend') {
-    openComprehensiveSearch() // 打开综合搜索（添加好友）
+    openComprehensiveSearch()
   }
 }
 

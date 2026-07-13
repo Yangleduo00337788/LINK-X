@@ -1,9 +1,7 @@
 <script setup lang="ts">
 /**
- * 综合搜索模态框。
- * <p>
- * 在本地联系人与群会话中按关键词搜索，支持加好友与进入群聊。
- * </p>
+ * 添加好友/群聊搜索模态框。
+ * 保留原有综合搜索 UI，用户搜索对接后端 API。
  */
 import { ref, computed } from 'vue'
 import Avatar from '../Avatar.vue'
@@ -12,96 +10,184 @@ import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
 import { useContactsStore } from '../../stores/contacts'
+import { useNotificationsStore } from '../../stores/notifications'
+import * as friendApi from '../../api/friend'
+import type { UserSearchResult } from '../../types/friend'
+
+interface SearchUserItem {
+  id: string
+  userId?: string
+  name: string
+  username?: string
+  avatarText: string
+  avatarColor: string
+  avatarUrl?: string
+  online?: boolean
+  isRemote: boolean
+}
 
 const message = useMessage()
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
 const contactsStore = useContactsStore()
+const notificationsStore = useNotificationsStore()
 const { comprehensiveSearchOpen } = storeToRefs(chatModalsStore)
 const { closeComprehensiveSearch } = chatModalsStore
 const { groupSessions } = storeToRefs(appStore)
 const { joinGroup: joinGroupAction, addFriendSession: addFriendAction } = appStore
 
-// 搜索关键词
 const keyword = ref('')
-// 主 Tab：全部 / 用户 / 群聊
 const mainTab = ref<'all' | 'user' | 'group'>('all')
-// 是否已执行过至少一次搜索
 const searched = ref(false)
+const searching = ref(false)
+const remoteUsers = ref<UserSearchResult[]>([])
 
-// Tab 配置项
 const mainTabs = [
   { key: 'all', label: '全部' },
   { key: 'user', label: '用户' },
   { key: 'group', label: '群聊' }
 ] as const
 
-/** 关闭模态并重置搜索状态 */
 function close() {
   closeComprehensiveSearch()
   searched.value = false
+  searching.value = false
+  remoteUsers.value = []
 }
 
-/** 触发搜索：关键词为空则提示 */
-function doSearch() {
-  if (!keyword.value.trim()) {
+async function doSearch() {
+  const q = keyword.value.trim()
+  if (!q) {
     message.warning('请输入关键词')
     return
   }
+
   searched.value = true
+  searching.value = true
+  remoteUsers.value = []
+
+  try {
+    if (q.length >= 2) {
+      const res = await friendApi.searchUsers(q)
+      if (res.code === 200 && res.data) {
+        remoteUsers.value = res.data
+      }
+    }
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || '搜索用户失败')
+  } finally {
+    searching.value = false
+  }
 }
 
-/** 匹配的用户列表（需已 searched） */
-const filteredUsers = computed(() => {
+const filteredUsers = computed<SearchUserItem[]>(() => {
   if (!searched.value) return []
-  return contactsStore.searchUsers(keyword.value)
+
+  const q = keyword.value.trim().toLowerCase()
+  const merged = new Map<string, SearchUserItem>()
+
+  for (const user of remoteUsers.value) {
+    const name = user.nickname || user.username
+    merged.set(String(user.id), {
+      id: String(user.id),
+      userId: String(user.id),
+      name,
+      username: user.username,
+      avatarText: name.charAt(0) || '?',
+      avatarColor: '#12b7f5',
+      avatarUrl: user.avatar,
+      online: false,
+      isRemote: true
+    })
+  }
+
+  for (const contact of contactsStore.searchUsers(keyword.value)) {
+    if (merged.has(contact.id)) continue
+    if (q && !contact.name.toLowerCase().includes(q)) continue
+    merged.set(contact.id, {
+      id: contact.id,
+      userId: contact.userId,
+      name: contact.name,
+      avatarText: contact.avatarText,
+      avatarColor: contact.avatarColor,
+      avatarUrl: contact.avatarUrl,
+      online: contact.online,
+      isRemote: false
+    })
+  }
+
+  return [...merged.values()]
 })
 
-/** 匹配的群会话列表 */
 const filteredGroups = computed(() => {
   if (!searched.value) return []
   const q = keyword.value.trim().toLowerCase()
   return groupSessions.value.filter(s => s.name.toLowerCase().includes(q))
 })
 
-/** 当前 Tab 是否展示群聊结果 */
 const showGroups = computed(() => mainTab.value === 'all' || mainTab.value === 'group')
-/** 当前 Tab 是否展示用户结果 */
 const showUsers = computed(() => mainTab.value === 'all' || mainTab.value === 'user')
 
-/** 按群名加入/进入群聊 */
 function joinGroupByName(name: string) {
   const session = joinGroupAction(name)
   message.success(`已加入群聊「${session.name}」`)
   close()
 }
 
-/** 按用户名添加好友会话 */
-function addFriendByName(name: string) {
-  const session = addFriendAction(name)
-  message.success(`已添加好友「${session.name}」`)
+async function handleUserAction(user: SearchUserItem) {
+  if (user.isRemote && user.username) {
+    try {
+      const res = await friendApi.sendFriendRequest({
+        username: user.username,
+        message: '请求添加你为好友'
+      })
+      if (res.code === 200) {
+        message.success(`已向「${user.name}」发送好友申请`)
+        await notificationsStore.fetchFriendRequests()
+        close()
+        return
+      }
+      message.error(res.message || '发送好友申请失败')
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } }; message?: string }
+      message.error(err.response?.data?.message || err.message || '发送好友申请失败')
+    }
+    return
+  }
+
+  if (!user.userId) {
+    message.warning('请通过 LinkX ID 搜索该用户')
+    return
+  }
+
+  addFriendAction({
+    userId: user.userId,
+    name: user.name,
+    avatarUrl: user.avatarUrl
+  })
+  message.success(`已打开与「${user.name}」的会话`)
   close()
 }
 </script>
 
 <template>
-  <!-- 综合搜索全屏模态 -->
   <Teleport to="body">
     <div v-if="comprehensiveSearchOpen" class="modal-root" @click.self="close">
       <div class="search-window" @click.stop>
-        <!-- 标题与搜索栏 -->
-        <header class="win-title">综合搜索</header>
+        <header class="win-title">添加好友/群聊</header>
         <div class="search-row">
           <input
             v-model="keyword"
             type="text"
             class="search-input"
-            placeholder="输入搜索关键词"
+            placeholder="输入 LinkX ID 或关键词"
             @keydown.enter="doSearch"
           />
-          <button type="button" class="search-btn" @click="doSearch">搜索</button>
+          <button type="button" class="search-btn" :disabled="searching" @click="doSearch">
+            {{ searching ? '搜索中' : '搜索' }}
+          </button>
         </div>
-        <!-- 结果分类 Tab -->
         <div class="main-tabs">
           <button
             v-for="t in mainTabs"
@@ -114,26 +200,35 @@ function addFriendByName(name: string) {
             {{ t.label }}
           </button>
         </div>
-        <!-- 搜索结果列表 -->
         <div class="result-list">
           <template v-if="!searched">
-            <p class="empty-tip">输入关键词后搜索本地联系人与群聊</p>
+            <p class="empty-tip">输入关键词后搜索用户与群聊</p>
           </template>
           <template v-else>
-            <!-- 用户结果区 -->
             <template v-if="showUsers">
               <h4 v-if="filteredUsers.length" class="section-label">用户</h4>
               <article v-for="u in filteredUsers" :key="u.id" class="group-card user-card">
-                <Avatar :text="u.avatarText" :color="u.avatarColor" :size="48" />
+                <Avatar
+                  :text="u.avatarText"
+                  :color="u.avatarColor"
+                  :size="48"
+                  :image-url="u.avatarUrl"
+                />
                 <div class="g-body">
                   <h3 class="g-name">{{ u.name }}</h3>
-                  <p class="g-meta"><span>{{ u.online ? '在线' : '离线' }}</span></p>
+                  <p class="g-meta">
+                    <span v-if="u.username">LinkX ID: {{ u.username }}</span>
+                    <span v-else>{{ u.online ? '在线' : '离线' }}</span>
+                  </p>
                 </div>
-                <button type="button" class="join-btn" @click="addFriendByName(u.name)">加好友</button>
+                <button type="button" class="join-btn" @click="handleUserAction(u)">
+                  {{ u.isRemote ? '加好友' : '发消息' }}
+                </button>
               </article>
-              <p v-if="showUsers && !filteredUsers.length && mainTab !== 'group'" class="empty-tip">未找到匹配用户</p>
+              <p v-if="showUsers && !filteredUsers.length && mainTab !== 'group'" class="empty-tip">
+                未找到匹配用户
+              </p>
             </template>
-            <!-- 群聊结果区 -->
             <template v-if="showGroups">
               <h4 v-if="filteredGroups.length" class="section-label">群聊</h4>
               <article v-for="g in filteredGroups" :key="g.id" class="group-card">
@@ -146,7 +241,9 @@ function addFriendByName(name: string) {
                 </div>
                 <button type="button" class="join-btn" @click="joinGroupByName(g.name)">进入</button>
               </article>
-              <p v-if="showGroups && !filteredGroups.length && mainTab !== 'user'" class="empty-tip">未找到匹配群聊</p>
+              <p v-if="showGroups && !filteredGroups.length && mainTab !== 'user'" class="empty-tip">
+                未找到匹配群聊
+              </p>
             </template>
           </template>
         </div>
@@ -219,6 +316,11 @@ function addFriendByName(name: string) {
   color: var(--lx-bg-card);
   font-size: 14px;
   cursor: pointer;
+}
+
+.search-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 .main-tabs {

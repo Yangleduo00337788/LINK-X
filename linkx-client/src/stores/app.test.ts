@@ -105,7 +105,7 @@ describe('App Store - User Profile', () => {
       vi.mocked(userApi.uploadAvatar).mockResolvedValue({
         code: 500,
         message: '上传失败',
-        data: null
+        data: '' as unknown as string
       })
 
       // Act & Assert
@@ -152,7 +152,7 @@ describe('App Store - User Profile', () => {
           username: 'testuser',
           nickname: '',
           avatar: '',
-          signature: null
+          signature: undefined
         }
       })
 
@@ -186,6 +186,7 @@ describe('App Store - User Profile', () => {
 
       // Assert
       expect(store.userProfile).toHaveProperty('nickname')
+      expect(store.userProfile).toHaveProperty('username')
       expect(store.userProfile).toHaveProperty('signature')
       expect(store.userProfile).toHaveProperty('avatar')
       expect(store.userProfile).toHaveProperty('userId')

@@ -34,7 +34,13 @@ public class MinioConfig {
                 log.info("Created MinIO bucket: {}", bucketName);
             }
         } catch (Exception e) {
-            log.warn("MinIO bucket check failed: {}", e.getMessage());
+            log.error(
+                    "MinIO 连接失败 (endpoint={}, accessKey={}, bucket={}): {}",
+                    minioProps.getEndpoint(),
+                    minioProps.getAccessKey(),
+                    minioProps.getBucketName(),
+                    e.getMessage()
+            );
         }
         
         return client;

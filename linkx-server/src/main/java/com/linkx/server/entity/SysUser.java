@@ -60,6 +60,21 @@ public class SysUser implements Serializable {
     // 个性签名，可为空
     private String signature;
 
+    // 性别：男 / 女
+    private String gender;
+
+    // 生日毫秒时间戳
+    private Long birthday;
+
+    // 国家
+    private String country;
+
+    // 省份
+    private String province;
+
+    // 地区
+    private String region;
+
     // 账号状态：1=正常，0=停用
     private Integer status;
 

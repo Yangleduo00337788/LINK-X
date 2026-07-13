@@ -1,12 +1,23 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import type { ApiResult, TokenData } from '../types/auth'
+import { parseJsonPreservingIds } from '../utils/parseJson'
 import { clearTokens, getRefreshToken, getToken, saveTokenPair } from '../utils/tokenStorage'
 
 const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
 
 export const apiClient = axios.create({
   baseURL,
-  timeout: 10000
+  timeout: 10000,
+  transformResponse: [
+    data => {
+      if (typeof data !== 'string' || !data) return data
+      try {
+        return parseJsonPreservingIds(data)
+      } catch {
+        return data
+      }
+    }
+  ]
 })
 
 let refreshing = false

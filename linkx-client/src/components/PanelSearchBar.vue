@@ -62,7 +62,7 @@ function onAdd(key: string) {
       class="add-dropdown"
       @select="onAdd"
     >
-      <div class="add-btn lx-icon-btn" title="添加">
+      <div class="add-btn lx-icon-btn" title="添加好友/群聊">
         <n-icon :component="AddOutline" :size="18" />
       </div>
     </n-dropdown>

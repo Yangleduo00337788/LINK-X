@@ -28,6 +28,7 @@ export const useChatModalsStore = defineStore('chatModals', {
     redPacketReceiveOpen: false,        // 领红包模态框
     redPacketReceiveMsgId: null as string | null, // 当前要领红包的消息 id
     contactProfileOpen: false,          // 联系人资料卡是否显示
+    editProfileOpen: false,             // 编辑资料弹窗是否显示
     currentContactProfile: null as ContactItem | null, // 资料卡展示的联系人
     profileCardIsSelf: false,           // 资料卡是否为「自己的资料」
     profileCardPos: { x: 0, y: 0 }      // 资料卡屏幕坐标（像素）
@@ -165,7 +166,7 @@ export const useChatModalsStore = defineStore('chatModals', {
      * @param event 可选鼠标事件
      */
     openSelfProfile(
-      profile: { nickname: string; username?: string; avatarText?: string },
+      profile: { nickname: string; username?: string; avatarText?: string; avatarUrl?: string; userId?: number },
       event?: MouseEvent
     ) {
       this.profileCardIsSelf = true
@@ -174,12 +175,22 @@ export const useChatModalsStore = defineStore('chatModals', {
         id: profile.username || 'self',
         name: profile.nickname,
         avatarText: profile.avatarText || profile.nickname.charAt(0) || '我',
-        avatarColor: 'var(--lx-success)',
+        avatarColor: profile.avatarUrl ? 'transparent' : 'var(--lx-success)',
+        avatarUrl: profile.avatarUrl,
         group: '我的好友',
-        online: true
+        online: true,
+        userId: profile.userId
       }
       this.contactProfileOpen = true
       this.setProfileCardPosition(event)
+    },
+    /** 打开编辑资料弹窗 */
+    openEditProfile() {
+      this.editProfileOpen = true
+    },
+    /** 关闭编辑资料弹窗 */
+    closeEditProfile() {
+      this.editProfileOpen = false
     },
     /**
      * 计算资料卡位置：优先跟随鼠标，否则居中偏上
@@ -207,6 +218,7 @@ export const useChatModalsStore = defineStore('chatModals', {
     /** 关闭资料卡并重置相关状态 */
     closeContactProfile() {
       this.contactProfileOpen = false
+      this.editProfileOpen = false
       this.currentContactProfile = null
       this.profileCardIsSelf = false
     },
@@ -229,6 +241,7 @@ export const useChatModalsStore = defineStore('chatModals', {
       this.redPacketReceiveOpen = false
       this.redPacketReceiveMsgId = null
       this.contactProfileOpen = false
+      this.editProfileOpen = false
       this.currentContactProfile = null
       this.profileCardIsSelf = false
     }

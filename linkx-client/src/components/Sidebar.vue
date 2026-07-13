@@ -197,10 +197,12 @@ function handleSelfAvatarClick(e: MouseEvent) {
   openSelfProfile(
     {
       nickname: userProfile.value.nickname,
-      username: savedLogin.value.username || undefined,
-      avatarText: userProfile.value.nickname.charAt(0) || '我'
+      username: savedLogin.value.username || userProfile.value.username || undefined,
+      avatarText: userProfile.value.nickname.charAt(0) || '我',
+      avatarUrl: userProfile.value.avatar || undefined,
+      userId: userProfile.value.userId || undefined
     },
-    e // 传递点击事件用于定位弹窗
+    e
   )
 }
 </script>
@@ -212,9 +214,9 @@ function handleSelfAvatarClick(e: MouseEvent) {
     <button type="button" class="sidebar-avatar" title="个人资料" @click="handleSelfAvatarClick">
       <Avatar
         :text="userProfile.nickname.charAt(0) || '我'"
-        color="var(--lx-success)"
+        :color="userProfile.avatar ? 'transparent' : 'var(--lx-success)'"
         :size="40"
-        image-url="https://api.dicebear.com/7.x/avataaars/svg?seed=qq-user"
+        :image-url="userProfile.avatar || undefined"
       />
     </button>
 

@@ -14,6 +14,11 @@ export interface UserProfileData extends UserInfo {
 export interface UpdateProfileRequest {
   nickname?: string
   signature?: string
+  gender?: string
+  birthday?: number | null
+  country?: string
+  province?: string
+  region?: string
 }
 
 /**

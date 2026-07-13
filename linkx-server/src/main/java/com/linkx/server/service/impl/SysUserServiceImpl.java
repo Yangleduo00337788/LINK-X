@@ -119,6 +119,31 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             updated = true;
         }
 
+        if (dto.getGender() != null) {
+            user.setGender(dto.getGender().isEmpty() ? null : dto.getGender());
+            updated = true;
+        }
+
+        if (dto.getBirthday() != null) {
+            user.setBirthday(dto.getBirthday());
+            updated = true;
+        }
+
+        if (dto.getCountry() != null) {
+            user.setCountry(dto.getCountry().isEmpty() ? null : dto.getCountry());
+            updated = true;
+        }
+
+        if (dto.getProvince() != null) {
+            user.setProvince(dto.getProvince().isEmpty() ? null : dto.getProvince());
+            updated = true;
+        }
+
+        if (dto.getRegion() != null) {
+            user.setRegion(dto.getRegion().isEmpty() ? null : dto.getRegion());
+            updated = true;
+        }
+
         if (updated) {
             updateById(user);
         }

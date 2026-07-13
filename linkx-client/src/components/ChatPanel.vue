@@ -178,8 +178,10 @@ function openSelfProfileClick(e: MouseEvent) {
   openSelfProfile(
     {
       nickname: userProfile.value.nickname,
-      username: savedLogin.value.username || undefined,
-      avatarText: userProfile.value.nickname.charAt(0) || '我'
+      username: savedLogin.value.username || userProfile.value.username || undefined,
+      avatarText: userProfile.value.nickname.charAt(0) || '我',
+      avatarUrl: userProfile.value.avatar || undefined,
+      userId: userProfile.value.userId || undefined
     },
     e
   )

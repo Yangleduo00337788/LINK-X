@@ -58,10 +58,10 @@ public class SysUserRelation implements Serializable {
     // 关系状态：1=正常好友，2=已拉黑
     private Integer status;
 
-    // 成为好友的时间
+    @Column(onInsertValue = "NOW()")
     private Date createTime;
 
-    // 关系信息最后更新时间
+    @Column(onInsertValue = "NOW()", onUpdateValue = "NOW()")
     private Date updateTime;
 
     // 逻辑删除：0=有效，1=已删除

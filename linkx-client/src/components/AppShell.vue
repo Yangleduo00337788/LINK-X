@@ -52,6 +52,7 @@ const GroupAnnouncementModal = defineAsyncComponent(() => import('./chat/GroupAn
 const RedPacketModal = defineAsyncComponent(() => import('./chat/RedPacketModal.vue'))
 const RedPacketReceiveModal = defineAsyncComponent(() => import('./chat/RedPacketReceiveModal.vue'))
 const ContactProfileModal = defineAsyncComponent(() => import('./chat/ContactProfileModal.vue'))
+const EditProfileModal = defineAsyncComponent(() => import('./EditProfileModal.vue'))
 const MomentsModal = defineAsyncComponent(() => import('./MomentsModal.vue'))
 // Pinia 响应式解构
 import { storeToRefs } from 'pinia'
@@ -216,6 +217,7 @@ const showPlaceholder = computed(() =>
     <RedPacketModal />
     <RedPacketReceiveModal />
     <ContactProfileModal />
+    <EditProfileModal />
     <!-- 浏览器环境下友链全屏弹窗 -->
     <div v-if="momentsModalOpen && !isElectron" class="moments-modal-backdrop">
       <MomentsModal />

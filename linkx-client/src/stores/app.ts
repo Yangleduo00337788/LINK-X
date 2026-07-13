@@ -19,11 +19,15 @@ import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
 import { sanitizeAppPersistState } from '../utils/persistSanitize'
 // 登出时重置其它 UI Store
 import { resetSessionUi, cleanupNaiveUiOverlays } from '../utils/resetSessionUi'
+import { useNotificationsStore } from './notifications'
 // HTTP 客户端与认证 API
 import * as authApi from '../api/auth'
 import * as userApi from '../api/user'
+import type { UpdateProfileRequest } from '../api/user'
 import { clearTokens, getRefreshToken, hasRefreshToken, saveTokenPair } from '../utils/tokenStorage'
 import { hasLockPin as isLockPinConfigured, verifyLockPin as verifyLockPinHash, saveLockPinHash } from '../utils/lockPin'
+import type { UserInfo } from '../types/auth'
+import type { UserProfileData } from '../api/user'
 import { validateLockPin } from '../utils/validation'
 
 /** sendMessage 可选参数：扩展消息类型与附件字段 */
@@ -86,6 +90,25 @@ function pickGroupColor(seed: string): string {
   return GROUP_COLORS[hash % GROUP_COLORS.length]
 }
 
+type ProfileSource = Partial<UserProfileData & UserInfo>
+
+/** 将后端用户资料写入 store 的 userProfile 结构 */
+function mapApiProfile(data: ProfileSource) {
+  const gender = data.gender === '女' ? '女' : '男'
+  return {
+    nickname: data.nickname || data.username || '',
+    username: data.username || '',
+    signature: data.signature?.trim() ? data.signature : '编辑个性签名',
+    avatar: data.avatar || '',
+    userId: data.id ?? 0,
+    gender: gender as '男' | '女',
+    birthday: data.birthday ?? null,
+    country: data.country || '中国',
+    province: data.province || '',
+    region: data.region || ''
+  }
+}
+
 // 定义并导出 app Store
 export const useAppStore = defineStore('app', {
   // 应用全局初始状态
@@ -98,9 +121,15 @@ export const useAppStore = defineStore('app', {
     contactsActiveView: 'none' as 'none' | 'friend-notifs' | 'group-notifs', // 通讯录子视图
     userProfile: {
       nickname: '',           // 登录后由后端返回
+      username: '',           // LinkX 登录账号
       signature: '编辑个性签名',
       avatar: '',             // 头像 URL
-      userId: 0               // 用户 ID
+      userId: 0,              // 用户 ID
+      gender: '男' as '男' | '女',
+      birthday: null as number | null,
+      country: '中国',
+      province: '',
+      region: ''
     },
     isLoggedIn: false,   // 是否已登录
     isLoading: false,    // 登录等异步操作加载中
@@ -290,18 +319,25 @@ export const useAppStore = defineStore('app', {
 
     /**
      * 添加好友并创建对应单聊会话
-     * @param name 好友名称
      */
-    addFriendSession(name: string) {
-      const id = `friend-${Date.now()}`
+    addFriendSession(friend: { userId: string; name: string; avatarUrl?: string }) {
+      const id = String(friend.userId)
+      const existing = this.sessions.find(s => !s.isGroup && s.id === id)
+      if (existing) {
+        this.selectSession(existing)
+        this.navKey = 'chat'
+        return existing
+      }
+
       const time = nowTime()
       const session: ChatSession = {
         id,
-        name,
+        name: friend.name,
         lastMessage: '我们已经是好友了，开始聊天吧',
         time,
-        avatarText: name.charAt(0) || '?',
-        avatarColor: pickGroupColor(name),
+        avatarText: friend.name.charAt(0) || '?',
+        avatarColor: pickGroupColor(friend.name),
+        avatarUrl: friend.avatarUrl,
         online: true
       }
       this.messagesBySession[id] = [
@@ -315,8 +351,23 @@ export const useAppStore = defineStore('app', {
         }
       ]
       this.ensureSession(session)
-      useContactsStore().syncFriendFromSession(session)
+      useContactsStore().syncFriendFromSession({
+        id,
+        name: friend.name,
+        avatarText: friend.name.charAt(0) || '?',
+        avatarColor: pickGroupColor(friend.name),
+        avatarUrl: friend.avatarUrl,
+        online: true
+      })
       return session
+    },
+
+    /** 登录后拉取好友与好友通知 */
+    async loadSocialData() {
+      await Promise.all([
+        useContactsStore().fetchFriends(),
+        useNotificationsStore().fetchFriendRequests()
+      ])
     },
 
     /** 切换会话置顶状态 */
@@ -510,12 +561,7 @@ export const useAppStore = defineStore('app', {
     /** 更新个性签名（本地+后端） */
     async updateSignature(text: string) {
       try {
-        const res = await userApi.updateProfile({ signature: text })
-        if (res.code === 200 && res.data) {
-          this.userProfile.signature = res.data.signature || text
-        } else {
-          this.userProfile.signature = text
-        }
+        await this.updateProfile({ signature: text })
       } catch {
         this.userProfile.signature = text
       }
@@ -524,14 +570,41 @@ export const useAppStore = defineStore('app', {
     /** 更新昵称（本地+后端） */
     async updateNickname(name: string) {
       try {
-        const res = await userApi.updateProfile({ nickname: name })
-        if (res.code === 200 && res.data) {
-          this.userProfile.nickname = res.data.nickname || name
-        } else {
-          this.userProfile.nickname = name
-        }
+        await this.updateProfile({ nickname: name })
       } catch {
         this.userProfile.nickname = name
+      }
+    },
+
+    /** 将后端资料合并到本地 userProfile */
+    applyUserProfile(data: ProfileSource) {
+      this.userProfile = {
+        ...this.userProfile,
+        ...mapApiProfile(data)
+      }
+    },
+
+    /** 更新用户资料（昵称、签名、性别、生日、地区等） */
+    async updateProfile(payload: UpdateProfileRequest) {
+      try {
+        const res = await userApi.updateProfile(payload)
+        if (res.code === 200 && res.data) {
+          this.applyUserProfile(res.data)
+          return res.data
+        }
+        throw new Error(res.message || '更新失败')
+      } catch (error) {
+        // 网络失败时仍更新本地已提交的字段，避免用户感知丢失
+        if (payload.nickname !== undefined) this.userProfile.nickname = payload.nickname
+        if (payload.signature !== undefined) this.userProfile.signature = payload.signature
+        if (payload.gender !== undefined) {
+          this.userProfile.gender = payload.gender === '女' ? '女' : '男'
+        }
+        if (payload.birthday !== undefined) this.userProfile.birthday = payload.birthday
+        if (payload.country !== undefined) this.userProfile.country = payload.country
+        if (payload.province !== undefined) this.userProfile.province = payload.province
+        if (payload.region !== undefined) this.userProfile.region = payload.region
+        throw error
       }
     },
 
@@ -550,12 +623,7 @@ export const useAppStore = defineStore('app', {
       try {
         const res = await userApi.getCurrentUser()
         if (res.code === 200 && res.data) {
-          this.userProfile = {
-            nickname: res.data.nickname || res.data.username,
-            signature: res.data.signature || '编辑个性签名',
-            avatar: res.data.avatar || '',
-            userId: res.data.id
-          }
+          this.applyUserProfile(res.data)
           return res.data
         }
       } catch (e) {
@@ -571,9 +639,12 @@ export const useAppStore = defineStore('app', {
       const refresh = await getRefreshToken()
 
       resetSessionUi()
+      useContactsStore().reset()
+      useNotificationsStore().resetFriends()
       this.isLocked = false
       this.isLoggedIn = false
       this.userProfile.nickname = ''
+      this.userProfile.username = ''
       this.userProfile.signature = '编辑个性签名'
       this.userProfile.avatar = ''
       this.userProfile.userId = 0
@@ -614,16 +685,14 @@ export const useAppStore = defineStore('app', {
           const { accessToken, refreshToken, user } = res.data
           await saveTokenPair(accessToken, refreshToken)
 
-          this.userProfile.nickname = user.nickname || user.username
-          this.userProfile.signature = user.signature || '编辑个性签名'
-          this.userProfile.avatar = user.avatar || ''
-          this.userProfile.userId = user.id
-
+          this.applyUserProfile(user)
           this.savedLogin.username = rememberMe ? username : ''
           this.savedLogin.rememberMe = rememberMe
           this.savedLogin.autoLogin = autoLogin
 
           this.isLoggedIn = true
+          void this.fetchCurrentUser()
+          void this.loadSocialData()
           return true
         }
         throw new Error(res.message || '登录失败')
@@ -640,28 +709,34 @@ export const useAppStore = defineStore('app', {
       if (!this.savedLogin.autoLogin || !this.savedLogin.rememberMe || !this.savedLogin.username) {
         return
       }
-      if (!(await hasRefreshToken())) {
-        return
-      }
 
       this.authInitializing = true
       this.isLoading = true
       try {
+        if (!(await hasRefreshToken())) {
+          // 勾选了自动登录但 token 已失效，避免下次启动再次卡住
+          this.savedLogin.autoLogin = false
+          return
+        }
+
         const refresh = await getRefreshToken()
-        if (!refresh) return
+        if (!refresh) {
+          this.savedLogin.autoLogin = false
+          return
+        }
+
         const res = await authApi.refreshToken(refresh)
         if (res.code === 200 && res.data) {
           await saveTokenPair(res.data.accessToken, res.data.refreshToken)
-          const user = res.data.user
-          this.userProfile.nickname = user.nickname || user.username
-          this.userProfile.signature = user.signature || '编辑个性签名'
-          this.userProfile.avatar = user.avatar || ''
-          this.userProfile.userId = user.id
+          this.applyUserProfile(res.data.user)
           this.isLoggedIn = true
+          void this.fetchCurrentUser()
+          void this.loadSocialData()
         }
       } catch {
         await clearTokens()
         this.isLoggedIn = false
+        this.savedLogin.autoLogin = false
       } finally {
         this.isLoading = false
         this.authInitializing = false

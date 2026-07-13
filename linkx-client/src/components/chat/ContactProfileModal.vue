@@ -3,39 +3,114 @@
  * 联系人资料卡浮层。
  * <p>
  * 在聊天中点击头像时展示昵称、LinkX ID、友链缩略图，非本人时可发起会话。
+ * 本人资料卡支持点击头像直接更换、右侧「编辑资料」打开弹窗。
  * </p>
  */
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { NIcon } from 'naive-ui'
-import { ChatbubbleEllipsesOutline, ChevronForwardOutline } from '@vicons/ionicons5'
+import { ChatbubbleEllipsesOutline, ChevronForwardOutline, CameraOutline } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
 import { useMomentsStore } from '../../stores/moments'
+import { useMessage } from 'naive-ui'
 import type { ContactItem } from '../../types'
+import * as userApi from '../../api/user'
+import type { UserProfileData } from '../../api/user'
 
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
 const momentsStore = useMomentsStore()
-// 资料卡开关、当前联系人、卡片位置、是否为自己
+const message = useMessage()
+
 const { contactProfileOpen, currentContactProfile, profileCardPos, profileCardIsSelf } = storeToRefs(chatModalsStore)
-const { closeContactProfile } = chatModalsStore
+const { closeContactProfile, openEditProfile } = chatModalsStore
 const { userProfile, savedLogin } = storeToRefs(appStore)
-const { startChatWithContact } = appStore
+const { startChatWithContact, updateAvatar } = appStore
 const { posts } = storeToRefs(momentsStore)
 
-// 当前展示的联系人（可能为空）
+const avatarInputRef = ref<HTMLInputElement | null>(null)
+const uploadingAvatar = ref(false)
+const remoteProfile = ref<UserProfileData | null>(null)
+const loadingRemoteProfile = ref(false)
+
 const contact = computed<ContactItem | null>(() => currentContactProfile.value)
 
-/** 展示用 LinkX ID：本人取登录名，好友取 id 后缀 */
+/** 从联系人 id 或 userId 解析后端用户 ID（Mock 非数字 id 返回 null） */
+function resolveContactUserId(item: ContactItem): number | null {
+  if (item.userId) return item.userId
+  const raw = item.id.replace(/^f-/, '')
+  if (/^\d+$/.test(raw)) return Number(raw)
+  return null
+}
+
+/** 打开他人资料卡时拉取后端公开资料 */
+watch(
+  () => [contactProfileOpen.value, profileCardIsSelf.value, contact.value?.id] as const,
+  async ([open, isSelf, contactId]) => {
+    remoteProfile.value = null
+    if (!open || isSelf || !contactId || !contact.value) return
+
+    const userId = resolveContactUserId(contact.value)
+    if (!userId) return
+
+    loadingRemoteProfile.value = true
+    try {
+      const res = await userApi.getUserProfile(userId)
+      if (res.code === 200 && res.data) {
+        remoteProfile.value = res.data
+      }
+    } catch {
+      // 保留联系人 Mock 数据作为回退
+    } finally {
+      loadingRemoteProfile.value = false
+    }
+  }
+)
+
+const displayName = computed(() => {
+  if (!contact.value) return ''
+  if (profileCardIsSelf.value) return userProfile.value.nickname || contact.value.name
+  return remoteProfile.value?.nickname || contact.value.name
+})
+
+const displayAvatarUrl = computed(() => {
+  if (!contact.value) return undefined
+  if (profileCardIsSelf.value) return userProfile.value.avatar || contact.value.avatarUrl
+  return remoteProfile.value?.avatar || contact.value.avatarUrl
+})
+
+const displayAvatarText = computed(() => {
+  if (!contact.value) return ''
+  return contact.value.avatarText || displayName.value.charAt(0) || '?'
+})
+
+const displayAvatarColor = computed(() => {
+  if (displayAvatarUrl.value) return 'transparent'
+  return contact.value?.avatarColor || 'var(--lx-accent)'
+})
+
+/** 本人资料卡展示时同步最新头像与昵称 */
+watch(
+  () => [userProfile.value.avatar, userProfile.value.nickname] as const,
+  ([avatar, nickname]) => {
+    if (!profileCardIsSelf.value || !contact.value) return
+    contact.value.avatarUrl = avatar || undefined
+    contact.value.avatarColor = avatar ? 'transparent' : 'var(--lx-success)'
+    if (nickname) contact.value.name = nickname
+  }
+)
+
+/** 展示用 LinkX ID：本人取登录名，好友优先取后端 username */
 const displayId = computed(() => {
   if (!contact.value) return ''
   if (profileCardIsSelf.value) {
-    return savedLogin.value.username || userProfile.value.nickname || 'linkx_888888'
+    return savedLogin.value.username || userProfile.value.username || userProfile.value.nickname || '—'
   }
+  if (remoteProfile.value?.username) return remoteProfile.value.username
   const id = contact.value.id.replace(/^f-/, '')
-  return `linkx_${id}`
+  return /^\d+$/.test(id) ? id : `linkx_${id}`
 })
 
 /** 友链缩略图：优先取该用户动态图片，不足 4 张用占位图补齐 */
@@ -59,10 +134,47 @@ function handleSendMessage() {
   startChatWithContact(contact.value)
   closeContactProfile()
 }
+
+/** 点击头像：本人直接选择图片上传 */
+function handleAvatarClick() {
+  if (!contact.value || !profileCardIsSelf.value || uploadingAvatar.value) return
+  avatarInputRef.value?.click()
+}
+
+async function handleAvatarChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || !contact.value) return
+
+  if (!file.type.startsWith('image/')) {
+    message.error('请选择图片文件')
+    return
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    message.error('图片大小不能超过 10MB')
+    return
+  }
+
+  uploadingAvatar.value = true
+  try {
+    const avatarUrl = await updateAvatar(file)
+    contact.value.avatarUrl = avatarUrl
+    contact.value.avatarColor = 'transparent'
+    message.success('头像已更新')
+  } catch (error) {
+    message.error('上传失败: ' + (error as Error).message)
+  } finally {
+    uploadingAvatar.value = false
+  }
+}
+
+function handleEditProfile() {
+  openEditProfile()
+}
 </script>
 
 <template>
-  <!-- 挂载到 body 的资料卡浮层 -->
   <Teleport to="body">
     <div
       v-if="contactProfileOpen && contact"
@@ -74,20 +186,40 @@ function handleSendMessage() {
         :style="{ left: `${profileCardPos.x}px`, top: `${profileCardPos.y}px` }"
         @click.stop
       >
-        <!-- 头像与基本信息 -->
         <section class="card-head">
-          <Avatar
-            :text="contact.avatarText || contact.name.charAt(0)"
-            :color="contact.avatarColor || 'var(--lx-accent)'"
-            :size="64"
-          />
-          <div class="head-meta">
-            <div class="profile-name">{{ contact.name }}</div>
-            <div class="profile-id">LinkX ID: {{ displayId }}</div>
+          <div
+            class="avatar-clickable"
+            :class="{ uploading: uploadingAvatar }"
+            @click="handleAvatarClick"
+            :title="profileCardIsSelf ? '点击更换头像' : ''"
+          >
+            <Avatar
+              :text="displayAvatarText"
+              :color="displayAvatarColor"
+              :size="64"
+              :image-url="displayAvatarUrl || undefined"
+            />
+            <div v-if="profileCardIsSelf" class="avatar-edit-hint">
+              <n-icon :component="CameraOutline" :size="16" />
+            </div>
           </div>
+          <div class="head-meta">
+            <div class="profile-name">{{ displayName }}</div>
+            <div class="profile-id">
+              LinkX ID: {{ displayId }}
+              <span v-if="loadingRemoteProfile" class="profile-loading">加载中…</span>
+            </div>
+          </div>
+          <button
+            v-if="profileCardIsSelf"
+            type="button"
+            class="edit-profile-btn"
+            @click="handleEditProfile"
+          >
+            编辑资料
+          </button>
         </section>
 
-        <!-- 友链预览行 -->
         <section class="moments-row">
           <span class="moments-label">友链</span>
           <div class="moments-thumbs">
@@ -102,11 +234,19 @@ function handleSendMessage() {
           <n-icon :component="ChevronForwardOutline" :size="16" class="moments-arrow" />
         </section>
 
-        <!-- 非本人时显示发消息按钮 -->
         <button v-if="!profileCardIsSelf" type="button" class="send-btn" @click="handleSendMessage">
           <n-icon :component="ChatbubbleEllipsesOutline" :size="18" />
           <span>发消息</span>
         </button>
+
+        <input
+          v-if="profileCardIsSelf"
+          ref="avatarInputRef"
+          type="file"
+          accept="image/*"
+          hidden
+          @change="handleAvatarChange"
+        />
       </div>
     </div>
   </Teleport>
@@ -144,7 +284,7 @@ function handleSendMessage() {
 
 .card-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 14px;
   padding: 20px 18px 16px;
 }
@@ -152,6 +292,7 @@ function handleSendMessage() {
 .head-meta {
   min-width: 0;
   flex: 1;
+  padding-top: 4px;
 }
 
 .profile-name {
@@ -165,6 +306,31 @@ function handleSendMessage() {
   margin-top: 4px;
   font-size: 12px;
   color: var(--lx-text-muted);
+}
+
+.profile-loading {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--lx-text-muted);
+}
+
+.edit-profile-btn {
+  flex-shrink: 0;
+  border: 1px solid var(--lx-border);
+  background: var(--lx-bg-card);
+  color: var(--lx-text-body);
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  margin-top: 6px;
+}
+
+.edit-profile-btn:hover {
+  background: var(--lx-bg-panel);
+  border-color: var(--lx-accent);
+  color: var(--lx-accent);
 }
 
 .moments-row {
@@ -223,5 +389,35 @@ function handleSendMessage() {
 
 .send-btn:hover {
   background: var(--lx-accent-soft);
+}
+
+.avatar-clickable {
+  position: relative;
+  cursor: pointer;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.avatar-clickable.uploading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.avatar-clickable:hover .avatar-edit-hint {
+  opacity: 1;
+}
+
+.avatar-edit-hint {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  opacity: 0;
+  transition: opacity 0.2s;
+  border-radius: 50%;
 }
 </style>

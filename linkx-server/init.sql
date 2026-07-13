@@ -13,6 +13,11 @@ CREATE TABLE IF NOT EXISTS `sys_user` (
   `nickname` VARCHAR(64) NOT NULL COMMENT '用户昵称',
   `avatar` VARCHAR(255) DEFAULT NULL COMMENT '头像URL',
   `signature` VARCHAR(255) DEFAULT NULL COMMENT '个性签名',
+  `gender` VARCHAR(8) DEFAULT NULL COMMENT '性别(男/女)',
+  `birthday` BIGINT DEFAULT NULL COMMENT '生日(毫秒时间戳)',
+  `country` VARCHAR(64) DEFAULT NULL COMMENT '国家',
+  `province` VARCHAR(64) DEFAULT NULL COMMENT '省份',
+  `region` VARCHAR(64) DEFAULT NULL COMMENT '地区',
   `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态(1:正常 0:停用)',
   `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -42,7 +47,24 @@ CREATE TABLE IF NOT EXISTS `sys_user_relation` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户好友关系表';
 
 -- ==============================================
--- 3. 登录审计表
+-- 4. 好友申请表
+-- ==============================================
+CREATE TABLE IF NOT EXISTS `sys_friend_request` (
+  `id` BIGINT NOT NULL COMMENT '主键ID(雪花算法)',
+  `from_user_id` BIGINT NOT NULL COMMENT '申请人用户ID',
+  `to_user_id` BIGINT NOT NULL COMMENT '被申请人用户ID',
+  `message` VARCHAR(255) DEFAULT NULL COMMENT '验证信息',
+  `status` TINYINT NOT NULL DEFAULT 0 COMMENT '状态(0:待处理 1:已同意 2:已拒绝)',
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '申请时间',
+  `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除(0:未删除 1:已删除)',
+  PRIMARY KEY (`id`),
+  KEY `idx_to_user_status` (`to_user_id`, `status`),
+  KEY `idx_from_user` (`from_user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='好友申请表';
+
+-- ==============================================
+-- 5. 登录审计表
 -- ==============================================
 CREATE TABLE IF NOT EXISTS `sys_login_audit` (
   `id` BIGINT NOT NULL COMMENT '主键ID(雪花算法)',

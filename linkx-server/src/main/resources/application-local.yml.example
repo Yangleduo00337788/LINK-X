@@ -23,3 +23,10 @@ linkx:
       # - https://your-domain.com
   security:
     require-https: false
+  # MinIO 对象存储（本地 WSL/Docker 默认账号 minioadmin / minioadmin123）
+  minio:
+    endpoint: http://localhost:9000
+    access-key: minioadmin
+    secret-key: minioadmin123
+    bucket-name: linkx
+    max-file-size: 10485760  # 10MB

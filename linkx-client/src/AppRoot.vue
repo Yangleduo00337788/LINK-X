@@ -14,6 +14,8 @@ import {
   NDialogProvider,
   NConfigProvider,
   darkTheme,
+  zhCN,
+  dateZhCN,
   type GlobalThemeOverrides
 } from 'naive-ui'
 // 路由根组件
@@ -78,6 +80,8 @@ watch(theme, syncHtmlTheme)
 <template>
   <!-- Naive UI 全局配置：主题与样式覆盖 -->
   <n-config-provider
+    :locale="zhCN"
+    :date-locale="dateZhCN"
     :theme="naiveTheme"
     :theme-overrides="themeOverrides"
     style="width: 100%; height: 100%"

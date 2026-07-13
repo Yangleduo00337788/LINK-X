@@ -22,7 +22,7 @@ public class LinkxProperties {
     public static class Minio {
         private String endpoint = "http://localhost:9000";
         private String accessKey = "minioadmin";
-        private String secretKey = "minioadmin";
+        private String secretKey = "minioadmin123";
         private String bucketName = "linkx";
         private long maxFileSize = 10 * 1024 * 1024; // 默认10MB
     }

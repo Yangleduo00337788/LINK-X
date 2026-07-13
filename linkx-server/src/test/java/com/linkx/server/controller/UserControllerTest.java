@@ -7,7 +7,6 @@ import com.linkx.server.controller.vo.UserProfileVO;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.SysUserService;
-import io.jsonwebtoken.Claims;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -55,9 +54,7 @@ class UserControllerTest {
 
     @BeforeEach
     void setUp() {
-        Claims claims = mock(Claims.class);
-        when(claims.getSubject()).thenReturn(TEST_USER_ID.toString());
-        when(jwtUtils.parseToken(anyString())).thenReturn(claims);
+        when(jwtUtils.getUserIdFromToken(anyString())).thenReturn(TEST_USER_ID);
     }
 
     @Test

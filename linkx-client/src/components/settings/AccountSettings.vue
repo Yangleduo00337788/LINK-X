@@ -1,5 +1,6 @@
 <script setup lang="ts">
 // Naive UI 按钮、头像、图标、开关与消息提示
+import { computed } from 'vue'
 import { NButton, NAvatar, NIcon, NSwitch, useMessage } from 'naive-ui'
 // Ionicons5 安全图标
 import { ShieldCheckmarkOutline } from '@vicons/ionicons5'
@@ -17,8 +18,13 @@ const appStore = useAppStore()
 // 应用设置 Store 实例
 const appSettingsStore = useAppSettingsStore()
 
-// 用户资料
-const { userProfile } = storeToRefs(appStore)
+// 用户资料与登录账号
+const { userProfile, savedLogin } = storeToRefs(appStore)
+
+const displayUsername = computed(
+  () => savedLogin.value.username || userProfile.value.username || '—'
+)
+const defaultAvatar = 'https://api.dicebear.com/7.x/avataaars/svg?seed=qq-user'
 // 隐私相关设置项
 const {
   privacyVerifyFriend,
@@ -44,12 +50,12 @@ function manageDevices() {
     <section class="profile-card">
       <n-avatar
         :size="72"
-        src="https://api.dicebear.com/7.x/avataaars/svg?seed=qq-user"
+        :src="userProfile.avatar || defaultAvatar"
         class="profile-avatar"
       />
       <div class="profile-meta">
         <div class="profile-name">{{ userProfile.nickname }}</div>
-        <div class="profile-id">LinkX ID · linkx_888888</div>
+        <div class="profile-id">LinkX ID · {{ displayUsername }}</div>
         <div class="profile-badge">已登录</div>
       </div>
     </section>

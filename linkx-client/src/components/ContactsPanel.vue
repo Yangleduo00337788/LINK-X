@@ -20,6 +20,8 @@ import Avatar from './Avatar.vue'
 import EmptyState from './common/EmptyState.vue'
 // 联系人 Store
 import { useContactsStore } from '../stores/contacts'
+// 好友通知 Store
+import { useNotificationsStore } from '../stores/notifications'
 // Pinia 响应式解构
 import { storeToRefs } from 'pinia'
 // 应用全局状态 Store
@@ -31,8 +33,10 @@ import type { ContactItem } from '../types'
 
 // 获取联系人 Store 实例
 const contactsStore = useContactsStore()
+const notificationsStore = useNotificationsStore()
 // 解构联系人列表
 const { items: contacts } = storeToRefs(contactsStore)
+const { pendingFriendCount } = storeToRefs(notificationsStore)
 // 获取应用 Store 实例
 const appStore = useAppStore()
 // 获取聊天弹窗 Store 实例
@@ -51,7 +55,7 @@ const activeTab = ref<'friends' | 'groups'>('friends')
 // 添加按钮下拉选项
 const addOptions = [
   { label: '发起群聊', key: 'group' },
-  { label: '添加好友', key: 'friend' }
+  { label: '添加好友/群聊', key: 'friend' }
 ]
 
 // 处理添加按钮下拉选项选中
@@ -147,6 +151,7 @@ function onTabChange(tab: 'friends' | 'groups') {
       <div class="action-list">
         <div class="action-item" :class="{ active: contactsActiveView === 'friend-notifs' }" @click="setView('friend-notifs')">
           <span>好友通知</span>
+          <span v-if="pendingFriendCount" class="notif-badge">{{ pendingFriendCount }}</span>
           <n-icon :component="ChevronForwardOutline" />
         </div>
         <div class="action-item" :class="{ active: contactsActiveView === 'group-notifs' }" @click="setView('group-notifs')">
@@ -315,6 +320,20 @@ function onTabChange(tab: 'friends' | 'groups') {
 .action-item.active {
   background: rgba(18, 183, 245, 0.08);
   color: var(--lx-accent);
+}
+
+.notif-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: auto;
+  margin-right: 6px;
+  border-radius: 9px;
+  background: var(--lx-accent);
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
 }
 
 .tabs {

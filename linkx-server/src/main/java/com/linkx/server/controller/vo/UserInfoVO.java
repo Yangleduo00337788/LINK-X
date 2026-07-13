@@ -30,4 +30,19 @@ public class UserInfoVO {
 
     // 个性签名，可为 null
     private String signature;
+
+    // 性别
+    private String gender;
+
+    // 生日毫秒时间戳
+    private Long birthday;
+
+    // 国家
+    private String country;
+
+    // 省份
+    private String province;
+
+    // 地区
+    private String region;
 }

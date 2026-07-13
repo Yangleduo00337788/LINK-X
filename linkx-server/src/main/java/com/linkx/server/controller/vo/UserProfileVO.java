@@ -38,6 +38,31 @@ public class UserProfileVO {
     private String signature;
 
     /**
+     * 性别
+     */
+    private String gender;
+
+    /**
+     * 生日（毫秒时间戳）
+     */
+    private Long birthday;
+
+    /**
+     * 国家
+     */
+    private String country;
+
+    /**
+     * 省份
+     */
+    private String province;
+
+    /**
+     * 地区
+     */
+    private String region;
+
+    /**
      * 账号创建时间
      */
     private Date createTime;

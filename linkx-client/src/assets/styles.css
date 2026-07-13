@@ -284,6 +284,12 @@ body,
   box-shadow: var(--lx-shadow-dropdown) !important;
 }
 
+/* 高层级弹窗 (10001+) 内的日期/下拉浮层需高于弹窗本身 */
+.v-binder-follower-container:has(.n-date-panel),
+.v-binder-follower-container:has(.n-base-select-menu) {
+  z-index: 10003;
+}
+
 /* Naive UI Modal / Card 暗色适配 */
 [data-theme='dark'] .n-card.n-modal,
 [data-theme='dark'] .n-modal .n-card {

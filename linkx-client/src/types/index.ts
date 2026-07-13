@@ -86,6 +86,9 @@ export interface ContactItem {
   avatarColor: string
   group: string           // 分组名（如「我的好友」）
   online?: boolean
+  avatarUrl?: string      // 头像图片 URL
+  /** 后端用户 ID，存在时可拉取真实公开资料 */
+  userId?: string
 }
 
 /** 收藏项 */

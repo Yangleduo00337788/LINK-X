@@ -1,44 +1,62 @@
 <script setup lang="ts">
-// Naive UI 全局消息提示
+import { onMounted } from 'vue'
 import { useMessage } from 'naive-ui'
-// Ionicons5 筛选与清空图标
 import { FilterOutline, TrashOutline } from '@vicons/ionicons5'
-// Pinia 响应式解构工具
+import { NIcon } from 'naive-ui'
 import { storeToRefs } from 'pinia'
-// 通知 Store
 import { useNotificationsStore } from '../../stores/notifications'
-// 应用全局状态 Store
+import { useContactsStore } from '../../stores/contacts'
 import { useAppStore } from '../../stores/app'
 
-// 消息提示实例
 const message = useMessage()
-// 通知 Store 实例
 const notificationsStore = useNotificationsStore()
-// 应用 Store 实例
+const contactsStore = useContactsStore()
 const appStore = useAppStore()
-// 好友通知列表
-const { friendNotifs } = storeToRefs(notificationsStore)
-// 同意/拒绝/清空好友通知的方法
-const { acceptFriend, rejectFriend, clearFriendNotifs } = notificationsStore
-// 添加好友会话的方法
+
+const { friendNotifs, loading } = storeToRefs(notificationsStore)
+const { fetchFriendRequests, acceptFriendRequest, rejectFriendRequest, clearFriendNotifs } =
+  notificationsStore
+const { fetchFriends } = contactsStore
 const { addFriendSession } = appStore
 
-// 同意好友请求：创建会话并提示
-function handleAccept(id: string) {
-  const n = acceptFriend(id)
-  if (n) {
-    addFriendSession(n.name)
+onMounted(() => {
+  void fetchFriendRequests()
+})
+
+async function handleAccept(id: string) {
+  const n = notificationsStore.findFriendNotif(id)
+  if (!n || n.status !== '等待验证' || n.direction !== 'incoming') return
+
+  try {
+    const accepted = await acceptFriendRequest(n.requestId)
+    await fetchFriends()
+    if (accepted) {
+      addFriendSession({
+        userId: accepted.peerUserId,
+        name: accepted.name,
+        avatarUrl: accepted.avatar
+      })
+    }
     message.success(`已同意「${n.name}」的好友请求`)
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || '处理好友申请失败')
   }
 }
 
-// 拒绝好友请求
-function handleReject(id: string) {
-  rejectFriend(id)
-  message.success('已拒绝好友请求')
+async function handleReject(id: string) {
+  const n = notificationsStore.findFriendNotif(id)
+  if (!n || n.status !== '等待验证' || n.direction !== 'incoming') return
+
+  try {
+    await rejectFriendRequest(n.requestId)
+    message.success('已拒绝好友请求')
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || '处理好友申请失败')
+  }
 }
 
-// 清空全部好友通知
 function handleClear() {
   clearFriendNotifs()
   message.success('已清空通知')
@@ -46,9 +64,7 @@ function handleClear() {
 </script>
 
 <template>
-  <!-- 好友通知主视图 -->
   <div class="notifications-view">
-    <!-- 顶部标题与操作栏 -->
     <div class="header">
       <h2 class="title">好友通知</h2>
       <div class="actions">
@@ -60,9 +76,9 @@ function handleClear() {
         </button>
       </div>
     </div>
-    <!-- 通知列表内容区 -->
     <div class="content">
-      <div v-if="!friendNotifs.length" class="empty">暂无好友通知</div>
+      <div v-if="loading" class="empty">加载中…</div>
+      <div v-else-if="!friendNotifs.length" class="empty">暂无好友通知</div>
       <div v-else class="notif-list">
         <div v-for="item in friendNotifs" :key="item.id" class="notif-card">
           <img :src="item.avatar" class="avatar" alt="" />
@@ -72,10 +88,13 @@ function handleClear() {
               <span class="action-text">{{ item.action }}</span>
               <span class="date">{{ item.date }}</span>
             </div>
-            <div class="message">留言: {{ item.message }}</div>
+            <div class="message">留言: {{ item.message || '无' }}</div>
             <div v-if="item.source" class="source">来源: {{ item.source }}</div>
           </div>
-          <div v-if="item.status === '等待验证'" class="actions-right">
+          <div
+            v-if="item.status === '等待验证' && item.direction === 'incoming'"
+            class="actions-right"
+          >
             <button type="button" class="btn accept" @click="handleAccept(item.id)">同意</button>
             <button type="button" class="btn reject" @click="handleReject(item.id)">拒绝</button>
           </div>
@@ -232,9 +251,5 @@ function handleClear() {
   font-size: 12px;
   color: var(--lx-text-muted);
   flex-shrink: 0;
-}
-
-.status.waiting {
-  color: var(--lx-accent);
 }
 </style>

@@ -4,6 +4,7 @@ import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.TokenType;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.controller.vo.TokenVO;
+import com.linkx.server.common.UserProfileMapper;
 import com.linkx.server.controller.vo.UserInfoVO;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.exception.CustomException;

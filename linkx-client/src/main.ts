@@ -4,8 +4,7 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 // Pinia 持久化插件：将 store 状态写入 localStorage
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
-// Naive UI 组件库
-import naive from 'naive-ui'
+// Naive UI 组件按需引入，勿全量 app.use(naive) 以免拖慢启动
 // 根组件：包裹主题 Provider 与全局弹窗
 import AppRoot from './AppRoot.vue'
 // Vue Router 路由实例
@@ -30,12 +29,17 @@ const app = createApp(AppRoot)
 app.use(pinia)
 // 挂载路由
 app.use(router)
-// 挂载 Naive UI
-app.use(naive)
 
 // 应用启动时读取持久化的主题并同步到 DOM
 const appStore = useAppStore()
 applyDocumentTheme(appStore.theme)
+
+// 自动登录：由 tryAutoLogin 内部管理 authInitializing，避免无 token 时卡死白屏
+const shouldTryAutoLogin =
+  !appStore.isLoggedIn &&
+  appStore.savedLogin.autoLogin &&
+  appStore.savedLogin.rememberMe &&
+  !!appStore.savedLogin.username
 
 // 监听 localStorage 变化，实现多窗口（主窗口 / 友链 / 笔记）主题联动
 initCrossWindowThemeSync(theme => {
@@ -53,3 +57,7 @@ router.beforeEach(() => {
 
 // 挂载到 index.html 中的 #app 节点
 app.mount('#app')
+
+if (shouldTryAutoLogin) {
+  void appStore.tryAutoLogin()
+}

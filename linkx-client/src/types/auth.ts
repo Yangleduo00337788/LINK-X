@@ -10,6 +10,11 @@ export interface UserInfo {
   nickname: string
   avatar?: string
   signature?: string
+  gender?: string
+  birthday?: number | null
+  country?: string
+  province?: string
+  region?: string
 }
 
 export interface TokenData {

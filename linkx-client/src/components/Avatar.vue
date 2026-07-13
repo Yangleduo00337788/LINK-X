@@ -50,7 +50,7 @@ const fontSize = computed(() => `${size.value * 0.38}px`)
 
 <style scoped>
 .avatar {
-  border-radius: var(--lx-avatar-radius);
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
