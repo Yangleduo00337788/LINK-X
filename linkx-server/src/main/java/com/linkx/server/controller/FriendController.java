@@ -2,6 +2,7 @@ package com.linkx.server.controller;
 
 import com.linkx.server.common.AuthUtils;
 import com.linkx.server.common.JwtUtils;
+import com.linkx.server.common.RateLimit;
 import com.linkx.server.common.Result;
 import com.linkx.server.controller.dto.SendFriendRequestDTO;
 import com.linkx.server.controller.vo.FriendItemVO;
@@ -24,6 +25,7 @@ public class FriendController {
     private final JwtUtils jwtUtils;
 
     @GetMapping("/search")
+    @RateLimit(scope = "friend:search", value = 30, window = 60)
     public Result<List<UserSearchVO>> searchUsers(
             @RequestParam String keyword,
             HttpServletRequest request) {

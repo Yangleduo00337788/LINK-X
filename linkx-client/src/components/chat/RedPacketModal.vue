@@ -22,6 +22,7 @@ const { redPacketOpen } = storeToRefs(chatModalsStore)
 const { closeRedPacket } = chatModalsStore
 // 发送消息的方法
 const { sendMessage } = appStore
+const { currentSession } = storeToRefs(appStore)
 
 // 红包金额（元）
 const amount = ref('8.88')
@@ -34,16 +35,24 @@ function close() {
 }
 
 // 发送红包消息到当前会话
-function send() {
+async function send() {
+  if (currentSession.value?.isReal) {
+    message.warning('真实会话暂不支持红包')
+    return
+  }
   const amt = amount.value.trim() || '0.01'
   const text = greeting.value.trim() || '恭喜发财'
-  sendMessage(text, {
-    type: 'redPacket',
-    redPacketGreeting: text,
-    redPacketAmount: amt
-  })
-  message.success('红包已发送')
-  close()
+  try {
+    await sendMessage(text, {
+      type: 'redPacket',
+      redPacketGreeting: text,
+      redPacketAmount: amt
+    })
+    message.success('红包已发送')
+    close()
+  } catch {
+    message.error('红包发送失败')
+  }
 }
 </script>
 

@@ -5,7 +5,9 @@ const LONG_ID_FIELDS = new Set([
   'peerUserId',
   'userId',
   'friendId',
-  'requestId'
+  'requestId',
+  'conversationId',
+  'senderId'
 ])
 
 /**
@@ -13,7 +15,7 @@ const LONG_ID_FIELDS = new Set([
  */
 export function parseJsonPreservingIds<T = unknown>(raw: string): T {
   const normalized = raw.replace(
-    /"(id|fromUserId|toUserId|peerUserId|userId|friendId|requestId)"\s*:\s*(\d{16,})/g,
+    /"(id|fromUserId|toUserId|peerUserId|userId|friendId|requestId|conversationId|senderId)"\s*:\s*(\d{16,})/g,
     '"$1":"$2"'
   )
   return JSON.parse(normalized, (key, value) => {

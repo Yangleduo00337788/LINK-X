@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: linkx_client
+title: LinkX 桌面客户端（Electron + Vue3）
+scope:
+    - linkx-client/
+source_files: []
+depends_on: []
+related_to: []

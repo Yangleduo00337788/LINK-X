@@ -1,6 +1,6 @@
 ﻿<script setup lang="ts">
 // Vue 响应式 API 与计算属性
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 // Naive UI 输入框、按钮、图标与消息提示
 import { NInput, NButton, NIcon, useMessage } from 'naive-ui'
 // Ionicons5 点赞、评论、图片等图标
@@ -28,10 +28,16 @@ const momentsStore = useMomentsStore()
 const appStore = useAppStore()
 // 动态列表
 const { posts } = storeToRefs(momentsStore)
-// 用户资料
-const { userProfile } = storeToRefs(appStore)
 // 发布动态、点赞、评论的方法
-const { addPost, toggleLike, addComment } = momentsStore
+const { fetchMoments, addPost, toggleLike, addComment } = momentsStore
+void appStore // 保留引用避免 lint 警告
+
+// 页面加载时获取朋友圈数据
+onMounted(() => {
+  if (!momentsStore.initialized) {
+    void fetchMoments()
+  }
+})
 
 // 搜索关键词
 const search = ref('')
@@ -83,31 +89,32 @@ function removeComposeImage(index: number) {
 }
 
 // 发布新动态
-function publish() {
+async function publish() {
   const text = newPost.value.trim()
   if (!text && !composeImages.value.length) {
     message.warning('请输入动态内容或添加图片')
     return
   }
-  addPost(
+  const success = await addPost(
     text || '分享图片',
-    userProfile.value.nickname,
-    'https://api.dicebear.com/7.x/avataaars/svg?seed=me',
     composeImages.value.length ? [...composeImages.value] : undefined
   )
-  newPost.value = ''
-  composeImages.value = []
-  message.success('动态已发布')
+  if (success) {
+    newPost.value = ''
+    composeImages.value = []
+    message.success('动态已发布')
+  } else {
+    message.error('发布失败')
+  }
 }
 
 // 提交评论
-function submitComment(postId: string) {
+async function submitComment(postId: string) {
   const content = commentDrafts.value[postId]?.trim()
   if (!content) return
-  addComment(postId, userProfile.value.nickname, content)
+  await addComment(postId, content)
   commentDrafts.value[postId] = ''
   showCommentFor.value = null
-  message.success('评论已发送')
 }
 </script>
 
@@ -166,7 +173,7 @@ function submitComment(postId: string) {
           </div>
         </div>
         <div class="foot">
-          <button type="button" class="foot-btn" @click="toggleLike(m.id, userProfile.nickname)">
+          <button type="button" class="foot-btn" @click="toggleLike(m.id)">
             <n-icon :component="m.liked ? Heart : HeartOutline" :size="16" />
             {{ m.likes }}
           </button>

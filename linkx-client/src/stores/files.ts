@@ -1,6 +1,7 @@
 /**
  * 本地文件 Store
- * 管理从聊天等来源同步的文件列表及类型推断
+ * 管理从聊天消息中提取的文件列表
+ * 文件数据从聊天消息中提取，无需单独后端 API
  */
 
 // 从 Pinia 导入 defineStore
@@ -17,20 +18,11 @@ export interface LocalFileItem {
   fileUrl?: string                                // 可选访问 URL
 }
 
-// mock 初始文件列表（演示数据）
-const initialFiles: LocalFileItem[] = [
-  { id: 'f1', title: '产品需求文档_v2.docx', size: '1.2 MB', time: '10:30', type: 'document', sender: '张三' },
-  { id: 'f2', title: 'Q3季度总结PPT.pptx', size: '4.5 MB', time: '昨天', type: 'document', sender: '李四' },
-  { id: 'f3', title: '设计稿_切图.zip', size: '12.8 MB', time: '昨天', type: 'other', sender: '王五' },
-  { id: 'f4', title: '会议录屏.mp4', size: '105.2 MB', time: '星期一', type: 'media', sender: '赵六' },
-  { id: 'f5', title: 'UI视觉规范.png', size: '3.1 MB', time: '星期一', type: 'image', sender: '张三' }
-]
-
 // 定义并导出 files Store
 export const useFilesStore = defineStore('files', {
   // 初始状态
   state: () => ({
-    items: [...initialFiles] as LocalFileItem[]
+    items: [] as LocalFileItem[]  // 文件列表（从聊天消息中提取）
   }),
 
   actions: {

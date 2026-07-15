@@ -31,7 +31,7 @@ async function handleAccept(id: string) {
     const accepted = await acceptFriendRequest(n.requestId)
     await fetchFriends()
     if (accepted) {
-      addFriendSession({
+      await addFriendSession({
         userId: accepted.peerUserId,
         name: accepted.name,
         avatarUrl: accepted.avatar

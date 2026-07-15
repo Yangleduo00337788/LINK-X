@@ -70,8 +70,8 @@ const contactsStore = useContactsStore()
 const { currentSession, currentMessages, userProfile, currentSessionId, savedLogin } = storeToRefs(appStore)
 // 解构聊天背景设置
 const { chatBackground } = storeToRefs(appSettingsStore)
-// 解构撤回消息方法
-const { recallMessage: recallMessageInStore } = appStore
+// 解构撤回消息、加载更多历史消息
+const { recallMessage: recallMessageInStore, loadMoreMessages } = appStore
 // 解构打开 Overlay 方法
 const { open: openOverlay } = overlayStore
 // 解构聊天弹窗相关操作方法
@@ -159,10 +159,16 @@ function openPeerProfile(e: MouseEvent) {
   e.stopPropagation()
   if (!isFriendChat.value || !currentSession.value) return
   const session = currentSession.value
-  // 从联系人 Store 查找匹配联系人，找不到则构造临时 ContactItem
-  const found = contactsStore.items.find(c => c.id === session.id || c.name === session.name)
+  // 从联系人 Store 查找匹配联系人，优先按 peerUserId 匹配
+  const found = contactsStore.items.find(
+    c =>
+      (session.peerUserId && String(c.userId ?? c.id) === session.peerUserId) ||
+      c.id === session.id ||
+      c.name === session.name
+  )
   const contact: ContactItem = found ?? {
-    id: session.id,
+    id: session.peerUserId || session.id,
+    userId: session.peerUserId,
     name: session.name,
     avatarText: session.avatarText,
     avatarColor: session.avatarColor,
@@ -181,7 +187,7 @@ function openSelfProfileClick(e: MouseEvent) {
       username: savedLogin.value.username || userProfile.value.username || undefined,
       avatarText: userProfile.value.nickname.charAt(0) || '我',
       avatarUrl: userProfile.value.avatar || undefined,
-      userId: userProfile.value.userId || undefined
+      userId: userProfile.value.userId ? Number(userProfile.value.userId) : undefined
     },
     e
   )
@@ -270,6 +276,8 @@ function formatVoiceDuration(sec?: number) {
 const replyingTo = ref<ChatMessage | undefined>()
 // 虚拟列表组件引用
 const virtualListRef = ref<InstanceType<typeof NVirtualList> | null>(null)
+// 是否正在加载更早消息（防止重复触发）
+const loadingMore = ref(false)
 // 聊天输入框组件引用
 const chatInputRef = ref<InstanceType<typeof ChatInputBox> | null>(null)
 
@@ -286,6 +294,23 @@ function scrollToBottom() {
       }
     }
   })
+}
+
+/** 滚动到顶部时加载更早的历史消息 */
+async function onMessageScroll(e: Event) {
+  const target = e.target as HTMLElement
+  if (!currentSessionId.value || !currentSession.value?.isReal) return
+  if (loadingMore.value || target.scrollTop > 80) return
+
+  loadingMore.value = true
+  const prevHeight = target.scrollHeight
+  try {
+    await loadMoreMessages(currentSessionId.value)
+    await nextTick()
+    target.scrollTop = target.scrollHeight - prevHeight
+  } finally {
+    loadingMore.value = false
+  }
 }
 
 // 复制消息内容到剪贴板
@@ -518,6 +543,7 @@ function onDrop(e: DragEvent) {
           item-resizable
           item-key="id"
           style="flex: 1; height: 100%; min-height: 0;"
+          @scroll="onMessageScroll"
         >
           <template #default="{ item: msg }">
             <div style="padding-bottom: 14px;">

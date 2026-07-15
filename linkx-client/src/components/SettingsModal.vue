@@ -13,7 +13,6 @@ import {
   SettingsOutline,
   PersonOutline,
   ColorPaletteOutline,
-  FlaskOutline,
   InformationCircleOutline,
   CloseOutline
 } from '@vicons/ionicons5'
@@ -26,7 +25,6 @@ import { useSettingsStore } from '../stores/settings'
 import GeneralSettings from './settings/GeneralSettings.vue'
 import AccountSettings from './settings/AccountSettings.vue'
 import AppearanceSettings from './settings/AppearanceSettings.vue'
-import PrototypeSettings from './settings/PrototypeSettings.vue'
 import AboutSettings from './settings/AboutSettings.vue'
 
 // 设置 Store 实例
@@ -45,7 +43,6 @@ const pageTitle = computed(() => {
     general: '通用设置',
     account: '账号与安全',
     appearance: '外观与显示',
-    prototype: '原型演示工具',
     about: '关于 LinkX'
   }
   return map[activeTab.value] ?? '设置'
@@ -112,14 +109,6 @@ watch(settingsActiveTab, newVal => {
               </span>
             </template>
           </n-tab-pane>
-          <n-tab-pane name="prototype">
-            <template #tab>
-              <span class="nav-tab">
-                <n-icon :component="FlaskOutline" :size="18" />
-                <span>演示</span>
-              </span>
-            </template>
-          </n-tab-pane>
           <n-tab-pane name="about">
             <template #tab>
               <span class="nav-tab">
@@ -143,7 +132,6 @@ watch(settingsActiveTab, newVal => {
         <GeneralSettings v-show="activeTab === 'general'" />
         <AccountSettings v-show="activeTab === 'account'" />
         <AppearanceSettings v-show="activeTab === 'appearance'" />
-        <PrototypeSettings v-show="activeTab === 'prototype'" />
         <AboutSettings v-show="activeTab === 'about'" />
       </main>
     </div>

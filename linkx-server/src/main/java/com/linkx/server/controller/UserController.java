@@ -1,11 +1,15 @@
 package com.linkx.server.controller;
 
+import com.linkx.server.common.ImageUploadValidator;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.Result;
 import com.linkx.server.common.UserProfileMapper;
+import com.linkx.server.controller.dto.ChangePasswordDTO;
 import com.linkx.server.controller.dto.UpdateProfileDTO;
+import com.linkx.server.controller.vo.DeviceVO;
 import com.linkx.server.controller.vo.UserProfileVO;
 import com.linkx.server.entity.SysUser;
+import com.linkx.server.service.DeviceSessionService;
 import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.SysUserService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -27,7 +31,12 @@ public class UserController {
 
     private final SysUserService sysUserService;
     private final FileStorageService fileStorageService;
+    private final DeviceSessionService deviceSessionService;
     private final JwtUtils jwtUtils;
+
+    private static final String DEFAULT_DEVICE_ID = "default-web-device";
+    private static final String DEFAULT_DEVICE_NAME = "Web 浏览器";
+    private static final String DEFAULT_DEVICE_TYPE = "Web";
 
     /**
      * 获取当前登录用户信息
@@ -75,27 +84,22 @@ public class UserController {
             return Result.error(401, "未登录");
         }
 
-        // 校验文件类型
-        String contentType = file.getContentType();
-        if (contentType == null || !contentType.startsWith("image/")) {
-            return Result.error(400, "只支持图片文件");
+        try {
+            ImageUploadValidator.assertSupportedImage(file);
+        } catch (IllegalArgumentException e) {
+            return Result.error(400, e.getMessage());
         }
 
-        // 生成头像文件名
-        String extension = "";
-        String originalFilename = file.getOriginalFilename();
-        if (originalFilename != null && originalFilename.contains(".")) {
-            extension = originalFilename.substring(originalFilename.lastIndexOf("."));
-        }
-        String fileName = "avatar/" + userId + "/" + System.currentTimeMillis() + extension;
+        // 上传文件（私有桶，传入 null 让 service 用 UUID 命名）
+        String objectKey = fileStorageService.uploadFile(file, null);
 
-        // 上传文件
-        String avatarUrl = fileStorageService.uploadFile(file, fileName);
+        // 生成 24 小时有效的签名 URL 返回给前端
+        String signedUrl = fileStorageService.getPresignedUrl(objectKey, 24 * 3600);
 
-        // 更新用户头像
-        sysUserService.updateAvatar(userId, avatarUrl);
+        // 将对象 key 存入数据库（不存 URL）
+        sysUserService.updateAvatar(userId, objectKey);
 
-        return Result.success(avatarUrl);
+        return Result.success(signedUrl);
     }
 
     /**
@@ -108,14 +112,78 @@ public class UserController {
             return Result.error(404, "用户不存在");
         }
 
-        return Result.success(UserProfileMapper.toProfileVO(user));
+        return Result.success(buildUserProfileVO(user));
     }
 
     /**
-     * 构建 UserProfileVO
+     * 构建 UserProfileVO（把数据库里的对象 key 转成签名 URL）
      */
     private UserProfileVO buildUserProfileVO(SysUser user) {
-        return UserProfileMapper.toProfileVO(user);
+        UserProfileVO vo = UserProfileMapper.toProfileVO(user);
+        if (vo != null) {
+            vo.setAvatar(toSignedUrl(vo.getAvatar(), 24 * 3600));
+        }
+        return vo;
+    }
+
+    /**
+     * 把对象 key 转签名 URL。若传入的是已存在的 URL（含 http）或 null/空，则原样返回
+     */
+    private String toSignedUrl(String objectKeyOrUrl, int expiry) {
+        if (objectKeyOrUrl == null || objectKeyOrUrl.isEmpty()) {
+            return objectKeyOrUrl;
+        }
+        if (objectKeyOrUrl.startsWith("http://") || objectKeyOrUrl.startsWith("https://")) {
+            return objectKeyOrUrl;
+        }
+        return fileStorageService.getPresignedUrl(objectKeyOrUrl, expiry);
+    }
+
+    /**
+     * 修改密码
+     */
+    @PostMapping("/change-password")
+    public Result<Void> changePassword(
+            @Valid @RequestBody ChangePasswordDTO dto,
+            HttpServletRequest request) {
+        Long userId = getCurrentUserId(request);
+        if (userId == null) {
+            return Result.error(401, "未登录");
+        }
+        sysUserService.changePassword(userId, dto.getOldPassword(), dto.getNewPassword());
+        return Result.success(null);
+    }
+
+    /**
+     * 获取登录设备列表
+     */
+    @GetMapping("/devices")
+    public Result<java.util.List<DeviceVO>> listDevices(HttpServletRequest request) {
+        Long userId = getCurrentUserId(request);
+        if (userId == null) {
+            return Result.error(401, "未登录");
+        }
+        // 从请求头或 Token 中获取当前设备 ID（简化实现，使用默认设备）
+        String currentDeviceId = request.getHeader("X-Device-Id");
+        if (currentDeviceId == null || currentDeviceId.isBlank()) {
+            currentDeviceId = DEFAULT_DEVICE_ID;
+        }
+        return Result.success(deviceSessionService.listByUser(userId, currentDeviceId));
+    }
+
+    /**
+     * 强制下线指定设备
+     */
+    @DeleteMapping("/devices/{deviceId}")
+    public Result<Void> logoutDevice(
+            @PathVariable String deviceId,
+            HttpServletRequest request) {
+        Long userId = getCurrentUserId(request);
+        if (userId == null) {
+            return Result.error(401, "未登录");
+        }
+        deviceSessionService.deleteDevice(userId, deviceId);
+        return Result.success(null);
     }
 
     /**

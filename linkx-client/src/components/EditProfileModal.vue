@@ -3,7 +3,7 @@
  * 编辑资料弹窗（QQ 风格）。
  * 支持昵称、性别、生日、地区编辑；头像可点击更换。
  */
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import {
   NModal,
   NButton,
@@ -17,6 +17,7 @@ import { CloseOutline, CameraOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
 import { useChatModalsStore } from '../stores/chatModals'
+import { generateDefaultAvatar } from '../utils/defaultAvatar'
 
 const message = useMessage()
 const appStore = useAppStore()
@@ -24,6 +25,9 @@ const chatModalsStore = useChatModalsStore()
 const { editProfileOpen } = storeToRefs(chatModalsStore)
 const { closeEditProfile } = chatModalsStore
 const { userProfile } = storeToRefs(appStore)
+
+// 用 computed 是因为 profileNick 可能之后变化时这里也跟着计算
+const defaultAvatarUrl = computed(() => generateDefaultAvatar(profileNick.value || '我'))
 
 const profileNick = ref('')
 const profileGender = ref<'男' | '女'>('男')
@@ -155,7 +159,7 @@ async function handleAvatarChange(e: Event) {
           @click="triggerAvatarUpload"
         >
           <img
-            :src="userProfile.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=qq-user'"
+            :src="userProfile.avatar || defaultAvatarUrl"
             alt="头像"
             class="avatar-img"
           />

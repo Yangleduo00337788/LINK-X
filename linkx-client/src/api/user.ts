@@ -15,7 +15,7 @@ export interface UpdateProfileRequest {
   nickname?: string
   signature?: string
   gender?: string
-  birthday?: number | null
+  birthday?: string | number | null
   country?: string
   province?: string
   region?: string
@@ -54,6 +54,6 @@ export function uploadAvatar(file: File) {
  * 获取用户公开资料
  * @param userId 用户 ID
  */
-export function getUserProfile(userId: number) {
+export function getUserProfile(userId: string | number) {
   return apiClient.get<never, ApiResult<UserProfileData>>(`/user/${userId}/profile`)
 }

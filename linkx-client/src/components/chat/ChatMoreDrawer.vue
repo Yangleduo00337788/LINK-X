@@ -93,16 +93,28 @@ function clearChat() {
 /** 删除好友并移除对应会话 */
 function deleteFriend() {
   if (!currentSession.value || !currentSessionId.value) return
+  const session = currentSession.value
+  const sessionId = currentSessionId.value
+  const friendUserId = session.peerUserId
+
   dialog.warning({
     title: '删除好友',
-    content: `确定删除好友「${currentSession.value.name}」并移除会话？`,
+    content: `确定删除好友「${session.name}」并移除会话？`,
     positiveText: '确定',
     negativeText: '取消',
-    onPositiveClick: () => {
-      contactsStore.remove(currentSessionId.value!)
-      deleteSession(currentSessionId.value!)
-      message.success('已删除好友')
-      closeMore()
+    onPositiveClick: async () => {
+      try {
+        if (session.isReal && friendUserId) {
+          await contactsStore.deleteFriend(friendUserId)
+        } else {
+          contactsStore.removeByUserId(friendUserId || sessionId)
+        }
+        deleteSession(sessionId)
+        message.success('已删除好友')
+        closeMore()
+      } catch (e) {
+        message.error(e instanceof Error ? e.message : '删除好友失败')
+      }
     }
   })
 }

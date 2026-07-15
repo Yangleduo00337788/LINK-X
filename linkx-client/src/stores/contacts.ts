@@ -64,6 +64,18 @@ export const useContactsStore = defineStore('contacts', {
       this.items = this.items.filter(c => c.id !== id)
     },
 
+    removeByUserId(userId: string) {
+      this.items = this.items.filter(c => String(c.userId ?? c.id) !== userId)
+    },
+
+    async deleteFriend(userId: string) {
+      const res = await friendApi.deleteFriend(userId)
+      if (res.code !== 200) {
+        throw new Error(res.message || '删除好友失败')
+      }
+      this.removeByUserId(userId)
+    },
+
     syncFriendFromSession(session: {
       id: string
       name: string

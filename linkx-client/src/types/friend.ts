@@ -1,5 +1,6 @@
 export interface UserSearchResult {
   id: string
+  userId: string | number
   username: string
   nickname: string
   avatar?: string

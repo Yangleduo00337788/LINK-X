@@ -30,4 +30,13 @@ public interface SysUserService extends IService<SysUser> {
      * @param avatarUrl 头像 URL
      */
     void updateAvatar(Long userId, String avatarUrl);
+
+    /**
+     * 修改密码
+     *
+     * @param userId      用户 ID
+     * @param oldPassword 旧密码
+     * @param newPassword 新密码
+     */
+    void changePassword(Long userId, String oldPassword, String newPassword);
 }

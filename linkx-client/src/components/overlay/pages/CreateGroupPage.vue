@@ -1,77 +1,105 @@
 <script setup lang="ts">
-// Vue 响应式 API
 import { ref } from 'vue'
-// Naive UI 按钮、表单与消息提示
 import { NButton, NForm, NFormItem, NInput, useMessage } from 'naive-ui'
-// Pinia 响应式解构工具
-import { storeToRefs } from 'pinia'
-// 应用全局状态 Store
 import { useAppStore } from '../../../stores/app'
-// 全屏覆盖层 Store
 import { useOverlayStore } from '../../../stores/overlay'
+import * as groupApi from '../../../api/group'
+import * as friendApi from '../../../api/friend'
+import type { UserSearchResult } from '../../../types/friend'
 
-// 消息提示实例
 const message = useMessage()
-// 应用 Store 实例
 const appStore = useAppStore()
-// 覆盖层 Store 实例
 const overlayStore = useOverlayStore()
-// 用户资料
-const { userProfile } = storeToRefs(appStore)
-// 关闭覆盖层的方法
 const { close } = overlayStore
 
-// 新建群名称
 const createGroupName = ref('')
-// 邀请成员名单（逗号分隔）
 const createGroupMembers = ref('')
+const submitting = ref(false)
 
-// 创建群聊并跳转到聊天页
-function submitCreateGroup() {
+async function submitCreateGroup() {
   const name = createGroupName.value.trim() || '新建群聊'
-  // 解析成员名称列表
   const memberNames = createGroupMembers.value
     .split(/[,，、\s]+/)
     .map(s => s.trim())
     .filter(Boolean)
-  const members = memberNames.map((n, i) => ({
-    id: `invite-${i}-${Date.now()}`,
-    name: n,
-    avatarText: n.charAt(0) || '?',
-    avatarColor: '#12b7f5'
-  }))
-  // 无成员时默认加入当前用户
-  if (!members.length) {
-    members.push({
-      id: `invite-self-${Date.now()}`,
-      name: userProfile.value.nickname,
-      avatarText: userProfile.value.nickname.charAt(0) || '我',
-      avatarColor: '#12b7f5'
-    })
+
+  if (!memberNames.length) {
+    message.warning('请至少邀请一个成员')
+    return
   }
-  appStore.createGroup(members, name)
-  appStore.setNav('chat')
-  message.success('群聊已创建')
-  createGroupName.value = ''
-  createGroupMembers.value = ''
-  close()
+
+  submitting.value = true
+  try {
+    const userIds: string[] = []
+    for (const memberName of memberNames) {
+      const res = await friendApi.searchUsers(memberName)
+      if (res.code === 200 && res.data && res.data.length > 0) {
+        const user = res.data.find((u: UserSearchResult) =>
+          u.nickname === memberName || u.username === memberName
+        ) || res.data[0]
+        userIds.push(String(user.userId))
+      }
+    }
+
+    if (userIds.length === 0) {
+      message.warning('未找到任何成员，请检查用户名是否正确')
+      return
+    }
+
+    const createRes = await groupApi.createGroup({
+      name,
+      memberIds: userIds
+    })
+
+    if (createRes.code !== 200 || !createRes.data) {
+      message.error(createRes.message || '创建群聊失败')
+      return
+    }
+
+    await appStore.loadChatSessions()
+
+    const newGroup = appStore.sessions.find(s => s.id === String(createRes.data.id))
+    if (newGroup) {
+      appStore.selectSession(newGroup)
+    }
+    appStore.setNav('chat')
+
+    message.success('群聊已创建')
+    createGroupName.value = ''
+    createGroupMembers.value = ''
+    close()
+  } catch (e) {
+    console.error('创建群聊失败:', e)
+    message.error('创建群聊失败，请重试')
+  } finally {
+    submitting.value = false
+  }
 }
 </script>
 
 <template>
-  <!-- 发起群聊页面 -->
   <div class="page-wrap create-group-page">
-    <!-- 群名称与成员表单 -->
     <section class="group-card">
       <n-form label-placement="top">
         <n-form-item label="群名称">
           <n-input v-model:value="createGroupName" placeholder="起个群名" />
         </n-form-item>
         <n-form-item label="邀请成员">
-          <n-input v-model:value="createGroupMembers" placeholder="多个成员用逗号分隔" />
+          <n-input
+            v-model:value="createGroupMembers"
+            placeholder="多个成员用逗号分隔"
+            :disabled="submitting"
+          />
         </n-form-item>
       </n-form>
-      <n-button type="primary" @click="submitCreateGroup">创建并进入</n-button>
+      <n-button
+        type="primary"
+        :loading="submitting"
+        :disabled="submitting"
+        @click="submitCreateGroup"
+      >
+        创建并进入
+      </n-button>
     </section>
   </div>
 </template>

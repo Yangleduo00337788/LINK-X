@@ -17,6 +17,14 @@ public class LinkxProperties {
     private final Cors cors = new Cors();
     private final Security security = new Security();
     private final Minio minio = new Minio();
+    private final Im im = new Im();
+
+    @Data
+    public static class Im {
+        private int websocketPort = 8081;
+        private String websocketPath = "/ws";
+        private int heartbeatIntervalSeconds = 30;
+    }
 
     @Data
     public static class Minio {
@@ -30,8 +38,10 @@ public class LinkxProperties {
     @Data
     public static class Jwt {
         private String secret;
-        private Long accessExpire = 7_200_000L;
-        private Long refreshExpire = 604_800_000L;
+        /** access token TTL：默认 30 分钟（毫秒） */
+        private Long accessExpire = 1_800_000L;
+        /** refresh token TTL：默认 3 天（毫秒） */
+        private Long refreshExpire = 259_200_000L;
     }
 
     @Data
@@ -41,6 +51,11 @@ public class LinkxProperties {
         private int lockDurationMinutes = 15;
         private int rateLimitLoginPerMinute = 10;
         private int rateLimitRegisterPerMinute = 5;
+        // 业务接口默认限流配置
+        private int rateLimitSearchPerMinute = 30;
+        private int rateLimitListPerMinute = 60;
+        private int rateLimitWritePerMinute = 30;
+        private int rateLimitUploadPerMinute = 20;
     }
 
     @Data

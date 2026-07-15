@@ -1,6 +1,7 @@
 /**
  * 日历 Store
  * 管理选中日期、日程事件及按日期筛选与 CRUD
+ * 数据本地管理（可通过后端 API 扩展）
  */
 
 // 从 Pinia 导入 defineStore
@@ -37,26 +38,12 @@ function startOfDay(ts: number) {
   return d.getTime()
 }
 
-// 今天 0 点，作为 mock 事件的基准日
-const today = startOfDay(Date.now())
-const day = 86400000 // 一天的毫秒数
-
-// mock 初始日程（相对今天偏移若干天）
-const initialEvents: CalendarEvent[] = [
-  { id: 'e1', title: '项目周会', date: dateKeyFromTs(today), time: '10:00', color: 'var(--lx-accent)' },
-  { id: 'e2', title: '午餐 · 张三', date: dateKeyFromTs(today), time: '12:30', color: 'var(--lx-success)' },
-  { id: 'e3', title: '代码评审', date: dateKeyFromTs(today + day), time: '15:00', color: 'var(--lx-accent)' },
-  { id: 'e4', title: 'LinkX 迭代规划', date: dateKeyFromTs(today + day * 2), time: '09:30', color: '#722ed1' },
-  { id: 'e5', title: '健身', date: dateKeyFromTs(today + day * 3), time: '19:00', color: 'var(--lx-success)' },
-  { id: 'e6', title: '友链活动筹备', date: dateKeyFromTs(today + day * 5), time: '14:00', color: '#fa8c16' }
-]
-
 // 定义并导出 calendar Store
 export const useCalendarStore = defineStore('calendar', {
   // 初始状态
   state: () => ({
-    selectedDate: startOfDay(Date.now()),           // 日历当前选中日期（0 点时间戳）
-    events: [...initialEvents] as CalendarEvent[]   // 全部事件列表
+    selectedDate: startOfDay(Date.now()),   // 日历当前选中日期（0 点时间戳）
+    events: [] as CalendarEvent[]           // 日程事件列表（本地管理）
   }),
 
   getters: {

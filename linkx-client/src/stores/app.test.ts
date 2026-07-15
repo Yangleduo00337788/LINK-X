@@ -1,195 +1,99 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAppStore } from './app'
-import * as userApi from '../api/user'
 
-// Mock userApi
-vi.mock('../api/user', () => ({
-  getCurrentUser: vi.fn(),
-  updateProfile: vi.fn(),
-  uploadAvatar: vi.fn()
+// Mock dependencies
+vi.mock('./api/chat', () => ({
+  listSessions: vi.fn(),
+  listMessages: vi.fn(),
+  openPrivateChat: vi.fn()
 }))
 
-describe('App Store - User Profile', () => {
+vi.mock('./utils/chatSocket', () => ({
+  connectChatSocket: vi.fn(),
+  disconnectChatSocket: vi.fn(),
+  sendChatMessage: vi.fn(),
+  isChatSocketConnected: vi.fn(() => true)
+}))
+
+vi.mock('./utils/tokenStorage', () => ({
+  getToken: vi.fn(() => Promise.resolve('mock-token')),
+  saveTokenPair: vi.fn(),
+  clearTokens: vi.fn()
+}))
+
+describe('useAppStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
   })
 
-  afterEach(() => {
-    vi.resetAllMocks()
+  it('should have default state', () => {
+    const store = useAppStore()
+    expect(store.navKey).toBe('chat')
+    expect(store.isLoggedIn).toBe(false)
+    expect(store.isLocked).toBe(false)
+    expect(store.theme).toBe('light')
   })
 
-  describe('updateNickname', () => {
-    it('should update nickname locally and sync to backend', async () => {
-      // Arrange
-      const store = useAppStore()
-      vi.mocked(userApi.updateProfile).mockResolvedValue({
-        code: 200,
-        message: 'success',
-        data: {
-          id: 123,
-          username: 'testuser',
-          nickname: 'New Nickname',
-          signature: 'Test signature'
-        }
-      })
-
-      // Act
-      await store.updateNickname('New Nickname')
-
-      // Assert
-      expect(store.userProfile.nickname).toBe('New Nickname')
-      expect(userApi.updateProfile).toHaveBeenCalledWith({ nickname: 'New Nickname' })
-    })
-
-    it('should update locally even if backend fails', async () => {
-      // Arrange
-      const store = useAppStore()
-      vi.mocked(userApi.updateProfile).mockRejectedValue(new Error('Network error'))
-
-      // Act
-      await store.updateNickname('New Nickname')
-
-      // Assert
-      expect(store.userProfile.nickname).toBe('New Nickname')
-    })
+  it('should set navigation key', () => {
+    const store = useAppStore()
+    store.setNav('contacts')
+    expect(store.navKey).toBe('contacts')
   })
 
-  describe('updateSignature', () => {
-    it('should update signature locally and sync to backend', async () => {
-      // Arrange
-      const store = useAppStore()
-      vi.mocked(userApi.updateProfile).mockResolvedValue({
-        code: 200,
-        message: 'success',
-        data: {
-          id: 123,
-          username: 'testuser',
-          nickname: 'Test',
-          signature: 'New Signature'
-        }
-      })
-
-      // Act
-      await store.updateSignature('New Signature')
-
-      // Assert
-      expect(store.userProfile.signature).toBe('New Signature')
-      expect(userApi.updateProfile).toHaveBeenCalledWith({ signature: 'New Signature' })
-    })
+  it('should toggle theme', () => {
+    const store = useAppStore()
+    expect(store.theme).toBe('light')
+    store.toggleTheme()
+    expect(store.theme).toBe('dark')
+    store.toggleTheme()
+    expect(store.theme).toBe('light')
   })
 
-  describe('updateAvatar', () => {
-    it('should upload avatar and update store', async () => {
-      // Arrange
-      const store = useAppStore()
-      const mockFile = new File(['content'], 'avatar.png', { type: 'image/png' })
-      vi.mocked(userApi.uploadAvatar).mockResolvedValue({
-        code: 200,
-        message: 'success',
-        data: 'http://localhost:9000/linkx/avatar/123/456.png'
-      })
-
-      // Act
-      const result = await store.updateAvatar(mockFile)
-
-      // Assert
-      expect(result).toBe('http://localhost:9000/linkx/avatar/123/456.png')
-      expect(store.userProfile.avatar).toBe('http://localhost:9000/linkx/avatar/123/456.png')
-    })
-
-    it('should throw error when upload fails', async () => {
-      // Arrange
-      const store = useAppStore()
-      const mockFile = new File(['content'], 'avatar.png', { type: 'image/png' })
-      vi.mocked(userApi.uploadAvatar).mockResolvedValue({
-        code: 500,
-        message: '上传失败',
-        data: '' as unknown as string
-      })
-
-      // Act & Assert
-      await expect(store.updateAvatar(mockFile)).rejects.toThrow('上传失败')
-    })
+  it('should lock and unlock', () => {
+    const store = useAppStore()
+    expect(store.isLocked).toBe(false)
+    store.lock()
+    expect(store.isLocked).toBe(true)
+    store.unlock()
+    expect(store.isLocked).toBe(false)
   })
 
-  describe('fetchCurrentUser', () => {
-    it('should fetch and update user profile', async () => {
-      // Arrange
-      const store = useAppStore()
-      vi.mocked(userApi.getCurrentUser).mockResolvedValue({
-        code: 200,
-        message: 'success',
-        data: {
-          id: 123,
-          username: 'testuser',
-          nickname: 'Test Nickname',
-          avatar: '/avatar.png',
-          signature: 'Test signature',
-          createTime: '2024-01-01'
-        }
-      })
+  it('should manage sessions', () => {
+    const store = useAppStore()
+    const session = {
+      id: 'test-session',
+      name: 'Test Chat',
+      lastMessage: '',
+      time: '12:00',
+      avatarText: 'T',
+      avatarColor: '#12b7f5',
+      isGroup: false
+    }
 
-      // Act
-      const result = await store.fetchCurrentUser()
-
-      // Assert
-      expect(result).not.toBeNull()
-      expect(store.userProfile.nickname).toBe('Test Nickname')
-      expect(store.userProfile.avatar).toBe('/avatar.png')
-      expect(store.userProfile.signature).toBe('Test signature')
-      expect(store.userProfile.userId).toBe(123)
-    })
-
-    it('should use username when nickname is empty', async () => {
-      // Arrange
-      const store = useAppStore()
-      vi.mocked(userApi.getCurrentUser).mockResolvedValue({
-        code: 200,
-        message: 'success',
-        data: {
-          id: 123,
-          username: 'testuser',
-          nickname: '',
-          avatar: '',
-          signature: undefined
-        }
-      })
-
-      // Act
-      await store.fetchCurrentUser()
-
-      // Assert
-      expect(store.userProfile.nickname).toBe('testuser')
-      expect(store.userProfile.signature).toBe('编辑个性签名')
-    })
-
-    it('should handle errors gracefully', async () => {
-      // Arrange
-      const store = useAppStore()
-      vi.mocked(userApi.getCurrentUser).mockRejectedValue(new Error('Network error'))
-
-      // Act
-      const result = await store.fetchCurrentUser()
-
-      // Assert
-      expect(result).toBeNull()
-      // Store should keep default values
-      expect(store.userProfile.nickname).toBe('')
-    })
+    store.ensureSession(session)
+    expect(store.sessions).toContainEqual(expect.objectContaining({ id: 'test-session' }))
+    expect(store.currentSessionId).toBe('test-session')
   })
 
-  describe('userProfile structure', () => {
-    it('should have correct initial structure', () => {
-      // Arrange
-      const store = useAppStore()
+  it('should delete session', () => {
+    const store = useAppStore()
+    store.sessions = [
+      { id: 's1', name: 'Chat 1' } as any,
+      { id: 's2', name: 'Chat 2' } as any
+    ]
+    store.currentSessionId = 's1'
+    store.deleteSession('s1')
+    expect(store.sessions).toHaveLength(1)
+    expect(store.sessions[0].id).toBe('s2')
+  })
 
-      // Assert
-      expect(store.userProfile).toHaveProperty('nickname')
-      expect(store.userProfile).toHaveProperty('username')
-      expect(store.userProfile).toHaveProperty('signature')
-      expect(store.userProfile).toHaveProperty('avatar')
-      expect(store.userProfile).toHaveProperty('userId')
-    })
+  it('should toggle session pin', () => {
+    const store = useAppStore()
+    store.sessions = [{ id: 's1', pinned: false } as any]
+    store.toggleSessionPin('s1')
+    expect(store.sessions[0].pinned).toBe(true)
+    store.toggleSessionPin('s1')
+    expect(store.sessions[0].pinned).toBe(false)
   })
 })

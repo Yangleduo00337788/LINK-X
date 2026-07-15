@@ -56,8 +56,8 @@ function saveRemark() {
   message.success('群备注已保存')
 }
 
-/** 展示用群号：从 sessionId 提取数字后缀，缺省为 mock 群号 */
-const groupId = computed(() => currentSessionId.value?.replace(/\D/g, '').slice(-10) || '1007446249')
+/** 展示用群号：从 sessionId 提取数字后缀 */
+const groupId = computed(() => currentSessionId.value?.replace(/\D/g, '').slice(-10) || '—')
 
 /** 当前群成员列表 */
 const members = computed(() => {

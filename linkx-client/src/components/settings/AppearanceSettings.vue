@@ -89,8 +89,8 @@ function pickChatBackground(id: ChatBackgroundId) {
           @click="pickChatBackground(bg.id)"
         >
           <div class="bg-preview" :style="{ background: bg.style }">
-            <div class="bg-mock-bubble left" />
-            <div class="bg-mock-bubble right" />
+            <div class="bg-preview-bubble left" />
+            <div class="bg-preview-bubble right" />
           </div>
           <span class="bg-label">{{ bg.label }}</span>
           <n-icon
@@ -187,18 +187,18 @@ function pickChatBackground(id: ChatBackgroundId) {
   box-shadow: 0 0 0 3px var(--lx-accent-soft);
 }
 
-.bg-mock-bubble {
+.bg-preview-bubble {
   height: 8px;
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.75);
 }
 
-.bg-mock-bubble.left {
+.bg-preview-bubble.left {
   width: 55%;
   align-self: flex-start;
 }
 
-.bg-mock-bubble.right {
+.bg-preview-bubble.right {
   width: 40%;
   align-self: flex-end;
   background: rgba(18, 183, 245, 0.35);

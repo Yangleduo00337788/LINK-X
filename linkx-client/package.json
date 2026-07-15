@@ -11,7 +11,10 @@
     "preview": "vite preview",
     "electron:dev": "vite --mode electron",
     "electron:build": "vue-tsc --noEmit && vite build --mode electron && electron-builder",
-    "electron:preview": "electron dist-electron/main/main.js"
+    "electron:preview": "electron dist-electron/main/main.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@vicons/ionicons5": "^0.12.0",
@@ -26,18 +29,18 @@
     "@types/dompurify": "^3.0.5",
     "@types/marked": "^5.0.2",
     "@vitejs/plugin-vue": "^5.0.4",
-    "@vue/test-utils": "^2.4.11",
+    "@vue/test-utils": "^2.4.6",
     "dompurify": "^3.4.11",
     "electron": "^31.7.7",
     "electron-builder": "^24.13.3",
-    "jsdom": "^29.1.1",
+    "jsdom": "^24.0.0",
     "marked": "^18.0.5",
     "typescript": "^5.4.5",
     "unocss": "^0.59.4",
     "vite": "^5.2.8",
     "vite-plugin-electron": "^0.28.7",
     "vite-plugin-electron-renderer": "^0.14.5",
-    "vitest": "^4.1.10",
+    "vitest": "^1.6.0",
     "vue-tsc": "^2.0.11"
   },
   "build": {

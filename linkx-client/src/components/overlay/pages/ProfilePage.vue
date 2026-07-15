@@ -11,6 +11,8 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '../../../stores/app'
 // 全屏覆盖层 Store
 import { useOverlayStore } from '../../../stores/overlay'
+// 本地生成默认头像（替代第三方占位图）
+import { generateDefaultAvatar } from '../../../utils/defaultAvatar'
 
 // 消息提示实例
 const message = useMessage()
@@ -27,7 +29,9 @@ const displayUsername = computed(
   () => savedLogin.value.username || userProfile.value.username || '—'
 )
 
-const defaultAvatar = 'https://api.dicebear.com/7.x/avataaars/svg?seed=qq-user'
+const defaultAvatar = computed(() =>
+  generateDefaultAvatar(userProfile.value.nickname || '我')
+)
 
 // 编辑中的昵称
 const profileNick = ref(userProfile.value.nickname)
@@ -43,8 +47,14 @@ watch(() => userProfile.value, () => {
 // 保存资料并关闭页面
 async function saveProfile() {
   try {
-    await appStore.updateNickname(profileNick.value.trim() || '晚香玉')
-    await appStore.updateSignature(profileSig.value.trim() || '编辑个性签名')
+    const nick = profileNick.value.trim()
+    const sig = profileSig.value.trim()
+    if (!nick) {
+      message.warning('请输入昵称')
+      return
+    }
+    await appStore.updateNickname(nick)
+    await appStore.updateSignature(sig)
     message.success('资料已保存')
     close()
   } catch (error) {

@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: ""
+title: LinkX 企业级即时通讯平台（前端 + 后端）
+scope:
+    - .gitignore
+    - README.md
+source_files: []
+depends_on: []
+related_to: []

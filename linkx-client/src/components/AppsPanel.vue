@@ -1,16 +1,20 @@
 <script setup lang="ts">
 /**
  * 应用中心侧栏面板。
- * <p>
- * 展示 mock 应用列表，支持搜索与选中后在主区打开 AppWebView。
- * </p>
+ * 展示内置应用列表，支持搜索与选中后在主区打开 AppWebView。
  */
 import { ref, computed } from 'vue'
 import PanelSearchBar from './PanelSearchBar.vue'
-import { apps } from '../data/mockData'
 import { storeToRefs } from 'pinia'
 import { useSecondaryViewStore } from '../stores/secondaryView'
 import { useAppStore } from '../stores/app'
+import type { AppItem } from '../types'
+
+/** 内置应用列表 */
+const apps: AppItem[] = [
+  { id: 'netease-music', name: '网易云音乐', desc: '登录后播放音乐', icon: '云', color: '#c20c0c', url: 'https://music.163.com/' },
+  { id: 'douyin', name: '抖音', desc: '登录后刷短视频', icon: '抖', color: '#111111', url: 'https://www.douyin.com/' }
+]
 
 const secondaryViewStore = useSecondaryViewStore()
 const appStore = useAppStore()
@@ -27,7 +31,7 @@ const filtered = computed(() => {
 })
 
 /** 选中应用并切换到 apps 主导航 */
-function openApp(app: (typeof apps)[number]) {
+function openApp(app: AppItem) {
   activeApp.value = app
   setNav('apps')
 }

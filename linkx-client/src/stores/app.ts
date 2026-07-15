@@ -7,12 +7,25 @@
 import { defineStore } from 'pinia'
 // 核心业务类型
 import type { NavKey, ChatSession, ChatMessage, ContactItem } from '../types'
-// Mock 初始会话、消息及联系人转会话工具
-import { initialSessions, initialMessages, sessionFromContact } from '../data/mockData'
+import * as chatApi from '../api/chat'
+import {
+  connectChatSocket,
+  disconnectChatSocket,
+  sendChatMessage,
+  isChatSocketConnected
+} from '../utils/chatSocket'
+import {
+  conversationToSession,
+  messageToChatMessage,
+  messagePreviewFromItem
+} from '../utils/chatMapper'
+import { dataUrlToFile } from '../utils/fileConvert'
+import type { MessageItem } from '../types/chat'
 // 通讯录 Store（加群/加好友后同步联系人）
 import { useContactsStore } from './contacts'
 // 群元数据 Store（邀请成员等）
 import { useGroupMetaStore } from './groupMeta'
+import type { GroupMember } from './groupMeta'
 // 主题同步到 document 与 Electron 主进程
 import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
 // 持久化前清理敏感或过大字段
@@ -23,6 +36,7 @@ import { useNotificationsStore } from './notifications'
 // HTTP 客户端与认证 API
 import * as authApi from '../api/auth'
 import * as userApi from '../api/user'
+import * as groupApi from '../api/group'
 import type { UpdateProfileRequest } from '../api/user'
 import { clearTokens, getRefreshToken, hasRefreshToken, saveTokenPair } from '../utils/tokenStorage'
 import { hasLockPin as isLockPinConfigured, verifyLockPin as verifyLockPinHash, saveLockPinHash } from '../utils/lockPin'
@@ -42,6 +56,7 @@ export interface SendMessageOptions {
   voiceUrl?: string                // 语音 URL
   redPacketGreeting?: string       // 红包祝福语
   redPacketAmount?: string         // 红包金额
+  rawFile?: File                   // 原始文件（上传用）
 }
 
 /** 记住账号 / 自动登录（不存储密码） */
@@ -95,14 +110,24 @@ type ProfileSource = Partial<UserProfileData & UserInfo>
 /** 将后端用户资料写入 store 的 userProfile 结构 */
 function mapApiProfile(data: ProfileSource) {
   const gender = data.gender === '女' ? '女' : '男'
+  // birthday 可能是字符串（ISO）或数字（毫秒时间戳），统一转为数字
+  let birthday: number | null = null
+  if (data.birthday != null && data.birthday !== '') {
+    if (typeof data.birthday === 'number') {
+      birthday = data.birthday
+    } else {
+      const parsed = Date.parse(data.birthday)
+      birthday = isNaN(parsed) ? null : parsed
+    }
+  }
   return {
     nickname: data.nickname || data.username || '',
     username: data.username || '',
     signature: data.signature?.trim() ? data.signature : '编辑个性签名',
     avatar: data.avatar || '',
-    userId: data.id ?? 0,
+    userId: data.id != null ? String(data.id) : '',
     gender: gender as '男' | '女',
-    birthday: data.birthday ?? null,
+    birthday,
     country: data.country || '中国',
     province: data.province || '',
     region: data.region || ''
@@ -114,8 +139,8 @@ export const useAppStore = defineStore('app', {
   // 应用全局初始状态
   state: () => ({
     navKey: 'chat' as NavKey,                                    // 当前主导航模块
-    sessions: [...initialSessions] as ChatSession[],             // 会话列表
-    messagesBySession: { ...initialMessages } as Record<string, ChatMessage[]>, // 各会话消息映射
+    sessions: [] as ChatSession[],                                // 会话列表（从后端加载）
+    messagesBySession: {} as Record<string, ChatMessage[]>,       // 各会话消息映射（从后端加载）
     currentSessionId: null as string | null,                     // 当前打开的会话 id
     theme: 'light' as 'light' | 'dark',                          // 明暗主题
     contactsActiveView: 'none' as 'none' | 'friend-notifs' | 'group-notifs', // 通讯录子视图
@@ -124,7 +149,7 @@ export const useAppStore = defineStore('app', {
       username: '',           // LinkX 登录账号
       signature: '编辑个性签名',
       avatar: '',             // 头像 URL
-      userId: 0,              // 用户 ID
+      userId: '',              // 用户 ID
       gender: '男' as '男' | '女',
       birthday: null as number | null,
       country: '中国',
@@ -134,8 +159,12 @@ export const useAppStore = defineStore('app', {
     isLoggedIn: false,   // 是否已登录
     isLoading: false,    // 登录等异步操作加载中
     authInitializing: false, // 仅在 Refresh Token 自动登录期间为 true
-    isOffline: false,    // 离线模式（演示用）
+    isOffline: false,    // 离线模式（WebSocket 断开时为 true）
     isLocked: false,     // 是否处于锁屏状态
+    chatInitialized: false, // 是否已加载真实会话
+    messagesLoaded: {} as Record<string, boolean>, // 各会话历史是否已拉取
+    messagesHasMore: {} as Record<string, boolean>, // 各会话是否还有更早消息
+    messagesLoading: {} as Record<string, boolean>, // 各会话是否正在加载历史
     savedLogin: {
       username: '',
       rememberMe: true,
@@ -199,6 +228,9 @@ export const useAppStore = defineStore('app', {
       if (!this.messagesBySession[session.id]) {
         this.messagesBySession[session.id] = [] // 懒初始化空消息列表
       }
+      if (session.isReal) {
+        void this.loadSessionMessages(session.id)
+      }
     },
 
     /**
@@ -228,16 +260,9 @@ export const useAppStore = defineStore('app', {
      * 从联系人发起单聊
      * @param contact 联系人
      */
-    startChatWithContact(contact: ContactItem) {
-      const existing = this.sessions.find(
-        s => !s.isGroup && (s.id === contact.id || s.name === contact.name)
-      )
-      if (existing) {
-        this.selectSession(existing)
-        this.navKey = 'chat'
-        return
-      }
-      this.ensureSession(sessionFromContact(contact))
+    async startChatWithContact(contact: ContactItem) {
+      const friendUserId = contact.userId || contact.id
+      await this.openPrivateChat(friendUserId, contact.name, contact.avatarUrl)
     },
 
     /**
@@ -246,38 +271,51 @@ export const useAppStore = defineStore('app', {
      * @param groupName 可选群名
      * @returns 新群会话，无成员时返回 null
      */
-    createGroup(members: CreateGroupMember[], groupName?: string) {
+    async createGroup(members: CreateGroupMember[], groupName?: string) {
       if (members.length === 0) return null
-      const id = `group-${Date.now()}`
-      const time = nowTime()
-      // 群名：传入名 > 2 人以内成员名拼接 > 默认「群聊（N人）」
+
       const name =
         groupName?.trim() ||
         (members.length <= 2
           ? members.map(m => m.name).join('、')
           : `群聊（${members.length + 1}人）`)
-      const session: ChatSession = {
-        id,
-        name,
-        lastMessage: '系统：欢迎加入群聊',
-        time,
-        avatarText: name.charAt(0) || '群',
-        avatarColor: pickGroupColor(name),
-        isGroup: true
-      }
-      // 首条系统消息：谁发起了群聊
-      this.messagesBySession[id] = [
-        {
-          id: `msg-sys-${Date.now()}`,
-          sessionId: id,
-          content: `系统：${this.userProfile.nickname} 发起了群聊`,
-          time,
-          isSelf: false,
-          type: 'system'
+
+      try {
+        const res = await groupApi.createGroup({
+          name,
+          memberIds: members.map(m => m.id)
+        })
+
+        if (res.code === 200 && res.data) {
+          const groupConv = res.data
+          const session: ChatSession = {
+            id: String(groupConv.id),
+            name: groupConv.name || name,
+            lastMessage: '系统：欢迎加入群聊',
+            time: nowTime(),
+            avatarText: (groupConv.name || name).charAt(0) || '群',
+            avatarColor: pickGroupColor(groupConv.name || name),
+            isGroup: true,
+            isReal: true
+          }
+          this.messagesBySession[session.id] = [
+            {
+              id: `msg-sys-${Date.now()}`,
+              sessionId: session.id,
+              content: `系统：${this.userProfile.nickname} 发起了群聊`,
+              time: nowTime(),
+              isSelf: false,
+              type: 'system'
+            }
+          ]
+          this.ensureSession(session)
+          return session
         }
-      ]
-      this.ensureSession(session)
-      return session
+        throw new Error(res.message || '创建群聊失败')
+      } catch (e) {
+        console.error('创建群聊失败:', e)
+        throw e
+      }
     },
 
     /**
@@ -317,57 +355,210 @@ export const useAppStore = defineStore('app', {
       return session
     },
 
-    /**
-     * 添加好友并创建对应单聊会话
-     */
-    addFriendSession(friend: { userId: string; name: string; avatarUrl?: string }) {
-      const id = String(friend.userId)
-      const existing = this.sessions.find(s => !s.isGroup && s.id === id)
+    async addFriendSession(friend: { userId: string; name: string; avatarUrl?: string }) {
+      return this.openPrivateChat(friend.userId, friend.name, friend.avatarUrl)
+    },
+
+    /** 登录后拉取好友、通知与聊天会话，并连接 WebSocket */
+    async loadSocialData() {
+      await Promise.all([
+        useContactsStore().fetchFriends(),
+        useNotificationsStore().fetchFriendRequests()
+      ])
+      await this.loadChatSessions()
+      this.connectChatWebSocket()
+    },
+
+    /** 从后端拉取真实单聊会话列表 */
+    async loadChatSessions() {
+      try {
+        const res = await chatApi.listSessions()
+        if (res.code !== 200 || !res.data) return
+
+        const realSessions = res.data.map(conversationToSession)
+        this.sessions = realSessions
+        this.chatInitialized = true
+      } catch (e) {
+        console.error('加载会话列表失败:', e)
+      }
+    },
+
+    /** 拉取指定会话的历史消息（首屏） */
+    async loadSessionMessages(sessionId: string) {
+      if (this.messagesLoaded[sessionId] || this.messagesLoading[sessionId]) return
+      this.messagesLoading[sessionId] = true
+      try {
+        const res = await chatApi.listMessages(sessionId)
+        if (res.code === 200 && res.data) {
+          this.messagesBySession[sessionId] = res.data.map(m =>
+            messageToChatMessage(m, sessionId)
+          )
+          this.messagesLoaded[sessionId] = true
+          this.messagesHasMore[sessionId] = res.data.length >= 50
+        }
+      } catch (e) {
+        console.error('加载历史消息失败:', e)
+      } finally {
+        this.messagesLoading[sessionId] = false
+      }
+    },
+
+    /** 加载更早的历史消息（向上翻页） */
+    async loadMoreMessages(sessionId: string) {
+      if (!this.messagesLoaded[sessionId]) return
+      if (!this.messagesHasMore[sessionId] || this.messagesLoading[sessionId]) return
+
+      const existing = this.messagesBySession[sessionId]
+      if (!existing?.length) return
+
+      const oldestId = existing[0].id
+      if (oldestId.startsWith('temp-')) return
+
+      this.messagesLoading[sessionId] = true
+      try {
+        const res = await chatApi.listMessages(sessionId, oldestId)
+        if (res.code === 200 && res.data?.length) {
+          const older = res.data.map(m => messageToChatMessage(m, sessionId))
+          const existingIds = new Set(existing.map(m => m.id))
+          const unique = older.filter(m => !existingIds.has(m.id))
+          if (unique.length) {
+            this.messagesBySession[sessionId] = [...unique, ...existing]
+          }
+          this.messagesHasMore[sessionId] = res.data.length >= 50
+        } else {
+          this.messagesHasMore[sessionId] = false
+        }
+      } catch (e) {
+        console.error('加载更多消息失败:', e)
+      } finally {
+        this.messagesLoading[sessionId] = false
+      }
+    },
+
+    /** 打开或创建与好友的单聊会话 */
+    async openPrivateChat(friendUserId: string, name: string, avatarUrl?: string) {
+      const existing = this.sessions.find(s => s.isReal && s.peerUserId === friendUserId)
       if (existing) {
         this.selectSession(existing)
         this.navKey = 'chat'
         return existing
       }
 
-      const time = nowTime()
-      const session: ChatSession = {
-        id,
-        name: friend.name,
-        lastMessage: '我们已经是好友了，开始聊天吧',
-        time,
-        avatarText: friend.name.charAt(0) || '?',
-        avatarColor: pickGroupColor(friend.name),
-        avatarUrl: friend.avatarUrl,
-        online: true
-      }
-      this.messagesBySession[id] = [
-        {
-          id: `msg-sys-${Date.now()}`,
-          sessionId: id,
-          content: '系统：你们已成为好友',
-          time,
-          isSelf: false,
-          type: 'system'
+      try {
+        const res = await chatApi.openPrivateChat(friendUserId)
+        if (res.code === 200 && res.data) {
+          const session = conversationToSession(res.data)
+          if (!session.avatarUrl && avatarUrl) {
+            session.avatarUrl = avatarUrl
+          }
+          if (session.name === '好友' && name) {
+            session.name = name
+            session.avatarText = name.charAt(0) || '?'
+          }
+          this.ensureSession(session)
+          await this.loadSessionMessages(session.id)
+          return session
         }
-      ]
-      this.ensureSession(session)
-      useContactsStore().syncFriendFromSession({
-        id,
-        name: friend.name,
-        avatarText: friend.name.charAt(0) || '?',
-        avatarColor: pickGroupColor(friend.name),
-        avatarUrl: friend.avatarUrl,
-        online: true
-      })
-      return session
+        throw new Error(res.message || '打开会话失败')
+      } catch (e) {
+        console.error('打开单聊失败:', e)
+        throw e
+      }
     },
 
-    /** 登录后拉取好友与好友通知 */
-    async loadSocialData() {
-      await Promise.all([
-        useContactsStore().fetchFriends(),
-        useNotificationsStore().fetchFriendRequests()
-      ])
+    /** 连接 IM WebSocket */
+    connectChatWebSocket() {
+      connectChatSocket({
+        onOpen: () => {
+          this.isOffline = false
+        },
+        onClose: () => {
+          if (this.isLoggedIn) {
+            this.isOffline = true
+          }
+        },
+        onError: (code, msg) => {
+          if (code !== 401) {
+            console.warn('WebSocket 错误:', msg)
+          }
+        },
+        onMessage: message => {
+          this.handleIncomingWsMessage(message)
+        },
+        onAck: (clientMsgId, message) => {
+          this.handleWsAck(clientMsgId, message)
+        }
+      })
+    },
+
+    /** 断开 IM WebSocket */
+    disconnectChatWebSocket() {
+      disconnectChatSocket()
+      this.isOffline = false
+    },
+
+    /** 处理 WebSocket 推送的新消息 */
+    handleIncomingWsMessage(message: MessageItem) {
+      const sessionId = String(message.conversationId)
+      const chatMsg = messageToChatMessage(message, sessionId)
+
+      if (!this.messagesBySession[sessionId]) {
+        this.messagesBySession[sessionId] = []
+      }
+      const exists = this.messagesBySession[sessionId].some(m => m.id === chatMsg.id)
+      if (!exists) {
+        this.messagesBySession[sessionId].push(chatMsg)
+      }
+
+      const session = this.sessions.find(s => s.id === sessionId)
+      if (session) {
+        session.lastMessage = messagePreviewFromItem(message)
+        session.time = chatMsg.time
+        if (this.currentSessionId !== sessionId && !session.muted) {
+          session.unread = (session.unread || 0) + 1
+        }
+      } else {
+        void this.loadChatSessions()
+      }
+    },
+
+    /** 处理 WebSocket 发送确认，替换乐观消息 */
+    handleWsAck(clientMsgId: string, message: MessageItem) {
+      const sessionId = String(message.conversationId)
+      const msgs = this.messagesBySession[sessionId]
+      if (!msgs) return
+
+      const index = msgs.findIndex(m => m.id === clientMsgId)
+      const chatMsg = messageToChatMessage(message, sessionId)
+      if (index >= 0) {
+        msgs[index] = chatMsg
+      } else {
+        const exists = msgs.some(m => m.id === chatMsg.id)
+        if (!exists) msgs.push(chatMsg)
+      }
+
+      const session = this.sessions.find(s => s.id === sessionId)
+      if (session) {
+        session.lastMessage = messagePreviewFromItem(message)
+        session.time = chatMsg.time
+      }
+    },
+
+    /** 重置聊天相关状态（登出时） */
+    resetChatState() {
+      this.disconnectChatWebSocket()
+      this.sessions = this.sessions.filter(s => !s.isReal)
+      for (const id of Object.keys(this.messagesBySession)) {
+        const session = this.sessions.find(s => s.id === id)
+        if (!session) delete this.messagesBySession[id]
+      }
+      this.messagesLoaded = {}
+      this.messagesHasMore = {}
+      this.messagesLoading = {}
+      this.chatInitialized = false
+      if (!this.sessions.some(s => s.id === this.currentSessionId)) {
+        this.currentSessionId = this.sessions[0]?.id ?? null
+      }
     },
 
     /** 切换会话置顶状态 */
@@ -416,7 +607,13 @@ export const useAppStore = defineStore('app', {
      */
     inviteGroupMembers(sessionId: string, names: string[]) {
       if (!names.length) return
-      useGroupMetaStore().addMembers(sessionId, names)
+      const newMembers: GroupMember[] = names.map((name, idx) => ({
+        id: `invited-${Date.now()}-${idx}`,
+        name,
+        avatarText: name.charAt(0) || '?',
+        avatarColor: '#12b7f5'
+      }))
+      useGroupMetaStore().addMembers(sessionId, newMembers)
       const time = nowTime()
       const text = `系统：${this.userProfile.nickname} 邀请了 ${names.join('、')} 加入群聊`
       if (!this.messagesBySession[sessionId]) {
@@ -443,31 +640,46 @@ export const useAppStore = defineStore('app', {
     },
 
     /**
-     * 向当前会话发送消息（支持多种类型与附件字段）
-     * @param content 文本内容或占位
-     * @param options 类型与扩展字段
+     * 向当前会话发送消息
      */
-    sendMessage(content: string, options: SendMessageOptions = {}) {
+    async sendMessage(content: string, options: SendMessageOptions = {}) {
       const id = this.currentSessionId
-      if (!id) return // 无当前会话
+      if (!id) return
 
       const session = this.sessions.find(s => s.id === id)
-      if (session?.blocked) return // 已屏蔽则不发送
+      if (session?.blocked) return
+
+      if (!session) {
+        console.warn('未找到当前会话')
+        return
+      }
+
+      await this.sendMessageReal(content, options)
+    },
+
+    /** 通过 WebSocket 发送消息 */
+    async sendMessageReal(content: string, options: SendMessageOptions = {}) {
+      const id = this.currentSessionId
+      if (!id) return
+
+      const session = this.sessions.find(s => s.id === id)
+      if (session?.blocked) return
 
       const type = options.type ?? 'text'
       const trimmed = content.trim()
 
-      // 各类型必填校验
       if (type === 'text' && !trimmed) return
-      if (type === 'image' && !trimmed) return
+      if (type === 'image' && !trimmed && !options.rawFile && !options.fileUrl) return
       if (type === 'voice' && !options.voiceDuration) return
       if (type === 'redPacket' && !options.redPacketAmount) return
+      if (type === 'file' && !options.rawFile && !options.fileUrl) return
 
+      const clientMsgId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
       const time = nowTime()
       const isImage = options.isImage ?? type === 'image'
 
-      const msg: ChatMessage = {
-        id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      const optimistic: ChatMessage = {
+        id: clientMsgId,
         sessionId: id,
         content:
           type === 'file'
@@ -485,7 +697,7 @@ export const useAppStore = defineStore('app', {
         fileSize: options.fileSize,
         fileUrl: options.fileUrl,
         isImage,
-        fileStatus: type === 'file' ? '已发送' : undefined,
+        fileStatus: type === 'file' ? '发送中...' : undefined,
         voiceDuration: options.voiceDuration,
         voiceUrl: options.voiceUrl,
         redPacketGreeting: options.redPacketGreeting,
@@ -496,12 +708,69 @@ export const useAppStore = defineStore('app', {
       if (!this.messagesBySession[id]) {
         this.messagesBySession[id] = []
       }
-      this.messagesBySession[id].push(msg)
+      this.messagesBySession[id].push(optimistic)
 
-      // 更新会话列表预览
       if (session) {
-        session.lastMessage = messagePreview(msg)
+        session.lastMessage = messagePreview(optimistic)
         session.time = time
+      }
+
+      try {
+        let fileUrl = options.fileUrl
+        let fileName = options.fileName
+        let fileSizeNum: number | undefined
+
+        if (type === 'image' || type === 'file') {
+          let uploadFile: File | null = options.rawFile ?? null
+          if (!uploadFile && type === 'image' && content.startsWith('data:')) {
+            uploadFile = dataUrlToFile(content, 'image.png')
+          }
+          if (!uploadFile && type === 'file' && fileUrl?.startsWith('blob:')) {
+            const blob = await fetch(fileUrl).then(r => r.blob())
+            uploadFile = new File([blob], fileName || 'file', { type: blob.type })
+          }
+          if (uploadFile) {
+            const uploadRes = await chatApi.uploadChatFile(id, uploadFile)
+            if (uploadRes.code !== 200 || !uploadRes.data) {
+              throw new Error(uploadRes.message || '文件上传失败')
+            }
+            fileUrl = uploadRes.data.url
+            fileName = uploadRes.data.fileName || uploadFile.name
+            // fileSize 可能是 number 或 string，统一转为 number
+            const sizeValue = uploadRes.data.fileSize
+            fileSizeNum = typeof sizeValue === 'string' ? Number(sizeValue) || 0 : sizeValue
+          }
+        }
+
+        if (type === 'image' && !options.rawFile && !content.startsWith('data:') && !fileUrl) {
+          fileUrl = trimmed || content
+        }
+
+        if ((type === 'image' || type === 'file') && !fileUrl) {
+          throw new Error('文件上传失败')
+        }
+
+        if (!isChatSocketConnected()) {
+          this.connectChatWebSocket()
+        }
+
+        sendChatMessage({
+          action: 'send',
+          clientMsgId,
+          conversationId: id,
+          msgType: type === 'text' ? 'text' : type === 'image' ? 'image' : type === 'voice' ? 'voice' : 'file',
+          content: type === 'text' ? trimmed : fileUrl,
+          fileName,
+          fileSize: fileSizeNum,
+          fileUrl,
+          voiceDuration: type === 'voice' ? options.voiceDuration : undefined
+        })
+      } catch (e) {
+        const msgs = this.messagesBySession[id]
+        const idx = msgs?.findIndex(m => m.id === clientMsgId) ?? -1
+        if (idx >= 0) msgs?.splice(idx, 1)
+        console.error('发送消息失败:', e)
+        throw e
       }
     },
 
@@ -600,7 +869,18 @@ export const useAppStore = defineStore('app', {
         if (payload.gender !== undefined) {
           this.userProfile.gender = payload.gender === '女' ? '女' : '男'
         }
-        if (payload.birthday !== undefined) this.userProfile.birthday = payload.birthday
+        if (payload.birthday !== undefined) {
+          // birthday 可能是 string 或 number，统一转为 number | null
+          const b = payload.birthday
+          if (b == null || b === '') {
+            this.userProfile.birthday = null
+          } else if (typeof b === 'number') {
+            this.userProfile.birthday = b
+          } else {
+            const parsed = Date.parse(b)
+            this.userProfile.birthday = isNaN(parsed) ? null : parsed
+          }
+        }
         if (payload.country !== undefined) this.userProfile.country = payload.country
         if (payload.province !== undefined) this.userProfile.province = payload.province
         if (payload.region !== undefined) this.userProfile.region = payload.region
@@ -641,13 +921,14 @@ export const useAppStore = defineStore('app', {
       resetSessionUi()
       useContactsStore().reset()
       useNotificationsStore().resetFriends()
+      this.resetChatState()
       this.isLocked = false
       this.isLoggedIn = false
       this.userProfile.nickname = ''
       this.userProfile.username = ''
       this.userProfile.signature = '编辑个性签名'
       this.userProfile.avatar = ''
-      this.userProfile.userId = 0
+      this.userProfile.userId = ''
       if (!this.savedLogin.rememberMe) {
         this.savedLogin.username = ''
         this.savedLogin.autoLogin = false
@@ -781,55 +1062,6 @@ export const useAppStore = defineStore('app', {
     /** 显式设置离线状态 */
     setOffline(value: boolean) {
       this.isOffline = value
-    },
-
-    /**
-     * 模拟收到一条他人文本消息（演示通知与未读数）
-     * 仅在当前有选中会话时生效
-     */
-    simulateIncomingMessage() {
-      const id = this.currentSessionId
-      if (!id) return
-      const time = nowTime()
-      const msg: ChatMessage = {
-        id: `msg-${Date.now()}`,
-        sessionId: id,
-        content: '这是一条模拟的测试消息',
-        time,
-        isSelf: false,
-        type: 'text'
-      }
-
-      if (!this.messagesBySession[id]) {
-        this.messagesBySession[id] = []
-      }
-      this.messagesBySession[id].push(msg)
-
-      const session = this.sessions.find(s => s.id === id)
-      if (session) {
-        session.lastMessage = msg.content
-        session.time = time
-        if (!session.muted) {
-          session.unread = (session.unread || 0) + 1 // 非免打扰才增未读
-        }
-
-        // 浏览器系统通知
-        if (window.Notification && Notification.permission === 'granted') {
-          new Notification(session.name, {
-            body: msg.content,
-            silent: false
-          })
-        } else if (window.Notification && Notification.permission !== 'denied') {
-          Notification.requestPermission().then(permission => {
-            if (permission === 'granted') {
-              new Notification(session.name, {
-                body: msg.content,
-                silent: false
-              })
-            }
-          })
-        }
-      }
     }
   },
 

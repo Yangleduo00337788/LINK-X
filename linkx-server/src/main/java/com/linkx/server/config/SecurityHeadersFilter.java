@@ -41,6 +41,26 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         response.setHeader("X-Frame-Options", "DENY");
         response.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
         response.setHeader("Cache-Control", "no-store");
+        response.setHeader("X-Permitted-Cross-Domain-Policies", "none");
+        response.setHeader("Permissions-Policy", "geolocation=(), microphone=(self), camera=(self)");
+
+        // Content-Security-Policy：默认拒绝所有外部资源，仅允许同源 + MinIO 文件服务
+        String minioOrigin = linkxProperties.getMinio().getEndpoint();
+        String csp = String.format(
+                "default-src 'self'; "
+                        + "img-src 'self' data: blob: %s; "
+                        + "media-src 'self' data: blob: %s; "
+                        + "object-src 'none'; "
+                        + "base-uri 'self'; "
+                        + "form-action 'self'; "
+                        + "frame-ancestors 'none'; "
+                        + "script-src 'self' 'unsafe-inline'; "
+                        + "style-src 'self' 'unsafe-inline'; "
+                        + "connect-src 'self' ws: wss: http: https:;",
+                minioOrigin, minioOrigin
+        );
+        response.setHeader("Content-Security-Policy", csp);
+
         if (linkxProperties.getSecurity().isRequireHttps()) {
             response.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
         }

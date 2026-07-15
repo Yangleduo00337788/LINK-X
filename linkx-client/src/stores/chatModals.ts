@@ -179,7 +179,7 @@ export const useChatModalsStore = defineStore('chatModals', {
         avatarUrl: profile.avatarUrl,
         group: '我的好友',
         online: true,
-        userId: profile.userId
+        userId: profile.userId != null ? String(profile.userId) : undefined
       }
       this.contactProfileOpen = true
       this.setProfileCardPosition(event)

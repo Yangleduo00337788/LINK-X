@@ -5,13 +5,13 @@ export interface ApiResult<T> {
 }
 
 export interface UserInfo {
-  id: number
+  id: string
   username: string
   nickname: string
   avatar?: string
   signature?: string
   gender?: string
-  birthday?: number | null
+  birthday?: string | number | null
   country?: string
   province?: string
   region?: string
@@ -20,14 +20,14 @@ export interface UserInfo {
 export interface TokenData {
   accessToken: string
   refreshToken: string
-  expireTime?: number
+  expireTime?: string | number
   user: UserInfo
 }
 
 export interface CaptchaData {
   captchaId: string
   imageBase64: string
-  expireSeconds: number
+  expireSeconds: string | number
 }
 
 export interface LoginRequest {

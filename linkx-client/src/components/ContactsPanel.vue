@@ -8,8 +8,8 @@
  */
 // Vue 响应式与计算属性
 import { ref, computed } from 'vue'
-// Naive UI 图标、骨架屏、虚拟列表
-import { NIcon, NSkeleton, NVirtualList } from 'naive-ui'
+// Naive UI 图标、骨架屏、虚拟列表与消息提示
+import { NIcon, NSkeleton, NVirtualList, useMessage } from 'naive-ui'
 // Ionicons5 右箭头图标
 import { ChevronForwardOutline } from '@vicons/ionicons5'
 // 面板搜索栏
@@ -33,6 +33,7 @@ import type { ContactItem } from '../types'
 
 // 获取联系人 Store 实例
 const contactsStore = useContactsStore()
+const message = useMessage()
 const notificationsStore = useNotificationsStore()
 // 解构联系人列表
 const { items: contacts } = storeToRefs(contactsStore)
@@ -117,9 +118,13 @@ function handleContactClick(c: ContactItem, e: MouseEvent) {
 }
 
 // 双击联系人：直接发起聊天
-function handleContactDblClick(c: ContactItem) {
+async function handleContactDblClick(c: ContactItem) {
   resetContactsView()
-  startChatWithContact(c)
+  try {
+    await startChatWithContact(c)
+  } catch (error) {
+    message.error((error as Error).message || '打开会话失败')
+  }
 }
 
 // 切换到好友/群通知视图

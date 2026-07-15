@@ -18,6 +18,7 @@ import { useMessage } from 'naive-ui'
 import type { ContactItem } from '../../types'
 import * as userApi from '../../api/user'
 import type { UserProfileData } from '../../api/user'
+import { generatePlaceholderImage } from '../../utils/defaultAvatar'
 
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
@@ -37,11 +38,11 @@ const loadingRemoteProfile = ref(false)
 
 const contact = computed<ContactItem | null>(() => currentContactProfile.value)
 
-/** 从联系人 id 或 userId 解析后端用户 ID（Mock 非数字 id 返回 null） */
-function resolveContactUserId(item: ContactItem): number | null {
-  if (item.userId) return item.userId
+/** 从联系人 id 或 userId 解析后端用户 ID */
+function resolveContactUserId(item: ContactItem): string | null {
+  if (item.userId) return String(item.userId)
   const raw = item.id.replace(/^f-/, '')
-  if (/^\d+$/.test(raw)) return Number(raw)
+  if (/^\d+$/.test(raw)) return raw
   return null
 }
 
@@ -113,7 +114,7 @@ const displayId = computed(() => {
   return /^\d+$/.test(id) ? id : `linkx_${id}`
 })
 
-/** 友链缩略图：优先取该用户动态图片，不足 4 张用占位图补齐 */
+/** 友链缩略图：优先取该用户动态图片，不足 4 张用默认渐变图补齐 */
 const momentPreviews = computed(() => {
   if (!contact.value) return [] as string[]
   const images: string[] = []
@@ -123,16 +124,21 @@ const momentPreviews = computed(() => {
     if (images.length >= 4) break
   }
   if (images.length) return images.slice(0, 4)
+  const name = contact.value!.name
   return Array.from({ length: 4 }, (_, i) =>
-    `https://picsum.photos/seed/${encodeURIComponent(contact.value!.name)}-${i}/120/120`
+    generatePlaceholderImage(`${name}-${i}`, 120)
   )
 })
 
 /** 从资料卡发起与该联系人的聊天 */
-function handleSendMessage() {
+async function handleSendMessage() {
   if (!contact.value) return
-  startChatWithContact(contact.value)
-  closeContactProfile()
+  try {
+    await startChatWithContact(contact.value)
+    closeContactProfile()
+  } catch (error) {
+    message.error((error as Error).message || '打开会话失败')
+  }
 }
 
 /** 点击头像：本人直接选择图片上传 */

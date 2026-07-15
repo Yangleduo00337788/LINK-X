@@ -1,0 +1,49 @@
+package com.linkx.server.entity;
+
+import com.mybatisflex.annotation.Column;
+import com.mybatisflex.annotation.Id;
+import com.mybatisflex.annotation.KeyType;
+import com.mybatisflex.annotation.Table;
+import com.mybatisflex.core.keygen.KeyGenerators;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.io.Serializable;
+import java.util.Date;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@Table("im_conversation_member")
+public class ImConversationMember implements Serializable {
+
+    private static final long serialVersionUID = 1L;
+
+    public static final String ROLE_OWNER = "owner";
+    public static final String ROLE_ADMIN = "admin";
+    public static final String ROLE_MEMBER = "member";
+
+    @Id(keyType = KeyType.Generator, value = KeyGenerators.snowFlakeId)
+    private Long id;
+
+    private Long conversationId;
+
+    private Long userId;
+
+    /**
+     * 成员角色：owner（群主）/ admin（管理员）/ member（普通成员）
+     */
+    private String role;
+
+    @Column(onInsertValue = "NOW()")
+    private Date createTime;
+
+    @Column(onInsertValue = "NOW()", onUpdateValue = "NOW()")
+    private Date updateTime;
+
+    @Column(isLogicDelete = true)
+    private Integer deleted;
+}

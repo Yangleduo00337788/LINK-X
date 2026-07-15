@@ -1,59 +1,58 @@
-# 测试环境配置
 server:
-  port: 0  # 随机端口
+  port: 0
+  servlet:
+    context-path: /api
 
 spring:
-  application:
-    name: linkx-server-test
   datasource:
-    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=MySQL
-    driver-class-name: org.h2.Driver
+    url: jdbc:h2:mem:linkx;MODE=MySQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
     username: sa
-    password:
-    schema: classpath:schema.sql  # 自动执行建表脚本
+    password: ""
+    driver-class-name: org.h2.Driver
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
   data:
     redis:
-      host: localhost
+      host: 127.0.0.1
+      # 端口由 BaseIntegrationTest 通过 @DynamicPropertySource 注入内嵌 Redis 端口
       port: 6379
-      database: 1
-      timeout: 2000ms
-      lettuce:
-        pool:
-          max-active: 8
-          max-idle: 8
-          min-idle: 0
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
-  jpa:
-    hibernate:
-      ddl-auto: none
-    show-sql: true
+      database: 0
 
-# JWT 配置
+mybatis-flex:
+  global-config:
+    logic-delete-column: deleted
+    print-banner: false
+
 linkx:
   jwt:
-    secret: test-secret-key-for-jwt-generation-at-least-32-chars-long-key
-    access-expire: 7200000      # 2小时
-    refresh-expire: 604800000   # 7天
+    secret: Test-Local-JWT-Secret-For-Integration-2026!!
+    access-expire: 7200000
+    refresh-expire: 604800000
   auth:
-    captcha-enabled: false      # 测试环境关闭验证码
+    # 测试环境关闭验证码，简化登录流程
+    captcha-enabled: false
     login-max-attempts: 5
     lock-duration-minutes: 15
-    rate-limit-login-per-minute: 10
-    rate-limit-register-per-minute: 5
+    rate-limit-login-per-minute: 1000
+    rate-limit-register-per-minute: 1000
   cors:
     allowed-origins:
       - http://localhost:5173
   security:
     require-https: false
   im:
-    websocket-port: 0  # 测试环境随机端口
+    # -1 表示跳过 Netty WebSocket 服务启动，避免测试占用端口
+    websocket-port: -1
+  minio:
+    endpoint: http://localhost:9000
+    access-key: test
+    secret-key: testsecret
+    bucket-name: linkx-test
+    max-file-size: 10485760
 
-# 日志配置
 logging:
   level:
-    com.linkx.server: DEBUG
-    org.springframework.web: DEBUG
-    org.springframework.data.redis: DEBUG
+    root: warn
+    com.linkx.server: info

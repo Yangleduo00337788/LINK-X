@@ -37,10 +37,13 @@ import { useGroupMetaStore } from '../../stores/groupMeta'
 import type { ChatMessage, AppItem } from '../../types'
 // 聊天表情常量列表
 import { CHAT_EMOJIS } from '../../constants/emojis'
-// 聊天内可快捷打开的应用 mock 数据
-import { apps as chatApps } from '../../data/mockData'
+// 聊天内可快捷打开的应用列表
+const chatApps: AppItem[] = [
+  { id: 'netease-music', name: '网易云音乐', desc: '登录后播放音乐', icon: '云', color: '#c20c0c', url: 'https://music.163.com/' },
+  { id: 'douyin', name: '抖音', desc: '登录后刷短视频', icon: '抖', color: '#111111', url: 'https://www.douyin.com/' }
+]
 // 文件工具：大小格式化、DataURL 读取、图片大小上限
-import { formatFileSize, readFileAsDataUrl, MAX_IMAGE_BYTES } from '../../utils/file'
+import { formatFileSize, MAX_IMAGE_BYTES } from '../../utils/file'
 
 // 组件入参：会话类型与可选的回复目标消息
 const props = defineProps<{
@@ -151,9 +154,13 @@ async function toolScreenshot() {
       message.warning('截图过大，请缩小选区后重试')
       return
     }
-    sendMessage(dataUrl, { type: 'image', isImage: true })
-    message.success('截图已发送')
-    emit('scrollToBottom')
+    try {
+      await sendMessage(dataUrl, { type: 'image', isImage: true })
+      message.success('截图已发送')
+      emit('scrollToBottom')
+    } catch {
+      message.error('截图发送失败')
+    }
   } catch {
     // 用户取消选区或权限拒绝
     message.info('已取消截图')
@@ -171,9 +178,19 @@ function openChatApp(app: AppItem) {
   message.success(`已打开「${app.name}」`)
 }
 
+/** 真实会话暂不支持的功能提示 */
+function warnUnsupportedOnRealSession(feature: string): boolean {
+  if (currentSession.value?.isReal) {
+    message.warning(`真实会话暂不支持${feature}`)
+    return true
+  }
+  return false
+}
+
 /** 打开发红包弹窗；「我的手机」会话不支持红包 */
 function toolRedPacket() {
   if (props.isMyPhone) return
+  if (warnUnsupportedOnRealSession('红包')) return
   openRedPacket()
 }
 
@@ -208,34 +225,38 @@ async function handleFileSend(file: File) {
       return
     }
     try {
-      const dataUrl = await readFileAsDataUrl(file)
-      sendMessage(dataUrl, { type: 'image', isImage: true })
+      await sendMessage('', { type: 'image', isImage: true, rawFile: file })
       message.success('图片已发送')
       emit('scrollToBottom')
     } catch {
-      message.error('图片读取失败')
+      message.error('图片发送失败')
     }
   } else {
     const fileUrl = URL.createObjectURL(file)
-    sendMessage(file.name, {
-      type: 'file',
-      fileName: file.name,
-      fileSize: formatFileSize(file.size),
-      fileUrl
-    })
-    // 同步到全局文件传输列表
-    filesStore.addFromChat(file.name, formatFileSize(file.size), '我', fileUrl)
-    // 群聊时追加到群文件元数据
-    if (props.isGroupChat && currentSessionId.value) {
-      groupMetaStore.addFile(currentSessionId.value, {
-        name: file.name,
-        size: formatFileSize(file.size),
-        user: userProfile.value?.nickname || '我',
-        fileUrl
+    try {
+      await sendMessage(file.name, {
+        type: 'file',
+        fileName: file.name,
+        fileSize: formatFileSize(file.size),
+        fileUrl,
+        rawFile: file
       })
+      // 同步到全局文件传输列表
+      filesStore.addFromChat(file.name, formatFileSize(file.size), '我', fileUrl)
+      // 群聊时追加到群文件元数据
+      if (props.isGroupChat && currentSessionId.value) {
+        groupMetaStore.addFile(currentSessionId.value, {
+          name: file.name,
+          size: formatFileSize(file.size),
+          user: userProfile.value?.nickname || '我',
+          fileUrl
+        })
+      }
+      message.success('文件已发送')
+      emit('scrollToBottom')
+    } catch {
+      message.error('文件发送失败')
     }
-    message.success('文件已发送')
-    emit('scrollToBottom')
   }
 }
 
@@ -271,6 +292,7 @@ function onPaste(e: ClipboardEvent) {
 async function toggleVoiceRecord() {
   if (!isRecording.value) {
     if (!ensureCanSend()) return
+    if (warnUnsupportedOnRealSession('语音消息')) return
     try {
       voiceChunks = []
       recordStream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -283,10 +305,15 @@ async function toggleVoiceRecord() {
       isRecording.value = true
       message.info('正在录音，再次点击结束')
     } catch {
+      if (warnUnsupportedOnRealSession('语音消息')) return
       // 权限失败：发送无 URL 的占位语音
-      sendMessage('', { type: 'voice', voiceDuration: 3 })
-      message.success('语音消息已发送')
-      emit('scrollToBottom')
+      try {
+        await sendMessage('', { type: 'voice', voiceDuration: 3 })
+        message.success('语音消息已发送')
+        emit('scrollToBottom')
+      } catch {
+        message.error('语音消息发送失败')
+      }
     }
     return
   }
@@ -296,20 +323,28 @@ async function toggleVoiceRecord() {
   const recorder = mediaRecorder
   if (recorder && recorder.state !== 'inactive') {
     await new Promise<void>(resolve => {
-      recorder.onstop = () => {
+      recorder.onstop = async () => {
         const blob = new Blob(voiceChunks, { type: 'audio/webm' })
         const voiceUrl = URL.createObjectURL(blob)
-        sendMessage('', { type: 'voice', voiceDuration: duration, voiceUrl })
-        message.success('语音消息已发送')
-        emit('scrollToBottom')
+        try {
+          await sendMessage('', { type: 'voice', voiceDuration: duration, voiceUrl })
+          message.success('语音消息已发送')
+          emit('scrollToBottom')
+        } catch {
+          message.error('语音消息发送失败')
+        }
         resolve()
       }
       recorder.stop()
     })
   } else {
-    sendMessage('', { type: 'voice', voiceDuration: duration })
-    message.success('语音消息已发送')
-    emit('scrollToBottom')
+    try {
+      await sendMessage('', { type: 'voice', voiceDuration: duration })
+      message.success('语音消息已发送')
+      emit('scrollToBottom')
+    } catch {
+      message.error('语音消息发送失败')
+    }
   }
 
   // 清理录音资源
@@ -334,16 +369,21 @@ function send() {
   if (!inputValue.value.trim()) return
   if (!ensureCanSend()) return
 
-  if (inputValue.value.startsWith('/img ')) {
-    const url = inputValue.value.replace('/img ', '').trim()
-    sendMessage(url, { type: 'image', isImage: true })
-  } else {
-    sendMessage(inputValue.value, { type: 'text', replyTo: props.replyingTo })
-  }
-
-  inputValue.value = ''
-  emit('update:replyingTo', undefined)
-  emit('scrollToBottom')
+  void (async () => {
+    try {
+      if (inputValue.value.startsWith('/img ')) {
+        const url = inputValue.value.replace('/img ', '').trim()
+        await sendMessage(url, { type: 'image', isImage: true })
+      } else {
+        await sendMessage(inputValue.value, { type: 'text', replyTo: props.replyingTo })
+      }
+      inputValue.value = ''
+      emit('update:replyingTo', undefined)
+      emit('scrollToBottom')
+    } catch {
+      message.error('消息发送失败')
+    }
+  })()
 }
 
 /** Enter 发送，Shift+Enter 保留默认换行 */

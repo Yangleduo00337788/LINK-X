@@ -161,13 +161,17 @@ async function handleUserAction(user: SearchUserItem) {
     return
   }
 
-  addFriendAction({
-    userId: user.userId,
-    name: user.name,
-    avatarUrl: user.avatarUrl
-  })
-  message.success(`已打开与「${user.name}」的会话`)
-  close()
+  try {
+    await addFriendAction({
+      userId: user.userId,
+      name: user.name,
+      avatarUrl: user.avatarUrl
+    })
+    message.success(`已打开与「${user.name}」的会话`)
+    close()
+  } catch (error) {
+    message.error((error as Error).message || '打开会话失败')
+  }
 }
 </script>
 

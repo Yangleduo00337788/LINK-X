@@ -34,6 +34,10 @@ export interface ChatSession {
   /** 好友在线状态（单聊） */
   online?: boolean
   avatarUrl?: string      // 远程头像 URL
+  /** 单聊对方用户 ID */
+  peerUserId?: string
+  /** 是否为后端真实会话（非 Mock） */
+  isReal?: boolean
 }
 
 /** 单条聊天消息 */

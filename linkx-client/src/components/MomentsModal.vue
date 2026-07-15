@@ -15,6 +15,8 @@ import { useMomentsStore } from '../stores/moments'
 import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
 // 文件读取工具与图片大小限制
 import { readFileAsDataUrl, MAX_IMAGE_BYTES } from '../utils/file'
+// 本地生成默认头像/封面（替代远程第三方）
+import { generateDefaultAvatar, generateDefaultBanner } from '../utils/defaultAvatar'
 // 空状态组件
 import EmptyState from './common/EmptyState.vue'
 // Ionicons5 友链相关图标
@@ -64,6 +66,13 @@ const composeText = ref('')
 const composeImages = ref<string[]>([])
 // 隐藏的图片上传 input 引用
 const imageInputRef = ref<HTMLInputElement | null>(null)
+// 用户封面与头像（本地生成，不再请求远程）
+const defaultAvatar = computed(() =>
+  generateDefaultAvatar(userProfile.value.nickname || '我')
+)
+const defaultBanner = computed(() =>
+  generateDefaultBanner(userProfile.value.nickname || 'banner')
+)
 
 // 按搜索词过滤后的动态列表
 const filteredPosts = computed(() => {
@@ -144,8 +153,6 @@ function publishPost() {
   }
   addPost(
     text || '分享图片',
-    userProfile.value.nickname,
-    'https://api.dicebear.com/7.x/avataaars/svg?seed=qq-user',
     composeImages.value.length ? [...composeImages.value] : undefined
   )
   composeText.value = ''
@@ -161,7 +168,7 @@ function toggleSearch() {
 
 // 点赞/取消点赞
 function onToggleLike(postId: string) {
-  toggleLike(postId, userProfile.value.nickname || '我')
+  toggleLike(postId)
 }
 
 // 展开评论输入并打开操作面板
@@ -174,7 +181,7 @@ function onComment(post: { id: string }) {
 function submitComment(postId: string) {
   const text = commentDraft.value.trim()
   if (!text) return
-  momentsStore.addComment(postId, userProfile.value.nickname, text)
+  momentsStore.addComment(postId, text)
   commentDraft.value = ''
   commentPostId.value = null
   message.success('评论已发送')
@@ -210,16 +217,16 @@ function closeMoments() {
   <div class="moments-wrapper standalone-window">
     <!-- 可滚动内容区 -->
     <div class="moments-scroll-container" @scroll="handleScroll">
-      <!-- 顶部封面与用户资料 -->
-      <div class="moments-header">
-        <div class="header-banner">
-          <img src="https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&q=80&w=1000" alt="Banner" class="banner-img" />
-        </div>
-        <div class="user-info">
-          <span class="username">{{ userProfile.nickname }}</span>
-          <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=qq-user" alt="Avatar" class="avatar-img" />
-        </div>
+    <!-- 顶部封面与用户资料 -->
+    <div class="moments-header">
+      <div class="header-banner">
+        <img :src="defaultBanner" alt="Banner" class="banner-img" />
       </div>
+      <div class="user-info">
+        <span class="username">{{ userProfile.nickname }}</span>
+        <img :src="defaultAvatar" alt="Avatar" class="avatar-img" />
+      </div>
+    </div>
 
       <!-- 动态列表与发布区 -->
       <div class="moments-content">

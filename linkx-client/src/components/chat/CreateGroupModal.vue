@@ -45,19 +45,11 @@ type PickRow = {
   avatarUrl?: string
 }
 
-// 补充的最近联系人 mock（与会话列表合并）
-const extraRecent: PickRow[] = [
-  { id: 'r-bei', name: '北挽', avatarText: '北', avatarColor: 'var(--lx-text-muted)' },
-  { id: 'r-dou', name: '有BB机的小豆包', avatarText: '豆', avatarColor: '#f56c6c' },
-  { id: 'r-ling', name: '____Z铃ღ', avatarText: '铃', avatarColor: '#9b59b6' },
-  { id: 'r-qing', name: '清风', avatarText: '清', avatarColor: 'var(--lx-success)' }
-]
-
-/** 最近聊天列表：来自单聊会话 + extraRecent，支持搜索过滤 */
+/** 最近聊天列表：来自单聊会话，支持搜索过滤 */
 const recentContacts = computed(() => {
   const fromSessions: PickRow[] = sessions.value
-    .filter(s => !s.isGroup && s.name !== '我的手机' && s.name !== 'QQ游戏中心')
-    .slice(0, 6)
+    .filter(s => !s.isGroup)
+    .slice(0, 8)
     .map(s => ({
       id: s.id,
       name: s.name,
@@ -65,13 +57,9 @@ const recentContacts = computed(() => {
       avatarColor: s.avatarColor,
       avatarUrl: s.avatarUrl
     }))
-  const merged = [...fromSessions]
-  for (const e of extraRecent) {
-    if (!merged.some(m => m.name === e.name)) merged.push(e)
-  }
   const q = search.value.trim().toLowerCase()
-  if (!q) return merged.slice(0, 8)
-  return merged.filter(c => c.name.toLowerCase().includes(q))
+  if (!q) return fromSessions
+  return fromSessions.filter(c => c.name.toLowerCase().includes(q))
 })
 
 // 联系人分组名称（可折叠）
@@ -118,7 +106,7 @@ function toggle(id: string) {
 }
 
 /** 确认创建群聊并关闭模态框 */
-function confirm() {
+async function confirm() {
   if (!canConfirm.value) return
   const members = selectedList.value.map(c => ({
     id: c.id,
@@ -126,9 +114,13 @@ function confirm() {
     avatarText: c.avatarText,
     avatarColor: c.avatarColor
   }))
-  const session = createGroup(members)
-  if (session) {
-    message.success(`已创建群聊「${session.name}」`)
+  try {
+    const session = await createGroup(members)
+    if (session) {
+      message.success(`已创建群聊「${session.name}」`)
+    }
+  } catch {
+    message.error('创建群聊失败')
   }
   selected.value = new Set()
   closeCreateGroup()

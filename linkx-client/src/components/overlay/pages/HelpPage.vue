@@ -1,31 +1,25 @@
 <script setup lang="ts">
-// Vue 响应式 API
 import { ref } from 'vue'
-// Naive UI 按钮、图标、输入框与消息提示
-import { NButton, NIcon, NInput, useMessage } from 'naive-ui'
-// Ionicons5 帮助与反馈相关图标
+import { NButton, NIcon, NInput, NSelect, useMessage } from 'naive-ui'
 import { HelpCircleOutline, CloudOutline, MoonOutline, ApertureOutline, MailOutline } from '@vicons/ionicons5'
-// 全屏覆盖层 Store
 import { useOverlayStore } from '../../../stores/overlay'
+import * as feedbackApi from '../../../api/feedback'
 
-// 消息提示实例
 const message = useMessage()
-// 覆盖层 Store 实例
 const overlayStore = useOverlayStore()
-// 关闭覆盖层的方法
 const { close } = overlayStore
 
-// 用户反馈文本
 const feedbackText = ref('')
-// 当前展开的 FAQ 索引，null 表示全部折叠
+const feedbackType = ref<'bug' | 'suggestion' | 'other'>('suggestion')
+const feedbackContact = ref('')
+const submitting = ref(false)
 const expandedFaq = ref<number | null>(0)
 
-// 常见问题列表数据
 const faqItems = [
   {
     icon: CloudOutline,
     q: '如何同步消息？',
-    a: '对接后端 WebSocket 后即可实时同步，当前为本地 Mock 演示。'
+    a: '登录后消息会通过 WebSocket（ws://host:8081/ws）实时同步；离线时可在网络恢复后自动重连。'
   },
   {
     icon: MoonOutline,
@@ -39,22 +33,45 @@ const faqItems = [
   }
 ]
 
-// 提交用户反馈并关闭页面
-function submitFeedback() {
+const feedbackTypeOptions = [
+  { label: '功能建议', value: 'suggestion' },
+  { label: 'Bug 反馈', value: 'bug' },
+  { label: '其他问题', value: 'other' }
+]
+
+async function submitFeedback() {
   const text = feedbackText.value.trim()
   if (!text) {
     message.warning('请先描述您遇到的问题')
     return
   }
-  console.info('[LinkX] 用户反馈', text)
-  message.success('反馈已提交，感谢您的建议')
-  feedbackText.value = ''
-  close()
+
+  submitting.value = true
+  try {
+    const res = await feedbackApi.submitFeedback({
+      type: feedbackType.value,
+      content: text,
+      contact: feedbackContact.value.trim() || undefined
+    })
+
+    if (res.code === 200) {
+      message.success('反馈已提交，感谢您的建议')
+      feedbackText.value = ''
+      feedbackContact.value = ''
+      close()
+    } else {
+      message.error(res.message || '提交失败，请重试')
+    }
+  } catch (e) {
+    console.error('提交反馈失败:', e)
+    message.error('提交反馈失败，请检查网络连接')
+  } finally {
+    submitting.value = false
+  }
 }
 </script>
 
 <template>
-  <!-- 帮助与反馈页面 -->
   <div class="page-wrap help-page">
     <!-- 常见问题折叠面板 -->
     <section class="panel-card">
@@ -97,15 +114,39 @@ function submitFeedback() {
           <p class="panel-sub">你的建议会帮助我们改进产品</p>
         </div>
       </div>
-      <n-input
-        v-model:value="feedbackText"
-        type="textarea"
-        placeholder="描述你遇到的问题或建议…"
-        :rows="5"
-        class="feedback-input"
-      />
+      <div class="feedback-form">
+        <div class="form-item">
+          <label>反馈类型</label>
+          <n-select
+            v-model:value="feedbackType"
+            :options="feedbackTypeOptions"
+            placeholder="请选择反馈类型"
+          />
+        </div>
+        <n-input
+          v-model:value="feedbackText"
+          type="textarea"
+          placeholder="描述你遇到的问题或建议…"
+          :rows="5"
+          class="feedback-input"
+        />
+        <div class="form-item">
+          <label>联系方式（选填）</label>
+          <n-input
+            v-model:value="feedbackContact"
+            placeholder="手机号或邮箱，方便我们联系你"
+          />
+        </div>
+      </div>
       <div class="feedback-actions">
-        <n-button type="primary" @click="submitFeedback">提交反馈</n-button>
+        <n-button
+          type="primary"
+          :loading="submitting"
+          :disabled="submitting"
+          @click="submitFeedback"
+        >
+          提交反馈
+        </n-button>
       </div>
     </section>
   </div>
@@ -113,4 +154,27 @@ function submitFeedback() {
 
 <style scoped>
 @import '../overlay-common.css';
+
+.feedback-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-item label {
+  font-size: 13px;
+  color: var(--lx-text-secondary);
+}
+
+.feedback-actions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+}
 </style>

@@ -5,10 +5,28 @@
 
 // 从 Pinia 导入 defineStore
 import { defineStore } from 'pinia'
-// 导入 mock 应用列表（用于查找来源应用）
-import { apps } from '../data/mockData'
 // 导入应用项类型
 import type { AppItem } from '../types'
+
+/** 内嵌应用列表 */
+const apps: AppItem[] = [
+  {
+    id: 'netease-music',
+    name: '网易云音乐',
+    desc: '登录后播放音乐',
+    icon: '云',
+    color: '#c20c0c',
+    url: 'https://music.163.com/'
+  },
+  {
+    id: 'douyin',
+    name: '抖音',
+    desc: '登录后刷短视频',
+    icon: '抖',
+    color: '#111111',
+    url: 'https://www.douyin.com/'
+  }
+]
 
 /** 当前正在播放的曲目信息 */
 export interface NowPlayingInfo {

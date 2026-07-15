@@ -32,7 +32,7 @@ linkx:
     access-expire: 7200000
     refresh-expire: 604800000
   auth:
-    captcha-enabled: ${CAPTCHA_ENABLED:true}
+    captcha-enabled: ${CAPTCHA_ENABLED:false}
     login-max-attempts: 5
     lock-duration-minutes: 15
     rate-limit-login-per-minute: 10

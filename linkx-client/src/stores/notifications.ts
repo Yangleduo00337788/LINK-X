@@ -34,17 +34,6 @@ export interface GroupNotification {
   status: '等待验证' | '已同意' | '已拒绝'
 }
 
-const initialGroupNotifs: GroupNotification[] = [
-  {
-    id: 'gn1',
-    groupName: '三角洲行动撞车沟通群',
-    inviter: '清风',
-    date: '2026/07/01',
-    message: '邀请你加入群聊',
-    status: '等待验证'
-  }
-]
-
 function formatRequestDate(value: string): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
@@ -88,8 +77,8 @@ function mapRequestItem(item: FriendRequestItem): FriendNotification {
 
 export const useNotificationsStore = defineStore('notifications', {
   state: () => ({
-    friendNotifs: [] as FriendNotification[],
-    groupNotifs: [...initialGroupNotifs] as GroupNotification[],
+    friendNotifs: [] as FriendNotification[],  // 好友请求（从后端加载）
+    groupNotifs: [] as GroupNotification[],     // 群邀请（从后端加载）
     loading: false
   }),
 

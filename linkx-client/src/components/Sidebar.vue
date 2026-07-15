@@ -200,7 +200,7 @@ function handleSelfAvatarClick(e: MouseEvent) {
       username: savedLogin.value.username || userProfile.value.username || undefined,
       avatarText: userProfile.value.nickname.charAt(0) || '我',
       avatarUrl: userProfile.value.avatar || undefined,
-      userId: userProfile.value.userId || undefined
+      userId: userProfile.value.userId ? Number(userProfile.value.userId) : undefined
     },
     e
   )
