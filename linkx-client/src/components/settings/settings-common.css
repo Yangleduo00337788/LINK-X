@@ -1,10 +1,12 @@
 .settings-scroll {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 20px 28px 28px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  max-width: 100%;
 }
 
 /* ---- 分组卡片 ---- */

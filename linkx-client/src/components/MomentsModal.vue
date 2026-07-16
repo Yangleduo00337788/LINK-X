@@ -11,6 +11,8 @@ import { useChatModalsStore } from '../stores/chatModals'
 import { useAppStore } from '../stores/app'
 // 友链动态 Store
 import { useMomentsStore } from '../stores/moments'
+// 通知 Store
+import { useNotificationsStore } from '../stores/notifications'
 // 主题同步工具
 import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
 // 文件读取工具与图片大小限制
@@ -39,14 +41,20 @@ const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
 // 友链 Store 实例
 const momentsStore = useMomentsStore()
+// 通知 Store 实例
+const notificationsStore = useNotificationsStore()
 // 关闭友链独立窗口的方法
 const { closeMomentsModal } = chatModalsStore
 // 用户资料与主题
 const { userProfile, theme } = storeToRefs(appStore)
 // 动态列表
 const { posts } = storeToRefs(momentsStore)
+// 通知列表
+const { messageNotifs } = storeToRefs(notificationsStore)
 // 发布、点赞、展开操作面板的方法
-const { addPost, toggleLike, toggleActions, isActionsOpen } = momentsStore
+const { addPost, toggleLike, toggleActions, isActionsOpen, fetchMoments } = momentsStore
+// 消息通知相关
+const { fetchMessageNotifications, markMessageAsRead, unreadMessageCount } = notificationsStore
 // 消息提示实例
 const message = useMessage()
 
@@ -109,6 +117,8 @@ const headerIconColor = computed(() =>
 onMounted(() => {
   applyDocumentTheme(appStore.theme)
   notifyElectronTheme(appStore.theme)
+  // 加载消息通知
+  void fetchMessageNotifications()
 })
 
 // 主题变化时重新同步
@@ -187,16 +197,54 @@ function submitComment(postId: string) {
   message.success('评论已发送')
 }
 
-// 刷新：滚动回顶部
-function refresh() {
+// 刷新：滚动回顶部并刷新动态和通知
+async function refresh() {
   scrollTop.value = 0
   document.querySelector('.moments-scroll-container')?.scrollTo({ top: 0, behavior: 'smooth' })
+  await Promise.all([
+    fetchMoments(),
+    fetchMessageNotifications()
+  ])
   message.success('刷新成功')
 }
 
-// 消息通知（演示）
-function showMessage() {
-  message.info('暂无新消息')
+// 显示消息通知列表
+const showNotifications = ref(false)
+
+async function showMessage() {
+  showNotifications.value = !showNotifications.value
+  if (showNotifications.value) {
+    await fetchMessageNotifications()
+  }
+}
+
+// 标记通知为已读并跳转
+function handleNotificationClick(notif: typeof messageNotifs.value[0]) {
+  if (notif.readStatus === 0) {
+    void markMessageAsRead(notif.id)
+  }
+  // 根据通知类型跳转相关动态
+  if (notif.type === 'moments_like' || notif.type === 'moments_comment') {
+    // 滚动到对应动态位置
+    const postIndex = posts.value.findIndex(p => String(p.id) === String(notif.relatedId))
+    if (postIndex >= 0) {
+      const container = document.querySelector('.moments-scroll-container')
+      const targetPost = container?.querySelectorAll('.post-item')[postIndex]
+      if (targetPost) {
+        targetPost.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+    }
+  }
+}
+
+// 获取通知类型文本
+function getNotificationTypeText(type: string) {
+  switch (type) {
+    case 'moments_like': return '赞了你的动态'
+    case 'moments_comment': return '评论了你的动态'
+    case 'moments_follow': return '关注了你'
+    default: return '有新通知'
+  }
 }
 
 // 最小化友链窗口
@@ -318,17 +366,18 @@ function closeMoments() {
         <div class="action-btn" title="搜索" @click.stop="toggleSearch">
           <n-icon :component="SearchOutline" size="22" />
         </div>
-        <div class="action-btn" title="消息" @click.stop="showMessage">
+        <div class="action-btn" :class="{ active: showNotifications }" title="消息" @click.stop="showMessage">
           <n-icon :component="NotificationsOutline" size="22" />
+          <span v-if="unreadMessageCount > 0" class="notif-badge">{{ unreadMessageCount > 99 ? '99+' : unreadMessageCount }}</span>
         </div>
         <div class="action-btn" title="刷新" @click.stop="refresh">
           <n-icon :component="RefreshOutline" size="22" />
         </div>
       </div>
       <div class="header-center" :class="{ visible: showTitle }">
-        <span v-if="!showSearch">友链</span>
+        <span v-if="!showSearch && !showNotifications">友链</span>
         <input
-          v-else
+          v-else-if="showSearch"
           v-model="searchQuery"
           class="header-search"
           placeholder="搜索友链"
@@ -336,13 +385,39 @@ function closeMoments() {
         />
       </div>
       <div class="header-right">
-        <div class="action-btn minimize-btn" title="最小化" @click.stop="minimizeMoments">
-          <n-icon :component="RemoveOutline" size="24" />
+        <div class="action-btn window-btn" title="最小化" @click.stop="minimizeMoments">
+          <n-icon :component="RemoveOutline" size="18" />
         </div>
-        <div class="action-btn close-btn" title="关闭" @click.stop="closeMoments">
-          <n-icon :component="CloseOutline" size="24" />
+        <div class="action-btn window-btn close-btn" title="关闭" @click.stop="closeMoments">
+          <n-icon :component="CloseOutline" size="18" />
         </div>
       </div>
+
+      <!-- 消息通知面板 -->
+      <div v-if="showNotifications" class="notifications-panel" @click.stop>
+        <div class="notif-header">
+          <span>消息通知</span>
+          <span v-if="unreadMessageCount > 0" class="mark-all-read" @click="notificationsStore.markAllMessagesAsRead()">全部已读</span>
+        </div>
+        <div class="notif-list">
+          <div v-if="messageNotifs.length === 0" class="notif-empty">暂无新通知</div>
+          <div
+            v-for="notif in messageNotifs"
+            :key="notif.id"
+            class="notif-item"
+            :class="{ unread: notif.readStatus === 0 }"
+            @click="handleNotificationClick(notif)"
+          >
+            <img :src="notif.senderAvatar || '/default-avatar.svg'" class="notif-avatar" />
+            <div class="notif-content">
+              <div class="notif-title">{{ notif.senderName }}</div>
+              <div class="notif-text">{{ getNotificationTypeText(notif.type) }}</div>
+              <div v-if="notif.content" class="notif-preview">{{ notif.content }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div v-if="showNotifications" class="notif-backdrop" @click="showNotifications = false" />
     </div>
   </div>
 </template>
@@ -387,15 +462,31 @@ function closeMoments() {
   z-index: 100;
   transition: background-color 0.3s ease, color 0.3s ease;
   box-sizing: border-box;
-  pointer-events: none;
   -webkit-app-region: drag;
 }
 
-.header-left, .header-right {
+.header-left,
+.header-right {
   display: flex;
   align-items: center;
   gap: 8px;
   -webkit-app-region: no-drag;
+  pointer-events: auto;
+}
+
+.header-right {
+  margin-left: auto;
+}
+
+.window-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--lx-radius);
+}
+
+.window-btn.close-btn:hover {
+  background: var(--lx-danger) !important;
+  color: #fff !important;
 }
 
 .header-center {
@@ -408,6 +499,7 @@ function closeMoments() {
   pointer-events: none;
   min-width: 0;
   padding: 0 8px;
+  -webkit-app-region: no-drag;
 }
 
 .header-center.visible {
@@ -780,5 +872,133 @@ function closeMoments() {
   color: var(--lx-text-muted);
   font-size: 13px;
   padding: 30px 0;
+}
+
+/* 通知面板样式 */
+.notif-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  background: #ff4d4f;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.notifications-panel {
+  position: absolute;
+  top: 48px;
+  left: 0;
+  width: 300px;
+  max-height: 400px;
+  background: var(--lx-bg-card);
+  border-radius: var(--lx-radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.notif-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 199;
+}
+
+.notif-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--lx-border-light);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--lx-text-body);
+}
+
+.mark-all-read {
+  font-size: 12px;
+  color: var(--lx-accent);
+  cursor: pointer;
+}
+
+.mark-all-read:hover {
+  text-decoration: underline;
+}
+
+.notif-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.notif-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--lx-text-muted);
+  font-size: 13px;
+}
+
+.notif-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.notif-item:hover {
+  background: var(--lx-bg-hover);
+}
+
+.notif-item.unread {
+  background: rgba(18, 183, 245, 0.06);
+}
+
+.notif-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--lx-bg-panel);
+}
+
+.notif-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.notif-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--lx-text-body);
+}
+
+.notif-text {
+  font-size: 12px;
+  color: var(--lx-text-secondary);
+  margin-top: 2px;
+}
+
+.notif-preview {
+  font-size: 12px;
+  color: var(--lx-text-muted);
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.action-btn.active {
+  background: var(--lx-bg-active);
 }
 </style>

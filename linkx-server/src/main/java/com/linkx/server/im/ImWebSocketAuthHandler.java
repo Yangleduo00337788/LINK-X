@@ -86,11 +86,10 @@ public class ImWebSocketAuthHandler extends ChannelInboundHandlerAdapter {
         }
         List<String> allowed = linkxProperties.getCors().getAllowedOrigins();
         if (allowed == null || allowed.isEmpty()) {
-            // 未配置白名单时，仅允许 Electron 桌面应用与同源
-            return origin.startsWith("file://")
-                    || origin.startsWith("app://")
-                    || origin.startsWith("http://localhost")
-                    || origin.startsWith("http://127.0.0.1");
+            // 未配置白名单时，仅允许 Electron 桌面应用。
+            // 拒绝 http://localhost 等浏览器来源，防止 CSWSH 攻击
+            // （恶意页面诱导浏览器建立 WebSocket 后即可读取用户消息）。
+            return origin.startsWith("file://") || origin.startsWith("app://");
         }
         return allowed.contains(origin);
     }

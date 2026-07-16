@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, globalShortcut, safeStorage, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, globalShortcut, safeStorage, type IpcMainEvent, type IpcMainInvokeEvent, type WebRequestHeadersReceivedCallbackParams, type OnHeadersReceivedListener } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -419,6 +419,29 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // 设置严格的 Content Security Policy，防止 Electron Security Warning
+  // 在窗口创建前设置，应用到所有窗口
+  const csp = [
+    "default-src 'self';",
+    "script-src 'self' 'unsafe-inline';",
+    "style-src 'self' 'unsafe-inline';",
+    "img-src 'self' data: blob: https: http:;",
+    "font-src 'self' data:;",
+    "connect-src 'self' ws: wss: http: https:;",
+    "media-src 'self' blob:;"
+  ].join(' ')
+
+  app.on('web-contents-created', (_event, contents) => {
+    contents.session.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': [csp]
+        }
+      })
+    })
+  })
+
   registerWindowIpc()
   createWindow()
   createTray()

@@ -13,12 +13,15 @@ import lombok.NoArgsConstructor;
 import java.io.Serializable;
 import java.util.Date;
 
+/**
+ * 消息通知实体
+ */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table("note")
-public class Note implements Serializable {
+@Table("message_notification")
+public class MessageNotification implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
@@ -27,20 +30,22 @@ public class Note implements Serializable {
 
     private Long userId;
 
-    private String title;
+    private Long senderId;
+
+    private String senderName;
+
+    private String senderAvatar;
+
+    private String type;
+
+    private Long relatedId;
 
     private String content;
 
-    /**
-     * 笔记/收藏类型：note(普通笔记) / image(图片收藏) / link(链接收藏) / file(文件收藏)
-     */
-    private String type;
+    private Integer readStatus;
 
     @Column(onInsertValue = "NOW()")
     private Date createTime;
-
-    @Column(onInsertValue = "NOW()", onUpdateValue = "NOW()")
-    private Date updateTime;
 
     @Column(isLogicDelete = true)
     private Integer deleted;

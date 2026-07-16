@@ -1,11 +1,10 @@
 <script setup lang="ts">
-// Vue 响应式 API、生命周期、侦听器与计算属性
-import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
-// Naive UI 图标、下拉菜单与消息提示
+/**
+ * 笔记编辑器独立窗口
+ */
+import { ref, onMounted, onUnmounted, watch, computed, h } from 'vue'
 import { NIcon, NDropdown, useMessage } from 'naive-ui'
-// Naive UI 下拉选项类型
 import type { DropdownOption } from 'naive-ui'
-// Ionicons5 编辑器工具栏图标
 import {
   MicOutline,
   FolderOpenOutline,
@@ -16,93 +15,78 @@ import {
   ArrowRedoOutline,
   EllipsisHorizontalOutline,
   ReorderTwoOutline,
-  EyeOutline
+  EyeOutline,
+  TrashOutline,
+  AddOutline,
+  CreateOutline,
+  DocumentTextOutline,
+  CloudUploadOutline
 } from '@vicons/ionicons5'
-// 置顶图标组件
 import PinIcon from './icons/PinIcon.vue'
-// 窗口控制按钮组件
 import WindowControls from './WindowControls.vue'
-// Pinia 响应式解构工具
 import { storeToRefs } from 'pinia'
-// 笔记 Store
 import { useNoteStore } from '../stores/note'
-// 应用全局状态 Store
 import { useAppStore } from '../stores/app'
-// 主题同步工具
 import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
-// Markdown 解析库
 import { marked } from 'marked'
-// HTML 消毒库（防 XSS）
 import DOMPurify from 'dompurify'
 
-// 消息提示实例
 const message = useMessage()
-// 笔记 Store 实例
 const noteStore = useNoteStore()
-// 应用 Store 实例
 const appStore = useAppStore()
-// 笔记标题与正文
-const { title, content } = storeToRefs(noteStore)
-// 当前主题
+const { title, content, notes, currentNoteId, saving } = storeToRefs(noteStore)
 const { theme } = storeToRefs(appStore)
 
-// 正文 textarea 元素引用
 const contentRef = ref<HTMLTextAreaElement | null>(null)
-// 窗口是否置顶
 const isPinned = ref(false)
-// 是否正在录音
 const isRecordingNote = ref(false)
-// 是否显示 Markdown 预览
 const showPreview = ref(false)
+const showNoteList = ref(false)
 
-// 将 Markdown 正文编译为消毒后的 HTML
 const compiledMarkdown = computed(() => {
   const rawHtml = marked(content.value) as string
   return DOMPurify.sanitize(rawHtml)
 })
 
-// 隐藏的图片上传 input 引用
 const imageInputRef = ref<HTMLInputElement | null>(null)
-// 隐藏的文件上传 input 引用
 const fileInputRef = ref<HTMLInputElement | null>(null)
 
-// 自动保存防抖定时器
 let saveTimer: ReturnType<typeof setTimeout> | null = null
-// 历史记录防抖定时器
 let historyTimer: ReturnType<typeof setTimeout> | null = null
-// 录音开始时间戳
 let noteRecordStart = 0
-// 是否正在执行撤销/重做（避免重复入栈）
 let restoringHistory = false
 
-// 编辑历史栈
 const historyStack = ref<string[]>([''])
-// 当前历史栈索引
 const historyIndex = ref(0)
 
-// 「更多」下拉菜单选项
 const moreOptions: DropdownOption[] = [
   { label: '插入图片', key: 'image' },
   { label: '插入位置', key: 'location' },
+  { type: 'divider', key: 'd1' },
   { label: '清空笔记', key: 'clear' }
 ]
 
-// 从正文首行同步标题
+const noteListOptions = computed<DropdownOption[]>(() => [
+  { label: '新建笔记', key: 'new' },
+  ...notes.value.slice(0, 10).map(n => ({
+    label: n.title || '无标题',
+    key: n.id
+  }))
+])
+
 function syncTitleFromContent() {
   const first = content.value.split('\n').find(line => line.trim())?.trim() ?? ''
-  title.value = first.slice(0, 80) || '笔记'
+  title.value = first.slice(0, 80) || '无标题'
 }
 
-// 防抖自动保存
 function scheduleSave() {
   if (saveTimer) clearTimeout(saveTimer)
   saveTimer = setTimeout(() => {
     syncTitleFromContent()
-    noteStore.save()
+    void noteStore.save()
   }, 400)
 }
 
-// 将当前内容快照推入历史栈
 function pushHistorySnapshot() {
   if (restoringHistory) return
   const val = content.value
@@ -116,39 +100,34 @@ function pushHistorySnapshot() {
   }
 }
 
-// 防抖记录历史
 function scheduleHistory() {
   if (historyTimer) clearTimeout(historyTimer)
   historyTimer = setTimeout(pushHistorySnapshot, 600)
 }
 
-// 正文变化时触发自动保存与历史记录
 watch(content, () => {
   scheduleSave()
   scheduleHistory()
 })
 
-// 撤销上一步编辑
 function undo() {
   if (historyIndex.value <= 0) return
   restoringHistory = true
   historyIndex.value -= 1
   content.value = historyStack.value[historyIndex.value] ?? ''
   restoringHistory = false
-  noteStore.save()
+  void noteStore.save()
 }
 
-// 重做下一步编辑
 function redo() {
   if (historyIndex.value >= historyStack.value.length - 1) return
   restoringHistory = true
   historyIndex.value += 1
   content.value = historyStack.value[historyIndex.value] ?? ''
   restoringHistory = false
-  noteStore.save()
+  void noteStore.save()
 }
 
-// 用前缀/后缀包裹选中文本（Markdown 格式）
 function wrapSelection(prefix: string, suffix = prefix) {
   const el = contentRef.value
   if (!el) {
@@ -168,7 +147,6 @@ function wrapSelection(prefix: string, suffix = prefix) {
   })
 }
 
-// 在光标处插入文本
 function insertAtCursor(text: string) {
   const el = contentRef.value
   if (!el) {
@@ -187,18 +165,15 @@ function insertAtCursor(text: string) {
   })
 }
 
-// 插入块级文本（自动补换行）
 function insertBlock(text: string) {
   insertAtCursor((content.value && !content.value.endsWith('\n') ? '\n' : '') + text + '\n')
 }
 
-// 切换窗口置顶状态
 async function togglePin() {
   if (!window.electronAPI?.togglePin) return
   isPinned.value = await window.electronAPI.togglePin()
 }
 
-// 插入图片占位标记
 function insertImage(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
@@ -208,7 +183,6 @@ function insertImage(e: Event) {
   message.success('图片已插入')
 }
 
-// 插入附件占位标记
 function insertFile(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
@@ -218,7 +192,6 @@ function insertFile(e: Event) {
   message.success('附件已插入')
 }
 
-// 切换语音备忘录音（无麦克风时插入占位文本）
 async function toggleNoteVoice() {
   if (!isRecordingNote.value) {
     try {
@@ -238,7 +211,6 @@ async function toggleNoteVoice() {
   message.success('语音备忘已插入')
 }
 
-// 处理「更多」菜单选项
 function onMoreSelect(key: string) {
   if (key === 'image') imageInputRef.value?.click()
   else if (key === 'location') {
@@ -246,17 +218,45 @@ function onMoreSelect(key: string) {
     message.success('位置已插入')
   } else if (key === 'clear') {
     content.value = ''
-    title.value = '笔记'
+    title.value = '无标题'
     pushHistorySnapshot()
     message.success('笔记已清空')
   }
 }
 
-// 挂载：加载笔记、同步主题、读取置顶状态
+function onNoteSelect(key: string) {
+  if (key === 'new') {
+    noteStore.newNote()
+    historyStack.value = ['']
+    historyIndex.value = 0
+  } else {
+    const note = notes.value.find(n => n.id === key)
+    if (note) {
+      noteStore.openNote(note)
+      historyStack.value = [content.value]
+      historyIndex.value = 0
+    }
+  }
+  showNoteList.value = false
+}
+
+async function deleteCurrentNote() {
+  if (!currentNoteId.value) return
+  try {
+    await noteStore.deleteNote(currentNoteId.value)
+    message.success('笔记已删除')
+  } catch {
+    message.error('删除失败')
+  }
+}
+
 onMounted(async () => {
   applyDocumentTheme(appStore.theme)
   notifyElectronTheme(appStore.theme)
-  noteStore.load()
+  await noteStore.init()
+  if (!currentNoteId.value) {
+    noteStore.loadDraft()
+  }
   historyStack.value = [content.value]
   historyIndex.value = 0
   if (window.electronAPI?.isPinned) {
@@ -264,25 +264,21 @@ onMounted(async () => {
   }
 })
 
-// 主题变化时重新同步
 watch(theme, t => {
   applyDocumentTheme(t)
   notifyElectronTheme(t)
 })
 
-// 卸载：保存笔记并清理定时器
 onUnmounted(() => {
   syncTitleFromContent()
-  noteStore.save()
+  void noteStore.save()
   if (saveTimer) clearTimeout(saveTimer)
   if (historyTimer) clearTimeout(historyTimer)
 })
 </script>
 
 <template>
-  <!-- 笔记编辑器独立窗口 -->
   <div class="note-editor standalone-window">
-    <!-- 标题栏：置顶、标题、窗口控制 -->
     <header class="title-bar drag-area">
       <div class="bar-side bar-left no-drag">
         <button
@@ -295,13 +291,41 @@ onUnmounted(() => {
           <PinIcon :size="16" />
         </button>
       </div>
-      <div class="bar-center">笔记</div>
+      <div class="bar-center">
+        {{ title || '无标题' }}
+        <span v-if="saving" class="saving-indicator">保存中...</span>
+      </div>
       <div class="bar-side bar-right no-drag">
+        <!-- CRUD 操作按钮 -->
+        <button type="button" class="icon-btn" title="新建笔记" @click="noteStore.newNote()">
+          <n-icon :component="AddOutline" :size="16" />
+        </button>
+        <button type="button" class="icon-btn" title="保存笔记" @click="() => noteStore.save()">
+          <n-icon :component="CloudUploadOutline" :size="16" />
+        </button>
+        <n-dropdown trigger="click" :options="noteListOptions" @select="onNoteSelect">
+          <button type="button" class="icon-btn" title="打开笔记">
+            <n-icon :component="DocumentTextOutline" :size="16" />
+          </button>
+        </n-dropdown>
+        <n-dropdown trigger="click" :options="moreOptions" @select="onMoreSelect">
+          <button type="button" class="icon-btn" title="更多操作">
+            <n-icon :component="EllipsisHorizontalOutline" :size="16" />
+          </button>
+        </n-dropdown>
+        <button
+          v-if="currentNoteId"
+          type="button"
+          class="icon-btn delete-btn"
+          title="删除笔记"
+          @click="deleteCurrentNote"
+        >
+          <n-icon :component="TrashOutline" :size="16" />
+        </button>
         <WindowControls />
       </div>
     </header>
 
-    <!-- 格式化工具栏 -->
     <div class="format-bar no-drag">
       <input ref="imageInputRef" type="file" accept="image/*" hidden @change="insertImage" />
       <input ref="fileInputRef" type="file" hidden @change="insertFile" />
@@ -381,7 +405,6 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <!-- 编辑区：textarea 与 Markdown 预览 -->
     <main class="editor-area">
       <textarea
         v-show="!showPreview || content"
@@ -423,6 +446,10 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   min-width: 0;
+  gap: 4px;
+  -webkit-app-region: no-drag;
+  position: relative;
+  z-index: 10;
 }
 
 .bar-left {
@@ -439,6 +466,15 @@ onUnmounted(() => {
   color: var(--lx-text-body);
   text-align: center;
   pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.saving-indicator {
+  font-size: 11px;
+  color: var(--lx-text-muted);
+  font-weight: normal;
 }
 
 .icon-btn {
@@ -454,6 +490,8 @@ onUnmounted(() => {
   justify-content: center;
   transition: background 0.15s, color 0.15s;
   flex-shrink: 0;
+  -webkit-app-region: no-drag;
+  pointer-events: auto;
 }
 
 .icon-btn:hover {
@@ -468,6 +506,11 @@ onUnmounted(() => {
 
 .icon-btn.recording {
   background: var(--lx-accent-soft);
+}
+
+.icon-btn.delete-btn:hover {
+  color: var(--lx-danger);
+  background: rgba(250, 81, 81, 0.1);
 }
 
 .text-btn {
@@ -507,6 +550,9 @@ onUnmounted(() => {
   flex-shrink: 0;
   overflow-x: auto;
   border-bottom: 1px solid var(--lx-border-light);
+  -webkit-app-region: no-drag;
+  position: relative;
+  z-index: 10;
 }
 
 .v-sep {

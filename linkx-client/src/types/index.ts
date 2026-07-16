@@ -4,7 +4,7 @@
  */
 
 // 左侧 Sidebar 导航项 key，决定主内容区展示哪个模块
-export type NavKey = 'chat' | 'contacts' | 'favorites' | 'files' | 'calendar' | 'moments' | 'apps'
+export type NavKey = 'chat' | 'contacts' | 'favorites' | 'files' | 'calendar' | 'moments'
 
 // 全屏 Overlay 页面标识，由 overlay store 栈管理
 export type OverlayPage =
@@ -13,7 +13,6 @@ export type OverlayPage =
   | 'add-friend'     // 添加好友
   | 'create-group'   // 创建群聊
   | 'create-channel' // 创建频道
-  | 'weather'        // 天气
   | 'app-runner'     // 应用运行器
   | 'file-preview'   // 文件预览
   | 'chat-history'   // 聊天记录

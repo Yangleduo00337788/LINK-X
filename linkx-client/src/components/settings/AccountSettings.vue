@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { NButton, NAvatar, NIcon, NSwitch, NModal, NInput, useMessage, useDialog } from 'naive-ui'
-import { ShieldCheckmarkOutline, DesktopOutline } from '@vicons/ionicons5'
+import { computed, ref, onMounted } from 'vue'
+import { NButton, NAvatar, NIcon, NSwitch, NModal, NInput, NProgress, useMessage, useDialog } from 'naive-ui'
+import { ShieldCheckmarkOutline, DesktopOutline, WalletOutline, MailOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../../stores/app'
 import { useAppSettingsStore } from '../../stores/appSettings'
 import * as accountApi from '../../api/account'
+import * as balanceApi from '../../api/balance'
+import * as feedbackApi from '../../api/feedback'
 import { generateDefaultAvatar } from '../../utils/defaultAvatar'
 
 const message = useMessage()
@@ -27,6 +29,73 @@ const {
   privacyAllowStranger,
   privacyShowOnline
 } = storeToRefs(appSettingsStore)
+
+// 余额相关
+const balance = ref<balanceApi.BalanceInfo | null>(null)
+const balanceLoading = ref(false)
+
+async function fetchBalance() {
+  balanceLoading.value = true
+  try {
+    const res = await balanceApi.getBalance()
+    if (res.code === 200 && res.data) {
+      balance.value = {
+        userId: String(res.data.userId),
+        balance: Number(res.data.balance),
+        frozen: Number(res.data.frozen),
+        available: Number(res.data.available),
+        totalRecharge: Number(res.data.totalRecharge),
+        totalWithdraw: Number(res.data.totalWithdraw)
+      }
+    }
+  } catch {
+    // 余额接口可能未开通，静默失败
+  } finally {
+    balanceLoading.value = false
+  }
+}
+
+function formatMoney(amount: number) {
+  return amount.toFixed(2)
+}
+
+// 反馈历史相关
+const showFeedbackHistory = ref(false)
+const feedbackList = ref<feedbackApi.FeedbackVO[]>([])
+const feedbackLoading = ref(false)
+
+async function openFeedbackHistory() {
+  showFeedbackHistory.value = true
+  feedbackLoading.value = true
+  try {
+    const res = await feedbackApi.listFeedback()
+    if (res.code === 200 && res.data) {
+      feedbackList.value = res.data
+    }
+  } catch {
+    message.error('获取反馈历史失败')
+  } finally {
+    feedbackLoading.value = false
+  }
+}
+
+function getFeedbackStatusType(status: string) {
+  if (status === 'resolved') return 'success'
+  if (status === 'processing') return 'warning'
+  return 'default'
+}
+
+function getFeedbackStatusText(status: string) {
+  if (status === 'resolved') return '已处理'
+  if (status === 'processing') return '处理中'
+  return '待处理'
+}
+
+function getFeedbackTypeText(type: string) {
+  if (type === 'bug') return 'Bug'
+  if (type === 'suggestion') return '建议'
+  return '其他'
+}
 
 // 修改密码弹窗
 const showPasswordModal = ref(false)
@@ -115,6 +184,11 @@ async function handleLogoutDevice(deviceId: string) {
     }
   })
 }
+
+// 组件挂载时获取余额
+onMounted(() => {
+  void fetchBalance()
+})
 </script>
 
 <template>
@@ -130,6 +204,38 @@ async function handleLogoutDevice(deviceId: string) {
         <div class="profile-name">{{ userProfile.nickname || '未设置昵称' }}</div>
         <div class="profile-id">LinkX ID · {{ displayUsername }}</div>
         <div class="profile-badge">已登录</div>
+      </div>
+    </section>
+
+    <!-- 余额展示 -->
+    <section v-if="balance" class="group-card">
+      <div class="group-head">
+        <n-icon :component="WalletOutline" :size="18" class="group-ico" />
+        <span>我的余额</span>
+      </div>
+      <div class="balance-display">
+        <div class="balance-main">
+          <span class="balance-label">可用余额</span>
+          <span class="balance-amount">¥ {{ formatMoney(balance.available) }}</span>
+        </div>
+        <div class="balance-details">
+          <div class="balance-item">
+            <span class="balance-item-label">总余额</span>
+            <span class="balance-item-value">¥ {{ formatMoney(balance.balance) }}</span>
+          </div>
+          <div class="balance-item">
+            <span class="balance-item-label">冻结中</span>
+            <span class="balance-item-value">¥ {{ formatMoney(balance.frozen) }}</span>
+          </div>
+          <div class="balance-item">
+            <span class="balance-item-label">累计充值</span>
+            <span class="balance-item-value">¥ {{ formatMoney(balance.totalRecharge) }}</span>
+          </div>
+          <div class="balance-item">
+            <span class="balance-item-label">累计提现</span>
+            <span class="balance-item-value">¥ {{ formatMoney(balance.totalWithdraw) }}</span>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -182,6 +288,21 @@ async function handleLogoutDevice(deviceId: string) {
           <span class="setting-name">在线状态可见</span>
         </div>
         <n-switch v-model:value="privacyShowOnline" size="small" />
+      </div>
+    </section>
+
+    <!-- 反馈历史 -->
+    <section class="group-card">
+      <div class="group-head">
+        <n-icon :component="MailOutline" :size="18" class="group-ico" />
+        <span>问题反馈</span>
+      </div>
+      <div class="setting-row">
+        <div class="setting-text">
+          <span class="setting-name">反馈记录</span>
+          <span class="setting-desc">查看已提交的问题反馈及处理状态</span>
+        </div>
+        <n-button size="small" secondary @click="openFeedbackHistory">查看</n-button>
       </div>
     </section>
 
@@ -253,11 +374,39 @@ async function handleLogoutDevice(deviceId: string) {
         </div>
       </div>
     </n-modal>
+
+    <!-- 反馈历史弹窗 -->
+    <n-modal v-model:show="showFeedbackHistory" preset="card" title="我的反馈记录" style="max-width: 600px">
+      <div v-if="feedbackLoading" class="loading-state">
+        <span>加载中...</span>
+      </div>
+      <div v-else-if="feedbackList.length === 0" class="empty-state">
+        <span>暂无反馈记录</span>
+      </div>
+      <div v-else class="feedback-list">
+        <div v-for="item in feedbackList" :key="item.id" class="feedback-item">
+          <div class="feedback-header">
+            <n-tag :type="getFeedbackStatusType(item.status)" size="small">
+              {{ getFeedbackStatusText(item.status) }}
+            </n-tag>
+            <n-tag size="small">{{ getFeedbackTypeText(item.type) }}</n-tag>
+            <span class="feedback-time">{{ item.createTime }}</span>
+          </div>
+          <div class="feedback-content">{{ item.content }}</div>
+        </div>
+      </div>
+    </n-modal>
   </div>
 </template>
 
 <style scoped>
 @import './settings-common.css';
+
+.settings-scroll {
+  max-width: 520px;
+  margin: 0 auto;
+  overflow-x: hidden;
+}
 
 .profile-card {
   display: flex;
@@ -361,5 +510,86 @@ async function handleLogoutDevice(deviceId: string) {
   color: var(--lx-accent);
   border-radius: 4px;
   font-size: 11px;
+}
+
+/* 余额展示样式 */
+.balance-display {
+  padding: 8px 0;
+}
+
+.balance-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.balance-label {
+  font-size: 13px;
+  color: var(--lx-text-secondary);
+}
+
+.balance-amount {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--lx-accent);
+}
+
+.balance-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.balance-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  background: var(--lx-bg-panel);
+  border-radius: var(--lx-radius);
+}
+
+.balance-item-label {
+  font-size: 12px;
+  color: var(--lx-text-muted);
+}
+
+.balance-item-value {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--lx-text-body);
+}
+
+/* 反馈历史样式 */
+.feedback-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.feedback-item {
+  padding: 12px;
+  background: var(--lx-bg-panel);
+  border-radius: var(--lx-radius);
+}
+
+.feedback-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.feedback-time {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--lx-text-muted);
+}
+
+.feedback-content {
+  font-size: 14px;
+  color: var(--lx-text-body);
+  line-height: 1.5;
 }
 </style>

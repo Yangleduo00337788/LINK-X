@@ -18,6 +18,13 @@ export interface DeviceInfo {
   current: boolean
 }
 
+export interface ResetPasswordPayload {
+  username: string
+  captchaId: string
+  captchaCode: string
+  newPassword: string
+}
+
 /**
  * 修改密码
  */
@@ -44,4 +51,11 @@ export function logoutDevice(deviceId: string) {
  */
 export function getCurrentUser() {
   return apiClient.get<never, ApiResult<{ userId: string; username: string; nickname: string; avatar: string }>>('/user/me')
+}
+
+/**
+ * 重置密码（通过验证码）
+ */
+export function resetPassword(payload: ResetPasswordPayload) {
+  return apiClient.post<never, ApiResult<null>>('/auth/reset-password', payload)
 }

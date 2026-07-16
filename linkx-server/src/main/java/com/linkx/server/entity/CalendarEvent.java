@@ -13,12 +13,15 @@ import lombok.NoArgsConstructor;
 import java.io.Serializable;
 import java.util.Date;
 
+/**
+ * 日历事件实体
+ */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table("note")
-public class Note implements Serializable {
+@Table("calendar_event")
+public class CalendarEvent implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
@@ -29,12 +32,11 @@ public class Note implements Serializable {
 
     private String title;
 
-    private String content;
+    private String date;
 
-    /**
-     * 笔记/收藏类型：note(普通笔记) / image(图片收藏) / link(链接收藏) / file(文件收藏)
-     */
-    private String type;
+    private String time;
+
+    private String color;
 
     @Column(onInsertValue = "NOW()")
     private Date createTime;

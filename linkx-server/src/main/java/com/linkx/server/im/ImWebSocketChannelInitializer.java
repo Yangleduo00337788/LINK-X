@@ -34,7 +34,10 @@ public class ImWebSocketChannelInitializer extends ChannelInitializer<SocketChan
         pipeline.addLast(new io.netty.handler.timeout.IdleStateHandler(60, 30, 0));
         pipeline.addLast(new ImWebSocketIdleHandler());
         pipeline.addLast(new ImWebSocketAuthHandler(jwtUtils, tokenService, channelManager, linkxProperties));
-        pipeline.addLast(new WebSocketServerProtocolHandler(wsPath, null, true));
+        // 第二个参数声明服务端接受的子协议白名单：浏览器会从 Sec-WebSocket-Protocol 中
+        // 选择首个匹配项并通过响应头回写，完成协议协商。此处仅放行鉴权使用的子协议名，
+        // 真正的 JWT 仍由 ImWebSocketAuthHandler 直接从请求头读取（不暴露给协议层）。
+        pipeline.addLast(new WebSocketServerProtocolHandler(wsPath, "linkx-access-token", true));
         pipeline.addLast(new ImWebSocketMessageHandler(pushService, objectMapper));
     }
 }

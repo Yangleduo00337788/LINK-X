@@ -54,6 +54,11 @@ import { useFavoritesStore } from '../stores/favorites'
 
 // 获取 Naive UI 消息提示实例
 const message = useMessage()
+
+/** 暂不支持的功能提示 */
+function showUnsupported(feature: string) {
+  message.info(`${feature}功能正在开发中，敬请期待`)
+}
 // 获取收藏 Store 实例
 const favoritesStore = useFavoritesStore()
 // 获取应用 Store 实例
@@ -466,10 +471,10 @@ function onDrop(e: DragEvent) {
           <span v-if="currentSession?.online" class="online-dot" title="在线" />
         </div>
         <div class="chat-header-actions">
-          <button type="button" class="hdr-btn" title="语音通话" @click="openVoiceCall">
+          <button type="button" class="hdr-btn" title="语音通话" @click="() => showUnsupported('语音通话')">
             <n-icon :component="CallOutline" :size="20" />
           </button>
-          <button type="button" class="hdr-btn" title="视频通话" @click="openVideoCall">
+          <button type="button" class="hdr-btn" title="视频通话" @click="() => showUnsupported('视频通话')">
             <n-icon :component="VideocamOutline" :size="20" />
           </button>
           <button type="button" class="hdr-btn" title="更多" @click="toggleMore">
@@ -484,10 +489,10 @@ function onDrop(e: DragEvent) {
           <span class="chat-peer-name chat-peer-name--group">{{ currentSession?.name }}</span>
         </div>
         <div class="chat-header-actions">
-          <button type="button" class="hdr-btn" title="语音通话" @click="openVoiceCall">
+          <button type="button" class="hdr-btn" title="语音通话" @click="() => showUnsupported('语音通话')">
             <n-icon :component="CallOutline" :size="20" />
           </button>
-          <button type="button" class="hdr-btn" title="视频通话" @click="openVideoCall">
+          <button type="button" class="hdr-btn" title="视频通话" @click="() => showUnsupported('视频通话')">
             <n-icon :component="VideocamOutline" :size="20" />
           </button>
           <n-popover

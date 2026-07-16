@@ -21,6 +21,8 @@ declare global {
       notifyThemeChange?: (theme: 'light' | 'dark') => void // 通知主进程主题变化
       setWindowMode?: (mode: 'login' | 'main') => Promise<void> // 切换登录/主界面窗口尺寸
       isElectron?: boolean                    // 是否为 Electron 环境
+      /** 屏幕截图，返回截图数据或 null */
+      captureScreen?: () => Promise<{ dataURL: string; width: number; height: number } | null>
       /** OS 级加密存储（Token、锁屏 PIN 等敏感数据） */
       secureStorage?: {
         isAvailable: () => Promise<boolean>

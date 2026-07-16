@@ -117,8 +117,38 @@ public class TokenServiceImpl implements TokenService {
     }
 
     @Override
-    public void logout(String authorization, String refreshToken) {
-        revokeBearerToken(authorization);
+    public void logout(String accessToken, String refreshToken) {
+        if (!StringUtils.hasText(accessToken)) {
+            throw new CustomException(401, "未提供访问令牌");
+        }
+        // 解析并校验 access token 必须属于 ACCESS 类型
+        Claims accessClaims = parseClaims(accessToken);
+        if (jwtUtils.getTokenType(accessToken) != TokenType.ACCESS) {
+            throw new CustomException(401, "无效的访问令牌");
+        }
+        Long accessUserId = accessClaims.get("userId", Long.class);
+
+        // 如果同时携带 refreshToken，必须属于同一用户，否则拒绝（防止用 A 的 token 吊销 B 的 refresh）
+        if (StringUtils.hasText(refreshToken)) {
+            try {
+                if (jwtUtils.getTokenType(refreshToken) == TokenType.REFRESH) {
+                    Claims refreshClaims = jwtUtils.parseToken(refreshToken);
+                    Long refreshUserId = refreshClaims.get("userId", Long.class);
+                    if (refreshUserId == null || !refreshUserId.equals(accessUserId)) {
+                        throw new CustomException(401, "refreshToken 与当前用户不匹配");
+                    }
+                } else {
+                    throw new CustomException(401, "refreshToken 类型错误");
+                }
+            } catch (CustomException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new CustomException(401, "refreshToken 无效");
+            }
+        }
+
+        // 校验通过后吊销
+        redisTemplate.delete(ACCESS_KEY_PREFIX + accessClaims.getId());
         revokeRawToken(refreshToken, TokenType.REFRESH);
     }
 

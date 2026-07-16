@@ -26,8 +26,6 @@ import FavoritesPanel from './FavoritesPanel.vue'
 import FilesPanel from './FilesPanel.vue'
 // 友链面板
 import MomentsPanel from './MomentsPanel.vue'
-// 应用面板
-import AppsPanel from './AppsPanel.vue'
 // 日历列表面板
 import CalendarPanel from './CalendarPanel.vue'
 // 日历主视图
@@ -149,8 +147,6 @@ const middleComponent = computed(() => {
       return CalendarPanel
     case 'moments':
       return MomentsPanel
-    case 'apps':
-      return AppsPanel
     default:
       return ChatList // 未知导航默认消息列表
   }
@@ -160,9 +156,9 @@ const middleComponent = computed(() => {
 const showChatPanel = computed(() => navKey.value === 'chat')
 // 是否显示日历主视图
 const showCalendarMain = computed(() => navKey.value === 'calendar')
-// 是否显示占位主视图（联系人/收藏/文件/友链/应用）
+// 是否显示占位主视图（联系人/收藏/文件/友链）
 const showPlaceholder = computed(() =>
-  ['contacts', 'favorites', 'files', 'moments', 'apps'].includes(navKey.value)
+  ['contacts', 'favorites', 'files', 'moments'].includes(navKey.value)
 )
 </script>
 

@@ -43,4 +43,10 @@ public interface RateLimitService {
      * @param request HTTP请求
      */
     void clearLoginFailure(String username, HttpServletRequest request);
+
+    /**
+     * 记录 refresh token 失败。连续失败会触发 IP 维度的锁定，
+     * 防止攻击者对 refresh 接口进行暴力枚举。
+     */
+    void recordRefreshFailure(HttpServletRequest request);
 }

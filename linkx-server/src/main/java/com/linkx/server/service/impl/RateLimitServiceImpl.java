@@ -1,5 +1,6 @@
 package com.linkx.server.service.impl;
 
+import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.service.RateLimitService;
@@ -17,7 +18,11 @@ public class RateLimitServiceImpl implements RateLimitService {
     private static final String RATE_LIMIT_PREFIX = "linkx:rate:";
     private static final String LOGIN_FAIL_PREFIX = "linkx:login:fail:";
     private static final String LOGIN_LOCK_PREFIX = "linkx:login:lock:";
+    private static final String REFRESH_FAIL_PREFIX = "linkx:refresh:fail:";
     private static final String IP_PREFIX = "ip:";
+
+    private static final int REFRESH_FAIL_THRESHOLD = 10;
+    private static final int REFRESH_FAIL_WINDOW_MINUTES = 15;
 
     private final StringRedisTemplate redisTemplate;
     private final LinkxProperties linkxProperties;
@@ -109,23 +114,21 @@ public class RateLimitServiceImpl implements RateLimitService {
     }
 
     private String getClientIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("X-Real-IP");
+        // 委托给 ClientIpResolver 统一处理（默认不信任 XFF，避免伪造 IP 绕过限流）
+        return ClientIpResolver.resolve(request, linkxProperties);
+    }
+
+    @Override
+    public void recordRefreshFailure(HttpServletRequest request) {
+        String ip = getClientIp(request);
+        String key = RATE_LIMIT_PREFIX + REFRESH_FAIL_PREFIX + IP_PREFIX + ip;
+        Long count = redisTemplate.opsForValue().increment(key);
+        if (count != null && count == 1L) {
+            redisTemplate.expire(key, Duration.ofMinutes(REFRESH_FAIL_WINDOW_MINUTES));
         }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("Proxy-Client-IP");
+        if (count != null && count >= REFRESH_FAIL_THRESHOLD) {
+            throw new CustomException(429,
+                    "refresh token 失败次数过多，请" + REFRESH_FAIL_WINDOW_MINUTES + "分钟后再试");
         }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("WL-Proxy-Client-IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
-        }
-        // 多个IP时取第一个
-        if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0].trim();
-        }
-        return ip != null ? ip : "unknown";
     }
 }

@@ -6,8 +6,8 @@
  * 支持回复预览、粘贴图片/文件、Enter 发送（Shift+Enter 换行）。
  * </p>
  */
-// Vue 响应式 API 与生命周期
-import { ref, onUnmounted } from 'vue'
+// Vue 响应式 API
+import { ref } from 'vue'
 // Naive UI 组件与消息提示
 import { NIcon, NInput, NPopover, useMessage } from 'naive-ui'
 // 工具栏图标（Ionicons5）
@@ -18,7 +18,6 @@ import {
   VolumeHighOutline,
   GiftOutline,
   MicOutline,
-  GridOutline,
   CloseOutline
 } from '@vicons/ionicons5'
 // Pinia 响应式解构
@@ -27,21 +26,14 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '../../stores/app'
 // 聊天弹窗/抽屉状态：语音通话、红包
 import { useChatModalsStore } from '../../stores/chatModals'
-// 二级视图：当前激活的应用
-import { useSecondaryViewStore } from '../../stores/secondaryView'
 // 文件列表 store：聊天发送的文件同步记录
 import { useFilesStore } from '../../stores/files'
 // 群元数据：群文件列表
 import { useGroupMetaStore } from '../../stores/groupMeta'
-// 消息与应用类型定义
-import type { ChatMessage, AppItem } from '../../types'
+// 消息类型定义
+import type { ChatMessage } from '../../types'
 // 聊天表情常量列表
 import { CHAT_EMOJIS } from '../../constants/emojis'
-// 聊天内可快捷打开的应用列表
-const chatApps: AppItem[] = [
-  { id: 'netease-music', name: '网易云音乐', desc: '登录后播放音乐', icon: '云', color: '#c20c0c', url: 'https://music.163.com/' },
-  { id: 'douyin', name: '抖音', desc: '登录后刷短视频', icon: '抖', color: '#111111', url: 'https://www.douyin.com/' }
-]
 // 文件工具：大小格式化、DataURL 读取、图片大小上限
 import { formatFileSize, MAX_IMAGE_BYTES } from '../../utils/file'
 
@@ -64,27 +56,20 @@ const message = useMessage()
 // 各 Pinia store 实例
 const appStore = useAppStore()
 const chatModalsStore = useChatModalsStore()
-const secondaryViewStore = useSecondaryViewStore()
 const filesStore = useFilesStore()
 const groupMetaStore = useGroupMetaStore()
 
 // 从 appStore 解构响应式会话与用户信息
 const { currentSession, currentSessionId, userProfile } = storeToRefs(appStore)
 // 从 appStore 解构方法（非响应式）
-const { sendMessage, setNav } = appStore
-// 当前激活的应用（二级视图）
-const { activeApp } = storeToRefs(secondaryViewStore)
+const { sendMessage } = appStore
 // 打开语音通话、红包弹窗
-const { openVoiceCall, openRedPacket } = chatModalsStore
+const { openRedPacket } = chatModalsStore
 
 // 文本输入框绑定值
 const inputValue = ref('')
 // 表情面板是否展开
 const showEmoji = ref(false)
-// 应用快捷面板是否展开
-const showApps = ref(false)
-// 是否正在录音
-const isRecording = ref(false)
 
 // 隐藏的图片选择 input 引用
 const imageInputRef = ref<HTMLInputElement | null>(null)
@@ -93,20 +78,6 @@ const fileInputRef = ref<HTMLInputElement | null>(null)
 
 // 表情列表副本（供模板 v-for）
 const emojis = [...CHAT_EMOJIS]
-
-// 录音开始时间戳（毫秒）
-let recordStart = 0
-// MediaRecorder 实例
-let mediaRecorder: MediaRecorder | null = null
-// 麦克风 MediaStream
-let recordStream: MediaStream | null = null
-// 录音数据块集合
-let voiceChunks: BlobPart[] = []
-
-// 组件卸载时释放麦克风轨道，避免占用设备
-onUnmounted(() => {
-  recordStream?.getTracks().forEach(t => t.stop())
-})
 
 /**
  * 发送前校验：当前会话是否已屏蔽对方。
@@ -128,54 +99,56 @@ function toolFile() {
 
 /**
  * 屏幕截图并作为图片消息发送。
- * 使用 getDisplayMedia 捕获屏幕，绘制到 canvas 后转 DataURL。
+ * Electron 环境优先使用 desktopCapturer，浏览器环境使用 getDisplayMedia。
  */
 async function toolScreenshot() {
+  console.log('[截图] 按钮点击')
   if (!ensureCanSend()) return
-  if (!navigator.mediaDevices?.getDisplayMedia) {
-    message.warning('当前环境不支持屏幕截图')
-    return
-  }
+
   try {
-    // 请求屏幕共享流（仅视频）
-    const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
-    const video = document.createElement('video')
-    video.srcObject = stream
-    await video.play()
-    const canvas = document.createElement('canvas')
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    canvas.getContext('2d')?.drawImage(video, 0, 0)
-    // 停止所有轨道，关闭选区 UI
-    stream.getTracks().forEach(t => t.stop())
-    const dataUrl = canvas.toDataURL('image/png')
-    // DataURL 约为原二进制 1.37 倍，用 1.4 倍阈值估算
+    let dataUrl: string
+
+    // Electron 环境：使用 captureScreen API
+    if (window.electronAPI?.captureScreen) {
+      console.log('[截图] 使用 Electron captureScreen')
+      const result = await window.electronAPI.captureScreen()
+      if (!result) {
+        message.warning('截图失败，请重试')
+        return
+      }
+      dataUrl = result.dataURL
+      console.log('[截图] Electron 截图成功, length:', dataUrl.length)
+    } else if (navigator.mediaDevices?.getDisplayMedia) {
+      // 浏览器环境：使用 getDisplayMedia
+      console.log('[截图] 使用浏览器 getDisplayMedia')
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
+      const video = document.createElement('video')
+      video.srcObject = stream
+      await video.play()
+      const canvas = document.createElement('canvas')
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+      canvas.getContext('2d')?.drawImage(video, 0, 0)
+      stream.getTracks().forEach(t => t.stop())
+      dataUrl = canvas.toDataURL('image/png')
+      console.log('[截图] 浏览器截图成功, length:', dataUrl.length)
+    } else {
+      message.warning('当前环境不支持屏幕截图')
+      return
+    }
+
     if (dataUrl.length > MAX_IMAGE_BYTES * 1.4) {
       message.warning('截图过大，请缩小选区后重试')
       return
     }
-    try {
-      await sendMessage(dataUrl, { type: 'image', isImage: true })
-      message.success('截图已发送')
-      emit('scrollToBottom')
-    } catch {
-      message.error('截图发送失败')
-    }
-  } catch {
-    // 用户取消选区或权限拒绝
+
+    await sendMessage(dataUrl, { type: 'image', isImage: true })
+    message.success('截图已发送')
+    emit('scrollToBottom')
+  } catch (e) {
+    console.error('[截图] 失败:', e)
     message.info('已取消截图')
   }
-}
-
-/**
- * 从聊天工具栏打开指定应用。
- * 设置 activeApp 并切换到 apps 导航。
- */
-function openChatApp(app: AppItem) {
-  activeApp.value = app
-  setNav('apps')
-  showApps.value = false
-  message.success(`已打开「${app.name}」`)
 }
 
 /** 真实会话暂不支持的功能提示 */
@@ -187,11 +160,14 @@ function warnUnsupportedOnRealSession(feature: string): boolean {
   return false
 }
 
-/** 打开发红包弹窗；「我的手机」会话不支持红包 */
+/** 暂不支持的功能提示 */
+function showUnsupported(feature: string) {
+  message.info(`${feature}功能正在开发中，敬请期待`)
+}
+
 function toolRedPacket() {
   if (props.isMyPhone) return
-  if (warnUnsupportedOnRealSession('红包')) return
-  openRedPacket()
+  showUnsupported('红包')
 }
 
 /** 图片 input change：取首个文件后交给 handleFileSend */
@@ -218,6 +194,12 @@ function onFilePicked(e: Event) {
  */
 async function handleFileSend(file: File) {
   if (!ensureCanSend()) return
+
+  // 校验文件大小，防止读取失败的空文件（0 字节）发送到后端报错
+  if (file.size === 0) {
+    message.error('无法读取文件内容，请尝试重新选择或直接拖拽文件')
+    return
+  }
 
   if (file.type.startsWith('image/')) {
     if (file.size > MAX_IMAGE_BYTES) {
@@ -285,74 +267,10 @@ function onPaste(e: ClipboardEvent) {
 }
 
 /**
- * 切换语音录制状态。
- * 首次点击开始录音；再次点击结束并发送 voice 类型消息。
- * 无麦克风权限时降级为发送占位语音（3 秒）。
+ * 语音录制（暂不支持，提示用户）
  */
-async function toggleVoiceRecord() {
-  if (!isRecording.value) {
-    if (!ensureCanSend()) return
-    if (warnUnsupportedOnRealSession('语音消息')) return
-    try {
-      voiceChunks = []
-      recordStream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      mediaRecorder = new MediaRecorder(recordStream)
-      mediaRecorder.ondataavailable = e => {
-        if (e.data.size) voiceChunks.push(e.data)
-      }
-      recordStart = Date.now()
-      mediaRecorder.start()
-      isRecording.value = true
-      message.info('正在录音，再次点击结束')
-    } catch {
-      if (warnUnsupportedOnRealSession('语音消息')) return
-      // 权限失败：发送无 URL 的占位语音
-      try {
-        await sendMessage('', { type: 'voice', voiceDuration: 3 })
-        message.success('语音消息已发送')
-        emit('scrollToBottom')
-      } catch {
-        message.error('语音消息发送失败')
-      }
-    }
-    return
-  }
-
-  // 结束录音：计算时长并组装 Blob URL
-  const duration = Math.max(1, Math.round((Date.now() - recordStart) / 1000))
-  const recorder = mediaRecorder
-  if (recorder && recorder.state !== 'inactive') {
-    await new Promise<void>(resolve => {
-      recorder.onstop = async () => {
-        const blob = new Blob(voiceChunks, { type: 'audio/webm' })
-        const voiceUrl = URL.createObjectURL(blob)
-        try {
-          await sendMessage('', { type: 'voice', voiceDuration: duration, voiceUrl })
-          message.success('语音消息已发送')
-          emit('scrollToBottom')
-        } catch {
-          message.error('语音消息发送失败')
-        }
-        resolve()
-      }
-      recorder.stop()
-    })
-  } else {
-    try {
-      await sendMessage('', { type: 'voice', voiceDuration: duration })
-      message.success('语音消息已发送')
-      emit('scrollToBottom')
-    } catch {
-      message.error('语音消息发送失败')
-    }
-  }
-
-  // 清理录音资源
-  recordStream?.getTracks().forEach(t => t.stop())
-  mediaRecorder = null
-  recordStream = null
-  voiceChunks = []
-  isRecording.value = false
+function toggleVoiceRecord() {
+  showUnsupported('语音')
 }
 
 /** 选中表情追加到输入框并关闭表情面板 */
@@ -467,25 +385,6 @@ defineExpose({
               </button>
             </div>
           </n-popover>
-          <n-popover v-model:show="showApps" trigger="click" placement="top-start">
-            <template #trigger>
-              <button type="button" class="tool-btn" title="应用">
-                <n-icon :component="GridOutline" :size="20" />
-              </button>
-            </template>
-            <div class="apps-quick-grid">
-              <button
-                v-for="app in chatApps"
-                :key="app.id"
-                type="button"
-                class="apps-quick-item"
-                @click="openChatApp(app)"
-              >
-                <span class="apps-quick-icon" :style="{ background: app.color }">{{ app.icon }}</span>
-                <span>{{ app.name }}</span>
-              </button>
-            </div>
-          </n-popover>
           <button type="button" class="tool-btn" title="发送文件" @click="toolFile">
             <n-icon :component="FolderOutline" :size="20" />
           </button>
@@ -501,19 +400,13 @@ defineExpose({
           >
             <n-icon :component="GiftOutline" :size="20" />
           </button>
-          <button
-            type="button"
-            class="tool-btn"
-            :class="{ 'tool-btn--recording': isRecording }"
-            title="语音"
-            @click="toggleVoiceRecord"
-          >
+          <button type="button" class="tool-btn" title="语音" @click="toggleVoiceRecord">
             <n-icon :component="MicOutline" :size="20" />
           </button>
         </div>
 
         <div class="toolbar-right">
-          <button type="button" class="tool-btn" title="语音通话" @click="openVoiceCall">
+          <button type="button" class="tool-btn" title="语音通话" @click="showUnsupported('语音通话')">
             <n-icon :component="VolumeHighOutline" :size="20" />
           </button>
           <button

@@ -5,7 +5,7 @@
  * 含月历组件与选中日期的日程 CRUD（新建、编辑、删除）。
  * </p>
  */
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { NCalendar, NInput, NButton, useMessage, useDialog } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import { useCalendarStore } from '../stores/calendar'
@@ -14,8 +14,8 @@ import type { CalendarEvent } from '../stores/calendar'
 const message = useMessage()
 const dialog = useDialog()
 const calendarStore = useCalendarStore()
-const { selectedDate, eventsOnSelected, selectedDateKey } = storeToRefs(calendarStore)
-const { setSelectedDate, hasEventOn, addEvent, updateEvent, removeEvent } = calendarStore
+const { selectedDate, eventsOnSelected, selectedDateKey, initialized } = storeToRefs(calendarStore)
+const { setSelectedDate, hasEventOn, addEvent, updateEvent, removeEvent, fetchEvents } = calendarStore
 
 // 是否显示新建/编辑表单
 const showForm = ref(false)
@@ -30,6 +30,13 @@ const selectedLabel = computed(() => {
   const d = new Date(selectedDate.value)
   const week = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()]
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 周${week}`
+})
+
+/** 组件挂载时加载日历数据 */
+onMounted(() => {
+  if (!initialized.value) {
+    void fetchEvents()
+  }
 })
 
 /** 月历选中日期变化 */
@@ -62,7 +69,7 @@ function openEditForm(event: CalendarEvent) {
 }
 
 /** 保存新建或更新日程 */
-function saveEvent() {
+async function saveEvent() {
   const title = formTitle.value.trim()
   if (!title) {
     message.warning('请输入日程标题')
@@ -75,11 +82,15 @@ function saveEvent() {
     color: 'var(--lx-accent)'
   }
   if (editingId.value) {
-    updateEvent(editingId.value, payload)
-    message.success('日程已更新')
+    const ok = await updateEvent(editingId.value, payload)
+    if (ok) {
+      message.success('日程已更新')
+    }
   } else {
-    addEvent(payload)
-    message.success('日程已添加')
+    const id = await addEvent(payload)
+    if (id) {
+      message.success('日程已添加')
+    }
   }
   resetForm()
 }
@@ -91,10 +102,12 @@ function confirmDelete(event: CalendarEvent) {
     content: `确定删除「${event.title}」？`,
     positiveText: '删除',
     negativeText: '取消',
-    onPositiveClick: () => {
-      removeEvent(event.id)
+    onPositiveClick: async () => {
+      const ok = await removeEvent(event.id)
+      if (ok) {
+        message.success('日程已删除')
+      }
       if (editingId.value === event.id) resetForm()
-      message.success('日程已删除')
     }
   })
 }
@@ -169,15 +182,19 @@ function confirmDelete(event: CalendarEvent) {
 }
 
 .calendar-card {
-  flex-shrink: 0;
+  flex: 1;
+  min-height: 280px;
   background: var(--lx-bg-card);
   border: 1px solid var(--lx-border-light);
   border-radius: 12px;
   overflow: hidden;
   box-shadow: var(--lx-shadow-soft);
+  display: flex;
+  flex-direction: column;
 }
 
 .lx-calendar {
+  flex: 1;
   --n-border-color: transparent;
 }
 

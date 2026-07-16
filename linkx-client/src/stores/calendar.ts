@@ -1,11 +1,12 @@
 /**
  * 日历 Store
  * 管理选中日期、日程事件及按日期筛选与 CRUD
- * 数据本地管理（可通过后端 API 扩展）
+ * 数据对接后端 /calendar API
  */
 
 // 从 Pinia 导入 defineStore
 import { defineStore } from 'pinia'
+import * as calendarApi from '../api/calendar'
 
 /** 日历事件项 */
 export interface CalendarEvent {
@@ -43,7 +44,9 @@ export const useCalendarStore = defineStore('calendar', {
   // 初始状态
   state: () => ({
     selectedDate: startOfDay(Date.now()),   // 日历当前选中日期（0 点时间戳）
-    events: [] as CalendarEvent[]           // 日程事件列表（本地管理）
+    events: [] as CalendarEvent[],           // 日程事件列表（从后端加载）
+    loading: false,                         // 加载状态
+    initialized: false                      // 是否已从后端加载
   }),
 
   getters: {
@@ -77,6 +80,30 @@ export const useCalendarStore = defineStore('calendar', {
 
   actions: {
     /**
+     * 从后端加载所有日历事件
+     */
+    async fetchEvents() {
+      this.loading = true
+      try {
+        const res = await calendarApi.listEvents()
+        if (res.code === 200 && res.data) {
+          this.events = res.data.map(e => ({
+            id: String(e.id),
+            title: e.title,
+            date: e.date,
+            time: e.time,
+            color: e.color
+          }))
+          this.initialized = true
+        }
+      } catch (e) {
+        console.error('加载日历事件失败:', e)
+      } finally {
+        this.loading = false
+      }
+    },
+
+    /**
      * 设置选中日期
      * @param ts 任意时刻时间戳，会归一化到当日 0 点
      */
@@ -101,43 +128,87 @@ export const useCalendarStore = defineStore('calendar', {
     },
 
     /**
-     * 新增事件
+     * 新增事件（对接后端）
      * @param payload 事件字段（不含 id）
      * @returns 新事件 id
      */
-    addEvent(payload: Omit<CalendarEvent, 'id'>) {
-      const id = `evt-${Date.now()}`
-      this.events.push({ ...payload, id })
-      return id
+    async addEvent(payload: Omit<CalendarEvent, 'id'>) {
+      try {
+        const res = await calendarApi.createEvent({
+          title: payload.title,
+          date: payload.date,
+          time: payload.time,
+          color: payload.color
+        })
+        if (res.code === 200 && res.data) {
+          const event: CalendarEvent = {
+            id: String(res.data.id),
+            title: res.data.title,
+            date: res.data.date,
+            time: res.data.time,
+            color: res.data.color
+          }
+          this.events.push(event)
+          return event.id
+        }
+      } catch (e) {
+        console.error('创建日程失败:', e)
+      }
+      return null
     },
 
     /**
-     * 部分更新事件
+     * 部分更新事件（对接后端）
      * @param id 事件 id
      * @param patch 要合并的字段
      * @returns 是否找到并更新
      */
-    updateEvent(id: string, patch: Partial<Omit<CalendarEvent, 'id'>>) {
-      const event = this.events.find(e => e.id === id)
-      if (!event) return false
-      Object.assign(event, patch)
-      return true
+    async updateEvent(id: string, patch: Partial<Omit<CalendarEvent, 'id'>>) {
+      try {
+        const res = await calendarApi.updateEvent(Number(id), {
+          title: patch.title!,
+          date: patch.date!,
+          time: patch.time,
+          color: patch.color
+        })
+        if (res.code === 200 && res.data) {
+          const event = this.events.find(e => e.id === id)
+          if (event) {
+            Object.assign(event, {
+              title: res.data.title,
+              date: res.data.date,
+              time: res.data.time,
+              color: res.data.color
+            })
+          }
+          return true
+        }
+      } catch (e) {
+        console.error('更新日程失败:', e)
+      }
+      return false
     },
 
     /**
-     * 删除事件
+     * 删除事件（对接后端）
      * @param id 事件 id
      * @returns 是否删除成功
      */
-    removeEvent(id: string) {
-      const idx = this.events.findIndex(e => e.id === id)
-      if (idx === -1) return false
-      this.events.splice(idx, 1)
-      return true
+    async removeEvent(id: string) {
+      try {
+        const res = await calendarApi.deleteEvent(Number(id))
+        if (res.code === 200) {
+          this.events = this.events.filter(e => e.id !== id)
+          return true
+        }
+      } catch (e) {
+        console.error('删除日程失败:', e)
+      }
+      return false
     }
   },
 
-  // 仅持久化 events，选中日期每次打开默认为今天
+  // 持久化事件列表
   persist: {
     key: 'linkx-calendar',
     paths: ['events']

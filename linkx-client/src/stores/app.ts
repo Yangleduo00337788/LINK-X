@@ -20,6 +20,7 @@ import {
   messagePreviewFromItem
 } from '../utils/chatMapper'
 import { dataUrlToFile } from '../utils/fileConvert'
+import { generateUuidV4 } from '../utils/parseJson'
 import type { MessageItem } from '../types/chat'
 // 通讯录 Store（加群/加好友后同步联系人）
 import { useContactsStore } from './contacts'
@@ -105,6 +106,16 @@ function pickGroupColor(seed: string): string {
   return GROUP_COLORS[hash % GROUP_COLORS.length]
 }
 
+/**
+ * 规范化用户 ID：仅接受数字（含字符串形式的雪花 ID），其它情况返回空串，
+ * 避免把异常值（如含特殊字符的字段）拼到 WebSocket/URL 中。
+ */
+function sanitizeUserId(raw: unknown): string {
+  if (raw == null) return ''
+  const s = String(raw).trim()
+  return /^\d{1,32}$/.test(s) ? s : ''
+}
+
 type ProfileSource = Partial<UserProfileData & UserInfo>
 
 /** 将后端用户资料写入 store 的 userProfile 结构 */
@@ -125,7 +136,7 @@ function mapApiProfile(data: ProfileSource) {
     username: data.username || '',
     signature: data.signature?.trim() ? data.signature : '编辑个性签名',
     avatar: data.avatar || '',
-    userId: data.id != null ? String(data.id) : '',
+    userId: sanitizeUserId(data.id),
     gender: gender as '男' | '女',
     birthday,
     country: data.country || '中国',
@@ -674,7 +685,7 @@ export const useAppStore = defineStore('app', {
       if (type === 'redPacket' && !options.redPacketAmount) return
       if (type === 'file' && !options.rawFile && !options.fileUrl) return
 
-      const clientMsgId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+      const clientMsgId = generateUuidV4()
       const time = nowTime()
       const isImage = options.isImage ?? type === 'image'
 
@@ -722,15 +733,16 @@ export const useAppStore = defineStore('app', {
 
         if (type === 'image' || type === 'file') {
           let uploadFile: File | null = options.rawFile ?? null
+          console.log('[发送消息] 准备上传文件:', { type, hasRawFile: !!uploadFile, rawFileSize: uploadFile?.size, rawFileName: uploadFile?.name, contentLength: content.length, contentPrefix: content.substring(0, 50) })
           if (!uploadFile && type === 'image' && content.startsWith('data:')) {
             uploadFile = dataUrlToFile(content, 'image.png')
+            console.log('[发送消息] 从 data URL 创建文件')
           }
-          if (!uploadFile && type === 'file' && fileUrl?.startsWith('blob:')) {
-            const blob = await fetch(fileUrl).then(r => r.blob())
-            uploadFile = new File([blob], fileName || 'file', { type: blob.type })
-          }
+          // 注意：不再从 blob URL 重建 File，直接使用 rawFile，避免 blob 失效导致 size=0
           if (uploadFile) {
+            console.log('[发送消息] 上传文件:', uploadFile.name, uploadFile.size, uploadFile.type, 'lastModified:', uploadFile.lastModified)
             const uploadRes = await chatApi.uploadChatFile(id, uploadFile)
+            console.log('[发送消息] 上传结果:', uploadRes)
             if (uploadRes.code !== 200 || !uploadRes.data) {
               throw new Error(uploadRes.message || '文件上传失败')
             }
@@ -1065,22 +1077,33 @@ export const useAppStore = defineStore('app', {
     }
   },
 
-  // 持久化关键状态；序列化前经 sanitize 清理
+  // 持久化关键状态；序列化前经 sanitize 清理。
+  // 注意：messagesBySession 单独使用 sessionStorage 而非 localStorage，
+  // 避免聊天记录膨胀导致 localStorage 配额溢出（一般浏览器仅 5MB）。
   persist: {
-    key: 'linkx-app',
-    paths: [
-      'sessions',
-      'messagesBySession',
-      'currentSessionId',
-      'theme',
-      'userProfile',
-      'savedLogin',
-      'navKey',
-      'isOffline'
-    ],
-    serializer: {
-      serialize: value => JSON.stringify(sanitizeAppPersistState(value as Record<string, unknown>)),
-      deserialize: value => JSON.parse(value)
-    }
+    strategies: [
+      {
+        key: 'linkx-app',
+        storage: localStorage,
+        paths: [
+          'sessions',
+          'currentSessionId',
+          'theme',
+          'userProfile',
+          'savedLogin',
+          'navKey',
+          'isOffline'
+        ],
+        serializer: {
+          serialize: value => JSON.stringify(sanitizeAppPersistState(value as Record<string, unknown>)),
+          deserialize: value => JSON.parse(value)
+        }
+      },
+      {
+        key: 'linkx-app-msgs',
+        storage: sessionStorage,
+        paths: ['messagesBySession']
+      }
+    ]
   }
 })

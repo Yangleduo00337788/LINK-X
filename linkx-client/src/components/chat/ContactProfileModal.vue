@@ -63,7 +63,7 @@ watch(
         remoteProfile.value = res.data
       }
     } catch {
-      // 保留联系人 Mock 数据作为回退
+      // API 失败时回退到本地联系人数据
     } finally {
       loadingRemoteProfile.value = false
     }

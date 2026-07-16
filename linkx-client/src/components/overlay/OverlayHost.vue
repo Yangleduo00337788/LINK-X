@@ -27,7 +27,6 @@ const ProfilePage = defineAsyncComponent(() => import('./pages/ProfilePage.vue')
 const AddFriendPage = defineAsyncComponent(() => import('./pages/AddFriendPage.vue'))
 const CreateGroupPage = defineAsyncComponent(() => import('./pages/CreateGroupPage.vue'))
 const CreateChannelPage = defineAsyncComponent(() => import('./pages/CreateChannelPage.vue'))
-const WeatherPage = defineAsyncComponent(() => import('./pages/WeatherPage.vue'))
 const AppRunnerPage = defineAsyncComponent(() => import('./pages/AppRunnerPage.vue'))
 const FilePreviewPage = defineAsyncComponent(() => import('./pages/FilePreviewPage.vue'))
 const ChatHistoryPage = defineAsyncComponent(() => import('./pages/ChatHistoryPage.vue'))
@@ -39,7 +38,6 @@ const titleMap: Record<OverlayPage, string> = {
   'add-friend': '添加好友',
   'create-group': '发起群聊',
   'create-channel': '创建频道',
-  weather: '天气',
   'app-runner': '应用',
   'file-preview': '文件预览',
   'chat-history': '聊天记录'
@@ -78,7 +76,6 @@ const pageTitle = computed(() => {
       <AddFriendPage v-else-if="currentPage === 'add-friend'" />
       <CreateGroupPage v-else-if="currentPage === 'create-group'" />
       <CreateChannelPage v-else-if="currentPage === 'create-channel'" />
-      <WeatherPage v-else-if="currentPage === 'weather'" />
       <AppRunnerPage v-else-if="currentPage === 'app-runner'" />
       <FilePreviewPage v-else-if="currentPage === 'file-preview'" />
       <ChatHistoryPage v-else-if="currentPage === 'chat-history'" />

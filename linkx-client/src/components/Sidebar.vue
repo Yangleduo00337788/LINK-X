@@ -8,13 +8,12 @@
  */
 // Vue 渲染函数、nextTick 与组件类型
 import { h, nextTick, ref, type Component } from 'vue'
-// Ionicons5 导航与菜单图标
+import { NIcon, NDropdown, useMessage, type DropdownOption } from 'naive-ui'
 import {
   ChatbubbleEllipsesOutline,
   PersonOutline,
   ApertureOutline,
   MenuOutline,
-  GridOutline,
   BookmarkOutline,
   FolderOutline,
   CalendarOutline,
@@ -26,21 +25,16 @@ import {
   SettingsOutline,
   LogOutOutline
 } from '@vicons/ionicons5'
-// Naive UI 图标、下拉菜单与消息提示
-import { NIcon, NDropdown, useMessage, type DropdownOption } from 'naive-ui'
-// 头像组件
 import Avatar from './Avatar.vue'
-// Pinia 响应式解构
 import { storeToRefs } from 'pinia'
-// 应用全局状态 Store
 import { useAppStore } from '../stores/app'
-// 聊天弹窗状态 Store
 import { useChatModalsStore } from '../stores/chatModals'
-// 设置状态 Store
 import { useSettingsStore } from '../stores/settings'
-// 全屏 Overlay 状态 Store
 import { useOverlayStore } from '../stores/overlay'
-// 导航键类型
+import { useFavoritesStore } from '../stores/favorites'
+import { useContactsStore } from '../stores/contacts'
+import { useMomentsStore } from '../stores/moments'
+import { useCalendarStore } from '../stores/calendar'
 import type { NavKey } from '../types'
 
 // 获取各 Store 实例
@@ -48,6 +42,10 @@ const appStore = useAppStore()
 const chatModalsStore = useChatModalsStore()
 const settingsStore = useSettingsStore()
 const overlayStore = useOverlayStore()
+const favoritesStore = useFavoritesStore()
+const contactsStore = useContactsStore()
+const momentsStore = useMomentsStore()
+const calendarStore = useCalendarStore()
 // 解构导航键、用户资料、已保存登录信息
 const { navKey, userProfile, savedLogin } = storeToRefs(appStore)
 // 解构导航切换、登出、锁定方法
@@ -93,7 +91,6 @@ const mainNav: { key: NavKey; icon: typeof ChatbubbleEllipsesOutline; label: str
   { key: 'favorites', icon: BookmarkOutline, label: '收藏' },
   { key: 'files', icon: FolderOutline, label: '文件' },
   { key: 'calendar', icon: CalendarOutline, label: '日历' },
-  { key: 'apps', icon: GridOutline, label: '应用' },
   { key: 'moments', icon: ApertureOutline, label: '友链' }
 ]
 
@@ -116,6 +113,34 @@ function handleClick(key: NavKey | 'menu') {
     return
   }
   setNav(key) // 其他导航直接切换
+  // 切换导航后静默刷新对应模块数据
+  refreshNavData(key)
+}
+
+// 根据导航类型静默刷新对应数据
+function refreshNavData(key: NavKey) {
+  switch (key) {
+    case 'chat':
+      // 刷新聊天会话列表
+      void appStore.loadChatSessions()
+      break
+    case 'contacts':
+      // 刷新联系人/好友列表
+      void contactsStore.fetchFriends()
+      break
+    case 'favorites':
+      // 刷新收藏列表
+      void favoritesStore.fetchFavorites()
+      break
+    case 'calendar':
+      // 刷新日历事件
+      void calendarStore.fetchEvents()
+      break
+    case 'moments':
+      // 刷新朋友圈/友链
+      void momentsStore.fetchMoments()
+      break
+  }
 }
 
 // 文件导航点击处理

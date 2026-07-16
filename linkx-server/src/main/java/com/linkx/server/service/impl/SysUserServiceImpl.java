@@ -10,11 +10,7 @@ import com.linkx.server.controller.vo.TokenVO;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.SysUserMapper;
-import com.linkx.server.service.FileStorageService;
-import com.linkx.server.service.LoginAuditService;
-import com.linkx.server.service.RateLimitService;
-import com.linkx.server.service.SysUserService;
-import com.linkx.server.service.TokenService;
+import com.linkx.server.service.*;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +29,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     private final LoginAuditService loginAuditService;
     private final RateLimitService rateLimitService;
     private final FileStorageService fileStorageService;
+    private final CaptchaService captchaService;
 
     @Override
     public void register(RegisterDTO registerDTO, HttpServletRequest request) {
@@ -206,6 +203,26 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         String hashPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt(12));
         user.setPassword(hashPassword);
         updateById(user);
+    }
+
+    @Override
+    public void resetPassword(String username, String captchaId, String captchaCode, String newPassword) {
+        // 验证验证码
+        captchaService.validate(captchaId, captchaCode);
+
+        // 查找用户
+        SysUser user = queryChain()
+                .where(SysUser::getUsername).eq(username)
+                .one();
+        if (user == null) {
+            throw new CustomException(404, "用户不存在");
+        }
+
+        // 新密码加密（cost=12）并保存
+        String hashPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt(12));
+        user.setPassword(hashPassword);
+        updateById(user);
+        log.info("用户 {} 通过验证码重置了密码", username);
     }
 
     /**

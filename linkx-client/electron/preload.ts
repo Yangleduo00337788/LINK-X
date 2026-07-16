@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, desktopCapturer } from 'electron'
 
 type WinAction = 'minimize' | 'maximize' | 'close'
 
@@ -21,11 +21,32 @@ function windowAction(action: WinAction) {
   })
 }
 
+// 屏幕截图 API
+async function captureScreen(): Promise<{ dataURL: string; width: number; height: number } | null> {
+  try {
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: 1920, height: 1080 }
+    })
+    if (sources.length === 0) return null
+    const source = sources[0]
+    return {
+      dataURL: source.thumbnail.toDataURL(),
+      width: source.thumbnail.getSize().width,
+      height: source.thumbnail.getSize().height
+    }
+  } catch (e) {
+    console.error('截图失败:', e)
+    return null
+  }
+}
+
 const api = {
   minimize: () => windowAction('minimize'),
   maximize: () => windowAction('maximize'),
   close: () => windowAction('close'),
   isElectron: true as const,
+  captureScreen,
   secureStorage: {
     isAvailable: () => ipcRenderer.invoke('secure-storage:is-available'),
     get: (key: string) => ipcRenderer.invoke('secure-storage:get', key),

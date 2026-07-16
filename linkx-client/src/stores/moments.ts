@@ -71,6 +71,36 @@ export const useMomentsStore = defineStore('moments', {
       }
     },
 
+    /** 从后端加载指定用户的动态 */
+    async fetchUserMoments(userId: string) {
+      try {
+        const res = await momentsApi.getUserMoments(userId)
+        if (res.code === 200 && res.data) {
+          return res.data.map(p => ({
+            id: String(p.id),
+            userId: String(p.userId),
+            user: p.nickname || '用户',
+            avatar: p.avatar || '',
+            content: p.content,
+            images: p.images,
+            time: p.time,
+            likes: p.likes,
+            liked: p.liked,
+            likedBy: p.likedBy,
+            comments: p.comments.map(c => ({
+              id: String(c.id),
+              userId: String(c.userId),
+              user: c.nickname || '用户',
+              content: c.content
+            }))
+          }))
+        }
+      } catch (e) {
+        console.error('加载用户动态失败:', e)
+      }
+      return []
+    },
+
     /** 发布新动态 */
     async addPost(content: string, images?: string[]) {
       const appStore = useAppStore()

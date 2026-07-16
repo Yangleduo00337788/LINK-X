@@ -20,11 +20,13 @@ import com.linkx.server.service.ChatService;
 import com.linkx.server.service.FileStorageService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Date;
@@ -50,6 +52,7 @@ public class ChatServiceImpl implements ChatService {
     private final SysUserMapper sysUserMapper;
     private final SysUserRelationMapper sysUserRelationMapper;
     private final FileStorageService fileStorageService;
+    private final StringRedisTemplate redisTemplate;
 
     @Override
     public List<ConversationVO> listConversations(Long userId) {
@@ -173,6 +176,27 @@ public class ChatServiceImpl implements ChatService {
     @Transactional
     public MessageVO sendMessage(Long userId, SendMessageDTO dto) {
         assertConversationMember(userId, dto.getConversationId());
+
+        // 幂等去重：同一 senderId + clientMsgId 在 10 分钟内只入库一次
+        // 防止网络抖动导致客户端重发产生重复消息
+        if (StringUtils.hasText(dto.getClientMsgId())) {
+            String dedupKey = buildClientMsgDedupKey(userId, dto.getClientMsgId());
+            Boolean firstTime = redisTemplate.opsForValue().setIfAbsent(
+                    dedupKey, "1", Duration.ofMinutes(10));
+            if (!Boolean.TRUE.equals(firstTime)) {
+                // 已存在该 clientMsgId 对应的记录，返回最近一条（按 createTime 倒序）
+                ImMessage existing = messageMapper.selectOneByQuery(
+                        QueryWrapper.create()
+                                .where(ImMessage::getSenderId).eq(userId)
+                                .orderBy(ImMessage::getCreateTime, false)
+                                .limit(1));
+                if (existing != null) {
+                    SysUser sender = sysUserMapper.selectOneById(userId);
+                    return toMessageVO(existing, sender, userId);
+                }
+            }
+        }
+
         ImConversation conversation = conversationMapper.selectOneById(dto.getConversationId());
         if (conversation == null) {
             throw new CustomException(404, "会话不存在");
@@ -204,6 +228,10 @@ public class ChatServiceImpl implements ChatService {
 
         SysUser sender = sysUserMapper.selectOneById(userId);
         return toMessageVO(message, sender, userId);
+    }
+
+    private String buildClientMsgDedupKey(Long userId, String clientMsgId) {
+        return "linkx:msg:dedup:" + userId + ":" + clientMsgId;
     }
 
     @Override

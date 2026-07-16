@@ -57,10 +57,27 @@ const filteredFiles = computed(() => {
 })
 
 // 将文件按月份分组展示
+function formatMonth(dateStr?: string): string {
+  if (!dateStr) return '未知时间'
+  try {
+    // 处理中文格式如 "07/16" 或 "7月16日"
+    if (dateStr.includes('月') || dateStr.includes('/')) {
+      return dateStr.length > 7 ? dateStr.slice(0, 7) : dateStr
+    }
+    const date = new Date(dateStr)
+    if (Number.isNaN(date.getTime())) return dateStr
+    const y = date.getFullYear()
+    const m = String(date.getMonth() + 1).padStart(2, '0')
+    return `${y}年${m}月`
+  } catch {
+    return dateStr
+  }
+}
+
 const fileGroups = computed(() => {
   const map = new Map<string, typeof filteredFiles.value>()
   for (const f of filteredFiles.value) {
-    const month = '2026年7月'
+    const month = formatMonth(f.date)
     if (!map.has(month)) map.set(month, [])
     map.get(month)!.push(f)
   }

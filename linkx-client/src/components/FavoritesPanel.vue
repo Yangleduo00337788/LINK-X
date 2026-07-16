@@ -5,7 +5,7 @@
  * 按类型 Tab 与关键词过滤收藏项，支持打开笔记编辑器与删除收藏。
  * </p>
  */
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { NIcon, useMessage } from 'naive-ui'
 import { DocumentTextOutline, ImageOutline, LinkOutline, FolderOutline, TrashOutline } from '@vicons/ionicons5'
 import PanelSearchBar from './PanelSearchBar.vue'
@@ -19,13 +19,20 @@ const favoritesStore = useFavoritesStore()
 const secondaryViewStore = useSecondaryViewStore()
 const router = useRouter()
 const message = useMessage()
-const { remove } = favoritesStore
+const { remove, fetchFavorites } = favoritesStore
 const { items: favList } = storeToRefs(favoritesStore)
 const { activeFavorite } = storeToRefs(secondaryViewStore)
 // 搜索关键词
 const search = ref('')
 // 当前类型 Tab：all / link / image / file / note
 const activeTab = ref('all')
+
+// 组件挂载时加载收藏列表
+onMounted(() => {
+  if (!favoritesStore.initialized) {
+    void fetchFavorites()
+  }
+})
 
 // 搜索栏「添加」下拉选项
 const addOptions = [

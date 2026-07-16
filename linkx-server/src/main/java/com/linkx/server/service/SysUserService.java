@@ -39,4 +39,14 @@ public interface SysUserService extends IService<SysUser> {
      * @param newPassword 新密码
      */
     void changePassword(Long userId, String oldPassword, String newPassword);
+
+    /**
+     * 重置密码（通过验证码）
+     *
+     * @param username    用户名
+     * @param captchaId    验证码ID
+     * @param captchaCode 验证码
+     * @param newPassword 新密码
+     */
+    void resetPassword(String username, String captchaId, String captchaCode, String newPassword);
 }

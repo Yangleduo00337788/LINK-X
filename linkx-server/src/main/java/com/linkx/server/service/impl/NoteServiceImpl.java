@@ -59,6 +59,7 @@ public class NoteServiceImpl implements NoteService {
                 .userId(userId)
                 .title(StringUtils.hasText(dto.getTitle()) ? dto.getTitle() : "无标题笔记")
                 .content(dto.getContent())
+                .type(normalizeType(dto.getType()))
                 .build();
         noteMapper.insert(note);
         return toVO(note);
@@ -79,6 +80,9 @@ public class NoteServiceImpl implements NoteService {
             note.setTitle(dto.getTitle());
         }
         note.setContent(dto.getContent());
+        if (StringUtils.hasText(dto.getType())) {
+            note.setType(normalizeType(dto.getType()));
+        }
         noteMapper.update(note);
         return toVO(note);
     }
@@ -101,9 +105,21 @@ public class NoteServiceImpl implements NoteService {
                 .id(note.getId())
                 .title(note.getTitle())
                 .content(note.getContent())
+                .type(note.getType() != null ? note.getType() : "note")
                 .createTime(formatTime(note.getCreateTime()))
                 .updateTime(formatTime(note.getUpdateTime()))
                 .build();
+    }
+
+    private String normalizeType(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return "note";
+        }
+        String t = raw.trim().toLowerCase();
+        return switch (t) {
+            case "note", "image", "link", "file" -> t;
+            default -> "note";
+        };
     }
 
     private String formatTime(Date date) {

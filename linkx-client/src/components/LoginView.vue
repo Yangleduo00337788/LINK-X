@@ -6,6 +6,7 @@ import WindowControls from './WindowControls.vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
 import * as authApi from '../api/auth'
+import { resetPassword } from '../api/account'
 import { validateUsername, validatePassword, validateNickname } from '../utils/validation'
 
 const message = useMessage()
@@ -34,10 +35,16 @@ const regCaptchaImage = ref('')
 
 const showForgot = ref(false)
 const forgotUser = ref('')
+const forgotCaptchaId = ref('')
+const forgotCaptchaImage = ref('')
+const forgotCaptchaCode = ref('')
+const forgotNewPassword = ref('')
+const forgotConfirmPassword = ref('')
+const forgotLoading = ref(false)
 
 const compact = computed(() => isElectron)
 
-async function loadCaptcha(target: 'login' | 'register' = 'login') {
+async function loadCaptcha(target: 'login' | 'register' | 'forgot' = 'login') {
   try {
     const res = await authApi.fetchCaptcha()
     if (res.code === 200 && res.data) {
@@ -45,10 +52,14 @@ async function loadCaptcha(target: 'login' | 'register' = 'login') {
         captchaId.value = res.data.captchaId
         captchaImage.value = res.data.imageBase64
         captchaCode.value = ''
-      } else {
+      } else if (target === 'register') {
         regCaptchaId.value = res.data.captchaId
         regCaptchaImage.value = res.data.imageBase64
         regCaptchaCode.value = ''
+      } else {
+        forgotCaptchaId.value = res.data.captchaId
+        forgotCaptchaImage.value = res.data.imageBase64
+        forgotCaptchaCode.value = ''
       }
     }
   } catch {
@@ -164,13 +175,64 @@ async function handleRegister() {
   }
 }
 
-function handleForgot() {
-  if (!forgotUser.value.trim()) {
+async function openForgot() {
+  showForgot.value = true
+  forgotUser.value = ''
+  forgotCaptchaCode.value = ''
+  forgotNewPassword.value = ''
+  forgotConfirmPassword.value = ''
+  await loadCaptcha('forgot')
+}
+
+async function handleForgot() {
+  const user = forgotUser.value.trim()
+  if (!user) {
     message.warning('请输入 LinkX ID')
     return
   }
-  message.info('找回密码功能即将上线')
-  showForgot.value = false
+  const captcha = forgotCaptchaCode.value.trim()
+  if (!captcha) {
+    message.warning('请输入验证码')
+    return
+  }
+  const newPass = forgotNewPassword.value
+  const confirmPass = forgotConfirmPassword.value
+
+  const passErr = validatePassword(newPass)
+  if (passErr) {
+    message.warning('新' + passErr)
+    return
+  }
+  if (newPass !== confirmPass) {
+    message.warning('两次输入的密码不一致')
+    return
+  }
+
+  forgotLoading.value = true
+  try {
+    const res = await resetPassword({
+      username: user,
+      captchaId: forgotCaptchaId.value,
+      captchaCode: captcha,
+      newPassword: newPass
+    })
+    if (res.code === 200) {
+      message.success('密码重置成功，请使用新密码登录')
+      showForgot.value = false
+      username.value = user
+      password.value = ''
+      await loadCaptcha('login')
+    } else {
+      message.error(res.message || '重置密码失败')
+      await loadCaptcha('forgot')
+    }
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || '重置密码失败')
+    await loadCaptcha('forgot')
+  } finally {
+    forgotLoading.value = false
+  }
 }
 </script>
 
@@ -299,11 +361,61 @@ function handleForgot() {
       </template>
     </n-modal>
 
-    <n-modal v-model:show="showForgot" preset="dialog" title="找回密码">
-      <n-input v-model:value="forgotUser" placeholder="LinkX ID" />
+    <n-modal v-model:show="showForgot" preset="dialog" title="找回密码" style="max-width: 400px">
+      <div class="forgot-form">
+        <div class="form-item">
+          <label>LinkX ID</label>
+          <n-input
+            v-model:value="forgotUser"
+            placeholder="请输入用户名"
+          />
+        </div>
+        <div class="form-item">
+          <label>验证码</label>
+          <div class="captcha-row">
+            <img
+              v-if="forgotCaptchaImage"
+              :src="forgotCaptchaImage"
+              alt="验证码"
+              class="captcha-img"
+              title="点击刷新"
+              @click="loadCaptcha('forgot')"
+            />
+            <n-input
+              v-model:value="forgotCaptchaCode"
+              placeholder="请输入验证码"
+              maxlength="6"
+            />
+            <n-button quaternary circle @click="loadCaptcha('forgot')">
+              <template #icon>
+                <n-icon :component="RefreshOutline" />
+              </template>
+            </n-button>
+          </div>
+        </div>
+        <div class="form-item">
+          <label>新密码</label>
+          <n-input
+            v-model:value="forgotNewPassword"
+            type="password"
+            show-password-on="click"
+            placeholder="请输入新密码（8位以上）"
+          />
+        </div>
+        <div class="form-item">
+          <label>确认密码</label>
+          <n-input
+            v-model:value="forgotConfirmPassword"
+            type="password"
+            show-password-on="click"
+            placeholder="请再次输入新密码"
+            @keyup.enter="handleForgot"
+          />
+        </div>
+      </div>
       <template #action>
         <n-button @click="showForgot = false">取消</n-button>
-        <n-button type="primary" @click="handleForgot">发送重置链接</n-button>
+        <n-button type="primary" :loading="forgotLoading" @click="handleForgot">重置密码</n-button>
       </template>
     </n-modal>
   </div>
@@ -478,5 +590,38 @@ function handleForgot() {
 .footer-sep {
   color: #ddd;
   user-select: none;
+}
+
+/* 找回密码表单样式 */
+.forgot-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.forgot-form .form-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.forgot-form .form-item label {
+  font-size: 14px;
+  color: #666;
+}
+
+.forgot-form .captcha-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.forgot-form .captcha-img {
+  width: 120px;
+  height: 40px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  flex-shrink: 0;
 }
 </style>

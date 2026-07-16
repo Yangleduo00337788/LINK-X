@@ -18,6 +18,7 @@ public class LinkxProperties {
     private final Security security = new Security();
     private final Minio minio = new Minio();
     private final Im im = new Im();
+    private final Proxy proxy = new Proxy();
 
     @Data
     public static class Im {
@@ -67,5 +68,18 @@ public class LinkxProperties {
     public static class Security {
         /** 生产环境可开启 HTTPS 强制（本地开发保持 false） */
         private boolean requireHttps = false;
+    }
+
+    /**
+     * 反向代理配置：仅当部署在 Nginx/Cloudflare 等反向代理后面时才应启用 trustProxy。
+     * 启用后服务端会信任 X-Forwarded-For/X-Real-IP 头来解析客户端真实 IP；
+     * 未启用时一律使用 socket.getRemoteAddr()，避免攻击者伪造 IP 绕过限流。
+     */
+    @Data
+    public static class Proxy {
+        /** 是否信任反向代理转发的客户端 IP 头（默认 false，安全优先） */
+        private boolean trustProxy = false;
+        /** 仅在 trustProxy=true 时生效：允许信任的反代 IP 段，留空表示信任所有（不推荐） */
+        private List<String> trustedIps = new ArrayList<>();
     }
 }

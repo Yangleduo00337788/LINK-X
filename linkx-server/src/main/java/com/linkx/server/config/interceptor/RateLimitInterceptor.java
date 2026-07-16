@@ -1,7 +1,9 @@
 package com.linkx.server.config.interceptor;
 
+import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.RateLimit;
+import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.service.RateLimitService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,6 +27,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
 
     private final RateLimitService rateLimitService;
     private final JwtUtils jwtUtils;
+    private final LinkxProperties linkxProperties;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
@@ -41,7 +44,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             Long userId = (Long) request.getAttribute("userId");
             identity = userId != null ? String.valueOf(userId) : "anonymous";
         } else {
-            identity = getClientIp(request);
+            identity = ClientIpResolver.resolve(request, linkxProperties);
         }
 
         String key = "biz:" + annotation.scope() + ":" + identity;
@@ -53,19 +56,5 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             throw e;
         }
         return true;
-    }
-
-    private String getClientIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("X-Real-IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
-        }
-        if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0].trim();
-        }
-        return ip != null ? ip : "unknown";
     }
 }

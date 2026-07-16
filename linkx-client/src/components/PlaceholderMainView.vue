@@ -5,8 +5,6 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 // 企鹅水印占位组件
 import PenguinWatermark from './PenguinWatermark.vue'
-// 内嵌 WebView 组件
-import AppWebView from './AppWebView.vue'
 // Pinia 响应式解构工具
 import { storeToRefs } from 'pinia'
 // 次级视图 Store
@@ -27,8 +25,8 @@ const router = useRouter()
 const secondaryViewStore = useSecondaryViewStore()
 // 覆盖层 Store 实例
 const overlayStore = useOverlayStore()
-// 当前选中的应用、收藏、文件
-const { activeApp, activeFavorite, activeFile } = storeToRefs(secondaryViewStore)
+// 当前选中的收藏、文件
+const { activeFavorite, activeFile } = storeToRefs(secondaryViewStore)
 // 打开覆盖层的方法
 const { open: openOverlay } = overlayStore
 
@@ -38,7 +36,6 @@ const emptyHint = computed(() => {
   if (props.nav === 'favorites') return '在左侧点击收藏项查看详情'
   if (props.nav === 'files') return '在左侧选择文件查看详情'
   if (props.nav === 'moments') return '在左侧浏览友链动态，可发布与评论'
-  if (props.nav === 'apps') return '在左侧点击应用打开'
   return ''
 })
 
@@ -91,26 +88,9 @@ function previewActiveFile() {
   <!-- 占位主视图：根据 nav 与选中项展示内容或水印 -->
   <div class="placeholder-main">
     <!-- 功能区域主体 -->
-    <div class="functional-region body" :class="{ 'body--embed': nav === 'apps' && activeApp }">
-      <!-- 应用内嵌 WebView -->
-      <template v-if="nav === 'apps' && activeApp">
-        <AppWebView
-          v-if="activeApp.url"
-          :url="activeApp.url"
-          :title="activeApp.name"
-          :app-kind="activeApp.appKind"
-          :app-id="activeApp.id"
-          class="app-embed"
-        />
-        <div v-else class="detail-card">
-          <div class="big-icon" :style="{ background: activeApp.color }">{{ activeApp.icon }}</div>
-          <h2>{{ activeApp.name }}</h2>
-          <p>{{ activeApp.desc }}</p>
-          <p class="tip">该应用暂未配置内嵌 URL。</p>
-        </div>
-      </template>
+    <div class="functional-region body">
       <!-- 收藏详情卡片 -->
-      <template v-else-if="nav === 'favorites' && activeFavorite">
+      <template v-if="nav === 'favorites' && activeFavorite">
         <div class="detail-card">
           <h2>{{ activeFavorite.title }}</h2>
           <p class="preview">{{ activeFavorite.preview }}</p>
