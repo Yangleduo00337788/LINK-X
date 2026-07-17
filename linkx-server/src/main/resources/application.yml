@@ -51,6 +51,23 @@ linkx:
     secret-key: ${MINIO_SECRET_KEY:minioadmin123}
     bucket-name: ${MINIO_BUCKET_NAME:linkx}
     max-file-size: 10485760  # 10MB
+  mail:
+    # QQ 邮箱 SMTP 服务器
+    host: ${MAIL_HOST:smtp.qq.com}
+    # 587 端口走 STARTTLS；465 端口走 SSL
+    port: ${MAIL_PORT:587}
+    # QQ 邮箱账号（完整的邮箱地址）
+    username: ${MAIL_USERNAME:liming743258831@qq.com}
+    # QQ 邮箱授权码（非登录密码，需要在 QQ 邮箱「设置→账户→SMTP服务」开启后生成）
+    password: ${MAIL_PASSWORD:ogunqofycyvbbejf}
+    # 发件人邮箱与显示名称（建议与 username 一致）
+    from: ${MAIL_FROM:liming743258831@qq.com}
+    from-name: ${MAIL_FROM_NAME:LinkX}
+    # STARTTLS 加密（587 端口必须为 true）
+    start-tls: ${MAIL_START_TLS:true}
+    # SSL 加密开关（仅 465 端口需要设为 true）
+    ssl: ${MAIL_SSL:false}
+    code-expire-minutes: ${MAIL_CODE_EXPIRE_MINUTES:10}
 
 # Actuator 健康检查与指标配置
 management:
