@@ -79,4 +79,9 @@ public class RedPacket implements Serializable {
 
     @Column(onInsertValue = "NOW()")
     private Date createTime;
+
+    /**
+     * 乐观锁版本号（手动管理，用于并发控制）
+     */
+    private Long version;
 }

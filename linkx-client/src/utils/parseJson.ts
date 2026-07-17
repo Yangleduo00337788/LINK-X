@@ -12,29 +12,52 @@ const LONG_ID_FIELDS = new Set([
 
 // Number.MAX_SAFE_INTEGER = 9007199254740991（16 位）
 // 实际雪花 ID 远超此值，但为防止某些场景返回 15-16 位数字被截断，这里用更宽松的 13 位阈值
-// 13 位毫秒时间戳仍然能精确表示，超过这个值的数字 ID 全部强制转字符串
+// 13 位毫秒时间戳仍然能精确表示，超过这个值的值全部强制转字符串
 const ID_STRINGIFY_THRESHOLD = 1e13
 
 /**
+ * 检查是否是数组索引（数字形式的键）
+ */
+function isArrayIndex(key: string): boolean {
+  return /^\d+$/.test(key)
+}
+
+/**
  * 解析 JSON 时将大整数 ID 保留为字符串，避免雪花 ID 在 JS 中精度丢失。
+ * @param raw 原始 JSON 字符串
+ * @returns 解析后的对象，或在解析失败时返回原始字符串
  */
 export function parseJsonPreservingIds<T = unknown>(raw: string): T {
-  // 用阈值匹配所有"看起来像 ID"的大数字字段（>= 13 位），统一转为字符串
-  const normalized = raw.replace(
-    /"(id|fromUserId|toUserId|peerUserId|userId|friendId|requestId|conversationId|senderId)"\s*:\s*(\d{13,})/g,
+  // 先验证是否为有效 JSON（避免 JSON.parse 抛出异常）
+  const trimmed = raw.trim()
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+    return raw as unknown as T
+  }
+
+  // 第一步：预处理所有 ID 相关字段的值，统一转为带引号的字符串形式
+  // 匹配模式: "fieldName": 数字 或 "fieldName": 数字, 或 "fieldName": 数字}
+  let normalized = raw.replace(
+    /"(id|fromUserId|toUserId|peerUserId|userId|friendId|requestId|conversationId|senderId)"\s*:\s*(\d+)(?=[,\s\}])/g,
     '"$1":"$2"'
   )
-  return JSON.parse(normalized, (key, value) => {
-    if (typeof value === 'number' && LONG_ID_FIELDS.has(key) && !Number.isSafeInteger(value)) {
-      return String(value)
-    }
-    // 二次保险：尽管 reviver 已经处理了字符串值，但某些情况下（如嵌套对象中数字值）
-    // 如果绝对值超过安全阈值且字段在 ID 列表中，也转字符串
-    if (typeof value === 'number' && LONG_ID_FIELDS.has(key) && Math.abs(value) >= ID_STRINGIFY_THRESHOLD) {
-      return String(value)
-    }
-    return value
-  }) as T
+
+  // 第二步：预处理数组中的所有大数（13 位以上的数字）
+  // 将 [1234567890123456789, 9876543210987654321] 转为 ["1234567890123456789","9876543210987654321"]
+  normalized = normalized.replace(/(\d{13,})(?=[\],])/g, '"$1"')
+
+  try {
+    return JSON.parse(normalized, (key, value) => {
+      // 如果是 LONG_ID_FIELDS 中的字段，无论值是否安全，都转为字符串
+      if (LONG_ID_FIELDS.has(key)) {
+        if (typeof value === 'string') return value
+        if (typeof value === 'number') return String(value)
+      }
+      return value
+    }) as T
+  } catch {
+    // 解析失败时返回原始字符串（保持原有行为）
+    return raw as unknown as T
+  }
 }
 
 /**

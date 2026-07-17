@@ -54,6 +54,9 @@ const themeOverrides = computed<GlobalThemeOverrides>(() => {
       primaryColor: naiveThemeColors.primaryColor, // 主色
       primaryColorHover: naiveThemeColors.primaryColorHover, // 主色悬停
       primaryColorPressed: naiveThemeColors.primaryColorPressed, // 主色按下
+      errorColor: naiveThemeColors.errorColor, // 错误色（影响 n-result 等组件）
+      errorColorHover: naiveThemeColors.errorColorHover, // 错误色悬停
+      errorColorPressed: naiveThemeColors.errorColorPressed, // 错误色按下
       bodyColor: isDark ? '#1a1a1a' : '#f5f5f5', // 页面背景色
       cardColor: isDark ? '#262626' : '#ffffff', // 卡片背景色
       modalColor: isDark ? '#262626' : '#ffffff', // 弹窗背景色

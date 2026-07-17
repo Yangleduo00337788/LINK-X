@@ -230,7 +230,7 @@ function reportUser() {
 
 .danger-text {
   cursor: pointer;
-  color: var(--lx-danger, #e34d59);
+  color: var(--lx-danger);
   font-size: 14px;
 }
 

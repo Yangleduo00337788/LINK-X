@@ -882,7 +882,7 @@ function closeMoments() {
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
-  background: #ff4d4f;
+  background: var(--lx-danger);
   color: #fff;
   font-size: 10px;
   font-weight: 600;

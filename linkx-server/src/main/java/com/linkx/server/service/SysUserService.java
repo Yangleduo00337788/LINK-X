@@ -41,12 +41,12 @@ public interface SysUserService extends IService<SysUser> {
     void changePassword(Long userId, String oldPassword, String newPassword);
 
     /**
-     * 重置密码（通过验证码）
+     * 重置密码（通过验证码，验证码已与账号绑定）
      *
-     * @param username    用户名
+     * @param userId      用户 ID（从 token 获取，防越权）
      * @param captchaId    验证码ID
      * @param captchaCode 验证码
      * @param newPassword 新密码
      */
-    void resetPassword(String username, String captchaId, String captchaCode, String newPassword);
+    void resetPassword(Long userId, String captchaId, String captchaCode, String newPassword);
 }

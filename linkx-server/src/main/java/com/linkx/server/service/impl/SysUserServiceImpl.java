@@ -206,23 +206,32 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     }
 
     @Override
-    public void resetPassword(String username, String captchaId, String captchaCode, String newPassword) {
-        // 验证验证码
-        captchaService.validate(captchaId, captchaCode);
+    public void resetPassword(Long userId, String captchaId, String captchaCode, String newPassword) {
+        // 强制要求验证码必须开启（生产环境默认 true）
+        if (!captchaService.isEnabled()) {
+            throw new CustomException(403, "密码重置功能暂时不可用");
+        }
 
-        // 查找用户
-        SysUser user = queryChain()
-                .where(SysUser::getUsername).eq(username)
-                .one();
+        // 验证验证码（原子验证 + ownerId 绑定校验，防止横向越权）
+        captchaService.validateForOwner(String.valueOf(userId), captchaId, captchaCode);
+
+        // 通过 userId 直接查找用户（不暴露用户是否存在，统一返回模糊错误）
+        SysUser user = getById(userId);
         if (user == null) {
-            throw new CustomException(404, "用户不存在");
+            // 防御：用户不存在时也执行一次假的密码哈希计算
+            BCrypt.hashpw(newPassword, BCrypt.gensalt(12));
+            throw new CustomException(400, "操作失败，请稍后重试");
         }
 
         // 新密码加密（cost=12）并保存
         String hashPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt(12));
         user.setPassword(hashPassword);
         updateById(user);
-        log.info("用户 {} 通过验证码重置了密码", username);
+
+        // 使该用户的所有现有 refresh token 失效（包括从 Set 中删除）
+        tokenService.revokeAllUserTokens(user.getId());
+
+        log.info("用户 {} 重置了密码", user.getUsername());
     }
 
     /**

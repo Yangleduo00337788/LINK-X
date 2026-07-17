@@ -19,8 +19,11 @@ import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 import java.util.Collections;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -29,6 +32,7 @@ public class TokenServiceImpl implements TokenService {
     private static final String ACCESS_KEY_PREFIX = "linkx:token:access:";
     private static final String REFRESH_KEY_PREFIX = "linkx:token:refresh:";
     private static final String REFRESH_LOCK_PREFIX = "linkx:token:refresh:lock:";
+    private static final String USER_REFRESH_SET_PREFIX = "linkx:user:refresh-set:";
 
     // Lua 脚本：原子性地验证并删除 refresh token
     private static final String REFRESH_TOKEN_LUA_SCRIPT =
@@ -153,10 +157,44 @@ public class TokenServiceImpl implements TokenService {
     }
 
     @Override
+    public void revokeAllUserTokens(Long userId) {
+        String userRefreshSetKey = USER_REFRESH_SET_PREFIX + userId;
+
+        // 获取用户所有 refresh token jti 并全部删除
+        Set<String> jtis = redisTemplate.opsForSet().members(userRefreshSetKey);
+        if (jtis != null && !jtis.isEmpty()) {
+            List<String> refreshKeys = jtis.stream()
+                    .map(jti -> REFRESH_KEY_PREFIX + jti)
+                    .collect(Collectors.toList());
+            redisTemplate.delete(refreshKeys);
+        }
+        // 删除用户的 refresh token 集合
+        redisTemplate.delete(userRefreshSetKey);
+
+        // 设置撤销标记：密码重置后所有旧 Token 失效
+        String revokeKey = "linkx:user:token-revoked:" + userId;
+        redisTemplate.opsForValue().set(revokeKey, String.valueOf(System.currentTimeMillis()),
+                Duration.ofDays(30));
+    }
+
+    @Override
     public void assertAccessTokenActive(String accessToken) {
         Claims claims = parseClaims(accessToken);
         if (jwtUtils.getTokenType(accessToken) != TokenType.ACCESS) {
             throw new CustomException(401, "无效的访问令牌");
+        }
+
+        Long userId = claims.get("userId", Long.class);
+
+        // 检查用户是否被强制吊销了所有 Token
+        String revokeKey = "linkx:user:token-revoked:" + userId;
+        String revokedAt = redisTemplate.opsForValue().get(revokeKey);
+        if (revokedAt != null) {
+            Long tokenIssuedAt = claims.get("iat", Long.class) * 1000; // iat 是秒，转毫秒
+            Long revokedAtMs = Long.valueOf(revokedAt);
+            if (tokenIssuedAt < revokedAtMs) {
+                throw new CustomException(401, "登录已失效，请重新登录");
+            }
         }
 
         String accessKey = ACCESS_KEY_PREFIX + claims.getId();
@@ -208,10 +246,13 @@ public class TokenServiceImpl implements TokenService {
     }
 
     private void storeRefreshToken(String jti, Long userId, long expireMs) {
-        redisTemplate.opsForValue().set(
-                REFRESH_KEY_PREFIX + jti,
-                String.valueOf(userId),
-                Duration.ofMillis(expireMs));
+        String userRefreshSetKey = USER_REFRESH_SET_PREFIX + userId;
+        String refreshKey = REFRESH_KEY_PREFIX + jti;
+
+        // 将 jti 加入用户的 refresh token 集合
+        redisTemplate.opsForSet().add(userRefreshSetKey, jti);
+        // 设置 refresh token 本身
+        redisTemplate.opsForValue().set(refreshKey, String.valueOf(userId), Duration.ofMillis(expireMs));
     }
 
     private TokenVO buildTokenVO(SysUser user, String accessToken, String refreshToken, long accessExpire) {

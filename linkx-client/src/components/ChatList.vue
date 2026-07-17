@@ -293,7 +293,7 @@ function onContextMenuSelect(key: string) {
   height: 18px;
   padding: 0 5px;
   border-radius: var(--lx-radius);
-  background: linear-gradient(180deg, #ff6b6b 0%, #f04040 100%);
+  background: var(--lx-danger);
   color: var(--lx-bg-card);
   font-size: 10px;
   font-weight: 600;

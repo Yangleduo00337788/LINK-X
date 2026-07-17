@@ -19,5 +19,12 @@ public interface TokenService {
      */
     void logout(String accessToken, String refreshToken);
 
+    /**
+     * 吊销用户的所有 Token（用于密码重置后强制下线）
+     *
+     * @param userId 用户 ID
+     */
+    void revokeAllUserTokens(Long userId);
+
     void assertAccessTokenActive(String accessToken);
 }

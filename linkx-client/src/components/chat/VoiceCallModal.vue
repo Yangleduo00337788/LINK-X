@@ -212,7 +212,7 @@ function switchToVideo() {
 }
 
 .ctl.hangup :deep(svg) {
-  background: #e34d59;
+  background: var(--lx-danger);
   border-radius: 50%;
   padding: 10px;
   width: 48px !important;

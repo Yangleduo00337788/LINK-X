@@ -1,15 +1,15 @@
 package com.linkx.server.controller.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+/**
+ * 重置密码请求（已登录用户）。
+ * 验证码与当前账号绑定，由 token 验证身份，不再接受任意 username 防横向越权。
+ */
 @Data
 public class ResetPasswordDTO {
-
-    @NotBlank(message = "用户名不能为空")
-    private String username;
 
     @NotBlank(message = "验证码不能为空")
     private String captchaCode;

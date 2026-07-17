@@ -414,7 +414,7 @@ function reportGroup() {
 
 .action-btn.danger {
   background: transparent;
-  color: #e34d59;
+  color: var(--lx-danger);
 }
 
 .report {

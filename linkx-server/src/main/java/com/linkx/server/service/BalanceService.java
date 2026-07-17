@@ -25,7 +25,27 @@ public interface BalanceService {
     void addBalance(Long userId, BigDecimal amount, String bizType, String bizId, String remark);
 
     /**
-     * 解冻金额并扣减（红包过期或退款时）
+     * 冻结金额（发送红包时调用，将金额从可用余额转入冻结金额）
+     * @param userId 用户ID
+     * @param amount 冻结金额
+     * @param bizId 业务ID（红包ID）
+     */
+    void freezeBalance(Long userId, BigDecimal amount, String bizId);
+
+    /**
+     * 从冻结金额转出给其他用户（红包领取时调用）
+     * @param fromUserId 扣减方
+     * @param toUserId 接收方
+     * @param amount 金额
+     * @param bizId 业务ID
+     */
+    void unfreezeAndTransfer(Long fromUserId, Long toUserId, BigDecimal amount, String bizId);
+
+    /**
+     * 解冻金额并加回可用余额（红包过期退款时调用）
+     * @param userId 用户ID
+     * @param amount 金额
+     * @param bizId 业务ID
      */
     void unfreezeAndDeduct(Long userId, BigDecimal amount, String bizId);
 }

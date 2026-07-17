@@ -54,7 +54,7 @@ describe('chatMapper', () => {
       }
       const session = conversationToSession(conv)
       expect(session.name).toBe('好友')
-      expect(session.avatarText).toBe('?')
+      expect(session.avatarText).toBe('好') // name.charAt(0) = '好'
     })
   })
 

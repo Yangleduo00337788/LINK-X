@@ -50,7 +50,8 @@ public class RedPacketServiceImpl implements RedPacketService {
             throw new CustomException(400, "每个红包金额不能少于0.01元");
         }
 
-        balanceService.deductBalance(userId, dto.getTotalAmount(), "red_packet", null, "发送红包");
+        // 冻结红包金额（替代直接扣减，便于过期退款）
+        balanceService.freezeBalance(userId, dto.getTotalAmount(), null);
 
         RedPacket redPacket = RedPacket.builder()
                 .senderId(userId)
@@ -71,79 +72,100 @@ public class RedPacketServiceImpl implements RedPacketService {
         return toRedPacketVO(redPacket, userId);
     }
 
+    private static final int MAX_RETRY_TIMES = 3;
+
     @Override
     @Transactional
     public RedPacketVO receiveRedPacket(Long userId, String redPacketIdStr) {
         Long redPacketId = parseId(redPacketIdStr);
-        RedPacket redPacket = redPacketMapper.selectOneById(redPacketId);
 
-        if (redPacket == null) {
-            throw new CustomException(404, "红包不存在");
+        for (int retry = 0; retry < MAX_RETRY_TIMES; retry++) {
+            RedPacket redPacket = redPacketMapper.selectOneById(redPacketId);
+
+            if (redPacket == null) {
+                throw new CustomException(404, "红包不存在");
+            }
+
+            if (redPacket.getStatus().equals(RedPacket.STATUS_FINISHED)) {
+                throw new CustomException(400, "红包已领完");
+            }
+
+            if (redPacket.getStatus().equals(RedPacket.STATUS_EXPIRED)) {
+                throw new CustomException(400, "红包已过期");
+            }
+
+            if (redPacket.getExpireTime().before(new Date())) {
+                redPacket.setStatus(RedPacket.STATUS_EXPIRED);
+                redPacketMapper.update(redPacket);
+                throw new CustomException(400, "红包已过期");
+            }
+
+            if (redPacket.getSenderId().equals(userId)) {
+                throw new CustomException(400, "不能领取自己的红包");
+            }
+
+            RedPacketRecord existingRecord = recordMapper.selectOneByQuery(
+                    QueryWrapper.create()
+                            .eq("red_packet_id", redPacketId)
+                            .and("user_id", userId)
+            );
+            if (existingRecord != null) {
+                throw new CustomException(400, "您已领取过该红包");
+            }
+
+            // 计算领取金额
+            BigDecimal receiveAmount;
+            if (redPacket.getType().equals(RedPacket.TYPE_LUCKY)) {
+                receiveAmount = calculateLuckyAmount(redPacket);
+            } else {
+                receiveAmount = redPacket.getTotalAmount()
+                        .divide(new BigDecimal(redPacket.getTotalCount()), 2, RoundingMode.DOWN);
+            }
+
+            // 更新红包剩余金额和个数（乐观锁保护）
+            int updatedRows = redPacketMapper.updateRemainingAmountAndCount(
+                    redPacketId,
+                    receiveAmount,
+                    redPacket.getRemainingCount() - 1,
+                    redPacket.getVersion()
+            );
+
+            if (updatedRows == 0) {
+                // 乐观锁冲突，重试
+                continue;
+            }
+
+            // 更新红包状态
+            RedPacket updatedPacket = redPacketMapper.selectOneById(redPacketId);
+            if (updatedPacket.getRemainingCount() <= 0) {
+                updatedPacket.setStatus(RedPacket.STATUS_FINISHED);
+                redPacketMapper.update(updatedPacket);
+            }
+
+            RedPacketRecord record = RedPacketRecord.builder()
+                    .redPacketId(redPacketId)
+                    .userId(userId)
+                    .amount(receiveAmount)
+                    .isLucky(false)
+                    .build();
+            try {
+                recordMapper.insert(record);
+            } catch (org.springframework.dao.DuplicateKeyException e) {
+                // 数据库唯一约束兜底，防止并发请求同时通过应用层检查后重复插入
+                throw new CustomException(400, "您已领取过该红包");
+            }
+
+            // 从发送者冻结金额转给领取者
+            balanceService.unfreezeAndTransfer(redPacket.getSenderId(), userId, receiveAmount,
+                    String.valueOf(redPacketId));
+
+            checkAndMarkLucky(redPacketId, userId, receiveAmount);
+
+            return toRedPacketVO(updatedPacket, userId);
         }
 
-        if (redPacket.getStatus().equals(RedPacket.STATUS_FINISHED)) {
-            throw new CustomException(400, "红包已领完");
-        }
-
-        if (redPacket.getStatus().equals(RedPacket.STATUS_EXPIRED)) {
-            throw new CustomException(400, "红包已过期");
-        }
-
-        if (redPacket.getExpireTime().before(new Date())) {
-            redPacket.setStatus(RedPacket.STATUS_EXPIRED);
-            redPacketMapper.update(redPacket);
-            throw new CustomException(400, "红包已过期");
-        }
-
-        if (redPacket.getSenderId().equals(userId)) {
-            throw new CustomException(400, "不能领取自己的红包");
-        }
-
-        RedPacketRecord existingRecord = recordMapper.selectOneByQuery(
-                QueryWrapper.create()
-                        .eq("red_packet_id", redPacketId)
-                        .and("user_id", userId)
-        );
-        if (existingRecord != null) {
-            throw new CustomException(400, "您已领取过该红包");
-        }
-
-        BigDecimal receiveAmount;
-        if (redPacket.getType().equals(RedPacket.TYPE_LUCKY)) {
-            receiveAmount = calculateLuckyAmount(redPacket);
-        } else {
-            receiveAmount = redPacket.getTotalAmount()
-                    .divide(new BigDecimal(redPacket.getTotalCount()), 2, RoundingMode.DOWN);
-        }
-
-        redPacket.setRemainingAmount(redPacket.getRemainingAmount().subtract(receiveAmount));
-        redPacket.setRemainingCount(redPacket.getRemainingCount() - 1);
-
-        if (redPacket.getRemainingCount() <= 0) {
-            redPacket.setStatus(RedPacket.STATUS_FINISHED);
-        }
-
-        redPacketMapper.update(redPacket);
-
-        RedPacketRecord record = RedPacketRecord.builder()
-                .redPacketId(redPacketId)
-                .userId(userId)
-                .amount(receiveAmount)
-                .isLucky(false)
-                .build();
-        try {
-            recordMapper.insert(record);
-        } catch (org.springframework.dao.DuplicateKeyException e) {
-            // 数据库唯一约束兜底，防止并发请求同时通过应用层检查后重复插入
-            throw new CustomException(400, "您已领取过该红包");
-        }
-
-        balanceService.addBalance(userId, receiveAmount, "receive_redpacket",
-                String.valueOf(redPacketId), "领取红包");
-
-        checkAndMarkLucky(redPacketId, userId, receiveAmount);
-
-        return toRedPacketVO(redPacket, userId);
+        // 重试次数耗尽
+        throw new CustomException(409, "系统繁忙，请稍后重试");
     }
 
     @Override
@@ -175,23 +197,28 @@ public class RedPacketServiceImpl implements RedPacketService {
     @Override
     @Transactional
     public void expireRedPackets() {
-        List<RedPacket> expiredPackets = redPacketMapper.selectListByQuery(
-                QueryWrapper.create()
-                        .eq("status", RedPacket.STATUS_ACTIVE)
-                        .and("expire_time", new Date())
-        );
+        // 使用 FOR UPDATE 行锁，防止 TOCTOU 超退（并发领包时按快照多退）
+        List<RedPacket> expiredPackets = redPacketMapper.selectExpiredForUpdate(
+                RedPacket.STATUS_ACTIVE, new Date());
 
         for (RedPacket packet : expiredPackets) {
-            if (packet.getRemainingAmount().compareTo(BigDecimal.ZERO) > 0) {
-                balanceService.unfreezeAndDeduct(packet.getSenderId(),
-                        packet.getRemainingAmount(), String.valueOf(packet.getId()));
-                balanceService.addBalance(packet.getSenderId(),
-                        packet.getRemainingAmount(), "refund",
-                        String.valueOf(packet.getId()), "红包过期退款");
+            // 用 DB 当前值退款，而非快照值
+            BigDecimal refundAmount = packet.getRemainingAmount();
+
+            // 先用乐观锁将状态更新为 EXPIRED（防止重复处理）
+            int updated = redPacketMapper.updateStatusWithVersion(
+                    packet.getId(), packet.getVersion(), RedPacket.STATUS_EXPIRED);
+
+            if (updated == 0) {
+                // 乐观锁冲突，说明红包在其他事务中被处理，跳过
+                continue;
             }
 
-            packet.setStatus(RedPacket.STATUS_EXPIRED);
-            redPacketMapper.update(packet);
+            // 退款（仅当有剩余金额时）
+            if (refundAmount.compareTo(BigDecimal.ZERO) > 0) {
+                balanceService.unfreezeAndDeduct(packet.getSenderId(), refundAmount,
+                        String.valueOf(packet.getId()));
+            }
         }
     }
 

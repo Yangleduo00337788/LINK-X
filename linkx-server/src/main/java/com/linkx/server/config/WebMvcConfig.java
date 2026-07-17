@@ -24,26 +24,46 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
+        String api = "/api";
+
         // 1. 登录拦截器：先校验 JWT
         registry.addInterceptor(loginInterceptor)
-                .addPathPatterns("/**")
+                .addPathPatterns(api + "/**")
                 .excludePathPatterns(
-                        "/auth/login",
-                        "/auth/register",
-                        "/auth/refresh",
-                        "/auth/logout",
-                        "/auth/captcha",
+                        api + "/auth/login",
+                        api + "/auth/register",
+                        api + "/auth/refresh",
+                        api + "/auth/logout",
+                        api + "/auth/captcha",
+                        api + "/auth/reset-password",
+                        // Swagger / OpenAPI
+                        api + "/swagger-ui/**",
+                        api + "/swagger-ui.html",
+                        api + "/v3/api-docs/**",
+                        api + "/webjars/**",
+                        // Actuator
+                        api + "/actuator/**",
+                        "/actuator/**",
                         "/error"
                 );
         // 2. 限流拦截器：在登录拦截器之后执行（需要 userId attribute）
         registry.addInterceptor(rateLimitInterceptor)
-                .addPathPatterns("/**")
+                .addPathPatterns(api + "/**")
                 .excludePathPatterns(
-                        "/auth/login",
-                        "/auth/register",
-                        "/auth/refresh",
-                        "/auth/logout",
-                        "/auth/captcha",
+                        api + "/auth/login",
+                        api + "/auth/register",
+                        api + "/auth/refresh",
+                        api + "/auth/logout",
+                        api + "/auth/captcha",
+                        api + "/auth/reset-password",
+                        // Swagger / OpenAPI
+                        api + "/swagger-ui/**",
+                        api + "/swagger-ui.html",
+                        api + "/v3/api-docs/**",
+                        api + "/webjars/**",
+                        // Actuator
+                        api + "/actuator/**",
+                        "/actuator/**",
                         "/error"
                 );
     }

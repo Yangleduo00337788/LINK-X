@@ -34,63 +34,71 @@ public class BalanceServiceImpl implements BalanceService {
     @Override
     @Transactional
     public void deductBalance(Long userId, BigDecimal amount, String bizType, String bizId, String remark) {
+        // 先获取当前余额用于记录日志
         UserBalance balance = getOrCreateBalance(userId);
+        BigDecimal before = balance.getBalance();
 
-        // 检查余额是否足够
-        if (balance.getBalance().compareTo(amount) < 0) {
+        // 原子扣减，校验 affectedRows
+        int rows = balanceMapper.deductBalance(userId, amount);
+        if (rows == 0) {
             throw new CustomException(400, "余额不足");
         }
 
-        BigDecimal before = balance.getBalance();
-
-        // 扣减余额
-        balance.setBalance(balance.getBalance().subtract(amount));
-        balance.setTotalWithdraw(balance.getTotalWithdraw().add(amount));
-        balanceMapper.update(balance);
-
         // 记录日志（金额存储为负数表示支出）
         logBalanceChange(userId, "deduct", amount, before,
-                balance.getBalance(), bizType, bizId, remark, null);
+                balance.getBalance().subtract(amount), bizType, bizId, remark, null);
     }
 
     @Override
     @Transactional
     public void addBalance(Long userId, BigDecimal amount, String bizType, String bizId, String remark) {
+        // 先获取当前余额用于记录日志
         UserBalance balance = getOrCreateBalance(userId);
-
         BigDecimal before = balance.getBalance();
 
-        // 增加余额
-        balance.setBalance(balance.getBalance().add(amount));
-        balanceMapper.update(balance);
+        // 原子增加
+        balanceMapper.addBalance(userId, amount);
 
         // 记录日志
         logBalanceChange(userId, "add", amount, before,
-                balance.getBalance(), bizType, bizId, remark, null);
+                balance.getBalance().add(amount), bizType, bizId, remark, null);
+    }
+
+    @Override
+    @Transactional
+    public void freezeBalance(Long userId, BigDecimal amount, String bizId) {
+        UserBalance balance = getOrCreateBalance(userId);
+        BigDecimal before = balance.getBalance();
+
+        // 原子冻结：扣减可用余额，增加冻结金额
+        int rows = balanceMapper.freezeBalance(userId, amount);
+        if (rows == 0) {
+            throw new CustomException(400, "余额不足，无法冻结");
+        }
+
+        // 记录日志
+        logBalanceChange(userId, "freeze", amount, before,
+                balance.getBalance().subtract(amount), "freeze", bizId, "冻结金额（红包）", null);
+    }
+
+    @Override
+    @Transactional
+    public void unfreezeAndTransfer(Long fromUserId, Long toUserId, BigDecimal amount, String bizId) {
+        // 从发送者冻结金额扣减
+        int rows = balanceMapper.unfreezeFromUser(fromUserId, amount);
+        if (rows == 0) {
+            throw new CustomException(400, "红包资金异常，领取失败");
+        }
+
+        // 给领取者增加余额
+        balanceMapper.creditUser(toUserId, amount);
     }
 
     @Override
     @Transactional
     public void unfreezeAndDeduct(Long userId, BigDecimal amount, String bizId) {
-        UserBalance balance = getOrCreateBalance(userId);
-
-        // 从冻结金额中扣减
-        if (balance.getFrozen().compareTo(amount) < 0) {
-            // 冻结金额不足，从余额扣减剩余部分
-            BigDecimal fromFrozen = balance.getFrozen();
-            BigDecimal fromBalance = amount.subtract(fromFrozen);
-
-            if (balance.getBalance().compareTo(fromBalance) < 0) {
-                throw new CustomException(400, "余额不足");
-            }
-
-            balance.setFrozen(BigDecimal.ZERO);
-            balance.setBalance(balance.getBalance().subtract(fromBalance));
-        } else {
-            balance.setFrozen(balance.getFrozen().subtract(amount));
-        }
-
-        balanceMapper.update(balance);
+        // 原子从冻结金额扣减并加回余额（红包过期退款）
+        balanceMapper.unfreezeAndCredit(userId, amount);
     }
 
     /**

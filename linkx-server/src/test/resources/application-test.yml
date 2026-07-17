@@ -16,9 +16,9 @@ spring:
   data:
     redis:
       host: 127.0.0.1
-      # 端口由 BaseIntegrationTest 通过 @DynamicPropertySource 注入内嵌 Redis 端口
       port: 6379
       database: 0
+      password: # 无密码则留空
 
 mybatis-flex:
   global-config:

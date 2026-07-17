@@ -12,6 +12,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
@@ -27,6 +28,7 @@ import java.nio.charset.StandardCharsets;
 @MapperScan("com.linkx.server.mapper")
 @EnableConfigurationProperties(LinkxProperties.class)
 @EnableAsync
+@EnableScheduling
 public class LinkXServerApplication {
 
     /**

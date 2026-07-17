@@ -16,7 +16,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 
+/**
+ * IM 消息处理与推送服务。
+ * <p>
+ * 所有 IO 密集操作（DB/Redis/推送扇出）通过 imPushExecutor 线程池执行，不阻塞 Netty event-loop。
+ * </p>
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -26,8 +35,17 @@ public class ImMessagePushService {
     private final ImConversationMemberMapper memberMapper;
     private final ImChannelManager channelManager;
     private final ObjectMapper objectMapper;
+    private final Executor imPushExecutor;
 
-    public MessageVO handleSend(Long senderId, ImWsFrame frame) {
+    /**
+     * 处理发送消息（异步，event-loop 立即返回）。
+     * 流程：参数解析 → submit sendMessage+推送 到 imPushExecutor → event-loop 立即返回。
+     * 不在 event-loop 执行任何 DB/Redis 操作；worker 线程内的异常通过错误帧回传发送者。
+     *
+     * @param senderId 发送者 ID
+     * @param frame    WebSocket 帧
+     */
+    public void handleSend(Long senderId, ImWsFrame frame) {
         SendMessageDTO dto = new SendMessageDTO();
         dto.setConversationId(parseId(frame.getConversationId(), "会话 ID"));
         dto.setMsgType(frame.getMsgType());
@@ -37,14 +55,65 @@ public class ImMessagePushService {
         dto.setFileUrl(frame.getFileUrl());
         dto.setClientMsgId(frame.getClientMsgId());
 
+        // 整体 submit 到线程池，event-loop 立即返回（不阻塞 IO 线程）
+        try {
+            ((ExecutorService) imPushExecutor).submit(() -> {
+                try {
+                    doSendAndPush(senderId, dto, frame.getClientMsgId());
+                } catch (Exception e) {
+                    // worker 内异常：向发送者回错误帧，不静默吞
+                    sendErrorToSender(senderId, e);
+                }
+            });
+        } catch (RejectedExecutionException e) {
+            // 线程池饱和：立即向发送者回错误帧，event-loop 不阻塞
+            log.warn("IM 推送线程池饱和，拒绝 senderId={} 的消息", senderId);
+            sendErrorToSender(senderId, new CustomException(503, "服务繁忙，请稍后重试"));
+        }
+    }
+
+    /**
+     * 向发送者回错误帧。worker 或 event-loop 中均可调用（Netty 写操作线程安全）。
+     *
+     * @param senderId 发送者 ID
+     * @param e        异常（CustomException 取其 code/message，否则用 500）
+     */
+    private void sendErrorToSender(Long senderId, Exception e) {
+        int code;
+        String message;
+        if (e instanceof CustomException ce) {
+            code = ce.getCode();
+            message = ce.getMessage();
+        } else {
+            code = 500;
+            message = "消息处理失败";
+            log.error("消息处理异常", e);
+        }
+        ChannelGroup channels = channelManager.getChannels(senderId);
+        if (channels == null) {
+            return;
+        }
+        for (Channel channel : channels) {
+            sendError(channel, code, message);
+        }
+    }
+
+    private MessageVO doSendAndPush(Long senderId, SendMessageDTO dto, String clientMsgId) {
+        // 业务处理：DB 写消息 + Redis 更新会话
         MessageVO message = chatService.sendMessage(senderId, dto);
-        pushToConversationMembers(message, senderId, frame.getClientMsgId());
+        // 推送扇出
+        pushToConversationMembers(message, senderId, clientMsgId);
         return message;
     }
 
+    /**
+     * 推送消息给会话成员（自包含，无外部 IM 依赖）。
+     * Channel/ChannelGroup 写操作线程安全，可从任意线程调用。
+     */
     public void pushToConversationMembers(MessageVO message, Long senderId, String clientMsgId) {
         List<ImConversationMember> members = memberMapper.selectListByQuery(
-                QueryWrapper.create().where(ImConversationMember::getConversationId).eq(message.getConversationId())
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).eq(message.getConversationId())
         );
 
         for (ImConversationMember member : members) {

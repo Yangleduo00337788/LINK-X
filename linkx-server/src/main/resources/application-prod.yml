@@ -1,0 +1,103 @@
+# LinkX 生产环境配置
+# 强安全默认配置，必须通过环境变量覆盖关键敏感项
+
+spring:
+  profiles:
+    # 强制激活生产模式，未设置时禁止启动
+    active: prod
+  datasource:
+    # 生产环境必须使用 SSL 连接
+    url: jdbc:mysql://${DB_HOST}:${DB_PORT:3306}/${DB_NAME:linkx}?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=true&requireSSL=true
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  data:
+    redis:
+      # 生产环境必须使用认证
+      password: ${REDIS_PASSWORD}
+      # 生产环境建议使用 SSL
+      # ssl: true
+
+linkx:
+  jwt:
+    # ⚠️ 生产环境必须设置环境变量 JWT_SECRET
+    # 示例: openssl rand -base64 32
+    secret: ${JWT_SECRET}
+    access-expire: 3600000        # 1小时
+    refresh-expire: 604800000     # 7天
+  auth:
+    # ⚠️ 生产环境必须开启验证码
+    captcha-enabled: true
+    login-max-attempts: 3         # 更严格的登录尝试限制
+    lock-duration-minutes: 30     # 锁定时间翻倍
+    rate-limit-login-per-minute: 5
+    rate-limit-register-per-minute: 2
+  cors:
+    # ⚠️ 生产环境必须配置精确的域名白名单
+    allowed-origins:
+      - ${CORS_ORIGIN_1:}
+      - ${CORS_ORIGIN_2:}
+  security:
+    # ⚠️ 生产环境必须强制 HTTPS
+    require-https: true
+  im:
+    websocket-port: ${IM_WS_PORT:8081}
+  minio:
+    # ⚠️ 生产环境必须使用 HTTPS
+    endpoint: ${MINIO_ENDPOINT:https://minio.example.com}
+    access-key: ${MINIO_ACCESS_KEY}
+    secret-key: ${MINIO_SECRET_KEY}
+    bucket-name: ${MINIO_BUCKET_NAME:linkx}
+    max-file-size: 5242880  # 5MB，更严格的文件大小限制
+
+# 日志配置
+logging:
+  level:
+    root: INFO
+    com.linkx.server: INFO
+    # 禁用敏感信息日志
+    org.springframework.security: WARN
+
+---
+# 安全检查配置（确保关键环境变量已设置）
+spring:
+  config:
+    activate:
+      on-profile: security-check
+
+linkx:
+  jwt:
+    secret: ${JWT_SECRET:__UNSET__}
+  auth:
+    captcha-enabled: ${CAPTCHA_ENABLED:true}
+
+# 本地开发覆盖配置
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+
+spring:
+  datasource:
+    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/linkx?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+  data:
+    redis:
+      password: ${REDIS_PASSWORD:}
+
+linkx:
+  jwt:
+    secret: ${JWT_SECRET:local-dev-secret-change-in-production-minimum-32-chars}
+  auth:
+    captcha-enabled: false
+  cors:
+    allowed-origins:
+      - http://localhost:5173
+      - http://127.0.0.1:5173
+  security:
+    require-https: false
+  minio:
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    access-key: ${MINIO_ACCESS_KEY:minioadmin}
+    secret-key: ${MINIO_SECRET_KEY:minioadmin123}

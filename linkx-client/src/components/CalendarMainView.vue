@@ -346,7 +346,7 @@ function confirmDelete(event: CalendarEvent) {
 }
 
 .mini-btn.danger {
-  color: var(--lx-danger, #e34d59);
+  color: var(--lx-danger);
 }
 
 .day-empty {

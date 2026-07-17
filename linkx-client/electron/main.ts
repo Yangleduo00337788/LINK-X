@@ -8,6 +8,13 @@ const isDev = Boolean(process.env.VITE_DEV_SERVER_URL)
 
 const SECURE_DIR = () => path.join(app.getPath('userData'), 'secure')
 
+// 允许的 key 白名单，防止路径穿越攻击
+const ALLOWED_KEY_PATTERN = /^[a-zA-Z][a-zA-Z0-9_-]{0,31}$/
+
+function isValidKey(key: string): boolean {
+  return ALLOWED_KEY_PATTERN.test(key)
+}
+
 function ensureSecureDir() {
   const dir = SECURE_DIR()
   if (!fs.existsSync(dir)) {
@@ -149,6 +156,7 @@ function registerWindowIpc() {
   ipcMain.handle('secure-storage:is-available', () => safeStorage.isEncryptionAvailable())
 
   ipcMain.handle('secure-storage:get', (_event, key: string) => {
+    if (!isValidKey(key)) return null
     if (!safeStorage.isEncryptionAvailable()) return null
     const file = secureFilePath(key)
     if (!fs.existsSync(file)) return null
@@ -161,6 +169,7 @@ function registerWindowIpc() {
   })
 
   ipcMain.handle('secure-storage:set', (_event, key: string, value: string) => {
+    if (!isValidKey(key)) return false
     if (!safeStorage.isEncryptionAvailable()) return false
     const encrypted = safeStorage.encryptString(value)
     fs.writeFileSync(secureFilePath(key), encrypted)
@@ -168,6 +177,7 @@ function registerWindowIpc() {
   })
 
   ipcMain.handle('secure-storage:remove', (_event, key: string) => {
+    if (!isValidKey(key)) return false
     const file = secureFilePath(key)
     if (fs.existsSync(file)) {
       fs.unlinkSync(file)

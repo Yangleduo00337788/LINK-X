@@ -84,6 +84,32 @@ CREATE TABLE IF NOT EXISTS `sys_login_audit` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='登录审计日志';
 
 -- ================================================
+-- 4.1 敏感操作审计日志表
+-- ================================================
+CREATE TABLE IF NOT EXISTS `sys_audit_log` (
+  `id` bigint NOT NULL COMMENT '主键ID(雪花算法)',
+  `operation_type` varchar(50) NOT NULL COMMENT '操作类型: LOGIN/LOGOUT/REGISTER/RESET_PASSWORD等',
+  `description` varchar(255) DEFAULT NULL COMMENT '操作描述',
+  `user_id` bigint DEFAULT NULL COMMENT '操作者用户ID',
+  `username` varchar(64) DEFAULT NULL COMMENT '操作者用户名',
+  `target_user_id` bigint DEFAULT NULL COMMENT '目标用户ID',
+  `target_username` varchar(64) DEFAULT NULL COMMENT '目标用户名',
+  `target_resource_id` varchar(128) DEFAULT NULL COMMENT '目标资源ID',
+  `target_resource_type` varchar(50) DEFAULT NULL COMMENT '目标资源类型',
+  `ip` varchar(64) DEFAULT NULL COMMENT '客户端IP',
+  `user_agent` varchar(512) DEFAULT NULL COMMENT 'User-Agent',
+  `status` varchar(20) NOT NULL COMMENT '操作状态: SUCCESS/FAIL',
+  `failure_reason` varchar(255) DEFAULT NULL COMMENT '失败原因',
+  `extra_data` text COMMENT '额外数据(JSON格式)',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_user_time` (`user_id`, `create_time`),
+  KEY `idx_operation_type` (`operation_type`),
+  KEY `idx_target_user` (`target_user_id`),
+  KEY `idx_create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='敏感操作审计日志';
+
+-- ================================================
 -- 5. 设备会话表
 -- ================================================
 CREATE TABLE IF NOT EXISTS `sys_device_session` (
@@ -296,6 +322,7 @@ CREATE TABLE IF NOT EXISTS `red_packet` (
   `status` varchar(20) NOT NULL DEFAULT 'active' COMMENT '状态: active(有效), expired(过期), finished(领完)',
   `expire_time` datetime NOT NULL COMMENT '过期时间',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `version` bigint NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',
   PRIMARY KEY (`id`),
   KEY `idx_conversation_time` (`conversation_id`,`create_time`),
   KEY `idx_sender_time` (`sender_id`,`create_time`)
@@ -324,6 +351,17 @@ SET @sql = (SELECT IF(
     (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'note' AND COLUMN_NAME = 'type') = 0,
     'ALTER TABLE `note` ADD COLUMN `type` varchar(20) NOT NULL DEFAULT ''note'' COMMENT ''笔记/收藏类型: note/image/link/file'', ADD KEY `idx_user_type` (`user_id`,`type`)',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- red_packet 表新增 version 列（如不存在）- 乐观锁必需
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'red_packet' AND COLUMN_NAME = 'version') = 0,
+    'ALTER TABLE `red_packet` ADD COLUMN `version` bigint NOT NULL DEFAULT 0 COMMENT ''乐观锁版本号''',
     'SELECT 1'
 ));
 PREPARE stmt FROM @sql;

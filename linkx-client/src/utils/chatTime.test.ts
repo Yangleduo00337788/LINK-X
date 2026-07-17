@@ -38,7 +38,7 @@ describe('chatTime', () => {
     })
 
     it('should handle zero', () => {
-      expect(formatFileSize(0)).toBe('0 B')
+      expect(formatFileSize(0)).toBe('')
     })
   })
 

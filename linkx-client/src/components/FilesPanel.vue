@@ -262,7 +262,7 @@ function removeFile(e: Event, id: string) {
 }
 
 .del-btn:hover {
-  color: var(--lx-danger, #e34d59);
+  color: var(--lx-danger);
 }
 
 .empty-state {

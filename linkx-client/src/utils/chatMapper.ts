@@ -40,6 +40,7 @@ export function conversationToSession(conv: ConversationItem): ChatSession {
     avatarColor: pickColor(name),
     avatarUrl: conv.peerAvatar,
     peerUserId: conv.peerUserId ? String(conv.peerUserId) : undefined,
+    isGroup: false,
     isReal: true
   }
 }

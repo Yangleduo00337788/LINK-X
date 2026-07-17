@@ -100,3 +100,159 @@ CREATE TABLE IF NOT EXISTS sys_login_audit (
   reason VARCHAR(255),
   create_time DATETIME
 );
+
+-- 红包表
+CREATE TABLE IF NOT EXISTS red_packet (
+  id BIGINT NOT NULL PRIMARY KEY,
+  sender_id BIGINT,
+  conversation_id BIGINT,
+  type VARCHAR(20) NOT NULL DEFAULT 'normal',
+  total_amount DECIMAL(10,2),
+  total_count INT,
+  remaining_amount DECIMAL(10,2),
+  remaining_count INT,
+  greeting VARCHAR(255),
+  status VARCHAR(20) NOT NULL DEFAULT 'active',
+  expire_time DATETIME,
+  create_time DATETIME,
+  version BIGINT NOT NULL DEFAULT 0
+);
+
+-- 红包领取记录表
+CREATE TABLE IF NOT EXISTS red_packet_record (
+  id BIGINT NOT NULL PRIMARY KEY,
+  red_packet_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  amount DECIMAL(10,2),
+  is_lucky TINYINT DEFAULT 0,
+  create_time DATETIME
+);
+
+-- 用户余额表
+CREATE TABLE IF NOT EXISTS user_balance (
+  id BIGINT NOT NULL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  balance DECIMAL(10,2) NOT NULL DEFAULT 0,
+  frozen DECIMAL(10,2) NOT NULL DEFAULT 0,
+  total_recharge DECIMAL(10,2) NOT NULL DEFAULT 0,
+  total_withdraw DECIMAL(10,2) NOT NULL DEFAULT 0,
+  create_time DATETIME,
+  update_time DATETIME
+);
+
+-- 余额变动日志表
+CREATE TABLE IF NOT EXISTS balance_log (
+  id BIGINT NOT NULL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  type VARCHAR(20) NOT NULL,
+  amount DECIMAL(10,2) NOT NULL,
+  balance_before DECIMAL(10,2),
+  balance_after DECIMAL(10,2),
+  biz_type VARCHAR(50),
+  biz_id VARCHAR(64),
+  remark VARCHAR(255),
+  operator_id BIGINT,
+  create_time DATETIME
+);
+
+-- 朋友圈动态表
+CREATE TABLE IF NOT EXISTS moments_post (
+  id BIGINT NOT NULL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  content TEXT,
+  create_time DATETIME,
+  deleted TINYINT NOT NULL DEFAULT 0
+);
+
+-- 朋友圈评论表
+CREATE TABLE IF NOT EXISTS moments_comment (
+  id BIGINT NOT NULL PRIMARY KEY,
+  post_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  content TEXT,
+  parent_id BIGINT,
+  create_time DATETIME,
+  deleted TINYINT NOT NULL DEFAULT 0
+);
+
+-- 朋友圈点赞表
+CREATE TABLE IF NOT EXISTS moments_like (
+  id BIGINT NOT NULL PRIMARY KEY,
+  post_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  create_time DATETIME,
+  deleted TINYINT NOT NULL DEFAULT 0
+);
+
+-- 朋友圈图片表
+CREATE TABLE IF NOT EXISTS moments_image (
+  id BIGINT NOT NULL PRIMARY KEY,
+  post_id BIGINT NOT NULL,
+  url VARCHAR(500),
+  sort_order INT DEFAULT 0
+);
+
+-- 日历事件表
+CREATE TABLE IF NOT EXISTS calendar_event (
+  id BIGINT NOT NULL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  title VARCHAR(128),
+  date VARCHAR(20),
+  time VARCHAR(10),
+  color VARCHAR(20),
+  create_time DATETIME,
+  update_time DATETIME,
+  deleted TINYINT NOT NULL DEFAULT 0
+);
+
+-- 笔记表
+CREATE TABLE IF NOT EXISTS note (
+  id BIGINT NOT NULL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  title VARCHAR(255),
+  content TEXT,
+  type VARCHAR(20) NOT NULL DEFAULT 'note',
+  create_time DATETIME,
+  update_time DATETIME,
+  deleted TINYINT NOT NULL DEFAULT 0
+);
+
+-- 用户反馈表
+CREATE TABLE IF NOT EXISTS sys_feedback (
+  id BIGINT NOT NULL PRIMARY KEY,
+  user_id BIGINT,
+  username VARCHAR(64),
+  type VARCHAR(32),
+  content TEXT,
+  contact VARCHAR(128),
+  status VARCHAR(20) DEFAULT 'pending',
+  create_time DATETIME
+);
+
+-- 消息通知表
+CREATE TABLE IF NOT EXISTS message_notification (
+  id BIGINT NOT NULL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  sender_id BIGINT,
+  sender_name VARCHAR(64),
+  sender_avatar VARCHAR(255),
+  type VARCHAR(32),
+  related_id BIGINT,
+  content VARCHAR(255),
+  read_status TINYINT NOT NULL DEFAULT 0,
+  create_time DATETIME,
+  deleted TINYINT NOT NULL DEFAULT 0
+);
+
+-- 设备会话表
+CREATE TABLE IF NOT EXISTS sys_device_session (
+  id BIGINT NOT NULL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  device_id VARCHAR(128),
+  device_name VARCHAR(128),
+  device_type VARCHAR(32),
+  ip VARCHAR(64),
+  user_agent VARCHAR(512),
+  last_active DATETIME,
+  create_time DATETIME
+);
