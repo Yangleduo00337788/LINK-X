@@ -81,7 +81,8 @@ public abstract class BaseIntegrationTest {
 
     protected void register(String username, String password, String nickname) {
         try {
-            String body = objectMapper.writeValueAsString(new RegisterReq(username, password, nickname));
+            String body = objectMapper.writeValueAsString(
+                    new RegisterReq(username, password, nickname, username + "@linkx.test"));
             mockMvc.perform(post("/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body))
@@ -112,7 +113,7 @@ public abstract class BaseIntegrationTest {
     }
 
     // ---- 简单请求体（避免依赖生产 DTO 的校验注解可见性） ----
-    private record RegisterReq(String username, String password, String nickname) {
+    private record RegisterReq(String username, String password, String nickname, String email) {
     }
 
     private record LoginReq(String username, String password) {

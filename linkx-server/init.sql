@@ -346,6 +346,17 @@ CREATE TABLE IF NOT EXISTS `red_packet_record` (
 -- 数据库兼容性补丁：对已存在的表添加缺失列（幂等）
 -- ================================================
 
+-- sys_user 表新增 email 列（如不存在）
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sys_user' AND COLUMN_NAME = 'email') = 0,
+    'ALTER TABLE `sys_user` ADD COLUMN `email` varchar(128) DEFAULT NULL COMMENT ''用户邮箱，用于找回密码''',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 -- note 表新增 type 列（如不存在）
 SET @sql = (SELECT IF(
     (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS

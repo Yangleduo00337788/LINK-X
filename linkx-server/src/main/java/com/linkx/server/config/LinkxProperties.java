@@ -19,6 +19,7 @@ public class LinkxProperties {
     private final Minio minio = new Minio();
     private final Im im = new Im();
     private final Proxy proxy = new Proxy();
+    private final Mail mail = new Mail();
 
     @Data
     public static class Im {
@@ -81,5 +82,30 @@ public class LinkxProperties {
         private boolean trustProxy = false;
         /** 仅在 trustProxy=true 时生效：允许信任的反代 IP 段，留空表示信任所有（不推荐） */
         private List<String> trustedIps = new ArrayList<>();
+    }
+
+    /**
+     * 邮件服务配置
+     */
+    @Data
+    public static class Mail {
+        /** 发件人邮箱地址 */
+        private String from = "noreply@linkx.com";
+        /** 发件人名称 */
+        private String fromName = "LinkX";
+        /** SMTP 服务器地址 */
+        private String host = "smtp.example.com";
+        /** SMTP 端口 */
+        private int port = 587;
+        /** 邮箱用户名 */
+        private String username = "";
+        /** 邮箱密码或授权码 */
+        private String password = "";
+        /** 是否启用 STARTTLS（587 端口必为 true） */
+        private boolean startTls = true;
+        /** 是否启用 SSL 直连（仅 465 端口需要 true） */
+        private boolean ssl = false;
+        /** 验证码有效期（分钟） */
+        private int codeExpireMinutes = 10;
     }
 }

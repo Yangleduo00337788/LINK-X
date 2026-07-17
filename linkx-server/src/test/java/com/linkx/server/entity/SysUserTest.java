@@ -88,7 +88,8 @@ class SysUserTest {
                     1L, "fulluser", "pass123", "全用户",
                     "http://avatar.url", "签名", "女",
                     1234567890L, "中国", "广东", "深圳",
-                    1, now, now, 1L, 1L, 0
+                    1, now, now, 1L, 1L, 0,
+                    "fulluser@linkx.com"
             );
 
             assertEquals(1L, user.getId());
@@ -102,6 +103,7 @@ class SysUserTest {
             assertEquals("中国", user.getCountry());
             assertEquals("广东", user.getProvince());
             assertEquals("深圳", user.getRegion());
+            assertEquals("fulluser@linkx.com", user.getEmail());
             assertEquals(1, user.getStatus());
             assertEquals(now, user.getCreateTime());
             assertEquals(now, user.getUpdateTime());

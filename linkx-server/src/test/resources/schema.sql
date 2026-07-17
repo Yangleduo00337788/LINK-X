@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS sys_user (
   country VARCHAR(64),
   province VARCHAR(64),
   region VARCHAR(64),
+  email VARCHAR(128),
   status TINYINT NOT NULL DEFAULT 1,
   create_time DATETIME,
   update_time DATETIME,

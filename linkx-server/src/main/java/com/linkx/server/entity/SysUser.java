@@ -93,4 +93,7 @@ public class SysUser implements Serializable {
     // 逻辑删除标记：0=未删除，1=已删除；查询时自动过滤 deleted=1 的记录
     @Column(isLogicDelete = true)
     private Integer deleted;
+
+    // 用户邮箱，用于找回密码等身份验证
+    private String email;
 }

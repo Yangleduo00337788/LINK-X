@@ -10,7 +10,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.mail.MailSenderAutoConfiguration;
+import org.springframework.boot.autoconfigure.mail.MailSenderValidatorAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.stereotype.Component;
@@ -24,7 +27,11 @@ import java.nio.charset.StandardCharsets;
  * 负责启动 Spring Boot 容器，并扫描注册 MyBatis Mapper 接口。
  * </p>
  */
-@SpringBootApplication
+@SpringBootApplication(exclude = {
+        // 自定义 JavaMailSender（见 MailConfig），避免与自动配置冲突
+        MailSenderAutoConfiguration.class,
+        MailSenderValidatorAutoConfiguration.class
+})
 @MapperScan("com.linkx.server.mapper")
 @EnableConfigurationProperties(LinkxProperties.class)
 @EnableAsync

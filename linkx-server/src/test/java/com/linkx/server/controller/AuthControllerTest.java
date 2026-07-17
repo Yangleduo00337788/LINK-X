@@ -30,9 +30,10 @@ class AuthControllerTest extends BaseIntegrationTest {
                 {
                     "username": "%s",
                     "password": "Test1234abcd",
-                    "nickname": "测试用户"
+                    "nickname": "测试用户",
+                    "email": "%s"
                 }
-                """.formatted(username);
+                """.formatted(username, username + "@linkx.test");
 
             mockMvc.perform(post("/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -50,9 +51,10 @@ class AuthControllerTest extends BaseIntegrationTest {
                 {
                     "username": "%s",
                     "password": "%s",
-                    "nickname": "重复测试"
+                    "nickname": "重复测试",
+                    "email": "%s"
                 }
-                """.formatted(username, password);
+                """.formatted(username, password, username + "@linkx.test");
 
             // 第一次注册成功
             mockMvc.perform(post("/auth/register")
@@ -74,7 +76,8 @@ class AuthControllerTest extends BaseIntegrationTest {
                 {
                     "username": "ab",
                     "password": "Test1234abcd",
-                    "nickname": "短用户"
+                    "nickname": "短用户",
+                    "email": "shortuser@linkx.test"
                 }
                 """;
 

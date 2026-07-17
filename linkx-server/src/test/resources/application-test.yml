@@ -51,6 +51,16 @@ linkx:
     secret-key: testsecret
     bucket-name: linkx-test
     max-file-size: 10485760
+  mail:
+    host: localhost
+    port: 2525
+    username: ""
+    password: ""
+    from: test@linkx.com
+    from-name: LinkX-Test
+    start-tls: false
+    ssl: false
+    code-expire-minutes: 10
 
 logging:
   level:

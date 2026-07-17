@@ -22,6 +22,10 @@ public class RegisterDTO {
     @Size(min = 1, max = 64, message = "昵称长度为 1-64 个字符")
     private String nickname;
 
+    @NotBlank(message = "邮箱不能为空")
+    @Pattern(regexp = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$", message = "请输入有效的邮箱地址")
+    private String email;
+
     private String captchaId;
     private String captchaCode;
 }
