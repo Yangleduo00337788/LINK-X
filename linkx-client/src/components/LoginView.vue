@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
 import { NInput, NButton, NIcon, NCheckbox, NModal, useMessage } from 'naive-ui'
-import { LockClosedOutline, PersonOutline, RefreshOutline } from '@vicons/ionicons5'
+import { LockClosedOutline, PersonOutline, RefreshOutline, MailOutline } from '@vicons/ionicons5'
 import WindowControls from './WindowControls.vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
 import * as authApi from '../api/auth'
-import { resetPassword } from '../api/account'
+import { sendResetCode, verifyResetCode, resetPasswordByEmail } from '../api/account'
 import { validateUsername, validatePassword, validateNickname } from '../utils/validation'
 
 const message = useMessage()
@@ -29,22 +29,25 @@ const showRegister = ref(false)
 const regUser = ref('')
 const regPass = ref('')
 const regNickname = ref('')
+const regEmail = ref('')
 const regCaptchaCode = ref('')
 const regCaptchaId = ref('')
 const regCaptchaImage = ref('')
 
 const showForgot = ref(false)
+const forgotStep = ref<'input' | 'verify' | 'reset'>('input')  // 'input': 输入用户名, 'verify': 输入邮箱验证码, 'reset': 输入新密码
 const forgotUser = ref('')
-const forgotCaptchaId = ref('')
-const forgotCaptchaImage = ref('')
-const forgotCaptchaCode = ref('')
+const forgotCode = ref('')
 const forgotNewPassword = ref('')
 const forgotConfirmPassword = ref('')
 const forgotLoading = ref(false)
+const forgotSendLoading = ref(false)
+const forgotCountdown = ref(0)  // 倒计时（秒）
+let forgotCountdownTimer: ReturnType<typeof setInterval> | null = null
 
 const compact = computed(() => isElectron)
 
-async function loadCaptcha(target: 'login' | 'register' | 'forgot' = 'login') {
+async function loadCaptcha(target: 'login' | 'register' = 'login') {
   try {
     const res = await authApi.fetchCaptcha()
     if (res.code === 200 && res.data) {
@@ -52,14 +55,10 @@ async function loadCaptcha(target: 'login' | 'register' | 'forgot' = 'login') {
         captchaId.value = res.data.captchaId
         captchaImage.value = res.data.imageBase64
         captchaCode.value = ''
-      } else if (target === 'register') {
+      } else {
         regCaptchaId.value = res.data.captchaId
         regCaptchaImage.value = res.data.imageBase64
         regCaptchaCode.value = ''
-      } else {
-        forgotCaptchaId.value = res.data.captchaId
-        forgotCaptchaImage.value = res.data.imageBase64
-        forgotCaptchaCode.value = ''
       }
     }
   } catch {
@@ -129,6 +128,7 @@ async function handleRegister() {
   const user = regUser.value.trim()
   const pass = regPass.value
   const nickname = regNickname.value.trim() || user
+  const email = regEmail.value.trim()
 
   const userErr = validateUsername(user)
   if (userErr) {
@@ -145,6 +145,15 @@ async function handleRegister() {
     message.warning(nickErr)
     return
   }
+  if (!email) {
+    message.warning('请输入邮箱')
+    return
+  }
+  // 简单邮箱格式校验
+  if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
+    message.warning('请输入有效的邮箱地址')
+    return
+  }
   if (!regCaptchaCode.value.trim()) {
     message.warning('请输入验证码')
     return
@@ -155,6 +164,7 @@ async function handleRegister() {
       username: user,
       password: pass,
       nickname,
+      email,
       captchaId: regCaptchaId.value,
       captchaCode: regCaptchaCode.value.trim()
     })
@@ -177,24 +187,102 @@ async function handleRegister() {
 
 async function openForgot() {
   showForgot.value = true
+  // 重置所有状态
+  forgotStep.value = 'input'
   forgotUser.value = ''
-  forgotCaptchaCode.value = ''
+  forgotCode.value = ''
   forgotNewPassword.value = ''
   forgotConfirmPassword.value = ''
-  await loadCaptcha('forgot')
+  forgotCountdown.value = 0
+  if (forgotCountdownTimer) {
+    clearInterval(forgotCountdownTimer)
+    forgotCountdownTimer = null
+  }
 }
-
-async function handleForgot() {
+async function handleSendResetCode() {
   const user = forgotUser.value.trim()
   if (!user) {
     message.warning('请输入 LinkX ID')
     return
   }
-  const captcha = forgotCaptchaCode.value.trim()
-  if (!captcha) {
+
+  const userErr = validateUsername(user)
+  if (userErr) {
+    message.warning(userErr)
+    return
+  }
+
+  forgotSendLoading.value = true
+  try {
+    await sendResetCode({ username: user })
+    message.success('验证码已发送到您的注册邮箱，请查收')
+    forgotStep.value = 'verify'
+    startCountdown()
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || '发送验证码失败')
+  } finally {
+    forgotSendLoading.value = false
+  }
+}
+
+// 验证邮箱验证码
+const verifyLoading = ref(false)
+async function handleVerifyCode() {
+  const code = forgotCode.value.trim()
+  if (!code) {
     message.warning('请输入验证码')
     return
   }
+  if (code.length !== 6) {
+    message.warning('验证码为6位数字')
+    return
+  }
+
+  verifyLoading.value = true
+  try {
+    // 真正调用后端校验，不通过不能进入下一步
+    await verifyResetCode({ username: forgotUser.value.trim(), code })
+    forgotStep.value = 'reset'
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || '验证码错误')
+    // 不切换步骤，让用户重新输入
+  } finally {
+    verifyLoading.value = false
+  }
+}
+
+// 重发验证码
+async function handleResendCode() {
+  forgotSendLoading.value = true
+  try {
+    await sendResetCode({ username: forgotUser.value.trim() })
+    message.success('验证码已重新发送')
+    startCountdown()
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || '发送验证码失败')
+  } finally {
+    forgotSendLoading.value = false
+  }
+}
+
+// 开始倒计时
+function startCountdown() {
+  forgotCountdown.value = 60
+  if (forgotCountdownTimer) clearInterval(forgotCountdownTimer)
+  forgotCountdownTimer = setInterval(() => {
+    forgotCountdown.value--
+    if (forgotCountdown.value <= 0) {
+      if (forgotCountdownTimer) clearInterval(forgotCountdownTimer)
+      forgotCountdownTimer = null
+    }
+  }, 1000)
+}
+
+async function handleForgot() {
+  const user = forgotUser.value.trim()
   const newPass = forgotNewPassword.value
   const confirmPass = forgotConfirmPassword.value
 
@@ -210,26 +298,19 @@ async function handleForgot() {
 
   forgotLoading.value = true
   try {
-    const res = await resetPassword({
+    await resetPasswordByEmail({
       username: user,
-      captchaId: forgotCaptchaId.value,
-      captchaCode: captcha,
+      code: forgotCode.value.trim(),
       newPassword: newPass
     })
-    if (res.code === 200) {
-      message.success('密码重置成功，请使用新密码登录')
-      showForgot.value = false
-      username.value = user
-      password.value = ''
-      await loadCaptcha('login')
-    } else {
-      message.error(res.message || '重置密码失败')
-      await loadCaptcha('forgot')
-    }
+    message.success('密码重置成功，请使用新密码登录')
+    showForgot.value = false
+    username.value = user
+    password.value = ''
+    await loadCaptcha('login')
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     message.error(err.response?.data?.message || err.message || '重置密码失败')
-    await loadCaptcha('forgot')
   } finally {
     forgotLoading.value = false
   }
@@ -323,7 +404,7 @@ async function handleForgot() {
       <div class="footer">
         <a href="#" class="footer-link" @click.prevent="openRegister">注册账号</a>
         <span class="footer-sep">|</span>
-        <a href="#" class="footer-link" @click.prevent="showForgot = true">找回密码</a>
+        <a href="#" class="footer-link" @click.prevent="openForgot">找回密码</a>
       </div>
     </div>
 
@@ -338,6 +419,11 @@ async function handleForgot() {
       <n-input
         v-model:value="regNickname"
         placeholder="昵称"
+        style="margin-top: 12px"
+      />
+      <n-input
+        v-model:value="regEmail"
+        placeholder="邮箱（用于找回密码）"
         style="margin-top: 12px"
       />
       <div class="captcha-row" style="margin-top: 12px">
@@ -363,59 +449,112 @@ async function handleForgot() {
 
     <n-modal v-model:show="showForgot" preset="dialog" title="找回密码" style="max-width: 400px">
       <div class="forgot-form">
-        <div class="form-item">
-          <label>LinkX ID</label>
-          <n-input
-            v-model:value="forgotUser"
-            placeholder="请输入用户名"
-          />
-        </div>
-        <div class="form-item">
-          <label>验证码</label>
-          <div class="captcha-row">
-            <img
-              v-if="forgotCaptchaImage"
-              :src="forgotCaptchaImage"
-              alt="验证码"
-              class="captcha-img"
-              title="点击刷新"
-              @click="loadCaptcha('forgot')"
-            />
-            <n-input
-              v-model:value="forgotCaptchaCode"
-              placeholder="请输入验证码"
-              maxlength="6"
-            />
-            <n-button quaternary circle @click="loadCaptcha('forgot')">
-              <template #icon>
-                <n-icon :component="RefreshOutline" />
-              </template>
-            </n-button>
+        <!-- 步骤 1: 输入用户名 -->
+        <template v-if="forgotStep === 'input'">
+          <div class="forgot-tip">
+            <n-icon :component="MailOutline" :size="20" class="forgot-tip-icon" />
+            <p>请输入您的 LinkX ID，系统将向您的注册邮箱发送验证码</p>
           </div>
-        </div>
-        <div class="form-item">
-          <label>新密码</label>
-          <n-input
-            v-model:value="forgotNewPassword"
-            type="password"
-            show-password-on="click"
-            placeholder="请输入新密码（8位以上）"
-          />
-        </div>
-        <div class="form-item">
-          <label>确认密码</label>
-          <n-input
-            v-model:value="forgotConfirmPassword"
-            type="password"
-            show-password-on="click"
-            placeholder="请再次输入新密码"
-            @keyup.enter="handleForgot"
-          />
-        </div>
+          <div class="form-item">
+            <label>LinkX ID</label>
+            <n-input
+              v-model:value="forgotUser"
+              placeholder="请输入用户名"
+              @keyup.enter="handleSendResetCode"
+            />
+          </div>
+        </template>
+
+        <!-- 步骤 2: 输入邮箱验证码 -->
+        <template v-else-if="forgotStep === 'verify'">
+          <div class="forgot-tip">
+            <p>验证码已发送至您注册账号时填写的邮箱，请查收并输入</p>
+          </div>
+          <div class="form-item">
+            <label>验证码</label>
+            <n-input
+              v-model:value="forgotCode"
+              placeholder="请输入6位验证码"
+              maxlength="6"
+              @keyup.enter="handleVerifyCode"
+            />
+          </div>
+          <div class="resend-row">
+            <span v-if="forgotCountdown > 0" class="resend-tips">
+              {{ forgotCountdown }} 秒后可重新发送
+            </span>
+            <a
+              v-else
+              href="#"
+              class="resend-link"
+              :class="{ disabled: forgotSendLoading }"
+              @click.prevent="handleResendCode"
+            >
+              重新发送验证码
+            </a>
+            <span class="resend-sep">|</span>
+            <a
+              href="#"
+              class="resend-link"
+              @click.prevent="forgotStep = 'input'"
+            >
+              返回上一步
+            </a>
+          </div>
+        </template>
+
+        <!-- 步骤 3: 设置新密码 -->
+        <template v-else>
+          <div class="forgot-tip">
+            <p>验证成功，请设置您的新密码</p>
+          </div>
+          <div class="form-item">
+            <label>新密码</label>
+            <n-input
+              v-model:value="forgotNewPassword"
+              type="password"
+              show-password-on="click"
+              placeholder="请输入新密码（8位以上含字母数字）"
+            />
+          </div>
+          <div class="form-item">
+            <label>确认密码</label>
+            <n-input
+              v-model:value="forgotConfirmPassword"
+              type="password"
+              show-password-on="click"
+              placeholder="请再次输入新密码"
+              @keyup.enter="handleForgot"
+            />
+          </div>
+        </template>
       </div>
       <template #action>
         <n-button @click="showForgot = false">取消</n-button>
-        <n-button type="primary" :loading="forgotLoading" @click="handleForgot">重置密码</n-button>
+        <n-button
+          v-if="forgotStep === 'input'"
+          type="primary"
+          :loading="forgotSendLoading"
+          @click="handleSendResetCode"
+        >
+          发送验证码
+        </n-button>
+        <n-button
+          v-else-if="forgotStep === 'verify'"
+          type="primary"
+          :loading="verifyLoading"
+          @click="handleVerifyCode"
+        >
+          下一步
+        </n-button>
+        <n-button
+          v-else
+          type="primary"
+          :loading="forgotLoading"
+          @click="handleForgot"
+        >
+          重置密码
+        </n-button>
       </template>
     </n-modal>
   </div>
@@ -623,5 +762,60 @@ async function handleForgot() {
   cursor: pointer;
   border: 1px solid rgba(0, 0, 0, 0.08);
   flex-shrink: 0;
+}
+
+/* 找回密码多步骤提示 */
+.forgot-tip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #f0f8ff;
+  border-left: 3px solid #12b7f5;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.forgot-tip-icon {
+  color: #12b7f5;
+  flex-shrink: 0;
+}
+
+.forgot-tip p {
+  margin: 0;
+  color: #555;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.resend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.resend-tips {
+  color: #999;
+}
+
+.resend-link {
+  color: #12b7f5;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.resend-link:hover {
+  text-decoration: underline;
+}
+
+.resend-link.disabled {
+  color: #ccc;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.resend-sep {
+  color: #ddd;
 }
 </style>
