@@ -11,6 +11,7 @@ import com.linkx.server.entity.SysUser;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.*;
+import com.linkx.server.service.EmailService;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,9 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     private final RateLimitService rateLimitService;
     private final FileStorageService fileStorageService;
     private final CaptchaService captchaService;
+    private final EmailService emailService;
+    private final LinkxProperties linkxProperties;
+    private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
 
     @Override
     public void register(RegisterDTO registerDTO, HttpServletRequest request) {
@@ -49,6 +53,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
                 .username(InputSanitizer.stripHtml(registerDTO.getUsername(), 64))
                 .password(hashPassword)
                 .nickname(InputSanitizer.sanitizeText(registerDTO.getNickname(), 64))
+                .email(InputSanitizer.sanitizeText(registerDTO.getEmail(), 128))
                 .avatar(DEFAULT_AVATAR)
                 .status(1)
                 .build();
@@ -232,6 +237,169 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         tokenService.revokeAllUserTokens(user.getId());
 
         log.info("用户 {} 重置了密码", user.getUsername());
+    }
+
+    @Override
+    public String findEmailByUsername(String username) {
+        SysUser user = queryChain()
+                .where(SysUser::getUsername).eq(username)
+                .one();
+        return user != null ? user.getEmail() : null;
+    }
+
+    @Override
+    public void sendPasswordResetEmailCode(String username, String ip) {
+        // 限流：每个 IP 每 5 分钟最多请求 5 次
+        rateLimitService.check("reset-email:" + ip, 5, 300);
+
+        SysUser user = queryChain()
+                .where(SysUser::getUsername).eq(username)
+                .one();
+
+        // 无论用户是否存在，都返回成功，防止用户枚举攻击
+        if (user == null || user.getEmail() == null || user.getEmail().isBlank()) {
+            log.info("密码重置请求：用户 {} 不存在或未设置邮箱", username);
+            // 不抛异常，统一返回成功
+            return;
+        }
+
+        // 生成 6 位数字验证码（线程安全的 SecureRandom + 显式格式化避免边界值变成 5 位）
+        String code = String.format("%06d", java.util.concurrent.ThreadLocalRandom.current().nextInt(0, 1_000_000));
+
+        // 验证码存储到 Redis：key = "linkx:reset-email:{username}", value = "{code}"
+        int expireMinutes = linkxProperties.getMail().getCodeExpireMinutes();
+        String redisKey = "linkx:reset-email:" + username;
+        redisTemplate.opsForValue().set(
+                redisKey,
+                code,
+                java.time.Duration.ofMinutes(expireMinutes)
+        );
+        // 关键：打印写入的验证码（dev 环境排查用），生产可用 level=WARN 控制
+        log.info("[验证码持久化] key='{}', value='{}' (len={}), expireMinutes={}",
+                redisKey, code, code.length(), expireMinutes);
+
+        // 发送邮件：捕获更具体的异常类型便于排查
+        try {
+            emailService.sendPasswordResetCode(user.getEmail(), username, code);
+            log.info("密码重置验证码已发送到用户 {} 的邮箱 {}", username, user.getEmail());
+        } catch (org.springframework.mail.MailAuthenticationException e) {
+            // 授权码错误（最常见问题）
+            log.error("发送密码重置邮件失败：QQ 邮箱授权码错误或过期，错误: {}", e.getMessage(), e);
+        } catch (org.springframework.mail.MailParseException e) {
+            // 邮箱格式非法
+            log.error("发送密码重置邮件失败：用户 {} 的邮箱格式非法: {}", username, user.getEmail(), e);
+        } catch (org.springframework.mail.MailSendException e) {
+            log.error("发送密码重置邮件失败：邮件被服务器拒收/网络异常, 错误: {}", e.getMessage(), e);
+        } catch (Exception e) {
+            log.error("发送密码重置邮件失败：未知异常, 错误: {}", e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public void resetPasswordByEmail(String username, String code, String newPassword, String ip) {
+        // 限流：每个 IP 每 5 分钟最多尝试 10 次
+        rateLimitService.check("reset-verify:" + ip, 10, 300);
+
+        verifyCodeInternal(username, code);
+
+        // 校验通过才进行下一步：重置密码
+        doResetPassword(username, newPassword, ip);
+    }
+
+    @Override
+    public void verifyEmailResetCode(String username, String code, String ip) {
+        // 共享 reset-verify 限流桶，避免爆破
+        rateLimitService.check("reset-verify:" + ip, 10, 300);
+        verifyCodeInternal(username, code);
+        // 不删除 key，保留到真正的重置步骤消费
+    }
+
+    /**
+     * 校验邮箱验证码的内部复用方法。
+     * <p>
+     * 设计要点：
+     *  - 同一个用户名最多允许 N 次错误尝试（防爆破），超过后才真正删除 key；
+     *  - 这样用户输入手抖/错误一次不会把正确的验证码吃掉；
+     *  - 同时写入 attempts 计数到 Redis，跟 code key 同步 TTL。
+     */
+    private static final int MAX_CODE_ATTEMPTS = 5;
+
+    private void verifyCodeInternal(String username, String code) {
+        String key = "linkx:reset-email:" + username;
+        String attemptsKey = "linkx:reset-email:attempts:" + username;
+
+        if (code == null || code.isBlank()) {
+            throw new CustomException(400, "验证码不能为空");
+        }
+        String inputCode = code.trim();
+
+        String storedCode = redisTemplate.opsForValue().get(key);
+        if (storedCode == null) {
+            throw new CustomException(400, "验证码错误或已过期，请重新获取");
+        }
+
+        if (storedCode.equalsIgnoreCase(inputCode)) {
+            // 校验通过：清掉 attempts 计数，不删 code（留给 reset 步骤消费）
+            redisTemplate.delete(attemptsKey);
+            log.info("[验证码校验] username='{}', match=true", username);
+            return;
+        }
+
+        // 校验失败：累加错误次数
+        Long attempts = redisTemplate.opsForValue().increment(attemptsKey);
+        Long ttl = redisTemplate.getExpire(attemptsKey);
+        if (ttl == null || ttl < 0) {
+            // attempts key 没设过期，初始化时一并设置
+            redisTemplate.expire(attemptsKey,
+                    java.time.Duration.ofMinutes(linkxProperties.getMail().getCodeExpireMinutes()));
+        }
+        int remaining = MAX_CODE_ATTEMPTS - attempts.intValue();
+        log.info("[验证码校验失败] username='{}', attempts={}, remaining={}", username, attempts, remaining);
+
+        if (attempts >= MAX_CODE_ATTEMPTS) {
+            // 错误次数超过上限，吃掉这个验证码（防止爆破）
+            redisTemplate.delete(key);
+            redisTemplate.delete(attemptsKey);
+            throw new CustomException(400, "验证码错误次数过多，已失效，请重新获取");
+        }
+        // 未到上限：保留 key，让用户继续尝试（保留的还能用！）
+        throw new CustomException(400, String.format("验证码错误，还可再尝试 %d 次", Math.max(remaining, 0)));
+    }
+
+    /**
+     * 重置密码 + 通知的内部复用方法。
+     */
+    private void doResetPassword(String username, String newPassword, String ip) {
+        // 验证成功后强制删除 key（一次性使用）
+        redisTemplate.delete("linkx:reset-email:" + username);
+
+        SysUser user = queryChain()
+                .where(SysUser::getUsername).eq(username)
+                .one();
+
+        if (user == null) {
+            BCrypt.hashpw(newPassword, BCrypt.gensalt(12)); // 防时序攻击
+            throw new CustomException(400, "操作失败，请稍后重试");
+        }
+
+        // 重置密码
+        String hashPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt(12));
+        user.setPassword(hashPassword);
+        updateById(user);
+
+        // 使所有 refresh token 失效
+        tokenService.revokeAllUserTokens(user.getId());
+
+        // 发送密码修改通知邮件
+        try {
+            if (user.getEmail() != null && !user.getEmail().isBlank()) {
+                emailService.sendPasswordChangedNotification(user.getEmail(), username, ip);
+            }
+        } catch (Exception e) {
+            log.warn("发送密码修改通知邮件失败: {}", e.getMessage());
+        }
+
+        log.info("用户 {} 通过邮箱验证码重置了密码", username);
     }
 
     /**

@@ -9,6 +9,9 @@ import com.linkx.server.controller.dto.LogoutDTO;
 import com.linkx.server.controller.dto.RefreshTokenDTO;
 import com.linkx.server.controller.dto.RegisterDTO;
 import com.linkx.server.controller.dto.ResetPasswordDTO;
+import com.linkx.server.controller.dto.ResetPasswordByEmailRequest;
+import com.linkx.server.controller.dto.SendResetCodeRequest;
+import com.linkx.server.controller.dto.VerifyResetCodeRequest;
 import com.linkx.server.controller.vo.CaptchaVO;
 import com.linkx.server.controller.vo.TokenVO;
 import com.linkx.server.exception.CustomException;
@@ -115,6 +118,51 @@ public class AuthController {
         }
         rateLimitService.check("reset-captcha:" + userId, 3, 60);
         return Result.success(captchaService.generateForOwner(String.valueOf(userId)));
+    }
+
+    /**
+     * 发送密码重置邮件验证码
+     * 用户输入用户名，系统查找该用户的邮箱并发送验证码
+     */
+    @PostMapping("/send-reset-code")
+    public Result<Void> sendResetCode(
+            @Valid @RequestBody SendResetCodeRequest request,
+            HttpServletRequest httpRequest) {
+        rateLimitService.check("send-reset:" + clientIp(httpRequest), 3, 60);
+        sysUserService.sendPasswordResetEmailCode(request.getUsername(), clientIp(httpRequest));
+        return Result.success(null);
+    }
+
+    /**
+     * 通过邮箱验证码重置密码
+     */
+    @PostMapping("/reset-password-by-email")
+    public Result<Void> resetPasswordByEmail(
+            @Valid @RequestBody ResetPasswordByEmailRequest request,
+            HttpServletRequest httpRequest) {
+        sysUserService.resetPasswordByEmail(
+                request.getUsername(),
+                request.getCode(),
+                request.getNewPassword(),
+                clientIp(httpRequest)
+        );
+        return Result.success(null);
+    }
+
+    /**
+     * 仅校验邮箱验证码，不消费。
+     * 提供给前端在进入「重置密码」表单前先校验，避免用户填好新密码后才发现验证码错了。
+     */
+    @PostMapping("/verify-reset-code")
+    public Result<Void> verifyResetCode(
+            @Valid @RequestBody VerifyResetCodeRequest request,
+            HttpServletRequest httpRequest) {
+        sysUserService.verifyEmailResetCode(
+                request.getUsername(),
+                request.getCode(),
+                clientIp(httpRequest)
+        );
+        return Result.success(null);
     }
 
     private void validateCaptchaIfEnabled(String captchaId, String captchaCode) {
