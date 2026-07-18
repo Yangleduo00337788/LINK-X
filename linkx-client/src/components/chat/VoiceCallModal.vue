@@ -2,7 +2,7 @@
 // Vue 响应式 API、侦听器与生命周期
 import { ref, watch, onUnmounted } from 'vue'
 // Naive UI 图标组件
-import { NIcon } from 'naive-ui'
+import { NIcon, useMessage } from 'naive-ui'
 // Ionicons5 通话相关图标
 import {
   MicOutline,
@@ -19,13 +19,16 @@ import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 // 应用全局状态 Store
 import { useAppStore } from '../../stores/app'
+// 通话 API
+import * as callApi from '../../api/call'
 
 // 聊天弹窗 Store 实例
 const chatModalsStore = useChatModalsStore()
+const message = useMessage()
 // 应用 Store 实例
 const appStore = useAppStore()
 // 语音通话弹窗是否打开
-const { voiceCallOpen } = storeToRefs(chatModalsStore)
+const { voiceCallOpen, currentCallId } = storeToRefs(chatModalsStore)
 // 关闭语音通话、打开视频通话的方法
 const { closeVoiceCall, openVideoCall } = chatModalsStore
 // 当前会话信息
@@ -78,14 +81,45 @@ const statusText = () => {
 }
 
 // 挂断并关闭语音通话
-function hangUp() {
+async function hangUp() {
+  const callId = currentCallId.value
+  if (callId) {
+    try {
+      await callApi.cancelCall(callId)
+    } catch {
+      /* 通话可能已结束 */
+    }
+  }
   closeVoiceCall()
 }
 
 // 切换到视频通话
-function switchToVideo() {
+async function switchToVideo() {
+  const sessionId = currentSession.value?.id
+  if (!sessionId) {
+    closeVoiceCall()
+    return
+  }
+  const prevCallId = currentCallId.value
+  if (prevCallId) {
+    try {
+      await callApi.cancelCall(prevCallId)
+    } catch {
+      /* ignore */
+    }
+  }
   closeVoiceCall()
-  openVideoCall()
+  try {
+    const res = await callApi.inviteCall({ conversationId: sessionId, callType: 'video' })
+    if (res.code === 200 && res.data?.callId) {
+      openVideoCall(res.data.callId)
+      return
+    }
+    message.error(res.message || '切换视频通话失败')
+  } catch (error) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || '切换视频通话失败')
+  }
 }
 </script>
 

@@ -51,13 +51,39 @@ import { useContactsStore } from '../stores/contacts'
 import type { ChatMessage, ContactItem } from '../types'
 // 收藏 Store
 import { useFavoritesStore } from '../stores/favorites'
+// 通话 API
+import * as callApi from '../api/call'
 
 // 获取 Naive UI 消息提示实例
 const message = useMessage()
 
-/** 暂不支持的功能提示 */
-function showUnsupported(feature: string) {
-  message.info(`${feature}功能正在开发中，敬请期待`)
+/** 发起语音/视频通话（对接后端信令 API） */
+async function startCall(callType: 'voice' | 'video') {
+  const session = currentSession.value
+  const sessionId = currentSessionId.value
+  if (!session || !sessionId) {
+    message.warning('请先选择会话')
+    return
+  }
+  if (session.isGroup) {
+    message.warning('暂仅支持单聊通话')
+    return
+  }
+  try {
+    const res = await callApi.inviteCall({ conversationId: sessionId, callType })
+    if (res.code === 200 && res.data?.callId) {
+      if (callType === 'voice') {
+        openVoiceCall(res.data.callId)
+      } else {
+        openVideoCall(res.data.callId)
+      }
+      return
+    }
+    message.error(res.message || '发起通话失败')
+  } catch (error) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || '发起通话失败')
+  }
 }
 // 获取收藏 Store 实例
 const favoritesStore = useFavoritesStore()
@@ -471,10 +497,10 @@ function onDrop(e: DragEvent) {
           <span v-if="currentSession?.online" class="online-dot" title="在线" />
         </div>
         <div class="chat-header-actions">
-          <button type="button" class="hdr-btn" title="语音通话" @click="() => showUnsupported('语音通话')">
+          <button type="button" class="hdr-btn" title="语音通话" @click="() => startCall('voice')">
             <n-icon :component="CallOutline" :size="20" />
           </button>
-          <button type="button" class="hdr-btn" title="视频通话" @click="() => showUnsupported('视频通话')">
+          <button type="button" class="hdr-btn" title="视频通话" @click="() => startCall('video')">
             <n-icon :component="VideocamOutline" :size="20" />
           </button>
           <button type="button" class="hdr-btn" title="更多" @click="toggleMore">
@@ -489,10 +515,10 @@ function onDrop(e: DragEvent) {
           <span class="chat-peer-name chat-peer-name--group">{{ currentSession?.name }}</span>
         </div>
         <div class="chat-header-actions">
-          <button type="button" class="hdr-btn" title="语音通话" @click="() => showUnsupported('语音通话')">
+          <button type="button" class="hdr-btn" title="语音通话" @click="() => startCall('voice')">
             <n-icon :component="CallOutline" :size="20" />
           </button>
-          <button type="button" class="hdr-btn" title="视频通话" @click="() => showUnsupported('视频通话')">
+          <button type="button" class="hdr-btn" title="视频通话" @click="() => startCall('video')">
             <n-icon :component="VideocamOutline" :size="20" />
           </button>
           <n-popover

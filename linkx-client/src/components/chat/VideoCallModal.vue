@@ -19,13 +19,15 @@ import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 // 应用全局状态 Store
 import { useAppStore } from '../../stores/app'
+// 通话 API
+import * as callApi from '../../api/call'
 
 // 聊天弹窗 Store 实例
 const chatModalsStore = useChatModalsStore()
 // 应用 Store 实例
 const appStore = useAppStore()
 // 视频通话弹窗是否打开
-const { videoCallOpen } = storeToRefs(chatModalsStore)
+const { videoCallOpen, currentCallId } = storeToRefs(chatModalsStore)
 // 关闭视频通话弹窗的方法
 const { closeVideoCall } = chatModalsStore
 // 用户资料与当前会话
@@ -98,7 +100,15 @@ onUnmounted(() => {
 })
 
 // 挂断并关闭视频通话
-function hangUp() {
+async function hangUp() {
+  const callId = currentCallId.value
+  if (callId) {
+    try {
+      await callApi.cancelCall(callId)
+    } catch {
+      /* 通话可能已结束 */
+    }
+  }
   closeVideoCall()
 }
 

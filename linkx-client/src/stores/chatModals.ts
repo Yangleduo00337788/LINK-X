@@ -19,6 +19,7 @@ export const useChatModalsStore = defineStore('chatModals', {
     momentsModalOpen: false,            // 朋友圈模态框
     voiceCallOpen: false,               // 语音通话模态框
     videoCallOpen: false,               // 视频通话模态框
+    currentCallId: null as string | null, // 当前通话信令 ID
     addMembersOpen: false,              // 添加群成员模态框
     groupFilesOpen: false,              // 群文件模态框
     groupAlbumOpen: false,              // 群相册模态框
@@ -89,17 +90,21 @@ export const useChatModalsStore = defineStore('chatModals', {
     closeMomentsModal() {
       this.momentsModalOpen = false
     },
-    openVoiceCall() {
+    openVoiceCall(callId?: string) {
+      this.currentCallId = callId ?? null
       this.voiceCallOpen = true
     },
     closeVoiceCall() {
       this.voiceCallOpen = false
+      this.currentCallId = null
     },
-    openVideoCall() {
+    openVideoCall(callId?: string) {
+      this.currentCallId = callId ?? null
       this.videoCallOpen = true
     },
     closeVideoCall() {
       this.videoCallOpen = false
+      this.currentCallId = null
     },
     openAddMembers() {
       this.addMembersOpen = true
