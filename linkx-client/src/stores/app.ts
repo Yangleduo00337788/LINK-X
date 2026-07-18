@@ -330,40 +330,26 @@ export const useAppStore = defineStore('app', {
     },
 
     /**
-     * 加入已有名称的群（若本地无则创建）
-     * @param groupName 群名称
+     * 打开已有群聊会话（从后端会话列表中定位）
+     * @param conversationId 群会话 ID
      */
-    joinGroup(groupName: string) {
-      const exists = this.sessions.find(s => s.isGroup && s.name === groupName)
-      if (exists) {
-        this.selectSession(exists)
+    async openGroupSession(conversationId: string) {
+      let session = this.sessions.find(s => s.id === conversationId && s.isGroup)
+      if (session) {
+        this.selectSession(session)
         this.navKey = 'chat'
-        return exists
+        return session
       }
-      const id = `group-join-${Date.now()}`
-      const time = nowTime()
-      const session: ChatSession = {
-        id,
-        name: groupName,
-        lastMessage: '系统：欢迎加入群聊',
-        time,
-        avatarText: groupName.charAt(0) || '群',
-        avatarColor: pickGroupColor(groupName),
-        isGroup: true
+
+      await this.loadChatSessions()
+      session = this.sessions.find(s => s.id === conversationId && s.isGroup)
+      if (session) {
+        this.selectSession(session)
+        this.navKey = 'chat'
+        return session
       }
-      this.messagesBySession[id] = [
-        {
-          id: `msg-sys-${Date.now()}`,
-          sessionId: id,
-          content: '系统：你已加入群聊',
-          time,
-          isSelf: false,
-          type: 'system'
-        }
-      ]
-      this.ensureSession(session)
-      useContactsStore().syncFriendFromSession(session) // 同步到通讯录（演示逻辑）
-      return session
+
+      throw new Error('群聊不存在或你尚未加入')
     },
 
     async addFriendSession(friend: { userId: string; name: string; avatarUrl?: string }) {
@@ -412,14 +398,20 @@ export const useAppStore = defineStore('app', {
     },
 
     /**
-     * 从后端仅拉取群聊会话列表（{@code GET /group/list}）。
-     * 一般与 {@link loadChatSessions} 配合使用，但保留独立入口以便"只看群"场景。
+     * 从后端拉取群聊会话列表（{@code GET /group/list}），并合并到本地会话列表。
      */
     async loadGroups() {
       try {
-        const res = await groupApi.listGroups('')
-        void res // 当前前端在 loadChatSessions 中已经合并展示；保留作为调试入口
-        return res.data ?? []
+        const res = await groupApi.listGroups()
+        if (res.code !== 200 || !res.data) return []
+
+        const groupSessions = res.data.map(conversationToSession)
+        for (const session of groupSessions) {
+          if (!this.sessions.some(s => s.id === session.id)) {
+            this.sessions.push(session)
+          }
+        }
+        return groupSessions
       } catch (e) {
         console.error('加载群聊列表失败:', e)
         return []

@@ -10,7 +10,6 @@ import { ref, computed } from 'vue'
 import { NIcon } from 'naive-ui'
 import {
   ChevronDownOutline,
-  ChevronForwardOutline,
   EllipseOutline,
   CheckmarkCircle
 } from '@vicons/ionicons5'
@@ -21,6 +20,7 @@ import { useAppStore } from '../../stores/app'
 import { useContactsStore } from '../../stores/contacts'
 import { useGroupMetaStore } from '../../stores/groupMeta'
 import * as groupApi from '../../api/group'
+import * as groupInvitationApi from '../../api/groupInvitation'
 import { useMessage } from 'naive-ui'
 
 const message = useMessage()
@@ -36,6 +36,7 @@ const search = ref('')
 const selected = ref<Set<string>>(new Set())
 const recentExpanded = ref(true)
 const attachHistory = ref(true)
+const inviteMode = ref(false)
 const submitting = ref(false)
 
 // 当前用户的真实 userId，用于排除自己（不能邀请自己入群）
@@ -73,16 +74,29 @@ async function confirm() {
   submitting.value = true
   try {
     const memberIds = Array.from(selected.value).filter(id => id !== myUserId.value)
-    const res = await groupApi.addGroupMembers(currentSessionId.value, { memberIds })
-    if (res.code === 200) {
-      // 刷新本地群成员缓存，让侧栏/抽屉显示最新成员
-      void groupMetaStore.fetchMembers(currentSessionId.value)
-      message.success(`已邀请 ${memberIds.length} 人加入群聊`)
-      selected.value = new Set()
-      closeAddMembers()
+    if (inviteMode.value) {
+      for (const memberId of memberIds) {
+        const res = await groupInvitationApi.inviteToGroup(currentSessionId.value, {
+          inviteeUserId: memberId,
+          message: '邀请你加入群聊'
+        })
+        if (res.code !== 200) {
+          throw new Error(res.message || '发送群邀请失败')
+        }
+      }
+      message.success(`已向 ${memberIds.length} 人发送群邀请`)
     } else {
-      message.error(res.message || '邀请失败')
+      const res = await groupApi.addGroupMembers(currentSessionId.value, { memberIds })
+      if (res.code === 200) {
+        void groupMetaStore.fetchMembers(currentSessionId.value)
+        message.success(`已邀请 ${memberIds.length} 人加入群聊`)
+      } else {
+        message.error(res.message || '邀请失败')
+        return
+      }
     }
+    selected.value = new Set()
+    closeAddMembers()
   } catch (e) {
     const err = e as { response?: { data?: { message?: string } }; message?: string }
     message.error(err.response?.data?.message || err.message || '邀请失败')
@@ -154,6 +168,10 @@ function cancel() {
         </div>
         <!-- 底部：附带聊天记录选项与操作按钮 -->
         <div class="modal-footer">
+          <label class="history-opt">
+            <input v-model="inviteMode" type="checkbox" :disabled="submitting" />
+            <span>发送邀请待对方确认</span>
+          </label>
           <label class="history-opt">
             <input v-model="attachHistory" type="checkbox" :disabled="submitting" />
             <span>附带聊天记录</span>

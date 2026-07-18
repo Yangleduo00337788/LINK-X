@@ -47,19 +47,6 @@ export const useContactsStore = defineStore('contacts', {
       this.items.push(contact)
     },
 
-    addByName(name: string) {
-      const id = `contact-${Date.now()}`
-      this.addContact({
-        id,
-        name,
-        avatarText: name.charAt(0) || '?',
-        avatarColor: DEFAULT_AVATAR_COLOR,
-        group: '我的好友',
-        online: true
-      })
-      return id
-    },
-
     remove(id: string) {
       this.items = this.items.filter(c => c.id !== id)
     },

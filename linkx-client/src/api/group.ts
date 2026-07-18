@@ -27,6 +27,15 @@ export interface CreateGroupPayload {
   memberIds: string[]
 }
 
+export interface ConversationSummary {
+  id: string
+  type: number
+  name?: string
+  avatar?: string
+  lastMessage?: string
+  lastMessageTime?: string | number
+}
+
 export interface UpdateGroupPayload {
   name?: string
   announcement?: string
@@ -34,6 +43,13 @@ export interface UpdateGroupPayload {
 
 export interface AddMembersPayload {
   memberIds: string[]
+}
+
+/**
+ * 获取当前用户加入的群聊列表
+ */
+export function listGroups() {
+  return apiClient.get<never, ApiResult<ConversationSummary[]>>('/group/list')
 }
 
 /**

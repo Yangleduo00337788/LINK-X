@@ -12,7 +12,16 @@ import { useAppStore } from '../../stores/app'
 import { useContactsStore } from '../../stores/contacts'
 import { useNotificationsStore } from '../../stores/notifications'
 import * as friendApi from '../../api/friend'
+import * as groupApi from '../../api/group'
 import type { UserSearchResult } from '../../types/friend'
+import type { ConversationSummary } from '../../api/group'
+
+interface SearchGroupItem {
+  id: string
+  name: string
+  avatarText: string
+  lastMessage?: string
+}
 
 interface SearchUserItem {
   id: string
@@ -34,13 +43,14 @@ const notificationsStore = useNotificationsStore()
 const { comprehensiveSearchOpen } = storeToRefs(chatModalsStore)
 const { closeComprehensiveSearch } = chatModalsStore
 const { groupSessions } = storeToRefs(appStore)
-const { joinGroup: joinGroupAction, addFriendSession: addFriendAction } = appStore
+const { openGroupSession, addFriendSession: addFriendAction } = appStore
 
 const keyword = ref('')
 const mainTab = ref<'all' | 'user' | 'group'>('all')
 const searched = ref(false)
 const searching = ref(false)
 const remoteUsers = ref<UserSearchResult[]>([])
+const remoteGroups = ref<SearchGroupItem[]>([])
 
 const mainTabs = [
   { key: 'all', label: '全部' },
@@ -53,6 +63,7 @@ function close() {
   searched.value = false
   searching.value = false
   remoteUsers.value = []
+  remoteGroups.value = []
 }
 
 async function doSearch() {
@@ -65,12 +76,26 @@ async function doSearch() {
   searched.value = true
   searching.value = true
   remoteUsers.value = []
+  remoteGroups.value = []
 
   try {
     if (q.length >= 2) {
-      const res = await friendApi.searchUsers(q)
-      if (res.code === 200 && res.data) {
-        remoteUsers.value = res.data
+      const [userRes, groupRes] = await Promise.all([
+        friendApi.searchUsers(q),
+        groupApi.listGroups()
+      ])
+      if (userRes.code === 200 && userRes.data) {
+        remoteUsers.value = userRes.data
+      }
+      if (groupRes.code === 200 && groupRes.data) {
+        remoteGroups.value = groupRes.data
+          .filter(g => (g.name || '群聊').toLowerCase().includes(q.toLowerCase()))
+          .map((g: ConversationSummary) => ({
+            id: String(g.id),
+            name: g.name || '群聊',
+            avatarText: (g.name || '群').charAt(0),
+            lastMessage: g.lastMessage
+          }))
       }
     }
   } catch (error: unknown) {
@@ -123,16 +148,37 @@ const filteredUsers = computed<SearchUserItem[]>(() => {
 const filteredGroups = computed(() => {
   if (!searched.value) return []
   const q = keyword.value.trim().toLowerCase()
-  return groupSessions.value.filter(s => s.name.toLowerCase().includes(q))
+  const merged = new Map<string, SearchGroupItem>()
+
+  for (const group of remoteGroups.value) {
+    merged.set(group.id, group)
+  }
+
+  for (const session of groupSessions.value) {
+    if (!q || session.name.toLowerCase().includes(q)) {
+      merged.set(session.id, {
+        id: session.id,
+        name: session.name,
+        avatarText: session.avatarText,
+        lastMessage: session.lastMessage
+      })
+    }
+  }
+
+  return [...merged.values()]
 })
 
 const showGroups = computed(() => mainTab.value === 'all' || mainTab.value === 'group')
 const showUsers = computed(() => mainTab.value === 'all' || mainTab.value === 'user')
 
-function joinGroupByName(name: string) {
-  const session = joinGroupAction(name)
-  message.success(`已加入群聊「${session.name}」`)
-  close()
+async function enterGroup(group: SearchGroupItem) {
+  try {
+    await openGroupSession(group.id)
+    message.success(`已进入群聊「${group.name}」`)
+    close()
+  } catch (error) {
+    message.error((error as Error).message || '进入群聊失败')
+  }
 }
 
 async function handleUserAction(user: SearchUserItem) {
@@ -243,7 +289,7 @@ async function handleUserAction(user: SearchUserItem) {
                     <span>{{ g.lastMessage || '暂无消息' }}</span>
                   </p>
                 </div>
-                <button type="button" class="join-btn" @click="joinGroupByName(g.name)">进入</button>
+                <button type="button" class="join-btn" @click="enterGroup(g)">进入</button>
               </article>
               <p v-if="showGroups && !filteredGroups.length && mainTab !== 'user'" class="empty-tip">
                 未找到匹配群聊
