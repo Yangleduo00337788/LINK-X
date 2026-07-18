@@ -36,6 +36,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         api + "/auth/logout",
                         api + "/auth/captcha",
                         api + "/auth/reset-password",
+                        api + "/auth/send-reset-code",
+                        api + "/auth/verify-reset-code",
+                        api + "/auth/reset-password-by-email",
                         // Swagger / OpenAPI
                         api + "/swagger-ui/**",
                         api + "/swagger-ui.html",
@@ -56,6 +59,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         api + "/auth/logout",
                         api + "/auth/captcha",
                         api + "/auth/reset-password",
+                        api + "/auth/send-reset-code",
+                        api + "/auth/verify-reset-code",
+                        api + "/auth/reset-password-by-email",
                         // Swagger / OpenAPI
                         api + "/swagger-ui/**",
                         api + "/swagger-ui.html",

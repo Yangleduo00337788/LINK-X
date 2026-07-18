@@ -58,6 +58,6 @@ export interface SendResetCodeRequest {
 
 export interface ResetPasswordByEmailRequest {
   username: string
-  emailCode: string
+  code: string
   newPassword: string
 }
