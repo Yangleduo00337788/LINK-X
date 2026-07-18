@@ -7,7 +7,7 @@
  * 领取完成后，前端用返回的 VO 更新本地消息的红包状态。
  * </p>
  */
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { NButton, useMessage } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
@@ -36,6 +36,34 @@ const statusText = computed(() => {
   if (s === 'expired') return '已过期'
   if (opened.value) return '已领取'
   return '未领取'
+})
+
+async function syncRedPacketDetail() {
+  const msg = packetMsg.value
+  const redPacketId = msg?.redPacketId
+  if (!msg || !redPacketId) return
+  try {
+    const res = await redPacketApi.getRedPacketDetail(redPacketId)
+    if (res.code === 200 && res.data) {
+      const rp = res.data
+      msg.redPacketGreeting = rp.greeting
+      msg.redPacketRemainingCount = rp.remainingCount
+      msg.redPacketStatus = rp.status
+      msg.redPacketReceived = rp.received
+      if (rp.receivedAmount != null) {
+        msg.redPacketReceivedAmount = String(rp.receivedAmount)
+        msg.redPacketOpened = true
+      }
+    }
+  } catch {
+    /* 详情拉取失败时沿用消息内嵌字段 */
+  }
+}
+
+watch(redPacketReceiveOpen, open => {
+  if (open) {
+    void syncRedPacketDetail()
+  }
 })
 
 function close() {
