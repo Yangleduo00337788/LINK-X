@@ -6,6 +6,7 @@
 
 import { defineStore } from 'pinia'
 import * as groupApi from '../api/group'
+import * as noteApi from '../api/note'
 
 /** 群精华条目 */
 export interface GroupEssenceItem {
@@ -184,20 +185,32 @@ export const useGroupMetaStore = defineStore('groupMeta', {
     },
 
     /**
-     * 获取群精华列表
+     * 添加精华条目：调用 note API 写入一条 type=link 的笔记。
      */
-    essenceFor(sessionId: string): GroupEssenceItem[] {
-      return this.essence[sessionId] || []
-    },
-
-    /**
-     * 添加精华条目（需后端支持）
-     */
-    addEssence(sessionId: string, item: Omit<GroupEssenceItem, 'id'>) {
-      if (!this.essence[sessionId]) {
-        this.essence[sessionId] = []
+    async addEssence(sessionId: string, item: Omit<GroupEssenceItem, 'id'>) {
+      try {
+        const res = await noteApi.createNote({
+          title: item.user || '精华',
+          content: item.content,
+          type: 'link'
+        })
+        if (res.code === 200 && res.data) {
+          if (!this.essence[sessionId]) {
+            this.essence[sessionId] = []
+          }
+          this.essence[sessionId].unshift({
+            id: String(res.data.id),
+            user: item.user,
+            date: (res.data.updateTime || res.data.createTime || '').slice(0, 10),
+            type: 'link',
+            content: item.content
+          })
+          return true
+        }
+      } catch (e) {
+        console.error('添加精华失败:', e)
       }
-      this.essence[sessionId].unshift({ ...item, id: `e-${Date.now()}` })
+      return false
     },
 
     /**
@@ -224,49 +237,113 @@ export const useGroupMetaStore = defineStore('groupMeta', {
     },
 
     /**
-     * 获取群文件列表
+     * 加载群共享文件列表：复用 note API，过滤 {@code type=file} 的笔记作为群文件。
+     */
+    async fetchFiles(sessionId: string) {
+      if (this.loading[`files-${sessionId}`]) return
+      this.loading[`files-${sessionId}`] = true
+      try {
+        const res = await noteApi.listNotes()
+        if (res.code === 200 && res.data) {
+          this.files[sessionId] = res.data
+            .filter(n => (n.type || 'note') === 'file')
+            .map(n => ({
+              id: String(n.id),
+              name: n.title || n.content.slice(0, 40) || '文件',
+              size: '未知',
+              user: '我',
+              date: (n.updateTime || n.createTime || '').slice(0, 10),
+              downloads: 0,
+              fileUrl: n.content
+            }))
+        }
+      } catch (e) {
+        console.error('加载群文件失败:', e)
+      } finally {
+        this.loading[`files-${sessionId}`] = false
+      }
+    },
+
+    /**
+     * 加载群相册：复用 note API，过滤 {@code type=image} 的笔记。
+     */
+    async fetchAlbum(sessionId: string) {
+      if (this.loading[`album-${sessionId}`]) return
+      this.loading[`album-${sessionId}`] = true
+      try {
+        const res = await noteApi.listNotes()
+        if (res.code === 200 && res.data) {
+          this.albums[sessionId] = res.data
+            .filter(n => (n.type || 'note') === 'image')
+            .map(n => ({
+              id: String(n.id),
+              url: n.content,
+              name: n.title || '',
+              user: '我',
+              time: (n.updateTime || n.createTime || '').slice(0, 10)
+            }))
+        }
+      } catch (e) {
+        console.error('加载群相册失败:', e)
+      } finally {
+        this.loading[`album-${sessionId}`] = false
+      }
+    },
+
+    /**
+     * 加载群精华：复用 note API，过滤 {@code type=link} 的笔记。
+     */
+    async fetchEssence(sessionId: string) {
+      if (this.loading[`essence-${sessionId}`]) return
+      this.loading[`essence-${sessionId}`] = true
+      try {
+        const res = await noteApi.listNotes()
+        if (res.code === 200 && res.data) {
+          this.essence[sessionId] = res.data
+            .filter(n => (n.type || 'note') === 'link')
+            .map(n => ({
+              id: String(n.id),
+              user: '我',
+              date: (n.updateTime || n.createTime || '').slice(0, 10),
+              type: 'link' as const,
+              content: n.content
+            }))
+        }
+      } catch (e) {
+        console.error('加载群精华失败:', e)
+      } finally {
+        this.loading[`essence-${sessionId}`] = false
+      }
+    },
+
+    /**
+     * 懒加载获取群文件
      */
     filesFor(sessionId: string): GroupFileItem[] {
+      if (!this.files[sessionId]) {
+        void this.fetchFiles(sessionId)
+      }
       return this.files[sessionId] || []
     },
 
     /**
-     * 添加群文件记录
-     */
-    addFile(sessionId: string, file: Omit<GroupFileItem, 'id' | 'downloads' | 'date'> & { date?: string }) {
-      if (!this.files[sessionId]) {
-        this.files[sessionId] = []
-      }
-      this.files[sessionId].unshift({
-        id: `gf-${Date.now()}`,
-        downloads: 0,
-        date: file.date ?? new Date().toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }),
-        ...file
-      })
-    },
-
-    /**
-     * 获取群相册列表
+     * 懒加载获取群相册
      */
     albumFor(sessionId: string): GroupAlbumItem[] {
+      if (!this.albums[sessionId]) {
+        void this.fetchAlbum(sessionId)
+      }
       return this.albums[sessionId] || []
     },
 
     /**
-     * 批量添加群相册图片
+     * 懒加载获取群精华
      */
-    addAlbumImages(sessionId: string, items: { url: string; name: string; user: string }[]) {
-      if (!this.albums[sessionId]) {
-        this.albums[sessionId] = []
+    essenceFor(sessionId: string): GroupEssenceItem[] {
+      if (!this.essence[sessionId]) {
+        void this.fetchEssence(sessionId)
       }
-      const time = '刚刚'
-      for (const item of items) {
-        this.albums[sessionId].unshift({
-          id: `ga-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
-          ...item,
-          time
-        })
-      }
+      return this.essence[sessionId] || []
     },
 
     /**

@@ -372,6 +372,23 @@ export const useAppStore = defineStore('app', {
 
     /** 登录后拉取好友、通知与聊天会话，并连接 WebSocket */
     async loadSocialData() {
+      // 标记进入登录态；拉取并合并服务端偏好
+      const { useAppSettingsStore } = await import('./appSettings')
+      useAppSettingsStore().markOnline()
+      await useAppSettingsStore().loadFromServer()
+
+      // 把服务端的 autoStart 同步到 Electron 主进程（如果当前不一致就纠正）
+      try {
+        const settings = useAppSettingsStore()
+        const want = settings.autoStart
+        const current = await window.electronAPI?.getAutoStart?.()
+        if (typeof current === 'boolean' && current !== want) {
+          await window.electronAPI?.setAutoStart?.(want)
+        }
+      } catch (e) {
+        console.warn('[app] 同步开机自启失败:', e)
+      }
+
       await Promise.all([
         useContactsStore().fetchFriends(),
         useNotificationsStore().fetchFriendRequests()
@@ -391,6 +408,21 @@ export const useAppStore = defineStore('app', {
         this.chatInitialized = true
       } catch (e) {
         console.error('加载会话列表失败:', e)
+      }
+    },
+
+    /**
+     * 从后端仅拉取群聊会话列表（{@code GET /group/list}）。
+     * 一般与 {@link loadChatSessions} 配合使用，但保留独立入口以便"只看群"场景。
+     */
+    async loadGroups() {
+      try {
+        const res = await groupApi.listGroups('')
+        void res // 当前前端在 loadChatSessions 中已经合并展示；保留作为调试入口
+        return res.data ?? []
+      } catch (e) {
+        console.error('加载群聊列表失败:', e)
+        return []
       }
     },
 
@@ -612,42 +644,81 @@ export const useAppStore = defineStore('app', {
     },
 
     /**
-     * 邀请成员入群：更新 groupMeta 成员列表并插入系统消息
+     * 邀请成员入群：调用真实后端 {@code POST /group/{id}/members}。
+     * 成功后刷新本地群成员缓存。
      * @param sessionId 群会话 id
-     * @param names 被邀请人姓名列表
+     * @param memberIds 被邀请人 userId 列表
+     * @returns 是否成功
      */
-    inviteGroupMembers(sessionId: string, names: string[]) {
-      if (!names.length) return
-      const newMembers: GroupMember[] = names.map((name, idx) => ({
-        id: `invited-${Date.now()}-${idx}`,
-        name,
-        avatarText: name.charAt(0) || '?',
-        avatarColor: '#12b7f5'
-      }))
-      useGroupMetaStore().addMembers(sessionId, newMembers)
-      const time = nowTime()
-      const text = `系统：${this.userProfile.nickname} 邀请了 ${names.join('、')} 加入群聊`
-      if (!this.messagesBySession[sessionId]) {
-        this.messagesBySession[sessionId] = []
-      }
-      this.messagesBySession[sessionId].push({
-        id: `msg-sys-${Date.now()}`,
-        sessionId,
-        content: text,
-        time,
-        isSelf: false,
-        type: 'system'
-      })
-      const session = this.sessions.find(s => s.id === sessionId)
-      if (session) {
-        session.lastMessage = text
-        session.time = time
+    async addGroupMembers(sessionId: string, memberIds: string[]): Promise<boolean> {
+      const filtered = memberIds.filter(Boolean)
+      if (!sessionId || filtered.length === 0) return false
+      try {
+        const res = await groupApi.addGroupMembers(sessionId, { memberIds: filtered })
+        if (res.code === 200) {
+          // 刷新本地群成员缓存，让侧栏/抽屉显示最新成员
+          await useGroupMetaStore().fetchMembers(sessionId)
+          return true
+        }
+        throw new Error(res.message || '邀请成员失败')
+      } catch (e) {
+        console.error('邀请成员失败:', e)
+        throw e
       }
     },
 
-    /** 退群：等价于删除该群会话 */
-    leaveGroup(sessionId: string) {
+    /**
+     * 退出群聊：调用真实后端 {@code POST /group/{id}/quit}。
+     * 成功后从本地会话列表移除该群会话。
+     */
+    async leaveGroup(sessionId: string): Promise<void> {
+      if (!sessionId) return
+      try {
+        const res = await groupApi.quitGroup(sessionId)
+        if (res.code !== 200) {
+          throw new Error(res.message || '退出群聊失败')
+        }
+      } catch (e) {
+        console.error('退出群聊失败:', e)
+        throw e
+      } finally {
+        // 无论后端成功与否，先从本地移除（避免用户卡在已退的群里）
+        this.deleteSession(sessionId)
+        useGroupMetaStore().clearForSession(sessionId)
+      }
+    },
+
+    /**
+     * 转让群主：调用真实后端 {@code POST /group/{id}/transfer?newOwnerId=...}。
+     */
+    async transferGroupOwner(sessionId: string, newOwnerId: string): Promise<void> {
+      const res = await groupApi.transferGroupOwner(sessionId, newOwnerId)
+      if (res.code !== 200) {
+        throw new Error(res.message || '转让群主失败')
+      }
+    },
+
+    /**
+     * 解散群聊：调用真实后端 {@code DELETE /group/{id}}（仅群主）。
+     */
+    async dissolveGroup(sessionId: string): Promise<void> {
+      const res = await groupApi.dissolveGroup(sessionId)
+      if (res.code !== 200) {
+        throw new Error(res.message || '解散群聊失败')
+      }
       this.deleteSession(sessionId)
+      useGroupMetaStore().clearForSession(sessionId)
+    },
+
+    /**
+     * 移除群成员：调用真实后端 {@code DELETE /group/{id}/members/{memberId}}（owner/admin）。
+     */
+    async removeGroupMember(sessionId: string, memberId: string): Promise<void> {
+      const res = await groupApi.removeGroupMember(sessionId, memberId)
+      if (res.code !== 200) {
+        throw new Error(res.message || '移除成员失败')
+      }
+      await useGroupMetaStore().fetchMembers(sessionId)
     },
 
     /**
@@ -930,6 +1001,15 @@ export const useAppStore = defineStore('app', {
     async logout() {
       const refresh = await getRefreshToken()
 
+      // 先把偏好改动同步到服务端，避免 token 已吊销导致失败
+      try {
+        const { useAppSettingsStore } = await import('./appSettings')
+        useAppSettingsStore().flushPendingSave()
+        useAppSettingsStore().markOffline()
+      } catch {
+        /* 离线清理失败不影响登出主流程 */
+      }
+
       resetSessionUi()
       useContactsStore().reset()
       useNotificationsStore().resetFriends()
@@ -1027,6 +1107,8 @@ export const useAppStore = defineStore('app', {
           void this.loadSocialData()
         }
       } catch {
+        const { useAppSettingsStore } = await import('./appSettings')
+        useAppSettingsStore().markOffline()
         await clearTokens()
         this.isLoggedIn = false
         this.savedLogin.autoLogin = false

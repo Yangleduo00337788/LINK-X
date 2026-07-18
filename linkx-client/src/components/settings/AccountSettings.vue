@@ -6,6 +6,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '../../stores/app'
 import { useAppSettingsStore } from '../../stores/appSettings'
 import * as accountApi from '../../api/account'
+import * as authApi from '../../api/auth'
 import * as balanceApi from '../../api/balance'
 import * as feedbackApi from '../../api/feedback'
 import { generateDefaultAvatar } from '../../utils/defaultAvatar'
@@ -97,16 +98,37 @@ function getFeedbackTypeText(type: string) {
   return '其他'
 }
 
-// 修改密码弹窗
+// 修改密码弹窗（真实接入后端 {@code POST /auth/reset-password}）
 const showPasswordModal = ref(false)
-const passwordForm = ref({ oldPassword: '', newPassword: '', confirmPassword: '' })
+const passwordForm = ref({
+  newPassword: '',
+  confirmPassword: '',
+  captchaId: '',
+  captchaCode: '',
+  captchaImage: ''
+})
 const passwordLoading = ref(false)
+const passwordCaptchaLoading = ref(false)
+
+async function loadResetCaptcha() {
+  passwordCaptchaLoading.value = true
+  try {
+    const res = await authApi.fetchResetPasswordCaptcha()
+    if (res.code === 200 && res.data) {
+      passwordForm.value.captchaId = res.data.captchaId
+      passwordForm.value.captchaImage = res.data.imageBase64
+      passwordForm.value.captchaCode = ''
+    } else {
+      message.error(res.message || '获取验证码失败')
+    }
+  } catch {
+    message.error('获取验证码失败')
+  } finally {
+    passwordCaptchaLoading.value = false
+  }
+}
 
 async function handleChangePassword() {
-  if (!passwordForm.value.oldPassword) {
-    message.warning('请输入原密码')
-    return
-  }
   if (!passwordForm.value.newPassword) {
     message.warning('请输入新密码')
     return
@@ -119,30 +141,51 @@ async function handleChangePassword() {
     message.warning('新密码长度不能少于6位')
     return
   }
+  if (!passwordForm.value.captchaId || !passwordForm.value.captchaCode) {
+    message.warning('请先完成图形验证码')
+    return
+  }
 
   passwordLoading.value = true
   try {
-    const res = await accountApi.changePassword({
-      oldPassword: passwordForm.value.oldPassword,
+    const res = await authApi.resetPassword({
+      captchaId: passwordForm.value.captchaId,
+      captchaCode: passwordForm.value.captchaCode,
       newPassword: passwordForm.value.newPassword
     })
     if (res.code === 200) {
       message.success('密码修改成功')
       showPasswordModal.value = false
-      passwordForm.value = { oldPassword: '', newPassword: '', confirmPassword: '' }
+      passwordForm.value = {
+        newPassword: '',
+        confirmPassword: '',
+        captchaId: '',
+        captchaCode: '',
+        captchaImage: ''
+      }
     } else {
       message.error(res.message || '修改密码失败')
     }
   } catch (e) {
-    message.error('修改密码失败，请检查原密码是否正确')
+    const err = e as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || '修改密码失败')
+    // 验证码可能失效，自动刷新
+    void loadResetCaptcha()
   } finally {
     passwordLoading.value = false
   }
 }
 
 function openPasswordModal() {
-  passwordForm.value = { oldPassword: '', newPassword: '', confirmPassword: '' }
+  passwordForm.value = {
+    newPassword: '',
+    confirmPassword: '',
+    captchaId: '',
+    captchaCode: '',
+    captchaImage: ''
+  }
   showPasswordModal.value = true
+  void loadResetCaptcha()
 }
 
 // 设备管理弹窗
@@ -275,19 +318,31 @@ onMounted(() => {
         <div class="setting-text">
           <span class="setting-name">加好友需验证</span>
         </div>
-        <n-switch v-model:value="privacyVerifyFriend" size="small" />
+        <n-switch
+          v-model:value="privacyVerifyFriend"
+          size="small"
+          @update:value="appSettingsStore.scheduleSave('privacyVerifyFriend')"
+        />
       </div>
       <div class="setting-row">
         <div class="setting-text">
           <span class="setting-name">允许陌生人会话</span>
         </div>
-        <n-switch v-model:value="privacyAllowStranger" size="small" />
+        <n-switch
+          v-model:value="privacyAllowStranger"
+          size="small"
+          @update:value="appSettingsStore.scheduleSave('privacyAllowStranger')"
+        />
       </div>
       <div class="setting-row">
         <div class="setting-text">
           <span class="setting-name">在线状态可见</span>
         </div>
-        <n-switch v-model:value="privacyShowOnline" size="small" />
+        <n-switch
+          v-model:value="privacyShowOnline"
+          size="small"
+          @update:value="appSettingsStore.scheduleSave('privacyShowOnline')"
+        />
       </div>
     </section>
 
@@ -306,18 +361,9 @@ onMounted(() => {
       </div>
     </section>
 
-    <!-- 修改密码弹窗 -->
-    <n-modal v-model:show="showPasswordModal" preset="card" title="修改密码" style="max-width: 400px">
+    <!-- 修改密码弹窗：to="body" 渲染到顶层，避免被外层 SettingsModal 的遮罩遮挡 -->
+    <n-modal v-model:show="showPasswordModal" preset="card" title="修改密码" to="body" :z-index="11000" style="max-width: 400px">
       <div class="password-form">
-        <div class="form-item">
-          <label>原密码</label>
-          <n-input
-            v-model:value="passwordForm.oldPassword"
-            type="password"
-            placeholder="请输入原密码"
-            show-password-on="click"
-          />
-        </div>
         <div class="form-item">
           <label>新密码</label>
           <n-input
@@ -336,6 +382,21 @@ onMounted(() => {
             show-password-on="click"
           />
         </div>
+        <div class="form-item">
+          <label>图形验证码</label>
+          <div class="captcha-row">
+            <n-input
+              v-model:value="passwordForm.captchaCode"
+              placeholder="请输入图中字符"
+            />
+            <div class="captcha-img-wrap" :class="{ loading: passwordCaptchaLoading }" @click="loadResetCaptcha">
+              <img v-if="passwordForm.captchaImage" :src="passwordForm.captchaImage" alt="captcha" />
+              <span v-else-if="passwordCaptchaLoading">加载中…</span>
+              <span v-else>点击加载</span>
+            </div>
+          </div>
+          <span class="captcha-tip">点击图片刷新</span>
+        </div>
       </div>
       <template #footer>
         <div class="modal-footer">
@@ -345,8 +406,8 @@ onMounted(() => {
       </template>
     </n-modal>
 
-    <!-- 设备管理弹窗 -->
-    <n-modal v-model:show="showDeviceModal" preset="card" title="登录设备" style="max-width: 500px">
+    <!-- 设备管理弹窗：to="body" 渲染到顶层 -->
+    <n-modal v-model:show="showDeviceModal" preset="card" title="登录设备" to="body" :z-index="11000" style="max-width: 500px">
       <div v-if="deviceLoading" class="loading-state">
         <span>加载中...</span>
       </div>
@@ -375,8 +436,8 @@ onMounted(() => {
       </div>
     </n-modal>
 
-    <!-- 反馈历史弹窗 -->
-    <n-modal v-model:show="showFeedbackHistory" preset="card" title="我的反馈记录" style="max-width: 600px">
+    <!-- 反馈历史弹窗：to="body" 渲染到顶层 -->
+    <n-modal v-model:show="showFeedbackHistory" preset="card" title="我的反馈记录" to="body" :z-index="11000" style="max-width: 600px">
       <div v-if="feedbackLoading" class="loading-state">
         <span>加载中...</span>
       </div>
@@ -402,20 +463,18 @@ onMounted(() => {
 <style scoped>
 @import './settings-common.css';
 
-.settings-scroll {
-  max-width: 520px;
-  margin: 0 auto;
-  overflow-x: hidden;
-}
+/* 由 settings-common.css 提供 .settings-scroll 默认布局
+ * 这里只覆盖 AccountSettings 特有的样式 */
 
 .profile-card {
   display: flex;
   align-items: center;
-  gap: 18px;
-  padding: 20px;
-  border-radius: 10px;
+  gap: 20px;
+  padding: 22px;
+  border-radius: 12px;
   background: linear-gradient(135deg, var(--lx-accent-soft) 0%, var(--lx-bg-panel) 60%);
   border: 1px solid var(--lx-border-light);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
 }
 
 .profile-avatar {
@@ -469,6 +528,43 @@ onMounted(() => {
   gap: 12px;
 }
 
+.captcha-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.captcha-row > :first-child {
+  flex: 1;
+}
+
+.captcha-img-wrap {
+  width: 120px;
+  height: 36px;
+  border: 1px solid var(--lx-border-light);
+  border-radius: var(--lx-radius);
+  background: var(--lx-bg-panel);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--lx-text-muted);
+  overflow: hidden;
+}
+
+.captcha-img-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.captcha-tip {
+  font-size: 11px;
+  color: var(--lx-text-muted);
+  margin-top: 4px;
+}
+
 .loading-state,
 .empty-state {
   padding: 24px;
@@ -514,40 +610,46 @@ onMounted(() => {
 
 /* 余额展示样式 */
 .balance-display {
-  padding: 8px 0;
+  padding: 8px 4px 12px;
 }
 
 .balance-main {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-bottom: 12px;
+  gap: 6px;
+  margin-bottom: 16px;
+  padding: 0 14px;
 }
 
 .balance-label {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--lx-text-secondary);
 }
 
 .balance-amount {
-  font-size: 28px;
+  font-size: 32px;
   font-weight: 700;
   color: var(--lx-accent);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 
 .balance-details {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  /* 关键：4 列网格让每一项都有足够空间 */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 0 14px;
 }
 
 .balance-item {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 8px;
-  background: var(--lx-bg-panel);
-  border-radius: var(--lx-radius);
+  gap: 4px;
+  padding: 10px 14px;
+  background: var(--lx-bg-card);
+  border: 1px solid var(--lx-border-light);
+  border-radius: 8px;
 }
 
 .balance-item-label {
@@ -557,7 +659,7 @@ onMounted(() => {
 
 .balance-item-value {
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--lx-text-body);
 }
 

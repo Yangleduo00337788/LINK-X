@@ -70,6 +70,20 @@ export interface ChatMessage {
   redPacketGreeting?: string
   redPacketAmount?: string
   redPacketOpened?: boolean
+  /** 后端红包 ID（来自 MessageItem.fileUrl） */
+  redPacketId?: string
+  /** 红包类型：normal 普通 / lucky 拼手气 */
+  redPacketType?: 'normal' | 'lucky'
+  /** 红包总个数 */
+  redPacketTotalCount?: number
+  /** 红包剩余个数 */
+  redPacketRemainingCount?: number
+  /** 当前用户是否已领取 */
+  redPacketReceived?: boolean
+  /** 已领取金额（仅当前用户视角） */
+  redPacketReceivedAmount?: string
+  /** 红包状态：active / finished / expired */
+  redPacketStatus?: 'active' | 'finished' | 'expired'
 
   /** 数据卡片（知流等） */
   dataCardTitle?: string

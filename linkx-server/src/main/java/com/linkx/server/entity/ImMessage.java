@@ -26,6 +26,14 @@ public class ImMessage implements Serializable {
     public static final String TYPE_IMAGE = "image";
     public static final String TYPE_FILE = "file";
     public static final String TYPE_VOICE = "voice";
+    /**
+     * 红包消息：{@code fileUrl} 存红包 ID，{@code fileName} 存祝福语，{@code fileSize} 存总金额（分）。
+     * <p>
+     * 该类型仅由 {@code RedPacketServiceImpl.sendRedPacketMessage} 内部生成，
+     * 不允许客户端通过 WS 直接以 {@code msgType=redPacket} 上行（仍由 RedPacketController 的 REST 入口发起）。
+     * </p>
+     */
+    public static final String TYPE_RED_PACKET = "redPacket";
 
     @Id(keyType = KeyType.Generator, value = KeyGenerators.snowFlakeId)
     private Long id;

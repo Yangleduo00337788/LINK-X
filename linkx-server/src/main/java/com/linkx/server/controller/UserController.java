@@ -6,12 +6,16 @@ import com.linkx.server.common.Result;
 import com.linkx.server.common.UserProfileMapper;
 import com.linkx.server.controller.dto.ChangePasswordDTO;
 import com.linkx.server.controller.dto.UpdateProfileDTO;
+import com.linkx.server.controller.dto.UserPreferenceDTO;
 import com.linkx.server.controller.vo.DeviceVO;
+import com.linkx.server.controller.vo.UserPreferenceVO;
 import com.linkx.server.controller.vo.UserProfileVO;
 import com.linkx.server.entity.SysUser;
+import com.linkx.server.entity.UserPreference;
 import com.linkx.server.service.DeviceSessionService;
 import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.SysUserService;
+import com.linkx.server.service.UserPreferenceService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +36,7 @@ public class UserController {
     private final SysUserService sysUserService;
     private final FileStorageService fileStorageService;
     private final DeviceSessionService deviceSessionService;
+    private final UserPreferenceService userPreferenceService;
     private final JwtUtils jwtUtils;
 
     private static final String DEFAULT_DEVICE_ID = "default-web-device";
@@ -184,6 +189,69 @@ public class UserController {
         }
         deviceSessionService.deleteDevice(userId, deviceId);
         return Result.success(null);
+    }
+
+    /**
+     * 获取当前用户的偏好设置。
+     * 若尚无记录，返回与表默认值一致的虚拟对象（不写入库）。
+     */
+    @GetMapping("/preference")
+    public Result<UserPreferenceVO> getPreference(HttpServletRequest request) {
+        Long userId = getCurrentUserId(request);
+        if (userId == null) {
+            return Result.error(401, "未登录");
+        }
+        return Result.success(toPreferenceVO(userPreferenceService.getOrDefault(userId)));
+    }
+
+    /**
+     * 局部更新当前用户的偏好设置（PUT 语义）。
+     * 请求体中为 null 的字段保持不变；语言/聊天背景为空字符串也视为"不修改"。
+     */
+    @PutMapping("/preference")
+    public Result<UserPreferenceVO> updatePreference(
+            @RequestBody UserPreferenceDTO dto,
+            HttpServletRequest request) {
+        Long userId = getCurrentUserId(request);
+        if (userId == null) {
+            return Result.error(401, "未登录");
+        }
+        UserPreference patch = UserPreference.builder()
+                .autoStart(dto.getAutoStart())
+                .soundNotify(dto.getSoundNotify())
+                .messageDetail(dto.getMessageDetail())
+                .notifyAtMe(dto.getNotifyAtMe())
+                .notifySound(dto.getNotifySound())
+                .privacyVerifyFriend(dto.getPrivacyVerifyFriend())
+                .privacyAllowStranger(dto.getPrivacyAllowStranger())
+                .privacyShowOnline(dto.getPrivacyShowOnline())
+                .language(emptyToNull(dto.getLanguage()))
+                .chatBackground(emptyToNull(dto.getChatBackground()))
+                .notifyTone(emptyToNull(dto.getNotifyTone()))
+                .build();
+        UserPreference saved = userPreferenceService.upsert(userId, patch);
+        return Result.success(toPreferenceVO(saved));
+    }
+
+    private static String emptyToNull(String s) {
+        return s == null || s.isEmpty() ? null : s;
+    }
+
+    private static UserPreferenceVO toPreferenceVO(UserPreference p) {
+        if (p == null) return null;
+        return UserPreferenceVO.builder()
+                .autoStart(p.getAutoStart())
+                .soundNotify(p.getSoundNotify())
+                .messageDetail(p.getMessageDetail())
+                .notifyAtMe(p.getNotifyAtMe())
+                .notifySound(p.getNotifySound())
+                .privacyVerifyFriend(p.getPrivacyVerifyFriend())
+                .privacyAllowStranger(p.getPrivacyAllowStranger())
+                .privacyShowOnline(p.getPrivacyShowOnline())
+                .language(p.getLanguage())
+                .chatBackground(p.getChatBackground())
+                .notifyTone(p.getNotifyTone())
+                .build();
     }
 
     /**

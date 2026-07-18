@@ -257,3 +257,34 @@ CREATE TABLE IF NOT EXISTS sys_device_session (
   last_active DATETIME,
   create_time DATETIME
 );
+
+-- 用户偏好设置表（per-user，一行一用户）
+CREATE TABLE IF NOT EXISTS user_preference (
+  user_id BIGINT NOT NULL PRIMARY KEY,
+  auto_start TINYINT NOT NULL DEFAULT 0,
+  sound_notify TINYINT NOT NULL DEFAULT 1,
+  message_detail TINYINT NOT NULL DEFAULT 1,
+  notify_at_me TINYINT NOT NULL DEFAULT 1,
+  notify_sound TINYINT NOT NULL DEFAULT 0,
+  privacy_verify_friend TINYINT NOT NULL DEFAULT 1,
+  privacy_allow_stranger TINYINT NOT NULL DEFAULT 0,
+  privacy_show_online TINYINT NOT NULL DEFAULT 1,
+  language VARCHAR(16) NOT NULL DEFAULT 'zh-CN',
+  chat_background VARCHAR(32) NOT NULL DEFAULT 'default',
+  notify_tone VARCHAR(32) NOT NULL DEFAULT 'default',
+  create_time DATETIME,
+  update_time DATETIME
+);
+
+-- 群邀请表
+CREATE TABLE IF NOT EXISTS group_invitation (
+  id BIGINT NOT NULL PRIMARY KEY,
+  conversation_id BIGINT NOT NULL,
+  inviter_user_id BIGINT NOT NULL,
+  invitee_user_id BIGINT NOT NULL,
+  message VARCHAR(255),
+  status TINYINT NOT NULL DEFAULT 0,
+  create_time DATETIME,
+  update_time DATETIME
+);
+CREATE INDEX IF NOT EXISTS idx_group_invitation_invitee ON group_invitation(invitee_user_id, status);

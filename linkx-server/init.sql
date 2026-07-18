@@ -417,3 +417,43 @@ CREATE TABLE IF NOT EXISTS `message_notification` (
   KEY `idx_notification_user_unread` (`user_id`,`read_status`),
   KEY `idx_notification_type` (`type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='消息通知表';
+
+-- ================================================
+-- 21. 用户偏好设置表（per-user 持久化）
+-- ================================================
+CREATE TABLE IF NOT EXISTS `user_preference` (
+  `user_id` bigint NOT NULL COMMENT '用户ID（主键，与 sys_user.id 一一对应）',
+  `auto_start` tinyint(1) NOT NULL DEFAULT 0 COMMENT '开机自动启动',
+  `sound_notify` tinyint(1) NOT NULL DEFAULT 1 COMMENT '新消息声音提示',
+  `message_detail` tinyint(1) NOT NULL DEFAULT 1 COMMENT '通知显示消息详情',
+  `notify_at_me` tinyint(1) NOT NULL DEFAULT 1 COMMENT '群聊@我特别提醒',
+  `notify_sound` tinyint(1) NOT NULL DEFAULT 0 COMMENT '通知提示音',
+  `privacy_verify_friend` tinyint(1) NOT NULL DEFAULT 1 COMMENT '加好友需验证',
+  `privacy_allow_stranger` tinyint(1) NOT NULL DEFAULT 0 COMMENT '允许陌生人会话',
+  `privacy_show_online` tinyint(1) NOT NULL DEFAULT 1 COMMENT '在线状态可见',
+  `language` varchar(16) NOT NULL DEFAULT 'zh-CN' COMMENT '界面语言',
+  `chat_background` varchar(32) NOT NULL DEFAULT 'default' COMMENT '聊天背景主题',
+  `notify_tone` varchar(32) NOT NULL DEFAULT 'default' COMMENT '提示音（音色 ID）',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户偏好设置表（一行一用户）';
+
+-- ================================================
+-- 22. 群邀请表
+-- ================================================
+CREATE TABLE IF NOT EXISTS `group_invitation` (
+  `id` bigint NOT NULL COMMENT '主键ID(雪花算法)',
+  `conversation_id` bigint NOT NULL COMMENT '群会话ID',
+  `inviter_user_id` bigint NOT NULL COMMENT '邀请人用户ID（群成员）',
+  `invitee_user_id` bigint NOT NULL COMMENT '被邀请人用户ID',
+  `message` varchar(255) DEFAULT NULL COMMENT '邀请留言',
+  `status` tinyint NOT NULL DEFAULT 0 COMMENT '状态: 0=待处理 1=已同意 2=已拒绝 3=已过期',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '邀请时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_pending_invitee` (`conversation_id`,`invitee_user_id`,`status`),
+  KEY `idx_invitee_status` (`invitee_user_id`,`status`),
+  KEY `idx_inviter` (`inviter_user_id`),
+  KEY `idx_conversation` (`conversation_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='群邀请表';

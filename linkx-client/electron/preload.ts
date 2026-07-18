@@ -52,7 +52,12 @@ const api = {
     get: (key: string) => ipcRenderer.invoke('secure-storage:get', key),
     set: (key: string, value: string) => ipcRenderer.invoke('secure-storage:set', key, value),
     remove: (key: string) => ipcRenderer.invoke('secure-storage:remove', key)
-  }
+  },
+  // 设置开机自启（由主进程 app.setLoginItemSettings 实现）
+  setAutoStart: (enabled: boolean) => ipcRenderer.invoke('app:set-auto-start', enabled),
+  getAutoStart: () => ipcRenderer.invoke('app:get-auto-start') as Promise<boolean>,
+  // 主题变更通知（与主进程的 theme-changed 通道对应）
+  notifyThemeChange: (theme: 'light' | 'dark') => ipcRenderer.send('theme-changed', theme)
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)

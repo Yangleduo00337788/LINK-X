@@ -1,28 +1,38 @@
+/*
+ * LinkX 设置页通用布局
+ * - .settings-main 是外层 flex column 容器（由 SettingsModal.vue 提供）
+ * - .settings-scroll 是内容滚动区（由各 AccountSettings/GeneralSettings 等子组件提供）
+ * - 必须在父级 .main-body 已设置 overflow 后，这里仅作为内容布局
+ */
+
 .settings-scroll {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 20px 28px 28px;
+  width: 100%;
+  /* 关键：max-width 与 margin 取消，让卡片铺满右侧 640px 宽度 */
+  max-width: none;
+  margin: 0;
+  padding: 24px 32px 32px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  max-width: 100%;
+  gap: 18px;
+  box-sizing: border-box;
 }
 
 /* ---- 分组卡片 ---- */
 .group-card {
   background: var(--lx-bg-panel);
   border: 1px solid var(--lx-border-light);
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 4px 0;
   overflow: hidden;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
 }
 
 .group-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 16px 8px;
+  padding: 14px 18px 10px;
   font-size: 12px;
   font-weight: 600;
   color: var(--lx-text-muted);
@@ -35,9 +45,10 @@
 }
 
 .group-tip {
-  margin: 0 16px 12px;
+  margin: 0 18px 12px;
   font-size: 12px;
   color: var(--lx-text-muted);
+  line-height: 1.5;
 }
 
 .setting-row {
@@ -45,7 +56,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 12px 16px;
+  padding: 14px 18px;
   border-top: 1px solid var(--lx-border-light);
   transition: background 0.15s;
 }
@@ -61,8 +72,9 @@
 .setting-text {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   min-width: 0;
+  flex: 1;
 }
 
 .setting-name {
@@ -74,5 +86,5 @@
 .setting-desc {
   font-size: 12px;
   color: var(--lx-text-muted);
-  line-height: 1.4;
+  line-height: 1.5;
 }

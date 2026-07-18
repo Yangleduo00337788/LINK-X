@@ -5,6 +5,8 @@ export interface Note {
   id: string
   title: string
   content: string
+  /** 类型：note(普通笔记) / image(图片收藏) / link(链接收藏) / file(文件收藏) */
+  type?: string
   createTime: string
   updateTime: string
 }
@@ -12,6 +14,8 @@ export interface Note {
 export interface SaveNotePayload {
   title?: string
   content: string
+  /** 类型：note / image / link / file */
+  type?: string
 }
 
 /**

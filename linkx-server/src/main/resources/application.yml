@@ -68,6 +68,12 @@ linkx:
     # SSL 加密开关（仅 465 端口需要设为 true）
     ssl: ${MAIL_SSL:false}
     code-expire-minutes: ${MAIL_CODE_EXPIRE_MINUTES:10}
+  app:
+    # 应用自身版本，供"检查更新"接口使用
+    version: ${APP_VERSION:1.0.0}
+    channel: ${APP_CHANNEL:stable}
+    release-notes: ${APP_RELEASE_NOTES:本次更新优化了若干已知问题，建议升级。}
+    download-url: ${APP_DOWNLOAD_URL:}
 
 # Actuator 健康检查与指标配置
 management:

@@ -1,102 +1,96 @@
 <script setup lang="ts">
-// Vue 响应式 API 与计算属性
+/**
+ * 添加群成员弹窗。
+ * <p>
+ * 真实调用 {@code POST /group/{conversationId}/members} 添加成员；
+ * 服务端会在事务内写入会话成员表，并返回最新的成员列表。
+ * </p>
+ */
 import { ref, computed } from 'vue'
-// Naive UI 图标组件与消息提示
 import { NIcon } from 'naive-ui'
-// Ionicons5 图标：展开/折叠、选中/未选中
 import {
   ChevronDownOutline,
   ChevronForwardOutline,
   EllipseOutline,
   CheckmarkCircle
 } from '@vicons/ionicons5'
-// 通用头像组件
 import Avatar from '../Avatar.vue'
-// Pinia 响应式解构工具
 import { storeToRefs } from 'pinia'
-// 聊天弹窗状态 Store
 import { useChatModalsStore } from '../../stores/chatModals'
-// 应用全局状态 Store
 import { useAppStore } from '../../stores/app'
-// 联系人 Store
 import { useContactsStore } from '../../stores/contacts'
-// Naive UI 全局消息提示
+import { useGroupMetaStore } from '../../stores/groupMeta'
+import * as groupApi from '../../api/group'
 import { useMessage } from 'naive-ui'
 
-// 消息提示实例
 const message = useMessage()
-// 聊天弹窗 Store 实例
 const chatModalsStore = useChatModalsStore()
-// 应用 Store 实例
 const appStore = useAppStore()
-// 联系人 Store 实例
 const contactsStore = useContactsStore()
-// 添加成员弹窗是否打开
+const groupMetaStore = useGroupMetaStore()
 const { addMembersOpen } = storeToRefs(chatModalsStore)
-// 关闭添加成员弹窗的方法
 const { closeAddMembers } = chatModalsStore
-// 当前会话 ID
-const { currentSessionId } = storeToRefs(appStore)
-// 邀请成员加入群聊的方法
-const { inviteGroupMembers } = appStore
+const { currentSessionId, userProfile } = storeToRefs(appStore)
 
-// 搜索关键词
 const search = ref('')
-// 已选中的联系人 ID 集合
 const selected = ref<Set<string>>(new Set())
-// 「最近聊天」分组是否展开
 const recentExpanded = ref(true)
-// 是否附带聊天记录
 const attachHistory = ref(true)
+const submitting = ref(false)
 
-// 根据搜索词过滤后的可邀请联系人列表
+// 当前用户的真实 userId，用于排除自己（不能邀请自己入群）
+const myUserId = computed(() => userProfile.value?.userId || '')
+
 const recentContacts = computed(() => {
-  // 将好友列表映射为弹窗所需格式
-  const list = contactsStore.friends.map(c => ({
-    id: c.id,
-    name: c.name,
-    text: c.avatarText,
-    color: c.avatarColor
-  }))
-  // 获取小写搜索词
+  const list = contactsStore.friends
+    .filter(c => c.userId && c.userId !== myUserId.value)
+    .map(c => ({
+      id: c.userId || c.id,
+      name: c.name,
+      text: c.avatarText,
+      color: c.avatarColor
+    }))
   const q = search.value.trim().toLowerCase()
-  // 无搜索词时返回全部
   if (!q) return list
-  // 按名称模糊匹配
   return list.filter(c => c.name.toLowerCase().includes(q))
 })
 
-// 当前已选中联系人的完整信息列表
 const selectedList = computed(() => recentContacts.value.filter(c => selected.value.has(c.id)))
 
-// 切换联系人选中状态
 function toggle(id: string) {
-  // 复制 Set 以触发响应式更新
   const s = new Set(selected.value)
-  // 已选中则取消，否则加入
   if (s.has(id)) s.delete(id)
   else s.add(id)
   selected.value = s
 }
 
-// 确认邀请所选成员
-function confirm() {
-  // 校验会话与选中人数
+async function confirm() {
   if (!currentSessionId.value || selected.value.size === 0) {
     message.warning('请选择要邀请的成员')
     return
   }
-  // 提取选中成员名称
-  const names = selectedList.value.map(c => c.name)
-  // 调用 Store 执行邀请
-  inviteGroupMembers(currentSessionId.value, names)
-  message.success(`已邀请 ${names.length} 人加入群聊`)
-  // 清空选中并关闭弹窗
-  selected.value = new Set()
-  closeAddMembers()
+  if (submitting.value) return
+  submitting.value = true
+  try {
+    const memberIds = Array.from(selected.value).filter(id => id !== myUserId.value)
+    const res = await groupApi.addGroupMembers(currentSessionId.value, { memberIds })
+    if (res.code === 200) {
+      // 刷新本地群成员缓存，让侧栏/抽屉显示最新成员
+      void groupMetaStore.fetchMembers(currentSessionId.value)
+      message.success(`已邀请 ${memberIds.length} 人加入群聊`)
+      selected.value = new Set()
+      closeAddMembers()
+    } else {
+      message.error(res.message || '邀请失败')
+    }
+  } catch (e) {
+    const err = e as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || '邀请失败')
+  } finally {
+    submitting.value = false
+  }
 }
 
-// 取消并关闭弹窗
 function cancel() {
   closeAddMembers()
 }
@@ -114,7 +108,7 @@ function cancel() {
           <!-- 左侧：搜索与联系人列表 -->
           <div class="left-pane">
             <div class="search-wrap">
-              <input v-model="search" type="text" class="search-field" placeholder="搜索" />
+              <input v-model="search" type="text" class="search-field" placeholder="搜索好友" />
             </div>
             <div class="scroll-list">
               <button type="button" class="group-head" @click="recentExpanded = !recentExpanded">
@@ -124,7 +118,7 @@ function cancel() {
                   class="chev"
                   :class="{ collapsed: !recentExpanded }"
                 />
-                <span>最近聊天</span>
+                <span>我的好友（{{ recentContacts.length }}）</span>
               </button>
               <template v-if="recentExpanded">
                 <button
@@ -142,39 +136,39 @@ function cancel() {
                   <Avatar :text="c.text" :color="c.color" :size="36" />
                   <span class="c-name">{{ c.name }}</span>
                 </button>
+                <div v-if="!recentContacts.length" class="empty-tip">暂无可邀请的好友</div>
               </template>
-              <button
-                v-for="g in ['特别关心', '我的好友', '朋友', '家人']"
-                :key="g"
-                type="button"
-                class="group-head"
-              >
-                <n-icon :component="ChevronForwardOutline" :size="16" class="chev collapsed" />
-                <span>{{ g }}</span>
-              </button>
             </div>
           </div>
           <!-- 右侧：已选成员预览 -->
           <div class="right-pane">
-            <h3 class="right-title">添加成员</h3>
+            <h3 class="right-title">已选择（{{ selectedList.length }}）</h3>
             <div v-if="selectedList.length" class="selected-list">
               <div v-for="c in selectedList" :key="c.id" class="chip">
                 <Avatar :text="c.text" :color="c.color" :size="44" />
                 <span>{{ c.name }}</span>
               </div>
             </div>
+            <div v-else class="empty-tip">未选择任何好友</div>
           </div>
         </div>
         <!-- 底部：附带聊天记录选项与操作按钮 -->
         <div class="modal-footer">
           <label class="history-opt">
-            <input v-model="attachHistory" type="checkbox" />
+            <input v-model="attachHistory" type="checkbox" :disabled="submitting" />
             <span>附带聊天记录</span>
             <span class="history-link">最近30条 ›</span>
           </label>
           <div class="footer-btns">
-            <button type="button" class="btn primary" @click="confirm">确定</button>
-            <button type="button" class="btn" @click="cancel">取消</button>
+            <button type="button" class="btn" :disabled="submitting" @click="cancel">取消</button>
+            <button
+              type="button"
+              class="btn primary"
+              :disabled="submitting || selectedList.length === 0"
+              @click="confirm"
+            >
+              确定
+            </button>
           </div>
         </div>
       </div>
@@ -311,6 +305,13 @@ function cancel() {
   font-size: 11px;
   text-align: center;
   color: var(--lx-text-secondary);
+}
+
+.empty-tip {
+  padding: 16px;
+  text-align: center;
+  color: var(--lx-text-muted);
+  font-size: 12px;
 }
 
 .modal-footer {

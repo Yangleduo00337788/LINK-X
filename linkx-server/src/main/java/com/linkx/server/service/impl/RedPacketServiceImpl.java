@@ -279,7 +279,8 @@ public class RedPacketServiceImpl implements RedPacketService {
         messageDTO.setContent(content);
         messageDTO.setFileUrl(String.valueOf(redPacket.getId()));
         messageDTO.setFileName(redPacket.getGreeting());
-        messageDTO.setFileSize(redPacket.getTotalAmount().longValue());
+        // SendMessageDTO.fileSize 是 Long（字节数），红包总金额用「分」存，避免 BigDecimal 序列化
+        messageDTO.setFileSize(redPacket.getTotalAmount().multiply(new BigDecimal("100")).longValue());
 
         try {
             chatService.sendMessage(senderId, messageDTO);

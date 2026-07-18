@@ -20,6 +20,7 @@ public class LinkxProperties {
     private final Im im = new Im();
     private final Proxy proxy = new Proxy();
     private final Mail mail = new Mail();
+    private final App app = new App();
 
     @Data
     public static class Im {
@@ -107,5 +108,21 @@ public class LinkxProperties {
         private boolean ssl = false;
         /** 验证码有效期（分钟） */
         private int codeExpireMinutes = 10;
+    }
+
+    /**
+     * 应用自身配置（用于"检查更新"等接口）。
+     * 通过 linkx.app.* 在 application.yml 覆盖。
+     */
+    @Data
+    public static class App {
+        /** 当前服务端版本（与客户端构建版本号一致时视为最新） */
+        private String version = "1.0.0";
+        /** 发布渠道，用于灰度控制 */
+        private String channel = "stable";
+        /** 升级提示信息 */
+        private String releaseNotes = "当前已是最新版本";
+        /** 下载地址（可空） */
+        private String downloadUrl = "";
     }
 }

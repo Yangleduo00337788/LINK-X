@@ -170,8 +170,20 @@ public class ImMessagePushService {
                 .fileName(message.getFileName())
                 .fileSize(message.getFileSize())
                 .fileUrl(message.getFileUrl())
+                .voiceDuration(message.getVoiceDuration())
                 .createTime(message.getCreateTime())
                 .isSelf(message.getSenderId().equals(viewerId))
+                // 红包专属字段（与 message 同一发送者视角，无需为 viewer 重算；
+                // 服务端在 toMessageVO 时已按 viewer 填好 received/receivedAmount/status）
+                .redPacketId(message.getRedPacketId())
+                .redPacketGreeting(message.getRedPacketGreeting())
+                .redPacketTotalAmount(message.getRedPacketTotalAmount())
+                .redPacketType(message.getRedPacketType())
+                .redPacketTotalCount(message.getRedPacketTotalCount())
+                .redPacketRemainingCount(message.getRedPacketRemainingCount())
+                .redPacketReceived(message.getRedPacketReceived())
+                .redPacketReceivedAmount(message.getRedPacketReceivedAmount())
+                .redPacketStatus(message.getRedPacketStatus())
                 .build();
     }
 

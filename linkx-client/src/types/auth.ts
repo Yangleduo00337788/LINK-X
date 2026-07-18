@@ -45,3 +45,19 @@ export interface RegisterRequest {
   captchaId?: string
   captchaCode?: string
 }
+
+export interface ResetPasswordRequest {
+  captchaId?: string
+  captchaCode?: string
+  newPassword: string
+}
+
+export interface SendResetCodeRequest {
+  username: string
+}
+
+export interface ResetPasswordByEmailRequest {
+  username: string
+  emailCode: string
+  newPassword: string
+}

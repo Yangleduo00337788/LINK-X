@@ -54,6 +54,17 @@ export function messageToChatMessage(message: MessageItem, sessionId: string): C
   let isImage = type === 'image'
   let fileStatus: string | undefined
 
+  // 红包相关字段（优先使用服务端语义化字段，否则从通用字段反推）
+  let redPacketGreeting: string | undefined
+  let redPacketAmount: string | undefined
+  let redPacketId: string | undefined
+  let redPacketType: 'normal' | 'lucky' | undefined
+  let redPacketTotalCount: number | undefined
+  let redPacketRemainingCount: number | undefined
+  let redPacketReceived: boolean | undefined
+  let redPacketReceivedAmount: string | undefined
+  let redPacketStatus: 'active' | 'finished' | 'expired' | undefined
+
   switch (type) {
     case 'file':
       content = message.fileName || message.content || '文件'
@@ -63,11 +74,26 @@ export function messageToChatMessage(message: MessageItem, sessionId: string): C
       content = message.fileUrl || message.content
       isImage = true
       break
-    case 'redPacket':
-      content = `[红包] ${message.fileName || '恭喜发财'}`
-      fileName = message.fileName
-      fileUrl = message.fileUrl
+    case 'redPacket': {
+      // 服务端下行时已经把红包专属字段填到 message 上；若未填，从通用字段反推
+      redPacketId = message.redPacketId ?? message.fileUrl ?? undefined
+      redPacketGreeting = message.redPacketGreeting ?? message.fileName ?? '恭喜发财'
+      const rawTotal = message.redPacketTotalAmount ?? message.fileSize
+      // 后端约定 fileSize 为「分」，totalAmount 也可能是「分」；用 toYuan 统一展示
+      redPacketAmount = rawTotal != null ? formatYuan(rawTotal) : ''
+      redPacketType = message.redPacketType
+      redPacketTotalCount = message.redPacketTotalCount
+      redPacketRemainingCount = message.redPacketRemainingCount
+      redPacketReceived = message.redPacketReceived
+      const rawRecv = message.redPacketReceivedAmount
+      redPacketReceivedAmount = rawRecv != null ? formatYuan(rawRecv) : undefined
+      redPacketStatus = message.redPacketStatus ?? 'active'
+      content = `[红包] ${redPacketGreeting}`
+      fileName = redPacketGreeting
+      fileUrl = redPacketId
+      fileSize = redPacketAmount ? `${redPacketAmount} 元` : undefined
       break
+    }
   }
 
   return {
@@ -83,8 +109,38 @@ export function messageToChatMessage(message: MessageItem, sessionId: string): C
     fileSize,
     fileUrl,
     isImage,
-    fileStatus
+    fileStatus,
+    redPacketGreeting,
+    redPacketAmount,
+    redPacketId,
+    redPacketType,
+    redPacketTotalCount,
+    redPacketRemainingCount,
+    redPacketReceived,
+    redPacketReceivedAmount,
+    redPacketStatus,
+    redPacketOpened: type === 'redPacket' ? !!redPacketReceived : undefined
   }
+}
+
+/**
+ * 把「分」或元数值的金额格式化为带两位小数的字符串。
+ * 当输入为字符串且不含小数点、长度 ≤ 5 时按「分」处理（与后端约定）。
+ */
+function formatYuan(value: string | number): string {
+  if (typeof value === 'number') {
+    return value.toFixed(2)
+  }
+  const s = String(value).trim()
+  if (!s) return ''
+  if (s.includes('.')) return s
+  const asNumber = Number(s)
+  if (!Number.isFinite(asNumber)) return s
+  // 整数且长度合理时按「分」处理
+  if (/^\d{1,6}$/.test(s)) {
+    return (asNumber / 100).toFixed(2)
+  }
+  return s
 }
 
 export function messagePreviewFromItem(message: MessageItem): string {

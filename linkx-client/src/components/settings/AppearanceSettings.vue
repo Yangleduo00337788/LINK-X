@@ -38,6 +38,7 @@ const chatBackgrounds: { id: ChatBackgroundId; label: string; style: string }[] 
 // 选择聊天背景并提示
 function pickChatBackground(id: ChatBackgroundId) {
   setChatBackground(id)
+  appSettingsStore.scheduleSave('chatBackground')
   message.success('聊天背景已更新')
 }
 </script>

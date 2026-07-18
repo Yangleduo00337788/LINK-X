@@ -52,7 +52,7 @@ const { posts } = storeToRefs(momentsStore)
 // 通知列表
 const { messageNotifs } = storeToRefs(notificationsStore)
 // 发布、点赞、展开操作面板的方法
-const { addPost, toggleLike, toggleActions, isActionsOpen, fetchMoments } = momentsStore
+const { addPost, toggleLike, toggleActions, isActionsOpen, fetchMoments, removePost, deleteComment } = momentsStore
 // 消息通知相关
 const { fetchMessageNotifications, markMessageAsRead, unreadMessageCount } = notificationsStore
 // 消息提示实例
@@ -60,6 +60,10 @@ const message = useMessage()
 
 // 滚动容器纵向偏移量
 const scrollTop = ref(0)
+// 消息提示实例
+const message = useMessage()
+// 当前操作的目标动态 ID（用于二级操作面板）
+const activePostId = ref<string | null>(null)
 // 评论输入草稿
 const commentDraft = ref('')
 // 当前正在评论的动态 ID
@@ -74,6 +78,8 @@ const composeText = ref('')
 const composeImages = ref<string[]>([])
 // 隐藏的图片上传 input 引用
 const imageInputRef = ref<HTMLInputElement | null>(null)
+// 当前登录用户的 userId（用于判断"自己发的"）
+const myUserId = computed(() => userProfile.value.userId || '')
 // 用户封面与头像（本地生成，不再请求远程）
 const defaultAvatar = computed(() =>
   generateDefaultAvatar(userProfile.value.nickname || '我')
@@ -258,6 +264,31 @@ function closeMoments() {
   if (window.electronAPI) window.electronAPI.close()
   else closeMomentsModal()
 }
+
+/**
+ * 删除自己发的动态。
+ * 二次确认由浏览器原生 confirm 提供，避免引入更多 UI 依赖。
+ */
+async function onDeletePost(postId: string) {
+  if (!postId) return
+  const ok = window.confirm('确定删除这条动态？删除后不可恢复。')
+  if (!ok) return
+  const success = await removePost(postId)
+  if (success) message.success('动态已删除')
+  else message.error('删除失败')
+}
+
+/**
+ * 删除自己发的评论。
+ */
+async function onDeleteComment(postId: string, commentId: string) {
+  if (!postId || !commentId) return
+  const ok = window.confirm('确定删除这条评论？')
+  if (!ok) return
+  const success = await deleteComment(postId, commentId)
+  if (success) message.success('评论已删除')
+  else message.error('删除失败')
+}
 </script>
 
 <template>
@@ -335,6 +366,10 @@ function closeMoments() {
               <input v-model="commentDraft" class="comment-input" placeholder="写评论…" @keyup.enter="submitComment(post.id)" />
               <button type="button" class="comment-send" @click="submitComment(post.id)">发送</button>
             </div>
+            <!-- 自有动态：显示删除按钮（真实接后端） -->
+            <div v-if="post.userId === myUserId" class="post-self-actions">
+              <button type="button" class="self-del-btn" @click="onDeletePost(post.id)">删除动态</button>
+            </div>
             <div v-if="post.likedBy.length || post.comments.length" class="post-interactions">
               <div class="interaction-arrow" />
               <div v-if="post.likedBy.length" class="likes-list">
@@ -346,6 +381,15 @@ function closeMoments() {
                 <div v-for="comment in post.comments" :key="comment.id" class="comment-item">
                   <span class="comment-user">{{ comment.user }}：</span>
                   <span class="comment-text">{{ comment.content }}</span>
+                  <button
+                    v-if="comment.userId === myUserId"
+                    type="button"
+                    class="comment-del-btn"
+                    title="删除评论"
+                    @click="onDeleteComment(post.id, comment.id)"
+                  >
+                    ×
+                  </button>
                 </div>
               </div>
             </div>
@@ -856,10 +900,48 @@ function closeMoments() {
   gap: 4px;
 }
 
+.post-self-actions {
+  margin-top: 6px;
+  text-align: right;
+}
+
+.self-del-btn {
+  border: none;
+  background: transparent;
+  color: var(--lx-text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: var(--lx-radius);
+}
+
+.self-del-btn:hover {
+  background: var(--lx-danger);
+  color: var(--lx-text-on-accent);
+}
+
 .comment-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 13px;
   line-height: 1.5;
   word-break: break-all;
+}
+
+.comment-del-btn {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--lx-text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.comment-del-btn:hover {
+  color: var(--lx-danger);
 }
 
 .comment-user {

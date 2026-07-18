@@ -8,12 +8,16 @@ import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.entity.ImConversation;
 import com.linkx.server.entity.ImConversationMember;
 import com.linkx.server.entity.ImMessage;
+import com.linkx.server.entity.RedPacket;
+import com.linkx.server.entity.RedPacketRecord;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.entity.SysUserRelation;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.ImConversationMapper;
 import com.linkx.server.mapper.ImConversationMemberMapper;
 import com.linkx.server.mapper.ImMessageMapper;
+import com.linkx.server.mapper.RedPacketMapper;
+import com.linkx.server.mapper.RedPacketRecordMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.mapper.SysUserRelationMapper;
 import com.linkx.server.service.ChatService;
@@ -26,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -53,6 +58,8 @@ public class ChatServiceImpl implements ChatService {
     private final SysUserRelationMapper sysUserRelationMapper;
     private final FileStorageService fileStorageService;
     private final StringRedisTemplate redisTemplate;
+    private final RedPacketMapper redPacketMapper;
+    private final RedPacketRecordMapper redPacketRecordMapper;
 
     @Override
     public List<ConversationVO> listConversations(Long userId) {
@@ -351,7 +358,7 @@ public class ChatServiceImpl implements ChatService {
     }
 
     private MessageVO toMessageVO(ImMessage message, SysUser sender, Long currentUserId) {
-        return MessageVO.builder()
+        MessageVO.MessageVOBuilder builder = MessageVO.builder()
                 .id(message.getId())
                 .conversationId(message.getConversationId())
                 .senderId(message.getSenderId())
@@ -364,8 +371,49 @@ public class ChatServiceImpl implements ChatService {
                 .fileUrl(message.getFileUrl())
                 .voiceDuration(message.getVoiceDuration())
                 .createTime(message.getCreateTime() != null ? message.getCreateTime().getTime() : null)
-                .isSelf(message.getSenderId().equals(currentUserId))
-                .build();
+                .isSelf(message.getSenderId().equals(currentUserId));
+
+        // 红包消息：填充语义化字段，前端可直接渲染（无需自行换算 fileSize/fileUrl/fileName）
+        if (ImMessage.TYPE_RED_PACKET.equals(message.getType()) && message.getFileUrl() != null) {
+            fillRedPacketFields(builder, message, currentUserId);
+        }
+
+        return builder.build();
+    }
+
+    /**
+     * 读取红包当前状态并填充到 MessageVO（含当前用户视角的领取情况）。
+     */
+    private void fillRedPacketFields(MessageVO.MessageVOBuilder builder, ImMessage message, Long currentUserId) {
+        Long redPacketId;
+        try {
+            redPacketId = Long.parseLong(message.getFileUrl());
+        } catch (NumberFormatException e) {
+            return;
+        }
+        RedPacket redPacket = redPacketMapper.selectOneById(redPacketId);
+        if (redPacket == null) {
+            return;
+        }
+        BigDecimal totalYuan = redPacket.getTotalAmount();
+        RedPacketRecord userRecord = null;
+        if (currentUserId != null) {
+            userRecord = redPacketRecordMapper.selectOneByQuery(
+                    QueryWrapper.create()
+                            .eq("red_packet_id", redPacketId)
+                            .and("user_id", currentUserId)
+            );
+        }
+        builder
+                .redPacketId(String.valueOf(redPacketId))
+                .redPacketGreeting(redPacket.getGreeting())
+                .redPacketTotalAmount(totalYuan)
+                .redPacketType(redPacket.getType())
+                .redPacketTotalCount(redPacket.getTotalCount())
+                .redPacketRemainingCount(redPacket.getRemainingCount())
+                .redPacketReceived(userRecord != null)
+                .redPacketReceivedAmount(userRecord != null ? userRecord.getAmount() : null)
+                .redPacketStatus(redPacket.getStatus());
     }
 
     private String buildPrivateKey(Long userId, Long friendId) {
@@ -382,7 +430,8 @@ public class ChatServiceImpl implements ChatService {
         if (!ImMessage.TYPE_TEXT.equals(type)
                 && !ImMessage.TYPE_IMAGE.equals(type)
                 && !ImMessage.TYPE_FILE.equals(type)
-                && !ImMessage.TYPE_VOICE.equals(type)) {
+                && !ImMessage.TYPE_VOICE.equals(type)
+                && !ImMessage.TYPE_RED_PACKET.equals(type)) {
             throw new CustomException(400, "不支持的消息类型");
         }
         return type;
@@ -421,6 +470,7 @@ public class ChatServiceImpl implements ChatService {
             case ImMessage.TYPE_IMAGE -> "[图片]";
             case ImMessage.TYPE_FILE -> "[文件] " + (message.getFileName() != null ? message.getFileName() : "文件");
             case ImMessage.TYPE_VOICE -> "[语音]";
+            case ImMessage.TYPE_RED_PACKET -> "[红包] " + (message.getFileName() != null ? message.getFileName() : "恭喜发财");
             default -> message.getContent();
         };
     }

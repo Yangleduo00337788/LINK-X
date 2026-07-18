@@ -165,9 +165,10 @@ function showUnsupported(feature: string) {
   message.info(`${feature}功能正在开发中，敬请期待`)
 }
 
+/** 触发红包弹窗：真实会话与非真实会话都允许发红包，由 RedPacketModal 决定是否调用后端 */
 function toolRedPacket() {
   if (props.isMyPhone) return
-  showUnsupported('红包')
+  openRedPacket()
 }
 
 /** 图片 input change：取首个文件后交给 handleFileSend */

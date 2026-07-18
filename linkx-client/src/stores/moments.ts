@@ -181,6 +181,37 @@ export const useMomentsStore = defineStore('moments', {
       }
     },
 
+    /** 删除评论 */
+    async deleteComment(postId: string, commentId: string) {
+      try {
+        const res = await momentsApi.deleteComment(commentId)
+        if (res.code === 200) {
+          const post = this.posts.find(p => p.id === postId)
+          if (post) {
+            post.comments = post.comments.filter(c => c.id !== commentId)
+          }
+          return true
+        }
+      } catch (e) {
+        console.error('删除评论失败:', e)
+      }
+      return false
+    },
+
+    /** 删除动态 */
+    async removePost(postId: string) {
+      try {
+        const res = await momentsApi.deleteMoments(postId)
+        if (res.code === 200) {
+          this.posts = this.posts.filter(p => p.id !== postId)
+          return true
+        }
+      } catch (e) {
+        console.error('删除动态失败:', e)
+      }
+      return false
+    },
+
     /** 切换操作栏显示 */
     toggleActions(postId: string) {
       this.uiShowActions[postId] = !this.uiShowActions[postId]

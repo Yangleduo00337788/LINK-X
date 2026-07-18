@@ -1,47 +1,66 @@
 <script setup lang="ts">
-// Naive UI 图标与消息提示
+/**
+ * 群通知视图。
+ * <p>
+ * 真实调用 {@code GET /group/invitations} 拉取；接受/拒绝通过
+ * {@code useNotificationsStore.acceptGroupInvitationAction / rejectGroupInvitationAction}。
+ * 接受成功后由上层跳转到对应群会话。
+ * </p>
+ */
+import { onMounted, ref } from 'vue'
 import { NIcon, useMessage } from 'naive-ui'
-// Ionicons5 筛选与清空图标
-import { FilterOutline, TrashOutline } from '@vicons/ionicons5'
-// Pinia 响应式解构工具
+import { FilterOutline, RefreshOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
-// 通知 Store
 import { useNotificationsStore } from '../../stores/notifications'
-// 应用全局状态 Store
 import { useAppStore } from '../../stores/app'
 
-// 消息提示实例
 const message = useMessage()
-// 通知 Store 实例
 const notificationsStore = useNotificationsStore()
-// 应用 Store 实例
 const appStore = useAppStore()
-// 群通知列表
-const { groupNotifs } = storeToRefs(notificationsStore)
-// 同意/拒绝/清空群通知的方法
-const { acceptGroup, rejectGroup, clearGroupNotifs } = notificationsStore
-// 加入群聊的方法
-const { joinGroup } = appStore
 
-// 同意群邀请：加入群聊并提示
-function handleAccept(id: string) {
-  const n = acceptGroup(id)
-  if (n) {
-    joinGroup(n.groupName)
-    message.success(`已加入群聊「${n.groupName}」`)
+const { groupNotifs } = storeToRefs(notificationsStore)
+const { fetchGroupInvitations, acceptGroupInvitationAction, rejectGroupInvitationAction } =
+  notificationsStore
+const submitting = ref(false)
+
+onMounted(() => {
+  void fetchGroupInvitations()
+})
+
+async function handleAccept(id: string) {
+  if (submitting.value) return
+  submitting.value = true
+  try {
+    await acceptGroupInvitationAction(id)
+    message.success('已加入群聊')
+    // 刷新会话列表（接受后服务端已写入会话成员）
+    void appStore.loadChatSessions()
+  } catch (e) {
+    const err = e as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || '加入群聊失败')
+  } finally {
+    submitting.value = false
   }
 }
 
-// 拒绝群邀请
-function handleReject(id: string) {
-  rejectGroup(id)
-  message.success('已拒绝群邀请')
+async function handleReject(id: string) {
+  if (submitting.value) return
+  submitting.value = true
+  try {
+    await rejectGroupInvitationAction(id)
+    message.success('已拒绝群邀请')
+  } catch (e) {
+    const err = e as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || '拒绝群邀请失败')
+  } finally {
+    submitting.value = false
+  }
 }
 
-// 清空全部群通知
-function handleClear() {
-  clearGroupNotifs()
-  message.success('已清空通知')
+async function handleClear() {
+  // 仅刷新本地视图；不接受/拒绝的邀请后端仍保留，待用户处理。
+  await fetchGroupInvitations()
+  message.success('已刷新')
 }
 </script>
 
@@ -52,8 +71,8 @@ function handleClear() {
     <div class="header">
       <h2 class="title">群通知</h2>
       <div class="actions">
-        <button class="action-btn" title="清空" @click="handleClear">
-          <n-icon :component="TrashOutline" :size="20" />
+        <button class="action-btn" title="刷新" @click="handleClear">
+          <n-icon :component="RefreshOutline" :size="20" />
         </button>
         <button class="action-btn" title="筛选">
           <n-icon :component="FilterOutline" :size="20" />

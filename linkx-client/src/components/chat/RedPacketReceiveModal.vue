@@ -1,68 +1,115 @@
 <script setup lang="ts">
-// Vue 计算属性
+/**
+ * 领红包弹窗。
+ * <p>
+ * 调用真实后端 {@code POST /red-packet/{id}/receive} 领取红包；
+ * 服务端会做乐观锁扣减、生成领取记录、转移余额并返回最新 RedPacketVO；
+ * 领取完成后，前端用返回的 VO 更新本地消息的红包状态。
+ * </p>
+ */
 import { computed } from 'vue'
-// Naive UI 按钮与消息提示
 import { NButton, useMessage } from 'naive-ui'
-// Pinia 响应式解构工具
 import { storeToRefs } from 'pinia'
-// 聊天弹窗状态 Store
 import { useChatModalsStore } from '../../stores/chatModals'
-// 应用全局状态 Store
 import { useAppStore } from '../../stores/app'
+import * as redPacketApi from '../../api/redPacket'
 
-// 消息提示实例
 const message = useMessage()
-// 聊天弹窗 Store 实例
 const chatModalsStore = useChatModalsStore()
-// 应用 Store 实例
 const appStore = useAppStore()
-// 领红包弹窗是否打开、目标红包消息 ID
 const { redPacketReceiveOpen, redPacketReceiveMsgId } = storeToRefs(chatModalsStore)
-// 关闭领红包弹窗的方法
 const { closeRedPacketReceive } = chatModalsStore
-// 当前会话消息列表
 const { currentMessages } = storeToRefs(appStore)
-// 打开红包消息的方法
-const { openRedPacketMessage } = appStore
 
-// 根据消息 ID 查找对应的红包消息
 const packetMsg = computed(() =>
   currentMessages.value.find(m => m.id === redPacketReceiveMsgId.value)
 )
-
-// 红包是否已被领取
 const opened = computed(() => !!packetMsg.value?.redPacketOpened)
+const remaining = computed(() => {
+  const total = packetMsg.value?.redPacketTotalCount ?? 0
+  const recv = packetMsg.value?.redPacketReceived ? 1 : 0
+  return Math.max(0, total - recv)
+})
+const statusText = computed(() => {
+  const s = packetMsg.value?.redPacketStatus
+  if (s === 'finished') return '已领完'
+  if (s === 'expired') return '已过期'
+  if (opened.value) return '已领取'
+  return '未领取'
+})
 
-// 关闭领红包弹窗
 function close() {
   closeRedPacketReceive()
 }
 
-// 拆开红包并领取金额
-function openPacket() {
-  const id = redPacketReceiveMsgId.value
-  if (!id) return
-  if (openRedPacketMessage(id)) {
-    message.success(`已领取 ¥${packetMsg.value?.redPacketAmount || '0.01'}`)
+async function openPacket() {
+  const msg = packetMsg.value
+  const redPacketId = msg?.redPacketId
+  if (!msg || !redPacketId) {
+    message.warning('红包信息缺失')
+    return
+  }
+  if (msg.isSelf) {
+    message.info('这是你发出的红包')
+    return
+  }
+  if (msg.redPacketReceived || msg.redPacketOpened) {
+    message.info('已领取过该红包')
+    return
+  }
+  if (msg.redPacketStatus === 'finished') {
+    message.warning('红包已领完')
+    return
+  }
+  if (msg.redPacketStatus === 'expired') {
+    message.warning('红包已过期')
+    return
+  }
+  try {
+    const res = await redPacketApi.receiveRedPacket(redPacketId)
+    if (res.code === 200 && res.data) {
+      const rp = res.data
+      msg.redPacketOpened = true
+      msg.redPacketReceived = true
+      msg.redPacketReceivedAmount = String(rp.receivedAmount ?? '')
+      msg.redPacketRemainingCount = rp.remainingCount
+      msg.redPacketStatus = rp.status as 'active' | 'finished' | 'expired'
+      message.success(
+        rp.receivedAmount != null
+          ? `已领取 ¥${Number(rp.receivedAmount).toFixed(2)}`
+          : '已领取红包'
+      )
+    } else {
+      message.warning(res.message || '领取失败')
+    }
+  } catch (e) {
+    const err = e as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || '领取失败')
   }
 }
 </script>
 
 <template>
-  <!-- 领红包弹窗：Teleport 挂载到 body -->
   <Teleport to="body">
     <div v-if="redPacketReceiveOpen && packetMsg" class="modal-root" @click.self="close">
       <div class="packet-card" @click.stop>
-        <!-- 红包封面：祝福语与金额 -->
         <div class="packet-cover">
           <p class="from">{{ packetMsg.isSelf ? '你发出的红包' : '收到红包' }}</p>
           <p class="greeting">{{ packetMsg.redPacketGreeting || '恭喜发财' }}</p>
-          <p v-if="opened" class="amount">¥{{ packetMsg.redPacketAmount || '0.01' }}</p>
+          <p v-if="opened" class="amount">
+            ¥{{ packetMsg.redPacketReceivedAmount || packetMsg.redPacketAmount || '0.00' }}
+          </p>
+          <p v-else-if="packetMsg.redPacketStatus === 'finished'" class="hint">红包已领完</p>
+          <p v-else-if="packetMsg.redPacketStatus === 'expired'" class="hint">红包已过期</p>
           <p v-else class="hint">点击下方拆开红包</p>
+          <p class="status">{{ statusText }} · 剩余 {{ remaining }} 个</p>
         </div>
-        <!-- 底部：拆开或关闭按钮 -->
         <div class="packet-foot">
-          <n-button v-if="!opened && !packetMsg.isSelf" type="primary" @click="openPacket">
+          <n-button
+            v-if="!opened && !packetMsg.isSelf && packetMsg.redPacketStatus === 'active'"
+            type="primary"
+            @click="openPacket"
+          >
             开
           </n-button>
           <n-button v-else @click="close">关闭</n-button>
@@ -120,6 +167,12 @@ function openPacket() {
 .hint {
   margin: 16px 0 0;
   font-size: 13px;
+  opacity: 0.85;
+}
+
+.status {
+  margin: 12px 0 0;
+  font-size: 12px;
   opacity: 0.85;
 }
 

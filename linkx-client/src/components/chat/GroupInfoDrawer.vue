@@ -26,8 +26,7 @@ const { currentSession, currentSessionId, userProfile } = storeToRefs(appStore)
 const {
   toggleSessionPin,
   toggleSessionMute,
-  clearSessionMessages,
-  leaveGroup
+  clearSessionMessages
 } = appStore
 
 // 群备注输入（与 store 同步）
@@ -105,20 +104,53 @@ function clearChat() {
 }
 
 /** 二次确认退出群聊 */
-function quitGroup() {
+async function quitGroup() {
   if (!currentSession.value || !currentSessionId.value) return
   dialog.warning({
     title: '退出群聊',
     content: `确定退出「${currentSession.value.name}」？`,
     positiveText: '退出',
     negativeText: '取消',
-    onPositiveClick: () => {
-      leaveGroup(currentSessionId.value!)
-      message.success('已退出群聊')
-      close()
+    onPositiveClick: async () => {
+      try {
+        await appStore.leaveGroup(currentSessionId.value!)
+        message.success('已退出群聊')
+        close()
+      } catch (e) {
+        const err = e as { message?: string }
+        message.error(err.message || '退出群聊失败')
+      }
     }
   })
 }
+
+/** 解散群聊（仅 owner） */
+async function dissolve() {
+  if (!currentSession.value || !currentSessionId.value) return
+  dialog.warning({
+    title: '解散群聊',
+    content: `确定解散「${currentSession.value.name}」？该操作不可恢复。`,
+    positiveText: '解散',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await appStore.dissolveGroup(currentSessionId.value!)
+        message.success('群聊已解散')
+        close()
+      } catch (e) {
+        const err = e as { message?: string }
+        message.error(err.message || '解散群聊失败')
+      }
+    }
+  })
+}
+
+/** 当前用户是否为群主（用于显示群主专属按钮） */
+const isOwner = computed(() => {
+  const me = appStore.userProfile.userId
+  if (!me) return false
+  return members.value.some(m => m.id === me && m.role === 'owner')
+})
 
 /** 举报群（原型提示） */
 function reportGroup() {
@@ -203,6 +235,14 @@ function reportGroup() {
               <!-- 危险操作与举报 -->
               <button type="button" class="action-btn" @click="clearChat">删除聊天记录</button>
               <button type="button" class="action-btn danger" @click="quitGroup">退出群聊</button>
+              <button
+                v-if="isOwner"
+                type="button"
+                class="action-btn danger"
+                @click="dissolve"
+              >
+                解散群聊
+              </button>
               <p class="report">
                 <a href="#" @click.prevent="reportGroup">被骚扰了？举报该群</a>
               </p>
