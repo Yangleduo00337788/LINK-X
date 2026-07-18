@@ -207,10 +207,24 @@ export const useNotificationsStore = defineStore('notifications', {
 
     async fetchMessageNotifications() {
       try {
-        // 默认拉全部列表，让面板能展示「未读 + 已读」历史；未读数额外用 count 接口兜底
-        const res = await notificationApi.listAllNotifications()
-        if (res.code === 200 && res.data) {
-          this.messageNotifs = res.data.map(n => ({
+        const [allRes, unreadRes] = await Promise.all([
+          notificationApi.listAllNotifications(),
+          notificationApi.listUnreadNotifications()
+        ])
+        if (allRes.code === 200 && allRes.data) {
+          this.messageNotifs = allRes.data.map(n => ({
+            id: String(n.id),
+            senderId: String(n.senderId),
+            senderName: n.senderName,
+            senderAvatar: n.senderAvatar,
+            type: n.type,
+            relatedId: n.relatedId ? String(n.relatedId) : undefined,
+            content: n.content,
+            readStatus: n.readStatus,
+            createTime: n.createTime
+          }))
+        } else if (unreadRes.code === 200 && unreadRes.data) {
+          this.messageNotifs = unreadRes.data.map(n => ({
             id: String(n.id),
             senderId: String(n.senderId),
             senderName: n.senderName,
@@ -222,7 +236,6 @@ export const useNotificationsStore = defineStore('notifications', {
             createTime: n.createTime
           }))
         }
-        // 同步一次服务端未读计数，避免本地列表与服务端偏离
         void this.fetchNotificationCount()
       } catch (error) {
         console.error('获取消息通知失败:', error)
@@ -306,16 +319,12 @@ export const useNotificationsStore = defineStore('notifications', {
       return this.friendNotifs.find(n => n.requestId === requestId)
     },
 
-    acceptGroup(_id: string) {
-      // 兼容旧调用方：直接标记本地（不调后端）。真实接受请用 acceptGroupInvitationAction。
-      const n = this.groupNotifs.find(x => x.id === _id)
-      if (n) n.status = '已同意'
-      return n
+    acceptGroup(id: string) {
+      return this.acceptGroupInvitationAction(id)
     },
 
-    rejectGroup(_id: string) {
-      const n = this.groupNotifs.find(x => x.id === _id)
-      if (n) n.status = '已拒绝'
+    rejectGroup(id: string) {
+      return this.rejectGroupInvitationAction(id)
     },
 
     clearFriendNotifs() {

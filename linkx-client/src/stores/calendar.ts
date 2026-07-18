@@ -104,16 +104,62 @@ export const useCalendarStore = defineStore('calendar', {
     },
 
     /**
-     * 设置选中日期
-     * @param ts 任意时刻时间戳，会归一化到当日 0 点
+     * 设置选中日期，并按日期从后端刷新当日事件
      */
-    setSelectedDate(ts: number) {
+    async setSelectedDate(ts: number) {
       this.selectedDate = startOfDay(ts)
+      await this.fetchEventsForDate(dateKeyFromTs(this.selectedDate))
+    },
+
+    /** 从后端拉取指定日期的事件 */
+    async fetchEventsForDate(date: string) {
+      try {
+        const res = await calendarApi.listEventsByDate(date)
+        if (res.code === 200 && res.data) {
+          const others = this.events.filter(e => e.date !== date)
+          const dayEvents = res.data.map(e => ({
+            id: String(e.id),
+            title: e.title,
+            date: e.date,
+            time: e.time,
+            color: e.color
+          }))
+          this.events = [...others, ...dayEvents]
+        }
+      } catch (e) {
+        console.error('加载当日日程失败:', e)
+      }
+    },
+
+    /** 按 ID 从后端获取单条事件 */
+    async fetchEventById(eventId: string) {
+      try {
+        const res = await calendarApi.getEvent(Number(eventId))
+        if (res.code === 200 && res.data) {
+          const event: CalendarEvent = {
+            id: String(res.data.id),
+            title: res.data.title,
+            date: res.data.date,
+            time: res.data.time,
+            color: res.data.color
+          }
+          const idx = this.events.findIndex(e => e.id === event.id)
+          if (idx >= 0) {
+            this.events[idx] = event
+          } else {
+            this.events.push(event)
+          }
+          return event
+        }
+      } catch (e) {
+        console.error('加载日程详情失败:', e)
+      }
+      return null
     },
 
     /** 选中日期跳转到今天 */
     goToday() {
-      this.selectedDate = startOfDay(Date.now())
+      void this.setSelectedDate(Date.now())
     },
 
     /**

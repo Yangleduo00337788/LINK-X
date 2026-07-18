@@ -162,6 +162,34 @@ export const useNoteStore = defineStore('note', {
       this.saveDraft()
     },
 
+    /** 按 ID 从后端拉取并打开笔记 */
+    async openNoteById(noteId: string) {
+      try {
+        const res = await noteApi.getNote(noteId)
+        if (res.code === 200 && res.data) {
+          const note: Note = {
+            id: String(res.data.id),
+            title: res.data.title || '无标题',
+            content: res.data.content,
+            type: (res.data.type as NoteType) || 'note',
+            createTime: res.data.createTime,
+            updateTime: res.data.updateTime
+          }
+          const idx = this.notes.findIndex(n => n.id === note.id)
+          if (idx >= 0) {
+            this.notes[idx] = note
+          } else {
+            this.notes.unshift(note)
+          }
+          this.openNote(note)
+          return note
+        }
+      } catch (e) {
+        console.error('加载笔记失败:', e)
+      }
+      return null
+    },
+
     /** 新建空白笔记 */
     newNote() {
       this.currentNoteId = null
