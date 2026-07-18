@@ -4,7 +4,9 @@ import com.linkx.server.common.AuthUtils;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.Result;
 import com.linkx.server.controller.dto.CallCancelDTO;
+import com.linkx.server.controller.dto.CallIdDTO;
 import com.linkx.server.controller.dto.CallInviteDTO;
+import com.linkx.server.controller.dto.CallSignalDTO;
 import com.linkx.server.controller.vo.CallInviteVO;
 import com.linkx.server.service.CallService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -26,9 +28,6 @@ public class CallController {
     private final CallService callService;
     private final JwtUtils jwtUtils;
 
-    /**
-     * 发起通话邀请，向对方推送通知
-     */
     @PostMapping("/invite")
     public Result<CallInviteVO> invite(
             @Valid @RequestBody CallInviteDTO dto,
@@ -37,15 +36,51 @@ public class CallController {
         return Result.success(callService.invite(userId, dto));
     }
 
-    /**
-     * 取消正在进行的通话邀请
-     */
     @PostMapping("/cancel")
     public Result<Void> cancel(
             @Valid @RequestBody CallCancelDTO dto,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         callService.cancel(userId, dto);
+        return Result.success(null);
+    }
+
+    @PostMapping("/accept")
+    public Result<Void> accept(
+            @Valid @RequestBody CallIdDTO dto,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        callService.accept(userId, dto);
+        return Result.success(null);
+    }
+
+    @PostMapping("/reject")
+    public Result<Void> reject(
+            @Valid @RequestBody CallIdDTO dto,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        callService.reject(userId, dto);
+        return Result.success(null);
+    }
+
+    @PostMapping("/hangup")
+    public Result<Void> hangup(
+            @Valid @RequestBody CallIdDTO dto,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        callService.hangup(userId, dto);
+        return Result.success(null);
+    }
+
+    /**
+     * 中继 WebRTC SDP / ICE 到对端
+     */
+    @PostMapping("/signal")
+    public Result<Void> signal(
+            @Valid @RequestBody CallSignalDTO dto,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        callService.signal(userId, dto);
         return Result.success(null);
     }
 }

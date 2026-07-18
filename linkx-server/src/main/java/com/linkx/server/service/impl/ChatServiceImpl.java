@@ -22,6 +22,7 @@ import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.mapper.SysUserRelationMapper;
 import com.linkx.server.service.ChatService;
 import com.linkx.server.service.FileStorageService;
+import com.linkx.server.service.MediaUrlService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -57,6 +58,7 @@ public class ChatServiceImpl implements ChatService {
     private final SysUserMapper sysUserMapper;
     private final SysUserRelationMapper sysUserRelationMapper;
     private final FileStorageService fileStorageService;
+    private final MediaUrlService mediaUrlService;
     private final StringRedisTemplate redisTemplate;
     private final RedPacketMapper redPacketMapper;
     private final RedPacketRecordMapper redPacketRecordMapper;
@@ -334,7 +336,7 @@ public class ChatServiceImpl implements ChatService {
                 .peerUserId(peer.getId())
                 .peerUsername(peer.getUsername())
                 .peerNickname(peer.getNickname())
-                .peerAvatar(peer.getAvatar())
+                .peerAvatar(mediaUrlService.resolve(peer.getAvatar()))
                 .peerRemark(remark)
                 .lastMessage(conversation.getLastMessageContent())
                 .lastMessageTime(conversation.getLastMessageTime() != null

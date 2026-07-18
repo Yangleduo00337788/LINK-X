@@ -12,6 +12,7 @@ import com.linkx.server.mapper.SysFriendRequestMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.mapper.SysUserRelationMapper;
 import com.linkx.server.service.FriendService;
+import com.linkx.server.service.MediaUrlService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -35,6 +36,7 @@ public class FriendServiceImpl implements FriendService {
     private final SysUserMapper sysUserMapper;
     private final SysUserRelationMapper sysUserRelationMapper;
     private final SysFriendRequestMapper sysFriendRequestMapper;
+    private final MediaUrlService mediaUrlService;
 
     @Override
     public List<UserSearchVO> searchUsers(String keyword, Long currentUserId) {
@@ -85,7 +87,7 @@ public class FriendServiceImpl implements FriendService {
                 .id(user.getId())
                 .username(user.getUsername())
                 .nickname(user.getNickname())
-                .avatar(user.getAvatar())
+                .avatar(mediaUrlService.resolve(user.getAvatar()))
                 .build();
     }
 
@@ -225,7 +227,7 @@ public class FriendServiceImpl implements FriendService {
                     .userId(friend.getId())
                     .username(friend.getUsername())
                     .nickname(friend.getNickname())
-                    .avatar(friend.getAvatar())
+                    .avatar(mediaUrlService.resolve(friend.getAvatar()))
                     .remark(remarkMap.get(friend.getId()))
                     .build());
         }

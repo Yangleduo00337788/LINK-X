@@ -178,6 +178,7 @@ function onContextMenuSelect(key: string) {
                   :text="session.avatarText"
                   :color="session.avatarColor"
                   :size="44"
+                  :image-url="session.avatarUrl"
                   :icon="session.name === '我的手机' ? PhonePortraitOutline : undefined"
                 />
                 <div v-if="session.unread && !session.muted" class="unread-badge">

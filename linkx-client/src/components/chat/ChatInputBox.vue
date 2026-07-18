@@ -24,8 +24,10 @@ import {
 import { storeToRefs } from 'pinia'
 // 主应用状态：会话、用户信息、发送消息
 import { useAppStore } from '../../stores/app'
-// 聊天弹窗/抽屉状态：语音通话、红包
+// 聊天弹窗/抽屉状态：红包
 import { useChatModalsStore } from '../../stores/chatModals'
+// 通话 Store
+import { useCallStore } from '../../stores/call'
 // 文件列表 store：聊天发送的文件同步记录
 import { useFilesStore } from '../../stores/files'
 // 群元数据：群文件列表
@@ -63,8 +65,35 @@ const groupMetaStore = useGroupMetaStore()
 const { currentSession, currentSessionId, userProfile } = storeToRefs(appStore)
 // 从 appStore 解构方法（非响应式）
 const { sendMessage } = appStore
-// 打开语音通话、红包弹窗
+// 打开红包弹窗
 const { openRedPacket } = chatModalsStore
+const callStore = useCallStore()
+
+/** 从输入栏发起语音通话 */
+async function startVoiceCall() {
+  const session = currentSession.value
+  const sessionId = currentSessionId.value
+  if (!session || !sessionId) {
+    message.warning('请先选择会话')
+    return
+  }
+  if (session.isGroup) {
+    message.warning('暂仅支持单聊通话')
+    return
+  }
+  try {
+    await callStore.startOutgoing({
+      conversationId: sessionId,
+      callType: 'voice',
+      peerName: session.name,
+      peerAvatar: session.avatarUrl,
+      peerUserId: session.peerUserId
+    })
+  } catch (error) {
+    const err = error as { message?: string }
+    message.error(err.message || '发起通话失败')
+  }
+}
 
 // 文本输入框绑定值
 const inputValue = ref('')
@@ -407,7 +436,7 @@ defineExpose({
         </div>
 
         <div class="toolbar-right">
-          <button type="button" class="tool-btn" title="语音通话" @click="showUnsupported('语音通话')">
+          <button type="button" class="tool-btn" title="语音通话" @click="startVoiceCall">
             <n-icon :component="VolumeHighOutline" :size="20" />
           </button>
           <button

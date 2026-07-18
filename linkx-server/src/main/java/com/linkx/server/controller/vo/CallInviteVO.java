@@ -14,4 +14,7 @@ public class CallInviteVO {
     private Long conversationId;
     private String callType;
     private String status;
+    private Long peerUserId;
+    private String peerNickname;
+    private String peerAvatar;
 }

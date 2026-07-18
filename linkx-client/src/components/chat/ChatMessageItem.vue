@@ -121,7 +121,7 @@ function peerAvatarProps(size = 36) {
 </style>
 <style>
 /* Global styles for bubbles to avoid duplicating them */
-.qq-bubble {
+.lx-bubble {
   position: relative;
   background: var(--lx-bg-card);
   padding: 10px 12px;
@@ -131,14 +131,14 @@ function peerAvatarProps(size = 36) {
   color: var(--lx-text);
   box-shadow: 0 1px 2px var(--lx-border-light);
 }
-.qq-bubble.self {
+.lx-bubble.self {
   background: #c9e7ff;
   border-radius: var(--lx-radius);
 }
-.qq-bubble.link .qq-bubble-text { margin: 0; word-break: break-all; }
-.qq-link-ico { display: none; }
-.qq-bubble-text { margin: 0; white-space: pre-wrap; word-break: break-word; }
-.qq-file-card {
+.lx-bubble.link .lx-bubble-text { margin: 0; word-break: break-all; }
+.lx-link-ico { display: none; }
+.lx-bubble-text { margin: 0; white-space: pre-wrap; word-break: break-word; }
+.lx-file-card {
   max-width: 300px;
   background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
@@ -146,18 +146,18 @@ function peerAvatarProps(size = 36) {
   box-shadow: 0 1px 3px var(--lx-bg-active);
   cursor: pointer;
 }
-.qq-file-main { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
-.qq-file-icon { width: 44px; height: 44px; border-radius: var(--lx-radius); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.qq-file-icon.apk { background: linear-gradient(145deg, #7ed56f 0%, #5cb85c 100%); }
-.qq-file-name { font-size: 14px; font-weight: 500; color: var(--lx-text-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.qq-file-size { font-size: 12px; color: var(--lx-text-muted); margin-top: 4px; }
-.qq-file-bar { padding: 6px 14px; background: #4a4a4a; color: rgba(255, 255, 255, 0.9); font-size: 12px; }
-.qq-bubble-reply {
+.lx-file-main { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+.lx-file-icon { width: 44px; height: 44px; border-radius: var(--lx-radius); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.lx-file-icon.apk { background: linear-gradient(145deg, #7ed56f 0%, #5cb85c 100%); }
+.lx-file-name { font-size: 14px; font-weight: 500; color: var(--lx-text-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lx-file-size { font-size: 12px; color: var(--lx-text-muted); margin-top: 4px; }
+.lx-file-bar { padding: 6px 14px; background: #4a4a4a; color: rgba(255, 255, 255, 0.9); font-size: 12px; }
+.lx-bubble-reply {
   font-size: 12px; color: var(--lx-text-secondary); background: var(--lx-bg-hover);
   padding: 4px 8px; border-radius: var(--lx-radius); margin-bottom: 6px;
   border-left: 2px solid var(--lx-accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
 }
-.qq-bubble-image { max-width: 200px; max-height: 200px; border-radius: var(--lx-radius); object-fit: cover; cursor: pointer; display: block; }
+.lx-bubble-image { max-width: 200px; max-height: 200px; border-radius: var(--lx-radius); object-fit: cover; cursor: pointer; display: block; }
 .image-bubble { padding: 4px; background: var(--lx-bg-card); cursor: pointer; }
 .voice-bubble { display: inline-flex; align-items: center; gap: 8px; min-width: 72px; cursor: pointer; }
 .voice-bubble.playing { color: var(--lx-accent); }

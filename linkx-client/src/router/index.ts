@@ -22,6 +22,11 @@ const router = createRouter({
       path: '/note-editor',    // 笔记编辑器独立窗口路由
       name: 'note-editor',
       component: () => import('../components/NoteEditor.vue')
+    },
+    {
+      path: '/register',       // 注册独立窗口 / 页面
+      name: 'register',
+      component: () => import('../components/RegisterView.vue')
     }
   ]
 })

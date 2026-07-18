@@ -1,161 +1,119 @@
 ﻿<script setup lang="ts">
-// Vue 响应式 API、侦听器与生命周期
-import { ref, watch, onUnmounted } from 'vue'
-// Naive UI 图标组件
+/**
+ * 语音通话弹窗：真实 WebRTC，等待对端接听后建立媒体连接。
+ */
+import { ref, watch, onUnmounted, computed } from 'vue'
 import { NIcon, useMessage } from 'naive-ui'
-// Ionicons5 通话相关图标
 import {
   MicOutline,
   MicOffOutline,
   VideocamOutline,
-  DesktopOutline,
   CallOutline
 } from '@vicons/ionicons5'
-// 通用头像组件
 import Avatar from '../Avatar.vue'
-// Pinia 响应式解构工具
 import { storeToRefs } from 'pinia'
-// 聊天弹窗状态 Store
-import { useChatModalsStore } from '../../stores/chatModals'
-// 应用全局状态 Store
-import { useAppStore } from '../../stores/app'
-// 通话 API
-import * as callApi from '../../api/call'
+import { useCallStore } from '../../stores/call'
 
-// 聊天弹窗 Store 实例
-const chatModalsStore = useChatModalsStore()
 const message = useMessage()
-// 应用 Store 实例
-const appStore = useAppStore()
-// 语音通话弹窗是否打开
-const { voiceCallOpen, currentCallId } = storeToRefs(chatModalsStore)
-// 关闭语音通话、打开视频通话的方法
-const { closeVoiceCall, openVideoCall } = chatModalsStore
-// 当前会话信息
-const { currentSession } = storeToRefs(appStore)
+const callStore = useCallStore()
+const {
+  showVoiceUi,
+  phase,
+  peerName,
+  peerAvatar,
+  micOn,
+  errorMessage,
+  connectedAt,
+  remoteStream
+} = storeToRefs(callStore)
 
-// 麦克风是否开启
-const micOn = ref(true)
-// 通话阶段：振铃中 / 已接通
-const phase = ref<'ringing' | 'connected'>('ringing')
-// 已接通通话时长（秒）
 const seconds = ref(0)
-
-// 振铃超时定时器
-let ringTimer: ReturnType<typeof setTimeout> | null = null
-// 通话计时定时器
 let durationTimer: ReturnType<typeof setInterval> | null = null
+const remoteAudioRef = ref<HTMLAudioElement | null>(null)
 
-// 清理所有通话相关定时器
-function cleanupTimers() {
-  if (ringTimer) clearTimeout(ringTimer)
-  if (durationTimer) clearInterval(durationTimer)
-  ringTimer = null
-  durationTimer = null
+const statusText = computed(() => {
+  if (phase.value === 'outgoing') return '等待对方接听...'
+  if (phase.value === 'connecting') return '正在接通...'
+  const m = Math.floor(seconds.value / 60)
+    .toString()
+    .padStart(2, '0')
+  const s = (seconds.value % 60).toString().padStart(2, '0')
+  return `通话中 ${m}:${s}`
+})
+
+function clearDuration() {
+  if (durationTimer) {
+    clearInterval(durationTimer)
+    durationTimer = null
+  }
+  seconds.value = 0
 }
 
-// 监听弹窗开关：打开时模拟振铃后接通并开始计时
-watch(voiceCallOpen, open => {
-  cleanupTimers()
-  if (open) {
-    phase.value = 'ringing'
-    seconds.value = 0
-    ringTimer = setTimeout(() => {
-      phase.value = 'connected'
-      durationTimer = setInterval(() => {
-        seconds.value++
-      }, 1000)
-    }, 1800)
+watch(phase, p => {
+  clearDuration()
+  if (p === 'connected') {
+    const base = connectedAt.value || Date.now()
+    durationTimer = setInterval(() => {
+      seconds.value = Math.floor((Date.now() - base) / 1000)
+    }, 1000)
   }
 })
 
-// 组件卸载时清理定时器
-onUnmounted(cleanupTimers)
+watch(remoteStream, stream => {
+  const el = remoteAudioRef.value
+  if (el && stream) {
+    el.srcObject = stream
+    void el.play().catch(() => {})
+  }
+})
 
-// 根据通话阶段生成状态栏文案
-const statusText = () => {
-  if (phase.value === 'ringing') return '等待对方接听...'
-  const m = Math.floor(seconds.value / 60).toString().padStart(2, '0')
-  const s = (seconds.value % 60).toString().padStart(2, '0')
-  return `通话中 ${m}:${s}`
-}
+watch(errorMessage, msg => {
+  if (msg) {
+    message.info(msg)
+    callStore.clearError()
+  }
+})
 
-// 挂断并关闭语音通话
+onUnmounted(clearDuration)
+
 async function hangUp() {
-  const callId = currentCallId.value
-  if (callId) {
-    try {
-      await callApi.cancelCall(callId)
-    } catch {
-      /* 通话可能已结束 */
-    }
-  }
-  closeVoiceCall()
+  await callStore.hangup()
 }
 
-// 切换到视频通话
 async function switchToVideo() {
-  const sessionId = currentSession.value?.id
-  if (!sessionId) {
-    closeVoiceCall()
-    return
-  }
-  const prevCallId = currentCallId.value
-  if (prevCallId) {
-    try {
-      await callApi.cancelCall(prevCallId)
-    } catch {
-      /* ignore */
-    }
-  }
-  closeVoiceCall()
-  try {
-    const res = await callApi.inviteCall({ conversationId: sessionId, callType: 'video' })
-    if (res.code === 200 && res.data?.callId) {
-      openVideoCall(res.data.callId)
-      return
-    }
-    message.error(res.message || '切换视频通话失败')
-  } catch (error) {
-    const err = error as { response?: { data?: { message?: string } }; message?: string }
-    message.error(err.response?.data?.message || err.message || '切换视频通话失败')
-  }
+  message.info('请挂断后重新发起视频通话')
+}
+
+function avatarText(name: string) {
+  return name?.charAt(0) || '友'
 }
 </script>
 
 <template>
-  <!-- 语音通话全屏弹窗 -->
   <Teleport to="body">
-    <div v-if="voiceCallOpen" class="call-root">
+    <div v-if="showVoiceUi" class="call-root">
+      <audio ref="remoteAudioRef" autoplay playsinline />
       <div class="call-window">
-        <!-- 顶部通话状态 -->
         <div class="call-top">
-          <span class="status">{{ statusText() }}</span>
+          <span class="status">{{ statusText }}</span>
         </div>
-        <!-- 中间：对方头像与名称 -->
         <div class="call-center">
           <Avatar
-            v-if="currentSession"
-            :text="currentSession.avatarText"
-            :color="currentSession.avatarColor"
-            :image-url="currentSession.avatarUrl"
+            :text="avatarText(peerName)"
+            color="#07c160"
+            :image-url="peerAvatar || undefined"
             :size="88"
           />
-          <p class="peer">{{ currentSession?.name || '好友' }}</p>
+          <p class="peer">{{ peerName || '好友' }}</p>
         </div>
-        <!-- 底部通话控制栏 -->
         <div class="call-controls">
-          <button type="button" class="ctl" @click="micOn = !micOn">
+          <button type="button" class="ctl" @click="callStore.toggleMic()">
             <n-icon :component="micOn ? MicOutline : MicOffOutline" :size="26" />
             <span>{{ micOn ? '关闭麦克风' : '开启麦克风' }}</span>
           </button>
           <button type="button" class="ctl" @click="switchToVideo">
             <n-icon :component="VideocamOutline" :size="26" />
-            <span>开启视频</span>
-          </button>
-          <button type="button" class="ctl muted" title="屏幕共享（后续版本）">
-            <n-icon :component="DesktopOutline" :size="26" />
-            <span>屏幕共享</span>
+            <span>视频通话</span>
           </button>
           <button type="button" class="ctl hangup" @click="hangUp">
             <n-icon :component="CallOutline" :size="28" />
@@ -234,11 +192,6 @@ async function switchToVideo() {
 
 .ctl span {
   line-height: 1.2;
-}
-
-.ctl.muted {
-  opacity: 0.55;
-  cursor: default;
 }
 
 .ctl.hangup {

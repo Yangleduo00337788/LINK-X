@@ -7,6 +7,7 @@ import { defineStore } from 'pinia'
 import type { ContactItem } from '../types'
 import type { FriendItem } from '../types/friend'
 import * as friendApi from '../api/friend'
+import { normalizeMediaUrl } from '../utils/mediaUrl'
 
 const DEFAULT_AVATAR_COLOR = '#12b7f5'
 
@@ -19,7 +20,7 @@ function friendToContact(friend: FriendItem): ContactItem {
     avatarText: displayName.charAt(0) || '?',
     avatarColor: DEFAULT_AVATAR_COLOR,
     group: '我的好友',
-    avatarUrl: friend.avatar
+    avatarUrl: normalizeMediaUrl(friend.avatar) || undefined
   }
 }
 

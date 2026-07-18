@@ -1,68 +1,249 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
-import { NInput, NButton, NIcon, NCheckbox, NModal, useMessage } from 'naive-ui'
-import { LockClosedOutline, PersonOutline, RefreshOutline, MailOutline } from '@vicons/ionicons5'
+import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
+import { NInput, NButton, NIcon, NCheckbox, NModal, NSelect, useMessage } from 'naive-ui'
+import { RefreshOutline, MailOutline, ChevronDownOutline } from '@vicons/ionicons5'
 import WindowControls from './WindowControls.vue'
+import Avatar from './Avatar.vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
 import * as authApi from '../api/auth'
+import * as feedbackApi from '../api/feedback'
 import { sendResetCode, verifyResetCode, resetPasswordByEmail } from '../api/account'
-import { validateUsername, validatePassword, validateNickname } from '../utils/validation'
+import { validateUsername, validatePassword } from '../utils/validation'
+import { hasRefreshToken } from '../utils/tokenStorage'
 
 const message = useMessage()
+const router = useRouter()
 const appStore = useAppStore()
-const { savedLogin, isLoading } = storeToRefs(appStore)
+const { savedLogin, isLoading, authInitializing, userProfile } = storeToRefs(appStore)
 const { login } = appStore
 
 const isElectron = !!window.electronAPI?.isElectron
+
+/** quick：快速登录（头像+昵称）；password：账密登录 */
+const loginMode = ref<'quick' | 'password'>('password')
 
 const username = ref('')
 const password = ref('')
 const rememberMe = ref(true)
 const autoLogin = ref(false)
 
+/** 自动登录阶段：先检网络，再自动登录 */
+const autoLoginPhase = ref<'idle' | 'checking' | 'logging-in'>('idle')
+
+/** 自动登录进行中 */
+const autoLogging = computed(
+  () =>
+    autoLoginPhase.value !== 'idle' ||
+    authInitializing.value ||
+    (isLoading.value && autoLogin.value)
+)
+
+const matchedSavedAccount = computed(() => {
+  const user = username.value.trim()
+  return !!user && user === (savedLogin.value.username || '').trim()
+})
+
+const displayNickname = computed(() => {
+  if (matchedSavedAccount.value) {
+    return (
+      savedLogin.value.nickname ||
+      userProfile.value.nickname ||
+      username.value.trim() ||
+      'LinkX 用户'
+    )
+  }
+  const user = username.value.trim()
+  return user || (loginMode.value === 'password' ? '账号' : '请输入账号')
+})
+
+const displayAvatarUrl = computed(() => {
+  if (!matchedSavedAccount.value) return undefined
+  return savedLogin.value.avatar || userProfile.value.avatar || undefined
+})
+
+const displayAvatarText = computed(() => displayNickname.value.charAt(0) || '?')
+
+const loginButtonText = computed(() => {
+  if (autoLoginPhase.value === 'checking') return '检测网络中'
+  if (autoLoginPhase.value === 'logging-in' || authInitializing.value) return '自动登录中'
+  if (isLoading.value) return '登录中'
+  return '登 录'
+})
+
 const captchaId = ref('')
 const captchaImage = ref('')
 const captchaCode = ref('')
 
-const showRegister = ref(false)
-const regUser = ref('')
-const regPass = ref('')
-const regNickname = ref('')
-const regEmail = ref('')
-const regCaptchaCode = ref('')
-const regCaptchaId = ref('')
-const regCaptchaImage = ref('')
-
 const showForgot = ref(false)
-const forgotStep = ref<'input' | 'verify' | 'reset'>('input')  // 'input': 输入用户名, 'verify': 输入邮箱验证码, 'reset': 输入新密码
+const forgotStep = ref<'input' | 'verify' | 'reset'>('input')
 const forgotUser = ref('')
 const forgotCode = ref('')
 const forgotNewPassword = ref('')
 const forgotConfirmPassword = ref('')
 const forgotLoading = ref(false)
 const forgotSendLoading = ref(false)
-const forgotCountdown = ref(0)  // 倒计时（秒）
+const forgotCountdown = ref(0)
 let forgotCountdownTimer: ReturnType<typeof setInterval> | null = null
 
 const compact = computed(() => isElectron)
 
+const showMenu = ref(false)
+const showNetworkTip = ref(false)
+const showFeedback = ref(false)
+const feedbackText = ref('')
+const feedbackType = ref<'bug' | 'suggestion' | 'other'>('suggestion')
+const feedbackContact = ref('')
+const feedbackLoading = ref(false)
+
+const feedbackTypeOptions = [
+  { label: '功能建议', value: 'suggestion' },
+  { label: '问题反馈', value: 'bug' },
+  { label: '其他', value: 'other' }
+]
+
+function toggleMenu() {
+  showMenu.value = !showMenu.value
+}
+
+function closeMenu() {
+  showMenu.value = false
+}
+
+function onMenuAction(key: 'network' | 'forgot' | 'feedback') {
+  closeMenu()
+  if (key === 'network') {
+    showNetworkTip.value = true
+    return
+  }
+  if (key === 'forgot') {
+    void openForgot()
+    return
+  }
+  showFeedback.value = true
+  feedbackText.value = ''
+  feedbackContact.value = ''
+  feedbackType.value = 'suggestion'
+}
+
+async function submitFeedback() {
+  const text = feedbackText.value.trim()
+  if (!text) {
+    message.warning('请填写反馈内容')
+    return
+  }
+  feedbackLoading.value = true
+  try {
+    const res = await feedbackApi.submitFeedback({
+      type: feedbackType.value,
+      content: text,
+      contact: feedbackContact.value.trim() || undefined
+    })
+    if (res.code === 200) {
+      message.success('感谢反馈')
+      showFeedback.value = false
+    } else {
+      message.error(res.message || '提交失败')
+    }
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || '提交失败，登录后可在设置中反馈')
+  } finally {
+    feedbackLoading.value = false
+  }
+}
+
+function onDocClick() {
+  if (showMenu.value) closeMenu()
+}
+
 async function loadCaptcha(target: 'login' | 'register' = 'login') {
+  if (target !== 'login') return
   try {
     const res = await authApi.fetchCaptcha()
     if (res.code === 200 && res.data) {
-      if (target === 'login') {
-        captchaId.value = res.data.captchaId
-        captchaImage.value = res.data.imageBase64
-        captchaCode.value = ''
-      } else {
-        regCaptchaId.value = res.data.captchaId
-        regCaptchaImage.value = res.data.imageBase64
-        regCaptchaCode.value = ''
-      }
+      captchaId.value = res.data.captchaId
+      captchaImage.value = res.data.imageBase64
+      captchaCode.value = ''
     }
   } catch {
     message.error('验证码加载失败')
+  }
+}
+
+function switchToPasswordMode() {
+  if (autoLogging.value) return
+  loginMode.value = 'password'
+  requestAnimationFrame(() => {
+    void loadCaptcha('login')
+  })
+}
+
+function switchToQuickMode() {
+  if (autoLogging.value) return
+  if (!username.value.trim() && savedLogin.value.username) {
+    username.value = savedLogin.value.username
+  }
+  if (!username.value.trim()) {
+    message.warning('请先输入账号')
+    return
+  }
+  loginMode.value = 'quick'
+}
+
+function applyRegisteredUsername(): boolean {
+  try {
+    const pending = localStorage.getItem('linkx:registered-username')
+    if (!pending) return false
+    localStorage.removeItem('linkx:registered-username')
+    username.value = pending
+    loginMode.value = 'password'
+    rememberMe.value = true
+    requestAnimationFrame(() => {
+      void loadCaptcha('login')
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
+function onWindowFocus() {
+  applyRegisteredUsername()
+}
+
+async function runAutoLoginFlow() {
+  if (autoLoginPhase.value !== 'idle') return
+
+  // 1) 先扫描是否离线
+  autoLoginPhase.value = 'checking'
+  await new Promise<void>(resolve => setTimeout(resolve, 280))
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    autoLoginPhase.value = 'idle'
+    autoLogin.value = false
+    message.warning('当前处于离线环境，无法自动登录，请检查网络后重试')
+    showNetworkTip.value = true
+    return
+  }
+
+  // 2) 在线：进入自动登录
+  autoLoginPhase.value = 'logging-in'
+  try {
+    const result = await appStore.tryAutoLogin()
+    if (result === 'offline') {
+      autoLogin.value = false
+      message.warning('当前处于离线环境，无法自动登录，请检查网络后重试')
+      showNetworkTip.value = true
+    } else if (result === 'failed') {
+      autoLogin.value = false
+      message.error('自动登录失败，请手动输入账号密码登录')
+      if (loginMode.value === 'quick') {
+        switchToPasswordMode()
+      }
+    }
+  } finally {
+    autoLoginPhase.value = 'idle'
   }
 }
 
@@ -70,10 +251,35 @@ onMounted(() => {
   username.value = savedLogin.value.username || ''
   rememberMe.value = savedLogin.value.rememberMe ?? true
   autoLogin.value = savedLogin.value.autoLogin ?? false
-  // 首屏先绘制登录表单，验证码异步加载避免阻塞交互
-  requestAnimationFrame(() => {
-    void loadCaptcha('login')
-  })
+  document.addEventListener('click', onDocClick)
+  window.addEventListener('focus', onWindowFocus)
+
+  const fromRegister = applyRegisteredUsername()
+  if (!fromRegister) {
+    if (username.value) {
+      loginMode.value = 'quick'
+    } else {
+      loginMode.value = 'password'
+      requestAnimationFrame(() => {
+        void loadCaptcha('login')
+      })
+    }
+  }
+
+  // 自动登录：先检网络，再登录（文案：检测网络中 → 自动登录中）
+  if (!fromRegister && autoLogin.value && rememberMe.value && username.value) {
+    loginMode.value = 'quick'
+    void nextTick().then(() => {
+      requestAnimationFrame(() => {
+        void runAutoLoginFlow()
+      })
+    })
+  }
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', onDocClick)
+  window.removeEventListener('focus', onWindowFocus)
 })
 
 watch(rememberMe, val => {
@@ -85,6 +291,21 @@ watch(autoLogin, val => {
 })
 
 async function handleLogin() {
+  if (autoLogging.value || isLoading.value) return
+
+  // 快速登录：有 refreshToken 则走自动登录，否则切到账密
+  if (loginMode.value === 'quick') {
+    if (await hasRefreshToken()) {
+      autoLogin.value = true
+      rememberMe.value = true
+      void runAutoLoginFlow()
+      return
+    }
+    switchToPasswordMode()
+    message.info('请输入密码登录')
+    return
+  }
+
   const user = username.value.trim()
   const pass = password.value
 
@@ -118,78 +339,25 @@ async function handleLogin() {
   }
 }
 
-async function openRegister() {
-  showRegister.value = true
-  regNickname.value = regUser.value.trim()
-  await loadCaptcha('register')
-}
-
-async function handleRegister() {
-  const user = regUser.value.trim()
-  const pass = regPass.value
-  const nickname = regNickname.value.trim() || user
-  const email = regEmail.value.trim()
-
-  const userErr = validateUsername(user)
-  if (userErr) {
-    message.warning(userErr)
+function openRegister() {
+  if (autoLogging.value) return
+  if (window.electronAPI?.openRegister) {
+    window.electronAPI.openRegister()
     return
   }
-  const passErr = validatePassword(pass, true)
-  if (passErr) {
-    message.warning(passErr)
-    return
-  }
-  const nickErr = validateNickname(nickname)
-  if (nickErr) {
-    message.warning(nickErr)
-    return
-  }
-  if (!email) {
-    message.warning('请输入邮箱')
-    return
-  }
-  // 简单邮箱格式校验
-  if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
-    message.warning('请输入有效的邮箱地址')
-    return
-  }
-  if (!regCaptchaCode.value.trim()) {
-    message.warning('请输入验证码')
-    return
-  }
-
-  try {
-    const res = await authApi.register({
-      username: user,
-      password: pass,
-      nickname,
-      email,
-      captchaId: regCaptchaId.value,
-      captchaCode: regCaptchaCode.value.trim()
-    })
-    if (res.code === 200) {
-      message.success('注册成功，请登录')
-      username.value = user
-      password.value = ''
-      showRegister.value = false
-      await loadCaptcha('login')
-    } else {
-      message.error(res.message || '注册失败，请检查信息后重试')
-      await loadCaptcha('register')
-    }
-  } catch (error: unknown) {
-    const err = error as { response?: { data?: { message?: string } }; message?: string }
-    message.error(err.response?.data?.message || err.message || '注册请求失败')
-    await loadCaptcha('register')
+  // Web：新开标签/窗口，不替换当前登录页
+  const url = `${window.location.origin}${window.location.pathname}${window.location.search}#/register`
+  const popup = window.open(url, 'linkx-register', 'width=360,height=560,menubar=no,toolbar=no,location=no,status=no')
+  if (!popup) {
+    void router.push('/register')
   }
 }
 
 async function openForgot() {
+  if (autoLogging.value) return
   showForgot.value = true
-  // 重置所有状态
   forgotStep.value = 'input'
-  forgotUser.value = ''
+  forgotUser.value = username.value.trim() || ''
   forgotCode.value = ''
   forgotNewPassword.value = ''
   forgotConfirmPassword.value = ''
@@ -199,6 +367,7 @@ async function openForgot() {
     forgotCountdownTimer = null
   }
 }
+
 async function handleSendResetCode() {
   const user = forgotUser.value.trim()
   if (!user) {
@@ -226,7 +395,6 @@ async function handleSendResetCode() {
   }
 }
 
-// 验证邮箱验证码
 const verifyLoading = ref(false)
 async function handleVerifyCode() {
   const code = forgotCode.value.trim()
@@ -241,19 +409,16 @@ async function handleVerifyCode() {
 
   verifyLoading.value = true
   try {
-    // 真正调用后端校验，不通过不能进入下一步
     await verifyResetCode({ username: forgotUser.value.trim(), code })
     forgotStep.value = 'reset'
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     message.error(err.response?.data?.message || err.message || '验证码错误')
-    // 不切换步骤，让用户重新输入
   } finally {
     verifyLoading.value = false
   }
 }
 
-// 重发验证码
 async function handleResendCode() {
   forgotSendLoading.value = true
   try {
@@ -268,7 +433,6 @@ async function handleResendCode() {
   }
 }
 
-// 开始倒计时
 function startCountdown() {
   forgotCountdown.value = 60
   if (forgotCountdownTimer) clearInterval(forgotCountdownTimer)
@@ -307,6 +471,7 @@ async function handleForgot() {
     showForgot.value = false
     username.value = user
     password.value = ''
+    loginMode.value = 'password'
     await loadCaptcha('login')
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string }
@@ -319,46 +484,108 @@ async function handleForgot() {
 
 <template>
   <div class="login-page" :class="{ 'login-page--compact': compact }">
-    <div v-if="isElectron" class="login-win-bar">
+    <div class="login-win-bar">
       <div class="drag-area" />
-      <WindowControls />
+      <div class="login-win-actions" @click.stop>
+        <WindowControls
+          v-if="isElectron"
+          variant="login"
+          @menu="toggleMenu"
+        />
+        <button
+          v-else
+          type="button"
+          class="web-menu-btn"
+          title="菜单"
+          @click="toggleMenu"
+        >
+          <span class="web-menu-ico" />
+        </button>
+        <div v-if="showMenu" class="login-menu" role="menu">
+          <button type="button" class="login-menu-item" role="menuitem" @click="onMenuAction('network')">
+            网络设置
+          </button>
+          <button type="button" class="login-menu-item" role="menuitem" @click="onMenuAction('forgot')">
+            忘记密码
+          </button>
+          <button type="button" class="login-menu-item" role="menuitem" @click="onMenuAction('feedback')">
+            问题反馈
+          </button>
+        </div>
+      </div>
     </div>
 
-    <div class="login-card">
-      <div class="brand">
-        <img src="../assets/logo-linkx.svg" alt="" class="brand-logo" width="56" height="56" />
-        <h1 class="brand-name">LinkX</h1>
-        <p class="brand-desc">企业级即时通讯与协同平台</p>
+    <div class="login-body" :class="{ 'login-body--password': loginMode === 'password' }">
+      <div class="avatar-glow" aria-hidden="true" />
+
+      <!-- 彩色品牌名仅快速登录展示；账密页只留头像，腾出表单空间 -->
+      <div v-if="loginMode === 'quick'" class="brand-title" aria-label="LinkX">LinkX</div>
+
+      <div class="profile-block" :class="{ 'profile-block--password': loginMode === 'password' }">
+        <div class="avatar-ring">
+          <Avatar
+            :text="displayAvatarText"
+            color="#12b7f5"
+            :size="loginMode === 'quick' ? 88 : 72"
+            :image-url="displayAvatarUrl"
+          />
+        </div>
+        <!-- 快速登录：头像下方昵称 + 居中自动登录 -->
+        <template v-if="loginMode === 'quick'">
+          <div class="profile-nickname">
+            <span class="nickname-text">{{ displayNickname }}</span>
+            <n-icon
+              :component="ChevronDownOutline"
+              :size="16"
+              class="nickname-chevron"
+              title="账密登录"
+              @click="switchToPasswordMode"
+            />
+          </div>
+          <div class="options options--quick">
+            <n-checkbox v-model:checked="autoLogin" size="small" :disabled="autoLogging">
+              自动登录
+            </n-checkbox>
+          </div>
+        </template>
       </div>
 
-      <div class="form">
+      <!-- 快速登录 -->
+      <div v-if="loginMode === 'quick'" class="quick-panel">
+        <button
+          type="button"
+          class="lx-login-btn"
+          :class="{ loading: isLoading || autoLogging }"
+          :disabled="isLoading || autoLogging"
+          @click="handleLogin"
+        >
+          <span v-if="autoLogging || isLoading" class="btn-spinner" aria-hidden="true" />
+          <span>{{ loginButtonText }}</span>
+        </button>
+      </div>
+
+      <!-- 账密登录 -->
+      <div v-else class="password-panel">
         <n-input
           v-model:value="username"
           size="large"
-          placeholder="用户名（4-32位字母数字下划线）"
-          class="field"
-          :bordered="true"
+          placeholder="请输入账号"
+          class="lx-field"
+          :bordered="false"
+          :disabled="autoLogging"
           @keyup.enter="handleLogin"
-        >
-          <template #prefix>
-            <n-icon :component="PersonOutline" :size="18" class="field-ico" />
-          </template>
-        </n-input>
-
+        />
         <n-input
           v-model:value="password"
           type="password"
           show-password-on="click"
           size="large"
-          placeholder="密码（8-64位）"
-          class="field"
-          :bordered="true"
+          placeholder="请输入密码"
+          class="lx-field"
+          :bordered="false"
+          :disabled="autoLogging"
           @keyup.enter="handleLogin"
-        >
-          <template #prefix>
-            <n-icon :component="LockClosedOutline" :size="18" class="field-ico" />
-          </template>
-        </n-input>
+        />
 
         <div class="captcha-row">
           <img
@@ -367,17 +594,19 @@ async function handleForgot() {
             alt="验证码"
             class="captcha-img"
             title="点击刷新"
-            @click="loadCaptcha('login')"
+            @click="!autoLogging && loadCaptcha('login')"
           />
           <n-input
             v-model:value="captchaCode"
             size="large"
             placeholder="验证码"
-            class="captcha-input"
+            class="lx-field captcha-input"
+            :bordered="false"
             maxlength="6"
+            :disabled="autoLogging"
             @keyup.enter="handleLogin"
           />
-          <n-button quaternary circle @click="loadCaptcha('login')">
+          <n-button quaternary circle :disabled="autoLogging" @click="loadCaptcha('login')">
             <template #icon>
               <n-icon :component="RefreshOutline" />
             </template>
@@ -385,71 +614,83 @@ async function handleForgot() {
         </div>
 
         <div class="options">
-          <n-checkbox v-model:checked="rememberMe" size="small">记住账号</n-checkbox>
-          <n-checkbox v-model:checked="autoLogin" size="small">自动登录</n-checkbox>
+          <n-checkbox v-model:checked="autoLogin" size="small" :disabled="autoLogging">
+            自动登录
+          </n-checkbox>
+          <n-checkbox v-model:checked="rememberMe" size="small" :disabled="autoLogging">
+            记住账号
+          </n-checkbox>
         </div>
 
-        <n-button
-          type="primary"
-          size="large"
-          block
-          :loading="isLoading"
-          class="submit-btn"
+        <button
+          type="button"
+          class="lx-login-btn"
+          :class="{ loading: isLoading }"
+          :disabled="isLoading"
           @click="handleLogin"
         >
-          登 录
-        </n-button>
+          <span v-if="isLoading" class="btn-spinner" aria-hidden="true" />
+          <span>{{ loginButtonText }}</span>
+        </button>
       </div>
 
       <div class="footer">
-        <a href="#" class="footer-link" @click.prevent="openRegister">注册账号</a>
-        <span class="footer-sep">|</span>
-        <a href="#" class="footer-link" @click.prevent="openForgot">找回密码</a>
+        <template v-if="loginMode === 'quick'">
+          <a
+            href="#"
+            class="footer-link"
+            :class="{ disabled: autoLogging }"
+            @click.prevent="switchToPasswordMode"
+          >账密登录</a>
+          <span class="footer-sep">|</span>
+          <a
+            href="#"
+            class="footer-link"
+            :class="{ disabled: autoLogging }"
+            @click.prevent="openRegister"
+          >注册账号</a>
+        </template>
+        <template v-else>
+          <a
+            v-if="username.trim()"
+            href="#"
+            class="footer-link"
+            @click.prevent="switchToQuickMode"
+          >快速登录</a>
+          <span v-if="username.trim()" class="footer-sep">|</span>
+          <a href="#" class="footer-link" @click.prevent="openRegister">注册账号</a>
+        </template>
       </div>
     </div>
 
-    <n-modal v-model:show="showRegister" preset="dialog" title="注册 LinkX 账号">
-      <n-input v-model:value="regUser" placeholder="用户名" />
-      <n-input
-        v-model:value="regPass"
-        type="password"
-        placeholder="密码（8位以上，含字母和数字）"
-        style="margin-top: 12px"
-      />
-      <n-input
-        v-model:value="regNickname"
-        placeholder="昵称"
-        style="margin-top: 12px"
-      />
-      <n-input
-        v-model:value="regEmail"
-        placeholder="邮箱（用于找回密码）"
-        style="margin-top: 12px"
-      />
-      <div class="captcha-row" style="margin-top: 12px">
-        <img
-          v-if="regCaptchaImage"
-          :src="regCaptchaImage"
-          alt="验证码"
-          class="captcha-img"
-          @click="loadCaptcha('register')"
+    <n-modal v-model:show="showNetworkTip" preset="dialog" title="网络设置" positive-text="知道了" @positive-click="showNetworkTip = false">
+      <p class="dialog-tip">请检查本机网络连接是否正常。若使用代理，请确认代理可访问 LinkX 服务。</p>
+    </n-modal>
+
+    <n-modal v-model:show="showFeedback" preset="dialog" title="问题反馈" style="max-width: 400px">
+      <div class="feedback-form">
+        <n-select v-model:value="feedbackType" :options="feedbackTypeOptions" />
+        <n-input
+          v-model:value="feedbackText"
+          type="textarea"
+          placeholder="请描述你的问题或建议"
+          :rows="4"
+          style="margin-top: 12px"
         />
-        <n-input v-model:value="regCaptchaCode" placeholder="验证码" maxlength="6" />
-        <n-button quaternary circle @click="loadCaptcha('register')">
-          <template #icon>
-            <n-icon :component="RefreshOutline" />
-          </template>
-        </n-button>
+        <n-input
+          v-model:value="feedbackContact"
+          placeholder="联系方式（选填）"
+          style="margin-top: 12px"
+        />
       </div>
       <template #action>
-        <n-button @click="showRegister = false">取消</n-button>
-        <n-button type="primary" @click="handleRegister">注册</n-button>
+        <n-button @click="showFeedback = false">取消</n-button>
+        <n-button type="primary" :loading="feedbackLoading" @click="submitFeedback">提交</n-button>
       </template>
     </n-modal>
 
     <n-modal v-model:show="showForgot" preset="dialog" title="找回密码" style="max-width: 400px">
       <div class="forgot-form">
-        <!-- 步骤 1: 输入用户名 -->
         <template v-if="forgotStep === 'input'">
           <div class="forgot-tip">
             <n-icon :component="MailOutline" :size="20" class="forgot-tip-icon" />
@@ -465,7 +706,6 @@ async function handleForgot() {
           </div>
         </template>
 
-        <!-- 步骤 2: 输入邮箱验证码 -->
         <template v-else-if="forgotStep === 'verify'">
           <div class="forgot-tip">
             <p>验证码已发送至您注册账号时填写的邮箱，请查收并输入</p>
@@ -493,17 +733,10 @@ async function handleForgot() {
               重新发送验证码
             </a>
             <span class="resend-sep">|</span>
-            <a
-              href="#"
-              class="resend-link"
-              @click.prevent="forgotStep = 'input'"
-            >
-              返回上一步
-            </a>
+            <a href="#" class="resend-link" @click.prevent="forgotStep = 'input'">返回上一步</a>
           </div>
         </template>
 
-        <!-- 步骤 3: 设置新密码 -->
         <template v-else>
           <div class="forgot-tip">
             <p>验证成功，请设置您的新密码</p>
@@ -566,90 +799,271 @@ async function handleForgot() {
   height: 100%;
   min-height: 100%;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #e8e8e8;
+  flex-direction: column;
   box-sizing: border-box;
-  padding: 16px;
+  background:
+    radial-gradient(ellipse 70% 45% at 50% 32%, rgba(255, 210, 230, 0.42) 0%, transparent 70%),
+    linear-gradient(180deg, #dceefc 0%, #eef5fb 42%, #f7f9fc 100%);
+  overflow: hidden;
 }
 
 .login-page--compact {
-  background: #ffffff;
+  min-height: 461px;
   padding: 0;
-  flex-direction: column;
-  align-items: stretch;
-  min-height: 520px;
 }
 
 .login-win-bar {
   flex-shrink: 0;
-  height: 32px;
+  height: 36px;
   display: flex;
-  align-items: stretch;
+  align-items: center;
   -webkit-app-region: no-drag;
+  position: relative;
+  z-index: 20;
 }
 
 .drag-area {
   flex: 1;
+  height: 100%;
   -webkit-app-region: drag;
 }
 
-.login-card {
-  width: 360px;
-  min-height: 520px;
-  background: #ffffff;
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  padding: 40px 36px 28px;
-  box-sizing: border-box;
+.login-win-actions {
+  position: relative;
+  flex-shrink: 0;
   display: flex;
-  flex-direction: column;
   align-items: center;
+  -webkit-app-region: no-drag;
 }
 
-.login-page--compact .login-card {
-  width: 100%;
-  min-height: 0;
-  flex: 1;
+.web-menu-btn {
+  width: 28px;
+  height: 28px;
+  margin-right: 8px;
   border: none;
-  border-radius: 0;
-  box-shadow: none;
-  padding: 36px 40px 24px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.04);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.brand {
+.web-menu-ico,
+.web-menu-ico::before,
+.web-menu-ico::after {
+  display: block;
+  width: 12px;
+  height: 1.5px;
+  background: #5c6370;
+  border-radius: 1px;
+}
+
+.web-menu-ico {
+  position: relative;
+}
+
+.web-menu-ico::before,
+.web-menu-ico::after {
+  content: '';
+  position: absolute;
+  left: 0;
+}
+
+.web-menu-ico::before {
+  top: -4px;
+}
+
+.web-menu-ico::after {
+  top: 4px;
+}
+
+.login-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 6px;
+  min-width: 120px;
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  padding: 4px 0;
+  z-index: 30;
+}
+
+.login-menu-item {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 8px 16px;
+  font-size: 13px;
+  color: #1f2329;
+  cursor: pointer;
+}
+
+.login-menu-item:hover {
+  background: #f5f7fa;
+}
+
+.login-body {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 28px;
+  padding: 8px 28px 18px;
+  position: relative;
+  box-sizing: border-box;
 }
 
-.brand-logo {
-  display: block;
-  margin-bottom: 10px;
+.login-body--password {
+  padding: 2px 24px 14px;
 }
 
-.brand-name {
-  margin: 0 0 6px;
-  font-size: 22px;
-  font-weight: 600;
+.avatar-glow {
+  position: absolute;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.75) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.brand-title {
+  position: relative;
+  z-index: 1;
+  margin-top: 12px;
+  margin-bottom: 32px;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  line-height: 1;
+  background: linear-gradient(90deg, #12b7f5 0%, #5b8cff 45%, #c45dff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  user-select: none;
+}
+
+.profile-block {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 24px;
+  gap: 20px;
+}
+
+.profile-block--password {
+  margin-top: 10px;
+  margin-bottom: 36px;
+  gap: 0;
+}
+
+.avatar-ring {
+  padding: 3px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 2px 12px rgba(18, 183, 245, 0.18);
+}
+
+.profile-nickname {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  max-width: 220px;
+  margin-top: 2px;
+}
+
+.nickname-text {
+  font-size: 16px;
+  font-weight: 500;
   color: #1a1a1a;
-  letter-spacing: 0.5px;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.brand-desc {
-  margin: 0;
-  font-size: 12px;
-  color: #999;
-  line-height: 1.4;
+.nickname-chevron {
+  color: #8f959e;
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
-.form {
+.nickname-chevron:hover {
+  color: #12b7f5;
+}
+
+.password-panel {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  align-items: stretch;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-height: 0;
+}
+
+.quick-panel {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  position: relative;
+  z-index: 1;
+}
+
+.options {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 2px;
+}
+
+.options--quick {
+  justify-content: center;
+  width: 100%;
+  margin: 0;
+  padding-top: 2px;
+}
+
+.options :deep(.n-checkbox .n-checkbox__label) {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.options :deep(.n-checkbox.n-checkbox--checked .n-checkbox-box) {
+  background-color: #12b7f5;
+  border-color: #12b7f5;
+}
+
+.lx-field {
+  width: 100%;
+}
+
+.lx-field :deep(.n-input-wrapper) {
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  padding-left: 14px;
+  padding-right: 14px;
+  min-height: 38px;
+}
+
+.lx-field :deep(.n-input__input-el) {
+  font-size: 13px;
+  height: 38px;
 }
 
 .captcha-row {
@@ -659,79 +1073,110 @@ async function handleForgot() {
 }
 
 .captcha-img {
-  width: 120px;
-  height: 40px;
-  border-radius: 6px;
+  width: 90px;
+  height: 38px;
+  border-radius: 10px;
   cursor: pointer;
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  border: none;
+  background: #fff;
   flex-shrink: 0;
+  object-fit: cover;
 }
 
 .captcha-input {
   flex: 1;
 }
 
-.field :deep(.n-input-wrapper) {
-  background: #f5f5f5;
-  border-radius: 6px;
-}
-
-.field :deep(.n-input__input-el) {
-  font-size: 14px;
-}
-
-.field-ico {
-  color: #b0b0b0;
-}
-
-.options {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 2px;
-  margin-top: 2px;
-}
-
-.options :deep(.n-checkbox__label) {
-  font-size: 13px;
-  color: #666;
-}
-
-.submit-btn {
+.lx-login-btn {
+  width: 100%;
   height: 40px;
-  margin-top: 6px;
-  border-radius: 6px;
+  margin-top: 10px;
+  border: none;
+  border-radius: 20px;
+  background: #12b7f5;
+  color: #fff;
   font-size: 15px;
   font-weight: 500;
-  letter-spacing: 6px;
-  text-indent: 6px;
+  letter-spacing: 2px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background 0.15s ease, opacity 0.15s ease;
+  -webkit-app-region: no-drag;
+}
+
+.lx-login-btn:hover:not(:disabled) {
+  background: #0aa6e0;
+}
+
+.lx-login-btn:disabled,
+.lx-login-btn.loading {
+  cursor: default;
+  opacity: 0.92;
+}
+
+.btn-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .footer {
   margin-top: auto;
-  padding-top: 28px;
+  padding-top: 10px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  font-size: 12px;
+  font-size: 13px;
+  position: relative;
+  z-index: 1;
 }
 
 .footer-link {
-  color: #888;
+  color: #12b7f5;
   text-decoration: none;
 }
 
 .footer-link:hover {
-  color: var(--lx-accent, #12b7f5);
+  text-decoration: underline;
+}
+
+.footer-link.disabled {
+  color: #b0b8c0;
+  pointer-events: none;
+  text-decoration: none;
 }
 
 .footer-sep {
-  color: #ddd;
+  color: #c5ccd3;
   user-select: none;
 }
 
-/* 找回密码表单样式 */
+.dialog-tip {
+  margin: 0;
+  font-size: 13px;
+  color: #555;
+  line-height: 1.6;
+}
+
+.feedback-form {
+  display: flex;
+  flex-direction: column;
+}
+
 .forgot-form {
   display: flex;
   flex-direction: column;
@@ -749,22 +1194,6 @@ async function handleForgot() {
   color: #666;
 }
 
-.forgot-form .captcha-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.forgot-form .captcha-img {
-  width: 120px;
-  height: 40px;
-  border-radius: 6px;
-  cursor: pointer;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  flex-shrink: 0;
-}
-
-/* 找回密码多步骤提示 */
 .forgot-tip {
   display: flex;
   align-items: center;

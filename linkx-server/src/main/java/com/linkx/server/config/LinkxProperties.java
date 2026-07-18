@@ -31,7 +31,7 @@ public class LinkxProperties {
 
     @Data
     public static class Minio {
-        private String endpoint = "http://localhost:9000";
+        private String endpoint = "http://127.0.0.1:9000";
         private String accessKey = "minioadmin";
         private String secretKey = "minioadmin123";
         private String bucketName = "linkx";

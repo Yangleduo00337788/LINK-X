@@ -12,7 +12,7 @@ defineProps<{ msg: ChatMessage }>()
 
 <template>
   <!-- 图片气泡：点击由父组件处理预览 -->
-  <div class="qq-bubble image-bubble" :class="{ self: msg.isSelf }">
-    <img :src="msg.content" class="qq-bubble-image" alt="图片消息" />
+  <div class="lx-bubble image-bubble" :class="{ self: msg.isSelf }">
+    <img :src="msg.content" class="lx-bubble-image" alt="图片消息" />
   </div>
 </template>

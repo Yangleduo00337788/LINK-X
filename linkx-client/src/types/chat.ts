@@ -68,9 +68,19 @@ export interface WsSendPayload {
 }
 
 export interface WsIncomingFrame {
-  action: 'message' | 'ack' | 'pong' | 'error'
+  action:
+    | 'message'
+    | 'ack'
+    | 'pong'
+    | 'error'
+    | 'call_invite'
+    | 'call_accept'
+    | 'call_reject'
+    | 'call_cancel'
+    | 'call_hangup'
+    | 'call_signal'
   clientMsgId?: string
   code?: number
   message?: string
-  data?: MessageItem
+  data?: MessageItem | Record<string, unknown>
 }

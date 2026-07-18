@@ -44,12 +44,12 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         response.setHeader("X-Permitted-Cross-Domain-Policies", "none");
         response.setHeader("Permissions-Policy", "geolocation=(), microphone=(self), camera=(self)");
 
-        // Content-Security-Policy：默认拒绝所有外部资源，仅允许同源 + MinIO 文件服务
+        // Content-Security-Policy：允许同源 + MinIO（127.0.0.1 与 localhost 均放行，兼容旧链接）
         String minioOrigin = linkxProperties.getMinio().getEndpoint();
         String csp = String.format(
                 "default-src 'self'; "
-                        + "img-src 'self' data: blob: %s; "
-                        + "media-src 'self' data: blob: %s; "
+                        + "img-src 'self' data: blob: %s http://127.0.0.1:9000 http://localhost:9000; "
+                        + "media-src 'self' data: blob: %s http://127.0.0.1:9000 http://localhost:9000; "
                         + "object-src 'none'; "
                         + "base-uri 'self'; "
                         + "form-action 'self'; "

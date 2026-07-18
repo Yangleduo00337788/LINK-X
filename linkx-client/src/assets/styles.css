@@ -191,7 +191,7 @@ body,
   border-radius: var(--lx-radius);
 }
 
-/* 头像：圆角方形（QQ/微信风格） */
+/* 头像：圆角方形 */
 .n-avatar {
   border-radius: var(--lx-avatar-radius) !important;
 }

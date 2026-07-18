@@ -212,7 +212,12 @@ function onTabChange(tab: 'friends' | 'groups') {
                 @click="handleContactClick(item, $event)"
                 @dblclick="handleContactDblClick(item)"
               >
-                <Avatar :text="item.avatarText" :color="item.avatarColor" :size="46" />
+                <Avatar
+                  :text="item.avatarText"
+                  :color="item.avatarColor"
+                  :size="46"
+                  :image-url="item.avatarUrl"
+                />
                 <div class="info">
                   <div class="name-row">
                     <span class="name">{{ item.name }}</span>
@@ -243,7 +248,12 @@ function onTabChange(tab: 'friends' | 'groups') {
                 :class="{ active: currentSessionId === item.id }"
                 @click="openGroupSession(item)"
               >
-                <Avatar :text="item.avatarText" :color="item.avatarColor" :size="46" />
+                <Avatar
+                  :text="item.avatarText"
+                  :color="item.avatarColor"
+                  :size="46"
+                  :image-url="item.avatarUrl"
+                />
                 <div class="info">
                   <span class="name">{{ item.name }}</span>
                   <span class="status">{{ item.lastMessage }}</span>

@@ -7,22 +7,24 @@
  * </p>
  */
 // Vue 挂载钩子、侦听器、异步组件与 nextTick
-import { onMounted, watch, nextTick, defineAsyncComponent } from 'vue'
+import { onMounted, onUnmounted, watch, nextTick, defineAsyncComponent } from 'vue'
 // Pinia 响应式解构
 import { storeToRefs } from 'pinia'
 // 应用全局状态 Store
 import { useAppStore } from '../stores/app'
 // 文档主题同步工具
 import { applyDocumentTheme } from '../utils/themeSync'
+import { isChatSocketConnected } from '../utils/chatSocket'
+// 登录页同步导入：自动登录需先画出登录窗再 loading，异步会先闪空白再跳主界面
+import LoginView from '../components/LoginView.vue'
 
-// 主界面与登录页懒加载，缩短首屏解析与执行时间
+// 主界面懒加载，缩短登录态首屏体积
 const AppShell = defineAsyncComponent(() => import('../components/AppShell.vue'))
-const LoginView = defineAsyncComponent(() => import('../components/LoginView.vue'))
 
 // 获取应用 Store 实例
 const appStore = useAppStore()
-// 解构登录状态的响应式引用
-const { isLoggedIn, authInitializing } = storeToRefs(appStore)
+// 解构登录状态的响应式引用（自动登录期间仍展示登录页，由登录按钮 loading 表达进度）
+const { isLoggedIn } = storeToRefs(appStore)
 
 // 根据登录状态同步 Electron 窗口模式（login / main）
 async function syncWindowMode(loggedIn: boolean) {
@@ -34,9 +36,27 @@ async function syncWindowMode(loggedIn: boolean) {
   await window.electronAPI?.setWindowMode?.(loggedIn ? 'main' : 'login')
 }
 
-// 组件挂载：应用主题（自动登录已在 main.ts 触发）
+function retryWsIfNeeded() {
+  if (appStore.isLoggedIn && !isChatSocketConnected()) {
+    void appStore.connectChatWebSocket()
+  }
+}
+
+function onVisibilityChange() {
+  if (document.visibilityState === 'visible') retryWsIfNeeded()
+}
+
+// 组件挂载：应用主题（自动登录由 LoginView 首帧后触发）
 onMounted(() => {
   applyDocumentTheme(appStore.theme)
+  // 后端恢复 / 从后台切回时强制再连，避免桌面端停在「永久离线」
+  window.addEventListener('online', retryWsIfNeeded)
+  document.addEventListener('visibilitychange', onVisibilityChange)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('online', retryWsIfNeeded)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
 })
 
 // 登录状态变化时同步窗口模式，immediate 确保首次渲染也执行
@@ -45,21 +65,14 @@ watch(isLoggedIn, syncWindowMode, { immediate: true, flush: 'post' })
 
 <template>
   <div class="home-root">
-    <!-- 自动登录恢复会话时显示加载态，避免登录页闪烁 -->
-    <div v-if="authInitializing" class="auth-loading" aria-busy="true" aria-label="正在恢复登录状态" />
     <!-- 直接切换，不用 transition，避免登出时父容器高度塌陷导致白屏 -->
-    <Suspense v-else-if="isLoggedIn">
+    <Suspense v-if="isLoggedIn">
       <AppShell />
       <template #fallback>
         <div class="auth-loading" aria-busy="true" aria-label="正在进入主界面" />
       </template>
     </Suspense>
-    <Suspense v-else>
-      <LoginView />
-      <template #fallback>
-        <div class="auth-loading" aria-busy="true" aria-label="正在加载登录页" />
-      </template>
-    </Suspense>
+    <LoginView v-else />
   </div>
 </template>
 

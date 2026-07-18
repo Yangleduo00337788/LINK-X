@@ -34,12 +34,10 @@ app.use(router)
 const appStore = useAppStore()
 applyDocumentTheme(appStore.theme)
 
-// 自动登录：由 tryAutoLogin 内部管理 authInitializing，避免无 token 时卡死白屏
-const shouldTryAutoLogin =
-  !appStore.isLoggedIn &&
-  appStore.savedLogin.autoLogin &&
-  appStore.savedLogin.rememberMe &&
-  !!appStore.savedLogin.username
+// 兼容历史脏持久化：曾误把 isLoggedIn/isOffline 整包写入 localStorage。
+// 启动时作废脏登录态；自动登录改由登录页首帧绘制后再触发，避免「看不见 loading 就进主界面」。
+appStore.isOffline = false
+appStore.isLoggedIn = false
 
 // 监听 localStorage 变化，实现多窗口（主窗口 / 友链 / 笔记）主题联动
 initCrossWindowThemeSync(theme => {
@@ -57,7 +55,3 @@ router.beforeEach(() => {
 
 // 挂载到 index.html 中的 #app 节点
 app.mount('#app')
-
-if (shouldTryAutoLogin) {
-  void appStore.tryAutoLogin()
-}

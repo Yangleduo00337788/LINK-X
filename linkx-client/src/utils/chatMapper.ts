@@ -1,6 +1,7 @@
 import type { ChatMessage, ChatSession } from '../types'
 import type { ConversationItem, MessageItem } from '../types/chat'
 import { formatChatTime, formatFileSize } from './chatTime'
+import { normalizeMediaUrl } from './mediaUrl'
 
 const GROUP_COLORS = ['#12b7f5', '#52c41a', '#722ed1', '#fa8c16', '#eb2f96', '#13c2c2']
 
@@ -23,7 +24,7 @@ export function conversationToSession(conv: ConversationItem): ChatSession {
       time: formatChatTime(conv.lastMessageTime),
       avatarText: name.charAt(0) || '群',
       avatarColor: pickColor(name),
-      avatarUrl: conv.avatar,
+      avatarUrl: normalizeMediaUrl(conv.avatar) || undefined,
       isGroup: true,
       isReal: true
     }
@@ -38,7 +39,7 @@ export function conversationToSession(conv: ConversationItem): ChatSession {
     time: formatChatTime(conv.lastMessageTime),
     avatarText: name.charAt(0) || '?',
     avatarColor: pickColor(name),
-    avatarUrl: conv.peerAvatar,
+    avatarUrl: normalizeMediaUrl(conv.peerAvatar) || undefined,
     peerUserId: conv.peerUserId ? String(conv.peerUserId) : undefined,
     isGroup: false,
     isReal: true

@@ -9,6 +9,7 @@ import com.linkx.server.controller.vo.UserInfoVO;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.SysUserMapper;
+import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.TokenService;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
@@ -47,6 +48,7 @@ public class TokenServiceImpl implements TokenService {
     private final StringRedisTemplate redisTemplate;
     private final SysUserMapper sysUserMapper;
     private final LinkxProperties linkxProperties;
+    private final MediaUrlService mediaUrlService;
 
     @Override
     public TokenVO issueTokenPair(SysUser user) {
@@ -260,7 +262,7 @@ public class TokenServiceImpl implements TokenService {
                 .id(user.getId())
                 .username(user.getUsername())
                 .nickname(user.getNickname())
-                .avatar(user.getAvatar())
+                .avatar(mediaUrlService.resolve(user.getAvatar()))
                 .signature(user.getSignature())
                 .build();
 

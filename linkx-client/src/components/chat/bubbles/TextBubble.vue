@@ -21,12 +21,12 @@ const isLinkMsg = computed(() => {
 
 <template>
   <!-- 文本/链接气泡：自己侧加 self 样式 -->
-  <div class="qq-bubble" :class="{ self: msg.isSelf, link: isLinkMsg }">
+  <div class="lx-bubble" :class="{ self: msg.isSelf, link: isLinkMsg }">
     <!-- 回复引用条 -->
-    <div v-if="msg.replyTo" class="qq-bubble-reply">
+    <div v-if="msg.replyTo" class="lx-bubble-reply">
       {{ msg.replyTo.senderName }}: {{ msg.replyTo.content }}
     </div>
-    <p class="qq-bubble-text">{{ msg.content }}</p>
-    <n-icon v-if="isLinkMsg" class="qq-link-ico" :component="LinkOutline" :size="14" />
+    <p class="lx-bubble-text">{{ msg.content }}</p>
+    <n-icon v-if="isLinkMsg" class="lx-link-ico" :component="LinkOutline" :size="14" />
   </div>
 </template>

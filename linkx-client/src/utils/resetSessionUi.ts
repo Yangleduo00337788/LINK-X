@@ -4,6 +4,8 @@ import { useOverlayStore } from '../stores/overlay'
 import { useSettingsStore } from '../stores/settings'
 // 聊天相关模态框 Store
 import { useChatModalsStore } from '../stores/chatModals'
+// 通话 Store
+import { useCallStore } from '../stores/call'
 
 /**
  * 清理 Naive UI 挂到 body 的残留层（下拉菜单、模态遮罩等）。
@@ -29,5 +31,6 @@ export function resetSessionUi() {
   useOverlayStore().closeAll()           // 清空 overlay 页面栈
   useSettingsStore().closeSettings()     // 关闭设置模态框
   useChatModalsStore().closeAllModals()  // 关闭红包/通话等聊天弹窗
+  void useCallStore().hangup()           // 结束进行中的 WebRTC 通话
   cleanupNaiveUiOverlays()
 }

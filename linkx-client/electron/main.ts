@@ -138,9 +138,9 @@ function registerWindowIpc() {
     if (mode === 'login') {
       if (win.isMaximized()) win.unmaximize()
       win.setResizable(false)
-      win.setMinimumSize(380, 520)
-      win.setMaximumSize(380, 520)
-      win.setSize(380, 520, false)
+      win.setMinimumSize(319, 461)
+      win.setMaximumSize(319, 461)
+      win.setSize(319, 461, false)
       win.center()
       return
     }
@@ -353,18 +353,74 @@ ipcMain.on('window-open-note-editor', () => {
   createNoteEditorWindow()
 })
 
+let registerWindow: BrowserWindow | null = null
+
+function createRegisterWindow() {
+  if (registerWindow) {
+    if (registerWindow.isMinimized()) registerWindow.restore()
+    registerWindow.focus()
+    return
+  }
+
+  registerWindow = new BrowserWindow({
+    width: 360,
+    height: 560,
+    resizable: false,
+    frame: false,
+    titleBarStyle: 'hidden',
+    transparent: false,
+    backgroundMaterial: 'mica',
+    backgroundColor: '#eef5fb',
+    show: false,
+    // 不挂 parent，避免盖住登录窗；作为独立弹窗并列显示
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
+    }
+  })
+
+  // 放在登录窗右侧，登录页保持可见
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const [mx, my] = mainWindow.getPosition()
+    const [mw] = mainWindow.getSize()
+    registerWindow.setPosition(mx + mw + 12, my)
+  } else {
+    registerWindow.center()
+  }
+
+  registerWindow.once('ready-to-show', () => {
+    registerWindow?.show()
+  })
+
+  if (isDev && process.env.VITE_DEV_SERVER_URL) {
+    registerWindow.loadURL(process.env.VITE_DEV_SERVER_URL + '#/register')
+  } else {
+    registerWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: 'register' })
+  }
+
+  registerWindow.on('closed', () => {
+    registerWindow = null
+  })
+}
+
+ipcMain.on('window-open-register', () => {
+  createRegisterWindow()
+})
+
 function createWindow() {
   if (isDev) {
     console.log('[electron] preload:', preloadPath, 'exists:', fs.existsSync(preloadPath))
   }
 
   mainWindow = new BrowserWindow({
-    width: 380,
-    height: 520,
-    minWidth: 380,
-    minHeight: 520,
-    maxWidth: 380,
-    maxHeight: 520,
+    width: 319,
+    height: 461,
+    minWidth: 319,
+    minHeight: 461,
+    maxWidth: 319,
+    maxHeight: 461,
     resizable: false,
     frame: false,
     titleBarStyle: 'hidden',

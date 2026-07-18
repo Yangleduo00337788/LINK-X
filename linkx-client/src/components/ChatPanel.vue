@@ -51,13 +51,13 @@ import { useContactsStore } from '../stores/contacts'
 import type { ChatMessage, ContactItem } from '../types'
 // 收藏 Store
 import { useFavoritesStore } from '../stores/favorites'
-// 通话 API
-import * as callApi from '../api/call'
+// 通话 Store（真实 WebRTC）
+import { useCallStore } from '../stores/call'
 
 // 获取 Naive UI 消息提示实例
 const message = useMessage()
 
-/** 发起语音/视频通话（对接后端信令 API） */
+/** 发起语音/视频通话 */
 async function startCall(callType: 'voice' | 'video') {
   const session = currentSession.value
   const sessionId = currentSessionId.value
@@ -70,16 +70,13 @@ async function startCall(callType: 'voice' | 'video') {
     return
   }
   try {
-    const res = await callApi.inviteCall({ conversationId: sessionId, callType })
-    if (res.code === 200 && res.data?.callId) {
-      if (callType === 'voice') {
-        openVoiceCall(res.data.callId)
-      } else {
-        openVideoCall(res.data.callId)
-      }
-      return
-    }
-    message.error(res.message || '发起通话失败')
+    await useCallStore().startOutgoing({
+      conversationId: sessionId,
+      callType,
+      peerName: session.name,
+      peerAvatar: session.avatarUrl,
+      peerUserId: session.peerUserId
+    })
   } catch (error) {
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     message.error(err.response?.data?.message || err.message || '发起通话失败')
@@ -111,8 +108,6 @@ const {
   toggleGroupInfo,
   closeMore,
   closeGroupInfo,
-  openVoiceCall,
-  openVideoCall,
   openAddMembers,
   openGroupFiles,
   openGroupAlbum,
@@ -486,7 +481,7 @@ function onDrop(e: DragEvent) {
       </div>
     </div>
     <div class="functional-region">
-      <!-- QQ 好友顶栏 -->
+      <!-- 好友顶栏 -->
       <header v-if="isFriendChat" class="chat-header">
         <div class="chat-header-left">
           <button v-if="isFriendChat" type="button" class="avatar-btn" @click="openPeerProfile">
@@ -900,7 +895,7 @@ function onDrop(e: DragEvent) {
 }
 
 /* 引用消息展示 */
-.qq-bubble-reply {
+.lx-bubble-reply {
   font-size: 12px;
   color: var(--lx-text-secondary);
   background: var(--lx-bg-hover);
@@ -914,7 +909,7 @@ function onDrop(e: DragEvent) {
   max-width: 100%;
 }
 
-.qq-bubble-image {
+.lx-bubble-image {
   max-width: 200px;
   max-height: 200px;
   border-radius: var(--lx-radius);

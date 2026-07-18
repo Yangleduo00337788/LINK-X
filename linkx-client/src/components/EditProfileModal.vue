@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 编辑资料弹窗（QQ 风格）。
+ * 编辑资料弹窗。
  * 支持昵称、性别、生日、地区编辑；头像可点击更换。
  */
 import { ref, watch, computed } from 'vue'
@@ -18,6 +18,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
 import { useChatModalsStore } from '../stores/chatModals'
 import { generateDefaultAvatar } from '../utils/defaultAvatar'
+import { normalizeMediaUrl } from '../utils/mediaUrl'
 
 const message = useMessage()
 const appStore = useAppStore()
@@ -25,9 +26,6 @@ const chatModalsStore = useChatModalsStore()
 const { editProfileOpen } = storeToRefs(chatModalsStore)
 const { closeEditProfile } = chatModalsStore
 const { userProfile } = storeToRefs(appStore)
-
-// 用 computed 是因为 profileNick 可能之后变化时这里也跟着计算
-const defaultAvatarUrl = computed(() => generateDefaultAvatar(profileNick.value || '我'))
 
 const profileNick = ref('')
 const profileGender = ref<'男' | '女'>('男')
@@ -38,6 +36,11 @@ const profileRegion = ref<string | null>(null)
 const saving = ref(false)
 const uploading = ref(false)
 const avatarInputRef = ref<HTMLInputElement | null>(null)
+
+const defaultAvatarUrl = computed(() => generateDefaultAvatar(profileNick.value || '我'))
+const avatarSrc = computed(
+  () => normalizeMediaUrl(userProfile.value.avatar) || defaultAvatarUrl.value
+)
 
 const genderOptions = [
   { label: '男', value: '男' },
@@ -159,7 +162,7 @@ async function handleAvatarChange(e: Event) {
           @click="triggerAvatarUpload"
         >
           <img
-            :src="userProfile.avatar || defaultAvatarUrl"
+            :src="avatarSrc"
             alt="头像"
             class="avatar-img"
           />

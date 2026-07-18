@@ -12,6 +12,7 @@ import { NIcon } from 'naive-ui'
 import { computed } from 'vue'
 // Vue 组件类型定义
 import type { Component } from 'vue'
+import { normalizeMediaUrl } from '../utils/mediaUrl'
 
 // 定义组件属性：文字、背景色、尺寸、图标、图片 URL
 const props = defineProps<{
@@ -26,6 +27,7 @@ const props = defineProps<{
 const size = computed(() => props.size ?? 44)
 // 根据尺寸计算文字字号（约为尺寸的 38%）
 const fontSize = computed(() => `${size.value * 0.38}px`)
+const resolvedImageUrl = computed(() => normalizeMediaUrl(props.imageUrl))
 </script>
 
 <template>
@@ -40,7 +42,7 @@ const fontSize = computed(() => `${size.value * 0.38}px`)
     }"
   >
     <!-- 优先展示图片 -->
-    <img v-if="imageUrl" :src="imageUrl" alt="" class="avatar-img" />
+    <img v-if="resolvedImageUrl" :src="resolvedImageUrl" alt="" class="avatar-img" />
     <!-- 其次展示图标 -->
     <n-icon v-else-if="icon" :component="icon" :size="size * 0.45" />
     <!-- 最后展示文字 -->

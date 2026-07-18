@@ -12,7 +12,9 @@ import {
   connectChatSocket,
   disconnectChatSocket,
   sendChatMessage,
-  isChatSocketConnected
+  isChatSocketConnected,
+  ensureChatSocketConnected,
+  resetChatSocketReconnect
 } from '../utils/chatSocket'
 import {
   conversationToSession,
@@ -22,6 +24,7 @@ import {
 import { dataUrlToFile } from '../utils/fileConvert'
 import { generateUuidV4 } from '../utils/parseJson'
 import type { MessageItem } from '../types/chat'
+import { normalizeMediaUrl } from '../utils/mediaUrl'
 // 通讯录 Store（加群/加好友后同步联系人）
 import { useContactsStore } from './contacts'
 // 群元数据 Store（邀请成员等）
@@ -60,11 +63,13 @@ export interface SendMessageOptions {
   rawFile?: File                   // 原始文件（上传用）
 }
 
-/** 记住账号 / 自动登录（不存储密码） */
+/** 记住账号 / 自动登录（不存储密码；头像与昵称供登录页展示） */
 export interface SavedLogin {
   username: string
   rememberMe: boolean
   autoLogin: boolean
+  avatar?: string
+  nickname?: string
 }
 
 /** 创建群聊时传入的成员摘要 */
@@ -116,6 +121,25 @@ function sanitizeUserId(raw: unknown): string {
   return /^\d{1,32}$/.test(s) ? s : ''
 }
 
+/** 判断是否更像网络不可达（而非账号/token 业务错误） */
+function isLikelyNetworkError(error: unknown): boolean {
+  const err = error as {
+    code?: string
+    message?: string
+    response?: unknown
+  }
+  if (err?.response) return false
+  const code = err?.code || ''
+  if (code === 'ERR_NETWORK' || code === 'ECONNABORTED' || code === 'ETIMEDOUT') return true
+  const msg = (err?.message || '').toLowerCase()
+  return (
+    msg.includes('network') ||
+    msg.includes('timeout') ||
+    msg.includes('failed to fetch') ||
+    msg.includes('networkerror')
+  )
+}
+
 type ProfileSource = Partial<UserProfileData & UserInfo>
 
 /** 将后端用户资料写入 store 的 userProfile 结构 */
@@ -135,7 +159,7 @@ function mapApiProfile(data: ProfileSource) {
     nickname: data.nickname || data.username || '',
     username: data.username || '',
     signature: data.signature?.trim() ? data.signature : '编辑个性签名',
-    avatar: data.avatar || '',
+    avatar: normalizeMediaUrl(data.avatar) || '',
     userId: sanitizeUserId(data.id),
     gender: gender as '男' | '女',
     birthday,
@@ -179,7 +203,9 @@ export const useAppStore = defineStore('app', {
     savedLogin: {
       username: '',
       rememberMe: true,
-      autoLogin: false
+      autoLogin: false,
+      avatar: '',
+      nickname: ''
     } as SavedLogin
   }),
 
@@ -358,29 +384,39 @@ export const useAppStore = defineStore('app', {
 
     /** 登录后拉取好友、通知与聊天会话，并连接 WebSocket */
     async loadSocialData() {
-      // 标记进入登录态；拉取并合并服务端偏好
-      const { useAppSettingsStore } = await import('./appSettings')
-      useAppSettingsStore().markOnline()
-      await useAppSettingsStore().loadFromServer()
+      this.isOffline = false
+      // 立刻建连：会话列表可能来自本地缓存，用户可马上操作；不能等偏好/好友接口结束才连 WS
+      void this.connectChatWebSocket()
 
-      // 把服务端的 autoStart 同步到 Electron 主进程（如果当前不一致就纠正）
       try {
-        const settings = useAppSettingsStore()
-        const want = settings.autoStart
-        const current = await window.electronAPI?.getAutoStart?.()
-        if (typeof current === 'boolean' && current !== want) {
-          await window.electronAPI?.setAutoStart?.(want)
-        }
-      } catch (e) {
-        console.warn('[app] 同步开机自启失败:', e)
-      }
+        // 标记进入登录态；拉取并合并服务端偏好
+        const { useAppSettingsStore } = await import('./appSettings')
+        useAppSettingsStore().markOnline()
+        await useAppSettingsStore().loadFromServer()
 
-      await Promise.all([
-        useContactsStore().fetchFriends(),
-        useNotificationsStore().fetchFriendRequests()
-      ])
-      await this.loadChatSessions()
-      this.connectChatWebSocket()
+        // 把服务端的 autoStart 同步到 Electron 主进程（如果当前不一致就纠正）
+        try {
+          const settings = useAppSettingsStore()
+          const want = settings.autoStart
+          const current = await window.electronAPI?.getAutoStart?.()
+          if (typeof current === 'boolean' && current !== want) {
+            await window.electronAPI?.setAutoStart?.(want)
+          }
+        } catch (e) {
+          console.warn('[app] 同步开机自启失败:', e)
+        }
+
+        await Promise.all([
+          useContactsStore().fetchFriends(),
+          useNotificationsStore().fetchFriendRequests()
+        ])
+        await this.loadChatSessions()
+      } catch (e) {
+        console.error('[app] 加载社交数据失败:', e)
+      } finally {
+        // 再确保一次（首连若因时序失败，这里补连）
+        void this.connectChatWebSocket()
+      }
     },
 
     /** 从后端拉取真实单聊会话列表 */
@@ -501,9 +537,10 @@ export const useAppStore = defineStore('app', {
       }
     },
 
-    /** 连接 IM WebSocket */
-    connectChatWebSocket() {
-      connectChatSocket({
+    /** 连接 IM WebSocket（返回 Promise，便于发送前等待就绪） */
+    async connectChatWebSocket() {
+      resetChatSocketReconnect()
+      const handlers = {
         onOpen: () => {
           this.isOffline = false
         },
@@ -512,18 +549,24 @@ export const useAppStore = defineStore('app', {
             this.isOffline = true
           }
         },
-        onError: (code, msg) => {
+        onError: (code: number, msg: string) => {
           if (code !== 401) {
             console.warn('WebSocket 错误:', msg)
           }
         },
-        onMessage: message => {
+        onMessage: (message: import('../types/chat').MessageItem) => {
           this.handleIncomingWsMessage(message)
         },
-        onAck: (clientMsgId, message) => {
+        onAck: (clientMsgId: string, message: import('../types/chat').MessageItem) => {
           this.handleWsAck(clientMsgId, message)
+        },
+        onCallEvent: (action: string, data: Record<string, unknown>) => {
+          void import('./call').then(({ useCallStore }) => {
+            useCallStore().handleRemoteEvent(action, data as import('../api/call').CallEventPayload)
+          })
         }
-      })
+      }
+      await connectChatSocket(handlers)
     },
 
     /** 断开 IM WebSocket */
@@ -826,8 +869,9 @@ export const useAppStore = defineStore('app', {
         }
 
         if (!isChatSocketConnected()) {
-          this.connectChatWebSocket()
+          await this.connectChatWebSocket()
         }
+        await ensureChatSocketConnected()
 
         sendChatMessage({
           action: 'send',
@@ -926,6 +970,11 @@ export const useAppStore = defineStore('app', {
         ...this.userProfile,
         ...mapApiProfile(data)
       }
+      // 同步到登录页缓存，登出后仍可展示上次头像/昵称
+      if (this.savedLogin.rememberMe) {
+        this.savedLogin.avatar = this.userProfile.avatar || ''
+        this.savedLogin.nickname = this.userProfile.nickname || ''
+      }
     },
 
     /** 更新用户资料（昵称、签名、性别、生日、地区等） */
@@ -939,7 +988,10 @@ export const useAppStore = defineStore('app', {
         throw new Error(res.message || '更新失败')
       } catch (error) {
         // 网络失败时仍更新本地已提交的字段，避免用户感知丢失
-        if (payload.nickname !== undefined) this.userProfile.nickname = payload.nickname
+        if (payload.nickname !== undefined) {
+          this.userProfile.nickname = payload.nickname
+          if (this.savedLogin.rememberMe) this.savedLogin.nickname = payload.nickname
+        }
         if (payload.signature !== undefined) this.userProfile.signature = payload.signature
         if (payload.gender !== undefined) {
           this.userProfile.gender = payload.gender === '女' ? '女' : '男'
@@ -967,8 +1019,11 @@ export const useAppStore = defineStore('app', {
     async updateAvatar(file: File) {
       const res = await userApi.uploadAvatar(file)
       if (res.code === 200 && res.data) {
-        this.userProfile.avatar = res.data
-        return res.data
+        this.userProfile.avatar = normalizeMediaUrl(res.data)
+        if (this.savedLogin.rememberMe) {
+          this.savedLogin.avatar = this.userProfile.avatar
+        }
+        return this.userProfile.avatar
       }
       throw new Error(res.message || '上传失败')
     },
@@ -1008,15 +1063,21 @@ export const useAppStore = defineStore('app', {
       this.resetChatState()
       this.isLocked = false
       this.isLoggedIn = false
+      // 记住账号时先把头像/昵称写入登录缓存，再清空运行时资料
+      if (this.savedLogin.rememberMe) {
+        this.savedLogin.avatar = this.userProfile.avatar || this.savedLogin.avatar || ''
+        this.savedLogin.nickname = this.userProfile.nickname || this.savedLogin.nickname || ''
+      } else {
+        this.savedLogin.username = ''
+        this.savedLogin.autoLogin = false
+        this.savedLogin.avatar = ''
+        this.savedLogin.nickname = ''
+      }
       this.userProfile.nickname = ''
       this.userProfile.username = ''
       this.userProfile.signature = '编辑个性签名'
       this.userProfile.avatar = ''
       this.userProfile.userId = ''
-      if (!this.savedLogin.rememberMe) {
-        this.savedLogin.username = ''
-        this.savedLogin.autoLogin = false
-      }
       cleanupNaiveUiOverlays()
       await clearTokens()
 
@@ -1050,10 +1111,14 @@ export const useAppStore = defineStore('app', {
           const { accessToken, refreshToken, user } = res.data
           await saveTokenPair(accessToken, refreshToken)
 
-          this.applyUserProfile(user)
-          this.savedLogin.username = rememberMe ? username : ''
           this.savedLogin.rememberMe = rememberMe
           this.savedLogin.autoLogin = autoLogin
+          this.savedLogin.username = rememberMe ? username : ''
+          if (!rememberMe) {
+            this.savedLogin.avatar = ''
+            this.savedLogin.nickname = ''
+          }
+          this.applyUserProfile(user)
 
           this.isLoggedIn = true
           void this.fetchCurrentUser()
@@ -1067,47 +1132,82 @@ export const useAppStore = defineStore('app', {
     },
 
     /**
-     * 启动时用 Refresh Token 恢复会话（须开启自动登录且存在 refreshToken）
+     * 启动时用 Refresh Token 恢复会话。
+     * 先判断离线；在线再刷 token。返回结果供登录页展示文案/提示。
      */
-    async tryAutoLogin() {
-      if (this.isLoggedIn) return
+    async tryAutoLogin(): Promise<'ok' | 'offline' | 'failed' | 'skipped'> {
+      if (this.isLoggedIn) return 'skipped'
+      if (this.authInitializing) return 'skipped'
       if (!this.savedLogin.autoLogin || !this.savedLogin.rememberMe || !this.savedLogin.username) {
-        return
+        return 'skipped'
+      }
+
+      // 先扫描是否离线，避免一直停在连接中
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        this.savedLogin.autoLogin = false
+        return 'offline'
       }
 
       this.authInitializing = true
       this.isLoading = true
+      const startedAt = Date.now()
+      const minLoadingMs = 1000
+      let outcome: 'ok' | 'offline' | 'failed' = 'failed'
       try {
         if (!(await hasRefreshToken())) {
-          // 勾选了自动登录但 token 已失效，避免下次启动再次卡住
           this.savedLogin.autoLogin = false
-          return
+          return 'failed'
         }
 
         const refresh = await getRefreshToken()
         if (!refresh) {
           this.savedLogin.autoLogin = false
-          return
+          return 'failed'
         }
 
         const res = await authApi.refreshToken(refresh)
         if (res.code === 200 && res.data) {
           await saveTokenPair(res.data.accessToken, res.data.refreshToken)
           this.applyUserProfile(res.data.user)
-          this.isLoggedIn = true
+          this.isOffline = false
+          outcome = 'ok'
           void this.fetchCurrentUser()
           void this.loadSocialData()
+        } else {
+          this.savedLogin.autoLogin = false
+          outcome = 'failed'
         }
-      } catch {
-        const { useAppSettingsStore } = await import('./appSettings')
-        useAppSettingsStore().markOffline()
+      } catch (error: unknown) {
+        const offlineNow =
+          (typeof navigator !== 'undefined' && navigator.onLine === false) || isLikelyNetworkError(error)
+        if (offlineNow) {
+          outcome = 'offline'
+        } else {
+          outcome = 'failed'
+        }
+        try {
+          const { useAppSettingsStore } = await import('./appSettings')
+          useAppSettingsStore().markOffline()
+        } catch {
+          /* ignore */
+        }
         await clearTokens()
         this.isLoggedIn = false
         this.savedLogin.autoLogin = false
       } finally {
+        const elapsed = Date.now() - startedAt
+        if (elapsed < minLoadingMs) {
+          await new Promise<void>(resolve => {
+            setTimeout(resolve, minLoadingMs - elapsed)
+          })
+        }
+        if (outcome === 'ok') {
+          this.isLoggedIn = true
+        }
         this.isLoading = false
         this.authInitializing = false
       }
+      return outcome
     },
 
     /** 设置锁屏 PIN（4-6 位数字，与登录密码独立） */
@@ -1152,32 +1252,34 @@ export const useAppStore = defineStore('app', {
   },
 
   // 持久化关键状态；序列化前经 sanitize 清理。
-  // 注意：messagesBySession 单独使用 sessionStorage 而非 localStorage，
-  // 避免聊天记录膨胀导致 localStorage 配额溢出（一般浏览器仅 5MB）。
-  persist: {
-    strategies: [
-      {
-        key: 'linkx-app',
-        storage: localStorage,
-        paths: [
-          'sessions',
-          'currentSessionId',
-          'theme',
-          'userProfile',
-          'savedLogin',
-          'navKey',
-          'isOffline'
-        ],
-        serializer: {
-          serialize: value => JSON.stringify(sanitizeAppPersistState(value as Record<string, unknown>)),
-          deserialize: value => JSON.parse(value)
-        }
+  // 注意：pinia-plugin-persistedstate v3 使用数组/对象配置，不要用已废弃的 strategies，
+  // 否则 paths 不生效，会把 isLoggedIn/isOffline 整包写回 localStorage，导致跳过自动登录且永不连 WS。
+  // messagesBySession 单独用 sessionStorage，避免聊天记录撑爆 localStorage。
+  persist: [
+    {
+      key: 'linkx-app',
+      storage: localStorage,
+      paths: [
+        'sessions',
+        'currentSessionId',
+        'theme',
+        'userProfile',
+        'savedLogin',
+        'navKey'
+      ],
+      serializer: {
+        serialize: value => JSON.stringify(sanitizeAppPersistState(value as Record<string, unknown>)),
+        deserialize: value => JSON.parse(value)
       },
-      {
-        key: 'linkx-app-msgs',
-        storage: sessionStorage,
-        paths: ['messagesBySession']
+      afterRestore: ({ store }) => {
+        // 兼容历史脏数据：旧版误持久化的离线标记一律清掉
+        store.isOffline = false
       }
-    ]
-  }
+    },
+    {
+      key: 'linkx-app-msgs',
+      storage: sessionStorage,
+      paths: ['messagesBySession']
+    }
+  ]
 })

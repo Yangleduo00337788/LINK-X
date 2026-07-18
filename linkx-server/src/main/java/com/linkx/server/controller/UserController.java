@@ -14,6 +14,7 @@ import com.linkx.server.entity.SysUser;
 import com.linkx.server.entity.UserPreference;
 import com.linkx.server.service.DeviceSessionService;
 import com.linkx.server.service.FileStorageService;
+import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.SysUserService;
 import com.linkx.server.service.UserPreferenceService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -35,6 +36,7 @@ public class UserController {
 
     private final SysUserService sysUserService;
     private final FileStorageService fileStorageService;
+    private final MediaUrlService mediaUrlService;
     private final DeviceSessionService deviceSessionService;
     private final UserPreferenceService userPreferenceService;
     private final JwtUtils jwtUtils;
@@ -132,16 +134,11 @@ public class UserController {
     }
 
     /**
-     * 把对象 key 转签名 URL。若传入的是已存在的 URL（含 http）或 null/空，则原样返回
+     * 把对象 key / 旧 MinIO URL 统一换成当前 endpoint 签发的预签名 URL。
+     * 注意：不可原样返回旧 localhost 签名链，Host 参与签名，改写会导致 403。
      */
     private String toSignedUrl(String objectKeyOrUrl, int expiry) {
-        if (objectKeyOrUrl == null || objectKeyOrUrl.isEmpty()) {
-            return objectKeyOrUrl;
-        }
-        if (objectKeyOrUrl.startsWith("http://") || objectKeyOrUrl.startsWith("https://")) {
-            return objectKeyOrUrl;
-        }
-        return fileStorageService.getPresignedUrl(objectKeyOrUrl, expiry);
+        return mediaUrlService.resolve(objectKeyOrUrl, expiry);
     }
 
     /**

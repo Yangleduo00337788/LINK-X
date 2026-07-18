@@ -40,6 +40,7 @@ const CreateGroupModal = defineAsyncComponent(() => import('./chat/CreateGroupMo
 const ComprehensiveSearchModal = defineAsyncComponent(() => import('./chat/ComprehensiveSearchModal.vue'))
 const VoiceCallModal = defineAsyncComponent(() => import('./chat/VoiceCallModal.vue'))
 const VideoCallModal = defineAsyncComponent(() => import('./chat/VideoCallModal.vue'))
+const IncomingCallModal = defineAsyncComponent(() => import('./chat/IncomingCallModal.vue'))
 const AddGroupMembersModal = defineAsyncComponent(() => import('./chat/AddGroupMembersModal.vue'))
 const GroupFilesModal = defineAsyncComponent(() => import('./chat/GroupFilesModal.vue'))
 const GroupAlbumModal = defineAsyncComponent(() => import('./chat/GroupAlbumModal.vue'))
@@ -190,6 +191,7 @@ const showPlaceholder = computed(() =>
     <ComprehensiveSearchModal />
     <VoiceCallModal />
     <VideoCallModal />
+    <IncomingCallModal />
     <AddGroupMembersModal />
     <GroupFilesModal />
     <GroupAlbumModal />

@@ -6,6 +6,9 @@ export interface CallInviteResult {
   conversationId: string
   callType: 'voice' | 'video'
   status: string
+  peerUserId?: string
+  peerNickname?: string
+  peerAvatar?: string
 }
 
 export interface CallInvitePayload {
@@ -13,9 +16,27 @@ export interface CallInvitePayload {
   callType: 'voice' | 'video'
 }
 
-/**
- * 发起语音/视频通话邀请
- */
+export interface CallSignalPayload {
+  callId: string
+  signalType: 'offer' | 'answer' | 'ice-candidate'
+  sdp?: string
+  candidate?: string
+}
+
+export interface CallEventPayload {
+  callId: string
+  conversationId: string | number
+  callType: 'voice' | 'video'
+  status?: string
+  fromUserId?: string | number
+  toUserId?: string | number
+  fromNickname?: string
+  fromAvatar?: string
+  signalType?: 'offer' | 'answer' | 'ice-candidate'
+  sdp?: string
+  candidate?: string
+}
+
 export function inviteCall(payload: CallInvitePayload) {
   return apiClient.post<never, ApiResult<CallInviteResult>>('/call/invite', {
     conversationId: Number(payload.conversationId),
@@ -23,9 +44,22 @@ export function inviteCall(payload: CallInvitePayload) {
   })
 }
 
-/**
- * 取消通话邀请
- */
 export function cancelCall(callId: string) {
   return apiClient.post<never, ApiResult<null>>('/call/cancel', { callId })
+}
+
+export function acceptCall(callId: string) {
+  return apiClient.post<never, ApiResult<null>>('/call/accept', { callId })
+}
+
+export function rejectCall(callId: string) {
+  return apiClient.post<never, ApiResult<null>>('/call/reject', { callId })
+}
+
+export function hangupCall(callId: string) {
+  return apiClient.post<never, ApiResult<null>>('/call/hangup', { callId })
+}
+
+export function signalCall(payload: CallSignalPayload) {
+  return apiClient.post<never, ApiResult<null>>('/call/signal', payload)
 }

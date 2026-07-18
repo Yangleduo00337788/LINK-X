@@ -14,17 +14,17 @@ defineProps<{ msg: ChatMessage }>()
 
 <template>
   <!-- 文件卡片：主区域 + 底部状态条 -->
-  <div class="qq-file-card" :class="{ self: msg.isSelf }">
-    <div class="qq-file-main">
-      <div class="qq-file-icon apk">
+  <div class="lx-file-card" :class="{ self: msg.isSelf }">
+    <div class="lx-file-main">
+      <div class="lx-file-icon apk">
         <n-icon :component="DocumentOutline" :size="26" color="var(--lx-bg-card)" />
       </div>
-      <div class="qq-file-meta">
-        <div class="qq-file-name">{{ msg.fileName || msg.content || '文件' }}</div>
-        <div class="qq-file-size">{{ msg.fileSize || '' }}</div>
+      <div class="lx-file-meta">
+        <div class="lx-file-name">{{ msg.fileName || msg.content || '文件' }}</div>
+        <div class="lx-file-size">{{ msg.fileSize || '' }}</div>
       </div>
     </div>
-    <div class="qq-file-bar">
+    <div class="lx-file-bar">
       {{ msg.fileStatus || (msg.isSelf ? '已发送' : '已接收') }}
     </div>
   </div>

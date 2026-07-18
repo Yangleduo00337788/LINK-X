@@ -25,7 +25,7 @@ function formatVoiceDuration(sec?: number) {
 
 <template>
   <!-- 语音气泡：播放中附加 playing 类 -->
-  <div class="qq-bubble voice-bubble" :class="{ self: msg.isSelf, playing }">
+  <div class="lx-bubble voice-bubble" :class="{ self: msg.isSelf, playing }">
     <n-icon :component="MicOutline" :size="16" class="voice-ico" />
     <span>{{ formatVoiceDuration(msg.voiceDuration) }}</span>
   </div>

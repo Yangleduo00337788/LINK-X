@@ -159,15 +159,27 @@ public class FileStorageServiceImpl implements FileStorageService {
      * 兼容：传入完整 URL 或纯粹的对象 key，都提取出对象名
      */
     private String extractObjectName(String urlOrKey) {
-        String endpoint = linkxProperties.getMinio().getEndpoint();
+        String raw = urlOrKey;
+        int q = raw.indexOf('?');
+        if (q >= 0) {
+            raw = raw.substring(0, q);
+        }
         String bucketName = linkxProperties.getMinio().getBucketName();
-        // 完整公开 URL：http://endpoint/bucket/object
-        String prefix = endpoint + "/" + bucketName + "/";
-        if (urlOrKey.startsWith(prefix)) {
-            return urlOrKey.substring(prefix.length());
+        String endpoint = linkxProperties.getMinio().getEndpoint();
+        String[] prefixes = {
+                endpoint + "/" + bucketName + "/",
+                "http://localhost:9000/" + bucketName + "/",
+                "http://127.0.0.1:9000/" + bucketName + "/",
+                "https://localhost:9000/" + bucketName + "/",
+                "https://127.0.0.1:9000/" + bucketName + "/"
+        };
+        for (String prefix : prefixes) {
+            if (raw.startsWith(prefix)) {
+                return raw.substring(prefix.length());
+            }
         }
         // 否则当作对象 key 直接使用
-        return urlOrKey;
+        return raw;
     }
 
     /**
@@ -182,6 +194,11 @@ public class FileStorageServiceImpl implements FileStorageService {
         if (objectName == null || objectName.isEmpty()) {
             return null;
         }
+        // 兼容传入完整 URL / 带 query 的旧链接，统一抽出 object key 再签名
+        String key = extractObjectName(objectName);
+        if (key.startsWith("/") || key.startsWith("data:") || key.startsWith("blob:")) {
+            return key;
+        }
         int seconds = expiry > 0 ? expiry : DEFAULT_PRESIGN_EXPIRY_SECONDS;
         try {
             String bucketName = linkxProperties.getMinio().getBucketName();
@@ -189,12 +206,12 @@ public class FileStorageServiceImpl implements FileStorageService {
                     GetPresignedObjectUrlArgs.builder()
                             .method(Method.GET)
                             .bucket(bucketName)
-                            .object(objectName)
+                            .object(key)
                             .expiry(seconds)
                             .build()
             );
         } catch (MinioException | IOException | NoSuchAlgorithmException | InvalidKeyException e) {
-            log.error("生成签名 URL 失败: {}", e.getMessage(), e);
+            log.error("生成签名 URL 失败: key={}, err={}", key, e.getMessage(), e);
             return null;
         }
     }

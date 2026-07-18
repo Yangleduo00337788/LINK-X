@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   close: () => ipcRenderer.invoke('window:close'),
   openMoments: () => ipcRenderer.send('window-open-moments'),
   openNoteEditor: () => ipcRenderer.send('window-open-note-editor'),
+  openRegister: () => ipcRenderer.send('window-open-register'),
   isMaximized: () => ipcRenderer.invoke('window:is-maximized'),
   isPinned: () => ipcRenderer.invoke('window:is-pinned'),
   togglePin: () => ipcRenderer.invoke('window:toggle-pin'),

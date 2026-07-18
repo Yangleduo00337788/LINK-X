@@ -152,6 +152,25 @@ public class ImMessagePushService {
         channel.writeAndFlush(new TextWebSocketFrame(toJson(frame)));
     }
 
+    /**
+     * 向指定用户的所有在线端推送自定义 WS 帧（通话信令等）。
+     */
+    public void pushToUser(Long userId, String action, Object data) {
+        if (userId == null) {
+            return;
+        }
+        ChannelGroup channels = channelManager.getChannels(userId);
+        if (channels == null || channels.isEmpty()) {
+            return;
+        }
+        String json = toJson(buildFrame(action, data));
+        for (Channel channel : channels) {
+            if (channel.isActive()) {
+                channel.writeAndFlush(new TextWebSocketFrame(json));
+            }
+        }
+    }
+
     public String buildPong() {
         ImWsFrame frame = new ImWsFrame();
         frame.setAction("pong");
