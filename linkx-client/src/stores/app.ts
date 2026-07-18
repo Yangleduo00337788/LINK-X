@@ -410,6 +410,8 @@ export const useAppStore = defineStore('app', {
           useContactsStore().fetchFriends(),
           useNotificationsStore().fetchFriendRequests()
         ])
+        // 确保登录后不自动选中任何会话
+        this.currentSessionId = null
         await this.loadChatSessions()
       } catch (e) {
         console.error('[app] 加载社交数据失败:', e)
@@ -461,9 +463,33 @@ export const useAppStore = defineStore('app', {
       try {
         const res = await chatApi.listMessages(sessionId)
         if (res.code === 200 && res.data) {
-          this.messagesBySession[sessionId] = res.data.map(m =>
-            messageToChatMessage(m, sessionId)
-          )
+          const serverMessages = res.data.map(m => messageToChatMessage(m, sessionId))
+
+          // 获取本地已有的消息（可能是用户刚发的乐观消息，还没收到 ack）
+          const localMessages = this.messagesBySession[sessionId] || []
+
+          // 合并逻辑：
+          // 1. 用 Set 记录服务端消息 ID（都是数字格式）
+          // 2. 保留本地不在服务端列表中的消息（乐观消息的 ID 是 UUID 格式）
+          // 3. 合并后按时间排序
+          const serverIds = new Set(serverMessages.map(m => m.id))
+          const localOnlyMessages = localMessages.filter(m => !serverIds.has(m.id))
+
+          // 合并：服务端消息 + 本地乐观消息
+          const merged = [...serverMessages, ...localOnlyMessages]
+          // 按时间排序（时间格式 HH:mm 可以直接字符串比较）
+          merged.sort((a, b) => (a.time > b.time ? 1 : -1))
+
+          console.log('[loadSessionMessages]', {
+            sessionId,
+            serverCount: serverMessages.length,
+            localCount: localMessages.length,
+            localOnlyCount: localOnlyMessages.length,
+            mergedCount: merged.length,
+            currentSessionId: this.currentSessionId
+          })
+
+          this.messagesBySession[sessionId] = merged
           this.messagesLoaded[sessionId] = true
           this.messagesHasMore[sessionId] = res.data.length >= 50
         }
@@ -577,6 +603,8 @@ export const useAppStore = defineStore('app', {
 
     /** 处理 WebSocket 推送的新消息 */
     handleIncomingWsMessage(message: MessageItem) {
+      // 后端 MessageVO.conversationId 是 Long 类型，JSON 反序列化后是数字
+      // 而前端会话 id 是字符串，需要统一为字符串进行比较和查找
       const sessionId = String(message.conversationId)
       const chatMsg = messageToChatMessage(message, sessionId)
 
@@ -588,6 +616,7 @@ export const useAppStore = defineStore('app', {
         this.messagesBySession[sessionId].push(chatMsg)
       }
 
+      // 使用转换后的字符串 ID 查找会话
       const session = this.sessions.find(s => s.id === sessionId)
       if (session) {
         session.lastMessage = messagePreviewFromItem(message)
@@ -596,6 +625,7 @@ export const useAppStore = defineStore('app', {
           session.unread = (session.unread || 0) + 1
         }
       } else {
+        // 会话不在本地列表中，尝试重新加载会话列表
         void this.loadChatSessions()
       }
     },
@@ -603,16 +633,31 @@ export const useAppStore = defineStore('app', {
     /** 处理 WebSocket 发送确认，替换乐观消息 */
     handleWsAck(clientMsgId: string, message: MessageItem) {
       const sessionId = String(message.conversationId)
-      const msgs = this.messagesBySession[sessionId]
-      if (!msgs) return
 
-      const index = msgs.findIndex(m => m.id === clientMsgId)
+      console.log('[handleWsAck]', { clientMsgId, sessionId, messageId: message.id })
+
+      // 确保消息列表存在（如果没有，先初始化）
+      if (!this.messagesBySession[sessionId]) {
+        console.log('[handleWsAck] 初始化消息列表:', sessionId)
+        this.messagesBySession[sessionId] = []
+      }
+
+      const index = this.messagesBySession[sessionId].findIndex(m => m.id === clientMsgId)
       const chatMsg = messageToChatMessage(message, sessionId)
+
+      console.log('[handleWsAck] 查找结果:', { index, msgsCount: this.messagesBySession[sessionId].length, clientMsgId })
+
       if (index >= 0) {
-        msgs[index] = chatMsg
+        console.log('[handleWsAck] 替换乐观消息:', { index, clientMsgId, newId: message.id })
+        // 使用 splice 直接操作 store 属性，触发 Vue 响应式更新
+        this.messagesBySession[sessionId].splice(index, 1, chatMsg)
       } else {
-        const exists = msgs.some(m => m.id === chatMsg.id)
-        if (!exists) msgs.push(chatMsg)
+        const exists = this.messagesBySession[sessionId].some(m => m.id === chatMsg.id)
+        console.log('[handleWsAck] 检查重复:', { exists, chatMsgId: chatMsg.id })
+        if (!exists) {
+          console.log('[handleWsAck] 添加新消息到列表')
+          this.messagesBySession[sessionId].push(chatMsg)
+        }
       }
 
       const session = this.sessions.find(s => s.id === sessionId)

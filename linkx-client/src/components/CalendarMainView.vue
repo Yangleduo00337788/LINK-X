@@ -85,11 +85,15 @@ async function saveEvent() {
     const ok = await updateEvent(editingId.value, payload)
     if (ok) {
       message.success('日程已更新')
+    } else {
+      message.error('更新日程失败，请重试')
     }
   } else {
     const id = await addEvent(payload)
     if (id) {
       message.success('日程已添加')
+    } else {
+      message.error('添加日程失败，请重试')
     }
   }
   resetForm()

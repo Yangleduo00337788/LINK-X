@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-// 企鹅水印组件：空状态占位，可自定义提示文案
+// LinkX Logo 占位组件：空状态占位，可自定义提示文案
 withDefaults(
   defineProps<{
     hint?: string // 底部提示文字，默认引导选择会话
@@ -11,47 +11,32 @@ withDefaults(
 </script>
 
 <template>
-  <!-- 企鹅水印占位区域 -->
-  <div class="penguin-wrap">
+  <!-- LinkX Logo 占位区域 -->
+  <div class="logo-wrap">
     <svg
-      class="penguin"
-      viewBox="0 0 200 220"
+      class="logo-icon"
+      viewBox="0 0 200 80"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
-      <!-- 身体 -->
-      <ellipse cx="100" cy="118" rx="52" ry="72" fill="var(--lx-divider)" />
-      <!-- 肚皮 -->
-      <ellipse cx="100" cy="128" rx="32" ry="48" fill="var(--lx-bg-panel)" />
-      <!-- 头 -->
-      <circle cx="100" cy="72" r="44" fill="var(--lx-divider)" />
-      <!-- 眼睛 -->
-      <ellipse cx="82" cy="68" rx="7" ry="9" fill="#2c2c2c" />
-      <ellipse cx="118" cy="68" rx="7" ry="9" fill="#2c2c2c" />
-      <circle cx="84" cy="65" r="2.5" fill="var(--lx-bg-card)" />
-      <circle cx="120" cy="65" r="2.5" fill="var(--lx-bg-card)" />
-      <!-- 嘴 -->
-      <path
-        d="M88 82 Q100 92 112 82 Q100 88 88 82"
-        fill="#f5a623"
-      />
-      <!-- 腮红 -->
-      <ellipse cx="68" cy="78" rx="8" ry="5" fill="var(--lx-bg-panel-deep)" opacity="0.9" />
-      <ellipse cx="132" cy="78" rx="8" ry="5" fill="var(--lx-bg-panel-deep)" opacity="0.9" />
-      <!-- 翅膀 -->
-      <ellipse cx="48" cy="118" rx="14" ry="28" fill="#e0e0e0" transform="rotate(-12 48 118)" />
-      <ellipse cx="152" cy="118" rx="14" ry="28" fill="#e0e0e0" transform="rotate(12 152 118)" />
-      <!-- 脚 -->
-      <ellipse cx="82" cy="188" rx="16" ry="8" fill="#f5a623" />
-      <ellipse cx="118" cy="188" rx="16" ry="8" fill="#f5a623" />
+      <!-- Logo background circle -->
+      <circle cx="40" cy="40" r="32" fill="var(--lx-accent)"/>
+      <!-- Link icon: two connected nodes -->
+      <circle cx="28" cy="40" r="8" fill="white"/>
+      <circle cx="52" cy="40" r="8" fill="white"/>
+      <path d="M36 40h8" stroke="white" stroke-width="3" stroke-linecap="round"/>
+      <!-- X accent -->
+      <path d="M28 32l8 16M36 32l8 16" stroke="white" stroke-width="2" stroke-linecap="round"/>
+      <!-- LinkX text -->
+      <text x="85" y="52" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="36" font-weight="700" fill="var(--lx-text-body)">LinkX</text>
     </svg>
     <p v-if="hint" class="hint">{{ hint }}</p>
   </div>
 </template>
 
 <style scoped>
-.penguin-wrap {
+.logo-wrap {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -66,18 +51,18 @@ withDefaults(
   );
 }
 
-.penguin {
-  width: 180px;
-  height: 198px;
-  opacity: 0.22;
+.logo-icon {
+  width: 240px;
+  height: 96px;
+  opacity: 0.4;
   pointer-events: none;
   user-select: none;
   filter: drop-shadow(0 8px 24px var(--lx-bg-hover));
 }
 
 .hint {
-  margin: 12px 0 0;
-  font-size: 13px;
+  margin: 16px 0 0;
+  font-size: 14px;
   color: #b8b8b8;
   letter-spacing: 0.04em;
   font-weight: 400;

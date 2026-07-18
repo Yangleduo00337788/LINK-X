@@ -9,8 +9,8 @@
  */
 // Vue 响应式、计算属性、生命周期、侦听器与 nextTick
 import { ref, computed, onUnmounted, watch, nextTick } from 'vue'
-// Naive UI 图标、气泡、下拉菜单、虚拟列表与消息提示
-import { NIcon, NPopover, NDropdown, NVirtualList, useMessage, type DropdownOption } from 'naive-ui'
+// Naive UI 图标、气泡、下拉菜单与消息提示
+import { NIcon, NPopover, NDropdown, useMessage, type DropdownOption } from 'naive-ui'
 // Ionicons5 通话、视频、网格、添加、更多、手机、图片图标
 import {
   CallOutline,
@@ -145,8 +145,26 @@ const isFriendChat = computed(
 )
 
 // 过滤掉系统消息，仅展示用户可见消息
-const chatMessages = computed(() =>
-  currentMessages.value.filter(m => m.type !== 'system')
+const chatMessages = computed(() => {
+  const msgs = currentMessages.value.filter(m => m.type !== 'system')
+  console.log('[ChatPanel] chatMessages computed:', {
+    count: msgs.length,
+    currentSessionId: currentSessionId.value,
+    currentSession: currentSession.value?.id,
+    hasSession: hasSession.value
+  })
+  return msgs
+})
+
+// 监听消息数量变化，新消息时自动滚动到底部
+watch(
+  () => chatMessages.value.length,
+  (newLen, oldLen) => {
+    if (newLen > oldLen && hasSession.value) {
+      // scrollToBottom 内部已有 nextTick，直接调用即可
+      scrollToBottom()
+    }
+  }
 )
 
 // 当前正在播放的语音消息 ID
@@ -300,8 +318,10 @@ function formatVoiceDuration(sec?: number) {
 
 // 当前正在回复的消息
 const replyingTo = ref<ChatMessage | undefined>()
-// 虚拟列表组件引用
-const virtualListRef = ref<InstanceType<typeof NVirtualList> | null>(null)
+// 滚动容器引用
+const messageScrollRef = ref<HTMLElement | null>(null)
+// 消息列表容器引用
+const messageListContainer = ref<HTMLElement | null>(null)
 // 是否正在加载更早消息（防止重复触发）
 const loadingMore = ref(false)
 // 聊天输入框组件引用
@@ -310,15 +330,39 @@ const chatInputRef = ref<InstanceType<typeof ChatInputBox> | null>(null)
 // 滚动消息列表到底部
 function scrollToBottom() {
   nextTick(() => {
-    if (virtualListRef.value) {
-      virtualListRef.value.scrollTo({ position: 'bottom', behavior: 'smooth' })
-    } else {
-      // 降级：直接操作 DOM 滚动
-      const messageArea = document.querySelector('.message-area')
-      if (messageArea) {
-        messageArea.scrollTo({ top: messageArea.scrollHeight, behavior: 'smooth' })
-      }
+    if (!messageScrollRef.value) {
+      console.warn('[scrollToBottom] messageScrollRef not available')
+      return
     }
+    const scrollEl = messageScrollRef.value
+    const itemCount = chatMessages.value.length
+    const lastMsg = itemCount > 0 ? chatMessages.value[itemCount - 1] : null
+    console.log('[scrollToBottom] itemCount:', itemCount, 'lastMsg:', lastMsg?.content)
+
+    if (itemCount === 0) return
+
+    console.log('[scrollToBottom] scrollEl info:', {
+      scrollHeight: scrollEl.scrollHeight,
+      clientHeight: scrollEl.clientHeight,
+      scrollTop: scrollEl.scrollTop,
+      offsetHeight: scrollEl.offsetHeight
+    })
+
+    // 滚动到底部
+    scrollEl.scrollTop = scrollEl.scrollHeight
+    console.log('[scrollToBottom] scrolled to bottom')
+
+    // 多次重试确保生效
+    requestAnimationFrame(() => {
+      if (messageScrollRef.value) {
+        messageScrollRef.value.scrollTop = messageScrollRef.value.scrollHeight
+      }
+    })
+    setTimeout(() => {
+      if (messageScrollRef.value) {
+        messageScrollRef.value.scrollTop = messageScrollRef.value.scrollHeight
+      }
+    }, 100)
   })
 }
 
@@ -558,50 +602,48 @@ function onDrop(e: DragEvent) {
       <div class="chat-body-row">
         <div class="chat-main-col">
           <div class="chat-content-stack">
-      <!-- 消息列表区域 -->
-      <div class="message-area" :class="{ 'message-area--friend': isFriendChat }" :style="chatBgStyle">
+            <!-- 消息列表区域 -->
+            <div class="message-area" :class="{ 'message-area--friend': isFriendChat }" :style="chatBgStyle">
+              <div class="message-list-container" ref="messageListContainer">
 
-        <n-virtual-list
-          v-if="hasSession && chatMessages.length"
-          ref="virtualListRef"
-          :items="chatMessages"
-          :item-size="80"
-          item-resizable
-          item-key="id"
-          style="flex: 1; height: 100%; min-height: 0;"
-          @scroll="onMessageScroll"
-        >
-          <template #default="{ item: msg }">
-            <div style="padding-bottom: 14px;">
-              <ChatMessageItem
-                :msg="msg"
-                :playing-voice-id="playingVoiceId"
-                @contextmenu="onMsgContext"
-                @play-voice="playVoice"
-                @open-file-view="openFileView"
-                @open-image-view="openImageView"
-                @click-red-packet="onRedPacketClick"
-                @open-peer-profile="openPeerProfile"
-                @open-self-profile="openSelfProfileClick"
-              />
+                <div
+                  v-if="hasSession && chatMessages.length"
+                  ref="messageScrollRef"
+                  class="message-scroll-container"
+                  @scroll="onMessageScroll"
+                >
+                  <div class="message-list">
+                    <div v-for="msg in chatMessages" :key="msg.id" class="message-item-wrapper">
+                      <ChatMessageItem
+                        :msg="msg"
+                        :playing-voice-id="playingVoiceId"
+                        @contextmenu="onMsgContext"
+                        @play-voice="playVoice"
+                        @open-file-view="openFileView"
+                        @open-image-view="openImageView"
+                        @click-red-packet="onRedPacketClick"
+                        @open-peer-profile="openPeerProfile"
+                        @open-self-profile="openSelfProfileClick"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 无消息或未选会话时的占位水印 -->
+                <PenguinWatermark v-else :hint="hasSession ? '' : '在左侧选择会话开始聊天'" />
+              </div>
             </div>
-          </template>
-        </n-virtual-list>
 
-        <!-- 无消息或未选会话时的占位水印 -->
-        <PenguinWatermark v-else :hint="hasSession ? '' : '在左侧选择会话开始聊天'" />
-      </div>
-
-      <!-- 聊天输入框 -->
-      <ChatInputBox
-        ref="chatInputRef"
-        v-if="hasSession"
-        :is-my-phone="isMyPhone"
-        :is-friend-chat="isFriendChat"
-        :is-group-chat="isGroupChat"
-        v-model:replying-to="replyingTo"
-        @scroll-to-bottom="scrollToBottom"
-      />
+            <!-- 聊天输入框 -->
+            <ChatInputBox
+              ref="chatInputRef"
+              v-if="hasSession"
+              :is-my-phone="isMyPhone"
+              :is-friend-chat="isFriendChat"
+              :is-group-chat="isGroupChat"
+              v-model:replying-to="replyingTo"
+              @scroll-to-bottom="scrollToBottom"
+            />
           </div>
           <!-- 好友聊天更多抽屉 -->
           <ChatMoreDrawer v-if="isFriendChat" />
@@ -694,7 +736,6 @@ function onDrop(e: DragEvent) {
 }
 
 .chat-content-stack {
-  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
@@ -814,16 +855,41 @@ function onDrop(e: DragEvent) {
 
 .message-area {
   flex: 1;
-  overflow-y: auto;
-  padding: 16px 18px 20px;
+  overflow: hidden;
+  background: transparent;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  background: transparent;
 }
 
 .message-area--friend {
   padding: 12px 16px 16px;
+}
+
+.message-list-container {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.message-scroll-container {
+  flex: 1;
+  min-height: 0;
+  height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.message-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.message-item-wrapper {
+  padding: 7px 0;
 }
 
 .message-time {

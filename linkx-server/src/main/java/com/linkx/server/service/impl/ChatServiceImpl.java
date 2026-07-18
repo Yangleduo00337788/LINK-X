@@ -79,10 +79,15 @@ public class ChatServiceImpl implements ChatService {
         List<ImConversation> conversations = conversationMapper.selectListByQuery(
                 QueryWrapper.create().where(ImConversation::getId).in(conversationIds)
         );
-        conversations.sort(Comparator.comparing(
-                ImConversation::getLastMessageTime,
-                Comparator.nullsLast(Comparator.reverseOrder())
-        ));
+        // 按 lastMessageTime 降序排列，null 时间排到最后（最新消息的会话排在最前）
+        conversations.sort((a, b) -> {
+            Date timeA = a.getLastMessageTime();
+            Date timeB = b.getLastMessageTime();
+            if (timeA == null && timeB == null) return 0;
+            if (timeA == null) return 1;  // null 排后面
+            if (timeB == null) return -1; // null 排后面
+            return timeB.compareTo(timeA); // 最新的在前
+        });
 
         Map<Long, SysUser> peerUserMap = loadPeerUsers(userId, conversations);
         Map<Long, String> remarkMap = loadRemarkMap(userId, peerUserMap.keySet());
@@ -304,10 +309,17 @@ public class ChatServiceImpl implements ChatService {
             if (conversation.getType() != ImConversation.TYPE_PRIVATE) {
                 continue;
             }
-            Long peerId = resolvePrivatePeerId(userId, conversation.getId());
-            SysUser peer = sysUserMapper.selectOneById(peerId);
-            if (peer != null) {
-                result.put(conversation.getId(), peer);
+            try {
+                Long peerId = resolvePrivatePeerId(userId, conversation.getId());
+                if (peerId != null) {
+                    SysUser peer = sysUserMapper.selectOneById(peerId);
+                    if (peer != null) {
+                        result.put(conversation.getId(), peer);
+                    }
+                }
+            } catch (Exception e) {
+                // 跳过无法解析的单聊会话，避免影响整个列表加载
+                continue;
             }
         }
         return result;

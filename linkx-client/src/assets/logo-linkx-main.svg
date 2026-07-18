@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 80" fill="none">
+  <!-- Logo background circle -->
+  <circle cx="40" cy="40" r="32" fill="var(--lx-accent)"/>
+  <!-- Link icon: two connected nodes -->
+  <circle cx="28" cy="40" r="8" fill="white"/>
+  <circle cx="52" cy="40" r="8" fill="white"/>
+  <path d="M36 40h8" stroke="white" stroke-width="3" stroke-linecap="round"/>
+  <!-- X accent -->
+  <path d="M28 32l8 16M36 32l8 16" stroke="white" stroke-width="2" stroke-linecap="round"/>
+  <!-- LinkX text -->
+  <text x="85" y="52" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="36" font-weight="700" fill="var(--lx-text-body)">LinkX</text>
+</svg>

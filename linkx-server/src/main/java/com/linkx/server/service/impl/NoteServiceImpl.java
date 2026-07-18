@@ -35,6 +35,7 @@ public class NoteServiceImpl implements NoteService {
         List<Note> notes = noteMapper.selectListByQuery(
                 QueryWrapper.create()
                         .eq("user_id", userId)
+                        .eq("deleted", 0)
                         .orderBy("update_time", false)
         );
         return notes.stream().map(this::toVO).collect(Collectors.toList());
@@ -42,7 +43,11 @@ public class NoteServiceImpl implements NoteService {
 
     @Override
     public NoteVO get(Long userId, Long noteId) {
-        Note note = noteMapper.selectOneById(noteId);
+        Note note = noteMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .eq("id", noteId)
+                        .eq("deleted", 0)
+        );
         if (note == null) {
             throw new CustomException(404, "笔记不存在");
         }
@@ -68,7 +73,11 @@ public class NoteServiceImpl implements NoteService {
     @Override
     @Transactional
     public NoteVO update(Long userId, Long noteId, SaveNoteDTO dto) {
-        Note note = noteMapper.selectOneById(noteId);
+        Note note = noteMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .eq("id", noteId)
+                        .eq("deleted", 0)
+        );
         if (note == null) {
             throw new CustomException(404, "笔记不存在");
         }
@@ -90,7 +99,11 @@ public class NoteServiceImpl implements NoteService {
     @Override
     @Transactional
     public void delete(Long userId, Long noteId) {
-        Note note = noteMapper.selectOneById(noteId);
+        Note note = noteMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .eq("id", noteId)
+                        .eq("deleted", 0)
+        );
         if (note == null) {
             throw new CustomException(404, "笔记不存在");
         }

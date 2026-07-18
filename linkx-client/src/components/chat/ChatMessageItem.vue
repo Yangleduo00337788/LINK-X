@@ -123,21 +123,27 @@ function peerAvatarProps(size = 36) {
 /* Global styles for bubbles to avoid duplicating them */
 .lx-bubble {
   position: relative;
-  background: var(--lx-bg-card);
+  background: #ffffff;
   padding: 10px 12px;
   border-radius: var(--lx-radius);
   font-size: 14px;
   line-height: 1.55;
   color: var(--lx-text);
-  box-shadow: 0 1px 2px var(--lx-border-light);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.06);
 }
 .lx-bubble.self {
-  background: #c9e7ff;
-  border-radius: var(--lx-radius);
+  background: #4facfe;
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(79, 172, 254, 0.3);
+  border: none;
+}
+.lx-bubble.self .lx-bubble-text {
+  color: #ffffff;
 }
 .lx-bubble.link .lx-bubble-text { margin: 0; word-break: break-all; }
 .lx-link-ico { display: none; }
-.lx-bubble-text { margin: 0; white-space: pre-wrap; word-break: break-word; }
+.lx-bubble-text { margin: 0; white-space: pre-wrap; word-break: break-word; color: var(--lx-text); }
 .lx-file-card {
   max-width: 300px;
   background: var(--lx-bg-card);

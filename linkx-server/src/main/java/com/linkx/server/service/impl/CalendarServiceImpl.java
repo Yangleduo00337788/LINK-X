@@ -28,6 +28,7 @@ public class CalendarServiceImpl implements CalendarService {
         List<CalendarEvent> events = calendarEventMapper.selectListByQuery(
                 QueryWrapper.create()
                         .eq("user_id", userId)
+                        .eq("deleted", 0)
                         .orderBy("date", true)
                         .orderBy("time", true)
         );
@@ -39,6 +40,7 @@ public class CalendarServiceImpl implements CalendarService {
         List<CalendarEvent> events = calendarEventMapper.selectListByQuery(
                 QueryWrapper.create()
                         .eq("user_id", userId)
+                        .eq("deleted", 0)
                         .eq("date", date)
                         .orderBy("time", true)
         );
@@ -47,9 +49,14 @@ public class CalendarServiceImpl implements CalendarService {
 
     @Override
     public CalendarEventVO get(Long userId, Long eventId) {
-        CalendarEvent event = calendarEventMapper.selectOneById(eventId);
-        if (event == null || !event.getUserId().equals(userId)) {
-            throw new CustomException(404, "事件不存在");
+        CalendarEvent event = calendarEventMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .eq("id", eventId)
+                        .eq("user_id", userId)
+                        .eq("deleted", 0)
+        );
+        if (event == null) {
+            throw new CustomException(404, "事件不存在或无权访问");
         }
         return toVO(event);
     }
@@ -71,9 +78,14 @@ public class CalendarServiceImpl implements CalendarService {
     @Override
     @Transactional
     public CalendarEventVO update(Long userId, Long eventId, SaveCalendarEventDTO dto) {
-        CalendarEvent event = calendarEventMapper.selectOneById(eventId);
-        if (event == null || !event.getUserId().equals(userId)) {
-            throw new CustomException(404, "事件不存在");
+        CalendarEvent event = calendarEventMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .eq("id", eventId)
+                        .eq("user_id", userId)
+                        .eq("deleted", 0)
+        );
+        if (event == null) {
+            throw new CustomException(404, "事件不存在或无权修改");
         }
         event.setTitle(dto.getTitle());
         event.setDate(dto.getDate());
@@ -82,15 +94,22 @@ public class CalendarServiceImpl implements CalendarService {
             event.setColor(dto.getColor());
         }
         calendarEventMapper.update(event);
-        return toVO(event);
+        // 重新查询以获取更新后的数据（包括 updateTime）
+        CalendarEvent updated = calendarEventMapper.selectOneById(eventId);
+        return toVO(updated);
     }
 
     @Override
     @Transactional
     public void delete(Long userId, Long eventId) {
-        CalendarEvent event = calendarEventMapper.selectOneById(eventId);
-        if (event == null || !event.getUserId().equals(userId)) {
-            throw new CustomException(404, "事件不存在");
+        CalendarEvent event = calendarEventMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .eq("id", eventId)
+                        .eq("user_id", userId)
+                        .eq("deleted", 0)
+        );
+        if (event == null) {
+            throw new CustomException(404, "事件不存在或无权删除");
         }
         calendarEventMapper.deleteById(eventId);
     }

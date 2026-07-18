@@ -211,12 +211,14 @@ export const useCalendarStore = defineStore('calendar', {
      */
     async updateEvent(id: string, patch: Partial<Omit<CalendarEvent, 'id'>>) {
       try {
+        console.log('[Calendar] 更新日程:', id, patch)
         const res = await calendarApi.updateEvent(Number(id), {
           title: patch.title!,
           date: patch.date!,
           time: patch.time,
           color: patch.color
         })
+        console.log('[Calendar] 更新结果:', res)
         if (res.code === 200 && res.data) {
           const event = this.events.find(e => e.id === id)
           if (event) {
@@ -229,8 +231,9 @@ export const useCalendarStore = defineStore('calendar', {
           }
           return true
         }
+        console.error('[Calendar] 更新失败:', res.message)
       } catch (e) {
-        console.error('更新日程失败:', e)
+        console.error('[Calendar] 更新异常:', e)
       }
       return false
     },
