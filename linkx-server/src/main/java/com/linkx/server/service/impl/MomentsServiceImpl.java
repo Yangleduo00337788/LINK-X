@@ -7,13 +7,14 @@ import com.linkx.server.controller.vo.MomentsPostVO;
 import com.linkx.server.entity.*;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.*;
+import com.linkx.server.service.FileStorageService;
+import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.MomentsService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -31,6 +32,8 @@ public class MomentsServiceImpl implements MomentsService {
     private final MomentsCommentMapper commentMapper;
     private final SysUserMapper userMapper;
     private final SysUserRelationMapper sysUserRelationMapper;
+    private final FileStorageService fileStorageService;
+    private final MediaUrlService mediaUrlService;
 
     @Override
     @Transactional
@@ -46,18 +49,24 @@ public class MomentsServiceImpl implements MomentsService {
                 .build();
         postMapper.insert(post);
 
+        List<MomentsImage> savedImages = new ArrayList<>();
         if (dto.getImages() != null && !dto.getImages().isEmpty()) {
             int order = 0;
             for (String imageUrl : dto.getImages()) {
-                imageMapper.insert(MomentsImage.builder()
+                if (imageUrl == null || imageUrl.isBlank()) {
+                    continue;
+                }
+                MomentsImage image = MomentsImage.builder()
                         .postId(post.getId())
-                        .url(imageUrl)
+                        .url(imageUrl.trim())
                         .sortOrder(order++)
-                        .build());
+                        .build();
+                imageMapper.insert(image);
+                savedImages.add(image);
             }
         }
 
-        return toPostVO(post, user, Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), userId);
+        return toPostVO(post, user, savedImages, Collections.emptyList(), Collections.emptyList(), userId);
     }
 
     @Override
@@ -68,6 +77,7 @@ public class MomentsServiceImpl implements MomentsService {
         List<MomentsPost> posts = postMapper.selectListByQuery(
                 QueryWrapper.create()
                         .in("user_id", new ArrayList<>(friendIds))
+                        .eq("deleted", 0)
                         .orderBy("create_time", false)
                         .limit(50)
         );
@@ -98,6 +108,7 @@ public class MomentsServiceImpl implements MomentsService {
         List<MomentsPost> posts = postMapper.selectListByQuery(
                 QueryWrapper.create()
                         .eq("user_id", targetUserId)
+                        .eq("deleted", 0)
                         .orderBy("create_time", false)
                         .limit(50)
         );
@@ -191,7 +202,11 @@ public class MomentsServiceImpl implements MomentsService {
     @Override
     @Transactional
     public void delete(Long userId, Long postId) {
-        MomentsPost post = postMapper.selectOneById(postId);
+        MomentsPost post = postMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .eq("id", postId)
+                        .eq("deleted", 0)
+        );
         if (post == null) {
             throw new CustomException(404, "动态不存在");
         }
@@ -206,7 +221,10 @@ public class MomentsServiceImpl implements MomentsService {
     }
 
     private void assertPostExists(Long postId) {
-        if (postMapper.selectOneById(postId) == null) {
+        if (postMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .eq("id", postId)
+                        .eq("deleted", 0)) == null) {
             throw new CustomException(404, "动态不存在");
         }
     }
@@ -215,7 +233,8 @@ public class MomentsServiceImpl implements MomentsService {
         List<SysUserRelation> relations = sysUserRelationMapper.selectListByQuery(
                 QueryWrapper.create()
                         .eq("user_id", userId)
-                        .and("status", 1)
+                        .eq("status", 1)
+                        .eq("deleted", 0)
         );
         return relations.stream()
                 .map(SysUserRelation::getFriendId)
@@ -262,9 +281,12 @@ public class MomentsServiceImpl implements MomentsService {
                                    List<MomentsLike> likes,
                                    List<MomentsComment> comments,
                                    Long currentUserId) {
+        // 库中存 object key（或旧版完整 URL），对外统一签发可访问的预签名 URL
         List<String> imageUrls = images.stream()
                 .sorted(Comparator.comparingInt(MomentsImage::getSortOrder))
-                .map(MomentsImage::getUrl)
+                .map(img -> mediaUrlService.resolve(img.getUrl()))
+                .filter(Objects::nonNull)
+                .filter(url -> !url.isBlank())
                 .collect(Collectors.toList());
 
         boolean liked = likes.stream().anyMatch(l -> l.getUserId().equals(currentUserId));
@@ -289,7 +311,7 @@ public class MomentsServiceImpl implements MomentsService {
                 .id(post.getId())
                 .userId(post.getUserId())
                 .nickname(user != null ? user.getNickname() : null)
-                .avatar(user != null ? user.getAvatar() : null)
+                .avatar(user != null ? mediaUrlService.resolve(user.getAvatar()) : null)
                 .content(post.getContent())
                 .images(imageUrls)
                 .time(timeStr)
@@ -316,5 +338,25 @@ public class MomentsServiceImpl implements MomentsService {
                 .atZone(ZoneId.systemDefault())
                 .toLocalDateTime()
                 .format(TIME_FORMATTER);
+    }
+
+    @Override
+    public String uploadImage(org.springframework.web.multipart.MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new CustomException(400, "图片不能为空");
+        }
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.startsWith("image/")) {
+            throw new CustomException(400, "只能上传图片文件");
+        }
+        try {
+            // 只返回 object key 入库；列表/详情时再签发预签名 URL。
+            // 若返回完整签名 URL，长度常超过 moments_image.url(varchar 500) 导致发布失败。
+            return fileStorageService.uploadFile(file);
+        } catch (IllegalArgumentException e) {
+            throw new CustomException(400, e.getMessage());
+        } catch (RuntimeException e) {
+            throw new CustomException(500, "图片上传失败");
+        }
     }
 }

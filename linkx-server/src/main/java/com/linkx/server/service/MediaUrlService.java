@@ -1,5 +1,6 @@
 package com.linkx.server.service;
 
+import com.linkx.server.config.LinkxProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -15,6 +16,7 @@ public class MediaUrlService {
     private static final int DEFAULT_EXPIRY = 24 * 3600;
 
     private final FileStorageService fileStorageService;
+    private final LinkxProperties linkxProperties;
 
     public String resolve(String keyOrUrl) {
         return resolve(keyOrUrl, DEFAULT_EXPIRY);
@@ -29,6 +31,24 @@ public class MediaUrlService {
         if (value.startsWith("/") || value.startsWith("data:") || value.startsWith("blob:")) {
             return value;
         }
+        // 外部 http(s) 链接（非本系统 MinIO）原样返回，避免被当成 object key 签名
+        if (isExternalHttpUrl(value)) {
+            return value;
+        }
         return fileStorageService.getPresignedUrl(value, expirySeconds);
+    }
+
+    private boolean isExternalHttpUrl(String value) {
+        if (!value.startsWith("http://") && !value.startsWith("https://")) {
+            return false;
+        }
+        String endpoint = linkxProperties.getMinio().getEndpoint();
+        if (endpoint != null && !endpoint.isBlank() && value.startsWith(endpoint)) {
+            return false;
+        }
+        // 兼容历史 localhost / 127.0.0.1 MinIO 地址
+        return !(value.contains("://localhost:9000/")
+                || value.contains("://127.0.0.1:9000/")
+                || value.contains("://[::1]:9000/"));
     }
 }

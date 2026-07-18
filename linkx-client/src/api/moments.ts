@@ -88,3 +88,17 @@ export function commentMoments(postId: string, payload: CommentPayload) {
 export function deleteComment(commentId: string) {
   return apiClient.delete<never, ApiResult<null>>(`/moments/comment/${commentId}`)
 }
+
+/**
+ * 上传朋友圈图片
+ * @param file 图片文件
+ * @returns MinIO object key（发布时写入 images；列表接口会签发预签名 URL）
+ */
+export function uploadMomentsImage(file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return apiClient.post<never, ApiResult<string>>('/moments/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 30000
+  })
+}

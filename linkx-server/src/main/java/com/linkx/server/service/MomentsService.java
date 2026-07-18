@@ -51,4 +51,12 @@ public interface MomentsService {
      * 删除动态
      */
     void delete(Long userId, Long postId);
+
+    /**
+     * 上传朋友圈图片
+     *
+     * @param file 图片文件
+     * @return MinIO 对象 key（发布时写入 moments_image.url；展示时再签发预签名 URL）
+     */
+    String uploadImage(org.springframework.web.multipart.MultipartFile file);
 }

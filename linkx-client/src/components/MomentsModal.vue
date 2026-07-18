@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Vue 响应式 API、计算属性、生命周期与侦听器
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 // Naive UI 图标、输入框、按钮与消息提示
 import { NIcon, NInput, NButton, useMessage } from 'naive-ui'
 // Pinia 响应式解构工具
@@ -16,9 +16,11 @@ import { useNotificationsStore } from '../stores/notifications'
 // 主题同步工具
 import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
 // 文件读取工具与图片大小限制
-import { readFileAsDataUrl, MAX_IMAGE_BYTES } from '../utils/file'
+import { readFileAsDataUrl, dataUrlToFile, MAX_IMAGE_BYTES } from '../utils/file'
 // 本地生成默认头像/封面（替代远程第三方）
 import { generateDefaultAvatar, generateDefaultBanner } from '../utils/defaultAvatar'
+// 媒体地址规范化
+import { normalizeMediaUrl } from '../utils/mediaUrl'
 // 空状态组件
 import EmptyState from './common/EmptyState.vue'
 // Ionicons5 友链相关图标
@@ -60,8 +62,6 @@ const message = useMessage()
 
 // 滚动容器纵向偏移量
 const scrollTop = ref(0)
-// 消息提示实例
-const message = useMessage()
 // 当前操作的目标动态 ID（用于二级操作面板）
 const activePostId = ref<string | null>(null)
 // 评论输入草稿
@@ -80,9 +80,12 @@ const composeImages = ref<string[]>([])
 const imageInputRef = ref<HTMLInputElement | null>(null)
 // 当前登录用户的 userId（用于判断"自己发的"）
 const myUserId = computed(() => userProfile.value.userId || '')
-// 用户封面与头像（本地生成，不再请求远程）
+// 用户封面与头像（优先真实头像，否则本地生成）
 const defaultAvatar = computed(() =>
   generateDefaultAvatar(userProfile.value.nickname || '我')
+)
+const profileAvatar = computed(() =>
+  normalizeMediaUrl(userProfile.value.avatar) || defaultAvatar.value
 )
 const defaultBanner = computed(() =>
   generateDefaultBanner(userProfile.value.nickname || 'banner')
@@ -119,12 +122,50 @@ const headerIconColor = computed(() =>
   scrollTop.value > 200 || showSearch.value ? 'var(--lx-text)' : 'var(--lx-text-on-accent)'
 )
 
-// 挂载时同步主题到文档与 Electron
+/** 图片预览（友链独立窗口内本地 lightbox） */
+const previewImages = ref<string[]>([])
+const previewIndex = ref(0)
+const previewVisible = computed(() => previewImages.value.length > 0)
+
+function openImagePreview(images: string[], index: number) {
+  if (!images?.length) return
+  previewImages.value = images
+  previewIndex.value = Math.max(0, Math.min(index, images.length - 1))
+}
+
+function closeImagePreview() {
+  previewImages.value = []
+  previewIndex.value = 0
+}
+
+function previewPrev() {
+  if (previewImages.value.length <= 1) return
+  previewIndex.value = (previewIndex.value - 1 + previewImages.value.length) % previewImages.value.length
+}
+
+function previewNext() {
+  if (previewImages.value.length <= 1) return
+  previewIndex.value = (previewIndex.value + 1) % previewImages.value.length
+}
+
+function onPreviewKeydown(e: KeyboardEvent) {
+  if (!previewVisible.value) return
+  if (e.key === 'Escape') closeImagePreview()
+  else if (e.key === 'ArrowLeft') previewPrev()
+  else if (e.key === 'ArrowRight') previewNext()
+}
+
+// 挂载时同步主题，并拉取最新友链（独立窗口有自己的 store，不能依赖主窗口缓存）
 onMounted(() => {
   applyDocumentTheme(appStore.theme)
   notifyElectronTheme(appStore.theme)
-  // 加载消息通知
   void fetchMessageNotifications()
+  void fetchMoments()
+  window.addEventListener('keydown', onPreviewKeydown)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onPreviewKeydown)
 })
 
 // 主题变化时重新同步
@@ -161,19 +202,58 @@ function removeComposeImage(index: number) {
 }
 
 // 发布新动态
-function publishPost() {
+async function publishPost() {
   const text = composeText.value.trim()
   if (!text && !composeImages.value.length) {
     message.warning('请输入内容或添加图片')
     return
   }
-  addPost(
+
+  // 先上传图片获取 object key，再发布动态
+  let imageUrls: string[] | undefined
+  if (composeImages.value.length > 0) {
+    message.info('正在上传图片...')
+    imageUrls = []
+    for (const dataUrl of composeImages.value) {
+      try {
+        const url = await uploadImageToServer(dataUrl)
+        imageUrls.push(url)
+      } catch (e) {
+        message.error(e instanceof Error ? e.message : '图片上传失败')
+        return
+      }
+    }
+  }
+
+  const ok = await addPost(
     text || '分享图片',
-    composeImages.value.length ? [...composeImages.value] : undefined
+    imageUrls
   )
-  composeText.value = ''
-  composeImages.value = []
-  message.success('动态已发布')
+  if (ok) {
+    message.success('动态已发布')
+    composeText.value = ''
+    composeImages.value = []
+  } else {
+    message.error('发布失败，请重试')
+  }
+}
+
+    // 将 Data URL 图片上传到服务器，返回 object key（发布时入库）
+async function uploadImageToServer(dataUrl: string): Promise<string> {
+  const ext = dataUrl.match(/data:image\/(\w+)/)?.[1] || 'jpeg'
+  const safeExt = ext === 'jpg' ? 'jpeg' : ext
+  const fileName = `moments_${Date.now()}.${safeExt === 'jpeg' ? 'jpg' : safeExt}`
+  // 不要用 fetch(dataUrl)：Electron 沙箱下会直接 Failed to fetch
+  const file = dataUrlToFile(dataUrl, fileName)
+  // 统一 MIME，避免 image/jpg 被 MinIO 白名单拒绝
+  const normalized = new File([file], fileName, { type: `image/${safeExt}` })
+
+  const { uploadMomentsImage } = await import('../api/moments')
+  const uploadRes = await uploadMomentsImage(normalized)
+  if (uploadRes.code !== 200 || !uploadRes.data) {
+    throw new Error(uploadRes.message || '上传失败')
+  }
+  return uploadRes.data
 }
 
 // 切换顶部搜索框显示
@@ -303,7 +383,7 @@ async function onDeleteComment(postId: string, commentId: string) {
       </div>
       <div class="user-info">
         <span class="username">{{ userProfile.nickname }}</span>
-        <img :src="defaultAvatar" alt="Avatar" class="avatar-img" />
+        <img :src="profileAvatar" alt="Avatar" class="avatar-img" />
       </div>
     </div>
 
@@ -336,39 +416,68 @@ async function onDeleteComment(postId: string, commentId: string) {
         </section>
 
         <div v-for="post in filteredPosts" :key="post.id" class="post-item">
-          <img :src="post.avatar" alt="Avatar" class="post-avatar" />
+          <img
+            v-if="post.avatar"
+            :src="post.avatar"
+            alt=""
+            class="post-avatar"
+            @error="post.avatar = ''"
+          />
+          <div v-else class="post-avatar-placeholder" :style="{ backgroundColor: 'var(--lx-accent)' }">
+            {{ post.user.charAt(0).toUpperCase() }}
+          </div>
           <div class="post-main">
             <div class="post-user">{{ post.user }}</div>
             <div class="post-text">{{ post.content }}</div>
             <div v-if="post.images?.length" class="post-images">
-              <img v-for="(img, index) in post.images" :key="index" :src="img" class="post-image" />
+              <button
+                v-for="(img, index) in post.images"
+                :key="index"
+                type="button"
+                class="post-image-btn"
+                @click="openImagePreview(post.images!, index)"
+              >
+                <img :src="img" alt="" class="post-image" />
+              </button>
             </div>
             <div class="post-footer">
               <span class="post-time">{{ post.time }}</span>
-              <div class="post-action-wrap">
-                <div class="action-panel" :class="{ show: isActionsOpen(post.id) }">
-                  <div class="action-btn-item" @click="onToggleLike(post.id)">
-                    <n-icon :component="post.liked ? Heart : HeartOutline" size="16" />
-                    <span>{{ post.liked ? '取消' : '赞' }}</span>
-                  </div>
-                  <div class="action-divider" />
-                  <div class="action-btn-item" @click="onComment(post)">
-                    <n-icon :component="ChatbubbleOutline" size="16" />
-                    <span>评论</span>
-                  </div>
-                </div>
-                <div class="action-trigger" @click.stop="toggleActions(post.id)">
-                  <n-icon :component="EllipsisHorizontal" size="18" />
-                </div>
+              <div class="post-toolbar">
+                <button
+                  type="button"
+                  class="toolbar-btn"
+                  :class="{ active: post.liked }"
+                  @click="onToggleLike(post.id)"
+                >
+                  <n-icon :component="post.liked ? Heart : HeartOutline" :size="15" />
+                  <span>{{ post.liked ? '已赞' : '赞' }}</span>
+                </button>
+                <button type="button" class="toolbar-btn" @click="onComment(post)">
+                  <n-icon :component="ChatbubbleOutline" :size="15" />
+                  <span>评论</span>
+                </button>
+                <button
+                  v-if="post.userId === myUserId"
+                  type="button"
+                  class="toolbar-btn danger"
+                  @click="onDeletePost(post.id)"
+                >
+                  <span>删除</span>
+                </button>
+                <button
+                  type="button"
+                  class="toolbar-more"
+                  :class="{ active: commentPostId === post.id }"
+                  title="更多"
+                  @click.stop="onComment(post)"
+                >
+                  <n-icon :component="EllipsisHorizontal" :size="16" />
+                </button>
               </div>
             </div>
             <div v-if="commentPostId === post.id" class="comment-input-row">
               <input v-model="commentDraft" class="comment-input" placeholder="写评论…" @keyup.enter="submitComment(post.id)" />
               <button type="button" class="comment-send" @click="submitComment(post.id)">发送</button>
-            </div>
-            <!-- 自有动态：显示删除按钮（真实接后端） -->
-            <div v-if="post.userId === myUserId" class="post-self-actions">
-              <button type="button" class="self-del-btn" @click="onDeletePost(post.id)">删除动态</button>
             </div>
             <div v-if="post.likedBy.length || post.comments.length" class="post-interactions">
               <div class="interaction-arrow" />
@@ -462,6 +571,40 @@ async function onDeleteComment(postId: string, commentId: string) {
         </div>
       </div>
       <div v-if="showNotifications" class="notif-backdrop" @click="showNotifications = false" />
+    </div>
+
+    <!-- 图片预览 lightbox -->
+    <div v-if="previewVisible" class="image-preview-overlay" @click.self="closeImagePreview">
+      <button type="button" class="preview-close" title="关闭" @click="closeImagePreview">
+        <n-icon :component="CloseOutline" :size="22" />
+      </button>
+      <button
+        v-if="previewImages.length > 1"
+        type="button"
+        class="preview-nav prev"
+        title="上一张"
+        @click.stop="previewPrev"
+      >
+        ‹
+      </button>
+      <img
+        :src="previewImages[previewIndex]"
+        alt=""
+        class="preview-full-img"
+        @click.stop
+      />
+      <button
+        v-if="previewImages.length > 1"
+        type="button"
+        class="preview-nav next"
+        title="下一张"
+        @click.stop="previewNext"
+      >
+        ›
+      </button>
+      <div v-if="previewImages.length > 1" class="preview-counter">
+        {{ previewIndex + 1 }} / {{ previewImages.length }}
+      </div>
     </div>
   </div>
 </template>
@@ -733,6 +876,20 @@ async function onDeleteComment(postId: string, commentId: string) {
   background: var(--lx-bg-panel);
 }
 
+.post-avatar-placeholder {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--lx-avatar-radius);
+  flex-shrink: 0;
+  margin-right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 600;
+}
+
 .post-user {
   font-size: 15px;
   font-weight: 600;
@@ -749,83 +906,107 @@ async function onDeleteComment(postId: string, commentId: string) {
 }
 
 .post-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
   margin-bottom: 10px;
+}
+
+.post-image-btn {
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  cursor: zoom-in;
+  border-radius: 6px;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.post-image-btn:hover .post-image {
+  opacity: 0.92;
 }
 
 .post-image {
   max-width: 180px;
   max-height: 180px;
   object-fit: cover;
+  display: block;
 }
 
 .post-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  position: relative;
+  gap: 8px;
   margin-bottom: 8px;
 }
 
 .post-time {
   font-size: 12px;
   color: var(--lx-text-muted);
+  flex-shrink: 0;
 }
 
-.post-action-wrap {
-  position: relative;
+.post-toolbar {
   display: flex;
   align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
 }
 
-.action-trigger {
-  width: 32px;
-  height: 22px;
+.toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border: none;
+  background: transparent;
+  color: var(--lx-text-muted);
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.toolbar-btn:hover {
   background: var(--lx-bg-panel);
-  border-radius: var(--lx-radius);
-  display: flex;
+  color: var(--lx-accent);
+}
+
+.toolbar-btn.active {
+  color: var(--lx-danger, #e05454);
+  background: rgba(224, 84, 84, 0.08);
+}
+
+.toolbar-btn.danger {
+  color: var(--lx-text-muted);
+}
+
+.toolbar-btn.danger:hover {
+  background: rgba(224, 84, 84, 0.12);
+  color: var(--lx-danger, #e05454);
+}
+
+.toolbar-more {
+  width: 28px;
+  height: 22px;
+  border: none;
+  background: var(--lx-bg-panel);
+  border-radius: 11px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   color: var(--lx-accent);
   cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
 }
 
-.action-panel {
-  position: absolute;
-  right: 40px;
-  top: 50%;
-  transform: translateY(-50%) scale(0.9);
-  transform-origin: right center;
-  background: #4c5154;
-  border-radius: var(--lx-radius);
-  display: flex;
-  align-items: center;
-  padding: 0 12px;
-  opacity: 0;
-  visibility: hidden;
-  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.action-panel.show {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(-50%) scale(1);
-}
-
-.action-btn-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--lx-bg-card);
-  font-size: 13px;
-  padding: 10px 12px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.action-divider {
-  width: 1px;
-  height: 16px;
-  background: #393d40;
+.toolbar-more:hover,
+.toolbar-more.active {
+  background: color-mix(in srgb, var(--lx-accent) 18%, var(--lx-bg-panel));
 }
 
 .comment-input-row {
@@ -900,26 +1081,6 @@ async function onDeleteComment(postId: string, commentId: string) {
   gap: 4px;
 }
 
-.post-self-actions {
-  margin-top: 6px;
-  text-align: right;
-}
-
-.self-del-btn {
-  border: none;
-  background: transparent;
-  color: var(--lx-text-muted);
-  font-size: 12px;
-  cursor: pointer;
-  padding: 2px 8px;
-  border-radius: var(--lx-radius);
-}
-
-.self-del-btn:hover {
-  background: var(--lx-danger);
-  color: var(--lx-text-on-accent);
-}
-
 .comment-item {
   display: flex;
   align-items: center;
@@ -954,6 +1115,82 @@ async function onDeleteComment(postId: string, commentId: string) {
   color: var(--lx-text-muted);
   font-size: 13px;
   padding: 30px 0;
+}
+
+/* 图片预览 */
+.image-preview-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0, 0, 0, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-app-region: no-drag;
+}
+
+.preview-full-img {
+  max-width: 92%;
+  max-height: 86%;
+  object-fit: contain;
+  border-radius: 4px;
+  user-select: none;
+}
+
+.preview-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.preview-close:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.preview-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 48px;
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.preview-nav:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.preview-nav.prev {
+  left: 10px;
+}
+
+.preview-nav.next {
+  right: 10px;
+}
+
+.preview-counter {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
 }
 
 /* 通知面板样式 */

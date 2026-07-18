@@ -3,10 +3,10 @@
  * 管理动态帖子、点赞、评论及操作栏 UI 状态
  */
 
-// 从 Pinia 导入 defineStore
 import { defineStore } from 'pinia'
 import * as momentsApi from '../api/moments'
 import { useAppStore } from './app'
+import { normalizeMediaUrl } from '../utils/mediaUrl'
 
 /** 单条评论 */
 export interface MomentComment {
@@ -24,11 +24,47 @@ export interface MomentPost {
   avatar: string          // 头像 URL
   content: string         // 文字内容
   images?: string[]       // 可选图片 URL 列表
-  time: string            // 时间标签
+  time: string            // 时间戳
   likes: number           // 点赞数
   liked: boolean          // 当前用户是否已赞
   likedBy: string[]       // 点赞用户昵称列表
   comments: MomentComment[] // 评论列表
+}
+
+function mapPost(p: momentsApi.MomentsPost): MomentPost {
+  return {
+    id: String(p.id),
+    userId: String(p.userId),
+    user: p.nickname || '用户',
+    avatar: toDisplayableMediaUrl(p.avatar),
+    content: p.content,
+    images: (p.images || []).map(url => toDisplayableMediaUrl(url)).filter(Boolean),
+    time: p.time,
+    likes: p.likes,
+    liked: p.liked,
+    likedBy: p.likedBy,
+    comments: (p.comments || []).map(c => ({
+      id: String(c.id),
+      userId: String(c.userId),
+      user: c.nickname || '用户',
+      content: c.content
+    }))
+  }
+}
+
+/** 仅保留浏览器可直接加载的地址；object key（如 2026/07/18/a.png）视为无效，避免裂图 */
+function toDisplayableMediaUrl(raw?: string | null): string {
+  const url = normalizeMediaUrl(raw)
+  if (!url) return ''
+  if (
+    /^https?:\/\//i.test(url) ||
+    url.startsWith('/') ||
+    url.startsWith('data:') ||
+    url.startsWith('blob:')
+  ) {
+    return url
+  }
+  return ''
 }
 
 // 定义并导出 moments Store
@@ -46,24 +82,7 @@ export const useMomentsStore = defineStore('moments', {
       try {
         const res = await momentsApi.listMoments()
         if (res.code === 200 && res.data) {
-          this.posts = res.data.map(p => ({
-            id: String(p.id),
-            userId: String(p.userId),
-            user: p.nickname || '用户',
-            avatar: p.avatar || '',
-            content: p.content,
-            images: p.images,
-            time: p.time,
-            likes: p.likes,
-            liked: p.liked,
-            likedBy: p.likedBy,
-            comments: p.comments.map(c => ({
-              id: String(c.id),
-              userId: String(c.userId),
-              user: c.nickname || '用户',
-              content: c.content
-            }))
-          }))
+          this.posts = res.data.map(mapPost)
           this.initialized = true
         }
       } catch (e) {
@@ -76,24 +95,7 @@ export const useMomentsStore = defineStore('moments', {
       try {
         const res = await momentsApi.getUserMoments(userId)
         if (res.code === 200 && res.data) {
-          return res.data.map(p => ({
-            id: String(p.id),
-            userId: String(p.userId),
-            user: p.nickname || '用户',
-            avatar: p.avatar || '',
-            content: p.content,
-            images: p.images,
-            time: p.time,
-            likes: p.likes,
-            liked: p.liked,
-            likedBy: p.likedBy,
-            comments: p.comments.map(c => ({
-              id: String(c.id),
-              userId: String(c.userId),
-              user: c.nickname || '用户',
-              content: c.content
-            }))
-          }))
+          return res.data.map(mapPost)
         }
       } catch (e) {
         console.error('加载用户动态失败:', e)
@@ -105,26 +107,25 @@ export const useMomentsStore = defineStore('moments', {
     async addPost(content: string, images?: string[]) {
       const appStore = useAppStore()
       try {
+        console.log('[Moments] 发布动态:', { content, imagesCount: images?.length })
         const res = await momentsApi.publishMoments({ content, images })
+        console.log('[Moments] 发布结果:', res)
         if (res.code === 200 && res.data) {
-          const p = res.data
-          this.posts.unshift({
-            id: String(p.id),
-            userId: String(p.userId),
-            user: p.nickname || appStore.userProfile.nickname,
-            avatar: p.avatar || appStore.userProfile.avatar,
-            content: p.content,
-            images: p.images,
-            time: '刚刚',
-            likes: 0,
-            liked: false,
-            likedBy: [],
-            comments: []
-          })
+          const mapped = mapPost(res.data)
+          // 后端未返回头像时，回退到当前登录用户头像
+          if (!mapped.avatar) {
+            mapped.avatar = toDisplayableMediaUrl(appStore.userProfile.avatar)
+          }
+          if (!mapped.user || mapped.user === '用户') {
+            mapped.user = appStore.userProfile.nickname || '我'
+          }
+          mapped.time = '刚刚'
+          this.posts.unshift(mapped)
           return true
         }
+        console.error('[Moments] 发布失败:', res.message)
       } catch (e) {
-        console.error('发布动态失败:', e)
+        console.error('[Moments] 发布异常:', e)
       }
       return false
     },

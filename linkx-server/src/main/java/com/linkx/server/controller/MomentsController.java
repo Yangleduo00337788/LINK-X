@@ -13,6 +13,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -128,5 +129,17 @@ public class MomentsController {
         } catch (NumberFormatException e) {
             throw new com.linkx.server.exception.CustomException(400, "无效的 ID");
         }
+    }
+
+    /**
+     * 上传朋友圈图片
+     */
+    @PostMapping("/upload")
+    @RateLimit(scope = "moments:upload", value = 30, window = 60)
+    public Result<String> uploadImage(
+            @RequestParam("file") MultipartFile file,
+            HttpServletRequest request) {
+        AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(momentsService.uploadImage(file));
     }
 }
