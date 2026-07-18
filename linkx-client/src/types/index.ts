@@ -12,7 +12,6 @@ export type OverlayPage =
   | 'profile'        // 个人资料
   | 'add-friend'     // 添加好友
   | 'create-group'   // 创建群聊
-  | 'create-channel' // 创建频道
   | 'app-runner'     // 应用运行器
   | 'file-preview'   // 文件预览
   | 'chat-history'   // 聊天记录
