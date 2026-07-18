@@ -32,8 +32,6 @@ import CalendarPanel from './CalendarPanel.vue'
 import CalendarMainView from './CalendarMainView.vue'
 // 通用占位主视图
 import PlaceholderMainView from './PlaceholderMainView.vue'
-// 媒体播放条
-import MediaNowPlayingBar from './MediaNowPlayingBar.vue'
 // 全屏 Overlay 宿主
 import OverlayHost from './overlay/OverlayHost.vue'
 
@@ -51,25 +49,15 @@ const RedPacketModal = defineAsyncComponent(() => import('./chat/RedPacketModal.
 const RedPacketReceiveModal = defineAsyncComponent(() => import('./chat/RedPacketReceiveModal.vue'))
 const ContactProfileModal = defineAsyncComponent(() => import('./chat/ContactProfileModal.vue'))
 const EditProfileModal = defineAsyncComponent(() => import('./EditProfileModal.vue'))
-const MomentsModal = defineAsyncComponent(() => import('./MomentsModal.vue'))
 // Pinia 响应式解构
 import { storeToRefs } from 'pinia'
 // 应用全局状态 Store
 import { useAppStore } from '../stores/app'
-// 聊天弹窗状态 Store
-import { useChatModalsStore } from '../stores/chatModals'
 
 // 获取应用 Store 实例
 const appStore = useAppStore()
-// 获取聊天弹窗 Store 实例
-const chatModalsStore = useChatModalsStore()
 // 解构当前导航键
 const { navKey } = storeToRefs(appStore)
-// 解构友链弹窗打开状态
-const { momentsModalOpen } = storeToRefs(chatModalsStore)
-
-// 是否在 Electron 环境中运行
-const isElectron = !!window.electronAPI
 
 // 中间列表列宽度（可拖拽调整）
 const listWidth = ref(260)
@@ -197,9 +185,6 @@ const showPlaceholder = computed(() =>
       </div>
     </div>
 
-    <!-- 底部媒体播放条 -->
-    <MediaNowPlayingBar />
-
     <!-- 弹窗/抽屉层 -->
     <CreateGroupModal />
     <ComprehensiveSearchModal />
@@ -214,10 +199,6 @@ const showPlaceholder = computed(() =>
     <RedPacketReceiveModal />
     <ContactProfileModal />
     <EditProfileModal />
-    <!-- 浏览器环境下友链全屏弹窗 -->
-    <div v-if="momentsModalOpen && !isElectron" class="moments-modal-backdrop">
-      <MomentsModal />
-    </div>
     <OverlayHost />
   </div>
 </template>
@@ -328,13 +309,4 @@ const showPlaceholder = computed(() =>
   --lx-bg-panel: var(--lx-bg-card);
 }
 
-.moments-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 2100;
-  background: var(--lx-bg-overlay);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
 </style>

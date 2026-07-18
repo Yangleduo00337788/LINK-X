@@ -9,10 +9,6 @@ export type NavKey = 'chat' | 'contacts' | 'favorites' | 'files' | 'calendar' | 
 // 全屏 Overlay 页面标识，由 overlay store 栈管理
 export type OverlayPage =
   | 'help'           // 帮助页
-  | 'profile'        // 个人资料
-  | 'add-friend'     // 添加好友
-  | 'create-group'   // 创建群聊
-  | 'app-runner'     // 应用运行器
   | 'file-preview'   // 文件预览
   | 'chat-history'   // 聊天记录
 
@@ -114,19 +110,6 @@ export interface FavoriteItem {
   preview: string
   time: string
   type: 'note' | 'image' | 'link' | 'file'
-}
-
-/** 应用中心应用项 */
-export interface AppItem {
-  id: string
-  name: string
-  desc: string
-  icon: string            // emoji 或图标字符
-  color: string           // 图标背景色
-  /** 内嵌 WebView / iframe 地址 */
-  url?: string
-  /** 应用类型，用于播放状态与内嵌策略 */
-  appKind?: 'netease' | 'douyin' | 'generic'
 }
 
 // 聊天背景预设 ID

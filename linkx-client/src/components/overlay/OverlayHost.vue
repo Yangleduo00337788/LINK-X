@@ -16,27 +16,19 @@ import type { OverlayPage } from '../../types'
 
 // 覆盖层 Store 实例
 const overlayStore = useOverlayStore()
-// 当前覆盖层页面与应用信息
-const { currentPage, overlayApp } = storeToRefs(overlayStore)
+// 当前覆盖层页面
+const { currentPage } = storeToRefs(overlayStore)
 // 关闭覆盖层的方法
 const { close } = overlayStore
 
 // 异步加载各覆盖层子页面（按需加载）
 const HelpPage = defineAsyncComponent(() => import('./pages/HelpPage.vue'))
-const ProfilePage = defineAsyncComponent(() => import('./pages/ProfilePage.vue'))
-const AddFriendPage = defineAsyncComponent(() => import('./pages/AddFriendPage.vue'))
-const CreateGroupPage = defineAsyncComponent(() => import('./pages/CreateGroupPage.vue'))
-const AppRunnerPage = defineAsyncComponent(() => import('./pages/AppRunnerPage.vue'))
 const FilePreviewPage = defineAsyncComponent(() => import('./pages/FilePreviewPage.vue'))
 const ChatHistoryPage = defineAsyncComponent(() => import('./pages/ChatHistoryPage.vue'))
 
 // 各覆盖层页面的默认标题映射
 const titleMap: Record<OverlayPage, string> = {
   help: '帮助与反馈',
-  profile: '个人资料',
-  'add-friend': '添加好友',
-  'create-group': '发起群聊',
-  'app-runner': '应用',
   'file-preview': '文件预览',
   'chat-history': '聊天记录'
 }
@@ -45,8 +37,6 @@ const titleMap: Record<OverlayPage, string> = {
 const pageTitle = computed(() => {
   const p = currentPage.value
   if (!p) return ''
-  // 应用运行页使用应用名称作为标题
-  if (p === 'app-runner' && overlayApp.value) return overlayApp.value.name
   return titleMap[p]
 })
 </script>
@@ -70,10 +60,6 @@ const pageTitle = computed(() => {
     <!-- 覆盖层主体：按 currentPage 动态渲染子页面 -->
     <div class="overlay-body">
       <HelpPage v-if="currentPage === 'help'" />
-      <ProfilePage v-else-if="currentPage === 'profile'" />
-      <AddFriendPage v-else-if="currentPage === 'add-friend'" />
-      <CreateGroupPage v-else-if="currentPage === 'create-group'" />
-      <AppRunnerPage v-else-if="currentPage === 'app-runner'" />
       <FilePreviewPage v-else-if="currentPage === 'file-preview'" />
       <ChatHistoryPage v-else-if="currentPage === 'chat-history'" />
     </div>

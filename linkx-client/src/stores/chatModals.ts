@@ -84,9 +84,6 @@ export const useChatModalsStore = defineStore('chatModals', {
     closeComprehensiveSearch() {
       this.comprehensiveSearchOpen = false
     },
-    openMomentsModal() {
-      this.momentsModalOpen = true
-    },
     closeMomentsModal() {
       this.momentsModalOpen = false
     },

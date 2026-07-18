@@ -170,7 +170,7 @@ LinkX/
 | `useChatModalsStore` | `stores/chatModals.ts` | 聊天相关弹窗与抽屉的开关状态 |
 | `useOverlayStore` | `stores/overlay.ts` | 叠加页栈（设置、隐私、文件预览等） |
 | `useSettingsStore` | `stores/settings.ts` | 设置弹窗可见性与当前 Tab |
-| `useSecondaryViewStore` | `stores/secondaryView.ts` | 应用/收藏/本地文件选中项 |
+| `useSecondaryViewStore` | `stores/secondaryView.ts` | 收藏/本地文件选中项 |
 
 ### 使用示例
 

@@ -606,40 +606,4 @@ defineExpose({
   cursor: pointer;
 }
 
-.apps-quick-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  padding: 4px;
-  min-width: 200px;
-}
-
-.apps-quick-item {
-  border: none;
-  background: var(--lx-bg-panel);
-  border-radius: var(--lx-radius);
-  padding: 10px 8px;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--lx-text-body);
-}
-
-.apps-quick-item:hover {
-  background: var(--lx-bg-hover);
-}
-
-.apps-quick-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: var(--lx-radius);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-size: 16px;
-}
 </style>
