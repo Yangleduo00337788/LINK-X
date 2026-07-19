@@ -1,29 +1,23 @@
 <script setup lang="ts">
-// Vue 响应式 API、计算属性、生命周期与侦听器
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
-// Naive UI 图标、输入框、按钮与消息提示
-import { NIcon, NInput, NButton, useMessage } from 'naive-ui'
-// Pinia 响应式解构工具
-import { storeToRefs } from 'pinia'
-// 聊天弹窗状态 Store
-import { useChatModalsStore } from '../stores/chatModals'
-// 应用全局状态 Store
-import { useAppStore } from '../stores/app'
-// 友链动态 Store
-import { useMomentsStore } from '../stores/moments'
-// 通知 Store
-import { useNotificationsStore } from '../stores/notifications'
-// 主题同步工具
-import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
-// 文件读取工具与图片大小限制
-import { readFileAsDataUrl, dataUrlToFile, MAX_IMAGE_BYTES } from '../utils/file'
-// 本地生成默认头像/封面（替代远程第三方）
-import { generateDefaultAvatar, generateDefaultBanner } from '../utils/defaultAvatar'
-// 媒体地址规范化
-import { normalizeMediaUrl } from '../utils/mediaUrl'
-// 空状态组件
-import EmptyState from './common/EmptyState.vue'
-// Ionicons5 友链相关图标
+/**
+ * 友链(朋友圈)独立窗口。
+ *
+ * 特性:
+ *  - 顶部固定栏:搜索/消息/发布/刷新/窗口控制
+ *  - 列表支持下拉刷新(触摸手势)
+ *  - 顶部刷新按钮点击有旋转动画 + 同时下拉刷新
+ *  - 发布入口:在铃铛右侧提供"发布"按钮,菜单中可选择:
+ *      · 发布文字
+ *      · 发布图片/视频
+ *    原头像下方的发布区域被移除,改由独立 Modal 承载
+ *  - 消息通知:点铃铛进入独立通知页(替换原嵌入式抽屉),
+ *    通知页右上角"更多"包含"清空所有消息"与"只收到@我的消息"
+ *  - 评论支持 @ 好友,后端会推送 moments_mention 通知给被@者
+ */
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+// Naive UI 图标
+import { NIcon, useMessage } from 'naive-ui'
+// Ionicons5
 import {
   NotificationsOutline,
   RefreshOutline,
@@ -34,53 +28,54 @@ import {
   ChatbubbleOutline,
   EllipsisHorizontal,
   SearchOutline,
+  AddCircleOutline,
+  AtCircleOutline,
   ImageOutline
 } from '@vicons/ionicons5'
+import { storeToRefs } from 'pinia'
+import { useChatModalsStore } from '../stores/chatModals'
+import { useAppStore } from '../stores/app'
+import { useMomentsStore } from '../stores/moments'
+import { useNotificationsStore } from '../stores/notifications'
+import { useContactsStore } from '../stores/contacts'
+// 主题同步工具
+import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
+// 媒体地址规范化
+import { normalizeMediaUrl } from '../utils/mediaUrl'
+// 本地生成默认头像/封面
+import { generateDefaultAvatar, generateDefaultBanner } from '../utils/defaultAvatar'
+// 空状态组件
+import EmptyState from './common/EmptyState.vue'
+// @ 面板
+import AtMentionPicker from './common/AtMentionPicker.vue'
+// 独立发布浮层
+import MomentsComposerModal from './MomentsComposerModal.vue'
+// 通知独立页
+import MomentsNotificationsPage from './MomentsNotificationsPage.vue'
 
-// 聊天弹窗 Store 实例
 const chatModalsStore = useChatModalsStore()
-// 应用 Store 实例
 const appStore = useAppStore()
-// 友链 Store 实例
 const momentsStore = useMomentsStore()
-// 通知 Store 实例
 const notificationsStore = useNotificationsStore()
-// 关闭友链独立窗口的方法
+const contactsStore = useContactsStore()
 const { closeMomentsModal } = chatModalsStore
-// 用户资料与主题
 const { userProfile, theme } = storeToRefs(appStore)
-// 动态列表
 const { posts } = storeToRefs(momentsStore)
-// 通知列表
-const { messageNotifs } = storeToRefs(notificationsStore)
-// 发布、点赞、展开操作面板的方法
-const { addPost, toggleLike, toggleActions, isActionsOpen, fetchMoments, removePost, deleteComment } = momentsStore
-// 消息通知相关
-const { fetchMessageNotifications, markMessageAsRead, unreadMessageCount } = notificationsStore
-// 消息提示实例
+const { unreadMessageCount } = storeToRefs(notificationsStore)
+const { toggleLike, toggleActions, fetchMoments, removePost, deleteComment } = momentsStore
+const { fetchMessageNotifications } = notificationsStore
 const message = useMessage()
 
-// 滚动容器纵向偏移量
+// 滚动位置
 const scrollTop = ref(0)
-// 当前操作的目标动态 ID（用于二级操作面板）
-const activePostId = ref<string | null>(null)
-// 评论输入草稿
+// 评论草稿
 const commentDraft = ref('')
-// 当前正在评论的动态 ID
 const commentPostId = ref<string | null>(null)
-// 搜索关键词
+// 搜索
 const searchQuery = ref('')
-// 是否显示顶部搜索框
 const showSearch = ref(false)
-// 发布动态文本内容
-const composeText = ref('')
-// 待发布图片 Data URL 列表
-const composeImages = ref<string[]>([])
-// 隐藏的图片上传 input 引用
-const imageInputRef = ref<HTMLInputElement | null>(null)
-// 当前登录用户的 userId（用于判断"自己发的"）
+// 当前登录用户
 const myUserId = computed(() => userProfile.value.userId || '')
-// 用户封面与头像（优先真实头像，否则本地生成）
 const defaultAvatar = computed(() =>
   generateDefaultAvatar(userProfile.value.nickname || '我')
 )
@@ -91,7 +86,7 @@ const defaultBanner = computed(() =>
   generateDefaultBanner(userProfile.value.nickname || 'banner')
 )
 
-// 按搜索词过滤后的动态列表
+// 过滤列表
 const filteredPosts = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
   if (!q) return posts.value
@@ -100,14 +95,12 @@ const filteredPosts = computed(() => {
   )
 })
 
-// 记录滚动位置以驱动顶部栏渐变
+// 顶部栏渐变
 function handleScroll(e: Event) {
   scrollTop.value = (e.target as HTMLElement).scrollTop
 }
 
-// 是否显示顶部标题（滚动超过阈值或搜索模式）
 const showTitle = computed(() => scrollTop.value > 250 || showSearch.value)
-// 顶部栏背景透明度（随滚动渐变）
 const headerBgOpacity = computed(() => {
   if (showSearch.value) {
     const rgb = theme.value === 'dark' ? '34, 34, 34' : '245, 245, 245'
@@ -117,12 +110,11 @@ const headerBgOpacity = computed(() => {
   const rgb = theme.value === 'dark' ? '34, 34, 34' : '245, 245, 245'
   return `rgba(${rgb}, ${opacity})`
 })
-// 顶部栏图标颜色（随滚动切换深浅）
 const headerIconColor = computed(() =>
   scrollTop.value > 200 || showSearch.value ? 'var(--lx-text)' : 'var(--lx-text-on-accent)'
 )
 
-/** 图片预览（友链独立窗口内本地 lightbox） */
+// 图片预览
 const previewImages = ref<string[]>([])
 const previewIndex = ref(0)
 const previewVisible = computed(() => previewImages.value.length > 0)
@@ -155,12 +147,15 @@ function onPreviewKeydown(e: KeyboardEvent) {
   else if (e.key === 'ArrowRight') previewNext()
 }
 
-// 挂载时同步主题，并拉取最新友链（独立窗口有自己的 store，不能依赖主窗口缓存）
+// 挂载
 onMounted(() => {
   applyDocumentTheme(appStore.theme)
   notifyElectronTheme(appStore.theme)
   void fetchMessageNotifications()
   void fetchMoments()
+  if (!contactsStore.items.length) {
+    void contactsStore.fetchFriends()
+  }
   window.addEventListener('keydown', onPreviewKeydown)
 })
 
@@ -168,135 +163,83 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', onPreviewKeydown)
 })
 
-// 主题变化时重新同步
 watch(theme, t => {
   applyDocumentTheme(t)
   notifyElectronTheme(t)
 })
 
-// 处理用户选择的图片
-async function onPickImages(e: Event) {
-  const input = e.target as HTMLInputElement
-  const files = Array.from(input.files ?? [])
-  input.value = ''
-  for (const file of files) {
-    if (composeImages.value.length >= 9) {
-      message.warning('最多添加 9 张图片')
-      break
-    }
-    if (file.size > MAX_IMAGE_BYTES) {
-      message.warning(`「${file.name}」超过 2MB，已跳过`)
-      continue
-    }
-    try {
-      composeImages.value.push(await readFileAsDataUrl(file))
-    } catch {
-      message.error(`「${file.name}」读取失败`)
-    }
-  }
+// 顶部刷新按钮 - 旋转动画状态
+const refreshing = ref(false)
+
+async function refresh() {
+  if (refreshing.value) return
+  refreshing.value = true
+  document.querySelector('.moments-scroll-container')?.scrollTo({ top: 0, behavior: 'smooth' })
+  await Promise.all([fetchMoments(), fetchMessageNotifications()])
+  message.success('刷新成功')
+  // 旋转动画保持至少 600ms,让用户感知到
+  await new Promise(r => setTimeout(r, 600))
+  refreshing.value = false
 }
 
-// 移除待发布图片
-function removeComposeImage(index: number) {
-  composeImages.value.splice(index, 1)
+// 下拉刷新相关
+const pullStartY = ref(0)
+const pulling = ref(false)
+const pullDistance = ref(0)
+const pullThreshold = 80
+const isPullRefreshing = ref(false)
+const isAtTop = computed(() => scrollTop.value <= 0)
+const pullRefreshHint = computed(() => {
+  if (isPullRefreshing.value) return '正在刷新…'
+  if (pullDistance.value >= pullThreshold) return '松手刷新'
+  if (pulling.value) return '下拉可以刷新'
+  return ''
+})
+
+function onTouchStart(e: TouchEvent) {
+  if (!isAtTop.value) return
+  const t = e.touches[0]
+  if (!t) return
+  pullStartY.value = t.clientY
+  pulling.value = true
 }
 
-// 发布新动态
-async function publishPost() {
-  const text = composeText.value.trim()
-  if (!text && !composeImages.value.length) {
-    message.warning('请输入内容或添加图片')
+function onTouchMove(e: TouchEvent) {
+  if (!pulling.value) return
+  if (!isAtTop.value) {
+    pullDistance.value = 0
     return
   }
+  const t = e.touches[0]
+  if (!t) return
+  const dy = t.clientY - pullStartY.value
+  if (dy > 0) {
+    // 阻尼
+    pullDistance.value = Math.min(dy * 0.45, pullThreshold + 30)
+    // 必须阻止默认滚动,否则浏览器原生滚动会盖过下拉指示
+    e.preventDefault()
+  } else {
+    pullDistance.value = 0
+  }
+}
 
-  // 先上传图片获取 object key，再发布动态
-  let imageUrls: string[] | undefined
-  if (composeImages.value.length > 0) {
-    message.info('正在上传图片...')
-    imageUrls = []
-    for (const dataUrl of composeImages.value) {
-      try {
-        const url = await uploadImageToServer(dataUrl)
-        imageUrls.push(url)
-      } catch (e) {
-        message.error(e instanceof Error ? e.message : '图片上传失败')
-        return
-      }
+async function onTouchEnd() {
+  if (!pulling.value) return
+  if (pullDistance.value >= pullThreshold) {
+    isPullRefreshing.value = true
+    pullDistance.value = pullThreshold // 固定在阈值位置持续显示
+    try {
+      await refresh()
+    } finally {
+      isPullRefreshing.value = false
     }
   }
-
-  const ok = await addPost(
-    text || '分享图片',
-    imageUrls
-  )
-  if (ok) {
-    message.success('动态已发布')
-    composeText.value = ''
-    composeImages.value = []
-  } else {
-    message.error('发布失败，请重试')
-  }
+  pullDistance.value = 0
+  pulling.value = false
 }
 
-    // 将 Data URL 图片上传到服务器，返回 object key（发布时入库）
-async function uploadImageToServer(dataUrl: string): Promise<string> {
-  const ext = dataUrl.match(/data:image\/(\w+)/)?.[1] || 'jpeg'
-  const safeExt = ext === 'jpg' ? 'jpeg' : ext
-  const fileName = `moments_${Date.now()}.${safeExt === 'jpeg' ? 'jpg' : safeExt}`
-  // 不要用 fetch(dataUrl)：Electron 沙箱下会直接 Failed to fetch
-  const file = dataUrlToFile(dataUrl, fileName)
-  // 统一 MIME，避免 image/jpg 被 MinIO 白名单拒绝
-  const normalized = new File([file], fileName, { type: `image/${safeExt}` })
-
-  const { uploadMomentsImage } = await import('../api/moments')
-  const uploadRes = await uploadMomentsImage(normalized)
-  if (uploadRes.code !== 200 || !uploadRes.data) {
-    throw new Error(uploadRes.message || '上传失败')
-  }
-  return uploadRes.data
-}
-
-// 切换顶部搜索框显示
-function toggleSearch() {
-  showSearch.value = !showSearch.value
-  if (!showSearch.value) searchQuery.value = ''
-}
-
-// 点赞/取消点赞
-function onToggleLike(postId: string) {
-  toggleLike(postId)
-}
-
-// 展开评论输入并打开操作面板
-function onComment(post: { id: string }) {
-  commentPostId.value = post.id
-  toggleActions(post.id)
-}
-
-// 提交评论
-function submitComment(postId: string) {
-  const text = commentDraft.value.trim()
-  if (!text) return
-  momentsStore.addComment(postId, text)
-  commentDraft.value = ''
-  commentPostId.value = null
-  message.success('评论已发送')
-}
-
-// 刷新：滚动回顶部并刷新动态和通知
-async function refresh() {
-  scrollTop.value = 0
-  document.querySelector('.moments-scroll-container')?.scrollTo({ top: 0, behavior: 'smooth' })
-  await Promise.all([
-    fetchMoments(),
-    fetchMessageNotifications()
-  ])
-  message.success('刷新成功')
-}
-
-// 显示消息通知列表
+// 选择通知页 / 发布菜单
 const showNotifications = ref(false)
-
 async function showMessage() {
   showNotifications.value = !showNotifications.value
   if (showNotifications.value) {
@@ -304,70 +247,163 @@ async function showMessage() {
   }
 }
 
-// 标记通知为已读并跳转
-function handleNotificationClick(notif: typeof messageNotifs.value[0]) {
-  if (notif.readStatus === 0) {
-    void markMessageAsRead(notif.id)
+// 顶部发布菜单
+const showPublishMenu = ref(false)
+const publishMenuOptions = [
+  { label: '发布文字', key: 'text', icon: AtCircleOutline },
+  { label: '发布图片/视频', key: 'media', icon: ImageOutline }
+]
+async function handlePublishMenuSelect(key: string | number) {
+  showPublishMenu.value = false
+  if (key === 'text') {
+    composerMode.value = 'text'
+    composerVisible.value = true
+  } else if (key === 'media') {
+    composerMode.value = 'media'
+    composerVisible.value = true
   }
-  // 根据通知类型跳转相关动态
-  if (notif.type === 'moments_like' || notif.type === 'moments_comment') {
-    // 滚动到对应动态位置
-    const postIndex = posts.value.findIndex(p => String(p.id) === String(notif.relatedId))
-    if (postIndex >= 0) {
-      const container = document.querySelector('.moments-scroll-container')
-      const targetPost = container?.querySelectorAll('.post-item')[postIndex]
-      if (targetPost) {
-        targetPost.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      }
+}
+
+// 发布浮层控制
+const composerVisible = ref(false)
+const composerMode = ref<'text' | 'media'>('text')
+
+function onPublished() {
+  void fetchMoments()
+}
+
+// 跳到动态
+function scrollToPost(notif: { relatedId?: string; type: string }) {
+  if (!notif.relatedId) return
+  if (notif.type !== 'moments_like' && notif.type !== 'moments_comment' && notif.type !== 'moments_mention') return
+  showNotifications.value = false
+  nextTick(() => {
+    const container = document.querySelector('.moments-scroll-container')
+    const targetPost = container?.querySelectorAll('.post-item')[
+      posts.value.findIndex(p => String(p.id) === String(notif.relatedId))
+    ]
+    if (targetPost) {
+      targetPost.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
+  })
+}
+
+// 评论
+function onToggleLike(postId: string) {
+  toggleLike(postId)
+}
+
+function onComment(post: { id: string }) {
+  commentPostId.value = post.id
+  toggleActions(post.id)
+}
+
+/** 评论提交 (支持 @ 提及) */
+const commentMentions = ref<{ id: number; name: string }[]>([])
+const showCommentMention = ref(false)
+const commentAtStart = ref(0)
+
+function detectCommentMention() {
+  const ta = document.getElementById('moments-comment-input') as HTMLTextAreaElement | null
+  if (!ta) return
+  const value = commentDraft.value
+  const cursor = ta.selectionStart
+  if (cursor == null) {
+    showCommentMention.value = false
+    return
+  }
+  let i = cursor - 1
+  while (i >= 0) {
+    const ch = value[i]
+    if (ch === '@') {
+      const segment = value.slice(i + 1, cursor)
+      if (/^\S{0,32}$/.test(segment) && !segment.includes(' ')) {
+        commentAtStart.value = i
+        showCommentMention.value = true
+      } else {
+        showCommentMention.value = false
+      }
+      return
+    }
+    if (ch === ' ' || ch === '\n') break
+    i--
+  }
+  showCommentMention.value = false
+}
+
+function applyCommentMention(friend: { id: number; name: string }) {
+  const ta = document.getElementById('moments-comment-input') as HTMLTextAreaElement | null
+  if (!ta) return
+  const before = commentDraft.value.slice(0, commentAtStart.value)
+  const cursor = ta.selectionStart ?? commentAtStart.value
+  const after = commentDraft.value.slice(cursor)
+  const inserted = `@${friend.name} `
+  commentDraft.value = before + inserted + after
+  commentMentions.value.push(friend)
+  showCommentMention.value = false
+  nextTick(() => {
+    const newPos = before.length + inserted.length
+    ta.focus()
+    ta.setSelectionRange(newPos, newPos)
+  })
+}
+
+const commentMentionFriends = computed(() => {
+  const list = contactsStore.friends
+  const cursor = commentDraft.value.slice(commentAtStart.value + 1, commentDraft.value.length)
+  const q = cursor.replace(/\s/g, '')
+  if (!q) return list.slice(0, 8)
+  return list.filter(f => f.name.toLowerCase().includes(q.toLowerCase())).slice(0, 8)
+})
+
+async function submitComment(postId: string) {
+  const text = commentDraft.value.trim()
+  if (!text) return
+  const mentionIds = commentMentions.value.map(m => m.id)
+  const ok = await momentsStore.addComment(postId, text, mentionIds)
+  if (ok) {
+    commentDraft.value = ''
+    commentPostId.value = null
+    commentMentions.value = []
+    message.success('评论已发送')
+  } else {
+    message.error('评论失败')
   }
 }
 
-// 获取通知类型文本
-function getNotificationTypeText(type: string) {
-  switch (type) {
-    case 'moments_like': return '赞了你的动态'
-    case 'moments_comment': return '评论了你的动态'
-    case 'moments_follow': return '关注了你'
-    default: return '有新通知'
-  }
+// 兼容性保留
+function toggleSearch() {
+  showSearch.value = !showSearch.value
+  if (!showSearch.value) searchQuery.value = ''
 }
 
-// 最小化友链窗口
-function minimizeMoments() {
-  if (window.electronAPI) window.electronAPI.minimize()
-  else closeMomentsModal()
-}
-
-// 关闭友链窗口
-function closeMoments() {
-  if (window.electronAPI) window.electronAPI.close()
-  else closeMomentsModal()
-}
-
-/**
- * 删除自己发的动态。
- * 二次确认由浏览器原生 confirm 提供，避免引入更多 UI 依赖。
- */
+// 删除自己动态/评论
 async function onDeletePost(postId: string) {
   if (!postId) return
-  const ok = window.confirm('确定删除这条动态？删除后不可恢复。')
+  const ok = window.confirm('确定删除这条动态?删除后不可恢复。')
   if (!ok) return
   const success = await removePost(postId)
   if (success) message.success('动态已删除')
   else message.error('删除失败')
 }
 
-/**
- * 删除自己发的评论。
- */
 async function onDeleteComment(postId: string, commentId: string) {
   if (!postId || !commentId) return
-  const ok = window.confirm('确定删除这条评论？')
+  const ok = window.confirm('确定删除这条评论?')
   if (!ok) return
   const success = await deleteComment(postId, commentId)
   if (success) message.success('评论已删除')
   else message.error('删除失败')
+}
+
+function minimizeMoments() {
+  if (window.electronAPI) window.electronAPI.minimize()
+  else closeMomentsModal()
+}
+
+function closeMoments() {
+  if (window.electronAPI) window.electronAPI.close()
+  else closeMomentsModal()
 }
 </script>
 
@@ -375,46 +411,34 @@ async function onDeleteComment(postId: string, commentId: string) {
   <!-- 友链独立窗口 -->
   <div class="moments-wrapper standalone-window">
     <!-- 可滚动内容区 -->
-    <div class="moments-scroll-container" @scroll="handleScroll">
-    <!-- 顶部封面与用户资料 -->
-    <div class="moments-header">
-      <div class="header-banner">
-        <img :src="defaultBanner" alt="Banner" class="banner-img" />
+    <div
+      class="moments-scroll-container"
+      @scroll="handleScroll"
+      @touchstart.passive="onTouchStart"
+      @touchmove="onTouchMove"
+      @touchend="onTouchEnd"
+    >
+      <!-- 顶部封面与用户资料 -->
+      <div class="moments-header">
+        <div class="header-banner">
+          <img :src="defaultBanner" alt="Banner" class="banner-img" />
+        </div>
+        <div class="user-info">
+          <span class="username">{{ userProfile.nickname }}</span>
+          <img :src="profileAvatar" alt="Avatar" class="avatar-img" />
+        </div>
       </div>
-      <div class="user-info">
-        <span class="username">{{ userProfile.nickname }}</span>
-        <img :src="profileAvatar" alt="Avatar" class="avatar-img" />
-      </div>
-    </div>
 
-      <!-- 动态列表与发布区 -->
+      <!-- 下拉刷新指示器 -->
+      <div class="pull-indicator" :class="{ refreshing: isPullRefreshing, ready: pullDistance >= pullThreshold }" :style="{ transform: `translateY(${pullDistance}px)`, opacity: Math.min(pullDistance / pullThreshold, 1) }">
+        <div class="pull-arrow">
+          <n-icon :component="RefreshOutline" :size="20" />
+        </div>
+        <div class="pull-text">{{ pullRefreshHint }}</div>
+      </div>
+
+      <!-- 动态列表(发布编辑器已迁移至独立 Modal) -->
       <div class="moments-content">
-        <!-- 发布动态卡片 -->
-        <section class="compose-card">
-          <n-input
-            v-model:value="composeText"
-            type="textarea"
-            placeholder="分享新鲜事…"
-            :rows="2"
-            :autosize="{ minRows: 2, maxRows: 4 }"
-          />
-          <div v-if="composeImages.length" class="compose-images">
-            <div v-for="(img, i) in composeImages" :key="i" class="compose-thumb-wrap">
-              <img :src="img" alt="" class="compose-thumb" />
-              <button type="button" class="compose-remove" @click="removeComposeImage(i)">
-                <n-icon :component="CloseOutline" :size="12" />
-              </button>
-            </div>
-          </div>
-          <div class="compose-actions">
-            <input ref="imageInputRef" type="file" accept="image/*" multiple hidden @change="onPickImages" />
-            <button type="button" class="compose-tool" title="添加图片" @click="imageInputRef?.click()">
-              <n-icon :component="ImageOutline" :size="18" />
-            </button>
-            <n-button type="primary" size="small" @click="publishPost">发布</n-button>
-          </div>
-        </section>
-
         <div v-for="post in filteredPosts" :key="post.id" class="post-item">
           <img
             v-if="post.avatar"
@@ -476,7 +500,32 @@ async function onDeleteComment(postId: string, commentId: string) {
               </div>
             </div>
             <div v-if="commentPostId === post.id" class="comment-input-row">
-              <input v-model="commentDraft" class="comment-input" placeholder="写评论…" @keyup.enter="submitComment(post.id)" />
+              <div class="comment-input-wrap">
+                <input
+                  id="moments-comment-input"
+                  v-model="commentDraft"
+                  class="comment-input"
+                  placeholder="写评论… 使用 @ 提及好友"
+                  @input="detectCommentMention"
+                  @keyup.enter="submitComment(post.id)"
+                />
+                <button
+                  type="button"
+                  class="comment-at-btn"
+                  title="@好友"
+                  @click.stop="triggerAtInComment"
+                >
+                  <n-icon :component="AtCircleOutline" :size="14" />
+                </button>
+                <AtMentionPicker
+                  v-if="showCommentMention"
+                  :friends="commentMentionFriends"
+                  :text="commentDraft"
+                  :caret-index="commentAtStart + 1"
+                  @apply="(p) => applyCommentMention(p)"
+                  @close="showCommentMention = false"
+                />
+              </div>
               <button type="button" class="comment-send" @click="submitComment(post.id)">发送</button>
             </div>
             <div v-if="post.likedBy.length || post.comments.length" class="post-interactions">
@@ -507,27 +556,52 @@ async function onDeleteComment(postId: string, commentId: string) {
         <EmptyState
           v-if="!filteredPosts.length"
           :title="searchQuery.trim() ? '未找到相关动态' : '暂无动态'"
-          :description="searchQuery.trim() ? '换个关键词试试' : '发布第一条友链动态吧'"
+          :description="searchQuery.trim() ? '换个关键词试试' : '点击右上角「发布」分享第一条友链动态吧'"
         />
         <div v-else class="bottom-tip">没有更多了</div>
       </div>
     </div>
 
-    <!-- 固定顶部操作栏（随滚动渐变） -->
+    <!-- 固定顶部操作栏 -->
     <div class="fixed-header" :style="{ backgroundColor: headerBgOpacity, color: headerIconColor }">
       <div class="header-left">
         <div class="action-btn" title="搜索" @click.stop="toggleSearch">
           <n-icon :component="SearchOutline" size="22" />
         </div>
-        <div class="action-btn" :class="{ active: showNotifications }" title="消息" @click.stop="showMessage">
+        <div
+          class="action-btn"
+          :class="{ active: showNotifications }"
+          title="消息"
+          @click.stop="showMessage"
+        >
           <n-icon :component="NotificationsOutline" size="22" />
-          <span v-if="unreadMessageCount > 0" class="notif-badge">{{ unreadMessageCount > 99 ? '99+' : unreadMessageCount }}</span>
+          <span v-if="unreadMessageCount > 0" class="notif-badge">
+            {{ unreadMessageCount > 99 ? '99+' : unreadMessageCount }}
+          </span>
         </div>
-        <div class="action-btn" title="刷新" @click.stop="refresh">
-          <n-icon :component="RefreshOutline" size="22" />
+        <!-- 发布按钮:点击弹出菜单(发布文字/发布图片视频) -->
+        <div class="action-btn publish-btn" title="发布" @click.stop="showPublishMenu = !showPublishMenu">
+          <n-icon :component="AddCircleOutline" size="22" />
+        </div>
+        <div v-if="showPublishMenu" class="publish-menu" @click.stop>
+          <button
+            v-for="opt in publishMenuOptions"
+            :key="opt.key"
+            class="publish-menu-item"
+            type="button"
+            @click="handlePublishMenuSelect(opt.key)"
+          >
+            <n-icon :component="opt.icon" :size="18" />
+            <span>{{ opt.label }}</span>
+          </button>
+        </div>
+        <div v-if="showPublishMenu" class="publish-menu-backdrop" @click="showPublishMenu = false" />
+        <!-- 刷新按钮:点击旋转 360° 动画 -->
+        <div class="action-btn" :class="{ refreshing }" title="刷新" @click.stop="refresh">
+          <n-icon :component="RefreshOutline" size="22" class="refresh-icon" />
         </div>
       </div>
-      <div class="header-center" :class="{ visible: showTitle }">
+      <div class="header-center" :class="{ visible: showTitle || showNotifications }">
         <span v-if="!showSearch && !showNotifications">友链</span>
         <input
           v-else-if="showSearch"
@@ -545,35 +619,28 @@ async function onDeleteComment(postId: string, commentId: string) {
           <n-icon :component="CloseOutline" size="18" />
         </div>
       </div>
-
-      <!-- 消息通知面板 -->
-      <div v-if="showNotifications" class="notifications-panel" @click.stop>
-        <div class="notif-header">
-          <span>消息通知</span>
-          <span v-if="unreadMessageCount > 0" class="mark-all-read" @click="notificationsStore.markAllMessagesAsRead()">全部已读</span>
-        </div>
-        <div class="notif-list">
-          <div v-if="messageNotifs.length === 0" class="notif-empty">暂无新通知</div>
-          <div
-            v-for="notif in messageNotifs"
-            :key="notif.id"
-            class="notif-item"
-            :class="{ unread: notif.readStatus === 0 }"
-            @click="handleNotificationClick(notif)"
-          >
-            <img :src="notif.senderAvatar || '/default-avatar.svg'" class="notif-avatar" />
-            <div class="notif-content">
-              <div class="notif-title">{{ notif.senderName }}</div>
-              <div class="notif-text">{{ getNotificationTypeText(notif.type) }}</div>
-              <div v-if="notif.content" class="notif-preview">{{ notif.content }}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div v-if="showNotifications" class="notif-backdrop" @click="showNotifications = false" />
     </div>
 
-    <!-- 图片预览 lightbox -->
+    <!-- 通知抽屉遮罩(点击空白处关闭) -->
+    <Transition name="backdrop-fade">
+      <div v-if="showNotifications" class="notif-backdrop" @click="showNotifications = false" />
+    </Transition>
+
+    <!-- 通知抽屉(右侧滑入) -->
+    <MomentsNotificationsPage
+      :visible="showNotifications"
+      @close="showNotifications = false"
+      @select="scrollToPost"
+    />
+
+    <!-- 发布弹层 -->
+    <MomentsComposerModal
+      v-model:visible="composerVisible"
+      :initial-mode="composerMode"
+      @published="onPublished"
+    />
+
+    <!-- 图片预览 -->
     <div v-if="previewVisible" class="image-preview-overlay" @click.self="closeImagePreview">
       <button type="button" class="preview-close" title="关闭" @click="closeImagePreview">
         <n-icon :component="CloseOutline" :size="22" />
@@ -608,6 +675,23 @@ async function onDeleteComment(postId: string, commentId: string) {
     </div>
   </div>
 </template>
+
+<script lang="ts">
+// 评论框点击 @ 按钮处理:由于 setup 中已存在,该函数作为额外声明保留以兼容 template 用法
+function triggerAtInComment() {
+  const ta = document.getElementById('moments-comment-input') as HTMLInputElement | null
+  if (!ta) return
+  ta.focus()
+  const cursor = ta.selectionStart ?? 0
+  const value = ta.value
+  const before = value.slice(0, cursor)
+  const after = value.slice(cursor)
+  const prefix = before.length && !before.endsWith(' ') && !before.endsWith('　') ? ' ' : ''
+  // 通过 DOM 修改让 v-model 同步,再触发 input 事件以激活 mention 检测
+  ta.value = before + prefix + '@' + after
+  ta.dispatchEvent(new Event('input', { bubbles: true }))
+}
+</script>
 
 <style scoped>
 .standalone-window {
@@ -665,10 +749,39 @@ async function onDeleteComment(postId: string, commentId: string) {
   margin-left: auto;
 }
 
+.action-btn {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--lx-radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s;
+  pointer-events: auto;
+}
+
+.action-btn:hover {
+  background: var(--lx-bg-active);
+}
+
+.action-btn.active {
+  background: var(--lx-bg-active);
+}
+
+.action-btn.refreshing .refresh-icon {
+  animation: refresh-spin 0.6s linear infinite;
+}
+
+@keyframes refresh-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .window-btn {
   width: 28px;
   height: 28px;
-  border-radius: var(--lx-radius);
 }
 
 .window-btn.close-btn:hover {
@@ -711,92 +824,70 @@ async function onDeleteComment(postId: string, commentId: string) {
   color: var(--lx-text-on-accent) !important;
 }
 
-.compose-card {
-  background: var(--lx-bg-panel);
-  border-radius: var(--lx-radius);
-  padding: 12px;
-  margin-bottom: 12px;
+.publish-btn {
+  /* 与其他 action-btn 保持统一(无背景色,仅 hover 显示) */
+}
+.publish-btn:hover {
+  background: var(--lx-bg-active);
 }
 
-.compose-images {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.compose-thumb-wrap {
-  position: relative;
-  width: 72px;
-  height: 72px;
-}
-
-.compose-thumb {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: var(--lx-radius);
-}
-
-.compose-remove {
+.publish-menu {
   position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 20px;
-  height: 20px;
-  border: none;
-  border-radius: 50%;
-  background: var(--lx-danger);
-  color: var(--lx-text-on-accent);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.compose-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 10px;
-}
-
-.compose-tool {
-  width: 32px;
-  height: 32px;
-  border: none;
+  top: 48px;
+  left: 110px;
+  background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
-  background: var(--lx-bg-input);
-  color: var(--lx-text-secondary);
-  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  z-index: 200;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  min-width: 180px;
+  overflow: hidden;
 }
 
-.compose-tool:hover {
-  color: var(--lx-accent);
-  background: var(--lx-accent-soft);
+.publish-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  color: var(--lx-text-body);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.publish-menu-item:hover {
+  background: var(--lx-bg-hover);
+}
+
+.publish-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 199;
+}
+
+.notif-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  cursor: pointer;
+}
+
+.backdrop-fade-enter-active,
+.backdrop-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.backdrop-fade-enter-from,
+.backdrop-fade-leave-to {
+  opacity: 0;
 }
 
 .moments-content {
   padding: 0 20px 20px;
-}
-
-.action-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--lx-radius);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background 0.2s;
-  pointer-events: auto;
-}
-
-.action-btn:hover {
-  background: var(--lx-bg-active);
 }
 
 .moments-scroll-container {
@@ -808,6 +899,7 @@ async function onDeleteComment(postId: string, commentId: string) {
   left: 0;
   width: 100%;
   background: var(--lx-bg-card);
+  -webkit-overflow-scrolling: touch;
 }
 
 .moments-scroll-container::-webkit-scrollbar {
@@ -846,7 +938,7 @@ async function onDeleteComment(postId: string, commentId: string) {
   color: var(--lx-bg-card);
   font-size: 20px;
   font-weight: 600;
-  text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
   margin-top: 8px;
 }
 
@@ -857,7 +949,50 @@ async function onDeleteComment(postId: string, commentId: string) {
   border: 2px solid var(--lx-bg-card);
   background: var(--lx-bg-card);
   object-fit: cover;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* 下拉刷新指示器 */
+.pull-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: none;
+  color: var(--lx-text-muted);
+  z-index: 90;
+  transition: opacity 0.2s;
+  font-size: 13px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.04), transparent);
+}
+
+.pull-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s;
+}
+
+.pull-indicator.ready {
+  color: var(--lx-accent);
+}
+
+.pull-indicator.ready .pull-arrow {
+  transform: rotate(180deg);
+}
+
+.pull-indicator.refreshing .pull-arrow {
+  animation: refresh-spin 0.8s linear infinite;
+  color: var(--lx-accent);
+}
+
+.pull-text {
+  font-size: 12px;
 }
 
 .post-item {
@@ -903,6 +1038,7 @@ async function onDeleteComment(postId: string, commentId: string) {
   line-height: 1.5;
   margin-bottom: 8px;
   word-break: break-all;
+  white-space: pre-wrap;
 }
 
 .post-images {
@@ -1013,16 +1149,45 @@ async function onDeleteComment(postId: string, commentId: string) {
   display: flex;
   gap: 8px;
   margin-bottom: 8px;
+  align-items: center;
+  position: relative;
+}
+
+.comment-input-wrap {
+  position: relative;
+  flex: 1;
 }
 
 .comment-input {
-  flex: 1;
+  width: 100%;
   border: 1px solid var(--lx-border-light);
   border-radius: var(--lx-radius);
-  padding: 6px 10px;
+  padding: 6px 30px 6px 10px;
   font-size: 13px;
   background: var(--lx-bg-card);
   color: var(--lx-text);
+}
+
+.comment-at-btn {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  color: var(--lx-text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.comment-at-btn:hover {
+  color: var(--lx-accent);
+  background: var(--lx-bg-hover);
 }
 
 .comment-send {
@@ -1031,6 +1196,7 @@ async function onDeleteComment(postId: string, commentId: string) {
   color: var(--lx-text-on-accent);
   border-radius: var(--lx-radius);
   padding: 0 12px;
+  height: 28px;
   font-size: 13px;
   cursor: pointer;
 }
@@ -1117,7 +1283,24 @@ async function onDeleteComment(postId: string, commentId: string) {
   padding: 30px 0;
 }
 
-/* 图片预览 */
+.notif-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  background: var(--lx-danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
 .image-preview-overlay {
   position: absolute;
   inset: 0;
@@ -1191,133 +1374,5 @@ async function onDeleteComment(postId: string, commentId: string) {
   transform: translateX(-50%);
   color: rgba(255, 255, 255, 0.85);
   font-size: 13px;
-}
-
-/* 通知面板样式 */
-.notif-badge {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  background: var(--lx-danger);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 600;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-}
-
-.notifications-panel {
-  position: absolute;
-  top: 48px;
-  left: 0;
-  width: 300px;
-  max-height: 400px;
-  background: var(--lx-bg-card);
-  border-radius: var(--lx-radius);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-  z-index: 200;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.notif-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 199;
-}
-
-.notif-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--lx-border-light);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--lx-text-body);
-}
-
-.mark-all-read {
-  font-size: 12px;
-  color: var(--lx-accent);
-  cursor: pointer;
-}
-
-.mark-all-read:hover {
-  text-decoration: underline;
-}
-
-.notif-list {
-  flex: 1;
-  overflow-y: auto;
-}
-
-.notif-empty {
-  padding: 32px 16px;
-  text-align: center;
-  color: var(--lx-text-muted);
-  font-size: 13px;
-}
-
-.notif-item {
-  display: flex;
-  gap: 12px;
-  padding: 12px 16px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.notif-item:hover {
-  background: var(--lx-bg-hover);
-}
-
-.notif-item.unread {
-  background: rgba(18, 183, 245, 0.06);
-}
-
-.notif-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  object-fit: cover;
-  flex-shrink: 0;
-  background: var(--lx-bg-panel);
-}
-
-.notif-content {
-  flex: 1;
-  min-width: 0;
-}
-
-.notif-title {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--lx-text-body);
-}
-
-.notif-text {
-  font-size: 12px;
-  color: var(--lx-text-secondary);
-  margin-top: 2px;
-}
-
-.notif-preview {
-  font-size: 12px;
-  color: var(--lx-text-muted);
-  margin-top: 4px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.action-btn.active {
-  background: var(--lx-bg-active);
 }
 </style>
