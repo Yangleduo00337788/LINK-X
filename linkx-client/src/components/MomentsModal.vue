@@ -1081,29 +1081,46 @@ function triggerAtInComment() {
   margin-bottom: 10px;
   border-radius: 10px;
   overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
+/* 单图：容器随图片收缩，限制最大宽高，避免竖图右侧留灰边 */
 .post-images.grid-1 {
-  grid-template-columns: 1fr;
+  display: block;
+  width: fit-content;
+  max-width: min(100%, 280px);
 }
 .post-images.grid-1 .post-image-btn {
-  max-height: 320px;
+  width: auto;
+  max-width: 100%;
+  max-height: 360px;
+  background: transparent;
+}
+.post-images.grid-1 .post-image {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 360px;
+  object-fit: contain;
+  vertical-align: top;
 }
 .post-images.grid-2 {
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .post-images.grid-2 .post-image-btn {
   aspect-ratio: 1;
 }
 .post-images.grid-4 {
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-rows: repeat(2, 1fr);
 }
 .post-images.grid-4 .post-image-btn {
   aspect-ratio: 1;
 }
 .post-images.grid-more {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 .post-images.grid-more .post-image-btn {
   aspect-ratio: 1;
@@ -1119,6 +1136,8 @@ function triggerAtInComment() {
   overflow: hidden;
   line-height: 0;
   display: block;
+  width: 100%;
+  min-width: 0;
 }
 
 .post-image-btn:hover .post-image {
@@ -1128,7 +1147,6 @@ function triggerAtInComment() {
 .post-image {
   width: 100%;
   height: 100%;
-  max-height: 200px;
   object-fit: cover;
   display: block;
   transition: transform 0.3s ease;
