@@ -24,7 +24,13 @@ import { useRoute } from 'vue-router'
 import { useAppStore } from '../stores/app'
 import { useMomentsStore } from '../stores/moments'
 import { useContactsStore } from '../stores/contacts'
-import { readFileAsDataUrl, dataUrlToFile, MAX_IMAGE_BYTES } from '../utils/file'
+import {
+  readFileAsDataUrl,
+  compressImage,
+  MAX_IMAGE_BYTES,
+  MAX_PUBLISH_IMAGE_BYTES,
+  MAX_PUBLISH_VIDEO_BYTES
+} from '../utils/file'
 import AtMentionPicker from './common/AtMentionPicker.vue'
 
 const route = useRoute()
@@ -47,8 +53,16 @@ const text = ref('')
 const mentions = ref<Record<number, string>>({})
 
 // 媒体列表(仅在媒体模式下使用)
-const images = ref<string[]>([])
-const videos = ref<{ url: string; file?: File }[]>([])
+// images 改为持有原始 File,仅在选择时为缩略图缓存一次 dataURL 预览
+interface PublishImage {
+  file: File
+  preview: string
+}
+const images = ref<PublishImage[]>([])
+const videos = ref<{ url: string; file: File }[]>([])
+
+// 上传进度(0~100),发布按钮显示 + 顶部进度条
+const uploadProgress = ref(0)
 
 // refs
 const textArea = ref<HTMLTextAreaElement | null>(null)
@@ -198,12 +212,12 @@ async function onPickMedia(e: Event) {
         message.warning('目前仅支持添加 1 个视频')
         continue
       }
-      if (file.size > 50 * 1024 * 1024) {
+      if (file.size > MAX_PUBLISH_VIDEO_BYTES) {
         message.warning(`「${file.name}」超过 50MB,已跳过`)
         continue
       }
       try {
-        videos.value.push({ url: await readFileAsDataUrl(file), file })
+        videos.value.push({ url: URL.createObjectURL(file), file })
       } catch {
         message.error(`「${file.name}」读取失败`)
       }
@@ -212,12 +226,14 @@ async function onPickMedia(e: Event) {
         message.warning('最多添加 9 张图片')
         break
       }
-      if (file.size > MAX_IMAGE_BYTES) {
-        message.warning(`「${file.name}」超过 2MB,已跳过`)
+      if (file.size > MAX_PUBLISH_IMAGE_BYTES) {
+        message.warning(`「${file.name}」超过 10MB,已跳过`)
         continue
       }
       try {
-        images.value.push(await readFileAsDataUrl(file))
+        // 生成预览缩略图(仅用于展示,上传时仍用原始 File)
+        const preview = await readFileAsDataUrl(file)
+        images.value.push({ file, preview })
       } catch {
         message.error(`「${file.name}」读取失败`)
       }
@@ -250,24 +266,35 @@ async function publish() {
   }
 
   publishing.value = true
+  uploadProgress.value = 0
   try {
     let uploaded: string[] = []
     if (images.value.length) {
       message.info('正在上传图片...')
-      for (const dataUrl of images.value) {
-        const ext = dataUrl.match(/data:image\/(\w+)/)?.[1] || 'jpeg'
-        const safeExt = ext === 'jpg' ? 'jpeg' : ext
-        const fileName = `moments_${Date.now()}.${safeExt === 'jpeg' ? 'jpg' : safeExt}`
-        const file = dataUrlToFile(dataUrl, fileName)
-        const normalized = new File([file], fileName, { type: `image/${safeExt}` })
-        const { uploadMomentsImage } = await import('../api/moments')
-        const res = await uploadMomentsImage(normalized)
+      const { uploadMomentsImage } = await import('../api/moments')
+      for (let i = 0; i < images.value.length; i++) {
+        const item = images.value[i]
+        // > 2MB 时压缩;≤ 2MB 直接上传原始 File,避免画质损失
+        const shouldCompress = item.file.size > MAX_IMAGE_BYTES && /image\/(jpeg|webp)/i.test(item.file.type)
+        let fileToUpload: File | Blob = item.file
+        let displayName = item.file.name
+        if (shouldCompress) {
+          const compressed = await compressImage(item.file, MAX_IMAGE_BYTES)
+          fileToUpload = compressed
+          displayName = item.file.name.replace(/\.[^.]+$/, '') + '.jpg'
+        }
+        const finalFile = fileToUpload instanceof File
+          ? fileToUpload
+          : new File([fileToUpload], displayName, { type: 'image/jpeg' })
+        const res = await uploadMomentsImage(finalFile)
         if (res.code !== 200 || !res.data) {
           throw new Error(res.message || '图片上传失败')
         }
         uploaded.push(res.data)
+        uploadProgress.value = Math.round(((i + 1) / images.value.length) * 100)
       }
     }
+    uploadProgress.value = 100
     const finalContent = trimmed || (mode.value === 'media' ? '分享图片' : '')
     const ok = await momentsStore.addPost(finalContent, uploaded)
     if (ok) {
@@ -283,6 +310,7 @@ async function publish() {
     message.error(e instanceof Error ? e.message : '发布失败')
   } finally {
     publishing.value = false
+    setTimeout(() => { uploadProgress.value = 0 }, 800)
   }
 }
 </script>
@@ -316,6 +344,12 @@ async function publish() {
         {{ publishing ? '发表中...' : '发表' }}
       </button>
     </header>
+
+    <!-- 上传进度条(发布中显示) -->
+    <div v-if="publishing && uploadProgress > 0 && uploadProgress < 100" class="upload-progress">
+      <div class="upload-progress-bar" :style="{ width: uploadProgress + '%' }"></div>
+      <span class="upload-progress-text">上传中 {{ uploadProgress }}%</span>
+    </div>
 
     <!-- ============= 主内容 ============= -->
     <main class="page-content">
@@ -377,7 +411,7 @@ async function publish() {
             :key="'i' + i"
             class="media-cell"
           >
-            <img :src="img" alt="" />
+            <img :src="img.preview" alt="" />
             <button type="button" class="cell-remove" @click="removeImage(i)">
               <n-icon :component="TrashOutline" :size="10" />
             </button>
@@ -681,6 +715,31 @@ async function publish() {
 }
 
 /* ========== 选项列表(微信风) ========== */
+
+.upload-progress {
+  position: relative;
+  height: 4px;
+  background: var(--lx-bg-input);
+  overflow: hidden;
+}
+.upload-progress-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: linear-gradient(90deg, var(--lx-accent), var(--lx-accent));
+  transition: width 0.3s ease;
+}
+.upload-progress-text {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-size: 11px;
+  color: var(--lx-text-muted);
+  background: var(--lx-bg-card);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
 .options-list {
   list-style: none;
   margin: 0;

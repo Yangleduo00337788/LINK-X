@@ -46,3 +46,93 @@ export function dataUrlToFile(dataUrl: string, fileName: string): File {
 
 /** 本地图片消息大小上限（2MB），超过则不应写入 localStorage */
 export const MAX_IMAGE_BYTES = 2 * 1024 * 1024
+
+/**
+ * 朋友圈/笔记发布上传的图片硬上限：与后端 spring.servlet.multipart.max-file-size 对齐。
+ * 超过该值的图片在选择阶段直接拒绝。
+ */
+export const MAX_PUBLISH_IMAGE_BYTES = 10 * 1024 * 1024
+
+/**
+ * 朋友圈/笔记发布上传的视频硬上限。
+ */
+export const MAX_PUBLISH_VIDEO_BYTES = 50 * 1024 * 1024
+
+/**
+ * 压缩目标：客户端压缩后低于该阈值即直接上传，避免无谓的二次压缩。
+ */
+const COMPRESS_TARGET_BYTES = 1.8 * 1024 * 1024
+
+/**
+ * 将图片压缩到指定字节上限以内。算法思路：
+ *   1. 先尝试只调低 JPEG/WebP quality（最快、画质最好）
+ *   2. 若仍超阈值，则按比例缩小最长边后再次压缩
+ *   3. 最长边 ≤ 1080px（朋友圈在移动端常见上限）
+ *
+ * 不支持的格式（image/heic 等）会原样返回，由上层抛错。
+ *
+ * @param file 原始图片 File 对象
+ * @param maxBytes 压缩目标上限字节
+ * @returns 压缩后的 Blob 文件名固定为原名 + .jpg
+ */
+export async function compressImage(file: File, maxBytes = COMPRESS_TARGET_BYTES): Promise<Blob> {
+  // PNG/GIF 等无损格式不参与压缩（避免破坏透明通道），由调用方判断
+  if (!/image\/(jpeg|webp)/i.test(file.type) || file.size <= maxBytes) {
+    return file
+  }
+
+  const dataUrl = await readFileAsDataUrl(file)
+  const img = await loadImage(dataUrl)
+
+  let { width, height } = img
+  const MAX_DIMENSION = 1080
+  let quality = 0.92
+
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return file
+
+  for (let attempt = 0; attempt < 6; attempt++) {
+    let w = width
+    let h = height
+    if (w > MAX_DIMENSION || h > MAX_DIMENSION) {
+      const scale = MAX_DIMENSION / Math.max(w, h)
+      w = Math.round(w * scale)
+      h = Math.round(h * scale)
+    }
+    canvas.width = w
+    canvas.height = h
+    ctx.fillStyle = '#fff'
+    ctx.fillRect(0, 0, w, h)
+    ctx.drawImage(img, 0, 0, w, h)
+    const blob = await canvasToBlob(canvas, 'image/jpeg', quality)
+    if (blob && blob.size <= maxBytes) {
+      return blob
+    }
+    // 缩小质量 / 尺寸,继续下一次
+    if (quality > 0.5) {
+      quality -= 0.12
+    } else {
+      width = Math.round(width * 0.85)
+      height = Math.round(height * 0.85)
+    }
+  }
+  // 6 次仍不达标,返回最后一次结果
+  const lastBlob = await canvasToBlob(canvas, 'image/jpeg', 0.5)
+  return lastBlob ?? file
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = () => reject(new Error('图片解码失败'))
+    img.src = src
+  })
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    canvas.toBlob((b) => resolve(b), type, quality)
+  })
+}
