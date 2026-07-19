@@ -1,18 +1,20 @@
 <script setup lang="ts">
 /**
- * 友链发布浮层(取代头像下方的发布区)
+ * 友链发布浮层
  * 支持两种模式:
- *   - text: 纯文字(可 @ 好友, 不允许图片/视频)
- *   - media: 图片或视频
+ *   - text: 纯文字发布(简洁居中布局)
+ *   - media: 图片或视频发布(网格布局)
  */
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { NIcon, useMessage } from 'naive-ui'
 import {
   CloseOutline,
   ImageOutline,
   VideocamOutline,
   SendOutline,
-  AtCircleOutline
+  AtCircleOutline,
+  PlayCircleOutline,
+  CheckmarkCircleOutline
 } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
@@ -49,10 +51,10 @@ watch(
 
 // 文案与媒体列表
 const text = ref('')
-const images = ref<string[]>([]) // DataURL 预览
-const videos = ref<string[]>([]) // DataURL 预览(仅展示本地 dataURL,用于预览)
+const images = ref<string[]>([])
+const videos = ref<{ url: string; file?: File }[]>([])
 
-// 选中的被 @ 好友 id->name 映射(后端冗余字段)
+// @ 提及
 const mentions = ref<Record<number, string>>({})
 
 // refs
@@ -60,11 +62,23 @@ const textArea = ref<HTMLTextAreaElement | null>(null)
 const imageInputRef = ref<HTMLInputElement | null>(null)
 const videoInputRef = ref<HTMLInputElement | null>(null)
 
-// @ 提示面板相关
+// @ 面板
 const showMentionPicker = ref(false)
 const mentionQuery = ref('')
 const mentionStartIndex = ref(0)
 const mentionPickerRef = ref<InstanceType<typeof AtMentionPicker> | null>(null)
+
+// 拖拽排序
+const dragIndex = ref<number | null>(null)
+const dragOverIndex = ref<number | null>(null)
+
+// 发布成功
+const showSuccess = ref(false)
+
+// 字数统计
+const charCount = computed(() => text.value.length)
+const remainingChars = computed(() => 2000 - charCount.value)
+const isOverLimit = computed(() => charCount.value > 2000)
 
 const friends = computed(() =>
   contactsStore.friends.filter(f =>
@@ -72,13 +86,11 @@ const friends = computed(() =>
   )
 )
 
-// 当前登录用户头像
 const myAvatar = computed(() => userProfile.value.avatar || undefined)
 
 /** 关闭 */
 function close() {
   emit('update:visible', false)
-  // 重置
   setTimeout(() => {
     text.value = ''
     images.value = []
@@ -86,10 +98,11 @@ function close() {
     mentions.value = {}
     mentionQuery.value = ''
     showMentionPicker.value = false
+    showSuccess.value = false
   }, 200)
 }
 
-/** 解析 @ 触发表情 */
+/** @ 检测 */
 function detectMentionTrigger() {
   const ta = textArea.value
   if (!ta) return
@@ -99,7 +112,6 @@ function detectMentionTrigger() {
     showMentionPicker.value = false
     return
   }
-  // 从光标往前找最近的 @
   let i = cursor - 1
   while (i >= 0) {
     const ch = value[i]
@@ -114,15 +126,12 @@ function detectMentionTrigger() {
       }
       return
     }
-    if (ch === ' ' || ch === '\n' || ch === '\t') {
-      break
-    }
+    if (ch === ' ' || ch === '\n' || ch === '\t') break
     i--
   }
   showMentionPicker.value = false
 }
 
-/** text 区输入监听 */
 function onTextInput() {
   detectMentionTrigger()
 }
@@ -147,7 +156,6 @@ function onTextKeyDown(e: KeyboardEvent) {
   }
 }
 
-/** 应用 @ 选择 */
 function applyMention(id: number, name: string) {
   const ta = textArea.value
   if (!ta) return
@@ -191,6 +199,28 @@ function removeImage(idx: number) {
   images.value.splice(idx, 1)
 }
 
+// 拖拽排序
+function onImageDragStart(idx: number) {
+  dragIndex.value = idx
+}
+function onImageDragOver(e: DragEvent, idx: number) {
+  e.preventDefault()
+  dragOverIndex.value = idx
+}
+function onImageDrop(idx: number) {
+  if (dragIndex.value === null || dragIndex.value === idx) return
+  const items = [...images.value]
+  const [removed] = items.splice(dragIndex.value, 1)
+  items.splice(idx, 0, removed)
+  images.value = items
+  dragIndex.value = null
+  dragOverIndex.value = null
+}
+function onDragEnd() {
+  dragIndex.value = null
+  dragOverIndex.value = null
+}
+
 async function onPickVideos(e: Event) {
   const input = e.target as HTMLInputElement
   const files = Array.from(input.files ?? [])
@@ -205,7 +235,7 @@ async function onPickVideos(e: Event) {
       continue
     }
     try {
-      videos.value.push(await readFileAsDataUrl(file))
+      videos.value.push({ url: await readFileAsDataUrl(file), file })
     } catch {
       message.error(`「${file.name}」读取失败`)
     }
@@ -216,12 +246,10 @@ function removeVideo(idx: number) {
   videos.value.splice(idx, 1)
 }
 
-/** 切换为文字模式时清空图片视频;切换为媒体模式时清空文案的 mentions 含义 */
 function switchMode(m: Mode) {
   mode.value = m
 }
 
-/** 发布按钮 */
 const publishing = ref(false)
 
 async function publish() {
@@ -233,12 +261,9 @@ async function publish() {
     }
     publishing.value = true
     try {
-      // 将 @nickname 占位文本嵌入正文;后端会再次解析 mentions
       const ok = await momentsStore.addPost(trimmed)
       if (ok) {
-        message.success('发布成功')
-        emit('published')
-        close()
+        showSuccessAnimation()
       } else {
         message.error('发布失败,请重试')
       }
@@ -273,13 +298,10 @@ async function publish() {
         uploaded.push(res.data)
       }
     }
-    // 视频(暂未上传到 MinIO,前端仅展示本地 DataURL 作为占位;后端支持图片即可)
     const finalContent = (text.value.trim() || '分享图片') + (videos.value.length ? ` [视频 1 个]` : '')
     const ok = await momentsStore.addPost(finalContent, uploaded)
     if (ok) {
-      message.success('发布成功')
-      emit('published')
-      close()
+      showSuccessAnimation()
     } else {
       message.error('发布失败,请重试')
     }
@@ -290,12 +312,16 @@ async function publish() {
   }
 }
 
-/** 关闭弹窗时清理 mentions */
-onBeforeUnmount(() => {
-  // noop
-})
+function showSuccessAnimation() {
+  showSuccess.value = true
+  message.success('发布成功')
+  emit('published')
+  setTimeout(() => {
+    close()
+  }, 1200)
+}
 
-// 弹窗打开时确保加载好友列表
+// 加载好友列表
 watch(
   () => props.visible,
   v => {
@@ -306,155 +332,220 @@ watch(
   { immediate: true }
 )
 
-// 选择图片/视频后保持当前模式
+// 自动切换模式
 watch(images, () => { if (images.value.length && mode.value === 'text') mode.value = 'media' })
 watch(videos, () => { if (videos.value.length && mode.value === 'text') mode.value = 'media' })
 
-/** 通过代码在光标处触发 @ 面板 */
-function triggerMentionFromButton() {
-  const ta = textArea.value
-  if (!ta) return
-  ta.focus()
-  const cursor = ta.selectionStart ?? text.value.length
-  const before = text.value.slice(0, cursor)
-  const after = text.value.slice(cursor)
-  const prefix = before.length && !before.endsWith(' ') && !before.endsWith('\n') ? ' ' : ''
-  text.value = before + prefix + '@' + after
-  nextTick(() => {
-    const newPos = (before + prefix + '@').length
-    ta.setSelectionRange(newPos, newPos)
-    detectMentionTrigger()
-  })
-}
+// 图片网格布局
+const imageGridClass = computed(() => {
+  const count = images.value.length
+  if (count === 1) return 'grid-1'
+  if (count === 2) return 'grid-2'
+  if (count === 4) return 'grid-4'
+  return 'grid-more'
+})
+
+// 媒体区域显示状态
+const showMediaArea = computed(() => mode.value === 'media' && (images.value.length > 0 || videos.value.length > 0))
+const showMediaEmpty = computed(() => mode.value === 'media' && images.value.length === 0 && videos.value.length === 0)
 </script>
 
 <template>
+  <!-- 发布成功动画 -->
+  <transition name="success-fade">
+    <div v-if="showSuccess" class="success-overlay">
+      <div class="success-content">
+        <n-icon :component="CheckmarkCircleOutline" :size="64" class="success-icon" />
+        <span class="success-text">发布成功</span>
+      </div>
+    </div>
+  </transition>
+
   <transition name="composer-fade">
     <div v-if="visible" class="moments-composer-mask" @click.self="close">
-      <div class="moments-composer" role="dialog" aria-modal="true">
+      
+      <!-- ========== 文字发布模式 ========== -->
+      <div v-if="mode === 'text'" class="composer-text-mode" role="dialog">
         <header class="composer-header">
-          <div class="title">
-            <n-icon :component="mode === 'text' ? AtCircleOutline : ImageOutline" :size="18" />
-            <span>{{ mode === 'text' ? '发布文字' : '发布图片/视频' }}</span>
+          <div class="header-title">
+            <n-icon :component="AtCircleOutline" :size="18" />
+            <span>发布文字</span>
           </div>
-          <button type="button" class="close-btn" title="关闭" @click="close">
+          <button type="button" class="close-btn" @click="close">
             <n-icon :component="CloseOutline" :size="18" />
           </button>
         </header>
 
-        <!-- 模式切换 -->
-        <div class="mode-switch">
-          <button
-            type="button"
-            class="mode-btn"
-            :class="{ active: mode === 'text' }"
-            @click="switchMode('text')"
-          >
-            <n-icon :component="AtCircleOutline" :size="16" />
-            <span>文字</span>
-          </button>
-          <button
-            type="button"
-            class="mode-btn"
-            :class="{ active: mode === 'media' }"
-            @click="switchMode('media')"
-          >
-            <n-icon :component="ImageOutline" :size="16" />
-            <span>图片/视频</span>
-          </button>
-        </div>
-
-        <div class="composer-body">
-          <!-- 用户头像 -->
-          <div class="me">
-            <img v-if="myAvatar" :src="myAvatar" alt="" class="me-avatar" />
-            <div v-else class="me-avatar me-avatar-placeholder">
-              {{ (userProfile.nickname || '我').charAt(0) }}
+        <div class="text-body">
+          <div class="user-card">
+            <div class="avatar-wrap">
+              <img v-if="myAvatar" :src="myAvatar" alt="" class="user-avatar" />
+              <div v-else class="user-avatar user-avatar-placeholder">
+                {{ (userProfile.nickname || '我').charAt(0) }}
+              </div>
             </div>
-            <div class="me-name">{{ userProfile.nickname || '我' }}</div>
+            <div class="user-info">
+              <span class="user-name">{{ userProfile.nickname || '我' }}</span>
+            </div>
           </div>
 
-          <!-- 编辑器 -->
-          <div class="editor-wrap">
+          <div class="text-editor-wrap">
             <textarea
               ref="textArea"
               v-model="text"
-              class="editor-textarea"
-              :placeholder="
-                mode === 'text'
-                  ? '分享新鲜事… 使用 @ 提及你的好友'
-                  : '为图片/视频添加描述(可选)'
-              "
+              class="text-editor"
+              :class="{ 'over-limit': isOverLimit }"
+              placeholder="分享新鲜事... 使用 @ 提及你的好友"
               maxlength="2000"
               @input="onTextInput"
               @keydown="onTextKeyDown"
               @blur="showMentionPicker = false"
             />
+            <div class="char-counter" :class="{ warning: remainingChars < 100, danger: isOverLimit }">
+              <span>{{ charCount }}</span>
+              <span class="sep">/</span>
+              <span>2000</span>
+            </div>
+          </div>
 
-            <!-- 媒体预览 -->
-            <div v-if="mode === 'media'" class="media-previews">
-              <div v-for="(img, i) in images" :key="'i' + i" class="thumb">
-                <img :src="img" alt="" />
-                <button type="button" class="thumb-remove" @click="removeImage(i)" title="移除">
-                  <n-icon :component="CloseOutline" :size="12" />
-                </button>
+          <AtMentionPicker
+            v-if="showMentionPicker"
+            ref="mentionPickerRef"
+            :friends="friends"
+            :text="text"
+            :caret-index="(textArea?.selectionStart ?? 0)"
+            @apply="(p) => applyMention(p.id, p.name)"
+            @close="showMentionPicker = false"
+          />
+        </div>
+
+        <footer class="composer-footer">
+          <span class="footer-tip">提示:输入 <b>@</b> 选择好友</span>
+          <button
+            type="button"
+            class="submit-btn"
+            :disabled="publishing || isOverLimit || !text.trim()"
+            @click="publish"
+          >
+            <n-icon v-if="!publishing" :component="SendOutline" :size="16" />
+            <span>{{ publishing ? '发布中...' : '发布' }}</span>
+          </button>
+        </footer>
+      </div>
+
+      <!-- ========== 图片/视频发布模式 ========== -->
+      <div v-else class="composer-media-mode" role="dialog">
+        <header class="composer-header">
+          <div class="header-title">
+            <n-icon :component="ImageOutline" :size="18" />
+            <span>发布图片/视频</span>
+          </div>
+          <div class="header-actions">
+            <button type="button" class="mode-switch-btn" @click="switchMode('text')">
+              切换文字
+            </button>
+            <button type="button" class="close-btn" @click="close">
+              <n-icon :component="CloseOutline" :size="18" />
+            </button>
+          </div>
+        </header>
+
+        <div class="media-body">
+          <!-- 用户信息 -->
+          <div class="user-card">
+            <div class="avatar-wrap">
+              <img v-if="myAvatar" :src="myAvatar" alt="" class="user-avatar" />
+              <div v-else class="user-avatar user-avatar-placeholder">
+                {{ (userProfile.nickname || '我').charAt(0) }}
               </div>
-              <div v-for="(vid, j) in videos" :key="'v' + j" class="thumb thumb-video">
-                <video :src="vid" muted></video>
-                <button type="button" class="thumb-remove" @click="removeVideo(j)" title="移除">
-                  <n-icon :component="CloseOutline" :size="12" />
+            </div>
+            <span class="user-name">{{ userProfile.nickname || '我' }}</span>
+          </div>
+
+          <!-- 文字描述 -->
+          <div class="text-editor-wrap">
+            <textarea
+              ref="textArea"
+              v-model="text"
+              class="text-editor small"
+              placeholder="为图片添加描述..."
+              maxlength="2000"
+            />
+          </div>
+
+          <!-- 媒体预览区 -->
+          <div class="media-preview-area">
+            <!-- 视频预览 -->
+            <div v-for="(vid, j) in videos" :key="'v' + j" class="video-preview">
+              <video :src="vid.url" muted></video>
+              <div class="video-overlay">
+                <n-icon :component="PlayCircleOutline" :size="40" class="play-icon" />
+              </div>
+              <div class="video-badge">
+                <n-icon :component="VideocamOutline" :size="12" />
+                <span>视频</span>
+              </div>
+              <button type="button" class="remove-btn" @click="removeVideo(j)">
+                <n-icon :component="CloseOutline" :size="12" />
+              </button>
+            </div>
+
+            <!-- 图片网格 -->
+            <div v-if="images.length" class="image-grid" :class="imageGridClass">
+              <div
+                v-for="(img, i) in images"
+                :key="'i' + i"
+                class="image-item"
+                :class="{ dragging: dragIndex === i, 'drag-over': dragOverIndex === i }"
+                draggable="true"
+                @dragstart="onImageDragStart(i)"
+                @dragover="(e) => onImageDragOver(e, i)"
+                @drop="onImageDrop(i)"
+                @dragend="onDragEnd"
+              >
+                <img :src="img" alt="" />
+                <button type="button" class="remove-btn" @click.stop="removeImage(i)">
+                  <n-icon :component="CloseOutline" :size="10" />
                 </button>
+                <div class="drag-hint">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                    <circle cx="5" cy="5" r="2"/><circle cx="12" cy="5" r="2"/><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="12" cy="19" r="2"/>
+                  </svg>
+                </div>
               </div>
             </div>
 
-            <!-- @ 面板 -->
-            <AtMentionPicker
-              v-if="showMentionPicker"
-              ref="mentionPickerRef"
-              :friends="friends"
-              :text="text"
-              :caret-index="(textArea?.selectionStart ?? 0)"
-              @apply="(p) => applyMention(p.id, p.name)"
-              @close="showMentionPicker = false"
-            />
+            <!-- 空状态 -->
+            <div v-if="showMediaEmpty" class="media-empty">
+              <div class="empty-icon">
+                <n-icon :component="ImageOutline" :size="36" />
+              </div>
+              <p>点击下方按钮添加图片或视频</p>
+            </div>
           </div>
         </div>
 
         <footer class="composer-footer">
-          <!-- 文案模式下可触发 @ -->
-          <div class="footer-actions">
-            <template v-if="mode === 'text'">
-              <button
-                type="button"
-                class="tool-btn"
-                title="提及好友"
-                @click="triggerMentionFromButton"
-              >
-                <n-icon :component="AtCircleOutline" :size="18" />
-                <span>@好友</span>
-              </button>
-            </template>
-            <template v-else>
-              <button type="button" class="tool-btn" title="添加图片" @click="imageInputRef?.click()">
-                <n-icon :component="ImageOutline" :size="18" />
-                <span>图片</span>
-              </button>
-              <button type="button" class="tool-btn" title="添加视频" @click="videoInputRef?.click()">
-                <n-icon :component="VideocamOutline" :size="18" />
-                <span>视频</span>
-              </button>
-              <input ref="imageInputRef" type="file" accept="image/*" multiple hidden @change="onPickImages" />
-              <input ref="videoInputRef" type="file" accept="video/*" hidden @change="onPickVideos" />
-            </template>
+          <div class="tool-buttons">
+            <button type="button" class="tool-btn" @click="imageInputRef?.click()">
+              <n-icon :component="ImageOutline" :size="18" />
+              <span>图片</span>
+            </button>
+            <button type="button" class="tool-btn" @click="videoInputRef?.click()">
+              <n-icon :component="VideocamOutline" :size="18" />
+              <span>视频</span>
+            </button>
+            <input ref="imageInputRef" type="file" accept="image/*" multiple hidden @change="onPickImages" />
+            <input ref="videoInputRef" type="file" accept="video/*" hidden @change="onPickVideos" />
           </div>
           <button
             type="button"
             class="submit-btn"
-            :disabled="publishing"
+            :disabled="publishing || !images.length && !videos.length"
             @click="publish"
           >
-            <n-icon :component="SendOutline" :size="16" />
-            <span>{{ publishing ? '发布中…' : '发布' }}</span>
+            <n-icon v-if="!publishing" :component="SendOutline" :size="16" />
+            <span>{{ publishing ? '发布中...' : '发布' }}</span>
           </button>
         </footer>
       </div>
@@ -463,19 +554,71 @@ function triggerMentionFromButton() {
 </template>
 
 <style scoped>
+/* ========== 基础动画 ========== */
 .composer-fade-enter-active,
 .composer-fade-leave-active {
-  transition: opacity 0.18s ease;
+  transition: opacity 0.25s ease, transform 0.25s ease;
 }
 .composer-fade-enter-from,
 .composer-fade-leave-to {
   opacity: 0;
+  transform: scale(0.95);
 }
 
+.success-fade-enter-active,
+.success-fade-leave-active {
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+.success-fade-enter-from,
+.success-fade-leave-to {
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+/* ========== 成功遮罩 ========== */
+.success-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+  border-radius: 20px;
+}
+
+.success-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.success-icon {
+  color: var(--lx-accent, #18a058);
+  animation: bounce 0.6s ease;
+}
+
+.success-text {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--lx-text-body);
+}
+
+@keyframes bounce {
+  0% { transform: scale(0); }
+  50% { transform: scale(1.2); }
+  70% { transform: scale(0.9); }
+  100% { transform: scale(1); }
+}
+
+/* ========== 遮罩层 ========== */
 .moments-composer-mask {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
   z-index: 400;
   display: flex;
   align-items: center;
@@ -483,237 +626,426 @@ function triggerMentionFromButton() {
   -webkit-app-region: no-drag;
 }
 
-.moments-composer {
-  width: 520px;
-  max-width: 92vw;
-  max-height: 86vh;
-  background: var(--lx-bg-card);
-  border-radius: 12px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
+/* ========== 通用头部 ========== */
 .composer-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: 14px 16px;
   border-bottom: 1px solid var(--lx-border-light);
 }
 
-.title {
-  display: inline-flex;
+.header-title {
+  display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   font-size: 15px;
   font-weight: 600;
   color: var(--lx-text-body);
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .close-btn {
+  width: 32px;
+  height: 32px;
   border: none;
   background: transparent;
   color: var(--lx-text-muted);
+  border-radius: 8px;
   cursor: pointer;
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
+  transition: all 0.2s;
 }
 .close-btn:hover {
   background: var(--lx-bg-hover);
   color: var(--lx-text);
 }
 
-.mode-switch {
-  display: flex;
-  gap: 4px;
-  padding: 8px 16px 0;
-}
-.mode-btn {
-  flex: 1;
-  border: none;
-  background: transparent;
+.mode-switch-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--lx-border-light);
+  background: var(--lx-bg-card);
   color: var(--lx-text-muted);
-  font-size: 13px;
-  padding: 6px 8px;
-  border-radius: 8px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
+  border-radius: 6px;
+  font-size: 12px;
   cursor: pointer;
   transition: all 0.2s;
 }
-.mode-btn:hover {
-  background: var(--lx-bg-hover);
-  color: var(--lx-text-body);
-}
-.mode-btn.active {
-  background: var(--lx-accent-soft);
+.mode-switch-btn:hover {
+  border-color: var(--lx-accent);
   color: var(--lx-accent);
 }
 
-.composer-body {
-  display: flex;
-  gap: 12px;
-  padding: 14px 16px;
-  flex: 1;
-  min-height: 0;
-}
-
-.me {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  width: 64px;
-}
-
-.me-avatar {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  object-fit: cover;
-  background: var(--lx-bg-panel);
-}
-.me-avatar-placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--lx-accent);
-  color: #fff;
-  font-weight: 600;
-  font-size: 18px;
-}
-.me-name {
-  font-size: 11px;
-  color: var(--lx-text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 64px;
-}
-
-.editor-wrap {
-  position: relative;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.editor-textarea {
-  width: 100%;
-  min-height: 120px;
-  max-height: 280px;
-  border: 1px solid var(--lx-border-light);
-  border-radius: 8px;
-  padding: 10px 12px;
-  font-size: 14px;
-  font-family: inherit;
-  resize: vertical;
-  background: var(--lx-bg-input);
-  color: var(--lx-text);
-}
-.editor-textarea:focus {
-  outline: none;
-  border-color: var(--lx-accent);
-  background: var(--lx-bg-card);
-}
-
-.media-previews {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.thumb {
-  position: relative;
-  width: 80px;
-  height: 80px;
-  border-radius: 8px;
-  overflow: hidden;
-  background: var(--lx-bg-input);
-}
-.thumb img,
-.thumb video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.thumb-video video {
-  background: #000;
-}
-.thumb-remove {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: none;
-  background: var(--lx-danger);
-  color: #fff;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
+/* ========== 通用底部 ========== */
 .composer-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px 14px;
+  padding: 12px 16px;
   border-top: 1px solid var(--lx-border-light);
-}
-
-.footer-actions {
-  display: flex;
-  gap: 4px;
+  background: var(--lx-bg-card);
 }
 
 .tool-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 10px;
-  border: none;
-  background: transparent;
-  border-radius: 6px;
+  gap: 5px;
+  padding: 7px 12px;
+  border: 1px solid var(--lx-border-light);
+  background: var(--lx-bg-card);
+  border-radius: 8px;
   font-size: 13px;
   color: var(--lx-text-muted);
   cursor: pointer;
+  transition: all 0.2s;
 }
 .tool-btn:hover {
-  background: var(--lx-bg-hover);
-  color: var(--lx-text-body);
+  border-color: var(--lx-accent);
+  color: var(--lx-accent);
+  background: var(--lx-accent-soft);
 }
 
 .submit-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 18px;
+  padding: 8px 20px;
   border: none;
-  background: var(--lx-accent);
-  color: var(--lx-text-on-accent, #fff);
-  border-radius: 18px;
-  font-size: 13px;
+  background: linear-gradient(135deg, var(--lx-accent) 0%, #4caf50 100%);
+  color: #fff;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(24, 160, 88, 0.3);
 }
 .submit-btn:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
+  box-shadow: none;
 }
 .submit-btn:hover:not(:disabled) {
-  filter: brightness(1.06);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(24, 160, 88, 0.4);
+}
+
+/* ========== 用户信息 ========== */
+.user-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.avatar-wrap {
+  flex-shrink: 0;
+}
+
+.user-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--lx-bg-panel);
+  border: 2px solid var(--lx-bg-card);
+}
+
+.user-avatar-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--lx-accent) 0%, #4caf50 100%);
+  color: #fff;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.user-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--lx-text-body);
+}
+
+/* ========== 文字编辑器 ========== */
+.text-editor-wrap {
+  position: relative;
+}
+
+.text-editor {
+  width: 100%;
+  min-height: 120px;
+  border: 1px solid var(--lx-border-light);
+  border-radius: 12px;
+  padding: 12px 14px;
+  padding-bottom: 28px;
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 1.6;
+  resize: none;
+  background: var(--lx-bg-input);
+  color: var(--lx-text);
+  transition: all 0.2s;
+  box-sizing: border-box;
+}
+.text-editor.small {
+  min-height: 60px;
+  margin-bottom: 12px;
+}
+.text-editor:focus {
+  outline: none;
+  border-color: var(--lx-accent);
+  background: var(--lx-bg-card);
+  box-shadow: 0 0 0 3px var(--lx-accent-soft);
+}
+.text-editor.over-limit {
+  border-color: var(--lx-danger, #e05454);
+  background: rgba(224, 84, 84, 0.05);
+}
+
+.char-counter {
+  position: absolute;
+  bottom: 8px;
+  right: 12px;
+  font-size: 11px;
+  color: var(--lx-text-muted);
+  display: flex;
+  gap: 2px;
+  pointer-events: none;
+}
+.char-counter.warning { color: #ff9800; }
+.char-counter.danger { color: var(--lx-danger, #e05454); font-weight: 600; }
+.sep { opacity: 0.5; }
+
+/* ========== 文字发布模式 ========== */
+.composer-text-mode {
+  width: 480px;
+  max-width: 94vw;
+  background: var(--lx-bg-card);
+  border-radius: 20px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+.text-body {
+  padding: 16px;
+}
+
+/* ========== 图片/视频发布模式 ========== */
+.composer-media-mode {
+  width: 540px;
+  max-width: 94vw;
+  max-height: 88vh;
+  background: var(--lx-bg-card);
+  border-radius: 20px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.media-body {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.media-preview-area {
+  margin-top: 12px;
+}
+
+/* 视频预览 */
+.video-preview {
+  position: relative;
+  width: 100%;
+  max-height: 300px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000;
+  margin-bottom: 12px;
+}
+.video-preview video {
+  width: 100%;
+  max-height: 300px;
+  object-fit: contain;
+  display: block;
+}
+.video-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.25);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.video-preview:hover .video-overlay {
+  opacity: 1;
+}
+.play-icon {
+  color: #fff;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+}
+.video-badge {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 删除按钮 */
+.remove-btn {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(135deg, #e05454 0%, #c62828 100%);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: scale(0.8);
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(224, 84, 84, 0.4);
+}
+.video-preview:hover .remove-btn,
+.image-item:hover .remove-btn {
+  opacity: 1;
+  transform: scale(1);
+}
+.remove-btn:hover {
+  transform: scale(1.1);
+}
+
+/* 图片网格 */
+.image-grid {
+  display: grid;
+  gap: 6px;
+}
+.image-grid.grid-1 { grid-template-columns: 1fr; }
+.image-grid.grid-2 { grid-template-columns: repeat(2, 1fr); }
+.image-grid.grid-4 { grid-template-columns: repeat(2, 1fr); }
+.image-grid.grid-more { grid-template-columns: repeat(3, 1fr); }
+
+.grid-1 .image-item {
+  max-height: 320px;
+}
+.grid-1 .image-item img {
+  width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+}
+
+.image-item {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--lx-bg-input);
+  cursor: grab;
+  aspect-ratio: 1;
+}
+.image-item:active {
+  cursor: grabbing;
+}
+.image-item.dragging {
+  opacity: 0.5;
+  transform: scale(0.95);
+}
+.image-item.drag-over {
+  box-shadow: 0 0 0 2px var(--lx-accent);
+  transform: scale(1.02);
+}
+.image-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+.image-item:hover img {
+  transform: scale(1.05);
+}
+
+.drag-hint {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.image-item:hover .drag-hint {
+  opacity: 0.6;
+}
+
+/* 空状态 */
+.media-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: var(--lx-bg-input);
+  border-radius: 12px;
+  border: 2px dashed var(--lx-border-light);
+}
+.empty-icon {
+  color: var(--lx-text-muted);
+  opacity: 0.5;
+  margin-bottom: 8px;
+}
+.media-empty p {
+  font-size: 13px;
+  color: var(--lx-text-muted);
+  margin: 0;
+}
+
+.tool-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.footer-tip {
+  font-size: 12px;
+  color: var(--lx-text-muted);
+}
+.footer-tip b {
+  color: var(--lx-accent);
+  font-weight: 600;
+  padding: 1px 6px;
+  border: 1px solid var(--lx-accent-soft);
+  border-radius: 4px;
+  background: var(--lx-accent-soft);
 }
 </style>

@@ -19,6 +19,16 @@ const router = createRouter({
       component: () => import('../components/MomentsModal.vue')
     },
     {
+      path: '/moments/text',   // 友链-发布文字独立窗口(纯文字模式)
+      name: 'moments-text',
+      component: () => import('../components/MomentsPublishPage.vue')
+    },
+    {
+      path: '/moments/media',  // 友链-发布图片/视频独立窗口(媒体模式)
+      name: 'moments-media',
+      component: () => import('../components/MomentsPublishPage.vue')
+    },
+    {
       path: '/note-editor',    // 笔记编辑器独立窗口路由
       name: 'note-editor',
       component: () => import('../components/NoteEditor.vue')

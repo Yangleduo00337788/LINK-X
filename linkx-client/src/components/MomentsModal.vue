@@ -48,8 +48,6 @@ import { generateDefaultAvatar, generateDefaultBanner } from '../utils/defaultAv
 import EmptyState from './common/EmptyState.vue'
 // @ 面板
 import AtMentionPicker from './common/AtMentionPicker.vue'
-// 独立发布浮层
-import MomentsComposerModal from './MomentsComposerModal.vue'
 // 通知独立页
 import MomentsNotificationsPage from './MomentsNotificationsPage.vue'
 
@@ -253,20 +251,20 @@ const publishMenuOptions = [
   { label: '发布文字', key: 'text', icon: AtCircleOutline },
   { label: '发布图片/视频', key: 'media', icon: ImageOutline }
 ]
-async function handlePublishMenuSelect(key: string | number) {
+function handlePublishMenuSelect(key: string | number) {
   showPublishMenu.value = false
   if (key === 'text') {
-    composerMode.value = 'text'
-    composerVisible.value = true
+    // 打开文字发布独立窗口
+    if (window.electronAPI?.openMomentsText) {
+      window.electronAPI.openMomentsText()
+    }
   } else if (key === 'media') {
-    composerMode.value = 'media'
-    composerVisible.value = true
+    // 打开图片/视频发布独立窗口
+    if (window.electronAPI?.openMomentsMedia) {
+      window.electronAPI.openMomentsMedia()
+    }
   }
 }
-
-// 发布浮层控制
-const composerVisible = ref(false)
-const composerMode = ref<'text' | 'media'>('text')
 
 function onPublished() {
   void fetchMoments()
@@ -405,6 +403,14 @@ function closeMoments() {
   if (window.electronAPI) window.electronAPI.close()
   else closeMomentsModal()
 }
+
+/** 计算图片网格布局 */
+function getImageGridClass(count: number): string {
+  if (count === 1) return 'grid-1'
+  if (count === 2) return 'grid-2'
+  if (count === 4) return 'grid-4'
+  return 'grid-more'
+}
 </script>
 
 <template>
@@ -453,7 +459,7 @@ function closeMoments() {
           <div class="post-main">
             <div class="post-user">{{ post.user }}</div>
             <div class="post-text">{{ post.content }}</div>
-            <div v-if="post.images?.length" class="post-images">
+            <div v-if="post.images?.length" class="post-images" :class="getImageGridClass(post.images.length)">
               <button
                 v-for="(img, index) in post.images"
                 :key="index"
@@ -461,7 +467,10 @@ function closeMoments() {
                 class="post-image-btn"
                 @click="openImagePreview(post.images!, index)"
               >
-                <img :src="img" alt="" class="post-image" />
+                <img :src="img" alt="" class="post-image" loading="lazy" />
+                <div class="image-overlay">
+                  <span v-if="post.images.length > 1" class="image-index">{{ index + 1 }}</span>
+                </div>
               </button>
             </div>
             <div class="post-footer">
@@ -631,13 +640,6 @@ function closeMoments() {
       :visible="showNotifications"
       @close="showNotifications = false"
       @select="scrollToPost"
-    />
-
-    <!-- 发布弹层 -->
-    <MomentsComposerModal
-      v-model:visible="composerVisible"
-      :initial-mode="composerMode"
-      @published="onPublished"
     />
 
     <!-- 图片预览 -->
@@ -997,23 +999,40 @@ function triggerAtInComment() {
 
 .post-item {
   display: flex;
-  padding: 16px 0;
+  padding: 18px 0;
   border-bottom: 1px solid var(--lx-border-light);
+  animation: fadeInUp 0.3s ease;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .post-avatar {
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   border-radius: var(--lx-avatar-radius);
   object-fit: cover;
   flex-shrink: 0;
   margin-right: 12px;
   background: var(--lx-bg-panel);
+  transition: transform 0.2s ease;
+  cursor: pointer;
+}
+.post-avatar:hover {
+  transform: scale(1.08);
 }
 
 .post-avatar-placeholder {
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   border-radius: var(--lx-avatar-radius);
   flex-shrink: 0;
   margin-right: 12px;
@@ -1023,51 +1042,119 @@ function triggerAtInComment() {
   color: #fff;
   font-size: 18px;
   font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+.post-avatar-placeholder:hover {
+  transform: scale(1.08);
+}
+
+.post-main {
+  flex: 1;
+  min-width: 0;
 }
 
 .post-user {
   font-size: 15px;
   font-weight: 600;
   color: var(--lx-accent);
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.post-user:hover {
+  opacity: 0.8;
 }
 
 .post-text {
-  font-size: 15px;
+  font-size: 14px;
   color: var(--lx-text);
-  line-height: 1.5;
-  margin-bottom: 8px;
+  line-height: 1.6;
+  margin-bottom: 10px;
   word-break: break-all;
   white-space: pre-wrap;
 }
 
 .post-images {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: 6px;
   margin-bottom: 10px;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.post-images.grid-1 {
+  grid-template-columns: 1fr;
+}
+.post-images.grid-1 .post-image-btn {
+  max-height: 320px;
+}
+.post-images.grid-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+.post-images.grid-2 .post-image-btn {
+  aspect-ratio: 1;
+}
+.post-images.grid-4 {
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+}
+.post-images.grid-4 .post-image-btn {
+  aspect-ratio: 1;
+}
+.post-images.grid-more {
+  grid-template-columns: repeat(3, 1fr);
+}
+.post-images.grid-more .post-image-btn {
+  aspect-ratio: 1;
 }
 
 .post-image-btn {
+  position: relative;
   border: none;
   padding: 0;
   margin: 0;
   background: transparent;
   cursor: zoom-in;
-  border-radius: 6px;
   overflow: hidden;
   line-height: 0;
+  display: block;
 }
 
 .post-image-btn:hover .post-image {
-  opacity: 0.92;
+  transform: scale(1.05);
 }
 
 .post-image {
-  max-width: 180px;
-  max-height: 180px;
+  width: 100%;
+  height: 100%;
+  max-height: 200px;
   object-fit: cover;
   display: block;
+  transition: transform 0.3s ease;
+}
+
+.image-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, transparent 40%, rgba(0,0,0,0.3) 100%);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 6px;
+}
+.post-image-btn:hover .image-overlay {
+  opacity: 1;
+}
+
+.image-index {
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
 }
 
 .post-footer {
@@ -1094,16 +1181,16 @@ function triggerAtInComment() {
 .toolbar-btn {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   border: none;
   background: transparent;
   color: var(--lx-text-muted);
   font-size: 12px;
-  padding: 4px 8px;
-  border-radius: 14px;
+  padding: 5px 10px;
+  border-radius: 16px;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: all 0.2s ease;
 }
 
 .toolbar-btn:hover {
@@ -1113,7 +1200,7 @@ function triggerAtInComment() {
 
 .toolbar-btn.active {
   color: var(--lx-danger, #e05454);
-  background: rgba(224, 84, 84, 0.08);
+  background: rgba(224, 84, 84, 0.1);
 }
 
 .toolbar-btn.danger {
@@ -1121,16 +1208,16 @@ function triggerAtInComment() {
 }
 
 .toolbar-btn.danger:hover {
-  background: rgba(224, 84, 84, 0.12);
+  background: rgba(224, 84, 84, 0.1);
   color: var(--lx-danger, #e05454);
 }
 
 .toolbar-more {
-  width: 28px;
-  height: 22px;
+  width: 30px;
+  height: 24px;
   border: none;
   background: var(--lx-bg-panel);
-  border-radius: 11px;
+  border-radius: 12px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1138,6 +1225,7 @@ function triggerAtInComment() {
   cursor: pointer;
   flex-shrink: 0;
   padding: 0;
+  transition: all 0.2s ease;
 }
 
 .toolbar-more:hover,
@@ -1151,6 +1239,18 @@ function triggerAtInComment() {
   margin-bottom: 8px;
   align-items: center;
   position: relative;
+  animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .comment-input-wrap {
@@ -1161,30 +1261,36 @@ function triggerAtInComment() {
 .comment-input {
   width: 100%;
   border: 1px solid var(--lx-border-light);
-  border-radius: var(--lx-radius);
-  padding: 6px 30px 6px 10px;
+  border-radius: 20px;
+  padding: 8px 36px 8px 14px;
   font-size: 13px;
   background: var(--lx-bg-card);
   color: var(--lx-text);
+  transition: all 0.2s ease;
+}
+.comment-input:focus {
+  outline: none;
+  border-color: var(--lx-accent);
+  box-shadow: 0 0 0 2px var(--lx-accent-soft);
 }
 
 .comment-at-btn {
   position: absolute;
-  right: 6px;
+  right: 8px;
   top: 50%;
   transform: translateY(-50%);
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border: none;
   background: transparent;
-  border-radius: 4px;
+  border-radius: 50%;
   color: var(--lx-text-muted);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition: all 0.2s ease;
 }
-
 .comment-at-btn:hover {
   color: var(--lx-accent);
   background: var(--lx-bg-hover);
@@ -1192,13 +1298,20 @@ function triggerAtInComment() {
 
 .comment-send {
   border: none;
-  background: var(--lx-accent);
-  color: var(--lx-text-on-accent);
-  border-radius: var(--lx-radius);
-  padding: 0 12px;
-  height: 28px;
+  background: linear-gradient(135deg, var(--lx-accent) 0%, #4caf50 100%);
+  color: #fff;
+  border-radius: 16px;
+  padding: 0 16px;
+  height: 32px;
   font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(24, 160, 88, 0.25);
+}
+.comment-send:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(24, 160, 88, 0.35);
 }
 
 .post-interactions {

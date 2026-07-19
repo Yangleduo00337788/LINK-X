@@ -299,6 +299,100 @@ ipcMain.on('window-open-moments', () => {
   createMomentsWindow()
 })
 
+// 友链-发布文字独立窗口
+let momentsTextWindow: BrowserWindow | null = null
+
+function createMomentsTextWindow() {
+  if (momentsTextWindow) {
+    if (momentsTextWindow.isMinimized()) momentsTextWindow.restore()
+    momentsTextWindow.focus()
+    return
+  }
+
+  momentsTextWindow = new BrowserWindow({
+    width: 420,
+    height: 520,
+    resizable: false,
+    frame: false,
+    titleBarStyle: 'hidden',
+    transparent: false,
+    backgroundMaterial: 'acrylic',
+    backgroundColor: '#f5f5f5',
+    show: false,
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
+    }
+  })
+
+  momentsTextWindow.once('ready-to-show', () => {
+    momentsTextWindow?.show()
+  })
+
+  if (isDev && process.env.VITE_DEV_SERVER_URL) {
+    momentsTextWindow.loadURL(process.env.VITE_DEV_SERVER_URL + '#/moments/text')
+  } else {
+    momentsTextWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: 'moments/text' })
+  }
+
+  momentsTextWindow.on('closed', () => {
+    momentsTextWindow = null
+  })
+}
+
+ipcMain.on('window-open-moments-text', () => {
+  createMomentsTextWindow()
+})
+
+// 友链-发布图片/视频独立窗口
+let momentsMediaWindow: BrowserWindow | null = null
+
+function createMomentsMediaWindow() {
+  if (momentsMediaWindow) {
+    if (momentsMediaWindow.isMinimized()) momentsMediaWindow.restore()
+    momentsMediaWindow.focus()
+    return
+  }
+
+  momentsMediaWindow = new BrowserWindow({
+    width: 480,
+    height: 600,
+    resizable: false,
+    frame: false,
+    titleBarStyle: 'hidden',
+    transparent: false,
+    backgroundMaterial: 'acrylic',
+    backgroundColor: '#f5f5f5',
+    show: false,
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
+    }
+  })
+
+  momentsMediaWindow.once('ready-to-show', () => {
+    momentsMediaWindow?.show()
+  })
+
+  if (isDev && process.env.VITE_DEV_SERVER_URL) {
+    momentsMediaWindow.loadURL(process.env.VITE_DEV_SERVER_URL + '#/moments/media')
+  } else {
+    momentsMediaWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: 'moments/media' })
+  }
+
+  momentsMediaWindow.on('closed', () => {
+    momentsMediaWindow = null
+  })
+}
+
+ipcMain.on('window-open-moments-media', () => {
+  createMomentsMediaWindow()
+})
+
 let noteEditorWindow: BrowserWindow | null = null
 
 function createNoteEditorWindow() {

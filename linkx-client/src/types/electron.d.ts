@@ -10,7 +10,9 @@ declare global {
       maximize: () => Promise<void>           // 最大化/还原窗口
       close: () => Promise<void>              // 关闭窗口
       openMoments: () => void                 // 打开友链独立窗口
-      openNoteEditor: () => void              // 打开笔记编辑器独立窗口
+      openMomentsText: () => void            // 打开友链-发布文字独立窗口
+      openMomentsMedia: () => void           // 打开友链-发布图片/视频独立窗口
+      openNoteEditor: () => void             // 打开笔记编辑器独立窗口
       openRegister?: () => void               // 打开注册独立窗口
       isMaximized: () => Promise<boolean>     // 查询是否最大化
       isPinned: () => Promise<boolean>       // 查询是否置顶
