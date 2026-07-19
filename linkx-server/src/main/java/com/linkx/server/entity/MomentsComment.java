@@ -33,6 +33,11 @@ public class MomentsComment implements Serializable {
 
     private Long parentId;
 
+    /**
+     * 被 @ 的用户 ID 列表，JSON 数组字符串：[12, 34]
+     */
+    private String mentions;
+
     @Column(onInsertValue = "NOW()")
     private Date createTime;
 

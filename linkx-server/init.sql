@@ -248,11 +248,23 @@ CREATE TABLE IF NOT EXISTS `moments_comment` (
   `user_id` bigint NOT NULL COMMENT '评论用户ID',
   `content` varchar(500) NOT NULL COMMENT '评论内容',
   `parent_id` bigint DEFAULT NULL COMMENT '父评论ID(回复功能)',
+  `mentions` text DEFAULT NULL COMMENT '被@的用户ID列表(JSON 数组)',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '评论时间',
   `deleted` tinyint(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除',
   PRIMARY KEY (`id`),
   KEY `idx_post_time` (`post_id`,`create_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='朋友圈评论表';
+
+-- 兼容老库:为已存在的 moments_comment 增加 mentions 列(幂等)
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'moments_comment' AND COLUMN_NAME = 'mentions') = 0,
+    'ALTER TABLE `moments_comment` ADD COLUMN `mentions` TEXT DEFAULT NULL COMMENT ''被@的用户ID列表(JSON 数组)''',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- ================================================
 -- 14. 笔记表

@@ -45,12 +45,24 @@ CREATE TABLE IF NOT EXISTS `moments_comment` (
     `user_id` BIGINT NOT NULL COMMENT '评论用户ID',
     `content` TEXT NOT NULL COMMENT '评论内容',
     `parent_id` BIGINT DEFAULT NULL COMMENT '父评论ID(用于回复)',
+    `mentions` TEXT DEFAULT NULL COMMENT '被@的用户ID列表(JSON 数组, e.g. [12, 34])',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '评论时间',
     `deleted` TINYINT DEFAULT 0 COMMENT '逻辑删除:0未删除,1已删除',
     PRIMARY KEY (`id`),
     INDEX `idx_post_id` (`post_id`),
     INDEX `idx_user_id` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='友链动态评论表';
+
+-- 幂等迁移:为已存在的 moments_comment 表增加 mentions 列
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'moments_comment' AND COLUMN_NAME = 'mentions') = 0,
+    'ALTER TABLE `moments_comment` ADD COLUMN `mentions` TEXT DEFAULT NULL COMMENT ''被@的用户ID列表(JSON 数组)''',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- 创建日历事件表
 CREATE TABLE IF NOT EXISTS `calendar_event` (
