@@ -12,6 +12,8 @@ export interface ChatSocketHandlers {
   onClose: () => void
   /** 通话信令推送 */
   onCallEvent?: (action: string, data: Record<string, unknown>) => void
+  /** 通用自定义 action 推送（如 notification_refresh） */
+  onCustomAction?: (action: string, data: Record<string, unknown>) => void
 }
 
 let socket: WebSocket | null = null
@@ -132,7 +134,16 @@ function handleFrame(raw: string) {
         handlers?.onCallEvent?.(frame.action, frame.data as Record<string, unknown>)
       }
       break
+    case 'notification_refresh':
+      if (frame.data) {
+        handlers?.onCustomAction?.('notification_refresh', frame.data as Record<string, unknown>)
+      }
+      break
     default:
+      // 兜底：未知 action 也尝试透传给自定义 action
+      if (frame.data) {
+        handlers?.onCustomAction?.(frame.action, frame.data as Record<string, unknown>)
+      }
       break
   }
 }

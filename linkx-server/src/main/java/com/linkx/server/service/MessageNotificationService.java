@@ -20,6 +20,15 @@ public interface MessageNotificationService {
     List<MessageNotificationVO> listAll(Long userId);
 
     /**
+     * 获取当前用户在「@我的」场景下的通知列表(支持 type 过滤)。
+     *
+     * @param userId      接收者
+     * @param mentionOnly true 时只保留 type=moments_mention;
+     *                    false 时与 listAll 等价
+     */
+    List<MessageNotificationVO> listMineMentions(Long userId, boolean mentionOnly);
+
+    /**
      * 获取未读通知数量
      */
     int getUnreadCount(Long userId);
@@ -38,6 +47,13 @@ public interface MessageNotificationService {
      * 删除通知
      */
     void delete(Long userId, Long notificationId);
+
+    /**
+     * 清空指定用户全部通知(逻辑删除)
+     *
+     * @return 被清除条数
+     */
+    int clearAll(Long userId);
 
     /**
      * 创建通知

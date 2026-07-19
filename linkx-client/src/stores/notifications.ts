@@ -122,13 +122,29 @@ function mapRequestItem(item: FriendRequestItem): FriendNotification {
   }
 }
 
+function mapRawNotification(n: notificationApi.MessageNotificationVO): MessageNotification {
+  return {
+    id: String(n.id),
+    senderId: String(n.senderId),
+    senderName: n.senderName,
+    senderAvatar: n.senderAvatar,
+    type: n.type,
+    relatedId: n.relatedId ? String(n.relatedId) : undefined,
+    content: n.content,
+    readStatus: n.readStatus,
+    createTime: n.createTime
+  }
+}
+
 export const useNotificationsStore = defineStore('notifications', {
   state: () => ({
     friendNotifs: [] as FriendNotification[],  // 好友请求（从后端加载）
     groupNotifs: [] as GroupNotification[],     // 群邀请（从后端加载）
     messageNotifs: [] as MessageNotification[], // 消息通知（朋友圈点赞/评论等）
     serverUnreadCount: 0 as number,             // 服务端未读计数（权威值）
-    loading: false
+    loading: false,
+    /** 消息通知过滤："全部" | "@我"（仅 type=moments_mention） */
+    mentionOnly: false as boolean
   }),
 
   getters: {
@@ -143,7 +159,7 @@ export const useNotificationsStore = defineStore('notifications', {
         ? state.serverUnreadCount
         : state.messageNotifs.filter(n => n.readStatus === 0).length
     },
-    totalUnreadCount(state): number {
+    totalUnreadCount(): number {
       return this.pendingFriendCount + this.unreadMessageCount
     }
   },
@@ -207,39 +223,25 @@ export const useNotificationsStore = defineStore('notifications', {
 
     async fetchMessageNotifications() {
       try {
-        const [allRes, unreadRes] = await Promise.all([
-          notificationApi.listAllNotifications(),
-          notificationApi.listUnreadNotifications()
+        const [mineRes] = await Promise.all([
+          notificationApi.listMineNotifications(this.mentionOnly)
         ])
-        if (allRes.code === 200 && allRes.data) {
-          this.messageNotifs = allRes.data.map(n => ({
-            id: String(n.id),
-            senderId: String(n.senderId),
-            senderName: n.senderName,
-            senderAvatar: n.senderAvatar,
-            type: n.type,
-            relatedId: n.relatedId ? String(n.relatedId) : undefined,
-            content: n.content,
-            readStatus: n.readStatus,
-            createTime: n.createTime
-          }))
-        } else if (unreadRes.code === 200 && unreadRes.data) {
-          this.messageNotifs = unreadRes.data.map(n => ({
-            id: String(n.id),
-            senderId: String(n.senderId),
-            senderName: n.senderName,
-            senderAvatar: n.senderAvatar,
-            type: n.type,
-            relatedId: n.relatedId ? String(n.relatedId) : undefined,
-            content: n.content,
-            readStatus: n.readStatus,
-            createTime: n.createTime
-          }))
+        if (mineRes.code === 200 && mineRes.data) {
+          this.messageNotifs = mineRes.data.map(n => mapRawNotification(n))
         }
         void this.fetchNotificationCount()
       } catch (error) {
         console.error('获取消息通知失败:', error)
       }
+    },
+
+    /**
+     * 设置"只收到@我的消息"开关并立即重新拉取一次消息列表。
+     * 设置为 true 后将仅显示 type=moments_mention 通知。
+     */
+    async setMentionOnly(value: boolean) {
+      this.mentionOnly = value
+      await this.fetchMessageNotifications()
     },
 
     /**
@@ -295,6 +297,44 @@ export const useNotificationsStore = defineStore('notifications', {
       } catch (error) {
         console.error('删除通知失败:', error)
       }
+    },
+
+    /**
+     * 调用后端清空当前用户全部消息通知,成功后清空本地 store。
+     */
+    async clearAllMessageNotifsRemote() {
+      try {
+        const res = await notificationApi.clearAllNotifications()
+        if (res.code === 200) {
+          this.messageNotifs = []
+          this.serverUnreadCount = 0
+          return res.data ?? this.messageNotifs.length
+        }
+      } catch (error) {
+        console.error('清空通知失败:', error)
+      }
+      return 0
+    },
+
+    /**
+     * WebSocket 收到 notification_refresh 时由 app store 透传调用,
+     * 重新拉取最新一份并合并到本地。
+     */
+    async refreshFromSocket() {
+      await this.fetchMessageNotifications()
+    },
+
+    /**
+     * 兼容老方法名。WebSocket 由 app store 统一管理,
+     * 这里仅占位以避免已经调用方崩溃。
+     */
+    async initRealtime() {
+      // noop: app store 已统一注册 onCustomAction
+    },
+
+    /** 兼容占位:WebSocket 由 app store 关闭 */
+    teardownRealtime() {
+      // noop
     },
 
     findFriendNotif(id: string) {

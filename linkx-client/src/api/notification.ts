@@ -31,6 +31,17 @@ export function listAllNotifications() {
 }
 
 /**
+ * 获取消息通知（带过滤选项）
+ *
+ * @param mentionOnly true 时仅返回 @我的通知(type=moments_mention)，实现"只收到@我的消息"
+ */
+export function listMineNotifications(mentionOnly = false) {
+  return apiClient.get<never, ApiResult<MessageNotificationVO[]>>('/notifications/mine', {
+    params: { mentionOnly }
+  })
+}
+
+/**
  * 获取未读通知数量
  */
 export function getUnreadCount() {
@@ -56,4 +67,12 @@ export function markAllAsRead() {
  */
 export function deleteNotification(notificationId: number) {
   return apiClient.delete<never, ApiResult<null>>(`/notifications/${notificationId}`)
+}
+
+/**
+ * 清空当前用户全部通知。
+ * @returns 清除条数
+ */
+export function clearAllNotifications() {
+  return apiClient.delete<never, ApiResult<number>>('/notifications/clear')
 }

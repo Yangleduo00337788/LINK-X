@@ -79,6 +79,8 @@ export interface WsIncomingFrame {
     | 'call_cancel'
     | 'call_hangup'
     | 'call_signal'
+    | 'notification_refresh'
+    | string
   clientMsgId?: string
   code?: number
   message?: string

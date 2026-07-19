@@ -33,12 +33,36 @@ public class MessageNotificationController {
     }
 
     /**
+     * 获取消息通知
+     * <p>
+     * 默认返回全部通知；{@code mentionOnly=true} 时仅返回 @我的通知 (type=moments_mention)。
+     * </p>
+     */
+    @GetMapping("/mine")
+    public Result<List<MessageNotificationVO>> listMine(
+            @RequestParam(value = "mentionOnly", defaultValue = "false") boolean mentionOnly,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(notificationService.listMineMentions(userId, mentionOnly));
+    }
+
+    /**
      * 获取所有通知列表
      */
     @GetMapping
     public Result<List<MessageNotificationVO>> listAll(HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         return Result.success(notificationService.listAll(userId));
+    }
+
+    /**
+     * 清空当前用户全部通知
+     */
+    @DeleteMapping("/clear")
+    public Result<Integer> clearAll(HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        int cleared = notificationService.clearAll(userId);
+        return Result.success(cleared);
     }
 
     /**

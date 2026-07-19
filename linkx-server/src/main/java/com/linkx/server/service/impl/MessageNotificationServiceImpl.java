@@ -9,6 +9,7 @@ import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.MessageNotificationService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +19,7 @@ import java.util.stream.Collectors;
 /**
  * 消息通知服务实现
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class MessageNotificationServiceImpl implements MessageNotificationService {
@@ -43,6 +45,19 @@ public class MessageNotificationServiceImpl implements MessageNotificationServic
                         .eq("user_id", userId)
                         .orderBy("create_time", false)
         );
+        return notifications.stream().map(this::toVO).collect(Collectors.toList());
+    }
+
+    @Override
+    public List<MessageNotificationVO> listMineMentions(Long userId, boolean mentionOnly) {
+        QueryWrapper wrapper = QueryWrapper.create()
+                .eq("user_id", userId)
+                .orderBy("create_time", false);
+        if (mentionOnly) {
+            // 「只收到@我的消息」过滤
+            wrapper.eq("type", "moments_mention");
+        }
+        List<MessageNotification> notifications = notificationMapper.selectListByQuery(wrapper);
         return notifications.stream().map(this::toVO).collect(Collectors.toList());
     }
 
@@ -89,6 +104,23 @@ public class MessageNotificationServiceImpl implements MessageNotificationServic
             throw new CustomException(404, "通知不存在");
         }
         notificationMapper.deleteById(notificationId);
+    }
+
+    @Override
+    @Transactional
+    public int clearAll(Long userId) {
+        if (userId == null) return 0;
+        List<MessageNotification> all = notificationMapper.selectListByQuery(
+                QueryWrapper.create().eq("user_id", userId)
+        );
+        if (all.isEmpty()) {
+            return 0;
+        }
+        for (MessageNotification n : all) {
+            notificationMapper.deleteById(n.getId());
+        }
+        log.info("清空用户 {} 的全部消息通知，共 {} 条", userId, all.size());
+        return all.size();
     }
 
     @Override

@@ -1,17 +1,22 @@
 package com.linkx.server.service.impl;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linkx.server.controller.dto.CommentMomentsDTO;
 import com.linkx.server.controller.dto.PublishMomentsDTO;
 import com.linkx.server.controller.vo.MomentsCommentVO;
 import com.linkx.server.controller.vo.MomentsPostVO;
 import com.linkx.server.entity.*;
 import com.linkx.server.exception.CustomException;
+import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.mapper.*;
 import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.MediaUrlService;
+import com.linkx.server.service.MessageNotificationService;
 import com.linkx.server.service.MomentsService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +25,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class MomentsServiceImpl implements MomentsService {
@@ -34,6 +40,9 @@ public class MomentsServiceImpl implements MomentsService {
     private final SysUserRelationMapper sysUserRelationMapper;
     private final FileStorageService fileStorageService;
     private final MediaUrlService mediaUrlService;
+    private final MessageNotificationService notificationService;
+    private final ImMessagePushService imPushService;
+    private final ObjectMapper objectMapper;
 
     @Override
     @Transactional
@@ -153,6 +162,28 @@ public class MomentsServiceImpl implements MomentsService {
                 .postId(postId)
                 .userId(userId)
                 .build());
+
+        // 给动态作者推送消息通知(不通知自己赞自己)
+        MomentsPost post = postMapper.selectOneById(postId);
+        if (post != null && !post.getUserId().equals(userId)) {
+            SysUser liker = userMapper.selectOneById(userId);
+            String likerName = liker != null ? liker.getNickname() : null;
+            String content = extractPostPreview(post.getContent());
+            try {
+                notificationService.create(
+                        post.getUserId(),
+                        userId,
+                        likerName,
+                        liker != null ? liker.getAvatar() : null,
+                        "moments_like",
+                        postId,
+                        content
+                );
+                imPushService.pushToUser(post.getUserId(), "notification_refresh", Map.of("type", "moments_like"));
+            } catch (Exception e) {
+                log.warn("发送点赞通知失败 postId={} userId={}: {}", postId, userId, e.getMessage());
+            }
+        }
     }
 
     @Override
@@ -175,15 +206,65 @@ public class MomentsServiceImpl implements MomentsService {
             throw new CustomException(404, "用户不存在");
         }
 
+        // 解析 mentions:优先用 DTO 中传入的列表;缺省时尝试从 content 中解析 @昵称
+        List<Long> mentionIds = sanitizeMentions(dto.getMentions(), userId);
+        if (mentionIds.isEmpty() && dto.getContent() != null) {
+            mentionIds = parseMentionedUserIds(dto.getContent(), userId);
+        }
+        String mentionJson = mentionIds.isEmpty() ? null : toJsonString(mentionIds);
+
         MomentsComment comment = MomentsComment.builder()
                 .postId(postId)
                 .userId(userId)
                 .content(dto.getContent())
                 .parentId(dto.getParentId())
+                .mentions(mentionJson)
                 .build();
         commentMapper.insert(comment);
 
-        return toCommentVO(comment, user);
+        // 给动态作者推送消息通知
+        MomentsPost post = postMapper.selectOneById(postId);
+        if (post != null && !post.getUserId().equals(userId)) {
+            try {
+                notificationService.create(
+                        post.getUserId(),
+                        userId,
+                        user.getNickname(),
+                        user.getAvatar(),
+                        "moments_comment",
+                        postId,
+                        truncate(dto.getContent(), 100)
+                );
+                imPushService.pushToUser(post.getUserId(), "notification_refresh", Map.of("type", "moments_comment"));
+            } catch (Exception e) {
+                log.warn("发送评论通知失败 postId={} userId={}: {}", postId, userId, e.getMessage());
+            }
+        }
+
+        // 给被 @ 的用户推送 mentions 通知(去重作者、自己)
+        if (!mentionIds.isEmpty() && post != null) {
+            Set<Long> notifyTargets = new LinkedHashSet<>(mentionIds);
+            notifyTargets.remove(userId);
+            notifyTargets.remove(post.getUserId());
+            for (Long targetId : notifyTargets) {
+                try {
+                    notificationService.create(
+                            targetId,
+                            userId,
+                            user.getNickname(),
+                            user.getAvatar(),
+                            "moments_mention",
+                            postId,
+                            truncate(dto.getContent(), 100)
+                    );
+                    imPushService.pushToUser(targetId, "notification_refresh", Map.of("type", "moments_mention"));
+                } catch (Exception e) {
+                    log.warn("发送@通知失败 postId={} userId={}: {}", postId, userId, e.getMessage());
+                }
+            }
+        }
+
+        return toCommentVO(comment, user, mentionIds);
     }
 
     @Override
@@ -301,7 +382,7 @@ public class MomentsServiceImpl implements MomentsService {
         List<MomentsCommentVO> commentVOs = comments.stream()
                 .map(c -> {
                     SysUser commenter = userMapper.selectOneById(c.getUserId());
-                    return toCommentVO(c, commenter);
+                    return toCommentVO(c, commenter, parseMentions(c.getMentions()));
                 })
                 .collect(Collectors.toList());
 
@@ -323,13 +404,103 @@ public class MomentsServiceImpl implements MomentsService {
     }
 
     private MomentsCommentVO toCommentVO(MomentsComment comment, SysUser user) {
+        return toCommentVO(comment, user, parseMentions(comment.getMentions()));
+    }
+
+    private MomentsCommentVO toCommentVO(MomentsComment comment, SysUser user, List<Long> mentions) {
         return MomentsCommentVO.builder()
                 .id(comment.getId())
                 .userId(comment.getUserId())
                 .nickname(user != null ? user.getNickname() : null)
+                .avatar(user != null ? mediaUrlService.resolve(user.getAvatar()) : null)
                 .content(comment.getContent())
                 .time(formatTime(comment.getCreateTime()))
+                .mentions(mentions)
                 .build();
+    }
+
+    private List<Long> parseMentions(String json) {
+        if (json == null || json.isBlank()) {
+            return Collections.emptyList();
+        }
+        try {
+            return new ArrayList<>(objectMapper.readValue(json, new TypeReference<List<Long>>() {}));
+        } catch (Exception e) {
+            log.warn("解析 mentions JSON 失败: {}", json, e);
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * 将 mentions 列表序列化为 JSON 字符串。
+     */
+    private String toJsonString(List<Long> ids) {
+        try {
+            return objectMapper.writeValueAsString(ids);
+        } catch (Exception e) {
+            log.warn("序列化 mentions 失败: {}", ids, e);
+            return null;
+        }
+    }
+
+    /**
+     * 清洗 mentions:去重/去空/剔除自身与 null。
+     */
+    private List<Long> sanitizeMentions(List<Long> raw, Long selfUserId) {
+        if (raw == null || raw.isEmpty()) {
+            return Collections.emptyList();
+        }
+        LinkedHashSet<Long> set = new LinkedHashSet<>();
+        for (Long id : raw) {
+            if (id == null) continue;
+            if (id.equals(selfUserId)) continue;
+            set.add(id);
+        }
+        return new ArrayList<>(set);
+    }
+
+    /**
+     * 从评论内容兜底解析 @提及:扫描 @昵称 形式,匹配好友/全部用户中匹配昵称的 ID。
+     * 仅作为服务端兜底,前端通常会在提交前就传入 mentions 列表。
+     */
+    private List<Long> parseMentionedUserIds(String content, Long selfUserId) {
+        if (content == null || content.isEmpty()) {
+            return Collections.emptyList();
+        }
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("@([^\\s@]{1,32})").matcher(content);
+        List<String> names = new ArrayList<>();
+        while (matcher.find()) {
+            String name = matcher.group(1).trim();
+            if (!name.isEmpty()) names.add(name);
+        }
+        if (names.isEmpty()) return Collections.emptyList();
+
+        List<SysUser> users = userMapper.selectListByQuery(
+                QueryWrapper.create().in("nickname", names)
+        );
+        List<Long> ids = new ArrayList<>();
+        for (SysUser u : users) {
+            if (u != null && u.getId() != null && !u.getId().equals(selfUserId)) {
+                ids.add(u.getId());
+            }
+        }
+        return ids.stream().distinct().collect(Collectors.toList());
+    }
+
+    /**
+     * 截取用于通知内容预览(避免 500 长度限制溢出)。
+     */
+    private String truncate(String s, int max) {
+        if (s == null) return "";
+        if (s.length() <= max) return s;
+        return s.substring(0, max) + "…";
+    }
+
+    /**
+     * 提取动态文本预览。
+     */
+    private String extractPostPreview(String content) {
+        return truncate(content, 100);
     }
 
     private String formatTime(java.util.Date date) {

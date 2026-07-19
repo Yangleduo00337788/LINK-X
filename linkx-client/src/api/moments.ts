@@ -19,8 +19,11 @@ export interface MomentsComment {
   id: string
   userId: string
   nickname?: string
+  avatar?: string
   content: string
   time: string
+  /** 被 @ 的用户 ID 列表 */
+  mentions?: number[]
 }
 
 export interface PublishPayload {
@@ -31,6 +34,8 @@ export interface PublishPayload {
 export interface CommentPayload {
   content: string
   parentId?: string
+  /** 被 @ 的用户 ID 列表 */
+  mentions?: number[]
 }
 
 /**
