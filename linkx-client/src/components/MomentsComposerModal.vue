@@ -55,7 +55,7 @@ const images = ref<string[]>([])
 const videos = ref<{ url: string; file?: File }[]>([])
 
 // @ 提及
-const mentions = ref<Record<number, string>>({})
+const mentions = ref<Record<string, string>>({})
 
 // refs
 const textArea = ref<HTMLTextAreaElement | null>(null)
@@ -156,7 +156,7 @@ function onTextKeyDown(e: KeyboardEvent) {
   }
 }
 
-function applyMention(id: number, name: string) {
+function applyMention(id: string | number, name: string) {
   const ta = textArea.value
   if (!ta) return
   const before = text.value.slice(0, mentionStartIndex.value)
@@ -164,7 +164,7 @@ function applyMention(id: number, name: string) {
   const after = text.value.slice(cursor)
   const inserted = `@${name} `
   text.value = before + inserted + after
-  mentions.value[id] = name
+  mentions.value[String(id)] = name
   showMentionPicker.value = false
   nextTick(() => {
     const newPos = before.length + inserted.length

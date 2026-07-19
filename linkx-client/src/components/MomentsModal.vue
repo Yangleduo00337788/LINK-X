@@ -26,7 +26,6 @@ import {
   HeartOutline,
   Heart,
   ChatbubbleOutline,
-  EllipsisHorizontal,
   SearchOutline,
   AddCircleOutline,
   AtCircleOutline,
@@ -59,10 +58,18 @@ const contactsStore = useContactsStore()
 const { closeMomentsModal } = chatModalsStore
 const { userProfile, theme } = storeToRefs(appStore)
 const { posts } = storeToRefs(momentsStore)
-const { unreadMessageCount } = storeToRefs(notificationsStore)
-const { toggleLike, toggleActions, fetchMoments, removePost, deleteComment } = momentsStore
-const { fetchMessageNotifications } = notificationsStore
+const { unreadMessageCount, momentsUnreadCount } = storeToRefs(notificationsStore)
+const { toggleLike, fetchMoments, removePost, deleteComment } = momentsStore
+const { fetchMessageNotifications, fetchNotificationCount } = notificationsStore
 const message = useMessage()
+
+/** 友链窗口铃铛：优先显示友链相关未读，没有时回退总未读 */
+const bellUnreadCount = computed(() => {
+  const moments = momentsUnreadCount.value
+  if (moments > 0) return moments
+  // 列表尚未拉到时，用服务端总未读兜底
+  return unreadMessageCount.value
+})
 
 // 滚动位置
 const scrollTop = ref(0)
@@ -149,11 +156,21 @@ function onPreviewKeydown(e: KeyboardEvent) {
 onMounted(() => {
   applyDocumentTheme(appStore.theme)
   notifyElectronTheme(appStore.theme)
-  void fetchMessageNotifications()
-  void fetchMoments()
-  if (!contactsStore.items.length) {
-    void contactsStore.fetchFriends()
-  }
+  // 独立窗口不走 HomeView，需自行恢复会话并连接 WS，才能实时刷新未读铃铛
+  void (async () => {
+    if (!appStore.isLoggedIn) {
+      await appStore.tryAutoLogin()
+    }
+    if (appStore.isLoggedIn) {
+      void appStore.connectChatWebSocket()
+    }
+    await Promise.all([
+      fetchMessageNotifications(),
+      fetchMoments(),
+      contactsStore.fetchFriends()
+    ])
+    void fetchNotificationCount()
+  })()
   window.addEventListener('keydown', onPreviewKeydown)
 })
 
@@ -287,27 +304,34 @@ function scrollToPost(notif: { relatedId?: string; type: string }) {
 }
 
 // 评论
-function onToggleLike(postId: string) {
-  toggleLike(postId)
+async function onToggleLike(postId: string) {
+  const ok = await toggleLike(postId)
+  if (ok === false) message.error('点赞失败，请稍后重试')
 }
 
 function onComment(post: { id: string }) {
-  commentPostId.value = post.id
-  toggleActions(post.id)
+  commentPostId.value = commentPostId.value === post.id ? null : post.id
+  if (commentPostId.value !== post.id) {
+    showCommentMention.value = false
+    commentMentions.value = []
+  }
 }
 
 /** 评论提交 (支持 @ 提及) */
-const commentMentions = ref<{ id: number; name: string }[]>([])
+const commentMentions = ref<{ id: string; name: string }[]>([])
 const showCommentMention = ref(false)
 const commentAtStart = ref(0)
+const commentMentionQuery = ref('')
+const commentMentionPickerRef = ref<InstanceType<typeof AtMentionPicker> | null>(null)
 
 function detectCommentMention() {
-  const ta = document.getElementById('moments-comment-input') as HTMLTextAreaElement | null
+  const ta = document.getElementById('moments-comment-input') as HTMLInputElement | null
   if (!ta) return
   const value = commentDraft.value
   const cursor = ta.selectionStart
   if (cursor == null) {
     showCommentMention.value = false
+    commentMentionQuery.value = ''
     return
   }
   let i = cursor - 1
@@ -317,9 +341,12 @@ function detectCommentMention() {
       const segment = value.slice(i + 1, cursor)
       if (/^\S{0,32}$/.test(segment) && !segment.includes(' ')) {
         commentAtStart.value = i
+        commentMentionQuery.value = segment
         showCommentMention.value = true
+        void ensureFriendsLoaded()
       } else {
         showCommentMention.value = false
+        commentMentionQuery.value = ''
       }
       return
     }
@@ -327,42 +354,110 @@ function detectCommentMention() {
     i--
   }
   showCommentMention.value = false
+  commentMentionQuery.value = ''
 }
 
-function applyCommentMention(friend: { id: number; name: string }) {
-  const ta = document.getElementById('moments-comment-input') as HTMLTextAreaElement | null
-  if (!ta) return
+async function ensureFriendsLoaded() {
+  if (!contactsStore.friends.length) {
+    await contactsStore.fetchFriends()
+  }
+}
+
+function applyCommentMention(friend: { id: string | number; name: string }) {
+  const name = (friend.name || '').trim()
+  if (!name) return
   const before = commentDraft.value.slice(0, commentAtStart.value)
-  const cursor = ta.selectionStart ?? commentAtStart.value
+  const ta = document.getElementById('moments-comment-input') as HTMLInputElement | null
+  const cursor = ta?.selectionStart ?? commentAtStart.value
   const after = commentDraft.value.slice(cursor)
-  const inserted = `@${friend.name} `
+  const inserted = `@${name} `
   commentDraft.value = before + inserted + after
-  commentMentions.value.push(friend)
+  const id = String(friend.id)
+  if (id && !commentMentions.value.some(m => m.id === id)) {
+    commentMentions.value.push({ id, name })
+  }
   showCommentMention.value = false
+  commentMentionQuery.value = ''
   nextTick(() => {
+    if (!ta) return
     const newPos = before.length + inserted.length
     ta.focus()
     ta.setSelectionRange(newPos, newPos)
   })
 }
 
+function triggerAtInComment() {
+  const ta = document.getElementById('moments-comment-input') as HTMLInputElement | null
+  if (!ta) return
+  ta.focus()
+  const cursor = ta.selectionStart ?? commentDraft.value.length
+  const before = commentDraft.value.slice(0, cursor)
+  const after = commentDraft.value.slice(cursor)
+  const prefix = before.length && !/\s$/.test(before) ? ' ' : ''
+  const inserted = `${prefix}@`
+  commentDraft.value = before + inserted + after
+  nextTick(() => {
+    const newPos = before.length + inserted.length
+    ta.focus()
+    ta.setSelectionRange(newPos, newPos)
+    detectCommentMention()
+  })
+}
+
+function onCommentKeyDown(e: KeyboardEvent, postId: string) {
+  if (!showCommentMention.value) {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      void submitComment(postId)
+    }
+    return
+  }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    commentMentionPickerRef.value?.move(1)
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    commentMentionPickerRef.value?.move(-1)
+  } else if (e.key === 'Enter' || e.key === 'Tab') {
+    e.preventDefault()
+    const pick = commentMentionPickerRef.value?.confirm()
+    if (pick) applyCommentMention(pick)
+  } else if (e.key === 'Escape') {
+    e.preventDefault()
+    showCommentMention.value = false
+  }
+}
+
 const commentMentionFriends = computed(() => {
   const list = contactsStore.friends
-  const cursor = commentDraft.value.slice(commentAtStart.value + 1, commentDraft.value.length)
-  const q = cursor.replace(/\s/g, '')
-  if (!q) return list.slice(0, 8)
-  return list.filter(f => f.name.toLowerCase().includes(q.toLowerCase())).slice(0, 8)
+  const q = commentMentionQuery.value.trim().toLowerCase()
+  if (!q) return list.slice(0, 12)
+  return list.filter(f => f.name.toLowerCase().includes(q)).slice(0, 12)
 })
 
 async function submitComment(postId: string) {
   const text = commentDraft.value.trim()
   if (!text) return
-  const mentionIds = commentMentions.value.map(m => m.id)
-  const ok = await momentsStore.addComment(postId, text, mentionIds)
+  // 避免误把半截 @ 发出去：若仍在选人，先确认当前高亮好友
+  if (showCommentMention.value && commentMentionFriends.value.length) {
+    const pick = commentMentionPickerRef.value?.confirm()
+    if (pick) applyCommentMention(pick)
+  }
+  const finalText = commentDraft.value.trim()
+  if (!finalText || finalText.endsWith('@')) {
+    message.warning('请选择要 @ 的好友')
+    return
+  }
+  const mentionIds = commentMentions.value
+    .map(m => m.id)
+    .filter(Boolean)
+  const ok = await momentsStore.addComment(postId, finalText, mentionIds)
   if (ok) {
     commentDraft.value = ''
     commentPostId.value = null
     commentMentions.value = []
+    showCommentMention.value = false
+    commentMentionQuery.value = ''
     message.success('评论已发送')
   } else {
     message.error('评论失败')
@@ -497,15 +592,6 @@ function getImageGridClass(count: number): string {
                 >
                   <span>删除</span>
                 </button>
-                <button
-                  type="button"
-                  class="toolbar-more"
-                  :class="{ active: commentPostId === post.id }"
-                  title="更多"
-                  @click.stop="onComment(post)"
-                >
-                  <n-icon :component="EllipsisHorizontal" :size="16" />
-                </button>
               </div>
             </div>
             <div v-if="commentPostId === post.id" class="comment-input-row">
@@ -516,7 +602,7 @@ function getImageGridClass(count: number): string {
                   class="comment-input"
                   placeholder="写评论… 使用 @ 提及好友"
                   @input="detectCommentMention"
-                  @keyup.enter="submitComment(post.id)"
+                  @keydown="onCommentKeyDown($event, post.id)"
                 />
                 <button
                   type="button"
@@ -528,6 +614,7 @@ function getImageGridClass(count: number): string {
                 </button>
                 <AtMentionPicker
                   v-if="showCommentMention"
+                  ref="commentMentionPickerRef"
                   :friends="commentMentionFriends"
                   :text="commentDraft"
                   :caret-index="commentAtStart + 1"
@@ -584,8 +671,8 @@ function getImageGridClass(count: number): string {
           @click.stop="showMessage"
         >
           <n-icon :component="NotificationsOutline" size="22" />
-          <span v-if="unreadMessageCount > 0" class="notif-badge">
-            {{ unreadMessageCount > 99 ? '99+' : unreadMessageCount }}
+          <span v-if="bellUnreadCount > 0" class="notif-badge">
+            {{ bellUnreadCount > 99 ? '99+' : bellUnreadCount }}
           </span>
         </div>
         <!-- 发布按钮:点击弹出菜单(发布文字/发布图片视频) -->
@@ -610,10 +697,10 @@ function getImageGridClass(count: number): string {
           <n-icon :component="RefreshOutline" size="22" class="refresh-icon" />
         </div>
       </div>
-      <div class="header-center" :class="{ visible: showTitle || showNotifications }">
-        <span v-if="!showSearch && !showNotifications">友链</span>
+      <div class="header-center" :class="{ visible: showTitle && !showNotifications }">
+        <span v-if="!showSearch">友链</span>
         <input
-          v-else-if="showSearch"
+          v-else
           v-model="searchQuery"
           class="header-search"
           placeholder="搜索友链"
@@ -677,23 +764,6 @@ function getImageGridClass(count: number): string {
     </div>
   </div>
 </template>
-
-<script lang="ts">
-// 评论框点击 @ 按钮处理:由于 setup 中已存在,该函数作为额外声明保留以兼容 template 用法
-function triggerAtInComment() {
-  const ta = document.getElementById('moments-comment-input') as HTMLInputElement | null
-  if (!ta) return
-  ta.focus()
-  const cursor = ta.selectionStart ?? 0
-  const value = ta.value
-  const before = value.slice(0, cursor)
-  const after = value.slice(cursor)
-  const prefix = before.length && !before.endsWith(' ') && !before.endsWith('　') ? ' ' : ''
-  // 通过 DOM 修改让 v-model 同步,再触发 input 事件以激活 mention 检测
-  ta.value = before + prefix + '@' + after
-  ta.dispatchEvent(new Event('input', { bubbles: true }))
-}
-</script>
 
 <style scoped>
 .standalone-window {
@@ -1228,27 +1298,6 @@ function triggerAtInComment() {
 .toolbar-btn.danger:hover {
   background: rgba(224, 84, 84, 0.1);
   color: var(--lx-danger, #e05454);
-}
-
-.toolbar-more {
-  width: 30px;
-  height: 24px;
-  border: none;
-  background: var(--lx-bg-panel);
-  border-radius: 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--lx-accent);
-  cursor: pointer;
-  flex-shrink: 0;
-  padding: 0;
-  transition: all 0.2s ease;
-}
-
-.toolbar-more:hover,
-.toolbar-more.active {
-  background: color-mix(in srgb, var(--lx-accent) 18%, var(--lx-bg-panel));
 }
 
 .comment-input-row {

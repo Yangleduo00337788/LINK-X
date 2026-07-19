@@ -43,9 +43,9 @@ function mapPost(p: momentsApi.MomentsPost): MomentPost {
     content: p.content,
     images: (p.images || []).map(url => toDisplayableMediaUrl(url)).filter(Boolean),
     time: p.time,
-    likes: p.likes,
-    liked: p.liked,
-    likedBy: p.likedBy,
+    likes: p.likes ?? 0,
+    liked: !!p.liked,
+    likedBy: Array.isArray(p.likedBy) ? p.likedBy : [],
     comments: (p.comments || []).map(c => ({
       id: String(c.id),
       userId: String(c.userId),
@@ -135,21 +135,25 @@ export const useMomentsStore = defineStore('moments', {
       return false
     },
 
-    /** 切换点赞状态 */
+    /** 切换点赞状态（允许赞自己的动态） */
     async toggleLike(postId: string) {
-      const post = this.posts.find(p => p.id === postId)
-      if (!post) return
+      const id = String(postId)
+      const post = this.posts.find(p => String(p.id) === id)
+      if (!post) return false
       const appStore = useAppStore()
       const userName = appStore.userProfile.nickname || '我'
+      if (!Array.isArray(post.likedBy)) post.likedBy = []
 
+      const wasLiked = post.liked
       try {
-        if (post.liked) {
-          await momentsApi.unlikeMoments(postId)
-        } else {
-          await momentsApi.likeMoments(postId)
+        const res = wasLiked
+          ? await momentsApi.unlikeMoments(id)
+          : await momentsApi.likeMoments(id)
+        if (res.code !== 200) {
+          console.error('点赞操作失败:', res.message)
+          return false
         }
-        // 更新本地状态
-        post.liked = !post.liked
+        post.liked = !wasLiked
         if (post.liked) {
           if (!post.likedBy.includes(userName)) {
             post.likedBy.push(userName)
@@ -158,15 +162,17 @@ export const useMomentsStore = defineStore('moments', {
           post.likedBy = post.likedBy.filter(n => n !== userName)
         }
         post.likes = post.likedBy.length
-        this.uiShowActions[postId] = false
+        this.uiShowActions[id] = false
+        return true
       } catch (e) {
         console.error('点赞操作失败:', e)
+        return false
       }
     },
 
     /** 添加评论（支持 mentions 列表） */
-    async addComment(postId: string, content: string, mentions: number[] = []) {
-      const post = this.posts.find(p => p.id === postId)
+    async addComment(postId: string, content: string, mentions: Array<string | number> = []) {
+      const post = this.posts.find(p => String(p.id) === String(postId))
       if (!post || !content.trim()) return false
       const appStore = useAppStore()
 

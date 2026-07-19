@@ -14,6 +14,7 @@ import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.MessageNotificationService;
 import com.linkx.server.service.MomentsService;
+import com.mybatisflex.core.logicdelete.LogicDeleteManager;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -148,15 +149,24 @@ public class MomentsServiceImpl implements MomentsService {
     public void like(Long userId, Long postId) {
         assertPostExists(postId);
 
+        // 已点赞则直接返回（允许赞自己的动态）
         MomentsLike existing = likeMapper.selectOneByQuery(
                 QueryWrapper.create()
                         .eq("post_id", postId)
-                        .and("user_id", userId)
+                        .eq("user_id", userId)
         );
-
         if (existing != null) {
             return;
         }
+
+        // 取消赞是逻辑删除，unique(post_id,user_id) 仍占用；先物理清掉残留再插入
+        LogicDeleteManager.execWithoutLogicDelete(() ->
+                likeMapper.deleteByQuery(
+                        QueryWrapper.create()
+                                .eq("post_id", postId)
+                                .eq("user_id", userId)
+                )
+        );
 
         likeMapper.insert(MomentsLike.builder()
                 .postId(postId)
@@ -192,7 +202,7 @@ public class MomentsServiceImpl implements MomentsService {
         likeMapper.deleteByQuery(
                 QueryWrapper.create()
                         .eq("post_id", postId)
-                        .and("user_id", userId)
+                        .eq("user_id", userId)
         );
     }
 

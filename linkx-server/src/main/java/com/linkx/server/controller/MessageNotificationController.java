@@ -80,10 +80,10 @@ public class MessageNotificationController {
      */
     @PostMapping("/{notificationId}/read")
     public Result<Void> markAsRead(
-            @PathVariable Long notificationId,
+            @PathVariable String notificationId,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        notificationService.markAsRead(userId, notificationId);
+        notificationService.markAsRead(userId, parseId(notificationId));
         return Result.success(null);
     }
 
@@ -102,10 +102,18 @@ public class MessageNotificationController {
      */
     @DeleteMapping("/{notificationId}")
     public Result<Void> delete(
-            @PathVariable Long notificationId,
+            @PathVariable String notificationId,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        notificationService.delete(userId, notificationId);
+        notificationService.delete(userId, parseId(notificationId));
         return Result.success(null);
+    }
+
+    private Long parseId(String id) {
+        try {
+            return Long.parseLong(id);
+        } catch (NumberFormatException e) {
+            throw new com.linkx.server.exception.CustomException(400, "无效的 ID");
+        }
     }
 }

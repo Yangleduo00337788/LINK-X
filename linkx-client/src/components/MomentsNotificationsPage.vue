@@ -22,6 +22,8 @@ import {
 import { storeToRefs } from 'pinia'
 import { useNotificationsStore } from '../stores/notifications'
 import EmptyState from './common/EmptyState.vue'
+import { generateDefaultAvatar } from '../utils/defaultAvatar'
+import { normalizeMediaUrl } from '../utils/mediaUrl'
 
 const message = useMessage()
 const notificationsStore = useNotificationsStore()
@@ -118,6 +120,32 @@ function getNotificationTypeText(type: string) {
   }
 }
 
+function resolveAvatar(notif: typeof messageNotifs.value[0]): string {
+  const url = normalizeMediaUrl(notif.senderAvatar)
+  if (url) return url
+  return generateDefaultAvatar(notif.senderName || '用户', 76)
+}
+
+function formatNotifTime(raw: string): string {
+  if (!raw) return ''
+  const date = new Date(raw)
+  if (Number.isNaN(date.getTime())) return raw
+  const now = Date.now()
+  const diff = Math.max(0, now - date.getTime())
+  const minutes = Math.floor(diff / 60000)
+  if (minutes < 1) return '刚刚'
+  if (minutes < 60) return `${minutes} 分钟前`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} 小时前`
+  const y = date.getFullYear()
+  const m = `${date.getMonth() + 1}`.padStart(2, '0')
+  const d = `${date.getDate()}`.padStart(2, '0')
+  const hh = `${date.getHours()}`.padStart(2, '0')
+  const mm = `${date.getMinutes()}`.padStart(2, '0')
+  const thisYear = new Date().getFullYear()
+  return y === thisYear ? `${m}-${d} ${hh}:${mm}` : `${y}-${m}-${d} ${hh}:${mm}`
+}
+
 async function handleNotificationClick(notif: typeof messageNotifs.value[0]) {
   if (notif.readStatus === 0) {
     void markMessageAsRead(notif.id)
@@ -133,86 +161,101 @@ async function refresh() {
 function close() {
   emit('close')
 }
+
+function onAvatarError(e: Event, notif: typeof messageNotifs.value[0]) {
+  const img = e.target as HTMLImageElement
+  img.src = generateDefaultAvatar(notif.senderName || '用户', 76)
+}
 </script>
 
 <template>
   <Transition name="notif-drawer">
-    <aside v-if="visible" class="notif-drawer" @click.stop>
-      <header class="notif-drawer-header">
-        <div class="title-block">
-          <h3 class="title">
-            消息通知
-            <span class="filter-tag" :class="{ mention: isMentionOnly }">
-              {{ showAll ? '全部消息' : '仅友链消息' }}
-            </span>
-          </h3>
-          <p class="subtitle">点赞 · 评论 · @ 我的</p>
-        </div>
-        <div class="actions">
-          <button type="button" class="icon-btn" title="刷新" @click.stop="refresh">
-            <n-icon :component="RefreshOutline" :size="18" />
-          </button>
-          <n-dropdown
-            trigger="click"
-            placement="bottom-end"
-            :show-arrow="false"
-            :options="moreOptions"
-            @select="handleMoreSelect"
-          >
-            <button type="button" class="icon-btn" title="更多">
-              <n-icon :component="EllipsisHorizontal" :size="18" />
+    <div v-if="visible" class="notif-drawer-layer" @click.stop>
+      <aside class="notif-drawer">
+        <header class="notif-drawer-header">
+          <div class="title-block">
+            <h3 class="title">
+              消息通知
+              <span class="filter-tag" :class="{ mention: isMentionOnly }">
+                {{ showAll ? '全部消息' : '仅友链消息' }}
+              </span>
+            </h3>
+            <p class="subtitle">点赞 · 评论 · @ 我的</p>
+          </div>
+          <div class="actions">
+            <button type="button" class="icon-btn" title="刷新" @click.stop="refresh">
+              <n-icon :component="RefreshOutline" :size="18" />
             </button>
-          </n-dropdown>
-          <button type="button" class="icon-btn close" title="关闭" @click.stop="close">
-            <n-icon :component="CloseOutline" :size="18" />
-          </button>
-        </div>
-      </header>
+            <n-dropdown
+              trigger="click"
+              placement="bottom-end"
+              :show-arrow="false"
+              :options="moreOptions"
+              @select="handleMoreSelect"
+            >
+              <button type="button" class="icon-btn" title="更多">
+                <n-icon :component="EllipsisHorizontal" :size="18" />
+              </button>
+            </n-dropdown>
+            <button type="button" class="icon-btn close" title="关闭" @click.stop="close">
+              <n-icon :component="CloseOutline" :size="18" />
+            </button>
+          </div>
+        </header>
 
-      <div class="notif-content">
-        <EmptyState
-          v-if="displayList.length === 0"
-          :title="showAll ? '暂无消息' : '暂无友链消息'"
-          :description="showAll ? '稍后再来看看吧' : '还没有人给你点赞/评论/@~'"
-        />
-        <ul v-else class="notif-list">
-          <li
-            v-for="notif in displayList"
-            :key="notif.id"
-            class="notif-row"
-            :class="{ unread: notif.readStatus === 0 }"
-            @click="handleNotificationClick(notif)"
-          >
-            <img
-              :src="notif.senderAvatar || '/default-avatar.svg'"
-              class="notif-avatar"
-              alt=""
-              @error="(e: any) => (e.target as HTMLImageElement).src = '/default-avatar.svg'"
-            />
-            <div class="notif-info">
-              <div class="notif-title">
-                <span class="notif-name">{{ notif.senderName }}</span>
-                <span class="notif-text">{{ getNotificationTypeText(notif.type) }}</span>
+        <div class="notif-content">
+          <EmptyState
+            v-if="displayList.length === 0"
+            :title="showAll ? '暂无消息' : '暂无友链消息'"
+            :description="showAll ? '稍后再来看看吧' : '还没有人给你点赞/评论/@~'"
+          />
+          <ul v-else class="notif-list">
+            <li
+              v-for="notif in displayList"
+              :key="notif.id"
+              class="notif-row"
+              :class="{ unread: notif.readStatus === 0 }"
+              @click="handleNotificationClick(notif)"
+            >
+              <img
+                :src="resolveAvatar(notif)"
+                class="notif-avatar"
+                alt=""
+                @error="onAvatarError($event, notif)"
+              />
+              <div class="notif-info">
+                <div class="notif-title">
+                  <span class="notif-name">{{ notif.senderName }}</span>
+                  <span class="notif-text">{{ getNotificationTypeText(notif.type) }}</span>
+                </div>
+                <div v-if="notif.content" class="notif-preview">{{ notif.content }}</div>
+                <div class="notif-time">{{ formatNotifTime(notif.createTime) }}</div>
               </div>
-              <div v-if="notif.content" class="notif-preview">{{ notif.content }}</div>
-              <div class="notif-time">{{ notif.createTime }}</div>
-            </div>
-            <div class="notif-icon">
-              <n-icon :component="getNotificationIcon(notif.type)" :size="20" />
-            </div>
-          </li>
-        </ul>
-      </div>
-    </aside>
+              <div class="notif-icon">
+                <n-icon :component="getNotificationIcon(notif.type)" :size="20" />
+              </div>
+            </li>
+          </ul>
+        </div>
+      </aside>
+    </div>
   </Transition>
 </template>
 
 <style scoped>
-.notif-drawer {
+/* 定位层：不参与 transform 动画，避免与居中 transform 冲突导致抖动 */
+.notif-drawer-layer {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  inset: 0;
+  z-index: 110;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.notif-drawer {
+  pointer-events: auto;
   width: 380px;
   max-width: 90%;
   max-height: 70%;
@@ -222,8 +265,8 @@ function close() {
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
   display: flex;
   flex-direction: column;
-  z-index: 110;
   overflow: hidden;
+  will-change: opacity, transform;
 }
 
 .notif-drawer-header {
@@ -397,19 +440,19 @@ function close() {
   color: var(--lx-accent);
 }
 
-/* 弹窗缩放淡入动画 */
-.notif-drawer-enter-active,
-.notif-drawer-leave-active {
-  transition: transform 0.2s ease, opacity 0.2s ease;
+/* 仅淡入上移，定位层用 flex 居中，不再动画 translate(-50%,-50%) */
+.notif-drawer-enter-active .notif-drawer,
+.notif-drawer-leave-active .notif-drawer {
+  transition: transform 0.18s ease, opacity 0.18s ease;
 }
-.notif-drawer-enter-from,
-.notif-drawer-leave-to {
-  transform: translate(-50%, -50%) scale(0.92);
+.notif-drawer-enter-from .notif-drawer,
+.notif-drawer-leave-to .notif-drawer {
+  transform: translateY(8px) scale(0.98);
   opacity: 0;
 }
-.notif-drawer-enter-to,
-.notif-drawer-leave-from {
-  transform: translate(-50%, -50%) scale(1);
+.notif-drawer-enter-to .notif-drawer,
+.notif-drawer-leave-from .notif-drawer {
+  transform: translateY(0) scale(1);
   opacity: 1;
 }
 </style>

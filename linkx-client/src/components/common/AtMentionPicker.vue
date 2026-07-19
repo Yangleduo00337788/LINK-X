@@ -12,7 +12,7 @@ import { computed, ref, watch } from 'vue'
 import type { ContactItem } from '../../types'
 
 interface MentionPick {
-  id: number
+  id: string
   name: string
 }
 
@@ -33,37 +33,46 @@ const emit = defineEmits<{
 
 const activeIndex = ref(0)
 
-const visible = computed(() => props.friends.length > 0)
+const hasFriends = computed(() => props.friends.length > 0)
 
 watch(() => props.friends, () => {
   activeIndex.value = 0
 })
 
+function resolveFriendId(friend: ContactItem): string {
+  return String(friend.userId || friend.id || '').trim()
+}
+
 function pick(friend: ContactItem) {
-  if (!friend.userId) return
-  emit('apply', { id: Number(friend.userId), name: friend.name })
+  const id = resolveFriendId(friend)
+  const name = (friend.name || '').trim()
+  if (!id || !name) return
+  emit('apply', { id, name })
 }
 
 defineExpose({
   /** 通过键盘事件父组件驱动 activeIndex 变更 */
   move(delta: number) {
-    if (!visible.value) return
+    if (!hasFriends.value) return
     const len = props.friends.length
     activeIndex.value = (activeIndex.value + delta + len) % len
   },
   /** 键盘事件确认 */
   confirm(): MentionPick | null {
     const f = props.friends[activeIndex.value]
-    if (!f || !f.userId) return null
-    return { id: Number(f.userId), name: f.name }
+    if (!f) return null
+    const id = resolveFriendId(f)
+    const name = (f.name || '').trim()
+    if (!id || !name) return null
+    return { id, name }
   }
 })
 </script>
 
 <template>
-  <div v-if="visible" class="at-mention-popover" @mousedown.prevent>
+  <div class="at-mention-popover" @mousedown.prevent>
     <div class="at-header">选择好友</div>
-    <ul class="at-list">
+    <ul v-if="hasFriends" class="at-list">
       <li
         v-for="(friend, idx) in friends"
         :key="friend.id"
@@ -78,16 +87,19 @@ defineExpose({
         </span>
         <div class="at-info">
           <div class="at-name">{{ friend.name }}</div>
-          <div v-if="friend.online" class="at-meta">我的好友</div>
+          <div class="at-meta">我的好友</div>
         </div>
       </li>
     </ul>
+    <div v-else class="at-empty">暂无好友可 @，请先添加好友</div>
   </div>
 </template>
 
 <style scoped>
 .at-mention-popover {
   position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
   z-index: 30;
   background: var(--lx-bg-card);
   border: 1px solid var(--lx-border-light);
@@ -165,5 +177,12 @@ defineExpose({
 .at-meta {
   font-size: 11px;
   color: var(--lx-text-muted);
+}
+
+.at-empty {
+  padding: 16px 12px;
+  text-align: center;
+  color: var(--lx-text-muted);
+  font-size: 12px;
 }
 </style>

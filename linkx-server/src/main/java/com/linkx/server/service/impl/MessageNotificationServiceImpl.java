@@ -6,6 +6,7 @@ import com.linkx.server.entity.SysUser;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.MessageNotificationMapper;
 import com.linkx.server.mapper.SysUserMapper;
+import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.MessageNotificationService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ public class MessageNotificationServiceImpl implements MessageNotificationServic
 
     private final MessageNotificationMapper notificationMapper;
     private final SysUserMapper sysUserMapper;
+    private final MediaUrlService mediaUrlService;
 
     @Override
     public List<MessageNotificationVO> listUnread(Long userId) {
@@ -151,11 +153,21 @@ public class MessageNotificationServiceImpl implements MessageNotificationServic
     }
 
     private MessageNotificationVO toVO(MessageNotification notification) {
+        // 库中存 object key；对外签发可访问 URL（与好友/友链头像一致）
+        String avatar = notification.getSenderAvatar();
+        if (avatar == null || avatar.isBlank()) {
+            if (notification.getSenderId() != null) {
+                SysUser sender = sysUserMapper.selectOneById(notification.getSenderId());
+                if (sender != null) {
+                    avatar = sender.getAvatar();
+                }
+            }
+        }
         return MessageNotificationVO.builder()
                 .id(notification.getId())
                 .senderId(notification.getSenderId())
                 .senderName(notification.getSenderName())
-                .senderAvatar(notification.getSenderAvatar())
+                .senderAvatar(mediaUrlService.resolve(avatar))
                 .type(notification.getType())
                 .relatedId(notification.getRelatedId())
                 .content(notification.getContent())

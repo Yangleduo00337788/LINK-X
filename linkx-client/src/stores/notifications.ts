@@ -8,6 +8,7 @@ import type { FriendRequestItem } from '../types/friend'
 import * as friendApi from '../api/friend'
 import * as notificationApi from '../api/notification'
 import * as groupInvitationApi from '../api/groupInvitation'
+import { normalizeMediaUrl } from '../utils/mediaUrl'
 
 /** 好友相关通知（加好友、验证等） */
 export interface FriendNotification {
@@ -126,13 +127,13 @@ function mapRawNotification(n: notificationApi.MessageNotificationVO): MessageNo
   return {
     id: String(n.id),
     senderId: String(n.senderId),
-    senderName: n.senderName,
-    senderAvatar: n.senderAvatar,
+    senderName: n.senderName || '用户',
+    senderAvatar: normalizeMediaUrl(n.senderAvatar) || undefined,
     type: n.type,
     relatedId: n.relatedId ? String(n.relatedId) : undefined,
     content: n.content,
     readStatus: n.readStatus,
-    createTime: n.createTime
+    createTime: String(n.createTime ?? '')
   }
 }
 
@@ -154,10 +155,18 @@ export const useNotificationsStore = defineStore('notifications', {
       ).length
     },
     unreadMessageCount(state): number {
-      // 优先用服务端权威值；拉取失败时回退到本地列表计算
-      return state.serverUnreadCount > 0 || state.messageNotifs.length > 0
-        ? state.serverUnreadCount
-        : state.messageNotifs.filter(n => n.readStatus === 0).length
+      // 优先用服务端权威值；为 0 时也信任服务端（避免本地列表残留导致角标不消）
+      if (typeof state.serverUnreadCount === 'number' && state.serverUnreadCount >= 0) {
+        // 若本地已有列表，用本地未读数与服务端取较大值，防止推送后列表已更新但 count 稍慢
+        const localUnread = state.messageNotifs.filter(n => n.readStatus === 0).length
+        return Math.max(state.serverUnreadCount, localUnread)
+      }
+      return state.messageNotifs.filter(n => n.readStatus === 0).length
+    },
+    /** 友链相关未读（铃铛在友链窗口使用） */
+    momentsUnreadCount(state): number {
+      const types = new Set(['moments_like', 'moments_comment', 'moments_mention'])
+      return state.messageNotifs.filter(n => n.readStatus === 0 && types.has(n.type)).length
     },
     totalUnreadCount(): number {
       return this.pendingFriendCount + this.unreadMessageCount
@@ -262,12 +271,14 @@ export const useNotificationsStore = defineStore('notifications', {
 
     async markMessageAsRead(notificationId: string) {
       try {
-        const res = await notificationApi.markAsRead(Number(notificationId))
+        const res = await notificationApi.markAsRead(notificationId)
         if (res.code === 200) {
           const notif = this.messageNotifs.find(n => n.id === notificationId)
-          if (notif) {
+          if (notif && notif.readStatus === 0) {
             notif.readStatus = 1
+            if (this.serverUnreadCount > 0) this.serverUnreadCount -= 1
           }
+          void this.fetchNotificationCount()
         }
       } catch (error) {
         console.error('标记通知已读失败:', error)
@@ -290,7 +301,7 @@ export const useNotificationsStore = defineStore('notifications', {
 
     async deleteMessageNotification(notificationId: string) {
       try {
-        const res = await notificationApi.deleteNotification(Number(notificationId))
+        const res = await notificationApi.deleteNotification(notificationId)
         if (res.code === 200) {
           this.messageNotifs = this.messageNotifs.filter(n => n.id !== notificationId)
         }
@@ -321,7 +332,10 @@ export const useNotificationsStore = defineStore('notifications', {
      * 重新拉取最新一份并合并到本地。
      */
     async refreshFromSocket() {
-      await this.fetchMessageNotifications()
+      await Promise.all([
+        this.fetchMessageNotifications(),
+        this.fetchNotificationCount()
+      ])
     },
 
     /**

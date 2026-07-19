@@ -51,7 +51,7 @@ export function getUnreadCount() {
 /**
  * 标记通知为已读
  */
-export function markAsRead(notificationId: number) {
+export function markAsRead(notificationId: string | number) {
   return apiClient.post<never, ApiResult<null>>(`/notifications/${notificationId}/read`)
 }
 
@@ -65,7 +65,7 @@ export function markAllAsRead() {
 /**
  * 删除通知
  */
-export function deleteNotification(notificationId: number) {
+export function deleteNotification(notificationId: string | number) {
   return apiClient.delete<never, ApiResult<null>>(`/notifications/${notificationId}`)
 }
 

@@ -34,8 +34,8 @@ export interface PublishPayload {
 export interface CommentPayload {
   content: string
   parentId?: string
-  /** 被 @ 的用户 ID 列表 */
-  mentions?: number[]
+  /** 被 @ 的用户 ID 列表（字符串，避免雪花 ID 精度丢失） */
+  mentions?: Array<string | number>
 }
 
 /**
