@@ -13,7 +13,10 @@ export interface MomentComment {
   id: string     // 评论 id
   userId: string // 评论者 ID
   user: string   // 评论者昵称
+  avatar?: string // 评论者头像
   content: string // 评论正文
+  /** 被 @ 的用户 ID 列表 */
+  mentions?: number[]
 }
 
 /** 单条朋友圈动态 */
@@ -47,7 +50,9 @@ function mapPost(p: momentsApi.MomentsPost): MomentPost {
       id: String(c.id),
       userId: String(c.userId),
       user: c.nickname || '用户',
-      content: c.content
+      avatar: toDisplayableMediaUrl(c.avatar),
+      content: c.content,
+      mentions: Array.isArray(c.mentions) ? c.mentions : undefined
     }))
   }
 }
@@ -159,27 +164,35 @@ export const useMomentsStore = defineStore('moments', {
       }
     },
 
-    /** 添加评论 */
-    async addComment(postId: string, content: string) {
+    /** 添加评论（支持 mentions 列表） */
+    async addComment(postId: string, content: string, mentions: number[] = []) {
       const post = this.posts.find(p => p.id === postId)
-      if (!post || !content.trim()) return
+      if (!post || !content.trim()) return false
       const appStore = useAppStore()
 
       try {
-        const res = await momentsApi.commentMoments(postId, { content: content.trim() })
+        const res = await momentsApi.commentMoments(postId, {
+          content: content.trim(),
+          mentions: mentions.length ? mentions : undefined
+        })
         if (res.code === 200 && res.data) {
           const c = res.data
+          const myAvatar = toDisplayableMediaUrl(appStore.userProfile.avatar)
           post.comments.push({
             id: String(c.id),
             userId: String(c.userId),
             user: c.nickname || appStore.userProfile.nickname,
-            content: c.content
+            avatar: myAvatar,
+            content: c.content,
+            mentions: Array.isArray(c.mentions) ? c.mentions : undefined
           })
           this.uiShowActions[postId] = false
+          return true
         }
       } catch (e) {
         console.error('评论失败:', e)
       }
+      return false
     },
 
     /** 删除评论 */

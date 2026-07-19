@@ -590,6 +590,14 @@ export const useAppStore = defineStore('app', {
           void import('./call').then(({ useCallStore }) => {
             useCallStore().handleRemoteEvent(action, data as import('../api/call').CallEventPayload)
           })
+        },
+        onCustomAction: (action: string, _data: Record<string, unknown>) => {
+          // 透传给其它 store:目前用于 message_notification 实时刷新
+          if (action === 'notification_refresh') {
+            void import('./notifications').then(({ useNotificationsStore }) => {
+              void useNotificationsStore().refreshFromSocket()
+            })
+          }
         }
       }
       await connectChatSocket(handlers)
