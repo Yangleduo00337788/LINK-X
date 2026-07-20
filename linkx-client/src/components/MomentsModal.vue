@@ -912,12 +912,13 @@ function getImageGridClass(count: number): string {
 }
 
 .moments-wrapper {
+  display: flex;
+  flex-direction: column;
   position: relative;
   width: 440px;
   height: 560px;
   background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
-  overflow: hidden;
   text-align: left;
   margin: auto;
 }
@@ -1100,13 +1101,9 @@ function getImageGridClass(count: number): string {
 }
 
 .moments-scroll-container {
-  height: 100%;
+  flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
   background: var(--lx-bg-card);
   -webkit-overflow-scrolling: touch;
 }
