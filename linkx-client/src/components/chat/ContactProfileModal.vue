@@ -19,7 +19,9 @@ import type { ContactItem } from '../../types'
 import * as userApi from '../../api/user'
 import type { UserProfileData } from '../../api/user'
 import { generatePlaceholderImage } from '../../utils/defaultAvatar'
+import { useI18n } from '../../i18n'
 
+const { t } = useI18n()
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
 const momentsStore = useMomentsStore()
@@ -137,7 +139,7 @@ async function handleSendMessage() {
     await startChatWithContact(contact.value)
     closeContactProfile()
   } catch (error) {
-    message.error((error as Error).message || '打开会话失败')
+    message.error((error as Error).message || t('modals.openSessionFail'))
   }
 }
 
@@ -154,11 +156,11 @@ async function handleAvatarChange(e: Event) {
   if (!file || !contact.value) return
 
   if (!file.type.startsWith('image/')) {
-    message.error('请选择图片文件')
+    message.error(t('modals.pickImage'))
     return
   }
   if (file.size > 10 * 1024 * 1024) {
-    message.error('图片大小不能超过 10MB')
+    message.error(t('modals.imageTooLarge'))
     return
   }
 
@@ -167,9 +169,9 @@ async function handleAvatarChange(e: Event) {
     const avatarUrl = await updateAvatar(file)
     contact.value.avatarUrl = avatarUrl
     contact.value.avatarColor = 'transparent'
-    message.success('头像已更新')
+    message.success(t('modals.avatarUpdated'))
   } catch (error) {
-    message.error('上传失败: ' + (error as Error).message)
+    message.error(t('modals.uploadFail', { message: (error as Error).message }))
   } finally {
     uploadingAvatar.value = false
   }
@@ -197,7 +199,7 @@ function handleEditProfile() {
             class="avatar-clickable"
             :class="{ uploading: uploadingAvatar }"
             @click="handleAvatarClick"
-            :title="profileCardIsSelf ? '点击更换头像' : ''"
+            :title="profileCardIsSelf ? t('modals.changeAvatar') : ''"
           >
             <Avatar
               :text="displayAvatarText"
@@ -212,8 +214,8 @@ function handleEditProfile() {
           <div class="head-meta">
             <div class="profile-name">{{ displayName }}</div>
             <div class="profile-id">
-              LinkX ID: {{ displayId }}
-              <span v-if="loadingRemoteProfile" class="profile-loading">加载中…</span>
+              {{ t('modals.linkxId', { id: displayId }) }}
+              <span v-if="loadingRemoteProfile" class="profile-loading">{{ t('common.loading') }}</span>
             </div>
           </div>
           <button
@@ -222,12 +224,12 @@ function handleEditProfile() {
             class="edit-profile-btn"
             @click="handleEditProfile"
           >
-            编辑资料
+            {{ t('modals.editProfile') }}
           </button>
         </section>
 
         <section class="moments-row">
-          <span class="moments-label">友链</span>
+          <span class="moments-label">{{ t('modals.moments') }}</span>
           <div class="moments-thumbs">
             <img
               v-for="(img, i) in momentPreviews"
@@ -242,7 +244,7 @@ function handleEditProfile() {
 
         <button v-if="!profileCardIsSelf" type="button" class="send-btn" @click="handleSendMessage">
           <n-icon :component="ChatbubbleEllipsesOutline" :size="18" />
-          <span>发消息</span>
+          <span>{{ t('modals.sendMessage') }}</span>
         </button>
 
         <input

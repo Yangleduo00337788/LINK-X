@@ -2,19 +2,21 @@
 /**
  * 文件预览页面
  */
-import { computed, ref } from 'vue'
-import { NButton, NIcon, NSpin } from 'naive-ui'
+import { computed } from 'vue'
+import { NButton, NIcon } from 'naive-ui'
 import { CloudDownloadOutline, OpenOutline, CloseOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useOverlayStore } from '../../../stores/overlay'
+import { useI18n } from '../../../i18n'
 
 const overlayStore = useOverlayStore()
 const { close } = overlayStore
 const { filePreview } = storeToRefs(overlayStore)
+const { t } = useI18n()
 
 // 文件大小格式化
 function formatFileSize(bytes: number | string | undefined): string {
-  if (!bytes) return '未知大小'
+  if (!bytes) return t('overlay.unknownSize')
   const size = typeof bytes === 'string' ? parseInt(bytes) : bytes
   if (size < 1024) return `${size} B`
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
@@ -37,9 +39,9 @@ const fileIcon = computed(() => {
   if (['xls', 'xlsx'].includes(ext)) return 'XLS'
   if (['ppt', 'pptx'].includes(ext)) return 'PPT'
   if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return 'ZIP'
-  if (['mp3', 'wav', 'ogg', 'flac'].includes(ext)) return '音频'
-  if (['mp4', 'avi', 'mkv', 'mov'].includes(ext)) return '视频'
-  return '文件'
+  if (['mp3', 'wav', 'ogg', 'flac'].includes(ext)) return t('overlay.audio')
+  if (['mp4', 'avi', 'mkv', 'mov'].includes(ext)) return t('overlay.video')
+  return t('overlay.fileLabel')
 })
 
 // 下载文件
@@ -49,7 +51,7 @@ function downloadFile() {
 
   const a = document.createElement('a')
   a.href = url
-  a.download = filePreview.value?.fileName || '下载文件'
+  a.download = filePreview.value?.fileName || t('overlay.downloadName')
   a.target = '_blank'
   document.body.appendChild(a)
   a.click()
@@ -82,7 +84,7 @@ function openFile() {
 
       <!-- 文件信息 -->
       <div class="file-info">
-        <h3 class="file-name">{{ filePreview?.fileName || '未知文件' }}</h3>
+        <h3 class="file-name">{{ filePreview?.fileName || t('overlay.unknownFile') }}</h3>
         <p class="file-meta">{{ formatFileSize(filePreview?.fileSize) }}</p>
       </div>
 
@@ -96,7 +98,7 @@ function openFile() {
           <template #icon>
             <n-icon :component="CloudDownloadOutline" />
           </template>
-          下载文件
+          {{ t('overlay.download') }}
         </n-button>
         <n-button
           v-if="filePreview?.fileUrl && !isImage"
@@ -106,7 +108,7 @@ function openFile() {
           <template #icon>
             <n-icon :component="OpenOutline" />
           </template>
-          在浏览器打开
+          {{ t('overlay.openBrowser') }}
         </n-button>
       </div>
     </section>

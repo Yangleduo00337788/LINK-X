@@ -22,7 +22,9 @@ import { useGroupMetaStore } from '../../stores/groupMeta'
 import * as groupApi from '../../api/group'
 import * as groupInvitationApi from '../../api/groupInvitation'
 import { useMessage } from 'naive-ui'
+import { useI18n } from '../../i18n'
 
+const { t } = useI18n()
 const message = useMessage()
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
@@ -67,7 +69,7 @@ function toggle(id: string) {
 
 async function confirm() {
   if (!currentSessionId.value || selected.value.size === 0) {
-    message.warning('请选择要邀请的成员')
+    message.warning(t('extra.selectMembersFirst'))
     return
   }
   if (submitting.value) return
@@ -78,20 +80,20 @@ async function confirm() {
       for (const memberId of memberIds) {
         const res = await groupInvitationApi.inviteToGroup(currentSessionId.value, {
           inviteeUserId: memberId,
-          message: '邀请你加入群聊'
+          message: t('extra.inviteJoinMsg')
         })
         if (res.code !== 200) {
-          throw new Error(res.message || '发送群邀请失败')
+          throw new Error(res.message || t('extra.inviteSendFail'))
         }
       }
-      message.success(`已向 ${memberIds.length} 人发送群邀请`)
+      message.success(t('extra.inviteSentCount', { n: memberIds.length }))
     } else {
       const res = await groupApi.addGroupMembers(currentSessionId.value, { memberIds })
       if (res.code === 200) {
         void groupMetaStore.fetchMembers(currentSessionId.value)
-        message.success(`已邀请 ${memberIds.length} 人加入群聊`)
+        message.success(t('extra.invitedJoinCount', { n: memberIds.length }))
       } else {
-        message.error(res.message || '邀请失败')
+        message.error(res.message || t('extra.inviteFail'))
         return
       }
     }
@@ -99,7 +101,7 @@ async function confirm() {
     closeAddMembers()
   } catch (e) {
     const err = e as { response?: { data?: { message?: string } }; message?: string }
-    message.error(err.response?.data?.message || err.message || '邀请失败')
+    message.error(err.response?.data?.message || err.message || t('extra.inviteFail'))
   } finally {
     submitting.value = false
   }
@@ -116,13 +118,13 @@ function cancel() {
     <div v-if="addMembersOpen" class="modal-root" @click.self="cancel">
       <div class="modal-card" @click.stop>
         <!-- 弹窗标题 -->
-        <h2 class="modal-title">添加成员</h2>
+        <h2 class="modal-title">{{ t('extra.addMembers') }}</h2>
         <!-- 左右分栏主体 -->
         <div class="modal-body">
           <!-- 左侧：搜索与联系人列表 -->
           <div class="left-pane">
             <div class="search-wrap">
-              <input v-model="search" type="text" class="search-field" placeholder="搜索好友" />
+              <input v-model="search" type="text" class="search-field" :placeholder="t('extra.searchFriends')" />
             </div>
             <div class="scroll-list">
               <button type="button" class="group-head" @click="recentExpanded = !recentExpanded">
@@ -132,7 +134,7 @@ function cancel() {
                   class="chev"
                   :class="{ collapsed: !recentExpanded }"
                 />
-                <span>我的好友（{{ recentContacts.length }}）</span>
+                <span>{{ t('extra.myFriendsCount', { n: recentContacts.length }) }}</span>
               </button>
               <template v-if="recentExpanded">
                 <button
@@ -150,42 +152,42 @@ function cancel() {
                   <Avatar :text="c.text" :color="c.color" :size="36" />
                   <span class="c-name">{{ c.name }}</span>
                 </button>
-                <div v-if="!recentContacts.length" class="empty-tip">暂无可邀请的好友</div>
+                <div v-if="!recentContacts.length" class="empty-tip">{{ t('extra.noInvitableFriends') }}</div>
               </template>
             </div>
           </div>
           <!-- 右侧：已选成员预览 -->
           <div class="right-pane">
-            <h3 class="right-title">已选择（{{ selectedList.length }}）</h3>
+            <h3 class="right-title">{{ t('extra.selectedCount', { n: selectedList.length }) }}</h3>
             <div v-if="selectedList.length" class="selected-list">
               <div v-for="c in selectedList" :key="c.id" class="chip">
                 <Avatar :text="c.text" :color="c.color" :size="44" />
                 <span>{{ c.name }}</span>
               </div>
             </div>
-            <div v-else class="empty-tip">未选择任何好友</div>
+            <div v-else class="empty-tip">{{ t('extra.noFriendSelected') }}</div>
           </div>
         </div>
         <!-- 底部：附带聊天记录选项与操作按钮 -->
         <div class="modal-footer">
           <label class="history-opt">
             <input v-model="inviteMode" type="checkbox" :disabled="submitting" />
-            <span>发送邀请待对方确认</span>
+            <span>{{ t('extra.invitePendingConfirm') }}</span>
           </label>
           <label class="history-opt">
             <input v-model="attachHistory" type="checkbox" :disabled="submitting" />
-            <span>附带聊天记录</span>
-            <span class="history-link">最近30条 ›</span>
+            <span>{{ t('extra.attachHistory') }}</span>
+            <span class="history-link">{{ t('extra.recent30') }}</span>
           </label>
           <div class="footer-btns">
-            <button type="button" class="btn" :disabled="submitting" @click="cancel">取消</button>
+            <button type="button" class="btn" :disabled="submitting" @click="cancel">{{ t('common.cancel') }}</button>
             <button
               type="button"
               class="btn primary"
               :disabled="submitting || selectedList.length === 0"
               @click="confirm"
             >
-              确定
+              {{ t('common.confirm') }}
             </button>
           </div>
         </div>

@@ -13,7 +13,9 @@ import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
 import { useGroupMetaStore } from '../../stores/groupMeta'
+import { useI18n } from '../../i18n'
 
+const { t } = useI18n()
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
 const groupMetaStore = useGroupMetaStore()
@@ -63,8 +65,8 @@ function toggleMemberSearch() {
     <!-- 群公告区块 -->
     <section class="announce-block">
       <div class="announce-head">
-        <h3 class="side-title">群公告</h3>
-        <button type="button" class="arrow-btn" title="查看群公告" @click="openGroupAnnouncement">
+        <h3 class="side-title">{{ t('chat.groupAnnouncement') }}</h3>
+        <button type="button" class="arrow-btn" :title="t('extra.viewAnnouncement')" @click="openGroupAnnouncement">
           <n-icon :component="ChevronForwardOutline" :size="18" />
         </button>
       </div>
@@ -75,16 +77,23 @@ function toggleMemberSearch() {
     <!-- 群成员列表 -->
     <section class="members-block">
       <div class="members-head">
-        <span class="side-title">群聊成员 {{ memberCount }}</span>
-        <button type="button" class="icon-btn" title="搜索成员" @click="toggleMemberSearch">
+        <span class="side-title">{{ t('extra.groupMembersCount', { n: memberCount }) }}</span>
+        <button type="button" class="icon-btn" :title="t('extra.searchMembers')" @click="toggleMemberSearch">
           <n-icon :component="showMemberSearch ? CloseOutline : SearchOutline" :size="18" />
         </button>
       </div>
       <div v-if="showMemberSearch" class="member-search">
-        <input v-model="memberSearch" type="text" class="member-search-input" placeholder="搜索成员" />
+        <input
+          v-model="memberSearch"
+          type="text"
+          class="member-search-input"
+          :placeholder="t('extra.searchMembersPh')"
+        />
       </div>
       <div class="member-list">
-        <div v-if="showMemberSearch && !filteredMembers.length" class="member-empty">无匹配成员</div>
+        <div v-if="showMemberSearch && !filteredMembers.length" class="member-empty">
+          {{ t('extra.noMatchMembers') }}
+        </div>
         <div v-for="m in filteredMembers" :key="m.id" class="member-row">
           <Avatar :text="m.avatarText" :color="m.avatarColor" :size="36" />
           <div class="m-info">

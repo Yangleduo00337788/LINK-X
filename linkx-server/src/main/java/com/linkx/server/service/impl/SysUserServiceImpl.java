@@ -419,6 +419,98 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         log.info("用户 {} 通过邮箱验证码重置了密码", username);
     }
 
+    @Override
+    public void sendBindEmailCode(Long userId, String email, String ip) {
+        rateLimitService.check("bind-email:" + ip, 5, 300);
+        SysUser user = getById(userId);
+        if (user == null) {
+            throw new CustomException(404, "用户不存在");
+        }
+        String normalized = InputSanitizer.sanitizeText(email, 128).trim().toLowerCase();
+        long used = queryChain()
+                .where(SysUser::getEmail).eq(normalized)
+                .and(SysUser::getId).ne(userId)
+                .count();
+        if (used > 0) {
+            throw new CustomException(400, "该邮箱已被其他账号绑定");
+        }
+        String code = String.format("%06d", (int) (Math.random() * 1_000_000));
+        String redisKey = "linkx:bind-email:" + userId;
+        int expireMinutes = linkxProperties.getMail().getCodeExpireMinutes();
+        redisTemplate.opsForValue().set(redisKey, normalized + "|" + code,
+                java.time.Duration.ofMinutes(expireMinutes));
+        emailService.sendBindEmailCode(normalized, user.getUsername(), code);
+        log.info("已向用户 {} 发送绑定邮箱验证码", user.getUsername());
+    }
+
+    @Override
+    public void bindEmail(Long userId, String email, String code, String ip) {
+        rateLimitService.check("bind-email-verify:" + ip, 10, 300);
+        SysUser user = getById(userId);
+        if (user == null) {
+            throw new CustomException(404, "用户不存在");
+        }
+        String normalized = InputSanitizer.sanitizeText(email, 128).trim().toLowerCase();
+        String redisKey = "linkx:bind-email:" + userId;
+        String cached = redisTemplate.opsForValue().get(redisKey);
+        if (cached == null || cached.isBlank()) {
+            throw new CustomException(400, "验证码已过期，请重新获取");
+        }
+        String[] parts = cached.split("\\|", 2);
+        if (parts.length != 2 || !parts[0].equalsIgnoreCase(normalized) || !parts[1].equals(code.trim())) {
+            throw new CustomException(400, "验证码错误");
+        }
+        long used = queryChain()
+                .where(SysUser::getEmail).eq(normalized)
+                .and(SysUser::getId).ne(userId)
+                .count();
+        if (used > 0) {
+            throw new CustomException(400, "该邮箱已被其他账号绑定");
+        }
+        user.setEmail(normalized);
+        updateById(user);
+        redisTemplate.delete(redisKey);
+        log.info("用户 {} 绑定邮箱成功", user.getUsername());
+    }
+
+    @Override
+    public void bindPhone(Long userId, String phone, String password) {
+        SysUser user = getById(userId);
+        if (user == null) {
+            throw new CustomException(404, "用户不存在");
+        }
+        if (!BCrypt.checkpw(password, user.getPassword())) {
+            throw new CustomException(400, "登录密码错误");
+        }
+        String normalized = phone.trim();
+        long used = queryChain()
+                .where(SysUser::getPhone).eq(normalized)
+                .and(SysUser::getId).ne(userId)
+                .count();
+        if (used > 0) {
+            throw new CustomException(400, "该手机号已被其他账号绑定");
+        }
+        user.setPhone(normalized);
+        updateById(user);
+        log.info("用户 {} 绑定手机号成功", user.getUsername());
+    }
+
+    @Override
+    public void deleteAccount(Long userId, String password) {
+        SysUser user = getById(userId);
+        if (user == null) {
+            throw new CustomException(404, "用户不存在");
+        }
+        if (!BCrypt.checkpw(password, user.getPassword())) {
+            throw new CustomException(400, "登录密码错误");
+        }
+        user.setStatus(0);
+        updateById(user);
+        removeById(userId); // 逻辑删除
+        tokenService.revokeAllUserTokens(userId);
+        log.info("用户 {} 已注销账号", user.getUsername());
+    }
+
     /**
      * 检测 BCrypt 哈希的 cost factor。
      * 格式：$2a$<cost>$<22字符salt><hash>

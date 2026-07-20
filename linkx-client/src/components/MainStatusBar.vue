@@ -15,6 +15,7 @@ import PinIcon from './icons/PinIcon.vue'
 import { storeToRefs } from 'pinia'
 // 应用全局状态 Store
 import { useAppStore } from '../stores/app'
+import { useI18n } from '../i18n'
 
 // 定义组件属性及默认值
 withDefaults(
@@ -34,8 +35,12 @@ withDefaults(
 
 // 获取应用 Store 实例
 const appStore = useAppStore()
+const { t } = useI18n()
 // 解构当前导航键与会话信息的响应式引用
 const { navKey, currentSession } = storeToRefs(appStore)
+
+// 窗口是否置顶的状态
+const isPinned = ref(false)
 
 // 计算中间标题栏显示的会话名称（仅在聊天导航且有当前会话时）
 const centerTitle = computed(() => {
@@ -45,8 +50,8 @@ const centerTitle = computed(() => {
   return '' // 其他导航不显示中间标题
 })
 
-// 窗口是否置顶的状态
-const isPinned = ref(false)
+const pinTitle = computed(() => (isPinned.value ? t('shell.unpin') : t('shell.pin')))
+const selectSessionHint = computed(() => t('chat.selectSession'))
 
 // 挂载时从 Electron API 读取窗口置顶状态
 onMounted(async () => {
@@ -79,7 +84,7 @@ async function togglePin() {
       <!-- chat 变体标题区 -->
       <template v-if="variant === 'chat'">
         <div class="profile-col">
-          <span class="nickname single">{{ title || '请选择会话' }}</span>
+          <span class="nickname single">{{ title || selectSessionHint }}</span>
           <span v-if="subtitle" class="signature-link static">{{ subtitle }}</span>
         </div>
       </template>
@@ -104,7 +109,7 @@ async function togglePin() {
         type="button"
         class="win-caption-btn"
         :class="{ active: isPinned }"
-        :title="isPinned ? '取消置顶' : '置顶'"
+        :title="pinTitle"
         :aria-pressed="isPinned"
         @click="togglePin"
       >

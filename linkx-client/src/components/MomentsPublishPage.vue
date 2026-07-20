@@ -35,6 +35,7 @@ import {
 import AtMentionPicker from './common/AtMentionPicker.vue'
 import LocationPickerPage from './LocationPickerPage.vue'
 import { normalizeMediaUrl } from '../utils/mediaUrl'
+import { useI18n } from '../i18n'
 
 const route = useRoute()
 const appStore = useAppStore()
@@ -43,6 +44,7 @@ const contactsStore = useContactsStore()
 const { userProfile } = storeToRefs(appStore)
 
 const message = useMessage()
+const { t } = useI18n()
 
 /** 当前模式:text=纯文字,media=图片/视频 */
 const mode = computed<'text' | 'media'>(() => {
@@ -89,13 +91,17 @@ const showAtUsersModal = ref(false)
 // 谁可以看
 const visibility = ref(0) // 0=公开，1=仅好友，2=私密
 const showVisibilityModal = ref(false)
-const visibilityOptions = [
-  { value: 0, label: '公开', desc: '所有朋友都能看' },
-  { value: 1, label: '仅好友', desc: '仅好友可见' },
-  { value: 2, label: '私密', desc: '仅自己可见' }
-]
+const visibilityOptions = computed(() => [
+  { value: 0, label: t('moments.public'), desc: t('moments.publicDesc') },
+  { value: 1, label: t('moments.friendsOnly'), desc: t('moments.friendsOnlyDesc') },
+  { value: 2, label: t('moments.private'), desc: t('moments.privateDesc') }
+])
 
-const visibilityLabels = ['公开', '仅好友', '私密']
+const visibilityLabels = computed(() => [
+  t('moments.public'),
+  t('moments.friendsOnly'),
+  t('moments.private')
+])
 // ========== 新增功能结束 ==========
 
 // 发布成功
@@ -225,30 +231,30 @@ async function onPickMedia(e: Event) {
     const isVideo = file.type.startsWith('video/')
     const isImage = file.type.startsWith('image/')
     if (!isVideo && !isImage) {
-      message.warning(`「${file.name}」类型不支持,已跳过`)
+      message.warning(t('moments.unsupportedType', { name: file.name }))
       continue
     }
     if (isVideo) {
       if (videos.value.length >= 1) {
-        message.warning('目前仅支持添加 1 个视频')
+        message.warning(t('moments.oneVideoOnly'))
         continue
       }
       if (file.size > MAX_PUBLISH_VIDEO_BYTES) {
-        message.warning(`「${file.name}」超过 50MB,已跳过`)
+        message.warning(t('moments.videoTooLarge', { name: file.name }))
         continue
       }
       try {
         videos.value.push({ url: URL.createObjectURL(file), file })
       } catch {
-        message.error(`「${file.name}」读取失败`)
+        message.error(t('moments.readFail', { name: file.name }))
       }
     } else {
       if (images.value.length >= 9) {
-        message.warning('最多添加 9 张图片')
+        message.warning(t('moments.maxImages'))
         break
       }
       if (file.size > MAX_PUBLISH_IMAGE_BYTES) {
-        message.warning(`「${file.name}」超过 10MB,已跳过`)
+        message.warning(t('moments.imageFileTooLarge', { name: file.name }))
         continue
       }
       try {
@@ -256,7 +262,7 @@ async function onPickMedia(e: Event) {
         const preview = await readFileAsDataUrl(file)
         images.value.push({ file, preview })
       } catch {
-        message.error(`「${file.name}」读取失败`)
+        message.error(t('moments.readFail', { name: file.name }))
       }
     }
   }
@@ -338,12 +344,12 @@ async function publish() {
   const trimmed = text.value.trim()
   if (mode.value === 'text') {
     if (!trimmed) {
-      message.warning('请输入要发表的内容')
+      message.warning(t('moments.publishNeedContent'))
       return
     }
   } else {
     if (!trimmed && !images.value.length && !videos.value.length) {
-      message.warning('请输入文字或添加图片/视频')
+      message.warning(t('moments.publishNeedMedia'))
       return
     }
   }
@@ -353,7 +359,7 @@ async function publish() {
   try {
     let uploaded: string[] = []
     if (images.value.length) {
-      message.info('正在上传图片...')
+      message.info(t('moments.uploadingImages'))
       const { uploadMomentsImage } = await import('../api/moments')
       for (let i = 0; i < images.value.length; i++) {
         const item = images.value[i]
@@ -371,14 +377,14 @@ async function publish() {
           : new File([fileToUpload], displayName, { type: 'image/jpeg' })
         const res = await uploadMomentsImage(finalFile)
         if (res.code !== 200 || !res.data) {
-          throw new Error(res.message || '图片上传失败')
+          throw new Error(res.message || t('moments.imageUploadFail'))
         }
         uploaded.push(res.data)
         uploadProgress.value = Math.round(((i + 1) / images.value.length) * 100)
       }
     }
     uploadProgress.value = 100
-    const finalContent = trimmed || (mode.value === 'media' ? '分享图片' : '')
+    const finalContent = trimmed || (mode.value === 'media' ? t('moments.shareImage') : '')
     const atUserIds = atUsers.value.map(u => u.id)
     const ok = await momentsStore.addPost(finalContent, uploaded, {
       location: location.value || undefined,
@@ -389,15 +395,15 @@ async function publish() {
       // 通知友链列表窗口立即刷新（发布页与列表页是独立 Electron 窗口）
       window.electronAPI?.notifyMomentsPublished?.()
       showSuccess.value = true
-      message.success('发布成功')
+      message.success(t('moments.publishOk'))
       setTimeout(() => {
         closeWindow()
       }, 1200)
     } else {
-      message.error('发布失败,请重试')
+      message.error(t('moments.publishFail'))
     }
   } catch (e) {
-    message.error(e instanceof Error ? e.message : '发布失败')
+    message.error(e instanceof Error ? e.message : t('moments.publishFailShort'))
   } finally {
     publishing.value = false
     setTimeout(() => { uploadProgress.value = 0 }, 800)
@@ -411,7 +417,7 @@ async function publish() {
     <div v-if="showSuccess" class="success-overlay">
       <div class="success-content">
         <n-icon :component="CheckmarkCircleOutline" :size="72" class="success-icon" />
-        <span class="success-text">发布成功</span>
+        <span class="success-text">{{ t('moments.publishOk') }}</span>
       </div>
     </div>
   </transition>
@@ -421,7 +427,7 @@ async function publish() {
     <header class="page-header">
       <div class="header-left-spacer" aria-hidden="true" />
       <h1 class="page-title">
-        {{ mode === 'text' ? '发表文字' : '发表图片/视频' }}
+        {{ mode === 'text' ? t('moments.publishTextTitle') : t('moments.publishMediaTitle') }}
       </h1>
       <button
         type="button"
@@ -429,14 +435,14 @@ async function publish() {
         :disabled="!canPublish"
         @click="publish"
       >
-        {{ publishing ? '发表中...' : '发表' }}
+        {{ publishing ? t('moments.publishing') : t('moments.publish') }}
       </button>
     </header>
 
     <!-- 上传进度条(发布中显示) -->
     <div v-if="publishing && uploadProgress > 0 && uploadProgress < 100" class="upload-progress">
       <div class="upload-progress-bar" :style="{ width: uploadProgress + '%' }"></div>
-      <span class="upload-progress-text">上传中 {{ uploadProgress }}%</span>
+      <span class="upload-progress-text">{{ t('moments.uploadingProgress', { n: uploadProgress }) }}</span>
     </div>
 
     <!-- ============= 主内容 ============= -->
@@ -448,7 +454,7 @@ async function publish() {
           v-model="text"
           class="text-editor"
           :class="{ 'over-limit': isOverLimit }"
-          :placeholder="mode === 'text' ? '这一刻的想法...' : '为图片添加描述...'"
+          :placeholder="mode === 'text' ? t('moments.textPh') : t('moments.mediaPh')"
           maxlength="2000"
           @input="onTextInput"
           @keydown="onTextKeyDown"
@@ -475,7 +481,7 @@ async function publish() {
             type="button"
             class="add-slot"
             :disabled="images.length >= 9 || videos.length >= 1"
-            title="点击添加图片或视频"
+            :title="t('moments.addMedia')"
             @click="mediaInputRef?.click()"
           >
             <n-icon :component="AddOutline" :size="26" />
@@ -487,7 +493,7 @@ async function publish() {
             <div class="cell-overlay">
               <n-icon :component="PlayCircleOutline" :size="36" />
             </div>
-            <span class="media-tag">视频</span>
+            <span class="media-tag">{{ t('moments.video') }}</span>
             <button type="button" class="cell-remove" @click="removeVideo(j)">
               <n-icon :component="TrashOutline" :size="10" />
             </button>
@@ -521,7 +527,7 @@ async function publish() {
           <span class="option-icon">
             <n-icon :component="LocationOutline" :size="20" />
           </span>
-          <span class="option-label">所在位置</span>
+          <span class="option-label">{{ t('moments.location') }}</span>
           <span v-if="location" class="option-value">{{ location }}</span>
           <n-icon :component="ChevronForwardOutline" :size="16" class="option-arrow" />
         </li>
@@ -529,15 +535,15 @@ async function publish() {
           <span class="option-icon">
             <n-icon :component="AtCircleOutline" :size="20" />
           </span>
-          <span class="option-label">提醒谁看</span>
-          <span v-if="atUsers.length" class="option-value at-users-count">{{ atUsers.length }}人</span>
+          <span class="option-label">{{ t('moments.remindWho') }}</span>
+          <span v-if="atUsers.length" class="option-value at-users-count">{{ t('moments.peopleCount', { n: atUsers.length }) }}</span>
           <n-icon :component="ChevronForwardOutline" :size="16" class="option-arrow" />
         </li>
         <li class="option-row" @click="openVisibilityModal">
           <span class="option-icon">
             <n-icon :component="PersonCircleOutline" :size="20" />
           </span>
-          <span class="option-label">谁可以看</span>
+          <span class="option-label">{{ t('moments.whoCanSee') }}</span>
           <span class="option-value">{{ visibilityLabels[visibility] }}</span>
           <n-icon :component="ChevronForwardOutline" :size="16" class="option-arrow" />
         </li>
@@ -547,7 +553,7 @@ async function publish() {
     <!-- 底部固定区域 -->
     <footer class="page-footer">
       <button type="button" class="publish-btn-footer" :disabled="!canPublish" @click="publish">
-        {{ publishing ? '发表中...' : '发表' }}
+        {{ publishing ? t('moments.publishing') : t('moments.publish') }}
       </button>
     </footer>
   </div>
@@ -564,7 +570,7 @@ async function publish() {
   </Teleport>
 
   <!-- ========== 提醒谁看弹窗 ========== -->
-  <n-modal v-model:show="showAtUsersModal" preset="card" title="提醒谁看" style="max-width: 360px;">
+  <n-modal v-model:show="showAtUsersModal" preset="card" :title="t('moments.remindWho')" style="max-width: 360px;">
     <div class="at-users-modal">
       <!-- 已选择的好友标签 -->
       <div v-if="atUsers.length" class="selected-tags">
@@ -594,17 +600,17 @@ async function publish() {
           <span class="friend-name">{{ friend.name }}</span>
           <n-icon v-if="isAtUserSelected(Number(friend.id))" :component="CheckmarkCircleOutline" :size="20" class="check-icon" />
         </div>
-        <div v-if="!contactsStore.friends.length" class="no-friends">暂无好友</div>
+        <div v-if="!contactsStore.friends.length" class="no-friends">{{ t('moments.noFriends') }}</div>
       </div>
       <div class="modal-actions">
-        <n-button @click="showAtUsersModal = false">取消</n-button>
-        <n-button type="primary" @click="confirmAtUsers">确定</n-button>
+        <n-button @click="showAtUsersModal = false">{{ t('common.cancel') }}</n-button>
+        <n-button type="primary" @click="confirmAtUsers">{{ t('common.confirm') }}</n-button>
       </div>
     </div>
   </n-modal>
 
   <!-- ========== 谁可以看弹窗 ========== -->
-  <n-modal v-model:show="showVisibilityModal" preset="card" title="谁可以看" style="max-width: 320px;">
+  <n-modal v-model:show="showVisibilityModal" preset="card" :title="t('moments.whoCanSee')" style="max-width: 320px;">
     <div class="visibility-modal">
       <n-radio-group v-model:value="visibility" class="visibility-options">
         <div v-for="opt in visibilityOptions" :key="opt.value" class="visibility-option">
@@ -613,8 +619,8 @@ async function publish() {
         </div>
       </n-radio-group>
       <div class="modal-actions">
-        <n-button @click="showVisibilityModal = false">取消</n-button>
-        <n-button type="primary" @click="confirmVisibility">确定</n-button>
+        <n-button @click="showVisibilityModal = false">{{ t('common.cancel') }}</n-button>
+        <n-button type="primary" @click="confirmVisibility">{{ t('common.confirm') }}</n-button>
       </div>
     </div>
   </n-modal>

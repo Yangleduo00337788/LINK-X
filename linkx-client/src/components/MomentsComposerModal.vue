@@ -22,6 +22,7 @@ import { useMomentsStore } from '../stores/moments'
 import { useContactsStore } from '../stores/contacts'
 import { readFileAsDataUrl, dataUrlToFile, MAX_IMAGE_BYTES } from '../utils/file'
 import AtMentionPicker from './common/AtMentionPicker.vue'
+import { useI18n } from '../i18n'
 
 type Mode = 'text' | 'media'
 
@@ -35,6 +36,7 @@ const emit = defineEmits<{
   (e: 'published'): void
 }>()
 
+const { t } = useI18n()
 const message = useMessage()
 const momentsStore = useMomentsStore()
 const contactsStore = useContactsStore()
@@ -180,17 +182,17 @@ async function onPickImages(e: Event) {
   input.value = ''
   for (const file of files) {
     if (images.value.length >= 9) {
-      message.warning('最多添加 9 张图片')
+      message.warning(t('moments.maxImages'))
       break
     }
     if (file.size > MAX_IMAGE_BYTES) {
-      message.warning(`「${file.name}」超过 2MB,已跳过`)
+      message.warning(t('extra.fileTooLargeSkipped', { name: file.name, size: '2MB' }))
       continue
     }
     try {
       images.value.push(await readFileAsDataUrl(file))
     } catch {
-      message.error(`「${file.name}」读取失败`)
+      message.error(t('moments.readFail', { name: file.name }))
     }
   }
 }
@@ -227,17 +229,17 @@ async function onPickVideos(e: Event) {
   input.value = ''
   for (const file of files) {
     if (videos.value.length >= 1) {
-      message.warning('目前仅支持添加 1 个视频')
+      message.warning(t('moments.oneVideoOnly'))
       break
     }
     if (file.size > 50 * 1024 * 1024) {
-      message.warning(`「${file.name}」超过 50MB,已跳过`)
+      message.warning(t('moments.videoTooLarge', { name: file.name }))
       continue
     }
     try {
       videos.value.push({ url: await readFileAsDataUrl(file), file })
     } catch {
-      message.error(`「${file.name}」读取失败`)
+      message.error(t('moments.readFail', { name: file.name }))
     }
   }
 }
@@ -256,7 +258,7 @@ async function publish() {
   if (mode.value === 'text') {
     const trimmed = text.value.trim()
     if (!trimmed) {
-      message.warning('请输入要发布的内容')
+      message.warning(t('moments.publishNeedContent'))
       return
     }
     publishing.value = true
@@ -265,7 +267,7 @@ async function publish() {
       if (ok) {
         showSuccessAnimation()
       } else {
-        message.error('发布失败,请重试')
+        message.error(t('moments.publishFail'))
       }
     } finally {
       publishing.value = false
@@ -275,7 +277,7 @@ async function publish() {
 
   // media 模式
   if (videos.value.length === 0 && images.value.length === 0) {
-    message.warning('请添加至少一张图片或一个视频')
+    message.warning(t('extra.publishNeedPhotoOrVideo'))
     return
   }
 
@@ -283,7 +285,7 @@ async function publish() {
   try {
     let uploaded: string[] = []
     if (images.value.length) {
-      message.info('正在上传图片...')
+      message.info(t('moments.uploadingImages'))
       for (const dataUrl of images.value) {
         const ext = dataUrl.match(/data:image\/(\w+)/)?.[1] || 'jpeg'
         const safeExt = ext === 'jpg' ? 'jpeg' : ext
@@ -293,20 +295,20 @@ async function publish() {
         const { uploadMomentsImage } = await import('../api/moments')
         const res = await uploadMomentsImage(normalized)
         if (res.code !== 200 || !res.data) {
-          throw new Error(res.message || '图片上传失败')
+          throw new Error(res.message || t('moments.imageUploadFail'))
         }
         uploaded.push(res.data)
       }
     }
-    const finalContent = (text.value.trim() || '分享图片') + (videos.value.length ? ` [视频 1 个]` : '')
+    const finalContent = (text.value.trim() || t('moments.shareImage')) + (videos.value.length ? t('extra.videoCountTag') : '')
     const ok = await momentsStore.addPost(finalContent, uploaded)
     if (ok) {
       showSuccessAnimation()
     } else {
-      message.error('发布失败,请重试')
+      message.error(t('moments.publishFail'))
     }
   } catch (e) {
-    message.error(e instanceof Error ? e.message : '发布失败')
+    message.error(e instanceof Error ? e.message : t('moments.publishFailShort'))
   } finally {
     publishing.value = false
   }
@@ -314,7 +316,7 @@ async function publish() {
 
 function showSuccessAnimation() {
   showSuccess.value = true
-  message.success('发布成功')
+  message.success(t('moments.publishOk'))
   emit('published')
   setTimeout(() => {
     close()
@@ -356,7 +358,7 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
     <div v-if="showSuccess" class="success-overlay">
       <div class="success-content">
         <n-icon :component="CheckmarkCircleOutline" :size="64" class="success-icon" />
-        <span class="success-text">发布成功</span>
+        <span class="success-text">{{ t('moments.publishOk') }}</span>
       </div>
     </div>
   </transition>
@@ -369,7 +371,7 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
         <header class="composer-header">
           <div class="header-title">
             <n-icon :component="AtCircleOutline" :size="18" />
-            <span>发布文字</span>
+            <span>{{ t('moments.publishText') }}</span>
           </div>
           <button type="button" class="close-btn" @click="close">
             <n-icon :component="CloseOutline" :size="18" />
@@ -381,11 +383,11 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
             <div class="avatar-wrap">
               <img v-if="myAvatar" :src="myAvatar" alt="" class="user-avatar" />
               <div v-else class="user-avatar user-avatar-placeholder">
-                {{ (userProfile.nickname || '我').charAt(0) }}
+                {{ (userProfile.nickname || t('common.me')).charAt(0) }}
               </div>
             </div>
             <div class="user-info">
-              <span class="user-name">{{ userProfile.nickname || '我' }}</span>
+              <span class="user-name">{{ userProfile.nickname || t('common.me') }}</span>
             </div>
           </div>
 
@@ -395,7 +397,7 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
               v-model="text"
               class="text-editor"
               :class="{ 'over-limit': isOverLimit }"
-              placeholder="分享新鲜事... 使用 @ 提及你的好友"
+              :placeholder="t('extra.shareFreshPh')"
               maxlength="2000"
               @input="onTextInput"
               @keydown="onTextKeyDown"
@@ -420,7 +422,7 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
         </div>
 
         <footer class="composer-footer">
-          <span class="footer-tip">提示:输入 <b>@</b> 选择好友</span>
+          <span class="footer-tip">{{ t('extra.atHint') }}</span>
           <button
             type="button"
             class="submit-btn"
@@ -428,7 +430,7 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
             @click="publish"
           >
             <n-icon v-if="!publishing" :component="SendOutline" :size="16" />
-            <span>{{ publishing ? '发布中...' : '发布' }}</span>
+            <span>{{ publishing ? t('moments.publishing') : t('moments.publish') }}</span>
           </button>
         </footer>
       </div>
@@ -438,11 +440,11 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
         <header class="composer-header">
           <div class="header-title">
             <n-icon :component="ImageOutline" :size="18" />
-            <span>发布图片/视频</span>
+            <span>{{ t('moments.publishMedia') }}</span>
           </div>
           <div class="header-actions">
             <button type="button" class="mode-switch-btn" @click="switchMode('text')">
-              切换文字
+              {{ t('extra.switchToText') }}
             </button>
             <button type="button" class="close-btn" @click="close">
               <n-icon :component="CloseOutline" :size="18" />
@@ -456,10 +458,10 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
             <div class="avatar-wrap">
               <img v-if="myAvatar" :src="myAvatar" alt="" class="user-avatar" />
               <div v-else class="user-avatar user-avatar-placeholder">
-                {{ (userProfile.nickname || '我').charAt(0) }}
+                {{ (userProfile.nickname || t('common.me')).charAt(0) }}
               </div>
             </div>
-            <span class="user-name">{{ userProfile.nickname || '我' }}</span>
+            <span class="user-name">{{ userProfile.nickname || t('common.me') }}</span>
           </div>
 
           <!-- 文字描述 -->
@@ -468,7 +470,7 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
               ref="textArea"
               v-model="text"
               class="text-editor small"
-              placeholder="为图片添加描述..."
+              :placeholder="t('moments.mediaPh')"
               maxlength="2000"
             />
           </div>
@@ -483,7 +485,7 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
               </div>
               <div class="video-badge">
                 <n-icon :component="VideocamOutline" :size="12" />
-                <span>视频</span>
+                <span>{{ t('moments.video') }}</span>
               </div>
               <button type="button" class="remove-btn" @click="removeVideo(j)">
                 <n-icon :component="CloseOutline" :size="12" />
@@ -520,7 +522,7 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
               <div class="empty-icon">
                 <n-icon :component="ImageOutline" :size="36" />
               </div>
-              <p>点击下方按钮添加图片或视频</p>
+              <p>{{ t('extra.clickAddMedia') }}</p>
             </div>
           </div>
         </div>
@@ -529,11 +531,11 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
           <div class="tool-buttons">
             <button type="button" class="tool-btn" @click="imageInputRef?.click()">
               <n-icon :component="ImageOutline" :size="18" />
-              <span>图片</span>
+              <span>{{ t('chat.image') }}</span>
             </button>
             <button type="button" class="tool-btn" @click="videoInputRef?.click()">
               <n-icon :component="VideocamOutline" :size="18" />
-              <span>视频</span>
+              <span>{{ t('moments.video') }}</span>
             </button>
             <input ref="imageInputRef" type="file" accept="image/*" multiple hidden @change="onPickImages" />
             <input ref="videoInputRef" type="file" accept="video/*" hidden @change="onPickVideos" />
@@ -545,7 +547,7 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
             @click="publish"
           >
             <n-icon v-if="!publishing" :component="SendOutline" :size="16" />
-            <span>{{ publishing ? '发布中...' : '发布' }}</span>
+            <span>{{ publishing ? t('moments.publishing') : t('moments.publish') }}</span>
           </button>
         </footer>
       </div>

@@ -96,4 +96,24 @@ public interface SysUserService extends IService<SysUser> {
      * @param ip       客户端 IP
      */
     void verifyEmailResetCode(String username, String code, String ip);
+
+    /**
+     * 向新邮箱发送绑定验证码
+     */
+    void sendBindEmailCode(Long userId, String email, String ip);
+
+    /**
+     * 校验验证码并绑定邮箱
+     */
+    void bindEmail(Long userId, String email, String code, String ip);
+
+    /**
+     * 绑定手机号（需验证登录密码）
+     */
+    void bindPhone(Long userId, String phone, String password);
+
+    /**
+     * 注销账号（逻辑删除 + 吊销全部 Token）
+     */
+    void deleteAccount(Long userId, String password);
 }

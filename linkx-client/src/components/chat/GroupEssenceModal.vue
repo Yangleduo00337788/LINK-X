@@ -9,18 +9,14 @@ import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
 // 群元数据 Store
 import { useGroupMetaStore } from '../../stores/groupMeta'
+import { useI18n } from '../../i18n'
 
-// 聊天弹窗 Store 实例
+const { t } = useI18n()
 const chatModalsStore = useChatModalsStore()
-// 应用 Store 实例
 const appStore = useAppStore()
-// 群元数据 Store 实例
 const groupMetaStore = useGroupMetaStore()
-// 群精华弹窗是否打开
 const { groupEssenceOpen } = storeToRefs(chatModalsStore)
-// 关闭群精华弹窗的方法
 const { closeGroupEssence } = chatModalsStore
-// 当前会话与会话 ID
 const { currentSession, currentSessionId } = storeToRefs(appStore)
 
 // 当前群聊的精华消息列表
@@ -43,7 +39,7 @@ function close() {
       <div class="essence-window" @click.stop>
         <!-- 窗口标题栏 -->
         <header class="win-head">
-          <h2>群精华 - {{ currentSession?.name || '群聊' }}</h2>
+          <h2>{{ t('extra.groupEssenceTitle', { name: currentSession?.name || t('extra.groupChat') }) }}</h2>
           <button type="button" class="close-x" @click="close">×</button>
         </header>
         <!-- 精华消息列表 -->
@@ -55,7 +51,7 @@ function close() {
             </div>
             <p class="content">{{ item.content }}</p>
           </article>
-          <p v-if="!items.length" class="empty">暂无群精华</p>
+          <p v-if="!items.length" class="empty">{{ t('extra.noEssence') }}</p>
         </div>
       </div>
     </div>

@@ -14,7 +14,9 @@ import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
 import { useGroupMetaStore } from '../../stores/groupMeta'
+import { useI18n } from '../../i18n'
 
+const { t } = useI18n()
 const message = useMessage()
 const dialog = useDialog()
 const chatModalsStore = useChatModalsStore()
@@ -52,7 +54,7 @@ function saveRemark() {
   const id = currentSessionId.value
   if (!id) return
   groupMetaStore.setRemark(id, groupRemark.value)
-  message.success('群备注已保存')
+  message.success(t('modals.remarkSaved'))
 }
 
 /** 展示用群号：从 sessionId 提取数字后缀 */
@@ -84,21 +86,21 @@ function close() {
 
 /** 复制群号到剪贴板 */
 function shareGroup() {
-  navigator.clipboard.writeText(`群号：${groupId.value}`)
-  message.success('群号已复制')
+  navigator.clipboard.writeText(t('modals.groupIdCopy', { id: groupId.value }))
+  message.success(t('modals.groupIdCopied'))
 }
 
 /** 二次确认清空群聊天记录 */
 function clearChat() {
   if (!currentSessionId.value) return
   dialog.warning({
-    title: '删除聊天记录',
-    content: '确定清空本群聊天记录？',
-    positiveText: '确定',
-    negativeText: '取消',
+    title: t('modals.clearChatHistory'),
+    content: t('modals.clearGroupChatConfirm'),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
     onPositiveClick: () => {
       clearSessionMessages(currentSessionId.value!)
-      message.success('聊天记录已清空')
+      message.success(t('modals.chatCleared'))
     }
   })
 }
@@ -107,18 +109,18 @@ function clearChat() {
 async function quitGroup() {
   if (!currentSession.value || !currentSessionId.value) return
   dialog.warning({
-    title: '退出群聊',
-    content: `确定退出「${currentSession.value.name}」？`,
-    positiveText: '退出',
-    negativeText: '取消',
+    title: t('modals.quitGroup'),
+    content: t('modals.quitGroupConfirm', { name: currentSession.value.name }),
+    positiveText: t('modals.quit'),
+    negativeText: t('common.cancel'),
     onPositiveClick: async () => {
       try {
         await appStore.leaveGroup(currentSessionId.value!)
-        message.success('已退出群聊')
+        message.success(t('modals.quitOk'))
         close()
       } catch (e) {
         const err = e as { message?: string }
-        message.error(err.message || '退出群聊失败')
+        message.error(err.message || t('modals.quitFail'))
       }
     }
   })
@@ -128,18 +130,18 @@ async function quitGroup() {
 async function dissolve() {
   if (!currentSession.value || !currentSessionId.value) return
   dialog.warning({
-    title: '解散群聊',
-    content: `确定解散「${currentSession.value.name}」？该操作不可恢复。`,
-    positiveText: '解散',
-    negativeText: '取消',
+    title: t('modals.dissolveGroup'),
+    content: t('modals.dissolveConfirm', { name: currentSession.value.name }),
+    positiveText: t('modals.dissolve'),
+    negativeText: t('common.cancel'),
     onPositiveClick: async () => {
       try {
         await appStore.dissolveGroup(currentSessionId.value!)
-        message.success('群聊已解散')
+        message.success(t('modals.dissolveOk'))
         close()
       } catch (e) {
         const err = e as { message?: string }
-        message.error(err.message || '解散群聊失败')
+        message.error(err.message || t('modals.dissolveFail'))
       }
     }
   })
@@ -154,7 +156,7 @@ const isOwner = computed(() => {
 
 /** 举报群（原型提示） */
 function reportGroup() {
-  message.info('举报已记录，感谢反馈')
+  message.info(t('modals.reportRecorded'))
 }
 </script>
 
@@ -167,32 +169,32 @@ function reportGroup() {
               <!-- 群头部：头像、名称、群号、分享 -->
               <div class="group-hero">
                 <Avatar
-                  :text="currentSession?.avatarText || '群'"
+                  :text="currentSession?.avatarText || t('modals.groupChar')"
                   :color="currentSession?.avatarColor || '#e74c3c'"
                   :size="56"
                 />
-                <h2 class="g-name">{{ currentSession?.name || '群聊' }}</h2>
-                <p class="g-id">群号：{{ groupId }}</p>
-                <button type="button" class="share-btn" @click="shareGroup">分享</button>
+                <h2 class="g-name">{{ currentSession?.name || t('modals.groupChat') }}</h2>
+                <p class="g-id">{{ t('modals.groupIdLabel', { id: groupId }) }}</p>
+                <button type="button" class="share-btn" @click="shareGroup">{{ t('modals.share') }}</button>
               </div>
 
               <!-- 成员头像网格 -->
               <section class="block">
                 <div class="block-head">
-                  <span>群聊成员</span>
+                  <span>{{ t('modals.groupMembers') }}</span>
                   <n-icon :component="SearchOutline" :size="18" class="ico" />
                 </div>
                 <div class="avatar-grid">
                   <div v-for="m in members.slice(0, 14)" :key="m.id" class="av">
                     <Avatar :text="m.avatarText" :color="m.avatarColor" :size="40" />
                   </div>
-                  <button type="button" class="av invite" title="邀请" @click="openAddMembers">+</button>
+                  <button type="button" class="av invite" :title="t('chat.invite')" @click="openAddMembers">+</button>
                 </div>
               </section>
 
               <!-- 群公告 -->
               <section class="block">
-                <h3 class="block-title">群公告</h3>
+                <h3 class="block-title">{{ t('chat.groupAnnouncement') }}</h3>
                 <button type="button" class="announce announce-btn" @click="openGroupAnnouncement">
                   {{ announcement }}
                 </button>
@@ -200,18 +202,18 @@ function reportGroup() {
 
               <!-- 本群昵称（只读） -->
               <section class="block row-item">
-                <span>我的本群昵称</span>
+                <span>{{ t('modals.myGroupNickname') }}</span>
                 <span class="muted">{{ userProfile.nickname }}</span>
               </section>
 
               <!-- 群备注编辑 -->
               <section class="block">
-                <div class="row-item"><span>群聊备注</span></div>
+                <div class="row-item"><span>{{ t('modals.groupRemark') }}</span></div>
                 <input
                   v-model="groupRemark"
                   type="text"
                   class="remark-input"
-                  placeholder="填写备注"
+                  :placeholder="t('modals.remarkPh')"
                   @blur="saveRemark"
                 />
               </section>
@@ -221,30 +223,30 @@ function reportGroup() {
                 <div class="switch-row">
                   <span class="switch-label">
                     <PinIcon :size="16" />
-                    设为置顶
+                    {{ t('modals.pinSession') }}
                   </span>
                   <n-switch :value="!!currentSession?.pinned" size="small" @update:value="setPin" />
                 </div>
                 <div class="switch-row">
-                  <span>消息免打扰</span>
+                  <span>{{ t('modals.muteMessages') }}</span>
                   <n-switch :value="!!currentSession?.muted" size="small" @update:value="setMute" />
                 </div>
-                <p class="hint">接收消息但不提醒</p>
+                <p class="hint">{{ t('modals.muteHint') }}</p>
               </div>
 
               <!-- 危险操作与举报 -->
-              <button type="button" class="action-btn" @click="clearChat">删除聊天记录</button>
-              <button type="button" class="action-btn danger" @click="quitGroup">退出群聊</button>
+              <button type="button" class="action-btn" @click="clearChat">{{ t('modals.clearChatHistory') }}</button>
+              <button type="button" class="action-btn danger" @click="quitGroup">{{ t('modals.quitGroup') }}</button>
               <button
                 v-if="isOwner"
                 type="button"
                 class="action-btn danger"
                 @click="dissolve"
               >
-                解散群聊
+                {{ t('modals.dissolveGroup') }}
               </button>
               <p class="report">
-                <a href="#" @click.prevent="reportGroup">被骚扰了？举报该群</a>
+                <a href="#" @click.prevent="reportGroup">{{ t('modals.reportGroup') }}</a>
               </p>
         </div>
       </aside>

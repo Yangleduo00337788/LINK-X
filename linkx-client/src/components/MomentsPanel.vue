@@ -8,9 +8,11 @@
 import { onMounted } from 'vue'
 import { useAppStore } from '../stores/app'
 import { useMomentsStore } from '../stores/moments'
+import { useI18n } from '../i18n'
 
 const appStore = useAppStore()
 const momentsStore = useMomentsStore()
+const { t } = useI18n()
 
 onMounted(() => {
   if (!momentsStore.initialized) {
@@ -27,8 +29,8 @@ onMounted(() => {
 <template>
   <div class="moments-panel">
     <div class="empty">
-      <h3>正在打开友链独立窗口…</h3>
-      <p>如果没有自动打开,请点击左侧「友链」按钮重试。</p>
+      <h3>{{ t('moments.opening') }}</h3>
+      <p>{{ t('moments.openingHint') }}</p>
     </div>
   </div>
 </template>

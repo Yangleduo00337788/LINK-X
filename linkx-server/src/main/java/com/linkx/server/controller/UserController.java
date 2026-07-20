@@ -60,7 +60,7 @@ public class UserController {
             return Result.error(404, "用户不存在");
         }
 
-        return Result.success(buildUserProfileVO(user));
+        return Result.success(buildPrivateUserProfileVO(user));
     }
 
     /**
@@ -76,7 +76,69 @@ public class UserController {
         }
 
         SysUser updatedUser = sysUserService.updateProfile(userId, dto);
-        return Result.success(buildUserProfileVO(updatedUser));
+        return Result.success(buildPrivateUserProfileVO(updatedUser));
+    }
+
+    /**
+     * 发送绑定邮箱验证码
+     */
+    @PostMapping("/bind-email/send-code")
+    public Result<Void> sendBindEmailCode(
+            @Valid @RequestBody com.linkx.server.controller.dto.SendBindEmailCodeDTO dto,
+            HttpServletRequest request) {
+        Long userId = getCurrentUserId(request);
+        if (userId == null) {
+            return Result.error(401, "未登录");
+        }
+        sysUserService.sendBindEmailCode(userId, dto.getEmail(), resolveClientIp(request));
+        return Result.success(null);
+    }
+
+    /**
+     * 绑定/更换邮箱
+     */
+    @PostMapping("/bind-email")
+    public Result<UserProfileVO> bindEmail(
+            @Valid @RequestBody com.linkx.server.controller.dto.BindEmailDTO dto,
+            HttpServletRequest request) {
+        Long userId = getCurrentUserId(request);
+        if (userId == null) {
+            return Result.error(401, "未登录");
+        }
+        sysUserService.bindEmail(userId, dto.getEmail(), dto.getCode(), resolveClientIp(request));
+        SysUser user = sysUserService.getById(userId);
+        return Result.success(buildPrivateUserProfileVO(user));
+    }
+
+    /**
+     * 绑定/更换手机号
+     */
+    @PostMapping("/bind-phone")
+    public Result<UserProfileVO> bindPhone(
+            @Valid @RequestBody com.linkx.server.controller.dto.BindPhoneDTO dto,
+            HttpServletRequest request) {
+        Long userId = getCurrentUserId(request);
+        if (userId == null) {
+            return Result.error(401, "未登录");
+        }
+        sysUserService.bindPhone(userId, dto.getPhone(), dto.getPassword());
+        SysUser user = sysUserService.getById(userId);
+        return Result.success(buildPrivateUserProfileVO(user));
+    }
+
+    /**
+     * 注销账号
+     */
+    @PostMapping("/delete-account")
+    public Result<Void> deleteAccount(
+            @Valid @RequestBody com.linkx.server.controller.dto.DeleteAccountDTO dto,
+            HttpServletRequest request) {
+        Long userId = getCurrentUserId(request);
+        if (userId == null) {
+            return Result.error(401, "未登录");
+        }
+        sysUserService.deleteAccount(userId, dto.getPassword());
+        return Result.success(null);
     }
 
     /**
@@ -156,6 +218,26 @@ public class UserController {
             vo.setAvatar(toSignedUrl(vo.getAvatar(), 24 * 3600));
         }
         return vo;
+    }
+
+    private UserProfileVO buildPrivateUserProfileVO(SysUser user) {
+        UserProfileVO vo = UserProfileMapper.toPrivateProfileVO(user);
+        if (vo != null) {
+            vo.setAvatar(toSignedUrl(vo.getAvatar(), 24 * 3600));
+        }
+        return vo;
+    }
+
+    private String resolveClientIp(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (StringUtils.hasText(forwarded)) {
+            return forwarded.split(",")[0].trim();
+        }
+        String realIp = request.getHeader("X-Real-IP");
+        if (StringUtils.hasText(realIp)) {
+            return realIp.trim();
+        }
+        return request.getRemoteAddr();
     }
 
     /**

@@ -16,6 +16,7 @@ import type { ChatMessage } from '../../types'
 // 会话状态
 import { useAppStore } from '../../stores/app'
 import { storeToRefs } from 'pinia'
+import { useI18n } from '../../i18n'
 
 // 各类型消息气泡子组件
 import FileBubble from './bubbles/FileBubble.vue'
@@ -42,11 +43,15 @@ const emit = defineEmits<{
   (e: 'openSelfProfile', event: MouseEvent): void
 }>()
 
+const { t } = useI18n()
 const appStore = useAppStore()
 const { currentSession } = storeToRefs(appStore)
 
 // 是否为「我的手机」会话
-const isMyPhone = computed(() => currentSession.value?.name === '我的手机')
+const isMyPhone = computed(() => {
+  const name = currentSession.value?.name
+  return name === '我的手机' || name === t('chat.myPhone')
+})
 // 是否已选中有效会话
 const hasSession = computed(() => !!currentSession.value)
 // 是否为单聊（非群、非我的手机）
@@ -90,7 +95,7 @@ function peerAvatarProps(size = 36) {
 
     <!-- 自己侧头像：点击打开个人资料 -->
     <button v-if="msg.isSelf" type="button" class="avatar-btn" @click="emit('openSelfProfile', $event)">
-      <Avatar text="我" color="var(--lx-success)" :size="36" />
+      <Avatar :text="t('chat.me')" color="var(--lx-success)" :size="36" />
     </button>
   </div>
 </template>

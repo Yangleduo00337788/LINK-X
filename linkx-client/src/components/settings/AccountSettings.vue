@@ -1,20 +1,27 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
-import { NButton, NAvatar, NIcon, NSwitch, NModal, NInput, NProgress, useMessage, useDialog } from 'naive-ui'
-import { ShieldCheckmarkOutline, DesktopOutline, WalletOutline, MailOutline } from '@vicons/ionicons5'
+import { NButton, NAvatar, NIcon, NModal, NInput, NTag, useMessage, useDialog } from 'naive-ui'
+import {
+  WalletOutline,
+  ChevronForwardOutline,
+  CreateOutline,
+  CopyOutline
+} from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../../stores/app'
-import { useAppSettingsStore } from '../../stores/appSettings'
+import { useChatModalsStore } from '../../stores/chatModals'
 import * as accountApi from '../../api/account'
 import * as authApi from '../../api/auth'
 import * as balanceApi from '../../api/balance'
 import * as feedbackApi from '../../api/feedback'
 import { generateDefaultAvatar } from '../../utils/defaultAvatar'
+import { useI18n } from '../../i18n'
 
 const message = useMessage()
 const dialog = useDialog()
 const appStore = useAppStore()
-const appSettingsStore = useAppSettingsStore()
+const chatModalsStore = useChatModalsStore()
+const { t } = useI18n()
 
 const { userProfile, savedLogin } = storeToRefs(appStore)
 
@@ -22,16 +29,178 @@ const displayUsername = computed(
   () => savedLogin.value.username || userProfile.value.username || '—'
 )
 const defaultAvatar = computed(() =>
-  generateDefaultAvatar(userProfile.value.nickname || '我')
+  generateDefaultAvatar(userProfile.value.nickname || t('common.me'))
+)
+const displayId = computed(() => userProfile.value.userId || displayUsername.value)
+
+const phoneDisplay = computed(() =>
+  userProfile.value.phoneBound
+    ? userProfile.value.phone || t('account.bound')
+    : t('account.unbound')
+)
+const emailDisplay = computed(() =>
+  userProfile.value.emailBound
+    ? userProfile.value.email || t('account.bound')
+    : t('account.unbound')
 )
 
-const {
-  privacyVerifyFriend,
-  privacyAllowStranger,
-  privacyShowOnline
-} = storeToRefs(appSettingsStore)
+async function copyId() {
+  try {
+    await navigator.clipboard.writeText(String(displayId.value))
+    message.success(t('account.idCopied'))
+  } catch {
+    message.error(t('account.copyFail'))
+  }
+}
 
-// 余额相关
+function openEditProfile() {
+  chatModalsStore.openEditProfile()
+}
+
+function applyBoundProfile(data: Parameters<typeof appStore.applyUserProfile>[0]) {
+  appStore.applyUserProfile(data)
+}
+
+const showPhoneModal = ref(false)
+const phoneForm = ref({ phone: '', password: '' })
+const phoneLoading = ref(false)
+
+function openPhoneModal() {
+  phoneForm.value = { phone: '', password: '' }
+  showPhoneModal.value = true
+}
+
+async function submitBindPhone() {
+  if (!/^1[3-9]\d{9}$/.test(phoneForm.value.phone.trim())) {
+    message.warning(t('account.phoneInvalid'))
+    return
+  }
+  if (!phoneForm.value.password) {
+    message.warning(t('account.passwordRequired'))
+    return
+  }
+  phoneLoading.value = true
+  try {
+    const res = await accountApi.bindPhone({
+      phone: phoneForm.value.phone.trim(),
+      password: phoneForm.value.password
+    })
+    if (res.code === 200 && res.data) {
+      applyBoundProfile(res.data)
+      message.success(t('account.phoneBoundOk'))
+      showPhoneModal.value = false
+    } else {
+      message.error(res.message || t('account.bindFail'))
+    }
+  } catch (e) {
+    const err = e as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || t('account.bindFail'))
+  } finally {
+    phoneLoading.value = false
+  }
+}
+
+const showEmailModal = ref(false)
+const emailForm = ref({ email: '', code: '' })
+const emailLoading = ref(false)
+const emailCodeSending = ref(false)
+const emailCodeCooldown = ref(0)
+let emailCooldownTimer: ReturnType<typeof setInterval> | null = null
+
+function openEmailModal() {
+  emailForm.value = { email: '', code: '' }
+  showEmailModal.value = true
+}
+
+async function sendEmailCode() {
+  const email = emailForm.value.email.trim()
+  if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
+    message.warning(t('account.emailInvalid'))
+    return
+  }
+  emailCodeSending.value = true
+  try {
+    const res = await accountApi.sendBindEmailCode(email)
+    if (res.code === 200) {
+      message.success(t('account.codeSent'))
+      emailCodeCooldown.value = 60
+      if (emailCooldownTimer) clearInterval(emailCooldownTimer)
+      emailCooldownTimer = setInterval(() => {
+        emailCodeCooldown.value -= 1
+        if (emailCodeCooldown.value <= 0 && emailCooldownTimer) {
+          clearInterval(emailCooldownTimer)
+          emailCooldownTimer = null
+        }
+      }, 1000)
+    } else {
+      message.error(res.message || t('account.sendFail'))
+    }
+  } catch (e) {
+    const err = e as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || t('account.sendFail'))
+  } finally {
+    emailCodeSending.value = false
+  }
+}
+
+async function submitBindEmail() {
+  if (!emailForm.value.email.trim() || !emailForm.value.code.trim()) {
+    message.warning(t('account.emailCodeRequired'))
+    return
+  }
+  emailLoading.value = true
+  try {
+    const res = await accountApi.bindEmail({
+      email: emailForm.value.email.trim(),
+      code: emailForm.value.code.trim()
+    })
+    if (res.code === 200 && res.data) {
+      applyBoundProfile(res.data)
+      message.success(t('account.emailBoundOk'))
+      showEmailModal.value = false
+    } else {
+      message.error(res.message || t('account.bindFail'))
+    }
+  } catch (e) {
+    const err = e as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || t('account.bindFail'))
+  } finally {
+    emailLoading.value = false
+  }
+}
+
+const showDeleteModal = ref(false)
+const deletePassword = ref('')
+const deleteLoading = ref(false)
+
+function openDeleteModal() {
+  deletePassword.value = ''
+  showDeleteModal.value = true
+}
+
+async function submitDeleteAccount() {
+  if (!deletePassword.value) {
+    message.warning(t('account.deletePasswordRequired'))
+    return
+  }
+  deleteLoading.value = true
+  try {
+    const res = await accountApi.deleteAccount({ password: deletePassword.value })
+    if (res.code === 200) {
+      message.success(t('account.deletedOk'))
+      showDeleteModal.value = false
+      await appStore.logout()
+    } else {
+      message.error(res.message || t('account.deleteFail'))
+    }
+  } catch (e) {
+    const err = e as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || t('account.deleteFail'))
+  } finally {
+    deleteLoading.value = false
+  }
+}
+
 const balance = ref<balanceApi.BalanceInfo | null>(null)
 const balanceLoading = ref(false)
 
@@ -60,7 +229,6 @@ function formatMoney(amount: number) {
   return amount.toFixed(2)
 }
 
-// 反馈历史相关
 const showFeedbackHistory = ref(false)
 const feedbackList = ref<feedbackApi.FeedbackVO[]>([])
 const feedbackLoading = ref(false)
@@ -74,7 +242,7 @@ async function openFeedbackHistory() {
       feedbackList.value = res.data
     }
   } catch {
-    message.error('获取反馈历史失败')
+    message.error(t('account.feedbackListFail'))
   } finally {
     feedbackLoading.value = false
   }
@@ -87,18 +255,17 @@ function getFeedbackStatusType(status: string) {
 }
 
 function getFeedbackStatusText(status: string) {
-  if (status === 'resolved') return '已处理'
-  if (status === 'processing') return '处理中'
-  return '待处理'
+  if (status === 'resolved') return t('account.statusResolved')
+  if (status === 'processing') return t('account.statusProcessing')
+  return t('account.statusPending')
 }
 
 function getFeedbackTypeText(type: string) {
-  if (type === 'bug') return 'Bug'
-  if (type === 'suggestion') return '建议'
-  return '其他'
+  if (type === 'bug') return t('account.typeBug')
+  if (type === 'suggestion') return t('account.typeSuggestion')
+  return t('account.typeOther')
 }
 
-// 修改密码弹窗（真实接入后端 {@code POST /auth/reset-password}）
 const showPasswordModal = ref(false)
 const passwordForm = ref({
   newPassword: '',
@@ -119,10 +286,10 @@ async function loadResetCaptcha() {
       passwordForm.value.captchaImage = res.data.imageBase64
       passwordForm.value.captchaCode = ''
     } else {
-      message.error(res.message || '获取验证码失败')
+      message.error(res.message || t('account.captchaFail'))
     }
   } catch {
-    message.error('获取验证码失败')
+    message.error(t('account.captchaFail'))
   } finally {
     passwordCaptchaLoading.value = false
   }
@@ -130,19 +297,19 @@ async function loadResetCaptcha() {
 
 async function handleChangePassword() {
   if (!passwordForm.value.newPassword) {
-    message.warning('请输入新密码')
+    message.warning(t('account.passwordRequiredNew'))
     return
   }
   if (passwordForm.value.newPassword !== passwordForm.value.confirmPassword) {
-    message.warning('两次输入的新密码不一致')
+    message.warning(t('account.passwordMismatch'))
     return
   }
   if (passwordForm.value.newPassword.length < 6) {
-    message.warning('新密码长度不能少于6位')
+    message.warning(t('account.passwordTooShort'))
     return
   }
   if (!passwordForm.value.captchaId || !passwordForm.value.captchaCode) {
-    message.warning('请先完成图形验证码')
+    message.warning(t('account.captchaRequired'))
     return
   }
 
@@ -154,7 +321,7 @@ async function handleChangePassword() {
       newPassword: passwordForm.value.newPassword
     })
     if (res.code === 200) {
-      message.success('密码修改成功')
+      message.success(t('account.passwordChanged'))
       showPasswordModal.value = false
       passwordForm.value = {
         newPassword: '',
@@ -164,12 +331,11 @@ async function handleChangePassword() {
         captchaImage: ''
       }
     } else {
-      message.error(res.message || '修改密码失败')
+      message.error(res.message || t('account.passwordChangeFail'))
     }
   } catch (e) {
     const err = e as { response?: { data?: { message?: string } }; message?: string }
-    message.error(err.response?.data?.message || err.message || '修改密码失败')
-    // 验证码可能失效，自动刷新
+    message.error(err.response?.data?.message || err.message || t('account.passwordChangeFail'))
     void loadResetCaptcha()
   } finally {
     passwordLoading.value = false
@@ -188,7 +354,6 @@ function openPasswordModal() {
   void loadResetCaptcha()
 }
 
-// 设备管理弹窗
 const showDeviceModal = ref(false)
 const devices = ref<accountApi.DeviceInfo[]>([])
 const deviceLoading = ref(false)
@@ -201,8 +366,8 @@ async function openDeviceModal() {
     if (res.code === 200 && res.data) {
       devices.value = res.data
     }
-  } catch (e) {
-    message.error('获取设备列表失败')
+  } catch {
+    message.error(t('account.deviceListFail'))
   } finally {
     deviceLoading.value = false
   }
@@ -210,25 +375,24 @@ async function openDeviceModal() {
 
 async function handleLogoutDevice(deviceId: string) {
   dialog.warning({
-    title: '确认下线',
-    content: '确定要强制该设备下线吗？',
-    positiveText: '确定',
-    negativeText: '取消',
+    title: t('account.logoutDeviceTitle'),
+    content: t('account.logoutDeviceContent'),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
     onPositiveClick: async () => {
       try {
         const res = await accountApi.logoutDevice(deviceId)
         if (res.code === 200) {
-          message.success('设备已下线')
+          message.success(t('account.deviceOffline'))
           devices.value = devices.value.filter(d => d.id !== deviceId)
         }
       } catch {
-        message.error('操作失败')
+        message.error(t('account.opFail'))
       }
     }
   })
 }
 
-// 组件挂载时获取余额
 onMounted(() => {
   void fetchBalance()
 })
@@ -236,191 +400,167 @@ onMounted(() => {
 
 <template>
   <div class="settings-scroll">
-    <!-- 用户资料卡片 -->
-    <section class="profile-card">
-      <n-avatar
-        :size="72"
-        :src="userProfile.avatar || defaultAvatar"
-        class="profile-avatar"
-      />
-      <div class="profile-meta">
-        <div class="profile-name">{{ userProfile.nickname || '未设置昵称' }}</div>
-        <div class="profile-id">LinkX ID · {{ displayUsername }}</div>
-        <div class="profile-badge">已登录</div>
+    <section class="group-card account-card">
+      <div class="account-card-head">
+        <span class="group-title">{{ t('account.infoTitle') }}</span>
+        <n-button size="small" secondary @click="openEditProfile">{{ t('account.editProfile') }}</n-button>
       </div>
+
+      <div class="profile-block">
+        <n-avatar
+          :size="56"
+          :src="userProfile.avatar || defaultAvatar"
+          class="profile-avatar"
+        />
+        <div class="profile-meta">
+          <div class="profile-name-row">
+            <span class="profile-name">{{ userProfile.nickname || t('account.noNickname') }}</span>
+          </div>
+          <button type="button" class="profile-signature" @click="openEditProfile">
+            <span>{{ userProfile.signature || t('account.editSignature') }}</span>
+            <n-icon :component="CreateOutline" :size="12" />
+          </button>
+          <div class="profile-id-row">
+            <span>ID: {{ displayId }}</span>
+            <button type="button" class="copy-btn" :title="t('account.copyId')" @click="copyId">
+              <n-icon :component="CopyOutline" :size="14" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <button type="button" class="link-row" @click="openPhoneModal">
+        <span class="link-label">{{ t('account.phone') }}</span>
+        <span class="link-value" :class="{ muted: !userProfile.phoneBound }">{{ phoneDisplay }}</span>
+        <n-icon :component="ChevronForwardOutline" :size="16" class="link-chevron" />
+      </button>
+      <button type="button" class="link-row" @click="openEmailModal">
+        <span class="link-label">{{ t('account.email') }}</span>
+        <span class="link-value" :class="{ muted: !userProfile.emailBound }">{{ emailDisplay }}</span>
+        <n-icon :component="ChevronForwardOutline" :size="16" class="link-chevron" />
+      </button>
+      <button type="button" class="link-row" @click="openPasswordModal">
+        <span class="link-label">{{ t('account.password') }}</span>
+        <span class="link-value">{{ t('account.passwordSet') }}</span>
+        <n-icon :component="ChevronForwardOutline" :size="16" class="link-chevron" />
+      </button>
+      <button type="button" class="link-row" @click="openDeviceModal">
+        <span class="link-label">{{ t('account.security') }}</span>
+        <span class="link-value success">{{ t('account.deviceManage') }}</span>
+        <n-icon :component="ChevronForwardOutline" :size="16" class="link-chevron" />
+      </button>
+      <button type="button" class="link-row" @click="openFeedbackHistory">
+        <span class="link-label">{{ t('account.feedback') }}</span>
+        <span class="link-value">{{ t('account.viewRecords') }}</span>
+        <n-icon :component="ChevronForwardOutline" :size="16" class="link-chevron" />
+      </button>
+      <button type="button" class="link-row danger-row" @click="openDeleteModal">
+        <div class="link-text">
+          <span class="link-label">{{ t('account.deleteAccount') }}</span>
+          <span class="link-desc">{{ t('account.deleteWarnShort') }}</span>
+        </div>
+        <n-icon :component="ChevronForwardOutline" :size="16" class="link-chevron" />
+      </button>
     </section>
 
-    <!-- 余额展示 -->
     <section v-if="balance" class="group-card">
       <div class="group-head">
         <n-icon :component="WalletOutline" :size="18" class="group-ico" />
-        <span>我的余额</span>
+        <span>{{ t('account.balanceTitle') }}</span>
       </div>
       <div class="balance-display">
         <div class="balance-main">
-          <span class="balance-label">可用余额</span>
+          <span class="balance-label">{{ t('account.available') }}</span>
           <span class="balance-amount">¥ {{ formatMoney(balance.available) }}</span>
         </div>
         <div class="balance-details">
           <div class="balance-item">
-            <span class="balance-item-label">总余额</span>
+            <span class="balance-item-label">{{ t('account.totalBalance') }}</span>
             <span class="balance-item-value">¥ {{ formatMoney(balance.balance) }}</span>
           </div>
           <div class="balance-item">
-            <span class="balance-item-label">冻结中</span>
+            <span class="balance-item-label">{{ t('account.frozen') }}</span>
             <span class="balance-item-value">¥ {{ formatMoney(balance.frozen) }}</span>
           </div>
           <div class="balance-item">
-            <span class="balance-item-label">累计充值</span>
+            <span class="balance-item-label">{{ t('account.totalRecharge') }}</span>
             <span class="balance-item-value">¥ {{ formatMoney(balance.totalRecharge) }}</span>
           </div>
           <div class="balance-item">
-            <span class="balance-item-label">累计提现</span>
+            <span class="balance-item-label">{{ t('account.totalWithdraw') }}</span>
             <span class="balance-item-value">¥ {{ formatMoney(balance.totalWithdraw) }}</span>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- 安全设置分组 -->
-    <section class="group-card">
-      <div class="group-head">
-        <n-icon :component="ShieldCheckmarkOutline" :size="18" class="group-ico" />
-        <span>安全设置</span>
-      </div>
-      <div class="setting-row">
-        <div class="setting-text">
-          <span class="setting-name">登录密码</span>
-          <span class="setting-desc">定期更换密码保护账号安全</span>
-        </div>
-        <n-button size="small" secondary @click="openPasswordModal">修改</n-button>
-      </div>
-      <div class="setting-row">
-        <div class="setting-text">
-          <span class="setting-name">设备管理</span>
-          <span class="setting-desc">查看已登录的设备与会话</span>
-        </div>
-        <n-button size="small" secondary @click="openDeviceModal">
-          <template #icon>
-            <n-icon :component="DesktopOutline" :size="14" />
-          </template>
-          查看
-        </n-button>
-      </div>
-    </section>
-
-    <!-- 隐私设置分组 -->
-    <section class="group-card">
-      <div class="group-head">
-        <span>隐私</span>
-      </div>
-      <div class="setting-row">
-        <div class="setting-text">
-          <span class="setting-name">加好友需验证</span>
-        </div>
-        <n-switch
-          v-model:value="privacyVerifyFriend"
-          size="small"
-          @update:value="appSettingsStore.scheduleSave('privacyVerifyFriend')"
-        />
-      </div>
-      <div class="setting-row">
-        <div class="setting-text">
-          <span class="setting-name">允许陌生人会话</span>
-        </div>
-        <n-switch
-          v-model:value="privacyAllowStranger"
-          size="small"
-          @update:value="appSettingsStore.scheduleSave('privacyAllowStranger')"
-        />
-      </div>
-      <div class="setting-row">
-        <div class="setting-text">
-          <span class="setting-name">在线状态可见</span>
-        </div>
-        <n-switch
-          v-model:value="privacyShowOnline"
-          size="small"
-          @update:value="appSettingsStore.scheduleSave('privacyShowOnline')"
-        />
-      </div>
-    </section>
-
-    <!-- 反馈历史 -->
-    <section class="group-card">
-      <div class="group-head">
-        <n-icon :component="MailOutline" :size="18" class="group-ico" />
-        <span>问题反馈</span>
-      </div>
-      <div class="setting-row">
-        <div class="setting-text">
-          <span class="setting-name">反馈记录</span>
-          <span class="setting-desc">查看已提交的问题反馈及处理状态</span>
-        </div>
-        <n-button size="small" secondary @click="openFeedbackHistory">查看</n-button>
-      </div>
-    </section>
-
-    <!-- 修改密码弹窗：to="body" 渲染到顶层，避免被外层 SettingsModal 的遮罩遮挡 -->
-    <n-modal v-model:show="showPasswordModal" preset="card" title="修改密码" to="body" :z-index="11000" style="max-width: 400px">
+    <n-modal
+      v-model:show="showPasswordModal"
+      preset="card"
+      :title="t('account.changePassword')"
+      to="body"
+      :z-index="11000"
+      style="max-width: 400px"
+    >
       <div class="password-form">
         <div class="form-item">
-          <label>新密码</label>
+          <label>{{ t('account.newPassword') }}</label>
           <n-input
             v-model:value="passwordForm.newPassword"
             type="password"
-            placeholder="请输入新密码（至少6位）"
+            :placeholder="t('account.newPasswordPh')"
             show-password-on="click"
           />
         </div>
         <div class="form-item">
-          <label>确认新密码</label>
+          <label>{{ t('account.confirmPassword') }}</label>
           <n-input
             v-model:value="passwordForm.confirmPassword"
             type="password"
-            placeholder="请再次输入新密码"
+            :placeholder="t('account.confirmPasswordPh')"
             show-password-on="click"
           />
         </div>
         <div class="form-item">
-          <label>图形验证码</label>
+          <label>{{ t('account.captcha') }}</label>
           <div class="captcha-row">
-            <n-input
-              v-model:value="passwordForm.captchaCode"
-              placeholder="请输入图中字符"
-            />
+            <n-input v-model:value="passwordForm.captchaCode" :placeholder="t('account.captchaPh')" />
             <div class="captcha-img-wrap" :class="{ loading: passwordCaptchaLoading }" @click="loadResetCaptcha">
               <img v-if="passwordForm.captchaImage" :src="passwordForm.captchaImage" alt="captcha" />
-              <span v-else-if="passwordCaptchaLoading">加载中…</span>
-              <span v-else>点击加载</span>
+              <span v-else-if="passwordCaptchaLoading">{{ t('common.loading') }}</span>
+              <span v-else>{{ t('common.clickToLoad') }}</span>
             </div>
           </div>
-          <span class="captcha-tip">点击图片刷新</span>
+          <span class="captcha-tip">{{ t('account.captchaTip') }}</span>
         </div>
       </div>
       <template #footer>
         <div class="modal-footer">
-          <n-button @click="showPasswordModal = false">取消</n-button>
-          <n-button type="primary" :loading="passwordLoading" @click="handleChangePassword">确认修改</n-button>
+          <n-button @click="showPasswordModal = false">{{ t('common.cancel') }}</n-button>
+          <n-button type="primary" :loading="passwordLoading" @click="handleChangePassword">
+            {{ t('account.confirmChange') }}
+          </n-button>
         </div>
       </template>
     </n-modal>
 
-    <!-- 设备管理弹窗：to="body" 渲染到顶层 -->
-    <n-modal v-model:show="showDeviceModal" preset="card" title="登录设备" to="body" :z-index="11000" style="max-width: 500px">
-      <div v-if="deviceLoading" class="loading-state">
-        <span>加载中...</span>
-      </div>
-      <div v-else-if="devices.length === 0" class="empty-state">
-        <span>暂无设备记录</span>
-      </div>
+    <n-modal
+      v-model:show="showDeviceModal"
+      preset="card"
+      :title="t('account.devicesTitle')"
+      to="body"
+      :z-index="11000"
+      style="max-width: 500px"
+    >
+      <div v-if="deviceLoading" class="loading-state"><span>{{ t('common.loading') }}</span></div>
+      <div v-else-if="devices.length === 0" class="empty-state"><span>{{ t('account.noDevices') }}</span></div>
       <div v-else class="device-list">
         <div v-for="device in devices" :key="device.id" class="device-item">
           <div class="device-info">
-            <div class="device-name">{{ device.deviceName || '未知设备' }}</div>
+            <div class="device-name">{{ device.deviceName || t('account.unknownDevice') }}</div>
             <div class="device-meta">
               {{ device.deviceType }} · {{ device.lastActive }}
-              <span v-if="device.current" class="current-badge">当前设备</span>
+              <span v-if="device.current" class="current-badge">{{ t('account.currentDevice') }}</span>
             </div>
           </div>
           <n-button
@@ -430,20 +570,22 @@ onMounted(() => {
             secondary
             @click="handleLogoutDevice(device.id)"
           >
-            下线
+            {{ t('account.logoutDevice') }}
           </n-button>
         </div>
       </div>
     </n-modal>
 
-    <!-- 反馈历史弹窗：to="body" 渲染到顶层 -->
-    <n-modal v-model:show="showFeedbackHistory" preset="card" title="我的反馈记录" to="body" :z-index="11000" style="max-width: 600px">
-      <div v-if="feedbackLoading" class="loading-state">
-        <span>加载中...</span>
-      </div>
-      <div v-else-if="feedbackList.length === 0" class="empty-state">
-        <span>暂无反馈记录</span>
-      </div>
+    <n-modal
+      v-model:show="showFeedbackHistory"
+      preset="card"
+      :title="t('account.feedbackTitle')"
+      to="body"
+      :z-index="11000"
+      style="max-width: 600px"
+    >
+      <div v-if="feedbackLoading" class="loading-state"><span>{{ t('common.loading') }}</span></div>
+      <div v-else-if="feedbackList.length === 0" class="empty-state"><span>{{ t('account.noFeedback') }}</span></div>
       <div v-else class="feedback-list">
         <div v-for="item in feedbackList" :key="item.id" class="feedback-item">
           <div class="feedback-header">
@@ -457,52 +599,270 @@ onMounted(() => {
         </div>
       </div>
     </n-modal>
+
+    <n-modal
+      v-model:show="showPhoneModal"
+      preset="card"
+      :title="userProfile.phoneBound ? t('account.changePhone') : t('account.bindPhone')"
+      to="body"
+      :z-index="11000"
+      style="max-width: 400px"
+    >
+      <div class="password-form">
+        <div class="form-item">
+          <label>{{ t('account.phone') }}</label>
+          <n-input v-model:value="phoneForm.phone" maxlength="11" :placeholder="t('account.phonePh')" />
+        </div>
+        <div class="form-item">
+          <label>{{ t('account.loginPassword') }}</label>
+          <n-input
+            v-model:value="phoneForm.password"
+            type="password"
+            show-password-on="click"
+            :placeholder="t('account.passwordVerifyPh')"
+          />
+        </div>
+      </div>
+      <template #footer>
+        <div class="modal-footer">
+          <n-button @click="showPhoneModal = false">{{ t('common.cancel') }}</n-button>
+          <n-button type="primary" :loading="phoneLoading" @click="submitBindPhone">
+            {{ t('account.confirmBind') }}
+          </n-button>
+        </div>
+      </template>
+    </n-modal>
+
+    <n-modal
+      v-model:show="showEmailModal"
+      preset="card"
+      :title="userProfile.emailBound ? t('account.changeEmail') : t('account.bindEmail')"
+      to="body"
+      :z-index="11000"
+      style="max-width: 420px"
+    >
+      <div class="password-form">
+        <div class="form-item">
+          <label>{{ t('account.email') }}</label>
+          <n-input v-model:value="emailForm.email" :placeholder="t('account.emailPh')" />
+        </div>
+        <div class="form-item">
+          <label>{{ t('account.code') }}</label>
+          <div class="captcha-row">
+            <n-input v-model:value="emailForm.code" :placeholder="t('account.codePh')" />
+            <n-button
+              :loading="emailCodeSending"
+              :disabled="emailCodeCooldown > 0"
+              @click="sendEmailCode"
+            >
+              {{ emailCodeCooldown > 0 ? `${emailCodeCooldown}s` : t('account.sendCode') }}
+            </n-button>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <div class="modal-footer">
+          <n-button @click="showEmailModal = false">{{ t('common.cancel') }}</n-button>
+          <n-button type="primary" :loading="emailLoading" @click="submitBindEmail">
+            {{ t('account.confirmBind') }}
+          </n-button>
+        </div>
+      </template>
+    </n-modal>
+
+    <n-modal
+      v-model:show="showDeleteModal"
+      preset="card"
+      :title="t('account.deleteTitle')"
+      to="body"
+      :z-index="11000"
+      style="max-width: 420px"
+    >
+      <p class="delete-warn">{{ t('account.deleteWarn') }}</p>
+      <div class="form-item">
+        <label>{{ t('account.loginPassword') }}</label>
+        <n-input
+          v-model:value="deletePassword"
+          type="password"
+          show-password-on="click"
+          :placeholder="t('account.passwordPh')"
+        />
+      </div>
+      <template #footer>
+        <div class="modal-footer">
+          <n-button @click="showDeleteModal = false">{{ t('common.cancel') }}</n-button>
+          <n-button type="error" :loading="deleteLoading" @click="submitDeleteAccount">
+            {{ t('account.confirmDelete') }}
+          </n-button>
+        </div>
+      </template>
+    </n-modal>
   </div>
 </template>
 
 <style scoped>
 @import './settings-common.css';
 
-/* 由 settings-common.css 提供 .settings-scroll 默认布局
- * 这里只覆盖 AccountSettings 特有的样式 */
-
-.profile-card {
+.account-card-head {
   display: flex;
   align-items: center;
-  gap: 20px;
-  padding: 22px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--lx-accent-soft) 0%, var(--lx-bg-panel) 60%);
-  border: 1px solid var(--lx-border-light);
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px 8px;
 }
 
-.profile-avatar {
-  box-shadow: 0 4px 12px var(--lx-shadow-color);
-  border: 2px solid var(--lx-bg-card);
-}
-
-.profile-name {
-  font-size: 20px;
+.group-title {
+  font-size: 14px;
   font-weight: 600;
   color: var(--lx-text-body);
 }
 
-.profile-id {
-  font-size: 13px;
-  color: var(--lx-text-secondary);
-  margin-top: 4px;
+.profile-block {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 8px 18px 16px;
 }
 
-.profile-badge {
-  display: inline-block;
-  margin-top: 8px;
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--lx-accent-soft);
+.profile-avatar {
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px var(--lx-shadow-color);
+}
+
+.profile-meta {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.profile-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-name {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--lx-text-body);
+}
+
+.profile-signature {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font-size: 12px;
+  color: var(--lx-text-muted);
+  cursor: pointer;
+  text-align: left;
+}
+
+.profile-signature span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-signature:hover {
   color: var(--lx-accent);
+}
+
+.profile-id-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--lx-text-secondary);
+  margin-top: 2px;
+}
+
+.copy-btn {
+  border: none;
+  background: none;
+  padding: 2px;
+  color: var(--lx-text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  border-radius: 4px;
+}
+
+.copy-btn:hover {
+  color: var(--lx-accent);
+  background: var(--lx-bg-hover);
+}
+
+.link-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 18px;
+  border: none;
+  border-top: 1px solid var(--lx-border-light);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.link-row:hover {
+  background: var(--lx-bg-hover);
+}
+
+.link-label {
+  font-size: 14px;
+  color: var(--lx-text-body);
   font-weight: 500;
+}
+
+.link-value {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--lx-text-secondary);
+}
+
+.link-value.muted {
+  color: var(--lx-text-muted);
+}
+
+.link-value.success {
+  color: var(--lx-success);
+}
+
+.link-chevron {
+  color: var(--lx-text-muted);
+  flex-shrink: 0;
+}
+
+.link-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.link-desc {
+  font-size: 12px;
+  color: var(--lx-text-muted);
+}
+
+.danger-row .link-label {
+  color: var(--lx-danger);
+}
+
+.delete-warn {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--lx-danger);
+  line-height: 1.5;
 }
 
 .password-form {
@@ -608,7 +968,6 @@ onMounted(() => {
   font-size: 11px;
 }
 
-/* 余额展示样式 */
 .balance-display {
   padding: 8px 4px 12px;
 }
@@ -636,7 +995,6 @@ onMounted(() => {
 
 .balance-details {
   display: grid;
-  /* 关键：4 列网格让每一项都有足够空间 */
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   padding: 0 14px;
@@ -663,7 +1021,6 @@ onMounted(() => {
   color: var(--lx-text-body);
 }
 
-/* 反馈历史样式 */
 .feedback-list {
   display: flex;
   flex-direction: column;

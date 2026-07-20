@@ -15,6 +15,10 @@ export interface UserInfo {
   country?: string
   province?: string
   region?: string
+  email?: string | null
+  emailBound?: boolean
+  phone?: string | null
+  phoneBound?: boolean
 }
 
 export interface TokenData {

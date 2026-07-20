@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { NButton, NIcon, NInput, NSelect, useMessage } from 'naive-ui'
 import { HelpCircleOutline, CloudOutline, MoonOutline, ApertureOutline, MailOutline } from '@vicons/ionicons5'
 import { useOverlayStore } from '../../../stores/overlay'
 import * as feedbackApi from '../../../api/feedback'
+import { useI18n } from '../../../i18n'
 
 const message = useMessage()
 const overlayStore = useOverlayStore()
 const { close } = overlayStore
+const { t } = useI18n()
 
 const feedbackText = ref('')
 const feedbackType = ref<'bug' | 'suggestion' | 'other'>('suggestion')
@@ -15,34 +17,34 @@ const feedbackContact = ref('')
 const submitting = ref(false)
 const expandedFaq = ref<number | null>(0)
 
-const faqItems = [
+const faqItems = computed(() => [
   {
     icon: CloudOutline,
-    q: '如何同步消息？',
-    a: '登录后消息会通过 WebSocket（ws://host:8081/ws）实时同步；离线时可在网络恢复后自动重连。'
+    q: t('overlay.faqSyncQ'),
+    a: t('overlay.faqSyncA')
   },
   {
     icon: MoonOutline,
-    q: '如何切换深色模式？',
-    a: '点击侧栏调色盘图标，或进入设置 → 外观与显示。'
+    q: t('overlay.faqDarkQ'),
+    a: t('overlay.faqDarkA')
   },
   {
     icon: ApertureOutline,
-    q: '友链独立窗口如何使用？',
-    a: '在 Electron 客户端点击侧栏友链图标，将打开独立浏览窗口。'
+    q: t('overlay.faqMomentsQ'),
+    a: t('overlay.faqMomentsA')
   }
-]
+])
 
-const feedbackTypeOptions = [
-  { label: '功能建议', value: 'suggestion' },
-  { label: 'Bug 反馈', value: 'bug' },
-  { label: '其他问题', value: 'other' }
-]
+const feedbackTypeOptions = computed(() => [
+  { label: t('overlay.typeSuggestion'), value: 'suggestion' },
+  { label: t('overlay.typeBug'), value: 'bug' },
+  { label: t('overlay.typeOther'), value: 'other' }
+])
 
 async function submitFeedback() {
   const text = feedbackText.value.trim()
   if (!text) {
-    message.warning('请先描述您遇到的问题')
+    message.warning(t('overlay.feedbackNeedContent'))
     return
   }
 
@@ -55,16 +57,16 @@ async function submitFeedback() {
     })
 
     if (res.code === 200) {
-      message.success('反馈已提交，感谢您的建议')
+      message.success(t('overlay.feedbackOk'))
       feedbackText.value = ''
       feedbackContact.value = ''
       close()
     } else {
-      message.error(res.message || '提交失败，请重试')
+      message.error(res.message || t('overlay.submitFail'))
     }
   } catch (e) {
     console.error('提交反馈失败:', e)
-    message.error('提交反馈失败，请检查网络连接')
+    message.error(t('overlay.submitFailNetwork'))
   } finally {
     submitting.value = false
   }
@@ -80,8 +82,8 @@ async function submitFeedback() {
           <n-icon :component="HelpCircleOutline" :size="20" />
         </div>
         <div>
-          <h2 class="panel-title">常见问题</h2>
-          <p class="panel-sub">快速了解 LinkX 常用功能</p>
+          <h2 class="panel-title">{{ t('overlay.faq') }}</h2>
+          <p class="panel-sub">{{ t('overlay.faqSub') }}</p>
         </div>
       </div>
       <div class="faq-list">
@@ -110,31 +112,31 @@ async function submitFeedback() {
           <n-icon :component="MailOutline" :size="20" />
         </div>
         <div>
-          <h2 class="panel-title">问题反馈</h2>
-          <p class="panel-sub">你的建议会帮助我们改进产品</p>
+          <h2 class="panel-title">{{ t('overlay.feedback') }}</h2>
+          <p class="panel-sub">{{ t('overlay.feedbackSub') }}</p>
         </div>
       </div>
       <div class="feedback-form">
         <div class="form-item">
-          <label>反馈类型</label>
+          <label>{{ t('overlay.feedbackType') }}</label>
           <n-select
             v-model:value="feedbackType"
             :options="feedbackTypeOptions"
-            placeholder="请选择反馈类型"
+            :placeholder="t('overlay.feedbackTypePh')"
           />
         </div>
         <n-input
           v-model:value="feedbackText"
           type="textarea"
-          placeholder="描述你遇到的问题或建议…"
+          :placeholder="t('overlay.feedbackContentPh')"
           :rows="5"
           class="feedback-input"
         />
         <div class="form-item">
-          <label>联系方式（选填）</label>
+          <label>{{ t('overlay.feedbackContact') }}</label>
           <n-input
             v-model:value="feedbackContact"
-            placeholder="手机号或邮箱，方便我们联系你"
+            :placeholder="t('overlay.feedbackContactPh')"
           />
         </div>
       </div>
@@ -145,7 +147,7 @@ async function submitFeedback() {
           :disabled="submitting"
           @click="submitFeedback"
         >
-          提交反馈
+          {{ t('overlay.submitFeedback') }}
         </n-button>
       </div>
     </section>

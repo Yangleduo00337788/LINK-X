@@ -26,8 +26,10 @@ import { useNotificationsStore } from '../stores/notifications'
 import type { ChatSession } from '../types'
 import { SYSTEM_NOTIFY_SESSION_ID } from '../types'
 import { formatChatTime } from '../utils/chatTime'
+import { useI18n } from '../i18n'
 
 const message = useMessage()
+const { t } = useI18n()
 const appStore = useAppStore()
 const chatModalsStore = useChatModalsStore()
 const notificationsStore = useNotificationsStore()
@@ -56,14 +58,16 @@ function formatNotifListTime(raw?: string): string {
   return formatChatTime(ms)
 }
 
-/** 列表预览：统一成「将于 …」开头（汉字），与标题「日」左缘视觉对齐 */
+/** 列表预览：统一成「将于 …」开头，与标题「日」左缘视觉对齐 */
 function formatRemindPreview(content?: string): string {
-  if (!content) return '暂无日程提醒'
+  if (!content) return t('chat.noRemind')
   const raw = content.replace(/^[「【\[]([^」】\]]*)[」】\]]\s*/, '$1 ').trim()
   const m = raw.match(/^(?:(.+?)\s+)?将于\s+(.+)$/)
   if (m?.[2]) {
     const title = (m[1] || '').trim()
-    return title ? `将于 ${m[2]} · ${title}` : `将于 ${m[2]}`
+    return title
+      ? t('chat.remindAtWithTitle', { time: m[2], title })
+      : t('chat.remindAt', { time: m[2] })
   }
   return raw
 }
@@ -74,10 +78,10 @@ const systemNotifySession = computed<ChatSession>(() => {
   const latest = list[0]
   return {
     id: SYSTEM_NOTIFY_SESSION_ID,
-    name: '日程提醒',
+    name: t('chat.calendarRemind'),
     lastMessage: formatRemindPreview(latest?.content),
     time: formatNotifListTime(latest?.createTime),
-    avatarText: '日',
+    avatarText: t('chat.remindAvatar'),
     avatarColor: '#12b7f5',
     unread: calendarRemindUnreadCount.value || undefined,
     pinned: false,
@@ -102,17 +106,21 @@ const contextMenuOptions = computed<DropdownOption[]>(() => {
   const s = contextSession.value
   if (!s || s.isSystemNotify) return []
   return [
-    { label: s.pinned ? '取消置顶' : '置顶', key: 'pin' },
-    { label: s.muted ? '取消免打扰' : '免打扰', key: 'mute' },
+    { label: s.pinned ? t('chat.unpin') : t('chat.pin'), key: 'pin' },
+    { label: s.muted ? t('chat.unmute') : t('chat.mute'), key: 'mute' },
     { type: 'divider', key: 'd1' },
-    { label: '删除会话', key: 'delete' }
+    { label: t('chat.deleteSession'), key: 'delete' }
   ]
 })
 
-const addOptions = [
-  { label: '发起群聊', key: 'group' },
-  { label: '添加好友/群聊', key: 'friend' }
-]
+const addOptions = computed(() => [
+  { label: t('chat.createGroup'), key: 'group' },
+  { label: t('chat.addFriendGroup'), key: 'friend' }
+])
+
+function isMyPhoneSession(name?: string): boolean {
+  return name === '我的手机' || name === t('chat.myPhone')
+}
 
 function onSelect(session: ChatSession) {
   if (session.isSystemNotify) {
@@ -147,14 +155,14 @@ function onContextMenuSelect(key: string) {
   if (key === 'pin') {
     const wasPinned = s.pinned
     toggleSessionPin(s.id)
-    message.success(wasPinned ? '已取消置顶' : '已置顶')
+    message.success(wasPinned ? t('chat.unpinnedOk') : t('chat.pinnedOk'))
   } else if (key === 'mute') {
     const wasMuted = s.muted
     toggleSessionMute(s.id)
-    message.success(wasMuted ? '已取消免打扰' : '已开启免打扰')
+    message.success(wasMuted ? t('chat.unmutedOk') : t('chat.mutedOk'))
   } else if (key === 'delete') {
     deleteSession(s.id)
-    message.success('已删除会话')
+    message.success(t('chat.sessionDeleted'))
   }
   contextMenuShow.value = false
 }
@@ -164,14 +172,14 @@ function onContextMenuSelect(key: string) {
   <div class="chat-list">
     <PanelSearchBar
       v-model="searchValue"
-      placeholder="搜索"
+      :placeholder="t('chat.search')"
       :add-options="addOptions"
       @add-select="onAddSelect"
     />
 
     <div v-if="isOffline" class="offline-banner">
       <n-icon :component="WarningOutline" :size="16" />
-      <span>网络连接已断开，请检查网络设置</span>
+      <span>{{ t('chat.offlineBanner') }}</span>
     </div>
 
     <div class="session-list">
@@ -186,7 +194,7 @@ function onContextMenuSelect(key: string) {
       </template>
 
       <template v-else-if="filteredSessions.length === 0">
-        <EmptyState title="无匹配的会话" description="请尝试其他关键词" />
+        <EmptyState :title="t('chat.noMatchSession')" :description="t('chat.tryOtherKeyword')" />
       </template>
 
       <template v-else>
@@ -212,7 +220,7 @@ function onContextMenuSelect(key: string) {
                   :icon="
                     session.isSystemNotify
                       ? CalendarOutline
-                      : session.name === '我的手机'
+                      : isMyPhoneSession(session.name)
                         ? PhonePortraitOutline
                         : undefined
                   "

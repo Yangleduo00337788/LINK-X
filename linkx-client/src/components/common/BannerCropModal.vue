@@ -11,6 +11,9 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { NIcon, useMessage } from 'naive-ui'
 import { CloseOutline, CheckmarkOutline, ImageOutline } from '@vicons/ionicons5'
+import { useI18n } from '../../i18n'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   visible: boolean
@@ -270,7 +273,7 @@ async function confirmCrop() {
 
   outCanvas.toBlob((blob) => {
     if (!blob) {
-      message.error('裁剪失败')
+      message.error(t('extra.cropFail'))
       return
     }
     emit('confirm', blob, props.file!)
@@ -305,8 +308,8 @@ watch(() => props.imageUrl, async () => {
       <div class="crop-modal">
         <!-- 标题栏 -->
         <div class="crop-header">
-          <span class="crop-title">裁剪友链背景</span>
-          <span class="crop-ratio">比例 {{ targetW }}:{{ targetH }}</span>
+          <span class="crop-title">{{ t('extra.cropBannerTitle') }}</span>
+          <span class="crop-ratio">{{ t('extra.cropRatio', { w: targetW, h: targetH }) }}</span>
           <button class="close-btn" @click="onClose">
             <n-icon :component="CloseOutline" :size="18" />
           </button>
@@ -331,17 +334,17 @@ watch(() => props.imageUrl, async () => {
               @mousedown="onMouseDown"
             />
           </div>
-          <p class="crop-hint">拖拽移动裁剪区域，拖动边角调整大小</p>
+          <p class="crop-hint">{{ t('extra.cropHint') }}</p>
         </div>
 
         <!-- 底部按钮 -->
         <div class="crop-footer">
-          <button class="btn-skip" @click="emit('skip', props.file!)">跳过裁剪直接上传</button>
+          <button class="btn-skip" @click="emit('skip', props.file!)">{{ t('extra.skipCrop') }}</button>
           <div class="footer-right">
-            <button class="btn-cancel" @click="onClose">取消</button>
+            <button class="btn-cancel" @click="onClose">{{ t('common.cancel') }}</button>
             <button class="btn-confirm" @click="confirmCrop">
               <n-icon :component="CheckmarkOutline" :size="16" />
-              确认上传
+              {{ t('extra.confirmUpload') }}
             </button>
           </div>
         </div>

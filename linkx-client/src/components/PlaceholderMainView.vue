@@ -13,12 +13,14 @@ import { useSecondaryViewStore } from '../stores/secondaryView'
 import { useOverlayStore } from '../stores/overlay'
 // 主导航键类型
 import type { NavKey } from '../types'
+import { useI18n } from '../i18n'
 
 // 接收当前主导航键
 const props = defineProps<{
   nav: NavKey
 }>()
 
+const { t } = useI18n()
 // 路由实例
 const router = useRouter()
 // 次级视图 Store 实例
@@ -32,11 +34,11 @@ const { open: openOverlay } = overlayStore
 
 // 根据导航键生成空状态提示文案
 const emptyHint = computed(() => {
-  if (props.nav === 'contacts') return '在左侧选择联系人发起会话'
-  if (props.nav === 'favorites') return '在左侧点击收藏项查看详情'
-  if (props.nav === 'files') return '在左侧选择文件查看详情'
-  if (props.nav === 'moments') return '在左侧浏览友链动态，可发布与评论'
-  return ''
+  if (props.nav === 'contacts') return t('placeholder.selectContacts')
+  if (props.nav === 'favorites') return t('placeholder.selectFavorite')
+  if (props.nav === 'files') return t('placeholder.selectFile')
+  if (props.nav === 'moments') return t('placeholder.selectMoments')
+  return t('placeholder.selectLeft')
 })
 
 // 打开收藏中的链接（新窗口）
@@ -94,7 +96,7 @@ function previewActiveFile() {
         <div class="detail-card">
           <h2>{{ activeFavorite.title }}</h2>
           <p class="preview">{{ activeFavorite.preview }}</p>
-          <p class="meta">更新于 {{ activeFavorite.time }}</p>
+          <p class="meta">{{ t('placeholder.updatedAt', { time: activeFavorite.time }) }}</p>
           <div class="fav-actions">
             <button
               v-if="activeFavorite.type === 'link'"
@@ -102,7 +104,7 @@ function previewActiveFile() {
               class="action-btn"
               @click="openFavoriteLink"
             >
-              打开链接
+              {{ t('placeholder.openLink') }}
             </button>
             <button
               v-if="activeFavorite.type === 'image'"
@@ -110,7 +112,7 @@ function previewActiveFile() {
               class="action-btn"
               @click="previewFavoriteImage"
             >
-              预览图片
+              {{ t('placeholder.previewImage') }}
             </button>
             <button
               v-if="activeFavorite.type === 'note'"
@@ -118,7 +120,7 @@ function previewActiveFile() {
               class="action-btn"
               @click="openFavoriteNote"
             >
-              打开笔记编辑器
+              {{ t('placeholder.openNote') }}
             </button>
           </div>
         </div>
@@ -127,8 +129,8 @@ function previewActiveFile() {
       <template v-else-if="nav === 'files' && activeFile">
         <div class="detail-card">
           <h2>{{ activeFile.title }}</h2>
-          <p class="meta">{{ activeFile.size }} · 来自 {{ activeFile.sender }}</p>
-          <p class="meta">接收时间 {{ activeFile.time }}</p>
+          <p class="meta">{{ t('placeholder.fromSender', { size: activeFile.size, name: activeFile.sender }) }}</p>
+          <p class="meta">{{ t('placeholder.receivedAt', { time: activeFile.time }) }}</p>
           <div v-if="activeFile.type === 'image' && activeFile.fileUrl" class="file-preview-wrap">
             <img :src="activeFile.fileUrl" :alt="activeFile.title" class="file-preview-img" />
           </div>
@@ -139,7 +141,7 @@ function previewActiveFile() {
               class="action-btn"
               @click="previewActiveFile"
             >
-              全屏预览
+              {{ t('placeholder.fullscreenPreview') }}
             </button>
           </div>
         </div>

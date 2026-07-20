@@ -8,9 +8,11 @@ import { NInput, NButton, NIcon, useMessage } from 'naive-ui'
 import { RefreshOutline } from '@vicons/ionicons5'
 import * as authApi from '../api/auth'
 import { validateUsername, validatePassword, validateNickname } from '../utils/validation'
+import { useI18n } from '../i18n'
 
 const message = useMessage()
 const router = useRouter()
+const { t } = useI18n()
 const isElectron = !!window.electronAPI?.isElectron
 
 const regUser = ref('')
@@ -23,6 +25,7 @@ const regCaptchaImage = ref('')
 const submitting = ref(false)
 
 const compact = computed(() => isElectron)
+const submitLabel = computed(() => (submitting.value ? t('register.submitting') : t('register.submit')))
 
 async function loadCaptcha() {
   try {
@@ -33,7 +36,7 @@ async function loadCaptcha() {
       regCaptchaCode.value = ''
     }
   } catch {
-    message.error('验证码加载失败')
+    message.error(t('register.captchaFail'))
   }
 }
 
@@ -67,15 +70,15 @@ async function handleRegister() {
     return
   }
   if (!email) {
-    message.warning('请输入邮箱')
+    message.warning(t('register.enterEmail'))
     return
   }
   if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
-    message.warning('请输入有效的邮箱地址')
+    message.warning(t('register.invalidEmail'))
     return
   }
   if (!regCaptchaCode.value.trim()) {
-    message.warning('请输入验证码')
+    message.warning(t('register.enterCaptcha'))
     return
   }
 
@@ -90,7 +93,7 @@ async function handleRegister() {
       captchaCode: regCaptchaCode.value.trim()
     })
     if (res.code === 200) {
-      message.success('注册成功，请登录')
+      message.success(t('register.success'))
       try {
         localStorage.setItem('linkx:registered-username', user)
       } catch {
@@ -98,12 +101,12 @@ async function handleRegister() {
       }
       setTimeout(() => closeOrBack(), 400)
     } else {
-      message.error(res.message || '注册失败，请检查信息后重试')
+      message.error(res.message || t('register.fail'))
       await loadCaptcha()
     }
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string }
-    message.error(err.response?.data?.message || err.message || '注册请求失败')
+    message.error(err.response?.data?.message || err.message || t('register.fail'))
     await loadCaptcha()
   } finally {
     submitting.value = false
@@ -120,20 +123,20 @@ onMounted(() => {
 <template>
   <div class="register-page" :class="{ 'register-page--compact': compact }">
     <div class="reg-win-bar">
-      <div class="reg-title">注册账号</div>
+      <div class="reg-title">{{ t('register.title') }}</div>
       <div class="drag-area" />
-      <button v-if="!isElectron" type="button" class="web-close" title="返回" @click="closeOrBack">×</button>
+      <button v-if="!isElectron" type="button" class="web-close" :title="t('common.back')" @click="closeOrBack">×</button>
     </div>
 
     <div class="reg-body">
       <div class="brand-title" aria-label="LinkX">LinkX</div>
-      <p class="reg-desc">创建 LinkX 账号</p>
+      <p class="reg-desc">{{ t('register.subtitle') }}</p>
 
       <div class="reg-form">
         <n-input
           v-model:value="regUser"
           size="large"
-          placeholder="用户名（4-32位字母数字下划线）"
+          :placeholder="t('register.usernamePh')"
           class="lx-field"
           :bordered="false"
         />
@@ -142,21 +145,21 @@ onMounted(() => {
           type="password"
           show-password-on="click"
           size="large"
-          placeholder="密码（8位以上，含字母和数字）"
+          :placeholder="t('register.passwordPh')"
           class="lx-field"
           :bordered="false"
         />
         <n-input
           v-model:value="regNickname"
           size="large"
-          placeholder="昵称"
+          :placeholder="t('register.nicknamePh')"
           class="lx-field"
           :bordered="false"
         />
         <n-input
           v-model:value="regEmail"
           size="large"
-          placeholder="邮箱（用于找回密码）"
+          :placeholder="t('register.emailPh')"
           class="lx-field"
           :bordered="false"
         />
@@ -165,15 +168,15 @@ onMounted(() => {
           <img
             v-if="regCaptchaImage"
             :src="regCaptchaImage"
-            alt="验证码"
+            :alt="t('register.captcha')"
             class="captcha-img"
-            title="点击刷新"
+            :title="t('login.refreshCaptcha')"
             @click="loadCaptcha"
           />
           <n-input
             v-model:value="regCaptchaCode"
             size="large"
-            placeholder="验证码"
+            :placeholder="t('register.captchaPh')"
             class="lx-field captcha-input"
             :bordered="false"
             maxlength="6"
@@ -194,12 +197,12 @@ onMounted(() => {
           @click="handleRegister"
         >
           <span v-if="submitting" class="btn-spinner" aria-hidden="true" />
-          <span>{{ submitting ? '注册中' : '注 册' }}</span>
+          <span>{{ submitLabel }}</span>
         </button>
       </div>
 
       <div class="footer">
-        <a href="#" class="footer-link" @click.prevent="closeOrBack">返回登录</a>
+        <a href="#" class="footer-link" @click.prevent="closeOrBack">{{ t('register.backLogin') }}</a>
       </div>
     </div>
   </div>

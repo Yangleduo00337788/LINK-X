@@ -1,33 +1,44 @@
 /**
- * 设置弹窗 Store
- * 管理设置模态框的显示状态与当前激活的标签页
+ * 设置页 Store
+ * 管理设置页激活分类；设置以应用内整页展示（非弹窗）。
  */
 
-// 从 Pinia 导入 defineStore，用于创建响应式 Store
 import { defineStore } from 'pinia'
+import type { SettingsTab } from '../types'
+import { useAppStore } from './app'
 
-// 定义并导出 settings Store
 export const useSettingsStore = defineStore('settings', {
-  // 初始状态
   state: () => ({
-    isSettingsModalVisible: false, // 设置模态框是否可见
-    settingsActiveTab: 'general'   // 当前激活的设置标签页 ID
+    /** @deprecated 兼容旧调用；设置已改为整页，始终随 navKey 决定可见性 */
+    isSettingsModalVisible: false,
+    settingsActiveTab: 'account' as SettingsTab
   }),
 
-  // 可变更状态的方法
   actions: {
     /**
-     * 打开设置模态框
-     * @param tab 要激活的标签页，默认为 'general'
+     * 打开设置页并切换到指定分类
+     * @param tab 要激活的分类，默认「我的账号」
      */
-    openSettings(tab = 'general') {
-      this.settingsActiveTab = tab           // 切换到指定标签
-      this.isSettingsModalVisible = true     // 显示模态框
+    openSettings(tab: SettingsTab | string = 'account') {
+      const next = (tab || 'account') as SettingsTab
+      this.settingsActiveTab = next
+      this.isSettingsModalVisible = true
+      const appStore = useAppStore()
+      appStore.setNav('settings')
     },
 
-    /** 关闭设置模态框 */
+    /** 离开设置页（切回消息） */
     closeSettings() {
-      this.isSettingsModalVisible = false    // 隐藏模态框
+      this.isSettingsModalVisible = false
+      const appStore = useAppStore()
+      if (appStore.navKey === 'settings') {
+        appStore.setNav('chat')
+      }
+    },
+
+    /** 仅切换分类（已在设置页内） */
+    setTab(tab: SettingsTab) {
+      this.settingsActiveTab = tab
     }
   }
 })

@@ -11,6 +11,7 @@ import { storeToRefs } from 'pinia'
 import { useOverlayStore } from '../../stores/overlay'
 // 覆盖层页面类型
 import type { OverlayPage } from '../../types'
+import { useI18n } from '../../i18n'
 
 // 覆盖层 Store 实例
 const overlayStore = useOverlayStore()
@@ -18,23 +19,22 @@ const overlayStore = useOverlayStore()
 const { currentPage } = storeToRefs(overlayStore)
 // 关闭覆盖层的方法
 const { close } = overlayStore
+const { t } = useI18n()
 
 // 异步加载各覆盖层子页面（按需加载）
 const HelpPage = defineAsyncComponent(() => import('./pages/HelpPage.vue'))
 const FilePreviewPage = defineAsyncComponent(() => import('./pages/FilePreviewPage.vue'))
 const ChatHistoryPage = defineAsyncComponent(() => import('./pages/ChatHistoryPage.vue'))
 
-// 各覆盖层页面的默认标题映射
-const titleMap: Record<OverlayPage, string> = {
-  help: '帮助与反馈',
-  'file-preview': '文件预览',
-  'chat-history': '聊天记录'
-}
-
 // 根据当前页面计算标题栏文案
 const pageTitle = computed(() => {
   const p = currentPage.value
   if (!p) return ''
+  const titleMap: Record<OverlayPage, string> = {
+    help: t('overlay.help'),
+    'file-preview': t('overlay.filePreview'),
+    'chat-history': t('overlay.chatHistory')
+  }
   return titleMap[p]
 })
 </script>

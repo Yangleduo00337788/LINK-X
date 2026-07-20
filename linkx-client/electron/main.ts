@@ -12,6 +12,12 @@ const isDev = Boolean(process.env.VITE_DEV_SERVER_URL)
 const USE_NATIVE_TITLE_BAR_OVERLAY = process.platform === 'win32' || process.platform === 'linux'
 let currentUiTheme: 'light' | 'dark' = 'light'
 
+/** 全局快捷键（可由设置页覆盖） */
+const currentShortcuts = {
+  toggleWindow: 'CommandOrControl+Shift+L',
+  lock: 'CommandOrControl+Shift+K'
+}
+
 type TitleBarOverlayOpts = {
   color: string
   symbolColor: string
@@ -111,6 +117,93 @@ app.commandLine.appendSwitch('--use-fake-device-for-media-stream')
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
+/** 主动退出时跳过「关窗最小化到托盘」 */
+let isQuitting = false
+
+type OpenOnStartup = 'main' | 'tray'
+type AppLanguage = 'zh-CN' | 'en-US'
+
+interface DesktopPrefs {
+  minimizeToTray: boolean
+  openOnStartup: OpenOnStartup
+  language: AppLanguage
+}
+
+const DEFAULT_DESKTOP_PREFS: DesktopPrefs = {
+  minimizeToTray: true,
+  openOnStartup: 'main',
+  language: 'zh-CN'
+}
+
+let desktopPrefs: DesktopPrefs = { ...DEFAULT_DESKTOP_PREFS }
+
+function desktopPrefsPath() {
+  return path.join(app.getPath('userData'), 'desktop-prefs.json')
+}
+
+function loadDesktopPrefs(): DesktopPrefs {
+  try {
+    const raw = fs.readFileSync(desktopPrefsPath(), 'utf8')
+    const parsed = JSON.parse(raw) as Partial<DesktopPrefs>
+    return {
+      minimizeToTray:
+        typeof parsed.minimizeToTray === 'boolean'
+          ? parsed.minimizeToTray
+          : DEFAULT_DESKTOP_PREFS.minimizeToTray,
+      openOnStartup: parsed.openOnStartup === 'tray' ? 'tray' : 'main',
+      language: parsed.language === 'en-US' ? 'en-US' : 'zh-CN'
+    }
+  } catch {
+    return { ...DEFAULT_DESKTOP_PREFS }
+  }
+}
+
+function saveDesktopPrefs(next: DesktopPrefs) {
+  desktopPrefs = { ...next }
+  try {
+    fs.writeFileSync(desktopPrefsPath(), JSON.stringify(desktopPrefs, null, 2), 'utf8')
+  } catch (e) {
+    console.warn('[electron] save desktop prefs failed:', e)
+  }
+}
+
+function syncLoginItemHidden() {
+  try {
+    const { openAtLogin } = app.getLoginItemSettings()
+    if (!openAtLogin) return
+    app.setLoginItemSettings({
+      openAtLogin: true,
+      openAsHidden: desktopPrefs.openOnStartup === 'tray'
+    })
+  } catch (e) {
+    console.warn('[electron] sync login item hidden failed:', e)
+  }
+}
+
+function trayMenuLabels() {
+  if (desktopPrefs.language === 'en-US') {
+    return { show: 'Show LinkX', quit: 'Quit' }
+  }
+  return { show: '显示主窗口', quit: '退出' }
+}
+
+function rebuildTrayMenu() {
+  if (!tray || tray.isDestroyed()) return
+  const labels = trayMenuLabels()
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: labels.show, click: () => showMainWindow() },
+      { type: 'separator' },
+      {
+        label: labels.quit,
+        click: () => {
+          isQuitting = true
+          app.quit()
+        }
+      }
+    ])
+  )
+}
 
 /** 英文省市名 → 中文（ipinfo 等海外接口） */
 const CITY_CN: Record<string, string> = {
@@ -222,6 +315,8 @@ function registerWindowIpc() {
   ipcMain.removeHandler('window:toggle-pin')
   ipcMain.removeHandler('app:set-auto-start')
   ipcMain.removeHandler('app:get-auto-start')
+  ipcMain.removeHandler('app:get-desktop-prefs')
+  ipcMain.removeHandler('app:set-desktop-prefs')
   ipcMain.removeHandler('window:set-mode')
   ipcMain.removeHandler('fetch-ip-location')
   ipcMain.removeHandler('secure-storage:is-available')
@@ -229,6 +324,12 @@ function registerWindowIpc() {
   ipcMain.removeHandler('secure-storage:set')
   ipcMain.removeHandler('secure-storage:remove')
   ipcMain.removeHandler('app:show-notification')
+  ipcMain.removeHandler('app:pick-download-path')
+  ipcMain.removeHandler('app:open-download-path')
+  ipcMain.removeHandler('app:clear-cache')
+  ipcMain.removeHandler('app:set-shortcuts')
+  ipcMain.removeHandler('app:get-shortcuts')
+  ipcMain.removeHandler('app:get-download-path')
 
   ipcMain.on('window-minimize', onMinimize)
   ipcMain.on('window-maximize', onMaximize)
@@ -258,7 +359,7 @@ function registerWindowIpc() {
   ipcMain.handle('app:set-auto-start', (_event, enabled: boolean) => {
     app.setLoginItemSettings({
       openAtLogin: !!enabled,
-      openAsHidden: false
+      openAsHidden: !!enabled && desktopPrefs.openOnStartup === 'tray'
     })
     return true
   })
@@ -266,6 +367,34 @@ function registerWindowIpc() {
   ipcMain.handle('app:get-auto-start', () => {
     return app.getLoginItemSettings().openAtLogin
   })
+
+  ipcMain.handle('app:get-desktop-prefs', () => ({ ...desktopPrefs }))
+
+  ipcMain.handle(
+    'app:set-desktop-prefs',
+    (
+      _event,
+      patch: Partial<DesktopPrefs> | null | undefined
+    ): DesktopPrefs => {
+      const next: DesktopPrefs = {
+        minimizeToTray:
+          typeof patch?.minimizeToTray === 'boolean'
+            ? patch.minimizeToTray
+            : desktopPrefs.minimizeToTray,
+        openOnStartup: patch?.openOnStartup === 'tray' ? 'tray' : patch?.openOnStartup === 'main' ? 'main' : desktopPrefs.openOnStartup,
+        language:
+          patch?.language === 'en-US'
+            ? 'en-US'
+            : patch?.language === 'zh-CN'
+              ? 'zh-CN'
+              : desktopPrefs.language
+      }
+      saveDesktopPrefs(next)
+      rebuildTrayMenu()
+      syncLoginItemHidden()
+      return { ...desktopPrefs }
+    }
+  )
 
   ipcMain.handle('window:set-mode', (event, mode: 'login' | 'main') => {
     const win = winFromSender(event)
@@ -289,6 +418,48 @@ function registerWindowIpc() {
       win.setSize(1083, 833, false)
       win.center()
     }
+  })
+
+  ipcMain.handle('app:get-download-path', () => {
+    return app.getPath('downloads')
+  })
+
+  ipcMain.handle('app:pick-download-path', async event => {
+    const win = winFromSender(event)
+    const { dialog } = await import('electron')
+    const result = await dialog.showOpenDialog(win ?? undefined, {
+      properties: ['openDirectory', 'createDirectory']
+    })
+    if (result.canceled || !result.filePaths[0]) return null
+    return result.filePaths[0]
+  })
+
+  ipcMain.handle('app:open-download-path', async (_event, customPath?: string) => {
+    const { shell } = await import('electron')
+    const target = customPath && customPath.trim() ? customPath : app.getPath('downloads')
+    const err = await shell.openPath(target)
+    return !err
+  })
+
+  ipcMain.handle('app:clear-cache', async () => {
+    try {
+      const { session } = await import('electron')
+      await session.defaultSession.clearCache()
+      await session.defaultSession.clearStorageData({
+        storages: ['cachestorage', 'shadercache', 'serviceworkers']
+      })
+      return { ok: true, message: '缓存已清理' }
+    } catch (e) {
+      return { ok: false, message: e instanceof Error ? e.message : '清理失败' }
+    }
+  })
+
+  ipcMain.handle('app:get-shortcuts', () => ({ ...currentShortcuts }))
+
+  ipcMain.handle('app:set-shortcuts', (_event, payload: { toggleWindow?: string; lock?: string }) => {
+    if (payload?.toggleWindow) currentShortcuts.toggleWindow = String(payload.toggleWindow)
+    if (payload?.lock) currentShortcuts.lock = String(payload.lock)
+    return registerGlobalShortcuts()
   })
 
   // 通过 IP 获取地理位置（优先国内可访问接口，失败再回退）
@@ -477,24 +648,37 @@ function createTray() {
   if (tray) return
   tray = new Tray(createTrayIcon())
   tray.setToolTip('LinkX')
-  const contextMenu = Menu.buildFromTemplate([
-    { label: '显示主窗口', click: () => showMainWindow() },
-    { type: 'separator' },
-    { label: '退出', click: () => app.quit() }
-  ])
-  tray.setContextMenu(contextMenu)
+  rebuildTrayMenu()
   tray.on('double-click', () => showMainWindow())
 }
 
-function registerGlobalShortcuts() {
+function registerGlobalShortcuts(): boolean {
   globalShortcut.unregisterAll()
-  globalShortcut.register('CommandOrControl+Shift+L', () => {
-    if (mainWindow?.isVisible()) {
-      mainWindow.hide()
-    } else {
-      showMainWindow()
-    }
-  })
+  let ok = true
+  try {
+    const toggleOk = globalShortcut.register(currentShortcuts.toggleWindow, () => {
+      if (mainWindow?.isVisible()) {
+        mainWindow.hide()
+      } else {
+        showMainWindow()
+      }
+    })
+    if (!toggleOk) ok = false
+  } catch {
+    ok = false
+  }
+  try {
+    const lockOk = globalShortcut.register(currentShortcuts.lock, () => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('app:shortcut-lock')
+        showMainWindow()
+      }
+    })
+    if (!lockOk) ok = false
+  } catch {
+    ok = false
+  }
+  return ok
 }
 
 let momentsWindow: BrowserWindow | null = null
@@ -778,6 +962,10 @@ function createWindow() {
   })
 
   mainWindow.once('ready-to-show', () => {
+    // 「启动时打开 = 托盘」：仅驻留托盘，不弹出主窗口
+    if (desktopPrefs.openOnStartup === 'tray') {
+      return
+    }
     mainWindow?.show()
   })
 
@@ -813,8 +1001,8 @@ function createWindow() {
   })
 
   mainWindow.on('close', (e) => {
-    if (process.platform === 'darwin') return
-    if (!tray) return
+    if (isQuitting || process.platform === 'darwin') return
+    if (!desktopPrefs.minimizeToTray || !tray) return
     e.preventDefault()
     mainWindow?.hide()
   })
@@ -825,6 +1013,8 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  desktopPrefs = loadDesktopPrefs()
+
   // 设置严格的 Content Security Policy，防止 Electron Security Warning
   // 在窗口创建前设置，应用到所有窗口
   const csp = [
@@ -849,8 +1039,9 @@ app.whenReady().then(() => {
   })
 
   registerWindowIpc()
-  createWindow()
+  // 先建托盘，确保「启动到托盘 / 关窗进托盘」可用
   createTray()
+  createWindow()
   registerGlobalShortcuts()
 
   app.on('activate', () => {
@@ -862,11 +1053,17 @@ app.whenReady().then(() => {
   })
 })
 
+app.on('before-quit', () => {
+  isQuitting = true
+})
+
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
 })
 
 app.on('window-all-closed', () => {
+  // 最小化到托盘时主窗口仍在（仅 hide），不会走到这里；
+  // 关闭即退出时正常结束进程。
   if (process.platform !== 'darwin') {
     app.quit()
   }

@@ -11,8 +11,10 @@ import { useCalendarStore } from '../stores/calendar'
 import { useAppStore } from '../stores/app'
 import EmptyState from './common/EmptyState.vue'
 import type { MessageNotification } from '../stores/notifications'
+import { useI18n } from '../i18n'
 
 const message = useMessage()
+const { t } = useI18n()
 const notificationsStore = useNotificationsStore()
 const calendarStore = useCalendarStore()
 const appStore = useAppStore()
@@ -36,10 +38,10 @@ function formatTime(raw: string): string {
   const now = Date.now()
   const diff = Math.max(0, now - date.getTime())
   const minutes = Math.floor(diff / 60000)
-  if (minutes < 1) return '刚刚'
-  if (minutes < 60) return `${minutes} 分钟前`
+  if (minutes < 1) return t('chat.justNow')
+  if (minutes < 60) return t('chat.minutesAgo', { n: minutes })
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours} 小时前`
+  if (hours < 24) return t('chat.hoursAgo', { n: hours })
   const m = String(date.getMonth() + 1).padStart(2, '0')
   const d = String(date.getDate()).padStart(2, '0')
   const hh = String(date.getHours()).padStart(2, '0')
@@ -53,7 +55,9 @@ function formatRemindContent(content?: string): string {
   const m = raw.match(/^(?:(.+?)\s+)?将于\s+(.+)$/)
   if (m?.[2]) {
     const title = (m[1] || '').trim()
-    return title ? `将于 ${m[2]} · ${title}` : `将于 ${m[2]}`
+    return title
+      ? t('chat.remindAtWithTitle', { time: m[2], title })
+      : t('chat.remindAt', { time: m[2] })
   }
   return raw
 }
@@ -86,7 +90,7 @@ async function onClickItem(notif: MessageNotification) {
 
 async function markAllRead() {
   await markCalendarRemindsAsRead()
-  message.success('已全部标为已读')
+  message.success(t('chat.markedAllRead'))
 }
 
 async function clearOne(notif: MessageNotification, e: Event) {
@@ -100,10 +104,10 @@ async function clearOne(notif: MessageNotification, e: Event) {
     <header class="header">
       <div class="title-wrap">
         <n-icon :component="CalendarOutline" :size="22" class="title-icon" />
-        <h2 class="title">日程提醒</h2>
+        <h2 class="title">{{ t('chat.calendarRemind') }}</h2>
       </div>
       <div class="actions">
-        <button type="button" class="action-btn" title="全部已读" @click="markAllRead">
+        <button type="button" class="action-btn" :title="t('chat.markRead')" @click="markAllRead">
           <n-icon :component="CheckmarkDoneOutline" :size="18" />
         </button>
       </div>
@@ -112,8 +116,8 @@ async function clearOne(notif: MessageNotification, e: Event) {
     <div class="content">
       <EmptyState
         v-if="calendarRemindNotifs.length === 0"
-        title="暂无日程提醒"
-        description="开启日程提醒后，到期会在这里收到站内消息"
+        :title="t('chat.noRemind')"
+        :description="t('chat.remindEmptyDesc')"
       />
       <ul v-else class="notif-list">
         <li
@@ -128,7 +132,7 @@ async function clearOne(notif: MessageNotification, e: Event) {
           </div>
           <div class="info">
             <div class="top">
-              <span class="name">日程提醒</span>
+              <span class="name">{{ t('chat.calendarRemind') }}</span>
               <span class="time">{{ formatTime(notif.createTime) }}</span>
             </div>
             <div class="preview">{{ formatRemindContent(notif.content) }}</div>
@@ -136,7 +140,7 @@ async function clearOne(notif: MessageNotification, e: Event) {
           <button
             type="button"
             class="delete-btn"
-            title="删除"
+            :title="t('common.delete')"
             @click="clearOne(notif, $event)"
           >
             <n-icon :component="TrashOutline" :size="16" />

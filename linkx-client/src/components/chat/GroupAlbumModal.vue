@@ -15,54 +15,40 @@ import { useOverlayStore } from '../../stores/overlay'
 import { useMessage } from 'naive-ui'
 // 文件读取为 Data URL 的工具
 import { readFileAsDataUrl } from '../../utils/file'
+import { useI18n } from '../../i18n'
 
-// 消息提示实例
 const message = useMessage()
-// 聊天弹窗 Store 实例
+const { t } = useI18n()
 const chatModalsStore = useChatModalsStore()
-// 应用 Store 实例
 const appStore = useAppStore()
-// 群元数据 Store 实例
 const groupMetaStore = useGroupMetaStore()
-// 覆盖层 Store 实例
 const overlayStore = useOverlayStore()
-// 群相册弹窗是否打开
 const { groupAlbumOpen } = storeToRefs(chatModalsStore)
-// 关闭群相册弹窗的方法
 const { closeGroupAlbum } = chatModalsStore
-// 当前会话、会话 ID、用户资料
 const { currentSession, currentSessionId, userProfile } = storeToRefs(appStore)
-// 打开覆盖层页面的方法
 const { open: openOverlay } = overlayStore
 
-// 当前标签页：群动态 / 相册 / 与我相关
 const tab = ref<'feed' | 'albums' | 'me'>('feed')
-// 隐藏的图片上传 input 引用
 const albumInputRef = ref<HTMLInputElement | null>(null)
 
-// 根据标签页过滤后的相册图片列表
 const albumItems = computed(() => {
   const id = currentSessionId.value
   if (!id) return []
   const list = groupMetaStore.albumFor(id)
-  // 「与我相关」仅显示当前用户上传的图片
   if (tab.value === 'me') {
     return list.filter(i => i.user === userProfile.value.nickname)
   }
   return list
 })
 
-// 关闭群相册弹窗
 function close() {
   closeGroupAlbum()
 }
 
-// 触发隐藏 input 选择图片
 function upload() {
   albumInputRef.value?.click()
 }
 
-// 处理用户选择的图片并上传到群相册
 async function onAlbumPicked(e: Event) {
   const input = e.target as HTMLInputElement
   const files = input.files
@@ -72,7 +58,6 @@ async function onAlbumPicked(e: Event) {
   const user = userProfile.value.nickname
   const items: { url: string; name: string; user: string }[] = []
 
-  // 逐个读取图片为 Data URL
   for (const file of Array.from(files)) {
     try {
       const url = await readFileAsDataUrl(file)
@@ -84,11 +69,10 @@ async function onAlbumPicked(e: Event) {
 
   if (items.length) {
     groupMetaStore.addAlbumImages(currentSessionId.value, items)
-    message.success(`已上传 ${items.length} 张图片到群相册`)
+    message.success(t('extra.albumUploaded', { n: items.length }))
   }
 }
 
-// 打开图片预览覆盖层
 function previewImage(item: { url: string; name: string }) {
   openOverlay('file-preview', {
     filePreview: {
@@ -99,40 +83,35 @@ function previewImage(item: { url: string; name: string }) {
   })
 }
 
-// 创建相册（演示：提示默认相册已就绪）
 function createAlbum() {
-  message.success('默认相册已就绪，直接上传即可')
+  message.success(t('extra.defaultAlbumReady'))
 }
 </script>
 
 <template>
-  <!-- 群相册弹窗：Teleport 挂载到 body -->
   <Teleport to="body">
     <div v-if="groupAlbumOpen" class="modal-root" @click.self="close">
       <div class="album-window" @click.stop>
-        <!-- 窗口标题栏 -->
         <header class="win-head">
-          <h2>群相册 - {{ currentSession?.name || '群聊' }}</h2>
+          <h2>{{ t('extra.groupAlbumTitle', { name: currentSession?.name || t('extra.groupChat') }) }}</h2>
           <button type="button" class="close-x" @click="close">×</button>
         </header>
-        <!-- 标签页与上传操作栏 -->
         <div class="tabs-row">
           <button type="button" class="tab" :class="{ active: tab === 'feed' }" @click="tab = 'feed'">
-            群动态
+            {{ t('extra.groupFeed') }}
           </button>
           <button type="button" class="tab" :class="{ active: tab === 'albums' }" @click="tab = 'albums'">
-            相册
+            {{ t('extra.album') }}
           </button>
           <button type="button" class="tab" :class="{ active: tab === 'me' }" @click="tab = 'me'">
-            与我相关
+            {{ t('extra.relatedToMe') }}
           </button>
           <div class="tabs-actions">
-            <button type="button" class="link-btn" @click="createAlbum">创建相册</button>
+            <button type="button" class="link-btn" @click="createAlbum">{{ t('extra.createAlbum') }}</button>
             <input ref="albumInputRef" type="file" accept="image/*" multiple hidden @change="onAlbumPicked" />
-            <button type="button" class="primary-sm" @click="upload">上传至相册</button>
+            <button type="button" class="primary-sm" @click="upload">{{ t('extra.uploadToAlbum') }}</button>
           </div>
         </div>
-        <!-- 相册网格或空状态 -->
         <div v-if="albumItems.length" class="album-grid">
           <button
             v-for="item in albumItems"
@@ -147,8 +126,8 @@ function createAlbum() {
         </div>
         <div v-else class="empty-area">
           <div class="empty-ico">🖼</div>
-          <p>马上上传照片，与群友分享。</p>
-          <button type="button" class="primary-lg" @click="upload">上传至相册</button>
+          <p>{{ t('extra.uploadPhotosHint') }}</p>
+          <button type="button" class="primary-lg" @click="upload">{{ t('extra.uploadToAlbum') }}</button>
         </div>
       </div>
     </div>

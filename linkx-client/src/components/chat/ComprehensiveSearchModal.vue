@@ -15,6 +15,7 @@ import * as friendApi from '../../api/friend'
 import * as groupApi from '../../api/group'
 import type { UserSearchResult } from '../../types/friend'
 import type { ConversationSummary } from '../../api/group'
+import { useI18n } from '../../i18n'
 
 interface SearchGroupItem {
   id: string
@@ -35,6 +36,7 @@ interface SearchUserItem {
   isRemote: boolean
 }
 
+const { t } = useI18n()
 const message = useMessage()
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
@@ -52,11 +54,11 @@ const searching = ref(false)
 const remoteUsers = ref<UserSearchResult[]>([])
 const remoteGroups = ref<SearchGroupItem[]>([])
 
-const mainTabs = [
-  { key: 'all', label: '全部' },
-  { key: 'user', label: '用户' },
-  { key: 'group', label: '群聊' }
-] as const
+const mainTabs = computed(() => [
+  { key: 'all' as const, label: t('modals.all') },
+  { key: 'user' as const, label: t('modals.user') },
+  { key: 'group' as const, label: t('modals.groupChat') }
+])
 
 function close() {
   closeComprehensiveSearch()
@@ -69,7 +71,7 @@ function close() {
 async function doSearch() {
   const q = keyword.value.trim()
   if (!q) {
-    message.warning('请输入关键词')
+    message.warning(t('modals.enterKeyword'))
     return
   }
 
@@ -89,18 +91,18 @@ async function doSearch() {
       }
       if (groupRes.code === 200 && groupRes.data) {
         remoteGroups.value = groupRes.data
-          .filter(g => (g.name || '群聊').toLowerCase().includes(q.toLowerCase()))
+          .filter(g => (g.name || t('modals.groupChat')).toLowerCase().includes(q.toLowerCase()))
           .map((g: ConversationSummary) => ({
             id: String(g.id),
-            name: g.name || '群聊',
-            avatarText: (g.name || '群').charAt(0),
+            name: g.name || t('modals.groupChat'),
+            avatarText: (g.name || t('modals.groupChar')).charAt(0),
             lastMessage: g.lastMessage
           }))
       }
     }
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string }
-    message.error(err.response?.data?.message || err.message || '搜索用户失败')
+    message.error(err.response?.data?.message || err.message || t('modals.searchUserFail'))
   } finally {
     searching.value = false
   }
@@ -174,10 +176,10 @@ const showUsers = computed(() => mainTab.value === 'all' || mainTab.value === 'u
 async function enterGroup(group: SearchGroupItem) {
   try {
     await openGroupSession(group.id)
-    message.success(`已进入群聊「${group.name}」`)
+    message.success(t('modals.enteredGroup', { name: group.name }))
     close()
   } catch (error) {
-    message.error((error as Error).message || '进入群聊失败')
+    message.error((error as Error).message || t('modals.enterGroupFail'))
   }
 }
 
@@ -186,24 +188,24 @@ async function handleUserAction(user: SearchUserItem) {
     try {
       const res = await friendApi.sendFriendRequest({
         username: user.username,
-        message: '请求添加你为好友'
+        message: t('modals.friendRequestMsg')
       })
       if (res.code === 200) {
-        message.success(`已向「${user.name}」发送好友申请`)
+        message.success(t('modals.friendRequestSent', { name: user.name }))
         await notificationsStore.fetchFriendRequests()
         close()
         return
       }
-      message.error(res.message || '发送好友申请失败')
+      message.error(res.message || t('modals.friendRequestFail'))
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } }; message?: string }
-      message.error(err.response?.data?.message || err.message || '发送好友申请失败')
+      message.error(err.response?.data?.message || err.message || t('modals.friendRequestFail'))
     }
     return
   }
 
   if (!user.userId) {
-    message.warning('请通过 LinkX ID 搜索该用户')
+    message.warning(t('modals.searchByIdHint'))
     return
   }
 
@@ -213,10 +215,10 @@ async function handleUserAction(user: SearchUserItem) {
       name: user.name,
       avatarUrl: user.avatarUrl
     })
-    message.success(`已打开与「${user.name}」的会话`)
+    message.success(t('modals.openedSession', { name: user.name }))
     close()
   } catch (error) {
-    message.error((error as Error).message || '打开会话失败')
+    message.error((error as Error).message || t('modals.openSessionFail'))
   }
 }
 </script>
@@ -225,38 +227,38 @@ async function handleUserAction(user: SearchUserItem) {
   <Teleport to="body">
     <div v-if="comprehensiveSearchOpen" class="modal-root" @click.self="close">
       <div class="search-window" @click.stop>
-        <header class="win-title">添加好友/群聊</header>
+        <header class="win-title">{{ t('modals.addFriend') }}</header>
         <div class="search-row">
           <input
             v-model="keyword"
             type="text"
             class="search-input"
-            placeholder="输入 LinkX ID 或关键词"
+            :placeholder="t('modals.searchKeywordPh')"
             @keydown.enter="doSearch"
           />
           <button type="button" class="search-btn" :disabled="searching" @click="doSearch">
-            {{ searching ? '搜索中' : '搜索' }}
+            {{ searching ? t('modals.searching') : t('modals.search') }}
           </button>
         </div>
         <div class="main-tabs">
           <button
-            v-for="t in mainTabs"
-            :key="t.key"
+            v-for="tab in mainTabs"
+            :key="tab.key"
             type="button"
             class="main-tab"
-            :class="{ active: mainTab === t.key }"
-            @click="mainTab = t.key"
+            :class="{ active: mainTab === tab.key }"
+            @click="mainTab = tab.key"
           >
-            {{ t.label }}
+            {{ tab.label }}
           </button>
         </div>
         <div class="result-list">
           <template v-if="!searched">
-            <p class="empty-tip">输入关键词后搜索用户与群聊</p>
+            <p class="empty-tip">{{ t('modals.searchHint') }}</p>
           </template>
           <template v-else>
             <template v-if="showUsers">
-              <h4 v-if="filteredUsers.length" class="section-label">用户</h4>
+              <h4 v-if="filteredUsers.length" class="section-label">{{ t('modals.user') }}</h4>
               <article v-for="u in filteredUsers" :key="u.id" class="group-card user-card">
                 <Avatar
                   :text="u.avatarText"
@@ -267,37 +269,37 @@ async function handleUserAction(user: SearchUserItem) {
                 <div class="g-body">
                   <h3 class="g-name">{{ u.name }}</h3>
                   <p class="g-meta">
-                    <span v-if="u.username">LinkX ID: {{ u.username }}</span>
-                    <span v-else>{{ u.online ? '在线' : '离线' }}</span>
+                    <span v-if="u.username">{{ t('modals.linkxId', { id: u.username }) }}</span>
+                    <span v-else>{{ u.online ? t('chat.online') : t('chat.offline') }}</span>
                   </p>
                 </div>
                 <button type="button" class="join-btn" @click="handleUserAction(u)">
-                  {{ u.isRemote ? '加好友' : '发消息' }}
+                  {{ u.isRemote ? t('modals.addFriendBtn') : t('modals.sendMessage') }}
                 </button>
               </article>
               <p v-if="showUsers && !filteredUsers.length && mainTab !== 'group'" class="empty-tip">
-                未找到匹配用户
+                {{ t('modals.noMatchUser') }}
               </p>
             </template>
             <template v-if="showGroups">
-              <h4 v-if="filteredGroups.length" class="section-label">群聊</h4>
+              <h4 v-if="filteredGroups.length" class="section-label">{{ t('modals.groupChat') }}</h4>
               <article v-for="g in filteredGroups" :key="g.id" class="group-card">
                 <div class="g-avatar">{{ g.avatarText.charAt(0) }}</div>
                 <div class="g-body">
                   <h3 class="g-name">{{ g.name }}</h3>
                   <p class="g-meta">
-                    <span>{{ g.lastMessage || '暂无消息' }}</span>
+                    <span>{{ g.lastMessage || t('modals.noMessages') }}</span>
                   </p>
                 </div>
-                <button type="button" class="join-btn" @click="enterGroup(g)">进入</button>
+                <button type="button" class="join-btn" @click="enterGroup(g)">{{ t('modals.enter') }}</button>
               </article>
               <p v-if="showGroups && !filteredGroups.length && mainTab !== 'user'" class="empty-tip">
-                未找到匹配群聊
+                {{ t('modals.noMatchGroup') }}
               </p>
             </template>
           </template>
         </div>
-        <button type="button" class="close-fab" title="关闭" @click="close">×</button>
+        <button type="button" class="close-fab" :title="t('modals.close')" @click="close">×</button>
       </div>
     </div>
   </Teleport>

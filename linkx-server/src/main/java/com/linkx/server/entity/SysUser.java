@@ -96,4 +96,7 @@ public class SysUser implements Serializable {
 
     // 用户邮箱，用于找回密码等身份验证
     private String email;
+
+    // 手机号，用于账号安全绑定
+    private String phone;
 }

@@ -22,4 +22,13 @@ public interface EmailService {
      * @param ip      操作 IP
      */
     void sendPasswordChangedNotification(String to, String username, String ip);
+
+    /**
+     * 发送绑定/更换邮箱验证码
+     *
+     * @param to       目标邮箱
+     * @param username 用户名
+     * @param code     验证码
+     */
+    void sendBindEmailCode(String to, String username, String code);
 }

@@ -53,20 +53,22 @@ import type { ChatMessage, ContactItem } from '../types'
 import { useFavoritesStore } from '../stores/favorites'
 // 通话 Store（真实 WebRTC）
 import { useCallStore } from '../stores/call'
+import { useI18n } from '../i18n'
 
 // 获取 Naive UI 消息提示实例
 const message = useMessage()
+const { t } = useI18n()
 
 /** 发起语音/视频通话 */
 async function startCall(callType: 'voice' | 'video') {
   const session = currentSession.value
   const sessionId = currentSessionId.value
   if (!session || !sessionId) {
-    message.warning('请先选择会话')
+    message.warning(t('chat.selectSessionFirst'))
     return
   }
   if (session.isGroup) {
-    message.warning('暂仅支持单聊通话')
+    message.warning(t('chat.callPrivateOnly'))
     return
   }
   try {
@@ -79,7 +81,7 @@ async function startCall(callType: 'voice' | 'video') {
     })
   } catch (error) {
     const err = error as { response?: { data?: { message?: string } }; message?: string }
-    message.error(err.response?.data?.message || err.message || '发起通话失败')
+    message.error(err.response?.data?.message || err.message || t('chat.callFailed'))
   }
 }
 // 获取收藏 Store 实例
@@ -119,14 +121,19 @@ const {
 } = chatModalsStore
 
 // 群应用快捷菜单项
-const groupGridItems = ['群文件', '群相册', '群精华', '群公告']
+const groupGridItems = computed(() => [
+  { key: 'files', label: t('chat.groupFiles') },
+  { key: 'album', label: t('chat.groupAlbum') },
+  { key: 'essence', label: t('chat.groupEssence') },
+  { key: 'announcement', label: t('chat.groupAnnouncement') }
+])
 
 // 群应用菜单项点击：打开对应群功能弹窗
-function onGroupAppClick(item: string) {
-  if (item === '群文件') openGroupFiles()
-  else if (item === '群相册') openGroupAlbum()
-  else if (item === '群精华') openGroupEssence()
-  else if (item === '群公告') openGroupAnnouncement()
+function onGroupAppClick(key: string) {
+  if (key === 'files') openGroupFiles()
+  else if (key === 'album') openGroupAlbum()
+  else if (key === 'essence') openGroupEssence()
+  else if (key === 'announcement') openGroupAnnouncement()
 }
 
 // 是否为群聊（有会话、是群、且非「我的手机」）
@@ -136,7 +143,10 @@ const isGroupChat = computed(
 
 
 // 是否为「我的手机」会话
-const isMyPhone = computed(() => currentSession.value?.name === '我的手机')
+const isMyPhone = computed(() => {
+  const name = currentSession.value?.name
+  return name === '我的手机' || name === t('chat.myPhone')
+})
 // 是否有选中的会话
 const hasSession = computed(() => !!currentSession.value)
 // 是否为好友单聊（有会话、非群、非我的手机）
@@ -216,7 +226,7 @@ function openPeerProfile(e: MouseEvent) {
     name: session.name,
     avatarText: session.avatarText,
     avatarColor: session.avatarColor,
-    group: '我的好友',
+    group: t('chat.myFriends'),
     online: session.online
   }
   openContactProfile(contact, e)
@@ -229,7 +239,7 @@ function openSelfProfileClick(e: MouseEvent) {
     {
       nickname: userProfile.value.nickname,
       username: savedLogin.value.username || userProfile.value.username || undefined,
-      avatarText: userProfile.value.nickname.charAt(0) || '我',
+      avatarText: userProfile.value.nickname.charAt(0) || t('chat.me'),
       avatarUrl: userProfile.value.avatar || undefined,
       userId: userProfile.value.userId ? Number(userProfile.value.userId) : undefined
     },
@@ -255,7 +265,7 @@ watch(currentSessionId, () => {
 // 播放或暂停语音消息
 function playVoice(msg: ChatMessage) {
   if (!msg.voiceUrl) {
-    message.info(`语音 ${formatVoiceDuration(msg.voiceDuration)}`) // 无 URL 时仅提示时长
+    message.info(`${t('chat.voice')} ${formatVoiceDuration(msg.voiceDuration)}`) // 无 URL 时仅提示时长
     return
   }
   if (playingVoiceId.value === msg.id) {
@@ -266,7 +276,7 @@ function playVoice(msg: ChatMessage) {
   voiceAudio?.pause() // 停止上一段语音
   voiceAudio = new Audio(msg.voiceUrl)
   playingVoiceId.value = msg.id
-  voiceAudio.play().catch(() => message.error('无法播放语音'))
+  voiceAudio.play().catch(() => message.error(t('chat.voicePlayFail')))
   voiceAudio.onended = () => {
     playingVoiceId.value = null // 播放结束清除状态
   }
@@ -276,7 +286,7 @@ function playVoice(msg: ChatMessage) {
 function openImageView(msg: ChatMessage) {
   openOverlay('file-preview', {
     filePreview: {
-      fileName: '图片消息',
+      fileName: t('chat.imageMessage'),
       fileUrl: msg.content,
       isImage: true
     }
@@ -304,7 +314,7 @@ function openFileView(msg?: ChatMessage) {
 // 点击红包消息：自己发的提示，他人发的打开领取弹窗
 function onRedPacketClick(msg: ChatMessage) {
   if (msg.isSelf) {
-    message.info('这是您发出的红包')
+    message.info(t('chat.ownRedPacket'))
     return
   }
   openRedPacketReceive(msg.id)
@@ -390,7 +400,7 @@ function copyMessage(msg: ChatMessage) {
       ? msg.fileName || msg.content // 文件消息复制文件名
       : msg.content
   navigator.clipboard.writeText(text)
-  message.success('已复制')
+  message.success(t('chat.copied'))
 }
 
 // 收藏消息到收藏夹
@@ -403,7 +413,7 @@ function favoriteMessage(msg: ChatMessage) {
     })
   } else if (msg.type === 'image' || msg.isImage) {
     favoritesStore.add({
-      title: '图片消息',
+      title: t('chat.imageMessage'),
       preview: msg.content.slice(0, 80),
       type: 'image'
     })
@@ -415,12 +425,12 @@ function favoriteMessage(msg: ChatMessage) {
     })
   } else {
     favoritesStore.add({
-      title: msg.content.slice(0, 20) || '消息',
+      title: msg.content.slice(0, 20) || t('chat.messageFallback'),
       preview: msg.content,
       type: 'note'
     })
   }
-  message.success('已收藏')
+  message.success(t('chat.favorited'))
 }
 
 // 消息右键菜单相关状态
@@ -434,14 +444,18 @@ const ctxOptions = computed<DropdownOption[]>(() => {
   const msg = ctxMsg.value
   if (!msg) return []
   const copyLabel =
-    msg.type === 'file' ? '复制文件名' : msg.type === 'image' || msg.isImage ? '复制链接' : '复制'
+    msg.type === 'file'
+      ? t('chat.copyFileName')
+      : msg.type === 'image' || msg.isImage
+        ? t('chat.copyLink')
+        : t('chat.copy')
   const opts: DropdownOption[] = [
     { label: copyLabel, key: 'copy' },
-    { label: '收藏', key: 'fav' },
-    { label: '回复', key: 'reply' }
+    { label: t('chat.favorite'), key: 'fav' },
+    { label: t('chat.replyAction'), key: 'reply' }
   ]
   if (msg.isSelf) {
-    opts.push({ type: 'divider', key: 'd' }, { label: '撤回', key: 'recall' }) // 自己发的消息可撤回
+    opts.push({ type: 'divider', key: 'd' }, { label: t('chat.recall'), key: 'recall' })
   }
   return opts
 })
@@ -475,7 +489,7 @@ function replyMessage(msg: ChatMessage) {
 // 撤回消息
 function recallMessage(msg: ChatMessage) {
   if (recallMessageInStore(msg.id)) {
-    message.success('已撤回')
+    message.success(t('chat.recalled'))
   }
 }
 
@@ -521,7 +535,7 @@ function onDrop(e: DragEvent) {
     <div v-if="isDraggingFile" class="drag-overlay">
       <div class="drag-overlay-content">
         <n-icon :component="ImagesOutline" :size="48" />
-        <span>松开以发送文件</span>
+        <span>{{ t('chat.dropToSend') }}</span>
       </div>
     </div>
     <div class="functional-region">
@@ -533,16 +547,30 @@ function onDrop(e: DragEvent) {
           </button>
           <Avatar v-else v-bind="peerAvatarProps(32)" />
           <span class="chat-peer-name">{{ currentSession?.name }}</span>
-          <span v-if="currentSession?.online" class="online-dot" title="在线" />
+          <span
+            v-if="currentSession?.online"
+            class="online-dot"
+            :title="t('chat.online')"
+          />
         </div>
         <div class="chat-header-actions">
-          <button type="button" class="hdr-btn" title="语音通话" @click="() => startCall('voice')">
+          <button
+            type="button"
+            class="hdr-btn"
+            :title="t('chat.voiceCall')"
+            @click="() => startCall('voice')"
+          >
             <n-icon :component="CallOutline" :size="20" />
           </button>
-          <button type="button" class="hdr-btn" title="视频通话" @click="() => startCall('video')">
+          <button
+            type="button"
+            class="hdr-btn"
+            :title="t('chat.videoCall')"
+            @click="() => startCall('video')"
+          >
             <n-icon :component="VideocamOutline" :size="20" />
           </button>
-          <button type="button" class="hdr-btn" title="更多" @click="toggleMore">
+          <button type="button" class="hdr-btn" :title="t('chat.more')" @click="toggleMore">
             <n-icon :component="EllipsisHorizontalOutline" :size="20" />
           </button>
         </div>
@@ -554,10 +582,20 @@ function onDrop(e: DragEvent) {
           <span class="chat-peer-name chat-peer-name--group">{{ currentSession?.name }}</span>
         </div>
         <div class="chat-header-actions">
-          <button type="button" class="hdr-btn" title="语音通话" @click="() => startCall('voice')">
+          <button
+            type="button"
+            class="hdr-btn"
+            :title="t('chat.voiceCall')"
+            @click="() => startCall('voice')"
+          >
             <n-icon :component="CallOutline" :size="20" />
           </button>
-          <button type="button" class="hdr-btn" title="视频通话" @click="() => startCall('video')">
+          <button
+            type="button"
+            class="hdr-btn"
+            :title="t('chat.videoCall')"
+            @click="() => startCall('video')"
+          >
             <n-icon :component="VideocamOutline" :size="20" />
           </button>
           <n-popover
@@ -568,26 +606,26 @@ function onDrop(e: DragEvent) {
             class="group-apps-popover"
           >
             <template #trigger>
-              <button type="button" class="hdr-btn" title="群应用">
+              <button type="button" class="hdr-btn" :title="t('chat.groupApps')">
                 <n-icon :component="GridOutline" :size="20" />
               </button>
             </template>
             <div class="group-grid-menu">
               <button
                 v-for="item in groupGridItems"
-                :key="item"
+                :key="item.key"
                 type="button"
                 class="grid-menu-item"
-                @click="onGroupAppClick(item)"
+                @click="onGroupAppClick(item.key)"
               >
-                {{ item }}
+                {{ item.label }}
               </button>
             </div>
           </n-popover>
-          <button type="button" class="hdr-btn" title="邀请" @click="openAddMembers">
+          <button type="button" class="hdr-btn" :title="t('chat.invite')" @click="openAddMembers">
             <n-icon :component="AddOutline" :size="20" />
           </button>
-          <button type="button" class="hdr-btn" title="更多" @click="toggleGroupInfo">
+          <button type="button" class="hdr-btn" :title="t('chat.more')" @click="toggleGroupInfo">
             <n-icon :component="EllipsisHorizontalOutline" :size="20" />
           </button>
         </div>
@@ -630,7 +668,10 @@ function onDrop(e: DragEvent) {
                 </div>
 
                 <!-- 无消息或未选会话时的占位水印 -->
-                <PenguinWatermark v-else :hint="hasSession ? '' : '在左侧选择会话开始聊天'" />
+                <PenguinWatermark
+                  v-else
+                  :hint="hasSession ? t('chat.emptyChat') : t('chat.selectChatHint')"
+                />
               </div>
             </div>
 

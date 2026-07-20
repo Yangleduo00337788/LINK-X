@@ -38,6 +38,7 @@ import type { ChatMessage } from '../../types'
 import { CHAT_EMOJIS } from '../../constants/emojis'
 // 文件工具：大小格式化、DataURL 读取、图片大小上限
 import { formatFileSize, MAX_IMAGE_BYTES } from '../../utils/file'
+import { useI18n } from '../../i18n'
 
 // 组件入参：会话类型与可选的回复目标消息
 const props = defineProps<{
@@ -55,6 +56,7 @@ const emit = defineEmits<{
 
 // Naive UI 全局消息实例
 const message = useMessage()
+const { t } = useI18n()
 // 各 Pinia store 实例
 const appStore = useAppStore()
 const chatModalsStore = useChatModalsStore()
@@ -74,11 +76,11 @@ async function startVoiceCall() {
   const session = currentSession.value
   const sessionId = currentSessionId.value
   if (!session || !sessionId) {
-    message.warning('请先选择会话')
+    message.warning(t('chat.selectSessionFirst'))
     return
   }
   if (session.isGroup) {
-    message.warning('暂仅支持单聊通话')
+    message.warning(t('chat.callPrivateOnly'))
     return
   }
   try {
@@ -91,7 +93,7 @@ async function startVoiceCall() {
     })
   } catch (error) {
     const err = error as { message?: string }
-    message.error(err.message || '发起通话失败')
+    message.error(err.message || t('chat.callFailed'))
   }
 }
 
@@ -115,7 +117,7 @@ const emojis = [...CHAT_EMOJIS]
  */
 function ensureCanSend(): boolean {
   if (currentSession.value?.blocked) {
-    message.warning('你已屏蔽该联系人，无法发送消息')
+    message.warning(t('chat.blockedSend'))
     return false
   }
   return true
@@ -142,7 +144,7 @@ async function toolScreenshot() {
       console.log('[截图] 使用 Electron captureScreen')
       const result = await window.electronAPI.captureScreen()
       if (!result) {
-        message.warning('截图失败，请重试')
+        message.warning(t('chat.screenshotFail'))
         return
       }
       dataUrl = result.dataURL
@@ -162,28 +164,28 @@ async function toolScreenshot() {
       dataUrl = canvas.toDataURL('image/png')
       console.log('[截图] 浏览器截图成功, length:', dataUrl.length)
     } else {
-      message.warning('当前环境不支持屏幕截图')
+      message.warning(t('chat.screenshotUnsupported'))
       return
     }
 
     if (dataUrl.length > MAX_IMAGE_BYTES * 1.4) {
-      message.warning('截图过大，请缩小选区后重试')
+      message.warning(t('chat.screenshotTooLarge'))
       return
     }
 
     await sendMessage(dataUrl, { type: 'image', isImage: true })
-    message.success('截图已发送')
+    message.success(t('chat.screenshotSent'))
     emit('scrollToBottom')
   } catch (e) {
     console.error('[截图] 失败:', e)
-    message.info('已取消截图')
+    message.info(t('chat.screenshotCancel'))
   }
 }
 
 /** 真实会话暂不支持的功能提示 */
 function warnUnsupportedOnRealSession(feature: string): boolean {
   if (currentSession.value?.isReal) {
-    message.warning(`真实会话暂不支持${feature}`)
+    message.warning(t('chat.realSessionUnsupported', { feature }))
     return true
   }
   return false
@@ -191,7 +193,7 @@ function warnUnsupportedOnRealSession(feature: string): boolean {
 
 /** 暂不支持的功能提示 */
 function showUnsupported(feature: string) {
-  message.info(`${feature}功能正在开发中，敬请期待`)
+  message.info(t('chat.featureComingSoon', { feature }))
 }
 
 /** 触发红包弹窗：真实会话与非真实会话都允许发红包，由 RedPacketModal 决定是否调用后端 */
@@ -227,21 +229,21 @@ async function handleFileSend(file: File) {
 
   // 校验文件大小，防止读取失败的空文件（0 字节）发送到后端报错
   if (file.size === 0) {
-    message.error('无法读取文件内容，请尝试重新选择或直接拖拽文件')
+    message.error(t('chat.cannotReadFile'))
     return
   }
 
   if (file.type.startsWith('image/')) {
     if (file.size > MAX_IMAGE_BYTES) {
-      message.warning(`图片不能超过 ${formatFileSize(MAX_IMAGE_BYTES)}`)
+      message.warning(t('chat.imageTooLarge', { size: formatFileSize(MAX_IMAGE_BYTES) }))
       return
     }
     try {
       await sendMessage('', { type: 'image', isImage: true, rawFile: file })
-      message.success('图片已发送')
+      message.success(t('chat.imageSent'))
       emit('scrollToBottom')
     } catch {
-      message.error('图片发送失败')
+      message.error(t('chat.imageSendFail'))
     }
   } else {
     const fileUrl = URL.createObjectURL(file)
@@ -254,20 +256,20 @@ async function handleFileSend(file: File) {
         rawFile: file
       })
       // 同步到全局文件传输列表
-      filesStore.addFromChat(file.name, formatFileSize(file.size), '我', fileUrl)
+      filesStore.addFromChat(file.name, formatFileSize(file.size), t('chat.me'), fileUrl)
       // 群聊时追加到群文件元数据
       if (props.isGroupChat && currentSessionId.value) {
         groupMetaStore.addFile(currentSessionId.value, {
           name: file.name,
           size: formatFileSize(file.size),
-          user: userProfile.value?.nickname || '我',
+          user: userProfile.value?.nickname || t('chat.me'),
           fileUrl
         })
       }
-      message.success('文件已发送')
+      message.success(t('chat.fileSent'))
       emit('scrollToBottom')
     } catch {
-      message.error('文件发送失败')
+      message.error(t('chat.fileSendFail'))
     }
   }
 }
@@ -300,7 +302,7 @@ function onPaste(e: ClipboardEvent) {
  * 语音录制（暂不支持，提示用户）
  */
 function toggleVoiceRecord() {
-  showUnsupported('语音')
+  showUnsupported(t('chat.voice'))
 }
 
 /** 选中表情追加到输入框并关闭表情面板 */
@@ -329,7 +331,7 @@ function send() {
       emit('update:replyingTo', undefined)
       emit('scrollToBottom')
     } catch {
-      message.error('消息发送失败')
+      message.error(t('chat.messageSendFail'))
     }
   })()
 }
@@ -378,7 +380,14 @@ defineExpose({
       <!-- 回复预览 + 多行文本输入 -->
       <div class="input-compose">
         <div v-if="replyingTo" class="reply-preview">
-          <div class="reply-content">回复 {{ replyingTo.senderName }}: {{ replyingTo.content }}</div>
+          <div class="reply-content">
+            {{
+              t('chat.replyPreview', {
+                name: replyingTo.senderName || '',
+                content: replyingTo.content
+              })
+            }}
+          </div>
           <n-icon :component="CloseOutline" class="reply-close" @click="cancelReply" />
         </div>
 
@@ -386,7 +395,9 @@ defineExpose({
           v-model:value="inputValue"
           type="textarea"
           :autosize="{ minRows: 3, maxRows: 8 }"
-          placeholder=""
+          :placeholder="
+            currentSession?.blocked ? t('chat.blocked') : t('chat.inputPlaceholder')
+          "
           class="message-input"
           :bordered="false"
           @keydown.enter="onEnter"
@@ -399,7 +410,7 @@ defineExpose({
         <div class="toolbar-left">
           <n-popover v-model:show="showEmoji" trigger="click" placement="top-start">
             <template #trigger>
-              <button type="button" class="tool-btn" title="表情">
+              <button type="button" class="tool-btn" :title="t('chat.emoji')">
                 <n-icon :component="HappyOutline" :size="20" />
               </button>
             </template>
@@ -415,28 +426,28 @@ defineExpose({
               </button>
             </div>
           </n-popover>
-          <button type="button" class="tool-btn" title="发送文件" @click="toolFile">
+          <button type="button" class="tool-btn" :title="t('chat.sendFile')" @click="toolFile">
             <n-icon :component="FolderOutline" :size="20" />
           </button>
-          <button type="button" class="tool-btn" title="截图" @click="toolScreenshot">
+          <button type="button" class="tool-btn" :title="t('chat.screenshot')" @click="toolScreenshot">
             <n-icon :component="CutOutline" :size="20" />
           </button>
           <button
             v-if="!isMyPhone"
             type="button"
             class="tool-btn"
-            title="红包"
+            :title="t('chat.redPacket')"
             @click="toolRedPacket"
           >
             <n-icon :component="GiftOutline" :size="20" />
           </button>
-          <button type="button" class="tool-btn" title="语音" @click="toggleVoiceRecord">
+          <button type="button" class="tool-btn" :title="t('chat.voice')" @click="toggleVoiceRecord">
             <n-icon :component="MicOutline" :size="20" />
           </button>
         </div>
 
         <div class="toolbar-right">
-          <button type="button" class="tool-btn" title="语音通话" @click="startVoiceCall">
+          <button type="button" class="tool-btn" :title="t('chat.voiceCall')" @click="startVoiceCall">
             <n-icon :component="VolumeHighOutline" :size="20" />
           </button>
           <button
@@ -445,7 +456,7 @@ defineExpose({
             :disabled="!inputValue.trim()"
             @click="send"
           >
-            发送
+            {{ t('chat.send') }}
           </button>
         </div>
       </div>

@@ -25,8 +25,10 @@ import { useNotificationsStore } from '../stores/notifications'
 import EmptyState from './common/EmptyState.vue'
 import { generateDefaultAvatar } from '../utils/defaultAvatar'
 import { normalizeMediaUrl } from '../utils/mediaUrl'
+import { useI18n } from '../i18n'
 
 const message = useMessage()
+const { t } = useI18n()
 const notificationsStore = useNotificationsStore()
 const { messageNotifs, mentionOnly } = storeToRefs(notificationsStore)
 const { markMessageAsRead, fetchMessageNotifications, setMentionOnly, clearAllMessageNotifsRemote } =
@@ -78,16 +80,16 @@ watch(
 /** 菜单选项 */
 const moreOptions = computed<DropdownOption[]>(() => [
   {
-    label: showAll.value ? '只看友链与日程' : '显示全部消息',
+    label: showAll.value ? t('moments.onlyMomentsCalendar') : t('moments.showAllMsg'),
     key: 'toggle-all'
   },
   {
-    label: isMentionOnly.value ? '显示全部类型' : '只看@我的消息',
+    label: isMentionOnly.value ? t('moments.showAllTypes') : t('moments.onlyAtMeMsg'),
     key: 'toggle-mention'
   },
   { type: 'divider', key: 'div-1' },
   {
-    label: '清空所有消息',
+    label: t('moments.clearAll'),
     key: 'clear-all',
     props: { class: 'lx-menu-danger' }
   }
@@ -100,14 +102,14 @@ async function handleMoreSelect(key: string | number) {
     await setMentionOnly(!isMentionOnly.value)
   } else if (key === 'clear-all') {
     if (messageNotifs.value.length === 0) {
-      message.info('当前没有可清空的消息')
+      message.info(t('moments.nothingToClear'))
       return
     }
-    const ok = window.confirm(`确认清空全部 ${messageNotifs.value.length} 条消息通知?`)
+    const ok = window.confirm(t('moments.clearConfirm', { n: messageNotifs.value.length }))
     if (!ok) return
     const cleared = await clearAllMessageNotifsRemote()
-    if (cleared > 0) message.success(`已清空 ${cleared} 条消息`)
-    else message.warning('没有消息可清空')
+    if (cleared > 0) message.success(t('moments.clearedCount', { n: cleared }))
+    else message.warning(t('moments.noMsgToClear'))
   }
 }
 
@@ -122,22 +124,22 @@ function getNotificationIcon(type: string) {
 function getNotificationTypeText(type: string) {
   switch (type) {
     case 'moments_like':
-      return '赞了你的动态'
+      return t('moments.likedYour')
     case 'moments_comment':
-      return '评论了你的动态'
+      return t('moments.commentedYour')
     case 'moments_mention':
-      return '在评论中@了你'
+      return t('moments.mentionedYou')
     case 'calendar_remind':
-      return '日程提醒'
+      return t('moments.calendarRemind')
     default:
-      return '有新通知'
+      return t('moments.newNotif')
   }
 }
 
 function resolveAvatar(notif: typeof messageNotifs.value[0]): string {
   const url = normalizeMediaUrl(notif.senderAvatar)
   if (url) return url
-  return generateDefaultAvatar(notif.senderName || '用户', 76)
+  return generateDefaultAvatar(notif.senderName || t('moments.user'), 76)
 }
 
 function formatNotifTime(raw: string): string {
@@ -147,10 +149,10 @@ function formatNotifTime(raw: string): string {
   const now = Date.now()
   const diff = Math.max(0, now - date.getTime())
   const minutes = Math.floor(diff / 60000)
-  if (minutes < 1) return '刚刚'
-  if (minutes < 60) return `${minutes} 分钟前`
+  if (minutes < 1) return t('chat.justNow')
+  if (minutes < 60) return t('chat.minutesAgo', { n: minutes })
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours} 小时前`
+  if (hours < 24) return t('chat.hoursAgo', { n: hours })
   const y = date.getFullYear()
   const m = `${date.getMonth() + 1}`.padStart(2, '0')
   const d = `${date.getDate()}`.padStart(2, '0')
@@ -169,7 +171,7 @@ async function handleNotificationClick(notif: typeof messageNotifs.value[0]) {
 
 async function refresh() {
   await fetchMessageNotifications()
-  message.success('已刷新')
+  message.success(t('moments.refreshed'))
 }
 
 function close() {
@@ -178,7 +180,7 @@ function close() {
 
 function onAvatarError(e: Event, notif: typeof messageNotifs.value[0]) {
   const img = e.target as HTMLImageElement
-  img.src = generateDefaultAvatar(notif.senderName || '用户', 76)
+  img.src = generateDefaultAvatar(notif.senderName || t('moments.user'), 76)
 }
 </script>
 
@@ -189,15 +191,15 @@ function onAvatarError(e: Event, notif: typeof messageNotifs.value[0]) {
         <header class="notif-drawer-header">
           <div class="title-block">
             <h3 class="title">
-              消息通知
+              {{ t('moments.notifTitle') }}
               <span class="filter-tag" :class="{ mention: isMentionOnly }">
-                {{ showAll ? '全部消息' : '友链与日程' }}
+                {{ showAll ? t('moments.allMessages') : t('moments.momentsAndCalendar') }}
               </span>
             </h3>
-            <p class="subtitle">点赞 · 评论 · @ · 日程提醒</p>
+            <p class="subtitle">{{ t('moments.notifSubtitle') }}</p>
           </div>
           <div class="actions">
-            <button type="button" class="icon-btn" title="刷新" @click.stop="refresh">
+            <button type="button" class="icon-btn" :title="t('moments.refresh')" @click.stop="refresh">
               <n-icon :component="RefreshOutline" :size="18" />
             </button>
             <n-dropdown
@@ -207,11 +209,11 @@ function onAvatarError(e: Event, notif: typeof messageNotifs.value[0]) {
               :options="moreOptions"
               @select="handleMoreSelect"
             >
-              <button type="button" class="icon-btn" title="更多">
+              <button type="button" class="icon-btn" :title="t('moments.more')">
                 <n-icon :component="EllipsisHorizontal" :size="18" />
               </button>
             </n-dropdown>
-            <button type="button" class="icon-btn close" title="关闭" @click.stop="close">
+            <button type="button" class="icon-btn close" :title="t('common.close')" @click.stop="close">
               <n-icon :component="CloseOutline" :size="18" />
             </button>
           </div>
@@ -220,8 +222,8 @@ function onAvatarError(e: Event, notif: typeof messageNotifs.value[0]) {
         <div class="notif-content">
           <EmptyState
             v-if="displayList.length === 0"
-            :title="showAll ? '暂无消息' : '暂无友链消息'"
-            :description="showAll ? '稍后再来看看吧' : '还没有人给你点赞/评论/@~'"
+            :title="showAll ? t('moments.noMessages') : t('moments.noMomentsMessages')"
+            :description="showAll ? t('moments.emptyNotifAll') : t('moments.emptyNotifMoments')"
           />
           <ul v-else class="notif-list">
             <li

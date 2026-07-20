@@ -6,15 +6,19 @@
  * 用于聊天列表、联系人列表等左侧面板顶部。
  * </p>
  */
+import { computed } from 'vue'
 // Naive UI 输入框、图标、下拉菜单组件
 import { NInput, NIcon, NDropdown } from 'naive-ui'
 // Ionicons5 搜索与添加图标
 import { SearchOutline, AddOutline } from '@vicons/ionicons5'
 // 主题 CSS 变量工具
 import { lxVar } from '../theme/vars'
+import { useI18n } from '../i18n'
+
+const { t } = useI18n()
 
 // 定义组件属性，设置默认值
-withDefaults(
+const props = withDefaults(
   defineProps<{
     modelValue: string // 搜索关键词（v-model 绑定值）
     placeholder?: string // 输入框占位文字
@@ -22,10 +26,13 @@ withDefaults(
     addOptions?: { label: string; key: string }[] // 添加按钮的下拉选项
   }>(),
   {
-    placeholder: '搜索', // 默认占位文字
+    placeholder: undefined, // 默认由 i18n 提供
     addOptions: undefined // 默认不显示添加按钮
   }
 )
+
+const resolvedPlaceholder = computed(() => props.placeholder ?? t('common.search'))
+const addTitle = computed(() => t('chat.addFriendGroup'))
 
 // 定义组件事件：更新搜索值、选择添加选项
 const emit = defineEmits<{
@@ -47,7 +54,7 @@ function onAdd(key: string) {
       :value="modelValue"
       size="small"
       class="search-input lx-search-input"
-      :placeholder="placeholder"
+      :placeholder="resolvedPlaceholder"
       @update:value="emit('update:modelValue', $event)"
     >
       <template #prefix>
@@ -62,7 +69,7 @@ function onAdd(key: string) {
       class="add-dropdown"
       @select="onAdd"
     >
-      <div class="add-btn lx-icon-btn" title="添加好友/群聊">
+      <div class="add-btn lx-icon-btn" :title="addTitle">
         <n-icon :component="AddOutline" :size="18" />
       </div>
     </n-dropdown>

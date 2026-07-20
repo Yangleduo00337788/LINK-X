@@ -11,12 +11,14 @@ import * as feedbackApi from '../api/feedback'
 import { sendResetCode, verifyResetCode, resetPasswordByEmail } from '../api/account'
 import { validateUsername, validatePassword } from '../utils/validation'
 import { hasRefreshToken } from '../utils/tokenStorage'
+import { useI18n } from '../i18n'
 
 const message = useMessage()
 const router = useRouter()
 const appStore = useAppStore()
 const { savedLogin, isLoading, authInitializing, userProfile } = storeToRefs(appStore)
 const { login } = appStore
+const { t } = useI18n()
 
 const isElectron = !!window.electronAPI?.isElectron
 
@@ -50,11 +52,11 @@ const displayNickname = computed(() => {
       savedLogin.value.nickname ||
       userProfile.value.nickname ||
       username.value.trim() ||
-      'LinkX 用户'
+      t('login.user')
     )
   }
   const user = username.value.trim()
-  return user || (loginMode.value === 'password' ? '账号' : '请输入账号')
+  return user || (loginMode.value === 'password' ? t('login.account') : t('login.enterAccount'))
 })
 
 const displayAvatarUrl = computed(() => {
@@ -65,10 +67,10 @@ const displayAvatarUrl = computed(() => {
 const displayAvatarText = computed(() => displayNickname.value.charAt(0) || '?')
 
 const loginButtonText = computed(() => {
-  if (autoLoginPhase.value === 'checking') return '检测网络中'
-  if (autoLoginPhase.value === 'logging-in' || authInitializing.value) return '自动登录中'
-  if (isLoading.value) return '登录中'
-  return '登 录'
+  if (autoLoginPhase.value === 'checking') return t('login.checkingNetwork')
+  if (autoLoginPhase.value === 'logging-in' || authInitializing.value) return t('login.autoLogging')
+  if (isLoading.value) return t('login.loggingIn')
+  return t('login.login')
 })
 
 const captchaId = ref('')
@@ -96,11 +98,11 @@ const feedbackType = ref<'bug' | 'suggestion' | 'other'>('suggestion')
 const feedbackContact = ref('')
 const feedbackLoading = ref(false)
 
-const feedbackTypeOptions = [
-  { label: '功能建议', value: 'suggestion' },
-  { label: '问题反馈', value: 'bug' },
-  { label: '其他', value: 'other' }
-]
+const feedbackTypeOptions = computed(() => [
+  { label: t('login.suggestion'), value: 'suggestion' },
+  { label: t('login.feedback'), value: 'bug' },
+  { label: t('login.other'), value: 'other' }
+])
 
 function toggleMenu() {
   showMenu.value = !showMenu.value
@@ -129,7 +131,7 @@ function onMenuAction(key: 'network' | 'forgot' | 'feedback') {
 async function submitFeedback() {
   const text = feedbackText.value.trim()
   if (!text) {
-    message.warning('请填写反馈内容')
+    message.warning(t('login.fillFeedback'))
     return
   }
   feedbackLoading.value = true
@@ -140,14 +142,14 @@ async function submitFeedback() {
       contact: feedbackContact.value.trim() || undefined
     })
     if (res.code === 200) {
-      message.success('感谢反馈')
+      message.success(t('login.thanksFeedback'))
       showFeedback.value = false
     } else {
-      message.error(res.message || '提交失败')
+      message.error(res.message || t('login.submitFail'))
     }
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string }
-    message.error(err.response?.data?.message || err.message || '提交失败，登录后可在设置中反馈')
+    message.error(err.response?.data?.message || err.message || t('login.submitFailHint'))
   } finally {
     feedbackLoading.value = false
   }
@@ -167,7 +169,7 @@ async function loadCaptcha(target: 'login' | 'register' = 'login') {
       captchaCode.value = ''
     }
   } catch {
-    message.error('验证码加载失败')
+    message.error(t('login.captchaFail'))
   }
 }
 
@@ -185,7 +187,7 @@ function switchToQuickMode() {
     username.value = savedLogin.value.username
   }
   if (!username.value.trim()) {
-    message.warning('请先输入账号')
+    message.warning(t('login.enterUsernameFirst'))
     return
   }
   loginMode.value = 'quick'
@@ -221,7 +223,7 @@ async function runAutoLoginFlow() {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     autoLoginPhase.value = 'idle'
     autoLogin.value = false
-    message.warning('当前处于离线环境，无法自动登录，请检查网络后重试')
+    message.warning(t('login.offlineAutoLogin'))
     showNetworkTip.value = true
     return
   }
@@ -232,11 +234,11 @@ async function runAutoLoginFlow() {
     const result = await appStore.tryAutoLogin()
     if (result === 'offline') {
       autoLogin.value = false
-      message.warning('当前处于离线环境，无法自动登录，请检查网络后重试')
+      message.warning(t('login.offlineAutoLogin'))
       showNetworkTip.value = true
     } else if (result === 'failed') {
       autoLogin.value = false
-      message.error('自动登录失败，请手动输入账号密码登录')
+      message.error(t('login.autoLoginFail'))
       if (loginMode.value === 'quick') {
         switchToPasswordMode()
       }
@@ -301,7 +303,7 @@ async function handleLogin() {
       return
     }
     switchToPasswordMode()
-    message.info('请输入密码登录')
+    message.info(t('login.enterPassword'))
     return
   }
 
@@ -319,7 +321,7 @@ async function handleLogin() {
     return
   }
   if (!captchaCode.value.trim()) {
-    message.warning('请输入验证码')
+    message.warning(t('login.enterCaptcha'))
     return
   }
 
@@ -330,10 +332,10 @@ async function handleLogin() {
       captchaId: captchaId.value,
       captchaCode: captchaCode.value.trim()
     })
-    message.success(`欢迎回来，${user}`)
+    message.success(t('login.welcomeBack', { user }))
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string }
-    message.error(err.response?.data?.message || err.message || '登录失败，请检查账号密码')
+    message.error(err.response?.data?.message || err.message || t('login.loginFail'))
     await loadCaptcha('login')
   }
 }
@@ -370,7 +372,7 @@ async function openForgot() {
 async function handleSendResetCode() {
   const user = forgotUser.value.trim()
   if (!user) {
-    message.warning('请输入 LinkX ID')
+    message.warning(t('login.enterLinkxId'))
     return
   }
 
@@ -383,12 +385,12 @@ async function handleSendResetCode() {
   forgotSendLoading.value = true
   try {
     await sendResetCode({ username: user })
-    message.success('验证码已发送到您的注册邮箱，请查收')
+    message.success(t('login.codeSentEmail'))
     forgotStep.value = 'verify'
     startCountdown()
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string }
-    message.error(err.response?.data?.message || err.message || '发送验证码失败')
+    message.error(err.response?.data?.message || err.message || t('login.sendCodeFail'))
   } finally {
     forgotSendLoading.value = false
   }
@@ -398,11 +400,11 @@ const verifyLoading = ref(false)
 async function handleVerifyCode() {
   const code = forgotCode.value.trim()
   if (!code) {
-    message.warning('请输入验证码')
+    message.warning(t('login.enterCode'))
     return
   }
   if (code.length !== 6) {
-    message.warning('验证码为6位数字')
+    message.warning(t('login.codeSixDigits'))
     return
   }
 
@@ -412,7 +414,7 @@ async function handleVerifyCode() {
     forgotStep.value = 'reset'
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string }
-    message.error(err.response?.data?.message || err.message || '验证码错误')
+    message.error(err.response?.data?.message || err.message || t('login.codeWrong'))
   } finally {
     verifyLoading.value = false
   }
@@ -422,11 +424,11 @@ async function handleResendCode() {
   forgotSendLoading.value = true
   try {
     await sendResetCode({ username: forgotUser.value.trim() })
-    message.success('验证码已重新发送')
+    message.success(t('login.codeResent'))
     startCountdown()
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string }
-    message.error(err.response?.data?.message || err.message || '发送验证码失败')
+    message.error(err.response?.data?.message || err.message || t('login.sendCodeFail'))
   } finally {
     forgotSendLoading.value = false
   }
@@ -451,11 +453,11 @@ async function handleForgot() {
 
   const passErr = validatePassword(newPass)
   if (passErr) {
-    message.warning('新' + passErr)
+    message.warning(passErr)
     return
   }
   if (newPass !== confirmPass) {
-    message.warning('两次输入的密码不一致')
+    message.warning(t('login.passwordMismatch'))
     return
   }
 
@@ -466,7 +468,7 @@ async function handleForgot() {
       code: forgotCode.value.trim(),
       newPassword: newPass
     })
-    message.success('密码重置成功，请使用新密码登录')
+    message.success(t('login.resetOk'))
     showForgot.value = false
     username.value = user
     password.value = ''
@@ -474,7 +476,7 @@ async function handleForgot() {
     await loadCaptcha('login')
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string }
-    message.error(err.response?.data?.message || err.message || '重置密码失败')
+    message.error(err.response?.data?.message || err.message || t('login.resetFail'))
   } finally {
     forgotLoading.value = false
   }
@@ -489,20 +491,20 @@ async function handleForgot() {
         <button
           type="button"
           class="web-menu-btn"
-          title="菜单"
+          :title="t('login.menu')"
           @click="toggleMenu"
         >
           <span class="web-menu-ico" />
         </button>
         <div v-if="showMenu" class="login-menu" role="menu">
           <button type="button" class="login-menu-item" role="menuitem" @click="onMenuAction('network')">
-            网络设置
+            {{ t('login.network') }}
           </button>
           <button type="button" class="login-menu-item" role="menuitem" @click="onMenuAction('forgot')">
-            忘记密码
+            {{ t('login.forgot') }}
           </button>
           <button type="button" class="login-menu-item" role="menuitem" @click="onMenuAction('feedback')">
-            问题反馈
+            {{ t('login.feedback') }}
           </button>
         </div>
       </div>
@@ -531,13 +533,13 @@ async function handleForgot() {
               :component="ChevronDownOutline"
               :size="16"
               class="nickname-chevron"
-              title="账密登录"
+              :title="t('login.passwordLogin')"
               @click="switchToPasswordMode"
             />
           </div>
           <div class="options options--quick">
             <n-checkbox v-model:checked="autoLogin" size="small" :disabled="autoLogging">
-              自动登录
+              {{ t('login.autoLogin') }}
             </n-checkbox>
           </div>
         </template>
@@ -562,7 +564,7 @@ async function handleForgot() {
         <n-input
           v-model:value="username"
           size="large"
-          placeholder="请输入账号"
+          :placeholder="t('login.accountPh')"
           class="lx-field"
           :bordered="false"
           :disabled="autoLogging"
@@ -573,7 +575,7 @@ async function handleForgot() {
           type="password"
           show-password-on="click"
           size="large"
-          placeholder="请输入密码"
+          :placeholder="t('login.passwordPh')"
           class="lx-field"
           :bordered="false"
           :disabled="autoLogging"
@@ -584,15 +586,15 @@ async function handleForgot() {
           <img
             v-if="captchaImage"
             :src="captchaImage"
-            alt="验证码"
+            :alt="t('login.captcha')"
             class="captcha-img"
-            title="点击刷新"
+            :title="t('login.refreshCaptcha')"
             @click="!autoLogging && loadCaptcha('login')"
           />
           <n-input
             v-model:value="captchaCode"
             size="large"
-            placeholder="验证码"
+            :placeholder="t('login.captcha')"
             class="lx-field captcha-input"
             :bordered="false"
             maxlength="6"
@@ -608,10 +610,10 @@ async function handleForgot() {
 
         <div class="options">
           <n-checkbox v-model:checked="autoLogin" size="small" :disabled="autoLogging">
-            自动登录
+            {{ t('login.autoLogin') }}
           </n-checkbox>
           <n-checkbox v-model:checked="rememberMe" size="small" :disabled="autoLogging">
-            记住账号
+            {{ t('login.rememberAccount') }}
           </n-checkbox>
         </div>
 
@@ -634,14 +636,14 @@ async function handleForgot() {
             class="footer-link"
             :class="{ disabled: autoLogging }"
             @click.prevent="switchToPasswordMode"
-          >账密登录</a>
+          >{{ t('login.passwordLogin') }}</a>
           <span class="footer-sep">|</span>
           <a
             href="#"
             class="footer-link"
             :class="{ disabled: autoLogging }"
             @click.prevent="openRegister"
-          >注册账号</a>
+          >{{ t('login.register') }}</a>
         </template>
         <template v-else>
           <a
@@ -649,51 +651,51 @@ async function handleForgot() {
             href="#"
             class="footer-link"
             @click.prevent="switchToQuickMode"
-          >快速登录</a>
+          >{{ t('login.quickLogin') }}</a>
           <span v-if="username.trim()" class="footer-sep">|</span>
-          <a href="#" class="footer-link" @click.prevent="openRegister">注册账号</a>
+          <a href="#" class="footer-link" @click.prevent="openRegister">{{ t('login.register') }}</a>
         </template>
       </div>
     </div>
 
-    <n-modal v-model:show="showNetworkTip" preset="dialog" title="网络设置" positive-text="知道了" @positive-click="showNetworkTip = false">
-      <p class="dialog-tip">请检查本机网络连接是否正常。若使用代理，请确认代理可访问 LinkX 服务。</p>
+    <n-modal v-model:show="showNetworkTip" preset="dialog" :title="t('login.network')" :positive-text="t('common.know')" @positive-click="showNetworkTip = false">
+      <p class="dialog-tip">{{ t('login.networkTip') }}</p>
     </n-modal>
 
-    <n-modal v-model:show="showFeedback" preset="dialog" title="问题反馈" style="max-width: 400px">
+    <n-modal v-model:show="showFeedback" preset="dialog" :title="t('login.feedback')" style="max-width: 400px">
       <div class="feedback-form">
         <n-select v-model:value="feedbackType" :options="feedbackTypeOptions" />
         <n-input
           v-model:value="feedbackText"
           type="textarea"
-          placeholder="请描述你的问题或建议"
+          :placeholder="t('login.feedbackPh')"
           :rows="4"
           style="margin-top: 12px"
         />
         <n-input
           v-model:value="feedbackContact"
-          placeholder="联系方式（选填）"
+          :placeholder="t('login.contactPh')"
           style="margin-top: 12px"
         />
       </div>
       <template #action>
-        <n-button @click="showFeedback = false">取消</n-button>
-        <n-button type="primary" :loading="feedbackLoading" @click="submitFeedback">提交</n-button>
+        <n-button @click="showFeedback = false">{{ t('common.cancel') }}</n-button>
+        <n-button type="primary" :loading="feedbackLoading" @click="submitFeedback">{{ t('common.submit') }}</n-button>
       </template>
     </n-modal>
 
-    <n-modal v-model:show="showForgot" preset="dialog" title="找回密码" style="max-width: 400px">
+    <n-modal v-model:show="showForgot" preset="dialog" :title="t('login.forgotTitle')" style="max-width: 400px">
       <div class="forgot-form">
         <template v-if="forgotStep === 'input'">
           <div class="forgot-tip">
             <n-icon :component="MailOutline" :size="20" class="forgot-tip-icon" />
-            <p>请输入您的 LinkX ID，系统将向您的注册邮箱发送验证码</p>
+            <p>{{ t('login.forgotStep1') }}</p>
           </div>
           <div class="form-item">
             <label>LinkX ID</label>
             <n-input
               v-model:value="forgotUser"
-              placeholder="请输入用户名"
+              :placeholder="t('login.usernamePh')"
               @keyup.enter="handleSendResetCode"
             />
           </div>
@@ -701,20 +703,20 @@ async function handleForgot() {
 
         <template v-else-if="forgotStep === 'verify'">
           <div class="forgot-tip">
-            <p>验证码已发送至您注册账号时填写的邮箱，请查收并输入</p>
+            <p>{{ t('login.forgotStep2') }}</p>
           </div>
           <div class="form-item">
-            <label>验证码</label>
+            <label>{{ t('login.codeLabel') }}</label>
             <n-input
               v-model:value="forgotCode"
-              placeholder="请输入6位验证码"
+              :placeholder="t('login.code6Ph')"
               maxlength="6"
               @keyup.enter="handleVerifyCode"
             />
           </div>
           <div class="resend-row">
             <span v-if="forgotCountdown > 0" class="resend-tips">
-              {{ forgotCountdown }} 秒后可重新发送
+              {{ t('login.resendIn', { n: forgotCountdown }) }}
             </span>
             <a
               v-else
@@ -723,47 +725,47 @@ async function handleForgot() {
               :class="{ disabled: forgotSendLoading }"
               @click.prevent="handleResendCode"
             >
-              重新发送验证码
+              {{ t('login.resendCode') }}
             </a>
             <span class="resend-sep">|</span>
-            <a href="#" class="resend-link" @click.prevent="forgotStep = 'input'">返回上一步</a>
+            <a href="#" class="resend-link" @click.prevent="forgotStep = 'input'">{{ t('login.backPrev') }}</a>
           </div>
         </template>
 
         <template v-else>
           <div class="forgot-tip">
-            <p>验证成功，请设置您的新密码</p>
+            <p>{{ t('login.forgotStep3') }}</p>
           </div>
           <div class="form-item">
-            <label>新密码</label>
+            <label>{{ t('login.newPassword') }}</label>
             <n-input
               v-model:value="forgotNewPassword"
               type="password"
               show-password-on="click"
-              placeholder="请输入新密码（8位以上含字母数字）"
+              :placeholder="t('login.newPasswordPh')"
             />
           </div>
           <div class="form-item">
-            <label>确认密码</label>
+            <label>{{ t('login.confirmPassword') }}</label>
             <n-input
               v-model:value="forgotConfirmPassword"
               type="password"
               show-password-on="click"
-              placeholder="请再次输入新密码"
+              :placeholder="t('login.confirmPasswordPh')"
               @keyup.enter="handleForgot"
             />
           </div>
         </template>
       </div>
       <template #action>
-        <n-button @click="showForgot = false">取消</n-button>
+        <n-button @click="showForgot = false">{{ t('common.cancel') }}</n-button>
         <n-button
           v-if="forgotStep === 'input'"
           type="primary"
           :loading="forgotSendLoading"
           @click="handleSendResetCode"
         >
-          发送验证码
+          {{ t('login.sendCode') }}
         </n-button>
         <n-button
           v-else-if="forgotStep === 'verify'"
@@ -771,7 +773,7 @@ async function handleForgot() {
           :loading="verifyLoading"
           @click="handleVerifyCode"
         >
-          下一步
+          {{ t('login.next') }}
         </n-button>
         <n-button
           v-else
@@ -779,7 +781,7 @@ async function handleForgot() {
           :loading="forgotLoading"
           @click="handleForgot"
         >
-          重置密码
+          {{ t('login.resetPassword') }}
         </n-button>
       </template>
     </n-modal>

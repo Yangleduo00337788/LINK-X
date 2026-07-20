@@ -3,11 +3,11 @@
  * 应用根容器组件。
  * <p>
  * 包裹 Naive UI 全局配置（主题、消息、对话框），
- * 渲染主应用、设置弹窗，并在登录且锁屏时挂载锁屏层。
+ * 渲染主应用，并在登录且锁屏时挂载锁屏层。
  * </p>
  */
 // Vue 计算属性、侦听器与挂载钩子
-import { computed, watch, onMounted } from 'vue'
+import { computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import {
   NMessageProvider,
   NDialogProvider,
@@ -16,18 +16,20 @@ import {
   darkTheme,
   zhCN,
   dateZhCN,
+  enUS,
+  dateEnUS,
   type GlobalThemeOverrides
 } from 'naive-ui'
 import App from './App.vue'
-import { defineAsyncComponent } from 'vue'
-
-const SettingsModal = defineAsyncComponent(() => import('./components/SettingsModal.vue'))
 import LockScreen from './components/LockScreen.vue'
 import InAppToastBridge from './components/InAppToastBridge.vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from './stores/app'
+import { useAppSettingsStore } from './stores/appSettings'
 import { naiveThemeColors } from './theme/vars'
 import { applyDocumentTheme, notifyElectronTheme } from './utils/themeSync'
+import { applyAccentColor } from './utils/accentColor'
+import { setLocale, localeRef } from './i18n'
 
 // 获取应用 Store 实例
 const appStore = useAppStore()
@@ -36,6 +38,9 @@ const { theme, isLoggedIn, isLocked } = storeToRefs(appStore)
 
 // 根据当前主题选择 Naive UI 暗色主题或 null（跟随系统亮色）
 const naiveTheme = computed(() => (theme.value === 'dark' ? darkTheme : null))
+
+const naiveLocale = computed(() => (localeRef.value === 'en-US' ? enUS : zhCN))
+const naiveDateLocale = computed(() => (localeRef.value === 'en-US' ? dateEnUS : dateZhCN))
 
 // 计算 Naive UI 主题覆盖配置，统一圆角、主色、背景与文字色
 const themeOverrides = computed<GlobalThemeOverrides>(() => {
@@ -63,21 +68,42 @@ const themeOverrides = computed<GlobalThemeOverrides>(() => {
 
 // 同步 HTML 文档主题属性与 Electron 窗口主题
 function syncHtmlTheme() {
-  applyDocumentTheme(appStore.theme) // 设置 document 上的 data-theme
-  notifyElectronTheme(appStore.theme) // 通知 Electron 主进程切换原生主题
+  applyDocumentTheme(appStore.theme)
+  notifyElectronTheme(appStore.theme)
 }
 
-// 挂载时立即同步一次主题
-onMounted(syncHtmlTheme)
-// 主题变化时重新同步
+let unsubShortcutLock: (() => void) | null = null
+
+onMounted(() => {
+  syncHtmlTheme()
+  const settings = useAppSettingsStore()
+  setLocale(settings.language || 'zh-CN')
+  void settings.syncDesktopPrefs()
+  applyAccentColor(settings.accentColor || 'cyan')
+  if (settings.shortcutToggleWindow || settings.shortcutLock) {
+    void window.electronAPI?.setShortcuts?.({
+      toggleWindow: settings.shortcutToggleWindow,
+      lock: settings.shortcutLock
+    })
+  }
+  unsubShortcutLock = window.electronAPI?.onShortcutLock?.(() => {
+    if (appStore.isLoggedIn) {
+      appStore.lock()
+    }
+  }) ?? null
+})
+
+onBeforeUnmount(() => {
+  if (unsubShortcutLock) unsubShortcutLock()
+})
 watch(theme, syncHtmlTheme)
 </script>
 
 <template>
   <!-- Naive UI 全局配置：主题与样式覆盖 -->
   <n-config-provider
-    :locale="zhCN"
-    :date-locale="dateZhCN"
+    :locale="naiveLocale"
+    :date-locale="naiveDateLocale"
     :theme="naiveTheme"
     :theme-overrides="themeOverrides"
     style="width: 100%; height: 100%"
@@ -88,7 +114,6 @@ watch(theme, syncHtmlTheme)
         <n-notification-provider placement="top-right" :max="4">
           <InAppToastBridge />
           <App />
-          <SettingsModal />
           <Teleport to="body">
             <LockScreen v-if="isLoggedIn && isLocked" />
           </Teleport>

@@ -4,7 +4,19 @@
  */
 
 // 左侧 Sidebar 导航项 key，决定主内容区展示哪个模块
-export type NavKey = 'chat' | 'contacts' | 'favorites' | 'files' | 'calendar' | 'moments'
+export type NavKey = 'chat' | 'contacts' | 'favorites' | 'files' | 'calendar' | 'moments' | 'settings'
+
+/** 设置页分类（左侧导航 / 右侧锚点） */
+export type SettingsTab =
+  | 'account'
+  | 'general'
+  | 'notifications'
+  | 'privacy'
+  | 'chat'
+  | 'files'
+  | 'shortcuts'
+  | 'appearance'
+  | 'about'
 
 // 全屏 Overlay 页面标识，由 overlay store 栈管理
 export type OverlayPage =

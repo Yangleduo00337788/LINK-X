@@ -57,6 +57,13 @@ public class EmailServiceImpl implements EmailService {
         sendHtmlEmail(to, subject, htmlContent);
     }
 
+    @Override
+    public void sendBindEmailCode(String to, String username, String code) {
+        String subject = "【LinkX】绑定邮箱验证码";
+        String htmlContent = buildBindEmailHtml(username, code);
+        sendHtmlEmail(to, subject, htmlContent);
+    }
+
     /**
      * 发送 HTML 邮件
      */
@@ -115,6 +122,27 @@ public class EmailServiceImpl implements EmailService {
             log.error("邮件发送异常: to={}, subject={}, error={}", maskEmail(to), subject, e.getMessage(), e);
             throw new RuntimeException("邮件发送失败，请稍后重试", e);
         }
+    }
+
+    /**
+     * 构建绑定邮箱验证码邮件 HTML
+     */
+    private String buildBindEmailHtml(String username, String code) {
+        int expireMinutes = linkxProperties.getMail().getCodeExpireMinutes();
+        return """
+            <!DOCTYPE html>
+            <html lang="zh-CN">
+            <head><meta charset="UTF-8"><title>绑定邮箱验证码</title></head>
+            <body style="margin:0;padding:24px;background:#f4f6fa;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;color:#1f2329;">
+              <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:12px;padding:32px 28px;box-shadow:0 4px 20px rgba(15,23,42,0.06);">
+                <div style="font-size:20px;font-weight:700;margin-bottom:8px;">绑定邮箱</div>
+                <p style="margin:0 0 16px;color:#646a73;font-size:14px;">您好，%s！请使用以下验证码完成邮箱绑定：</p>
+                <div style="font-size:32px;font-weight:700;letter-spacing:6px;color:#12b7f5;text-align:center;padding:16px 0;">%s</div>
+                <p style="margin:16px 0 0;color:#8f959e;font-size:12px;">验证码 %d 分钟内有效。如非本人操作，请忽略本邮件。</p>
+              </div>
+            </body>
+            </html>
+            """.formatted(username, code, expireMinutes);
     }
 
     /**

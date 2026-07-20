@@ -18,6 +18,7 @@ import { defineStore } from 'pinia'
 import type { ChatBackgroundId } from '../types'
 import * as preferenceApi from '../api/preference'
 import { onPreferenceChange } from '../utils/preferenceEvents'
+import { setLocale } from '../i18n'
 
 // 服务端偏好字段 → 本地 state 字段 一一对应
 type SyncableKey =
@@ -83,6 +84,22 @@ function defaultState() {
     chatBackground: 'default' as ChatBackgroundId,
     notifyTone: 'default' as NotifyToneId,
     momentsBackground: '' as string,
+    /** 关闭窗口时最小化到托盘（本地 + Electron 主进程） */
+    minimizeToTray: true,
+    /** 启动时打开主窗口或仅托盘（本地 + Electron 主进程） */
+    openOnStartup: 'main' as 'main' | 'tray',
+    /** 主题色预设 ID（仅本地） */
+    accentColor: 'cyan' as string,
+    /** 主题模式：跟随系统 / 浅色 / 深色（仅本地；实际明暗仍写入 app.theme） */
+    themeMode: 'light' as 'system' | 'light' | 'dark',
+    /** 文件下载目录（仅本地） */
+    downloadPath: '' as string,
+    /** 每次下载是否询问保存位置（仅本地） */
+    downloadAskEveryTime: true,
+    /** 显示/隐藏主窗口快捷键（仅本地） */
+    shortcutToggleWindow: 'CommandOrControl+Shift+L',
+    /** 锁定应用快捷键（仅本地） */
+    shortcutLock: 'CommandOrControl+Shift+K',
     /** 标记已经从服务端成功拉取过，避免每次启动都先写空 patch 覆盖服务端真实值 */
     _hydrated: false,
     /** 标记是否处于登录态；离线时不向服务端写 */
@@ -105,6 +122,23 @@ export const useAppSettingsStore = defineStore('appSettings', {
     /** 设置提示音（音色） */
     setNotifyTone(id: NotifyToneId) {
       this.notifyTone = id
+    },
+
+    /**
+     * 把桌面相关偏好同步到 Electron 主进程（关窗进托盘 / 启动打开方式 / 托盘语言）。
+     * Web 环境下 no-op。
+     */
+    async syncDesktopPrefs() {
+      if (!window.electronAPI?.setDesktopPrefs) return
+      try {
+        await window.electronAPI.setDesktopPrefs({
+          minimizeToTray: this.minimizeToTray,
+          openOnStartup: this.openOnStartup === 'tray' ? 'tray' : 'main',
+          language: this.language === 'en-US' ? 'en-US' : 'zh-CN'
+        })
+      } catch (e) {
+        console.warn('[appSettings] 同步桌面偏好失败:', e)
+      }
     },
 
     /** 将所有设置恢复为默认值（保留 hydration 标记） */
@@ -135,6 +169,9 @@ export const useAppSettingsStore = defineStore('appSettings', {
         if (res.code === 200 && res.data) {
           this.applyServerData(res.data)
           this._hydrated = true
+          // 服务端语言覆盖后同步到界面与 Electron
+          setLocale(this.language || 'zh-CN')
+          void this.syncDesktopPrefs()
           return true
         }
         return false
@@ -209,6 +246,14 @@ export const useAppSettingsStore = defineStore('appSettings', {
       'chatBackground',
       'notifyTone',
       'momentsBackground',
+      'minimizeToTray',
+      'openOnStartup',
+      'accentColor',
+      'themeMode',
+      'downloadPath',
+      'downloadAskEveryTime',
+      'shortcutToggleWindow',
+      'shortcutLock',
       '_hydrated',
       '_online'
     ]

@@ -7,14 +7,16 @@
  * 前端不再发送 WS 红包帧，仅展示乐观消息，等待服务端通过 WS 推送覆盖。
  * </p>
  */
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { NInput, NButton, NRadioGroup, NRadio, useMessage } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
 import * as redPacketApi from '../../api/redPacket'
+import { useI18n } from '../../i18n'
 
 const message = useMessage()
+const { t } = useI18n()
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
 const { redPacketOpen } = storeToRefs(chatModalsStore)
@@ -22,11 +24,19 @@ const { closeRedPacket } = chatModalsStore
 const { currentSession, userProfile } = storeToRefs(appStore)
 
 const amount = ref('8.88')
-const greeting = ref('恭喜发财，大吉大利')
+const greeting = ref('')
 const totalCount = ref(1)
 // 红包类型：normal 普通 / lucky 拼手气
 const packetType = ref<'normal' | 'lucky'>('normal')
 const submitting = ref(false)
+
+watch(
+  redPacketOpen,
+  open => {
+    if (open && !greeting.value) greeting.value = t('extra.greetingDefault')
+  },
+  { immediate: true }
+)
 
 const sessionIdNum = computed(() => {
   const id = currentSession.value?.id
@@ -54,16 +64,16 @@ function close() {
 
 async function send() {
   if (!currentSession.value || sessionIdNum.value === null) {
-    message.warning('请先选择会话')
+    message.warning(t('chat.selectSessionFirst'))
     return
   }
   if (!canSubmit.value) {
-    message.warning('请检查红包金额与个数')
+    message.warning(t('extra.checkAmountCount'))
     return
   }
   const amt = Number(amount.value)
   if (totalCount.value > Math.floor(amt / 0.01)) {
-    message.warning('每个红包金额不能少于 0.01 元')
+    message.warning(t('extra.minAmountPer'))
     return
   }
   submitting.value = true
@@ -73,22 +83,23 @@ async function send() {
       type: packetType.value,
       totalAmount: amt,
       totalCount: totalCount.value,
-      greeting: greeting.value.trim() || '恭喜发财'
+      greeting: greeting.value.trim() || t('extra.greetingFallback')
     })
     if (res.code === 200 && res.data) {
       message.success(
-        `${packetType.value === 'lucky' ? '拼手气' : '普通'}红包已发送，金额 ¥${amt.toFixed(2)}`
+        t('extra.packetSent', {
+          type: packetType.value === 'lucky' ? t('extra.luckyShort') : t('extra.normalShort'),
+          amount: amt.toFixed(2)
+        })
       )
-      // 不再写入乐观消息：后端已通过 WS 推送，等待 appStore.handleIncomingWsMessage 自动补齐
-      // 当前用户也能收到自己 push 的 message 帧，因此不需要手动 unshift
-      void userProfile.value // 静默引用以保留类型推断
+      void userProfile.value
       close()
     } else {
-      message.error(res.message || '红包发送失败')
+      message.error(res.message || t('extra.packetSendFail'))
     }
   } catch (e) {
     const err = e as { response?: { data?: { message?: string } }; message?: string }
-    message.error(err.response?.data?.message || err.message || '红包发送失败')
+    message.error(err.response?.data?.message || err.message || t('extra.packetSendFail'))
   } finally {
     submitting.value = false
   }
@@ -99,14 +110,14 @@ async function send() {
   <Teleport to="body">
     <div v-if="redPacketOpen" class="modal-root" @click.self="close">
       <div class="packet-card" @click.stop>
-        <div class="packet-head">发红包</div>
+        <div class="packet-head">{{ t('extra.sendRedPacket') }}</div>
         <div class="packet-body">
           <label class="field">
-            <span>金额（元）</span>
+            <span>{{ t('extra.amountYuan') }}</span>
             <n-input v-model:value="amount" placeholder="0.01" :disabled="submitting" />
           </label>
           <label class="field">
-            <span>个数</span>
+            <span>{{ t('extra.packetCount') }}</span>
             <n-input
               v-model:value="totalCount"
               type="number"
@@ -116,21 +127,21 @@ async function send() {
             />
           </label>
           <label class="field">
-            <span>类型</span>
+            <span>{{ t('extra.packetType') }}</span>
             <n-radio-group v-model:value="packetType" :disabled="submitting">
-              <n-radio value="normal">普通红包</n-radio>
-              <n-radio value="lucky">拼手气红包</n-radio>
+              <n-radio value="normal">{{ t('extra.normalPacket') }}</n-radio>
+              <n-radio value="lucky">{{ t('extra.luckyPacket') }}</n-radio>
             </n-radio-group>
           </label>
           <label class="field">
-            <span>祝福语</span>
-            <n-input v-model:value="greeting" placeholder="恭喜发财" :disabled="submitting" />
+            <span>{{ t('extra.greetingLabel') }}</span>
+            <n-input v-model:value="greeting" :placeholder="t('extra.greetingPh')" :disabled="submitting" />
           </label>
         </div>
         <div class="packet-foot">
-          <n-button :disabled="submitting" @click="close">取消</n-button>
+          <n-button :disabled="submitting" @click="close">{{ t('common.cancel') }}</n-button>
           <n-button type="primary" :loading="submitting" :disabled="!canSubmit" @click="send">
-            塞钱进红包
+            {{ t('extra.putMoney') }}
           </n-button>
         </div>
       </div>

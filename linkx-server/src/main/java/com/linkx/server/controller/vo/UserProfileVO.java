@@ -66,4 +66,24 @@ public class UserProfileVO {
      * 账号创建时间
      */
     private Date createTime;
+
+    /**
+     * 绑定邮箱（脱敏展示，仅本人可见）
+     */
+    private String email;
+
+    /**
+     * 是否已绑定邮箱
+     */
+    private Boolean emailBound;
+
+    /**
+     * 绑定手机号（脱敏展示，仅本人可见）
+     */
+    private String phone;
+
+    /**
+     * 是否已绑定手机号
+     */
+    private Boolean phoneBound;
 }

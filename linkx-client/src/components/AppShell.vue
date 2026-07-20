@@ -30,6 +30,10 @@ import MomentsPanel from './MomentsPanel.vue'
 import CalendarPanel from './CalendarPanel.vue'
 // 日历主视图
 import CalendarMainView from './CalendarMainView.vue'
+// 设置左侧分类面板
+import SettingsPanel from './SettingsPanel.vue'
+// 设置右侧主内容
+import SettingsMainView from './SettingsMainView.vue'
 // 通用占位主视图
 import PlaceholderMainView from './PlaceholderMainView.vue'
 // 消息页站内「日程提醒」面板
@@ -139,23 +143,30 @@ const middleComponent = computed(() => {
       return CalendarPanel
     case 'moments':
       return MomentsPanel
+    case 'settings':
+      return SettingsPanel
     default:
-      return ChatList // 未知导航默认消息列表
+      return ChatList
   }
 })
 
-// 是否显示聊天主面板（消息导航）
 const showChatPanel = computed(() => navKey.value === 'chat')
-// 消息页虚拟「日程提醒」会话
 const showSystemNotify = computed(
   () => navKey.value === 'chat' && currentSessionId.value === SYSTEM_NOTIFY_SESSION_ID
 )
-// 是否显示日历主视图
 const showCalendarMain = computed(() => navKey.value === 'calendar')
-// 是否显示占位主视图（联系人/收藏/文件/友链）
+const showSettingsMain = computed(() => navKey.value === 'settings')
 const showPlaceholder = computed(() =>
   ['contacts', 'favorites', 'files', 'moments'].includes(navKey.value)
 )
+
+/** 设置页中间列固定略宽，且不显示拖拽条 */
+const settingsListWidth = 220
+const effectiveListWidth = computed(() =>
+  showSettingsMain.value ? settingsListWidth : listWidth.value
+)
+const showListResizer = computed(() => !showCalendarMain.value && !showSettingsMain.value)
+const showMiddleList = computed(() => !showCalendarMain.value)
 </script>
 
 <template>
@@ -175,23 +186,35 @@ const showPlaceholder = computed(() =>
       <div class="content-wrapper">
         <!-- 中间列表列（日历页隐藏，主区全宽） -->
         <section
-          v-if="!showCalendarMain"
+          v-if="showMiddleList"
           class="col-list"
-          :style="{ width: listWidth + 'px', minWidth: listWidth + 'px', maxWidth: listWidth + 'px' }"
+          :class="{ 'col-list--settings': showSettingsMain }"
+          :style="{
+            width: effectiveListWidth + 'px',
+            minWidth: effectiveListWidth + 'px',
+            maxWidth: effectiveListWidth + 'px'
+          }"
         >
           <component :is="middleComponent" />
         </section>
         <div
-          v-if="!showCalendarMain"
+          v-if="showListResizer"
           class="resizer"
           :class="{ dragging: isDragging }"
           @mousedown="startDrag"
         ></div>
         <!-- 右侧主内容区 -->
-        <main class="col-chat" :class="{ 'col-chat--calendar': showCalendarMain }">
+        <main
+          class="col-chat"
+          :class="{
+            'col-chat--calendar': showCalendarMain,
+            'col-chat--settings': showSettingsMain
+          }"
+        >
           <SystemNotifyPanel v-if="showSystemNotify" />
           <ChatPanel v-else-if="showChatPanel" />
           <CalendarMainView v-else-if="showCalendarMain" />
+          <SettingsMainView v-else-if="showSettingsMain" />
           <ContactsMainView v-else-if="navKey === 'contacts'" />
           <PlaceholderMainView v-else-if="showPlaceholder" :nav="navKey" />
         </main>
@@ -288,6 +311,12 @@ const showPlaceholder = computed(() =>
   --lx-bg-panel: var(--lx-bg-list);
 }
 
+.col-list--settings {
+  background: var(--lx-bg-card);
+  --lx-bg-panel: var(--lx-bg-card);
+  border-right: 1px solid var(--lx-border-light);
+}
+
 .resizer {
   width: 1px;
   background: transparent;
@@ -327,4 +356,8 @@ const showPlaceholder = computed(() =>
   background: var(--lx-bg-panel);
 }
 
+.col-chat--settings {
+  background: var(--lx-bg-panel);
+  --lx-bg-panel: var(--lx-bg-panel);
+}
 </style>

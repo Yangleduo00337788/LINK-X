@@ -11,8 +11,10 @@ import { CalendarOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useCalendarStore } from '../stores/calendar'
 import type { CalendarEvent } from '../stores/calendar'
+import { useI18n } from '../i18n'
 
 const calendarStore = useCalendarStore()
+const { t } = useI18n()
 const { selectedDate, selectedDateKey } = storeToRefs(calendarStore)
 const { setSelectedDate, goToday } = calendarStore
 const { upcomingEvents } = storeToRefs(calendarStore)
@@ -20,7 +22,7 @@ const { upcomingEvents } = storeToRefs(calendarStore)
 /** 当前选中日期所在月份文案 */
 const monthLabel = computed(() => {
   const d = new Date(selectedDate.value)
-  return `${d.getFullYear()}年${d.getMonth() + 1}月`
+  return t('calendar.yearMonth', { y: d.getFullYear(), m: d.getMonth() + 1 })
 })
 
 /**
@@ -40,8 +42,8 @@ function formatDayLabel(key: string) {
   const d = new Date(parseDateKey(key))
   const now = new Date()
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-  if (key === today) return '今天'
-  return `${d.getMonth() + 1}月${d.getDate()}日`
+  if (key === today) return t('calendar.today')
+  return t('calendar.monthDay', { m: d.getMonth() + 1, d: d.getDate() })
 }
 
 /** 点击日程：将主日历选中到该事件日期 */
@@ -61,9 +63,9 @@ function isActiveEvent(event: CalendarEvent) {
     <div class="panel-head">
       <div class="head-title">
         <n-icon :component="CalendarOutline" :size="18" />
-        <span>日历</span>
+        <span>{{ t('calendar.title') }}</span>
       </div>
-      <button type="button" class="today-btn" @click="goToday">今天</button>
+      <button type="button" class="today-btn" @click="goToday">{{ t('calendar.today') }}</button>
     </div>
 
     <div class="month-bar">{{ monthLabel }}</div>
@@ -87,7 +89,7 @@ function isActiveEvent(event: CalendarEvent) {
           </div>
         </button>
       </template>
-      <div v-else class="empty-tip">近期暂无日程</div>
+      <div v-else class="empty-tip">{{ t('calendar.noEvents') }}</div>
     </div>
   </div>
 </template>

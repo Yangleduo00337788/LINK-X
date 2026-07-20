@@ -11,12 +11,14 @@ import {
   ChevronBackOutline,
   NavigateOutline
 } from '@vicons/ionicons5'
+import { useI18n } from '../i18n'
 
 const emit = defineEmits<{
   (e: 'select', location: string): void
   (e: 'back'): void
 }>()
 
+const { t } = useI18n()
 const message = useMessage()
 
 const searchQuery = ref('')
@@ -49,12 +51,12 @@ async function searchLocation() {
 
     // 模拟搜索结果
     searchResults.value = [
-      { name: query, address: `${query}附近的街道` },
-      { name: `${query}商业中心`, address: `${query}市中心` },
-      { name: `${query}公园`, address: `${query}景区` }
+      { name: query, address: t('extra.nearStreet', { q: query }) },
+      { name: t('extra.commercialCenter', { q: query }), address: t('extra.cityCenter', { q: query }) },
+      { name: t('extra.park', { q: query }), address: t('extra.scenic', { q: query }) }
     ]
   } catch {
-    message.error('搜索失败')
+    message.error(t('extra.searchFail'))
   } finally {
     isSearching.value = false
   }
@@ -85,14 +87,14 @@ async function getCurrentLocation() {
     const ipLocation = await fetchLocationByIP()
     if (ipLocation) {
       currentLocation.value = ipLocation
-      message.success('定位成功')
+      message.success(t('extra.locateOk'))
     } else {
-      locationError.value = '无法获取位置，请检查网络'
-      message.warning('定位失败')
+      locationError.value = t('extra.cannotGetLocation')
+      message.warning(t('extra.locateFail'))
     }
   } catch {
-    locationError.value = '定位失败'
-    message.error('定位失败')
+    locationError.value = t('extra.locateFail')
+    message.error(t('extra.locateFail'))
   } finally {
     isLocating.value = false
   }
@@ -130,7 +132,7 @@ onMounted(() => {
       <button type="button" class="back-btn" @click="emit('back')">
         <n-icon :component="ChevronBackOutline" :size="22" />
       </button>
-      <h1 class="page-title">所在位置</h1>
+      <h1 class="page-title">{{ t('extra.locationTitle') }}</h1>
       <div class="header-right"></div>
     </header>
 
@@ -141,7 +143,7 @@ onMounted(() => {
         <input
           v-model="searchQuery"
           class="search-input"
-          placeholder="搜索地点"
+          :placeholder="t('extra.searchPlace')"
           @input="onSearchInput"
         />
       </div>
@@ -149,7 +151,7 @@ onMounted(() => {
 
     <!-- 搜索结果 -->
     <div v-if="searchResults.length" class="results-section">
-      <div class="section-title">搜索结果</div>
+      <div class="section-title">{{ t('extra.searchResults') }}</div>
       <div
         v-for="(result, index) in searchResults"
         :key="index"
@@ -166,13 +168,13 @@ onMounted(() => {
 
     <!-- 当前定位 -->
     <div v-else-if="searchQuery" class="results-section">
-      <div class="no-results">未找到相关位置</div>
+      <div class="no-results">{{ t('extra.noLocationFound') }}</div>
     </div>
 
     <template v-else>
       <!-- 当前定位 -->
       <div class="current-section">
-        <div class="section-title">我的位置</div>
+        <div class="section-title">{{ t('extra.myLocation') }}</div>
         <div
           class="location-item highlight"
           :class="{ loading: isLocating }"
@@ -181,10 +183,10 @@ onMounted(() => {
           <n-icon :component="NavigateOutline" :size="20" class="item-icon locate-icon" />
           <div class="item-content">
             <div class="item-name">
-              {{ isLocating ? '正在定位...' : (currentLocation || '点击获取当前位置') }}
+              {{ isLocating ? t('extra.locating') : (currentLocation || t('extra.clickLocate')) }}
             </div>
             <div v-if="locationError" class="item-error">{{ locationError }}</div>
-            <div v-else-if="!isLocating" class="item-hint">获取精确位置</div>
+            <div v-else-if="!isLocating" class="item-hint">{{ t('extra.getPreciseLocation') }}</div>
           </div>
         </div>
         <button
@@ -193,13 +195,13 @@ onMounted(() => {
           class="confirm-btn"
           @click="confirmCurrentLocation"
         >
-          使用此位置
+          {{ t('extra.useThisLocation') }}
         </button>
       </div>
 
       <!-- 热门位置 -->
       <div class="hot-section">
-        <div class="section-title">热门位置</div>
+        <div class="section-title">{{ t('extra.hotLocations') }}</div>
         <div
           v-for="(loc, index) in hotLocations"
           :key="index"

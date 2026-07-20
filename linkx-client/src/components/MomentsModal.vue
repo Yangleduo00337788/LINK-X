@@ -52,6 +52,7 @@ import AtMentionPicker from './common/AtMentionPicker.vue'
 import MomentsNotificationsPage from './MomentsNotificationsPage.vue'
 // 偏好 API
 import { getPreference, uploadMomentsBackground } from '../api/preference'
+import { useI18n } from '../i18n'
 
 const appStore = useAppStore()
 const momentsStore = useMomentsStore()
@@ -63,6 +64,7 @@ const { unreadMessageCount, momentsUnreadCount } = storeToRefs(notificationsStor
 const { toggleLike, fetchMoments, removePost, deleteComment } = momentsStore
 const { fetchMessageNotifications, fetchNotificationCount } = notificationsStore
 const message = useMessage()
+const { t } = useI18n()
 
 /** 友链窗口铃铛：优先显示友链相关未读，没有时回退总未读 */
 const bellUnreadCount = computed(() => {
@@ -83,7 +85,7 @@ const showSearch = ref(false)
 // 当前登录用户
 const myUserId = computed(() => userProfile.value.userId || '')
 const defaultAvatar = computed(() =>
-  generateDefaultAvatar(userProfile.value.nickname || '我')
+  generateDefaultAvatar(userProfile.value.nickname || t('common.me'))
 )
 const profileAvatar = computed(() =>
   normalizeMediaUrl(userProfile.value.avatar) || defaultAvatar.value
@@ -159,12 +161,12 @@ function onBannerFileSelected(e: Event) {
   if (!file) return
 
   if (!file.type.startsWith('image/')) {
-    message.warning('请选择图片文件')
+    message.warning(t('moments.selectImage'))
     input.value = ''
     return
   }
   if (file.size > 10 * 1024 * 1024) {
-    message.warning('图片大小不能超过 10MB')
+    message.warning(t('moments.imageTooLarge'))
     input.value = ''
     return
   }
@@ -180,12 +182,12 @@ async function uploadBannerDirectly(file: File) {
     if (res.code === 200 && res.data?.momentsBackground) {
       momentsBanner.value = res.data.momentsBackground
       bannerLoaded.value = true
-      message.success('背景图更新成功')
+      message.success(t('moments.bannerUpdated'))
     } else {
-      message.error(res.message || '上传失败')
+      message.error(res.message || t('moments.uploadFail'))
     }
   } catch {
-    message.error('上传失败，请重试')
+    message.error(t('moments.uploadFailRetry'))
   } finally {
     bannerUploading.value = false
   }
@@ -307,7 +309,7 @@ async function refresh() {
   refreshing.value = true
   document.querySelector('.moments-scroll-container')?.scrollTo({ top: 0, behavior: 'smooth' })
   await Promise.all([fetchMoments(), fetchMessageNotifications()])
-  message.success('刷新成功')
+  message.success(t('moments.refreshOk'))
   // 旋转动画保持至少 600ms,让用户感知到
   await new Promise(r => setTimeout(r, 600))
   refreshing.value = false
@@ -324,10 +326,10 @@ async function showMessage() {
 
 // 顶部发布菜单
 const showPublishMenu = ref(false)
-const publishMenuOptions = [
-  { label: '发布文字', key: 'text', icon: AtCircleOutline },
-  { label: '发布图片/视频', key: 'media', icon: ImageOutline }
-]
+const publishMenuOptions = computed(() => [
+  { label: t('moments.publishText'), key: 'text', icon: AtCircleOutline },
+  { label: t('moments.publishMedia'), key: 'media', icon: ImageOutline }
+])
 function handlePublishMenuSelect(key: string | number) {
   showPublishMenu.value = false
   if (key === 'text') {
@@ -366,7 +368,7 @@ function scrollToPost(notif: { relatedId?: string; type: string }) {
 // 评论
 async function onToggleLike(postId: string) {
   const ok = await toggleLike(postId)
-  if (ok === false) message.error('点赞失败，请稍后重试')
+  if (ok === false) message.error(t('moments.likeFail'))
 }
 
 function onComment(post: { id: string }) {
@@ -505,7 +507,7 @@ async function submitComment(postId: string) {
   }
   const finalText = commentDraft.value.trim()
   if (!finalText || finalText.endsWith('@')) {
-    message.warning('请选择要 @ 的好友')
+    message.warning(t('moments.selectAtFriend'))
     return
   }
   const mentionIds = commentMentions.value
@@ -518,9 +520,9 @@ async function submitComment(postId: string) {
     commentMentions.value = []
     showCommentMention.value = false
     commentMentionQuery.value = ''
-    message.success('评论已发送')
+    message.success(t('moments.commentSent'))
   } else {
-    message.error('评论失败')
+    message.error(t('moments.commentFail'))
   }
 }
 
@@ -533,20 +535,20 @@ function toggleSearch() {
 // 删除自己动态/评论
 async function onDeletePost(postId: string) {
   if (!postId) return
-  const ok = window.confirm('确定删除这条动态?删除后不可恢复。')
+  const ok = window.confirm(t('moments.deletePostConfirm'))
   if (!ok) return
   const success = await removePost(postId)
-  if (success) message.success('动态已删除')
-  else message.error('删除失败')
+  if (success) message.success(t('moments.postDeleted'))
+  else message.error(t('moments.deleteFail'))
 }
 
 async function onDeleteComment(postId: string, commentId: string) {
   if (!postId || !commentId) return
-  const ok = window.confirm('确定删除这条评论?')
+  const ok = window.confirm(t('moments.deleteCommentConfirm'))
   if (!ok) return
   const success = await deleteComment(postId, commentId)
-  if (success) message.success('评论已删除')
-  else message.error('删除失败')
+  if (success) message.success(t('moments.commentDeleted'))
+  else message.error(t('moments.deleteFail'))
 }
 
 /** 计算图片网格布局 */
@@ -576,8 +578,8 @@ function getAtUserNames(post: { atUserNames?: string[]; atUsers?: string }): str
 }
 
 function visibilityLabel(visibility?: number): string {
-  if (visibility === 1) return '仅好友'
-  if (visibility === 2) return '私密'
+  if (visibility === 1) return t('moments.friendsOnly')
+  if (visibility === 2) return t('moments.private')
   return ''
 }
 </script>
@@ -596,7 +598,7 @@ function visibilityLabel(visibility?: number): string {
           <img :src="bannerUrl" alt="Banner" class="banner-img" @error="(e) => (e.target as HTMLImgElement).src = defaultBanner" @click="handleBannerMenuAction('preview')" />
           <!-- 上传遮罩 hover 提示 -->
           <div class="banner-upload-overlay" :class="{ uploading: bannerUploading }" @click.stop="handleBannerMenuAction('preview')">
-            <span v-if="bannerUploading">上传中…</span>
+            <span v-if="bannerUploading">{{ t('moments.uploading') }}</span>
           </div>
         </div>
         <div class="user-info">
@@ -646,7 +648,7 @@ function visibilityLabel(visibility?: number): string {
               </div>
               <div v-if="getAtUserNames(post).length" class="meta-item meta-at">
                 <n-icon :component="AtCircleOutline" :size="14" />
-                <span>提醒了 {{ getAtUserNames(post).join('、') }}</span>
+                <span>{{ t('moments.reminded', { names: getAtUserNames(post).join('、') }) }}</span>
               </div>
               <div
                 v-if="post.visibility === 1 || post.visibility === 2"
@@ -670,11 +672,11 @@ function visibilityLabel(visibility?: number): string {
                   @click="onToggleLike(post.id)"
                 >
                   <n-icon :component="post.liked ? Heart : HeartOutline" :size="15" />
-                  <span>{{ post.liked ? '已赞' : '赞' }}</span>
+                  <span>{{ post.liked ? t('moments.liked') : t('moments.like') }}</span>
                 </button>
                 <button type="button" class="toolbar-btn" @click="onComment(post)">
                   <n-icon :component="ChatbubbleOutline" :size="15" />
-                  <span>评论</span>
+                  <span>{{ t('moments.comment') }}</span>
                 </button>
                 <button
                   v-if="post.userId === myUserId"
@@ -682,7 +684,7 @@ function visibilityLabel(visibility?: number): string {
                   class="toolbar-btn danger"
                   @click="onDeletePost(post.id)"
                 >
-                  <span>删除</span>
+                  <span>{{ t('common.delete') }}</span>
                 </button>
               </div>
             </div>
@@ -692,14 +694,14 @@ function visibilityLabel(visibility?: number): string {
                   id="moments-comment-input"
                   v-model="commentDraft"
                   class="comment-input"
-                  placeholder="写评论… 使用 @ 提及好友"
+                  :placeholder="t('moments.commentPhAt')"
                   @input="detectCommentMention"
                   @keydown="onCommentKeyDown($event, post.id)"
                 />
                 <button
                   type="button"
                   class="comment-at-btn"
-                  title="@好友"
+                  :title="t('moments.atFriend')"
                   @click.stop="triggerAtInComment"
                 >
                   <n-icon :component="AtCircleOutline" :size="14" />
@@ -714,7 +716,7 @@ function visibilityLabel(visibility?: number): string {
                   @close="showCommentMention = false"
                 />
               </div>
-              <button type="button" class="comment-send" @click="submitComment(post.id)">发送</button>
+              <button type="button" class="comment-send" @click="submitComment(post.id)">{{ t('chat.send') }}</button>
             </div>
             <div v-if="post.likedBy.length || post.comments.length" class="post-interactions">
               <div class="interaction-arrow" />
@@ -731,7 +733,7 @@ function visibilityLabel(visibility?: number): string {
                     v-if="comment.userId === myUserId"
                     type="button"
                     class="comment-del-btn"
-                    title="删除评论"
+                    :title="t('moments.deleteComment')"
                     @click="onDeleteComment(post.id, comment.id)"
                   >
                     ×
@@ -743,23 +745,23 @@ function visibilityLabel(visibility?: number): string {
         </div>
         <EmptyState
           v-if="!filteredPosts.length"
-          :title="searchQuery.trim() ? '未找到相关动态' : '暂无动态'"
-          :description="searchQuery.trim() ? '换个关键词试试' : '点击右上角「发布」分享第一条友链动态吧'"
+          :title="searchQuery.trim() ? t('moments.noMatch') : t('moments.empty')"
+          :description="searchQuery.trim() ? t('moments.tryOtherKeyword') : t('moments.emptyHint')"
         />
-        <div v-else class="bottom-tip">没有更多了</div>
+        <div v-else class="bottom-tip">{{ t('moments.noMore') }}</div>
       </div>
     </div>
 
     <!-- 固定顶部操作栏 -->
     <div class="fixed-header" :style="{ backgroundColor: headerBgOpacity, color: headerIconColor }">
       <div class="header-left">
-        <div class="action-btn" title="搜索" @click.stop="toggleSearch">
+        <div class="action-btn" :title="t('common.search')" @click.stop="toggleSearch">
           <n-icon :component="SearchOutline" size="22" />
         </div>
         <div
           class="action-btn"
           :class="{ active: showNotifications }"
-          title="消息"
+          :title="t('moments.messages')"
           @click.stop="showMessage"
         >
           <n-icon :component="NotificationsOutline" size="22" />
@@ -768,7 +770,7 @@ function visibilityLabel(visibility?: number): string {
           </span>
         </div>
         <!-- 发布按钮:点击弹出菜单(发布文字/发布图片视频) -->
-        <div class="action-btn publish-btn" title="发布" @click.stop="showPublishMenu = !showPublishMenu">
+        <div class="action-btn publish-btn" :title="t('moments.publishAction')" @click.stop="showPublishMenu = !showPublishMenu">
           <n-icon :component="AddCircleOutline" size="22" />
         </div>
         <div v-if="showPublishMenu" class="publish-menu" @click.stop>
@@ -785,17 +787,17 @@ function visibilityLabel(visibility?: number): string {
         </div>
         <div v-if="showPublishMenu" class="publish-menu-backdrop" @click="showPublishMenu = false" />
         <!-- 刷新按钮:点击旋转 360° 动画 -->
-        <div class="action-btn" :class="{ refreshing }" title="刷新" @click.stop="refresh">
+        <div class="action-btn" :class="{ refreshing }" :title="t('moments.refresh')" @click.stop="refresh">
           <n-icon :component="RefreshOutline" size="22" class="refresh-icon" />
         </div>
       </div>
       <div class="header-center" :class="{ visible: showTitle && !showNotifications }">
-        <span v-if="!showSearch">友链</span>
+        <span v-if="!showSearch">{{ t('moments.title') }}</span>
         <input
           v-else
           v-model="searchQuery"
           class="header-search"
-          placeholder="搜索友链"
+          :placeholder="t('moments.searchPh')"
           @click.stop
         />
       </div>
@@ -815,14 +817,14 @@ function visibilityLabel(visibility?: number): string {
 
     <!-- 图片预览 -->
     <div v-if="previewVisible" class="image-preview-overlay" @click.self="closeImagePreview">
-      <button type="button" class="preview-close" title="关闭" @click="closeImagePreview">
+      <button type="button" class="preview-close" :title="t('common.close')" @click="closeImagePreview">
         <n-icon :component="CloseOutline" :size="22" />
       </button>
       <button
         v-if="previewImages.length > 1"
         type="button"
         class="preview-nav prev"
-        title="上一张"
+        :title="t('moments.prevImage')"
         @click.stop="previewPrev"
       >
         ‹
@@ -837,7 +839,7 @@ function visibilityLabel(visibility?: number): string {
         v-if="previewImages.length > 1"
         type="button"
         class="preview-nav next"
-        title="下一张"
+        :title="t('moments.nextImage')"
         @click.stop="previewNext"
       >
         ›
@@ -866,7 +868,7 @@ function visibilityLabel(visibility?: number): string {
       >
         <button class="ctx-item" @click="handleBannerMenuAction('change')">
           <n-icon :component="AddCircleOutline" :size="15" />
-          更换背景图
+          {{ t('moments.changeBanner') }}
         </button>
       </div>
       <!-- 点击其他地方关闭菜单 -->

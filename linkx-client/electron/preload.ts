@@ -79,6 +79,22 @@ const api = {
   // 设置开机自启（由主进程 app.setLoginItemSettings 实现）
   setAutoStart: (enabled: boolean) => ipcRenderer.invoke('app:set-auto-start', enabled),
   getAutoStart: () => ipcRenderer.invoke('app:get-auto-start') as Promise<boolean>,
+  getDesktopPrefs: () =>
+    ipcRenderer.invoke('app:get-desktop-prefs') as Promise<{
+      minimizeToTray: boolean
+      openOnStartup: 'main' | 'tray'
+      language: 'zh-CN' | 'en-US'
+    }>,
+  setDesktopPrefs: (prefs: {
+    minimizeToTray?: boolean
+    openOnStartup?: 'main' | 'tray'
+    language?: 'zh-CN' | 'en-US'
+  }) =>
+    ipcRenderer.invoke('app:set-desktop-prefs', prefs) as Promise<{
+      minimizeToTray: boolean
+      openOnStartup: 'main' | 'tray'
+      language: 'zh-CN' | 'en-US'
+    }>,
   // 主题变更通知（与主进程的 theme-changed 通道对应）
   notifyThemeChange: (theme: 'light' | 'dark') => ipcRenderer.send('theme-changed', theme)
 }

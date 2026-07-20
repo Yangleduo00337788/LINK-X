@@ -19,7 +19,9 @@ import { useAppStore } from '../stores/app'
 import { useChatModalsStore } from '../stores/chatModals'
 import { generateDefaultAvatar } from '../utils/defaultAvatar'
 import { normalizeMediaUrl } from '../utils/mediaUrl'
+import { useI18n } from '../i18n'
 
+const { t } = useI18n()
 const message = useMessage()
 const appStore = useAppStore()
 const chatModalsStore = useChatModalsStore()
@@ -37,25 +39,26 @@ const saving = ref(false)
 const uploading = ref(false)
 const avatarInputRef = ref<HTMLInputElement | null>(null)
 
-const defaultAvatarUrl = computed(() => generateDefaultAvatar(profileNick.value || '我'))
+const defaultAvatarUrl = computed(() => generateDefaultAvatar(profileNick.value || t('common.me')))
 const avatarSrc = computed(
   () => normalizeMediaUrl(userProfile.value.avatar) || defaultAvatarUrl.value
 )
 
-const genderOptions = [
-  { label: '男', value: '男' },
-  { label: '女', value: '女' }
-]
+const genderOptions = computed(() => [
+  { label: t('modals.male'), value: '男' },
+  { label: t('modals.female'), value: '女' }
+])
 
-const countryOptions = [{ label: '中国', value: '中国' }]
+const countryOptions = computed(() => [{ label: t('modals.china'), value: '中国' }])
 
 const provinceOptions = [
   '北京', '上海', '广东', '浙江', '江苏', '四川', '湖北', '湖南', '福建', '山东'
 ].map(p => ({ label: p, value: p }))
 
-const regionOptions = [
-  '请选择', '城区', '郊区', '高新区', '开发区'
-].map(r => ({ label: r, value: r }))
+const regionOptions = computed(() => [
+  { label: t('modals.pleaseSelect'), value: '请选择' },
+  ...['城区', '郊区', '高新区', '开发区'].map(r => ({ label: r, value: r }))
+])
 
 function syncFromStore() {
   profileNick.value = userProfile.value.nickname
@@ -73,11 +76,11 @@ watch(editProfileOpen, open => {
 async function handleSave() {
   const nickname = profileNick.value.trim()
   if (!nickname) {
-    message.warning('请输入昵称')
+    message.warning(t('modals.enterNickname'))
     return
   }
   if (nickname.length > 36) {
-    message.warning('昵称不能超过 36 个字符')
+    message.warning(t('modals.nicknameTooLong'))
     return
   }
 
@@ -91,10 +94,10 @@ async function handleSave() {
       province: profileProvince.value || '',
       region: profileRegion.value === '请选择' ? '' : (profileRegion.value || '')
     })
-    message.success('资料已保存')
+    message.success(t('modals.profileSaved'))
     closeEditProfile()
   } catch (error) {
-    message.error('保存失败: ' + (error as Error).message)
+    message.error(t('modals.saveFail', { message: (error as Error).message }))
   } finally {
     saving.value = false
   }
@@ -111,20 +114,20 @@ async function handleAvatarChange(e: Event) {
   if (!file) return
 
   if (!file.type.startsWith('image/')) {
-    message.error('请选择图片文件')
+    message.error(t('modals.pickImage'))
     return
   }
   if (file.size > 10 * 1024 * 1024) {
-    message.error('图片大小不能超过 10MB')
+    message.error(t('modals.imageTooLarge'))
     return
   }
 
   uploading.value = true
   try {
     await appStore.updateAvatar(file)
-    message.success('头像已更新')
+    message.success(t('modals.avatarUpdated'))
   } catch (error) {
-    message.error('上传失败: ' + (error as Error).message)
+    message.error(t('modals.uploadFail', { message: (error as Error).message }))
   } finally {
     uploading.value = false
   }
@@ -147,8 +150,8 @@ async function handleAvatarChange(e: Event) {
   >
     <div class="edit-profile-shell">
       <div class="modal-header">
-        <span class="modal-title">编辑资料</span>
-        <button type="button" class="close-btn" aria-label="关闭" @click="closeEditProfile">
+        <span class="modal-title">{{ t('modals.editProfile') }}</span>
+        <button type="button" class="close-btn" :aria-label="t('modals.close')" @click="closeEditProfile">
           <n-icon :component="CloseOutline" :size="20" />
         </button>
       </div>
@@ -158,12 +161,12 @@ async function handleAvatarChange(e: Event) {
           type="button"
           class="avatar-btn"
           :class="{ uploading }"
-          title="点击更换头像"
+          :title="t('modals.changeAvatar')"
           @click="triggerAvatarUpload"
         >
           <img
             :src="avatarSrc"
-            alt="头像"
+            :alt="t('modals.avatar')"
             class="avatar-img"
           />
           <span class="avatar-mask">
@@ -181,10 +184,10 @@ async function handleAvatarChange(e: Event) {
 
       <div class="form-body">
         <div class="form-row">
-          <label class="form-label">昵称</label>
+          <label class="form-label">{{ t('modals.nickname') }}</label>
           <n-input
             v-model:value="profileNick"
-            placeholder="输入昵称"
+            :placeholder="t('modals.nicknamePh')"
             maxlength="36"
             show-count
             class="form-control"
@@ -192,7 +195,7 @@ async function handleAvatarChange(e: Event) {
         </div>
 
         <div class="form-row">
-          <label class="form-label">性别</label>
+          <label class="form-label">{{ t('modals.gender') }}</label>
           <n-select
             v-model:value="profileGender"
             :options="genderOptions"
@@ -202,7 +205,7 @@ async function handleAvatarChange(e: Event) {
         </div>
 
         <div class="form-row">
-          <label class="form-label">生日</label>
+          <label class="form-label">{{ t('modals.birthday') }}</label>
           <n-date-picker
             v-model:value="profileBirthday"
             type="date"
@@ -210,12 +213,12 @@ async function handleAvatarChange(e: Event) {
             to="body"
             placement="top-start"
             class="form-control"
-            placeholder="选择生日"
+            :placeholder="t('modals.birthdayPh')"
           />
         </div>
 
         <div class="form-row">
-          <label class="form-label">国家</label>
+          <label class="form-label">{{ t('modals.country') }}</label>
           <n-select
             v-model:value="profileCountry"
             :options="countryOptions"
@@ -225,12 +228,12 @@ async function handleAvatarChange(e: Event) {
         </div>
 
         <div class="form-row form-row-split">
-          <label class="form-label">省份</label>
+          <label class="form-label">{{ t('modals.province') }}</label>
           <div class="split-controls">
             <n-select
               v-model:value="profileProvince"
               :options="provinceOptions"
-              placeholder="请选择"
+              :placeholder="t('modals.pleaseSelect')"
               clearable
               to="body"
               class="split-item"
@@ -238,7 +241,7 @@ async function handleAvatarChange(e: Event) {
             <n-select
               v-model:value="profileRegion"
               :options="regionOptions"
-              placeholder="请选择"
+              :placeholder="t('modals.pleaseSelect')"
               clearable
               to="body"
               class="split-item"
@@ -248,8 +251,8 @@ async function handleAvatarChange(e: Event) {
       </div>
 
       <div class="modal-footer">
-        <n-button type="primary" :loading="saving" @click="handleSave">保存</n-button>
-        <n-button @click="closeEditProfile">取消</n-button>
+        <n-button type="primary" :loading="saving" @click="handleSave">{{ t('common.save') }}</n-button>
+        <n-button @click="closeEditProfile">{{ t('common.cancel') }}</n-button>
       </div>
     </div>
   </n-modal>

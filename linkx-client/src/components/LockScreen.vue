@@ -4,18 +4,20 @@ import { NInput, NButton, NAvatar, NIcon, useMessage } from 'naive-ui'
 import { LockClosedOutline, ArrowForwardOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
+import { useI18n } from '../i18n'
 
 const message = useMessage()
 const appStore = useAppStore()
 const { userProfile } = storeToRefs(appStore)
 const { unlock, verifyLockPin, hasLockPin } = appStore
+const { t } = useI18n()
 
 const pin = ref('')
 const errorMsg = ref('')
 
 async function handleUnlock() {
   if (!hasLockPin()) {
-    message.warning('请先在设置中设置锁屏 PIN')
+    message.warning(t('lock.setPinFirst'))
     return
   }
 
@@ -25,14 +27,14 @@ async function handleUnlock() {
     pin.value = ''
     errorMsg.value = ''
   } else {
-    errorMsg.value = 'PIN 错误，请重试'
-    message.error('锁屏 PIN 不正确')
+    errorMsg.value = t('lock.pinWrong')
+    message.error(t('lock.pinIncorrect'))
   }
 }
 </script>
 
 <template>
-  <div class="lock-screen" role="dialog" aria-modal="true" aria-label="LinkX 已锁定">
+  <div class="lock-screen" role="dialog" aria-modal="true" :aria-label="t('lock.title')">
     <div class="lock-content">
       <div class="lock-icon-wrapper">
         <n-icon :component="LockClosedOutline" :size="32" class="lock-icon" />
@@ -43,13 +45,13 @@ async function handleUnlock() {
       </n-avatar>
 
       <h2 class="nickname">{{ userProfile.nickname }}</h2>
-      <p class="status">LinkX 已锁定</p>
+      <p class="status">{{ t('lock.title') }}</p>
 
       <div class="unlock-form">
         <n-input
           v-model:value="pin"
           type="password"
-          placeholder="输入 4-6 位锁屏 PIN"
+          :placeholder="t('lock.pinPh')"
           class="password-input"
           maxlength="6"
           autofocus
@@ -62,7 +64,7 @@ async function handleUnlock() {
           </template>
         </n-input>
         <div v-if="errorMsg" class="error-msg">{{ errorMsg }}</div>
-        <p v-if="!hasLockPin()" class="hint">未设置锁屏 PIN 时，请前往设置进行配置</p>
+        <p v-if="!hasLockPin()" class="hint">{{ t('lock.noPinHint') }}</p>
       </div>
     </div>
   </div>

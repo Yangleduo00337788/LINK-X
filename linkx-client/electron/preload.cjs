@@ -47,8 +47,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   setAutoStart: enabled => ipcRenderer.invoke('app:set-auto-start', enabled),
   getAutoStart: () => ipcRenderer.invoke('app:get-auto-start'),
+  getDesktopPrefs: () => ipcRenderer.invoke('app:get-desktop-prefs'),
+  setDesktopPrefs: prefs => ipcRenderer.invoke('app:set-desktop-prefs', prefs),
   notifyThemeChange: theme => ipcRenderer.send('theme-changed', theme),
   setWindowMode: mode => ipcRenderer.invoke('window:set-mode', mode),
+  pickDownloadPath: () => ipcRenderer.invoke('app:pick-download-path'),
+  openDownloadPath: customPath => ipcRenderer.invoke('app:open-download-path', customPath),
+  clearAppCache: () => ipcRenderer.invoke('app:clear-cache'),
+  getDownloadPath: () => ipcRenderer.invoke('app:get-download-path'),
+  getShortcuts: () => ipcRenderer.invoke('app:get-shortcuts'),
+  setShortcuts: payload => ipcRenderer.invoke('app:set-shortcuts', payload),
+  onShortcutLock: callback => {
+    if (typeof callback !== 'function') return () => {}
+    const listener = () => callback()
+    ipcRenderer.on('app:shortcut-lock', listener)
+    return () => ipcRenderer.removeListener('app:shortcut-lock', listener)
+  },
   isElectron: true,
   /** Windows/Linux：使用系统原生标题栏按钮（titleBarOverlay） */
   hasNativeTitleBarOverlay: process.platform === 'win32' || process.platform === 'linux',

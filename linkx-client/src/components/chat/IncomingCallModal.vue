@@ -8,8 +8,10 @@ import { CallOutline, CloseOutline } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
 import { storeToRefs } from 'pinia'
 import { useCallStore } from '../../stores/call'
+import { useI18n } from '../../i18n'
 
 const message = useMessage()
+const { t } = useI18n()
 const callStore = useCallStore()
 const { showIncomingUi, peerName, peerAvatar, callType, errorMessage } = storeToRefs(callStore)
 
@@ -24,7 +26,7 @@ async function accept() {
   try {
     await callStore.acceptIncoming()
   } catch (e) {
-    message.error((e as Error).message || '接听失败')
+    message.error((e as Error).message || t('extra.acceptFail'))
   }
 }
 
@@ -33,7 +35,7 @@ async function reject() {
 }
 
 function avatarText(name: string) {
-  return name?.charAt(0) || '友'
+  return name?.charAt(0) || t('extra.friendChar')
 }
 </script>
 
@@ -41,7 +43,7 @@ function avatarText(name: string) {
   <Teleport to="body">
     <div v-if="showIncomingUi" class="call-root">
       <div class="call-window">
-        <p class="label">{{ callType === 'video' ? '视频来电' : '语音来电' }}</p>
+        <p class="label">{{ callType === 'video' ? t('extra.videoIncoming') : t('extra.voiceIncoming') }}</p>
         <div class="call-center">
           <Avatar
             :text="avatarText(peerName)"
@@ -49,17 +51,19 @@ function avatarText(name: string) {
             :image-url="peerAvatar || undefined"
             :size="88"
           />
-          <p class="peer">{{ peerName || '好友' }}</p>
-          <p class="hint">邀请你进行{{ callType === 'video' ? '视频' : '语音' }}通话</p>
+          <p class="peer">{{ peerName || t('extra.friend') }}</p>
+          <p class="hint">
+            {{ callType === 'video' ? t('extra.inviteVideoCall') : t('extra.inviteVoiceCall') }}
+          </p>
         </div>
         <div class="call-controls">
           <button type="button" class="ctl reject" @click="reject">
             <n-icon :component="CloseOutline" :size="28" />
-            <span>拒绝</span>
+            <span>{{ t('extra.reject') }}</span>
           </button>
           <button type="button" class="ctl accept" @click="accept">
             <n-icon :component="CallOutline" :size="28" />
-            <span>接听</span>
+            <span>{{ t('extra.accept') }}</span>
           </button>
         </div>
       </div>
@@ -99,48 +103,50 @@ function avatarText(name: string) {
 }
 
 .peer {
-  margin: 0 0 8px;
-  font-size: 18px;
+  margin: 0 0 6px;
+  font-size: 20px;
   font-weight: 600;
 }
 
 .hint {
-  margin: 0 0 28px;
+  margin: 0;
   font-size: 13px;
   color: rgba(255, 255, 255, 0.65);
 }
 
 .call-controls {
+  margin-top: 28px;
   display: flex;
-  justify-content: space-around;
-  gap: 24px;
+  justify-content: center;
+  gap: 48px;
 }
 
 .ctl {
+  border: none;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  border: none;
-  background: transparent;
-  color: #fff;
   font-size: 12px;
-  cursor: pointer;
 }
 
-.ctl.reject :deep(svg),
-.ctl.accept :deep(svg) {
+.ctl :deep(.n-icon) {
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
-  padding: 12px;
-  width: 52px !important;
-  height: 52px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.ctl.reject :deep(svg) {
+.ctl.reject :deep(.n-icon) {
   background: #fa5151;
 }
 
-.ctl.accept :deep(svg) {
+.ctl.accept :deep(.n-icon) {
   background: #07c160;
 }
 </style>

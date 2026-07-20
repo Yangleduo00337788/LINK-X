@@ -14,11 +14,13 @@ import { useFavoritesStore } from '../stores/favorites'
 import { useSecondaryViewStore } from '../stores/secondaryView'
 import { useRouter } from 'vue-router'
 import type { FavoriteItem } from '../types'
+import { useI18n } from '../i18n'
 
 const favoritesStore = useFavoritesStore()
 const secondaryViewStore = useSecondaryViewStore()
 const router = useRouter()
 const message = useMessage()
+const { t } = useI18n()
 const { remove, fetchFavorites } = favoritesStore
 const { items: favList } = storeToRefs(favoritesStore)
 const { activeFavorite } = storeToRefs(secondaryViewStore)
@@ -35,9 +37,17 @@ onMounted(() => {
 })
 
 // 搜索栏「添加」下拉选项
-const addOptions = [
-  { label: '写笔记', key: 'note' }
-]
+const addOptions = computed(() => [
+  { label: t('favorites.writeNote'), key: 'note' }
+])
+
+const tabItems = computed(() => [
+  { key: 'all', label: t('favorites.all') },
+  { key: 'link', label: t('favorites.link') },
+  { key: 'image', label: t('favorites.image') },
+  { key: 'file', label: t('favorites.file') },
+  { key: 'note', label: t('favorites.note') }
+])
 
 /** 处理添加菜单：Electron 开独立窗口，Web 走路由 */
 function onAddSelect(key: string) {
@@ -80,7 +90,7 @@ function removeItem(e: Event, id: string) {
   e.stopPropagation()
   remove(id)
   if (activeFavorite.value?.id === id) activeFavorite.value = null
-  message.success('已删除收藏')
+  message.success(t('favorites.deleted'))
 }
 
 /** 切换类型 Tab */
@@ -95,17 +105,21 @@ function setTab(tab: string) {
     <!-- 搜索与添加笔记 -->
     <PanelSearchBar
       v-model="search"
-      placeholder="搜索收藏"
+      :placeholder="t('favorites.search')"
       :add-options="addOptions"
       @add-select="onAddSelect"
     />
     <!-- 类型 Tab -->
     <div class="fav-tabs">
-      <div class="tab-item" :class="{ active: activeTab === 'all' }" @click="setTab('all')">全部</div>
-      <div class="tab-item" :class="{ active: activeTab === 'link' }" @click="setTab('link')">链接</div>
-      <div class="tab-item" :class="{ active: activeTab === 'image' }" @click="setTab('image')">图片</div>
-      <div class="tab-item" :class="{ active: activeTab === 'file' }" @click="setTab('file')">文件</div>
-      <div class="tab-item" :class="{ active: activeTab === 'note' }" @click="setTab('note')">笔记</div>
+      <div
+        v-for="tab in tabItems"
+        :key="tab.key"
+        class="tab-item"
+        :class="{ active: activeTab === tab.key }"
+        @click="setTab(tab.key)"
+      >
+        {{ tab.label }}
+      </div>
     </div>
     <!-- 收藏条目列表 -->
     <div class="list">
@@ -124,13 +138,13 @@ function setTab(tab: string) {
           <div class="preview">{{ item.preview }}</div>
         </div>
         <span class="time">{{ item.time }}</span>
-        <button type="button" class="del-btn" title="删除" @click="removeItem($event, item.id)">
+        <button type="button" class="del-btn" :title="t('favorites.delete')" @click="removeItem($event, item.id)">
           <n-icon :component="TrashOutline" :size="16" />
         </button>
       </div>
       
       <div v-if="filtered.length === 0" class="empty-state">
-        无匹配的收藏内容
+        {{ t('favorites.empty') }}
       </div>
     </div>
   </div>

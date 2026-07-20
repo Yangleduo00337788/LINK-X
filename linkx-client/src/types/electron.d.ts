@@ -19,12 +19,32 @@ declare global {
       togglePin: () => Promise<boolean>     // 切换窗口置顶
       // 订阅最大化状态变化，返回取消订阅函数
       onMaximizedChange: (callback: (maximized: boolean) => void) => () => void
-      setAutoStart?: (enabled: boolean) => Promise<boolean>  // 开机自启（可选）
-      getAutoStart?: () => Promise<boolean>                  // 读取自启状态（可选）
-      notifyThemeChange?: (theme: 'light' | 'dark') => void // 通知主进程主题变化
-      setWindowMode?: (mode: 'login' | 'main') => Promise<void> // 切换登录/主界面窗口尺寸
-      isElectron?: boolean                    // 是否为 Electron 环境
-      /** Windows/Linux 是否启用系统原生标题栏按钮 */
+      setAutoStart?: (enabled: boolean) => Promise<boolean>
+      getAutoStart?: () => Promise<boolean>
+      getDesktopPrefs?: () => Promise<{
+        minimizeToTray: boolean
+        openOnStartup: 'main' | 'tray'
+        language: 'zh-CN' | 'en-US'
+      }>
+      setDesktopPrefs?: (prefs: {
+        minimizeToTray?: boolean
+        openOnStartup?: 'main' | 'tray'
+        language?: 'zh-CN' | 'en-US'
+      }) => Promise<{
+        minimizeToTray: boolean
+        openOnStartup: 'main' | 'tray'
+        language: 'zh-CN' | 'en-US'
+      }>
+      notifyThemeChange?: (theme: 'light' | 'dark') => void
+      setWindowMode?: (mode: 'login' | 'main') => Promise<void>
+      pickDownloadPath?: () => Promise<string | null>
+      openDownloadPath?: (customPath?: string) => Promise<boolean>
+      clearAppCache?: () => Promise<{ ok: boolean; message?: string }>
+      getDownloadPath?: () => Promise<string>
+      getShortcuts?: () => Promise<{ toggleWindow: string; lock: string }>
+      setShortcuts?: (payload: { toggleWindow?: string; lock?: string }) => Promise<boolean>
+      onShortcutLock?: (callback: () => void) => () => void
+      isElectron?: boolean
       hasNativeTitleBarOverlay?: boolean
       /** 屏幕截图，返回截图数据或 null */
       captureScreen?: () => Promise<{ dataURL: string; width: number; height: number } | null>

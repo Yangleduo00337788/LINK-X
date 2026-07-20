@@ -165,7 +165,11 @@ function mapApiProfile(data: ProfileSource) {
     birthday,
     country: data.country || '中国',
     province: data.province || '',
-    region: data.region || ''
+    region: data.region || '',
+    email: data.email || null,
+    emailBound: !!data.emailBound,
+    phone: data.phone || null,
+    phoneBound: !!data.phoneBound
   }
 }
 
@@ -180,16 +184,20 @@ export const useAppStore = defineStore('app', {
     theme: 'light' as 'light' | 'dark',                          // 明暗主题
     contactsActiveView: 'none' as 'none' | 'friend-notifs' | 'group-notifs', // 通讯录子视图
     userProfile: {
-      nickname: '',           // 登录后由后端返回
-      username: '',           // LinkX 登录账号
+      nickname: '',
+      username: '',
       signature: '编辑个性签名',
-      avatar: '',             // 头像 URL
-      userId: '',              // 用户 ID
+      avatar: '',
+      userId: '',
       gender: '男' as '男' | '女',
       birthday: null as number | null,
       country: '中国',
       province: '',
-      region: ''
+      region: '',
+      email: null as string | null,
+      emailBound: false,
+      phone: null as string | null,
+      phoneBound: false
     },
     isLoggedIn: false,   // 是否已登录
     isLoading: false,    // 登录等异步操作加载中
@@ -1132,6 +1140,10 @@ export const useAppStore = defineStore('app', {
       this.userProfile.signature = '编辑个性签名'
       this.userProfile.avatar = ''
       this.userProfile.userId = ''
+      this.userProfile.email = null
+      this.userProfile.emailBound = false
+      this.userProfile.phone = null
+      this.userProfile.phoneBound = false
       cleanupNaiveUiOverlays()
       await clearTokens()
 

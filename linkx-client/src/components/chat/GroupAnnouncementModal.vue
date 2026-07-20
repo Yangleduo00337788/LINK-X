@@ -15,20 +15,15 @@ import { useGroupMetaStore } from '../../stores/groupMeta'
 import Avatar from '../Avatar.vue'
 // 置顶图标组件
 import PinIcon from '../icons/PinIcon.vue'
+import { useI18n } from '../../i18n'
 
-// 消息提示实例
 const message = useMessage()
-// 聊天弹窗 Store 实例
+const { t } = useI18n()
 const chatModalsStore = useChatModalsStore()
-// 应用 Store 实例
 const appStore = useAppStore()
-// 群元数据 Store 实例
 const groupMetaStore = useGroupMetaStore()
-// 群公告弹窗是否打开
 const { groupAnnouncementOpen } = storeToRefs(chatModalsStore)
-// 关闭群公告弹窗的方法
 const { closeGroupAnnouncement } = chatModalsStore
-// 当前会话、会话 ID、用户资料
 const { currentSession, currentSessionId, userProfile } = storeToRefs(appStore)
 
 // 是否处于编辑模式
@@ -60,7 +55,7 @@ function save() {
   const id = currentSessionId.value
   if (!id || !draft.value.trim()) return
   groupMetaStore.updateAnnouncement(id, draft.value.trim())
-  message.success('群公告已更新')
+  message.success(t('extra.announcementUpdated'))
   editing.value = false
 }
 </script>
@@ -72,7 +67,7 @@ function save() {
       <div class="announce-window" @click.stop>
         <!-- 窗口标题栏 -->
         <header class="win-head">
-          <h2>{{ currentSession?.name || '群聊' }}</h2>
+          <h2>{{ currentSession?.name || t('extra.groupChat') }}</h2>
           <button type="button" class="close-x" @click="close">×</button>
         </header>
         <!-- 公告正文：查看或编辑模式 -->
@@ -86,16 +81,16 @@ function save() {
             </div>
             <span class="pin-tag">
               <PinIcon :size="11" />
-              置顶
+              {{ t('extra.pinned') }}
             </span>
           </div>
           <pre v-if="!editing" class="post-body">{{ announcement.content }}</pre>
           <n-input v-else v-model:value="draft" type="textarea" :rows="6" />
           <div class="actions">
-            <n-button v-if="!editing" size="small" @click="startEdit">编辑公告</n-button>
+            <n-button v-if="!editing" size="small" @click="startEdit">{{ t('extra.editAnnouncement') }}</n-button>
             <template v-else>
-              <n-button size="small" @click="editing = false">取消</n-button>
-              <n-button size="small" type="primary" @click="save">保存</n-button>
+              <n-button size="small" @click="editing = false">{{ t('common.cancel') }}</n-button>
+              <n-button size="small" type="primary" @click="save">{{ t('common.save') }}</n-button>
             </template>
           </div>
         </div>

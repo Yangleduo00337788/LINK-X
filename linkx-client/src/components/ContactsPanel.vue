@@ -30,10 +30,12 @@ import { useAppStore } from '../stores/app'
 import { useChatModalsStore } from '../stores/chatModals'
 // 联系人与会话类型
 import type { ContactItem } from '../types'
+import { useI18n } from '../i18n'
 
 // 获取联系人 Store 实例
 const contactsStore = useContactsStore()
 const message = useMessage()
+const { t } = useI18n()
 const notificationsStore = useNotificationsStore()
 // 解构联系人列表
 const { items: contacts } = storeToRefs(contactsStore)
@@ -54,10 +56,10 @@ const search = ref('')
 const activeTab = ref<'friends' | 'groups'>('friends')
 
 // 添加按钮下拉选项
-const addOptions = [
-  { label: '发起群聊', key: 'group' },
-  { label: '添加好友/群聊', key: 'friend' }
-]
+const addOptions = computed(() => [
+  { label: t('contacts.createGroup'), key: 'group' },
+  { label: t('contacts.addFriendGroup'), key: 'friend' }
+])
 
 // 处理添加按钮下拉选项选中
 function onAddSelect(key: string) {
@@ -82,7 +84,7 @@ const friendGroups = computed(() => {
   const friends = filteredContacts.value.filter(c => c.group === '我的好友')
   const online = friends.filter(c => c.online).length // 在线好友数
   return [
-    { name: '我的好友', online, total: friends.length, items: friends }
+    { name: t('contacts.myFriends'), online, total: friends.length, items: friends }
   ]
 })
 
@@ -94,8 +96,8 @@ const chatGroups = computed(() => {
   const pinned = list.filter(s => s.pinned) // 置顶群
   const joined = list.filter(s => !s.pinned) // 非置顶群
   return [
-    { name: '置顶群聊', total: pinned.length, items: pinned },
-    { name: '我加入的群聊', total: joined.length, items: joined }
+    { name: t('contacts.pinnedGroups'), total: pinned.length, items: pinned },
+    { name: t('contacts.joinedGroups'), total: joined.length, items: joined }
   ].filter(g => g.total > 0 || !q) // 无搜索时保留空分组，有搜索时隐藏空分组
 })
 
@@ -123,7 +125,7 @@ async function handleContactDblClick(c: ContactItem) {
   try {
     await startChatWithContact(c)
   } catch (error) {
-    message.error((error as Error).message || '打开会话失败')
+    message.error((error as Error).message || t('contacts.openSessionFail'))
   }
 }
 
@@ -146,7 +148,7 @@ function onTabChange(tab: 'friends' | 'groups') {
     <!-- 顶部搜索栏 -->
     <PanelSearchBar
       v-model="search"
-      placeholder="搜索"
+      :placeholder="t('common.search')"
       :add-options="addOptions"
       @add-select="onAddSelect"
     />
@@ -155,12 +157,12 @@ function onTabChange(tab: 'friends' | 'groups') {
     <div class="top-actions">
       <div class="action-list">
         <div class="action-item" :class="{ active: contactsActiveView === 'friend-notifs' }" @click="setView('friend-notifs')">
-          <span>好友通知</span>
+          <span>{{ t('contacts.friendNotif') }}</span>
           <span v-if="pendingFriendCount" class="notif-badge">{{ pendingFriendCount }}</span>
           <n-icon :component="ChevronForwardOutline" />
         </div>
         <div class="action-item" :class="{ active: contactsActiveView === 'group-notifs' }" @click="setView('group-notifs')">
-          <span>群通知</span>
+          <span>{{ t('contacts.groupNotif') }}</span>
           <n-icon :component="ChevronForwardOutline" />
         </div>
       </div>
@@ -169,8 +171,8 @@ function onTabChange(tab: 'friends' | 'groups') {
     <!-- 好友/群聊 Tab 切换 -->
     <div class="tabs" :class="activeTab">
       <div class="tab-slider"></div>
-      <div class="tab-item" :class="{ active: activeTab === 'friends' }" @click="onTabChange('friends')">好友</div>
-      <div class="tab-item" :class="{ active: activeTab === 'groups' }" @click="onTabChange('groups')">群聊</div>
+      <div class="tab-item" :class="{ active: activeTab === 'friends' }" @click="onTabChange('friends')">{{ t('contacts.friends') }}</div>
+      <div class="tab-item" :class="{ active: activeTab === 'groups' }" @click="onTabChange('groups')">{{ t('contacts.groups') }}</div>
     </div>
 
     <!-- 列表容器 -->
@@ -188,7 +190,7 @@ function onTabChange(tab: 'friends' | 'groups') {
 
       <!-- 无搜索结果 -->
       <template v-else-if="filteredContacts.length === 0 && search">
-        <EmptyState title="无匹配联系人" description="换个关键词试试" />
+        <EmptyState :title="t('contacts.noMatch')" />
       </template>
 
       <!-- 好友或群聊列表 -->
@@ -196,7 +198,7 @@ function onTabChange(tab: 'friends' | 'groups') {
         <!-- 好友 Tab：虚拟滚动列表 -->
         <div v-if="activeTab === 'friends'" class="contacts-list" style="height: 100%; display: flex; flex-direction: column;">
           <div class="group-header" style="flex-shrink: 0;">
-            <span class="group-name">我的好友</span>
+            <span class="group-name">{{ t('contacts.myFriends') }}</span>
             <span class="group-count">{{ friendGroups[0].online }}/{{ friendGroups[0].total }}</span>
           </div>
           <n-virtual-list
@@ -223,7 +225,7 @@ function onTabChange(tab: 'friends' | 'groups') {
                     <span class="name">{{ item.name }}</span>
                     <span class="status-dot" :class="{ online: item.online }"></span>
                   </div>
-                  <span class="status">{{ item.online ? '在线' : '离线' }}</span>
+                  <span class="status">{{ item.online ? t('chat.online') : t('chat.offline') }}</span>
                 </div>
               </div>
             </template>
@@ -233,7 +235,7 @@ function onTabChange(tab: 'friends' | 'groups') {
         <!-- 群聊 Tab：分组列表 -->
         <div v-if="activeTab === 'groups'" class="groups-list">
           <template v-if="chatGroups.length === 0">
-            <EmptyState title="暂无群聊" description="发起群聊或加入群聊后将显示在这里" />
+            <EmptyState :title="t('contacts.noGroups')" :description="t('contacts.noGroupsHint')" />
           </template>
           <template v-else>
             <div v-for="group in chatGroups" :key="group.name" class="group-section">

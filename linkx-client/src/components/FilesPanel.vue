@@ -14,8 +14,10 @@ import { useFilesStore } from '../stores/files'
 import { useOverlayStore } from '../stores/overlay'
 import { useSecondaryViewStore } from '../stores/secondaryView'
 import type { LocalFileItem } from '../stores/files'
+import { useI18n } from '../i18n'
 
 const message = useMessage()
+const { t } = useI18n()
 const filesStore = useFilesStore()
 const overlayStore = useOverlayStore()
 const secondaryViewStore = useSecondaryViewStore()
@@ -23,6 +25,19 @@ const { remove } = filesStore
 const { items: fileItems } = storeToRefs(filesStore)
 const { activeFile } = storeToRefs(secondaryViewStore)
 const { open: openOverlay } = overlayStore
+
+// 搜索关键词
+const search = ref('')
+// 当前 Tab：recent / document / image / media / other
+const activeTab = ref('recent')
+
+const tabItems = computed(() => [
+  { key: 'recent', label: t('files.recent') },
+  { key: 'document', label: t('files.document') },
+  { key: 'image', label: t('files.image') },
+  { key: 'media', label: t('files.media') },
+  { key: 'other', label: t('files.other') }
+])
 
 /** 按 Tab 与搜索词过滤文件列表 */
 const filtered = computed(() => {
@@ -44,11 +59,6 @@ function iconFor(type: string) {
   return FolderOutline
 }
 
-// 搜索关键词
-const search = ref('')
-// 当前 Tab：recent / document / image / media / other
-const activeTab = ref('recent')
-
 /** 切换文件分类 Tab */
 function setTab(tab: string) {
   activeTab.value = tab
@@ -62,7 +72,7 @@ function selectFile(item: LocalFileItem) {
 /** 打开 overlay 文件预览页 */
 function openFilePreview(item: LocalFileItem) {
   if (!item.fileUrl) {
-    message.info(`「${item.title}」暂无本地预览，请从聊天中重新发送`)
+    message.info(t('files.noPreview', { title: item.title }))
     return
   }
   openOverlay('file-preview', {
@@ -86,21 +96,25 @@ function removeFile(e: Event, id: string) {
   e.stopPropagation()
   remove(id)
   if (activeFile.value?.id === id) activeFile.value = null
-  message.success('已删除文件记录')
+  message.success(t('files.deleted'))
 }
 </script>
 
 <template>
   <!-- 文件列表面板 -->
   <div class="files-panel">
-    <PanelSearchBar v-model="search" placeholder="搜索文件 / 发送者" />
+    <PanelSearchBar v-model="search" :placeholder="t('files.search')" />
     <!-- 分类 Tab -->
     <div class="files-tabs">
-      <div class="tab-item" :class="{ active: activeTab === 'recent' }" @click="setTab('recent')">最近</div>
-      <div class="tab-item" :class="{ active: activeTab === 'document' }" @click="setTab('document')">文档</div>
-      <div class="tab-item" :class="{ active: activeTab === 'image' }" @click="setTab('image')">图片</div>
-      <div class="tab-item" :class="{ active: activeTab === 'media' }" @click="setTab('media')">音视频</div>
-      <div class="tab-item" :class="{ active: activeTab === 'other' }" @click="setTab('other')">其他</div>
+      <div
+        v-for="tab in tabItems"
+        :key="tab.key"
+        class="tab-item"
+        :class="{ active: activeTab === tab.key }"
+        @click="setTab(tab.key)"
+      >
+        {{ tab.label }}
+      </div>
     </div>
     <!-- 文件条目列表 -->
     <div class="list">
@@ -119,17 +133,17 @@ function removeFile(e: Event, id: string) {
           <div class="meta">
             <span>{{ item.size }}</span>
             <span class="dot">·</span>
-            <span>来自: {{ item.sender }}</span>
+            <span>{{ t('files.from', { name: item.sender }) }}</span>
           </div>
         </div>
         <span class="time">{{ item.time }}</span>
-        <button type="button" class="del-btn" title="删除" @click="removeFile($event, item.id)">
+        <button type="button" class="del-btn" :title="t('files.delete')" @click="removeFile($event, item.id)">
           <n-icon :component="TrashOutline" :size="16" />
         </button>
       </div>
 
       <div v-if="filtered.length === 0" class="empty-state">
-        没有找到相关文件
+        {{ t('files.empty') }}
       </div>
     </div>
   </div>

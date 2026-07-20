@@ -17,16 +17,18 @@ import {
 import { storeToRefs } from 'pinia'
 import { useCalendarStore } from '../stores/calendar'
 import type { CalendarEvent } from '../stores/calendar'
+import { useI18n } from '../i18n'
 
 const message = useMessage()
 const dialog = useDialog()
+const { t } = useI18n()
 const calendarStore = useCalendarStore()
 const { selectedDate, events, eventsOnSelected, selectedDateKey, initialized } = storeToRefs(calendarStore)
 const { setSelectedDate, addEvent, updateEvent, removeEvent, fetchEvents, toggleRemind, startReminderWatch, isRemindOn } =
   calendarStore
 
 /** 与设计稿一致：周日为一周起始 */
-const WEEK_LABELS = ['日', '一', '二', '三', '四', '五', '六']
+const WEEK_LABELS = computed(() => t('calendar.weekdays').split(','))
 const MAX_CELL_EVENTS = 2
 const EVENT_COLORS = ['#3370ff', '#f54a45', '#ff8800', '#7b61ff', '#00b578', '#12b7f5']
 
@@ -39,22 +41,28 @@ const formTitle = ref('')
 const formTime = ref('09:00')
 const showWeekList = ref(false)
 
-const panelTitle = computed(() => `${panelYear.value}年${panelMonth.value + 1}月`)
+const panelTitle = computed(() =>
+  t('calendar.yearMonth', { y: panelYear.value, m: panelMonth.value + 1 })
+)
 
-const viewMenuOptions = [
-  { label: '月视图', key: 'month' }
-]
+const viewMenuOptions = computed(() => [
+  { label: t('calendar.monthView'), key: 'month' }
+])
 
 const selectedHeading = computed(() => {
   const d = new Date(selectedDate.value)
-  const week = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()]
+  const week = WEEK_LABELS.value[d.getDay()]
   const today = new Date()
   const isToday =
     d.getFullYear() === today.getFullYear() &&
     d.getMonth() === today.getMonth() &&
     d.getDate() === today.getDate()
-  const datePart = `${d.getMonth() + 1}月${d.getDate()}日 周${week}`
-  return isToday ? `今天 · ${datePart}` : datePart
+  const datePart = t('calendar.monthDayWeek', {
+    m: d.getMonth() + 1,
+    d: d.getDate(),
+    w: week
+  })
+  return isToday ? `${t('calendar.today')} · ${datePart}` : datePart
 })
 
 const eventsByDate = computed(() => {
@@ -168,16 +176,16 @@ function eventStatus(ev: CalendarEvent): { text: string; tone: 'active' | 'soon'
   start.setHours(hh, mm || 0, 0, 0)
   const end = new Date(start.getTime() + 60 * 60 * 1000)
   const now = Date.now()
-  if (now >= start.getTime() && now < end.getTime()) return { text: '进行中', tone: 'active' }
+  if (now >= start.getTime() && now < end.getTime()) return { text: t('calendar.ongoing'), tone: 'active' }
   if (now < start.getTime() && start.getTime() - now <= 2 * 60 * 60 * 1000) {
-    return { text: '即将开始', tone: 'soon' }
+    return { text: t('calendar.upcoming'), tone: 'soon' }
   }
-  if (now >= end.getTime()) return { text: '已结束', tone: 'done' }
+  if (now >= end.getTime()) return { text: t('calendar.ended'), tone: 'done' }
   return null
 }
 
 function formatTimeRange(ev: CalendarEvent) {
-  if (!ev.time) return '全天'
+  if (!ev.time) return t('calendar.allDay')
   const [hh, mm] = ev.time.split(':').map(Number)
   if (Number.isNaN(hh)) return ev.time
   const endH = (hh + 1) % 24
@@ -209,13 +217,13 @@ onMounted(() => {
 async function onToggleRemind(event: CalendarEvent) {
   const result = await toggleRemind(event.id)
   if (result === 'on') {
-    message.success(`已开启提醒：开始前 5 分钟会写入消息通知`)
+    message.success(t('calendar.remindOn'))
   } else if (result === 'off') {
-    message.info('已关闭提醒')
+    message.info(t('calendar.remindOff'))
   } else if (result === 'no-time') {
-    message.warning('该日程没有开始时间，无法提醒')
+    message.warning(t('calendar.remindNoTime'))
   } else if (result === 'expired') {
-    message.warning('日程已开始或已过期，无法提醒')
+    message.warning(t('calendar.remindExpired'))
   }
 }
 
@@ -261,7 +269,7 @@ function openEditForm(event: CalendarEvent) {
 async function saveEvent() {
   const title = formTitle.value.trim()
   if (!title) {
-    message.warning('请输入日程标题')
+    message.warning(t('calendar.titleRequired'))
     return
   }
   const time = formTime.value.trim()
@@ -282,25 +290,25 @@ async function saveEvent() {
       time: payload.time,
       color: undefined
     })
-    if (ok) message.success('日程已更新')
-    else message.error('更新日程失败，请重试')
+    if (ok) message.success(t('calendar.updated'))
+    else message.error(t('calendar.updateFail'))
   } else {
     const id = await addEvent(payload)
-    if (id) message.success('日程已添加')
-    else message.error('添加日程失败，请重试')
+    if (id) message.success(t('calendar.added'))
+    else message.error(t('calendar.addFail'))
   }
   resetForm()
 }
 
 function confirmDelete(event: CalendarEvent) {
   dialog.warning({
-    title: '删除日程',
-    content: `确定删除「${event.title}」？`,
-    positiveText: '删除',
-    negativeText: '取消',
+    title: t('calendar.deleteTitle'),
+    content: t('calendar.deleteConfirm', { title: event.title }),
+    positiveText: t('common.delete'),
+    negativeText: t('common.cancel'),
     onPositiveClick: async () => {
       const ok = await removeEvent(event.id)
-      if (ok) message.success('日程已删除')
+      if (ok) message.success(t('calendar.deleted'))
       if (editingId.value === event.id) resetForm()
     }
   })
@@ -311,10 +319,10 @@ function onMoreAction(event: CalendarEvent, key: string) {
   else if (key === 'delete') confirmDelete(event)
 }
 
-const moreOptions = [
-  { label: '编辑', key: 'edit' },
-  { label: '删除', key: 'delete' }
-]
+const moreOptions = computed(() => [
+  { label: t('calendar.edit'), key: 'edit' },
+  { label: t('common.delete'), key: 'delete' }
+])
 
 const agendaList = computed(() => (showWeekList.value ? weekEvents.value : eventsOnSelected.value))
 </script>
@@ -325,25 +333,25 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
     <header class="page-toolbar">
       <div class="toolbar-left">
         <n-icon :component="CalendarOutline" :size="20" class="brand-icon" />
-        <span class="page-name">日历</span>
+        <span class="page-name">{{ t('calendar.title') }}</span>
         <n-button type="primary" size="small" class="create-btn" @click="openAddForm">
           <template #icon>
             <n-icon :component="AddOutline" />
           </template>
-          新建日程
+          {{ t('calendar.newEvent') }}
         </n-button>
       </div>
       <div class="toolbar-right">
-        <button type="button" class="ghost-btn" @click="goToday">今天</button>
-        <button type="button" class="icon-btn" title="上一月" @click="shiftMonth(-1)">
+        <button type="button" class="ghost-btn" @click="goToday">{{ t('calendar.today') }}</button>
+        <button type="button" class="icon-btn" :title="t('calendar.prevMonth')" @click="shiftMonth(-1)">
           <n-icon :component="ChevronBackOutline" :size="16" />
         </button>
-        <button type="button" class="icon-btn" title="下一月" @click="shiftMonth(1)">
+        <button type="button" class="icon-btn" :title="t('calendar.nextMonth')" @click="shiftMonth(1)">
           <n-icon :component="ChevronForwardOutline" :size="16" />
         </button>
         <n-dropdown :options="viewMenuOptions" trigger="click">
           <button type="button" class="ghost-btn view-btn">
-            月视图
+            {{ t('calendar.monthView') }}
             <n-icon :component="ChevronDownOutline" :size="14" />
           </button>
         </n-dropdown>
@@ -396,20 +404,20 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
       <section class="agenda-section">
         <header class="agenda-toolbar">
           <button type="button" class="agenda-date-btn" @click="showWeekList = false">
-            {{ showWeekList ? '本周日程' : selectedHeading }}
+            {{ showWeekList ? t('calendar.weekAgenda') : selectedHeading }}
             <n-icon :component="ChevronDownOutline" :size="14" />
           </button>
           <button type="button" class="manage-btn" @click="showWeekList = !showWeekList">
-            {{ showWeekList ? '当日日程' : '日程管理' }}
+            {{ showWeekList ? t('calendar.dayAgenda') : t('calendar.manage') }}
           </button>
         </header>
 
         <div v-if="showForm" class="event-form">
-          <n-input v-model:value="formTitle" placeholder="日程标题" maxlength="100" />
-          <n-input v-model:value="formTime" placeholder="开始时间，如 09:00" maxlength="5" />
+          <n-input v-model:value="formTitle" :placeholder="t('calendar.titlePh')" maxlength="100" />
+          <n-input v-model:value="formTime" :placeholder="t('calendar.timePh')" maxlength="5" />
           <div class="form-actions">
-            <n-button size="small" @click="resetForm">取消</n-button>
-            <n-button size="small" type="primary" @click="saveEvent">保存</n-button>
+            <n-button size="small" @click="resetForm">{{ t('common.cancel') }}</n-button>
+            <n-button size="small" type="primary" @click="saveEvent">{{ t('common.save') }}</n-button>
           </div>
         </div>
 
@@ -437,7 +445,7 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
               </div>
               <div class="card-loc">
                 <n-icon :component="LocationOutline" :size="13" />
-                <span>个人日程</span>
+                <span>{{ t('calendar.personal') }}</span>
               </div>
             </div>
             <div class="card-actions">
@@ -445,7 +453,7 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
                 type="button"
                 class="card-icon-btn"
                 :class="{ active: isRemindOn(event.id) }"
-                :title="isRemindOn(event.id) ? '关闭提醒' : '开启开始前提醒'"
+                :title="isRemindOn(event.id) ? t('calendar.remindOffTitle') : t('calendar.remindOnTitle')"
                 @click="onToggleRemind(event)"
               >
                 <n-icon :component="NotificationsOutline" :size="16" />
@@ -455,7 +463,7 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
                 trigger="click"
                 @select="(k: string) => onMoreAction(event, k)"
               >
-                <button type="button" class="card-icon-btn" title="更多">
+                <button type="button" class="card-icon-btn" :title="t('calendar.more')">
                   <n-icon :component="EllipsisHorizontal" :size="16" />
                 </button>
               </n-dropdown>
@@ -463,8 +471,8 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
           </article>
         </div>
         <div v-else class="agenda-empty">
-          <p>这一天还没有日程</p>
-          <button type="button" class="empty-link" @click="openAddForm">新建日程</button>
+          <p>{{ t('calendar.emptyDay') }}</p>
+          <button type="button" class="empty-link" @click="openAddForm">{{ t('calendar.newEvent') }}</button>
         </div>
 
         <button
@@ -473,7 +481,7 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
           class="week-footer-btn"
           @click="showWeekList = true"
         >
-          查看本周日程
+          {{ t('calendar.viewWeek') }}
         </button>
       </section>
     </div>

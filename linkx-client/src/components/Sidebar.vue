@@ -37,6 +37,7 @@ import { useMomentsStore } from '../stores/moments'
 import { useCalendarStore } from '../stores/calendar'
 import { useNotificationsStore } from '../stores/notifications'
 import type { NavKey } from '../types'
+import { useI18n } from '../i18n'
 
 // 获取各 Store 实例
 const appStore = useAppStore()
@@ -48,6 +49,7 @@ const contactsStore = useContactsStore()
 const momentsStore = useMomentsStore()
 const calendarStore = useCalendarStore()
 const notificationsStore = useNotificationsStore()
+const { t } = useI18n()
 // 解构导航键、用户资料、已保存登录信息、会话列表
 const { navKey, userProfile, savedLogin, sessions } = storeToRefs(appStore)
 const { calendarRemindUnreadCount } = storeToRefs(notificationsStore)
@@ -71,31 +73,31 @@ function renderIcon(icon: Component) {
   return () => h(NIcon, { size: 16 }, { default: () => h(icon) })
 }
 
-// 更多菜单下拉选项配置
-const menuOptions: DropdownOption[] = [
-  { label: '聊天记录管理', key: 'history', icon: renderIcon(TimeOutline) },
-  { label: '检查更新', key: 'update', icon: renderIcon(RefreshOutline) },
-  { label: '帮助', key: 'help', icon: renderIcon(HelpCircleOutline) },
-  { type: 'divider', key: 'divider' }, // 分隔线
-  { label: '锁定', key: 'lock', icon: renderIcon(LockClosedOutline) },
-  { label: '设置', key: 'settings', icon: renderIcon(SettingsOutline) },
+// 更多菜单下拉选项配置（随语言切换）
+const menuOptions = computed<DropdownOption[]>(() => [
+  { label: t('nav.history'), key: 'history', icon: renderIcon(TimeOutline) },
+  { label: t('nav.update'), key: 'update', icon: renderIcon(RefreshOutline) },
+  { label: t('nav.help'), key: 'help', icon: renderIcon(HelpCircleOutline) },
+  { type: 'divider', key: 'divider' },
+  { label: t('nav.lock'), key: 'lock', icon: renderIcon(LockClosedOutline) },
   {
-    label: '退出账号',
+    label: t('nav.logout'),
     key: 'logout',
     icon: renderIcon(LogOutOutline),
-    props: { class: 'lx-menu-danger' } // 危险操作样式
+    props: { class: 'lx-menu-danger' }
   }
-]
+])
 
-// 主导航项配置：键、图标、标签
-const mainNav: { key: NavKey; icon: typeof ChatbubbleEllipsesOutline; label: string }[] = [
-  { key: 'chat', icon: ChatbubbleEllipsesOutline, label: '消息' },
-  { key: 'contacts', icon: PersonOutline, label: '联系人' },
-  { key: 'favorites', icon: BookmarkOutline, label: '收藏' },
-  { key: 'files', icon: FolderOutline, label: '文件' },
-  { key: 'calendar', icon: CalendarOutline, label: '日历' },
-  { key: 'moments', icon: ApertureOutline, label: '友链' }
-]
+// 主导航项配置：键、图标、标签（随语言切换）
+const mainNav = computed(() => [
+  { key: 'chat' as NavKey, icon: ChatbubbleEllipsesOutline, label: t('nav.chat') },
+  { key: 'contacts' as NavKey, icon: PersonOutline, label: t('nav.contacts') },
+  { key: 'favorites' as NavKey, icon: BookmarkOutline, label: t('nav.favorites') },
+  { key: 'files' as NavKey, icon: FolderOutline, label: t('nav.files') },
+  { key: 'calendar' as NavKey, icon: CalendarOutline, label: t('nav.calendar') },
+  { key: 'moments' as NavKey, icon: ApertureOutline, label: t('nav.moments') },
+  { key: 'settings' as NavKey, icon: SettingsOutline, label: t('nav.settings') }
+])
 
 /** 消息图标未读：普通会话未读 + 日历日程提醒未读（免打扰会话不计入） */
 const chatNavUnread = computed(() => {
@@ -114,10 +116,9 @@ function navBadge(key: NavKey): number {
 // 处理导航项点击
 function handleClick(key: NavKey | 'menu') {
   if (key === 'menu') {
-    return // 菜单按钮由 dropdown 自身处理
+    return
   }
   if (key === 'moments') {
-    // 友链：Electron 下打开独立窗口，浏览器内切换导航
     if (window.electronAPI) {
       window.electronAPI.openMoments()
     } else {
@@ -129,8 +130,11 @@ function handleClick(key: NavKey | 'menu') {
     handleFilesClick()
     return
   }
-  setNav(key) // 其他导航直接切换
-  // 切换导航后静默刷新对应模块数据
+  if (key === 'settings') {
+    openSettings('account')
+    return
+  }
+  setNav(key)
   refreshNavData(key)
 }
 
@@ -200,7 +204,7 @@ function handleMenuSelect(key: string | number) {
       break
     case 'update':
       runMenuAction(() => {
-        message.success('当前已是最新版本：LinkX v1.0.0')
+        message.success(t('nav.latestVersion'))
       })
       break
     case 'help':
@@ -214,13 +218,13 @@ function handleMenuSelect(key: string | number) {
         prepareMenuAction()
         settingsStore.closeSettings()
         lock() // 锁定应用
-        message.info('LinkX 已锁定')
+        message.info(t('nav.locked'))
       })
       break
     case 'settings':
       runMenuAction(() => {
         prepareMenuAction()
-        openSettings() // 打开设置弹窗
+        openSettings('account')
       })
       break
     case 'logout':
@@ -240,7 +244,7 @@ function handleSelfAvatarClick(e: MouseEvent) {
     {
       nickname: userProfile.value.nickname,
       username: savedLogin.value.username || userProfile.value.username || undefined,
-      avatarText: userProfile.value.nickname.charAt(0) || '我',
+      avatarText: userProfile.value.nickname.charAt(0) || t('nav.me'),
       avatarUrl: userProfile.value.avatar || undefined,
       userId: userProfile.value.userId ? Number(userProfile.value.userId) : undefined
     },
@@ -253,9 +257,9 @@ function handleSelfAvatarClick(e: MouseEvent) {
   <!-- 侧边栏容器 -->
   <div class="sidebar">
     <!-- 个人头像入口 -->
-    <button type="button" class="sidebar-avatar" title="个人资料" @click="handleSelfAvatarClick">
+    <button type="button" class="sidebar-avatar" :title="t('nav.profile')" @click="handleSelfAvatarClick">
       <Avatar
-        :text="userProfile.nickname.charAt(0) || '我'"
+        :text="userProfile.nickname.charAt(0) || t('nav.me')"
         :color="userProfile.avatar ? 'transparent' : 'var(--lx-success)'"
         :size="40"
         :image-url="userProfile.avatar || undefined"
@@ -286,8 +290,8 @@ function handleSelfAvatarClick(e: MouseEvent) {
       <button
         type="button"
         class="nav-item"
-        title="主题调色盘"
-        aria-label="主题调色盘"
+        :title="t('nav.themePalette')"
+        :aria-label="t('nav.themePalette')"
         @click="handlePaletteClick"
       >
         <n-icon :component="ColorPaletteOutline" :size="20" />
@@ -301,7 +305,7 @@ function handleSelfAvatarClick(e: MouseEvent) {
         :options="menuOptions"
         @select="handleMenuSelect"
       >
-        <button type="button" class="nav-item" title="菜单" aria-label="菜单">
+        <button type="button" class="nav-item" :title="t('login.menu')" :aria-label="t('login.menu')">
           <n-icon :component="MenuOutline" :size="20" />
         </button>
       </n-dropdown>

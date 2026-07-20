@@ -19,7 +19,9 @@ import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
 import { useContactsStore } from '../../stores/contacts'
 import { useMessage } from 'naive-ui'
+import { useI18n } from '../../i18n'
 
+const { t } = useI18n()
 const message = useMessage()
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
@@ -117,10 +119,10 @@ async function confirm() {
   try {
     const session = await createGroup(members)
     if (session) {
-      message.success(`已创建群聊「${session.name}」`)
+      message.success(t('modals.createOk', { name: session.name }))
     }
   } catch {
-    message.error('创建群聊失败')
+    message.error(t('modals.createFail'))
   }
   selected.value = new Set()
   closeCreateGroup()
@@ -137,7 +139,7 @@ function cancel() {
   <Teleport to="body">
     <div v-if="createGroupOpen" class="modal-root" @click.self="cancel">
       <div class="modal-card" @click.stop>
-        <h2 class="modal-title">创建群聊</h2>
+        <h2 class="modal-title">{{ t('modals.createGroupTitle') }}</h2>
         <div class="modal-body">
           <!-- 左侧：搜索与好友选择列表 -->
           <div class="left-pane">
@@ -146,14 +148,14 @@ function cancel() {
                 v-model="search"
                 type="text"
                 class="search-field"
-                placeholder="搜索"
+                :placeholder="t('modals.search')"
               />
             </div>
-            <button type="button" class="category-row" @click="message.info('可在下方列表中按分组选择好友')">
-              <span>按分类创建</span>
-              <span class="more-link">更多 <n-icon :component="ChevronForwardOutline" :size="14" /></span>
+            <button type="button" class="category-row" @click="message.info(t('modals.categoryHint'))">
+              <span>{{ t('modals.createByCategory') }}</span>
+              <span class="more-link">{{ t('modals.more') }} <n-icon :component="ChevronForwardOutline" :size="14" /></span>
             </button>
-            <div class="section-hint">选择好友创建</div>
+            <div class="section-hint">{{ t('modals.selectFriends') }}</div>
             <div class="scroll-list">
               <!-- 最近聊天分组 -->
               <button type="button" class="group-head" @click="recentExpanded = !recentExpanded">
@@ -163,7 +165,7 @@ function cancel() {
                   class="chev"
                   :class="{ collapsed: !recentExpanded }"
                 />
-                <span>最近聊天</span>
+                <span>{{ t('modals.recentChats') }}</span>
               </button>
               <template v-if="recentExpanded">
                 <button
@@ -244,9 +246,9 @@ function cancel() {
             :disabled="!canConfirm"
             @click="confirm"
           >
-            确定
+            {{ t('common.confirm') }}
           </button>
-          <button type="button" class="btn" @click="cancel">取消</button>
+          <button type="button" class="btn" @click="cancel">{{ t('common.cancel') }}</button>
         </div>
       </div>
     </div>

@@ -7,8 +7,10 @@ import { storeToRefs } from 'pinia'
 import { useNotificationsStore } from '../../stores/notifications'
 import { useContactsStore } from '../../stores/contacts'
 import { useAppStore } from '../../stores/app'
+import { useI18n } from '../../i18n'
 
 const message = useMessage()
+const { t } = useI18n()
 const notificationsStore = useNotificationsStore()
 const contactsStore = useContactsStore()
 const appStore = useAppStore()
@@ -22,6 +24,13 @@ const { addFriendSession } = appStore
 onMounted(() => {
   void fetchFriendRequests()
 })
+
+function statusLabel(status: string) {
+  if (status === '等待验证') return t('contacts.waiting')
+  if (status === '已同意') return t('contacts.accepted')
+  if (status === '已拒绝') return t('contacts.rejected')
+  return status
+}
 
 async function handleAccept(id: string) {
   const n = notificationsStore.findFriendNotif(id)
@@ -37,10 +46,10 @@ async function handleAccept(id: string) {
         avatarUrl: accepted.avatar
       })
     }
-    message.success(`已同意「${n.name}」的好友请求`)
+    message.success(t('contacts.acceptedRequest', { name: n.name }))
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string }
-    message.error(err.response?.data?.message || err.message || '处理好友申请失败')
+    message.error(err.response?.data?.message || err.message || t('contacts.handleFail'))
   }
 }
 
@@ -50,35 +59,35 @@ async function handleReject(id: string) {
 
   try {
     await rejectFriendRequest(n.requestId)
-    message.success('已拒绝好友请求')
+    message.success(t('contacts.rejectedRequest'))
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string }
-    message.error(err.response?.data?.message || err.message || '处理好友申请失败')
+    message.error(err.response?.data?.message || err.message || t('contacts.handleFail'))
   }
 }
 
 function handleClear() {
   clearFriendNotifs()
-  message.success('已清空通知')
+  message.success(t('contacts.clearedNotifs'))
 }
 </script>
 
 <template>
   <div class="notifications-view">
     <div class="header">
-      <h2 class="title">好友通知</h2>
+      <h2 class="title">{{ t('contacts.friendNotif') }}</h2>
       <div class="actions">
-        <button class="action-btn" title="清空" @click="handleClear">
+        <button class="action-btn" :title="t('contacts.clear')" @click="handleClear">
           <n-icon :component="TrashOutline" :size="20" />
         </button>
-        <button class="action-btn" title="筛选">
+        <button class="action-btn" :title="t('contacts.filter')">
           <n-icon :component="FilterOutline" :size="20" />
         </button>
       </div>
     </div>
     <div class="content">
-      <div v-if="loading" class="empty">加载中…</div>
-      <div v-else-if="!friendNotifs.length" class="empty">暂无好友通知</div>
+      <div v-if="loading" class="empty">{{ t('common.loading') }}</div>
+      <div v-else-if="!friendNotifs.length" class="empty">{{ t('contacts.emptyFriendNotif') }}</div>
       <div v-else class="notif-list">
         <div v-for="item in friendNotifs" :key="item.id" class="notif-card">
           <img :src="item.avatar" class="avatar" alt="" />
@@ -88,17 +97,17 @@ function handleClear() {
               <span class="action-text">{{ item.action }}</span>
               <span class="date">{{ item.date }}</span>
             </div>
-            <div class="message">留言: {{ item.message || '无' }}</div>
-            <div v-if="item.source" class="source">来源: {{ item.source }}</div>
+            <div class="message">{{ t('contacts.messageLabel', { msg: item.message || t('contacts.none') }) }}</div>
+            <div v-if="item.source" class="source">{{ t('contacts.sourceLabel', { source: item.source }) }}</div>
           </div>
           <div
             v-if="item.status === '等待验证' && item.direction === 'incoming'"
             class="actions-right"
           >
-            <button type="button" class="btn accept" @click="handleAccept(item.id)">同意</button>
-            <button type="button" class="btn reject" @click="handleReject(item.id)">拒绝</button>
+            <button type="button" class="btn accept" @click="handleAccept(item.id)">{{ t('contacts.accept') }}</button>
+            <button type="button" class="btn reject" @click="handleReject(item.id)">{{ t('contacts.reject') }}</button>
           </div>
-          <div v-else class="status">{{ item.status }}</div>
+          <div v-else class="status">{{ statusLabel(item.status) }}</div>
         </div>
       </div>
     </div>

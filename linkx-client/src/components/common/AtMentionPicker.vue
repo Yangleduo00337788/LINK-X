@@ -10,6 +10,9 @@
  */
 import { computed, ref, watch } from 'vue'
 import type { ContactItem } from '../../types'
+import { useI18n } from '../../i18n'
+
+const { t } = useI18n()
 
 interface MentionPick {
   id: string
@@ -71,7 +74,7 @@ defineExpose({
 
 <template>
   <div class="at-mention-popover" @mousedown.prevent>
-    <div class="at-header">选择好友</div>
+    <div class="at-header">{{ t('extra.selectFriend') }}</div>
     <ul v-if="hasFriends" class="at-list">
       <li
         v-for="(friend, idx) in friends"
@@ -87,11 +90,11 @@ defineExpose({
         </span>
         <div class="at-info">
           <div class="at-name">{{ friend.name }}</div>
-          <div class="at-meta">我的好友</div>
+          <div class="at-meta">{{ t('chat.myFriends') }}</div>
         </div>
       </li>
     </ul>
-    <div v-else class="at-empty">暂无好友可 @，请先添加好友</div>
+    <div v-else class="at-empty">{{ t('extra.noFriendsToAt') }}</div>
   </div>
 </template>
 

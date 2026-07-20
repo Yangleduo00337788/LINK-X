@@ -15,29 +15,20 @@ import { useOverlayStore } from '../../stores/overlay'
 import { useMessage } from 'naive-ui'
 // 文件大小格式化工具
 import { formatFileSize } from '../../utils/file'
+import { useI18n } from '../../i18n'
 
-// 消息提示实例
 const message = useMessage()
-// 聊天弹窗 Store 实例
+const { t } = useI18n()
 const chatModalsStore = useChatModalsStore()
-// 应用 Store 实例
 const appStore = useAppStore()
-// 群元数据 Store 实例
 const groupMetaStore = useGroupMetaStore()
-// 覆盖层 Store 实例
 const overlayStore = useOverlayStore()
-// 群文件弹窗是否打开
 const { groupFilesOpen } = storeToRefs(chatModalsStore)
-// 关闭群文件弹窗的方法
 const { closeGroupFiles } = chatModalsStore
-// 当前会话、会话 ID、用户资料
 const { currentSession, currentSessionId, userProfile } = storeToRefs(appStore)
-// 打开覆盖层页面的方法
 const { open: openOverlay } = overlayStore
 
-// 文件搜索关键词
 const search = ref('')
-// 隐藏的文件上传 input 引用
 const uploadInputRef = ref<HTMLInputElement | null>(null)
 
 // 当前群聊的全部文件列表
@@ -58,9 +49,8 @@ const filteredFiles = computed(() => {
 
 // 将文件按月份分组展示
 function formatMonth(dateStr?: string): string {
-  if (!dateStr) return '未知时间'
+  if (!dateStr) return t('extra.unknownTime')
   try {
-    // 处理中文格式如 "07/16" 或 "7月16日"
     if (dateStr.includes('月') || dateStr.includes('/')) {
       return dateStr.length > 7 ? dateStr.slice(0, 7) : dateStr
     }
@@ -68,7 +58,7 @@ function formatMonth(dateStr?: string): string {
     if (Number.isNaN(date.getTime())) return dateStr
     const y = date.getFullYear()
     const m = String(date.getMonth() + 1).padStart(2, '0')
-    return `${y}年${m}月`
+    return t('calendar.yearMonth', { y, m: Number(m) })
   } catch {
     return dateStr
   }
@@ -124,25 +114,21 @@ function onUploadPicked(e: Event) {
     user,
     fileUrl
   })
-  message.success(`已上传「${file.name}」到群文件`)
+  message.success(t('extra.fileUploaded', { name: file.name }))
 }
 </script>
 
 <template>
-  <!-- 群文件弹窗：Teleport 挂载到 body -->
   <Teleport to="body">
     <div v-if="groupFilesOpen" class="modal-root" @click.self="close">
       <div class="files-window" @click.stop>
-        <!-- 窗口标题栏 -->
         <header class="win-head">
-          <h2>群文件 - {{ currentSession?.name || '群聊' }}</h2>
+          <h2>{{ t('extra.groupFilesTitle', { name: currentSession?.name || t('extra.groupChat') }) }}</h2>
           <button type="button" class="close-x" @click="close">×</button>
         </header>
-        <!-- 搜索栏 -->
         <div class="search-row">
-          <input v-model="search" type="text" class="search-field" placeholder="搜索" />
+          <input v-model="search" type="text" class="search-field" :placeholder="t('common.search')" />
         </div>
-        <!-- 文件列表滚动区 -->
         <div class="file-scroll">
           <section v-for="g in fileGroups" :key="g.month" class="month-block">
             <h3 class="month-title">{{ g.month }}</h3>
@@ -157,20 +143,19 @@ function onUploadPicked(e: Event) {
                 <div class="file-name">{{ f.name }}</div>
                 <div class="file-meta">
                   <span>{{ f.size }}</span>
-                  <span>{{ f.downloads }}次下载</span>
+                  <span>{{ t('extra.downloadCount', { n: f.downloads }) }}</span>
                   <span>{{ f.user }}</span>
                   <span>{{ f.date }}</span>
                 </div>
               </div>
             </div>
           </section>
-          <p v-if="!filteredFiles.length" class="empty">暂无群文件</p>
+          <p v-if="!filteredFiles.length" class="empty">{{ t('extra.noGroupFiles') }}</p>
         </div>
-        <!-- 底部统计与上传按钮 -->
         <footer class="win-foot">
-          <span>共 {{ filteredFiles.length }} 个文件</span>
+          <span>{{ t('extra.fileCount', { n: filteredFiles.length }) }}</span>
           <input ref="uploadInputRef" type="file" hidden @change="onUploadPicked" />
-          <button type="button" class="upload-btn" @click="triggerUpload">上传文件</button>
+          <button type="button" class="upload-btn" @click="triggerUpload">{{ t('extra.uploadFile') }}</button>
         </footer>
       </div>
     </div>

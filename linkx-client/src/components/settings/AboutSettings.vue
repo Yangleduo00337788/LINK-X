@@ -4,9 +4,11 @@ import { NButton, useMessage } from 'naive-ui'
 // 应用版本号（与后端 linkx.app.version 一致；服务端为准）
 import { APP_CLIENT_VERSION } from '../../utils/appVersion'
 import * as versionApi from '../../api/version'
+import { useI18n } from '../../i18n'
 
 // 消息提示实例
 const message = useMessage()
+const { t } = useI18n()
 
 /**
  * 检查更新
@@ -16,19 +18,24 @@ async function checkUpdate() {
   try {
     const res = await versionApi.checkUpdate(APP_CLIENT_VERSION)
     if (res.code !== 200 || !res.data) {
-      message.error(res.message || '检查更新失败')
+      message.error(res.message || t('about.checkFail'))
       return
     }
     const info = res.data
     if (info.hasUpdate) {
-      const suffix = info.downloadUrl ? `（下载：${info.downloadUrl}）` : ''
-      message.warning(`发现新版本 ${info.version}：${info.releaseNotes}${suffix}`, { duration: 8000 })
+      const suffix = info.downloadUrl
+        ? t('about.download', { url: info.downloadUrl })
+        : ''
+      message.warning(
+        t('about.found', { version: info.version, notes: info.releaseNotes }) + suffix,
+        { duration: 8000 }
+      )
     } else {
-      message.success(`当前已是最新版本 ${info.version}`)
+      message.success(t('about.latest', { version: info.version }))
     }
   } catch (e) {
     console.warn('[AboutSettings] 检查更新失败:', e)
-    message.error('检查更新失败，请稍后重试')
+    message.error(t('about.checkFailRetry'))
   }
 }
 </script>
@@ -42,9 +49,9 @@ async function checkUpdate() {
       <img src="../../assets/logo-linkx.svg" alt="LinkX" class="about-logo" />
       <h3 class="about-name">LinkX</h3>
       <p class="about-ver">Version {{ APP_CLIENT_VERSION }} · Beta</p>
-      <p class="about-desc">极简、高效、安全的企业级即时通讯工具</p>
+      <p class="about-desc">{{ t('about.desc') }}</p>
       <div class="about-actions">
-        <n-button type="primary" @click="checkUpdate">检查更新</n-button>
+        <n-button type="primary" @click="checkUpdate">{{ t('about.checkUpdate') }}</n-button>
       </div>
       <p class="about-copy">© 2026 LinkX Team</p>
     </section>

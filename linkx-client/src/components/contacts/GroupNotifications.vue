@@ -13,8 +13,10 @@ import { FilterOutline, RefreshOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useNotificationsStore } from '../../stores/notifications'
 import { useAppStore } from '../../stores/app'
+import { useI18n } from '../../i18n'
 
 const message = useMessage()
+const { t } = useI18n()
 const notificationsStore = useNotificationsStore()
 const appStore = useAppStore()
 
@@ -27,17 +29,24 @@ onMounted(() => {
   void fetchGroupInvitations()
 })
 
+function statusLabel(status: string) {
+  if (status === '等待验证') return t('contacts.waiting')
+  if (status === '已同意') return t('contacts.accepted')
+  if (status === '已拒绝') return t('contacts.rejected')
+  return status
+}
+
 async function handleAccept(id: string) {
   if (submitting.value) return
   submitting.value = true
   try {
     await acceptGroupInvitationAction(id)
-    message.success('已加入群聊')
+    message.success(t('contacts.joinedGroup'))
     // 刷新会话列表（接受后服务端已写入会话成员）
     void appStore.loadChatSessions()
   } catch (e) {
     const err = e as { response?: { data?: { message?: string } }; message?: string }
-    message.error(err.response?.data?.message || err.message || '加入群聊失败')
+    message.error(err.response?.data?.message || err.message || t('contacts.joinFail'))
   } finally {
     submitting.value = false
   }
@@ -48,10 +57,10 @@ async function handleReject(id: string) {
   submitting.value = true
   try {
     await rejectGroupInvitationAction(id)
-    message.success('已拒绝群邀请')
+    message.success(t('contacts.rejectInvite'))
   } catch (e) {
     const err = e as { response?: { data?: { message?: string } }; message?: string }
-    message.error(err.response?.data?.message || err.message || '拒绝群邀请失败')
+    message.error(err.response?.data?.message || err.message || t('contacts.rejectFail'))
   } finally {
     submitting.value = false
   }
@@ -60,7 +69,7 @@ async function handleReject(id: string) {
 async function handleClear() {
   // 仅刷新本地视图；不接受/拒绝的邀请后端仍保留，待用户处理。
   await fetchGroupInvitations()
-  message.success('已刷新')
+  message.success(t('contacts.refreshed'))
 }
 </script>
 
@@ -69,22 +78,22 @@ async function handleClear() {
   <div class="notifications-view">
     <!-- 顶部标题与操作栏 -->
     <div class="header">
-      <h2 class="title">群通知</h2>
+      <h2 class="title">{{ t('contacts.groupNotif') }}</h2>
       <div class="actions">
-        <button class="action-btn" title="刷新" @click="handleClear">
+        <button class="action-btn" :title="t('contacts.refresh')" @click="handleClear">
           <n-icon :component="RefreshOutline" :size="20" />
         </button>
-        <button class="action-btn" title="筛选">
+        <button class="action-btn" :title="t('contacts.filter')">
           <n-icon :component="FilterOutline" :size="20" />
         </button>
       </div>
     </div>
     <!-- 通知列表内容区 -->
     <div class="content">
-      <div v-if="!groupNotifs.length" class="empty">暂无群通知</div>
+      <div v-if="!groupNotifs.length" class="empty">{{ t('contacts.emptyGroupNotif') }}</div>
       <div v-else class="notif-list">
         <div v-for="item in groupNotifs" :key="item.id" class="notif-card">
-          <div class="group-icon">群</div>
+          <div class="group-icon">{{ t('contacts.groups').charAt(0) }}</div>
           <div class="info">
             <div class="title-line">
               <span class="name">{{ item.groupName }}</span>
@@ -93,10 +102,10 @@ async function handleClear() {
             <div class="message">{{ item.inviter }}：{{ item.message }}</div>
           </div>
           <div v-if="item.status === '等待验证'" class="actions-right">
-            <button type="button" class="btn accept" @click="handleAccept(item.id)">同意</button>
-            <button type="button" class="btn reject" @click="handleReject(item.id)">拒绝</button>
+            <button type="button" class="btn accept" @click="handleAccept(item.id)">{{ t('contacts.accept') }}</button>
+            <button type="button" class="btn reject" @click="handleReject(item.id)">{{ t('contacts.reject') }}</button>
           </div>
-          <div v-else class="status">{{ item.status }}</div>
+          <div v-else class="status">{{ statusLabel(item.status) }}</div>
         </div>
       </div>
     </div>

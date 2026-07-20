@@ -9,9 +9,11 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '../../../stores/app'
 import EmptyState from '../../common/EmptyState.vue'
 import Avatar from '../../Avatar.vue'
+import { useI18n } from '../../../i18n'
 
 const appStore = useAppStore()
 const message = useMessage()
+const { t } = useI18n()
 const { sessions, messagesBySession, currentSessionId } = storeToRefs(appStore)
 const { selectSession } = appStore
 
@@ -85,10 +87,10 @@ const currentSessionName = computed(() => {
 
 // 历史消息预览
 function historyPreview(msg: (typeof currentMessages.value)[number]) {
-  if (msg.type === 'file') return `[文件] ${msg.fileName || msg.content}`
-  if (msg.type === 'image' || msg.isImage) return '[图片]'
-  if (msg.type === 'voice') return '[语音]'
-  if (msg.type === 'redPacket') return `[红包] ${msg.redPacketGreeting || msg.content}`
+  if (msg.type === 'file') return `${t('overlay.file')} ${msg.fileName || msg.content}`
+  if (msg.type === 'image' || msg.isImage) return t('overlay.image')
+  if (msg.type === 'voice') return t('overlay.voice')
+  if (msg.type === 'redPacket') return `${t('overlay.redPacket')} ${msg.redPacketGreeting || msg.content}`
   return msg.content
 }
 
@@ -97,7 +99,7 @@ function goToMessage(sessionId: string) {
   const session = sessions.value.find(s => s.id === sessionId)
   if (session) {
     selectSession(session)
-    message.success('已跳转到对应会话')
+    message.success(t('overlay.jumpedToSession'))
   }
 }
 </script>
@@ -108,7 +110,7 @@ function goToMessage(sessionId: string) {
     <div class="search-bar">
       <n-input
         v-model:value="searchQuery"
-        placeholder="搜索聊天记录..."
+        :placeholder="t('overlay.searchHistory')"
         clearable
       >
         <template #prefix>
@@ -125,22 +127,22 @@ function goToMessage(sessionId: string) {
             <n-icon :component="SearchOutline" :size="28" />
           </div>
           <div class="history-meta">
-            <h2 class="history-name">搜索结果</h2>
+            <h2 class="history-name">{{ t('overlay.searchResults') }}</h2>
             <p class="history-sub">
-              共 {{ searchResults.reduce((sum, r) => sum + r.messages.length, 0) }} 条相关记录
+              {{ t('overlay.resultCount', { n: searchResults.reduce((sum, r) => sum + r.messages.length, 0) }) }}
             </p>
           </div>
         </div>
 
         <div v-if="searchResults.length === 0" class="empty-search">
-          <n-empty description="未找到匹配的聊天记录" />
+          <n-empty :description="t('overlay.noMatchHistory')" />
         </div>
 
         <div v-else class="search-results">
           <div v-for="result in searchResults" :key="result.sessionId" class="result-group">
             <div class="result-session" @click="goToMessage(result.sessionId)">
               <span class="session-name">{{ result.sessionName }}</span>
-              <span class="result-count">{{ result.messages.length }} 条</span>
+              <span class="result-count">{{ t('overlay.countUnit', { n: result.messages.length }) }}</span>
             </div>
             <div
               v-for="msg in result.messages.slice(0, 5)"
@@ -155,7 +157,7 @@ function goToMessage(sessionId: string) {
               </div>
             </div>
             <div v-if="result.messages.length > 5" class="result-more">
-              还有 {{ result.messages.length - 5 }} 条结果...
+              {{ t('overlay.moreResults', { n: result.messages.length - 5 }) }}
             </div>
           </div>
         </div>
@@ -173,15 +175,15 @@ function goToMessage(sessionId: string) {
             <h2 class="history-name">{{ currentSessionName }}</h2>
             <p class="history-sub">
               <n-icon :component="TimeOutline" :size="14" />
-              共 {{ currentMessages.length }} 条消息
+              {{ t('overlay.msgCount', { n: currentMessages.length }) }}
             </p>
           </div>
         </div>
 
         <div v-if="currentMessages.length === 0" class="empty-history">
           <EmptyState
-            title="暂无消息"
-            description="当前会话还没有聊天记录"
+            :title="t('overlay.noMessages')"
+            :description="t('overlay.noMessagesDesc')"
           />
         </div>
         <div v-else class="history-scroll">

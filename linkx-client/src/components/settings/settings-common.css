@@ -1,31 +1,26 @@
 /*
- * LinkX 设置页通用布局
- * - .settings-main 是外层 flex column 容器（由 SettingsModal.vue 提供）
- * - .settings-scroll 是内容滚动区（由各 AccountSettings/GeneralSettings 等子组件提供）
- * - 必须在父级 .main-body 已设置 overflow 后，这里仅作为内容布局
+ * LinkX 设置页通用布局（应用内整页右侧内容区）
  */
 
 .settings-scroll {
   flex: 1;
   width: 100%;
-  /* 关键：max-width 与 margin 取消，让卡片铺满右侧 640px 宽度 */
-  max-width: none;
+  max-width: 720px;
   margin: 0;
-  padding: 24px 32px 32px;
+  padding: 8px 28px 32px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
   box-sizing: border-box;
 }
 
-/* ---- 分组卡片 ---- */
 .group-card {
-  background: var(--lx-bg-panel);
+  background: var(--lx-bg-card);
   border: 1px solid var(--lx-border-light);
   border-radius: 12px;
   padding: 4px 0;
   overflow: hidden;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
 }
 
 .group-head {
@@ -33,11 +28,10 @@
   align-items: center;
   gap: 8px;
   padding: 14px 18px 10px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--lx-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  color: var(--lx-text-body);
+  letter-spacing: 0.01em;
 }
 
 .group-ico {
