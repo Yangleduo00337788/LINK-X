@@ -57,7 +57,8 @@ export default {
     toneTitle: '提示音',
     tone: '音色',
     toneDesc: '点击选项可试听，选中后会保存到云端',
-    previewTone: '试听当前音色（{label}）'
+    previewTone: '试听当前音色（{label}）',
+    newMessageGeneric: '你收到一条新消息'
   },
   privacy: {
     title: '隐私设置',
@@ -182,9 +183,13 @@ export default {
     downloadDirDefault: '使用系统默认下载目录',
     change: '更改',
     open: '打开',
+    resetDefault: '恢复默认',
+    dirReset: '已恢复为系统默认下载目录',
     saveMode: '保存方式',
     askEveryTime: '每次询问保存位置',
+    askEveryTimeDesc: '下载时弹出系统另存为对话框',
     autoSave: '自动保存到下载目录',
+    autoSaveDesc: '下载时直接写入上方下载目录，不弹窗',
     cache: '本地缓存',
     clearCache: '清理应用缓存',
     clearCacheDesc: '清理图片/网络等临时缓存，不影响聊天记录',
@@ -194,6 +199,9 @@ export default {
     openFail: '无法打开下载目录',
     cacheCleared: '缓存已清理',
     cacheFail: '清理缓存失败',
+    downloadOk: '下载完成',
+    downloadSaved: '已保存到 {path}',
+    downloadFail: '下载失败',
     search: '搜索文件 / 发送者',
     recent: '最近',
     document: '文档',
@@ -234,7 +242,18 @@ export default {
     checkFailRetry: '检查更新失败，请稍后重试',
     latest: '当前已是最新版本 {version}',
     found: '发现新版本 {version}：{notes}',
-    download: '（下载：{url}）'
+    download: '（下载：{url}）',
+    updateTitle: '发现新版本',
+    noNotes: '暂无更新说明',
+    autoInstallHint: '确认后将自动下载安装包并启动安装程序。',
+    downloadInstall: '下载并安装',
+    downloading: '正在下载更新…',
+    installing: '正在启动安装程序…',
+    installStarted: '安装程序已启动，应用即将退出',
+    downloadReady: '安装包已下载，请手动运行完成升级',
+    webDownloadStarted: '已开始下载，请运行安装包完成升级',
+    installFail: '下载或启动安装失败',
+    noDownloadUrl: '发现新版本，但服务端未配置下载地址'
   },
   common: {
     cancel: '取消',

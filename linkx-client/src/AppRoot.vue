@@ -27,8 +27,14 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from './stores/app'
 import { useAppSettingsStore } from './stores/appSettings'
 import { naiveThemeColors } from './theme/vars'
-import { applyDocumentTheme, notifyElectronTheme } from './utils/themeSync'
-import { applyAccentColor } from './utils/accentColor'
+import {
+  applyDocumentTheme,
+  notifyElectronTheme,
+  resolveThemePreference,
+  startSystemThemeSync,
+  stopSystemThemeSync
+} from './utils/themeSync'
+import { applyAccentColor, liveAccentColor, liveAccentHover } from './utils/accentColor'
 import { setLocale, localeRef } from './i18n'
 
 // 获取应用 Store 实例
@@ -49,9 +55,9 @@ const themeOverrides = computed<GlobalThemeOverrides>(() => {
     common: {
       borderRadius: naiveThemeColors.borderRadius, // 全局圆角
       borderRadiusSmall: naiveThemeColors.borderRadius, // 小圆角
-      primaryColor: naiveThemeColors.primaryColor, // 主色
-      primaryColorHover: naiveThemeColors.primaryColorHover, // 主色悬停
-      primaryColorPressed: naiveThemeColors.primaryColorPressed, // 主色按下
+      primaryColor: liveAccentColor.value, // 主色（含幻彩实时色）
+      primaryColorHover: liveAccentHover.value, // 主色悬停
+      primaryColorPressed: liveAccentColor.value, // 主色按下
       errorColor: naiveThemeColors.errorColor, // 错误色（影响 n-result 等组件）
       errorColorHover: naiveThemeColors.errorColorHover, // 错误色悬停
       errorColorPressed: naiveThemeColors.errorColorPressed, // 错误色按下
@@ -75,8 +81,21 @@ function syncHtmlTheme() {
 let unsubShortcutLock: (() => void) | null = null
 
 onMounted(() => {
-  syncHtmlTheme()
   const settings = useAppSettingsStore()
+  // 启动时若为「跟随系统」，按当前 OS 主题解析，避免沿用过期的浅色/深色缓存
+  const resolved = resolveThemePreference(settings.themeMode || 'light')
+  if (appStore.theme !== resolved) {
+    appStore.theme = resolved
+  }
+  syncHtmlTheme()
+  startSystemThemeSync(
+    () => useAppSettingsStore().themeMode,
+    next => {
+      if (appStore.theme !== next) appStore.theme = next
+      applyDocumentTheme(next)
+      notifyElectronTheme(next)
+    }
+  )
   setLocale(settings.language || 'zh-CN')
   void settings.syncDesktopPrefs()
   applyAccentColor(settings.accentColor || 'cyan')
@@ -94,6 +113,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  stopSystemThemeSync()
   if (unsubShortcutLock) unsubShortcutLock()
 })
 watch(theme, syncHtmlTheme)

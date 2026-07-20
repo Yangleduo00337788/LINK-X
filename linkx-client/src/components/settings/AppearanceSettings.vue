@@ -10,7 +10,11 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '../../stores/app'
 import { useAppSettingsStore } from '../../stores/appSettings'
 import { applyAccentColor, ACCENT_PRESETS } from '../../utils/accentColor'
-import { applyDocumentTheme, notifyElectronTheme } from '../../utils/themeSync'
+import {
+  applyDocumentTheme,
+  notifyElectronTheme,
+  resolveThemePreference
+} from '../../utils/themeSync'
 import { useI18n } from '../../i18n'
 
 const appStore = useAppStore()
@@ -18,13 +22,9 @@ const appSettingsStore = useAppSettingsStore()
 const { accentColor, themeMode } = storeToRefs(appSettingsStore)
 const { t } = useI18n()
 
-function resolveSystemTheme(): 'light' | 'dark' {
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-}
-
 function applyThemeMode(mode: 'system' | 'light' | 'dark') {
   themeMode.value = mode
-  const resolved = mode === 'system' ? resolveSystemTheme() : mode
+  const resolved = resolveThemePreference(mode)
   if (appStore.theme !== resolved) {
     appStore.theme = resolved
   }

@@ -55,7 +55,8 @@ export default {
     toneTitle: 'Tones',
     tone: 'Tone',
     toneDesc: 'Click to preview. Your choice syncs to the cloud.',
-    previewTone: 'Preview current tone ({label})'
+    previewTone: 'Preview current tone ({label})',
+    newMessageGeneric: 'You have a new message'
   },
   privacy: {
     title: 'Privacy',
@@ -179,9 +180,13 @@ export default {
     downloadDirDefault: 'Use the system default downloads folder',
     change: 'Change',
     open: 'Open',
+    resetDefault: 'Reset to default',
+    dirReset: 'Restored system default downloads folder',
     saveMode: 'Save behavior',
     askEveryTime: 'Ask every time',
+    askEveryTimeDesc: 'Show a Save As dialog for each download',
     autoSave: 'Save to download folder',
+    autoSaveDesc: 'Save directly to the folder above without prompting',
     cache: 'Local cache',
     clearCache: 'Clear app cache',
     clearCacheDesc: 'Clears image/network temp cache. Chat history is kept.',
@@ -191,6 +196,9 @@ export default {
     openFail: 'Unable to open download folder',
     cacheCleared: 'Cache cleared',
     cacheFail: 'Failed to clear cache',
+    downloadOk: 'Download complete',
+    downloadSaved: 'Saved to {path}',
+    downloadFail: 'Download failed',
     search: 'Search files / sender',
     recent: 'Recent',
     document: 'Docs',
@@ -231,7 +239,18 @@ export default {
     checkFailRetry: 'Update check failed. Please try again later.',
     latest: 'You are on the latest version {version}',
     found: 'New version {version}: {notes}',
-    download: ' (download: {url})'
+    download: ' (download: {url})',
+    updateTitle: 'Update available',
+    noNotes: 'No release notes',
+    autoInstallHint: 'LinkX will download the installer and launch it automatically.',
+    downloadInstall: 'Download & install',
+    downloading: 'Downloading update…',
+    installing: 'Starting installer…',
+    installStarted: 'Installer launched. The app will quit shortly.',
+    downloadReady: 'Installer downloaded. Please run it to finish updating.',
+    webDownloadStarted: 'Download started. Run the installer to finish updating.',
+    installFail: 'Failed to download or launch the installer',
+    noDownloadUrl: 'A new version is available, but no download URL is configured'
   },
   common: {
     cancel: 'Cancel',

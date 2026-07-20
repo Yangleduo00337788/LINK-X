@@ -48,6 +48,9 @@ function onKeydown(e: KeyboardEvent) {
   recording.value = null
 }
 
+const DEFAULT_TOGGLE = 'CommandOrControl+Shift+L'
+const DEFAULT_LOCK = 'CommandOrControl+Shift+K'
+
 async function saveShortcuts() {
   shortcutToggleWindow.value = draftToggle.value
   shortcutLock.value = draftLock.value
@@ -62,9 +65,11 @@ async function saveShortcuts() {
   message.success(t('shortcuts.saved'))
 }
 
-function resetDefaults() {
-  draftToggle.value = 'CommandOrControl+Shift+L'
-  draftLock.value = 'CommandOrControl+Shift+K'
+/** 恢复默认并立即落盘、向主进程重新注册 */
+async function resetDefaults() {
+  draftToggle.value = DEFAULT_TOGGLE
+  draftLock.value = DEFAULT_LOCK
+  await saveShortcuts()
 }
 </script>
 
@@ -105,7 +110,14 @@ function resetDefaults() {
         </div>
       </div>
       <div class="actions-row">
-        <n-button size="small" tertiary @click="resetDefaults">{{ t('shortcuts.reset') }}</n-button>
+        <n-button
+          size="small"
+          tertiary
+          :disabled="!isElectron"
+          @click="resetDefaults"
+        >
+          {{ t('shortcuts.reset') }}
+        </n-button>
         <n-button size="small" type="primary" :disabled="!isElectron" @click="saveShortcuts">
           {{ t('shortcuts.save') }}
         </n-button>

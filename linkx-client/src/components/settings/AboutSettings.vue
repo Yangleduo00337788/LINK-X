@@ -1,20 +1,84 @@
 <script setup lang="ts">
-// Naive UI 按钮与消息提示
-import { NButton, useMessage } from 'naive-ui'
-// 应用版本号（与后端 linkx.app.version 一致；服务端为准）
+import { ref } from 'vue'
+import { NButton, useDialog, useMessage } from 'naive-ui'
 import { APP_CLIENT_VERSION } from '../../utils/appVersion'
 import * as versionApi from '../../api/version'
 import { useI18n } from '../../i18n'
 
-// 消息提示实例
 const message = useMessage()
+const dialog = useDialog()
 const { t } = useI18n()
+const checking = ref(false)
+const updating = ref(false)
+const progressText = ref('')
 
 /**
- * 检查更新
- * 调用后端 /app/version?current=...，根据返回 hasUpdate 决定提示内容。
+ * 发现新版本后自动下载并拉起安装。
+ * Electron：主进程下载到临时目录后 openPath；Web：打开下载链接。
  */
+async function startDownloadAndInstall(info: {
+  version: string
+  downloadUrl: string
+  releaseNotes?: string
+}) {
+  const url = (info.downloadUrl || '').trim()
+  if (!url) {
+    message.warning(t('about.noDownloadUrl'))
+    return
+  }
+
+  updating.value = true
+  progressText.value = t('about.downloading')
+
+  const unsub = window.electronAPI?.onUpdateProgress?.(data => {
+    if (data.phase === 'installing') {
+      progressText.value = t('about.installing')
+    } else {
+      progressText.value = t('about.downloading')
+    }
+  })
+
+  try {
+    if (window.electronAPI?.downloadAndInstallUpdate) {
+      const result = await window.electronAPI.downloadAndInstallUpdate({
+        url,
+        version: info.version
+      })
+      if (!result.ok) {
+        message.error(result.message || t('about.installFail'))
+        return
+      }
+      if (result.launched) {
+        message.success(t('about.installStarted'))
+      } else {
+        message.success(result.message || t('about.downloadReady'))
+      }
+      return
+    }
+
+    // Web：触发浏览器下载 / 打开安装包地址
+    const a = document.createElement('a')
+    a.href = url
+    a.target = '_blank'
+    a.rel = 'noopener'
+    a.download = ''
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    message.success(t('about.webDownloadStarted'))
+  } catch (e) {
+    console.warn('[AboutSettings] 下载安装失败:', e)
+    message.error(t('about.installFail'))
+  } finally {
+    unsub?.()
+    updating.value = false
+    progressText.value = ''
+  }
+}
+
 async function checkUpdate() {
+  if (checking.value || updating.value) return
+  checking.value = true
   try {
     const res = await versionApi.checkUpdate(APP_CLIENT_VERSION)
     if (res.code !== 200 || !res.data) {
@@ -22,28 +86,35 @@ async function checkUpdate() {
       return
     }
     const info = res.data
-    if (info.hasUpdate) {
-      const suffix = info.downloadUrl
-        ? t('about.download', { url: info.downloadUrl })
-        : ''
-      message.warning(
-        t('about.found', { version: info.version, notes: info.releaseNotes }) + suffix,
-        { duration: 8000 }
-      )
-    } else {
+    if (!info.hasUpdate) {
       message.success(t('about.latest', { version: info.version }))
+      return
     }
+
+    const notes = (info.releaseNotes || '').trim()
+    dialog.warning({
+      title: t('about.updateTitle'),
+      content:
+        t('about.found', { version: info.version, notes: notes || t('about.noNotes') }) +
+        '\n\n' +
+        t('about.autoInstallHint'),
+      positiveText: t('about.downloadInstall'),
+      negativeText: t('common.cancel'),
+      onPositiveClick: () => {
+        void startDownloadAndInstall(info)
+      }
+    })
   } catch (e) {
     console.warn('[AboutSettings] 检查更新失败:', e)
     message.error(t('about.checkFailRetry'))
+  } finally {
+    checking.value = false
   }
 }
 </script>
 
 <template>
-  <!-- 关于 LinkX 设置页 -->
   <div class="settings-scroll about-scroll">
-    <!-- 品牌信息与操作按钮 -->
     <section class="about-card">
       <div class="about-glow" />
       <img src="../../assets/logo-linkx.svg" alt="LinkX" class="about-logo" />
@@ -51,7 +122,14 @@ async function checkUpdate() {
       <p class="about-ver">Version {{ APP_CLIENT_VERSION }} · Beta</p>
       <p class="about-desc">{{ t('about.desc') }}</p>
       <div class="about-actions">
-        <n-button type="primary" @click="checkUpdate">{{ t('about.checkUpdate') }}</n-button>
+        <n-button
+          type="primary"
+          :loading="checking || updating"
+          :disabled="checking || updating"
+          @click="checkUpdate"
+        >
+          {{ updating ? progressText || t('about.downloading') : t('about.checkUpdate') }}
+        </n-button>
       </div>
       <p class="about-copy">© 2026 LinkX Team</p>
     </section>
@@ -80,49 +158,53 @@ async function checkUpdate() {
   top: -40px;
   left: 50%;
   transform: translateX(-50%);
-  width: 200px;
-  height: 120px;
-  background: radial-gradient(ellipse, var(--lx-accent-soft) 0%, transparent 70%);
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--lx-accent-soft), transparent 70%);
   pointer-events: none;
 }
 
 .about-logo {
+  position: relative;
   width: 72px;
   height: 72px;
-  position: relative;
-  z-index: 1;
+  margin: 0 auto 12px;
 }
 
 .about-name {
-  margin: 16px 0 4px;
+  position: relative;
+  margin: 0;
   font-size: 22px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--lx-text-body);
 }
 
 .about-ver {
-  margin: 0;
+  position: relative;
+  margin: 6px 0 0;
   font-size: 13px;
   color: var(--lx-text-muted);
 }
 
 .about-desc {
-  margin: 12px 0 24px;
-  font-size: 14px;
-  color: var(--lx-text-secondary);
+  position: relative;
+  margin: 14px auto 0;
+  max-width: 320px;
+  font-size: 13px;
   line-height: 1.5;
+  color: var(--lx-text-secondary);
 }
 
 .about-actions {
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-  margin-bottom: 20px;
+  position: relative;
+  margin-top: 20px;
 }
 
 .about-copy {
-  margin: 0;
-  font-size: 11px;
+  position: relative;
+  margin: 22px 0 0;
+  font-size: 12px;
   color: var(--lx-text-muted);
 }
 </style>

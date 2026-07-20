@@ -12,8 +12,12 @@ import router from './router'
 // 全局应用 Store，用于读取初始主题
 import { useAppStore } from './stores/app'
 import { useAppSettingsStore } from './stores/appSettings'
-// 主题同步工具：写入 data-theme、跨窗口同步
-import { applyDocumentTheme, initCrossWindowThemeSync } from './utils/themeSync'
+// 主题同步工具：写入 data-theme、跨窗口同步、跟随系统
+import {
+  applyDocumentTheme,
+  initCrossWindowThemeSync,
+  resolveThemePreference
+} from './utils/themeSync'
 import { setLocale } from './i18n'
 // UnoCSS 原子化样式入口
 import 'uno.css'
@@ -32,12 +36,17 @@ app.use(pinia)
 // 挂载路由
 app.use(router)
 
-// 应用启动时读取持久化的主题并同步到 DOM
+// 启动时按外观偏好解析主题（跟随系统则读 OS，避免闪旧主题）
 const appStore = useAppStore()
-applyDocumentTheme(appStore.theme)
+const settingsStore = useAppSettingsStore()
+const bootTheme = resolveThemePreference(settingsStore.themeMode || 'light')
+if (appStore.theme !== bootTheme) {
+  appStore.theme = bootTheme
+}
+applyDocumentTheme(bootTheme)
 
 // 从本地偏好恢复界面语言（pinia persist 已在 use 后可读）
-setLocale(useAppSettingsStore().language || 'zh-CN')
+setLocale(settingsStore.language || 'zh-CN')
 
 // 兼容历史脏持久化：曾误把 isLoggedIn/isOffline 整包写入 localStorage。
 // 启动时作废脏登录态；自动登录改由登录页首帧绘制后再触发，避免「看不见 loading 就进主界面」。
