@@ -74,9 +74,13 @@ async function togglePin() {
     <!-- 左侧：品牌与标题 -->
     <div class="status-left">
       <div class="brand-block" title="LinkX">
-        <svg class="brand-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="24" height="24" rx="6" fill="var(--lx-text)"/>
-          <path d="M8 8L16 16M16 8L8 16" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <svg class="brand-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect width="24" height="24" rx="6.5" fill="var(--lx-text)"/>
+          <!-- 双环相扣：Link，斜交轮廓：X -->
+          <g transform="translate(12 12)" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round">
+            <ellipse rx="6.4" ry="3.05" transform="rotate(-42)"/>
+            <ellipse rx="6.4" ry="3.05" transform="rotate(42)"/>
+          </g>
         </svg>
         <span class="brand-text">LinkX</span>
       </div>

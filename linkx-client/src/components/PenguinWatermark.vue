@@ -11,26 +11,18 @@ withDefaults(
 </script>
 
 <template>
-  <!-- LinkX Logo 占位区域 -->
   <div class="logo-wrap">
-    <svg
-      class="logo-icon"
-      viewBox="0 0 200 80"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
-      <!-- Logo background circle -->
-      <circle cx="40" cy="40" r="32" fill="var(--lx-accent)"/>
-      <!-- Link icon: two connected nodes -->
-      <circle cx="28" cy="40" r="8" fill="white"/>
-      <circle cx="52" cy="40" r="8" fill="white"/>
-      <path d="M36 40h8" stroke="white" stroke-width="3" stroke-linecap="round"/>
-      <!-- X accent -->
-      <path d="M28 32l8 16M36 32l8 16" stroke="white" stroke-width="2" stroke-linecap="round"/>
-      <!-- LinkX text -->
-      <text x="85" y="52" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="36" font-weight="700" fill="var(--lx-text-body)">LinkX</text>
-    </svg>
+    <div class="logo-lockup" aria-hidden="true">
+      <svg class="logo-mark" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="32" cy="32" r="30" fill="var(--lx-accent)"/>
+        <!-- 双环相扣：流畅曲线，比节点 X 更轻盈 -->
+        <g transform="translate(32 32)" fill="none" stroke="#fff" stroke-width="4.2" stroke-linecap="round">
+          <ellipse rx="14.5" ry="6.9" transform="rotate(-42)"/>
+          <ellipse rx="14.5" ry="6.9" transform="rotate(42)"/>
+        </g>
+      </svg>
+      <span class="logo-wordmark">LinkX</span>
+    </div>
     <p v-if="hint" class="hint">{{ hint }}</p>
   </div>
 </template>
@@ -44,27 +36,37 @@ withDefaults(
   justify-content: center;
   min-height: 200px;
   padding: 24px;
-  background: radial-gradient(
-    ellipse 55% 45% at 50% 42%,
-    rgba(255, 255, 255, 0.65) 0%,
-    transparent 70%
-  );
 }
 
-.logo-icon {
-  width: 240px;
-  height: 96px;
-  opacity: 0.4;
+.logo-lockup {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  opacity: 0.42;
   pointer-events: none;
   user-select: none;
-  filter: drop-shadow(0 8px 24px var(--lx-bg-hover));
+}
+
+.logo-mark {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+}
+
+.logo-wordmark {
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--lx-text-body);
+  line-height: 1;
+  font-family: 'Segoe UI Semibold', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
 .hint {
-  margin: 16px 0 0;
-  font-size: 14px;
-  color: #b8b8b8;
-  letter-spacing: 0.04em;
+  margin: 14px 0 0;
+  font-size: 13px;
+  color: var(--lx-text-muted, #b8b8b8);
+  letter-spacing: 0.06em;
   font-weight: 400;
 }
 </style>
