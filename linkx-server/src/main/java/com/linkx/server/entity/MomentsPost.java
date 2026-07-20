@@ -29,6 +29,12 @@ public class MomentsPost implements Serializable {
 
     private String content;
 
+    private String location;
+
+    private String atUsers;
+
+    private Integer visibility;
+
     @Column(onInsertValue = "NOW()")
     private Date createTime;
 

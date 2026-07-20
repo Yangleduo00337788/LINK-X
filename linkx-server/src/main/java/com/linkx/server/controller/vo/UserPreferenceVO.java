@@ -32,4 +32,5 @@ public class UserPreferenceVO implements Serializable {
     private String language;
     private String chatBackground;
     private String notifyTone;
+    private String momentsBackground;
 }

@@ -26,6 +26,12 @@ declare global {
       isElectron?: boolean                    // 是否为 Electron 环境
       /** 屏幕截图，返回截图数据或 null */
       captureScreen?: () => Promise<{ dataURL: string; width: number; height: number } | null>
+      /** 通过 IP 获取地理位置，返回位置字符串或 null */
+      fetchIPLocation?: () => Promise<string | null>
+      /** 发布成功后通知友链列表窗口刷新 */
+      notifyMomentsPublished?: () => void
+      /** 订阅友链列表刷新，返回取消订阅函数 */
+      onMomentsRefresh?: (callback: () => void) => () => void
       /** OS 级加密存储（Token、锁屏 PIN 等敏感数据） */
       secureStorage?: {
         isAvailable: () => Promise<boolean>

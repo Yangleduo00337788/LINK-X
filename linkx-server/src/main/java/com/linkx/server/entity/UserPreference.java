@@ -60,6 +60,9 @@ public class UserPreference implements Serializable {
     /** 提示音（音色 ID：default/chime/bell/pop 等） */
     private String notifyTone;
 
+    /** 友链背景图（对象存储 key） */
+    private String momentsBackground;
+
     @Column(onInsertValue = "NOW()")
     private Date createTime;
 

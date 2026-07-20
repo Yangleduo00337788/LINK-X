@@ -8,7 +8,7 @@
  * 同一套页面、同一套交互,差异仅在标题与是否渲染媒体区。
  */
 import { computed, nextTick, ref, onMounted } from 'vue'
-import { NIcon, useMessage } from 'naive-ui'
+import { NIcon, NModal, NButton, NRadio, NRadioGroup, useMessage } from 'naive-ui'
 import {
   LocationOutline,
   AtCircleOutline,
@@ -17,7 +17,9 @@ import {
   PlayCircleOutline,
   CheckmarkCircleOutline,
   TrashOutline,
-  AddOutline
+  AddOutline,
+  CloseOutline,
+  RemoveOutline
 } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useRoute } from 'vue-router'
@@ -32,6 +34,8 @@ import {
   MAX_PUBLISH_VIDEO_BYTES
 } from '../utils/file'
 import AtMentionPicker from './common/AtMentionPicker.vue'
+import LocationPickerPage from './LocationPickerPage.vue'
+import { normalizeMediaUrl } from '../utils/mediaUrl'
 
 const route = useRoute()
 const appStore = useAppStore()
@@ -74,8 +78,26 @@ const mentionQuery = ref('')
 const mentionStartIndex = ref(0)
 const mentionPickerRef = ref<InstanceType<typeof AtMentionPicker> | null>(null)
 
-// 选项列表状态
-const visibility = ref('公开')
+// ========== 新增功能 ==========
+// 所在位置
+const location = ref('')
+const showLocationPage = ref(false)
+
+// 提醒谁看
+const atUsers = ref<Array<{ id: number; name: string; avatar?: string }>>([])
+const showAtUsersModal = ref(false)
+
+// 谁可以看
+const visibility = ref(0) // 0=公开，1=仅好友，2=私密
+const showVisibilityModal = ref(false)
+const visibilityOptions = [
+  { value: 0, label: '公开', desc: '所有朋友都能看' },
+  { value: 1, label: '仅好友', desc: '仅好友可见' },
+  { value: 2, label: '私密', desc: '仅自己可见' }
+]
+
+const visibilityLabels = ['公开', '仅好友', '私密']
+// ========== 新增功能结束 ==========
 
 // 发布成功
 const showSuccess = ref(false)
@@ -117,6 +139,12 @@ onMounted(() => {
 function closeWindow() {
   if (window.electronAPI) {
     window.electronAPI.close()
+  }
+}
+
+function minimizeWindow() {
+  if (window.electronAPI) {
+    window.electronAPI.minimize()
   }
 }
 
@@ -249,6 +277,68 @@ function removeVideo(idx: number) {
   videos.value.splice(idx, 1)
 }
 
+// ========== 新增功能方法 ==========
+function openLocationPage() {
+  showLocationPage.value = true
+}
+
+function onLocationSelect(loc: string) {
+  location.value = loc
+  showLocationPage.value = false
+}
+
+function onLocationBack() {
+  showLocationPage.value = false
+}
+
+function openAtUsersModal() {
+  // 确保好友列表已加载
+  if (!contactsStore.items.length) {
+    void contactsStore.fetchFriends()
+  }
+  showAtUsersModal.value = true
+}
+
+function toggleAtUser(friend: { id: number; name: string; avatar?: string }) {
+  const idx = atUsers.value.findIndex(u => u.id === friend.id)
+  if (idx >= 0) {
+    atUsers.value.splice(idx, 1)
+  } else {
+    atUsers.value.push(friend)
+  }
+}
+
+function isAtUserSelected(friendId: number) {
+  return atUsers.value.some(u => u.id === friendId)
+}
+
+function confirmAtUsers() {
+  showAtUsersModal.value = false
+}
+
+function removeAtUser(id: number) {
+  atUsers.value = atUsers.value.filter(u => u.id !== id)
+}
+
+function openVisibilityModal() {
+  showVisibilityModal.value = true
+}
+
+function confirmVisibility() {
+  showVisibilityModal.value = false
+}
+
+function toggleAtUserFromContact(friend: { id: string; name: string; avatarUrl?: string }) {
+  const userId = Number(friend.id)
+  const idx = atUsers.value.findIndex(u => u.id === userId)
+  if (idx >= 0) {
+    atUsers.value.splice(idx, 1)
+  } else {
+    atUsers.value.push({ id: userId, name: friend.name, avatar: friend.avatarUrl })
+  }
+}
+// ========== 新增功能方法结束 ==========
+
 const publishing = ref(false)
 
 async function publish() {
@@ -296,8 +386,15 @@ async function publish() {
     }
     uploadProgress.value = 100
     const finalContent = trimmed || (mode.value === 'media' ? '分享图片' : '')
-    const ok = await momentsStore.addPost(finalContent, uploaded)
+    const atUserIds = atUsers.value.map(u => u.id)
+    const ok = await momentsStore.addPost(finalContent, uploaded, {
+      location: location.value || undefined,
+      atUsers: atUserIds.length > 0 ? atUserIds : undefined,
+      visibility: visibility.value
+    })
     if (ok) {
+      // 通知友链列表窗口立即刷新（发布页与列表页是独立 Electron 窗口）
+      window.electronAPI?.notifyMomentsPublished?.()
       showSuccess.value = true
       message.success('发布成功')
       setTimeout(() => {
@@ -329,9 +426,14 @@ async function publish() {
   <div class="text-page">
     <!-- ============= 顶部栏(微信风) ============= -->
     <header class="page-header">
-      <button type="button" class="header-btn cancel-btn" @click="closeWindow">
-        取消
-      </button>
+      <div class="header-left-controls">
+        <button type="button" class="window-btn" title="最小化" @click="minimizeWindow">
+          <n-icon :component="RemoveOutline" :size="16" />
+        </button>
+        <button type="button" class="window-btn close-btn" title="关闭" @click="closeWindow">
+          <n-icon :component="CloseOutline" :size="16" />
+        </button>
+      </div>
       <h1 class="page-title">
         {{ mode === 'text' ? '发表文字' : '发表图片/视频' }}
       </h1>
@@ -427,33 +529,109 @@ async function publish() {
         />
       </div>
 
-      <!-- 选项列表(图二核心:微信风列表项) -->
+      <!-- 选项列表(微信风) -->
       <ul class="options-list">
-        <li class="option-row">
+        <li class="option-row" @click="openLocationPage">
           <span class="option-icon">
             <n-icon :component="LocationOutline" :size="20" />
           </span>
           <span class="option-label">所在位置</span>
+          <span v-if="location" class="option-value">{{ location }}</span>
           <n-icon :component="ChevronForwardOutline" :size="16" class="option-arrow" />
         </li>
-        <li class="option-row">
+        <li class="option-row" @click="openAtUsersModal">
           <span class="option-icon">
             <n-icon :component="AtCircleOutline" :size="20" />
           </span>
           <span class="option-label">提醒谁看</span>
+          <span v-if="atUsers.length" class="option-value at-users-count">{{ atUsers.length }}人</span>
           <n-icon :component="ChevronForwardOutline" :size="16" class="option-arrow" />
         </li>
-        <li class="option-row">
+        <li class="option-row" @click="openVisibilityModal">
           <span class="option-icon">
             <n-icon :component="PersonCircleOutline" :size="20" />
           </span>
           <span class="option-label">谁可以看</span>
-          <span class="option-value">{{ visibility }}</span>
+          <span class="option-value">{{ visibilityLabels[visibility] }}</span>
           <n-icon :component="ChevronForwardOutline" :size="16" class="option-arrow" />
         </li>
       </ul>
     </main>
+
+    <!-- 底部固定区域 -->
+    <footer class="page-footer">
+      <button type="button" class="publish-btn-footer" :disabled="!canPublish" @click="publish">
+        {{ publishing ? '发表中...' : '发表' }}
+      </button>
+    </footer>
   </div>
+
+  <!-- ========== 位置选择页面 ========== -->
+  <Teleport to="body">
+    <Transition name="page-slide">
+      <LocationPickerPage
+        v-if="showLocationPage"
+        @select="onLocationSelect"
+        @back="onLocationBack"
+      />
+    </Transition>
+  </Teleport>
+
+  <!-- ========== 提醒谁看弹窗 ========== -->
+  <n-modal v-model:show="showAtUsersModal" preset="card" title="提醒谁看" style="max-width: 360px;">
+    <div class="at-users-modal">
+      <!-- 已选择的好友标签 -->
+      <div v-if="atUsers.length" class="selected-tags">
+        <span v-for="user in atUsers" :key="user.id" class="selected-tag">
+          {{ user.name }}
+          <n-icon :component="CloseOutline" :size="14" class="tag-close" @click.stop="removeAtUser(user.id)" />
+        </span>
+      </div>
+      <!-- 好友列表 -->
+      <div class="friends-list">
+        <div
+          v-for="friend in contactsStore.friends"
+          :key="friend.id"
+          class="friend-item"
+          :class="{ selected: isAtUserSelected(Number(friend.id)) }"
+          @click="toggleAtUserFromContact(friend)"
+        >
+          <img
+            v-if="friend.avatarUrl"
+            :src="friend.avatarUrl"
+            class="friend-avatar"
+            @error="$event.target.style.display='none'"
+          />
+          <div v-else class="friend-avatar-placeholder" :style="{ background: friend.avatarColor }">
+            {{ friend.avatarText }}
+          </div>
+          <span class="friend-name">{{ friend.name }}</span>
+          <n-icon v-if="isAtUserSelected(Number(friend.id))" :component="CheckmarkCircleOutline" :size="20" class="check-icon" />
+        </div>
+        <div v-if="!contactsStore.friends.length" class="no-friends">暂无好友</div>
+      </div>
+      <div class="modal-actions">
+        <n-button @click="showAtUsersModal = false">取消</n-button>
+        <n-button type="primary" @click="confirmAtUsers">确定</n-button>
+      </div>
+    </div>
+  </n-modal>
+
+  <!-- ========== 谁可以看弹窗 ========== -->
+  <n-modal v-model:show="showVisibilityModal" preset="card" title="谁可以看" style="max-width: 320px;">
+    <div class="visibility-modal">
+      <n-radio-group v-model:value="visibility" class="visibility-options">
+        <div v-for="opt in visibilityOptions" :key="opt.value" class="visibility-option">
+          <n-radio :value="opt.value">{{ opt.label }}</n-radio>
+          <span class="visibility-desc">{{ opt.desc }}</span>
+        </div>
+      </n-radio-group>
+      <div class="modal-actions">
+        <n-button @click="showVisibilityModal = false">取消</n-button>
+        <n-button type="primary" @click="confirmVisibility">确定</n-button>
+      </div>
+    </div>
+  </n-modal>
 </template>
 
 <style scoped>
@@ -525,6 +703,36 @@ async function publish() {
   flex-shrink: 0;
   background: var(--lx-bg-card);
   gap: 8px;
+}
+
+.header-left-controls {
+  display: flex;
+  gap: 4px;
+  -webkit-app-region: no-drag;
+}
+
+.window-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--lx-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.window-btn:hover {
+  background: var(--lx-bg-hover);
+  color: var(--lx-text-body);
+}
+
+.window-btn.close-btn:hover {
+  background: var(--lx-danger, #e05454);
+  color: #fff;
 }
 
 .header-btn {
@@ -744,20 +952,23 @@ async function publish() {
   list-style: none;
   margin: 0;
   padding: 0;
+  flex-shrink: 0;
+  margin-top: auto;
+  border-top: 1px solid var(--lx-border-light);
 }
 
 .option-row {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 14px 20px;
-  border-top: 1px solid var(--lx-border-light);
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--lx-border-light);
   background: var(--lx-bg-card);
   cursor: pointer;
   transition: background 0.15s ease;
 }
 .option-row:last-child {
-  border-bottom: 1px solid var(--lx-border-light);
+  border-bottom: none;
 }
 .option-row:active {
   background: var(--lx-bg-hover);
@@ -773,12 +984,12 @@ async function publish() {
 
 .option-label {
   flex: 1;
-  font-size: 15px;
+  font-size: 13px;
   color: var(--lx-text-body);
 }
 
 .option-value {
-  font-size: 14px;
+  font-size: 12px;
   color: var(--lx-text-muted);
   margin-right: 4px;
 }
@@ -786,5 +997,199 @@ async function publish() {
 .option-arrow {
   color: var(--lx-text-muted);
   opacity: 0.6;
+  font-size: 12px;
 }
+
+/* ========== 底部固定区域 ========== */
+.page-footer {
+  flex-shrink: 0;
+  padding: 12px 16px;
+  border-top: 1px solid var(--lx-border-light);
+  background: var(--lx-bg-card);
+}
+
+.publish-btn-footer {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  background: var(--lx-accent, #07c160);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+.publish-btn-footer:hover:not(:disabled) {
+  opacity: 0.9;
+}
+.publish-btn-footer:disabled {
+  background: var(--lx-bg-input);
+  color: var(--lx-text-muted);
+  cursor: not-allowed;
+}
+
+/* ========== 弹窗样式 ========== */
+.location-modal {
+  padding: 8px 0;
+}
+
+.location-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--lx-border);
+  border-radius: 8px;
+  font-size: 15px;
+  background: var(--lx-bg-input);
+  color: var(--lx-text);
+  outline: none;
+  box-sizing: border-box;
+}
+.location-input:focus {
+  border-color: var(--lx-accent);
+}
+
+.at-users-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 400px;
+  overflow: hidden;
+}
+
+.selected-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px;
+  background: var(--lx-bg-input);
+  border-radius: 8px;
+  min-height: 40px;
+}
+
+.selected-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: var(--lx-accent-soft);
+  color: var(--lx-accent);
+  border-radius: 12px;
+  font-size: 13px;
+}
+
+.tag-close {
+  cursor: pointer;
+  opacity: 0.7;
+}
+.tag-close:hover {
+  opacity: 1;
+}
+
+.friends-list {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 280px;
+}
+
+.friend-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.friend-item:hover {
+  background: var(--lx-bg-hover);
+}
+.friend-item.selected {
+  background: var(--lx-accent-soft);
+}
+
+.friend-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.friend-avatar-placeholder {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.friend-name {
+  flex: 1;
+  font-size: 15px;
+  color: var(--lx-text-body);
+}
+
+.check-icon {
+  color: var(--lx-accent);
+}
+
+.no-friends {
+  text-align: center;
+  padding: 20px;
+  color: var(--lx-text-muted);
+}
+
+.visibility-modal {
+  padding: 8px 0;
+}
+
+.visibility-options {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.visibility-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.visibility-desc {
+  font-size: 12px;
+  color: var(--lx-text-muted);
+  margin-left: 24px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--lx-border-light);
+}
+
+.at-users-count {
+  color: var(--lx-accent);
+}
+
+/* ========== 页面滑动动画 ========== */
+.page-slide-enter-active,
+.page-slide-leave-active {
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+.page-slide-enter-from {
+  transform: translateX(100%);
+  opacity: 0;
+}
+.page-slide-leave-to {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
 </style>

@@ -1,6 +1,31 @@
-const { contextBridge, ipcRenderer } = require('electron')
+const { contextBridge, ipcRenderer, desktopCapturer } = require('electron')
 
 const MAX_CHANGED = 'window-maximized-changed'
+
+// 屏幕截图 API
+async function captureScreen() {
+  try {
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: 1920, height: 1080 }
+    })
+    if (sources.length === 0) return null
+    const source = sources[0]
+    return {
+      dataURL: source.thumbnail.toDataURL(),
+      width: source.thumbnail.getSize().width,
+      height: source.thumbnail.getSize().height
+    }
+  } catch (e) {
+    console.error('截图失败:', e)
+    return null
+  }
+}
+
+// 通过 IPC 调用主进程的 IP 定位（主进程可访问 http/https 模块）
+async function fetchIPLocation() {
+  return ipcRenderer.invoke('fetch-ip-location')
+}
 
 contextBridge.exposeInMainWorld('electronAPI', {
   minimize: () => ipcRenderer.invoke('window:minimize'),
@@ -25,6 +50,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   notifyThemeChange: theme => ipcRenderer.send('theme-changed', theme),
   setWindowMode: mode => ipcRenderer.invoke('window:set-mode', mode),
   isElectron: true,
+  captureScreen,
+  fetchIPLocation,
+  /** 发布成功后通知友链列表窗口刷新 */
+  notifyMomentsPublished: () => ipcRenderer.send('moments:published'),
+  /** 订阅友链列表刷新（发布成功后触发），返回取消订阅函数 */
+  onMomentsRefresh: callback => {
+    if (typeof callback !== 'function') return () => {}
+    const listener = () => callback()
+    ipcRenderer.on('moments:refresh', listener)
+    return () => ipcRenderer.removeListener('moments:refresh', listener)
+  },
   secureStorage: {
     isAvailable: () => ipcRenderer.invoke('secure-storage:is-available'),
     get: key => ipcRenderer.invoke('secure-storage:get', key),

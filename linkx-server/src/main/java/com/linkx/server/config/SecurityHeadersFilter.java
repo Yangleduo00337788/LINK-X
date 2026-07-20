@@ -42,7 +42,7 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         response.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
         response.setHeader("Cache-Control", "no-store");
         response.setHeader("X-Permitted-Cross-Domain-Policies", "none");
-        response.setHeader("Permissions-Policy", "geolocation=(), microphone=(self), camera=(self)");
+        response.setHeader("Permissions-Policy", "geolocation=(self), microphone=(self), camera=(self)");
 
         // Content-Security-Policy：允许同源 + MinIO（127.0.0.1 与 localhost 均放行，兼容旧链接）
         String minioOrigin = linkxProperties.getMinio().getEndpoint();

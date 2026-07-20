@@ -29,7 +29,10 @@ import {
   SearchOutline,
   AddCircleOutline,
   AtCircleOutline,
-  ImageOutline
+  ImageOutline,
+  LocationOutline,
+  LockClosedOutline,
+  PeopleOutline
 } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../stores/chatModals'
@@ -254,6 +257,8 @@ function onPreviewKeydown(e: KeyboardEvent) {
 }
 
 // 挂载
+let unsubscribeMomentsRefresh: (() => void) | null = null
+
 onMounted(() => {
   applyDocumentTheme(appStore.theme)
   notifyElectronTheme(appStore.theme)
@@ -275,11 +280,17 @@ onMounted(() => {
     void fetchNotificationCount()
   })()
   window.addEventListener('keydown', onPreviewKeydown)
+  // 发布窗口发完后通过 IPC 通知本窗口刷新列表
+  unsubscribeMomentsRefresh = window.electronAPI?.onMomentsRefresh?.(() => {
+    void fetchMoments()
+  }) ?? null
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onPreviewKeydown)
   window.removeEventListener('click', closeBannerMenu)
+  unsubscribeMomentsRefresh?.()
+  unsubscribeMomentsRefresh = null
 })
 
 watch(theme, t => {
@@ -554,6 +565,30 @@ function getImageGridClass(count: number): string {
   if (count === 4) return 'grid-4'
   return 'grid-more'
 }
+
+/** 提醒谁看：优先用后端昵称，否则用通讯录解析 ID */
+function getAtUserNames(post: { atUserNames?: string[]; atUsers?: string }): string[] {
+  if (post.atUserNames?.length) return post.atUserNames
+  if (!post.atUsers) return []
+  try {
+    const ids = JSON.parse(post.atUsers) as Array<string | number>
+    if (!Array.isArray(ids)) return []
+    return ids
+      .map(id => {
+        const friend = contactsStore.friends.find(f => String(f.id) === String(id) || String(f.userId) === String(id))
+        return friend?.name || ''
+      })
+      .filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
+function visibilityLabel(visibility?: number): string {
+  if (visibility === 1) return '仅好友'
+  if (visibility === 2) return '私密'
+  return ''
+}
 </script>
 
 <template>
@@ -608,6 +643,31 @@ function getImageGridClass(count: number): string {
                   <span v-if="post.images.length > 1" class="image-index">{{ index + 1 }}</span>
                 </div>
               </button>
+            </div>
+            <!-- 位置 / 提醒谁看 / 可见性 -->
+            <div
+              v-if="post.location || getAtUserNames(post).length || (post.visibility && post.visibility > 0)"
+              class="post-meta"
+            >
+              <div v-if="post.location" class="meta-item meta-location">
+                <n-icon :component="LocationOutline" :size="14" />
+                <span>{{ post.location }}</span>
+              </div>
+              <div v-if="getAtUserNames(post).length" class="meta-item meta-at">
+                <n-icon :component="AtCircleOutline" :size="14" />
+                <span>提醒了 {{ getAtUserNames(post).join('、') }}</span>
+              </div>
+              <div
+                v-if="post.visibility === 1 || post.visibility === 2"
+                class="meta-item meta-visibility"
+                :title="visibilityLabel(post.visibility)"
+              >
+                <n-icon
+                  :component="post.visibility === 2 ? LockClosedOutline : PeopleOutline"
+                  :size="14"
+                />
+                <span>{{ visibilityLabel(post.visibility) }}</span>
+              </div>
             </div>
             <div class="post-footer">
               <span class="post-time">{{ post.time }}</span>
@@ -1196,6 +1256,41 @@ function getImageGridClass(count: number): string {
   margin-bottom: 10px;
   word-break: break-all;
   white-space: pre-wrap;
+}
+
+.post-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin: -2px 0 10px;
+}
+
+.meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  max-width: 100%;
+}
+
+.meta-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta-location {
+  color: var(--lx-accent);
+}
+
+.meta-at {
+  color: var(--lx-text-muted);
+}
+
+.meta-visibility {
+  color: var(--lx-text-muted);
 }
 
 .post-images {

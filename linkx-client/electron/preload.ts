@@ -41,12 +41,25 @@ async function captureScreen(): Promise<{ dataURL: string; width: number; height
   }
 }
 
+// 通过 IPC 调用主进程 IP 定位（主进程可访问 http/https）
+function fetchIPLocation(): Promise<string | null> {
+  return ipcRenderer.invoke('fetch-ip-location')
+}
+
 const api = {
   minimize: () => windowAction('minimize'),
   maximize: () => windowAction('maximize'),
   close: () => windowAction('close'),
   isElectron: true as const,
   captureScreen,
+  fetchIPLocation,
+  notifyMomentsPublished: () => ipcRenderer.send('moments:published'),
+  onMomentsRefresh: (callback: () => void) => {
+    if (typeof callback !== 'function') return () => {}
+    const listener = () => callback()
+    ipcRenderer.on('moments:refresh', listener)
+    return () => ipcRenderer.removeListener('moments:refresh', listener)
+  },
   secureStorage: {
     isAvailable: () => ipcRenderer.invoke('secure-storage:is-available'),
     get: (key: string) => ipcRenderer.invoke('secure-storage:get', key),

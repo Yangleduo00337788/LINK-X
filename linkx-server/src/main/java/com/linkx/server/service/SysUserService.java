@@ -32,6 +32,14 @@ public interface SysUserService extends IService<SysUser> {
     void updateAvatar(Long userId, String avatarUrl);
 
     /**
+     * 更新友链背景图（存储在 user_preference 表）
+     *
+     * @param userId    用户 ID
+     * @param objectKey MinIO 对象 key
+     */
+    void updateMomentsBackground(Long userId, String objectKey);
+
+    /**
      * 修改密码
      *
      * @param userId      用户 ID

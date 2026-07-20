@@ -110,6 +110,31 @@ public class UserController {
     }
 
     /**
+     * 上传友链背景图
+     */
+    @PostMapping("/moments-background")
+    public Result<UserPreferenceVO> uploadMomentsBackground(
+            @RequestParam("file") MultipartFile file,
+            HttpServletRequest request) {
+        Long userId = getCurrentUserId(request);
+        if (userId == null) {
+            return Result.error(401, "未登录");
+        }
+
+        try {
+            ImageUploadValidator.assertSupportedImage(file);
+        } catch (IllegalArgumentException e) {
+            return Result.error(400, e.getMessage());
+        }
+
+        String objectKey = fileStorageService.uploadFile(file, null);
+        sysUserService.updateMomentsBackground(userId, objectKey);
+
+        UserPreference pref = userPreferenceService.getOrDefault(userId);
+        return Result.success(toPreferenceVO(pref));
+    }
+
+    /**
      * 获取用户公开资料（供其他用户查看）
      */
     @GetMapping("/{userId}/profile")
@@ -225,6 +250,7 @@ public class UserController {
                 .language(emptyToNull(dto.getLanguage()))
                 .chatBackground(emptyToNull(dto.getChatBackground()))
                 .notifyTone(emptyToNull(dto.getNotifyTone()))
+                .momentsBackground(emptyToNull(dto.getMomentsBackground()))
                 .build();
         UserPreference saved = userPreferenceService.upsert(userId, patch);
         return Result.success(toPreferenceVO(saved));
@@ -234,7 +260,7 @@ public class UserController {
         return s == null || s.isEmpty() ? null : s;
     }
 
-    private static UserPreferenceVO toPreferenceVO(UserPreference p) {
+    private UserPreferenceVO toPreferenceVO(UserPreference p) {
         if (p == null) return null;
         return UserPreferenceVO.builder()
                 .autoStart(p.getAutoStart())
@@ -248,6 +274,7 @@ public class UserController {
                 .language(p.getLanguage())
                 .chatBackground(p.getChatBackground())
                 .notifyTone(p.getNotifyTone())
+                .momentsBackground(toSignedUrl(p.getMomentsBackground(), 24 * 3600))
                 .build();
     }
 

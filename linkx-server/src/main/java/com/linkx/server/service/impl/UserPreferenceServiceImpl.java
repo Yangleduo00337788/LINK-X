@@ -66,6 +66,7 @@ public class UserPreferenceServiceImpl
         if (patch.getLanguage() != null) target.setLanguage(patch.getLanguage());
         if (patch.getChatBackground() != null) target.setChatBackground(patch.getChatBackground());
         if (patch.getNotifyTone() != null) target.setNotifyTone(patch.getNotifyTone());
+        if (patch.getMomentsBackground() != null) target.setMomentsBackground(patch.getMomentsBackground());
     }
 
     /** 生成与表默认值一致的偏好对象（不包含时间戳，由 MyBatis-Flex 填充） */

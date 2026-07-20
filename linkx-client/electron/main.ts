@@ -1,6 +1,8 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, globalShortcut, safeStorage, type IpcMainEvent, type IpcMainInvokeEvent, type WebRequestHeadersReceivedCallbackParams, type OnHeadersReceivedListener } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, globalShortcut, safeStorage, desktopCapturer, type IpcMainEvent, type IpcMainInvokeEvent, type WebRequestHeadersReceivedCallbackParams, type OnHeadersReceivedListener } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
+import http from 'node:http'
+import https from 'node:https'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -48,8 +50,85 @@ if (isDev) {
   app.commandLine.appendSwitch('--disable-software-rasterizer')
 }
 
+// 启用地理位置支持
+app.commandLine.appendSwitch('--enable-geolocation')
+app.commandLine.appendSwitch('--use-fake-ui-for-media-stream')
+app.commandLine.appendSwitch('--use-fake-device-for-media-stream')
+
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
+
+/** 英文省市名 → 中文（ipinfo 等海外接口） */
+const CITY_CN: Record<string, string> = {
+  Beijing: '北京', Shanghai: '上海', Guangzhou: '广州', Shenzhen: '深圳',
+  Chengdu: '成都', Hangzhou: '杭州', Wuhan: '武汉', Xian: '西安', XiAn: '西安',
+  Nanjing: '南京', Chongqing: '重庆', Tianjin: '天津', Suzhou: '苏州',
+  Dalian: '大连', Qingdao: '青岛', Ningbo: '宁波', Fuzhou: '福州',
+  Xiamen: '厦门', Changsha: '长沙', Zhengzhou: '郑州', Kunming: '昆明',
+  Guiyang: '贵阳', Urumqi: '乌鲁木齐', Lhasa: '拉萨', Xining: '西宁',
+  Yinchuan: '银川', Haikou: '海口', Sanya: '三亚', Shenyang: '沈阳',
+  Changchun: '长春', Harbin: '哈尔滨', Shijiazhuang: '石家庄', Taiyuan: '太原',
+  Hohhot: '呼和浩特', Nanchang: '南昌', Nanning: '南宁', Lanzhou: '兰州',
+  Gansu: '甘肃', Zhejiang: '浙江', Guangdong: '广东', Jiangsu: '江苏',
+  Shandong: '山东', Sichuan: '四川', Hubei: '湖北', Hunan: '湖南',
+  Henan: '河南', Hebei: '河北', Fujian: '福建', Anhui: '安徽',
+  Liaoning: '辽宁', Jiangxi: '江西', Shanxi: '山西', Shaanxi: '陕西',
+  Yunnan: '云南', Guizhou: '贵州', Guangxi: '广西', Hainan: '海南',
+  Jilin: '吉林', Heilongjiang: '黑龙江', Inner: '内蒙古', Mongolia: '内蒙古',
+  'Inner Mongolia': '内蒙古', Xinjiang: '新疆', Tibet: '西藏', Qinghai: '青海',
+  Ningxia: '宁夏', Taiwan: '台湾', Hong: '香港', Kong: '香港', Macau: '澳门',
+  'Hong Kong': '香港'
+}
+
+function toCN(name: string | undefined): string {
+  if (!name) return ''
+  return CITY_CN[name] || CITY_CN[name.replace(/\s+/g, '')] || name
+}
+
+/** 从各 IP 定位服务的 JSON 中解析可读位置 */
+function parseIPLocationJson(json: Record<string, unknown>): string | null {
+  // ip9.com.cn：返回中文省市区
+  if (json.ret === 200 && json.data && typeof json.data === 'object') {
+    const d = json.data as Record<string, unknown>
+    const parts = [d.prov, d.city, d.area].filter(v => typeof v === 'string' && v)
+    if (parts.length) return parts.join(' ')
+  }
+  // ip-api.com
+  if (json.status === 'success') {
+    if (typeof json.district === 'string' && json.district) return json.district
+    const region = toCN(String(json.regionName || ''))
+    const city = toCN(String(json.city || ''))
+    if (region || city) return [region, city].filter(Boolean).join(' ')
+  }
+  // ipinfo.io
+  if (json.city && json.region) {
+    return `${toCN(String(json.region))} ${toCN(String(json.city))}`.trim()
+  }
+  return null
+}
+
+// 通过 IP 获取地理位置辅助函数（主进程可访问 http/https 模块）
+async function tryIPService(url: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const mod = url.startsWith('https') ? https : http
+    const req = mod.get(url, { timeout: 5000 }, (res) => {
+      let data = ''
+      res.setEncoding('utf8')
+      res.on('data', (chunk) => { data += chunk })
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(data) as Record<string, unknown>
+          resolve(parseIPLocationJson(json))
+        } catch (e) {
+          console.error('[Main] 解析 IP 定位响应失败:', e)
+          resolve(null)
+        }
+      })
+    })
+    req.on('error', (e) => { console.error('[Main] IP 定位请求错误:', e.message); resolve(null) })
+    req.on('timeout', () => { console.error('[Main] IP 定位请求超时'); req.destroy(); resolve(null) })
+  })
+}
 
 function winFromSender(event: IpcMainEvent | IpcMainInvokeEvent): BrowserWindow | null {
   return BrowserWindow.fromWebContents(event.sender) ?? mainWindow
@@ -90,6 +169,7 @@ function registerWindowIpc() {
   ipcMain.removeHandler('app:set-auto-start')
   ipcMain.removeHandler('app:get-auto-start')
   ipcMain.removeHandler('window:set-mode')
+  ipcMain.removeHandler('fetch-ip-location')
   ipcMain.removeHandler('secure-storage:is-available')
   ipcMain.removeHandler('secure-storage:get')
   ipcMain.removeHandler('secure-storage:set')
@@ -151,6 +231,20 @@ function registerWindowIpc() {
       win.setSize(1083, 833, false)
       win.center()
     }
+  })
+
+  // 通过 IP 获取地理位置（优先国内可访问接口，失败再回退）
+  ipcMain.handle('fetch-ip-location', async () => {
+    const services = [
+      'https://ip9.com.cn/get',
+      'https://ipinfo.io/json',
+      'http://ip-api.com/json/?fields=status,country,regionName,city,district&lang=zh'
+    ]
+    for (const url of services) {
+      const result = await tryIPService(url)
+      if (result) return result
+    }
+    return null
   })
 
   ipcMain.handle('secure-storage:is-available', () => safeStorage.isEncryptionAvailable())
@@ -297,6 +391,14 @@ function createMomentsWindow() {
 
 ipcMain.on('window-open-moments', () => {
   createMomentsWindow()
+})
+
+/** 发布窗口通知：友链列表窗口刷新 */
+ipcMain.on('moments:published', () => {
+  if (momentsWindow && !momentsWindow.isDestroyed()) {
+    momentsWindow.webContents.send('moments:refresh')
+    if (momentsWindow.isMinimized()) momentsWindow.restore()
+  }
 })
 
 // 友链-发布文字独立窗口

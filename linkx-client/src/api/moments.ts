@@ -8,6 +8,11 @@ export interface MomentsPost {
   avatar?: string
   content: string
   images?: string[]
+  location?: string
+  atUsers?: string
+  /** 提醒谁看的昵称列表 */
+  atUserNames?: string[]
+  visibility?: number
   time: string
   likes: number
   liked: boolean
@@ -29,6 +34,12 @@ export interface MomentsComment {
 export interface PublishPayload {
   content: string
   images?: string[]
+  /** 所在位置 */
+  location?: string
+  /** 提醒谁看，用户 ID 列表 */
+  atUsers?: number[]
+  /** 可见性：0=公开，1=仅好友，2=私密 */
+  visibility?: number
 }
 
 export interface CommentPayload {

@@ -8,6 +8,7 @@ import com.linkx.server.controller.dto.RegisterDTO;
 import com.linkx.server.controller.dto.UpdateProfileDTO;
 import com.linkx.server.controller.vo.TokenVO;
 import com.linkx.server.entity.SysUser;
+import com.linkx.server.entity.UserPreference;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.*;
@@ -34,6 +35,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     private final EmailService emailService;
     private final LinkxProperties linkxProperties;
     private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
+    private final com.linkx.server.service.UserPreferenceService userPreferenceService;
 
     @Override
     public void register(RegisterDTO registerDTO, HttpServletRequest request) {
@@ -190,6 +192,21 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
         user.setAvatar(avatarKeyOrUrl);
         updateById(user);
+    }
+
+    @Override
+    public void updateMomentsBackground(Long userId, String objectKey) {
+        UserPreference pref = userPreferenceService.getOrDefault(userId);
+        String oldKey = pref.getMomentsBackground();
+        if (oldKey != null && !oldKey.isEmpty()) {
+            try {
+                fileStorageService.deleteFile(oldKey);
+            } catch (Exception e) {
+                log.warn("删除旧友链背景图失败: {}", e.getMessage());
+            }
+        }
+        pref.setMomentsBackground(objectKey);
+        userPreferenceService.upsert(userId, pref);
     }
 
     @Override

@@ -53,9 +53,22 @@ public class MomentsServiceImpl implements MomentsService {
             throw new CustomException(404, "用户不存在");
         }
 
+        // 处理 atUsers：序列化为 JSON 字符串
+        String atUsersJson = null;
+        List<Long> atUserIds = sanitizeMentions(dto.getAtUsers(), userId);
+        if (!atUserIds.isEmpty()) {
+            atUsersJson = toJsonString(atUserIds);
+        }
+
+        // 默认可见性为公开（0）
+        Integer visibility = dto.getVisibility() != null ? dto.getVisibility() : 0;
+
         MomentsPost post = MomentsPost.builder()
                 .userId(userId)
                 .content(dto.getContent())
+                .location(dto.getLocation())
+                .atUsers(atUsersJson)
+                .visibility(visibility)
                 .build();
         postMapper.insert(post);
 
@@ -73,6 +86,26 @@ public class MomentsServiceImpl implements MomentsService {
                         .build();
                 imageMapper.insert(image);
                 savedImages.add(image);
+            }
+        }
+
+        // 发送提醒通知给被 @ 的用户
+        if (!atUserIds.isEmpty()) {
+            for (Long targetId : atUserIds) {
+                try {
+                    notificationService.create(
+                            targetId,
+                            userId,
+                            user.getNickname(),
+                            user.getAvatar(),
+                            "moments_at",
+                            post.getId(),
+                            extractPostPreview(dto.getContent())
+                    );
+                    imPushService.pushToUser(targetId, "notification_refresh", Map.of("type", "moments_at"));
+                } catch (Exception e) {
+                    log.warn("发送提醒通知失败 postId={} targetId={}: {}", post.getId(), targetId, e.getMessage());
+                }
             }
         }
 
@@ -103,6 +136,9 @@ public class MomentsServiceImpl implements MomentsService {
 
         List<MomentsPostVO> result = new ArrayList<>();
         for (MomentsPost post : posts) {
+            if (!canViewPost(post, userId)) {
+                continue;
+            }
             result.add(toPostVO(post,
                     userMap.get(post.getUserId()),
                     imagesMap.getOrDefault(post.getId(), Collections.emptyList()),
@@ -134,6 +170,9 @@ public class MomentsServiceImpl implements MomentsService {
 
         List<MomentsPostVO> result = new ArrayList<>();
         for (MomentsPost post : posts) {
+            if (!canViewPost(post, userId)) {
+                continue;
+            }
             result.add(toPostVO(post,
                     targetUser,
                     imagesMap.getOrDefault(post.getId(), Collections.emptyList()),
@@ -142,6 +181,20 @@ public class MomentsServiceImpl implements MomentsService {
                     userId));
         }
         return result;
+    }
+
+    /**
+     * 可见性校验：0=公开，1=仅好友（列表已按好友圈过滤），2=私密仅作者可见
+     */
+    private boolean canViewPost(MomentsPost post, Long viewerId) {
+        Integer visibility = post.getVisibility();
+        if (visibility == null || visibility == 0 || visibility == 1) {
+            return true;
+        }
+        if (visibility == 2) {
+            return Objects.equals(post.getUserId(), viewerId);
+        }
+        return true;
     }
 
     @Override
@@ -397,6 +450,8 @@ public class MomentsServiceImpl implements MomentsService {
                 .collect(Collectors.toList());
 
         String timeStr = formatTime(post.getCreateTime());
+        List<Long> atUserIds = parseMentions(post.getAtUsers());
+        List<String> atUserNames = resolveUserNicknames(atUserIds);
 
         return MomentsPostVO.builder()
                 .id(post.getId())
@@ -405,12 +460,31 @@ public class MomentsServiceImpl implements MomentsService {
                 .avatar(user != null ? mediaUrlService.resolve(user.getAvatar()) : null)
                 .content(post.getContent())
                 .images(imageUrls)
+                .location(post.getLocation())
+                .atUsers(post.getAtUsers())
+                .atUserNames(atUserNames)
+                .visibility(post.getVisibility())
                 .time(timeStr)
                 .likes(likes.size())
                 .liked(liked)
                 .likedBy(likedBy)
                 .comments(commentVOs)
                 .build();
+    }
+
+    /** 批量解析用户昵称，保持入参顺序 */
+    private List<String> resolveUserNicknames(List<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<String> names = new ArrayList<>(userIds.size());
+        for (Long id : userIds) {
+            SysUser u = userMapper.selectOneById(id);
+            if (u != null && u.getNickname() != null && !u.getNickname().isBlank()) {
+                names.add(u.getNickname());
+            }
+        }
+        return names;
     }
 
     private MomentsCommentVO toCommentVO(MomentsComment comment, SysUser user) {

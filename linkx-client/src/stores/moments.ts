@@ -27,6 +27,10 @@ export interface MomentPost {
   avatar: string          // 头像 URL
   content: string         // 文字内容
   images?: string[]       // 可选图片 URL 列表
+  location?: string       // 所在位置
+  atUsers?: string        // 提醒谁看，用户 ID 列表（JSON 字符串）
+  atUserNames?: string[]  // 提醒谁看的昵称列表
+  visibility?: number     // 可见性：0=公开，1=仅好友，2=私密
   time: string            // 时间戳
   likes: number           // 点赞数
   liked: boolean          // 当前用户是否已赞
@@ -42,6 +46,10 @@ function mapPost(p: momentsApi.MomentsPost): MomentPost {
     avatar: toDisplayableMediaUrl(p.avatar),
     content: p.content,
     images: (p.images || []).map(url => toDisplayableMediaUrl(url)).filter(Boolean),
+    location: p.location,
+    atUsers: p.atUsers,
+    atUserNames: Array.isArray(p.atUserNames) ? p.atUserNames : undefined,
+    visibility: p.visibility,
     time: p.time,
     likes: p.likes ?? 0,
     liked: !!p.liked,
@@ -109,11 +117,25 @@ export const useMomentsStore = defineStore('moments', {
     },
 
     /** 发布新动态 */
-    async addPost(content: string, images?: string[]) {
+    async addPost(
+      content: string,
+      images?: string[],
+      options?: {
+        location?: string
+        atUsers?: number[]
+        visibility?: number
+      }
+    ) {
       const appStore = useAppStore()
       try {
-        console.log('[Moments] 发布动态:', { content, imagesCount: images?.length })
-        const res = await momentsApi.publishMoments({ content, images })
+        console.log('[Moments] 发布动态:', { content, imagesCount: images?.length, options })
+        const res = await momentsApi.publishMoments({
+          content,
+          images,
+          location: options?.location,
+          atUsers: options?.atUsers,
+          visibility: options?.visibility
+        })
         console.log('[Moments] 发布结果:', res)
         if (res.code === 200 && res.data) {
           const mapped = mapPost(res.data)
