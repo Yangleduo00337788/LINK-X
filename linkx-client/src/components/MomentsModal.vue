@@ -615,6 +615,29 @@ function getImageGridClass(count: number): string {
 <template>
   <!-- 友链独立窗口 -->
   <div class="moments-wrapper standalone-window">
+    <!-- 顶部封面（固定在滚动区上方） -->
+    <div class="moments-header-fixed">
+      <div class="header-banner" @contextmenu="onBannerContextMenu">
+        <img :src="bannerUrl" alt="Banner" class="banner-img" @error="(e) => (e.target as HTMLImageElement).src = defaultBanner" @click="handleBannerMenuAction('preview')" />
+        <!-- 上传遮罩 hover 提示 -->
+        <div class="banner-upload-overlay" :class="{ uploading: bannerUploading }" @click.stop="handleBannerMenuAction('preview')">
+          <span v-if="bannerUploading">上传中…</span>
+        </div>
+      </div>
+      <div class="user-info">
+        <span class="username">{{ userProfile.nickname }}</span>
+        <img :src="profileAvatar" alt="Avatar" class="avatar-img" />
+      </div>
+    </div>
+
+    <!-- 下拉刷新指示器（固定在最外层） -->
+    <div class="pull-indicator" :class="{ refreshing: isPullRefreshing, ready: pullDistance >= pullThreshold }" :style="{ transform: `translate(-50%, ${pullDistance}px)`, opacity: Math.min(pullDistance / pullThreshold, 1) }">
+      <div class="pull-arrow">
+        <n-icon :component="RefreshOutline" :size="20" />
+      </div>
+      <div class="pull-text">{{ pullRefreshHint }}</div>
+    </div>
+
     <!-- 可滚动内容区 -->
     <div
       class="moments-scroll-container"
@@ -623,28 +646,8 @@ function getImageGridClass(count: number): string {
       @touchmove.passive="onTouchMove"
       @touchend="onTouchEnd"
     >
-      <!-- 顶部封面与用户资料 -->
-      <div class="moments-header">
-        <div class="header-banner" @contextmenu="onBannerContextMenu">
-          <img :src="bannerUrl" alt="Banner" class="banner-img" @error="(e) => (e.target as HTMLImgElement).src = defaultBanner" @click="handleBannerMenuAction('preview')" />
-          <!-- 上传遮罩 hover 提示 -->
-          <div class="banner-upload-overlay" :class="{ uploading: bannerUploading }" @click.stop="handleBannerMenuAction('preview')">
-            <span v-if="bannerUploading">上传中…</span>
-          </div>
-        </div>
-        <div class="user-info">
-          <span class="username">{{ userProfile.nickname }}</span>
-          <img :src="profileAvatar" alt="Avatar" class="avatar-img" />
-        </div>
-      </div>
-
-      <!-- 下拉刷新指示器 -->
-      <div class="pull-indicator" :class="{ refreshing: isPullRefreshing, ready: pullDistance >= pullThreshold }" :style="{ transform: `translateY(${pullDistance}px)`, opacity: Math.min(pullDistance / pullThreshold, 1) }">
-        <div class="pull-arrow">
-          <n-icon :component="RefreshOutline" :size="20" />
-        </div>
-        <div class="pull-text">{{ pullRefreshHint }}</div>
-      </div>
+      <!-- 占位块，撑出 header 高度使内容不被遮挡 -->
+      <div style="height: 320px;" />
 
       <!-- 动态列表(发布编辑器已迁移至独立 Modal) -->
       <div class="moments-content">
@@ -1113,6 +1116,12 @@ function getImageGridClass(count: number): string {
   background: transparent;
 }
 
+.moments-header-fixed {
+  position: relative;
+  height: 320px;
+  background: var(--lx-bg-card);
+}
+
 .moments-header {
   position: relative;
   height: 320px;
@@ -1188,10 +1197,10 @@ function getImageGridClass(count: number): string {
 
 /* 下拉刷新指示器 */
 .pull-indicator {
-  position: absolute;
+  position: fixed;
   top: 0;
-  left: 0;
-  right: 0;
+  left: 50%;
+  transform: translateX(-50%);
   height: 50px;
   display: flex;
   align-items: center;
@@ -1199,7 +1208,7 @@ function getImageGridClass(count: number): string {
   gap: 8px;
   pointer-events: none;
   color: var(--lx-text-muted);
-  z-index: 90;
+  z-index: 100;
   transition: opacity 0.2s;
   font-size: 13px;
   background: linear-gradient(to bottom, rgba(0, 0, 0, 0.04), transparent);
