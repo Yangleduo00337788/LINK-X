@@ -195,11 +195,16 @@ async function uploadBannerDirectly(file: File) {
   }
 }
 
-// 过滤列表
+// 过滤列表（私密动态仅本人可见，作为前端兜底）
 const filteredPosts = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return posts.value
-  return posts.value.filter(
+  const mine = myUserId.value
+  let list = posts.value.filter(p => {
+    if (p.visibility === 2 && String(p.userId) !== String(mine)) return false
+    return true
+  })
+  if (!q) return list
+  return list.filter(
     p => p.user.toLowerCase().includes(q) || p.content.toLowerCase().includes(q)
   )
 })

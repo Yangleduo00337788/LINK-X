@@ -117,10 +117,12 @@ public class MomentsServiceImpl implements MomentsService {
         Set<Long> friendIds = getFriendIds(userId);
         friendIds.add(userId);
 
+        // 私密(visibility=2)仅作者可见：SQL 层直接过滤，避免仅依赖内存判断
         List<MomentsPost> posts = postMapper.selectListByQuery(
                 QueryWrapper.create()
                         .in("user_id", new ArrayList<>(friendIds))
                         .eq("deleted", 0)
+                        .and("(IFNULL(visibility, 0) <> 2 OR user_id = {0})", userId)
                         .orderBy("create_time", false)
                         .limit(50)
         );
@@ -155,6 +157,7 @@ public class MomentsServiceImpl implements MomentsService {
                 QueryWrapper.create()
                         .eq("user_id", targetUserId)
                         .eq("deleted", 0)
+                        .and("(IFNULL(visibility, 0) <> 2 OR user_id = {0})", userId)
                         .orderBy("create_time", false)
                         .limit(50)
         );
@@ -187,20 +190,36 @@ public class MomentsServiceImpl implements MomentsService {
      * 可见性校验：0=公开，1=仅好友（列表已按好友圈过滤），2=私密仅作者可见
      */
     private boolean canViewPost(MomentsPost post, Long viewerId) {
-        Integer visibility = post.getVisibility();
-        if (visibility == null || visibility == 0 || visibility == 1) {
-            return true;
+        if (post == null) {
+            return false;
         }
+        int visibility = post.getVisibility() == null ? 0 : post.getVisibility();
         if (visibility == 2) {
             return Objects.equals(post.getUserId(), viewerId);
         }
         return true;
     }
 
+    /** 点赞/评论前校验：动态须存在且当前用户可见 */
+    private MomentsPost assertCanInteract(Long userId, Long postId) {
+        MomentsPost post = postMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .eq("id", postId)
+                        .eq("deleted", 0)
+        );
+        if (post == null) {
+            throw new CustomException(404, "动态不存在");
+        }
+        if (!canViewPost(post, userId)) {
+            throw new CustomException(403, "无权查看该动态");
+        }
+        return post;
+    }
+
     @Override
     @Transactional
     public void like(Long userId, Long postId) {
-        assertPostExists(postId);
+        MomentsPost post = assertCanInteract(userId, postId);
 
         // 已点赞则直接返回（允许赞自己的动态）
         MomentsLike existing = likeMapper.selectOneByQuery(
@@ -227,8 +246,7 @@ public class MomentsServiceImpl implements MomentsService {
                 .build());
 
         // 给动态作者推送消息通知(不通知自己赞自己)
-        MomentsPost post = postMapper.selectOneById(postId);
-        if (post != null && !post.getUserId().equals(userId)) {
+        if (!post.getUserId().equals(userId)) {
             SysUser liker = userMapper.selectOneById(userId);
             String likerName = liker != null ? liker.getNickname() : null;
             String content = extractPostPreview(post.getContent());
@@ -262,7 +280,7 @@ public class MomentsServiceImpl implements MomentsService {
     @Override
     @Transactional
     public MomentsCommentVO comment(Long userId, Long postId, CommentMomentsDTO dto) {
-        assertPostExists(postId);
+        assertCanInteract(userId, postId);
 
         SysUser user = userMapper.selectOneById(userId);
         if (user == null) {
