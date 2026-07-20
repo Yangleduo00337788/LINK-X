@@ -5,8 +5,6 @@ import { computed, defineAsyncComponent } from 'vue'
 import { NButton, NIcon } from 'naive-ui'
 // Ionicons5 返回箭头图标
 import { ArrowBackOutline } from '@vicons/ionicons5'
-// 窗口控制按钮组件
-import WindowControls from '../WindowControls.vue'
 // Pinia 响应式解构工具
 import { storeToRefs } from 'pinia'
 // 全屏覆盖层 Store
@@ -44,7 +42,7 @@ const pageTitle = computed(() => {
 <template>
   <!-- 全屏覆盖层容器：有页面时显示 -->
   <div v-if="currentPage" class="overlay-host">
-    <!-- 顶部导航栏：返回按钮、标题、窗口控制 -->
+    <!-- 顶部导航栏：返回按钮、标题（窗控由系统原生提供） -->
     <div class="overlay-header">
       <div class="left">
         <n-button quaternary circle @click="close">
@@ -54,7 +52,6 @@ const pageTitle = computed(() => {
         </n-button>
         <span class="title">{{ pageTitle }}</span>
       </div>
-      <WindowControls />
     </div>
 
     <!-- 覆盖层主体：按 currentPage 动态渲染子页面 -->
@@ -77,7 +74,11 @@ const pageTitle = computed(() => {
 }
 
 .overlay-header {
-  height: 60px;
+  height: env(titlebar-area-height, 60px);
+  min-height: 48px;
+  width: env(titlebar-area-width, 100%);
+  margin-left: env(titlebar-area-x, 0px);
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;

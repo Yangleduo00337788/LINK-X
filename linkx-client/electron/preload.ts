@@ -51,6 +51,7 @@ const api = {
   maximize: () => windowAction('maximize'),
   close: () => windowAction('close'),
   isElectron: true as const,
+  hasNativeTitleBarOverlay: process.platform === 'win32' || process.platform === 'linux',
   captureScreen,
   fetchIPLocation,
   notifyMomentsPublished: () => ipcRenderer.send('moments:published'),

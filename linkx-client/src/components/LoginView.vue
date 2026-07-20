@@ -3,7 +3,6 @@ import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { NInput, NButton, NIcon, NCheckbox, NModal, NSelect, useMessage } from 'naive-ui'
 import { RefreshOutline, MailOutline, ChevronDownOutline } from '@vicons/ionicons5'
-import WindowControls from './WindowControls.vue'
 import Avatar from './Avatar.vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
@@ -487,13 +486,7 @@ async function handleForgot() {
     <div class="login-win-bar">
       <div class="drag-area" />
       <div class="login-win-actions" @click.stop>
-        <WindowControls
-          v-if="isElectron"
-          variant="login"
-          @menu="toggleMenu"
-        />
         <button
-          v-else
           type="button"
           class="web-menu-btn"
           title="菜单"
@@ -814,7 +807,10 @@ async function handleForgot() {
 
 .login-win-bar {
   flex-shrink: 0;
-  height: 36px;
+  height: env(titlebar-area-height, 36px);
+  width: env(titlebar-area-width, 100%);
+  margin-left: env(titlebar-area-x, 0px);
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   -webkit-app-region: no-drag;

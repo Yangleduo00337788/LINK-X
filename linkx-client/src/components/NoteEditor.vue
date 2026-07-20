@@ -23,7 +23,6 @@ import {
   CloudUploadOutline
 } from '@vicons/ionicons5'
 import PinIcon from './icons/PinIcon.vue'
-import WindowControls from './WindowControls.vue'
 import { storeToRefs } from 'pinia'
 import { useNoteStore } from '../stores/note'
 import { useAppStore } from '../stores/app'
@@ -285,10 +284,10 @@ onUnmounted(() => {
           type="button"
           class="icon-btn pin"
           :class="{ active: isPinned }"
-          title="置顶窗口"
+          title="置顶"
           @click="togglePin"
         >
-          <PinIcon :size="16" />
+          <PinIcon :size="14" />
         </button>
       </div>
       <div class="bar-center">
@@ -322,7 +321,6 @@ onUnmounted(() => {
         >
           <n-icon :component="TrashOutline" :size="16" />
         </button>
-        <WindowControls />
       </div>
     </header>
 
@@ -432,7 +430,10 @@ onUnmounted(() => {
 }
 
 .title-bar {
-  height: 40px;
+  height: env(titlebar-area-height, 40px);
+  width: env(titlebar-area-width, 100%);
+  margin-left: env(titlebar-area-x, 0px);
+  box-sizing: border-box;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;

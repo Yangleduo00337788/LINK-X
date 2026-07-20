@@ -2,16 +2,15 @@
 /**
  * 顶部主状态栏组件。
  * <p>
- * 显示品牌标识、会话标题、窗口置顶按钮与 Electron 窗口控制，
+ * 显示品牌标识、会话标题、窗口置顶；最小化/最大化/关闭由 Windows 原生 titleBarOverlay 提供。
+ * 置顶使用统一垂直 PinIcon，贴在原生窗控左侧。
  * 中间区域支持拖拽移动窗口。
  * </p>
  */
 // Vue 响应式、计算属性与挂载钩子
 import { ref, computed, onMounted } from 'vue'
-// 置顶图标组件
+// 统一垂直图钉图标
 import PinIcon from './icons/PinIcon.vue'
-// Electron 窗口控制按钮
-import WindowControls from './WindowControls.vue'
 // Pinia 响应式解构
 import { storeToRefs } from 'pinia'
 // 应用全局状态 Store
@@ -99,16 +98,18 @@ async function togglePin() {
       <span v-if="centerTitle" class="session-title">{{ centerTitle }}</span>
     </div>
 
-    <!-- 右侧：窗口置顶按钮 -->
+    <!-- 右侧：置顶（统一垂直 PinIcon）；最小化/最大化/关闭由 titleBarOverlay 提供 -->
     <div class="status-right">
-      <button type="button" class="pin-btn" :class="{ active: isPinned }" title="置顶窗口" @click="togglePin">
-        <PinIcon :size="16" />
+      <button
+        type="button"
+        class="win-caption-btn"
+        :class="{ active: isPinned }"
+        :title="isPinned ? '取消置顶' : '置顶'"
+        :aria-pressed="isPinned"
+        @click="togglePin"
+      >
+        <PinIcon :size="14" />
       </button>
-    </div>
-
-    <!-- 窗口控制按钮（最小化/最大化/关闭） -->
-    <div class="win-controls-slot">
-      <WindowControls />
     </div>
   </header>
 </template>
@@ -116,8 +117,11 @@ async function togglePin() {
 <style scoped>
 .main-status-bar {
   flex-shrink: 0;
-  height: 40px;
-  min-height: 40px;
+  height: env(titlebar-area-height, 40px);
+  min-height: env(titlebar-area-height, 40px);
+  width: env(titlebar-area-width, 100%);
+  margin-left: env(titlebar-area-x, 0px);
+  box-sizing: border-box;
   display: flex;
   align-items: stretch;
   padding: 0 0 0 10px;
@@ -125,13 +129,6 @@ async function togglePin() {
   border-bottom: none;
   position: relative;
   z-index: 50;
-}
-
-.win-controls-slot {
-  flex-shrink: 0;
-  position: relative;
-  z-index: 10001;
-  -webkit-app-region: no-drag;
 }
 
 .status-left {
@@ -240,38 +237,52 @@ async function togglePin() {
 
 .status-right {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   flex-shrink: 0;
-  padding-right: 4px;
+  height: 100%;
+  padding: 0;
   -webkit-app-region: no-drag;
 }
 
-.pin-btn {
+/* 对齐 Win11 Caption Buttons：46×标题栏高、直角、同色悬停 */
+.win-caption-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #8c8c8c;
-  cursor: pointer;
+  width: 46px;
+  height: 100%;
+  margin: 0;
+  padding: 0;
   border: none;
-  background: none;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--lx-radius);
-  transition: all 0.2s;
+  border-radius: 0;
+  background: transparent;
+  color: var(--lx-text);
+  cursor: default;
+  transition: background-color 83ms linear;
 }
 
-.pin-btn:hover {
-  color: var(--lx-text-secondary);
-  background: var(--lx-bg-hover);
+.win-caption-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
 }
 
-.pin-btn.active {
+.win-caption-btn:active {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.win-caption-btn.active {
   color: var(--lx-accent);
-  background: none;
 }
 
-.pin-btn.active:hover {
-  color: var(--lx-accent);
-  background: var(--lx-bg-hover);
+.win-caption-btn.active:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+:global([data-theme='dark']) .win-caption-btn:hover,
+:global([data-theme='dark']) .win-caption-btn.active:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+:global([data-theme='dark']) .win-caption-btn:active {
+  background: rgba(255, 255, 255, 0.04);
 }
 </style>

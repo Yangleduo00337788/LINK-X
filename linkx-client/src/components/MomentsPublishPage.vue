@@ -18,8 +18,7 @@ import {
   CheckmarkCircleOutline,
   TrashOutline,
   AddOutline,
-  CloseOutline,
-  RemoveOutline
+  CloseOutline
 } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useRoute } from 'vue-router'
@@ -139,12 +138,6 @@ onMounted(() => {
 function closeWindow() {
   if (window.electronAPI) {
     window.electronAPI.close()
-  }
-}
-
-function minimizeWindow() {
-  if (window.electronAPI) {
-    window.electronAPI.minimize()
   }
 }
 
@@ -426,14 +419,7 @@ async function publish() {
   <div class="text-page">
     <!-- ============= 顶部栏(微信风) ============= -->
     <header class="page-header">
-      <div class="header-left-controls">
-        <button type="button" class="window-btn" title="最小化" @click="minimizeWindow">
-          <n-icon :component="RemoveOutline" :size="16" />
-        </button>
-        <button type="button" class="window-btn close-btn" title="关闭" @click="closeWindow">
-          <n-icon :component="CloseOutline" :size="16" />
-        </button>
-      </div>
+      <div class="header-left-spacer" aria-hidden="true" />
       <h1 class="page-title">
         {{ mode === 'text' ? '发表文字' : '发表图片/视频' }}
       </h1>
@@ -703,36 +689,18 @@ async function publish() {
   flex-shrink: 0;
   background: var(--lx-bg-card);
   gap: 8px;
+  width: env(titlebar-area-width, 100%);
+  margin-left: env(titlebar-area-x, 0px);
+  min-height: env(titlebar-area-height, 48px);
+  box-sizing: border-box;
 }
 
-.header-left-controls {
+.header-left-spacer {
   display: flex;
   gap: 4px;
   -webkit-app-region: no-drag;
-}
-
-.window-btn {
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: transparent;
-  color: var(--lx-text-muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  transition: all 0.15s ease;
-}
-
-.window-btn:hover {
-  background: var(--lx-bg-hover);
-  color: var(--lx-text-body);
-}
-
-.window-btn.close-btn:hover {
-  background: var(--lx-danger, #e05454);
-  color: #fff;
+  min-width: 60px;
+  pointer-events: none;
 }
 
 .header-btn {

@@ -6,7 +6,6 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { NInput, NButton, NIcon, useMessage } from 'naive-ui'
 import { RefreshOutline } from '@vicons/ionicons5'
-import WindowControls from './WindowControls.vue'
 import * as authApi from '../api/auth'
 import { validateUsername, validatePassword, validateNickname } from '../utils/validation'
 
@@ -123,8 +122,7 @@ onMounted(() => {
     <div class="reg-win-bar">
       <div class="reg-title">注册账号</div>
       <div class="drag-area" />
-      <WindowControls v-if="isElectron" variant="close" />
-      <button v-else type="button" class="web-close" title="返回" @click="closeOrBack">×</button>
+      <button v-if="!isElectron" type="button" class="web-close" title="返回" @click="closeOrBack">×</button>
     </div>
 
     <div class="reg-body">
@@ -227,7 +225,10 @@ onMounted(() => {
 
 .reg-win-bar {
   flex-shrink: 0;
-  height: 36px;
+  height: env(titlebar-area-height, 36px);
+  width: env(titlebar-area-width, 100%);
+  margin-left: env(titlebar-area-x, 0px);
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   -webkit-app-region: no-drag;

@@ -8,6 +8,54 @@ import { fileURLToPath } from 'node:url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL)
 
+/** Windows/Linux 使用系统原生标题栏按钮（Win11 Caption Buttons） */
+const USE_NATIVE_TITLE_BAR_OVERLAY = process.platform === 'win32' || process.platform === 'linux'
+let currentUiTheme: 'light' | 'dark' = 'light'
+
+type TitleBarOverlayOpts = {
+  color: string
+  symbolColor: string
+  height: number
+}
+
+function buildTitleBarOverlay(
+  theme: string = currentUiTheme,
+  height = 40
+): TitleBarOverlayOpts | undefined {
+  if (!USE_NATIVE_TITLE_BAR_OVERLAY) return undefined
+  const dark = theme === 'dark'
+  return {
+    // 透明底贴合 mica/acrylic，图标随明暗主题
+    color: dark ? '#1a1a1a00' : '#f5f5f500',
+    symbolColor: dark ? '#e6e6e6' : '#1f1f1f',
+    height
+  }
+}
+
+function applyTitleBarOverlay(win: BrowserWindow, theme?: string, height = 40) {
+  const opts = buildTitleBarOverlay(theme ?? currentUiTheme, height)
+  if (!opts || win.isDestroyed()) return
+  try {
+    win.setTitleBarOverlay(opts)
+  } catch (e) {
+    console.warn('[electron] setTitleBarOverlay failed:', e)
+  }
+}
+
+/** 无边框 + 可选原生窗控 */
+function framelessChrome(overlayHeight = 40): {
+  frame: false
+  titleBarStyle: 'hidden'
+  titleBarOverlay?: TitleBarOverlayOpts
+} {
+  const overlay = buildTitleBarOverlay(currentUiTheme, overlayHeight)
+  return {
+    frame: false,
+    titleBarStyle: 'hidden',
+    ...(overlay ? { titleBarOverlay: overlay } : {})
+  }
+}
+
 const SECURE_DIR = () => path.join(app.getPath('userData'), 'secure')
 
 // 允许的 key 白名单，防止路径穿越攻击
@@ -224,6 +272,7 @@ function registerWindowIpc() {
     if (!win) return
     if (mode === 'login') {
       if (win.isMaximized()) win.unmaximize()
+      win.setMaximizable(false)
       win.setResizable(false)
       win.setMinimumSize(319, 461)
       win.setMaximumSize(319, 461)
@@ -231,9 +280,11 @@ function registerWindowIpc() {
       win.center()
       return
     }
-    win.setResizable(true)
+    // 登录窗创建时因 maxSize 锁定，系统会关掉可最大化；切主界面需显式恢复，否则 titleBarOverlay 不显示最大化按钮
     win.setMaximumSize(99999, 99999)
     win.setMinimumSize(966, 676)
+    win.setResizable(true)
+    win.setMaximizable(true)
     if (!win.isMaximized()) {
       win.setSize(1083, 833, false)
       win.center()
@@ -385,7 +436,13 @@ function applyAllWindowBackgrounds(theme: string) {
 }
 
 ipcMain.on('theme-changed', (_e, theme: string) => {
+  if (theme === 'light' || theme === 'dark') {
+    currentUiTheme = theme
+  }
   applyAllWindowBackgrounds(theme)
+  for (const win of BrowserWindow.getAllWindows()) {
+    applyTitleBarOverlay(win, theme)
+  }
 })
 
 function createTrayIcon(): Electron.NativeImage {
@@ -453,8 +510,7 @@ function createMomentsWindow() {
     width: 440,
     height: 560,
     resizable: false,
-    frame: false,
-    titleBarStyle: 'hidden',
+    ...framelessChrome(40),
     transparent: false,
     backgroundMaterial: 'acrylic',
     backgroundColor: '#f5f5f5',
@@ -508,8 +564,7 @@ function createMomentsTextWindow() {
     width: 420,
     height: 520,
     resizable: false,
-    frame: false,
-    titleBarStyle: 'hidden',
+    ...framelessChrome(40),
     transparent: false,
     backgroundMaterial: 'acrylic',
     backgroundColor: '#f5f5f5',
@@ -555,8 +610,7 @@ function createMomentsMediaWindow() {
     width: 480,
     height: 600,
     resizable: false,
-    frame: false,
-    titleBarStyle: 'hidden',
+    ...framelessChrome(40),
     transparent: false,
     backgroundMaterial: 'acrylic',
     backgroundColor: '#f5f5f5',
@@ -602,8 +656,7 @@ function createNoteEditorWindow() {
     height: 600,
     minWidth: 600,
     minHeight: 400,
-    frame: false,
-    titleBarStyle: 'hidden',
+    ...framelessChrome(40),
     transparent: false,
     backgroundMaterial: 'mica',
     backgroundColor: '#f5f5f5',
@@ -655,8 +708,7 @@ function createRegisterWindow() {
     width: 360,
     height: 560,
     resizable: false,
-    frame: false,
-    titleBarStyle: 'hidden',
+    ...framelessChrome(40),
     transparent: false,
     backgroundMaterial: 'mica',
     backgroundColor: '#eef5fb',
@@ -711,8 +763,7 @@ function createWindow() {
     maxWidth: 319,
     maxHeight: 461,
     resizable: false,
-    frame: false,
-    titleBarStyle: 'hidden',
+    ...framelessChrome(40),
     transparent: false,
     backgroundMaterial: 'mica',
     backgroundColor: '#f5f5f5',

@@ -50,6 +50,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   notifyThemeChange: theme => ipcRenderer.send('theme-changed', theme),
   setWindowMode: mode => ipcRenderer.invoke('window:set-mode', mode),
   isElectron: true,
+  /** Windows/Linux：使用系统原生标题栏按钮（titleBarOverlay） */
+  hasNativeTitleBarOverlay: process.platform === 'win32' || process.platform === 'linux',
   captureScreen,
   fetchIPLocation,
   /** 发布成功后通知友链列表窗口刷新 */

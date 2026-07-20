@@ -24,6 +24,8 @@ declare global {
       notifyThemeChange?: (theme: 'light' | 'dark') => void // 通知主进程主题变化
       setWindowMode?: (mode: 'login' | 'main') => Promise<void> // 切换登录/主界面窗口尺寸
       isElectron?: boolean                    // 是否为 Electron 环境
+      /** Windows/Linux 是否启用系统原生标题栏按钮 */
+      hasNativeTitleBarOverlay?: boolean
       /** 屏幕截图，返回截图数据或 null */
       captureScreen?: () => Promise<{ dataURL: string; width: number; height: number } | null>
       /** 通过 IP 获取地理位置，返回位置字符串或 null */

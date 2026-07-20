@@ -3,7 +3,7 @@
  * 友链(朋友圈)独立窗口。
  *
  * 特性:
- *  - 顶部固定栏:搜索/消息/发布/刷新/窗口控制
+ *  - 顶部固定栏:搜索/消息/发布/刷新（窗控使用 Windows 原生）
  *  - 列表支持下拉刷新(触摸手势)
  *  - 顶部刷新按钮点击有旋转动画 + 同时下拉刷新
  *  - 发布入口:在铃铛右侧提供"发布"按钮,菜单中可选择:
@@ -21,7 +21,6 @@ import { NIcon, useMessage } from 'naive-ui'
 import {
   NotificationsOutline,
   RefreshOutline,
-  RemoveOutline,
   CloseOutline,
   HeartOutline,
   Heart,
@@ -35,7 +34,6 @@ import {
   PeopleOutline
 } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
-import { useChatModalsStore } from '../stores/chatModals'
 import { useAppStore } from '../stores/app'
 import { useMomentsStore } from '../stores/moments'
 import { useNotificationsStore } from '../stores/notifications'
@@ -55,12 +53,10 @@ import MomentsNotificationsPage from './MomentsNotificationsPage.vue'
 // 偏好 API
 import { getPreference, uploadMomentsBackground } from '../api/preference'
 
-const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
 const momentsStore = useMomentsStore()
 const notificationsStore = useNotificationsStore()
 const contactsStore = useContactsStore()
-const { closeMomentsModal } = chatModalsStore
 const { userProfile, theme } = storeToRefs(appStore)
 const { posts } = storeToRefs(momentsStore)
 const { unreadMessageCount, momentsUnreadCount } = storeToRefs(notificationsStore)
@@ -553,16 +549,6 @@ async function onDeleteComment(postId: string, commentId: string) {
   else message.error('删除失败')
 }
 
-function minimizeMoments() {
-  if (window.electronAPI) window.electronAPI.minimize()
-  else closeMomentsModal()
-}
-
-function closeMoments() {
-  if (window.electronAPI) window.electronAPI.close()
-  else closeMomentsModal()
-}
-
 /** 计算图片网格布局 */
 function getImageGridClass(count: number): string {
   if (count === 1) return 'grid-1'
@@ -813,14 +799,6 @@ function visibilityLabel(visibility?: number): string {
           @click.stop
         />
       </div>
-      <div class="header-right">
-        <div class="action-btn window-btn" title="最小化" @click.stop="minimizeMoments">
-          <n-icon :component="RemoveOutline" size="18" />
-        </div>
-        <div class="action-btn window-btn close-btn" title="关闭" @click.stop="closeMoments">
-          <n-icon :component="CloseOutline" size="18" />
-        </div>
-      </div>
     </div>
 
     <!-- 通知抽屉遮罩(点击空白处关闭) -->
@@ -927,9 +905,10 @@ function visibilityLabel(visibility?: number): string {
 .fixed-header {
   position: absolute;
   top: 0;
-  left: 0;
-  width: 100%;
-  height: 48px;
+  left: env(titlebar-area-x, 0px);
+  width: env(titlebar-area-width, 100%);
+  height: env(titlebar-area-height, 48px);
+  min-height: 48px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -940,17 +919,12 @@ function visibilityLabel(visibility?: number): string {
   -webkit-app-region: drag;
 }
 
-.header-left,
-.header-right {
+.header-left {
   display: flex;
   align-items: center;
   gap: 8px;
   -webkit-app-region: no-drag;
   pointer-events: auto;
-}
-
-.header-right {
-  margin-left: auto;
 }
 
 .action-btn {
@@ -983,16 +957,6 @@ function visibilityLabel(visibility?: number): string {
   to { transform: rotate(360deg); }
 }
 
-.window-btn {
-  width: 28px;
-  height: 28px;
-}
-
-.window-btn.close-btn:hover {
-  background: var(--lx-danger) !important;
-  color: #fff !important;
-}
-
 .header-center {
   flex: 1;
   text-align: center;
@@ -1021,11 +985,6 @@ function visibilityLabel(visibility?: number): string {
   border-radius: var(--lx-radius);
   padding: 6px 10px;
   font-size: 14px;
-}
-
-.close-btn:hover {
-  background: var(--lx-danger);
-  color: var(--lx-text-on-accent) !important;
 }
 
 .publish-btn {
