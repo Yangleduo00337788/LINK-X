@@ -17,6 +17,8 @@ export interface UserPreference {
   language: string
   chatBackground: string
   notifyTone: string
+  /** 友链背景图签名 URL */
+  momentsBackground?: string
 }
 
 /**
@@ -39,4 +41,15 @@ export function getPreference() {
  */
 export function updatePreference(patch: UserPreferencePatch) {
   return apiClient.put<never, ApiResult<UserPreference>>('/user/preference', patch)
+}
+
+/**
+ * 上传友链背景图（返回更新后的完整偏好，包含签名 URL）
+ */
+export function uploadMomentsBackground(file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return apiClient.post<never, ApiResult<UserPreference>>('/user/moments-background', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
 }

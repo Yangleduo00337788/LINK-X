@@ -49,6 +49,8 @@ import EmptyState from './common/EmptyState.vue'
 import AtMentionPicker from './common/AtMentionPicker.vue'
 // 通知独立页
 import MomentsNotificationsPage from './MomentsNotificationsPage.vue'
+// 偏好 API
+import { getPreference, uploadMomentsBackground } from '../api/preference'
 
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
@@ -90,6 +92,105 @@ const profileAvatar = computed(() =>
 const defaultBanner = computed(() =>
   generateDefaultBanner(userProfile.value.nickname || 'banner')
 )
+
+// ============================================================
+// 友链背景图
+// ============================================================
+const momentsBanner = ref<string>('')
+const bannerLoaded = ref(false)
+const bannerUploading = ref(false)
+
+async function loadMomentsBanner() {
+  try {
+    const res = await getPreference()
+    if (res.code === 200 && res.data?.momentsBackground) {
+      momentsBanner.value = res.data.momentsBackground
+      bannerLoaded.value = true
+    }
+  } catch {
+    // ignore
+  }
+}
+
+const bannerUrl = computed(() =>
+  momentsBanner.value || defaultBanner.value
+)
+
+// ============================================================
+// 背景图右键菜单
+// ============================================================
+const showBannerMenu = ref(false)
+const bannerMenuX = ref(0)
+const bannerMenuY = ref(0)
+
+function onBannerContextMenu(e: MouseEvent) {
+  // 仅本人可操作
+  if (!myUserId.value) return
+  e.preventDefault()
+  bannerMenuX.value = e.clientX
+  bannerMenuY.value = e.clientY
+  showBannerMenu.value = true
+}
+
+function closeBannerMenu() {
+  showBannerMenu.value = false
+}
+
+function handleBannerMenuAction(action: 'change' | 'preview') {
+  closeBannerMenu()
+  if (action === 'preview') {
+    openImagePreview([bannerUrl.value], 0)
+  } else if (action === 'change') {
+    triggerBannerUpload()
+  }
+}
+
+// ============================================================
+// 背景图上传
+// ============================================================
+const fileInputRef = ref<HTMLInputElement | null>(null)
+
+function triggerBannerUpload() {
+  fileInputRef.value?.click()
+}
+
+function onBannerFileSelected(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  if (!file.type.startsWith('image/')) {
+    message.warning('请选择图片文件')
+    input.value = ''
+    return
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    message.warning('图片大小不能超过 10MB')
+    input.value = ''
+    return
+  }
+
+  void uploadBannerDirectly(file)
+  input.value = ''
+}
+
+async function uploadBannerDirectly(file: File) {
+  bannerUploading.value = true
+  try {
+    const res = await uploadMomentsBackground(file)
+    if (res.code === 200 && res.data?.momentsBackground) {
+      momentsBanner.value = res.data.momentsBackground
+      bannerLoaded.value = true
+      message.success('背景图更新成功')
+    } else {
+      message.error(res.message || '上传失败')
+    }
+  } catch {
+    message.error('上传失败，请重试')
+  } finally {
+    bannerUploading.value = false
+  }
+}
 
 // 过滤列表
 const filteredPosts = computed(() => {
@@ -156,6 +257,7 @@ function onPreviewKeydown(e: KeyboardEvent) {
 onMounted(() => {
   applyDocumentTheme(appStore.theme)
   notifyElectronTheme(appStore.theme)
+  window.addEventListener('click', closeBannerMenu)
   // 独立窗口不走 HomeView，需自行恢复会话并连接 WS，才能实时刷新未读铃铛
   void (async () => {
     if (!appStore.isLoggedIn) {
@@ -167,7 +269,8 @@ onMounted(() => {
     await Promise.all([
       fetchMessageNotifications(),
       fetchMoments(),
-      contactsStore.fetchFriends()
+      contactsStore.fetchFriends(),
+      loadMomentsBanner()
     ])
     void fetchNotificationCount()
   })()
@@ -176,6 +279,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onPreviewKeydown)
+  window.removeEventListener('click', closeBannerMenu)
 })
 
 watch(theme, t => {
@@ -516,13 +620,17 @@ function getImageGridClass(count: number): string {
       class="moments-scroll-container"
       @scroll="handleScroll"
       @touchstart.passive="onTouchStart"
-      @touchmove="onTouchMove"
+      @touchmove.passive="onTouchMove"
       @touchend="onTouchEnd"
     >
       <!-- 顶部封面与用户资料 -->
       <div class="moments-header">
-        <div class="header-banner">
-          <img :src="defaultBanner" alt="Banner" class="banner-img" />
+        <div class="header-banner" @contextmenu="onBannerContextMenu">
+          <img :src="bannerUrl" alt="Banner" class="banner-img" @error="(e) => (e.target as HTMLImgElement).src = defaultBanner" @click="handleBannerMenuAction('preview')" />
+          <!-- 上传遮罩 hover 提示 -->
+          <div class="banner-upload-overlay" :class="{ uploading: bannerUploading }" @click.stop="handleBannerMenuAction('preview')">
+            <span v-if="bannerUploading">上传中…</span>
+          </div>
         </div>
         <div class="user-info">
           <span class="username">{{ userProfile.nickname }}</span>
@@ -762,6 +870,32 @@ function getImageGridClass(count: number): string {
         {{ previewIndex + 1 }} / {{ previewImages.length }}
       </div>
     </div>
+
+    <!-- 背景图上传隐藏文件框 -->
+    <input
+      ref="fileInputRef"
+      type="file"
+      accept="image/*"
+      class="hidden-file-input"
+      @change="onBannerFileSelected"
+    />
+
+    <!-- 背景图右键菜单 -->
+    <Teleport to="body">
+      <div
+        v-if="showBannerMenu"
+        class="banner-context-menu"
+        :style="{ left: bannerMenuX + 'px', top: bannerMenuY + 'px' }"
+        @click.stop
+      >
+        <button class="ctx-item" @click="handleBannerMenuAction('change')">
+          <n-icon :component="AddCircleOutline" :size="15" />
+          更换背景图
+        </button>
+      </div>
+      <!-- 点击其他地方关闭菜单 -->
+      <div v-if="showBannerMenu" class="ctx-backdrop" @click="closeBannerMenu" />
+    </Teleport>
   </div>
 </template>
 
@@ -989,12 +1123,40 @@ function getImageGridClass(count: number): string {
   width: 100%;
   height: 280px;
   overflow: hidden;
+  cursor: context-menu;
+  position: relative;
 }
 
 .banner-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.banner-upload-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: transparent;
+  transition: background 0.2s, color 0.2s;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.header-banner:hover .banner-upload-overlay {
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  opacity: 1;
+}
+
+.banner-upload-overlay.uploading {
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  opacity: 1;
 }
 
 .user-info {
@@ -1554,5 +1716,44 @@ function getImageGridClass(count: number): string {
   transform: translateX(-50%);
   color: rgba(255, 255, 255, 0.85);
   font-size: 13px;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+.banner-context-menu {
+  position: fixed;
+  z-index: 1000;
+  background: var(--lx-bg-card);
+  border-radius: var(--lx-radius);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+  min-width: 160px;
+}
+
+.ctx-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+}
+
+.ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  color: var(--lx-text-body);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.ctx-item:hover {
+  background: var(--lx-bg-hover);
 }
 </style>

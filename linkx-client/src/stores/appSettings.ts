@@ -82,6 +82,7 @@ function defaultState() {
     language: 'zh-CN' as string,
     chatBackground: 'default' as ChatBackgroundId,
     notifyTone: 'default' as NotifyToneId,
+    momentsBackground: '' as string,
     /** 标记已经从服务端成功拉取过，避免每次启动都先写空 patch 覆盖服务端真实值 */
     _hydrated: false,
     /** 标记是否处于登录态；离线时不向服务端写 */
@@ -161,6 +162,10 @@ export const useAppSettingsStore = defineStore('appSettings', {
           this.notifyTone = tone as NotifyToneId
         }
       }
+      const mb = (data as { momentsBackground?: unknown }).momentsBackground
+      if (typeof mb === 'string' && mb) {
+        this.momentsBackground = mb
+      }
     },
 
     /**
@@ -203,6 +208,7 @@ export const useAppSettingsStore = defineStore('appSettings', {
       'language',
       'chatBackground',
       'notifyTone',
+      'momentsBackground',
       '_hydrated',
       '_online'
     ]
