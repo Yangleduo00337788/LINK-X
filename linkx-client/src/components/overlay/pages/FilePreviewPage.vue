@@ -2,17 +2,20 @@
 /**
  * 文件预览页面
  */
-import { computed } from 'vue'
-import { NButton, NIcon } from 'naive-ui'
+import { computed, ref } from 'vue'
+import { NButton, NIcon, useMessage } from 'naive-ui'
 import { CloudDownloadOutline, OpenOutline, CloseOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useOverlayStore } from '../../../stores/overlay'
 import { useI18n } from '../../../i18n'
+import { downloadFileWithSettings } from '../../../utils/downloadFile'
 
 const overlayStore = useOverlayStore()
 const { close } = overlayStore
 const { filePreview } = storeToRefs(overlayStore)
 const { t } = useI18n()
+const message = useMessage()
+const downloading = ref(false)
 
 // 文件大小格式化
 function formatFileSize(bytes: number | string | undefined): string {
@@ -44,18 +47,28 @@ const fileIcon = computed(() => {
   return t('overlay.fileLabel')
 })
 
-// 下载文件
-function downloadFile() {
+// 下载文件（遵守文件管理：下载目录 / 保存方式）
+async function downloadFile() {
   const url = filePreview.value?.fileUrl
-  if (!url) return
+  if (!url || downloading.value) return
 
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filePreview.value?.fileName || t('overlay.downloadName')
-  a.target = '_blank'
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
+  downloading.value = true
+  try {
+    const result = await downloadFileWithSettings(
+      url,
+      filePreview.value?.fileName || t('overlay.downloadName')
+    )
+    if (result.canceled) return
+    if (result.ok) {
+      message.success(
+        result.path ? t('files.downloadSaved', { path: result.path }) : t('files.downloadOk')
+      )
+    } else {
+      message.error(result.message || t('files.downloadFail'))
+    }
+  } finally {
+    downloading.value = false
+  }
 }
 
 // 在新窗口打开
@@ -93,6 +106,8 @@ function openFile() {
         <n-button
           v-if="filePreview?.fileUrl"
           type="primary"
+          :loading="downloading"
+          :disabled="downloading"
           @click="downloadFile"
         >
           <template #icon>

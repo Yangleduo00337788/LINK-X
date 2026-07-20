@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { NButton, NSelect, useMessage } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import { useAppSettingsStore } from '../../stores/appSettings'
@@ -10,6 +10,7 @@ const appSettingsStore = useAppSettingsStore()
 const { downloadPath, downloadAskEveryTime } = storeToRefs(appSettingsStore)
 const isElectron = computed(() => !!window.electronAPI)
 const { t } = useI18n()
+const systemDownloadPath = ref('')
 
 const askMode = computed({
   get: () => (downloadAskEveryTime.value ? 'ask' : 'auto'),
@@ -23,12 +24,34 @@ const askOptions = computed(() => [
   { label: t('files.autoSave'), value: 'auto' }
 ])
 
+const downloadDirDesc = computed(() => {
+  if (downloadPath.value) return downloadPath.value
+  if (systemDownloadPath.value) {
+    return `${t('files.downloadDirDefault')}（${systemDownloadPath.value}）`
+  }
+  return t('files.downloadDirDefault')
+})
+
+onMounted(async () => {
+  if (!window.electronAPI?.getDownloadPath) return
+  try {
+    systemDownloadPath.value = (await window.electronAPI.getDownloadPath()) || ''
+  } catch {
+    systemDownloadPath.value = ''
+  }
+})
+
 async function pickDownloadPath() {
   const path = await window.electronAPI?.pickDownloadPath?.()
   if (path) {
     downloadPath.value = path
     message.success(t('files.dirUpdated'))
   }
+}
+
+function resetDownloadPath() {
+  downloadPath.value = ''
+  message.success(t('files.dirReset'))
 }
 
 async function openDownloadFolder() {
@@ -55,11 +78,20 @@ async function clearCache() {
       <div class="setting-row">
         <div class="setting-text">
           <span class="setting-name">{{ t('files.downloadDir') }}</span>
-          <span class="setting-desc">{{ downloadPath || t('files.downloadDirDefault') }}</span>
+          <span class="setting-desc">{{ downloadDirDesc }}</span>
         </div>
         <div class="row-actions">
           <n-button size="small" secondary :disabled="!isElectron" @click="pickDownloadPath">
             {{ t('files.change') }}
+          </n-button>
+          <n-button
+            v-if="downloadPath"
+            size="small"
+            tertiary
+            :disabled="!isElectron"
+            @click="resetDownloadPath"
+          >
+            {{ t('files.resetDefault') }}
           </n-button>
           <n-button size="small" tertiary :disabled="!isElectron" @click="openDownloadFolder">
             {{ t('files.open') }}
@@ -69,12 +101,16 @@ async function clearCache() {
       <div class="setting-row">
         <div class="setting-text">
           <span class="setting-name">{{ t('files.saveMode') }}</span>
+          <span class="setting-desc">{{
+            askMode === 'ask' ? t('files.askEveryTimeDesc') : t('files.autoSaveDesc')
+          }}</span>
         </div>
         <n-select
           v-model:value="askMode"
           :options="askOptions"
           size="small"
           style="width: 200px"
+          :disabled="!isElectron"
         />
       </div>
     </section>
