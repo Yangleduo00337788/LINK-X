@@ -1,9 +1,76 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, globalShortcut, safeStorage, desktopCapturer, Notification, type IpcMainEvent, type IpcMainInvokeEvent, type WebRequestHeadersReceivedCallbackParams, type OnHeadersReceivedListener } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, globalShortcut, safeStorage, desktopCapturer, Notification, net, type IpcMainEvent, type IpcMainInvokeEvent, type WebRequestHeadersReceivedCallbackParams, type OnHeadersReceivedListener } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import http from 'node:http'
 import https from 'node:https'
 import { fileURLToPath } from 'node:url'
+import { Buffer } from 'node:buffer'
+
+/** 渲染进程发起的受控下载请求 */
+type DownloadFilePayload = {
+  url?: string
+  /** 原始二进制（blob / data URL 等由渲染进程读入后传入） */
+  data?: ArrayBuffer | Uint8Array
+  fileName?: string
+  /** 自定义下载目录；空则用系统 Downloads */
+  directory?: string
+  /** true：每次弹出另存为；false：直接写入下载目录 */
+  askEveryTime?: boolean
+}
+
+function sanitizeFileName(name: string): string {
+  const base = (name || 'download').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').trim()
+  return base.slice(0, 180) || 'download'
+}
+
+function resolveDownloadDir(custom?: string): string {
+  const trimmed = (custom || '').trim()
+  if (trimmed) {
+    try {
+      if (!fs.existsSync(trimmed)) {
+        fs.mkdirSync(trimmed, { recursive: true })
+      }
+      if (fs.statSync(trimmed).isDirectory()) {
+        return trimmed
+      }
+    } catch {
+      /* fall through to system downloads */
+    }
+  }
+  return app.getPath('downloads')
+}
+
+/** 若目标已存在则追加 (1)、(2)… */
+function uniqueSavePath(dir: string, fileName: string): string {
+  const safe = sanitizeFileName(fileName)
+  const ext = path.extname(safe)
+  const stem = path.basename(safe, ext)
+  let candidate = path.join(dir, safe)
+  let i = 1
+  while (fs.existsSync(candidate)) {
+    candidate = path.join(dir, `${stem} (${i})${ext}`)
+    i += 1
+  }
+  return candidate
+}
+
+async function readDownloadBytes(payload: DownloadFilePayload): Promise<Buffer> {
+  if (payload.data != null) {
+    return Buffer.from(payload.data instanceof ArrayBuffer ? new Uint8Array(payload.data) : payload.data)
+  }
+  const url = (payload.url || '').trim()
+  if (!url) {
+    throw new Error('缺少下载内容')
+  }
+  if (/^https?:\/\//i.test(url)) {
+    const res = await net.fetch(url)
+    if (!res.ok) {
+      throw new Error(`下载失败 (${res.status})`)
+    }
+    return Buffer.from(await res.arrayBuffer())
+  }
+  throw new Error('不支持的下载地址，请由渲染进程传入文件数据')
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL)
@@ -327,6 +394,8 @@ function registerWindowIpc() {
   ipcMain.removeHandler('app:pick-download-path')
   ipcMain.removeHandler('app:open-download-path')
   ipcMain.removeHandler('app:clear-cache')
+  ipcMain.removeHandler('app:download-file')
+  ipcMain.removeHandler('app:download-and-install-update')
   ipcMain.removeHandler('app:set-shortcuts')
   ipcMain.removeHandler('app:get-shortcuts')
   ipcMain.removeHandler('app:get-download-path')
@@ -454,6 +523,109 @@ function registerWindowIpc() {
     }
   })
 
+  /** 按设置写入本地：询问保存位置 / 自动保存到下载目录 */
+  ipcMain.handle('app:download-file', async (event, payload: DownloadFilePayload = {}) => {
+    try {
+      const fileName = sanitizeFileName(payload.fileName || 'download')
+      const dir = resolveDownloadDir(payload.directory)
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true })
+      }
+
+      let targetPath: string
+      if (payload.askEveryTime !== false) {
+        const win = winFromSender(event)
+        const { dialog } = await import('electron')
+        const result = await dialog.showSaveDialog(win ?? undefined, {
+          defaultPath: path.join(dir, fileName),
+          filters: [{ name: 'All Files', extensions: ['*'] }]
+        })
+        if (result.canceled || !result.filePath) {
+          return { ok: false, canceled: true }
+        }
+        targetPath = result.filePath
+      } else {
+        targetPath = uniqueSavePath(dir, fileName)
+      }
+
+      const bytes = await readDownloadBytes(payload)
+      await fs.promises.writeFile(targetPath, bytes)
+      return { ok: true, path: targetPath }
+    } catch (e) {
+      return { ok: false, message: e instanceof Error ? e.message : '下载失败' }
+    }
+  })
+
+  /**
+   * 检查更新后的自动下载安装：下载安装包到临时目录并拉起系统安装程序。
+   * Windows 上 .exe/.msi 会进入安装向导；完成后由安装程序自行处理覆盖。
+   */
+  ipcMain.handle(
+    'app:download-and-install-update',
+    async (event, payload: { url?: string; version?: string; fileName?: string } = {}) => {
+      try {
+        const url = (payload.url || '').trim()
+        if (!/^https?:\/\//i.test(url)) {
+          return { ok: false, message: '无效的下载地址' }
+        }
+
+        let fileName = sanitizeFileName(payload.fileName || '')
+        if (!fileName || fileName === 'download') {
+          try {
+            const fromUrl = path.basename(new URL(url).pathname)
+            fileName = sanitizeFileName(fromUrl || '')
+          } catch {
+            fileName = ''
+          }
+        }
+        if (!fileName || fileName === 'download') {
+          const ver = sanitizeFileName(payload.version || 'update')
+          fileName = `LinkX-Setup-${ver}.exe`
+        }
+
+        const dir = path.join(app.getPath('temp'), 'LinkX-Update')
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true })
+        }
+        const targetPath = path.join(dir, fileName)
+
+        const win = winFromSender(event)
+        win?.webContents.send('app:update-progress', { phase: 'downloading', percent: 0 })
+
+        const res = await net.fetch(url)
+        if (!res.ok) {
+          return { ok: false, message: `下载失败 (${res.status})` }
+        }
+        const bytes = Buffer.from(await res.arrayBuffer())
+        await fs.promises.writeFile(targetPath, bytes)
+
+        win?.webContents.send('app:update-progress', { phase: 'installing', percent: 100 })
+
+        const { shell } = await import('electron')
+        const openErr = await shell.openPath(targetPath)
+        if (openErr) {
+          // 无法直接执行时，至少打开所在目录让用户手动安装
+          await shell.showItemInFolder(targetPath)
+          return {
+            ok: true,
+            path: targetPath,
+            launched: false,
+            message: '已下载，请在打开的文件夹中手动运行安装包'
+          }
+        }
+
+        // 安装程序拉起后退出应用，避免文件占用导致覆盖失败
+        setTimeout(() => {
+          app.quit()
+        }, 800)
+
+        return { ok: true, path: targetPath, launched: true }
+      } catch (e) {
+        return { ok: false, message: e instanceof Error ? e.message : '下载安装失败' }
+      }
+    }
+  )
+
   ipcMain.handle('app:get-shortcuts', () => ({ ...currentShortcuts }))
 
   ipcMain.handle('app:set-shortcuts', (_event, payload: { toggleWindow?: string; lock?: string }) => {
@@ -508,12 +680,16 @@ function registerWindowIpc() {
     return true
   })
 
-  // 系统桌面通知（日程提醒等）
-  ipcMain.handle('app:show-notification', async (_event, payload: { title?: string; body?: string }) => {
-    const title = (payload?.title || 'LinkX').trim() || 'LinkX'
-    const body = (payload?.body || '').trim()
-    return showDesktopNotice(title, body)
-  })
+  // 系统桌面通知（日程提醒、新消息等）
+  ipcMain.handle(
+    'app:show-notification',
+    async (_event, payload: { title?: string; body?: string; silent?: boolean }) => {
+      const title = (payload?.title || 'LinkX').trim() || 'LinkX'
+      const body = (payload?.body || '').trim()
+      const silent = !!payload?.silent
+      return showDesktopNotice(title, body, silent)
+    }
+  )
 }
 
 /** 广播应用内 toast，保证用户一定能看到 */
@@ -538,7 +714,7 @@ function isUnpackagedWindows(): boolean {
   )
 }
 
-async function showDesktopNotice(title: string, body: string): Promise<boolean> {
+async function showDesktopNotice(title: string, body: string, silent = false): Promise<boolean> {
   broadcastInAppToast(title, body)
 
   // 未打包 Windows 上 Notification 几乎必定失败（缺少 Start Menu 快捷方式），直接跳过避免误报日志
@@ -550,7 +726,7 @@ async function showDesktopNotice(title: string, body: string): Promise<boolean> 
         const n = new Notification({
           title,
           body,
-          silent: false,
+          silent,
           icon: createTrayIcon()
         })
         let settled = false

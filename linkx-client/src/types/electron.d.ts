@@ -41,6 +41,28 @@ declare global {
       openDownloadPath?: (customPath?: string) => Promise<boolean>
       clearAppCache?: () => Promise<{ ok: boolean; message?: string }>
       getDownloadPath?: () => Promise<string>
+      /** 按文件管理设置保存文件（下载目录 / 每次询问） */
+      downloadFile?: (payload: {
+        url?: string
+        data?: ArrayBuffer
+        fileName?: string
+        directory?: string
+        askEveryTime?: boolean
+      }) => Promise<{ ok: boolean; path?: string; canceled?: boolean; message?: string }>
+      /** 下载更新包并拉起安装程序（桌面端） */
+      downloadAndInstallUpdate?: (payload: {
+        url: string
+        version?: string
+        fileName?: string
+      }) => Promise<{
+        ok: boolean
+        path?: string
+        launched?: boolean
+        message?: string
+      }>
+      onUpdateProgress?: (
+        callback: (data: { phase?: string; percent?: number }) => void
+      ) => () => void
       getShortcuts?: () => Promise<{ toggleWindow: string; lock: string }>
       setShortcuts?: (payload: { toggleWindow?: string; lock?: string }) => Promise<boolean>
       onShortcutLock?: (callback: () => void) => () => void
@@ -54,8 +76,12 @@ declare global {
       notifyMomentsPublished?: () => void
       /** 订阅友链列表刷新，返回取消订阅函数 */
       onMomentsRefresh?: (callback: () => void) => () => void
-      /** 弹出系统桌面通知 */
-      showNotification?: (payload: { title?: string; body?: string }) => Promise<boolean>
+      /** 弹出系统桌面通知；silent=true 时不播放系统通知音 */
+      showNotification?: (payload: {
+        title?: string
+        body?: string
+        silent?: boolean
+      }) => Promise<boolean>
       /** 订阅应用内 toast 兜底 */
       onInAppToast?: (callback: (data: { title?: string; body?: string }) => void) => () => void
       /** OS 级加密存储（Token、锁屏 PIN 等敏感数据） */

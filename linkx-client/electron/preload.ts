@@ -61,7 +61,7 @@ const api = {
     ipcRenderer.on('moments:refresh', listener)
     return () => ipcRenderer.removeListener('moments:refresh', listener)
   },
-  showNotification: (payload: { title?: string; body?: string }) =>
+  showNotification: (payload: { title?: string; body?: string; silent?: boolean }) =>
     ipcRenderer.invoke('app:show-notification', payload) as Promise<boolean>,
   onInAppToast: (callback: (data: { title?: string; body?: string }) => void) => {
     if (typeof callback !== 'function') return () => {}
@@ -95,6 +95,23 @@ const api = {
       openOnStartup: 'main' | 'tray'
       language: 'zh-CN' | 'en-US'
     }>,
+  setWindowMode: mode => ipcRenderer.invoke('window:set-mode', mode),
+  pickDownloadPath: () => ipcRenderer.invoke('app:pick-download-path'),
+  openDownloadPath: customPath => ipcRenderer.invoke('app:open-download-path', customPath),
+  clearAppCache: () => ipcRenderer.invoke('app:clear-cache'),
+  getDownloadPath: () => ipcRenderer.invoke('app:get-download-path'),
+  downloadFile: payload => ipcRenderer.invoke('app:download-file', payload),
+  downloadAndInstallUpdate: payload =>
+    ipcRenderer.invoke('app:download-and-install-update', payload),
+  onUpdateProgress: (callback: (data: { phase?: string; percent?: number }) => void) => {
+    if (typeof callback !== 'function') return () => {}
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      data: { phase?: string; percent?: number }
+    ) => callback(data || {})
+    ipcRenderer.on('app:update-progress', listener)
+    return () => ipcRenderer.removeListener('app:update-progress', listener)
+  },
   // 主题变更通知（与主进程的 theme-changed 通道对应）
   notifyThemeChange: (theme: 'light' | 'dark') => ipcRenderer.send('theme-changed', theme)
 }

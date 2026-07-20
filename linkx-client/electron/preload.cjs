@@ -55,6 +55,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openDownloadPath: customPath => ipcRenderer.invoke('app:open-download-path', customPath),
   clearAppCache: () => ipcRenderer.invoke('app:clear-cache'),
   getDownloadPath: () => ipcRenderer.invoke('app:get-download-path'),
+  downloadFile: payload => ipcRenderer.invoke('app:download-file', payload),
+  downloadAndInstallUpdate: payload =>
+    ipcRenderer.invoke('app:download-and-install-update', payload),
+  onUpdateProgress: callback => {
+    if (typeof callback !== 'function') return () => {}
+    const listener = (_event, data) => callback(data || {})
+    ipcRenderer.on('app:update-progress', listener)
+    return () => ipcRenderer.removeListener('app:update-progress', listener)
+  },
   getShortcuts: () => ipcRenderer.invoke('app:get-shortcuts'),
   setShortcuts: payload => ipcRenderer.invoke('app:set-shortcuts', payload),
   onShortcutLock: callback => {
