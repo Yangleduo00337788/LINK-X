@@ -4,14 +4,17 @@ import com.linkx.server.controller.dto.SaveCalendarEventDTO;
 import com.linkx.server.controller.vo.CalendarEventVO;
 import com.linkx.server.entity.CalendarEvent;
 import com.linkx.server.exception.CustomException;
+import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.mapper.CalendarEventMapper;
 import com.linkx.server.service.CalendarService;
+import com.linkx.server.service.MessageNotificationService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -22,6 +25,8 @@ import java.util.stream.Collectors;
 public class CalendarServiceImpl implements CalendarService {
 
     private final CalendarEventMapper calendarEventMapper;
+    private final MessageNotificationService notificationService;
+    private final ImMessagePushService imPushService;
 
     @Override
     public List<CalendarEventVO> list(Long userId) {
@@ -112,6 +117,35 @@ public class CalendarServiceImpl implements CalendarService {
             throw new CustomException(404, "事件不存在或无权删除");
         }
         calendarEventMapper.deleteById(eventId);
+    }
+
+    @Override
+    @Transactional
+    public void fireReminder(Long userId, Long eventId) {
+        CalendarEvent event = calendarEventMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .eq("id", eventId)
+                        .eq("user_id", userId)
+                        .eq("deleted", 0)
+        );
+        if (event == null) {
+            throw new CustomException(404, "事件不存在或无权访问");
+        }
+        String timePart = event.getTime() != null && !event.getTime().isBlank()
+                ? event.getTime()
+                : "全天";
+        String content = String.format("将于 %s %s 开始 · %s",
+                event.getDate(), timePart, event.getTitle());
+        notificationService.create(
+                userId,
+                null,
+                "日程提醒",
+                null,
+                "calendar_remind",
+                eventId,
+                content
+        );
+        imPushService.pushToUser(userId, "notification_refresh", Map.of("type", "calendar_remind"));
     }
 
     private CalendarEventVO toVO(CalendarEvent event) {

@@ -4,65 +4,103 @@
  * <p>
  * 展示会话列表，支持搜索过滤、虚拟滚动、右键菜单（置顶/免打扰/删除），
  * 以及通过添加按钮发起群聊或添加好友。
+ * 列表中插入「日程提醒」站内通知虚拟会话（默认不置顶）。
  * </p>
  */
-// Vue 响应式与计算属性
-import { ref, computed } from 'vue'
-// Naive UI 图标、骨架屏、下拉菜单、虚拟列表与消息提示
+import { ref, computed, onMounted } from 'vue'
 import { NIcon, NSkeleton, NDropdown, NVirtualList, useMessage, type DropdownOption } from 'naive-ui'
-// Ionicons5 手机、免打扰、警告图标
-import { PhonePortraitOutline, NotificationsOffOutline, WarningOutline } from '@vicons/ionicons5'
-// 置顶图标组件
+import {
+  PhonePortraitOutline,
+  NotificationsOffOutline,
+  WarningOutline,
+  CalendarOutline
+} from '@vicons/ionicons5'
 import PinIcon from './icons/PinIcon.vue'
-// 面板搜索栏
 import PanelSearchBar from './PanelSearchBar.vue'
-// 头像组件
 import Avatar from './Avatar.vue'
-// 空状态组件
 import EmptyState from './common/EmptyState.vue'
-// Pinia 响应式解构
 import { storeToRefs } from 'pinia'
-// 应用全局状态 Store
 import { useAppStore } from '../stores/app'
-// 聊天弹窗状态 Store
 import { useChatModalsStore } from '../stores/chatModals'
-// 会话类型定义
+import { useNotificationsStore } from '../stores/notifications'
 import type { ChatSession } from '../types'
+import { SYSTEM_NOTIFY_SESSION_ID } from '../types'
+import { formatChatTime } from '../utils/chatTime'
 
-// 获取 Naive UI 消息提示实例
 const message = useMessage()
-// 获取应用 Store 实例
 const appStore = useAppStore()
-// 获取聊天弹窗 Store 实例
 const chatModalsStore = useChatModalsStore()
-// 解构排序后的会话、当前会话 ID、加载与离线状态
+const notificationsStore = useNotificationsStore()
+
 const { sortedSessions, currentSessionId, isLoading, isOffline } = storeToRefs(appStore)
-// 解构会话选择、置顶、免打扰、删除方法
+const { calendarRemindNotifs, calendarRemindUnreadCount } = storeToRefs(notificationsStore)
 const { selectSession, toggleSessionPin, toggleSessionMute, deleteSession } = appStore
-// 解构发起群聊与综合搜索方法
 const { openCreateGroup, openComprehensiveSearch } = chatModalsStore
-// 搜索关键词
+const { fetchMessageNotifications } = notificationsStore
+
 const searchValue = ref('')
 
-// 右键菜单相关状态
-const contextSession = ref<ChatSession | null>(null) // 右键选中的会话
-const contextMenuShow = ref(false) // 是否显示右键菜单
-const contextMenuX = ref(0) // 菜单 X 坐标
-const contextMenuY = ref(0) // 菜单 Y 坐标
+const contextSession = ref<ChatSession | null>(null)
+const contextMenuShow = ref(false)
+const contextMenuX = ref(0)
+const contextMenuY = ref(0)
 
-// 根据搜索关键词过滤会话列表
+onMounted(() => {
+  void fetchMessageNotifications()
+})
+
+function formatNotifListTime(raw?: string): string {
+  if (!raw) return ''
+  const ms = Date.parse(raw)
+  if (!Number.isFinite(ms)) return ''
+  return formatChatTime(ms)
+}
+
+/** 列表预览：统一成「将于 …」开头（汉字），与标题「日」左缘视觉对齐 */
+function formatRemindPreview(content?: string): string {
+  if (!content) return '暂无日程提醒'
+  const raw = content.replace(/^[「【\[]([^」】\]]*)[」】\]]\s*/, '$1 ').trim()
+  const m = raw.match(/^(?:(.+?)\s+)?将于\s+(.+)$/)
+  if (m?.[2]) {
+    const title = (m[1] || '').trim()
+    return title ? `将于 ${m[2]} · ${title}` : `将于 ${m[2]}`
+  }
+  return raw
+}
+
+/** 消息页虚拟会话：日程提醒（默认不置顶） */
+const systemNotifySession = computed<ChatSession>(() => {
+  const list = calendarRemindNotifs.value
+  const latest = list[0]
+  return {
+    id: SYSTEM_NOTIFY_SESSION_ID,
+    name: '日程提醒',
+    lastMessage: formatRemindPreview(latest?.content),
+    time: formatNotifListTime(latest?.createTime),
+    avatarText: '日',
+    avatarColor: '#12b7f5',
+    unread: calendarRemindUnreadCount.value || undefined,
+    pinned: false,
+    isReal: false,
+    isSystemNotify: true
+  }
+})
+
 const filteredSessions = computed(() => {
-  const q = searchValue.value.trim().toLowerCase() // 规范化搜索词
-  if (!q) return sortedSessions.value // 无搜索词返回全部
-  return sortedSessions.value.filter(
-    s => s.name.toLowerCase().includes(q) || s.lastMessage.toLowerCase().includes(q) // 匹配名称或最后消息
+  const q = searchValue.value.trim().toLowerCase()
+  const system = systemNotifySession.value
+  const rest = sortedSessions.value
+  // 不置顶：跟在普通会话后面，不插到列表最前
+  const merged = [...rest, system]
+  if (!q) return merged
+  return merged.filter(
+    s => s.name.toLowerCase().includes(q) || s.lastMessage.toLowerCase().includes(q)
   )
 })
 
-// 根据当前右键会话动态生成菜单选项
 const contextMenuOptions = computed<DropdownOption[]>(() => {
   const s = contextSession.value
-  if (!s) return [] // 无选中会话则空菜单
+  if (!s || s.isSystemNotify) return []
   return [
     { label: s.pinned ? '取消置顶' : '置顶', key: 'pin' },
     { label: s.muted ? '取消免打扰' : '免打扰', key: 'mute' },
@@ -71,21 +109,22 @@ const contextMenuOptions = computed<DropdownOption[]>(() => {
   ]
 })
 
-// 添加按钮下拉选项
 const addOptions = [
   { label: '发起群聊', key: 'group' },
   { label: '添加好友/群聊', key: 'friend' }
 ]
 
-// 点击会话项选中该会话
 function onSelect(session: ChatSession) {
+  if (session.isSystemNotify) {
+    appStore.currentSessionId = SYSTEM_NOTIFY_SESSION_ID
+    return
+  }
   selectSession(session)
 }
 
-// 处理添加按钮下拉选项选中
 function onAddSelect(key: string) {
   if (key === 'group') {
-    openCreateGroup() // 打开发起群聊弹窗
+    openCreateGroup()
     return
   }
   if (key === 'friend') {
@@ -93,21 +132,20 @@ function onAddSelect(key: string) {
   }
 }
 
-// 会话项右键菜单：记录坐标与目标会话
 function onSessionContext(e: MouseEvent, session: ChatSession) {
-  e.preventDefault() // 阻止浏览器默认右键菜单
+  if (session.isSystemNotify) return
+  e.preventDefault()
   contextSession.value = session
   contextMenuX.value = e.clientX
   contextMenuY.value = e.clientY
   contextMenuShow.value = true
 }
 
-// 处理右键菜单选项选中
 function onContextMenuSelect(key: string) {
   const s = contextSession.value
   if (!s) return
   if (key === 'pin') {
-    const wasPinned = s.pinned // 记录操作前状态用于提示文案
+    const wasPinned = s.pinned
     toggleSessionPin(s.id)
     message.success(wasPinned ? '已取消置顶' : '已置顶')
   } else if (key === 'mute') {
@@ -118,14 +156,12 @@ function onContextMenuSelect(key: string) {
     deleteSession(s.id)
     message.success('已删除会话')
   }
-  contextMenuShow.value = false // 关闭菜单
+  contextMenuShow.value = false
 }
 </script>
 
 <template>
-  <!-- 聊天列表容器 -->
   <div class="chat-list">
-    <!-- 顶部搜索栏与添加按钮 -->
     <PanelSearchBar
       v-model="searchValue"
       placeholder="搜索"
@@ -133,15 +169,12 @@ function onContextMenuSelect(key: string) {
       @add-select="onAddSelect"
     />
 
-    <!-- 离线提示横幅 -->
     <div v-if="isOffline" class="offline-banner">
       <n-icon :component="WarningOutline" :size="16" />
       <span>网络连接已断开，请检查网络设置</span>
     </div>
 
-    <!-- 会话列表区域 -->
     <div class="session-list">
-      <!-- 加载中骨架屏 -->
       <template v-if="isLoading">
         <div class="skeleton-item" v-for="i in 8" :key="i">
           <n-skeleton size="large" class="skeleton-avatar" />
@@ -152,12 +185,10 @@ function onContextMenuSelect(key: string) {
         </div>
       </template>
 
-      <!-- 无匹配结果空状态 -->
       <template v-else-if="filteredSessions.length === 0">
         <EmptyState title="无匹配的会话" description="请尝试其他关键词" />
       </template>
 
-      <!-- 虚拟滚动会话列表 -->
       <template v-else>
         <n-virtual-list
           style="max-height: 100%; height: 100%"
@@ -172,40 +203,42 @@ function onContextMenuSelect(key: string) {
               @click="onSelect(session)"
               @contextmenu="onSessionContext($event, session)"
             >
-              <!-- 头像与未读角标 -->
               <div class="avatar-wrapper">
                 <Avatar
                   :text="session.avatarText"
                   :color="session.avatarColor"
                   :size="44"
                   :image-url="session.avatarUrl"
-                  :icon="session.name === '我的手机' ? PhonePortraitOutline : undefined"
+                  :icon="
+                    session.isSystemNotify
+                      ? CalendarOutline
+                      : session.name === '我的手机'
+                        ? PhonePortraitOutline
+                        : undefined
+                  "
                 />
                 <div v-if="session.unread && !session.muted" class="unread-badge">
                   {{ session.unread > 99 ? '99+' : session.unread }}
                 </div>
               </div>
 
-              <!-- 会话名称、时间与最后消息 -->
               <div class="session-content">
-                <div class="session-top">
-                  <span class="session-name">
-                    <PinIcon v-if="session.pinned" :size="12" class="pin-icon" />
-                    {{ session.name }}
-                  </span>
-                  <span class="session-meta">
-                    <n-icon
-                      v-if="session.muted"
-                      :component="NotificationsOffOutline"
-                      :size="14"
-                      class="mute-icon"
-                    />
-                    <span class="session-time">{{ session.time }}</span>
-                  </span>
+                <div class="session-name">
+                  <PinIcon v-if="session.pinned" :size="12" class="pin-icon" /><span
+                    class="session-name-text"
+                    >{{ session.name }}</span
+                  >
                 </div>
-                <div class="session-bottom">
-                  <span class="last-message">{{ session.lastMessage }}</span>
-                </div>
+                <span class="session-meta">
+                  <n-icon
+                    v-if="session.muted"
+                    :component="NotificationsOffOutline"
+                    :size="14"
+                    class="mute-icon"
+                  />
+                  <span class="session-time">{{ session.time }}</span>
+                </span>
+                <span class="last-message">{{ session.lastMessage }}</span>
               </div>
             </div>
           </template>
@@ -213,7 +246,6 @@ function onContextMenuSelect(key: string) {
       </template>
     </div>
 
-    <!-- 会话右键菜单（手动触发定位） -->
     <n-dropdown
       trigger="manual"
       placement="bottom-start"
@@ -308,65 +340,87 @@ function onContextMenuSelect(key: string) {
 .session-content {
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 6px;
-}
-
-.session-top {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'name meta'
+    'msg msg';
+  column-gap: 8px;
+  row-gap: 6px;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
 }
 
 .session-name {
-  font-size: 14px;
-  color: var(--lx-text-body);
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  grid-area: name;
   display: flex;
   align-items: center;
   gap: 4px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.session-name-text,
+.last-message {
+  margin: 0;
+  padding: 0;
+  text-indent: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+
+.session-name-text {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--lx-text-body);
 }
 
 .pin-icon {
-  color: var(--lx-accent);
   flex-shrink: 0;
+  color: var(--lx-accent);
 }
 
 .session-meta {
-  display: flex;
+  grid-area: meta;
+  display: inline-flex;
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
 }
 
 .mute-icon {
-  color: #b0b0b0;
+  color: var(--lx-text-secondary);
 }
 
 .session-time {
   font-size: 12px;
-  color: var(--lx-text-muted);
+  color: var(--lx-text-secondary);
 }
 
 .last-message {
+  grid-area: msg;
+  display: block;
   font-size: 12px;
-  color: var(--lx-text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: var(--lx-text-secondary);
 }
 
 .skeleton-item {
+  height: 68px;
   display: flex;
-  padding: 12px 14px;
-  gap: 10px;
   align-items: center;
+  padding: 0 12px;
+  gap: 12px;
+}
+
+.skeleton-avatar {
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 8px;
+  flex-shrink: 0;
 }
 
 .skeleton-info {
@@ -374,5 +428,10 @@ function onContextMenuSelect(key: string) {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.skeleton-title,
+.skeleton-desc {
+  margin: 0;
 }
 </style>

@@ -16,6 +16,7 @@ import {
   HeartOutline,
   ChatbubbleOutline,
   AtCircleOutline,
+  CalendarOutline,
   RefreshOutline,
   CloseOutline
 } from '@vicons/ionicons5'
@@ -41,17 +42,27 @@ const emit = defineEmits<{
   (e: 'select', n: typeof messageNotifs.value[0]): void
 }>()
 
-// 仅友链相关通知(点赞/评论/@)
-const MOMENTS_NOTIF_TYPES = new Set(['moments_like', 'moments_comment', 'moments_mention'])
+// 默认展示：友链相关 + 日历日程提醒
+const DEFAULT_NOTIF_TYPES = new Set([
+  'moments_like',
+  'moments_comment',
+  'moments_mention',
+  'calendar_remind'
+])
 const showAll = defineModel<boolean>('showAll', { default: false })
+
+const isMentionOnly = computed(() => mentionOnly.value)
 
 /** 当前实际显示的列表 */
 const displayList = computed(() => {
-  if (showAll.value) return messageNotifs.value
-  return messageNotifs.value.filter(n => MOMENTS_NOTIF_TYPES.has(n.type))
+  let list = messageNotifs.value
+  if (isMentionOnly.value) {
+    list = list.filter(n => n.type === 'moments_mention')
+  } else if (!showAll.value) {
+    list = list.filter(n => DEFAULT_NOTIF_TYPES.has(n.type))
+  }
+  return list
 })
-
-const isMentionOnly = computed(() => mentionOnly.value)
 
 // 抽屉打开时拉取最新数据
 onMounted(() => {
@@ -67,7 +78,7 @@ watch(
 /** 菜单选项 */
 const moreOptions = computed<DropdownOption[]>(() => [
   {
-    label: showAll.value ? '只看友链消息' : '显示全部消息',
+    label: showAll.value ? '只看友链与日程' : '显示全部消息',
     key: 'toggle-all'
   },
   {
@@ -104,6 +115,7 @@ function getNotificationIcon(type: string) {
   if (type === 'moments_like') return HeartOutline
   if (type === 'moments_comment') return ChatbubbleOutline
   if (type === 'moments_mention') return AtCircleOutline
+  if (type === 'calendar_remind') return CalendarOutline
   return ChatbubbleOutline
 }
 
@@ -115,6 +127,8 @@ function getNotificationTypeText(type: string) {
       return '评论了你的动态'
     case 'moments_mention':
       return '在评论中@了你'
+    case 'calendar_remind':
+      return '日程提醒'
     default:
       return '有新通知'
   }
@@ -177,10 +191,10 @@ function onAvatarError(e: Event, notif: typeof messageNotifs.value[0]) {
             <h3 class="title">
               消息通知
               <span class="filter-tag" :class="{ mention: isMentionOnly }">
-                {{ showAll ? '全部消息' : '仅友链消息' }}
+                {{ showAll ? '全部消息' : '友链与日程' }}
               </span>
             </h3>
-            <p class="subtitle">点赞 · 评论 · @ 我的</p>
+            <p class="subtitle">点赞 · 评论 · @ · 日程提醒</p>
           </div>
           <div class="actions">
             <button type="button" class="icon-btn" title="刷新" @click.stop="refresh">

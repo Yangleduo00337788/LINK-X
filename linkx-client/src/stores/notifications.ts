@@ -163,10 +163,18 @@ export const useNotificationsStore = defineStore('notifications', {
       }
       return state.messageNotifs.filter(n => n.readStatus === 0).length
     },
-    /** 友链相关未读（铃铛在友链窗口使用） */
+    /** 友链相关未读（铃铛在友链窗口使用；含日程提醒） */
     momentsUnreadCount(state): number {
-      const types = new Set(['moments_like', 'moments_comment', 'moments_mention'])
+      const types = new Set(['moments_like', 'moments_comment', 'moments_mention', 'calendar_remind'])
       return state.messageNotifs.filter(n => n.readStatus === 0 && types.has(n.type)).length
+    },
+    /** 日历日程提醒列表（消息页虚拟会话用） */
+    calendarRemindNotifs(state): MessageNotification[] {
+      return state.messageNotifs.filter(n => n.type === 'calendar_remind')
+    },
+    /** 日历日程提醒未读数 */
+    calendarRemindUnreadCount(state): number {
+      return state.messageNotifs.filter(n => n.type === 'calendar_remind' && n.readStatus === 0).length
     },
     totalUnreadCount(): number {
       return this.pendingFriendCount + this.unreadMessageCount
@@ -232,8 +240,9 @@ export const useNotificationsStore = defineStore('notifications', {
 
     async fetchMessageNotifications() {
       try {
+        // 始终拉全量；「只看 @」在 UI 层过滤，避免消息页日历提醒被藏掉
         const [mineRes] = await Promise.all([
-          notificationApi.listMineNotifications(this.mentionOnly)
+          notificationApi.listMineNotifications(false)
         ])
         if (mineRes.code === 200 && mineRes.data) {
           this.messageNotifs = mineRes.data.map(n => mapRawNotification(n))
@@ -245,12 +254,19 @@ export const useNotificationsStore = defineStore('notifications', {
     },
 
     /**
-     * 设置"只收到@我的消息"开关并立即重新拉取一次消息列表。
-     * 设置为 true 后将仅显示 type=moments_mention 通知。
+     * 设置"只收到@我的消息"开关（仅影响友链通知抽屉展示，不改本地全量缓存）
      */
     async setMentionOnly(value: boolean) {
       this.mentionOnly = value
-      await this.fetchMessageNotifications()
+    },
+
+    /** 将全部日历日程提醒标为已读 */
+    async markCalendarRemindsAsRead() {
+      const unread = this.messageNotifs.filter(
+        n => n.type === 'calendar_remind' && n.readStatus === 0
+      )
+      if (!unread.length) return
+      await Promise.all(unread.map(n => this.markMessageAsRead(n.id)))
     },
 
     /**

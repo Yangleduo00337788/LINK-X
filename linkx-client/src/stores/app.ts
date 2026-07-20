@@ -408,7 +408,8 @@ export const useAppStore = defineStore('app', {
 
         await Promise.all([
           useContactsStore().fetchFriends(),
-          useNotificationsStore().fetchFriendRequests()
+          useNotificationsStore().fetchFriendRequests(),
+          useNotificationsStore().fetchMessageNotifications()
         ])
         // 确保登录后不自动选中任何会话
         this.currentSessionId = null

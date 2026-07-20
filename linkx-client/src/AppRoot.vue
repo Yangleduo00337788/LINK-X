@@ -8,32 +8,25 @@
  */
 // Vue 计算属性、侦听器与挂载钩子
 import { computed, watch, onMounted } from 'vue'
-// Naive UI 全局 Provider 与暗色主题
 import {
   NMessageProvider,
   NDialogProvider,
+  NNotificationProvider,
   NConfigProvider,
   darkTheme,
   zhCN,
   dateZhCN,
   type GlobalThemeOverrides
 } from 'naive-ui'
-// 路由根组件
 import App from './App.vue'
-// Vue 异步组件定义
 import { defineAsyncComponent } from 'vue'
 
-// 设置弹窗异步懒加载，减小首屏包体积
 const SettingsModal = defineAsyncComponent(() => import('./components/SettingsModal.vue'))
-// 锁屏组件同步导入
 import LockScreen from './components/LockScreen.vue'
-// Pinia 响应式解构
+import InAppToastBridge from './components/InAppToastBridge.vue'
 import { storeToRefs } from 'pinia'
-// 应用全局状态 Store
 import { useAppStore } from './stores/app'
-// Naive UI 主题色常量
 import { naiveThemeColors } from './theme/vars'
-// 文档主题同步与 Electron 主题通知工具
 import { applyDocumentTheme, notifyElectronTheme } from './utils/themeSync'
 
 // 获取应用 Store 实例
@@ -91,16 +84,15 @@ watch(theme, syncHtmlTheme)
   >
     <!-- 全局消息提示 Provider -->
     <n-message-provider>
-      <!-- 全局对话框 Provider -->
       <n-dialog-provider>
-        <!-- 主应用（路由出口） -->
-        <App />
-        <!-- 设置弹窗（异步加载） -->
-        <SettingsModal />
-        <!-- 锁屏层：已登录且处于锁定状态时挂载到 body -->
-        <Teleport to="body">
-          <LockScreen v-if="isLoggedIn && isLocked" />
-        </Teleport>
+        <n-notification-provider placement="top-right" :max="4">
+          <InAppToastBridge />
+          <App />
+          <SettingsModal />
+          <Teleport to="body">
+            <LockScreen v-if="isLoggedIn && isLocked" />
+          </Teleport>
+        </n-notification-provider>
       </n-dialog-provider>
     </n-message-provider>
   </n-config-provider>

@@ -39,4 +39,9 @@ public interface CalendarService {
      * 删除事件
      */
     void delete(Long userId, Long eventId);
+
+    /**
+     * 触发日程提醒：写入消息通知列表（不弹系统窗）
+     */
+    void fireReminder(Long userId, Long eventId);
 }

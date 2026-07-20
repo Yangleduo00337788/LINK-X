@@ -5,6 +5,7 @@ import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.Result;
 import com.linkx.server.controller.dto.SaveCalendarEventDTO;
 import com.linkx.server.controller.vo.CalendarEventVO;
+import com.linkx.server.exception.CustomException;
 import com.linkx.server.service.CalendarService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -15,6 +16,7 @@ import java.util.List;
 
 /**
  * 日历控制器
+ * 路径中的 eventId 使用字符串接收，再 Long.parseLong，避免雪花 ID 精度问题。
  */
 @RestController
 @RequestMapping("/calendar")
@@ -49,10 +51,10 @@ public class CalendarController {
      */
     @GetMapping("/{eventId}")
     public Result<CalendarEventVO> get(
-            @PathVariable Long eventId,
+            @PathVariable String eventId,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        return Result.success(calendarService.get(userId, eventId));
+        return Result.success(calendarService.get(userId, parseId(eventId)));
     }
 
     /**
@@ -71,11 +73,11 @@ public class CalendarController {
      */
     @PutMapping("/{eventId}")
     public Result<CalendarEventVO> update(
-            @PathVariable Long eventId,
+            @PathVariable String eventId,
             @Valid @RequestBody SaveCalendarEventDTO dto,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        return Result.success(calendarService.update(userId, eventId, dto));
+        return Result.success(calendarService.update(userId, parseId(eventId), dto));
     }
 
     /**
@@ -83,10 +85,30 @@ public class CalendarController {
      */
     @DeleteMapping("/{eventId}")
     public Result<Void> delete(
-            @PathVariable Long eventId,
+            @PathVariable String eventId,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        calendarService.delete(userId, eventId);
+        calendarService.delete(userId, parseId(eventId));
         return Result.success(null);
+    }
+
+    /**
+     * 触发日程提醒：写入消息通知列表（由客户端在提醒时刻调用）
+     */
+    @PostMapping("/{eventId}/remind")
+    public Result<Void> fireReminder(
+            @PathVariable String eventId,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        calendarService.fireReminder(userId, parseId(eventId));
+        return Result.success(null);
+    }
+
+    private Long parseId(String id) {
+        try {
+            return Long.parseLong(id);
+        } catch (NumberFormatException e) {
+            throw new CustomException(400, "无效的 ID");
+        }
     }
 }

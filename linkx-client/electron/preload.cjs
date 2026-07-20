@@ -61,6 +61,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('moments:refresh', listener)
     return () => ipcRenderer.removeListener('moments:refresh', listener)
   },
+  /** 弹出系统桌面通知 */
+  showNotification: (payload) => ipcRenderer.invoke('app:show-notification', payload),
+  /** 订阅应用内 toast（主进程桌面通知失败时的兜底） */
+  onInAppToast: callback => {
+    if (typeof callback !== 'function') return () => {}
+    const listener = (_event, data) => callback(data || {})
+    ipcRenderer.on('app:in-app-toast', listener)
+    return () => ipcRenderer.removeListener('app:in-app-toast', listener)
+  },
   secureStorage: {
     isAvailable: () => ipcRenderer.invoke('secure-storage:is-available'),
     get: key => ipcRenderer.invoke('secure-storage:get', key),

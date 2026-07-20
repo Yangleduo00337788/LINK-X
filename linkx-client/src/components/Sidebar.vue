@@ -7,7 +7,7 @@
  * </p>
  */
 // Vue 渲染函数、nextTick 与组件类型
-import { h, nextTick, ref, type Component } from 'vue'
+import { h, nextTick, ref, computed, type Component } from 'vue'
 import { NIcon, NDropdown, useMessage, type DropdownOption } from 'naive-ui'
 import {
   ChatbubbleEllipsesOutline,
@@ -35,6 +35,7 @@ import { useFavoritesStore } from '../stores/favorites'
 import { useContactsStore } from '../stores/contacts'
 import { useMomentsStore } from '../stores/moments'
 import { useCalendarStore } from '../stores/calendar'
+import { useNotificationsStore } from '../stores/notifications'
 import type { NavKey } from '../types'
 
 // 获取各 Store 实例
@@ -46,8 +47,10 @@ const favoritesStore = useFavoritesStore()
 const contactsStore = useContactsStore()
 const momentsStore = useMomentsStore()
 const calendarStore = useCalendarStore()
-// 解构导航键、用户资料、已保存登录信息
-const { navKey, userProfile, savedLogin } = storeToRefs(appStore)
+const notificationsStore = useNotificationsStore()
+// 解构导航键、用户资料、已保存登录信息、会话列表
+const { navKey, userProfile, savedLogin, sessions } = storeToRefs(appStore)
+const { calendarRemindUnreadCount } = storeToRefs(notificationsStore)
 // 解构导航切换、登出、锁定方法
 const { setNav, logout, lock } = appStore
 // 解构打开个人资料方法
@@ -93,6 +96,20 @@ const mainNav: { key: NavKey; icon: typeof ChatbubbleEllipsesOutline; label: str
   { key: 'calendar', icon: CalendarOutline, label: '日历' },
   { key: 'moments', icon: ApertureOutline, label: '友链' }
 ]
+
+/** 消息图标未读：普通会话未读 + 日历日程提醒未读（免打扰会话不计入） */
+const chatNavUnread = computed(() => {
+  const sessionUnread = sessions.value.reduce((sum, s) => {
+    if (s.muted) return sum
+    return sum + (s.unread || 0)
+  }, 0)
+  return sessionUnread + (calendarRemindUnreadCount.value || 0)
+})
+
+function navBadge(key: NavKey): number {
+  if (key === 'chat') return chatNavUnread.value
+  return 0
+}
 
 // 处理导航项点击
 function handleClick(key: NavKey | 'menu') {
@@ -258,6 +275,9 @@ function handleSelfAvatarClick(e: MouseEvent) {
         @click="handleClick(item.key)"
       >
         <n-icon :component="item.icon" :size="22" />
+        <span v-if="navBadge(item.key) > 0" class="nav-badge">
+          {{ navBadge(item.key) > 99 ? '99+' : navBadge(item.key) }}
+        </span>
       </button>
     </div>
 
@@ -359,6 +379,26 @@ function handleSelfAvatarClick(e: MouseEvent) {
   flex-shrink: 0;
   margin: 0 auto;
   -webkit-app-region: no-drag;
+  position: relative;
+}
+
+.nav-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--lx-danger, #f04040);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  box-sizing: border-box;
+  pointer-events: none;
+  box-shadow: 0 0 0 2px var(--lx-bg-sidebar, transparent);
 }
 
 .nav-item:hover {

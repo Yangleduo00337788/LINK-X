@@ -82,8 +82,7 @@ function isActiveEvent(event: CalendarEvent) {
           <div class="event-meta">
             <div class="event-title">{{ event.title }}</div>
             <div class="event-sub">
-              {{ formatDayLabel(event.date) }}
-              <span v-if="event.time"> · {{ event.time }}</span>
+              <template v-if="event.time">{{ event.time }} · </template>{{ formatDayLabel(event.date) }}
             </div>
           </div>
         </button>
@@ -154,13 +153,14 @@ function isActiveEvent(event: CalendarEvent) {
   border: none;
   background: transparent;
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 10px;
-  margin-bottom: 4px;
-  border-radius: var(--lx-radius);
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  margin-bottom: 6px;
+  border-radius: 8px;
   cursor: pointer;
   text-align: left;
+  overflow: hidden;
   transition: background 0.15s;
 }
 
@@ -169,20 +169,21 @@ function isActiveEvent(event: CalendarEvent) {
 }
 
 .event-row.active {
-  background: rgba(18, 183, 245, 0.12);
+  background: var(--lx-accent-soft);
 }
 
 .event-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-top: 6px;
+  width: 3px;
+  align-self: stretch;
+  border-radius: 0;
+  margin: 0;
   flex-shrink: 0;
 }
 
 .event-meta {
   min-width: 0;
   flex: 1;
+  padding: 10px 12px;
 }
 
 .event-title {

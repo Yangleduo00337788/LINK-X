@@ -32,6 +32,10 @@ declare global {
       notifyMomentsPublished?: () => void
       /** 订阅友链列表刷新，返回取消订阅函数 */
       onMomentsRefresh?: (callback: () => void) => () => void
+      /** 弹出系统桌面通知 */
+      showNotification?: (payload: { title?: string; body?: string }) => Promise<boolean>
+      /** 订阅应用内 toast 兜底 */
+      onInAppToast?: (callback: (data: { title?: string; body?: string }) => void) => () => void
       /** OS 级加密存储（Token、锁屏 PIN 等敏感数据） */
       secureStorage?: {
         isAvailable: () => Promise<boolean>

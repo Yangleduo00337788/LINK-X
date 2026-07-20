@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, globalShortcut, safeStorage, desktopCapturer, type IpcMainEvent, type IpcMainInvokeEvent, type WebRequestHeadersReceivedCallbackParams, type OnHeadersReceivedListener } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, globalShortcut, safeStorage, desktopCapturer, Notification, type IpcMainEvent, type IpcMainInvokeEvent, type WebRequestHeadersReceivedCallbackParams, type OnHeadersReceivedListener } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import http from 'node:http'
@@ -45,6 +45,12 @@ function resolvePreloadPath(): string {
 }
 
 const preloadPath = resolvePreloadPath()
+
+// Windows 通知：开发态（未打包）必须用 execPath 作为 AUMID，否则 Toast 会 HRESULT 失败
+if (process.platform === 'win32') {
+  const unpackaged = !app.isPackaged || process.defaultApp || /electron\.exe$/i.test(process.execPath)
+  app.setAppUserModelId(unpackaged ? process.execPath : 'com.linkx.app')
+}
 
 if (isDev) {
   app.commandLine.appendSwitch('--disable-software-rasterizer')
@@ -174,6 +180,7 @@ function registerWindowIpc() {
   ipcMain.removeHandler('secure-storage:get')
   ipcMain.removeHandler('secure-storage:set')
   ipcMain.removeHandler('secure-storage:remove')
+  ipcMain.removeHandler('app:show-notification')
 
   ipcMain.on('window-minimize', onMinimize)
   ipcMain.on('window-maximize', onMaximize)
@@ -278,6 +285,92 @@ function registerWindowIpc() {
     }
     return true
   })
+
+  // 系统桌面通知（日程提醒等）
+  ipcMain.handle('app:show-notification', async (_event, payload: { title?: string; body?: string }) => {
+    const title = (payload?.title || 'LinkX').trim() || 'LinkX'
+    const body = (payload?.body || '').trim()
+    return showDesktopNotice(title, body)
+  })
+}
+
+/** 广播应用内 toast，保证用户一定能看到 */
+function broadcastInAppToast(title: string, body: string) {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) {
+      win.webContents.send('app:in-app-toast', { title, body })
+    }
+  }
+}
+
+/**
+ * 可靠桌面提醒：
+ * - 开发态 Windows：跳过 Electron Toast（常 HRESULT 失败），用托盘气球 + 应用内 toast
+ * - 打包后：优先系统 Toast，失败再托盘气球
+ * - 始终推送应用内 toast
+ */
+function isUnpackagedWindows(): boolean {
+  return (
+    process.platform === 'win32' &&
+    (!app.isPackaged || !!process.defaultApp || /electron\.exe$/i.test(process.execPath))
+  )
+}
+
+async function showDesktopNotice(title: string, body: string): Promise<boolean> {
+  broadcastInAppToast(title, body)
+
+  // 未打包 Windows 上 Notification 几乎必定失败（缺少 Start Menu 快捷方式），直接跳过避免误报日志
+  const tryNativeToast = Notification.isSupported() && !isUnpackagedWindows()
+
+  if (tryNativeToast) {
+    const toastOk = await new Promise<boolean>(resolve => {
+      try {
+        const n = new Notification({
+          title,
+          body,
+          silent: false,
+          icon: createTrayIcon()
+        })
+        let settled = false
+        const done = (ok: boolean) => {
+          if (settled) return
+          settled = true
+          resolve(ok)
+        }
+        n.on('failed', (_e, err) => {
+          console.warn('[Main] Notification failed:', err)
+          done(false)
+        })
+        // 不信任 show：Windows 上可能 show 后又 failed
+        n.show()
+        setTimeout(() => done(true), 800)
+      } catch (e) {
+        console.error('[Main] Notification error:', e)
+        resolve(false)
+      }
+    })
+    if (toastOk) {
+      console.log('[Main] Notification OK')
+      return true
+    }
+  }
+
+  if (tray && !tray.isDestroyed()) {
+    try {
+      tray.displayBalloon({
+        title,
+        content: body || ' ',
+        iconType: 'info'
+      })
+      console.log('[Main] Remind via tray balloon + in-app toast')
+      return true
+    } catch (e) {
+      console.error('[Main] Tray balloon failed:', e)
+    }
+  }
+
+  console.log('[Main] Remind via in-app toast only')
+  return true
 }
 
 registerWindowIpc()

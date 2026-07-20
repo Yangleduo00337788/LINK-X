@@ -32,7 +32,12 @@ export interface ChatSession {
   peerUserId?: string
   /** 是否为后端真实会话（非 Mock） */
   isReal?: boolean
+  /** 消息页虚拟会话：站内日程提醒 */
+  isSystemNotify?: boolean
 }
+
+/** 消息页「日程提醒」虚拟会话 ID */
+export const SYSTEM_NOTIFY_SESSION_ID = '__calendar_remind__'
 
 /** 单条聊天消息 */
 export interface ChatMessage {

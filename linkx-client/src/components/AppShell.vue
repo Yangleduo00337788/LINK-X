@@ -32,8 +32,11 @@ import CalendarPanel from './CalendarPanel.vue'
 import CalendarMainView from './CalendarMainView.vue'
 // 通用占位主视图
 import PlaceholderMainView from './PlaceholderMainView.vue'
+// 消息页站内「日程提醒」面板
+import SystemNotifyPanel from './SystemNotifyPanel.vue'
 // 全屏 Overlay 宿主
 import OverlayHost from './overlay/OverlayHost.vue'
+import { SYSTEM_NOTIFY_SESSION_ID } from '../types'
 
 // 以下弹窗异步懒加载，减小首屏包体积
 const CreateGroupModal = defineAsyncComponent(() => import('./chat/CreateGroupModal.vue'))
@@ -57,8 +60,8 @@ import { useAppStore } from '../stores/app'
 
 // 获取应用 Store 实例
 const appStore = useAppStore()
-// 解构当前导航键
-const { navKey } = storeToRefs(appStore)
+// 解构当前导航键与当前会话
+const { navKey, currentSessionId } = storeToRefs(appStore)
 
 // 中间列表列宽度（可拖拽调整）
 const listWidth = ref(260)
@@ -143,6 +146,10 @@ const middleComponent = computed(() => {
 
 // 是否显示聊天主面板（消息导航）
 const showChatPanel = computed(() => navKey.value === 'chat')
+// 消息页虚拟「日程提醒」会话
+const showSystemNotify = computed(
+  () => navKey.value === 'chat' && currentSessionId.value === SYSTEM_NOTIFY_SESSION_ID
+)
 // 是否显示日历主视图
 const showCalendarMain = computed(() => navKey.value === 'calendar')
 // 是否显示占位主视图（联系人/收藏/文件/友链）
@@ -166,19 +173,24 @@ const showPlaceholder = computed(() =>
         <Sidebar />
       </aside>
       <div class="content-wrapper">
-        <!-- 中间列表列（宽度可拖拽） -->
+        <!-- 中间列表列（日历页隐藏，主区全宽） -->
         <section
+          v-if="!showCalendarMain"
           class="col-list"
           :style="{ width: listWidth + 'px', minWidth: listWidth + 'px', maxWidth: listWidth + 'px' }"
         >
           <component :is="middleComponent" />
         </section>
-        <!-- 列宽拖拽分隔条 -->
-        <div class="resizer" @mousedown="startDrag" :class="{ dragging: isDragging }"></div>
+        <div
+          v-if="!showCalendarMain"
+          class="resizer"
+          :class="{ dragging: isDragging }"
+          @mousedown="startDrag"
+        ></div>
         <!-- 右侧主内容区 -->
-        <main class="col-chat">
-          <!-- 右侧主内容区域（动态组件） -->
-          <ChatPanel v-if="showChatPanel" />
+        <main class="col-chat" :class="{ 'col-chat--calendar': showCalendarMain }">
+          <SystemNotifyPanel v-if="showSystemNotify" />
+          <ChatPanel v-else-if="showChatPanel" />
           <CalendarMainView v-else-if="showCalendarMain" />
           <ContactsMainView v-else-if="navKey === 'contacts'" />
           <PlaceholderMainView v-else-if="showPlaceholder" :nav="navKey" />
@@ -309,6 +321,10 @@ const showPlaceholder = computed(() =>
   position: relative;
   background: var(--lx-bg-card);
   --lx-bg-panel: var(--lx-bg-card);
+}
+
+.col-chat--calendar {
+  background: var(--lx-bg-panel);
 }
 
 </style>

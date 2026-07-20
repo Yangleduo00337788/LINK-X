@@ -60,6 +60,15 @@ const api = {
     ipcRenderer.on('moments:refresh', listener)
     return () => ipcRenderer.removeListener('moments:refresh', listener)
   },
+  showNotification: (payload: { title?: string; body?: string }) =>
+    ipcRenderer.invoke('app:show-notification', payload) as Promise<boolean>,
+  onInAppToast: (callback: (data: { title?: string; body?: string }) => void) => {
+    if (typeof callback !== 'function') return () => {}
+    const listener = (_event: Electron.IpcRendererEvent, data: { title?: string; body?: string }) =>
+      callback(data || {})
+    ipcRenderer.on('app:in-app-toast', listener)
+    return () => ipcRenderer.removeListener('app:in-app-toast', listener)
+  },
   secureStorage: {
     isAvailable: () => ipcRenderer.invoke('secure-storage:is-available'),
     get: (key: string) => ipcRenderer.invoke('secure-storage:get', key),
