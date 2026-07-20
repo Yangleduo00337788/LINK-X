@@ -301,62 +301,6 @@ async function refresh() {
   refreshing.value = false
 }
 
-// 下拉刷新相关
-const pullStartY = ref(0)
-const pulling = ref(false)
-const pullDistance = ref(0)
-const pullThreshold = 80
-const isPullRefreshing = ref(false)
-const isAtTop = computed(() => scrollTop.value <= 0)
-const pullRefreshHint = computed(() => {
-  if (isPullRefreshing.value) return '正在刷新…'
-  if (pullDistance.value >= pullThreshold) return '松手刷新'
-  if (pulling.value) return '下拉可以刷新'
-  return ''
-})
-
-function onTouchStart(e: TouchEvent) {
-  if (!isAtTop.value) return
-  const t = e.touches[0]
-  if (!t) return
-  pullStartY.value = t.clientY
-  pulling.value = true
-}
-
-function onTouchMove(e: TouchEvent) {
-  if (!pulling.value) return
-  if (!isAtTop.value) {
-    pullDistance.value = 0
-    return
-  }
-  const t = e.touches[0]
-  if (!t) return
-  const dy = t.clientY - pullStartY.value
-  if (dy > 0) {
-    // 阻尼
-    pullDistance.value = Math.min(dy * 0.45, pullThreshold + 30)
-    // 必须阻止默认滚动,否则浏览器原生滚动会盖过下拉指示
-    e.preventDefault()
-  } else {
-    pullDistance.value = 0
-  }
-}
-
-async function onTouchEnd() {
-  if (!pulling.value) return
-  if (pullDistance.value >= pullThreshold) {
-    isPullRefreshing.value = true
-    pullDistance.value = pullThreshold // 固定在阈值位置持续显示
-    try {
-      await refresh()
-    } finally {
-      isPullRefreshing.value = false
-    }
-  }
-  pullDistance.value = 0
-  pulling.value = false
-}
-
 // 选择通知页 / 发布菜单
 const showNotifications = ref(false)
 async function showMessage() {
@@ -615,39 +559,25 @@ function getImageGridClass(count: number): string {
 <template>
   <!-- 友链独立窗口 -->
   <div class="moments-wrapper standalone-window">
-    <!-- 顶部封面（固定在滚动区上方） -->
-    <div class="moments-header-fixed">
-      <div class="header-banner" @contextmenu="onBannerContextMenu">
-        <img :src="bannerUrl" alt="Banner" class="banner-img" @error="(e) => (e.target as HTMLImageElement).src = defaultBanner" @click="handleBannerMenuAction('preview')" />
-        <!-- 上传遮罩 hover 提示 -->
-        <div class="banner-upload-overlay" :class="{ uploading: bannerUploading }" @click.stop="handleBannerMenuAction('preview')">
-          <span v-if="bannerUploading">上传中…</span>
-        </div>
-      </div>
-      <div class="user-info">
-        <span class="username">{{ userProfile.nickname }}</span>
-        <img :src="profileAvatar" alt="Avatar" class="avatar-img" />
-      </div>
-    </div>
-
-    <!-- 下拉刷新指示器（固定在最外层） -->
-    <div class="pull-indicator" :class="{ refreshing: isPullRefreshing, ready: pullDistance >= pullThreshold }" :style="{ transform: `translate(-50%, ${pullDistance}px)`, opacity: Math.min(pullDistance / pullThreshold, 1) }">
-      <div class="pull-arrow">
-        <n-icon :component="RefreshOutline" :size="20" />
-      </div>
-      <div class="pull-text">{{ pullRefreshHint }}</div>
-    </div>
-
     <!-- 可滚动内容区 -->
     <div
       class="moments-scroll-container"
       @scroll="handleScroll"
-      @touchstart.passive="onTouchStart"
-      @touchmove.passive="onTouchMove"
-      @touchend="onTouchEnd"
     >
-      <!-- 占位块，撑出 header 高度使内容不被遮挡 -->
-      <div style="height: 320px;" />
+      <!-- 顶部封面与用户资料 -->
+      <div class="moments-header">
+        <div class="header-banner" @contextmenu="onBannerContextMenu">
+          <img :src="bannerUrl" alt="Banner" class="banner-img" @error="(e) => (e.target as HTMLImgElement).src = defaultBanner" @click="handleBannerMenuAction('preview')" />
+          <!-- 上传遮罩 hover 提示 -->
+          <div class="banner-upload-overlay" :class="{ uploading: bannerUploading }" @click.stop="handleBannerMenuAction('preview')">
+            <span v-if="bannerUploading">上传中…</span>
+          </div>
+        </div>
+        <div class="user-info">
+          <span class="username">{{ userProfile.nickname }}</span>
+          <img :src="profileAvatar" alt="Avatar" class="avatar-img" />
+        </div>
+      </div>
 
       <!-- 动态列表(发布编辑器已迁移至独立 Modal) -->
       <div class="moments-content">
@@ -912,13 +842,12 @@ function getImageGridClass(count: number): string {
 }
 
 .moments-wrapper {
-  display: flex;
-  flex-direction: column;
   position: relative;
   width: 440px;
   height: 560px;
   background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
+  overflow: hidden;
   text-align: left;
   margin: auto;
 }
@@ -1101,9 +1030,13 @@ function getImageGridClass(count: number): string {
 }
 
 .moments-scroll-container {
-  flex: 1;
+  height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
   background: var(--lx-bg-card);
   -webkit-overflow-scrolling: touch;
 }
@@ -1111,12 +1044,6 @@ function getImageGridClass(count: number): string {
 .moments-scroll-container::-webkit-scrollbar {
   width: 0;
   background: transparent;
-}
-
-.moments-header-fixed {
-  position: relative;
-  height: 320px;
-  background: var(--lx-bg-card);
 }
 
 .moments-header {
@@ -1192,48 +1119,6 @@ function getImageGridClass(count: number): string {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-/* 下拉刷新指示器 */
-.pull-indicator {
-  position: fixed;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  height: 50px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  pointer-events: none;
-  color: var(--lx-text-muted);
-  z-index: 100;
-  transition: opacity 0.2s;
-  font-size: 13px;
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.04), transparent);
-}
-
-.pull-arrow {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 0.2s;
-}
-
-.pull-indicator.ready {
-  color: var(--lx-accent);
-}
-
-.pull-indicator.ready .pull-arrow {
-  transform: rotate(180deg);
-}
-
-.pull-indicator.refreshing .pull-arrow {
-  animation: refresh-spin 0.8s linear infinite;
-  color: var(--lx-accent);
-}
-
-.pull-text {
-  font-size: 12px;
-}
 
 .post-item {
   display: flex;
