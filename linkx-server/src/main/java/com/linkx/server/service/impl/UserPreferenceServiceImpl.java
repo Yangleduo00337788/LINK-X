@@ -3,9 +3,17 @@ package com.linkx.server.service.impl;
 import com.linkx.server.entity.UserPreference;
 import com.linkx.server.mapper.UserPreferenceMapper;
 import com.linkx.server.service.UserPreferenceService;
+import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 
 /**
  * 用户偏好设置 Service 实现
@@ -47,6 +55,43 @@ public class UserPreferenceServiceImpl
         applyPatch(existing, patch);
         updateById(existing);
         return existing;
+    }
+
+    @Override
+    public boolean requiresFriendVerify(Long userId) {
+        // 默认需要验证；仅显式 false 时关闭
+        return !Boolean.FALSE.equals(getOrDefault(userId).getPrivacyVerifyFriend());
+    }
+
+    @Override
+    public boolean allowsStrangerChat(Long userId) {
+        return Boolean.TRUE.equals(getOrDefault(userId).getPrivacyAllowStranger());
+    }
+
+    @Override
+    public boolean showsOnlineStatus(Long userId) {
+        return !Boolean.FALSE.equals(getOrDefault(userId).getPrivacyShowOnline());
+    }
+
+    @Override
+    public Map<Long, Boolean> batchShowsOnlineStatus(Collection<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Long, Boolean> result = new HashMap<>();
+        for (Long id : userIds) {
+            if (id != null) {
+                result.put(id, true); // 默认可见
+            }
+        }
+        List<UserPreference> rows = userPreferenceMapper.selectListByQuery(
+                QueryWrapper.create().where(UserPreference::getUserId).in(userIds)
+        );
+        for (UserPreference row : rows) {
+            if (row.getUserId() == null) continue;
+            result.put(row.getUserId(), !Boolean.FALSE.equals(row.getPrivacyShowOnline()));
+        }
+        return result;
     }
 
     /**

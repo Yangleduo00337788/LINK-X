@@ -20,9 +20,11 @@ import com.linkx.server.mapper.RedPacketMapper;
 import com.linkx.server.mapper.RedPacketRecordMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.mapper.SysUserRelationMapper;
+import com.linkx.server.im.ImChannelManager;
 import com.linkx.server.service.ChatService;
 import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.MediaUrlService;
+import com.linkx.server.service.UserPreferenceService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -62,6 +64,8 @@ public class ChatServiceImpl implements ChatService {
     private final StringRedisTemplate redisTemplate;
     private final RedPacketMapper redPacketMapper;
     private final RedPacketRecordMapper redPacketRecordMapper;
+    private final UserPreferenceService userPreferenceService;
+    private final ImChannelManager imChannelManager;
 
     @Override
     public List<ConversationVO> listConversations(Long userId) {
@@ -91,6 +95,9 @@ public class ChatServiceImpl implements ChatService {
 
         Map<Long, SysUser> peerUserMap = loadPeerUsers(userId, conversations);
         Map<Long, String> remarkMap = loadRemarkMap(userId, peerUserMap.keySet());
+        Map<Long, Boolean> showOnlineMap = userPreferenceService.batchShowsOnlineStatus(
+                peerUserMap.values().stream().map(SysUser::getId).collect(Collectors.toSet())
+        );
 
         List<ConversationVO> result = new ArrayList<>();
         for (ImConversation conversation : conversations) {
@@ -99,7 +106,9 @@ public class ChatServiceImpl implements ChatService {
                 if (peer == null) {
                     continue;
                 }
-                result.add(toConversationVO(conversation, peer, remarkMap.get(peer.getId())));
+                boolean showOnline = !Boolean.FALSE.equals(showOnlineMap.get(peer.getId()));
+                boolean peerOnline = showOnline && imChannelManager.isOnline(peer.getId());
+                result.add(toConversationVO(conversation, peer, remarkMap.get(peer.getId()), peerOnline));
             } else if (conversation.getType() == ImConversation.TYPE_GROUP) {
                 result.add(toGroupConversationVO(conversation));
             }
@@ -113,7 +122,7 @@ public class ChatServiceImpl implements ChatService {
         if (userId.equals(friendId)) {
             throw new CustomException(400, "不能与自己发起聊天");
         }
-        assertFriendship(userId, friendId);
+        assertCanPrivateChat(userId, friendId);
 
         SysUser friend = sysUserMapper.selectOneById(friendId);
         if (friend == null || friend.getStatus() != 1) {
@@ -147,7 +156,7 @@ public class ChatServiceImpl implements ChatService {
         }
 
         Map<Long, String> remarkMap = loadRemarkMap(userId, Set.of(friendId));
-        return toConversationVO(conversation, friend, remarkMap.get(friendId));
+        return toConversationVO(conversation, friend, remarkMap.get(friendId), resolvePeerOnline(friendId));
     }
 
     @Override
@@ -217,7 +226,7 @@ public class ChatServiceImpl implements ChatService {
         }
         if (conversation.getType() == ImConversation.TYPE_PRIVATE) {
             Long peerId = resolvePrivatePeerId(userId, conversation.getId());
-            assertFriendship(userId, peerId);
+            assertCanPrivateChat(userId, peerId);
         }
 
         String msgType = normalizeMsgType(dto.getMsgType());
@@ -280,16 +289,36 @@ public class ChatServiceImpl implements ChatService {
         }
     }
 
-    private void assertFriendship(Long userId, Long friendId) {
-        SysUserRelation relation = sysUserRelationMapper.selectOneByQuery(
+    private boolean isFriend(Long userId, Long friendId) {
+        return sysUserRelationMapper.selectCountByQuery(
                 QueryWrapper.create()
                         .where(SysUserRelation::getUserId).eq(userId)
                         .and(SysUserRelation::getFriendId).eq(friendId)
                         .and(SysUserRelation::getStatus).eq(RELATION_STATUS_NORMAL)
-        );
-        if (relation == null) {
-            throw new CustomException(403, "只能与好友聊天");
+        ) > 0;
+    }
+
+    /**
+     * 私聊权限：好友可聊；非好友时，对方或自己开启「允许陌生人会话」也可聊（便于陌生人发起与回复）。
+     */
+    private void assertCanPrivateChat(Long userId, Long peerId) {
+        if (isFriend(userId, peerId)) {
+            return;
         }
+        if (userPreferenceService.allowsStrangerChat(peerId)
+                || userPreferenceService.allowsStrangerChat(userId)) {
+            return;
+        }
+        throw new CustomException(403, "只能与好友聊天，或对方需开启允许陌生人会话");
+    }
+
+    /** 结合 IM 在线与对方「在线状态可见」偏好 */
+    private boolean resolvePeerOnline(Long peerUserId) {
+        if (peerUserId == null) return false;
+        if (!userPreferenceService.showsOnlineStatus(peerUserId)) {
+            return false;
+        }
+        return imChannelManager.isOnline(peerUserId);
     }
 
     private Long resolvePrivatePeerId(Long userId, Long conversationId) {
@@ -341,7 +370,12 @@ public class ChatServiceImpl implements ChatService {
         return remarkMap;
     }
 
-    private ConversationVO toConversationVO(ImConversation conversation, SysUser peer, String remark) {
+    private ConversationVO toConversationVO(
+            ImConversation conversation,
+            SysUser peer,
+            String remark,
+            boolean peerOnline
+    ) {
         return ConversationVO.builder()
                 .id(conversation.getId())
                 .type(conversation.getType())
@@ -350,6 +384,7 @@ public class ChatServiceImpl implements ChatService {
                 .peerNickname(peer.getNickname())
                 .peerAvatar(mediaUrlService.resolve(peer.getAvatar()))
                 .peerRemark(remark)
+                .peerOnline(peerOnline)
                 .lastMessage(conversation.getLastMessageContent())
                 .lastMessageTime(conversation.getLastMessageTime() != null
                         ? conversation.getLastMessageTime().getTime()

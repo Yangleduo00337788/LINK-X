@@ -20,7 +20,8 @@ function friendToContact(friend: FriendItem): ContactItem {
     avatarText: displayName.charAt(0) || '?',
     avatarColor: DEFAULT_AVATAR_COLOR,
     group: '我的好友',
-    avatarUrl: normalizeMediaUrl(friend.avatar) || undefined
+    avatarUrl: normalizeMediaUrl(friend.avatar) || undefined,
+    online: !!friend.online
   }
 }
 

@@ -19,4 +19,7 @@ public class FriendItemVO {
     private String avatar;
 
     private String remark;
+
+    /** 是否在线（受对方「在线状态可见」偏好约束） */
+    private Boolean online;
 }

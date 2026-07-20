@@ -34,6 +34,18 @@ describe('chatMapper', () => {
       expect(session.isGroup).toBe(true)
     })
 
+    it('should map peerOnline to session.online', () => {
+      const conv = {
+        id: '123',
+        type: 1,
+        peerUserId: '456',
+        peerNickname: '张三',
+        peerOnline: true
+      }
+      const session = conversationToSession(conv)
+      expect(session.online).toBe(true)
+    })
+
     it('should use peerRemark over peerNickname', () => {
       const conv = {
         id: '123',

@@ -23,6 +23,11 @@ public class ConversationVO {
     private String peerRemark;
 
     /**
+     * 单聊对方是否在线（受对方「在线状态可见」偏好约束；群聊为空）
+     */
+    private Boolean peerOnline;
+
+    /**
      * 群名称（群聊用）
      */
     private String name;

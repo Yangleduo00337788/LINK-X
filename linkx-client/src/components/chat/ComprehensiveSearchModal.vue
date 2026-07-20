@@ -192,7 +192,10 @@ async function handleUserAction(user: SearchUserItem) {
       })
       if (res.code === 200) {
         message.success(t('modals.friendRequestSent', { name: user.name }))
-        await notificationsStore.fetchFriendRequests()
+        await Promise.all([
+          notificationsStore.fetchFriendRequests(),
+          contactsStore.fetchFriends()
+        ])
         close()
         return
       }

@@ -41,6 +41,7 @@ export function conversationToSession(conv: ConversationItem): ChatSession {
     avatarColor: pickColor(name),
     avatarUrl: normalizeMediaUrl(conv.peerAvatar) || undefined,
     peerUserId: conv.peerUserId ? String(conv.peerUserId) : undefined,
+    online: !!conv.peerOnline,
     isGroup: false,
     isReal: true
   }

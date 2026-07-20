@@ -8,11 +8,13 @@ import com.linkx.server.entity.SysFriendRequest;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.entity.SysUserRelation;
 import com.linkx.server.exception.CustomException;
+import com.linkx.server.im.ImChannelManager;
 import com.linkx.server.mapper.SysFriendRequestMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.mapper.SysUserRelationMapper;
 import com.linkx.server.service.FriendService;
 import com.linkx.server.service.MediaUrlService;
+import com.linkx.server.service.UserPreferenceService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -37,6 +39,8 @@ public class FriendServiceImpl implements FriendService {
     private final SysUserRelationMapper sysUserRelationMapper;
     private final SysFriendRequestMapper sysFriendRequestMapper;
     private final MediaUrlService mediaUrlService;
+    private final UserPreferenceService userPreferenceService;
+    private final ImChannelManager imChannelManager;
 
     @Override
     public List<UserSearchVO> searchUsers(String keyword, Long currentUserId) {
@@ -92,6 +96,7 @@ public class FriendServiceImpl implements FriendService {
     }
 
     @Override
+    @Transactional
     public void sendFriendRequest(Long fromUserId, SendFriendRequestDTO dto) {
         SysUser target = sysUserMapper.selectOneByQuery(
                 QueryWrapper.create().where(SysUser::getUsername).eq(dto.getUsername().trim())
@@ -128,6 +133,21 @@ public class FriendServiceImpl implements FriendService {
         }
 
         Date now = new Date();
+        // 对方关闭「加好友需验证」：直接成为好友
+        if (!userPreferenceService.requiresFriendVerify(target.getId())) {
+            SysFriendRequest autoAccepted = SysFriendRequest.builder()
+                    .fromUserId(fromUserId)
+                    .toUserId(target.getId())
+                    .message(StringUtils.hasText(dto.getMessage()) ? dto.getMessage().trim() : null)
+                    .status(SysFriendRequest.STATUS_ACCEPTED)
+                    .createTime(now)
+                    .updateTime(now)
+                    .build();
+            sysFriendRequestMapper.insert(autoAccepted);
+            createBidirectionalRelation(fromUserId, target.getId());
+            return;
+        }
+
         SysFriendRequest request = SysFriendRequest.builder()
                 .fromUserId(fromUserId)
                 .toUserId(target.getId())
@@ -216,6 +236,7 @@ public class FriendServiceImpl implements FriendService {
         );
         Map<Long, SysUser> friendMap = friends.stream()
                 .collect(Collectors.toMap(SysUser::getId, Function.identity()));
+        Map<Long, Boolean> showOnlineMap = userPreferenceService.batchShowsOnlineStatus(friendIds);
 
         List<FriendItemVO> result = new ArrayList<>();
         for (SysUserRelation relation : relations) {
@@ -223,12 +244,15 @@ public class FriendServiceImpl implements FriendService {
             if (friend == null) {
                 continue;
             }
+            boolean showOnline = !Boolean.FALSE.equals(showOnlineMap.get(friend.getId()));
+            boolean online = showOnline && imChannelManager.isOnline(friend.getId());
             result.add(FriendItemVO.builder()
                     .userId(friend.getId())
                     .username(friend.getUsername())
                     .nickname(friend.getNickname())
                     .avatar(mediaUrlService.resolve(friend.getAvatar()))
                     .remark(remarkMap.get(friend.getId()))
+                    .online(online)
                     .build());
         }
         return result;

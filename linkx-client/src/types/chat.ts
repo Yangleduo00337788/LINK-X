@@ -10,6 +10,8 @@ export interface ConversationItem {
   peerNickname?: string
   peerAvatar?: string
   peerRemark?: string
+  /** 单聊对方是否在线（受对方隐私「在线状态可见」约束） */
+  peerOnline?: boolean
   lastMessage?: string
   lastMessageTime?: string | number
 }
