@@ -21,6 +21,8 @@ import {
   messageToChatMessage,
   messagePreviewFromItem
 } from '../utils/chatMapper'
+import { notifyIncomingMessage, shouldAlertForSession } from '../utils/messageNotify'
+import { useAppSettingsStore } from './appSettings'
 import { dataUrlToFile } from '../utils/fileConvert'
 import { generateUuidV4 } from '../utils/parseJson'
 import type { MessageItem } from '../types/chat'
@@ -638,12 +640,33 @@ export const useAppStore = defineStore('app', {
       if (session) {
         session.lastMessage = messagePreviewFromItem(message)
         session.time = chatMsg.time
-        if (this.currentSessionId !== sessionId && !session.muted) {
-          session.unread = (session.unread || 0) + 1
+        if (!exists && this.currentSessionId !== sessionId) {
+          const settings = useAppSettingsStore()
+          if (
+            shouldAlertForSession(session, message, {
+              notifyAtMe: settings.notifyAtMe,
+              myNickname: this.userProfile.nickname,
+              myUsername: this.userProfile.username
+            })
+          ) {
+            session.unread = (session.unread || 0) + 1
+          }
         }
       } else {
         // 会话不在本地列表中，尝试重新加载会话列表
         void this.loadChatSessions()
+      }
+
+      // 新消息才提醒（声音 / 桌面通知，受消息通知偏好控制）
+      if (!exists) {
+        notifyIncomingMessage({
+          message,
+          session,
+          sessionId,
+          currentSessionId: this.currentSessionId,
+          myNickname: this.userProfile.nickname,
+          myUsername: this.userProfile.username
+        })
       }
     },
 
