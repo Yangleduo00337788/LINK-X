@@ -24,9 +24,13 @@ public class MediaUrlService {
 
     public String resolve(String keyOrUrl, int expirySeconds) {
         if (!StringUtils.hasText(keyOrUrl)) {
-            return keyOrUrl;
+            return null;
         }
         String value = keyOrUrl.trim();
+        // 历史占位路径：客户端并无该静态资源，签发/原样返回都会裂图，改回空让前端走文字头像
+        if ("/default-avatar.svg".equals(value) || value.endsWith("/default-avatar.svg")) {
+            return null;
+        }
         // 本地静态资源 / data URL 不走 MinIO
         if (value.startsWith("/") || value.startsWith("data:") || value.startsWith("blob:")) {
             return value;

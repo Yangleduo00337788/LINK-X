@@ -125,14 +125,8 @@ public class NoteServiceImpl implements NoteService {
     }
 
     private String normalizeType(String raw) {
-        if (!StringUtils.hasText(raw)) {
-            return "note";
-        }
-        String t = raw.trim().toLowerCase();
-        return switch (t) {
-            case "note", "image", "link", "file" -> t;
-            default -> "note";
-        };
+        // 笔记域仅保留 note；历史 image/link/file 请迁到 /favorites
+        return "note";
     }
 
     private String formatTime(Date date) {

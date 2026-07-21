@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS im_conversation_member (
   conversation_id BIGINT NOT NULL,
   user_id BIGINT NOT NULL,
   role TINYINT NOT NULL DEFAULT 0,
+  remark VARCHAR(64),
   create_time DATETIME,
   update_time DATETIME,
   deleted TINYINT NOT NULL DEFAULT 0
@@ -288,3 +289,33 @@ CREATE TABLE IF NOT EXISTS group_invitation (
   update_time DATETIME
 );
 CREATE INDEX IF NOT EXISTS idx_group_invitation_invitee ON group_invitation(invitee_user_id, status);
+
+CREATE TABLE IF NOT EXISTS group_asset (
+  id BIGINT NOT NULL PRIMARY KEY,
+  conversation_id BIGINT NOT NULL,
+  uploader_id BIGINT NOT NULL,
+  type VARCHAR(20) NOT NULL,
+  title VARCHAR(255),
+  content TEXT,
+  file_name VARCHAR(255),
+  file_size BIGINT,
+  file_key VARCHAR(500),
+  message_id BIGINT,
+  download_count INT NOT NULL DEFAULT 0,
+  create_time DATETIME,
+  update_time DATETIME,
+  deleted TINYINT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS favorite (
+  id BIGINT NOT NULL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  title VARCHAR(200),
+  content TEXT NOT NULL,
+  type VARCHAR(20) NOT NULL DEFAULT 'note',
+  source_type VARCHAR(32),
+  source_id VARCHAR(64),
+  create_time DATETIME,
+  update_time DATETIME,
+  deleted TINYINT NOT NULL DEFAULT 0
+);

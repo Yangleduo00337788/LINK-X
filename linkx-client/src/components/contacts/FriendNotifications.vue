@@ -8,6 +8,7 @@ import { useNotificationsStore } from '../../stores/notifications'
 import { useContactsStore } from '../../stores/contacts'
 import { useAppStore } from '../../stores/app'
 import { useI18n } from '../../i18n'
+import Avatar from '../Avatar.vue'
 
 const message = useMessage()
 const { t } = useI18n()
@@ -90,7 +91,12 @@ function handleClear() {
       <div v-else-if="!friendNotifs.length" class="empty">{{ t('contacts.emptyFriendNotif') }}</div>
       <div v-else class="notif-list">
         <div v-for="item in friendNotifs" :key="item.id" class="notif-card">
-          <img :src="item.avatar" class="avatar" alt="" />
+          <Avatar
+            :text="(item.name || '?').charAt(0)"
+            color="#12b7f5"
+            :image-url="item.avatar || undefined"
+            :size="44"
+          />
           <div class="info">
             <div class="title-line">
               <span class="name">{{ item.name }}</span>

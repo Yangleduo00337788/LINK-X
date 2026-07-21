@@ -105,6 +105,25 @@ export function notifyIncomingMessage(ctx: IncomingNotifyContext): void {
   void showChatDesktopNotification(title, body, !settings.notifySound)
 }
 
+/**
+ * 好友申请 / 群邀请等社交通知：按「新消息声音」偏好播提示音，后台时桌面通知。
+ */
+export function notifySocialEvent(kind: 'friend_request' | 'group_invitation'): void {
+  const settings = useAppSettingsStore()
+  if (settings.soundNotify) {
+    playTone((settings.notifyTone || 'default') as ToneId)
+  }
+
+  if (!isWindowInBackground()) return
+
+  const title = 'LinkX'
+  const body =
+    kind === 'friend_request'
+      ? t('notifications.friendRequestAlert')
+      : t('notifications.groupInviteAlert')
+  void showChatDesktopNotification(title, body, !settings.notifySound)
+}
+
 async function showChatDesktopNotification(
   title: string,
   body: string,

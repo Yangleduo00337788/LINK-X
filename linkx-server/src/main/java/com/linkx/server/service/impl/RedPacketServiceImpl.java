@@ -9,6 +9,7 @@ import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.*;
 import com.linkx.server.service.BalanceService;
 import com.linkx.server.service.ChatService;
+import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.RedPacketService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +37,7 @@ public class RedPacketServiceImpl implements RedPacketService {
     private final SysUserMapper userMapper;
     private final BalanceService balanceService;
     private final ChatService chatService;
+    private final MediaUrlService mediaUrlService;
 
     @Override
     @Transactional
@@ -324,7 +326,7 @@ public class RedPacketServiceImpl implements RedPacketService {
                             .id(r.getId())
                             .userId(r.getUserId())
                             .nickname(user != null ? user.getNickname() : null)
-                            .avatar(user != null ? user.getAvatar() : null)
+                            .avatar(user != null ? mediaUrlService.resolve(user.getAvatar()) : null)
                             .amount(r.getAmount())
                             .isLucky(r.getIsLucky())
                             .time(formatTime(r.getCreateTime()))
@@ -336,7 +338,7 @@ public class RedPacketServiceImpl implements RedPacketService {
                 .id(String.valueOf(redPacket.getId()))
                 .senderId(redPacket.getSenderId())
                 .senderNickname(sender != null ? sender.getNickname() : null)
-                .senderAvatar(sender != null ? sender.getAvatar() : null)
+                .senderAvatar(sender != null ? mediaUrlService.resolve(sender.getAvatar()) : null)
                 .conversationId(redPacket.getConversationId())
                 .type(redPacket.getType())
                 .totalAmount(redPacket.getTotalAmount())

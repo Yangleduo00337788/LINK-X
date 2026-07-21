@@ -16,8 +16,8 @@ public class SaveNoteDTO {
     private String content;
 
     /**
-     * 类型：note(普通笔记) / image(图片收藏) / link(链接收藏) / file(文件收藏)
+     * 类型：仅普通笔记（收藏请走 /favorites）
      */
-    @Pattern(regexp = "^(note|image|link|file)$", message = "type 必须为 note/image/link/file")
+    @Pattern(regexp = "^(note)?$", message = "笔记 type 仅支持 note")
     private String type;
 }

@@ -4,17 +4,23 @@ import com.linkx.server.controller.dto.SendFriendRequestDTO;
 import com.linkx.server.controller.vo.FriendItemVO;
 import com.linkx.server.controller.vo.FriendRequestVO;
 import com.linkx.server.controller.vo.UserSearchVO;
+import com.linkx.server.entity.ImConversation;
+import com.linkx.server.entity.ImConversationMember;
 import com.linkx.server.entity.SysFriendRequest;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.entity.SysUserRelation;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.im.ImChannelManager;
+import com.linkx.server.im.ImMessagePushService;
+import com.linkx.server.mapper.ImConversationMapper;
+import com.linkx.server.mapper.ImConversationMemberMapper;
 import com.linkx.server.mapper.SysFriendRequestMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.mapper.SysUserRelationMapper;
 import com.linkx.server.service.FriendService;
 import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.UserPreferenceService;
+import com.mybatisflex.core.logicdelete.LogicDeleteManager;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -38,9 +44,12 @@ public class FriendServiceImpl implements FriendService {
     private final SysUserMapper sysUserMapper;
     private final SysUserRelationMapper sysUserRelationMapper;
     private final SysFriendRequestMapper sysFriendRequestMapper;
+    private final ImConversationMapper conversationMapper;
+    private final ImConversationMemberMapper memberMapper;
     private final MediaUrlService mediaUrlService;
     private final UserPreferenceService userPreferenceService;
     private final ImChannelManager imChannelManager;
+    private final ImMessagePushService imPushService;
 
     @Override
     public List<UserSearchVO> searchUsers(String keyword, Long currentUserId) {
@@ -145,6 +154,8 @@ public class FriendServiceImpl implements FriendService {
                     .build();
             sysFriendRequestMapper.insert(autoAccepted);
             createBidirectionalRelation(fromUserId, target.getId());
+            imPushService.pushToUser(target.getId(), "notification_refresh", Map.of("type", "friend_accepted"));
+            imPushService.pushToUser(fromUserId, "notification_refresh", Map.of("type", "friend_accepted"));
             return;
         }
 
@@ -157,6 +168,8 @@ public class FriendServiceImpl implements FriendService {
                 .updateTime(now)
                 .build();
         sysFriendRequestMapper.insert(request);
+        // 实时通知被申请人：刷新好友通知角标
+        imPushService.pushToUser(target.getId(), "notification_refresh", Map.of("type", "friend_request"));
     }
 
     @Override
@@ -195,6 +208,7 @@ public class FriendServiceImpl implements FriendService {
         sysFriendRequestMapper.update(request);
 
         createBidirectionalRelation(request.getFromUserId(), request.getToUserId());
+        imPushService.pushToUser(request.getFromUserId(), "notification_refresh", Map.of("type", "friend_accepted"));
     }
 
     @Override
@@ -211,6 +225,7 @@ public class FriendServiceImpl implements FriendService {
         request.setStatus(SysFriendRequest.STATUS_REJECTED);
         request.setUpdateTime(new Date());
         sysFriendRequestMapper.update(request);
+        imPushService.pushToUser(request.getFromUserId(), "notification_refresh", Map.of("type", "friend_rejected"));
     }
 
     @Override
@@ -266,6 +281,37 @@ public class FriendServiceImpl implements FriendService {
         }
         removeRelation(userId, friendId);
         removeRelation(friendId, userId);
+        // 双向退出单聊会话，避免删除后仍出现在消息列表并可继续发消息
+        dissolvePrivateConversationMembership(userId, friendId);
+        Map<String, Object> payload = Map.of(
+                "type", "friend_deleted",
+                "peerUserId", String.valueOf(friendId)
+        );
+        Map<String, Object> peerPayload = Map.of(
+                "type", "friend_deleted",
+                "peerUserId", String.valueOf(userId)
+        );
+        imPushService.pushToUser(userId, "notification_refresh", payload);
+        imPushService.pushToUser(friendId, "notification_refresh", peerPayload);
+    }
+
+    /** 逻辑删除双方在私聊会话中的成员关系 */
+    private void dissolvePrivateConversationMembership(Long userA, Long userB) {
+        String privateKey = userA < userB ? userA + "_" + userB : userB + "_" + userA;
+        ImConversation conversation = conversationMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(ImConversation::getType).eq(ImConversation.TYPE_PRIVATE)
+                        .and(ImConversation::getPrivateKey).eq(privateKey)
+        );
+        if (conversation == null) {
+            return;
+        }
+        List<ImConversationMember> members = memberMapper.selectListByQuery(
+                QueryWrapper.create().where(ImConversationMember::getConversationId).eq(conversation.getId())
+        );
+        for (ImConversationMember member : members) {
+            memberMapper.deleteById(member.getId());
+        }
     }
 
     private SysFriendRequest requireRequest(Long requestId) {
@@ -286,25 +332,46 @@ public class FriendServiceImpl implements FriendService {
     }
 
     private void createBidirectionalRelation(Long userA, Long userB) {
+        ensureRelation(userA, userB);
+        ensureRelation(userB, userA);
+    }
+
+    /**
+     * 确保 A→B 好友关系存在。
+     * 删除好友是逻辑删除，唯一键 uk_user_friend 仍占用，因此需恢复旧行而非再 insert。
+     */
+    private void ensureRelation(Long userId, Long friendId) {
+        if (isFriend(userId, friendId)) {
+            return;
+        }
         Date now = new Date();
-        if (!isFriend(userA, userB)) {
-            sysUserRelationMapper.insert(SysUserRelation.builder()
-                    .userId(userA)
-                    .friendId(userB)
-                    .status(RELATION_STATUS_NORMAL)
-                    .createTime(now)
-                    .updateTime(now)
-                    .build());
+        SysUserRelation existing = LogicDeleteManager.execWithoutLogicDelete(() ->
+                sysUserRelationMapper.selectOneByQuery(
+                        QueryWrapper.create()
+                                .where(SysUserRelation::getUserId).eq(userId)
+                                .and(SysUserRelation::getFriendId).eq(friendId)
+                                .limit(1)
+                )
+        );
+        if (existing != null) {
+            existing.setStatus(RELATION_STATUS_NORMAL);
+            existing.setDeleted(0);
+            existing.setUpdateTime(now);
+            // update 默认也会带逻辑删除条件；对已删除行需绕过
+            LogicDeleteManager.execWithoutLogicDelete(() -> {
+                sysUserRelationMapper.update(existing);
+                return null;
+            });
+            return;
         }
-        if (!isFriend(userB, userA)) {
-            sysUserRelationMapper.insert(SysUserRelation.builder()
-                    .userId(userB)
-                    .friendId(userA)
-                    .status(RELATION_STATUS_NORMAL)
-                    .createTime(now)
-                    .updateTime(now)
-                    .build());
-        }
+        sysUserRelationMapper.insert(SysUserRelation.builder()
+                .userId(userId)
+                .friendId(friendId)
+                .status(RELATION_STATUS_NORMAL)
+                .deleted(0)
+                .createTime(now)
+                .updateTime(now)
+                .build());
     }
 
     private void removeRelation(Long userId, Long friendId) {
@@ -343,11 +410,11 @@ public class FriendServiceImpl implements FriendService {
                     .toUserId(request.getToUserId())
                     .fromUsername(fromUser != null ? fromUser.getUsername() : "")
                     .fromNickname(fromUser != null ? fromUser.getNickname() : "")
-                    .fromAvatar(fromUser != null ? fromUser.getAvatar() : null)
+                    .fromAvatar(fromUser != null ? mediaUrlService.resolve(fromUser.getAvatar()) : null)
                     .peerUserId(peerUser != null ? peerUser.getId() : null)
                     .peerUsername(peerUser != null ? peerUser.getUsername() : "")
                     .peerNickname(peerUser != null ? peerUser.getNickname() : "")
-                    .peerAvatar(peerUser != null ? peerUser.getAvatar() : null)
+                    .peerAvatar(peerUser != null ? mediaUrlService.resolve(peerUser.getAvatar()) : null)
                     .message(request.getMessage())
                     .status(request.getStatus())
                     .direction(direction)

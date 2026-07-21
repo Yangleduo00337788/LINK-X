@@ -11,6 +11,20 @@ function pickColor(seed: string): string {
   return GROUP_COLORS[hash % GROUP_COLORS.length]
 }
 
+function mapMemberAvatars(
+  list?: Array<{ nickname?: string; avatar?: string }>
+): Array<{ text: string; color: string; imageUrl?: string }> | undefined {
+  if (!list?.length) return undefined
+  return list.slice(0, 9).map(m => {
+    const name = m.nickname || '?'
+    return {
+      text: name.charAt(0) || '?',
+      color: pickColor(name),
+      imageUrl: normalizeMediaUrl(m.avatar) || undefined
+    }
+  })
+}
+
 export function conversationToSession(conv: ConversationItem): ChatSession {
   // 判断是否为群聊
   const isGroup = conv.type === 2
@@ -24,7 +38,9 @@ export function conversationToSession(conv: ConversationItem): ChatSession {
       time: formatChatTime(conv.lastMessageTime),
       avatarText: name.charAt(0) || '群',
       avatarColor: pickColor(name),
+      // 仅自定义群头像；默认用 memberAvatars 拼图
       avatarUrl: normalizeMediaUrl(conv.avatar) || undefined,
+      memberAvatars: mapMemberAvatars(conv.memberAvatars),
       isGroup: true,
       isReal: true
     }
@@ -104,8 +120,9 @@ export function messageToChatMessage(message: MessageItem, sessionId: string): C
     content,
     time: formatChatTime(message.createTime),
     isSelf: message.isSelf ?? false,
+    senderId: message.senderId ? String(message.senderId) : undefined,
     senderName: message.senderNickname,
-    senderAvatar: message.senderAvatar,
+    senderAvatar: normalizeMediaUrl(message.senderAvatar) || undefined,
     type,
     fileName,
     fileSize,

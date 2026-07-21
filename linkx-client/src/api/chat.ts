@@ -25,3 +25,28 @@ export function uploadChatFile(conversationId: string, file: File) {
     { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60000 }
   )
 }
+
+export interface ChatSearchHit {
+  messageId: string
+  conversationId: string
+  conversationName?: string
+  conversationType?: number
+  senderId?: string
+  senderNickname?: string
+  type: string
+  content?: string
+  fileName?: string
+  fileUrl?: string
+  createTime?: number
+}
+
+export function searchMessages(q: string, opts?: { type?: string; conversationId?: string; limit?: number }) {
+  return apiClient.get<unknown, ApiResult<ChatSearchHit[]>>('/chat/search', {
+    params: {
+      q,
+      type: opts?.type,
+      conversationId: opts?.conversationId,
+      limit: opts?.limit ?? 50
+    }
+  })
+}

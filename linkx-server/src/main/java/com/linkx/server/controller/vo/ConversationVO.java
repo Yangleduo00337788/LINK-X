@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Builder;
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 @Builder
 public class ConversationVO {
@@ -31,6 +33,16 @@ public class ConversationVO {
      * 群名称（群聊用）
      */
     private String name;
+
+    /**
+     * 群头像（群聊用，已签发；有自定义群头像时优先）
+     */
+    private String avatar;
+
+    /**
+     * 群成员头像预览（最多 9 个，用于默认拼图头像）
+     */
+    private List<GroupMemberAvatarVO> memberAvatars;
 
     /**
      * 群公告（群聊用）

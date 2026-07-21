@@ -14,7 +14,6 @@ import { useOverlayStore } from '../../stores/overlay'
 // Naive UI 全局消息提示
 import { useMessage } from 'naive-ui'
 // 文件大小格式化工具
-import { formatFileSize } from '../../utils/file'
 import { useI18n } from '../../i18n'
 
 const message = useMessage()
@@ -25,7 +24,7 @@ const groupMetaStore = useGroupMetaStore()
 const overlayStore = useOverlayStore()
 const { groupFilesOpen } = storeToRefs(chatModalsStore)
 const { closeGroupFiles } = chatModalsStore
-const { currentSession, currentSessionId, userProfile } = storeToRefs(appStore)
+const { currentSession, currentSessionId } = storeToRefs(appStore)
 const { open: openOverlay } = overlayStore
 
 const search = ref('')
@@ -97,24 +96,22 @@ function openFile(f: { name: string; size: string; fileUrl?: string }) {
 }
 
 // 处理用户选择的本地文件并上传到群文件
-function onUploadPicked(e: Event) {
+async function onUploadPicked(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
   input.value = ''
   if (!file || !currentSessionId.value) return
 
-  // 生成本地预览 URL 并格式化大小
-  const fileUrl = URL.createObjectURL(file)
-  const size = formatFileSize(file.size)
-  const user = userProfile.value.nickname
-
-  groupMetaStore.addFile(currentSessionId.value, {
-    name: file.name,
-    size,
-    user,
-    fileUrl
-  })
-  message.success(t('extra.fileUploaded', { name: file.name }))
+  try {
+    const ok = await groupMetaStore.uploadFile(currentSessionId.value, file)
+    if (ok) {
+      message.success(t('extra.fileUploaded', { name: file.name }))
+    } else {
+      message.error(t('extra.opFail'))
+    }
+  } catch {
+    message.error(t('extra.opFail'))
+  }
 }
 </script>
 

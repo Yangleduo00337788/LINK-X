@@ -5,6 +5,7 @@ import com.linkx.server.controller.dto.CreateGroupDTO;
 import com.linkx.server.controller.dto.UpdateGroupDTO;
 import com.linkx.server.controller.vo.ConversationVO;
 import com.linkx.server.controller.vo.GroupConversationVO;
+import com.linkx.server.controller.vo.GroupMemberAvatarVO;
 import com.linkx.server.controller.vo.GroupMemberVO;
 import com.linkx.server.entity.ImConversation;
 import com.linkx.server.entity.ImConversationMember;
@@ -14,6 +15,7 @@ import com.linkx.server.mapper.ImConversationMapper;
 import com.linkx.server.mapper.ImConversationMemberMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.GroupService;
+import com.linkx.server.service.MediaUrlService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,6 +24,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -38,6 +41,7 @@ public class GroupServiceImpl implements GroupService {
     private final ImConversationMapper conversationMapper;
     private final ImConversationMemberMapper memberMapper;
     private final SysUserMapper sysUserMapper;
+    private final MediaUrlService mediaUrlService;
 
     @Override
     @Transactional
@@ -80,7 +84,7 @@ public class GroupServiceImpl implements GroupService {
                     .build());
         }
 
-        return toGroupConversationVO(group, creator);
+        return toGroupConversationVO(group, creator, userId);
     }
 
     @Override
@@ -109,9 +113,13 @@ public class GroupServiceImpl implements GroupService {
                 Comparator.nullsLast(Comparator.reverseOrder())
         ));
 
+        Map<Long, List<GroupMemberAvatarVO>> avatarMap = loadGroupMemberAvatarPreviews(
+                groups.stream().map(ImConversation::getId).collect(Collectors.toSet())
+        );
+
         List<ConversationVO> result = new ArrayList<>();
         for (ImConversation group : groups) {
-            result.add(toConversationVO(group));
+            result.add(toConversationVO(group, avatarMap.getOrDefault(group.getId(), List.of())));
         }
         return result;
     }
@@ -125,7 +133,7 @@ public class GroupServiceImpl implements GroupService {
         }
 
         SysUser owner = sysUserMapper.selectOneById(group.getOwnerId());
-        return toGroupConversationVO(group, owner);
+        return toGroupConversationVO(group, owner, userId);
     }
 
     @Override
@@ -142,7 +150,7 @@ public class GroupServiceImpl implements GroupService {
         conversationMapper.update(group);
 
         SysUser owner = sysUserMapper.selectOneById(group.getOwnerId());
-        return toGroupConversationVO(group, owner);
+        return toGroupConversationVO(group, owner, userId);
     }
 
     @Override
@@ -168,7 +176,7 @@ public class GroupServiceImpl implements GroupService {
                 result.add(GroupMemberVO.builder()
                         .userId(user.getId())
                         .nickname(user.getNickname())
-                        .avatar(user.getAvatar())
+                        .avatar(mediaUrlService.resolve(user.getAvatar()))
                         .role(member.getRole())
                         .joinTime(member.getCreateTime() != null ? member.getCreateTime().getTime() : null)
                         .build());
@@ -224,7 +232,7 @@ public class GroupServiceImpl implements GroupService {
                 result.add(GroupMemberVO.builder()
                         .userId(user.getId())
                         .nickname(user.getNickname())
-                        .avatar(user.getAvatar())
+                        .avatar(mediaUrlService.resolve(user.getAvatar()))
                         .role(member.getRole())
                         .joinTime(member.getCreateTime() != null ? member.getCreateTime().getTime() : null)
                         .build());
@@ -329,6 +337,27 @@ public class GroupServiceImpl implements GroupService {
         memberMapper.update(newOwnerMember);
     }
 
+    @Override
+    @Transactional
+    public String updateMyRemark(Long userId, Long conversationId, String remark) {
+        assertGroupMember(userId, conversationId);
+        ImConversationMember member = memberMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).eq(conversationId)
+                        .and(ImConversationMember::getUserId).eq(userId)
+        );
+        if (member == null) {
+            throw new CustomException(403, "你不是该群成员");
+        }
+        String value = remark == null ? "" : remark.trim();
+        if (value.length() > 64) {
+            value = value.substring(0, 64);
+        }
+        member.setRemark(value.isEmpty() ? null : value);
+        memberMapper.update(member);
+        return member.getRemark() == null ? "" : member.getRemark();
+    }
+
     // ==================== 私有方法 ====================
 
     private void assertGroupMember(Long userId, Long conversationId) {
@@ -377,34 +406,109 @@ public class GroupServiceImpl implements GroupService {
         return group;
     }
 
-    private GroupConversationVO toGroupConversationVO(ImConversation group, SysUser owner) {
+    private GroupConversationVO toGroupConversationVO(ImConversation group, SysUser owner, Long viewerUserId) {
         // 统计成员数量
         long memberCount = memberMapper.selectCountByQuery(
                 QueryWrapper.create().where(ImConversationMember::getConversationId).eq(group.getId())
         );
 
+        String myRemark = null;
+        if (viewerUserId != null) {
+            ImConversationMember me = memberMapper.selectOneByQuery(
+                    QueryWrapper.create()
+                            .where(ImConversationMember::getConversationId).eq(group.getId())
+                            .and(ImConversationMember::getUserId).eq(viewerUserId)
+            );
+            if (me != null) {
+                myRemark = me.getRemark();
+            }
+        }
+
+        String signedAvatar = mediaUrlService.resolve(group.getAvatar());
+        List<GroupMemberAvatarVO> memberAvatars = loadGroupMemberAvatarPreviews(Set.of(group.getId()))
+                .getOrDefault(group.getId(), List.of());
         return GroupConversationVO.builder()
                 .id(group.getId())
                 .type(group.getType())
                 .name(group.getName())
-                .avatar(group.getAvatar())
+                .avatar(signedAvatar)
+                .memberAvatars(memberAvatars)
                 .announcement(group.getAnnouncement())
                 .ownerId(group.getOwnerId())
                 .ownerNickname(owner != null ? owner.getNickname() : null)
                 .memberCount((int) memberCount)
                 .lastMessage(group.getLastMessageContent())
                 .lastMessageTime(group.getLastMessageTime() != null ? group.getLastMessageTime().getTime() : null)
+                .myRemark(myRemark)
                 .build();
     }
 
-    private ConversationVO toConversationVO(ImConversation group) {
+    private ConversationVO toConversationVO(ImConversation group, List<GroupMemberAvatarVO> memberAvatars) {
+        String signedAvatar = mediaUrlService.resolve(group.getAvatar());
         return ConversationVO.builder()
                 .id(group.getId())
                 .type(group.getType())
+                .name(group.getName())
+                .avatar(signedAvatar)
+                .memberAvatars(memberAvatars)
                 .peerNickname(group.getName())
-                .peerAvatar(group.getAvatar())
+                .peerAvatar(signedAvatar)
                 .lastMessage(group.getLastMessageContent())
                 .lastMessageTime(group.getLastMessageTime() != null ? group.getLastMessageTime().getTime() : null)
                 .build();
+    }
+
+    /**
+     * 批量加载群成员头像预览（每群最多 9 人）。
+     */
+    private Map<Long, List<GroupMemberAvatarVO>> loadGroupMemberAvatarPreviews(Set<Long> groupIds) {
+        if (groupIds == null || groupIds.isEmpty()) {
+            return Map.of();
+        }
+        List<ImConversationMember> memberships = memberMapper.selectListByQuery(
+                QueryWrapper.create().where(ImConversationMember::getConversationId).in(groupIds)
+        );
+        if (memberships.isEmpty()) {
+            return Map.of();
+        }
+        Set<Long> userIds = memberships.stream()
+                .map(ImConversationMember::getUserId)
+                .collect(Collectors.toSet());
+        Map<Long, SysUser> userMap = sysUserMapper.selectListByQuery(
+                QueryWrapper.create().where(SysUser::getId).in(userIds)
+        ).stream().collect(Collectors.toMap(SysUser::getId, Function.identity(), (a, b) -> a));
+
+        Map<Long, List<ImConversationMember>> byConv = memberships.stream()
+                .collect(Collectors.groupingBy(ImConversationMember::getConversationId));
+
+        Map<Long, List<GroupMemberAvatarVO>> result = new HashMap<>();
+        for (Map.Entry<Long, List<ImConversationMember>> entry : byConv.entrySet()) {
+            List<ImConversationMember> sorted = entry.getValue().stream()
+                    .sorted(Comparator
+                            .comparingInt((ImConversationMember m) -> roleRank(m.getRole()))
+                            .thenComparing(m -> m.getCreateTime() != null ? m.getCreateTime().getTime() : 0L))
+                    .limit(9)
+                    .toList();
+            List<GroupMemberAvatarVO> previews = new ArrayList<>(sorted.size());
+            for (ImConversationMember m : sorted) {
+                SysUser user = userMap.get(m.getUserId());
+                if (user == null) {
+                    continue;
+                }
+                String nick = StringUtils.hasText(user.getNickname()) ? user.getNickname() : user.getUsername();
+                previews.add(GroupMemberAvatarVO.builder()
+                        .nickname(nick)
+                        .avatar(mediaUrlService.resolve(user.getAvatar()))
+                        .build());
+            }
+            result.put(entry.getKey(), previews);
+        }
+        return result;
+    }
+
+    private static int roleRank(String role) {
+        if (ImConversationMember.ROLE_OWNER.equals(role)) return 0;
+        if (ImConversationMember.ROLE_ADMIN.equals(role)) return 1;
+        return 2;
     }
 }

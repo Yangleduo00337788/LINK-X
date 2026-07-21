@@ -18,6 +18,7 @@ import {
 import PinIcon from './icons/PinIcon.vue'
 import PanelSearchBar from './PanelSearchBar.vue'
 import Avatar from './Avatar.vue'
+import GroupAvatar from './GroupAvatar.vue'
 import EmptyState from './common/EmptyState.vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
@@ -212,7 +213,16 @@ function onContextMenuSelect(key: string) {
               @contextmenu="onSessionContext($event, session)"
             >
               <div class="avatar-wrapper">
+                <GroupAvatar
+                  v-if="session.isGroup"
+                  :text="session.avatarText"
+                  :color="session.avatarColor"
+                  :size="44"
+                  :image-url="session.avatarUrl"
+                  :faces="session.memberAvatars"
+                />
                 <Avatar
+                  v-else
                   :text="session.avatarText"
                   :color="session.avatarColor"
                   :size="44"

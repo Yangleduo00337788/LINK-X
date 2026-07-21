@@ -3,25 +3,30 @@ package com.linkx.server.service.impl;
 import com.linkx.server.controller.dto.InviteGroupDTO;
 import com.linkx.server.controller.vo.GroupConversationVO;
 import com.linkx.server.controller.vo.GroupInvitationVO;
+import com.linkx.server.controller.vo.GroupMemberAvatarVO;
 import com.linkx.server.entity.GroupInvitation;
 import com.linkx.server.entity.ImConversation;
 import com.linkx.server.entity.ImConversationMember;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.exception.CustomException;
+import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.mapper.GroupInvitationMapper;
 import com.linkx.server.mapper.ImConversationMapper;
 import com.linkx.server.mapper.ImConversationMemberMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.GroupInvitationService;
+import com.linkx.server.service.MediaUrlService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -33,6 +38,8 @@ public class GroupInvitationServiceImpl implements GroupInvitationService {
     private final ImConversationMapper conversationMapper;
     private final ImConversationMemberMapper memberMapper;
     private final SysUserMapper userMapper;
+    private final ImMessagePushService imPushService;
+    private final MediaUrlService mediaUrlService;
 
     @Override
     @Transactional
@@ -73,6 +80,7 @@ public class GroupInvitationServiceImpl implements GroupInvitationService {
                 .status(GroupInvitation.STATUS_PENDING)
                 .build();
         invitationMapper.insert(inv);
+        imPushService.pushToUser(dto.getInviteeUserId(), "notification_refresh", Map.of("type", "group_invitation"));
         return toVO(inv, conversation);
     }
 
@@ -103,7 +111,7 @@ public class GroupInvitationServiceImpl implements GroupInvitationService {
             GroupInvitationVO vo = toVO(inv, conv);
             if (inviter != null) {
                 vo.setInviterNickname(inviter.getNickname());
-                vo.setInviterAvatar(inviter.getAvatar());
+                vo.setInviterAvatar(mediaUrlService.resolve(inviter.getAvatar()));
             }
             result.add(vo);
         }
@@ -202,11 +210,43 @@ public class GroupInvitationServiceImpl implements GroupInvitationService {
     }
 
     private GroupConversationVO toGroupVO(ImConversation conv) {
+        List<GroupMemberAvatarVO> memberAvatars = List.of();
+        List<ImConversationMember> memberships = memberMapper.selectListByQuery(
+                QueryWrapper.create().where(ImConversationMember::getConversationId).eq(conv.getId())
+        );
+        if (!memberships.isEmpty()) {
+            Set<Long> userIds = memberships.stream().map(ImConversationMember::getUserId).collect(Collectors.toSet());
+            Map<Long, SysUser> userMap = userMapper.selectListByQuery(
+                    QueryWrapper.create().where(SysUser::getId).in(userIds)
+            ).stream().collect(Collectors.toMap(SysUser::getId, u -> u, (a, b) -> a));
+            memberAvatars = memberships.stream()
+                    .sorted(Comparator
+                            .comparingInt((ImConversationMember m) -> {
+                                if (ImConversationMember.ROLE_OWNER.equals(m.getRole())) return 0;
+                                if (ImConversationMember.ROLE_ADMIN.equals(m.getRole())) return 1;
+                                return 2;
+                            })
+                            .thenComparing(m -> m.getCreateTime() != null ? m.getCreateTime().getTime() : 0L))
+                    .limit(9)
+                    .map(m -> {
+                        SysUser u = userMap.get(m.getUserId());
+                        if (u == null) return null;
+                        String nick = u.getNickname() != null && !u.getNickname().isBlank()
+                                ? u.getNickname() : u.getUsername();
+                        return GroupMemberAvatarVO.builder()
+                                .nickname(nick)
+                                .avatar(mediaUrlService.resolve(u.getAvatar()))
+                                .build();
+                    })
+                    .filter(v -> v != null)
+                    .collect(Collectors.toList());
+        }
         return GroupConversationVO.builder()
                 .id(conv.getId())
                 .type(conv.getType())
                 .name(conv.getName())
-                .avatar(conv.getAvatar())
+                .avatar(mediaUrlService.resolve(conv.getAvatar()))
+                .memberAvatars(memberAvatars)
                 .announcement(conv.getAnnouncement())
                 .ownerId(conv.getOwnerId())
                 .build();

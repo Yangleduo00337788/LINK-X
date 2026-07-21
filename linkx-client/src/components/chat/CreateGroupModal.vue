@@ -38,7 +38,7 @@ const selected = ref<Set<string>>(new Set())
 // 「最近聊天」分组是否展开
 const recentExpanded = ref(true)
 
-/** 可选联系人行数据结构 */
+/** 可选联系人行数据结构（id 必须是真实 userId） */
 type PickRow = {
   id: string
   name: string
@@ -47,13 +47,13 @@ type PickRow = {
   avatarUrl?: string
 }
 
-/** 最近聊天列表：来自单聊会话，支持搜索过滤 */
+/** 最近聊天列表：取单聊对方 userId，支持搜索过滤 */
 const recentContacts = computed(() => {
   const fromSessions: PickRow[] = sessions.value
-    .filter(s => !s.isGroup)
+    .filter(s => !s.isGroup && s.peerUserId)
     .slice(0, 8)
     .map(s => ({
-      id: s.id,
+      id: String(s.peerUserId),
       name: s.name,
       avatarText: s.avatarText,
       avatarColor: s.avatarColor,
@@ -72,7 +72,15 @@ const expandedGroup = ref<string | null>(null)
 /** 按分组名取联系人，并应用搜索过滤 */
 const groupContacts = (group: string) => {
   const q = search.value.trim().toLowerCase()
-  let list = contactsStore.items.filter(c => c.group === group)
+  let list = contactsStore.items
+    .filter(c => c.group === group)
+    .map(c => ({
+      id: String(c.userId || c.id),
+      name: c.name,
+      avatarText: c.avatarText,
+      avatarColor: c.avatarColor,
+      avatarUrl: c.avatarUrl
+    }))
   if (!q) return list
   return list.filter(c => c.name.toLowerCase().includes(q))
 }
@@ -81,14 +89,15 @@ const groupContacts = (group: string) => {
 const allPickable = computed(() => {
   const rows = [...recentContacts.value]
   for (const c of contactsStore.items) {
-    if (!rows.some(r => r.id === c.id)) {
-      rows.push({
-        id: c.id,
-        name: c.name,
-        avatarText: c.avatarText,
-        avatarColor: c.avatarColor
-      })
-    }
+    const uid = String(c.userId || c.id)
+    if (!uid || rows.some(r => r.id === uid)) continue
+    rows.push({
+      id: uid,
+      name: c.name,
+      avatarText: c.avatarText,
+      avatarColor: c.avatarColor,
+      avatarUrl: c.avatarUrl
+    })
   }
   return rows
 })
@@ -219,7 +228,12 @@ function cancel() {
                       :size="20"
                       :color="selected.has(c.id) ? 'var(--lx-accent)' : 'var(--lx-border-strong)'"
                     />
-                    <Avatar :text="c.avatarText" :color="c.avatarColor" :size="36" />
+                    <Avatar
+                      :text="c.avatarText"
+                      :color="c.avatarColor"
+                      :image-url="c.avatarUrl"
+                      :size="36"
+                    />
                     <span class="c-name">{{ c.name }}</span>
                   </button>
                 </template>
@@ -231,7 +245,12 @@ function cancel() {
             <div v-if="!selectedList.length" class="right-empty" />
             <div v-else class="selected-list">
               <div v-for="c in selectedList" :key="c.id" class="selected-chip">
-                <Avatar :text="c.avatarText" :color="c.avatarColor" :size="40" />
+                <Avatar
+                  :text="c.avatarText"
+                  :color="c.avatarColor"
+                  :image-url="c.avatarUrl"
+                  :size="40"
+                />
                 <span>{{ c.name }}</span>
               </div>
             </div>

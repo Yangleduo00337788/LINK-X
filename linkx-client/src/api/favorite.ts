@@ -1,5 +1,5 @@
 /**
- * 收藏 API（复用笔记接口作为收藏存储）
+ * 收藏 API（独立 /favorites，与笔记拆分）
  */
 
 import { apiClient } from './client'
@@ -9,40 +9,36 @@ export interface FavoriteVO {
   id: string
   title: string
   content: string
+  type?: string
+  sourceType?: string
+  sourceId?: string
   createTime: string
   updateTime: string
 }
 
-/**
- * 收藏类型映射到笔记类型
- * note=笔记, image=图片收藏, link=链接收藏, file=文件收藏
- */
-export type FavoriteType = 'note' | 'image' | 'link' | 'file'
+export type FavoriteType = 'note' | 'image' | 'link' | 'file' | 'message'
 
-/**
- * 获取收藏列表
- */
 export function listFavorites() {
-  return apiClient.get<never, ApiResult<FavoriteVO[]>>('/notes')
+  return apiClient.get<never, ApiResult<FavoriteVO[]>>('/favorites')
 }
 
-/**
- * 添加收藏
- */
-export function addFavorite(payload: { title: string; content: string }) {
-  return apiClient.post<never, ApiResult<FavoriteVO>>('/notes', payload)
+export function addFavorite(payload: {
+  title: string
+  content: string
+  type?: FavoriteType
+  sourceType?: string
+  sourceId?: string
+}) {
+  return apiClient.post<never, ApiResult<FavoriteVO>>('/favorites', payload)
 }
 
-/**
- * 删除收藏
- */
 export function removeFavorite(favoriteId: string) {
-  return apiClient.delete<never, ApiResult<null>>(`/notes/${favoriteId}`)
+  return apiClient.delete<never, ApiResult<null>>(`/favorites/${favoriteId}`)
 }
 
-/**
- * 更新收藏
- */
-export function updateFavorite(favoriteId: string, payload: { title?: string; content?: string }) {
-  return apiClient.put<never, ApiResult<FavoriteVO>>(`/notes/${favoriteId}`, payload)
+export function updateFavorite(
+  favoriteId: string,
+  payload: { title?: string; content?: string; type?: FavoriteType }
+) {
+  return apiClient.put<never, ApiResult<FavoriteVO>>(`/favorites/${favoriteId}`, payload)
 }

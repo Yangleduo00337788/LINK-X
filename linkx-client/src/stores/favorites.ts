@@ -13,6 +13,11 @@ function nowLabel(): string {
   return '今天'
 }
 
+function mapFavoriteType(type?: string): FavoriteItem['type'] {
+  if (type === 'image' || type === 'link' || type === 'file' || type === 'note') return type
+  return 'note'
+}
+
 // 定义并导出 favorites Store
 export const useFavoritesStore = defineStore('favorites', {
   state: () => ({
@@ -34,9 +39,11 @@ export const useFavoritesStore = defineStore('favorites', {
           this.items = res.data.map(f => ({
             id: String(f.id),
             title: f.title || '无标题',
-            preview: f.content.slice(0, 100),
-            type: 'note' as const,
-            time: f.createTime ? new Date(f.createTime).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }) : nowLabel()
+            preview: (f.content || '').slice(0, 100),
+            type: mapFavoriteType(f.type),
+            time: f.createTime
+              ? new Date(f.createTime).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
+              : nowLabel()
           }))
           this.initialized = true
         }
@@ -54,14 +61,17 @@ export const useFavoritesStore = defineStore('favorites', {
       try {
         const res = await favoriteApi.addFavorite({
           title: item.title,
-          content: item.preview || item.title
+          content: item.preview || item.title,
+          type: item.type === 'link' || item.type === 'image' || item.type === 'file' || item.type === 'note'
+            ? item.type
+            : 'note'
         })
         if (res.code === 200 && res.data) {
           this.items.unshift({
             id: String(res.data.id),
             title: res.data.title || item.title,
             preview: item.preview || item.title,
-            type: item.type,
+            type: mapFavoriteType(res.data.type) || item.type,
             time: nowLabel()
           })
           return true

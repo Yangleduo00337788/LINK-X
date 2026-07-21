@@ -38,6 +38,7 @@ const {
   toggleSessionBlock,
   clearSessionMessages,
   deleteSession,
+  removePrivateSessionByPeer,
   setNav
 } = appStore
 const { open: openOverlay } = overlayStore
@@ -106,11 +107,12 @@ function deleteFriend() {
     negativeText: t('common.cancel'),
     onPositiveClick: async () => {
       try {
-        if (session.isReal && friendUserId) {
-          await contactsStore.deleteFriend(friendUserId)
-        } else {
-          contactsStore.removeByUserId(friendUserId || sessionId)
+        if (!friendUserId) {
+          message.error(t('modals.deleteFriendFail'))
+          return
         }
+        await contactsStore.deleteFriend(friendUserId)
+        removePrivateSessionByPeer(friendUserId)
         deleteSession(sessionId)
         message.success(t('modals.friendDeleted'))
         closeMore()

@@ -3,7 +3,9 @@ package com.linkx.server.service.impl;
 import com.linkx.server.common.InputSanitizer;
 import com.linkx.server.controller.dto.SendMessageDTO;
 import com.linkx.server.controller.vo.ChatFileUploadVO;
+import com.linkx.server.controller.vo.ChatSearchHitVO;
 import com.linkx.server.controller.vo.ConversationVO;
+import com.linkx.server.controller.vo.GroupMemberAvatarVO;
 import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.entity.ImConversation;
 import com.linkx.server.entity.ImConversationMember;
@@ -25,6 +27,7 @@ import com.linkx.server.service.ChatService;
 import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.UserPreferenceService;
+import com.mybatisflex.core.logicdelete.LogicDeleteManager;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -98,6 +101,11 @@ public class ChatServiceImpl implements ChatService {
         Map<Long, Boolean> showOnlineMap = userPreferenceService.batchShowsOnlineStatus(
                 peerUserMap.values().stream().map(SysUser::getId).collect(Collectors.toSet())
         );
+        Set<Long> groupIds = conversations.stream()
+                .filter(c -> c.getType() == ImConversation.TYPE_GROUP)
+                .map(ImConversation::getId)
+                .collect(Collectors.toSet());
+        Map<Long, List<GroupMemberAvatarVO>> groupMemberAvatars = loadGroupMemberAvatarPreviews(groupIds);
 
         List<ConversationVO> result = new ArrayList<>();
         for (ImConversation conversation : conversations) {
@@ -106,11 +114,18 @@ public class ChatServiceImpl implements ChatService {
                 if (peer == null) {
                     continue;
                 }
+                // 已非好友的单聊不进入会话列表（删除好友后即时隐藏）
+                if (!isFriend(userId, peer.getId())) {
+                    continue;
+                }
                 boolean showOnline = !Boolean.FALSE.equals(showOnlineMap.get(peer.getId()));
                 boolean peerOnline = showOnline && imChannelManager.isOnline(peer.getId());
                 result.add(toConversationVO(conversation, peer, remarkMap.get(peer.getId()), peerOnline));
             } else if (conversation.getType() == ImConversation.TYPE_GROUP) {
-                result.add(toGroupConversationVO(conversation));
+                result.add(toGroupConversationVO(
+                        conversation,
+                        groupMemberAvatars.getOrDefault(conversation.getId(), List.of())
+                ));
             }
         }
         return result;
@@ -152,7 +167,9 @@ public class ChatServiceImpl implements ChatService {
                     .userId(friendId)
                     .build());
         } else {
-            assertConversationMember(userId, conversation.getId());
+            // 删除好友会逻辑删除成员；重新成为好友后需恢复，否则无法进入会话
+            ensurePrivateMembership(conversation.getId(), userId);
+            ensurePrivateMembership(conversation.getId(), friendId);
         }
 
         Map<Long, String> remarkMap = loadRemarkMap(userId, Set.of(friendId));
@@ -226,7 +243,10 @@ public class ChatServiceImpl implements ChatService {
         }
         if (conversation.getType() == ImConversation.TYPE_PRIVATE) {
             Long peerId = resolvePrivatePeerId(userId, conversation.getId());
-            assertCanPrivateChat(userId, peerId);
+            // 删除好友后禁止继续私聊（陌生人会话需重新发起才会建成员关系）
+            if (!isFriend(userId, peerId)) {
+                throw new CustomException(403, "对方已不是好友，无法发送消息");
+            }
         }
 
         String msgType = normalizeMsgType(dto.getMsgType());
@@ -278,6 +298,88 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
+    public List<ChatSearchHitVO> searchMessages(Long userId, String keyword, String type, Long conversationId, int limit) {
+        if (!StringUtils.hasText(keyword)) {
+            return List.of();
+        }
+        String q = keyword.trim();
+        if (q.length() > 100) {
+            q = q.substring(0, 100);
+        }
+        int cap = Math.min(Math.max(limit, 1), 100);
+
+        List<ImConversationMember> memberships = memberMapper.selectListByQuery(
+                QueryWrapper.create().where(ImConversationMember::getUserId).eq(userId)
+        );
+        if (memberships.isEmpty()) {
+            return List.of();
+        }
+        Set<Long> allowedIds = memberships.stream()
+                .map(ImConversationMember::getConversationId)
+                .collect(Collectors.toSet());
+        if (conversationId != null) {
+            if (!allowedIds.contains(conversationId)) {
+                throw new CustomException(403, "无权访问该会话");
+            }
+            allowedIds = Set.of(conversationId);
+        }
+
+        QueryWrapper qw = QueryWrapper.create()
+                .where(ImMessage::getConversationId).in(allowedIds)
+                .and(ImMessage::getContent).like(q)
+                .orderBy(ImMessage::getCreateTime, false)
+                .limit(cap);
+        if (StringUtils.hasText(type)) {
+            qw.and(ImMessage::getType).eq(type.trim());
+        }
+
+        List<ImMessage> messages = messageMapper.selectListByQuery(qw);
+        if (messages.isEmpty()) {
+            // 同时按文件名搜
+            QueryWrapper fileQw = QueryWrapper.create()
+                    .where(ImMessage::getConversationId).in(allowedIds)
+                    .and(ImMessage::getFileName).like(q)
+                    .orderBy(ImMessage::getCreateTime, false)
+                    .limit(cap);
+            if (StringUtils.hasText(type)) {
+                fileQw.and(ImMessage::getType).eq(type.trim());
+            }
+            messages = messageMapper.selectListByQuery(fileQw);
+        }
+
+        Set<Long> convIds = messages.stream().map(ImMessage::getConversationId).collect(Collectors.toSet());
+        Set<Long> senderIds = messages.stream().map(ImMessage::getSenderId).collect(Collectors.toSet());
+        Map<Long, ImConversation> convMap = convIds.isEmpty() ? Map.of() :
+                conversationMapper.selectListByQuery(QueryWrapper.create().where(ImConversation::getId).in(convIds))
+                        .stream().collect(Collectors.toMap(ImConversation::getId, Function.identity(), (a, b) -> a));
+        Map<Long, SysUser> userMap = senderIds.isEmpty() ? Map.of() :
+                sysUserMapper.selectListByQuery(QueryWrapper.create().where(SysUser::getId).in(senderIds))
+                        .stream().collect(Collectors.toMap(SysUser::getId, Function.identity(), (a, b) -> a));
+
+        List<ChatSearchHitVO> hits = new ArrayList<>();
+        for (ImMessage msg : messages) {
+            ImConversation conv = convMap.get(msg.getConversationId());
+            SysUser sender = userMap.get(msg.getSenderId());
+            hits.add(ChatSearchHitVO.builder()
+                    .messageId(msg.getId())
+                    .conversationId(msg.getConversationId())
+                    .conversationName(conv != null ? conv.getName() : null)
+                    .conversationType(conv != null ? conv.getType() : null)
+                    .senderId(msg.getSenderId())
+                    .senderNickname(sender != null ? sender.getNickname() : null)
+                    .type(msg.getType())
+                    .content(msg.getContent())
+                    .fileName(msg.getFileName())
+                    .fileUrl(ImMessage.TYPE_RED_PACKET.equals(msg.getType())
+                            ? msg.getFileUrl()
+                            : mediaUrlService.resolve(msg.getFileUrl()))
+                    .createTime(msg.getCreateTime() == null ? null : msg.getCreateTime().getTime())
+                    .build());
+        }
+        return hits;
+    }
+
+    @Override
     public void assertConversationMember(Long userId, Long conversationId) {
         ImConversationMember member = memberMapper.selectOneByQuery(
                 QueryWrapper.create()
@@ -287,6 +389,41 @@ public class ChatServiceImpl implements ChatService {
         if (member == null) {
             throw new CustomException(403, "无权访问该会话");
         }
+    }
+
+    /**
+     * 确保用户是会话成员；若曾逻辑删除则恢复，避免唯一键冲突。
+     */
+    private void ensurePrivateMembership(Long conversationId, Long userId) {
+        ImConversationMember active = memberMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).eq(conversationId)
+                        .and(ImConversationMember::getUserId).eq(userId)
+        );
+        if (active != null) {
+            return;
+        }
+        ImConversationMember existing = LogicDeleteManager.execWithoutLogicDelete(() ->
+                memberMapper.selectOneByQuery(
+                        QueryWrapper.create()
+                                .where(ImConversationMember::getConversationId).eq(conversationId)
+                                .and(ImConversationMember::getUserId).eq(userId)
+                                .limit(1)
+                )
+        );
+        if (existing != null) {
+            existing.setDeleted(0);
+            LogicDeleteManager.execWithoutLogicDelete(() -> {
+                memberMapper.update(existing);
+                return null;
+            });
+            return;
+        }
+        memberMapper.insert(ImConversationMember.builder()
+                .conversationId(conversationId)
+                .userId(userId)
+                .deleted(0)
+                .build());
     }
 
     private boolean isFriend(Long userId, Long friendId) {
@@ -392,11 +529,17 @@ public class ChatServiceImpl implements ChatService {
                 .build();
     }
 
-    private ConversationVO toGroupConversationVO(ImConversation conversation) {
+    private ConversationVO toGroupConversationVO(
+            ImConversation conversation,
+            List<GroupMemberAvatarVO> memberAvatars
+    ) {
         return ConversationVO.builder()
                 .id(conversation.getId())
                 .type(conversation.getType())
                 .name(conversation.getName())
+                .avatar(mediaUrlService.resolve(conversation.getAvatar()))
+                .peerAvatar(mediaUrlService.resolve(conversation.getAvatar()))
+                .memberAvatars(memberAvatars)
                 .announcement(conversation.getAnnouncement())
                 .ownerId(conversation.getOwnerId())
                 .lastMessage(conversation.getLastMessageContent())
@@ -406,18 +549,77 @@ public class ChatServiceImpl implements ChatService {
                 .build();
     }
 
+    /**
+     * 批量加载群成员头像预览（每群最多 9 人，群主优先），供前端拼图头像。
+     */
+    private Map<Long, List<GroupMemberAvatarVO>> loadGroupMemberAvatarPreviews(Set<Long> groupIds) {
+        if (groupIds == null || groupIds.isEmpty()) {
+            return Map.of();
+        }
+        List<ImConversationMember> memberships = memberMapper.selectListByQuery(
+                QueryWrapper.create().where(ImConversationMember::getConversationId).in(groupIds)
+        );
+        if (memberships.isEmpty()) {
+            return Map.of();
+        }
+        Set<Long> userIds = memberships.stream()
+                .map(ImConversationMember::getUserId)
+                .collect(Collectors.toSet());
+        Map<Long, SysUser> userMap = sysUserMapper.selectListByQuery(
+                QueryWrapper.create().where(SysUser::getId).in(userIds)
+        ).stream().collect(Collectors.toMap(SysUser::getId, Function.identity(), (a, b) -> a));
+
+        Map<Long, List<ImConversationMember>> byConv = memberships.stream()
+                .collect(Collectors.groupingBy(ImConversationMember::getConversationId));
+
+        Map<Long, List<GroupMemberAvatarVO>> result = new HashMap<>();
+        for (Map.Entry<Long, List<ImConversationMember>> entry : byConv.entrySet()) {
+            List<ImConversationMember> sorted = entry.getValue().stream()
+                    .sorted(Comparator
+                            .comparingInt((ImConversationMember m) -> roleRank(m.getRole()))
+                            .thenComparing(m -> m.getCreateTime() != null ? m.getCreateTime().getTime() : 0L))
+                    .limit(9)
+                    .toList();
+            List<GroupMemberAvatarVO> previews = new ArrayList<>(sorted.size());
+            for (ImConversationMember m : sorted) {
+                SysUser user = userMap.get(m.getUserId());
+                if (user == null) {
+                    continue;
+                }
+                String nick = StringUtils.hasText(user.getNickname()) ? user.getNickname() : user.getUsername();
+                previews.add(GroupMemberAvatarVO.builder()
+                        .nickname(nick)
+                        .avatar(mediaUrlService.resolve(user.getAvatar()))
+                        .build());
+            }
+            result.put(entry.getKey(), previews);
+        }
+        return result;
+    }
+
+    private static int roleRank(String role) {
+        if (ImConversationMember.ROLE_OWNER.equals(role)) return 0;
+        if (ImConversationMember.ROLE_ADMIN.equals(role)) return 1;
+        return 2;
+    }
+
     private MessageVO toMessageVO(ImMessage message, SysUser sender, Long currentUserId) {
+        String fileUrl = message.getFileUrl();
+        // 红包消息的 fileUrl 存的是红包 ID，不能当媒体 key 签发
+        if (fileUrl != null && !ImMessage.TYPE_RED_PACKET.equals(message.getType())) {
+            fileUrl = mediaUrlService.resolve(fileUrl);
+        }
         MessageVO.MessageVOBuilder builder = MessageVO.builder()
                 .id(message.getId())
                 .conversationId(message.getConversationId())
                 .senderId(message.getSenderId())
                 .senderNickname(sender != null ? sender.getNickname() : null)
-                .senderAvatar(sender != null ? sender.getAvatar() : null)
+                .senderAvatar(sender != null ? mediaUrlService.resolve(sender.getAvatar()) : null)
                 .type(message.getType())
                 .content(message.getContent())
                 .fileName(message.getFileName())
                 .fileSize(message.getFileSize())
-                .fileUrl(message.getFileUrl())
+                .fileUrl(fileUrl)
                 .voiceDuration(message.getVoiceDuration())
                 .createTime(message.getCreateTime() != null ? message.getCreateTime().getTime() : null)
                 .isSelf(message.getSenderId().equals(currentUserId));

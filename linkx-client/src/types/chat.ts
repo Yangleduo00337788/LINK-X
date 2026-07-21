@@ -3,8 +3,10 @@ export interface ConversationItem {
   type: number
   /** 群聊名称（type=2 时使用） */
   name?: string
-  /** 群头像（type=2 时使用） */
+  /** 群头像（type=2 时使用；自定义上传时才有） */
   avatar?: string
+  /** 群成员头像预览（拼图用） */
+  memberAvatars?: Array<{ nickname?: string; avatar?: string }>
   peerUserId?: string
   peerUsername?: string
   peerNickname?: string

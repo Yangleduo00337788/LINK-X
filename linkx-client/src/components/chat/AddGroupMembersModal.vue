@@ -51,7 +51,8 @@ const recentContacts = computed(() => {
       id: c.userId || c.id,
       name: c.name,
       text: c.avatarText,
-      color: c.avatarColor
+      color: c.avatarColor,
+      avatarUrl: c.avatarUrl
     }))
   const q = search.value.trim().toLowerCase()
   if (!q) return list
@@ -149,7 +150,7 @@ function cancel() {
                     :size="20"
                     :color="selected.has(c.id) ? 'var(--lx-accent)' : 'var(--lx-border-strong)'"
                   />
-                  <Avatar :text="c.text" :color="c.color" :size="36" />
+                  <Avatar :text="c.text" :color="c.color" :image-url="c.avatarUrl" :size="36" />
                   <span class="c-name">{{ c.name }}</span>
                 </button>
                 <div v-if="!recentContacts.length" class="empty-tip">{{ t('extra.noInvitableFriends') }}</div>
@@ -161,7 +162,7 @@ function cancel() {
             <h3 class="right-title">{{ t('extra.selectedCount', { n: selectedList.length }) }}</h3>
             <div v-if="selectedList.length" class="selected-list">
               <div v-for="c in selectedList" :key="c.id" class="chip">
-                <Avatar :text="c.text" :color="c.color" :size="44" />
+                <Avatar :text="c.text" :color="c.color" :image-url="c.avatarUrl" :size="44" />
                 <span>{{ c.name }}</span>
               </div>
             </div>

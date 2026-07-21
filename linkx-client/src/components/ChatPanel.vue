@@ -33,6 +33,7 @@ import ChatMoreDrawer from './chat/ChatMoreDrawer.vue'
 import GroupInfoDrawer from './chat/GroupInfoDrawer.vue'
 // 单条消息组件
 import ChatMessageItem from './chat/ChatMessageItem.vue'
+import MessageVirtualList from './chat/MessageVirtualList.vue'
 // 聊天输入框
 import ChatInputBox from './chat/ChatInputBox.vue'
 // Pinia 响应式解构
@@ -155,27 +156,34 @@ const isFriendChat = computed(
 )
 
 // 过滤掉系统消息，仅展示用户可见消息
-const chatMessages = computed(() => {
-  const msgs = currentMessages.value.filter(m => m.type !== 'system')
-  console.log('[ChatPanel] chatMessages computed:', {
-    count: msgs.length,
-    currentSessionId: currentSessionId.value,
-    currentSession: currentSession.value?.id,
-    hasSession: hasSession.value
-  })
-  return msgs
-})
+const chatMessages = computed(() =>
+  currentMessages.value.filter(m => m.type !== 'system')
+)
 
-// 监听消息数量变化，新消息时自动滚动到底部
+/** 是否贴底：仅贴底时新消息才自动滚到底，避免上拉历史被拽回底部 */
+const stickToBottom = ref(true)
+const loadingMore = ref(false)
+let loadMoreLockUntil = 0
+
+// 监听消息数量变化：贴底时才自动滚到底（发送/收到新消息）
 watch(
   () => chatMessages.value.length,
   (newLen, oldLen) => {
-    if (newLen > oldLen && hasSession.value) {
-      // scrollToBottom 内部已有 nextTick，直接调用即可
+    if (newLen > oldLen && hasSession.value && stickToBottom.value && !loadingMore.value) {
       scrollToBottom()
     }
   }
 )
+
+// 切换会话时贴底并滚到底
+watch(currentSessionId, () => {
+  stickToBottom.value = true
+  loadingMore.value = false
+  loadMoreLockUntil = 0
+  if (hasSession.value) {
+    nextTick(() => scrollToBottom())
+  }
+})
 
 // 当前正在播放的语音消息 ID
 const playingVoiceId = ref<string | null>(null)
@@ -328,66 +336,51 @@ function formatVoiceDuration(sec?: number) {
 
 // 当前正在回复的消息
 const replyingTo = ref<ChatMessage | undefined>()
-// 滚动容器引用
-const messageScrollRef = ref<HTMLElement | null>(null)
+// 虚拟消息列表
+const messageListRef = ref<InstanceType<typeof MessageVirtualList> | null>(null)
 // 消息列表容器引用
 const messageListContainer = ref<HTMLElement | null>(null)
-// 是否正在加载更早消息（防止重复触发）
-const loadingMore = ref(false)
 // 聊天输入框组件引用
 const chatInputRef = ref<InstanceType<typeof ChatInputBox> | null>(null)
 
-// 滚动消息列表到底部
 function scrollToBottom() {
-  nextTick(() => {
-    if (!messageScrollRef.value) {
-      console.warn('[scrollToBottom] messageScrollRef not available')
-      return
-    }
-    const scrollEl = messageScrollRef.value
-    const itemCount = chatMessages.value.length
-    const lastMsg = itemCount > 0 ? chatMessages.value[itemCount - 1] : null
-    console.log('[scrollToBottom] itemCount:', itemCount, 'lastMsg:', lastMsg?.content)
-
-    if (itemCount === 0) return
-
-    console.log('[scrollToBottom] scrollEl info:', {
-      scrollHeight: scrollEl.scrollHeight,
-      clientHeight: scrollEl.clientHeight,
-      scrollTop: scrollEl.scrollTop,
-      offsetHeight: scrollEl.offsetHeight
-    })
-
-    // 滚动到底部
-    scrollEl.scrollTop = scrollEl.scrollHeight
-    console.log('[scrollToBottom] scrolled to bottom')
-
-    // 多次重试确保生效
-    requestAnimationFrame(() => {
-      if (messageScrollRef.value) {
-        messageScrollRef.value.scrollTop = messageScrollRef.value.scrollHeight
-      }
-    })
-    setTimeout(() => {
-      if (messageScrollRef.value) {
-        messageScrollRef.value.scrollTop = messageScrollRef.value.scrollHeight
-      }
-    }, 100)
-  })
+  stickToBottom.value = true
+  messageListRef.value?.scrollToBottom()
 }
 
-/** 滚动到顶部时加载更早的历史消息 */
-async function onMessageScroll(e: Event) {
-  const target = e.target as HTMLElement
-  if (!currentSessionId.value || !currentSession.value?.isReal) return
-  if (loadingMore.value || target.scrollTop > 80) return
+function onVirtualScroll(payload: {
+  scrollTop: number
+  scrollHeight: number
+  clientHeight: number
+}) {
+  const distanceFromBottom = payload.scrollHeight - payload.scrollTop - payload.clientHeight
+  const nextStick = distanceFromBottom < 24
+  // 值不变不写 ref，避免滚动时整页重渲染
+  if (stickToBottom.value !== nextStick) {
+    stickToBottom.value = nextStick
+  }
+  void maybeLoadOlderMessages(payload.scrollTop)
+}
+
+async function maybeLoadOlderMessages(scrollTop: number) {
+  const sessionId = currentSessionId.value
+  if (!sessionId || !currentSession.value?.isReal) return
+  if (scrollTop > 12) return
+  if (loadingMore.value || Date.now() < loadMoreLockUntil) return
+  if (appStore.messagesHasMore[sessionId] === false) return
+  if (appStore.messagesLoading[sessionId]) return
+
+  const el = messageListRef.value?.getScrollElement()
+  if (!el) return
 
   loadingMore.value = true
-  const prevHeight = target.scrollHeight
+  loadMoreLockUntil = Date.now() + 400
+  const prevHeight = el.scrollHeight
+  const prevTop = el.scrollTop
   try {
-    await loadMoreMessages(currentSessionId.value)
+    await loadMoreMessages(sessionId)
     await nextTick()
-    target.scrollTop = target.scrollHeight - prevHeight
+    messageListRef.value?.restoreAfterPrepend(prevHeight, prevTop)
   } finally {
     loadingMore.value = false
   }
@@ -641,20 +634,23 @@ function onDrop(e: DragEvent) {
         <div class="chat-main-col">
           <div class="chat-content-stack">
             <!-- 消息列表区域 -->
-            <div class="message-area" :class="{ 'message-area--friend': isFriendChat }" :style="chatBgStyle">
+            <div class="message-area" :class="{ 'message-area--padded': hasSession }" :style="chatBgStyle">
               <div class="message-list-container" ref="messageListContainer">
 
-                <div
+                <MessageVirtualList
                   v-if="hasSession && chatMessages.length"
-                  ref="messageScrollRef"
-                  class="message-scroll-container"
-                  @scroll="onMessageScroll"
+                  :key="currentSessionId || 'none'"
+                  ref="messageListRef"
+                  :items="chatMessages"
+                  @scroll="onVirtualScroll"
                 >
-                  <div class="message-list">
-                    <div v-for="msg in chatMessages" :key="msg.id" class="message-item-wrapper">
+                  <template #default="{ msg }">
+                    <div
+                      v-memo="[msg.id, msg.content, msg.type, playingVoiceId === msg.id, msg.senderAvatar]"
+                    >
                       <ChatMessageItem
                         :msg="msg"
-                        :playing-voice-id="playingVoiceId"
+                        :playing="playingVoiceId === msg.id"
                         @contextmenu="onMsgContext"
                         @play-voice="playVoice"
                         @open-file-view="openFileView"
@@ -664,8 +660,8 @@ function onDrop(e: DragEvent) {
                         @open-self-profile="openSelfProfileClick"
                       />
                     </div>
-                  </div>
-                </div>
+                  </template>
+                </MessageVirtualList>
 
                 <!-- 无消息或未选会话时的占位水印 -->
                 <PenguinWatermark
@@ -903,7 +899,7 @@ function onDrop(e: DragEvent) {
   flex-direction: column;
 }
 
-.message-area--friend {
+.message-area--padded {
   padding: 12px 16px 16px;
 }
 
@@ -914,23 +910,6 @@ function onDrop(e: DragEvent) {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-}
-
-.message-scroll-container {
-  flex: 1;
-  min-height: 0;
-  height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-}
-
-.message-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.message-item-wrapper {
-  padding: 7px 0;
 }
 
 .message-time {

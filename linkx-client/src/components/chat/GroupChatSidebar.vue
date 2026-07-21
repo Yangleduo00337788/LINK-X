@@ -5,7 +5,7 @@
  * 展示群公告摘要与成员列表，支持成员搜索。
  * </p>
  */
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { NIcon } from 'naive-ui'
 import { SearchOutline, ChevronForwardOutline, CloseOutline } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
@@ -33,12 +33,20 @@ const announcementText = computed(() => {
   return id ? groupMetaStore.announcementShort(id) : ''
 })
 
-/** 当前群全部成员 */
+/** 当前群全部成员（只读 store，避免在 computed 里反复触发 fetch） */
 const members = computed(() => {
   const id = currentSessionId.value
   if (!id) return []
-  return groupMetaStore.membersFor(id)
+  return groupMetaStore.members[id] || []
 })
+
+watch(
+  currentSessionId,
+  id => {
+    if (id) void groupMetaStore.fetchMembers(id)
+  },
+  { immediate: true }
+)
 
 /** 按昵称或 badge 过滤后的成员列表 */
 const filteredMembers = computed(() => {
@@ -95,7 +103,7 @@ function toggleMemberSearch() {
           {{ t('extra.noMatchMembers') }}
         </div>
         <div v-for="m in filteredMembers" :key="m.id" class="member-row">
-          <Avatar :text="m.avatarText" :color="m.avatarColor" :size="36" />
+          <Avatar :text="m.avatarText" :color="m.avatarColor" :image-url="m.avatarUrl" :size="36" />
           <div class="m-info">
             <span class="m-name">{{ m.name }}</span>
             <span v-if="m.badge" class="m-badge">{{ m.badge }}</span>

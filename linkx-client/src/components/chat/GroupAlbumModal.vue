@@ -13,8 +13,6 @@ import { useGroupMetaStore } from '../../stores/groupMeta'
 import { useOverlayStore } from '../../stores/overlay'
 // Naive UI 全局消息提示
 import { useMessage } from 'naive-ui'
-// 文件读取为 Data URL 的工具
-import { readFileAsDataUrl } from '../../utils/file'
 import { useI18n } from '../../i18n'
 
 const message = useMessage()
@@ -55,21 +53,15 @@ async function onAlbumPicked(e: Event) {
   input.value = ''
   if (!files?.length || !currentSessionId.value) return
 
-  const user = userProfile.value.nickname
-  const items: { url: string; name: string; user: string }[] = []
-
-  for (const file of Array.from(files)) {
-    try {
-      const url = await readFileAsDataUrl(file)
-      items.push({ url, name: file.name, user })
-    } catch {
-      /* skip */
+  try {
+    const n = await groupMetaStore.uploadAlbumImages(currentSessionId.value, Array.from(files))
+    if (n > 0) {
+      message.success(t('extra.albumUploaded', { n }))
+    } else {
+      message.error(t('extra.opFail'))
     }
-  }
-
-  if (items.length) {
-    groupMetaStore.addAlbumImages(currentSessionId.value, items)
-    message.success(t('extra.albumUploaded', { n: items.length }))
+  } catch {
+    message.error(t('extra.opFail'))
   }
 }
 

@@ -16,6 +16,7 @@ import com.linkx.server.mapper.ImConversationMemberMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.CallService;
 import com.linkx.server.service.ChatService;
+import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.MessageNotificationService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +42,7 @@ public class CallServiceImpl implements CallService {
     private final MessageNotificationService notificationService;
     private final StringRedisTemplate redisTemplate;
     private final ImMessagePushService pushService;
+    private final MediaUrlService mediaUrlService;
 
     @Override
     public CallInviteVO invite(Long userId, CallInviteDTO dto) {
@@ -72,14 +74,15 @@ public class CallServiceImpl implements CallService {
         SysUser caller = sysUserMapper.selectOneById(userId);
         SysUser peer = sysUserMapper.selectOneById(peerId);
         String callerName = displayName(caller);
-        String callerAvatar = caller != null ? nullToEmpty(caller.getAvatar()) : "";
+        String callerAvatar = caller != null ? nullToEmpty(mediaUrlService.resolve(caller.getAvatar())) : "";
 
         String content = "voice".equals(callType) ? "邀请你进行语音通话" : "邀请你进行视频通话";
+        // 通知表存原始 key；列表出口再签发。这里传 raw，避免把长签名 URL 写入 DB
         notificationService.create(
                 peerId,
                 userId,
                 callerName,
-                callerAvatar,
+                caller != null ? caller.getAvatar() : null,
                 "call_" + callType,
                 conversationId,
                 content
@@ -104,7 +107,7 @@ public class CallServiceImpl implements CallService {
                 .status("ringing")
                 .peerUserId(peerId)
                 .peerNickname(displayName(peer))
-                .peerAvatar(peer != null ? nullToEmpty(peer.getAvatar()) : "")
+                .peerAvatar(peer != null ? nullToEmpty(mediaUrlService.resolve(peer.getAvatar())) : "")
                 .build();
     }
 
@@ -203,7 +206,7 @@ public class CallServiceImpl implements CallService {
                 .fromUserId(fromUserId)
                 .toUserId(toUserId)
                 .fromNickname(displayName(from))
-                .fromAvatar(from != null ? nullToEmpty(from.getAvatar()) : "")
+                .fromAvatar(from != null ? nullToEmpty(mediaUrlService.resolve(from.getAvatar())) : "")
                 .build();
     }
 

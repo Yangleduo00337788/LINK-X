@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 聊天记录浏览与搜索页面
+ * 聊天记录浏览与搜索页面（服务端搜索 + 当前会话本地预览）
  */
 import { computed, ref, watch } from 'vue'
 import { NIcon, NInput, NEmpty, useMessage } from 'naive-ui'
@@ -10,6 +10,7 @@ import { useAppStore } from '../../../stores/app'
 import EmptyState from '../../common/EmptyState.vue'
 import Avatar from '../../Avatar.vue'
 import { useI18n } from '../../../i18n'
+import * as chatApi from '../../../api/chat'
 
 const appStore = useAppStore()
 const message = useMessage()
@@ -17,75 +18,84 @@ const { t } = useI18n()
 const { sessions, messagesBySession, currentSessionId } = storeToRefs(appStore)
 const { selectSession } = appStore
 
-// 搜索关键词
 const searchQuery = ref('')
+const searching = ref(false)
 const searchResults = ref<Array<{
   sessionId: string
   sessionName: string
   messages: Array<{ id: string; content: string; time: string; isSelf: boolean; type: string }>
 }>>([])
 
-// 所有消息（用于搜索）
-const allMessages = computed(() => {
-  const results: Array<{
-    sessionId: string
-    sessionName: string
-    messages: Array<{ id: string; content: string; time: string; isSelf: boolean; type: string }>
-  }> = []
+let searchTimer: ReturnType<typeof setTimeout> | null = null
 
-  for (const session of sessions.value) {
-    const msgs = messagesBySession.value[session.id] || []
-    if (msgs.length > 0) {
-      results.push({
-        sessionId: session.id,
-        sessionName: session.name,
-        messages: msgs.filter(m => m.type !== 'system')
-      })
-    }
-  }
-  return results
-})
-
-// 搜索处理
-watch(searchQuery, (q) => {
+watch(searchQuery, q => {
+  if (searchTimer) clearTimeout(searchTimer)
   if (!q.trim()) {
     searchResults.value = []
     return
   }
-  const query = q.trim().toLowerCase()
-  const results: typeof searchResults.value = []
+  searchTimer = setTimeout(() => {
+    void runServerSearch(q.trim())
+  }, 300)
+})
 
-  for (const session of allMessages.value) {
-    const matched = session.messages.filter(m => {
-      if (m.type === 'image' || m.type === 'file' || m.type === 'voice' || m.type === 'redPacket') {
-        return false
+async function runServerSearch(query: string) {
+  searching.value = true
+  try {
+    const res = await chatApi.searchMessages(query, { limit: 50 })
+    if (res.code !== 200 || !res.data) {
+      searchResults.value = []
+      return
+    }
+    const map = new Map<string, {
+      sessionId: string
+      sessionName: string
+      messages: Array<{ id: string; content: string; time: string; isSelf: boolean; type: string }>
+    }>()
+    for (const hit of res.data) {
+      const sid = String(hit.conversationId)
+      if (!map.has(sid)) {
+        map.set(sid, {
+          sessionId: sid,
+          sessionName: hit.conversationName || sessions.value.find(s => s.id === sid)?.name || '会话',
+          messages: []
+        })
       }
-      return m.content.toLowerCase().includes(query)
-    })
-    if (matched.length > 0) {
-      results.push({
-        sessionId: session.sessionId,
-        sessionName: session.sessionName,
-        messages: matched
+      const time = hit.createTime
+        ? new Date(hit.createTime).toLocaleString('zh-CN', {
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+        : ''
+      map.get(sid)!.messages.push({
+        id: String(hit.messageId),
+        content: hit.content || hit.fileName || '',
+        time,
+        isSelf: false,
+        type: hit.type || 'text'
       })
     }
+    searchResults.value = [...map.values()]
+  } catch (e) {
+    console.error('服务端搜索失败:', e)
+    message.error(t('extra.searchFail'))
+    searchResults.value = []
+  } finally {
+    searching.value = false
   }
-  searchResults.value = results
-})
+}
 
-// 当前会话消息
 const currentMessages = computed(() => {
   if (!currentSessionId.value) return []
-  return (messagesBySession.value[currentSessionId.value] || [])
-    .filter(m => m.type !== 'system')
+  return (messagesBySession.value[currentSessionId.value] || []).filter(m => m.type !== 'system')
 })
 
-// 当前会话名称
 const currentSessionName = computed(() => {
   return sessions.value.find(s => s.id === currentSessionId.value)?.name || '—'
 })
 
-// 历史消息预览
 function historyPreview(msg: (typeof currentMessages.value)[number]) {
   if (msg.type === 'file') return `${t('overlay.file')} ${msg.fileName || msg.content}`
   if (msg.type === 'image' || msg.isImage) return t('overlay.image')
@@ -94,7 +104,6 @@ function historyPreview(msg: (typeof currentMessages.value)[number]) {
   return msg.content
 }
 
-// 跳转到指定消息所在会话
 function goToMessage(sessionId: string) {
   const session = sessions.value.find(s => s.id === sessionId)
   if (session) {

@@ -6,12 +6,15 @@ export interface GroupInfo {
   type: number
   name: string
   avatar?: string
+  memberAvatars?: Array<{ nickname?: string; avatar?: string }>
   announcement?: string
   ownerId: string
   ownerNickname?: string
   memberCount: number
   lastMessage?: string
   lastMessageTime?: string | number
+  /** 当前用户对本群备注 */
+  myRemark?: string
 }
 
 export interface GroupMember {
@@ -115,4 +118,11 @@ export function transferGroupOwner(conversationId: string, newOwnerId: string) {
   return apiClient.post<never, ApiResult<null>>(`/group/${conversationId}/transfer`, null, {
     params: { newOwnerId }
   })
+}
+
+/**
+ * 更新当前用户对本群备注
+ */
+export function updateGroupRemark(conversationId: string, remark: string) {
+  return apiClient.put<never, ApiResult<string>>(`/group/${conversationId}/remark`, { remark })
 }

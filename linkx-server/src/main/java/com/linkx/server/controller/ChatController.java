@@ -5,6 +5,7 @@ import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.RateLimit;
 import com.linkx.server.common.Result;
 import com.linkx.server.controller.vo.ChatFileUploadVO;
+import com.linkx.server.controller.vo.ChatSearchHitVO;
 import com.linkx.server.controller.vo.ConversationVO;
 import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.service.ChatService;
@@ -61,6 +62,18 @@ public class ChatController {
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         return Result.success(chatService.uploadChatFile(userId, parseId(conversationId), file));
+    }
+
+    @GetMapping("/search")
+    public Result<List<ChatSearchHitVO>> search(
+            @RequestParam String q,
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String conversationId,
+            @RequestParam(defaultValue = "50") int limit,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        Long convId = conversationId != null && !conversationId.isBlank() ? parseId(conversationId) : null;
+        return Result.success(chatService.searchMessages(userId, q, type, convId, limit));
     }
 
     private Long parseId(String id) {

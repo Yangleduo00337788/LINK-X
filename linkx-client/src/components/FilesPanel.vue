@@ -5,7 +5,7 @@
  * 展示聊天接收/发送的文件记录，支持分类 Tab、搜索、预览与删除。
  * </p>
  */
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { NIcon, useMessage } from 'naive-ui'
 import { DocumentTextOutline, FolderOutline, ImageOutline, FilmOutline, TrashOutline } from '@vicons/ionicons5'
 import PanelSearchBar from './PanelSearchBar.vue'
@@ -21,10 +21,16 @@ const { t } = useI18n()
 const filesStore = useFilesStore()
 const overlayStore = useOverlayStore()
 const secondaryViewStore = useSecondaryViewStore()
-const { remove } = filesStore
+const { remove, fetchCloudFiles } = filesStore
 const { items: fileItems } = storeToRefs(filesStore)
 const { activeFile } = storeToRefs(secondaryViewStore)
 const { open: openOverlay } = overlayStore
+
+onMounted(() => {
+  if (!filesStore.initialized) {
+    void fetchCloudFiles()
+  }
+})
 
 // 搜索关键词
 const search = ref('')

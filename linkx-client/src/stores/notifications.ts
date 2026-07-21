@@ -89,7 +89,7 @@ function mapInvitation(item: groupInvitationApi.GroupInvitation): GroupNotificat
     groupName: item.groupName || '群聊',
     inviterUserId: toIdString(item.inviterUserId),
     inviter: item.inviterNickname || '用户',
-    inviterAvatar: item.inviterAvatar,
+    inviterAvatar: normalizeMediaUrl(item.inviterAvatar) || undefined,
     message: item.message || '',
     date: formatRequestDate(String(item.createTime ?? '')),
     createTime: String(item.createTime ?? ''),
@@ -112,7 +112,7 @@ function mapRequestItem(item: FriendRequestItem): FriendNotification {
     fromUserId: toIdString(item.fromUserId),
     peerUserId: toIdString(peerUserId),
     direction: item.direction,
-    avatar: item.peerAvatar || '/default-avatar.svg',
+    avatar: normalizeMediaUrl(item.peerAvatar) || '',
     name: item.peerNickname || item.peerUsername,
     action: isIncoming ? '请求加为好友' : '正在验证你的邀请',
     date: formatRequestDate(item.createTime),
@@ -154,6 +154,14 @@ export const useNotificationsStore = defineStore('notifications', {
         n => n.direction === 'incoming' && n.status === '等待验证'
       ).length
     },
+    /** 待处理群邀请数（等待验证） */
+    pendingGroupCount(state): number {
+      return state.groupNotifs.filter(n => n.status === '等待验证').length
+    },
+    /** 联系人导航角标：待处理好友申请 + 待处理群邀请 */
+    contactsBadgeCount(): number {
+      return this.pendingFriendCount + this.pendingGroupCount
+    },
     unreadMessageCount(state): number {
       // 优先用服务端权威值；为 0 时也信任服务端（避免本地列表残留导致角标不消）
       if (typeof state.serverUnreadCount === 'number' && state.serverUnreadCount >= 0) {
@@ -177,7 +185,7 @@ export const useNotificationsStore = defineStore('notifications', {
       return state.messageNotifs.filter(n => n.type === 'calendar_remind' && n.readStatus === 0).length
     },
     totalUnreadCount(): number {
-      return this.pendingFriendCount + this.unreadMessageCount
+      return this.pendingFriendCount + this.pendingGroupCount + this.unreadMessageCount
     }
   },
 
@@ -344,14 +352,62 @@ export const useNotificationsStore = defineStore('notifications', {
     },
 
     /**
-     * WebSocket 收到 notification_refresh 时由 app store 透传调用,
-     * 重新拉取最新一份并合并到本地。
+     * WebSocket 收到 notification_refresh 时由 app store 透传调用。
+     * 按 type 刷新对应列表；好友申请/群邀请会播提示音。
      */
-    async refreshFromSocket() {
-      await Promise.all([
-        this.fetchMessageNotifications(),
-        this.fetchNotificationCount()
-      ])
+    async refreshFromSocket(data?: Record<string, unknown>) {
+      const type = typeof data?.type === 'string' ? data.type : ''
+      const tasks: Promise<unknown>[] = []
+
+      if (
+        type === 'friend_request' ||
+        type === 'friend_accepted' ||
+        type === 'friend_rejected' ||
+        type === 'friend_deleted' ||
+        !type
+      ) {
+        tasks.push(this.fetchFriendRequests())
+      }
+      if (type === 'group_invitation' || !type) {
+        tasks.push(this.fetchGroupInvitations())
+      }
+      if (
+        type.startsWith('moments_') ||
+        type === 'calendar_remind' ||
+        !type
+      ) {
+        tasks.push(this.fetchMessageNotifications(), this.fetchNotificationCount())
+      }
+
+      await Promise.all(tasks)
+
+      if (type === 'friend_request' || type === 'group_invitation') {
+        const { notifySocialEvent } = await import('../utils/messageNotify')
+        notifySocialEvent(type)
+      }
+
+      if (type === 'friend_accepted' || type === 'friend_deleted') {
+        try {
+          const { useContactsStore } = await import('./contacts')
+          await useContactsStore().fetchFriends()
+        } catch {
+          /* ignore */
+        }
+      }
+
+      if (type === 'friend_deleted') {
+        const peerUserId = data?.peerUserId != null ? String(data.peerUserId) : ''
+        try {
+          const { useAppStore } = await import('./app')
+          const app = useAppStore()
+          if (peerUserId) {
+            app.removePrivateSessionByPeer(peerUserId)
+          }
+          await app.loadChatSessions()
+        } catch {
+          /* ignore */
+        }
+      }
     },
 
     /**

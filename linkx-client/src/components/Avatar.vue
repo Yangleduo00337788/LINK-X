@@ -8,11 +8,11 @@
  */
 // Naive UI 图标组件
 import { NIcon } from 'naive-ui'
-// Vue 计算属性
-import { computed } from 'vue'
+// Vue 计算属性 / 响应式
+import { computed, ref, watch } from 'vue'
 // Vue 组件类型定义
 import type { Component } from 'vue'
-import { normalizeMediaUrl } from '../utils/mediaUrl'
+import { isDisplayableMediaUrl, normalizeMediaUrl } from '../utils/mediaUrl'
 
 // 定义组件属性：文字、背景色、尺寸、图标、图片 URL
 const props = defineProps<{
@@ -28,6 +28,19 @@ const size = computed(() => props.size ?? 44)
 // 根据尺寸计算文字字号（约为尺寸的 38%）
 const fontSize = computed(() => `${size.value * 0.38}px`)
 const resolvedImageUrl = computed(() => normalizeMediaUrl(props.imageUrl))
+const imgFailed = ref(false)
+
+watch(resolvedImageUrl, () => {
+  imgFailed.value = false
+})
+
+const showImage = computed(
+  () => !!resolvedImageUrl.value && isDisplayableMediaUrl(resolvedImageUrl.value) && !imgFailed.value
+)
+
+function onImgError() {
+  imgFailed.value = true
+}
 </script>
 
 <template>
@@ -41,8 +54,15 @@ const resolvedImageUrl = computed(() => normalizeMediaUrl(props.imageUrl))
       fontSize: fontSize
     }"
   >
-    <!-- 优先展示图片 -->
-    <img v-if="resolvedImageUrl" :src="resolvedImageUrl" alt="" class="avatar-img" />
+    <!-- 优先展示图片；加载失败回退文字/图标，避免裂图图标 -->
+    <img
+      v-if="showImage"
+      :src="resolvedImageUrl"
+      alt=""
+      class="avatar-img"
+      decoding="async"
+      @error="onImgError"
+    />
     <!-- 其次展示图标 -->
     <n-icon v-else-if="icon" :component="icon" :size="size * 0.45" />
     <!-- 最后展示文字 -->

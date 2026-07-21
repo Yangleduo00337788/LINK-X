@@ -335,6 +335,30 @@ export const useAppStore = defineStore('app', {
 
         if (res.code === 200 && res.data) {
           const groupConv = res.data
+          const memberAvatars = (groupConv.memberAvatars || []).slice(0, 9).map(m => {
+            const nick = m.nickname || '?'
+            return {
+              text: nick.charAt(0) || '?',
+              color: pickGroupColor(nick),
+              imageUrl: normalizeMediaUrl(m.avatar) || undefined
+            }
+          })
+          // 创建时后端可能尚未返回拼图数据，用本地已选成员兜底
+          const faces =
+            memberAvatars.length > 0
+              ? memberAvatars
+              : [
+                  {
+                    text: this.userProfile.nickname?.charAt(0) || '我',
+                    color: pickGroupColor(this.userProfile.nickname || 'me'),
+                    imageUrl: this.userProfile.avatar || undefined
+                  },
+                  ...members.slice(0, 8).map(m => ({
+                    text: m.name.charAt(0) || '?',
+                    color: pickGroupColor(m.name),
+                    imageUrl: m.avatarUrl
+                  }))
+                ]
           const session: ChatSession = {
             id: String(groupConv.id),
             name: groupConv.name || name,
@@ -342,6 +366,8 @@ export const useAppStore = defineStore('app', {
             time: nowTime(),
             avatarText: (groupConv.name || name).charAt(0) || '群',
             avatarColor: pickGroupColor(groupConv.name || name),
+            avatarUrl: normalizeMediaUrl(groupConv.avatar) || undefined,
+            memberAvatars: faces,
             isGroup: true,
             isReal: true
           }
@@ -419,6 +445,7 @@ export const useAppStore = defineStore('app', {
         await Promise.all([
           useContactsStore().fetchFriends(),
           useNotificationsStore().fetchFriendRequests(),
+          useNotificationsStore().fetchGroupInvitations(),
           useNotificationsStore().fetchMessageNotifications()
         ])
         // 确保登录后不自动选中任何会话
@@ -602,11 +629,10 @@ export const useAppStore = defineStore('app', {
             useCallStore().handleRemoteEvent(action, data as import('../api/call').CallEventPayload)
           })
         },
-        onCustomAction: (action: string, _data: Record<string, unknown>) => {
-          // 透传给其它 store:目前用于 message_notification 实时刷新
+        onCustomAction: (action: string, data: Record<string, unknown>) => {
           if (action === 'notification_refresh') {
             void import('./notifications').then(({ useNotificationsStore }) => {
-              void useNotificationsStore().refreshFromSocket()
+              void useNotificationsStore().refreshFromSocket(data)
             })
           }
         }
@@ -743,8 +769,20 @@ export const useAppStore = defineStore('app', {
     deleteSession(sessionId: string) {
       this.sessions = this.sessions.filter(s => s.id !== sessionId)
       delete this.messagesBySession[sessionId]
+      delete this.messagesLoaded[sessionId]
       if (this.currentSessionId === sessionId) {
         this.currentSessionId = this.sessions[0]?.id ?? null
+      }
+    },
+
+    /** 按对方用户 ID 移除单聊会话（删除好友后使用） */
+    removePrivateSessionByPeer(peerUserId: string) {
+      const peer = String(peerUserId)
+      const toRemove = this.sessions.filter(
+        s => !s.isGroup && s.peerUserId && String(s.peerUserId) === peer
+      )
+      for (const s of toRemove) {
+        this.deleteSession(s.id)
       }
     },
 

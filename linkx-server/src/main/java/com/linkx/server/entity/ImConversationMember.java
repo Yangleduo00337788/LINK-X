@@ -38,6 +38,9 @@ public class ImConversationMember implements Serializable {
      */
     private String role;
 
+    /** 用户对本群的备注（仅自己可见，多端同步） */
+    private String remark;
+
     @Column(onInsertValue = "NOW()")
     private Date createTime;
 

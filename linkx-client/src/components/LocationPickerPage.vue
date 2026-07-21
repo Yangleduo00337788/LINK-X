@@ -12,6 +12,7 @@ import {
   NavigateOutline
 } from '@vicons/ionicons5'
 import { useI18n } from '../i18n'
+import * as locationApi from '../api/location'
 
 const emit = defineEmits<{
   (e: 'select', location: string): void
@@ -28,7 +29,6 @@ const locationError = ref('')
 const searchResults = ref<Array<{ name: string; address: string }>>([])
 const isSearching = ref(false)
 
-// 热门位置（模拟数据，实际可对接地图服务）
 const hotLocations = [
   { name: '北京市朝阳区', address: '北京市朝阳区' },
   { name: '上海市浦东新区', address: '上海市浦东新区' },
@@ -36,7 +36,6 @@ const hotLocations = [
   { name: '深圳市南山区', address: '深圳市南山区' }
 ]
 
-// 模拟搜索位置
 async function searchLocation() {
   const query = searchQuery.value.trim()
   if (!query) {
@@ -46,17 +45,19 @@ async function searchLocation() {
 
   isSearching.value = true
   try {
-    // 模拟搜索延迟
-    await new Promise(resolve => setTimeout(resolve, 500))
-
-    // 模拟搜索结果
-    searchResults.value = [
-      { name: query, address: t('extra.nearStreet', { q: query }) },
-      { name: t('extra.commercialCenter', { q: query }), address: t('extra.cityCenter', { q: query }) },
-      { name: t('extra.park', { q: query }), address: t('extra.scenic', { q: query }) }
-    ]
+    const res = await locationApi.searchPlaces(query, 8)
+    if (res.code === 200 && res.data) {
+      searchResults.value = res.data.map(p => ({
+        name: p.name,
+        address: p.address || p.name
+      }))
+    } else {
+      searchResults.value = []
+      message.error(t('extra.searchFail'))
+    }
   } catch {
     message.error(t('extra.searchFail'))
+    searchResults.value = []
   } finally {
     isSearching.value = false
   }

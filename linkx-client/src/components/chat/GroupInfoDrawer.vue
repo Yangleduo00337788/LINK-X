@@ -9,6 +9,7 @@ import { ref, computed, watch } from 'vue'
 import { NIcon, NSwitch, useMessage, useDialog } from 'naive-ui'
 import { SearchOutline } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
+import GroupAvatar from '../GroupAvatar.vue'
 import PinIcon from '../icons/PinIcon.vue'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
@@ -49,12 +50,16 @@ watch(
   { immediate: true }
 )
 
-/** 失焦时保存群备注到 groupMetaStore */
-function saveRemark() {
+/** 失焦时保存群备注到服务端 */
+async function saveRemark() {
   const id = currentSessionId.value
   if (!id) return
-  groupMetaStore.setRemark(id, groupRemark.value)
-  message.success(t('modals.remarkSaved'))
+  const ok = await groupMetaStore.setRemark(id, groupRemark.value)
+  if (ok) {
+    message.success(t('modals.remarkSaved'))
+  } else {
+    message.error(t('extra.opFail'))
+  }
 }
 
 /** 展示用群号：从 sessionId 提取数字后缀 */
@@ -168,10 +173,16 @@ function reportGroup() {
         <div class="drawer-scroll">
               <!-- 群头部：头像、名称、群号、分享 -->
               <div class="group-hero">
-                <Avatar
+                <GroupAvatar
                   :text="currentSession?.avatarText || t('modals.groupChar')"
                   :color="currentSession?.avatarColor || '#e74c3c'"
                   :size="56"
+                  :image-url="currentSession?.avatarUrl"
+                  :faces="currentSession?.memberAvatars || members.slice(0, 9).map(m => ({
+                    text: m.avatarText,
+                    color: m.avatarColor,
+                    imageUrl: m.avatarUrl
+                  }))"
                 />
                 <h2 class="g-name">{{ currentSession?.name || t('modals.groupChat') }}</h2>
                 <p class="g-id">{{ t('modals.groupIdLabel', { id: groupId }) }}</p>
@@ -186,7 +197,7 @@ function reportGroup() {
                 </div>
                 <div class="avatar-grid">
                   <div v-for="m in members.slice(0, 14)" :key="m.id" class="av">
-                    <Avatar :text="m.avatarText" :color="m.avatarColor" :size="40" />
+                    <Avatar :text="m.avatarText" :color="m.avatarColor" :image-url="m.avatarUrl" :size="40" />
                   </div>
                   <button type="button" class="av invite" :title="t('chat.invite')" @click="openAddMembers">+</button>
                 </div>

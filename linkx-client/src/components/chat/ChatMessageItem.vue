@@ -5,20 +5,14 @@
  * 根据消息类型渲染对应气泡子组件，并处理头像展示与事件向上传递。
  * </p>
  */
-// Vue 计算属性
 import { computed } from 'vue'
-// 「我的手机」会话头像图标
 import { PhonePortraitOutline } from '@vicons/ionicons5'
-// 通用头像组件
 import Avatar from '../Avatar.vue'
-// 消息类型
 import type { ChatMessage } from '../../types'
-// 会话状态
 import { useAppStore } from '../../stores/app'
 import { storeToRefs } from 'pinia'
 import { useI18n } from '../../i18n'
 
-// 各类型消息气泡子组件
 import FileBubble from './bubbles/FileBubble.vue'
 import ImageBubble from './bubbles/ImageBubble.vue'
 import VoiceBubble from './bubbles/VoiceBubble.vue'
@@ -26,13 +20,12 @@ import RedPacketBubble from './bubbles/RedPacketBubble.vue'
 import TextBubble from './bubbles/TextBubble.vue'
 import DataCardBubble from './bubbles/DataCardBubble.vue'
 
-// 入参：消息体、当前正在播放的语音消息 id
-defineProps<{
+const props = defineProps<{
   msg: ChatMessage
-  playingVoiceId: string | null
+  /** 当前是否正在播放该条语音 */
+  playing?: boolean
 }>()
 
-// 向父组件传递：右键菜单、播放语音、打开文件/图片、红包、资料卡
 const emit = defineEmits<{
   (e: 'contextmenu', event: MouseEvent, msg: ChatMessage): void
   (e: 'playVoice', msg: ChatMessage): void
@@ -45,25 +38,32 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const appStore = useAppStore()
-const { currentSession } = storeToRefs(appStore)
+const { currentSession, userProfile } = storeToRefs(appStore)
 
-// 是否为「我的手机」会话
 const isMyPhone = computed(() => {
   const name = currentSession.value?.name
   return name === '我的手机' || name === t('chat.myPhone')
 })
-// 是否已选中有效会话
 const hasSession = computed(() => !!currentSession.value)
-// 是否为单聊（非群、非我的手机）
 const isFriendChat = computed(() => hasSession.value && !currentSession.value?.isGroup && !isMyPhone.value)
 
 /**
- * 构造对方/系统侧头像 props。
- *
- * @param size 头像尺寸，默认 36
+ * 对方头像 props（computed，避免滚动时每帧重复算 + 误触发群成员请求）。
+ * 群聊直接用消息自带的 senderAvatar，不再在渲染期查 groupMeta。
  */
-function peerAvatarProps(size = 36) {
+const peerAvatarProps = computed(() => {
   const s = currentSession.value
+  const size = 36
+  if (s?.isGroup) {
+    const name = props.msg.senderName || s.avatarText || '?'
+    return {
+      text: name.charAt(0),
+      color: s.avatarColor || 'var(--lx-accent)',
+      size,
+      imageUrl: props.msg.senderAvatar || undefined,
+      icon: undefined as undefined
+    }
+  }
   return {
     text: s?.avatarText || '?',
     color: s?.avatarColor || 'var(--lx-accent)',
@@ -71,31 +71,34 @@ function peerAvatarProps(size = 36) {
     imageUrl: s?.avatarUrl,
     icon: isMyPhone.value ? PhonePortraitOutline : undefined
   }
-}
+})
+
+const selfAvatarProps = computed(() => ({
+  text: t('chat.me'),
+  color: 'var(--lx-success)',
+  size: 36,
+  imageUrl: userProfile.value.avatar || undefined
+}))
 </script>
 
 <template>
-  <!-- 消息行：左对齐（对方）或右对齐（自己） -->
   <div class="message-row" :class="msg.isSelf ? 'right' : 'left'">
-    <!-- 单聊时对方头像可点击打开资料卡 -->
     <button v-if="!msg.isSelf && isFriendChat" type="button" class="avatar-btn" @click="emit('openPeerProfile', $event)">
-      <Avatar v-bind="peerAvatarProps(36)" />
+      <Avatar v-bind="peerAvatarProps" />
     </button>
-    <Avatar v-else-if="!msg.isSelf" v-bind="peerAvatarProps(36)" />
+    <Avatar v-else-if="!msg.isSelf" v-bind="peerAvatarProps" />
 
-    <!-- 气泡区域：按 type 分发到子组件 -->
     <div class="bubble-wrapper" @contextmenu="emit('contextmenu', $event, msg)">
       <FileBubble v-if="msg.type === 'file'" :msg="msg" @click="emit('openFileView', msg)" />
       <ImageBubble v-else-if="msg.type === 'image' || msg.isImage" :msg="msg" @click="emit('openImageView', msg)" />
-      <VoiceBubble v-else-if="msg.type === 'voice'" :msg="msg" :playing="playingVoiceId === msg.id" @click="emit('playVoice', msg)" />
+      <VoiceBubble v-else-if="msg.type === 'voice'" :msg="msg" :playing="!!props.playing" @click="emit('playVoice', msg)" />
       <RedPacketBubble v-else-if="msg.type === 'redPacket'" :msg="msg" @click="emit('clickRedPacket', msg)" />
       <DataCardBubble v-else-if="msg.type === 'dataCard'" :msg="msg" />
       <TextBubble v-else :msg="msg" />
     </div>
 
-    <!-- 自己侧头像：点击打开个人资料 -->
     <button v-if="msg.isSelf" type="button" class="avatar-btn" @click="emit('openSelfProfile', $event)">
-      <Avatar :text="t('chat.me')" color="var(--lx-success)" :size="36" />
+      <Avatar v-bind="selfAvatarProps" />
     </button>
   </div>
 </template>

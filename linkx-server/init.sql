@@ -173,6 +173,7 @@ CREATE TABLE IF NOT EXISTS `im_conversation_member` (
   `conversation_id` bigint NOT NULL COMMENT '会话ID',
   `user_id` bigint NOT NULL COMMENT '用户ID',
   `role` varchar(20) DEFAULT NULL COMMENT '角色(owner/admin/member)',
+  `remark` varchar(64) DEFAULT NULL COMMENT '用户对本群备注',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '加入时间',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted` tinyint(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除(0:未删除 1:已删除)',
@@ -469,3 +470,45 @@ CREATE TABLE IF NOT EXISTS `group_invitation` (
   KEY `idx_inviter` (`inviter_user_id`),
   KEY `idx_conversation` (`conversation_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='群邀请表';
+
+-- ================================================
+-- 23. 群共享资源表
+-- ================================================
+CREATE TABLE IF NOT EXISTS `group_asset` (
+  `id` bigint NOT NULL COMMENT '主键ID(雪花算法)',
+  `conversation_id` bigint NOT NULL COMMENT '群会话ID',
+  `uploader_id` bigint NOT NULL COMMENT '上传者用户ID',
+  `type` varchar(20) NOT NULL COMMENT '类型: file / image / essence',
+  `title` varchar(255) DEFAULT NULL COMMENT '标题或文件名展示',
+  `content` text COMMENT '文本内容或链接（精华）',
+  `file_name` varchar(255) DEFAULT NULL COMMENT '原始文件名',
+  `file_size` bigint DEFAULT NULL COMMENT '文件大小(字节)',
+  `file_key` varchar(500) DEFAULT NULL COMMENT '对象存储 key',
+  `message_id` bigint DEFAULT NULL COMMENT '关联消息ID（精华可选）',
+  `download_count` int NOT NULL DEFAULT 0 COMMENT '下载次数',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` tinyint(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除',
+  PRIMARY KEY (`id`),
+  KEY `idx_conv_type_time` (`conversation_id`, `type`, `create_time`),
+  KEY `idx_uploader` (`uploader_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='群共享资源表';
+
+-- ================================================
+-- 24. 收藏表（与笔记拆分）
+-- ================================================
+CREATE TABLE IF NOT EXISTS `favorite` (
+  `id` bigint NOT NULL COMMENT '主键ID(雪花算法)',
+  `user_id` bigint NOT NULL COMMENT '用户ID',
+  `title` varchar(200) DEFAULT NULL COMMENT '标题',
+  `content` text NOT NULL COMMENT '内容/链接/预览',
+  `type` varchar(20) NOT NULL DEFAULT 'note' COMMENT '类型: note/image/link/file/message',
+  `source_type` varchar(32) DEFAULT NULL COMMENT '来源类型',
+  `source_id` varchar(64) DEFAULT NULL COMMENT '来源业务ID',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` tinyint(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除',
+  PRIMARY KEY (`id`),
+  KEY `idx_user_time` (`user_id`, `update_time`),
+  KEY `idx_user_type` (`user_id`, `type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户收藏表';

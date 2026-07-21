@@ -13,6 +13,12 @@ defineProps<{ msg: ChatMessage }>()
 <template>
   <!-- 图片气泡：点击由父组件处理预览 -->
   <div class="lx-bubble image-bubble" :class="{ self: msg.isSelf }">
-    <img :src="msg.content" class="lx-bubble-image" alt="图片消息" />
+    <img
+      :src="msg.content"
+      class="lx-bubble-image"
+      alt="图片消息"
+      loading="lazy"
+      decoding="async"
+    />
   </div>
 </template>

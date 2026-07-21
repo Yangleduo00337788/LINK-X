@@ -6,6 +6,7 @@ import com.linkx.server.common.Result;
 import com.linkx.server.controller.dto.AddGroupMembersDTO;
 import com.linkx.server.controller.dto.CreateGroupDTO;
 import com.linkx.server.controller.dto.UpdateGroupDTO;
+import com.linkx.server.controller.dto.UpdateGroupRemarkDTO;
 import com.linkx.server.controller.vo.ConversationVO;
 import com.linkx.server.controller.vo.GroupConversationVO;
 import com.linkx.server.controller.vo.GroupMemberVO;
@@ -142,6 +143,18 @@ public class GroupController {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         groupService.transferOwner(userId, parseId(conversationId), newOwnerId);
         return Result.success(null);
+    }
+
+    /**
+     * 更新当前用户对本群的备注
+     */
+    @PutMapping("/{conversationId}/remark")
+    public Result<String> updateMyRemark(
+            @PathVariable String conversationId,
+            @Valid @RequestBody UpdateGroupRemarkDTO dto,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(groupService.updateMyRemark(userId, parseId(conversationId), dto.getRemark()));
     }
 
     private Long parseId(String id) {

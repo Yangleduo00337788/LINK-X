@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 /**
  * 群聊会话 VO
  */
@@ -22,6 +24,9 @@ public class GroupConversationVO {
 
     private String avatar;
 
+    /** 成员头像预览（拼图用，最多 9 个） */
+    private List<GroupMemberAvatarVO> memberAvatars;
+
     private String announcement;
 
     private Long ownerId;
@@ -33,4 +38,7 @@ public class GroupConversationVO {
     private String lastMessage;
 
     private Long lastMessageTime;
+
+    /** 当前用户对本群的备注 */
+    private String myRemark;
 }

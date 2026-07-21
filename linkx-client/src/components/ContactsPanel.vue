@@ -16,6 +16,7 @@ import { ChevronForwardOutline } from '@vicons/ionicons5'
 import PanelSearchBar from './PanelSearchBar.vue'
 // 头像组件
 import Avatar from './Avatar.vue'
+import GroupAvatar from './GroupAvatar.vue'
 // 空状态组件
 import EmptyState from './common/EmptyState.vue'
 // 联系人 Store
@@ -39,7 +40,7 @@ const { t } = useI18n()
 const notificationsStore = useNotificationsStore()
 // 解构联系人列表
 const { items: contacts } = storeToRefs(contactsStore)
-const { pendingFriendCount } = storeToRefs(notificationsStore)
+const { pendingFriendCount, pendingGroupCount } = storeToRefs(notificationsStore)
 // 获取应用 Store 实例
 const appStore = useAppStore()
 // 获取聊天弹窗 Store 实例
@@ -163,6 +164,7 @@ function onTabChange(tab: 'friends' | 'groups') {
         </div>
         <div class="action-item" :class="{ active: contactsActiveView === 'group-notifs' }" @click="setView('group-notifs')">
           <span>{{ t('contacts.groupNotif') }}</span>
+          <span v-if="pendingGroupCount" class="notif-badge">{{ pendingGroupCount }}</span>
           <n-icon :component="ChevronForwardOutline" />
         </div>
       </div>
@@ -250,11 +252,12 @@ function onTabChange(tab: 'friends' | 'groups') {
                 :class="{ active: currentSessionId === item.id }"
                 @click="openGroupSession(item)"
               >
-                <Avatar
+                <GroupAvatar
                   :text="item.avatarText"
                   :color="item.avatarColor"
                   :size="46"
                   :image-url="item.avatarUrl"
+                  :faces="item.memberAvatars"
                 />
                 <div class="info">
                   <span class="name">{{ item.name }}</span>

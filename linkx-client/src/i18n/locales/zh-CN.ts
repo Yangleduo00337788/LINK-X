@@ -58,7 +58,9 @@ export default {
     tone: '音色',
     toneDesc: '点击选项可试听，选中后会保存到云端',
     previewTone: '试听当前音色（{label}）',
-    newMessageGeneric: '你收到一条新消息'
+    newMessageGeneric: '你收到一条新消息',
+    friendRequestAlert: '你收到一条好友申请',
+    groupInviteAlert: '你收到一条群聊邀请'
   },
   privacy: {
     title: '隐私设置',

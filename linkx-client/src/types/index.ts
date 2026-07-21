@@ -39,7 +39,9 @@ export interface ChatSession {
   isGroup?: boolean       // 是否为群聊
   /** 好友在线状态（单聊） */
   online?: boolean
-  avatarUrl?: string      // 远程头像 URL
+  avatarUrl?: string      // 远程头像 URL（单聊或自定义群头像）
+  /** 群成员头像拼图（群聊默认头像） */
+  memberAvatars?: Array<{ text: string; color?: string; imageUrl?: string }>
   /** 单聊对方用户 ID */
   peerUserId?: string
   /** 是否为后端真实会话（非 Mock） */
@@ -58,6 +60,7 @@ export interface ChatMessage {
   content: string         // 文本内容或占位描述
   time: string            // 发送时间 HH:mm
   isSelf: boolean         // 是否为自己发送
+  senderId?: string       // 群聊发送者用户 ID
   senderName?: string     // 群聊发送者昵称
   senderAvatar?: string   // 群聊发送者头像
   // 消息类型：文本/图片/文件/链接/系统/语音/红包/数据卡片

@@ -56,7 +56,9 @@ export default {
     tone: 'Tone',
     toneDesc: 'Click to preview. Your choice syncs to the cloud.',
     previewTone: 'Preview current tone ({label})',
-    newMessageGeneric: 'You have a new message'
+    newMessageGeneric: 'You have a new message',
+    friendRequestAlert: 'You have a new friend request',
+    groupInviteAlert: 'You have a new group invitation'
   },
   privacy: {
     title: 'Privacy',

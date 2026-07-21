@@ -63,4 +63,9 @@ public interface GroupService {
      * 转让群主
      */
     void transferOwner(Long userId, Long conversationId, Long newOwnerId);
+
+    /**
+     * 更新当前用户对本群的备注
+     */
+    String updateMyRemark(Long userId, Long conversationId, String remark);
 }

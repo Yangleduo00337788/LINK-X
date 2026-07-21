@@ -32,6 +32,7 @@ import { useChatModalsStore } from '../stores/chatModals'
 import { useSettingsStore } from '../stores/settings'
 import { useOverlayStore } from '../stores/overlay'
 import { useFavoritesStore } from '../stores/favorites'
+import { useFilesStore } from '../stores/files'
 import { useContactsStore } from '../stores/contacts'
 import { useMomentsStore } from '../stores/moments'
 import { useCalendarStore } from '../stores/calendar'
@@ -45,6 +46,7 @@ const chatModalsStore = useChatModalsStore()
 const settingsStore = useSettingsStore()
 const overlayStore = useOverlayStore()
 const favoritesStore = useFavoritesStore()
+const filesStore = useFilesStore()
 const contactsStore = useContactsStore()
 const momentsStore = useMomentsStore()
 const calendarStore = useCalendarStore()
@@ -52,7 +54,7 @@ const notificationsStore = useNotificationsStore()
 const { t } = useI18n()
 // 解构导航键、用户资料、已保存登录信息、会话列表
 const { navKey, userProfile, savedLogin, sessions } = storeToRefs(appStore)
-const { calendarRemindUnreadCount } = storeToRefs(notificationsStore)
+const { calendarRemindUnreadCount, contactsBadgeCount } = storeToRefs(notificationsStore)
 // 解构导航切换、登出、锁定方法
 const { setNav, logout, lock } = appStore
 // 解构打开个人资料方法
@@ -110,6 +112,7 @@ const chatNavUnread = computed(() => {
 
 function navBadge(key: NavKey): number {
   if (key === 'chat') return chatNavUnread.value
+  if (key === 'contacts') return contactsBadgeCount.value
   return 0
 }
 
@@ -146,12 +149,17 @@ function refreshNavData(key: NavKey) {
       void appStore.loadChatSessions()
       break
     case 'contacts':
-      // 刷新联系人/好友列表
+      // 刷新联系人/好友列表与待处理通知
       void contactsStore.fetchFriends()
+      void notificationsStore.fetchFriendRequests()
+      void notificationsStore.fetchGroupInvitations()
       break
     case 'favorites':
       // 刷新收藏列表
       void favoritesStore.fetchFavorites()
+      break
+    case 'files':
+      void filesStore.fetchCloudFiles()
       break
     case 'calendar':
       // 刷新日历事件
