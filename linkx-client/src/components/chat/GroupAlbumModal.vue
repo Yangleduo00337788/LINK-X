@@ -1,5 +1,9 @@
 ﻿<script setup lang="ts">
-import { ref, computed, nextTick, watch } from 'vue'
+/**
+ * 群相册弹窗（群聊顶栏「应用」→「群相册」）。
+ * 上传：POST /group/{conversationId}/assets/upload?type=image
+ */
+import { ref, computed, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
@@ -21,9 +25,7 @@ const { currentSession, currentSessionId, userProfile } = storeToRefs(appStore)
 const { open: openOverlay } = overlayStore
 
 const tab = ref<'feed' | 'albums' | 'me'>('feed')
-const albumInputRef = ref<HTMLInputElement | null>(null)
 const uploading = ref(false)
-const albumInputId = 'group-album-upload-input'
 
 const albumItems = computed(() => {
   const id = currentSessionId.value
@@ -38,42 +40,31 @@ const albumItems = computed(() => {
 })
 
 watch(groupAlbumOpen, open => {
-  if (open) tab.value = 'feed'
+  if (open) {
+    tab.value = 'feed'
+    const id = currentSessionId.value
+    if (id) void groupMetaStore.fetchAlbum(id)
+  }
 })
 
 function close() {
+  if (uploading.value) return
   closeGroupAlbum()
 }
 
-/** 打开系统文件选择器（label 优先；创建相册走程序化兜底） */
-function openFilePicker() {
-  const input = albumInputRef.value
-  if (!input) {
+async function handleFiles(files: FileList | File[] | null) {
+  const list = files ? Array.from(files) : []
+  if (!list.length) return
+
+  const sessionId = currentSessionId.value
+  if (!sessionId) {
     message.error(t('extra.opFail'))
     return
   }
-  input.value = ''
-  input.click()
-}
-
-function createAlbum() {
-  // 后端暂无多相册，创建即进入默认相册并选图上传
-  tab.value = 'albums'
-  void nextTick(() => openFilePicker())
-}
-
-async function onAlbumPicked(e: Event) {
-  const input = e.target as HTMLInputElement
-  const files = input.files
-  input.value = ''
-  if (!files?.length || !currentSessionId.value) return
 
   uploading.value = true
   try {
-    const { ok, error } = await groupMetaStore.uploadAlbumImages(
-      currentSessionId.value,
-      Array.from(files)
-    )
+    const { ok, error } = await groupMetaStore.uploadAlbumImages(sessionId, list)
     if (ok > 0) {
       tab.value = 'feed'
       message.success(t('extra.albumUploaded', { n: ok }))
@@ -87,6 +78,13 @@ async function onAlbumPicked(e: Event) {
   } finally {
     uploading.value = false
   }
+}
+
+function onAlbumPicked(e: Event) {
+  const input = e.target as HTMLInputElement
+  const files = input.files
+  input.value = ''
+  void handleFiles(files)
 }
 
 function previewImage(item: { url: string; name: string }) {
@@ -106,7 +104,7 @@ function previewImage(item: { url: string; name: string }) {
       <div class="album-window" @click.stop>
         <header class="win-head">
           <h2>{{ t('extra.groupAlbumTitle', { name: currentSession?.name || t('extra.groupChat') }) }}</h2>
-          <button type="button" class="close-x" @click="close">×</button>
+          <button type="button" class="close-x" :disabled="uploading" @click="close">×</button>
         </header>
         <div class="tabs-row">
           <button type="button" class="tab" :class="{ active: tab === 'feed' }" @click="tab = 'feed'">
@@ -119,23 +117,32 @@ function previewImage(item: { url: string; name: string }) {
             {{ t('extra.relatedToMe') }}
           </button>
           <div class="tabs-actions">
-            <button type="button" class="link-btn" :disabled="uploading" @click="createAlbum">
+            <!--
+              关键透明 file input 盖住按钮：用户实际点到的是 input，
+              避免 Electron 下 label.for / input.click() 无响应。
+            -->
+            <span class="file-btn link-btn" :class="{ disabled: uploading }">
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp,.jpg,.jpeg,.png,.gif,.webp"
+                multiple
+                class="file-overlay"
+                :disabled="uploading"
+                @change="onAlbumPicked"
+              />
               {{ t('extra.createAlbum') }}
-            </button>
-            <!-- 用 label 关联 input，避免 Electron 下 programmatic click 无响应 -->
-            <input
-              :id="albumInputId"
-              ref="albumInputRef"
-              type="file"
-              accept="image/*"
-              multiple
-              class="visually-hidden"
-              :disabled="uploading"
-              @change="onAlbumPicked"
-            />
-            <label :for="albumInputId" class="primary-sm" :class="{ disabled: uploading }">
+            </span>
+            <span class="file-btn primary-sm" :class="{ disabled: uploading }">
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp,.jpg,.jpeg,.png,.gif,.webp"
+                multiple
+                class="file-overlay"
+                :disabled="uploading"
+                @change="onAlbumPicked"
+              />
               {{ uploading ? t('extra.uploading') : t('extra.uploadToAlbum') }}
-            </label>
+            </span>
           </div>
         </div>
         <div v-if="albumItems.length" class="album-grid">
@@ -153,9 +160,17 @@ function previewImage(item: { url: string; name: string }) {
         <div v-else class="empty-area">
           <div class="empty-ico">🖼</div>
           <p>{{ uploading ? t('extra.uploading') : t('extra.uploadPhotosHint') }}</p>
-          <label :for="albumInputId" class="primary-lg" :class="{ disabled: uploading }">
+          <span class="file-btn primary-lg" :class="{ disabled: uploading }">
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/gif,image/webp,.jpg,.jpeg,.png,.gif,.webp"
+              multiple
+              class="file-overlay"
+              :disabled="uploading"
+              @change="onAlbumPicked"
+            />
             {{ uploading ? t('extra.uploading') : t('extra.uploadToAlbum') }}
-          </label>
+          </span>
         </div>
       </div>
     </div>
@@ -207,6 +222,11 @@ function previewImage(item: { url: string; name: string }) {
   cursor: pointer;
 }
 
+.close-x:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .tabs-row {
   display: flex;
   align-items: center;
@@ -249,35 +269,42 @@ function previewImage(item: { url: string; name: string }) {
   padding: 8px 0;
 }
 
+.file-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+}
+
+.file-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 0;
+}
+
+.file-btn.disabled {
+  opacity: 0.55;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
 .link-btn {
   border: none;
   background: none;
   color: var(--lx-text-secondary);
   font-size: 13px;
-  cursor: pointer;
-}
-
-.link-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+  min-height: 30px;
+  padding: 0 4px;
 }
 
 .primary-sm {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   height: 30px;
   padding: 0 12px;
   border: none;
@@ -285,14 +312,6 @@ function previewImage(item: { url: string; name: string }) {
   background: var(--lx-accent);
   color: var(--lx-bg-card);
   font-size: 12px;
-  cursor: pointer;
-}
-
-.primary-sm.disabled,
-.primary-lg.disabled {
-  opacity: 0.6;
-  pointer-events: none;
-  cursor: not-allowed;
 }
 
 .album-grid {
@@ -349,9 +368,6 @@ function previewImage(item: { url: string; name: string }) {
 }
 
 .primary-lg {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   margin-top: 20px;
   height: 36px;
   padding: 0 24px;
@@ -360,6 +376,5 @@ function previewImage(item: { url: string; name: string }) {
   background: var(--lx-accent);
   color: var(--lx-bg-card);
   font-size: 14px;
-  cursor: pointer;
 }
 </style>

@@ -96,7 +96,9 @@ export const useGroupMetaStore = defineStore('groupMeta', {
     remarks: {} as Record<string, string>,
     files: {} as Record<string, GroupFileItem[]>,
     albums: {} as Record<string, GroupAlbumItem[]>,
-    loading: {} as Record<string, boolean>
+    loading: {} as Record<string, boolean>,
+    /** 相册列表请求序号，用于忽略过期响应 */
+    albumFetchSeq: {} as Record<string, number>
   }),
 
   actions: {
@@ -492,8 +494,12 @@ export const useGroupMetaStore = defineStore('groupMeta', {
     async fetchAlbum(sessionId: string) {
       if (this.loading[`album-${sessionId}`]) return
       this.loading[`album-${sessionId}`] = true
+      const seq = (this.albumFetchSeq[sessionId] || 0) + 1
+      this.albumFetchSeq[sessionId] = seq
       try {
         const res = await groupAssetApi.listGroupAssets(sessionId, 'image')
+        // 被更新的请求忽略，避免覆盖刚上传的本地列表
+        if (seq !== this.albumFetchSeq[sessionId]) return
         if (res.code === 200 && res.data) {
           this.albums[sessionId] = res.data.map(a => ({
             id: String(a.id),
@@ -507,7 +513,9 @@ export const useGroupMetaStore = defineStore('groupMeta', {
       } catch (e) {
         console.error('加载群相册失败:', e)
       } finally {
-        this.loading[`album-${sessionId}`] = false
+        if (seq === this.albumFetchSeq[sessionId]) {
+          this.loading[`album-${sessionId}`] = false
+        }
       }
     },
 
@@ -566,16 +574,16 @@ export const useGroupMetaStore = defineStore('groupMeta', {
     },
 
     async uploadAlbumImages(sessionId: string, files: File[]): Promise<{ ok: number; error?: string }> {
-      // 避免打开弹窗时的列表请求覆盖刚上传的缩略图
-      while (this.loading[`album-${sessionId}`]) {
-        await new Promise(r => setTimeout(r, 40))
-      }
+      // 打断进行中的列表拉取，避免上传成功后又被旧列表覆盖
+      this.albumFetchSeq[sessionId] = (this.albumFetchSeq[sessionId] || 0) + 1
+      this.loading[`album-${sessionId}`] = false
+
       let ok = 0
       let lastError: string | undefined
       if (!this.albums[sessionId]) this.albums[sessionId] = []
       for (const file of files) {
         try {
-          if (!file.type.startsWith('image/')) {
+          if (!file.type.startsWith('image/') && !/\.(jpe?g|png|gif|webp)$/i.test(file.name)) {
             lastError = '相册仅支持图片文件'
             continue
           }
@@ -625,6 +633,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
       delete this.remarks[sessionId]
       delete this.files[sessionId]
       delete this.albums[sessionId]
+      delete this.albumFetchSeq[sessionId]
     }
   }
 })
