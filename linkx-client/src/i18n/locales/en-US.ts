@@ -929,6 +929,8 @@ export default {
     unpinAnnouncement: 'Unpin',
     editAnnouncement: 'Edit announcement',
     viewAnnouncement: 'View announcement',
+    collapseGroupSide: 'Collapse group panel',
+    expandGroupSide: 'Expand group panel',
     groupMembersCount: 'Members {n}',
     searchMembers: 'Search members',
     searchMembersPh: 'Search members',

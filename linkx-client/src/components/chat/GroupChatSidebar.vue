@@ -2,18 +2,26 @@
 /**
  * 群聊右侧边栏（主聊天区内嵌）。
  * <p>
- * 展示群公告摘要与成员列表，支持成员搜索。
+ * 展示群公告摘要与成员列表，支持成员搜索；
+ * 左侧中部提供折叠按钮，可收起整块侧栏以扩大聊天区。
  * </p>
  */
 import { ref, computed, watch } from 'vue'
 import { NIcon } from 'naive-ui'
-import { SearchOutline, ChevronForwardOutline, CloseOutline } from '@vicons/ionicons5'
+import {
+  SearchOutline,
+  ChevronForwardOutline,
+  ChevronBackOutline,
+  CloseOutline
+} from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
 import { useGroupMetaStore } from '../../stores/groupMeta'
 import { useI18n } from '../../i18n'
+
+const COLLAPSE_KEY = 'linkx.groupSidebar.collapsed'
 
 const { t } = useI18n()
 const chatModalsStore = useChatModalsStore()
@@ -26,6 +34,8 @@ const { currentSessionId } = storeToRefs(appStore)
 const memberSearch = ref('')
 // 是否显示成员搜索框
 const showMemberSearch = ref(false)
+/** 侧栏是否折叠（记住用户偏好） */
+const collapsed = ref(localStorage.getItem(COLLAPSE_KEY) === '1')
 
 /** 当前群公告短文本 */
 const announcementText = computed(() => {
@@ -65,57 +75,83 @@ function toggleMemberSearch() {
   showMemberSearch.value = !showMemberSearch.value
   if (!showMemberSearch.value) memberSearch.value = ''
 }
+
+/** 折叠 / 展开侧栏 */
+function toggleCollapsed() {
+  collapsed.value = !collapsed.value
+  localStorage.setItem(COLLAPSE_KEY, collapsed.value ? '1' : '0')
+  if (collapsed.value) {
+    showMemberSearch.value = false
+    memberSearch.value = ''
+  }
+}
 </script>
 
 <template>
-  <!-- 群聊会话右侧固定边栏 -->
-  <aside class="group-side">
-    <!-- 群公告区块 -->
-    <section class="announce-block">
-      <div class="announce-head">
-        <h3 class="side-title">{{ t('chat.groupAnnouncement') }}</h3>
-        <button type="button" class="arrow-btn" :title="t('extra.viewAnnouncement')" @click="openGroupAnnouncement">
-          <n-icon :component="ChevronForwardOutline" :size="18" />
-        </button>
-      </div>
-      <button type="button" class="announce-text-btn" @click="openGroupAnnouncement">
-        {{ announcementText }}
-      </button>
-    </section>
-    <!-- 群成员列表 -->
-    <section class="members-block">
-      <div class="members-head">
-        <span class="side-title">{{ t('extra.groupMembersCount', { n: memberCount }) }}</span>
-        <button type="button" class="icon-btn" :title="t('extra.searchMembers')" @click="toggleMemberSearch">
-          <n-icon :component="showMemberSearch ? CloseOutline : SearchOutline" :size="18" />
-        </button>
-      </div>
-      <div v-if="showMemberSearch" class="member-search">
-        <input
-          v-model="memberSearch"
-          type="text"
-          class="member-search-input"
-          :placeholder="t('extra.searchMembersPh')"
-        />
-      </div>
-      <div class="member-list">
-        <div v-if="showMemberSearch && !filteredMembers.length" class="member-empty">
-          {{ t('extra.noMatchMembers') }}
+  <!-- 群聊会话右侧固定边栏（可折叠） -->
+  <aside class="group-side" :class="{ collapsed }">
+    <!-- 左缘中部折叠按钮 -->
+    <button
+      type="button"
+      class="collapse-btn"
+      :title="collapsed ? t('extra.expandGroupSide') : t('extra.collapseGroupSide')"
+      @click="toggleCollapsed"
+    >
+      <n-icon
+        :component="collapsed ? ChevronBackOutline : ChevronForwardOutline"
+        :size="14"
+      />
+    </button>
+
+    <div v-show="!collapsed" class="group-side-body">
+      <!-- 群公告区块 -->
+      <section class="announce-block">
+        <div class="announce-head">
+          <h3 class="side-title">{{ t('chat.groupAnnouncement') }}</h3>
+          <button type="button" class="arrow-btn" :title="t('extra.viewAnnouncement')" @click="openGroupAnnouncement">
+            <n-icon :component="ChevronForwardOutline" :size="18" />
+          </button>
         </div>
-        <div v-for="m in filteredMembers" :key="m.id" class="member-row">
-          <Avatar :text="m.avatarText" :color="m.avatarColor" :image-url="m.avatarUrl" :size="36" />
-          <div class="m-info">
-            <span class="m-name">{{ m.name }}</span>
-            <span v-if="m.badge" class="m-badge">{{ m.badge }}</span>
+        <button type="button" class="announce-text-btn" @click="openGroupAnnouncement">
+          {{ announcementText }}
+        </button>
+      </section>
+      <!-- 群成员列表 -->
+      <section class="members-block">
+        <div class="members-head">
+          <span class="side-title">{{ t('extra.groupMembersCount', { n: memberCount }) }}</span>
+          <button type="button" class="icon-btn" :title="t('extra.searchMembers')" @click="toggleMemberSearch">
+            <n-icon :component="showMemberSearch ? CloseOutline : SearchOutline" :size="18" />
+          </button>
+        </div>
+        <div v-if="showMemberSearch" class="member-search">
+          <input
+            v-model="memberSearch"
+            type="text"
+            class="member-search-input"
+            :placeholder="t('extra.searchMembersPh')"
+          />
+        </div>
+        <div class="member-list">
+          <div v-if="showMemberSearch && !filteredMembers.length" class="member-empty">
+            {{ t('extra.noMatchMembers') }}
+          </div>
+          <div v-for="m in filteredMembers" :key="m.id" class="member-row">
+            <Avatar :text="m.avatarText" :color="m.avatarColor" :image-url="m.avatarUrl" :size="36" />
+            <div class="m-info">
+              <span class="m-name">{{ m.name }}</span>
+              <span v-if="m.badge" class="m-badge">{{ m.badge }}</span>
+            </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </div>
   </aside>
 </template>
 
 <style scoped>
 .group-side {
+  position: relative;
   width: 240px;
   flex-shrink: 0;
   height: 100%;
@@ -123,7 +159,57 @@ function toggleMemberSearch() {
   border-left: 1px solid var(--lx-border-light);
   display: flex;
   flex-direction: column;
+  overflow: visible;
+  transition: width 0.22s ease;
+}
+
+.group-side.collapsed {
+  width: 0;
+  border-left-color: transparent;
+  background: transparent;
+}
+
+.group-side-body {
+  width: 240px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
+  background: var(--lx-bg-panel);
+}
+
+.collapse-btn {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  width: 16px;
+  height: 48px;
+  padding: 0;
+  border: 1px solid var(--lx-border-light);
+  border-radius: 8px;
+  background: var(--lx-bg-card);
+  color: var(--lx-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 4px var(--lx-shadow-color);
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.collapse-btn:hover {
+  color: var(--lx-accent);
+  border-color: var(--lx-accent);
+  background: var(--lx-bg-card);
+}
+
+.group-side.collapsed .collapse-btn {
+  left: 0;
+  transform: translate(-100%, -50%);
+  border-radius: 8px 0 0 8px;
+  border-right: none;
 }
 
 .announce-block {

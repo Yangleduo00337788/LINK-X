@@ -932,6 +932,8 @@ export default {
     unpinAnnouncement: '取消置顶',
     editAnnouncement: '编辑公告',
     viewAnnouncement: '查看群公告',
+    collapseGroupSide: '收起群资料',
+    expandGroupSide: '展开群资料',
     groupMembersCount: '群聊成员 {n}',
     searchMembers: '搜索成员',
     searchMembersPh: '搜索成员',
