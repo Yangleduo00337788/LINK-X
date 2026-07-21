@@ -4,12 +4,7 @@
  */
 import { ref, watch, onUnmounted, computed, nextTick } from 'vue'
 import { NIcon, useMessage } from 'naive-ui'
-import {
-  MicOutline,
-  MicOffOutline,
-  VideocamOutline,
-  CallOutline
-} from '@vicons/ionicons5'
+import { Mic, MicOff, Videocam, Call } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
 import { storeToRefs } from 'pinia'
 import { useCallStore } from '../../stores/call'
@@ -62,7 +57,7 @@ async function bindRemoteAudio(stream: MediaStream | null) {
     try {
       await el.play()
     } catch {
-      /* 自动播放可能被策略拦截，用户已通过点击发起通话，一般可恢复 */
+      /* ignore */
     }
   }
 }
@@ -126,25 +121,25 @@ function avatarText(name: string) {
             :size="88"
           />
           <p class="peer">{{ peerName || '好友' }}</p>
+          <div class="state-badges">
+            <span class="badge" :class="{ off: !micOn }">
+              <n-icon :component="micOn ? Mic : MicOff" :size="14" />
+              {{ micOn ? '麦克风开' : '麦克风关' }}
+            </span>
+          </div>
         </div>
         <div class="call-controls">
           <button type="button" class="ctl" :class="{ off: !micOn }" @click="callStore.toggleMic()">
-            <span class="ctl-icon">
-              <n-icon :component="micOn ? MicOutline : MicOffOutline" :size="26" />
-            </span>
-            <span class="ctl-label">{{ micOn ? '关闭麦克风' : '开启麦克风' }}</span>
+            <n-icon :component="micOn ? Mic : MicOff" :size="28" />
+            <span>{{ micOn ? '关闭麦克风' : '开启麦克风' }}</span>
           </button>
           <button type="button" class="ctl" @click="switchToVideo">
-            <span class="ctl-icon">
-              <n-icon :component="VideocamOutline" :size="26" />
-            </span>
-            <span class="ctl-label">视频通话</span>
+            <n-icon :component="Videocam" :size="28" />
+            <span>视频通话</span>
           </button>
           <button type="button" class="ctl hangup" @click="hangUp">
-            <span class="ctl-icon hangup-icon">
-              <n-icon :component="CallOutline" :size="26" />
-            </span>
-            <span class="ctl-label">挂断</span>
+            <n-icon :component="Call" :size="28" />
+            <span>挂断</span>
           </button>
         </div>
       </div>
@@ -168,9 +163,8 @@ function avatarText(name: string) {
   background: linear-gradient(180deg, #3a3a3a 0%, #2a2a2a 100%);
   border-radius: var(--lx-radius);
   padding: 24px 24px 28px;
-  color: var(--lx-bg-card);
+  color: #fff;
   box-shadow: 0 16px 48px var(--lx-bg-overlay);
-  overflow: visible;
 }
 
 .call-top {
@@ -185,7 +179,7 @@ function avatarText(name: string) {
 
 .call-center {
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: 28px;
 }
 
 .call-center :deep(.avatar) {
@@ -193,9 +187,32 @@ function avatarText(name: string) {
 }
 
 .peer {
-  margin: 0;
+  margin: 0 0 10px;
   font-size: 16px;
   font-weight: 500;
+  color: #fff;
+}
+
+.state-badges {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: rgba(7, 193, 96, 0.2);
+  color: #07c160;
+}
+
+.badge.off {
+  background: rgba(250, 81, 81, 0.2);
+  color: #fa5151;
 }
 
 .call-controls {
@@ -220,38 +237,31 @@ function avatarText(name: string) {
   padding: 0;
 }
 
-.ctl-icon {
-  width: 52px;
-  height: 52px;
+.ctl :deep(.n-icon) {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.22);
   color: #fff;
 }
 
-.ctl-icon :deep(.n-icon),
-.ctl-icon :deep(svg) {
-  color: #fff !important;
-  fill: currentColor;
+.ctl.off :deep(.n-icon) {
+  background: rgba(250, 81, 81, 0.85);
+  color: #fff;
 }
 
-.ctl.off .ctl-icon {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.55);
+.ctl.hangup :deep(.n-icon) {
+  background: #fa5151;
+  color: #fff;
 }
 
-.ctl-label {
+.ctl span {
   line-height: 1.2;
   text-align: center;
   white-space: nowrap;
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.hangup-icon {
-  background: #fa5151 !important;
-  color: #fff !important;
+  color: rgba(255, 255, 255, 0.92);
 }
 </style>

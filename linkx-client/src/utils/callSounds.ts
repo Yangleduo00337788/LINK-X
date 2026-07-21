@@ -87,7 +87,6 @@ export function stopCallRing() {
     clearInterval(ringTimer)
     ringTimer = null
   }
-  ringStopAt = Date.now()
 }
 
 /** 接通提示音 */
@@ -106,10 +105,10 @@ export function playCallConnect() {
 /** 挂断 / 拒接 / 取消提示音 */
 export function playCallEnd() {
   stopCallRing()
-  // 避免刚挂断又立刻叠一次（cleanup 与 UI 可能各触发一次）
-  if (Date.now() - ringStopAt < 80) {
-    /* still play end tone once */
-  }
+  // 短时间去重，避免 hangup 与 remote end 连续触发叠音
+  const nowMs = Date.now()
+  if (nowMs - lastEndAt < 400) return
+  lastEndAt = nowMs
   const ctx = ensureRunning()
   if (!ctx) return
   const now = ctx.currentTime

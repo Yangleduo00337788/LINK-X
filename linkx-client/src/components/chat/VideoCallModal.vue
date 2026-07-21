@@ -4,13 +4,7 @@
  */
 import { ref, watch, computed, nextTick } from 'vue'
 import { NIcon, useMessage } from 'naive-ui'
-import {
-  MicOutline,
-  MicOffOutline,
-  VideocamOutline,
-  VideocamOffOutline,
-  CallOutline
-} from '@vicons/ionicons5'
+import { Mic, MicOff, Videocam, VideocamOff, Call } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useCallStore } from '../../stores/call'
 import { useAppStore } from '../../stores/app'
@@ -62,7 +56,7 @@ async function bindVideo(
     try {
       await el.play()
     } catch {
-      /* ignore autoplay block */
+      /* ignore */
     }
   }
 }
@@ -119,6 +113,14 @@ async function hangUp() {
               {{ phase === 'outgoing' ? '等待接听' : phase === 'connecting' ? '正在接通…' : '等待对方画面' }}
             </span>
           </div>
+          <div class="state-badges">
+            <span class="badge" :class="{ off: !micOn }" :title="micOn ? '麦克风已开' : '麦克风已关'">
+              <n-icon :component="micOn ? Mic : MicOff" :size="16" />
+            </span>
+            <span class="badge" :class="{ off: !cameraOn }" :title="cameraOn ? '摄像头已开' : '摄像头已关'">
+              <n-icon :component="cameraOn ? Videocam : VideocamOff" :size="16" />
+            </span>
+          </div>
           <div class="pip">
             <video
               v-show="localStream && cameraOn"
@@ -135,22 +137,16 @@ async function hangUp() {
         </div>
         <div class="call-controls">
           <button type="button" class="ctl" :class="{ off: !micOn }" @click="callStore.toggleMic()">
-            <span class="ctl-icon">
-              <n-icon :component="micOn ? MicOutline : MicOffOutline" :size="24" />
-            </span>
-            <span class="ctl-label">{{ micOn ? '关闭麦克风' : '开启麦克风' }}</span>
+            <n-icon :component="micOn ? Mic : MicOff" :size="26" />
+            <span>{{ micOn ? '关闭麦克风' : '开启麦克风' }}</span>
           </button>
           <button type="button" class="ctl" :class="{ off: !cameraOn }" @click="callStore.toggleCamera()">
-            <span class="ctl-icon">
-              <n-icon :component="cameraOn ? VideocamOutline : VideocamOffOutline" :size="24" />
-            </span>
-            <span class="ctl-label">{{ cameraOn ? '关闭视频' : '开启视频' }}</span>
+            <n-icon :component="cameraOn ? Videocam : VideocamOff" :size="26" />
+            <span>{{ cameraOn ? '关闭视频' : '开启视频' }}</span>
           </button>
           <button type="button" class="ctl hangup" @click="hangUp">
-            <span class="ctl-icon hangup-icon">
-              <n-icon :component="CallOutline" :size="24" />
-            </span>
-            <span class="ctl-label">挂断</span>
+            <n-icon :component="Call" :size="26" />
+            <span>挂断</span>
           </button>
         </div>
       </div>
@@ -208,8 +204,33 @@ async function hangUp() {
 }
 
 .ph-text {
-  color: var(--lx-text-secondary);
+  color: rgba(255, 255, 255, 0.55);
   font-size: 13px;
+}
+
+.state-badges {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  gap: 8px;
+  z-index: 2;
+}
+
+.badge {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(7, 193, 96, 0.9);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.badge.off {
+  background: rgba(250, 81, 81, 0.95);
 }
 
 .pip {
@@ -240,7 +261,7 @@ async function hangUp() {
   position: relative;
   z-index: 1;
   font-size: 10px;
-  color: var(--lx-bg-card);
+  color: #fff;
   text-shadow: 0 1px 2px #000;
   padding: 4px 6px;
 }
@@ -258,7 +279,7 @@ async function hangUp() {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   border: none;
   background: transparent;
   color: #fff;
@@ -268,38 +289,31 @@ async function hangUp() {
   padding: 0;
 }
 
-.ctl-icon {
-  width: 52px;
-  height: 52px;
+.ctl :deep(.n-icon) {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.22);
   color: #fff;
 }
 
-.ctl-icon :deep(.n-icon),
-.ctl-icon :deep(svg) {
-  color: #fff !important;
-  fill: currentColor;
+.ctl.off :deep(.n-icon) {
+  background: rgba(250, 81, 81, 0.85);
+  color: #fff;
 }
 
-.ctl.off .ctl-icon {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.55);
+.ctl.hangup :deep(.n-icon) {
+  background: #fa5151;
+  color: #fff;
 }
 
-.ctl-label {
+.ctl span {
   line-height: 1.2;
   text-align: center;
   white-space: nowrap;
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.hangup-icon {
-  background: #fa5151 !important;
-  color: #fff !important;
+  color: rgba(255, 255, 255, 0.92);
 }
 </style>
