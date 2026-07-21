@@ -134,13 +134,13 @@ async function hangUp() {
           </div>
         </div>
         <div class="call-controls">
-          <button type="button" class="ctl" @click="callStore.toggleMic()">
+          <button type="button" class="ctl" :class="{ off: !micOn }" @click="callStore.toggleMic()">
             <span class="ctl-icon">
               <n-icon :component="micOn ? MicOutline : MicOffOutline" :size="24" />
             </span>
             <span class="ctl-label">{{ micOn ? '关闭麦克风' : '开启麦克风' }}</span>
           </button>
-          <button type="button" class="ctl" @click="callStore.toggleCamera()">
+          <button type="button" class="ctl" :class="{ off: !cameraOn }" @click="callStore.toggleCamera()">
             <span class="ctl-icon">
               <n-icon :component="cameraOn ? VideocamOutline : VideocamOffOutline" :size="24" />
             </span>
@@ -261,7 +261,7 @@ async function hangUp() {
   gap: 6px;
   border: none;
   background: transparent;
-  color: var(--lx-bg-card);
+  color: #fff;
   font-size: 11px;
   cursor: pointer;
   min-width: 0;
@@ -269,23 +269,37 @@ async function hangUp() {
 }
 
 .ctl-icon {
-  width: 48px;
-  height: 48px;
-  display: flex;
+  width: 52px;
+  height: 52px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.ctl-icon :deep(.n-icon),
+.ctl-icon :deep(svg) {
+  color: #fff !important;
+  fill: currentColor;
+}
+
+.ctl.off .ctl-icon {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.55);
 }
 
 .ctl-label {
   line-height: 1.2;
   text-align: center;
   white-space: nowrap;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .hangup-icon {
-  background: var(--lx-danger);
-  border-radius: 50%;
-  color: #fff;
+  background: #fa5151 !important;
+  color: #fff !important;
 }
 </style>

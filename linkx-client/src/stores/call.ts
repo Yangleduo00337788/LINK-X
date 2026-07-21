@@ -6,6 +6,7 @@ import { defineStore } from 'pinia'
 import { markRaw } from 'vue'
 import * as callApi from '../api/call'
 import type { CallEventPayload } from '../api/call'
+import { startCallRing, stopCallRing, playCallConnect, playCallEnd } from '../utils/callSounds'
 
 export type CallPhase = 'idle' | 'outgoing' | 'incoming' | 'connecting' | 'connected' | 'ended'
 export type CallRole = 'caller' | 'callee' | null
@@ -122,6 +123,7 @@ export const useCallStore = defineStore('call', {
       this.errorMessage = ''
       this.micOn = true
       this.cameraOn = opts.callType === 'video'
+      startCallRing()
       // 主叫在振铃阶段即打开本地媒体：视频可预览，接通后立刻有音轨
       void this.ensureLocalMedia().catch(e => {
         const name = (e as DOMException)?.name
@@ -181,6 +183,7 @@ export const useCallStore = defineStore('call', {
           throw new Error(res.message || '接听失败')
         }
         this.phase = 'connecting'
+        playCallConnect()
         // 被叫只建 PeerConnection；媒体在收到 offer 后再采集，避免与 ensureLocalMedia 并发抢设备
         await this.ensurePeerConnection()
       } catch (e) {
@@ -260,12 +263,14 @@ export const useCallStore = defineStore('call', {
       this.micOn = true
       this.cameraOn = event.callType === 'video'
       this.errorMessage = ''
+      startCallRing()
     },
 
     async onAccept(event: NormalizedCallEvent) {
       if (this.role !== 'caller' || this.callId !== event.callId) return
       if (this.phase !== 'outgoing') return
       this.phase = 'connecting'
+      playCallConnect()
       try {
         await this.ensurePeerConnection()
         await this.ensureLocalMedia()
@@ -463,6 +468,9 @@ export const useCallStore = defineStore('call', {
     },
 
     cleanupLocal() {
+      const shouldPlayEnd = this.phase !== 'idle'
+      stopCallRing()
+      if (shouldPlayEnd) playCallEnd()
       if (peerConnection) {
         peerConnection.onicecandidate = null
         peerConnection.ontrack = null

@@ -128,7 +128,7 @@ function avatarText(name: string) {
           <p class="peer">{{ peerName || '好友' }}</p>
         </div>
         <div class="call-controls">
-          <button type="button" class="ctl" @click="callStore.toggleMic()">
+          <button type="button" class="ctl" :class="{ off: !micOn }" @click="callStore.toggleMic()">
             <span class="ctl-icon">
               <n-icon :component="micOn ? MicOutline : MicOffOutline" :size="26" />
             </span>
@@ -213,7 +213,7 @@ function avatarText(name: string) {
   gap: 8px;
   border: none;
   background: transparent;
-  color: rgba(255, 255, 255, 0.9);
+  color: #fff;
   font-size: 11px;
   cursor: pointer;
   min-width: 0;
@@ -221,23 +221,37 @@ function avatarText(name: string) {
 }
 
 .ctl-icon {
-  width: 48px;
-  height: 48px;
-  display: flex;
+  width: 52px;
+  height: 52px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.ctl-icon :deep(.n-icon),
+.ctl-icon :deep(svg) {
+  color: #fff !important;
+  fill: currentColor;
+}
+
+.ctl.off .ctl-icon {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.55);
 }
 
 .ctl-label {
   line-height: 1.2;
   text-align: center;
   white-space: nowrap;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .hangup-icon {
-  background: var(--lx-danger);
-  border-radius: 50%;
-  color: #fff;
+  background: #fa5151 !important;
+  color: #fff !important;
 }
 </style>
