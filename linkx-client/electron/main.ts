@@ -392,6 +392,7 @@ function registerWindowIpc() {
   ipcMain.removeHandler('secure-storage:remove')
   ipcMain.removeHandler('app:show-notification')
   ipcMain.removeHandler('app:pick-download-path')
+  ipcMain.removeHandler('app:pick-images')
   ipcMain.removeHandler('app:open-download-path')
   ipcMain.removeHandler('app:clear-cache')
   ipcMain.removeHandler('app:download-file')
