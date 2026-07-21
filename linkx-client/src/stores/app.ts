@@ -188,6 +188,8 @@ export const useAppStore = defineStore('app', {
     sessions: [] as ChatSession[],                                // 会话列表（从后端加载）
     messagesBySession: {} as Record<string, ChatMessage[]>,       // 各会话消息映射（从后端加载）
     currentSessionId: null as string | null,                     // 当前打开的会话 id
+    /** 每次点击进入会话递增，用于强制滚到最新（含重复点击同一会话） */
+    sessionEnterTick: 0,
     theme: 'light' as 'light' | 'dark',                          // 明暗主题
     contactsActiveView: 'none' as 'none' | 'friend-notifs' | 'group-notifs', // 通讯录子视图
     userProfile: {
@@ -273,6 +275,7 @@ export const useAppStore = defineStore('app', {
     selectSession(session: ChatSession) {
       this.contactsActiveView = 'none'
       this.currentSessionId = session.id
+      this.sessionEnterTick++
       const s = this.sessions.find(x => x.id === session.id)
       if (s?.unread) {
         s.unread = 0 // 进入会话即清未读

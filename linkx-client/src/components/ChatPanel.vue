@@ -103,7 +103,8 @@ const appSettingsStore = useAppSettingsStore()
 // 获取联系人 Store 实例
 const contactsStore = useContactsStore()
 // 解构当前会话、消息、用户资料、会话 ID、已保存登录信息
-const { currentSession, currentMessages, userProfile, currentSessionId, savedLogin } = storeToRefs(appStore)
+const { currentSession, currentMessages, userProfile, currentSessionId, savedLogin, sessionEnterTick } =
+  storeToRefs(appStore)
 // 解构聊天背景设置
 const { chatBackground } = storeToRefs(appSettingsStore)
 // 解构撤回消息、加载更多历史消息
@@ -235,8 +236,9 @@ watch(
   }
 )
 
-// 切换会话时贴底并滚到底
-watch(currentSessionId, () => {
+/** 每次点选会话（含重复点同一会话）都进入最新消息位置 */
+watch(sessionEnterTick, () => {
+  if (!hasSession.value) return
   stickToBottom.value = true
   loadingMore.value = false
   loadMoreLockUntil = 0
@@ -245,8 +247,21 @@ watch(currentSessionId, () => {
     window.clearTimeout(highlightAtMeTimer)
     highlightAtMeTimer = 0
   }
-  if (hasSession.value) {
-    nextTick(() => scrollToBottom())
+  const run = () => scrollToBottom()
+  nextTick(() => {
+    run()
+    requestAnimationFrame(run)
+    window.setTimeout(run, 60)
+    window.setTimeout(run, 180)
+  })
+})
+
+// 切换会话时重置高亮（sessionEnterTick 已负责贴底）
+watch(currentSessionId, () => {
+  highlightAtMeId.value = null
+  if (highlightAtMeTimer) {
+    window.clearTimeout(highlightAtMeTimer)
+    highlightAtMeTimer = 0
   }
 })
 
@@ -1138,8 +1153,8 @@ function onDrop(e: DragEvent) {
   background: transparent;
   box-shadow: none;
   border-radius: 0;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
   line-height: 1.4;
   color: var(--lx-danger, #f04040);
   cursor: pointer;
