@@ -2,7 +2,8 @@
 /**
  * 群资料侧滑抽屉。
  * <p>
- * 展示群头像、群号、成员网格、公告、备注、置顶/免打扰及退群等操作。
+ * 展示群头像、群号、成员网格、公告、备注、置顶/免打扰等操作。
+ * 普通成员可退出群聊；群主可转让群主或解散群聊（不可直接退出）。
  * 群主可修改群名称；任意成员可设置仅自己可见的群备注。
  * </p>
  */
@@ -150,9 +151,19 @@ function clearChat() {
   })
 }
 
-/** 二次确认退出群聊 */
+/** 从接口错误中取出可读文案 */
+function apiErrorMessage(e: unknown, fallback: string): string {
+  const ax = e as { response?: { data?: { message?: string } }; message?: string }
+  return ax.response?.data?.message || ax.message || fallback
+}
+
+/** 二次确认退出群聊（非群主） */
 async function quitGroup() {
   if (!currentSession.value || !currentSessionId.value) return
+  if (isOwner.value) {
+    message.warning(t('modals.transferOwnerHint'))
+    return
+  }
   dialog.warning({
     title: t('modals.quitGroup'),
     content: t('modals.quitGroupConfirm', { name: currentSession.value.name }),
@@ -164,8 +175,55 @@ async function quitGroup() {
         message.success(t('modals.quitOk'))
         close()
       } catch (e) {
-        const err = e as { message?: string }
-        message.error(err.message || t('modals.quitFail'))
+        message.error(apiErrorMessage(e, t('modals.quitFail')))
+      }
+    }
+  })
+}
+
+/** 可转让的成员（排除自己） */
+const transferCandidates = computed(() => {
+  const me = appStore.userProfile.userId
+  return members.value.filter(m => m.id !== me)
+})
+
+const transferPanelOpen = ref(false)
+const transferring = ref(false)
+
+/** 打开转让群主面板 */
+async function openTransferOwner() {
+  const id = currentSessionId.value
+  if (!id) return
+  await groupMetaStore.fetchMembers(id)
+  if (transferCandidates.value.length === 0) {
+    message.warning(t('modals.transferOwnerEmpty'))
+    return
+  }
+  transferPanelOpen.value = true
+}
+
+function closeTransferPanel() {
+  transferPanelOpen.value = false
+}
+
+/** 确认转让给指定成员 */
+function confirmTransfer(memberId: string, memberName: string) {
+  if (!currentSessionId.value || transferring.value) return
+  dialog.warning({
+    title: t('modals.transferOwner'),
+    content: t('modals.transferOwnerConfirm', { name: memberName }),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      transferring.value = true
+      try {
+        await appStore.transferGroupOwner(currentSessionId.value!, memberId)
+        message.success(t('modals.transferOwnerOk'))
+        closeTransferPanel()
+      } catch (e) {
+        message.error(apiErrorMessage(e, t('modals.transferOwnerFail')))
+      } finally {
+        transferring.value = false
       }
     }
   })
@@ -185,8 +243,7 @@ async function dissolve() {
         message.success(t('modals.dissolveOk'))
         close()
       } catch (e) {
-        const err = e as { message?: string }
-        message.error(err.message || t('modals.dissolveFail'))
+        message.error(apiErrorMessage(e, t('modals.dissolveFail')))
       }
     }
   })
@@ -197,6 +254,15 @@ const isOwner = computed(() => {
   const me = appStore.userProfile.userId
   if (!me) return false
   return members.value.some(m => m.id === me && m.role === 'owner')
+})
+
+/** 打开抽屉时拉取成员，保证群主身份判断准确 */
+watch(groupInfoDrawerOpen, open => {
+  if (open && currentSessionId.value) {
+    void groupMetaStore.fetchMembers(currentSessionId.value)
+  } else {
+    transferPanelOpen.value = false
+  }
 })
 
 /** 举报群（原型提示） */
@@ -313,7 +379,22 @@ function reportGroup() {
 
               <!-- 危险操作与举报 -->
               <button type="button" class="action-btn" @click="clearChat">{{ t('modals.clearChatHistory') }}</button>
-              <button type="button" class="action-btn danger" @click="quitGroup">{{ t('modals.quitGroup') }}</button>
+              <button
+                v-if="!isOwner"
+                type="button"
+                class="action-btn danger"
+                @click="quitGroup"
+              >
+                {{ t('modals.quitGroup') }}
+              </button>
+              <button
+                v-if="isOwner"
+                type="button"
+                class="action-btn"
+                @click="openTransferOwner"
+              >
+                {{ t('modals.transferOwner') }}
+              </button>
               <button
                 v-if="isOwner"
                 type="button"
@@ -325,6 +406,29 @@ function reportGroup() {
               <p class="report">
                 <a href="#" @click.prevent="reportGroup">{{ t('modals.reportGroup') }}</a>
               </p>
+        </div>
+
+        <!-- 转让群主：选择新群主 -->
+        <div v-if="transferPanelOpen" class="transfer-panel">
+          <div class="transfer-head">
+            <button type="button" class="transfer-back" @click="closeTransferPanel">‹</button>
+            <h3>{{ t('modals.transferOwnerPick') }}</h3>
+          </div>
+          <p class="transfer-hint">{{ t('modals.transferOwnerHint') }}</p>
+          <div class="transfer-list">
+            <button
+              v-for="m in transferCandidates"
+              :key="m.id"
+              type="button"
+              class="transfer-row"
+              :disabled="transferring"
+              @click="confirmTransfer(m.id, m.name)"
+            >
+              <Avatar :text="m.avatarText" :color="m.avatarColor" :image-url="m.avatarUrl" :size="36" />
+              <span class="transfer-name">{{ m.name }}</span>
+              <span v-if="m.badge" class="transfer-badge">{{ m.badge }}</span>
+            </button>
+          </div>
         </div>
       </aside>
     </div>
@@ -562,6 +666,89 @@ function reportGroup() {
 .report a {
   color: var(--lx-accent);
   text-decoration: none;
+}
+
+.transfer-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: var(--lx-bg-card);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 14px 20px;
+}
+
+.transfer-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.transfer-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--lx-text-body);
+}
+
+.transfer-back {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--lx-text-body);
+  cursor: pointer;
+}
+
+.transfer-hint {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--lx-text-muted);
+  line-height: 1.45;
+}
+
+.transfer-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.transfer-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 8px;
+  border: none;
+  border-radius: var(--lx-radius);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: var(--lx-text-body);
+}
+
+.transfer-row:hover:not(:disabled) {
+  background: var(--lx-bg-panel);
+}
+
+.transfer-row:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.transfer-name {
+  flex: 1;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transfer-badge {
+  font-size: 11px;
+  color: var(--lx-text-muted);
 }
 
 .chat-drawer-enter-active,

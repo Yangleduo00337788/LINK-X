@@ -832,7 +832,7 @@ export const useAppStore = defineStore('app', {
 
     /**
      * 退出群聊：调用真实后端 {@code POST /group/{id}/quit}。
-     * 成功后从本地会话列表移除该群会话。
+     * 仅成功后从本地会话列表移除该群会话（失败不删，避免群主被误踢出列表）。
      */
     async leaveGroup(sessionId: string): Promise<void> {
       if (!sessionId) return
@@ -841,13 +841,11 @@ export const useAppStore = defineStore('app', {
         if (res.code !== 200) {
           throw new Error(res.message || '退出群聊失败')
         }
+        this.deleteSession(sessionId)
+        useGroupMetaStore().clearForSession(sessionId)
       } catch (e) {
         console.error('退出群聊失败:', e)
         throw e
-      } finally {
-        // 无论后端成功与否，先从本地移除（避免用户卡在已退的群里）
-        this.deleteSession(sessionId)
-        useGroupMetaStore().clearForSession(sessionId)
       }
     },
 
@@ -859,6 +857,7 @@ export const useAppStore = defineStore('app', {
       if (res.code !== 200) {
         throw new Error(res.message || '转让群主失败')
       }
+      await useGroupMetaStore().fetchMembers(sessionId, true)
     },
 
     /**
