@@ -277,10 +277,16 @@ export const useAppStore = defineStore('app', {
       if (s?.unread) {
         s.unread = 0 // 进入会话即清未读
       }
-      if (s?.atMe) {
-        // 进入会话清除列表角标；若尚无跳转目标，加载后从消息里找回
+      if (!this.messagesBySession[session.id]) {
+        this.messagesBySession[session.id] = []
+      }
+
+      // 有未读 @：进会话后保留提示，需点浮层确认，避免贴底后「只剩普通消息」
+      const hadAtMe = !!(s?.atMe || s?.atMeMessageId)
+      if (s && hadAtMe) {
+        s.atMeNeedAck = true
+        s.atMe = true
         const needRecover = !s.atMeMessageId
-        s.atMe = false
         if (session.isReal) {
           void this.loadSessionMessages(session.id).then(() => {
             if (needRecover) this.recoverAtMeMessageId(session.id)
@@ -291,17 +297,15 @@ export const useAppStore = defineStore('app', {
       } else if (session.isReal) {
         void this.loadSessionMessages(session.id)
       }
-      if (!this.messagesBySession[session.id]) {
-        this.messagesBySession[session.id] = [] // 懒初始化空消息列表
-      }
     },
 
-    /** 清除会话的 @我 跳转提示（对话框内跳转后或已看见时调用） */
+    /** 清除会话的 @我 提示（点击浮层跳转后调用） */
     clearAtMeMessage(sessionId: string) {
       const s = this.sessions.find(x => x.id === sessionId)
       if (!s) return
       s.atMe = false
       s.atMeMessageId = undefined
+      s.atMeNeedAck = false
     },
 
     /** 从已加载消息中找回最近一条 @我，写入 atMeMessageId */
@@ -309,12 +313,15 @@ export const useAppStore = defineStore('app', {
       const s = this.sessions.find(x => x.id === sessionId)
       if (!s?.isGroup || s.atMeMessageId) return
       const names = [this.userProfile.nickname, this.userProfile.username]
+      const me = this.userProfile.userId
       const list = this.messagesBySession[sessionId] || []
       for (let i = list.length - 1; i >= 0; i--) {
         const m = list[i]
-        if (m.isSelf || m.type === 'system' || m.type === 'time' || m.type === 'recall') continue
+        if (m.isSelf || (me && m.senderId === me)) continue
+        if (m.type === 'system' || m.type === 'time' || m.type === 'recall') continue
         if (contentMentionsUser(m.content, names)) {
           s.atMeMessageId = m.id
+          s.atMe = true
           return
         }
       }
@@ -725,16 +732,23 @@ export const useAppStore = defineStore('app', {
         session.time = chatMsg.time
         // 系统提示不计未读、不响铃
         if (!exists && message.type !== 'system') {
+          const me = this.userProfile.userId
+          const fromSelf =
+            !!message.isSelf || (!!me && String(message.senderId) === String(me))
           const mentioned =
             !!session.isGroup &&
-            !message.isSelf &&
+            !fromSelf &&
             contentMentionsUser(message.content, [
               this.userProfile.nickname,
               this.userProfile.username
             ])
-          // 记录待跳转消息；当前会话是否展示浮层由 ChatPanel 根据是否贴底决定
           if (mentioned) {
             session.atMeMessageId = chatMsg.id
+            session.atMe = true
+            // 当前会话但未贴底：需要点浮层；贴底时直接看见则不强制 ack
+            if (this.currentSessionId === sessionId) {
+              session.atMeNeedAck = true
+            }
           }
 
           if (this.currentSessionId !== sessionId) {
@@ -747,9 +761,6 @@ export const useAppStore = defineStore('app', {
               })
             ) {
               session.unread = (session.unread || 0) + 1
-            }
-            if (mentioned) {
-              session.atMe = true
             }
           }
         }

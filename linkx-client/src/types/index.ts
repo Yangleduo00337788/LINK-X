@@ -36,10 +36,15 @@ export interface ChatSession {
   muted?: boolean         // 是否免打扰
   pinned?: boolean        // 是否置顶
   blocked?: boolean       // 是否拉黑（单聊）
-  /** 群聊有未读的 @我 / @全体成员（进入会话后清除列表角标） */
+  /** 群聊有未读的 @我 / @全体成员（列表红字；进会话后仍可保留至点浮层确认） */
   atMe?: boolean
-  /** 待跳转的 @我 消息 ID（对话框内提示用，跳转或看过后清除） */
+  /** 待跳转的 @我 消息 ID（对话框浮层用，点击跳转后清除） */
   atMeMessageId?: string
+  /**
+   * 进入会话时仍需点「有人@我」确认（避免贴底后立刻清掉提示）
+   * 仅当前端会话使用，不持久化依赖
+   */
+  atMeNeedAck?: boolean
   isGroup?: boolean       // 是否为群聊
   /** 群真实名称（群聊；与 name 区分，name 可能是备注） */
   groupName?: string

@@ -242,7 +242,7 @@ function onContextMenuSelect(key: string) {
                   {{ session.unread > 99 ? '99+' : session.unread }}
                 </div>
                 <div
-                  v-else-if="session.atMe && session.muted"
+                  v-else-if="(session.atMe || session.atMeMessageId) && session.muted"
                   class="unread-dot"
                   :title="t('chat.someoneAtMe')"
                 />
@@ -265,7 +265,10 @@ function onContextMenuSelect(key: string) {
                   <span class="session-time">{{ session.time }}</span>
                 </span>
                 <span class="last-message">
-                  <span v-if="session.atMe" class="at-me-hint">{{ t('chat.someoneAtMe') }}</span>
+                  <span
+                    v-if="session.atMe || session.atMeMessageId"
+                    class="at-me-hint"
+                  >{{ t('chat.someoneAtMe') }}</span>
                   {{ session.lastMessage }}
                 </span>
               </div>

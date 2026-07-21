@@ -417,11 +417,14 @@ function scrollToBottom() {
   messageListRef.value?.scrollToBottom()
 }
 
-/** 是否展示对话框内「有人@我」浮层（未贴底或目标消息不在底部附近） */
+/** 是否展示对话框内「有人@我」浮层 */
 const showAtMeFab = computed(() => {
   if (!isGroupChat.value) return false
-  const targetId = currentSession.value?.atMeMessageId
+  const s = currentSession.value
+  const targetId = s?.atMeMessageId
   if (!targetId) return false
+  // 从列表点进来、或未贴底：必须显示浮层，避免「只剩一条普通消息」
+  if (s?.atMeNeedAck) return true
   const idx = chatMessages.value.findIndex(m => m.id === targetId)
   if (idx < 0) return true
   const nearEnd = idx >= chatMessages.value.length - 2
@@ -429,13 +432,14 @@ const showAtMeFab = computed(() => {
   return true
 })
 
-/** 贴底且已看见 @消息时自动清除提示 */
+/** 贴底看见 @消息时：仅在不需要手动确认时自动清除 */
 watch(
   [stickToBottom, () => currentSession.value?.atMeMessageId, () => chatMessages.value.length],
   () => {
+    const s = currentSession.value
     const sid = currentSessionId.value
-    const targetId = currentSession.value?.atMeMessageId
-    if (!sid || !targetId || !stickToBottom.value) return
+    const targetId = s?.atMeMessageId
+    if (!sid || !targetId || !stickToBottom.value || s?.atMeNeedAck) return
     const idx = chatMessages.value.findIndex(m => m.id === targetId)
     if (idx >= 0 && idx >= chatMessages.value.length - 2) {
       clearAtMeMessage(sid)
