@@ -1,8 +1,10 @@
 package com.linkx.server.service.impl;
 
 import com.linkx.server.controller.dto.SendFriendRequestDTO;
+import com.linkx.server.controller.vo.ConversationVO;
 import com.linkx.server.controller.vo.FriendItemVO;
 import com.linkx.server.controller.vo.FriendRequestVO;
+import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.controller.vo.UserSearchVO;
 import com.linkx.server.entity.ImConversation;
 import com.linkx.server.entity.ImConversationMember;
@@ -17,6 +19,7 @@ import com.linkx.server.mapper.ImConversationMemberMapper;
 import com.linkx.server.mapper.SysFriendRequestMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.mapper.SysUserRelationMapper;
+import com.linkx.server.service.ChatService;
 import com.linkx.server.service.FriendService;
 import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.UserPreferenceService;
@@ -50,6 +53,7 @@ public class FriendServiceImpl implements FriendService {
     private final UserPreferenceService userPreferenceService;
     private final ImChannelManager imChannelManager;
     private final ImMessagePushService imPushService;
+    private final ChatService chatService;
 
     @Override
     public List<UserSearchVO> searchUsers(String keyword, Long currentUserId) {
@@ -154,6 +158,7 @@ public class FriendServiceImpl implements FriendService {
                     .build();
             sysFriendRequestMapper.insert(autoAccepted);
             createBidirectionalRelation(fromUserId, target.getId());
+            emitFriendCreatedTip(fromUserId, target.getId());
             imPushService.pushToUser(target.getId(), "notification_refresh", Map.of("type", "friend_accepted"));
             imPushService.pushToUser(fromUserId, "notification_refresh", Map.of("type", "friend_accepted"));
             return;
@@ -208,6 +213,7 @@ public class FriendServiceImpl implements FriendService {
         sysFriendRequestMapper.update(request);
 
         createBidirectionalRelation(request.getFromUserId(), request.getToUserId());
+        emitFriendCreatedTip(userId, request.getFromUserId());
         imPushService.pushToUser(request.getFromUserId(), "notification_refresh", Map.of("type", "friend_accepted"));
     }
 
@@ -334,6 +340,17 @@ public class FriendServiceImpl implements FriendService {
     private void createBidirectionalRelation(Long userA, Long userB) {
         ensureRelation(userA, userB);
         ensureRelation(userB, userA);
+    }
+
+    /** 成为好友后写入会话系统提示「你们已成为好友」 */
+    private void emitFriendCreatedTip(Long userA, Long userB) {
+        try {
+            ConversationVO conv = chatService.getOrCreatePrivateConversation(userA, userB);
+            MessageVO tip = chatService.postSystemMessage(userA, conv.getId(), "你们已成为好友");
+            imPushService.pushToConversationMembers(tip, userA, null);
+        } catch (Exception ignored) {
+            // 提示失败不影响加好友
+        }
     }
 
     /**

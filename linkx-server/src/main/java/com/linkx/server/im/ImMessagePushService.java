@@ -125,7 +125,8 @@ public class ImMessagePushService {
 
             MessageVO payload = withPerspective(message, userId);
             ImWsFrame frame;
-            if (userId.equals(senderId)) {
+            // 仅客户端上行（带 clientMsgId）才回 ack；系统提示等服务端写入应对全员推 message
+            if (userId.equals(senderId) && clientMsgId != null && !clientMsgId.isBlank()) {
                 frame = buildFrame("ack", payload);
                 frame.setClientMsgId(clientMsgId);
             } else {

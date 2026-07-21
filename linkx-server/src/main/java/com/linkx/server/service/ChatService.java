@@ -24,6 +24,11 @@ public interface ChatService {
      */
     MessageVO recallMessage(Long userId, Long conversationId, Long messageId);
 
+    /**
+     * 写入系统提示消息（服务端内部调用，不走客户端上行校验）。
+     */
+    MessageVO postSystemMessage(Long operatorId, Long conversationId, String content);
+
     ChatFileUploadVO uploadChatFile(Long userId, Long conversationId, MultipartFile file);
 
     /**

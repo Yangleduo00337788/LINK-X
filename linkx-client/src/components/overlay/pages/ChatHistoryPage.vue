@@ -89,7 +89,9 @@ async function runServerSearch(query: string) {
 
 const currentMessages = computed(() => {
   if (!currentSessionId.value) return []
-  return (messagesBySession.value[currentSessionId.value] || []).filter(m => m.type !== 'system')
+  return (messagesBySession.value[currentSessionId.value] || []).filter(
+    m => m.type !== 'time'
+  )
 })
 
 const currentSessionName = computed(() => {

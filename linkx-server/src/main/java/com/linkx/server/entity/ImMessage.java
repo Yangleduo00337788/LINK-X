@@ -38,6 +38,10 @@ public class ImMessage implements Serializable {
      * 已撤回：原消息原地改为此类型，清空正文/附件，保留时间线位置供客户端渲染系统提示。
      */
     public static final String TYPE_RECALL = "recall";
+    /**
+     * 系统提示：群管理操作、建群、成为好友等居中灰字，不允许客户端上行。
+     */
+    public static final String TYPE_SYSTEM = "system";
 
     @Id(keyType = KeyType.Generator, value = KeyGenerators.snowFlakeId)
     private Long id;

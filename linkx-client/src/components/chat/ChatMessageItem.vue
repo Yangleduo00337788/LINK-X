@@ -48,12 +48,20 @@ const hasSession = computed(() => !!currentSession.value)
 const isFriendChat = computed(() => hasSession.value && !currentSession.value?.isGroup && !isMyPhone.value)
 
 const isRecall = computed(() => props.msg.type === 'recall')
+const isSystemTip = computed(
+  () => props.msg.type === 'system' || props.msg.type === 'time'
+)
 
 /** 撤回提示：你撤回了一条消息 / XXX撤回了一条消息 */
 const recallTip = computed(() => {
   if (props.msg.isSelf) return t('chat.youRecalled')
   const name = props.msg.senderName || currentSession.value?.name || t('chat.messageFallback')
   return t('chat.peerRecalled', { name })
+})
+
+const tipText = computed(() => {
+  if (isRecall.value) return recallTip.value
+  return props.msg.content || ''
 })
 
 /**
@@ -91,8 +99,8 @@ const selfAvatarProps = computed(() => ({
 </script>
 
 <template>
-  <div v-if="isRecall" class="recall-tip-row">
-    <span class="recall-tip">{{ recallTip }}</span>
+  <div v-if="isSystemTip || isRecall" class="recall-tip-row">
+    <span class="recall-tip">{{ tipText }}</span>
   </div>
   <div v-else class="message-row" :class="msg.isSelf ? 'right' : 'left'">
     <button v-if="!msg.isSelf && isFriendChat" type="button" class="avatar-btn" @click="emit('openPeerProfile', $event)">

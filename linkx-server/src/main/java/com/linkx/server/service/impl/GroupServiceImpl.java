@@ -9,13 +9,16 @@ import com.linkx.server.controller.vo.ConversationVO;
 import com.linkx.server.controller.vo.GroupConversationVO;
 import com.linkx.server.controller.vo.GroupMemberAvatarVO;
 import com.linkx.server.controller.vo.GroupMemberVO;
+import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.entity.ImConversation;
 import com.linkx.server.entity.ImConversationMember;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.exception.CustomException;
+import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.mapper.ImConversationMapper;
 import com.linkx.server.mapper.ImConversationMemberMapper;
 import com.linkx.server.mapper.SysUserMapper;
+import com.linkx.server.service.ChatService;
 import com.linkx.server.service.GroupService;
 import com.linkx.server.service.MediaUrlService;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -45,6 +48,8 @@ public class GroupServiceImpl implements GroupService {
     private final ImConversationMemberMapper memberMapper;
     private final SysUserMapper sysUserMapper;
     private final MediaUrlService mediaUrlService;
+    private final ChatService chatService;
+    private final ImMessagePushService imPushService;
 
     @Override
     @Transactional
@@ -86,6 +91,9 @@ public class GroupServiceImpl implements GroupService {
                     .role(ImConversationMember.ROLE_MEMBER)
                     .build());
         }
+
+        String creatorName = displayName(creator);
+        emitSystemTip(userId, group.getId(), creatorName + " 发起了群聊");
 
         return toGroupConversationVO(group, creator, userId);
     }
@@ -351,6 +359,11 @@ public class GroupServiceImpl implements GroupService {
         // 新群主设为群主角色
         newOwnerMember.setRole(ImConversationMember.ROLE_OWNER);
         memberMapper.update(newOwnerMember);
+
+        SysUser oldOwner = sysUserMapper.selectOneById(userId);
+        SysUser newOwner = sysUserMapper.selectOneById(newOwnerId);
+        emitSystemTip(userId, conversationId,
+                displayName(oldOwner) + " 将群主转让给了 " + displayName(newOwner));
     }
 
     @Override
@@ -382,6 +395,16 @@ public class GroupServiceImpl implements GroupService {
 
         target.setRole(role);
         memberMapper.update(target);
+
+        SysUser operator = sysUserMapper.selectOneById(userId);
+        SysUser targetUser = sysUserMapper.selectOneById(memberId);
+        if (ImConversationMember.ROLE_ADMIN.equals(role)) {
+            emitSystemTip(userId, conversationId,
+                    displayName(operator) + " 将 " + displayName(targetUser) + " 设为管理员");
+        } else {
+            emitSystemTip(userId, conversationId,
+                    displayName(operator) + " 取消了 " + displayName(targetUser) + " 的管理员身份");
+        }
     }
 
     @Override
@@ -429,6 +452,15 @@ public class GroupServiceImpl implements GroupService {
 
         conversationMapper.update(group);
         SysUser owner = sysUserMapper.selectOneById(group.getOwnerId());
+        SysUser operator = sysUserMapper.selectOneById(userId);
+        String opName = displayName(operator);
+        if (timed) {
+            emitSystemTip(userId, conversationId, opName + " 设置了定时全体禁言");
+        } else if (Boolean.TRUE.equals(dto.getEnabled())) {
+            emitSystemTip(userId, conversationId, opName + " 开启了全体禁言");
+        } else if (Boolean.FALSE.equals(dto.getEnabled())) {
+            emitSystemTip(userId, conversationId, opName + " 关闭了全体禁言");
+        }
         return toGroupConversationVO(group, owner, userId);
     }
 
@@ -476,6 +508,16 @@ public class GroupServiceImpl implements GroupService {
             target.setMuteUntil(null);
         }
         memberMapper.update(target);
+
+        SysUser operator = sysUserMapper.selectOneById(userId);
+        SysUser targetUser = sysUserMapper.selectOneById(memberId);
+        if (Boolean.TRUE.equals(dto.getMuted())) {
+            emitSystemTip(userId, conversationId,
+                    displayName(operator) + " 将 " + displayName(targetUser) + " 禁言");
+        } else {
+            emitSystemTip(userId, conversationId,
+                    displayName(operator) + " 解除了 " + displayName(targetUser) + " 的禁言");
+        }
     }
 
     @Override
@@ -671,6 +713,22 @@ public class GroupServiceImpl implements GroupService {
             return false;
         }
         return true;
+    }
+
+    private void emitSystemTip(Long operatorId, Long conversationId, String content) {
+        try {
+            MessageVO tip = chatService.postSystemMessage(operatorId, conversationId, content);
+            imPushService.pushToConversationMembers(tip, operatorId, null);
+        } catch (Exception e) {
+            // 系统提示失败不影响主业务
+        }
+    }
+
+    private String displayName(SysUser user) {
+        if (user == null) return "用户";
+        if (StringUtils.hasText(user.getNickname())) return user.getNickname();
+        if (StringUtils.hasText(user.getUsername())) return user.getUsername();
+        return "用户";
     }
 
     private ConversationVO toConversationVO(ImConversation group, List<GroupMemberAvatarVO> memberAvatars) {

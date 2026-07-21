@@ -68,7 +68,7 @@ export interface ChatMessage {
   senderName?: string     // 群聊发送者昵称
   senderAvatar?: string   // 群聊发送者头像
   // 消息类型：文本/图片/文件/链接/系统/语音/红包/数据卡片/撤回
-  type?: 'text' | 'image' | 'file' | 'link' | 'system' | 'voice' | 'redPacket' | 'dataCard' | 'recall'
+  type?: 'text' | 'image' | 'file' | 'link' | 'system' | 'voice' | 'redPacket' | 'dataCard' | 'recall' | 'time'
   linkUrl?: string        // 链接消息 URL
   /** 服务端创建时间（毫秒），用于撤回时限等 */
   createTime?: number

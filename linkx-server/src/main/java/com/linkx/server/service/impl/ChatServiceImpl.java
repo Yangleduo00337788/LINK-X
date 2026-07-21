@@ -315,6 +315,39 @@ public class ChatServiceImpl implements ChatService {
         return toMessageVO(message, sender, userId);
     }
 
+    @Override
+    @Transactional
+    public MessageVO postSystemMessage(Long operatorId, Long conversationId, String content) {
+        if (!StringUtils.hasText(content)) {
+            throw new CustomException(400, "系统提示不能为空");
+        }
+        ImConversation conversation = conversationMapper.selectOneById(conversationId);
+        if (conversation == null) {
+            throw new CustomException(404, "会话不存在");
+        }
+
+        String text = InputSanitizer.sanitizeText(content.trim(), 500);
+        Date now = new Date();
+        ImMessage message = ImMessage.builder()
+                .conversationId(conversationId)
+                .senderId(operatorId != null ? operatorId : 0L)
+                .type(ImMessage.TYPE_SYSTEM)
+                .content(text)
+                .createTime(now)
+                .build();
+        messageMapper.insert(message);
+        if (message.getCreateTime() == null) {
+            message.setCreateTime(now);
+        }
+
+        conversation.setLastMessageContent(text);
+        conversation.setLastMessageTime(message.getCreateTime());
+        conversationMapper.update(conversation);
+
+        SysUser sender = operatorId != null ? sysUserMapper.selectOneById(operatorId) : null;
+        return toMessageVO(message, sender, operatorId);
+    }
+
     /**
      * 按会话最新一条消息刷新会话列表预览（撤回后可能仍是该条，也可能需回退到更早消息）。
      */
@@ -838,6 +871,7 @@ public class ChatServiceImpl implements ChatService {
             case ImMessage.TYPE_VOICE -> "[语音]";
             case ImMessage.TYPE_RED_PACKET -> "[红包] " + (message.getFileName() != null ? message.getFileName() : "恭喜发财");
             case ImMessage.TYPE_RECALL -> "撤回了一条消息";
+            case ImMessage.TYPE_SYSTEM -> message.getContent() != null ? message.getContent() : "[系统消息]";
             default -> message.getContent();
         };
     }

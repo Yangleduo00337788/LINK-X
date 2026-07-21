@@ -57,6 +57,7 @@ import { useGroupMetaStore } from '../stores/groupMeta'
 // 通话 Store（真实 WebRTC）
 import { useCallStore } from '../stores/call'
 import { useI18n } from '../i18n'
+import { formatMessageDivider, MESSAGE_TIME_GAP_MS } from '../utils/chatTime'
 
 // 获取 Naive UI 消息提示实例
 const message = useMessage()
@@ -178,10 +179,43 @@ watch(
   { immediate: true }
 )
 
-// 过滤掉系统消息，仅展示用户可见消息
-const chatMessages = computed(() =>
-  currentMessages.value.filter(m => m.type !== 'system')
-)
+// 插入时间分割线（首条 + 间隔超过 5 分钟）
+const chatMessages = computed(() => {
+  const list = currentMessages.value
+  const result: ChatMessage[] = []
+  let lastMs = 0
+  for (const m of list) {
+    const ms = m.createTime || 0
+    if (m.type !== 'time' && ms && lastMs && ms - lastMs >= MESSAGE_TIME_GAP_MS) {
+      result.push({
+        id: `time-${m.id}`,
+        sessionId: m.sessionId,
+        content: formatMessageDivider(ms),
+        time: m.time,
+        createTime: ms,
+        isSelf: false,
+        type: 'time'
+      })
+    }
+    result.push(m)
+    if (ms) lastMs = ms
+  }
+  if (result.length > 0 && result[0].type !== 'time') {
+    const first = result.find(m => m.type !== 'time')
+    if (first?.createTime) {
+      result.unshift({
+        id: `time-start-${first.id}`,
+        sessionId: first.sessionId,
+        content: formatMessageDivider(first.createTime),
+        time: first.time,
+        createTime: first.createTime,
+        isSelf: false,
+        type: 'time'
+      })
+    }
+  }
+  return result
+})
 
 /** 是否贴底：仅贴底时新消息才自动滚到底，避免上拉历史被拽回底部 */
 const stickToBottom = ref(true)

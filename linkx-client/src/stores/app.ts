@@ -671,7 +671,8 @@ export const useAppStore = defineStore('app', {
       if (session) {
         session.lastMessage = messagePreviewFromItem(message)
         session.time = chatMsg.time
-        if (!exists && this.currentSessionId !== sessionId) {
+        // 系统提示不计未读、不响铃
+        if (!exists && message.type !== 'system' && this.currentSessionId !== sessionId) {
           const settings = useAppSettingsStore()
           if (
             shouldAlertForSession(session, message, {
@@ -688,8 +689,8 @@ export const useAppStore = defineStore('app', {
         void this.loadChatSessions()
       }
 
-      // 新消息才提醒（声音 / 桌面通知，受消息通知偏好控制）
-      if (!exists) {
+      // 新消息才提醒（声音 / 桌面通知，受消息通知偏好控制）；系统提示静默
+      if (!exists && message.type !== 'system') {
         notifyIncomingMessage({
           message,
           session,

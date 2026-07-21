@@ -9,6 +9,31 @@ export function formatChatTime(timestamp?: string | number | null): string {
 }
 
 /**
+ * 消息列表时间分割线文案（今天 HH:mm / 昨天 HH:mm / M月D日 HH:mm / YYYY年M月D日 HH:mm）
+ */
+export function formatMessageDivider(timestamp?: string | number | null): string {
+  const ms = typeof timestamp === 'string' ? Number(timestamp) : timestamp
+  if (!ms || !Number.isFinite(ms)) return ''
+  const date = new Date(ms)
+  const now = new Date()
+  const hm = formatChatTime(ms)
+
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const startOfThat = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+  const dayDiff = Math.round((startOfToday - startOfThat) / (24 * 60 * 60 * 1000))
+
+  if (dayDiff === 0) return hm
+  if (dayDiff === 1) return `昨天 ${hm}`
+  if (date.getFullYear() === now.getFullYear()) {
+    return `${date.getMonth() + 1}月${date.getDate()}日 ${hm}`
+  }
+  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${hm}`
+}
+
+/** 两条消息间隔超过此时长则插入时间分割线（毫秒） */
+export const MESSAGE_TIME_GAP_MS = 5 * 60 * 1000
+
+/**
  * 将时间戳格式化为相对时间描述（中文）。
  * - 1 分钟内: "刚刚"
  * - 1-59 分钟: "N 分钟前"
