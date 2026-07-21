@@ -666,6 +666,19 @@ public class GroupServiceImpl implements GroupService {
         }
 
         boolean muteAllActive = isMuteAllActive(group, now);
+        // 仅下发未结束的定时计划；已过期的 start/end 不返回，避免前端开关关着仍显示「定时」
+        Long scheduleStart = null;
+        Long scheduleEnd = null;
+        if (group.getMuteAllEnd() != null && now.before(group.getMuteAllEnd())) {
+            scheduleStart = group.getMuteAllStart() != null ? group.getMuteAllStart().getTime() : null;
+            scheduleEnd = group.getMuteAllEnd().getTime();
+        } else if (group.getMuteAllEnd() != null && !now.before(group.getMuteAllEnd())) {
+            // 读时懒清理：定时已结束但 cron 尚未扫到
+            group.setMuteAll(0);
+            group.setMuteAllStart(null);
+            group.setMuteAllEnd(null);
+            conversationMapper.update(group);
+        }
         String signedAvatar = mediaUrlService.resolve(group.getAvatar());
         List<GroupMemberAvatarVO> memberAvatars = loadGroupMemberAvatarPreviews(Set.of(group.getId()))
                 .getOrDefault(group.getId(), List.of());
@@ -683,8 +696,8 @@ public class GroupServiceImpl implements GroupService {
                 .lastMessageTime(group.getLastMessageTime() != null ? group.getLastMessageTime().getTime() : null)
                 .myRemark(myRemark)
                 .muteAll(muteAllActive)
-                .muteAllStart(group.getMuteAllStart() != null ? group.getMuteAllStart().getTime() : null)
-                .muteAllEnd(group.getMuteAllEnd() != null ? group.getMuteAllEnd().getTime() : null)
+                .muteAllStart(scheduleStart)
+                .muteAllEnd(scheduleEnd)
                 .meMuted(meMuted)
                 .meMuteUntil(meMuteUntil)
                 .build();

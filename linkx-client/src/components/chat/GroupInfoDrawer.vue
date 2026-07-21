@@ -318,6 +318,27 @@ const muteState = computed(() => {
   return id ? groupMetaStore.muteStateFor(id) : { muteAll: false, meMuted: false }
 })
 
+/** 仅未结束的定时计划才展示（过期时段不挂在开关下方） */
+const activeMuteSchedule = computed(() => {
+  const end = muteState.value.muteAllEnd
+  const start = muteState.value.muteAllStart
+  if (!end || end <= Date.now()) return null
+  return { start, end }
+})
+
+const muteScheduleHint = computed(() => {
+  const s = activeMuteSchedule.value
+  if (!s) return ''
+  const endText = new Date(s.end).toLocaleString()
+  if (s.start && s.start > Date.now()) {
+    return t('modals.scheduleMuteUpcoming', {
+      start: new Date(s.start).toLocaleString(),
+      end: endText
+    })
+  }
+  return t('modals.scheduleMuteUntil', { end: endText })
+})
+
 const muteAllSaving = ref(false)
 const schedulePanelOpen = ref(false)
 const memberMutePanelOpen = ref(false)
@@ -566,38 +587,20 @@ function reportGroup() {
                     />
                   </div>
                   <p class="hint">{{ t('modals.muteAllHint') }}</p>
-                  <p
-                    v-if="muteState.muteAllStart && muteState.muteAllEnd"
-                    class="hint schedule-hint"
-                  >
-                    {{
-                      t('modals.scheduleMuteActive', {
-                        start: new Date(muteState.muteAllStart).toLocaleString(),
-                        end: new Date(muteState.muteAllEnd).toLocaleString()
-                      })
-                    }}
-                  </p>
+                  <p v-if="muteScheduleHint" class="hint schedule-hint">{{ muteScheduleHint }}</p>
+                  <div class="mute-actions">
+                    <button type="button" class="link-btn" @click="openScheduleMute">
+                      {{ t('modals.scheduleMute') }}
+                    </button>
+                    <button type="button" class="link-btn" @click="openMemberMutePanel">
+                      {{ t('modals.muteMembers') }}
+                    </button>
+                  </div>
                 </template>
               </div>
 
               <!-- 危险操作与举报 -->
               <button type="button" class="action-btn" @click="clearChat">{{ t('modals.clearChatHistory') }}</button>
-              <button
-                v-if="isAdminOrOwner"
-                type="button"
-                class="action-btn"
-                @click="openScheduleMute"
-              >
-                {{ t('modals.scheduleMute') }}
-              </button>
-              <button
-                v-if="isAdminOrOwner"
-                type="button"
-                class="action-btn"
-                @click="openMemberMutePanel"
-              >
-                {{ t('modals.muteMembers') }}
-              </button>
               <button
                 v-if="!isOwner"
                 type="button"
@@ -1130,6 +1133,29 @@ function reportGroup() {
 
 .schedule-hint {
   margin-top: 4px !important;
+}
+
+.mute-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.link-btn {
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  color: var(--lx-accent, #12b7f5);
+  font-size: 13px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.link-btn:hover {
+  opacity: 0.85;
+  text-decoration: underline;
 }
 
 .chat-drawer-enter-active,

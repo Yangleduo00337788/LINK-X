@@ -654,6 +654,8 @@ export default {
     scheduleMuteOk: 'Scheduled mute set',
     scheduleMuteFail: 'Failed to set scheduled mute',
     scheduleMuteActive: 'Scheduled: {start} ~ {end}',
+    scheduleMuteUpcoming: 'Scheduled: {start} ~ {end}',
+    scheduleMuteUntil: 'Muted until {end}',
     muteMembers: 'Mute members',
     muteMembersHint: 'Muted members cannot speak in the group',
     muteMembersEmpty: 'No members available to mute',

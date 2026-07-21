@@ -657,6 +657,8 @@ export default {
     scheduleMuteOk: '已设置定时禁言',
     scheduleMuteFail: '设置定时禁言失败',
     scheduleMuteActive: '定时：{start} ~ {end}',
+    scheduleMuteUpcoming: '已预约：{start} 开启，至 {end} 结束',
+    scheduleMuteUntil: '定时禁言至 {end}',
     muteMembers: '成员禁言',
     muteMembersHint: '被禁言成员无法在群内发言',
     muteMembersEmpty: '暂无可禁言成员',

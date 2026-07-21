@@ -223,10 +223,13 @@ export const useGroupMetaStore = defineStore('groupMeta', {
     },
 
     applyMuteFromGroupInfo(sessionId: string, data: groupApi.GroupInfo) {
+      const end = data.muteAllEnd != null ? Number(data.muteAllEnd) : undefined
+      const start = data.muteAllStart != null ? Number(data.muteAllStart) : undefined
+      const scheduleValid = end != null && end > Date.now()
       this.muteState[sessionId] = {
         muteAll: !!data.muteAll,
-        muteAllStart: data.muteAllStart != null ? Number(data.muteAllStart) : undefined,
-        muteAllEnd: data.muteAllEnd != null ? Number(data.muteAllEnd) : undefined,
+        muteAllStart: scheduleValid ? start : undefined,
+        muteAllEnd: scheduleValid ? end : undefined,
         meMuted: !!data.meMuted,
         meMuteUntil: data.meMuteUntil != null ? Number(data.meMuteUntil) : undefined
       }
