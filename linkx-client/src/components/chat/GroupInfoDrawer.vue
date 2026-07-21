@@ -277,7 +277,7 @@ function reportGroup() {
     <div v-if="groupInfoDrawerOpen" class="drawer-root" @click.self="close">
       <aside class="drawer-panel" @click.stop>
         <div class="drawer-scroll">
-              <!-- 群头部：头像、名称、群号、分享 -->
+              <!-- 群头部：左侧头像，右侧名称/群号/分享 -->
               <div class="group-hero">
                 <GroupAvatar
                   :text="currentSession?.avatarText || t('modals.groupChar')"
@@ -290,15 +290,17 @@ function reportGroup() {
                     imageUrl: m.avatarUrl
                   }))"
                 />
-                <h2 class="g-name">{{ currentSession?.name || t('modals.groupChat') }}</h2>
-                <p
-                  v-if="currentSession?.groupRemark && currentSession?.groupName"
-                  class="g-real-name"
-                >
-                  {{ t('modals.groupRealName', { name: currentSession.groupName }) }}
-                </p>
-                <p class="g-id">{{ t('modals.groupIdLabel', { id: groupId }) }}</p>
-                <button type="button" class="share-btn" @click="shareGroup">{{ t('modals.share') }}</button>
+                <div class="hero-meta">
+                  <h2 class="g-name">{{ currentSession?.name || t('modals.groupChat') }}</h2>
+                  <p
+                    v-if="currentSession?.groupRemark && currentSession?.groupName"
+                    class="g-real-name"
+                  >
+                    {{ t('modals.groupRealName', { name: currentSession.groupName }) }}
+                  </p>
+                  <p class="g-id">{{ t('modals.groupIdLabel', { id: groupId }) }}</p>
+                  <button type="button" class="share-btn" @click="shareGroup">{{ t('modals.share') }}</button>
+                </div>
               </div>
 
               <!-- 成员头像网格 -->
@@ -464,14 +466,25 @@ function reportGroup() {
 }
 
 .group-hero {
-  text-align: center;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--lx-border-light);
   margin-bottom: 12px;
 }
 
-.group-hero :deep(.avatar) {
-  margin: 0 auto 10px;
+.group-hero :deep(.avatar),
+.group-hero :deep(.group-avatar) {
+  flex-shrink: 0;
+}
+
+.hero-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
 
 .g-name {
@@ -480,6 +493,10 @@ function reportGroup() {
   font-weight: 600;
   color: var(--lx-text-body);
   line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
 }
 
 .g-real-name {
@@ -489,14 +506,15 @@ function reportGroup() {
 }
 
 .g-id {
-  margin: 0 0 12px;
+  margin: 0 0 10px;
   font-size: 12px;
   color: var(--lx-text-muted);
 }
 
 .share-btn {
-  min-width: 88px;
-  height: 32px;
+  min-width: 72px;
+  height: 28px;
+  padding: 0 14px;
   border-radius: var(--lx-radius);
   border: 1px solid var(--lx-border-strong);
   background: var(--lx-bg-card);
