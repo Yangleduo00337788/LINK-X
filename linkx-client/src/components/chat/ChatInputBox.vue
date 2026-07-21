@@ -775,14 +775,21 @@ defineExpose({
   display: none !important;
 }
 
-.message-input :deep(.n-input__textarea-el) {
+.message-input :deep(.n-input__textarea-el),
+.message-input :deep(.n-input__placeholder),
+.message-input :deep(.n-input__textarea-mirror) {
   min-height: 72px !important;
   background: transparent !important;
   font-size: 14px;
   line-height: 1.55;
+  /* 与 textarea 同步去掉 Naive 默认上下 padding，避免光标与占位文字错位 */
   padding: 0 !important;
   color: var(--lx-text);
   resize: none;
+}
+
+.message-input :deep(.n-input__placeholder) {
+  color: var(--n-placeholder-color);
 }
 
 .send-btn {
