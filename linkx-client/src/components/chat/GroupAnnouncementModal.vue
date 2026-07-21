@@ -39,10 +39,17 @@ const canEdit = computed(() => {
   return members.some(m => m.id === me && (m.role === 'owner' || m.role === 'admin'))
 })
 
-watch(groupAnnouncementOpen, open => {
+watch(groupAnnouncementOpen, async open => {
   if (open && currentSessionId.value) {
     void groupMetaStore.fetchMembers(currentSessionId.value)
-    void groupMetaStore.fetchAnnouncements(currentSessionId.value, true)
+    await groupMetaStore.fetchAnnouncements(currentSessionId.value, true)
+    // 无公告且有权限时直接进入发布，方便 CRUD
+    if (canEdit.value && !(groupMetaStore.announcements[currentSessionId.value]?.length)) {
+      composing.value = true
+      editingId.value = null
+      draft.value = ''
+      draftPinned.value = true
+    }
   }
   if (!open) {
     composing.value = false

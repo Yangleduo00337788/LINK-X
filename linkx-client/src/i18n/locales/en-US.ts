@@ -998,6 +998,7 @@ export default {
     announcementDisplayHint: 'Sidebar shows the pinned announcement; otherwise the latest one',
     groupAnnouncementTitle: 'Announcement - {name}',
     publishAnnouncement: 'Publish',
+    manageAnnouncement: 'Tap to manage',
     announcementPh: 'Write a group announcement…',
     pinOnPublish: 'Pin after publishing',
     pinAnnouncement: 'Pin',

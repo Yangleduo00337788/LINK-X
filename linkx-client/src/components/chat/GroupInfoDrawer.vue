@@ -40,11 +40,24 @@ const groupRemark = ref('')
 const groupNameInput = ref('')
 const savingName = ref(false)
 
-/** 群公告短文本 */
+/** 群公告短文本（无内容时显示占位，保证入口可点） */
 const announcement = computed(() => {
   const id = currentSessionId.value
-  return id ? groupMetaStore.announcementShort(id) : ''
+  if (!id) return t('extra.noAnnouncement')
+  const text = groupMetaStore.announcementShort(id)
+  return text || t('extra.noAnnouncement')
 })
+
+const announcementEmpty = computed(() => {
+  const id = currentSessionId.value
+  if (!id) return true
+  return !groupMetaStore.announcementShort(id)
+})
+
+/** 打开群公告管理（CRUD 弹窗）；无公告时管理员可直接发布 */
+function openAnnouncementManage() {
+  openGroupAnnouncement()
+}
 
 /** 切换会话或备注异步加载完成后，回填输入框 */
 watch(
@@ -420,11 +433,17 @@ function reportGroup() {
                 <p v-if="!isOwner" class="field-hint">{{ t('modals.groupNameOwnerOnly') }}</p>
               </section>
 
-              <!-- 群公告 -->
+              <!-- 群公告：点击进入 CRUD 弹窗 -->
               <section class="block">
-                <h3 class="block-title">{{ t('chat.groupAnnouncement') }}</h3>
-                <button type="button" class="announce announce-btn" @click="openGroupAnnouncement">
-                  {{ announcement }}
+                <button type="button" class="announce-row" @click="openAnnouncementManage">
+                  <div class="announce-row-main">
+                    <h3 class="block-title">{{ t('chat.groupAnnouncement') }}</h3>
+                    <p class="announce" :class="{ empty: announcementEmpty }">{{ announcement }}</p>
+                    <p v-if="isAdminOrOwner" class="announce-action-hint">
+                      {{ announcementEmpty ? t('extra.publishAnnouncement') : t('extra.manageAnnouncement') }}
+                    </p>
+                  </div>
+                  <span class="announce-arrow">›</span>
                 </button>
               </section>
 
@@ -721,24 +740,52 @@ function reportGroup() {
   font-weight: 600;
 }
 
+.announce-row {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+
+.announce-row-main {
+  flex: 1;
+  min-width: 0;
+}
+
 .announce {
   margin: 0;
   font-size: 12px;
   line-height: 1.5;
   color: var(--lx-text-secondary);
   word-break: break-all;
+  min-height: 18px;
 }
 
-.announce-btn {
-  width: 100%;
-  text-align: left;
-  border: none;
-  background: transparent;
-  padding: 0;
-  cursor: pointer;
+.announce.empty {
+  color: var(--lx-text-muted);
 }
 
-.announce-btn:hover {
+.announce-action-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--lx-accent);
+}
+
+.announce-arrow {
+  flex-shrink: 0;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--lx-text-muted);
+  margin-top: 2px;
+}
+
+.announce-row:hover .announce-arrow {
   color: var(--lx-accent);
 }
 

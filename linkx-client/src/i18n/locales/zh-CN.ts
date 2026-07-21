@@ -1001,6 +1001,7 @@ export default {
     announcementDisplayHint: '侧栏展示置顶公告；无置顶时展示最新一条',
     groupAnnouncementTitle: '群公告 - {name}',
     publishAnnouncement: '发布公告',
+    manageAnnouncement: '点击管理公告',
     announcementPh: '填写群公告内容…',
     pinOnPublish: '发布后置顶',
     pinAnnouncement: '置顶',

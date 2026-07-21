@@ -43,7 +43,15 @@ const collapsed = ref(localStorage.getItem(COLLAPSE_KEY) === '1')
 /** 当前群公告短文本 */
 const announcementText = computed(() => {
   const id = currentSessionId.value
-  return id ? groupMetaStore.announcementShort(id) : ''
+  if (!id) return t('extra.noAnnouncement')
+  const text = groupMetaStore.announcementShort(id)
+  return text || t('extra.noAnnouncement')
+})
+
+const announcementIsEmpty = computed(() => {
+  const id = currentSessionId.value
+  if (!id) return true
+  return !groupMetaStore.announcementShort(id)
 })
 
 /** 当前群全部成员（只读 store，避免在 computed 里反复触发 fetch） */
@@ -165,7 +173,12 @@ function onMemberClick(m: GroupMember) {
             <n-icon :component="ChevronForwardOutline" :size="18" />
           </button>
         </div>
-        <button type="button" class="announce-text-btn" @click="openGroupAnnouncement">
+        <button
+          type="button"
+          class="announce-text-btn"
+          :class="{ empty: announcementIsEmpty }"
+          @click="openGroupAnnouncement"
+        >
           {{ announcementText }}
         </button>
       </section>
@@ -321,6 +334,11 @@ function onMemberClick(m: GroupMember) {
   color: var(--lx-text-secondary);
   word-break: break-all;
   cursor: pointer;
+  min-height: 18px;
+}
+
+.announce-text-btn.empty {
+  color: var(--lx-text-muted);
 }
 
 .announce-text-btn:hover {
