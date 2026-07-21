@@ -23,4 +23,10 @@ public class GroupMemberVO {
     private String role;
 
     private Long joinTime;
+
+    /** 是否禁言中 */
+    private Boolean muted;
+
+    /** 禁言截止时间（毫秒，可空） */
+    private Long muteUntil;
 }

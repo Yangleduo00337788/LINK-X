@@ -80,6 +80,13 @@ const isOwner = computed(() => {
   return members.value.some(m => m.id === me && m.role === 'owner')
 })
 
+/** 群主或管理员 */
+const isAdminOrOwner = computed(() => {
+  const me = userProfile.value.userId
+  if (!me) return false
+  return members.value.some(m => m.id === me && (m.role === 'owner' || m.role === 'admin'))
+})
+
 /** 切换成员搜索框显示，关闭时清空关键词 */
 function toggleMemberSearch() {
   showMemberSearch.value = !showMemberSearch.value
@@ -101,30 +108,32 @@ function apiErrorMessage(e: unknown, fallback: string): string {
   return ax.response?.data?.message || ax.message || fallback
 }
 
-/** 群主点击成员：设为 / 取消管理员 */
-function onMemberClick(m: GroupMember) {
-  if (!isOwner.value || !currentSessionId.value) return
+function canManageMember(m: GroupMember): boolean {
   const me = userProfile.value.userId
-  if (!me || m.id === me || m.role === 'owner') return
+  if (!me || m.id === me || m.role === 'owner') return false
+  if (isOwner.value) return true
+  if (isAdminOrOwner.value && m.role !== 'admin') return true
+  return false
+}
 
-  const isAdmin = m.role === 'admin'
+/** 群主/管理员点击成员：禁言或解除禁言 */
+function onMemberClick(m: GroupMember) {
+  if (!currentSessionId.value || !canManageMember(m)) return
+
+  const muted = !!m.muted
   dialog.warning({
-    title: isAdmin ? t('modals.unsetAdmin') : t('modals.setAdmin'),
-    content: isAdmin
-      ? t('modals.unsetAdminConfirm', { name: m.name })
-      : t('modals.setAdminConfirm', { name: m.name }),
+    title: muted ? t('modals.unmuteMember') : t('modals.muteMember'),
+    content: muted
+      ? t('modals.unmuteMemberConfirm', { name: m.name })
+      : t('modals.muteMemberConfirm', { name: m.name }),
     positiveText: t('common.confirm'),
     negativeText: t('common.cancel'),
     onPositiveClick: async () => {
       try {
-        await appStore.updateMemberRole(
-          currentSessionId.value!,
-          m.id,
-          isAdmin ? 'member' : 'admin'
-        )
-        message.success(isAdmin ? t('modals.unsetAdminOk') : t('modals.setAdminOk'))
+        await groupMetaStore.setMemberMute(currentSessionId.value!, m.id, !muted)
+        message.success(muted ? t('modals.unmuteMemberOk') : t('modals.muteMemberOk'))
       } catch (e) {
-        message.error(apiErrorMessage(e, t('modals.setAdminFail')))
+        message.error(apiErrorMessage(e, t('modals.muteMemberFail')))
       }
     }
   })
@@ -184,13 +193,14 @@ function onMemberClick(m: GroupMember) {
             v-for="m in filteredMembers"
             :key="m.id"
             class="member-row"
-            :class="{ clickable: isOwner && m.role !== 'owner' && m.id !== userProfile.userId }"
+            :class="{ clickable: canManageMember(m) }"
             @click="onMemberClick(m)"
           >
             <Avatar :text="m.avatarText" :color="m.avatarColor" :image-url="m.avatarUrl" :size="36" />
             <div class="m-info">
               <span class="m-name">{{ m.name }}</span>
               <span v-if="m.badge" class="m-badge">{{ m.badge }}</span>
+              <span v-else-if="m.muted" class="m-badge muted-badge">{{ t('modals.mutedBadge') }}</span>
             </div>
           </div>
         </div>
@@ -401,5 +411,9 @@ function onMemberClick(m: GroupMember) {
 .m-badge {
   font-size: 11px;
   color: var(--lx-accent);
+}
+
+.muted-badge {
+  color: var(--lx-danger);
 }
 </style>

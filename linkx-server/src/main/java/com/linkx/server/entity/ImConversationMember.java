@@ -41,6 +41,16 @@ public class ImConversationMember implements Serializable {
     /** 用户对本群的备注（仅自己可见，多端同步） */
     private String remark;
 
+    /**
+     * 是否被禁言（1=是）
+     */
+    private Integer muted;
+
+    /**
+     * 禁言截止时间；为空表示需手动解除
+     */
+    private Date muteUntil;
+
     @Column(onInsertValue = "NOW()")
     private Date createTime;
 

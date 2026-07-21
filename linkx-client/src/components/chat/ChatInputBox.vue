@@ -7,7 +7,7 @@
  * </p>
  */
 // Vue 响应式 API
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 // Naive UI 组件与消息提示
 import { NIcon, NInput, NPopover, useMessage } from 'naive-ui'
 // 工具栏图标（Ionicons5）
@@ -71,6 +71,27 @@ const { sendMessage } = appStore
 const { openRedPacket } = chatModalsStore
 const callStore = useCallStore()
 
+/** 群聊禁言：无法发言时禁用输入 */
+const speakForbidden = computed(() => {
+  if (!props.isGroupChat || !currentSessionId.value) return false
+  return groupMetaStore.isSpeakForbidden(currentSessionId.value, userProfile.value.userId)
+})
+
+const inputDisabled = computed(
+  () => !!currentSession.value?.blocked || speakForbidden.value
+)
+
+const inputPlaceholder = computed(() => {
+  if (currentSession.value?.blocked) return t('chat.blocked')
+  if (speakForbidden.value) {
+    const mute = groupMetaStore.muteStateFor(currentSessionId.value || '')
+    if (mute.meMuted) return t('chat.mutedSpeak')
+    if (mute.muteAll) return t('chat.muteAllSpeak')
+    return t('chat.mutedSpeak')
+  }
+  return t('chat.inputPlaceholder')
+})
+
 /** 从输入栏发起语音通话 */
 async function startVoiceCall() {
   const session = currentSession.value
@@ -118,6 +139,11 @@ const emojis = [...CHAT_EMOJIS]
 function ensureCanSend(): boolean {
   if (currentSession.value?.blocked) {
     message.warning(t('chat.blockedSend'))
+    return false
+  }
+  if (speakForbidden.value) {
+    const mute = groupMetaStore.muteStateFor(currentSessionId.value || '')
+    message.warning(mute.meMuted ? t('chat.mutedSpeak') : t('chat.muteAllSpeak'))
     return false
   }
   return true
@@ -395,9 +421,8 @@ defineExpose({
           v-model:value="inputValue"
           type="textarea"
           :autosize="{ minRows: 3, maxRows: 8 }"
-          :placeholder="
-            currentSession?.blocked ? t('chat.blocked') : t('chat.inputPlaceholder')
-          "
+          :placeholder="inputPlaceholder"
+          :disabled="inputDisabled"
           class="message-input"
           :bordered="false"
           @keydown.enter="onEnter"

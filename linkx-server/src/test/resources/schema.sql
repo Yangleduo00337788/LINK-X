@@ -58,6 +58,9 @@ CREATE TABLE IF NOT EXISTS im_conversation (
   name VARCHAR(128),
   avatar VARCHAR(255),
   owner_id BIGINT,
+  mute_all TINYINT NOT NULL DEFAULT 0,
+  mute_all_start DATETIME,
+  mute_all_end DATETIME,
   last_message_content VARCHAR(500),
   last_message_time DATETIME,
   create_time DATETIME,
@@ -72,6 +75,8 @@ CREATE TABLE IF NOT EXISTS im_conversation_member (
   user_id BIGINT NOT NULL,
   role TINYINT NOT NULL DEFAULT 0,
   remark VARCHAR(64),
+  muted TINYINT NOT NULL DEFAULT 0,
+  mute_until DATETIME,
   create_time DATETIME,
   update_time DATETIME,
   deleted TINYINT NOT NULL DEFAULT 0

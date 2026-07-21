@@ -15,6 +15,11 @@ export interface GroupInfo {
   lastMessageTime?: string | number
   /** 当前用户对本群备注 */
   myRemark?: string
+  muteAll?: boolean
+  muteAllStart?: number
+  muteAllEnd?: number
+  meMuted?: boolean
+  meMuteUntil?: number
 }
 
 export interface GroupMember {
@@ -23,6 +28,8 @@ export interface GroupMember {
   avatar?: string
   role: 'owner' | 'admin' | 'member'
   joinTime?: string | number
+  muted?: boolean
+  muteUntil?: number
 }
 
 export interface CreateGroupPayload {
@@ -131,6 +138,30 @@ export function updateMemberRole(
   return apiClient.put<never, ApiResult<null>>(`/group/${conversationId}/members/${memberId}/role`, {
     role
   })
+}
+
+/**
+ * 全体禁言 / 定时全体禁言
+ */
+export function updateMuteAll(
+  conversationId: string,
+  payload: { enabled?: boolean; startTime?: number; endTime?: number }
+) {
+  return apiClient.put<never, ApiResult<GroupInfo>>(`/group/${conversationId}/mute-all`, payload)
+}
+
+/**
+ * 指定成员禁言
+ */
+export function updateMemberMute(
+  conversationId: string,
+  memberId: string,
+  payload: { muted: boolean; muteUntil?: number }
+) {
+  return apiClient.put<never, ApiResult<null>>(
+    `/group/${conversationId}/members/${memberId}/mute`,
+    payload
+  )
 }
 
 /**

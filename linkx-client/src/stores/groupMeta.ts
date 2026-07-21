@@ -45,6 +45,17 @@ export interface GroupMember {
   badge?: string
   avatarUrl?: string
   role?: 'owner' | 'admin' | 'member'
+  muted?: boolean
+  muteUntil?: number
+}
+
+/** 群禁言状态 */
+export interface GroupMuteState {
+  muteAll: boolean
+  muteAllStart?: number
+  muteAllEnd?: number
+  meMuted: boolean
+  meMuteUntil?: number
 }
 
 /** 群共享文件项 */
@@ -103,6 +114,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
     essence: {} as Record<string, GroupEssenceItem[]>,
     members: {} as Record<string, GroupMember[]>,
     remarks: {} as Record<string, string>,
+    muteState: {} as Record<string, GroupMuteState>,
     files: {} as Record<string, GroupFileItem[]>,
     albums: {} as Record<string, GroupAlbumItem[]>,
     /** 用户创建的空相册名（尚无图片时也要展示） */
@@ -131,7 +143,9 @@ export const useGroupMetaStore = defineStore('groupMeta', {
             avatarColor: '#12b7f5',
             avatarUrl: normalizeMediaUrl(m.avatar) || undefined,
             role: m.role,
-            badge: m.role === 'owner' ? '群主' : m.role === 'admin' ? '管理员' : undefined
+            badge: m.role === 'owner' ? '群主' : m.role === 'admin' ? '管理员' : undefined,
+            muted: !!m.muted,
+            muteUntil: m.muteUntil != null ? Number(m.muteUntil) : undefined
           }))
           try {
             const { useAppStore } = await import('./app')
@@ -167,6 +181,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
       try {
         const res = await groupApi.getGroupInfo(sessionId)
         if (res.code === 200 && res.data) {
+          this.applyMuteFromGroupInfo(sessionId, res.data)
           if (res.data.myRemark != null) {
             this.remarks[sessionId] = res.data.myRemark
             try {
@@ -205,6 +220,70 @@ export const useGroupMetaStore = defineStore('groupMeta', {
         this.loading[`group-info-${sessionId}`] = false
       }
       void this.fetchAnnouncementDisplay(sessionId)
+    },
+
+    applyMuteFromGroupInfo(sessionId: string, data: groupApi.GroupInfo) {
+      this.muteState[sessionId] = {
+        muteAll: !!data.muteAll,
+        muteAllStart: data.muteAllStart != null ? Number(data.muteAllStart) : undefined,
+        muteAllEnd: data.muteAllEnd != null ? Number(data.muteAllEnd) : undefined,
+        meMuted: !!data.meMuted,
+        meMuteUntil: data.meMuteUntil != null ? Number(data.meMuteUntil) : undefined
+      }
+    },
+
+    muteStateFor(sessionId: string): GroupMuteState {
+      return (
+        this.muteState[sessionId] || {
+          muteAll: false,
+          meMuted: false
+        }
+      )
+    },
+
+    /** 当前用户在该群是否无法发言（非特权且全体禁言 / 个人禁言） */
+    isSpeakForbidden(sessionId: string, myUserId: string | undefined): boolean {
+      if (!sessionId || !myUserId) return false
+      const mute = this.muteStateFor(sessionId)
+      const members = this.members[sessionId] || []
+      const me = members.find(m => m.id === myUserId)
+      const privileged = me?.role === 'owner' || me?.role === 'admin'
+      if (mute.meMuted) return true
+      if (mute.muteAll && !privileged) return true
+      return false
+    },
+
+    async setMuteAll(
+      sessionId: string,
+      payload: { enabled?: boolean; startTime?: number; endTime?: number }
+    ): Promise<void> {
+      const res = await groupApi.updateMuteAll(sessionId, payload)
+      if (res.code !== 200) {
+        throw new Error(res.message || '设置全体禁言失败')
+      }
+      if (res.data) {
+        this.applyMuteFromGroupInfo(sessionId, res.data)
+      } else {
+        await this.fetchAnnouncement(sessionId)
+      }
+    },
+
+    async setMemberMute(
+      sessionId: string,
+      memberId: string,
+      muted: boolean,
+      muteUntil?: number
+    ): Promise<void> {
+      const res = await groupApi.updateMemberMute(sessionId, memberId, {
+        muted,
+        muteUntil
+      })
+      if (res.code !== 200) {
+        throw new Error(res.message || '设置成员禁言失败')
+      }
+      await this.fetchMembers(sessionId, true)
+      // 若操作的是自己（理论上不应），或刷新我的禁言状态
+      await this.fetchAnnouncement(sessionId)
     },
 
     mapAnnouncement(a: GroupAnnouncementVO): GroupAnnouncementItem {
@@ -685,6 +764,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
       delete this.essence[sessionId]
       delete this.members[sessionId]
       delete this.remarks[sessionId]
+      delete this.muteState[sessionId]
       delete this.files[sessionId]
       delete this.albums[sessionId]
       delete this.albumFolders[sessionId]

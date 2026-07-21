@@ -2,7 +2,10 @@ package com.linkx.server.service;
 
 import com.linkx.server.controller.dto.AddGroupMembersDTO;
 import com.linkx.server.controller.dto.CreateGroupDTO;
+import com.linkx.server.controller.dto.MuteAllDTO;
+import com.linkx.server.controller.dto.MuteMemberDTO;
 import com.linkx.server.controller.dto.UpdateGroupDTO;
+import com.linkx.server.controller.dto.UpdateGroupRemarkDTO;
 import com.linkx.server.controller.vo.ConversationVO;
 import com.linkx.server.controller.vo.GroupConversationVO;
 import com.linkx.server.controller.vo.GroupMemberVO;
@@ -68,6 +71,21 @@ public interface GroupService {
      * 设置或取消管理员（仅群主；role 仅允许 admin / member）
      */
     void updateMemberRole(Long userId, Long conversationId, Long memberId, String role);
+
+    /**
+     * 全体禁言或定时全体禁言（群主/管理员）
+     */
+    GroupConversationVO updateMuteAll(Long userId, Long conversationId, MuteAllDTO dto);
+
+    /**
+     * 指定成员禁言（群主/管理员）
+     */
+    void updateMemberMute(Long userId, Long conversationId, Long memberId, MuteMemberDTO dto);
+
+    /**
+     * 定时任务：按计划开关全体禁言、清理到期成员禁言
+     */
+    void applyMuteSchedules();
 
     /**
      * 更新当前用户对本群的备注

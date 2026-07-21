@@ -5,6 +5,8 @@ import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.Result;
 import com.linkx.server.controller.dto.AddGroupMembersDTO;
 import com.linkx.server.controller.dto.CreateGroupDTO;
+import com.linkx.server.controller.dto.MuteAllDTO;
+import com.linkx.server.controller.dto.MuteMemberDTO;
 import com.linkx.server.controller.dto.UpdateGroupDTO;
 import com.linkx.server.controller.dto.UpdateGroupRemarkDTO;
 import com.linkx.server.controller.dto.UpdateMemberRoleDTO;
@@ -157,6 +159,32 @@ public class GroupController {
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         groupService.updateMemberRole(userId, parseId(conversationId), parseId(memberId), dto.getRole());
+        return Result.success(null);
+    }
+
+    /**
+     * 全体禁言 / 定时全体禁言（群主或管理员）
+     */
+    @PutMapping("/{conversationId}/mute-all")
+    public Result<GroupConversationVO> updateMuteAll(
+            @PathVariable String conversationId,
+            @RequestBody MuteAllDTO dto,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(groupService.updateMuteAll(userId, parseId(conversationId), dto));
+    }
+
+    /**
+     * 指定成员禁言（群主或管理员）
+     */
+    @PutMapping("/{conversationId}/members/{memberId}/mute")
+    public Result<Void> updateMemberMute(
+            @PathVariable String conversationId,
+            @PathVariable String memberId,
+            @Valid @RequestBody MuteMemberDTO dto,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        groupService.updateMemberMute(userId, parseId(conversationId), parseId(memberId), dto);
         return Result.success(null);
     }
 

@@ -2,6 +2,8 @@ package com.linkx.server.service.impl;
 
 import com.linkx.server.controller.dto.AddGroupMembersDTO;
 import com.linkx.server.controller.dto.CreateGroupDTO;
+import com.linkx.server.controller.dto.MuteAllDTO;
+import com.linkx.server.controller.dto.MuteMemberDTO;
 import com.linkx.server.controller.dto.UpdateGroupDTO;
 import com.linkx.server.controller.vo.ConversationVO;
 import com.linkx.server.controller.vo.GroupConversationVO;
@@ -24,6 +26,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -180,6 +183,7 @@ public class GroupServiceImpl implements GroupService {
         ).stream().collect(Collectors.toMap(SysUser::getId, Function.identity()));
 
         List<GroupMemberVO> result = new ArrayList<>();
+        Date now = new Date();
         for (ImConversationMember member : members) {
             SysUser user = userMap.get(member.getUserId());
             if (user != null) {
@@ -189,6 +193,8 @@ public class GroupServiceImpl implements GroupService {
                         .avatar(mediaUrlService.resolve(user.getAvatar()))
                         .role(member.getRole())
                         .joinTime(member.getCreateTime() != null ? member.getCreateTime().getTime() : null)
+                        .muted(isMemberMuteActive(member, now))
+                        .muteUntil(member.getMuteUntil() != null ? member.getMuteUntil().getTime() : null)
                         .build());
             }
         }
@@ -380,6 +386,153 @@ public class GroupServiceImpl implements GroupService {
 
     @Override
     @Transactional
+    public GroupConversationVO updateMuteAll(Long userId, Long conversationId, MuteAllDTO dto) {
+        ImConversation group = assertGroupAdmin(userId, conversationId);
+        if (dto == null) {
+            throw new CustomException(400, "参数不能为空");
+        }
+
+        Date now = new Date();
+        boolean timed = dto.getStartTime() != null && dto.getEndTime() != null;
+
+        if (timed) {
+            if (dto.getEndTime() <= dto.getStartTime()) {
+                throw new CustomException(400, "结束时间必须晚于开始时间");
+            }
+            if (dto.getEndTime() <= now.getTime()) {
+                throw new CustomException(400, "结束时间必须晚于当前时间");
+            }
+            Date start = new Date(dto.getStartTime());
+            Date end = new Date(dto.getEndTime());
+            group.setMuteAllStart(start);
+            group.setMuteAllEnd(end);
+            group.setMuteAll(!now.before(start) ? 1 : 0);
+        } else if (dto.getEnabled() != null) {
+            group.setMuteAll(Boolean.TRUE.equals(dto.getEnabled()) ? 1 : 0);
+            if (!Boolean.TRUE.equals(dto.getEnabled())) {
+                group.setMuteAllStart(null);
+                group.setMuteAllEnd(null);
+            } else if (dto.getEndTime() != null) {
+                if (dto.getEndTime() <= now.getTime()) {
+                    throw new CustomException(400, "结束时间必须晚于当前时间");
+                }
+                group.setMuteAllStart(now);
+                group.setMuteAllEnd(new Date(dto.getEndTime()));
+            } else {
+                // 手动开启：清除定时计划
+                group.setMuteAllStart(null);
+                group.setMuteAllEnd(null);
+            }
+        } else {
+            throw new CustomException(400, "请指定 enabled 或定时开始/结束时间");
+        }
+
+        conversationMapper.update(group);
+        SysUser owner = sysUserMapper.selectOneById(group.getOwnerId());
+        return toGroupConversationVO(group, owner, userId);
+    }
+
+    @Override
+    @Transactional
+    public void updateMemberMute(Long userId, Long conversationId, Long memberId, MuteMemberDTO dto) {
+        ImConversation group = assertGroupAdmin(userId, conversationId);
+        if (dto == null || dto.getMuted() == null) {
+            throw new CustomException(400, "参数不能为空");
+        }
+        if (group.getOwnerId().equals(memberId)) {
+            throw new CustomException(400, "不能禁言群主");
+        }
+        if (userId.equals(memberId)) {
+            throw new CustomException(400, "不能禁言自己");
+        }
+
+        ImConversationMember target = memberMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).eq(conversationId)
+                        .and(ImConversationMember::getUserId).eq(memberId)
+        );
+        if (target == null) {
+            throw new CustomException(404, "该成员不在群中");
+        }
+
+        // 管理员不能禁言其他管理员，仅群主可以
+        boolean operatorIsOwner = group.getOwnerId().equals(userId);
+        if (!operatorIsOwner && ImConversationMember.ROLE_ADMIN.equals(target.getRole())) {
+            throw new CustomException(403, "管理员不能禁言其他管理员");
+        }
+
+        if (Boolean.TRUE.equals(dto.getMuted())) {
+            Date until = null;
+            if (dto.getMuteUntil() != null) {
+                if (dto.getMuteUntil() <= System.currentTimeMillis()) {
+                    throw new CustomException(400, "禁言截止时间必须晚于当前时间");
+                }
+                until = new Date(dto.getMuteUntil());
+            }
+            target.setMuted(1);
+            target.setMuteUntil(until);
+        } else {
+            target.setMuted(0);
+            target.setMuteUntil(null);
+        }
+        memberMapper.update(target);
+    }
+
+    @Override
+    @Transactional
+    public void applyMuteSchedules() {
+        Date now = new Date();
+
+        // 定时开始：到点开启全体禁言
+        List<ImConversation> toStart = conversationMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(ImConversation::getType).eq(ImConversation.TYPE_GROUP)
+                        .and(ImConversation::getMuteAllStart).le(now)
+                        .and(ImConversation::getMuteAll).eq(0)
+                        .and(ImConversation::getMuteAllStart).isNotNull()
+        );
+        for (ImConversation g : toStart) {
+            // 若已过结束时间则直接清理
+            if (g.getMuteAllEnd() != null && !now.before(g.getMuteAllEnd())) {
+                g.setMuteAll(0);
+                g.setMuteAllStart(null);
+                g.setMuteAllEnd(null);
+            } else {
+                g.setMuteAll(1);
+            }
+            conversationMapper.update(g);
+        }
+
+        // 定时结束：到点关闭全体禁言并清空计划
+        List<ImConversation> toEnd = conversationMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(ImConversation::getType).eq(ImConversation.TYPE_GROUP)
+                        .and(ImConversation::getMuteAllEnd).le(now)
+                        .and(ImConversation::getMuteAllEnd).isNotNull()
+        );
+        for (ImConversation g : toEnd) {
+            g.setMuteAll(0);
+            g.setMuteAllStart(null);
+            g.setMuteAllEnd(null);
+            conversationMapper.update(g);
+        }
+
+        // 成员定时禁言到期
+        List<ImConversationMember> expired = memberMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getMuted).eq(1)
+                        .and(ImConversationMember::getMuteUntil).le(now)
+                        .and(ImConversationMember::getMuteUntil).isNotNull()
+        );
+        for (ImConversationMember m : expired) {
+            m.setMuted(0);
+            m.setMuteUntil(null);
+            memberMapper.update(m);
+        }
+    }
+
+    @Override
+    @Transactional
     public String updateMyRemark(Long userId, Long conversationId, String remark) {
         assertGroupMember(userId, conversationId);
         ImConversationMember member = memberMapper.selectOneByQuery(
@@ -453,7 +606,10 @@ public class GroupServiceImpl implements GroupService {
                 QueryWrapper.create().where(ImConversationMember::getConversationId).eq(group.getId())
         );
 
+        Date now = new Date();
         String myRemark = null;
+        boolean meMuted = false;
+        Long meMuteUntil = null;
         if (viewerUserId != null) {
             ImConversationMember me = memberMapper.selectOneByQuery(
                     QueryWrapper.create()
@@ -462,9 +618,12 @@ public class GroupServiceImpl implements GroupService {
             );
             if (me != null) {
                 myRemark = me.getRemark();
+                meMuted = isMemberMuteActive(me, now);
+                meMuteUntil = me.getMuteUntil() != null ? me.getMuteUntil().getTime() : null;
             }
         }
 
+        boolean muteAllActive = isMuteAllActive(group, now);
         String signedAvatar = mediaUrlService.resolve(group.getAvatar());
         List<GroupMemberAvatarVO> memberAvatars = loadGroupMemberAvatarPreviews(Set.of(group.getId()))
                 .getOrDefault(group.getId(), List.of());
@@ -481,7 +640,37 @@ public class GroupServiceImpl implements GroupService {
                 .lastMessage(group.getLastMessageContent())
                 .lastMessageTime(group.getLastMessageTime() != null ? group.getLastMessageTime().getTime() : null)
                 .myRemark(myRemark)
+                .muteAll(muteAllActive)
+                .muteAllStart(group.getMuteAllStart() != null ? group.getMuteAllStart().getTime() : null)
+                .muteAllEnd(group.getMuteAllEnd() != null ? group.getMuteAllEnd().getTime() : null)
+                .meMuted(meMuted)
+                .meMuteUntil(meMuteUntil)
                 .build();
+    }
+
+    /** 全体禁言是否生效（考虑定时窗口） */
+    static boolean isMuteAllActive(ImConversation group, Date now) {
+        if (group == null) return false;
+        Date start = group.getMuteAllStart();
+        Date end = group.getMuteAllEnd();
+        if (end != null && !now.before(end)) {
+            return false;
+        }
+        if (start != null && end != null && !now.before(start) && now.before(end)) {
+            return true;
+        }
+        return Integer.valueOf(1).equals(group.getMuteAll());
+    }
+
+    /** 成员个人禁言是否生效 */
+    static boolean isMemberMuteActive(ImConversationMember member, Date now) {
+        if (member == null || !Integer.valueOf(1).equals(member.getMuted())) {
+            return false;
+        }
+        if (member.getMuteUntil() != null && !now.before(member.getMuteUntil())) {
+            return false;
+        }
+        return true;
     }
 
     private ConversationVO toConversationVO(ImConversation group, List<GroupMemberAvatarVO> memberAvatars) {

@@ -251,6 +251,8 @@ public class ChatServiceImpl implements ChatService {
             if (!isFriend(userId, peerId)) {
                 throw new CustomException(403, "对方已不是好友，无法发送消息");
             }
+        } else if (conversation.getType() == ImConversation.TYPE_GROUP) {
+            assertGroupSpeakAllowed(userId, conversation);
         }
 
         String msgType = normalizeMsgType(dto.getMsgType());
@@ -454,6 +456,32 @@ public class ChatServiceImpl implements ChatService {
         );
         if (member == null) {
             throw new CustomException(403, "无权访问该会话");
+        }
+    }
+
+    /**
+     * 群聊发言校验：全体禁言下仅群主/管理员可发言；被个人禁言者不可发言。
+     */
+    private void assertGroupSpeakAllowed(Long userId, ImConversation group) {
+        Date now = new Date();
+        ImConversationMember member = memberMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).eq(group.getId())
+                        .and(ImConversationMember::getUserId).eq(userId)
+        );
+        if (member == null) {
+            throw new CustomException(403, "你不是该群成员");
+        }
+
+        boolean isPrivileged = group.getOwnerId() != null && group.getOwnerId().equals(userId)
+                || ImConversationMember.ROLE_OWNER.equals(member.getRole())
+                || ImConversationMember.ROLE_ADMIN.equals(member.getRole());
+
+        if (GroupServiceImpl.isMuteAllActive(group, now) && !isPrivileged) {
+            throw new CustomException(403, "全员禁言中，仅群主和管理员可发言");
+        }
+        if (GroupServiceImpl.isMemberMuteActive(member, now)) {
+            throw new CustomException(403, "你已被禁言，暂时无法发言");
         }
     }
 

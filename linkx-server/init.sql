@@ -156,6 +156,9 @@ CREATE TABLE IF NOT EXISTS `im_conversation` (
   `avatar` varchar(500) DEFAULT NULL COMMENT '群头像URL',
   `announcement` text COMMENT '群公告',
   `owner_id` bigint DEFAULT NULL COMMENT '群主ID(群聊可用)',
+  `mute_all` tinyint(1) NOT NULL DEFAULT 0 COMMENT '全体禁言(0关1开)',
+  `mute_all_start` datetime DEFAULT NULL COMMENT '定时全体禁言开始时间',
+  `mute_all_end` datetime DEFAULT NULL COMMENT '定时全体禁言结束时间',
   `last_message_content` varchar(500) DEFAULT NULL COMMENT '最后一条消息预览',
   `last_message_time` datetime DEFAULT NULL COMMENT '最后一条消息时间',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -174,6 +177,8 @@ CREATE TABLE IF NOT EXISTS `im_conversation_member` (
   `user_id` bigint NOT NULL COMMENT '用户ID',
   `role` varchar(20) DEFAULT NULL COMMENT '角色(owner/admin/member)',
   `remark` varchar(64) DEFAULT NULL COMMENT '用户对本群备注',
+  `muted` tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否禁言(0否1是)',
+  `mute_until` datetime DEFAULT NULL COMMENT '成员禁言截止时间',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '加入时间',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted` tinyint(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除(0:未删除 1:已删除)',
@@ -529,3 +534,59 @@ CREATE TABLE IF NOT EXISTS `favorite` (
   KEY `idx_user_time` (`user_id`, `update_time`),
   KEY `idx_user_type` (`user_id`, `type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户收藏表';
+-- 缇ょ瑷€锛氬叏浣撶瑷€ / 瀹氭椂鍏ㄤ綋绂佽█ / 鎴愬憳绂佽█
+
+-- 1. 浼氳瘽绾у叏浣撶瑷€
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'im_conversation' AND COLUMN_NAME = 'mute_all') = 0,
+    'ALTER TABLE `im_conversation` ADD COLUMN `mute_all` tinyint(1) NOT NULL DEFAULT 0 COMMENT ''鍏ㄤ綋绂佽█(0鍏?寮€)'' AFTER `owner_id`',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'im_conversation' AND COLUMN_NAME = 'mute_all_start') = 0,
+    'ALTER TABLE `im_conversation` ADD COLUMN `mute_all_start` datetime DEFAULT NULL COMMENT ''瀹氭椂鍏ㄤ綋绂佽█寮€濮嬫椂闂?' AFTER `mute_all`',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'im_conversation' AND COLUMN_NAME = 'mute_all_end') = 0,
+    'ALTER TABLE `im_conversation` ADD COLUMN `mute_all_end` datetime DEFAULT NULL COMMENT ''瀹氭椂鍏ㄤ綋绂佽█缁撴潫鏃堕棿'' AFTER `mute_all_start`',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- 2. 鎴愬憳绾х瑷€
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'im_conversation_member' AND COLUMN_NAME = 'muted') = 0,
+    'ALTER TABLE `im_conversation_member` ADD COLUMN `muted` tinyint(1) NOT NULL DEFAULT 0 COMMENT ''鏄惁绂佽█(0鍚?鏄?'' AFTER `remark`',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'im_conversation_member' AND COLUMN_NAME = 'mute_until') = 0,
+    'ALTER TABLE `im_conversation_member` ADD COLUMN `mute_until` datetime DEFAULT NULL COMMENT ''鎴愬憳绂佽█鎴鏃堕棿(绌?鎵嬪姩瑙ｉ櫎)'' AFTER `muted`',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- 群禁言字段（幂等，见 migrations/20260721_group_mute.sql）
+

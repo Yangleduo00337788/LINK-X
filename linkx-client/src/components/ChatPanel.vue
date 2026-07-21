@@ -166,11 +166,14 @@ const isGroupAdmin = computed(() => {
   return members.some(m => m.id === me && (m.role === 'owner' || m.role === 'admin'))
 })
 
-// 进入群聊时预加载成员，便于右键菜单判断管理员权限
+// 进入群聊时预加载成员与禁言状态
 watch(
   () => (isGroupChat.value ? currentSessionId.value : null),
   (id) => {
-    if (id) void groupMetaStore.fetchMembers(id)
+    if (id) {
+      void groupMetaStore.fetchMembers(id)
+      void groupMetaStore.fetchAnnouncement(id)
+    }
   },
   { immediate: true }
 )

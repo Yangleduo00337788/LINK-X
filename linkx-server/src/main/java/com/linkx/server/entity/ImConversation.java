@@ -52,6 +52,21 @@ public class ImConversation implements Serializable {
      */
     private Long ownerId;
 
+    /**
+     * 全体禁言：开启后仅群主与管理员可发言
+     */
+    private Integer muteAll;
+
+    /**
+     * 定时全体禁言开始时间（到达后自动开启）
+     */
+    private Date muteAllStart;
+
+    /**
+     * 定时全体禁言结束时间（到达后自动关闭）
+     */
+    private Date muteAllEnd;
+
     private String lastMessageContent;
 
     private Date lastMessageTime;

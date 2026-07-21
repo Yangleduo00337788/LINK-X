@@ -306,13 +306,140 @@ const isOwner = computed(() => {
   return members.value.some(m => m.id === me && m.role === 'owner')
 })
 
-/** 打开抽屉时拉取成员，保证群主身份判断准确 */
+/** 群主或管理员（可管理禁言） */
+const isAdminOrOwner = computed(() => {
+  const me = appStore.userProfile.userId
+  if (!me) return false
+  return members.value.some(m => m.id === me && (m.role === 'owner' || m.role === 'admin'))
+})
+
+const muteState = computed(() => {
+  const id = currentSessionId.value
+  return id ? groupMetaStore.muteStateFor(id) : { muteAll: false, meMuted: false }
+})
+
+const muteAllSaving = ref(false)
+const schedulePanelOpen = ref(false)
+const memberMutePanelOpen = ref(false)
+const scheduleStart = ref('')
+const scheduleEnd = ref('')
+const muteSaving = ref(false)
+
+function toLocalInputValue(ms?: number): string {
+  if (!ms) return ''
+  const d = new Date(ms)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function fromLocalInputValue(v: string): number {
+  return new Date(v).getTime()
+}
+
+async function setMuteAll(enabled: boolean) {
+  const id = currentSessionId.value
+  if (!id || muteAllSaving.value) return
+  muteAllSaving.value = true
+  try {
+    await groupMetaStore.setMuteAll(id, { enabled })
+    message.success(enabled ? t('modals.muteAllOn') : t('modals.muteAllOff'))
+  } catch (e) {
+    message.error(apiErrorMessage(e, t('modals.muteAllFail')))
+  } finally {
+    muteAllSaving.value = false
+  }
+}
+
+function openScheduleMute() {
+  const m = muteState.value
+  scheduleStart.value = toLocalInputValue(m.muteAllStart) || toLocalInputValue(Date.now() + 5 * 60 * 1000)
+  scheduleEnd.value = toLocalInputValue(m.muteAllEnd) || toLocalInputValue(Date.now() + 65 * 60 * 1000)
+  schedulePanelOpen.value = true
+}
+
+function closeSchedulePanel() {
+  schedulePanelOpen.value = false
+}
+
+async function submitScheduleMute() {
+  const id = currentSessionId.value
+  if (!id || muteSaving.value) return
+  if (!scheduleStart.value || !scheduleEnd.value) {
+    message.warning(t('modals.scheduleMuteNeedTime'))
+    return
+  }
+  const startTime = fromLocalInputValue(scheduleStart.value)
+  const endTime = fromLocalInputValue(scheduleEnd.value)
+  if (!Number.isFinite(startTime) || !Number.isFinite(endTime)) {
+    message.warning(t('modals.scheduleMuteNeedTime'))
+    return
+  }
+  muteSaving.value = true
+  try {
+    await groupMetaStore.setMuteAll(id, { startTime, endTime })
+    message.success(t('modals.scheduleMuteOk'))
+    closeSchedulePanel()
+  } catch (e) {
+    message.error(apiErrorMessage(e, t('modals.scheduleMuteFail')))
+  } finally {
+    muteSaving.value = false
+  }
+}
+
+async function openMemberMutePanel() {
+  const id = currentSessionId.value
+  if (!id) return
+  await groupMetaStore.fetchMembers(id, true)
+  memberMutePanelOpen.value = true
+}
+
+function closeMemberMutePanel() {
+  memberMutePanelOpen.value = false
+}
+
+function toggleMemberMute(memberId: string, memberName: string, muted: boolean) {
+  if (!currentSessionId.value || muteSaving.value) return
+  dialog.warning({
+    title: muted ? t('modals.unmuteMember') : t('modals.muteMember'),
+    content: muted
+      ? t('modals.unmuteMemberConfirm', { name: memberName })
+      : t('modals.muteMemberConfirm', { name: memberName }),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      muteSaving.value = true
+      try {
+        await groupMetaStore.setMemberMute(currentSessionId.value!, memberId, !muted)
+        message.success(muted ? t('modals.unmuteMemberOk') : t('modals.muteMemberOk'))
+      } catch (e) {
+        message.error(apiErrorMessage(e, t('modals.muteMemberFail')))
+      } finally {
+        muteSaving.value = false
+      }
+    }
+  })
+}
+
+/** 可禁言的成员 */
+const muteCandidates = computed(() => {
+  const me = appStore.userProfile.userId
+  return members.value.filter(m => {
+    if (m.id === me || m.role === 'owner') return false
+    if (!isOwner.value && m.role === 'admin') return false
+    return true
+  })
+})
+
+/** 打开抽屉时拉取成员与禁言状态 */
 watch(groupInfoDrawerOpen, open => {
   if (open && currentSessionId.value) {
     void groupMetaStore.fetchMembers(currentSessionId.value)
+    void groupMetaStore.fetchAnnouncement(currentSessionId.value)
   } else {
     transferPanelOpen.value = false
     adminPanelOpen.value = false
+    schedulePanelOpen.value = false
+    memberMutePanelOpen.value = false
   }
 })
 
@@ -428,10 +555,49 @@ function reportGroup() {
                   <n-switch :value="!!currentSession?.muted" size="small" @update:value="setMute" />
                 </div>
                 <p class="hint">{{ t('modals.muteHint') }}</p>
+                <template v-if="isAdminOrOwner">
+                  <div class="switch-row">
+                    <span>{{ t('modals.muteAll') }}</span>
+                    <n-switch
+                      :value="!!muteState.muteAll"
+                      :disabled="muteAllSaving"
+                      size="small"
+                      @update:value="setMuteAll"
+                    />
+                  </div>
+                  <p class="hint">{{ t('modals.muteAllHint') }}</p>
+                  <p
+                    v-if="muteState.muteAllStart && muteState.muteAllEnd"
+                    class="hint schedule-hint"
+                  >
+                    {{
+                      t('modals.scheduleMuteActive', {
+                        start: new Date(muteState.muteAllStart).toLocaleString(),
+                        end: new Date(muteState.muteAllEnd).toLocaleString()
+                      })
+                    }}
+                  </p>
+                </template>
               </div>
 
               <!-- 危险操作与举报 -->
               <button type="button" class="action-btn" @click="clearChat">{{ t('modals.clearChatHistory') }}</button>
+              <button
+                v-if="isAdminOrOwner"
+                type="button"
+                class="action-btn"
+                @click="openScheduleMute"
+              >
+                {{ t('modals.scheduleMute') }}
+              </button>
+              <button
+                v-if="isAdminOrOwner"
+                type="button"
+                class="action-btn"
+                @click="openMemberMutePanel"
+              >
+                {{ t('modals.muteMembers') }}
+              </button>
               <button
                 v-if="!isOwner"
                 type="button"
@@ -516,6 +682,57 @@ function reportGroup() {
                 @click="toggleAdmin(m.id, m.name, m.role === 'admin')"
               >
                 {{ m.role === 'admin' ? t('modals.unsetAdmin') : t('modals.setAdmin') }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 定时全体禁言 -->
+        <div v-if="schedulePanelOpen" class="transfer-panel">
+          <div class="transfer-head">
+            <button type="button" class="transfer-back" @click="closeSchedulePanel">‹</button>
+            <h3>{{ t('modals.scheduleMute') }}</h3>
+          </div>
+          <p class="transfer-hint">{{ t('modals.scheduleMuteHint') }}</p>
+          <label class="schedule-label">{{ t('modals.scheduleMuteStart') }}</label>
+          <input v-model="scheduleStart" type="datetime-local" class="schedule-input" />
+          <label class="schedule-label">{{ t('modals.scheduleMuteEnd') }}</label>
+          <input v-model="scheduleEnd" type="datetime-local" class="schedule-input" />
+          <button
+            type="button"
+            class="action-btn schedule-submit"
+            :disabled="muteSaving"
+            @click="submitScheduleMute"
+          >
+            {{ t('common.confirm') }}
+          </button>
+        </div>
+
+        <!-- 成员禁言 -->
+        <div v-if="memberMutePanelOpen" class="transfer-panel">
+          <div class="transfer-head">
+            <button type="button" class="transfer-back" @click="closeMemberMutePanel">‹</button>
+            <h3>{{ t('modals.muteMembers') }}</h3>
+          </div>
+          <p class="transfer-hint">{{ t('modals.muteMembersHint') }}</p>
+          <div class="transfer-list">
+            <div v-if="!muteCandidates.length" class="transfer-hint">{{ t('modals.muteMembersEmpty') }}</div>
+            <div
+              v-for="m in muteCandidates"
+              :key="m.id"
+              class="transfer-row admin-row"
+            >
+              <Avatar :text="m.avatarText" :color="m.avatarColor" :image-url="m.avatarUrl" :size="36" />
+              <span class="transfer-name">{{ m.name }}</span>
+              <span v-if="m.muted" class="transfer-badge">{{ t('modals.mutedBadge') }}</span>
+              <button
+                type="button"
+                class="role-action"
+                :class="{ danger: !m.muted }"
+                :disabled="muteSaving"
+                @click="toggleMemberMute(m.id, m.name, !!m.muted)"
+              >
+                {{ m.muted ? t('modals.unmuteMember') : t('modals.muteMember') }}
               </button>
             </div>
           </div>
@@ -885,6 +1102,34 @@ function reportGroup() {
 .role-action:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.schedule-label {
+  display: block;
+  margin: 10px 0 6px;
+  font-size: 12px;
+  color: var(--lx-text-secondary);
+}
+
+.schedule-input {
+  width: 100%;
+  height: 36px;
+  border: 1px solid var(--lx-border-light);
+  border-radius: var(--lx-radius);
+  padding: 0 10px;
+  font-size: 13px;
+  color: var(--lx-text-body);
+  background: var(--lx-bg-card);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.schedule-submit {
+  margin-top: 16px;
+}
+
+.schedule-hint {
+  margin-top: 4px !important;
 }
 
 .chat-drawer-enter-active,
