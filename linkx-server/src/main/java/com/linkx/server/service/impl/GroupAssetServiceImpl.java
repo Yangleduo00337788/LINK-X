@@ -91,7 +91,7 @@ public class GroupAssetServiceImpl implements GroupAssetService {
 
     @Override
     @Transactional
-    public GroupAssetVO upload(Long userId, Long conversationId, String type, MultipartFile file) {
+    public GroupAssetVO upload(Long userId, Long conversationId, String type, MultipartFile file, String album) {
         assertGroupMember(userId, conversationId);
         String assetType = normalizeType(type);
         if (!GroupAsset.TYPE_FILE.equals(assetType) && !GroupAsset.TYPE_IMAGE.equals(assetType)) {
@@ -106,13 +106,18 @@ public class GroupAssetServiceImpl implements GroupAssetService {
                 throw new CustomException(400, "相册仅支持图片文件");
             }
         }
+        String albumName = StringUtils.hasText(album) ? album.trim() : "默认相册";
+        if (albumName.length() > 64) {
+            albumName = albumName.substring(0, 64);
+        }
         try {
             String objectKey = fileStorageService.uploadFile(file, null);
             GroupAsset asset = GroupAsset.builder()
                     .conversationId(conversationId)
                     .uploaderId(userId)
                     .type(assetType)
-                    .title(file.getOriginalFilename())
+                    .title(albumName)
+                    .content(albumName)
                     .fileName(file.getOriginalFilename())
                     .fileSize(file.getSize())
                     .fileKey(objectKey)

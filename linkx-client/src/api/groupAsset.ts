@@ -32,7 +32,12 @@ export function listGroupAssets(conversationId: string, type?: GroupAssetType) {
   })
 }
 
-export function uploadGroupAsset(conversationId: string, type: 'file' | 'image', file: File) {
+export function uploadGroupAsset(
+  conversationId: string,
+  type: 'file' | 'image',
+  file: File,
+  album?: string
+) {
   const form = new FormData()
   form.append('file', file)
   // 不手动设 Content-Type，由浏览器带上 multipart boundary
@@ -40,7 +45,10 @@ export function uploadGroupAsset(conversationId: string, type: 'file' | 'image',
     `/group/${conversationId}/assets/upload`,
     form,
     {
-      params: { type },
+      params: {
+        type,
+        ...(album ? { album } : {})
+      },
       timeout: 60000
     }
   )

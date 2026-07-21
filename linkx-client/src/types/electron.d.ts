@@ -38,6 +38,8 @@ declare global {
       notifyThemeChange?: (theme: 'light' | 'dark') => void
       setWindowMode?: (mode: 'login' | 'main') => Promise<void>
       pickDownloadPath?: () => Promise<string | null>
+      /** 原生多选图片，返回二进制供构造成 File */
+      pickImages?: () => Promise<Array<{ name: string; mimeType: string; data: ArrayBuffer | Uint8Array }>>
       openDownloadPath?: (customPath?: string) => Promise<boolean>
       clearAppCache?: () => Promise<{ ok: boolean; message?: string }>
       getDownloadPath?: () => Promise<string>

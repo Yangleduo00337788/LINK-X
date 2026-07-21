@@ -503,6 +503,42 @@ function registerWindowIpc() {
     return result.filePaths[0]
   })
 
+  /** 原生多选图片；返回文件名 + MIME + 二进制，供渲染进程构造成 File 再上传 */
+  ipcMain.handle('app:pick-images', async event => {
+    const win = winFromSender(event)
+    const { dialog } = await import('electron')
+    const result = await dialog.showOpenDialog(win ?? undefined, {
+      title: '选择图片',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }]
+    })
+    if (result.canceled || !result.filePaths.length) return [] as Array<{
+      name: string
+      mimeType: string
+      data: Buffer
+    }>
+
+    const mimeByExt: Record<string, string> = {
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp'
+    }
+    const maxBytes = 10 * 1024 * 1024
+    const files: Array<{ name: string; mimeType: string; data: Buffer }> = []
+    for (const filePath of result.filePaths) {
+      const stat = await fs.promises.stat(filePath)
+      if (stat.size <= 0 || stat.size > maxBytes) continue
+      const ext = path.extname(filePath).toLowerCase()
+      const mimeType = mimeByExt[ext]
+      if (!mimeType) continue
+      const data = await fs.promises.readFile(filePath)
+      files.push({ name: path.basename(filePath), mimeType, data })
+    }
+    return files
+  })
+
   ipcMain.handle('app:open-download-path', async (_event, customPath?: string) => {
     const { shell } = await import('electron')
     const target = customPath && customPath.trim() ? customPath : app.getPath('downloads')

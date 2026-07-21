@@ -66,7 +66,16 @@ export interface GroupAlbumItem {
   user: string
   /** 上传者用户 ID，用于「与我相关」过滤 */
   uploaderId?: string
+  /** 所属相册名 */
+  albumName?: string
   time: string
+}
+
+/** 相册文件夹（可先创建空相册再上传） */
+export interface GroupAlbumFolder {
+  name: string
+  coverUrl?: string
+  count: number
 }
 
 function formatBytes(n?: number): string {
@@ -96,6 +105,8 @@ export const useGroupMetaStore = defineStore('groupMeta', {
     remarks: {} as Record<string, string>,
     files: {} as Record<string, GroupFileItem[]>,
     albums: {} as Record<string, GroupAlbumItem[]>,
+    /** 用户创建的空相册名（尚无图片时也要展示） */
+    albumFolders: {} as Record<string, string[]>,
     loading: {} as Record<string, boolean>,
     /** 相册列表请求序号，用于忽略过期响应 */
     albumFetchSeq: {} as Record<string, number>
@@ -507,6 +518,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
             name: a.fileName || a.title || '',
             user: a.uploaderNickname || '成员',
             uploaderId: a.uploaderId ? String(a.uploaderId) : undefined,
+            albumName: a.content || a.title || '默认相册',
             time: (a.createTime || '').slice(0, 10)
           }))
         }
@@ -550,6 +562,42 @@ export const useGroupMetaStore = defineStore('groupMeta', {
       return this.albums[sessionId] || []
     },
 
+    /** 相册文件夹列表：已创建的空相册 + 已有图片的相册 */
+    albumFoldersFor(sessionId: string): GroupAlbumFolder[] {
+      const photos = this.albumFor(sessionId)
+      const map = new Map<string, GroupAlbumFolder>()
+      for (const name of this.albumFolders[sessionId] || []) {
+        map.set(name, { name, count: 0 })
+      }
+      for (const p of photos) {
+        const name = p.albumName || '默认相册'
+        const cur = map.get(name)
+        if (cur) {
+          cur.count += 1
+          if (!cur.coverUrl && p.url) cur.coverUrl = p.url
+        } else {
+          map.set(name, { name, count: 1, coverUrl: p.url })
+        }
+      }
+      if (!map.has('默认相册')) {
+        map.set('默认相册', { name: '默认相册', count: 0 })
+      }
+      return [...map.values()].sort((a, b) => {
+        if (a.name === '默认相册') return -1
+        if (b.name === '默认相册') return 1
+        return a.name.localeCompare(b.name, 'zh-CN')
+      })
+    },
+
+    createAlbumFolder(sessionId: string, name: string): boolean {
+      const n = name.trim()
+      if (!n || n.length > 32) return false
+      if (!this.albumFolders[sessionId]) this.albumFolders[sessionId] = []
+      if (this.albumFolders[sessionId].includes(n) || n === '默认相册') return true
+      this.albumFolders[sessionId].push(n)
+      return true
+    },
+
     essenceFor(sessionId: string): GroupEssenceItem[] {
       if (!this.essence[sessionId]) void this.fetchEssence(sessionId)
       return this.essence[sessionId] || []
@@ -573,11 +621,16 @@ export const useGroupMetaStore = defineStore('groupMeta', {
       return false
     },
 
-    async uploadAlbumImages(sessionId: string, files: File[]): Promise<{ ok: number; error?: string }> {
+    async uploadAlbumImages(
+      sessionId: string,
+      files: File[],
+      albumName = '默认相册'
+    ): Promise<{ ok: number; error?: string }> {
       // 打断进行中的列表拉取，避免上传成功后又被旧列表覆盖
       this.albumFetchSeq[sessionId] = (this.albumFetchSeq[sessionId] || 0) + 1
       this.loading[`album-${sessionId}`] = false
 
+      const album = (albumName || '默认相册').trim() || '默认相册'
       let ok = 0
       let lastError: string | undefined
       if (!this.albums[sessionId]) this.albums[sessionId] = []
@@ -603,7 +656,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
                     { type: compressed.type || 'image/jpeg' }
                   )
           }
-          const res = await groupAssetApi.uploadGroupAsset(sessionId, 'image', uploadFile)
+          const res = await groupAssetApi.uploadGroupAsset(sessionId, 'image', uploadFile, album)
           if (res.code === 200 && res.data) {
             this.albums[sessionId].unshift({
               id: String(res.data.id),
@@ -611,6 +664,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
               name: res.data.fileName || file.name,
               user: res.data.uploaderNickname || '我',
               uploaderId: res.data.uploaderId ? String(res.data.uploaderId) : undefined,
+              albumName: res.data.content || res.data.title || album,
               time: (res.data.createTime || '').slice(0, 10) || '刚刚'
             })
             ok += 1
@@ -633,6 +687,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
       delete this.remarks[sessionId]
       delete this.files[sessionId]
       delete this.albums[sessionId]
+      delete this.albumFolders[sessionId]
       delete this.albumFetchSeq[sessionId]
     }
   }

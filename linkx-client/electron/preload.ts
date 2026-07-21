@@ -97,6 +97,10 @@ const api = {
     }>,
   setWindowMode: mode => ipcRenderer.invoke('window:set-mode', mode),
   pickDownloadPath: () => ipcRenderer.invoke('app:pick-download-path'),
+  pickImages: () =>
+    ipcRenderer.invoke('app:pick-images') as Promise<
+      Array<{ name: string; mimeType: string; data: ArrayBuffer | Uint8Array }>
+    >,
   openDownloadPath: customPath => ipcRenderer.invoke('app:open-download-path', customPath),
   clearAppCache: () => ipcRenderer.invoke('app:clear-cache'),
   getDownloadPath: () => ipcRenderer.invoke('app:get-download-path'),

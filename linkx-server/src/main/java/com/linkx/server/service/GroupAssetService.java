@@ -12,7 +12,7 @@ public interface GroupAssetService {
 
     GroupAssetVO create(Long userId, Long conversationId, CreateGroupAssetDTO dto);
 
-    GroupAssetVO upload(Long userId, Long conversationId, String type, MultipartFile file);
+    GroupAssetVO upload(Long userId, Long conversationId, String type, MultipartFile file, String album);
 
     void delete(Long userId, Long conversationId, Long assetId);
 }

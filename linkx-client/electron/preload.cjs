@@ -52,6 +52,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   notifyThemeChange: theme => ipcRenderer.send('theme-changed', theme),
   setWindowMode: mode => ipcRenderer.invoke('window:set-mode', mode),
   pickDownloadPath: () => ipcRenderer.invoke('app:pick-download-path'),
+  pickImages: () => ipcRenderer.invoke('app:pick-images'),
   openDownloadPath: customPath => ipcRenderer.invoke('app:open-download-path', customPath),
   clearAppCache: () => ipcRenderer.invoke('app:clear-cache'),
   getDownloadPath: () => ipcRenderer.invoke('app:get-download-path'),

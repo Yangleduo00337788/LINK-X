@@ -46,10 +46,11 @@ public class GroupAssetController {
     public Result<GroupAssetVO> upload(
             @PathVariable String conversationId,
             @RequestParam("type") String type,
+            @RequestParam(value = "album", required = false) String album,
             @RequestParam("file") MultipartFile file,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        return Result.success(groupAssetService.upload(userId, parseId(conversationId), type, file));
+        return Result.success(groupAssetService.upload(userId, parseId(conversationId), type, file, album));
     }
 
     @DeleteMapping("/{assetId}")
