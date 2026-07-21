@@ -274,6 +274,18 @@ export const useGroupMetaStore = defineStore('groupMeta', {
       } else {
         await this.fetchAnnouncement(sessionId)
       }
+      // 取消定时：兜底清空本地计划，避免响应缺字段时 UI 残留
+      if (payload.clearSchedule) {
+        const cur = this.muteState[sessionId]
+        if (cur) {
+          this.muteState[sessionId] = {
+            ...cur,
+            muteAll: false,
+            muteAllStart: undefined,
+            muteAllEnd: undefined
+          }
+        }
+      }
     },
 
     async setMemberMute(

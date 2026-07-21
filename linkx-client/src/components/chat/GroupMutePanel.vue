@@ -32,6 +32,7 @@ const muteSaving = ref(false)
 const scheduleEditing = ref(false)
 const scheduleStart = ref('')
 const scheduleEnd = ref('')
+const memberPageOpen = ref(false)
 
 const muteState = computed(() => groupMetaStore.muteStateFor(props.sessionId))
 
@@ -57,20 +58,31 @@ const scheduleStatusText = computed(() => {
   return t('modals.scheduleMuteUntil', { end: endText })
 })
 
-const muteCandidates = computed(() => {
-  const me = appStore.userProfile.userId
-  return members.value.filter(m => {
-    if (m.id === me || m.role === 'owner') return false
-    if (!props.isOwner && m.role === 'admin') return false
-    return true
-  })
-})
+/** 成员禁言页：展示全部群成员 */
+const allMembers = computed(() => members.value)
+
+const meId = computed(() => appStore.userProfile.userId)
+
+function canMuteMember(m: { id: string; role?: string }): boolean {
+  if (!meId.value || m.id === meId.value) return false
+  if (m.role === 'owner') return false
+  if (!props.isOwner && m.role === 'admin') return false
+  return true
+}
+
+function memberMuteDisabledReason(m: { id: string; role?: string }): string {
+  if (m.id === meId.value) return t('modals.muteMemberSelf')
+  if (m.role === 'owner') return t('modals.muteMemberOwner')
+  if (!props.isOwner && m.role === 'admin') return t('modals.muteMemberAdmin')
+  return ''
+}
 
 watch(
   () => props.sessionId,
   id => {
     if (id) void groupMetaStore.fetchMembers(id, true)
     scheduleEditing.value = false
+    memberPageOpen.value = false
   },
   { immediate: true }
 )
@@ -175,6 +187,15 @@ function clearSchedule() {
   })
 }
 
+async function openMemberPage() {
+  memberPageOpen.value = true
+  await groupMetaStore.fetchMembers(props.sessionId, true)
+}
+
+function closeMemberPage() {
+  memberPageOpen.value = false
+}
+
 function toggleMemberMute(memberId: string, memberName: string, muted: boolean) {
   if (!props.sessionId || muteSaving.value) return
   dialog.warning({
@@ -259,17 +280,35 @@ function toggleMemberMute(memberId: string, memberName: string, muted: boolean) 
         </div>
       </section>
 
-      <!-- 指定成员禁言 -->
+      <!-- 指定成员禁言：入口按钮 -->
       <section class="mute-section">
         <h4 class="section-title">{{ t('modals.muteMembers') }}</h4>
         <p class="section-hint">{{ t('modals.muteMembersHint') }}</p>
-        <div v-if="!muteCandidates.length" class="empty">{{ t('modals.muteMembersEmpty') }}</div>
+        <button type="button" class="add-btn" @click="openMemberPage">
+          {{ t('modals.muteMembersOpen') }}
+        </button>
+      </section>
+    </div>
+
+    <!-- 指定成员禁言子页：全部群成员 -->
+    <div v-if="memberPageOpen" class="member-page">
+      <div class="mute-head">
+        <button type="button" class="mute-back" @click="closeMemberPage">‹</button>
+        <h3>{{ t('modals.muteMembers') }}</h3>
+      </div>
+      <div class="mute-scroll">
+        <p class="section-hint">{{ t('modals.muteMembersPageHint') }}</p>
+        <div v-if="!allMembers.length" class="empty">{{ t('modals.muteMembersEmpty') }}</div>
         <div v-else class="member-list">
-          <div v-for="m in muteCandidates" :key="m.id" class="member-row">
+          <div v-for="m in allMembers" :key="m.id" class="member-row">
             <Avatar :text="m.avatarText" :color="m.avatarColor" :image-url="m.avatarUrl" :size="36" />
-            <span class="member-name">{{ m.name }}</span>
+            <div class="member-meta">
+              <span class="member-name">{{ m.name }}</span>
+              <span v-if="m.badge" class="member-badge">{{ m.badge }}</span>
+            </div>
             <span v-if="m.muted" class="muted-badge">{{ t('modals.mutedBadge') }}</span>
             <button
+              v-if="canMuteMember(m)"
               type="button"
               class="role-action"
               :class="{ danger: !m.muted }"
@@ -278,9 +317,10 @@ function toggleMemberMute(memberId: string, memberName: string, muted: boolean) 
             >
               {{ m.muted ? t('modals.unmuteMember') : t('modals.muteMember') }}
             </button>
+            <span v-else class="muted-hint">{{ memberMuteDisabledReason(m) }}</span>
           </div>
         </div>
-      </section>
+      </div>
     </div>
   </div>
 </template>
@@ -491,10 +531,42 @@ function toggleMemberMute(memberId: string, memberName: string, muted: boolean) 
   white-space: nowrap;
 }
 
+.member-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.member-meta .member-name {
+  flex: none;
+}
+
+.member-badge {
+  font-size: 11px;
+  color: var(--lx-text-muted, #999);
+}
+
 .muted-badge {
   font-size: 11px;
   color: var(--lx-danger, #e74c3c);
   flex-shrink: 0;
+}
+
+.muted-hint {
+  font-size: 12px;
+  color: var(--lx-text-muted, #999);
+  flex-shrink: 0;
+}
+
+.member-page {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  background: var(--lx-bg-elevated, var(--lx-bg-card, #fff));
 }
 
 .role-action {

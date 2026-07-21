@@ -22,6 +22,7 @@ import com.linkx.server.service.ChatService;
 import com.linkx.server.service.GroupService;
 import com.linkx.server.service.MediaUrlService;
 import com.mybatisflex.core.query.QueryWrapper;
+import com.mybatisflex.core.update.UpdateChain;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -420,14 +421,10 @@ public class GroupServiceImpl implements GroupService {
         boolean timed = dto.getStartTime() != null && dto.getEndTime() != null;
 
         if (clearSchedule) {
-            Date start = group.getMuteAllStart();
-            Date end = group.getMuteAllEnd();
-            boolean inWindow = start != null && end != null && !now.before(start) && now.before(end);
+            // 取消定时：清空计划；若当前因定时而禁言中，一并关闭全体禁言
             group.setMuteAllStart(null);
             group.setMuteAllEnd(null);
-            if (inWindow) {
-                group.setMuteAll(0);
-            }
+            group.setMuteAll(0);
         } else if (timed) {
             if (dto.getEndTime() <= dto.getStartTime()) {
                 throw new CustomException(400, "结束时间必须晚于开始时间");
@@ -460,7 +457,8 @@ public class GroupServiceImpl implements GroupService {
             throw new CustomException(400, "请指定 enabled、定时时间或取消定时");
         }
 
-        conversationMapper.update(group);
+        // 必须用 UpdateChain：普通 update 会忽略 null，导致定时字段清不掉
+        persistMuteAllFields(group);
         SysUser owner = sysUserMapper.selectOneById(group.getOwnerId());
         SysUser operator = sysUserMapper.selectOneById(userId);
         String opName = displayName(operator);
@@ -554,7 +552,7 @@ public class GroupServiceImpl implements GroupService {
             } else {
                 g.setMuteAll(1);
             }
-            conversationMapper.update(g);
+            persistMuteAllFields(g);
         }
 
         // 定时结束：到点关闭全体禁言并清空计划
@@ -568,7 +566,7 @@ public class GroupServiceImpl implements GroupService {
             g.setMuteAll(0);
             g.setMuteAllStart(null);
             g.setMuteAllEnd(null);
-            conversationMapper.update(g);
+            persistMuteAllFields(g);
         }
 
         // 成员定时禁言到期
@@ -689,7 +687,7 @@ public class GroupServiceImpl implements GroupService {
             group.setMuteAll(0);
             group.setMuteAllStart(null);
             group.setMuteAllEnd(null);
-            conversationMapper.update(group);
+            persistMuteAllFields(group);
         }
         String signedAvatar = mediaUrlService.resolve(group.getAvatar());
         List<GroupMemberAvatarVO> memberAvatars = loadGroupMemberAvatarPreviews(Set.of(group.getId()))
@@ -738,6 +736,22 @@ public class GroupServiceImpl implements GroupService {
             return false;
         }
         return true;
+    }
+
+    /**
+     * 持久化全体禁言相关字段。
+     * <p>
+     * 使用 UpdateChain 显式写入，确保 muteAllStart/muteAllEnd 可被置为 NULL
+     * （BaseMapper.update 默认忽略 null，会导致「取消定时」后库里仍残留计划）。
+     * </p>
+     */
+    private void persistMuteAllFields(ImConversation group) {
+        UpdateChain.of(ImConversation.class)
+                .set(ImConversation::getMuteAll, group.getMuteAll() != null ? group.getMuteAll() : 0)
+                .set(ImConversation::getMuteAllStart, group.getMuteAllStart())
+                .set(ImConversation::getMuteAllEnd, group.getMuteAllEnd())
+                .where(ImConversation::getId).eq(group.getId())
+                .update();
     }
 
     private void emitSystemTip(Long operatorId, Long conversationId, String content) {
