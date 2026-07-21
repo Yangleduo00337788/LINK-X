@@ -7,7 +7,7 @@
  * </p>
  */
 import { ref, computed, watch } from 'vue'
-import { NIcon } from 'naive-ui'
+import { NIcon, useDialog, useMessage } from 'naive-ui'
 import {
   SearchOutline,
   ChevronForwardOutline,
@@ -20,15 +20,18 @@ import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
 import { useGroupMetaStore } from '../../stores/groupMeta'
 import { useI18n } from '../../i18n'
+import type { GroupMember } from '../../stores/groupMeta'
 
 const COLLAPSE_KEY = 'linkx.groupSidebar.collapsed'
 
 const { t } = useI18n()
+const message = useMessage()
+const dialog = useDialog()
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
 const groupMetaStore = useGroupMetaStore()
 const { openGroupAnnouncement } = chatModalsStore
-const { currentSessionId } = storeToRefs(appStore)
+const { currentSessionId, userProfile } = storeToRefs(appStore)
 
 // 成员搜索关键词
 const memberSearch = ref('')
@@ -70,6 +73,13 @@ const filteredMembers = computed(() => {
 /** 成员总数 */
 const memberCount = computed(() => members.value.length)
 
+/** 当前用户是否为群主 */
+const isOwner = computed(() => {
+  const me = userProfile.value.userId
+  if (!me) return false
+  return members.value.some(m => m.id === me && m.role === 'owner')
+})
+
 /** 切换成员搜索框显示，关闭时清空关键词 */
 function toggleMemberSearch() {
   showMemberSearch.value = !showMemberSearch.value
@@ -84,6 +94,40 @@ function toggleCollapsed() {
     showMemberSearch.value = false
     memberSearch.value = ''
   }
+}
+
+function apiErrorMessage(e: unknown, fallback: string): string {
+  const ax = e as { response?: { data?: { message?: string } }; message?: string }
+  return ax.response?.data?.message || ax.message || fallback
+}
+
+/** 群主点击成员：设为 / 取消管理员 */
+function onMemberClick(m: GroupMember) {
+  if (!isOwner.value || !currentSessionId.value) return
+  const me = userProfile.value.userId
+  if (!me || m.id === me || m.role === 'owner') return
+
+  const isAdmin = m.role === 'admin'
+  dialog.warning({
+    title: isAdmin ? t('modals.unsetAdmin') : t('modals.setAdmin'),
+    content: isAdmin
+      ? t('modals.unsetAdminConfirm', { name: m.name })
+      : t('modals.setAdminConfirm', { name: m.name }),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      try {
+        await appStore.updateMemberRole(
+          currentSessionId.value!,
+          m.id,
+          isAdmin ? 'member' : 'admin'
+        )
+        message.success(isAdmin ? t('modals.unsetAdminOk') : t('modals.setAdminOk'))
+      } catch (e) {
+        message.error(apiErrorMessage(e, t('modals.setAdminFail')))
+      }
+    }
+  })
 }
 </script>
 
@@ -136,7 +180,13 @@ function toggleCollapsed() {
           <div v-if="showMemberSearch && !filteredMembers.length" class="member-empty">
             {{ t('extra.noMatchMembers') }}
           </div>
-          <div v-for="m in filteredMembers" :key="m.id" class="member-row">
+          <div
+            v-for="m in filteredMembers"
+            :key="m.id"
+            class="member-row"
+            :class="{ clickable: isOwner && m.role !== 'owner' && m.id !== userProfile.userId }"
+            @click="onMemberClick(m)"
+          >
             <Avatar :text="m.avatarText" :color="m.avatarColor" :image-url="m.avatarUrl" :size="36" />
             <div class="m-info">
               <span class="m-name">{{ m.name }}</span>
@@ -326,6 +376,10 @@ function toggleCollapsed() {
 
 .member-row:hover {
   background: var(--lx-bg-hover);
+}
+
+.member-row.clickable {
+  cursor: pointer;
 }
 
 .m-info {

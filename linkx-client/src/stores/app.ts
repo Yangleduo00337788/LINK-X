@@ -861,6 +861,21 @@ export const useAppStore = defineStore('app', {
     },
 
     /**
+     * 设置或取消管理员：{@code PUT /group/{id}/members/{memberId}/role}（仅群主）。
+     */
+    async updateMemberRole(
+      sessionId: string,
+      memberId: string,
+      role: 'admin' | 'member'
+    ): Promise<void> {
+      const res = await groupApi.updateMemberRole(sessionId, memberId, role)
+      if (res.code !== 200) {
+        throw new Error(res.message || '更新成员角色失败')
+      }
+      await useGroupMetaStore().fetchMembers(sessionId, true)
+    },
+
+    /**
      * 解散群聊：调用真实后端 {@code DELETE /group/{id}}（仅群主）。
      */
     async dissolveGroup(sessionId: string): Promise<void> {

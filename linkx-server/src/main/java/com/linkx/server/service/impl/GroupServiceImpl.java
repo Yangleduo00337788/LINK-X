@@ -349,6 +349,37 @@ public class GroupServiceImpl implements GroupService {
 
     @Override
     @Transactional
+    public void updateMemberRole(Long userId, Long conversationId, Long memberId, String role) {
+        assertGroupOwner(userId, conversationId);
+
+        if (!ImConversationMember.ROLE_ADMIN.equals(role) && !ImConversationMember.ROLE_MEMBER.equals(role)) {
+            throw new CustomException(400, "角色只能是管理员或普通成员");
+        }
+        if (userId.equals(memberId)) {
+            throw new CustomException(400, "不能修改自己的角色");
+        }
+
+        ImConversationMember target = memberMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).eq(conversationId)
+                        .and(ImConversationMember::getUserId).eq(memberId)
+        );
+        if (target == null) {
+            throw new CustomException(404, "该成员不在群中");
+        }
+        if (ImConversationMember.ROLE_OWNER.equals(target.getRole())) {
+            throw new CustomException(400, "不能修改群主角色，请使用转让群主");
+        }
+        if (role.equals(target.getRole())) {
+            return;
+        }
+
+        target.setRole(role);
+        memberMapper.update(target);
+    }
+
+    @Override
+    @Transactional
     public String updateMyRemark(Long userId, Long conversationId, String remark) {
         assertGroupMember(userId, conversationId);
         ImConversationMember member = memberMapper.selectOneByQuery(

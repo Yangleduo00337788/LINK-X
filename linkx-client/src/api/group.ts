@@ -121,6 +121,19 @@ export function transferGroupOwner(conversationId: string, newOwnerId: string) {
 }
 
 /**
+ * 设置或取消管理员（仅群主；role: admin | member）
+ */
+export function updateMemberRole(
+  conversationId: string,
+  memberId: string,
+  role: 'admin' | 'member'
+) {
+  return apiClient.put<never, ApiResult<null>>(`/group/${conversationId}/members/${memberId}/role`, {
+    role
+  })
+}
+
+/**
  * 更新当前用户对本群备注
  */
 export function updateGroupRemark(conversationId: string, remark: string) {

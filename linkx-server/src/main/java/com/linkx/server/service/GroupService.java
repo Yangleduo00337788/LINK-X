@@ -65,6 +65,11 @@ public interface GroupService {
     void transferOwner(Long userId, Long conversationId, Long newOwnerId);
 
     /**
+     * 设置或取消管理员（仅群主；role 仅允许 admin / member）
+     */
+    void updateMemberRole(Long userId, Long conversationId, Long memberId, String role);
+
+    /**
      * 更新当前用户对本群的备注
      */
     String updateMyRemark(Long userId, Long conversationId, String remark);

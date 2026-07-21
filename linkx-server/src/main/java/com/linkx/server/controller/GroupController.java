@@ -7,6 +7,7 @@ import com.linkx.server.controller.dto.AddGroupMembersDTO;
 import com.linkx.server.controller.dto.CreateGroupDTO;
 import com.linkx.server.controller.dto.UpdateGroupDTO;
 import com.linkx.server.controller.dto.UpdateGroupRemarkDTO;
+import com.linkx.server.controller.dto.UpdateMemberRoleDTO;
 import com.linkx.server.controller.vo.ConversationVO;
 import com.linkx.server.controller.vo.GroupConversationVO;
 import com.linkx.server.controller.vo.GroupMemberVO;
@@ -142,6 +143,20 @@ public class GroupController {
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         groupService.transferOwner(userId, parseId(conversationId), newOwnerId);
+        return Result.success(null);
+    }
+
+    /**
+     * 设置或取消管理员（仅群主）
+     */
+    @PutMapping("/{conversationId}/members/{memberId}/role")
+    public Result<Void> updateMemberRole(
+            @PathVariable String conversationId,
+            @PathVariable String memberId,
+            @Valid @RequestBody UpdateMemberRoleDTO dto,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        groupService.updateMemberRole(userId, parseId(conversationId), parseId(memberId), dto.getRole());
         return Result.success(null);
     }
 

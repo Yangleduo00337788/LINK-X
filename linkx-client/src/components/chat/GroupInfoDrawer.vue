@@ -229,6 +229,56 @@ function confirmTransfer(memberId: string, memberName: string) {
   })
 }
 
+/** 可管理角色的成员（排除自己与群主） */
+const adminCandidates = computed(() => {
+  const me = appStore.userProfile.userId
+  return members.value.filter(m => m.id !== me && m.role !== 'owner')
+})
+
+const adminPanelOpen = ref(false)
+const updatingRole = ref(false)
+
+/** 打开设置管理员面板 */
+async function openManageAdmins() {
+  const id = currentSessionId.value
+  if (!id) return
+  await groupMetaStore.fetchMembers(id)
+  if (adminCandidates.value.length === 0) {
+    message.warning(t('modals.manageAdminsEmpty'))
+    return
+  }
+  adminPanelOpen.value = true
+}
+
+function closeAdminPanel() {
+  adminPanelOpen.value = false
+}
+
+/** 设为 / 取消管理员 */
+function toggleAdmin(memberId: string, memberName: string, isAdmin: boolean) {
+  if (!currentSessionId.value || updatingRole.value) return
+  const nextRole = isAdmin ? 'member' : 'admin'
+  dialog.warning({
+    title: isAdmin ? t('modals.unsetAdmin') : t('modals.setAdmin'),
+    content: isAdmin
+      ? t('modals.unsetAdminConfirm', { name: memberName })
+      : t('modals.setAdminConfirm', { name: memberName }),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      updatingRole.value = true
+      try {
+        await appStore.updateMemberRole(currentSessionId.value!, memberId, nextRole)
+        message.success(isAdmin ? t('modals.unsetAdminOk') : t('modals.setAdminOk'))
+      } catch (e) {
+        message.error(apiErrorMessage(e, t('modals.setAdminFail')))
+      } finally {
+        updatingRole.value = false
+      }
+    }
+  })
+}
+
 /** 解散群聊（仅 owner） */
 async function dissolve() {
   if (!currentSession.value || !currentSessionId.value) return
@@ -262,6 +312,7 @@ watch(groupInfoDrawerOpen, open => {
     void groupMetaStore.fetchMembers(currentSessionId.value)
   } else {
     transferPanelOpen.value = false
+    adminPanelOpen.value = false
   }
 })
 
@@ -393,6 +444,14 @@ function reportGroup() {
                 v-if="isOwner"
                 type="button"
                 class="action-btn"
+                @click="openManageAdmins"
+              >
+                {{ t('modals.manageAdmins') }}
+              </button>
+              <button
+                v-if="isOwner"
+                type="button"
+                class="action-btn"
                 @click="openTransferOwner"
               >
                 {{ t('modals.transferOwner') }}
@@ -430,6 +489,35 @@ function reportGroup() {
               <span class="transfer-name">{{ m.name }}</span>
               <span v-if="m.badge" class="transfer-badge">{{ m.badge }}</span>
             </button>
+          </div>
+        </div>
+
+        <!-- 设置管理员 -->
+        <div v-if="adminPanelOpen" class="transfer-panel">
+          <div class="transfer-head">
+            <button type="button" class="transfer-back" @click="closeAdminPanel">‹</button>
+            <h3>{{ t('modals.manageAdminsPick') }}</h3>
+          </div>
+          <p class="transfer-hint">{{ t('modals.manageAdminsHint') }}</p>
+          <div class="transfer-list">
+            <div
+              v-for="m in adminCandidates"
+              :key="m.id"
+              class="transfer-row admin-row"
+            >
+              <Avatar :text="m.avatarText" :color="m.avatarColor" :image-url="m.avatarUrl" :size="36" />
+              <span class="transfer-name">{{ m.name }}</span>
+              <span v-if="m.badge" class="transfer-badge">{{ m.badge }}</span>
+              <button
+                type="button"
+                class="role-action"
+                :class="{ danger: m.role === 'admin' }"
+                :disabled="updatingRole"
+                @click="toggleAdmin(m.id, m.name, m.role === 'admin')"
+              >
+                {{ m.role === 'admin' ? t('modals.unsetAdmin') : t('modals.setAdmin') }}
+              </button>
+            </div>
           </div>
         </div>
       </aside>
@@ -767,6 +855,36 @@ function reportGroup() {
 .transfer-badge {
   font-size: 11px;
   color: var(--lx-text-muted);
+}
+
+.admin-row {
+  cursor: default;
+}
+
+.admin-row:hover {
+  background: transparent;
+}
+
+.role-action {
+  flex-shrink: 0;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--lx-border-strong);
+  border-radius: var(--lx-radius);
+  background: var(--lx-bg-card);
+  font-size: 12px;
+  color: var(--lx-accent);
+  cursor: pointer;
+}
+
+.role-action.danger {
+  color: var(--lx-danger);
+  border-color: color-mix(in srgb, var(--lx-danger) 35%, var(--lx-border-light));
+}
+
+.role-action:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .chat-drawer-enter-active,
