@@ -439,9 +439,6 @@ function reportGroup() {
                   <div class="announce-row-main">
                     <h3 class="block-title">{{ t('chat.groupAnnouncement') }}</h3>
                     <p class="announce" :class="{ empty: announcementEmpty }">{{ announcement }}</p>
-                    <p v-if="isAdminOrOwner" class="announce-action-hint">
-                      {{ announcementEmpty ? t('extra.publishAnnouncement') : t('extra.manageAnnouncement') }}
-                    </p>
                   </div>
                   <span class="announce-arrow">›</span>
                 </button>
