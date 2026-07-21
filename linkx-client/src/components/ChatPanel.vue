@@ -4,7 +4,7 @@
  * <p>
  * 展示当前会话的消息列表、输入框与顶栏操作，
  * 支持好友/群聊/我的手机等不同会话类型，以及语音播放、
- * 文件拖拽、消息右键菜单（复制/收藏/回复/撤回）等功能。
+ * 文件拖拽、消息右键菜单（复制/收藏/回复/设为精华/撤回）等功能。
  * </p>
  */
 // Vue 响应式、计算属性、生命周期、侦听器与 nextTick
@@ -52,6 +52,8 @@ import { useContactsStore } from '../stores/contacts'
 import type { ChatMessage, ContactItem } from '../types'
 // 收藏 Store
 import { useFavoritesStore } from '../stores/favorites'
+// 群元数据 Store（精华、成员角色等）
+import { useGroupMetaStore } from '../stores/groupMeta'
 // 通话 Store（真实 WebRTC）
 import { useCallStore } from '../stores/call'
 import { useI18n } from '../i18n'
@@ -87,6 +89,8 @@ async function startCall(callType: 'voice' | 'video') {
 }
 // 获取收藏 Store 实例
 const favoritesStore = useFavoritesStore()
+// 获取群元数据 Store
+const groupMetaStore = useGroupMetaStore()
 // 获取应用 Store 实例
 const appStore = useAppStore()
 // 获取 Overlay Store 实例
@@ -137,12 +141,6 @@ function onGroupAppClick(key: string) {
   else if (key === 'announcement') openGroupAnnouncement()
 }
 
-// 是否为群聊（有会话、是群、且非「我的手机」）
-const isGroupChat = computed(
-  () => hasSession.value && !!currentSession.value?.isGroup && !isMyPhone.value
-)
-
-
 // 是否为「我的手机」会话
 const isMyPhone = computed(() => {
   const name = currentSession.value?.name
@@ -150,9 +148,31 @@ const isMyPhone = computed(() => {
 })
 // 是否有选中的会话
 const hasSession = computed(() => !!currentSession.value)
+// 是否为群聊（有会话、是群、且非「我的手机」）
+const isGroupChat = computed(
+  () => hasSession.value && !!currentSession.value?.isGroup && !isMyPhone.value
+)
 // 是否为好友单聊（有会话、非群、非我的手机）
 const isFriendChat = computed(
   () => hasSession.value && !currentSession.value?.isGroup && !isMyPhone.value
+)
+
+/** 当前用户是否为群主或管理员（可设精华） */
+const isGroupAdmin = computed(() => {
+  if (!isGroupChat.value || !currentSessionId.value) return false
+  const me = userProfile.value.userId
+  if (!me) return false
+  const members = groupMetaStore.membersFor(currentSessionId.value)
+  return members.some(m => m.id === me && (m.role === 'owner' || m.role === 'admin'))
+})
+
+// 进入群聊时预加载成员，便于右键菜单判断管理员权限
+watch(
+  () => (isGroupChat.value ? currentSessionId.value : null),
+  (id) => {
+    if (id) void groupMetaStore.fetchMembers(id)
+  },
+  { immediate: true }
 )
 
 // 过滤掉系统消息，仅展示用户可见消息
@@ -447,6 +467,9 @@ const ctxOptions = computed<DropdownOption[]>(() => {
     { label: t('chat.favorite'), key: 'fav' },
     { label: t('chat.replyAction'), key: 'reply' }
   ]
+  if (canSetEssence(msg)) {
+    opts.push({ label: t('chat.setAsEssence'), key: 'essence' })
+  }
   if (msg.isSelf && canRecallMessage(msg)) {
     opts.push({ type: 'divider', key: 'd' }, { label: t('chat.recall'), key: 'recall' })
   }
@@ -460,6 +483,15 @@ function canRecallMessage(msg: ChatMessage) {
   if (!msg.isSelf || msg.type === 'recall' || msg.type === 'system') return false
   if (msg.createTime == null || !Number.isFinite(msg.createTime)) return true
   return Date.now() - msg.createTime <= RECALL_WINDOW_MS
+}
+
+/** 群主/管理员可将文本、图片、文件、链接消息设为精华 */
+function canSetEssence(msg: ChatMessage) {
+  if (!isGroupChat.value || !isGroupAdmin.value) return false
+  if (msg.type === 'system' || msg.type === 'recall' || msg.type === 'redPacket' || msg.type === 'dataCard') {
+    return false
+  }
+  return true
 }
 
 // 消息右键：记录坐标与目标消息
@@ -478,6 +510,7 @@ function onCtxSelect(key: string) {
   if (key === 'copy') copyMessage(msg)
   else if (key === 'fav') favoriteMessage(msg)
   else if (key === 'reply') replyMessage(msg)
+  else if (key === 'essence') void setMessageAsEssence(msg)
   else if (key === 'recall') recallMessage(msg)
   ctxShow.value = false
 }
@@ -486,6 +519,53 @@ function onCtxSelect(key: string) {
 function replyMessage(msg: ChatMessage) {
   replyingTo.value = msg
   document.querySelector<HTMLTextAreaElement>('.message-input textarea')?.focus()
+}
+
+/** 将消息设为群精华 */
+async function setMessageAsEssence(msg: ChatMessage) {
+  const sessionId = currentSessionId.value
+  if (!sessionId || !canSetEssence(msg)) return
+
+  let content = ''
+  let type: 'link' | 'video' | 'text' = 'text'
+  if (msg.type === 'file') {
+    content = msg.fileName || msg.content || t('chat.messageFallback')
+  } else if (msg.type === 'image' || msg.isImage) {
+    content = msg.content || t('chat.imageMessage')
+    type = 'link'
+  } else if (msg.type === 'link') {
+    content = msg.linkUrl || msg.content
+    type = 'link'
+  } else if (msg.type === 'voice') {
+    content = t('chat.voice')
+  } else {
+    content = (msg.content || '').trim()
+  }
+  if (!content) {
+    message.warning(t('chat.essenceUnsupported'))
+    return
+  }
+
+  const user =
+    msg.senderName ||
+    (msg.isSelf ? userProfile.value.nickname : '') ||
+    t('chat.messageFallback')
+  const date = new Date().toISOString().slice(0, 10)
+
+  try {
+    const ok = await groupMetaStore.addEssence(sessionId, {
+      user,
+      date,
+      type,
+      content,
+      messageId: msg.id
+    })
+    if (ok) message.success(t('chat.essenceSetOk'))
+    else message.error(t('chat.essenceSetFail'))
+  } catch (e: unknown) {
+    const ax = e as { response?: { data?: { message?: string } }; message?: string }
+    message.error(ax.response?.data?.message || ax.message || t('chat.essenceSetFail'))
+  }
 }
 
 // 撤回消息

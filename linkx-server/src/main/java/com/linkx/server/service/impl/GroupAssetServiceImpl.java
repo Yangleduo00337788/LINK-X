@@ -64,6 +64,7 @@ public class GroupAssetServiceImpl implements GroupAssetService {
         assertGroupMember(userId, conversationId);
         String type = normalizeType(dto.getType());
         if (GroupAsset.TYPE_ESSENCE.equals(type)) {
+            assertGroupAdmin(userId, conversationId);
             if (!StringUtils.hasText(dto.getContent()) && !StringUtils.hasText(dto.getTitle())) {
                 throw new CustomException(400, "精华内容不能为空");
             }
@@ -161,6 +162,25 @@ public class GroupAssetServiceImpl implements GroupAssetService {
         );
         if (member == null) {
             throw new CustomException(403, "你不是该群成员");
+        }
+    }
+
+    /** 群主或管理员方可操作（设精华等） */
+    private void assertGroupAdmin(Long userId, Long conversationId) {
+        ImConversation group = conversationMapper.selectOneById(conversationId);
+        if (group == null || group.getType() != ImConversation.TYPE_GROUP) {
+            throw new CustomException(404, "群聊不存在");
+        }
+        if (Objects.equals(group.getOwnerId(), userId)) {
+            return;
+        }
+        ImConversationMember member = memberMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).eq(conversationId)
+                        .and(ImConversationMember::getUserId).eq(userId)
+        );
+        if (member == null || !ImConversationMember.ROLE_ADMIN.equals(member.getRole())) {
+            throw new CustomException(403, "只有群主或管理员才能设置精华");
         }
     }
 

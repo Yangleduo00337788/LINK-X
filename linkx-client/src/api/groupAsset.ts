@@ -23,7 +23,7 @@ export interface CreateEssencePayload {
   type: 'essence'
   title?: string
   content: string
-  messageId?: string
+  messageId?: number | string
 }
 
 export function listGroupAssets(conversationId: string, type?: GroupAssetType) {

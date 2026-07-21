@@ -198,26 +198,49 @@ export const useGroupMetaStore = defineStore('groupMeta', {
       return false
     },
 
-    async addEssence(sessionId: string, item: Omit<GroupEssenceItem, 'id'>) {
+    async addEssence(
+      sessionId: string,
+      item: Omit<GroupEssenceItem, 'id'> & { messageId?: string }
+    ) {
       try {
+        const mid = item.messageId != null && item.messageId !== '' ? Number(item.messageId) : undefined
         const res = await groupAssetApi.createGroupEssence(sessionId, {
           type: 'essence',
           title: item.user || '精华',
-          content: item.content
+          content: item.content,
+          messageId: mid != null && Number.isFinite(mid) ? mid : undefined
         })
         if (res.code === 200 && res.data) {
           if (!this.essence[sessionId]) this.essence[sessionId] = []
           this.essence[sessionId].unshift({
             id: String(res.data.id),
-            user: res.data.uploaderNickname || item.user,
+            user: item.user || res.data.uploaderNickname || '',
             date: (res.data.createTime || '').slice(0, 10),
-            type: 'link',
+            type: item.type || 'text',
             content: res.data.content || item.content
           })
           return true
         }
       } catch (e) {
         console.error('添加精华失败:', e)
+        throw e
+      }
+      return false
+    },
+
+    async removeEssence(sessionId: string, essenceId: string) {
+      try {
+        const res = await groupAssetApi.deleteGroupAsset(sessionId, essenceId)
+        if (res.code === 200) {
+          const list = this.essence[sessionId]
+          if (list) {
+            this.essence[sessionId] = list.filter(e => e.id !== essenceId)
+          }
+          return true
+        }
+      } catch (e) {
+        console.error('删除精华失败:', e)
+        throw e
       }
       return false
     },

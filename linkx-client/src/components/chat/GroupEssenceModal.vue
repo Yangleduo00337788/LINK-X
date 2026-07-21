@@ -1,8 +1,9 @@
 ﻿<script setup lang="ts">
 // Vue 计算属性
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 // Pinia 响应式解构工具
 import { storeToRefs } from 'pinia'
+import { useMessage } from 'naive-ui'
 // 聊天弹窗状态 Store
 import { useChatModalsStore } from '../../stores/chatModals'
 // 应用全局状态 Store
@@ -12,12 +13,15 @@ import { useGroupMetaStore } from '../../stores/groupMeta'
 import { useI18n } from '../../i18n'
 
 const { t } = useI18n()
+const message = useMessage()
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
 const groupMetaStore = useGroupMetaStore()
 const { groupEssenceOpen } = storeToRefs(chatModalsStore)
 const { closeGroupEssence } = chatModalsStore
-const { currentSession, currentSessionId } = storeToRefs(appStore)
+const { currentSession, currentSessionId, userProfile } = storeToRefs(appStore)
+
+const removingId = ref<string | null>(null)
 
 // 当前群聊的精华消息列表
 const items = computed(() => {
@@ -26,9 +30,34 @@ const items = computed(() => {
   return groupMetaStore.essenceFor(id)
 })
 
+/** 群主/管理员可删除精华 */
+const canManage = computed(() => {
+  const sid = currentSessionId.value
+  const me = userProfile.value.userId
+  if (!sid || !me) return false
+  const members = groupMetaStore.membersFor(sid)
+  return members.some(m => m.id === me && (m.role === 'owner' || m.role === 'admin'))
+})
+
 // 关闭群精华弹窗
 function close() {
   closeGroupEssence()
+}
+
+async function removeItem(id: string) {
+  const sid = currentSessionId.value
+  if (!sid || !canManage.value) return
+  removingId.value = id
+  try {
+    const ok = await groupMetaStore.removeEssence(sid, id)
+    if (ok) message.success(t('extra.essenceDeleted'))
+    else message.error(t('extra.essenceDeleteFail'))
+  } catch (e: unknown) {
+    const ax = e as { response?: { data?: { message?: string } }; message?: string }
+    message.error(ax.response?.data?.message || ax.message || t('extra.essenceDeleteFail'))
+  } finally {
+    removingId.value = null
+  }
 }
 </script>
 
@@ -47,7 +76,18 @@ function close() {
           <article v-for="item in items" :key="item.id" class="essence-card">
             <div class="card-head">
               <span class="user">{{ item.user }}</span>
-              <span class="date">{{ item.date }}</span>
+              <div class="card-meta">
+                <span class="date">{{ item.date }}</span>
+                <button
+                  v-if="canManage"
+                  type="button"
+                  class="del-btn"
+                  :disabled="removingId === item.id"
+                  @click="removeItem(item.id)"
+                >
+                  {{ t('extra.removeEssence') }}
+                </button>
+              </div>
             </div>
             <p class="content">{{ item.content }}</p>
           </article>
@@ -117,7 +157,16 @@ function close() {
 .card-head {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  gap: 12px;
   margin-bottom: 6px;
+}
+
+.card-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 .user {
@@ -129,6 +178,24 @@ function close() {
 .date {
   font-size: 12px;
   color: var(--lx-text-muted);
+}
+
+.del-btn {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 12px;
+  color: var(--lx-danger, #e74c3c);
+  cursor: pointer;
+}
+
+.del-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.del-btn:hover:not(:disabled) {
+  text-decoration: underline;
 }
 
 .content {
