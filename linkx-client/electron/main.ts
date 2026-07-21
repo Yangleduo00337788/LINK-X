@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, globalShortcut, safeStorage, desktopCapturer, Notification, net, type IpcMainEvent, type IpcMainInvokeEvent, type WebRequestHeadersReceivedCallbackParams, type OnHeadersReceivedListener } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, globalShortcut, safeStorage, desktopCapturer, Notification, net, session, type IpcMainEvent, type IpcMainInvokeEvent, type WebRequestHeadersReceivedCallbackParams, type OnHeadersReceivedListener } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import http from 'node:http'
@@ -179,8 +179,7 @@ if (isDev) {
 
 // 启用地理位置支持
 app.commandLine.appendSwitch('--enable-geolocation')
-app.commandLine.appendSwitch('--use-fake-ui-for-media-stream')
-app.commandLine.appendSwitch('--use-fake-device-for-media-stream')
+// 注意：不要使用 --use-fake-device-for-media-stream，否则摄像头/麦克风无真实画面与声音
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -1228,6 +1227,22 @@ function createWindow() {
 app.whenReady().then(() => {
   desktopPrefs = loadDesktopPrefs()
 
+  // 允许本应用使用摄像头/麦克风（替代假设备开关，保证真实音视频）
+  const allowMediaPermissions = new Set([
+    'media',
+    'microphone',
+    'camera',
+    'display-capture',
+    'geolocation',
+    'notifications'
+  ])
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(allowMediaPermissions.has(permission))
+  })
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => {
+    return allowMediaPermissions.has(permission)
+  })
+
   // 设置严格的 Content Security Policy，防止 Electron Security Warning
   // 在窗口创建前设置，应用到所有窗口
   const csp = [
@@ -1237,7 +1252,7 @@ app.whenReady().then(() => {
     "img-src 'self' data: blob: https: http:;",
     "font-src 'self' data:;",
     "connect-src 'self' ws: wss: http: https:;",
-    "media-src 'self' blob:;"
+    "media-src 'self' blob: mediastream:;"
   ].join(' ')
 
   app.on('web-contents-created', (_event, contents) => {

@@ -122,6 +122,16 @@ export const useCallStore = defineStore('call', {
       this.errorMessage = ''
       this.micOn = true
       this.cameraOn = opts.callType === 'video'
+      // 主叫在振铃阶段即打开本地媒体：视频可预览，接通后立刻有音轨
+      void this.ensureLocalMedia().catch(e => {
+        const name = (e as DOMException)?.name
+        this.errorMessage =
+          name === 'NotAllowedError'
+            ? '请允许使用摄像头/麦克风'
+            : name === 'NotReadableError'
+              ? '摄像头或麦克风被占用，请关闭其他占用设备的应用后重试'
+              : (e as Error).message || '无法打开摄像头/麦克风'
+      })
     },
 
     handleRemoteEvent(action: string, raw: CallEventPayload) {
@@ -332,7 +342,15 @@ export const useCallStore = defineStore('call', {
       }
 
       pc.ontrack = evt => {
-        const stream = evt.streams[0] || new MediaStream([evt.track])
+        // 音视频可能分多次 ontrack；始终合并到同一 MediaStream，避免后到的轨覆盖先到的轨
+        if (!this.remoteStream) {
+          this.remoteStream = markRaw(new MediaStream())
+        }
+        const stream = this.remoteStream
+        if (!stream.getTrackById(evt.track.id)) {
+          stream.addTrack(evt.track)
+        }
+        // 重新赋值以触发 video/audio 的 watch
         this.remoteStream = markRaw(stream)
         this.phase = 'connected'
         if (!this.connectedAt) this.connectedAt = Date.now()

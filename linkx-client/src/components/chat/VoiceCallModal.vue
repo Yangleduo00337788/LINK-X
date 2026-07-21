@@ -2,7 +2,7 @@
 /**
  * 语音通话弹窗：真实 WebRTC，等待对端接听后建立媒体连接。
  */
-import { ref, watch, onUnmounted, computed } from 'vue'
+import { ref, watch, onUnmounted, computed, nextTick } from 'vue'
 import { NIcon, useMessage } from 'naive-ui'
 import {
   MicOutline,
@@ -49,6 +49,24 @@ function clearDuration() {
   seconds.value = 0
 }
 
+async function bindRemoteAudio(stream: MediaStream | null) {
+  await nextTick()
+  const el = remoteAudioRef.value
+  if (!el) return
+  if (el.srcObject !== stream) {
+    el.srcObject = stream
+  }
+  if (stream) {
+    el.muted = false
+    el.volume = 1
+    try {
+      await el.play()
+    } catch {
+      /* 自动播放可能被策略拦截，用户已通过点击发起通话，一般可恢复 */
+    }
+  }
+}
+
 watch(phase, p => {
   clearDuration()
   if (p === 'connected') {
@@ -56,15 +74,18 @@ watch(phase, p => {
     durationTimer = setInterval(() => {
       seconds.value = Math.floor((Date.now() - base) / 1000)
     }, 1000)
+    void bindRemoteAudio(remoteStream.value)
   }
 })
 
 watch(remoteStream, stream => {
-  const el = remoteAudioRef.value
-  if (el && stream) {
-    el.srcObject = stream
-    void el.play().catch(() => {})
-  }
+  void bindRemoteAudio(stream)
+})
+
+watch(showVoiceUi, async visible => {
+  if (!visible) return
+  await nextTick()
+  void bindRemoteAudio(remoteStream.value)
 })
 
 watch(errorMessage, msg => {
@@ -108,16 +129,22 @@ function avatarText(name: string) {
         </div>
         <div class="call-controls">
           <button type="button" class="ctl" @click="callStore.toggleMic()">
-            <n-icon :component="micOn ? MicOutline : MicOffOutline" :size="26" />
-            <span>{{ micOn ? '关闭麦克风' : '开启麦克风' }}</span>
+            <span class="ctl-icon">
+              <n-icon :component="micOn ? MicOutline : MicOffOutline" :size="26" />
+            </span>
+            <span class="ctl-label">{{ micOn ? '关闭麦克风' : '开启麦克风' }}</span>
           </button>
           <button type="button" class="ctl" @click="switchToVideo">
-            <n-icon :component="VideocamOutline" :size="26" />
-            <span>视频通话</span>
+            <span class="ctl-icon">
+              <n-icon :component="VideocamOutline" :size="26" />
+            </span>
+            <span class="ctl-label">视频通话</span>
           </button>
           <button type="button" class="ctl hangup" @click="hangUp">
-            <n-icon :component="CallOutline" :size="28" />
-            <span>挂断</span>
+            <span class="ctl-icon hangup-icon">
+              <n-icon :component="CallOutline" :size="26" />
+            </span>
+            <span class="ctl-label">挂断</span>
           </button>
         </div>
       </div>
@@ -140,9 +167,10 @@ function avatarText(name: string) {
   width: min(420px, 90vw);
   background: linear-gradient(180deg, #3a3a3a 0%, #2a2a2a 100%);
   border-radius: var(--lx-radius);
-  padding: 24px 20px 28px;
+  padding: 24px 24px 28px;
   color: var(--lx-bg-card);
   box-shadow: 0 16px 48px var(--lx-bg-overlay);
+  overflow: visible;
 }
 
 .call-top {
@@ -171,10 +199,11 @@ function avatarText(name: string) {
 }
 
 .call-controls {
-  display: flex;
-  justify-content: space-around;
-  align-items: flex-start;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 0 4px;
 }
 
 .ctl {
@@ -187,22 +216,28 @@ function avatarText(name: string) {
   color: rgba(255, 255, 255, 0.9);
   font-size: 11px;
   cursor: pointer;
-  max-width: 72px;
+  min-width: 0;
+  padding: 0;
 }
 
-.ctl span {
+.ctl-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ctl-label {
   line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
 }
 
-.ctl.hangup {
-  color: var(--lx-bg-card);
-}
-
-.ctl.hangup :deep(svg) {
+.hangup-icon {
   background: var(--lx-danger);
   border-radius: 50%;
-  padding: 10px;
-  width: 48px !important;
-  height: 48px !important;
+  color: #fff;
 }
 </style>

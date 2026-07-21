@@ -46,31 +46,55 @@ watch(errorMessage, msg => {
   }
 })
 
+async function bindVideo(
+  el: HTMLVideoElement | null,
+  stream: MediaStream | null,
+  opts?: { muted?: boolean }
+) {
+  await nextTick()
+  if (!el) return
+  if (el.srcObject !== stream) {
+    el.srcObject = stream
+  }
+  if (stream) {
+    el.muted = opts?.muted ?? false
+    el.volume = 1
+    try {
+      await el.play()
+    } catch {
+      /* ignore autoplay block */
+    }
+  }
+}
+
 watch(
   localStream,
-  async stream => {
-    await nextTick()
-    const el = localVideoRef.value
-    if (el) {
-      el.srcObject = stream
-      if (stream) void el.play().catch(() => {})
-    }
+  stream => {
+    void bindVideo(localVideoRef.value, stream, { muted: true })
   },
   { immediate: true }
 )
 
 watch(
   remoteStream,
-  async stream => {
-    await nextTick()
-    const el = remoteVideoRef.value
-    if (el) {
-      el.srcObject = stream
-      if (stream) void el.play().catch(() => {})
-    }
+  stream => {
+    void bindVideo(remoteVideoRef.value, stream, { muted: false })
   },
   { immediate: true }
 )
+
+watch(showVideoUi, async visible => {
+  if (!visible) return
+  await nextTick()
+  void bindVideo(localVideoRef.value, localStream.value, { muted: true })
+  void bindVideo(remoteVideoRef.value, remoteStream.value, { muted: false })
+})
+
+watch(phase, p => {
+  if (p === 'connected') {
+    void bindVideo(remoteVideoRef.value, remoteStream.value, { muted: false })
+  }
+})
 
 async function hangUp() {
   await callStore.hangup()
@@ -104,22 +128,29 @@ async function hangUp() {
               muted
               playsinline
             />
-            <span v-if="!cameraOn" class="pip-name">摄像头已关</span>
+            <span v-if="!localStream" class="pip-name">正在打开摄像头…</span>
+            <span v-else-if="!cameraOn" class="pip-name">摄像头已关</span>
             <span v-else class="pip-name">{{ userProfile.nickname }}</span>
           </div>
         </div>
         <div class="call-controls">
           <button type="button" class="ctl" @click="callStore.toggleMic()">
-            <n-icon :component="micOn ? MicOutline : MicOffOutline" :size="24" />
-            <span>{{ micOn ? '关闭麦克风' : '开启麦克风' }}</span>
+            <span class="ctl-icon">
+              <n-icon :component="micOn ? MicOutline : MicOffOutline" :size="24" />
+            </span>
+            <span class="ctl-label">{{ micOn ? '关闭麦克风' : '开启麦克风' }}</span>
           </button>
           <button type="button" class="ctl" @click="callStore.toggleCamera()">
-            <n-icon :component="cameraOn ? VideocamOutline : VideocamOffOutline" :size="24" />
-            <span>{{ cameraOn ? '关闭视频' : '开启视频' }}</span>
+            <span class="ctl-icon">
+              <n-icon :component="cameraOn ? VideocamOutline : VideocamOffOutline" :size="24" />
+            </span>
+            <span class="ctl-label">{{ cameraOn ? '关闭视频' : '开启视频' }}</span>
           </button>
           <button type="button" class="ctl hangup" @click="hangUp">
-            <n-icon :component="CallOutline" :size="26" />
-            <span>挂断</span>
+            <span class="ctl-icon hangup-icon">
+              <n-icon :component="CallOutline" :size="24" />
+            </span>
+            <span class="ctl-label">挂断</span>
           </button>
         </div>
       </div>
@@ -185,8 +216,8 @@ async function hangUp() {
   position: absolute;
   left: 12px;
   bottom: 12px;
-  width: 100px;
-  height: 72px;
+  width: 112px;
+  height: 80px;
   background: #444;
   border-radius: var(--lx-radius);
   border: 2px solid rgba(255, 255, 255, 0.2);
@@ -215,9 +246,11 @@ async function hangUp() {
 }
 
 .call-controls {
-  display: flex;
-  justify-content: space-around;
-  padding: 16px 8px 20px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 16px 16px 20px;
   background: #2a2a2a;
 }
 
@@ -229,14 +262,30 @@ async function hangUp() {
   border: none;
   background: transparent;
   color: var(--lx-bg-card);
-  font-size: 10px;
+  font-size: 11px;
   cursor: pointer;
-  max-width: 64px;
+  min-width: 0;
+  padding: 0;
 }
 
-.ctl.hangup :deep(svg) {
+.ctl-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ctl-label {
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.hangup-icon {
   background: var(--lx-danger);
   border-radius: 50%;
-  padding: 8px;
+  color: #fff;
 }
 </style>
