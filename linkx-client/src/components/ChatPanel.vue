@@ -1129,17 +1129,19 @@ function onDrop(e: DragEvent) {
 
 .at-me-fab {
   position: absolute;
+  top: 10px;
   right: 12px;
-  bottom: 16px;
   z-index: 8;
   border: none;
-  border-radius: 16px;
-  padding: 6px 12px;
-  font-size: 12px;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+  font-size: 13px;
   font-weight: 600;
-  color: #fff;
-  background: var(--lx-accent, #12b7f5);
-  box-shadow: 0 4px 14px rgba(18, 183, 245, 0.35);
+  line-height: 1.4;
+  color: var(--lx-danger, #f04040);
   cursor: pointer;
   max-width: calc(100% - 24px);
   white-space: nowrap;
@@ -1148,7 +1150,9 @@ function onDrop(e: DragEvent) {
 }
 
 .at-me-fab:hover {
-  filter: brightness(1.05);
+  color: #d93636;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .message-time {
