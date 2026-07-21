@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Vue 响应式 API 与计算属性
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 // Naive UI 输入框、按钮与消息提示
 import { NInput, NButton, useMessage } from 'naive-ui'
 // Pinia 响应式解构工具
@@ -30,12 +30,29 @@ const { currentSession, currentSessionId, userProfile } = storeToRefs(appStore)
 const editing = ref(false)
 // 编辑中的公告草稿内容
 const draft = ref('')
+const saving = ref(false)
 
 // 当前群聊的公告信息
 const announcement = computed(() => {
   const id = currentSessionId.value
   if (!id) return null
   return groupMetaStore.announcementFor(id)
+})
+
+/** 群主或管理员可发布/编辑公告 */
+const canEdit = computed(() => {
+  const id = currentSessionId.value
+  const me = userProfile.value.userId
+  if (!id || !me) return false
+  const members = groupMetaStore.membersFor(id)
+  return members.some(m => m.id === me && (m.role === 'owner' || m.role === 'admin'))
+})
+
+watch(groupAnnouncementOpen, open => {
+  if (open && currentSessionId.value) {
+    void groupMetaStore.fetchMembers(currentSessionId.value)
+  }
+  if (!open) editing.value = false
 })
 
 // 关闭弹窗并重置编辑状态
@@ -46,17 +63,30 @@ function close() {
 
 // 进入编辑模式并填充当前公告内容
 function startEdit() {
+  if (!canEdit.value) return
   draft.value = announcement.value?.content ?? ''
   editing.value = true
 }
 
 // 保存编辑后的群公告
-function save() {
+async function save() {
   const id = currentSessionId.value
-  if (!id || !draft.value.trim()) return
-  groupMetaStore.updateAnnouncement(id, draft.value.trim())
-  message.success(t('extra.announcementUpdated'))
-  editing.value = false
+  if (!id || !canEdit.value || !draft.value.trim()) return
+  saving.value = true
+  try {
+    const ok = await groupMetaStore.updateAnnouncement(id, draft.value.trim())
+    if (ok) {
+      message.success(t('extra.announcementUpdated'))
+      editing.value = false
+    } else {
+      message.error(t('extra.announcementUpdateFail'))
+    }
+  } catch (e: unknown) {
+    const ax = e as { response?: { data?: { message?: string } }; message?: string }
+    message.error(ax.response?.data?.message || ax.message || t('extra.announcementUpdateFail'))
+  } finally {
+    saving.value = false
+  }
 }
 </script>
 
@@ -75,22 +105,25 @@ function save() {
           <div class="post-head">
             <Avatar :text="userProfile.nickname.charAt(0)" color="var(--lx-accent)" :size="40" />
             <div class="post-meta">
-              <span class="author">{{ announcement.author }}</span>
-              <span class="role">{{ announcement.role }}</span>
-              <span class="time">{{ announcement.time }}</span>
+              <span class="author">{{ announcement.author || t('extra.groupChat') }}</span>
+              <span v-if="announcement.role" class="role">{{ announcement.role }}</span>
+              <span v-if="announcement.time" class="time">{{ announcement.time }}</span>
             </div>
-            <span class="pin-tag">
+            <span v-if="announcement.content" class="pin-tag">
               <PinIcon :size="11" />
               {{ t('extra.pinned') }}
             </span>
           </div>
-          <pre v-if="!editing" class="post-body">{{ announcement.content }}</pre>
-          <n-input v-else v-model:value="draft" type="textarea" :rows="6" />
+          <pre v-if="!editing" class="post-body">{{ announcement.content || t('extra.noAnnouncement') }}</pre>
+          <n-input v-else v-model:value="draft" type="textarea" :rows="6" :disabled="saving" />
           <div class="actions">
-            <n-button v-if="!editing" size="small" @click="startEdit">{{ t('extra.editAnnouncement') }}</n-button>
+            <n-button v-if="!editing && canEdit" size="small" @click="startEdit">
+              {{ t('extra.editAnnouncement') }}
+            </n-button>
+            <p v-else-if="!editing && !canEdit" class="view-only">{{ t('extra.announcementAdminOnly') }}</p>
             <template v-else>
-              <n-button size="small" @click="editing = false">{{ t('common.cancel') }}</n-button>
-              <n-button size="small" type="primary" @click="save">{{ t('common.save') }}</n-button>
+              <n-button size="small" :disabled="saving" @click="editing = false">{{ t('common.cancel') }}</n-button>
+              <n-button size="small" type="primary" :loading="saving" @click="save">{{ t('common.save') }}</n-button>
             </template>
           </div>
         </div>
@@ -219,5 +252,12 @@ function save() {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+  align-items: center;
+}
+
+.view-only {
+  margin: 0;
+  font-size: 12px;
+  color: var(--lx-text-muted);
 }
 </style>

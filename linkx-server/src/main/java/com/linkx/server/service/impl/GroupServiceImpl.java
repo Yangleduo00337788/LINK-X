@@ -139,12 +139,22 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public GroupConversationVO updateGroup(Long userId, Long conversationId, UpdateGroupDTO dto) {
-        ImConversation group = assertGroupOwner(userId, conversationId);
+        boolean rename = StringUtils.hasText(dto.getName());
+        boolean updateAnnouncement = dto.getAnnouncement() != null;
+        // 改群名仅群主；发/改公告群主与管理员均可
+        ImConversation group = rename
+                ? assertGroupOwner(userId, conversationId)
+                : assertGroupAdmin(userId, conversationId);
+        if (!rename && !updateAnnouncement) {
+            // 空更新也走管理员校验后直接返回
+            SysUser owner = sysUserMapper.selectOneById(group.getOwnerId());
+            return toGroupConversationVO(group, owner, userId);
+        }
 
-        if (StringUtils.hasText(dto.getName())) {
+        if (rename) {
             group.setName(dto.getName());
         }
-        if (dto.getAnnouncement() != null) {
+        if (updateAnnouncement) {
             group.setAnnouncement(dto.getAnnouncement());
         }
         conversationMapper.update(group);

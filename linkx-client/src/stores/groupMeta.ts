@@ -192,16 +192,24 @@ export const useGroupMetaStore = defineStore('groupMeta', {
       try {
         const res = await groupApi.updateGroup(sessionId, { announcement: content })
         if (res.code === 200 && res.data) {
+          const { useAppStore } = await import('./app')
+          const app = useAppStore()
+          const me = app.userProfile.userId
+          const members = this.members[sessionId] || []
+          const myRole = members.find(m => m.id === me)?.role
+          const roleLabel =
+            myRole === 'owner' ? '群主' : myRole === 'admin' ? '管理员' : '成员'
           this.announcements[sessionId] = {
             content: res.data.announcement || content,
-            author: res.data.ownerNickname || '群主',
-            role: '群主',
+            author: app.userProfile.nickname || res.data.ownerNickname || '成员',
+            role: roleLabel,
             time: '刚刚'
           }
           return true
         }
       } catch (e) {
         console.error('更新群公告失败:', e)
+        throw e
       }
       return false
     },

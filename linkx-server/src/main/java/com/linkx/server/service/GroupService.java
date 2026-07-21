@@ -30,7 +30,7 @@ public interface GroupService {
     GroupConversationVO getGroupInfo(Long userId, Long conversationId);
 
     /**
-     * 更新群信息（名称/公告）
+     * 更新群信息：改群名仅群主；发/改公告群主与管理员均可
      */
     GroupConversationVO updateGroup(Long userId, Long conversationId, UpdateGroupDTO dto);
 
