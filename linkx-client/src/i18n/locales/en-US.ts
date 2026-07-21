@@ -184,7 +184,8 @@ export default {
     sendFile: 'Send file',
     markedAllRead: 'All marked as read',
     remindEmptyDesc: 'When calendar reminders are on, due items appear here',
-    someoneAtMe: '[You were mentioned]'
+    someoneAtMe: '[You were mentioned]',
+    atMeNotFound: 'Mentioned message not found'
   },
   files: {
     download: 'Downloads',

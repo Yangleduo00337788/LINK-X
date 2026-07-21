@@ -128,6 +128,18 @@ function scrollToBottom() {
   })
 }
 
+/** 滚动到指定消息 key（消息 id） */
+function scrollToKey(key: string | number) {
+  scrollBottomToken++
+  nextTick(() => {
+    try {
+      listRef.value?.scrollTo({ key, debounce: false })
+    } catch {
+      /* ignore */
+    }
+  })
+}
+
 function restoreAfterPrepend(prevScrollHeight: number, prevScrollTop: number) {
   const el = getScrollElement()
   if (!el) return
@@ -144,6 +156,7 @@ onBeforeUnmount(() => {
 
 defineExpose({
   scrollToBottom,
+  scrollToKey,
   getScrollElement,
   restoreAfterPrepend
 })

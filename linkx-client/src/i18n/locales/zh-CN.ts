@@ -187,7 +187,8 @@ export default {
     sendFile: '发送文件',
     markedAllRead: '已全部标为已读',
     remindEmptyDesc: '开启日程提醒后，到期会在这里收到站内消息',
-    someoneAtMe: '[有人@我]'
+    someoneAtMe: '[有人@我]',
+    atMeNotFound: '未找到该条 @ 消息'
   },
   files: {
     download: '下载管理',

@@ -107,7 +107,7 @@ const { currentSession, currentMessages, userProfile, currentSessionId, savedLog
 // 解构聊天背景设置
 const { chatBackground } = storeToRefs(appSettingsStore)
 // 解构撤回消息、加载更多历史消息
-const { recallMessage: recallMessageInStore, loadMoreMessages } = appStore
+const { recallMessage: recallMessageInStore, loadMoreMessages, clearAtMeMessage } = appStore
 // 解构打开 Overlay 方法
 const { open: openOverlay } = overlayStore
 // 解构聊天弹窗相关操作方法
@@ -221,6 +221,9 @@ const chatMessages = computed(() => {
 const stickToBottom = ref(true)
 const loadingMore = ref(false)
 let loadMoreLockUntil = 0
+/** 跳转高亮的消息 ID */
+const highlightAtMeId = ref<string | null>(null)
+let highlightAtMeTimer = 0
 
 // 监听消息数量变化：贴底时才自动滚到底（发送/收到新消息）
 watch(
@@ -237,6 +240,11 @@ watch(currentSessionId, () => {
   stickToBottom.value = true
   loadingMore.value = false
   loadMoreLockUntil = 0
+  highlightAtMeId.value = null
+  if (highlightAtMeTimer) {
+    window.clearTimeout(highlightAtMeTimer)
+    highlightAtMeTimer = 0
+  }
   if (hasSession.value) {
     nextTick(() => scrollToBottom())
   }
@@ -361,6 +369,10 @@ function openImageView(msg: ChatMessage) {
 // 组件卸载时停止语音播放
 onUnmounted(() => {
   voiceAudio?.pause()
+  if (highlightAtMeTimer) {
+    window.clearTimeout(highlightAtMeTimer)
+    highlightAtMeTimer = 0
+  }
 })
 
 // 打开文件预览 Overlay
@@ -403,6 +415,64 @@ const chatInputRef = ref<InstanceType<typeof ChatInputBox> | null>(null)
 function scrollToBottom() {
   stickToBottom.value = true
   messageListRef.value?.scrollToBottom()
+}
+
+/** 是否展示对话框内「有人@我」浮层（未贴底或目标消息不在底部附近） */
+const showAtMeFab = computed(() => {
+  if (!isGroupChat.value) return false
+  const targetId = currentSession.value?.atMeMessageId
+  if (!targetId) return false
+  const idx = chatMessages.value.findIndex(m => m.id === targetId)
+  if (idx < 0) return true
+  const nearEnd = idx >= chatMessages.value.length - 2
+  if (stickToBottom.value && nearEnd) return false
+  return true
+})
+
+/** 贴底且已看见 @消息时自动清除提示 */
+watch(
+  [stickToBottom, () => currentSession.value?.atMeMessageId, () => chatMessages.value.length],
+  () => {
+    const sid = currentSessionId.value
+    const targetId = currentSession.value?.atMeMessageId
+    if (!sid || !targetId || !stickToBottom.value) return
+    const idx = chatMessages.value.findIndex(m => m.id === targetId)
+    if (idx >= 0 && idx >= chatMessages.value.length - 2) {
+      clearAtMeMessage(sid)
+    }
+  }
+)
+
+/** 点击「有人@我」：滚动定位并短暂高亮 */
+async function jumpToAtMeMessage() {
+  const sid = currentSessionId.value
+  const targetId = currentSession.value?.atMeMessageId
+  if (!sid || !targetId) return
+
+  let idx = chatMessages.value.findIndex(m => m.id === targetId)
+  let attempts = 0
+  while (idx < 0 && attempts < 15 && appStore.messagesHasMore[sid] !== false) {
+    attempts++
+    await loadMoreMessages(sid)
+    await nextTick()
+    idx = chatMessages.value.findIndex(m => m.id === targetId)
+  }
+
+  if (idx < 0) {
+    clearAtMeMessage(sid)
+    message.info(t('chat.atMeNotFound'))
+    return
+  }
+
+  stickToBottom.value = false
+  messageListRef.value?.scrollToKey(targetId)
+  highlightAtMeId.value = targetId
+  if (highlightAtMeTimer) window.clearTimeout(highlightAtMeTimer)
+  highlightAtMeTimer = window.setTimeout(() => {
+    highlightAtMeId.value = null
+    highlightAtMeTimer = 0
+  }, 1800)
+  clearAtMeMessage(sid)
 }
 
 function onVirtualScroll(payload: {
@@ -775,11 +845,12 @@ function onDrop(e: DragEvent) {
                 >
                   <template #default="{ msg }">
                       <div
-                      v-memo="[msg.id, msg.content, msg.type, playingVoiceId === msg.id, msg.senderAvatar, msg.isSelf]"
+                      v-memo="[msg.id, msg.content, msg.type, playingVoiceId === msg.id, msg.senderAvatar, msg.isSelf, highlightAtMeId === msg.id]"
                     >
                       <ChatMessageItem
                         :msg="msg"
                         :playing="playingVoiceId === msg.id"
+                        :highlight="highlightAtMeId === msg.id"
                         @contextmenu="onMsgContext"
                         @play-voice="playVoice"
                         @open-file-view="openFileView"
@@ -792,9 +863,19 @@ function onDrop(e: DragEvent) {
                   </template>
                 </MessageVirtualList>
 
+                <!-- 群聊：有人@我浮层，点击跳转到对应消息 -->
+                <button
+                  v-if="showAtMeFab"
+                  type="button"
+                  class="at-me-fab"
+                  @click="jumpToAtMeMessage"
+                >
+                  {{ t('chat.someoneAtMe') }}
+                </button>
+
                 <!-- 无消息或未选会话时的占位水印 -->
                 <PenguinWatermark
-                  v-else
+                  v-else-if="!(hasSession && chatMessages.length)"
                   :hint="hasSession ? t('chat.emptyChat') : t('chat.selectChatHint')"
                 />
               </div>
@@ -1039,6 +1120,31 @@ function onDrop(e: DragEvent) {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  position: relative;
+}
+
+.at-me-fab {
+  position: absolute;
+  right: 12px;
+  bottom: 16px;
+  z-index: 8;
+  border: none;
+  border-radius: 16px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--lx-accent, #12b7f5);
+  box-shadow: 0 4px 14px rgba(18, 183, 245, 0.35);
+  cursor: pointer;
+  max-width: calc(100% - 24px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.at-me-fab:hover {
+  filter: brightness(1.05);
 }
 
 .message-time {

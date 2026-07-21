@@ -24,6 +24,8 @@ const props = defineProps<{
   msg: ChatMessage
   /** 当前是否正在播放该条语音 */
   playing?: boolean
+  /** 跳转到 @我 时短暂高亮 */
+  highlight?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -102,7 +104,11 @@ const selfAvatarProps = computed(() => ({
   <div v-if="isSystemTip || isRecall" class="recall-tip-row">
     <span class="recall-tip">{{ tipText }}</span>
   </div>
-  <div v-else class="message-row" :class="msg.isSelf ? 'right' : 'left'">
+  <div
+    v-else
+    class="message-row"
+    :class="[msg.isSelf ? 'right' : 'left', { 'is-at-me-flash': highlight }]"
+  >
     <button v-if="!msg.isSelf && isFriendChat" type="button" class="avatar-btn" @click="emit('openPeerProfile', $event)">
       <Avatar v-bind="peerAvatarProps" />
     </button>
@@ -156,6 +162,20 @@ const selfAvatarProps = computed(() => ({
 .avatar-btn:focus-visible { outline: 2px solid var(--lx-accent); outline-offset: 2px; }
 .bubble-wrapper {
   max-width: min(420px, 72%);
+}
+.message-row.is-at-me-flash .bubble-wrapper {
+  animation: at-me-flash 1.6s ease;
+}
+@keyframes at-me-flash {
+  0%,
+  100% {
+    box-shadow: none;
+  }
+  20%,
+  55% {
+    box-shadow: 0 0 0 3px rgba(18, 183, 245, 0.55);
+    border-radius: 10px;
+  }
 }
 </style>
 <style>

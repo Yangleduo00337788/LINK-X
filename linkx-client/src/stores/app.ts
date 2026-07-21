@@ -278,13 +278,45 @@ export const useAppStore = defineStore('app', {
         s.unread = 0 // 进入会话即清未读
       }
       if (s?.atMe) {
-        s.atMe = false // 进入会话清除「有人@我」
+        // 进入会话清除列表角标；若尚无跳转目标，加载后从消息里找回
+        const needRecover = !s.atMeMessageId
+        s.atMe = false
+        if (session.isReal) {
+          void this.loadSessionMessages(session.id).then(() => {
+            if (needRecover) this.recoverAtMeMessageId(session.id)
+          })
+        } else if (needRecover) {
+          this.recoverAtMeMessageId(session.id)
+        }
+      } else if (session.isReal) {
+        void this.loadSessionMessages(session.id)
       }
       if (!this.messagesBySession[session.id]) {
         this.messagesBySession[session.id] = [] // 懒初始化空消息列表
       }
-      if (session.isReal) {
-        void this.loadSessionMessages(session.id)
+    },
+
+    /** 清除会话的 @我 跳转提示（对话框内跳转后或已看见时调用） */
+    clearAtMeMessage(sessionId: string) {
+      const s = this.sessions.find(x => x.id === sessionId)
+      if (!s) return
+      s.atMe = false
+      s.atMeMessageId = undefined
+    },
+
+    /** 从已加载消息中找回最近一条 @我，写入 atMeMessageId */
+    recoverAtMeMessageId(sessionId: string) {
+      const s = this.sessions.find(x => x.id === sessionId)
+      if (!s?.isGroup || s.atMeMessageId) return
+      const names = [this.userProfile.nickname, this.userProfile.username]
+      const list = this.messagesBySession[sessionId] || []
+      for (let i = list.length - 1; i >= 0; i--) {
+        const m = list[i]
+        if (m.isSelf || m.type === 'system' || m.type === 'time' || m.type === 'recall') continue
+        if (contentMentionsUser(m.content, names)) {
+          s.atMeMessageId = m.id
+          return
+        }
       }
     },
 
@@ -484,6 +516,7 @@ export const useAppStore = defineStore('app', {
             ...s,
             unread: prev.unread || s.unread,
             atMe: prev.atMe,
+            atMeMessageId: prev.atMeMessageId,
             muted: prev.muted,
             pinned: prev.pinned
           }
@@ -691,27 +724,33 @@ export const useAppStore = defineStore('app', {
         session.lastMessage = messagePreviewFromItem(message)
         session.time = chatMsg.time
         // 系统提示不计未读、不响铃
-        if (!exists && message.type !== 'system' && this.currentSessionId !== sessionId) {
-          const settings = useAppSettingsStore()
-          if (
-            shouldAlertForSession(session, message, {
-              notifyAtMe: settings.notifyAtMe,
-              myNickname: this.userProfile.nickname,
-              myUsername: this.userProfile.username
-            })
-          ) {
-            session.unread = (session.unread || 0) + 1
-          }
-          // 群聊被 @ / @全体：会话列表显示「[有人@我]」（免打扰也标记）
-          if (
-            session.isGroup &&
+        if (!exists && message.type !== 'system') {
+          const mentioned =
+            !!session.isGroup &&
             !message.isSelf &&
             contentMentionsUser(message.content, [
               this.userProfile.nickname,
               this.userProfile.username
             ])
-          ) {
-            session.atMe = true
+          // 记录待跳转消息；当前会话是否展示浮层由 ChatPanel 根据是否贴底决定
+          if (mentioned) {
+            session.atMeMessageId = chatMsg.id
+          }
+
+          if (this.currentSessionId !== sessionId) {
+            const settings = useAppSettingsStore()
+            if (
+              shouldAlertForSession(session, message, {
+                notifyAtMe: settings.notifyAtMe,
+                myNickname: this.userProfile.nickname,
+                myUsername: this.userProfile.username
+              })
+            ) {
+              session.unread = (session.unread || 0) + 1
+            }
+            if (mentioned) {
+              session.atMe = true
+            }
           }
         }
       } else {
