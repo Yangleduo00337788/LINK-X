@@ -937,6 +937,7 @@ export default {
     uploadToAlbum: '上传至相册',
     uploadPhotosHint: '马上上传照片，与群友分享。',
     albumUploaded: '已上传 {n} 张图片到群相册',
+    uploading: '上传中…',
     defaultAlbumReady: '默认相册已就绪，直接上传即可',
     groupEssenceTitle: '群精华 - {name}',
     noEssence: '暂无群精华',

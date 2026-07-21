@@ -1,17 +1,10 @@
 ﻿<script setup lang="ts">
-// Vue 响应式 API 与计算属性
-import { ref, computed } from 'vue'
-// Pinia 响应式解构工具
+import { ref, computed, nextTick, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-// 聊天弹窗状态 Store
 import { useChatModalsStore } from '../../stores/chatModals'
-// 应用全局状态 Store
 import { useAppStore } from '../../stores/app'
-// 群元数据 Store
 import { useGroupMetaStore } from '../../stores/groupMeta'
-// 全屏覆盖层 Store
 import { useOverlayStore } from '../../stores/overlay'
-// Naive UI 全局消息提示
 import { useMessage } from 'naive-ui'
 import { useI18n } from '../../i18n'
 import axios from 'axios'
@@ -29,23 +22,44 @@ const { open: openOverlay } = overlayStore
 
 const tab = ref<'feed' | 'albums' | 'me'>('feed')
 const albumInputRef = ref<HTMLInputElement | null>(null)
+const uploading = ref(false)
+const albumInputId = 'group-album-upload-input'
 
 const albumItems = computed(() => {
   const id = currentSessionId.value
   if (!id) return []
   const list = groupMetaStore.albumFor(id)
   if (tab.value === 'me') {
-    return list.filter(i => i.user === userProfile.value.nickname)
+    const myId = userProfile.value.userId
+    const myName = userProfile.value.nickname
+    return list.filter(i => (myId && i.uploaderId === myId) || (!!myName && i.user === myName))
   }
   return list
+})
+
+watch(groupAlbumOpen, open => {
+  if (open) tab.value = 'feed'
 })
 
 function close() {
   closeGroupAlbum()
 }
 
-function upload() {
-  albumInputRef.value?.click()
+/** 打开系统文件选择器（label 优先；创建相册走程序化兜底） */
+function openFilePicker() {
+  const input = albumInputRef.value
+  if (!input) {
+    message.error(t('extra.opFail'))
+    return
+  }
+  input.value = ''
+  input.click()
+}
+
+function createAlbum() {
+  // 后端暂无多相册，创建即进入默认相册并选图上传
+  tab.value = 'albums'
+  void nextTick(() => openFilePicker())
 }
 
 async function onAlbumPicked(e: Event) {
@@ -54,12 +68,14 @@ async function onAlbumPicked(e: Event) {
   input.value = ''
   if (!files?.length || !currentSessionId.value) return
 
+  uploading.value = true
   try {
     const { ok, error } = await groupMetaStore.uploadAlbumImages(
       currentSessionId.value,
       Array.from(files)
     )
     if (ok > 0) {
+      tab.value = 'feed'
       message.success(t('extra.albumUploaded', { n: ok }))
     } else {
       message.error(error || t('extra.opFail'))
@@ -68,6 +84,8 @@ async function onAlbumPicked(e: Event) {
     const msg =
       axios.isAxiosError(err) && (err.response?.data as { message?: string } | undefined)?.message
     message.error(msg || t('extra.opFail'))
+  } finally {
+    uploading.value = false
   }
 }
 
@@ -79,10 +97,6 @@ function previewImage(item: { url: string; name: string }) {
       isImage: true
     }
   })
-}
-
-function createAlbum() {
-  message.success(t('extra.defaultAlbumReady'))
 }
 </script>
 
@@ -105,16 +119,23 @@ function createAlbum() {
             {{ t('extra.relatedToMe') }}
           </button>
           <div class="tabs-actions">
-            <button type="button" class="link-btn" @click="createAlbum">{{ t('extra.createAlbum') }}</button>
+            <button type="button" class="link-btn" :disabled="uploading" @click="createAlbum">
+              {{ t('extra.createAlbum') }}
+            </button>
+            <!-- 用 label 关联 input，避免 Electron 下 programmatic click 无响应 -->
             <input
+              :id="albumInputId"
               ref="albumInputRef"
               type="file"
-              accept="image/jpeg,image/png,image/gif,image/webp,.jpg,.jpeg,.png,.gif,.webp"
+              accept="image/*"
               multiple
-              hidden
+              class="visually-hidden"
+              :disabled="uploading"
               @change="onAlbumPicked"
             />
-            <button type="button" class="primary-sm" @click="upload">{{ t('extra.uploadToAlbum') }}</button>
+            <label :for="albumInputId" class="primary-sm" :class="{ disabled: uploading }">
+              {{ uploading ? t('extra.uploading') : t('extra.uploadToAlbum') }}
+            </label>
           </div>
         </div>
         <div v-if="albumItems.length" class="album-grid">
@@ -131,8 +152,10 @@ function createAlbum() {
         </div>
         <div v-else class="empty-area">
           <div class="empty-ico">🖼</div>
-          <p>{{ t('extra.uploadPhotosHint') }}</p>
-          <button type="button" class="primary-lg" @click="upload">{{ t('extra.uploadToAlbum') }}</button>
+          <p>{{ uploading ? t('extra.uploading') : t('extra.uploadPhotosHint') }}</p>
+          <label :for="albumInputId" class="primary-lg" :class="{ disabled: uploading }">
+            {{ uploading ? t('extra.uploading') : t('extra.uploadToAlbum') }}
+          </label>
         </div>
       </div>
     </div>
@@ -234,7 +257,27 @@ function createAlbum() {
   cursor: pointer;
 }
 
+.link-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .primary-sm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   height: 30px;
   padding: 0 12px;
   border: none;
@@ -243,6 +286,13 @@ function createAlbum() {
   color: var(--lx-bg-card);
   font-size: 12px;
   cursor: pointer;
+}
+
+.primary-sm.disabled,
+.primary-lg.disabled {
+  opacity: 0.6;
+  pointer-events: none;
+  cursor: not-allowed;
 }
 
 .album-grid {
@@ -299,6 +349,9 @@ function createAlbum() {
 }
 
 .primary-lg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   margin-top: 20px;
   height: 36px;
   padding: 0 24px;

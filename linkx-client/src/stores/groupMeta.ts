@@ -64,6 +64,8 @@ export interface GroupAlbumItem {
   url: string
   name: string
   user: string
+  /** 上传者用户 ID，用于「与我相关」过滤 */
+  uploaderId?: string
   time: string
 }
 
@@ -498,6 +500,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
             url: a.fileUrl || '',
             name: a.fileName || a.title || '',
             user: a.uploaderNickname || '成员',
+            uploaderId: a.uploaderId ? String(a.uploaderId) : undefined,
             time: (a.createTime || '').slice(0, 10)
           }))
         }
@@ -599,6 +602,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
               url: res.data.fileUrl || '',
               name: res.data.fileName || file.name,
               user: res.data.uploaderNickname || '我',
+              uploaderId: res.data.uploaderId ? String(res.data.uploaderId) : undefined,
               time: (res.data.createTime || '').slice(0, 10) || '刚刚'
             })
             ok += 1

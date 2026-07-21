@@ -934,6 +934,7 @@ export default {
     uploadToAlbum: 'Upload to album',
     uploadPhotosHint: 'Upload photos to share with the group.',
     albumUploaded: 'Uploaded {n} photos to the album',
+    uploading: 'Uploading…',
     defaultAlbumReady: 'Default album is ready. Upload anytime.',
     groupEssenceTitle: 'Highlights - {name}',
     noEssence: 'No highlights yet',
