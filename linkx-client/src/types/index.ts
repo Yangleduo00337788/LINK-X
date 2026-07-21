@@ -36,6 +36,8 @@ export interface ChatSession {
   muted?: boolean         // 是否免打扰
   pinned?: boolean        // 是否置顶
   blocked?: boolean       // 是否拉黑（单聊）
+  /** 群聊有未读的 @我 / @全体成员（进入会话后清除） */
+  atMe?: boolean
   isGroup?: boolean       // 是否为群聊
   /** 群真实名称（群聊；与 name 区分，name 可能是备注） */
   groupName?: string

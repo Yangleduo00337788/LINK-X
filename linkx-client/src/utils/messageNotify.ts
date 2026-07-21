@@ -25,7 +25,10 @@ export interface IncomingNotifyContext {
   myUsername?: string
 }
 
-/** 文本是否 @ 到指定用户名/昵称，或 @所有人 */
+/** 匹配消息中的 @提及（全体成员 / 所有人 / 连续非空白昵称） */
+export const MENTION_TOKEN_RE = /@(?:全体成员|所有人|everyone|all|[^\s@]+)/gi
+
+/** 文本是否 @ 到指定用户名/昵称，或 @所有人/@全体成员 */
 export function contentMentionsUser(
   content: string | undefined,
   names: Array<string | undefined | null>
@@ -44,6 +47,42 @@ export function contentMentionsUser(
     if (content.includes(`@${n}`)) return true
   }
   return false
+}
+
+export interface MentionSegment {
+  text: string
+  /** 是否为 @ 片段 */
+  mention?: boolean
+  /** 是否 @ 到自己或全体 */
+  atMe?: boolean
+}
+
+/** 将正文拆成普通文本与 @ 片段，供气泡高亮渲染 */
+export function splitMentionContent(
+  content: string,
+  myNames: Array<string | undefined | null> = []
+): MentionSegment[] {
+  if (!content) return []
+  const names = myNames.map(n => (n || '').trim()).filter(Boolean)
+  const re = new RegExp(MENTION_TOKEN_RE.source, 'gi')
+  const parts: MentionSegment[] = []
+  let last = 0
+  let m: RegExpExecArray | null
+  while ((m = re.exec(content)) !== null) {
+    if (m.index > last) {
+      parts.push({ text: content.slice(last, m.index) })
+    }
+    const full = m[0]
+    const name = full.slice(1)
+    const isAtAll = /^(全体成员|所有人|everyone|all)$/i.test(name)
+    const isAtMe = isAtAll || names.some(n => name === n)
+    parts.push({ text: full, mention: true, atMe: isAtMe })
+    last = m.index + full.length
+  }
+  if (last < content.length) {
+    parts.push({ text: content.slice(last) })
+  }
+  return parts.length ? parts : [{ text: content }]
 }
 
 /** 当前是否正在前台查看该会话 */

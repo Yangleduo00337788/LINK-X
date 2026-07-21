@@ -235,9 +235,17 @@ function onContextMenuSelect(key: string) {
                         : undefined
                   "
                 />
-                <div v-if="session.unread && !session.muted" class="unread-badge">
+                <div
+                  v-if="session.unread && !session.muted"
+                  class="unread-badge"
+                >
                   {{ session.unread > 99 ? '99+' : session.unread }}
                 </div>
+                <div
+                  v-else-if="session.atMe && session.muted"
+                  class="unread-dot"
+                  :title="t('chat.someoneAtMe')"
+                />
               </div>
 
               <div class="session-content">
@@ -256,7 +264,10 @@ function onContextMenuSelect(key: string) {
                   />
                   <span class="session-time">{{ session.time }}</span>
                 </span>
-                <span class="last-message">{{ session.lastMessage }}</span>
+                <span class="last-message">
+                  <span v-if="session.atMe" class="at-me-hint">{{ t('chat.someoneAtMe') }}</span>
+                  {{ session.lastMessage }}
+                </span>
               </div>
             </div>
           </template>
@@ -355,6 +366,17 @@ function onContextMenuSelect(key: string) {
   box-shadow: 0 1px 3px rgba(240, 64, 64, 0.35);
 }
 
+.unread-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--lx-danger);
+  border: 2px solid var(--lx-bg-panel);
+}
+
 .session-content {
   flex: 1;
   min-width: 0;
@@ -424,6 +446,12 @@ function onContextMenuSelect(key: string) {
   display: block;
   font-size: 12px;
   color: var(--lx-text-secondary);
+}
+
+.at-me-hint {
+  color: var(--lx-danger);
+  margin-right: 4px;
+  flex-shrink: 0;
 }
 
 .skeleton-item {

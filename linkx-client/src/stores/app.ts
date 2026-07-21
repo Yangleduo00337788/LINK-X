@@ -21,7 +21,11 @@ import {
   messageToChatMessage,
   messagePreviewFromItem
 } from '../utils/chatMapper'
-import { notifyIncomingMessage, shouldAlertForSession } from '../utils/messageNotify'
+import {
+  contentMentionsUser,
+  notifyIncomingMessage,
+  shouldAlertForSession
+} from '../utils/messageNotify'
 import { useAppSettingsStore } from './appSettings'
 import { dataUrlToFile } from '../utils/fileConvert'
 import { generateUuidV4 } from '../utils/parseJson'
@@ -273,6 +277,9 @@ export const useAppStore = defineStore('app', {
       if (s?.unread) {
         s.unread = 0 // 进入会话即清未读
       }
+      if (s?.atMe) {
+        s.atMe = false // 进入会话清除「有人@我」
+      }
       if (!this.messagesBySession[session.id]) {
         this.messagesBySession[session.id] = [] // 懒初始化空消息列表
       }
@@ -467,8 +474,20 @@ export const useAppStore = defineStore('app', {
         const res = await chatApi.listSessions()
         if (res.code !== 200 || !res.data) return
 
+        const prevById = new Map(this.sessions.map(s => [s.id, s]))
         const realSessions = res.data.map(conversationToSession)
-        this.sessions = realSessions
+        // 保留本地未读 / @我 / 免打扰 / 置顶（服务端列表暂不带回这些字段）
+        this.sessions = realSessions.map(s => {
+          const prev = prevById.get(s.id)
+          if (!prev) return s
+          return {
+            ...s,
+            unread: prev.unread || s.unread,
+            atMe: prev.atMe,
+            muted: prev.muted,
+            pinned: prev.pinned
+          }
+        })
         this.chatInitialized = true
       } catch (e) {
         console.error('加载会话列表失败:', e)
@@ -682,6 +701,17 @@ export const useAppStore = defineStore('app', {
             })
           ) {
             session.unread = (session.unread || 0) + 1
+          }
+          // 群聊被 @ / @全体：会话列表显示「[有人@我]」（免打扰也标记）
+          if (
+            session.isGroup &&
+            !message.isSelf &&
+            contentMentionsUser(message.content, [
+              this.userProfile.nickname,
+              this.userProfile.username
+            ])
+          ) {
+            session.atMe = true
           }
         }
       } else {

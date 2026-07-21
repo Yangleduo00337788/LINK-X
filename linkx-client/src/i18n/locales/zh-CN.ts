@@ -186,7 +186,8 @@ export default {
     messageSendFail: '消息发送失败',
     sendFile: '发送文件',
     markedAllRead: '已全部标为已读',
-    remindEmptyDesc: '开启日程提醒后，到期会在这里收到站内消息'
+    remindEmptyDesc: '开启日程提醒后，到期会在这里收到站内消息',
+    someoneAtMe: '[有人@我]'
   },
   files: {
     download: '下载管理',

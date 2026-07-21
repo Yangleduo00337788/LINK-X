@@ -183,6 +183,21 @@ const selfAvatarProps = computed(() => ({
 .lx-bubble.link .lx-bubble-text { margin: 0; word-break: break-all; }
 .lx-link-ico { display: none; }
 .lx-bubble-text { margin: 0; white-space: pre-wrap; word-break: break-word; color: var(--lx-text); }
+.lx-mention {
+  color: var(--lx-accent);
+  font-weight: 500;
+}
+.lx-mention--me {
+  color: var(--lx-accent);
+  font-weight: 700;
+}
+.lx-bubble.self .lx-mention,
+.lx-bubble.self .lx-mention--me {
+  color: #ffffff;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-weight: 700;
+}
 .lx-file-card {
   max-width: 300px;
   background: var(--lx-bg-card);
