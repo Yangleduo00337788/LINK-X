@@ -31,7 +31,22 @@ describe('chatMapper', () => {
       const session = conversationToSession(conv)
       expect(session.id).toBe('789')
       expect(session.name).toBe('开发群')
+      expect(session.groupName).toBe('开发群')
       expect(session.isGroup).toBe(true)
+    })
+
+    it('should use myRemark over group name', () => {
+      const conv = {
+        id: '789',
+        type: 2,
+        name: '开发群',
+        myRemark: '项目组',
+        lastMessage: 'hi'
+      }
+      const session = conversationToSession(conv)
+      expect(session.name).toBe('项目组')
+      expect(session.groupName).toBe('开发群')
+      expect(session.groupRemark).toBe('项目组')
     })
 
     it('should map peerOnline to session.online', () => {

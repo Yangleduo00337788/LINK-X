@@ -108,6 +108,7 @@ public class ChatServiceImpl implements ChatService {
                 .map(ImConversation::getId)
                 .collect(Collectors.toSet());
         Map<Long, List<GroupMemberAvatarVO>> groupMemberAvatars = loadGroupMemberAvatarPreviews(groupIds);
+        Map<Long, String> groupRemarkMap = loadGroupRemarkMap(userId, groupIds);
 
         List<ConversationVO> result = new ArrayList<>();
         for (ImConversation conversation : conversations) {
@@ -126,7 +127,8 @@ public class ChatServiceImpl implements ChatService {
             } else if (conversation.getType() == ImConversation.TYPE_GROUP) {
                 result.add(toGroupConversationVO(
                         conversation,
-                        groupMemberAvatars.getOrDefault(conversation.getId(), List.of())
+                        groupMemberAvatars.getOrDefault(conversation.getId(), List.of()),
+                        groupRemarkMap.get(conversation.getId())
                 ));
             }
         }
@@ -595,12 +597,14 @@ public class ChatServiceImpl implements ChatService {
 
     private ConversationVO toGroupConversationVO(
             ImConversation conversation,
-            List<GroupMemberAvatarVO> memberAvatars
+            List<GroupMemberAvatarVO> memberAvatars,
+            String myRemark
     ) {
         return ConversationVO.builder()
                 .id(conversation.getId())
                 .type(conversation.getType())
                 .name(conversation.getName())
+                .myRemark(myRemark)
                 .avatar(mediaUrlService.resolve(conversation.getAvatar()))
                 .peerAvatar(mediaUrlService.resolve(conversation.getAvatar()))
                 .memberAvatars(memberAvatars)
@@ -611,6 +615,25 @@ public class ChatServiceImpl implements ChatService {
                         ? conversation.getLastMessageTime().getTime()
                         : null)
                 .build();
+    }
+
+    /** 批量加载当前用户对各群的备注 */
+    private Map<Long, String> loadGroupRemarkMap(Long userId, Set<Long> groupIds) {
+        if (groupIds == null || groupIds.isEmpty()) {
+            return Map.of();
+        }
+        List<ImConversationMember> memberships = memberMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).in(groupIds)
+                        .and(ImConversationMember::getUserId).eq(userId)
+        );
+        Map<Long, String> map = new HashMap<>();
+        for (ImConversationMember m : memberships) {
+            if (m.getRemark() != null && !m.getRemark().isBlank()) {
+                map.put(m.getConversationId(), m.getRemark());
+            }
+        }
+        return map;
     }
 
     /**

@@ -363,6 +363,7 @@ export const useAppStore = defineStore('app', {
           const session: ChatSession = {
             id: String(groupConv.id),
             name: groupConv.name || name,
+            groupName: groupConv.name || name,
             lastMessage: '系统：欢迎加入群聊',
             time: nowTime(),
             avatarText: (groupConv.name || name).charAt(0) || '群',

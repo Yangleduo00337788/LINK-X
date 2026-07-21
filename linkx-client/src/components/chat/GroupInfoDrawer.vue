@@ -3,6 +3,7 @@
  * 群资料侧滑抽屉。
  * <p>
  * 展示群头像、群号、成员网格、公告、备注、置顶/免打扰及退群等操作。
+ * 群主可修改群名称；任意成员可设置仅自己可见的群备注。
  * </p>
  */
 import { ref, computed, watch } from 'vue'
@@ -32,8 +33,10 @@ const {
   clearSessionMessages
 } = appStore
 
-// 群备注输入（与 store 同步）
+// 群备注 / 群名称输入（与 store 同步）
 const groupRemark = ref('')
+const groupNameInput = ref('')
+const savingName = ref(false)
 
 /** 群公告短文本 */
 const announcement = computed(() => {
@@ -41,11 +44,19 @@ const announcement = computed(() => {
   return id ? groupMetaStore.announcementShort(id) : ''
 })
 
-// 切换会话时加载对应群备注
+/** 切换会话或备注异步加载完成后，回填输入框 */
 watch(
-  currentSessionId,
-  id => {
-    groupRemark.value = id ? groupMetaStore.remarkFor(id) : ''
+  () => {
+    const id = currentSessionId.value
+    if (!id) return { remark: '', groupName: '' }
+    return {
+      remark: groupMetaStore.remarkFor(id),
+      groupName: currentSession.value?.groupName || currentSession.value?.name || ''
+    }
+  },
+  ({ remark, groupName }) => {
+    groupRemark.value = remark
+    groupNameInput.value = groupName
   },
   { immediate: true }
 )
@@ -59,6 +70,35 @@ async function saveRemark() {
     message.success(t('modals.remarkSaved'))
   } else {
     message.error(t('extra.opFail'))
+  }
+}
+
+/** 失焦时保存群名称（仅群主） */
+async function saveGroupName() {
+  const id = currentSessionId.value
+  if (!id || !isOwner.value) return
+  const next = groupNameInput.value.trim()
+  const current = currentSession.value?.groupName || currentSession.value?.name || ''
+  if (!next || next === current) {
+    groupNameInput.value = current
+    return
+  }
+  savingName.value = true
+  try {
+    const ok = await groupMetaStore.renameGroup(id, next)
+    if (ok) {
+      message.success(t('modals.groupNameSaved'))
+      groupNameInput.value = currentSession.value?.groupName || next
+    } else {
+      message.error(t('modals.groupNameSaveFail'))
+      groupNameInput.value = current
+    }
+  } catch (e: unknown) {
+    const ax = e as { response?: { data?: { message?: string } }; message?: string }
+    message.error(ax.response?.data?.message || ax.message || t('modals.groupNameSaveFail'))
+    groupNameInput.value = current
+  } finally {
+    savingName.value = false
   }
 }
 
@@ -185,6 +225,12 @@ function reportGroup() {
                   }))"
                 />
                 <h2 class="g-name">{{ currentSession?.name || t('modals.groupChat') }}</h2>
+                <p
+                  v-if="currentSession?.groupRemark && currentSession?.groupName"
+                  class="g-real-name"
+                >
+                  {{ t('modals.groupRealName', { name: currentSession.groupName }) }}
+                </p>
                 <p class="g-id">{{ t('modals.groupIdLabel', { id: groupId }) }}</p>
                 <button type="button" class="share-btn" @click="shareGroup">{{ t('modals.share') }}</button>
               </div>
@@ -201,6 +247,23 @@ function reportGroup() {
                   </div>
                   <button type="button" class="av invite" :title="t('chat.invite')" @click="openAddMembers">+</button>
                 </div>
+              </section>
+
+              <!-- 群名称（群主可改） -->
+              <section class="block">
+                <div class="row-item"><span>{{ t('modals.groupName') }}</span></div>
+                <input
+                  v-model="groupNameInput"
+                  type="text"
+                  class="remark-input"
+                  :placeholder="t('modals.groupNamePh')"
+                  :readonly="!isOwner"
+                  :disabled="savingName"
+                  maxlength="50"
+                  @blur="saveGroupName"
+                  @keydown.enter.prevent="($event.target as HTMLInputElement).blur()"
+                />
+                <p v-if="!isOwner" class="field-hint">{{ t('modals.groupNameOwnerOnly') }}</p>
               </section>
 
               <!-- 群公告 -->
@@ -225,8 +288,11 @@ function reportGroup() {
                   type="text"
                   class="remark-input"
                   :placeholder="t('modals.remarkPh')"
+                  maxlength="64"
                   @blur="saveRemark"
+                  @keydown.enter.prevent="($event.target as HTMLInputElement).blur()"
                 />
+                <p class="field-hint">{{ t('modals.remarkHint') }}</p>
               </section>
 
               <!-- 置顶与免打扰 -->
@@ -310,6 +376,12 @@ function reportGroup() {
   font-weight: 600;
   color: var(--lx-text-body);
   line-height: 1.3;
+}
+
+.g-real-name {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: var(--lx-text-muted);
 }
 
 .g-id {
@@ -426,6 +498,17 @@ function reportGroup() {
   outline: none;
   color: var(--lx-text-body);
   background: transparent;
+}
+
+.remark-input[readonly] {
+  color: var(--lx-text-secondary);
+  cursor: default;
+}
+
+.field-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--lx-text-muted);
 }
 
 .switch-block {

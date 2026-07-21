@@ -35,6 +35,11 @@ public class ConversationVO {
     private String name;
 
     /**
+     * 当前用户对本群备注（群聊用；仅自己可见，用于列表展示名）
+     */
+    private String myRemark;
+
+    /**
      * 群头像（群聊用，已签发；有自定义群头像时优先）
      */
     private String avatar;

@@ -137,6 +137,34 @@ export const useGroupMetaStore = defineStore('groupMeta', {
           }
           if (res.data.myRemark != null) {
             this.remarks[sessionId] = res.data.myRemark
+            try {
+              const { useAppStore } = await import('./app')
+              const app = useAppStore()
+              const session = app.sessions.find(s => s.id === sessionId && s.isGroup)
+              if (session) {
+                const groupName = res.data.name || session.groupName || session.name
+                session.groupName = groupName
+                const remark = (res.data.myRemark || '').trim()
+                session.groupRemark = remark || undefined
+                session.name = remark || groupName
+                session.avatarText = session.name.charAt(0) || '群'
+              }
+            } catch {
+              /* ignore */
+            }
+          } else if (res.data.name) {
+            try {
+              const { useAppStore } = await import('./app')
+              const app = useAppStore()
+              const session = app.sessions.find(s => s.id === sessionId && s.isGroup)
+              if (session) {
+                session.groupName = res.data.name
+                const remark = (session.groupRemark || this.remarks[sessionId] || '').trim()
+                session.name = remark || res.data.name
+              }
+            } catch {
+              /* ignore */
+            }
           }
         }
       } catch (e) {
@@ -189,11 +217,57 @@ export const useGroupMetaStore = defineStore('groupMeta', {
       try {
         const res = await groupApi.updateGroupRemark(sessionId, remark.trim())
         if (res.code === 200) {
-          this.remarks[sessionId] = (res.data ?? remark).trim()
+          const value = (res.data ?? remark).trim()
+          this.remarks[sessionId] = value
+          // 同步会话列表/顶栏显示名（有备注用备注，否则用真实群名）
+          try {
+            const { useAppStore } = await import('./app')
+            const app = useAppStore()
+            const session = app.sessions.find(s => s.id === sessionId && s.isGroup)
+            if (session) {
+              const groupName = session.groupName || session.name
+              session.groupName = groupName
+              session.groupRemark = value || undefined
+              session.name = value || groupName
+              session.avatarText = session.name.charAt(0) || '群'
+            }
+          } catch {
+            /* ignore */
+          }
           return true
         }
       } catch (e) {
         console.error('保存群备注失败:', e)
+      }
+      return false
+    },
+
+    async renameGroup(sessionId: string, name: string) {
+      const trimmed = name.trim()
+      if (!trimmed) return false
+      try {
+        const res = await groupApi.updateGroup(sessionId, { name: trimmed })
+        if (res.code === 200 && res.data) {
+          const newName = res.data.name || trimmed
+          try {
+            const { useAppStore } = await import('./app')
+            const app = useAppStore()
+            const session = app.sessions.find(s => s.id === sessionId && s.isGroup)
+            if (session) {
+              session.groupName = newName
+              const remark = (this.remarks[sessionId] || session.groupRemark || '').trim()
+              session.name = remark || newName
+              session.avatarText = session.name.charAt(0) || '群'
+              session.avatarColor = session.avatarColor || '#e74c3c'
+            }
+          } catch {
+            /* ignore */
+          }
+          return true
+        }
+      } catch (e) {
+        console.error('修改群名称失败:', e)
+        throw e
       }
       return false
     },

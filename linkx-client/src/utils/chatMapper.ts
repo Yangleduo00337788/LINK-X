@@ -30,14 +30,18 @@ export function conversationToSession(conv: ConversationItem): ChatSession {
   const isGroup = conv.type === 2
 
   if (isGroup) {
-    const name = conv.name || '群聊'
+    const groupName = conv.name || '群聊'
+    const remark = conv.myRemark?.trim() || ''
+    const name = remark || groupName
     return {
       id: String(conv.id),
       name,
+      groupName,
+      groupRemark: remark || undefined,
       lastMessage: conv.lastMessage || '',
       time: formatChatTime(conv.lastMessageTime),
       avatarText: name.charAt(0) || '群',
-      avatarColor: pickColor(name),
+      avatarColor: pickColor(groupName),
       // 仅自定义群头像；默认用 memberAvatars 拼图
       avatarUrl: normalizeMediaUrl(conv.avatar) || undefined,
       memberAvatars: mapMemberAvatars(conv.memberAvatars),

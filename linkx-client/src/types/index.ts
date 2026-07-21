@@ -27,7 +27,7 @@ export type OverlayPage =
 /** 聊天会话（单聊或群聊列表项） */
 export interface ChatSession {
   id: string              // 会话唯一 ID
-  name: string            // 显示名称（好友名或群名）
+  name: string            // 显示名称（好友备注/群备注优先，否则昵称或群名）
   lastMessage: string     // 列表预览的最后一条消息摘要
   time: string            // 最后消息时间 HH:mm
   avatarText: string      // 无头像 URL 时的文字头像
@@ -37,6 +37,10 @@ export interface ChatSession {
   pinned?: boolean        // 是否置顶
   blocked?: boolean       // 是否拉黑（单聊）
   isGroup?: boolean       // 是否为群聊
+  /** 群真实名称（群聊；与 name 区分，name 可能是备注） */
+  groupName?: string
+  /** 当前用户对本群备注 */
+  groupRemark?: string
   /** 好友在线状态（单聊） */
   online?: boolean
   avatarUrl?: string      // 远程头像 URL（单聊或自定义群头像）
