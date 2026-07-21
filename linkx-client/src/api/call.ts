@@ -38,8 +38,10 @@ export interface CallEventPayload {
 }
 
 export function inviteCall(payload: CallInvitePayload) {
+  // 雪花 ID 超过 Number.MAX_SAFE_INTEGER，禁止 Number() 转换，否则会精度丢失
+  // 例：437044203068833792 → 437044203068833800，导致「无权访问该会话」
   return apiClient.post<never, ApiResult<CallInviteResult>>('/call/invite', {
-    conversationId: Number(payload.conversationId),
+    conversationId: String(payload.conversationId),
     callType: payload.callType
   })
 }
