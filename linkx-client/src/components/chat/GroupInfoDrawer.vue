@@ -12,8 +12,8 @@ import { NIcon, NSwitch, useMessage, useDialog } from 'naive-ui'
 import { SearchOutline } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
 import GroupAvatar from '../GroupAvatar.vue'
-import PinIcon from '../icons/PinIcon.vue'
 import GroupMutePanel from './GroupMutePanel.vue'
+import GroupReportPanel from './GroupReportPanel.vue'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
@@ -315,6 +315,7 @@ const isAdminOrOwner = computed(() => {
 })
 
 const mutePanelOpen = ref(false)
+const reportPanelOpen = ref(false)
 
 function openMutePanel() {
   mutePanelOpen.value = true
@@ -322,6 +323,19 @@ function openMutePanel() {
 
 function closeMutePanel() {
   mutePanelOpen.value = false
+}
+
+function openReportPanel() {
+  reportPanelOpen.value = true
+}
+
+function closeReportPanel() {
+  reportPanelOpen.value = false
+}
+
+function onReportSubmitted() {
+  reportPanelOpen.value = false
+  close()
 }
 
 /** 打开抽屉时拉取成员与禁言状态 */
@@ -333,12 +347,13 @@ watch(groupInfoDrawerOpen, open => {
     transferPanelOpen.value = false
     adminPanelOpen.value = false
     mutePanelOpen.value = false
+    reportPanelOpen.value = false
   }
 })
 
-/** 举报群（原型提示） */
+/** 举报群（打开举报页） */
 function reportGroup() {
-  message.info(t('modals.reportRecorded'))
+  openReportPanel()
 }
 </script>
 
@@ -437,10 +452,7 @@ function reportGroup() {
               <!-- 置顶与免打扰 -->
               <div class="switch-block">
                 <div class="switch-row">
-                  <span class="switch-label">
-                    <PinIcon :size="16" />
-                    {{ t('modals.pinSession') }}
-                  </span>
+                  <span>{{ t('modals.pinSession') }}</span>
                   <n-switch :value="!!currentSession?.pinned" size="small" @update:value="setPin" />
                 </div>
                 <div class="switch-row">
@@ -555,6 +567,15 @@ function reportGroup() {
           :session-id="currentSessionId"
           :is-owner="isOwner"
           @back="closeMutePanel"
+        />
+
+        <!-- 举报群聊 -->
+        <GroupReportPanel
+          v-if="reportPanelOpen && currentSessionId"
+          :group-id="currentSessionId"
+          :group-name="currentSession?.groupName || currentSession?.name || ''"
+          @back="closeReportPanel"
+          @submitted="onReportSubmitted"
         />
       </aside>
     </div>
