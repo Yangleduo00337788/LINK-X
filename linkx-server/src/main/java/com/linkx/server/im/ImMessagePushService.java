@@ -141,6 +141,33 @@ public class ImMessagePushService {
         }
     }
 
+    /**
+     * 向会话全体在线成员推送撤回事件（含发送者其它端）。
+     */
+    public void pushRecallToConversationMembers(MessageVO message) {
+        if (message == null || message.getConversationId() == null) {
+            return;
+        }
+        List<ImConversationMember> members = memberMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).eq(message.getConversationId())
+        );
+        for (ImConversationMember member : members) {
+            Long userId = member.getUserId();
+            ChannelGroup channels = channelManager.getChannels(userId);
+            if (channels == null || channels.isEmpty()) {
+                continue;
+            }
+            MessageVO payload = withPerspective(message, userId);
+            String json = toJson(buildFrame("recall", payload));
+            for (Channel channel : channels) {
+                if (channel.isActive()) {
+                    channel.writeAndFlush(new TextWebSocketFrame(json));
+                }
+            }
+        }
+    }
+
     public void sendError(Channel channel, int code, String message) {
         if (!channel.isActive()) {
             return;

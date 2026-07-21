@@ -19,6 +19,11 @@ public interface ChatService {
 
     MessageVO sendMessage(Long userId, SendMessageDTO dto);
 
+    /**
+     * 撤回消息（仅发送者，默认 2 分钟内）。消息原地改为 type=recall 并清空载荷。
+     */
+    MessageVO recallMessage(Long userId, Long conversationId, Long messageId);
+
     ChatFileUploadVO uploadChatFile(Long userId, Long conversationId, MultipartFile file);
 
     /**

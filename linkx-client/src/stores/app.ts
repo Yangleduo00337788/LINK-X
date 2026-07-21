@@ -94,6 +94,7 @@ function messagePreview(msg: ChatMessage): string {
   if (msg.type === 'image' || msg.isImage) return '[图片]'
   if (msg.type === 'voice') return '[语音]'
   if (msg.type === 'redPacket') return `[红包] ${msg.redPacketGreeting || '恭喜发财'}`
+  if (msg.type === 'recall') return '撤回了一条消息'
   return msg.content
 }
 
@@ -624,6 +625,9 @@ export const useAppStore = defineStore('app', {
         onAck: (clientMsgId: string, message: import('../types/chat').MessageItem) => {
           this.handleWsAck(clientMsgId, message)
         },
+        onRecall: (message: import('../types/chat').MessageItem) => {
+          this.applyRecalledMessage(message)
+        },
         onCallEvent: (action: string, data: Record<string, unknown>) => {
           void import('./call').then(({ useCallStore }) => {
             useCallStore().handleRemoteEvent(action, data as import('../api/call').CallEventPayload)
@@ -930,6 +934,7 @@ export const useAppStore = defineStore('app', {
                 ? (options.redPacketGreeting || trimmed || '恭喜发财')
                 : (trimmed || content),
         time,
+        createTime: Date.now(),
         isSelf: true,
         type,
         replyTo: options.replyTo,
@@ -1017,35 +1022,73 @@ export const useAppStore = defineStore('app', {
     },
 
     /**
-     * 撤回（删除）当前会话中的某条消息
-     * 若撤回的是最后一条，则回退会话 preview
+     * 撤回当前会话中的某条消息（调用后端并本地替换为撤回提示）
      * @param messageId 消息 id
      * @returns 是否成功
      */
-    recallMessage(messageId: string) {
+    async recallMessage(messageId: string) {
       const sessionId = this.currentSessionId
       if (!sessionId) return false
 
       const msgs = this.messagesBySession[sessionId]
       if (!msgs) return false
-
       const index = msgs.findIndex(m => m.id === messageId)
       if (index === -1) return false
+      const target = msgs[index]
+      if (!target.isSelf || target.type === 'recall' || target.type === 'system') return false
 
-      const wasLast = index === msgs.length - 1
-      msgs.splice(index, 1)
+      try {
+        const res = await chatApi.recallMessage(sessionId, messageId)
+        if (res.code !== 200 || !res.data) {
+          throw new Error(res.message || '撤回失败')
+        }
+        this.applyRecalledMessage(res.data)
+        return true
+      } catch (e) {
+        console.error('撤回消息失败:', e)
+        throw e
+      }
+    },
 
-      if (wasLast) {
-        const session = this.sessions.find(s => s.id === sessionId)
-        // 优先取最后一条非系统消息作为 preview
-        const last = msgs.filter(m => m.type !== 'system').pop() ?? msgs[msgs.length - 1]
-        if (session) {
-          session.lastMessage = last ? messagePreview(last) : ''
-          if (last) session.time = last.time
+    /**
+     * 将消息替换为撤回态（API 回包或 WS recall 推送）
+     */
+    applyRecalledMessage(message: MessageItem) {
+      const sessionId = String(message.conversationId)
+      const chatMsg = messageToChatMessage(
+        { ...message, type: 'recall', content: '', fileName: '', fileUrl: '' },
+        sessionId
+      )
+      chatMsg.content = '撤回了一条消息'
+      chatMsg.type = 'recall'
+      chatMsg.isImage = false
+      chatMsg.fileUrl = undefined
+      chatMsg.fileName = undefined
+      chatMsg.fileSize = undefined
+
+      const msgs = this.messagesBySession[sessionId]
+      if (msgs) {
+        const index = msgs.findIndex(m => m.id === chatMsg.id)
+        if (index >= 0) {
+          msgs.splice(index, 1, { ...msgs[index], ...chatMsg, time: msgs[index].time || chatMsg.time })
+        } else if (this.messagesLoaded[sessionId]) {
+          // 历史已加载但本地没有该条（极端）：追加，避免丢提示
+          msgs.push(chatMsg)
         }
       }
 
-      return true
+      const session = this.sessions.find(s => s.id === sessionId)
+      if (session) {
+        const list = this.messagesBySession[sessionId]
+        const last = list?.[list.length - 1]
+        if (last) {
+          session.lastMessage = messagePreview(last)
+          session.time = last.time
+        } else {
+          session.lastMessage = messagePreview(chatMsg)
+          if (chatMsg.time) session.time = chatMsg.time
+        }
+      }
     },
 
     /**

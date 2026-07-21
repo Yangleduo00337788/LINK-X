@@ -50,3 +50,9 @@ export function searchMessages(q: string, opts?: { type?: string; conversationId
     }
   })
 }
+
+export function recallMessage(conversationId: string, messageId: string) {
+  return apiClient.post<unknown, ApiResult<MessageItem>>(
+    `/chat/sessions/${conversationId}/messages/${messageId}/recall`
+  )
+}

@@ -8,6 +8,7 @@ import com.linkx.server.controller.vo.ChatFileUploadVO;
 import com.linkx.server.controller.vo.ChatSearchHitVO;
 import com.linkx.server.controller.vo.ConversationVO;
 import com.linkx.server.controller.vo.MessageVO;
+import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.service.ChatService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ import java.util.List;
 public class ChatController {
 
     private final ChatService chatService;
+    private final ImMessagePushService imMessagePushService;
     private final JwtUtils jwtUtils;
 
     @GetMapping("/sessions")
@@ -74,6 +76,18 @@ public class ChatController {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         Long convId = conversationId != null && !conversationId.isBlank() ? parseId(conversationId) : null;
         return Result.success(chatService.searchMessages(userId, q, type, convId, limit));
+    }
+
+    @PostMapping("/sessions/{conversationId}/messages/{messageId}/recall")
+    @RateLimit(scope = "chat:recall", value = 30, window = 60)
+    public Result<MessageVO> recallMessage(
+            @PathVariable String conversationId,
+            @PathVariable String messageId,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        MessageVO vo = chatService.recallMessage(userId, parseId(conversationId), parseId(messageId));
+        imMessagePushService.pushRecallToConversationMembers(vo);
+        return Result.success(vo);
     }
 
     private Long parseId(String id) {

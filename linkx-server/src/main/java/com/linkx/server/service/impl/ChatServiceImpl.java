@@ -56,6 +56,8 @@ public class ChatServiceImpl implements ChatService {
     private static final int DEFAULT_MESSAGE_LIMIT = 50;
     private static final int MAX_MESSAGE_LIMIT = 100;
     private static final int RELATION_STATUS_NORMAL = 1;
+    /** 撤回时限（毫秒），与微信一致约 2 分钟 */
+    private static final long RECALL_WINDOW_MS = 2 * 60 * 1000L;
 
     private final ImConversationMapper conversationMapper;
     private final ImConversationMemberMapper memberMapper;
@@ -273,6 +275,66 @@ public class ChatServiceImpl implements ChatService {
         return toMessageVO(message, sender, userId);
     }
 
+    @Override
+    @Transactional
+    public MessageVO recallMessage(Long userId, Long conversationId, Long messageId) {
+        assertConversationMember(userId, conversationId);
+
+        ImMessage message = messageMapper.selectOneById(messageId);
+        if (message == null || !conversationId.equals(message.getConversationId())) {
+            throw new CustomException(404, "消息不存在");
+        }
+        if (!userId.equals(message.getSenderId())) {
+            throw new CustomException(403, "只能撤回自己发送的消息");
+        }
+        if (ImMessage.TYPE_RECALL.equals(message.getType())) {
+            SysUser sender = sysUserMapper.selectOneById(userId);
+            return toMessageVO(message, sender, userId);
+        }
+
+        Date createTime = message.getCreateTime();
+        if (createTime == null || System.currentTimeMillis() - createTime.getTime() > RECALL_WINDOW_MS) {
+            throw new CustomException(400, "超过撤回时限");
+        }
+
+        message.setType(ImMessage.TYPE_RECALL);
+        message.setContent("");
+        message.setFileName("");
+        message.setFileSize(0L);
+        message.setFileUrl("");
+        message.setVoiceDuration(0);
+        messageMapper.update(message);
+
+        refreshConversationLastMessage(conversationId);
+
+        SysUser sender = sysUserMapper.selectOneById(userId);
+        return toMessageVO(message, sender, userId);
+    }
+
+    /**
+     * 按会话最新一条消息刷新会话列表预览（撤回后可能仍是该条，也可能需回退到更早消息）。
+     */
+    private void refreshConversationLastMessage(Long conversationId) {
+        ImConversation conversation = conversationMapper.selectOneById(conversationId);
+        if (conversation == null) {
+            return;
+        }
+        ImMessage latest = messageMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(ImMessage::getConversationId).eq(conversationId)
+                        .orderBy(ImMessage::getCreateTime, false)
+                        .limit(1)
+        );
+        if (latest == null) {
+            conversation.setLastMessageContent("");
+            conversation.setLastMessageTime(null);
+        } else {
+            conversation.setLastMessageContent(buildPreview(latest));
+            conversation.setLastMessageTime(latest.getCreateTime());
+        }
+        conversationMapper.update(conversation);
+    }
+
     private String buildClientMsgDedupKey(Long userId, String clientMsgId) {
         return "linkx:msg:dedup:" + userId + ":" + clientMsgId;
     }
@@ -326,6 +388,7 @@ public class ChatServiceImpl implements ChatService {
 
         QueryWrapper qw = QueryWrapper.create()
                 .where(ImMessage::getConversationId).in(allowedIds)
+                .and(ImMessage::getType).ne(ImMessage.TYPE_RECALL)
                 .and(ImMessage::getContent).like(q)
                 .orderBy(ImMessage::getCreateTime, false)
                 .limit(cap);
@@ -338,6 +401,7 @@ public class ChatServiceImpl implements ChatService {
             // 同时按文件名搜
             QueryWrapper fileQw = QueryWrapper.create()
                     .where(ImMessage::getConversationId).in(allowedIds)
+                    .and(ImMessage::getType).ne(ImMessage.TYPE_RECALL)
                     .and(ImMessage::getFileName).like(q)
                     .orderBy(ImMessage::getCreateTime, false)
                     .limit(cap);
@@ -722,6 +786,7 @@ public class ChatServiceImpl implements ChatService {
             case ImMessage.TYPE_FILE -> "[文件] " + (message.getFileName() != null ? message.getFileName() : "文件");
             case ImMessage.TYPE_VOICE -> "[语音]";
             case ImMessage.TYPE_RED_PACKET -> "[红包] " + (message.getFileName() != null ? message.getFileName() : "恭喜发财");
+            case ImMessage.TYPE_RECALL -> "撤回了一条消息";
             default -> message.getContent();
         };
     }

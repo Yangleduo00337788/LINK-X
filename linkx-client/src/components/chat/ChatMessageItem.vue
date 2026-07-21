@@ -47,6 +47,15 @@ const isMyPhone = computed(() => {
 const hasSession = computed(() => !!currentSession.value)
 const isFriendChat = computed(() => hasSession.value && !currentSession.value?.isGroup && !isMyPhone.value)
 
+const isRecall = computed(() => props.msg.type === 'recall')
+
+/** 撤回提示：你撤回了一条消息 / XXX撤回了一条消息 */
+const recallTip = computed(() => {
+  if (props.msg.isSelf) return t('chat.youRecalled')
+  const name = props.msg.senderName || currentSession.value?.name || t('chat.messageFallback')
+  return t('chat.peerRecalled', { name })
+})
+
 /**
  * 对方头像 props（computed，避免滚动时每帧重复算 + 误触发群成员请求）。
  * 群聊直接用消息自带的 senderAvatar，不再在渲染期查 groupMeta。
@@ -82,7 +91,10 @@ const selfAvatarProps = computed(() => ({
 </script>
 
 <template>
-  <div class="message-row" :class="msg.isSelf ? 'right' : 'left'">
+  <div v-if="isRecall" class="recall-tip-row">
+    <span class="recall-tip">{{ recallTip }}</span>
+  </div>
+  <div v-else class="message-row" :class="msg.isSelf ? 'right' : 'left'">
     <button v-if="!msg.isSelf && isFriendChat" type="button" class="avatar-btn" @click="emit('openPeerProfile', $event)">
       <Avatar v-bind="peerAvatarProps" />
     </button>
@@ -104,6 +116,17 @@ const selfAvatarProps = computed(() => ({
 </template>
 
 <style scoped>
+.recall-tip-row {
+  display: flex;
+  justify-content: center;
+  padding: 4px 12px;
+}
+.recall-tip {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--lx-text-muted, #999);
+  user-select: none;
+}
 .message-row {
   display: flex;
   gap: 8px;

@@ -10,6 +10,8 @@ export interface ChatSocketHandlers {
   onError: (code: number, message: string) => void
   onOpen: () => void
   onClose: () => void
+  /** 消息撤回推送 */
+  onRecall?: (message: MessageItem) => void
   /** 通话信令推送 */
   onCallEvent?: (action: string, data: Record<string, unknown>) => void
   /** 通用自定义 action 推送（如 notification_refresh） */
@@ -117,6 +119,11 @@ function handleFrame(raw: string) {
       if (frame.data && frame.clientMsgId) {
         // ack 帧不去重（ack 不携带 id 字段，clientMsgId 仅一次性使用）
         handlers?.onAck(frame.clientMsgId, frame.data as MessageItem)
+      }
+      break
+    case 'recall':
+      if (frame.data) {
+        handlers?.onRecall?.(frame.data as MessageItem)
       }
       break
     case 'pong':

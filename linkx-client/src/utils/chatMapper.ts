@@ -92,6 +92,13 @@ export function messageToChatMessage(message: MessageItem, sessionId: string): C
       content = message.fileUrl || message.content
       isImage = true
       break
+    case 'recall':
+      content = '撤回了一条消息'
+      isImage = false
+      fileUrl = undefined
+      fileName = undefined
+      fileSize = undefined
+      break
     case 'redPacket': {
       // 服务端下行时已经把红包专属字段填到 message 上；若未填，从通用字段反推
       redPacketId = message.redPacketId ?? message.fileUrl ?? undefined
@@ -119,6 +126,12 @@ export function messageToChatMessage(message: MessageItem, sessionId: string): C
     sessionId,
     content,
     time: formatChatTime(message.createTime),
+    createTime:
+      typeof message.createTime === 'number'
+        ? message.createTime
+        : message.createTime
+          ? Number(message.createTime) || undefined
+          : undefined,
     isSelf: message.isSelf ?? false,
     senderId: message.senderId ? String(message.senderId) : undefined,
     senderName: message.senderNickname,
@@ -168,6 +181,7 @@ export function messagePreviewFromItem(message: MessageItem): string {
     case 'image': return '[图片]'
     case 'redPacket': return '[红包]'
     case 'voice': return '[语音]'
+    case 'recall': return '撤回了一条消息'
     default: return message.content
   }
 }

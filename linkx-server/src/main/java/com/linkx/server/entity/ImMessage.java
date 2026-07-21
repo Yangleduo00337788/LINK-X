@@ -34,6 +34,10 @@ public class ImMessage implements Serializable {
      * </p>
      */
     public static final String TYPE_RED_PACKET = "redPacket";
+    /**
+     * 已撤回：原消息原地改为此类型，清空正文/附件，保留时间线位置供客户端渲染系统提示。
+     */
+    public static final String TYPE_RECALL = "recall";
 
     @Id(keyType = KeyType.Generator, value = KeyGenerators.snowFlakeId)
     private Long id;

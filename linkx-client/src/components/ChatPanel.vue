@@ -447,11 +447,20 @@ const ctxOptions = computed<DropdownOption[]>(() => {
     { label: t('chat.favorite'), key: 'fav' },
     { label: t('chat.replyAction'), key: 'reply' }
   ]
-  if (msg.isSelf) {
+  if (msg.isSelf && canRecallMessage(msg)) {
     opts.push({ type: 'divider', key: 'd' }, { label: t('chat.recall'), key: 'recall' })
   }
   return opts
 })
+
+/** 与后端一致：发送后 2 分钟内可撤回 */
+const RECALL_WINDOW_MS = 2 * 60 * 1000
+
+function canRecallMessage(msg: ChatMessage) {
+  if (!msg.isSelf || msg.type === 'recall' || msg.type === 'system') return false
+  if (msg.createTime == null || !Number.isFinite(msg.createTime)) return true
+  return Date.now() - msg.createTime <= RECALL_WINDOW_MS
+}
 
 // 消息右键：记录坐标与目标消息
 function onMsgContext(e: MouseEvent, msg: ChatMessage) {
@@ -480,9 +489,12 @@ function replyMessage(msg: ChatMessage) {
 }
 
 // 撤回消息
-function recallMessage(msg: ChatMessage) {
-  if (recallMessageInStore(msg.id)) {
-    message.success(t('chat.recalled'))
+async function recallMessage(msg: ChatMessage) {
+  try {
+    await recallMessageInStore(msg.id)
+  } catch (e: unknown) {
+    const ax = e as { response?: { data?: { message?: string } }; message?: string }
+    message.error(ax.response?.data?.message || ax.message || t('chat.recallFail'))
   }
 }
 
@@ -645,8 +657,8 @@ function onDrop(e: DragEvent) {
                   @scroll="onVirtualScroll"
                 >
                   <template #default="{ msg }">
-                    <div
-                      v-memo="[msg.id, msg.content, msg.type, playingVoiceId === msg.id, msg.senderAvatar]"
+                      <div
+                      v-memo="[msg.id, msg.content, msg.type, playingVoiceId === msg.id, msg.senderAvatar, msg.isSelf]"
                     >
                       <ChatMessageItem
                         :msg="msg"

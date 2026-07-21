@@ -24,7 +24,7 @@ export interface MessageItem {
   senderId: string
   senderNickname?: string
   senderAvatar?: string
-  type: 'text' | 'image' | 'file' | 'voice' | 'redPacket'
+  type: 'text' | 'image' | 'file' | 'voice' | 'redPacket' | 'recall'
   content: string
   fileName?: string
   fileSize?: string | number
