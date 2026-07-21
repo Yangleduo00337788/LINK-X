@@ -185,6 +185,7 @@ export default {
     markedAllRead: 'All marked as read',
     remindEmptyDesc: 'When calendar reminders are on, due items appear here',
     someoneAtMe: '[You were mentioned]',
+    someoneAtMeFab: 'Mentioned you',
     atMeNotFound: 'Mentioned message not found'
   },
   files: {

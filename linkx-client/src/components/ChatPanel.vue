@@ -867,14 +867,14 @@ function onDrop(e: DragEvent) {
                   </template>
                 </MessageVirtualList>
 
-                <!-- 群聊：有人@我浮层，点击跳转到对应消息 -->
+                <!-- 群聊：有人@我浮层（右上角红字），点击跳转 -->
                 <button
                   v-if="showAtMeFab"
                   type="button"
                   class="at-me-fab"
                   @click="jumpToAtMeMessage"
                 >
-                  {{ t('chat.someoneAtMe') }}
+                  {{ t('chat.someoneAtMeFab') }}
                 </button>
 
                 <!-- 无消息或未选会话时的占位水印 -->
