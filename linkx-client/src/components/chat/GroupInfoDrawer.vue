@@ -768,12 +768,6 @@ function reportGroup() {
   color: var(--lx-text-muted);
 }
 
-.announce-action-hint {
-  margin: 6px 0 0;
-  font-size: 12px;
-  color: var(--lx-accent);
-}
-
 .announce-arrow {
   flex-shrink: 0;
   font-size: 20px;

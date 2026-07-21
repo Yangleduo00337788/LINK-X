@@ -151,7 +151,9 @@ function onMemberClick(m: GroupMember) {
 <template>
   <!-- 群聊会话右侧固定边栏（可折叠） -->
   <aside class="group-side" :class="{ collapsed }">
-    <!-- 左缘中部折叠按钮 -->
+    <!-- 折叠态：右侧细条命中区，悬停后才露出按钮 -->
+    <div class="collapse-hover-zone" aria-hidden="true" />
+    <!-- 左缘中部折叠按钮：默认隐藏，侧栏/命中区悬停时显示 -->
     <button
       type="button"
       class="collapse-btn"
@@ -251,6 +253,20 @@ function onMemberClick(m: GroupMember) {
   background: var(--lx-bg-panel);
 }
 
+.collapse-hover-zone {
+  position: absolute;
+  left: -14px;
+  top: 0;
+  width: 20px;
+  height: 100%;
+  z-index: 4;
+}
+
+.group-side.collapsed .collapse-hover-zone {
+  left: -18px;
+  width: 18px;
+}
+
 .collapse-btn {
   position: absolute;
   left: 0;
@@ -269,7 +285,19 @@ function onMemberClick(m: GroupMember) {
   align-items: center;
   justify-content: center;
   box-shadow: 0 1px 4px var(--lx-shadow-color);
-  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.15s ease,
+    color 0.15s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.group-side:hover .collapse-btn,
+.collapse-btn:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .collapse-btn:hover {
