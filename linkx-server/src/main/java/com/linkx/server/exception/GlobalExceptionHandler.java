@@ -8,6 +8,8 @@ import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 
 @Slf4j
 @RestControllerAdvice
@@ -27,6 +29,15 @@ public class GlobalExceptionHandler {
         } else if (e instanceof BindException be && be.getBindingResult().hasErrors()) {
             message = be.getBindingResult().getAllErrors().getFirst().getDefaultMessage();
         }
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Result.error(400, message));
+    }
+
+    @ExceptionHandler({MaxUploadSizeExceededException.class, MultipartException.class})
+    public ResponseEntity<Result<?>> handleMultipartException(Exception e) {
+        log.warn("上传失败: {}", e.getMessage());
+        String message = e instanceof MaxUploadSizeExceededException
+                ? "文件大小超过限制"
+                : "文件上传解析失败，请重试";
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Result.error(400, message));
     }
 

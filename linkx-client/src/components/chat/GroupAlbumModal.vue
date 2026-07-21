@@ -14,6 +14,7 @@ import { useOverlayStore } from '../../stores/overlay'
 // Naive UI 全局消息提示
 import { useMessage } from 'naive-ui'
 import { useI18n } from '../../i18n'
+import axios from 'axios'
 
 const message = useMessage()
 const { t } = useI18n()
@@ -54,14 +55,19 @@ async function onAlbumPicked(e: Event) {
   if (!files?.length || !currentSessionId.value) return
 
   try {
-    const n = await groupMetaStore.uploadAlbumImages(currentSessionId.value, Array.from(files))
-    if (n > 0) {
-      message.success(t('extra.albumUploaded', { n }))
+    const { ok, error } = await groupMetaStore.uploadAlbumImages(
+      currentSessionId.value,
+      Array.from(files)
+    )
+    if (ok > 0) {
+      message.success(t('extra.albumUploaded', { n: ok }))
     } else {
-      message.error(t('extra.opFail'))
+      message.error(error || t('extra.opFail'))
     }
-  } catch {
-    message.error(t('extra.opFail'))
+  } catch (err) {
+    const msg =
+      axios.isAxiosError(err) && (err.response?.data as { message?: string } | undefined)?.message
+    message.error(msg || t('extra.opFail'))
   }
 }
 
@@ -100,7 +106,14 @@ function createAlbum() {
           </button>
           <div class="tabs-actions">
             <button type="button" class="link-btn" @click="createAlbum">{{ t('extra.createAlbum') }}</button>
-            <input ref="albumInputRef" type="file" accept="image/*" multiple hidden @change="onAlbumPicked" />
+            <input
+              ref="albumInputRef"
+              type="file"
+              accept="image/jpeg,image/png,image/gif,image/webp,.jpg,.jpeg,.png,.gif,.webp"
+              multiple
+              hidden
+              @change="onAlbumPicked"
+            />
             <button type="button" class="primary-sm" @click="upload">{{ t('extra.uploadToAlbum') }}</button>
           </div>
         </div>

@@ -8,6 +8,11 @@ spring:
     name: linkx-server
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:local}
+  # 与 linkx.minio.max-file-size 对齐；未配置时 Spring Boot 默认仅 1MB，群相册/聊天大图会上传失败
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 12MB
   datasource:
     url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/linkx?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false
     username: ${DB_USERNAME:root}

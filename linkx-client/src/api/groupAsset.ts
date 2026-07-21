@@ -35,12 +35,13 @@ export function listGroupAssets(conversationId: string, type?: GroupAssetType) {
 export function uploadGroupAsset(conversationId: string, type: 'file' | 'image', file: File) {
   const form = new FormData()
   form.append('file', file)
+  // 不手动设 Content-Type，由浏览器带上 multipart boundary
   return apiClient.post<never, ApiResult<GroupAssetVO>>(
     `/group/${conversationId}/assets/upload`,
     form,
     {
       params: { type },
-      headers: { 'Content-Type': 'multipart/form-data' }
+      timeout: 60000
     }
   )
 }

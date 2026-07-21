@@ -5,6 +5,10 @@ spring:
   profiles:
     # 强制激活生产模式，未设置时禁止启动
     active: prod
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
   datasource:
     # 生产环境必须使用 SSL 连接
     url: jdbc:mysql://${DB_HOST}:${DB_PORT:3306}/${DB_NAME:linkx}?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=true&requireSSL=true

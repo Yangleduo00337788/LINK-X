@@ -8,8 +8,14 @@ import * as groupApi from '../api/group'
 import * as groupAssetApi from '../api/groupAsset'
 import * as groupAnnouncementApi from '../api/groupAnnouncement'
 import type { GroupAnnouncementVO } from '../api/groupAnnouncement'
-import { formatFileSize } from '../utils/file'
+import {
+  compressImage,
+  formatFileSize,
+  MAX_IMAGE_BYTES,
+  MAX_PUBLISH_IMAGE_BYTES
+} from '../utils/file'
 import { isDisplayableMediaUrl, normalizeMediaUrl } from '../utils/mediaUrl'
+import axios from 'axios'
 
 /** 群精华条目 */
 export interface GroupEssenceItem {
@@ -64,6 +70,17 @@ export interface GroupAlbumItem {
 function formatBytes(n?: number): string {
   if (n == null || Number.isNaN(n)) return '未知'
   return formatFileSize(n)
+}
+
+function extractApiErrorMessage(e: unknown): string | undefined {
+  if (axios.isAxiosError(e)) {
+    const msg = (e.response?.data as { message?: string } | undefined)?.message
+    if (msg) return msg
+    if (e.code === 'ECONNABORTED') return '上传超时，请稍后重试'
+    if (e.message) return e.message
+  }
+  if (e instanceof Error && e.message) return e.message
+  return undefined
 }
 
 export const useGroupMetaStore = defineStore('groupMeta', {
@@ -545,12 +562,37 @@ export const useGroupMetaStore = defineStore('groupMeta', {
       return false
     },
 
-    async uploadAlbumImages(sessionId: string, files: File[]) {
+    async uploadAlbumImages(sessionId: string, files: File[]): Promise<{ ok: number; error?: string }> {
+      // 避免打开弹窗时的列表请求覆盖刚上传的缩略图
+      while (this.loading[`album-${sessionId}`]) {
+        await new Promise(r => setTimeout(r, 40))
+      }
       let ok = 0
+      let lastError: string | undefined
       if (!this.albums[sessionId]) this.albums[sessionId] = []
       for (const file of files) {
         try {
-          const res = await groupAssetApi.uploadGroupAsset(sessionId, 'image', file)
+          if (!file.type.startsWith('image/')) {
+            lastError = '相册仅支持图片文件'
+            continue
+          }
+          if (file.size > MAX_PUBLISH_IMAGE_BYTES) {
+            lastError = `图片不能超过 ${formatFileSize(MAX_PUBLISH_IMAGE_BYTES)}`
+            continue
+          }
+          let uploadFile: File = file
+          if (file.size > MAX_IMAGE_BYTES && /image\/(jpeg|jpg|webp)/i.test(file.type)) {
+            const compressed = await compressImage(file, MAX_IMAGE_BYTES)
+            uploadFile =
+              compressed instanceof File
+                ? compressed
+                : new File(
+                    [compressed],
+                    file.name.replace(/\.\w+$/i, '.jpg'),
+                    { type: compressed.type || 'image/jpeg' }
+                  )
+          }
+          const res = await groupAssetApi.uploadGroupAsset(sessionId, 'image', uploadFile)
           if (res.code === 200 && res.data) {
             this.albums[sessionId].unshift({
               id: String(res.data.id),
@@ -560,12 +602,15 @@ export const useGroupMetaStore = defineStore('groupMeta', {
               time: (res.data.createTime || '').slice(0, 10) || '刚刚'
             })
             ok += 1
+          } else {
+            lastError = res.message || '上传失败'
           }
         } catch (e) {
           console.error('上传群相册失败:', e)
+          lastError = extractApiErrorMessage(e) || '上传失败'
         }
       }
-      return ok
+      return { ok, error: ok > 0 ? undefined : lastError }
     },
 
     clearForSession(sessionId: string) {

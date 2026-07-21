@@ -29,8 +29,8 @@ public class FileStorageServiceImpl implements FileStorageService {
 
     /** 允许的 Content-Type 白名单 */
     private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
-            // 图片
-            "image/jpeg", "image/png", "image/gif", "image/webp",
+            // 图片（image/jpg 为部分浏览器非标准别名）
+            "image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp",
             // 文档
             "application/pdf",
             "application/msword",
@@ -82,6 +82,9 @@ public class FileStorageServiceImpl implements FileStorageService {
 
         // 3. MIME 与扩展名白名单校验
         String contentType = file.getContentType();
+        if (contentType != null && "image/jpg".equalsIgnoreCase(contentType)) {
+            contentType = "image/jpeg";
+        }
         if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType.toLowerCase(Locale.ROOT))) {
             throw new IllegalArgumentException("不允许的文件类型: " + contentType);
         }
