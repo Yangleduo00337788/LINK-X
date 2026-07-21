@@ -13,8 +13,6 @@ import { useAppStore } from '../../stores/app'
 import { useGroupMetaStore } from '../../stores/groupMeta'
 // 通用头像组件
 import Avatar from '../Avatar.vue'
-// 置顶图标组件
-import PinIcon from '../icons/PinIcon.vue'
 import { useI18n } from '../../i18n'
 
 const message = useMessage()
@@ -109,10 +107,6 @@ async function save() {
               <span v-if="announcement.role" class="role">{{ announcement.role }}</span>
               <span v-if="announcement.time" class="time">{{ announcement.time }}</span>
             </div>
-            <span v-if="announcement.content" class="pin-tag">
-              <PinIcon :size="11" />
-              {{ t('extra.pinned') }}
-            </span>
           </div>
           <pre v-if="!editing" class="post-body">{{ announcement.content || t('extra.noAnnouncement') }}</pre>
           <n-input v-else v-model:value="draft" type="textarea" :rows="6" :disabled="saving" />
