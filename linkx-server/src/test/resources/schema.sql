@@ -307,6 +307,17 @@ CREATE TABLE IF NOT EXISTS group_asset (
   deleted TINYINT NOT NULL DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS group_announcement (
+  id BIGINT NOT NULL PRIMARY KEY,
+  conversation_id BIGINT NOT NULL,
+  content TEXT NOT NULL,
+  publisher_id BIGINT NOT NULL,
+  pinned TINYINT NOT NULL DEFAULT 0,
+  create_time DATETIME,
+  update_time DATETIME,
+  deleted TINYINT NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS favorite (
   id BIGINT NOT NULL PRIMARY KEY,
   user_id BIGINT NOT NULL,

@@ -6,6 +6,8 @@
 import { defineStore } from 'pinia'
 import * as groupApi from '../api/group'
 import * as groupAssetApi from '../api/groupAsset'
+import * as groupAnnouncementApi from '../api/groupAnnouncement'
+import type { GroupAnnouncementVO } from '../api/groupAnnouncement'
 import { formatFileSize } from '../utils/file'
 import { isDisplayableMediaUrl, normalizeMediaUrl } from '../utils/mediaUrl'
 
@@ -18,12 +20,14 @@ export interface GroupEssenceItem {
   content: string
 }
 
-/** 群公告完整结构 */
-export interface GroupAnnouncement {
+/** 群公告条目（多条，可置顶） */
+export interface GroupAnnouncementItem {
+  id: string
   content: string
   author: string
   role: string
   time: string
+  pinned: boolean
 }
 
 /** 群成员项 */
@@ -64,7 +68,10 @@ function formatBytes(n?: number): string {
 
 export const useGroupMetaStore = defineStore('groupMeta', {
   state: () => ({
-    announcements: {} as Record<string, GroupAnnouncement>,
+    /** 公告列表（按会话） */
+    announcements: {} as Record<string, GroupAnnouncementItem[]>,
+    /** 侧栏/抽屉摘要：置顶优先，否则最新 */
+    announcementDisplay: {} as Record<string, GroupAnnouncementItem | null>,
     essence: {} as Record<string, GroupEssenceItem[]>,
     members: {} as Record<string, GroupMember[]>,
     remarks: {} as Record<string, string>,
@@ -78,7 +85,6 @@ export const useGroupMetaStore = defineStore('groupMeta', {
       if (this.loading[`members-${sessionId}`]) return
       const cached = this.members[sessionId]
       if (!force && cached) {
-        // 缓存了未签发的 object key / 无效地址时强制刷新
         const stale = cached.some(m => m.avatarUrl && !isDisplayableMediaUrl(m.avatarUrl))
         if (!stale) return
       }
@@ -95,7 +101,6 @@ export const useGroupMetaStore = defineStore('groupMeta', {
             role: m.role,
             badge: m.role === 'owner' ? '群主' : m.role === 'admin' ? '管理员' : undefined
           }))
-          // 同步会话列表拼图头像
           try {
             const { useAppStore } = await import('./app')
             const app = useAppStore()
@@ -123,18 +128,13 @@ export const useGroupMetaStore = defineStore('groupMeta', {
       return this.members[sessionId] || []
     },
 
+    /** 加载群详情中的备注/群名，并刷新公告摘要 */
     async fetchAnnouncement(sessionId: string) {
-      if (this.loading[`announcement-${sessionId}`]) return
-      this.loading[`announcement-${sessionId}`] = true
+      if (this.loading[`group-info-${sessionId}`]) return
+      this.loading[`group-info-${sessionId}`] = true
       try {
         const res = await groupApi.getGroupInfo(sessionId)
         if (res.code === 200 && res.data) {
-          this.announcements[sessionId] = {
-            content: res.data.announcement || '',
-            author: res.data.ownerNickname || '群主',
-            role: '群主',
-            time: ''
-          }
           if (res.data.myRemark != null) {
             this.remarks[sessionId] = res.data.myRemark
             try {
@@ -168,48 +168,153 @@ export const useGroupMetaStore = defineStore('groupMeta', {
           }
         }
       } catch (e) {
-        console.error('加载群公告失败:', e)
+        console.error('加载群详情失败:', e)
       } finally {
-        this.loading[`announcement-${sessionId}`] = false
+        this.loading[`group-info-${sessionId}`] = false
+      }
+      void this.fetchAnnouncementDisplay(sessionId)
+    },
+
+    mapAnnouncement(a: GroupAnnouncementVO): GroupAnnouncementItem {
+      const role =
+        a.publisherRole === 'owner'
+          ? '群主'
+          : a.publisherRole === 'admin'
+            ? '管理员'
+            : a.publisherRole === 'member'
+              ? '成员'
+              : ''
+      return {
+        id: String(a.id),
+        content: a.content || '',
+        author: a.publisherNickname || '成员',
+        role,
+        time: a.updateTime || a.createTime || '',
+        pinned: !!a.pinned
       }
     },
 
-    announcementFor(sessionId: string): GroupAnnouncement {
-      if (!this.announcements[sessionId]) {
-        void this.fetchAnnouncement(sessionId)
+    async fetchAnnouncements(sessionId: string, force = false) {
+      if (this.loading[`announcements-${sessionId}`]) return
+      if (!force && this.announcements[sessionId]) return
+      this.loading[`announcements-${sessionId}`] = true
+      try {
+        const res = await groupAnnouncementApi.listGroupAnnouncements(sessionId)
+        if (res.code === 200 && res.data) {
+          this.announcements[sessionId] = res.data.map(a => this.mapAnnouncement(a))
+          this.refreshDisplayFromList(sessionId)
+        }
+      } catch (e) {
+        console.error('加载群公告列表失败:', e)
+      } finally {
+        this.loading[`announcements-${sessionId}`] = false
       }
-      return this.announcements[sessionId] || { content: '', author: '', role: '', time: '' }
+    },
+
+    async fetchAnnouncementDisplay(sessionId: string) {
+      if (this.loading[`announcement-display-${sessionId}`]) return
+      this.loading[`announcement-display-${sessionId}`] = true
+      try {
+        const res = await groupAnnouncementApi.getDisplayAnnouncement(sessionId)
+        if (res.code === 200) {
+          this.announcementDisplay[sessionId] = res.data ? this.mapAnnouncement(res.data) : null
+        }
+      } catch (e) {
+        console.error('加载公告摘要失败:', e)
+      } finally {
+        this.loading[`announcement-display-${sessionId}`] = false
+      }
+    },
+
+    refreshDisplayFromList(sessionId: string) {
+      const list = this.announcements[sessionId] || []
+      const pinned = list.filter(a => a.pinned)
+      if (pinned.length) {
+        this.announcementDisplay[sessionId] = pinned[0]
+        return
+      }
+      this.announcementDisplay[sessionId] = list[0] || null
+    },
+
+    announcementsFor(sessionId: string): GroupAnnouncementItem[] {
+      if (!this.announcements[sessionId]) void this.fetchAnnouncements(sessionId)
+      return this.announcements[sessionId] || []
     },
 
     announcementShort(sessionId: string): string {
-      const content = this.announcementFor(sessionId).content.trim()
+      if (this.announcementDisplay[sessionId] === undefined) {
+        void this.fetchAnnouncementDisplay(sessionId)
+      }
+      const content = (this.announcementDisplay[sessionId]?.content || '').trim()
       if (!content) return ''
       const firstLine = content.split('\n').find(l => l.trim()) || ''
       return firstLine.length > 60 ? `${firstLine.slice(0, 60)}…` : firstLine
     },
 
-    async updateAnnouncement(sessionId: string, content: string) {
-      try {
-        const res = await groupApi.updateGroup(sessionId, { announcement: content })
-        if (res.code === 200 && res.data) {
-          const { useAppStore } = await import('./app')
-          const app = useAppStore()
-          const me = app.userProfile.userId
-          const members = this.members[sessionId] || []
-          const myRole = members.find(m => m.id === me)?.role
-          const roleLabel =
-            myRole === 'owner' ? '群主' : myRole === 'admin' ? '管理员' : '成员'
-          this.announcements[sessionId] = {
-            content: res.data.announcement || content,
-            author: app.userProfile.nickname || res.data.ownerNickname || '成员',
-            role: roleLabel,
-            time: '刚刚'
-          }
-          return true
+    async createAnnouncement(sessionId: string, content: string, pinned = false) {
+      const res = await groupAnnouncementApi.createGroupAnnouncement(sessionId, {
+        content,
+        pinned
+      })
+      if (res.code === 200 && res.data) {
+        if (!this.announcements[sessionId]) this.announcements[sessionId] = []
+        const item = this.mapAnnouncement(res.data)
+        if (item.pinned) {
+          this.announcements[sessionId] = this.announcements[sessionId].map(a => ({
+            ...a,
+            pinned: false
+          }))
         }
-      } catch (e) {
-        console.error('更新群公告失败:', e)
-        throw e
+        this.announcements[sessionId].unshift(item)
+        this.announcements[sessionId].sort((a, b) => Number(b.pinned) - Number(a.pinned))
+        this.refreshDisplayFromList(sessionId)
+        return true
+      }
+      return false
+    },
+
+    async setAnnouncementPinned(sessionId: string, announcementId: string, pinned: boolean) {
+      const res = await groupAnnouncementApi.updateGroupAnnouncement(sessionId, announcementId, {
+        pinned
+      })
+      if (res.code === 200 && res.data) {
+        const list = this.announcements[sessionId] || []
+        if (pinned) {
+          for (const a of list) a.pinned = a.id === announcementId
+        } else {
+          const target = list.find(a => a.id === announcementId)
+          if (target) target.pinned = false
+        }
+        list.sort((a, b) => Number(b.pinned) - Number(a.pinned))
+        this.refreshDisplayFromList(sessionId)
+        return true
+      }
+      return false
+    },
+
+    async updateAnnouncementContent(sessionId: string, announcementId: string, content: string) {
+      const res = await groupAnnouncementApi.updateGroupAnnouncement(sessionId, announcementId, {
+        content
+      })
+      if (res.code === 200 && res.data) {
+        const list = this.announcements[sessionId] || []
+        const idx = list.findIndex(a => a.id === announcementId)
+        if (idx >= 0) list[idx] = this.mapAnnouncement(res.data)
+        this.refreshDisplayFromList(sessionId)
+        return true
+      }
+      return false
+    },
+
+    async removeAnnouncement(sessionId: string, announcementId: string) {
+      const res = await groupAnnouncementApi.deleteGroupAnnouncement(sessionId, announcementId)
+      if (res.code === 200) {
+        const list = this.announcements[sessionId]
+        if (list) {
+          this.announcements[sessionId] = list.filter(a => a.id !== announcementId)
+        }
+        this.refreshDisplayFromList(sessionId)
+        return true
       }
       return false
     },
@@ -465,6 +570,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
 
     clearForSession(sessionId: string) {
       delete this.announcements[sessionId]
+      delete this.announcementDisplay[sessionId]
       delete this.essence[sessionId]
       delete this.members[sessionId]
       delete this.remarks[sessionId]
