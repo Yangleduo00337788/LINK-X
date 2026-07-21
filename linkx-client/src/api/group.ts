@@ -145,7 +145,12 @@ export function updateMemberRole(
  */
 export function updateMuteAll(
   conversationId: string,
-  payload: { enabled?: boolean; startTime?: number; endTime?: number }
+  payload: {
+    enabled?: boolean
+    startTime?: number
+    endTime?: number
+    clearSchedule?: boolean
+  }
 ) {
   return apiClient.put<never, ApiResult<GroupInfo>>(`/group/${conversationId}/mute-all`, payload)
 }

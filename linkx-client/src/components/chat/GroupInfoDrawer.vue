@@ -13,6 +13,7 @@ import { SearchOutline } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
 import GroupAvatar from '../GroupAvatar.vue'
 import PinIcon from '../icons/PinIcon.vue'
+import GroupMutePanel from './GroupMutePanel.vue'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
@@ -313,143 +314,15 @@ const isAdminOrOwner = computed(() => {
   return members.value.some(m => m.id === me && (m.role === 'owner' || m.role === 'admin'))
 })
 
-const muteState = computed(() => {
-  const id = currentSessionId.value
-  return id ? groupMetaStore.muteStateFor(id) : { muteAll: false, meMuted: false }
-})
+const mutePanelOpen = ref(false)
 
-/** 仅未结束的定时计划才展示（过期时段不挂在开关下方） */
-const activeMuteSchedule = computed(() => {
-  const end = muteState.value.muteAllEnd
-  const start = muteState.value.muteAllStart
-  if (!end || end <= Date.now()) return null
-  return { start, end }
-})
-
-const muteScheduleHint = computed(() => {
-  const s = activeMuteSchedule.value
-  if (!s) return ''
-  const endText = new Date(s.end).toLocaleString()
-  if (s.start && s.start > Date.now()) {
-    return t('modals.scheduleMuteUpcoming', {
-      start: new Date(s.start).toLocaleString(),
-      end: endText
-    })
-  }
-  return t('modals.scheduleMuteUntil', { end: endText })
-})
-
-const muteAllSaving = ref(false)
-const schedulePanelOpen = ref(false)
-const memberMutePanelOpen = ref(false)
-const scheduleStart = ref('')
-const scheduleEnd = ref('')
-const muteSaving = ref(false)
-
-function toLocalInputValue(ms?: number): string {
-  if (!ms) return ''
-  const d = new Date(ms)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+function openMutePanel() {
+  mutePanelOpen.value = true
 }
 
-function fromLocalInputValue(v: string): number {
-  return new Date(v).getTime()
+function closeMutePanel() {
+  mutePanelOpen.value = false
 }
-
-async function setMuteAll(enabled: boolean) {
-  const id = currentSessionId.value
-  if (!id || muteAllSaving.value) return
-  muteAllSaving.value = true
-  try {
-    await groupMetaStore.setMuteAll(id, { enabled })
-    message.success(enabled ? t('modals.muteAllOn') : t('modals.muteAllOff'))
-  } catch (e) {
-    message.error(apiErrorMessage(e, t('modals.muteAllFail')))
-  } finally {
-    muteAllSaving.value = false
-  }
-}
-
-function openScheduleMute() {
-  const m = muteState.value
-  scheduleStart.value = toLocalInputValue(m.muteAllStart) || toLocalInputValue(Date.now() + 5 * 60 * 1000)
-  scheduleEnd.value = toLocalInputValue(m.muteAllEnd) || toLocalInputValue(Date.now() + 65 * 60 * 1000)
-  schedulePanelOpen.value = true
-}
-
-function closeSchedulePanel() {
-  schedulePanelOpen.value = false
-}
-
-async function submitScheduleMute() {
-  const id = currentSessionId.value
-  if (!id || muteSaving.value) return
-  if (!scheduleStart.value || !scheduleEnd.value) {
-    message.warning(t('modals.scheduleMuteNeedTime'))
-    return
-  }
-  const startTime = fromLocalInputValue(scheduleStart.value)
-  const endTime = fromLocalInputValue(scheduleEnd.value)
-  if (!Number.isFinite(startTime) || !Number.isFinite(endTime)) {
-    message.warning(t('modals.scheduleMuteNeedTime'))
-    return
-  }
-  muteSaving.value = true
-  try {
-    await groupMetaStore.setMuteAll(id, { startTime, endTime })
-    message.success(t('modals.scheduleMuteOk'))
-    closeSchedulePanel()
-  } catch (e) {
-    message.error(apiErrorMessage(e, t('modals.scheduleMuteFail')))
-  } finally {
-    muteSaving.value = false
-  }
-}
-
-async function openMemberMutePanel() {
-  const id = currentSessionId.value
-  if (!id) return
-  await groupMetaStore.fetchMembers(id, true)
-  memberMutePanelOpen.value = true
-}
-
-function closeMemberMutePanel() {
-  memberMutePanelOpen.value = false
-}
-
-function toggleMemberMute(memberId: string, memberName: string, muted: boolean) {
-  if (!currentSessionId.value || muteSaving.value) return
-  dialog.warning({
-    title: muted ? t('modals.unmuteMember') : t('modals.muteMember'),
-    content: muted
-      ? t('modals.unmuteMemberConfirm', { name: memberName })
-      : t('modals.muteMemberConfirm', { name: memberName }),
-    positiveText: t('common.confirm'),
-    negativeText: t('common.cancel'),
-    onPositiveClick: async () => {
-      muteSaving.value = true
-      try {
-        await groupMetaStore.setMemberMute(currentSessionId.value!, memberId, !muted)
-        message.success(muted ? t('modals.unmuteMemberOk') : t('modals.muteMemberOk'))
-      } catch (e) {
-        message.error(apiErrorMessage(e, t('modals.muteMemberFail')))
-      } finally {
-        muteSaving.value = false
-      }
-    }
-  })
-}
-
-/** 可禁言的成员 */
-const muteCandidates = computed(() => {
-  const me = appStore.userProfile.userId
-  return members.value.filter(m => {
-    if (m.id === me || m.role === 'owner') return false
-    if (!isOwner.value && m.role === 'admin') return false
-    return true
-  })
-})
 
 /** 打开抽屉时拉取成员与禁言状态 */
 watch(groupInfoDrawerOpen, open => {
@@ -459,8 +332,7 @@ watch(groupInfoDrawerOpen, open => {
   } else {
     transferPanelOpen.value = false
     adminPanelOpen.value = false
-    schedulePanelOpen.value = false
-    memberMutePanelOpen.value = false
+    mutePanelOpen.value = false
   }
 })
 
@@ -576,31 +448,18 @@ function reportGroup() {
                   <n-switch :value="!!currentSession?.muted" size="small" @update:value="setMute" />
                 </div>
                 <p class="hint">{{ t('modals.muteHint') }}</p>
-                <template v-if="isAdminOrOwner">
-                  <div class="switch-row">
-                    <span>{{ t('modals.muteAll') }}</span>
-                    <n-switch
-                      :value="!!muteState.muteAll"
-                      :disabled="muteAllSaving"
-                      size="small"
-                      @update:value="setMuteAll"
-                    />
-                  </div>
-                  <p class="hint">{{ t('modals.muteAllHint') }}</p>
-                  <p v-if="muteScheduleHint" class="hint schedule-hint">{{ muteScheduleHint }}</p>
-                  <div class="mute-actions">
-                    <button type="button" class="link-btn" @click="openScheduleMute">
-                      {{ t('modals.scheduleMute') }}
-                    </button>
-                    <button type="button" class="link-btn" @click="openMemberMutePanel">
-                      {{ t('modals.muteMembers') }}
-                    </button>
-                  </div>
-                </template>
               </div>
 
               <!-- 危险操作与举报 -->
               <button type="button" class="action-btn" @click="clearChat">{{ t('modals.clearChatHistory') }}</button>
+              <button
+                v-if="isAdminOrOwner"
+                type="button"
+                class="action-btn"
+                @click="openMutePanel"
+              >
+                {{ t('modals.groupMute') }}
+              </button>
               <button
                 v-if="!isOwner"
                 type="button"
@@ -690,56 +549,13 @@ function reportGroup() {
           </div>
         </div>
 
-        <!-- 定时全体禁言 -->
-        <div v-if="schedulePanelOpen" class="transfer-panel">
-          <div class="transfer-head">
-            <button type="button" class="transfer-back" @click="closeSchedulePanel">‹</button>
-            <h3>{{ t('modals.scheduleMute') }}</h3>
-          </div>
-          <p class="transfer-hint">{{ t('modals.scheduleMuteHint') }}</p>
-          <label class="schedule-label">{{ t('modals.scheduleMuteStart') }}</label>
-          <input v-model="scheduleStart" type="datetime-local" class="schedule-input" />
-          <label class="schedule-label">{{ t('modals.scheduleMuteEnd') }}</label>
-          <input v-model="scheduleEnd" type="datetime-local" class="schedule-input" />
-          <button
-            type="button"
-            class="action-btn schedule-submit"
-            :disabled="muteSaving"
-            @click="submitScheduleMute"
-          >
-            {{ t('common.confirm') }}
-          </button>
-        </div>
-
-        <!-- 成员禁言 -->
-        <div v-if="memberMutePanelOpen" class="transfer-panel">
-          <div class="transfer-head">
-            <button type="button" class="transfer-back" @click="closeMemberMutePanel">‹</button>
-            <h3>{{ t('modals.muteMembers') }}</h3>
-          </div>
-          <p class="transfer-hint">{{ t('modals.muteMembersHint') }}</p>
-          <div class="transfer-list">
-            <div v-if="!muteCandidates.length" class="transfer-hint">{{ t('modals.muteMembersEmpty') }}</div>
-            <div
-              v-for="m in muteCandidates"
-              :key="m.id"
-              class="transfer-row admin-row"
-            >
-              <Avatar :text="m.avatarText" :color="m.avatarColor" :image-url="m.avatarUrl" :size="36" />
-              <span class="transfer-name">{{ m.name }}</span>
-              <span v-if="m.muted" class="transfer-badge">{{ t('modals.mutedBadge') }}</span>
-              <button
-                type="button"
-                class="role-action"
-                :class="{ danger: !m.muted }"
-                :disabled="muteSaving"
-                @click="toggleMemberMute(m.id, m.name, !!m.muted)"
-              >
-                {{ m.muted ? t('modals.unmuteMember') : t('modals.muteMember') }}
-              </button>
-            </div>
-          </div>
-        </div>
+        <!-- 群聊禁言（全体 / 定时 CRUD / 指定成员） -->
+        <GroupMutePanel
+          v-if="mutePanelOpen && currentSessionId"
+          :session-id="currentSessionId"
+          :is-owner="isOwner"
+          @back="closeMutePanel"
+        />
       </aside>
     </div>
   </Transition>
@@ -1105,57 +921,6 @@ function reportGroup() {
 .role-action:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-
-.schedule-label {
-  display: block;
-  margin: 10px 0 6px;
-  font-size: 12px;
-  color: var(--lx-text-secondary);
-}
-
-.schedule-input {
-  width: 100%;
-  height: 36px;
-  border: 1px solid var(--lx-border-light);
-  border-radius: var(--lx-radius);
-  padding: 0 10px;
-  font-size: 13px;
-  color: var(--lx-text-body);
-  background: var(--lx-bg-card);
-  outline: none;
-  box-sizing: border-box;
-}
-
-.schedule-submit {
-  margin-top: 16px;
-}
-
-.schedule-hint {
-  margin-top: 4px !important;
-}
-
-.mute-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 8px;
-}
-
-.link-btn {
-  border: none;
-  padding: 0;
-  margin: 0;
-  background: transparent;
-  color: var(--lx-accent, #12b7f5);
-  font-size: 13px;
-  line-height: 1.4;
-  cursor: pointer;
-}
-
-.link-btn:hover {
-  opacity: 0.85;
-  text-decoration: underline;
 }
 
 .chat-drawer-enter-active,

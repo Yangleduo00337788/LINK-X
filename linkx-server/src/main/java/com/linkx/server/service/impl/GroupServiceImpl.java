@@ -416,9 +416,19 @@ public class GroupServiceImpl implements GroupService {
         }
 
         Date now = new Date();
+        boolean clearSchedule = Boolean.TRUE.equals(dto.getClearSchedule());
         boolean timed = dto.getStartTime() != null && dto.getEndTime() != null;
 
-        if (timed) {
+        if (clearSchedule) {
+            Date start = group.getMuteAllStart();
+            Date end = group.getMuteAllEnd();
+            boolean inWindow = start != null && end != null && !now.before(start) && now.before(end);
+            group.setMuteAllStart(null);
+            group.setMuteAllEnd(null);
+            if (inWindow) {
+                group.setMuteAll(0);
+            }
+        } else if (timed) {
             if (dto.getEndTime() <= dto.getStartTime()) {
                 throw new CustomException(400, "结束时间必须晚于开始时间");
             }
@@ -447,14 +457,16 @@ public class GroupServiceImpl implements GroupService {
                 group.setMuteAllEnd(null);
             }
         } else {
-            throw new CustomException(400, "请指定 enabled 或定时开始/结束时间");
+            throw new CustomException(400, "请指定 enabled、定时时间或取消定时");
         }
 
         conversationMapper.update(group);
         SysUser owner = sysUserMapper.selectOneById(group.getOwnerId());
         SysUser operator = sysUserMapper.selectOneById(userId);
         String opName = displayName(operator);
-        if (timed) {
+        if (clearSchedule) {
+            emitSystemTip(userId, conversationId, opName + " 取消了定时全体禁言");
+        } else if (timed) {
             emitSystemTip(userId, conversationId, opName + " 设置了定时全体禁言");
         } else if (Boolean.TRUE.equals(dto.getEnabled())) {
             emitSystemTip(userId, conversationId, opName + " 开启了全体禁言");

@@ -258,7 +258,12 @@ export const useGroupMetaStore = defineStore('groupMeta', {
 
     async setMuteAll(
       sessionId: string,
-      payload: { enabled?: boolean; startTime?: number; endTime?: number }
+      payload: {
+        enabled?: boolean
+        startTime?: number
+        endTime?: number
+        clearSchedule?: boolean
+      }
     ): Promise<void> {
       const res = await groupApi.updateMuteAll(sessionId, payload)
       if (res.code !== 200) {

@@ -22,4 +22,9 @@ public class MuteAllDTO {
      * 定时结束（毫秒时间戳）；到点自动关闭全体禁言
      */
     private Long endTime;
+
+    /**
+     * 仅取消定时计划：清空 start/end；若当前正处于定时禁言窗口内则同时关闭全体禁言
+     */
+    private Boolean clearSchedule;
 }
