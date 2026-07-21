@@ -1,10 +1,10 @@
 <script setup lang="ts">
 /**
- * @ 好友自动补全面板
+ * @ 好友/成员自动补全面板
  * 用法:
- *   - 外层提供好友列表 (props.friends)
+ *   - 外层提供候选列表 (props.friends)
  *   - 输入框 input 时检测 caret 前是否有 '@xxx',弹出面板
- *   - 选择好友后通过 @apply 回调接收 {id, name};父组件负责插入 "@nickname " 并维护 mention 列表
+ *   - 选择后通过 @apply 回调接收 {id, name};父组件负责插入 "@nickname " 并维护 mention 列表
  *
  * 该组件自身只负责面板渲染与选择,父组件负责光标定位/插值/状态。
  */
@@ -19,15 +19,27 @@ interface MentionPick {
   name: string
 }
 
-const props = defineProps<{
-  /** 候选好友列表(已经搜索过滤后的命中项) */
-  friends: ContactItem[]
-  /** 当前 caret 位置 */
-  caretIndex: number
-  /** 整段文本(用来判断是否在 @ 触发中) */
-  text: string
-  /** 父组件 ref 实例 */
-}>()
+const props = withDefaults(
+  defineProps<{
+    /** 候选列表(已经搜索过滤后的命中项) */
+    friends: ContactItem[]
+    /** 当前 caret 位置 */
+    caretIndex?: number
+    /** 整段文本(用来判断是否在 @ 触发中) */
+    text?: string
+    /** 面板标题 */
+    title?: string
+    /** 空列表文案 */
+    emptyText?: string
+    /** 向上弹出（聊天输入框在底部时使用） */
+    placement?: 'bottom' | 'top'
+  }>(),
+  {
+    caretIndex: 0,
+    text: '',
+    placement: 'bottom'
+  }
+)
 
 const emit = defineEmits<{
   (e: 'apply', friend: MentionPick): void
@@ -37,6 +49,8 @@ const emit = defineEmits<{
 const activeIndex = ref(0)
 
 const hasFriends = computed(() => props.friends.length > 0)
+const headerTitle = computed(() => props.title || t('extra.selectFriend'))
+const emptyLabel = computed(() => props.emptyText || t('extra.noFriendsToAt'))
 
 watch(() => props.friends, () => {
   activeIndex.value = 0
@@ -73,14 +87,18 @@ defineExpose({
 </script>
 
 <template>
-  <div class="at-mention-popover" @mousedown.prevent>
-    <div class="at-header">{{ t('extra.selectFriend') }}</div>
+  <div
+    class="at-mention-popover"
+    :class="{ 'placement-top': placement === 'top' }"
+    @mousedown.prevent
+  >
+    <div class="at-header">{{ headerTitle }}</div>
     <ul v-if="hasFriends" class="at-list">
       <li
         v-for="(friend, idx) in friends"
         :key="friend.id"
         class="at-item"
-        :class="{ active: idx === activeIndex }"
+        :class="{ active: idx === activeIndex, 'at-all': friend.id === '__all__' }"
         @mouseenter="activeIndex = idx"
         @click="pick(friend)"
       >
@@ -90,11 +108,11 @@ defineExpose({
         </span>
         <div class="at-info">
           <div class="at-name">{{ friend.name }}</div>
-          <div class="at-meta">{{ t('chat.myFriends') }}</div>
+          <div v-if="friend.group" class="at-meta">{{ friend.group }}</div>
         </div>
       </li>
     </ul>
-    <div v-else class="at-empty">{{ t('extra.noFriendsToAt') }}</div>
+    <div v-else class="at-empty">{{ emptyLabel }}</div>
   </div>
 </template>
 
@@ -114,6 +132,11 @@ defineExpose({
   display: flex;
   flex-direction: column;
   font-size: 13px;
+}
+
+.at-mention-popover.placement-top {
+  top: auto;
+  bottom: calc(100% + 4px);
 }
 
 .at-header {
@@ -143,6 +166,11 @@ defineExpose({
 .at-item.active,
 .at-item:hover {
   background: var(--lx-bg-hover);
+}
+
+.at-item.at-all .at-name {
+  color: var(--lx-accent);
+  font-weight: 600;
 }
 
 .at-avatar {

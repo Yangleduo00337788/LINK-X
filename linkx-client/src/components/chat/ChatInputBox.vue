@@ -3,11 +3,12 @@
  * 聊天输入框组件。
  * <p>
  * 提供文本输入、表情、文件/图片发送、截图、语音录制、红包与快捷应用入口。
+ * 群聊支持输入 @ 或点击工具栏 @ 按钮提及成员 / 全体成员。
  * 支持回复预览、粘贴图片/文件、Enter 发送（Shift+Enter 换行）。
  * </p>
  */
 // Vue 响应式 API
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick, watch } from 'vue'
 // Naive UI 组件与消息提示
 import { NIcon, NInput, NPopover, useMessage } from 'naive-ui'
 // 工具栏图标（Ionicons5）
@@ -18,7 +19,8 @@ import {
   VolumeHighOutline,
   GiftOutline,
   MicOutline,
-  CloseOutline
+  CloseOutline,
+  AtOutline
 } from '@vicons/ionicons5'
 // Pinia 响应式解构
 import { storeToRefs } from 'pinia'
@@ -33,12 +35,16 @@ import { useFilesStore } from '../../stores/files'
 // 群元数据：群文件列表
 import { useGroupMetaStore } from '../../stores/groupMeta'
 // 消息类型定义
-import type { ChatMessage } from '../../types'
+import type { ChatMessage, ContactItem } from '../../types'
 // 聊天表情常量列表
 import { CHAT_EMOJIS } from '../../constants/emojis'
 // 文件工具：大小格式化、DataURL 读取、图片大小上限
 import { formatFileSize, MAX_IMAGE_BYTES } from '../../utils/file'
 import { useI18n } from '../../i18n'
+import AtMentionPicker from '../common/AtMentionPicker.vue'
+
+/** @全体成员 的伪 ID，写入正文为「@全体成员」供提醒逻辑识别 */
+const AT_ALL_ID = '__all__'
 
 // 组件入参：会话类型与可选的回复目标消息
 const props = defineProps<{
@@ -122,6 +128,8 @@ async function startVoiceCall() {
 const inputValue = ref('')
 // 表情面板是否展开
 const showEmoji = ref(false)
+// NInput 实例，用于定位 textarea 光标
+const messageInputRef = ref<InstanceType<typeof NInput> | null>(null)
 
 // 隐藏的图片选择 input 引用
 const imageInputRef = ref<HTMLInputElement | null>(null)
@@ -130,6 +138,129 @@ const fileInputRef = ref<HTMLInputElement | null>(null)
 
 // 表情列表副本（供模板 v-for）
 const emojis = [...CHAT_EMOJIS]
+
+// —— 群聊 @ 提及 ——
+const showMentionPicker = ref(false)
+const mentionQuery = ref('')
+const mentionStartIndex = ref(0)
+const mentionPickerRef = ref<InstanceType<typeof AtMentionPicker> | null>(null)
+
+watch(currentSessionId, () => {
+  showMentionPicker.value = false
+  mentionQuery.value = ''
+})
+
+function getTextareaEl(): HTMLTextAreaElement | null {
+  const inst = messageInputRef.value as unknown as {
+    textareaElRef?: HTMLTextAreaElement
+  } | null
+  return inst?.textareaElRef ?? null
+}
+
+/** 群成员候选（含置顶的「全体成员」） */
+const mentionCandidates = computed<ContactItem[]>(() => {
+  if (!props.isGroupChat || !currentSessionId.value) return []
+  const q = mentionQuery.value.trim().toLowerCase()
+  const me = userProfile.value.userId
+  const atAllName = t('extra.atAllMembers')
+  const atAll: ContactItem = {
+    id: AT_ALL_ID,
+    name: atAllName,
+    avatarText: '@',
+    avatarColor: 'var(--lx-accent)',
+    group: t('extra.atAllHint')
+  }
+  const members: ContactItem[] = (groupMetaStore.members[currentSessionId.value] || [])
+    .filter(m => !me || m.id !== me)
+    .map(m => ({
+      id: m.id,
+      userId: m.id,
+      name: m.name,
+      avatarText: m.avatarText,
+      avatarColor: m.avatarColor,
+      avatarUrl: m.avatarUrl,
+      group: m.badge || t('extra.groupMember')
+    }))
+  let list = [atAll, ...members]
+  if (q) {
+    list = list.filter(f => f.name.toLowerCase().includes(q))
+  }
+  return list.slice(0, 30)
+})
+
+function detectMentionTrigger() {
+  if (!props.isGroupChat || inputDisabled.value) {
+    showMentionPicker.value = false
+    return
+  }
+  const ta = getTextareaEl()
+  const value = inputValue.value
+  const cursor = ta?.selectionStart ?? value.length
+  let i = cursor - 1
+  while (i >= 0) {
+    const ch = value[i]
+    if (ch === '@') {
+      const segment = value.slice(i + 1, cursor)
+      if (/^\S{0,32}$/.test(segment) && !segment.includes('\n')) {
+        mentionStartIndex.value = i
+        mentionQuery.value = segment
+        showMentionPicker.value = true
+        if (currentSessionId.value) void groupMetaStore.fetchMembers(currentSessionId.value)
+      } else {
+        showMentionPicker.value = false
+      }
+      return
+    }
+    if (ch === ' ' || ch === '\n' || ch === '\t' || ch === '\u3000') break
+    i--
+  }
+  showMentionPicker.value = false
+}
+
+function onInputUpdate(val: string) {
+  inputValue.value = val
+  nextTick(() => detectMentionTrigger())
+}
+
+function applyMention(id: string | number, name: string) {
+  const ta = getTextareaEl()
+  const before = inputValue.value.slice(0, mentionStartIndex.value)
+  const cursor = ta?.selectionStart ?? mentionStartIndex.value
+  const after = inputValue.value.slice(cursor)
+  const displayName = String(id) === AT_ALL_ID ? t('extra.atAllMembers') : name
+  const inserted = `@${displayName} `
+  inputValue.value = before + inserted + after
+  showMentionPicker.value = false
+  mentionQuery.value = ''
+  nextTick(() => {
+    const el = getTextareaEl()
+    if (!el) return
+    const newPos = before.length + inserted.length
+    el.focus()
+    el.setSelectionRange(newPos, newPos)
+  })
+}
+
+/** 工具栏 @：插入 @ 并弹出成员列表 */
+function triggerAtMention() {
+  if (!props.isGroupChat || inputDisabled.value) return
+  const ta = getTextareaEl()
+  ta?.focus()
+  const cursor = ta?.selectionStart ?? inputValue.value.length
+  const before = inputValue.value.slice(0, cursor)
+  const after = inputValue.value.slice(cursor)
+  const prefix = before.length && !/[\s\u3000]$/.test(before) ? ' ' : ''
+  const inserted = `${prefix}@`
+  inputValue.value = before + inserted + after
+  nextTick(() => {
+    const el = getTextareaEl()
+    if (!el) return
+    const newPos = before.length + inserted.length
+    el.focus()
+    el.setSelectionRange(newPos, newPos)
+    detectMentionTrigger()
+  })
+}
 
 /**
  * 发送前校验：当前会话是否已屏蔽对方。
@@ -354,6 +485,7 @@ function send() {
         await sendMessage(inputValue.value, { type: 'text', replyTo: props.replyingTo })
       }
       inputValue.value = ''
+      showMentionPicker.value = false
       emit('update:replyingTo', undefined)
       emit('scrollToBottom')
     } catch {
@@ -362,11 +494,39 @@ function send() {
   })()
 }
 
-/** Enter 发送，Shift+Enter 保留默认换行 */
+/** Enter 发送，Shift+Enter 保留默认换行；@ 面板打开时 Enter 选中成员 */
 function onEnter(e: KeyboardEvent) {
+  if (showMentionPicker.value) {
+    if (e.shiftKey) return
+    e.preventDefault()
+    if (mentionCandidates.value.length) {
+      const pick = mentionPickerRef.value?.confirm()
+      if (pick) applyMention(pick.id, pick.name)
+    }
+    return
+  }
   if (!e.shiftKey) {
     e.preventDefault()
     send()
+  }
+}
+
+/** 输入框按键：上下选择 @ 候选、Esc 关闭 */
+function onInputKeyDown(e: KeyboardEvent) {
+  if (!showMentionPicker.value) return
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    mentionPickerRef.value?.move(1)
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    mentionPickerRef.value?.move(-1)
+  } else if (e.key === 'Tab') {
+    e.preventDefault()
+    const pick = mentionPickerRef.value?.confirm()
+    if (pick) applyMention(pick.id, pick.name)
+  } else if (e.key === 'Escape') {
+    e.preventDefault()
+    showMentionPicker.value = false
   }
 }
 
@@ -417,17 +577,32 @@ defineExpose({
           <n-icon :component="CloseOutline" class="reply-close" @click="cancelReply" />
         </div>
 
-        <n-input
-          v-model:value="inputValue"
-          type="textarea"
-          :autosize="{ minRows: 3, maxRows: 8 }"
-          :placeholder="inputPlaceholder"
-          :disabled="inputDisabled"
-          class="message-input"
-          :bordered="false"
-          @keydown.enter="onEnter"
-          @paste="onPaste"
-        />
+        <div class="input-compose-body">
+          <n-input
+            ref="messageInputRef"
+            :value="inputValue"
+            type="textarea"
+            :autosize="{ minRows: 3, maxRows: 8 }"
+            :placeholder="inputPlaceholder"
+            :disabled="inputDisabled"
+            class="message-input"
+            :bordered="false"
+            @update:value="onInputUpdate"
+            @keydown="onInputKeyDown"
+            @keydown.enter="onEnter"
+            @paste="onPaste"
+          />
+          <AtMentionPicker
+            v-if="isGroupChat && showMentionPicker"
+            ref="mentionPickerRef"
+            placement="top"
+            :friends="mentionCandidates"
+            :title="t('extra.selectMember')"
+            :empty-text="t('extra.noMembersToAt')"
+            @apply="(p) => applyMention(p.id, p.name)"
+            @close="showMentionPicker = false"
+          />
+        </div>
       </div>
 
       <!-- 工具栏：表情、应用、文件、截图、红包、语音、通话、发送 -->
@@ -451,6 +626,16 @@ defineExpose({
               </button>
             </div>
           </n-popover>
+          <button
+            v-if="isGroupChat"
+            type="button"
+            class="tool-btn"
+            :title="t('extra.atMember')"
+            :disabled="inputDisabled"
+            @click="triggerAtMention"
+          >
+            <n-icon :component="AtOutline" :size="20" />
+          </button>
           <button type="button" class="tool-btn" :title="t('chat.sendFile')" @click="toolFile">
             <n-icon :component="FolderOutline" :size="20" />
           </button>
@@ -504,7 +689,7 @@ defineExpose({
   background: var(--lx-bg-card);
   border: 1px solid var(--lx-border-light);
   border-radius: 10px;
-  overflow: hidden;
+  overflow: visible;
   min-height: 148px;
 }
 
@@ -512,6 +697,10 @@ defineExpose({
   flex: 1;
   min-height: 0;
   padding: 10px 14px 4px;
+}
+
+.input-compose-body {
+  position: relative;
 }
 
 .input-toolbar {
@@ -549,9 +738,14 @@ defineExpose({
   transition: background 0.15s, color 0.15s;
 }
 
-.tool-btn:hover {
+.tool-btn:hover:not(:disabled) {
   background: var(--lx-bg-hover);
   color: var(--lx-text-body);
+}
+
+.tool-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .tool-btn--recording {

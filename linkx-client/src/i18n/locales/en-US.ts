@@ -940,6 +940,12 @@ export default {
   extra: {
     selectFriend: 'Select friend',
     noFriendsToAt: 'No friends to @. Add friends first.',
+    selectMember: 'Select member to @',
+    noMembersToAt: 'No members to @',
+    atAllMembers: 'Everyone',
+    atAllHint: 'Notify everyone',
+    atMember: '@Member',
+    groupMember: 'Member',
     cropBannerTitle: 'Crop Moments cover',
     cropRatio: 'Ratio {w}:{h}',
     cropHint: 'Drag to move the crop area. Drag corners to resize.',

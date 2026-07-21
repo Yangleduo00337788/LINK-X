@@ -943,6 +943,12 @@ export default {
   extra: {
     selectFriend: '选择好友',
     noFriendsToAt: '暂无好友可 @，请先添加好友',
+    selectMember: '选择要 @ 的成员',
+    noMembersToAt: '暂无成员可 @',
+    atAllMembers: '全体成员',
+    atAllHint: '提醒所有人',
+    atMember: '@成员',
+    groupMember: '群成员',
     cropBannerTitle: '裁剪友链背景',
     cropRatio: '比例 {w}:{h}',
     cropHint: '拖拽移动裁剪区域，拖动边角调整大小',

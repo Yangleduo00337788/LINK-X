@@ -31,7 +31,11 @@ export function contentMentionsUser(
   names: Array<string | undefined | null>
 ): boolean {
   if (!content) return false
-  if (/(^|[\s\u3000])@(所有人|全体成员|everyone|all)\b/i.test(content) || content.includes('@所有人')) {
+  if (
+    content.includes('@所有人') ||
+    content.includes('@全体成员') ||
+    /(^|[\s\u3000])@(everyone|all)\b/i.test(content)
+  ) {
     return true
   }
   for (const name of names) {
