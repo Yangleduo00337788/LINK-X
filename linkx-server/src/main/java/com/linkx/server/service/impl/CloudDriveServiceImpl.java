@@ -90,9 +90,12 @@ public class CloudDriveServiceImpl implements CloudDriveService {
             folderQw.and(CloudFolder::getParentId).eq(folderId);
         }
         List<CloudFolder> folders = cloudFolderMapper.selectListByQuery(folderQw);
+        SysUser me = sysUserMapper.selectOneById(userId);
+        String uploader = me != null ? me.getNickname() : null;
+        String uploaderAvatar = me != null ? mediaUrlService.resolve(me.getAvatar()) : null;
         for (CloudFolder f : folders) {
             if (q != null && !f.getName().toLowerCase(Locale.ROOT).contains(q)) continue;
-            result.add(toFolderVO(userId, f));
+            result.add(toFolderVO(userId, f, uploader, uploaderAvatar));
         }
 
         QueryWrapper fileQw = QueryWrapper.create().where(CloudFile::getUserId).eq(userId);
@@ -107,9 +110,6 @@ public class CloudDriveServiceImpl implements CloudDriveService {
         }
         List<CloudFile> files = cloudFileMapper.selectListByQuery(fileQw.orderBy(CloudFile::getUpdateTime, false));
         Map<Long, List<String>> tagMap = loadTags(userId, files.stream().map(CloudFile::getId).collect(Collectors.toSet()));
-        SysUser me = sysUserMapper.selectOneById(userId);
-        String uploader = me != null ? me.getNickname() : null;
-        String uploaderAvatar = me != null ? mediaUrlService.resolve(me.getAvatar()) : null;
         for (CloudFile f : files) {
             if (q != null && !f.getName().toLowerCase(Locale.ROOT).contains(q)
                     && !(f.getFileName() != null && f.getFileName().toLowerCase(Locale.ROOT).contains(q))) {
@@ -170,7 +170,7 @@ public class CloudDriveServiceImpl implements CloudDriveService {
         CloudFolder saved = cloudFolderMapper.selectOneById(folder.getId());
         logActivity(userId, CloudActivity.TARGET_FOLDER, folder.getId(), name,
                 CloudActivity.ACTION_CREATE, "新建文件夹");
-        return toFolderVO(userId, saved != null ? saved : folder);
+        return toFolderVO(userId, saved != null ? saved : folder, resolveUploaderName(userId), resolveUploaderAvatar(userId));
     }
 
     @Override
@@ -316,7 +316,7 @@ public class CloudDriveServiceImpl implements CloudDriveService {
             logActivity(userId, CloudActivity.TARGET_FOLDER, folderId, folder.getName(),
                     CloudActivity.ACTION_MOVE, "移动文件夹");
         }
-        return toFolderVO(userId, folder);
+        return toFolderVO(userId, folder, resolveUploaderName(userId), resolveUploaderAvatar(userId));
     }
 
     @Override
@@ -657,7 +657,7 @@ public class CloudDriveServiceImpl implements CloudDriveService {
         return list;
     }
 
-    private DriveItemVO toFolderVO(Long userId, CloudFolder f) {
+    private DriveItemVO toFolderVO(Long userId, CloudFolder f, String uploader, String uploaderAvatar) {
         long childFolders = cloudFolderMapper.selectCountByQuery(
                 QueryWrapper.create()
                         .where(CloudFolder::getUserId).eq(userId)
@@ -674,9 +674,21 @@ public class CloudDriveServiceImpl implements CloudDriveService {
                 .name(f.getName())
                 .parentId(f.getParentId())
                 .childCount((int) (childFolders + childFiles))
+                .uploaderName(uploader)
+                .uploaderAvatar(uploaderAvatar)
                 .createTime(f.getCreateTime() != null ? f.getCreateTime().getTime() : null)
                 .updateTime(f.getUpdateTime() != null ? f.getUpdateTime().getTime() : null)
                 .build();
+    }
+
+    private String resolveUploaderName(Long userId) {
+        SysUser me = sysUserMapper.selectOneById(userId);
+        return me != null ? me.getNickname() : null;
+    }
+
+    private String resolveUploaderAvatar(Long userId) {
+        SysUser me = sysUserMapper.selectOneById(userId);
+        return me != null ? mediaUrlService.resolve(me.getAvatar()) : null;
     }
 
     private DriveItemVO toFileVO(CloudFile f, List<String> tags, String uploader, String uploaderAvatar) {
