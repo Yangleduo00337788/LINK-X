@@ -842,6 +842,7 @@ export default {
     sortTitle: 'By title',
     open: 'Open',
     openHint: 'No extra preview. Re-open from chat if needed.',
+    sessionMissing: 'Conversation not found. It may have been deleted.',
     delete: 'Delete',
     deleteConfirm: 'Delete favorite “{name}”?',
     deleted: 'Favorite deleted',

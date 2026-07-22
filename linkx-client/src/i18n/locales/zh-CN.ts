@@ -845,6 +845,7 @@ export default {
     sortTitle: '按标题',
     open: '打开',
     openHint: '暂无更多预览，可从聊天中重新打开',
+    sessionMissing: '找不到对应会话，可能已删除',
     delete: '删除',
     deleteConfirm: '确定删除收藏「{name}」？',
     deleted: '已删除收藏',
