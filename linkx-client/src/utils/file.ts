@@ -2,12 +2,15 @@
  * 将字节数格式化为可读的文件大小字符串。
  *
  * @param bytes 文件字节数
- * @returns 如 "512 B" / "1.2 KB" / "3.5 MB"
+ * @returns 如 "512 B" / "1.2 KB" / "3.5 MB" / "1.2 GB"
  */
 export function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`                           // 小于 1KB 显示 B
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB` // 小于 1MB 显示 KB
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`                 // 否则显示 MB
+  const n = Number(bytes)
+  if (!Number.isFinite(n) || n < 0) return '0 B'
+  if (n < 1024) return `${Math.round(n)} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`
+  return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`
 }
 
 /**

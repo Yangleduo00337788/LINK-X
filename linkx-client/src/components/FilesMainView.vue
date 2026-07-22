@@ -90,7 +90,10 @@ const folders = computed<FolderRow[]>(() => {
       })
     } else {
       exist.count += 1
-      if (f.time && f.time > exist.time) exist.time = f.time
+      // 仅在两边都有合法日期字符串时比较（避免空串 / Invalid Date）
+      if (/^\d{4}-\d{2}-\d{2}/.test(f.time) && (f.time > exist.time || !exist.time)) {
+        exist.time = f.time
+      }
     }
   }
   return [...map.values()].sort((a, b) => b.time.localeCompare(a.time))
@@ -170,9 +173,10 @@ const selectedFile = computed(() => {
 
 const usedLabel = computed(() => formatFileSize(totalBytes.value))
 const quotaLabel = computed(() => '20 GB')
-const usedPercent = computed(() =>
-  Math.min(100, Math.round((totalBytes.value / STORAGE_QUOTA_BYTES) * 1000) / 10)
-)
+const usedPercent = computed(() => {
+  if (totalBytes.value <= 0) return 0
+  return Math.min(100, Math.round((totalBytes.value / STORAGE_QUOTA_BYTES) * 1000) / 10)
+})
 
 const locationLabel = computed(() => {
   if (selectedFile.value?.conversationName) {

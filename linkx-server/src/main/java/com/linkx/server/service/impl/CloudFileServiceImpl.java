@@ -71,6 +71,8 @@ public class CloudFileServiceImpl implements CloudFileService {
                         .collect(Collectors.toMap(SysUser::getId, Function.identity(), (a, b) -> a));
 
         List<CloudFileVO> result = new ArrayList<>();
+        Map<Long, String> privatePeerNames = resolvePrivatePeerNames(userId, convMap, memberships);
+
         for (ImMessage msg : messages) {
             ImConversation conv = convMap.get(msg.getConversationId());
             SysUser sender = users.get(msg.getSenderId());
@@ -83,11 +85,11 @@ public class CloudFileServiceImpl implements CloudFileService {
                     .source("chat_message")
                     .title(msg.getFileName() != null ? msg.getFileName() : msg.getContent())
                     .fileName(msg.getFileName())
-                    .fileSize(msg.getFileSize())
+                    .fileSize(sanitizeFileSize(msg.getFileSize()))
                     .fileUrl(mediaUrlService.resolve(msg.getFileUrl()))
                     .category(cat)
                     .conversationId(msg.getConversationId())
-                    .conversationName(resolveConvName(conv, userId, users))
+                    .conversationName(resolveConvName(conv, msg.getConversationId(), privatePeerNames))
                     .senderName(sender != null ? sender.getNickname() : null)
                     .createTime(msg.getCreateTime() == null ? null : msg.getCreateTime().getTime())
                     .build());
@@ -120,11 +122,11 @@ public class CloudFileServiceImpl implements CloudFileService {
                     .source("group_asset")
                     .title(asset.getTitle() != null ? asset.getTitle() : asset.getFileName())
                     .fileName(asset.getFileName())
-                    .fileSize(asset.getFileSize())
+                    .fileSize(sanitizeFileSize(asset.getFileSize()))
                     .fileUrl(mediaUrlService.resolve(asset.getFileKey()))
                     .category(cat)
                     .conversationId(asset.getConversationId())
-                    .conversationName(conv != null ? conv.getName() : null)
+                    .conversationName(resolveConvName(conv, asset.getConversationId(), privatePeerNames))
                     .senderName(uploader != null ? uploader.getNickname() : null)
                     .createTime(asset.getCreateTime() == null ? null : asset.getCreateTime().getTime())
                     .build());
@@ -136,14 +138,59 @@ public class CloudFileServiceImpl implements CloudFileService {
                 .collect(Collectors.toList());
     }
 
-    private String resolveConvName(ImConversation conv, Long userId, Map<Long, SysUser> users) {
-        if (conv == null) {
-            return null;
+    /** 过滤误写入的异常体积（如雪花 ID） */
+    private Long sanitizeFileSize(Long size) {
+        if (size == null || size < 0 || size > 50L * 1024 * 1024 * 1024) {
+            return 0L;
         }
-        if (Objects.equals(conv.getType(), ImConversation.TYPE_GROUP)) {
+        return size;
+    }
+
+    private Map<Long, String> resolvePrivatePeerNames(
+            Long userId,
+            Map<Long, ImConversation> convMap,
+            List<ImConversationMember> memberships
+    ) {
+        Set<Long> privateConvIds = convMap.values().stream()
+                .filter(c -> Objects.equals(c.getType(), ImConversation.TYPE_PRIVATE))
+                .map(ImConversation::getId)
+                .collect(Collectors.toSet());
+        if (privateConvIds.isEmpty()) {
+            return Map.of();
+        }
+        List<ImConversationMember> peers = memberMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).in(privateConvIds)
+                        .and(ImConversationMember::getUserId).ne(userId)
+        );
+        Set<Long> peerUserIds = peers.stream().map(ImConversationMember::getUserId).collect(Collectors.toSet());
+        Map<Long, SysUser> peerUsers = peerUserIds.isEmpty() ? Map.of() :
+                sysUserMapper.selectListByQuery(QueryWrapper.create().where(SysUser::getId).in(peerUserIds))
+                        .stream()
+                        .collect(Collectors.toMap(SysUser::getId, Function.identity(), (a, b) -> a));
+        Map<Long, String> result = new java.util.HashMap<>();
+        for (ImConversationMember m : peers) {
+            SysUser u = peerUsers.get(m.getUserId());
+            if (u != null && StringUtils.hasText(u.getNickname())) {
+                result.put(m.getConversationId(), u.getNickname());
+            } else if (u != null && StringUtils.hasText(u.getUsername())) {
+                result.put(m.getConversationId(), u.getUsername());
+            }
+        }
+        return result;
+    }
+
+    private String resolveConvName(ImConversation conv, Long conversationId, Map<Long, String> privatePeerNames) {
+        if (conv == null) {
+            return privatePeerNames.get(conversationId);
+        }
+        if (Objects.equals(conv.getType(), ImConversation.TYPE_GROUP) && StringUtils.hasText(conv.getName())) {
             return conv.getName();
         }
-        return conv.getName();
+        if (StringUtils.hasText(conv.getName())) {
+            return conv.getName();
+        }
+        return privatePeerNames.get(conversationId);
     }
 
     private String categorize(String msgType, String fileName) {

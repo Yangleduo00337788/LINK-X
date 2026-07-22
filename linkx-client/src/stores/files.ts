@@ -21,31 +21,51 @@ export interface LocalFileItem {
   ext: string
 }
 
-function formatTime(ts?: number): string {
-  if (!ts) return ''
-  try {
-    return new Date(ts).toLocaleDateString('zh-CN', {
+/** 单文件大小上限（用于过滤误写入的雪花 ID 等脏数据） */
+const MAX_REASONABLE_FILE_BYTES = 50 * 1024 * 1024 * 1024
+
+/** 把接口时间戳规范成毫秒；非法则返回 null */
+function toEpochMs(ts?: number | string | null): number | null {
+  if (ts == null || ts === '') return null
+  const n = typeof ts === 'number' ? ts : Number(ts)
+  if (!Number.isFinite(n) || n <= 0) return null
+  // 10 位按秒，13 位按毫秒
+  const ms = n < 1e12 ? Math.round(n * 1000) : Math.round(n)
+  // JS Date 有效范围外（如误把雪花 ID 当时间）直接丢弃
+  if (ms < 1e11 || ms > 1e14) return null
+  const d = new Date(ms)
+  if (Number.isNaN(d.getTime())) return null
+  return ms
+}
+
+function normalizeFileSize(raw?: number | string | null): number {
+  if (raw == null || raw === '') return 0
+  const n = typeof raw === 'number' ? raw : Number(raw)
+  if (!Number.isFinite(n) || n < 0 || n > MAX_REASONABLE_FILE_BYTES) return 0
+  return Math.round(n)
+}
+
+function formatTime(ts?: number | string | null): string {
+  const ms = toEpochMs(ts)
+  if (ms == null) return ''
+  return new Date(ms)
+    .toLocaleDateString('zh-CN', {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit'
-    }).replace(/\//g, '-')
-  } catch {
-    return ''
-  }
+    })
+    .replace(/\//g, '-')
 }
 
-function formatTimeFull(ts?: number): string {
-  if (!ts) return ''
-  try {
-    const d = new Date(ts)
-    const date = d
-      .toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
-      .replace(/\//g, '-')
-    const time = d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
-    return `${date} ${time}`
-  } catch {
-    return ''
-  }
+function formatTimeFull(ts?: number | string | null): string {
+  const ms = toEpochMs(ts)
+  if (ms == null) return ''
+  const d = new Date(ms)
+  const date = d
+    .toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
+    .replace(/\//g, '-')
+  const time = d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
+  return `${date} ${time}`
 }
 
 function extOf(name?: string): string {
@@ -73,7 +93,7 @@ export const useFilesStore = defineStore('files', {
 
   getters: {
     totalBytes(state): number {
-      return state.items.reduce((sum, f) => sum + (f.sizeBytes || 0), 0)
+      return state.items.reduce((sum, f) => sum + (Number(f.sizeBytes) || 0), 0)
     }
   },
 
@@ -87,18 +107,21 @@ export const useFilesStore = defineStore('files', {
           this.items = res.data.map(f => {
             const title = f.title || f.fileName || '文件'
             const ext = extOf(title)
+            const sizeBytes = normalizeFileSize(f.fileSize as number | string | null | undefined)
+            const convName = (f.conversationName || '').trim()
             return {
               id: String(f.id),
               title,
-              size: f.fileSize != null ? formatFileSize(f.fileSize) : '',
-              sizeBytes: f.fileSize ?? 0,
-              time: formatTime(f.createTime),
-              timeFull: formatTimeFull(f.createTime),
+              size: sizeBytes > 0 ? formatFileSize(sizeBytes) : '',
+              sizeBytes,
+              time: formatTime(f.createTime as number | string | null | undefined),
+              timeFull: formatTimeFull(f.createTime as number | string | null | undefined),
               type: typeOf(ext, f.category),
-              sender: f.senderName || f.conversationName || '未知',
+              sender: f.senderName || convName || '未知',
               fileUrl: f.fileUrl,
-              conversationId: f.conversationId,
-              conversationName: f.conversationName,
+              conversationId: f.conversationId != null ? String(f.conversationId) : undefined,
+              // 私聊会话常无群名：用发送者昵称作为文件夹名，避免显示「未分组」
+              conversationName: convName || (f.senderName ? String(f.senderName) : undefined),
               ext
             }
           })
