@@ -6,6 +6,7 @@
 import { defineStore } from 'pinia'
 import * as momentsApi from '../api/moments'
 import { useAppStore } from './app'
+import { useContactsStore } from './contacts'
 import { normalizeMediaUrl } from '../utils/mediaUrl'
 
 /** 单条评论 */
@@ -39,11 +40,12 @@ export interface MomentPost {
 }
 
 function mapPost(p: momentsApi.MomentsPost): MomentPost {
+  const userId = String(p.userId)
   return {
     id: String(p.id),
-    userId: String(p.userId),
+    userId,
     user: p.nickname || '用户',
-    avatar: toDisplayableMediaUrl(p.avatar),
+    avatar: resolveAuthorAvatar(userId, p.avatar),
     content: p.content,
     images: (p.images || []).map(url => toDisplayableMediaUrl(url)).filter(Boolean),
     location: p.location,
@@ -58,7 +60,7 @@ function mapPost(p: momentsApi.MomentsPost): MomentPost {
       id: String(c.id),
       userId: String(c.userId),
       user: c.nickname || '用户',
-      avatar: toDisplayableMediaUrl(c.avatar),
+      avatar: resolveAuthorAvatar(String(c.userId), c.avatar),
       content: c.content,
       mentions: Array.isArray(c.mentions) ? c.mentions : undefined
     }))
@@ -78,6 +80,39 @@ function toDisplayableMediaUrl(raw?: string | null): string {
     return url
   }
   return ''
+}
+
+/**
+ * 解析作者头像：接口签发 URL 优先；缺失时回退到本人资料 / 通讯录缓存。
+ * 避免接口偶发空头像或本地脏持久化导致长期显示文字占位。
+ */
+function resolveAuthorAvatar(userId: string, apiAvatar?: string | null): string {
+  const fromApi = toDisplayableMediaUrl(apiAvatar)
+  if (fromApi) return fromApi
+
+  const appStore = useAppStore()
+  if (String(appStore.userProfile.userId || '') === String(userId)) {
+    const mine = toDisplayableMediaUrl(appStore.userProfile.avatar)
+    if (mine) return mine
+  }
+
+  try {
+    const contacts = useContactsStore()
+    const friend = contacts.items.find(c => String(c.userId ?? c.id) === String(userId))
+    return toDisplayableMediaUrl(friend?.avatarUrl)
+  } catch {
+    return ''
+  }
+}
+
+/** 持久化前去掉预签名媒体地址，避免过期 URL 裂图并把空头像写回 localStorage */
+function stripMediaForPersist(posts: MomentPost[]): MomentPost[] {
+  return posts.map(p => ({
+    ...p,
+    avatar: '',
+    images: undefined,
+    comments: (p.comments || []).map(c => ({ ...c, avatar: undefined }))
+  }))
 }
 
 // 定义并导出 moments Store
@@ -265,9 +300,17 @@ export const useMomentsStore = defineStore('moments', {
     }
   },
 
-  // 持久化帖子数据，UI 展开状态不持久化
+  // 持久化帖子文案等；预签名头像/图片不落盘，防止过期裂图污染本地缓存
   persist: {
     key: 'linkx-moments',
-    paths: ['posts']
+    paths: ['posts'],
+    serializer: {
+      serialize: (value: { posts?: MomentPost[] }) =>
+        JSON.stringify({
+          ...value,
+          posts: stripMediaForPersist(Array.isArray(value?.posts) ? value.posts : [])
+        }),
+      deserialize: (value: string) => JSON.parse(value)
+    }
   }
 })

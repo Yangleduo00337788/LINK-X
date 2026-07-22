@@ -94,6 +94,24 @@ const defaultBanner = computed(() =>
   generateDefaultBanner(userProfile.value.nickname || 'banner')
 )
 
+/** 头像加载失败的帖子 id（只记本地，不改写 store，避免清掉刚刷新的真实 URL） */
+const failedAvatars = ref<Record<string, string>>({})
+
+function postAvatarSrc(post: { id: string; avatar?: string; user: string }): string {
+  const url = normalizeMediaUrl(post.avatar)
+  // 仅当「当前 URL」曾失败时才回退，URL 已刷新则继续尝试
+  if (url && failedAvatars.value[post.id] === url) {
+    return generateDefaultAvatar(post.user || '?', 88)
+  }
+  return url || generateDefaultAvatar(post.user || '?', 88)
+}
+
+function onPostAvatarError(post: { id: string; avatar?: string }) {
+  const url = normalizeMediaUrl(post.avatar)
+  if (!url) return
+  failedAvatars.value = { ...failedAvatars.value, [post.id]: url }
+}
+
 // ============================================================
 // 友链背景图
 // ============================================================
@@ -280,6 +298,8 @@ onMounted(() => {
       contactsStore.fetchFriends(),
       loadMomentsBanner()
     ])
+    // 刷新后清掉失败标记，让新签名 URL 有机会重新加载
+    failedAvatars.value = {}
     void fetchNotificationCount()
   })()
   window.addEventListener('keydown', onPreviewKeydown)
@@ -309,6 +329,7 @@ async function refresh() {
   refreshing.value = true
   document.querySelector('.moments-scroll-container')?.scrollTo({ top: 0, behavior: 'smooth' })
   await Promise.all([fetchMoments(), fetchMessageNotifications()])
+  failedAvatars.value = {}
   message.success(t('moments.refreshOk'))
   // 旋转动画保持至少 600ms,让用户感知到
   await new Promise(r => setTimeout(r, 600))
@@ -611,15 +632,11 @@ function visibilityLabel(visibility?: number): string {
       <div class="moments-content">
         <div v-for="post in filteredPosts" :key="post.id" class="post-item">
           <img
-            v-if="post.avatar"
-            :src="post.avatar"
+            :src="postAvatarSrc(post)"
             alt=""
             class="post-avatar"
-            @error="post.avatar = ''"
+            @error="onPostAvatarError(post)"
           />
-          <div v-else class="post-avatar-placeholder" :style="{ backgroundColor: 'var(--lx-accent)' }">
-            {{ post.user.charAt(0).toUpperCase() }}
-          </div>
           <div class="post-main">
             <div class="post-user">{{ post.user }}</div>
             <div class="post-text">{{ post.content }}</div>
@@ -1176,25 +1193,6 @@ function visibilityLabel(visibility?: number): string {
   cursor: pointer;
 }
 .post-avatar:hover {
-  transform: scale(1.08);
-}
-
-.post-avatar-placeholder {
-  width: 44px;
-  height: 44px;
-  border-radius: var(--lx-avatar-radius);
-  flex-shrink: 0;
-  margin-right: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-size: 18px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: transform 0.2s ease;
-}
-.post-avatar-placeholder:hover {
   transform: scale(1.08);
 }
 

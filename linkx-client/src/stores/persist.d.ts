@@ -14,6 +14,11 @@ declare module 'pinia' {
     persist?: boolean | {
       key?: string      // localStorage 存储键名
       paths?: string[]  // 需要持久化的 state 字段路径列表
+      serializer?: {
+        serialize: (value: unknown) => string
+        deserialize: (value: string) => unknown
+      }
+      afterRestore?: (context: { store: unknown }) => void
     }
   }
 }
