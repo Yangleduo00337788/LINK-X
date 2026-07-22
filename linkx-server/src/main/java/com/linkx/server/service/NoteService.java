@@ -1,6 +1,7 @@
 package com.linkx.server.service;
 
 import com.linkx.server.controller.dto.SaveNoteDTO;
+import com.linkx.server.controller.vo.NoteFileUploadVO;
 import com.linkx.server.controller.vo.NoteVO;
 
 import java.util.List;
@@ -34,4 +35,14 @@ public interface NoteService {
      * 删除笔记
      */
     void delete(Long userId, Long noteId);
+
+    /**
+     * 上传笔记附件（图片/文件/语音）
+     */
+    NoteFileUploadVO upload(org.springframework.web.multipart.MultipartFile file);
+
+    /**
+     * 将 object key 解析为可访问的预签名 URL
+     */
+    String resolveMediaUrl(String fileKey);
 }

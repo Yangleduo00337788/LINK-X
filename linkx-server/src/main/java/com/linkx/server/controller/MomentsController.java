@@ -6,6 +6,7 @@ import com.linkx.server.common.RateLimit;
 import com.linkx.server.common.Result;
 import com.linkx.server.controller.dto.CommentMomentsDTO;
 import com.linkx.server.controller.dto.PublishMomentsDTO;
+import com.linkx.server.controller.dto.UpdateMomentsDTO;
 import com.linkx.server.controller.vo.MomentsCommentVO;
 import com.linkx.server.controller.vo.MomentsPostVO;
 import com.linkx.server.service.MomentsService;
@@ -18,7 +19,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 
 /**
- * 朋友圈控制器
+ * ??????
  */
 @RestController
 @RequestMapping("/moments")
@@ -28,9 +29,6 @@ public class MomentsController {
     private final MomentsService momentsService;
     private final JwtUtils jwtUtils;
 
-    /**
-     * 发布动态
-     */
     @PostMapping
     @RateLimit(scope = "moments:publish", value = 10, window = 60)
     public Result<MomentsPostVO> publish(
@@ -40,30 +38,39 @@ public class MomentsController {
         return Result.success(momentsService.publish(userId, dto));
     }
 
-    /**
-     * 获取朋友圈动态列表
-     */
     @GetMapping
     @RateLimit(scope = "moments:list", value = 60, window = 60)
-    public Result<List<MomentsPostVO>> list(HttpServletRequest request) {
+    public Result<List<MomentsPostVO>> list(
+            @RequestParam(required = false) String beforeId,
+            @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false) String q,
+            HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        return Result.success(momentsService.list(userId));
+        return Result.success(momentsService.list(userId, parseOptionalId(beforeId), limit, q));
     }
 
-    /**
-     * 获取指定用户的动态列表
-     */
     @GetMapping("/user/{userId}")
     public Result<List<MomentsPostVO>> listByUser(
             @PathVariable String userId,
+            @RequestParam(required = false) String beforeId,
+            @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false) String q,
             HttpServletRequest request) {
         Long currentUserId = AuthUtils.requireUserId(request, jwtUtils);
-        return Result.success(momentsService.listByUser(currentUserId, parseId(userId)));
+        return Result.success(momentsService.listByUser(
+                currentUserId, parseId(userId), parseOptionalId(beforeId), limit, q));
     }
 
-    /**
-     * 点赞动态
-     */
+    @PutMapping("/{postId}")
+    @RateLimit(scope = "moments:update", value = 20, window = 60)
+    public Result<MomentsPostVO> update(
+            @PathVariable String postId,
+            @Valid @RequestBody UpdateMomentsDTO dto,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(momentsService.update(userId, parseId(postId), dto));
+    }
+
     @PostMapping("/{postId}/like")
     @RateLimit(scope = "moments:like", value = 30, window = 60)
     public Result<Void> like(
@@ -74,9 +81,6 @@ public class MomentsController {
         return Result.success(null);
     }
 
-    /**
-     * 取消点赞
-     */
     @DeleteMapping("/{postId}/like")
     public Result<Void> unlike(
             @PathVariable String postId,
@@ -86,9 +90,6 @@ public class MomentsController {
         return Result.success(null);
     }
 
-    /**
-     * 评论动态
-     */
     @PostMapping("/{postId}/comment")
     @RateLimit(scope = "moments:comment", value = 30, window = 60)
     public Result<MomentsCommentVO> comment(
@@ -99,9 +100,6 @@ public class MomentsController {
         return Result.success(momentsService.comment(userId, parseId(postId), dto));
     }
 
-    /**
-     * 删除评论
-     */
     @DeleteMapping("/comment/{commentId}")
     public Result<Void> deleteComment(
             @PathVariable String commentId,
@@ -111,9 +109,6 @@ public class MomentsController {
         return Result.success(null);
     }
 
-    /**
-     * 删除动态
-     */
     @DeleteMapping("/{postId}")
     public Result<Void> delete(
             @PathVariable String postId,
@@ -127,13 +122,17 @@ public class MomentsController {
         try {
             return Long.parseLong(id);
         } catch (NumberFormatException e) {
-            throw new com.linkx.server.exception.CustomException(400, "无效的 ID");
+            throw new com.linkx.server.exception.CustomException(400, "invalid id");
         }
     }
 
-    /**
-     * 上传朋友圈图片
-     */
+    private Long parseOptionalId(String id) {
+        if (id == null || id.isBlank()) {
+            return null;
+        }
+        return parseId(id);
+    }
+
     @PostMapping("/upload")
     @RateLimit(scope = "moments:upload", value = 30, window = 60)
     public Result<String> uploadImage(

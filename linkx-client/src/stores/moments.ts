@@ -11,13 +11,14 @@ import { normalizeMediaUrl, stripEphemeralMediaUrl } from '../utils/mediaUrl'
 
 /** 单条评论 */
 export interface MomentComment {
-  id: string     // 评论 id
-  userId: string // 评论者 ID
-  user: string   // 评论者昵称
-  avatar?: string // 评论者头像
-  content: string // 评论正文
-  /** 被 @ 的用户 ID 列表 */
+  id: string
+  userId: string
+  user: string
+  avatar?: string
+  content: string
   mentions?: number[]
+  parentId?: string
+  replyToNickname?: string
 }
 
 /** 单条朋友圈动态 */
@@ -62,7 +63,9 @@ function mapPost(p: momentsApi.MomentsPost): MomentPost {
       user: c.nickname || '用户',
       avatar: resolveAuthorAvatar(String(c.userId), c.avatar),
       content: c.content,
-      mentions: Array.isArray(c.mentions) ? c.mentions : undefined
+      mentions: Array.isArray(c.mentions) ? c.mentions : undefined,
+      parentId: c.parentId != null ? String(c.parentId) : undefined,
+      replyToNickname: c.replyToNickname || undefined
     }))
   }
 }
@@ -124,18 +127,24 @@ function stripMediaForPersist(posts: MomentPost[]): MomentPost[] {
 export const useMomentsStore = defineStore('moments', {
   // 初始状态
   state: () => ({
-    posts: [] as MomentPost[],                               // 动态列表（从后端加载）
-    uiShowActions: {} as Record<string, boolean>,         // 每条动态是否展开点赞/评论操作栏
-    initialized: false                                     // 是否已从后端加载
+    posts: [] as MomentPost[],
+    uiShowActions: {} as Record<string, boolean>,
+    initialized: false,
+    hasMore: true,
+    loadingMore: false,
+    lastQuery: '' as string
   }),
 
   actions: {
-    /** 从后端加载朋友圈动态 */
-    async fetchMoments() {
+    /** 从后端加载朋友圈动态（首屏或搜索重置） */
+    async fetchMoments(options?: { q?: string }) {
       try {
-        const res = await momentsApi.listMoments()
+        const q = options?.q?.trim() || undefined
+        this.lastQuery = q || ''
+        const res = await momentsApi.listMoments({ limit: 20, q })
         if (res.code === 200 && res.data) {
           this.posts = res.data.map(mapPost)
+          this.hasMore = res.data.length >= 20
           this.initialized = true
         }
       } catch (e) {
@@ -143,10 +152,38 @@ export const useMomentsStore = defineStore('moments', {
       }
     },
 
+    /** 加载更多（游标分页） */
+    async loadMoreMoments() {
+      if (this.loadingMore || !this.hasMore || !this.posts.length) return
+      this.loadingMore = true
+      try {
+        const beforeId = this.posts[this.posts.length - 1]?.id
+        const res = await momentsApi.listMoments({
+          beforeId,
+          limit: 20,
+          q: this.lastQuery || undefined
+        })
+        if (res.code === 200 && res.data) {
+          const mapped = res.data.map(mapPost)
+          const exist = new Set(this.posts.map(p => p.id))
+          for (const p of mapped) {
+            if (!exist.has(p.id)) this.posts.push(p)
+          }
+          this.hasMore = res.data.length >= 20
+        } else {
+          this.hasMore = false
+        }
+      } catch (e) {
+        console.error('加载更多失败:', e)
+      } finally {
+        this.loadingMore = false
+      }
+    },
+
     /** 从后端加载指定用户的动态 */
     async fetchUserMoments(userId: string) {
       try {
-        const res = await momentsApi.getUserMoments(userId)
+        const res = await momentsApi.getUserMoments(userId, { limit: 50 })
         if (res.code === 200 && res.data) {
           return res.data.map(mapPost)
         }
@@ -168,7 +205,6 @@ export const useMomentsStore = defineStore('moments', {
     ) {
       const appStore = useAppStore()
       try {
-        console.log('[Moments] 发布动态:', { content, imagesCount: images?.length, options })
         const res = await momentsApi.publishMoments({
           content,
           images,
@@ -176,10 +212,8 @@ export const useMomentsStore = defineStore('moments', {
           atUsers: options?.atUsers,
           visibility: options?.visibility
         })
-        console.log('[Moments] 发布结果:', res)
         if (res.code === 200 && res.data) {
           const mapped = mapPost(res.data)
-          // 后端未返回头像时，回退到当前登录用户头像
           if (!mapped.avatar) {
             mapped.avatar = toDisplayableMediaUrl(appStore.userProfile.avatar)
           }
@@ -193,6 +227,31 @@ export const useMomentsStore = defineStore('moments', {
         console.error('[Moments] 发布失败:', res.message)
       } catch (e) {
         console.error('[Moments] 发布异常:', e)
+      }
+      return false
+    },
+
+    /** 更新动态 */
+    async updatePost(
+      postId: string,
+      payload: {
+        content?: string
+        images?: string[]
+        location?: string
+        atUsers?: number[]
+        visibility?: number
+      }
+    ) {
+      try {
+        const res = await momentsApi.updateMoments(postId, payload)
+        if (res.code === 200 && res.data) {
+          const mapped = mapPost(res.data)
+          const idx = this.posts.findIndex(p => String(p.id) === String(postId))
+          if (idx >= 0) this.posts.splice(idx, 1, mapped)
+          return true
+        }
+      } catch (e) {
+        console.error('更新动态失败:', e)
       }
       return false
     },
@@ -232,8 +291,13 @@ export const useMomentsStore = defineStore('moments', {
       }
     },
 
-    /** 添加评论（支持 mentions 列表） */
-    async addComment(postId: string, content: string, mentions: Array<string | number> = []) {
+    /** 添加评论（支持 mentions / 嵌套回复） */
+    async addComment(
+      postId: string,
+      content: string,
+      mentions: Array<string | number> = [],
+      parentId?: string
+    ) {
       const post = this.posts.find(p => String(p.id) === String(postId))
       if (!post || !content.trim()) return false
       const appStore = useAppStore()
@@ -241,7 +305,8 @@ export const useMomentsStore = defineStore('moments', {
       try {
         const res = await momentsApi.commentMoments(postId, {
           content: content.trim(),
-          mentions: mentions.length ? mentions : undefined
+          mentions: mentions.length ? mentions : undefined,
+          parentId: parentId || undefined
         })
         if (res.code === 200 && res.data) {
           const c = res.data
@@ -252,7 +317,9 @@ export const useMomentsStore = defineStore('moments', {
             user: c.nickname || appStore.userProfile.nickname,
             avatar: myAvatar,
             content: c.content,
-            mentions: Array.isArray(c.mentions) ? c.mentions : undefined
+            mentions: Array.isArray(c.mentions) ? c.mentions : undefined,
+            parentId: c.parentId != null ? String(c.parentId) : parentId,
+            replyToNickname: c.replyToNickname
           })
           this.uiShowActions[postId] = false
           return true

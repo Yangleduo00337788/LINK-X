@@ -48,7 +48,9 @@ public class FileStorageServiceImpl implements FileStorageService {
             // 通用二进制（部分浏览器对未知类型上报）
             "application/octet-stream",
             // 音频（语音消息）
-            "audio/mpeg", "audio/wav", "audio/ogg", "audio/webm", "audio/aac", "audio/x-m4a"
+            "audio/mpeg", "audio/wav", "audio/ogg", "audio/webm", "audio/aac", "audio/x-m4a",
+            // 视频（友链）
+            "video/mp4", "video/webm", "video/quicktime"
     );
 
     /** 允许的扩展名白名单（与 Content-Type 共同校验） */
@@ -57,7 +59,8 @@ public class FileStorageServiceImpl implements FileStorageService {
             ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
             ".txt", ".md",
             ".zip", ".7z", ".rar",
-            ".mp3", ".wav", ".ogg", ".m4a"
+            ".mp3", ".wav", ".ogg", ".m4a", ".webm",
+            ".mp4", ".mov"
     );
 
     /** 预签名 URL 默认有效期：1 小时 */

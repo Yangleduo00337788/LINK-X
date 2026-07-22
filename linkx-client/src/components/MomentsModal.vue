@@ -59,9 +59,9 @@ const momentsStore = useMomentsStore()
 const notificationsStore = useNotificationsStore()
 const contactsStore = useContactsStore()
 const { userProfile, theme } = storeToRefs(appStore)
-const { posts } = storeToRefs(momentsStore)
+const { posts, hasMore, loadingMore } = storeToRefs(momentsStore)
 const { unreadMessageCount, momentsUnreadCount } = storeToRefs(notificationsStore)
-const { toggleLike, fetchMoments, removePost, deleteComment } = momentsStore
+const { toggleLike, fetchMoments, loadMoreMoments, removePost, deleteComment, updatePost } = momentsStore
 const { fetchMessageNotifications, fetchNotificationCount } = notificationsStore
 const message = useMessage()
 const { t } = useI18n()
@@ -79,9 +79,15 @@ const scrollTop = ref(0)
 // 评论草稿
 const commentDraft = ref('')
 const commentPostId = ref<string | null>(null)
+const replyParentId = ref<string | null>(null)
+const replyParentName = ref('')
 // 搜索
 const searchQuery = ref('')
 const showSearch = ref(false)
+// 编辑动态
+const editingPostId = ref<string | null>(null)
+const editContent = ref('')
+const editSaving = ref(false)
 // 当前登录用户
 const myUserId = computed(() => userProfile.value.userId || '')
 const defaultAvatar = computed(() =>
@@ -211,23 +217,36 @@ async function uploadBannerDirectly(file: File) {
   }
 }
 
-// 过滤列表（私密动态仅本人可见，作为前端兜底）
+// 过滤列表（私密动态仅本人可见，作为前端兜底；搜索走服务端）
 const filteredPosts = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase()
   const mine = myUserId.value
-  let list = posts.value.filter(p => {
+  return posts.value.filter(p => {
     if (p.visibility === 2 && String(p.userId) !== String(mine)) return false
     return true
   })
-  if (!q) return list
-  return list.filter(
-    p => p.user.toLowerCase().includes(q) || p.content.toLowerCase().includes(q)
-  )
 })
+
+let searchTimer: number | null = null
+watch(searchQuery, (q) => {
+  if (searchTimer != null) window.clearTimeout(searchTimer)
+  searchTimer = window.setTimeout(() => {
+    void fetchMoments({ q: q.trim() || undefined })
+  }, 320)
+})
+
+function isVideoUrl(url?: string): boolean {
+  if (!url) return false
+  const path = url.split('?')[0].toLowerCase()
+  return /\.(mp4|webm|mov|m4v)$/i.test(path)
+}
 
 // 顶部栏渐变
 function handleScroll(e: Event) {
-  scrollTop.value = (e.target as HTMLElement).scrollTop
+  const el = e.target as HTMLElement
+  scrollTop.value = el.scrollTop
+  if (hasMore.value && !loadingMore.value && el.scrollHeight - el.scrollTop - el.clientHeight < 120) {
+    void loadMoreMoments()
+  }
 }
 
 const showTitle = computed(() => scrollTop.value > 250 || showSearch.value)
@@ -397,6 +416,53 @@ function onComment(post: { id: string }) {
   if (commentPostId.value !== post.id) {
     showCommentMention.value = false
     commentMentions.value = []
+    replyParentId.value = null
+    replyParentName.value = ''
+  }
+}
+
+function startReply(postId: string, comment: { id: string; user: string }) {
+  commentPostId.value = postId
+  replyParentId.value = comment.id
+  replyParentName.value = comment.user
+  commentDraft.value = ''
+  nextTick(() => {
+    document.getElementById('moments-comment-input')?.focus()
+  })
+}
+
+function cancelReply() {
+  replyParentId.value = null
+  replyParentName.value = ''
+}
+
+function startEditPost(post: { id: string; content: string }) {
+  editingPostId.value = post.id
+  editContent.value = post.content || ''
+}
+
+function cancelEditPost() {
+  editingPostId.value = null
+  editContent.value = ''
+}
+
+async function saveEditPost(postId: string) {
+  const text = editContent.value.trim()
+  if (!text) {
+    message.warning(t('moments.publishNeedContent'))
+    return
+  }
+  editSaving.value = true
+  try {
+    const ok = await updatePost(postId, { content: text })
+    if (ok) {
+      message.success(t('moments.editPostOk'))
+      cancelEditPost()
+    } else {
+      message.error(t('moments.editPostFail'))
+    }
+  } finally {
+    editSaving.value = false
   }
 }
 
@@ -534,13 +600,20 @@ async function submitComment(postId: string) {
   const mentionIds = commentMentions.value
     .map(m => m.id)
     .filter(Boolean)
-  const ok = await momentsStore.addComment(postId, finalText, mentionIds)
+  const ok = await momentsStore.addComment(
+    postId,
+    finalText,
+    mentionIds,
+    replyParentId.value || undefined
+  )
   if (ok) {
     commentDraft.value = ''
     commentPostId.value = null
     commentMentions.value = []
     showCommentMention.value = false
     commentMentionQuery.value = ''
+    replyParentId.value = null
+    replyParentName.value = ''
     message.success(t('moments.commentSent'))
   } else {
     message.error(t('moments.commentFail'))
@@ -639,20 +712,37 @@ function visibilityLabel(visibility?: number): string {
           />
           <div class="post-main">
             <div class="post-user">{{ post.user }}</div>
-            <div class="post-text">{{ post.content }}</div>
+            <div v-if="editingPostId === post.id" class="post-edit-box">
+              <textarea v-model="editContent" class="post-edit-input" rows="3" />
+              <div class="post-edit-actions">
+                <button type="button" class="toolbar-btn" @click="cancelEditPost">{{ t('common.cancel') }}</button>
+                <button type="button" class="toolbar-btn primary" :disabled="editSaving" @click="saveEditPost(post.id)">
+                  {{ t('common.save') }}
+                </button>
+              </div>
+            </div>
+            <div v-else class="post-text">{{ post.content }}</div>
             <div v-if="post.images?.length" class="post-images" :class="getImageGridClass(post.images.length)">
-              <button
-                v-for="(img, index) in post.images"
-                :key="index"
-                type="button"
-                class="post-image-btn"
-                @click="openImagePreview(post.images!, index)"
-              >
-                <img :src="img" alt="" class="post-image" loading="lazy" />
-                <div class="image-overlay">
-                  <span v-if="post.images.length > 1" class="image-index">{{ index + 1 }}</span>
-                </div>
-              </button>
+              <template v-for="(img, index) in post.images" :key="index">
+                <video
+                  v-if="isVideoUrl(img)"
+                  :src="img"
+                  class="post-image post-video"
+                  controls
+                  preload="metadata"
+                />
+                <button
+                  v-else
+                  type="button"
+                  class="post-image-btn"
+                  @click="openImagePreview(post.images!.filter(u => !isVideoUrl(u)), Math.max(0, post.images!.filter(u => !isVideoUrl(u)).indexOf(img)))"
+                >
+                  <img :src="img" alt="" class="post-image" loading="lazy" />
+                  <div class="image-overlay">
+                    <span v-if="post.images.length > 1" class="image-index">{{ index + 1 }}</span>
+                  </div>
+                </button>
+              </template>
             </div>
             <!-- 位置 / 提醒谁看 / 可见性 -->
             <div
@@ -698,6 +788,14 @@ function visibilityLabel(visibility?: number): string {
                 <button
                   v-if="post.userId === myUserId"
                   type="button"
+                  class="toolbar-btn"
+                  @click="startEditPost(post)"
+                >
+                  <span>{{ t('moments.editPost') }}</span>
+                </button>
+                <button
+                  v-if="post.userId === myUserId"
+                  type="button"
                   class="toolbar-btn danger"
                   @click="onDeletePost(post.id)"
                 >
@@ -706,12 +804,16 @@ function visibilityLabel(visibility?: number): string {
               </div>
             </div>
             <div v-if="commentPostId === post.id" class="comment-input-row">
+              <div v-if="replyParentId" class="reply-hint">
+                <span>{{ t('moments.replyTo', { name: replyParentName }) }}</span>
+                <button type="button" class="reply-cancel" @click="cancelReply">{{ t('common.cancel') }}</button>
+              </div>
               <div class="comment-input-wrap">
                 <input
                   id="moments-comment-input"
                   v-model="commentDraft"
                   class="comment-input"
-                  :placeholder="t('moments.commentPhAt')"
+                  :placeholder="replyParentId ? t('moments.replyTo', { name: replyParentName }) : t('moments.commentPhAt')"
                   @input="detectCommentMention"
                   @keydown="onCommentKeyDown($event, post.id)"
                 />
@@ -743,9 +845,25 @@ function visibilityLabel(visibility?: number): string {
               </div>
               <div v-if="post.likedBy.length && post.comments.length" class="interaction-divider" />
               <div v-if="post.comments.length" class="comments-list">
-                <div v-for="comment in post.comments" :key="comment.id" class="comment-item">
-                  <span class="comment-user">{{ comment.user }}：</span>
+                <div
+                  v-for="comment in post.comments"
+                  :key="comment.id"
+                  class="comment-item"
+                  :class="{ 'comment-item--reply': !!comment.parentId }"
+                >
+                  <span class="comment-user">{{ comment.user }}</span>
+                  <span v-if="comment.replyToNickname" class="comment-reply-to">
+                    {{ t('moments.reply') }} {{ comment.replyToNickname }}
+                  </span>
+                  <span class="comment-user">：</span>
                   <span class="comment-text">{{ comment.content }}</span>
+                  <button
+                    type="button"
+                    class="comment-reply-btn"
+                    @click="startReply(post.id, comment)"
+                  >
+                    {{ t('moments.reply') }}
+                  </button>
                   <button
                     v-if="comment.userId === myUserId"
                     type="button"
@@ -765,7 +883,18 @@ function visibilityLabel(visibility?: number): string {
           :title="searchQuery.trim() ? t('moments.noMatch') : t('moments.empty')"
           :description="searchQuery.trim() ? t('moments.tryOtherKeyword') : t('moments.emptyHint')"
         />
-        <div v-else class="bottom-tip">{{ t('moments.noMore') }}</div>
+        <div v-else class="bottom-tip">
+          <button
+            v-if="hasMore"
+            type="button"
+            class="load-more-btn"
+            :disabled="loadingMore"
+            @click="loadMoreMoments"
+          >
+            {{ loadingMore ? t('moments.loadingMore') : t('moments.loadMore') }}
+          </button>
+          <span v-else>{{ t('moments.noMore') }}</span>
+        </div>
       </div>
     </div>
 
@@ -1542,10 +1671,34 @@ function visibilityLabel(visibility?: number): string {
 .comment-item {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   font-size: 13px;
   line-height: 1.5;
   word-break: break-all;
+}
+
+.comment-item--reply {
+  padding-left: 12px;
+  border-left: 2px solid var(--lx-border-light);
+}
+
+.comment-reply-to {
+  color: var(--lx-text-muted);
+  font-size: 12px;
+}
+
+.comment-reply-btn {
+  border: none;
+  background: transparent;
+  color: var(--lx-text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.comment-reply-btn:hover {
+  color: var(--lx-accent);
 }
 
 .comment-del-btn {
@@ -1566,6 +1719,62 @@ function visibilityLabel(visibility?: number): string {
 .comment-user {
   color: var(--lx-accent);
   font-weight: 500;
+}
+
+.reply-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  font-size: 12px;
+  color: var(--lx-text-muted);
+  margin-bottom: 6px;
+}
+
+.reply-cancel {
+  border: none;
+  background: transparent;
+  color: var(--lx-accent);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.post-edit-box {
+  margin: 6px 0 10px;
+}
+
+.post-edit-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--lx-border-light);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--lx-bg-card);
+  color: var(--lx-text);
+  resize: vertical;
+  font-size: 14px;
+}
+
+.post-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.post-video {
+  width: 100%;
+  max-height: 280px;
+  border-radius: 6px;
+  background: #000;
+}
+
+.load-more-btn {
+  border: none;
+  background: transparent;
+  color: var(--lx-accent);
+  cursor: pointer;
+  font-size: 13px;
 }
 
 .bottom-tip {

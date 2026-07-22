@@ -29,6 +29,14 @@ import { useAppStore } from '../stores/app'
 import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
+import * as noteApi from '../api/note'
+import LocationPickerPage from './LocationPickerPage.vue'
+import {
+  VOICE_MAX_SECONDS,
+  blobToVoiceFile,
+  isVoiceDurationValid,
+  pickVoiceMimeType
+} from '../utils/voiceRecorder'
 
 const message = useMessage()
 const noteStore = useNoteStore()
@@ -41,11 +49,37 @@ const isPinned = ref(false)
 const isRecordingNote = ref(false)
 const showPreview = ref(false)
 const showNoteList = ref(false)
+const showLocationPicker = ref(false)
+const mediaUrlCache = ref<Record<string, string>>({})
+const uploadingMedia = ref(false)
 
 const compiledMarkdown = computed(() => {
-  const rawHtml = marked(content.value) as string
-  return DOMPurify.sanitize(rawHtml)
+  let md = content.value
+  for (const [key, url] of Object.entries(mediaUrlCache.value)) {
+    md = md.split(`(lx-media:${key})`).join(`(${url})`)
+  }
+  const rawHtml = marked(md) as string
+  return DOMPurify.sanitize(rawHtml, { ADD_TAGS: ['audio'], ADD_ATTR: ['controls', 'src', 'preload'] })
 })
+
+watch(
+  content,
+  async (val) => {
+    const keys = [...val.matchAll(/\(lx-media:([^)]+)\)/g)].map(m => m[1])
+    for (const key of keys) {
+      if (!key || mediaUrlCache.value[key]) continue
+      try {
+        const res = await noteApi.resolveNoteMediaUrl(key)
+        if (res.code === 200 && res.data) {
+          mediaUrlCache.value = { ...mediaUrlCache.value, [key]: res.data }
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+  },
+  { immediate: true }
+)
 
 const imageInputRef = ref<HTMLInputElement | null>(null)
 const fileInputRef = ref<HTMLInputElement | null>(null)
@@ -54,6 +88,10 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null
 let historyTimer: ReturnType<typeof setTimeout> | null = null
 let noteRecordStart = 0
 let restoringHistory = false
+let noteMediaRecorder: MediaRecorder | null = null
+let noteMediaStream: MediaStream | null = null
+let noteVoiceChunks: BlobPart[] = []
+let noteVoiceMaxTimer: number | null = null
 
 const historyStack = ref<string[]>([''])
 const historyIndex = ref(0)
@@ -173,54 +211,164 @@ async function togglePin() {
   isPinned.value = await window.electronAPI.togglePin()
 }
 
-function insertImage(e: Event) {
+async function insertImage(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
   input.value = ''
   if (!file) return
-  insertBlock(`[图片: ${file.name}]`)
-  message.success('图片已插入')
+  uploadingMedia.value = true
+  try {
+    const res = await noteApi.uploadNoteFile(file)
+    if (res.code !== 200 || !res.data?.fileKey) {
+      throw new Error(res.message || '上传失败')
+    }
+    if (res.data.url) {
+      mediaUrlCache.value = { ...mediaUrlCache.value, [res.data.fileKey]: res.data.url }
+    }
+    insertBlock(`![${file.name}](lx-media:${res.data.fileKey})`)
+    message.success('图片已插入')
+  } catch (err) {
+    message.error(err instanceof Error ? err.message : '图片上传失败')
+  } finally {
+    uploadingMedia.value = false
+  }
 }
 
-function insertFile(e: Event) {
+async function insertFile(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
   input.value = ''
   if (!file) return
-  insertBlock(`[附件: ${file.name}]`)
-  message.success('附件已插入')
+  uploadingMedia.value = true
+  try {
+    const res = await noteApi.uploadNoteFile(file)
+    if (res.code !== 200 || !res.data?.fileKey) {
+      throw new Error(res.message || '上传失败')
+    }
+    if (res.data.url) {
+      mediaUrlCache.value = { ...mediaUrlCache.value, [res.data.fileKey]: res.data.url }
+    }
+    insertBlock(`[附件: ${file.name}](lx-media:${res.data.fileKey})`)
+    message.success('附件已插入')
+  } catch (err) {
+    message.error(err instanceof Error ? err.message : '附件上传失败')
+  } finally {
+    uploadingMedia.value = false
+  }
+}
+
+function resetNoteVoice() {
+  if (noteVoiceMaxTimer != null) {
+    window.clearTimeout(noteVoiceMaxTimer)
+    noteVoiceMaxTimer = null
+  }
+  noteMediaStream?.getTracks().forEach(t => t.stop())
+  noteMediaStream = null
+  noteMediaRecorder = null
+  noteVoiceChunks = []
+  isRecordingNote.value = false
+  noteRecordStart = 0
+}
+
+async function finishNoteVoice(cancel: boolean) {
+  const recorder = noteMediaRecorder
+  if (!recorder || recorder.state === 'inactive') {
+    resetNoteVoice()
+    return
+  }
+  const mimeType = recorder.mimeType || pickVoiceMimeType() || 'audio/webm'
+  const startedAt = noteRecordStart
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    recorder.ondataavailable = (ev) => {
+      if (ev.data && ev.data.size > 0) noteVoiceChunks.push(ev.data)
+    }
+    recorder.onerror = () => reject(new Error('record_error'))
+    recorder.onstop = () => resolve(new Blob(noteVoiceChunks, { type: mimeType }))
+    try {
+      recorder.stop()
+    } catch (e) {
+      reject(e)
+    }
+  }).catch(() => null)
+
+  const durationSec = Math.round((Date.now() - startedAt) / 1000)
+  resetNoteVoice()
+  if (cancel || !blob || blob.size === 0) return
+  if (!isVoiceDurationValid(durationSec)) {
+    message.warning('录音时间太短')
+    return
+  }
+
+  const file = blobToVoiceFile(blob, mimeType, durationSec)
+  uploadingMedia.value = true
+  try {
+    const res = await noteApi.uploadNoteFile(file)
+    if (res.code !== 200 || !res.data?.fileKey) {
+      throw new Error(res.message || '上传失败')
+    }
+    if (res.data.url) {
+      mediaUrlCache.value = { ...mediaUrlCache.value, [res.data.fileKey]: res.data.url }
+    }
+    insertBlock(`[语音 ${durationSec}"](lx-media:${res.data.fileKey})`)
+    message.success('语音已插入')
+  } catch (err) {
+    message.error(err instanceof Error ? err.message : '语音上传失败')
+  } finally {
+    uploadingMedia.value = false
+  }
 }
 
 async function toggleNoteVoice() {
-  if (!isRecordingNote.value) {
-    try {
-      await navigator.mediaDevices.getUserMedia({ audio: true })
-      noteRecordStart = Date.now()
-      isRecordingNote.value = true
-      message.info('正在录音，再次点击结束')
-    } catch {
-      insertBlock('[语音备忘: 3"]')
-      message.success('语音备忘已插入')
-    }
+  if (uploadingMedia.value) return
+  if (isRecordingNote.value) {
+    await finishNoteVoice(false)
     return
   }
-  const sec = Math.max(1, Math.round((Date.now() - noteRecordStart) / 1000))
-  isRecordingNote.value = false
-  insertBlock(`[语音备忘: ${sec}"]`)
-  message.success('语音备忘已插入')
+  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+    message.warning('当前环境不支持语音录制')
+    return
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    noteMediaStream = stream
+    const mimeType = pickVoiceMimeType()
+    noteMediaRecorder = mimeType
+      ? new MediaRecorder(stream, { mimeType })
+      : new MediaRecorder(stream)
+    noteVoiceChunks = []
+    noteRecordStart = Date.now()
+    isRecordingNote.value = true
+    noteMediaRecorder.ondataavailable = (ev) => {
+      if (ev.data && ev.data.size > 0) noteVoiceChunks.push(ev.data)
+    }
+    noteMediaRecorder.start(200)
+    noteVoiceMaxTimer = window.setTimeout(() => {
+      void finishNoteVoice(false)
+    }, VOICE_MAX_SECONDS * 1000)
+    message.info('正在录音，再次点击结束')
+  } catch {
+    resetNoteVoice()
+    message.error('无法使用麦克风，请检查权限')
+  }
 }
 
 function onMoreSelect(key: string) {
   if (key === 'image') imageInputRef.value?.click()
   else if (key === 'location') {
-    insertBlock('[位置: 深圳市南山区]')
-    message.success('位置已插入')
+    showLocationPicker.value = true
   } else if (key === 'clear') {
     content.value = ''
     title.value = '无标题'
     pushHistorySnapshot()
     message.success('笔记已清空')
   }
+}
+
+function onLocationPicked(location: string) {
+  showLocationPicker.value = false
+  if (!location?.trim()) return
+  insertBlock(`[位置: ${location.trim()}]`)
+  message.success('位置已插入')
 }
 
 function onNoteSelect(key: string) {
@@ -273,11 +421,19 @@ onUnmounted(() => {
   void noteStore.save()
   if (saveTimer) clearTimeout(saveTimer)
   if (historyTimer) clearTimeout(historyTimer)
+  if (isRecordingNote.value) {
+    void finishNoteVoice(true)
+  } else {
+    resetNoteVoice()
+  }
 })
 </script>
 
 <template>
   <div class="note-editor standalone-window">
+    <div v-if="showLocationPicker" class="location-overlay">
+      <LocationPickerPage @select="onLocationPicked" @back="showLocationPicker = false" />
+    </div>
     <header class="title-bar drag-area">
       <div class="bar-side bar-left no-drag">
         <button
@@ -419,6 +575,7 @@ onUnmounted(() => {
 
 <style scoped>
 .note-editor {
+  position: relative;
   width: 100vw;
   height: 100vh;
   display: flex;
@@ -427,6 +584,13 @@ onUnmounted(() => {
   color: var(--lx-text-body);
   border-radius: var(--lx-radius);
   overflow: hidden;
+}
+
+.location-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  background: var(--lx-bg-panel);
 }
 
 .title-bar {

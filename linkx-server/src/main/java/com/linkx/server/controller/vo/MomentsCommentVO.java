@@ -33,4 +33,11 @@ public class MomentsCommentVO {
      * 被 @ 的用户 ID 列表（已去重且剔除评论者自身）
      */
     private List<Long> mentions;
+
+    /** 回复的父评论 ID（嵌套回复） */
+    @JsonSerialize(using = ToStringSerializer.class)
+    private Long parentId;
+
+    /** 被回复者昵称（有 parentId 时填充） */
+    private String replyToNickname;
 }

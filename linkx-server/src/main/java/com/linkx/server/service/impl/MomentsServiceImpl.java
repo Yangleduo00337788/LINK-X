@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linkx.server.controller.dto.CommentMomentsDTO;
 import com.linkx.server.controller.dto.PublishMomentsDTO;
+import com.linkx.server.controller.dto.UpdateMomentsDTO;
 import com.linkx.server.controller.vo.MomentsCommentVO;
 import com.linkx.server.controller.vo.MomentsPostVO;
 import com.linkx.server.entity.*;
@@ -53,6 +54,13 @@ public class MomentsServiceImpl implements MomentsService {
             throw new CustomException(404, "用户不存在");
         }
 
+        boolean hasContent = dto.getContent() != null && !dto.getContent().isBlank();
+        boolean hasImages = dto.getImages() != null && dto.getImages().stream()
+                .anyMatch(u -> u != null && !u.isBlank());
+        if (!hasContent && !hasImages) {
+            throw new CustomException(400, "动态内容或媒体不能同时为空");
+        }
+
         // 处理 atUsers：序列化为 JSON 字符串
         String atUsersJson = null;
         List<Long> atUserIds = sanitizeMentions(dto.getAtUsers(), userId);
@@ -65,7 +73,7 @@ public class MomentsServiceImpl implements MomentsService {
 
         MomentsPost post = MomentsPost.builder()
                 .userId(userId)
-                .content(dto.getContent())
+                .content(hasContent ? dto.getContent().trim() : "")
                 .location(dto.getLocation())
                 .atUsers(atUsersJson)
                 .visibility(visibility)
@@ -113,36 +121,124 @@ public class MomentsServiceImpl implements MomentsService {
     }
 
     @Override
-    public List<MomentsPostVO> list(Long userId) {
+    @Transactional
+    public MomentsPostVO update(Long userId, Long postId, UpdateMomentsDTO dto) {
+        MomentsPost post = postMapper.selectOneByQuery(
+                QueryWrapper.create().eq("id", postId).eq("deleted", 0)
+        );
+        if (post == null) {
+            throw new CustomException(404, "动态不存在");
+        }
+        if (!Objects.equals(post.getUserId(), userId)) {
+            throw new CustomException(403, "只能编辑自己的动态");
+        }
+
+        boolean hasContent = dto.getContent() != null && !dto.getContent().isBlank();
+        boolean touchImages = dto.getImages() != null;
+        if (!hasContent && !touchImages && dto.getLocation() == null
+                && dto.getAtUsers() == null && dto.getVisibility() == null) {
+            throw new CustomException(400, "没有可更新的内容");
+        }
+
+        if (dto.getContent() != null) {
+            post.setContent(dto.getContent().trim());
+        }
+        if (dto.getLocation() != null) {
+            post.setLocation(dto.getLocation().isBlank() ? null : dto.getLocation().trim());
+        }
+        if (dto.getVisibility() != null) {
+            post.setVisibility(dto.getVisibility());
+        }
+        if (dto.getAtUsers() != null) {
+            List<Long> atUserIds = sanitizeMentions(dto.getAtUsers(), userId);
+            post.setAtUsers(atUserIds.isEmpty() ? null : toJsonString(atUserIds));
+        }
+        postMapper.update(post);
+
+        List<MomentsImage> savedImages;
+        if (touchImages) {
+            imageMapper.deleteByQuery(QueryWrapper.create().eq("post_id", postId));
+            savedImages = new ArrayList<>();
+            int order = 0;
+            for (String imageUrl : dto.getImages()) {
+                if (imageUrl == null || imageUrl.isBlank()) {
+                    continue;
+                }
+                MomentsImage image = MomentsImage.builder()
+                        .postId(post.getId())
+                        .url(imageUrl.trim())
+                        .sortOrder(order++)
+                        .build();
+                imageMapper.insert(image);
+                savedImages.add(image);
+            }
+        } else {
+            savedImages = imageMapper.selectListByQuery(
+                    QueryWrapper.create().eq("post_id", postId).orderBy("sort_order", true)
+            );
+        }
+
+        SysUser user = userMapper.selectOneById(userId);
+        List<MomentsLike> likes = likeMapper.selectListByQuery(
+                QueryWrapper.create().eq("post_id", postId)
+        );
+        List<MomentsComment> comments = commentMapper.selectListByQuery(
+                QueryWrapper.create().eq("post_id", postId).eq("deleted", 0).orderBy("create_time", true)
+        );
+        return toPostVO(post, user, savedImages, likes, comments, userId);
+    }
+
+    @Override
+    public List<MomentsPostVO> list(Long userId, Long beforeId, Integer limit, String q) {
         Set<Long> friendIds = getFriendIds(userId);
         friendIds.add(userId);
+        int pageSize = normalizeLimit(limit);
 
-        // 私密(visibility=2)仅作者可见：SQL 层直接过滤，避免仅依赖内存判断
-        List<MomentsPost> posts = postMapper.selectListByQuery(
-                QueryWrapper.create()
-                        .in("user_id", new ArrayList<>(friendIds))
-                        .eq("deleted", 0)
-                        .and("(IFNULL(visibility, 0) <> 2 OR user_id = {0})", userId)
-                        .orderBy("create_time", false)
-                        .limit(50)
-        );
+        QueryWrapper qw = QueryWrapper.create()
+                .in("user_id", new ArrayList<>(friendIds))
+                .eq("deleted", 0)
+                .and("(IFNULL(visibility, 0) <> 2 OR user_id = {0})", userId)
+                .orderBy("create_time", false)
+                .orderBy("id", false)
+                .limit(pageSize);
+        if (beforeId != null) {
+            qw.and("id < {0}", beforeId);
+        }
+        applyContentSearch(qw, q);
 
+        return buildPostList(qw, userId, null);
+    }
+
+    @Override
+    public List<MomentsPostVO> listByUser(Long userId, Long targetUserId, Long beforeId, Integer limit, String q) {
+        int pageSize = normalizeLimit(limit);
+        QueryWrapper qw = QueryWrapper.create()
+                .eq("user_id", targetUserId)
+                .eq("deleted", 0)
+                .and("(IFNULL(visibility, 0) <> 2 OR user_id = {0})", userId)
+                .orderBy("create_time", false)
+                .orderBy("id", false)
+                .limit(pageSize);
+        if (beforeId != null) {
+            qw.and("id < {0}", beforeId);
+        }
+        applyContentSearch(qw, q);
+
+        SysUser targetUser = userMapper.selectOneById(targetUserId);
+        List<MomentsPost> posts = postMapper.selectListByQuery(qw);
         if (posts.isEmpty()) {
             return Collections.emptyList();
         }
-
         Map<Long, List<MomentsImage>> imagesMap = loadImages(posts);
         Map<Long, List<MomentsLike>> likesMap = loadLikes(posts);
         Map<Long, List<MomentsComment>> commentsMap = loadComments(posts);
-        Map<Long, SysUser> userMap = loadUsers(posts, commentsMap);
-
         List<MomentsPostVO> result = new ArrayList<>();
         for (MomentsPost post : posts) {
             if (!canViewPost(post, userId)) {
                 continue;
             }
             result.add(toPostVO(post,
-                    userMap.get(post.getUserId()),
+                    targetUser,
                     imagesMap.getOrDefault(post.getId(), Collections.emptyList()),
                     likesMap.getOrDefault(post.getId(), Collections.emptyList()),
                     commentsMap.getOrDefault(post.getId(), Collections.emptyList()),
@@ -151,17 +247,26 @@ public class MomentsServiceImpl implements MomentsService {
         return result;
     }
 
-    @Override
-    public List<MomentsPostVO> listByUser(Long userId, Long targetUserId) {
-        List<MomentsPost> posts = postMapper.selectListByQuery(
-                QueryWrapper.create()
-                        .eq("user_id", targetUserId)
-                        .eq("deleted", 0)
-                        .and("(IFNULL(visibility, 0) <> 2 OR user_id = {0})", userId)
-                        .orderBy("create_time", false)
-                        .limit(50)
-        );
+    private int normalizeLimit(Integer limit) {
+        if (limit == null || limit < 1) {
+            return 20;
+        }
+        return Math.min(limit, 50);
+    }
 
+    private void applyContentSearch(QueryWrapper qw, String q) {
+        if (q == null || q.isBlank()) {
+            return;
+        }
+        String keyword = q.trim();
+        if (keyword.length() > 64) {
+            keyword = keyword.substring(0, 64);
+        }
+        qw.and("content LIKE {0}", "%" + keyword + "%");
+    }
+
+    private List<MomentsPostVO> buildPostList(QueryWrapper qw, Long userId, SysUser fixedAuthor) {
+        List<MomentsPost> posts = postMapper.selectListByQuery(qw);
         if (posts.isEmpty()) {
             return Collections.emptyList();
         }
@@ -169,15 +274,18 @@ public class MomentsServiceImpl implements MomentsService {
         Map<Long, List<MomentsImage>> imagesMap = loadImages(posts);
         Map<Long, List<MomentsLike>> likesMap = loadLikes(posts);
         Map<Long, List<MomentsComment>> commentsMap = loadComments(posts);
-        SysUser targetUser = userMapper.selectOneById(targetUserId);
+        Map<Long, SysUser> userMap = fixedAuthor != null
+                ? Map.of(fixedAuthor.getId(), fixedAuthor)
+                : loadUsers(posts, commentsMap);
 
         List<MomentsPostVO> result = new ArrayList<>();
         for (MomentsPost post : posts) {
             if (!canViewPost(post, userId)) {
                 continue;
             }
+            SysUser author = fixedAuthor != null ? fixedAuthor : userMap.get(post.getUserId());
             result.add(toPostVO(post,
-                    targetUser,
+                    author,
                     imagesMap.getOrDefault(post.getId(), Collections.emptyList()),
                     likesMap.getOrDefault(post.getId(), Collections.emptyList()),
                     commentsMap.getOrDefault(post.getId(), Collections.emptyList()),
@@ -510,6 +618,16 @@ public class MomentsServiceImpl implements MomentsService {
     }
 
     private MomentsCommentVO toCommentVO(MomentsComment comment, SysUser user, List<Long> mentions) {
+        String replyToNickname = null;
+        if (comment.getParentId() != null) {
+            MomentsComment parent = commentMapper.selectOneById(comment.getParentId());
+            if (parent != null) {
+                SysUser parentUser = userMapper.selectOneById(parent.getUserId());
+                if (parentUser != null) {
+                    replyToNickname = parentUser.getNickname();
+                }
+            }
+        }
         return MomentsCommentVO.builder()
                 .id(comment.getId())
                 .userId(comment.getUserId())
@@ -518,6 +636,8 @@ public class MomentsServiceImpl implements MomentsService {
                 .content(comment.getContent())
                 .time(formatTime(comment.getCreateTime()))
                 .mentions(mentions)
+                .parentId(comment.getParentId())
+                .replyToNickname(replyToNickname)
                 .build();
     }
 
@@ -616,20 +736,21 @@ public class MomentsServiceImpl implements MomentsService {
     @Override
     public String uploadImage(org.springframework.web.multipart.MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new CustomException(400, "图片不能为空");
+            throw new CustomException(400, "文件不能为空");
         }
         String contentType = file.getContentType();
-        if (contentType == null || !contentType.startsWith("image/")) {
-            throw new CustomException(400, "只能上传图片文件");
+        boolean ok = contentType != null
+                && (contentType.startsWith("image/") || contentType.startsWith("video/"));
+        if (!ok) {
+            throw new CustomException(400, "只能上传图片或视频文件");
         }
         try {
             // 只返回 object key 入库；列表/详情时再签发预签名 URL。
-            // 若返回完整签名 URL，长度常超过 moments_image.url(varchar 500) 导致发布失败。
             return fileStorageService.uploadFile(file);
         } catch (IllegalArgumentException e) {
             throw new CustomException(400, e.getMessage());
         } catch (RuntimeException e) {
-            throw new CustomException(500, "图片上传失败");
+            throw new CustomException(500, "媒体上传失败");
         }
     }
 }

@@ -358,12 +358,14 @@ async function publish() {
   uploadProgress.value = 0
   try {
     let uploaded: string[] = []
+    const { uploadMomentsMedia } = await import('../api/moments')
+    const mediaTotal = images.value.length + videos.value.length
+    let done = 0
+
     if (images.value.length) {
       message.info(t('moments.uploadingImages'))
-      const { uploadMomentsImage } = await import('../api/moments')
       for (let i = 0; i < images.value.length; i++) {
         const item = images.value[i]
-        // > 2MB 时压缩;≤ 2MB 直接上传原始 File,避免画质损失
         const shouldCompress = item.file.size > MAX_IMAGE_BYTES && /image\/(jpeg|webp)/i.test(item.file.type)
         let fileToUpload: File | Blob = item.file
         let displayName = item.file.name
@@ -375,16 +377,34 @@ async function publish() {
         const finalFile = fileToUpload instanceof File
           ? fileToUpload
           : new File([fileToUpload], displayName, { type: 'image/jpeg' })
-        const res = await uploadMomentsImage(finalFile)
+        const res = await uploadMomentsMedia(finalFile)
         if (res.code !== 200 || !res.data) {
           throw new Error(res.message || t('moments.imageUploadFail'))
         }
         uploaded.push(res.data)
-        uploadProgress.value = Math.round(((i + 1) / images.value.length) * 100)
+        done++
+        uploadProgress.value = mediaTotal ? Math.round((done / mediaTotal) * 100) : 100
       }
     }
+
+    if (videos.value.length) {
+      message.info(t('moments.uploadingVideos') || '正在上传视频…')
+      for (let i = 0; i < videos.value.length; i++) {
+        const item = videos.value[i]
+        const res = await uploadMomentsMedia(item.file)
+        if (res.code !== 200 || !res.data) {
+          throw new Error(res.message || t('moments.videoUploadFail') || '视频上传失败')
+        }
+        uploaded.push(res.data)
+        done++
+        uploadProgress.value = mediaTotal ? Math.round((done / mediaTotal) * 100) : 100
+      }
+    }
+
     uploadProgress.value = 100
-    const finalContent = trimmed || (mode.value === 'media' ? t('moments.shareImage') : '')
+    const finalContent = trimmed
+      || (videos.value.length ? (t('moments.shareVideo') || '分享视频') : '')
+      || (mode.value === 'media' ? t('moments.shareImage') : '')
     const atUserIds = atUsers.value.map(u => u.id)
     const ok = await momentsStore.addPost(finalContent, uploaded, {
       location: location.value || undefined,
