@@ -33,6 +33,8 @@ public class DriveItemVO {
     private Integer childCount;
     private List<String> tags;
     private String uploaderName;
+    /** 上传者头像（可访问 URL） */
+    private String uploaderAvatar;
     private Long createTime;
     private Long updateTime;
 }

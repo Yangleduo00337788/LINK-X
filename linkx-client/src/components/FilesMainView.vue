@@ -1,12 +1,16 @@
 <script setup lang="ts">
 /**
  * 个人网盘主视图 — 真实对接 /cloud
+ * Electron 下 window.prompt/confirm 不可用，统一用 Naive UI 弹窗。
  */
 import { ref, computed, onMounted, watch } from 'vue'
 import {
   NIcon,
   NInput,
   NDropdown,
+  NModal,
+  NButton,
+  NSwitch,
   useMessage,
   useDialog
 } from 'naive-ui'
@@ -34,15 +38,21 @@ import { storeToRefs } from 'pinia'
 import { useDriveStore } from '../stores/drive'
 import type { DriveItemVO } from '../api/drive'
 import { useOverlayStore } from '../stores/overlay'
+import { useAppStore } from '../stores/app'
 import { downloadFileWithSettings } from '../utils/downloadFile'
 import { formatFileSize } from '../utils/file'
+import { generateDefaultAvatar } from '../utils/defaultAvatar'
+import { isDisplayableMediaUrl, normalizeMediaUrl } from '../utils/mediaUrl'
 import { useI18n } from '../i18n'
+import Avatar from './Avatar.vue'
 
 const message = useMessage()
 const dialog = useDialog()
 const { t } = useI18n()
 const drive = useDriveStore()
 const overlayStore = useOverlayStore()
+const appStore = useAppStore()
+const { userProfile } = storeToRefs(appStore)
 const {
   items,
   breadcrumb,
@@ -66,6 +76,44 @@ const fileInputRef = ref<HTMLInputElement | null>(null)
 const tagInput = ref('')
 const showTagInput = ref(false)
 
+/** 文本输入弹窗：新建文件夹 / 重命名 / 描述 */
+const textModalShow = ref(false)
+const textModalTitle = ref('')
+const textModalValue = ref('')
+const textModalMultiline = ref(false)
+let textModalResolver: ((v: string | null) => void) | null = null
+
+/** 分享设置弹窗 */
+const shareModalShow = ref(false)
+const shareNeedPassword = ref(true)
+const sharePassword = ref('')
+const shareTarget = ref<DriveItemVO | null>(null)
+const shareSubmitting = ref(false)
+
+/** 会员扩容弹窗 */
+const vipModalShow = ref(false)
+const vipTier = ref<'vip' | 'svip'>('vip')
+const vipPlan = ref('vip-month')
+
+type VipPlan = {
+  key: string
+  tier: 'vip' | 'svip'
+  label: string
+  price: number
+  storage: string
+}
+
+const vipPlans: VipPlan[] = [
+  { key: 'vip-month', tier: 'vip', label: '月卡（1个月）', price: 18, storage: '2G' },
+  { key: 'vip-quarter', tier: 'vip', label: '季卡（3个月）', price: 50, storage: '10G' },
+  { key: 'vip-year', tier: 'vip', label: '年卡（1年）', price: 268, storage: '30G' },
+  { key: 'svip-month', tier: 'svip', label: '月卡（1个月）', price: 28, storage: '8G' },
+  { key: 'svip-quarter', tier: 'svip', label: '季卡（3个月）', price: 88, storage: '20G' },
+  { key: 'svip-year', tier: 'svip', label: '年卡（1年）', price: 368, storage: '60G' }
+]
+
+const filteredVipPlans = computed(() => vipPlans.filter(p => p.tier === vipTier.value))
+
 const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
 
 onMounted(() => {
@@ -76,6 +124,11 @@ watch(search, q => {
   void drive.fetchItems(q.trim() || undefined)
 })
 
+watch(vipTier, tier => {
+  const first = vipPlans.find(p => p.tier === tier)
+  if (first) vipPlan.value = first.key
+})
+
 const sortedItems = computed(() => {
   const list = [...items.value]
   list.sort((a, b) => {
@@ -84,8 +137,8 @@ const sortedItems = computed(() => {
       const cmp = a.name.localeCompare(b.name, 'zh-CN')
       return sortDesc.value ? -cmp : cmp
     }
-    const ta = a.updateTime || a.createTime || 0
-    const tb = b.updateTime || b.createTime || 0
+    const ta = toMs(a.updateTime || a.createTime) || 0
+    const tb = toMs(b.updateTime || b.createTime) || 0
     return sortDesc.value ? tb - ta : ta - tb
   })
   return list
@@ -113,21 +166,22 @@ const typeLabel = computed(() => {
   return t('files.typeFile')
 })
 
-function formatTime(ts?: number) {
-  if (!ts) return '—'
-  try {
-    return new Date(ts)
-      .toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
-      .replace(/\//g, '-')
-  } catch {
-    return '—'
-  }
+/** 兼容 number / 数字字符串时间戳 */
+function toMs(ts?: number | string | null): number | null {
+  if (ts == null || ts === '') return null
+  if (typeof ts === 'number') return Number.isFinite(ts) ? ts : null
+  const n = Number(ts)
+  if (Number.isFinite(n)) return n
+  const parsed = Date.parse(String(ts))
+  return Number.isFinite(parsed) ? parsed : null
 }
 
-function formatTimeFull(ts?: number) {
-  if (!ts) return '—'
+function formatTime(ts?: number | string) {
+  const ms = toMs(ts)
+  if (ms == null) return '—'
   try {
-    const d = new Date(ts)
+    const d = new Date(ms)
+    if (Number.isNaN(d.getTime())) return '—'
     const date = d
       .toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
       .replace(/\//g, '-')
@@ -136,6 +190,38 @@ function formatTimeFull(ts?: number) {
   } catch {
     return '—'
   }
+}
+
+function formatTimeFull(ts?: number | string) {
+  return formatTime(ts)
+}
+
+function openTextModal(opts: {
+  title: string
+  value?: string
+  multiline?: boolean
+}): Promise<string | null> {
+  textModalTitle.value = opts.title
+  textModalValue.value = opts.value || ''
+  textModalMultiline.value = !!opts.multiline
+  textModalShow.value = true
+  return new Promise(resolve => {
+    textModalResolver = resolve
+  })
+}
+
+function resolveTextModal(value: string | null) {
+  textModalShow.value = false
+  textModalResolver?.(value)
+  textModalResolver = null
+}
+
+function onTextModalConfirm() {
+  resolveTextModal(textModalValue.value)
+}
+
+function onTextModalCancel() {
+  resolveTextModal(null)
 }
 
 function toggleSort(key: 'time' | 'name') {
@@ -199,9 +285,9 @@ async function onFilePicked(e: Event) {
 }
 
 function onNewFolder() {
-  const name = (window.prompt(t('files.folderNamePrompt')) || '').trim()
-  if (!name) return
   void (async () => {
+    const name = ((await openTextModal({ title: t('files.folderNamePrompt') })) || '').trim()
+    if (!name) return
     try {
       await drive.createFolder(name)
       message.success(t('files.folderCreated'))
@@ -211,13 +297,18 @@ function onNewFolder() {
   })()
 }
 
-async function onExpandStorage() {
-  try {
-    await drive.expandStorage()
-    message.success(t('files.expandOk'))
-  } catch (err) {
-    message.error(err instanceof Error ? err.message : t('files.expandFail'))
-  }
+function onExpandStorage() {
+  vipTier.value = 'vip'
+  vipPlan.value = 'vip-month'
+  vipModalShow.value = true
+}
+
+function onVipPurchase() {
+  const plan = vipPlans.find(p => p.key === vipPlan.value)
+  message.info(
+    t('files.vipPurchaseSoon', { plan: plan?.label || '', price: String(plan?.price ?? 0) })
+  )
+  vipModalShow.value = false
 }
 
 async function downloadItem(item: DriveItemVO) {
@@ -251,23 +342,43 @@ function openPreview(item: DriveItemVO) {
   })
 }
 
-async function onShare(item?: DriveItemVO | null) {
+function onShare(item?: DriveItemVO | null) {
   const target = item || detailItem.value
   if (!target) return
-  const usePwd = window.confirm(t('files.shareAskPassword'))
-  let password: string | undefined
-  if (usePwd) {
-    password = (window.prompt(t('files.sharePasswordPrompt')) || '').trim() || undefined
+  shareTarget.value = target
+  shareNeedPassword.value = true
+  sharePassword.value = genExtractCode()
+  shareModalShow.value = true
+}
+
+function genExtractCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  let s = ''
+  for (let i = 0; i < 4; i++) s += chars[Math.floor(Math.random() * chars.length)]
+  return s
+}
+
+async function confirmShare() {
+  const target = shareTarget.value
+  if (!target) return
+  if (shareNeedPassword.value && !sharePassword.value.trim()) {
+    message.warning(t('files.sharePasswordRequired'))
+    return
   }
+  shareSubmitting.value = true
   try {
+    const password = shareNeedPassword.value ? sharePassword.value.trim() : undefined
     const share = await drive.createShare(target, { password, expireHours: 72 })
     const fullUrl = `${apiBase}${share.shareUrl}`
     await navigator.clipboard.writeText(
       password ? `${fullUrl}\n${t('files.sharePasswordLabel')}: ${password}` : fullUrl
     )
+    shareModalShow.value = false
     message.success(t('files.shareCopied'))
   } catch (err) {
     message.error(err instanceof Error ? err.message : t('files.shareFail'))
+  } finally {
+    shareSubmitting.value = false
   }
 }
 
@@ -307,7 +418,9 @@ async function onDeleteOne(item: DriveItemVO) {
 }
 
 async function onRename(item: DriveItemVO) {
-  const name = (window.prompt(t('files.renamePrompt'), item.name) || '').trim()
+  const name = (
+    (await openTextModal({ title: t('files.renamePrompt'), value: item.name })) || ''
+  ).trim()
   if (!name || name === item.name) return
   try {
     await drive.renameItem(item, name)
@@ -354,7 +467,13 @@ async function removeTag(tag: string) {
 
 async function saveDescription() {
   if (!detailItem.value || detailItem.value.kind !== 'file') return
-  const desc = (window.prompt(t('files.descPrompt'), detailItem.value.description || '') || '').trim()
+  const raw = await openTextModal({
+    title: t('files.descPrompt'),
+    value: detailItem.value.description || '',
+    multiline: true
+  })
+  if (raw === null) return
+  const desc = raw.trim()
   try {
     await drive.updateDescription(detailItem.value.id, desc)
     message.success(t('files.descSaved'))
@@ -382,6 +501,22 @@ function fileIconMeta(item: DriveItemVO) {
   return { color: 'var(--lx-accent)', bg: 'var(--lx-accent-soft)', label: (ext || 'FILE').slice(0, 3).toUpperCase() }
 }
 
+function isImageItem(item: DriveItemVO) {
+  return item.kind === 'file' && item.category === 'image' && !!normalizeMediaUrl(item.fileUrl)
+}
+
+function thumbUrl(item: DriveItemVO) {
+  return normalizeMediaUrl(item.fileUrl)
+}
+
+function uploaderAvatarUrl(item: DriveItemVO) {
+  const fromApi = normalizeMediaUrl(item.uploaderAvatar)
+  if (fromApi && isDisplayableMediaUrl(fromApi)) return fromApi
+  const mine = normalizeMediaUrl(userProfile.value.avatar)
+  if (mine && isDisplayableMediaUrl(mine)) return mine
+  return generateDefaultAvatar(item.uploaderName || userProfile.value.nickname || t('common.me'))
+}
+
 function rowMenuOptions(item: DriveItemVO) {
   const opts: { label: string; key: string }[] = [
     { label: t('files.rename'), key: 'rename' },
@@ -397,7 +532,7 @@ function rowMenuOptions(item: DriveItemVO) {
 
 function onRowMenu(key: string, item: DriveItemVO) {
   if (key === 'download') void downloadItem(item)
-  else if (key === 'share') void onShare(item)
+  else if (key === 'share') onShare(item)
   else if (key === 'rename') void onRename(item)
   else if (key === 'moveRoot') void onMoveToRoot(item)
   else if (key === 'delete') void onDeleteOne(item)
@@ -545,10 +680,15 @@ void MoveOutline
               <div class="col-name">
                 <div
                   class="file-icon"
-                  :class="{ folder: item.kind === 'folder' }"
-                  :style="item.kind === 'file' ? { color: fileIconMeta(item).color, background: fileIconMeta(item).bg } : undefined"
+                  :class="{ folder: item.kind === 'folder', thumb: isImageItem(item) }"
+                  :style="
+                    item.kind === 'file' && !isImageItem(item)
+                      ? { color: fileIconMeta(item).color, background: fileIconMeta(item).bg }
+                      : undefined
+                  "
                 >
                   <n-icon v-if="item.kind === 'folder'" :component="FolderOutline" :size="22" />
+                  <img v-else-if="isImageItem(item)" :src="thumbUrl(item)" alt="" class="thumb-img" />
                   <span v-else class="ext-badge">{{ fileIconMeta(item).label }}</span>
                 </div>
                 <div class="name-block">
@@ -559,7 +699,12 @@ void MoveOutline
               <div class="col-time">{{ formatTime(item.updateTime || item.createTime) }}</div>
               <div class="col-size">{{ item.kind === 'file' && item.fileSize != null ? formatFileSize(item.fileSize) : '—' }}</div>
               <div class="col-uploader">
-                <span class="avatar">{{ (item.uploaderName || '我').slice(0, 1) }}</span>
+                <Avatar
+                  :text="(item.uploaderName || t('common.me')).slice(0, 1)"
+                  color="transparent"
+                  :size="24"
+                  :image-url="uploaderAvatarUrl(item)"
+                />
                 <span class="uploader-name">{{ item.uploaderName || t('common.me') }}</span>
               </div>
               <div class="col-more" @click.stop>
@@ -587,10 +732,15 @@ void MoveOutline
           >
             <div
               class="grid-icon"
-              :class="{ folder: item.kind === 'folder' }"
-              :style="item.kind === 'file' ? { color: fileIconMeta(item).color, background: fileIconMeta(item).bg } : undefined"
+              :class="{ folder: item.kind === 'folder', thumb: isImageItem(item) }"
+              :style="
+                item.kind === 'file' && !isImageItem(item)
+                  ? { color: fileIconMeta(item).color, background: fileIconMeta(item).bg }
+                  : undefined
+              "
             >
               <n-icon v-if="item.kind === 'folder'" :component="FolderOutline" :size="36" />
+              <img v-else-if="isImageItem(item)" :src="thumbUrl(item)" alt="" class="thumb-img" />
               <span v-else>{{ fileIconMeta(item).label }}</span>
             </div>
             <div class="grid-name">{{ item.name }}</div>
@@ -630,6 +780,13 @@ void MoveOutline
 
         <div class="detail-preview">
           <div
+            v-if="isImageItem(detailItem)"
+            class="preview-thumb"
+          >
+            <img :src="thumbUrl(detailItem)" alt="" />
+          </div>
+          <div
+            v-else
             class="preview-icon"
             :class="{ folder: detailItem.kind === 'folder' }"
             :style="detailItem.kind === 'file' ? { color: fileIconMeta(detailItem).color, background: fileIconMeta(detailItem).bg } : undefined"
@@ -750,6 +907,101 @@ void MoveOutline
         </div>
       </aside>
     </div>
+
+    <!-- 文本输入弹窗（新建/重命名/描述） -->
+    <n-modal
+      v-model:show="textModalShow"
+      preset="card"
+      :title="textModalTitle"
+      style="width: 420px"
+      :mask-closable="false"
+      @close="onTextModalCancel"
+    >
+      <n-input
+        v-model:value="textModalValue"
+        :type="textModalMultiline ? 'textarea' : 'text'"
+        :rows="textModalMultiline ? 4 : undefined"
+        autofocus
+        @keyup.enter="!textModalMultiline && onTextModalConfirm()"
+      />
+      <template #footer>
+        <div class="modal-actions">
+          <n-button @click="onTextModalCancel">{{ t('common.cancel') }}</n-button>
+          <n-button type="primary" @click="onTextModalConfirm">{{ t('common.confirm') }}</n-button>
+        </div>
+      </template>
+    </n-modal>
+
+    <!-- 分享设置 -->
+    <n-modal
+      v-model:show="shareModalShow"
+      preset="card"
+      :title="t('files.shareSettings')"
+      style="width: 420px"
+      :mask-closable="false"
+    >
+      <div class="share-form">
+        <div class="share-row">
+          <span>{{ t('files.shareEnablePassword') }}</span>
+          <n-switch v-model:value="shareNeedPassword" />
+        </div>
+        <div v-if="shareNeedPassword" class="share-pwd">
+          <div class="share-pwd-label">{{ t('files.sharePasswordLabel') }}</div>
+          <div class="share-pwd-row">
+            <n-input v-model:value="sharePassword" maxlength="16" :placeholder="t('files.sharePasswordPrompt')" />
+            <n-button @click="sharePassword = genExtractCode()">{{ t('files.shareRegenCode') }}</n-button>
+          </div>
+        </div>
+        <p class="share-hint">{{ t('files.shareExpireHint') }}</p>
+      </div>
+      <template #footer>
+        <div class="modal-actions">
+          <n-button @click="shareModalShow = false">{{ t('common.cancel') }}</n-button>
+          <n-button type="primary" :loading="shareSubmitting" @click="confirmShare">
+            {{ t('files.shareCreate') }}
+          </n-button>
+        </div>
+      </template>
+    </n-modal>
+
+    <!-- 会员扩容 -->
+    <n-modal
+      v-model:show="vipModalShow"
+      preset="card"
+      :title="t('files.vipTitle')"
+      style="width: 480px"
+      :mask-closable="true"
+    >
+      <p class="vip-need">{{ t('files.vipNeedHint') }}</p>
+      <div class="vip-tabs">
+        <button type="button" class="vip-tab" :class="{ active: vipTier === 'vip' }" @click="vipTier = 'vip'">
+          VIP
+        </button>
+        <button type="button" class="vip-tab" :class="{ active: vipTier === 'svip' }" @click="vipTier = 'svip'">
+          SVIP
+        </button>
+      </div>
+      <div class="vip-plans">
+        <button
+          v-for="p in filteredVipPlans"
+          :key="p.key"
+          type="button"
+          class="vip-plan"
+          :class="{ active: vipPlan === p.key }"
+          @click="vipPlan = p.key"
+        >
+          <div class="vip-plan-label">{{ p.label }}</div>
+          <div class="vip-plan-price">¥{{ p.price }}</div>
+          <div class="vip-plan-storage">{{ t('files.vipStorage', { size: p.storage }) }}</div>
+        </button>
+      </div>
+      <template #footer>
+        <div class="modal-actions">
+          <n-button @click="vipModalShow = false">{{ t('common.cancel') }}</n-button>
+          <n-button type="primary" @click="onVipPurchase">{{ t('files.vipBuy') }}</n-button>
+        </div>
+      </template>
+    </n-modal>
   </div>
 </template>
 
@@ -814,7 +1066,7 @@ void MoveOutline
 .section-head h2 { margin: 0; font-size: 15px; font-weight: 600; color: var(--lx-text); }
 .table-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0 12px; }
 .table-head, .table-row {
-  display: grid; grid-template-columns: 36px minmax(180px, 1.6fr) 120px 90px 140px 40px;
+  display: grid; grid-template-columns: 36px minmax(180px, 1.6fr) 150px 90px 140px 40px;
   align-items: center; gap: 8px; padding: 0 8px;
 }
 .table-head { height: 36px; color: var(--lx-text-muted); font-size: 12px; border-bottom: 1px solid var(--lx-border-light); }
@@ -831,9 +1083,11 @@ void MoveOutline
 .col-name { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .file-icon {
   width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0; font-size: 11px; font-weight: 700;
+  flex-shrink: 0; font-size: 11px; font-weight: 700; overflow: hidden;
 }
 .file-icon.folder, .grid-icon.folder, .preview-icon.folder { background: #fff4d6; color: #f5a623; }
+.file-icon.thumb, .grid-icon.thumb { padding: 0; background: var(--lx-bg-input); }
+.thumb-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .name-block { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .name { font-size: 14px; color: var(--lx-text-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sub { font-size: 12px; color: var(--lx-text-muted); }
@@ -859,6 +1113,7 @@ void MoveOutline
 .grid-icon {
   width: 56px; height: 56px; margin: 0 auto 10px; border-radius: 12px;
   display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700;
+  overflow: hidden;
 }
 .grid-name { font-size: 13px; color: var(--lx-text-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .grid-meta { margin-top: 4px; font-size: 12px; color: var(--lx-text-muted); }
@@ -888,6 +1143,11 @@ void MoveOutline
   width: 88px; height: 104px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
   font-size: 22px; font-weight: 800; box-shadow: var(--lx-shadow-card);
 }
+.preview-thumb {
+  width: 120px; height: 120px; border-radius: 12px; overflow: hidden;
+  box-shadow: var(--lx-shadow-card); background: var(--lx-bg-input);
+}
+.preview-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .detail-tabs { display: flex; gap: 20px; padding: 0 16px; border-bottom: 1px solid var(--lx-border-light); }
 .tab { border: none; background: none; padding: 10px 0; font-size: 13px; color: var(--lx-text-muted); cursor: pointer; position: relative; }
 .tab.active { color: var(--lx-accent); font-weight: 600; }
@@ -920,4 +1180,27 @@ void MoveOutline
   flex-shrink: 0; display: flex; align-items: center; gap: 8px;
   padding: 12px 16px 16px; border-top: 1px solid var(--lx-border-light);
 }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.share-form { display: flex; flex-direction: column; gap: 14px; }
+.share-row { display: flex; align-items: center; justify-content: space-between; font-size: 14px; color: var(--lx-text-body); }
+.share-pwd-label { margin-bottom: 6px; font-size: 13px; color: var(--lx-text-muted); }
+.share-pwd-row { display: flex; gap: 8px; }
+.share-hint { margin: 0; font-size: 12px; color: var(--lx-text-muted); }
+.vip-need { margin: 0 0 14px; font-size: 13px; color: var(--lx-text-secondary); line-height: 1.5; }
+.vip-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.vip-tab {
+  flex: 1; height: 36px; border: 1px solid var(--lx-border-strong); border-radius: var(--lx-radius);
+  background: var(--lx-bg-card); color: var(--lx-text-secondary); cursor: pointer; font-weight: 600;
+}
+.vip-tab.active { border-color: var(--lx-accent); color: var(--lx-accent); background: var(--lx-accent-soft); }
+.vip-plans { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.vip-plan {
+  text-align: left; border: 1px solid var(--lx-border-light); border-radius: var(--lx-radius);
+  padding: 12px 14px; background: var(--lx-bg-card); cursor: pointer;
+}
+.vip-plan:hover { background: var(--lx-bg-hover); }
+.vip-plan.active { border-color: var(--lx-accent); background: var(--lx-accent-soft); }
+.vip-plan-label { font-size: 14px; font-weight: 600; color: var(--lx-text); }
+.vip-plan-price { margin-top: 4px; font-size: 18px; font-weight: 700; color: var(--lx-accent); }
+.vip-plan-storage { margin-top: 2px; font-size: 12px; color: var(--lx-text-muted); }
 </style>

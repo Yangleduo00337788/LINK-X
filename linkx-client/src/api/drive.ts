@@ -23,6 +23,7 @@ export interface DriveItemVO {
   childCount?: number
   tags?: string[]
   uploaderName?: string
+  uploaderAvatar?: string
   createTime?: number
   updateTime?: number
 }

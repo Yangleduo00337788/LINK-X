@@ -34,4 +34,16 @@ describe('parseJson', () => {
     expect(result[0]).toBe('1234567890123456789')
     expect(result[1]).toBe('9876543210987654321')
   })
+
+  it('should keep millisecond timestamps as numbers', () => {
+    const input = '{"createTime":1753152000123,"updateTime":1753152000456,"id":1234567890123456789}'
+    const result = parseJsonPreservingIds(input) as {
+      createTime: number
+      updateTime: number
+      id: string
+    }
+    expect(result.createTime).toBe(1753152000123)
+    expect(result.updateTime).toBe(1753152000456)
+    expect(result.id).toBe('1234567890123456789')
+  })
 })

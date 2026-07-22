@@ -27,6 +27,8 @@ import {
 } from '@vicons/ionicons5'
 import Avatar from './Avatar.vue'
 import { storeToRefs } from 'pinia'
+import { generateDefaultAvatar } from '../utils/defaultAvatar'
+import { isDisplayableMediaUrl, normalizeMediaUrl } from '../utils/mediaUrl'
 import { useAppStore } from '../stores/app'
 import { useChatModalsStore } from '../stores/chatModals'
 import { useSettingsStore } from '../stores/settings'
@@ -69,6 +71,13 @@ const message = useMessage()
 
 // 更多菜单下拉显隐（受控，登出前先关闭避免残留遮罩）
 const menuDropdownShow = ref(false)
+
+/** 侧栏头像：可展示的真实图，否则用本地默认图（避免 avatar 有值但不可加载时透明底+文字看不见） */
+const sidebarAvatarUrl = computed(() => {
+  const raw = normalizeMediaUrl(userProfile.value.avatar)
+  if (raw && isDisplayableMediaUrl(raw)) return raw
+  return generateDefaultAvatar(userProfile.value.nickname || t('nav.me'))
+})
 
 // 渲染下拉菜单项图标的工厂函数
 function renderIcon(icon: Component) {
@@ -268,9 +277,9 @@ function handleSelfAvatarClick(e: MouseEvent) {
     <button type="button" class="sidebar-avatar" :title="t('nav.profile')" @click="handleSelfAvatarClick">
       <Avatar
         :text="userProfile.nickname.charAt(0) || t('nav.me')"
-        :color="userProfile.avatar ? 'transparent' : 'var(--lx-success)'"
+        color="transparent"
         :size="40"
-        :image-url="userProfile.avatar || undefined"
+        :image-url="sidebarAvatarUrl"
       />
     </button>
 

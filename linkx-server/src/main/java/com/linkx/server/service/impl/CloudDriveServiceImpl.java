@@ -70,17 +70,7 @@ public class CloudDriveServiceImpl implements CloudDriveService {
     @Override
     @Transactional
     public DriveStorageVO expandStorage(Long userId) {
-        UserStorage storage = ensureStorage(userId);
-        long next = storage.getQuotaBytes() + UserStorage.EXPAND_STEP_BYTES;
-        if (next > UserStorage.MAX_QUOTA_BYTES) {
-            throw new CustomException(400, "已达最大扩容上限（100 GB）");
-        }
-        storage.setQuotaBytes(next);
-        storage.setVersion(storage.getVersion() + 1);
-        userStorageMapper.update(storage);
-        logActivity(userId, CloudActivity.TARGET_STORAGE, userId, "存储空间",
-                CloudActivity.ACTION_EXPAND, "扩容 +5 GB");
-        return toStorageVO(storage);
+        throw new CustomException(403, "扩容需开通会员，请先购买 VIP / SVIP");
     }
 
     @Override
@@ -119,12 +109,13 @@ public class CloudDriveServiceImpl implements CloudDriveService {
         Map<Long, List<String>> tagMap = loadTags(userId, files.stream().map(CloudFile::getId).collect(Collectors.toSet()));
         SysUser me = sysUserMapper.selectOneById(userId);
         String uploader = me != null ? me.getNickname() : null;
+        String uploaderAvatar = me != null ? mediaUrlService.resolve(me.getAvatar()) : null;
         for (CloudFile f : files) {
             if (q != null && !f.getName().toLowerCase(Locale.ROOT).contains(q)
                     && !(f.getFileName() != null && f.getFileName().toLowerCase(Locale.ROOT).contains(q))) {
                 continue;
             }
-            result.add(toFileVO(f, tagMap.getOrDefault(f.getId(), List.of()), uploader));
+            result.add(toFileVO(f, tagMap.getOrDefault(f.getId(), List.of()), uploader, uploaderAvatar));
         }
 
         result.sort(Comparator
@@ -165,17 +156,21 @@ public class CloudDriveServiceImpl implements CloudDriveService {
         assertNoDuplicateFolder(userId, parentId, name, null);
 
         String path = parentPath.endsWith("/") ? parentPath + name : parentPath + "/" + name;
+        Date now = new Date();
         CloudFolder folder = CloudFolder.builder()
                 .userId(userId)
                 .parentId(parentId)
                 .name(name)
                 .path(path)
                 .sortOrder(0)
+                .createTime(now)
+                .updateTime(now)
                 .build();
         cloudFolderMapper.insert(folder);
+        CloudFolder saved = cloudFolderMapper.selectOneById(folder.getId());
         logActivity(userId, CloudActivity.TARGET_FOLDER, folder.getId(), name,
                 CloudActivity.ACTION_CREATE, "新建文件夹");
-        return toFolderVO(userId, folder);
+        return toFolderVO(userId, saved != null ? saved : folder);
     }
 
     @Override
@@ -203,6 +198,7 @@ public class CloudDriveServiceImpl implements CloudDriveService {
         }
         String original = file.getOriginalFilename() != null ? file.getOriginalFilename() : "file";
         String ext = extOf(original);
+        Date now = new Date();
         CloudFile entity = CloudFile.builder()
                 .userId(userId)
                 .folderId(folderId)
@@ -213,8 +209,14 @@ public class CloudDriveServiceImpl implements CloudDriveService {
                 .contentType(file.getContentType())
                 .ext(ext)
                 .category(categorize(ext, file.getContentType()))
+                .createTime(now)
+                .updateTime(now)
                 .build();
         cloudFileMapper.insert(entity);
+        CloudFile saved = cloudFileMapper.selectOneById(entity.getId());
+        if (saved != null) {
+            entity = saved;
+        }
 
         storage.setUsedBytes(storage.getUsedBytes() + size);
         storage.setFileCount(storage.getFileCount() + 1);
@@ -224,7 +226,12 @@ public class CloudDriveServiceImpl implements CloudDriveService {
         SysUser me = sysUserMapper.selectOneById(userId);
         logActivity(userId, CloudActivity.TARGET_FILE, entity.getId(), entity.getName(),
                 CloudActivity.ACTION_UPLOAD, "上传文件");
-        return toFileVO(entity, List.of(), me != null ? me.getNickname() : null);
+        return toFileVO(
+                entity,
+                List.of(),
+                me != null ? me.getNickname() : null,
+                me != null ? mediaUrlService.resolve(me.getAvatar()) : null
+        );
     }
 
     @Override
@@ -232,7 +239,12 @@ public class CloudDriveServiceImpl implements CloudDriveService {
         CloudFile file = requireFile(userId, fileId);
         SysUser me = sysUserMapper.selectOneById(userId);
         Map<Long, List<String>> tags = loadTags(userId, Set.of(fileId));
-        return toFileVO(file, tags.getOrDefault(fileId, List.of()), me != null ? me.getNickname() : null);
+        return toFileVO(
+                file,
+                tags.getOrDefault(fileId, List.of()),
+                me != null ? me.getNickname() : null,
+                me != null ? mediaUrlService.resolve(me.getAvatar()) : null
+        );
     }
 
     @Override
@@ -667,7 +679,7 @@ public class CloudDriveServiceImpl implements CloudDriveService {
                 .build();
     }
 
-    private DriveItemVO toFileVO(CloudFile f, List<String> tags, String uploader) {
+    private DriveItemVO toFileVO(CloudFile f, List<String> tags, String uploader, String uploaderAvatar) {
         return DriveItemVO.builder()
                 .kind("file")
                 .id(f.getId())
@@ -681,6 +693,7 @@ public class CloudDriveServiceImpl implements CloudDriveService {
                 .description(f.getDescription())
                 .tags(tags)
                 .uploaderName(uploader)
+                .uploaderAvatar(uploaderAvatar)
                 .createTime(f.getCreateTime() != null ? f.getCreateTime().getTime() : null)
                 .updateTime(f.getUpdateTime() != null ? f.getUpdateTime().getTime() : null)
                 .build();
@@ -715,6 +728,7 @@ public class CloudDriveServiceImpl implements CloudDriveService {
                 .targetName(name)
                 .action(action)
                 .detail(detail)
+                .createTime(new Date())
                 .build());
     }
 

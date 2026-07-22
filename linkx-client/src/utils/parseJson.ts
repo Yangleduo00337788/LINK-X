@@ -41,9 +41,9 @@ export function parseJsonPreservingIds<T = unknown>(raw: string): T {
     '"$1":"$2"'
   )
 
-  // 第二步：预处理数组中的所有大数（13 位以上的数字）
+  // 第二步：仅处理「数组元素」中的大数（避免把 createTime 等 13 位毫秒时间戳误转成字符串）
   // 将 [1234567890123456789, 9876543210987654321] 转为 ["1234567890123456789","9876543210987654321"]
-  normalized = normalized.replace(/(\d{13,})(?=[\],])/g, '"$1"')
+  normalized = normalized.replace(/([\[,]\s*)(\d{13,})(?=[\s\],])/g, '$1"$2"')
 
   try {
     return JSON.parse(normalized, (key, value) => {
