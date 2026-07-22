@@ -44,6 +44,9 @@ public class FavoriteServiceImpl implements FavoriteService {
     @Override
     @Transactional
     public FavoriteVO create(Long userId, SaveFavoriteDTO dto) {
+        if (!StringUtils.hasText(dto.getContent())) {
+            throw new CustomException(400, "收藏内容不能为空");
+        }
         Favorite fav = Favorite.builder()
                 .userId(userId)
                 .title(dto.getTitle())

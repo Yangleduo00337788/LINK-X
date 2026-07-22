@@ -1,6 +1,5 @@
 package com.linkx.server.controller.dto;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -11,7 +10,7 @@ public class SaveFavoriteDTO {
     @Size(max = 200)
     private String title;
 
-    @NotBlank(message = "收藏内容不能为空")
+    /** 创建时必填，由 Service 校验；更新时可只改 tags */
     @Size(max = 100000)
     private String content;
 
