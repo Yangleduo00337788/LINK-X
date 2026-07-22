@@ -23,7 +23,7 @@ class HealthControllerTest {
 
     @Test
     void healthEndpointShouldBeAccessibleWithoutAuth() throws Exception {
-        mockMvc.perform(get("/api/health"))
+        mockMvc.perform(get("/health"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.service").value("linkx-server"));
@@ -31,7 +31,7 @@ class HealthControllerTest {
 
     @Test
     void livenessEndpointShouldBeAccessibleWithoutAuth() throws Exception {
-        mockMvc.perform(get("/api/health/live"))
+        mockMvc.perform(get("/health/live"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.status").value("UP"));
@@ -39,14 +39,14 @@ class HealthControllerTest {
 
     @Test
     void readinessEndpointShouldBeAccessibleWithoutAuth() throws Exception {
-        mockMvc.perform(get("/api/health/ready"))
+        mockMvc.perform(get("/health/ready"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
     }
 
     @Test
     void healthShouldIncludeMysqlAndRedisStatus() throws Exception {
-        mockMvc.perform(get("/api/health"))
+        mockMvc.perform(get("/health"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.mysql").exists())
                 .andExpect(jsonPath("$.data.redis").exists())

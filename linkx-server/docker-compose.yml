@@ -16,7 +16,6 @@ services:
     volumes:
       - ./docker/mysql/data:/var/lib/mysql
       - ./init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
-      - ./migrations:/docker-entrypoint-initdb.d/migrations:ro
     restart: always
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]

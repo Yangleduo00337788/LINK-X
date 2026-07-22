@@ -880,6 +880,10 @@ public class ChatServiceImpl implements ChatService {
         if (ImMessage.TYPE_FILE.equals(msgType) && !StringUtils.hasText(dto.getFileName())) {
             throw new CustomException(400, "文件名不能为空");
         }
+        if (ImMessage.TYPE_VOICE.equals(msgType)
+                && (dto.getVoiceDuration() == null || dto.getVoiceDuration() <= 0)) {
+            throw new CustomException(400, "语音时长无效");
+        }
     }
 
     private String resolveContent(String msgType, SendMessageDTO dto) {

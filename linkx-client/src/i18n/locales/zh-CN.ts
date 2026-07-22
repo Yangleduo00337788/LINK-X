@@ -149,6 +149,14 @@ export default {
     callFailed: '发起通话失败',
     myFriends: '我的好友',
     voicePlayFail: '无法播放语音',
+    voiceUnsupported: '当前环境不支持语音录制',
+    voiceMicDenied: '无法使用麦克风，请检查系统权限',
+    voiceTooShort: '录音时间太短',
+    voiceRecordEmpty: '未录到有效语音',
+    voiceSent: '语音已发送',
+    voiceSendFail: '语音发送失败',
+    voiceRecording: '录音中 {n}"，再次点击发送',
+    voiceSending: '语音发送中…',
     imageMessage: '图片消息',
     ownRedPacket: '这是您发出的红包',
     copied: '已复制',
@@ -306,9 +314,9 @@ export default {
     moveToRoot: '移动到根目录',
     moveOk: '移动成功',
     moveFail: '移动失败',
-    uploadHint: '云端文件由聊天与群文件自动聚合，请在会话中发送文件',
-    newFolderHint: '自定义文件夹即将支持',
-    shareHint: '分享功能即将支持'
+    uploadHint: '支持上传到个人网盘，也可在会话中发送文件后自动归档',
+    newFolderHint: '可在网盘中新建文件夹整理文件',
+    shareHint: '可为文件或文件夹创建分享链接'
   },
   shortcuts: {
     title: '全局快捷键',

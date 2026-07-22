@@ -146,6 +146,14 @@ export default {
     callFailed: 'Failed to start call',
     myFriends: 'My friends',
     voicePlayFail: 'Unable to play voice message',
+    voiceUnsupported: 'Voice recording is not supported in this environment',
+    voiceMicDenied: 'Microphone access denied. Check system permissions',
+    voiceTooShort: 'Recording is too short',
+    voiceRecordEmpty: 'No valid audio captured',
+    voiceSent: 'Voice message sent',
+    voiceSendFail: 'Failed to send voice message',
+    voiceRecording: 'Recording {n}" — click again to send',
+    voiceSending: 'Sending voice…',
     imageMessage: 'Image',
     ownRedPacket: 'This is a red packet you sent',
     copied: 'Copied',
@@ -303,9 +311,9 @@ export default {
     moveToRoot: 'Move to root',
     moveOk: 'Moved',
     moveFail: 'Move failed',
-    uploadHint: 'Cloud files are aggregated from chats. Send files in a conversation.',
-    newFolderHint: 'Custom folders coming soon',
-    shareHint: 'Sharing coming soon'
+    uploadHint: 'Upload to your cloud drive, or send files in chat to archive them',
+    newFolderHint: 'Create folders in the cloud drive to organize files',
+    shareHint: 'Create share links for files or folders'
   },
   shortcuts: {
     title: 'Global shortcuts',

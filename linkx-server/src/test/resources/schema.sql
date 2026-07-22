@@ -18,12 +18,32 @@ CREATE TABLE IF NOT EXISTS sys_user (
   province VARCHAR(64),
   region VARCHAR(64),
   email VARCHAR(128),
+  phone VARCHAR(32),
   status TINYINT NOT NULL DEFAULT 1,
   create_time DATETIME,
   update_time DATETIME,
   create_by BIGINT,
   update_by BIGINT,
   deleted TINYINT NOT NULL DEFAULT 0
+);
+
+-- 敏感操作审计日志
+CREATE TABLE IF NOT EXISTS sys_audit_log (
+  id BIGINT NOT NULL PRIMARY KEY,
+  operation_type VARCHAR(50) NOT NULL,
+  description VARCHAR(255),
+  user_id BIGINT,
+  username VARCHAR(64),
+  target_user_id BIGINT,
+  target_username VARCHAR(64),
+  target_resource_id VARCHAR(128),
+  target_resource_type VARCHAR(50),
+  ip VARCHAR(64),
+  user_agent VARCHAR(512),
+  status VARCHAR(20) NOT NULL,
+  failure_reason VARCHAR(255),
+  extra_data TEXT,
+  create_time DATETIME
 );
 
 -- 好友关系表
@@ -167,6 +187,9 @@ CREATE TABLE IF NOT EXISTS moments_post (
   id BIGINT NOT NULL PRIMARY KEY,
   user_id BIGINT NOT NULL,
   content TEXT,
+  location VARCHAR(255),
+  at_users TEXT,
+  visibility INT DEFAULT 0,
   create_time DATETIME,
   deleted TINYINT NOT NULL DEFAULT 0
 );
@@ -278,6 +301,9 @@ CREATE TABLE IF NOT EXISTS user_preference (
   language VARCHAR(16) NOT NULL DEFAULT 'zh-CN',
   chat_background VARCHAR(32) NOT NULL DEFAULT 'default',
   notify_tone VARCHAR(32) NOT NULL DEFAULT 'default',
+  moments_background VARCHAR(512),
+  favorites_view_mode VARCHAR(16) DEFAULT 'grid',
+  favorites_sort VARCHAR(16) DEFAULT 'newest',
   create_time DATETIME,
   update_time DATETIME
 );

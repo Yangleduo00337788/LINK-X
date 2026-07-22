@@ -89,7 +89,7 @@ class SysUserTest {
                     "http://avatar.url", "签名", "女",
                     1234567890L, "中国", "广东", "深圳",
                     1, now, now, 1L, 1L, 0,
-                    "fulluser@linkx.com"
+                    "fulluser@linkx.com", "13800138000"
             );
 
             assertEquals(1L, user.getId());

@@ -1064,7 +1064,7 @@ export const useAppStore = defineStore('app', {
         let fileName = options.fileName
         let fileSizeNum: number | undefined
 
-        if (type === 'image' || type === 'file') {
+        if (type === 'image' || type === 'file' || type === 'voice') {
           let uploadFile: File | null = options.rawFile ?? null
           console.log('[发送消息] 准备上传文件:', { type, hasRawFile: !!uploadFile, rawFileSize: uploadFile?.size, rawFileName: uploadFile?.name, contentLength: content.length, contentPrefix: content.substring(0, 50) })
           if (!uploadFile && type === 'image' && content.startsWith('data:')) {
@@ -1084,6 +1084,14 @@ export const useAppStore = defineStore('app', {
             // fileSize 可能是 number 或 string，统一转为 number
             const sizeValue = uploadRes.data.fileSize
             fileSizeNum = typeof sizeValue === 'string' ? Number(sizeValue) || 0 : sizeValue
+            if (type === 'voice') {
+              const local = this.messagesBySession[id]?.find(m => m.id === clientMsgId)
+              if (local) {
+                local.voiceUrl = fileUrl
+                local.fileUrl = fileUrl
+                local.fileName = fileName
+              }
+            }
           }
         }
 
@@ -1091,7 +1099,7 @@ export const useAppStore = defineStore('app', {
           fileUrl = trimmed || content
         }
 
-        if ((type === 'image' || type === 'file') && !fileUrl) {
+        if ((type === 'image' || type === 'file' || type === 'voice') && !fileUrl) {
           throw new Error('文件上传失败')
         }
 

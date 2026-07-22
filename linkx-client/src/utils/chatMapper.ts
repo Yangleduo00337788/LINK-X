@@ -96,6 +96,10 @@ export function messageToChatMessage(message: MessageItem, sessionId: string): C
       content = message.fileUrl || message.content
       isImage = true
       break
+    case 'voice':
+      content = '[语音]'
+      fileUrl = message.fileUrl || message.content
+      break
     case 'recall':
       content = '撤回了一条消息'
       isImage = false
@@ -152,6 +156,11 @@ export function messageToChatMessage(message: MessageItem, sessionId: string): C
     fileUrl,
     isImage,
     fileStatus,
+    voiceDuration: type === 'voice' ? message.voiceDuration : undefined,
+    voiceUrl:
+      type === 'voice'
+        ? normalizeMediaUrl(message.fileUrl || message.content) || undefined
+        : undefined,
     redPacketGreeting,
     redPacketAmount,
     redPacketId,

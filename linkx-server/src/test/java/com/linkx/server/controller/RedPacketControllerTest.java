@@ -26,8 +26,8 @@ class RedPacketControllerTest extends BaseIntegrationTest {
                 {
                     "conversationId": 1,
                     "type": "normal",
-                    "amount": "10.00",
-                    "count": 1
+                    "totalAmount": 10.00,
+                    "totalCount": 1
                 }
                 """;
 

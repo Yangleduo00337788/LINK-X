@@ -8,7 +8,7 @@
  * </p>
  */
 // Vue 响应式 API
-import { ref, computed, nextTick, watch } from 'vue'
+import { ref, computed, nextTick, watch, onUnmounted } from 'vue'
 // Naive UI 组件与消息提示
 import { NIcon, NInput, NPopover, useMessage } from 'naive-ui'
 // 工具栏图标（Ionicons5）
@@ -40,6 +40,12 @@ import type { ChatMessage, ContactItem } from '../../types'
 import { CHAT_EMOJIS } from '../../constants/emojis'
 // 文件工具：大小格式化、DataURL 读取、图片大小上限
 import { formatFileSize, MAX_IMAGE_BYTES } from '../../utils/file'
+import {
+  VOICE_MAX_SECONDS,
+  blobToVoiceFile,
+  isVoiceDurationValid,
+  pickVoiceMimeType
+} from '../../utils/voiceRecorder'
 import { useI18n } from '../../i18n'
 import AtMentionPicker from '../common/AtMentionPicker.vue'
 
@@ -339,20 +345,6 @@ async function toolScreenshot() {
   }
 }
 
-/** 真实会话暂不支持的功能提示 */
-function warnUnsupportedOnRealSession(feature: string): boolean {
-  if (currentSession.value?.isReal) {
-    message.warning(t('chat.realSessionUnsupported', { feature }))
-    return true
-  }
-  return false
-}
-
-/** 暂不支持的功能提示 */
-function showUnsupported(feature: string) {
-  message.info(t('chat.featureComingSoon', { feature }))
-}
-
 /** 触发红包弹窗：真实会话与非真实会话都允许发红包，由 RedPacketModal 决定是否调用后端 */
 function toolRedPacket() {
   if (props.isMyPhone) return
@@ -455,12 +447,178 @@ function onPaste(e: ClipboardEvent) {
   }
 }
 
-/**
- * 语音录制（暂不支持，提示用户）
- */
-function toggleVoiceRecord() {
-  showUnsupported(t('chat.voice'))
+// —— 语音录制 ——
+const isRecordingVoice = ref(false)
+const voiceRecordSeconds = ref(0)
+const voiceSending = ref(false)
+let mediaRecorder: MediaRecorder | null = null
+let mediaStream: MediaStream | null = null
+let voiceChunks: BlobPart[] = []
+let voiceStartedAt = 0
+let voiceTickTimer: number | null = null
+let voiceMaxTimer: number | null = null
+
+function clearVoiceTimers() {
+  if (voiceTickTimer != null) {
+    window.clearInterval(voiceTickTimer)
+    voiceTickTimer = null
+  }
+  if (voiceMaxTimer != null) {
+    window.clearTimeout(voiceMaxTimer)
+    voiceMaxTimer = null
+  }
 }
+
+function stopMediaTracks() {
+  mediaStream?.getTracks().forEach(track => track.stop())
+  mediaStream = null
+}
+
+function resetVoiceRecorderState() {
+  clearVoiceTimers()
+  stopMediaTracks()
+  mediaRecorder = null
+  voiceChunks = []
+  isRecordingVoice.value = false
+  voiceRecordSeconds.value = 0
+  voiceStartedAt = 0
+}
+
+/**
+ * 结束录音并可选发送。cancel=true 时丢弃结果。
+ */
+async function finishVoiceRecord(cancel: boolean) {
+  const recorder = mediaRecorder
+  if (!recorder || recorder.state === 'inactive') {
+    resetVoiceRecorderState()
+    return
+  }
+
+  const mimeType = recorder.mimeType || pickVoiceMimeType() || 'audio/webm'
+  const startedAt = voiceStartedAt
+
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    recorder.ondataavailable = (ev) => {
+      if (ev.data && ev.data.size > 0) voiceChunks.push(ev.data)
+    }
+    recorder.onerror = () => reject(new Error('voice_record_error'))
+    recorder.onstop = () => {
+      resolve(new Blob(voiceChunks, { type: mimeType }))
+    }
+    try {
+      recorder.stop()
+    } catch (e) {
+      reject(e)
+    }
+  }).catch(() => null)
+
+  const durationSec = Math.round((Date.now() - startedAt) / 1000)
+  resetVoiceRecorderState()
+
+  if (cancel || !blob || blob.size === 0) {
+    if (!cancel) message.warning(t('chat.voiceRecordEmpty'))
+    return
+  }
+  if (!isVoiceDurationValid(durationSec)) {
+    message.warning(t('chat.voiceTooShort'))
+    return
+  }
+
+  const file = blobToVoiceFile(blob, mimeType, durationSec)
+  const voiceUrl = URL.createObjectURL(blob)
+  voiceSending.value = true
+  try {
+    await sendMessage('[语音]', {
+      type: 'voice',
+      voiceDuration: durationSec,
+      voiceUrl,
+      fileUrl: voiceUrl,
+      fileName: file.name,
+      fileSize: formatFileSize(file.size),
+      rawFile: file
+    })
+    message.success(t('chat.voiceSent'))
+    emit('scrollToBottom')
+  } catch {
+    URL.revokeObjectURL(voiceUrl)
+    message.error(t('chat.voiceSendFail'))
+  } finally {
+    voiceSending.value = false
+  }
+}
+
+/**
+ * 开始麦克风录音；再次点击结束并发送，超时自动发送。
+ */
+async function startVoiceRecord() {
+  if (!ensureCanSend() || voiceSending.value) return
+  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+    message.warning(t('chat.voiceUnsupported'))
+    return
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    mediaStream = stream
+    const mimeType = pickVoiceMimeType()
+    mediaRecorder = mimeType
+      ? new MediaRecorder(stream, { mimeType })
+      : new MediaRecorder(stream)
+    voiceChunks = []
+    voiceStartedAt = Date.now()
+    voiceRecordSeconds.value = 0
+    isRecordingVoice.value = true
+
+    mediaRecorder.ondataavailable = (ev) => {
+      if (ev.data && ev.data.size > 0) voiceChunks.push(ev.data)
+    }
+    mediaRecorder.start(200)
+
+    voiceTickTimer = window.setInterval(() => {
+      voiceRecordSeconds.value = Math.min(
+        VOICE_MAX_SECONDS,
+        Math.floor((Date.now() - voiceStartedAt) / 1000)
+      )
+    }, 200)
+
+    voiceMaxTimer = window.setTimeout(() => {
+      void finishVoiceRecord(false)
+    }, VOICE_MAX_SECONDS * 1000)
+  } catch (e) {
+    console.error('[语音] 无法开始录音:', e)
+    resetVoiceRecorderState()
+    message.error(t('chat.voiceMicDenied'))
+  }
+}
+
+/**
+ * 切换语音录制：未录制时开始，录制中再点则停止并发送。
+ */
+async function toggleVoiceRecord() {
+  if (voiceSending.value) return
+  if (isRecordingVoice.value) {
+    await finishVoiceRecord(false)
+    return
+  }
+  await startVoiceRecord()
+}
+
+watch(currentSessionId, () => {
+  if (isRecordingVoice.value) {
+    void finishVoiceRecord(true)
+  }
+})
+
+onUnmounted(() => {
+  if (isRecordingVoice.value && mediaRecorder && mediaRecorder.state !== 'inactive') {
+    try {
+      mediaRecorder.stop()
+    } catch {
+      /* ignore */
+    }
+  }
+  resetVoiceRecorderState()
+})
 
 /** 选中表情追加到输入框并关闭表情面板 */
 function pickEmoji(e: string) {
@@ -651,7 +809,20 @@ defineExpose({
           >
             <n-icon :component="GiftOutline" :size="20" />
           </button>
-          <button type="button" class="tool-btn" :title="t('chat.voice')" @click="toggleVoiceRecord">
+          <button
+            type="button"
+            class="tool-btn"
+            :class="{ 'tool-btn--recording': isRecordingVoice }"
+            :title="
+              isRecordingVoice
+                ? t('chat.voiceRecording', { n: voiceRecordSeconds })
+                : voiceSending
+                  ? t('chat.voiceSending')
+                  : t('chat.voice')
+            "
+            :disabled="inputDisabled || voiceSending"
+            @click="toggleVoiceRecord"
+          >
             <n-icon :component="MicOutline" :size="20" />
           </button>
         </div>

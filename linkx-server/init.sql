@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS `sys_user` (
   `create_by` bigint DEFAULT NULL COMMENT '创建人',
   `update_by` bigint DEFAULT NULL COMMENT '更新人',
   `deleted` tinyint(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除(0:未删除 1:已删除)',
+  `email` varchar(128) DEFAULT NULL COMMENT '用户邮箱，用于找回密码',
+  `phone` varchar(32) DEFAULT NULL COMMENT '手机号，用于账号安全绑定',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_username` (`username`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统用户表';
@@ -213,6 +215,9 @@ CREATE TABLE IF NOT EXISTS `moments_post` (
   `id` bigint NOT NULL COMMENT '主键ID',
   `user_id` bigint NOT NULL COMMENT '发布者用户ID',
   `content` text COMMENT '动态内容',
+  `location` varchar(255) DEFAULT NULL COMMENT '位置文案',
+  `at_users` text COMMENT '提及用户 JSON',
+  `visibility` int DEFAULT 0 COMMENT '可见范围',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '发布时间',
   `deleted` tinyint(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除',
   PRIMARY KEY (`id`),
@@ -375,6 +380,17 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+-- sys_user 表新增 phone 列（如不存在）
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sys_user' AND COLUMN_NAME = 'phone') = 0,
+    'ALTER TABLE `sys_user` ADD COLUMN `phone` varchar(32) DEFAULT NULL COMMENT ''手机号，用于账号安全绑定''',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 -- note 表新增 type 列（如不存在）
 SET @sql = (SELECT IF(
     (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
@@ -452,6 +468,9 @@ CREATE TABLE IF NOT EXISTS `user_preference` (
   `language` varchar(16) NOT NULL DEFAULT 'zh-CN' COMMENT '界面语言',
   `chat_background` varchar(32) NOT NULL DEFAULT 'default' COMMENT '聊天背景主题',
   `notify_tone` varchar(32) NOT NULL DEFAULT 'default' COMMENT '提示音（音色 ID）',
+  `moments_background` varchar(512) DEFAULT NULL COMMENT '友链背景图（对象存储 key）',
+  `favorites_view_mode` varchar(16) DEFAULT 'grid' COMMENT '收藏视图: grid/list',
+  `favorites_sort` varchar(16) DEFAULT 'newest' COMMENT '收藏排序: newest/oldest/title',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`user_id`)
@@ -527,6 +546,8 @@ CREATE TABLE IF NOT EXISTS `favorite` (
   `type` varchar(20) NOT NULL DEFAULT 'note' COMMENT '类型: note/image/link/file/message',
   `source_type` varchar(32) DEFAULT NULL COMMENT '来源类型',
   `source_id` varchar(64) DEFAULT NULL COMMENT '来源业务ID',
+  `tags` varchar(500) DEFAULT NULL COMMENT 'JSON 字符串数组，如 ["工作","学习"]',
+  `file_size` bigint DEFAULT NULL COMMENT '文件/图片大小（字节）',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted` tinyint(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除',
@@ -534,94 +555,73 @@ CREATE TABLE IF NOT EXISTS `favorite` (
   KEY `idx_user_time` (`user_id`, `update_time`),
   KEY `idx_user_type` (`user_id`, `type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户收藏表';
--- 缇ょ瑷€锛氬叏浣撶瑷€ / 瀹氭椂鍏ㄤ綋绂佽█ / 鎴愬憳绂佽█
 
--- 1. 浼氳瘽绾у叏浣撶瑷€
-SET @sql = (SELECT IF(
-    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'im_conversation' AND COLUMN_NAME = 'mute_all') = 0,
-    'ALTER TABLE `im_conversation` ADD COLUMN `mute_all` tinyint(1) NOT NULL DEFAULT 0 COMMENT ''鍏ㄤ綋绂佽█(0鍏?寮€)'' AFTER `owner_id`',
-    'SELECT 1'
-));
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
-SET @sql = (SELECT IF(
-    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'im_conversation' AND COLUMN_NAME = 'mute_all_start') = 0,
-    'ALTER TABLE `im_conversation` ADD COLUMN `mute_all_start` datetime DEFAULT NULL COMMENT ''瀹氭椂鍏ㄤ綋绂佽█寮€濮嬫椂闂?' AFTER `mute_all`',
-    'SELECT 1'
-));
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
-SET @sql = (SELECT IF(
-    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'im_conversation' AND COLUMN_NAME = 'mute_all_end') = 0,
-    'ALTER TABLE `im_conversation` ADD COLUMN `mute_all_end` datetime DEFAULT NULL COMMENT ''瀹氭椂鍏ㄤ綋绂佽█缁撴潫鏃堕棿'' AFTER `mute_all_start`',
-    'SELECT 1'
-));
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
--- 2. 鎴愬憳绾х瑷€
-SET @sql = (SELECT IF(
-    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'im_conversation_member' AND COLUMN_NAME = 'muted') = 0,
-    'ALTER TABLE `im_conversation_member` ADD COLUMN `muted` tinyint(1) NOT NULL DEFAULT 0 COMMENT ''鏄惁绂佽█(0鍚?鏄?'' AFTER `remark`',
-    'SELECT 1'
-));
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
-SET @sql = (SELECT IF(
-    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'im_conversation_member' AND COLUMN_NAME = 'mute_until') = 0,
-    'ALTER TABLE `im_conversation_member` ADD COLUMN `mute_until` datetime DEFAULT NULL COMMENT ''鎴愬憳绂佽█鎴鏃堕棿(绌?鎵嬪姩瑙ｉ櫎)'' AFTER `muted`',
-    'SELECT 1'
-));
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
--- 群禁言字段（幂等，见 migrations/20260721_group_mute.sql）
-
--- 涓汉缃戠洏锛氭枃浠跺す / 鏂囦欢 / 鏍囩 / 鍒嗕韩 / 閰嶉 / 鍔ㄦ€?
-CREATE TABLE IF NOT EXISTS `user_storage` (
-  `user_id`      bigint NOT NULL COMMENT '鐢ㄦ埛ID',
-  `quota_bytes`  bigint NOT NULL DEFAULT 21474836480 COMMENT '閰嶉锛岄粯璁?0GiB',
-  `used_bytes`   bigint NOT NULL DEFAULT 0 COMMENT '宸茬敤',
-  `file_count`   int    NOT NULL DEFAULT 0,
-  `version`      int    NOT NULL DEFAULT 0 COMMENT '涔愯閿?,
+-- ================================================
+-- 25. 收藏空间配额
+-- ================================================
+CREATE TABLE IF NOT EXISTS `favorite_storage` (
+  `user_id`      bigint NOT NULL COMMENT '用户ID',
+  `quota_bytes`  bigint NOT NULL DEFAULT 21474836480 COMMENT '配额，默认20GiB',
+  `used_bytes`   bigint NOT NULL DEFAULT 0 COMMENT '已用（可由 file_size 汇总校正）',
+  `item_count`   int    NOT NULL DEFAULT 0 COMMENT '收藏条数',
+  `version`      int    NOT NULL DEFAULT 0,
   `create_time`  datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `update_time`  datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='鐢ㄦ埛缃戠洏閰嶉';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户收藏空间配额';
+
+-- ================================================
+-- 26. 收藏标签库
+-- ================================================
+CREATE TABLE IF NOT EXISTS `favorite_tag` (
+  `id`           bigint NOT NULL,
+  `user_id`      bigint NOT NULL,
+  `name`         varchar(64) NOT NULL,
+  `color`        varchar(16) DEFAULT NULL COMMENT '展示色，如 #3b82f6',
+  `sort_order`   int NOT NULL DEFAULT 0,
+  `preset`       tinyint(1) NOT NULL DEFAULT 0 COMMENT '1=系统预设',
+  `create_time`  datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time`  datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted`      tinyint(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `idx_ft_user_name` (`user_id`, `name`, `deleted`),
+  KEY `idx_ft_user` (`user_id`, `deleted`, `sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户收藏标签库';
+
+-- ================================================
+-- 27. 个人网盘：配额 / 文件夹 / 文件 / 标签 / 分享 / 动态
+-- ================================================
+CREATE TABLE IF NOT EXISTS `user_storage` (
+  `user_id`      bigint NOT NULL COMMENT '用户ID',
+  `quota_bytes`  bigint NOT NULL DEFAULT 21474836480 COMMENT '配额，默认20GiB',
+  `used_bytes`   bigint NOT NULL DEFAULT 0 COMMENT '已用',
+  `file_count`   int    NOT NULL DEFAULT 0,
+  `version`      int    NOT NULL DEFAULT 0 COMMENT '乐观锁',
+  `create_time`  datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time`  datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户网盘配额';
 
 CREATE TABLE IF NOT EXISTS `cloud_folder` (
   `id`           bigint NOT NULL,
   `user_id`      bigint NOT NULL,
-  `parent_id`    bigint DEFAULT NULL COMMENT 'NULL=鏍圭洰褰?,
+  `parent_id`    bigint DEFAULT NULL COMMENT 'NULL=根目录',
   `name`         varchar(255) NOT NULL,
-  `path`         varchar(1024) NOT NULL DEFAULT '/' COMMENT '鐗╁寲璺緞',
+  `path`         varchar(1024) NOT NULL DEFAULT '/' COMMENT '物化路径',
   `sort_order`   int NOT NULL DEFAULT 0,
   `create_time`  datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `update_time`  datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `deleted`      tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   KEY `idx_cf_user_parent` (`user_id`, `parent_id`, `deleted`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='涓汉缃戠洏鏂囦欢澶?;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='个人网盘文件夹';
 
 CREATE TABLE IF NOT EXISTS `cloud_file` (
   `id`             bigint NOT NULL,
   `user_id`        bigint NOT NULL,
-  `folder_id`      bigint DEFAULT NULL COMMENT 'NULL=鏍圭洰褰?,
-  `name`           varchar(255) NOT NULL COMMENT '灞曠ず鍚?,
-  `file_name`      varchar(255) NOT NULL COMMENT '鍘熷鏂囦欢鍚?,
+  `folder_id`      bigint DEFAULT NULL COMMENT 'NULL=根目录',
+  `name`           varchar(255) NOT NULL COMMENT '展示名',
+  `file_name`      varchar(255) NOT NULL COMMENT '原始文件名',
   `file_size`      bigint NOT NULL DEFAULT 0,
   `file_key`       varchar(500) NOT NULL,
   `content_type`   varchar(128) DEFAULT NULL,
@@ -634,7 +634,7 @@ CREATE TABLE IF NOT EXISTS `cloud_file` (
   PRIMARY KEY (`id`),
   KEY `idx_cfile_user_folder` (`user_id`, `folder_id`, `deleted`, `create_time`),
   KEY `idx_cfile_category` (`user_id`, `category`, `deleted`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='涓汉缃戠洏鏂囦欢';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='个人网盘文件';
 
 CREATE TABLE IF NOT EXISTS `cloud_file_tag` (
   `id`          bigint NOT NULL,
@@ -645,7 +645,7 @@ CREATE TABLE IF NOT EXISTS `cloud_file_tag` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_cft_file_tag` (`file_id`, `tag_name`),
   KEY `idx_cft_user_tag` (`user_id`, `tag_name`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='缃戠洏鏂囦欢鏍囩';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='网盘文件标签';
 
 CREATE TABLE IF NOT EXISTS `cloud_share` (
   `id`              bigint NOT NULL,
@@ -657,13 +657,13 @@ CREATE TABLE IF NOT EXISTS `cloud_share` (
   `expire_at`       datetime DEFAULT NULL,
   `max_downloads`   int DEFAULT NULL,
   `download_count`  int NOT NULL DEFAULT 0,
-  `status`          tinyint NOT NULL DEFAULT 1 COMMENT '1鏈夋晥 0鍏抽棴',
+  `status`          tinyint NOT NULL DEFAULT 1 COMMENT '1有效 0关闭',
   `create_time`     datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `update_time`     datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_cs_token` (`token`),
   KEY `idx_cs_user_target` (`user_id`, `share_type`, `target_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='缃戠洏鍒嗕韩';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='网盘分享';
 
 CREATE TABLE IF NOT EXISTS `cloud_activity` (
   `id`           bigint NOT NULL,
@@ -677,5 +677,5 @@ CREATE TABLE IF NOT EXISTS `cloud_activity` (
   PRIMARY KEY (`id`),
   KEY `idx_ca_user_target` (`user_id`, `target_type`, `target_id`, `create_time`),
   KEY `idx_ca_user_time` (`user_id`, `create_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='缃戠洏鍔ㄦ€?;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='网盘动态';
 
