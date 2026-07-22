@@ -90,30 +90,6 @@ const sharePassword = ref('')
 const shareTarget = ref<DriveItemVO | null>(null)
 const shareSubmitting = ref(false)
 
-/** 会员扩容弹窗 */
-const vipModalShow = ref(false)
-const vipTier = ref<'vip' | 'svip'>('vip')
-const vipPlan = ref('vip-month')
-
-type VipPlan = {
-  key: string
-  tier: 'vip' | 'svip'
-  label: string
-  price: number
-  storage: string
-}
-
-const vipPlans: VipPlan[] = [
-  { key: 'vip-month', tier: 'vip', label: '月卡（1个月）', price: 18, storage: '2G' },
-  { key: 'vip-quarter', tier: 'vip', label: '季卡（3个月）', price: 50, storage: '10G' },
-  { key: 'vip-year', tier: 'vip', label: '年卡（1年）', price: 268, storage: '30G' },
-  { key: 'svip-month', tier: 'svip', label: '月卡（1个月）', price: 28, storage: '8G' },
-  { key: 'svip-quarter', tier: 'svip', label: '季卡（3个月）', price: 88, storage: '20G' },
-  { key: 'svip-year', tier: 'svip', label: '年卡（1年）', price: 368, storage: '60G' }
-]
-
-const filteredVipPlans = computed(() => vipPlans.filter(p => p.tier === vipTier.value))
-
 const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
 
 onMounted(() => {
@@ -122,11 +98,6 @@ onMounted(() => {
 
 watch(search, q => {
   void drive.fetchItems(q.trim() || undefined)
-})
-
-watch(vipTier, tier => {
-  const first = vipPlans.find(p => p.tier === tier)
-  if (first) vipPlan.value = first.key
 })
 
 const sortedItems = computed(() => {
@@ -297,18 +268,13 @@ function onNewFolder() {
   })()
 }
 
-function onExpandStorage() {
-  vipTier.value = 'vip'
-  vipPlan.value = 'vip-month'
-  vipModalShow.value = true
-}
-
-function onVipPurchase() {
-  const plan = vipPlans.find(p => p.key === vipPlan.value)
-  message.info(
-    t('files.vipPurchaseSoon', { plan: plan?.label || '', price: String(plan?.price ?? 0) })
-  )
-  vipModalShow.value = false
+async function onExpandStorage() {
+  try {
+    await drive.expandStorage()
+    message.success(t('files.expandOk'))
+  } catch (err) {
+    message.error(err instanceof Error ? err.message : t('files.expandFail'))
+  }
 }
 
 async function downloadItem(item: DriveItemVO) {
@@ -973,45 +939,6 @@ void MoveOutline
         </div>
       </template>
     </n-modal>
-
-    <!-- 会员扩容 -->
-    <n-modal
-      v-model:show="vipModalShow"
-      preset="card"
-      :title="t('files.vipTitle')"
-      style="width: 480px"
-      :mask-closable="true"
-    >
-      <p class="vip-need">{{ t('files.vipNeedHint') }}</p>
-      <div class="vip-tabs">
-        <button type="button" class="vip-tab" :class="{ active: vipTier === 'vip' }" @click="vipTier = 'vip'">
-          VIP
-        </button>
-        <button type="button" class="vip-tab" :class="{ active: vipTier === 'svip' }" @click="vipTier = 'svip'">
-          SVIP
-        </button>
-      </div>
-      <div class="vip-plans">
-        <button
-          v-for="p in filteredVipPlans"
-          :key="p.key"
-          type="button"
-          class="vip-plan"
-          :class="{ active: vipPlan === p.key }"
-          @click="vipPlan = p.key"
-        >
-          <div class="vip-plan-label">{{ p.label }}</div>
-          <div class="vip-plan-price">¥{{ p.price }}</div>
-          <div class="vip-plan-storage">{{ t('files.vipStorage', { size: p.storage }) }}</div>
-        </button>
-      </div>
-      <template #footer>
-        <div class="modal-actions">
-          <n-button @click="vipModalShow = false">{{ t('common.cancel') }}</n-button>
-          <n-button type="primary" @click="onVipPurchase">{{ t('files.vipBuy') }}</n-button>
-        </div>
-      </template>
-    </n-modal>
   </div>
 </template>
 
@@ -1196,21 +1123,4 @@ void MoveOutline
 .share-pwd-label { margin-bottom: 6px; font-size: 13px; color: var(--lx-text-muted); }
 .share-pwd-row { display: flex; gap: 8px; }
 .share-hint { margin: 0; font-size: 12px; color: var(--lx-text-muted); }
-.vip-need { margin: 0 0 14px; font-size: 13px; color: var(--lx-text-secondary); line-height: 1.5; }
-.vip-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
-.vip-tab {
-  flex: 1; height: 36px; border: 1px solid var(--lx-border-strong); border-radius: var(--lx-radius);
-  background: var(--lx-bg-card); color: var(--lx-text-secondary); cursor: pointer; font-weight: 600;
-}
-.vip-tab.active { border-color: var(--lx-accent); color: var(--lx-accent); background: var(--lx-accent-soft); }
-.vip-plans { display: grid; grid-template-columns: 1fr; gap: 8px; }
-.vip-plan {
-  text-align: left; border: 1px solid var(--lx-border-light); border-radius: var(--lx-radius);
-  padding: 12px 14px; background: var(--lx-bg-card); cursor: pointer;
-}
-.vip-plan:hover { background: var(--lx-bg-hover); }
-.vip-plan.active { border-color: var(--lx-accent); background: var(--lx-accent-soft); }
-.vip-plan-label { font-size: 14px; font-weight: 600; color: var(--lx-text); }
-.vip-plan-price { margin-top: 4px; font-size: 18px; font-weight: 700; color: var(--lx-accent); }
-.vip-plan-storage { margin-top: 2px; font-size: 12px; color: var(--lx-text-muted); }
 </style>

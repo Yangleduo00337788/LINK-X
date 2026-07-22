@@ -71,7 +71,17 @@ public class CloudDriveServiceImpl implements CloudDriveService {
     @Override
     @Transactional
     public DriveStorageVO expandStorage(Long userId) {
-        throw new CustomException(403, "扩容需开通会员，请先购买 VIP / SVIP");
+        UserStorage storage = ensureStorage(userId);
+        long next = storage.getQuotaBytes() + UserStorage.EXPAND_STEP_BYTES;
+        if (next > UserStorage.MAX_QUOTA_BYTES) {
+            throw new CustomException(400, "已达最大扩容上限（100 GB）");
+        }
+        storage.setQuotaBytes(next);
+        storage.setVersion(storage.getVersion() + 1);
+        userStorageMapper.update(storage);
+        logActivity(userId, CloudActivity.TARGET_STORAGE, userId, "存储空间",
+                CloudActivity.ACTION_EXPAND, "扩容 +5 GB");
+        return toStorageVO(storage);
     }
 
     @Override

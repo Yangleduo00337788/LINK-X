@@ -305,13 +305,7 @@ export default {
     moveFail: 'Move failed',
     uploadHint: 'Cloud files are aggregated from chats. Send files in a conversation.',
     newFolderHint: 'Custom folders coming soon',
-    shareHint: 'Sharing coming soon',
-    expandHint: 'Storage upgrades coming soon',
-    vipTitle: 'Upgrade with membership',
-    vipNeedHint: 'Storage expansion requires a membership. Choose a VIP / SVIP plan to continue.',
-    vipStorage: '+{size} storage',
-    vipBuy: 'Subscribe',
-    vipPurchaseSoon: 'Selected “{plan}” ¥{price}. Payment coming soon.'
+    shareHint: 'Sharing coming soon'
   },
   shortcuts: {
     title: 'Global shortcuts',

@@ -308,13 +308,7 @@ export default {
     moveFail: '移动失败',
     uploadHint: '云端文件由聊天与群文件自动聚合，请在会话中发送文件',
     newFolderHint: '自定义文件夹即将支持',
-    shareHint: '分享功能即将支持',
-    expandHint: '扩容功能即将支持',
-    vipTitle: '开通会员扩容',
-    vipNeedHint: '存储扩容需开通会员。请选择 VIP / SVIP 套餐后开通。',
-    vipStorage: '容量 +{size}',
-    vipBuy: '立即开通',
-    vipPurchaseSoon: '已选择「{plan}」¥{price}，支付能力即将开通'
+    shareHint: '分享功能即将支持'
   },
   shortcuts: {
     title: '全局快捷键',
