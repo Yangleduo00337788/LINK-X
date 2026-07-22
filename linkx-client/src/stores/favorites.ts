@@ -40,17 +40,39 @@ function parseTags(raw?: string | null): string[] {
 }
 
 function looksLikeUrl(s: string): boolean {
-  return /^https?:\/\//i.test(s.trim()) || s.trim().startsWith('data:image')
+  return /^https?:\/\//i.test(s.trim()) || s.trim().startsWith('data:image') || s.trim().startsWith('blob:')
+}
+
+function isImagePath(s: string): boolean {
+  return /\.(png|jpe?g|gif|webp|bmp|svg)(\?|#|$)/i.test(s)
+}
+
+/**
+ * 仅图片 / 文件生成封面；笔记、聊天记录、其它不展示图。
+ * 文件无扩展名时仍尝试用 URL（加载失败由 UI @error 回退）。
+ */
+function resolveCoverUrl(type: FavoriteItem['type'], content: string, _title: string): string | undefined {
+  if (type !== 'image' && type !== 'file' && type !== 'link') return undefined
+  // data:image 可能含空白，不能按空白截断
+  const raw = content.trim().startsWith('data:image')
+    ? content.trim()
+    : (content || '').trim().split(/\s|\n/)[0] || ''
+  if (!raw || !looksLikeUrl(raw)) return undefined
+  // 历史 bug：收藏时把 URL 截成约 80 字，几乎必然无法加载
+  if (/^https?:\/\//i.test(raw) && raw.length < 96 && !isImagePath(raw) && !/[?&]X-Amz-Signature=/i.test(raw)) {
+    return undefined
+  }
+  const url = normalizeMediaUrl(raw)
+  if (!url || !isDisplayableMediaUrl(url)) return undefined
+  if (type === 'image' || type === 'file') return url
+  if (type === 'link' && isImagePath(url)) return url
+  return undefined
 }
 
 function mapVo(f: FavoriteVO): FavoriteItem {
   const content = f.content || ''
   const type = mapFavoriteType(f.type)
-  let coverUrl: string | undefined
-  if ((type === 'image' || type === 'link') && looksLikeUrl(content)) {
-    const url = normalizeMediaUrl(content.split(/\s|\n/)[0])
-    if (url && isDisplayableMediaUrl(url)) coverUrl = url
-  }
+  const coverUrl = resolveCoverUrl(type, content, f.title || '')
   let createTimeMs: number | undefined
   if (f.createTime) {
     const parsed = Date.parse(f.createTime.replace(/-/g, '/'))
@@ -59,7 +81,7 @@ function mapVo(f: FavoriteVO): FavoriteItem {
   return {
     id: String(f.id),
     title: f.title || '无标题',
-    preview: content.slice(0, 120),
+    preview: type === 'image' || type === 'file' ? (f.title || content.slice(0, 80)) : content.slice(0, 120),
     content,
     type,
     tags: parseTags(f.tags),

@@ -191,6 +191,15 @@ function fileExtIcon(item: FavoriteItem) {
   return { label: 'FILE', color: '#64748b', bg: '#f1f5f9' }
 }
 
+/** 仅图片、文件展示封面图；笔记等不展示 */
+function showCover(item: FavoriteItem): boolean {
+  return (item.type === 'image' || item.type === 'file') && !!item.coverUrl
+}
+
+function onCoverError(item: FavoriteItem) {
+  item.coverUrl = undefined
+}
+
 function cardMenuOptions(item: FavoriteItem) {
   return [
     { label: t('favorites.open'), key: 'open' },
@@ -437,7 +446,15 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
           @dblclick="openItem(item)"
         >
           <div class="card-media" :class="item.type">
-            <img v-if="item.coverUrl" :src="item.coverUrl" alt="" class="card-cover" />
+            <img
+              v-if="showCover(item)"
+              :src="item.coverUrl"
+              alt=""
+              class="card-cover"
+              loading="lazy"
+              decoding="async"
+              @error="onCoverError(item)"
+            />
             <template v-else-if="item.type === 'file'">
               <div
                 class="file-badge"
@@ -525,7 +542,14 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
           @click="openItem(item)"
         >
           <div class="list-thumb">
-            <img v-if="item.coverUrl" :src="item.coverUrl" alt="" />
+            <img
+              v-if="showCover(item)"
+              :src="item.coverUrl"
+              alt=""
+              loading="lazy"
+              decoding="async"
+              @error="onCoverError(item)"
+            />
             <n-icon
               v-else
               :component="

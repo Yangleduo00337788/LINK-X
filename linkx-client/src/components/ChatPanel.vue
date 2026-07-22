@@ -542,34 +542,57 @@ function copyMessage(msg: ChatMessage) {
   message.success(t('chat.copied'))
 }
 
-// 收藏消息到收藏夹
+// 收藏消息到收藏夹（图片/文件必须存完整 URL，禁止截断）
 function favoriteMessage(msg: ChatMessage) {
+  const mediaUrl = (msg.fileUrl || msg.content || '').trim()
+  const sizeBytes = parseFavoriteFileSize(msg.fileSize)
   if (msg.type === 'file') {
-    favoritesStore.add({
-      title: msg.fileName || msg.content,
-      preview: msg.fileSize || '',
-      type: 'file'
+    void favoritesStore.add({
+      title: msg.fileName || msg.content || t('chat.file'),
+      content: mediaUrl || msg.fileName || msg.content,
+      preview: msg.fileSize || msg.fileName || '',
+      type: 'file',
+      fileSize: sizeBytes
     })
   } else if (msg.type === 'image' || msg.isImage) {
-    favoritesStore.add({
-      title: t('chat.imageMessage'),
-      preview: msg.content.slice(0, 80),
-      type: 'image'
+    void favoritesStore.add({
+      title: msg.fileName || t('chat.imageMessage'),
+      content: mediaUrl,
+      preview: msg.fileName || t('chat.imageMessage'),
+      type: 'image',
+      fileSize: sizeBytes
     })
   } else if (msg.type === 'link') {
-    favoritesStore.add({
+    void favoritesStore.add({
       title: msg.content.slice(0, 30),
+      content: msg.linkUrl || msg.content,
       preview: msg.content,
       type: 'link'
     })
   } else {
-    favoritesStore.add({
+    void favoritesStore.add({
       title: msg.content.slice(0, 20) || t('chat.messageFallback'),
+      content: msg.content,
       preview: msg.content,
       type: 'note'
     })
   }
   message.success(t('chat.favorited'))
+}
+
+/** 将「1.2 MB」类展示串尽量还原为字节；无法解析则忽略 */
+function parseFavoriteFileSize(raw?: string): number | undefined {
+  if (!raw) return undefined
+  const s = raw.trim()
+  if (!s) return undefined
+  const m = s.match(/^([\d.]+)\s*(B|KB|MB|GB|TB)?$/i)
+  if (!m) return undefined
+  const n = Number(m[1])
+  if (!Number.isFinite(n)) return undefined
+  const unit = (m[2] || 'B').toUpperCase()
+  const mul =
+    unit === 'TB' ? 1024 ** 4 : unit === 'GB' ? 1024 ** 3 : unit === 'MB' ? 1024 ** 2 : unit === 'KB' ? 1024 : 1
+  return Math.round(n * mul)
 }
 
 // 消息右键菜单相关状态
