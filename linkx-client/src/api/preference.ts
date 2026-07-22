@@ -19,6 +19,8 @@ export interface UserPreference {
   notifyTone: string
   /** 友链背景图签名 URL */
   momentsBackground?: string
+  favoritesViewMode?: string
+  favoritesSort?: string
 }
 
 /**

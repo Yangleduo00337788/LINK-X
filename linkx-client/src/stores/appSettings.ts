@@ -33,6 +33,8 @@ type SyncableKey =
   | 'language'
   | 'chatBackground'
   | 'notifyTone'
+  | 'favoritesViewMode'
+  | 'favoritesSort'
 
 const SYNCABLE_KEYS: SyncableKey[] = [
   'autoStart',
@@ -45,7 +47,9 @@ const SYNCABLE_KEYS: SyncableKey[] = [
   'privacyShowOnline',
   'language',
   'chatBackground',
-  'notifyTone'
+  'notifyTone',
+  'favoritesViewMode',
+  'favoritesSort'
 ]
 
 // 字段到"中文显示名"的映射，供 toast 文案使用
@@ -60,7 +64,9 @@ const FIELD_LABEL: Record<SyncableKey, string> = {
   privacyShowOnline: '在线状态可见',
   language: '界面语言',
   chatBackground: '聊天背景',
-  notifyTone: '提示音'
+  notifyTone: '提示音',
+  favoritesViewMode: '收藏视图',
+  favoritesSort: '收藏排序'
 }
 
 // debounce 800ms：避免快速连续点击导致请求风暴
@@ -84,6 +90,10 @@ function defaultState() {
     chatBackground: 'default' as ChatBackgroundId,
     notifyTone: 'default' as NotifyToneId,
     momentsBackground: '' as string,
+    /** 收藏视图：grid / list（云端同步） */
+    favoritesViewMode: 'grid' as 'grid' | 'list',
+    /** 收藏排序：newest / oldest / title（云端同步） */
+    favoritesSort: 'newest' as 'newest' | 'oldest' | 'title',
     /** 关闭窗口时最小化到托盘（本地 + Electron 主进程） */
     minimizeToTray: true,
     /** 启动时打开主窗口或仅托盘（本地 + Electron 主进程） */
@@ -203,6 +213,14 @@ export const useAppSettingsStore = defineStore('appSettings', {
       if (typeof mb === 'string' && mb) {
         this.momentsBackground = mb
       }
+      const vm = (data as { favoritesViewMode?: unknown }).favoritesViewMode
+      if (vm === 'grid' || vm === 'list') {
+        this.favoritesViewMode = vm
+      }
+      const sk = (data as { favoritesSort?: unknown }).favoritesSort
+      if (sk === 'newest' || sk === 'oldest' || sk === 'title') {
+        this.favoritesSort = sk
+      }
     },
 
     /**
@@ -246,6 +264,8 @@ export const useAppSettingsStore = defineStore('appSettings', {
       'chatBackground',
       'notifyTone',
       'momentsBackground',
+      'favoritesViewMode',
+      'favoritesSort',
       'minimizeToTray',
       'openOnStartup',
       'accentColor',

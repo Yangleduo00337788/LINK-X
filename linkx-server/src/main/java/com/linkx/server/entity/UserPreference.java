@@ -63,6 +63,12 @@ public class UserPreference implements Serializable {
     /** 友链背景图（对象存储 key） */
     private String momentsBackground;
 
+    /** 收藏视图：grid / list */
+    private String favoritesViewMode;
+
+    /** 收藏排序：newest / oldest / title */
+    private String favoritesSort;
+
     @Column(onInsertValue = "NOW()")
     private Date createTime;
 

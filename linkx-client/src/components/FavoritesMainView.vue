@@ -2,7 +2,7 @@
 /**
  * 收藏主视图 — 按设计稿全宽重做（分类侧栏 + 卡片网格）
  */
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import {
   NIcon,
   NInput,
@@ -32,6 +32,7 @@ import {
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useFavoritesStore } from '../stores/favorites'
+import { useAppSettingsStore } from '../stores/appSettings'
 import type { FavoriteItem } from '../types'
 import { formatFileSize } from '../utils/file'
 import { useOverlayStore } from '../stores/overlay'
@@ -42,76 +43,66 @@ const dialog = useDialog()
 const router = useRouter()
 const { t } = useI18n()
 const favStore = useFavoritesStore()
+const appSettings = useAppSettingsStore()
 const overlayStore = useOverlayStore()
-const { items, loading, usedBytes } = storeToRefs(favStore)
-
-/** 收藏空间配额（与设计稿一致，后续可对接会员） */
-const QUOTA_BYTES = 30 * 1024 * 1024 * 1024
+const { items, loading, tags, typeCounts, usedBytes, quotaBytes, usedPercent } = storeToRefs(favStore)
+const { favoritesViewMode, favoritesSort } = storeToRefs(appSettings)
 
 type CategoryKey = 'all' | 'link' | 'image' | 'file' | 'note' | 'message' | 'other'
-
-const PRESET_TAGS = [
-  { key: '工作', color: '#f43f5e' },
-  { key: '学习', color: '#3b82f6' },
-  { key: '生活', color: '#22c55e' },
-  { key: '灵感', color: '#f59e0b' },
-  { key: '重要', color: '#a855f7' }
-] as const
 
 const search = ref('')
 const category = ref<CategoryKey>('all')
 const activeTag = ref<string | null>(null)
-const viewMode = ref<'grid' | 'list'>('grid')
-const sortKey = ref<'newest' | 'oldest' | 'title'>('newest')
+
+const viewMode = computed({
+  get: () => favoritesViewMode.value,
+  set: (v: 'grid' | 'list') => {
+    appSettings.favoritesViewMode = v
+    appSettings.scheduleSave('favoritesViewMode')
+  }
+})
+
+const sortKey = computed({
+  get: () => favoritesSort.value,
+  set: (v: 'newest' | 'oldest' | 'title') => {
+    appSettings.favoritesSort = v
+    appSettings.scheduleSave('favoritesSort')
+  }
+})
 
 const tagModalShow = ref(false)
 const tagModalItem = ref<FavoriteItem | null>(null)
 const tagDraft = ref('')
 const newTagModalShow = ref(false)
 const newTagName = ref('')
+const newTagColor = ref('#94a3b8')
 
 onMounted(() => {
-  if (!favStore.initialized) void favStore.fetchFavorites()
+  void favStore.refreshAll()
 })
 
 const categoryCounts = computed(() => {
-  const c: Record<CategoryKey, number> = {
-    all: items.value.length,
-    link: 0,
-    image: 0,
-    file: 0,
-    note: 0,
-    message: 0,
-    other: 0
-  }
-  for (const i of items.value) {
-    const k = (i.type || 'note') as CategoryKey
-    if (k in c && k !== 'all') c[k] += 1
-    else c.other += 1
-  }
-  return c
+  const c = typeCounts.value || {}
+  return {
+    all: c.all ?? items.value.length,
+    link: c.link ?? 0,
+    image: c.image ?? 0,
+    file: c.file ?? 0,
+    note: c.note ?? 0,
+    message: c.message ?? 0,
+    other: c.other ?? 0
+  } as Record<CategoryKey, number>
 })
 
-const tagCounts = computed(() => {
-  const map: Record<string, number> = {}
-  for (const tag of PRESET_TAGS) map[tag.key] = 0
-  for (const i of items.value) {
-    for (const tag of i.tags || []) {
-      map[tag] = (map[tag] || 0) + 1
-    }
-  }
-  return map
-})
-
-const displayTags = computed(() => {
-  const extras = Object.keys(tagCounts.value).filter(
-    k => !PRESET_TAGS.some(p => p.key === k) && tagCounts.value[k] > 0
-  )
-  return [
-    ...PRESET_TAGS.map(p => ({ ...p, count: tagCounts.value[p.key] || 0 })),
-    ...extras.map(k => ({ key: k, color: '#94a3b8', count: tagCounts.value[k] || 0 }))
-  ]
-})
+const displayTags = computed(() =>
+  (tags.value || []).map(tag => ({
+    id: tag.id,
+    key: tag.name,
+    color: tag.color || '#94a3b8',
+    count: tag.count ?? 0,
+    preset: !!tag.preset
+  }))
+)
 
 const filteredItems = computed(() => {
   let list = [...items.value]
@@ -138,10 +129,8 @@ const filteredItems = computed(() => {
 })
 
 const usedLabel = computed(() => formatFileSize(usedBytes.value))
-const quotaLabel = computed(() => formatFileSize(QUOTA_BYTES))
-const usedPercent = computed(() =>
-  Math.min(100, Math.round((usedBytes.value / QUOTA_BYTES) * 1000) / 10)
-)
+const quotaLabel = computed(() => formatFileSize(quotaBytes.value))
+const storagePercent = computed(() => usedPercent.value)
 
 const categoryItems = computed(() => [
   { key: 'all' as CategoryKey, label: t('favorites.allFavorites'), icon: StarOutline },
@@ -164,16 +153,22 @@ const sortLabel = computed(() => {
   return hit?.label || t('favorites.sortNewest')
 })
 
-watch(category, () => {
-  // keep tag filter when switching category
-})
-
 function setCategory(key: CategoryKey) {
   category.value = key
 }
 
 function toggleTag(key: string) {
   activeTag.value = activeTag.value === key ? null : key
+}
+
+function setSort(key: string) {
+  if (key === 'newest' || key === 'oldest' || key === 'title') {
+    sortKey.value = key
+  }
+}
+
+function setViewMode(mode: 'grid' | 'list') {
+  viewMode.value = mode
 }
 
 function openNewNote() {
@@ -274,20 +269,49 @@ async function saveTags() {
 
 function openNewTagModal() {
   newTagName.value = ''
+  newTagColor.value = '#94a3b8'
   newTagModalShow.value = true
 }
 
-function confirmNewTag() {
+async function confirmNewTag() {
   const name = newTagName.value.trim()
   if (!name) return
-  activeTag.value = name
-  newTagModalShow.value = false
-  message.info(t('favorites.tagFilterHint', { name }))
+  try {
+    await favStore.createTag(name, newTagColor.value)
+    activeTag.value = name
+    newTagModalShow.value = false
+    message.success(t('favorites.tagCreated'))
+  } catch (err) {
+    message.error(err instanceof Error ? err.message : t('favorites.tagCreateFail'))
+  }
 }
 
 function tagColor(name: string) {
-  const hit = PRESET_TAGS.find(p => p.key === name)
+  const hit = displayTags.value.find(p => p.key === name)
   return hit?.color || '#94a3b8'
+}
+
+function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset: boolean }) {
+  e.preventDefault()
+  if (tag.preset) {
+    message.info(t('favorites.presetTagLocked'))
+    return
+  }
+  dialog.warning({
+    title: t('favorites.deleteTag'),
+    content: t('favorites.deleteTagConfirm', { name: tag.key }),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      try {
+        await favStore.deleteTag(tag.id)
+        if (activeTag.value === tag.key) activeTag.value = null
+        message.success(t('favorites.tagDeleted'))
+      } catch (err) {
+        message.error(err instanceof Error ? err.message : t('favorites.tagDeleteFail'))
+      }
+    }
+  })
 }
 </script>
 
@@ -324,11 +348,13 @@ function tagColor(name: string) {
       <div class="side-tags">
         <button
           v-for="tag in displayTags"
-          :key="tag.key"
+          :key="tag.id"
           type="button"
           class="tag-item"
           :class="{ active: activeTag === tag.key }"
+          :title="tag.preset ? undefined : t('favorites.tagContextHint')"
           @click="toggleTag(tag.key)"
+          @contextmenu="onTagContextMenu($event, tag)"
         >
           <span class="tag-dot" :style="{ background: tag.color }" />
           <span class="tag-name">{{ tag.key }}</span>
@@ -343,7 +369,7 @@ function tagColor(name: string) {
         </div>
         <div class="storage-usage">{{ usedLabel }} / {{ quotaLabel }}</div>
         <div class="storage-bar">
-          <div class="storage-fill" :style="{ width: `${usedPercent}%` }" />
+          <div class="storage-fill" :style="{ width: `${storagePercent}%` }" />
         </div>
       </div>
     </aside>
@@ -372,7 +398,7 @@ function tagColor(name: string) {
             class="view-btn"
             :class="{ active: viewMode === 'grid' }"
             :title="t('favorites.gridView')"
-            @click="viewMode = 'grid'"
+            @click="setViewMode('grid')"
           >
             <n-icon :component="GridOutline" :size="18" />
           </button>
@@ -381,7 +407,7 @@ function tagColor(name: string) {
             class="view-btn"
             :class="{ active: viewMode === 'list' }"
             :title="t('favorites.listView')"
-            @click="viewMode = 'list'"
+            @click="setViewMode('list')"
           >
             <n-icon :component="ListOutline" :size="18" />
           </button>
@@ -397,7 +423,7 @@ function tagColor(name: string) {
           }}
           <span class="sub-count">({{ filteredItems.length }})</span>
         </h3>
-        <n-dropdown :options="sortOptions" @select="(k: string) => (sortKey = k as typeof sortKey)">
+        <n-dropdown :options="sortOptions" @select="setSort">
           <button type="button" class="sort-btn">{{ sortLabel }} ▾</button>
         </n-dropdown>
       </div>
@@ -773,7 +799,7 @@ function tagColor(name: string) {
   font-size: 13px;
   cursor: pointer;
 }
-.sort-btn:hover { color: var(--fav-accent); }
+.sort-btn:hover { color: var(--lx-accent); }
 
 .fav-grid {
   flex: 1;
@@ -849,7 +875,7 @@ function tagColor(name: string) {
   height: 24px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.92);
-  color: var(--fav-accent);
+  color: var(--lx-accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -936,7 +962,7 @@ function tagColor(name: string) {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--fav-accent);
+  color: var(--lx-accent);
   flex-shrink: 0;
 }
 .list-thumb img { width: 100%; height: 100%; object-fit: cover; }

@@ -112,6 +112,8 @@ public class UserPreferenceServiceImpl
         if (patch.getChatBackground() != null) target.setChatBackground(patch.getChatBackground());
         if (patch.getNotifyTone() != null) target.setNotifyTone(patch.getNotifyTone());
         if (patch.getMomentsBackground() != null) target.setMomentsBackground(patch.getMomentsBackground());
+        if (patch.getFavoritesViewMode() != null) target.setFavoritesViewMode(patch.getFavoritesViewMode());
+        if (patch.getFavoritesSort() != null) target.setFavoritesSort(patch.getFavoritesSort());
     }
 
     /** 生成与表默认值一致的偏好对象（不包含时间戳，由 MyBatis-Flex 填充） */
@@ -129,6 +131,8 @@ public class UserPreferenceServiceImpl
                 .language("zh-CN")
                 .chatBackground("default")
                 .notifyTone("default")
+                .favoritesViewMode("grid")
+                .favoritesSort("newest")
                 .build();
     }
 }

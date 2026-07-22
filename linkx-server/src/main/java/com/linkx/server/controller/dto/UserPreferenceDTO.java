@@ -23,4 +23,6 @@ public class UserPreferenceDTO {
     private String chatBackground;
     private String notifyTone;
     private String momentsBackground;
+    private String favoritesViewMode;
+    private String favoritesSort;
 }

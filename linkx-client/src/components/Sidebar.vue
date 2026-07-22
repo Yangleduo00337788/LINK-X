@@ -164,8 +164,8 @@ function refreshNavData(key: NavKey) {
       void notificationsStore.fetchGroupInvitations()
       break
     case 'favorites':
-      // 刷新收藏列表
-      void favoritesStore.fetchFavorites()
+      // 刷新收藏列表 / 空间 / 标签
+      void favoritesStore.refreshAll()
       break
     case 'files':
       void driveStore.refreshAll()

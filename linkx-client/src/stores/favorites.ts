@@ -1,13 +1,12 @@
 /**
  * 收藏 Store
- * 管理用户收藏的消息、笔记、链接等内容列表
- * 数据从后端 API 加载
+ * 管理用户收藏列表、空间配额、标签库（对接 /favorites）
  */
 
 import { defineStore } from 'pinia'
 import type { FavoriteItem } from '../types'
 import * as favoriteApi from '../api/favorite'
-import type { FavoriteVO } from '../api/favorite'
+import type { FavoriteStorageVO, FavoriteTagVO, FavoriteVO } from '../api/favorite'
 import { isDisplayableMediaUrl, normalizeMediaUrl } from '../utils/mediaUrl'
 
 function nowLabel(): string {
@@ -32,7 +31,7 @@ function parseTags(raw?: string | null): string[] {
       return parsed.map(x => String(x).trim()).filter(Boolean)
     }
   } catch {
-    // fallback: comma separated
+    // fallback
   }
   return t
     .split(/[,，]/)
@@ -71,20 +70,44 @@ function mapVo(f: FavoriteVO): FavoriteItem {
   }
 }
 
+const emptyTypeCounts = (): Record<string, number> => ({
+  all: 0,
+  link: 0,
+  image: 0,
+  file: 0,
+  note: 0,
+  message: 0,
+  other: 0
+})
+
 export const useFavoritesStore = defineStore('favorites', {
   state: () => ({
     items: [] as FavoriteItem[],
+    tags: [] as FavoriteTagVO[],
+    storage: null as FavoriteStorageVO | null,
+    typeCounts: emptyTypeCounts(),
     loading: false,
     initialized: false
   }),
 
   getters: {
     usedBytes(state): number {
-      return state.items.reduce((sum, i) => sum + (i.fileSize || 0), 0)
+      return state.storage?.usedBytes ?? 0
+    },
+    quotaBytes(state): number {
+      return state.storage?.quotaBytes ?? 30 * 1024 * 1024 * 1024
+    },
+    usedPercent(state): number {
+      return state.storage?.usedPercent ?? 0
     }
   },
 
   actions: {
+    async refreshAll() {
+      await Promise.all([this.fetchFavorites(), this.fetchStorage(), this.fetchTags()])
+      this.initialized = true
+    },
+
     async fetchFavorites() {
       if (this.loading) return
       this.loading = true
@@ -92,12 +115,37 @@ export const useFavoritesStore = defineStore('favorites', {
         const res = await favoriteApi.listFavorites()
         if (res.code === 200 && res.data) {
           this.items = res.data.map(mapVo)
-          this.initialized = true
         }
       } catch (e) {
         console.error('加载收藏列表失败:', e)
       } finally {
         this.loading = false
+      }
+    },
+
+    async fetchStorage() {
+      try {
+        const res = await favoriteApi.getFavoriteStorage()
+        if (res.code === 200 && res.data) {
+          this.storage = res.data
+          this.typeCounts = { ...emptyTypeCounts(), ...(res.data.typeCounts || {}) }
+          if (this.typeCounts.all == null) {
+            this.typeCounts.all = res.data.itemCount ?? this.items.length
+          }
+        }
+      } catch (e) {
+        console.error('加载收藏空间失败:', e)
+      }
+    },
+
+    async fetchTags() {
+      try {
+        const res = await favoriteApi.listFavoriteTags()
+        if (res.code === 200 && res.data) {
+          this.tags = res.data
+        }
+      } catch (e) {
+        console.error('加载收藏标签失败:', e)
       }
     },
 
@@ -119,6 +167,7 @@ export const useFavoritesStore = defineStore('favorites', {
         })
         if (res.code === 200 && res.data) {
           this.items.unshift(mapVo(res.data))
+          await Promise.all([this.fetchStorage(), this.fetchTags()])
           return true
         }
       } catch (e) {
@@ -132,6 +181,7 @@ export const useFavoritesStore = defineStore('favorites', {
         const res = await favoriteApi.removeFavorite(id)
         if (res.code === 200) {
           this.items = this.items.filter(i => i.id !== id)
+          await Promise.all([this.fetchStorage(), this.fetchTags()])
           return true
         }
       } catch (e) {
@@ -163,12 +213,31 @@ export const useFavoritesStore = defineStore('favorites', {
         if (res.code === 200 && res.data) {
           const idx = this.items.findIndex(i => i.id === id)
           if (idx >= 0) this.items[idx] = mapVo(res.data)
+          await this.fetchTags()
+          if (patch.fileSize != null) await this.fetchStorage()
           return true
         }
       } catch (e) {
         console.error('更新收藏失败:', e)
       }
       return false
+    },
+
+    async createTag(name: string, color?: string) {
+      const res = await favoriteApi.createFavoriteTag({ name, color })
+      if (res.code !== 200 || !res.data) {
+        throw new Error(res.message || '创建标签失败')
+      }
+      await this.fetchTags()
+      return res.data
+    },
+
+    async deleteTag(tagId: string) {
+      const res = await favoriteApi.deleteFavoriteTag(tagId)
+      if (res.code !== 200) {
+        throw new Error(res.message || '删除标签失败')
+      }
+      await this.fetchTags()
     }
   },
 

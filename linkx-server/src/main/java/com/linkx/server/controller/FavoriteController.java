@@ -4,6 +4,9 @@ import com.linkx.server.common.AuthUtils;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.Result;
 import com.linkx.server.controller.dto.SaveFavoriteDTO;
+import com.linkx.server.controller.dto.SaveFavoriteTagDTO;
+import com.linkx.server.controller.vo.FavoriteStorageVO;
+import com.linkx.server.controller.vo.FavoriteTagVO;
 import com.linkx.server.controller.vo.FavoriteVO;
 import com.linkx.server.service.FavoriteService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,6 +28,33 @@ public class FavoriteController {
     public Result<List<FavoriteVO>> list(HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         return Result.success(favoriteService.list(userId));
+    }
+
+    @GetMapping("/storage")
+    public Result<FavoriteStorageVO> storage(HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(favoriteService.getStorage(userId));
+    }
+
+    @GetMapping("/tags")
+    public Result<List<FavoriteTagVO>> tags(HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(favoriteService.listTags(userId));
+    }
+
+    @PostMapping("/tags")
+    public Result<FavoriteTagVO> createTag(
+            @Valid @RequestBody SaveFavoriteTagDTO dto,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(favoriteService.createTag(userId, dto));
+    }
+
+    @DeleteMapping("/tags/{tagId}")
+    public Result<Void> deleteTag(@PathVariable String tagId, HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        favoriteService.deleteTag(userId, parseId(tagId));
+        return Result.success(null);
     }
 
     @GetMapping("/{favoriteId}")

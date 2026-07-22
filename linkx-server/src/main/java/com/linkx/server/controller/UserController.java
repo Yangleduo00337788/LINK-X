@@ -333,6 +333,8 @@ public class UserController {
                 .chatBackground(emptyToNull(dto.getChatBackground()))
                 .notifyTone(emptyToNull(dto.getNotifyTone()))
                 .momentsBackground(emptyToNull(dto.getMomentsBackground()))
+                .favoritesViewMode(emptyToNull(dto.getFavoritesViewMode()))
+                .favoritesSort(emptyToNull(dto.getFavoritesSort()))
                 .build();
         UserPreference saved = userPreferenceService.upsert(userId, patch);
         return Result.success(toPreferenceVO(saved));
@@ -357,6 +359,8 @@ public class UserController {
                 .chatBackground(p.getChatBackground())
                 .notifyTone(p.getNotifyTone())
                 .momentsBackground(toSignedUrl(p.getMomentsBackground(), 24 * 3600))
+                .favoritesViewMode(p.getFavoritesViewMode() != null ? p.getFavoritesViewMode() : "grid")
+                .favoritesSort(p.getFavoritesSort() != null ? p.getFavoritesSort() : "newest")
                 .build();
     }
 
