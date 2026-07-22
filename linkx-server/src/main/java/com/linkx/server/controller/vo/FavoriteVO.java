@@ -17,6 +17,9 @@ public class FavoriteVO {
     private String type;
     private String sourceType;
     private String sourceId;
+    /** JSON 数组字符串 */
+    private String tags;
+    private Long fileSize;
     private String createTime;
     private String updateTime;
 }

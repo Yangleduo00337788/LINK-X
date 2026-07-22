@@ -20,8 +20,8 @@ import ChatPanel from './ChatPanel.vue'
 import ContactsPanel from './ContactsPanel.vue'
 // 联系人右侧主视图
 import ContactsMainView from './ContactsMainView.vue'
-// 收藏面板
-import FavoritesPanel from './FavoritesPanel.vue'
+// 收藏主视图（全宽，与文件一致）
+import FavoritesMainView from './FavoritesMainView.vue'
 // 文件主视图（全宽，与日历一致）
 import FilesMainView from './FilesMainView.vue'
 // 友链面板
@@ -135,8 +135,6 @@ const middleComponent = computed(() => {
       return ChatList
     case 'contacts':
       return ContactsPanel
-    case 'favorites':
-      return FavoritesPanel
     case 'calendar':
       return CalendarPanel
     case 'moments':
@@ -155,8 +153,9 @@ const showSystemNotify = computed(
 const showCalendarMain = computed(() => navKey.value === 'calendar')
 const showSettingsMain = computed(() => navKey.value === 'settings')
 const showFilesMain = computed(() => navKey.value === 'files')
+const showFavoritesMain = computed(() => navKey.value === 'favorites')
 const showPlaceholder = computed(() =>
-  ['contacts', 'favorites', 'moments'].includes(navKey.value)
+  ['contacts', 'moments'].includes(navKey.value)
 )
 
 /** 设置页中间列固定略宽，且不显示拖拽条 */
@@ -165,9 +164,15 @@ const effectiveListWidth = computed(() =>
   showSettingsMain.value ? settingsListWidth : listWidth.value
 )
 const showListResizer = computed(
-  () => !showCalendarMain.value && !showSettingsMain.value && !showFilesMain.value
+  () =>
+    !showCalendarMain.value &&
+    !showSettingsMain.value &&
+    !showFilesMain.value &&
+    !showFavoritesMain.value
 )
-const showMiddleList = computed(() => !showCalendarMain.value && !showFilesMain.value)
+const showMiddleList = computed(
+  () => !showCalendarMain.value && !showFilesMain.value && !showFavoritesMain.value
+)
 </script>
 
 <template>
@@ -210,13 +215,14 @@ const showMiddleList = computed(() => !showCalendarMain.value && !showFilesMain.
           :class="{
             'col-chat--calendar': showCalendarMain,
             'col-chat--settings': showSettingsMain,
-            'col-chat--files': showFilesMain
+            'col-chat--files': showFilesMain || showFavoritesMain
           }"
         >
           <SystemNotifyPanel v-if="showSystemNotify" />
           <ChatPanel v-else-if="showChatPanel" />
           <CalendarMainView v-else-if="showCalendarMain" />
           <FilesMainView v-else-if="showFilesMain" />
+          <FavoritesMainView v-else-if="showFavoritesMain" />
           <SettingsMainView v-else-if="showSettingsMain" />
           <ContactsMainView v-else-if="navKey === 'contacts'" />
           <PlaceholderMainView v-else-if="showPlaceholder" :nav="navKey" />

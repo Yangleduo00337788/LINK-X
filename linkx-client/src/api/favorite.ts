@@ -12,6 +12,8 @@ export interface FavoriteVO {
   type?: string
   sourceType?: string
   sourceId?: string
+  tags?: string
+  fileSize?: number
   createTime: string
   updateTime: string
 }
@@ -28,6 +30,8 @@ export function addFavorite(payload: {
   type?: FavoriteType
   sourceType?: string
   sourceId?: string
+  tags?: string
+  fileSize?: number
 }) {
   return apiClient.post<never, ApiResult<FavoriteVO>>('/favorites', payload)
 }
@@ -38,7 +42,13 @@ export function removeFavorite(favoriteId: string) {
 
 export function updateFavorite(
   favoriteId: string,
-  payload: { title?: string; content?: string; type?: FavoriteType }
+  payload: {
+    title?: string
+    content?: string
+    type?: FavoriteType
+    tags?: string
+    fileSize?: number
+  }
 ) {
   return apiClient.put<never, ApiResult<FavoriteVO>>(`/favorites/${favoriteId}`, payload)
 }

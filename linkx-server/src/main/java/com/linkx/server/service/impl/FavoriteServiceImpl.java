@@ -51,6 +51,8 @@ public class FavoriteServiceImpl implements FavoriteService {
                 .type(normalizeType(dto.getType()))
                 .sourceType(dto.getSourceType())
                 .sourceId(dto.getSourceId())
+                .tags(normalizeTags(dto.getTags()))
+                .fileSize(dto.getFileSize())
                 .build();
         favoriteMapper.insert(fav);
         return toVO(fav);
@@ -72,6 +74,12 @@ public class FavoriteServiceImpl implements FavoriteService {
         }
         if (dto.getSourceId() != null) {
             fav.setSourceId(dto.getSourceId());
+        }
+        if (dto.getTags() != null) {
+            fav.setTags(normalizeTags(dto.getTags()));
+        }
+        if (dto.getFileSize() != null) {
+            fav.setFileSize(dto.getFileSize());
         }
         favoriteMapper.update(fav);
         return toVO(fav);
@@ -105,6 +113,14 @@ public class FavoriteServiceImpl implements FavoriteService {
         };
     }
 
+    private String normalizeTags(String tags) {
+        if (!StringUtils.hasText(tags)) {
+            return null;
+        }
+        String t = tags.trim();
+        return t.length() > 500 ? t.substring(0, 500) : t;
+    }
+
     private FavoriteVO toVO(Favorite fav) {
         return FavoriteVO.builder()
                 .id(fav.getId())
@@ -113,6 +129,8 @@ public class FavoriteServiceImpl implements FavoriteService {
                 .type(fav.getType())
                 .sourceType(fav.getSourceType())
                 .sourceId(fav.getSourceId())
+                .tags(fav.getTags())
+                .fileSize(fav.getFileSize())
                 .createTime(fav.getCreateTime() == null ? null : TIME_FMT.format(fav.getCreateTime().toInstant()))
                 .updateTime(fav.getUpdateTime() == null ? null : TIME_FMT.format(fav.getUpdateTime().toInstant()))
                 .build();

@@ -143,8 +143,13 @@ export interface FavoriteItem {
   id: string
   title: string
   preview: string
+  content?: string
   time: string
-  type: 'note' | 'image' | 'link' | 'file'
+  type: 'note' | 'image' | 'link' | 'file' | 'message' | 'other'
+  tags?: string[]
+  fileSize?: number
+  coverUrl?: string
+  createTimeMs?: number
 }
 
 // 聊天背景预设 ID

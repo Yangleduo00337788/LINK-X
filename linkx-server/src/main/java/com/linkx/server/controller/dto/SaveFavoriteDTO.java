@@ -23,4 +23,10 @@ public class SaveFavoriteDTO {
 
     @Size(max = 64)
     private String sourceId;
+
+    /** JSON 数组字符串，如 ["工作","学习"] */
+    @Size(max = 500)
+    private String tags;
+
+    private Long fileSize;
 }

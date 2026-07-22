@@ -7,44 +7,91 @@
 import { defineStore } from 'pinia'
 import type { FavoriteItem } from '../types'
 import * as favoriteApi from '../api/favorite'
+import type { FavoriteVO } from '../api/favorite'
+import { isDisplayableMediaUrl, normalizeMediaUrl } from '../utils/mediaUrl'
 
-/** 生成新收藏项的默认时间标签 */
 function nowLabel(): string {
   return '今天'
 }
 
 function mapFavoriteType(type?: string): FavoriteItem['type'] {
-  if (type === 'image' || type === 'link' || type === 'file' || type === 'note') return type
+  if (type === 'image' || type === 'link' || type === 'file' || type === 'note' || type === 'message') {
+    return type
+  }
+  if (type === 'other') return 'other'
   return 'note'
 }
 
-// 定义并导出 favorites Store
+function parseTags(raw?: string | null): string[] {
+  if (!raw) return []
+  const t = raw.trim()
+  if (!t) return []
+  try {
+    const parsed = JSON.parse(t)
+    if (Array.isArray(parsed)) {
+      return parsed.map(x => String(x).trim()).filter(Boolean)
+    }
+  } catch {
+    // fallback: comma separated
+  }
+  return t
+    .split(/[,，]/)
+    .map(s => s.trim())
+    .filter(Boolean)
+}
+
+function looksLikeUrl(s: string): boolean {
+  return /^https?:\/\//i.test(s.trim()) || s.trim().startsWith('data:image')
+}
+
+function mapVo(f: FavoriteVO): FavoriteItem {
+  const content = f.content || ''
+  const type = mapFavoriteType(f.type)
+  let coverUrl: string | undefined
+  if ((type === 'image' || type === 'link') && looksLikeUrl(content)) {
+    const url = normalizeMediaUrl(content.split(/\s|\n/)[0])
+    if (url && isDisplayableMediaUrl(url)) coverUrl = url
+  }
+  let createTimeMs: number | undefined
+  if (f.createTime) {
+    const parsed = Date.parse(f.createTime.replace(/-/g, '/'))
+    if (Number.isFinite(parsed)) createTimeMs = parsed
+  }
+  return {
+    id: String(f.id),
+    title: f.title || '无标题',
+    preview: content.slice(0, 120),
+    content,
+    type,
+    tags: parseTags(f.tags),
+    fileSize: f.fileSize != null ? Number(f.fileSize) : undefined,
+    coverUrl,
+    createTimeMs,
+    time: f.createTime || f.updateTime || nowLabel()
+  }
+}
+
 export const useFavoritesStore = defineStore('favorites', {
   state: () => ({
-    items: [] as FavoriteItem[],    // 收藏列表（从后端加载）
+    items: [] as FavoriteItem[],
     loading: false,
-    initialized: false             // 是否已从后端加载
+    initialized: false
   }),
 
+  getters: {
+    usedBytes(state): number {
+      return state.items.reduce((sum, i) => sum + (i.fileSize || 0), 0)
+    }
+  },
+
   actions: {
-    /**
-     * 从后端加载收藏列表
-     */
     async fetchFavorites() {
       if (this.loading) return
       this.loading = true
       try {
         const res = await favoriteApi.listFavorites()
         if (res.code === 200 && res.data) {
-          this.items = res.data.map(f => ({
-            id: String(f.id),
-            title: f.title || '无标题',
-            preview: (f.content || '').slice(0, 100),
-            type: mapFavoriteType(f.type),
-            time: f.createTime
-              ? new Date(f.createTime).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
-              : nowLabel()
-          }))
+          this.items = res.data.map(mapVo)
           this.initialized = true
         }
       } catch (e) {
@@ -54,26 +101,24 @@ export const useFavoritesStore = defineStore('favorites', {
       }
     },
 
-    /**
-     * 新增收藏项
-     */
     async add(item: Omit<FavoriteItem, 'id' | 'time'> & { id?: string; time?: string }) {
       try {
         const res = await favoriteApi.addFavorite({
           title: item.title,
-          content: item.preview || item.title,
-          type: item.type === 'link' || item.type === 'image' || item.type === 'file' || item.type === 'note'
-            ? item.type
-            : 'note'
+          content: item.content || item.preview || item.title,
+          type:
+            item.type === 'link' ||
+            item.type === 'image' ||
+            item.type === 'file' ||
+            item.type === 'note' ||
+            item.type === 'message'
+              ? item.type
+              : 'note',
+          tags: item.tags?.length ? JSON.stringify(item.tags) : undefined,
+          fileSize: item.fileSize
         })
         if (res.code === 200 && res.data) {
-          this.items.unshift({
-            id: String(res.data.id),
-            title: res.data.title || item.title,
-            preview: item.preview || item.title,
-            type: mapFavoriteType(res.data.type) || item.type,
-            time: nowLabel()
-          })
+          this.items.unshift(mapVo(res.data))
           return true
         }
       } catch (e) {
@@ -82,9 +127,6 @@ export const useFavoritesStore = defineStore('favorites', {
       return false
     },
 
-    /**
-     * 按 id 删除收藏
-     */
     async remove(id: string) {
       try {
         const res = await favoriteApi.removeFavorite(id)
@@ -98,18 +140,29 @@ export const useFavoritesStore = defineStore('favorites', {
       return false
     },
 
-    /**
-     * 部分更新收藏项
-     */
-    async update(id: string, patch: Partial<Pick<FavoriteItem, 'title' | 'preview' | 'type'>>) {
+    async update(
+      id: string,
+      patch: Partial<Pick<FavoriteItem, 'title' | 'preview' | 'content' | 'type' | 'tags' | 'fileSize'>>
+    ) {
       try {
+        const current = this.items.find(i => i.id === id)
         const res = await favoriteApi.updateFavorite(id, {
           title: patch.title,
-          content: patch.preview
+          content: patch.content ?? patch.preview ?? current?.content ?? current?.preview,
+          type:
+            patch.type === 'link' ||
+            patch.type === 'image' ||
+            patch.type === 'file' ||
+            patch.type === 'note' ||
+            patch.type === 'message'
+              ? patch.type
+              : undefined,
+          tags: patch.tags ? JSON.stringify(patch.tags) : undefined,
+          fileSize: patch.fileSize
         })
         if (res.code === 200 && res.data) {
-          const item = this.items.find(i => i.id === id)
-          if (item) Object.assign(item, patch)
+          const idx = this.items.findIndex(i => i.id === id)
+          if (idx >= 0) this.items[idx] = mapVo(res.data)
           return true
         }
       } catch (e) {
@@ -119,5 +172,5 @@ export const useFavoritesStore = defineStore('favorites', {
     }
   },
 
-  persist: false // 改为从后端加载，不再持久化
+  persist: false
 })

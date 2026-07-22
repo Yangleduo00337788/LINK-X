@@ -41,6 +41,12 @@ public class Favorite implements Serializable {
 
     private String sourceId;
 
+    /** JSON 字符串数组，如 ["工作","学习"] */
+    private String tags;
+
+    /** 文件/图片大小（字节） */
+    private Long fileSize;
+
     @Column(onInsertValue = "NOW()")
     private Date createTime;
 
