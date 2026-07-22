@@ -65,7 +65,9 @@ public class FavoriteServiceImpl implements FavoriteService {
         if (dto.getTitle() != null) {
             fav.setTitle(dto.getTitle());
         }
-        fav.setContent(dto.getContent());
+        if (dto.getContent() != null) {
+            fav.setContent(dto.getContent());
+        }
         if (StringUtils.hasText(dto.getType())) {
             fav.setType(normalizeType(dto.getType()));
         }
