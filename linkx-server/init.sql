@@ -590,3 +590,92 @@ DEALLOCATE PREPARE stmt;
 
 -- 群禁言字段（幂等，见 migrations/20260721_group_mute.sql）
 
+-- 涓汉缃戠洏锛氭枃浠跺す / 鏂囦欢 / 鏍囩 / 鍒嗕韩 / 閰嶉 / 鍔ㄦ€?
+CREATE TABLE IF NOT EXISTS `user_storage` (
+  `user_id`      bigint NOT NULL COMMENT '鐢ㄦ埛ID',
+  `quota_bytes`  bigint NOT NULL DEFAULT 21474836480 COMMENT '閰嶉锛岄粯璁?0GiB',
+  `used_bytes`   bigint NOT NULL DEFAULT 0 COMMENT '宸茬敤',
+  `file_count`   int    NOT NULL DEFAULT 0,
+  `version`      int    NOT NULL DEFAULT 0 COMMENT '涔愯閿?,
+  `create_time`  datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time`  datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='鐢ㄦ埛缃戠洏閰嶉';
+
+CREATE TABLE IF NOT EXISTS `cloud_folder` (
+  `id`           bigint NOT NULL,
+  `user_id`      bigint NOT NULL,
+  `parent_id`    bigint DEFAULT NULL COMMENT 'NULL=鏍圭洰褰?,
+  `name`         varchar(255) NOT NULL,
+  `path`         varchar(1024) NOT NULL DEFAULT '/' COMMENT '鐗╁寲璺緞',
+  `sort_order`   int NOT NULL DEFAULT 0,
+  `create_time`  datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time`  datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted`      tinyint(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `idx_cf_user_parent` (`user_id`, `parent_id`, `deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='涓汉缃戠洏鏂囦欢澶?;
+
+CREATE TABLE IF NOT EXISTS `cloud_file` (
+  `id`             bigint NOT NULL,
+  `user_id`        bigint NOT NULL,
+  `folder_id`      bigint DEFAULT NULL COMMENT 'NULL=鏍圭洰褰?,
+  `name`           varchar(255) NOT NULL COMMENT '灞曠ず鍚?,
+  `file_name`      varchar(255) NOT NULL COMMENT '鍘熷鏂囦欢鍚?,
+  `file_size`      bigint NOT NULL DEFAULT 0,
+  `file_key`       varchar(500) NOT NULL,
+  `content_type`   varchar(128) DEFAULT NULL,
+  `ext`            varchar(32) DEFAULT NULL,
+  `category`       varchar(20) NOT NULL DEFAULT 'other',
+  `description`    varchar(1000) DEFAULT NULL,
+  `create_time`    datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time`    datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted`        tinyint(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `idx_cfile_user_folder` (`user_id`, `folder_id`, `deleted`, `create_time`),
+  KEY `idx_cfile_category` (`user_id`, `category`, `deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='涓汉缃戠洏鏂囦欢';
+
+CREATE TABLE IF NOT EXISTS `cloud_file_tag` (
+  `id`          bigint NOT NULL,
+  `user_id`     bigint NOT NULL,
+  `file_id`     bigint NOT NULL,
+  `tag_name`    varchar(64) NOT NULL,
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_cft_file_tag` (`file_id`, `tag_name`),
+  KEY `idx_cft_user_tag` (`user_id`, `tag_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='缃戠洏鏂囦欢鏍囩';
+
+CREATE TABLE IF NOT EXISTS `cloud_share` (
+  `id`              bigint NOT NULL,
+  `user_id`         bigint NOT NULL,
+  `share_type`      varchar(16) NOT NULL COMMENT 'file / folder',
+  `target_id`       bigint NOT NULL,
+  `token`           varchar(64) NOT NULL,
+  `password_hash`   varchar(255) DEFAULT NULL,
+  `expire_at`       datetime DEFAULT NULL,
+  `max_downloads`   int DEFAULT NULL,
+  `download_count`  int NOT NULL DEFAULT 0,
+  `status`          tinyint NOT NULL DEFAULT 1 COMMENT '1鏈夋晥 0鍏抽棴',
+  `create_time`     datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time`     datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_cs_token` (`token`),
+  KEY `idx_cs_user_target` (`user_id`, `share_type`, `target_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='缃戠洏鍒嗕韩';
+
+CREATE TABLE IF NOT EXISTS `cloud_activity` (
+  `id`           bigint NOT NULL,
+  `user_id`      bigint NOT NULL,
+  `target_type`  varchar(16) NOT NULL COMMENT 'file / folder',
+  `target_id`    bigint NOT NULL,
+  `target_name`  varchar(255) DEFAULT NULL,
+  `action`       varchar(32) NOT NULL COMMENT 'upload/create/rename/move/delete/share/tag/download/expand',
+  `detail`       varchar(500) DEFAULT NULL,
+  `create_time`  datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_ca_user_target` (`user_id`, `target_type`, `target_id`, `create_time`),
+  KEY `idx_ca_user_time` (`user_id`, `create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='缃戠洏鍔ㄦ€?;
+

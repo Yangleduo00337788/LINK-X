@@ -11,8 +11,8 @@ spring:
   # 与 linkx.minio.max-file-size 对齐；未配置时 Spring Boot 默认仅 1MB，群相册/聊天大图会上传失败
   servlet:
     multipart:
-      max-file-size: 10MB
-      max-request-size: 12MB
+      max-file-size: 100MB
+      max-request-size: 110MB
   datasource:
     url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/linkx?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false
     username: ${DB_USERNAME:root}
@@ -55,7 +55,7 @@ linkx:
     access-key: ${MINIO_ACCESS_KEY:minioadmin}
     secret-key: ${MINIO_SECRET_KEY:minioadmin123}
     bucket-name: ${MINIO_BUCKET_NAME:linkx}
-    max-file-size: 10485760  # 10MB
+    max-file-size: 104857600  # 100MB
   mail:
     # QQ 邮箱 SMTP 服务器
     host: ${MAIL_HOST:smtp.qq.com}

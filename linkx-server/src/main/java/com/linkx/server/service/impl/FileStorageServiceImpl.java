@@ -42,6 +42,8 @@ public class FileStorageServiceImpl implements FileStorageService {
             "text/plain", "text/markdown",
             // 压缩包
             "application/zip", "application/x-7z-compressed", "application/x-rar-compressed",
+            // 通用二进制（部分浏览器对未知类型上报）
+            "application/octet-stream",
             // 音频（语音消息）
             "audio/mpeg", "audio/wav", "audio/ogg", "audio/webm", "audio/aac", "audio/x-m4a"
     );

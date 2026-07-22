@@ -39,6 +39,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         api + "/auth/send-reset-code",
                         api + "/auth/verify-reset-code",
                         api + "/auth/reset-password-by-email",
+                        api + "/cloud/share/**",
                         // Swagger / OpenAPI
                         api + "/swagger-ui/**",
                         api + "/swagger-ui.html",
@@ -62,6 +63,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         api + "/auth/send-reset-code",
                         api + "/auth/verify-reset-code",
                         api + "/auth/reset-password-by-email",
+                        api + "/cloud/share/**",
                         // Swagger / OpenAPI
                         api + "/swagger-ui/**",
                         api + "/swagger-ui.html",
@@ -85,7 +87,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
             return;
         }
         registry.addMapping("/**")
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                 // 严格限制 Headers，避免通配
                 .allowedHeaders(
                         "Authorization",

@@ -32,7 +32,7 @@ import { useChatModalsStore } from '../stores/chatModals'
 import { useSettingsStore } from '../stores/settings'
 import { useOverlayStore } from '../stores/overlay'
 import { useFavoritesStore } from '../stores/favorites'
-import { useFilesStore } from '../stores/files'
+import { useDriveStore } from '../stores/drive'
 import { useContactsStore } from '../stores/contacts'
 import { useMomentsStore } from '../stores/moments'
 import { useCalendarStore } from '../stores/calendar'
@@ -46,7 +46,7 @@ const chatModalsStore = useChatModalsStore()
 const settingsStore = useSettingsStore()
 const overlayStore = useOverlayStore()
 const favoritesStore = useFavoritesStore()
-const filesStore = useFilesStore()
+const driveStore = useDriveStore()
 const contactsStore = useContactsStore()
 const momentsStore = useMomentsStore()
 const calendarStore = useCalendarStore()
@@ -159,7 +159,7 @@ function refreshNavData(key: NavKey) {
       void favoritesStore.fetchFavorites()
       break
     case 'files':
-      void filesStore.fetchCloudFiles()
+      void driveStore.refreshAll()
       break
     case 'calendar':
       // 刷新日历事件
