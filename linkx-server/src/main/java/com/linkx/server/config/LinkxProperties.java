@@ -36,6 +36,21 @@ public class LinkxProperties {
         private String secretKey = "minioadmin123";
         private String bucketName = "linkx";
         private long maxFileSize = 10 * 1024 * 1024; // 默认10MB
+        /** 预签名 URL 分级过期（秒） */
+        private final PresignExpiry presignExpiry = new PresignExpiry();
+    }
+
+    /**
+     * MinIO 预签名分级：头像较长便于列表展示；文件较短；分享最短。
+     */
+    @Data
+    public static class PresignExpiry {
+        /** 头像 / 封面 / 友链配图，默认 24 小时 */
+        private int avatarSeconds = 24 * 3600;
+        /** 聊天/群/网盘业务文件，默认 1 小时 */
+        private int fileSeconds = 3600;
+        /** 外部分享下载，默认 10 分钟 */
+        private int shareSeconds = 600;
     }
 
     @Data

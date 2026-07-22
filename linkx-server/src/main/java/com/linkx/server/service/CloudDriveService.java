@@ -53,4 +53,14 @@ public interface CloudDriveService {
     DriveShareVO getPublicShare(String token, String password);
 
     String downloadPublicShare(String token, String password);
+
+    /**
+     * 鉴权后打开网盘文件流（所有者）。
+     */
+    FileStorageService.StoredObject openFileContent(Long userId, Long fileId);
+
+    /**
+     * 公开分享下载：校验 token/密码/次数后返回对象流（不再返回可转发的长签名 URL）。
+     */
+    FileStorageService.StoredObject openShareContent(String token, String password);
 }

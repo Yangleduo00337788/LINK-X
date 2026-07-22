@@ -2,6 +2,7 @@ package com.linkx.server.controller;
 
 import com.linkx.server.common.AuthUtils;
 import com.linkx.server.common.JwtUtils;
+import com.linkx.server.common.MediaStreamResponses;
 import com.linkx.server.common.RateLimit;
 import com.linkx.server.common.Result;
 import com.linkx.server.controller.dto.CreateDriveFolderDTO;
@@ -18,6 +19,8 @@ import com.linkx.server.service.CloudDriveService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -77,6 +80,18 @@ public class CloudDriveController {
     @GetMapping("/files/{fileId}")
     public Result<DriveItemVO> getFile(@PathVariable String fileId, HttpServletRequest request) {
         return Result.success(cloudDriveService.getFile(uid(request), parseId(fileId)));
+    }
+
+    /** 鉴权中转下载：所有者才能拉取，不暴露长效签名 URL */
+    @GetMapping("/files/{fileId}/content")
+    public ResponseEntity<InputStreamResource> downloadFileContent(
+            @PathVariable String fileId,
+            HttpServletRequest request) {
+        Long userId = uid(request);
+        Long id = parseId(fileId);
+        DriveItemVO meta = cloudDriveService.getFile(userId, id);
+        var object = cloudDriveService.openFileContent(userId, id);
+        return MediaStreamResponses.download(object, meta.getName());
     }
 
     @PatchMapping("/files/{fileId}")
@@ -165,13 +180,23 @@ public class CloudDriveController {
         return Result.success(cloudDriveService.getPublicShare(token, password));
     }
 
-    /** 公开：下载分享文件 */
+    /** 公开：下载分享文件（短效签名，兼容旧客户端） */
     @GetMapping("/share/{token}/download")
     public Result<Map<String, String>> publicDownload(
             @PathVariable String token,
             @RequestParam(required = false) String password) {
         String url = cloudDriveService.downloadPublicShare(token, password);
         return Result.success(Map.of("url", url));
+    }
+
+    /** 公开：中转下载分享文件（推荐，不向前端暴露 MinIO 签名） */
+    @GetMapping("/share/{token}/content")
+    public ResponseEntity<InputStreamResource> publicDownloadContent(
+            @PathVariable String token,
+            @RequestParam(required = false) String password) {
+        DriveShareVO meta = cloudDriveService.getPublicShare(token, password);
+        var object = cloudDriveService.openShareContent(token, password);
+        return MediaStreamResponses.download(object, meta.getTargetName());
     }
 
     private Long uid(HttpServletRequest request) {

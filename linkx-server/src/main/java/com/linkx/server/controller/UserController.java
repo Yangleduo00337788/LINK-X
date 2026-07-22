@@ -162,8 +162,8 @@ public class UserController {
         // 上传文件（私有桶，传入 null 让 service 用 UUID 命名）
         String objectKey = fileStorageService.uploadFile(file, null);
 
-        // 生成 24 小时有效的签名 URL 返回给前端
-        String signedUrl = fileStorageService.getPresignedUrl(objectKey, 24 * 3600);
+        // 按头像时效签发预签名 URL 返回给前端
+        String signedUrl = mediaUrlService.resolveAvatar(objectKey);
 
         // 将对象 key 存入数据库（不存 URL）
         sysUserService.updateAvatar(userId, objectKey);
@@ -215,7 +215,7 @@ public class UserController {
     private UserProfileVO buildUserProfileVO(SysUser user) {
         UserProfileVO vo = UserProfileMapper.toProfileVO(user);
         if (vo != null) {
-            vo.setAvatar(toSignedUrl(vo.getAvatar(), 24 * 3600));
+            vo.setAvatar(mediaUrlService.resolveAvatar(vo.getAvatar()));
         }
         return vo;
     }
@@ -223,7 +223,7 @@ public class UserController {
     private UserProfileVO buildPrivateUserProfileVO(SysUser user) {
         UserProfileVO vo = UserProfileMapper.toPrivateProfileVO(user);
         if (vo != null) {
-            vo.setAvatar(toSignedUrl(vo.getAvatar(), 24 * 3600));
+            vo.setAvatar(mediaUrlService.resolveAvatar(vo.getAvatar()));
         }
         return vo;
     }
@@ -238,14 +238,6 @@ public class UserController {
             return realIp.trim();
         }
         return request.getRemoteAddr();
-    }
-
-    /**
-     * 把对象 key / 旧 MinIO URL 统一换成当前 endpoint 签发的预签名 URL。
-     * 注意：不可原样返回旧 localhost 签名链，Host 参与签名，改写会导致 403。
-     */
-    private String toSignedUrl(String objectKeyOrUrl, int expiry) {
-        return mediaUrlService.resolve(objectKeyOrUrl, expiry);
     }
 
     /**
@@ -358,7 +350,7 @@ public class UserController {
                 .language(p.getLanguage())
                 .chatBackground(p.getChatBackground())
                 .notifyTone(p.getNotifyTone())
-                .momentsBackground(toSignedUrl(p.getMomentsBackground(), 24 * 3600))
+                .momentsBackground(mediaUrlService.resolveAvatar(p.getMomentsBackground()))
                 .favoritesViewMode(p.getFavoritesViewMode() != null ? p.getFavoritesViewMode() : "grid")
                 .favoritesSort(p.getFavoritesSort() != null ? p.getFavoritesSort() : "newest")
                 .build();

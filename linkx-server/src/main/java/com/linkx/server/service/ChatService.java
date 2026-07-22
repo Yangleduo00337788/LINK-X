@@ -37,4 +37,13 @@ public interface ChatService {
     List<ChatSearchHitVO> searchMessages(Long userId, String keyword, String type, Long conversationId, int limit);
 
     void assertConversationMember(Long userId, Long conversationId);
+
+    /**
+     * 鉴权后打开聊天消息附件流（会话成员）。
+     */
+    FileStorageService.StoredObject openMessageFile(Long userId, Long messageId);
+
+    /** 消息附件展示名（鉴权后）。 */
+    String getMessageFileName(Long userId, Long messageId);
 }
+

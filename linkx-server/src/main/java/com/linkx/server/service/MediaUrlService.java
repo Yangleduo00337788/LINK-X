@@ -7,19 +7,35 @@ import org.springframework.util.StringUtils;
 
 /**
  * 将数据库中的对象 key / 旧版完整 MinIO URL 转为浏览器可访问的预签名 URL。
- * 签名 Host 与当前 linkx.minio.endpoint 一致（开发环境为 127.0.0.1，规避 Windows localhost→IPv6 超时）。
+ * <p>
+ * 按用途分级过期：头像较长、业务文件较短、分享下载最短，降低链接泄露窗口。
+ * 签名 Host 与当前 linkx.minio.endpoint 一致（开发环境为 127.0.0.1）。
  */
 @Service
 @RequiredArgsConstructor
 public class MediaUrlService {
 
-    private static final int DEFAULT_EXPIRY = 24 * 3600;
-
     private final FileStorageService fileStorageService;
     private final LinkxProperties linkxProperties;
 
+    /** 兼容旧调用：默认按头像时效签发 */
     public String resolve(String keyOrUrl) {
-        return resolve(keyOrUrl, DEFAULT_EXPIRY);
+        return resolveAvatar(keyOrUrl);
+    }
+
+    /** 头像 / 封面 / 友链配图等展示类媒体 */
+    public String resolveAvatar(String keyOrUrl) {
+        return resolve(keyOrUrl, linkxProperties.getMinio().getPresignExpiry().getAvatarSeconds());
+    }
+
+    /** 聊天附件、群文件、网盘文件等业务文件 */
+    public String resolveFile(String keyOrUrl) {
+        return resolve(keyOrUrl, linkxProperties.getMinio().getPresignExpiry().getFileSeconds());
+    }
+
+    /** 外部分享下载（最短有效期） */
+    public String resolveShare(String keyOrUrl) {
+        return resolve(keyOrUrl, linkxProperties.getMinio().getPresignExpiry().getShareSeconds());
     }
 
     public String resolve(String keyOrUrl, int expirySeconds) {
@@ -39,7 +55,10 @@ public class MediaUrlService {
         if (isExternalHttpUrl(value)) {
             return value;
         }
-        return fileStorageService.getPresignedUrl(value, expirySeconds);
+        int seconds = expirySeconds > 0
+                ? expirySeconds
+                : linkxProperties.getMinio().getPresignExpiry().getAvatarSeconds();
+        return fileStorageService.getPresignedUrl(value, seconds);
     }
 
     private boolean isExternalHttpUrl(String value) {

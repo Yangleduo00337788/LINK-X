@@ -155,6 +155,32 @@ public class GroupAssetServiceImpl implements GroupAssetService {
         groupAssetMapper.deleteById(assetId);
     }
 
+    @Override
+    public FileStorageService.StoredObject openAssetContent(Long userId, Long conversationId, Long assetId) {
+        assertGroupMember(userId, conversationId);
+        GroupAsset asset = groupAssetMapper.selectOneById(assetId);
+        if (asset == null || !Objects.equals(asset.getConversationId(), conversationId)) {
+            throw new CustomException(404, "资源不存在");
+        }
+        if (asset.getFileKey() == null || asset.getFileKey().isBlank()) {
+            throw new CustomException(400, "该资源没有文件");
+        }
+        return fileStorageService.openObject(asset.getFileKey());
+    }
+
+    @Override
+    public String getAssetFileName(Long userId, Long conversationId, Long assetId) {
+        assertGroupMember(userId, conversationId);
+        GroupAsset asset = groupAssetMapper.selectOneById(assetId);
+        if (asset == null || !Objects.equals(asset.getConversationId(), conversationId)) {
+            throw new CustomException(404, "资源不存在");
+        }
+        if (asset.getFileName() != null && !asset.getFileName().isBlank()) {
+            return asset.getFileName();
+        }
+        return "file";
+    }
+
     private void assertGroupMember(Long userId, Long conversationId) {
         ImConversation group = conversationMapper.selectOneById(conversationId);
         if (group == null || group.getType() != ImConversation.TYPE_GROUP) {
@@ -217,7 +243,7 @@ public class GroupAssetServiceImpl implements GroupAssetService {
                 .content(asset.getContent())
                 .fileName(asset.getFileName())
                 .fileSize(asset.getFileSize())
-                .fileUrl(mediaUrlService.resolve(asset.getFileKey()))
+                .fileUrl(mediaUrlService.resolveFile(asset.getFileKey()))
                 .downloadCount(asset.getDownloadCount() == null ? 0 : asset.getDownloadCount())
                 .messageId(asset.getMessageId())
                 .uploaderId(asset.getUploaderId())

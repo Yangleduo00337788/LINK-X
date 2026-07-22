@@ -46,12 +46,16 @@ linkx:
   im:
     websocket-port: ${IM_WS_PORT:8081}
   minio:
-    # ⚠️ 生产环境必须使用 HTTPS
+    # ⚠️ 生产环境必须使用 HTTPS；密钥必须由环境变量注入，禁止默认值
     endpoint: ${MINIO_ENDPOINT:https://minio.example.com}
     access-key: ${MINIO_ACCESS_KEY}
     secret-key: ${MINIO_SECRET_KEY}
     bucket-name: ${MINIO_BUCKET_NAME:linkx}
     max-file-size: 5242880  # 5MB，更严格的文件大小限制
+    presign-expiry:
+      avatar-seconds: ${MINIO_PRESIGN_AVATAR_SECONDS:43200}   # 12h
+      file-seconds: ${MINIO_PRESIGN_FILE_SECONDS:1800}       # 30min
+      share-seconds: ${MINIO_PRESIGN_SHARE_SECONDS:300}      # 5min
 
 # 日志配置
 logging:

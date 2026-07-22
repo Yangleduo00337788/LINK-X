@@ -52,3 +52,21 @@ export function normalizeMediaUrl(url?: string | null): string {
     .replace(/\/\/localhost(?=:\d+|\/|$)/gi, '//127.0.0.1')
     .replace(/\/\/\[::1\](?=:\d+|\/|$)/gi, '//127.0.0.1')
 }
+
+/**
+ * 预签名图加载失败时尝试 refresh 换新地址（长会话过期自愈）。
+ */
+export async function recoverMediaUrlOnError(
+  currentUrl: string | undefined | null,
+  refresh: () => Promise<string | undefined | null>
+): Promise<string> {
+  if (!isEphemeralMediaUrl(currentUrl)) {
+    return ''
+  }
+  try {
+    const next = await refresh()
+    return normalizeMediaUrl(next) || ''
+  } catch {
+    return ''
+  }
+}

@@ -460,7 +460,7 @@ public class CloudDriveServiceImpl implements CloudDriveService {
             CloudFile file = requireFile(userId, targetId);
             targetName = file.getName();
             fileSize = file.getFileSize();
-            fileUrl = mediaUrlService.resolve(file.getFileKey());
+            fileUrl = mediaUrlService.resolveFile(file.getFileKey());
         } else if (CloudShare.TYPE_FOLDER.equals(type)) {
             CloudFolder folder = requireFolder(userId, targetId);
             targetName = folder.getName();
@@ -528,6 +528,7 @@ public class CloudDriveServiceImpl implements CloudDriveService {
     @Override
     @Transactional
     public String downloadPublicShare(String token, String password) {
+        // 兼容旧客户端：返回短效预签名；新客户端请用 /share/{token}/content 中转下载
         CloudShare share = requireActiveShare(token, password);
         if (!CloudShare.TYPE_FILE.equals(share.getShareType())) {
             throw new CustomException(400, "仅文件分享支持直接下载");
@@ -543,10 +544,37 @@ public class CloudDriveServiceImpl implements CloudDriveService {
         cloudShareMapper.update(share);
         logActivity(share.getUserId(), CloudActivity.TARGET_FILE, file.getId(), file.getName(),
                 CloudActivity.ACTION_DOWNLOAD, "分享下载");
-        return mediaUrlService.resolve(file.getFileKey());
+        return mediaUrlService.resolveShare(file.getFileKey());
     }
 
-    // ── helpers ──────────────────────────────────────────────
+    @Override
+    public FileStorageService.StoredObject openFileContent(Long userId, Long fileId) {
+        CloudFile file = requireFile(userId, fileId);
+        logActivity(userId, CloudActivity.TARGET_FILE, file.getId(), file.getName(),
+                CloudActivity.ACTION_DOWNLOAD, "网盘下载");
+        return fileStorageService.openObject(file.getFileKey());
+    }
+
+    @Override
+    @Transactional
+    public FileStorageService.StoredObject openShareContent(String token, String password) {
+        CloudShare share = requireActiveShare(token, password);
+        if (!CloudShare.TYPE_FILE.equals(share.getShareType())) {
+            throw new CustomException(400, "仅文件分享支持直接下载");
+        }
+        if (share.getMaxDownloads() != null && share.getDownloadCount() >= share.getMaxDownloads()) {
+            throw new CustomException(400, "分享下载次数已用尽");
+        }
+        CloudFile file = cloudFileMapper.selectOneById(share.getTargetId());
+        if (file == null) {
+            throw new CustomException(404, "文件不存在");
+        }
+        share.setDownloadCount(share.getDownloadCount() + 1);
+        cloudShareMapper.update(share);
+        logActivity(share.getUserId(), CloudActivity.TARGET_FILE, file.getId(), file.getName(),
+                CloudActivity.ACTION_DOWNLOAD, "分享下载");
+        return fileStorageService.openObject(file.getFileKey());
+    }
 
     private UserStorage ensureStorage(Long userId) {
         UserStorage storage = userStorageMapper.selectOneById(userId);
@@ -769,7 +797,7 @@ public class CloudDriveServiceImpl implements CloudDriveService {
                 .name(f.getName())
                 .folderId(f.getFolderId())
                 .fileSize(f.getFileSize())
-                .fileUrl(mediaUrlService.resolve(f.getFileKey()))
+                .fileUrl(mediaUrlService.resolveFile(f.getFileKey()))
                 .contentType(f.getContentType())
                 .ext(f.getExt())
                 .category(f.getCategory())
@@ -842,7 +870,7 @@ public class CloudDriveServiceImpl implements CloudDriveService {
             if (file != null) {
                 targetName = file.getName();
                 fileSize = file.getFileSize();
-                fileUrl = mediaUrlService.resolve(file.getFileKey());
+                fileUrl = mediaUrlService.resolveShare(file.getFileKey());
             }
         } else {
             CloudFolder folder = cloudFolderMapper.selectOneById(share.getTargetId());

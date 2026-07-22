@@ -39,7 +39,7 @@ import { useDriveStore } from '../stores/drive'
 import type { DriveItemVO } from '../api/drive'
 import { useOverlayStore } from '../stores/overlay'
 import { useAppStore } from '../stores/app'
-import { downloadFileWithSettings } from '../utils/downloadFile'
+import { downloadDriveFileContent } from '../utils/authDownload'
 import { formatFileSize } from '../utils/file'
 import { generateDefaultAvatar } from '../utils/defaultAvatar'
 import { isDisplayableMediaUrl, normalizeMediaUrl } from '../utils/mediaUrl'
@@ -266,11 +266,12 @@ function onNewFolder() {
 }
 
 async function downloadItem(item: DriveItemVO) {
-  if (item.kind !== 'file' || !item.fileUrl) {
+  if (item.kind !== 'file') {
     message.info(t('files.noPreview', { title: item.name }))
     return
   }
-  const result = await downloadFileWithSettings(item.fileUrl, item.name)
+  // 走鉴权中转下载，避免依赖会过期的预签名 URL
+  const result = await downloadDriveFileContent(item.id, item.name)
   if (result.canceled) return
   if (result.ok) {
     message.success(

@@ -2,6 +2,8 @@ package com.linkx.server.service;
 
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.InputStream;
+
 /**
  * 文件存储服务接口
  */
@@ -47,5 +49,22 @@ public interface FileStorageService {
      */
     default String getPresignedUrl(String objectName) {
         return getPresignedUrl(objectName, 3600);
+    }
+
+    /**
+     * 打开对象输入流（供鉴权后的后端中转下载，调用方负责关闭流）
+     */
+    StoredObject openObject(String objectKeyOrUrl);
+
+    /**
+     * MinIO 对象只读视图
+     */
+    record StoredObject(InputStream stream, String contentType, long size, String objectKey) implements AutoCloseable {
+        @Override
+        public void close() throws Exception {
+            if (stream != null) {
+                stream.close();
+            }
+        }
     }
 }

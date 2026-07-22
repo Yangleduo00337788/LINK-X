@@ -383,7 +383,7 @@ public class ChatServiceImpl implements ChatService {
             // 出于安全，使用 UUID 文件名而非 conversationId-based 路径
             String objectKey = fileStorageService.uploadFile(file, null);
             // 立即生成签名 URL 返回给前端，避免将对象 key 暴露到数据库
-            String signedUrl = fileStorageService.getPresignedUrl(objectKey);
+            String signedUrl = mediaUrlService.resolveFile(objectKey);
             return ChatFileUploadVO.builder()
                     .url(signedUrl)
                     .fileKey(objectKey)
@@ -394,6 +394,37 @@ public class ChatServiceImpl implements ChatService {
         } catch (RuntimeException e) {
             throw new CustomException(400, e.getMessage());
         }
+    }
+
+    @Override
+    public FileStorageService.StoredObject openMessageFile(Long userId, Long messageId) {
+        ImMessage message = messageMapper.selectOneById(messageId);
+        if (message == null) {
+            throw new CustomException(404, "消息不存在");
+        }
+        assertConversationMember(userId, message.getConversationId());
+        String key = message.getFileUrl();
+        if (key == null || key.isBlank()) {
+            throw new CustomException(400, "该消息没有附件");
+        }
+        // 红包等特殊类型 fileUrl 不是对象 key
+        if (ImMessage.TYPE_RED_PACKET.equals(message.getType())) {
+            throw new CustomException(400, "红包消息不支持文件下载");
+        }
+        return fileStorageService.openObject(key);
+    }
+
+    @Override
+    public String getMessageFileName(Long userId, Long messageId) {
+        ImMessage message = messageMapper.selectOneById(messageId);
+        if (message == null) {
+            throw new CustomException(404, "消息不存在");
+        }
+        assertConversationMember(userId, message.getConversationId());
+        if (message.getFileName() != null && !message.getFileName().isBlank()) {
+            return message.getFileName();
+        }
+        return "file";
     }
 
     @Override
@@ -473,7 +504,7 @@ public class ChatServiceImpl implements ChatService {
                     .fileName(msg.getFileName())
                     .fileUrl(ImMessage.TYPE_RED_PACKET.equals(msg.getType())
                             ? msg.getFileUrl()
-                            : mediaUrlService.resolve(msg.getFileUrl()))
+                            : mediaUrlService.resolveFile(msg.getFileUrl()))
                     .createTime(msg.getCreateTime() == null ? null : msg.getCreateTime().getTime())
                     .build());
         }
@@ -755,7 +786,7 @@ public class ChatServiceImpl implements ChatService {
         String fileUrl = message.getFileUrl();
         // 红包消息的 fileUrl 存的是红包 ID，不能当媒体 key 签发
         if (fileUrl != null && !ImMessage.TYPE_RED_PACKET.equals(message.getType())) {
-            fileUrl = mediaUrlService.resolve(fileUrl);
+            fileUrl = mediaUrlService.resolveFile(fileUrl);
         }
         MessageVO.MessageVOBuilder builder = MessageVO.builder()
                 .id(message.getId())

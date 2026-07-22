@@ -46,11 +46,14 @@ class LinkxPropertiesTest {
             LinkxProperties props = new LinkxProperties();
 
             assertNotNull(props.getMinio());
-            assertEquals("http://localhost:9000", props.getMinio().getEndpoint());
+            assertEquals("http://127.0.0.1:9000", props.getMinio().getEndpoint());
             assertEquals("minioadmin", props.getMinio().getAccessKey());
             assertEquals("minioadmin123", props.getMinio().getSecretKey());
             assertEquals("linkx", props.getMinio().getBucketName());
             assertEquals(10 * 1024 * 1024, props.getMinio().getMaxFileSize());
+            assertEquals(24 * 3600, props.getMinio().getPresignExpiry().getAvatarSeconds());
+            assertEquals(3600, props.getMinio().getPresignExpiry().getFileSeconds());
+            assertEquals(600, props.getMinio().getPresignExpiry().getShareSeconds());
         }
 
         @Test

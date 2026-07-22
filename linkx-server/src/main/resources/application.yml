@@ -56,6 +56,11 @@ linkx:
     secret-key: ${MINIO_SECRET_KEY:minioadmin123}
     bucket-name: ${MINIO_BUCKET_NAME:linkx}
     max-file-size: 104857600  # 100MB
+    # 预签名分级过期（秒）：头像 24h / 业务文件 1h / 分享 10min
+    presign-expiry:
+      avatar-seconds: ${MINIO_PRESIGN_AVATAR_SECONDS:86400}
+      file-seconds: ${MINIO_PRESIGN_FILE_SECONDS:3600}
+      share-seconds: ${MINIO_PRESIGN_SHARE_SECONDS:600}
   mail:
     # QQ 邮箱 SMTP 服务器
     host: ${MAIL_HOST:smtp.qq.com}

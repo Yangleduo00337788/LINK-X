@@ -2,6 +2,7 @@ package com.linkx.server.controller;
 
 import com.linkx.server.common.AuthUtils;
 import com.linkx.server.common.JwtUtils;
+import com.linkx.server.common.MediaStreamResponses;
 import com.linkx.server.common.RateLimit;
 import com.linkx.server.common.Result;
 import com.linkx.server.controller.vo.ChatFileUploadVO;
@@ -12,6 +13,8 @@ import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.service.ChatService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -64,6 +67,18 @@ public class ChatController {
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         return Result.success(chatService.uploadChatFile(userId, parseId(conversationId), file));
+    }
+
+    /** 鉴权中转下载聊天附件（会话成员） */
+    @GetMapping("/messages/{messageId}/file")
+    public ResponseEntity<InputStreamResource> downloadMessageFile(
+            @PathVariable String messageId,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        Long id = parseId(messageId);
+        String name = chatService.getMessageFileName(userId, id);
+        var object = chatService.openMessageFile(userId, id);
+        return MediaStreamResponses.download(object, name);
     }
 
     @GetMapping("/search")

@@ -15,4 +15,10 @@ public interface GroupAssetService {
     GroupAssetVO upload(Long userId, Long conversationId, String type, MultipartFile file, String album);
 
     void delete(Long userId, Long conversationId, Long assetId);
+
+    /** 鉴权后打开群资源文件流（群成员）。 */
+    FileStorageService.StoredObject openAssetContent(Long userId, Long conversationId, Long assetId);
+
+    String getAssetFileName(Long userId, Long conversationId, Long assetId);
 }
+

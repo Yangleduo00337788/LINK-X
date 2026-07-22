@@ -2,10 +2,13 @@ package com.linkx.server.service.impl;
 
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.service.FileStorageService;
+import io.minio.GetObjectArgs;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
+import io.minio.StatObjectArgs;
+import io.minio.StatObjectResponse;
 import io.minio.http.Method;
 import io.minio.errors.*;
 import lombok.RequiredArgsConstructor;
@@ -216,7 +219,8 @@ public class FileStorageServiceImpl implements FileStorageService {
                             .build()
             );
         } catch (MinioException | IOException | NoSuchAlgorithmException | InvalidKeyException e) {
-            log.error("生成签名 URL 失败: key={}, err={}", key, e.getMessage(), e);
+            // 不打印完整签名链，避免日志泄露
+            log.error("生成签名 URL 失败: key={}, err={}", key, e.getMessage());
             return null;
         }
     }
@@ -226,6 +230,37 @@ public class FileStorageServiceImpl implements FileStorageService {
      */
     public String getPresignedUrl(String objectName) {
         return getPresignedUrl(objectName, DEFAULT_PRESIGN_EXPIRY_SECONDS);
+    }
+
+    @Override
+    public StoredObject openObject(String objectKeyOrUrl) {
+        if (objectKeyOrUrl == null || objectKeyOrUrl.isEmpty()) {
+            throw new IllegalArgumentException("对象 key 不能为空");
+        }
+        String key = extractObjectName(objectKeyOrUrl);
+        if (key.startsWith("/") || key.startsWith("data:") || key.startsWith("blob:")) {
+            throw new IllegalArgumentException("不支持的对象 key");
+        }
+        if (key.contains("..")) {
+            throw new IllegalArgumentException("非法对象 key");
+        }
+        try {
+            String bucketName = linkxProperties.getMinio().getBucketName();
+            StatObjectResponse stat = minioClient.statObject(
+                    StatObjectArgs.builder().bucket(bucketName).object(key).build()
+            );
+            InputStream stream = minioClient.getObject(
+                    GetObjectArgs.builder().bucket(bucketName).object(key).build()
+            );
+            String contentType = stat.contentType();
+            if (contentType == null || contentType.isBlank()) {
+                contentType = "application/octet-stream";
+            }
+            return new StoredObject(stream, contentType, stat.size(), key);
+        } catch (MinioException | IOException | NoSuchAlgorithmException | InvalidKeyException e) {
+            log.error("打开 MinIO 对象失败: key={}, err={}", key, e.getMessage());
+            throw new RuntimeException("读取文件失败");
+        }
     }
 
     /**
