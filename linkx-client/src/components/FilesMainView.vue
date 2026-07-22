@@ -57,14 +57,11 @@ const {
   items,
   breadcrumb,
   folderId,
-  storage,
   detailItem,
   activities,
   loading,
   uploading,
-  selectedIds,
-  usedLabel,
-  quotaLabel
+  selectedIds
 } = storeToRefs(drive)
 
 const search = ref('')
@@ -266,15 +263,6 @@ function onNewFolder() {
       message.error(err instanceof Error ? err.message : t('files.folderCreateFail'))
     }
   })()
-}
-
-async function onExpandStorage() {
-  try {
-    await drive.expandStorage()
-    message.success(t('files.expandOk'))
-  } catch (err) {
-    message.error(err instanceof Error ? err.message : t('files.expandFail'))
-  }
 }
 
 async function downloadItem(item: DriveItemVO) {
@@ -724,20 +712,6 @@ void MoveOutline
         </div>
 
         <div class="list-footer">
-          <div class="storage">
-            <div class="storage-top">
-              <span class="storage-label">{{ t('files.storage') }}</span>
-              <span class="storage-usage">
-                {{ t('files.storageUsed', { used: usedLabel, total: quotaLabel }) }}
-              </span>
-            </div>
-            <div class="storage-bar">
-              <div class="storage-fill" :style="{ width: `${storage?.usedPercent || 0}%` }" />
-            </div>
-            <button type="button" class="expand-btn" @click="onExpandStorage">
-              {{ t('files.expandStorage') }}
-            </button>
-          </div>
           <div class="total-count">{{ t('files.totalItems', { n: sortedItems.length }) }}</div>
         </div>
       </div>
@@ -1056,17 +1030,9 @@ void MoveOutline
 .grid-meta { margin-top: 4px; font-size: 12px; color: var(--lx-text-muted); }
 .empty { text-align: center; color: var(--lx-text-muted); padding: 48px 16px; font-size: 13px; }
 .list-footer {
-  flex-shrink: 0; display: flex; align-items: flex-end; justify-content: space-between;
+  flex-shrink: 0; display: flex; align-items: center; justify-content: flex-end;
   gap: 16px; padding: 12px 20px 16px; border-top: 1px solid var(--lx-border-light);
 }
-.storage { min-width: 220px; max-width: 280px; }
-.storage-top { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; margin-bottom: 6px; }
-.storage-label { color: var(--lx-text-secondary); font-weight: 500; }
-.storage-usage { color: var(--lx-text-muted); }
-.storage-bar { height: 6px; border-radius: 99px; background: var(--lx-bg-input); overflow: hidden; }
-.storage-fill { height: 100%; border-radius: 99px; background: var(--lx-accent); transition: width 0.2s; }
-.expand-btn { margin-top: 8px; border: none; background: none; padding: 0; color: var(--lx-accent); font-size: 12px; cursor: pointer; }
-.expand-btn:hover { text-decoration: underline; }
 .total-count { font-size: 12px; color: var(--lx-text-muted); }
 .detail-pane {
   width: 300px; min-width: 280px; max-width: 340px; border-left: 1px solid var(--lx-border-light);

@@ -25,8 +25,7 @@ import {
   GridOutline,
   ListOutline,
   MusicalNotesOutline,
-  TrashOutline,
-  CloudOutline
+  TrashOutline
 } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
@@ -46,7 +45,7 @@ const favStore = useFavoritesStore()
 const appStore = useAppStore()
 const appSettings = useAppSettingsStore()
 const overlayStore = useOverlayStore()
-const { items, loading, tags, typeCounts, usedBytes, quotaBytes, usedPercent } = storeToRefs(favStore)
+const { items, loading, tags, typeCounts } = storeToRefs(favStore)
 const { favoritesViewMode, favoritesSort } = storeToRefs(appSettings)
 const { sessions } = storeToRefs(appStore)
 
@@ -129,10 +128,6 @@ const filteredItems = computed(() => {
   })
   return list
 })
-
-const usedLabel = computed(() => formatFileSize(usedBytes.value))
-const quotaLabel = computed(() => formatFileSize(quotaBytes.value))
-const storagePercent = computed(() => usedPercent.value)
 
 const categoryItems = computed(() => [
   { key: 'all' as CategoryKey, label: t('favorites.allFavorites'), icon: StarOutline },
@@ -406,17 +401,6 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
           <span class="tag-name">{{ tag.key }}</span>
           <span class="tag-count">{{ tag.count }}</span>
         </button>
-      </div>
-
-      <div class="side-storage">
-        <div class="storage-top">
-          <n-icon :component="CloudOutline" :size="16" />
-          <span>{{ t('favorites.storage') }}</span>
-        </div>
-        <div class="storage-usage">{{ usedLabel }} / {{ quotaLabel }}</div>
-        <div class="storage-bar">
-          <div class="storage-fill" :style="{ width: `${storagePercent}%` }" />
-        </div>
       </div>
     </aside>
 
@@ -749,38 +733,6 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
 .tag-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .tag-name { flex: 1; text-align: left; }
 .tag-count { font-size: 12px; color: var(--lx-text-muted); }
-.side-storage {
-  margin-top: 12px;
-  padding: 12px;
-  border-radius: 12px;
-  background: var(--lx-bg-input);
-}
-.storage-top {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--lx-text-secondary);
-}
-.storage-usage {
-  margin-top: 6px;
-  font-size: 12px;
-  color: var(--lx-text-muted);
-}
-.storage-bar {
-  margin-top: 8px;
-  height: 6px;
-  border-radius: 99px;
-  background: var(--lx-border-light);
-  overflow: hidden;
-}
-.storage-fill {
-  height: 100%;
-  border-radius: 99px;
-  background: var(--lx-accent);
-  transition: width 0.2s;
-}
 
 .fav-content {
   flex: 1;
