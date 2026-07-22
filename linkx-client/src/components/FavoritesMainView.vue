@@ -51,7 +51,7 @@ const QUOTA_BYTES = 30 * 1024 * 1024 * 1024
 type CategoryKey = 'all' | 'link' | 'image' | 'file' | 'note' | 'message' | 'other'
 
 const PRESET_TAGS = [
-  { key: '工作', color: '#ff4d79' },
+  { key: '工作', color: '#f43f5e' },
   { key: '学习', color: '#3b82f6' },
   { key: '生活', color: '#22c55e' },
   { key: '灵感', color: '#f59e0b' },
@@ -569,8 +569,6 @@ function tagColor(name: string) {
 
 <style scoped>
 .fav-main {
-  --fav-accent: #ff4d79;
-  --fav-accent-soft: rgba(255, 77, 121, 0.12);
   flex: 1;
   min-width: 0;
   height: 100%;
@@ -599,7 +597,7 @@ function tagColor(name: string) {
   font-weight: 700;
   color: var(--lx-text);
 }
-.side-star { color: var(--fav-accent); }
+.side-star { color: var(--lx-accent); }
 .side-cats { display: flex; flex-direction: column; gap: 2px; }
 .cat-item {
   display: flex;
@@ -616,8 +614,8 @@ function tagColor(name: string) {
 }
 .cat-item:hover { background: var(--lx-bg-hover); }
 .cat-item.active {
-  background: var(--fav-accent-soft);
-  color: var(--fav-accent);
+  background: var(--lx-accent-soft);
+  color: var(--lx-accent);
   font-weight: 600;
 }
 .cat-label { flex: 1; text-align: left; }
@@ -644,7 +642,7 @@ function tagColor(name: string) {
   align-items: center;
   justify-content: center;
 }
-.tag-add:hover { background: var(--lx-bg-hover); color: var(--fav-accent); }
+.tag-add:hover { background: var(--lx-bg-hover); color: var(--lx-accent); }
 .side-tags {
   flex: 1;
   overflow-y: auto;
@@ -700,7 +698,7 @@ function tagColor(name: string) {
 .storage-fill {
   height: 100%;
   border-radius: 99px;
-  background: var(--fav-accent);
+  background: var(--lx-accent);
   transition: width 0.2s;
 }
 
@@ -726,8 +724,8 @@ function tagColor(name: string) {
   padding: 0 16px;
   border: none;
   border-radius: 99px;
-  background: var(--fav-accent);
-  color: #fff;
+  background: var(--lx-accent);
+  color: var(--lx-text-on-accent, #fff);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -752,8 +750,8 @@ function tagColor(name: string) {
   justify-content: center;
 }
 .view-btn.active {
-  background: var(--fav-accent-soft);
-  color: var(--fav-accent);
+  background: var(--lx-accent-soft);
+  color: var(--lx-accent);
 }
 .fav-subhead {
   display: flex;
