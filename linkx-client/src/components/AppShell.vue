@@ -22,8 +22,8 @@ import ContactsPanel from './ContactsPanel.vue'
 import ContactsMainView from './ContactsMainView.vue'
 // 收藏面板
 import FavoritesPanel from './FavoritesPanel.vue'
-// 文件面板
-import FilesPanel from './FilesPanel.vue'
+// 文件主视图（全宽，与日历一致）
+import FilesMainView from './FilesMainView.vue'
 // 友链面板
 import MomentsPanel from './MomentsPanel.vue'
 // 日历列表面板
@@ -137,8 +137,6 @@ const middleComponent = computed(() => {
       return ContactsPanel
     case 'favorites':
       return FavoritesPanel
-    case 'files':
-      return FilesPanel
     case 'calendar':
       return CalendarPanel
     case 'moments':
@@ -156,8 +154,9 @@ const showSystemNotify = computed(
 )
 const showCalendarMain = computed(() => navKey.value === 'calendar')
 const showSettingsMain = computed(() => navKey.value === 'settings')
+const showFilesMain = computed(() => navKey.value === 'files')
 const showPlaceholder = computed(() =>
-  ['contacts', 'favorites', 'files', 'moments'].includes(navKey.value)
+  ['contacts', 'favorites', 'moments'].includes(navKey.value)
 )
 
 /** 设置页中间列固定略宽，且不显示拖拽条 */
@@ -165,8 +164,10 @@ const settingsListWidth = 220
 const effectiveListWidth = computed(() =>
   showSettingsMain.value ? settingsListWidth : listWidth.value
 )
-const showListResizer = computed(() => !showCalendarMain.value && !showSettingsMain.value)
-const showMiddleList = computed(() => !showCalendarMain.value)
+const showListResizer = computed(
+  () => !showCalendarMain.value && !showSettingsMain.value && !showFilesMain.value
+)
+const showMiddleList = computed(() => !showCalendarMain.value && !showFilesMain.value)
 </script>
 
 <template>
@@ -208,12 +209,14 @@ const showMiddleList = computed(() => !showCalendarMain.value)
           class="col-chat"
           :class="{
             'col-chat--calendar': showCalendarMain,
-            'col-chat--settings': showSettingsMain
+            'col-chat--settings': showSettingsMain,
+            'col-chat--files': showFilesMain
           }"
         >
           <SystemNotifyPanel v-if="showSystemNotify" />
           <ChatPanel v-else-if="showChatPanel" />
           <CalendarMainView v-else-if="showCalendarMain" />
+          <FilesMainView v-else-if="showFilesMain" />
           <SettingsMainView v-else-if="showSettingsMain" />
           <ContactsMainView v-else-if="navKey === 'contacts'" />
           <PlaceholderMainView v-else-if="showPlaceholder" :nav="navKey" />
@@ -354,6 +357,10 @@ const showMiddleList = computed(() => !showCalendarMain.value)
 
 .col-chat--calendar {
   background: var(--lx-bg-panel);
+}
+
+.col-chat--files {
+  background: var(--lx-bg-card);
 }
 
 .col-chat--settings {
