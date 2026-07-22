@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS im_conversation (
   private_key VARCHAR(64),
   name VARCHAR(128),
   avatar VARCHAR(255),
+  announcement TEXT,
   owner_id BIGINT,
   mute_all TINYINT NOT NULL DEFAULT 0,
   mute_all_start DATETIME,
@@ -201,6 +202,7 @@ CREATE TABLE IF NOT EXISTS moments_comment (
   user_id BIGINT NOT NULL,
   content TEXT,
   parent_id BIGINT,
+  mentions TEXT,
   create_time DATETIME,
   deleted TINYINT NOT NULL DEFAULT 0
 );
@@ -357,6 +359,30 @@ CREATE TABLE IF NOT EXISTS favorite (
   type VARCHAR(20) NOT NULL DEFAULT 'note',
   source_type VARCHAR(32),
   source_id VARCHAR(64),
+  tags VARCHAR(500),
+  file_size BIGINT,
+  create_time DATETIME,
+  update_time DATETIME,
+  deleted TINYINT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS favorite_storage (
+  user_id BIGINT NOT NULL PRIMARY KEY,
+  quota_bytes BIGINT NOT NULL DEFAULT 21474836480,
+  used_bytes BIGINT NOT NULL DEFAULT 0,
+  item_count INT NOT NULL DEFAULT 0,
+  version INT NOT NULL DEFAULT 0,
+  create_time DATETIME,
+  update_time DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS favorite_tag (
+  id BIGINT NOT NULL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  name VARCHAR(64) NOT NULL,
+  color VARCHAR(16),
+  sort_order INT NOT NULL DEFAULT 0,
+  preset TINYINT NOT NULL DEFAULT 0,
   create_time DATETIME,
   update_time DATETIME,
   deleted TINYINT NOT NULL DEFAULT 0

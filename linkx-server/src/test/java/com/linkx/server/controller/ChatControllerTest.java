@@ -36,4 +36,48 @@ class ChatControllerTest extends BaseIntegrationTest {
                     .andExpect(jsonPath("$.code").value(401));
         }
     }
+
+    @Nested
+    @DisplayName("GET /chat/search 搜索消息")
+    class SearchTests {
+
+        @Test
+        @DisplayName("搜索应返回数组")
+        void search_success() throws Exception {
+            TestUser user = registerAndLogin("chatsearch");
+
+            mockMvc.perform(get("/chat/search")
+                            .param("q", "hello")
+                            .header("Authorization", user.bearer()))
+                    .andExpect(jsonPath("$.code").value(200))
+                    .andExpect(jsonPath("$.data").isArray());
+        }
+
+        @Test
+        @DisplayName("未登录搜索应返回401")
+        void search_unauthorized() throws Exception {
+            mockMvc.perform(get("/chat/search").param("q", "hello"))
+                    .andExpect(jsonPath("$.code").value(401));
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /chat/private/{friendId}")
+    class OpenPrivateTests {
+
+        @Test
+        @DisplayName("非好友打开私聊应失败")
+        void openPrivate_notFriend() throws Exception {
+            TestUser a = registerAndLogin("chata");
+            TestUser b = registerAndLogin("chatb");
+
+            mockMvc.perform(post("/chat/private/{friendId}", b.userId)
+                            .header("Authorization", a.bearer()))
+                    .andExpect(jsonPath("$.code").value(org.hamcrest.Matchers.anyOf(
+                            org.hamcrest.Matchers.is(400),
+                            org.hamcrest.Matchers.is(403),
+                            org.hamcrest.Matchers.is(404)
+                    )));
+        }
+    }
 }

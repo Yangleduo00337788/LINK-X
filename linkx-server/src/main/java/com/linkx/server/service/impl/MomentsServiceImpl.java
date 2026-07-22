@@ -197,12 +197,12 @@ public class MomentsServiceImpl implements MomentsService {
         QueryWrapper qw = QueryWrapper.create()
                 .in("user_id", new ArrayList<>(friendIds))
                 .eq("deleted", 0)
-                .and("(IFNULL(visibility, 0) <> 2 OR user_id = {0})", userId)
+                .and("(IFNULL(visibility, 0) <> 2 OR user_id = ?)", userId)
                 .orderBy("create_time", false)
                 .orderBy("id", false)
                 .limit(pageSize);
         if (beforeId != null) {
-            qw.and("id < {0}", beforeId);
+            qw.and("id < ?", beforeId);
         }
         applyContentSearch(qw, q);
 
@@ -215,12 +215,12 @@ public class MomentsServiceImpl implements MomentsService {
         QueryWrapper qw = QueryWrapper.create()
                 .eq("user_id", targetUserId)
                 .eq("deleted", 0)
-                .and("(IFNULL(visibility, 0) <> 2 OR user_id = {0})", userId)
+                .and("(IFNULL(visibility, 0) <> 2 OR user_id = ?)", userId)
                 .orderBy("create_time", false)
                 .orderBy("id", false)
                 .limit(pageSize);
         if (beforeId != null) {
-            qw.and("id < {0}", beforeId);
+            qw.and("id < ?", beforeId);
         }
         applyContentSearch(qw, q);
 
@@ -262,7 +262,7 @@ public class MomentsServiceImpl implements MomentsService {
         if (keyword.length() > 64) {
             keyword = keyword.substring(0, 64);
         }
-        qw.and("content LIKE {0}", "%" + keyword + "%");
+        qw.and("content LIKE ?", "%" + keyword + "%");
     }
 
     private List<MomentsPostVO> buildPostList(QueryWrapper qw, Long userId, SysUser fixedAuthor) {

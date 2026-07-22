@@ -1,6 +1,8 @@
 package com.linkx.server.service;
 
+import com.linkx.server.controller.dto.SaveNoteDTO;
 import com.linkx.server.controller.vo.NoteVO;
+import com.linkx.server.exception.CustomException;
 import com.linkx.server.support.BaseIntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -11,24 +13,55 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * NoteService 笔记服务测试
- */
-@DisplayName("NoteService 笔记服务测试")
+@DisplayName("NoteService tests")
 class NoteServiceTest extends BaseIntegrationTest {
 
     @Autowired
     private NoteService noteService;
 
     @Nested
-    @DisplayName("list 获取用户笔记测试")
-    class ListTests {
+    @DisplayName("CRUD")
+    class CrudTests {
 
         @Test
-        @DisplayName("获取用户笔记应成功")
-        void list_success() {
-            List<NoteVO> notes = noteService.list(1L);
-            assertNotNull(notes);
+        @DisplayName("create then list contains note")
+        void createAndList_success() {
+            TestUser user = registerAndLogin("notesvc");
+            SaveNoteDTO dto = new SaveNoteDTO();
+            dto.setTitle("svc note");
+            dto.setContent("body");
+            NoteVO created = noteService.create(user.userId, dto);
+
+            assertNotNull(created.getId());
+            assertEquals("svc note", created.getTitle());
+
+            List<NoteVO> notes = noteService.list(user.userId);
+            assertTrue(notes.stream().anyMatch(n -> n.getId().equals(created.getId())));
+        }
+
+        @Test
+        @DisplayName("update and delete success")
+        void updateAndDelete_success() {
+            TestUser user = registerAndLogin("notesvc2");
+            SaveNoteDTO dto = new SaveNoteDTO();
+            dto.setTitle("old");
+            dto.setContent("old body");
+            NoteVO created = noteService.create(user.userId, dto);
+
+            SaveNoteDTO update = new SaveNoteDTO();
+            update.setTitle("new");
+            update.setContent("new body");
+            NoteVO updated = noteService.update(user.userId, created.getId(), update);
+            assertEquals("new", updated.getTitle());
+
+            noteService.delete(user.userId, created.getId());
+            assertThrows(CustomException.class, () -> noteService.get(user.userId, created.getId()));
+        }
+
+        @Test
+        @DisplayName("blank media key throws")
+        void resolveMediaUrl_blank() {
+            assertThrows(CustomException.class, () -> noteService.resolveMediaUrl("  "));
         }
     }
 }

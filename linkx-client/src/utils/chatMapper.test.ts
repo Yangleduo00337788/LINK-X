@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+﻿import { describe, it, expect } from 'vitest'
 import { conversationToSession, messageToChatMessage, messagePreviewFromItem } from './chatMapper'
 
 describe('chatMapper', () => {
@@ -8,14 +8,14 @@ describe('chatMapper', () => {
         id: '123',
         type: 1,
         peerUserId: '456',
-        peerNickname: '张三',
+        peerNickname: 'Zhang',
         peerAvatar: 'https://example.com/avatar.png',
-        lastMessage: '你好',
+        lastMessage: 'hi',
         lastMessageTime: Date.now()
       }
       const session = conversationToSession(conv)
       expect(session.id).toBe('123')
-      expect(session.name).toBe('张三')
+      expect(session.name).toBe('Zhang')
       expect(session.isGroup).toBe(false)
       expect(session.peerUserId).toBe('456')
     })
@@ -24,14 +24,14 @@ describe('chatMapper', () => {
       const conv = {
         id: '789',
         type: 2,
-        name: '开发群',
-        lastMessage: '今天讨论新功能',
+        name: 'DevGroup',
+        lastMessage: 'discuss',
         lastMessageTime: Date.now()
       }
       const session = conversationToSession(conv)
       expect(session.id).toBe('789')
-      expect(session.name).toBe('开发群')
-      expect(session.groupName).toBe('开发群')
+      expect(session.name).toBe('DevGroup')
+      expect(session.groupName).toBe('DevGroup')
       expect(session.isGroup).toBe(true)
     })
 
@@ -39,14 +39,14 @@ describe('chatMapper', () => {
       const conv = {
         id: '789',
         type: 2,
-        name: '开发群',
-        myRemark: '项目组',
+        name: 'DevGroup',
+        myRemark: 'Team',
         lastMessage: 'hi'
       }
       const session = conversationToSession(conv)
-      expect(session.name).toBe('项目组')
-      expect(session.groupName).toBe('开发群')
-      expect(session.groupRemark).toBe('项目组')
+      expect(session.name).toBe('Team')
+      expect(session.groupName).toBe('DevGroup')
+      expect(session.groupRemark).toBe('Team')
     })
 
     it('should map peerOnline to session.online', () => {
@@ -54,7 +54,7 @@ describe('chatMapper', () => {
         id: '123',
         type: 1,
         peerUserId: '456',
-        peerNickname: '张三',
+        peerNickname: 'Zhang',
         peerOnline: true
       }
       const session = conversationToSession(conv)
@@ -66,12 +66,12 @@ describe('chatMapper', () => {
         id: '123',
         type: 1,
         peerUserId: '456',
-        peerNickname: '张三',
-        peerRemark: '好友小张',
-        lastMessage: '嗨'
+        peerNickname: 'Zhang',
+        peerRemark: 'Buddy',
+        lastMessage: 'hi'
       }
       const session = conversationToSession(conv)
-      expect(session.name).toBe('好友小张')
+      expect(session.name).toBe('Buddy')
     })
 
     it('should fallback to default values', () => {
@@ -80,8 +80,8 @@ describe('chatMapper', () => {
         type: 1
       }
       const session = conversationToSession(conv)
-      expect(session.name).toBe('好友')
-      expect(session.avatarText).toBe('好') // name.charAt(0) = '好'
+      expect(session.name).toBe('\u597d\u53cb')
+      expect(session.avatarText).toBe('\u597d')
     })
   })
 
@@ -129,22 +129,44 @@ describe('chatMapper', () => {
       expect(result.content).toBe('document.pdf')
       expect(result.fileName).toBe('document.pdf')
     })
+
+    it('should map voice message fields', () => {
+      const msg = {
+        id: 'v1',
+        conversationId: 'conv1',
+        senderId: 'user1',
+        type: 'voice',
+        content: 'ignored',
+        fileUrl: 'https://cdn.example.com/a.webm',
+        voiceDuration: 8,
+        createTime: Date.now()
+      }
+      const result = messageToChatMessage(msg as any, 'conv1')
+      expect(result.type).toBe('voice')
+      expect(result.content).toBe('[\u8bed\u97f3]')
+      expect(result.voiceDuration).toBe(8)
+      expect(result.voiceUrl).toContain('cdn.example.com')
+    })
   })
 
   describe('messagePreviewFromItem', () => {
     it('should return file preview', () => {
       const msg = { type: 'file' as const, fileName: 'doc.pdf', content: '' }
-      expect(messagePreviewFromItem(msg)).toBe('[文件] doc.pdf')
+      expect(messagePreviewFromItem(msg)).toBe('[\u6587\u4ef6] doc.pdf')
     })
 
     it('should return image preview', () => {
       const msg = { type: 'image' as const, content: '' }
-      expect(messagePreviewFromItem(msg)).toBe('[图片]')
+      expect(messagePreviewFromItem(msg)).toBe('[\u56fe\u7247]')
     })
 
     it('should return text content', () => {
       const msg = { type: 'text' as const, content: 'Hello World' }
       expect(messagePreviewFromItem(msg)).toBe('Hello World')
+    })
+
+    it('should preview voice as voice label', () => {
+      expect(messagePreviewFromItem({ type: 'voice', content: 'x' } as any)).toBe('[\u8bed\u97f3]')
     })
   })
 })
