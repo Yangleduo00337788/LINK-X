@@ -8,6 +8,7 @@ import type { ContactItem } from '../types'
 import type { FriendItem } from '../types/friend'
 import * as friendApi from '../api/friend'
 import { normalizeMediaUrl } from '../utils/mediaUrl'
+import { sanitizeContactsPersistState } from '../utils/persistSanitize'
 
 const DEFAULT_AVATAR_COLOR = '#12b7f5'
 
@@ -111,6 +112,18 @@ export const useContactsStore = defineStore('contacts', {
 
   persist: {
     key: 'linkx-contacts',
-    paths: ['items']
+    paths: ['items'],
+    serializer: {
+      serialize: value =>
+        JSON.stringify(
+          sanitizeContactsPersistState(
+            value as { items?: Array<{ avatarUrl?: string; [k: string]: unknown }> }
+          )
+        ),
+      deserialize: value =>
+        sanitizeContactsPersistState(
+          JSON.parse(value) as { items?: Array<{ avatarUrl?: string; [k: string]: unknown }> }
+        )
+    }
   }
 })

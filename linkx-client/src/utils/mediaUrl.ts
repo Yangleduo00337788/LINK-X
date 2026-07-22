@@ -18,6 +18,28 @@ export function isDisplayableMediaUrl(url?: string | null): boolean {
   return true
 }
 
+/**
+ * 是否为不宜长期落盘的媒体地址。
+ * - MinIO/S3 预签名（带 X-Amz-*，会过期）
+ * - 本机 MinIO 直链（私有桶，无签名也会 403）
+ */
+export function isEphemeralMediaUrl(url?: string | null): boolean {
+  if (!url) return false
+  const v = url.trim()
+  if (!v) return false
+  if (/[?&]X-Amz-/i.test(v)) return true
+  if (/:\/\/(localhost|127\.0\.0\.1|\[::1\]):9000\//i.test(v)) return true
+  return false
+}
+
+/** 临时媒体地址清空，其它（外链 / data / blob）原样保留 */
+export function stripEphemeralMediaUrl(url?: string | null): string {
+  if (!url) return ''
+  const v = url.trim()
+  if (!v || isEphemeralMediaUrl(v)) return ''
+  return v
+}
+
 export function normalizeMediaUrl(url?: string | null): string {
   if (!url) return ''
   const trimmed = url.trim()

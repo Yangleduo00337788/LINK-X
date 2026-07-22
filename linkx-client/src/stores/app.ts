@@ -1537,8 +1537,10 @@ export const useAppStore = defineStore('app', {
         'navKey'
       ],
       serializer: {
+        // 读写都清洗：去掉 MinIO 预签名，避免过期头像落盘；登录后接口会重签
         serialize: value => JSON.stringify(sanitizeAppPersistState(value as Record<string, unknown>)),
-        deserialize: value => JSON.parse(value)
+        deserialize: value =>
+          sanitizeAppPersistState(JSON.parse(value) as Record<string, unknown>)
       },
       afterRestore: ({ store }) => {
         // 兼容历史脏数据：旧版误持久化的离线标记一律清掉
@@ -1548,7 +1550,15 @@ export const useAppStore = defineStore('app', {
     {
       key: 'linkx-app-msgs',
       storage: sessionStorage,
-      paths: ['messagesBySession']
+      paths: ['messagesBySession'],
+      serializer: {
+        serialize: value =>
+          JSON.stringify(
+            sanitizeAppPersistState(value as Record<string, unknown>)
+          ),
+        deserialize: value =>
+          sanitizeAppPersistState(JSON.parse(value) as Record<string, unknown>)
+      }
     }
   ]
 })

@@ -7,7 +7,7 @@ import { defineStore } from 'pinia'
 import * as momentsApi from '../api/moments'
 import { useAppStore } from './app'
 import { useContactsStore } from './contacts'
-import { normalizeMediaUrl } from '../utils/mediaUrl'
+import { normalizeMediaUrl, stripEphemeralMediaUrl } from '../utils/mediaUrl'
 
 /** 单条评论 */
 export interface MomentComment {
@@ -105,13 +105,18 @@ function resolveAuthorAvatar(userId: string, apiAvatar?: string | null): string 
   }
 }
 
-/** 持久化前去掉预签名媒体地址，避免过期 URL 裂图并把空头像写回 localStorage */
+/** 持久化前去掉预签名/本机 MinIO 媒体，避免过期裂图污染本地缓存 */
 function stripMediaForPersist(posts: MomentPost[]): MomentPost[] {
   return posts.map(p => ({
     ...p,
-    avatar: '',
-    images: undefined,
-    comments: (p.comments || []).map(c => ({ ...c, avatar: undefined }))
+    avatar: stripEphemeralMediaUrl(p.avatar),
+    images: (p.images || [])
+      .map(url => stripEphemeralMediaUrl(url))
+      .filter(Boolean),
+    comments: (p.comments || []).map(c => ({
+      ...c,
+      avatar: c.avatar ? stripEphemeralMediaUrl(c.avatar) || undefined : undefined
+    }))
   }))
 }
 
@@ -310,7 +315,13 @@ export const useMomentsStore = defineStore('moments', {
           ...value,
           posts: stripMediaForPersist(Array.isArray(value?.posts) ? value.posts : [])
         }),
-      deserialize: (value: string) => JSON.parse(value)
+      deserialize: (value: string) => {
+        const parsed = JSON.parse(value) as { posts?: MomentPost[] }
+        return {
+          ...parsed,
+          posts: stripMediaForPersist(Array.isArray(parsed?.posts) ? parsed.posts : [])
+        }
+      }
     }
   }
 })
