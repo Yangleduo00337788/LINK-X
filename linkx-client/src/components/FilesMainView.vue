@@ -697,7 +697,7 @@ void MoveOutline
                 </div>
               </div>
               <div class="col-time">{{ formatTime(item.updateTime || item.createTime) }}</div>
-              <div class="col-size">{{ item.kind === 'file' && item.fileSize != null ? formatFileSize(item.fileSize) : '—' }}</div>
+              <div class="col-size">{{ item.fileSize != null ? formatFileSize(item.fileSize) : '—' }}</div>
               <div class="col-uploader">
                 <Avatar
                   :text="(item.uploaderName || t('common.me')).slice(0, 1)"
@@ -745,7 +745,13 @@ void MoveOutline
             </div>
             <div class="grid-name">{{ item.name }}</div>
             <div class="grid-meta">
-              {{ item.kind === 'folder' ? t('files.itemCount', { n: item.childCount || 0 }) : formatFileSize(item.fileSize || 0) }}
+              {{
+                item.kind === 'folder'
+                  ? (item.fileSize != null
+                      ? `${t('files.itemCount', { n: item.childCount || 0 })} · ${formatFileSize(item.fileSize)}`
+                      : t('files.itemCount', { n: item.childCount || 0 }))
+                  : formatFileSize(item.fileSize || 0)
+              }}
             </div>
           </div>
           <div v-if="!loading && sortedItems.length === 0" class="empty">{{ t('files.empty') }}</div>
@@ -867,6 +873,10 @@ void MoveOutline
             <div class="meta-row">
               <span class="meta-label">{{ t('files.metaType') }}</span>
               <span class="meta-value">{{ t('files.typeFolder') }}</span>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">{{ t('files.metaSize') }}</span>
+              <span class="meta-value">{{ detailItem.fileSize != null ? formatFileSize(detailItem.fileSize) : '—' }}</span>
             </div>
             <div class="meta-row">
               <span class="meta-label">{{ t('files.itemCount', { n: detailItem.childCount || 0 }) }}</span>

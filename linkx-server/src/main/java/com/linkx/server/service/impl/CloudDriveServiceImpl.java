@@ -697,23 +697,27 @@ public class CloudDriveServiceImpl implements CloudDriveService {
 
     /** 统计文件夹及其子目录下全部文件占用（字节） */
     private long calcFolderSizeBytes(Long userId, CloudFolder folder) {
-        String path = folder.getPath() != null ? folder.getPath() : "/";
-        String prefix = path.endsWith("/") ? path : path + "/";
-        List<CloudFolder> descendants = cloudFolderMapper.selectListByQuery(
-                QueryWrapper.create()
-                        .where(CloudFolder::getUserId).eq(userId)
-                        .and(CloudFolder::getPath).like(prefix + "%")
-        );
         Set<Long> folderIds = new HashSet<>();
+        LinkedList<Long> queue = new LinkedList<>();
         folderIds.add(folder.getId());
-        for (CloudFolder d : descendants) {
-            folderIds.add(d.getId());
+        queue.add(folder.getId());
+        while (!queue.isEmpty()) {
+            Long currentId = queue.removeFirst();
+            List<CloudFolder> children = cloudFolderMapper.selectListByQuery(
+                    QueryWrapper.create()
+                            .where(CloudFolder::getUserId).eq(userId)
+                            .and(CloudFolder::getParentId).eq(currentId)
+            );
+            for (CloudFolder child : children) {
+                if (folderIds.add(child.getId())) {
+                    queue.add(child.getId());
+                }
+            }
         }
         List<CloudFile> files = cloudFileMapper.selectListByQuery(
                 QueryWrapper.create()
                         .where(CloudFile::getUserId).eq(userId)
                         .and(CloudFile::getFolderId).in(folderIds)
-                        .select(CloudFile::getFileSize)
         );
         long sum = 0L;
         for (CloudFile file : files) {
