@@ -25,7 +25,6 @@ import {
   GridOutline,
   ListOutline,
   MusicalNotesOutline,
-  CreateOutline,
   TrashOutline,
   CloudOutline
 } from '@vicons/ionicons5'
@@ -929,10 +928,6 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
 .type-chip.inline {
   position: static;
   background: var(--lx-accent-soft);
-}
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
 }
 .card-body { padding: 12px 14px 12px; flex: 1; display: flex; flex-direction: column; }
 .card-title {
