@@ -199,8 +199,21 @@ function showCover(item: FavoriteItem): boolean {
   return (item.type === 'image' || item.type === 'file') && !!item.coverUrl
 }
 
+/** 仅媒体类展示顶部预览区；聊天记录/笔记不展示文本块 */
+function showMedia(item: FavoriteItem): boolean {
+  return item.type === 'image' || item.type === 'file' || item.type === 'link'
+}
+
 function onCoverError(item: FavoriteItem) {
   item.coverUrl = undefined
+}
+
+function typeIcon(item: FavoriteItem) {
+  if (item.type === 'link') return LinkOutline
+  if (item.type === 'image') return ImageOutline
+  if (item.type === 'file') return FolderOutline
+  if (item.type === 'message') return ChatbubblesOutline
+  return DocumentTextOutline
 }
 
 function cardMenuOptions(item: FavoriteItem) {
@@ -470,7 +483,7 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
           @click="openItem(item)"
           @dblclick="openItem(item)"
         >
-          <div class="card-media" :class="item.type">
+          <div v-if="showMedia(item)" class="card-media" :class="item.type">
             <img
               v-if="showCover(item)"
               :src="item.coverUrl"
@@ -493,12 +506,6 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
                 <span v-else>{{ fileExtIcon(item).label }}</span>
               </div>
             </template>
-            <template v-else-if="item.type === 'note' || item.type === 'message'">
-              <div class="note-preview">
-                <n-icon :component="item.type === 'message' ? ChatbubblesOutline : CreateOutline" :size="20" />
-                <p>{{ item.preview || item.title }}</p>
-              </div>
-            </template>
             <template v-else>
               <div class="fallback-icon">
                 <n-icon
@@ -508,28 +515,27 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
               </div>
             </template>
             <span class="type-chip">
-              <n-icon
-                :component="
-                  item.type === 'link'
-                    ? LinkOutline
-                    : item.type === 'image'
-                      ? ImageOutline
-                      : item.type === 'file'
-                        ? FolderOutline
-                        : item.type === 'message'
-                          ? ChatbubblesOutline
-                          : DocumentTextOutline
-                "
-                :size="12"
-              />
+              <n-icon :component="typeIcon(item)" :size="12" />
             </span>
           </div>
 
-          <div class="card-body">
+          <div class="card-body" :class="{ 'no-media': !showMedia(item) }">
+            <div v-if="!showMedia(item)" class="text-type-row">
+              <span class="type-chip inline">
+                <n-icon :component="typeIcon(item)" :size="12" />
+              </span>
+            </div>
             <h4 class="card-title">{{ item.title }}</h4>
             <p v-if="item.type === 'link'" class="card-sub url">{{ item.content || item.preview }}</p>
             <p v-else-if="item.fileSize != null" class="card-sub">{{ formatFileSize(item.fileSize) }}</p>
-            <p v-else-if="item.type === 'note' || item.type === 'message'" class="card-sub clamp">
+            <p
+              v-else-if="
+                (item.type === 'note' || item.type === 'message') &&
+                item.preview &&
+                item.preview !== item.title
+              "
+              class="card-sub clamp"
+            >
               {{ item.preview }}
             </p>
 
@@ -899,23 +905,13 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
   font-weight: 800;
   font-size: 14px;
 }
-.note-preview {
-  width: 100%;
-  height: 100%;
-  padding: 16px;
-  box-sizing: border-box;
-  color: var(--lx-text-secondary);
-}
-.note-preview p {
-  margin: 8px 0 0;
-  font-size: 12px;
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 5;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
 .fallback-icon { color: var(--lx-text-muted); }
+.card-body.no-media {
+  padding-top: 14px;
+}
+.text-type-row {
+  margin-bottom: 8px;
+}
 .type-chip {
   position: absolute;
   left: 10px;
@@ -926,6 +922,14 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
   background: rgba(255, 255, 255, 0.92);
   color: var(--lx-accent);
   display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+.type-chip.inline {
+  position: static;
+  background: var(--lx-accent-soft);
+}
   align-items: center;
   justify-content: center;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
