@@ -150,6 +150,10 @@ export interface FavoriteItem {
   fileSize?: number
   coverUrl?: string
   createTimeMs?: number
+  /** 来源类型，如 conversation */
+  sourceType?: string
+  /** 来源 ID：会话收藏为 sessionId，或 sessionId#messageId */
+  sourceId?: string
 }
 
 // 聊天背景预设 ID

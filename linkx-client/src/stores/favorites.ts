@@ -88,7 +88,9 @@ function mapVo(f: FavoriteVO): FavoriteItem {
     fileSize: f.fileSize != null ? Number(f.fileSize) : undefined,
     coverUrl,
     createTimeMs,
-    time: f.createTime || f.updateTime || nowLabel()
+    time: f.createTime || f.updateTime || nowLabel(),
+    sourceType: f.sourceType || undefined,
+    sourceId: f.sourceId || undefined
   }
 }
 
@@ -184,6 +186,8 @@ export const useFavoritesStore = defineStore('favorites', {
             item.type === 'message'
               ? item.type
               : 'note',
+          sourceType: item.sourceType,
+          sourceId: item.sourceId,
           tags: item.tags?.length ? JSON.stringify(item.tags) : undefined,
           fileSize: item.fileSize
         })

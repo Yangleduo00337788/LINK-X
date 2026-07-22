@@ -33,6 +33,7 @@ import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useFavoritesStore } from '../stores/favorites'
 import { useAppSettingsStore } from '../stores/appSettings'
+import { useAppStore } from '../stores/app'
 import type { FavoriteItem } from '../types'
 import { formatFileSize } from '../utils/file'
 import { useOverlayStore } from '../stores/overlay'
@@ -43,10 +44,12 @@ const dialog = useDialog()
 const router = useRouter()
 const { t } = useI18n()
 const favStore = useFavoritesStore()
+const appStore = useAppStore()
 const appSettings = useAppSettingsStore()
 const overlayStore = useOverlayStore()
 const { items, loading, tags, typeCounts, usedBytes, quotaBytes, usedPercent } = storeToRefs(favStore)
 const { favoritesViewMode, favoritesSort } = storeToRefs(appSettings)
+const { sessions } = storeToRefs(appStore)
 
 type CategoryKey = 'all' | 'link' | 'image' | 'file' | 'note' | 'message' | 'other'
 
@@ -233,11 +236,33 @@ function openItem(item: FavoriteItem) {
     })
     return
   }
+  if (item.type === 'message' || (item.sourceType === 'conversation' && item.sourceId)) {
+    openConversationFavorite(item)
+    return
+  }
   if (item.type === 'note') {
     openNewNote()
     return
   }
   message.info(t('favorites.openHint'))
+}
+
+/** 跳转到收藏消息所属会话 */
+function openConversationFavorite(item: FavoriteItem) {
+  const raw = (item.sourceId || '').trim()
+  const sessionId = raw.includes('#') ? raw.split('#')[0] : raw
+  if (!sessionId) {
+    message.warning(t('favorites.sessionMissing'))
+    return
+  }
+  const session = sessions.value.find(s => s.id === sessionId)
+  if (!session) {
+    message.warning(t('favorites.sessionMissing'))
+    return
+  }
+  appStore.setNav('chat')
+  appStore.selectSession(session)
+  message.success(t('overlay.jumpedToSession'))
 }
 
 function confirmDelete(item: FavoriteItem) {

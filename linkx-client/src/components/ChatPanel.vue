@@ -546,13 +546,17 @@ function copyMessage(msg: ChatMessage) {
 function favoriteMessage(msg: ChatMessage) {
   const mediaUrl = (msg.fileUrl || msg.content || '').trim()
   const sizeBytes = parseFavoriteFileSize(msg.fileSize)
+  const sourceType = 'conversation'
+  const sourceId = msg.sessionId ? `${msg.sessionId}#${msg.id}` : msg.sessionId
   if (msg.type === 'file') {
     void favoritesStore.add({
       title: msg.fileName || msg.content || t('chat.file'),
       content: mediaUrl || msg.fileName || msg.content,
       preview: msg.fileSize || msg.fileName || '',
       type: 'file',
-      fileSize: sizeBytes
+      fileSize: sizeBytes,
+      sourceType,
+      sourceId
     })
   } else if (msg.type === 'image' || msg.isImage) {
     void favoritesStore.add({
@@ -560,21 +564,29 @@ function favoriteMessage(msg: ChatMessage) {
       content: mediaUrl,
       preview: msg.fileName || t('chat.imageMessage'),
       type: 'image',
-      fileSize: sizeBytes
+      fileSize: sizeBytes,
+      sourceType,
+      sourceId
     })
   } else if (msg.type === 'link') {
     void favoritesStore.add({
       title: msg.content.slice(0, 30),
       content: msg.linkUrl || msg.content,
       preview: msg.content,
-      type: 'link'
+      type: 'link',
+      sourceType,
+      sourceId
     })
   } else {
+    // 聊天文本等 → 聊天记录（勿存成 note，否则会打开笔记编辑器）
+    const preview = msg.content || t('chat.messageFallback')
     void favoritesStore.add({
-      title: msg.content.slice(0, 20) || t('chat.messageFallback'),
-      content: msg.content,
-      preview: msg.content,
-      type: 'note'
+      title: preview.slice(0, 40),
+      content: preview,
+      preview,
+      type: 'message',
+      sourceType,
+      sourceId
     })
   }
   message.success(t('chat.favorited'))
