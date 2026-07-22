@@ -246,7 +246,7 @@ export default {
     storage: 'Storage',
     storageUsed: '{used} of {total} used',
     expandStorage: 'Upgrade storage',
-    expandOk: 'Storage expanded by +5 GB',
+    expandOk: 'Storage expanded by +10 GB',
     expandFail: 'Failed to expand storage',
     tabInfo: 'Details',
     tabActivity: 'Activity',

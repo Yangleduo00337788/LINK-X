@@ -2,7 +2,7 @@
 
 CREATE TABLE IF NOT EXISTS `favorite_storage` (
   `user_id`      bigint NOT NULL COMMENT '用户ID',
-  `quota_bytes`  bigint NOT NULL DEFAULT 32212254720 COMMENT '配额，默认30GiB',
+  `quota_bytes`  bigint NOT NULL DEFAULT 21474836480 COMMENT '配额，默认20GiB',
   `used_bytes`   bigint NOT NULL DEFAULT 0 COMMENT '已用（可由 file_size 汇总校正）',
   `item_count`   int    NOT NULL DEFAULT 0 COMMENT '收藏条数',
   `version`      int    NOT NULL DEFAULT 0,

@@ -72,15 +72,16 @@ public class CloudDriveServiceImpl implements CloudDriveService {
     @Transactional
     public DriveStorageVO expandStorage(Long userId) {
         UserStorage storage = ensureStorage(userId);
-        long next = storage.getQuotaBytes() + UserStorage.EXPAND_STEP_BYTES;
+        long quota = storage.getQuotaBytes() != null ? storage.getQuotaBytes() : UserStorage.DEFAULT_QUOTA_BYTES;
+        long next = quota + UserStorage.EXPAND_STEP_BYTES;
         if (next > UserStorage.MAX_QUOTA_BYTES) {
-            throw new CustomException(400, "已达最大扩容上限（100 GB）");
+            throw new CustomException(400, "已达最大扩容上限（60 GB）");
         }
         storage.setQuotaBytes(next);
         storage.setVersion(storage.getVersion() + 1);
         userStorageMapper.update(storage);
         logActivity(userId, CloudActivity.TARGET_STORAGE, userId, "存储空间",
-                CloudActivity.ACTION_EXPAND, "扩容 +5 GB");
+                CloudActivity.ACTION_EXPAND, "扩容 +10 GB");
         return toStorageVO(storage);
     }
 
@@ -201,9 +202,7 @@ public class CloudDriveServiceImpl implements CloudDriveService {
             requireFolder(userId, folderId);
         }
         long size = file.getSize();
-        if (storage.getUsedBytes() + size > storage.getQuotaBytes()) {
-            throw new CustomException(400, "存储空间不足，请先扩容");
-        }
+        ensureDriveCapacity(storage, size);
 
         String key;
         try {
@@ -568,6 +567,31 @@ public class CloudDriveServiceImpl implements CloudDriveService {
             throw new CustomException(500, "初始化存储失败");
         }
         return storage;
+    }
+
+    /**
+     * 当前用量 + 新增字节若超出配额，按 10GiB 步长自动扩容，直到够用或达 60GiB 上限。
+     */
+    private void ensureDriveCapacity(UserStorage storage, long additionalBytes) {
+        long used = storage.getUsedBytes() != null ? storage.getUsedBytes() : 0L;
+        long quota = storage.getQuotaBytes() != null ? storage.getQuotaBytes() : UserStorage.DEFAULT_QUOTA_BYTES;
+        long need = used + Math.max(0L, additionalBytes);
+        if (need <= quota) {
+            return;
+        }
+        long next = quota;
+        while (next < need && next + UserStorage.EXPAND_STEP_BYTES <= UserStorage.MAX_QUOTA_BYTES) {
+            next += UserStorage.EXPAND_STEP_BYTES;
+        }
+        if (need > next) {
+            throw new CustomException(400, "已达最大存储上限（60 GB）");
+        }
+        storage.setQuotaBytes(next);
+        storage.setVersion((storage.getVersion() != null ? storage.getVersion() : 0) + 1);
+        userStorageMapper.update(storage);
+        long addedGb = (next - quota) / (1024L * 1024 * 1024);
+        logActivity(storage.getUserId(), CloudActivity.TARGET_STORAGE, storage.getUserId(), "存储空间",
+                CloudActivity.ACTION_EXPAND, "自动扩容 +" + addedGb + " GB");
     }
 
     private DriveStorageVO toStorageVO(UserStorage s) {

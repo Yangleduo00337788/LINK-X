@@ -249,7 +249,7 @@ export default {
     storage: '存储空间',
     storageUsed: '已用 {used} / {total}',
     expandStorage: '扩容空间',
-    expandOk: '已扩容 +5 GB',
+    expandOk: '已扩容 +10 GB',
     expandFail: '扩容失败',
     tabInfo: '详情',
     tabActivity: '动态',

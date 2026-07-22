@@ -22,10 +22,10 @@ public class UserStorage implements Serializable {
 
     /** 默认配额 20 GiB */
     public static final long DEFAULT_QUOTA_BYTES = 20L * 1024 * 1024 * 1024;
-    /** 单次扩容 5 GiB */
-    public static final long EXPAND_STEP_BYTES = 5L * 1024 * 1024 * 1024;
-    /** 最大配额 100 GiB */
-    public static final long MAX_QUOTA_BYTES = 100L * 1024 * 1024 * 1024;
+    /** 超限自动扩容步长 10 GiB */
+    public static final long EXPAND_STEP_BYTES = 10L * 1024 * 1024 * 1024;
+    /** 最大配额 60 GiB */
+    public static final long MAX_QUOTA_BYTES = 60L * 1024 * 1024 * 1024;
 
     @Id
     private Long userId;

@@ -74,11 +74,7 @@ public class FavoriteServiceImpl implements FavoriteService {
         }
         FavoriteStorage storage = refreshStorageStats(userId);
         long addSize = dto.getFileSize() != null ? Math.max(0, dto.getFileSize()) : 0L;
-        long used = storage.getUsedBytes() != null ? storage.getUsedBytes() : 0L;
-        long quota = storage.getQuotaBytes() != null ? storage.getQuotaBytes() : FavoriteStorage.DEFAULT_QUOTA_BYTES;
-        if (used + addSize > quota) {
-            throw new CustomException(400, "收藏空间不足，请清理后重试");
-        }
+        ensureFavoriteCapacity(storage, addSize);
 
         Favorite fav = Favorite.builder()
                 .userId(userId)
@@ -126,11 +122,7 @@ public class FavoriteServiceImpl implements FavoriteService {
         Long newSize = fav.getFileSize() != null ? fav.getFileSize() : 0L;
         if (!Objects.equals(oldSize, newSize)) {
             FavoriteStorage storage = refreshStorageStats(userId);
-            long used = storage.getUsedBytes() != null ? storage.getUsedBytes() : 0L;
-            long quota = storage.getQuotaBytes() != null ? storage.getQuotaBytes() : FavoriteStorage.DEFAULT_QUOTA_BYTES;
-            if (used > quota) {
-                throw new CustomException(400, "收藏空间不足");
-            }
+            ensureFavoriteCapacity(storage, 0L);
         } else {
             refreshStorageStats(userId);
         }
@@ -291,6 +283,28 @@ public class FavoriteServiceImpl implements FavoriteService {
         storage.setVersion((storage.getVersion() != null ? storage.getVersion() : 0) + 1);
         favoriteStorageMapper.update(storage);
         return storage;
+    }
+
+    /**
+     * 当前用量 + 新增字节若超出配额，按 10GiB 步长自动扩容，直到够用或达 60GiB 上限。
+     */
+    private void ensureFavoriteCapacity(FavoriteStorage storage, long additionalBytes) {
+        long used = storage.getUsedBytes() != null ? storage.getUsedBytes() : 0L;
+        long quota = storage.getQuotaBytes() != null ? storage.getQuotaBytes() : FavoriteStorage.DEFAULT_QUOTA_BYTES;
+        long need = used + Math.max(0L, additionalBytes);
+        if (need <= quota) {
+            return;
+        }
+        long next = quota;
+        while (next < need && next + FavoriteStorage.EXPAND_STEP_BYTES <= FavoriteStorage.MAX_QUOTA_BYTES) {
+            next += FavoriteStorage.EXPAND_STEP_BYTES;
+        }
+        if (need > next) {
+            throw new CustomException(400, "已达最大收藏空间上限（60 GB）");
+        }
+        storage.setQuotaBytes(next);
+        storage.setVersion((storage.getVersion() != null ? storage.getVersion() : 0) + 1);
+        favoriteStorageMapper.update(storage);
     }
 
     private void ensurePresetTags(Long userId) {

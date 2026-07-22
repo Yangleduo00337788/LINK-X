@@ -20,8 +20,12 @@ public class FavoriteStorage implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    /** 默认配额 30 GiB */
-    public static final long DEFAULT_QUOTA_BYTES = 30L * 1024 * 1024 * 1024;
+    /** 默认配额 20 GiB */
+    public static final long DEFAULT_QUOTA_BYTES = 20L * 1024 * 1024 * 1024;
+    /** 超限自动扩容步长 10 GiB */
+    public static final long EXPAND_STEP_BYTES = 10L * 1024 * 1024 * 1024;
+    /** 最大配额 60 GiB */
+    public static final long MAX_QUOTA_BYTES = 60L * 1024 * 1024 * 1024;
 
     @Id
     private Long userId;

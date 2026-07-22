@@ -119,7 +119,7 @@ export const useFavoritesStore = defineStore('favorites', {
       return state.storage?.usedBytes ?? 0
     },
     quotaBytes(state): number {
-      return state.storage?.quotaBytes ?? 30 * 1024 * 1024 * 1024
+      return state.storage?.quotaBytes ?? 20 * 1024 * 1024 * 1024
     },
     usedPercent(state): number {
       return state.storage?.usedPercent ?? 0
