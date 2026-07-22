@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -170,7 +171,13 @@ public class CloudDriveServiceImpl implements CloudDriveService {
         CloudFolder saved = cloudFolderMapper.selectOneById(folder.getId());
         logActivity(userId, CloudActivity.TARGET_FOLDER, folder.getId(), name,
                 CloudActivity.ACTION_CREATE, "新建文件夹");
-        return toFolderVO(userId, saved != null ? saved : folder, resolveUploaderName(userId), resolveUploaderAvatar(userId));
+        SysUser me = sysUserMapper.selectOneById(userId);
+        return toFolderVO(
+                userId,
+                saved != null ? saved : folder,
+                me != null ? me.getNickname() : null,
+                me != null ? mediaUrlService.resolve(me.getAvatar()) : null
+        );
     }
 
     @Override
@@ -316,7 +323,13 @@ public class CloudDriveServiceImpl implements CloudDriveService {
             logActivity(userId, CloudActivity.TARGET_FOLDER, folderId, folder.getName(),
                     CloudActivity.ACTION_MOVE, "移动文件夹");
         }
-        return toFolderVO(userId, folder, resolveUploaderName(userId), resolveUploaderAvatar(userId));
+        SysUser me = sysUserMapper.selectOneById(userId);
+        return toFolderVO(
+                userId,
+                folder,
+                me != null ? me.getNickname() : null,
+                me != null ? mediaUrlService.resolve(me.getAvatar()) : null
+        );
     }
 
     @Override
@@ -673,6 +686,7 @@ public class CloudDriveServiceImpl implements CloudDriveService {
                 .id(f.getId())
                 .name(f.getName())
                 .parentId(f.getParentId())
+                .fileSize(calcFolderSizeBytes(userId, f))
                 .childCount((int) (childFolders + childFiles))
                 .uploaderName(uploader)
                 .uploaderAvatar(uploaderAvatar)
@@ -681,14 +695,33 @@ public class CloudDriveServiceImpl implements CloudDriveService {
                 .build();
     }
 
-    private String resolveUploaderName(Long userId) {
-        SysUser me = sysUserMapper.selectOneById(userId);
-        return me != null ? me.getNickname() : null;
-    }
-
-    private String resolveUploaderAvatar(Long userId) {
-        SysUser me = sysUserMapper.selectOneById(userId);
-        return me != null ? mediaUrlService.resolve(me.getAvatar()) : null;
+    /** 统计文件夹及其子目录下全部文件占用（字节） */
+    private long calcFolderSizeBytes(Long userId, CloudFolder folder) {
+        String path = folder.getPath() != null ? folder.getPath() : "/";
+        String prefix = path.endsWith("/") ? path : path + "/";
+        List<CloudFolder> descendants = cloudFolderMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(CloudFolder::getUserId).eq(userId)
+                        .and(CloudFolder::getPath).like(prefix + "%")
+        );
+        Set<Long> folderIds = new HashSet<>();
+        folderIds.add(folder.getId());
+        for (CloudFolder d : descendants) {
+            folderIds.add(d.getId());
+        }
+        List<CloudFile> files = cloudFileMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(CloudFile::getUserId).eq(userId)
+                        .and(CloudFile::getFolderId).in(folderIds)
+                        .select(CloudFile::getFileSize)
+        );
+        long sum = 0L;
+        for (CloudFile file : files) {
+            if (file.getFileSize() != null) {
+                sum += file.getFileSize();
+            }
+        }
+        return sum;
     }
 
     private DriveItemVO toFileVO(CloudFile f, List<String> tags, String uploader, String uploaderAvatar) {
