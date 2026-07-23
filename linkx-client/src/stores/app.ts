@@ -1316,7 +1316,7 @@ export const useAppStore = defineStore('app', {
           // 注意：不再从 blob URL 重建 File，直接使用 rawFile，避免 blob 失效导致 size=0
           if (uploadFile) {
             console.log('[发送消息] 上传文件:', uploadFile.name, uploadFile.size, uploadFile.type, 'lastModified:', uploadFile.lastModified)
-            const uploadRes = await chatApi.uploadChatFile(id, uploadFile)
+            const uploadRes = await chatApi.uploadChatFileSmart(id, uploadFile)
             console.log('[发送消息] 上传结果:', uploadRes)
             if (uploadRes.code !== 200 || !uploadRes.data) {
               throw new Error(uploadRes.message || '文件上传失败')

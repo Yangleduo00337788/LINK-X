@@ -75,18 +75,32 @@ public interface ChatService {
 
     // ==================== 分片上传（断点续传） ====================
 
-    /** 初始化分片上传 */
-    String initiateMultipartUpload(Long userId, Long conversationId, String objectName, String contentType);
+    /** 推荐分片大小（5MiB，满足 ComposeObject 约束） */
+    long MULTIPART_PART_SIZE = 5L * 1024 * 1024;
 
-    /** 上传分片 */
+    /** 超过该大小走分片上传 */
+    long MULTIPART_THRESHOLD = 5L * 1024 * 1024;
+
+    /** 初始化分片上传（服务端分配 objectName） */
+    java.util.Map<String, Object> initiateMultipartUpload(Long userId, Long conversationId, String fileName, String contentType, Long fileSize);
+
+    /** 上传分片，返回 etag */
     String uploadPart(Long userId, Long conversationId, String objectName, String uploadId, int partNumber, MultipartFile file);
 
+    /** 已上传分片列表（断点续传） */
+    java.util.List<FileStorageService.PartETag> listUploadedParts(Long userId, Long conversationId, String uploadId);
+
     /** 完成分片上传 */
-    ChatFileUploadVO completeMultipartUpload(Long userId, Long conversationId, String objectName, String uploadId, List<FileStorageService.PartETag> parts);
+    ChatFileUploadVO completeMultipartUpload(Long userId, Long conversationId, String objectName, String uploadId,
+                                             List<FileStorageService.PartETag> parts, String fileName, Long fileSize,
+                                             String contentType, String contentHash);
 
     /** 取消分片上传 */
     void abortMultipartUpload(Long userId, Long conversationId, String objectName, String uploadId);
 
-    /** 根据文件哈希查找已上传文件 */
+    /** 根据文件哈希查找已上传文件（秒传） */
     String findFileByHash(Long userId, String contentHash);
+
+    /** 秒传命中时组装上传结果（含签名 URL） */
+    ChatFileUploadVO resolveFileByHash(Long userId, String contentHash, String fileName, Long fileSize, String contentType);
 }

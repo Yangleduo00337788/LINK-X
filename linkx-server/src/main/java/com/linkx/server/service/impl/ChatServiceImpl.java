@@ -1,5 +1,6 @@
 package com.linkx.server.service.impl;
 
+import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.common.InputSanitizer;
 import com.linkx.server.controller.dto.SendMessageDTO;
 import com.linkx.server.controller.vo.ChatFileUploadVO;
@@ -67,6 +68,7 @@ public class ChatServiceImpl implements ChatService {
     private final SysUserRelationMapper sysUserRelationMapper;
     private final FileStorageService fileStorageService;
     private final MediaUrlService mediaUrlService;
+    private final LinkxProperties linkxProperties;
     private final StringRedisTemplate redisTemplate;
     private final RedPacketMapper redPacketMapper;
     private final RedPacketRecordMapper redPacketRecordMapper;
@@ -1243,35 +1245,76 @@ public class ChatServiceImpl implements ChatService {
     // ==================== 分片上传（断点续传） ====================
 
     @Override
-    public String initiateMultipartUpload(Long userId, Long conversationId, String objectName, String contentType) {
+    public java.util.Map<String, Object> initiateMultipartUpload(Long userId, Long conversationId, String fileName, String contentType, Long fileSize) {
         assertConversationMember(userId, conversationId);
-        return fileStorageService.initiateMultipartUpload(objectName, contentType);
+        if (fileSize != null && fileSize > linkxProperties.getMinio().getMaxFileSize()) {
+            throw new CustomException(400, "文件大小超过限制");
+        }
+        try {
+            String objectName = fileStorageService.allocateObjectName(fileName);
+            var session = fileStorageService.initiateMultipartUpload(objectName, contentType);
+            java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+            result.put("uploadId", session.uploadId());
+            result.put("objectName", session.objectName());
+            result.put("partSize", ChatService.MULTIPART_PART_SIZE);
+            result.put("uploadedParts", java.util.List.of());
+            return result;
+        } catch (IllegalArgumentException e) {
+            throw new CustomException(400, e.getMessage());
+        } catch (RuntimeException e) {
+            throw new CustomException(400, e.getMessage() != null ? e.getMessage() : "初始化分片上传失败");
+        }
     }
 
     @Override
     public String uploadPart(Long userId, Long conversationId, String objectName, String uploadId, int partNumber, MultipartFile file) {
         assertConversationMember(userId, conversationId);
         try {
-            fileStorageService.uploadPart(objectName, uploadId, partNumber, file.getInputStream(), file.getSize());
-            // 返回 etag（MinIO 上传后无显式返回，用 MD5 模拟）
-            return "\"" + org.springframework.util.DigestUtils.md5DigestAsHex(
-                    ("part-" + partNumber + "-" + uploadId).getBytes()) + "\"";
+            return fileStorageService.uploadPart(objectName, uploadId, partNumber, file.getInputStream(), file.getSize());
+        } catch (IllegalArgumentException e) {
+            throw new CustomException(400, e.getMessage());
         } catch (Exception e) {
-            throw new CustomException(400, "分片上传失败: " + e.getMessage());
+            throw new CustomException(400, "分片上传失败");
         }
     }
 
     @Override
-    public ChatFileUploadVO completeMultipartUpload(Long userId, Long conversationId, String objectName, String uploadId, List<FileStorageService.PartETag> parts) {
+    public List<FileStorageService.PartETag> listUploadedParts(Long userId, Long conversationId, String uploadId) {
         assertConversationMember(userId, conversationId);
-        String finalKey = fileStorageService.completeMultipartUpload(objectName, uploadId, parts);
-        String signedUrl = mediaUrlService.resolveFile(finalKey);
-        return ChatFileUploadVO.builder()
-                .url(signedUrl)
-                .fileKey(finalKey)
-                .fileName(objectName.contains("/") ? objectName.substring(objectName.lastIndexOf('/') + 1) : objectName)
-                .contentType("application/octet-stream")
-                .build();
+        try {
+            return fileStorageService.listUploadedParts(uploadId);
+        } catch (IllegalArgumentException e) {
+            throw new CustomException(400, e.getMessage());
+        }
+    }
+
+    @Override
+    public ChatFileUploadVO completeMultipartUpload(Long userId, Long conversationId, String objectName, String uploadId,
+                                                    List<FileStorageService.PartETag> parts, String fileName, Long fileSize,
+                                                    String contentType, String contentHash) {
+        assertConversationMember(userId, conversationId);
+        try {
+            String finalKey = fileStorageService.completeMultipartUpload(objectName, uploadId, parts);
+            if (contentHash != null && contentHash.matches("(?i)^[a-f0-9]{64}$")) {
+                fileStorageService.saveContentHash(contentHash, finalKey);
+            }
+            String signedUrl = mediaUrlService.resolveFile(finalKey);
+            String name = fileName;
+            if (name == null || name.isBlank()) {
+                name = objectName.contains("/") ? objectName.substring(objectName.lastIndexOf('/') + 1) : objectName;
+            }
+            return ChatFileUploadVO.builder()
+                    .url(signedUrl)
+                    .fileKey(finalKey)
+                    .fileName(name)
+                    .fileSize(fileSize)
+                    .contentType(contentType != null ? contentType : "application/octet-stream")
+                    .build();
+        } catch (IllegalArgumentException e) {
+            throw new CustomException(400, e.getMessage());
+        } catch (RuntimeException e) {
+            throw new CustomException(400, e.getMessage() != null ? e.getMessage() : "完成分片上传失败");
+        }
     }
 
     @Override
@@ -1283,5 +1326,21 @@ public class ChatServiceImpl implements ChatService {
     @Override
     public String findFileByHash(Long userId, String contentHash) {
         return fileStorageService.findByContentHash(contentHash);
+    }
+
+    @Override
+    public ChatFileUploadVO resolveFileByHash(Long userId, String contentHash, String fileName, Long fileSize, String contentType) {
+        String existingKey = fileStorageService.findByContentHash(contentHash);
+        if (existingKey == null) {
+            return null;
+        }
+        String signedUrl = mediaUrlService.resolveFile(existingKey);
+        return ChatFileUploadVO.builder()
+                .url(signedUrl)
+                .fileKey(existingKey)
+                .fileName(fileName)
+                .fileSize(fileSize)
+                .contentType(contentType)
+                .build();
     }
 }

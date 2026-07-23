@@ -73,11 +73,21 @@ public interface FileStorageService {
     record PartETag(int partNumber, String etag) {
     }
 
-    /** 初始化分片上传，返回 uploadId */
-    String initiateMultipartUpload(String objectName, String contentType);
+    /** 分片会话（服务端生成 objectName） */
+    record MultipartSession(String uploadId, String objectName, String contentType) {
+    }
 
-    /** 上传单个分片 */
-    void uploadPart(String objectName, String uploadId, int partNumber, InputStream data, long partSize);
+    /** 按日期路径分配对象 key（不含实际上传） */
+    String allocateObjectName(String originalFilename);
+
+    /** 初始化分片上传，返回 uploadId + objectName */
+    MultipartSession initiateMultipartUpload(String objectName, String contentType);
+
+    /** 上传单个分片，返回 etag；已上传过的 part 幂等返回原 etag */
+    String uploadPart(String objectName, String uploadId, int partNumber, InputStream data, long partSize);
+
+    /** 列出已上传分片（断点续传） */
+    List<PartETag> listUploadedParts(String uploadId);
 
     /** 完成分片上传，返回最终对象 key */
     String completeMultipartUpload(String objectName, String uploadId, List<PartETag> parts);
@@ -85,7 +95,10 @@ public interface FileStorageService {
     /** 取消分片上传 */
     void abortMultipartUpload(String objectName, String uploadId);
 
-    /** 按内容哈希查找已上传对象（秒传） */
+    /** 对象是否仍存在于存储中 */
+    boolean objectExists(String objectKey);
+
+    /** 按内容哈希查找已上传对象（秒传）；对象已删则返回 null */
     String findByContentHash(String contentHash);
 
     /** 保存内容哈希与对象 key 映射 */

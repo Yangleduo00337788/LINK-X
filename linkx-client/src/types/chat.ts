@@ -66,6 +66,7 @@ export interface MessageItem {
 
 export interface ChatFileUploadResult {
   url: string
+  fileKey?: string
   fileName?: string
   fileSize?: string | number
   contentType?: string

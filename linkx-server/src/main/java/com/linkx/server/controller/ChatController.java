@@ -226,10 +226,26 @@ public class ChatController {
             @org.springframework.web.bind.annotation.RequestBody java.util.Map<String, Object> body,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        String objectName = (String) body.get("objectName");
-        String contentType = (String) body.get("contentType");
-        String uploadId = chatService.initiateMultipartUpload(userId, parseId(conversationId), objectName, contentType);
-        return Result.success(java.util.Map.of("uploadId", uploadId, "objectName", objectName));
+        String fileName = body.get("fileName") != null ? String.valueOf(body.get("fileName")) : null;
+        String contentType = body.get("contentType") != null ? String.valueOf(body.get("contentType")) : null;
+        Long fileSize = null;
+        if (body.get("fileSize") instanceof Number n) {
+            fileSize = n.longValue();
+        } else if (body.get("fileSize") != null) {
+            try {
+                fileSize = Long.parseLong(String.valueOf(body.get("fileSize")));
+            } catch (NumberFormatException ignored) {
+                // leave null
+            }
+        }
+        if (fileName == null || fileName.isBlank()) {
+            throw new com.linkx.server.exception.CustomException(400, "fileName 不能为空");
+        }
+        if (contentType == null || contentType.isBlank()) {
+            throw new com.linkx.server.exception.CustomException(400, "contentType 不能为空");
+        }
+        return Result.success(chatService.initiateMultipartUpload(
+                userId, parseId(conversationId), fileName, contentType, fileSize));
     }
 
     @PostMapping("/sessions/{conversationId}/upload/part")
@@ -243,7 +259,25 @@ public class ChatController {
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         String etag = chatService.uploadPart(userId, parseId(conversationId), objectName, uploadId, partNumber, file);
-        return Result.success(java.util.Map.of("etag", etag));
+        return Result.success(java.util.Map.of("etag", etag, "partNumber", String.valueOf(partNumber)));
+    }
+
+    @GetMapping("/sessions/{conversationId}/upload/{uploadId}/parts")
+    @RateLimit(scope = "chat:upload:parts", value = 60, window = 60)
+    public Result<java.util.List<java.util.Map<String, Object>>> listUploadedParts(
+            @PathVariable String conversationId,
+            @PathVariable String uploadId,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        var parts = chatService.listUploadedParts(userId, parseId(conversationId), uploadId);
+        return Result.success(parts.stream()
+                .map(p -> {
+                    java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+                    m.put("partNumber", p.partNumber());
+                    m.put("etag", p.etag());
+                    return m;
+                })
+                .toList());
     }
 
     @PostMapping("/sessions/{conversationId}/upload/complete")
@@ -253,15 +287,31 @@ public class ChatController {
             @org.springframework.web.bind.annotation.RequestBody java.util.Map<String, Object> body,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        String objectName = (String) body.get("objectName");
-        String uploadId = (String) body.get("uploadId");
+        String objectName = body.get("objectName") != null ? String.valueOf(body.get("objectName")) : null;
+        String uploadId = body.get("uploadId") != null ? String.valueOf(body.get("uploadId")) : null;
+        String fileName = body.get("fileName") != null ? String.valueOf(body.get("fileName")) : null;
+        String contentType = body.get("contentType") != null ? String.valueOf(body.get("contentType")) : null;
+        String contentHash = body.get("contentHash") != null ? String.valueOf(body.get("contentHash")) : null;
+        Long fileSize = null;
+        if (body.get("fileSize") instanceof Number n) {
+            fileSize = n.longValue();
+        }
         @SuppressWarnings("unchecked")
-        java.util.List<java.util.Map<String, Object>> partMaps = (java.util.List<java.util.Map<String, Object>>) body.get("parts");
+        java.util.List<java.util.Map<String, Object>> partMaps =
+                body.get("parts") instanceof java.util.List<?> list
+                        ? (java.util.List<java.util.Map<String, Object>>) list
+                        : java.util.List.of();
         var parts = partMaps.stream()
-                .map(m -> new com.linkx.server.service.FileStorageService.PartETag(
-                        (Integer) m.get("partNumber"), (String) m.get("etag")))
+                .map(m -> {
+                    Object pn = m.get("partNumber");
+                    int partNumber = pn instanceof Number n ? n.intValue() : Integer.parseInt(String.valueOf(pn));
+                    return new com.linkx.server.service.FileStorageService.PartETag(
+                            partNumber, String.valueOf(m.get("etag")));
+                })
                 .toList();
-        ChatFileUploadVO vo = chatService.completeMultipartUpload(userId, parseId(conversationId), objectName, uploadId, parts);
+        ChatFileUploadVO vo = chatService.completeMultipartUpload(
+                userId, parseId(conversationId), objectName, uploadId, parts,
+                fileName, fileSize, contentType, contentHash);
         return Result.success(vo);
     }
 
@@ -281,17 +331,34 @@ public class ChatController {
     @PostMapping("/upload/check-hash")
     @RateLimit(scope = "chat:upload:hash", value = 30, window = 60)
     public Result<java.util.Map<String, Object>> checkFileHash(
-            @org.springframework.web.bind.annotation.RequestBody java.util.Map<String, String> body,
+            @org.springframework.web.bind.annotation.RequestBody java.util.Map<String, Object> body,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        String hash = body.get("hash");
+        String hash = body.get("hash") != null ? String.valueOf(body.get("hash")) : null;
         if (hash == null || hash.isBlank()) {
             throw new com.linkx.server.exception.CustomException(400, "哈希不能为空");
         }
-        String existingKey = chatService.findFileByHash(userId, hash);
+        String fileName = body.get("fileName") != null ? String.valueOf(body.get("fileName")) : null;
+        String contentType = body.get("contentType") != null ? String.valueOf(body.get("contentType")) : null;
+        Long fileSize = null;
+        if (body.get("fileSize") instanceof Number n) {
+            fileSize = n.longValue();
+        }
+        ChatFileUploadVO hit = chatService.resolveFileByHash(userId, hash, fileName, fileSize, contentType);
+        if (hit != null) {
+            java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+            result.put("exists", true);
+            result.put("objectKey", hit.getFileKey() != null ? hit.getFileKey() : "");
+            result.put("url", hit.getUrl() != null ? hit.getUrl() : "");
+            result.put("fileName", hit.getFileName() != null ? hit.getFileName() : "");
+            result.put("fileSize", hit.getFileSize() != null ? hit.getFileSize() : 0L);
+            result.put("contentType", hit.getContentType() != null ? hit.getContentType() : "");
+            return Result.success(result);
+        }
         return Result.success(java.util.Map.of(
-                "exists", existingKey != null,
-                "objectKey", existingKey != null ? existingKey : ""
+                "exists", false,
+                "objectKey", "",
+                "url", ""
         ));
     }
 
