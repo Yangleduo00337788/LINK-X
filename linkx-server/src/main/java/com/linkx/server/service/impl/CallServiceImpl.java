@@ -268,4 +268,184 @@ public class CallServiceImpl implements CallService {
         }
         return user.getUsername() != null ? user.getUsername() : "用户";
     }
+
+    // ==================== 断线重连 ====================
+
+    @Override
+    public void reconnect(Long userId, String callId) {
+        Map<Object, Object> data = redisTemplate.opsForHash().entries(callKey(callId));
+        if (data.isEmpty()) {
+            throw new CustomException(404, "通话不存在或已过期");
+        }
+        String status = str(data.get("status"));
+        Long callerId = Long.parseLong(str(data.get("callerId")));
+        Long calleeId = Long.parseLong(str(data.get("calleeId")));
+
+        if (!userId.equals(callerId) && !userId.equals(calleeId)) {
+            throw new CustomException(403, "无权重连该通话");
+        }
+        if ("ended".equals(status) || "cancelled".equals(status) || "rejected".equals(status)) {
+            throw new CustomException(400, "通话已结束，无法重连");
+        }
+
+        // 延长通话 TTL
+        redisTemplate.expire(callKey(callId), CALL_TTL);
+
+        // 通知对方重连
+        Long peerId = userId.equals(callerId) ? calleeId : callerId;
+        Map<String, Object> event = Map.of(
+                "callId", callId,
+                "status", status,
+                "action", "reconnect",
+                "userId", userId
+        );
+        pushService.pushToUser(peerId, "call_reconnect", event);
+    }
+
+    // ==================== 设备切换 ====================
+
+    @Override
+    public void switchDevice(Long userId, String callId, String deviceType, boolean enabled) {
+        Map<Object, Object> data = redisTemplate.opsForHash().entries(callKey(callId));
+        if (data.isEmpty()) {
+            throw new CustomException(404, "通话不存在或已过期");
+        }
+        String status = str(data.get("status"));
+        Long callerId = Long.parseLong(str(data.get("callerId")));
+        Long calleeId = Long.parseLong(str(data.get("calleeId")));
+
+        if (!userId.equals(callerId) && !userId.equals(calleeId)) {
+            throw new CustomException(403, "无权操作该通话");
+        }
+        if (!"accepted".equals(status) && !"connected".equals(status)) {
+            throw new CustomException(400, "通话未接通，无法切换设备");
+        }
+
+        // 记录设备状态
+        String deviceKey = "linkx:call:" + callId + ":device:" + userId;
+        redisTemplate.opsForHash().put(deviceKey, deviceType, String.valueOf(enabled));
+        redisTemplate.expire(deviceKey, CALL_TTL);
+
+        // 通知对方设备切换
+        Long peerId = userId.equals(callerId) ? calleeId : callerId;
+        Map<String, Object> event = Map.of(
+                "callId", callId,
+                "userId", userId,
+                "deviceType", deviceType,
+                "enabled", enabled
+        );
+        pushService.pushToUser(peerId, "call_device_switch", event);
+    }
+
+    // ==================== 多人会议 ====================
+
+    @Override
+    public String createConference(Long userId, Long conversationId, String callType) {
+        chatService.assertConversationMember(userId, conversationId);
+        String callId = UUID.randomUUID().toString().replace("-", "");
+        String key = callKey(callId);
+
+        redisTemplate.opsForHash().putAll(key, Map.of(
+                "callerId", String.valueOf(userId),
+                "conversationId", String.valueOf(conversationId),
+                "callType", callType,
+                "status", "ringing",
+                "isConference", "true"
+        ));
+        redisTemplate.expire(key, Duration.ofMinutes(30));
+
+        // 添加创建者为第一个参与者
+        String participantsKey = "linkx:call:" + callId + ":participants";
+        redisTemplate.opsForSet().add(participantsKey, String.valueOf(userId));
+        redisTemplate.expire(participantsKey, Duration.ofMinutes(30));
+
+        // 通知会话成员
+        List<ImConversationMember> members = memberMapper.selectListByQuery(
+                QueryWrapper.create().where(ImConversationMember::getConversationId).eq(conversationId)
+        );
+        for (ImConversationMember member : members) {
+            if (!member.getUserId().equals(userId)) {
+                pushService.pushToUser(member.getUserId(), "conference_invite", Map.of(
+                        "callId", callId,
+                        "conversationId", conversationId,
+                        "callType", callType,
+                        "creatorId", userId
+                ));
+            }
+        }
+
+        return callId;
+    }
+
+    @Override
+    public void joinConference(Long userId, String callId) {
+        Map<Object, Object> data = redisTemplate.opsForHash().entries(callKey(callId));
+        if (data.isEmpty()) {
+            throw new CustomException(404, "会议不存在或已过期");
+        }
+        String status = str(data.get("status"));
+        if ("ended".equals(status) || "cancelled".equals(status)) {
+            throw new CustomException(400, "会议已结束");
+        }
+
+        String participantsKey = "linkx:call:" + callId + ":participants";
+        redisTemplate.opsForSet().add(participantsKey, String.valueOf(userId));
+        redisTemplate.expire(participantsKey, Duration.ofMinutes(30));
+
+        // 通知其他参与者
+        java.util.Set<String> participants = redisTemplate.opsForSet().members(participantsKey);
+        if (participants != null) {
+            for (String pid : participants) {
+                Long participantId = Long.parseLong(pid);
+                if (!participantId.equals(userId)) {
+                    pushService.pushToUser(participantId, "conference_join", Map.of(
+                            "callId", callId,
+                            "userId", userId
+                    ));
+                }
+            }
+        }
+    }
+
+    @Override
+    public void leaveConference(Long userId, String callId) {
+        String participantsKey = "linkx:call:" + callId + ":participants";
+        redisTemplate.opsForSet().remove(participantsKey, String.valueOf(userId));
+
+        // 通知其他参与者
+        java.util.Set<String> participants = redisTemplate.opsForSet().members(participantsKey);
+        if (participants != null) {
+            for (String pid : participants) {
+                Long participantId = Long.parseLong(pid);
+                pushService.pushToUser(participantId, "conference_leave", Map.of(
+                        "callId", callId,
+                        "userId", userId
+                ));
+            }
+        }
+
+        // 如果没有参与者了，结束会议
+        if (participants == null || participants.isEmpty()) {
+            updateStatus(callId, "ended");
+        }
+    }
+
+    @Override
+    public java.util.List<java.util.Map<String, Object>> getConferenceParticipants(String callId) {
+        String participantsKey = "linkx:call:" + callId + ":participants";
+        java.util.Set<String> participants = redisTemplate.opsForSet().members(participantsKey);
+        if (participants == null) return List.of();
+
+        return participants.stream()
+                .map(pid -> {
+                    Long userId = Long.parseLong(pid);
+                    SysUser user = sysUserMapper.selectOneById(userId);
+                    return (java.util.Map<String, Object>) new java.util.HashMap<String, Object>() {{
+                        put("userId", userId);
+                        put("nickname", user != null ? displayName(user) : "用户");
+                        put("avatar", user != null ? nullToEmpty(mediaUrlService.resolve(user.getAvatar())) : "");
+                    }};
+                })
+                .toList();
+    }
 }

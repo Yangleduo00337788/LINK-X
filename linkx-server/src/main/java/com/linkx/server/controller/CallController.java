@@ -83,4 +83,65 @@ public class CallController {
         callService.signal(userId, dto);
         return Result.success(null);
     }
+
+    // ==================== 断线重连 ====================
+
+    @PostMapping("/reconnect")
+    public Result<Void> reconnect(
+            @RequestBody java.util.Map<String, String> body,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        callService.reconnect(userId, body.get("callId"));
+        return Result.success(null);
+    }
+
+    // ==================== 设备切换 ====================
+
+    @PostMapping("/switch-device")
+    public Result<Void> switchDevice(
+            @RequestBody java.util.Map<String, Object> body,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        callService.switchDevice(userId, (String) body.get("callId"),
+                (String) body.get("deviceType"), Boolean.TRUE.equals(body.get("enabled")));
+        return Result.success(null);
+    }
+
+    // ==================== 多人会议 ====================
+
+    @PostMapping("/conference/create")
+    public Result<String> createConference(
+            @RequestBody java.util.Map<String, Object> body,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        Long conversationId = Long.parseLong(body.get("conversationId").toString());
+        String callType = (String) body.getOrDefault("callType", "voice");
+        return Result.success(callService.createConference(userId, conversationId, callType));
+    }
+
+    @PostMapping("/conference/join")
+    public Result<Void> joinConference(
+            @RequestBody java.util.Map<String, String> body,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        callService.joinConference(userId, body.get("callId"));
+        return Result.success(null);
+    }
+
+    @PostMapping("/conference/leave")
+    public Result<Void> leaveConference(
+            @RequestBody java.util.Map<String, String> body,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        callService.leaveConference(userId, body.get("callId"));
+        return Result.success(null);
+    }
+
+    @PostMapping("/conference/participants")
+    public Result<java.util.List<java.util.Map<String, Object>>> getParticipants(
+            @RequestBody java.util.Map<String, String> body,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(callService.getConferenceParticipants(body.get("callId")));
+    }
 }

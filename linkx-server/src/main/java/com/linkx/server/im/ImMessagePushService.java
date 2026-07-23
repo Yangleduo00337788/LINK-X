@@ -16,6 +16,7 @@ import io.netty.channel.group.ChannelGroup;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -42,6 +43,7 @@ public class ImMessagePushService {
     private final ImChannelManager channelManager;
     private final ObjectMapper objectMapper;
     private final Executor imPushExecutor;
+    private final StringRedisTemplate redisTemplate;
 
     /**
      * 处理发送消息（异步，event-loop 立即返回）。
@@ -60,6 +62,12 @@ public class ImMessagePushService {
         dto.setFileSize(frame.getFileSize());
         dto.setFileUrl(frame.getFileUrl());
         dto.setClientMsgId(frame.getClientMsgId());
+
+        // 消息风暴检测（持久化）
+        if (detectMessageStorm(senderId)) {
+            sendErrorToSender(senderId, new CustomException(429, "发送过于频繁，请稍后再试"));
+            return;
+        }
 
         // 整体 submit 到线程池，event-loop 立即返回（不阻塞 IO 线程）
         try {
@@ -632,6 +640,89 @@ public class ImMessagePushService {
         } catch (Exception e) {
             log.error("序列化 WS 帧失败", e);
             return "{\"action\":\"error\",\"code\":500,\"message\":\"序列化失败\"}";
+        }
+    }
+
+    // ==================== 消息风暴检测（持久化） ====================
+
+    private static final String STORM_KEY_PREFIX = "linkx:msg:storm:";
+    private static final int STORM_THRESHOLD = 30; // 10 秒内超过 30 条触发风暴检测
+    private static final int STORM_WINDOW_SECONDS = 10;
+
+    /**
+     * 检测用户是否触发消息风暴（10 秒内发送超过阈值）。
+     * 检测结果持久化到 Redis，支持跨实例感知。
+     *
+     * @return true 表示触发风暴检测，应限流
+     */
+    public boolean detectMessageStorm(Long userId) {
+        String key = STORM_KEY_PREFIX + userId;
+        Long count = redisTemplate.opsForValue().increment(key);
+        if (count != null && count == 1) {
+            redisTemplate.expire(key, java.time.Duration.ofSeconds(STORM_WINDOW_SECONDS));
+        }
+        if (count != null && count > STORM_THRESHOLD) {
+            log.warn("消息风暴检测: userId={}, count={}", userId, count);
+            // 持久化风暴记录
+            String stormLogKey = "linkx:msg:storm:log:" + userId;
+            redisTemplate.opsForList().rightPush(stormLogKey,
+                    String.valueOf(System.currentTimeMillis()));
+            redisTemplate.expire(stormLogKey, java.time.Duration.ofHours(1));
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * 获取用户风暴记录（最近 1 小时）
+     */
+    public List<String> getStormLogs(Long userId) {
+        String stormLogKey = "linkx:msg:storm:log:" + userId;
+        List<String> logs = redisTemplate.opsForList().range(stormLogKey, 0, -1);
+        return logs != null ? logs : List.of();
+    }
+
+    // ==================== 消息缓存 ====================
+
+    private static final String MSG_CACHE_PREFIX = "linkx:msg:cache:";
+    private static final java.time.Duration MSG_CACHE_TTL = java.time.Duration.ofMinutes(5);
+
+    /**
+     * 缓存最近消息到 Redis（热消息缓存）
+     */
+    public void cacheRecentMessage(Long conversationId, MessageVO message) {
+        try {
+            String key = MSG_CACHE_PREFIX + conversationId;
+            String json = objectMapper.writeValueAsString(message);
+            redisTemplate.opsForList().rightPush(key, json);
+            redisTemplate.opsForList().trim(key, -50, -1); // 保留最近 50 条
+            redisTemplate.expire(key, MSG_CACHE_TTL);
+        } catch (Exception e) {
+            log.warn("缓存消息失败: conversationId={}", conversationId, e);
+        }
+    }
+
+    /**
+     * 从缓存获取最近消息
+     */
+    public List<MessageVO> getCachedMessages(Long conversationId) {
+        try {
+            String key = MSG_CACHE_PREFIX + conversationId;
+            List<String> rawList = redisTemplate.opsForList().range(key, 0, -1);
+            if (rawList == null) return List.of();
+            return rawList.stream()
+                    .map(raw -> {
+                        try {
+                            return objectMapper.readValue(raw, MessageVO.class);
+                        } catch (Exception e) {
+                            return null;
+                        }
+                    })
+                    .filter(m -> m != null)
+                    .toList();
+        } catch (Exception e) {
+            log.warn("获取缓存消息失败: conversationId={}", conversationId, e);
+            return List.of();
         }
     }
 }
