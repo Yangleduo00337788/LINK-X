@@ -41,6 +41,31 @@ public class MessageVO {
     private Long unreadCount;
     private String ackType;
 
+    /** 消息是否被编辑过 */
+    private Boolean edited;
+    /** 最后编辑时间（毫秒时间戳），仅编辑过的消息有值 */
+    private Long editedTime;
+    /** 转发来源消息 ID（仅转发消息有值） */
+    private Long forwardFromMessageId;
+    /** 转发来源会话 ID（仅转发消息有值） */
+    private Long forwardFromConversationId;
+
+    // ---------- 引用回复（仅引用消息有值）----------
+
+    /** 引用消息 ID */
+    @JsonSerialize(using = ToStringSerializer.class)
+    private Long quoteMessageId;
+    /** 引用消息所在会话 ID */
+    @JsonSerialize(using = ToStringSerializer.class)
+    private Long quoteConversationId;
+    /** 引用消息发送者 ID */
+    @JsonSerialize(using = ToStringSerializer.class)
+    private Long quoteSenderId;
+    /** 引用消息内容快照 */
+    private String quoteContent;
+    /** 引用消息类型 */
+    private String quoteType;
+
     // ---------- 红包专属（仅 type=redPacket 时有值）----------
 
     /** 红包 ID */

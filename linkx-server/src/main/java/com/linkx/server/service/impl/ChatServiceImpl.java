@@ -46,6 +46,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -80,6 +81,9 @@ public class ChatServiceImpl implements ChatService {
             return List.of();
         }
 
+        Map<Long, ImConversationMember> membershipMap = memberships.stream()
+                .collect(Collectors.toMap(ImConversationMember::getConversationId, m -> m, (a, b) -> a));
+
         Set<Long> conversationIds = memberships.stream()
                 .map(ImConversationMember::getConversationId)
                 .collect(Collectors.toSet());
@@ -88,6 +92,9 @@ public class ChatServiceImpl implements ChatService {
                 QueryWrapper.create().where(ImConversation::getId).in(conversationIds)
         );
         conversations.sort((a, b) -> {
+            boolean pinnedA = isPinned(membershipMap, a.getId());
+            boolean pinnedB = isPinned(membershipMap, b.getId());
+            if (pinnedA != pinnedB) return pinnedA ? -1 : 1;
             Date timeA = a.getLastMessageTime();
             Date timeB = b.getLastMessageTime();
             if (timeA == null && timeB == null) return 0;
@@ -110,6 +117,10 @@ public class ChatServiceImpl implements ChatService {
 
         List<ConversationVO> result = new ArrayList<>();
         for (ImConversation conversation : conversations) {
+            ImConversationMember membership = membershipMap.get(conversation.getId());
+            boolean pinned = membership != null && membership.getPinned() != null && membership.getPinned() == 1;
+            boolean muted = membership != null && membership.getMuted() != null && membership.getMuted() == 1;
+
             if (conversation.getType() == ImConversation.TYPE_PRIVATE) {
                 SysUser peer = peerUserMap.get(conversation.getId());
                 if (peer == null) {
@@ -121,13 +132,13 @@ public class ChatServiceImpl implements ChatService {
                 boolean showOnline = !Boolean.FALSE.equals(showOnlineMap.get(peer.getId()));
                 boolean peerOnline = showOnline && imChannelManager.isOnline(peer.getId());
                 result.add(toConversationVO(conversation, peer, remarkMap.get(peer.getId()), peerOnline,
-                        getUnreadCount(userId, conversation.getId())));
+                        getUnreadCount(userId, conversation.getId()), pinned, muted));
             } else if (conversation.getType() == ImConversation.TYPE_GROUP) {
                 result.add(toGroupConversationVO(
                         conversation,
                         groupMemberAvatars.getOrDefault(conversation.getId(), List.of()),
                         groupRemarkMap.get(conversation.getId()),
-                        getUnreadCount(userId, conversation.getId())
+                        getUnreadCount(userId, conversation.getId()), pinned, muted
                 ));
             }
         }
@@ -184,7 +195,7 @@ public class ChatServiceImpl implements ChatService {
 
         Map<Long, String> remarkMap = loadRemarkMap(userId, Set.of(friendId));
         return toConversationVO(conversation, friend, remarkMap.get(friendId), resolvePeerOnline(friendId),
-                getUnreadCount(userId, conversation.getId()));
+                getUnreadCount(userId, conversation.getId()), false, false);
     }
 
     @Override
@@ -531,6 +542,22 @@ public class ChatServiceImpl implements ChatService {
         return calcUnread(userId, conversationId, lastRead);
     }
 
+    @Override
+    public long getTotalUnreadCount(Long userId) {
+        List<ImConversationMember> memberships = memberMapper.selectListByQuery(
+                QueryWrapper.create().where(ImConversationMember::getUserId).eq(userId)
+        );
+        if (memberships.isEmpty()) {
+            return 0;
+        }
+        long total = 0;
+        for (ImConversationMember m : memberships) {
+            Long lastRead = loadLastReadMessageId(userId, m.getConversationId());
+            total += calcUnread(userId, m.getConversationId(), lastRead);
+        }
+        return total;
+    }
+
     private long calcUnread(Long userId, Long conversationId, Long lastReadMessageId) {
         QueryWrapper qw = QueryWrapper.create()
                 .where(ImMessage::getConversationId).eq(conversationId)
@@ -704,7 +731,9 @@ public class ChatServiceImpl implements ChatService {
             SysUser peer,
             String remark,
             boolean peerOnline,
-            long unreadCount
+            long unreadCount,
+            boolean pinned,
+            boolean muted
     ) {
         return ConversationVO.builder()
                 .id(conversation.getId())
@@ -720,6 +749,8 @@ public class ChatServiceImpl implements ChatService {
                         ? conversation.getLastMessageTime().getTime()
                         : null)
                 .unreadCount(unreadCount)
+                .pinned(pinned)
+                .muted(muted)
                 .build();
     }
 
@@ -727,7 +758,9 @@ public class ChatServiceImpl implements ChatService {
             ImConversation conversation,
             List<GroupMemberAvatarVO> memberAvatars,
             String myRemark,
-            long unreadCount
+            long unreadCount,
+            boolean pinned,
+            boolean muted
     ) {
         return ConversationVO.builder()
                 .id(conversation.getId())
@@ -744,7 +777,14 @@ public class ChatServiceImpl implements ChatService {
                         ? conversation.getLastMessageTime().getTime()
                         : null)
                 .unreadCount(unreadCount)
+                .pinned(pinned)
+                .muted(muted)
                 .build();
+    }
+
+    private boolean isPinned(Map<Long, ImConversationMember> membershipMap, Long conversationId) {
+        ImConversationMember m = membershipMap.get(conversationId);
+        return m != null && m.getPinned() != null && m.getPinned() == 1;
     }
 
     private Map<Long, String> loadGroupRemarkMap(Long userId, Set<Long> groupIds) {
@@ -838,7 +878,16 @@ public class ChatServiceImpl implements ChatService {
                 .clientMsgId(message.getClientMsgId())
                 .deliveryStatus(message.getDeliveryStatus())
                 .readStatus(isRead(message, currentUserId, lastReadMessageId))
-                .unreadCount(calcPerMessageUnread(message, currentUserId, lastReadMessageId));
+                .unreadCount(calcPerMessageUnread(message, currentUserId, lastReadMessageId))
+                .edited(Boolean.TRUE.equals(message.getEdited()))
+                .editedTime(message.getEditedTime() != null ? message.getEditedTime().getTime() : null)
+                .forwardFromMessageId(message.getForwardFromMessageId())
+                .forwardFromConversationId(message.getForwardFromConversationId())
+                .quoteMessageId(message.getQuoteMessageId())
+                .quoteConversationId(message.getQuoteConversationId())
+                .quoteSenderId(message.getQuoteSenderId())
+                .quoteContent(message.getQuoteContent())
+                .quoteType(message.getQuoteType());
 
         if (ImMessage.TYPE_RED_PACKET.equals(message.getType()) && message.getFileUrl() != null) {
             fillRedPacketFields(builder, message, currentUserId);
@@ -964,5 +1013,162 @@ public class ChatServiceImpl implements ChatService {
             case ImMessage.TYPE_SYSTEM -> message.getContent() != null ? message.getContent() : "[系统消息]";
             default -> message.getContent();
         };
+    }
+
+    /** 编辑窗口：24 小时内可编辑 */
+    private static final long EDIT_WINDOW_MS = 24 * 60 * 60 * 1000L;
+
+    @Override
+    @Transactional
+    public MessageVO editMessage(Long userId, Long conversationId, Long messageId, String newContent) {
+        assertConversationMember(userId, conversationId);
+
+        ImMessage message = messageMapper.selectOneById(messageId);
+        if (message == null || !conversationId.equals(message.getConversationId())) {
+            throw new CustomException(404, "消息不存在");
+        }
+        if (!userId.equals(message.getSenderId())) {
+            throw new CustomException(403, "只能编辑自己发送的消息");
+        }
+        if (!ImMessage.TYPE_TEXT.equals(message.getType())) {
+            throw new CustomException(400, "只能编辑文本消息");
+        }
+        if (ImMessage.TYPE_RECALL.equals(message.getType())) {
+            throw new CustomException(400, "已撤回的消息不能编辑");
+        }
+
+        Date createTime = message.getCreateTime();
+        if (createTime == null || System.currentTimeMillis() - createTime.getTime() > EDIT_WINDOW_MS) {
+            throw new CustomException(400, "超过编辑时限（24小时）");
+        }
+
+        String sanitized = InputSanitizer.sanitizeText(newContent.trim(), 4000);
+        if (sanitized.isBlank()) {
+            throw new CustomException(400, "编辑内容不能为空");
+        }
+
+        message.setContent(sanitized);
+        message.setEdited(true);
+        message.setEditedTime(new Date());
+        messageMapper.update(message);
+
+        // 刷新会话预览
+        refreshConversationLastMessage(conversationId);
+
+        SysUser sender = sysUserMapper.selectOneById(userId);
+        return toMessageVO(message, sender, userId, loadLastReadMessageId(userId, conversationId));
+    }
+
+    @Override
+    @Transactional
+    public MessageVO forwardMessage(Long userId, Long sourceConversationId, Long sourceMessageId, Long targetConversationId) {
+        assertConversationMember(userId, sourceConversationId);
+        assertConversationMember(userId, targetConversationId);
+
+        ImMessage source = messageMapper.selectOneById(sourceMessageId);
+        if (source == null || !sourceConversationId.equals(source.getConversationId())) {
+            throw new CustomException(404, "源消息不存在");
+        }
+        if (ImMessage.TYPE_RECALL.equals(source.getType())) {
+            throw new CustomException(400, "不能转发已撤回的消息");
+        }
+        if (ImMessage.TYPE_SYSTEM.equals(source.getType())) {
+            throw new CustomException(400, "不能转发系统消息");
+        }
+
+        SendMessageDTO dto = new SendMessageDTO();
+        dto.setConversationId(targetConversationId);
+        dto.setMsgType(source.getType());
+        dto.setContent(source.getContent());
+        dto.setFileName(source.getFileName());
+        dto.setFileSize(source.getFileSize());
+        dto.setFileUrl(source.getFileUrl());
+        dto.setVoiceDuration(source.getVoiceDuration());
+        dto.setClientMsgId("fwd-" + UUID.randomUUID().toString());
+
+        MessageVO sent = sendMessage(userId, dto);
+
+        // 标记转发来源
+        ImMessage forwarded = messageMapper.selectOneById(sent.getId());
+        if (forwarded != null) {
+            forwarded.setForwardFromMessageId(sourceMessageId);
+            forwarded.setForwardFromConversationId(sourceConversationId);
+            messageMapper.update(forwarded);
+        }
+
+        SysUser sender = sysUserMapper.selectOneById(userId);
+        return toMessageVO(forwarded != null ? forwarded : messageMapper.selectOneById(sent.getId()),
+                sender, userId, loadLastReadMessageId(userId, targetConversationId));
+    }
+
+    @Override
+    @Transactional
+    public MessageVO quoteMessage(Long userId, Long conversationId, Long quoteMessageId, SendMessageDTO dto) {
+        assertConversationMember(userId, conversationId);
+
+        ImMessage quoted = messageMapper.selectOneById(quoteMessageId);
+        if (quoted == null || !conversationId.equals(quoted.getConversationId())) {
+            throw new CustomException(404, "引用的消息不存在");
+        }
+        if (ImMessage.TYPE_RECALL.equals(quoted.getType())) {
+            throw new CustomException(400, "不能引用已撤回的消息");
+        }
+        if (ImMessage.TYPE_SYSTEM.equals(quoted.getType())) {
+            throw new CustomException(400, "不能引用系统消息");
+        }
+
+        dto.setConversationId(conversationId);
+        MessageVO sent = sendMessage(userId, dto);
+
+        // 标记引用来源
+        ImMessage msg = messageMapper.selectOneById(sent.getId());
+        if (msg != null) {
+            msg.setQuoteMessageId(quoteMessageId);
+            msg.setQuoteConversationId(conversationId);
+            msg.setQuoteSenderId(quoted.getSenderId());
+            msg.setQuoteContent(quoted.getContent());
+            msg.setQuoteType(quoted.getType());
+            messageMapper.update(msg);
+        }
+
+        SysUser sender = sysUserMapper.selectOneById(userId);
+        return toMessageVO(msg != null ? msg : messageMapper.selectOneById(sent.getId()),
+                sender, userId, loadLastReadMessageId(userId, conversationId));
+    }
+
+    @Override
+    @Transactional
+    public void togglePinConversation(Long userId, Long conversationId) {
+        assertConversationMember(userId, conversationId);
+
+        ImConversationMember member = memberMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).eq(conversationId)
+                        .and(ImConversationMember::getUserId).eq(userId)
+        );
+        if (member == null) {
+            throw new CustomException(403, "非会话成员");
+        }
+
+        member.setPinned(member.getPinned() != null && member.getPinned() == 1 ? 0 : 1);
+        memberMapper.update(member);
+    }
+
+    @Override
+    @Transactional
+    public void toggleMuteConversation(Long userId, Long conversationId) {
+        assertConversationMember(userId, conversationId);
+
+        ImConversationMember member = memberMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).eq(conversationId)
+                        .and(ImConversationMember::getUserId).eq(userId)
+        );
+        if (member == null) {
+            throw new CustomException(403, "非会话成员");
+        }
+
+        member.setMuted(member.getMuted() != null && member.getMuted() == 1 ? 0 : 1);
+        memberMapper.update(member);
     }
 }

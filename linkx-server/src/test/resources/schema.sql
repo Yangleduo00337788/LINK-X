@@ -97,6 +97,7 @@ CREATE TABLE IF NOT EXISTS im_conversation_member (
   role VARCHAR(20),
   remark VARCHAR(64),
   last_read_message_id BIGINT,
+  pinned TINYINT NOT NULL DEFAULT 0,
   muted TINYINT NOT NULL DEFAULT 0,
   mute_until DATETIME,
   create_time DATETIME,
@@ -118,6 +119,15 @@ CREATE TABLE IF NOT EXISTS im_message (
   delivery_status VARCHAR(20) DEFAULT 'pending',
   read_status TINYINT NOT NULL DEFAULT 0,
   voice_duration INT,
+  edited TINYINT NOT NULL DEFAULT 0,
+  edited_time DATETIME,
+  forward_from_message_id BIGINT,
+  forward_from_conversation_id BIGINT,
+  quote_message_id BIGINT,
+  quote_conversation_id BIGINT,
+  quote_sender_id BIGINT,
+  quote_content TEXT,
+  quote_type VARCHAR(20),
   create_time DATETIME,
   deleted TINYINT NOT NULL DEFAULT 0
 );

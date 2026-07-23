@@ -5,6 +5,7 @@ import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.MediaStreamResponses;
 import com.linkx.server.common.RateLimit;
 import com.linkx.server.common.Result;
+import com.linkx.server.controller.dto.SendMessageDTO;
 import com.linkx.server.controller.vo.ChatFileUploadVO;
 import com.linkx.server.controller.vo.ChatSearchHitVO;
 import com.linkx.server.controller.vo.ConversationVO;
@@ -105,6 +106,50 @@ public class ChatController {
         return Result.success(vo);
     }
 
+    @PostMapping("/sessions/{conversationId}/messages/{messageId}/edit")
+    @RateLimit(scope = "chat:edit", value = 20, window = 60)
+    public Result<MessageVO> editMessage(
+            @PathVariable String conversationId,
+            @PathVariable String messageId,
+            @org.springframework.web.bind.annotation.RequestBody java.util.Map<String, String> body,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        String newContent = body.get("content");
+        if (newContent == null || newContent.isBlank()) {
+            throw new com.linkx.server.exception.CustomException(400, "编辑内容不能为空");
+        }
+        MessageVO vo = chatService.editMessage(userId, parseId(conversationId), parseId(messageId), newContent);
+        return Result.success(vo);
+    }
+
+    @PostMapping("/sessions/{conversationId}/messages/{messageId}/forward")
+    @RateLimit(scope = "chat:forward", value = 30, window = 60)
+    public Result<MessageVO> forwardMessage(
+            @PathVariable String conversationId,
+            @PathVariable String messageId,
+            @org.springframework.web.bind.annotation.RequestBody java.util.Map<String, Long> body,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        Long targetConversationId = body.get("targetConversationId");
+        if (targetConversationId == null) {
+            throw new com.linkx.server.exception.CustomException(400, "目标会话 ID 不能为空");
+        }
+        MessageVO vo = chatService.forwardMessage(userId, parseId(conversationId), parseId(messageId), targetConversationId);
+        return Result.success(vo);
+    }
+
+    @PostMapping("/sessions/{conversationId}/messages/{messageId}/quote")
+    @RateLimit(scope = "chat:quote", value = 30, window = 60)
+    public Result<MessageVO> quoteMessage(
+            @PathVariable String conversationId,
+            @PathVariable String messageId,
+            @org.springframework.web.bind.annotation.RequestBody SendMessageDTO body,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        MessageVO vo = chatService.quoteMessage(userId, parseId(conversationId), parseId(messageId), body);
+        return Result.success(vo);
+    }
+
     @PostMapping("/sessions/{conversationId}/read")
     public Result<Long> markAsRead(
             @PathVariable String conversationId,
@@ -122,6 +167,30 @@ public class ChatController {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         Long unreadCount = chatService.getUnreadCount(userId, parseId(conversationId));
         return Result.success(unreadCount);
+    }
+
+    @GetMapping("/unread-total")
+    public Result<Long> getTotalUnreadCount(HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(chatService.getTotalUnreadCount(userId));
+    }
+
+    @PostMapping("/sessions/{conversationId}/pin")
+    public Result<Void> togglePin(
+            @PathVariable String conversationId,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        chatService.togglePinConversation(userId, parseId(conversationId));
+        return Result.success();
+    }
+
+    @PostMapping("/sessions/{conversationId}/mute")
+    public Result<Void> toggleMute(
+            @PathVariable String conversationId,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        chatService.toggleMuteConversation(userId, parseId(conversationId));
+        return Result.success();
     }
 
     private Long parseId(String id) {

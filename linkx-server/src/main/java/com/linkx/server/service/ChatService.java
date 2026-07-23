@@ -51,4 +51,22 @@ public interface ChatService {
 
     /** 获取单个会话的未读数。 */
     long getUnreadCount(Long userId, Long conversationId);
+
+    /** 获取所有会话的未读总数（用于角标）。 */
+    long getTotalUnreadCount(Long userId);
+
+    /** 编辑已发送的消息（仅文本消息，仅发送者，24 小时内）。 */
+    MessageVO editMessage(Long userId, Long conversationId, Long messageId, String newContent);
+
+    /** 转发消息到另一个会话。 */
+    MessageVO forwardMessage(Long userId, Long sourceConversationId, Long sourceMessageId, Long targetConversationId);
+
+    /** 引用回复消息。 */
+    MessageVO quoteMessage(Long userId, Long conversationId, Long quoteMessageId, SendMessageDTO dto);
+
+    /** 置顶/取消置顶会话。 */
+    void togglePinConversation(Long userId, Long conversationId);
+
+    /** 免打扰/取消免打扰会话。 */
+    void toggleMuteConversation(Long userId, Long conversationId);
 }

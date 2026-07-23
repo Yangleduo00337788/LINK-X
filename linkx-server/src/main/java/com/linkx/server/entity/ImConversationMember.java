@@ -47,9 +47,16 @@ public class ImConversationMember implements Serializable {
     private Long lastReadMessageId;
 
     /**
+     * 是否置顶（1=是）
+     */
+    @Builder.Default
+    private Integer pinned = 0;
+
+    /**
      * 是否被禁言（1=是）
      */
-    private Integer muted;
+    @Builder.Default
+    private Integer muted = 0;
 
     /**
      * 禁言截止时间；为空表示需手动解除
@@ -63,5 +70,6 @@ public class ImConversationMember implements Serializable {
     private Date updateTime;
 
     @Column(isLogicDelete = true)
-    private Integer deleted;
+    @Builder.Default
+    private Integer deleted = 0;
 }

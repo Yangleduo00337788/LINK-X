@@ -80,6 +80,26 @@ public class ImMessage implements Serializable {
      */
     private Integer voiceDuration;
 
+    /** 消息是否被编辑过 */
+    @Builder.Default
+    private Boolean edited = false;
+    /** 最后编辑时间 */
+    private Date editedTime;
+    /** 转发来源消息 ID */
+    private Long forwardFromMessageId;
+    /** 转发来源会话 ID */
+    private Long forwardFromConversationId;
+    /** 引用消息 ID */
+    private Long quoteMessageId;
+    /** 引用消息所在会话 ID */
+    private Long quoteConversationId;
+    /** 引用消息发送者 ID */
+    private Long quoteSenderId;
+    /** 引用消息内容快照 */
+    private String quoteContent;
+    /** 引用消息类型 */
+    private String quoteType;
+
     @Column(onInsertValue = "NOW()")
     private Date createTime;
 

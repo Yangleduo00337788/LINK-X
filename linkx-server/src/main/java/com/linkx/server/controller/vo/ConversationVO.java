@@ -63,4 +63,10 @@ public class ConversationVO {
     private String lastMessage;
     private Long lastMessageTime;
     private Long unreadCount;
+
+    /** 是否置顶（当前用户维度） */
+    private Boolean pinned;
+
+    /** 是否免打扰（当前用户维度） */
+    private Boolean muted;
 }
