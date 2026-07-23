@@ -18,6 +18,8 @@ import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
 import { useGroupMetaStore } from '../../stores/groupMeta'
+import * as groupApi from '../../api/group'
+import * as conferenceApi from '../../api/conference'
 import { useI18n } from '../../i18n'
 
 const { t } = useI18n()
@@ -54,9 +56,82 @@ const announcementEmpty = computed(() => {
   return !groupMetaStore.announcementShort(id)
 })
 
+const joinApproval = ref(false)
+const announcementReadCount = ref<number | null>(null)
+const conferenceCreating = ref(false)
+
+async function refreshGroupPolicy() {
+  const id = currentSessionId.value
+  if (!id) return
+  try {
+    const res = await groupApi.getGroupInfo(id)
+    if (res.code === 200 && res.data) {
+      joinApproval.value = !!res.data.joinApproval
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+async function refreshAnnouncementRead() {
+  const id = currentSessionId.value
+  if (!id || announcementEmpty.value) {
+    announcementReadCount.value = null
+    return
+  }
+  try {
+    await groupApi.markAnnouncementRead(id)
+    const res = await groupApi.getAnnouncementReadCount(id)
+    if (res.code === 200 && res.data != null) {
+      announcementReadCount.value = Number(res.data)
+    }
+  } catch {
+    announcementReadCount.value = null
+  }
+}
+
+watch(
+  () => currentSessionId.value,
+  () => {
+    void refreshGroupPolicy()
+    void refreshAnnouncementRead()
+  },
+  { immediate: true }
+)
+
+async function setJoinApproval(val: boolean) {
+  const id = currentSessionId.value
+  if (!id || !isAdminOrOwner.value) return
+  const prev = joinApproval.value
+  joinApproval.value = val
+  try {
+    const res = await groupApi.setJoinApproval(id, val)
+    if (res.code !== 200) throw new Error(res.message || 'failed')
+  } catch (e) {
+    joinApproval.value = prev
+    message.error(apiErrorMessage(e, t('modals.groupNameSaveFail')))
+  }
+}
+
+async function startConference() {
+  const id = currentSessionId.value
+  if (!id || conferenceCreating.value) return
+  conferenceCreating.value = true
+  try {
+    const res = await conferenceApi.create({ conversationId: id, type: 'video' })
+    if (res.code !== 200 || !res.data) throw new Error(res.message || 'failed')
+    message.success(t('modals.conferenceCreated', { id: String(res.data.id) }))
+  } catch (e) {
+    message.error(apiErrorMessage(e, t('modals.conferenceCreateFail')))
+  } finally {
+    conferenceCreating.value = false
+  }
+}
+
 /** 打开群公告管理（CRUD 弹窗）；无公告时管理员可直接发布 */
 function openAnnouncementManage() {
   openGroupAnnouncement()
+  void refreshAnnouncementRead()
 }
 
 /** 切换会话或备注异步加载完成后，回填输入框 */
@@ -439,6 +514,12 @@ function reportGroup() {
                   <div class="announce-row-main">
                     <h3 class="block-title">{{ t('chat.groupAnnouncement') }}</h3>
                     <p class="announce" :class="{ empty: announcementEmpty }">{{ announcement }}</p>
+                    <p
+                      v-if="!announcementEmpty && announcementReadCount != null"
+                      class="announce-read"
+                    >
+                      {{ t('modals.announcementReadCount', { n: announcementReadCount }) }}
+                    </p>
                   </div>
                   <span class="announce-arrow">›</span>
                 </button>
@@ -475,11 +556,23 @@ function reportGroup() {
                   <span>{{ t('modals.muteMessages') }}</span>
                   <n-switch :value="!!currentSession?.muted" size="small" @update:value="setMute" />
                 </div>
+                <div v-if="isAdminOrOwner" class="switch-row">
+                  <span>{{ t('modals.joinApproval') }}</span>
+                  <n-switch :value="joinApproval" size="small" @update:value="setJoinApproval" />
+                </div>
                 <p class="hint">{{ t('modals.muteHint') }}</p>
               </div>
 
               <!-- 危险操作与举报 -->
               <button type="button" class="action-btn" @click="clearChat">{{ t('modals.clearChatHistory') }}</button>
+              <button
+                type="button"
+                class="action-btn"
+                :disabled="conferenceCreating"
+                @click="startConference"
+              >
+                {{ t('modals.startConference') }}
+              </button>
               <button
                 v-if="isAdminOrOwner"
                 type="button"
@@ -765,6 +858,12 @@ function reportGroup() {
 }
 
 .announce.empty {
+  color: var(--lx-text-muted);
+}
+
+.announce-read {
+  margin: 4px 0 0;
+  font-size: 12px;
   color: var(--lx-text-muted);
 }
 

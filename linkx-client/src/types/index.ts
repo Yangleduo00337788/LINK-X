@@ -123,6 +123,14 @@ export interface ChatMessage {
 
   // 引用回复的原消息
   replyTo?: ChatMessage
+
+  /** 发送状态（乐观更新 / 送达回执） */
+  sendStatus?: 'sending' | 'sent' | 'failed' | 'delivered'
+  deliveryStatus?: string
+  edited?: boolean
+  readCount?: number
+  totalMembers?: number
+  clientMsgId?: string
 }
 
 /** 通讯录联系人项 */

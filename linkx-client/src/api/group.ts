@@ -20,6 +20,10 @@ export interface GroupInfo {
   muteAllEnd?: number
   meMuted?: boolean
   meMuteUntil?: number
+  /** 入群需审批 */
+  joinApproval?: boolean
+  /** 邀请策略 anyMember / ownerApprove */
+  invitePolicy?: string
 }
 
 export interface GroupMember {
@@ -174,4 +178,41 @@ export function updateMemberMute(
  */
 export function updateGroupRemark(conversationId: string, remark: string) {
   return apiClient.put<never, ApiResult<string>>(`/group/${conversationId}/remark`, { remark })
+}
+
+export function batchRemoveMembers(conversationId: string, memberIds: string[]) {
+  return apiClient.post<never, ApiResult<null>>(`/group/${conversationId}/members/batch-remove`, {
+    memberIds
+  })
+}
+
+export function batchMuteMembers(
+  conversationId: string,
+  memberIds: string[],
+  muted: boolean
+) {
+  return apiClient.post<never, ApiResult<null>>(`/group/${conversationId}/members/batch-mute`, {
+    memberIds,
+    muted
+  })
+}
+
+export function setJoinApproval(conversationId: string, required: boolean) {
+  return apiClient.post<never, ApiResult<null>>(`/group/${conversationId}/join-approval`, {
+    required
+  })
+}
+
+export function markAnnouncementRead(conversationId: string) {
+  return apiClient.post<never, ApiResult<null>>(`/group/${conversationId}/announcement/read`)
+}
+
+export function getAnnouncementReadCount(conversationId: string) {
+  return apiClient.get<never, ApiResult<number>>(`/group/${conversationId}/announcement/read-count`)
+}
+
+export function setInvitePolicy(conversationId: string, policy: string) {
+  return apiClient.post<never, ApiResult<null>>(`/group/${conversationId}/invite-policy`, {
+    policy
+  })
 }

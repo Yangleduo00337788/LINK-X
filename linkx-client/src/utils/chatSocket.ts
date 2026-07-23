@@ -126,6 +126,21 @@ function handleFrame(raw: string) {
         handlers?.onRecall?.(frame.data as MessageItem)
       }
       break
+    case 'edit':
+      if (frame.data) {
+        handlers?.onCustomAction?.('edit', frame.data as Record<string, unknown>)
+      }
+      break
+    case 'deliveryReceipt':
+      if (frame.data) {
+        handlers?.onCustomAction?.('deliveryReceipt', frame.data as Record<string, unknown>)
+      }
+      break
+    case 'readReceipt':
+      if (frame.data) {
+        handlers?.onCustomAction?.('readReceipt', frame.data as Record<string, unknown>)
+      }
+      break
     case 'pong':
       break
     case 'error':
@@ -314,7 +329,8 @@ export function sendChatMessage(payload: WsSendPayload) {
     fileName: payload.fileName,
     fileSize: payload.fileSize,
     fileUrl: payload.fileUrl,
-    voiceDuration: payload.voiceDuration
+    voiceDuration: payload.voiceDuration,
+    ...(payload.quoteMessageId ? { quoteMessageId: payload.quoteMessageId } : {})
   }
   socket.send(JSON.stringify(msg))
 }

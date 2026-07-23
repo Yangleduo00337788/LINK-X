@@ -720,6 +720,8 @@ public class GroupServiceImpl implements GroupService {
                 .muteAllEnd(scheduleEnd)
                 .meMuted(meMuted)
                 .meMuteUntil(meMuteUntil)
+                .joinApproval(group.getJoinApproval() != null && group.getJoinApproval() == 1)
+                .invitePolicy(group.getInvitePolicy() != null ? group.getInvitePolicy() : "anyMember")
                 .build();
     }
 

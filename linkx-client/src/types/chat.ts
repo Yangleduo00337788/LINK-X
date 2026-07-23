@@ -18,6 +18,9 @@ export interface ConversationItem {
   peerOnline?: boolean
   lastMessage?: string
   lastMessageTime?: string | number
+  pinned?: boolean
+  muted?: boolean
+  unreadCount?: number
 }
 
 export interface MessageItem {
@@ -52,6 +55,13 @@ export interface MessageItem {
   redPacketReceived?: boolean
   redPacketReceivedAmount?: string | number
   redPacketStatus?: 'active' | 'finished' | 'expired'
+  deliveryStatus?: string
+  edited?: boolean
+  editedTime?: string | number
+  quoteMessageId?: string | number
+  quoteContent?: string
+  quoteSenderId?: string | number
+  clientMsgId?: string
 }
 
 export interface ChatFileUploadResult {
@@ -71,6 +81,7 @@ export interface WsSendPayload {
   fileSize?: string | number
   fileUrl?: string
   voiceDuration?: number
+  quoteMessageId?: string
 }
 
 export interface WsIncomingFrame {
@@ -79,6 +90,10 @@ export interface WsIncomingFrame {
     | 'ack'
     | 'pong'
     | 'error'
+    | 'recall'
+    | 'edit'
+    | 'deliveryReceipt'
+    | 'readReceipt'
     | 'call_invite'
     | 'call_accept'
     | 'call_reject'

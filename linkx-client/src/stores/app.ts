@@ -35,7 +35,6 @@ import { normalizeMediaUrl } from '../utils/mediaUrl'
 import { useContactsStore } from './contacts'
 // 群元数据 Store（邀请成员等）
 import { useGroupMetaStore } from './groupMeta'
-import type { GroupMember } from './groupMeta'
 // 主题同步到 document 与 Electron 主进程
 import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
 // 持久化前清理敏感或过大字段
@@ -217,6 +216,8 @@ export const useAppStore = defineStore('app', {
     messagesLoaded: {} as Record<string, boolean>, // 各会话历史是否已拉取
     messagesHasMore: {} as Record<string, boolean>, // 各会话是否还有更早消息
     messagesLoading: {} as Record<string, boolean>, // 各会话是否正在加载历史
+    /** 各会话输入草稿（打开会话时从服务端拉取） */
+    draftBySession: {} as Record<string, string>,
     savedLogin: {
       username: '',
       rememberMe: true,
@@ -299,6 +300,9 @@ export const useAppStore = defineStore('app', {
         }
       } else if (session.isReal) {
         void this.loadSessionMessages(session.id)
+      }
+      if (session.isReal) {
+        void this.loadSessionDraft(session.id)
       }
     },
 
@@ -518,17 +522,18 @@ export const useAppStore = defineStore('app', {
 
         const prevById = new Map(this.sessions.map(s => [s.id, s]))
         const realSessions = res.data.map(conversationToSession)
-        // 保留本地未读 / @我 / 免打扰 / 置顶（服务端列表暂不带回这些字段）
+        // 保留本地 @我 提示；置顶/免打扰/未读优先用服务端字段
         this.sessions = realSessions.map(s => {
           const prev = prevById.get(s.id)
           if (!prev) return s
           return {
             ...s,
-            unread: prev.unread || s.unread,
+            unread: s.unread ?? prev.unread,
             atMe: prev.atMe,
             atMeMessageId: prev.atMeMessageId,
-            muted: prev.muted,
-            pinned: prev.pinned
+            atMeNeedAck: prev.atMeNeedAck,
+            muted: s.muted ?? prev.muted,
+            pinned: s.pinned ?? prev.pinned
           }
         })
         this.chatInitialized = true
@@ -701,6 +706,18 @@ export const useAppStore = defineStore('app', {
             void import('./notifications').then(({ useNotificationsStore }) => {
               void useNotificationsStore().refreshFromSocket(data)
             })
+            return
+          }
+          if (action === 'deliveryReceipt') {
+            this.handleDeliveryReceipt(data)
+            return
+          }
+          if (action === 'readReceipt') {
+            this.handleReadReceipt(data)
+            return
+          }
+          if (action === 'edit') {
+            this.applyEditedMessage(data as unknown as MessageItem)
           }
         }
       }
@@ -805,12 +822,15 @@ export const useAppStore = defineStore('app', {
       if (index >= 0) {
         console.log('[handleWsAck] 替换乐观消息:', { index, clientMsgId, newId: message.id })
         // 使用 splice 直接操作 store 属性，触发 Vue 响应式更新
+        chatMsg.sendStatus = 'sent'
+        chatMsg.clientMsgId = clientMsgId
         this.messagesBySession[sessionId].splice(index, 1, chatMsg)
       } else {
         const exists = this.messagesBySession[sessionId].some(m => m.id === chatMsg.id)
         console.log('[handleWsAck] 检查重复:', { exists, chatMsgId: chatMsg.id })
         if (!exists) {
           console.log('[handleWsAck] 添加新消息到列表')
+          chatMsg.sendStatus = chatMsg.isSelf ? 'sent' : chatMsg.sendStatus
           this.messagesBySession[sessionId].push(chatMsg)
         }
       }
@@ -839,16 +859,200 @@ export const useAppStore = defineStore('app', {
       }
     },
 
-    /** 切换会话置顶状态 */
-    toggleSessionPin(sessionId: string) {
+    /** 切换会话置顶状态（调用后端，失败回滚） */
+    async toggleSessionPin(sessionId: string) {
       const s = this.sessions.find(x => x.id === sessionId)
-      if (s) s.pinned = !s.pinned
+      if (!s) return
+      const prev = !!s.pinned
+      s.pinned = !prev
+      try {
+        const res = await chatApi.togglePin(sessionId)
+        if (res.code !== 200) {
+          s.pinned = prev
+          throw new Error(res.message || '置顶失败')
+        }
+      } catch (e) {
+        s.pinned = prev
+        console.error('切换置顶失败:', e)
+        throw e
+      }
     },
 
-    /** 切换会话免打扰 */
-    toggleSessionMute(sessionId: string) {
+    /** 切换会话免打扰（调用后端，失败回滚） */
+    async toggleSessionMute(sessionId: string) {
       const s = this.sessions.find(x => x.id === sessionId)
-      if (s) s.muted = !s.muted
+      if (!s) return
+      const prev = !!s.muted
+      s.muted = !prev
+      try {
+        const res = await chatApi.toggleMute(sessionId)
+        if (res.code !== 200) {
+          s.muted = prev
+          throw new Error(res.message || '免打扰失败')
+        }
+      } catch (e) {
+        s.muted = prev
+        console.error('切换免打扰失败:', e)
+        throw e
+      }
+    },
+
+    /** 加载会话草稿，写入 draftBySession 供输入框读取 */
+    async loadSessionDraft(sessionId: string): Promise<string> {
+      try {
+        const res = await chatApi.getDraft(sessionId)
+        const content = res.code === 200 && typeof res.data === 'string' ? res.data : ''
+        this.draftBySession[sessionId] = content
+        return content
+      } catch (e) {
+        console.warn('加载草稿失败:', e)
+        return this.draftBySession[sessionId] || ''
+      }
+    },
+
+    async saveSessionDraft(sessionId: string, content: string) {
+      this.draftBySession[sessionId] = content
+      try {
+        await chatApi.saveDraft(sessionId, content)
+      } catch (e) {
+        console.warn('保存草稿失败:', e)
+      }
+    },
+
+    async clearSessionDraft(sessionId: string) {
+      this.draftBySession[sessionId] = ''
+      try {
+        await chatApi.saveDraft(sessionId, '')
+      } catch (e) {
+        console.warn('清除草稿失败:', e)
+      }
+    },
+
+    handleDeliveryReceipt(data: Record<string, unknown>) {
+      const sessionId = data.conversationId != null ? String(data.conversationId) : ''
+      const messageId = data.messageId != null ? String(data.messageId) : ''
+      if (!sessionId || !messageId) return
+      const msgs = this.messagesBySession[sessionId]
+      if (!msgs) return
+      const target = msgs.find(m => m.id === messageId)
+      if (!target) return
+      target.deliveryStatus = String(data.deliveryStatus || 'delivered')
+      target.sendStatus = 'delivered'
+    },
+
+    handleReadReceipt(data: Record<string, unknown>) {
+      const sessionId = data.conversationId != null ? String(data.conversationId) : ''
+      const lastReadMessageId =
+        data.lastReadMessageId != null ? String(data.lastReadMessageId) : ''
+      if (!sessionId || !lastReadMessageId || lastReadMessageId === '0') return
+      const msgs = this.messagesBySession[sessionId]
+      if (!msgs) return
+      for (const m of msgs) {
+        if (!m.isSelf) continue
+        if (m.id === lastReadMessageId || Number(m.id) <= Number(lastReadMessageId)) {
+          if (m.sendStatus === 'sent' || m.sendStatus === 'delivered') {
+            m.sendStatus = 'delivered'
+          }
+        }
+      }
+    },
+
+    applyEditedMessage(message: MessageItem) {
+      const sessionId = String(message.conversationId)
+      const msgs = this.messagesBySession[sessionId]
+      if (!msgs) return
+      const index = msgs.findIndex(m => m.id === String(message.id))
+      if (index < 0) return
+      const prev = msgs[index]
+      const next = messageToChatMessage(message, sessionId)
+      next.sendStatus = prev.sendStatus
+      next.readCount = prev.readCount
+      next.totalMembers = prev.totalMembers
+      next.clientMsgId = prev.clientMsgId
+      msgs.splice(index, 1, next)
+      const session = this.sessions.find(s => s.id === sessionId)
+      if (session && index === msgs.length - 1) {
+        session.lastMessage = messagePreviewFromItem(message)
+        session.time = next.time
+      }
+    },
+
+    async editMessage(messageId: string, content: string) {
+      const sessionId = this.currentSessionId
+      if (!sessionId) return false
+      const trimmed = content.trim()
+      if (!trimmed) return false
+      try {
+        const res = await chatApi.editMessage(sessionId, messageId, trimmed)
+        if (res.code !== 200 || !res.data) {
+          throw new Error(res.message || '编辑失败')
+        }
+        this.applyEditedMessage(res.data)
+        return true
+      } catch (e) {
+        console.error('编辑消息失败:', e)
+        throw e
+      }
+    },
+
+    async forwardMessage(messageId: string, targetConversationId: string) {
+      const sessionId = this.currentSessionId
+      if (!sessionId || !targetConversationId) return false
+      try {
+        const res = await chatApi.forwardMessage(sessionId, messageId, targetConversationId)
+        if (res.code !== 200 || !res.data) {
+          throw new Error(res.message || '转发失败')
+        }
+        const targetId = String(res.data.conversationId || targetConversationId)
+        const chatMsg = messageToChatMessage(res.data, targetId)
+        chatMsg.sendStatus = 'sent'
+        if (!this.messagesBySession[targetId]) {
+          this.messagesBySession[targetId] = []
+        }
+        if (!this.messagesBySession[targetId].some(m => m.id === chatMsg.id)) {
+          this.messagesBySession[targetId].push(chatMsg)
+        }
+        const session = this.sessions.find(s => s.id === targetId)
+        if (session) {
+          session.lastMessage = messagePreviewFromItem(res.data)
+          session.time = chatMsg.time
+        }
+        return true
+      } catch (e) {
+        console.error('转发消息失败:', e)
+        throw e
+      }
+    },
+
+    async retryFailedMessage(messageId: string) {
+      const sessionId = this.currentSessionId
+      if (!sessionId) return
+      const msgs = this.messagesBySession[sessionId]
+      if (!msgs) return
+      const target = msgs.find(m => m.id === messageId)
+      if (!target || !target.isSelf || target.sendStatus !== 'failed') return
+
+      const content = target.content
+      const type = target.type || 'text'
+      const replyTo = target.replyTo
+      const idx = msgs.findIndex(m => m.id === messageId)
+      if (idx >= 0) msgs.splice(idx, 1)
+
+      try {
+        await this.sendMessageReal(content, {
+          type: type === 'image' ? 'image' : type === 'file' ? 'file' : type === 'voice' ? 'voice' : 'text',
+          replyTo,
+          fileName: target.fileName,
+          fileSize: target.fileSize,
+          fileUrl: target.fileUrl,
+          isImage: target.isImage,
+          voiceDuration: target.voiceDuration,
+          voiceUrl: target.voiceUrl
+        })
+      } catch (e) {
+        console.error('重试发送失败:', e)
+        throw e
+      }
     },
 
     /**
@@ -1046,7 +1250,9 @@ export const useAppStore = defineStore('app', {
         voiceUrl: options.voiceUrl,
         redPacketGreeting: options.redPacketGreeting,
         redPacketAmount: options.redPacketAmount,
-        redPacketOpened: type === 'redPacket' ? false : undefined
+        redPacketOpened: type === 'redPacket' ? false : undefined,
+        sendStatus: 'sending',
+        clientMsgId
       }
 
       if (!this.messagesBySession[id]) {
@@ -1059,7 +1265,43 @@ export const useAppStore = defineStore('app', {
         session.time = time
       }
 
+      const markFailed = () => {
+        const local = this.messagesBySession[id]?.find(m => m.id === clientMsgId)
+        if (local) {
+          local.sendStatus = 'failed'
+          if (local.type === 'file') local.fileStatus = '发送失败'
+        }
+      }
+
       try {
+        // 文本引用回复：走 REST quote，本地推入结果
+        if (type === 'text' && options.replyTo?.id) {
+          const res = await chatApi.quoteMessage(id, options.replyTo.id, {
+            conversationId: id,
+            msgType: 'text',
+            content: trimmed,
+            clientMsgId
+          })
+          if (res.code !== 200 || !res.data) {
+            throw new Error(res.message || '发送失败')
+          }
+          const chatMsg = messageToChatMessage(res.data, id)
+          chatMsg.sendStatus = 'sent'
+          chatMsg.clientMsgId = clientMsgId
+          const idx = this.messagesBySession[id]?.findIndex(m => m.id === clientMsgId) ?? -1
+          if (idx >= 0) {
+            this.messagesBySession[id].splice(idx, 1, chatMsg)
+          } else if (!this.messagesBySession[id].some(m => m.id === chatMsg.id)) {
+            this.messagesBySession[id].push(chatMsg)
+          }
+          if (session) {
+            session.lastMessage = messagePreviewFromItem(res.data)
+            session.time = chatMsg.time
+          }
+          void this.clearSessionDraft(id)
+          return
+        }
+
         let fileUrl = options.fileUrl
         let fileName = options.fileName
         let fileSizeNum: number | undefined
@@ -1117,12 +1359,14 @@ export const useAppStore = defineStore('app', {
           fileName,
           fileSize: fileSizeNum,
           fileUrl,
-          voiceDuration: type === 'voice' ? options.voiceDuration : undefined
+          voiceDuration: type === 'voice' ? options.voiceDuration : undefined,
+          quoteMessageId: options.replyTo?.id
         })
+        if (type === 'text') {
+          void this.clearSessionDraft(id)
+        }
       } catch (e) {
-        const msgs = this.messagesBySession[id]
-        const idx = msgs?.findIndex(m => m.id === clientMsgId) ?? -1
-        if (idx >= 0) msgs?.splice(idx, 1)
+        markFailed()
         console.error('发送消息失败:', e)
         throw e
       }

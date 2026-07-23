@@ -151,9 +151,45 @@ const mentionQuery = ref('')
 const mentionStartIndex = ref(0)
 const mentionPickerRef = ref<InstanceType<typeof AtMentionPicker> | null>(null)
 
-watch(currentSessionId, () => {
-  showMentionPicker.value = false
-  mentionQuery.value = ''
+const { draftBySession } = storeToRefs(appStore)
+let draftSaveTimer: ReturnType<typeof setTimeout> | null = null
+
+watch(
+  currentSessionId,
+  (id) => {
+    showMentionPicker.value = false
+    mentionQuery.value = ''
+    if (draftSaveTimer) {
+      clearTimeout(draftSaveTimer)
+      draftSaveTimer = null
+    }
+    inputValue.value = id ? draftBySession.value[id] || '' : ''
+  },
+  { immediate: true }
+)
+
+watch(
+  () => (currentSessionId.value ? draftBySession.value[currentSessionId.value] : ''),
+  (draft) => {
+    const id = currentSessionId.value
+    if (!id) return
+    if (!inputValue.value || inputValue.value === draft) {
+      inputValue.value = draft || ''
+    }
+  }
+)
+
+function scheduleDraftSave() {
+  const id = currentSessionId.value
+  if (!id || !appStore.sessions.find(s => s.id === id)?.isReal) return
+  if (draftSaveTimer) clearTimeout(draftSaveTimer)
+  draftSaveTimer = setTimeout(() => {
+    void appStore.saveSessionDraft(id, inputValue.value)
+  }, 800)
+}
+
+watch(inputValue, () => {
+  scheduleDraftSave()
 })
 
 function getTextareaEl(): HTMLTextAreaElement | null {
@@ -610,6 +646,7 @@ watch(currentSessionId, () => {
 })
 
 onUnmounted(() => {
+  if (draftSaveTimer) clearTimeout(draftSaveTimer)
   if (isRecordingVoice.value && mediaRecorder && mediaRecorder.state !== 'inactive') {
     try {
       mediaRecorder.stop()
@@ -646,6 +683,8 @@ function send() {
       showMentionPicker.value = false
       emit('update:replyingTo', undefined)
       emit('scrollToBottom')
+      const sid = currentSessionId.value
+      if (sid) void appStore.clearSessionDraft(sid)
     } catch {
       message.error(t('chat.messageSendFail'))
     }

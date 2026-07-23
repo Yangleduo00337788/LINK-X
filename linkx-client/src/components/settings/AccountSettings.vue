@@ -14,6 +14,7 @@ import * as accountApi from '../../api/account'
 import * as authApi from '../../api/auth'
 import * as balanceApi from '../../api/balance'
 import * as feedbackApi from '../../api/feedback'
+import * as complianceApi from '../../api/compliance'
 import { generateDefaultAvatar } from '../../utils/defaultAvatar'
 import { useI18n } from '../../i18n'
 
@@ -354,6 +355,49 @@ function openPasswordModal() {
   void loadResetCaptcha()
 }
 
+const exporting = ref(false)
+
+async function exportMyData() {
+  if (exporting.value) return
+  exporting.value = true
+  try {
+    const res = await complianceApi.exportUserData()
+    if (res.code !== 200 || !res.data) throw new Error(res.message || 'export failed')
+    const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `linkx-export-${res.data.username || 'user'}-${Date.now()}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    message.success(t('account.exportOk'))
+  } catch (e: unknown) {
+    const ax = e as { response?: { data?: { message?: string } }; message?: string }
+    message.error(ax.response?.data?.message || ax.message || t('account.exportFail'))
+  } finally {
+    exporting.value = false
+  }
+}
+
+function confirmPurgeData() {
+  dialog.warning({
+    title: t('account.purgeData'),
+    content: t('account.purgeConfirm'),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      try {
+        const res = await complianceApi.purgeUserData()
+        if (res.code !== 200) throw new Error(res.message || 'purge failed')
+        message.success(t('account.purgeOk'))
+      } catch (e: unknown) {
+        const ax = e as { response?: { data?: { message?: string } }; message?: string }
+        message.error(ax.response?.data?.message || ax.message || t('account.purgeFail'))
+      }
+    }
+  })
+}
+
 const showDeviceModal = ref(false)
 const devices = ref<accountApi.DeviceInfo[]>([])
 const deviceLoading = ref(false)
@@ -452,6 +496,15 @@ onMounted(() => {
       <button type="button" class="link-row" @click="openFeedbackHistory">
         <span class="link-label">{{ t('account.feedback') }}</span>
         <span class="link-value">{{ t('account.viewRecords') }}</span>
+        <n-icon :component="ChevronForwardOutline" :size="16" class="link-chevron" />
+      </button>
+      <button type="button" class="link-row" :disabled="exporting" @click="exportMyData">
+        <span class="link-label">{{ t('account.exportData') }}</span>
+        <span class="link-value">{{ exporting ? '...' : '' }}</span>
+        <n-icon :component="ChevronForwardOutline" :size="16" class="link-chevron" />
+      </button>
+      <button type="button" class="link-row" @click="confirmPurgeData">
+        <span class="link-label">{{ t('account.purgeData') }}</span>
         <n-icon :component="ChevronForwardOutline" :size="16" class="link-chevron" />
       </button>
       <button type="button" class="link-row danger-row" @click="openDeleteModal">

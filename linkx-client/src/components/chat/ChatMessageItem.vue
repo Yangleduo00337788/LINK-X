@@ -5,13 +5,14 @@
  * 根据消息类型渲染对应气泡子组件，并处理头像展示与事件向上传递。
  * </p>
  */
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { PhonePortraitOutline } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
 import type { ChatMessage } from '../../types'
 import { useAppStore } from '../../stores/app'
 import { storeToRefs } from 'pinia'
 import { useI18n } from '../../i18n'
+import * as chatApi from '../../api/chat'
 
 import FileBubble from './bubbles/FileBubble.vue'
 import ImageBubble from './bubbles/ImageBubble.vue'
@@ -36,6 +37,7 @@ const emit = defineEmits<{
   (e: 'clickRedPacket', msg: ChatMessage): void
   (e: 'openPeerProfile', event: MouseEvent): void
   (e: 'openSelfProfile', event: MouseEvent): void
+  (e: 'retry', msg: ChatMessage): void
 }>()
 
 const { t } = useI18n()
@@ -48,6 +50,7 @@ const isMyPhone = computed(() => {
 })
 const hasSession = computed(() => !!currentSession.value)
 const isFriendChat = computed(() => hasSession.value && !currentSession.value?.isGroup && !isMyPhone.value)
+const isGroupChat = computed(() => !!currentSession.value?.isGroup)
 
 const isRecall = computed(() => props.msg.type === 'recall')
 const isSystemTip = computed(
@@ -65,6 +68,47 @@ const tipText = computed(() => {
   if (isRecall.value) return recallTip.value
   return props.msg.content || ''
 })
+
+const statusText = computed(() => {
+  if (!props.msg.isSelf) return ''
+  if (props.msg.sendStatus === 'failed') return t('chat.statusFailed')
+  if (props.msg.sendStatus === 'sending') return t('chat.statusSending')
+  if (props.msg.sendStatus === 'delivered') return t('chat.statusDelivered')
+  if (props.msg.sendStatus === 'sent') return t('chat.statusSent')
+  return ''
+})
+
+const readCountText = computed(() => {
+  if (!props.msg.isSelf || !isGroupChat.value) return ''
+  if (props.msg.readCount == null || props.msg.totalMembers == null) return ''
+  return t('chat.readCount', {
+    read: props.msg.readCount,
+    total: props.msg.totalMembers
+  })
+})
+
+const fetchingRead = ref(false)
+
+async function maybeFetchReadCount() {
+  if (!props.msg.isSelf || !isGroupChat.value) return
+  if (props.msg.sendStatus === 'sending' || props.msg.sendStatus === 'failed') return
+  if (props.msg.readCount != null) return
+  const sessionId = props.msg.sessionId || currentSession.value?.id
+  if (!sessionId || !props.msg.id || props.msg.id.includes('-')) return
+  if (fetchingRead.value) return
+  fetchingRead.value = true
+  try {
+    const res = await chatApi.getMessageReadCount(sessionId, props.msg.id)
+    if (res.code === 200 && res.data) {
+      props.msg.readCount = Number(res.data.readCount) || 0
+      props.msg.totalMembers = Number(res.data.totalMembers) || 0
+    }
+  } catch {
+    // ignore
+  } finally {
+    fetchingRead.value = false
+  }
+}
 
 /**
  * 对方头像 props（computed，避免滚动时每帧重复算 + 误触发群成员请求）。
@@ -98,6 +142,12 @@ const selfAvatarProps = computed(() => ({
   size: 36,
   imageUrl: userProfile.value.avatar || undefined
 }))
+
+function onStatusClick() {
+  if (props.msg.isSelf && props.msg.sendStatus === 'failed') {
+    emit('retry', props.msg)
+  }
+}
 </script>
 
 <template>
@@ -114,13 +164,30 @@ const selfAvatarProps = computed(() => ({
     </button>
     <Avatar v-else-if="!msg.isSelf" v-bind="peerAvatarProps" />
 
-    <div class="bubble-wrapper" @contextmenu="emit('contextmenu', $event, msg)">
+    <div
+      class="bubble-wrapper"
+      @contextmenu="emit('contextmenu', $event, msg)"
+      @mouseenter="maybeFetchReadCount"
+    >
       <FileBubble v-if="msg.type === 'file'" :msg="msg" @click="emit('openFileView', msg)" />
       <ImageBubble v-else-if="msg.type === 'image' || msg.isImage" :msg="msg" @click="emit('openImageView', msg)" />
       <VoiceBubble v-else-if="msg.type === 'voice'" :msg="msg" :playing="!!props.playing" @click="emit('playVoice', msg)" />
       <RedPacketBubble v-else-if="msg.type === 'redPacket'" :msg="msg" @click="emit('clickRedPacket', msg)" />
       <DataCardBubble v-else-if="msg.type === 'dataCard'" :msg="msg" />
       <TextBubble v-else :msg="msg" />
+      <div v-if="msg.isSelf && (statusText || msg.edited || readCountText)" class="msg-meta">
+        <button
+          v-if="statusText"
+          type="button"
+          class="msg-status"
+          :class="{ failed: msg.sendStatus === 'failed' }"
+          @click="onStatusClick"
+        >
+          {{ statusText }}
+        </button>
+        <span v-if="msg.edited" class="msg-edited">{{ t('chat.editedLabel') }}</span>
+        <span v-if="readCountText" class="msg-read">{{ readCountText }}</span>
+      </div>
     </div>
 
     <button v-if="msg.isSelf" type="button" class="avatar-btn" @click="emit('openSelfProfile', $event)">
@@ -162,6 +229,37 @@ const selfAvatarProps = computed(() => ({
 .avatar-btn:focus-visible { outline: 2px solid var(--lx-accent); outline-offset: 2px; }
 .bubble-wrapper {
   max-width: min(420px, 72%);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.message-row.left .bubble-wrapper {
+  align-items: flex-start;
+}
+.msg-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--lx-text-muted, #999);
+}
+.msg-status {
+  border: none;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font-size: inherit;
+  cursor: default;
+}
+.msg-status.failed {
+  color: var(--lx-danger, #e74c3c);
+  cursor: pointer;
+}
+.msg-edited,
+.msg-read {
+  opacity: 0.9;
 }
 .message-row.is-at-me-flash .bubble-wrapper {
   animation: at-me-flash 1.6s ease;

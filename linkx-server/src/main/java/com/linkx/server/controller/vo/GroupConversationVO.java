@@ -56,4 +56,10 @@ public class GroupConversationVO {
 
     /** 当前用户个人禁言截止（毫秒，可空） */
     private Long meMuteUntil;
+
+    /** 入群是否需要审批 */
+    private Boolean joinApproval;
+
+    /** 邀请策略：anyMember / ownerApprove */
+    private String invitePolicy;
 }

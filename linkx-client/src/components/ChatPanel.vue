@@ -10,7 +10,7 @@
 // Vue 响应式、计算属性、生命周期、侦听器与 nextTick
 import { ref, computed, onUnmounted, watch, nextTick } from 'vue'
 // Naive UI 图标、气泡、下拉菜单与消息提示
-import { NIcon, NPopover, NDropdown, useMessage, type DropdownOption } from 'naive-ui'
+import { NIcon, NPopover, NDropdown, NModal, NInput, useMessage, type DropdownOption } from 'naive-ui'
 // Ionicons5 通话、视频、网格、添加、更多、手机、图片图标
 import {
   CallOutline,
@@ -103,12 +103,17 @@ const appSettingsStore = useAppSettingsStore()
 // 获取联系人 Store 实例
 const contactsStore = useContactsStore()
 // 解构当前会话、消息、用户资料、会话 ID、已保存登录信息
-const { currentSession, currentMessages, userProfile, currentSessionId, savedLogin, sessionEnterTick } =
+const { currentSession, currentMessages, userProfile, currentSessionId, savedLogin, sessionEnterTick, sessions } =
   storeToRefs(appStore)
 // 解构聊天背景设置
 const { chatBackground } = storeToRefs(appSettingsStore)
 // 解构撤回消息、加载更多历史消息
 const { recallMessage: recallMessageInStore, loadMoreMessages, clearAtMeMessage } = appStore
+const {
+  editMessage: editMessageInStore,
+  forwardMessage: forwardMessageInStore,
+  retryFailedMessage
+} = appStore
 // 解构打开 Overlay 方法
 const { open: openOverlay } = overlayStore
 // 解构聊天弹窗相关操作方法
@@ -634,6 +639,15 @@ const ctxOptions = computed<DropdownOption[]>(() => {
   if (msg.isSelf && canRecallMessage(msg)) {
     opts.push({ type: 'divider', key: 'd' }, { label: t('chat.recall'), key: 'recall' })
   }
+  if (msg.isSelf && msg.type === 'text' && msg.sendStatus !== 'failed') {
+    opts.push({ label: t('chat.edit'), key: 'edit' })
+  }
+  if (msg.type !== 'system' && msg.type !== 'recall' && msg.type !== 'redPacket') {
+    opts.push({ label: t('chat.forward'), key: 'forward' })
+  }
+  if (msg.isSelf && msg.sendStatus === 'failed') {
+    opts.push({ type: 'divider', key: 'd-retry' }, { label: t('chat.retry'), key: 'retry' })
+  }
   return opts
 })
 
@@ -673,6 +687,9 @@ function onCtxSelect(key: string) {
   else if (key === 'reply') replyMessage(msg)
   else if (key === 'essence') void setMessageAsEssence(msg)
   else if (key === 'recall') recallMessage(msg)
+  else if (key === 'edit') openEditMessage(msg)
+  else if (key === 'forward') openForwardMessage(msg)
+  else if (key === 'retry') void retryMessage(msg)
   ctxShow.value = false
 }
 
@@ -738,6 +755,73 @@ async function recallMessage(msg: ChatMessage) {
     message.error(ax.response?.data?.message || ax.message || t('chat.recallFail'))
   }
 }
+
+const editModalShow = ref(false)
+const editContent = ref('')
+const editingMsg = ref<ChatMessage | null>(null)
+const editSaving = ref(false)
+
+function openEditMessage(msg: ChatMessage) {
+  if (!msg.isSelf || msg.type !== 'text') return
+  editingMsg.value = msg
+  editContent.value = msg.content || ''
+  editModalShow.value = true
+}
+
+async function confirmEditMessage() {
+  const msg = editingMsg.value
+  const text = editContent.value.trim()
+  if (!msg || !text) return
+  editSaving.value = true
+  try {
+    await editMessageInStore(msg.id, text)
+    message.success(t('chat.editOk'))
+    editModalShow.value = false
+  } catch (e: unknown) {
+    const ax = e as { response?: { data?: { message?: string } }; message?: string }
+    message.error(ax.response?.data?.message || ax.message || t('chat.editFail'))
+  } finally {
+    editSaving.value = false
+  }
+}
+
+const forwardModalShow = ref(false)
+const forwardingMsg = ref<ChatMessage | null>(null)
+const forwardSaving = ref(false)
+
+function openForwardMessage(msg: ChatMessage) {
+  forwardingMsg.value = msg
+  forwardModalShow.value = true
+}
+
+async function confirmForward(targetId: string) {
+  const msg = forwardingMsg.value
+  if (!msg || !targetId) return
+  forwardSaving.value = true
+  try {
+    await forwardMessageInStore(msg.id, targetId)
+    message.success(t('chat.forwardOk'))
+    forwardModalShow.value = false
+  } catch (e: unknown) {
+    const ax = e as { response?: { data?: { message?: string } }; message?: string }
+    message.error(ax.response?.data?.message || ax.message || t('chat.forwardFail'))
+  } finally {
+    forwardSaving.value = false
+  }
+}
+
+async function retryMessage(msg: ChatMessage) {
+  try {
+    await retryFailedMessage(msg.id)
+  } catch (e: unknown) {
+    const ax = e as { response?: { data?: { message?: string } }; message?: string }
+    message.error(ax.response?.data?.message || ax.message || t('chat.messageSendFail'))
+  }
+}
+
+const forwardTargets = computed(() =>
+  sessions.value.filter(s => s.id !== currentSessionId.value && !s.isSystemNotify)
+)
 
 // 是否正在拖拽文件到聊天区
 const isDraggingFile = ref(false)
@@ -899,7 +983,7 @@ function onDrop(e: DragEvent) {
                 >
                   <template #default="{ msg }">
                       <div
-                      v-memo="[msg.id, msg.content, msg.type, playingVoiceId === msg.id, msg.senderAvatar, msg.isSelf, highlightAtMeId === msg.id]"
+                      v-memo="[msg.id, msg.content, msg.type, msg.sendStatus, msg.edited, msg.readCount, playingVoiceId === msg.id, msg.senderAvatar, msg.isSelf, highlightAtMeId === msg.id]"
                     >
                       <ChatMessageItem
                         :msg="msg"
@@ -912,6 +996,7 @@ function onDrop(e: DragEvent) {
                         @click-red-packet="onRedPacketClick"
                         @open-peer-profile="openPeerProfile"
                         @open-self-profile="openSelfProfileClick"
+                        @retry="retryMessage"
                       />
                     </div>
                   </template>
@@ -967,6 +1052,59 @@ function onDrop(e: DragEvent) {
       @select="onCtxSelect"
       @clickoutside="ctxShow = false"
     />
+
+    <n-modal
+      v-model:show="editModalShow"
+      preset="card"
+      :title="t('chat.edit')"
+      style="max-width: 420px"
+      :mask-closable="!editSaving"
+    >
+      <n-input
+        v-model:value="editContent"
+        type="textarea"
+        :autosize="{ minRows: 3, maxRows: 8 }"
+        :placeholder="t('chat.inputPlaceholder')"
+      />
+      <template #footer>
+        <div style="display: flex; justify-content: flex-end; gap: 8px">
+          <button type="button" class="lx-modal-btn" :disabled="editSaving" @click="editModalShow = false">
+            {{ t('common.cancel') }}
+          </button>
+          <button
+            type="button"
+            class="lx-modal-btn primary"
+            :disabled="editSaving || !editContent.trim()"
+            @click="confirmEditMessage"
+          >
+            {{ t('common.confirm') }}
+          </button>
+        </div>
+      </template>
+    </n-modal>
+
+    <n-modal
+      v-model:show="forwardModalShow"
+      preset="card"
+      :title="t('chat.forward')"
+      style="max-width: 420px"
+      :mask-closable="!forwardSaving"
+    >
+      <div class="forward-session-list">
+        <button
+          v-for="s in forwardTargets"
+          :key="s.id"
+          type="button"
+          class="forward-session-row"
+          :disabled="forwardSaving"
+          @click="confirmForward(s.id)"
+        >
+          <span class="forward-session-name">{{ s.name }}</span>
+          <span v-if="s.isGroup" class="forward-session-tag">{{ t('chat.group') }}</span>
+        </button>
+        <p v-if="!forwardTargets.length" class="forward-empty">{{ t('chat.noForwardTarget') }}</p>
+      </div>
+    </n-modal>
   </div>
 </template>
 
@@ -1271,6 +1409,79 @@ function onDrop(e: DragEvent) {
 
 .menu-item.danger:hover {
   background: var(--lx-danger-bg);
+}
+
+.forward-session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.forward-session-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 10px 12px;
+  border-radius: var(--lx-radius);
+  cursor: pointer;
+  text-align: left;
+  color: var(--lx-text);
+}
+
+.forward-session-row:hover:not(:disabled) {
+  background: var(--lx-bg-hover);
+}
+
+.forward-session-row:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.forward-session-name {
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.forward-session-tag {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--lx-text-muted);
+}
+
+.forward-empty {
+  margin: 12px 0;
+  text-align: center;
+  color: var(--lx-text-muted);
+  font-size: 13px;
+}
+
+.lx-modal-btn {
+  border: 1px solid var(--lx-border);
+  background: var(--lx-bg-card);
+  color: var(--lx-text);
+  border-radius: var(--lx-radius);
+  padding: 6px 14px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.lx-modal-btn.primary {
+  background: var(--lx-accent);
+  border-color: var(--lx-accent);
+  color: #fff;
+}
+
+.lx-modal-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 /* 引用消息展示 */

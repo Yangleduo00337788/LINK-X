@@ -46,7 +46,10 @@ export function conversationToSession(conv: ConversationItem): ChatSession {
       avatarUrl: normalizeMediaUrl(conv.avatar) || undefined,
       memberAvatars: mapMemberAvatars(conv.memberAvatars),
       isGroup: true,
-      isReal: true
+      isReal: true,
+      pinned: !!conv.pinned,
+      muted: !!conv.muted,
+      unread: conv.unreadCount != null ? Number(conv.unreadCount) || undefined : undefined
     }
   }
 
@@ -63,7 +66,10 @@ export function conversationToSession(conv: ConversationItem): ChatSession {
     peerUserId: conv.peerUserId ? String(conv.peerUserId) : undefined,
     online: !!conv.peerOnline,
     isGroup: false,
-    isReal: true
+    isReal: true,
+    pinned: !!conv.pinned,
+    muted: !!conv.muted,
+    unread: conv.unreadCount != null ? Number(conv.unreadCount) || undefined : undefined
   }
 }
 
@@ -170,7 +176,34 @@ export function messageToChatMessage(message: MessageItem, sessionId: string): C
     redPacketReceived,
     redPacketReceivedAmount,
     redPacketStatus,
-    redPacketOpened: type === 'redPacket' ? !!redPacketReceived : undefined
+    redPacketOpened: type === 'redPacket' ? !!redPacketReceived : undefined,
+    deliveryStatus: message.deliveryStatus,
+    edited: message.edited,
+    clientMsgId: message.clientMsgId,
+    sendStatus: (message.isSelf ?? false) ? mapSendStatus(message.deliveryStatus) : undefined,
+    replyTo: buildReplyTo(message, sessionId)
+  }
+}
+
+function mapSendStatus(
+  deliveryStatus?: string
+): ChatMessage['sendStatus'] {
+  if (deliveryStatus === 'delivered') return 'delivered'
+  if (deliveryStatus === 'failed') return 'failed'
+  return 'sent'
+}
+
+function buildReplyTo(message: MessageItem, sessionId: string): ChatMessage | undefined {
+  if (message.quoteMessageId == null && !message.quoteContent) return undefined
+  return {
+    id: String(message.quoteMessageId ?? ''),
+    sessionId,
+    content: message.quoteContent || '',
+    time: '',
+    isSelf: false,
+    senderId: message.quoteSenderId != null ? String(message.quoteSenderId) : undefined,
+    senderName: undefined,
+    type: 'text'
   }
 }
 
