@@ -3,6 +3,7 @@ package com.linkx.server.im;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.config.LinkxProperties;
+import com.linkx.server.service.DeviceSessionService;
 import com.linkx.server.service.TokenService;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
@@ -28,6 +29,7 @@ public class ImWebSocketServer implements ApplicationRunner {
     private final ImChannelManager channelManager;
     private final ImMessagePushService pushService;
     private final ObjectMapper objectMapper;
+    private final DeviceSessionService deviceSessionService;
 
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
@@ -48,7 +50,8 @@ public class ImWebSocketServer implements ApplicationRunner {
         bootstrap.group(bossGroup, workerGroup)
                 .channel(NioServerSocketChannel.class)
                 .childHandler(new ImWebSocketChannelInitializer(
-                        linkxProperties, jwtUtils, tokenService, channelManager, pushService, objectMapper));
+                        linkxProperties, jwtUtils, tokenService, channelManager,
+                        pushService, objectMapper, deviceSessionService));
 
         ChannelFuture future = bootstrap.bind(port);
         future.addListener(bindFuture -> {

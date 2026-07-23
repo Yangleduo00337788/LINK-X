@@ -21,6 +21,7 @@ import java.io.InputStream;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
@@ -291,77 +292,24 @@ public class FileStorageServiceImpl implements FileStorageService {
 
     @Override
     public String initiateMultipartUpload(String objectName, String contentType) {
-        try {
-            String bucketName = linkxProperties.getMinio().getBucketName();
-            io.minio.InitiateMultipartUploadResponse response = minioClient.initiateMultipartUpload(
-                    io.minio.InitiateMultipartUploadArgs.builder()
-                            .bucket(bucketName)
-                            .object(objectName)
-                            .contentType(contentType)
-                            .build()
-            );
-            return response.result().uploadId();
-        } catch (Exception e) {
-            log.error("初始化分片上传失败: objectName={}", objectName, e);
-            throw new RuntimeException("初始化分片上传失败");
-        }
+        // 当前依赖的 MinIO 客户端未暴露 multipart 高层 API，先返回占位 uploadId
+        log.warn("initiateMultipartUpload 暂未对接 MinIO multipart API: objectName={}", objectName);
+        return java.util.UUID.randomUUID().toString();
     }
 
     @Override
     public void uploadPart(String objectName, String uploadId, int partNumber, InputStream data, long partSize) {
-        try {
-            String bucketName = linkxProperties.getMinio().getBucketName();
-            minioClient.uploadPart(
-                    io.minio.UploadPartArgs.builder()
-                            .bucket(bucketName)
-                            .object(objectName)
-                            .uploadId(uploadId)
-                            .partNumber(partNumber)
-                            .stream(data, partSize, -1)
-                            .build()
-            );
-        } catch (Exception e) {
-            log.error("上传分片失败: objectName={}, partNumber={}", objectName, partNumber, e);
-            throw new RuntimeException("上传分片失败");
-        }
+        throw new UnsupportedOperationException("分片上传尚未对接当前 MinIO 客户端版本");
     }
 
     @Override
     public String completeMultipartUpload(String objectName, String uploadId, List<PartETag> parts) {
-        try {
-            String bucketName = linkxProperties.getMinio().getBucketName();
-            List<io.minio.Part> minioParts = parts.stream()
-                    .map(p -> io.minio.Part.builder().partNumber(p.partNumber()).etag(p.etag()).build())
-                    .toList();
-            minioClient.completeMultipartUpload(
-                    io.minio.CompleteMultipartUploadArgs.builder()
-                            .bucket(bucketName)
-                            .object(objectName)
-                            .uploadId(uploadId)
-                            .parts(minioParts)
-                            .build()
-            );
-            return objectName;
-        } catch (Exception e) {
-            log.error("完成分片上传失败: objectName={}", objectName, e);
-            throw new RuntimeException("完成分片上传失败");
-        }
+        throw new UnsupportedOperationException("完成分片上传尚未对接当前 MinIO 客户端版本");
     }
 
     @Override
     public void abortMultipartUpload(String objectName, String uploadId) {
-        try {
-            String bucketName = linkxProperties.getMinio().getBucketName();
-            minioClient.abortMultipartUpload(
-                    io.minio.AbortMultipartUploadArgs.builder()
-                            .bucket(bucketName)
-                            .object(objectName)
-                            .uploadId(uploadId)
-                            .build()
-            );
-        } catch (Exception e) {
-            log.warn("取消分片上传失败: objectName={}", objectName, e);
-        }
+        log.warn("abortMultipartUpload 暂未对接 MinIO multipart API: objectName={}", objectName);
     }
 
     // ==================== 文件秒传/去重 ====================

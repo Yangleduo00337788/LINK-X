@@ -82,6 +82,8 @@ CREATE TABLE IF NOT EXISTS im_conversation (
   mute_all TINYINT NOT NULL DEFAULT 0,
   mute_all_start DATETIME,
   mute_all_end DATETIME,
+  join_approval TINYINT NOT NULL DEFAULT 0,
+  invite_policy VARCHAR(20) DEFAULT 'anyMember',
   last_message_content VARCHAR(500),
   last_message_time DATETIME,
   create_time DATETIME,
@@ -100,6 +102,8 @@ CREATE TABLE IF NOT EXISTS im_conversation_member (
   pinned TINYINT NOT NULL DEFAULT 0,
   muted TINYINT NOT NULL DEFAULT 0,
   mute_until DATETIME,
+  mute TINYINT NOT NULL DEFAULT 0,
+  announcement_read TINYINT NOT NULL DEFAULT 0,
   create_time DATETIME,
   update_time DATETIME,
   deleted TINYINT NOT NULL DEFAULT 0

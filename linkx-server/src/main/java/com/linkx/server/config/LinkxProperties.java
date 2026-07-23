@@ -21,6 +21,7 @@ public class LinkxProperties {
     private final Proxy proxy = new Proxy();
     private final Mail mail = new Mail();
     private final App app = new App();
+    private final Retention retention = new Retention();
 
     @Data
     public static class Im {
@@ -139,5 +140,14 @@ public class LinkxProperties {
         private String releaseNotes = "当前已是最新版本";
         /** 下载地址（可空） */
         private String downloadUrl = "";
+    }
+
+    /**
+     * 数据留存策略。message-days &lt;= 0 表示不自动清理。
+     */
+    @Data
+    public static class Retention {
+        /** 消息保留天数，默认 365 */
+        private int messageDays = 365;
     }
 }

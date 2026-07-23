@@ -643,7 +643,7 @@ public class ChatServiceImpl implements ChatService {
     private void checkGroupMessageStormLimit(Long userId, Long conversationId) {
         String stormKey = "linkx:storm:" + conversationId;
         String countStr = redisTemplate.opsForValue().get(stormKey + ":count");
-        int memberCount = countStr != null ? Integer.parseInt(countStr) : getMemberCount(conversationId);
+        int memberCount = countStr != null ? Integer.parseInt(countStr) : (int) getMemberCount(conversationId);
 
         // 缓存群成员数量（60 秒过期）
         if (countStr == null) {
@@ -666,8 +666,8 @@ public class ChatServiceImpl implements ChatService {
         }
     }
 
-    private int getMemberCount(Long conversationId) {
-        return memberMapper.selectCountByQuery(
+    private int getMemberCountInternal(Long conversationId) {
+        return (int) memberMapper.selectCountByQuery(
                 QueryWrapper.create()
                         .where(ImConversationMember::getConversationId).eq(conversationId)
                         .and(ImConversationMember::getDeleted).eq(0)
@@ -1237,10 +1237,7 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public long getMemberCount(Long conversationId) {
-        return memberMapper.selectCountByQuery(
-                QueryWrapper.create()
-                        .where(ImConversationMember::getConversationId).eq(conversationId)
-        );
+        return getMemberCountInternal(conversationId);
     }
 
     // ==================== 分片上传（断点续传） ====================

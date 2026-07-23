@@ -3,6 +3,7 @@ package com.linkx.server.im;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.config.LinkxProperties;
+import com.linkx.server.service.DeviceSessionService;
 import com.linkx.server.service.TokenService;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
@@ -22,6 +23,7 @@ public class ImWebSocketChannelInitializer extends ChannelInitializer<SocketChan
     private final ImChannelManager channelManager;
     private final ImMessagePushService pushService;
     private final ObjectMapper objectMapper;
+    private final DeviceSessionService deviceSessionService;
 
     @Override
     protected void initChannel(SocketChannel ch) {
@@ -33,7 +35,8 @@ public class ImWebSocketChannelInitializer extends ChannelInitializer<SocketChan
         // 空闲连接超时（读60s/写30s）防止连接泄漏
         pipeline.addLast(new io.netty.handler.timeout.IdleStateHandler(60, 30, 0));
         pipeline.addLast(new ImWebSocketIdleHandler());
-        pipeline.addLast(new ImWebSocketAuthHandler(jwtUtils, tokenService, channelManager, linkxProperties));
+        pipeline.addLast(new ImWebSocketAuthHandler(
+                jwtUtils, tokenService, channelManager, linkxProperties, deviceSessionService));
         // 接受命名子协议；浏览器可不带该头（仅 query 鉴权）。checkStartsWith 兼容 /ws?token=...
         pipeline.addLast(new WebSocketServerProtocolHandler(
                 wsPath, "linkx-access-token", true, 65536, false, true));

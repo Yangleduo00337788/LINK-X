@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
@@ -489,10 +490,7 @@ public class ImMessagePushService {
     public void handleSync(Long userId, ImWsFrame frame, Channel channel) {
         Long lastServerMsgId = null;
         if (frame.getServerMsgId() != null) {
-            try {
-                lastServerMsgId = Long.parseLong(frame.getServerMsgId());
-            } catch (NumberFormatException ignored) {
-            }
+            lastServerMsgId = frame.getServerMsgId();
         }
 
         // 查询用户所在所有会话
@@ -566,7 +564,7 @@ public class ImMessagePushService {
                 .fileSize(msg.getFileSize())
                 .fileUrl(msg.getFileUrl())
                 .voiceDuration(msg.getVoiceDuration())
-                .createTime(msg.getCreateTime())
+                .createTime(msg.getCreateTime() != null ? msg.getCreateTime().getTime() : null)
                 .isSelf(msg.getSenderId().equals(viewerId))
                 .build();
     }
