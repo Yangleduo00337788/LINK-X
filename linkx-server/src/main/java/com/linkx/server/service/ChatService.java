@@ -45,5 +45,10 @@ public interface ChatService {
 
     /** 消息附件展示名（鉴权后）。 */
     String getMessageFileName(Long userId, Long messageId);
-}
 
+    /** 将会话中某条及之前的消息标记为已读，并返回会话最新未读数。 */
+    long markAsRead(Long userId, Long conversationId, Long lastReadMessageId);
+
+    /** 获取单个会话的未读数。 */
+    long getUnreadCount(Long userId, Long conversationId);
+}

@@ -62,4 +62,5 @@ public class ConversationVO {
 
     private String lastMessage;
     private Long lastMessageTime;
+    private Long unreadCount;
 }

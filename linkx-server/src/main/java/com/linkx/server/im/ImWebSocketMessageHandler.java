@@ -2,6 +2,7 @@ package com.linkx.server.im;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linkx.server.exception.CustomException;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
@@ -43,6 +44,7 @@ public class ImWebSocketMessageHandler extends SimpleChannelInboundHandler<TextW
             switch (wsFrame.getAction()) {
                 case "ping" -> ctx.writeAndFlush(new TextWebSocketFrame(pushService.buildPong()));
                 case "send" -> pushService.handleSend(userId, wsFrame);
+                case "sync" -> pushService.handleSync(userId, wsFrame, ctx.channel());
                 default -> pushService.sendError(ctx.channel(), 400, "不支持的 action: " + wsFrame.getAction());
             }
         } catch (CustomException e) {

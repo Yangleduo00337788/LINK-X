@@ -7,6 +7,7 @@ public class ImWsFrame {
 
     private String action;
     private String clientMsgId;
+    private Long serverMsgId;
     private String conversationId;
     private String msgType;
     private String content;

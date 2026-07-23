@@ -24,8 +24,11 @@ import com.linkx.server.service.MediaUrlService;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.core.update.UpdateChain;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
@@ -41,6 +44,7 @@ import java.util.stream.Collectors;
 /**
  * 群聊服务实现
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class GroupServiceImpl implements GroupService {
@@ -74,6 +78,8 @@ public class GroupServiceImpl implements GroupService {
                 .type(ImConversation.TYPE_GROUP)
                 .name(dto.getName())
                 .ownerId(userId)
+                .muteAll(0)
+                .deleted(0)
                 .build();
         conversationMapper.insert(group);
 
@@ -82,6 +88,8 @@ public class GroupServiceImpl implements GroupService {
                 .conversationId(group.getId())
                 .userId(userId)
                 .role(ImConversationMember.ROLE_OWNER)
+                .muted(0)
+                .deleted(0)
                 .build());
 
         // 添加其他成员
@@ -90,6 +98,8 @@ public class GroupServiceImpl implements GroupService {
                     .conversationId(group.getId())
                     .userId(memberId)
                     .role(ImConversationMember.ROLE_MEMBER)
+                    .muted(0)
+                    .deleted(0)
                     .build());
         }
 
@@ -755,11 +765,24 @@ public class GroupServiceImpl implements GroupService {
     }
 
     private void emitSystemTip(Long operatorId, Long conversationId, String content) {
-        try {
-            MessageVO tip = chatService.postSystemMessage(operatorId, conversationId, content);
-            imPushService.pushToConversationMembers(tip, operatorId, null);
-        } catch (Exception e) {
-            // 系统提示失败不影响主业务
+        Runnable task = () -> {
+            try {
+                MessageVO tip = chatService.postSystemMessage(operatorId, conversationId, content);
+                imPushService.pushToConversationMembers(tip, operatorId, null);
+            } catch (Exception e) {
+                // 系统提示失败不影响主业务
+                log.warn("emitSystemTip failed: {}", e.toString());
+            }
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    task.run();
+                }
+            });
+        } else {
+            task.run();
         }
     }
 

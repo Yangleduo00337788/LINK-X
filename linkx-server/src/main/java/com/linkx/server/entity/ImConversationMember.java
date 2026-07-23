@@ -42,6 +42,11 @@ public class ImConversationMember implements Serializable {
     private String remark;
 
     /**
+     * 当前成员已读到的最后一条消息 ID，用于未读数计算与多端同步。
+     */
+    private Long lastReadMessageId;
+
+    /**
      * 是否被禁言（1=是）
      */
     private Integer muted;

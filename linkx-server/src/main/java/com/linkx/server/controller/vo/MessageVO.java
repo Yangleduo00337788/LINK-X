@@ -35,6 +35,12 @@ public class MessageVO {
     private Long createTime;
     private Boolean isSelf;
 
+    private String clientMsgId;
+    private String deliveryStatus;
+    private Integer readStatus;
+    private Long unreadCount;
+    private String ackType;
+
     // ---------- 红包专属（仅 type=redPacket 时有值）----------
 
     /** 红包 ID */

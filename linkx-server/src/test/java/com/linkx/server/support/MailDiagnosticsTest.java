@@ -8,6 +8,7 @@ import jakarta.mail.Transport;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -17,9 +18,12 @@ import java.util.Properties;
 
 /**
  * 邮件诊断测试：直接使用 JavaMail 原生 API 发送，绕过 Spring 包装。
- * 用法：mvn test -Dtest=MailDiagnosticsTest
+ * 用法：mvn test -Dtest=MailDiagnosticsTest -Dsurefire.failIfNoSpecifiedTests=false
+ * <p>
+ * 默认禁用：会连接真实 SMTP，不得进入 CI / 覆盖率套件。
  */
 @Slf4j
+@Disabled("真实 SMTP 诊断，仅人工排查时手动启用")
 @SpringBootTest
 @ActiveProfiles("local")
 class MailDiagnosticsTest {

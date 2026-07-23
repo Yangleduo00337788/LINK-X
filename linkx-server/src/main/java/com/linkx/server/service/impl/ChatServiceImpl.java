@@ -56,7 +56,6 @@ public class ChatServiceImpl implements ChatService {
     private static final int DEFAULT_MESSAGE_LIMIT = 50;
     private static final int MAX_MESSAGE_LIMIT = 100;
     private static final int RELATION_STATUS_NORMAL = 1;
-    /** 撤回时限（毫秒），与微信一致约 2 分钟 */
     private static final long RECALL_WINDOW_MS = 2 * 60 * 1000L;
 
     private final ImConversationMapper conversationMapper;
@@ -88,14 +87,13 @@ public class ChatServiceImpl implements ChatService {
         List<ImConversation> conversations = conversationMapper.selectListByQuery(
                 QueryWrapper.create().where(ImConversation::getId).in(conversationIds)
         );
-        // 按 lastMessageTime 降序排列，null 时间排到最后（最新消息的会话排在最前）
         conversations.sort((a, b) -> {
             Date timeA = a.getLastMessageTime();
             Date timeB = b.getLastMessageTime();
             if (timeA == null && timeB == null) return 0;
-            if (timeA == null) return 1;  // null 排后面
-            if (timeB == null) return -1; // null 排后面
-            return timeB.compareTo(timeA); // 最新的在前
+            if (timeA == null) return 1;
+            if (timeB == null) return -1;
+            return timeB.compareTo(timeA);
         });
 
         Map<Long, SysUser> peerUserMap = loadPeerUsers(userId, conversations);
@@ -117,18 +115,19 @@ public class ChatServiceImpl implements ChatService {
                 if (peer == null) {
                     continue;
                 }
-                // 已非好友的单聊不进入会话列表（删除好友后即时隐藏）
                 if (!isFriend(userId, peer.getId())) {
                     continue;
                 }
                 boolean showOnline = !Boolean.FALSE.equals(showOnlineMap.get(peer.getId()));
                 boolean peerOnline = showOnline && imChannelManager.isOnline(peer.getId());
-                result.add(toConversationVO(conversation, peer, remarkMap.get(peer.getId()), peerOnline));
+                result.add(toConversationVO(conversation, peer, remarkMap.get(peer.getId()), peerOnline,
+                        getUnreadCount(userId, conversation.getId())));
             } else if (conversation.getType() == ImConversation.TYPE_GROUP) {
                 result.add(toGroupConversationVO(
                         conversation,
                         groupMemberAvatars.getOrDefault(conversation.getId(), List.of()),
-                        groupRemarkMap.get(conversation.getId())
+                        groupRemarkMap.get(conversation.getId()),
+                        getUnreadCount(userId, conversation.getId())
                 ));
             }
         }
@@ -159,25 +158,33 @@ public class ChatServiceImpl implements ChatService {
             conversation = ImConversation.builder()
                     .type(ImConversation.TYPE_PRIVATE)
                     .privateKey(privateKey)
+                    .muteAll(0)
+                    .deleted(0)
                     .build();
             conversationMapper.insert(conversation);
 
             memberMapper.insert(ImConversationMember.builder()
                     .conversationId(conversation.getId())
                     .userId(userId)
+                    .role(ImConversationMember.ROLE_MEMBER)
+                    .muted(0)
+                    .deleted(0)
                     .build());
             memberMapper.insert(ImConversationMember.builder()
                     .conversationId(conversation.getId())
                     .userId(friendId)
+                    .role(ImConversationMember.ROLE_MEMBER)
+                    .muted(0)
+                    .deleted(0)
                     .build());
         } else {
-            // 删除好友会逻辑删除成员；重新成为好友后需恢复，否则无法进入会话
             ensurePrivateMembership(conversation.getId(), userId);
             ensurePrivateMembership(conversation.getId(), friendId);
         }
 
         Map<Long, String> remarkMap = loadRemarkMap(userId, Set.of(friendId));
-        return toConversationVO(conversation, friend, remarkMap.get(friendId), resolvePeerOnline(friendId));
+        return toConversationVO(conversation, friend, remarkMap.get(friendId), resolvePeerOnline(friendId),
+                getUnreadCount(userId, conversation.getId()));
     }
 
     @Override
@@ -208,10 +215,11 @@ public class ChatServiceImpl implements ChatService {
                 QueryWrapper.create().where(SysUser::getId).in(senderIds)
         ).stream().collect(Collectors.toMap(SysUser::getId, Function.identity(), (a, b) -> a));
 
+        Long lastReadMessageId = loadLastReadMessageId(userId, conversationId);
         List<MessageVO> result = new ArrayList<>();
         for (ImMessage message : messages) {
             SysUser sender = senderMap.get(message.getSenderId());
-            result.add(toMessageVO(message, sender, userId));
+            result.add(toMessageVO(message, sender, userId, lastReadMessageId));
         }
         return result;
     }
@@ -221,22 +229,20 @@ public class ChatServiceImpl implements ChatService {
     public MessageVO sendMessage(Long userId, SendMessageDTO dto) {
         assertConversationMember(userId, dto.getConversationId());
 
-        // 幂等去重：同一 senderId + clientMsgId 在 10 分钟内只入库一次
-        // 防止网络抖动导致客户端重发产生重复消息
         if (StringUtils.hasText(dto.getClientMsgId())) {
             String dedupKey = buildClientMsgDedupKey(userId, dto.getClientMsgId());
             Boolean firstTime = redisTemplate.opsForValue().setIfAbsent(
                     dedupKey, "1", Duration.ofMinutes(10));
             if (!Boolean.TRUE.equals(firstTime)) {
-                // 已存在该 clientMsgId 对应的记录，返回最近一条（按 createTime 倒序）
                 ImMessage existing = messageMapper.selectOneByQuery(
                         QueryWrapper.create()
                                 .where(ImMessage::getSenderId).eq(userId)
+                                .and(ImMessage::getClientMsgId).eq(dto.getClientMsgId())
                                 .orderBy(ImMessage::getCreateTime, false)
                                 .limit(1));
                 if (existing != null) {
                     SysUser sender = sysUserMapper.selectOneById(userId);
-                    return toMessageVO(existing, sender, userId);
+                    return toMessageVO(existing, sender, userId, loadLastReadMessageId(userId, dto.getConversationId()));
                 }
             }
         }
@@ -247,7 +253,6 @@ public class ChatServiceImpl implements ChatService {
         }
         if (conversation.getType() == ImConversation.TYPE_PRIVATE) {
             Long peerId = resolvePrivatePeerId(userId, conversation.getId());
-            // 删除好友后禁止继续私聊（陌生人会话需重新发起才会建成员关系）
             if (!isFriend(userId, peerId)) {
                 throw new CustomException(403, "对方已不是好友，无法发送消息");
             }
@@ -266,7 +271,11 @@ public class ChatServiceImpl implements ChatService {
                 .fileName(dto.getFileName())
                 .fileSize(dto.getFileSize())
                 .fileUrl(dto.getFileUrl())
+                .clientMsgId(dto.getClientMsgId())
+                .deliveryStatus(StringUtils.hasText(dto.getDeliveryStatus()) ? dto.getDeliveryStatus().trim() : "delivered")
+                .readStatus(0)
                 .voiceDuration(dto.getVoiceDuration())
+                .deleted(0)
                 .build();
         messageMapper.insert(message);
 
@@ -276,7 +285,7 @@ public class ChatServiceImpl implements ChatService {
         conversationMapper.update(conversation);
 
         SysUser sender = sysUserMapper.selectOneById(userId);
-        return toMessageVO(message, sender, userId);
+        return toMessageVO(message, sender, userId, loadLastReadMessageId(userId, conversation.getId()));
     }
 
     @Override
@@ -293,7 +302,7 @@ public class ChatServiceImpl implements ChatService {
         }
         if (ImMessage.TYPE_RECALL.equals(message.getType())) {
             SysUser sender = sysUserMapper.selectOneById(userId);
-            return toMessageVO(message, sender, userId);
+            return toMessageVO(message, sender, userId, loadLastReadMessageId(userId, conversationId));
         }
 
         Date createTime = message.getCreateTime();
@@ -312,7 +321,7 @@ public class ChatServiceImpl implements ChatService {
         refreshConversationLastMessage(conversationId);
 
         SysUser sender = sysUserMapper.selectOneById(userId);
-        return toMessageVO(message, sender, userId);
+        return toMessageVO(message, sender, userId, loadLastReadMessageId(userId, conversationId));
     }
 
     @Override
@@ -333,7 +342,10 @@ public class ChatServiceImpl implements ChatService {
                 .senderId(operatorId != null ? operatorId : 0L)
                 .type(ImMessage.TYPE_SYSTEM)
                 .content(text)
+                .deliveryStatus("delivered")
+                .readStatus(0)
                 .createTime(now)
+                .deleted(0)
                 .build();
         messageMapper.insert(message);
         if (message.getCreateTime() == null) {
@@ -345,44 +357,14 @@ public class ChatServiceImpl implements ChatService {
         conversationMapper.update(conversation);
 
         SysUser sender = operatorId != null ? sysUserMapper.selectOneById(operatorId) : null;
-        return toMessageVO(message, sender, operatorId);
-    }
-
-    /**
-     * 按会话最新一条消息刷新会话列表预览（撤回后可能仍是该条，也可能需回退到更早消息）。
-     */
-    private void refreshConversationLastMessage(Long conversationId) {
-        ImConversation conversation = conversationMapper.selectOneById(conversationId);
-        if (conversation == null) {
-            return;
-        }
-        ImMessage latest = messageMapper.selectOneByQuery(
-                QueryWrapper.create()
-                        .where(ImMessage::getConversationId).eq(conversationId)
-                        .orderBy(ImMessage::getCreateTime, false)
-                        .limit(1)
-        );
-        if (latest == null) {
-            conversation.setLastMessageContent("");
-            conversation.setLastMessageTime(null);
-        } else {
-            conversation.setLastMessageContent(buildPreview(latest));
-            conversation.setLastMessageTime(latest.getCreateTime());
-        }
-        conversationMapper.update(conversation);
-    }
-
-    private String buildClientMsgDedupKey(Long userId, String clientMsgId) {
-        return "linkx:msg:dedup:" + userId + ":" + clientMsgId;
+        return toMessageVO(message, sender, operatorId, loadLastReadMessageId(operatorId, conversationId));
     }
 
     @Override
     public ChatFileUploadVO uploadChatFile(Long userId, Long conversationId, MultipartFile file) {
         assertConversationMember(userId, conversationId);
         try {
-            // 出于安全，使用 UUID 文件名而非 conversationId-based 路径
             String objectKey = fileStorageService.uploadFile(file, null);
-            // 立即生成签名 URL 返回给前端，避免将对象 key 暴露到数据库
             String signedUrl = mediaUrlService.resolveFile(objectKey);
             return ChatFileUploadVO.builder()
                     .url(signedUrl)
@@ -407,7 +389,6 @@ public class ChatServiceImpl implements ChatService {
         if (key == null || key.isBlank()) {
             throw new CustomException(400, "该消息没有附件");
         }
-        // 红包等特殊类型 fileUrl 不是对象 key
         if (ImMessage.TYPE_RED_PACKET.equals(message.getType())) {
             throw new CustomException(400, "红包消息不支持文件下载");
         }
@@ -466,7 +447,6 @@ public class ChatServiceImpl implements ChatService {
 
         List<ImMessage> messages = messageMapper.selectListByQuery(qw);
         if (messages.isEmpty()) {
-            // 同时按文件名搜
             QueryWrapper fileQw = QueryWrapper.create()
                     .where(ImMessage::getConversationId).in(allowedIds)
                     .and(ImMessage::getType).ne(ImMessage.TYPE_RECALL)
@@ -523,9 +503,71 @@ public class ChatServiceImpl implements ChatService {
         }
     }
 
-    /**
-     * 群聊发言校验：全体禁言下仅群主/管理员可发言；被个人禁言者不可发言。
-     */
+    @Override
+    @Transactional
+    public long markAsRead(Long userId, Long conversationId, Long lastReadMessageId) {
+        assertConversationMember(userId, conversationId);
+        ImConversationMember member = memberMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).eq(conversationId)
+                        .and(ImConversationMember::getUserId).eq(userId)
+        );
+        if (member == null) {
+            return 0;
+        }
+        Long current = member.getLastReadMessageId();
+        Long updated = lastReadMessageId == null ? current : (current == null ? lastReadMessageId : Math.max(current, lastReadMessageId));
+        if (updated != null && !updated.equals(current)) {
+            member.setLastReadMessageId(updated);
+            memberMapper.update(member);
+        }
+        return calcUnread(userId, conversationId, updated);
+    }
+
+    @Override
+    public long getUnreadCount(Long userId, Long conversationId) {
+        assertConversationMember(userId, conversationId);
+        Long lastRead = loadLastReadMessageId(userId, conversationId);
+        return calcUnread(userId, conversationId, lastRead);
+    }
+
+    private long calcUnread(Long userId, Long conversationId, Long lastReadMessageId) {
+        QueryWrapper qw = QueryWrapper.create()
+                .where(ImMessage::getConversationId).eq(conversationId)
+                .and(ImMessage::getSenderId).ne(userId)
+                .and(ImMessage::getType).ne(ImMessage.TYPE_RECALL)
+                .and(ImMessage::getType).ne(ImMessage.TYPE_SYSTEM);
+        if (lastReadMessageId != null) {
+            qw.and(ImMessage::getId).gt(lastReadMessageId);
+        }
+        return messageMapper.selectCountByQuery(qw);
+    }
+
+    private void refreshConversationLastMessage(Long conversationId) {
+        ImConversation conversation = conversationMapper.selectOneById(conversationId);
+        if (conversation == null) {
+            return;
+        }
+        ImMessage latest = messageMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(ImMessage::getConversationId).eq(conversationId)
+                        .orderBy(ImMessage::getCreateTime, false)
+                        .limit(1)
+        );
+        if (latest == null) {
+            conversation.setLastMessageContent("");
+            conversation.setLastMessageTime(null);
+        } else {
+            conversation.setLastMessageContent(buildPreview(latest));
+            conversation.setLastMessageTime(latest.getCreateTime());
+        }
+        conversationMapper.update(conversation);
+    }
+
+    private String buildClientMsgDedupKey(Long userId, String clientMsgId) {
+        return "linkx:msg:dedup:" + userId + ":" + clientMsgId;
+    }
+
     private void assertGroupSpeakAllowed(Long userId, ImConversation group) {
         Date now = new Date();
         ImConversationMember member = memberMapper.selectOneByQuery(
@@ -549,9 +591,6 @@ public class ChatServiceImpl implements ChatService {
         }
     }
 
-    /**
-     * 确保用户是会话成员；若曾逻辑删除则恢复，避免唯一键冲突。
-     */
     private void ensurePrivateMembership(Long conversationId, Long userId) {
         ImConversationMember active = memberMapper.selectOneByQuery(
                 QueryWrapper.create()
@@ -593,9 +632,6 @@ public class ChatServiceImpl implements ChatService {
         ) > 0;
     }
 
-    /**
-     * 私聊权限：好友可聊；非好友时，对方或自己开启「允许陌生人会话」也可聊（便于陌生人发起与回复）。
-     */
     private void assertCanPrivateChat(Long userId, Long peerId) {
         if (isFriend(userId, peerId)) {
             return;
@@ -607,7 +643,6 @@ public class ChatServiceImpl implements ChatService {
         throw new CustomException(403, "只能与好友聊天，或对方需开启允许陌生人会话");
     }
 
-    /** 结合 IM 在线与对方「在线状态可见」偏好 */
     private boolean resolvePeerOnline(Long peerUserId) {
         if (peerUserId == null) return false;
         if (!userPreferenceService.showsOnlineStatus(peerUserId)) {
@@ -642,7 +677,6 @@ public class ChatServiceImpl implements ChatService {
                     }
                 }
             } catch (Exception e) {
-                // 跳过无法解析的单聊会话，避免影响整个列表加载
                 continue;
             }
         }
@@ -669,7 +703,8 @@ public class ChatServiceImpl implements ChatService {
             ImConversation conversation,
             SysUser peer,
             String remark,
-            boolean peerOnline
+            boolean peerOnline,
+            long unreadCount
     ) {
         return ConversationVO.builder()
                 .id(conversation.getId())
@@ -684,13 +719,15 @@ public class ChatServiceImpl implements ChatService {
                 .lastMessageTime(conversation.getLastMessageTime() != null
                         ? conversation.getLastMessageTime().getTime()
                         : null)
+                .unreadCount(unreadCount)
                 .build();
     }
 
     private ConversationVO toGroupConversationVO(
             ImConversation conversation,
             List<GroupMemberAvatarVO> memberAvatars,
-            String myRemark
+            String myRemark,
+            long unreadCount
     ) {
         return ConversationVO.builder()
                 .id(conversation.getId())
@@ -706,10 +743,10 @@ public class ChatServiceImpl implements ChatService {
                 .lastMessageTime(conversation.getLastMessageTime() != null
                         ? conversation.getLastMessageTime().getTime()
                         : null)
+                .unreadCount(unreadCount)
                 .build();
     }
 
-    /** 批量加载当前用户对各群的备注 */
     private Map<Long, String> loadGroupRemarkMap(Long userId, Set<Long> groupIds) {
         if (groupIds == null || groupIds.isEmpty()) {
             return Map.of();
@@ -728,9 +765,6 @@ public class ChatServiceImpl implements ChatService {
         return map;
     }
 
-    /**
-     * 批量加载群成员头像预览（每群最多 9 人，群主优先），供前端拼图头像。
-     */
     private Map<Long, List<GroupMemberAvatarVO>> loadGroupMemberAvatarPreviews(Set<Long> groupIds) {
         if (groupIds == null || groupIds.isEmpty()) {
             return Map.of();
@@ -782,9 +816,8 @@ public class ChatServiceImpl implements ChatService {
         return 2;
     }
 
-    private MessageVO toMessageVO(ImMessage message, SysUser sender, Long currentUserId) {
+    private MessageVO toMessageVO(ImMessage message, SysUser sender, Long currentUserId, Long lastReadMessageId) {
         String fileUrl = message.getFileUrl();
-        // 红包消息的 fileUrl 存的是红包 ID，不能当媒体 key 签发
         if (fileUrl != null && !ImMessage.TYPE_RED_PACKET.equals(message.getType())) {
             fileUrl = mediaUrlService.resolveFile(fileUrl);
         }
@@ -801,9 +834,12 @@ public class ChatServiceImpl implements ChatService {
                 .fileUrl(fileUrl)
                 .voiceDuration(message.getVoiceDuration())
                 .createTime(message.getCreateTime() != null ? message.getCreateTime().getTime() : null)
-                .isSelf(message.getSenderId().equals(currentUserId));
+                .isSelf(message.getSenderId().equals(currentUserId))
+                .clientMsgId(message.getClientMsgId())
+                .deliveryStatus(message.getDeliveryStatus())
+                .readStatus(isRead(message, currentUserId, lastReadMessageId))
+                .unreadCount(calcPerMessageUnread(message, currentUserId, lastReadMessageId));
 
-        // 红包消息：填充语义化字段，前端可直接渲染（无需自行换算 fileSize/fileUrl/fileName）
         if (ImMessage.TYPE_RED_PACKET.equals(message.getType()) && message.getFileUrl() != null) {
             fillRedPacketFields(builder, message, currentUserId);
         }
@@ -811,9 +847,6 @@ public class ChatServiceImpl implements ChatService {
         return builder.build();
     }
 
-    /**
-     * 读取红包当前状态并填充到 MessageVO（含当前用户视角的领取情况）。
-     */
     private void fillRedPacketFields(MessageVO.MessageVOBuilder builder, ImMessage message, Long currentUserId) {
         Long redPacketId;
         try {
@@ -844,6 +877,29 @@ public class ChatServiceImpl implements ChatService {
                 .redPacketReceived(userRecord != null)
                 .redPacketReceivedAmount(userRecord != null ? userRecord.getAmount() : null)
                 .redPacketStatus(redPacket.getStatus());
+    }
+
+    private Long loadLastReadMessageId(Long userId, Long conversationId) {
+        ImConversationMember member = memberMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).eq(conversationId)
+                        .and(ImConversationMember::getUserId).eq(userId)
+        );
+        return member != null ? member.getLastReadMessageId() : null;
+    }
+
+    private Integer isRead(ImMessage message, Long currentUserId, Long lastReadMessageId) {
+        if (message.getSenderId().equals(currentUserId)) {
+            return 1;
+        }
+        return lastReadMessageId != null && message.getId() <= lastReadMessageId ? 1 : 0;
+    }
+
+    private Long calcPerMessageUnread(ImMessage message, Long currentUserId, Long lastReadMessageId) {
+        if (message.getSenderId().equals(currentUserId)) {
+            return 0L;
+        }
+        return lastReadMessageId != null && message.getId() <= lastReadMessageId ? 0L : 1L;
     }
 
     private String buildPrivateKey(Long userId, Long friendId) {
@@ -888,7 +944,6 @@ public class ChatServiceImpl implements ChatService {
 
     private String resolveContent(String msgType, SendMessageDTO dto) {
         if (ImMessage.TYPE_TEXT.equals(msgType)) {
-            // HTML 转义防 XSS
             return InputSanitizer.sanitizeText(dto.getContent(), 4000);
         }
         if (ImMessage.TYPE_IMAGE.equals(msgType)) {

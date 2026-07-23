@@ -16,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
@@ -125,10 +126,10 @@ public class ImMessagePushService {
 
             MessageVO payload = withPerspective(message, userId);
             ImWsFrame frame;
-            // 仅客户端上行（带 clientMsgId）才回 ack；系统提示等服务端写入应对全员推 message
             if (userId.equals(senderId) && clientMsgId != null && !clientMsgId.isBlank()) {
                 frame = buildFrame("ack", payload);
                 frame.setClientMsgId(clientMsgId);
+                frame.setServerMsgId(message.getId());
             } else {
                 frame = buildFrame("message", payload);
             }
@@ -199,6 +200,19 @@ public class ImMessagePushService {
         }
     }
 
+    public void handleSync(Long userId, ImWsFrame frame, Channel channel) {
+        ImWsFrame resp = new ImWsFrame();
+        resp.setAction("sync");
+        resp.setCode(200);
+        resp.setMessage("ok");
+        resp.setData(java.util.Map.of(
+                "userId", userId,
+                "lastServerMsgId", frame.getServerMsgId(),
+                "lastClientMsgId", frame.getClientMsgId()
+        ));
+        channel.writeAndFlush(new TextWebSocketFrame(toJson(resp)));
+    }
+
     public String buildPong() {
         ImWsFrame frame = new ImWsFrame();
         frame.setAction("pong");
@@ -232,6 +246,16 @@ public class ImMessagePushService {
                 .redPacketReceivedAmount(message.getRedPacketReceivedAmount())
                 .redPacketStatus(message.getRedPacketStatus())
                 .build();
+    }
+
+    public void sendAck(Channel channel, MessageVO message, String clientMsgId) {
+        if (channel == null || !channel.isActive()) {
+            return;
+        }
+        ImWsFrame frame = buildFrame("ack", message);
+        frame.setClientMsgId(clientMsgId);
+        frame.setServerMsgId(message.getId());
+        channel.writeAndFlush(new TextWebSocketFrame(toJson(frame)));
     }
 
     private ImWsFrame buildFrame(String action, Object data) {

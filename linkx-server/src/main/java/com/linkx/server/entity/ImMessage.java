@@ -61,6 +61,21 @@ public class ImMessage implements Serializable {
     private String fileUrl;
 
     /**
+     * 客户端消息幂等 ID，用于重试去重。
+     */
+    private String clientMsgId;
+
+    /**
+     * 投递状态：pending / delivered / failed。
+     */
+    private String deliveryStatus;
+
+    /**
+     * 已读状态：0 未读 / 1 已读。
+     */
+    private Integer readStatus;
+
+    /**
      * 语音时长（秒），语音消息专用
      */
     private Integer voiceDuration;

@@ -27,4 +27,9 @@ public class SendMessageDTO {
     private Integer voiceDuration;
 
     private String clientMsgId;
+
+    /**
+     * 客户端期望的消息状态，主要用于未来扩展。
+     */
+    private String deliveryStatus;
 }

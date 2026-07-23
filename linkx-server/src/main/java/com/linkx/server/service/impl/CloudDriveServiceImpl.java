@@ -175,6 +175,7 @@ public class CloudDriveServiceImpl implements CloudDriveService {
                 .name(name)
                 .path(path)
                 .sortOrder(0)
+                .deleted(0)
                 .createTime(now)
                 .updateTime(now)
                 .build();

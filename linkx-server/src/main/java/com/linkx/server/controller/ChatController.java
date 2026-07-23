@@ -105,6 +105,25 @@ public class ChatController {
         return Result.success(vo);
     }
 
+    @PostMapping("/sessions/{conversationId}/read")
+    public Result<Long> markAsRead(
+            @PathVariable String conversationId,
+            @RequestParam("lastMessageId") String lastMessageId,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        Long unreadCount = chatService.markAsRead(userId, parseId(conversationId), parseId(lastMessageId));
+        return Result.success(unreadCount);
+    }
+
+    @GetMapping("/sessions/{conversationId}/unread")
+    public Result<Long> getUnreadCount(
+            @PathVariable String conversationId,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        Long unreadCount = chatService.getUnreadCount(userId, parseId(conversationId));
+        return Result.success(unreadCount);
+    }
+
     private Long parseId(String id) {
         try {
             return Long.parseLong(id);

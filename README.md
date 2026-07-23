@@ -302,8 +302,12 @@ linkx:
 | `npm run electron:build` | 完整 Electron 应用打包 |
 | `npm run preview` | 预览 Web 构建产物 |
 | `npm run electron:preview` | 预览 Electron 构建产物 |
+| `npm run test` | 运行前端 Vitest 单元测试 |
+| `npm run test:e2e` | 构建并在 Chromium 中运行 Playwright E2E 冒烟测试 |
+| `npm run format` | 使用 Prettier 格式化前端代码 |
+| `npm run format:check` | 校验前端代码格式，无修改 |
 
-打包产物输出目录：`release/`（由 electron-builder 配置）。
+首次运行 E2E 测试前，请执行 `npx playwright install chromium` 安装浏览器。打包产物输出目录：`release/`（由 electron-builder 配置）。
 
 ---
 
@@ -362,8 +366,9 @@ linkx:
 - [x] 完善友链业务逻辑（视频、编辑、分页搜索、嵌套回复）
 - [x] 完善笔记编辑器媒体能力（图片/附件/语音/位置）
 - [x] 添加单元测试（前端 Vitest / 后端 JUnit）
-- [ ] E2E 测试
+- [x] E2E 测试
 - [ ] CI/CD 流水线集成
+- [ ] Prettier 代码格式化工具接入
 
 ---
 

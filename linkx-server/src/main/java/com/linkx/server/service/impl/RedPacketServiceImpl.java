@@ -66,6 +66,7 @@ public class RedPacketServiceImpl implements RedPacketService {
                 .greeting(dto.getGreeting() != null ? dto.getGreeting() : "恭喜发财")
                 .status(RedPacket.STATUS_ACTIVE)
                 .expireTime(Date.from(Instant.now().plus(24, ChronoUnit.HOURS)))
+                .version(0L)
                 .build();
         redPacketMapper.insert(redPacket);
 

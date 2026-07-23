@@ -133,7 +133,9 @@ public class GroupInvitationServiceImpl implements GroupInvitationService {
             ImConversationMember m = ImConversationMember.builder()
                     .conversationId(inv.getConversationId())
                     .userId(userId)
-                    .role("member")
+                    .role(ImConversationMember.ROLE_MEMBER)
+                    .muted(0)
+                    .deleted(0)
                     .build();
             memberMapper.insert(m);
         }

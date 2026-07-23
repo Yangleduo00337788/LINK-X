@@ -55,7 +55,7 @@ public interface UserBalanceMapper extends BaseMapper<UserBalance> {
      * @return 更新行数，1 表示成功，0 表示冻结金额不足
      */
     @Update("UPDATE user_balance SET " +
-            "frozen = GREATEST(0, frozen - #{amount}) " +
+            "frozen = CASE WHEN frozen - #{amount} < 0 THEN 0 ELSE frozen - #{amount} END " +
             "WHERE user_id = #{fromUserId} AND frozen >= #{amount}")
     int unfreezeFromUser(@Param("fromUserId") Long fromUserId, @Param("amount") BigDecimal amount);
 
@@ -78,7 +78,7 @@ public interface UserBalanceMapper extends BaseMapper<UserBalance> {
      * @return 更新行数，1 表示成功
      */
     @Update("UPDATE user_balance SET " +
-            "frozen = GREATEST(0, frozen - #{amount}), " +
+            "frozen = CASE WHEN frozen - #{amount} < 0 THEN 0 ELSE frozen - #{amount} END, " +
             "balance = balance + #{amount} " +
             "WHERE user_id = #{userId}")
     int unfreezeAndCredit(@Param("userId") Long userId, @Param("amount") BigDecimal amount);

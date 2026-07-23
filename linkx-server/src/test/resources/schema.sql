@@ -94,8 +94,9 @@ CREATE TABLE IF NOT EXISTS im_conversation_member (
   id BIGINT NOT NULL PRIMARY KEY,
   conversation_id BIGINT NOT NULL,
   user_id BIGINT NOT NULL,
-  role TINYINT NOT NULL DEFAULT 0,
+  role VARCHAR(20),
   remark VARCHAR(64),
+  last_read_message_id BIGINT,
   muted TINYINT NOT NULL DEFAULT 0,
   mute_until DATETIME,
   create_time DATETIME,
@@ -113,6 +114,10 @@ CREATE TABLE IF NOT EXISTS im_message (
   file_name VARCHAR(255),
   file_size BIGINT,
   file_url VARCHAR(500),
+  client_msg_id VARCHAR(128),
+  delivery_status VARCHAR(20) DEFAULT 'pending',
+  read_status TINYINT NOT NULL DEFAULT 0,
+  voice_duration INT,
   create_time DATETIME,
   deleted TINYINT NOT NULL DEFAULT 0
 );
@@ -386,4 +391,78 @@ CREATE TABLE IF NOT EXISTS favorite_tag (
   create_time DATETIME,
   update_time DATETIME,
   deleted TINYINT NOT NULL DEFAULT 0
+);
+
+-- 网盘存储配额
+CREATE TABLE IF NOT EXISTS user_storage (
+  user_id BIGINT NOT NULL PRIMARY KEY,
+  quota_bytes BIGINT NOT NULL DEFAULT 21474836480,
+  used_bytes BIGINT NOT NULL DEFAULT 0,
+  file_count INT NOT NULL DEFAULT 0,
+  version INT NOT NULL DEFAULT 0,
+  create_time DATETIME,
+  update_time DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS cloud_folder (
+  id BIGINT NOT NULL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  parent_id BIGINT,
+  name VARCHAR(255) NOT NULL,
+  path VARCHAR(1024) NOT NULL DEFAULT '/',
+  sort_order INT NOT NULL DEFAULT 0,
+  create_time DATETIME,
+  update_time DATETIME,
+  deleted TINYINT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS cloud_file (
+  id BIGINT NOT NULL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  folder_id BIGINT,
+  name VARCHAR(255) NOT NULL,
+  file_name VARCHAR(255) NOT NULL,
+  file_size BIGINT NOT NULL DEFAULT 0,
+  file_key VARCHAR(500) NOT NULL,
+  content_type VARCHAR(128),
+  ext VARCHAR(32),
+  category VARCHAR(20) NOT NULL DEFAULT 'other',
+  description VARCHAR(1000),
+  create_time DATETIME,
+  update_time DATETIME,
+  deleted TINYINT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS cloud_file_tag (
+  id BIGINT NOT NULL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  file_id BIGINT NOT NULL,
+  tag_name VARCHAR(64) NOT NULL,
+  create_time DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS cloud_share (
+  id BIGINT NOT NULL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  share_type VARCHAR(16) NOT NULL,
+  target_id BIGINT NOT NULL,
+  token VARCHAR(64) NOT NULL,
+  password_hash VARCHAR(255),
+  expire_at DATETIME,
+  max_downloads INT,
+  download_count INT NOT NULL DEFAULT 0,
+  status TINYINT NOT NULL DEFAULT 1,
+  create_time DATETIME,
+  update_time DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS cloud_activity (
+  id BIGINT NOT NULL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  target_type VARCHAR(16) NOT NULL,
+  target_id BIGINT NOT NULL,
+  target_name VARCHAR(255),
+  action VARCHAR(32) NOT NULL,
+  detail VARCHAR(500),
+  create_time DATETIME
 );

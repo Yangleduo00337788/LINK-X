@@ -26,8 +26,11 @@ import com.linkx.server.service.UserPreferenceService;
 import com.mybatisflex.core.logicdelete.LogicDeleteManager;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
@@ -37,6 +40,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class FriendServiceImpl implements FriendService {
@@ -344,12 +348,25 @@ public class FriendServiceImpl implements FriendService {
 
     /** 成为好友后写入会话系统提示「你们已成为好友」 */
     private void emitFriendCreatedTip(Long userA, Long userB) {
-        try {
-            ConversationVO conv = chatService.getOrCreatePrivateConversation(userA, userB);
-            MessageVO tip = chatService.postSystemMessage(userA, conv.getId(), "你们已成为好友");
-            imPushService.pushToConversationMembers(tip, userA, null);
-        } catch (Exception ignored) {
-            // 提示失败不影响加好友
+        Runnable task = () -> {
+            try {
+                ConversationVO conv = chatService.getOrCreatePrivateConversation(userA, userB);
+                MessageVO tip = chatService.postSystemMessage(userA, conv.getId(), "你们已成为好友");
+                imPushService.pushToConversationMembers(tip, userA, null);
+            } catch (Exception e) {
+                // 提示失败不影响加好友
+                log.warn("emitFriendCreatedTip failed: {}", e.toString());
+            }
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    task.run();
+                }
+            });
+        } else {
+            task.run();
         }
     }
 
