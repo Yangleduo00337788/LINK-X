@@ -26,6 +26,7 @@ import com.linkx.server.im.ImChannelManager;
 import com.linkx.server.service.ChatService;
 import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.MediaUrlService;
+import com.linkx.server.service.SensitiveWordService;
 import com.linkx.server.service.UserPreferenceService;
 import com.mybatisflex.core.logicdelete.LogicDeleteManager;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -71,6 +72,7 @@ public class ChatServiceImpl implements ChatService {
     private final RedPacketRecordMapper redPacketRecordMapper;
     private final UserPreferenceService userPreferenceService;
     private final ImChannelManager imChannelManager;
+    private final SensitiveWordService sensitiveWordService;
 
     @Override
     public List<ConversationVO> listConversations(Long userId) {
@@ -269,16 +271,28 @@ public class ChatServiceImpl implements ChatService {
             }
         } else if (conversation.getType() == ImConversation.TYPE_GROUP) {
             assertGroupSpeakAllowed(userId, conversation);
+            // 超大群消息风暴控制
+            checkGroupMessageStormLimit(userId, conversation.getId());
         }
 
         String msgType = normalizeMsgType(dto.getMsgType());
         validateMessagePayload(msgType, dto);
 
+        // 敏感词过滤：文本消息进行 DFA 过滤
+        String content = resolveContent(msgType, dto);
+        if (ImMessage.TYPE_TEXT.equals(msgType) && content != null) {
+            SensitiveWordService.FilterResult filterResult = sensitiveWordService.filter(content);
+            if (filterResult.blocked()) {
+                throw new CustomException(400, "消息包含违禁内容，无法发送");
+            }
+            content = filterResult.text();
+        }
+
         ImMessage message = ImMessage.builder()
                 .conversationId(dto.getConversationId())
                 .senderId(userId)
                 .type(msgType)
-                .content(resolveContent(msgType, dto))
+                .content(content)
                 .fileName(dto.getFileName())
                 .fileSize(dto.getFileSize())
                 .fileUrl(dto.getFileUrl())
@@ -616,6 +630,48 @@ public class ChatServiceImpl implements ChatService {
         if (GroupServiceImpl.isMemberMuteActive(member, now)) {
             throw new CustomException(403, "你已被禁言，暂时无法发言");
         }
+    }
+
+    /**
+     * 超大群消息风暴控制。
+     * <p>
+     * 对 500+ 人以上的大群实施每用户消息频率限制，防止消息风暴影响系统稳定性。
+     * - 500-1000 人群：每用户每分钟最多 10 条
+     * - 1000+ 人群：每用户每分钟最多 5 条
+     * </p>
+     */
+    private void checkGroupMessageStormLimit(Long userId, Long conversationId) {
+        String stormKey = "linkx:storm:" + conversationId;
+        String countStr = redisTemplate.opsForValue().get(stormKey + ":count");
+        int memberCount = countStr != null ? Integer.parseInt(countStr) : getMemberCount(conversationId);
+
+        // 缓存群成员数量（60 秒过期）
+        if (countStr == null) {
+            redisTemplate.opsForValue().set(stormKey + ":count", String.valueOf(memberCount),
+                    Duration.ofSeconds(60));
+        }
+
+        if (memberCount < 500) {
+            return; // 小群不限流
+        }
+
+        int maxPerMinute = memberCount >= 1000 ? 5 : 10;
+        String userStormKey = stormKey + ":user:" + userId;
+        Long count = redisTemplate.opsForValue().increment(userStormKey);
+        if (count != null && count == 1L) {
+            redisTemplate.expire(userStormKey, Duration.ofMinutes(1));
+        }
+        if (count != null && count > maxPerMinute) {
+            throw new CustomException(429, "群消息发送过于频繁，请稍后再试（" + memberCount + "人以上大群限制每分钟" + maxPerMinute + "条）");
+        }
+    }
+
+    private int getMemberCount(Long conversationId) {
+        return memberMapper.selectCountByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).eq(conversationId)
+                        .and(ImConversationMember::getDeleted).eq(0)
+        );
     }
 
     private void ensurePrivateMembership(Long conversationId, Long userId) {
@@ -1047,6 +1103,13 @@ public class ChatServiceImpl implements ChatService {
             throw new CustomException(400, "编辑内容不能为空");
         }
 
+        // 敏感词过滤
+        SensitiveWordService.FilterResult filterResult = sensitiveWordService.filter(sanitized);
+        if (filterResult.blocked()) {
+            throw new CustomException(400, "编辑内容包含违禁内容，无法保存");
+        }
+        sanitized = filterResult.text();
+
         message.setContent(sanitized);
         message.setEdited(true);
         message.setEditedTime(new Date());
@@ -1170,5 +1233,13 @@ public class ChatServiceImpl implements ChatService {
 
         member.setMuted(member.getMuted() != null && member.getMuted() == 1 ? 0 : 1);
         memberMapper.update(member);
+    }
+
+    @Override
+    public long getMemberCount(Long conversationId) {
+        return memberMapper.selectCountByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).eq(conversationId)
+        );
     }
 }

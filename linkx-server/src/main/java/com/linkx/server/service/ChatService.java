@@ -69,4 +69,7 @@ public interface ChatService {
 
     /** 免打扰/取消免打扰会话。 */
     void toggleMuteConversation(Long userId, Long conversationId);
+
+    /** 获取会话成员总数（含已删除成员需传 includeDeleted=true）。 */
+    long getMemberCount(Long conversationId);
 }

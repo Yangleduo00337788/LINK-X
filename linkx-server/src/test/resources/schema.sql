@@ -476,3 +476,54 @@ CREATE TABLE IF NOT EXISTS cloud_activity (
   detail VARCHAR(500),
   create_time DATETIME
 );
+
+-- 敏感词表
+CREATE TABLE IF NOT EXISTS sys_sensitive_word (
+  id BIGINT NOT NULL PRIMARY KEY,
+  word VARCHAR(100) NOT NULL,
+  category VARCHAR(32) DEFAULT 'general',
+  action VARCHAR(20) NOT NULL DEFAULT 'filter',
+  replacement VARCHAR(10) DEFAULT '***',
+  enabled TINYINT NOT NULL DEFAULT 1,
+  create_time DATETIME,
+  update_time DATETIME
+);
+
+-- 用户黑名单表
+CREATE TABLE IF NOT EXISTS sys_user_blacklist (
+  id BIGINT NOT NULL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  blocked_user_id BIGINT NOT NULL,
+  reason VARCHAR(255),
+  create_time DATETIME
+);
+
+-- 多人会议表
+CREATE TABLE IF NOT EXISTS conference (
+  id BIGINT NOT NULL PRIMARY KEY,
+  title VARCHAR(200) DEFAULT '多人会议',
+  type VARCHAR(10) NOT NULL DEFAULT 'video',
+  creator_id BIGINT NOT NULL,
+  conversation_id BIGINT,
+  status TINYINT NOT NULL DEFAULT 0,
+  max_participants INT NOT NULL DEFAULT 9,
+  start_time DATETIME,
+  end_time DATETIME,
+  password VARCHAR(64),
+  create_time DATETIME,
+  update_time DATETIME
+);
+
+-- 多人会议成员表
+CREATE TABLE IF NOT EXISTS conference_member (
+  id BIGINT NOT NULL PRIMARY KEY,
+  conference_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  role VARCHAR(20) NOT NULL DEFAULT 'member',
+  muted TINYINT NOT NULL DEFAULT 0,
+  video_off TINYINT NOT NULL DEFAULT 0,
+  left_flag TINYINT NOT NULL DEFAULT 0,
+  join_time DATETIME,
+  leave_time DATETIME,
+  create_time DATETIME
+);

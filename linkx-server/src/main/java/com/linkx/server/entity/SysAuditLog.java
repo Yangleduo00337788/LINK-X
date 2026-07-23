@@ -42,6 +42,25 @@ public class SysAuditLog implements Serializable {
         DELETE_FRIEND("删除好友"),
         UPLOAD_FILE("上传文件"),
         RED_PACKET("红包操作"),
+        // P2: 多端设备管理
+        DEVICE_LOGIN("设备上线"),
+        DEVICE_KICK("踢设备下线"),
+        DEVICE_KICK_ALL("踢所有设备下线"),
+        // P2: 安全审计增强
+        RECALL_MESSAGE("撤回消息"),
+        EDIT_MESSAGE("编辑消息"),
+        FORWARD_MESSAGE("转发消息"),
+        MUTE_CONVERSATION("会话免打扰"),
+        PIN_CONVERSATION("会话置顶"),
+        // P2: 敏感词/黑名单
+        BLACKLIST_ADD("加入黑名单"),
+        BLACKLIST_REMOVE("移出黑名单"),
+        SENSITIVE_WORD_MATCH("敏感词命中"),
+        // P2: 音视频通话
+        CALL_START("发起通话"),
+        CALL_ACCEPT("接听通话"),
+        CALL_HANGUP("挂断通话"),
+        CALL_DEVICE_SWITCH("通话切换设备"),
         ;
 
         private final String description;

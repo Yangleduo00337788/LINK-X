@@ -679,3 +679,75 @@ CREATE TABLE IF NOT EXISTS `cloud_activity` (
   KEY `idx_ca_user_time` (`user_id`, `create_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='网盘动态';
 
+-- ================================================
+-- 28. 敏感词表
+-- ================================================
+CREATE TABLE IF NOT EXISTS `sys_sensitive_word` (
+  `id` bigint NOT NULL COMMENT '主键ID(雪花算法)',
+  `word` varchar(100) NOT NULL COMMENT '敏感词',
+  `category` varchar(32) DEFAULT 'general' COMMENT '分类: general/politics/violence/ad',
+  `action` varchar(20) NOT NULL DEFAULT 'filter' COMMENT '处理方式: filter(替换) / block(拦截) / alert(警告)',
+  `replacement` varchar(10) DEFAULT '***' COMMENT '替换文本(仅filter时生效)',
+  `enabled` tinyint(1) NOT NULL DEFAULT 1 COMMENT '是否启用',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_word` (`word`),
+  KEY `idx_enabled` (`enabled`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='敏感词库';
+
+-- ================================================
+-- 29. 用户黑名单表
+-- ================================================
+CREATE TABLE IF NOT EXISTS `sys_user_blacklist` (
+  `id` bigint NOT NULL COMMENT '主键ID(雪花算法)',
+  `user_id` bigint NOT NULL COMMENT '拉黑者用户ID',
+  `blocked_user_id` bigint NOT NULL COMMENT '被拉黑用户ID',
+  `reason` varchar(255) DEFAULT NULL COMMENT '拉黑原因',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '拉黑时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_blocked` (`user_id`,`blocked_user_id`),
+  KEY `idx_blocked_user` (`blocked_user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户黑名单';
+
+-- ================================================
+-- 30. 多人会议表
+-- ================================================
+CREATE TABLE IF NOT EXISTS `conference` (
+  `id` bigint NOT NULL COMMENT '主键ID(雪花算法)',
+  `title` varchar(200) DEFAULT '多人会议' COMMENT '会议标题',
+  `type` varchar(10) NOT NULL DEFAULT 'video' COMMENT '会议类型: voice/video',
+  `creator_id` bigint NOT NULL COMMENT '创建者用户ID',
+  `conversation_id` bigint DEFAULT NULL COMMENT '关联群会话ID(可选)',
+  `status` tinyint NOT NULL DEFAULT 0 COMMENT '状态: 0创建中 1进行中 2已结束',
+  `max_participants` int NOT NULL DEFAULT 9 COMMENT '最大参与人数',
+  `start_time` datetime DEFAULT NULL COMMENT '会议开始时间',
+  `end_time` datetime DEFAULT NULL COMMENT '会议结束时间',
+  `password` varchar(64) DEFAULT NULL COMMENT '会议密码(可选)',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_conf_creator` (`creator_id`),
+  KEY `idx_conf_status` (`status`),
+  KEY `idx_conf_conv` (`conversation_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='多人会议表';
+
+-- ================================================
+-- 31. 多人会议成员表
+-- ================================================
+CREATE TABLE IF NOT EXISTS `conference_member` (
+  `id` bigint NOT NULL COMMENT '主键ID(雪花算法)',
+  `conference_id` bigint NOT NULL COMMENT '会议ID',
+  `user_id` bigint NOT NULL COMMENT '用户ID',
+  `role` varchar(20) NOT NULL DEFAULT 'member' COMMENT '角色: host/co-host/member',
+  `muted` tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否静音',
+  `video_off` tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否关闭摄像头',
+  `left` tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否已离开',
+  `join_time` datetime DEFAULT NULL COMMENT '加入时间',
+  `leave_time` datetime DEFAULT NULL COMMENT '离开时间',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_conf_user` (`conference_id`,`user_id`),
+  KEY `idx_cm_user` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='多人会议成员表';
+

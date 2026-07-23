@@ -12,6 +12,7 @@ import com.linkx.server.controller.vo.ConversationVO;
 import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.service.ChatService;
+import com.linkx.server.service.ConversationDraftService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.InputStreamResource;
@@ -33,6 +34,7 @@ public class ChatController {
 
     private final ChatService chatService;
     private final ImMessagePushService imMessagePushService;
+    private final ConversationDraftService conversationDraftService;
     private final JwtUtils jwtUtils;
 
     @GetMapping("/sessions")
@@ -157,7 +159,29 @@ public class ChatController {
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         Long unreadCount = chatService.markAsRead(userId, parseId(conversationId), parseId(lastMessageId));
+        // 广播已读回执给会话其他成员
+        imMessagePushService.pushReadReceipt(parseId(conversationId), userId, parseId(lastMessageId));
         return Result.success(unreadCount);
+    }
+
+    /**
+     * 获取消息已读人数（群聊场景）。
+     * 返回 { readCount, totalMembers } 结构。
+     */
+    @GetMapping("/sessions/{conversationId}/messages/{messageId}/read-count")
+    public Result<java.util.Map<String, Object>> getMessageReadCount(
+            @PathVariable String conversationId,
+            @PathVariable String messageId,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        chatService.assertConversationMember(userId, parseId(conversationId));
+        long totalMembers = chatService.getMemberCount(parseId(conversationId));
+        long readCount = imMessagePushService.getMessageReadCount(
+                parseId(conversationId), parseId(messageId), (int) totalMembers);
+        return Result.success(java.util.Map.of(
+                "readCount", readCount,
+                "totalMembers", totalMembers
+        ));
     }
 
     @GetMapping("/sessions/{conversationId}/unread")
@@ -191,6 +215,28 @@ public class ChatController {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         chatService.toggleMuteConversation(userId, parseId(conversationId));
         return Result.success();
+    }
+
+    // ==================== 会话草稿 ====================
+
+    @PostMapping("/sessions/{conversationId}/draft")
+    public Result<Void> saveDraft(
+            @PathVariable String conversationId,
+            @org.springframework.web.bind.annotation.RequestBody java.util.Map<String, String> body,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        String content = body.getOrDefault("content", "");
+        conversationDraftService.saveDraft(userId, parseId(conversationId), content);
+        return Result.success();
+    }
+
+    @GetMapping("/sessions/{conversationId}/draft")
+    public Result<String> getDraft(
+            @PathVariable String conversationId,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        String draft = conversationDraftService.getDraft(userId, parseId(conversationId));
+        return Result.success(draft);
     }
 
     private Long parseId(String id) {

@@ -19,6 +19,7 @@ public class DeviceVO implements Serializable {
     private String id;
     private String deviceName;
     private String deviceType;
+    private String ip;
     private Date lastActive;
     private boolean current;
 }

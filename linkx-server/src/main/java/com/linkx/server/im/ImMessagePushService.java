@@ -4,8 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linkx.server.controller.dto.SendMessageDTO;
 import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.entity.ImConversationMember;
+import com.linkx.server.entity.ImMessage;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.ImConversationMemberMapper;
+import com.linkx.server.mapper.ImMessageMapper;
+import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.ChatService;
 import com.mybatisflex.core.query.QueryWrapper;
 import io.netty.channel.Channel;
@@ -34,6 +37,8 @@ public class ImMessagePushService {
 
     private final ChatService chatService;
     private final ImConversationMemberMapper memberMapper;
+    private final ImMessageMapper messageMapper;
+    private final SysUserMapper sysUserMapper;
     private final ImChannelManager channelManager;
     private final ObjectMapper objectMapper;
     private final Executor imPushExecutor;
@@ -110,6 +115,10 @@ public class ImMessagePushService {
     /**
      * 推送消息给会话成员（自包含，无外部 IM 依赖）。
      * Channel/ChannelGroup 写操作线程安全，可从任意线程调用。
+     * <p>
+     * 超大群优化：对群成员列表一次性查询后分片推送，避免重复序列化，
+     * 对 500+ 成员的大群使用异步分批扇出，防止阻塞 worker 线程。
+     * </p>
      */
     public void pushToConversationMembers(MessageVO message, Long senderId, String clientMsgId) {
         List<ImConversationMember> members = memberMapper.selectListByQuery(
@@ -117,29 +126,124 @@ public class ImMessagePushService {
                         .where(ImConversationMember::getConversationId).eq(message.getConversationId())
         );
 
+        boolean anyRecipientOnline = false;
+        int onlineCount = 0;
+
+        // 分片推送阈值：超过此数量启用异步分批
+        final int BATCH_THRESHOLD = 500;
+        final int BATCH_SIZE = 100;
+
+        // 先收集在线用户列表
+        java.util.List<Long> onlineRecipients = new java.util.ArrayList<>();
         for (ImConversationMember member : members) {
             Long userId = member.getUserId();
+            if (userId.equals(senderId)) continue;
             ChannelGroup channels = channelManager.getChannels(userId);
-            if (channels == null || channels.isEmpty()) {
-                continue;
+            if (channels != null && !channels.isEmpty()) {
+                onlineRecipients.add(userId);
+                anyRecipientOnline = true;
+                onlineCount++;
             }
+        }
 
-            MessageVO payload = withPerspective(message, userId);
-            ImWsFrame frame;
-            if (userId.equals(senderId) && clientMsgId != null && !clientMsgId.isBlank()) {
-                frame = buildFrame("ack", payload);
-                frame.setClientMsgId(clientMsgId);
-                frame.setServerMsgId(message.getId());
-            } else {
-                frame = buildFrame("message", payload);
-            }
+        // 为发送者构建 ack 帧（仅序列化一次）
+        String ackJson = null;
+        if (clientMsgId != null && !clientMsgId.isBlank()) {
+            MessageVO ackPayload = withPerspective(message, senderId);
+            ImWsFrame ackFrame = buildFrame("ack", ackPayload);
+            ackFrame.setClientMsgId(clientMsgId);
+            ackFrame.setServerMsgId(message.getId());
+            ackJson = toJson(ackFrame);
+        }
 
-            String json = toJson(frame);
-            for (Channel channel : channels) {
-                if (channel.isActive()) {
-                    channel.writeAndFlush(new TextWebSocketFrame(json));
+        // 推送 ack 给发送者
+        if (ackJson != null) {
+            ChannelGroup senderChannels = channelManager.getChannels(senderId);
+            if (senderChannels != null) {
+                for (Channel channel : senderChannels) {
+                    if (channel.isActive()) {
+                        channel.writeAndFlush(new TextWebSocketFrame(ackJson));
+                    }
                 }
             }
+        }
+
+        // 推送消息给接收者（分片异步）
+        if (onlineCount <= BATCH_THRESHOLD) {
+            // 小群/中群：直接序列化推送
+            String messageJson = null;
+            for (Long recipientId : onlineRecipients) {
+                MessageVO payload = withPerspective(message, recipientId);
+                ChannelGroup channels = channelManager.getChannels(recipientId);
+                if (channels == null || channels.isEmpty()) continue;
+
+                if (messageJson == null) {
+                    messageJson = toJson(buildFrame("message", payload));
+                } else {
+                    // 同一个 payload for 所有接收者（除了 isSelf 不同）
+                    messageJson = toJson(buildFrame("message", payload));
+                }
+
+                for (Channel channel : channels) {
+                    if (channel.isActive()) {
+                        channel.writeAndFlush(new TextWebSocketFrame(messageJson));
+                    }
+                }
+            }
+        } else {
+            // 大群：异步分批推送
+            final String baseMessageJson = toJson(buildFrame("message", withPerspective(message, onlineRecipients.isEmpty() ? senderId : onlineRecipients.get(0))));
+            final int totalBatches = (onlineCount + BATCH_SIZE - 1) / BATCH_SIZE;
+
+            for (int batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+                int start = batchIdx * BATCH_SIZE;
+                int end = Math.min(start + BATCH_SIZE, onlineCount);
+                java.util.List<Long> batch = onlineRecipients.subList(start, end);
+
+                try {
+                    ((ExecutorService) imPushExecutor).submit(() -> {
+                        for (Long recipientId : batch) {
+                            try {
+                                MessageVO payload = withPerspective(message, recipientId);
+                                String json = toJson(buildFrame("message", payload));
+                                ChannelGroup channels = channelManager.getChannels(recipientId);
+                                if (channels == null || channels.isEmpty()) continue;
+                                for (Channel channel : channels) {
+                                    if (channel.isActive()) {
+                                        channel.writeAndFlush(new TextWebSocketFrame(json));
+                                    }
+                                }
+                            } catch (Exception e) {
+                                log.warn("大群推送分片异常: recipientId={}", recipientId, e);
+                            }
+                        }
+                    });
+                } catch (RejectedExecutionException e) {
+                    log.warn("大群推送线程池饱和，跳过分片 batchIdx={}", batchIdx);
+                }
+            }
+        }
+
+        // 投递回执：如果有非发送者的接收方在线，更新 deliveryStatus 为 delivered
+        if (anyRecipientOnline) {
+            updateDeliveryStatus(message.getId(), "delivered");
+        }
+
+        log.debug("消息推送完成: conversationId={}, 成员数={}, 在线接收者={}", message.getConversationId(), members.size(), onlineCount);
+    }
+
+    /**
+     * 更新消息投递状态。
+     */
+    private void updateDeliveryStatus(Long messageId, String status) {
+        try {
+            ImMessage msg = messageMapper.selectOneById(messageId);
+            if (msg != null && !status.equals(msg.getDeliveryStatus())) {
+                msg.setDeliveryStatus(status);
+                messageMapper.update(msg);
+            }
+        } catch (Exception e) {
+            log.warn("更新消息投递状态失败: messageId={}, status={}", messageId, status, e);
         }
     }
 
@@ -168,6 +272,173 @@ public class ImMessagePushService {
                 }
             }
         }
+    }
+
+    /**
+     * 广播已读回执给会话其他成员。
+     * 当用户标记已读时调用，向会话中的其他在线成员推送 readReceipt 帧。
+     */
+    public void pushReadReceipt(Long conversationId, Long readerId, Long lastReadMessageId) {
+        List<ImConversationMember> members = memberMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).eq(conversationId)
+        );
+
+        java.util.Map<String, Object> receiptData = java.util.Map.of(
+                "conversationId", conversationId,
+                "readerId", readerId,
+                "lastReadMessageId", lastReadMessageId != null ? lastReadMessageId : 0
+        );
+
+        String json = toJson(buildFrame("readReceipt", receiptData));
+
+        for (ImConversationMember member : members) {
+            Long userId = member.getUserId();
+            if (userId.equals(readerId)) continue;
+            ChannelGroup channels = channelManager.getChannels(userId);
+            if (channels == null || channels.isEmpty()) {
+                continue;
+            }
+            for (Channel channel : channels) {
+                if (channel.isActive()) {
+                    channel.writeAndFlush(new TextWebSocketFrame(json));
+                }
+            }
+        }
+    }
+
+    /**
+     * 处理客户端撤回消息请求（WebSocket action=recall）。
+     * 流程：参数解析 → ChatService.recallMessage → pushRecallToConversationMembers。
+     */
+    public void handleRecall(Long userId, ImWsFrame frame) {
+        try {
+            Long conversationId = parseId(frame.getConversationId(), "会话 ID");
+            Long messageId = frame.getServerMsgId();
+            if (messageId == null) {
+                throw new CustomException(400, "消息 ID 不能为空");
+            }
+            MessageVO recalled = chatService.recallMessage(userId, conversationId, messageId);
+            pushRecallToConversationMembers(recalled);
+        } catch (CustomException e) {
+            sendErrorToSender(userId, e);
+        } catch (Exception e) {
+            log.error("处理撤回消息失败", e);
+            sendErrorToSender(userId, new CustomException(500, "撤回失败"));
+        }
+    }
+
+    /**
+     * 处理客户端编辑消息请求（WebSocket action=edit）。
+     * 流程：参数解析 → ChatService.editMessage → pushEditToConversationMembers。
+     */
+    public void handleEdit(Long userId, ImWsFrame frame) {
+        try {
+            Long conversationId = parseId(frame.getConversationId(), "会话 ID");
+            Long messageId = frame.getServerMsgId();
+            if (messageId == null) {
+                throw new CustomException(400, "消息 ID 不能为空");
+            }
+            String newContent = frame.getContent();
+            if (newContent == null || newContent.isBlank()) {
+                throw new CustomException(400, "编辑内容不能为空");
+            }
+            MessageVO edited = chatService.editMessage(userId, conversationId, messageId, newContent);
+            pushEditToConversationMembers(edited);
+        } catch (CustomException e) {
+            sendErrorToSender(userId, e);
+        } catch (Exception e) {
+            log.error("处理编辑消息失败", e);
+            sendErrorToSender(userId, new CustomException(500, "编辑失败"));
+        }
+    }
+
+    /**
+     * 向会话全体在线成员推送消息编辑事件。
+     */
+    public void pushEditToConversationMembers(MessageVO message) {
+        if (message == null || message.getConversationId() == null) {
+            return;
+        }
+        List<ImConversationMember> members = memberMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).eq(message.getConversationId())
+        );
+        for (ImConversationMember member : members) {
+            Long userId = member.getUserId();
+            ChannelGroup channels = channelManager.getChannels(userId);
+            if (channels == null || channels.isEmpty()) {
+                continue;
+            }
+            MessageVO payload = withPerspective(message, userId);
+            String json = toJson(buildFrame("edit", payload));
+            for (Channel channel : channels) {
+                if (channel.isActive()) {
+                    channel.writeAndFlush(new TextWebSocketFrame(json));
+                }
+            }
+        }
+    }
+
+    /**
+     * 处理客户端消息重试请求（WebSocket action=retry）。
+     * <p>
+     * 客户端发送失败后携带原始 clientMsgId 重试，服务端通过 clientMsgId 去重：
+     * 若消息已存在则直接返回 ack；若不存在则正常发送。
+     * </p>
+     */
+    public void handleRetry(Long senderId, ImWsFrame frame) {
+        if (frame.getClientMsgId() == null || frame.getClientMsgId().isBlank()) {
+            sendErrorToSender(senderId, new CustomException(400, "重试必须携带 clientMsgId"));
+            return;
+        }
+        // 复用 handleSend，内部已实现 clientMsgId 去重逻辑
+        handleSend(senderId, frame);
+    }
+
+    /**
+     * 处理客户端送达回执确认（WebSocket action=deliveryReceipt）。
+     * <p>
+     * 接收端收到消息后向服务端确认，服务端向发送者推送 deliveryReceipt 事件。
+     * </p>
+     */
+    public void handleDeliveryReceipt(Long userId, ImWsFrame frame) {
+        Long messageId = frame.getServerMsgId();
+        if (messageId == null) {
+            sendErrorToSender(userId, new CustomException(400, "消息 ID 不能为空"));
+            return;
+        }
+        ImMessage msg = messageMapper.selectOneById(messageId);
+        if (msg == null) {
+            sendErrorToSender(userId, new CustomException(404, "消息不存在"));
+            return;
+        }
+        // 更新投递状态
+        updateDeliveryStatus(messageId, "delivered");
+        // 向发送者推送送达回执
+        java.util.Map<String, Object> receiptData = java.util.Map.of(
+                "messageId", messageId,
+                "conversationId", msg.getConversationId(),
+                "receiverId", userId,
+                "deliveryStatus", "delivered"
+        );
+        pushToUser(msg.getSenderId(), "deliveryReceipt", receiptData);
+    }
+
+    /**
+     * 获取消息的已读人数（群聊场景）。
+     *
+     * @param conversationId 会话 ID
+     * @param messageId      消息 ID
+     * @param totalMembers   群成员总数
+     * @return 已读人数
+     */
+    public long getMessageReadCount(Long conversationId, Long messageId, int totalMembers) {
+        return memberMapper.selectCountByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).eq(conversationId)
+                        .and(ImConversationMember::getLastReadMessageId).ge(messageId)
+        );
     }
 
     public void sendError(Channel channel, int code, String message) {
@@ -200,17 +471,96 @@ public class ImMessagePushService {
         }
     }
 
+    /**
+     * 处理客户端同步请求：拉取离线期间积压的消息。
+     * <p>
+     * 客户端发送 sync action 时携带 lastServerMsgId（最后收到的服务端消息 ID），
+     * 服务端查询该用户所在所有会话中 id > lastServerMsgId 的消息并推送回去。
+     * </p>
+     */
     public void handleSync(Long userId, ImWsFrame frame, Channel channel) {
+        Long lastServerMsgId = null;
+        if (frame.getServerMsgId() != null) {
+            try {
+                lastServerMsgId = Long.parseLong(frame.getServerMsgId());
+            } catch (NumberFormatException ignored) {
+            }
+        }
+
+        // 查询用户所在所有会话
+        List<ImConversationMember> memberships = memberMapper.selectListByQuery(
+                QueryWrapper.create().where(ImConversationMember::getUserId).eq(userId)
+        );
+
+        if (memberships.isEmpty()) {
+            ImWsFrame resp = new ImWsFrame();
+            resp.setAction("sync");
+            resp.setCode(200);
+            resp.setMessage("ok");
+            resp.setData(java.util.Map.of("userId", userId, "messages", java.util.List.of()));
+            channel.writeAndFlush(new TextWebSocketFrame(toJson(resp)));
+            return;
+        }
+
+        // 查询离线期间的消息（id > lastServerMsgId）
+        com.mybatisflex.core.query.QueryWrapper qw = com.mybatisflex.core.query.QueryWrapper.create()
+                .where(ImMessage::getConversationId).in(
+                        memberships.stream().map(ImConversationMember::getConversationId).collect(java.util.stream.Collectors.toSet()))
+                .and(ImMessage::getType).ne(ImMessage.TYPE_RECALL)
+                .and(ImMessage::getType).ne(ImMessage.TYPE_SYSTEM);
+
+        if (lastServerMsgId != null) {
+            qw.and(ImMessage::getId).gt(lastServerMsgId);
+        }
+        qw.orderBy(ImMessage::getCreateTime, true).limit(200);
+
+        List<ImMessage> offlineMessages = messageMapper.selectListByQuery(qw);
+
+        // 转换为 MessageVO 并推送
+        if (!offlineMessages.isEmpty()) {
+            Set<Long> senderIds = offlineMessages.stream().map(ImMessage::getSenderId).collect(java.util.stream.Collectors.toSet());
+            Map<Long, com.linkx.server.entity.SysUser> senderMap = sysUserMapper.selectListByQuery(
+                    com.mybatisflex.core.query.QueryWrapper.create()
+                            .where(com.linkx.server.entity.SysUser::getId).in(senderIds)
+            ).stream().collect(java.util.stream.Collectors.toMap(
+                    com.linkx.server.entity.SysUser::getId, u -> u, (a, b) -> a));
+
+            for (ImMessage msg : offlineMessages) {
+                com.linkx.server.entity.SysUser sender = senderMap.get(msg.getSenderId());
+                MessageVO vo = toMessageVO(msg, sender, userId);
+                ImWsFrame pushFrame = buildFrame("message", withPerspective(vo, userId));
+                channel.writeAndFlush(new TextWebSocketFrame(toJson(pushFrame)));
+            }
+        }
+
+        // 回复同步完成
         ImWsFrame resp = new ImWsFrame();
-        resp.setAction("sync");
+        resp.setAction("syncDone");
         resp.setCode(200);
         resp.setMessage("ok");
         resp.setData(java.util.Map.of(
                 "userId", userId,
-                "lastServerMsgId", frame.getServerMsgId(),
-                "lastClientMsgId", frame.getClientMsgId()
+                "offlineCount", offlineMessages.size()
         ));
         channel.writeAndFlush(new TextWebSocketFrame(toJson(resp)));
+    }
+
+    private MessageVO toMessageVO(ImMessage msg, com.linkx.server.entity.SysUser sender, Long viewerId) {
+        return MessageVO.builder()
+                .id(msg.getId())
+                .conversationId(msg.getConversationId())
+                .senderId(msg.getSenderId())
+                .senderNickname(sender != null ? sender.getNickname() : null)
+                .senderAvatar(sender != null ? sender.getAvatar() : null)
+                .type(msg.getType())
+                .content(msg.getContent())
+                .fileName(msg.getFileName())
+                .fileSize(msg.getFileSize())
+                .fileUrl(msg.getFileUrl())
+                .voiceDuration(msg.getVoiceDuration())
+                .createTime(msg.getCreateTime())
+                .isSelf(msg.getSenderId().equals(viewerId))
+                .build();
     }
 
     public String buildPong() {

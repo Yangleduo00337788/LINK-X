@@ -3,6 +3,7 @@ package com.linkx.server.im;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.TokenType;
 import com.linkx.server.config.LinkxProperties;
+import com.linkx.server.service.DeviceSessionService;
 import com.linkx.server.service.TokenService;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
@@ -27,6 +28,7 @@ public class ImWebSocketAuthHandler extends ChannelInboundHandlerAdapter {
     private final TokenService tokenService;
     private final ImChannelManager channelManager;
     private final LinkxProperties linkxProperties;
+    private final DeviceSessionService deviceSessionService;
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
@@ -65,13 +67,32 @@ public class ImWebSocketAuthHandler extends ChannelInboundHandlerAdapter {
                 }
                 tokenService.assertAccessTokenActive(token);
                 Long userId = jwtUtils.getUserIdFromToken(token);
+
+                // 提取 deviceId（多端同步）
+                String deviceId = extractParamFromQuery(request.uri(), "deviceId");
+                if (deviceId != null && !deviceId.isBlank()) {
+                    ctx.channel().attr(ImChannelAttributes.DEVICE_ID).set(deviceId);
+                }
+
                 // 去掉 query，交给 WebSocketServerProtocolHandler 做路径匹配
                 String path = request.uri().split("\\?")[0];
                 request.setUri(path);
                 ctx.channel().attr(ImChannelAttributes.USER_ID).set(userId);
                 channelManager.add(userId, ctx.channel());
-                log.debug("WebSocket 鉴权成功: userId={}, origin={}",
-                        userId, request.headers().get("Origin"));
+
+                // 注册设备会话（多端同步）
+                String deviceName = extractParamFromQuery(request.uri(), "deviceName");
+                String deviceType = extractParamFromQuery(request.uri(), "deviceType");
+                String ip = ctx.channel().remoteAddress() != null
+                        ? ctx.channel().remoteAddress().toString() : "";
+                String userAgent = request.headers().get("User-Agent");
+                if (deviceId != null && !deviceId.isBlank()) {
+                    deviceSessionService.registerDevice(userId, deviceId,
+                            deviceName, deviceType, ip, userAgent);
+                }
+
+                log.debug("WebSocket 鉴权成功: userId={}, deviceId={}, origin={}",
+                        userId, deviceId, request.headers().get("Origin"));
                 ctx.fireChannelRead(msg);
             } catch (Exception e) {
                 log.warn("WebSocket 鉴权失败: {}", e.getMessage());
@@ -84,7 +105,13 @@ public class ImWebSocketAuthHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
+        Long userId = ctx.channel().attr(ImChannelAttributes.USER_ID).get();
+        String deviceId = ctx.channel().attr(ImChannelAttributes.DEVICE_ID).get();
         channelManager.remove(ctx.channel());
+        // 清理设备会话
+        if (userId != null && deviceId != null) {
+            deviceSessionService.removeDevice(userId, deviceId);
+        }
         ctx.fireChannelInactive();
     }
 
@@ -125,6 +152,12 @@ public class ImWebSocketAuthHandler extends ChannelInboundHandlerAdapter {
         QueryStringDecoder decoder = new QueryStringDecoder(uri);
         List<String> tokens = decoder.parameters().get("token");
         return tokens != null && !tokens.isEmpty() ? tokens.get(0) : null;
+    }
+
+    private String extractParamFromQuery(String uri, String param) {
+        QueryStringDecoder decoder = new QueryStringDecoder(uri);
+        List<String> values = decoder.parameters().get(param);
+        return values != null && !values.isEmpty() ? values.get(0) : null;
     }
 
     /**

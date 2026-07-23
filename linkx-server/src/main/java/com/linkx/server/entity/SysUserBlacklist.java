@@ -16,24 +16,22 @@ import java.util.Date;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table("sys_device_session")
-public class DeviceSession implements Serializable {
+@Table("sys_user_blacklist")
+public class SysUserBlacklist implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
     @Id(keyType = KeyType.Generator, value = KeyGenerators.snowFlakeId)
     private Long id;
 
+    /** 拉黑者用户ID */
     private Long userId;
-    private String deviceId;
-    private String deviceName;
-    private String deviceType;
-    private String ip;
-    private String userAgent;
 
-    @Builder.Default
-    private Date lastActive = new Date();
+    /** 被拉黑用户ID */
+    private Long blockedUserId;
 
-    @Builder.Default
-    private Date createTime = new Date();
+    /** 拉黑原因 */
+    private String reason;
+
+    private Date createTime;
 }
