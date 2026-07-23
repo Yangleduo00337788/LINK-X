@@ -861,4 +861,185 @@ public class GroupServiceImpl implements GroupService {
         if (ImConversationMember.ROLE_ADMIN.equals(role)) return 1;
         return 2;
     }
+
+    // ==================== 群成员批量管理 ====================
+
+    @Override
+    @Transactional
+    public void batchRemoveMembers(Long userId, Long conversationId, List<Long> memberIds) {
+        ImConversation group = assertGroupAdmin(userId, conversationId);
+        if (memberIds == null || memberIds.isEmpty()) {
+            throw new CustomException(400, "成员列表不能为空");
+        }
+        int removed = 0;
+        for (Long memberId : memberIds) {
+            if (memberId.equals(userId)) continue;
+            if (group.getOwnerId().equals(memberId)) continue;
+            ImConversationMember target = memberMapper.selectOneByQuery(
+                    QueryWrapper.create()
+                            .where(ImConversationMember::getConversationId).eq(conversationId)
+                            .and(ImConversationMember::getUserId).eq(memberId)
+            );
+            if (target != null) {
+                memberMapper.deleteById(target.getId());
+                removed++;
+            }
+        }
+        if (removed > 0) {
+            SysUser operator = sysUserMapper.selectOneById(userId);
+            emitSystemTip(userId, conversationId, displayName(operator) + " 批量移除了 " + removed + " 名成员");
+        }
+    }
+
+    @Override
+    @Transactional
+    public void batchMuteMembers(Long userId, Long conversationId, List<Long> memberIds, boolean muted) {
+        ImConversation group = assertGroupAdmin(userId, conversationId);
+        if (memberIds == null || memberIds.isEmpty()) {
+            throw new CustomException(400, "成员列表不能为空");
+        }
+        int affected = 0;
+        for (Long memberId : memberIds) {
+            if (memberId.equals(userId)) continue;
+            if (group.getOwnerId().equals(memberId)) continue;
+            ImConversationMember target = memberMapper.selectOneByQuery(
+                    QueryWrapper.create()
+                            .where(ImConversationMember::getConversationId).eq(conversationId)
+                            .and(ImConversationMember::getUserId).eq(memberId)
+            );
+            if (target != null) {
+                target.setMuted(muted ? 1 : 0);
+                target.setMuteUntil(null);
+                memberMapper.update(target);
+                affected++;
+            }
+        }
+        if (affected > 0) {
+            SysUser operator = sysUserMapper.selectOneById(userId);
+            String action = muted ? "禁言" : "解禁";
+            emitSystemTip(userId, conversationId, displayName(operator) + " 批量" + action + "了 " + affected + " 名成员");
+        }
+    }
+
+    // ==================== 入群审核 ====================
+
+    @Override
+    @Transactional
+    public void setJoinApproval(Long userId, Long conversationId, boolean required) {
+        ImConversation group = assertGroupOwner(userId, conversationId);
+        group.setJoinApproval(required ? 1 : 0);
+        conversationMapper.update(group);
+    }
+
+    @Override
+    @Transactional
+    public void handleJoinRequest(Long userId, Long conversationId, Long applicantId, boolean approve) {
+        ImConversation group = assertGroupAdmin(userId, conversationId);
+        ImConversationMember existing = memberMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).eq(conversationId)
+                        .and(ImConversationMember::getUserId).eq(applicantId)
+        );
+        if (existing != null && existing.getDeleted() == 0) {
+            throw new CustomException(400, "该用户已是群成员");
+        }
+        if (approve) {
+            if (existing != null) {
+                existing.setDeleted(0);
+                memberMapper.update(existing);
+            } else {
+                memberMapper.insert(ImConversationMember.builder()
+                        .conversationId(conversationId)
+                        .userId(applicantId)
+                        .role(ImConversationMember.ROLE_MEMBER)
+                        .muted(0)
+                        .deleted(0)
+                        .build());
+            }
+            SysUser applicant = sysUserMapper.selectOneById(applicantId);
+            emitSystemTip(userId, conversationId, displayName(applicant) + " 已加入群聊");
+        } else {
+            SysUser operator = sysUserMapper.selectOneById(userId);
+            SysUser applicant = sysUserMapper.selectOneById(applicantId);
+            emitSystemTip(userId, conversationId, displayName(operator) + " 拒绝了 " + displayName(applicant) + " 的入群申请");
+        }
+    }
+
+    @Override
+    @Transactional
+    public void requestJoin(Long userId, Long conversationId, String message) {
+        ImConversation group = conversationMapper.selectOneById(conversationId);
+        if (group == null || group.getType() != ImConversation.TYPE_GROUP) {
+            throw new CustomException(404, "群聊不存在");
+        }
+        ImConversationMember existing = memberMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).eq(conversationId)
+                        .and(ImConversationMember::getUserId).eq(userId)
+        );
+        if (existing != null && existing.getDeleted() == 0) {
+            throw new CustomException(400, "你已是群成员");
+        }
+        if (group.getJoinApproval() == null || group.getJoinApproval() == 0) {
+            // 无需审批，直接加入
+            if (existing != null) {
+                existing.setDeleted(0);
+                memberMapper.update(existing);
+            } else {
+                memberMapper.insert(ImConversationMember.builder()
+                        .conversationId(conversationId)
+                        .userId(userId)
+                        .role(ImConversationMember.ROLE_MEMBER)
+                        .muted(0)
+                        .deleted(0)
+                        .build());
+            }
+            SysUser user = sysUserMapper.selectOneById(userId);
+            emitSystemTip(userId, conversationId, displayName(user) + " 加入了群聊");
+        } else {
+            // 需审批，通知群主/管理员
+            SysUser user = sysUserMapper.selectOneById(userId);
+            String tip = displayName(user) + " 申请加入群聊" + (message != null && !message.isBlank() ? "：" + message : "");
+            emitSystemTip(userId, conversationId, tip);
+        }
+    }
+
+    // ==================== 群公告已读统计 ====================
+
+    @Override
+    @Transactional
+    public void markAnnouncementRead(Long userId, Long conversationId) {
+        assertGroupMember(userId, conversationId);
+        ImConversationMember member = memberMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).eq(conversationId)
+                        .and(ImConversationMember::getUserId).eq(userId)
+        );
+        if (member != null) {
+            member.setAnnouncementRead(true);
+            memberMapper.update(member);
+        }
+    }
+
+    @Override
+    public long getAnnouncementReadCount(Long conversationId) {
+        return memberMapper.selectCountByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).eq(conversationId)
+                        .and(ImConversationMember::getAnnouncementRead).eq(true)
+        );
+    }
+
+    // ==================== 群聊邀请策略 ====================
+
+    @Override
+    @Transactional
+    public void setInvitePolicy(Long userId, Long conversationId, String policy) {
+        ImConversation group = assertGroupOwner(userId, conversationId);
+        if (!"ownerApprove".equals(policy) && !"anyMember".equals(policy)) {
+            throw new CustomException(400, "策略只能是 ownerApprove 或 anyMember");
+        }
+        group.setInvitePolicy(policy);
+        conversationMapper.update(group);
+    }
 }

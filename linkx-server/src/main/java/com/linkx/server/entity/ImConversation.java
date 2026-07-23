@@ -67,6 +67,18 @@ public class ImConversation implements Serializable {
      */
     private Date muteAllEnd;
 
+    /**
+     * 入群审批：0 不需要，1 需要管理员审批
+     */
+    @Builder.Default
+    private Integer joinApproval = 0;
+
+    /**
+     * 邀请策略：ownerApprove = 需群主审批，anyMember = 任何人可邀请
+     */
+    @Builder.Default
+    private String invitePolicy = "anyMember";
+
     private String lastMessageContent;
 
     private Date lastMessageTime;

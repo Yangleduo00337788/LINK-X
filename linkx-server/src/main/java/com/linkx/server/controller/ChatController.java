@@ -217,6 +217,84 @@ public class ChatController {
         return Result.success();
     }
 
+    // ==================== 分片上传（断点续传） ====================
+
+    @PostMapping("/sessions/{conversationId}/upload/init")
+    @RateLimit(scope = "chat:upload:init", value = 30, window = 60)
+    public Result<java.util.Map<String, Object>> initiateMultipartUpload(
+            @PathVariable String conversationId,
+            @org.springframework.web.bind.annotation.RequestBody java.util.Map<String, Object> body,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        String objectName = (String) body.get("objectName");
+        String contentType = (String) body.get("contentType");
+        String uploadId = chatService.initiateMultipartUpload(userId, parseId(conversationId), objectName, contentType);
+        return Result.success(java.util.Map.of("uploadId", uploadId, "objectName", objectName));
+    }
+
+    @PostMapping("/sessions/{conversationId}/upload/part")
+    @RateLimit(scope = "chat:upload:part", value = 100, window = 60)
+    public Result<java.util.Map<String, String>> uploadPart(
+            @PathVariable String conversationId,
+            @RequestParam String objectName,
+            @RequestParam String uploadId,
+            @RequestParam Integer partNumber,
+            @RequestParam("file") MultipartFile file,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        String etag = chatService.uploadPart(userId, parseId(conversationId), objectName, uploadId, partNumber, file);
+        return Result.success(java.util.Map.of("etag", etag));
+    }
+
+    @PostMapping("/sessions/{conversationId}/upload/complete")
+    @RateLimit(scope = "chat:upload:complete", value = 30, window = 60)
+    public Result<ChatFileUploadVO> completeMultipartUpload(
+            @PathVariable String conversationId,
+            @org.springframework.web.bind.annotation.RequestBody java.util.Map<String, Object> body,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        String objectName = (String) body.get("objectName");
+        String uploadId = (String) body.get("uploadId");
+        @SuppressWarnings("unchecked")
+        java.util.List<java.util.Map<String, Object>> partMaps = (java.util.List<java.util.Map<String, Object>>) body.get("parts");
+        var parts = partMaps.stream()
+                .map(m -> new com.linkx.server.service.FileStorageService.PartETag(
+                        (Integer) m.get("partNumber"), (String) m.get("etag")))
+                .toList();
+        ChatFileUploadVO vo = chatService.completeMultipartUpload(userId, parseId(conversationId), objectName, uploadId, parts);
+        return Result.success(vo);
+    }
+
+    @PostMapping("/sessions/{conversationId}/upload/abort")
+    @RateLimit(scope = "chat:upload:abort", value = 30, window = 60)
+    public Result<Void> abortMultipartUpload(
+            @PathVariable String conversationId,
+            @org.springframework.web.bind.annotation.RequestBody java.util.Map<String, String> body,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        chatService.abortMultipartUpload(userId, parseId(conversationId), body.get("objectName"), body.get("uploadId"));
+        return Result.success();
+    }
+
+    // ==================== 文件秒传 ====================
+
+    @PostMapping("/upload/check-hash")
+    @RateLimit(scope = "chat:upload:hash", value = 30, window = 60)
+    public Result<java.util.Map<String, Object>> checkFileHash(
+            @org.springframework.web.bind.annotation.RequestBody java.util.Map<String, String> body,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        String hash = body.get("hash");
+        if (hash == null || hash.isBlank()) {
+            throw new com.linkx.server.exception.CustomException(400, "哈希不能为空");
+        }
+        String existingKey = chatService.findFileByHash(userId, hash);
+        return Result.success(java.util.Map.of(
+                "exists", existingKey != null,
+                "objectKey", existingKey != null ? existingKey : ""
+        ));
+    }
+
     // ==================== 会话草稿 ====================
 
     @PostMapping("/sessions/{conversationId}/draft")

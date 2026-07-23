@@ -200,6 +200,96 @@ public class GroupController {
         return Result.success(groupService.updateMyRemark(userId, parseId(conversationId), dto.getRemark()));
     }
 
+    // ==================== 群成员批量管理 ====================
+
+    @PostMapping("/{conversationId}/members/batch-remove")
+    public Result<Void> batchRemoveMembers(
+            @PathVariable String conversationId,
+            @RequestBody java.util.Map<String, List<Long>> body,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        groupService.batchRemoveMembers(userId, parseId(conversationId), body.get("memberIds"));
+        return Result.success(null);
+    }
+
+    @PostMapping("/{conversationId}/members/batch-mute")
+    public Result<Void> batchMuteMembers(
+            @PathVariable String conversationId,
+            @RequestBody java.util.Map<String, Object> body,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        @SuppressWarnings("unchecked")
+        List<Long> memberIds = ((List<Number>) body.get("memberIds")).stream().map(Number::longValue).toList();
+        boolean muted = Boolean.TRUE.equals(body.get("muted"));
+        groupService.batchMuteMembers(userId, parseId(conversationId), memberIds, muted);
+        return Result.success(null);
+    }
+
+    // ==================== 入群审核 ====================
+
+    @PostMapping("/{conversationId}/join-approval")
+    public Result<Void> setJoinApproval(
+            @PathVariable String conversationId,
+            @RequestBody java.util.Map<String, Boolean> body,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        groupService.setJoinApproval(userId, parseId(conversationId), Boolean.TRUE.equals(body.get("required")));
+        return Result.success(null);
+    }
+
+    @PostMapping("/{conversationId}/join-request")
+    public Result<Void> requestJoin(
+            @PathVariable String conversationId,
+            @RequestBody(required = false) java.util.Map<String, String> body,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        String message = body != null ? body.get("message") : null;
+        groupService.requestJoin(userId, parseId(conversationId), message);
+        return Result.success(null);
+    }
+
+    @PostMapping("/{conversationId}/join-request/{applicantId}")
+    public Result<Void> handleJoinRequest(
+            @PathVariable String conversationId,
+            @PathVariable String applicantId,
+            @RequestBody java.util.Map<String, Boolean> body,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        groupService.handleJoinRequest(userId, parseId(conversationId), parseId(applicantId), Boolean.TRUE.equals(body.get("approve")));
+        return Result.success(null);
+    }
+
+    // ==================== 群公告已读统计 ====================
+
+    @PostMapping("/{conversationId}/announcement/read")
+    public Result<Void> markAnnouncementRead(
+            @PathVariable String conversationId,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        groupService.markAnnouncementRead(userId, parseId(conversationId));
+        return Result.success(null);
+    }
+
+    @GetMapping("/{conversationId}/announcement/read-count")
+    public Result<Long> getAnnouncementReadCount(
+            @PathVariable String conversationId,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(groupService.getAnnouncementReadCount(parseId(conversationId)));
+    }
+
+    // ==================== 群聊邀请策略 ====================
+
+    @PostMapping("/{conversationId}/invite-policy")
+    public Result<Void> setInvitePolicy(
+            @PathVariable String conversationId,
+            @RequestBody java.util.Map<String, String> body,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        groupService.setInvitePolicy(userId, parseId(conversationId), body.get("policy"));
+        return Result.success(null);
+    }
+
     private Long parseId(String id) {
         try {
             return Long.parseLong(id);

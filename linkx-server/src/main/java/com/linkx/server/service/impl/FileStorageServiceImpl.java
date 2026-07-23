@@ -68,6 +68,7 @@ public class FileStorageServiceImpl implements FileStorageService {
 
     private final MinioClient minioClient;
     private final LinkxProperties linkxProperties;
+    private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
 
     @Override
     public String uploadFile(MultipartFile file, String fileName) {
@@ -284,5 +285,104 @@ public class FileStorageServiceImpl implements FileStorageService {
         int dot = filename.lastIndexOf('.');
         if (dot < 0 || dot == filename.length() - 1) return "";
         return filename.substring(dot).toLowerCase(Locale.ROOT);
+    }
+
+    // ==================== 分片上传（断点续传） ====================
+
+    @Override
+    public String initiateMultipartUpload(String objectName, String contentType) {
+        try {
+            String bucketName = linkxProperties.getMinio().getBucketName();
+            io.minio.InitiateMultipartUploadResponse response = minioClient.initiateMultipartUpload(
+                    io.minio.InitiateMultipartUploadArgs.builder()
+                            .bucket(bucketName)
+                            .object(objectName)
+                            .contentType(contentType)
+                            .build()
+            );
+            return response.result().uploadId();
+        } catch (Exception e) {
+            log.error("初始化分片上传失败: objectName={}", objectName, e);
+            throw new RuntimeException("初始化分片上传失败");
+        }
+    }
+
+    @Override
+    public void uploadPart(String objectName, String uploadId, int partNumber, InputStream data, long partSize) {
+        try {
+            String bucketName = linkxProperties.getMinio().getBucketName();
+            minioClient.uploadPart(
+                    io.minio.UploadPartArgs.builder()
+                            .bucket(bucketName)
+                            .object(objectName)
+                            .uploadId(uploadId)
+                            .partNumber(partNumber)
+                            .stream(data, partSize, -1)
+                            .build()
+            );
+        } catch (Exception e) {
+            log.error("上传分片失败: objectName={}, partNumber={}", objectName, partNumber, e);
+            throw new RuntimeException("上传分片失败");
+        }
+    }
+
+    @Override
+    public String completeMultipartUpload(String objectName, String uploadId, List<PartETag> parts) {
+        try {
+            String bucketName = linkxProperties.getMinio().getBucketName();
+            List<io.minio.Part> minioParts = parts.stream()
+                    .map(p -> io.minio.Part.builder().partNumber(p.partNumber()).etag(p.etag()).build())
+                    .toList();
+            minioClient.completeMultipartUpload(
+                    io.minio.CompleteMultipartUploadArgs.builder()
+                            .bucket(bucketName)
+                            .object(objectName)
+                            .uploadId(uploadId)
+                            .parts(minioParts)
+                            .build()
+            );
+            return objectName;
+        } catch (Exception e) {
+            log.error("完成分片上传失败: objectName={}", objectName, e);
+            throw new RuntimeException("完成分片上传失败");
+        }
+    }
+
+    @Override
+    public void abortMultipartUpload(String objectName, String uploadId) {
+        try {
+            String bucketName = linkxProperties.getMinio().getBucketName();
+            minioClient.abortMultipartUpload(
+                    io.minio.AbortMultipartUploadArgs.builder()
+                            .bucket(bucketName)
+                            .object(objectName)
+                            .uploadId(uploadId)
+                            .build()
+            );
+        } catch (Exception e) {
+            log.warn("取消分片上传失败: objectName={}", objectName, e);
+        }
+    }
+
+    // ==================== 文件秒传/去重 ====================
+
+    @Override
+    public String findByContentHash(String contentHash) {
+        try {
+            return redisTemplate.opsForValue().get("linkx:filehash:" + contentHash);
+        } catch (Exception e) {
+            log.warn("查询文件哈希失败: hash={}", contentHash, e);
+            return null;
+        }
+    }
+
+    @Override
+    public void saveContentHash(String contentHash, String objectKey) {
+        try {
+            redisTemplate.opsForValue().set("linkx:filehash:" + contentHash, objectKey,
+                    java.time.Duration.ofDays(30));
+        } catch (Exception e) {
+            log.warn("保存文件哈希失败: hash={}, key={}", contentHash, objectKey, e);
+        }
     }
 }

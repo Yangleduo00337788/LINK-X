@@ -91,4 +91,36 @@ public interface GroupService {
      * 更新当前用户对本群的备注
      */
     String updateMyRemark(Long userId, Long conversationId, String remark);
+
+    // ==================== 群成员批量管理 ====================
+
+    /** 批量移除群成员（仅群主/管理员） */
+    void batchRemoveMembers(Long userId, Long conversationId, List<Long> memberIds);
+
+    /** 批量禁言（仅群主/管理员） */
+    void batchMuteMembers(Long userId, Long conversationId, List<Long> memberIds, boolean muted);
+
+    // ==================== 入群审核 ====================
+
+    /** 设置入群审核开关（仅群主） */
+    void setJoinApproval(Long userId, Long conversationId, boolean required);
+
+    /** 处理入群申请（群主/管理员审批） */
+    void handleJoinRequest(Long userId, Long conversationId, Long applicantId, boolean approve);
+
+    /** 申请入群 */
+    void requestJoin(Long userId, Long conversationId, String message);
+
+    // ==================== 群公告已读统计 ====================
+
+    /** 标记群公告已读 */
+    void markAnnouncementRead(Long userId, Long conversationId);
+
+    /** 获取群公告已读人数 */
+    long getAnnouncementReadCount(Long conversationId);
+
+    // ==================== 群聊邀请策略 ====================
+
+    /** 设置群聊邀请策略：ownerApprove = 需群主审批，anyMember = 任何人可邀请 */
+    void setInvitePolicy(Long userId, Long conversationId, String policy);
 }

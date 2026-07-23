@@ -1242,4 +1242,49 @@ public class ChatServiceImpl implements ChatService {
                         .where(ImConversationMember::getConversationId).eq(conversationId)
         );
     }
+
+    // ==================== 分片上传（断点续传） ====================
+
+    @Override
+    public String initiateMultipartUpload(Long userId, Long conversationId, String objectName, String contentType) {
+        assertConversationMember(userId, conversationId);
+        return fileStorageService.initiateMultipartUpload(objectName, contentType);
+    }
+
+    @Override
+    public String uploadPart(Long userId, Long conversationId, String objectName, String uploadId, int partNumber, MultipartFile file) {
+        assertConversationMember(userId, conversationId);
+        try {
+            fileStorageService.uploadPart(objectName, uploadId, partNumber, file.getInputStream(), file.getSize());
+            // 返回 etag（MinIO 上传后无显式返回，用 MD5 模拟）
+            return "\"" + org.springframework.util.DigestUtils.md5DigestAsHex(
+                    ("part-" + partNumber + "-" + uploadId).getBytes()) + "\"";
+        } catch (Exception e) {
+            throw new CustomException(400, "分片上传失败: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public ChatFileUploadVO completeMultipartUpload(Long userId, Long conversationId, String objectName, String uploadId, List<FileStorageService.PartETag> parts) {
+        assertConversationMember(userId, conversationId);
+        String finalKey = fileStorageService.completeMultipartUpload(objectName, uploadId, parts);
+        String signedUrl = mediaUrlService.resolveFile(finalKey);
+        return ChatFileUploadVO.builder()
+                .url(signedUrl)
+                .fileKey(finalKey)
+                .fileName(objectName.contains("/") ? objectName.substring(objectName.lastIndexOf('/') + 1) : objectName)
+                .contentType("application/octet-stream")
+                .build();
+    }
+
+    @Override
+    public void abortMultipartUpload(Long userId, Long conversationId, String objectName, String uploadId) {
+        assertConversationMember(userId, conversationId);
+        fileStorageService.abortMultipartUpload(objectName, uploadId);
+    }
+
+    @Override
+    public String findFileByHash(Long userId, String contentHash) {
+        return fileStorageService.findByContentHash(contentHash);
+    }
 }

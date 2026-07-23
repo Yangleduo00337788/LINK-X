@@ -63,6 +63,18 @@ public class ImConversationMember implements Serializable {
      */
     private Date muteUntil;
 
+    /**
+     * 免打扰（1=是）
+     */
+    @Builder.Default
+    private Integer mute = 0;
+
+    /**
+     * 群公告是否已读
+     */
+    @Builder.Default
+    private Boolean announcementRead = false;
+
     @Column(onInsertValue = "NOW()")
     private Date createTime;
 

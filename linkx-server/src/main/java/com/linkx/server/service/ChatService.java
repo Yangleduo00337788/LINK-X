@@ -72,4 +72,21 @@ public interface ChatService {
 
     /** 获取会话成员总数（含已删除成员需传 includeDeleted=true）。 */
     long getMemberCount(Long conversationId);
+
+    // ==================== 分片上传（断点续传） ====================
+
+    /** 初始化分片上传 */
+    String initiateMultipartUpload(Long userId, Long conversationId, String objectName, String contentType);
+
+    /** 上传分片 */
+    String uploadPart(Long userId, Long conversationId, String objectName, String uploadId, int partNumber, MultipartFile file);
+
+    /** 完成分片上传 */
+    ChatFileUploadVO completeMultipartUpload(Long userId, Long conversationId, String objectName, String uploadId, List<FileStorageService.PartETag> parts);
+
+    /** 取消分片上传 */
+    void abortMultipartUpload(Long userId, Long conversationId, String objectName, String uploadId);
+
+    /** 根据文件哈希查找已上传文件 */
+    String findFileByHash(Long userId, String contentHash);
 }
