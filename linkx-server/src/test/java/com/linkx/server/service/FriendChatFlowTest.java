@@ -62,7 +62,7 @@ class FriendChatFlowTest extends BaseIntegrationTest {
         MessageVO recalled = chatService.recallMessage(a.userId, conv.getId(), sent.getId());
         assertEquals("recall", recalled.getType());
 
-        assertNotNull(chatService.searchMessages(a.userId, "friend", null, null, 20));
+        assertNotNull(chatService.searchMessages(a.userId, "friend", null, null, null, null, 20));
 
         List<ConversationVO> sessions = chatService.listConversations(a.userId);
         assertFalse(sessions.isEmpty());

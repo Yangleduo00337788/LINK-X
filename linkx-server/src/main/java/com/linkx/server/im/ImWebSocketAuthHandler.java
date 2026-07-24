@@ -61,18 +61,22 @@ public class ImWebSocketAuthHandler extends ChannelInboundHandlerAdapter {
             }
 
             try {
+                // 先解析 query 参数（随后会去掉 query）
+                String deviceId = extractParamFromQuery(request.uri(), "deviceId");
+                String deviceName = extractParamFromQuery(request.uri(), "deviceName");
+                String deviceType = extractParamFromQuery(request.uri(), "deviceType");
+                if (deviceId == null || deviceId.isBlank()) {
+                    deviceId = ImChannelManager.DEFAULT_DEVICE_ID;
+                }
+
                 if (jwtUtils.getTokenType(token) != TokenType.ACCESS) {
                     reject(ctx, msg);
                     return;
                 }
-                tokenService.assertAccessTokenActive(token);
+                tokenService.assertAccessTokenActive(token, deviceId);
                 Long userId = jwtUtils.getUserIdFromToken(token);
 
-                // 提取 deviceId（多端同步）
-                String deviceId = extractParamFromQuery(request.uri(), "deviceId");
-                if (deviceId != null && !deviceId.isBlank()) {
-                    ctx.channel().attr(ImChannelAttributes.DEVICE_ID).set(deviceId);
-                }
+                ctx.channel().attr(ImChannelAttributes.DEVICE_ID).set(deviceId);
 
                 // 去掉 query，交给 WebSocketServerProtocolHandler 做路径匹配
                 String path = request.uri().split("\\?")[0];
@@ -81,15 +85,11 @@ public class ImWebSocketAuthHandler extends ChannelInboundHandlerAdapter {
                 channelManager.add(userId, ctx.channel());
 
                 // 注册设备会话（多端同步）
-                String deviceName = extractParamFromQuery(request.uri(), "deviceName");
-                String deviceType = extractParamFromQuery(request.uri(), "deviceType");
                 String ip = ctx.channel().remoteAddress() != null
                         ? ctx.channel().remoteAddress().toString() : "";
                 String userAgent = request.headers().get("User-Agent");
-                if (deviceId != null && !deviceId.isBlank()) {
-                    deviceSessionService.registerDevice(userId, deviceId,
-                            deviceName, deviceType, ip, userAgent);
-                }
+                deviceSessionService.registerDevice(userId, deviceId,
+                        deviceName, deviceType, ip, userAgent);
 
                 log.debug("WebSocket 鉴权成功: userId={}, deviceId={}, origin={}",
                         userId, deviceId, request.headers().get("Origin"));
@@ -105,12 +105,11 @@ public class ImWebSocketAuthHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
-        Long userId = ctx.channel().attr(ImChannelAttributes.USER_ID).get();
         String deviceId = ctx.channel().attr(ImChannelAttributes.DEVICE_ID).get();
         channelManager.remove(ctx.channel());
-        // 清理设备会话
-        if (userId != null && deviceId != null) {
-            deviceSessionService.removeDevice(userId, deviceId);
+        // 断连只刷新活跃时间，不删设备行；踢下线由 kickDevice 显式删除
+        if (deviceId != null && !deviceId.isBlank()) {
+            deviceSessionService.updateLastActive(deviceId);
         }
         ctx.fireChannelInactive();
     }

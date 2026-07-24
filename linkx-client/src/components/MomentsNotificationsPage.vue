@@ -26,6 +26,7 @@ import EmptyState from './common/EmptyState.vue'
 import { generateDefaultAvatar } from '../utils/defaultAvatar'
 import { normalizeMediaUrl } from '../utils/mediaUrl'
 import { useI18n } from '../i18n'
+import { aggregateNotifications } from '../utils/notifyAggregate'
 
 const message = useMessage()
 const { t } = useI18n()
@@ -41,7 +42,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'close'): void
-  (e: 'select', n: typeof messageNotifs.value[0]): void
+  (e: 'select', n: (typeof messageNotifs.value)[0]): void
 }>()
 
 // 默认展示：友链相关 + 日历日程提醒
@@ -55,7 +56,7 @@ const showAll = defineModel<boolean>('showAll', { default: false })
 
 const isMentionOnly = computed(() => mentionOnly.value)
 
-/** 当前实际显示的列表 */
+/** 当前实际显示的列表（同类型同 relatedId 聚合） */
 const displayList = computed(() => {
   let list = messageNotifs.value
   if (isMentionOnly.value) {
@@ -63,7 +64,7 @@ const displayList = computed(() => {
   } else if (!showAll.value) {
     list = list.filter(n => DEFAULT_NOTIF_TYPES.has(n.type))
   }
-  return list
+  return aggregateNotifications(list)
 })
 
 // 抽屉打开时拉取最新数据
@@ -121,19 +122,26 @@ function getNotificationIcon(type: string) {
   return ChatbubbleOutline
 }
 
-function getNotificationTypeText(type: string) {
-  switch (type) {
-    case 'moments_like':
-      return t('moments.likedYour')
-    case 'moments_comment':
-      return t('moments.commentedYour')
-    case 'moments_mention':
-      return t('moments.mentionedYou')
-    case 'calendar_remind':
-      return t('moments.calendarRemind')
-    default:
-      return t('moments.newNotif')
-  }
+function getNotificationTypeText(type: string, aggregateCount = 1, aggregateNames: string[] = []) {
+  const base = (() => {
+    switch (type) {
+      case 'moments_like':
+        return t('moments.likedYour')
+      case 'moments_comment':
+        return t('moments.commentedYour')
+      case 'moments_mention':
+        return t('moments.mentionedYou')
+      case 'calendar_remind':
+        return t('moments.calendarRemind')
+      default:
+        return t('moments.newNotif')
+    }
+  })()
+  if (aggregateCount <= 1) return base
+  const others = aggregateNames.slice(0, 2).join('、')
+  return others
+    ? t('moments.aggregatedAction', { others, n: aggregateCount, action: base })
+    : t('moments.aggregatedCount', { n: aggregateCount, action: base })
 }
 
 function resolveAvatar(notif: typeof messageNotifs.value[0]): string {
@@ -242,7 +250,9 @@ function onAvatarError(e: Event, notif: typeof messageNotifs.value[0]) {
               <div class="notif-info">
                 <div class="notif-title">
                   <span class="notif-name">{{ notif.senderName }}</span>
-                  <span class="notif-text">{{ getNotificationTypeText(notif.type) }}</span>
+                  <span class="notif-text">{{
+                    getNotificationTypeText(notif.type, notif.aggregateCount, notif.aggregateNames)
+                  }}</span>
                 </div>
                 <div v-if="notif.content" class="notif-preview">{{ notif.content }}</div>
                 <div class="notif-time">{{ formatNotifTime(notif.createTime) }}</div>

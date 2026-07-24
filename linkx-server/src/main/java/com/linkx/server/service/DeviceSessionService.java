@@ -20,6 +20,11 @@ public interface DeviceSessionService {
 
     void deleteDevice(Long userId, String deviceId);
 
+    /**
+     * 真踢下线：吊销该设备 token、断开 WS、删除会话并写审计。
+     */
+    void kickDevice(Long userId, String deviceId, String operatorUsername, String ip, String userAgent);
+
     /** WebSocket 断连时移除设备会话 */
     default void removeDevice(Long userId, String deviceId) {
         deleteDevice(userId, deviceId);

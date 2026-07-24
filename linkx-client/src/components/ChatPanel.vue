@@ -58,6 +58,8 @@ import { useGroupMetaStore } from '../stores/groupMeta'
 import { useCallStore } from '../stores/call'
 import { useI18n } from '../i18n'
 import { formatMessageDivider, MESSAGE_TIME_GAP_MS } from '../utils/chatTime'
+import * as chatApi from '../api/chat'
+import { recoverMediaUrlOnError } from '../utils/mediaUrl'
 
 // 获取 Naive UI 消息提示实例
 const message = useMessage()
@@ -355,9 +357,9 @@ watch(currentSessionId, () => {
 
 
 
-// 播放或暂停语音消息
-function playVoice(msg: ChatMessage) {
-  if (!msg.voiceUrl) {
+// 播放或暂停语音消息（预签名过期时自动刷新）
+async function playVoice(msg: ChatMessage) {
+  if (!msg.voiceUrl && !msg.fileUrl) {
     message.info(`${t('chat.voice')} ${formatVoiceDuration(msg.voiceDuration)}`) // 无 URL 时仅提示时长
     return
   }
@@ -367,12 +369,36 @@ function playVoice(msg: ChatMessage) {
     return
   }
   voiceAudio?.pause() // 停止上一段语音
-  voiceAudio = new Audio(msg.voiceUrl)
-  playingVoiceId.value = msg.id
-  voiceAudio.play().catch(() => message.error(t('chat.voicePlayFail')))
-  voiceAudio.onended = () => {
-    playingVoiceId.value = null // 播放结束清除状态
+  let src = msg.voiceUrl || msg.fileUrl || ''
+  const tryPlay = (url: string) => {
+    voiceAudio = new Audio(url)
+    playingVoiceId.value = msg.id
+    voiceAudio.onended = () => {
+      playingVoiceId.value = null
+    }
+    voiceAudio.onerror = () => {
+      void (async () => {
+        const next = await recoverMediaUrlOnError(url, async () => {
+          const res = await chatApi.refreshMessageMediaUrl(msg.id)
+          if (res.code === 200 && res.data?.url) return res.data.url
+          return null
+        })
+        if (next && next !== url) {
+          msg.voiceUrl = next
+          msg.fileUrl = next
+          tryPlay(next)
+        } else {
+          playingVoiceId.value = null
+          message.error(t('chat.voicePlayFail'))
+        }
+      })()
+    }
+    voiceAudio.play().catch(() => {
+      playingVoiceId.value = null
+      message.error(t('chat.voicePlayFail'))
+    })
   }
+  tryPlay(src)
 }
 
 // 打开图片预览 Overlay

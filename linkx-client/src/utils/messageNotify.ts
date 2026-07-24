@@ -14,6 +14,7 @@ import type { MessageItem } from '../types/chat'
 import { messagePreviewFromItem } from './chatMapper'
 import { playTone, type ToneId } from './notifyTone'
 import { useAppSettingsStore } from '../stores/appSettings'
+import { isInQuietHours } from './notifyAggregate'
 import { t } from '../i18n'
 
 export interface IncomingNotifyContext {
@@ -121,6 +122,17 @@ export function notifyIncomingMessage(ctx: IncomingNotifyContext): void {
   if (message.isSelf) return
 
   const settings = useAppSettingsStore()
+  if (settings.notifyChat === false) return
+  if (
+    isInQuietHours(
+      new Date(),
+      !!settings.quietHoursEnabled,
+      settings.quietHoursStart || '22:00',
+      settings.quietHoursEnd || '08:00'
+    )
+  ) {
+    return
+  }
   if (
     !shouldAlertForSession(session, message, {
       notifyAtMe: settings.notifyAtMe,
@@ -153,6 +165,17 @@ export function notifyIncomingMessage(ctx: IncomingNotifyContext): void {
  */
 export function notifySocialEvent(kind: 'friend_request' | 'group_invitation'): void {
   const settings = useAppSettingsStore()
+  if (settings.notifySocial === false) return
+  if (
+    isInQuietHours(
+      new Date(),
+      !!settings.quietHoursEnabled,
+      settings.quietHoursStart || '22:00',
+      settings.quietHoursEnd || '08:00'
+    )
+  ) {
+    return
+  }
   if (settings.soundNotify) {
     playTone((settings.notifyTone || 'default') as ToneId)
   }

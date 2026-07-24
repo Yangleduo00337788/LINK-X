@@ -81,7 +81,7 @@ class MessageFlowTest extends BaseIntegrationTest {
         ConversationVO conv = becomeFriendsAndOpen(a, b);
         sendText(a, conv.getId(), "unique-keyword-xyz-flow");
 
-        assertFalse(chatService.searchMessages(a.userId, "unique-keyword-xyz", null, conv.getId(), 20).isEmpty());
+        assertFalse(chatService.searchMessages(a.userId, "unique-keyword-xyz", null, conv.getId(), null, null, 20).isEmpty());
     }
 
     @Test

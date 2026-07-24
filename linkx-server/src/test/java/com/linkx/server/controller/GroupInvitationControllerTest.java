@@ -73,4 +73,35 @@ class GroupInvitationControllerTest extends BaseIntegrationTest {
                         .header("Authorization", invitee2.bearer()))
                 .andExpect(jsonPath("$.code").value(200));
     }
+
+    @Test
+    @DisplayName("ownerApprove 策略下普通成员邀请应 403")
+    void invitePolicyOwnerApprove_blocksMember() throws Exception {
+        TestUser owner = registerAndLogin("polowner");
+        TestUser member = registerAndLogin("polmember");
+        TestUser invitee = registerAndLogin("polinvitee");
+        long cid = createGroup(owner, member);
+
+        mockMvc.perform(post("/group/{id}/invite-policy", cid)
+                        .header("Authorization", owner.bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"policy\":\"ownerApprove\"}"))
+                .andExpect(jsonPath("$.code").value(200));
+
+        mockMvc.perform(post("/group/invitations/{cid}", cid)
+                        .header("Authorization", member.bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(String.format("""
+                                {"inviteeUserId":%d}
+                                """, invitee.userId)))
+                .andExpect(jsonPath("$.code").value(403));
+
+        mockMvc.perform(post("/group/invitations/{cid}", cid)
+                        .header("Authorization", owner.bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(String.format("""
+                                {"inviteeUserId":%d}
+                                """, invitee.userId)))
+                .andExpect(jsonPath("$.code").value(200));
+    }
 }

@@ -26,6 +26,11 @@ public class MessageNotificationVO implements Serializable {
 
     private String type;
 
+    /**
+     * 通道分类：moments（友链业务）/ system（系统）/ social（社交）/ other
+     */
+    private String category;
+
     private Long relatedId;
 
     private String content;

@@ -2,6 +2,7 @@ import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import type { ApiResult, TokenData } from '../types/auth'
 import { parseJsonPreservingIds } from '../utils/parseJson'
 import { clearTokens, getRefreshToken, getToken, saveTokenPair } from '../utils/tokenStorage'
+import { getDeviceName, getDeviceType, getOrCreateDeviceId } from '../utils/deviceId'
 
 const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
 
@@ -25,6 +26,13 @@ let refreshQueue: Array<(token: string | null) => void> = []
 
 function isUnauthorized(error: AxiosError<ApiResult<unknown>>): boolean {
   return error.response?.status === 401 || error.response?.data?.code === 401
+}
+
+function applyDeviceHeaders(headers: InternalAxiosRequestConfig['headers']) {
+  if (!headers) return
+  headers['X-Device-Id'] = getOrCreateDeviceId()
+  headers['X-Device-Name'] = getDeviceName()
+  headers['X-Device-Type'] = getDeviceType()
 }
 
 async function redirectToLogin() {
@@ -56,6 +64,7 @@ async function processUnauthorized(config?: InternalAxiosRequestConfig) {
           return
         }
         config.headers.Authorization = `Bearer ${token}`
+        applyDeviceHeaders(config.headers)
         resolve(apiClient(config))
       })
     })
@@ -72,7 +81,14 @@ async function processUnauthorized(config?: InternalAxiosRequestConfig) {
     const { data: res } = await axios.post<ApiResult<TokenData>>(
       `${baseURL}/auth/refresh`,
       { refreshToken: refresh },
-      { timeout: 10000 }
+      {
+        timeout: 10000,
+        headers: {
+          'X-Device-Id': getOrCreateDeviceId(),
+          'X-Device-Name': getDeviceName(),
+          'X-Device-Type': getDeviceType()
+        }
+      }
     )
     if (res.code !== 200 || !res.data) {
       await redirectToLogin()
@@ -85,6 +101,7 @@ async function processUnauthorized(config?: InternalAxiosRequestConfig) {
 
     if (config) {
       config.headers.Authorization = `Bearer ${res.data.accessToken}`
+      applyDeviceHeaders(config.headers)
       return apiClient(config)
     }
     return res
@@ -103,6 +120,7 @@ apiClient.interceptors.request.use(async config => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+  applyDeviceHeaders(config.headers)
   return config
 })
 

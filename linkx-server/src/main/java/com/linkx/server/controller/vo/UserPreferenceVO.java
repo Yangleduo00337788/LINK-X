@@ -35,4 +35,12 @@ public class UserPreferenceVO implements Serializable {
     private String momentsBackground;
     private String favoritesViewMode;
     private String favoritesSort;
+
+    private Boolean quietHoursEnabled;
+    private String quietHoursStart;
+    private String quietHoursEnd;
+    private Boolean notifyChat;
+    private Boolean notifySocial;
+    private Boolean notifyMoments;
+    private Boolean notifySystem;
 }

@@ -65,7 +65,8 @@ public class AuthController {
     public Result<TokenVO> refresh(@Valid @RequestBody RefreshTokenDTO refreshTokenDTO, HttpServletRequest request) {
         rateLimitService.check("refresh:" + clientIp(request), 30, 60);
         try {
-            return Result.success(tokenService.refreshAccessToken(refreshTokenDTO.getRefreshToken()));
+            String deviceId = request.getHeader("X-Device-Id");
+            return Result.success(tokenService.refreshAccessToken(refreshTokenDTO.getRefreshToken(), deviceId));
         } catch (CustomException e) {
             try {
                 rateLimitService.recordRefreshFailure(request);

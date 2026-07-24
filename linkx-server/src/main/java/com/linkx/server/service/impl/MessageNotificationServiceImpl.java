@@ -169,10 +169,28 @@ public class MessageNotificationServiceImpl implements MessageNotificationServic
                 .senderName(notification.getSenderName())
                 .senderAvatar(mediaUrlService.resolve(avatar))
                 .type(notification.getType())
+                .category(resolveCategory(notification.getType()))
                 .relatedId(notification.getRelatedId())
                 .content(notification.getContent())
                 .readStatus(notification.getReadStatus())
                 .createTime(notification.getCreateTime())
                 .build();
+    }
+
+    /** 业务通知与系统通知分轨：moments / system / social / other */
+    static String resolveCategory(String type) {
+        if (type == null || type.isBlank()) {
+            return "other";
+        }
+        if (type.startsWith("moments_")) {
+            return "moments";
+        }
+        if ("calendar_remind".equals(type) || type.startsWith("system_")) {
+            return "system";
+        }
+        if (type.startsWith("friend_") || type.startsWith("group_")) {
+            return "social";
+        }
+        return "other";
     }
 }

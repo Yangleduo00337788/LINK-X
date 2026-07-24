@@ -436,7 +436,33 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
-    public List<ChatSearchHitVO> searchMessages(Long userId, String keyword, String type, Long conversationId, int limit) {
+    public String refreshMessageMediaUrl(Long userId, Long messageId) {
+        ImMessage message = messageMapper.selectOneById(messageId);
+        if (message == null) {
+            throw new CustomException(404, "消息不存在");
+        }
+        assertConversationMember(userId, message.getConversationId());
+        String key = message.getFileUrl();
+        if (key == null || key.isBlank()) {
+            // 图片消息偶发只写在 content
+            key = message.getContent();
+        }
+        if (key == null || key.isBlank()) {
+            throw new CustomException(400, "该消息没有可刷新的媒体");
+        }
+        if (ImMessage.TYPE_RED_PACKET.equals(message.getType())) {
+            throw new CustomException(400, "红包消息不支持媒体刷新");
+        }
+        String signed = mediaUrlService.resolveFile(key);
+        if (signed == null || signed.isBlank()) {
+            throw new CustomException(400, "无法刷新媒体地址");
+        }
+        return signed;
+    }
+
+    @Override
+    public List<ChatSearchHitVO> searchMessages(Long userId, String keyword, String type, Long conversationId,
+                                                Long fromTime, Long toTime, int limit) {
         if (!StringUtils.hasText(keyword)) {
             return List.of();
         }
@@ -471,6 +497,7 @@ public class ChatServiceImpl implements ChatService {
         if (StringUtils.hasText(type)) {
             qw.and(ImMessage::getType).eq(type.trim());
         }
+        applySearchTimeRange(qw, fromTime, toTime);
 
         List<ImMessage> messages = messageMapper.selectListByQuery(qw);
         if (messages.isEmpty()) {
@@ -483,6 +510,7 @@ public class ChatServiceImpl implements ChatService {
             if (StringUtils.hasText(type)) {
                 fileQw.and(ImMessage::getType).eq(type.trim());
             }
+            applySearchTimeRange(fileQw, fromTime, toTime);
             messages = messageMapper.selectListByQuery(fileQw);
         }
 
@@ -499,6 +527,9 @@ public class ChatServiceImpl implements ChatService {
         for (ImMessage msg : messages) {
             ImConversation conv = convMap.get(msg.getConversationId());
             SysUser sender = userMap.get(msg.getSenderId());
+            String raw = msg.getContent() != null && !msg.getContent().isBlank()
+                    ? msg.getContent()
+                    : msg.getFileName();
             hits.add(ChatSearchHitVO.builder()
                     .messageId(msg.getId())
                     .conversationId(msg.getConversationId())
@@ -513,9 +544,43 @@ public class ChatServiceImpl implements ChatService {
                             ? msg.getFileUrl()
                             : mediaUrlService.resolveFile(msg.getFileUrl()))
                     .createTime(msg.getCreateTime() == null ? null : msg.getCreateTime().getTime())
+                    .highlight(buildSearchHighlight(raw, q))
                     .build());
         }
         return hits;
+    }
+
+    private void applySearchTimeRange(QueryWrapper qw, Long fromTime, Long toTime) {
+        if (fromTime != null && fromTime > 0) {
+            qw.and(ImMessage::getCreateTime).ge(new java.util.Date(fromTime));
+        }
+        if (toTime != null && toTime > 0) {
+            qw.and(ImMessage::getCreateTime).le(new java.util.Date(toTime));
+        }
+    }
+
+    /** 生成安全高亮片段：正文 HTML 转义后，关键词包在 &lt;mark&gt; 中。 */
+    public static String buildSearchHighlight(String content, String keyword) {
+        if (content == null || content.isBlank() || keyword == null || keyword.isBlank()) {
+            return content == null ? null : org.springframework.web.util.HtmlUtils.htmlEscape(content);
+        }
+        String escaped = org.springframework.web.util.HtmlUtils.htmlEscape(content);
+        String escKw = org.springframework.web.util.HtmlUtils.htmlEscape(keyword);
+        if (escKw.isEmpty()) {
+            return escaped;
+        }
+        StringBuilder out = new StringBuilder();
+        String lower = escaped.toLowerCase(java.util.Locale.ROOT);
+        String lowerKw = escKw.toLowerCase(java.util.Locale.ROOT);
+        int from = 0;
+        int idx;
+        while ((idx = lower.indexOf(lowerKw, from)) >= 0) {
+            out.append(escaped, from, idx);
+            out.append("<mark>").append(escaped, idx, idx + escKw.length()).append("</mark>");
+            from = idx + escKw.length();
+        }
+        out.append(escaped.substring(from));
+        return out.toString();
     }
 
     @Override

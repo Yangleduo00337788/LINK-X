@@ -57,8 +57,11 @@ const announcementEmpty = computed(() => {
 })
 
 const joinApproval = ref(false)
+const inviteOwnerOnly = ref(false)
 const announcementReadCount = ref<number | null>(null)
 const conferenceCreating = ref(false)
+const memberSelectMode = ref(false)
+const selectedMemberIds = ref<string[]>([])
 
 async function refreshGroupPolicy() {
   const id = currentSessionId.value
@@ -67,6 +70,7 @@ async function refreshGroupPolicy() {
     const res = await groupApi.getGroupInfo(id)
     if (res.code === 200 && res.data) {
       joinApproval.value = !!res.data.joinApproval
+      inviteOwnerOnly.value = res.data.invitePolicy === 'ownerApprove'
     }
   } catch {
     /* ignore */
@@ -111,6 +115,73 @@ async function setJoinApproval(val: boolean) {
     joinApproval.value = prev
     message.error(apiErrorMessage(e, t('modals.groupNameSaveFail')))
   }
+}
+
+async function setInviteOwnerOnly(val: boolean) {
+  const id = currentSessionId.value
+  if (!id || !isOwner.value) return
+  const prev = inviteOwnerOnly.value
+  inviteOwnerOnly.value = val
+  try {
+    const res = await groupApi.setInvitePolicy(id, val ? 'ownerApprove' : 'anyMember')
+    if (res.code !== 200) throw new Error(res.message || 'failed')
+  } catch (e) {
+    inviteOwnerOnly.value = prev
+    message.error(apiErrorMessage(e, t('modals.groupNameSaveFail')))
+  }
+}
+
+function toggleMemberSelect(memberId: string) {
+  if (!memberSelectMode.value || !isAdminOrOwner.value) return
+  const idx = selectedMemberIds.value.indexOf(memberId)
+  if (idx >= 0) selectedMemberIds.value.splice(idx, 1)
+  else selectedMemberIds.value.push(memberId)
+}
+
+function exitMemberSelect() {
+  memberSelectMode.value = false
+  selectedMemberIds.value = []
+}
+
+async function batchRemoveSelected() {
+  const id = currentSessionId.value
+  if (!id || selectedMemberIds.value.length === 0) return
+  dialog.warning({
+    title: t('modals.batchRemoveTitle'),
+    content: t('modals.batchRemoveContent', { n: selectedMemberIds.value.length }),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      try {
+        const res = await groupApi.batchRemoveMembers(id, [...selectedMemberIds.value])
+        if (res.code !== 200) throw new Error(res.message || 'failed')
+        await groupMetaStore.fetchMembers(id, true)
+        exitMemberSelect()
+        message.success(t('modals.batchRemoveOk'))
+      } catch (e) {
+        message.error(apiErrorMessage(e, t('modals.batchRemoveFail')))
+      }
+    }
+  })
+}
+
+async function removeOneMember(memberId: string) {
+  const id = currentSessionId.value
+  if (!id || !isAdminOrOwner.value) return
+  dialog.warning({
+    title: t('modals.removeMemberTitle'),
+    content: t('modals.removeMemberContent'),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      try {
+        await appStore.removeGroupMember(id, memberId)
+        message.success(t('modals.removeMemberOk'))
+      } catch (e) {
+        message.error(apiErrorMessage(e, t('modals.removeMemberFail')))
+      }
+    }
+  })
 }
 
 async function startConference() {
@@ -481,13 +552,36 @@ function reportGroup() {
               <section class="block">
                 <div class="block-head">
                   <span>{{ t('modals.groupMembers') }}</span>
-                  <n-icon :component="SearchOutline" :size="18" class="ico" />
+                  <div class="block-head-actions">
+                    <button
+                      v-if="isAdminOrOwner"
+                      type="button"
+                      class="head-action"
+                      @click="memberSelectMode = !memberSelectMode; if (!memberSelectMode) selectedMemberIds = []"
+                    >
+                      {{ memberSelectMode ? t('common.cancel') : t('modals.batchManage') }}
+                    </button>
+                    <n-icon :component="SearchOutline" :size="18" class="ico" />
+                  </div>
                 </div>
                 <div class="avatar-grid">
-                  <div v-for="m in members.slice(0, 14)" :key="m.id" class="av">
+                  <button
+                    v-for="m in members.slice(0, 14)"
+                    :key="m.id"
+                    type="button"
+                    class="av"
+                    :class="{ selected: selectedMemberIds.includes(m.id) }"
+                    @click="memberSelectMode ? toggleMemberSelect(m.id) : (isAdminOrOwner && m.role !== 'owner' && m.id !== userProfile.userId ? removeOneMember(m.id) : undefined)"
+                  >
                     <Avatar :text="m.avatarText" :color="m.avatarColor" :image-url="m.avatarUrl" :size="40" />
-                  </div>
+                    <span v-if="memberSelectMode && selectedMemberIds.includes(m.id)" class="av-check">✓</span>
+                  </button>
                   <button type="button" class="av invite" :title="t('chat.invite')" @click="openAddMembers">+</button>
+                </div>
+                <div v-if="memberSelectMode && selectedMemberIds.length" class="batch-bar">
+                  <button type="button" class="action-btn danger" @click="batchRemoveSelected">
+                    {{ t('modals.batchRemove', { n: selectedMemberIds.length }) }}
+                  </button>
                 </div>
               </section>
 
@@ -559,6 +653,10 @@ function reportGroup() {
                 <div v-if="isAdminOrOwner" class="switch-row">
                   <span>{{ t('modals.joinApproval') }}</span>
                   <n-switch :value="joinApproval" size="small" @update:value="setJoinApproval" />
+                </div>
+                <div v-if="isOwner" class="switch-row">
+                  <span>{{ t('modals.inviteOwnerOnly') }}</span>
+                  <n-switch :value="inviteOwnerOnly" size="small" @update:value="setInviteOwnerOnly" />
                 </div>
                 <p class="hint">{{ t('modals.muteHint') }}</p>
               </div>
@@ -792,6 +890,21 @@ function reportGroup() {
   margin-bottom: 10px;
 }
 
+.block-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.head-action {
+  border: none;
+  background: transparent;
+  color: var(--lx-accent);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+}
+
 .ico {
   color: var(--lx-text-muted);
   cursor: pointer;
@@ -805,8 +918,36 @@ function reportGroup() {
 }
 
 .av {
+  position: relative;
   display: flex;
   justify-content: center;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.av.selected {
+  outline: 2px solid var(--lx-accent);
+  border-radius: 10px;
+}
+
+.av-check {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--lx-accent);
+  color: #fff;
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+}
+
+.batch-bar {
+  margin-top: 8px;
 }
 
 .invite {

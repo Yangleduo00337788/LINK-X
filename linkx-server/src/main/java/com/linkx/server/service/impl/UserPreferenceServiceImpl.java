@@ -114,6 +114,13 @@ public class UserPreferenceServiceImpl
         if (patch.getMomentsBackground() != null) target.setMomentsBackground(patch.getMomentsBackground());
         if (patch.getFavoritesViewMode() != null) target.setFavoritesViewMode(patch.getFavoritesViewMode());
         if (patch.getFavoritesSort() != null) target.setFavoritesSort(patch.getFavoritesSort());
+        if (patch.getQuietHoursEnabled() != null) target.setQuietHoursEnabled(patch.getQuietHoursEnabled());
+        if (patch.getQuietHoursStart() != null) target.setQuietHoursStart(patch.getQuietHoursStart());
+        if (patch.getQuietHoursEnd() != null) target.setQuietHoursEnd(patch.getQuietHoursEnd());
+        if (patch.getNotifyChat() != null) target.setNotifyChat(patch.getNotifyChat());
+        if (patch.getNotifySocial() != null) target.setNotifySocial(patch.getNotifySocial());
+        if (patch.getNotifyMoments() != null) target.setNotifyMoments(patch.getNotifyMoments());
+        if (patch.getNotifySystem() != null) target.setNotifySystem(patch.getNotifySystem());
     }
 
     /** 生成与表默认值一致的偏好对象（不包含时间戳，由 MyBatis-Flex 填充） */
@@ -133,6 +140,13 @@ public class UserPreferenceServiceImpl
                 .notifyTone("default")
                 .favoritesViewMode("grid")
                 .favoritesSort("newest")
+                .quietHoursEnabled(false)
+                .quietHoursStart("22:00")
+                .quietHoursEnd("08:00")
+                .notifyChat(true)
+                .notifySocial(true)
+                .notifyMoments(true)
+                .notifySystem(true)
                 .build();
     }
 }

@@ -45,6 +45,7 @@ public class GroupInvitationServiceImpl implements GroupInvitationService {
     @Transactional
     public GroupInvitationVO invite(Long userId, Long conversationId, InviteGroupDTO dto) {
         ImConversation conversation = requireGroup(userId, conversationId);
+        enforceInvitePolicy(userId, conversation);
 
         // 不能邀请已经是成员的用户
         ImConversationMember existing = memberMapper.selectOneByQuery(
@@ -172,6 +173,31 @@ public class GroupInvitationServiceImpl implements GroupInvitationService {
             throw new CustomException(403, "无权邀请成员加入该群聊");
         }
         return conv;
+    }
+
+    /**
+     * ownerApprove：仅群主/管理员可邀请；anyMember：任意成员可邀请。
+     */
+    private void enforceInvitePolicy(Long userId, ImConversation conversation) {
+        String policy = conversation.getInvitePolicy();
+        if (policy == null || policy.isBlank() || "anyMember".equals(policy)) {
+            return;
+        }
+        if (!"ownerApprove".equals(policy)) {
+            return;
+        }
+        ImConversationMember m = memberMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).eq(conversation.getId())
+                        .and(ImConversationMember::getUserId).eq(userId)
+        );
+        if (m == null) {
+            throw new CustomException(403, "无权邀请成员加入该群聊");
+        }
+        String role = m.getRole();
+        if (!ImConversationMember.ROLE_OWNER.equals(role) && !ImConversationMember.ROLE_ADMIN.equals(role)) {
+            throw new CustomException(403, "当前群聊仅群主或管理员可邀请成员");
+        }
     }
 
     private ImConversation requireGroup(Long conversationId) {

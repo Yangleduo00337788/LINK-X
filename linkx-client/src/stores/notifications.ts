@@ -49,6 +49,7 @@ export interface MessageNotification {
   senderName: string
   senderAvatar?: string
   type: string
+  category?: string
   relatedId?: string
   content: string
   readStatus: number
@@ -130,6 +131,7 @@ function mapRawNotification(n: notificationApi.MessageNotificationVO): MessageNo
     senderName: n.senderName || '用户',
     senderAvatar: normalizeMediaUrl(n.senderAvatar) || undefined,
     type: n.type,
+    category: n.category,
     relatedId: n.relatedId ? String(n.relatedId) : undefined,
     content: n.content,
     readStatus: n.readStatus,

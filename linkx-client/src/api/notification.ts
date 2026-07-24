@@ -10,6 +10,8 @@ export interface MessageNotificationVO {
   senderName: string
   senderAvatar?: string
   type: string
+  /** moments / system / social / other */
+  category?: string
   relatedId?: number
   content: string
   readStatus: number

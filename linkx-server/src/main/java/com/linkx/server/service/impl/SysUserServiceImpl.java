@@ -36,6 +36,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     private final LinkxProperties linkxProperties;
     private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
     private final com.linkx.server.service.UserPreferenceService userPreferenceService;
+    private final DeviceSessionService deviceSessionService;
 
     @Override
     public void register(RegisterDTO registerDTO, HttpServletRequest request) {
@@ -110,7 +111,22 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         // 登录成功，清除失败记录
         rateLimitService.clearLoginFailure(username, request);
         loginAuditService.record(user.getId(), username, ip, userAgent, true, "登录成功");
-        return tokenService.issueTokenPair(user);
+
+        String deviceId = request.getHeader("X-Device-Id");
+        if (deviceId == null || deviceId.isBlank()) {
+            deviceId = "default-web-device";
+        }
+        String deviceName = request.getHeader("X-Device-Name");
+        String deviceType = request.getHeader("X-Device-Type");
+        deviceSessionService.createOrUpdate(
+                user.getId(),
+                deviceId,
+                deviceName != null && !deviceName.isBlank() ? deviceName : "Web 浏览器",
+                deviceType != null && !deviceType.isBlank() ? deviceType : "Web",
+                ip,
+                userAgent);
+
+        return tokenService.issueTokenPair(user, deviceId);
     }
 
     @Override

@@ -35,6 +35,13 @@ type SyncableKey =
   | 'notifyTone'
   | 'favoritesViewMode'
   | 'favoritesSort'
+  | 'quietHoursEnabled'
+  | 'quietHoursStart'
+  | 'quietHoursEnd'
+  | 'notifyChat'
+  | 'notifySocial'
+  | 'notifyMoments'
+  | 'notifySystem'
 
 const SYNCABLE_KEYS: SyncableKey[] = [
   'autoStart',
@@ -49,7 +56,14 @@ const SYNCABLE_KEYS: SyncableKey[] = [
   'chatBackground',
   'notifyTone',
   'favoritesViewMode',
-  'favoritesSort'
+  'favoritesSort',
+  'quietHoursEnabled',
+  'quietHoursStart',
+  'quietHoursEnd',
+  'notifyChat',
+  'notifySocial',
+  'notifyMoments',
+  'notifySystem'
 ]
 
 // 字段到"中文显示名"的映射，供 toast 文案使用
@@ -66,7 +80,14 @@ const FIELD_LABEL: Record<SyncableKey, string> = {
   chatBackground: '聊天背景',
   notifyTone: '提示音',
   favoritesViewMode: '收藏视图',
-  favoritesSort: '收藏排序'
+  favoritesSort: '收藏排序',
+  quietHoursEnabled: '免打扰时段',
+  quietHoursStart: '免打扰开始',
+  quietHoursEnd: '免打扰结束',
+  notifyChat: '聊天消息提醒',
+  notifySocial: '社交提醒',
+  notifyMoments: '友链提醒',
+  notifySystem: '系统提醒'
 }
 
 // debounce 800ms：避免快速连续点击导致请求风暴
@@ -94,6 +115,13 @@ function defaultState() {
     favoritesViewMode: 'grid' as 'grid' | 'list',
     /** 收藏排序：newest / oldest / title（云端同步） */
     favoritesSort: 'newest' as 'newest' | 'oldest' | 'title',
+    quietHoursEnabled: false,
+    quietHoursStart: '22:00',
+    quietHoursEnd: '08:00',
+    notifyChat: true,
+    notifySocial: true,
+    notifyMoments: true,
+    notifySystem: true,
     /** 关闭窗口时最小化到托盘（本地 + Electron 主进程） */
     minimizeToTray: true,
     /** 启动时打开主窗口或仅托盘（本地 + Electron 主进程） */
@@ -221,6 +249,13 @@ export const useAppSettingsStore = defineStore('appSettings', {
       if (sk === 'newest' || sk === 'oldest' || sk === 'title') {
         this.favoritesSort = sk
       }
+      if (typeof data.quietHoursEnabled === 'boolean') this.quietHoursEnabled = data.quietHoursEnabled
+      if (typeof data.quietHoursStart === 'string' && data.quietHoursStart) this.quietHoursStart = data.quietHoursStart
+      if (typeof data.quietHoursEnd === 'string' && data.quietHoursEnd) this.quietHoursEnd = data.quietHoursEnd
+      if (typeof data.notifyChat === 'boolean') this.notifyChat = data.notifyChat
+      if (typeof data.notifySocial === 'boolean') this.notifySocial = data.notifySocial
+      if (typeof data.notifyMoments === 'boolean') this.notifyMoments = data.notifyMoments
+      if (typeof data.notifySystem === 'boolean') this.notifySystem = data.notifySystem
     },
 
     /**
@@ -266,6 +301,13 @@ export const useAppSettingsStore = defineStore('appSettings', {
       'momentsBackground',
       'favoritesViewMode',
       'favoritesSort',
+      'quietHoursEnabled',
+      'quietHoursStart',
+      'quietHoursEnd',
+      'notifyChat',
+      'notifySocial',
+      'notifyMoments',
+      'notifySystem',
       'minimizeToTray',
       'openOnStartup',
       'accentColor',

@@ -32,9 +32,11 @@ public interface ChatService {
     ChatFileUploadVO uploadChatFile(Long userId, Long conversationId, MultipartFile file);
 
     /**
-     * 服务端聊天记录搜索（当前用户所在会话）
+     * 服务端聊天记录搜索（当前用户所在会话）。
+     * {@code fromTime}/{@code toTime} 为毫秒时间戳，均可选。
      */
-    List<ChatSearchHitVO> searchMessages(Long userId, String keyword, String type, Long conversationId, int limit);
+    List<ChatSearchHitVO> searchMessages(Long userId, String keyword, String type, Long conversationId,
+                                         Long fromTime, Long toTime, int limit);
 
     void assertConversationMember(Long userId, Long conversationId);
 
@@ -45,6 +47,9 @@ public interface ChatService {
 
     /** 消息附件展示名（鉴权后）。 */
     String getMessageFileName(Long userId, Long messageId);
+
+    /** 重新签发消息附件/图片的预签名 URL（会话成员）。 */
+    String refreshMessageMediaUrl(Long userId, Long messageId);
 
     /** 将会话中某条及之前的消息标记为已读，并返回会话最新未读数。 */
     long markAsRead(Long userId, Long conversationId, Long lastReadMessageId);

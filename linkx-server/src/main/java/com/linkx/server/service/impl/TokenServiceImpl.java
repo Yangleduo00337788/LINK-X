@@ -34,6 +34,9 @@ public class TokenServiceImpl implements TokenService {
     private static final String REFRESH_KEY_PREFIX = "linkx:token:refresh:";
     private static final String REFRESH_LOCK_PREFIX = "linkx:token:refresh:lock:";
     private static final String USER_REFRESH_SET_PREFIX = "linkx:user:refresh-set:";
+    private static final String DEVICE_ACCESS_SET_PREFIX = "linkx:device:access-set:";
+    private static final String DEVICE_REFRESH_SET_PREFIX = "linkx:device:refresh-set:";
+    private static final String DEVICE_KICKED_PREFIX = "linkx:device:kicked:";
 
     // Lua 脚本：原子性地验证并删除 refresh token
     private static final String REFRESH_TOKEN_LUA_SCRIPT =
@@ -52,6 +55,11 @@ public class TokenServiceImpl implements TokenService {
 
     @Override
     public TokenVO issueTokenPair(SysUser user) {
+        return issueTokenPair(user, null);
+    }
+
+    @Override
+    public TokenVO issueTokenPair(SysUser user, String deviceId) {
         String accessJti = UUID.randomUUID().toString();
         String refreshJti = UUID.randomUUID().toString();
 
@@ -63,14 +71,24 @@ public class TokenServiceImpl implements TokenService {
         String refreshToken = jwtUtils.generateToken(
                 user.getId(), user.getUsername(), TokenType.REFRESH, refreshJti, refreshExpire);
 
+        String normalizedDeviceId = normalizeDeviceId(deviceId);
         storeAccessToken(accessJti, user.getId(), accessExpire);
         storeRefreshToken(refreshJti, user.getId(), refreshExpire);
+        bindTokenToDevice(user.getId(), normalizedDeviceId, accessJti, refreshJti, refreshExpire);
+        if (normalizedDeviceId != null) {
+            clearDeviceKick(user.getId(), normalizedDeviceId);
+        }
 
         return buildTokenVO(user, accessToken, refreshToken, accessExpire);
     }
 
     @Override
     public TokenVO refreshAccessToken(String refreshToken) {
+        return refreshAccessToken(refreshToken, null);
+    }
+
+    @Override
+    public TokenVO refreshAccessToken(String refreshToken, String deviceId) {
         if (!StringUtils.hasText(refreshToken)) {
             throw new CustomException(401, "refreshToken 无效");
         }
@@ -115,7 +133,12 @@ public class TokenServiceImpl implements TokenService {
                 throw new CustomException(401, "账号不可用");
             }
 
-            return issueTokenPair(user);
+            String normalizedDeviceId = normalizeDeviceId(deviceId);
+            if (normalizedDeviceId != null && isDeviceKicked(userId, normalizedDeviceId)) {
+                throw new CustomException(401, "设备已被强制下线，请重新登录");
+            }
+
+            return issueTokenPair(user, normalizedDeviceId);
         } finally {
             // 释放锁
             redisTemplate.delete(lockKey);
@@ -180,13 +203,81 @@ public class TokenServiceImpl implements TokenService {
     }
 
     @Override
+    public void revokeDeviceTokens(Long userId, String deviceId) {
+        String normalized = normalizeDeviceId(deviceId);
+        if (userId == null || normalized == null) {
+            return;
+        }
+
+        String accessSetKey = DEVICE_ACCESS_SET_PREFIX + userId + ":" + normalized;
+        String refreshSetKey = DEVICE_REFRESH_SET_PREFIX + userId + ":" + normalized;
+
+        Set<String> accessJtis = redisTemplate.opsForSet().members(accessSetKey);
+        if (accessJtis != null && !accessJtis.isEmpty()) {
+            List<String> keys = accessJtis.stream()
+                    .map(jti -> ACCESS_KEY_PREFIX + jti)
+                    .collect(Collectors.toList());
+            redisTemplate.delete(keys);
+        }
+
+        Set<String> refreshJtis = redisTemplate.opsForSet().members(refreshSetKey);
+        if (refreshJtis != null && !refreshJtis.isEmpty()) {
+            List<String> keys = refreshJtis.stream()
+                    .map(jti -> REFRESH_KEY_PREFIX + jti)
+                    .collect(Collectors.toList());
+            redisTemplate.delete(keys);
+            String userRefreshSetKey = USER_REFRESH_SET_PREFIX + userId;
+            for (String jti : refreshJtis) {
+                redisTemplate.opsForSet().remove(userRefreshSetKey, jti);
+            }
+        }
+
+        redisTemplate.delete(accessSetKey);
+        redisTemplate.delete(refreshSetKey);
+
+        long ttl = Math.max(linkxProperties.getJwt().getRefreshExpire(), Duration.ofDays(1).toMillis());
+        redisTemplate.opsForValue().set(
+                DEVICE_KICKED_PREFIX + userId + ":" + normalized,
+                String.valueOf(System.currentTimeMillis()),
+                Duration.ofMillis(ttl));
+    }
+
+    @Override
+    public boolean isDeviceKicked(Long userId, String deviceId) {
+        String normalized = normalizeDeviceId(deviceId);
+        if (userId == null || normalized == null) {
+            return false;
+        }
+        return Boolean.TRUE.equals(redisTemplate.hasKey(DEVICE_KICKED_PREFIX + userId + ":" + normalized));
+    }
+
+    @Override
+    public void clearDeviceKick(Long userId, String deviceId) {
+        String normalized = normalizeDeviceId(deviceId);
+        if (userId == null || normalized == null) {
+            return;
+        }
+        redisTemplate.delete(DEVICE_KICKED_PREFIX + userId + ":" + normalized);
+    }
+
+    @Override
     public void assertAccessTokenActive(String accessToken) {
+        assertAccessTokenActive(accessToken, null);
+    }
+
+    @Override
+    public void assertAccessTokenActive(String accessToken, String deviceId) {
         Claims claims = parseClaims(accessToken);
         if (jwtUtils.getTokenType(accessToken) != TokenType.ACCESS) {
             throw new CustomException(401, "无效的访问令牌");
         }
 
         Long userId = claims.get("userId", Long.class);
+
+        String normalizedDeviceId = normalizeDeviceId(deviceId);
+        if (normalizedDeviceId != null && isDeviceKicked(userId, normalizedDeviceId)) {
+            throw new CustomException(401, "设备已被强制下线，请重新登录");
+        }
 
         // 检查用户是否被强制吊销了所有 Token
         String revokeKey = "linkx:user:token-revoked:" + userId;
@@ -255,6 +346,26 @@ public class TokenServiceImpl implements TokenService {
         redisTemplate.opsForSet().add(userRefreshSetKey, jti);
         // 设置 refresh token 本身
         redisTemplate.opsForValue().set(refreshKey, String.valueOf(userId), Duration.ofMillis(expireMs));
+    }
+
+    private void bindTokenToDevice(Long userId, String deviceId, String accessJti, String refreshJti, long expireMs) {
+        if (deviceId == null) {
+            return;
+        }
+        String accessSetKey = DEVICE_ACCESS_SET_PREFIX + userId + ":" + deviceId;
+        String refreshSetKey = DEVICE_REFRESH_SET_PREFIX + userId + ":" + deviceId;
+        redisTemplate.opsForSet().add(accessSetKey, accessJti);
+        redisTemplate.opsForSet().add(refreshSetKey, refreshJti);
+        redisTemplate.expire(accessSetKey, Duration.ofMillis(expireMs));
+        redisTemplate.expire(refreshSetKey, Duration.ofMillis(expireMs));
+    }
+
+    private String normalizeDeviceId(String deviceId) {
+        if (!StringUtils.hasText(deviceId)) {
+            return null;
+        }
+        String trimmed = deviceId.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private TokenVO buildTokenVO(SysUser user, String accessToken, String refreshToken, long accessExpire) {

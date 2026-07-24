@@ -243,15 +243,28 @@ export interface ChatSearchHit {
   fileName?: string
   fileUrl?: string
   createTime?: number
+  /** 已转义 HTML，关键词包在 <mark> 中 */
+  highlight?: string
 }
 
-export function searchMessages(q: string, opts?: { type?: string; conversationId?: string; limit?: number }) {
+export function searchMessages(
+  q: string,
+  opts?: {
+    type?: string
+    conversationId?: string
+    limit?: number
+    fromTime?: number
+    toTime?: number
+  }
+) {
   return apiClient.get<unknown, ApiResult<ChatSearchHit[]>>('/chat/search', {
     params: {
       q,
       type: opts?.type,
       conversationId: opts?.conversationId,
-      limit: opts?.limit ?? 50
+      limit: opts?.limit ?? 50,
+      fromTime: opts?.fromTime,
+      toTime: opts?.toTime
     }
   })
 }
@@ -310,6 +323,13 @@ export interface MessageReadCount {
 export function getMessageReadCount(conversationId: string, messageId: string) {
   return apiClient.get<unknown, ApiResult<MessageReadCount>>(
     `/chat/sessions/${conversationId}/messages/${messageId}/read-count`
+  )
+}
+
+/** 重新签发消息媒体预签名 URL（过期自愈） */
+export function refreshMessageMediaUrl(messageId: string) {
+  return apiClient.get<unknown, ApiResult<{ url: string }>>(
+    `/chat/messages/${messageId}/media-url`
   )
 }
 

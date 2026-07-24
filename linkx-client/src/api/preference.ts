@@ -21,6 +21,13 @@ export interface UserPreference {
   momentsBackground?: string
   favoritesViewMode?: string
   favoritesSort?: string
+  quietHoursEnabled?: boolean
+  quietHoursStart?: string
+  quietHoursEnd?: string
+  notifyChat?: boolean
+  notifySocial?: boolean
+  notifyMoments?: boolean
+  notifySystem?: boolean
 }
 
 /**

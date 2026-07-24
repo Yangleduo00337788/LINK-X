@@ -66,6 +66,8 @@ export interface SendMessageOptions {
   redPacketGreeting?: string       // 红包祝福语
   redPacketAmount?: string         // 红包金额
   rawFile?: File                   // 原始文件（上传用）
+  /** 自动重试已用次数（失败退避时保留，避免无限重试） */
+  autoRetryCount?: number
 }
 
 /** 记住账号 / 自动登录（不存储密码；头像与昵称供登录页展示） */
@@ -1035,6 +1037,7 @@ export const useAppStore = defineStore('app', {
       const content = target.content
       const type = target.type || 'text'
       const replyTo = target.replyTo
+      const autoRetryCount = Number((target as { _autoRetry?: number })._autoRetry || 0)
       const idx = msgs.findIndex(m => m.id === messageId)
       if (idx >= 0) msgs.splice(idx, 1)
 
@@ -1047,7 +1050,8 @@ export const useAppStore = defineStore('app', {
           fileUrl: target.fileUrl,
           isImage: target.isImage,
           voiceDuration: target.voiceDuration,
-          voiceUrl: target.voiceUrl
+          voiceUrl: target.voiceUrl,
+          autoRetryCount
         })
       } catch (e) {
         console.error('重试发送失败:', e)
@@ -1252,8 +1256,9 @@ export const useAppStore = defineStore('app', {
         redPacketAmount: options.redPacketAmount,
         redPacketOpened: type === 'redPacket' ? false : undefined,
         sendStatus: 'sending',
-        clientMsgId
-      }
+        clientMsgId,
+        ...(options.autoRetryCount != null ? { _autoRetry: options.autoRetryCount } : {})
+      } as ChatMessage & { _autoRetry?: number }
 
       if (!this.messagesBySession[id]) {
         this.messagesBySession[id] = []
@@ -1270,6 +1275,16 @@ export const useAppStore = defineStore('app', {
         if (local) {
           local.sendStatus = 'failed'
           if (local.type === 'file') local.fileStatus = '发送失败'
+          const retries = Number((local as { _autoRetry?: number })._autoRetry || 0)
+          if (retries < 2) {
+            ;(local as { _autoRetry?: number })._autoRetry = retries + 1
+            const delay = 1000 * Math.pow(2, retries)
+            window.setTimeout(() => {
+              void this.retryFailedMessage(clientMsgId).catch(() => {
+                /* 手动重试入口仍可用 */
+              })
+            }, delay)
+          }
         }
       }
 

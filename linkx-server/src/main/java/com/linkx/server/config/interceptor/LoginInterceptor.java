@@ -39,7 +39,7 @@ public class LoginInterceptor implements HandlerInterceptor {
                 throw new CustomException(401, "无效的访问令牌");
             }
 
-            tokenService.assertAccessTokenActive(token);
+            tokenService.assertAccessTokenActive(token, request.getHeader("X-Device-Id"));
             Long userId = jwtUtils.getUserIdFromToken(token);
             request.setAttribute("userId", userId);
             return true;

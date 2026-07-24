@@ -54,15 +54,13 @@ public class ImWebSocketServer implements ApplicationRunner {
                         pushService, objectMapper, deviceSessionService));
 
         ChannelFuture future = bootstrap.bind(port);
-        future.addListener(bindFuture -> {
-            if (bindFuture.isSuccess()) {
-                serverChannel = ((ChannelFuture) bindFuture).channel();
-                log.info("LinkX IM WebSocket 服务已启动，端口: {}, 路径: {}",
-                        port, linkxProperties.getIm().getWebsocketPath());
-            } else {
-                log.error("LinkX IM WebSocket 服务启动失败，端口: {}", port, bindFuture.cause());
-            }
-        });
+        future.syncUninterruptibly();
+        if (!future.isSuccess()) {
+            throw new IllegalStateException("LinkX IM WebSocket 服务启动失败，端口: " + port, future.cause());
+        }
+        serverChannel = future.channel();
+        log.info("LinkX IM WebSocket 服务已启动，端口: {}, 路径: {}",
+                port, linkxProperties.getIm().getWebsocketPath());
     }
 
     @PreDestroy

@@ -24,53 +24,46 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        String api = "/api";
-
-        // 1. 登录拦截器：先校验 JWT
+        // context-path=/api 时，DispatcherServlet 内路径不含 /api 前缀，故用 /**
         registry.addInterceptor(loginInterceptor)
-                .addPathPatterns(api + "/**")
+                .addPathPatterns("/**")
                 .excludePathPatterns(
-                        api + "/auth/login",
-                        api + "/auth/register",
-                        api + "/auth/refresh",
-                        api + "/auth/logout",
-                        api + "/auth/captcha",
-                        api + "/auth/reset-password",
-                        api + "/auth/send-reset-code",
-                        api + "/auth/verify-reset-code",
-                        api + "/auth/reset-password-by-email",
-                        api + "/cloud/share/**",
+                        "/auth/login",
+                        "/auth/register",
+                        "/auth/refresh",
+                        "/auth/logout",
+                        "/auth/captcha",
+                        "/auth/reset-password",
+                        "/auth/send-reset-code",
+                        "/auth/verify-reset-code",
+                        "/auth/reset-password-by-email",
+                        "/cloud/share/**",
                         // Swagger / OpenAPI
-                        api + "/swagger-ui/**",
-                        api + "/swagger-ui.html",
-                        api + "/v3/api-docs/**",
-                        api + "/webjars/**",
+                        "/swagger-ui/**",
+                        "/swagger-ui.html",
+                        "/v3/api-docs/**",
+                        "/webjars/**",
                         // Actuator
-                        api + "/actuator/**",
                         "/actuator/**",
                         "/error"
                 );
-        // 2. 限流拦截器：在登录拦截器之后执行（需要 userId attribute）
         registry.addInterceptor(rateLimitInterceptor)
-                .addPathPatterns(api + "/**")
+                .addPathPatterns("/**")
                 .excludePathPatterns(
-                        api + "/auth/login",
-                        api + "/auth/register",
-                        api + "/auth/refresh",
-                        api + "/auth/logout",
-                        api + "/auth/captcha",
-                        api + "/auth/reset-password",
-                        api + "/auth/send-reset-code",
-                        api + "/auth/verify-reset-code",
-                        api + "/auth/reset-password-by-email",
-                        api + "/cloud/share/**",
-                        // Swagger / OpenAPI
-                        api + "/swagger-ui/**",
-                        api + "/swagger-ui.html",
-                        api + "/v3/api-docs/**",
-                        api + "/webjars/**",
-                        // Actuator
-                        api + "/actuator/**",
+                        "/auth/login",
+                        "/auth/register",
+                        "/auth/refresh",
+                        "/auth/logout",
+                        "/auth/captcha",
+                        "/auth/reset-password",
+                        "/auth/send-reset-code",
+                        "/auth/verify-reset-code",
+                        "/auth/reset-password-by-email",
+                        "/cloud/share/**",
+                        "/swagger-ui/**",
+                        "/swagger-ui.html",
+                        "/v3/api-docs/**",
+                        "/webjars/**",
                         "/actuator/**",
                         "/error"
                 );

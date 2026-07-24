@@ -7,7 +7,13 @@ public interface TokenService {
 
     TokenVO issueTokenPair(SysUser user);
 
+    /** 签发令牌并绑定到设备（用于按设备踢下线）。 */
+    TokenVO issueTokenPair(SysUser user, String deviceId);
+
     TokenVO refreshAccessToken(String refreshToken);
+
+    /** 刷新令牌并重新绑定设备。 */
+    TokenVO refreshAccessToken(String refreshToken, String deviceId);
 
     /**
      * 登出。
@@ -26,5 +32,19 @@ public interface TokenService {
      */
     void revokeAllUserTokens(Long userId);
 
+    /**
+     * 吊销指定设备上的 access/refresh，并标记该设备已踢下线。
+     */
+    void revokeDeviceTokens(Long userId, String deviceId);
+
+    /** 设备是否处于被踢状态（未重新登录前）。 */
+    boolean isDeviceKicked(Long userId, String deviceId);
+
+    /** 登录成功后清除踢下线标记。 */
+    void clearDeviceKick(Long userId, String deviceId);
+
     void assertAccessTokenActive(String accessToken);
+
+    /** 校验 access token，并在提供 deviceId 时拒绝已踢设备。 */
+    void assertAccessTokenActive(String accessToken, String deviceId);
 }

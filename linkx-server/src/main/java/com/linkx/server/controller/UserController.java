@@ -273,7 +273,7 @@ public class UserController {
     }
 
     /**
-     * 强制下线指定设备
+     * 强制下线指定设备（吊销该端 token、断开 WS、写审计）
      */
     @DeleteMapping("/devices/{deviceId}")
     public Result<Void> logoutDevice(
@@ -283,7 +283,21 @@ public class UserController {
         if (userId == null) {
             return Result.error(401, "未登录");
         }
-        deviceSessionService.deleteDevice(userId, deviceId);
+        String username = null;
+        try {
+            String auth = request.getHeader("Authorization");
+            if (auth != null && auth.startsWith("Bearer ")) {
+                username = jwtUtils.parseToken(auth.substring(7)).get("username", String.class);
+            }
+        } catch (Exception ignored) {
+            // 审计失败不影响踢下线
+        }
+        deviceSessionService.kickDevice(
+                userId,
+                deviceId,
+                username,
+                request.getRemoteAddr(),
+                request.getHeader("User-Agent"));
         return Result.success(null);
     }
 
@@ -327,6 +341,13 @@ public class UserController {
                 .momentsBackground(emptyToNull(dto.getMomentsBackground()))
                 .favoritesViewMode(emptyToNull(dto.getFavoritesViewMode()))
                 .favoritesSort(emptyToNull(dto.getFavoritesSort()))
+                .quietHoursEnabled(dto.getQuietHoursEnabled())
+                .quietHoursStart(emptyToNull(dto.getQuietHoursStart()))
+                .quietHoursEnd(emptyToNull(dto.getQuietHoursEnd()))
+                .notifyChat(dto.getNotifyChat())
+                .notifySocial(dto.getNotifySocial())
+                .notifyMoments(dto.getNotifyMoments())
+                .notifySystem(dto.getNotifySystem())
                 .build();
         UserPreference saved = userPreferenceService.upsert(userId, patch);
         return Result.success(toPreferenceVO(saved));
@@ -353,6 +374,13 @@ public class UserController {
                 .momentsBackground(mediaUrlService.resolveAvatar(p.getMomentsBackground()))
                 .favoritesViewMode(p.getFavoritesViewMode() != null ? p.getFavoritesViewMode() : "grid")
                 .favoritesSort(p.getFavoritesSort() != null ? p.getFavoritesSort() : "newest")
+                .quietHoursEnabled(p.getQuietHoursEnabled() != null ? p.getQuietHoursEnabled() : false)
+                .quietHoursStart(p.getQuietHoursStart() != null ? p.getQuietHoursStart() : "22:00")
+                .quietHoursEnd(p.getQuietHoursEnd() != null ? p.getQuietHoursEnd() : "08:00")
+                .notifyChat(p.getNotifyChat() != null ? p.getNotifyChat() : true)
+                .notifySocial(p.getNotifySocial() != null ? p.getNotifySocial() : true)
+                .notifyMoments(p.getNotifyMoments() != null ? p.getNotifyMoments() : true)
+                .notifySystem(p.getNotifySystem() != null ? p.getNotifySystem() : true)
                 .build();
     }
 

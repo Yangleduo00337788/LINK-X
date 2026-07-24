@@ -1,14 +1,13 @@
 <script setup lang="ts">
 /**
- * 聊天记录浏览与搜索页面（服务端搜索 + 当前会话本地预览）
+ * 聊天记录浏览与搜索页面（服务端搜索 + 时间范围 + 高亮 + 当前会话本地预览）
  */
 import { computed, ref, watch } from 'vue'
-import { NIcon, NInput, NEmpty, useMessage } from 'naive-ui'
+import { NIcon, NInput, NEmpty, NDatePicker, useMessage } from 'naive-ui'
 import { ChatbubblesOutline, TimeOutline, SearchOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../../../stores/app'
 import EmptyState from '../../common/EmptyState.vue'
-import Avatar from '../../Avatar.vue'
 import { useI18n } from '../../../i18n'
 import * as chatApi from '../../../api/chat'
 
@@ -20,44 +19,73 @@ const { selectSession } = appStore
 
 const searchQuery = ref('')
 const searching = ref(false)
-const searchResults = ref<Array<{
-  sessionId: string
-  sessionName: string
-  messages: Array<{ id: string; content: string; time: string; isSelf: boolean; type: string }>
-}>>([])
+const timeRange = ref<[number, number] | null>(null)
+const searchResults = ref<
+  Array<{
+    sessionId: string
+    sessionName: string
+    messages: Array<{
+      id: string
+      content: string
+      highlight?: string
+      time: string
+      isSelf: boolean
+      type: string
+    }>
+  }>
+>([])
 
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 
-watch(searchQuery, q => {
+watch([searchQuery, timeRange], () => {
   if (searchTimer) clearTimeout(searchTimer)
-  if (!q.trim()) {
+  if (!searchQuery.value.trim()) {
     searchResults.value = []
     return
   }
   searchTimer = setTimeout(() => {
-    void runServerSearch(q.trim())
+    void runServerSearch(searchQuery.value.trim())
   }, 300)
 })
 
 async function runServerSearch(query: string) {
   searching.value = true
   try {
-    const res = await chatApi.searchMessages(query, { limit: 50 })
+    const fromTime = timeRange.value?.[0]
+    const toTime = timeRange.value
+      ? timeRange.value[1] + 24 * 60 * 60 * 1000 - 1
+      : undefined
+    const res = await chatApi.searchMessages(query, {
+      limit: 50,
+      fromTime,
+      toTime
+    })
     if (res.code !== 200 || !res.data) {
       searchResults.value = []
       return
     }
-    const map = new Map<string, {
-      sessionId: string
-      sessionName: string
-      messages: Array<{ id: string; content: string; time: string; isSelf: boolean; type: string }>
-    }>()
+    const map = new Map<
+      string,
+      {
+        sessionId: string
+        sessionName: string
+        messages: Array<{
+          id: string
+          content: string
+          highlight?: string
+          time: string
+          isSelf: boolean
+          type: string
+        }>
+      }
+    >()
     for (const hit of res.data) {
       const sid = String(hit.conversationId)
       if (!map.has(sid)) {
         map.set(sid, {
           sessionId: sid,
-          sessionName: hit.conversationName || sessions.value.find(s => s.id === sid)?.name || '会话',
+          sessionName:
+            hit.conversationName || sessions.value.find(s => s.id === sid)?.name || '会话',
           messages: []
         })
       }
@@ -72,6 +100,7 @@ async function runServerSearch(query: string) {
       map.get(sid)!.messages.push({
         id: String(hit.messageId),
         content: hit.content || hit.fileName || '',
+        highlight: hit.highlight || undefined,
         time,
         isSelf: false,
         type: hit.type || 'text'
@@ -89,9 +118,7 @@ async function runServerSearch(query: string) {
 
 const currentMessages = computed(() => {
   if (!currentSessionId.value) return []
-  return (messagesBySession.value[currentSessionId.value] || []).filter(
-    m => m.type !== 'time'
-  )
+  return (messagesBySession.value[currentSessionId.value] || []).filter(m => m.type !== 'time')
 })
 
 const currentSessionName = computed(() => {
@@ -102,7 +129,8 @@ function historyPreview(msg: (typeof currentMessages.value)[number]) {
   if (msg.type === 'file') return `${t('overlay.file')} ${msg.fileName || msg.content}`
   if (msg.type === 'image' || msg.isImage) return t('overlay.image')
   if (msg.type === 'voice') return t('overlay.voice')
-  if (msg.type === 'redPacket') return `${t('overlay.redPacket')} ${msg.redPacketGreeting || msg.content}`
+  if (msg.type === 'redPacket')
+    return `${t('overlay.redPacket')} ${msg.redPacketGreeting || msg.content}`
   return msg.content
 }
 
@@ -113,24 +141,40 @@ function goToMessage(sessionId: string) {
     message.success(t('overlay.jumpedToSession'))
   }
 }
+
+function clearTimeRange() {
+  timeRange.value = null
+}
 </script>
 
 <template>
   <div class="page-wrap history-page">
-    <!-- 搜索框 -->
     <div class="search-bar">
-      <n-input
-        v-model:value="searchQuery"
-        :placeholder="t('overlay.searchHistory')"
-        clearable
-      >
+      <n-input v-model:value="searchQuery" :placeholder="t('overlay.searchHistory')" clearable>
         <template #prefix>
           <n-icon :component="SearchOutline" />
         </template>
       </n-input>
+      <div class="time-filters">
+        <n-date-picker
+          v-model:value="timeRange"
+          type="daterange"
+          clearable
+          size="small"
+          :start-placeholder="t('overlay.searchFrom')"
+          :end-placeholder="t('overlay.searchTo')"
+        />
+        <button
+          v-if="timeRange"
+          type="button"
+          class="clear-time"
+          @click="clearTimeRange"
+        >
+          {{ t('overlay.clearTimeRange') }}
+        </button>
+      </div>
     </div>
 
-    <!-- 搜索结果 -->
     <template v-if="searchQuery.trim()">
       <section class="panel-card history-card">
         <div class="history-hero">
@@ -140,7 +184,11 @@ function goToMessage(sessionId: string) {
           <div class="history-meta">
             <h2 class="history-name">{{ t('overlay.searchResults') }}</h2>
             <p class="history-sub">
-              {{ t('overlay.resultCount', { n: searchResults.reduce((sum, r) => sum + r.messages.length, 0) }) }}
+              {{
+                t('overlay.resultCount', {
+                  n: searchResults.reduce((sum, r) => sum + r.messages.length, 0)
+                })
+              }}
             </p>
           </div>
         </div>
@@ -153,7 +201,9 @@ function goToMessage(sessionId: string) {
           <div v-for="result in searchResults" :key="result.sessionId" class="result-group">
             <div class="result-session" @click="goToMessage(result.sessionId)">
               <span class="session-name">{{ result.sessionName }}</span>
-              <span class="result-count">{{ t('overlay.countUnit', { n: result.messages.length }) }}</span>
+              <span class="result-count">{{
+                t('overlay.countUnit', { n: result.messages.length })
+              }}</span>
             </div>
             <div
               v-for="msg in result.messages.slice(0, 5)"
@@ -163,7 +213,12 @@ function goToMessage(sessionId: string) {
               @click="goToMessage(result.sessionId)"
             >
               <div class="result-bubble">
-                <p class="result-text">{{ msg.content }}</p>
+                <p
+                  v-if="msg.highlight"
+                  class="result-text"
+                  v-html="msg.highlight"
+                />
+                <p v-else class="result-text">{{ msg.content }}</p>
                 <span class="result-time">{{ msg.time }}</span>
               </div>
             </div>
@@ -175,7 +230,6 @@ function goToMessage(sessionId: string) {
       </section>
     </template>
 
-    <!-- 当前会话聊天记录 -->
     <template v-else>
       <section class="panel-card history-card">
         <div class="history-hero">
@@ -224,6 +278,25 @@ function goToMessage(sessionId: string) {
 
 .search-bar {
   margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.time-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.clear-time {
+  border: none;
+  background: transparent;
+  color: var(--lx-accent);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0;
 }
 
 .history-card {
@@ -340,6 +413,13 @@ function goToMessage(sessionId: string) {
   margin: 0;
   line-height: 1.4;
   word-break: break-word;
+}
+
+.result-text :deep(mark) {
+  background: color-mix(in srgb, var(--lx-accent) 28%, transparent);
+  color: inherit;
+  padding: 0 2px;
+  border-radius: 2px;
 }
 
 .result-time {

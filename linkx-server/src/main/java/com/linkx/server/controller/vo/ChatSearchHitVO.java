@@ -27,4 +27,6 @@ public class ChatSearchHitVO {
     private String fileName;
     private String fileUrl;
     private Long createTime;
+    /** 关键词高亮片段（已 HTML 转义，关键词包在 &lt;mark&gt; 中） */
+    private String highlight;
 }

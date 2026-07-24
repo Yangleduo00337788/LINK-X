@@ -94,11 +94,22 @@ public abstract class BaseIntegrationTest {
     }
 
     protected TestUser login(String username, String password) {
+        return login(username, password, null);
+    }
+
+    protected TestUser login(String username, String password, String deviceId) {
         try {
             String body = objectMapper.writeValueAsString(new LoginReq(username, password));
-            MvcResult result = mockMvc.perform(post("/auth/login")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(body))
+            var builder = post("/auth/login")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(body);
+            if (deviceId != null && !deviceId.isBlank()) {
+                builder = builder
+                        .header("X-Device-Id", deviceId)
+                        .header("X-Device-Name", "JUnit")
+                        .header("X-Device-Type", "Test");
+            }
+            MvcResult result = mockMvc.perform(builder)
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.code").value(200))
                     .andReturn();
@@ -110,6 +121,16 @@ public abstract class BaseIntegrationTest {
         } catch (Exception e) {
             throw new IllegalStateException("登录测试用户失败: " + username, e);
         }
+    }
+
+    protected TestUser registerAndLoginWithDevice(String nicknamePrefix, String deviceId) {
+        String username = "itu" + System.nanoTime() + USER_SEQ.incrementAndGet();
+        if (username.length() > 32) {
+            username = username.substring(0, 32);
+        }
+        String password = "Test1234abcd";
+        register(username, password, nicknamePrefix + USER_SEQ.get());
+        return login(username, password, deviceId);
     }
 
     // ---- 简单请求体（避免依赖生产 DTO 的校验注解可见性） ----

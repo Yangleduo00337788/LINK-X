@@ -146,6 +146,20 @@ function handleFrame(raw: string) {
     case 'error':
       handlers?.onError(frame.code ?? 500, frame.message ?? 'WebSocket 错误')
       break
+    case 'force_logout':
+      shouldReconnect = false
+      disconnectChatSocket()
+      void import('../api/client').then(({ clearTokens }) => clearTokens())
+      void import('../stores/app').then(({ useAppStore }) => {
+        useAppStore().$patch({
+          isLoggedIn: false,
+          isLocked: false,
+          isLoading: false,
+          authInitializing: false
+        })
+      })
+      handlers?.onError(401, frame.message ?? '设备已被强制下线')
+      break
     case 'call_invite':
     case 'call_accept':
     case 'call_reject':
@@ -189,10 +203,15 @@ export async function connectChatSocket(nextHandlers: ChatSocketHandlers) {
     return
   }
 
-  // 统一用 query 传 token + 命名子协议：Electron 把 JWT 当第二个 subprotocol 在部分内核下会握手失败；
-  // 浏览器此前已验证 query 路径可用。服务端会回写 linkx-access-token 完成协商。
+  // 统一用 query 传 token + deviceId + 命名子协议
+  const { getOrCreateDeviceId, getDeviceName, getDeviceType } = await import('./deviceId')
+  const deviceId = encodeURIComponent(getOrCreateDeviceId())
+  const deviceName = encodeURIComponent(getDeviceName())
+  const deviceType = encodeURIComponent(getDeviceType())
   const wsProtocol = 'linkx-access-token'
-  const wsUrl = `${WS_BASE}/ws?token=${encodeURIComponent(token)}`
+  const wsUrl =
+    `${WS_BASE}/ws?token=${encodeURIComponent(token)}` +
+    `&deviceId=${deviceId}&deviceName=${deviceName}&deviceType=${deviceType}`
   console.log('[WebSocket] 正在连接:', `${WS_BASE}/ws`, window.electronAPI ? '(electron)' : '(browser)')
 
   socket = new WebSocket(wsUrl, [wsProtocol])

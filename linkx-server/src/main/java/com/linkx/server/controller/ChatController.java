@@ -84,16 +84,28 @@ public class ChatController {
         return MediaStreamResponses.download(object, name);
     }
 
+    /** 重新签发消息媒体预签名 URL（过期自愈） */
+    @GetMapping("/messages/{messageId}/media-url")
+    public Result<java.util.Map<String, String>> refreshMessageMediaUrl(
+            @PathVariable String messageId,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        String url = chatService.refreshMessageMediaUrl(userId, parseId(messageId));
+        return Result.success(java.util.Map.of("url", url));
+    }
+
     @GetMapping("/search")
     public Result<List<ChatSearchHitVO>> search(
             @RequestParam String q,
             @RequestParam(required = false) String type,
             @RequestParam(required = false) String conversationId,
+            @RequestParam(required = false) Long fromTime,
+            @RequestParam(required = false) Long toTime,
             @RequestParam(defaultValue = "50") int limit,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         Long convId = conversationId != null && !conversationId.isBlank() ? parseId(conversationId) : null;
-        return Result.success(chatService.searchMessages(userId, q, type, convId, limit));
+        return Result.success(chatService.searchMessages(userId, q, type, convId, fromTime, toTime, limit));
     }
 
     @PostMapping("/sessions/{conversationId}/messages/{messageId}/recall")

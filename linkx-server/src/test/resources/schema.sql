@@ -325,6 +325,13 @@ CREATE TABLE IF NOT EXISTS user_preference (
   moments_background VARCHAR(512),
   favorites_view_mode VARCHAR(16) DEFAULT 'grid',
   favorites_sort VARCHAR(16) DEFAULT 'newest',
+  quiet_hours_enabled TINYINT NOT NULL DEFAULT 0,
+  quiet_hours_start VARCHAR(8) DEFAULT '22:00',
+  quiet_hours_end VARCHAR(8) DEFAULT '08:00',
+  notify_chat TINYINT NOT NULL DEFAULT 1,
+  notify_social TINYINT NOT NULL DEFAULT 1,
+  notify_moments TINYINT NOT NULL DEFAULT 1,
+  notify_system TINYINT NOT NULL DEFAULT 1,
   create_time DATETIME,
   update_time DATETIME
 );

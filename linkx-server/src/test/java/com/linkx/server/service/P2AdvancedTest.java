@@ -38,6 +38,8 @@ class P2AdvancedTest extends BaseIntegrationTest {
     private ConferenceService conferenceService;
     @Autowired
     private DeviceSessionService deviceSessionService;
+    @Autowired
+    private TokenService tokenService;
 
     @Nested
     @DisplayName("合规导出")
@@ -185,6 +187,24 @@ class P2AdvancedTest extends BaseIntegrationTest {
 
             List<DeviceVO> devices = deviceSessionService.listByUser(user.userId, null);
             assertTrue(devices.stream().noneMatch(d -> deviceId.equals(d.getId())));
+        }
+
+        @Test
+        @DisplayName("kickDevice 应吊销设备 token 并拒绝同设备访问")
+        void kickDevice_revokesToken() throws Exception {
+            String deviceId = "kick-" + UUID.randomUUID();
+            TestUser user = registerAndLoginWithDevice("p2kick", deviceId);
+
+            deviceSessionService.kickDevice(user.userId, deviceId, user.username, "127.0.0.1", "JUnit");
+
+            assertTrue(tokenService.isDeviceKicked(user.userId, deviceId));
+            List<DeviceVO> devices = deviceSessionService.listByUser(user.userId, deviceId);
+            assertTrue(devices.stream().noneMatch(d -> deviceId.equals(d.getId())));
+
+            mockMvc.perform(get("/user/devices")
+                            .header("Authorization", user.bearer())
+                            .header("X-Device-Id", deviceId))
+                    .andExpect(jsonPath("$.code").value(401));
         }
     }
 

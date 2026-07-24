@@ -69,6 +69,27 @@ public class UserPreference implements Serializable {
     /** 收藏排序：newest / oldest / title */
     private String favoritesSort;
 
+    /** 免打扰时段开关 */
+    private Boolean quietHoursEnabled;
+
+    /** 免打扰开始（HH:mm，如 22:00） */
+    private String quietHoursStart;
+
+    /** 免打扰结束（HH:mm，如 08:00，可跨午夜） */
+    private String quietHoursEnd;
+
+    /** 聊天消息桌面提醒 */
+    private Boolean notifyChat;
+
+    /** 社交（好友申请/群邀请）提醒 */
+    private Boolean notifySocial;
+
+    /** 友链（点赞/评论/@）提醒 */
+    private Boolean notifyMoments;
+
+    /** 系统（日程等）提醒 */
+    private Boolean notifySystem;
+
     @Column(onInsertValue = "NOW()")
     private Date createTime;
 
