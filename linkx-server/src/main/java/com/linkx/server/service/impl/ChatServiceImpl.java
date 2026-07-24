@@ -118,14 +118,15 @@ public class ChatServiceImpl implements ChatService {
         });
 
         Map<Long, SysUser> peerUserMap = loadPeerUsers(userId, conversations);
-        Map<Long, SysUserRelation> relationMap = loadRelationMap(userId, peerUserMap.keySet());
+        Set<Long> peerUserIds = peerUserMap.values().stream()
+                .map(SysUser::getId)
+                .collect(Collectors.toSet());
+        Map<Long, SysUserRelation> relationMap = loadRelationMap(userId, peerUserIds);
         Map<Long, String> remarkMap = new HashMap<>();
         for (Map.Entry<Long, SysUserRelation> e : relationMap.entrySet()) {
             remarkMap.put(e.getKey(), e.getValue().getRemark());
         }
-        Map<Long, Boolean> showOnlineMap = userPreferenceService.batchShowsOnlineStatus(
-                peerUserMap.values().stream().map(SysUser::getId).collect(Collectors.toSet())
-        );
+        Map<Long, Boolean> showOnlineMap = userPreferenceService.batchShowsOnlineStatus(peerUserIds);
         Set<Long> groupIds = conversations.stream()
                 .filter(c -> c.getType() == ImConversation.TYPE_GROUP)
                 .map(ImConversation::getId)
@@ -146,11 +147,12 @@ public class ChatServiceImpl implements ChatService {
                     continue;
                 }
                 SysUserRelation relation = relationMap.get(peer.getId());
-                if (relation == null) {
-                    continue;
-                }
-                boolean blocked = Objects.equals(relation.getStatus(), RELATION_STATUS_BLOCKED);
-                if (!blocked && !Objects.equals(relation.getStatus(), RELATION_STATUS_NORMAL)) {
+                // 无关系记录时仍展示（陌生人会话）；仅隐藏非正常且非拉黑的异常状态
+                boolean blocked = relation != null
+                        && Objects.equals(relation.getStatus(), RELATION_STATUS_BLOCKED);
+                if (relation != null
+                        && !blocked
+                        && !Objects.equals(relation.getStatus(), RELATION_STATUS_NORMAL)) {
                     continue;
                 }
                 boolean showOnline = !Boolean.FALSE.equals(showOnlineMap.get(peer.getId()));
