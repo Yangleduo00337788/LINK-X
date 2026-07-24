@@ -69,3 +69,10 @@ router.beforeEach(() => {
 
 // 挂载到 index.html 中的 #app 节点
 app.mount('#app')
+
+// 浏览器弱网专项：?e2eWeakNet=1 时挂载 Playwright 探针
+import('./utils/e2eWeakNetBridge')
+  .then(m => m.installE2eWeakNetBridge())
+  .catch(() => {
+    /* ignore */
+  })
