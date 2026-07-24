@@ -27,8 +27,11 @@ import com.linkx.server.im.ImChannelManager;
 import com.linkx.server.service.ChatService;
 import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.MediaUrlService;
+import com.linkx.server.service.MessageStormService;
 import com.linkx.server.service.SensitiveWordService;
 import com.linkx.server.service.UserPreferenceService;
+import com.linkx.server.service.AuditLogService;
+import com.linkx.server.entity.SysAuditLog;
 import com.mybatisflex.core.logicdelete.LogicDeleteManager;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
@@ -75,6 +78,8 @@ public class ChatServiceImpl implements ChatService {
     private final UserPreferenceService userPreferenceService;
     private final ImChannelManager imChannelManager;
     private final SensitiveWordService sensitiveWordService;
+    private final MessageStormService messageStormService;
+    private final AuditLogService auditLogService;
 
     @Override
     public List<ConversationVO> listConversations(Long userId) {
@@ -207,16 +212,14 @@ public class ChatServiceImpl implements ChatService {
         assertConversationMember(userId, conversationId);
         int pageSize = limit <= 0 ? DEFAULT_MESSAGE_LIMIT : Math.min(limit, MAX_MESSAGE_LIMIT);
 
+        // 雪花 ID 单调递增：用 id 游标避免同秒 create_time 导致漏页/重页
         QueryWrapper query = QueryWrapper.create()
                 .where(ImMessage::getConversationId).eq(conversationId)
-                .orderBy(ImMessage::getCreateTime, false)
+                .orderBy(ImMessage::getId, false)
                 .limit(pageSize);
 
         if (beforeMessageId != null) {
-            ImMessage before = messageMapper.selectOneById(beforeMessageId);
-            if (before != null && before.getCreateTime() != null) {
-                query.and(ImMessage::getCreateTime).lt(before.getCreateTime());
-            }
+            query.and(ImMessage::getId).lt(beforeMessageId);
         }
 
         List<ImMessage> messages = messageMapper.selectListByQuery(query);
@@ -224,7 +227,7 @@ public class ChatServiceImpl implements ChatService {
             return List.of();
         }
 
-        messages.sort(Comparator.comparing(ImMessage::getCreateTime));
+        messages.sort(Comparator.comparing(ImMessage::getId));
         Set<Long> senderIds = messages.stream().map(ImMessage::getSenderId).collect(Collectors.toSet());
         Map<Long, SysUser> senderMap = sysUserMapper.selectListByQuery(
                 QueryWrapper.create().where(SysUser::getId).in(senderIds)
@@ -284,6 +287,18 @@ public class ChatServiceImpl implements ChatService {
         String content = resolveContent(msgType, dto);
         if (ImMessage.TYPE_TEXT.equals(msgType) && content != null) {
             SensitiveWordService.FilterResult filterResult = sensitiveWordService.filter(content);
+            if (!filterResult.matchedWords().isEmpty()) {
+                auditLogService.log(
+                        SysAuditLog.OperationType.SENSITIVE_WORD_MATCH,
+                        "敏感词命中: " + String.join(",", filterResult.matchedWords()),
+                        userId,
+                        null,
+                        null,
+                        null,
+                        !filterResult.blocked(),
+                        filterResult.blocked() ? "blocked" : (filterResult.filtered() ? "filtered" : "alert")
+                );
+            }
             if (filterResult.blocked()) {
                 throw new CustomException(400, "消息包含违禁内容，无法发送");
             }
@@ -705,6 +720,7 @@ public class ChatServiceImpl implements ChatService {
      * 对 500+ 人以上的大群实施每用户消息频率限制，防止消息风暴影响系统稳定性。
      * - 500-1000 人群：每用户每分钟最多 10 条
      * - 1000+ 人群：每用户每分钟最多 5 条
+     * 超限事件落库 {@code im_message_storm_event}。
      * </p>
      */
     private void checkGroupMessageStormLimit(Long userId, Long conversationId) {
@@ -712,25 +728,12 @@ public class ChatServiceImpl implements ChatService {
         String countStr = redisTemplate.opsForValue().get(stormKey + ":count");
         int memberCount = countStr != null ? Integer.parseInt(countStr) : (int) getMemberCount(conversationId);
 
-        // 缓存群成员数量（60 秒过期）
         if (countStr == null) {
             redisTemplate.opsForValue().set(stormKey + ":count", String.valueOf(memberCount),
                     Duration.ofSeconds(60));
         }
 
-        if (memberCount < 500) {
-            return; // 小群不限流
-        }
-
-        int maxPerMinute = memberCount >= 1000 ? 5 : 10;
-        String userStormKey = stormKey + ":user:" + userId;
-        Long count = redisTemplate.opsForValue().increment(userStormKey);
-        if (count != null && count == 1L) {
-            redisTemplate.expire(userStormKey, Duration.ofMinutes(1));
-        }
-        if (count != null && count > maxPerMinute) {
-            throw new CustomException(429, "群消息发送过于频繁，请稍后再试（" + memberCount + "人以上大群限制每分钟" + maxPerMinute + "条）");
-        }
+        messageStormService.checkAndRecordGroupStorm(userId, conversationId, memberCount);
     }
 
     private int getMemberCountInternal(Long conversationId) {

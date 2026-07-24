@@ -61,6 +61,8 @@ public class SysAuditLog implements Serializable {
         CALL_ACCEPT("接听通话"),
         CALL_HANGUP("挂断通话"),
         CALL_DEVICE_SWITCH("通话切换设备"),
+        // P2: 消息风暴
+        MESSAGE_STORM("消息风暴检测"),
         // P2: 数据合规
         DATA_EXPORT("数据导出"),
         DATA_PURGE("数据清除"),

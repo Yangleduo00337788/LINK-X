@@ -2,6 +2,7 @@ package com.linkx.server.service.impl;
 
 import com.linkx.server.common.InputSanitizer;
 import com.linkx.server.common.JwtUtils;
+import com.linkx.server.common.SensitiveDataMasker;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.controller.dto.LoginDTO;
 import com.linkx.server.controller.dto.RegisterDTO;
@@ -307,20 +308,22 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
                 code,
                 java.time.Duration.ofMinutes(expireMinutes)
         );
-        // 关键：打印写入的验证码（dev 环境排查用），生产可用 level=WARN 控制
+        // 调试：打印脱敏后的验证码痕迹（dev 排查用），禁止明文落盘
         log.info("[验证码持久化] key='{}', value='{}' (len={}), expireMinutes={}",
-                redisKey, code, code.length(), expireMinutes);
+                redisKey, SensitiveDataMasker.maskCode(code), code.length(), expireMinutes);
 
         // 发送邮件：捕获更具体的异常类型便于排查
         try {
             emailService.sendPasswordResetCode(user.getEmail(), username, code);
-            log.info("密码重置验证码已发送到用户 {} 的邮箱 {}", username, user.getEmail());
+            log.info("密码重置验证码已发送到用户 {} 的邮箱 {}", username,
+                    SensitiveDataMasker.maskEmail(user.getEmail()));
         } catch (org.springframework.mail.MailAuthenticationException e) {
             // 授权码错误（最常见问题）
             log.error("发送密码重置邮件失败：QQ 邮箱授权码错误或过期，错误: {}", e.getMessage(), e);
         } catch (org.springframework.mail.MailParseException e) {
             // 邮箱格式非法
-            log.error("发送密码重置邮件失败：用户 {} 的邮箱格式非法: {}", username, user.getEmail(), e);
+            log.error("发送密码重置邮件失败：用户 {} 的邮箱格式非法: {}", username,
+                    SensitiveDataMasker.maskEmail(user.getEmail()), e);
         } catch (org.springframework.mail.MailSendException e) {
             log.error("发送密码重置邮件失败：邮件被服务器拒收/网络异常, 错误: {}", e.getMessage(), e);
         } catch (Exception e) {

@@ -5,6 +5,7 @@ import com.linkx.server.mapper.ImConversationMemberMapper;
 import com.linkx.server.mapper.ImMessageMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.ChatService;
+import com.linkx.server.service.MessageStormService;
 import io.netty.channel.Channel;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.channel.group.ChannelGroup;
@@ -40,6 +41,8 @@ class WebSocketNormalLinkTest {
     private SysUserMapper sysUserMapper;
     @Mock
     private StringRedisTemplate redisTemplate;
+    @Mock
+    private MessageStormService messageStormService;
 
     private ImChannelManager channelManager;
     private ImMessagePushService pushService;
@@ -50,7 +53,7 @@ class WebSocketNormalLinkTest {
         channelManager = new ImChannelManager();
         pushService = new ImMessagePushService(
                 chatService, memberMapper, messageMapper, sysUserMapper,
-                channelManager, objectMapper, Runnable::run, redisTemplate);
+                channelManager, objectMapper, Runnable::run, redisTemplate, messageStormService);
     }
 
     @Nested

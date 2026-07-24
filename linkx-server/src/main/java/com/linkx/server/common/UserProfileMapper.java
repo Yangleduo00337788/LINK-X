@@ -43,8 +43,8 @@ public final class UserProfileMapper {
         boolean phoneBound = StringUtils.hasText(user.getPhone());
         vo.setEmailBound(emailBound);
         vo.setPhoneBound(phoneBound);
-        vo.setEmail(emailBound ? maskEmail(user.getEmail()) : null);
-        vo.setPhone(phoneBound ? maskPhone(user.getPhone()) : null);
+        vo.setEmail(emailBound ? SensitiveDataMasker.maskEmail(user.getEmail()) : null);
+        vo.setPhone(phoneBound ? SensitiveDataMasker.maskPhone(user.getPhone()) : null);
         return vo;
     }
 
@@ -66,26 +66,13 @@ public final class UserProfileMapper {
                 .build();
     }
 
+    /** @deprecated 使用 {@link SensitiveDataMasker#maskEmail(String)} */
     public static String maskEmail(String email) {
-        if (!StringUtils.hasText(email) || !email.contains("@")) {
-            return email;
-        }
-        String[] parts = email.split("@", 2);
-        String local = parts[0];
-        String domain = parts[1];
-        if (local.length() <= 1) {
-            return "*@" + domain;
-        }
-        if (local.length() == 2) {
-            return local.charAt(0) + "*@" + domain;
-        }
-        return local.charAt(0) + "***" + local.charAt(local.length() - 1) + "@" + domain;
+        return SensitiveDataMasker.maskEmail(email);
     }
 
+    /** @deprecated 使用 {@link SensitiveDataMasker#maskPhone(String)} */
     public static String maskPhone(String phone) {
-        if (!StringUtils.hasText(phone) || phone.length() < 7) {
-            return phone;
-        }
-        return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 4);
+        return SensitiveDataMasker.maskPhone(phone);
     }
 }

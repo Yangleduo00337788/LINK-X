@@ -27,7 +27,7 @@ jobs:
       - name: Run regression suite
         run: >
           mvn -B -q
-          -Dtest=MessageFlowTest,ImMainLinkE2ETest,P1DebtTest,P2AdvancedTest,P2QualityGateTest,ChatSearchEnhanceTest,GroupInvitationControllerTest,ChatControllerTest
+          -Dtest=MessageFlowTest,ImMainLinkE2ETest,P1DebtTest,P2AdvancedTest,P2QualityGateTest,P2DataGovernanceTest,ChatSearchEnhanceTest,GroupInvitationControllerTest,ChatControllerTest
           test
 
   client-unit:

@@ -136,6 +136,22 @@ CREATE TABLE IF NOT EXISTS im_message (
   deleted TINYINT NOT NULL DEFAULT 0
 );
 
+CREATE INDEX IF NOT EXISTS idx_im_message_conv_id ON im_message(conversation_id, id);
+
+-- 消息风暴事件表（Redis 限流之外的持久化）
+CREATE TABLE IF NOT EXISTS im_message_storm_event (
+  id BIGINT NOT NULL PRIMARY KEY,
+  user_id BIGINT,
+  conversation_id BIGINT,
+  event_type VARCHAR(32) NOT NULL,
+  message_count INT,
+  window_seconds INT,
+  member_count INT,
+  create_time DATETIME
+);
+
+CREATE INDEX IF NOT EXISTS idx_storm_event_user ON im_message_storm_event(user_id, create_time);
+
 -- 登录审计表
 CREATE TABLE IF NOT EXISTS sys_login_audit (
   id BIGINT NOT NULL PRIMARY KEY,

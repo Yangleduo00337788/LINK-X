@@ -6,6 +6,7 @@ import com.linkx.server.mapper.ImConversationMemberMapper;
 import com.linkx.server.mapper.ImMessageMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.ChatService;
+import com.linkx.server.service.MessageStormService;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,6 +41,8 @@ class ImMessagePushServiceTest {
     private ImChannelManager channelManager;
     @Mock
     private StringRedisTemplate redisTemplate;
+    @Mock
+    private MessageStormService messageStormService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private ImMessagePushService pushService;
@@ -48,7 +51,7 @@ class ImMessagePushServiceTest {
     void setUp() {
         pushService = new ImMessagePushService(
                 chatService, memberMapper, messageMapper, sysUserMapper,
-                channelManager, objectMapper, Runnable::run, redisTemplate);
+                channelManager, objectMapper, Runnable::run, redisTemplate, messageStormService);
     }
 
     @Test

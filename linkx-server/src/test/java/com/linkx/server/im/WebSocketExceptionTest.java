@@ -5,6 +5,7 @@ import com.linkx.server.mapper.ImConversationMemberMapper;
 import com.linkx.server.mapper.ImMessageMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.ChatService;
+import com.linkx.server.service.MessageStormService;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,6 +36,8 @@ class WebSocketExceptionTest {
     private SysUserMapper sysUserMapper;
     @Mock
     private StringRedisTemplate redisTemplate;
+    @Mock
+    private MessageStormService messageStormService;
 
     private ImChannelManager channelManager;
     private ImMessagePushService pushService;
@@ -45,7 +48,7 @@ class WebSocketExceptionTest {
         channelManager = new ImChannelManager();
         pushService = new ImMessagePushService(
                 chatService, memberMapper, messageMapper, sysUserMapper,
-                channelManager, objectMapper, Runnable::run, redisTemplate);
+                channelManager, objectMapper, Runnable::run, redisTemplate, messageStormService);
     }
 
     @Nested

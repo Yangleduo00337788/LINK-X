@@ -10,6 +10,7 @@ import com.linkx.server.mapper.ImConversationMemberMapper;
 import com.linkx.server.mapper.ImMessageMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.ChatService;
+import com.linkx.server.service.MessageStormService;
 import com.mybatisflex.core.query.QueryWrapper;
 import io.netty.channel.Channel;
 import io.netty.channel.group.ChannelGroup;
@@ -45,6 +46,7 @@ public class ImMessagePushService {
     private final ObjectMapper objectMapper;
     private final Executor imPushExecutor;
     private final StringRedisTemplate redisTemplate;
+    private final MessageStormService messageStormService;
 
     /**
      * 处理发送消息（异步，event-loop 立即返回）。
@@ -64,8 +66,8 @@ public class ImMessagePushService {
         dto.setFileUrl(frame.getFileUrl());
         dto.setClientMsgId(frame.getClientMsgId());
 
-        // 消息风暴检测（持久化）
-        if (detectMessageStorm(senderId)) {
+        // 消息风暴检测（Redis 限流 + DB 落库）
+        if (messageStormService.checkAndRecordUserStorm(senderId)) {
             sendErrorToSender(senderId, new CustomException(429, "发送过于频繁，请稍后再试"));
             return;
         }
@@ -641,38 +643,17 @@ public class ImMessagePushService {
         }
     }
 
-    // ==================== 消息风暴检测（持久化） ====================
-
-    private static final String STORM_KEY_PREFIX = "linkx:msg:storm:";
-    private static final int STORM_THRESHOLD = 30; // 10 秒内超过 30 条触发风暴检测
-    private static final int STORM_WINDOW_SECONDS = 10;
+    // ==================== 消息风暴检测（委托 MessageStormService） ====================
 
     /**
-     * 检测用户是否触发消息风暴（10 秒内发送超过阈值）。
-     * 检测结果持久化到 Redis，支持跨实例感知。
-     *
-     * @return true 表示触发风暴检测，应限流
+     * @deprecated 使用 {@link MessageStormService#checkAndRecordUserStorm(Long)}
      */
     public boolean detectMessageStorm(Long userId) {
-        String key = STORM_KEY_PREFIX + userId;
-        Long count = redisTemplate.opsForValue().increment(key);
-        if (count != null && count == 1) {
-            redisTemplate.expire(key, java.time.Duration.ofSeconds(STORM_WINDOW_SECONDS));
-        }
-        if (count != null && count > STORM_THRESHOLD) {
-            log.warn("消息风暴检测: userId={}, count={}", userId, count);
-            // 持久化风暴记录
-            String stormLogKey = "linkx:msg:storm:log:" + userId;
-            redisTemplate.opsForList().rightPush(stormLogKey,
-                    String.valueOf(System.currentTimeMillis()));
-            redisTemplate.expire(stormLogKey, java.time.Duration.ofHours(1));
-            return true;
-        }
-        return false;
+        return messageStormService.checkAndRecordUserStorm(userId);
     }
 
     /**
-     * 获取用户风暴记录（最近 1 小时）
+     * 获取用户风暴 Redis 时间戳列表（兼容旧接口；正式报表请查 im_message_storm_event）。
      */
     public List<String> getStormLogs(Long userId) {
         String stormLogKey = "linkx:msg:storm:log:" + userId;
