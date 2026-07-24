@@ -12,6 +12,7 @@ vi.mock('./client', () => ({
 
 import { apiClient } from './client'
 import {
+  fetchAuthConfig,
   fetchCaptcha,
   login,
   register,
@@ -25,6 +26,12 @@ import {
 
 describe('api/auth', () => {
   beforeEach(() => vi.clearAllMocks())
+
+  it('fetchAuthConfig 应调用 apiClient', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ code: 200, data: { captchaEnabled: false } } as any)
+    await fetchAuthConfig()
+    expect(apiClient.get).toHaveBeenCalledWith('/auth/config')
+  })
 
   it('fetchCaptcha 应调用 apiClient', async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ code: 200, data: null } as any)

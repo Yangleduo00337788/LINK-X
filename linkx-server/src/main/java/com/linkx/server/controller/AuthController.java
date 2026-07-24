@@ -12,6 +12,7 @@ import com.linkx.server.controller.dto.ResetPasswordDTO;
 import com.linkx.server.controller.dto.ResetPasswordByEmailRequest;
 import com.linkx.server.controller.dto.SendResetCodeRequest;
 import com.linkx.server.controller.dto.VerifyResetCodeRequest;
+import com.linkx.server.controller.vo.AuthConfigVO;
 import com.linkx.server.controller.vo.CaptchaVO;
 import com.linkx.server.controller.vo.TokenVO;
 import com.linkx.server.exception.CustomException;
@@ -43,6 +44,14 @@ public class AuthController {
     @GetMapping("/captcha")
     public Result<CaptchaVO> captcha() {
         return Result.success(captchaService.generate());
+    }
+
+    /** 匿名可读：客户端据此隐藏/展示验证码，与 CAPTCHA_ENABLED 对齐 */
+    @GetMapping("/config")
+    public Result<AuthConfigVO> config() {
+        return Result.success(AuthConfigVO.builder()
+                .captchaEnabled(captchaService.isEnabled())
+                .build());
     }
 
     @AuditAction(operationType = "REGISTER", description = "用户注册")

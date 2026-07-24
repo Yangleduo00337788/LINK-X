@@ -20,6 +20,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 @Slf4j
 @Service
@@ -246,13 +247,13 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
     @Override
     public void resetPassword(Long userId, String captchaId, String captchaCode, String newPassword) {
-        // 强制要求验证码必须开启（生产环境默认 true）
-        if (!captchaService.isEnabled()) {
-            throw new CustomException(403, "密码重置功能暂时不可用");
+        // 已登录用户改密：验证码开启时强制校验；CAPTCHA_ENABLED=false 时跳过（身份已由 token 保证）
+        if (captchaService.isEnabled()) {
+            if (!StringUtils.hasText(captchaId) || !StringUtils.hasText(captchaCode)) {
+                throw new CustomException(400, "请填写验证码");
+            }
+            captchaService.validateForOwner(String.valueOf(userId), captchaId, captchaCode);
         }
-
-        // 验证验证码（原子验证 + ownerId 绑定校验，防止横向越权）
-        captchaService.validateForOwner(String.valueOf(userId), captchaId, captchaCode);
 
         // 通过 userId 直接查找用户（不暴露用户是否存在，统一返回模糊错误）
         SysUser user = getById(userId);
@@ -297,8 +298,8 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             return;
         }
 
-        // 生成 6 位数字验证码（线程安全的 SecureRandom + 显式格式化避免边界值变成 5 位）
-        String code = String.format("%06d", java.util.concurrent.ThreadLocalRandom.current().nextInt(0, 1_000_000));
+        // 生成 6 位数字验证码（SecureRandom，避免可预测熵源）
+        String code = String.format("%06d", new java.security.SecureRandom().nextInt(1_000_000));
 
         // 验证码存储到 Redis：key = "linkx:reset-email:{username}", value = "{code}"
         int expireMinutes = linkxProperties.getMail().getCodeExpireMinutes();

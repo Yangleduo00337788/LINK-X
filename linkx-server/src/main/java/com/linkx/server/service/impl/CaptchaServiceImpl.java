@@ -27,14 +27,9 @@ public class CaptchaServiceImpl implements CaptchaService {
 
     private static final String CAPTCHA_KEY_PREFIX = "linkx:captcha:";
     private static final Duration CAPTCHA_TTL = Duration.ofMinutes(5);
+    /** 排除易混淆字符 I/O/0/1，仅大写 + 数字，便于人工辨认 */
     private static final String CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    private static final String ALPHANUMERIC_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-    private static final int SIMPLE_CODE_LENGTH = 4;
-    private static final int ENHANCED_CODE_LENGTH = 6;
-
-    // 兼容旧代码，使用简单验证码
-    @SuppressWarnings("unused")
-    private static final int CODE_LENGTH = SIMPLE_CODE_LENGTH;
+    private static final int CODE_LENGTH = 4;
 
     // Lua 脚本：原子性地获取并删除验证码，防止竞态条件
     private static final String VALIDATE_CAPTCHA_LUA_SCRIPT =
@@ -74,20 +69,20 @@ public class CaptchaServiceImpl implements CaptchaService {
 
     @Override
     public CaptchaVO generate() {
-        String code = randomEnhancedCode();
+        String code = randomCode();
         String captchaId = UUID.randomUUID().toString();
         redisTemplate.opsForValue().set(CAPTCHA_KEY_PREFIX + captchaId, code, CAPTCHA_TTL);
 
         return CaptchaVO.builder()
                 .captchaId(captchaId)
-                .imageBase64(renderEnhancedImageBase64(code))
+                .imageBase64(renderImageBase64(code))
                 .expireSeconds(CAPTCHA_TTL.toSeconds())
                 .build();
     }
 
     @Override
     public CaptchaVO generateForOwner(String ownerId) {
-        String code = randomEnhancedCode();
+        String code = randomCode();
         String captchaId = UUID.randomUUID().toString();
         // 将验证码与 ownerId 绑定存储：key = "linkx:captcha:owner:{captchaId}", value = "{ownerId}:{code}"
         String boundValue = ownerId + ":" + code;
@@ -95,7 +90,7 @@ public class CaptchaServiceImpl implements CaptchaService {
 
         return CaptchaVO.builder()
                 .captchaId(captchaId)
-                .imageBase64(renderEnhancedImageBase64(code))
+                .imageBase64(renderImageBase64(code))
                 .expireSeconds(CAPTCHA_TTL.toSeconds())
                 .build();
     }
@@ -166,109 +161,50 @@ public class CaptchaServiceImpl implements CaptchaService {
     }
 
     /**
-     * 生成增强版验证码：6位字母数字混合
-     * 相比简单版，增加大小写混合，提高暴力破解难度
+     * 渲染 4 位验证码：留足边距，轻微旋转，避免被前端缩略裁切后看不全。
      */
-    private String randomEnhancedCode() {
-        StringBuilder sb = new StringBuilder(ENHANCED_CODE_LENGTH);
-        ThreadLocalRandom random = ThreadLocalRandom.current();
-        for (int i = 0; i < ENHANCED_CODE_LENGTH; i++) {
-            sb.append(ALPHANUMERIC_CHARS.charAt(random.nextInt(ALPHANUMERIC_CHARS.length())));
-        }
-        return sb.toString();
-    }
-
     private String renderImageBase64(String code) {
-        int width = 120;
-        int height = 40;
+        int width = 140;
+        int height = 44;
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = image.createGraphics();
         try {
-            g.setColor(new Color(245, 247, 250));
-            g.fillRect(0, 0, width, height);
-            g.setFont(new Font("Arial", Font.BOLD, 24));
-            ThreadLocalRandom random = ThreadLocalRandom.current();
-            for (int i = 0; i < 6; i++) {
-                g.setColor(new Color(random.nextInt(180), random.nextInt(180), random.nextInt(180)));
-                g.drawLine(random.nextInt(width), random.nextInt(height), random.nextInt(width), random.nextInt(height));
-            }
-            for (int i = 0; i < code.length(); i++) {
-                g.setColor(new Color(20 + random.nextInt(110), 20 + random.nextInt(110), 20 + random.nextInt(110)));
-                g.drawString(String.valueOf(code.charAt(i)), 18 + i * 24, 28 + random.nextInt(6));
-            }
-        } finally {
-            g.dispose();
-        }
-
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            ImageIO.write(image, "png", baos);
-            return "data:image/png;base64," + Base64.getEncoder().encodeToString(baos.toByteArray());
-        } catch (Exception e) {
-            throw new CustomException(500, "验证码生成失败");
-        }
-    }
-
-    /**
-     * 渲染增强版验证码图片
-     * - 6位字符，宽度增加
-     * - 添加更多干扰线
-     * - 字符随机旋转
-     * - 添加背景噪点
-     */
-    private String renderEnhancedImageBase64(String code) {
-        int width = 160;
-        int height = 50;
-        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-        Graphics2D g = image.createGraphics();
-        try {
-            // 设置抗锯齿
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
-            // 渐变背景
-            GradientPaint gradient = new GradientPaint(0, 0, new Color(245, 247, 250), width, height, new Color(235, 240, 245));
+            GradientPaint gradient = new GradientPaint(
+                    0, 0, new Color(245, 247, 250), width, height, new Color(232, 238, 245));
             g.setPaint(gradient);
             g.fillRect(0, 0, width, height);
 
             ThreadLocalRandom random = ThreadLocalRandom.current();
-
-            // 添加干扰点（噪点）
-            for (int i = 0; i < 100; i++) {
-                g.setColor(new Color(random.nextInt(200), random.nextInt(200), random.nextInt(200), random.nextInt(100) + 50));
-                g.fillOval(random.nextInt(width), random.nextInt(height), random.nextInt(3) + 1, random.nextInt(3) + 1);
+            for (int i = 0; i < 40; i++) {
+                g.setColor(new Color(180 + random.nextInt(50), 185 + random.nextInt(40), 195 + random.nextInt(40), 80));
+                g.fillOval(random.nextInt(width), random.nextInt(height), 2, 2);
             }
-
-            // 添加干扰线
-            for (int i = 0; i < 8; i++) {
-                g.setColor(new Color(random.nextInt(180), random.nextInt(180), random.nextInt(180), random.nextInt(80) + 30));
-                g.setStroke(new BasicStroke(random.nextFloat() * 1.5f + 0.5f));
+            for (int i = 0; i < 4; i++) {
+                g.setColor(new Color(160 + random.nextInt(60), 165 + random.nextInt(50), 175 + random.nextInt(50), 90));
+                g.setStroke(new BasicStroke(1.0f));
                 g.drawLine(random.nextInt(width), random.nextInt(height), random.nextInt(width), random.nextInt(height));
             }
 
-            // 绘制字符（带旋转）
-            g.setFont(new Font("Arial", Font.BOLD, 28));
+            g.setFont(new Font("Arial", Font.BOLD, 26));
+            int slot = width / Math.max(code.length(), 1);
             for (int i = 0; i < code.length(); i++) {
-                char c = code.charAt(i);
-                String charStr = String.valueOf(c);
+                String charStr = String.valueOf(code.charAt(i));
+                g.setColor(new Color(20 + random.nextInt(70), 25 + random.nextInt(70), 40 + random.nextInt(80)));
 
-                // 随机颜色
-                int r = 20 + random.nextInt(80);
-                int gr = 20 + random.nextInt(80);
-                int b = 20 + random.nextInt(80);
-                g.setColor(new Color(r, gr, b));
-
-                // 保存当前变换
-                AffineTransform oldTransform = g.getTransform();
-
-                // 随机旋转 (-30° 到 +30°)
-                double angle = (random.nextDouble() - 0.5) * Math.PI / 3;
-                AffineTransform transform = new AffineTransform();
-                transform.rotate(angle, 20 + i * 25 + 12, 28);
-                g.setTransform(transform);
-
-                g.drawString(charStr, 20 + i * 25, 33);
-
-                // 恢复变换
-                g.setTransform(oldTransform);
+                AffineTransform old = g.getTransform();
+                double cx = slot * i + slot / 2.0;
+                double cy = height / 2.0;
+                // 轻微倾斜，避免旋转过大把字甩出画布
+                double angle = (random.nextDouble() - 0.5) * Math.PI / 9;
+                g.rotate(angle, cx, cy);
+                FontMetrics fm = g.getFontMetrics();
+                int x = (int) (cx - fm.stringWidth(charStr) / 2.0);
+                int y = (int) (cy + fm.getAscent() / 2.0 - 2);
+                g.drawString(charStr, x, y);
+                g.setTransform(old);
             }
         } finally {
             g.dispose();

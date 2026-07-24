@@ -277,8 +277,22 @@ const passwordForm = ref({
 })
 const passwordLoading = ref(false)
 const passwordCaptchaLoading = ref(false)
+/** 与 CAPTCHA_ENABLED / GET /auth/config 对齐 */
+const captchaEnabled = ref(true)
+
+async function loadAuthConfig() {
+  try {
+    const res = await authApi.fetchAuthConfig()
+    if (res.code === 200 && res.data) {
+      captchaEnabled.value = !!res.data.captchaEnabled
+    }
+  } catch {
+    captchaEnabled.value = true
+  }
+}
 
 async function loadResetCaptcha() {
+  if (!captchaEnabled.value) return
   passwordCaptchaLoading.value = true
   try {
     const res = await authApi.fetchResetPasswordCaptcha()
@@ -305,11 +319,11 @@ async function handleChangePassword() {
     message.warning(t('account.passwordMismatch'))
     return
   }
-  if (passwordForm.value.newPassword.length < 6) {
+  if (passwordForm.value.newPassword.length < 8) {
     message.warning(t('account.passwordTooShort'))
     return
   }
-  if (!passwordForm.value.captchaId || !passwordForm.value.captchaCode) {
+  if (captchaEnabled.value && (!passwordForm.value.captchaId || !passwordForm.value.captchaCode)) {
     message.warning(t('account.captchaRequired'))
     return
   }
@@ -317,9 +331,13 @@ async function handleChangePassword() {
   passwordLoading.value = true
   try {
     const res = await authApi.resetPassword({
-      captchaId: passwordForm.value.captchaId,
-      captchaCode: passwordForm.value.captchaCode,
-      newPassword: passwordForm.value.newPassword
+      newPassword: passwordForm.value.newPassword,
+      ...(captchaEnabled.value
+        ? {
+            captchaId: passwordForm.value.captchaId,
+            captchaCode: passwordForm.value.captchaCode
+          }
+        : {})
     })
     if (res.code === 200) {
       message.success(t('account.passwordChanged'))
@@ -379,23 +397,36 @@ async function exportMyData() {
   }
 }
 
+const showPurgeModal = ref(false)
+const purgePassword = ref('')
+const purgeLoading = ref(false)
+
+function openPurgeModal() {
+  purgePassword.value = ''
+  showPurgeModal.value = true
+}
+
+async function submitPurgeData() {
+  if (!purgePassword.value) {
+    message.warning(t('account.passwordRequired'))
+    return
+  }
+  purgeLoading.value = true
+  try {
+    const res = await complianceApi.purgeUserData(purgePassword.value)
+    if (res.code !== 200) throw new Error(res.message || 'purge failed')
+    showPurgeModal.value = false
+    message.success(t('account.purgeOk'))
+  } catch (e: unknown) {
+    const ax = e as { response?: { data?: { message?: string } }; message?: string }
+    message.error(ax.response?.data?.message || ax.message || t('account.purgeFail'))
+  } finally {
+    purgeLoading.value = false
+  }
+}
+
 function confirmPurgeData() {
-  dialog.warning({
-    title: t('account.purgeData'),
-    content: t('account.purgeConfirm'),
-    positiveText: t('common.confirm'),
-    negativeText: t('common.cancel'),
-    onPositiveClick: async () => {
-      try {
-        const res = await complianceApi.purgeUserData()
-        if (res.code !== 200) throw new Error(res.message || 'purge failed')
-        message.success(t('account.purgeOk'))
-      } catch (e: unknown) {
-        const ax = e as { response?: { data?: { message?: string } }; message?: string }
-        message.error(ax.response?.data?.message || ax.message || t('account.purgeFail'))
-      }
-    }
-  })
+  openPurgeModal()
 }
 
 const showDeviceModal = ref(false)
@@ -438,6 +469,7 @@ async function handleLogoutDevice(deviceId: string) {
 }
 
 onMounted(() => {
+  void loadAuthConfig()
   void fetchBalance()
 })
 </script>
@@ -574,7 +606,7 @@ onMounted(() => {
             show-password-on="click"
           />
         </div>
-        <div class="form-item">
+        <div v-if="captchaEnabled" class="form-item">
           <label>{{ t('account.captcha') }}</label>
           <div class="captcha-row">
             <n-input v-model:value="passwordForm.captchaCode" :placeholder="t('account.captchaPh')" />
@@ -718,6 +750,34 @@ onMounted(() => {
           <n-button @click="showEmailModal = false">{{ t('common.cancel') }}</n-button>
           <n-button type="primary" :loading="emailLoading" @click="submitBindEmail">
             {{ t('account.confirmBind') }}
+          </n-button>
+        </div>
+      </template>
+    </n-modal>
+
+    <n-modal
+      v-model:show="showPurgeModal"
+      preset="card"
+      :title="t('account.purgeData')"
+      to="body"
+      :z-index="11000"
+      style="max-width: 420px"
+    >
+      <p class="delete-warn">{{ t('account.purgeConfirm') }}</p>
+      <div class="form-item">
+        <label>{{ t('account.loginPassword') }}</label>
+        <n-input
+          v-model:value="purgePassword"
+          type="password"
+          show-password-on="click"
+          :placeholder="t('account.passwordPh')"
+        />
+      </div>
+      <template #footer>
+        <div class="modal-footer">
+          <n-button @click="showPurgeModal = false">{{ t('common.cancel') }}</n-button>
+          <n-button type="warning" :loading="purgeLoading" @click="submitPurgeData">
+            {{ t('common.confirm') }}
           </n-button>
         </div>
       </template>

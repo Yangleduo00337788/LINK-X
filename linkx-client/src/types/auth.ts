@@ -34,6 +34,11 @@ export interface CaptchaData {
   expireSeconds: string | number
 }
 
+/** GET /auth/config */
+export interface AuthConfig {
+  captchaEnabled: boolean
+}
+
 export interface LoginRequest {
   username: string
   password: string

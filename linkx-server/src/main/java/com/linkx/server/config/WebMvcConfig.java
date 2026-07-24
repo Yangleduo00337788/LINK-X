@@ -33,7 +33,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/auth/refresh",
                         "/auth/logout",
                         "/auth/captcha",
-                        "/auth/reset-password",
+                        "/auth/config",
+                        // /auth/reset-password 需登录（拦截器写入 userId），不可排除
                         "/auth/send-reset-code",
                         "/auth/verify-reset-code",
                         "/auth/reset-password-by-email",
@@ -42,13 +43,15 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/health",
                         "/health/**",
                         "/app/version",
-                        // Swagger / OpenAPI
+                        // Swagger / OpenAPI（生产用 SPRINGDOC_ENABLED=false 关闭；开发可匿名访问）
                         "/swagger-ui/**",
                         "/swagger-ui.html",
                         "/v3/api-docs/**",
                         "/webjars/**",
-                        // Actuator
-                        "/actuator/**",
+                        // Actuator：仅放行健康探针，禁止 metrics/prometheus 匿名
+                        "/actuator/health",
+                        "/actuator/health/**",
+                        "/actuator/info",
                         "/error"
                 );
         registry.addInterceptor(rateLimitInterceptor)
@@ -59,7 +62,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/auth/refresh",
                         "/auth/logout",
                         "/auth/captcha",
-                        "/auth/reset-password",
+                        "/auth/config",
                         "/auth/send-reset-code",
                         "/auth/verify-reset-code",
                         "/auth/reset-password-by-email",
@@ -70,7 +73,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/swagger-ui.html",
                         "/v3/api-docs/**",
                         "/webjars/**",
-                        "/actuator/**",
+                        "/actuator/health",
+                        "/actuator/health/**",
+                        "/actuator/info",
                         "/error"
                 );
     }
@@ -94,7 +99,11 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "Accept",
                         "Origin",
                         "User-Agent",
-                        "X-Requested-With"
+                        "X-Requested-With",
+                        // 客户端 apiClient 拦截器对每个请求都会带上设备头，须放行否则预检失败（验证码等匿名接口也会挂）
+                        "X-Device-Id",
+                        "X-Device-Name",
+                        "X-Device-Type"
                 )
                 .exposedHeaders("Authorization")
                 .allowCredentials(true)

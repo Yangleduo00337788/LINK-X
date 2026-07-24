@@ -496,7 +496,7 @@ export default {
     captchaFail: '获取验证码失败',
     passwordRequiredNew: '请输入新密码',
     passwordMismatch: '两次输入的新密码不一致',
-    passwordTooShort: '新密码长度不能少于6位',
+    passwordTooShort: '新密码长度不能少于8位',
     captchaRequired: '请先完成图形验证码',
     passwordChanged: '密码修改成功',
     passwordChangeFail: '修改密码失败',

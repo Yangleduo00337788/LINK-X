@@ -76,6 +76,20 @@ const loginButtonText = computed(() => {
 const captchaId = ref('')
 const captchaImage = ref('')
 const captchaCode = ref('')
+/** 与后端 CAPTCHA_ENABLED 对齐；默认 true，拉取 /auth/config 后再更新 */
+const captchaEnabled = ref(true)
+
+async function loadAuthConfig() {
+  try {
+    const res = await authApi.fetchAuthConfig()
+    if (res.code === 200 && res.data) {
+      captchaEnabled.value = !!res.data.captchaEnabled
+    }
+  } catch {
+    // 拉不到配置时保持展示验证码，避免误关
+    captchaEnabled.value = true
+  }
+}
 
 const showForgot = ref(false)
 const forgotStep = ref<'input' | 'verify' | 'reset'>('input')
@@ -160,7 +174,7 @@ function onDocClick() {
 }
 
 async function loadCaptcha(target: 'login' | 'register' = 'login') {
-  if (target !== 'login') return
+  if (target !== 'login' || !captchaEnabled.value) return
   try {
     const res = await authApi.fetchCaptcha()
     if (res.code === 200 && res.data) {
@@ -255,27 +269,29 @@ onMounted(() => {
   document.addEventListener('click', onDocClick)
   window.addEventListener('focus', onWindowFocus)
 
-  const fromRegister = applyRegisteredUsername()
-  if (!fromRegister) {
-    if (username.value) {
+  void loadAuthConfig().then(() => {
+    const fromRegister = applyRegisteredUsername()
+    if (!fromRegister) {
+      if (username.value) {
+        loginMode.value = 'quick'
+      } else {
+        loginMode.value = 'password'
+        requestAnimationFrame(() => {
+          void loadCaptcha('login')
+        })
+      }
+    }
+
+    // 自动登录：先检网络，再登录（文案：检测网络中 → 自动登录中）
+    if (!fromRegister && autoLogin.value && rememberMe.value && username.value) {
       loginMode.value = 'quick'
-    } else {
-      loginMode.value = 'password'
-      requestAnimationFrame(() => {
-        void loadCaptcha('login')
+      void nextTick().then(() => {
+        requestAnimationFrame(() => {
+          void runAutoLoginFlow()
+        })
       })
     }
-  }
-
-  // 自动登录：先检网络，再登录（文案：检测网络中 → 自动登录中）
-  if (!fromRegister && autoLogin.value && rememberMe.value && username.value) {
-    loginMode.value = 'quick'
-    void nextTick().then(() => {
-      requestAnimationFrame(() => {
-        void runAutoLoginFlow()
-      })
-    })
-  }
+  })
 })
 
 onUnmounted(() => {
@@ -320,7 +336,7 @@ async function handleLogin() {
     message.warning(passErr)
     return
   }
-  if (!captchaCode.value.trim()) {
+  if (captchaEnabled.value && !captchaCode.value.trim()) {
     message.warning(t('login.enterCaptcha'))
     return
   }
@@ -329,8 +345,9 @@ async function handleLogin() {
     await login(user, pass, {
       rememberMe: rememberMe.value,
       autoLogin: autoLogin.value,
-      captchaId: captchaId.value,
-      captchaCode: captchaCode.value.trim()
+      ...(captchaEnabled.value
+        ? { captchaId: captchaId.value, captchaCode: captchaCode.value.trim() }
+        : {})
     })
     message.success(t('login.welcomeBack', { user }))
   } catch (error: unknown) {
@@ -582,9 +599,15 @@ async function handleForgot() {
           @keyup.enter="handleLogin"
         />
 
-        <div class="captcha-row">
+        <div v-if="captchaEnabled" class="captcha-row">
+          <div
+            v-if="!captchaImage"
+            class="captcha-img captcha-img--placeholder"
+            :title="t('login.refreshCaptcha')"
+            @click="!autoLogging && loadCaptcha('login')"
+          />
           <img
-            v-if="captchaImage"
+            v-else
             :src="captchaImage"
             :alt="t('login.captcha')"
             class="captcha-img"
@@ -597,7 +620,7 @@ async function handleForgot() {
             :placeholder="t('login.captcha')"
             class="lx-field captcha-input"
             :bordered="false"
-            maxlength="6"
+            maxlength="4"
             :disabled="autoLogging"
             @keyup.enter="handleLogin"
           />
@@ -1071,14 +1094,19 @@ async function handleForgot() {
 }
 
 .captcha-img {
-  width: 90px;
+  width: 110px;
   height: 38px;
   border-radius: 10px;
   cursor: pointer;
   border: none;
   background: #fff;
   flex-shrink: 0;
-  object-fit: cover;
+  object-fit: contain;
+}
+
+.captcha-img--placeholder {
+  background: linear-gradient(135deg, #e8eef5 0%, #f5f7fa 100%);
+  border: 1px dashed #c5d0dc;
 }
 
 .captcha-input {

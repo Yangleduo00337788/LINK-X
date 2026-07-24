@@ -11,13 +11,12 @@ import lombok.Data;
 @Data
 public class ResetPasswordDTO {
 
-    @NotBlank(message = "验证码不能为空")
-    private String captchaCode;
-
-    @NotBlank(message = "验证码ID不能为空")
-    private String captchaId;
-
     @NotBlank(message = "新密码不能为空")
     @Size(min = 8, max = 64, message = "密码长度需在8-64位之间")
     private String newPassword;
+
+    /** 图形验证码（CAPTCHA_ENABLED=true 时必填；关闭时由服务端跳过校验） */
+    private String captchaCode;
+
+    private String captchaId;
 }

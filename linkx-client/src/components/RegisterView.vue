@@ -22,12 +22,25 @@ const regEmail = ref('')
 const regCaptchaCode = ref('')
 const regCaptchaId = ref('')
 const regCaptchaImage = ref('')
+const captchaEnabled = ref(true)
 const submitting = ref(false)
 
 const compact = computed(() => isElectron)
 const submitLabel = computed(() => (submitting.value ? t('register.submitting') : t('register.submit')))
 
+async function loadAuthConfig() {
+  try {
+    const res = await authApi.fetchAuthConfig()
+    if (res.code === 200 && res.data) {
+      captchaEnabled.value = !!res.data.captchaEnabled
+    }
+  } catch {
+    captchaEnabled.value = true
+  }
+}
+
 async function loadCaptcha() {
+  if (!captchaEnabled.value) return
   try {
     const res = await authApi.fetchCaptcha()
     if (res.code === 200 && res.data) {
@@ -77,7 +90,7 @@ async function handleRegister() {
     message.warning(t('register.invalidEmail'))
     return
   }
-  if (!regCaptchaCode.value.trim()) {
+  if (captchaEnabled.value && !regCaptchaCode.value.trim()) {
     message.warning(t('register.enterCaptcha'))
     return
   }
@@ -89,8 +102,9 @@ async function handleRegister() {
       password: pass,
       nickname,
       email,
-      captchaId: regCaptchaId.value,
-      captchaCode: regCaptchaCode.value.trim()
+      ...(captchaEnabled.value
+        ? { captchaId: regCaptchaId.value, captchaCode: regCaptchaCode.value.trim() }
+        : {})
     })
     if (res.code === 200) {
       message.success(t('register.success'))
@@ -114,8 +128,10 @@ async function handleRegister() {
 }
 
 onMounted(() => {
-  requestAnimationFrame(() => {
-    void loadCaptcha()
+  void loadAuthConfig().then(() => {
+    requestAnimationFrame(() => {
+      void loadCaptcha()
+    })
   })
 })
 </script>
@@ -164,7 +180,7 @@ onMounted(() => {
           :bordered="false"
         />
 
-        <div class="captcha-row">
+        <div v-if="captchaEnabled" class="captcha-row">
           <img
             v-if="regCaptchaImage"
             :src="regCaptchaImage"
@@ -179,7 +195,7 @@ onMounted(() => {
             :placeholder="t('register.captchaPh')"
             class="lx-field captcha-input"
             :bordered="false"
-            maxlength="6"
+            maxlength="4"
             @keyup.enter="handleRegister"
           />
           <n-button quaternary circle @click="loadCaptcha">
@@ -333,14 +349,14 @@ onMounted(() => {
 }
 
 .captcha-img {
-  width: 96px;
+  width: 110px;
   height: 40px;
   border-radius: 10px;
   cursor: pointer;
   border: none;
   background: #fff;
   flex-shrink: 0;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .captcha-input {

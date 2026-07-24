@@ -494,7 +494,7 @@ export default {
     captchaFail: 'Failed to load captcha',
     passwordRequiredNew: 'Enter a new password',
     passwordMismatch: 'Passwords do not match',
-    passwordTooShort: 'Password must be at least 6 characters',
+    passwordTooShort: 'Password must be at least 8 characters',
     captchaRequired: 'Complete the captcha first',
     passwordChanged: 'Password updated',
     passwordChangeFail: 'Failed to change password',

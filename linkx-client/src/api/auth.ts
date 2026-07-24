@@ -1,5 +1,6 @@
 import type {
   ApiResult,
+  AuthConfig,
   CaptchaData,
   LoginRequest,
   RegisterRequest,
@@ -12,6 +13,11 @@ import { apiClient } from './client'
 
 export function fetchCaptcha() {
   return apiClient.get<never, ApiResult<CaptchaData>>('/auth/captcha')
+}
+
+/** 登录前读取鉴权开关（是否展示图形验证码） */
+export function fetchAuthConfig() {
+  return apiClient.get<never, ApiResult<AuthConfig>>('/auth/config')
 }
 
 export function login(payload: LoginRequest) {
