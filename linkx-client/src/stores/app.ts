@@ -8,10 +8,12 @@ import { defineStore } from 'pinia'
 // 核心业务类型
 import type { NavKey, ChatSession, ChatMessage, ContactItem } from '../types'
 import * as chatApi from '../api/chat'
+import * as friendApi from '../api/friend'
 import {
   connectChatSocket,
   disconnectChatSocket,
   sendChatMessage,
+  sendDeliveryReceipt,
   isChatSocketConnected,
   ensureChatSocketConnected,
   resetChatSocketReconnect
@@ -299,15 +301,39 @@ export const useAppStore = defineStore('app', {
         if (session.isReal) {
           void this.loadSessionMessages(session.id).then(() => {
             if (needRecover) this.recoverAtMeMessageId(session.id)
+            void this.reportSessionRead(session.id)
           })
         } else if (needRecover) {
           this.recoverAtMeMessageId(session.id)
         }
       } else if (session.isReal) {
-        void this.loadSessionMessages(session.id)
+        void this.loadSessionMessages(session.id).then(() => {
+          void this.reportSessionRead(session.id)
+        })
       }
       if (session.isReal) {
         void this.loadSessionDraft(session.id)
+      }
+    },
+
+    /** 向服务端上报已读游标（清服务端未读并广播 readReceipt） */
+    async reportSessionRead(sessionId: string) {
+      if (!sessionId) return
+      const msgs = this.messagesBySession[sessionId] || []
+      let lastId = ''
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        const m = msgs[i]
+        if (!m?.id || m.type === 'time' || m.type === 'system') continue
+        // 仅雪花数字 ID 可上报；乐观 UUID 跳过
+        if (!/^\d+$/.test(m.id)) continue
+        lastId = m.id
+        break
+      }
+      if (!lastId) return
+      try {
+        await chatApi.markAsRead(sessionId, lastId)
+      } catch (e) {
+        console.warn('上报已读失败:', e)
       }
     },
 
@@ -538,7 +564,9 @@ export const useAppStore = defineStore('app', {
             atMeMessageId: prev.atMeMessageId,
             atMeNeedAck: prev.atMeNeedAck,
             muted: s.muted ?? prev.muted,
-            pinned: s.pinned ?? prev.pinned
+            pinned: s.pinned ?? prev.pinned,
+            important: s.important ?? prev.important,
+            blocked: s.blocked ?? prev.blocked
           }
         })
         this.chatInitialized = true
@@ -702,7 +730,10 @@ export const useAppStore = defineStore('app', {
         },
         onCallEvent: (action: string, data: Record<string, unknown>) => {
           void import('./call').then(({ useCallStore }) => {
-            useCallStore().handleRemoteEvent(action, data as import('../api/call').CallEventPayload)
+            useCallStore().handleRemoteEvent(
+              action,
+              data as unknown as import('../api/call').CallEventPayload
+            )
           })
         },
         onCustomAction: (action: string, data: Record<string, unknown>) => {
@@ -754,6 +785,14 @@ export const useAppStore = defineStore('app', {
       // 而前端会话 id 是字符串，需要统一为字符串进行比较和查找
       const sessionId = String(message.conversationId)
       const chatMsg = messageToChatMessage(message, sessionId)
+      const me = this.userProfile.userId
+      const fromSelf =
+        !!message.isSelf || (!!me && String(message.senderId) === String(me))
+
+      // 接收端确认送达，驱动发送方「已送达」
+      if (!fromSelf && message.type !== 'system' && chatMsg.id && /^\d+$/.test(chatMsg.id)) {
+        sendDeliveryReceipt(chatMsg.id)
+      }
 
       if (!this.messagesBySession[sessionId]) {
         this.messagesBySession[sessionId] = []
@@ -770,9 +809,6 @@ export const useAppStore = defineStore('app', {
         session.time = chatMsg.time
         // 系统提示不计未读、不响铃
         if (!exists && message.type !== 'system') {
-          const me = this.userProfile.userId
-          const fromSelf =
-            !!message.isSelf || (!!me && String(message.senderId) === String(me))
           const mentioned =
             !!session.isGroup &&
             !fromSelf &&
@@ -800,6 +836,9 @@ export const useAppStore = defineStore('app', {
             ) {
               session.unread = (session.unread || 0) + 1
             }
+          } else if (!fromSelf) {
+            // 当前会话在看：同步上报已读
+            void this.reportSessionRead(sessionId)
           }
         }
       } else {
@@ -1004,8 +1043,12 @@ export const useAppStore = defineStore('app', {
       for (const m of msgs) {
         if (!m.isSelf) continue
         if (m.id === lastReadMessageId || Number(m.id) <= Number(lastReadMessageId)) {
-          if (m.sendStatus === 'sent' || m.sendStatus === 'delivered') {
-            m.sendStatus = 'delivered'
+          if (
+            m.sendStatus === 'sent' ||
+            m.sendStatus === 'delivered' ||
+            m.sendStatus === 'sending'
+          ) {
+            m.sendStatus = 'read'
           }
         }
       }
@@ -1144,10 +1187,26 @@ export const useAppStore = defineStore('app', {
       }
     },
 
-    /** 切换会话拉黑/屏蔽状态（屏蔽后无法发送） */
-    toggleSessionBlock(sessionId: string) {
+    /** 切换会话拉黑/屏蔽状态（云端同步） */
+    async toggleSessionBlock(sessionId: string) {
       const s = this.sessions.find(x => x.id === sessionId)
-      if (s) s.blocked = !s.blocked
+      if (!s || s.isGroup) return
+      const peerId = s.peerUserId
+      if (!peerId) return
+      const prev = !!s.blocked
+      s.blocked = !prev
+      try {
+        const res = prev
+          ? await friendApi.unblockFriend(peerId)
+          : await friendApi.blockFriend(peerId)
+        if (res.code !== 200) {
+          s.blocked = prev
+          throw new Error(res.message || '操作失败')
+        }
+      } catch (e) {
+        s.blocked = prev
+        throw e
+      }
     },
 
     /**

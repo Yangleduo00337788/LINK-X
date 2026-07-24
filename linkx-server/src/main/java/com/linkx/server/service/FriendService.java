@@ -24,4 +24,13 @@ public interface FriendService {
     List<FriendItemVO> listFriends(Long userId);
 
     void deleteFriend(Long userId, Long friendId);
+
+    /** 屏蔽好友（status=已拉黑，会话仍可见但不可发消息） */
+    void blockFriend(Long userId, Long friendId);
+
+    /** 取消屏蔽 */
+    void unblockFriend(Long userId, Long friendId);
+
+    /** 当前用户是否已屏蔽对方 */
+    boolean isBlocked(Long userId, Long friendId);
 }

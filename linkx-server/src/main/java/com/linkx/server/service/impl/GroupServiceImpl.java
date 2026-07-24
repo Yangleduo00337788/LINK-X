@@ -7,20 +7,24 @@ import com.linkx.server.controller.dto.MuteMemberDTO;
 import com.linkx.server.controller.dto.UpdateGroupDTO;
 import com.linkx.server.controller.vo.ConversationVO;
 import com.linkx.server.controller.vo.GroupConversationVO;
+import com.linkx.server.controller.vo.GroupJoinRequestVO;
 import com.linkx.server.controller.vo.GroupMemberAvatarVO;
 import com.linkx.server.controller.vo.GroupMemberVO;
 import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.entity.ImConversation;
 import com.linkx.server.entity.ImConversationMember;
+import com.linkx.server.entity.MessageNotification;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.mapper.ImConversationMapper;
 import com.linkx.server.mapper.ImConversationMemberMapper;
+import com.linkx.server.mapper.MessageNotificationMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.ChatService;
 import com.linkx.server.service.GroupService;
 import com.linkx.server.service.MediaUrlService;
+import com.linkx.server.service.MessageNotificationService;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.core.update.UpdateChain;
 import lombok.RequiredArgsConstructor;
@@ -55,6 +59,10 @@ public class GroupServiceImpl implements GroupService {
     private final MediaUrlService mediaUrlService;
     private final ChatService chatService;
     private final ImMessagePushService imPushService;
+    private final MessageNotificationService notificationService;
+    private final MessageNotificationMapper notificationMapper;
+
+    private static final String NOTIFY_TYPE_GROUP_JOIN_REQUEST = "group_join_request";
 
     @Override
     @Transactional
@@ -960,11 +968,22 @@ public class GroupServiceImpl implements GroupService {
             }
             SysUser applicant = sysUserMapper.selectOneById(applicantId);
             emitSystemTip(userId, conversationId, displayName(applicant) + " 已加入群聊");
+            imPushService.pushToUser(applicantId, "notification_refresh", Map.of(
+                    "type", "group_join_approved",
+                    "conversationId", String.valueOf(conversationId),
+                    "groupName", group.getName() != null ? group.getName() : "群聊"
+            ));
         } else {
             SysUser operator = sysUserMapper.selectOneById(userId);
             SysUser applicant = sysUserMapper.selectOneById(applicantId);
             emitSystemTip(userId, conversationId, displayName(operator) + " 拒绝了 " + displayName(applicant) + " 的入群申请");
+            imPushService.pushToUser(applicantId, "notification_refresh", Map.of(
+                    "type", "group_join_rejected",
+                    "conversationId", String.valueOf(conversationId),
+                    "groupName", group.getName() != null ? group.getName() : "群聊"
+            ));
         }
+        markJoinRequestNotificationsRead(conversationId, applicantId);
     }
 
     @Override
@@ -999,10 +1018,95 @@ public class GroupServiceImpl implements GroupService {
             SysUser user = sysUserMapper.selectOneById(userId);
             emitSystemTip(userId, conversationId, displayName(user) + " 加入了群聊");
         } else {
-            // 需审批，通知群主/管理员
+            // 需审批：通知群主/管理员，并写入可审批的通知记录
             SysUser user = sysUserMapper.selectOneById(userId);
-            String tip = displayName(user) + " 申请加入群聊" + (message != null && !message.isBlank() ? "：" + message : "");
-            emitSystemTip(userId, conversationId, tip);
+            String tip = displayName(user) + " 申请加入群聊"
+                    + (message != null && !message.isBlank() ? "：" + message : "");
+            String content = (message != null && !message.isBlank()) ? message.trim() : "申请加入群聊";
+            List<ImConversationMember> admins = memberMapper.selectListByQuery(
+                    QueryWrapper.create()
+                            .where(ImConversationMember::getConversationId).eq(conversationId)
+                            .and(ImConversationMember::getDeleted).eq(0)
+                            .and(ImConversationMember::getRole).in(
+                                    ImConversationMember.ROLE_OWNER,
+                                    ImConversationMember.ROLE_ADMIN
+                            )
+            );
+            String avatar = mediaUrlService.resolve(user != null ? user.getAvatar() : null);
+            for (ImConversationMember admin : admins) {
+                // 去重：同一申请人未读申请不重复刷
+                long pending = notificationMapper.selectCountByQuery(
+                        QueryWrapper.create()
+                                .where(MessageNotification::getUserId).eq(admin.getUserId())
+                                .and(MessageNotification::getType).eq(NOTIFY_TYPE_GROUP_JOIN_REQUEST)
+                                .and(MessageNotification::getRelatedId).eq(conversationId)
+                                .and(MessageNotification::getSenderId).eq(userId)
+                                .and(MessageNotification::getReadStatus).eq(0)
+                );
+                if (pending > 0) {
+                    continue;
+                }
+                notificationService.create(
+                        admin.getUserId(),
+                        userId,
+                        displayName(user),
+                        avatar,
+                        NOTIFY_TYPE_GROUP_JOIN_REQUEST,
+                        conversationId,
+                        content
+                );
+                imPushService.pushToUser(admin.getUserId(), "notification_refresh", Map.of(
+                        "type", NOTIFY_TYPE_GROUP_JOIN_REQUEST,
+                        "conversationId", String.valueOf(conversationId),
+                        "applicantId", String.valueOf(userId)
+                ));
+            }
+            // 申请人尚非成员，系统提示用群主身份落库
+            Long tipSender = group.getOwnerId() != null ? group.getOwnerId() : admins.stream()
+                    .map(ImConversationMember::getUserId)
+                    .findFirst()
+                    .orElse(userId);
+            emitSystemTip(tipSender, conversationId, tip);
+        }
+    }
+
+    @Override
+    public List<GroupJoinRequestVO> listJoinRequests(Long userId, Long conversationId) {
+        assertGroupAdmin(userId, conversationId);
+        List<MessageNotification> list = notificationMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(MessageNotification::getUserId).eq(userId)
+                        .and(MessageNotification::getType).eq(NOTIFY_TYPE_GROUP_JOIN_REQUEST)
+                        .and(MessageNotification::getRelatedId).eq(conversationId)
+                        .and(MessageNotification::getReadStatus).eq(0)
+                        .orderBy(MessageNotification::getCreateTime, false)
+        );
+        List<GroupJoinRequestVO> result = new ArrayList<>();
+        for (MessageNotification n : list) {
+            if (n.getSenderId() == null) continue;
+            result.add(GroupJoinRequestVO.builder()
+                    .applicantId(n.getSenderId())
+                    .applicantNickname(n.getSenderName())
+                    .applicantAvatar(mediaUrlService.resolve(n.getSenderAvatar()))
+                    .message(n.getContent())
+                    .createTime(n.getCreateTime() != null ? n.getCreateTime().getTime() : null)
+                    .notificationId(n.getId())
+                    .build());
+        }
+        return result;
+    }
+
+    private void markJoinRequestNotificationsRead(Long conversationId, Long applicantId) {
+        List<MessageNotification> list = notificationMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(MessageNotification::getType).eq(NOTIFY_TYPE_GROUP_JOIN_REQUEST)
+                        .and(MessageNotification::getRelatedId).eq(conversationId)
+                        .and(MessageNotification::getSenderId).eq(applicantId)
+                        .and(MessageNotification::getReadStatus).eq(0)
+        );
+        for (MessageNotification n : list) {
+            n.setReadStatus(1);
+            notificationMapper.update(n);
         }
     }
 

@@ -111,6 +111,9 @@ public interface GroupService {
     /** 申请入群 */
     void requestJoin(Long userId, Long conversationId, String message);
 
+    /** 当前管理员视角的待审批入群申请 */
+    java.util.List<com.linkx.server.controller.vo.GroupJoinRequestVO> listJoinRequests(Long userId, Long conversationId);
+
     // ==================== 群公告已读统计 ====================
 
     /** 标记群公告已读 */

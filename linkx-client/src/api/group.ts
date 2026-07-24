@@ -216,3 +216,38 @@ export function setInvitePolicy(conversationId: string, policy: string) {
     policy
   })
 }
+
+export interface GroupJoinRequestItem {
+  applicantId: string
+  applicantNickname?: string
+  applicantAvatar?: string
+  message?: string
+  createTime?: string | number
+  notificationId?: string
+}
+
+/** 申请加入群聊（开启入群审批时通知管理员） */
+export function requestJoin(conversationId: string, message?: string) {
+  return apiClient.post<never, ApiResult<null>>(`/group/${conversationId}/join-request`, {
+    message
+  })
+}
+
+/** 管理员查看待审批入群申请 */
+export function listJoinRequests(conversationId: string) {
+  return apiClient.get<never, ApiResult<GroupJoinRequestItem[]>>(
+    `/group/${conversationId}/join-requests`
+  )
+}
+
+/** 审批入群申请 */
+export function handleJoinRequest(
+  conversationId: string,
+  applicantId: string,
+  approve: boolean
+) {
+  return apiClient.post<never, ApiResult<null>>(
+    `/group/${conversationId}/join-request/${applicantId}`,
+    { approve }
+  )
+}

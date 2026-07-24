@@ -40,3 +40,13 @@ export function listFriends() {
 export function deleteFriend(friendId: string) {
   return apiClient.delete<never, ApiResult<null>>(`/friend/${friendId}`)
 }
+
+/** 屏蔽/拉黑好友（关系仍在，status=已拉黑） */
+export function blockFriend(friendId: string) {
+  return apiClient.post<never, ApiResult<null>>(`/friend/${friendId}/block`)
+}
+
+/** 取消屏蔽 */
+export function unblockFriend(friendId: string) {
+  return apiClient.post<never, ApiResult<null>>(`/friend/${friendId}/unblock`)
+}

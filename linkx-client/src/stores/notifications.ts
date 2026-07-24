@@ -366,16 +366,25 @@ export const useNotificationsStore = defineStore('notifications', {
         type === 'friend_accepted' ||
         type === 'friend_rejected' ||
         type === 'friend_deleted' ||
+        type === 'friend_blocked' ||
+        type === 'friend_unblocked' ||
         !type
       ) {
         tasks.push(this.fetchFriendRequests())
       }
-      if (type === 'group_invitation' || !type) {
+      if (
+        type === 'group_invitation' ||
+        type === 'group_join_request' ||
+        type === 'group_join_approved' ||
+        type === 'group_join_rejected' ||
+        !type
+      ) {
         tasks.push(this.fetchGroupInvitations())
       }
       if (
         type.startsWith('moments_') ||
         type === 'calendar_remind' ||
+        type === 'group_join_request' ||
         !type
       ) {
         tasks.push(this.fetchMessageNotifications(), this.fetchNotificationCount())
@@ -383,9 +392,18 @@ export const useNotificationsStore = defineStore('notifications', {
 
       await Promise.all(tasks)
 
-      if (type === 'friend_request' || type === 'group_invitation') {
+      if (
+        type === 'friend_request' ||
+        type === 'group_invitation' ||
+        type === 'group_join_request'
+      ) {
         const { notifySocialEvent } = await import('../utils/messageNotify')
-        notifySocialEvent(type)
+        notifySocialEvent(type === 'group_join_request' ? 'group_invitation' : type)
+      }
+      if (type === 'friend_blocked' || type === 'friend_unblocked' || type === 'friend_deleted') {
+        void import('./app').then(({ useAppStore }) => {
+          void useAppStore().loadChatSessions()
+        })
       }
 
       if (type === 'friend_accepted' || type === 'friend_deleted') {

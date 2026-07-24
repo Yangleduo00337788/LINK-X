@@ -209,6 +209,26 @@ export const useConferenceStore = defineStore('conference', {
       }
     },
 
+    /**
+     * 转发 WebRTC 信令（offer/answer/ice），供后续 mesh 或对端协商使用。
+     * 当前会议房以管理面+本地预览为主，仍完整对接 /conference/signal。
+     */
+    async sendSignal(payload: {
+      signalType: 'offer' | 'answer' | 'ice-candidate'
+      sdp?: string
+      candidate?: string
+      targetUserId?: string | number
+    }) {
+      if (!this.conferenceId) return
+      await conferenceApi.signal({
+        conferenceId: this.conferenceId,
+        signalType: payload.signalType,
+        sdp: payload.sdp,
+        candidate: payload.candidate,
+        targetUserId: payload.targetUserId
+      })
+    },
+
     async switchAudioDevice(deviceId: string) {
       this.selectedAudioId = deviceId
       await this.ensureLocalMedia()

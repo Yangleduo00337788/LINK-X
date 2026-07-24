@@ -59,10 +59,16 @@ function setMute(val: boolean) {
 }
 
 /** 设置屏蔽；开启时提示无法发消息 */
-function setBlock(val: boolean) {
+async function setBlock(val: boolean) {
   if (!currentSessionId.value || !!currentSession.value?.blocked === val) return
-  toggleSessionBlock(currentSessionId.value)
-  if (val) message.info(t('modals.blockedInfo'))
+  try {
+    await toggleSessionBlock(currentSessionId.value)
+    if (val) message.info(t('modals.blockedInfo'))
+    else message.success(t('modals.unblockedInfo'))
+  } catch (e: unknown) {
+    const ax = e as { response?: { data?: { message?: string } }; message?: string }
+    message.error(ax.response?.data?.message || ax.message || t('common.fail'))
+  }
 }
 
 /** 点击遮罩关闭抽屉 */

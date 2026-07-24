@@ -87,6 +87,24 @@ public class FriendController {
         return Result.success(null);
     }
 
+    @PostMapping("/{friendId}/block")
+    public Result<Void> blockFriend(
+            @PathVariable String friendId,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        friendService.blockFriend(userId, parseRequestId(friendId));
+        return Result.success(null);
+    }
+
+    @PostMapping("/{friendId}/unblock")
+    public Result<Void> unblockFriend(
+            @PathVariable String friendId,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        friendService.unblockFriend(userId, parseRequestId(friendId));
+        return Result.success(null);
+    }
+
     private Long parseRequestId(String id) {
         try {
             return Long.parseLong(id);

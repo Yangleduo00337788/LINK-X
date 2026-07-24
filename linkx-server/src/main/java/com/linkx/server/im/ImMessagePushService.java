@@ -235,9 +235,17 @@ public class ImMessagePushService {
             }
         }
 
-        // 投递回执：如果有非发送者的接收方在线，更新 deliveryStatus 为 delivered
+        // 投递回执：如果有非发送者的接收方在线，更新 deliveryStatus 为 delivered，并通知发送方
         if (anyRecipientOnline) {
             updateDeliveryStatus(message.getId(), "delivered");
+            if (message.getSenderId() != null) {
+                java.util.Map<String, Object> receiptData = java.util.Map.of(
+                        "messageId", message.getId(),
+                        "conversationId", message.getConversationId(),
+                        "deliveryStatus", "delivered"
+                );
+                pushToUser(message.getSenderId(), "deliveryReceipt", receiptData);
+            }
         }
 
         log.debug("消息推送完成: conversationId={}, 成员数={}, 在线接收者={}", message.getConversationId(), members.size(), onlineCount);

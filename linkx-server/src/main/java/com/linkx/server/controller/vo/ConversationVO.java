@@ -72,4 +72,7 @@ public class ConversationVO {
 
     /** 是否免打扰（当前用户维度） */
     private Boolean muted;
+
+    /** 当前用户是否已屏蔽对方（仅单聊） */
+    private Boolean blocked;
 }

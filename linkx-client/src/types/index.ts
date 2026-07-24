@@ -126,7 +126,7 @@ export interface ChatMessage {
   replyTo?: ChatMessage
 
   /** 发送状态（乐观更新 / 送达回执） */
-  sendStatus?: 'sending' | 'sent' | 'failed' | 'delivered'
+      sendStatus?: 'sending' | 'sent' | 'failed' | 'delivered' | 'read'
   deliveryStatus?: string
   edited?: boolean
   readCount?: number

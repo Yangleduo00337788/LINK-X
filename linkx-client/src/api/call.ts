@@ -65,3 +65,15 @@ export function hangupCall(callId: string) {
 export function signalCall(payload: CallSignalPayload) {
   return apiClient.post<never, ApiResult<null>>('/call/signal', payload)
 }
+
+export function reconnectCall(callId: string) {
+  return apiClient.post<never, ApiResult<null>>('/call/reconnect', { callId })
+}
+
+export function switchCallDevice(callId: string, deviceType: 'audio' | 'video', enabled: boolean) {
+  return apiClient.post<never, ApiResult<null>>('/call/switch-device', {
+    callId,
+    deviceType,
+    enabled
+  })
+}

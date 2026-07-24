@@ -326,6 +326,15 @@ export function getMessageReadCount(conversationId: string, messageId: string) {
   )
 }
 
+/** 上报会话已读游标，服务端清未读并广播 readReceipt */
+export function markAsRead(conversationId: string, lastMessageId: string) {
+  return apiClient.post<unknown, ApiResult<number>>(
+    `/chat/sessions/${conversationId}/read`,
+    null,
+    { params: { lastMessageId } }
+  )
+}
+
 /** 重新签发消息媒体预签名 URL（过期自愈） */
 export function refreshMessageMediaUrl(messageId: string) {
   return apiClient.get<unknown, ApiResult<{ url: string }>>(

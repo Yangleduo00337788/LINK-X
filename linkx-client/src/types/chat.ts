@@ -22,6 +22,8 @@ export interface ConversationItem {
   important?: boolean
   muted?: boolean
   unreadCount?: number
+  /** 当前用户是否已屏蔽对方（单聊） */
+  blocked?: boolean
 }
 
 export interface MessageItem {

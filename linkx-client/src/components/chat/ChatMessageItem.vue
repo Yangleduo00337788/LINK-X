@@ -73,6 +73,7 @@ const statusText = computed(() => {
   if (!props.msg.isSelf) return ''
   if (props.msg.sendStatus === 'failed') return t('chat.statusFailed')
   if (props.msg.sendStatus === 'sending') return t('chat.statusSending')
+  if (props.msg.sendStatus === 'read') return t('chat.statusRead')
   if (props.msg.sendStatus === 'delivered') return t('chat.statusDelivered')
   if (props.msg.sendStatus === 'sent') return t('chat.statusSent')
   return ''

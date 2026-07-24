@@ -248,6 +248,14 @@ public class GroupController {
         return Result.success(null);
     }
 
+    @GetMapping("/{conversationId}/join-requests")
+    public Result<java.util.List<com.linkx.server.controller.vo.GroupJoinRequestVO>> listJoinRequests(
+            @PathVariable String conversationId,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(groupService.listJoinRequests(userId, parseId(conversationId)));
+    }
+
     @PostMapping("/{conversationId}/join-request/{applicantId}")
     public Result<Void> handleJoinRequest(
             @PathVariable String conversationId,

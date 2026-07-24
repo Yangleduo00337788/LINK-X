@@ -88,3 +88,21 @@ export function transferHost(conferenceId: string | number, newHostId: string | 
     newHostId
   })
 }
+
+export interface ConferenceSignalPayload {
+  conferenceId: string | number
+  signalType: 'offer' | 'answer' | 'ice-candidate'
+  sdp?: string
+  candidate?: string
+  targetUserId?: string | number
+}
+
+export function signal(payload: ConferenceSignalPayload) {
+  return apiClient.post<never, ApiResult<null>>('/conference/signal', {
+    conferenceId: String(payload.conferenceId),
+    signalType: payload.signalType,
+    sdp: payload.sdp,
+    candidate: payload.candidate,
+    targetUserId: payload.targetUserId != null ? String(payload.targetUserId) : undefined
+  })
+}

@@ -62,6 +62,9 @@ const announcementReadCount = ref<number | null>(null)
 const conferenceCreating = ref(false)
 const memberSelectMode = ref(false)
 const selectedMemberIds = ref<string[]>([])
+const joinRequests = ref<groupApi.GroupJoinRequestItem[]>([])
+const joinRequestsLoading = ref(false)
+const joinHandlingId = ref<string | null>(null)
 
 async function refreshGroupPolicy() {
   const id = currentSessionId.value
@@ -74,6 +77,53 @@ async function refreshGroupPolicy() {
     }
   } catch {
     /* ignore */
+  }
+}
+
+async function refreshJoinRequests() {
+  const id = currentSessionId.value
+  if (!id) {
+    joinRequests.value = []
+    return
+  }
+  joinRequestsLoading.value = true
+  try {
+    const res = await groupApi.listJoinRequests(id)
+    if (res.code === 200 && res.data) {
+      joinRequests.value = res.data.map(item => ({
+        ...item,
+        applicantId: String(item.applicantId)
+      }))
+    } else {
+      joinRequests.value = []
+    }
+  } catch {
+    // 非管理员会 403，静默清空
+    joinRequests.value = []
+  } finally {
+    joinRequestsLoading.value = false
+  }
+}
+
+async function handleJoin(applicantId: string, approve: boolean) {
+  const id = currentSessionId.value
+  if (!id || !applicantId) return
+  joinHandlingId.value = applicantId
+  try {
+    const res = await groupApi.handleJoinRequest(id, applicantId, approve)
+    if (res.code !== 200) {
+      throw new Error(res.message || t('modals.joinHandleFail'))
+    }
+    message.success(approve ? t('modals.joinApproved') : t('modals.joinRejected'))
+    joinRequests.value = joinRequests.value.filter(r => r.applicantId !== applicantId)
+    if (approve) {
+      await groupMetaStore.fetchMembers(id, true)
+    }
+  } catch (e: unknown) {
+    const ax = e as { response?: { data?: { message?: string } }; message?: string }
+    message.error(ax.response?.data?.message || ax.message || t('modals.joinHandleFail'))
+  } finally {
+    joinHandlingId.value = null
   }
 }
 
@@ -99,6 +149,7 @@ watch(
   () => {
     void refreshGroupPolicy()
     void refreshAnnouncementRead()
+    void refreshJoinRequests()
   },
   { immediate: true }
 )
@@ -504,6 +555,8 @@ watch(groupInfoDrawerOpen, open => {
   if (open && currentSessionId.value) {
     void groupMetaStore.fetchMembers(currentSessionId.value)
     void groupMetaStore.fetchAnnouncement(currentSessionId.value)
+    void refreshGroupPolicy()
+    void refreshJoinRequests()
   } else {
     transferPanelOpen.value = false
     adminPanelOpen.value = false
@@ -662,6 +715,50 @@ function reportGroup() {
                 </div>
                 <p class="hint">{{ t('modals.muteHint') }}</p>
               </div>
+
+              <!-- 入群申请审批（群主/管理员） -->
+              <section v-if="isAdminOrOwner && joinApproval" class="block join-requests">
+                <div class="row-item">
+                  <span>{{ t('modals.joinRequests') }}</span>
+                  <button type="button" class="link-btn" @click="refreshJoinRequests">
+                    {{ t('contacts.refresh') }}
+                  </button>
+                </div>
+                <div v-if="joinRequestsLoading" class="join-empty">{{ t('common.loading') }}</div>
+                <div v-else-if="!joinRequests.length" class="join-empty">{{ t('modals.joinRequestEmpty') }}</div>
+                <ul v-else class="join-list">
+                  <li v-for="req in joinRequests" :key="req.applicantId" class="join-item">
+                    <Avatar
+                      :text="(req.applicantNickname || '?').charAt(0)"
+                      color="#12b7f5"
+                      :size="36"
+                      :image-url="req.applicantAvatar"
+                    />
+                    <div class="join-meta">
+                      <div class="join-name">{{ req.applicantNickname || req.applicantId }}</div>
+                      <div class="join-msg">{{ req.message || t('modals.joinRequests') }}</div>
+                    </div>
+                    <div class="join-actions">
+                      <button
+                        type="button"
+                        class="join-btn ok"
+                        :disabled="joinHandlingId === req.applicantId"
+                        @click="handleJoin(req.applicantId, true)"
+                      >
+                        {{ t('modals.joinApprove') }}
+                      </button>
+                      <button
+                        type="button"
+                        class="join-btn no"
+                        :disabled="joinHandlingId === req.applicantId"
+                        @click="handleJoin(req.applicantId, false)"
+                      >
+                        {{ t('modals.joinReject') }}
+                      </button>
+                    </div>
+                  </li>
+                </ul>
+              </section>
 
               <!-- 危险操作与举报 -->
               <button type="button" class="action-btn" @click="clearChat">{{ t('modals.clearChatHistory') }}</button>
@@ -1081,6 +1178,97 @@ function reportGroup() {
   margin: -4px 0 0;
   font-size: 12px;
   color: var(--lx-text-muted);
+}
+
+.join-requests {
+  margin-top: 8px;
+}
+
+.join-requests .row-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.link-btn {
+  border: none;
+  background: none;
+  color: var(--lx-accent);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.join-empty {
+  font-size: 12px;
+  color: var(--lx-text-muted);
+  padding: 8px 0;
+}
+
+.join-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.join-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.join-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.join-name {
+  font-size: 13px;
+  color: var(--lx-text-body);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.join-msg {
+  font-size: 12px;
+  color: var(--lx-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.join-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.join-btn {
+  border: 1px solid var(--lx-border);
+  background: var(--lx-bg-panel);
+  border-radius: 4px;
+  font-size: 12px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.join-btn.ok {
+  color: var(--lx-accent);
+  border-color: var(--lx-accent);
+}
+
+.join-btn.no {
+  color: var(--lx-danger);
+}
+
+.join-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .action-btn {

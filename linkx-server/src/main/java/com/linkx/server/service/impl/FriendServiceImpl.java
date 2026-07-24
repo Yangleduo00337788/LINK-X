@@ -47,6 +47,7 @@ public class FriendServiceImpl implements FriendService {
 
     private static final int SEARCH_LIMIT = 20;
     private static final int RELATION_STATUS_NORMAL = 1;
+    private static final int RELATION_STATUS_BLOCKED = 2;
 
     private final SysUserMapper sysUserMapper;
     private final SysUserRelationMapper sysUserRelationMapper;
@@ -303,6 +304,60 @@ public class FriendServiceImpl implements FriendService {
         );
         imPushService.pushToUser(userId, "notification_refresh", payload);
         imPushService.pushToUser(friendId, "notification_refresh", peerPayload);
+    }
+
+    @Override
+    @Transactional
+    public void blockFriend(Long userId, Long friendId) {
+        if (userId.equals(friendId)) {
+            throw new CustomException(400, "不能屏蔽自己");
+        }
+        SysUserRelation relation = findRelationAnyStatus(userId, friendId);
+        if (relation == null) {
+            throw new CustomException(404, "对方不是你的好友");
+        }
+        relation.setStatus(RELATION_STATUS_BLOCKED);
+        relation.setUpdateTime(new Date());
+        sysUserRelationMapper.update(relation);
+        imPushService.pushToUser(userId, "notification_refresh", Map.of(
+                "type", "friend_blocked",
+                "peerUserId", String.valueOf(friendId)
+        ));
+    }
+
+    @Override
+    @Transactional
+    public void unblockFriend(Long userId, Long friendId) {
+        SysUserRelation relation = findRelationAnyStatus(userId, friendId);
+        if (relation == null) {
+            throw new CustomException(404, "对方不是你的好友");
+        }
+        relation.setStatus(RELATION_STATUS_NORMAL);
+        relation.setUpdateTime(new Date());
+        sysUserRelationMapper.update(relation);
+        imPushService.pushToUser(userId, "notification_refresh", Map.of(
+                "type", "friend_unblocked",
+                "peerUserId", String.valueOf(friendId)
+        ));
+    }
+
+    @Override
+    public boolean isBlocked(Long userId, Long friendId) {
+        return sysUserRelationMapper.selectCountByQuery(
+                QueryWrapper.create()
+                        .where(SysUserRelation::getUserId).eq(userId)
+                        .and(SysUserRelation::getFriendId).eq(friendId)
+                        .and(SysUserRelation::getStatus).eq(RELATION_STATUS_BLOCKED)
+        ) > 0;
+    }
+
+    private SysUserRelation findRelationAnyStatus(Long userId, Long friendId) {
+        return sysUserRelationMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(SysUserRelation::getUserId).eq(userId)
+                        .and(SysUserRelation::getFriendId).eq(friendId)
+                        .limit(1)
+        );
     }
 
     /** 逻辑删除双方在私聊会话中的成员关系 */

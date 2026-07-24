@@ -50,6 +50,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -62,6 +63,7 @@ public class ChatServiceImpl implements ChatService {
     private static final int DEFAULT_MESSAGE_LIMIT = 50;
     private static final int MAX_MESSAGE_LIMIT = 100;
     private static final int RELATION_STATUS_NORMAL = 1;
+    private static final int RELATION_STATUS_BLOCKED = 2;
     private static final long RECALL_WINDOW_MS = 2 * 60 * 1000L;
 
     private final ImConversationMapper conversationMapper;
@@ -116,7 +118,11 @@ public class ChatServiceImpl implements ChatService {
         });
 
         Map<Long, SysUser> peerUserMap = loadPeerUsers(userId, conversations);
-        Map<Long, String> remarkMap = loadRemarkMap(userId, peerUserMap.keySet());
+        Map<Long, SysUserRelation> relationMap = loadRelationMap(userId, peerUserMap.keySet());
+        Map<Long, String> remarkMap = new HashMap<>();
+        for (Map.Entry<Long, SysUserRelation> e : relationMap.entrySet()) {
+            remarkMap.put(e.getKey(), e.getValue().getRemark());
+        }
         Map<Long, Boolean> showOnlineMap = userPreferenceService.batchShowsOnlineStatus(
                 peerUserMap.values().stream().map(SysUser::getId).collect(Collectors.toSet())
         );
@@ -139,13 +145,18 @@ public class ChatServiceImpl implements ChatService {
                 if (peer == null) {
                     continue;
                 }
-                if (!isFriend(userId, peer.getId())) {
+                SysUserRelation relation = relationMap.get(peer.getId());
+                if (relation == null) {
+                    continue;
+                }
+                boolean blocked = Objects.equals(relation.getStatus(), RELATION_STATUS_BLOCKED);
+                if (!blocked && !Objects.equals(relation.getStatus(), RELATION_STATUS_NORMAL)) {
                     continue;
                 }
                 boolean showOnline = !Boolean.FALSE.equals(showOnlineMap.get(peer.getId()));
                 boolean peerOnline = showOnline && imChannelManager.isOnline(peer.getId());
                 result.add(toConversationVO(conversation, peer, remarkMap.get(peer.getId()), peerOnline,
-                        getUnreadCount(userId, conversation.getId()), pinned, important, muted));
+                        getUnreadCount(userId, conversation.getId()), pinned, important, muted, blocked));
             } else if (conversation.getType() == ImConversation.TYPE_GROUP) {
                 result.add(toGroupConversationVO(
                         conversation,
@@ -208,7 +219,7 @@ public class ChatServiceImpl implements ChatService {
 
         Map<Long, String> remarkMap = loadRemarkMap(userId, Set.of(friendId));
         return toConversationVO(conversation, friend, remarkMap.get(friendId), resolvePeerOnline(friendId),
-                getUnreadCount(userId, conversation.getId()), false, false, false);
+                getUnreadCount(userId, conversation.getId()), false, false, false, false);
     }
 
     @Override
@@ -275,6 +286,9 @@ public class ChatServiceImpl implements ChatService {
         }
         if (conversation.getType() == ImConversation.TYPE_PRIVATE) {
             Long peerId = resolvePrivatePeerId(userId, conversation.getId());
+            if (isBlockedEitherWay(userId, peerId)) {
+                throw new CustomException(403, "已屏蔽该联系人，无法发送消息");
+            }
             if (!isFriend(userId, peerId)) {
                 throw new CustomException(403, "对方已不是好友，无法发送消息");
             }
@@ -780,6 +794,39 @@ public class ChatServiceImpl implements ChatService {
                 .build());
     }
 
+    /** 是否已屏蔽对方，或被对方屏蔽 */
+    private boolean isBlockedEitherWay(Long userId, Long peerId) {
+        if (peerId == null) return false;
+        return sysUserRelationMapper.selectCountByQuery(
+                QueryWrapper.create()
+                        .where(SysUserRelation::getUserId).eq(userId)
+                        .and(SysUserRelation::getFriendId).eq(peerId)
+                        .and(SysUserRelation::getStatus).eq(RELATION_STATUS_BLOCKED)
+        ) > 0
+                || sysUserRelationMapper.selectCountByQuery(
+                QueryWrapper.create()
+                        .where(SysUserRelation::getUserId).eq(peerId)
+                        .and(SysUserRelation::getFriendId).eq(userId)
+                        .and(SysUserRelation::getStatus).eq(RELATION_STATUS_BLOCKED)
+        ) > 0;
+    }
+
+    private Map<Long, SysUserRelation> loadRelationMap(Long userId, Set<Long> friendIds) {
+        if (friendIds.isEmpty()) {
+            return Map.of();
+        }
+        List<SysUserRelation> relations = sysUserRelationMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(SysUserRelation::getUserId).eq(userId)
+                        .and(SysUserRelation::getFriendId).in(friendIds)
+        );
+        Map<Long, SysUserRelation> map = new HashMap<>();
+        for (SysUserRelation relation : relations) {
+            map.put(relation.getFriendId(), relation);
+        }
+        return map;
+    }
+
     private boolean isFriend(Long userId, Long friendId) {
         return sysUserRelationMapper.selectCountByQuery(
                 QueryWrapper.create()
@@ -864,7 +911,8 @@ public class ChatServiceImpl implements ChatService {
             long unreadCount,
             boolean pinned,
             boolean important,
-            boolean muted
+            boolean muted,
+            boolean blocked
     ) {
         return ConversationVO.builder()
                 .id(conversation.getId())
@@ -883,6 +931,7 @@ public class ChatServiceImpl implements ChatService {
                 .pinned(pinned)
                 .important(important)
                 .muted(muted)
+                .blocked(blocked)
                 .build();
     }
 

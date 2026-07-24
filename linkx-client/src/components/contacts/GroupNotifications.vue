@@ -2,17 +2,17 @@
 /**
  * 群通知视图。
  * <p>
- * 真实调用 {@code GET /group/invitations} 拉取；接受/拒绝通过
- * {@code useNotificationsStore.acceptGroupInvitationAction / rejectGroupInvitationAction}。
- * 接受成功后由上层跳转到对应群会话。
+ * 1) 群邀请：{@code GET /group/invitations}
+ * 2) 入群申请（管理员）：{@code messageNotifs} 中 type=group_join_request
  * </p>
  */
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { NIcon, useMessage } from 'naive-ui'
 import { FilterOutline, RefreshOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useNotificationsStore } from '../../stores/notifications'
 import { useAppStore } from '../../stores/app'
+import * as groupApi from '../../api/group'
 import { useI18n } from '../../i18n'
 
 const message = useMessage()
@@ -20,13 +20,24 @@ const { t } = useI18n()
 const notificationsStore = useNotificationsStore()
 const appStore = useAppStore()
 
-const { groupNotifs } = storeToRefs(notificationsStore)
-const { fetchGroupInvitations, acceptGroupInvitationAction, rejectGroupInvitationAction } =
-  notificationsStore
+const { groupNotifs, messageNotifs } = storeToRefs(notificationsStore)
+const {
+  fetchGroupInvitations,
+  fetchMessageNotifications,
+  acceptGroupInvitationAction,
+  rejectGroupInvitationAction,
+  markMessageAsRead
+} = notificationsStore
 const submitting = ref(false)
+const joinHandlingId = ref<string | null>(null)
+
+const joinRequestNotifs = computed(() =>
+  messageNotifs.value.filter(n => n.type === 'group_join_request' && n.readStatus === 0)
+)
 
 onMounted(() => {
   void fetchGroupInvitations()
+  void fetchMessageNotifications()
 })
 
 function statusLabel(status: string) {
@@ -42,7 +53,6 @@ async function handleAccept(id: string) {
   try {
     await acceptGroupInvitationAction(id)
     message.success(t('contacts.joinedGroup'))
-    // 刷新会话列表（接受后服务端已写入会话成员）
     void appStore.loadChatSessions()
   } catch (e) {
     const err = e as { response?: { data?: { message?: string } }; message?: string }
@@ -66,17 +76,36 @@ async function handleReject(id: string) {
   }
 }
 
+async function handleJoinRequest(notifId: string, conversationId: string, applicantId: string, approve: boolean) {
+  if (!conversationId || !applicantId || joinHandlingId.value) return
+  joinHandlingId.value = notifId
+  try {
+    const res = await groupApi.handleJoinRequest(conversationId, applicantId, approve)
+    if (res.code !== 200) {
+      throw new Error(res.message || t('modals.joinHandleFail'))
+    }
+    message.success(approve ? t('modals.joinApproved') : t('modals.joinRejected'))
+    await markMessageAsRead(notifId)
+    await fetchMessageNotifications()
+    if (approve) void appStore.loadChatSessions()
+  } catch (e) {
+    const err = e as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || t('modals.joinHandleFail'))
+  } finally {
+    joinHandlingId.value = null
+  }
+}
+
 async function handleClear() {
-  // 仅刷新本地视图；不接受/拒绝的邀请后端仍保留，待用户处理。
-  await fetchGroupInvitations()
+  await Promise.all([fetchGroupInvitations(), fetchMessageNotifications()])
   message.success(t('contacts.refreshed'))
 }
+
+const isEmpty = computed(() => !groupNotifs.value.length && !joinRequestNotifs.value.length)
 </script>
 
 <template>
-  <!-- 群通知主视图 -->
   <div class="notifications-view">
-    <!-- 顶部标题与操作栏 -->
     <div class="header">
       <h2 class="title">{{ t('contacts.groupNotif') }}</h2>
       <div class="actions">
@@ -88,10 +117,54 @@ async function handleClear() {
         </button>
       </div>
     </div>
-    <!-- 通知列表内容区 -->
     <div class="content">
-      <div v-if="!groupNotifs.length" class="empty">{{ t('contacts.emptyGroupNotif') }}</div>
+      <div v-if="isEmpty" class="empty">{{ t('contacts.emptyGroupNotif') }}</div>
       <div v-else class="notif-list">
+        <div v-for="item in joinRequestNotifs" :key="'jr-' + item.id" class="notif-card">
+          <div class="group-icon">申</div>
+          <div class="info">
+            <div class="title-line">
+              <span class="name">{{ t('modals.joinRequests') }}</span>
+              <span class="date">{{ item.createTime }}</span>
+            </div>
+            <div class="message">
+              {{ item.senderName }}：{{ item.content || t('modals.joinRequests') }}
+            </div>
+          </div>
+          <div class="actions-right">
+            <button
+              type="button"
+              class="btn accept"
+              :disabled="joinHandlingId === item.id"
+              @click="
+                handleJoinRequest(
+                  item.id,
+                  String(item.relatedId || ''),
+                  String(item.senderId || ''),
+                  true
+                )
+              "
+            >
+              {{ t('modals.joinApprove') }}
+            </button>
+            <button
+              type="button"
+              class="btn reject"
+              :disabled="joinHandlingId === item.id"
+              @click="
+                handleJoinRequest(
+                  item.id,
+                  String(item.relatedId || ''),
+                  String(item.senderId || ''),
+                  false
+                )
+              "
+            >
+              {{ t('modals.joinReject') }}
+            </button>
+          </div>
+        </div>
+
         <div v-for="item in groupNotifs" :key="item.id" class="notif-card">
           <div class="group-icon">{{ t('contacts.groups').charAt(0) }}</div>
           <div class="info">
@@ -102,8 +175,12 @@ async function handleClear() {
             <div class="message">{{ item.inviter }}：{{ item.message }}</div>
           </div>
           <div v-if="item.status === '等待验证'" class="actions-right">
-            <button type="button" class="btn accept" @click="handleAccept(item.id)">{{ t('contacts.accept') }}</button>
-            <button type="button" class="btn reject" @click="handleReject(item.id)">{{ t('contacts.reject') }}</button>
+            <button type="button" class="btn accept" @click="handleAccept(item.id)">
+              {{ t('contacts.accept') }}
+            </button>
+            <button type="button" class="btn reject" @click="handleReject(item.id)">
+              {{ t('contacts.reject') }}
+            </button>
           </div>
           <div v-else class="status">{{ statusLabel(item.status) }}</div>
         </div>
@@ -239,6 +316,11 @@ async function handleClear() {
   border: none;
   font-size: 12px;
   cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .btn.accept {

@@ -178,6 +178,25 @@ export const useCallStore = defineStore('call', {
               }
             })
           break
+        case 'call_reconnect':
+          if (this.callId === event.callId && this.isActive) {
+            void this.tryIceRestart('peer_reconnect')
+          }
+          break
+        case 'call_device_switch': {
+          if (this.callId !== event.callId) break
+          const rawMap = raw as unknown as Record<string, unknown>
+          const deviceType = String(rawMap.deviceType || '')
+          const enabled = rawMap.enabled === true
+          if (deviceType === 'video' && !enabled) {
+            this.errorMessage = '对方已关闭摄像头'
+          } else if (deviceType === 'audio' && !enabled) {
+            this.errorMessage = '对方已关闭麦克风'
+          } else {
+            this.errorMessage = ''
+          }
+          break
+        }
         default:
           break
       }
@@ -236,6 +255,11 @@ export const useCallStore = defineStore('call', {
       this.localStream?.getAudioTracks().forEach(t => {
         t.enabled = this.micOn
       })
+      if (this.callId && this.phase === 'connected') {
+        void callApi.switchCallDevice(this.callId, 'audio', this.micOn).catch(() => {
+          /* ignore */
+        })
+      }
     },
 
     async toggleCamera() {
@@ -244,11 +268,16 @@ export const useCallStore = defineStore('call', {
       const videoTracks = this.localStream?.getVideoTracks() ?? []
       if (this.cameraOn && videoTracks.length === 0) {
         await this.ensureLocalMedia()
-        return
+      } else {
+        videoTracks.forEach(t => {
+          t.enabled = this.cameraOn
+        })
       }
-      videoTracks.forEach(t => {
-        t.enabled = this.cameraOn
-      })
+      if (this.callId && (this.phase === 'connected' || this.phase === 'connecting')) {
+        void callApi.switchCallDevice(this.callId, 'video', this.cameraOn).catch(() => {
+          /* ignore */
+        })
+      }
     },
 
     async onInvite(event: NormalizedCallEvent) {
@@ -406,11 +435,21 @@ export const useCallStore = defineStore('call', {
       iceRestartAttempts = decision.nextAttempts
       this.errorMessage = decision.message
       try {
+        if (this.callId) {
+          void callApi.reconnectCall(this.callId).catch(() => {
+            /* ignore */
+          })
+        }
         if (decision.disableCamera) {
           this.cameraOn = false
           this.localStream?.getVideoTracks().forEach(t => {
             t.enabled = false
           })
+          if (this.callId) {
+            void callApi.switchCallDevice(this.callId, 'video', false).catch(() => {
+              /* ignore */
+            })
+          }
         }
         const offer = await pc.createOffer({ iceRestart: true })
         await pc.setLocalDescription(offer)
@@ -516,8 +555,8 @@ export const useCallStore = defineStore('call', {
           this.localStream = markRaw(stream)
           this.attachLocalTracks()
         } catch (e) {
+          const name = (e as DOMException)?.name
           if (wantVideo && shouldFallbackToVoiceOnCameraDenied(this.callType, e)) {
-            const name = (e as DOMException)?.name
             // 摄像头权限/设备异常：降级仅语音，不直接结束通话
             this.cameraOn = false
             this.errorMessage =
@@ -530,6 +569,11 @@ export const useCallStore = defineStore('call', {
             })
             this.localStream = markRaw(audioOnly)
             this.attachLocalTracks()
+            if (this.callId) {
+              void callApi.switchCallDevice(this.callId, 'video', false).catch(() => {
+                /* ignore */
+              })
+            }
             return
           }
           if (name === 'NotReadableError') {

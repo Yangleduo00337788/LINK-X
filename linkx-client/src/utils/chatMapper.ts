@@ -71,6 +71,7 @@ export function conversationToSession(conv: ConversationItem): ChatSession {
     pinned: !!conv.pinned,
     important: !!conv.important,
     muted: !!conv.muted,
+    blocked: !!conv.blocked,
     unread: conv.unreadCount != null ? Number(conv.unreadCount) || undefined : undefined
   }
 }

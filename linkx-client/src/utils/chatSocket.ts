@@ -166,6 +166,8 @@ function handleFrame(raw: string) {
     case 'call_cancel':
     case 'call_hangup':
     case 'call_signal':
+    case 'call_reconnect':
+    case 'call_device_switch':
       if (frame.data) {
         handlers?.onCallEvent?.(frame.action, frame.data as Record<string, unknown>)
       }
@@ -352,6 +354,13 @@ export function sendChatMessage(payload: WsSendPayload) {
     ...(payload.quoteMessageId ? { quoteMessageId: payload.quoteMessageId } : {})
   }
   socket.send(JSON.stringify(msg))
+}
+
+/** 向服务端确认消息已送达（接收端调用） */
+export function sendDeliveryReceipt(serverMsgId: string) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) return
+  if (!serverMsgId || !/^\d+$/.test(serverMsgId)) return
+  socket.send(JSON.stringify({ action: 'deliveryReceipt', serverMsgId }))
 }
 
 export function isChatSocketConnected() {
