@@ -28,6 +28,7 @@ import com.linkx.server.service.ChatService;
 import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.MessageStormService;
+import com.linkx.server.service.ObjectKeyOwnershipService;
 import com.linkx.server.service.SensitiveWordService;
 import com.linkx.server.service.UserPreferenceService;
 import com.linkx.server.service.AuditLogService;
@@ -73,6 +74,7 @@ public class ChatServiceImpl implements ChatService {
     private final SysUserRelationMapper sysUserRelationMapper;
     private final FileStorageService fileStorageService;
     private final MediaUrlService mediaUrlService;
+    private final ObjectKeyOwnershipService objectKeyOwnershipService;
     private final LinkxProperties linkxProperties;
     private final StringRedisTemplate redisTemplate;
     private final RedPacketMapper redPacketMapper;
@@ -427,6 +429,7 @@ public class ChatServiceImpl implements ChatService {
         assertConversationMember(userId, conversationId);
         try {
             String objectKey = fileStorageService.uploadFile(file, null);
+            objectKeyOwnershipService.claim(userId, objectKey);
             String signedUrl = mediaUrlService.resolveFile(objectKey);
             return ChatFileUploadVO.builder()
                     .url(signedUrl)
@@ -1487,6 +1490,7 @@ public class ChatServiceImpl implements ChatService {
         assertConversationMember(userId, conversationId);
         try {
             String finalKey = fileStorageService.completeMultipartUpload(objectName, uploadId, parts);
+            objectKeyOwnershipService.claim(userId, finalKey);
             if (contentHash != null && contentHash.matches("(?i)^[a-f0-9]{64}$")) {
                 fileStorageService.saveContentHash(contentHash, finalKey);
             }

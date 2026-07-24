@@ -9,6 +9,7 @@ import com.linkx.server.mapper.NoteMapper;
 import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.NoteService;
+import com.linkx.server.service.ObjectKeyOwnershipService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -34,6 +35,7 @@ public class NoteServiceImpl implements NoteService {
     private final NoteMapper noteMapper;
     private final FileStorageService fileStorageService;
     private final MediaUrlService mediaUrlService;
+    private final ObjectKeyOwnershipService objectKeyOwnershipService;
 
     @Override
     public List<NoteVO> list(Long userId) {
@@ -119,12 +121,13 @@ public class NoteServiceImpl implements NoteService {
     }
 
     @Override
-    public NoteFileUploadVO upload(MultipartFile file) {
+    public NoteFileUploadVO upload(Long userId, MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new CustomException(400, "文件不能为空");
         }
         try {
             String fileKey = fileStorageService.uploadFile(file);
+            objectKeyOwnershipService.claim(userId, fileKey);
             String url = mediaUrlService.resolve(fileKey);
             return NoteFileUploadVO.builder()
                     .fileKey(fileKey)
@@ -141,7 +144,7 @@ public class NoteServiceImpl implements NoteService {
     }
 
     @Override
-    public String resolveMediaUrl(String fileKey) {
+    public String resolveMediaUrl(Long userId, String fileKey) {
         if (!StringUtils.hasText(fileKey)) {
             throw new CustomException(400, "媒体 key 不能为空");
         }
@@ -160,11 +163,26 @@ public class NoteServiceImpl implements NoteService {
         if (key.length() > 512) {
             throw new CustomException(400, "媒体 key 过长");
         }
+        // 属主登记优先；兼容历史上已写入笔记正文、尚未 claim 的 key
+        if (!objectKeyOwnershipService.isOwned(userId, key) && !noteContentReferencesKey(userId, key)) {
+            throw new CustomException(403, "无权访问该媒体");
+        }
         String url = mediaUrlService.resolve(key);
         if (!StringUtils.hasText(url)) {
             throw new CustomException(404, "媒体不存在或无法访问");
         }
         return url;
+    }
+
+    private boolean noteContentReferencesKey(Long userId, String key) {
+        String escaped = key.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+        long count = noteMapper.selectCountByQuery(
+                QueryWrapper.create()
+                        .eq("user_id", userId)
+                        .eq("deleted", 0)
+                        .and("content LIKE ?", "%" + escaped + "%")
+        );
+        return count > 0;
     }
 
     private NoteVO toVO(Note note) {

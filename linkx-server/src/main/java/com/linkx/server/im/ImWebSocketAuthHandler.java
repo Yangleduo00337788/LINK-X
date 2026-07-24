@@ -42,10 +42,13 @@ public class ImWebSocketAuthHandler extends ChannelInboundHandlerAdapter {
                 return;
             }
 
-            // 浏览器：query 传 token；Electron：子协议传 token。优先 query（浏览器更稳）
-            String token = extractTokenFromQuery(request.uri());
+            // 优先子协议传 token（避免 JWT 进入 URL/访问日志）；浏览器无 query 作兼容回退
+            String token = extractTokenFromProtocol(request);
             if (token == null || token.isBlank()) {
-                token = extractTokenFromProtocol(request);
+                token = extractTokenFromQuery(request.uri());
+                if (token != null && !token.isBlank()) {
+                    log.debug("WebSocket 使用 query token（建议改用 Sec-WebSocket-Protocol）");
+                }
             }
             if (token == null || token.isBlank()) {
                 log.warn("WebSocket 鉴权失败: 缺少 token, uri={}, origin={}",

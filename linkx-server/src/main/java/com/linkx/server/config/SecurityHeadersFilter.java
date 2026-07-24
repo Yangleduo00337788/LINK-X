@@ -72,6 +72,14 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         if (request.isSecure()) {
             return true;
         }
+        // 仅当信任反向代理时才采纳 X-Forwarded-Proto，防止直连伪造绕过 HTTPS 强制
+        if (!linkxProperties.getProxy().isTrustProxy()) {
+            return false;
+        }
+        var trusted = linkxProperties.getProxy().getTrustedIps();
+        if (trusted != null && !trusted.isEmpty() && !trusted.contains(request.getRemoteAddr())) {
+            return false;
+        }
         String forwardedProto = request.getHeader("X-Forwarded-Proto");
         return forwardedProto != null && forwardedProto.equalsIgnoreCase("https");
     }

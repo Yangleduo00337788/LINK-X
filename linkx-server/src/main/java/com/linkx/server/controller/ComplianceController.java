@@ -3,12 +3,15 @@ package com.linkx.server.controller;
 import com.linkx.server.common.AuthUtils;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.Result;
+import com.linkx.server.controller.dto.CompliancePurgeDTO;
 import com.linkx.server.controller.vo.UserDataExportVO;
 import com.linkx.server.service.ComplianceService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -30,9 +33,11 @@ public class ComplianceController {
     }
 
     @PostMapping("/purge")
-    public Result<Void> purge(HttpServletRequest request) {
+    public Result<Void> purge(
+            @Valid @RequestBody CompliancePurgeDTO dto,
+            HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        complianceService.purgeUserData(userId);
+        complianceService.purgeUserData(userId, dto.getPassword());
         return Result.success();
     }
 }

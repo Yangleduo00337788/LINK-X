@@ -138,7 +138,7 @@ public class MomentsController {
     public Result<String> uploadImage(
             @RequestParam("file") MultipartFile file,
             HttpServletRequest request) {
-        AuthUtils.requireUserId(request, jwtUtils);
-        return Result.success(momentsService.uploadImage(file));
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(momentsService.uploadImage(userId, file));
     }
 }

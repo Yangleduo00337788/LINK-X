@@ -15,12 +15,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 
 import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
 /**
@@ -77,6 +79,23 @@ class P2AdvancedTest extends BaseIntegrationTest {
             TestUser user = registerAndLogin("p2aud");
             assertDoesNotThrow(() ->
                     complianceService.audit(user.userId, "TEST_EXPORT", "unit-test", true));
+        }
+
+        @Test
+        @DisplayName("purge 需要正确密码")
+        void purgeRequiresPassword() throws Exception {
+            TestUser user = registerAndLogin("p2prg");
+            mockMvc.perform(post("/compliance/purge")
+                            .header("Authorization", user.bearer())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"password\":\"wrong-pass\"}"))
+                    .andExpect(jsonPath("$.code").value(400));
+
+            mockMvc.perform(post("/compliance/purge")
+                            .header("Authorization", user.bearer())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"password\":\"Test1234abcd\"}"))
+                    .andExpect(jsonPath("$.code").value(200));
         }
     }
 

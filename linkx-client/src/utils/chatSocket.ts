@@ -205,18 +205,16 @@ export async function connectChatSocket(nextHandlers: ChatSocketHandlers) {
     return
   }
 
-  // 统一用 query 传 token + deviceId + 命名子协议
+  // JWT 走 Sec-WebSocket-Protocol，避免出现在 URL/代理访问日志；device 元数据仍用 query
   const { getOrCreateDeviceId, getDeviceName, getDeviceType } = await import('./deviceId')
   const deviceId = encodeURIComponent(getOrCreateDeviceId())
   const deviceName = encodeURIComponent(getDeviceName())
   const deviceType = encodeURIComponent(getDeviceType())
-  const wsProtocol = 'linkx-access-token'
   const wsUrl =
-    `${WS_BASE}/ws?token=${encodeURIComponent(token)}` +
-    `&deviceId=${deviceId}&deviceName=${deviceName}&deviceType=${deviceType}`
+    `${WS_BASE}/ws?deviceId=${deviceId}&deviceName=${deviceName}&deviceType=${deviceType}`
   console.log('[WebSocket] 正在连接:', `${WS_BASE}/ws`, window.electronAPI ? '(electron)' : '(browser)')
 
-  socket = new WebSocket(wsUrl, [wsProtocol])
+  socket = new WebSocket(wsUrl, ['linkx-access-token', token])
 
   await new Promise<void>((resolve, reject) => {
     let settled = false

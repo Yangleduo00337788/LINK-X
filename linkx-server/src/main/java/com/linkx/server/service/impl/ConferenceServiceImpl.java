@@ -15,6 +15,7 @@ import com.linkx.server.service.ChatService;
 import com.linkx.server.service.ConferenceService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
+import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +47,10 @@ public class ConferenceServiceImpl implements ConferenceService {
     public ConferenceInfoVO create(Long userId, ConferenceCreateDTO dto) {
         chatService.assertConversationMember(userId, dto.getConversationId());
 
+        String passwordHash = null;
+        if (StringUtils.hasText(dto.getPassword())) {
+            passwordHash = BCrypt.hashpw(dto.getPassword().trim(), BCrypt.gensalt(12));
+        }
         Conference conference = Conference.builder()
                 .title(StringUtils.hasText(dto.getTitle()) ? dto.getTitle() : "多人会议")
                 .type(StringUtils.hasText(dto.getType()) ? dto.getType() : "video")
@@ -53,7 +58,7 @@ public class ConferenceServiceImpl implements ConferenceService {
                 .conversationId(dto.getConversationId())
                 .status(Conference.STATUS_ACTIVE)
                 .maxParticipants(dto.getMaxParticipants() != null ? dto.getMaxParticipants() : 9)
-                .password(dto.getPassword())
+                .password(passwordHash)
                 .startTime(new Date())
                 .createTime(new Date())
                 .updateTime(new Date())
@@ -85,9 +90,19 @@ public class ConferenceServiceImpl implements ConferenceService {
         Conference conference = requireActive(conferenceId);
         // 必须是会话成员，防止猜 ID 入会绕过群/私聊 ACL
         chatService.assertConversationMember(userId, conference.getConversationId());
-        if (StringUtils.hasText(conference.getPassword())
-                && !Objects.equals(conference.getPassword(), password)) {
-            throw new CustomException(403, "会议密码错误");
+        if (StringUtils.hasText(conference.getPassword())) {
+            String input = password != null ? password.trim() : "";
+            String stored = conference.getPassword();
+            boolean ok;
+            if (stored.startsWith("$2a$") || stored.startsWith("$2b$") || stored.startsWith("$2y$")) {
+                ok = StringUtils.hasText(input) && BCrypt.checkpw(input, stored);
+            } else {
+                // 兼容历史明文会议口令（一次性比对后仍不回写，新会议一律哈希）
+                ok = Objects.equals(stored, input);
+            }
+            if (!ok) {
+                throw new CustomException(403, "会议密码错误");
+            }
         }
 
         long activeCount = memberMapper.selectCountByQuery(

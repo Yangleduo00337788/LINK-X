@@ -14,6 +14,7 @@ import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.GroupAssetService;
 import com.linkx.server.service.MediaUrlService;
+import com.linkx.server.service.ObjectKeyOwnershipService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -43,6 +44,7 @@ public class GroupAssetServiceImpl implements GroupAssetService {
     private final SysUserMapper sysUserMapper;
     private final FileStorageService fileStorageService;
     private final MediaUrlService mediaUrlService;
+    private final ObjectKeyOwnershipService objectKeyOwnershipService;
 
     @Override
     public List<GroupAssetVO> list(Long userId, Long conversationId, String type) {
@@ -70,6 +72,9 @@ public class GroupAssetServiceImpl implements GroupAssetService {
             }
         } else if (!StringUtils.hasText(dto.getFileKey())) {
             throw new CustomException(400, "请先上传文件");
+        } else {
+            // 禁止挂载他人 object key：必须是本人上传并 claim 过的 key
+            objectKeyOwnershipService.assertOwned(userId, dto.getFileKey().trim());
         }
 
         GroupAsset asset = GroupAsset.builder()
@@ -80,7 +85,7 @@ public class GroupAssetServiceImpl implements GroupAssetService {
                 .content(dto.getContent())
                 .fileName(dto.getFileName())
                 .fileSize(dto.getFileSize())
-                .fileKey(dto.getFileKey())
+                .fileKey(StringUtils.hasText(dto.getFileKey()) ? dto.getFileKey().trim() : null)
                 .messageId(dto.getMessageId())
                 .downloadCount(0)
                 .build();
@@ -112,6 +117,7 @@ public class GroupAssetServiceImpl implements GroupAssetService {
         }
         try {
             String objectKey = fileStorageService.uploadFile(file, null);
+            objectKeyOwnershipService.claim(userId, objectKey);
             GroupAsset asset = GroupAsset.builder()
                     .conversationId(conversationId)
                     .uploaderId(userId)

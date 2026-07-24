@@ -72,16 +72,16 @@ public class NoteController {
     public Result<NoteFileUploadVO> upload(
             @RequestParam("file") MultipartFile file,
             HttpServletRequest request) {
-        AuthUtils.requireUserId(request, jwtUtils);
-        return Result.success(noteService.upload(file));
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(noteService.upload(userId, file));
     }
 
     @GetMapping("/media-url")
     public Result<String> resolveMedia(
             @RequestParam("key") String key,
             HttpServletRequest request) {
-        AuthUtils.requireUserId(request, jwtUtils);
-        return Result.success(noteService.resolveMediaUrl(key));
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(noteService.resolveMediaUrl(userId, key));
     }
 
     private Long parseId(String id) {

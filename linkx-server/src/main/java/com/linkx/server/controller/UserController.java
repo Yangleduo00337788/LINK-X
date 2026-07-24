@@ -1,9 +1,11 @@
 package com.linkx.server.controller;
 
+import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.common.ImageUploadValidator;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.Result;
 import com.linkx.server.common.UserProfileMapper;
+import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.controller.dto.ChangePasswordDTO;
 import com.linkx.server.controller.dto.UpdateProfileDTO;
 import com.linkx.server.controller.dto.UserPreferenceDTO;
@@ -40,6 +42,7 @@ public class UserController {
     private final DeviceSessionService deviceSessionService;
     private final UserPreferenceService userPreferenceService;
     private final JwtUtils jwtUtils;
+    private final LinkxProperties linkxProperties;
 
     private static final String DEFAULT_DEVICE_ID = "default-web-device";
     private static final String DEFAULT_DEVICE_NAME = "Web 浏览器";
@@ -229,15 +232,7 @@ public class UserController {
     }
 
     private String resolveClientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (StringUtils.hasText(forwarded)) {
-            return forwarded.split(",")[0].trim();
-        }
-        String realIp = request.getHeader("X-Real-IP");
-        if (StringUtils.hasText(realIp)) {
-            return realIp.trim();
-        }
-        return request.getRemoteAddr();
+        return ClientIpResolver.resolve(request, linkxProperties);
     }
 
     /**

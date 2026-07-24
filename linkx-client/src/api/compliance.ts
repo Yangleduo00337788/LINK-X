@@ -20,6 +20,6 @@ export function exportUserData() {
   return apiClient.get<never, ApiResult<UserDataExport>>('/compliance/export')
 }
 
-export function purgeUserData() {
-  return apiClient.post<never, ApiResult<null>>('/compliance/purge')
+export function purgeUserData(password: string) {
+  return apiClient.post<never, ApiResult<null>>('/compliance/purge', { password })
 }

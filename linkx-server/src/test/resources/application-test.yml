@@ -1,57 +1,85 @@
+# =============================================================================
+# LinkX 集成测试配置（src/test/resources/application-test.yml）
+# -----------------------------------------------------------------------------
+# @ActiveProfiles("test") 时覆盖主 application.yml。
+# 主配置已改为单文件 + .env.*；测试仍独立，不依赖 .env.local。
+# =============================================================================
+
 server:
+  # 0 = 随机端口，避免并行测试或本机已有服务冲突
   port: 0
   servlet:
+    # 与生产一致，MockMvc 请求仍带 /api 前缀
     context-path: /api
 
 spring:
   datasource:
+    # 内存 H2，兼容 MySQL 模式；用例结束进程即销毁
     url: jdbc:h2:mem:linkx;MODE=MySQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
     username: sa
     password: ""
     driver-class-name: org.h2.Driver
+
   sql:
     init:
+      # 每次上下文启动执行 schema.sql 建表
       mode: always
       schema-locations: classpath:schema.sql
+
   data:
     redis:
+      # 测试仍依赖真实 Redis（限流/token/属主登记等）；需本机 6379 可用
       host: 127.0.0.1
       port: 6379
       database: 0
-      password: # 无密码则留空
+      # 无密码则保持为空（YAML 空值）
+      password:
 
+# ---------- MyBatis-Flex（测试精简）----------
 mybatis-flex:
   global-config:
     logic-delete-column: deleted
     print-banner: false
 
+# ---------- LinkX 测试业务覆盖 ----------
 linkx:
   jwt:
+    # 固定测试密钥（≥32 字符），勿用于真实环境
     secret: Test-Local-JWT-Secret-For-Integration-2026!!
     access-expire: 7200000
     refresh-expire: 604800000
+
   auth:
-    # 测试环境关闭验证码，简化登录流程
+    # 关闭验证码，简化 registerAndLogin 等测试辅助方法
     captcha-enabled: false
     login-max-attempts: 5
     lock-duration-minutes: 15
+    # 放宽限流，避免批量用例触发 429
     rate-limit-login-per-minute: 1000
     rate-limit-register-per-minute: 1000
+
   cors:
     allowed-origins:
       - http://localhost:5173
+
   security:
+    # 测试不走 HTTPS 强制
     require-https: false
+
   im:
-    # -1 表示跳过 Netty WebSocket 服务启动，避免测试占用端口
+    # -1：跳过 Netty WebSocket 绑定，避免占端口；WS 相关用例自行起 mock/嵌入式
     websocket-port: -1
+
   minio:
+    # 多数单测会 mock FileStorageService；此处仅满足配置绑定
     endpoint: http://localhost:9000
     access-key: test
     secret-key: testsecret
     bucket-name: linkx-test
-    max-file-size: 10485760
+    max-file-size: 10485760  # 10MB
+
   mail:
+    # 指向本机假 SMTP，避免真实发信；未起服务时发送路径应被业务兜底/断言
     host: localhost
     port: 2525
     username: ""
@@ -62,6 +90,7 @@ linkx:
     ssl: false
     code-expire-minutes: 10
 
+# ---------- 测试日志尽量安静 ----------
 logging:
   level:
     root: warn

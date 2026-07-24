@@ -15,6 +15,7 @@ import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.MessageNotificationService;
 import com.linkx.server.service.MomentsService;
+import com.linkx.server.service.ObjectKeyOwnershipService;
 import com.mybatisflex.core.logicdelete.LogicDeleteManager;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +43,7 @@ public class MomentsServiceImpl implements MomentsService {
     private final SysUserRelationMapper sysUserRelationMapper;
     private final FileStorageService fileStorageService;
     private final MediaUrlService mediaUrlService;
+    private final ObjectKeyOwnershipService objectKeyOwnershipService;
     private final MessageNotificationService notificationService;
     private final ImMessagePushService imPushService;
     private final ObjectMapper objectMapper;
@@ -212,11 +214,22 @@ public class MomentsServiceImpl implements MomentsService {
     @Override
     public List<MomentsPostVO> listByUser(Long userId, Long targetUserId, Long beforeId, Integer limit, String q) {
         int pageSize = normalizeLimit(limit);
+        boolean self = Objects.equals(userId, targetUserId);
+        boolean friend = self || getFriendIds(userId).contains(targetUserId);
+
         QueryWrapper qw = QueryWrapper.create()
                 .eq("user_id", targetUserId)
-                .eq("deleted", 0)
-                .and("(IFNULL(visibility, 0) <> 2 OR user_id = ?)", userId)
-                .orderBy("create_time", false)
+                .eq("deleted", 0);
+        if (self) {
+            // 本人可见全部（含私密）
+        } else if (friend) {
+            // 好友：公开 + 仅好友，不含私密
+            qw.and("IFNULL(visibility, 0) <> 2");
+        } else {
+            // 陌生人：仅公开
+            qw.and("IFNULL(visibility, 0) = 0");
+        }
+        qw.orderBy("create_time", false)
                 .orderBy("id", false)
                 .limit(pageSize);
         if (beforeId != null) {
@@ -295,15 +308,22 @@ public class MomentsServiceImpl implements MomentsService {
     }
 
     /**
-     * 可见性校验：0=公开，1=仅好友（列表已按好友圈过滤），2=私密仅作者可见
+     * 可见性校验：0=公开，1=仅好友，2=私密仅作者可见。
+     * 点赞/评论等单条交互必须走完整好友校验，不能依赖「列表已过滤」。
      */
     private boolean canViewPost(MomentsPost post, Long viewerId) {
-        if (post == null) {
+        if (post == null || viewerId == null) {
             return false;
+        }
+        if (Objects.equals(post.getUserId(), viewerId)) {
+            return true;
         }
         int visibility = post.getVisibility() == null ? 0 : post.getVisibility();
         if (visibility == 2) {
-            return Objects.equals(post.getUserId(), viewerId);
+            return false;
+        }
+        if (visibility == 1) {
+            return getFriendIds(viewerId).contains(post.getUserId());
         }
         return true;
     }
@@ -734,7 +754,7 @@ public class MomentsServiceImpl implements MomentsService {
     }
 
     @Override
-    public String uploadImage(org.springframework.web.multipart.MultipartFile file) {
+    public String uploadImage(Long userId, org.springframework.web.multipart.MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new CustomException(400, "文件不能为空");
         }
@@ -746,7 +766,9 @@ public class MomentsServiceImpl implements MomentsService {
         }
         try {
             // 只返回 object key 入库；列表/详情时再签发预签名 URL。
-            return fileStorageService.uploadFile(file);
+            String key = fileStorageService.uploadFile(file);
+            objectKeyOwnershipService.claim(userId, key);
+            return key;
         } catch (IllegalArgumentException e) {
             throw new CustomException(400, e.getMessage());
         } catch (RuntimeException e) {

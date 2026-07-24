@@ -22,8 +22,10 @@ import com.linkx.server.service.TokenService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.Date;
 import java.util.HashMap;
@@ -133,10 +135,14 @@ public class ComplianceServiceImpl implements ComplianceService {
 
     @Override
     @Transactional
-    public void purgeUserData(Long userId) {
+    public void purgeUserData(Long userId, String password) {
         SysUser user = userMapper.selectOneById(userId);
         if (user == null) {
             throw new CustomException(404, "用户不存在");
+        }
+        if (!StringUtils.hasText(password) || !BCrypt.checkpw(password, user.getPassword())) {
+            audit(userId, "purge", "合规清除密码校验失败", false);
+            throw new CustomException(400, "密码错误");
         }
 
         // 逻辑删除本人发送的消息正文

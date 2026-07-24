@@ -105,6 +105,26 @@ class MomentsServiceTest extends BaseIntegrationTest {
                     .orElseThrow();
             assertTrue(found.isLiked());
         }
+
+        @Test
+        @DisplayName("friends-only post hidden from stranger list/like")
+        void friendsOnlyHiddenFromStranger() {
+            TestUser author = registerAndLogin("msvisA");
+            TestUser stranger = registerAndLogin("msvisB");
+
+            PublishMomentsDTO dto = new PublishMomentsDTO();
+            dto.setContent("friends only");
+            dto.setVisibility(1);
+            MomentsPostVO post = momentsService.publish(author.userId, dto);
+
+            List<MomentsPostVO> strangerView = momentsService.listByUser(
+                    stranger.userId, author.userId, null, 20, null);
+            assertTrue(strangerView.stream().noneMatch(p -> p.getId().equals(post.getId())));
+
+            CustomException ex = assertThrows(CustomException.class,
+                    () -> momentsService.like(stranger.userId, post.getId()));
+            assertEquals(403, ex.getCode());
+        }
     }
 
     @Nested
@@ -117,7 +137,7 @@ class MomentsServiceTest extends BaseIntegrationTest {
             MockMultipartFile file = new MockMultipartFile(
                     "file", "a.txt", "text/plain", "x".getBytes());
             CustomException ex = assertThrows(CustomException.class,
-                    () -> momentsService.uploadImage(file));
+                    () -> momentsService.uploadImage(1L, file));
             assertEquals(400, ex.getCode());
         }
     }

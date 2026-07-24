@@ -10,8 +10,8 @@ public interface ComplianceService {
     /** 导出当前用户的个人数据快照 */
     UserDataExportVO exportUserData(Long userId);
 
-    /** 清除用户业务数据（注销配套），保留最小审计痕迹 */
-    void purgeUserData(Long userId);
+    /** 清除用户业务数据（注销配套），保留最小审计痕迹；须校验登录密码 */
+    void purgeUserData(Long userId, String password);
 
     /** 记录合规相关审计 */
     void audit(Long userId, String action, String detail, boolean success);

@@ -26,6 +26,7 @@ import com.linkx.server.mapper.UserStorageMapper;
 import com.linkx.server.service.CloudDriveService;
 import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.MediaUrlService;
+import com.linkx.server.service.ObjectKeyOwnershipService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.mindrot.jbcrypt.BCrypt;
@@ -61,6 +62,7 @@ public class CloudDriveServiceImpl implements CloudDriveService {
     private final SysUserMapper sysUserMapper;
     private final FileStorageService fileStorageService;
     private final MediaUrlService mediaUrlService;
+    private final ObjectKeyOwnershipService objectKeyOwnershipService;
 
     @Override
     public DriveStorageVO getStorage(Long userId) {
@@ -208,6 +210,7 @@ public class CloudDriveServiceImpl implements CloudDriveService {
         String key;
         try {
             key = fileStorageService.uploadFile(file);
+            objectKeyOwnershipService.claim(userId, key);
         } catch (IllegalArgumentException e) {
             throw new CustomException(400, e.getMessage());
         } catch (RuntimeException e) {

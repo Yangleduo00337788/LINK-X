@@ -68,5 +68,5 @@ public interface MomentsService {
      * @param file 媒体文件
      * @return MinIO 对象 key（发布时写入 moments_image.url；展示时再签发预签名 URL）
      */
-    String uploadImage(org.springframework.web.multipart.MultipartFile file);
+    String uploadImage(Long userId, org.springframework.web.multipart.MultipartFile file);
 }

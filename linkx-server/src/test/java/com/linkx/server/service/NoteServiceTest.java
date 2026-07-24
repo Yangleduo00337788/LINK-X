@@ -61,7 +61,22 @@ class NoteServiceTest extends BaseIntegrationTest {
         @Test
         @DisplayName("blank media key throws")
         void resolveMediaUrl_blank() {
-            assertThrows(CustomException.class, () -> noteService.resolveMediaUrl("  "));
+            TestUser user = registerAndLogin("notesvc3");
+            assertThrows(CustomException.class, () -> noteService.resolveMediaUrl(user.userId, "  "));
+        }
+
+        @Test
+        @DisplayName("foreign object key rejected")
+        void resolveMediaUrl_foreignKey_forbidden() {
+            TestUser owner = registerAndLogin("noteown");
+            TestUser stranger = registerAndLogin("notestr");
+            CustomException ex = assertThrows(CustomException.class,
+                    () -> noteService.resolveMediaUrl(stranger.userId, "2026/07/24/not-owned.png"));
+            assertEquals(403, ex.getCode());
+            // owner also forbidden until claim / note content reference
+            CustomException ex2 = assertThrows(CustomException.class,
+                    () -> noteService.resolveMediaUrl(owner.userId, "2026/07/24/not-owned.png"));
+            assertEquals(403, ex2.getCode());
         }
     }
 }

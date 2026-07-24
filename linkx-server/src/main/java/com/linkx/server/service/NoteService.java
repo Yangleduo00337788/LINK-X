@@ -37,12 +37,12 @@ public interface NoteService {
     void delete(Long userId, Long noteId);
 
     /**
-     * 上传笔记附件（图片/文件/语音）
+     * 上传笔记附件（图片/文件/语音），并登记属主
      */
-    NoteFileUploadVO upload(org.springframework.web.multipart.MultipartFile file);
+    NoteFileUploadVO upload(Long userId, org.springframework.web.multipart.MultipartFile file);
 
     /**
-     * 将 object key 解析为可访问的预签名 URL
+     * 将本人有权的 object key 解析为预签名 URL
      */
-    String resolveMediaUrl(String fileKey);
+    String resolveMediaUrl(Long userId, String fileKey);
 }
