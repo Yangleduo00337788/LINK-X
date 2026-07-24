@@ -4,9 +4,11 @@ import com.linkx.server.common.AuthUtils;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.Result;
 import com.linkx.server.controller.dto.CallCancelDTO;
+import com.linkx.server.controller.dto.CallConferenceCreateDTO;
 import com.linkx.server.controller.dto.CallIdDTO;
 import com.linkx.server.controller.dto.CallInviteDTO;
 import com.linkx.server.controller.dto.CallSignalDTO;
+import com.linkx.server.controller.dto.CallSwitchDeviceDTO;
 import com.linkx.server.controller.vo.CallInviteVO;
 import com.linkx.server.service.CallService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -84,64 +86,56 @@ public class CallController {
         return Result.success(null);
     }
 
-    // ==================== 断线重连 ====================
-
     @PostMapping("/reconnect")
     public Result<Void> reconnect(
-            @RequestBody java.util.Map<String, String> body,
+            @Valid @RequestBody CallIdDTO dto,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        callService.reconnect(userId, body.get("callId"));
+        callService.reconnect(userId, dto.getCallId());
         return Result.success(null);
     }
-
-    // ==================== 设备切换 ====================
 
     @PostMapping("/switch-device")
     public Result<Void> switchDevice(
-            @RequestBody java.util.Map<String, Object> body,
+            @Valid @RequestBody CallSwitchDeviceDTO dto,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        callService.switchDevice(userId, (String) body.get("callId"),
-                (String) body.get("deviceType"), Boolean.TRUE.equals(body.get("enabled")));
+        callService.switchDevice(userId, dto.getCallId(), dto.getDeviceType(), Boolean.TRUE.equals(dto.getEnabled()));
         return Result.success(null);
     }
 
-    // ==================== 多人会议 ====================
-
     @PostMapping("/conference/create")
     public Result<String> createConference(
-            @RequestBody java.util.Map<String, Object> body,
+            @Valid @RequestBody CallConferenceCreateDTO dto,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        Long conversationId = Long.parseLong(body.get("conversationId").toString());
-        String callType = (String) body.getOrDefault("callType", "voice");
-        return Result.success(callService.createConference(userId, conversationId, callType));
+        String callType = dto.getCallType() != null ? dto.getCallType() : "voice";
+        return Result.success(callService.createConference(userId, dto.getConversationId(), callType));
     }
 
     @PostMapping("/conference/join")
     public Result<Void> joinConference(
-            @RequestBody java.util.Map<String, String> body,
+            @Valid @RequestBody CallIdDTO dto,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        callService.joinConference(userId, body.get("callId"));
+        callService.joinConference(userId, dto.getCallId());
         return Result.success(null);
     }
 
     @PostMapping("/conference/leave")
     public Result<Void> leaveConference(
-            @RequestBody java.util.Map<String, String> body,
+            @Valid @RequestBody CallIdDTO dto,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        callService.leaveConference(userId, body.get("callId"));
+        callService.leaveConference(userId, dto.getCallId());
         return Result.success(null);
     }
 
     @PostMapping("/conference/participants")
     public Result<java.util.List<java.util.Map<String, Object>>> getParticipants(
-            @RequestBody java.util.Map<String, String> body,
+            @Valid @RequestBody CallIdDTO dto,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        return Result.success(callService.getConferenceParticipants(userId, body.get("callId")));
+        return Result.success(callService.getConferenceParticipants(userId, dto.getCallId()));
     }
 }

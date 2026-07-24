@@ -99,10 +99,10 @@ export interface ConferenceSignalPayload {
 
 export function signal(payload: ConferenceSignalPayload) {
   return apiClient.post<never, ApiResult<null>>('/conference/signal', {
-    conferenceId: String(payload.conferenceId),
+    conferenceId: Number(payload.conferenceId),
     signalType: payload.signalType,
     sdp: payload.sdp,
     candidate: payload.candidate,
-    targetUserId: payload.targetUserId != null ? String(payload.targetUserId) : undefined
+    targetUserId: payload.targetUserId != null ? Number(payload.targetUserId) : undefined
   })
 }

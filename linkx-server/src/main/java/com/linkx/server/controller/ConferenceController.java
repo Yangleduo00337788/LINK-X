@@ -4,7 +4,13 @@ import com.linkx.server.common.AuthUtils;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.Result;
 import com.linkx.server.controller.dto.ConferenceCreateDTO;
+import com.linkx.server.controller.dto.ConferenceIdDTO;
+import com.linkx.server.controller.dto.ConferenceJoinDTO;
+import com.linkx.server.controller.dto.ConferenceMemberActionDTO;
+import com.linkx.server.controller.dto.ConferenceMuteDTO;
 import com.linkx.server.controller.dto.ConferenceSignalDTO;
+import com.linkx.server.controller.dto.ConferenceTransferHostDTO;
+import com.linkx.server.controller.dto.ConferenceVideoDTO;
 import com.linkx.server.controller.vo.ConferenceInfoVO;
 import com.linkx.server.service.ConferenceService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -18,7 +24,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/conference")
@@ -35,24 +40,22 @@ public class ConferenceController {
     }
 
     @PostMapping("/join")
-    public Result<ConferenceInfoVO> join(@RequestBody Map<String, Object> body, HttpServletRequest request) {
+    public Result<ConferenceInfoVO> join(@Valid @RequestBody ConferenceJoinDTO dto, HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        Long conferenceId = Long.parseLong(body.get("conferenceId").toString());
-        String password = body.get("password") != null ? body.get("password").toString() : null;
-        return Result.success(conferenceService.join(userId, conferenceId, password));
+        return Result.success(conferenceService.join(userId, dto.getConferenceId(), dto.getPassword()));
     }
 
     @PostMapping("/leave")
-    public Result<Void> leave(@RequestBody Map<String, Object> body, HttpServletRequest request) {
+    public Result<Void> leave(@Valid @RequestBody ConferenceIdDTO dto, HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        conferenceService.leave(userId, Long.parseLong(body.get("conferenceId").toString()));
+        conferenceService.leave(userId, dto.getConferenceId());
         return Result.success();
     }
 
     @PostMapping("/end")
-    public Result<Void> end(@RequestBody Map<String, Object> body, HttpServletRequest request) {
+    public Result<Void> end(@Valid @RequestBody ConferenceIdDTO dto, HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        conferenceService.end(userId, Long.parseLong(body.get("conferenceId").toString()));
+        conferenceService.end(userId, dto.getConferenceId());
         return Result.success();
     }
 
@@ -69,40 +72,31 @@ public class ConferenceController {
     }
 
     @PostMapping("/mute")
-    public Result<Void> mute(@RequestBody Map<String, Object> body, HttpServletRequest request) {
+    public Result<Void> mute(@Valid @RequestBody ConferenceMuteDTO dto, HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        Long conferenceId = Long.parseLong(body.get("conferenceId").toString());
-        Long targetUserId = body.get("targetUserId") != null
-                ? Long.parseLong(body.get("targetUserId").toString()) : userId;
-        boolean muted = Boolean.TRUE.equals(body.get("muted")) || "true".equals(String.valueOf(body.get("muted")));
-        conferenceService.mute(userId, conferenceId, targetUserId, muted);
+        Long targetUserId = dto.getTargetUserId() != null ? dto.getTargetUserId() : userId;
+        conferenceService.mute(userId, dto.getConferenceId(), targetUserId, Boolean.TRUE.equals(dto.getMuted()));
         return Result.success();
     }
 
     @PostMapping("/video")
-    public Result<Void> video(@RequestBody Map<String, Object> body, HttpServletRequest request) {
+    public Result<Void> video(@Valid @RequestBody ConferenceVideoDTO dto, HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        Long conferenceId = Long.parseLong(body.get("conferenceId").toString());
-        boolean videoOff = Boolean.TRUE.equals(body.get("videoOff")) || "true".equals(String.valueOf(body.get("videoOff")));
-        conferenceService.setVideo(userId, conferenceId, videoOff);
+        conferenceService.setVideo(userId, dto.getConferenceId(), Boolean.TRUE.equals(dto.getVideoOff()));
         return Result.success();
     }
 
     @PostMapping("/remove")
-    public Result<Void> remove(@RequestBody Map<String, Object> body, HttpServletRequest request) {
+    public Result<Void> remove(@Valid @RequestBody ConferenceMemberActionDTO dto, HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        conferenceService.removeMember(userId,
-                Long.parseLong(body.get("conferenceId").toString()),
-                Long.parseLong(body.get("targetUserId").toString()));
+        conferenceService.removeMember(userId, dto.getConferenceId(), dto.getTargetUserId());
         return Result.success();
     }
 
     @PostMapping("/transfer-host")
-    public Result<Void> transferHost(@RequestBody Map<String, Object> body, HttpServletRequest request) {
+    public Result<Void> transferHost(@Valid @RequestBody ConferenceTransferHostDTO dto, HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        conferenceService.transferHost(userId,
-                Long.parseLong(body.get("conferenceId").toString()),
-                Long.parseLong(body.get("newHostId").toString()));
+        conferenceService.transferHost(userId, dto.getConferenceId(), dto.getNewHostId());
         return Result.success();
     }
 

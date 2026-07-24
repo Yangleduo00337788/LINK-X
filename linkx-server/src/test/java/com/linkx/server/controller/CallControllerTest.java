@@ -51,4 +51,29 @@ class CallControllerTest extends BaseIntegrationTest {
                     .andExpect(jsonPath("$.code").value(401));
         }
     }
+
+    @Test
+    @DisplayName("缺少 callId 的 switch-device / reconnect 应参数校验失败")
+    void dtoValidation_missingCallId() throws Exception {
+        TestUser user = registerAndLogin("callval");
+        mockMvc.perform(post("/call/reconnect")
+                        .header("Authorization", user.bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(jsonPath("$.code").value(400));
+        mockMvc.perform(post("/call/switch-device")
+                        .header("Authorization", user.bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"deviceType":"audio","enabled":true}
+                                """))
+                .andExpect(jsonPath("$.code").value(400));
+        mockMvc.perform(post("/call/conference/create")
+                        .header("Authorization", user.bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"callType":"voice"}
+                                """))
+                .andExpect(jsonPath("$.code").value(400));
+    }
 }

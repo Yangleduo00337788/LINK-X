@@ -149,6 +149,17 @@ public class NoteServiceImpl implements NoteService {
         if (key.startsWith("lx-media:")) {
             key = key.substring("lx-media:".length());
         }
+        // 拒绝路径穿越与绝对路径，避免把任意对象 key 签出预签名 URL
+        if (!StringUtils.hasText(key)
+                || key.contains("..")
+                || key.contains("\\")
+                || key.startsWith("/")
+                || key.contains("://")) {
+            throw new CustomException(400, "无效的媒体 key");
+        }
+        if (key.length() > 512) {
+            throw new CustomException(400, "媒体 key 过长");
+        }
         String url = mediaUrlService.resolve(key);
         if (!StringUtils.hasText(url)) {
             throw new CustomException(404, "媒体不存在或无法访问");
