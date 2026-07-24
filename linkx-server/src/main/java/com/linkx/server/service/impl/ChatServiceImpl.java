@@ -101,6 +101,9 @@ public class ChatServiceImpl implements ChatService {
                 QueryWrapper.create().where(ImConversation::getId).in(conversationIds)
         );
         conversations.sort((a, b) -> {
+            boolean importantA = isImportant(membershipMap, a.getId());
+            boolean importantB = isImportant(membershipMap, b.getId());
+            if (importantA != importantB) return importantA ? -1 : 1;
             boolean pinnedA = isPinned(membershipMap, a.getId());
             boolean pinnedB = isPinned(membershipMap, b.getId());
             if (pinnedA != pinnedB) return pinnedA ? -1 : 1;
@@ -128,6 +131,7 @@ public class ChatServiceImpl implements ChatService {
         for (ImConversation conversation : conversations) {
             ImConversationMember membership = membershipMap.get(conversation.getId());
             boolean pinned = membership != null && membership.getPinned() != null && membership.getPinned() == 1;
+            boolean important = membership != null && membership.getImportant() != null && membership.getImportant() == 1;
             boolean muted = membership != null && membership.getMuted() != null && membership.getMuted() == 1;
 
             if (conversation.getType() == ImConversation.TYPE_PRIVATE) {
@@ -141,13 +145,13 @@ public class ChatServiceImpl implements ChatService {
                 boolean showOnline = !Boolean.FALSE.equals(showOnlineMap.get(peer.getId()));
                 boolean peerOnline = showOnline && imChannelManager.isOnline(peer.getId());
                 result.add(toConversationVO(conversation, peer, remarkMap.get(peer.getId()), peerOnline,
-                        getUnreadCount(userId, conversation.getId()), pinned, muted));
+                        getUnreadCount(userId, conversation.getId()), pinned, important, muted));
             } else if (conversation.getType() == ImConversation.TYPE_GROUP) {
                 result.add(toGroupConversationVO(
                         conversation,
                         groupMemberAvatars.getOrDefault(conversation.getId(), List.of()),
                         groupRemarkMap.get(conversation.getId()),
-                        getUnreadCount(userId, conversation.getId()), pinned, muted
+                        getUnreadCount(userId, conversation.getId()), pinned, important, muted
                 ));
             }
         }
@@ -204,7 +208,7 @@ public class ChatServiceImpl implements ChatService {
 
         Map<Long, String> remarkMap = loadRemarkMap(userId, Set.of(friendId));
         return toConversationVO(conversation, friend, remarkMap.get(friendId), resolvePeerOnline(friendId),
-                getUnreadCount(userId, conversation.getId()), false, false);
+                getUnreadCount(userId, conversation.getId()), false, false, false);
     }
 
     @Override
@@ -859,6 +863,7 @@ public class ChatServiceImpl implements ChatService {
             boolean peerOnline,
             long unreadCount,
             boolean pinned,
+            boolean important,
             boolean muted
     ) {
         return ConversationVO.builder()
@@ -876,6 +881,7 @@ public class ChatServiceImpl implements ChatService {
                         : null)
                 .unreadCount(unreadCount)
                 .pinned(pinned)
+                .important(important)
                 .muted(muted)
                 .build();
     }
@@ -886,6 +892,7 @@ public class ChatServiceImpl implements ChatService {
             String myRemark,
             long unreadCount,
             boolean pinned,
+            boolean important,
             boolean muted
     ) {
         return ConversationVO.builder()
@@ -904,6 +911,7 @@ public class ChatServiceImpl implements ChatService {
                         : null)
                 .unreadCount(unreadCount)
                 .pinned(pinned)
+                .important(important)
                 .muted(muted)
                 .build();
     }
@@ -911,6 +919,11 @@ public class ChatServiceImpl implements ChatService {
     private boolean isPinned(Map<Long, ImConversationMember> membershipMap, Long conversationId) {
         ImConversationMember m = membershipMap.get(conversationId);
         return m != null && m.getPinned() != null && m.getPinned() == 1;
+    }
+
+    private boolean isImportant(Map<Long, ImConversationMember> membershipMap, Long conversationId) {
+        ImConversationMember m = membershipMap.get(conversationId);
+        return m != null && m.getImportant() != null && m.getImportant() == 1;
     }
 
     private Map<Long, String> loadGroupRemarkMap(Long userId, Set<Long> groupIds) {
@@ -1284,6 +1297,24 @@ public class ChatServiceImpl implements ChatService {
         }
 
         member.setPinned(member.getPinned() != null && member.getPinned() == 1 ? 0 : 1);
+        memberMapper.update(member);
+    }
+
+    @Override
+    @Transactional
+    public void toggleImportantConversation(Long userId, Long conversationId) {
+        assertConversationMember(userId, conversationId);
+
+        ImConversationMember member = memberMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).eq(conversationId)
+                        .and(ImConversationMember::getUserId).eq(userId)
+        );
+        if (member == null) {
+            throw new CustomException(403, "非会话成员");
+        }
+
+        member.setImportant(member.getImportant() != null && member.getImportant() == 1 ? 0 : 1);
         memberMapper.update(member);
     }
 

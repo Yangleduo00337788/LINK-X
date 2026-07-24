@@ -48,6 +48,7 @@ export function conversationToSession(conv: ConversationItem): ChatSession {
       isGroup: true,
       isReal: true,
       pinned: !!conv.pinned,
+      important: !!conv.important,
       muted: !!conv.muted,
       unread: conv.unreadCount != null ? Number(conv.unreadCount) || undefined : undefined
     }
@@ -68,6 +69,7 @@ export function conversationToSession(conv: ConversationItem): ChatSession {
     isGroup: false,
     isReal: true,
     pinned: !!conv.pinned,
+    important: !!conv.important,
     muted: !!conv.muted,
     unread: conv.unreadCount != null ? Number(conv.unreadCount) || undefined : undefined
   }

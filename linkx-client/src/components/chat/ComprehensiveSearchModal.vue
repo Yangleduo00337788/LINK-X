@@ -13,6 +13,7 @@ import { useContactsStore } from '../../stores/contacts'
 import { useNotificationsStore } from '../../stores/notifications'
 import * as friendApi from '../../api/friend'
 import * as groupApi from '../../api/group'
+import * as chatApi from '../../api/chat'
 import type { UserSearchResult } from '../../types/friend'
 import type { ConversationSummary } from '../../api/group'
 import { useI18n } from '../../i18n'
@@ -22,6 +23,15 @@ interface SearchGroupItem {
   name: string
   avatarText: string
   lastMessage?: string
+}
+
+interface SearchMessageItem {
+  messageId: string
+  sessionId: string
+  sessionName: string
+  content: string
+  highlight?: string
+  type: string
 }
 
 interface SearchUserItem {
@@ -44,20 +54,22 @@ const contactsStore = useContactsStore()
 const notificationsStore = useNotificationsStore()
 const { comprehensiveSearchOpen } = storeToRefs(chatModalsStore)
 const { closeComprehensiveSearch } = chatModalsStore
-const { groupSessions } = storeToRefs(appStore)
-const { openGroupSession, addFriendSession: addFriendAction } = appStore
+const { groupSessions, sessions } = storeToRefs(appStore)
+const { openGroupSession, addFriendSession: addFriendAction, openSessionAtMessage } = appStore
 
 const keyword = ref('')
-const mainTab = ref<'all' | 'user' | 'group'>('all')
+const mainTab = ref<'all' | 'user' | 'group' | 'message'>('all')
 const searched = ref(false)
 const searching = ref(false)
 const remoteUsers = ref<UserSearchResult[]>([])
 const remoteGroups = ref<SearchGroupItem[]>([])
+const messageHits = ref<SearchMessageItem[]>([])
 
 const mainTabs = computed(() => [
   { key: 'all' as const, label: t('modals.all') },
   { key: 'user' as const, label: t('modals.user') },
-  { key: 'group' as const, label: t('modals.groupChat') }
+  { key: 'group' as const, label: t('modals.groupChat') },
+  { key: 'message' as const, label: t('modals.messages') }
 ])
 
 function close() {
@@ -66,6 +78,7 @@ function close() {
   searching.value = false
   remoteUsers.value = []
   remoteGroups.value = []
+  messageHits.value = []
 }
 
 async function doSearch() {
@@ -79,27 +92,55 @@ async function doSearch() {
   searching.value = true
   remoteUsers.value = []
   remoteGroups.value = []
+  messageHits.value = []
 
   try {
+    const tasks: Promise<void>[] = []
+
     if (q.length >= 2) {
-      const [userRes, groupRes] = await Promise.all([
-        friendApi.searchUsers(q),
-        groupApi.listGroups()
-      ])
-      if (userRes.code === 200 && userRes.data) {
-        remoteUsers.value = userRes.data
-      }
-      if (groupRes.code === 200 && groupRes.data) {
-        remoteGroups.value = groupRes.data
-          .filter(g => (g.name || t('modals.groupChat')).toLowerCase().includes(q.toLowerCase()))
-          .map((g: ConversationSummary) => ({
-            id: String(g.id),
-            name: g.name || t('modals.groupChat'),
-            avatarText: (g.name || t('modals.groupChar')).charAt(0),
-            lastMessage: g.lastMessage
-          }))
-      }
+      tasks.push(
+        (async () => {
+          const [userRes, groupRes] = await Promise.all([
+            friendApi.searchUsers(q),
+            groupApi.listGroups()
+          ])
+          if (userRes.code === 200 && userRes.data) {
+            remoteUsers.value = userRes.data
+          }
+          if (groupRes.code === 200 && groupRes.data) {
+            remoteGroups.value = groupRes.data
+              .filter(g => (g.name || t('modals.groupChat')).toLowerCase().includes(q.toLowerCase()))
+              .map((g: ConversationSummary) => ({
+                id: String(g.id),
+                name: g.name || t('modals.groupChat'),
+                avatarText: (g.name || t('modals.groupChar')).charAt(0),
+                lastMessage: g.lastMessage
+              }))
+          }
+        })()
+      )
     }
+
+    tasks.push(
+      (async () => {
+        const msgRes = await chatApi.searchMessages(q, { limit: 30 })
+        if (msgRes.code === 200 && msgRes.data) {
+          messageHits.value = msgRes.data.map(hit => ({
+            messageId: String(hit.messageId),
+            sessionId: String(hit.conversationId),
+            sessionName:
+              hit.conversationName ||
+              sessions.value.find(s => s.id === String(hit.conversationId))?.name ||
+              t('modals.chat'),
+            content: hit.content || hit.fileName || '',
+            highlight: hit.highlight || undefined,
+            type: hit.type || 'text'
+          }))
+        }
+      })()
+    )
+
+    await Promise.all(tasks)
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     message.error(err.response?.data?.message || err.message || t('modals.searchUserFail'))
@@ -172,6 +213,16 @@ const filteredGroups = computed(() => {
 
 const showGroups = computed(() => mainTab.value === 'all' || mainTab.value === 'group')
 const showUsers = computed(() => mainTab.value === 'all' || mainTab.value === 'user')
+const showMessages = computed(() => mainTab.value === 'all' || mainTab.value === 'message')
+
+function openMessageHit(hit: SearchMessageItem) {
+  const ok = openSessionAtMessage(hit.sessionId, hit.messageId)
+  if (ok) {
+    close()
+    return
+  }
+  message.warning(t('overlay.messageNotFound'))
+}
 
 async function enterGroup(group: SearchGroupItem) {
   try {
@@ -296,8 +347,34 @@ async function handleUserAction(user: SearchUserItem) {
                 </div>
                 <button type="button" class="join-btn" @click="enterGroup(g)">{{ t('modals.enter') }}</button>
               </article>
-              <p v-if="showGroups && !filteredGroups.length && mainTab !== 'user'" class="empty-tip">
+              <p v-if="showGroups && !filteredGroups.length && mainTab !== 'user' && mainTab !== 'message'" class="empty-tip">
                 {{ t('modals.noMatchGroup') }}
+              </p>
+            </template>
+            <template v-if="showMessages">
+              <h4 v-if="messageHits.length" class="section-label">{{ t('modals.messages') }}</h4>
+              <article
+                v-for="m in messageHits"
+                :key="m.messageId"
+                class="group-card message-hit"
+                @click="openMessageHit(m)"
+              >
+                <div class="g-avatar">💬</div>
+                <div class="g-body">
+                  <h3 class="g-name">{{ m.sessionName }}</h3>
+                  <p
+                    v-if="m.highlight"
+                    class="g-meta hit-highlight"
+                    v-html="m.highlight"
+                  />
+                  <p v-else class="g-meta">{{ m.content || m.type }}</p>
+                </div>
+                <button type="button" class="join-btn" @click.stop="openMessageHit(m)">
+                  {{ t('modals.locate') }}
+                </button>
+              </article>
+              <p v-if="showMessages && !messageHits.length && mainTab === 'message'" class="empty-tip">
+                {{ t('modals.noMatchMessage') }}
               </p>
             </template>
           </template>

@@ -35,6 +35,7 @@ export interface ChatSession {
   unread?: number         // 未读消息数
   muted?: boolean         // 是否免打扰
   pinned?: boolean        // 是否置顶
+  important?: boolean     // 是否重要会话（列表高亮）
   blocked?: boolean       // 是否拉黑（单聊）
   /** 群聊有未读的 @我 / @全体成员（列表红字；进会话后仍可保留至点浮层确认） */
   atMe?: boolean

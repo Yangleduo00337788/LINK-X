@@ -72,6 +72,9 @@ public interface ChatService {
     /** 置顶/取消置顶会话。 */
     void togglePinConversation(Long userId, Long conversationId);
 
+    /** 重要会话高亮开/关（当前用户维度）。 */
+    void toggleImportantConversation(Long userId, Long conversationId);
+
     /** 免打扰/取消免打扰会话。 */
     void toggleMuteConversation(Long userId, Long conversationId);
 

@@ -67,6 +67,9 @@ public class ConversationVO {
     /** 是否置顶（当前用户维度） */
     private Boolean pinned;
 
+    /** 是否重要会话高亮（当前用户维度） */
+    private Boolean important;
+
     /** 是否免打扰（当前用户维度） */
     private Boolean muted;
 }

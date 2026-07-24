@@ -21,6 +21,7 @@ import {
   messageToChatMessage,
   messagePreviewFromItem
 } from '../utils/chatMapper'
+import { compareMessageOrder } from '../utils/messageOrder'
 import {
   contentMentionsUser,
   notifyIncomingMessage,
@@ -191,6 +192,8 @@ export const useAppStore = defineStore('app', {
     currentSessionId: null as string | null,                     // 当前打开的会话 id
     /** 每次点击进入会话递增，用于强制滚到最新（含重复点击同一会话） */
     sessionEnterTick: 0,
+    /** 打开会话后待滚动定位并高亮的消息 ID（搜索跳转等） */
+    pendingFocusMessageId: null as string | null,
     theme: 'light' as 'light' | 'dark',                          // 明暗主题
     contactsActiveView: 'none' as 'none' | 'friend-notifs' | 'group-notifs', // 通讯录子视图
     userProfile: {
@@ -240,11 +243,11 @@ export const useAppStore = defineStore('app', {
       if (!id) return []
       return state.messagesBySession[id] ?? []
     },
-    /** 会话列表：置顶项排在前面 */
+    /** 会话列表：重要 > 置顶 > 其余 */
     sortedSessions(state): ChatSession[] {
       return [...state.sessions].sort((a, b) => {
-        if (a.pinned && !b.pinned) return -1
-        if (!a.pinned && b.pinned) return 1
+        if (!!a.important !== !!b.important) return a.important ? -1 : 1
+        if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1
         return 0
       })
     },
@@ -584,10 +587,9 @@ export const useAppStore = defineStore('app', {
           const serverIds = new Set(serverMessages.map(m => m.id))
           const localOnlyMessages = localMessages.filter(m => !serverIds.has(m.id))
 
-          // 合并：服务端消息 + 本地乐观消息
+          // 合并：服务端消息 + 本地乐观消息；按雪花 id 升序（与后端游标一致）
           const merged = [...serverMessages, ...localOnlyMessages]
-          // 按时间排序（时间格式 HH:mm 可以直接字符串比较）
-          merged.sort((a, b) => (a.time > b.time ? 1 : -1))
+          merged.sort(compareMessageOrder)
 
           console.log('[loadSessionMessages]', {
             sessionId,
@@ -892,6 +894,42 @@ export const useAppStore = defineStore('app', {
         console.error('切换置顶失败:', e)
         throw e
       }
+    },
+
+    /** 切换重要会话高亮（调用后端，失败回滚） */
+    async toggleSessionImportant(sessionId: string) {
+      const s = this.sessions.find(x => x.id === sessionId)
+      if (!s) return
+      const prev = !!s.important
+      s.important = !prev
+      try {
+        const res = await chatApi.toggleImportant(sessionId)
+        if (res.code !== 200) {
+          s.important = prev
+          throw new Error(res.message || '标记重要失败')
+        }
+      } catch (e) {
+        s.important = prev
+        console.error('切换重要会话失败:', e)
+        throw e
+      }
+    },
+
+    /**
+     * 打开会话并定位到指定消息（搜索/收藏跳转）。
+     * ChatPanel 监听 pendingFocusMessageId 后滚动并高亮。
+     */
+    openSessionAtMessage(sessionId: string, messageId: string) {
+      const session = this.sessions.find(s => s.id === sessionId)
+      if (!session) return false
+      this.pendingFocusMessageId = messageId
+      this.navKey = 'chat'
+      this.selectSession(session)
+      return true
+    },
+
+    clearPendingFocusMessage() {
+      this.pendingFocusMessageId = null
     },
 
     /** 切换会话免打扰（调用后端，失败回滚） */

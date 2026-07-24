@@ -220,6 +220,15 @@ public class ChatController {
         return Result.success();
     }
 
+    @PostMapping("/sessions/{conversationId}/important")
+    public Result<Void> toggleImportant(
+            @PathVariable String conversationId,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        chatService.toggleImportantConversation(userId, parseId(conversationId));
+        return Result.success();
+    }
+
     @PostMapping("/sessions/{conversationId}/mute")
     public Result<Void> toggleMute(
             @PathVariable String conversationId,

@@ -100,6 +100,7 @@ CREATE TABLE IF NOT EXISTS im_conversation_member (
   remark VARCHAR(64),
   last_read_message_id BIGINT,
   pinned TINYINT NOT NULL DEFAULT 0,
+  important TINYINT NOT NULL DEFAULT 0,
   muted TINYINT NOT NULL DEFAULT 0,
   mute_until DATETIME,
   mute TINYINT NOT NULL DEFAULT 0,

@@ -7,15 +7,18 @@ import { NIcon, NInput, NEmpty, NDatePicker, useMessage } from 'naive-ui'
 import { ChatbubblesOutline, TimeOutline, SearchOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../../../stores/app'
+import { useOverlayStore } from '../../../stores/overlay'
 import EmptyState from '../../common/EmptyState.vue'
 import { useI18n } from '../../../i18n'
 import * as chatApi from '../../../api/chat'
 
 const appStore = useAppStore()
+const overlayStore = useOverlayStore()
 const message = useMessage()
 const { t } = useI18n()
 const { sessions, messagesBySession, currentSessionId } = storeToRefs(appStore)
-const { selectSession } = appStore
+const { openSessionAtMessage } = appStore
+const { closeAll: closeOverlay } = overlayStore
 
 const searchQuery = ref('')
 const searching = ref(false)
@@ -134,10 +137,19 @@ function historyPreview(msg: (typeof currentMessages.value)[number]) {
   return msg.content
 }
 
-function goToMessage(sessionId: string) {
+function goToMessage(sessionId: string, messageId?: string) {
+  if (messageId) {
+    const ok = openSessionAtMessage(sessionId, messageId)
+    if (ok) {
+      closeOverlay()
+      return
+    }
+  }
   const session = sessions.value.find(s => s.id === sessionId)
   if (session) {
-    selectSession(session)
+    appStore.selectSession(session)
+    appStore.navKey = 'chat'
+    closeOverlay()
     message.success(t('overlay.jumpedToSession'))
   }
 }
@@ -210,7 +222,7 @@ function clearTimeRange() {
               :key="msg.id"
               class="result-item"
               :class="{ self: msg.isSelf }"
-              @click="goToMessage(result.sessionId)"
+              @click="goToMessage(result.sessionId, msg.id)"
             >
               <div class="result-bubble">
                 <p

@@ -19,6 +19,7 @@ export interface ConversationItem {
   lastMessage?: string
   lastMessageTime?: string | number
   pinned?: boolean
+  important?: boolean
   muted?: boolean
   unreadCount?: number
 }

@@ -337,6 +337,10 @@ export function togglePin(conversationId: string) {
   return apiClient.post<unknown, ApiResult<null>>(`/chat/sessions/${conversationId}/pin`)
 }
 
+export function toggleImportant(conversationId: string) {
+  return apiClient.post<unknown, ApiResult<null>>(`/chat/sessions/${conversationId}/important`)
+}
+
 export function toggleMute(conversationId: string) {
   return apiClient.post<unknown, ApiResult<null>>(`/chat/sessions/${conversationId}/mute`)
 }

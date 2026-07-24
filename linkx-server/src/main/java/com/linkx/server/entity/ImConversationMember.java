@@ -53,6 +53,12 @@ public class ImConversationMember implements Serializable {
     private Integer pinned = 0;
 
     /**
+     * 是否标记为重要会话（1=是；列表高亮，独立于置顶）
+     */
+    @Builder.Default
+    private Integer important = 0;
+
+    /**
      * 是否被禁言（1=是）
      */
     @Builder.Default

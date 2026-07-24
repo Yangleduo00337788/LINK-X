@@ -37,7 +37,8 @@ const notificationsStore = useNotificationsStore()
 
 const { sortedSessions, currentSessionId, isLoading, isOffline } = storeToRefs(appStore)
 const { calendarRemindNotifs, calendarRemindUnreadCount } = storeToRefs(notificationsStore)
-const { selectSession, toggleSessionPin, toggleSessionMute, deleteSession } = appStore
+const { selectSession, toggleSessionPin, toggleSessionImportant, toggleSessionMute, deleteSession } =
+  appStore
 const { openCreateGroup, openComprehensiveSearch } = chatModalsStore
 const { fetchMessageNotifications } = notificationsStore
 
@@ -107,6 +108,7 @@ const contextMenuOptions = computed<DropdownOption[]>(() => {
   const s = contextSession.value
   if (!s || s.isSystemNotify) return []
   return [
+    { label: s.important ? t('chat.unmarkImportant') : t('chat.markImportant'), key: 'important' },
     { label: s.pinned ? t('chat.unpin') : t('chat.pin'), key: 'pin' },
     { label: s.muted ? t('chat.unmute') : t('chat.mute'), key: 'mute' },
     { type: 'divider', key: 'd1' },
@@ -153,7 +155,12 @@ function onSessionContext(e: MouseEvent, session: ChatSession) {
 function onContextMenuSelect(key: string) {
   const s = contextSession.value
   if (!s) return
-  if (key === 'pin') {
+  if (key === 'important') {
+    const was = s.important
+    void toggleSessionImportant(s.id).then(() => {
+      message.success(was ? t('chat.unimportantOk') : t('chat.importantOk'))
+    })
+  } else if (key === 'pin') {
     const wasPinned = s.pinned
     toggleSessionPin(s.id)
     message.success(wasPinned ? t('chat.unpinnedOk') : t('chat.pinnedOk'))
@@ -208,7 +215,11 @@ function onContextMenuSelect(key: string) {
           <template #default="{ item: session }">
             <div
               class="session-item"
-              :class="{ active: currentSessionId === session.id, pinned: session.pinned }"
+              :class="{
+                active: currentSessionId === session.id,
+                pinned: session.pinned,
+                important: session.important
+              }"
               @click="onSelect(session)"
               @contextmenu="onSessionContext($event, session)"
             >
@@ -250,6 +261,7 @@ function onContextMenuSelect(key: string) {
 
               <div class="session-content">
                 <div class="session-name">
+                  <span v-if="session.important" class="important-mark" :title="t('chat.important')">★</span>
                   <PinIcon v-if="session.pinned" :size="12" class="pin-icon" /><span
                     class="session-name-text"
                     >{{ session.name }}</span
@@ -337,8 +349,21 @@ function onContextMenuSelect(key: string) {
   background: rgba(18, 183, 245, 0.06);
 }
 
+.session-item.important {
+  background: linear-gradient(90deg, rgba(250, 173, 20, 0.12), transparent 72%);
+  box-shadow: inset 3px 0 0 #faad14;
+}
+
+.session-item.important.pinned {
+  background: linear-gradient(90deg, rgba(250, 173, 20, 0.16), rgba(18, 183, 245, 0.06) 55%);
+}
+
 .session-item:hover {
   background: var(--lx-bg-hover);
+}
+
+.session-item.important:hover {
+  background: linear-gradient(90deg, rgba(250, 173, 20, 0.2), var(--lx-bg-hover) 60%);
 }
 
 .session-item.active {
@@ -425,6 +450,14 @@ function onContextMenuSelect(key: string) {
 .pin-icon {
   flex-shrink: 0;
   color: var(--lx-accent);
+}
+
+.important-mark {
+  color: #faad14;
+  font-size: 12px;
+  line-height: 1;
+  margin-right: 2px;
+  flex-shrink: 0;
 }
 
 .session-meta {

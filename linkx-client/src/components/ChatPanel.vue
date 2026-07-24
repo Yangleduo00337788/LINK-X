@@ -105,12 +105,12 @@ const appSettingsStore = useAppSettingsStore()
 // 获取联系人 Store 实例
 const contactsStore = useContactsStore()
 // 解构当前会话、消息、用户资料、会话 ID、已保存登录信息
-const { currentSession, currentMessages, userProfile, currentSessionId, savedLogin, sessionEnterTick, sessions } =
+const { currentSession, currentMessages, userProfile, currentSessionId, savedLogin, sessionEnterTick, sessions, pendingFocusMessageId } =
   storeToRefs(appStore)
 // 解构聊天背景设置
 const { chatBackground } = storeToRefs(appSettingsStore)
 // 解构撤回消息、加载更多历史消息
-const { recallMessage: recallMessageInStore, loadMoreMessages, clearAtMeMessage } = appStore
+const { recallMessage: recallMessageInStore, loadMoreMessages, clearAtMeMessage, clearPendingFocusMessage } = appStore
 const {
   editMessage: editMessageInStore,
   forwardMessage: forwardMessageInStore,
@@ -524,6 +524,51 @@ async function jumpToAtMeMessage() {
   }, 1800)
   clearAtMeMessage(sid)
 }
+
+/** 搜索/收藏跳转：定位 pendingFocusMessageId */
+async function jumpToPendingFocusMessage() {
+  const sid = currentSessionId.value
+  const targetId = pendingFocusMessageId.value
+  if (!sid || !targetId) return
+
+  let idx = chatMessages.value.findIndex(m => m.id === targetId)
+  let attempts = 0
+  while (idx < 0 && attempts < 20 && appStore.messagesHasMore[sid] !== false) {
+    attempts++
+    await loadMoreMessages(sid)
+    await nextTick()
+    idx = chatMessages.value.findIndex(m => m.id === targetId)
+  }
+
+  if (idx < 0) {
+    clearPendingFocusMessage()
+    message.info(t('overlay.messageNotFound'))
+    return
+  }
+
+  stickToBottom.value = false
+  await nextTick()
+  messageListRef.value?.scrollToKey(targetId)
+  highlightAtMeId.value = targetId
+  if (highlightAtMeTimer) window.clearTimeout(highlightAtMeTimer)
+  highlightAtMeTimer = window.setTimeout(() => {
+    highlightAtMeId.value = null
+    highlightAtMeTimer = 0
+  }, 1800)
+  clearPendingFocusMessage()
+  message.success(t('overlay.jumpedToMessage'))
+}
+
+watch(
+  [pendingFocusMessageId, currentSessionId, () => chatMessages.value.length, sessionEnterTick],
+  async ([msgId, sid]) => {
+    if (!msgId || !sid) return
+    // 等首屏历史加载完成再跳
+    if (appStore.messagesLoading[sid]) return
+    await nextTick()
+    await jumpToPendingFocusMessage()
+  }
+)
 
 function onVirtualScroll(payload: {
   scrollTop: number
