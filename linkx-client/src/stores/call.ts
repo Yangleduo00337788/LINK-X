@@ -7,6 +7,11 @@ import { markRaw } from 'vue'
 import * as callApi from '../api/call'
 import type { CallEventPayload } from '../api/call'
 import { startCallRing, stopCallRing, playCallConnect, playCallEnd } from '../utils/callSounds'
+import {
+  decideIceRestart,
+  decideWeakNetVideo,
+  shouldFallbackToVoiceOnCameraDenied
+} from '../utils/callNetworkPolicy'
 
 export type CallPhase = 'idle' | 'outgoing' | 'incoming' | 'connecting' | 'connected' | 'ended'
 export type CallRole = 'caller' | 'callee' | null
@@ -384,18 +389,24 @@ export const useCallStore = defineStore('call', {
 
     async tryIceRestart(reason: string) {
       const pc = peerConnection
-      if (!pc || !this.isActive || !this.callId) return
-      if (iceRestartAttempts >= 2) {
-        this.errorMessage = '通话连接已断开'
+      if (!pc || !this.callId) return
+      const decision = decideIceRestart({
+        attemptsSoFar: iceRestartAttempts,
+        reason,
+        callType: this.callType,
+        cameraOn: this.cameraOn,
+        isActive: this.isActive
+      })
+      if (decision.action === 'noop') return
+      if (decision.action === 'give_up') {
+        this.errorMessage = decision.message
         this.cleanupLocal()
         return
       }
-      iceRestartAttempts += 1
-      this.errorMessage =
-        reason === 'disconnected' ? '网络波动，正在尝试重连…' : '连接失败，正在尝试 ICE 重连…'
+      iceRestartAttempts = decision.nextAttempts
+      this.errorMessage = decision.message
       try {
-        // 弱网时优先关视频降低码率
-        if (this.callType === 'video' && this.cameraOn && iceRestartAttempts >= 1) {
+        if (decision.disableCamera) {
           this.cameraOn = false
           this.localStream?.getVideoTracks().forEach(t => {
             t.enabled = false
@@ -443,22 +454,28 @@ export const useCallStore = defineStore('call', {
             packetsReceived += Number((r as { packetsReceived?: number }).packetsReceived || 0)
           }
         })
-        const total = packetsLost + packetsReceived
-        if (total < 30) return
-        const loss = packetsLost / total
-        if (loss > 0.12 && this.callType === 'video' && this.cameraOn) {
-          weakNetChecks += 1
-          if (weakNetChecks >= 2) {
-            this.cameraOn = false
-            this.localStream?.getVideoTracks().forEach(t => {
-              t.enabled = false
-            })
-            this.errorMessage = '网络较差，已自动关闭视频以保持通话'
-            weakNetChecks = 0
-          }
-        } else {
+        const decision = decideWeakNetVideo({
+          packetsLost,
+          packetsReceived,
+          callType: this.callType,
+          cameraOn: this.cameraOn,
+          weakNetChecks
+        })
+        if (decision.action === 'noop') return
+        if (decision.action === 'reset_checks') {
           weakNetChecks = 0
+          return
         }
+        if (decision.action === 'accumulate') {
+          weakNetChecks = decision.nextChecks
+          return
+        }
+        this.cameraOn = false
+        this.localStream?.getVideoTracks().forEach(t => {
+          t.enabled = false
+        })
+        this.errorMessage = decision.message
+        weakNetChecks = 0
       } catch {
         /* ignore */
       }
@@ -499,8 +516,8 @@ export const useCallStore = defineStore('call', {
           this.localStream = markRaw(stream)
           this.attachLocalTracks()
         } catch (e) {
-          const name = (e as DOMException)?.name
-          if (wantVideo && (name === 'NotAllowedError' || name === 'NotFoundError' || name === 'NotReadableError')) {
+          if (wantVideo && shouldFallbackToVoiceOnCameraDenied(this.callType, e)) {
+            const name = (e as DOMException)?.name
             // 摄像头权限/设备异常：降级仅语音，不直接结束通话
             this.cameraOn = false
             this.errorMessage =
