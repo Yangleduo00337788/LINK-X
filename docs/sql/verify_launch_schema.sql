@@ -16,6 +16,25 @@ WHERE TABLE_SCHEMA = DATABASE()
   AND TABLE_NAME = 'im_conversation_member'
   AND COLUMN_NAME = 'important';
 
+SELECT IF(COUNT(*) = 2, 'OK im_conversation join/invite cols', 'MISSING join_approval/invite_policy') AS check_result
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME = 'im_conversation'
+  AND COLUMN_NAME IN ('join_approval', 'invite_policy');
+
+SELECT IF(COUNT(*) = 4, 'OK im_conversation_member read/mute cols', 'MISSING member last_read/pinned/mute/announcement_read') AS check_result
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME = 'im_conversation_member'
+  AND COLUMN_NAME IN ('last_read_message_id', 'pinned', 'mute', 'announcement_read');
+
+SELECT IF(COUNT(*) = 5, 'OK im_message delivery/quote cols', 'MISSING im_message client_msg/delivery/read/edited/quote') AS check_result
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME = 'im_message'
+  AND COLUMN_NAME IN ('client_msg_id', 'delivery_status', 'read_status', 'edited', 'quote_message_id');
+
+
 SELECT IF(COUNT(*) = 1, 'OK im_message_storm_event', 'MISSING im_message_storm_event') AS check_result
 FROM information_schema.TABLES
 WHERE TABLE_SCHEMA = DATABASE()
