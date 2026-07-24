@@ -24,6 +24,9 @@ let pendingCandidates: RTCIceCandidateInit[] = []
 let mediaChain: Promise<unknown> = Promise.resolve()
 /** 串行化信令处理，避免 offer/ICE 交错 */
 let signalQueue: Promise<void> = Promise.resolve()
+let iceRestartAttempts = 0
+let weakNetChecks = 0
+let statsTimer: ReturnType<typeof setInterval> | null = null
 
 interface NormalizedCallEvent {
   callId: string
@@ -366,12 +369,98 @@ export const useCallStore = defineStore('call', {
         if (state === 'connected') {
           this.phase = 'connected'
           if (!this.connectedAt) this.connectedAt = Date.now()
-        } else if (state === 'failed' || state === 'closed') {
+          iceRestartAttempts = 0
+          this.startWeakNetWatch()
+        } else if (state === 'failed' || state === 'disconnected') {
+          void this.tryIceRestart(state)
+        } else if (state === 'closed') {
           if (this.isActive) {
             this.errorMessage = '通话连接已断开'
             this.cleanupLocal()
           }
         }
+      }
+    },
+
+    async tryIceRestart(reason: string) {
+      const pc = peerConnection
+      if (!pc || !this.isActive || !this.callId) return
+      if (iceRestartAttempts >= 2) {
+        this.errorMessage = '通话连接已断开'
+        this.cleanupLocal()
+        return
+      }
+      iceRestartAttempts += 1
+      this.errorMessage =
+        reason === 'disconnected' ? '网络波动，正在尝试重连…' : '连接失败，正在尝试 ICE 重连…'
+      try {
+        // 弱网时优先关视频降低码率
+        if (this.callType === 'video' && this.cameraOn && iceRestartAttempts >= 1) {
+          this.cameraOn = false
+          this.localStream?.getVideoTracks().forEach(t => {
+            t.enabled = false
+          })
+        }
+        const offer = await pc.createOffer({ iceRestart: true })
+        await pc.setLocalDescription(offer)
+        await callApi.signalCall({
+          callId: this.callId,
+          signalType: 'offer',
+          sdp: offer.sdp
+        })
+      } catch (e) {
+        console.warn('ICE restart 失败', e)
+        this.errorMessage = '通话连接已断开'
+        this.cleanupLocal()
+      }
+    },
+
+    startWeakNetWatch() {
+      this.stopWeakNetWatch()
+      weakNetChecks = 0
+      statsTimer = setInterval(() => {
+        void this.checkConnectionQuality()
+      }, 4000)
+    },
+
+    stopWeakNetWatch() {
+      if (statsTimer) {
+        clearInterval(statsTimer)
+        statsTimer = null
+      }
+    },
+
+    async checkConnectionQuality() {
+      const pc = peerConnection
+      if (!pc || this.phase !== 'connected') return
+      try {
+        const stats = await pc.getStats()
+        let packetsLost = 0
+        let packetsReceived = 0
+        stats.forEach(r => {
+          if (r.type === 'inbound-rtp' && 'packetsLost' in r) {
+            packetsLost += Number(r.packetsLost || 0)
+            packetsReceived += Number((r as { packetsReceived?: number }).packetsReceived || 0)
+          }
+        })
+        const total = packetsLost + packetsReceived
+        if (total < 30) return
+        const loss = packetsLost / total
+        if (loss > 0.12 && this.callType === 'video' && this.cameraOn) {
+          weakNetChecks += 1
+          if (weakNetChecks >= 2) {
+            this.cameraOn = false
+            this.localStream?.getVideoTracks().forEach(t => {
+              t.enabled = false
+            })
+            this.errorMessage = '网络较差，已自动关闭视频以保持通话'
+            weakNetChecks = 0
+          }
+        } else {
+          weakNetChecks = 0
+        }
+      } catch {
+        /* ignore */
       }
     },
 
@@ -411,6 +500,21 @@ export const useCallStore = defineStore('call', {
           this.attachLocalTracks()
         } catch (e) {
           const name = (e as DOMException)?.name
+          if (wantVideo && (name === 'NotAllowedError' || name === 'NotFoundError' || name === 'NotReadableError')) {
+            // 摄像头权限/设备异常：降级仅语音，不直接结束通话
+            this.cameraOn = false
+            this.errorMessage =
+              name === 'NotAllowedError'
+                ? '未获得摄像头权限，已降级为语音通话'
+                : '摄像头不可用，已降级为语音通话'
+            const audioOnly = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+            audioOnly.getAudioTracks().forEach(t => {
+              t.enabled = this.micOn
+            })
+            this.localStream = markRaw(audioOnly)
+            this.attachLocalTracks()
+            return
+          }
           if (name === 'NotReadableError') {
             throw new DOMException(
               '摄像头或麦克风被占用，请关闭其他占用设备的应用后重试',
@@ -471,6 +575,9 @@ export const useCallStore = defineStore('call', {
       const shouldPlayEnd = this.phase !== 'idle'
       stopCallRing()
       if (shouldPlayEnd) playCallEnd()
+      this.stopWeakNetWatch()
+      iceRestartAttempts = 0
+      weakNetChecks = 0
       if (peerConnection) {
         peerConnection.onicecandidate = null
         peerConnection.ontrack = null

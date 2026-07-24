@@ -191,6 +191,8 @@ async function startConference() {
   try {
     const res = await conferenceApi.create({ conversationId: id, type: 'video' })
     if (res.code !== 200 || !res.data) throw new Error(res.message || 'failed')
+    const { useConferenceStore } = await import('../../stores/conference')
+    await useConferenceStore().openCreated(res.data, String(userProfile.value.userId || ''))
     message.success(t('modals.conferenceCreated', { id: String(res.data.id) }))
   } catch (e) {
     message.error(apiErrorMessage(e, t('modals.conferenceCreateFail')))

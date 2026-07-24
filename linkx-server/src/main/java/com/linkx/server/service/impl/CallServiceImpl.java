@@ -341,17 +341,25 @@ public class CallServiceImpl implements CallService {
 
     @Override
     public String createConference(Long userId, Long conversationId, String callType) {
+        return createConference(userId, conversationId, callType, null);
+    }
+
+    @Override
+    public String createConference(Long userId, Long conversationId, String callType, Long conferenceId) {
         chatService.assertConversationMember(userId, conversationId);
         String callId = UUID.randomUUID().toString().replace("-", "");
         String key = callKey(callId);
 
-        redisTemplate.opsForHash().putAll(key, Map.of(
-                "callerId", String.valueOf(userId),
-                "conversationId", String.valueOf(conversationId),
-                "callType", callType,
-                "status", "ringing",
-                "isConference", "true"
-        ));
+        Map<String, String> hash = new java.util.HashMap<>();
+        hash.put("callerId", String.valueOf(userId));
+        hash.put("conversationId", String.valueOf(conversationId));
+        hash.put("callType", callType);
+        hash.put("status", "ringing");
+        hash.put("isConference", "true");
+        if (conferenceId != null) {
+            hash.put("conferenceId", String.valueOf(conferenceId));
+        }
+        redisTemplate.opsForHash().putAll(key, hash);
         redisTemplate.expire(key, Duration.ofMinutes(30));
 
         // 添加创建者为第一个参与者
@@ -365,12 +373,15 @@ public class CallServiceImpl implements CallService {
         );
         for (ImConversationMember member : members) {
             if (!member.getUserId().equals(userId)) {
-                pushService.pushToUser(member.getUserId(), "conference_invite", Map.of(
-                        "callId", callId,
-                        "conversationId", conversationId,
-                        "callType", callType,
-                        "creatorId", userId
-                ));
+                Map<String, Object> invite = new java.util.HashMap<>();
+                invite.put("callId", callId);
+                invite.put("conversationId", conversationId);
+                invite.put("callType", callType);
+                invite.put("creatorId", userId);
+                if (conferenceId != null) {
+                    invite.put("conferenceId", conferenceId);
+                }
+                pushService.pushToUser(member.getUserId(), "conference_invite", invite);
             }
         }
 

@@ -9,6 +9,16 @@ export interface ConferenceCreatePayload {
   maxParticipants?: number
 }
 
+export interface ConferenceParticipant {
+  userId: string | number
+  role?: string
+  muted?: boolean
+  videoOff?: boolean
+  joinTime?: string
+  nickname?: string
+  avatar?: string
+}
+
 export interface ConferenceInfo {
   id: string | number
   title?: string
@@ -20,7 +30,7 @@ export interface ConferenceInfo {
   startTime?: string
   endTime?: string
   callId?: string
-  participants?: Array<Record<string, unknown>>
+  participants?: ConferenceParticipant[]
 }
 
 export function create(payload: ConferenceCreatePayload) {
@@ -48,4 +58,33 @@ export function info(conferenceId: string | number) {
 
 export function active() {
   return apiClient.get<never, ApiResult<ConferenceInfo[]>>('/conference/active')
+}
+
+export function mute(conferenceId: string | number, targetUserId: string | number, muted: boolean) {
+  return apiClient.post<never, ApiResult<null>>('/conference/mute', {
+    conferenceId,
+    targetUserId,
+    muted
+  })
+}
+
+export function setVideo(conferenceId: string | number, videoOff: boolean) {
+  return apiClient.post<never, ApiResult<null>>('/conference/video', {
+    conferenceId,
+    videoOff
+  })
+}
+
+export function removeMember(conferenceId: string | number, targetUserId: string | number) {
+  return apiClient.post<never, ApiResult<null>>('/conference/remove', {
+    conferenceId,
+    targetUserId
+  })
+}
+
+export function transferHost(conferenceId: string | number, newHostId: string | number) {
+  return apiClient.post<never, ApiResult<null>>('/conference/transfer-host', {
+    conferenceId,
+    newHostId
+  })
 }

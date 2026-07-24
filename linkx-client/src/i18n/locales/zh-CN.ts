@@ -943,6 +943,23 @@ export default {
     emptyDay: '这一天还没有日程',
     viewWeek: '查看本周日程'
   },
+  conference: {
+    inviteTitle: '收到会议邀请',
+    join: '加入会议',
+    joinFail: '加入会议失败',
+    endFail: '结束会议失败',
+    memberCount: '{n} 人在会',
+    you: '我',
+    host: '主持人',
+    mute: '静音',
+    unmute: '取消静音',
+    remove: '移出',
+    end: '结束会议',
+    mic: '麦克风',
+    camera: '摄像头',
+    defaultMic: '默认麦克风',
+    defaultCam: '默认摄像头'
+  },
   moments: {
     title: '友链',
     publishText: '发布文字',

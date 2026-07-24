@@ -720,6 +720,20 @@ export const useAppStore = defineStore('app', {
           }
           if (action === 'edit') {
             this.applyEditedMessage(data as unknown as MessageItem)
+            return
+          }
+          if (
+            action === 'conference_invite' ||
+            action === 'conference_end' ||
+            action === 'conference_remove' ||
+            action === 'conference_join' ||
+            action === 'conference_leave' ||
+            action === 'conference_mute' ||
+            action === 'conference_host'
+          ) {
+            void import('./conference').then(({ useConferenceStore }) => {
+              useConferenceStore().handleRemoteEvent(action, data)
+            })
           }
         }
       }

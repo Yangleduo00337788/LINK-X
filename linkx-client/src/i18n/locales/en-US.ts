@@ -941,6 +941,23 @@ export default {
     emptyDay: 'No events on this day',
     viewWeek: 'View this week'
   },
+  conference: {
+    inviteTitle: 'Conference invitation',
+    join: 'Join',
+    joinFail: 'Failed to join conference',
+    endFail: 'Failed to end conference',
+    memberCount: '{n} in meeting',
+    you: 'You',
+    host: 'Host',
+    mute: 'Mute',
+    unmute: 'Unmute',
+    remove: 'Remove',
+    end: 'End',
+    mic: 'Microphone',
+    camera: 'Camera',
+    defaultMic: 'Default microphone',
+    defaultCam: 'Default camera'
+  },
   moments: {
     title: 'Moments',
     publishText: 'Text post',

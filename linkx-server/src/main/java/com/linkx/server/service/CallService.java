@@ -38,6 +38,8 @@ public interface CallService {
     /** 创建多人会议 */
     String createConference(Long userId, Long conversationId, String callType);
 
+    String createConference(Long userId, Long conversationId, String callType, Long conferenceId);
+
     /** 加入多人会议 */
     void joinConference(Long userId, String callId);
 
