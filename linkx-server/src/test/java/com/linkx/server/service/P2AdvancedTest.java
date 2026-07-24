@@ -105,8 +105,27 @@ class P2AdvancedTest extends BaseIntegrationTest {
             assertEquals(conv.getId(), info.getConversationId());
             assertNotNull(info.getCallId());
 
-            ConferenceInfoVO loaded = conferenceService.info(info.getId());
+            ConferenceInfoVO loaded = conferenceService.info(a.userId, info.getId());
             assertEquals(info.getId(), loaded.getId());
+        }
+
+        @Test
+        @DisplayName("非会话成员不可查看/加入会议")
+        void infoAndJoin_outsider_rejected() {
+            TestUser a = registerAndLogin("p2coa");
+            TestUser b = registerAndLogin("p2cob");
+            TestUser outsider = registerAndLogin("p2coo");
+            ConversationVO conv = becomeFriendsAndOpen(a, b);
+
+            ConferenceCreateDTO dto = new ConferenceCreateDTO();
+            dto.setConversationId(conv.getId());
+            dto.setType("video");
+            ConferenceInfoVO created = conferenceService.create(a.userId, dto);
+
+            assertThrows(CustomException.class,
+                    () -> conferenceService.info(outsider.userId, created.getId()));
+            assertThrows(CustomException.class,
+                    () -> conferenceService.join(outsider.userId, created.getId(), null));
         }
 
         @Test

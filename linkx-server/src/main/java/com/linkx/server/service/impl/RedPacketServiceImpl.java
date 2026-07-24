@@ -58,6 +58,11 @@ public class RedPacketServiceImpl implements RedPacketService {
         if (dto.getTotalCount() > amount.divide(new BigDecimal("0.01"), 2, RoundingMode.DOWN).intValue()) {
             throw new CustomException(400, "每个红包金额不能少于0.01元");
         }
+        String type = dto.getType() != null ? dto.getType() : RedPacket.TYPE_NORMAL;
+        if (!RedPacket.TYPE_NORMAL.equals(type) && !RedPacket.TYPE_LUCKY.equals(type)) {
+            throw new CustomException(400, "红包类型仅支持 normal 或 lucky");
+        }
+        dto.setType(type);
         dto.setTotalAmount(amount);
 
         // 冻结红包金额（原子 SQL：balance >= amount，余额不足则失败）
@@ -300,11 +305,8 @@ public class RedPacketServiceImpl implements RedPacketService {
         // SendMessageDTO.fileSize 是 Long（字节数），红包总金额用「分」存，避免 BigDecimal 序列化
         messageDTO.setFileSize(redPacket.getTotalAmount().multiply(new BigDecimal("100")).longValue());
 
-        try {
-            chatService.sendMessage(senderId, messageDTO);
-        } catch (Exception e) {
-            // 消息发送失败不影响红包
-        }
+        // 与发红包同一事务：消息失败则整笔回滚，避免有包无气泡
+        chatService.sendMessage(senderId, messageDTO);
     }
 
     private RedPacketVO toRedPacketVO(RedPacket redPacket, Long currentUserId) {

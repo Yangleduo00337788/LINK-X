@@ -300,7 +300,7 @@ public class ChatServiceImpl implements ChatService {
             checkGroupMessageStormLimit(userId, conversation.getId());
         }
 
-        String msgType = normalizeMsgType(dto.getMsgType());
+        String msgType = resolveMsgType(userId, dto);
         validateMessagePayload(msgType, dto);
 
         // 敏感词过滤：文本消息进行 DFA 过滤
@@ -1097,6 +1097,11 @@ public class ChatServiceImpl implements ChatService {
         if (redPacket == null) {
             return;
         }
+        // 防止消息 fileUrl 指向其他会话红包导致金额信息串会话泄露
+        if (message.getConversationId() != null
+                && !message.getConversationId().equals(redPacket.getConversationId())) {
+            return;
+        }
         BigDecimal totalYuan = redPacket.getTotalAmount();
         RedPacketRecord userRecord = null;
         if (currentUserId != null) {
@@ -1147,15 +1152,49 @@ public class ChatServiceImpl implements ChatService {
         return min + "_" + max;
     }
 
+    /**
+     * 解析消息类型。红包仅允许在「同会话、同发送者、已存在红包实体」时落库，
+     * 阻止客户端 WS/HTTP 伪造 redPacket 气泡或串会话展示金额。
+     */
+    private String resolveMsgType(Long userId, SendMessageDTO dto) {
+        if (!StringUtils.hasText(dto.getMsgType())) {
+            throw new CustomException(400, "消息类型不能为空");
+        }
+        String raw = dto.getMsgType().trim();
+        if (ImMessage.TYPE_RED_PACKET.equalsIgnoreCase(raw) || "redpacket".equalsIgnoreCase(raw)) {
+            assertLegitimateRedPacketMessage(userId, dto);
+            return ImMessage.TYPE_RED_PACKET;
+        }
+        return normalizeMsgType(raw);
+    }
+
+    private void assertLegitimateRedPacketMessage(Long userId, SendMessageDTO dto) {
+        if (!StringUtils.hasText(dto.getFileUrl())) {
+            throw new CustomException(400, "红包消息缺少红包 ID");
+        }
+        Long packetId;
+        try {
+            packetId = Long.parseLong(dto.getFileUrl().trim());
+        } catch (NumberFormatException e) {
+            throw new CustomException(400, "无效的红包 ID");
+        }
+        RedPacket redPacket = redPacketMapper.selectOneById(packetId);
+        if (redPacket == null) {
+            throw new CustomException(400, "红包不存在，无法发送红包消息");
+        }
+        if (!userId.equals(redPacket.getSenderId())) {
+            throw new CustomException(403, "无权发送该红包消息");
+        }
+        if (!dto.getConversationId().equals(redPacket.getConversationId())) {
+            throw new CustomException(403, "红包与会话不匹配");
+        }
+    }
+
     private String normalizeMsgType(String msgType) {
         if (!StringUtils.hasText(msgType)) {
             throw new CustomException(400, "消息类型不能为空");
         }
         String type = msgType.trim().toLowerCase();
-        // redPacket 含驼峰，toLowerCase 后需映射回规范常量，否则发红包消息会判为不支持类型
-        if ("redpacket".equals(type)) {
-            return ImMessage.TYPE_RED_PACKET;
-        }
         if (!ImMessage.TYPE_TEXT.equals(type)
                 && !ImMessage.TYPE_IMAGE.equals(type)
                 && !ImMessage.TYPE_FILE.equals(type)

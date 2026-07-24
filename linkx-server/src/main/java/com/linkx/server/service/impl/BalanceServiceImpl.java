@@ -103,8 +103,11 @@ public class BalanceServiceImpl implements BalanceService {
     @Override
     @Transactional
     public void unfreezeAndDeduct(Long userId, BigDecimal amount, String bizId) {
-        // 原子从冻结金额扣减并加回余额（红包过期退款）
-        balanceMapper.unfreezeAndCredit(userId, amount);
+        // 原子从冻结金额扣减并加回余额（红包过期退款）；不足则失败，避免静默铸币
+        int rows = balanceMapper.unfreezeAndCredit(userId, amount);
+        if (rows == 0) {
+            throw new CustomException(400, "冻结金额不足，退款失败");
+        }
     }
 
     /**

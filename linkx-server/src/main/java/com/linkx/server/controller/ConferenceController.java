@@ -58,8 +58,8 @@ public class ConferenceController {
 
     @GetMapping("/info/{id}")
     public Result<ConferenceInfoVO> info(@PathVariable Long id, HttpServletRequest request) {
-        AuthUtils.requireUserId(request, jwtUtils);
-        return Result.success(conferenceService.info(id));
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(conferenceService.info(userId, id));
     }
 
     @GetMapping("/active")

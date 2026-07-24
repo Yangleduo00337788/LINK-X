@@ -142,6 +142,6 @@ public class CallController {
             @RequestBody java.util.Map<String, String> body,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        return Result.success(callService.getConferenceParticipants(body.get("callId")));
+        return Result.success(callService.getConferenceParticipants(userId, body.get("callId")));
     }
 }

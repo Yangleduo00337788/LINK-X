@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 
 /**
@@ -17,6 +18,7 @@ public class SendRedPacketDTO {
     private Long conversationId;
 
     @NotBlank(message = "红包类型不能为空")
+    @Pattern(regexp = "^(normal|lucky)$", message = "红包类型仅支持 normal 或 lucky")
     private String type;
 
     @NotNull(message = "金额不能为空")

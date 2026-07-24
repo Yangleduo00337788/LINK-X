@@ -19,7 +19,7 @@ public interface ConferenceService {
 
     void end(Long userId, Long conferenceId);
 
-    ConferenceInfoVO info(Long conferenceId);
+    ConferenceInfoVO info(Long userId, Long conferenceId);
 
     List<ConferenceInfoVO> listActive(Long userId);
 

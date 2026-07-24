@@ -455,6 +455,8 @@ public class CallServiceImpl implements CallService {
         if ("ended".equals(status) || "cancelled".equals(status)) {
             throw new CustomException(400, "会议已结束");
         }
+        Long conversationId = Long.parseLong(str(data.get("conversationId")));
+        chatService.assertConversationMember(userId, conversationId);
 
         String participantsKey = "linkx:call:" + callId + ":participants";
         redisTemplate.opsForSet().add(participantsKey, String.valueOf(userId));
@@ -499,7 +501,14 @@ public class CallServiceImpl implements CallService {
     }
 
     @Override
-    public java.util.List<java.util.Map<String, Object>> getConferenceParticipants(String callId) {
+    public java.util.List<java.util.Map<String, Object>> getConferenceParticipants(Long requesterId, String callId) {
+        Map<Object, Object> data = redisTemplate.opsForHash().entries(callKey(callId));
+        if (data.isEmpty()) {
+            throw new CustomException(404, "会议不存在或已过期");
+        }
+        Long conversationId = Long.parseLong(str(data.get("conversationId")));
+        chatService.assertConversationMember(requesterId, conversationId);
+
         String participantsKey = "linkx:call:" + callId + ":participants";
         java.util.Set<String> participants = redisTemplate.opsForSet().members(participantsKey);
         if (participants == null) return List.of();

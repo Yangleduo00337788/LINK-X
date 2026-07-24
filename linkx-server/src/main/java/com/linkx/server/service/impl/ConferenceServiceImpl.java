@@ -83,6 +83,8 @@ public class ConferenceServiceImpl implements ConferenceService {
     @Transactional
     public ConferenceInfoVO join(Long userId, Long conferenceId, String password) {
         Conference conference = requireActive(conferenceId);
+        // 必须是会话成员，防止猜 ID 入会绕过群/私聊 ACL
+        chatService.assertConversationMember(userId, conference.getConversationId());
         if (StringUtils.hasText(conference.getPassword())
                 && !Objects.equals(conference.getPassword(), password)) {
             throw new CustomException(403, "会议密码错误");
@@ -175,11 +177,12 @@ public class ConferenceServiceImpl implements ConferenceService {
     }
 
     @Override
-    public ConferenceInfoVO info(Long conferenceId) {
+    public ConferenceInfoVO info(Long userId, Long conferenceId) {
         Conference conference = conferenceMapper.selectOneById(conferenceId);
         if (conference == null) {
             throw new CustomException(404, "会议不存在");
         }
+        chatService.assertConversationMember(userId, conference.getConversationId());
         return toInfo(conference, redisTemplate.opsForValue().get(CALL_ID_KEY + conferenceId));
     }
 

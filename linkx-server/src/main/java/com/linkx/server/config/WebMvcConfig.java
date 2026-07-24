@@ -63,7 +63,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/auth/send-reset-code",
                         "/auth/verify-reset-code",
                         "/auth/reset-password-by-email",
-                        "/cloud/share/**",
                         "/health",
                         "/health/**",
                         "/app/version",

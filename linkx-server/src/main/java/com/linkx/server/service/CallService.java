@@ -46,6 +46,6 @@ public interface CallService {
     /** 离开多人会议 */
     void leaveConference(Long userId, String callId);
 
-    /** 获取会议参与者列表 */
-    java.util.List<java.util.Map<String, Object>> getConferenceParticipants(String callId);
+    /** 获取会议参与者列表（调用方须为会话成员或已入会） */
+    java.util.List<java.util.Map<String, Object>> getConferenceParticipants(Long userId, String callId);
 }
