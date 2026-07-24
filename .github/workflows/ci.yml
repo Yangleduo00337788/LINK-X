@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server-tests:
+    name: Server tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: linkx-server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Run regression suite
+        run: >
+          mvn -B -q
+          -Dtest=MessageFlowTest,ImMainLinkE2ETest,P1DebtTest,P2AdvancedTest,P2QualityGateTest,ChatSearchEnhanceTest,GroupInvitationControllerTest,ChatControllerTest
+          test
+
+  client-unit:
+    name: Client unit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: linkx-client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: linkx-client/package-lock.json
+      - run: npm ci
+      - run: npm test
+
+  client-e2e:
+    name: Client E2E smoke
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: linkx-client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: linkx-client/package-lock.json
+      - run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: E2E smoke
+        run: npm run test:e2e
+        env:
+          CI: true

@@ -2,7 +2,12 @@ package com.linkx.server.config.aspect;
 
 import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.common.JwtUtils;
+import com.linkx.server.common.Result;
 import com.linkx.server.config.LinkxProperties;
+import com.linkx.server.controller.dto.LoginDTO;
+import com.linkx.server.controller.dto.RegisterDTO;
+import com.linkx.server.controller.vo.TokenVO;
+import com.linkx.server.controller.vo.UserInfoVO;
 import com.linkx.server.entity.SysAuditLog;
 import com.linkx.server.service.AuditLogService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -81,6 +86,11 @@ public class AuditLogAspect {
         String operationType = auditAction.operationType();
         String description = auditAction.description();
 
+        // 登录/注册时尚无 Token，先从请求体取用户名
+        if (username == null) {
+            username = extractUsernameFromArgs(joinPoint.getArgs());
+        }
+
         Object result = null;
         boolean success = true;
         String reason = null;
@@ -93,7 +103,17 @@ public class AuditLogAspect {
             reason = e.getMessage();
             throw e;
         } finally {
-            // 异步记录审计日志
+            // 登录成功后从响应补全 userId / username
+            if (success && result != null) {
+                Long fromResult = extractUserIdFromResult(result);
+                if (fromResult != null) {
+                    userId = fromResult;
+                }
+                String nameFromResult = extractUsernameFromResult(result);
+                if (nameFromResult != null && !nameFromResult.isBlank()) {
+                    username = nameFromResult;
+                }
+            }
             try {
                 auditLogService.log(
                         SysAuditLog.OperationType.valueOf(operationType),
@@ -114,5 +134,43 @@ public class AuditLogAspect {
     private HttpServletRequest getCurrentRequest() {
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         return attributes != null ? attributes.getRequest() : null;
+    }
+
+    private static String extractUsernameFromArgs(Object[] args) {
+        if (args == null) {
+            return null;
+        }
+        for (Object arg : args) {
+            if (arg instanceof LoginDTO login) {
+                return login.getUsername();
+            }
+            if (arg instanceof RegisterDTO register) {
+                return register.getUsername();
+            }
+        }
+        return null;
+    }
+
+    private static Long extractUserIdFromResult(Object result) {
+        if (!(result instanceof Result<?> r) || r.getData() == null) {
+            return null;
+        }
+        Object data = r.getData();
+        if (data instanceof TokenVO token && token.getUser() != null) {
+            return token.getUser().getId();
+        }
+        return null;
+    }
+
+    private static String extractUsernameFromResult(Object result) {
+        if (!(result instanceof Result<?> r) || r.getData() == null) {
+            return null;
+        }
+        Object data = r.getData();
+        if (data instanceof TokenVO token && token.getUser() != null) {
+            UserInfoVO user = token.getUser();
+            return user.getUsername();
+        }
+        return null;
     }
 }
