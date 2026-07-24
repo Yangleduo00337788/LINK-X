@@ -19,7 +19,9 @@ import {
   acceptFriendRequest,
   rejectFriendRequest,
   listFriends,
-  deleteFriend
+  deleteFriend,
+  blockFriend,
+  unblockFriend
 } from './friend'
 
 describe('api/friend', () => {
@@ -71,6 +73,18 @@ describe('api/friend', () => {
     vi.mocked(apiClient.delete).mockResolvedValue({ code: 200, data: null } as any)
     await deleteFriend('1')
     expect(apiClient.delete).toHaveBeenCalled()
+  })
+
+  it('blockFriend 应调用 apiClient', async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ code: 200, data: null } as any)
+    await blockFriend('1')
+    expect(apiClient.post).toHaveBeenCalledWith('/friend/1/block')
+  })
+
+  it('unblockFriend 应调用 apiClient', async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ code: 200, data: null } as any)
+    await unblockFriend('1')
+    expect(apiClient.post).toHaveBeenCalledWith('/friend/1/unblock')
   })
 
 })

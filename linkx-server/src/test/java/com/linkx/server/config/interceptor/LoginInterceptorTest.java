@@ -15,6 +15,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
@@ -88,14 +90,16 @@ class LoginInterceptorTest {
         void bearerToken_shouldBeParsed() throws Exception {
             when(request.getMethod()).thenReturn("GET");
             when(request.getHeader("Authorization")).thenReturn("Bearer valid-token");
+            when(request.getHeader("X-Device-Id")).thenReturn(null);
             when(jwtUtils.getTokenType("valid-token")).thenReturn(TokenType.ACCESS);
-            doNothing().when(tokenService).assertAccessTokenActive("valid-token");
+            doNothing().when(tokenService).assertAccessTokenActive(eq("valid-token"), any());
             when(jwtUtils.getUserIdFromToken("valid-token")).thenReturn(123L);
 
             boolean result = interceptor.preHandle(request, response, new Object());
 
             assertTrue(result);
             verify(request).setAttribute("userId", 123L);
+            verify(tokenService).assertAccessTokenActive("valid-token", null);
         }
 
         @Test
@@ -103,14 +107,16 @@ class LoginInterceptorTest {
         void tokenWithoutBearer_shouldWork() throws Exception {
             when(request.getMethod()).thenReturn("GET");
             when(request.getHeader("Authorization")).thenReturn("raw-token");
+            when(request.getHeader("X-Device-Id")).thenReturn("dev-1");
             when(jwtUtils.getTokenType("raw-token")).thenReturn(TokenType.ACCESS);
-            doNothing().when(tokenService).assertAccessTokenActive("raw-token");
+            doNothing().when(tokenService).assertAccessTokenActive(eq("raw-token"), eq("dev-1"));
             when(jwtUtils.getUserIdFromToken("raw-token")).thenReturn(456L);
 
             boolean result = interceptor.preHandle(request, response, new Object());
 
             assertTrue(result);
             verify(request).setAttribute("userId", 456L);
+            verify(tokenService).assertAccessTokenActive("raw-token", "dev-1");
         }
 
         @Test
@@ -132,9 +138,10 @@ class LoginInterceptorTest {
         void invalidToken_shouldThrow401() {
             when(request.getMethod()).thenReturn("GET");
             when(request.getHeader("Authorization")).thenReturn("Bearer bad-token");
+            when(request.getHeader("X-Device-Id")).thenReturn(null);
             when(jwtUtils.getTokenType("bad-token")).thenReturn(TokenType.ACCESS);
             doThrow(new RuntimeException("Token invalid"))
-                    .when(tokenService).assertAccessTokenActive("bad-token");
+                    .when(tokenService).assertAccessTokenActive(eq("bad-token"), any());
 
             CustomException ex = assertThrows(CustomException.class,
                     () -> interceptor.preHandle(request, response, new Object()));

@@ -25,7 +25,10 @@ import {
   updateMemberRole,
   updateMuteAll,
   updateMemberMute,
-  updateGroupRemark
+  updateGroupRemark,
+  requestJoin,
+  listJoinRequests,
+  handleJoinRequest
 } from './group'
 
 describe('api/group', () => {
@@ -113,6 +116,24 @@ describe('api/group', () => {
     vi.mocked(apiClient.put).mockResolvedValue({ code: 200, data: null } as any)
     await updateGroupRemark('1', '1')
     expect(apiClient.put).toHaveBeenCalled()
+  })
+
+  it('requestJoin 应调用 apiClient', async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ code: 200, data: null } as any)
+    await requestJoin('1', 'hi')
+    expect(apiClient.post).toHaveBeenCalledWith('/group/1/join-request', { message: 'hi' })
+  })
+
+  it('listJoinRequests 应调用 apiClient', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ code: 200, data: [] } as any)
+    await listJoinRequests('1')
+    expect(apiClient.get).toHaveBeenCalledWith('/group/1/join-requests')
+  })
+
+  it('handleJoinRequest 应调用 apiClient', async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ code: 200, data: null } as any)
+    await handleJoinRequest('1', '2', true)
+    expect(apiClient.post).toHaveBeenCalledWith('/group/1/join-request/2', { approve: true })
   })
 
 })

@@ -19,7 +19,8 @@ import {
   uploadChatFileSmart,
   checkFileHash,
   searchMessages,
-  recallMessage
+  recallMessage,
+  markAsRead
 } from './chat'
 
 describe('api/chat', () => {
@@ -77,6 +78,16 @@ describe('api/chat', () => {
     vi.mocked(apiClient.post).mockResolvedValue({ code: 200, data: null } as any)
     await recallMessage('1', '1')
     expect(apiClient.post).toHaveBeenCalled()
+  })
+
+  it('markAsRead 应调用已读接口', async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ code: 200, data: 0 } as any)
+    await markAsRead('1', '99')
+    expect(apiClient.post).toHaveBeenCalledWith(
+      '/chat/sessions/1/read',
+      null,
+      { params: { lastMessageId: '99' } }
+    )
   })
 
 })

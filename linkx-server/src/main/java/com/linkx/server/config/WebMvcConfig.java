@@ -38,6 +38,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/auth/verify-reset-code",
                         "/auth/reset-password-by-email",
                         "/cloud/share/**",
+                        // 健康检查 / 版本探测（客户端未登录前需可访问）
+                        "/health",
+                        "/health/**",
+                        "/app/version",
                         // Swagger / OpenAPI
                         "/swagger-ui/**",
                         "/swagger-ui.html",
@@ -60,6 +64,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/auth/verify-reset-code",
                         "/auth/reset-password-by-email",
                         "/cloud/share/**",
+                        "/health",
+                        "/health/**",
+                        "/app/version",
                         "/swagger-ui/**",
                         "/swagger-ui.html",
                         "/v3/api-docs/**",

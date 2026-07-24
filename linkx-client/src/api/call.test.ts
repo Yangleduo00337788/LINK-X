@@ -17,7 +17,9 @@ import {
   acceptCall,
   rejectCall,
   hangupCall,
-  signalCall
+  signalCall,
+  reconnectCall,
+  switchCallDevice
 } from './call'
 
 describe('api/call', () => {
@@ -57,6 +59,22 @@ describe('api/call', () => {
     vi.mocked(apiClient.post).mockResolvedValue({ code: 200, data: null } as any)
     await signalCall({} as any)
     expect(apiClient.post).toHaveBeenCalled()
+  })
+
+  it('reconnectCall 应调用 apiClient', async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ code: 200, data: null } as any)
+    await reconnectCall('1')
+    expect(apiClient.post).toHaveBeenCalledWith('/call/reconnect', { callId: '1' })
+  })
+
+  it('switchCallDevice 应调用 apiClient', async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ code: 200, data: null } as any)
+    await switchCallDevice('1', 'video', false)
+    expect(apiClient.post).toHaveBeenCalledWith('/call/switch-device', {
+      callId: '1',
+      deviceType: 'video',
+      enabled: false
+    })
   })
 
 })
