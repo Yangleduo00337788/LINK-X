@@ -84,6 +84,9 @@ public class BalanceServiceImpl implements BalanceService {
     @Override
     @Transactional
     public void unfreezeAndTransfer(Long fromUserId, Long toUserId, BigDecimal amount, String bizId) {
+        // 领取方可能尚无余额行，先确保存在，避免 UPDATE 0 行导致资金从冻结扣走却未入账
+        getOrCreateBalance(toUserId);
+
         // 从发送者冻结金额扣减
         int rows = balanceMapper.unfreezeFromUser(fromUserId, amount);
         if (rows == 0) {
@@ -91,7 +94,10 @@ public class BalanceServiceImpl implements BalanceService {
         }
 
         // 给领取者增加余额
-        balanceMapper.creditUser(toUserId, amount);
+        int credited = balanceMapper.creditUser(toUserId, amount);
+        if (credited == 0) {
+            throw new CustomException(500, "领取入账失败，请稍后重试");
+        }
     }
 
     @Override
@@ -148,7 +154,8 @@ public class BalanceServiceImpl implements BalanceService {
                 .userId(balance.getUserId())
                 .balance(balance.getBalance())
                 .frozen(balance.getFrozen())
-                .available(balance.getBalance().subtract(balance.getFrozen()).setScale(2, RoundingMode.DOWN))
+                // balance 字段为可用余额（冻结已从 balance 划出），available 与之等同
+                .available(balance.getBalance().setScale(2, RoundingMode.DOWN))
                 .totalRecharge(balance.getTotalRecharge())
                 .totalWithdraw(balance.getTotalWithdraw())
                 .build();

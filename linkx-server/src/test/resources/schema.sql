@@ -182,14 +182,15 @@ CREATE TABLE IF NOT EXISTS red_packet (
   version BIGINT NOT NULL DEFAULT 0
 );
 
--- 红包领取记录表
+-- 红包领取记录表（与生产 uk_red_packet_user 对齐，防重复领取）
 CREATE TABLE IF NOT EXISTS red_packet_record (
   id BIGINT NOT NULL PRIMARY KEY,
   red_packet_id BIGINT NOT NULL,
   user_id BIGINT NOT NULL,
   amount DECIMAL(10,2),
   is_lucky TINYINT DEFAULT 0,
-  create_time DATETIME
+  create_time DATETIME,
+  CONSTRAINT uk_red_packet_user UNIQUE (red_packet_id, user_id)
 );
 
 -- 用户余额表

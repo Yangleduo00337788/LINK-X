@@ -2,21 +2,22 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAppStore } from './app'
 
-// Mock dependencies
-vi.mock('./api/chat', () => ({
+// Mock dependencies（路径相对本测试文件所在 stores/）
+vi.mock('../api/chat', () => ({
   listSessions: vi.fn(),
   listMessages: vi.fn(),
-  openPrivateChat: vi.fn()
+  openPrivateChat: vi.fn(),
+  togglePin: vi.fn(async () => ({ code: 200, data: true, message: 'ok' })),
 }))
 
-vi.mock('./utils/chatSocket', () => ({
+vi.mock('../utils/chatSocket', () => ({
   connectChatSocket: vi.fn(),
   disconnectChatSocket: vi.fn(),
   sendChatMessage: vi.fn(),
   isChatSocketConnected: vi.fn(() => true)
 }))
 
-vi.mock('./utils/tokenStorage', () => ({
+vi.mock('../utils/tokenStorage', () => ({
   getToken: vi.fn(() => Promise.resolve('mock-token')),
   saveTokenPair: vi.fn(),
   clearTokens: vi.fn()
@@ -88,12 +89,12 @@ describe('useAppStore', () => {
     expect(store.sessions[0].id).toBe('s2')
   })
 
-  it('should toggle session pin', () => {
+  it('should toggle session pin', async () => {
     const store = useAppStore()
     store.sessions = [{ id: 's1', pinned: false } as any]
-    store.toggleSessionPin('s1')
+    await store.toggleSessionPin('s1')
     expect(store.sessions[0].pinned).toBe(true)
-    store.toggleSessionPin('s1')
+    await store.toggleSessionPin('s1')
     expect(store.sessions[0].pinned).toBe(false)
   })
 })

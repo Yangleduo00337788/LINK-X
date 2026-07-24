@@ -44,16 +44,24 @@ public class RedPacketServiceImpl implements RedPacketService {
     public RedPacketVO sendRedPacket(Long userId, SendRedPacketDTO dto) {
         chatService.assertConversationMember(userId, dto.getConversationId());
 
-        if (dto.getTotalAmount().compareTo(BigDecimal.ZERO) <= 0) {
+        if (dto.getTotalAmount() == null || dto.getTotalCount() == null) {
+            throw new CustomException(400, "红包金额与个数不能为空");
+        }
+        // 统一到分，拒绝超精度绕过
+        BigDecimal amount = dto.getTotalAmount().setScale(2, RoundingMode.DOWN);
+        if (amount.compareTo(new BigDecimal("0.01")) < 0) {
             throw new CustomException(400, "红包金额必须大于0");
         }
-
-        if (dto.getTotalCount() > dto.getTotalAmount().divide(new BigDecimal("0.01"), 2, RoundingMode.DOWN).intValue()) {
+        if (dto.getTotalCount() < 1) {
+            throw new CustomException(400, "红包个数最少为1");
+        }
+        if (dto.getTotalCount() > amount.divide(new BigDecimal("0.01"), 2, RoundingMode.DOWN).intValue()) {
             throw new CustomException(400, "每个红包金额不能少于0.01元");
         }
+        dto.setTotalAmount(amount);
 
-        // 冻结红包金额（替代直接扣减，便于过期退款）
-        balanceService.freezeBalance(userId, dto.getTotalAmount(), null);
+        // 冻结红包金额（原子 SQL：balance >= amount，余额不足则失败）
+        balanceService.freezeBalance(userId, amount, null);
 
         RedPacket redPacket = RedPacket.builder()
                 .senderId(userId)
@@ -89,6 +97,9 @@ public class RedPacketServiceImpl implements RedPacketService {
                 throw new CustomException(404, "红包不存在");
             }
 
+            // 非会话成员不可领取（防猜 ID 盗领）
+            chatService.assertConversationMember(userId, redPacket.getConversationId());
+
             if (redPacket.getStatus().equals(RedPacket.STATUS_FINISHED)) {
                 throw new CustomException(400, "红包已领完");
             }
@@ -110,15 +121,17 @@ public class RedPacketServiceImpl implements RedPacketService {
             RedPacketRecord existingRecord = recordMapper.selectOneByQuery(
                     QueryWrapper.create()
                             .eq("red_packet_id", redPacketId)
-                            .and("user_id", userId)
+                            .eq("user_id", userId)
             );
             if (existingRecord != null) {
                 throw new CustomException(400, "您已领取过该红包");
             }
 
-            // 计算领取金额
+            // 计算领取金额：最后一个红包拿剩余，避免普通包除不尽尾差沉没
             BigDecimal receiveAmount;
-            if (redPacket.getType().equals(RedPacket.TYPE_LUCKY)) {
+            if (redPacket.getRemainingCount() != null && redPacket.getRemainingCount() == 1) {
+                receiveAmount = redPacket.getRemainingAmount();
+            } else if (redPacket.getType().equals(RedPacket.TYPE_LUCKY)) {
                 receiveAmount = calculateLuckyAmount(redPacket);
             } else {
                 receiveAmount = redPacket.getTotalAmount()
@@ -179,12 +192,14 @@ public class RedPacketServiceImpl implements RedPacketService {
         if (redPacket == null) {
             throw new CustomException(404, "红包不存在");
         }
+        chatService.assertConversationMember(userId, redPacket.getConversationId());
 
         return toRedPacketVO(redPacket, userId);
     }
 
     @Override
     public List<RedPacketVO> listByConversation(Long userId, Long conversationId) {
+        chatService.assertConversationMember(userId, conversationId);
         List<RedPacket> redPackets = redPacketMapper.selectListByQuery(
                 QueryWrapper.create()
                         .eq("conversation_id", conversationId)
@@ -300,7 +315,7 @@ public class RedPacketServiceImpl implements RedPacketService {
             userRecord = recordMapper.selectOneByQuery(
                     QueryWrapper.create()
                             .eq("red_packet_id", redPacket.getId())
-                            .and("user_id", currentUserId)
+                            .eq("user_id", currentUserId)
             );
         }
 

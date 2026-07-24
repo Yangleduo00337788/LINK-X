@@ -1103,7 +1103,7 @@ public class ChatServiceImpl implements ChatService {
             userRecord = redPacketRecordMapper.selectOneByQuery(
                     QueryWrapper.create()
                             .eq("red_packet_id", redPacketId)
-                            .and("user_id", currentUserId)
+                            .eq("user_id", currentUserId)
             );
         }
         builder
@@ -1152,11 +1152,14 @@ public class ChatServiceImpl implements ChatService {
             throw new CustomException(400, "消息类型不能为空");
         }
         String type = msgType.trim().toLowerCase();
+        // redPacket 含驼峰，toLowerCase 后需映射回规范常量，否则发红包消息会判为不支持类型
+        if ("redpacket".equals(type)) {
+            return ImMessage.TYPE_RED_PACKET;
+        }
         if (!ImMessage.TYPE_TEXT.equals(type)
                 && !ImMessage.TYPE_IMAGE.equals(type)
                 && !ImMessage.TYPE_FILE.equals(type)
-                && !ImMessage.TYPE_VOICE.equals(type)
-                && !ImMessage.TYPE_RED_PACKET.equals(type)) {
+                && !ImMessage.TYPE_VOICE.equals(type)) {
             throw new CustomException(400, "不支持的消息类型");
         }
         return type;
