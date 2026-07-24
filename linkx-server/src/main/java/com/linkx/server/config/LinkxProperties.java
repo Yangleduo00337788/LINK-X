@@ -80,6 +80,33 @@ public class LinkxProperties {
     @Data
     public static class Cors {
         private List<String> allowedOrigins = new ArrayList<>();
+
+        /**
+         * 兼容 env 逗号分隔写法：CORS_ALLOWED_ORIGINS=a,b,c
+         * （YAML 标量绑定时可能先变成单元素 List，这里再拆分）
+         */
+        public void setAllowedOrigins(List<String> origins) {
+            this.allowedOrigins = normalizeOrigins(origins);
+        }
+
+        private static List<String> normalizeOrigins(List<String> origins) {
+            if (origins == null || origins.isEmpty()) {
+                return new ArrayList<>();
+            }
+            List<String> out = new ArrayList<>();
+            for (String item : origins) {
+                if (item == null || item.isBlank()) {
+                    continue;
+                }
+                for (String part : item.split(",")) {
+                    String origin = part.trim();
+                    if (!origin.isEmpty() && !out.contains(origin)) {
+                        out.add(origin);
+                    }
+                }
+            }
+            return out;
+        }
     }
 
     @Data

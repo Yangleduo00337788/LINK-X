@@ -1,100 +1,171 @@
+# =============================================================================
+# LinkX 唯一主配置（application.yml）
+# -----------------------------------------------------------------------------
+# 本文件只写「结构」和 ${变量名}，不写具体业务值。
+# 所有取值来自：
+#   .env.local  ← SPRING_PROFILES_ACTIVE=local
+#   .env.prod   ← SPRING_PROFILES_ACTIVE=prod
+# 或操作系统/容器环境变量（优先级高于 .env 文件）。
+# 写法说明：只用 ${NAME}，不用 ${NAME:默认值}，避免和 env 两套值混淆。
+# 测试：src/test/resources/application-test.yml
+# 改 env 或本文件后需重启后端
+# =============================================================================
+
+# ---------- 内嵌 Tomcat（HTTP API）----------
 server:
-  port: 8080
+  # HTTP 监听端口 ← SERVER_PORT
+  port: ${SERVER_PORT}
   servlet:
+    # API 统一前缀（固定，一般不必进 env）
     context-path: /api
 
+# ---------- Spring Boot 核心 ----------
 spring:
   application:
+    # 应用名（固定）
     name: linkx-server
   profiles:
+    # 仅用于选择加载哪个 .env.*；未设置时默认 local
     active: ${SPRING_PROFILES_ACTIVE:local}
-  # 与 linkx.minio.max-file-size 对齐；未配置时 Spring Boot 默认仅 1MB，群相册/聊天大图会上传失败
+
   servlet:
     multipart:
-      max-file-size: 100MB
-      max-request-size: 110MB
+      # 单文件上传上限 ← MULTIPART_MAX_FILE_SIZE
+      max-file-size: ${MULTIPART_MAX_FILE_SIZE}
+      # 整次 multipart 请求上限 ← MULTIPART_MAX_REQUEST_SIZE
+      max-request-size: ${MULTIPART_MAX_REQUEST_SIZE}
+
   datasource:
-    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/linkx?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false
-    username: ${DB_USERNAME:root}
+    # MySQL 完整 JDBC URL ← DB_URL
+    url: ${DB_URL}
+    # 数据库用户名 ← DB_USERNAME
+    username: ${DB_USERNAME}
+    # 数据库密码 ← DB_PASSWORD
     password: ${DB_PASSWORD}
+    # MySQL 8 驱动（固定）
     driver-class-name: com.mysql.cj.jdbc.Driver
+
   data:
     redis:
-      host: ${REDIS_HOST:127.0.0.1}
-      port: ${REDIS_PORT:6379}
+      # Redis 主机 ← REDIS_HOST
+      host: ${REDIS_HOST}
+      # Redis 端口 ← REDIS_PORT
+      port: ${REDIS_PORT}
+      # Redis 密码（无密码在 env 写 REDIS_PASSWORD=）← REDIS_PASSWORD
       password: ${REDIS_PASSWORD}
-      database: 0
+      # Redis DB 编号 ← REDIS_DATABASE
+      database: ${REDIS_DATABASE}
 
+# ---------- MyBatis-Flex ORM（结构固定）----------
 mybatis-flex:
   mapper-locations: classpath:mapper/*.xml
   global-config:
     logic-delete-column: deleted
     print-banner: false
 
+# ---------- LinkX 业务（LinkxProperties）----------
 linkx:
   jwt:
+    # 签名密钥（≥32 字节）← JWT_SECRET
     secret: ${JWT_SECRET}
-    access-expire: 7200000
-    refresh-expire: 604800000
-  auth:
-    captcha-enabled: ${CAPTCHA_ENABLED:false}
-    login-max-attempts: 5
-    lock-duration-minutes: 15
-    rate-limit-login-per-minute: 10
-    rate-limit-register-per-minute: 5
-  cors:
-    allowed-origins:
-      - http://localhost:5173
-      - http://127.0.0.1:5173
-  security:
-    require-https: ${REQUIRE_HTTPS:false}
-  im:
-    websocket-port: 8081
-  minio:
-    endpoint: ${MINIO_ENDPOINT:http://127.0.0.1:9000}
-    access-key: ${MINIO_ACCESS_KEY:minioadmin}
-    secret-key: ${MINIO_SECRET_KEY:minioadmin123}
-    bucket-name: ${MINIO_BUCKET_NAME:linkx}
-    max-file-size: 104857600  # 100MB
-    # 预签名分级过期（秒）：头像 24h / 业务文件 1h / 分享 10min
-    presign-expiry:
-      avatar-seconds: ${MINIO_PRESIGN_AVATAR_SECONDS:86400}
-      file-seconds: ${MINIO_PRESIGN_FILE_SECONDS:3600}
-      share-seconds: ${MINIO_PRESIGN_SHARE_SECONDS:600}
-  mail:
-    # QQ 邮箱 SMTP 服务器
-    host: ${MAIL_HOST:smtp.qq.com}
-    # 587 端口走 STARTTLS；465 端口走 SSL
-    port: ${MAIL_PORT:587}
-    # QQ 邮箱账号（完整的邮箱地址）
-    username: ${MAIL_USERNAME:liming743258831@qq.com}
-    # QQ 邮箱授权码（非登录密码，需要在 QQ 邮箱「设置→账户→SMTP服务」开启后生成）
-    password: ${MAIL_PASSWORD:ogunqofycyvbbejf}
-    # 发件人邮箱与显示名称（建议与 username 一致）
-    from: ${MAIL_FROM:liming743258831@qq.com}
-    from-name: ${MAIL_FROM_NAME:LinkX}
-    # STARTTLS 加密（587 端口必须为 true）
-    start-tls: ${MAIL_START_TLS:true}
-    # SSL 加密开关（仅 465 端口需要设为 true）
-    ssl: ${MAIL_SSL:false}
-    code-expire-minutes: ${MAIL_CODE_EXPIRE_MINUTES:10}
-  app:
-    # 应用自身版本，供"检查更新"接口使用
-    version: ${APP_VERSION:1.0.0}
-    channel: ${APP_CHANNEL:stable}
-    release-notes: ${APP_RELEASE_NOTES:本次更新优化了若干已知问题，建议升级。}
-    download-url: ${APP_DOWNLOAD_URL:}
+    # access 有效期（毫秒）← JWT_ACCESS_EXPIRE
+    access-expire: ${JWT_ACCESS_EXPIRE}
+    # refresh 有效期（毫秒）← JWT_REFRESH_EXPIRE
+    refresh-expire: ${JWT_REFRESH_EXPIRE}
 
-# Actuator 健康检查与指标配置
+  auth:
+    # 图形验证码开关 ← CAPTCHA_ENABLED
+    captcha-enabled: ${CAPTCHA_ENABLED}
+    # 登录失败锁定次数 ← AUTH_LOGIN_MAX_ATTEMPTS
+    login-max-attempts: ${AUTH_LOGIN_MAX_ATTEMPTS}
+    # 锁定时长（分钟）← AUTH_LOCK_DURATION_MINUTES
+    lock-duration-minutes: ${AUTH_LOCK_DURATION_MINUTES}
+    # 登录限流（次/分钟/IP）← AUTH_RATE_LIMIT_LOGIN
+    rate-limit-login-per-minute: ${AUTH_RATE_LIMIT_LOGIN}
+    # 注册限流（次/分钟/IP）← AUTH_RATE_LIMIT_REGISTER
+    rate-limit-register-per-minute: ${AUTH_RATE_LIMIT_REGISTER}
+
+  cors:
+    # 跨域白名单（逗号分隔）← CORS_ALLOWED_ORIGINS
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
+
+  security:
+    # 强制 HTTPS ← REQUIRE_HTTPS
+    require-https: ${REQUIRE_HTTPS}
+
+  proxy:
+    # 信任反代 X-Forwarded-* ← TRUST_PROXY
+    trust-proxy: ${TRUST_PROXY}
+
+  im:
+    # WebSocket 端口 ← IM_WS_PORT
+    websocket-port: ${IM_WS_PORT}
+
+  minio:
+    # 对象存储地址 ← MINIO_ENDPOINT
+    endpoint: ${MINIO_ENDPOINT}
+    # Access Key ← MINIO_ACCESS_KEY
+    access-key: ${MINIO_ACCESS_KEY}
+    # Secret Key ← MINIO_SECRET_KEY
+    secret-key: ${MINIO_SECRET_KEY}
+    # 桶名 ← MINIO_BUCKET_NAME
+    bucket-name: ${MINIO_BUCKET_NAME}
+    # 业务单文件上限（字节）← MINIO_MAX_FILE_SIZE
+    max-file-size: ${MINIO_MAX_FILE_SIZE}
+    presign-expiry:
+      # 头像预签名秒数 ← MINIO_PRESIGN_AVATAR_SECONDS
+      avatar-seconds: ${MINIO_PRESIGN_AVATAR_SECONDS}
+      # 文件预签名秒数 ← MINIO_PRESIGN_FILE_SECONDS
+      file-seconds: ${MINIO_PRESIGN_FILE_SECONDS}
+      # 分享预签名秒数 ← MINIO_PRESIGN_SHARE_SECONDS
+      share-seconds: ${MINIO_PRESIGN_SHARE_SECONDS}
+
+  mail:
+    # SMTP 主机 ← MAIL_HOST
+    host: ${MAIL_HOST}
+    # SMTP 端口 ← MAIL_PORT
+    port: ${MAIL_PORT}
+    # 发信账号 ← MAIL_USERNAME
+    username: ${MAIL_USERNAME}
+    # 授权码 ← MAIL_PASSWORD
+    password: ${MAIL_PASSWORD}
+    # 发件人地址 ← MAIL_FROM
+    from: ${MAIL_FROM}
+    # 发件人显示名 ← MAIL_FROM_NAME
+    from-name: ${MAIL_FROM_NAME}
+    # STARTTLS ← MAIL_START_TLS
+    start-tls: ${MAIL_START_TLS}
+    # SSL ← MAIL_SSL
+    ssl: ${MAIL_SSL}
+    # 验证码有效分钟 ← MAIL_CODE_EXPIRE_MINUTES
+    code-expire-minutes: ${MAIL_CODE_EXPIRE_MINUTES}
+
+  app:
+    # 检查更新版本号 ← APP_VERSION
+    version: ${APP_VERSION}
+    # 发布渠道 ← APP_CHANNEL
+    channel: ${APP_CHANNEL}
+    # 更新说明 ← APP_RELEASE_NOTES
+    release-notes: ${APP_RELEASE_NOTES}
+    # 下载地址 ← APP_DOWNLOAD_URL
+    download-url: ${APP_DOWNLOAD_URL}
+
+  retention:
+    # 消息保留天数 ← MESSAGE_RETENTION_DAYS
+    message-days: ${MESSAGE_RETENTION_DAYS}
+
+# ---------- Actuator ----------
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,prometheus
+        # 暴露端点列表 ← MANAGEMENT_ENDPOINTS
+        include: ${MANAGEMENT_ENDPOINTS}
       base-path: /actuator
   endpoint:
     health:
-      show-details: when_authorized
+      # 健康详情策略 ← MANAGEMENT_HEALTH_SHOW_DETAILS
+      show-details: ${MANAGEMENT_HEALTH_SHOW_DETAILS}
       probes:
         enabled: true
   health:
@@ -110,22 +181,29 @@ management:
       export:
         enabled: true
 
-# SpringDoc OpenAPI 配置
+# ---------- OpenAPI / Swagger ----------
 springdoc:
   api-docs:
-    enabled: true
+    # 是否启用 ← SPRINGDOC_ENABLED
+    enabled: ${SPRINGDOC_ENABLED}
     path: /v3/api-docs
   swagger-ui:
-    enabled: true
+    # 是否启用（与上共用）← SPRINGDOC_ENABLED
+    enabled: ${SPRINGDOC_ENABLED}
     path: /swagger-ui.html
     operations-sorter: method
     tags-sorter: alpha
     display-request-duration: true
   show-actuator: false
 
+# ---------- 日志 ----------
 logging:
   level:
-    root: info
-    com.linkx.server: debug
+    # 全局级别 ← LOG_LEVEL_ROOT
+    root: ${LOG_LEVEL_ROOT}
+    # 业务包级别 ← LOG_LEVEL_LINKX
+    com.linkx.server: ${LOG_LEVEL_LINKX}
+    # Security 级别 ← LOG_LEVEL_SECURITY
+    org.springframework.security: ${LOG_LEVEL_SECURITY}
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
