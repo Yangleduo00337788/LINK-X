@@ -170,7 +170,7 @@ class P2QualityGateTest extends BaseIntegrationTest {
         void groupMessage_visibleToAllMembers() {
             TestUser owner = registerAndLogin("p2gfo");
             List<TestUser> members = new ArrayList<>();
-            for (int i = 0; i < 12; i++) {
+            for (int i = 0; i < 40; i++) {
                 members.add(registerAndLogin("p2gfm" + i));
             }
 
@@ -180,12 +180,15 @@ class P2QualityGateTest extends BaseIntegrationTest {
             GroupConversationVO group = groupService.createGroup(owner.userId, dto);
             assertNotNull(group.getId());
 
+            long t0 = System.nanoTime();
             SendMessageDTO msg = new SendMessageDTO();
             msg.setConversationId(group.getId());
             msg.setMsgType("text");
             msg.setContent("fanout-" + UUID.randomUUID());
             msg.setClientMsgId(UUID.randomUUID().toString());
             MessageVO sent = chatService.sendMessage(owner.userId, msg);
+            long sendMs = (System.nanoTime() - t0) / 1_000_000L;
+            assertTrue(sendMs < 15_000, "40 人扇出发送应在 15s 内完成，实际=" + sendMs + "ms");
 
             for (TestUser m : members) {
                 List<MessageVO> hist = chatService.listMessages(m.userId, group.getId(), null, 20);

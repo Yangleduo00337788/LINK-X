@@ -22,4 +22,7 @@ public class CallSignalDTO {
 
     /** ICE candidate JSON 字符串 */
     private String candidate;
+
+    /** 多人会议：定向信令目标用户（可选） */
+    private Long targetUserId;
 }

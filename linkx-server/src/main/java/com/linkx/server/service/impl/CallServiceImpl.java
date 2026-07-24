@@ -169,14 +169,21 @@ public class CallServiceImpl implements CallService {
     @Override
     public void signal(Long userId, CallSignalDTO dto) {
         Map<Object, Object> data = requireCall(dto.getCallId());
+        String status = str(data.get("status"));
+        if (!"accepted".equals(status) && !"connected".equals(status) && !"ringing".equals(status)) {
+            throw new CustomException(400, "通话已结束，无法中继信令");
+        }
+
+        boolean conference = "true".equalsIgnoreCase(str(data.get("isConference")));
+        if (conference) {
+            signalConference(userId, dto, data, status);
+            return;
+        }
+
         Long callerId = Long.parseLong(str(data.get("callerId")));
         Long calleeId = Long.parseLong(str(data.get("calleeId")));
         if (!userId.equals(callerId) && !userId.equals(calleeId)) {
             throw new CustomException(403, "无权发送信令");
-        }
-        String status = str(data.get("status"));
-        if (!"accepted".equals(status) && !"connected".equals(status) && !"ringing".equals(status)) {
-            throw new CustomException(400, "通话已结束，无法中继信令");
         }
         Long peerId = userId.equals(callerId) ? calleeId : callerId;
         CallEventVO event = CallEventVO.builder()
@@ -191,6 +198,56 @@ public class CallServiceImpl implements CallService {
                 .candidate(dto.getCandidate())
                 .build();
         pushService.pushToUser(peerId, "call_signal", event);
+    }
+
+    private void signalConference(Long userId, CallSignalDTO dto, Map<Object, Object> data, String status) {
+        String participantsKey = "linkx:call:" + dto.getCallId() + ":participants";
+        Boolean member = redisTemplate.opsForSet().isMember(participantsKey, String.valueOf(userId));
+        if (!Boolean.TRUE.equals(member)) {
+            throw new CustomException(403, "无权发送信令");
+        }
+
+        Long conversationId = Long.parseLong(str(data.get("conversationId")));
+        String callType = str(data.get("callType"));
+
+        java.util.Set<Long> targets = new java.util.HashSet<>();
+        if (dto.getTargetUserId() != null) {
+            Boolean peerIn = redisTemplate.opsForSet().isMember(participantsKey, String.valueOf(dto.getTargetUserId()));
+            if (!Boolean.TRUE.equals(peerIn)) {
+                throw new CustomException(400, "目标用户不在会议中");
+            }
+            if (!dto.getTargetUserId().equals(userId)) {
+                targets.add(dto.getTargetUserId());
+            }
+        } else {
+            java.util.Set<String> participants = redisTemplate.opsForSet().members(participantsKey);
+            if (participants != null) {
+                for (String pid : participants) {
+                    Long peerId = Long.parseLong(pid);
+                    if (!peerId.equals(userId)) {
+                        targets.add(peerId);
+                    }
+                }
+            }
+        }
+        if (targets.isEmpty()) {
+            throw new CustomException(400, "没有可转发的信令目标");
+        }
+
+        for (Long peerId : targets) {
+            CallEventVO event = CallEventVO.builder()
+                    .callId(dto.getCallId())
+                    .conversationId(conversationId)
+                    .callType(callType)
+                    .status(status)
+                    .fromUserId(userId)
+                    .toUserId(peerId)
+                    .signalType(dto.getSignalType())
+                    .sdp(dto.getSdp())
+                    .candidate(dto.getCandidate())
+                    .build();
+            pushService.pushToUser(peerId, "call_signal", event);
+        }
     }
 
     private CallEventVO buildEvent(String callId, Map<Object, Object> data, Long fromUserId, String status) {

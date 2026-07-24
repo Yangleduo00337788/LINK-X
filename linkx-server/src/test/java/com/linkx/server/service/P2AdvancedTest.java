@@ -1,6 +1,7 @@
 package com.linkx.server.service;
 
 import com.linkx.server.controller.dto.ConferenceCreateDTO;
+import com.linkx.server.controller.dto.ConferenceSignalDTO;
 import com.linkx.server.controller.dto.SendFriendRequestDTO;
 import com.linkx.server.controller.vo.ConferenceInfoVO;
 import com.linkx.server.controller.vo.ConversationVO;
@@ -137,6 +138,37 @@ class P2AdvancedTest extends BaseIntegrationTest {
 
             List<ConferenceInfoVO> active = conferenceService.listActive(a.userId);
             assertTrue(active.stream().anyMatch(c -> created.getId().equals(c.getId())));
+        }
+
+        @Test
+        @DisplayName("双方均在会议中时可交换信令（非 mesh，走房间信令转发）")
+        void signal_betweenHostAndJoiner() {
+            TestUser host = registerAndLogin("p2csa");
+            TestUser peer = registerAndLogin("p2csb");
+            ConversationVO conv = becomeFriendsAndOpen(host, peer);
+
+            ConferenceCreateDTO dto = new ConferenceCreateDTO();
+            dto.setConversationId(conv.getId());
+            dto.setType("video");
+            dto.setTitle("信令冒烟");
+            ConferenceInfoVO created = conferenceService.create(host.userId, dto);
+
+            ConferenceInfoVO joined = conferenceService.join(peer.userId, created.getId(), null);
+            assertEquals(created.getId(), joined.getId());
+
+            ConferenceSignalDTO offer = new ConferenceSignalDTO();
+            offer.setConferenceId(created.getId());
+            offer.setSignalType("offer");
+            offer.setSdp("v=0-offer-smoke");
+            offer.setTargetUserId(peer.userId);
+            assertDoesNotThrow(() -> conferenceService.signal(host.userId, offer));
+
+            ConferenceSignalDTO answer = new ConferenceSignalDTO();
+            answer.setConferenceId(created.getId());
+            answer.setSignalType("answer");
+            answer.setSdp("v=0-answer-smoke");
+            answer.setTargetUserId(host.userId);
+            assertDoesNotThrow(() -> conferenceService.signal(peer.userId, answer));
         }
     }
 

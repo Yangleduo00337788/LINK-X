@@ -250,6 +250,7 @@ public class ConferenceServiceImpl implements ConferenceService {
         signal.setSignalType(dto.getSignalType());
         signal.setSdp(dto.getSdp());
         signal.setCandidate(dto.getCandidate());
+        signal.setTargetUserId(dto.getTargetUserId());
         callService.signal(userId, signal);
     }
 
