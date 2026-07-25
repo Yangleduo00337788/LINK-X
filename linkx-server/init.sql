@@ -743,7 +743,8 @@ CREATE TABLE IF NOT EXISTS `sys_user_blacklist` (
 CREATE TABLE IF NOT EXISTS `conference` (
   `id` bigint NOT NULL COMMENT '主键ID(雪花算法)',
   `title` varchar(200) DEFAULT '多人会议' COMMENT '会议标题',
-  `type` varchar(10) NOT NULL DEFAULT 'video' COMMENT '会议类型: voice/video',
+  `type` varchar(10) NOT NULL DEFAULT 'video' COMMENT '媒体类型: voice/video',
+  `scene` varchar(16) NOT NULL DEFAULT 'meeting' COMMENT '场景: call=电话 meeting=会议',
   `creator_id` bigint NOT NULL COMMENT '创建者用户ID',
   `conversation_id` bigint DEFAULT NULL COMMENT '关联群会话ID(可选)',
   `status` tinyint NOT NULL DEFAULT 0 COMMENT '状态: 0创建中 1进行中 2已结束',

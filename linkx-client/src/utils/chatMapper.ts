@@ -95,6 +95,11 @@ export function messageToChatMessage(message: MessageItem, sessionId: string): C
   let redPacketReceived: boolean | undefined
   let redPacketReceivedAmount: string | undefined
   let redPacketStatus: 'active' | 'finished' | 'expired' | undefined
+  let conferenceId: string | undefined
+  let conferenceTitle: string | undefined
+  let conferenceHasPassword: boolean | undefined
+  let conferenceType: 'voice' | 'video' | undefined
+  let conferenceScene: 'call' | 'meeting' | undefined
 
   switch (type) {
     case 'file':
@@ -142,6 +147,37 @@ export function messageToChatMessage(message: MessageItem, sessionId: string): C
       fileSize = redPacketAmount ? `${redPacketAmount} 元` : undefined
       break
     }
+    case 'conference': {
+      conferenceId = message.conferenceId ?? message.fileUrl ?? undefined
+      conferenceTitle = message.conferenceTitle ?? message.fileName ?? '多人会议'
+      const rawPwd = message.conferenceHasPassword
+      conferenceHasPassword =
+        rawPwd === true ||
+        Number(message.fileSize) === 1 ||
+        String(message.fileSize) === '1'
+      content = message.content || `[会议] ${conferenceTitle}`
+      // 文案区分：语音通话 / 视频通话 / 会议
+      const rawType = (message as { conferenceType?: string }).conferenceType
+      const rawScene = (message as { conferenceScene?: string }).conferenceScene
+      if (rawType === 'voice' || rawType === 'video') {
+        conferenceType = rawType
+      } else if (/语音通话|语音会议|voice\s*call/i.test(content)) {
+        conferenceType = 'voice'
+      } else {
+        conferenceType = 'video'
+      }
+      if (rawScene === 'call' || rawScene === 'meeting') {
+        conferenceScene = rawScene
+      } else if (/语音通话|视频通话|voice\s*call|video\s*call/i.test(content)) {
+        conferenceScene = 'call'
+      } else {
+        conferenceScene = 'meeting'
+      }
+      fileName = conferenceTitle
+      fileUrl = conferenceId
+      fileSize = undefined
+      break
+    }
   }
 
   return {
@@ -180,6 +216,11 @@ export function messageToChatMessage(message: MessageItem, sessionId: string): C
     redPacketReceivedAmount,
     redPacketStatus,
     redPacketOpened: type === 'redPacket' ? !!redPacketReceived : undefined,
+    conferenceId,
+    conferenceTitle,
+    conferenceHasPassword,
+    conferenceType,
+    conferenceScene,
     deliveryStatus: message.deliveryStatus,
     edited: message.edited,
     clientMsgId: message.clientMsgId,
@@ -235,6 +276,7 @@ export function messagePreviewFromItem(message: MessageItem): string {
     case 'file': return `[文件] ${message.fileName || message.content}`
     case 'image': return '[图片]'
     case 'redPacket': return '[红包]'
+    case 'conference': return `[会议] ${message.fileName || message.conferenceTitle || '多人会议'}`
     case 'voice': return '[语音]'
     case 'recall': return '撤回了一条消息'
     case 'system': return message.content || '[系统消息]'

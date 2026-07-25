@@ -35,6 +35,7 @@ const emit = defineEmits<{
   (e: 'openFileView', msg: ChatMessage): void
   (e: 'openImageView', msg: ChatMessage): void
   (e: 'clickRedPacket', msg: ChatMessage): void
+  (e: 'clickConference', msg: ChatMessage): void
   (e: 'openPeerProfile', event: MouseEvent): void
   (e: 'openSelfProfile', event: MouseEvent): void
   (e: 'retry', msg: ChatMessage): void
@@ -54,7 +55,10 @@ const isGroupChat = computed(() => !!currentSession.value?.isGroup)
 
 const isRecall = computed(() => props.msg.type === 'recall')
 const isSystemTip = computed(
-  () => props.msg.type === 'system' || props.msg.type === 'time'
+  () =>
+    props.msg.type === 'system' ||
+    props.msg.type === 'time' ||
+    props.msg.type === 'conference'
 )
 
 /** 撤回提示：你撤回了一条消息 / XXX撤回了一条消息 */
@@ -66,6 +70,12 @@ const recallTip = computed(() => {
 
 const tipText = computed(() => {
   if (isRecall.value) return recallTip.value
+  if (props.msg.type === 'conference') {
+    return (
+      props.msg.content ||
+      `${props.msg.senderName || ''} ${t('conference.bannerVideoOngoing')}`.trim()
+    )
+  }
   return props.msg.content || ''
 })
 

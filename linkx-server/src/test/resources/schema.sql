@@ -532,6 +532,7 @@ CREATE TABLE IF NOT EXISTS conference (
   id BIGINT NOT NULL PRIMARY KEY,
   title VARCHAR(200) DEFAULT '多人会议',
   type VARCHAR(10) NOT NULL DEFAULT 'video',
+  scene VARCHAR(16) NOT NULL DEFAULT 'meeting',
   creator_id BIGINT NOT NULL,
   conversation_id BIGINT,
   status TINYINT NOT NULL DEFAULT 0,

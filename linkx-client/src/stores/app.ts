@@ -102,6 +102,20 @@ function messagePreview(msg: ChatMessage): string {
   if (msg.type === 'image' || msg.isImage) return '[图片]'
   if (msg.type === 'voice') return '[语音]'
   if (msg.type === 'redPacket') return `[红包] ${msg.redPacketGreeting || '恭喜发财'}`
+  if (msg.type === 'conference') {
+    const scene = msg.conferenceScene
+    const kind =
+      scene === 'call'
+        ? msg.conferenceType === 'voice'
+          ? '语音通话'
+          : '视频通话'
+        : /语音通话/.test(msg.content || '')
+          ? '语音通话'
+          : /视频通话/.test(msg.content || '')
+            ? '视频通话'
+            : '会议'
+    return `[${kind}] ${msg.conferenceTitle || msg.fileName || kind}`
+  }
   if (msg.type === 'recall') return '撤回了一条消息'
   return msg.content
 }
@@ -638,6 +652,24 @@ export const useAppStore = defineStore('app', {
           this.messagesBySession[sessionId] = merged
           this.messagesLoaded[sessionId] = true
           this.messagesHasMore[sessionId] = res.data.length >= 50
+
+          // 历史里若有会议邀请，同步聊天顶栏进行中状态
+          for (let i = merged.length - 1; i >= 0; i--) {
+            const m = merged[i]
+            if (m.type === 'conference' && (m.conferenceId || m.fileUrl)) {
+              void import('./conference').then(({ useConferenceStore }) => {
+                useConferenceStore().noteConferenceInviteMessage({
+                  conversationId: sessionId,
+                  conferenceId: String(m.conferenceId || m.fileUrl),
+                  title: m.conferenceTitle || m.fileName,
+                  type: m.conferenceType,
+                  scene: m.conferenceScene,
+                  hasPassword: !!m.conferenceHasPassword
+                })
+              })
+              break
+            }
+          }
         }
       } catch (e) {
         console.error('加载历史消息失败:', e)
@@ -782,7 +814,8 @@ export const useAppStore = defineStore('app', {
             action === 'conference_admit' ||
             action === 'conference_waiting' ||
             action === 'conference_raise' ||
-            action === 'conference_role'
+            action === 'conference_role' ||
+            action === 'conference_presence'
           ) {
             void import('./conference').then(({ useConferenceStore }) => {
               useConferenceStore().handleRemoteEvent(action, data)
@@ -820,6 +853,19 @@ export const useAppStore = defineStore('app', {
       const exists = this.messagesBySession[sessionId].some(m => m.id === chatMsg.id)
       if (!exists) {
         this.messagesBySession[sessionId].push(chatMsg)
+      }
+
+      if (chatMsg.type === 'conference' && (chatMsg.conferenceId || chatMsg.fileUrl)) {
+        void import('./conference').then(({ useConferenceStore }) => {
+          useConferenceStore().noteConferenceInviteMessage({
+            conversationId: sessionId,
+            conferenceId: String(chatMsg.conferenceId || chatMsg.fileUrl),
+            title: chatMsg.conferenceTitle || chatMsg.fileName,
+            type: chatMsg.conferenceType,
+            scene: chatMsg.conferenceScene,
+            hasPassword: !!chatMsg.conferenceHasPassword
+          })
+        })
       }
 
       // 使用转换后的字符串 ID 查找会话

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 群聊拼图头像（微信风格）。
+ * 群聊拼图头像（多成员头像拼接）。
  * 按成员数 1–9 排布；无自定义群头像时作为默认展示。
  */
 import { computed, ref, watch } from 'vue'

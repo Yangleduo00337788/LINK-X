@@ -134,6 +134,8 @@ function historyPreview(msg: (typeof currentMessages.value)[number]) {
   if (msg.type === 'voice') return t('overlay.voice')
   if (msg.type === 'redPacket')
     return `${t('overlay.redPacket')} ${msg.redPacketGreeting || msg.content}`
+  if (msg.type === 'conference')
+    return `${t('overlay.conference')} ${msg.conferenceTitle || msg.fileName || msg.content}`
   return msg.content
 }
 

@@ -24,7 +24,7 @@ import {
 } from '@vicons/ionicons5'
 // 头像组件
 import Avatar from './Avatar.vue'
-// 企鹅水印占位
+// 空状态 Logo 占位
 import PenguinWatermark from './PenguinWatermark.vue'
 // 群聊侧边栏
 import GroupChatSidebar from './chat/GroupChatSidebar.vue'
@@ -65,12 +65,15 @@ import { recoverMediaUrlOnError } from '../utils/mediaUrl'
 import ConferenceCreateDialog, {
   type ConferenceCreatePayload
 } from './chat/ConferenceCreateDialog.vue'
+import ConferenceSessionBanner from './chat/ConferenceSessionBanner.vue'
+import type { SessionBannerInfo } from './chat/ConferenceSessionBanner.vue'
+import { useConferenceStore } from '../stores/conference'
 
 // 获取 Naive UI 消息提示实例
 const message = useMessage()
 const { t } = useI18n()
 
-/** 发起语音/视频通话 */
+/** 发起语音/视频：单聊走 1v1；群聊发起对应类型的「电话」（非会议） */
 async function startCall(callType: 'voice' | 'video') {
   const session = currentSession.value
   const sessionId = currentSessionId.value
@@ -79,7 +82,7 @@ async function startCall(callType: 'voice' | 'video') {
     return
   }
   if (session.isGroup) {
-    message.warning(t('chat.callPrivateOnly'))
+    await quickStartConference(callType)
     return
   }
   try {
@@ -106,27 +109,45 @@ function startConference() {
   conferenceCreateOpen.value = true
 }
 
+/** 群聊电话/视频一键发起「电话」（非会议） */
+async function quickStartConference(type: 'voice' | 'video') {
+  const session = currentSession.value
+  if (!session) return
+  await onConferenceCreateConfirm({
+    title: session.name || (type === 'voice' ? t('conference.voiceCallTitle') : t('conference.videoCallTitle')),
+    type,
+    scene: 'call',
+    maxParticipants: 9,
+    lobbyEnabled: false
+  })
+}
+
 async function onConferenceCreateConfirm(payload: ConferenceCreatePayload) {
   const sessionId = currentSessionId.value
   if (!sessionId || conferenceCreating.value) return
   conferenceCreating.value = true
   conferenceCreateOpen.value = false
+  const scene = payload.scene === 'call' ? 'call' : 'meeting'
   try {
     const res = await conferenceApi.create({
       conversationId: sessionId,
       type: payload.type,
+      scene,
       title: payload.title,
       password: payload.password,
       maxParticipants: payload.maxParticipants,
       lobbyEnabled: payload.lobbyEnabled
     })
     if (res.code !== 200 || !res.data) throw new Error(res.message || 'failed')
-    const { useConferenceStore } = await import('../stores/conference')
     await useConferenceStore().openCreated(res.data, String(userProfile.value.userId || ''))
     if (res.data.reused) {
       message.info(t('conference.reusedOpened'))
+    } else if (scene === 'call') {
+      message.success(
+        payload.type === 'voice' ? t('conference.voiceStarted') : t('conference.videoStarted')
+      )
     } else {
-      message.success(t('modals.conferenceCreated', { id: String(res.data.id) }))
+      message.success(t('conference.meetingStarted'))
     }
   } catch (error) {
     const err = error as { response?: { data?: { message?: string } }; message?: string }
@@ -488,6 +509,191 @@ function onRedPacketClick(msg: ChatMessage) {
   openRedPacketReceive(msg.id)
 }
 
+/** 点击会议邀请卡片：已在会则忽略；需密码走邀请层；否则直接加入 */
+async function onConferenceClick(msg: ChatMessage) {
+  const conferenceId = msg.conferenceId || msg.fileUrl
+  if (!conferenceId) {
+    message.error(t('conference.joinFail'))
+    return
+  }
+  await joinConferenceById(
+    String(conferenceId),
+    msg.conferenceTitle || msg.fileName || t('conference.defaultTitle'),
+    !!msg.conferenceHasPassword,
+    msg.sessionId || currentSessionId.value || ''
+  )
+}
+
+/** 顶栏条：加入 / 返回进行中电话或会议 */
+async function onSessionConferenceJoin() {
+  const info = sessionMediaBanner.value
+  if (!info) return
+  if (info.kind === 'private_call') {
+    return
+  }
+  const store = useConferenceStore()
+  // 已在会中（含收起）：恢复会议窗
+  if (
+    store.conferenceId &&
+    String(store.conferenceId) === String(info.conferenceId) &&
+    (store.phase === 'in_room' || store.phase === 'waiting')
+  ) {
+    store.restoreUi()
+    return
+  }
+  await joinConferenceById(
+    info.conferenceId,
+    info.title,
+    info.hasPassword,
+    info.conversationId
+  )
+}
+
+async function joinConferenceById(
+  conferenceId: string,
+  title: string,
+  hasPassword: boolean,
+  conversationId: string
+) {
+  const myId = String(userProfile.value.userId || '')
+  if (!myId) {
+    message.error(t('conference.joinFail'))
+    return
+  }
+  const store = useConferenceStore()
+  if (
+    store.phase === 'in_room' &&
+    store.conferenceId &&
+    String(store.conferenceId) === String(conferenceId)
+  ) {
+    return
+  }
+  if (hasPassword) {
+    store.invitePrompt = {
+      conferenceId: String(conferenceId),
+      title: title || t('conference.defaultTitle'),
+      conversationId: conversationId || currentSessionId.value || '',
+      hasPassword: true
+    }
+    if (store.phase === 'idle' || store.phase === 'ended') {
+      store.phase = 'lobby'
+    }
+    return
+  }
+  try {
+    await store.joinExisting(String(conferenceId), myId)
+  } catch (e) {
+    const err = e as Error & { code?: number }
+    message.error(err.message || t('conference.joinFail'))
+  }
+}
+
+const conferenceStore = useConferenceStore()
+const {
+  sessionActives,
+  phase: conferencePhase,
+  conferenceId: myConferenceId,
+  conversationId: myConferenceConversationId,
+  title: myConferenceTitle,
+  type: myConferenceType,
+  scene: myConferenceScene,
+  hasPassword: myConferenceHasPassword,
+  participants: myConferenceParticipants
+} = storeToRefs(conferenceStore)
+
+const callStore = useCallStore()
+const {
+  phase: callPhase,
+  conversationId: callConversationId,
+  callType: privateCallType,
+  peerName: privateCallPeerName,
+  isActive: privateCallActive
+} = storeToRefs(callStore)
+
+const sessionMediaBanner = computed((): SessionBannerInfo | null => {
+  const sid = currentSessionId.value
+  if (!sid) return null
+
+  // 私聊 1v1 通话优先
+  if (
+    privateCallActive.value &&
+    callConversationId.value === sid &&
+    (callPhase.value === 'outgoing' ||
+      callPhase.value === 'connecting' ||
+      callPhase.value === 'connected' ||
+      callPhase.value === 'incoming')
+  ) {
+    return {
+      kind: 'private_call',
+      conversationId: sid,
+      type: privateCallType.value === 'voice' ? 'voice' : 'video',
+      title: privateCallPeerName.value || currentSession.value?.name || '',
+      participantCount: 2
+    }
+  }
+
+  const cached = sessionActives.value[sid]
+  if (cached) {
+    return { kind: 'conference', ...cached }
+  }
+
+  // 本端已在该会话的电话/会议中
+  if (
+    myConferenceConversationId.value === sid &&
+    myConferenceId.value &&
+    (conferencePhase.value === 'in_room' || conferencePhase.value === 'waiting')
+  ) {
+    const admitted = (myConferenceParticipants.value || []).filter(p => {
+      const a = p.admitStatus
+      return a == null || Number(a) !== 0
+    }).length
+    return {
+      kind: 'conference',
+      conferenceId: String(myConferenceId.value),
+      conversationId: sid,
+      title: myConferenceTitle.value || t('conference.defaultTitle'),
+      type: myConferenceType.value === 'voice' ? 'voice' : 'video',
+      scene: myConferenceScene.value === 'call' ? 'call' : 'meeting',
+      hasPassword: !!myConferenceHasPassword.value,
+      participantCount: admitted || 1
+    }
+  }
+  return null
+})
+
+const sessionConferenceInRoom = computed(() => {
+  const banner = sessionMediaBanner.value
+  if (!banner) return false
+  if (banner.kind === 'private_call') {
+    return callPhase.value === 'connected' || callPhase.value === 'connecting'
+  }
+  return (
+    (conferencePhase.value === 'in_room' || conferencePhase.value === 'waiting') &&
+    myConferenceId.value != null &&
+    String(myConferenceId.value) === String(banner.conferenceId)
+  )
+})
+
+// 切换会话 / 消息变化时同步顶栏进行中会议
+watch(
+  [currentSessionId, () => chatMessages.value.length],
+  () => {
+    const sid = currentSessionId.value
+    if (!sid) return
+    let hint: string | undefined
+    const msgs = chatMessages.value
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const m = msgs[i]
+      if (m.type === 'conference' && (m.conferenceId || m.fileUrl)) {
+        hint = String(m.conferenceId || m.fileUrl)
+        break
+      }
+    }
+    void conferenceStore.fetchSessionActive(sid, hint)
+  },
+  { immediate: true }
+)
+
 // 格式化语音时长显示
 function formatVoiceDuration(sec?: number) {
   const s = sec ?? 0
@@ -746,9 +952,11 @@ const ctxOptions = computed<DropdownOption[]>(() => {
         : t('chat.copy')
   const opts: DropdownOption[] = [
     { label: copyLabel, key: 'copy' },
-    { label: t('chat.favorite'), key: 'fav' },
-    { label: t('chat.replyAction'), key: 'reply' }
+    { label: t('chat.favorite'), key: 'fav' }
   ]
+  if (msg.type !== 'conference' && msg.type !== 'redPacket') {
+    opts.push({ label: t('chat.replyAction'), key: 'reply' })
+  }
   if (canSetEssence(msg)) {
     opts.push({ label: t('chat.setAsEssence'), key: 'essence' })
   }
@@ -758,7 +966,12 @@ const ctxOptions = computed<DropdownOption[]>(() => {
   if (msg.isSelf && msg.type === 'text' && msg.sendStatus !== 'failed') {
     opts.push({ label: t('chat.edit'), key: 'edit' })
   }
-  if (msg.type !== 'system' && msg.type !== 'recall' && msg.type !== 'redPacket') {
+  if (
+    msg.type !== 'system' &&
+    msg.type !== 'recall' &&
+    msg.type !== 'redPacket' &&
+    msg.type !== 'conference'
+  ) {
     opts.push({ label: t('chat.forward'), key: 'forward' })
   }
   if (msg.isSelf && msg.sendStatus === 'failed') {
@@ -779,7 +992,13 @@ function canRecallMessage(msg: ChatMessage) {
 /** 群主/管理员可将文本、图片、文件、链接消息设为精华 */
 function canSetEssence(msg: ChatMessage) {
   if (!isGroupChat.value || !isGroupAdmin.value) return false
-  if (msg.type === 'system' || msg.type === 'recall' || msg.type === 'redPacket' || msg.type === 'dataCard') {
+  if (
+    msg.type === 'system' ||
+    msg.type === 'recall' ||
+    msg.type === 'redPacket' ||
+    msg.type === 'conference' ||
+    msg.type === 'dataCard'
+  ) {
     return false
   }
   return true
@@ -1103,6 +1322,13 @@ function onDrop(e: DragEvent) {
       <!-- 聊天主体：消息区 + 输入框 + 侧边抽屉 -->
       <div class="chat-body-row">
         <div class="chat-main-col">
+          <!-- 固定在群名下方、消息列表上方 -->
+          <ConferenceSessionBanner
+            v-if="sessionMediaBanner"
+            :info="sessionMediaBanner"
+            :in-room="sessionConferenceInRoom"
+            @join="onSessionConferenceJoin"
+          />
           <div class="chat-content-stack">
             <!-- 消息列表区域 -->
             <div class="message-area" :class="{ 'message-area--padded': hasSession }" :style="chatBgStyle">
@@ -1128,6 +1354,7 @@ function onDrop(e: DragEvent) {
                         @open-file-view="openFileView"
                         @open-image-view="openImageView"
                         @click-red-packet="onRedPacketClick"
+                        @click-conference="onConferenceClick"
                         @open-peer-profile="openPeerProfile"
                         @open-self-profile="openSelfProfileClick"
                         @retry="retryMessage"

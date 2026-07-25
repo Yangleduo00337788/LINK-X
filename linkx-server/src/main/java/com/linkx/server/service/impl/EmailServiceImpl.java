@@ -146,7 +146,7 @@ public class EmailServiceImpl implements EmailService {
     }
 
     /**
-     * 构建重置密码邮件 HTML（字节/腾讯大厂风格）
+     * 构建重置密码邮件 HTML
      * 设计要素：
      *  - 顶部 4px 品牌渐变条
      *  - 圆形 SVG Logo 占位 + 产品名+标语
@@ -317,7 +317,7 @@ public class EmailServiceImpl implements EmailService {
     }
 
     /**
-     * 构建密码修改成功通知邮件 HTML（字节/腾讯大厂风格）
+     * 构建密码修改成功通知邮件 HTML
      */
     private String buildPasswordChangedEmailHtml(String username, String ip) {
         String changeTime = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").format(

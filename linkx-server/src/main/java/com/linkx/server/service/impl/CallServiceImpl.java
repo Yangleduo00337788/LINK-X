@@ -418,9 +418,16 @@ public class CallServiceImpl implements CallService {
 
     @Override
     public String createConference(Long userId, Long conversationId, String callType, Long conferenceId, String title, boolean hasPassword) {
+        return createConference(userId, conversationId, callType, conferenceId, title, hasPassword, "meeting");
+    }
+
+    @Override
+    public String createConference(Long userId, Long conversationId, String callType, Long conferenceId, String title, boolean hasPassword, String scene) {
         chatService.assertConversationMember(userId, conversationId);
         String callId = UUID.randomUUID().toString().replace("-", "");
         String key = callKey(callId);
+        boolean isCall = "call".equalsIgnoreCase(scene);
+        String resolvedScene = isCall ? "call" : "meeting";
 
         Map<String, String> hash = new java.util.HashMap<>();
         hash.put("callerId", String.valueOf(userId));
@@ -428,6 +435,7 @@ public class CallServiceImpl implements CallService {
         hash.put("callType", callType);
         hash.put("status", "ringing");
         hash.put("isConference", "true");
+        hash.put("scene", resolvedScene);
         if (conferenceId != null) {
             hash.put("conferenceId", String.valueOf(conferenceId));
         }
@@ -441,8 +449,11 @@ public class CallServiceImpl implements CallService {
 
         SysUser creator = sysUserMapper.selectOneById(userId);
         String creatorName = displayName(creator);
-        String meetingTitle = (title != null && !title.isBlank()) ? title.trim() : "多人会议";
-        String notifyContent = creatorName + "邀请你加入会议「" + meetingTitle + "」";
+        boolean video = !"voice".equalsIgnoreCase(callType);
+        String defaultTitle = isCall ? (video ? "视频通话" : "语音通话") : "多人会议";
+        String meetingTitle = (title != null && !title.isBlank()) ? title.trim() : defaultTitle;
+        String kindLabel = isCall ? (video ? "视频通话" : "语音通话") : "会议";
+        String notifyContent = creatorName + "邀请你加入" + kindLabel + "「" + meetingTitle + "」";
 
         // 通知会话成员（WS + 落库，离线可在通知中心看到）
         List<ImConversationMember> members = memberMapper.selectListByQuery(
@@ -454,10 +465,13 @@ public class CallServiceImpl implements CallService {
                 invite.put("callId", callId);
                 invite.put("conversationId", conversationId);
                 invite.put("callType", callType);
+                invite.put("type", callType);
+                invite.put("scene", resolvedScene);
                 invite.put("creatorId", userId);
                 invite.put("title", meetingTitle);
                 invite.put("creatorName", creatorName);
                 invite.put("hasPassword", hasPassword);
+                invite.put("participantCount", 1);
                 if (conferenceId != null) {
                     invite.put("conferenceId", conferenceId);
                 }

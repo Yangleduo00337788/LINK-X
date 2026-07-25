@@ -22,6 +22,8 @@ public class ConferenceInfoVO implements Serializable {
     private Long id;
     private String title;
     private String type;
+    /** call=电话 meeting=会议 */
+    private String scene;
     private Long creatorId;
     private Long conversationId;
     private Integer status;

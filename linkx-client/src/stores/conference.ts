@@ -12,6 +12,18 @@ import { startCallRing, stopCallRing } from '../utils/callSounds'
 
 export type ConferencePhase = 'idle' | 'lobby' | 'waiting' | 'in_room' | 'ended'
 
+/** 会话顶栏进行中摘要：电话 / 会议 分开 */
+export type SessionActiveConference = {
+  conferenceId: string
+  conversationId: string
+  title: string
+  type: 'voice' | 'video'
+  /** call=语音/视频电话 meeting=会议 */
+  scene: 'call' | 'meeting'
+  hasPassword: boolean
+  participantCount: number
+}
+
 type PeerSlot = {
   pc: RTCPeerConnection
   pending: RTCIceCandidateInit[]
@@ -66,11 +78,14 @@ function findSenderForKind(pc: RTCPeerConnection, kind: string): RTCRtpSender | 
 export const useConferenceStore = defineStore('conference', {
   state: () => ({
     phase: 'idle' as ConferencePhase,
+    /** 会中收起窗口（仍在会，聊天顶栏可「返回」） */
+    uiMinimized: false,
     conferenceId: null as string | null,
     callId: null as string | null,
     conversationId: null as string | null,
     title: '',
     type: 'video' as 'voice' | 'video',
+    scene: 'meeting' as 'call' | 'meeting',
     creatorId: '' as string,
     myUserId: '' as string,
     participants: [] as ConferenceParticipant[],
@@ -101,11 +116,14 @@ export const useConferenceStore = defineStore('conference', {
       /** refresh 后发现仍在会中 */
       restore?: boolean
     } | null,
+    /** conversationId → 该会话进行中会议（顶栏条） */
+    sessionActives: {} as Record<string, SessionActiveConference>,
     errorMessage: '' as string
   }),
 
   getters: {
     visible(state): boolean {
+      if (state.uiMinimized && state.phase === 'in_room') return false
       return state.phase === 'lobby' || state.phase === 'waiting' || state.phase === 'in_room'
     },
     isHost(state): boolean {
@@ -116,11 +134,18 @@ export const useConferenceStore = defineStore('conference', {
       const me = state.participants.find(p => String(p.userId) === state.myUserId)
       const role = me?.role
       return role === 'host' || role === 'co-host' || state.creatorId === state.myUserId
+    },
+    sessionActiveFor: (state) => {
+      return (conversationId: string | null | undefined): SessionActiveConference | null => {
+        if (!conversationId) return null
+        return state.sessionActives[String(conversationId)] || null
+      }
     }
   },
 
   actions: {
     async enterInRoom() {
+      this.uiMinimized = false
       this.phase = 'in_room'
       await this.refreshDevices()
       await this.ensureLocalMedia()
@@ -197,6 +222,7 @@ export const useConferenceStore = defineStore('conference', {
 
     async openCreated(info: ConferenceInfo, myUserId: string) {
       this.applyInfo(info, myUserId)
+      this.upsertSessionActiveFromInfo(info)
       if (info.waitingAdmit) {
         this.phase = 'waiting'
         return
@@ -213,6 +239,7 @@ export const useConferenceStore = defineStore('conference', {
       }
       stopCallRing()
       this.applyInfo(res.data, myUserId)
+      this.upsertSessionActiveFromInfo(res.data)
       this.invitePrompt = null
       if (res.data.waitingAdmit) {
         this.phase = 'waiting'
@@ -221,12 +248,151 @@ export const useConferenceStore = defineStore('conference', {
       await this.enterInRoom()
     },
 
+    upsertSessionActive(payload: Partial<SessionActiveConference> & {
+      conferenceId: string
+      conversationId: string
+    }) {
+      const cid = String(payload.conversationId)
+      if (!cid || !payload.conferenceId) return
+      const prev = this.sessionActives[cid]
+      const next: SessionActiveConference = {
+        conferenceId: String(payload.conferenceId),
+        conversationId: cid,
+        title: payload.title || prev?.title || '多人会议',
+        type: payload.type === 'voice' || payload.type === 'video'
+          ? payload.type
+          : prev?.type || 'video',
+        scene:
+          payload.scene === 'call' || payload.scene === 'meeting'
+            ? payload.scene
+            : prev?.scene || 'meeting',
+        hasPassword: payload.hasPassword ?? prev?.hasPassword ?? false,
+        participantCount:
+          payload.participantCount != null
+            ? Number(payload.participantCount)
+            : prev?.participantCount || 1
+      }
+      this.sessionActives = { ...this.sessionActives, [cid]: next }
+    },
+
+    upsertSessionActiveFromInfo(info: ConferenceInfo) {
+      if (info.conversationId == null || info.id == null) return
+      const admitted = (info.participants || []).filter(p => {
+        const a = p.admitStatus
+        return a == null || Number(a) !== 0
+      }).length
+      this.upsertSessionActive({
+        conferenceId: String(info.id),
+        conversationId: String(info.conversationId),
+        title: info.title || '多人会议',
+        type: info.type === 'voice' ? 'voice' : 'video',
+        scene: info.scene === 'call' ? 'call' : 'meeting',
+        hasPassword: !!info.hasPassword,
+        participantCount: admitted || 1
+      })
+    },
+
+    clearSessionActive(conversationId?: string | null, conferenceId?: string | null) {
+      if (conversationId) {
+        const cid = String(conversationId)
+        const cur = this.sessionActives[cid]
+        if (conferenceId && cur && String(cur.conferenceId) !== String(conferenceId)) return
+        if (!cur) return
+        const next = { ...this.sessionActives }
+        delete next[cid]
+        this.sessionActives = next
+        return
+      }
+      if (conferenceId) {
+        const target = String(conferenceId)
+        const next = { ...this.sessionActives }
+        for (const key of Object.keys(next)) {
+          if (String(next[key].conferenceId) === target) delete next[key]
+        }
+        this.sessionActives = next
+      }
+    },
+
+    /** 进入会话时拉取是否有进行中会议；失败时可用消息里的 conferenceId 兜底探测 */
+    async fetchSessionActive(conversationId: string, hintConferenceId?: string) {
+      if (!conversationId) return
+      const localBusy =
+        (this.phase === 'in_room' || this.phase === 'waiting') &&
+        this.conversationId === conversationId &&
+        !!this.conferenceId
+      try {
+        const res = await conferenceApi.activeInConversation(conversationId)
+        if (res.code === 200 && res.data?.id != null) {
+          this.upsertSessionActiveFromInfo(res.data)
+          return
+        }
+      } catch (e) {
+        console.warn('[conference] fetchSessionActive failed', e)
+      }
+      // 新接口不可用或暂无记录时：用最近一条会议消息的 id 查 info
+      const hint = hintConferenceId || this.sessionActives[conversationId]?.conferenceId
+      if (hint) {
+        try {
+          const infoRes = await conferenceApi.info(hint)
+          if (infoRes.code === 200 && infoRes.data?.id != null && Number(infoRes.data.status) === 1) {
+            this.upsertSessionActiveFromInfo({
+              ...infoRes.data,
+              conversationId: infoRes.data.conversationId ?? conversationId
+            })
+            return
+          }
+        } catch (e) {
+          console.warn('[conference] fetchSessionActive hint info failed', e)
+        }
+      }
+      // 本端仍在会中时不要清顶栏
+      if (!localBusy) {
+        this.clearSessionActive(conversationId)
+      }
+    },
+
+    /** 收起会议窗，保持在会（聊天顶栏可返回） */
+    minimizeUi() {
+      if (this.phase === 'in_room') {
+        this.uiMinimized = true
+      }
+    },
+
+    restoreUi() {
+      this.uiMinimized = false
+    },
+
+    /** 收到/加载到会议邀请消息时同步顶栏（先乐观展示，再校验 ACTIVE） */
+    noteConferenceInviteMessage(payload: {
+      conversationId: string
+      conferenceId: string
+      title?: string
+      type?: string
+      scene?: 'call' | 'meeting'
+      hasPassword?: boolean
+    }) {
+      const conversationId = String(payload.conversationId || '')
+      const conferenceId = String(payload.conferenceId || '')
+      if (!conversationId || !conferenceId || conferenceId === '0') return
+      this.upsertSessionActive({
+        conferenceId,
+        conversationId,
+        title: payload.title || '多人会议',
+        type: payload.type === 'voice' ? 'voice' : 'video',
+        scene: payload.scene === 'call' ? 'call' : 'meeting',
+        hasPassword: !!payload.hasPassword,
+        participantCount: this.sessionActives[conversationId]?.participantCount || 1
+      })
+      void this.fetchSessionActive(conversationId, conferenceId)
+    },
+
     applyInfo(info: ConferenceInfo, myUserId: string) {
       this.conferenceId = String(info.id)
       this.callId = info.callId ? String(info.callId) : null
       this.conversationId = info.conversationId != null ? String(info.conversationId) : null
       this.title = info.title || '多人会议'
       this.type = info.type === 'voice' ? 'voice' : 'video'
+      this.scene = info.scene === 'call' ? 'call' : 'meeting'
       this.creatorId = info.creatorId != null ? String(info.creatorId) : ''
       this.myUserId = myUserId
       this.hasPassword = !!info.hasPassword
@@ -248,6 +414,7 @@ export const useConferenceStore = defineStore('conference', {
           t.enabled = this.micOn
         })
       }
+      this.upsertSessionActiveFromInfo(info)
     },
 
     /**
@@ -302,15 +469,32 @@ export const useConferenceStore = defineStore('conference', {
     },
 
     handleRemoteEvent(action: string, data: Record<string, unknown>) {
-      if (action === 'conference_invite') {
+      if (action === 'conference_invite' || action === 'conference_presence') {
         const conferenceId = data.conferenceId != null ? String(data.conferenceId) : ''
+        const conversationId = data.conversationId != null ? String(data.conversationId) : ''
         if (!conferenceId || conferenceId === '0') return
+        if (conversationId) {
+          this.upsertSessionActive({
+            conferenceId,
+            conversationId,
+            title: String(data.title || this.sessionActives[conversationId]?.title || '多人会议'),
+            type: data.type === 'voice' || data.callType === 'voice' ? 'voice' : 'video',
+            scene: data.scene === 'call' ? 'call' : 'meeting',
+            hasPassword:
+              data.hasPassword === true || data.hasPassword === 1 || data.hasPassword === 'true',
+            participantCount:
+              data.participantCount != null
+                ? Number(data.participantCount)
+                : this.sessionActives[conversationId]?.participantCount || 1
+          })
+        }
+        if (action === 'conference_presence') return
         // 已在会中则忽略新邀请弹层（避免打断）
         if (this.phase === 'in_room' || this.phase === 'waiting') return
         this.invitePrompt = {
           conferenceId,
           title: String(data.title || '多人会议'),
-          conversationId: String(data.conversationId || ''),
+          conversationId,
           callId: data.callId != null ? String(data.callId) : undefined,
           hasPassword: data.hasPassword === true || data.hasPassword === 1 || data.hasPassword === 'true'
         }
@@ -323,6 +507,8 @@ export const useConferenceStore = defineStore('conference', {
       }
       if (action === 'conference_end' || action === 'conference_remove') {
         const cid = data.conferenceId != null ? String(data.conferenceId) : ''
+        const conversationId = data.conversationId != null ? String(data.conversationId) : ''
+        this.clearSessionActive(conversationId || null, cid || null)
         if (cid && cid === this.conferenceId) {
           this.errorMessage = action === 'conference_remove' ? '你已被移出会议' : '会议已结束'
           this.cleanupLocal()
@@ -334,6 +520,15 @@ export const useConferenceStore = defineStore('conference', {
         return
       }
       if (action === 'conference_join' || action === 'conference_leave') {
+        const conversationId = data.conversationId != null ? String(data.conversationId) : ''
+        const conferenceId = data.conferenceId != null ? String(data.conferenceId) : ''
+        if (conversationId && conferenceId && data.participantCount != null) {
+          this.upsertSessionActive({
+            conferenceId,
+            conversationId,
+            participantCount: Number(data.participantCount)
+          })
+        }
         // join 推送时对端可能仍在 getUserMedia；稍延迟再建连，并靠 mesh retry 兜底
         void this.refreshInfo().then(async () => {
           if (action === 'conference_join') {
@@ -1132,6 +1327,8 @@ export const useConferenceStore = defineStore('conference', {
     },
 
     async leave() {
+      const cid = this.conversationId
+      const confId = this.conferenceId
       if (this.conferenceId) {
         try {
           await conferenceApi.leave(this.conferenceId)
@@ -1141,13 +1338,18 @@ export const useConferenceStore = defineStore('conference', {
       }
       this.cleanupLocal()
       this.phase = 'idle'
+      // 离开不散会：刷新顶栏人数；会议仍 ACTIVE 时其他人还能加入
+      if (cid) void this.fetchSessionActive(cid, confId || undefined)
     },
 
     async endAsHost() {
       if (!this.conferenceId) return
+      const cid = this.conversationId
+      const confId = this.conferenceId
       await conferenceApi.end(this.conferenceId)
       this.cleanupLocal()
       this.phase = 'idle'
+      if (cid) this.clearSessionActive(cid, confId)
     },
 
     dismissInvite() {
@@ -1304,6 +1506,7 @@ export const useConferenceStore = defineStore('conference', {
       this.chatOpen = false
       this.hasPassword = false
       this.lobbyEnabled = false
+      this.uiMinimized = false
     },
 
     clearError() {

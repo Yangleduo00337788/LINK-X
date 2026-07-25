@@ -32,7 +32,7 @@ export interface MessageItem {
   senderId: string
   senderNickname?: string
   senderAvatar?: string
-  type: 'text' | 'image' | 'file' | 'voice' | 'redPacket' | 'recall' | 'system'
+  type: 'text' | 'image' | 'file' | 'voice' | 'redPacket' | 'recall' | 'system' | 'conference'
   content: string
   fileName?: string
   fileSize?: string | number
@@ -58,6 +58,14 @@ export interface MessageItem {
   redPacketReceived?: boolean
   redPacketReceivedAmount?: string | number
   redPacketStatus?: 'active' | 'finished' | 'expired'
+  /**
+   * 会议邀请：fileUrl=conferenceId，fileName=标题，fileSize=1 表示需要密码。
+   */
+  conferenceId?: string
+  conferenceTitle?: string
+  conferenceHasPassword?: boolean
+  conferenceType?: 'voice' | 'video'
+  conferenceScene?: 'call' | 'meeting'
   deliveryStatus?: string
   edited?: boolean
   editedTime?: string | number

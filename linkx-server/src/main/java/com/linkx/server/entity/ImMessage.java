@@ -42,6 +42,11 @@ public class ImMessage implements Serializable {
      * 系统提示：群管理操作、建群、成为好友等居中灰字，不允许客户端上行。
      */
     public static final String TYPE_SYSTEM = "system";
+    /**
+     * 会议邀请：{@code fileUrl} 存 conferenceId，{@code fileName} 存标题，
+     * {@code fileSize} 为 1 表示需要密码。仅服务端创建会议时写入，禁止客户端上行伪造。
+     */
+    public static final String TYPE_CONFERENCE = "conference";
 
     @Id(keyType = KeyType.Generator, value = KeyGenerators.snowFlakeId)
     private Long id;

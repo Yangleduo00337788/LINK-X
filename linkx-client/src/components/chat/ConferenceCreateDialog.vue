@@ -8,6 +8,8 @@ import { useI18n } from '../../i18n'
 export type ConferenceCreatePayload = {
   title: string
   type: 'voice' | 'video'
+  /** call=电话 meeting=会议；创建弹窗固定为 meeting */
+  scene?: 'call' | 'meeting'
   password?: string
   maxParticipants: number
   lobbyEnabled: boolean
@@ -60,6 +62,7 @@ function onConfirm() {
   emit('confirm', {
     title,
     type: form.type,
+    scene: 'meeting',
     password: form.usePassword && form.password.trim() ? form.password.trim() : undefined,
     maxParticipants: form.maxParticipants,
     lobbyEnabled: form.lobbyEnabled

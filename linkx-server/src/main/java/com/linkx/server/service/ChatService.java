@@ -29,6 +29,20 @@ public interface ChatService {
      */
     MessageVO postSystemMessage(Long operatorId, Long conversationId, String content);
 
+    /**
+     * 写入会议邀请消息（服务端内部调用，创建会议成功后落库）。
+     *
+     * @param hasPassword true 时 fileSize=1，前端据此提示输密码
+     */
+    MessageVO postConferenceInviteMessage(
+            Long senderId,
+            Long conversationId,
+            Long conferenceId,
+            String title,
+            String callType,
+            String scene,
+            boolean hasPassword);
+
     ChatFileUploadVO uploadChatFile(Long userId, Long conversationId, MultipartFile file);
 
     /**

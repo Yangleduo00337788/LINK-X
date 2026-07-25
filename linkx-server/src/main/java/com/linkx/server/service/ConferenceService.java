@@ -23,6 +23,11 @@ public interface ConferenceService {
 
     List<ConferenceInfoVO> listActive(Long userId);
 
+    /**
+     * 查询会话当前 ACTIVE 会议（会话成员即可，无需已入会），用于聊天顶栏展示。
+     */
+    ConferenceInfoVO findActiveInConversation(Long userId, Long conversationId);
+
     void mute(Long userId, Long conferenceId, Long targetUserId, boolean muted);
 
     void setVideo(Long userId, Long conferenceId, boolean videoOff);

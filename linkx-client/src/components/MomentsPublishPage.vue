@@ -443,7 +443,7 @@ async function publish() {
   </transition>
 
   <div class="text-page">
-    <!-- ============= 顶部栏(微信风) ============= -->
+    <!-- ============= 顶部栏 ============= -->
     <header class="page-header">
       <div class="header-left-spacer" aria-hidden="true" />
       <h1 class="page-title">
@@ -541,7 +541,7 @@ async function publish() {
         />
       </div>
 
-      <!-- 选项列表(微信风) -->
+      <!-- 选项列表 -->
       <ul class="options-list">
         <li class="option-row" @click="openLocationPage">
           <span class="option-icon">
@@ -704,7 +704,7 @@ async function publish() {
   overflow: hidden;
 }
 
-/* ========== 顶部栏(微信风) ========== */
+/* ========== 顶部栏 ========== */
 .page-header {
   display: flex;
   align-items: center;
@@ -916,7 +916,7 @@ async function publish() {
   cursor: not-allowed;
 }
 
-/* ========== 选项列表(微信风) ========== */
+/* ========== 选项列表 ========== */
 
 .upload-progress {
   position: relative;

@@ -12,6 +12,12 @@ public class ConferenceCreateDTO {
     /** voice / video */
     private String type = "video";
 
+    /**
+     * 场景：{@code call}=语音/视频电话，{@code meeting}=会议。
+     * 缺省 meeting，兼容旧客户端。
+     */
+    private String scene = "meeting";
+
     private String title;
 
     private String password;

@@ -26,11 +26,19 @@ public class Conference implements Serializable {
     public static final int STATUS_ACTIVE = 1;
     public static final int STATUS_ENDED = 2;
 
+    /** 电话（顶栏语音/视频通话） */
+    public static final String SCENE_CALL = "call";
+    /** 会议（顶栏会议） */
+    public static final String SCENE_MEETING = "meeting";
+
     @Id(keyType = KeyType.Generator, value = KeyGenerators.snowFlakeId)
     private Long id;
 
     private String title;
+    /** voice / video */
     private String type;
+    /** call / meeting */
+    private String scene;
     private Long creatorId;
     private Long conversationId;
     private Integer status;

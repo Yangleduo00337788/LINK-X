@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 多人会议房（腾讯会议演讲者视图）：主画面优先说话人，其他人右上角小窗；本人显示本地摄像头。
+ * 多人会议房（演讲者视图）：主画面优先说话人，其他人右上角小窗；本人显示本地摄像头。
  */
 import { ref, watch, computed, nextTick, onUnmounted } from 'vue'
 import { NIcon, NPopover, useMessage } from 'naive-ui'
@@ -421,14 +421,20 @@ async function acceptInvite() {
 
 async function leave() {
   await conferenceStore.leave()
+  message.success(t('conference.leftOk'))
 }
 
 async function endMeeting() {
   try {
     await conferenceStore.endAsHost()
+    message.success(t('conference.endedOk'))
   } catch (e) {
     message.error((e as Error).message || t('conference.endFail'))
   }
+}
+
+function minimizeRoom() {
+  conferenceStore.minimizeUi()
 }
 
 function toggleChat() {
@@ -561,7 +567,7 @@ async function onAdmit(userId: string) {
             </div>
           </div>
         </div>
-        <button type="button" class="header-close" :title="t('conference.leave')" @click="leave">
+        <button type="button" class="header-close" :title="t('conference.minimize')" @click="minimizeRoom">
           <n-icon :component="CloseOutline" :size="20" />
         </button>
       </header>

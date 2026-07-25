@@ -310,7 +310,9 @@ public class ChatServiceImpl implements ChatService {
         validateMessagePayload(msgType, dto);
 
         String storedFileUrl = dto.getFileUrl();
-        if (!ImMessage.TYPE_TEXT.equals(msgType) && !ImMessage.TYPE_RED_PACKET.equals(msgType)) {
+        if (!ImMessage.TYPE_TEXT.equals(msgType)
+                && !ImMessage.TYPE_RED_PACKET.equals(msgType)
+                && !ImMessage.TYPE_CONFERENCE.equals(msgType)) {
             storedFileUrl = normalizeAndAuthorizeMediaKey(userId, dto.getFileUrl());
         }
 
@@ -434,6 +436,68 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
+    @Transactional
+    public MessageVO postConferenceInviteMessage(
+            Long senderId,
+            Long conversationId,
+            Long conferenceId,
+            String title,
+            String callType,
+            String scene,
+            boolean hasPassword) {
+        if (senderId == null || conversationId == null || conferenceId == null) {
+            throw new CustomException(400, "会议邀请参数不完整");
+        }
+        ImConversation conversation = conversationMapper.selectOneById(conversationId);
+        if (conversation == null) {
+            throw new CustomException(404, "会话不存在");
+        }
+        SysUser sender = sysUserMapper.selectOneById(senderId);
+        String name = sender != null
+                ? (StringUtils.hasText(sender.getNickname())
+                    ? sender.getNickname()
+                    : (StringUtils.hasText(sender.getUsername()) ? sender.getUsername() : "用户"))
+                : "用户";
+        boolean isCall = "call".equalsIgnoreCase(scene);
+        boolean video = !"voice".equalsIgnoreCase(callType);
+        String meetingTitle;
+        String typeLabel;
+        if (isCall) {
+            typeLabel = video ? "视频通话" : "语音通话";
+            meetingTitle = StringUtils.hasText(title) ? title.trim() : typeLabel;
+        } else {
+            typeLabel = "会议";
+            meetingTitle = StringUtils.hasText(title) ? title.trim() : "多人会议";
+        }
+        String text = name + "发起了" + typeLabel + "「" + meetingTitle + "」";
+
+        Date now = new Date();
+        ImMessage message = ImMessage.builder()
+                .conversationId(conversationId)
+                .senderId(senderId)
+                .type(ImMessage.TYPE_CONFERENCE)
+                .content(text)
+                .fileName(meetingTitle)
+                .fileUrl(String.valueOf(conferenceId))
+                .fileSize(hasPassword ? 1L : 0L)
+                .deliveryStatus("delivered")
+                .readStatus(0)
+                .createTime(now)
+                .deleted(0)
+                .build();
+        messageMapper.insert(message);
+        if (message.getCreateTime() == null) {
+            message.setCreateTime(now);
+        }
+
+        conversation.setLastMessageContent(buildPreview(message));
+        conversation.setLastMessageTime(message.getCreateTime());
+        conversationMapper.update(conversation);
+
+        return toMessageVO(message, sender, senderId, loadLastReadMessageId(senderId, conversationId));
+    }
+
+    @Override
     public ChatFileUploadVO uploadChatFile(Long userId, Long conversationId, MultipartFile file) {
         assertConversationMember(userId, conversationId);
         try {
@@ -472,6 +536,9 @@ public class ChatServiceImpl implements ChatService {
         if (ImMessage.TYPE_RED_PACKET.equals(message.getType())) {
             throw new CustomException(400, "红包消息不支持文件下载");
         }
+        if (ImMessage.TYPE_CONFERENCE.equals(message.getType())) {
+            throw new CustomException(400, "会议邀请不支持文件下载");
+        }
         return fileStorageService.openObject(key);
     }
 
@@ -505,6 +572,9 @@ public class ChatServiceImpl implements ChatService {
         }
         if (ImMessage.TYPE_RED_PACKET.equals(message.getType())) {
             throw new CustomException(400, "红包消息不支持媒体刷新");
+        }
+        if (ImMessage.TYPE_CONFERENCE.equals(message.getType())) {
+            throw new CustomException(400, "会议邀请不支持媒体刷新");
         }
         String signed = mediaUrlService.resolveFile(key);
         if (signed == null || signed.isBlank()) {
@@ -594,6 +664,7 @@ public class ChatServiceImpl implements ChatService {
                     .content(msg.getContent())
                     .fileName(msg.getFileName())
                     .fileUrl(ImMessage.TYPE_RED_PACKET.equals(msg.getType())
+                            || ImMessage.TYPE_CONFERENCE.equals(msg.getType())
                             ? msg.getFileUrl()
                             : mediaUrlService.resolveFile(msg.getFileUrl()))
                     .createTime(msg.getCreateTime() == null ? null : msg.getCreateTime().getTime())
@@ -1066,7 +1137,9 @@ public class ChatServiceImpl implements ChatService {
 
     private MessageVO toMessageVO(ImMessage message, SysUser sender, Long currentUserId, Long lastReadMessageId) {
         String fileUrl = message.getFileUrl();
-        if (fileUrl != null && !ImMessage.TYPE_RED_PACKET.equals(message.getType())) {
+        if (fileUrl != null
+                && !ImMessage.TYPE_RED_PACKET.equals(message.getType())
+                && !ImMessage.TYPE_CONFERENCE.equals(message.getType())) {
             fileUrl = mediaUrlService.resolveFile(fileUrl);
         }
         MessageVO.MessageVOBuilder builder = MessageVO.builder()
@@ -1183,6 +1256,11 @@ public class ChatServiceImpl implements ChatService {
             assertLegitimateRedPacketMessage(userId, dto);
             return ImMessage.TYPE_RED_PACKET;
         }
+        if (ImMessage.TYPE_CONFERENCE.equalsIgnoreCase(raw)
+                || ImMessage.TYPE_SYSTEM.equalsIgnoreCase(raw)
+                || ImMessage.TYPE_RECALL.equalsIgnoreCase(raw)) {
+            throw new CustomException(400, "不支持的消息类型");
+        }
         return normalizeMsgType(raw);
     }
 
@@ -1282,6 +1360,16 @@ public class ChatServiceImpl implements ChatService {
             case ImMessage.TYPE_FILE -> "[文件] " + (message.getFileName() != null ? message.getFileName() : "文件");
             case ImMessage.TYPE_VOICE -> "[语音]";
             case ImMessage.TYPE_RED_PACKET -> "[红包] " + (message.getFileName() != null ? message.getFileName() : "恭喜发财");
+            case ImMessage.TYPE_CONFERENCE -> {
+                String c = message.getContent();
+                if (c != null && c.contains("语音通话")) {
+                    yield "[语音通话] " + (message.getFileName() != null ? message.getFileName() : "语音通话");
+                }
+                if (c != null && c.contains("视频通话")) {
+                    yield "[视频通话] " + (message.getFileName() != null ? message.getFileName() : "视频通话");
+                }
+                yield "[会议] " + (message.getFileName() != null ? message.getFileName() : "多人会议");
+            }
             case ImMessage.TYPE_RECALL -> "撤回了一条消息";
             case ImMessage.TYPE_SYSTEM -> message.getContent() != null ? message.getContent() : "[系统消息]";
             default -> message.getContent();
@@ -1354,6 +1442,12 @@ public class ChatServiceImpl implements ChatService {
         }
         if (ImMessage.TYPE_SYSTEM.equals(source.getType())) {
             throw new CustomException(400, "不能转发系统消息");
+        }
+        if (ImMessage.TYPE_CONFERENCE.equals(source.getType())) {
+            throw new CustomException(400, "不能转发会议邀请");
+        }
+        if (ImMessage.TYPE_RED_PACKET.equals(source.getType())) {
+            throw new CustomException(400, "不能转发红包消息");
         }
 
         String fileUrl = source.getFileUrl();
@@ -1430,6 +1524,12 @@ public class ChatServiceImpl implements ChatService {
         }
         if (ImMessage.TYPE_SYSTEM.equals(quoted.getType())) {
             throw new CustomException(400, "不能引用系统消息");
+        }
+        if (ImMessage.TYPE_CONFERENCE.equals(quoted.getType())) {
+            throw new CustomException(400, "不能引用会议邀请");
+        }
+        if (ImMessage.TYPE_RED_PACKET.equals(quoted.getType())) {
+            throw new CustomException(400, "不能引用红包消息");
         }
 
         dto.setConversationId(conversationId);

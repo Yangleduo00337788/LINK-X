@@ -4,6 +4,8 @@ import type { ApiResult } from '../types/auth'
 export interface ConferenceCreatePayload {
   conversationId: string | number
   type?: 'voice' | 'video'
+  /** call=电话 meeting=会议 */
+  scene?: 'call' | 'meeting'
   title?: string
   password?: string
   maxParticipants?: number
@@ -25,6 +27,7 @@ export interface ConferenceInfo {
   id: string | number
   title?: string
   type?: string
+  scene?: 'call' | 'meeting' | string
   creatorId?: string | number
   conversationId?: string | number
   status?: number
@@ -64,6 +67,13 @@ export function info(conferenceId: string | number) {
 
 export function active() {
   return apiClient.get<never, ApiResult<ConferenceInfo[]>>('/conference/active')
+}
+
+/** 会话内进行中会议（聊天顶栏），无则 data 为空 */
+export function activeInConversation(conversationId: string | number) {
+  return apiClient.get<never, ApiResult<ConferenceInfo | null>>('/conference/active-in-conversation', {
+    params: { conversationId }
+  })
 }
 
 export function history(conversationId: string | number) {

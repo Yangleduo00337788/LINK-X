@@ -74,6 +74,15 @@ public class ConferenceController {
         return Result.success(conferenceService.listActive(userId));
     }
 
+    /** 会话内进行中会议（聊天顶栏条），无则 data=null */
+    @GetMapping("/active-in-conversation")
+    public Result<ConferenceInfoVO> activeInConversation(
+            @org.springframework.web.bind.annotation.RequestParam Long conversationId,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(conferenceService.findActiveInConversation(userId, conversationId));
+    }
+
     @PostMapping("/mute")
     public Result<Void> mute(@Valid @RequestBody ConferenceMuteDTO dto, HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);

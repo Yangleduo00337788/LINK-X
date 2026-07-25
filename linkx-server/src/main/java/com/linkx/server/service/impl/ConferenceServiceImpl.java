@@ -4,6 +4,7 @@ import com.linkx.server.controller.dto.CallSignalDTO;
 import com.linkx.server.controller.dto.ConferenceCreateDTO;
 import com.linkx.server.controller.dto.ConferenceSignalDTO;
 import com.linkx.server.controller.vo.ConferenceInfoVO;
+import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.entity.Conference;
 import com.linkx.server.entity.ConferenceMember;
 import com.linkx.server.entity.SysUser;
@@ -18,10 +19,13 @@ import com.linkx.server.service.ConferenceService;
 import com.linkx.server.service.MediaUrlService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
@@ -37,6 +41,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ConferenceServiceImpl implements ConferenceService {
 
     private static final String CALL_ID_KEY = "linkx:conference:call:";
@@ -81,9 +86,17 @@ public class ConferenceServiceImpl implements ConferenceService {
         int max = dto.getMaxParticipants() != null ? dto.getMaxParticipants() : 9;
         if (max < 2) max = 2;
         if (max > 16) max = 16;
+        String scene = Conference.SCENE_CALL.equalsIgnoreCase(dto.getScene())
+                ? Conference.SCENE_CALL
+                : Conference.SCENE_MEETING;
+        String mediaType = StringUtils.hasText(dto.getType()) ? dto.getType() : "video";
+        String defaultTitle = Conference.SCENE_CALL.equals(scene)
+                ? ("voice".equalsIgnoreCase(mediaType) ? "语音通话" : "视频通话")
+                : "多人会议";
         Conference conference = Conference.builder()
-                .title(StringUtils.hasText(dto.getTitle()) ? dto.getTitle() : "多人会议")
-                .type(StringUtils.hasText(dto.getType()) ? dto.getType() : "video")
+                .title(StringUtils.hasText(dto.getTitle()) ? dto.getTitle() : defaultTitle)
+                .type(mediaType)
+                .scene(scene)
                 .creatorId(userId)
                 .conversationId(dto.getConversationId())
                 .status(Conference.STATUS_ACTIVE)
@@ -115,12 +128,112 @@ public class ConferenceServiceImpl implements ConferenceService {
                 conference.getType(),
                 conference.getId(),
                 conference.getTitle(),
-                StringUtils.hasText(passwordHash));
+                StringUtils.hasText(passwordHash),
+                conference.getScene());
         redisTemplate.opsForValue().set(CALL_ID_KEY + conference.getId(), callId, Duration.ofHours(4));
+
+        emitConferenceInviteMessage(
+                userId,
+                dto.getConversationId(),
+                conference.getId(),
+                conference.getTitle(),
+                conference.getType(),
+                conference.getScene(),
+                StringUtils.hasText(passwordHash));
 
         ConferenceInfoVO vo = toInfo(conference, callId, userId);
         vo.setReused(false);
+        notifyConversationPresence(conference);
         return vo;
+    }
+
+    /** 会话时间线写入邀请提示，并推送给成员（含发起人，便于本端即时展示） */
+    private void emitConferenceInviteMessage(
+            Long senderId,
+            Long conversationId,
+            Long conferenceId,
+            String title,
+            String callType,
+            String scene,
+            boolean hasPassword) {
+        Runnable task = () -> {
+            try {
+                MessageVO tip = chatService.postConferenceInviteMessage(
+                        senderId, conversationId, conferenceId, title, callType, scene, hasPassword);
+                pushService.pushToConversationMembers(tip, senderId, null);
+                // 发起人不会走 pushToConversationMembers 的接收者列表，单独推一条便于本端时间线刷新
+                MessageVO selfView = tip;
+                selfView.setIsSelf(true);
+                pushService.pushToUser(senderId, "message", selfView);
+            } catch (Exception e) {
+                log.warn("emitConferenceInviteMessage failed: {}", e.toString());
+            }
+        };
+        runAfterCommit(task);
+    }
+
+    /** 会话时间线写入结束提示（语音/视频通话、会议） */
+    private void emitConferenceEndedMessage(Long operatorId, Conference conference) {
+        if (conference == null || conference.getConversationId() == null) {
+            return;
+        }
+        final Long conversationId = conference.getConversationId();
+        final Long opId = operatorId;
+        try {
+            String kindLabel = kindLabelOf(conference);
+            String title = StringUtils.hasText(conference.getTitle()) ? conference.getTitle().trim() : kindLabel;
+            String text;
+            if (opId != null) {
+                SysUser op = sysUserMapper.selectOneById(opId);
+                String name = op != null
+                        ? (StringUtils.hasText(op.getNickname())
+                            ? op.getNickname()
+                            : (StringUtils.hasText(op.getUsername()) ? op.getUsername() : "用户"))
+                        : "用户";
+                text = name + "结束了" + kindLabel + "「" + title + "」";
+            } else {
+                text = kindLabel + "「" + title + "」已结束";
+            }
+            // 与 end 同一事务落库，避免 afterCommit 异常导致库中无结束提示
+            MessageVO tip = chatService.postSystemMessage(opId, conversationId, text);
+            runAfterCommit(() -> {
+                try {
+                    // senderId 可为 null：推给会话全部在线成员
+                    pushService.pushToConversationMembers(tip, opId, null);
+                    if (opId != null) {
+                        MessageVO selfView = tip;
+                        selfView.setIsSelf(true);
+                        pushService.pushToUser(opId, "message", selfView);
+                    }
+                } catch (Exception e) {
+                    log.warn("push conference ended tip failed: {}", e.toString());
+                }
+            });
+        } catch (Exception e) {
+            log.warn("emitConferenceEndedMessage failed: {}", e.toString());
+        }
+    }
+
+    private static String kindLabelOf(Conference conference) {
+        boolean isCall = Conference.SCENE_CALL.equalsIgnoreCase(conference.getScene());
+        boolean video = !"voice".equalsIgnoreCase(conference.getType());
+        if (isCall) {
+            return video ? "视频通话" : "语音通话";
+        }
+        return "会议";
+    }
+
+    private void runAfterCommit(Runnable task) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    task.run();
+                }
+            });
+        } else {
+            task.run();
+        }
     }
 
     @Override
@@ -200,11 +313,14 @@ public class ConferenceServiceImpl implements ConferenceService {
         String callId = ensureAndGetCallId(conference, userId);
         if (admitNow) {
             callService.joinConference(userId, callId);
-            broadcastToActiveMembers(conferenceId, "conference_join", Map.of(
-                    "conferenceId", conferenceId,
-                    "userId", userId,
-                    "callId", callId
-            ));
+            Map<String, Object> joinPayload = new HashMap<>();
+            joinPayload.put("conferenceId", conferenceId);
+            joinPayload.put("conversationId", conference.getConversationId());
+            joinPayload.put("userId", userId);
+            joinPayload.put("callId", callId != null ? callId : "");
+            joinPayload.put("participantCount", countAdmitted(conferenceId));
+            broadcastToActiveMembers(conferenceId, "conference_join", joinPayload);
+            notifyConversationPresence(conference);
         } else {
             // 通知主持人/联席：有人在等候室
             broadcastToHosts(conferenceId, "conference_waiting", Map.of(
@@ -220,6 +336,7 @@ public class ConferenceServiceImpl implements ConferenceService {
     public void leave(Long userId, Long conferenceId) {
         ConferenceMember member = requireMember(conferenceId, userId);
         boolean wasHost = ConferenceMember.ROLE_HOST.equals(member.getRole());
+        Conference conference = conferenceMapper.selectOneById(conferenceId);
 
         if (wasHost) {
             List<ConferenceMember> others = memberMapper.selectListByQuery(
@@ -228,24 +345,22 @@ public class ConferenceServiceImpl implements ConferenceService {
                             .and(ConferenceMember::getLeftFlag).eq(0)
                             .and(ConferenceMember::getUserId).ne(userId)
             );
-            if (others.isEmpty()) {
-                // 主持人是最后一人：直接结束，避免僵尸 ACTIVE
-                end(userId, conferenceId);
-                return;
+            // 还有其他人：转让主持后自己离开；最后一人离开也不自动「结束」，
+            // 保留 ACTIVE 方便会话顶栏继续展示、其他人可加入（真正散会走 end）
+            if (!others.isEmpty()) {
+                ConferenceMember next = others.stream()
+                        .min((a, b) -> {
+                            Date ta = a.getJoinTime() != null ? a.getJoinTime() : a.getCreateTime();
+                            Date tb = b.getJoinTime() != null ? b.getJoinTime() : b.getCreateTime();
+                            if (ta == null && tb == null) return 0;
+                            if (ta == null) return 1;
+                            if (tb == null) return -1;
+                            return ta.compareTo(tb);
+                        })
+                        .orElse(others.get(0));
+                transferHost(userId, conferenceId, next.getUserId());
+                member = requireMember(conferenceId, userId);
             }
-            ConferenceMember next = others.stream()
-                    .min((a, b) -> {
-                        Date ta = a.getJoinTime() != null ? a.getJoinTime() : a.getCreateTime();
-                        Date tb = b.getJoinTime() != null ? b.getJoinTime() : b.getCreateTime();
-                        if (ta == null && tb == null) return 0;
-                        if (ta == null) return 1;
-                        if (tb == null) return -1;
-                        return ta.compareTo(tb);
-                    })
-                    .orElse(others.get(0));
-            transferHost(userId, conferenceId, next.getUserId());
-            // transfer 后本端仍是成员，继续走离开
-            member = requireMember(conferenceId, userId);
         }
 
         member.setLeftFlag(1);
@@ -257,17 +372,15 @@ public class ConferenceServiceImpl implements ConferenceService {
             callService.leaveConference(userId, callId);
         }
 
-        // 无人在会：收口 DB，避免僵尸 ACTIVE 导致下次创建复用失败
-        long remain = memberMapper.selectCountByQuery(
-                QueryWrapper.create()
-                        .where(ConferenceMember::getConferenceId).eq(conferenceId)
-                        .and(ConferenceMember::getLeftFlag).eq(0)
-        );
-        if (remain == 0) {
-            Conference conference = conferenceMapper.selectOneById(conferenceId);
-            if (conference != null && Objects.equals(conference.getStatus(), Conference.STATUS_ACTIVE)) {
-                forceEndConference(conference);
-            }
+        if (conference != null) {
+            Map<String, Object> leavePayload = new HashMap<>();
+            leavePayload.put("conferenceId", conferenceId);
+            leavePayload.put("conversationId", conference.getConversationId());
+            leavePayload.put("userId", userId);
+            leavePayload.put("callId", callId != null ? callId : "");
+            leavePayload.put("participantCount", countAdmitted(conferenceId));
+            broadcastToActiveMembers(conferenceId, "conference_leave", leavePayload);
+            notifyConversationPresence(conference);
         }
     }
 
@@ -298,12 +411,10 @@ public class ConferenceServiceImpl implements ConferenceService {
             if (callId != null) {
                 callService.leaveConference(m.getUserId(), callId);
             }
-            pushService.pushToUser(m.getUserId(), "conference_end", Map.of(
-                    "conferenceId", conferenceId,
-                    "callId", callId != null ? callId : ""
-            ));
         }
         redisTemplate.delete(CALL_ID_KEY + conferenceId);
+        notifyConversationEnded(conference, callId);
+        emitConferenceEndedMessage(userId, conference);
     }
 
     @Override
@@ -328,6 +439,23 @@ public class ConferenceServiceImpl implements ConferenceService {
                 .filter(c -> c != null && Objects.equals(c.getStatus(), Conference.STATUS_ACTIVE))
                 .map(c -> toInfo(c, redisTemplate.opsForValue().get(CALL_ID_KEY + c.getId()), userId))
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public ConferenceInfoVO findActiveInConversation(Long userId, Long conversationId) {
+        chatService.assertConversationMember(userId, conversationId);
+        List<Conference> actives = conferenceMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(Conference::getConversationId).eq(conversationId)
+                        .and(Conference::getStatus).eq(Conference.STATUS_ACTIVE)
+                        .orderBy(Conference::getStartTime, false)
+                        .limit(1)
+        );
+        if (actives.isEmpty()) {
+            return null;
+        }
+        Conference conference = actives.get(0);
+        return toInfo(conference, redisTemplate.opsForValue().get(CALL_ID_KEY + conference.getId()), userId);
     }
 
     @Override
@@ -377,8 +505,14 @@ public class ConferenceServiceImpl implements ConferenceService {
     @Transactional
     public void removeMember(Long hostId, Long conferenceId, Long targetUserId) {
         requireHostOrCoHost(conferenceId, hostId);
+        Conference conference = conferenceMapper.selectOneById(conferenceId);
         leave(targetUserId, conferenceId);
-        pushService.pushToUser(targetUserId, "conference_remove", Map.of("conferenceId", conferenceId));
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("conferenceId", conferenceId);
+        if (conference != null && conference.getConversationId() != null) {
+            payload.put("conversationId", conference.getConversationId());
+        }
+        pushService.pushToUser(targetUserId, "conference_remove", payload);
     }
 
     @Override
@@ -434,6 +568,7 @@ public class ConferenceServiceImpl implements ConferenceService {
                 "userId", targetUserId,
                 "callId", callId
         ));
+        notifyConversationPresence(conference);
     }
 
     @Override
@@ -555,6 +690,7 @@ public class ConferenceServiceImpl implements ConferenceService {
                 .id(conference.getId())
                 .title(conference.getTitle())
                 .type(conference.getType())
+                .scene(StringUtils.hasText(conference.getScene()) ? conference.getScene() : Conference.SCENE_MEETING)
                 .creatorId(conference.getCreatorId())
                 .conversationId(conference.getConversationId())
                 .status(conference.getStatus())
@@ -675,7 +811,8 @@ public class ConferenceServiceImpl implements ConferenceService {
                 conference.getType(),
                 conference.getId(),
                 conference.getTitle(),
-                StringUtils.hasText(conference.getPassword()));
+                StringUtils.hasText(conference.getPassword()),
+                conference.getScene());
         redisTemplate.opsForValue().set(CALL_ID_KEY + conference.getId(), callId, Duration.ofHours(4));
     }
 
@@ -708,5 +845,47 @@ public class ConferenceServiceImpl implements ConferenceService {
             }
         }
         redisTemplate.delete(CALL_ID_KEY + conference.getId());
+        notifyConversationEnded(conference, callId);
+        emitConferenceEndedMessage(null, conference);
+    }
+
+    private long countAdmitted(Long conferenceId) {
+        return memberMapper.selectCountByQuery(
+                QueryWrapper.create()
+                        .where(ConferenceMember::getConferenceId).eq(conferenceId)
+                        .and(ConferenceMember::getLeftFlag).eq(0)
+                        .and(ConferenceMember::getAdmitStatus).eq(1)
+        );
+    }
+
+    /** 同步会话顶栏：进行中会议人数变化 */
+    private void notifyConversationPresence(Conference conference) {
+        if (conference == null || conference.getConversationId() == null || conference.getId() == null) {
+            return;
+        }
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("conferenceId", conference.getId());
+        payload.put("conversationId", conference.getConversationId());
+        payload.put("title", conference.getTitle());
+        payload.put("type", conference.getType());
+        payload.put("scene", StringUtils.hasText(conference.getScene()) ? conference.getScene() : Conference.SCENE_MEETING);
+        payload.put("hasPassword", StringUtils.hasText(conference.getPassword()));
+        payload.put("participantCount", countAdmitted(conference.getId()));
+        payload.put("status", "active");
+        pushService.pushActionToConversationMembers(
+                conference.getConversationId(), "conference_presence", payload);
+    }
+
+    /** 同步会话顶栏：会议结束 */
+    private void notifyConversationEnded(Conference conference, String callId) {
+        if (conference == null || conference.getConversationId() == null) {
+            return;
+        }
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("conferenceId", conference.getId());
+        payload.put("conversationId", conference.getConversationId());
+        payload.put("callId", callId != null ? callId : "");
+        pushService.pushActionToConversationMembers(
+                conference.getConversationId(), "conference_end", payload);
     }
 }

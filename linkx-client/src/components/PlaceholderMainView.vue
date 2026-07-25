@@ -3,7 +3,7 @@
 import { computed } from 'vue'
 // Vue Router
 import { useRouter } from 'vue-router'
-// 企鹅水印占位组件
+// 空状态 Logo 占位组件
 import PenguinWatermark from './PenguinWatermark.vue'
 // Pinia 响应式解构工具
 import { storeToRefs } from 'pinia'
@@ -146,7 +146,7 @@ function previewActiveFile() {
           </div>
         </div>
       </template>
-      <!-- 默认：企鹅水印空状态 -->
+      <!-- 默认：空状态 Logo -->
       <template v-else>
         <PenguinWatermark :hint="emptyHint" />
       </template>

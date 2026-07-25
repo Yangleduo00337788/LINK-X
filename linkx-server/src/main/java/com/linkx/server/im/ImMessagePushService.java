@@ -148,7 +148,7 @@ public class ImMessagePushService {
         java.util.List<Long> onlineRecipients = new java.util.ArrayList<>();
         for (ImConversationMember member : members) {
             Long userId = member.getUserId();
-            if (userId.equals(senderId)) continue;
+            if (senderId != null && userId.equals(senderId)) continue;
             ChannelGroup channels = channelManager.getChannels(userId);
             if (channels != null && !channels.isEmpty()) {
                 onlineRecipients.add(userId);
@@ -487,6 +487,22 @@ public class ImMessagePushService {
             if (channel.isActive()) {
                 channel.writeAndFlush(new TextWebSocketFrame(json));
             }
+        }
+    }
+
+    /**
+     * 向会话全体在线成员推送自定义事件（如会议进行中顶栏同步）。
+     */
+    public void pushActionToConversationMembers(Long conversationId, String action, Object data) {
+        if (conversationId == null || action == null || action.isBlank()) {
+            return;
+        }
+        List<ImConversationMember> members = memberMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).eq(conversationId)
+        );
+        for (ImConversationMember member : members) {
+            pushToUser(member.getUserId(), action, data);
         }
     }
 
