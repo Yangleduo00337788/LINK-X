@@ -6,6 +6,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.minio.ComposeObjectArgs;
 import io.minio.ComposeSource;
+import io.minio.CopyObjectArgs;
+import io.minio.CopySource;
 import io.minio.GetObjectArgs;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MinioClient;
@@ -205,8 +207,16 @@ public class FileStorageServiceImpl implements FileStorageService {
     /**
      * 兼容：传入完整 URL 或纯粹的对象 key，都提取出对象名
      */
+    @Override
+    public String extractObjectKey(String objectKeyOrUrl) {
+        return extractObjectName(objectKeyOrUrl);
+    }
+
     private String extractObjectName(String urlOrKey) {
-        String raw = urlOrKey;
+        if (urlOrKey == null || urlOrKey.isBlank()) {
+            return urlOrKey;
+        }
+        String raw = urlOrKey.trim();
         int q = raw.indexOf('?');
         if (q >= 0) {
             raw = raw.substring(0, q);
@@ -221,7 +231,7 @@ public class FileStorageServiceImpl implements FileStorageService {
                 "https://127.0.0.1:9000/" + bucketName + "/"
         };
         for (String prefix : prefixes) {
-            if (raw.startsWith(prefix)) {
+            if (prefix != null && raw.startsWith(prefix)) {
                 return raw.substring(prefix.length());
             }
         }
@@ -243,8 +253,16 @@ public class FileStorageServiceImpl implements FileStorageService {
         }
         // 兼容传入完整 URL / 带 query 的旧链接，统一抽出 object key 再签名
         String key = extractObjectName(objectName);
+        if (key == null || key.isBlank()) {
+            return null;
+        }
         if (key.startsWith("/") || key.startsWith("data:") || key.startsWith("blob:")) {
             return key;
+        }
+        // 拒绝路径穿越与绝对/外链形态，避免误签任意对象
+        if (key.contains("..") || key.contains("\\") || key.contains("://")) {
+            log.warn("拒绝签发非法 object key: {}", key.length() > 80 ? key.substring(0, 80) + "…" : key);
+            return null;
         }
         int seconds = expiry > 0 ? expiry : DEFAULT_PRESIGN_EXPIRY_SECONDS;
         try {
@@ -517,6 +535,56 @@ public class FileStorageServiceImpl implements FileStorageService {
             return true;
         } catch (Exception e) {
             return false;
+        }
+    }
+
+    @Override
+    public String copyObject(String sourceObjectKey, String preferredFileName) {
+        if (!StringUtils.hasText(sourceObjectKey)) {
+            throw new IllegalArgumentException("源对象 key 不能为空");
+        }
+        String sourceKey = extractObjectName(sourceObjectKey);
+        if (!StringUtils.hasText(sourceKey)
+                || sourceKey.contains("..")
+                || sourceKey.startsWith("/")
+                || sourceKey.contains("://")
+                || sourceKey.contains("\\")) {
+            throw new IllegalArgumentException("非法源对象 key");
+        }
+        if (!objectExists(sourceKey)) {
+            throw new IllegalArgumentException("源附件已不存在");
+        }
+
+        String fileNameForAlloc = preferredFileName;
+        if (!StringUtils.hasText(fileNameForAlloc) || extractExtension(sanitizeFilename(fileNameForAlloc)).isEmpty()) {
+            String base = sourceKey.contains("/")
+                    ? sourceKey.substring(sourceKey.lastIndexOf('/') + 1)
+                    : sourceKey;
+            if (!StringUtils.hasText(base) || extractExtension(base).isEmpty()) {
+                throw new IllegalArgumentException("无法从源附件推断文件类型");
+            }
+            fileNameForAlloc = base;
+        } else {
+            fileNameForAlloc = sanitizeFilename(fileNameForAlloc);
+        }
+
+        String destKey = allocateObjectName(fileNameForAlloc);
+        String bucketName = linkxProperties.getMinio().getBucketName();
+        try {
+            minioClient.copyObject(
+                    CopyObjectArgs.builder()
+                            .bucket(bucketName)
+                            .object(destKey)
+                            .source(CopySource.builder()
+                                    .bucket(bucketName)
+                                    .object(sourceKey)
+                                    .build())
+                            .build()
+            );
+            return destKey;
+        } catch (MinioException | IOException | NoSuchAlgorithmException | InvalidKeyException e) {
+            log.error("复制对象失败: src={}, dest={}, err={}", sourceKey, destKey, e.getMessage());
+            throw new RuntimeException("复制附件失败");
         }
     }
 

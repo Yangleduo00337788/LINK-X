@@ -45,3 +45,8 @@ FROM information_schema.STATISTICS
 WHERE TABLE_SCHEMA = DATABASE()
   AND TABLE_NAME = 'im_message'
   AND INDEX_NAME = 'idx_im_message_conv_id';
+
+SELECT IF(COUNT(*) = 1, 'OK sys_object_ownership', 'MISSING sys_object_ownership') AS check_result
+FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME = 'sys_object_ownership';

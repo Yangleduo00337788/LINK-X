@@ -15,6 +15,7 @@ import { NIcon, NPopover, NDropdown, NModal, NInput, useMessage, type DropdownOp
 import {
   CallOutline,
   VideocamOutline,
+  PeopleOutline,
   GridOutline,
   AddOutline,
   EllipsisHorizontalOutline,
@@ -59,6 +60,7 @@ import { useCallStore } from '../stores/call'
 import { useI18n } from '../i18n'
 import { formatMessageDivider, MESSAGE_TIME_GAP_MS } from '../utils/chatTime'
 import * as chatApi from '../api/chat'
+import * as conferenceApi from '../api/conference'
 import { recoverMediaUrlOnError } from '../utils/mediaUrl'
 
 // 获取 Naive UI 消息提示实例
@@ -88,6 +90,27 @@ async function startCall(callType: 'voice' | 'video') {
   } catch (error) {
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     message.error(err.response?.data?.message || err.message || t('chat.callFailed'))
+  }
+}
+
+const conferenceCreating = ref(false)
+
+/** 群聊发起多人会议 */
+async function startConference() {
+  const sessionId = currentSessionId.value
+  if (!sessionId || conferenceCreating.value) return
+  conferenceCreating.value = true
+  try {
+    const res = await conferenceApi.create({ conversationId: sessionId, type: 'video' })
+    if (res.code !== 200 || !res.data) throw new Error(res.message || 'failed')
+    const { useConferenceStore } = await import('../stores/conference')
+    await useConferenceStore().openCreated(res.data, String(userProfile.value.userId || ''))
+    message.success(t('modals.conferenceCreated', { id: String(res.data.id) }))
+  } catch (error) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || t('modals.conferenceCreateFail'))
+  } finally {
+    conferenceCreating.value = false
   }
 }
 // 获取收藏 Store 实例
@@ -999,6 +1022,15 @@ function onDrop(e: DragEvent) {
           >
             <n-icon :component="VideocamOutline" :size="20" />
           </button>
+          <button
+            type="button"
+            class="hdr-btn"
+            :title="t('modals.startConference')"
+            :disabled="conferenceCreating"
+            @click="startConference"
+          >
+            <n-icon :component="PeopleOutline" :size="20" />
+          </button>
           <n-popover
             trigger="click"
             placement="bottom-end"
@@ -1347,6 +1379,16 @@ function onDrop(e: DragEvent) {
 .hdr-btn:hover {
   background: var(--lx-border-light);
   color: var(--lx-text-body);
+}
+
+.hdr-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.hdr-btn:disabled:hover {
+  background: transparent;
+  color: var(--lx-text-nav);
 }
 
 .session-subheader {

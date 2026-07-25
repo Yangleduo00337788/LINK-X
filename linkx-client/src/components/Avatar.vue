@@ -61,6 +61,7 @@ function onImgError() {
       alt=""
       class="avatar-img"
       decoding="async"
+      referrerpolicy="no-referrer"
       @error="onImgError"
     />
     <!-- 其次展示图标 -->

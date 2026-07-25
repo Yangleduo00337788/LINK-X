@@ -1,5 +1,6 @@
 package com.linkx.server.service.impl;
 
+import com.linkx.server.common.ImageUploadValidator;
 import com.linkx.server.controller.dto.CreateGroupAssetDTO;
 import com.linkx.server.controller.vo.GroupAssetVO;
 import com.linkx.server.entity.GroupAsset;
@@ -106,9 +107,10 @@ public class GroupAssetServiceImpl implements GroupAssetService {
             throw new CustomException(400, "文件不能为空");
         }
         if (GroupAsset.TYPE_IMAGE.equals(assetType)) {
-            String ct = file.getContentType();
-            if (ct == null || !ct.startsWith("image/")) {
-                throw new CustomException(400, "相册仅支持图片文件");
+            try {
+                ImageUploadValidator.assertSupportedImage(file);
+            } catch (IllegalArgumentException e) {
+                throw new CustomException(400, e.getMessage());
             }
         }
         String albumName = StringUtils.hasText(album) ? album.trim() : "默认相册";

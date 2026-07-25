@@ -72,6 +72,13 @@ function mapPost(p: momentsApi.MomentsPost): MomentPost {
 
 /** 仅保留浏览器可直接加载的地址；object key（如 2026/07/18/a.png）视为无效，避免裂图 */
 function toDisplayableMediaUrl(raw?: string | null): string {
+  if (!raw) return ''
+  const trimmed = raw.trim()
+  // 服务端 HMAC 外链代理：相对 /api 的 /media/external?...
+  if (trimmed.startsWith('/media/')) {
+    const apiBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api').replace(/\/$/, '')
+    return normalizeMediaUrl(`${apiBase}${trimmed}`) || ''
+  }
   const url = normalizeMediaUrl(raw)
   if (!url) return ''
   if (

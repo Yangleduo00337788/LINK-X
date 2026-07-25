@@ -643,7 +643,7 @@ void MoveOutline
                   "
                 >
                   <n-icon v-if="item.kind === 'folder'" :component="FolderOutline" :size="22" />
-                  <img v-else-if="isImageItem(item)" :src="thumbUrl(item)" alt="" class="thumb-img" />
+                  <img v-else-if="isImageItem(item)" :src="thumbUrl(item)" alt="" class="thumb-img" referrerpolicy="no-referrer" />
                   <span v-else class="ext-badge">{{ fileIconMeta(item).label }}</span>
                 </div>
                 <div class="name-block">
@@ -695,7 +695,7 @@ void MoveOutline
               "
             >
               <n-icon v-if="item.kind === 'folder'" :component="FolderOutline" :size="36" />
-              <img v-else-if="isImageItem(item)" :src="thumbUrl(item)" alt="" class="thumb-img" />
+              <img v-else-if="isImageItem(item)" :src="thumbUrl(item)" alt="" class="thumb-img" referrerpolicy="no-referrer" />
               <span v-else>{{ fileIconMeta(item).label }}</span>
             </div>
             <div class="grid-name">{{ item.name }}</div>
@@ -730,7 +730,7 @@ void MoveOutline
             v-if="isImageItem(detailItem)"
             class="preview-thumb"
           >
-            <img :src="thumbUrl(detailItem)" alt="" />
+            <img :src="thumbUrl(detailItem)" alt="" referrerpolicy="no-referrer" />
           </div>
           <div
             v-else

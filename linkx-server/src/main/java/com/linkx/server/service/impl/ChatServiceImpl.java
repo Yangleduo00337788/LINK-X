@@ -1,6 +1,7 @@
 package com.linkx.server.service.impl;
 
 import com.linkx.server.config.LinkxProperties;
+import com.linkx.server.common.ImageUploadValidator;
 import com.linkx.server.common.InputSanitizer;
 import com.linkx.server.controller.dto.SendMessageDTO;
 import com.linkx.server.controller.vo.ChatFileUploadVO;
@@ -66,6 +67,9 @@ public class ChatServiceImpl implements ChatService {
     private static final int RELATION_STATUS_NORMAL = 1;
     private static final int RELATION_STATUS_BLOCKED = 2;
     private static final long RECALL_WINDOW_MS = 2 * 60 * 1000L;
+    /** 分片会话发起人绑定（与 FileStorageService 分片 TTL 对齐） */
+    private static final String MP_OWNER_PREFIX = "linkx:mp:owner:";
+    private static final Duration MP_OWNER_TTL = Duration.ofHours(24);
 
     private final ImConversationMapper conversationMapper;
     private final ImConversationMemberMapper memberMapper;
@@ -305,8 +309,13 @@ public class ChatServiceImpl implements ChatService {
         String msgType = resolveMsgType(userId, dto);
         validateMessagePayload(msgType, dto);
 
+        String storedFileUrl = dto.getFileUrl();
+        if (!ImMessage.TYPE_TEXT.equals(msgType) && !ImMessage.TYPE_RED_PACKET.equals(msgType)) {
+            storedFileUrl = normalizeAndAuthorizeMediaKey(userId, dto.getFileUrl());
+        }
+
         // 敏感词过滤：文本消息进行 DFA 过滤
-        String content = resolveContent(msgType, dto);
+        String content = resolveContent(msgType, dto, storedFileUrl);
         if (ImMessage.TYPE_TEXT.equals(msgType) && content != null) {
             SensitiveWordService.FilterResult filterResult = sensitiveWordService.filter(content);
             if (!filterResult.matchedWords().isEmpty()) {
@@ -334,7 +343,7 @@ public class ChatServiceImpl implements ChatService {
                 .content(content)
                 .fileName(dto.getFileName())
                 .fileSize(dto.getFileSize())
-                .fileUrl(dto.getFileUrl())
+                .fileUrl(storedFileUrl)
                 .clientMsgId(dto.getClientMsgId())
                 .deliveryStatus(StringUtils.hasText(dto.getDeliveryStatus()) ? dto.getDeliveryStatus().trim() : "delivered")
                 .readStatus(0)
@@ -428,6 +437,10 @@ public class ChatServiceImpl implements ChatService {
     public ChatFileUploadVO uploadChatFile(Long userId, Long conversationId, MultipartFile file) {
         assertConversationMember(userId, conversationId);
         try {
+            String contentType = file.getContentType();
+            if (contentType != null && contentType.startsWith("image/")) {
+                ImageUploadValidator.assertSupportedImage(file);
+            }
             String objectKey = fileStorageService.uploadFile(file, null);
             objectKeyOwnershipService.claim(userId, objectKey);
             String signedUrl = mediaUrlService.resolveFile(objectKey);
@@ -438,6 +451,8 @@ public class ChatServiceImpl implements ChatService {
                     .fileSize(file.getSize())
                     .contentType(file.getContentType())
                     .build();
+        } catch (IllegalArgumentException e) {
+            throw new CustomException(400, e.getMessage());
         } catch (RuntimeException e) {
             throw new CustomException(400, e.getMessage());
         }
@@ -1226,16 +1241,39 @@ public class ChatServiceImpl implements ChatService {
         }
     }
 
-    private String resolveContent(String msgType, SendMessageDTO dto) {
+    private String resolveContent(String msgType, SendMessageDTO dto, String storedFileUrl) {
         if (ImMessage.TYPE_TEXT.equals(msgType)) {
             return InputSanitizer.sanitizeText(dto.getContent(), 4000);
         }
         if (ImMessage.TYPE_IMAGE.equals(msgType)) {
-            return StringUtils.hasText(dto.getContent()) ? InputSanitizer.sanitizeText(dto.getContent(), 500) : dto.getFileUrl();
+            // 图片 content 与 fileUrl 统一存 object key，列表时再签发
+            return StringUtils.hasText(storedFileUrl) ? storedFileUrl : dto.getFileUrl();
         }
         return StringUtils.hasText(dto.getContent())
                 ? InputSanitizer.sanitizeText(dto.getContent(), 500)
                 : dto.getFileName();
+    }
+
+    /**
+     * 将客户端传入的 key / 预签名 URL 规范为 object key，且须属主认领。
+     */
+    private String normalizeAndAuthorizeMediaKey(Long userId, String raw) {
+        if (!StringUtils.hasText(raw)) {
+            throw new CustomException(400, "文件 URL 不能为空");
+        }
+        String trimmed = raw.trim();
+        if (mediaUrlService.isExternalHttpUrl(trimmed)) {
+            throw new CustomException(400, "聊天附件不支持外部链接，请先上传");
+        }
+        String key = fileStorageService.extractObjectKey(trimmed);
+        if (!StringUtils.hasText(key)
+                || key.contains("..")
+                || key.startsWith("/")
+                || key.contains("://")) {
+            throw new CustomException(400, "无效的文件引用");
+        }
+        objectKeyOwnershipService.assertOwned(userId, key);
+        return key;
     }
 
     private String buildPreview(ImMessage message) {
@@ -1318,13 +1356,42 @@ public class ChatServiceImpl implements ChatService {
             throw new CustomException(400, "不能转发系统消息");
         }
 
+        String fileUrl = source.getFileUrl();
+        String content = source.getContent();
+        // 媒体转发：同桶复制为新对象并由转发者 claim，关闭「复用他人 key 跳过属主」旁路
+        if (isForwardableMediaType(source.getType()) && StringUtils.hasText(fileUrl)) {
+            String trimmed = fileUrl.trim();
+            if (mediaUrlService.isExternalHttpUrl(trimmed)) {
+                throw new CustomException(400, "不能转发外部链接附件");
+            }
+            String sourceKey = fileStorageService.extractObjectKey(trimmed);
+            if (!StringUtils.hasText(sourceKey)
+                    || sourceKey.contains("..")
+                    || sourceKey.startsWith("/")
+                    || sourceKey.contains("://")) {
+                throw new CustomException(400, "源附件引用无效，无法转发");
+            }
+            try {
+                String newKey = fileStorageService.copyObject(sourceKey, source.getFileName());
+                objectKeyOwnershipService.claim(userId, newKey);
+                fileUrl = newKey;
+                if (ImMessage.TYPE_IMAGE.equals(source.getType())) {
+                    content = newKey;
+                }
+            } catch (IllegalArgumentException e) {
+                throw new CustomException(400, e.getMessage() != null ? e.getMessage() : "源附件无法转发");
+            } catch (RuntimeException e) {
+                throw new CustomException(500, "转发附件失败");
+            }
+        }
+
         SendMessageDTO dto = new SendMessageDTO();
         dto.setConversationId(targetConversationId);
         dto.setMsgType(source.getType());
-        dto.setContent(source.getContent());
+        dto.setContent(content);
         dto.setFileName(source.getFileName());
         dto.setFileSize(source.getFileSize());
-        dto.setFileUrl(source.getFileUrl());
+        dto.setFileUrl(fileUrl);
         dto.setVoiceDuration(source.getVoiceDuration());
         dto.setClientMsgId("fwd-" + UUID.randomUUID().toString());
 
@@ -1341,6 +1408,12 @@ public class ChatServiceImpl implements ChatService {
         SysUser sender = sysUserMapper.selectOneById(userId);
         return toMessageVO(forwarded != null ? forwarded : messageMapper.selectOneById(sent.getId()),
                 sender, userId, loadLastReadMessageId(userId, targetConversationId));
+    }
+
+    private static boolean isForwardableMediaType(String type) {
+        return ImMessage.TYPE_IMAGE.equals(type)
+                || ImMessage.TYPE_FILE.equals(type)
+                || ImMessage.TYPE_VOICE.equals(type);
     }
 
     @Override
@@ -1448,6 +1521,7 @@ public class ChatServiceImpl implements ChatService {
         try {
             String objectName = fileStorageService.allocateObjectName(fileName);
             var session = fileStorageService.initiateMultipartUpload(objectName, contentType);
+            bindMultipartInitiator(userId, conversationId, session.uploadId());
             java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
             result.put("uploadId", session.uploadId());
             result.put("objectName", session.objectName());
@@ -1464,6 +1538,7 @@ public class ChatServiceImpl implements ChatService {
     @Override
     public String uploadPart(Long userId, Long conversationId, String objectName, String uploadId, int partNumber, MultipartFile file) {
         assertConversationMember(userId, conversationId);
+        assertMultipartInitiator(userId, conversationId, uploadId);
         try {
             return fileStorageService.uploadPart(objectName, uploadId, partNumber, file.getInputStream(), file.getSize());
         } catch (IllegalArgumentException e) {
@@ -1476,6 +1551,7 @@ public class ChatServiceImpl implements ChatService {
     @Override
     public List<FileStorageService.PartETag> listUploadedParts(Long userId, Long conversationId, String uploadId) {
         assertConversationMember(userId, conversationId);
+        assertMultipartInitiator(userId, conversationId, uploadId);
         try {
             return fileStorageService.listUploadedParts(uploadId);
         } catch (IllegalArgumentException e) {
@@ -1488,9 +1564,11 @@ public class ChatServiceImpl implements ChatService {
                                                     List<FileStorageService.PartETag> parts, String fileName, Long fileSize,
                                                     String contentType, String contentHash) {
         assertConversationMember(userId, conversationId);
+        assertMultipartInitiator(userId, conversationId, uploadId);
         try {
             String finalKey = fileStorageService.completeMultipartUpload(objectName, uploadId, parts);
             objectKeyOwnershipService.claim(userId, finalKey);
+            clearMultipartInitiator(uploadId);
             if (contentHash != null && contentHash.matches("(?i)^[a-f0-9]{64}$")) {
                 fileStorageService.saveContentHash(contentHash, finalKey);
             }
@@ -1516,7 +1594,36 @@ public class ChatServiceImpl implements ChatService {
     @Override
     public void abortMultipartUpload(Long userId, Long conversationId, String objectName, String uploadId) {
         assertConversationMember(userId, conversationId);
+        assertMultipartInitiator(userId, conversationId, uploadId);
         fileStorageService.abortMultipartUpload(objectName, uploadId);
+        clearMultipartInitiator(uploadId);
+    }
+
+    private void bindMultipartInitiator(Long userId, Long conversationId, String uploadId) {
+        redisTemplate.opsForValue().set(
+                MP_OWNER_PREFIX + uploadId,
+                userId + ":" + conversationId,
+                MP_OWNER_TTL);
+    }
+
+    private void assertMultipartInitiator(Long userId, Long conversationId, String uploadId) {
+        if (!StringUtils.hasText(uploadId)) {
+            throw new CustomException(400, "uploadId 不能为空");
+        }
+        String bound = redisTemplate.opsForValue().get(MP_OWNER_PREFIX + uploadId);
+        if (!StringUtils.hasText(bound)) {
+            throw new CustomException(404, "分片会话不存在或已过期");
+        }
+        if (!(userId + ":" + conversationId).equals(bound)) {
+            throw new CustomException(403, "无权操作该分片上传");
+        }
+        redisTemplate.expire(MP_OWNER_PREFIX + uploadId, MP_OWNER_TTL);
+    }
+
+    private void clearMultipartInitiator(String uploadId) {
+        if (StringUtils.hasText(uploadId)) {
+            redisTemplate.delete(MP_OWNER_PREFIX + uploadId);
+        }
     }
 
     @Override
@@ -1528,6 +1635,10 @@ public class ChatServiceImpl implements ChatService {
     public ChatFileUploadVO resolveFileByHash(Long userId, String contentHash, String fileName, Long fileSize, String contentType) {
         String existingKey = fileStorageService.findByContentHash(contentHash);
         if (existingKey == null) {
+            return null;
+        }
+        // 仅本人已 claim 的对象可秒传；他人同内容文件须重新上传，避免跨用户出链
+        if (!objectKeyOwnershipService.isOwned(userId, existingKey)) {
             return null;
         }
         String signedUrl = mediaUrlService.resolveFile(existingKey);

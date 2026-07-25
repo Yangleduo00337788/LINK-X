@@ -32,6 +32,12 @@ public final class DotEnvLoader {
         String profile = resolveProfile(envDir);
         Path profileFile = envDir.resolve(".env." + profile);
         if (!Files.isRegularFile(profileFile)) {
+            // 无 .env.test 等专用文件时回退 .env.local，避免测试/临时 profile 缺占位符
+            Path localFallback = envDir.resolve(".env.local");
+            if (Files.isRegularFile(localFallback) && !"prod".equals(profile)) {
+                Map<String, String> map = parseEnvFile(localFallback);
+                return Result.ok(profile, localFallback, map);
+            }
             return Result.missingFile(profile, profileFile);
         }
         Map<String, String> map = parseEnvFile(profileFile);

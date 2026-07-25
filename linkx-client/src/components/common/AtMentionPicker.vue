@@ -103,7 +103,7 @@ defineExpose({
         @click="pick(friend)"
       >
         <span class="at-avatar" :style="{ background: friend.avatarColor || 'var(--lx-accent)' }">
-          <img v-if="friend.avatarUrl" :src="friend.avatarUrl" alt="" />
+          <img v-if="friend.avatarUrl" :src="friend.avatarUrl" alt="" referrerpolicy="no-referrer" />
           <span v-else>{{ (friend.avatarText || friend.name || '?').charAt(0).toUpperCase() }}</span>
         </span>
         <div class="at-info">

@@ -556,3 +556,11 @@ CREATE TABLE IF NOT EXISTS conference_member (
   leave_time DATETIME,
   create_time DATETIME
 );
+
+-- MinIO 对象属主登记
+CREATE TABLE IF NOT EXISTS sys_object_ownership (
+  object_key VARCHAR(512) NOT NULL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  create_time DATETIME,
+  update_time DATETIME
+);

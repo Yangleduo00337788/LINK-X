@@ -6,13 +6,16 @@ import com.linkx.server.controller.dto.ConferenceSignalDTO;
 import com.linkx.server.controller.vo.ConferenceInfoVO;
 import com.linkx.server.entity.Conference;
 import com.linkx.server.entity.ConferenceMember;
+import com.linkx.server.entity.SysUser;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.mapper.ConferenceMapper;
 import com.linkx.server.mapper.ConferenceMemberMapper;
+import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.CallService;
 import com.linkx.server.service.ChatService;
 import com.linkx.server.service.ConferenceService;
+import com.linkx.server.service.MediaUrlService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.mindrot.jbcrypt.BCrypt;
@@ -22,11 +25,14 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -37,6 +43,8 @@ public class ConferenceServiceImpl implements ConferenceService {
 
     private final ConferenceMapper conferenceMapper;
     private final ConferenceMemberMapper memberMapper;
+    private final SysUserMapper sysUserMapper;
+    private final MediaUrlService mediaUrlService;
     private final CallService callService;
     private final ChatService chatService;
     private final ImMessagePushService pushService;
@@ -222,8 +230,10 @@ public class ConferenceServiceImpl implements ConferenceService {
         ConferenceMember target = requireMember(conferenceId, targetUserId);
         target.setMuted(muted ? 1 : 0);
         memberMapper.update(target);
-        pushService.pushToUser(targetUserId, "conference_mute", Map.of(
+        // 广播给会中所有人，方便各端实时刷新静音图标
+        broadcastToActiveMembers(conferenceId, "conference_mute", Map.of(
                 "conferenceId", conferenceId,
+                "userId", targetUserId,
                 "muted", muted
         ));
     }
@@ -231,11 +241,28 @@ public class ConferenceServiceImpl implements ConferenceService {
     @Override
     @Transactional
     public void setVideo(Long userId, Long conferenceId, boolean videoOff) {
+        // 多人会议只维护 conference_member.video_off 并广播，勿走 1v1 CallService.switchDevice：
+        // 会议 call 无 caller/callee 哈希，switchDevice 会抛错并回滚本事务，导致图标与广播都不更新。
         ConferenceMember member = requireMember(conferenceId, userId);
         member.setVideoOff(videoOff ? 1 : 0);
         memberMapper.update(member);
-        String callId = requireCallId(conferenceId);
-        callService.switchDevice(userId, callId, "video", !videoOff);
+        broadcastToActiveMembers(conferenceId, "conference_video", Map.of(
+                "conferenceId", conferenceId,
+                "userId", userId,
+                "videoOff", videoOff
+        ));
+    }
+
+    /** 向当前仍在会中的成员推送同一事件 */
+    private void broadcastToActiveMembers(Long conferenceId, String action, Map<String, Object> payload) {
+        List<ConferenceMember> members = memberMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(ConferenceMember::getConferenceId).eq(conferenceId)
+                        .and(ConferenceMember::getLeftFlag).eq(0)
+        );
+        for (ConferenceMember m : members) {
+            pushService.pushToUser(m.getUserId(), action, payload);
+        }
     }
 
     @Override
@@ -256,7 +283,11 @@ public class ConferenceServiceImpl implements ConferenceService {
         newHost.setRole(ConferenceMember.ROLE_HOST);
         memberMapper.update(oldHost);
         memberMapper.update(newHost);
-        pushService.pushToUser(newHostId, "conference_host", Map.of("conferenceId", conferenceId));
+        broadcastToActiveMembers(conferenceId, "conference_host", Map.of(
+                "conferenceId", conferenceId,
+                "previousHostId", hostId,
+                "newHostId", newHostId
+        ));
     }
 
     @Override
@@ -273,17 +304,39 @@ public class ConferenceServiceImpl implements ConferenceService {
     }
 
     private ConferenceInfoVO toInfo(Conference conference, String callId) {
-        List<Map<String, Object>> participants = memberMapper.selectListByQuery(
+        List<ConferenceMember> members = memberMapper.selectListByQuery(
                 QueryWrapper.create()
                         .where(ConferenceMember::getConferenceId).eq(conference.getId())
                         .and(ConferenceMember::getLeftFlag).eq(0)
-        ).stream().map(m -> {
+        );
+        Set<Long> userIds = members.stream()
+                .map(ConferenceMember::getUserId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, SysUser> userMap = userIds.isEmpty()
+                ? Collections.emptyMap()
+                : sysUserMapper.selectListByQuery(
+                        QueryWrapper.create().where(SysUser::getId).in(userIds)
+                ).stream().collect(Collectors.toMap(SysUser::getId, Function.identity(), (a, b) -> a));
+
+        List<Map<String, Object>> participants = members.stream().map(m -> {
             Map<String, Object> map = new HashMap<>();
             map.put("userId", m.getUserId());
             map.put("role", m.getRole());
             map.put("muted", Objects.equals(m.getMuted(), 1));
             map.put("videoOff", Objects.equals(m.getVideoOff(), 1));
             map.put("joinTime", m.getJoinTime());
+            SysUser user = userMap.get(m.getUserId());
+            if (user != null) {
+                String nick = StringUtils.hasText(user.getNickname())
+                        ? user.getNickname()
+                        : (StringUtils.hasText(user.getUsername()) ? user.getUsername() : "用户");
+                map.put("nickname", nick);
+                map.put("avatar", mediaUrlService.resolve(user.getAvatar()));
+            } else {
+                map.put("nickname", "用户");
+                map.put("avatar", null);
+            }
             return map;
         }).collect(Collectors.toList());
 

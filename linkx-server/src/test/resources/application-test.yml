@@ -95,3 +95,4 @@ logging:
   level:
     root: warn
     com.linkx.server: info
+    org.springframework.security: warn

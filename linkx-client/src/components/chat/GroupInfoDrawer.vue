@@ -19,7 +19,6 @@ import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
 import { useGroupMetaStore } from '../../stores/groupMeta'
 import * as groupApi from '../../api/group'
-import * as conferenceApi from '../../api/conference'
 import { useI18n } from '../../i18n'
 
 const { t } = useI18n()
@@ -59,7 +58,6 @@ const announcementEmpty = computed(() => {
 const joinApproval = ref(false)
 const inviteOwnerOnly = ref(false)
 const announcementReadCount = ref<number | null>(null)
-const conferenceCreating = ref(false)
 const memberSelectMode = ref(false)
 const selectedMemberIds = ref<string[]>([])
 const joinRequests = ref<groupApi.GroupJoinRequestItem[]>([])
@@ -233,23 +231,6 @@ async function removeOneMember(memberId: string) {
       }
     }
   })
-}
-
-async function startConference() {
-  const id = currentSessionId.value
-  if (!id || conferenceCreating.value) return
-  conferenceCreating.value = true
-  try {
-    const res = await conferenceApi.create({ conversationId: id, type: 'video' })
-    if (res.code !== 200 || !res.data) throw new Error(res.message || 'failed')
-    const { useConferenceStore } = await import('../../stores/conference')
-    await useConferenceStore().openCreated(res.data, String(userProfile.value.userId || ''))
-    message.success(t('modals.conferenceCreated', { id: String(res.data.id) }))
-  } catch (e) {
-    message.error(apiErrorMessage(e, t('modals.conferenceCreateFail')))
-  } finally {
-    conferenceCreating.value = false
-  }
 }
 
 /** 打开群公告管理（CRUD 弹窗）；无公告时管理员可直接发布 */
@@ -762,14 +743,6 @@ function reportGroup() {
 
               <!-- 危险操作与举报 -->
               <button type="button" class="action-btn" @click="clearChat">{{ t('modals.clearChatHistory') }}</button>
-              <button
-                type="button"
-                class="action-btn"
-                :disabled="conferenceCreating"
-                @click="startConference"
-              >
-                {{ t('modals.startConference') }}
-              </button>
               <button
                 v-if="isAdminOrOwner"
                 type="button"

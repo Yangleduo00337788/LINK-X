@@ -41,6 +41,7 @@ async function onImgError() {
       alt="图片消息"
       loading="lazy"
       decoding="async"
+      referrerpolicy="no-referrer"
       @error="onImgError"
     />
   </div>

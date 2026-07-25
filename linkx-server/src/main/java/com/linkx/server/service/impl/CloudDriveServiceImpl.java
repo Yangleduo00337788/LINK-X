@@ -459,12 +459,10 @@ public class CloudDriveServiceImpl implements CloudDriveService {
         Long targetId = parseId(dto.getTargetId());
         String targetName;
         Long fileSize = null;
-        String fileUrl = null;
         if (CloudShare.TYPE_FILE.equals(type)) {
             CloudFile file = requireFile(userId, targetId);
             targetName = file.getName();
             fileSize = file.getFileSize();
-            fileUrl = mediaUrlService.resolveFile(file.getFileKey());
         } else if (CloudShare.TYPE_FOLDER.equals(type)) {
             CloudFolder folder = requireFolder(userId, targetId);
             targetName = folder.getName();
@@ -496,6 +494,7 @@ public class CloudDriveServiceImpl implements CloudDriveService {
         logActivity(userId, type.equals(CloudShare.TYPE_FILE) ? CloudActivity.TARGET_FILE : CloudActivity.TARGET_FOLDER,
                 targetId, targetName, CloudActivity.ACTION_SHARE, "创建分享链接");
 
+        // 创建响应不返回预签名 fileUrl，降低日志/前端持久化泄露面；公开访问走 getPublicShare
         return DriveShareVO.builder()
                 .id(share.getId())
                 .shareType(type)
@@ -508,7 +507,6 @@ public class CloudDriveServiceImpl implements CloudDriveService {
                 .downloadCount(0)
                 .targetName(targetName)
                 .fileSize(fileSize)
-                .fileUrl(fileUrl)
                 .build();
     }
 

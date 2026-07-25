@@ -163,26 +163,13 @@ public class NoteServiceImpl implements NoteService {
         if (key.length() > 512) {
             throw new CustomException(400, "媒体 key 过长");
         }
-        // 属主登记优先；兼容历史上已写入笔记正文、尚未 claim 的 key
-        if (!objectKeyOwnershipService.isOwned(userId, key) && !noteContentReferencesKey(userId, key)) {
-            throw new CustomException(403, "无权访问该媒体");
-        }
+        // 仅属主可签发；上传时已 claim。禁止用「正文含 key」绕过属主校验。
+        objectKeyOwnershipService.assertOwned(userId, key);
         String url = mediaUrlService.resolve(key);
         if (!StringUtils.hasText(url)) {
             throw new CustomException(404, "媒体不存在或无法访问");
         }
         return url;
-    }
-
-    private boolean noteContentReferencesKey(Long userId, String key) {
-        String escaped = key.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
-        long count = noteMapper.selectCountByQuery(
-                QueryWrapper.create()
-                        .eq("user_id", userId)
-                        .eq("deleted", 0)
-                        .and("content LIKE ?", "%" + escaped + "%")
-        );
-        return count > 0;
     }
 
     private NoteVO toVO(Note note) {

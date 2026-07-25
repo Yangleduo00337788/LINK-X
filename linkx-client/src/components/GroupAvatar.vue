@@ -74,7 +74,7 @@ function pickColor(seed: string): string {
     class="group-avatar single"
     :style="{ width: `${size}px`, height: `${size}px` }"
   >
-    <img :src="customUrl" alt="" class="full-img" />
+    <img :src="customUrl" alt="" class="full-img" referrerpolicy="no-referrer" />
   </div>
   <div
     v-else-if="cells.length > 0"
@@ -98,6 +98,7 @@ function pickColor(seed: string): string {
         v-if="cell.showImg"
         :src="cell.imageUrl"
         alt=""
+        referrerpolicy="no-referrer"
         @error="onCellError(i)"
       />
       <span v-else class="cell-text">{{ cell.text }}</span>

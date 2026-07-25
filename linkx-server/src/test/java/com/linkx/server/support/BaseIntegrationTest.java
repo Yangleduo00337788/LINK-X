@@ -30,6 +30,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 public abstract class BaseIntegrationTest {
 
+    static {
+        // 测试不走 main：提前注入 .env.*，否则 application.yml 的 ${VAR} 无法解析
+        com.linkx.server.config.DotEnvBootstrap.load();
+    }
+
     private static final AtomicInteger USER_SEQ = new AtomicInteger(0);
 
     @DynamicPropertySource

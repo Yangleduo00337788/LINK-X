@@ -11,11 +11,13 @@ import com.linkx.server.entity.*;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.mapper.*;
+import com.linkx.server.service.ExternalMediaProxyService;
 import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.MessageNotificationService;
 import com.linkx.server.service.MomentsService;
 import com.linkx.server.service.ObjectKeyOwnershipService;
+import com.linkx.server.common.SafeExternalUrl;
 import com.mybatisflex.core.logicdelete.LogicDeleteManager;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +45,7 @@ public class MomentsServiceImpl implements MomentsService {
     private final SysUserRelationMapper sysUserRelationMapper;
     private final FileStorageService fileStorageService;
     private final MediaUrlService mediaUrlService;
+    private final ExternalMediaProxyService externalMediaProxyService;
     private final ObjectKeyOwnershipService objectKeyOwnershipService;
     private final MessageNotificationService notificationService;
     private final ImMessagePushService imPushService;
@@ -91,7 +94,7 @@ public class MomentsServiceImpl implements MomentsService {
                 }
                 MomentsImage image = MomentsImage.builder()
                         .postId(post.getId())
-                        .url(imageUrl.trim())
+                        .url(normalizeAndAuthorizeMomentsMedia(userId, imageUrl))
                         .sortOrder(order++)
                         .build();
                 imageMapper.insert(image);
@@ -168,7 +171,7 @@ public class MomentsServiceImpl implements MomentsService {
                 }
                 MomentsImage image = MomentsImage.builder()
                         .postId(post.getId())
-                        .url(imageUrl.trim())
+                        .url(normalizeAndAuthorizeMomentsMedia(userId, imageUrl))
                         .sortOrder(order++)
                         .build();
                 imageMapper.insert(image);
@@ -571,10 +574,10 @@ public class MomentsServiceImpl implements MomentsService {
                                    List<MomentsLike> likes,
                                    List<MomentsComment> comments,
                                    Long currentUserId) {
-        // 库中存 object key（或旧版完整 URL），对外统一签发可访问的预签名 URL
+        // 库中存 object key 或外链；MinIO 签发预签名，外链走 HMAC 代理降低追踪面
         List<String> imageUrls = images.stream()
                 .sorted(Comparator.comparingInt(MomentsImage::getSortOrder))
-                .map(img -> mediaUrlService.resolve(img.getUrl()))
+                .map(img -> resolveMomentsImageUrl(img.getUrl()))
                 .filter(Objects::nonNull)
                 .filter(url -> !url.isBlank())
                 .collect(Collectors.toList());
@@ -765,6 +768,9 @@ public class MomentsServiceImpl implements MomentsService {
             throw new CustomException(400, "只能上传图片或视频文件");
         }
         try {
+            if (contentType.startsWith("image/")) {
+                com.linkx.server.common.ImageUploadValidator.assertSupportedImage(file);
+            }
             // 只返回 object key 入库；列表/详情时再签发预签名 URL。
             String key = fileStorageService.uploadFile(file);
             objectKeyOwnershipService.claim(userId, key);
@@ -774,5 +780,40 @@ public class MomentsServiceImpl implements MomentsService {
         } catch (RuntimeException e) {
             throw new CustomException(500, "媒体上传失败");
         }
+    }
+
+    /**
+     * 外链（非本系统 MinIO）经 SSRF 校验后原样入库；本系统 key/预签名须属主，并只存 object key。
+     */
+    private String normalizeAndAuthorizeMomentsMedia(Long userId, String raw) {
+        String trimmed = raw.trim();
+        if (mediaUrlService.isExternalHttpUrl(trimmed)) {
+            SafeExternalUrl.parseAndValidate(trimmed);
+            return trimmed;
+        }
+        String key = fileStorageService.extractObjectKey(trimmed);
+        if (key == null || key.isBlank()
+                || key.contains("..")
+                || key.startsWith("/")
+                || key.contains("://")) {
+            throw new CustomException(400, "无效的媒体引用");
+        }
+        objectKeyOwnershipService.assertOwned(userId, key);
+        return key;
+    }
+
+    private String resolveMomentsImageUrl(String stored) {
+        if (stored == null || stored.isBlank()) {
+            return null;
+        }
+        if (mediaUrlService.isExternalHttpUrl(stored.trim())) {
+            try {
+                return externalMediaProxyService.wrapExternalUrl(stored.trim());
+            } catch (CustomException e) {
+                log.warn("朋友圈外链无法代理: {}", e.getMessage());
+                return null;
+            }
+        }
+        return mediaUrlService.resolve(stored);
     }
 }

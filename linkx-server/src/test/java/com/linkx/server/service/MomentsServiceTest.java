@@ -125,6 +125,18 @@ class MomentsServiceTest extends BaseIntegrationTest {
                     () -> momentsService.like(stranger.userId, post.getId()));
             assertEquals(403, ex.getCode());
         }
+
+        @Test
+        @DisplayName("publish rejects foreign MinIO object key")
+        void publish_foreignObjectKeyForbidden() {
+            TestUser user = registerAndLogin("msfkey");
+            PublishMomentsDTO dto = new PublishMomentsDTO();
+            dto.setContent("stolen media");
+            dto.setImages(List.of("2026/07/24/not-owned-by-me.png"));
+            CustomException ex = assertThrows(CustomException.class,
+                    () -> momentsService.publish(user.userId, dto));
+            assertEquals(403, ex.getCode());
+        }
     }
 
     @Nested

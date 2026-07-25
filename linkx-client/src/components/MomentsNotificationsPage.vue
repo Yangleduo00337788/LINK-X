@@ -245,6 +245,7 @@ function onAvatarError(e: Event, notif: typeof messageNotifs.value[0]) {
                 :src="resolveAvatar(notif)"
                 class="notif-avatar"
                 alt=""
+                referrerpolicy="no-referrer"
                 @error="onAvatarError($event, notif)"
               />
               <div class="notif-info">

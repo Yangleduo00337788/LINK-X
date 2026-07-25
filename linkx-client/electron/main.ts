@@ -75,6 +75,35 @@ async function readDownloadBytes(payload: DownloadFilePayload): Promise<Buffer> 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL)
 
+/**
+ * CSP 可信媒体源：本机 API/MinIO + 可选环境变量（生产 MinIO/CDN 网关）。
+ * 朋友圈外链改走后端 /media/external 代理，故不再需要任意 https:。
+ */
+function collectTrustedMediaOrigins(): string {
+  const origins = new Set<string>([
+    'http://127.0.0.1:9000',
+    'http://localhost:9000',
+    'http://127.0.0.1:8080',
+    'http://localhost:8080',
+    'http://127.0.0.1:5173',
+    'http://localhost:5173'
+  ])
+  for (const raw of [
+    process.env.VITE_API_BASE_URL,
+    process.env.VITE_MINIO_PUBLIC_ORIGIN,
+    process.env.LINKX_MINIO_PUBLIC_ORIGIN
+  ]) {
+    if (!raw) continue
+    try {
+      const u = new URL(raw)
+      origins.add(`${u.protocol}//${u.host}`)
+    } catch {
+      // ignore invalid
+    }
+  }
+  return [...origins].join(' ')
+}
+
 /** Windows/Linux 使用系统原生标题栏按钮（Win11 Caption Buttons） */
 const USE_NATIVE_TITLE_BAR_OVERLAY = process.platform === 'win32' || process.platform === 'linux'
 let currentUiTheme: 'light' | 'dark' = 'light'
@@ -1245,14 +1274,16 @@ app.whenReady().then(() => {
 
   // 设置严格的 Content Security Policy，防止 Electron Security Warning
   // 在窗口创建前设置，应用到所有窗口
+  // img-src / media-src：仅本应用、本机 MinIO/API，以及可选的生产媒体源（不再放开任意 http/https）
+  const mediaOrigins = collectTrustedMediaOrigins()
   const csp = [
     "default-src 'self';",
     "script-src 'self' 'unsafe-inline';",
     "style-src 'self' 'unsafe-inline';",
-    "img-src 'self' data: blob: https: http:;",
+    `img-src 'self' data: blob: ${mediaOrigins};`,
     "font-src 'self' data:;",
     "connect-src 'self' ws: wss: http: https:;",
-    "media-src 'self' blob: mediastream:;"
+    `media-src 'self' blob: mediastream: ${mediaOrigins};`
   ].join(' ')
 
   app.on('web-contents-created', (_event, contents) => {
@@ -1260,7 +1291,9 @@ app.whenReady().then(() => {
       callback({
         responseHeaders: {
           ...details.responseHeaders,
-          'Content-Security-Policy': [csp]
+          'Content-Security-Policy': [csp],
+          // 与 index.html meta 对齐，降低外链 CDN 防盗链 403
+          'Referrer-Policy': ['no-referrer']
         }
       })
     })

@@ -735,6 +735,14 @@ export const useAppStore = defineStore('app', {
               data as unknown as import('../api/call').CallEventPayload
             )
           })
+          // 会议 mesh 信令也走 call_signal，按 callId 分流到 conference store
+          if (action === 'call_signal') {
+            void import('./conference').then(({ useConferenceStore }) => {
+              useConferenceStore().handleCallSignal(
+                data as unknown as import('../api/call').CallEventPayload
+              )
+            })
+          }
         },
         onCustomAction: (action: string, data: Record<string, unknown>) => {
           if (action === 'notification_refresh') {
@@ -762,6 +770,7 @@ export const useAppStore = defineStore('app', {
             action === 'conference_join' ||
             action === 'conference_leave' ||
             action === 'conference_mute' ||
+            action === 'conference_video' ||
             action === 'conference_host'
           ) {
             void import('./conference').then(({ useConferenceStore }) => {
@@ -1447,7 +1456,10 @@ export const useAppStore = defineStore('app', {
             if (uploadRes.code !== 200 || !uploadRes.data) {
               throw new Error(uploadRes.message || '文件上传失败')
             }
-            fileUrl = uploadRes.data.url
+            // 入库/发送用 object key；本地预览用预签名 url
+            const objectKey = uploadRes.data.fileKey || uploadRes.data.url
+            const displayUrl = uploadRes.data.url || objectKey
+            fileUrl = objectKey
             fileName = uploadRes.data.fileName || uploadFile.name
             // fileSize 可能是 number 或 string，统一转为 number
             const sizeValue = uploadRes.data.fileSize
@@ -1455,8 +1467,15 @@ export const useAppStore = defineStore('app', {
             if (type === 'voice') {
               const local = this.messagesBySession[id]?.find(m => m.id === clientMsgId)
               if (local) {
-                local.voiceUrl = fileUrl
-                local.fileUrl = fileUrl
+                local.voiceUrl = displayUrl
+                local.fileUrl = displayUrl
+                local.fileName = fileName
+              }
+            } else if (type === 'image' || type === 'file') {
+              const local = this.messagesBySession[id]?.find(m => m.id === clientMsgId)
+              if (local) {
+                local.fileUrl = displayUrl
+                if (type === 'image') local.content = displayUrl
                 local.fileName = fileName
               }
             }

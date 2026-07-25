@@ -37,6 +37,12 @@ public interface FileStorageService {
     void deleteFile(String objectName);
 
     /**
+     * 从 object key / 完整 MinIO URL（可含预签名 query）抽出规范 object key。
+     * 非本桶 URL 时原样返回（调用方应先排除外链）。
+     */
+    String extractObjectKey(String objectKeyOrUrl);
+
+    /**
      * 获取文件预签名 URL（用于临时访问私有 bucket 中的文件）
      *
      * @param objectName 对象名
@@ -97,6 +103,15 @@ public interface FileStorageService {
 
     /** 对象是否仍存在于存储中 */
     boolean objectExists(String objectKey);
+
+    /**
+     * 同桶复制对象到新 key（用于转发：新对象由转发者 claim，避免复用他人 key 旁路属主校验）。
+     *
+     * @param sourceObjectKey  源 object key（或可抽出 key 的本桶 URL）
+     * @param preferredFileName 用于生成新 key 扩展名的文件名；可空则沿用源 key 扩展名
+     * @return 新 object key
+     */
+    String copyObject(String sourceObjectKey, String preferredFileName);
 
     /** 按内容哈希查找已上传对象（秒传）；对象已删则返回 null */
     String findByContentHash(String contentHash);

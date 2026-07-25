@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS im_message_storm_event (
   create_time DATETIME,
   KEY idx_storm_event_user (user_id, create_time),
   KEY idx_storm_event_conv (conversation_id, create_time)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='IM消息风暴事件表';
 
 -- 稳定游标分页：(conversation_id, id)
 CREATE INDEX idx_im_message_conv_id ON im_message (conversation_id, id);

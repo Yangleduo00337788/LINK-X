@@ -689,7 +689,14 @@ function visibilityLabel(visibility?: number): string {
       <!-- 顶部封面与用户资料 -->
       <div class="moments-header">
         <div class="header-banner" @contextmenu="onBannerContextMenu">
-          <img :src="bannerUrl" alt="Banner" class="banner-img" @error="(e) => (e.target as HTMLImgElement).src = defaultBanner" @click="handleBannerMenuAction('preview')" />
+          <img
+            :src="bannerUrl"
+            alt="Banner"
+            class="banner-img"
+            referrerpolicy="no-referrer"
+            @error="(e) => (e.target as HTMLImgElement).src = defaultBanner"
+            @click="handleBannerMenuAction('preview')"
+          />
           <!-- 上传遮罩 hover 提示 -->
           <div class="banner-upload-overlay" :class="{ uploading: bannerUploading }" @click.stop="handleBannerMenuAction('preview')">
             <span v-if="bannerUploading">{{ t('moments.uploading') }}</span>
@@ -697,7 +704,7 @@ function visibilityLabel(visibility?: number): string {
         </div>
         <div class="user-info">
           <span class="username">{{ userProfile.nickname }}</span>
-          <img :src="profileAvatar" alt="Avatar" class="avatar-img" />
+          <img :src="profileAvatar" alt="Avatar" class="avatar-img" referrerpolicy="no-referrer" />
         </div>
       </div>
 
@@ -708,6 +715,7 @@ function visibilityLabel(visibility?: number): string {
             :src="postAvatarSrc(post)"
             alt=""
             class="post-avatar"
+            referrerpolicy="no-referrer"
             @error="onPostAvatarError(post)"
           />
           <div class="post-main">
@@ -730,6 +738,7 @@ function visibilityLabel(visibility?: number): string {
                   class="post-image post-video"
                   controls
                   preload="metadata"
+                  referrerpolicy="no-referrer"
                 />
                 <button
                   v-else
@@ -737,7 +746,13 @@ function visibilityLabel(visibility?: number): string {
                   class="post-image-btn"
                   @click="openImagePreview(post.images!.filter(u => !isVideoUrl(u)), Math.max(0, post.images!.filter(u => !isVideoUrl(u)).indexOf(img)))"
                 >
-                  <img :src="img" alt="" class="post-image" loading="lazy" />
+                  <img
+                    :src="img"
+                    alt=""
+                    class="post-image"
+                    loading="lazy"
+                    referrerpolicy="no-referrer"
+                  />
                   <div class="image-overlay">
                     <span v-if="post.images.length > 1" class="image-index">{{ index + 1 }}</span>
                   </div>
@@ -979,6 +994,7 @@ function visibilityLabel(visibility?: number): string {
         :src="previewImages[previewIndex]"
         alt=""
         class="preview-full-img"
+        referrerpolicy="no-referrer"
         @click.stop
       />
       <button

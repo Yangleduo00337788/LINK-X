@@ -17,6 +17,7 @@ import com.linkx.server.entity.UserPreference;
 import com.linkx.server.service.DeviceSessionService;
 import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.MediaUrlService;
+import com.linkx.server.service.ObjectKeyOwnershipService;
 import com.linkx.server.service.SysUserService;
 import com.linkx.server.service.UserPreferenceService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -39,6 +40,7 @@ public class UserController {
     private final SysUserService sysUserService;
     private final FileStorageService fileStorageService;
     private final MediaUrlService mediaUrlService;
+    private final ObjectKeyOwnershipService objectKeyOwnershipService;
     private final DeviceSessionService deviceSessionService;
     private final UserPreferenceService userPreferenceService;
     private final JwtUtils jwtUtils;
@@ -164,6 +166,7 @@ public class UserController {
 
         // 上传文件（私有桶，传入 null 让 service 用 UUID 命名）
         String objectKey = fileStorageService.uploadFile(file, null);
+        objectKeyOwnershipService.claim(userId, objectKey);
 
         // 按头像时效签发预签名 URL 返回给前端
         String signedUrl = mediaUrlService.resolveAvatar(objectKey);
@@ -193,6 +196,7 @@ public class UserController {
         }
 
         String objectKey = fileStorageService.uploadFile(file, null);
+        objectKeyOwnershipService.claim(userId, objectKey);
         sysUserService.updateMomentsBackground(userId, objectKey);
 
         UserPreference pref = userPreferenceService.getOrDefault(userId);

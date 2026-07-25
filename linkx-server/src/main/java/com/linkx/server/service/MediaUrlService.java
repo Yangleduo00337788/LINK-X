@@ -61,17 +61,22 @@ public class MediaUrlService {
         return fileStorageService.getPresignedUrl(value, seconds);
     }
 
-    private boolean isExternalHttpUrl(String value) {
-        if (!value.startsWith("http://") && !value.startsWith("https://")) {
+    /** 第三方 http(s)（非本系统 MinIO）——入库原样保留，不签发、不验属主 */
+    public boolean isExternalHttpUrl(String value) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        String v = value.trim();
+        if (!v.startsWith("http://") && !v.startsWith("https://")) {
             return false;
         }
         String endpoint = linkxProperties.getMinio().getEndpoint();
-        if (endpoint != null && !endpoint.isBlank() && value.startsWith(endpoint)) {
+        if (endpoint != null && !endpoint.isBlank() && v.startsWith(endpoint)) {
             return false;
         }
         // 兼容历史 localhost / 127.0.0.1 MinIO 地址
-        return !(value.contains("://localhost:9000/")
-                || value.contains("://127.0.0.1:9000/")
-                || value.contains("://[::1]:9000/"));
+        return !(v.contains("://localhost:9000/")
+                || v.contains("://127.0.0.1:9000/")
+                || v.contains("://[::1]:9000/"));
     }
 }

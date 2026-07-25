@@ -99,10 +99,11 @@ export interface ConferenceSignalPayload {
 
 export function signal(payload: ConferenceSignalPayload) {
   return apiClient.post<never, ApiResult<null>>('/conference/signal', {
-    conferenceId: Number(payload.conferenceId),
+    conferenceId: String(payload.conferenceId),
     signalType: payload.signalType,
     sdp: payload.sdp,
     candidate: payload.candidate,
-    targetUserId: payload.targetUserId != null ? Number(payload.targetUserId) : undefined
+    // 雪花 ID 禁止 Number()，否则精度丢失导致对端收不到信令
+    targetUserId: payload.targetUserId != null ? String(payload.targetUserId) : undefined
   })
 }

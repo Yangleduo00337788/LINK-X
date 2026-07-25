@@ -28,12 +28,18 @@ public class DotEnvEnvironmentPostProcessor implements EnvironmentPostProcessor,
         }
         Map<String, Object> effective = new LinkedHashMap<>();
         for (var e : result.values().entrySet()) {
-            if (environment.getProperty(e.getKey()) == null) {
-                effective.put(e.getKey(), e.getValue());
+            String key = e.getKey();
+            String value = e.getValue() != null ? e.getValue() : "";
+            // 测试不走 main/Bootstrap：同步写入 System properties，保证 ${VAR} 占位符可解析
+            if (System.getenv(key) == null && System.getProperty(key) == null) {
+                System.setProperty(key, value);
+            }
+            if (environment.getProperty(key) == null) {
+                effective.put(key, value);
             }
         }
         if (!effective.isEmpty()) {
-            environment.getPropertySources().addLast(new MapPropertySource(PROPERTY_SOURCE_NAME, effective));
+            environment.getPropertySources().addFirst(new MapPropertySource(PROPERTY_SOURCE_NAME, effective));
         }
     }
 

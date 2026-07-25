@@ -73,7 +73,7 @@ class NoteServiceTest extends BaseIntegrationTest {
             CustomException ex = assertThrows(CustomException.class,
                     () -> noteService.resolveMediaUrl(stranger.userId, "2026/07/24/not-owned.png"));
             assertEquals(403, ex.getCode());
-            // owner also forbidden until claim / note content reference
+            // owner also forbidden until claim
             CustomException ex2 = assertThrows(CustomException.class,
                     () -> noteService.resolveMediaUrl(owner.userId, "2026/07/24/not-owned.png"));
             assertEquals(403, ex2.getCode());

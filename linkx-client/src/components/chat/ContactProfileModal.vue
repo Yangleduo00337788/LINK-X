@@ -237,6 +237,7 @@ function handleEditProfile() {
               :src="img"
               alt=""
               class="thumb"
+              referrerpolicy="no-referrer"
             />
           </div>
           <n-icon :component="ChevronForwardOutline" :size="16" class="moments-arrow" />

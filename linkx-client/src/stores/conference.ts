@@ -1,15 +1,40 @@
 /**
- * 多人会议 Store：进出房、成员状态、本地预览媒体。
+ * 多人会议 Store：进出房、本地媒体、mesh WebRTC 远端音视频。
  */
 import { defineStore } from 'pinia'
 import { markRaw } from 'vue'
 import * as conferenceApi from '../api/conference'
 import type { ConferenceInfo, ConferenceParticipant } from '../api/conference'
+import type { CallEventPayload } from '../api/call'
 
 export type ConferencePhase = 'idle' | 'lobby' | 'in_room' | 'ended'
 
+const ICE_SERVERS: RTCIceServer[] = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' }
+]
+
+type PeerSlot = {
+  pc: RTCPeerConnection
+  pending: RTCIceCandidateInit[]
+  makingOffer: boolean
+  ignoreOffer: boolean
+}
+
 let localStream: MediaStream | null = null
 let qualityTimer: ReturnType<typeof setInterval> | null = null
+/** peerUserId → PeerConnection（不入 Pinia 响应式） */
+const peers = new Map<string, PeerSlot>()
+/** 串行化信令，避免 offer/ICE 交错 */
+let signalQueue: Promise<void> = Promise.resolve()
+
+function shouldInitiateOffer(myId: string, peerId: string): boolean {
+  try {
+    return BigInt(myId) < BigInt(peerId)
+  } catch {
+    return myId < peerId
+  }
+}
 
 export const useConferenceStore = defineStore('conference', {
   state: () => ({
@@ -29,6 +54,8 @@ export const useConferenceStore = defineStore('conference', {
     selectedAudioId: '' as string,
     selectedVideoId: '' as string,
     localStream: null as MediaStream | null,
+    /** peerUserId → 远端合流（音视频轨） */
+    remoteStreams: {} as Record<string, MediaStream>,
     networkHint: '' as string,
     invitePrompt: null as {
       conferenceId: string
@@ -55,6 +82,7 @@ export const useConferenceStore = defineStore('conference', {
       this.phase = 'in_room'
       await this.refreshDevices()
       await this.ensureLocalMedia()
+      await this.syncMeshPeers()
       this.startQualityWatch()
     },
 
@@ -68,6 +96,7 @@ export const useConferenceStore = defineStore('conference', {
       this.invitePrompt = null
       await this.refreshDevices()
       await this.ensureLocalMedia()
+      await this.syncMeshPeers()
       this.startQualityWatch()
     },
 
@@ -81,8 +110,19 @@ export const useConferenceStore = defineStore('conference', {
       this.myUserId = myUserId
       this.participants = (info.participants || []).map(p => ({
         ...p,
-        userId: String(p.userId)
+        userId: String(p.userId),
+        muted: !!p.muted,
+        videoOff: !!p.videoOff
       }))
+      // 与服务端成员状态对齐，避免刷新后底栏/小窗图标不一致
+      const me = this.participants.find(p => String(p.userId) === myUserId)
+      if (me) {
+        this.micOn = !me.muted
+        this.cameraOn = !me.videoOff
+        localStream?.getAudioTracks().forEach(t => {
+          t.enabled = this.micOn
+        })
+      }
     },
 
     async refreshInfo() {
@@ -118,14 +158,341 @@ export const useConferenceStore = defineStore('conference', {
         }
         return
       }
-      if (
-        action === 'conference_join' ||
-        action === 'conference_leave' ||
-        action === 'conference_mute' ||
-        action === 'conference_host'
-      ) {
+      if (action === 'conference_join' || action === 'conference_leave') {
+        void this.refreshInfo().then(() => this.syncMeshPeers())
+        return
+      }
+      if (action === 'conference_mute') {
+        const uid = data.userId != null ? String(data.userId) : ''
+        if (uid) {
+          const muted = !!data.muted
+          this.participants = this.participants.map(p =>
+            String(p.userId) === uid ? { ...p, muted } : p
+          )
+          if (uid === this.myUserId) {
+            this.micOn = !muted
+            localStream?.getAudioTracks().forEach(t => {
+              t.enabled = this.micOn
+            })
+          }
+        }
+        void this.refreshInfo()
+        return
+      }
+      if (action === 'conference_video') {
+        const uid = data.userId != null ? String(data.userId) : ''
+        if (uid) {
+          const videoOff = !!data.videoOff
+          this.participants = this.participants.map(p =>
+            String(p.userId) === uid ? { ...p, videoOff } : p
+          )
+          if (uid === this.myUserId) {
+            this.cameraOn = !videoOff
+          } else if (videoOff) {
+            // 对端关摄像头：立刻去掉远端 video 轨，小窗切头像+图标
+            this.stripRemoteVideoTracks(uid)
+          }
+        }
+        void this.refreshInfo()
+        return
+      }
+      if (action === 'conference_host') {
+        const prev = data.previousHostId != null ? String(data.previousHostId) : ''
+        const next = data.newHostId != null ? String(data.newHostId) : ''
+        if (next) {
+          this.creatorId = next
+          this.participants = this.participants.map(p => {
+            const id = String(p.userId)
+            if (id === next) return { ...p, role: 'host' }
+            if (prev && id === prev) return { ...p, role: 'member' }
+            if (p.role === 'host' && id !== next) return { ...p, role: 'member' }
+            return p
+          })
+        }
         void this.refreshInfo()
       }
+    },
+
+    stripRemoteVideoTracks(peerId: string) {
+      const cur = this.remoteStreams[peerId]
+      if (!cur) return
+      const kept = cur.getTracks().filter(t => t.kind !== 'video')
+      cur.getVideoTracks().forEach(t => {
+        try {
+          cur.removeTrack(t)
+        } catch {
+          /* ignore */
+        }
+      })
+      if (kept.length === 0) {
+        const { [peerId]: _, ...rest } = this.remoteStreams
+        this.remoteStreams = rest
+      } else {
+        this.remoteStreams = { ...this.remoteStreams, [peerId]: markRaw(new MediaStream(kept)) }
+      }
+    },
+
+    /**
+     * 会议态下的 WebRTC 信令（WS action=call_signal，callId 匹配本会）。
+     */
+    handleCallSignal(raw: CallEventPayload) {
+      if (this.phase !== 'in_room' || !this.callId) return
+      if (String(raw.callId || '') !== this.callId) return
+      const from = String(raw.fromUserId || '')
+      if (!from || from === this.myUserId || !raw.signalType) return
+
+      signalQueue = signalQueue
+        .then(() => this.processPeerSignal(from, raw))
+        .catch(err => console.warn('[conference] signal error', err))
+    },
+
+    async processPeerSignal(peerId: string, raw: CallEventPayload) {
+      const slot = await this.ensurePeer(peerId)
+      const pc = slot.pc
+
+      if (raw.signalType === 'offer' && raw.sdp) {
+        const offerCollision = slot.makingOffer || pc.signalingState !== 'stable'
+        // 较大 userId 为 polite：冲突时回滚并接受对端 offer
+        const polite = !shouldInitiateOffer(this.myUserId, peerId)
+        if (offerCollision) {
+          if (!polite) {
+            slot.ignoreOffer = true
+            return
+          }
+          try {
+            await pc.setLocalDescription({ type: 'rollback' })
+          } catch {
+            /* ignore */
+          }
+        }
+        slot.ignoreOffer = false
+        await pc.setRemoteDescription({ type: 'offer', sdp: raw.sdp })
+        await this.flushPendingCandidates(peerId)
+        this.attachLocalTracksTo(pc)
+        const answer = await pc.createAnswer()
+        await pc.setLocalDescription(answer)
+        await this.sendSignal({
+          signalType: 'answer',
+          sdp: answer.sdp,
+          targetUserId: peerId
+        })
+        return
+      }
+
+      if (raw.signalType === 'answer' && raw.sdp) {
+        if (slot.ignoreOffer) return
+        if (!pc.currentRemoteDescription) {
+          await pc.setRemoteDescription({ type: 'answer', sdp: raw.sdp })
+          await this.flushPendingCandidates(peerId)
+        }
+        return
+      }
+
+      if (raw.signalType === 'ice-candidate' && raw.candidate) {
+        try {
+          const init = JSON.parse(raw.candidate) as RTCIceCandidateInit
+          if (!pc.remoteDescription) {
+            slot.pending.push(init)
+          } else {
+            await pc.addIceCandidate(init)
+          }
+        } catch (e) {
+          console.warn('[conference] bad ICE candidate', e)
+        }
+      }
+    },
+
+    async ensurePeer(peerId: string): Promise<PeerSlot> {
+      const existing = peers.get(peerId)
+      if (existing) return existing
+
+      const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
+      const slot: PeerSlot = {
+        pc,
+        pending: [],
+        makingOffer: false,
+        ignoreOffer: false
+      }
+      peers.set(peerId, slot)
+
+      this.attachLocalTracksTo(pc)
+
+      pc.onicecandidate = evt => {
+        if (!evt.candidate || this.phase !== 'in_room') return
+        void this.sendSignal({
+          signalType: 'ice-candidate',
+          candidate: JSON.stringify(evt.candidate.toJSON()),
+          targetUserId: peerId
+        })
+      }
+
+      pc.ontrack = evt => {
+        const prev = this.remoteStreams[peerId]
+        const stream = prev || markRaw(new MediaStream())
+        if (!stream.getTrackById(evt.track.id)) {
+          stream.addTrack(evt.track)
+        }
+        evt.track.onended = () => {
+          const cur = this.remoteStreams[peerId]
+          if (!cur) return
+          const next = markRaw(new MediaStream(cur.getTracks().filter(t => t.id !== evt.track.id && t.readyState !== 'ended')))
+          if (next.getTracks().length === 0) {
+            const { [peerId]: _, ...rest } = this.remoteStreams
+            this.remoteStreams = rest
+          } else {
+            this.remoteStreams = { ...this.remoteStreams, [peerId]: next }
+          }
+        }
+        this.remoteStreams = { ...this.remoteStreams, [peerId]: markRaw(stream) }
+      }
+
+      pc.onconnectionstatechange = () => {
+        const state = pc.connectionState
+        if (state === 'failed') {
+          void this.recoverPeer(peerId)
+        } else if (state === 'closed') {
+          this.closePeer(peerId)
+        }
+      }
+
+      return slot
+    },
+
+    async recoverPeer(peerId: string) {
+      if (this.phase !== 'in_room') return
+      this.closePeer(peerId)
+      if (!this.participants.some(p => String(p.userId) === peerId)) return
+      await this.ensurePeer(peerId)
+      if (shouldInitiateOffer(this.myUserId, peerId)) {
+        await this.createOfferTo(peerId)
+      }
+    },
+
+    attachLocalTracksTo(pc: RTCPeerConnection) {
+      const stream = localStream
+      if (!stream) return
+      const senders = pc.getSenders()
+      for (const track of stream.getTracks()) {
+        const exists = senders.some(s => s.track?.id === track.id)
+        if (!exists) {
+          pc.addTrack(track, stream)
+        }
+      }
+    },
+
+    async replaceTracksOnPeers() {
+      const stream = localStream
+      if (!stream) return
+      for (const [, slot] of peers) {
+        const senders = slot.pc.getSenders()
+        for (const track of stream.getTracks()) {
+          const sender = senders.find(s => s.track?.kind === track.kind)
+          if (sender) {
+            try {
+              await sender.replaceTrack(track)
+            } catch {
+              /* ignore */
+            }
+          } else {
+            slot.pc.addTrack(track, stream)
+          }
+        }
+        // 摄像头关闭时，清空 video sender，避免对端仍看到冻结画面
+        if (!this.cameraOn || this.type !== 'video') {
+          const videoSender = slot.pc.getSenders().find(s => s.track?.kind === 'video')
+          if (videoSender?.track) {
+            try {
+              await videoSender.replaceTrack(null)
+            } catch {
+              /* ignore */
+            }
+          }
+        }
+      }
+    },
+
+    async createOfferTo(peerId: string) {
+      const slot = await this.ensurePeer(peerId)
+      if (slot.pc.signalingState !== 'stable') return
+      slot.makingOffer = true
+      try {
+        this.attachLocalTracksTo(slot.pc)
+        const offer = await slot.pc.createOffer()
+        await slot.pc.setLocalDescription(offer)
+        await this.sendSignal({
+          signalType: 'offer',
+          sdp: offer.sdp,
+          targetUserId: peerId
+        })
+      } finally {
+        slot.makingOffer = false
+      }
+    },
+
+    async flushPendingCandidates(peerId: string) {
+      const slot = peers.get(peerId)
+      if (!slot) return
+      const pending = slot.pending.splice(0)
+      for (const c of pending) {
+        try {
+          await slot.pc.addIceCandidate(c)
+        } catch (e) {
+          console.warn('[conference] addIceCandidate failed', e)
+        }
+      }
+    },
+
+    /**
+     * 与当前成员列表对齐：建连 / 发 offer / 拆离开的 peer。
+     * 仅较小 userId 一侧主动 createOffer，避免 glare。
+     */
+    async syncMeshPeers() {
+      if (this.phase !== 'in_room' || !this.myUserId) return
+      const others = this.participants
+        .map(p => String(p.userId))
+        .filter(id => id && id !== this.myUserId)
+
+      for (const peerId of others) {
+        await this.ensurePeer(peerId)
+        if (!shouldInitiateOffer(this.myUserId, peerId)) continue
+        const slot = peers.get(peerId)
+        // 仅在稳定且尚未协商时主动发 offer，避免重复协商
+        if (slot && slot.pc.signalingState === 'stable' && !slot.pc.currentRemoteDescription) {
+          await this.createOfferTo(peerId)
+        }
+      }
+
+      for (const peerId of [...peers.keys()]) {
+        if (!others.includes(peerId)) {
+          this.closePeer(peerId)
+        }
+      }
+    },
+
+    closePeer(peerId: string) {
+      const slot = peers.get(peerId)
+      if (slot) {
+        slot.pc.onicecandidate = null
+        slot.pc.ontrack = null
+        slot.pc.onconnectionstatechange = null
+        try {
+          slot.pc.close()
+        } catch {
+          /* ignore */
+        }
+        peers.delete(peerId)
+      }
+      if (this.remoteStreams[peerId]) {
+        const { [peerId]: _, ...rest } = this.remoteStreams
+        this.remoteStreams = rest
+      }
+    },
+
+    closeAllPeers() {
+      for (const peerId of [...peers.keys()]) {
+        this.closePeer(peerId)
+      }
+      this.remoteStreams = {}
     },
 
     async refreshDevices() {
@@ -164,12 +531,15 @@ export const useConferenceStore = defineStore('conference', {
           t.enabled = this.micOn
         })
         this.localStream = markRaw(localStream)
+        await this.replaceTracksOnPeers()
       } catch (e) {
         const name = (e as DOMException)?.name
         if (wantVideo && (name === 'NotAllowedError' || name === 'NotFoundError' || name === 'NotReadableError')) {
-          // 权限/设备异常：降级仅语音
           this.cameraOn = false
           this.networkHint = '摄像头不可用，已降级为语音'
+          this.participants = this.participants.map(p =>
+            String(p.userId) === this.myUserId ? { ...p, videoOff: true } : p
+          )
           localStream = await navigator.mediaDevices.getUserMedia({
             audio: this.selectedAudioId ? { deviceId: { exact: this.selectedAudioId } } : true,
             video: false
@@ -178,8 +548,13 @@ export const useConferenceStore = defineStore('conference', {
             t.enabled = this.micOn
           })
           this.localStream = markRaw(localStream)
+          await this.replaceTracksOnPeers()
           if (this.conferenceId) {
-            void conferenceApi.setVideo(this.conferenceId, true)
+            try {
+              await conferenceApi.setVideo(this.conferenceId, true)
+            } catch {
+              /* 本地已降级；同步失败不阻断会议 */
+            }
           }
           return
         }
@@ -188,31 +563,60 @@ export const useConferenceStore = defineStore('conference', {
     },
 
     async toggleMic() {
+      const prev = this.micOn
       this.micOn = !this.micOn
       this.localStream?.getAudioTracks().forEach(t => {
         t.enabled = this.micOn
       })
-      if (this.conferenceId) {
+      this.participants = this.participants.map(p =>
+        String(p.userId) === this.myUserId ? { ...p, muted: !this.micOn } : p
+      )
+      if (!this.conferenceId) return
+      try {
         await conferenceApi.mute(this.conferenceId, this.myUserId, !this.micOn)
-        await this.refreshInfo()
+      } catch (e) {
+        this.micOn = prev
+        this.localStream?.getAudioTracks().forEach(t => {
+          t.enabled = this.micOn
+        })
+        this.participants = this.participants.map(p =>
+          String(p.userId) === this.myUserId ? { ...p, muted: !this.micOn } : p
+        )
+        throw e
       }
     },
 
     async toggleCamera() {
+      const prev = this.cameraOn
       this.cameraOn = !this.cameraOn
-      if (this.type === 'video') {
-        await this.ensureLocalMedia()
-      }
-      if (this.conferenceId) {
-        await conferenceApi.setVideo(this.conferenceId, !this.cameraOn)
-        await this.refreshInfo()
+      this.participants = this.participants.map(p =>
+        String(p.userId) === this.myUserId ? { ...p, videoOff: !this.cameraOn } : p
+      )
+      try {
+        if (this.type === 'video') {
+          await this.ensureLocalMedia()
+        } else {
+          await this.replaceTracksOnPeers()
+        }
+        if (this.conferenceId) {
+          await conferenceApi.setVideo(this.conferenceId, !this.cameraOn)
+        }
+      } catch (e) {
+        this.cameraOn = prev
+        this.participants = this.participants.map(p =>
+          String(p.userId) === this.myUserId ? { ...p, videoOff: !this.cameraOn } : p
+        )
+        if (this.type === 'video') {
+          try {
+            await this.ensureLocalMedia()
+          } catch {
+            /* ignore */
+          }
+        }
+        throw e
       }
     },
 
-    /**
-     * 转发 WebRTC 信令（offer/answer/ice），供后续 mesh 或对端协商使用。
-     * 当前会议房以管理面+本地预览为主，仍完整对接 /conference/signal。
-     */
     async sendSignal(payload: {
       signalType: 'offer' | 'answer' | 'ice-candidate'
       sdp?: string
@@ -241,6 +645,10 @@ export const useConferenceStore = defineStore('conference', {
 
     async muteTarget(userId: string, muted: boolean) {
       if (!this.conferenceId) return
+      const uid = String(userId)
+      this.participants = this.participants.map(p =>
+        String(p.userId) === uid ? { ...p, muted } : p
+      )
       await conferenceApi.mute(this.conferenceId, userId, muted)
       await this.refreshInfo()
     },
@@ -248,7 +656,9 @@ export const useConferenceStore = defineStore('conference', {
     async removeTarget(userId: string) {
       if (!this.conferenceId) return
       await conferenceApi.removeMember(this.conferenceId, userId)
+      this.closePeer(String(userId))
       await this.refreshInfo()
+      await this.syncMeshPeers()
     },
 
     async leave() {
@@ -280,7 +690,6 @@ export const useConferenceStore = defineStore('conference', {
       qualityTimer = setInterval(() => {
         const stream = this.localStream
         if (!stream) return
-        // 弱网启发式：无视频轨或 video 被禁用时提示；有轨则根据 muted/ended 判断
         const vt = stream.getVideoTracks()[0]
         if (this.cameraOn && vt && (vt.muted || vt.readyState !== 'live')) {
           this.networkHint = '视频链路不稳定，可尝试关闭摄像头'
@@ -299,6 +708,7 @@ export const useConferenceStore = defineStore('conference', {
 
     cleanupLocal() {
       this.stopQualityWatch()
+      this.closeAllPeers()
       if (localStream) {
         localStream.getTracks().forEach(t => t.stop())
         localStream = null
@@ -312,6 +722,10 @@ export const useConferenceStore = defineStore('conference', {
 
     clearError() {
       this.errorMessage = ''
+    },
+
+    remoteStreamFor(userId: string): MediaStream | null {
+      return this.remoteStreams[String(userId)] || null
     }
   }
 })
