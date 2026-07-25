@@ -174,19 +174,22 @@ function remoteStreamOf(userId: string): MediaStream | null {
   return remoteStreams.value[userId] || null
 }
 
-function hasLiveRemoteVideo(userId: string, videoOff?: boolean): boolean {
-  if (videoOff) return false
+function hasLiveRemoteVideo(userId: string, _videoOff?: boolean): boolean {
   const stream = remoteStreamOf(userId)
   if (!stream) return false
-  return stream.getVideoTracks().some(t => t.readyState === 'live' && t.enabled)
+  // 以真实媒体轨为准：只要有 live 视频轨就显示，避免过期 videoOff 把画面挡住
+  return stream.getVideoTracks().some(t => t.readyState === 'live')
 }
 
 function isMuted(p: { isMe: boolean; muted?: boolean }) {
   return p.isMe ? !micOn.value : !!p.muted
 }
 
-function isVideoOff(p: { isMe: boolean; videoOff?: boolean }) {
-  return p.isMe ? !cameraOn.value : !!p.videoOff
+function isVideoOff(p: { isMe: boolean; userId?: string; videoOff?: boolean }) {
+  if (p.isMe) return !cameraOn.value
+  // 已有远端视频时不显示「关摄像头」图标
+  if (p.userId && hasLiveRemoteVideo(p.userId)) return false
+  return !!p.videoOff
 }
 
 function showLocalVideo(p: { isMe: boolean; videoOff?: boolean }) {
@@ -277,6 +280,23 @@ function onAvatarError(e: Event, name: string) {
   img.dataset.fallback = '1'
   img.src = generateDefaultAvatar(name || '用户', 160)
 }
+
+watch(
+  remoteStreams,
+  () => {
+    for (const userId of remoteVideoEls.keys()) {
+      void attachRemoteMedia(userId)
+    }
+    for (const userId of remoteAudioEls.keys()) {
+      void attachRemoteMedia(userId)
+    }
+  },
+  { deep: true }
+)
+
+watch(localStream, () => {
+  void attachLocalVideo(localVideoRef.value)
+})
 
 watch(errorMessage, msg => {
   if (msg) {
