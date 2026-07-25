@@ -17,4 +17,7 @@ public class ConferenceCreateDTO {
     private String password;
 
     private Integer maxParticipants;
+
+    /** 是否开启等候室 */
+    private Boolean lobbyEnabled;
 }

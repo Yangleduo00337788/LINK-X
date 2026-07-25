@@ -7,6 +7,7 @@ export interface ConferenceCreatePayload {
   title?: string
   password?: string
   maxParticipants?: number
+  lobbyEnabled?: boolean
 }
 
 export interface ConferenceParticipant {
@@ -14,6 +15,7 @@ export interface ConferenceParticipant {
   role?: string
   muted?: boolean
   videoOff?: boolean
+  admitStatus?: number
   joinTime?: string
   nickname?: string
   avatar?: string
@@ -30,6 +32,10 @@ export interface ConferenceInfo {
   startTime?: string
   endTime?: string
   callId?: string
+  hasPassword?: boolean
+  lobbyEnabled?: boolean
+  waitingAdmit?: boolean
+  reused?: boolean
   participants?: ConferenceParticipant[]
 }
 
@@ -60,6 +66,12 @@ export function active() {
   return apiClient.get<never, ApiResult<ConferenceInfo[]>>('/conference/active')
 }
 
+export function history(conversationId: string | number) {
+  return apiClient.get<never, ApiResult<ConferenceInfo[]>>('/conference/history', {
+    params: { conversationId }
+  })
+}
+
 export function mute(conferenceId: string | number, targetUserId: string | number, muted: boolean) {
   return apiClient.post<never, ApiResult<null>>('/conference/mute', {
     conferenceId,
@@ -86,6 +98,28 @@ export function transferHost(conferenceId: string | number, newHostId: string | 
   return apiClient.post<never, ApiResult<null>>('/conference/transfer-host', {
     conferenceId,
     newHostId
+  })
+}
+
+export function admit(conferenceId: string | number, targetUserId: string | number) {
+  return apiClient.post<never, ApiResult<null>>('/conference/admit', {
+    conferenceId,
+    targetUserId
+  })
+}
+
+export function setRole(conferenceId: string | number, targetUserId: string | number, role: string) {
+  return apiClient.post<never, ApiResult<null>>('/conference/set-role', {
+    conferenceId,
+    targetUserId,
+    role
+  })
+}
+
+export function raise(conferenceId: string | number, raised: boolean) {
+  return apiClient.post<never, ApiResult<null>>('/conference/raise', {
+    conferenceId,
+    raised
   })
 }
 

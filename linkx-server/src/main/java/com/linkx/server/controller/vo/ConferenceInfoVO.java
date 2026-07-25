@@ -30,6 +30,18 @@ public class ConferenceInfoVO implements Serializable {
     private Date endTime;
     private String callId;
 
+    /** 是否设置了入会密码（不回传明文/哈希） */
+    private Boolean hasPassword;
+
+    /** 是否开启等候室 */
+    private Boolean lobbyEnabled;
+
+    /** 当前用户是否仍在等候室（未准入） */
+    private Boolean waitingAdmit;
+
+    /** 是否复用同会话已有 ACTIVE 会议 */
+    private Boolean reused;
+
     @Builder.Default
     private List<Map<String, Object>> participants = new ArrayList<>();
 }

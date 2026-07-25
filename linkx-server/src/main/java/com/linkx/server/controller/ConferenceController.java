@@ -3,11 +3,14 @@ package com.linkx.server.controller;
 import com.linkx.server.common.AuthUtils;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.Result;
+import com.linkx.server.controller.dto.ConferenceAdmitDTO;
 import com.linkx.server.controller.dto.ConferenceCreateDTO;
 import com.linkx.server.controller.dto.ConferenceIdDTO;
 import com.linkx.server.controller.dto.ConferenceJoinDTO;
 import com.linkx.server.controller.dto.ConferenceMemberActionDTO;
 import com.linkx.server.controller.dto.ConferenceMuteDTO;
+import com.linkx.server.controller.dto.ConferenceRaiseDTO;
+import com.linkx.server.controller.dto.ConferenceSetRoleDTO;
 import com.linkx.server.controller.dto.ConferenceSignalDTO;
 import com.linkx.server.controller.dto.ConferenceTransferHostDTO;
 import com.linkx.server.controller.dto.ConferenceVideoDTO;
@@ -98,6 +101,35 @@ public class ConferenceController {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         conferenceService.transferHost(userId, dto.getConferenceId(), dto.getNewHostId());
         return Result.success();
+    }
+
+    @PostMapping("/admit")
+    public Result<Void> admit(@Valid @RequestBody ConferenceAdmitDTO dto, HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        conferenceService.admitMember(userId, dto.getConferenceId(), dto.getTargetUserId());
+        return Result.success();
+    }
+
+    @PostMapping("/set-role")
+    public Result<Void> setRole(@Valid @RequestBody ConferenceSetRoleDTO dto, HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        conferenceService.setMemberRole(userId, dto.getConferenceId(), dto.getTargetUserId(), dto.getRole());
+        return Result.success();
+    }
+
+    @PostMapping("/raise")
+    public Result<Void> raise(@Valid @RequestBody ConferenceRaiseDTO dto, HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        conferenceService.raiseHand(userId, dto.getConferenceId(), Boolean.TRUE.equals(dto.getRaised()));
+        return Result.success();
+    }
+
+    @GetMapping("/history")
+    public Result<List<ConferenceInfoVO>> history(
+            @org.springframework.web.bind.annotation.RequestParam Long conversationId,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(conferenceService.listHistory(userId, conversationId));
     }
 
     @PostMapping("/signal")

@@ -44,6 +44,10 @@ public class ConferenceMember implements Serializable {
     @Builder.Default
     private Integer leftFlag = 0;
 
+    /** 0=等候室 1=已准入 */
+    @Builder.Default
+    private Integer admitStatus = 1;
+
     private Date joinTime;
     private Date leaveTime;
 

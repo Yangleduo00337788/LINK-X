@@ -7,8 +7,9 @@ import * as conferenceApi from '../api/conference'
 import type { ConferenceInfo, ConferenceParticipant } from '../api/conference'
 import type { CallEventPayload } from '../api/call'
 import { resolveIceServers } from '../utils/iceServers'
+import { decideIceRestart, decideWeakNetVideo } from '../utils/callNetworkPolicy'
 
-export type ConferencePhase = 'idle' | 'lobby' | 'in_room' | 'ended'
+export type ConferencePhase = 'idle' | 'lobby' | 'waiting' | 'in_room' | 'ended'
 
 type PeerSlot = {
   pc: RTCPeerConnection
@@ -18,11 +19,20 @@ type PeerSlot = {
 }
 
 let localStream: MediaStream | null = null
+let screenStream: MediaStream | null = null
 let qualityTimer: ReturnType<typeof setInterval> | null = null
+let weakNetChecks = 0
+/** peerUserId → ICE restart 已尝试次数 */
+const iceRestartAttempts = new Map<string, number>()
 /** peerUserId → PeerConnection（不入 Pinia 响应式） */
 const peers = new Map<string, PeerSlot>()
 /** 串行化信令，避免 offer/ICE 交错 */
 let signalQueue: Promise<void> = Promise.resolve()
+
+/** admitStatus===0 为等候室；缺省视为已准入 */
+function isAdmittedParticipant(p: ConferenceParticipant): boolean {
+  return p.admitStatus == null || Number(p.admitStatus) !== 0
+}
 
 function shouldInitiateOffer(myId: string, peerId: string): boolean {
   try {
@@ -45,6 +55,14 @@ export const useConferenceStore = defineStore('conference', {
     participants: [] as ConferenceParticipant[],
     micOn: true,
     cameraOn: true,
+    hasPassword: false,
+    lobbyEnabled: false,
+    maxParticipants: 16,
+    raisedHands: {} as Record<string, boolean>,
+    handRaised: false,
+    screenSharing: false,
+    activeSpeakerId: '' as string,
+    chatOpen: false,
     audioInputs: [] as MediaDeviceInfo[],
     videoInputs: [] as MediaDeviceInfo[],
     selectedAudioId: '' as string,
@@ -58,6 +76,7 @@ export const useConferenceStore = defineStore('conference', {
       title: string
       conversationId: string
       callId?: string
+      hasPassword?: boolean
       /** refresh 后发现仍在会中 */
       restore?: boolean
     } | null,
@@ -66,36 +85,51 @@ export const useConferenceStore = defineStore('conference', {
 
   getters: {
     visible(state): boolean {
-      return state.phase === 'lobby' || state.phase === 'in_room'
+      return state.phase === 'lobby' || state.phase === 'waiting' || state.phase === 'in_room'
     },
     isHost(state): boolean {
       const me = state.participants.find(p => String(p.userId) === state.myUserId)
       return me?.role === 'host' || state.creatorId === state.myUserId
+    },
+    isHostOrCoHost(state): boolean {
+      const me = state.participants.find(p => String(p.userId) === state.myUserId)
+      const role = me?.role
+      return role === 'host' || role === 'co-host' || state.creatorId === state.myUserId
     }
   },
 
   actions: {
-    async openCreated(info: ConferenceInfo, myUserId: string) {
-      this.applyInfo(info, myUserId)
+    async enterInRoom() {
       this.phase = 'in_room'
       await this.refreshDevices()
       await this.ensureLocalMedia()
       await this.syncMeshPeers()
       this.startQualityWatch()
+    },
+
+    async openCreated(info: ConferenceInfo, myUserId: string) {
+      this.applyInfo(info, myUserId)
+      if (info.waitingAdmit) {
+        this.phase = 'waiting'
+        return
+      }
+      await this.enterInRoom()
     },
 
     async joinExisting(conferenceId: string, myUserId: string, password?: string) {
       const res = await conferenceApi.join(conferenceId, password)
       if (res.code !== 200 || !res.data) {
-        throw new Error(res.message || '加入会议失败')
+        const err = new Error(res.message || '加入会议失败') as Error & { code?: number }
+        err.code = res.code
+        throw err
       }
       this.applyInfo(res.data, myUserId)
-      this.phase = 'in_room'
       this.invitePrompt = null
-      await this.refreshDevices()
-      await this.ensureLocalMedia()
-      await this.syncMeshPeers()
-      this.startQualityWatch()
+      if (res.data.waitingAdmit) {
+        this.phase = 'waiting'
+        return
+      }
+      await this.enterInRoom()
     },
 
     applyInfo(info: ConferenceInfo, myUserId: string) {
@@ -106,11 +140,15 @@ export const useConferenceStore = defineStore('conference', {
       this.type = info.type === 'voice' ? 'voice' : 'video'
       this.creatorId = info.creatorId != null ? String(info.creatorId) : ''
       this.myUserId = myUserId
+      this.hasPassword = !!info.hasPassword
+      this.lobbyEnabled = !!info.lobbyEnabled
+      if (info.maxParticipants != null) this.maxParticipants = Number(info.maxParticipants) || 16
       this.participants = (info.participants || []).map(p => ({
         ...p,
         userId: String(p.userId),
         muted: !!p.muted,
-        videoOff: !!p.videoOff
+        videoOff: !!p.videoOff,
+        admitStatus: p.admitStatus != null ? Number(p.admitStatus) : undefined
       }))
       // 与服务端成员状态对齐，避免刷新后底栏/小窗图标不一致
       const me = this.participants.find(p => String(p.userId) === myUserId)
@@ -128,15 +166,15 @@ export const useConferenceStore = defineStore('conference', {
      * 有则进入 lobby 确认层，由用户选择重新加入。
      */
     async tryRestoreActive(myUserId: string) {
-      if (!myUserId || this.phase === 'in_room') return
+      if (!myUserId || this.phase === 'in_room' || this.phase === 'waiting') return
       try {
         const res = await conferenceApi.active()
         if (res.code !== 200 || !res.data?.length) return
         const info = res.data[0]
         const conferenceId = String(info.id)
-        // 已在同会或已有邀请弹层则不覆盖
-        if (this.conferenceId === conferenceId && this.phase === 'in_room') return
+        // 已有邀请弹层则不覆盖
         if (this.invitePrompt && !this.invitePrompt.restore) return
+        if (this.conferenceId === conferenceId && this.phase === 'lobby') return
         this.invitePrompt = {
           conferenceId,
           title: info.title || '多人会议',
@@ -182,7 +220,8 @@ export const useConferenceStore = defineStore('conference', {
           conferenceId,
           title: String(data.title || '多人会议'),
           conversationId: String(data.conversationId || ''),
-          callId: data.callId != null ? String(data.callId) : undefined
+          callId: data.callId != null ? String(data.callId) : undefined,
+          hasPassword: data.hasPassword === true || data.hasPassword === 1 || data.hasPassword === 'true'
         }
         this.phase = this.phase === 'idle' ? 'lobby' : this.phase
         return
@@ -201,6 +240,42 @@ export const useConferenceStore = defineStore('conference', {
       }
       if (action === 'conference_join' || action === 'conference_leave') {
         void this.refreshInfo().then(() => this.syncMeshPeers())
+        return
+      }
+      if (action === 'conference_waiting') {
+        void this.refreshInfo()
+        return
+      }
+      if (action === 'conference_admit') {
+        const uid = data.userId != null ? String(data.userId) : ''
+        const cid = data.conferenceId != null ? String(data.conferenceId) : ''
+        if (cid && this.conferenceId && cid !== this.conferenceId) return
+        void this.refreshInfo().then(async () => {
+          if (uid === this.myUserId && this.phase === 'waiting') {
+            await this.enterInRoom()
+          } else {
+            await this.syncMeshPeers()
+          }
+        })
+        return
+      }
+      if (action === 'conference_raise') {
+        const uid = data.userId != null ? String(data.userId) : ''
+        if (!uid) return
+        const raised = data.raised === true || data.raised === 1 || data.raised === 'true'
+        this.raisedHands = { ...this.raisedHands, [uid]: raised }
+        if (uid === this.myUserId) this.handRaised = raised
+        return
+      }
+      if (action === 'conference_role') {
+        const uid = data.userId != null ? String(data.userId) : ''
+        const role = data.role != null ? String(data.role) : ''
+        if (uid && role) {
+          this.participants = this.participants.map(p =>
+            String(p.userId) === uid ? { ...p, role } : p
+          )
+        }
+        void this.refreshInfo()
         return
       }
       if (action === 'conference_mute') {
@@ -389,7 +464,9 @@ export const useConferenceStore = defineStore('conference', {
 
       pc.onconnectionstatechange = () => {
         const state = pc.connectionState
-        if (state === 'failed') {
+        if (state === 'connected') {
+          iceRestartAttempts.delete(peerId)
+        } else if (state === 'failed' || state === 'disconnected') {
           void this.recoverPeer(peerId)
         } else if (state === 'closed') {
           this.closePeer(peerId)
@@ -401,11 +478,85 @@ export const useConferenceStore = defineStore('conference', {
 
     async recoverPeer(peerId: string) {
       if (this.phase !== 'in_room') return
-      this.closePeer(peerId)
-      if (!this.participants.some(p => String(p.userId) === peerId)) return
-      await this.ensurePeer(peerId)
-      if (shouldInitiateOffer(this.myUserId, peerId)) {
-        await this.createOfferTo(peerId)
+      if (!this.participants.some(p => String(p.userId) === peerId && isAdmittedParticipant(p))) {
+        return
+      }
+      const attemptsSoFar = iceRestartAttempts.get(peerId) || 0
+      const decision = decideIceRestart({
+        attemptsSoFar,
+        reason: 'failed',
+        callType: this.type,
+        cameraOn: this.cameraOn && !this.screenSharing,
+        isActive: this.phase === 'in_room'
+      })
+      if (decision.action === 'noop') return
+
+      // 超限：close + 重建 PC
+      if (decision.action === 'give_up') {
+        iceRestartAttempts.delete(peerId)
+        this.networkHint = '对端连接异常，正在重建…'
+        this.closePeer(peerId)
+        await this.ensurePeer(peerId)
+        if (shouldInitiateOffer(this.myUserId, peerId)) {
+          await this.createOfferTo(peerId)
+        }
+        return
+      }
+
+      iceRestartAttempts.set(peerId, decision.nextAttempts)
+      this.networkHint = decision.message
+      if (decision.disableCamera && this.cameraOn && !this.screenSharing) {
+        this.cameraOn = false
+        this.participants = this.participants.map(p =>
+          String(p.userId) === this.myUserId ? { ...p, videoOff: true } : p
+        )
+        localStream?.getVideoTracks().forEach(t => {
+          t.enabled = false
+        })
+        await this.replaceTracksOnPeers()
+        if (this.conferenceId) {
+          void conferenceApi.setVideo(this.conferenceId, true).catch(() => {
+            /* ignore */
+          })
+        }
+      }
+
+      const slot = peers.get(peerId)
+      if (!slot) {
+        await this.ensurePeer(peerId)
+        if (shouldInitiateOffer(this.myUserId, peerId)) {
+          await this.createOfferTo(peerId)
+        }
+        return
+      }
+
+      try {
+        if (typeof slot.pc.restartIce === 'function') {
+          slot.pc.restartIce()
+        }
+        if (!shouldInitiateOffer(this.myUserId, peerId)) return
+        if (slot.pc.signalingState !== 'stable' && slot.pc.signalingState !== 'have-local-offer') {
+          return
+        }
+        slot.makingOffer = true
+        this.attachLocalTracksTo(slot.pc)
+        const offer = await slot.pc.createOffer({ iceRestart: true })
+        await slot.pc.setLocalDescription(offer)
+        await this.sendSignal({
+          signalType: 'offer',
+          sdp: offer.sdp,
+          targetUserId: peerId
+        })
+      } catch (e) {
+        console.warn('[conference] ICE restart failed, rebuilding peer', e)
+        this.closePeer(peerId)
+        await this.ensurePeer(peerId)
+        if (shouldInitiateOffer(this.myUserId, peerId)) {
+          await this.createOfferTo(peerId)
+        }
+      } finally {
+        const s = peers.get(peerId)
+        if (s) s.makingOffer = false
       }
     },
 
@@ -438,8 +589,8 @@ export const useConferenceStore = defineStore('conference', {
             slot.pc.addTrack(track, stream)
           }
         }
-        // 摄像头关闭时，清空 video sender，避免对端仍看到冻结画面
-        if (!this.cameraOn || this.type !== 'video') {
+        // 摄像头关闭时，清空 video sender，避免对端仍看到冻结画面（屏幕共享除外）
+        if ((!this.cameraOn || this.type !== 'video') && !this.screenSharing) {
           const videoSender = slot.pc.getSenders().find(s => s.track?.kind === 'video')
           if (videoSender?.track) {
             try {
@@ -486,10 +637,12 @@ export const useConferenceStore = defineStore('conference', {
     /**
      * 与当前成员列表对齐：建连 / 发 offer / 拆离开的 peer。
      * 仅较小 userId 一侧主动 createOffer，避免 glare。
+     * 只连 admitStatus!==0 的参与者（缺省视为已准入）。
      */
     async syncMeshPeers() {
       if (this.phase !== 'in_room' || !this.myUserId) return
       const others = this.participants
+        .filter(p => isAdmittedParticipant(p))
         .map(p => String(p.userId))
         .filter(id => id && id !== this.myUserId)
 
@@ -523,6 +676,7 @@ export const useConferenceStore = defineStore('conference', {
         }
         peers.delete(peerId)
       }
+      iceRestartAttempts.delete(peerId)
       if (this.remoteStreams[peerId]) {
         const { [peerId]: _, ...rest } = this.remoteStreams
         this.remoteStreams = rest
@@ -702,6 +856,118 @@ export const useConferenceStore = defineStore('conference', {
       await this.syncMeshPeers()
     },
 
+    async transferHostTo(userId: string) {
+      if (!this.conferenceId) return
+      await conferenceApi.transferHost(this.conferenceId, userId)
+      await this.refreshInfo()
+    },
+
+    async admitUser(userId: string) {
+      if (!this.conferenceId) return
+      await conferenceApi.admit(this.conferenceId, userId)
+      await this.refreshInfo()
+      await this.syncMeshPeers()
+    },
+
+    async setCoHost(userId: string, enable: boolean) {
+      if (!this.conferenceId) return
+      await conferenceApi.setRole(this.conferenceId, userId, enable ? 'co-host' : 'member')
+      await this.refreshInfo()
+    },
+
+    async toggleRaise() {
+      if (!this.conferenceId) return
+      const next = !this.handRaised
+      this.handRaised = next
+      this.raisedHands = { ...this.raisedHands, [this.myUserId]: next }
+      try {
+        await conferenceApi.raise(this.conferenceId, next)
+      } catch (e) {
+        this.handRaised = !next
+        this.raisedHands = { ...this.raisedHands, [this.myUserId]: !next }
+        throw e
+      }
+    },
+
+    async toggleScreenShare() {
+      if (this.phase !== 'in_room') return
+      if (this.screenSharing) {
+        this.stopScreenShareTracks()
+        this.screenSharing = false
+        try {
+          if (this.type === 'video' && this.cameraOn) {
+            await this.ensureLocalMedia()
+          } else {
+            await this.replaceTracksOnPeers()
+          }
+        } catch (e) {
+          console.warn('[conference] restore camera after screen share failed', e)
+        }
+        return
+      }
+      try {
+        const display = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: false
+        })
+        const track = display.getVideoTracks()[0]
+        if (!track) {
+          display.getTracks().forEach(t => t.stop())
+          return
+        }
+        screenStream = display
+        track.onended = () => {
+          if (this.screenSharing) {
+            void this.toggleScreenShare()
+          }
+        }
+        // 用屏幕轨替换各 peer 的 video sender
+        for (const [, slot] of peers) {
+          const videoSender = slot.pc.getSenders().find(s => s.track?.kind === 'video')
+          if (videoSender) {
+            try {
+              await videoSender.replaceTrack(track)
+            } catch {
+              /* ignore */
+            }
+          } else {
+            slot.pc.addTrack(track, display)
+          }
+        }
+        // 本地预览也切到屏幕
+        if (localStream) {
+          const oldVideo = localStream.getVideoTracks()[0]
+          if (oldVideo) {
+            localStream.removeTrack(oldVideo)
+            oldVideo.stop()
+          }
+          localStream.addTrack(track)
+          this.localStream = markRaw(new MediaStream(localStream.getTracks()))
+        } else {
+          localStream = markRaw(new MediaStream([track]))
+          this.localStream = localStream
+        }
+        this.screenSharing = true
+      } catch (e) {
+        const name = (e as DOMException)?.name
+        if (name === 'NotAllowedError' || name === 'AbortError') return
+        throw e
+      }
+    },
+
+    stopScreenShareTracks() {
+      if (screenStream) {
+        screenStream.getTracks().forEach(t => {
+          try {
+            t.stop()
+          } catch {
+            /* ignore */
+          }
+        })
+        screenStream = null
+      }
+    },
+
     async leave() {
       if (this.conferenceId) {
         try {
@@ -728,16 +994,10 @@ export const useConferenceStore = defineStore('conference', {
 
     startQualityWatch() {
       this.stopQualityWatch()
+      weakNetChecks = 0
       qualityTimer = setInterval(() => {
-        const stream = this.localStream
-        if (!stream) return
-        const vt = stream.getVideoTracks()[0]
-        if (this.cameraOn && vt && (vt.muted || vt.readyState !== 'live')) {
-          this.networkHint = '视频链路不稳定，可尝试关闭摄像头'
-        } else if (this.networkHint.includes('不稳定')) {
-          this.networkHint = ''
-        }
-      }, 5000)
+        void this.tickQualityAndSpeaker()
+      }, 3000)
     },
 
     stopQualityWatch() {
@@ -747,9 +1007,100 @@ export const useConferenceStore = defineStore('conference', {
       }
     },
 
+    async tickQualityAndSpeaker() {
+      if (this.phase !== 'in_room') return
+
+      // 弱网：聚合各 peer inbound-rtp 丢包，决定是否关摄像头
+      let packetsLost = 0
+      let packetsReceived = 0
+      for (const [, slot] of peers) {
+        try {
+          const stats = await slot.pc.getStats()
+          stats.forEach(r => {
+            if (r.type === 'inbound-rtp' && 'packetsLost' in r) {
+              packetsLost += Number(r.packetsLost || 0)
+              packetsReceived += Number((r as { packetsReceived?: number }).packetsReceived || 0)
+            }
+          })
+        } catch {
+          /* ignore */
+        }
+      }
+      if (!this.screenSharing) {
+        const decision = decideWeakNetVideo({
+          packetsLost,
+          packetsReceived,
+          callType: this.type,
+          cameraOn: this.cameraOn,
+          weakNetChecks
+        })
+        if (decision.action === 'reset_checks') {
+          weakNetChecks = 0
+        } else if (decision.action === 'accumulate') {
+          weakNetChecks = decision.nextChecks
+        } else if (decision.action === 'disable_camera') {
+          weakNetChecks = 0
+          this.cameraOn = false
+          this.networkHint = decision.message
+          this.participants = this.participants.map(p =>
+            String(p.userId) === this.myUserId ? { ...p, videoOff: true } : p
+          )
+          localStream?.getVideoTracks().forEach(t => {
+            t.enabled = false
+          })
+          await this.replaceTracksOnPeers()
+          if (this.conferenceId) {
+            void conferenceApi.setVideo(this.conferenceId, true).catch(() => {
+              /* ignore */
+            })
+          }
+        }
+      }
+
+      // 简易 activeSpeaker：远端音频 level，无则回退 host
+      let bestId = ''
+      let bestLevel = 0.01
+      for (const [peerId, slot] of peers) {
+        try {
+          const stats = await slot.pc.getStats()
+          stats.forEach(r => {
+            if (r.type === 'inbound-rtp' && (r as { kind?: string }).kind === 'audio') {
+              const level = Number((r as { audioLevel?: number }).audioLevel || 0)
+              if (level > bestLevel) {
+                bestLevel = level
+                bestId = peerId
+              }
+            }
+          })
+        } catch {
+          /* ignore */
+        }
+        // 兜底：部分浏览器用 media-source / track audioLevel
+        const stream = this.remoteStreams[peerId]
+        if (stream) {
+          for (const track of stream.getAudioTracks()) {
+            const settings = track.getSettings?.() as { volume?: number } | undefined
+            void settings
+          }
+        }
+      }
+      if (!bestId) {
+        const host =
+          this.participants.find(p => p.role === 'host') ||
+          this.participants.find(p => String(p.userId) === this.creatorId)
+        bestId = host ? String(host.userId) : this.myUserId
+      }
+      if (bestId && bestId !== this.activeSpeakerId) {
+        this.activeSpeakerId = bestId
+      }
+    },
+
     cleanupLocal() {
       this.stopQualityWatch()
+      this.stopScreenShareTracks()
       this.closeAllPeers()
+      iceRestartAttempts.clear()
+      weakNetChecks = 0
       if (localStream) {
         localStream.getTracks().forEach(t => t.stop())
         localStream = null
@@ -757,8 +1108,16 @@ export const useConferenceStore = defineStore('conference', {
       this.localStream = null
       this.conferenceId = null
       this.callId = null
+      this.conversationId = null
       this.participants = []
       this.networkHint = ''
+      this.raisedHands = {}
+      this.handRaised = false
+      this.screenSharing = false
+      this.activeSpeakerId = ''
+      this.chatOpen = false
+      this.hasPassword = false
+      this.lobbyEnabled = false
     },
 
     clearError() {

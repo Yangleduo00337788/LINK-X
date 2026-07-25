@@ -538,7 +538,8 @@ CREATE TABLE IF NOT EXISTS conference (
   max_participants INT NOT NULL DEFAULT 9,
   start_time DATETIME,
   end_time DATETIME,
-  password VARCHAR(64),
+  password VARCHAR(100),
+  lobby_enabled TINYINT NOT NULL DEFAULT 0,
   create_time DATETIME,
   update_time DATETIME
 );
@@ -552,6 +553,7 @@ CREATE TABLE IF NOT EXISTS conference_member (
   muted TINYINT NOT NULL DEFAULT 0,
   video_off TINYINT NOT NULL DEFAULT 0,
   left_flag TINYINT NOT NULL DEFAULT 0,
+  admit_status TINYINT NOT NULL DEFAULT 1,
   join_time DATETIME,
   leave_time DATETIME,
   create_time DATETIME

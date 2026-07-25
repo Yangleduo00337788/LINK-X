@@ -31,5 +31,13 @@ public interface ConferenceService {
 
     void transferHost(Long hostId, Long conferenceId, Long newHostId);
 
+    void admitMember(Long hostId, Long conferenceId, Long targetUserId);
+
+    void setMemberRole(Long hostId, Long conferenceId, Long targetUserId, String role);
+
+    void raiseHand(Long userId, Long conferenceId, boolean raised);
+
+    List<ConferenceInfoVO> listHistory(Long userId, Long conversationId);
+
     void signal(Long userId, ConferenceSignalDTO dto);
 }

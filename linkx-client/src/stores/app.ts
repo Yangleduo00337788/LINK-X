@@ -778,7 +778,11 @@ export const useAppStore = defineStore('app', {
             action === 'conference_leave' ||
             action === 'conference_mute' ||
             action === 'conference_video' ||
-            action === 'conference_host'
+            action === 'conference_host' ||
+            action === 'conference_admit' ||
+            action === 'conference_waiting' ||
+            action === 'conference_raise' ||
+            action === 'conference_role'
           ) {
             void import('./conference').then(({ useConferenceStore }) => {
               useConferenceStore().handleRemoteEvent(action, data)

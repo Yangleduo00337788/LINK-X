@@ -55,18 +55,35 @@ public class ConferenceServiceImpl implements ConferenceService {
     public ConferenceInfoVO create(Long userId, ConferenceCreateDTO dto) {
         chatService.assertConversationMember(userId, dto.getConversationId());
 
+        // 同会话已有 ACTIVE：复用并入会（避免多房并存）
+        Conference existing = conferenceMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(Conference::getConversationId).eq(dto.getConversationId())
+                        .and(Conference::getStatus).eq(Conference.STATUS_ACTIVE)
+                        .limit(1)
+        );
+        if (existing != null) {
+            ConferenceInfoVO vo = join(userId, existing.getId(), dto.getPassword());
+            vo.setReused(true);
+            return vo;
+        }
+
         String passwordHash = null;
         if (StringUtils.hasText(dto.getPassword())) {
             passwordHash = BCrypt.hashpw(dto.getPassword().trim(), BCrypt.gensalt(12));
         }
+        int max = dto.getMaxParticipants() != null ? dto.getMaxParticipants() : 9;
+        if (max < 2) max = 2;
+        if (max > 16) max = 16;
         Conference conference = Conference.builder()
                 .title(StringUtils.hasText(dto.getTitle()) ? dto.getTitle() : "多人会议")
                 .type(StringUtils.hasText(dto.getType()) ? dto.getType() : "video")
                 .creatorId(userId)
                 .conversationId(dto.getConversationId())
                 .status(Conference.STATUS_ACTIVE)
-                .maxParticipants(dto.getMaxParticipants() != null ? dto.getMaxParticipants() : 9)
+                .maxParticipants(max)
                 .password(passwordHash)
+                .lobbyEnabled(Boolean.TRUE.equals(dto.getLobbyEnabled()) ? 1 : 0)
                 .startTime(new Date())
                 .createTime(new Date())
                 .updateTime(new Date())
@@ -80,6 +97,7 @@ public class ConferenceServiceImpl implements ConferenceService {
                 .muted(0)
                 .videoOff(0)
                 .leftFlag(0)
+                .admitStatus(1)
                 .joinTime(new Date())
                 .createTime(new Date())
                 .build();
@@ -89,7 +107,9 @@ public class ConferenceServiceImpl implements ConferenceService {
                 userId, dto.getConversationId(), conference.getType(), conference.getId(), conference.getTitle());
         redisTemplate.opsForValue().set(CALL_ID_KEY + conference.getId(), callId, Duration.ofHours(4));
 
-        return toInfo(conference, callId);
+        ConferenceInfoVO vo = toInfo(conference, callId, userId);
+        vo.setReused(false);
+        return vo;
     }
 
     @Override
@@ -113,20 +133,35 @@ public class ConferenceServiceImpl implements ConferenceService {
             }
         }
 
+        boolean lobbyOn = Objects.equals(conference.getLobbyEnabled(), 1);
+        boolean isCreator = Objects.equals(conference.getCreatorId(), userId);
+
         long activeCount = memberMapper.selectCountByQuery(
                 QueryWrapper.create()
                         .where(ConferenceMember::getConferenceId).eq(conferenceId)
                         .and(ConferenceMember::getLeftFlag).eq(0)
+                        .and(ConferenceMember::getAdmitStatus).eq(1)
         );
-        if (activeCount >= conference.getMaxParticipants()) {
-            throw new CustomException(400, "会议人数已满");
-        }
 
         ConferenceMember existing = memberMapper.selectOneByQuery(
                 QueryWrapper.create()
                         .where(ConferenceMember::getConferenceId).eq(conferenceId)
                         .and(ConferenceMember::getUserId).eq(userId)
         );
+
+        boolean admitNow = !lobbyOn || isCreator
+                || (existing != null && ConferenceMember.ROLE_HOST.equals(existing.getRole()))
+                || (existing != null && ConferenceMember.ROLE_CO_HOST.equals(existing.getRole()))
+                || (existing != null && Objects.equals(existing.getAdmitStatus(), 1) && Objects.equals(existing.getLeftFlag(), 0));
+
+        if (admitNow && existing == null && activeCount >= conference.getMaxParticipants()) {
+            throw new CustomException(400, "会议人数已满（上限 " + conference.getMaxParticipants() + " 人，mesh 建议≤9）");
+        }
+        if (admitNow && existing != null && Objects.equals(existing.getLeftFlag(), 1)
+                && activeCount >= conference.getMaxParticipants()) {
+            throw new CustomException(400, "会议人数已满（上限 " + conference.getMaxParticipants() + " 人，mesh 建议≤9）");
+        }
+
         if (existing == null) {
             memberMapper.insert(ConferenceMember.builder()
                     .conferenceId(conferenceId)
@@ -135,6 +170,7 @@ public class ConferenceServiceImpl implements ConferenceService {
                     .muted(0)
                     .videoOff(0)
                     .leftFlag(0)
+                    .admitStatus(admitNow ? 1 : 0)
                     .joinTime(new Date())
                     .createTime(new Date())
                     .build());
@@ -142,12 +178,30 @@ public class ConferenceServiceImpl implements ConferenceService {
             existing.setLeftFlag(0);
             existing.setLeaveTime(null);
             existing.setJoinTime(new Date());
+            if (admitNow) {
+                existing.setAdmitStatus(1);
+            } else if (!Objects.equals(existing.getAdmitStatus(), 1)) {
+                existing.setAdmitStatus(0);
+            }
             memberMapper.update(existing);
         }
 
         String callId = requireCallId(conferenceId);
-        callService.joinConference(userId, callId);
-        return toInfo(conference, callId);
+        if (admitNow) {
+            callService.joinConference(userId, callId);
+            broadcastToActiveMembers(conferenceId, "conference_join", Map.of(
+                    "conferenceId", conferenceId,
+                    "userId", userId,
+                    "callId", callId
+            ));
+        } else {
+            // 通知主持人/联席：有人在等候室
+            broadcastToHosts(conferenceId, "conference_waiting", Map.of(
+                    "conferenceId", conferenceId,
+                    "userId", userId
+            ));
+        }
+        return toInfo(conference, callId, userId);
     }
 
     @Override
@@ -235,7 +289,7 @@ public class ConferenceServiceImpl implements ConferenceService {
             throw new CustomException(404, "会议不存在");
         }
         chatService.assertConversationMember(userId, conference.getConversationId());
-        return toInfo(conference, redisTemplate.opsForValue().get(CALL_ID_KEY + conferenceId));
+        return toInfo(conference, redisTemplate.opsForValue().get(CALL_ID_KEY + conferenceId), userId);
     }
 
     @Override
@@ -248,14 +302,14 @@ public class ConferenceServiceImpl implements ConferenceService {
         return memberships.stream()
                 .map(m -> conferenceMapper.selectOneById(m.getConferenceId()))
                 .filter(c -> c != null && Objects.equals(c.getStatus(), Conference.STATUS_ACTIVE))
-                .map(c -> toInfo(c, redisTemplate.opsForValue().get(CALL_ID_KEY + c.getId())))
+                .map(c -> toInfo(c, redisTemplate.opsForValue().get(CALL_ID_KEY + c.getId()), userId))
                 .collect(Collectors.toList());
     }
 
     @Override
     @Transactional
     public void mute(Long userId, Long conferenceId, Long targetUserId, boolean muted) {
-        requireHostOrSelf(conferenceId, userId, targetUserId);
+        requireHostCoHostOrSelf(conferenceId, userId, targetUserId);
         ConferenceMember target = requireMember(conferenceId, targetUserId);
         target.setMuted(muted ? 1 : 0);
         memberMapper.update(target);
@@ -282,12 +336,13 @@ public class ConferenceServiceImpl implements ConferenceService {
         ));
     }
 
-    /** 向当前仍在会中的成员推送同一事件 */
+    /** 向当前仍在会中且已准入的成员推送同一事件 */
     private void broadcastToActiveMembers(Long conferenceId, String action, Map<String, Object> payload) {
         List<ConferenceMember> members = memberMapper.selectListByQuery(
                 QueryWrapper.create()
                         .where(ConferenceMember::getConferenceId).eq(conferenceId)
                         .and(ConferenceMember::getLeftFlag).eq(0)
+                        .and(ConferenceMember::getAdmitStatus).eq(1)
         );
         for (ConferenceMember m : members) {
             pushService.pushToUser(m.getUserId(), action, payload);
@@ -297,7 +352,7 @@ public class ConferenceServiceImpl implements ConferenceService {
     @Override
     @Transactional
     public void removeMember(Long hostId, Long conferenceId, Long targetUserId) {
-        requireHost(conferenceId, hostId);
+        requireHostOrCoHost(conferenceId, hostId);
         leave(targetUserId, conferenceId);
         pushService.pushToUser(targetUserId, "conference_remove", Map.of("conferenceId", conferenceId));
     }
@@ -310,6 +365,7 @@ public class ConferenceServiceImpl implements ConferenceService {
         ConferenceMember newHost = requireMember(conferenceId, newHostId);
         oldHost.setRole(ConferenceMember.ROLE_MEMBER);
         newHost.setRole(ConferenceMember.ROLE_HOST);
+        newHost.setAdmitStatus(1);
         memberMapper.update(oldHost);
         memberMapper.update(newHost);
         broadcastToActiveMembers(conferenceId, "conference_host", Map.of(
@@ -320,8 +376,96 @@ public class ConferenceServiceImpl implements ConferenceService {
     }
 
     @Override
+    @Transactional
+    public void admitMember(Long hostId, Long conferenceId, Long targetUserId) {
+        requireHostOrCoHost(conferenceId, hostId);
+        Conference conference = requireActive(conferenceId);
+        ConferenceMember target = memberMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(ConferenceMember::getConferenceId).eq(conferenceId)
+                        .and(ConferenceMember::getUserId).eq(targetUserId)
+                        .and(ConferenceMember::getLeftFlag).eq(0)
+        );
+        if (target == null) {
+            throw new CustomException(404, "目标用户不在等候室");
+        }
+        if (Objects.equals(target.getAdmitStatus(), 1)) {
+            return;
+        }
+        long activeCount = memberMapper.selectCountByQuery(
+                QueryWrapper.create()
+                        .where(ConferenceMember::getConferenceId).eq(conferenceId)
+                        .and(ConferenceMember::getLeftFlag).eq(0)
+                        .and(ConferenceMember::getAdmitStatus).eq(1)
+        );
+        if (activeCount >= conference.getMaxParticipants()) {
+            throw new CustomException(400, "会议人数已满（上限 " + conference.getMaxParticipants() + " 人）");
+        }
+        target.setAdmitStatus(1);
+        memberMapper.update(target);
+        String callId = requireCallId(conferenceId);
+        callService.joinConference(targetUserId, callId);
+        broadcastToActiveMembers(conferenceId, "conference_admit", Map.of(
+                "conferenceId", conferenceId,
+                "userId", targetUserId,
+                "callId", callId
+        ));
+    }
+
+    @Override
+    @Transactional
+    public void setMemberRole(Long hostId, Long conferenceId, Long targetUserId, String role) {
+        requireHost(conferenceId, hostId);
+        if (Objects.equals(hostId, targetUserId)) {
+            throw new CustomException(400, "不能修改自己的角色，请使用转让主持人");
+        }
+        String normalized = role == null ? "" : role.trim().toLowerCase();
+        if (!ConferenceMember.ROLE_CO_HOST.equals(normalized)
+                && !ConferenceMember.ROLE_MEMBER.equals(normalized)) {
+            throw new CustomException(400, "仅支持设为联席主持人或普通成员");
+        }
+        ConferenceMember target = requireMember(conferenceId, targetUserId);
+        if (ConferenceMember.ROLE_HOST.equals(target.getRole())) {
+            throw new CustomException(400, "请先转让主持人");
+        }
+        target.setRole(normalized);
+        target.setAdmitStatus(1);
+        memberMapper.update(target);
+        broadcastToActiveMembers(conferenceId, "conference_role", Map.of(
+                "conferenceId", conferenceId,
+                "userId", targetUserId,
+                "role", normalized
+        ));
+    }
+
+    @Override
+    public void raiseHand(Long userId, Long conferenceId, boolean raised) {
+        requireAdmittedMember(conferenceId, userId);
+        broadcastToActiveMembers(conferenceId, "conference_raise", Map.of(
+                "conferenceId", conferenceId,
+                "userId", userId,
+                "raised", raised
+        ));
+    }
+
+    @Override
+    public List<ConferenceInfoVO> listHistory(Long userId, Long conversationId) {
+        chatService.assertConversationMember(userId, conversationId);
+        List<Conference> list = conferenceMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(Conference::getConversationId).eq(conversationId)
+                        .and(Conference::getStatus).eq(Conference.STATUS_ENDED)
+                        .orderBy(Conference::getEndTime, false)
+                        .limit(50)
+        );
+        return list.stream()
+                .map(c -> toInfo(c, null, userId))
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public void signal(Long userId, ConferenceSignalDTO dto) {
-        requireMember(dto.getConferenceId(), userId);
+        requireAdmittedMember(dto.getConferenceId(), userId);
         String callId = requireCallId(dto.getConferenceId());
         // 长会期间信令续期，避免 CALL_ID / call hash 提前过期
         redisTemplate.expire(CALL_ID_KEY + dto.getConferenceId(), Duration.ofHours(4));
@@ -335,6 +479,10 @@ public class ConferenceServiceImpl implements ConferenceService {
     }
 
     private ConferenceInfoVO toInfo(Conference conference, String callId) {
+        return toInfo(conference, callId, null);
+    }
+
+    private ConferenceInfoVO toInfo(Conference conference, String callId, Long viewerId) {
         List<ConferenceMember> members = memberMapper.selectListByQuery(
                 QueryWrapper.create()
                         .where(ConferenceMember::getConferenceId).eq(conference.getId())
@@ -356,6 +504,7 @@ public class ConferenceServiceImpl implements ConferenceService {
             map.put("role", m.getRole());
             map.put("muted", Objects.equals(m.getMuted(), 1));
             map.put("videoOff", Objects.equals(m.getVideoOff(), 1));
+            map.put("admitStatus", m.getAdmitStatus() == null ? 1 : m.getAdmitStatus());
             map.put("joinTime", m.getJoinTime());
             SysUser user = userMap.get(m.getUserId());
             if (user != null) {
@@ -371,6 +520,13 @@ public class ConferenceServiceImpl implements ConferenceService {
             return map;
         }).collect(Collectors.toList());
 
+        boolean waiting = false;
+        if (viewerId != null) {
+            waiting = members.stream()
+                    .anyMatch(m -> Objects.equals(m.getUserId(), viewerId)
+                            && Objects.equals(m.getAdmitStatus(), 0));
+        }
+
         return ConferenceInfoVO.builder()
                 .id(conference.getId())
                 .title(conference.getTitle())
@@ -382,6 +538,9 @@ public class ConferenceServiceImpl implements ConferenceService {
                 .startTime(conference.getStartTime())
                 .endTime(conference.getEndTime())
                 .callId(callId)
+                .hasPassword(StringUtils.hasText(conference.getPassword()))
+                .lobbyEnabled(Objects.equals(conference.getLobbyEnabled(), 1))
+                .waitingAdmit(waiting)
                 .participants(participants)
                 .build();
     }
@@ -410,6 +569,14 @@ public class ConferenceServiceImpl implements ConferenceService {
         return member;
     }
 
+    private ConferenceMember requireAdmittedMember(Long conferenceId, Long userId) {
+        ConferenceMember member = requireMember(conferenceId, userId);
+        if (!Objects.equals(member.getAdmitStatus(), 1)) {
+            throw new CustomException(403, "仍在等候室，请等待主持人准入");
+        }
+        return member;
+    }
+
     private void requireHost(Long conferenceId, Long userId) {
         ConferenceMember member = requireMember(conferenceId, userId);
         if (!ConferenceMember.ROLE_HOST.equals(member.getRole())) {
@@ -417,12 +584,35 @@ public class ConferenceServiceImpl implements ConferenceService {
         }
     }
 
-    private void requireHostOrSelf(Long conferenceId, Long operatorId, Long targetUserId) {
+    private void requireHostOrCoHost(Long conferenceId, Long userId) {
+        ConferenceMember member = requireMember(conferenceId, userId);
+        if (!ConferenceMember.ROLE_HOST.equals(member.getRole())
+                && !ConferenceMember.ROLE_CO_HOST.equals(member.getRole())) {
+            throw new CustomException(403, "仅主持人或联席主持人可操作");
+        }
+    }
+
+    private void requireHostCoHostOrSelf(Long conferenceId, Long operatorId, Long targetUserId) {
         if (Objects.equals(operatorId, targetUserId)) {
             requireMember(conferenceId, operatorId);
             return;
         }
-        requireHost(conferenceId, operatorId);
+        requireHostOrCoHost(conferenceId, operatorId);
+    }
+
+    private void broadcastToHosts(Long conferenceId, String action, Map<String, Object> payload) {
+        List<ConferenceMember> members = memberMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(ConferenceMember::getConferenceId).eq(conferenceId)
+                        .and(ConferenceMember::getLeftFlag).eq(0)
+                        .and(ConferenceMember::getAdmitStatus).eq(1)
+        );
+        for (ConferenceMember m : members) {
+            if (ConferenceMember.ROLE_HOST.equals(m.getRole())
+                    || ConferenceMember.ROLE_CO_HOST.equals(m.getRole())) {
+                pushService.pushToUser(m.getUserId(), action, payload);
+            }
+        }
     }
 
     private String requireCallId(Long conferenceId) {

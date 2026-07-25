@@ -62,6 +62,9 @@ import { formatMessageDivider, MESSAGE_TIME_GAP_MS } from '../utils/chatTime'
 import * as chatApi from '../api/chat'
 import * as conferenceApi from '../api/conference'
 import { recoverMediaUrlOnError } from '../utils/mediaUrl'
+import ConferenceCreateDialog, {
+  type ConferenceCreatePayload
+} from './chat/ConferenceCreateDialog.vue'
 
 // 获取 Naive UI 消息提示实例
 const message = useMessage()
@@ -94,18 +97,37 @@ async function startCall(callType: 'voice' | 'video') {
 }
 
 const conferenceCreating = ref(false)
+const conferenceCreateOpen = ref(false)
 
-/** 群聊发起多人会议 */
-async function startConference() {
+/** 打开创建会议弹窗（群聊 / 私聊顶栏） */
+function startConference() {
+  const sessionId = currentSessionId.value
+  if (!sessionId || conferenceCreating.value) return
+  conferenceCreateOpen.value = true
+}
+
+async function onConferenceCreateConfirm(payload: ConferenceCreatePayload) {
   const sessionId = currentSessionId.value
   if (!sessionId || conferenceCreating.value) return
   conferenceCreating.value = true
+  conferenceCreateOpen.value = false
   try {
-    const res = await conferenceApi.create({ conversationId: sessionId, type: 'video' })
+    const res = await conferenceApi.create({
+      conversationId: sessionId,
+      type: payload.type,
+      title: payload.title,
+      password: payload.password,
+      maxParticipants: payload.maxParticipants,
+      lobbyEnabled: payload.lobbyEnabled
+    })
     if (res.code !== 200 || !res.data) throw new Error(res.message || 'failed')
     const { useConferenceStore } = await import('../stores/conference')
     await useConferenceStore().openCreated(res.data, String(userProfile.value.userId || ''))
-    message.success(t('modals.conferenceCreated', { id: String(res.data.id) }))
+    if (res.data.reused) {
+      message.info(t('conference.reusedOpened'))
+    } else {
+      message.success(t('modals.conferenceCreated', { id: String(res.data.id) }))
+    }
   } catch (error) {
     const err = error as { response?: { data?: { message?: string } }; message?: string }
     message.error(err.response?.data?.message || err.message || t('modals.conferenceCreateFail'))
@@ -994,6 +1016,15 @@ function onDrop(e: DragEvent) {
           >
             <n-icon :component="VideocamOutline" :size="20" />
           </button>
+          <button
+            type="button"
+            class="hdr-btn"
+            :title="t('modals.startConference')"
+            :disabled="conferenceCreating"
+            @click="startConference"
+          >
+            <n-icon :component="PeopleOutline" :size="20" />
+          </button>
           <button type="button" class="hdr-btn" :title="t('chat.more')" @click="toggleMore">
             <n-icon :component="EllipsisHorizontalOutline" :size="20" />
           </button>
@@ -1208,6 +1239,13 @@ function onDrop(e: DragEvent) {
         <p v-if="!forwardTargets.length" class="forward-empty">{{ t('chat.noForwardTarget') }}</p>
       </div>
     </n-modal>
+
+    <ConferenceCreateDialog
+      :show="conferenceCreateOpen"
+      :default-title="currentSession?.name || ''"
+      @confirm="onConferenceCreateConfirm"
+      @cancel="conferenceCreateOpen = false"
+    />
   </div>
 </template>
 

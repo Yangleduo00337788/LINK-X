@@ -39,6 +39,10 @@ public class Conference implements Serializable {
     private Date endTime;
     private String password;
 
+    /** 是否开启等候室：1=开 */
+    @Builder.Default
+    private Integer lobbyEnabled = 0;
+
     @Column(onInsertValue = "NOW()")
     private Date createTime;
 

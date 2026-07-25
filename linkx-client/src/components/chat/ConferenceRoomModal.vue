@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 多人会议房（腾讯会议演讲者视图）：主持人全屏，其他人右上角小窗；本人显示本地摄像头。
+ * 多人会议房（腾讯会议演讲者视图）：主画面优先说话人，其他人右上角小窗；本人显示本地摄像头。
  */
 import { ref, watch, computed, nextTick, onUnmounted } from 'vue'
 import { NIcon, NPopover, useMessage } from 'naive-ui'
@@ -13,7 +13,10 @@ import {
   PeopleOutline,
   ChevronUpOutline,
   CloseOutline,
-  CheckmarkOutline
+  CheckmarkOutline,
+  DesktopOutline,
+  HandLeftOutline,
+  ChatbubblesOutline
 } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useConferenceStore } from '../../stores/conference'
@@ -21,6 +24,7 @@ import { useAppStore } from '../../stores/app'
 import { useGroupMetaStore } from '../../stores/groupMeta'
 import { useI18n } from '../../i18n'
 import { generateDefaultAvatar } from '../../utils/defaultAvatar'
+import type { ChatMessage } from '../../types'
 
 const message = useMessage()
 const { t } = useI18n()
@@ -41,17 +45,27 @@ const {
   invitePrompt,
   errorMessage,
   isHost,
+  isHostOrCoHost,
   audioInputs,
   videoInputs,
   selectedAudioId,
   selectedVideoId,
-  myUserId
+  myUserId,
+  activeSpeakerId,
+  handRaised,
+  screenSharing,
+  chatOpen,
+  raisedHands
 } = storeToRefs(conferenceStore)
 
 const localVideoRef = ref<HTMLVideoElement | null>(null)
 const joinedAt = ref(0)
 const elapsedSec = ref(0)
 const membersPanelOpen = ref(false)
+const invitePassword = ref('')
+const needInvitePassword = ref(false)
+const chatDraft = ref('')
+const chatListRef = ref<HTMLElement | null>(null)
 let elapsedTimer: ReturnType<typeof setInterval> | null = null
 
 const displayParticipants = computed(() => {
@@ -69,36 +83,65 @@ const displayParticipants = computed(() => {
     const avatar =
       (p.avatar && String(p.avatar)) ||
       member?.avatarUrl ||
-      (isMe ? appStore.userProfile.avatarUrl : '') ||
+      (isMe ? appStore.userProfile.avatar : '') ||
       generateDefaultAvatar(displayName || uid, 160)
+    const role = p.role || ''
     return {
       ...p,
       userId: uid,
       isMe,
-      isHostRole: p.role === 'host' || uid === String(conferenceStore.creatorId),
+      isHostRole: role === 'host' || uid === String(conferenceStore.creatorId),
+      isCoHostRole: role === 'co-host',
+      waitingAdmit: p.admitStatus != null && Number(p.admitStatus) === 0,
+      handRaised: !!raisedHands.value[uid],
       displayName,
       avatar
     }
   })
 })
 
+const inRoomMembers = computed(() => displayParticipants.value.filter(p => !p.waitingAdmit))
+const waitingMembers = computed(() => displayParticipants.value.filter(p => p.waitingAdmit))
+
 watch(
-  () => (phase.value === 'in_room' ? conferenceStore.conversationId : null),
+  () =>
+    phase.value === 'in_room' || phase.value === 'waiting'
+      ? conferenceStore.conversationId
+      : null,
   id => {
     if (id) void groupMeta.fetchMembers(id)
   },
   { immediate: true }
 )
 
-/** 演讲者视图：主持人占主画面，其余成员小窗 */
+/** 主画面：优先 activeSpeaker，否则主持人 */
 const speaker = computed(() => {
-  const list = displayParticipants.value
+  const list = inRoomMembers.value
+  const activeId = activeSpeakerId.value
+  if (activeId) {
+    const found = list.find(p => p.userId === activeId)
+    if (found) return found
+  }
   return list.find(p => p.isHostRole) || list.find(p => p.isMe) || list[0] || null
 })
 
 const pipParticipants = computed(() => {
   const mainId = speaker.value?.userId
-  return displayParticipants.value.filter(p => p.userId !== mainId)
+  return inRoomMembers.value.filter(p => p.userId !== mainId)
+})
+
+const chatMessages = computed(() => {
+  const cid = conferenceStore.conversationId
+  if (!cid) return [] as ChatMessage[]
+  const list = appStore.messagesBySession[cid] || []
+  return list.filter(m => !m.type || m.type === 'text').slice(-80)
+})
+
+watch(chatMessages, async () => {
+  if (!chatOpen.value) return
+  await nextTick()
+  const el = chatListRef.value
+  if (el) el.scrollTop = el.scrollHeight
 })
 
 const elapsedLabel = computed(() => {
@@ -147,7 +190,9 @@ function isVideoOff(p: { isMe: boolean; videoOff?: boolean }) {
 }
 
 function showLocalVideo(p: { isMe: boolean; videoOff?: boolean }) {
-  return p.isMe && type.value === 'video' && cameraOn.value && !p.videoOff
+  if (!p.isMe) return false
+  if (screenSharing.value) return true
+  return type.value === 'video' && cameraOn.value && !p.videoOff
 }
 
 function showRemoteVideo(p: { isMe: boolean; userId: string; videoOff?: boolean }) {
@@ -234,6 +279,14 @@ watch(errorMessage, msg => {
 })
 
 watch(
+  () => invitePrompt.value,
+  prompt => {
+    invitePassword.value = ''
+    needInvitePassword.value = !!prompt?.hasPassword
+  }
+)
+
+watch(
   () => phase.value === 'in_room' && visible.value,
   inRoom => {
     if (!inRoom) membersPanelOpen.value = false
@@ -253,7 +306,13 @@ watch(
 )
 
 watch(
-  [localStream, cameraOn, () => speaker.value?.userId, () => pipParticipants.value.map(p => p.userId).join(',')],
+  [
+    localStream,
+    cameraOn,
+    screenSharing,
+    () => speaker.value?.userId,
+    () => pipParticipants.value.map(p => p.userId).join(',')
+  ],
   async () => {
     await nextTick()
     await attachLocalVideo(localVideoRef.value)
@@ -277,12 +336,49 @@ onUnmounted(() => {
   remoteAudioEls.clear()
 })
 
+function isPasswordError(e: unknown): boolean {
+  const err = e as {
+    code?: number
+    response?: { status?: number; data?: { code?: number; message?: string } }
+    message?: string
+  }
+  const status = err.response?.status
+  const code = err.code ?? err.response?.data?.code
+  const msg = (err.response?.data?.message || err.message || '').toLowerCase()
+  return (
+    status === 403 ||
+    code === 403 ||
+    msg.includes('password') ||
+    msg.includes('密码')
+  )
+}
+
 async function acceptInvite() {
   const prompt = invitePrompt.value
   if (!prompt) return
+  const pwd = invitePassword.value.trim()
+  if (needInvitePassword.value && !pwd) {
+    message.warning(t('conference.passwordRequired'))
+    return
+  }
   try {
-    await conferenceStore.joinExisting(prompt.conferenceId, String(appStore.userProfile.userId || ''))
+    await conferenceStore.joinExisting(
+      prompt.conferenceId,
+      String(appStore.userProfile.userId || ''),
+      pwd || undefined
+    )
+    needInvitePassword.value = false
+    invitePassword.value = ''
   } catch (e) {
+    if (!needInvitePassword.value && isPasswordError(e)) {
+      needInvitePassword.value = true
+      message.info(t('conference.needPassword'))
+      return
+    }
+    if (needInvitePassword.value && isPasswordError(e)) {
+      message.error(t('conference.wrongPassword'))
+      return
+    }
     message.error((e as Error).message || t('conference.joinFail'))
   }
 }
@@ -298,6 +394,72 @@ async function endMeeting() {
     message.error((e as Error).message || t('conference.endFail'))
   }
 }
+
+function toggleChat() {
+  conferenceStore.chatOpen = !conferenceStore.chatOpen
+  if (conferenceStore.chatOpen) membersPanelOpen.value = false
+}
+
+function openMembers() {
+  membersPanelOpen.value = !membersPanelOpen.value
+  if (membersPanelOpen.value) conferenceStore.chatOpen = false
+}
+
+async function sendChatText() {
+  const text = chatDraft.value.trim()
+  const cid = conferenceStore.conversationId
+  if (!text || !cid) return
+  chatDraft.value = ''
+  const prev = appStore.currentSessionId
+  appStore.currentSessionId = cid
+  try {
+    await appStore.sendMessage(text)
+  } catch (e) {
+    message.error((e as Error).message || t('conference.joinFail'))
+  } finally {
+    appStore.currentSessionId = prev
+  }
+}
+
+async function onToggleRaise() {
+  try {
+    await conferenceStore.toggleRaise()
+  } catch (e) {
+    message.error((e as Error).message || t('conference.joinFail'))
+  }
+}
+
+async function onToggleScreenShare() {
+  try {
+    await conferenceStore.toggleScreenShare()
+  } catch (e) {
+    message.error((e as Error).message || t('conference.joinFail'))
+  }
+}
+
+async function onTransferHost(userId: string) {
+  try {
+    await conferenceStore.transferHostTo(userId)
+  } catch (e) {
+    message.error((e as Error).message || t('conference.joinFail'))
+  }
+}
+
+async function onSetCoHost(userId: string, enable: boolean) {
+  try {
+    await conferenceStore.setCoHost(userId, enable)
+  } catch (e) {
+    message.error((e as Error).message || t('conference.joinFail'))
+  }
+}
+
+async function onAdmit(userId: string) {
+  try {
+    await conferenceStore.admitUser(userId)
+  } catch (e) {
+    message.error((e as Error).message || t('conference.joinFail'))
+  }
+}
 </script>
 
 <template>
@@ -308,6 +470,17 @@ async function endMeeting() {
         <h3>{{ invitePrompt.restore ? t('conference.restoreTitle') : t('conference.inviteTitle') }}</h3>
         <p>{{ invitePrompt.title }}</p>
         <p v-if="invitePrompt.restore" class="invite-sub">{{ t('conference.restoreHint') }}</p>
+        <label v-if="needInvitePassword" class="invite-pwd">
+          <span>{{ t('conference.password') }}</span>
+          <input
+            v-model="invitePassword"
+            type="password"
+            class="invite-pwd-input"
+            :placeholder="t('conference.passwordPlaceholder')"
+            autocomplete="current-password"
+            @keyup.enter="acceptInvite"
+          />
+        </label>
         <div class="invite-actions">
           <button type="button" class="btn ghost" @click="conferenceStore.dismissInvite()">
             {{ invitePrompt.restore ? t('conference.restoreLater') : t('common.cancel') }}
@@ -319,10 +492,25 @@ async function endMeeting() {
       </div>
     </div>
 
+    <!-- 等候室 -->
+    <div v-if="visible && phase === 'waiting'" class="waiting-root">
+      <div class="waiting-card">
+        <h3>{{ t('conference.waitingTitle') }}</h3>
+        <p>{{ title }}</p>
+        <p class="waiting-hint">{{ t('conference.waitingHint') }}</p>
+        <button type="button" class="btn primary" @click="leave">
+          {{ t('conference.leave') }}
+        </button>
+      </div>
+    </div>
+
     <div
       v-if="visible && phase === 'in_room'"
       class="room-root"
-      :class="{ 'room-root--members-open': membersPanelOpen }"
+      :class="{
+        'room-root--members-open': membersPanelOpen,
+        'room-root--chat-open': chatOpen
+      }"
     >
       <!-- 顶栏：会议名 / 人数 / 时长 -->
       <header class="room-header">
@@ -330,7 +518,7 @@ async function endMeeting() {
           <div class="title-block">
             <h2>{{ title }}</h2>
             <div class="meta-row">
-              <span>{{ t('conference.memberCount', { n: displayParticipants.length }) }}</span>
+              <span>{{ t('conference.memberCount', { n: inRoomMembers.length }) }}</span>
               <span class="dot">·</span>
               <span class="timer">{{ elapsedLabel }}</span>
               <span v-if="networkHint" class="hint">{{ networkHint }}</span>
@@ -342,15 +530,15 @@ async function endMeeting() {
         </button>
       </header>
 
-      <!-- 演讲者视图：主持人全屏，其他人右上角小窗 -->
+      <!-- 演讲者视图：说话人/主持人全屏，其他人右上角小窗 -->
       <div class="stage">
         <div v-if="speaker" class="speaker-stage">
-          <!-- 主画面：主持人 -->
           <div class="main-tile" :class="{ me: speaker.isMe }">
             <video
               v-if="showLocalVideo(speaker)"
               :ref="bindLocalVideo"
-              class="tile-video tile-video--local"
+              class="tile-video"
+              :class="{ 'tile-video--local': !screenSharing }"
               autoplay
               playsinline
               muted
@@ -374,18 +562,20 @@ async function endMeeting() {
               <div class="tile-name">
                 <n-icon v-if="isMuted(speaker)" class="mic-off" :component="MicOff" :size="14" />
                 <n-icon
-                  v-if="isVideoOff(speaker)"
+                  v-if="isVideoOff(speaker) && !screenSharing"
                   class="cam-off"
                   :component="VideocamOff"
                   :size="14"
                 />
                 <span>{{ participantLabel(speaker) }}</span>
-                <span class="host-badge">{{ t('conference.host') }}</span>
+                <span v-if="speaker.isHostRole" class="host-badge">{{ t('conference.host') }}</span>
+                <span v-else-if="speaker.isCoHostRole" class="host-badge cohost">
+                  {{ t('conference.coHost') }}
+                </span>
               </div>
             </div>
           </div>
 
-          <!-- 其他人：右上角小屏幕 -->
           <div v-if="pipParticipants.length" class="pip-strip">
             <div
               v-for="p in pipParticipants"
@@ -396,7 +586,8 @@ async function endMeeting() {
               <video
                 v-if="showLocalVideo(p)"
                 :ref="bindLocalVideo"
-                class="tile-video tile-video--local"
+                class="tile-video"
+                :class="{ 'tile-video--local': !screenSharing }"
                 autoplay
                 playsinline
                 muted
@@ -420,9 +611,10 @@ async function endMeeting() {
                 <div class="tile-name">
                   <n-icon v-if="isMuted(p)" class="mic-off" :component="MicOff" :size="12" />
                   <n-icon v-if="isVideoOff(p)" class="cam-off" :component="VideocamOff" :size="12" />
+                  <n-icon v-if="p.handRaised" class="hand-on" :component="HandLeftOutline" :size="12" />
                   <span>{{ participantLabel(p) }}</span>
                 </div>
-                <div v-if="isHost && !p.isMe" class="tile-host-actions">
+                <div v-if="isHostOrCoHost && !p.isMe" class="tile-host-actions">
                   <button type="button" @click="conferenceStore.muteTarget(p.userId, !p.muted)">
                     {{ p.muted ? t('conference.unmute') : t('conference.mute') }}
                   </button>
@@ -440,10 +632,9 @@ async function endMeeting() {
         </div>
       </div>
 
-      <!-- 底栏：腾讯会议式图标+文案 -->
+      <!-- 底栏 -->
       <footer class="toolbar">
         <div class="toolbar-inner">
-          <!-- 麦克风 + 设备上拉 -->
           <div class="tool-item-wrap">
             <button
               type="button"
@@ -490,12 +681,12 @@ async function endMeeting() {
             </n-popover>
           </div>
 
-          <!-- 摄像头 + 设备上拉 -->
           <div v-if="type === 'video'" class="tool-item-wrap">
             <button
               type="button"
               class="tool-btn"
               :class="{ off: !cameraOn }"
+              :disabled="screenSharing"
               @click="conferenceStore.toggleCamera()"
             >
               <span class="tool-icon">
@@ -506,7 +697,7 @@ async function endMeeting() {
               </span>
             </button>
             <n-popover
-              v-if="videoOptions.length"
+              v-if="videoOptions.length && !screenSharing"
               trigger="click"
               placement="top"
               :show-arrow="false"
@@ -542,14 +733,54 @@ async function endMeeting() {
           <button
             type="button"
             class="tool-btn"
+            :class="{ active: screenSharing }"
+            @click="onToggleScreenShare"
+          >
+            <span class="tool-icon">
+              <n-icon :component="DesktopOutline" :size="22" />
+            </span>
+            <span class="tool-label">
+              {{ screenSharing ? t('conference.stopShare') : t('conference.screenShare') }}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            class="tool-btn"
+            :class="{ active: handRaised }"
+            @click="onToggleRaise"
+          >
+            <span class="tool-icon">
+              <n-icon :component="HandLeftOutline" :size="22" />
+            </span>
+            <span class="tool-label">
+              {{ handRaised ? t('conference.lowerHand') : t('conference.raiseHand') }}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            class="tool-btn"
+            :class="{ active: chatOpen }"
+            @click="toggleChat"
+          >
+            <span class="tool-icon">
+              <n-icon :component="ChatbubblesOutline" :size="22" />
+            </span>
+            <span class="tool-label">{{ t('conference.chat') }}</span>
+          </button>
+
+          <button
+            type="button"
+            class="tool-btn"
             :class="{ active: membersPanelOpen }"
-            @click="membersPanelOpen = !membersPanelOpen"
+            @click="openMembers"
           >
             <span class="tool-icon">
               <n-icon :component="PeopleOutline" :size="22" />
             </span>
             <span class="tool-label">
-              {{ t('conference.members') }} ({{ displayParticipants.length }})
+              {{ t('conference.members') }} ({{ inRoomMembers.length }})
             </span>
           </button>
 
@@ -580,12 +811,16 @@ async function endMeeting() {
           </button>
         </div>
         <ul class="members-list">
-          <li v-for="p in displayParticipants" :key="p.userId" class="member-row">
+          <li v-for="p in inRoomMembers" :key="p.userId" class="member-row">
             <img :src="p.avatar" class="member-av" alt="" />
             <div class="member-meta">
               <div class="member-name">
                 <span>{{ participantLabel(p) }}</span>
                 <span v-if="p.isHostRole" class="host-badge">{{ t('conference.host') }}</span>
+                <span v-else-if="p.isCoHostRole" class="host-badge cohost">
+                  {{ t('conference.coHost') }}
+                </span>
+                <span v-if="p.handRaised" class="raised-badge">{{ t('conference.raisedBadge') }}</span>
               </div>
               <div class="member-status">
                 <n-icon
@@ -600,23 +835,78 @@ async function endMeeting() {
                 />
               </div>
             </div>
-            <div v-if="isHost && !p.isMe" class="member-actions">
-              <button type="button" @click="conferenceStore.muteTarget(p.userId, !p.muted)">
-                {{ p.muted ? t('conference.unmute') : t('conference.mute') }}
-              </button>
-              <button type="button" class="danger" @click="conferenceStore.removeTarget(p.userId)">
-                {{ t('conference.remove') }}
+            <div v-if="!p.isMe" class="member-actions">
+              <template v-if="isHostOrCoHost">
+                <button type="button" @click="conferenceStore.muteTarget(p.userId, !p.muted)">
+                  {{ p.muted ? t('conference.unmute') : t('conference.mute') }}
+                </button>
+                <button type="button" class="danger" @click="conferenceStore.removeTarget(p.userId)">
+                  {{ t('conference.remove') }}
+                </button>
+              </template>
+              <template v-if="isHost && !p.isHostRole">
+                <button type="button" @click="onTransferHost(p.userId)">
+                  {{ t('conference.transferHost') }}
+                </button>
+                <button type="button" @click="onSetCoHost(p.userId, !p.isCoHostRole)">
+                  {{ p.isCoHostRole ? t('conference.unsetCoHost') : t('conference.setCoHost') }}
+                </button>
+              </template>
+            </div>
+          </li>
+          <li v-if="waitingMembers.length" class="waiting-sep">{{ t('conference.waitingBadge') }}</li>
+          <li v-for="p in waitingMembers" :key="'w-' + p.userId" class="member-row waiting">
+            <img :src="p.avatar" class="member-av" alt="" />
+            <div class="member-meta">
+              <div class="member-name">
+                <span>{{ participantLabel(p) }}</span>
+                <span class="waiting-badge">{{ t('conference.waitingBadge') }}</span>
+              </div>
+            </div>
+            <div v-if="isHostOrCoHost" class="member-actions">
+              <button type="button" class="admit" @click="onAdmit(p.userId)">
+                {{ t('conference.admit') }}
               </button>
             </div>
           </li>
         </ul>
+      </aside>
+
+      <!-- 右侧聊天侧栏 -->
+      <aside v-if="chatOpen" class="chat-panel-side">
+        <div class="members-panel-head">
+          <h3>{{ t('conference.chat') }}</h3>
+          <button type="button" class="members-close" @click="conferenceStore.chatOpen = false">
+            <n-icon :component="CloseOutline" :size="18" />
+          </button>
+        </div>
+        <div ref="chatListRef" class="chat-list">
+          <p v-if="!chatMessages.length" class="chat-empty">{{ t('conference.chatEmpty') }}</p>
+          <div v-for="m in chatMessages" :key="m.id" class="chat-row" :class="{ self: m.isSelf }">
+            <div class="chat-sender">{{ m.isSelf ? t('conference.you') : m.senderName || '' }}</div>
+            <div class="chat-bubble">{{ m.content }}</div>
+          </div>
+        </div>
+        <div class="chat-compose">
+          <input
+            v-model="chatDraft"
+            type="text"
+            class="chat-input"
+            :placeholder="t('conference.chatPlaceholder')"
+            @keyup.enter="sendChatText"
+          />
+          <button type="button" class="btn primary chat-send" @click="sendChatText">
+            {{ t('conference.chatSend') }}
+          </button>
+        </div>
       </aside>
     </div>
   </Teleport>
 </template>
 
 <style scoped>
-.invite-mask {
+.invite-mask,
+.waiting-root {
   position: fixed;
   inset: 0;
   z-index: 12000;
@@ -625,26 +915,54 @@ async function endMeeting() {
   align-items: center;
   justify-content: center;
 }
-.invite-card {
+.invite-card,
+.waiting-card {
   width: min(360px, 90vw);
   background: #2b2b2b;
   border-radius: 12px;
   padding: 22px;
   color: #f0f0f0;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  text-align: center;
 }
-.invite-card h3 {
+.invite-card {
+  text-align: left;
+}
+.invite-card h3,
+.waiting-card h3 {
   margin: 0 0 8px;
   font-size: 17px;
 }
-.invite-card p {
+.invite-card p,
+.waiting-card p {
   margin: 0 0 18px;
   color: rgba(255, 255, 255, 0.65);
 }
-.invite-card .invite-sub {
+.invite-card .invite-sub,
+.waiting-hint {
   margin: -10px 0 18px;
   font-size: 13px;
   color: rgba(255, 255, 255, 0.5);
+}
+.invite-pwd {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.65);
+}
+.invite-pwd-input {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: #1f1f1f;
+  color: #f0f0f0;
+  padding: 9px 12px;
+  font-size: 14px;
+  outline: none;
+}
+.invite-pwd-input:focus {
+  border-color: #006eff;
 }
 .invite-actions {
   display: flex;
@@ -678,7 +996,6 @@ async function endMeeting() {
   overflow: hidden;
 }
 
-/* ---- 顶栏 ---- */
 .room-header {
   flex-shrink: 0;
   height: 52px;
@@ -737,7 +1054,6 @@ async function endMeeting() {
   color: #fff;
 }
 
-/* ---- 演讲者舞台：主持人全屏 + 右上角小窗 ---- */
 .stage {
   flex: 1;
   min-height: 0;
@@ -772,7 +1088,8 @@ async function endMeeting() {
   padding-right: 2px;
   transition: right 0.2s ease;
 }
-.room-root--members-open .pip-strip {
+.room-root--members-open .pip-strip,
+.room-root--chat-open .pip-strip {
   right: min(332px, calc(88vw + 12px));
 }
 .pip-tile {
@@ -849,13 +1166,14 @@ async function endMeeting() {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.mic-off {
+.mic-off,
+.cam-off,
+.hand-on {
   color: #ff6b6b;
   flex-shrink: 0;
 }
-.cam-off {
-  color: #ff6b6b;
-  flex-shrink: 0;
+.hand-on {
+  color: #ffb454;
 }
 .host-badge {
   flex-shrink: 0;
@@ -865,6 +1183,18 @@ async function endMeeting() {
   border-radius: 3px;
   background: #006eff;
   color: #fff;
+}
+.host-badge.cohost {
+  background: #5b8def;
+}
+.raised-badge,
+.waiting-badge {
+  flex-shrink: 0;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(255, 180, 84, 0.25);
+  color: #ffb454;
 }
 .tile-host-actions {
   display: none;
@@ -887,7 +1217,6 @@ async function endMeeting() {
   background: rgba(229, 72, 77, 0.85);
 }
 
-/* ---- 底栏 ---- */
 .toolbar {
   flex-shrink: 0;
   padding: 10px 16px 18px;
@@ -1031,8 +1360,8 @@ async function endMeeting() {
   white-space: nowrap;
 }
 
-/* ---- 成员面板 ---- */
-.members-panel {
+.members-panel,
+.chat-panel-side {
   position: absolute;
   top: 52px;
   right: 0;
@@ -1080,6 +1409,11 @@ async function endMeeting() {
   overflow-y: auto;
   flex: 1;
 }
+.waiting-sep {
+  padding: 10px 8px 4px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+}
 .member-row {
   display: flex;
   align-items: center;
@@ -1107,6 +1441,7 @@ async function endMeeting() {
   gap: 6px;
   font-size: 13px;
   font-weight: 500;
+  flex-wrap: wrap;
 }
 .member-name span:first-child {
   overflow: hidden;
@@ -1140,6 +1475,69 @@ async function endMeeting() {
 }
 .member-actions .danger {
   background: rgba(229, 72, 77, 0.85);
+}
+.member-actions .admit {
+  background: #006eff;
+}
+
+.chat-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.chat-empty {
+  margin: 24px 0;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 13px;
+}
+.chat-row.self {
+  align-self: flex-end;
+  text-align: right;
+}
+.chat-sender {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+  margin-bottom: 3px;
+}
+.chat-bubble {
+  display: inline-block;
+  max-width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 13px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+.chat-row.self .chat-bubble {
+  background: rgba(0, 110, 255, 0.35);
+}
+.chat-compose {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.chat-input {
+  flex: 1;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: #1f1f1f;
+  color: #f0f0f0;
+  padding: 8px 10px;
+  font-size: 13px;
+  outline: none;
+}
+.chat-input:focus {
+  border-color: #006eff;
+}
+.chat-send {
+  flex-shrink: 0;
+  padding: 8px 12px;
 }
 
 @media (max-width: 720px) {
