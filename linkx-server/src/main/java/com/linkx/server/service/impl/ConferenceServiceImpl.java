@@ -427,7 +427,7 @@ public class ConferenceServiceImpl implements ConferenceService {
         }
         target.setAdmitStatus(1);
         memberMapper.update(target);
-        String callId = requireCallId(conferenceId);
+        String callId = ensureAndGetCallId(conference, hostId);
         callService.joinConference(targetUserId, callId);
         broadcastToActiveMembers(conferenceId, "conference_admit", Map.of(
                 "conferenceId", conferenceId,
