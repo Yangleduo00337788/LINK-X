@@ -55,15 +55,21 @@ public class ConferenceServiceImpl implements ConferenceService {
     public ConferenceInfoVO create(Long userId, ConferenceCreateDTO dto) {
         chatService.assertConversationMember(userId, dto.getConversationId());
 
-        // 同会话已有 ACTIVE：复用并入会（避免多房并存）
-        Conference existing = conferenceMapper.selectOneByQuery(
+        // 同会话已有 ACTIVE：复用；若信令通道已失效则重建，避免「会议不存在或已过期」
+        List<Conference> actives = conferenceMapper.selectListByQuery(
                 QueryWrapper.create()
                         .where(Conference::getConversationId).eq(dto.getConversationId())
                         .and(Conference::getStatus).eq(Conference.STATUS_ACTIVE)
-                        .limit(1)
+                        .orderBy(Conference::getStartTime, false)
         );
-        if (existing != null) {
-            ConferenceInfoVO vo = join(userId, existing.getId(), dto.getPassword());
+        if (!actives.isEmpty()) {
+            // 只保留最新一场，其余僵尸 ACTIVE 收口结束
+            Conference keep = actives.get(0);
+            for (int i = 1; i < actives.size(); i++) {
+                forceEndConference(actives.get(i));
+            }
+            ensureCallChannel(keep, userId);
+            ConferenceInfoVO vo = join(userId, keep.getId(), dto.getPassword());
             vo.setReused(true);
             return vo;
         }
@@ -191,7 +197,7 @@ public class ConferenceServiceImpl implements ConferenceService {
             memberMapper.update(existing);
         }
 
-        String callId = requireCallId(conferenceId);
+        String callId = ensureAndGetCallId(conference, userId);
         if (admitNow) {
             callService.joinConference(userId, callId);
             broadcastToActiveMembers(conferenceId, "conference_join", Map.of(
@@ -249,6 +255,19 @@ public class ConferenceServiceImpl implements ConferenceService {
         String callId = redisTemplate.opsForValue().get(CALL_ID_KEY + conferenceId);
         if (callId != null) {
             callService.leaveConference(userId, callId);
+        }
+
+        // 无人在会：收口 DB，避免僵尸 ACTIVE 导致下次创建复用失败
+        long remain = memberMapper.selectCountByQuery(
+                QueryWrapper.create()
+                        .where(ConferenceMember::getConferenceId).eq(conferenceId)
+                        .and(ConferenceMember::getLeftFlag).eq(0)
+        );
+        if (remain == 0) {
+            Conference conference = conferenceMapper.selectOneById(conferenceId);
+            if (conference != null && Objects.equals(conference.getStatus(), Conference.STATUS_ACTIVE)) {
+                forceEndConference(conference);
+            }
         }
     }
 
@@ -626,5 +645,68 @@ public class ConferenceServiceImpl implements ConferenceService {
             throw new CustomException(404, "会议信令通道不存在或已过期");
         }
         return callId;
+    }
+
+    private String ensureAndGetCallId(Conference conference, Long actorUserId) {
+        ensureCallChannel(conference, actorUserId);
+        return requireCallId(conference.getId());
+    }
+
+    /**
+     * 确保 ACTIVE 会议的 Redis 信令通道可用；过期/已结束则重建。
+     */
+    private void ensureCallChannel(Conference conference, Long actorUserId) {
+        String mapped = redisTemplate.opsForValue().get(CALL_ID_KEY + conference.getId());
+        boolean alive = false;
+        if (mapped != null && !mapped.isBlank()) {
+            Map<Object, Object> data = redisTemplate.opsForHash().entries("linkx:call:" + mapped);
+            if (!data.isEmpty()) {
+                String status = data.get("status") != null ? String.valueOf(data.get("status")) : "";
+                alive = !"ended".equalsIgnoreCase(status) && !"cancelled".equalsIgnoreCase(status);
+            }
+        }
+        if (alive) {
+            redisTemplate.expire(CALL_ID_KEY + conference.getId(), Duration.ofHours(4));
+            return;
+        }
+        String callId = callService.createConference(
+                actorUserId,
+                conference.getConversationId(),
+                conference.getType(),
+                conference.getId(),
+                conference.getTitle(),
+                StringUtils.hasText(conference.getPassword()));
+        redisTemplate.opsForValue().set(CALL_ID_KEY + conference.getId(), callId, Duration.ofHours(4));
+    }
+
+    /** 强制结束会议（不校验主持人，用于收口僵尸 ACTIVE） */
+    private void forceEndConference(Conference conference) {
+        if (conference == null || !Objects.equals(conference.getStatus(), Conference.STATUS_ACTIVE)) {
+            return;
+        }
+        conference.setStatus(Conference.STATUS_ENDED);
+        conference.setEndTime(new Date());
+        conference.setUpdateTime(new Date());
+        conferenceMapper.update(conference);
+
+        List<ConferenceMember> members = memberMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(ConferenceMember::getConferenceId).eq(conference.getId())
+                        .and(ConferenceMember::getLeftFlag).eq(0)
+        );
+        String callId = redisTemplate.opsForValue().get(CALL_ID_KEY + conference.getId());
+        for (ConferenceMember m : members) {
+            m.setLeftFlag(1);
+            m.setLeaveTime(new Date());
+            memberMapper.update(m);
+            if (callId != null) {
+                try {
+                    callService.leaveConference(m.getUserId(), callId);
+                } catch (Exception ignored) {
+                    /* 通道可能已失效 */
+                }
+            }
+        }
+        redisTemplate.delete(CALL_ID_KEY + conference.getId());
     }
 }
