@@ -8,6 +8,7 @@ import type { ConferenceInfo, ConferenceParticipant } from '../api/conference'
 import type { CallEventPayload } from '../api/call'
 import { resolveIceServers } from '../utils/iceServers'
 import { decideIceRestart, decideWeakNetVideo } from '../utils/callNetworkPolicy'
+import { startCallRing, stopCallRing } from '../utils/callSounds'
 
 export type ConferencePhase = 'idle' | 'lobby' | 'waiting' | 'in_room' | 'ended'
 
@@ -123,6 +124,7 @@ export const useConferenceStore = defineStore('conference', {
         err.code = res.code
         throw err
       }
+      stopCallRing()
       this.applyInfo(res.data, myUserId)
       this.invitePrompt = null
       if (res.data.waitingAdmit) {
@@ -216,6 +218,8 @@ export const useConferenceStore = defineStore('conference', {
       if (action === 'conference_invite') {
         const conferenceId = data.conferenceId != null ? String(data.conferenceId) : ''
         if (!conferenceId || conferenceId === '0') return
+        // 已在会中则忽略新邀请弹层（避免打断）
+        if (this.phase === 'in_room' || this.phase === 'waiting') return
         this.invitePrompt = {
           conferenceId,
           title: String(data.title || '多人会议'),
@@ -224,6 +228,8 @@ export const useConferenceStore = defineStore('conference', {
           hasPassword: data.hasPassword === true || data.hasPassword === 1 || data.hasPassword === 'true'
         }
         this.phase = this.phase === 'idle' ? 'lobby' : this.phase
+        startCallRing()
+        this.notifyConferenceInvite(String(data.title || '多人会议'), String(data.creatorName || ''))
         return
       }
       if (action === 'conference_end' || action === 'conference_remove') {
@@ -988,8 +994,27 @@ export const useConferenceStore = defineStore('conference', {
     },
 
     dismissInvite() {
+      stopCallRing()
       this.invitePrompt = null
       if (this.phase === 'lobby') this.phase = 'idle'
+    },
+
+    notifyConferenceInvite(title: string, creatorName: string) {
+      try {
+        if (typeof Notification === 'undefined') return
+        const body = creatorName
+          ? `${creatorName} 邀请你加入「${title}」`
+          : `邀请你加入「${title}」`
+        if (Notification.permission === 'granted') {
+          new Notification('会议邀请', { body, silent: true })
+        } else if (Notification.permission === 'default') {
+          void Notification.requestPermission().then(p => {
+            if (p === 'granted') new Notification('会议邀请', { body, silent: true })
+          })
+        }
+      } catch {
+        /* ignore */
+      }
     },
 
     startQualityWatch() {
@@ -1096,6 +1121,7 @@ export const useConferenceStore = defineStore('conference', {
     },
 
     cleanupLocal() {
+      stopCallRing()
       this.stopQualityWatch()
       this.stopScreenShareTracks()
       this.closeAllPeers()

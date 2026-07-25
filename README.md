@@ -269,7 +269,7 @@ VITE_WS_BASE_URL=ws://localhost:8081
 - **朋友圈 / 日历 / 笔记**：完整 CRUD
 - **红包 / 余额 / 通知 / 反馈**：业务接口已接通
 - **通话**：`/call/invite|accept|reject|cancel|hangup|signal` + WebSocket 实时信令，WebRTC 单聊音视频
-- **会议**：`/conference/create|join|leave|end|info|active|mute|remove|transfer-host|signal|audio|video` + WebSocket 会议信令，多人音视频会议
+- **会议**：`/conference/create|join|leave|end|info|active|history|mute|video|remove|transfer-host|admit|set-role|raise|signal` + WebSocket 会议信令，mesh 多人音视频（无 SFU/服务端录制）
 - **合规**：用户数据导出（GDPR）、账号注销数据清除、过期数据自动清理
 - **安全**：敏感词过滤（DFA 自动机）、用户黑名单、操作审计、登录风控、超大群消息风暴控制
 

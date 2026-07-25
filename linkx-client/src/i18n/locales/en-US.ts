@@ -1018,7 +1018,10 @@ export default {
     admit: 'Admit',
     waitingBadge: 'Waiting',
     raisedBadge: 'Hand raised',
-    reusedOpened: 'An active meeting already exists — opened for you'
+    reusedOpened: 'An active meeting already exists — opened for you',
+    historyTitle: 'Meeting history',
+    historyHint: 'Metadata only — no recording playback (needs a media server)',
+    historyEmpty: 'No ended meetings yet'
   },
   moments: {
     title: 'Moments',

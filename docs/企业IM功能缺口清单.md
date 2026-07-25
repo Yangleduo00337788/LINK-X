@@ -66,8 +66,9 @@
 - 分片广播、风暴检测落库、热消息 Redis、id 游标索引
 
 ### 12. 音视频
-- ICE restart、弱网降码、设备切换、权限拒绝降级语音
-- 会议房：管理房 + 本地预览（**非完整 mesh 多人媒体面**）
+- ICE restart、弱网降码、设备切换、权限拒绝降级语音（1v1 + 会议）
+- 会议房：**已具备 mesh 多人音视频**（远端画面、会控、等候室、会中聊天等）
+- 边界：无 SFU、无服务端录制回放；TURN 需自备（`VITE_ICE_SERVERS`）
 
 ### 13. 合规
 - 留存任务、导出、清除、合规审计
@@ -78,7 +79,7 @@
 
 | 项 | 说明 |
 |----|------|
-| 完整 mesh 多人会议 | 需独立媒体面工程 |
+| 独立 SFU / 服务端录制回放 | 需媒体服务工程（LiveKit/Janus 等） |
 | FCM / 服务端推送 | 刻意收口为本地通知 |
 | 系统级大群压测工具 | 现有 12 人扇出冒烟 |
 | 真实双端 WebRTC + 系统丢包 | 现有策略单测 + CDP/Fake |
@@ -91,3 +92,6 @@
 - `docs/sql/2026-07-24_user_preference_notify_policy.sql`
 - `docs/sql/2026-07-24_storm_event_and_message_cursor.sql`
 - `docs/sql/2026-07-24_conversation_member_important.sql`
+- `docs/sql/2026-07-25_conference_member_left_flag.sql`
+- `docs/sql/2026-07-25_conference_lobby_and_admit.sql`
+- `docs/sql/2026-07-25_sys_object_ownership.sql`

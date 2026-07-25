@@ -408,11 +408,16 @@ public class CallServiceImpl implements CallService {
 
     @Override
     public String createConference(Long userId, Long conversationId, String callType, Long conferenceId) {
-        return createConference(userId, conversationId, callType, conferenceId, null);
+        return createConference(userId, conversationId, callType, conferenceId, null, false);
     }
 
     @Override
     public String createConference(Long userId, Long conversationId, String callType, Long conferenceId, String title) {
+        return createConference(userId, conversationId, callType, conferenceId, title, false);
+    }
+
+    @Override
+    public String createConference(Long userId, Long conversationId, String callType, Long conferenceId, String title, boolean hasPassword) {
         chatService.assertConversationMember(userId, conversationId);
         String callId = UUID.randomUUID().toString().replace("-", "");
         String key = callKey(callId);
@@ -452,6 +457,7 @@ public class CallServiceImpl implements CallService {
                 invite.put("creatorId", userId);
                 invite.put("title", meetingTitle);
                 invite.put("creatorName", creatorName);
+                invite.put("hasPassword", hasPassword);
                 if (conferenceId != null) {
                     invite.put("conferenceId", conferenceId);
                 }

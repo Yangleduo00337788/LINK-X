@@ -104,7 +104,12 @@ public class ConferenceServiceImpl implements ConferenceService {
         memberMapper.insert(host);
 
         String callId = callService.createConference(
-                userId, dto.getConversationId(), conference.getType(), conference.getId(), conference.getTitle());
+                userId,
+                dto.getConversationId(),
+                conference.getType(),
+                conference.getId(),
+                conference.getTitle(),
+                StringUtils.hasText(passwordHash));
         redisTemplate.opsForValue().set(CALL_ID_KEY + conference.getId(), callId, Duration.ofHours(4));
 
         ConferenceInfoVO vo = toInfo(conference, callId, userId);

@@ -1020,7 +1020,10 @@ export default {
     admit: '准入',
     waitingBadge: '等候中',
     raisedBadge: '举手中',
-    reusedOpened: '已有进行中会议，已为你打开'
+    reusedOpened: '已有进行中会议，已为你打开',
+    historyTitle: '会议历史',
+    historyHint: '仅展示元数据，不含音视频回放（需独立媒体服务）',
+    historyEmpty: '暂无已结束的会议'
   },
   moments: {
     title: '友链',

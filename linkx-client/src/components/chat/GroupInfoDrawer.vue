@@ -19,6 +19,8 @@ import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
 import { useGroupMetaStore } from '../../stores/groupMeta'
 import * as groupApi from '../../api/group'
+import * as conferenceApi from '../../api/conference'
+import type { ConferenceInfo } from '../../api/conference'
 import { useI18n } from '../../i18n'
 
 const { t } = useI18n()
@@ -58,6 +60,8 @@ const announcementEmpty = computed(() => {
 const joinApproval = ref(false)
 const inviteOwnerOnly = ref(false)
 const announcementReadCount = ref<number | null>(null)
+const conferenceHistory = ref<ConferenceInfo[]>([])
+const conferenceHistoryLoading = ref(false)
 const memberSelectMode = ref(false)
 const selectedMemberIds = ref<string[]>([])
 const joinRequests = ref<groupApi.GroupJoinRequestItem[]>([])
@@ -142,12 +146,38 @@ async function refreshAnnouncementRead() {
   }
 }
 
+async function loadConferenceHistory() {
+  const id = currentSessionId.value
+  if (!id) {
+    conferenceHistory.value = []
+    return
+  }
+  conferenceHistoryLoading.value = true
+  try {
+    const res = await conferenceApi.history(id)
+    conferenceHistory.value = res.code === 200 && res.data ? res.data : []
+  } catch {
+    conferenceHistory.value = []
+  } finally {
+    conferenceHistoryLoading.value = false
+  }
+}
+
+function formatConferenceTime(raw?: string) {
+  if (!raw) return ''
+  const d = new Date(raw)
+  if (Number.isNaN(d.getTime())) return String(raw)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 watch(
   () => currentSessionId.value,
   () => {
     void refreshGroupPolicy()
     void refreshAnnouncementRead()
     void refreshJoinRequests()
+    void loadConferenceHistory()
   },
   { immediate: true }
 )
@@ -538,6 +568,7 @@ watch(groupInfoDrawerOpen, open => {
     void groupMetaStore.fetchAnnouncement(currentSessionId.value)
     void refreshGroupPolicy()
     void refreshJoinRequests()
+    void loadConferenceHistory()
   } else {
     transferPanelOpen.value = false
     adminPanelOpen.value = false
@@ -653,6 +684,25 @@ function reportGroup() {
                   </div>
                   <span class="announce-arrow">›</span>
                 </button>
+              </section>
+
+              <!-- 会议历史（元数据，无回放） -->
+              <section class="block">
+                <h3 class="block-title">{{ t('conference.historyTitle') }}</h3>
+                <p class="field-hint">{{ t('conference.historyHint') }}</p>
+                <p v-if="conferenceHistoryLoading" class="muted">{{ t('common.loading') }}</p>
+                <p v-else-if="conferenceHistory.length === 0" class="muted">{{ t('conference.historyEmpty') }}</p>
+                <ul v-else class="conf-history-list">
+                  <li v-for="c in conferenceHistory" :key="String(c.id)" class="conf-history-item">
+                    <div class="conf-history-title">{{ c.title || t('conference.defaultTitle') }}</div>
+                    <div class="conf-history-meta">
+                      <span>{{ c.type === 'voice' ? t('conference.typeVoice') : t('conference.typeVideo') }}</span>
+                      <span>·</span>
+                      <span>{{ formatConferenceTime(c.startTime) }}</span>
+                      <span v-if="c.endTime">→ {{ formatConferenceTime(c.endTime) }}</span>
+                    </div>
+                  </li>
+                </ul>
               </section>
 
               <!-- 本群昵称（只读） -->
@@ -1126,6 +1176,32 @@ function reportGroup() {
   margin: 6px 0 0;
   font-size: 12px;
   color: var(--lx-text-muted);
+}
+
+.conf-history-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.conf-history-item {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--lx-bg-muted, rgba(0, 0, 0, 0.04));
+}
+.conf-history-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+.conf-history-meta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--lx-text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .switch-block {

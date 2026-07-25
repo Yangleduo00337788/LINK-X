@@ -43,6 +43,9 @@ public interface CallService {
     /** 创建多人会议（带标题，用于邀请推送与落库通知） */
     String createConference(Long userId, Long conversationId, String callType, Long conferenceId, String title);
 
+    /** 创建多人会议（含是否有密码，供邀请卡片展示） */
+    String createConference(Long userId, Long conversationId, String callType, Long conferenceId, String title, boolean hasPassword);
+
     /** 加入多人会议 */
     void joinConference(Long userId, String callId);
 
