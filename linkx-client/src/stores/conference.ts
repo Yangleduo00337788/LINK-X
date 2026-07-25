@@ -22,6 +22,7 @@ type PeerSlot = {
 let localStream: MediaStream | null = null
 let screenStream: MediaStream | null = null
 let qualityTimer: ReturnType<typeof setInterval> | null = null
+let meshRetryTimers: ReturnType<typeof setTimeout>[] = []
 let weakNetChecks = 0
 /** peerUserId → ICE restart 已尝试次数 */
 const iceRestartAttempts = new Map<string, number>()
@@ -29,6 +30,11 @@ const iceRestartAttempts = new Map<string, number>()
 const peers = new Map<string, PeerSlot>()
 /** 串行化信令，避免 offer/ICE 交错 */
 let signalQueue: Promise<void> = Promise.resolve()
+/**
+ * 入会竞态缓冲：对端在本端 enterInRoom 完成前发来的 offer/ICE。
+ * 若直接丢弃，较小 userId 一侧已发 offer 会永远等不到 answer。
+ */
+let earlySignals: { peerId: string; raw: CallEventPayload }[] = []
 
 /** admitStatus===0 为等候室；缺省视为已准入 */
 function isAdmittedParticipant(p: ConferenceParticipant): boolean {
@@ -123,6 +129,8 @@ export const useConferenceStore = defineStore('conference', {
           /* ignore */
         })
       }
+      // 先消化入会前缓冲的 offer/ICE，再主动建连
+      await this.flushEarlySignals()
       await this.syncMeshPeers()
       // 入会后若本端有摄像头，稍后强制再发布一次（覆盖「先协商后开视频」时序）
       if (this.cameraOn && this.type === 'video') {
@@ -132,7 +140,59 @@ export const useConferenceStore = defineStore('conference', {
           })
         }, 800)
       }
+      this.scheduleMeshRetries()
       this.startQualityWatch()
+    },
+
+    /** 消化 enterInRoom 前收到的信令 */
+    async flushEarlySignals() {
+      const batch = earlySignals.splice(0)
+      for (const item of batch) {
+        signalQueue = signalQueue
+          .then(() => this.processPeerSignal(item.peerId, item.raw))
+          .catch(err => console.warn('[conference] early signal error', err))
+      }
+      await signalQueue
+    },
+
+    clearMeshRetries() {
+      for (const t of meshRetryTimers) clearTimeout(t)
+      meshRetryTimers = []
+    },
+
+    /** 入会后多次补建连，覆盖「对端尚未就绪 / offer 丢失」 */
+    scheduleMeshRetries() {
+      this.clearMeshRetries()
+      for (const ms of [1200, 3000, 6000]) {
+        meshRetryTimers.push(
+          window.setTimeout(() => {
+            void this.retryMeshIfNeeded().catch(e =>
+              console.warn('[conference] mesh retry failed', e)
+            )
+          }, ms)
+        )
+      }
+    },
+
+    async retryMeshIfNeeded() {
+      if (this.phase !== 'in_room' || !this.myUserId) return
+      await this.syncMeshPeers()
+      for (const peerId of [...peers.keys()]) {
+        if (!shouldInitiateOffer(this.myUserId, peerId)) continue
+        const slot = peers.get(peerId)
+        if (!slot) continue
+        const pc = slot.pc
+        const connected =
+          pc.connectionState === 'connected' ||
+          pc.iceConnectionState === 'connected' ||
+          pc.iceConnectionState === 'completed'
+        if (connected && pc.currentRemoteDescription) continue
+
+        // 未连通 / 卡在 have-local-offer（对端入会前 offer 已丢）：重建后再发
+        this.closePeer(peerId)
+        await this.ensurePeer(peerId)
+        await this.createOfferTo(peerId)
+      }
     },
 
     async openCreated(info: ConferenceInfo, myUserId: string) {
@@ -254,6 +314,8 @@ export const useConferenceStore = defineStore('conference', {
           callId: data.callId != null ? String(data.callId) : undefined,
           hasPassword: data.hasPassword === true || data.hasPassword === 1 || data.hasPassword === 'true'
         }
+        // 提前记下 callId，便于入会瞬间缓冲对端 offer（否则 phase≠in_room 时会被丢弃）
+        if (data.callId != null) this.callId = String(data.callId)
         this.phase = this.phase === 'idle' ? 'lobby' : this.phase
         startCallRing()
         this.notifyConferenceInvite(String(data.title || '多人会议'), String(data.creatorName || ''))
@@ -272,7 +334,13 @@ export const useConferenceStore = defineStore('conference', {
         return
       }
       if (action === 'conference_join' || action === 'conference_leave') {
-        void this.refreshInfo().then(() => this.syncMeshPeers())
+        // join 推送时对端可能仍在 getUserMedia；稍延迟再建连，并靠 mesh retry 兜底
+        void this.refreshInfo().then(async () => {
+          if (action === 'conference_join') {
+            await new Promise<void>(r => window.setTimeout(r, 600))
+          }
+          await this.syncMeshPeers()
+        })
         return
       }
       if (action === 'conference_waiting') {
@@ -385,10 +453,16 @@ export const useConferenceStore = defineStore('conference', {
      * 会议态下的 WebRTC 信令（WS action=call_signal，callId 匹配本会）。
      */
     handleCallSignal(raw: CallEventPayload) {
-      if (this.phase !== 'in_room' || !this.callId) return
+      if (!this.callId) return
       if (String(raw.callId || '') !== this.callId) return
       const from = String(raw.fromUserId || '')
       if (!from || from === this.myUserId || !raw.signalType) return
+
+      // 对端常在本端 getUserMedia / enterInRoom 完成前就发 offer；必须缓冲，不能丢
+      if (this.phase !== 'in_room') {
+        earlySignals.push({ peerId: from, raw })
+        return
+      }
 
       signalQueue = signalQueue
         .then(() => this.processPeerSignal(from, raw))
@@ -429,11 +503,11 @@ export const useConferenceStore = defineStore('conference', {
       }
 
       if (raw.signalType === 'answer' && raw.sdp) {
-        if (slot.ignoreOffer) return
-        if (!pc.currentRemoteDescription) {
-          await pc.setRemoteDescription({ type: 'answer', sdp: raw.sdp })
-          await this.flushPendingCandidates(peerId)
-        }
+        // answer 不能被 ignoreOffer 挡住：glare 时 impolite 方仍须接受对本端 offer 的应答
+        // 也不能用 !currentRemoteDescription：重协商时已有 remoteDescription，否则 answer 会被静默丢弃
+        if (pc.signalingState !== 'have-local-offer') return
+        await pc.setRemoteDescription({ type: 'answer', sdp: raw.sdp })
+        await this.flushPendingCandidates(peerId)
         return
       }
 
@@ -515,7 +589,11 @@ export const useConferenceStore = defineStore('conference', {
         const state = pc.connectionState
         if (state === 'connected') {
           iceRestartAttempts.delete(peerId)
+          if (this.networkHint.includes('连接') || this.networkHint.includes('重建')) {
+            this.networkHint = ''
+          }
         } else if (state === 'failed' || state === 'disconnected') {
+          this.networkHint = `与对端连接 ${state}，正在重试…`
           void this.recoverPeer(peerId)
         } else if (state === 'closed') {
           this.closePeer(peerId)
@@ -633,10 +711,8 @@ export const useConferenceStore = defineStore('conference', {
               } catch {
                 /* ignore */
               }
-            } else if (track.kind === 'video') {
-              // 轨已在 sender 上，仍可能因首次应答未带上而需要重协商；由 delayed publish 兜底
-              videoActivated = true
             }
+            // 轨已在 sender 上且未变化：不强制重协商（delayed publish 仅在首次挂轨时触发）
           } else {
             pc.addTrack(track, stream)
             if (track.kind === 'video') videoActivated = true
@@ -665,7 +741,7 @@ export const useConferenceStore = defineStore('conference', {
       const needOffer: string[] = []
       for (const [peerId, slot] of peers) {
         const videoActivated = await this.applyLocalTracks(slot.pc, true)
-        // 视频轨刚挂上（含预建 transceiver + replaceTrack）必须重协商，否则对端收不到
+        // 视频轨刚挂上必须重协商，否则对端可能收不到
         if (videoActivated) {
           needOffer.push(peerId)
         }
@@ -901,13 +977,18 @@ export const useConferenceStore = defineStore('conference', {
       targetUserId?: string | number
     }) {
       if (!this.conferenceId) return
-      await conferenceApi.signal({
-        conferenceId: this.conferenceId,
-        signalType: payload.signalType,
-        sdp: payload.sdp,
-        candidate: payload.candidate,
-        targetUserId: payload.targetUserId
-      })
+      try {
+        await conferenceApi.signal({
+          conferenceId: this.conferenceId,
+          signalType: payload.signalType,
+          sdp: payload.sdp,
+          candidate: payload.candidate,
+          targetUserId: payload.targetUserId
+        })
+      } catch (e) {
+        console.warn('[conference] sendSignal failed', payload.signalType, payload.targetUserId, e)
+        throw e
+      }
     },
 
     async switchAudioDevice(deviceId: string) {
@@ -1199,9 +1280,12 @@ export const useConferenceStore = defineStore('conference', {
     cleanupLocal() {
       stopCallRing()
       this.stopQualityWatch()
+      this.clearMeshRetries()
       this.stopScreenShareTracks()
       this.closeAllPeers()
       iceRestartAttempts.clear()
+      earlySignals = []
+      signalQueue = Promise.resolve()
       weakNetChecks = 0
       if (localStream) {
         localStream.getTracks().forEach(t => t.stop())

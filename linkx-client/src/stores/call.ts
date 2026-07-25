@@ -347,10 +347,10 @@ export const useCallStore = defineStore('call', {
       }
 
       if (event.signalType === 'answer' && event.sdp) {
-        if (!pc.currentRemoteDescription) {
-          await pc.setRemoteDescription({ type: 'answer', sdp: event.sdp })
-          await this.flushPendingCandidates()
-        }
+        // 重协商时已有 remoteDescription，必须按 signalingState 接受 answer
+        if (pc.signalingState !== 'have-local-offer') return
+        await pc.setRemoteDescription({ type: 'answer', sdp: event.sdp })
+        await this.flushPendingCandidates()
         return
       }
 

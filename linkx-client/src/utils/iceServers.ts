@@ -1,13 +1,15 @@
 /**
- * WebRTC ICE 服务器解析：支持 VITE_ICE_SERVERS JSON，缺省使用公共 STUN。
+ * WebRTC ICE 服务器解析：支持 VITE_ICE_SERVERS JSON，缺省使用公共 STUN（IP，避开 Electron DNS -105）。
  *
- * 示例：
- * VITE_ICE_SERVERS=[{"urls":"stun:stun.l.google.com:19302"},{"urls":"turn:turn.example.com:3478","username":"u","credential":"p"}]
+ * 同局域网仅靠 host candidate 即可连通；STUN 失败/超时通常可忽略。
+ * 对称 NAT / 公司网仍建议配置 TURN：
+ * VITE_ICE_SERVERS=[{"urls":"stun:162.159.207.0:3478"},{"urls":"turn:turn.example.com:3478","username":"u","credential":"p"}]
  */
 
 const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' }
+  // Cloudflare / 小米 STUN：写 IP，避免 Electron 内 Chromium DNS 解析失败
+  { urls: 'stun:162.159.207.0:3478' },
+  { urls: 'stun:111.206.174.2:3478' }
 ]
 
 export function resolveIceServers(): RTCIceServer[] {
