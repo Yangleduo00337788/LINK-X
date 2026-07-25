@@ -118,13 +118,20 @@ export const useConferenceStore = defineStore('conference', {
       this.phase = 'in_room'
       await this.refreshDevices()
       await this.ensureLocalMedia()
-      // 把真实摄像头状态同步到服务端，避免对端仍认为 videoOff
       if (this.conferenceId && this.type === 'video') {
         void conferenceApi.setVideo(this.conferenceId, !this.cameraOn).catch(() => {
           /* ignore */
         })
       }
       await this.syncMeshPeers()
+      // 入会后若本端有摄像头，稍后强制再发布一次（覆盖「先协商后开视频」时序）
+      if (this.cameraOn && this.type === 'video') {
+        window.setTimeout(() => {
+          void this.replaceTracksOnPeers().catch(e => {
+            console.warn('[conference] delayed video publish failed', e)
+          })
+        }, 800)
+      }
       this.startQualityWatch()
     },
 
@@ -410,7 +417,7 @@ export const useConferenceStore = defineStore('conference', {
         slot.ignoreOffer = false
         await pc.setRemoteDescription({ type: 'offer', sdp: raw.sdp })
         await this.flushPendingCandidates(peerId)
-        this.attachLocalTracksTo(pc)
+        await this.attachLocalTracksTo(pc)
         const answer = await pc.createAnswer()
         await pc.setLocalDescription(answer)
         await this.sendSignal({
@@ -459,23 +466,9 @@ export const useConferenceStore = defineStore('conference', {
 
       // 预先建立 audio/video sendrecv transceiver：
       // 即使本端关摄像头，SDP 也带 video m-line，对端开摄像头后 replaceTrack 即可被收到
-      const audioTr = pc.addTransceiver('audio', { direction: 'sendrecv' })
-      const videoTr = pc.addTransceiver('video', { direction: 'sendrecv' })
-      const stream = localStream
-      if (stream) {
-        const at = stream.getAudioTracks()[0]
-        const vt = stream.getVideoTracks()[0]
-        if (at) {
-          void audioTr.sender.replaceTrack(at).catch(() => {
-            /* ignore */
-          })
-        }
-        if (vt && this.cameraOn && this.type === 'video') {
-          void videoTr.sender.replaceTrack(vt).catch(() => {
-            /* ignore */
-          })
-        }
-      }
+      pc.addTransceiver('audio', { direction: 'sendrecv' })
+      pc.addTransceiver('video', { direction: 'sendrecv' })
+      await this.attachLocalTracksTo(pc)
 
       pc.onicecandidate = evt => {
         if (!evt.candidate || this.phase !== 'in_room') return
@@ -595,7 +588,7 @@ export const useConferenceStore = defineStore('conference', {
           return
         }
         slot.makingOffer = true
-        this.attachLocalTracksTo(slot.pc)
+        await this.attachLocalTracksTo(slot.pc)
         const offer = await slot.pc.createOffer({ iceRestart: true })
         await slot.pc.setLocalDescription(offer)
         await this.sendSignal({
@@ -617,87 +610,81 @@ export const useConferenceStore = defineStore('conference', {
     },
 
     attachLocalTracksTo(pc: RTCPeerConnection) {
-      const stream = localStream
-      if (!stream) return
-      for (const track of stream.getTracks()) {
-        if (track.kind === 'video' && (!this.cameraOn || this.type !== 'video') && !this.screenSharing) {
-          continue
-        }
-        const sender = findSenderForKind(pc, track.kind)
-        if (sender) {
-          if (sender.track?.id !== track.id) {
-            void sender.replaceTrack(track).catch(() => {
-              /* ignore */
-            })
-          }
-        } else {
-          pc.addTrack(track, stream)
-        }
-      }
-      // 关摄像头时确保 video sender 为空轨（保留 m-line）
-      if ((!this.cameraOn || this.type !== 'video') && !this.screenSharing) {
-        const videoSender = findSenderForKind(pc, 'video')
-        if (videoSender?.track) {
-          void videoSender.replaceTrack(null).catch(() => {
-            /* ignore */
-          })
-        }
-      }
+      return this.applyLocalTracks(pc, false)
     },
 
-    async replaceTracksOnPeers() {
+    /** @param renegotiateHint 是否在视频从无到有时标记需要重协商（由调用方处理） */
+    async applyLocalTracks(pc: RTCPeerConnection, _renegotiateHint: boolean): Promise<boolean> {
       const stream = localStream
-      if (!stream) return
-      const needOffer: string[] = []
-      for (const [peerId, slot] of peers) {
-        let addedNewSender = false
+      let videoActivated = false
+      if (stream) {
         for (const track of stream.getTracks()) {
           if (track.kind === 'video' && (!this.cameraOn || this.type !== 'video') && !this.screenSharing) {
             continue
           }
-          const sender = findSenderForKind(slot.pc, track.kind)
+          const sender = findSenderForKind(pc, track.kind)
           if (sender) {
-            try {
-              await sender.replaceTrack(track)
-            } catch {
-              /* ignore */
+            const hadNoTrack = !sender.track
+            const different = sender.track?.id !== track.id
+            if (hadNoTrack || different) {
+              try {
+                await sender.replaceTrack(track)
+                if (track.kind === 'video' && (hadNoTrack || different)) videoActivated = true
+              } catch {
+                /* ignore */
+              }
+            } else if (track.kind === 'video') {
+              // 轨已在 sender 上，仍可能因首次应答未带上而需要重协商；由 delayed publish 兜底
+              videoActivated = true
             }
           } else {
-            slot.pc.addTrack(track, stream)
-            addedNewSender = true
+            pc.addTrack(track, stream)
+            if (track.kind === 'video') videoActivated = true
           }
         }
-        if ((!this.cameraOn || this.type !== 'video') && !this.screenSharing) {
-          const videoSender = findSenderForKind(slot.pc, 'video')
-          if (videoSender) {
-            try {
-              await videoSender.replaceTrack(null)
-            } catch {
-              /* ignore */
-            }
+      }
+      if ((!this.cameraOn || this.type !== 'video') && !this.screenSharing) {
+        const videoSender = findSenderForKind(pc, 'video')
+        if (videoSender?.track) {
+          try {
+            await videoSender.replaceTrack(null)
+          } catch {
+            /* ignore */
           }
         }
-        if (addedNewSender) {
+        videoActivated = false
+      }
+      return videoActivated
+    },
+
+    async replaceTracksOnPeers() {
+      const stream = localStream
+      if (!stream && !this.cameraOn) {
+        // 仍可能需要清空各 peer 的 video
+      }
+      const needOffer: string[] = []
+      for (const [peerId, slot] of peers) {
+        const videoActivated = await this.applyLocalTracks(slot.pc, true)
+        // 视频轨刚挂上（含预建 transceiver + replaceTrack）必须重协商，否则对端收不到
+        if (videoActivated) {
           needOffer.push(peerId)
         }
       }
-      // 已有 transceiver 时 replaceTrack 通常不必重协商；仅新增 sender 才 offer
       for (const peerId of needOffer) {
         try {
           await this.createOfferTo(peerId)
         } catch (e) {
-          console.warn('[conference] renegotiate after addTrack failed', peerId, e)
+          console.warn('[conference] renegotiate after video publish failed', peerId, e)
         }
       }
     },
 
     async createOfferTo(peerId: string) {
       const slot = await this.ensurePeer(peerId)
-      // 允许在 stable 下发 offer；glare 由 handleCallSignal 的 perfect negotiation 处理
       if (slot.pc.signalingState !== 'stable') return
       slot.makingOffer = true
       try {
-        this.attachLocalTracksTo(slot.pc)
+        await this.attachLocalTracksTo(slot.pc)
         const offer = await slot.pc.createOffer()
         await slot.pc.setLocalDescription(offer)
         await this.sendSignal({

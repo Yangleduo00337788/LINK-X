@@ -24,6 +24,7 @@ import { useAppStore } from '../../stores/app'
 import { useGroupMetaStore } from '../../stores/groupMeta'
 import { useI18n } from '../../i18n'
 import { generateDefaultAvatar } from '../../utils/defaultAvatar'
+import { isDisplayableMediaUrl, normalizeMediaUrl } from '../../utils/mediaUrl'
 import type { ChatMessage } from '../../types'
 
 const message = useMessage()
@@ -80,11 +81,14 @@ const displayParticipants = computed(() => {
       member?.name ||
       (isMe ? appStore.userProfile.nickname : '') ||
       t('moments.user')
-    const avatar =
+    const avatarCandidate =
       (p.avatar && String(p.avatar)) ||
       member?.avatarUrl ||
-      (isMe ? appStore.userProfile.avatar : '') ||
-      generateDefaultAvatar(displayName || uid, 160)
+      (isMe ? appStore.userProfile.avatarUrl || appStore.userProfile.avatar : '') ||
+      ''
+    const avatar = isDisplayableMediaUrl(avatarCandidate)
+      ? normalizeMediaUrl(avatarCandidate)
+      : generateDefaultAvatar(displayName || uid, 160)
     const role = p.role || ''
     return {
       ...p,
@@ -114,9 +118,14 @@ watch(
   { immediate: true }
 )
 
-/** 主画面：优先 activeSpeaker，否则主持人 */
+/** 主画面：优先有实时视频的人，其次 activeSpeaker，再主持人 */
 const speaker = computed(() => {
   const list = inRoomMembers.value
+  const withVideo = list.find(p => {
+    if (p.isMe) return showLocalVideo(p)
+    return hasLiveRemoteVideo(p.userId)
+  })
+  if (withVideo) return withVideo
   const activeId = activeSpeakerId.value
   if (activeId) {
     const found = list.find(p => p.userId === activeId)
