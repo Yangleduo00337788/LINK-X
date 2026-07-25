@@ -305,14 +305,15 @@ async function endMeeting() {
     <!-- 被邀请：轻量确认层 -->
     <div v-if="invitePrompt && phase === 'lobby'" class="invite-mask">
       <div class="invite-card">
-        <h3>{{ t('conference.inviteTitle') }}</h3>
+        <h3>{{ invitePrompt.restore ? t('conference.restoreTitle') : t('conference.inviteTitle') }}</h3>
         <p>{{ invitePrompt.title }}</p>
+        <p v-if="invitePrompt.restore" class="invite-sub">{{ t('conference.restoreHint') }}</p>
         <div class="invite-actions">
           <button type="button" class="btn ghost" @click="conferenceStore.dismissInvite()">
-            {{ t('common.cancel') }}
+            {{ invitePrompt.restore ? t('conference.restoreLater') : t('common.cancel') }}
           </button>
           <button type="button" class="btn primary" @click="acceptInvite">
-            {{ t('conference.join') }}
+            {{ invitePrompt.restore ? t('conference.rejoin') : t('conference.join') }}
           </button>
         </div>
       </div>

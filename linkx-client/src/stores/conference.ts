@@ -6,13 +6,9 @@ import { markRaw } from 'vue'
 import * as conferenceApi from '../api/conference'
 import type { ConferenceInfo, ConferenceParticipant } from '../api/conference'
 import type { CallEventPayload } from '../api/call'
+import { resolveIceServers } from '../utils/iceServers'
 
 export type ConferencePhase = 'idle' | 'lobby' | 'in_room' | 'ended'
-
-const ICE_SERVERS: RTCIceServer[] = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' }
-]
 
 type PeerSlot = {
   pc: RTCPeerConnection
@@ -62,6 +58,8 @@ export const useConferenceStore = defineStore('conference', {
       title: string
       conversationId: string
       callId?: string
+      /** refresh 后发现仍在会中 */
+      restore?: boolean
     } | null,
     errorMessage: '' as string
   }),
@@ -123,6 +121,49 @@ export const useConferenceStore = defineStore('conference', {
           t.enabled = this.micOn
         })
       }
+    },
+
+    /**
+     * 登录后探测是否仍在 ACTIVE 会议（刷新/重开客户端）。
+     * 有则进入 lobby 确认层，由用户选择重新加入。
+     */
+    async tryRestoreActive(myUserId: string) {
+      if (!myUserId || this.phase === 'in_room') return
+      try {
+        const res = await conferenceApi.active()
+        if (res.code !== 200 || !res.data?.length) return
+        const info = res.data[0]
+        const conferenceId = String(info.id)
+        // 已在同会或已有邀请弹层则不覆盖
+        if (this.conferenceId === conferenceId && this.phase === 'in_room') return
+        if (this.invitePrompt && !this.invitePrompt.restore) return
+        this.invitePrompt = {
+          conferenceId,
+          title: info.title || '多人会议',
+          conversationId: info.conversationId != null ? String(info.conversationId) : '',
+          callId: info.callId ? String(info.callId) : undefined,
+          restore: true
+        }
+        if (this.phase === 'idle') this.phase = 'lobby'
+      } catch (e) {
+        console.warn('[conference] tryRestoreActive failed', e)
+      }
+    },
+
+    /** 从通知中心打开会议邀请 */
+    openInviteFromNotification(payload: {
+      conferenceId: string
+      title?: string
+      conversationId?: string
+    }) {
+      if (!payload.conferenceId) return
+      this.invitePrompt = {
+        conferenceId: String(payload.conferenceId),
+        title: payload.title || '多人会议',
+        conversationId: payload.conversationId ? String(payload.conversationId) : '',
+        restore: false
+      }
+      if (this.phase === 'idle') this.phase = 'lobby'
     },
 
     async refreshInfo() {
@@ -306,7 +347,7 @@ export const useConferenceStore = defineStore('conference', {
       const existing = peers.get(peerId)
       if (existing) return existing
 
-      const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
+      const pc = new RTCPeerConnection({ iceServers: resolveIceServers() })
       const slot: PeerSlot = {
         pc,
         pending: [],

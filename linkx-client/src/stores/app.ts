@@ -537,6 +537,13 @@ export const useAppStore = defineStore('app', {
         // 确保登录后不自动选中任何会话
         this.currentSessionId = null
         await this.loadChatSessions()
+        // 刷新后若仍在会中，提示重新加入
+        const uid = String(this.userProfile.userId || '')
+        if (uid) {
+          void import('./conference').then(({ useConferenceStore }) => {
+            void useConferenceStore().tryRestoreActive(uid)
+          })
+        }
       } catch (e) {
         console.error('[app] 加载社交数据失败:', e)
       } finally {

@@ -86,7 +86,7 @@ public class ConferenceServiceImpl implements ConferenceService {
         memberMapper.insert(host);
 
         String callId = callService.createConference(
-                userId, dto.getConversationId(), conference.getType(), conference.getId());
+                userId, dto.getConversationId(), conference.getType(), conference.getId(), conference.getTitle());
         redisTemplate.opsForValue().set(CALL_ID_KEY + conference.getId(), callId, Duration.ofHours(4));
 
         return toInfo(conference, callId);
@@ -154,6 +154,35 @@ public class ConferenceServiceImpl implements ConferenceService {
     @Transactional
     public void leave(Long userId, Long conferenceId) {
         ConferenceMember member = requireMember(conferenceId, userId);
+        boolean wasHost = ConferenceMember.ROLE_HOST.equals(member.getRole());
+
+        if (wasHost) {
+            List<ConferenceMember> others = memberMapper.selectListByQuery(
+                    QueryWrapper.create()
+                            .where(ConferenceMember::getConferenceId).eq(conferenceId)
+                            .and(ConferenceMember::getLeftFlag).eq(0)
+                            .and(ConferenceMember::getUserId).ne(userId)
+            );
+            if (others.isEmpty()) {
+                // 主持人是最后一人：直接结束，避免僵尸 ACTIVE
+                end(userId, conferenceId);
+                return;
+            }
+            ConferenceMember next = others.stream()
+                    .min((a, b) -> {
+                        Date ta = a.getJoinTime() != null ? a.getJoinTime() : a.getCreateTime();
+                        Date tb = b.getJoinTime() != null ? b.getJoinTime() : b.getCreateTime();
+                        if (ta == null && tb == null) return 0;
+                        if (ta == null) return 1;
+                        if (tb == null) return -1;
+                        return ta.compareTo(tb);
+                    })
+                    .orElse(others.get(0));
+            transferHost(userId, conferenceId, next.getUserId());
+            // transfer 后本端仍是成员，继续走离开
+            member = requireMember(conferenceId, userId);
+        }
+
         member.setLeftFlag(1);
         member.setLeaveTime(new Date());
         memberMapper.update(member);
@@ -294,6 +323,8 @@ public class ConferenceServiceImpl implements ConferenceService {
     public void signal(Long userId, ConferenceSignalDTO dto) {
         requireMember(dto.getConferenceId(), userId);
         String callId = requireCallId(dto.getConferenceId());
+        // 长会期间信令续期，避免 CALL_ID / call hash 提前过期
+        redisTemplate.expire(CALL_ID_KEY + dto.getConferenceId(), Duration.ofHours(4));
         CallSignalDTO signal = new CallSignalDTO();
         signal.setCallId(callId);
         signal.setSignalType(dto.getSignalType());

@@ -12,15 +12,11 @@ import {
   decideWeakNetVideo,
   shouldFallbackToVoiceOnCameraDenied
 } from '../utils/callNetworkPolicy'
+import { resolveIceServers } from '../utils/iceServers'
 
 export type CallPhase = 'idle' | 'outgoing' | 'incoming' | 'connecting' | 'connected' | 'ended'
 export type CallRole = 'caller' | 'callee' | null
 export type CallType = 'voice' | 'video'
-
-const ICE_SERVERS: RTCIceServer[] = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' }
-]
 
 /** PeerConnection 不适合放入 Pinia 响应式 state，用模块变量持有 */
 let peerConnection: RTCPeerConnection | null = null
@@ -370,7 +366,7 @@ export const useCallStore = defineStore('call', {
 
     async ensurePeerConnection() {
       if (peerConnection) return
-      const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
+      const pc = new RTCPeerConnection({ iceServers: resolveIceServers() })
       peerConnection = pc
       pendingCandidates = []
 

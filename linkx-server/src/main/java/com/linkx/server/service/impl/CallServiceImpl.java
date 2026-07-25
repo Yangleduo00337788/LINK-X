@@ -34,6 +34,8 @@ public class CallServiceImpl implements CallService {
 
     private static final Duration CALL_TTL = Duration.ofMinutes(5);
     private static final Duration ENDED_TTL = Duration.ofMinutes(1);
+    /** 多人会议信令通道 TTL，与 ConferenceServiceImpl.CALL_ID_KEY 一致 */
+    private static final Duration CONFERENCE_TTL = Duration.ofHours(4);
 
     private final ChatService chatService;
     private final ImConversationMapper conversationMapper;
@@ -176,6 +178,9 @@ public class CallServiceImpl implements CallService {
 
         boolean conference = "true".equalsIgnoreCase(str(data.get("isConference")));
         if (conference) {
+            redisTemplate.expire(callKey(dto.getCallId()), CONFERENCE_TTL);
+            String participantsKey = "linkx:call:" + dto.getCallId() + ":participants";
+            redisTemplate.expire(participantsKey, CONFERENCE_TTL);
             signalConference(userId, dto, data, status);
             return;
         }
@@ -398,11 +403,16 @@ public class CallServiceImpl implements CallService {
 
     @Override
     public String createConference(Long userId, Long conversationId, String callType) {
-        return createConference(userId, conversationId, callType, null);
+        return createConference(userId, conversationId, callType, null, null);
     }
 
     @Override
     public String createConference(Long userId, Long conversationId, String callType, Long conferenceId) {
+        return createConference(userId, conversationId, callType, conferenceId, null);
+    }
+
+    @Override
+    public String createConference(Long userId, Long conversationId, String callType, Long conferenceId, String title) {
         chatService.assertConversationMember(userId, conversationId);
         String callId = UUID.randomUUID().toString().replace("-", "");
         String key = callKey(callId);
@@ -417,14 +427,19 @@ public class CallServiceImpl implements CallService {
             hash.put("conferenceId", String.valueOf(conferenceId));
         }
         redisTemplate.opsForHash().putAll(key, hash);
-        redisTemplate.expire(key, Duration.ofMinutes(30));
+        redisTemplate.expire(key, CONFERENCE_TTL);
 
         // 添加创建者为第一个参与者
         String participantsKey = "linkx:call:" + callId + ":participants";
         redisTemplate.opsForSet().add(participantsKey, String.valueOf(userId));
-        redisTemplate.expire(participantsKey, Duration.ofMinutes(30));
+        redisTemplate.expire(participantsKey, CONFERENCE_TTL);
 
-        // 通知会话成员
+        SysUser creator = sysUserMapper.selectOneById(userId);
+        String creatorName = displayName(creator);
+        String meetingTitle = (title != null && !title.isBlank()) ? title.trim() : "多人会议";
+        String notifyContent = creatorName + "邀请你加入会议「" + meetingTitle + "」";
+
+        // 通知会话成员（WS + 落库，离线可在通知中心看到）
         List<ImConversationMember> members = memberMapper.selectListByQuery(
                 QueryWrapper.create().where(ImConversationMember::getConversationId).eq(conversationId)
         );
@@ -435,10 +450,23 @@ public class CallServiceImpl implements CallService {
                 invite.put("conversationId", conversationId);
                 invite.put("callType", callType);
                 invite.put("creatorId", userId);
+                invite.put("title", meetingTitle);
+                invite.put("creatorName", creatorName);
                 if (conferenceId != null) {
                     invite.put("conferenceId", conferenceId);
                 }
                 pushService.pushToUser(member.getUserId(), "conference_invite", invite);
+                if (conferenceId != null) {
+                    notificationService.create(
+                            member.getUserId(),
+                            userId,
+                            creatorName,
+                            creator != null ? creator.getAvatar() : null,
+                            "conference_invite",
+                            conferenceId,
+                            notifyContent
+                    );
+                }
             }
         }
 
@@ -460,7 +488,9 @@ public class CallServiceImpl implements CallService {
 
         String participantsKey = "linkx:call:" + callId + ":participants";
         redisTemplate.opsForSet().add(participantsKey, String.valueOf(userId));
-        redisTemplate.expire(participantsKey, Duration.ofMinutes(30));
+        // 续期：长会期间入会/重入保持信令通道存活
+        redisTemplate.expire(callKey(callId), CONFERENCE_TTL);
+        redisTemplate.expire(participantsKey, CONFERENCE_TTL);
 
         // 通知其他参与者
         java.util.Set<String> participants = redisTemplate.opsForSet().members(participantsKey);

@@ -40,6 +40,9 @@ public interface CallService {
 
     String createConference(Long userId, Long conversationId, String callType, Long conferenceId);
 
+    /** 创建多人会议（带标题，用于邀请推送与落库通知） */
+    String createConference(Long userId, Long conversationId, String callType, Long conferenceId, String title);
+
     /** 加入多人会议 */
     void joinConference(Long userId, String callId);
 

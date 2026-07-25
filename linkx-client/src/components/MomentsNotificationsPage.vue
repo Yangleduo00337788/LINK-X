@@ -174,6 +174,15 @@ async function handleNotificationClick(notif: typeof messageNotifs.value[0]) {
   if (notif.readStatus === 0) {
     void markMessageAsRead(notif.id)
   }
+  if (notif.type === 'conference_invite' && notif.relatedId) {
+    const { useConferenceStore } = await import('../stores/conference')
+    useConferenceStore().openInviteFromNotification({
+      conferenceId: String(notif.relatedId),
+      title: notif.content || undefined
+    })
+    emit('close')
+    return
+  }
   emit('select', notif)
 }
 

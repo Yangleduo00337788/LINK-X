@@ -963,6 +963,10 @@ export default {
   },
   conference: {
     inviteTitle: '收到会议邀请',
+    restoreTitle: '你仍在会议中',
+    restoreHint: '检测到刷新前未离开，是否重新加入？',
+    restoreLater: '稍后',
+    rejoin: '重新加入',
     join: '加入会议',
     joinFail: '加入会议失败',
     endFail: '结束会议失败',

@@ -961,6 +961,10 @@ export default {
   },
   conference: {
     inviteTitle: 'Conference invitation',
+    restoreTitle: 'You are still in a meeting',
+    restoreHint: 'Detected an active meeting before refresh. Rejoin?',
+    restoreLater: 'Later',
+    rejoin: 'Rejoin',
     join: 'Join',
     joinFail: 'Failed to join conference',
     endFail: 'Failed to end conference',
