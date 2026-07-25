@@ -641,6 +641,11 @@ async function endMeeting() {
   margin: 0 0 18px;
   color: rgba(255, 255, 255, 0.65);
 }
+.invite-card .invite-sub {
+  margin: -10px 0 18px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+}
 .invite-actions {
   display: flex;
   justify-content: flex-end;

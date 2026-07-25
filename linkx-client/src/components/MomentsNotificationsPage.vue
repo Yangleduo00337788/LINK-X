@@ -133,6 +133,8 @@ function getNotificationTypeText(type: string, aggregateCount = 1, aggregateName
         return t('moments.mentionedYou')
       case 'calendar_remind':
         return t('moments.calendarRemind')
+      case 'conference_invite':
+        return t('conference.inviteTitle')
       default:
         return t('moments.newNotif')
     }
