@@ -271,6 +271,13 @@ function bindRemoteAudio(userId: string) {
   }
 }
 
+function onAvatarError(e: Event, name: string) {
+  const img = e.target as HTMLImageElement
+  if (!img || img.dataset.fallback === '1') return
+  img.dataset.fallback = '1'
+  img.src = generateDefaultAvatar(name || '用户', 160)
+}
+
 watch(errorMessage, msg => {
   if (msg) {
     message.info(msg)
@@ -551,7 +558,12 @@ async function onAdmit(userId: string) {
               playsinline
             />
             <div v-else class="tile-avatar-wrap">
-              <img :src="speaker.avatar" class="tile-avatar tile-avatar--lg" alt="" />
+              <img
+                :src="speaker.avatar"
+                class="tile-avatar tile-avatar--lg"
+                alt=""
+                @error="onAvatarError($event, speaker.displayName || speaker.userId)"
+              />
             </div>
             <audio
               v-if="showRemoteAudioOnly(speaker)"
@@ -600,7 +612,12 @@ async function onAdmit(userId: string) {
                 playsinline
               />
               <div v-else class="tile-avatar-wrap">
-                <img :src="p.avatar" class="tile-avatar" alt="" />
+                <img
+                  :src="p.avatar"
+                  class="tile-avatar"
+                  alt=""
+                  @error="onAvatarError($event, p.displayName || p.userId)"
+                />
               </div>
               <audio
                 v-if="showRemoteAudioOnly(p)"

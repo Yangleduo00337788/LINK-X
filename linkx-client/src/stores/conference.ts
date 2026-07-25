@@ -43,6 +43,29 @@ function shouldInitiateOffer(myId: string, peerId: string): boolean {
   }
 }
 
+/** 按 kind 找 sender（含 replaceTrack(null) 后 track 为空的发送器） */
+function findSenderForKind(pc: RTCPeerConnection, kind: string): RTCRtpSender | undefined {
+  const live = pc.getSenders().find(s => s.track?.kind === kind)
+  if (live) return live
+  for (const t of pc.getTransceivers()) {
+    if (!t.sender) continue
+    if (t.sender.track?.kind === kind) return t.sender
+    if (t.sender.track) continue
+    // 空轨 sender：用 receiver kind / 已协商 mid 推断
+    if (t.receiver?.track?.kind === kind) return t.sender
+    if (kind === 'video' && (t.direction === 'sendonly' || t.direction === 'sendrecv') && t.mid != null) {
+      // 多 transceiver 时优先已有 video mid
+      const mid = String(t.mid)
+      if (mid.includes('video') || t.receiver?.track == null) {
+        // 若仅有一个空轨且非 audio receiver，当作 video
+        if (t.receiver?.track?.kind !== 'audio') return t.sender
+      }
+    }
+  }
+  // 最后：任意空轨 + 同 kind 的 transceiver 已存在于 m-line 数量匹配困难时，不瞎匹配
+  return undefined
+}
+
 export const useConferenceStore = defineStore('conference', {
   state: () => ({
     phase: 'idle' as ConferencePhase,
@@ -454,6 +477,11 @@ export const useConferenceStore = defineStore('conference', {
         if (!stream.getTrackById(evt.track.id)) {
           stream.addTrack(evt.track)
         }
+        evt.track.onunmute = () => {
+          // 触发 Vue 更新，避免轨已到但 UI 仍显示头像
+          const cur = this.remoteStreams[peerId]
+          if (cur) this.remoteStreams = { ...this.remoteStreams, [peerId]: markRaw(cur) }
+        }
         evt.track.onended = () => {
           const cur = this.remoteStreams[peerId]
           if (!cur) return
@@ -466,6 +494,14 @@ export const useConferenceStore = defineStore('conference', {
           }
         }
         this.remoteStreams = { ...this.remoteStreams, [peerId]: markRaw(stream) }
+      }
+
+      pc.onnegotiationneeded = () => {
+        if (this.phase !== 'in_room') return
+        // 任一侧因 addTrack 触发协商时，由本端尝试发 offer（perfect negotiation 防 glare）
+        void this.createOfferTo(peerId).catch(e => {
+          console.warn('[conference] negotiationneeded offer failed', peerId, e)
+        })
       }
 
       pc.onconnectionstatechange = () => {
@@ -569,10 +605,15 @@ export const useConferenceStore = defineStore('conference', {
     attachLocalTracksTo(pc: RTCPeerConnection) {
       const stream = localStream
       if (!stream) return
-      const senders = pc.getSenders()
       for (const track of stream.getTracks()) {
-        const exists = senders.some(s => s.track?.id === track.id)
-        if (!exists) {
+        const sender = findSenderForKind(pc, track.kind)
+        if (sender) {
+          if (sender.track?.id !== track.id) {
+            void sender.replaceTrack(track).catch(() => {
+              /* ignore */
+            })
+          }
+        } else if (!pc.getSenders().some(s => s.track?.id === track.id)) {
           pc.addTrack(track, stream)
         }
       }
@@ -581,10 +622,11 @@ export const useConferenceStore = defineStore('conference', {
     async replaceTracksOnPeers() {
       const stream = localStream
       if (!stream) return
-      for (const [, slot] of peers) {
-        const senders = slot.pc.getSenders()
+      const needOffer: string[] = []
+      for (const [peerId, slot] of peers) {
+        let addedNewSender = false
         for (const track of stream.getTracks()) {
-          const sender = senders.find(s => s.track?.kind === track.kind)
+          const sender = findSenderForKind(slot.pc, track.kind)
           if (sender) {
             try {
               await sender.replaceTrack(track)
@@ -593,12 +635,13 @@ export const useConferenceStore = defineStore('conference', {
             }
           } else {
             slot.pc.addTrack(track, stream)
+            addedNewSender = true
           }
         }
         // 摄像头关闭时，清空 video sender，避免对端仍看到冻结画面（屏幕共享除外）
         if ((!this.cameraOn || this.type !== 'video') && !this.screenSharing) {
-          const videoSender = slot.pc.getSenders().find(s => s.track?.kind === 'video')
-          if (videoSender?.track) {
+          const videoSender = findSenderForKind(slot.pc, 'video')
+          if (videoSender) {
             try {
               await videoSender.replaceTrack(null)
             } catch {
@@ -606,11 +649,23 @@ export const useConferenceStore = defineStore('conference', {
             }
           }
         }
+        // 新增 m-line（如语音入会后开摄像头）必须重新协商，否则对端收不到视频轨
+        if (addedNewSender) {
+          needOffer.push(peerId)
+        }
+      }
+      for (const peerId of needOffer) {
+        try {
+          await this.createOfferTo(peerId)
+        } catch (e) {
+          console.warn('[conference] renegotiate after addTrack failed', peerId, e)
+        }
       }
     },
 
     async createOfferTo(peerId: string) {
       const slot = await this.ensurePeer(peerId)
+      // 允许在 stable 下发 offer；glare 由 handleCallSignal 的 perfect negotiation 处理
       if (slot.pc.signalingState !== 'stable') return
       slot.makingOffer = true
       try {
@@ -732,6 +787,12 @@ export const useConferenceStore = defineStore('conference', {
           t.enabled = this.micOn
         })
         this.localStream = markRaw(localStream)
+        if (wantVideo && localStream.getVideoTracks().some(t => t.readyState === 'live')) {
+          // 成功拿到摄像头时清掉「已降级」提示
+          if (this.networkHint.includes('摄像头') || this.networkHint.includes('降级')) {
+            this.networkHint = ''
+          }
+        }
         await this.replaceTracksOnPeers()
       } catch (e) {
         const name = (e as DOMException)?.name
