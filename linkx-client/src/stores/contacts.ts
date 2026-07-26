@@ -104,6 +104,17 @@ export const useContactsStore = defineStore('contacts', {
       }
     },
 
+    /** 实时更新好友在线状态（WS presence 推送） */
+    setOnline(userId: string | number, online: boolean) {
+      const id = String(userId)
+      const idx = this.items.findIndex(c => String(c.userId ?? c.id) === id)
+      if (idx < 0) return
+      const prev = this.items[idx]
+      if (prev.online === online) return
+      // 替换元素，确保虚拟列表等依赖 items 引用变化的视图能刷新
+      this.items.splice(idx, 1, { ...prev, online })
+    },
+
     reset() {
       this.items = []
       this.loading = false

@@ -108,16 +108,19 @@ export function sanitizeAppPersistState(state: Record<string, unknown>): Record<
   return next
 }
 
-/** 通讯录持久化：去掉好友预签名头像 */
+/** 通讯录持久化：去掉好友预签名头像与易过期的在线快照 */
 export function sanitizeContactsPersistState(state: {
-  items?: Array<{ avatarUrl?: string; [k: string]: unknown }>
+  items?: Array<{ avatarUrl?: string; online?: boolean; [k: string]: unknown }>
 }): typeof state {
   if (!Array.isArray(state.items)) return state
   return {
     ...state,
-    items: state.items.map(item => ({
-      ...item,
-      avatarUrl: stripEphemeralMediaUrl(item.avatarUrl) || undefined
-    }))
+    items: state.items.map(item => {
+      const { online: _online, ...rest } = item
+      return {
+        ...rest,
+        avatarUrl: stripEphemeralMediaUrl(item.avatarUrl) || undefined
+      }
+    })
   }
 }

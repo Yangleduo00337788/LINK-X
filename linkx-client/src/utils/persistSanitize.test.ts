@@ -97,4 +97,11 @@ describe('sanitizeContactsPersistState', () => {
     })
     expect(out.items?.[0].avatarUrl).toBeUndefined()
   })
+
+  it('strips online snapshot so cold start does not show stale presence', () => {
+    const out = sanitizeContactsPersistState({
+      items: [{ id: '1', name: '小白', online: true }]
+    })
+    expect(out.items?.[0].online).toBeUndefined()
+  })
 })

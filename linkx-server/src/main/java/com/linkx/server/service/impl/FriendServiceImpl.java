@@ -12,7 +12,6 @@ import com.linkx.server.entity.SysFriendRequest;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.entity.SysUserRelation;
 import com.linkx.server.exception.CustomException;
-import com.linkx.server.im.ImChannelManager;
 import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.mapper.ImConversationMapper;
 import com.linkx.server.mapper.ImConversationMemberMapper;
@@ -22,6 +21,7 @@ import com.linkx.server.mapper.SysUserRelationMapper;
 import com.linkx.server.service.ChatService;
 import com.linkx.server.service.FriendService;
 import com.linkx.server.service.MediaUrlService;
+import com.linkx.server.service.PresenceService;
 import com.linkx.server.service.UserPreferenceService;
 import com.mybatisflex.core.logicdelete.LogicDeleteManager;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -56,7 +56,7 @@ public class FriendServiceImpl implements FriendService {
     private final ImConversationMemberMapper memberMapper;
     private final MediaUrlService mediaUrlService;
     private final UserPreferenceService userPreferenceService;
-    private final ImChannelManager imChannelManager;
+    private final PresenceService presenceService;
     private final ImMessagePushService imPushService;
     private final ChatService chatService;
 
@@ -271,7 +271,7 @@ public class FriendServiceImpl implements FriendService {
                 continue;
             }
             boolean showOnline = !Boolean.FALSE.equals(showOnlineMap.get(friend.getId()));
-            boolean online = showOnline && imChannelManager.isOnline(friend.getId());
+            boolean online = showOnline && presenceService.isOnline(friend.getId());
             result.add(FriendItemVO.builder()
                     .userId(friend.getId())
                     .username(friend.getUsername())
@@ -282,6 +282,22 @@ public class FriendServiceImpl implements FriendService {
                     .build());
         }
         return result;
+    }
+
+    @Override
+    public List<Long> listWatcherIds(Long userId) {
+        if (userId == null) {
+            return List.of();
+        }
+        List<SysUserRelation> relations = sysUserRelationMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(SysUserRelation::getFriendId).eq(userId)
+                        .and(SysUserRelation::getStatus).eq(RELATION_STATUS_NORMAL)
+        );
+        return relations.stream()
+                .map(SysUserRelation::getUserId)
+                .distinct()
+                .toList();
     }
 
     @Override

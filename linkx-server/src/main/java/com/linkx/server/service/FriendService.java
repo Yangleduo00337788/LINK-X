@@ -33,4 +33,9 @@ public interface FriendService {
 
     /** 当前用户是否已屏蔽对方 */
     boolean isBlocked(Long userId, Long friendId);
+
+    /**
+     * 谁把 {@code userId} 当好友（反向关系，status=正常），用于 presence 扇出。
+     */
+    List<Long> listWatcherIds(Long userId);
 }

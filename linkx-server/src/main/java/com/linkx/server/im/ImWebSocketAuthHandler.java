@@ -4,6 +4,7 @@ import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.TokenType;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.service.DeviceSessionService;
+import com.linkx.server.service.PresenceService;
 import com.linkx.server.service.TokenService;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
@@ -17,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -29,6 +31,7 @@ public class ImWebSocketAuthHandler extends ChannelInboundHandlerAdapter {
     private final ImChannelManager channelManager;
     private final LinkxProperties linkxProperties;
     private final DeviceSessionService deviceSessionService;
+    private final PresenceService presenceService;
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
@@ -86,6 +89,9 @@ public class ImWebSocketAuthHandler extends ChannelInboundHandlerAdapter {
                 request.setUri(path);
                 ctx.channel().attr(ImChannelAttributes.USER_ID).set(userId);
                 channelManager.add(userId, ctx.channel());
+                String presenceConnId = UUID.randomUUID().toString().replace("-", "");
+                ctx.channel().attr(ImChannelAttributes.PRESENCE_CONN_ID).set(presenceConnId);
+                presenceService.markOnline(userId, deviceId, presenceConnId);
 
                 // 注册设备会话（多端同步）
                 String ip = ctx.channel().remoteAddress() != null
@@ -108,8 +114,13 @@ public class ImWebSocketAuthHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
+        Long userId = ctx.channel().attr(ImChannelAttributes.USER_ID).get();
         String deviceId = ctx.channel().attr(ImChannelAttributes.DEVICE_ID).get();
+        String presenceConnId = ctx.channel().attr(ImChannelAttributes.PRESENCE_CONN_ID).get();
         channelManager.remove(ctx.channel());
+        if (userId != null) {
+            presenceService.markOffline(userId, deviceId, presenceConnId);
+        }
         // 断连只刷新活跃时间，不删设备行；踢下线由 kickDevice 显式删除
         if (deviceId != null && !deviceId.isBlank()) {
             deviceSessionService.updateLastActive(deviceId);

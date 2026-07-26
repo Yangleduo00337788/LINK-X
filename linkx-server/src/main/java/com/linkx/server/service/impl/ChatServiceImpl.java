@@ -24,7 +24,7 @@ import com.linkx.server.mapper.RedPacketMapper;
 import com.linkx.server.mapper.RedPacketRecordMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.mapper.SysUserRelationMapper;
-import com.linkx.server.im.ImChannelManager;
+import com.linkx.server.service.PresenceService;
 import com.linkx.server.service.ChatService;
 import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.MediaUrlService;
@@ -84,7 +84,7 @@ public class ChatServiceImpl implements ChatService {
     private final RedPacketMapper redPacketMapper;
     private final RedPacketRecordMapper redPacketRecordMapper;
     private final UserPreferenceService userPreferenceService;
-    private final ImChannelManager imChannelManager;
+    private final PresenceService presenceService;
     private final SensitiveWordService sensitiveWordService;
     private final MessageStormService messageStormService;
     private final AuditLogService auditLogService;
@@ -162,7 +162,7 @@ public class ChatServiceImpl implements ChatService {
                     continue;
                 }
                 boolean showOnline = !Boolean.FALSE.equals(showOnlineMap.get(peer.getId()));
-                boolean peerOnline = showOnline && imChannelManager.isOnline(peer.getId());
+                boolean peerOnline = showOnline && presenceService.isOnline(peer.getId());
                 result.add(toConversationVO(conversation, peer, remarkMap.get(peer.getId()), peerOnline,
                         getUnreadCount(userId, conversation.getId()), pinned, important, muted, blocked));
             } else if (conversation.getType() == ImConversation.TYPE_GROUP) {
@@ -943,7 +943,7 @@ public class ChatServiceImpl implements ChatService {
         if (!userPreferenceService.showsOnlineStatus(peerUserId)) {
             return false;
         }
-        return imChannelManager.isOnline(peerUserId);
+        return presenceService.isOnline(peerUserId);
     }
 
     private Long resolvePrivatePeerId(Long userId, Long conversationId) {

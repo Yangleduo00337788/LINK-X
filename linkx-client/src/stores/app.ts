@@ -88,6 +88,7 @@ export interface CreateGroupMember {
   name: string
   avatarText: string
   avatarColor: string
+  avatarUrl?: string
 }
 
 /** 群头像可选背景色池 */
@@ -784,6 +785,10 @@ export const useAppStore = defineStore('app', {
           }
         },
         onCustomAction: (action: string, data: Record<string, unknown>) => {
+          if (action === 'presence') {
+            this.applyPresenceUpdate(data)
+            return
+          }
           if (action === 'notification_refresh') {
             void import('./notifications').then(({ useNotificationsStore }) => {
               void useNotificationsStore().refreshFromSocket(data)
@@ -1084,6 +1089,19 @@ export const useAppStore = defineStore('app', {
         await chatApi.saveDraft(sessionId, '')
       } catch (e) {
         console.warn('清除草稿失败:', e)
+      }
+    },
+
+    /** 好友上下线推送：更新通讯录绿点与单聊会话 online */
+    applyPresenceUpdate(data: Record<string, unknown>) {
+      const userId = sanitizeUserId(data.userId)
+      if (!userId) return
+      const online = data.online === true || data.online === 'true' || data.online === 1
+      useContactsStore().setOnline(userId, online)
+      for (const session of this.sessions) {
+        if (!session.isGroup && session.peerUserId === userId) {
+          session.online = online
+        }
       }
     },
 

@@ -2,7 +2,7 @@ package com.linkx.server.im;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linkx.server.exception.CustomException;
-import io.netty.channel.Channel;
+import com.linkx.server.service.PresenceService;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
@@ -16,6 +16,7 @@ public class ImWebSocketMessageHandler extends SimpleChannelInboundHandler<TextW
 
     private final ImMessagePushService pushService;
     private final ObjectMapper objectMapper;
+    private final PresenceService presenceService;
 
     @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
@@ -42,7 +43,10 @@ public class ImWebSocketMessageHandler extends SimpleChannelInboundHandler<TextW
             }
 
             switch (wsFrame.getAction()) {
-                case "ping" -> ctx.writeAndFlush(new TextWebSocketFrame(pushService.buildPong()));
+                case "ping" -> {
+                    presenceService.touch(userId);
+                    ctx.writeAndFlush(new TextWebSocketFrame(pushService.buildPong()));
+                }
                 case "send" -> pushService.handleSend(userId, wsFrame);
                 case "retry" -> pushService.handleRetry(userId, wsFrame);
                 case "deliveryReceipt" -> pushService.handleDeliveryReceipt(userId, wsFrame);

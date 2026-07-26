@@ -14,7 +14,7 @@ export interface ChatSocketHandlers {
   onRecall?: (message: MessageItem) => void
   /** 通话信令推送 */
   onCallEvent?: (action: string, data: Record<string, unknown>) => void
-  /** 通用自定义 action 推送（如 notification_refresh） */
+  /** 通用自定义 action 推送（如 notification_refresh / presence） */
   onCustomAction?: (action: string, data: Record<string, unknown>) => void
 }
 

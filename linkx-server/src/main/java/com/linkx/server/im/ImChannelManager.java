@@ -23,17 +23,32 @@ public class ImChannelManager {
     private final Map<Long, ChannelGroup> userChannels = new ConcurrentHashMap<>();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public void add(Long userId, Channel channel) {
-        userChannels.computeIfAbsent(userId, id -> new DefaultChannelGroup(GlobalEventExecutor.INSTANCE))
-                .add(channel);
-        log.debug("用户 {} 上线，当前连接数 {}", userId, userChannels.get(userId).size());
+    /**
+     * @return true 表示本机该用户从无连接变为有连接（本机首连）
+     */
+    public boolean add(Long userId, Channel channel) {
+        ChannelGroup group = userChannels.computeIfAbsent(
+                userId, id -> new DefaultChannelGroup(GlobalEventExecutor.INSTANCE));
+        boolean becameOnline = group.isEmpty();
+        group.add(channel);
+        log.debug("用户 {} 上线，当前连接数 {}", userId, group.size());
+        return becameOnline;
     }
 
-    public void remove(Channel channel) {
+    /**
+     * @return true 表示本机该用户已无剩余连接（本机末断）
+     */
+    public boolean remove(Channel channel) {
+        Long[] becameOfflineUser = {null};
         userChannels.entrySet().removeIf(entry -> {
-            entry.getValue().remove(channel);
-            return entry.getValue().isEmpty();
+            boolean removed = entry.getValue().remove(channel);
+            if (removed && entry.getValue().isEmpty()) {
+                becameOfflineUser[0] = entry.getKey();
+                return true;
+            }
+            return false;
         });
+        return becameOfflineUser[0] != null;
     }
 
     public ChannelGroup getChannels(Long userId) {
