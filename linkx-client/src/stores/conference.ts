@@ -34,7 +34,7 @@ type PeerSlot = {
 let localStream: MediaStream | null = null
 let screenStream: MediaStream | null = null
 let qualityTimer: ReturnType<typeof setInterval> | null = null
-let meshRetryTimers: ReturnType<typeof setTimeout>[] = []
+let meshRetryTimers: number[] = []
 let weakNetChecks = 0
 /** peerUserId → ICE restart 已尝试次数 */
 const iceRestartAttempts = new Map<string, number>()
@@ -952,10 +952,11 @@ export const useConferenceStore = defineStore('conference', {
 
     async createOfferTo(peerId: string) {
       const slot = await this.ensurePeer(peerId)
+      // caller（syncMeshPeers / replaceTracksOnPeers）已在上层或 ensurePeer 中调用 attachLocalTracksTo，
+      // 此处不再重复挂载，避免 replaceTracksOnPeers 中 applyLocalTracks 与 createOfferTo 各挂一次
       if (slot.pc.signalingState !== 'stable') return
       slot.makingOffer = true
       try {
-        await this.attachLocalTracksTo(slot.pc)
         const offer = await slot.pc.createOffer()
         await slot.pc.setLocalDescription(offer)
         await this.sendSignal({
@@ -1154,11 +1155,14 @@ export const useConferenceStore = defineStore('conference', {
         this.participants = this.participants.map(p =>
           String(p.userId) === this.myUserId ? { ...p, videoOff: !this.cameraOn } : p
         )
+        // 恢复状态后重试获取流；如果摄像头不可用，降级到仅音频不应算「失败」
         if (this.type === 'video') {
           try {
             await this.ensureLocalMedia()
+            // 恢复成功（可能已降级为音频），不再把原始异常往上抛
+            return
           } catch {
-            /* ignore */
+            /* 降级也失败，继续向外抛原始异常 */
           }
         }
         throw e
@@ -1459,14 +1463,7 @@ export const useConferenceStore = defineStore('conference', {
         } catch {
           /* ignore */
         }
-        // 兜底：部分浏览器用 media-source / track audioLevel
-        const stream = this.remoteStreams[peerId]
-        if (stream) {
-          for (const track of stream.getAudioTracks()) {
-            const settings = track.getSettings?.() as { volume?: number } | undefined
-            void settings
-          }
-        }
+        // audioLevel 从 getStats() inbound-rtp 获取，兜底不再需要
       }
       if (!bestId) {
         const host =

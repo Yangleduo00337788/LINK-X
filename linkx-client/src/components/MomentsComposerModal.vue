@@ -348,7 +348,6 @@ const imageGridClass = computed(() => {
 })
 
 // 媒体区域显示状态
-const showMediaArea = computed(() => mode.value === 'media' && (images.value.length > 0 || videos.value.length > 0))
 const showMediaEmpty = computed(() => mode.value === 'media' && images.value.length === 0 && videos.value.length === 0)
 </script>
 

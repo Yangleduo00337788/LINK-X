@@ -2,7 +2,7 @@
 /**
  * 笔记编辑器独立窗口
  */
-import { ref, onMounted, onUnmounted, watch, computed, h } from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { NIcon, NDropdown, useMessage } from 'naive-ui'
 import type { DropdownOption } from 'naive-ui'
 import {
@@ -18,7 +18,6 @@ import {
   EyeOutline,
   TrashOutline,
   AddOutline,
-  CreateOutline,
   DocumentTextOutline,
   CloudUploadOutline
 } from '@vicons/ionicons5'

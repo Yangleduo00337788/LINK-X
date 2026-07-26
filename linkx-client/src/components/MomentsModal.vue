@@ -385,10 +385,6 @@ function handlePublishMenuSelect(key: string | number) {
   }
 }
 
-function onPublished() {
-  void fetchMoments()
-}
-
 // 跳到动态
 function scrollToPost(notif: { relatedId?: string; type: string }) {
   if (!notif.relatedId) return
@@ -694,7 +690,7 @@ function visibilityLabel(visibility?: number): string {
             alt="Banner"
             class="banner-img"
             referrerpolicy="no-referrer"
-            @error="(e) => (e.target as HTMLImgElement).src = defaultBanner"
+            @error="(e) => (e.target as HTMLImageElement).src = defaultBanner"
             @click="handleBannerMenuAction('preview')"
           />
           <!-- 上传遮罩 hover 提示 -->

@@ -84,7 +84,7 @@ const displayParticipants = computed(() => {
     const avatarCandidate =
       (p.avatar && String(p.avatar)) ||
       member?.avatarUrl ||
-      (isMe ? appStore.userProfile.avatarUrl || appStore.userProfile.avatar : '') ||
+      (isMe ? appStore.userProfile.avatar : '') ||
       ''
     const avatar = isDisplayableMediaUrl(avatarCandidate)
       ? normalizeMediaUrl(avatarCandidate)

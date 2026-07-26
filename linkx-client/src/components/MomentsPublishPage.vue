@@ -20,9 +20,7 @@ import {
   AddOutline,
   CloseOutline
 } from '@vicons/ionicons5'
-import { storeToRefs } from 'pinia'
 import { useRoute } from 'vue-router'
-import { useAppStore } from '../stores/app'
 import { useMomentsStore } from '../stores/moments'
 import { useContactsStore } from '../stores/contacts'
 import {
@@ -34,14 +32,11 @@ import {
 } from '../utils/file'
 import AtMentionPicker from './common/AtMentionPicker.vue'
 import LocationPickerPage from './LocationPickerPage.vue'
-import { normalizeMediaUrl } from '../utils/mediaUrl'
 import { useI18n } from '../i18n'
 
 const route = useRoute()
-const appStore = useAppStore()
 const momentsStore = useMomentsStore()
 const contactsStore = useContactsStore()
-const { userProfile } = storeToRefs(appStore)
 
 const message = useMessage()
 const { t } = useI18n()
@@ -109,7 +104,6 @@ const showSuccess = ref(false)
 
 // 字数统计
 const charCount = computed(() => text.value.length)
-const remainingChars = computed(() => 2000 - charCount.value)
 const isOverLimit = computed(() => charCount.value > 2000)
 
 const mentionFriends = computed(() => {
@@ -126,9 +120,6 @@ const canPublish = computed(() => {
   }
   return text.value.trim().length > 0 || images.value.length > 0 || videos.value.length > 0
 })
-
-/** 媒体模式时,文字是否必填 */
-const textRequired = computed(() => mode.value === 'media')
 
 onMounted(() => {
   if (!contactsStore.items.length) {
@@ -205,7 +196,7 @@ function onTextKeyDown(e: KeyboardEvent) {
   }
 }
 
-function applyMention(id: number, name: string) {
+function applyMention(id: string | number, name: string) {
   const ta = textArea.value
   if (!ta) return
   const before = text.value.slice(0, mentionStartIndex.value)
@@ -213,7 +204,7 @@ function applyMention(id: number, name: string) {
   const after = text.value.slice(cursor)
   const inserted = `@${name} `
   text.value = before + inserted + after
-  mentions.value[id] = name
+  mentions.value[Number(id)] = name
   showMentionPicker.value = false
   nextTick(() => {
     const newPos = before.length + inserted.length
@@ -296,15 +287,6 @@ function openAtUsersModal() {
     void contactsStore.fetchFriends()
   }
   showAtUsersModal.value = true
-}
-
-function toggleAtUser(friend: { id: number; name: string; avatar?: string }) {
-  const idx = atUsers.value.findIndex(u => u.id === friend.id)
-  if (idx >= 0) {
-    atUsers.value.splice(idx, 1)
-  } else {
-    atUsers.value.push(friend)
-  }
 }
 
 function isAtUserSelected(friendId: number) {
@@ -612,7 +594,7 @@ async function publish() {
             v-if="friend.avatarUrl"
             :src="friend.avatarUrl"
             class="friend-avatar"
-            @error="$event.target.style.display='none'"
+            @error="($event.target as HTMLElement).style.display='none'"
           />
           <div v-else class="friend-avatar-placeholder" :style="{ background: friend.avatarColor }">
             {{ friend.avatarText }}

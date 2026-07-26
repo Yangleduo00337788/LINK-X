@@ -20,12 +20,17 @@ async function generateSalt(): Promise<Uint8Array> {
 
 async function deriveKey(pin: string, salt: Uint8Array): Promise<string> {
   const encoder = new TextEncoder()
-  const pinBuffer = encoder.encode(pin)
+  const pinBytes = encoder.encode(pin)
+  // 创建 ArrayBuffer 复制绕过 Uint8Array<ArrayBufferLike> 与 BufferSource 的类型冲突
+  const pinBuf = new ArrayBuffer(pinBytes.byteLength)
+  new Uint8Array(pinBuf).set(pinBytes)
+  const saltBuf = new ArrayBuffer(salt.byteLength)
+  new Uint8Array(saltBuf).set(salt)
 
   // 使用 PBKDF2 派生密钥
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
-    pinBuffer,
+    pinBuf,
     'PBKDF2',
     false,
     ['deriveBits']
@@ -34,7 +39,7 @@ async function deriveKey(pin: string, salt: Uint8Array): Promise<string> {
   const derivedBits = await crypto.subtle.deriveBits(
     {
       name: 'PBKDF2',
-      salt: salt,
+      salt: saltBuf,
       iterations: PBKDF2_ITERATIONS,
       hash: 'SHA-256'
     },

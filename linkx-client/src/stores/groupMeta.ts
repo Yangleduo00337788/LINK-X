@@ -656,6 +656,20 @@ export const useGroupMetaStore = defineStore('groupMeta', {
       return this.files[sessionId] || []
     },
 
+    addFile(sessionId: string, file: Omit<GroupFileItem, 'id' | 'date' | 'downloads'>) {
+      if (!sessionId || !this.files[sessionId]) return
+      const item: GroupFileItem = {
+        id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        name: file.name,
+        size: file.size,
+        user: file.user,
+        date: new Date().toISOString().slice(0, 10),
+        downloads: 0,
+        fileUrl: file.fileUrl
+      }
+      this.files[sessionId] = [item, ...this.files[sessionId]]
+    },
+
     albumFor(sessionId: string): GroupAlbumItem[] {
       if (!this.albums[sessionId]) void this.fetchAlbum(sessionId)
       return this.albums[sessionId] || []

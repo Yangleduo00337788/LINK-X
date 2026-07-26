@@ -80,14 +80,15 @@ const isDev = Boolean(process.env.VITE_DEV_SERVER_URL)
  * 朋友圈外链改走后端 /media/external 代理，故不再需要任意 https:。
  */
 function collectTrustedMediaOrigins(): string {
-  const origins = new Set<string>([
-    'http://127.0.0.1:9000',
-    'http://localhost:9000',
-    'http://127.0.0.1:8080',
-    'http://localhost:8080',
-    'http://127.0.0.1:5173',
-    'http://localhost:5173'
-  ])
+  const origins = new Set<string>()
+  if (isDev) {
+    origins.add('http://127.0.0.1:9000')
+    origins.add('http://localhost:9000')
+    origins.add('http://127.0.0.1:8080')
+    origins.add('http://localhost:8080')
+    origins.add('http://127.0.0.1:5173')
+    origins.add('http://localhost:5173')
+  }
   for (const raw of [
     process.env.VITE_API_BASE_URL,
     process.env.VITE_MINIO_PUBLIC_ORIGIN,
@@ -1276,13 +1277,21 @@ app.whenReady().then(() => {
   // 在窗口创建前设置，应用到所有窗口
   // img-src / media-src：仅本应用、本机 MinIO/API，以及可选的生产媒体源（不再放开任意 http/https）
   const mediaOrigins = collectTrustedMediaOrigins()
+  const apiOrigin = (() => {
+    const raw = process.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
+    try { const u = new URL(raw); return `${u.protocol}//${u.host}` } catch { return 'http://localhost:8080' }
+  })()
+  const wsOrigin = (() => {
+    const raw = process.env.VITE_WS_BASE_URL || 'ws://localhost:8081'
+    try { const u = new URL(raw); return `${u.protocol}//${u.host}` } catch { return 'ws://localhost:8081' }
+  })()
   const csp = [
     "default-src 'self';",
     "script-src 'self' 'unsafe-inline';",
     "style-src 'self' 'unsafe-inline';",
     `img-src 'self' data: blob: ${mediaOrigins};`,
     "font-src 'self' data:;",
-    "connect-src 'self' ws: wss: http: https:;",
+    `connect-src 'self' ${apiOrigin} ${wsOrigin};`,
     `media-src 'self' blob: mediastream: ${mediaOrigins};`
   ].join(' ')
 

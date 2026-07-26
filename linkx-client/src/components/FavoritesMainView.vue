@@ -210,7 +210,7 @@ function typeIcon(item: FavoriteItem) {
   return DocumentTextOutline
 }
 
-function cardMenuOptions(item: FavoriteItem) {
+function cardMenuOptions(_item: FavoriteItem) {
   return [
     { label: t('favorites.open'), key: 'open' },
     { label: t('favorites.editTags'), key: 'tags' },

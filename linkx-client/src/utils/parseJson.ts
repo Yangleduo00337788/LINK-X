@@ -13,14 +13,6 @@ const LONG_ID_FIELDS = new Set([
 // Number.MAX_SAFE_INTEGER = 9007199254740991（16 位）
 // 实际雪花 ID 远超此值，但为防止某些场景返回 15-16 位数字被截断，这里用更宽松的 13 位阈值
 // 13 位毫秒时间戳仍然能精确表示，超过这个值的值全部强制转字符串
-const ID_STRINGIFY_THRESHOLD = 1e13
-
-/**
- * 检查是否是数组索引（数字形式的键）
- */
-function isArrayIndex(key: string): boolean {
-  return /^\d+$/.test(key)
-}
 
 /**
  * 解析 JSON 时将大整数 ID 保留为字符串，避免雪花 ID 在 JS 中精度丢失。

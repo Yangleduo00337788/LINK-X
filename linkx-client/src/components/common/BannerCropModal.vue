@@ -10,7 +10,7 @@
  */
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { NIcon, useMessage } from 'naive-ui'
-import { CloseOutline, CheckmarkOutline, ImageOutline } from '@vicons/ionicons5'
+import { CloseOutline, CheckmarkOutline } from '@vicons/ionicons5'
 import { useI18n } from '../../i18n'
 
 const { t } = useI18n()

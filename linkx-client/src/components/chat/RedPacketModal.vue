@@ -8,7 +8,7 @@
  * </p>
  */
 import { ref, computed, watch } from 'vue'
-import { NInput, NButton, NRadioGroup, NRadio, useMessage } from 'naive-ui'
+import { NInput, NInputNumber, NButton, NRadioGroup, NRadio, useMessage } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
@@ -118,12 +118,12 @@ async function send() {
           </label>
           <label class="field">
             <span>{{ t('extra.packetCount') }}</span>
-            <n-input
+            <n-input-number
               v-model:value="totalCount"
-              type="number"
               :min="1"
               :max="100"
               :disabled="submitting"
+              style="width: 100%"
             />
           </label>
           <label class="field">

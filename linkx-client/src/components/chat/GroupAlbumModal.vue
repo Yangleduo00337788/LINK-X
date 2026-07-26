@@ -113,7 +113,7 @@ async function pickAndUpload() {
       const picked = await pick()
       if (!picked?.length) return
       const files = picked.map(
-        p => new File([p.data], p.name, { type: p.mimeType || 'image/jpeg' })
+        p => new File([p.data instanceof Uint8Array ? new Uint8Array(p.data) : p.data], p.name, { type: p.mimeType || 'image/jpeg' })
       )
       await handleFiles(files)
       return
