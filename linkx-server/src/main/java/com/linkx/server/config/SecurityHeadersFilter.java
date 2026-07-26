@@ -44,20 +44,25 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         response.setHeader("X-Permitted-Cross-Domain-Policies", "none");
         response.setHeader("Permissions-Policy", "geolocation=(self), microphone=(self), camera=(self)");
 
-        // Content-Security-Policy：允许同源 + MinIO（127.0.0.1 与 localhost 均放行，兼容旧链接）
+        // 生产 HTTPS 部署仅允许同源 WebSocket；localhost 仅用于显式的本地开发模式。
         String minioOrigin = linkxProperties.getMinio().getEndpoint();
+        int wsPort = linkxProperties.getIm().getWebsocketPort();
+        String wsOrigins = linkxProperties.getSecurity().isRequireHttps()
+                ? ""
+                : String.format("ws://127.0.0.1:%d ws://localhost:%d", wsPort, wsPort);
         String csp = String.format(
                 "default-src 'self'; "
-                        + "img-src 'self' data: blob: %s http://127.0.0.1:9000 http://localhost:9000; "
-                        + "media-src 'self' data: blob: %s http://127.0.0.1:9000 http://localhost:9000; "
+                        + "img-src 'self' data: blob: %s; "
+                        + "media-src 'self' data: blob: %s; "
                         + "object-src 'none'; "
                         + "base-uri 'self'; "
                         + "form-action 'self'; "
                         + "frame-ancestors 'none'; "
                         + "script-src 'self' 'unsafe-inline'; "
                         + "style-src 'self' 'unsafe-inline'; "
-                        + "connect-src 'self' ws: wss: http: https:;",
-                minioOrigin, minioOrigin
+                        + "connect-src 'self' %s %s;",
+                minioOrigin, minioOrigin,
+                wsOrigins, minioOrigin
         );
         response.setHeader("Content-Security-Policy", csp);
 

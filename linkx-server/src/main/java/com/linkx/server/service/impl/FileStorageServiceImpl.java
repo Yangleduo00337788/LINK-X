@@ -21,7 +21,6 @@ import io.minio.errors.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.util.DigestUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -413,7 +412,7 @@ public class FileStorageServiceImpl implements FileStorageService {
             );
             String etag = resp != null && StringUtils.hasText(resp.etag())
                     ? stripQuotes(resp.etag())
-                    : DigestUtils.md5DigestAsHex((uploadId + "-" + partNumber + "-" + partSize).getBytes());
+                    : "fb-".concat(UUID.randomUUID().toString().replace("-", ""));
             redisTemplate.opsForHash().put(MP_PARTS_PREFIX + uploadId, String.valueOf(partNumber), etag);
             redisTemplate.expire(MP_PARTS_PREFIX + uploadId, MULTIPART_TTL);
             redisTemplate.expire(MP_META_PREFIX + uploadId, MULTIPART_TTL);

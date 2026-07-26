@@ -18,7 +18,16 @@ public class MinioConfig {
     @Bean
     public MinioClient minioClient() {
         LinkxProperties.Minio minioProps = linkxProperties.getMinio();
-        
+
+        if (minioProps.getAccessKey() == null || minioProps.getAccessKey().isBlank()) {
+            throw new IllegalStateException(
+                    "MINIO_ACCESS_KEY 未配置，请在 .env.local 或环境变量中设置（勿使用默认 minioadmin）");
+        }
+        if (minioProps.getSecretKey() == null || minioProps.getSecretKey().isBlank()) {
+            throw new IllegalStateException(
+                    "MINIO_SECRET_KEY 未配置，请在 .env.local 或环境变量中设置（勿使用默认 minioadmin123）");
+        }
+
         MinioClient client = MinioClient.builder()
                 .endpoint(minioProps.getEndpoint())
                 .credentials(minioProps.getAccessKey(), minioProps.getSecretKey())
@@ -50,9 +59,8 @@ public class MinioConfig {
             }
         } catch (Exception e) {
             log.error(
-                    "MinIO 连接失败 (endpoint={}, accessKey={}, bucket={}): {}",
+                    "MinIO 连接失败 (endpoint={}, bucket={}): {}",
                     minioProps.getEndpoint(),
-                    minioProps.getAccessKey(),
                     minioProps.getBucketName(),
                     e.getMessage()
             );

@@ -544,8 +544,9 @@ public class CallServiceImpl implements CallService {
             }
         }
 
-        // 如果没有参与者了，结束会议
-        if (participants == null || participants.isEmpty()) {
+        // 用原子 SCARD 判断是否已经没有参与者，避免并发离会时的 TOCTOU 竞态
+        Long remaining = redisTemplate.opsForSet().size(participantsKey);
+        if (remaining == null || remaining == 0) {
             updateStatus(callId, "ended");
         }
     }

@@ -454,7 +454,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (used > 0) {
             throw new CustomException(400, "该邮箱已被其他账号绑定");
         }
-        String code = String.format("%06d", (int) (Math.random() * 1_000_000));
+        String code = String.format("%06d", new java.security.SecureRandom().nextInt(1_000_000));
         String redisKey = "linkx:bind-email:" + userId;
         int expireMinutes = linkxProperties.getMail().getCodeExpireMinutes();
         redisTemplate.opsForValue().set(redisKey, normalized + "|" + code,

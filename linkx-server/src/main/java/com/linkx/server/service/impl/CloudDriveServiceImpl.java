@@ -80,8 +80,10 @@ public class CloudDriveServiceImpl implements CloudDriveService {
             throw new CustomException(400, "已达最大扩容上限（60 GB）");
         }
         storage.setQuotaBytes(next);
-        storage.setVersion(storage.getVersion() + 1);
-        userStorageMapper.update(storage);
+        int rows = userStorageMapper.casExpandQuota(userId, next, storage.getVersion());
+        if (rows == 0) {
+            throw new CustomException(409, "扩容冲突，请重试");
+        }
         logActivity(userId, CloudActivity.TARGET_STORAGE, userId, "存储空间",
                 CloudActivity.ACTION_EXPAND, "扩容 +10 GB");
         return toStorageVO(storage);
@@ -240,8 +242,10 @@ public class CloudDriveServiceImpl implements CloudDriveService {
 
         storage.setUsedBytes(storage.getUsedBytes() + size);
         storage.setFileCount(storage.getFileCount() + 1);
-        storage.setVersion(storage.getVersion() + 1);
-        userStorageMapper.update(storage);
+        int rows = userStorageMapper.casUpdateUsedBytes(userId, size, 1, storage.getVersion());
+        if (rows == 0) {
+            throw new CustomException(409, "存储信息冲突，请重试");
+        }
 
         SysUser me = sysUserMapper.selectOneById(userId);
         logActivity(userId, CloudActivity.TARGET_FILE, entity.getId(), entity.getName(),
@@ -617,8 +621,10 @@ public class CloudDriveServiceImpl implements CloudDriveService {
             throw new CustomException(400, "已达最大存储上限（60 GB）");
         }
         storage.setQuotaBytes(next);
-        storage.setVersion((storage.getVersion() != null ? storage.getVersion() : 0) + 1);
-        userStorageMapper.update(storage);
+        int expandRows = userStorageMapper.casExpandQuota(storage.getUserId(), next, storage.getVersion());
+        if (expandRows == 0) {
+            throw new CustomException(409, "扩容冲突，请重试");
+        }
         long addedGb = (next - quota) / (1024L * 1024 * 1024);
         logActivity(storage.getUserId(), CloudActivity.TARGET_STORAGE, storage.getUserId(), "存储空间",
                 CloudActivity.ACTION_EXPAND, "自动扩容 +" + addedGb + " GB");
@@ -689,8 +695,10 @@ public class CloudDriveServiceImpl implements CloudDriveService {
         long size = file.getFileSize() != null ? file.getFileSize() : 0;
         storage.setUsedBytes(Math.max(0, storage.getUsedBytes() - size));
         storage.setFileCount(Math.max(0, storage.getFileCount() - 1));
-        storage.setVersion(storage.getVersion() + 1);
-        userStorageMapper.update(storage);
+        int deleteRows = userStorageMapper.casUpdateUsedBytes(userId, -size, -1, storage.getVersion());
+        if (deleteRows == 0) {
+            // 删除是幂等操作，CAS 失败仅打日志，不回滚文件删除
+        }
         logActivity(userId, CloudActivity.TARGET_FILE, file.getId(), file.getName(),
                 CloudActivity.ACTION_DELETE, "删除文件");
     }

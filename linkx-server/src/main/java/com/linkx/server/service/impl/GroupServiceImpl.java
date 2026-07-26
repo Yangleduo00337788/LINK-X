@@ -13,12 +13,18 @@ import com.linkx.server.controller.vo.GroupMemberVO;
 import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.entity.ImConversation;
 import com.linkx.server.entity.ImConversationMember;
+import com.linkx.server.entity.GroupAnnouncement;
+import com.linkx.server.entity.GroupAsset;
+import com.linkx.server.entity.GroupInvitation;
 import com.linkx.server.entity.MessageNotification;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.mapper.ImConversationMapper;
 import com.linkx.server.mapper.ImConversationMemberMapper;
+import com.linkx.server.mapper.GroupAnnouncementMapper;
+import com.linkx.server.mapper.GroupAssetMapper;
+import com.linkx.server.mapper.GroupInvitationMapper;
 import com.linkx.server.mapper.MessageNotificationMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.ChatService;
@@ -61,6 +67,9 @@ public class GroupServiceImpl implements GroupService {
     private final ImMessagePushService imPushService;
     private final MessageNotificationService notificationService;
     private final MessageNotificationMapper notificationMapper;
+    private final GroupAnnouncementMapper groupAnnouncementMapper;
+    private final GroupAssetMapper groupAssetMapper;
+    private final GroupInvitationMapper groupInvitationMapper;
 
     private static final String NOTIFY_TYPE_GROUP_JOIN_REQUEST = "group_join_request";
 
@@ -335,6 +344,17 @@ public class GroupServiceImpl implements GroupService {
     @Transactional
     public void dissolveGroup(Long userId, Long conversationId) {
         ImConversation group = assertGroupOwner(userId, conversationId);
+
+        // 清理关联数据：群公告、群资产、群邀请
+        groupAnnouncementMapper.deleteByQuery(
+                QueryWrapper.create().where(GroupAnnouncement::getConversationId).eq(conversationId)
+        );
+        groupAssetMapper.deleteByQuery(
+                QueryWrapper.create().where(GroupAsset::getConversationId).eq(conversationId)
+        );
+        groupInvitationMapper.deleteByQuery(
+                QueryWrapper.create().where(GroupInvitation::getConversationId).eq(conversationId)
+        );
 
         // 删除所有成员
         memberMapper.deleteByQuery(

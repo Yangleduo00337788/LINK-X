@@ -56,12 +56,18 @@ public class CloudFileServiceImpl implements CloudFileService {
                 .stream()
                 .collect(Collectors.toMap(ImConversation::getId, Function.identity(), (a, b) -> a));
 
+        // 当指定 category 时放大 SQL limit 补偿后过滤损失；"image" 可直接在 SQL 层过滤
+        int sqlLimit = StringUtils.hasText(category) ? cap * 3 : cap;
+        boolean onlyImage = "image".equals(category);
+
         List<ImMessage> messages = messageMapper.selectListByQuery(
                 QueryWrapper.create()
                         .where(ImMessage::getConversationId).in(convIds)
-                        .and(ImMessage::getType).in(ImMessage.TYPE_FILE, ImMessage.TYPE_IMAGE)
+                        .and(ImMessage::getType).in(onlyImage
+                                ? List.of(ImMessage.TYPE_IMAGE)
+                                : List.of(ImMessage.TYPE_FILE, ImMessage.TYPE_IMAGE))
                         .orderBy(ImMessage::getCreateTime, false)
-                        .limit(cap)
+                        .limit(sqlLimit)
         );
 
         Set<Long> senderIds = messages.stream().map(ImMessage::getSenderId).collect(Collectors.toSet());
@@ -98,9 +104,11 @@ public class CloudFileServiceImpl implements CloudFileService {
         List<GroupAsset> assets = groupAssetMapper.selectListByQuery(
                 QueryWrapper.create()
                         .where(GroupAsset::getConversationId).in(convIds)
-                        .and(GroupAsset::getType).in(GroupAsset.TYPE_FILE, GroupAsset.TYPE_IMAGE)
+                        .and(GroupAsset::getType).in(onlyImage
+                                ? List.of(GroupAsset.TYPE_IMAGE)
+                                : List.of(GroupAsset.TYPE_FILE, GroupAsset.TYPE_IMAGE))
                         .orderBy(GroupAsset::getCreateTime, false)
-                        .limit(cap)
+                        .limit(sqlLimit)
         );
         Set<Long> uploaderIds = assets.stream().map(GroupAsset::getUploaderId).collect(Collectors.toSet());
         Map<Long, SysUser> uploaders = uploaderIds.isEmpty() ? Map.of() :

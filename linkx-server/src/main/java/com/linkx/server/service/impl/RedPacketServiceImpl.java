@@ -250,39 +250,56 @@ public class RedPacketServiceImpl implements RedPacketService {
             return redPacket.getRemainingAmount();
         }
 
-        double min = 0.01;
-        double max = redPacket.getRemainingAmount()
-                .divide(new BigDecimal(redPacket.getRemainingCount()), 2, RoundingMode.CEILING)
-                .multiply(new BigDecimal(2))
-                .doubleValue();
+        // 使用纯 BigDecimal 运算，避免 double 精度丢失
+        BigDecimal remaining = redPacket.getRemainingAmount();
+        int remainingCount = redPacket.getRemainingCount();
 
-        double random = min + Math.random() * (max - min);
-        BigDecimal amount = new BigDecimal(random).setScale(2, RoundingMode.DOWN);
+        // max = remaining / remainingCount * 2
+        BigDecimal maxAmount = remaining
+                .divide(BigDecimal.valueOf(remainingCount), 10, RoundingMode.CEILING)
+                .multiply(BigDecimal.valueOf(2));
 
-        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
-            amount = new BigDecimal("0.01");
+        // 随机区间分成 10000 份，避免浮点数
+        BigDecimal range = maxAmount.subtract(BigDecimal.valueOf(0.01));
+        if (range.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.valueOf(0.01).setScale(2, RoundingMode.HALF_UP);
         }
-        if (amount.compareTo(redPacket.getRemainingAmount()) > 0) {
-            amount = redPacket.getRemainingAmount();
+        long rangeUnits = range.multiply(BigDecimal.valueOf(100)).longValue();
+        long randomUnits = (long) (Math.random() * (rangeUnits + 1));
+        BigDecimal amount = BigDecimal.valueOf(0.01)
+                .add(BigDecimal.valueOf(randomUnits).divide(BigDecimal.valueOf(100), 2, RoundingMode.DOWN));
+
+        if (amount.compareTo(BigDecimal.valueOf(0.01)) < 0) {
+            amount = BigDecimal.valueOf(0.01);
+        }
+        if (amount.compareTo(remaining) > 0) {
+            amount = remaining;
         }
 
-        return amount;
+        return amount.setScale(2, RoundingMode.DOWN);
     }
 
     private void checkAndMarkLucky(Long redPacketId, Long userId, BigDecimal amount) {
-        List<RedPacketRecord> records = recordMapper.selectListByQuery(
+        // 只在红包被领完时（STATUS_FINISHED）才决定手气最佳，
+        // 此时乐观锁已保证没有其他并发线程能再领取，避免多线程各自标记不同记录
+        RedPacket redPacket = redPacketMapper.selectOneById(redPacketId);
+        if (redPacket == null || !RedPacket.STATUS_FINISHED.equals(redPacket.getStatus())) {
+            return;
+        }
+        // 直接用数据库排序查询当前最高金额的记录
+        RedPacketRecord currentMax = recordMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .eq("red_packet_id", redPacketId)
+                        .orderBy("amount", false)
+                        .limit(1)
+        );
+        if (currentMax == null) return;
+        long count = recordMapper.selectCountByQuery(
                 QueryWrapper.create().eq("red_packet_id", redPacketId)
         );
-
-        if (records.isEmpty()) return;
-
-        RedPacketRecord lucky = records.stream()
-                .max(Comparator.comparing(RedPacketRecord::getAmount))
-                .orElse(null);
-
-        if (lucky != null && records.size() >= 2) {
-            lucky.setIsLucky(true);
-            recordMapper.update(lucky);
+        if (count >= 2) {
+            currentMax.setIsLucky(true);
+            recordMapper.update(currentMax);
         }
     }
 

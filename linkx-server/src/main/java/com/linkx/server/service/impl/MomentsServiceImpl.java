@@ -411,7 +411,7 @@ public class MomentsServiceImpl implements MomentsService {
     @Override
     @Transactional
     public MomentsCommentVO comment(Long userId, Long postId, CommentMomentsDTO dto) {
-        assertCanInteract(userId, postId);
+        MomentsPost post = assertCanInteract(userId, postId);
 
         SysUser user = userMapper.selectOneById(userId);
         if (user == null) {
@@ -435,7 +435,6 @@ public class MomentsServiceImpl implements MomentsService {
         commentMapper.insert(comment);
 
         // 给动态作者推送消息通知
-        MomentsPost post = postMapper.selectOneById(postId);
         if (post != null && !post.getUserId().equals(userId)) {
             try {
                 notificationService.create(
@@ -583,9 +582,29 @@ public class MomentsServiceImpl implements MomentsService {
                 .collect(Collectors.toList());
 
         boolean liked = likes.stream().anyMatch(l -> l.getUserId().equals(currentUserId));
+
+        // 批量加载所有评论者、点赞者及父评论用户，消除 N+1 查询
+        Set<Long> involvedUserIds = new HashSet<>();
+        likes.forEach(l -> involvedUserIds.add(l.getUserId()));
+        comments.forEach(c -> involvedUserIds.add(c.getUserId()));
+        Set<Long> parentIds = comments.stream()
+                .filter(c -> c.getParentId() != null)
+                .map(MomentsComment::getParentId)
+                .collect(Collectors.toSet());
+        Map<Long, MomentsComment> parentCommentMap = parentIds.isEmpty() ? Collections.emptyMap() :
+                commentMapper.selectListByQuery(
+                        QueryWrapper.create().in("id", new ArrayList<>(parentIds))
+                ).stream().collect(Collectors.toMap(MomentsComment::getId, c -> c));
+        parentCommentMap.values().forEach(p -> involvedUserIds.add(p.getUserId()));
+
+        Map<Long, SysUser> involvedUserMap = involvedUserIds.isEmpty() ? Collections.emptyMap() :
+                userMapper.selectListByQuery(
+                        QueryWrapper.create().in("id", new ArrayList<>(involvedUserIds))
+                ).stream().collect(Collectors.toMap(SysUser::getId, u -> u));
+
         List<String> likedBy = likes.stream()
                 .map(l -> {
-                    SysUser liker = userMapper.selectOneById(l.getUserId());
+                    SysUser liker = involvedUserMap.get(l.getUserId());
                     return liker != null ? liker.getNickname() : null;
                 })
                 .filter(Objects::nonNull)
@@ -593,8 +612,8 @@ public class MomentsServiceImpl implements MomentsService {
 
         List<MomentsCommentVO> commentVOs = comments.stream()
                 .map(c -> {
-                    SysUser commenter = userMapper.selectOneById(c.getUserId());
-                    return toCommentVO(c, commenter, parseMentions(c.getMentions()));
+                    SysUser commenter = involvedUserMap.get(c.getUserId());
+                    return toCommentVO(c, commenter, parseMentions(c.getMentions()), parentCommentMap, involvedUserMap);
                 })
                 .collect(Collectors.toList());
 
@@ -626,9 +645,13 @@ public class MomentsServiceImpl implements MomentsService {
         if (userIds == null || userIds.isEmpty()) {
             return Collections.emptyList();
         }
+        // 一次批量查询代替 N 次单条查询
+        Map<Long, SysUser> userMap = userMapper.selectListByQuery(
+                QueryWrapper.create().where(SysUser::getId).in(new ArrayList<>(userIds))
+        ).stream().collect(Collectors.toMap(SysUser::getId, u -> u));
         List<String> names = new ArrayList<>(userIds.size());
         for (Long id : userIds) {
-            SysUser u = userMapper.selectOneById(id);
+            SysUser u = userMap.get(id);
             if (u != null && u.getNickname() != null && !u.getNickname().isBlank()) {
                 names.add(u.getNickname());
             }
@@ -637,15 +660,25 @@ public class MomentsServiceImpl implements MomentsService {
     }
 
     private MomentsCommentVO toCommentVO(MomentsComment comment, SysUser user) {
-        return toCommentVO(comment, user, parseMentions(comment.getMentions()));
+        return toCommentVO(comment, user, parseMentions(comment.getMentions()), Collections.emptyMap(), Collections.emptyMap());
     }
 
     private MomentsCommentVO toCommentVO(MomentsComment comment, SysUser user, List<Long> mentions) {
+        return toCommentVO(comment, user, mentions, Collections.emptyMap(), Collections.emptyMap());
+    }
+
+    private MomentsCommentVO toCommentVO(MomentsComment comment, SysUser user, List<Long> mentions,
+                                         Map<Long, MomentsComment> parentCache,
+                                         Map<Long, SysUser> userCache) {
         String replyToNickname = null;
         if (comment.getParentId() != null) {
-            MomentsComment parent = commentMapper.selectOneById(comment.getParentId());
+            MomentsComment parent = parentCache.isEmpty()
+                    ? commentMapper.selectOneById(comment.getParentId())
+                    : parentCache.get(comment.getParentId());
             if (parent != null) {
-                SysUser parentUser = userMapper.selectOneById(parent.getUserId());
+                SysUser parentUser = userCache.isEmpty()
+                        ? userMapper.selectOneById(parent.getUserId())
+                        : userCache.get(parent.getUserId());
                 if (parentUser != null) {
                     replyToNickname = parentUser.getNickname();
                 }

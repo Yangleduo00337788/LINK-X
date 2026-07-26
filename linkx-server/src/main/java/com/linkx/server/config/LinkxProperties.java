@@ -33,8 +33,10 @@ public class LinkxProperties {
     @Data
     public static class Minio {
         private String endpoint = "http://127.0.0.1:9000";
-        private String accessKey = "minioadmin";
-        private String secretKey = "minioadmin123";
+        /** 必填，须通过环境变量注入，禁止硬编码默认值 */
+        private String accessKey;
+        /** 必填，须通过环境变量注入，禁止硬编码默认值 */
+        private String secretKey;
         private String bucketName = "linkx";
         private long maxFileSize = 10 * 1024 * 1024; // 默认10MB
         /** 预签名 URL 分级过期（秒） */
