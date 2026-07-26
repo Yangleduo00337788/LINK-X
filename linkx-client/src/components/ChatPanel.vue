@@ -712,6 +712,10 @@ const chatInputRef = ref<InstanceType<typeof ChatInputBox> | null>(null)
 function scrollToBottom() {
   stickToBottom.value = true
   messageListRef.value?.scrollToBottom()
+  const sid = currentSessionId.value
+  if (sid) {
+    void appStore.reportSessionRead(sid)
+  }
 }
 
 /** 是否展示对话框内「有人@我」浮层 */

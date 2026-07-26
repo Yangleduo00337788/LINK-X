@@ -232,6 +232,7 @@ export function messageToChatMessage(message: MessageItem, sessionId: string): C
 function mapSendStatus(
   deliveryStatus?: string
 ): ChatMessage['sendStatus'] {
+  if (deliveryStatus === 'read') return 'read'
   if (deliveryStatus === 'delivered') return 'delivered'
   if (deliveryStatus === 'failed') return 'failed'
   return 'sent'

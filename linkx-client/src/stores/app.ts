@@ -1139,6 +1139,7 @@ export const useAppStore = defineStore('app', {
             m.sendStatus === 'sending'
           ) {
             m.sendStatus = 'read'
+            m.deliveryStatus = 'read'
           }
         }
       }
