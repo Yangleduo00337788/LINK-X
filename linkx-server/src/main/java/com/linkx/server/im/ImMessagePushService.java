@@ -11,6 +11,7 @@ import com.linkx.server.mapper.ImMessageMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.ChatService;
 import com.linkx.server.service.MessageStormService;
+import com.linkx.server.service.PresenceService;
 import com.mybatisflex.core.query.QueryWrapper;
 import io.netty.channel.Channel;
 import io.netty.channel.group.ChannelGroup;
@@ -20,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -38,6 +40,9 @@ import java.util.concurrent.RejectedExecutionException;
 @RequiredArgsConstructor
 public class ImMessagePushService {
 
+    /** 跨实例 IM 帧投递 Pub/Sub 频道 */
+    public static final String CLUSTER_PUSH_CHANNEL = "linkx:im:push";
+
     private final ChatService chatService;
     private final ImConversationMemberMapper memberMapper;
     private final ImMessageMapper messageMapper;
@@ -47,6 +52,7 @@ public class ImMessagePushService {
     private final Executor imPushExecutor;
     private final StringRedisTemplate redisTemplate;
     private final MessageStormService messageStormService;
+    private final PresenceService presenceService;
 
     /**
      * 处理发送消息（异步，event-loop 立即返回）。
@@ -137,26 +143,6 @@ public class ImMessagePushService {
                         .where(ImConversationMember::getConversationId).eq(message.getConversationId())
         );
 
-        boolean anyRecipientOnline = false;
-        int onlineCount = 0;
-
-        // 分片推送阈值：超过此数量启用异步分批
-        final int BATCH_THRESHOLD = 500;
-        final int BATCH_SIZE = 100;
-
-        // 先收集在线用户列表
-        java.util.List<Long> onlineRecipients = new java.util.ArrayList<>();
-        for (ImConversationMember member : members) {
-            Long userId = member.getUserId();
-            if (senderId != null && userId.equals(senderId)) continue;
-            ChannelGroup channels = channelManager.getChannels(userId);
-            if (channels != null && !channels.isEmpty()) {
-                onlineRecipients.add(userId);
-                anyRecipientOnline = true;
-                onlineCount++;
-            }
-        }
-
         // 为发送者构建 ack 帧（仅序列化一次）
         String ackJson = null;
         if (clientMsgId != null && !clientMsgId.isBlank()) {
@@ -167,63 +153,49 @@ public class ImMessagePushService {
             ackJson = toJson(ackFrame);
         }
 
-        // 推送 ack 给发送者
-        if (ackJson != null) {
-            ChannelGroup senderChannels = channelManager.getChannels(senderId);
-            if (senderChannels != null) {
-                for (Channel channel : senderChannels) {
-                    if (channel.isActive()) {
-                        channel.writeAndFlush(new TextWebSocketFrame(ackJson));
-                    }
-                }
-            }
+        if (ackJson != null && senderId != null) {
+            pushFrameToUser(senderId, ackJson, true);
         }
 
-        // 推送消息给接收者（分片异步）
-        if (onlineCount <= BATCH_THRESHOLD) {
-            // 小群/中群：直接序列化推送
-            String messageJson = null;
-            for (Long recipientId : onlineRecipients) {
+        java.util.List<Long> recipients = new java.util.ArrayList<>();
+        for (ImConversationMember member : members) {
+            Long userId = member.getUserId();
+            if (senderId != null && userId.equals(senderId)) {
+                continue;
+            }
+            recipients.add(userId);
+        }
+
+        boolean anyRecipientOnline = false;
+        final int BATCH_THRESHOLD = 500;
+        final int BATCH_SIZE = 100;
+        int recipientCount = recipients.size();
+
+        if (recipientCount <= BATCH_THRESHOLD) {
+            for (Long recipientId : recipients) {
+                if (presenceService.isOnline(recipientId)) {
+                    anyRecipientOnline = true;
+                }
                 MessageVO payload = withPerspective(message, recipientId);
-                ChannelGroup channels = channelManager.getChannels(recipientId);
-                if (channels == null || channels.isEmpty()) continue;
-
-                if (messageJson == null) {
-                    messageJson = toJson(buildFrame("message", payload));
-                } else {
-                    // 同一个 payload for 所有接收者（除了 isSelf 不同）
-                    messageJson = toJson(buildFrame("message", payload));
-                }
-
-                for (Channel channel : channels) {
-                    if (channel.isActive()) {
-                        channel.writeAndFlush(new TextWebSocketFrame(messageJson));
-                    }
-                }
+                pushFrameToUser(recipientId, toJson(buildFrame("message", payload)), true);
             }
         } else {
-            // 大群：异步分批推送
-            final String baseMessageJson = toJson(buildFrame("message", withPerspective(message, onlineRecipients.isEmpty() ? senderId : onlineRecipients.get(0))));
-            final int totalBatches = (onlineCount + BATCH_SIZE - 1) / BATCH_SIZE;
-
+            for (Long recipientId : recipients) {
+                if (presenceService.isOnline(recipientId)) {
+                    anyRecipientOnline = true;
+                }
+            }
+            final int totalBatches = (recipientCount + BATCH_SIZE - 1) / BATCH_SIZE;
             for (int batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
                 int start = batchIdx * BATCH_SIZE;
-                int end = Math.min(start + BATCH_SIZE, onlineCount);
-                java.util.List<Long> batch = onlineRecipients.subList(start, end);
-
+                int end = Math.min(start + BATCH_SIZE, recipientCount);
+                java.util.List<Long> batch = recipients.subList(start, end);
                 try {
                     ((ExecutorService) imPushExecutor).submit(() -> {
                         for (Long recipientId : batch) {
                             try {
                                 MessageVO payload = withPerspective(message, recipientId);
-                                String json = toJson(buildFrame("message", payload));
-                                ChannelGroup channels = channelManager.getChannels(recipientId);
-                                if (channels == null || channels.isEmpty()) continue;
-                                for (Channel channel : channels) {
-                                    if (channel.isActive()) {
-                                        channel.writeAndFlush(new TextWebSocketFrame(json));
-                                    }
-                                }
+                                pushFrameToUser(recipientId, toJson(buildFrame("message", payload)), true);
                             } catch (Exception e) {
                                 log.warn("大群推送分片异常: recipientId={}", recipientId, e);
                             }
@@ -235,7 +207,7 @@ public class ImMessagePushService {
             }
         }
 
-        // 投递回执：如果有非发送者的接收方在线，更新 deliveryStatus 为 delivered，并通知发送方
+        // 投递回执：集群视角有接收方在线则通知发送方
         if (anyRecipientOnline) {
             updateDeliveryStatus(message.getId(), "delivered");
             if (message.getSenderId() != null) {
@@ -248,7 +220,7 @@ public class ImMessagePushService {
             }
         }
 
-        log.debug("消息推送完成: conversationId={}, 成员数={}, 在线接收者={}", message.getConversationId(), members.size(), onlineCount);
+        log.debug("消息推送完成: conversationId={}, 成员数={}, 接收者={}", message.getConversationId(), members.size(), recipientCount);
     }
 
     /**
@@ -279,17 +251,8 @@ public class ImMessagePushService {
         );
         for (ImConversationMember member : members) {
             Long userId = member.getUserId();
-            ChannelGroup channels = channelManager.getChannels(userId);
-            if (channels == null || channels.isEmpty()) {
-                continue;
-            }
             MessageVO payload = withPerspective(message, userId);
-            String json = toJson(buildFrame("recall", payload));
-            for (Channel channel : channels) {
-                if (channel.isActive()) {
-                    channel.writeAndFlush(new TextWebSocketFrame(json));
-                }
-            }
+            pushFrameToUser(userId, toJson(buildFrame("recall", payload)), true);
         }
     }
 
@@ -314,15 +277,7 @@ public class ImMessagePushService {
         for (ImConversationMember member : members) {
             Long userId = member.getUserId();
             if (userId.equals(readerId)) continue;
-            ChannelGroup channels = channelManager.getChannels(userId);
-            if (channels == null || channels.isEmpty()) {
-                continue;
-            }
-            for (Channel channel : channels) {
-                if (channel.isActive()) {
-                    channel.writeAndFlush(new TextWebSocketFrame(json));
-                }
-            }
+            pushFrameToUser(userId, json, true);
         }
     }
 
@@ -385,17 +340,8 @@ public class ImMessagePushService {
         );
         for (ImConversationMember member : members) {
             Long userId = member.getUserId();
-            ChannelGroup channels = channelManager.getChannels(userId);
-            if (channels == null || channels.isEmpty()) {
-                continue;
-            }
             MessageVO payload = withPerspective(message, userId);
-            String json = toJson(buildFrame("edit", payload));
-            for (Channel channel : channels) {
-                if (channel.isActive()) {
-                    channel.writeAndFlush(new TextWebSocketFrame(json));
-                }
-            }
+            pushFrameToUser(userId, toJson(buildFrame("edit", payload)), true);
         }
     }
 
@@ -472,21 +418,65 @@ public class ImMessagePushService {
     }
 
     /**
-     * 向指定用户的所有在线端推送自定义 WS 帧（通话信令等）。
+     * 向指定用户的所有在线端推送自定义 WS 帧（通话信令等），并跨实例广播。
      */
     public void pushToUser(Long userId, String action, Object data) {
         if (userId == null) {
+            return;
+        }
+        pushFrameToUser(userId, toJson(buildFrame(action, data)), true);
+    }
+
+    /**
+     * 仅本机投递（供 presence / 集群订阅回调使用，避免二次广播）。
+     */
+    public void pushToUserLocal(Long userId, String action, Object data) {
+        if (userId == null) {
+            return;
+        }
+        pushFrameToUser(userId, toJson(buildFrame(action, data)), false);
+    }
+
+    /**
+     * 本机 Channel 写帧。
+     */
+    public void deliverLocal(Long userId, String json) {
+        if (userId == null || json == null || json.isBlank()) {
             return;
         }
         ChannelGroup channels = channelManager.getChannels(userId);
         if (channels == null || channels.isEmpty()) {
             return;
         }
-        String json = toJson(buildFrame(action, data));
         for (Channel channel : channels) {
             if (channel.isActive()) {
                 channel.writeAndFlush(new TextWebSocketFrame(json));
             }
+        }
+    }
+
+    /**
+     * @param clusterFanout true 时本机投递 + Redis 广播，他机再投递本机连接
+     */
+    public void pushFrameToUser(Long userId, String json, boolean clusterFanout) {
+        if (userId == null || json == null || json.isBlank()) {
+            return;
+        }
+        deliverLocal(userId, json);
+        if (clusterFanout) {
+            publishClusterPush(userId, json);
+        }
+    }
+
+    private void publishClusterPush(Long userId, String json) {
+        try {
+            Map<String, Object> payload = new HashMap<>(4);
+            payload.put("userId", String.valueOf(userId));
+            payload.put("frame", json);
+            payload.put("origin", presenceService.getInstanceId());
+            redisTemplate.convertAndSend(CLUSTER_PUSH_CHANNEL, objectMapper.writeValueAsString(payload));
+        } catch (Exception e) {
+            log.warn("发布跨实例 IM 推送失败: userId={}, err={}", userId, e.getMessage());
         }
     }
 

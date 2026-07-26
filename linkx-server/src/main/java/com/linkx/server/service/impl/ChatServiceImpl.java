@@ -927,6 +927,43 @@ public class ChatServiceImpl implements ChatService {
         ) > 0;
     }
 
+    @Override
+    public List<Long> listPrivatePeerIds(Long userId) {
+        if (userId == null) {
+            return List.of();
+        }
+        List<ImConversationMember> memberships = memberMapper.selectListByQuery(
+                QueryWrapper.create().where(ImConversationMember::getUserId).eq(userId)
+        );
+        if (memberships.isEmpty()) {
+            return List.of();
+        }
+        Set<Long> conversationIds = memberships.stream()
+                .map(ImConversationMember::getConversationId)
+                .collect(Collectors.toSet());
+        List<ImConversation> privates = conversationMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(ImConversation::getId).in(conversationIds)
+                        .and(ImConversation::getType).eq(ImConversation.TYPE_PRIVATE)
+        );
+        if (privates.isEmpty()) {
+            return List.of();
+        }
+        Set<Long> privateConvIds = privates.stream()
+                .map(ImConversation::getId)
+                .collect(Collectors.toSet());
+        List<ImConversationMember> peers = memberMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).in(privateConvIds)
+                        .and(ImConversationMember::getUserId).ne(userId)
+        );
+        return peers.stream()
+                .map(ImConversationMember::getUserId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+    }
+
     private void assertCanPrivateChat(Long userId, Long peerId) {
         if (isFriend(userId, peerId)) {
             return;

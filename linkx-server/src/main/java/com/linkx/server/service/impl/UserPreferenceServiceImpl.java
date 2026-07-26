@@ -2,6 +2,7 @@ package com.linkx.server.service.impl;
 
 import com.linkx.server.entity.UserPreference;
 import com.linkx.server.mapper.UserPreferenceMapper;
+import com.linkx.server.service.PresenceService;
 import com.linkx.server.service.UserPreferenceService;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
@@ -31,6 +32,7 @@ public class UserPreferenceServiceImpl
         implements UserPreferenceService {
 
     private final UserPreferenceMapper userPreferenceMapper;
+    private final PresenceService presenceService;
 
     @Override
     public UserPreference getOrDefault(Long userId) {
@@ -44,17 +46,31 @@ public class UserPreferenceServiceImpl
         if (userId == null) {
             throw new IllegalArgumentException("userId 不能为空");
         }
+        boolean showBefore = showsOnlineStatus(userId);
         UserPreference existing = userPreferenceMapper.selectOneById(userId);
+        UserPreference saved;
         if (existing == null) {
             // 行不存在：从默认值开始，再用 patch 中显式给出的字段覆盖
             UserPreference fresh = defaultPreference(userId);
             applyPatch(fresh, patch);
             userPreferenceMapper.insert(fresh);
-            return fresh;
+            saved = fresh;
+        } else {
+            applyPatch(existing, patch);
+            updateById(existing);
+            saved = existing;
         }
-        applyPatch(existing, patch);
-        updateById(existing);
-        return existing;
+        boolean showAfter = !Boolean.FALSE.equals(saved.getPrivacyShowOnline());
+        if (patch != null && patch.getPrivacyShowOnline() != null && showBefore != showAfter) {
+            if (!showAfter) {
+                // 关闭可见性：立即对外伪装离线
+                presenceService.broadcastPresence(userId, false);
+            } else if (presenceService.isOnline(userId)) {
+                // 重新可见且当前仍在线：立即广播上线
+                presenceService.broadcastPresence(userId, true);
+            }
+        }
+        return saved;
     }
 
     @Override

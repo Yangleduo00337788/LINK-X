@@ -125,4 +125,9 @@ public interface ChatService {
 
     /** 秒传命中时组装上传结果（含签名 URL） */
     ChatFileUploadVO resolveFileByHash(Long userId, String contentHash, String fileName, Long fileSize, String contentType);
+
+    /**
+     * 与当前用户有单聊会话的对端用户 ID（含非好友陌生人会话）。
+     */
+    List<Long> listPrivatePeerIds(Long userId);
 }

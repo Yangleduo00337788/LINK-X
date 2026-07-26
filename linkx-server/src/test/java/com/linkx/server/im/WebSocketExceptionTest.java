@@ -6,6 +6,7 @@ import com.linkx.server.mapper.ImMessageMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.ChatService;
 import com.linkx.server.service.MessageStormService;
+import com.linkx.server.service.PresenceService;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.lenient;
 
 /**
  * WebSocket 异常路径单元测试（EmbeddedChannel，不拉起真实 Netty Server）。
@@ -38,6 +40,8 @@ class WebSocketExceptionTest {
     private StringRedisTemplate redisTemplate;
     @Mock
     private MessageStormService messageStormService;
+    @Mock
+    private PresenceService presenceService;
 
     private ImChannelManager channelManager;
     private ImMessagePushService pushService;
@@ -45,10 +49,12 @@ class WebSocketExceptionTest {
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient().when(presenceService.getInstanceId()).thenReturn("test-instance");
         channelManager = new ImChannelManager();
         pushService = new ImMessagePushService(
                 chatService, memberMapper, messageMapper, sysUserMapper,
-                channelManager, objectMapper, Runnable::run, redisTemplate, messageStormService);
+                channelManager, objectMapper, Runnable::run, redisTemplate, messageStormService,
+                presenceService);
     }
 
     @Nested

@@ -6,6 +6,7 @@ import com.linkx.server.mapper.ImMessageMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.ChatService;
 import com.linkx.server.service.MessageStormService;
+import com.linkx.server.service.PresenceService;
 import io.netty.channel.Channel;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
@@ -19,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.lenient;
 
 /**
  * IM 主链路（WebSocket 通道侧）端到端单元测试。
@@ -43,6 +45,8 @@ class ImMainLinkE2ETest {
     private StringRedisTemplate redisTemplate;
     @Mock
     private MessageStormService messageStormService;
+    @Mock
+    private PresenceService presenceService;
 
     private ImChannelManager channelManager;
     private ImMessagePushService pushService;
@@ -50,10 +54,12 @@ class ImMainLinkE2ETest {
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient().when(presenceService.getInstanceId()).thenReturn("test-instance");
         channelManager = new ImChannelManager();
         pushService = new ImMessagePushService(
                 chatService, memberMapper, messageMapper, sysUserMapper,
-                channelManager, objectMapper, Runnable::run, redisTemplate, messageStormService);
+                channelManager, objectMapper, Runnable::run, redisTemplate, messageStormService,
+                presenceService);
     }
 
     @Nested

@@ -7,6 +7,7 @@ import com.linkx.server.mapper.ImMessageMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.ChatService;
 import com.linkx.server.service.MessageStormService;
+import com.linkx.server.service.PresenceService;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +24,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -43,15 +45,19 @@ class ImMessagePushServiceTest {
     private StringRedisTemplate redisTemplate;
     @Mock
     private MessageStormService messageStormService;
+    @Mock
+    private PresenceService presenceService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private ImMessagePushService pushService;
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient().when(presenceService.getInstanceId()).thenReturn("test-instance");
         pushService = new ImMessagePushService(
                 chatService, memberMapper, messageMapper, sysUserMapper,
-                channelManager, objectMapper, Runnable::run, redisTemplate, messageStormService);
+                channelManager, objectMapper, Runnable::run, redisTemplate, messageStormService,
+                presenceService);
     }
 
     @Test

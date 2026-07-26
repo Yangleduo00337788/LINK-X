@@ -2,6 +2,7 @@ package com.linkx.server.im;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linkx.server.service.ChatService;
 import com.linkx.server.service.FriendService;
 import com.linkx.server.service.UserPreferenceService;
 import lombok.RequiredArgsConstructor;
@@ -11,11 +12,13 @@ import org.springframework.data.redis.connection.MessageListener;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
- * 订阅 Redis presence 事件，向本机在线的反向好友推送 WS {@code presence} 帧。
+ * 订阅 Redis presence 事件，向本机连接的好友/单聊对端推送 WS {@code presence} 帧。
  */
 @Slf4j
 @Component
@@ -24,6 +27,7 @@ public class PresenceEventSubscriber implements MessageListener {
 
     private final ObjectMapper objectMapper;
     private final FriendService friendService;
+    private final ChatService chatService;
     private final UserPreferenceService userPreferenceService;
     private final ImMessagePushService pushService;
 
@@ -39,32 +43,38 @@ public class PresenceEventSubscriber implements MessageListener {
             }
             boolean online = node.path("online").asBoolean(false);
 
-            // 隐藏在线状态时不对外推送 online:true
+            // 隐藏在线状态时不对外推送 online:true（offline 仍推，便于对方清绿点）
             if (online && !userPreferenceService.showsOnlineStatus(userId)) {
                 return;
             }
 
-            List<Long> watchers = friendService.listWatcherIds(userId);
+            Set<Long> watchers = new LinkedHashSet<>();
+            List<Long> friends = friendService.listWatcherIds(userId);
+            if (friends != null) {
+                watchers.addAll(friends);
+            }
+            List<Long> peers = chatService.listPrivatePeerIds(userId);
+            if (peers != null) {
+                watchers.addAll(peers);
+            }
+            watchers.remove(userId);
             if (watchers.isEmpty()) {
                 return;
             }
 
-            // userId 用字符串，避免前端 JS 雪花精度丢失（与全局 Jackson Long→String 一致）
             Map<String, Object> data = Map.of(
                     "userId", String.valueOf(userId),
                     "online", online
             );
             for (Long watcherId : watchers) {
-                pushService.pushToUser(watcherId, "presence", data);
+                // 仅本机投递：presence 已通过 Redis 广播到各实例，避免再走集群推送造成重复
+                pushService.pushToUserLocal(watcherId, "presence", data);
             }
         } catch (Exception e) {
             log.warn("处理 presence 事件失败: {}", e.getMessage());
         }
     }
 
-    /**
-     * 兼容数字与字符串 userId（全局 Jackson 将 Long 写成字符串）。
-     */
     private static Long readUserId(JsonNode node) {
         if (node == null || node.isMissingNode() || node.isNull()) {
             return null;

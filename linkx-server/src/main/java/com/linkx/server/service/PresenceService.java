@@ -8,6 +8,9 @@ package com.linkx.server.service;
  */
 public interface PresenceService {
 
+    /** 当前 JVM 实例 ID（用于跨实例推送去重、宕机清扫）。 */
+    String getInstanceId();
+
     /**
      * 登记一条本机连接；若用户从离线变为在线则广播 online 事件。
      *
@@ -21,7 +24,7 @@ public interface PresenceService {
     void markOffline(Long userId, String deviceId, String connId);
 
     /**
-     * 心跳续期 presence TTL。
+     * 心跳续期 presence TTL，并刷新本实例存活心跳。
      */
     void touch(Long userId);
 
@@ -29,4 +32,25 @@ public interface PresenceService {
      * 集群视角是否在线（Redis 连接集合非空）。
      */
     boolean isOnline(Long userId);
+
+    /**
+     * 强制对外广播在线可见性（不修改连接集合）。
+     * 用于「在线状态可见」开关：关 → offline，开且仍在线 → online。
+     */
+    void broadcastPresence(Long userId, boolean online);
+
+    /**
+     * 优雅停机：清理本实例全部 presence 成员并在必要时广播 offline。
+     */
+    void clearLocalPresenceOnShutdown();
+
+    /**
+     * 刷新本实例心跳；供定时任务调用。
+     */
+    void refreshInstanceHeartbeat();
+
+    /**
+     * 清扫已无心跳的其它实例，移除其僵尸连接并广播 offline。
+     */
+    void sweepDeadInstances();
 }

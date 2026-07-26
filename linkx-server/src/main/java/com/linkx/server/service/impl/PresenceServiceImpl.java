@@ -3,6 +3,7 @@ package com.linkx.server.service.impl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.service.PresenceService;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -20,12 +22,21 @@ public class PresenceServiceImpl implements PresenceService {
 
     public static final String CONN_KEY_PREFIX = "linkx:presence:conn:";
     public static final String EVENTS_CHANNEL = "linkx:presence:events";
+    public static final String INSTANCES_KEY = "linkx:presence:instances";
+    public static final String HB_KEY_PREFIX = "linkx:presence:hb:";
+    public static final String BY_INST_KEY_PREFIX = "linkx:presence:byinst:";
 
     private static final String INSTANCE_ID = UUID.randomUUID().toString().replace("-", "");
+    private static final Duration INSTANCE_HB_TTL = Duration.ofSeconds(15);
 
     private final StringRedisTemplate redisTemplate;
     private final LinkxProperties linkxProperties;
     private final ObjectMapper objectMapper;
+
+    @Override
+    public String getInstanceId() {
+        return INSTANCE_ID;
+    }
 
     @Override
     public void markOnline(Long userId, String deviceId, String connId) {
@@ -37,6 +48,8 @@ public class PresenceServiceImpl implements PresenceService {
         Long before = redisTemplate.opsForSet().size(key);
         redisTemplate.opsForSet().add(key, member);
         refreshTtl(key);
+        trackInstanceMember(userId, member);
+        refreshInstanceHeartbeat();
         Long after = redisTemplate.opsForSet().size(key);
         boolean becameOnline = (before == null || before == 0L) && after != null && after > 0L;
         if (becameOnline) {
@@ -53,6 +66,7 @@ public class PresenceServiceImpl implements PresenceService {
         String key = connKey(userId);
         String member = member(deviceId, connId);
         redisTemplate.opsForSet().remove(key, member);
+        untrackInstanceMember(userId, member);
         Long after = redisTemplate.opsForSet().size(key);
         if (after == null || after == 0L) {
             redisTemplate.delete(key);
@@ -73,6 +87,7 @@ public class PresenceServiceImpl implements PresenceService {
         if (Boolean.TRUE.equals(exists)) {
             refreshTtl(key);
         }
+        refreshInstanceHeartbeat();
     }
 
     @Override
@@ -82,6 +97,110 @@ public class PresenceServiceImpl implements PresenceService {
         }
         Long size = redisTemplate.opsForSet().size(connKey(userId));
         return size != null && size > 0L;
+    }
+
+    @Override
+    public void broadcastPresence(Long userId, boolean online) {
+        if (userId == null) {
+            return;
+        }
+        publish(userId, online);
+    }
+
+    @Override
+    @PreDestroy
+    public void clearLocalPresenceOnShutdown() {
+        try {
+            String byInstKey = BY_INST_KEY_PREFIX + INSTANCE_ID;
+            Set<String> entries = redisTemplate.opsForSet().members(byInstKey);
+            if (entries != null) {
+                for (String entry : entries) {
+                    reclaimEntry(entry);
+                }
+            }
+            redisTemplate.delete(byInstKey);
+            redisTemplate.delete(HB_KEY_PREFIX + INSTANCE_ID);
+            redisTemplate.opsForSet().remove(INSTANCES_KEY, INSTANCE_ID);
+            log.info("presence 优雅停机清理完成: instance={}", INSTANCE_ID);
+        } catch (Exception e) {
+            log.warn("presence 停机清理失败: {}", e.getMessage());
+        }
+    }
+
+    @Override
+    public void refreshInstanceHeartbeat() {
+        try {
+            redisTemplate.opsForValue().set(HB_KEY_PREFIX + INSTANCE_ID, "1", INSTANCE_HB_TTL);
+            redisTemplate.opsForSet().add(INSTANCES_KEY, INSTANCE_ID);
+        } catch (Exception e) {
+            log.debug("刷新 presence 实例心跳失败: {}", e.getMessage());
+        }
+    }
+
+    @Override
+    public void sweepDeadInstances() {
+        try {
+            Set<String> instances = redisTemplate.opsForSet().members(INSTANCES_KEY);
+            if (instances == null || instances.isEmpty()) {
+                return;
+            }
+            for (String instanceId : instances) {
+                if (INSTANCE_ID.equals(instanceId)) {
+                    continue;
+                }
+                Boolean alive = redisTemplate.hasKey(HB_KEY_PREFIX + instanceId);
+                if (Boolean.TRUE.equals(alive)) {
+                    continue;
+                }
+                log.info("清扫宕机 presence 实例: {}", instanceId);
+                String byInstKey = BY_INST_KEY_PREFIX + instanceId;
+                Set<String> entries = redisTemplate.opsForSet().members(byInstKey);
+                if (entries != null) {
+                    for (String entry : entries) {
+                        reclaimEntry(entry);
+                    }
+                }
+                redisTemplate.delete(byInstKey);
+                redisTemplate.opsForSet().remove(INSTANCES_KEY, instanceId);
+            }
+        } catch (Exception e) {
+            log.warn("清扫宕机 presence 实例失败: {}", e.getMessage());
+        }
+    }
+
+    private void reclaimEntry(String entry) {
+        // 格式: userId\tmember
+        if (entry == null || entry.isBlank()) {
+            return;
+        }
+        int sep = entry.indexOf('\t');
+        if (sep <= 0 || sep >= entry.length() - 1) {
+            return;
+        }
+        Long userId;
+        try {
+            userId = Long.parseLong(entry.substring(0, sep));
+        } catch (NumberFormatException e) {
+            return;
+        }
+        String member = entry.substring(sep + 1);
+        String key = connKey(userId);
+        redisTemplate.opsForSet().remove(key, member);
+        Long after = redisTemplate.opsForSet().size(key);
+        if (after == null || after == 0L) {
+            redisTemplate.delete(key);
+            publish(userId, false);
+        }
+    }
+
+    private void trackInstanceMember(Long userId, String member) {
+        String byInstKey = BY_INST_KEY_PREFIX + INSTANCE_ID;
+        redisTemplate.opsForSet().add(byInstKey, userId + "\t" + member);
+        redisTemplate.expire(byInstKey, Duration.ofHours(24));
+    }
+
+    private void untrackInstanceMember(Long userId, String member) {
+        redisTemplate.opsForSet().remove(BY_INST_KEY_PREFIX + INSTANCE_ID, userId + "\t" + member);
     }
 
     private void publish(Long userId, boolean online) {
@@ -105,7 +224,8 @@ public class PresenceServiceImpl implements PresenceService {
         if (heartbeat <= 0) {
             heartbeat = 30;
         }
-        return Duration.ofSeconds(Math.max(90L, heartbeat * 3L));
+        // 兜底 TTL：心跳的 2 倍，至少 45s；宕机清扫负责秒级收敛
+        return Duration.ofSeconds(Math.max(45L, heartbeat * 2L));
     }
 
     private static String connKey(Long userId) {
