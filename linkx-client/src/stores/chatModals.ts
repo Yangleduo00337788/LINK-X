@@ -200,7 +200,7 @@ export const useChatModalsStore = defineStore('chatModals', {
      */
     setProfileCardPosition(event?: MouseEvent) {
       const cardW = 320  // 卡片预估宽度
-      const cardH = 300  // 卡片预估高度
+      const cardH = 420  // 卡片预估高度（含本人在线好友列表）
       if (event) {
         // 默认在点击位置右下方偏移
         let x = event.clientX + 14

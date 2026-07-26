@@ -55,7 +55,7 @@ const calendarStore = useCalendarStore()
 const notificationsStore = useNotificationsStore()
 const { t } = useI18n()
 // 解构导航键、用户资料、已保存登录信息、会话列表
-const { navKey, userProfile, savedLogin, sessions } = storeToRefs(appStore)
+const { navKey, userProfile, savedLogin, sessions, isOffline } = storeToRefs(appStore)
 const { calendarRemindUnreadCount, contactsBadgeCount } = storeToRefs(notificationsStore)
 // 解构导航切换、登出、锁定方法
 const { setNav, logout, lock } = appStore
@@ -273,13 +273,23 @@ function handleSelfAvatarClick(e: MouseEvent) {
 <template>
   <!-- 侧边栏容器 -->
   <div class="sidebar">
-    <!-- 个人头像入口 -->
-    <button type="button" class="sidebar-avatar" :title="t('nav.profile')" @click="handleSelfAvatarClick">
+    <!-- 个人头像入口（唯一大头像；右下角绿点表示本机在线） -->
+    <button
+      type="button"
+      class="sidebar-avatar"
+      :title="t('nav.profile')"
+      @click="handleSelfAvatarClick"
+    >
       <Avatar
         :text="userProfile.nickname.charAt(0) || t('nav.me')"
         color="transparent"
         :size="40"
         :image-url="sidebarAvatarUrl"
+      />
+      <span
+        class="self-online-dot"
+        :class="{ on: !isOffline }"
+        :title="isOffline ? t('chat.offline') : t('chat.online')"
       />
     </button>
 
@@ -355,12 +365,30 @@ function handleSelfAvatarClick(e: MouseEvent) {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
   transition: transform 0.15s ease, opacity 0.15s ease;
 }
 
 .sidebar-avatar:hover {
   transform: scale(1.04);
   opacity: 0.92;
+}
+
+.self-online-dot {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--lx-border-strong, #c0c4cc);
+  border: 2px solid var(--lx-bg-panel, #fff);
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.self-online-dot.on {
+  background: var(--lx-success, #52c41a);
 }
 
 .nav-top {

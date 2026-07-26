@@ -122,6 +122,8 @@ function defaultState() {
     notifySocial: true,
     notifyMoments: true,
     notifySystem: true,
+    /** 好友上线提醒（仅本地，不走服务端偏好） */
+    notifyFriendOnline: true,
     /** 关闭窗口时最小化到托盘（本地 + Electron 主进程） */
     minimizeToTray: true,
     /** 启动时打开主窗口或仅托盘（本地 + Electron 主进程） */
@@ -308,6 +310,7 @@ export const useAppSettingsStore = defineStore('appSettings', {
       'notifySocial',
       'notifyMoments',
       'notifySystem',
+      'notifyFriendOnline',
       'minimizeToTray',
       'openOnStartup',
       'accentColor',

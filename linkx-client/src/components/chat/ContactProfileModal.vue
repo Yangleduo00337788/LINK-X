@@ -8,11 +8,19 @@
  */
 import { computed, ref, watch } from 'vue'
 import { NIcon } from 'naive-ui'
-import { ChatbubbleEllipsesOutline, ChevronForwardOutline, CameraOutline } from '@vicons/ionicons5'
+import {
+  ChatbubbleEllipsesOutline,
+  ChevronForwardOutline,
+  CameraOutline,
+  NotificationsOutline
+} from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
+import { useContactsStore } from '../../stores/contacts'
+import { useAppSettingsStore } from '../../stores/appSettings'
+import { useSettingsStore } from '../../stores/settings'
 import { useMomentsStore } from '../../stores/moments'
 import { useMessage } from 'naive-ui'
 import type { ContactItem } from '../../types'
@@ -24,12 +32,17 @@ import { useI18n } from '../../i18n'
 const { t } = useI18n()
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
+const contactsStore = useContactsStore()
+const appSettingsStore = useAppSettingsStore()
+const settingsStore = useSettingsStore()
 const momentsStore = useMomentsStore()
 const message = useMessage()
 
 const { contactProfileOpen, currentContactProfile, profileCardPos, profileCardIsSelf } = storeToRefs(chatModalsStore)
 const { closeContactProfile, openEditProfile } = chatModalsStore
-const { userProfile, savedLogin } = storeToRefs(appStore)
+const { userProfile, savedLogin, isOffline } = storeToRefs(appStore)
+const { onlineFriends } = storeToRefs(contactsStore)
+const { notifyFriendOnline } = storeToRefs(appSettingsStore)
 const { startChatWithContact, updateAvatar } = appStore
 const { posts } = storeToRefs(momentsStore)
 
@@ -39,6 +52,10 @@ const remoteProfile = ref<UserProfileData | null>(null)
 const loadingRemoteProfile = ref(false)
 
 const contact = computed<ContactItem | null>(() => currentContactProfile.value)
+const selfOnline = computed(() => !isOffline.value)
+const onlineFriendsTitle = computed(() =>
+  t('presence.onlineFriendsTitle', { count: onlineFriends.value.length })
+)
 
 /** 从联系人 id 或 userId 解析后端用户 ID */
 function resolveContactUserId(item: ContactItem): string | null {
@@ -180,6 +197,20 @@ async function handleAvatarChange(e: Event) {
 function handleEditProfile() {
   openEditProfile()
 }
+
+async function chatWithOnlineFriend(friend: ContactItem) {
+  try {
+    await startChatWithContact(friend)
+    closeContactProfile()
+  } catch (error) {
+    message.error((error as Error).message || t('modals.openSessionFail'))
+  }
+}
+
+function goNotifySettings() {
+  closeContactProfile()
+  settingsStore.openSettings('notifications')
+}
 </script>
 
 <template>
@@ -217,6 +248,10 @@ function handleEditProfile() {
               {{ t('modals.linkxId', { id: displayId }) }}
               <span v-if="loadingRemoteProfile" class="profile-loading">{{ t('common.loading') }}</span>
             </div>
+            <div v-if="profileCardIsSelf" class="self-status">
+              <span class="status-dot" :class="{ on: selfOnline }" />
+              <span>{{ selfOnline ? t('chat.online') : t('chat.offline') }}</span>
+            </div>
           </div>
           <button
             v-if="profileCardIsSelf"
@@ -228,7 +263,55 @@ function handleEditProfile() {
           </button>
         </section>
 
-        <section class="moments-row">
+        <section v-if="profileCardIsSelf" class="online-section">
+          <div class="online-section-head">
+            <span class="online-section-title">{{ onlineFriendsTitle }}</span>
+            <span class="online-section-hint">{{ t('presence.onlineFriendsHint') }}</span>
+          </div>
+          <button type="button" class="notify-hint" @click="goNotifySettings">
+            <n-icon :component="NotificationsOutline" :size="13" />
+            <span>
+              {{
+                notifyFriendOnline ? t('presence.notifyEnabled') : t('presence.notifyDisabled')
+              }}
+            </span>
+            <span class="link">{{ t('presence.goSettings') }}</span>
+          </button>
+          <div class="online-list">
+            <button
+              v-for="f in onlineFriends"
+              :key="f.id"
+              type="button"
+              class="online-row"
+              @click="chatWithOnlineFriend(f)"
+            >
+              <Avatar
+                :text="f.avatarText"
+                :color="f.avatarColor"
+                :size="36"
+                :image-url="f.avatarUrl"
+              />
+              <div class="online-row-info">
+                <div class="online-row-name">{{ f.name }}</div>
+                <div class="online-row-status">
+                  <span class="status-dot on" />
+                  <span>{{ t('chat.online') }}</span>
+                </div>
+              </div>
+              <n-icon
+                :component="ChatbubbleEllipsesOutline"
+                :size="16"
+                class="online-row-chat"
+                :title="t('presence.sendMessage')"
+              />
+            </button>
+            <div v-if="onlineFriends.length === 0" class="online-empty">
+              {{ t('presence.noOnlineFriends') }}
+            </div>
+          </div>
+        </section>
+
+        <section v-if="!profileCardIsSelf" class="moments-row">
           <span class="moments-label">{{ t('modals.moments') }}</span>
           <div class="moments-thumbs">
             <img
@@ -272,11 +355,14 @@ function handleEditProfile() {
 .profile-card {
   position: fixed;
   width: 320px;
+  max-height: min(520px, 80vh);
   background: var(--lx-bg-card);
   border-radius: 14px;
   box-shadow: var(--lx-shadow-modal);
   border: 1px solid var(--lx-border-light);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
   animation: card-in 0.18s ease-out;
 }
 
@@ -428,5 +514,135 @@ function handleEditProfile() {
   opacity: 0;
   transition: opacity 0.2s;
   border-radius: 50%;
+}
+
+.self-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--lx-text-secondary);
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lx-border-strong, #c0c4cc);
+  flex-shrink: 0;
+}
+
+.status-dot.on {
+  background: var(--lx-success, #52c41a);
+  box-shadow: 0 0 0 2px rgba(82, 196, 26, 0.18);
+}
+
+.online-section {
+  border-top: 1px solid var(--lx-border-light);
+  padding: 12px 0 8px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.online-section-head {
+  padding: 0 18px 6px;
+}
+
+.online-section-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lx-text-body);
+}
+
+.online-section-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--lx-text-muted);
+}
+
+.notify-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 18px 8px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 12px;
+  color: var(--lx-text-secondary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.notify-hint .link {
+  color: var(--lx-accent);
+}
+
+.notify-hint:hover .link {
+  text-decoration: underline;
+}
+
+.online-list {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.online-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 18px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.online-row:hover {
+  background: var(--lx-bg-hover);
+}
+
+.online-row-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.online-row-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--lx-text-body);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.online-row-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--lx-text-secondary);
+}
+
+.online-row-chat {
+  color: var(--lx-text-muted);
+  flex-shrink: 0;
+}
+
+.online-row:hover .online-row-chat {
+  color: var(--lx-accent);
+}
+
+.online-empty {
+  padding: 16px 18px 12px;
+  font-size: 12px;
+  color: var(--lx-text-muted);
+  text-align: center;
 }
 </style>

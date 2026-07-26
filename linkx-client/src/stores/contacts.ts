@@ -37,6 +37,11 @@ export const useContactsStore = defineStore('contacts', {
       return state.items.filter(c => c.group === '我的好友')
     },
 
+    /** 当前在线好友（受对方「在线状态可见」约束） */
+    onlineFriends(state): ContactItem[] {
+      return state.items.filter(c => c.group === '我的好友' && c.online)
+    },
+
     searchUsers: state => (keyword: string) => {
       const q = keyword.trim().toLowerCase()
       if (!q) return state.items
@@ -104,15 +109,19 @@ export const useContactsStore = defineStore('contacts', {
       }
     },
 
-    /** 实时更新好友在线状态（WS presence 推送） */
-    setOnline(userId: string | number, online: boolean) {
+    /**
+     * 实时更新好友在线状态（WS presence 推送）
+     * @returns 状态是否发生变化（用于上线提醒等）
+     */
+    setOnline(userId: string | number, online: boolean): boolean {
       const id = String(userId)
       const idx = this.items.findIndex(c => String(c.userId ?? c.id) === id)
-      if (idx < 0) return
+      if (idx < 0) return false
       const prev = this.items[idx]
-      if (prev.online === online) return
+      if (prev.online === online) return false
       // 替换元素，确保虚拟列表等依赖 items 引用变化的视图能刷新
       this.items.splice(idx, 1, { ...prev, online })
+      return true
     },
 
     reset() {

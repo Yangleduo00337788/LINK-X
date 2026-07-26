@@ -19,7 +19,8 @@ const {
   notifyChat,
   notifySocial,
   notifyMoments,
-  notifySystem
+  notifySystem,
+  notifyFriendOnline
 } = storeToRefs(appSettingsStore)
 const { t } = useI18n()
 
@@ -130,6 +131,13 @@ function onQuietEnd(v: number | null) {
           <span class="setting-name">{{ t('notifications.notifySocial') }}</span>
         </div>
         <n-switch v-model:value="notifySocial" size="small" @update:value="toggleSwitch('notifySocial')" />
+      </div>
+      <div class="setting-row">
+        <div class="setting-text">
+          <span class="setting-name">{{ t('notifications.notifyFriendOnline') }}</span>
+          <span class="setting-desc">{{ t('notifications.notifyFriendOnlineDesc') }}</span>
+        </div>
+        <n-switch v-model:value="notifyFriendOnline" size="small" />
       </div>
       <div class="setting-row">
         <div class="setting-text">

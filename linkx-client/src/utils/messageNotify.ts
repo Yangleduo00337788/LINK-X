@@ -190,6 +190,45 @@ export function notifySocialEvent(kind: 'friend_request' | 'group_invitation'): 
   void showChatDesktopNotification(title, body, !settings.notifySound)
 }
 
+/**
+ * 好友上线提醒：前台应用内 toast + 后台桌面通知；受本地「好友上线提醒」开关约束。
+ */
+export function notifyFriendOnline(friendName: string, avatarUrl?: string): void {
+  const settings = useAppSettingsStore()
+  if (settings.notifyFriendOnline === false) return
+  if (
+    isInQuietHours(
+      new Date(),
+      !!settings.quietHoursEnabled,
+      settings.quietHoursStart || '22:00',
+      settings.quietHoursEnd || '08:00'
+    )
+  ) {
+    return
+  }
+
+  const name = (friendName || '').trim() || t('chat.me')
+  const body = t('notifications.friendOnlineAlert', { name })
+
+  if (settings.soundNotify) {
+    playTone((settings.notifyTone || 'default') as ToneId)
+  }
+
+  // 前台：应用内 toast；后台：桌面通知
+  if (!isWindowInBackground()) {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('linkx:friend-online', {
+          detail: { title: name, body, avatarUrl }
+        })
+      )
+    }
+    return
+  }
+
+  void showChatDesktopNotification(name, body, !settings.notifySound)
+}
+
 async function showChatDesktopNotification(
   title: string,
   body: string,

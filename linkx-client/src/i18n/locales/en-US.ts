@@ -65,6 +65,9 @@ export default {
     notifySocial: 'Social alerts',
     notifyMoments: 'Moments alerts',
     notifySystem: 'System alerts',
+    notifyFriendOnline: 'Friend online alerts',
+    notifyFriendOnlineDesc: 'Play a sound and show a notification when a friend comes online',
+    friendOnlineAlert: '{name} is online',
     quietTitle: 'Quiet hours',
     quietEnabled: 'Enable quiet hours',
     quietDesc: 'No sound or desktop notifications during this window',
@@ -77,6 +80,16 @@ export default {
     verifyFriend: 'Friend request verification',
     allowStranger: 'Allow stranger chats',
     showOnline: 'Show online status'
+  },
+  presence: {
+    peopleOnline: '{count} online',
+    onlineFriendsTitle: 'Friends online ({count})',
+    onlineFriendsHint: 'These friends are currently active',
+    notifyEnabled: 'Online alerts on, ',
+    notifyDisabled: 'Online alerts off, ',
+    goSettings: 'Settings',
+    sendMessage: 'Message',
+    noOnlineFriends: 'No friends online'
   },
   chatSettings: {
     background: 'Chat background',

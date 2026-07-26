@@ -67,6 +67,9 @@ export default {
     notifySocial: '社交提醒',
     notifyMoments: '友链提醒',
     notifySystem: '系统提醒',
+    notifyFriendOnline: '好友上线提醒',
+    notifyFriendOnlineDesc: '好友上线时播放提示音并弹出通知',
+    friendOnlineAlert: '{name} 上线了',
     quietTitle: '免打扰时段',
     quietEnabled: '启用免打扰',
     quietDesc: '时段内不播放提示音、不弹出桌面通知',
@@ -78,6 +81,16 @@ export default {
     verifyFriend: '加好友需验证',
     allowStranger: '允许陌生人会话',
     showOnline: '在线状态可见'
+  },
+  presence: {
+    peopleOnline: '{count}人在线',
+    onlineFriendsTitle: '同时在线好友 ({count})',
+    onlineFriendsHint: '以下好友正在屏幕前',
+    notifyEnabled: '已开启上线通知，',
+    notifyDisabled: '未开启上线通知，',
+    goSettings: '去设置',
+    sendMessage: '发消息',
+    noOnlineFriends: '暂无在线好友'
   },
   chatSettings: {
     background: '聊天背景',

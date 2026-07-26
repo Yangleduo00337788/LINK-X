@@ -26,6 +26,7 @@ import {
 import { compareMessageOrder } from '../utils/messageOrder'
 import {
   contentMentionsUser,
+  notifyFriendOnline,
   notifyIncomingMessage,
   shouldAlertForSession
 } from '../utils/messageNotify'
@@ -1092,16 +1093,21 @@ export const useAppStore = defineStore('app', {
       }
     },
 
-    /** 好友上下线推送：更新通讯录绿点与单聊会话 online */
+    /** 好友上下线推送：更新通讯录绿点与单聊会话 online；好友上线时提示 */
     applyPresenceUpdate(data: Record<string, unknown>) {
       const userId = sanitizeUserId(data.userId)
       if (!userId) return
       const online = data.online === true || data.online === 'true' || data.online === 1
-      useContactsStore().setOnline(userId, online)
+      const contacts = useContactsStore()
+      const changed = contacts.setOnline(userId, online)
       for (const session of this.sessions) {
         if (!session.isGroup && session.peerUserId === userId) {
           session.online = online
         }
+      }
+      if (changed && online) {
+        const friend = contacts.items.find(c => String(c.userId ?? c.id) === userId)
+        notifyFriendOnline(friend?.name || userId, friend?.avatarUrl)
       }
     },
 
