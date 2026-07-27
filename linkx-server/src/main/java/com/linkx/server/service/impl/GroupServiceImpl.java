@@ -31,6 +31,7 @@ import com.linkx.server.service.ChatService;
 import com.linkx.server.service.GroupService;
 import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.MessageNotificationService;
+import com.mybatisflex.core.logicdelete.LogicDeleteManager;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.core.update.UpdateChain;
 import lombok.RequiredArgsConstructor;
@@ -190,6 +191,7 @@ public class GroupServiceImpl implements GroupService {
             return toGroupConversationVO(group, owner, userId);
         }
 
+        String oldName = group.getName();
         if (rename) {
             group.setName(dto.getName());
         }
@@ -199,7 +201,23 @@ public class GroupServiceImpl implements GroupService {
         conversationMapper.update(group);
 
         SysUser owner = sysUserMapper.selectOneById(group.getOwnerId());
-        return toGroupConversationVO(group, owner, userId);
+        SysUser operator = sysUserMapper.selectOneById(userId);
+        // 构建更新后的群信息
+        GroupConversationVO updatedVO = toGroupConversationVO(group, owner, null);
+
+        // 推送群信息变更给所有群成员
+        String action = rename ? "group_renamed" : "group_announcement_updated";
+        String tipContent = rename
+                ? displayName(operator) + " 修改群名为「" + dto.getName() + "」"
+                : displayName(operator) + " 更新了群公告";
+        final GroupConversationVO finalVO = updatedVO;
+        final String finalAction = action;
+        emitGroupUpdate(group.getId(), finalAction, finalVO);
+        if (rename) {
+            emitSystemTip(userId, group.getId(), tipContent);
+        }
+
+        return updatedVO;
     }
 
     @Override
@@ -207,7 +225,9 @@ public class GroupServiceImpl implements GroupService {
         assertGroupMember(userId, conversationId);
 
         List<ImConversationMember> members = memberMapper.selectListByQuery(
-                QueryWrapper.create().where(ImConversationMember::getConversationId).eq(conversationId)
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).eq(conversationId)
+                        .and(ImConversationMember::getDeleted).eq(0)
         );
 
         Set<Long> userIds = members.stream()
@@ -247,29 +267,46 @@ public class GroupServiceImpl implements GroupService {
             throw new CustomException(404, "群聊不存在");
         }
 
-        // 获取已存在的成员
-        List<ImConversationMember> existingMembers = memberMapper.selectListByQuery(
-                QueryWrapper.create().where(ImConversationMember::getConversationId).eq(conversationId)
-        );
-        Set<Long> existingUserIds = existingMembers.stream()
-                .map(ImConversationMember::getUserId)
-                .collect(Collectors.toSet());
-
         List<ImConversationMember> addedMembers = new ArrayList<>();
         for (Long memberId : dto.getMemberIds()) {
-            if (existingUserIds.contains(memberId)) {
+            if (memberId == null) {
                 continue;
             }
-            ImConversationMember newMember = ImConversationMember.builder()
-                    .conversationId(conversationId)
-                    .userId(memberId)
-                    .role(ImConversationMember.ROLE_MEMBER)
-                    .build();
-            memberMapper.insert(newMember);
-            addedMembers.add(newMember);
+            ImConversationMember ensured = ensureActiveMembership(conversationId, memberId);
+            if (ensured != null) {
+                addedMembers.add(ensured);
+            }
         }
 
-        // 返回新添加的成员信息
+        // 直接拉人后，清理这些人的待确认邀请，避免对方通知里仍显示可接受/拒绝
+        Set<Long> addedUserIds = addedMembers.stream()
+                .map(ImConversationMember::getUserId)
+                .collect(Collectors.toSet());
+        if (!addedUserIds.isEmpty()) {
+            markPendingInvitationsAccepted(conversationId, addedUserIds);
+            SysUser operator = sysUserMapper.selectOneById(userId);
+            // 构建群会话信息，用于前端直接加入会话列表
+            GroupConversationVO groupVO = toGroupConversationVO(group, operator, null);
+            for (Long addedId : addedUserIds) {
+                SysUser u = sysUserMapper.selectOneById(addedId);
+                emitSystemTip(userId, conversationId, displayName(operator) + " 邀请 " + displayName(u) + " 加入了群聊");
+                // 推送通知刷新 + 群会话信息（用于前端直接加入会话列表）
+                imPushService.pushToUser(addedId, "notification_refresh", Map.of(
+                        "type", "group_invitation",
+                        "conversationId", String.valueOf(conversationId)
+                ));
+                // 推送 group_added 事件，携带群会话信息，前端收到后直接加入会话列表
+                imPushService.pushToUser(addedId, "group_added", Map.of(
+                        "conversationId", String.valueOf(conversationId),
+                        "group", groupVO
+                ));
+            }
+        }
+
+        if (addedMembers.isEmpty()) {
+            return List.of();
+        }
+
         Set<Long> newUserIds = addedMembers.stream()
                 .map(ImConversationMember::getUserId)
                 .collect(Collectors.toSet());
@@ -291,6 +328,77 @@ public class GroupServiceImpl implements GroupService {
             }
         }
         return result;
+    }
+
+    /**
+     * 确保用户是活跃群成员。
+     * 退群是逻辑删除且 uk_conv_user 仍占用，需恢复旧行而非再 insert。
+     *
+     * @return 新加入或恢复的成员行；若本来就是活跃成员则返回 null
+     */
+    private ImConversationMember ensureActiveMembership(Long conversationId, Long memberId) {
+        ImConversationMember active = memberMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).eq(conversationId)
+                        .and(ImConversationMember::getUserId).eq(memberId)
+        );
+        if (active != null) {
+            return null;
+        }
+        ImConversationMember softDeleted = LogicDeleteManager.execWithoutLogicDelete(() ->
+                memberMapper.selectOneByQuery(
+                        QueryWrapper.create()
+                                .where(ImConversationMember::getConversationId).eq(conversationId)
+                                .and(ImConversationMember::getUserId).eq(memberId)
+                                .limit(1)
+                )
+        );
+        if (softDeleted != null) {
+            softDeleted.setDeleted(0);
+            softDeleted.setRole(ImConversationMember.ROLE_MEMBER);
+            softDeleted.setMuted(0);
+            softDeleted.setMuteUntil(null);
+            LogicDeleteManager.execWithoutLogicDelete(() -> {
+                memberMapper.update(softDeleted);
+                return null;
+            });
+            return softDeleted;
+        }
+        ImConversationMember newMember = ImConversationMember.builder()
+                .conversationId(conversationId)
+                .userId(memberId)
+                .role(ImConversationMember.ROLE_MEMBER)
+                .muted(0)
+                .deleted(0)
+                .build();
+        memberMapper.insert(newMember);
+        return newMember;
+    }
+
+    private void markPendingInvitationsAccepted(Long conversationId, Set<Long> inviteeUserIds) {
+        if (inviteeUserIds == null || inviteeUserIds.isEmpty()) {
+            return;
+        }
+        List<GroupInvitation> pending = groupInvitationMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(GroupInvitation::getConversationId).eq(conversationId)
+                        .and(GroupInvitation::getInviteeUserId).in(inviteeUserIds)
+                        .and(GroupInvitation::getStatus).eq(GroupInvitation.STATUS_PENDING)
+        );
+        for (GroupInvitation inv : pending) {
+            // uk(conversation, invitee, status)：清掉历史 accepted，避免 pending→accepted 冲突
+            List<GroupInvitation> oldAccepted = groupInvitationMapper.selectListByQuery(
+                    QueryWrapper.create()
+                            .where(GroupInvitation::getConversationId).eq(conversationId)
+                            .and(GroupInvitation::getInviteeUserId).eq(inv.getInviteeUserId())
+                            .and(GroupInvitation::getStatus).eq(GroupInvitation.STATUS_ACCEPTED)
+            );
+            for (GroupInvitation old : oldAccepted) {
+                groupInvitationMapper.deleteById(old.getId());
+            }
+            inv.setStatus(GroupInvitation.STATUS_ACCEPTED);
+            groupInvitationMapper.update(inv);
+        }
     }
 
     @Override
@@ -444,6 +552,27 @@ public class GroupServiceImpl implements GroupService {
             emitSystemTip(userId, conversationId,
                     displayName(operator) + " 取消了 " + displayName(targetUser) + " 的管理员身份");
         }
+
+        // 推送角色变更给被修改的成员
+        Map<String, Object> roleChangeData = Map.of(
+                "conversationId", String.valueOf(conversationId),
+                "memberId", String.valueOf(memberId),
+                "role", role
+        );
+        imPushService.pushToUser(memberId, "group_member_role_changed", roleChangeData);
+
+        // 推送角色变更给所有群成员（刷新成员列表显示）
+        List<ImConversationMember> members = memberMapper.selectListByQuery(
+                QueryWrapper.create().where(ImConversationMember::getConversationId).eq(conversationId)
+        );
+        Map<String, Object> broadcastData = Map.of(
+                "conversationId", String.valueOf(conversationId),
+                "memberId", String.valueOf(memberId),
+                "role", role,
+                "operatorName", displayName(operator),
+                "targetName", displayName(targetUser)
+        );
+        imPushService.pushActionToConversationMembers(conversationId, "group_member_role_changed", broadcastData);
     }
 
     @Override
@@ -509,6 +638,16 @@ public class GroupServiceImpl implements GroupService {
         } else if (Boolean.FALSE.equals(dto.getEnabled())) {
             emitSystemTip(userId, conversationId, opName + " 关闭了全体禁言");
         }
+
+        // 推送全体禁言状态变更给所有群成员
+        Map<String, Object> muteAllData = Map.of(
+                "conversationId", String.valueOf(conversationId),
+                "muteAll", group.getMuteAll() != null && group.getMuteAll() == 1,
+                "muteAllStart", group.getMuteAllStart() != null ? group.getMuteAllStart().getTime() : null,
+                "muteAllEnd", group.getMuteAllEnd() != null ? group.getMuteAllEnd().getTime() : null
+        );
+        imPushService.pushActionToConversationMembers(conversationId, "group_mute_all_changed", muteAllData);
+
         return toGroupConversationVO(group, owner, userId);
     }
 
@@ -566,6 +705,15 @@ public class GroupServiceImpl implements GroupService {
             emitSystemTip(userId, conversationId,
                     displayName(operator) + " 解除了 " + displayName(targetUser) + " 的禁言");
         }
+
+        // 推送禁言状态变更给被禁言的成员
+        Map<String, Object> muteData = Map.of(
+                "conversationId", String.valueOf(conversationId),
+                "memberId", String.valueOf(memberId),
+                "muted", Boolean.TRUE.equals(dto.getMuted()),
+                "muteUntil", dto.getMuteUntil() != null ? dto.getMuteUntil() : null
+        );
+        imPushService.pushToUser(memberId, "group_mute_changed", muteData);
     }
 
     @Override
@@ -813,6 +961,25 @@ public class GroupServiceImpl implements GroupService {
             });
         } else {
             task.run();
+        }
+    }
+
+    /**
+     * 推送群信息变更给所有群成员。
+     * @param conversationId 群会话 ID
+     * @param action 事件类型：group_renamed / group_announcement_updated
+     * @param groupVO 更新后的群信息
+     */
+    private void emitGroupUpdate(Long conversationId, String action, GroupConversationVO groupVO) {
+        List<ImConversationMember> members = memberMapper.selectListByQuery(
+                QueryWrapper.create().where(ImConversationMember::getConversationId).eq(conversationId)
+        );
+        Map<String, Object> data = Map.of(
+                "conversationId", String.valueOf(conversationId),
+                "group", groupVO
+        );
+        for (ImConversationMember member : members) {
+            imPushService.pushToUser(member.getUserId(), action, data);
         }
     }
 

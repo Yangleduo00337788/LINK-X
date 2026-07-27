@@ -122,7 +122,29 @@ public class MomentsServiceImpl implements MomentsService {
             }
         }
 
-        return toPostVO(post, user, savedImages, Collections.emptyList(), Collections.emptyList(), userId);
+        // 向所有好友推送新动态（让他们的朋友圈页面实时显示）
+        MomentsPostVO postVO = toPostVO(post, user, savedImages, Collections.emptyList(), Collections.emptyList(), userId);
+        pushNewMomentsToFriends(userId, postVO);
+
+        return postVO;
+    }
+
+    /**
+     * 向所有好友推送新发布的动态。
+     * @param authorId 发布者 ID
+     * @param postVO 动态内容
+     */
+    private void pushNewMomentsToFriends(Long authorId, MomentsPostVO postVO) {
+        Set<Long> friendIds = getFriendIds(authorId);
+        if (friendIds.isEmpty()) {
+            return;
+        }
+        Map<String, Object> pushData = Map.of(
+                "post", postVO
+        );
+        for (Long friendId : friendIds) {
+            imPushService.pushToUser(friendId, "moments_new_post", pushData);
+        }
     }
 
     @Override

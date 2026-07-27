@@ -31,9 +31,26 @@ public final class DotEnvLoader {
         }
         String profile = resolveProfile(envDir);
         Path profileFile = envDir.resolve(".env." + profile);
+        Path localFallback = envDir.resolve(".env.local");
+
+        // test profile：允许 .env.test 只覆盖差异项（如 MinIO），其余继承 .env.local
+        if ("test".equals(profile)) {
+            Map<String, String> map = new LinkedHashMap<>();
+            if (Files.isRegularFile(localFallback)) {
+                map.putAll(parseEnvFile(localFallback));
+            }
+            if (Files.isRegularFile(profileFile)) {
+                map.putAll(parseEnvFile(profileFile));
+                return Result.ok(profile, profileFile, map);
+            }
+            if (!map.isEmpty()) {
+                return Result.ok(profile, localFallback, map);
+            }
+            return Result.missingFile(profile, profileFile);
+        }
+
         if (!Files.isRegularFile(profileFile)) {
-            // 无 .env.test 等专用文件时回退 .env.local，避免测试/临时 profile 缺占位符
-            Path localFallback = envDir.resolve(".env.local");
+            // 无专用 profile 文件时回退 .env.local，避免临时 profile 缺占位符
             if (Files.isRegularFile(localFallback) && !"prod".equals(profile)) {
                 Map<String, String> map = parseEnvFile(localFallback);
                 return Result.ok(profile, localFallback, map);
@@ -78,7 +95,8 @@ public final class DotEnvLoader {
                 continue;
             }
             if (Files.isRegularFile(dir.resolve(".env.local"))
-                    || Files.isRegularFile(dir.resolve(".env.prod"))) {
+                    || Files.isRegularFile(dir.resolve(".env.prod"))
+                    || Files.isRegularFile(dir.resolve(".env.test"))) {
                 return dir;
             }
         }

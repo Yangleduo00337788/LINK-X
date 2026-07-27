@@ -35,6 +35,7 @@ import { dataUrlToFile } from '../utils/fileConvert'
 import { generateUuidV4 } from '../utils/parseJson'
 import type { MessageItem } from '../types/chat'
 import { normalizeMediaUrl } from '../utils/mediaUrl'
+import { t } from '../i18n'
 // 通讯录 Store（加群/加好友后同步联系人）
 import { useContactsStore } from './contacts'
 // 群元数据 Store（邀请成员等）
@@ -353,6 +354,25 @@ export const useAppStore = defineStore('app', {
       }
     },
 
+    /**
+     * 历史拉取后补发送达确认，避免「在线时未收、刷新后才看到」时对方仍停在「已发送」。
+     * 仅对非本人、雪花 ID 消息回执；单次最多 40 条防止刷屏。
+     */
+    ackHistoryDeliveries(sessionId: string, messages: ChatMessage[]) {
+      if (!sessionId || !messages?.length) return
+      const me = this.userProfile.userId
+      let sent = 0
+      for (let i = messages.length - 1; i >= 0 && sent < 40; i--) {
+        const m = messages[i]
+        if (!m?.id || !/^\d+$/.test(m.id)) continue
+        if (m.type === 'system' || m.type === 'time' || m.type === 'recall') continue
+        if (m.isSelf || (me && m.senderId === me)) continue
+        if (m.deliveryStatus === 'delivered' || m.deliveryStatus === 'read') continue
+        sendDeliveryReceipt(m.id)
+        sent += 1
+      }
+    },
+
     /** 清除会话的 @我 提示（点击浮层跳转后调用） */
     clearAtMeMessage(sessionId: string) {
       const s = this.sessions.find(x => x.id === sessionId)
@@ -654,6 +674,7 @@ export const useAppStore = defineStore('app', {
           this.messagesBySession[sessionId] = merged
           this.messagesLoaded[sessionId] = true
           this.messagesHasMore[sessionId] = res.data.length >= 50
+          this.ackHistoryDeliveries(sessionId, serverMessages)
 
           // 历史里若有会议邀请，同步聊天顶栏进行中状态
           for (let i = merged.length - 1; i >= 0; i--) {
@@ -700,6 +721,7 @@ export const useAppStore = defineStore('app', {
           const unique = older.filter(m => !existingIds.has(m.id))
           if (unique.length) {
             this.messagesBySession[sessionId] = [...unique, ...existing]
+            this.ackHistoryDeliveries(sessionId, unique)
           }
           this.messagesHasMore[sessionId] = res.data.length >= 50
         } else {
@@ -806,6 +828,36 @@ export const useAppStore = defineStore('app', {
           }
           if (action === 'edit') {
             this.applyEditedMessage(data as unknown as MessageItem)
+            return
+          }
+          // 直接被拉入群聊：收到 group_added 后直接将群加入会话列表
+          if (action === 'group_added') {
+            void this.handleGroupAdded(data)
+            return
+          }
+          // 群名变更推送
+          if (action === 'group_renamed' || action === 'group_announcement_updated') {
+            void this.handleGroupUpdate(data)
+            return
+          }
+          // 群角色变更推送
+          if (action === 'group_member_role_changed') {
+            void this.handleGroupMemberRoleChanged(data)
+            return
+          }
+          // 群禁言状态变更推送
+          if (action === 'group_mute_changed' || action === 'group_mute_all_changed') {
+            void this.handleGroupMuteChanged(data)
+            return
+          }
+          // 朋友圈新动态推送
+          if (action === 'moments_new_post') {
+            void this.handleMomentsNewPost(data)
+            return
+          }
+          // 群成员加入推送
+          if (action === 'group_member_added') {
+            void this.handleGroupMemberAdded(data)
             return
           }
           if (
@@ -1314,7 +1366,7 @@ export const useAppStore = defineStore('app', {
         const res = await groupApi.addGroupMembers(sessionId, { memberIds: filtered })
         if (res.code === 200) {
           // 刷新本地群成员缓存，让侧栏/抽屉显示最新成员
-          await useGroupMetaStore().fetchMembers(sessionId)
+          await useGroupMetaStore().fetchMembers(sessionId, true)
           return true
         }
         throw new Error(res.message || '邀请成员失败')
@@ -1389,7 +1441,7 @@ export const useAppStore = defineStore('app', {
       if (res.code !== 200) {
         throw new Error(res.message || '移除成员失败')
       }
-      await useGroupMetaStore().fetchMembers(sessionId)
+      await useGroupMetaStore().fetchMembers(sessionId, true)
     },
 
     /**
@@ -1451,13 +1503,14 @@ export const useAppStore = defineStore('app', {
         fileSize: options.fileSize,
         fileUrl: options.fileUrl,
         isImage,
-        fileStatus: type === 'file' ? '发送中...' : undefined,
+        fileStatus: type === 'file' ? t('chat.fileStatusSending') : undefined,
         voiceDuration: options.voiceDuration,
         voiceUrl: options.voiceUrl,
         redPacketGreeting: options.redPacketGreeting,
         redPacketAmount: options.redPacketAmount,
         redPacketOpened: type === 'redPacket' ? false : undefined,
         sendStatus: 'sending',
+        uploadProgress: type === 'image' || type === 'file' || type === 'voice' ? 0 : undefined,
         clientMsgId,
         ...(options.autoRetryCount != null ? { _autoRetry: options.autoRetryCount } : {})
       } as ChatMessage & { _autoRetry?: number }
@@ -1476,7 +1529,8 @@ export const useAppStore = defineStore('app', {
         const local = this.messagesBySession[id]?.find(m => m.id === clientMsgId)
         if (local) {
           local.sendStatus = 'failed'
-          if (local.type === 'file') local.fileStatus = '发送失败'
+          local.uploadProgress = undefined
+          if (local.type === 'file') local.fileStatus = t('chat.fileStatusFailed')
           const retries = Number((local as { _autoRetry?: number })._autoRetry || 0)
           if (retries < 2) {
             ;(local as { _autoRetry?: number })._autoRetry = retries + 1
@@ -1533,7 +1587,18 @@ export const useAppStore = defineStore('app', {
           // 注意：不再从 blob URL 重建 File，直接使用 rawFile，避免 blob 失效导致 size=0
           if (uploadFile) {
             console.log('[发送消息] 上传文件:', uploadFile.name, uploadFile.size, uploadFile.type, 'lastModified:', uploadFile.lastModified)
-            const uploadRes = await chatApi.uploadChatFileSmart(id, uploadFile)
+            const applyUploadProgress = (percent: number) => {
+              const local = this.messagesBySession[id]?.find(m => m.id === clientMsgId)
+              if (!local) return
+              local.uploadProgress = percent
+              if (local.type === 'file') {
+                local.fileStatus =
+                  percent >= 100
+                    ? t('chat.fileStatusSending')
+                    : t('chat.fileStatusUploading', { n: percent })
+              }
+            }
+            const uploadRes = await chatApi.uploadChatFileSmart(id, uploadFile, applyUploadProgress)
             console.log('[发送消息] 上传结果:', uploadRes)
             if (uploadRes.code !== 200 || !uploadRes.data) {
               throw new Error(uploadRes.message || '文件上传失败')
@@ -1552,6 +1617,7 @@ export const useAppStore = defineStore('app', {
                 local.voiceUrl = displayUrl
                 local.fileUrl = displayUrl
                 local.fileName = fileName
+                local.uploadProgress = 100
               }
             } else if (type === 'image' || type === 'file') {
               const local = this.messagesBySession[id]?.find(m => m.id === clientMsgId)
@@ -1559,6 +1625,8 @@ export const useAppStore = defineStore('app', {
                 local.fileUrl = displayUrl
                 if (type === 'image') local.content = displayUrl
                 local.fileName = fileName
+                local.uploadProgress = 100
+                if (type === 'file') local.fileStatus = t('chat.fileStatusSending')
               }
             }
           }
@@ -1996,6 +2064,189 @@ export const useAppStore = defineStore('app', {
     /** 显式设置离线状态 */
     setOffline(value: boolean) {
       this.isOffline = value
+    },
+
+    /**
+     * 处理直接被拉入群聊的 WebSocket 推送。
+     * 收到 group_added 后，将群会话直接加入会话列表并显示通知。
+     */
+    async handleGroupAdded(data: Record<string, unknown>) {
+      const conversationId = data.conversationId as string
+      const groupData = data.group as {
+        id?: number | string
+        name?: string
+        avatar?: string
+        memberAvatars?: Array<{ nickname?: string; avatar?: string }>
+      } | undefined
+      if (!conversationId || !groupData) return
+
+      // 检查是否已在会话列表中
+      const existing = this.sessions.find(s => s.id === conversationId)
+      if (existing) return
+
+      // 构建群会话对象
+      const session: ChatSession = {
+        id: String(groupData.id ?? conversationId),
+        name: groupData.name || '群聊',
+        groupName: groupData.name || '群聊',
+        lastMessage: '你已加入群聊',
+        time: nowTime(),
+        avatarText: (groupData.name || '群').charAt(0) || '群',
+        avatarColor: pickGroupColor(groupData.name || '群'),
+        avatarUrl: normalizeMediaUrl(groupData.avatar),
+        memberAvatars: (groupData.memberAvatars || []).slice(0, 9).map((m, i) => ({
+          text: (m.nickname || '?').charAt(0) || '?',
+          color: pickGroupColor(m.nickname || String(i)),
+          imageUrl: normalizeMediaUrl(m.avatar)
+        })),
+        isGroup: true,
+        isReal: true
+      }
+
+      this.sessions.unshift(session)
+      this.messagesBySession[session.id] = [
+        {
+          id: `msg-sys-${Date.now()}`,
+          sessionId: session.id,
+          content: `系统：你被邀请加入了群聊`,
+          time: nowTime(),
+          isSelf: false,
+          type: 'system'
+        }
+      ]
+
+      console.log('[handleGroupAdded] 已加入群会话:', session.name)
+    },
+
+    /**
+     * 处理群信息变更的 WebSocket 推送。
+     * 收到 group_renamed / group_announcement_updated 后，更新本地会话列表中的群信息。
+     */
+    handleGroupUpdate(data: Record<string, unknown>) {
+      const conversationId = data.conversationId as string
+      const groupData = data.group as {
+        id?: number | string
+        name?: string
+        avatar?: string
+        announcement?: string
+      } | undefined
+      if (!conversationId || !groupData) return
+
+      const session = this.sessions.find(s => s.id === conversationId && s.isGroup)
+      if (!session) return
+
+      // 更新群名称
+      if (groupData.name && groupData.name !== session.groupName) {
+        session.groupName = groupData.name
+        // 如果没有备注，则更新显示名称
+        const remark = session.groupRemark || ''
+        session.name = remark || groupData.name
+        session.avatarText = session.name.charAt(0) || '群'
+      }
+
+      console.log('[handleGroupUpdate] 已更新群信息:', session.name)
+    },
+
+    /**
+     * 处理群成员角色变更的 WebSocket 推送。
+     * 收到 group_member_role_changed 后，刷新群成员列表。
+     */
+    async handleGroupMemberRoleChanged(data: Record<string, unknown>) {
+      const conversationId = data.conversationId as string
+      if (!conversationId) return
+
+      // 刷新群成员缓存，让侧栏/抽屉显示最新成员角色
+      try {
+        const { useGroupMetaStore } = await import('./groupMeta')
+        await useGroupMetaStore().fetchMembers(conversationId, true)
+        console.log('[handleGroupMemberRoleChanged] 已刷新群成员列表:', conversationId)
+      } catch (e) {
+        console.warn('[handleGroupMemberRoleChanged] 刷新群成员失败:', e)
+      }
+    },
+
+    /**
+     * 处理群禁言状态变更的 WebSocket 推送。
+     * 收到 group_mute_changed / group_mute_all_changed 后，更新本地禁言状态。
+     */
+    async handleGroupMuteChanged(data: Record<string, unknown>) {
+      const conversationId = data.conversationId as string
+      if (!conversationId) return
+
+      try {
+        const { useGroupMetaStore } = await import('./groupMeta')
+        // 重新获取群详情以获取最新禁言状态
+        await useGroupMetaStore().fetchAnnouncement(conversationId)
+        console.log('[handleGroupMuteChanged] 已更新群禁言状态:', conversationId)
+      } catch (e) {
+        console.warn('[handleGroupMuteChanged] 更新禁言状态失败:', e)
+      }
+    },
+
+    /**
+     * 处理朋友圈新动态的 WebSocket 推送。
+     * 收到 moments_new_post 后，将新动态添加到朋友圈列表顶部。
+     */
+    async handleMomentsNewPost(data: Record<string, unknown>) {
+      const postData = data.post as {
+        id?: number | string
+        userId?: number | string
+        nickname?: string
+        avatar?: string
+        content?: string
+        images?: string[]
+        time?: string
+      } | undefined
+      if (!postData || !postData.id) return
+
+      try {
+        const { useMomentsStore } = await import('./moments')
+        const store = useMomentsStore()
+        // 避免重复添加（已有则跳过）
+        const exists = store.posts.some(p => String(p.id) === String(postData.id))
+        if (exists) return
+
+        const momentPost: import('./moments').MomentPost = {
+          id: String(postData.id),
+          userId: String(postData.userId ?? ''),
+          user: postData.nickname || '用户',
+          avatar: normalizeMediaUrl(postData.avatar) || '',
+          content: postData.content || '',
+          images: (postData.images || []).map(url => normalizeMediaUrl(url)).filter(Boolean) as string[],
+          time: postData.time || '刚刚',
+          likes: 0,
+          liked: false,
+          likedBy: [],
+          comments: []
+        }
+
+        // 添加到列表顶部
+        store.posts.unshift(momentPost)
+        console.log('[handleMomentsNewPost] 已添加新动态:', momentPost.user)
+      } catch (e) {
+        console.warn('[handleMomentsNewPost] 处理新动态失败:', e)
+      }
+    },
+
+    /**
+     * 处理群成员加入的 WebSocket 推送。
+     * 收到 group_member_added 后，强制刷新对应群的成员列表。
+     */
+    async handleGroupMemberAdded(data: Record<string, unknown>) {
+      const conversationId = data.conversationId as string | undefined
+      if (!conversationId) return
+
+      // 即使当前查看的不是该群也要刷新：抽屉里展示的是「群资料」侧的成员列表，
+      // 它只读取 groupMeta.members 缓存；缓存命中会直接 return，导致「同意入群」后
+      // 已开抽屉依旧只看到旧成员。强制刷新以保证 UI 立即反映新成员。
+      try {
+        const { useGroupMetaStore } = await import('./groupMeta')
+        const groupMetaStore = useGroupMetaStore()
+        await groupMetaStore.fetchMembers(conversationId, true)
+        console.log('[handleGroupMemberAdded] 已刷新群成员列表:', conversationId)
+      } catch (e) {
+        console.warn('[handleGroupMemberAdded] 处理群成员加入失败:', e)
+      }
     }
   },
 

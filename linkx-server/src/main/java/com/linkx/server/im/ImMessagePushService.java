@@ -402,6 +402,7 @@ public class ImMessagePushService {
         return memberMapper.selectCountByQuery(
                 QueryWrapper.create()
                         .where(ImConversationMember::getConversationId).eq(conversationId)
+                        .and(ImConversationMember::getDeleted).eq(0)
                         .and(ImConversationMember::getLastReadMessageId).ge(messageId)
         );
     }

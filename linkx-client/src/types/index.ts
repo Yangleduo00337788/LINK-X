@@ -133,8 +133,10 @@ export interface ChatMessage {
   replyTo?: ChatMessage
 
   /** 发送状态（乐观更新 / 送达回执） */
-      sendStatus?: 'sending' | 'sent' | 'failed' | 'delivered' | 'read'
+  sendStatus?: 'sending' | 'sent' | 'failed' | 'delivered' | 'read'
   deliveryStatus?: string
+  /** 附件上传进度 0–100（仅本地发送中） */
+  uploadProgress?: number
   edited?: boolean
   readCount?: number
   totalMembers?: number

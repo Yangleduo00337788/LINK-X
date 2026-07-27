@@ -2,6 +2,7 @@ import type { ChatMessage, ChatSession } from '../types'
 import type { ConversationItem, MessageItem } from '../types/chat'
 import { formatChatTime, formatFileSize } from './chatTime'
 import { normalizeMediaUrl } from './mediaUrl'
+import { t } from '../i18n'
 
 const GROUP_COLORS = ['#12b7f5', '#52c41a', '#722ed1', '#fa8c16', '#eb2f96', '#13c2c2']
 
@@ -103,8 +104,8 @@ export function messageToChatMessage(message: MessageItem, sessionId: string): C
 
   switch (type) {
     case 'file':
-      content = message.fileName || message.content || '文件'
-      fileStatus = '已发送'
+      content = message.fileName || message.content || t('chat.fileFallback')
+      fileStatus = message.isSelf ? t('chat.fileStatusSent') : t('chat.fileStatusReceived')
       break
     case 'image':
       content = message.fileUrl || message.content

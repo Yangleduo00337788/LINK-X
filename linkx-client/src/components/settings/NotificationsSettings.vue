@@ -75,6 +75,7 @@ function onQuietEnd(v: number | null) {
       <div class="setting-row">
         <div class="setting-text">
           <span class="setting-name">{{ t('notifications.soundNotify') }}</span>
+          <span class="setting-desc">{{ t('notifications.soundNotifyDesc') }}</span>
         </div>
         <n-switch
           v-model:value="soundNotify"
@@ -85,6 +86,7 @@ function onQuietEnd(v: number | null) {
       <div class="setting-row">
         <div class="setting-text">
           <span class="setting-name">{{ t('notifications.messageDetail') }}</span>
+          <span class="setting-desc">{{ t('notifications.messageDetailDesc') }}</span>
         </div>
         <n-switch
           v-model:value="messageDetail"
@@ -95,6 +97,7 @@ function onQuietEnd(v: number | null) {
       <div class="setting-row">
         <div class="setting-text">
           <span class="setting-name">{{ t('notifications.notifyAtMe') }}</span>
+          <span class="setting-desc">{{ t('notifications.notifyAtMeDesc') }}</span>
         </div>
         <n-switch
           v-model:value="notifyAtMe"
@@ -105,6 +108,7 @@ function onQuietEnd(v: number | null) {
       <div class="setting-row">
         <div class="setting-text">
           <span class="setting-name">{{ t('notifications.notifySound') }}</span>
+          <span class="setting-desc">{{ t('notifications.notifySoundDesc') }}</span>
         </div>
         <n-switch
           v-model:value="notifySound"
@@ -129,6 +133,7 @@ function onQuietEnd(v: number | null) {
       <div class="setting-row">
         <div class="setting-text">
           <span class="setting-name">{{ t('notifications.notifySocial') }}</span>
+          <span class="setting-desc">{{ t('notifications.notifySocialDesc') }}</span>
         </div>
         <n-switch v-model:value="notifySocial" size="small" @update:value="toggleSwitch('notifySocial')" />
       </div>
@@ -137,17 +142,23 @@ function onQuietEnd(v: number | null) {
           <span class="setting-name">{{ t('notifications.notifyFriendOnline') }}</span>
           <span class="setting-desc">{{ t('notifications.notifyFriendOnlineDesc') }}</span>
         </div>
-        <n-switch v-model:value="notifyFriendOnline" size="small" />
+        <n-switch
+          v-model:value="notifyFriendOnline"
+          size="small"
+          @update:value="toggleSwitch('notifyFriendOnline')"
+        />
       </div>
       <div class="setting-row">
         <div class="setting-text">
           <span class="setting-name">{{ t('notifications.notifyMoments') }}</span>
+          <span class="setting-desc">{{ t('notifications.notifyMomentsDesc') }}</span>
         </div>
         <n-switch v-model:value="notifyMoments" size="small" @update:value="toggleSwitch('notifyMoments')" />
       </div>
       <div class="setting-row">
         <div class="setting-text">
           <span class="setting-name">{{ t('notifications.notifySystem') }}</span>
+          <span class="setting-desc">{{ t('notifications.notifySystemDesc') }}</span>
         </div>
         <n-switch v-model:value="notifySystem" size="small" @update:value="toggleSwitch('notifySystem')" />
       </div>
@@ -206,6 +217,7 @@ function onQuietEnd(v: number | null) {
           <n-radio v-for="tone in tones" :key="tone.id" :value="tone.id">{{ tone.label }}</n-radio>
         </n-radio-group>
       </div>
+      <p class="local-note">{{ t('notifications.tipSync') }}</p>
       <div class="tone-preview-row">
         <n-button size="tiny" tertiary @click="playTone(notifyTone)">
           <template #icon>

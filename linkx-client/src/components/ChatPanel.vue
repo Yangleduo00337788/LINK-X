@@ -1347,7 +1347,7 @@ function onDrop(e: DragEvent) {
                 >
                   <template #default="{ msg }">
                       <div
-                      v-memo="[msg.id, msg.content, msg.type, msg.sendStatus, msg.edited, msg.readCount, playingVoiceId === msg.id, msg.senderAvatar, msg.isSelf, highlightAtMeId === msg.id]"
+                      v-memo="[msg.id, msg.content, msg.type, msg.sendStatus, msg.uploadProgress, msg.fileStatus, msg.edited, msg.readCount, playingVoiceId === msg.id, msg.senderAvatar, msg.isSelf, highlightAtMeId === msg.id]"
                     >
                       <ChatMessageItem
                         :msg="msg"

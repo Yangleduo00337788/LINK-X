@@ -82,6 +82,13 @@ const tipText = computed(() => {
 const statusText = computed(() => {
   if (!props.msg.isSelf) return ''
   if (props.msg.sendStatus === 'failed') return t('chat.statusFailed')
+  if (
+    props.msg.sendStatus === 'sending' &&
+    props.msg.uploadProgress != null &&
+    props.msg.uploadProgress < 100
+  ) {
+    return t('chat.statusUploading', { n: props.msg.uploadProgress })
+  }
   if (props.msg.sendStatus === 'sending') return t('chat.statusSending')
   if (props.msg.sendStatus === 'read') return t('chat.statusRead')
   if (props.msg.sendStatus === 'delivered') return t('chat.statusDelivered')
@@ -91,11 +98,13 @@ const statusText = computed(() => {
 
 const readCountText = computed(() => {
   if (!props.msg.isSelf || !isGroupChat.value) return ''
-  if (props.msg.readCount == null || props.msg.totalMembers == null) return ''
-  return t('chat.readCount', {
-    read: props.msg.readCount,
-    total: props.msg.totalMembers
-  })
+  const read = props.msg.readCount ?? 0
+  const total = props.msg.totalMembers ?? 0
+  if (total === 0) return ''
+  if (props.msg.totalMembers == null) {
+    return t('chat.statusRead')
+  }
+  return t('chat.readCount', { read, total })
 })
 
 const fetchingRead = ref(false)
@@ -103,7 +112,6 @@ const fetchingRead = ref(false)
 async function maybeFetchReadCount() {
   if (!props.msg.isSelf || !isGroupChat.value) return
   if (props.msg.sendStatus === 'sending' || props.msg.sendStatus === 'failed') return
-  if (props.msg.readCount != null) return
   const sessionId = props.msg.sessionId || currentSession.value?.id
   if (!sessionId || !props.msg.id || props.msg.id.includes('-')) return
   if (fetchingRead.value) return
@@ -111,8 +119,12 @@ async function maybeFetchReadCount() {
   try {
     const res = await chatApi.getMessageReadCount(sessionId, props.msg.id)
     if (res.code === 200 && res.data) {
-      props.msg.readCount = Number(res.data.readCount) || 0
-      props.msg.totalMembers = Number(res.data.totalMembers) || 0
+      if (props.msg.readCount == null) {
+        props.msg.readCount = Number(res.data.readCount) || 0
+      }
+      if (props.msg.totalMembers == null) {
+        props.msg.totalMembers = Number(res.data.totalMembers) || 0
+      }
     }
   } catch {
     // ignore

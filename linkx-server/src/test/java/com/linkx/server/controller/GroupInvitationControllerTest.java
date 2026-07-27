@@ -75,6 +75,81 @@ class GroupInvitationControllerTest extends BaseIntegrationTest {
     }
 
     @Test
+    @DisplayName("拒绝邀请后可不勾选确认直接拉人入群，且应出现在成员列表")
+    void rejectThenDirectAddMembers() throws Exception {
+        TestUser owner = registerAndLogin("rejaddo");
+        TestUser member = registerAndLogin("rejaddm");
+        TestUser invitee = registerAndLogin("rejaddi");
+        long cid = createGroup(owner, member);
+
+        String inviteResp = mockMvc.perform(post("/group/invitations/{cid}", cid)
+                        .header("Authorization", owner.bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(String.format("""
+                                {"inviteeUserId":%d,"message":"来玩"}
+                                """, invitee.userId)))
+                .andExpect(jsonPath("$.code").value(200))
+                .andReturn().getResponse().getContentAsString();
+        long invitationId = objectMapper.readTree(inviteResp).path("data").path("id").asLong();
+
+        mockMvc.perform(post("/group/invitations/{id}/reject", invitationId)
+                        .header("Authorization", invitee.bearer()))
+                .andExpect(jsonPath("$.code").value(200));
+
+        mockMvc.perform(post("/group/{id}/members", cid)
+                        .header("Authorization", owner.bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(String.format("""
+                                {"memberIds":[%d]}
+                                """, invitee.userId)))
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].userId").value(invitee.userId));
+
+        mockMvc.perform(get("/group/{id}/members", cid)
+                        .header("Authorization", owner.bearer()))
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data[?(@.userId==" + invitee.userId + ")]").exists());
+    }
+
+    @Test
+    @DisplayName("拒绝后可再次邀请，并可再次拒绝（不受历史 rejected 唯一键挡住）")
+    void rejectThenReinviteThenRejectAgain() throws Exception {
+        TestUser owner = registerAndLogin("rejrjo");
+        TestUser member = registerAndLogin("rejrm");
+        TestUser invitee = registerAndLogin("rejri");
+        long cid = createGroup(owner, member);
+
+        String invite1 = mockMvc.perform(post("/group/invitations/{cid}", cid)
+                        .header("Authorization", owner.bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(String.format("""
+                                {"inviteeUserId":%d}
+                                """, invitee.userId)))
+                .andExpect(jsonPath("$.code").value(200))
+                .andReturn().getResponse().getContentAsString();
+        long id1 = objectMapper.readTree(invite1).path("data").path("id").asLong();
+
+        mockMvc.perform(post("/group/invitations/{id}/reject", id1)
+                        .header("Authorization", invitee.bearer()))
+                .andExpect(jsonPath("$.code").value(200));
+
+        String invite2 = mockMvc.perform(post("/group/invitations/{cid}", cid)
+                        .header("Authorization", owner.bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(String.format("""
+                                {"inviteeUserId":%d}
+                                """, invitee.userId)))
+                .andExpect(jsonPath("$.code").value(200))
+                .andReturn().getResponse().getContentAsString();
+        long id2 = objectMapper.readTree(invite2).path("data").path("id").asLong();
+
+        mockMvc.perform(post("/group/invitations/{id}/reject", id2)
+                        .header("Authorization", invitee.bearer()))
+                .andExpect(jsonPath("$.code").value(200));
+    }
+
+    @Test
     @DisplayName("ownerApprove 策略下普通成员邀请应 403")
     void invitePolicyOwnerApprove_blocksMember() throws Exception {
         TestUser owner = registerAndLogin("polowner");

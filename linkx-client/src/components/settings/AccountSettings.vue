@@ -522,7 +522,10 @@ onMounted(() => {
       </button>
       <button type="button" class="link-row" @click="openDeviceModal">
         <span class="link-label">{{ t('account.security') }}</span>
-        <span class="link-value success">{{ t('account.deviceManage') }}</span>
+        <div class="link-text compact">
+          <span class="link-value success">{{ t('account.deviceManage') }}</span>
+          <span class="link-desc">{{ t('account.securityDesc') }}</span>
+        </div>
         <n-icon :component="ChevronForwardOutline" :size="16" class="link-chevron" />
       </button>
       <button type="button" class="link-row" @click="openFeedbackHistory">
@@ -532,17 +535,26 @@ onMounted(() => {
       </button>
       <button type="button" class="link-row" :disabled="exporting" @click="exportMyData">
         <span class="link-label">{{ t('account.exportData') }}</span>
-        <span class="link-value">{{ exporting ? '...' : '' }}</span>
+        <div class="link-text compact">
+          <span class="link-value">{{ exporting ? '...' : t('account.exportDataValue') }}</span>
+          <span class="link-desc">{{ t('account.exportDataDesc') }}</span>
+        </div>
         <n-icon :component="ChevronForwardOutline" :size="16" class="link-chevron" />
       </button>
       <button type="button" class="link-row" @click="confirmPurgeData">
         <span class="link-label">{{ t('account.purgeData') }}</span>
+        <div class="link-text compact">
+          <span class="link-desc">{{ t('account.purgeDataDesc') }}</span>
+        </div>
         <n-icon :component="ChevronForwardOutline" :size="16" class="link-chevron" />
       </button>
       <button type="button" class="link-row danger-row" @click="openDeleteModal">
         <div class="link-text">
           <span class="link-label">{{ t('account.deleteAccount') }}</span>
           <span class="link-desc">{{ t('account.deleteWarnShort') }}</span>
+        </div>
+        <div class="link-text compact right">
+          <span class="link-desc">{{ t('account.deleteRiskDesc') }}</span>
         </div>
         <n-icon :component="ChevronForwardOutline" :size="16" class="link-chevron" />
       </button>
@@ -960,6 +972,15 @@ onMounted(() => {
   gap: 4px;
   min-width: 0;
   flex: 1;
+}
+
+.link-text.compact {
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.link-text.compact.right {
+  flex: 0 0 auto;
 }
 
 .link-desc {

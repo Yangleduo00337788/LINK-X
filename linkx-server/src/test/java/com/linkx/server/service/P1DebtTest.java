@@ -191,10 +191,10 @@ class P1DebtTest extends BaseIntegrationTest {
                                     """, objectName, uploadId)))
                     .andExpect(jsonPath("$.code").value(200));
 
-            // abort 后会话应不可用
+            // abort 后会话应不可用（发起人绑定已清 → 404）
             mockMvc.perform(get("/chat/sessions/{cid}/upload/{uploadId}/parts", conv.getId(), uploadId)
                             .header("Authorization", a.bearer()))
-                    .andExpect(jsonPath("$.code").value(400));
+                    .andExpect(jsonPath("$.code").value(404));
         }
 
         @Test

@@ -6,7 +6,7 @@
  * 服务端会在事务内写入会话成员表，并返回最新的成员列表。
  * </p>
  */
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { NIcon } from 'naive-ui'
 import {
   ChevronDownOutline,
@@ -87,12 +87,21 @@ async function confirm() {
           throw new Error(res.message || t('extra.inviteSendFail'))
         }
       }
+      await groupMetaStore.fetchMembers(currentSessionId.value, true)
       message.success(t('extra.inviteSentCount', { n: memberIds.length }))
     } else {
       const res = await groupApi.addGroupMembers(currentSessionId.value, { memberIds })
       if (res.code === 200) {
-        void groupMetaStore.fetchMembers(currentSessionId.value)
-        message.success(t('extra.invitedJoinCount', { n: memberIds.length }))
+        // 必须 force：否则已有成员缓存时列表不会更新，表现为「提示已加入但群成员里没有」
+        await groupMetaStore.fetchMembers(currentSessionId.value, true)
+        const added = Array.isArray(res.data) ? res.data.length : 0
+        if (added === 0) {
+          message.warning(t('extra.alreadyInGroupOrNoneAdded'))
+        } else if (added < memberIds.length) {
+          message.success(t('extra.invitedJoinPartial', { added, skipped: memberIds.length - added }))
+        } else {
+          message.success(t('extra.invitedJoinCount', { n: added }))
+        }
       } else {
         message.error(res.message || t('extra.inviteFail'))
         return
@@ -111,6 +120,13 @@ async function confirm() {
 function cancel() {
   closeAddMembers()
 }
+
+/** 关闭后强制刷新群成员列表，确保 Drawer 里看到最新数据 */
+watch(addMembersOpen, async (open, prev) => {
+  if (open === false && prev === true && currentSessionId.value) {
+    await groupMetaStore.fetchMembers(currentSessionId.value, true)
+  }
+})
 </script>
 
 <template>

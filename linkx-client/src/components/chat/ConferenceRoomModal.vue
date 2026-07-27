@@ -67,6 +67,8 @@ const invitePassword = ref('')
 const needInvitePassword = ref(false)
 const chatDraft = ref('')
 const chatListRef = ref<HTMLElement | null>(null)
+const roomNotice = ref('')
+let roomNoticeTimer: ReturnType<typeof setTimeout> | null = null
 let elapsedTimer: ReturnType<typeof setInterval> | null = null
 
 const displayParticipants = computed(() => {
@@ -290,6 +292,10 @@ function onAvatarError(e: Event, name: string) {
   img.src = generateDefaultAvatar(name || '用户', 160)
 }
 
+const roomBusy = computed(() => {
+  return !!networkHint.value || !!roomNotice.value
+})
+
 watch(
   remoteStreams,
   () => {
@@ -310,6 +316,12 @@ watch(localStream, () => {
 watch(errorMessage, msg => {
   if (msg) {
     message.info(msg)
+    roomNotice.value = msg
+    if (roomNoticeTimer) clearTimeout(roomNoticeTimer)
+    roomNoticeTimer = setTimeout(() => {
+      roomNotice.value = ''
+      roomNoticeTimer = null
+    }, 4500)
     conferenceStore.clearError()
   }
 })
@@ -368,6 +380,7 @@ watch(
 
 onUnmounted(() => {
   if (elapsedTimer) clearInterval(elapsedTimer)
+  if (roomNoticeTimer) clearTimeout(roomNoticeTimer)
   remoteVideoEls.clear()
   remoteAudioEls.clear()
 })
@@ -563,7 +576,7 @@ async function onAdmit(userId: string) {
               <span>{{ t('conference.memberCount', { n: inRoomMembers.length }) }}</span>
               <span class="dot">·</span>
               <span class="timer">{{ elapsedLabel }}</span>
-              <span v-if="networkHint" class="hint">{{ networkHint }}</span>
+              <span v-if="networkHint" class="hint hint--warn">{{ networkHint }}</span>
             </div>
           </div>
         </div>
@@ -571,9 +584,10 @@ async function onAdmit(userId: string) {
           <n-icon :component="CloseOutline" :size="20" />
         </button>
       </header>
+      <div v-if="roomNotice" class="room-notice">{{ roomNotice }}</div>
 
       <!-- 演讲者视图：说话人/主持人全屏，其他人右上角小窗 -->
-      <div class="stage">
+      <div class="stage" :class="{ 'stage--busy': roomBusy }">
         <div v-if="speaker" class="speaker-stage">
           <div class="main-tile" :class="{ me: speaker.isMe }">
             <video
@@ -1089,6 +1103,19 @@ async function onAdmit(userId: string) {
   margin-left: 8px;
   color: #ffb454;
 }
+
+.hint--warn {
+  font-weight: 600;
+}
+
+.room-notice {
+  flex-shrink: 0;
+  padding: 8px 20px;
+  background: rgba(255, 180, 84, 0.12);
+  color: #ffcf87;
+  font-size: 12px;
+  border-bottom: 1px solid rgba(255, 180, 84, 0.16);
+}
 .header-close {
   width: 36px;
   height: 36px;
@@ -1112,6 +1139,10 @@ async function onAdmit(userId: string) {
   position: relative;
   padding: 0;
   overflow: hidden;
+}
+
+.stage--busy {
+  background: linear-gradient(180deg, rgba(255, 180, 84, 0.03), transparent 30%);
 }
 .speaker-stage {
   position: absolute;

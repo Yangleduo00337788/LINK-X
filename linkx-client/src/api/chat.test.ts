@@ -62,9 +62,15 @@ describe('api/chat', () => {
       code: 200,
       data: { exists: true, url: 'https://cdn/x', objectKey: 'k', fileName: 'a.bin', fileSize: 1 }
     } as any)
-    const res = await uploadChatFileSmart('1', new File(['x'], 'a.bin', { type: 'application/octet-stream' }))
+    const onProgress = vi.fn()
+    const res = await uploadChatFileSmart(
+      '1',
+      new File(['x'], 'a.bin', { type: 'application/octet-stream' }),
+      onProgress
+    )
     expect(res.data?.url).toBe('https://cdn/x')
     expect(apiClient.post).toHaveBeenCalledTimes(1)
+    expect(onProgress).toHaveBeenCalledWith(100)
     digest.mockRestore()
   })
 

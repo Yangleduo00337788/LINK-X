@@ -9,6 +9,7 @@ import type { CallEventPayload } from '../api/call'
 import { resolveIceServers } from '../utils/iceServers'
 import { decideIceRestart, decideWeakNetVideo } from '../utils/callNetworkPolicy'
 import { startCallRing, stopCallRing } from '../utils/callSounds'
+import { t } from '../i18n'
 
 export type ConferencePhase = 'idle' | 'lobby' | 'waiting' | 'in_room' | 'ended'
 
@@ -784,11 +785,17 @@ export const useConferenceStore = defineStore('conference', {
         const state = pc.connectionState
         if (state === 'connected') {
           iceRestartAttempts.delete(peerId)
-          if (this.networkHint.includes('连接') || this.networkHint.includes('重建')) {
+          if (
+            this.networkHint.includes('连接') ||
+            this.networkHint.includes('重建') ||
+            this.networkHint.includes('connection') ||
+            this.networkHint.includes('rebuild') ||
+            this.networkHint.includes('retry')
+          ) {
             this.networkHint = ''
           }
         } else if (state === 'failed' || state === 'disconnected') {
-          this.networkHint = `与对端连接 ${state}，正在重试…`
+          this.networkHint = t('conference.networkRetry', { state })
           void this.recoverPeer(peerId)
         } else if (state === 'closed') {
           this.closePeer(peerId)
@@ -816,7 +823,7 @@ export const useConferenceStore = defineStore('conference', {
       // 超限：close + 重建 PC
       if (decision.action === 'give_up') {
         iceRestartAttempts.delete(peerId)
-        this.networkHint = '对端连接异常，正在重建…'
+        this.networkHint = t('conference.networkRebuild')
         this.closePeer(peerId)
         await this.ensurePeer(peerId)
         if (shouldInitiateOffer(this.myUserId, peerId)) {
@@ -1076,7 +1083,7 @@ export const useConferenceStore = defineStore('conference', {
         this.localStream = markRaw(localStream)
         if (wantVideo && localStream.getVideoTracks().some(t => t.readyState === 'live')) {
           // 成功拿到摄像头时清掉「已降级」提示
-          if (this.networkHint.includes('摄像头') || this.networkHint.includes('降级')) {
+          if (this.networkHint.includes('摄像头') || this.networkHint.includes('降级') || this.networkHint.includes('Camera') || this.networkHint.includes('audio')) {
             this.networkHint = ''
           }
         }
@@ -1085,7 +1092,7 @@ export const useConferenceStore = defineStore('conference', {
         const name = (e as DOMException)?.name
         if (wantVideo && (name === 'NotAllowedError' || name === 'NotFoundError' || name === 'NotReadableError')) {
           this.cameraOn = false
-          this.networkHint = '摄像头不可用，已降级为语音'
+          this.networkHint = t('conference.cameraFallback')
           this.participants = this.participants.map(p =>
             String(p.userId) === this.myUserId ? { ...p, videoOff: true } : p
           )

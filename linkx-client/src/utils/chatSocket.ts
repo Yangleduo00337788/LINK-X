@@ -177,6 +177,30 @@ function handleFrame(raw: string) {
         handlers?.onCustomAction?.('notification_refresh', frame.data as Record<string, unknown>)
       }
       break
+    case 'group_added':
+      if (frame.data) {
+        handlers?.onCustomAction?.('group_added', frame.data as Record<string, unknown>)
+      }
+      break
+    case 'group_renamed':
+    case 'group_announcement_updated':
+    case 'group_member_role_changed':
+    case 'group_mute_changed':
+    case 'group_mute_all_changed':
+      if (frame.data) {
+        handlers?.onCustomAction?.(frame.action, frame.data as Record<string, unknown>)
+      }
+      break
+    case 'moments_new_post':
+      if (frame.data) {
+        handlers?.onCustomAction?.('moments_new_post', frame.data as Record<string, unknown>)
+      }
+      break
+    case 'group_member_added':
+      if (frame.data) {
+        handlers?.onCustomAction?.('group_member_added', frame.data as Record<string, unknown>)
+      }
+      break
     default:
       // 兜底：未知 action 也尝试透传给自定义 action
       if (frame.data) {

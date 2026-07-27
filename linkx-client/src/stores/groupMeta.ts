@@ -15,6 +15,7 @@ import {
   MAX_PUBLISH_IMAGE_BYTES
 } from '../utils/file'
 import { isDisplayableMediaUrl, normalizeMediaUrl } from '../utils/mediaUrl'
+import { t } from '../i18n'
 import axios from 'axios'
 
 /** 群精华条目 */
@@ -121,12 +122,26 @@ export const useGroupMetaStore = defineStore('groupMeta', {
     albumFolders: {} as Record<string, string[]>,
     loading: {} as Record<string, boolean>,
     /** 相册列表请求序号，用于忽略过期响应 */
-    albumFetchSeq: {} as Record<string, number>
+    albumFetchSeq: {} as Record<string, number>,
+    /** 成员列表刷新序号，每次 force 刷新后递增；getter 依赖它触发响应式 */
+    _membersRefreshSeq: {} as Record<string, number>
   }),
+
+  getters: {
+    /** 读取时触发响应式追踪；外部组件在 computed/watch 里引用它即可 */
+    membersRefreshSeq(): Record<string, number> {
+      return this._membersRefreshSeq
+    }
+  },
 
   actions: {
     async fetchMembers(sessionId: string, force = false) {
-      if (this.loading[`members-${sessionId}`]) return
+      if (force) {
+        this.loading[`members-${sessionId}`] = false
+        this.members[sessionId] = undefined as unknown as typeof this.members[string]
+      } else if (this.loading[`members-${sessionId}`]) {
+        return
+      }
       const cached = this.members[sessionId]
       if (!force && cached) {
         const stale = cached.some(m => m.avatarUrl && !isDisplayableMediaUrl(m.avatarUrl))
@@ -143,7 +158,16 @@ export const useGroupMetaStore = defineStore('groupMeta', {
             avatarColor: '#12b7f5',
             avatarUrl: normalizeMediaUrl(m.avatar) || undefined,
             role: m.role,
-            badge: m.role === 'owner' ? '群主' : m.role === 'admin' ? '管理员' : undefined,
+            badge: [
+              m.role === 'owner'
+                ? t('modals.muteMemberOwner')
+                : m.role === 'admin'
+                  ? t('modals.muteMemberAdmin')
+                  : '',
+              m.muted ? t('modals.memberMuted') : ''
+            ]
+              .filter(Boolean)
+              .join('·') || undefined,
             muted: !!m.muted,
             muteUntil: m.muteUntil != null ? Number(m.muteUntil) : undefined
           }))
@@ -166,11 +190,13 @@ export const useGroupMetaStore = defineStore('groupMeta', {
         console.error('加载群成员失败:', e)
       } finally {
         this.loading[`members-${sessionId}`] = false
+        this._membersRefreshSeq[sessionId] = ((this._membersRefreshSeq[sessionId] || 0) + 1)
       }
     },
 
     membersFor(sessionId: string): GroupMember[] {
       void this.fetchMembers(sessionId)
+      void this.membersRefreshSeq[sessionId]
       return this.members[sessionId] || []
     },
 

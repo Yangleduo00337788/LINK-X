@@ -505,13 +505,14 @@ public class FileStorageServiceImpl implements FileStorageService {
         if (!StringUtils.hasText(uploadId)) {
             return;
         }
+        // 先清 Redis 会话，再尽力清理 MinIO 临时对象，避免存储不可用时会话残留
+        List<PartETag> parts = listUploadedPartsSafe(uploadId);
+        redisTemplate.delete(MP_META_PREFIX + uploadId);
+        redisTemplate.delete(MP_PARTS_PREFIX + uploadId);
         try {
-            List<PartETag> parts = listUploadedPartsSafe(uploadId);
-            cleanupMultipartTemp(uploadId, parts);
+            cleanupMultipartTempObjects(uploadId, parts);
         } catch (Exception e) {
-            log.warn("取消分片上传清理失败: uploadId={}", uploadId, e);
-            redisTemplate.delete(MP_META_PREFIX + uploadId);
-            redisTemplate.delete(MP_PARTS_PREFIX + uploadId);
+            log.warn("取消分片上传清理临时对象失败: uploadId={}", uploadId, e);
         }
     }
 
@@ -710,6 +711,13 @@ public class FileStorageServiceImpl implements FileStorageService {
     }
 
     private void cleanupMultipartTemp(String uploadId, List<PartETag> parts) {
+        cleanupMultipartTempObjects(uploadId, parts);
+        redisTemplate.delete(MP_META_PREFIX + uploadId);
+        redisTemplate.delete(MP_PARTS_PREFIX + uploadId);
+    }
+
+    /** 仅清理 MinIO 临时分片对象（不影响 Redis 会话） */
+    private void cleanupMultipartTempObjects(String uploadId, List<PartETag> parts) {
         String bucketName = linkxProperties.getMinio().getBucketName();
         for (PartETag p : parts) {
             try {
@@ -723,8 +731,6 @@ public class FileStorageServiceImpl implements FileStorageService {
                 log.warn("清理临时分片失败: uploadId={}, part={}", uploadId, p.partNumber(), e);
             }
         }
-        redisTemplate.delete(MP_META_PREFIX + uploadId);
-        redisTemplate.delete(MP_PARTS_PREFIX + uploadId);
     }
 
     private static String stripQuotes(String etag) {

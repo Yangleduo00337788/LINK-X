@@ -7,7 +7,7 @@
  * 群主可修改群名称；任意成员可设置仅自己可见的群备注。
  * </p>
  */
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, watchEffect } from 'vue'
 import { NIcon, NSwitch, useMessage, useDialog } from 'naive-ui'
 import { SearchOutline } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
@@ -29,7 +29,7 @@ const dialog = useDialog()
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
 const groupMetaStore = useGroupMetaStore()
-const { groupInfoDrawerOpen } = storeToRefs(chatModalsStore)
+const { groupInfoDrawerOpen, addMembersOpen } = storeToRefs(chatModalsStore)
 const { closeGroupInfo, openGroupAnnouncement, openAddMembers } = chatModalsStore
 const { currentSession, currentSessionId, userProfile } = storeToRefs(appStore)
 const {
@@ -190,6 +190,7 @@ async function setJoinApproval(val: boolean) {
   try {
     const res = await groupApi.setJoinApproval(id, val)
     if (res.code !== 200) throw new Error(res.message || 'failed')
+    await refreshJoinRequests()
   } catch (e) {
     joinApproval.value = prev
     message.error(apiErrorMessage(e, t('modals.groupNameSaveFail')))
@@ -204,6 +205,7 @@ async function setInviteOwnerOnly(val: boolean) {
   try {
     const res = await groupApi.setInvitePolicy(id, val ? 'ownerApprove' : 'anyMember')
     if (res.code !== 200) throw new Error(res.message || 'failed')
+    await refreshGroupPolicy()
   } catch (e) {
     inviteOwnerOnly.value = prev
     message.error(apiErrorMessage(e, t('modals.groupNameSaveFail')))
@@ -234,11 +236,35 @@ async function batchRemoveSelected() {
       try {
         const res = await groupApi.batchRemoveMembers(id, [...selectedMemberIds.value])
         if (res.code !== 200) throw new Error(res.message || 'failed')
+        // fetchMembers 必须在 exitMemberSelect 之前完成，否则 memberSelectMode 切走
+        // 导致成员列表组件卸载，来不及渲染最新数据（仍显示被删成员）
         await groupMetaStore.fetchMembers(id, true)
         exitMemberSelect()
         message.success(t('modals.batchRemoveOk'))
       } catch (e) {
         message.error(apiErrorMessage(e, t('modals.batchRemoveFail')))
+      }
+    }
+  })
+}
+
+async function batchMuteSelected() {
+  const id = currentSessionId.value
+  if (!id || selectedMemberIds.value.length === 0) return
+  dialog.warning({
+    title: t('modals.groupMute'),
+    content: t('modals.batchMuteContent', { n: selectedMemberIds.value.length }),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      try {
+        const res = await groupApi.batchMuteMembers(id, [...selectedMemberIds.value], true)
+        if (res.code !== 200) throw new Error(res.message || 'failed')
+        await groupMetaStore.fetchMembers(id, true)
+        exitMemberSelect()
+        message.success(t('modals.batchMuteOk'))
+      } catch (e) {
+        message.error(apiErrorMessage(e, t('modals.batchMuteFail')))
       }
     }
   })
@@ -334,7 +360,9 @@ const groupId = computed(() => currentSessionId.value?.replace(/\D/g, '').slice(
 const members = computed(() => {
   const id = currentSessionId.value
   if (!id) return []
-  return groupMetaStore.membersFor(id)
+  void groupMetaStore.fetchMembers(id)
+  void groupMetaStore.membersRefreshSeq[id]
+  return groupMetaStore.members[id] || []
 })
 
 /** 设置群会话置顶 */
@@ -564,7 +592,8 @@ function onReportSubmitted() {
 /** 打开抽屉时拉取成员与禁言状态 */
 watch(groupInfoDrawerOpen, open => {
   if (open && currentSessionId.value) {
-    void groupMetaStore.fetchMembers(currentSessionId.value)
+    // force：避免加人后仍展示旧缓存
+    void groupMetaStore.fetchMembers(currentSessionId.value, true)
     void groupMetaStore.fetchAnnouncement(currentSessionId.value)
     void refreshGroupPolicy()
     void refreshJoinRequests()
@@ -574,6 +603,20 @@ watch(groupInfoDrawerOpen, open => {
     adminPanelOpen.value = false
     mutePanelOpen.value = false
     reportPanelOpen.value = false
+  }
+}, { immediate: true })
+
+/** 切换会话时刷新成员（抽屉已打开状态下切换） */
+watch(currentSessionId, newId => {
+  if (newId && groupInfoDrawerOpen.value) {
+    void groupMetaStore.fetchMembers(newId, true)
+  }
+})
+
+/** 添加成员模态框关闭后刷新成员列表 */
+watch(addMembersOpen, async (open, prev) => {
+  if (open === false && prev === true && currentSessionId.value) {
+    await groupMetaStore.fetchMembers(currentSessionId.value, true)
   }
 })
 
@@ -618,7 +661,7 @@ function reportGroup() {
               <!-- 成员头像网格 -->
               <section class="block">
                 <div class="block-head">
-                  <span>{{ t('modals.groupMembers') }}</span>
+                  <span>{{ t('modals.groupMembers') }} ({{ members.length }})</span>
                   <div class="block-head-actions">
                     <button
                       v-if="isAdminOrOwner"
@@ -638,16 +681,21 @@ function reportGroup() {
                     type="button"
                     class="av"
                     :class="{ selected: selectedMemberIds.includes(m.id) }"
+                    :disabled="!memberSelectMode && !(isAdminOrOwner && m.role !== 'owner' && m.id !== userProfile.userId)"
                     @click="memberSelectMode ? toggleMemberSelect(m.id) : (isAdminOrOwner && m.role !== 'owner' && m.id !== userProfile.userId ? removeOneMember(m.id) : undefined)"
                   >
                     <Avatar :text="m.avatarText" :color="m.avatarColor" :image-url="m.avatarUrl" :size="40" />
                     <span v-if="memberSelectMode && selectedMemberIds.includes(m.id)" class="av-check">✓</span>
+                    <span v-if="m.badge" class="member-badge">{{ m.badge }}</span>
                   </button>
                   <button type="button" class="av invite" :title="t('chat.invite')" @click="openAddMembers">+</button>
                 </div>
                 <div v-if="memberSelectMode && selectedMemberIds.length" class="batch-bar">
                   <button type="button" class="action-btn danger" @click="batchRemoveSelected">
                     {{ t('modals.batchRemove', { n: selectedMemberIds.length }) }}
+                  </button>
+                  <button type="button" class="action-btn" @click="batchMuteSelected">
+                    {{ t('modals.batchMute', { n: selectedMemberIds.length }) }}
                   </button>
                 </div>
               </section>
@@ -1068,8 +1116,23 @@ function reportGroup() {
   text-align: center;
 }
 
+.member-badge {
+  position: absolute;
+  left: 0;
+  bottom: -2px;
+  padding: 0 4px;
+  font-size: 10px;
+  line-height: 14px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 999px;
+  transform: scale(0.9);
+}
+
 .batch-bar {
   margin-top: 8px;
+  display: flex;
+  gap: 8px;
 }
 
 .invite {

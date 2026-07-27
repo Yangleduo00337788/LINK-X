@@ -127,7 +127,8 @@ export async function sha256File(file: Blob): Promise<string> {
  */
 export async function uploadChatFileSmart(
   conversationId: string,
-  file: File
+  file: File,
+  onProgress?: (percent: number) => void
 ): Promise<ApiResult<ChatFileUploadResult>> {
   const contentType = file.type || 'application/octet-stream'
   let contentHash: string | undefined
@@ -140,6 +141,7 @@ export async function uploadChatFileSmart(
       contentType
     })
     if (check.code === 200 && check.data?.exists && check.data.url) {
+      onProgress?.(100)
       return {
         code: 200,
         message: check.message || 'ok',
@@ -157,15 +159,19 @@ export async function uploadChatFileSmart(
   }
 
   if (file.size > CHAT_UPLOAD_PART_SIZE) {
-    return uploadChatFileMultipart(conversationId, file, contentHash)
+    return uploadChatFileMultipart(conversationId, file, contentHash, onProgress)
   }
-  return uploadChatFile(conversationId, file)
+  onProgress?.(10)
+  const result = await uploadChatFile(conversationId, file)
+  if (result.code === 200) onProgress?.(100)
+  return result
 }
 
 async function uploadChatFileMultipart(
   conversationId: string,
   file: File,
-  contentHash?: string
+  contentHash?: string,
+  onProgress?: (percent: number) => void
 ): Promise<ApiResult<ChatFileUploadResult>> {
   const contentType = file.type || 'application/octet-stream'
   const init = await initMultipartUpload(conversationId, {
@@ -192,6 +198,9 @@ async function uploadChatFileMultipart(
     }
 
     const totalParts = Math.ceil(file.size / partSize)
+    let finishedParts = done.size
+    onProgress?.(Math.min(99, Math.round((finishedParts / totalParts) * 100)))
+
     for (let partNumber = 1; partNumber <= totalParts; partNumber++) {
       if (done.has(partNumber)) {
         parts.push({ partNumber, etag: done.get(partNumber)! })
@@ -210,9 +219,11 @@ async function uploadChatFileMultipart(
         throw new Error(partRes.message || `分片 ${partNumber} 上传失败`)
       }
       parts.push({ partNumber, etag: partRes.data.etag })
+      finishedParts += 1
+      onProgress?.(Math.min(99, Math.round((finishedParts / totalParts) * 100)))
     }
 
-    return completeMultipartUpload(conversationId, {
+    const completed = await completeMultipartUpload(conversationId, {
       objectName,
       uploadId,
       parts,
@@ -221,6 +232,8 @@ async function uploadChatFileMultipart(
       contentType,
       contentHash
     })
+    if (completed.code === 200) onProgress?.(100)
+    return completed
   } catch (err) {
     try {
       await abortMultipartUpload(conversationId, { objectName, uploadId })

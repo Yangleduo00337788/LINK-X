@@ -31,7 +31,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 public abstract class BaseIntegrationTest {
 
     static {
-        // 测试不走 main：提前注入 .env.*，否则 application.yml 的 ${VAR} 无法解析
+        // 测试不走 main：先钉死 test profile，再加载 .env.test（避免回退 .env.local 开发凭证）
+        if (System.getenv("SPRING_PROFILES_ACTIVE") == null
+                && System.getProperty("spring.profiles.active") == null) {
+            System.setProperty("spring.profiles.active", "test");
+        }
         com.linkx.server.config.DotEnvBootstrap.load();
     }
 

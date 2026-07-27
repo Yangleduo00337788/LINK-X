@@ -17,9 +17,11 @@ const { t } = useI18n()
   <div class="settings-scroll">
     <section class="group-card">
       <div class="group-head"><span>{{ t('privacy.title') }}</span></div>
+      <p class="privacy-note">{{ t('privacy.note') }}</p>
       <div class="setting-row">
         <div class="setting-text">
           <span class="setting-name">{{ t('privacy.verifyFriend') }}</span>
+          <span class="setting-desc">{{ t('privacy.verifyFriendDesc') }}</span>
         </div>
         <n-switch
           v-model:value="privacyVerifyFriend"
@@ -30,6 +32,7 @@ const { t } = useI18n()
       <div class="setting-row">
         <div class="setting-text">
           <span class="setting-name">{{ t('privacy.allowStranger') }}</span>
+          <span class="setting-desc">{{ t('privacy.allowStrangerDesc') }}</span>
         </div>
         <n-switch
           v-model:value="privacyAllowStranger"
@@ -40,6 +43,7 @@ const { t } = useI18n()
       <div class="setting-row">
         <div class="setting-text">
           <span class="setting-name">{{ t('privacy.showOnline') }}</span>
+          <span class="setting-desc">{{ t('privacy.showOnlineDesc') }}</span>
         </div>
         <n-switch
           v-model:value="privacyShowOnline"
@@ -53,4 +57,11 @@ const { t } = useI18n()
 
 <style scoped>
 @import './settings-common.css';
+
+.privacy-note {
+  margin: 0 16px 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--lx-text-muted);
+}
 </style>

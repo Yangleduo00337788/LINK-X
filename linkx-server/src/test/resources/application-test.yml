@@ -71,10 +71,10 @@ linkx:
     websocket-port: -1
 
   minio:
-    # 多数单测会 mock FileStorageService；此处仅满足配置绑定
-    endpoint: http://localhost:9000
-    access-key: test
-    secret-key: testsecret
+    # 与本机默认 MinIO root 对齐；多数单测不强制真上传，连通时可自动建桶
+    endpoint: http://127.0.0.1:9000
+    access-key: minioadmin
+    secret-key: minioadmin123
     bucket-name: linkx-test
     max-file-size: 10485760  # 10MB
 

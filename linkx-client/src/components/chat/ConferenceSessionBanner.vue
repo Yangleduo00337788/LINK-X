@@ -57,6 +57,12 @@ const actionText = computed(() =>
   props.inRoom ? t('conference.bannerBack') : t('conference.bannerJoin')
 )
 
+const actionAriaLabel = computed(() =>
+  props.inRoom
+    ? `${statusText.value}，${t('conference.bannerBack')}`
+    : `${statusText.value}，${t('conference.bannerJoin')}`
+)
+
 const icon = computed(() => {
   if (isMeeting.value) return PeopleOutline
   return isVoice.value ? CallOutline : VideocamOutline
@@ -80,7 +86,7 @@ const toneClass = computed(() => {
         <span v-if="info.title" class="conf-banner-title">{{ info.title }}</span>
       </div>
     </div>
-    <button type="button" class="conf-banner-btn" @click="$emit('join')">
+    <button type="button" class="conf-banner-btn" :aria-label="actionAriaLabel" @click="$emit('join')">
       {{ actionText }}
     </button>
   </div>
