@@ -2,6 +2,7 @@ package com.linkx.server.controller.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
@@ -18,9 +19,11 @@ public class CallSignalDTO {
     private String signalType;
 
     /** SDP（offer/answer） */
+    @Size(max = 65536, message = "SDP 过大")
     private String sdp;
 
     /** ICE candidate JSON 字符串 */
+    @Size(max = 8192, message = "ICE candidate 过大")
     private String candidate;
 
     /** 多人会议：定向信令目标用户（可选） */

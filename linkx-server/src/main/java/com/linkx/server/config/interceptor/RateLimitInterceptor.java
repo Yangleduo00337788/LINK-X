@@ -35,12 +35,26 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             return true;
         }
         RateLimit annotation = hm.getMethodAnnotation(RateLimit.class);
+        String identity;
+        String scope;
+        int max;
+        int window;
+        boolean byUser;
+
         if (annotation == null) {
-            return true;
+            // 无注解时仍施加全局默认限流，避免无防护接口被刷爆
+            byUser = true;
+            scope = "global-default";
+            max = 120;
+            window = 60;
+        } else {
+            byUser = annotation.byUser();
+            scope = annotation.scope();
+            max = annotation.value();
+            window = annotation.window();
         }
 
-        String identity;
-        if (annotation.byUser()) {
+        if (byUser) {
             Long userId = (Long) request.getAttribute("userId");
             if (userId != null) {
                 identity = String.valueOf(userId);
@@ -53,12 +67,12 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             identity = ClientIpResolver.resolve(request, linkxProperties);
         }
 
-        String key = "biz:" + annotation.scope() + ":" + identity;
+        String key = "biz:" + scope + ":" + identity;
         try {
-            rateLimitService.check(key, annotation.value(), annotation.window());
+            rateLimitService.check(key, max, window);
         } catch (CustomException e) {
             log.warn("RateLimit 触发: scope={}, key={}, message={}",
-                    annotation.scope(), identity, e.getMessage());
+                    scope, identity, e.getMessage());
             throw e;
         }
         return true;

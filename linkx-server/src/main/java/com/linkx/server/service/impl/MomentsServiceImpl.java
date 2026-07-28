@@ -301,7 +301,7 @@ public class MomentsServiceImpl implements MomentsService {
         if (keyword.length() > 64) {
             keyword = keyword.substring(0, 64);
         }
-        qw.and("content LIKE ?", "%" + keyword + "%");
+        qw.and("content LIKE ?", "%" + escapeLike(keyword) + "%");
     }
 
     private List<MomentsPostVO> buildPostList(QueryWrapper qw, Long userId, SysUser fixedAuthor) {
@@ -584,6 +584,13 @@ public class MomentsServiceImpl implements MomentsService {
                         .eq("deleted", 0)) == null) {
             throw new CustomException(404, "动态不存在");
         }
+    }
+
+    private static String escapeLike(String raw) {
+        if (raw == null || raw.isEmpty()) {
+            return raw;
+        }
+        return raw.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     private Set<Long> getFriendIds(Long userId) {

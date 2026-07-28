@@ -78,10 +78,14 @@ public class MessageStormServiceImpl implements MessageStormService {
         }
         int maxPerMinute = memberCount >= 1000 ? 5 : 10;
         String userStormKey = GROUP_STORM_PREFIX + conversationId + ":user:" + userId;
-        Long count = redisTemplate.opsForValue().increment(userStormKey);
-        if (count != null && count == 1L) {
-            redisTemplate.expire(userStormKey, Duration.ofMinutes(1));
-        }
+        Long count = redisTemplate.execute(
+                new org.springframework.data.redis.core.script.DefaultRedisScript<>(
+                        STORM_INCR_LUA,
+                        Long.class
+                ),
+                List.of(userStormKey),
+                "60"
+        );
         if (count != null && count > maxPerMinute) {
             if (count == maxPerMinute + 1L) {
                 persist(userId, conversationId, ImMessageStormEvent.TYPE_GROUP_RATE,

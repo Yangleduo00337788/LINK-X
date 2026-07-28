@@ -49,25 +49,42 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         // IP 级别注册限流
         rateLimitService.checkRegisterRateLimit(request);
 
+        String username = InputSanitizer.stripHtml(registerDTO.getUsername(), 64);
+        String email = InputSanitizer.sanitizeText(registerDTO.getEmail(), 128).trim().toLowerCase();
+
         long count = queryChain()
-                .where(SysUser::getUsername).eq(registerDTO.getUsername())
+                .where(SysUser::getUsername).eq(username)
                 .count();
         if (count > 0) {
             throw new CustomException(400, "注册失败，请检查信息后重试");
+        }
+        // 邮箱唯一性预检（与 DB 唯一索引双保险）
+        if (StringUtils.hasText(email)) {
+            long emailCount = queryChain()
+                    .where(SysUser::getEmail).eq(email)
+                    .count();
+            if (emailCount > 0) {
+                throw new CustomException(400, "注册失败，请检查信息后重试");
+            }
         }
 
         String hashPassword = PasswordEncoderHolder.encode(registerDTO.getPassword());
 
         SysUser user = SysUser.builder()
-                .username(InputSanitizer.stripHtml(registerDTO.getUsername(), 64))
+                .username(username)
                 .password(hashPassword)
                 .nickname(InputSanitizer.sanitizeText(registerDTO.getNickname(), 64))
-                .email(InputSanitizer.sanitizeText(registerDTO.getEmail(), 128))
+                .email(email)
                 .avatar(DEFAULT_AVATAR)
                 .status(1)
                 .build();
 
-        save(user);
+        try {
+            save(user);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            // 并发注册撞唯一索引时统一模糊错误，避免枚举用户名/邮箱
+            throw new CustomException(400, "注册失败，请检查信息后重试");
+        }
 
         // 注册成功后自动分配默认 user 角色，与用户创建保持同一事务，保证账号可用
         rbacService.grantRole(user.getId(), com.linkx.server.common.RbacConstants.ROLE_USER, null);
@@ -410,7 +427,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             throw new CustomException(400, "验证码错误或已过期，请重新获取");
         }
 
-        if (storedCode.equalsIgnoreCase(inputCode)) {
+        if (constantTimeEqualsIgnoreCase(storedCode, inputCode)) {
             // 校验通过：清掉 attempts 计数，不删 code（留给 reset 步骤消费）
             redisTemplate.delete(attemptsKey);
             log.info("[验证码校验] username='{}', match=true", username);
@@ -488,6 +505,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     }
 
     @Override
+    @Transactional
     public void sendBindEmailCode(Long userId, String email, String ip) {
         rateLimitService.check("bind-email:" + ip, 5, 300);
         SysUser user = getById(userId);
@@ -512,6 +530,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     }
 
     @Override
+    @Transactional
     public void bindEmail(Long userId, String email, String code, String ip) {
         rateLimitService.check("bind-email-verify:" + ip, 10, 300);
         SysUser user = getById(userId);
@@ -525,7 +544,10 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             throw new CustomException(400, "验证码已过期，请重新获取");
         }
         String[] parts = cached.split("\\|", 2);
-        if (parts.length != 2 || !parts[0].equalsIgnoreCase(normalized) || !parts[1].equals(code.trim())) {
+        String inputCode = code == null ? "" : code.trim();
+        if (parts.length != 2
+                || !constantTimeEqualsIgnoreCase(parts[0], normalized)
+                || !constantTimeEquals(parts[1], inputCode)) {
             throw new CustomException(400, "验证码错误");
         }
         long used = queryChain()
@@ -542,6 +564,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     }
 
     @Override
+    @Transactional
     public void bindPhone(Long userId, String phone, String password) {
         SysUser user = getById(userId);
         if (user == null) {
@@ -589,6 +612,23 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
      * 格式：$2a$<cost>$<22字符salt><hash>
      * 升级阈值：成本 < 12 时视为需要重新哈希
      */
+    /** 恒定时间比较，降低验证码时序侧信道风险。 */
+    private static boolean constantTimeEquals(String a, String b) {
+        if (a == null || b == null) {
+            return false;
+        }
+        byte[] left = a.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] right = b.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        return java.security.MessageDigest.isEqual(left, right);
+    }
+
+    private static boolean constantTimeEqualsIgnoreCase(String a, String b) {
+        if (a == null || b == null) {
+            return false;
+        }
+        return constantTimeEquals(a.toLowerCase(java.util.Locale.ROOT), b.toLowerCase(java.util.Locale.ROOT));
+    }
+
     private boolean passwordNeedsRehash(String hashed) {
         if (hashed == null || hashed.length() < 7) {
             return false;

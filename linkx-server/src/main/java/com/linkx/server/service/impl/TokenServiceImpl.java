@@ -20,6 +20,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -129,6 +130,16 @@ public class TokenServiceImpl implements TokenService {
             String userIdValue = redisTemplate.execute(script, Collections.singletonList(refreshKey), refreshJti);
 
             if (userIdValue == null || "-1".equals(userIdValue)) {
+                // JWT 仍有效但 Redis 已无：疑似 refresh 复用攻击 → 吊销该用户全部会话
+                Long reuseUserId = claims.get("userId", Long.class);
+                Date exp = claims.getExpiration();
+                if (reuseUserId != null && exp != null && exp.after(new Date())) {
+                    try {
+                        revokeAllUserTokens(reuseUserId);
+                    } catch (Exception ignored) {
+                        // 吊销失败仍返回 401
+                    }
+                }
                 throw new CustomException(401, "refreshToken 已失效");
             }
 
@@ -200,10 +211,11 @@ public class TokenServiceImpl implements TokenService {
         // 删除用户的 refresh token 集合
         redisTemplate.delete(userRefreshSetKey);
 
-        // 设置撤销标记：密码重置后所有旧 Token 失效
+        // 撤销标记 TTL 与 refresh 过期对齐，避免永久占用
+        long refreshExpireMs = Math.max(linkxProperties.getJwt().getRefreshExpire(), TimeUnit.HOURS.toMillis(1));
         String revokeKey = "linkx:user:token-revoked:" + userId;
         redisTemplate.opsForValue().set(revokeKey, String.valueOf(System.currentTimeMillis()),
-                Duration.ofDays(30));
+                Duration.ofMillis(refreshExpireMs));
     }
 
     @Override

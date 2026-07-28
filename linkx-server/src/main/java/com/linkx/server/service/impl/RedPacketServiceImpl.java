@@ -57,7 +57,7 @@ public class RedPacketServiceImpl implements RedPacketService {
             throw new CustomException(400, "红包金额与个数不能为空");
         }
         // 统一到分，拒绝超精度绕过
-        BigDecimal amount = dto.getTotalAmount().setScale(2, RoundingMode.DOWN);
+        BigDecimal amount = dto.getTotalAmount().setScale(2, RoundingMode.HALF_UP);
         if (amount.compareTo(new BigDecimal("0.01")) < 0) {
             throw new CustomException(400, "红包金额必须大于0");
         }
@@ -296,7 +296,7 @@ public class RedPacketServiceImpl implements RedPacketService {
         if (range.compareTo(BigDecimal.ZERO) <= 0) {
             return BigDecimal.valueOf(0.01).setScale(2, RoundingMode.HALF_UP);
         }
-        long rangeUnits = range.multiply(BigDecimal.valueOf(100)).longValue();
+        long rangeUnits = toSafeFenUnits(range);
         // [P3] 使用 ThreadLocalRandom 替代 Math.random()，避免全局锁竞争
         long randomUnits = java.util.concurrent.ThreadLocalRandom.current().nextLong(rangeUnits + 1);
         BigDecimal amount = BigDecimal.valueOf(0.01)
@@ -309,7 +309,19 @@ public class RedPacketServiceImpl implements RedPacketService {
             amount = remaining;
         }
 
-        return amount.setScale(2, RoundingMode.DOWN);
+        return amount.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    /** 将元金额转为「分」整数，溢出时截断到 Long.MAX_VALUE，避免 longValue 静默溢出 */
+    private static long toSafeFenUnits(BigDecimal yuan) {
+        if (yuan == null || yuan.compareTo(BigDecimal.ZERO) <= 0) {
+            return 0L;
+        }
+        BigDecimal fen = yuan.multiply(BigDecimal.valueOf(100)).setScale(0, RoundingMode.DOWN);
+        if (fen.compareTo(BigDecimal.valueOf(Long.MAX_VALUE)) > 0) {
+            return Long.MAX_VALUE;
+        }
+        return fen.longValue();
     }
 
     /**
@@ -376,7 +388,7 @@ public class RedPacketServiceImpl implements RedPacketService {
         messageDTO.setFileUrl(String.valueOf(redPacket.getId()));
         messageDTO.setFileName(redPacket.getGreeting());
         // SendMessageDTO.fileSize 是 Long（字节数），红包总金额用「分」存，避免 BigDecimal 序列化
-        messageDTO.setFileSize(redPacket.getTotalAmount().multiply(new BigDecimal("100")).longValue());
+        messageDTO.setFileSize(toSafeFenUnits(redPacket.getTotalAmount()));
 
         // 与发红包同一事务：消息失败则整笔回滚，避免有包无气泡
         chatService.sendMessage(senderId, messageDTO);

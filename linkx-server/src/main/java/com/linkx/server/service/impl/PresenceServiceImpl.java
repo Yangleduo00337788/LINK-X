@@ -29,6 +29,21 @@ public class PresenceServiceImpl implements PresenceService {
     private static final String INSTANCE_ID = UUID.randomUUID().toString().replace("-", "");
     private static final Duration INSTANCE_HB_TTL = Duration.ofSeconds(15);
 
+    /** SCARD + SADD + EXPIRE 原子化，返回 [before, after] */
+    private static final String MARK_ONLINE_LUA =
+            "local before = redis.call('SCARD', KEYS[1])\n" +
+            "redis.call('SADD', KEYS[1], ARGV[1])\n" +
+            "redis.call('EXPIRE', KEYS[1], ARGV[2])\n" +
+            "local after = redis.call('SCARD', KEYS[1])\n" +
+            "return {before, after}";
+
+    /** SREM + SCARD(+DEL) 原子化，返回 after */
+    private static final String MARK_OFFLINE_LUA =
+            "redis.call('SREM', KEYS[1], ARGV[1])\n" +
+            "local after = redis.call('SCARD', KEYS[1])\n" +
+            "if after == 0 then redis.call('DEL', KEYS[1]) end\n" +
+            "return after";
+
     private final StringRedisTemplate redisTemplate;
     private final LinkxProperties linkxProperties;
     private final ObjectMapper objectMapper;
@@ -45,13 +60,19 @@ public class PresenceServiceImpl implements PresenceService {
         }
         String key = connKey(userId);
         String member = member(deviceId, connId);
-        Long before = redisTemplate.opsForSet().size(key);
-        redisTemplate.opsForSet().add(key, member);
-        refreshTtl(key);
+        long ttlSeconds = Math.max(ttl().getSeconds(), 30L);
+        @SuppressWarnings("unchecked")
+        java.util.List<Long> counts = redisTemplate.execute(
+                new org.springframework.data.redis.core.script.DefaultRedisScript<>(MARK_ONLINE_LUA, java.util.List.class),
+                java.util.List.of(key),
+                member,
+                String.valueOf(ttlSeconds)
+        );
         trackInstanceMember(userId, member);
         refreshInstanceHeartbeat();
-        Long after = redisTemplate.opsForSet().size(key);
-        boolean becameOnline = (before == null || before == 0L) && after != null && after > 0L;
+        long before = counts != null && !counts.isEmpty() && counts.get(0) != null ? counts.get(0) : 0L;
+        long after = counts != null && counts.size() > 1 && counts.get(1) != null ? counts.get(1) : 0L;
+        boolean becameOnline = before == 0L && after > 0L;
         if (becameOnline) {
             publish(userId, true);
             log.debug("presence online: userId={}, instance={}", userId, INSTANCE_ID);
@@ -65,11 +86,13 @@ public class PresenceServiceImpl implements PresenceService {
         }
         String key = connKey(userId);
         String member = member(deviceId, connId);
-        redisTemplate.opsForSet().remove(key, member);
+        Long after = redisTemplate.execute(
+                new org.springframework.data.redis.core.script.DefaultRedisScript<>(MARK_OFFLINE_LUA, Long.class),
+                java.util.List.of(key),
+                member
+        );
         untrackInstanceMember(userId, member);
-        Long after = redisTemplate.opsForSet().size(key);
         if (after == null || after == 0L) {
-            redisTemplate.delete(key);
             publish(userId, false);
             log.debug("presence offline: userId={}, instance={}", userId, INSTANCE_ID);
         } else {

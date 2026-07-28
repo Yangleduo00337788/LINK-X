@@ -8,6 +8,7 @@ import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.controller.vo.UserSearchVO;
 import com.linkx.server.entity.ImConversation;
 import com.linkx.server.entity.ImConversationMember;
+import com.linkx.server.entity.ImMessage;
 import com.linkx.server.entity.SysFriendRequest;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.entity.SysUserRelation;
@@ -15,6 +16,7 @@ import com.linkx.server.exception.CustomException;
 import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.mapper.ImConversationMapper;
 import com.linkx.server.mapper.ImConversationMemberMapper;
+import com.linkx.server.mapper.ImMessageMapper;
 import com.linkx.server.mapper.SysFriendRequestMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.mapper.SysUserRelationMapper;
@@ -54,6 +56,7 @@ public class FriendServiceImpl implements FriendService {
     private final SysFriendRequestMapper sysFriendRequestMapper;
     private final ImConversationMapper conversationMapper;
     private final ImConversationMemberMapper memberMapper;
+    private final ImMessageMapper messageMapper;
     private final MediaUrlService mediaUrlService;
     private final UserPreferenceService userPreferenceService;
     private final PresenceService presenceService;
@@ -393,7 +396,7 @@ public class FriendServiceImpl implements FriendService {
         );
     }
 
-    /** 逻辑删除双方在私聊会话中的成员关系 */
+    /** 双向退出私聊：清成员、软删消息内容、软删会话，避免删好友后残留可读历史 */
     private void dissolvePrivateConversationMembership(Long userA, Long userB) {
         String privateKey = userA < userB ? userA + "_" + userB : userB + "_" + userA;
         ImConversation conversation = conversationMapper.selectOneByQuery(
@@ -404,12 +407,23 @@ public class FriendServiceImpl implements FriendService {
         if (conversation == null) {
             return;
         }
+        Long conversationId = conversation.getId();
         List<ImConversationMember> members = memberMapper.selectListByQuery(
-                QueryWrapper.create().where(ImConversationMember::getConversationId).eq(conversation.getId())
+                QueryWrapper.create().where(ImConversationMember::getConversationId).eq(conversationId)
         );
         for (ImConversationMember member : members) {
             memberMapper.deleteById(member.getId());
         }
+
+        ImMessage msgPatch = new ImMessage();
+        msgPatch.setContent(null);
+        msgPatch.setFileUrl(null);
+        msgPatch.setFileName(null);
+        msgPatch.setDeleted(1);
+        messageMapper.updateByQuery(msgPatch,
+                QueryWrapper.create().where(ImMessage::getConversationId).eq(conversationId));
+
+        conversationMapper.deleteById(conversationId);
     }
 
     private SysFriendRequest requireRequest(Long requestId) {

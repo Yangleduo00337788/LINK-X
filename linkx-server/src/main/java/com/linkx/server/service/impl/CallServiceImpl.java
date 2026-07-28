@@ -194,6 +194,7 @@ public class CallServiceImpl implements CallService {
                 SIGNAL_RATE_MAX,
                 SIGNAL_RATE_WINDOW_SECONDS,
                 "信令发送过于频繁，请稍后再试");
+        assertSignalPayloadSize(dto);
 
         Map<Object, Object> data = requireCall(dto.getCallId());
         String status = str(data.get("status"));
@@ -332,11 +333,27 @@ public class CallServiceImpl implements CallService {
         List<ImConversationMember> members = memberMapper.selectListByQuery(
                 QueryWrapper.create().where(ImConversationMember::getConversationId).eq(conversationId)
         );
+        if (members.size() != 2) {
+            throw new CustomException(400, "私聊会话成员异常，无法发起通话");
+        }
+        boolean selfIn = members.stream().anyMatch(m -> userId.equals(m.getUserId()));
+        if (!selfIn) {
+            throw new CustomException(403, "无权在该会话发起通话");
+        }
         return members.stream()
                 .map(ImConversationMember::getUserId)
                 .filter(id -> !id.equals(userId))
                 .findFirst()
                 .orElseThrow(() -> new CustomException(404, "对方用户不存在"));
+    }
+
+    private static void assertSignalPayloadSize(CallSignalDTO dto) {
+        if (dto.getSdp() != null && dto.getSdp().length() > 65536) {
+            throw new CustomException(400, "SDP 过大");
+        }
+        if (dto.getCandidate() != null && dto.getCandidate().length() > 8192) {
+            throw new CustomException(400, "ICE candidate 过大");
+        }
     }
 
     private String callKey(String callId) {

@@ -142,7 +142,7 @@ public class EmailServiceImpl implements EmailService {
               </div>
             </body>
             </html>
-            """.formatted(username, code, expireMinutes);
+            """.formatted(escapeHtml(username), escapeHtml(code), expireMinutes);
     }
 
     /**

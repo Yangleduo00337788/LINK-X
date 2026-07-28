@@ -82,14 +82,13 @@ public class JwtUtils {
         Date now = new Date();
         Date expiration = new Date(now.getTime() + expireTime);
 
-        // signWith(key) 由 jjwt 根据密钥长度自动选择 HS256（≥32 字节）/HS512（≥64 字节）；
-        // validateSecretStrength 已保证密钥 ≥32 字符（≥256bits），无需显式算法。
+        // 显式指定 HS256，避免依赖实现默认算法猜测
         return Jwts.builder()
                 .claims(claims)
                 .id(jti)
                 .issuedAt(now)
                 .expiration(expiration)
-                .signWith(getSecretKey())
+                .signWith(getSecretKey(), Jwts.SIG.HS256)
                 .compact();
     }
 

@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS `sys_user` (
   `email` varchar(128) DEFAULT NULL COMMENT '用户邮箱，用于找回密码',
   `phone` varchar(32) DEFAULT NULL COMMENT '手机号，用于账号安全绑定',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_username` (`username`)
+  UNIQUE KEY `uk_username` (`username`),
+  UNIQUE KEY `uk_email` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统用户表';
 
 -- ================================================
@@ -414,6 +415,17 @@ SET @sql = (SELECT IF(
     (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sys_user' AND COLUMN_NAME = 'phone') = 0,
     'ALTER TABLE `sys_user` ADD COLUMN `phone` varchar(32) DEFAULT NULL COMMENT ''手机号，用于账号安全绑定''',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- sys_user.email 唯一索引（允许多个 NULL；幂等）
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sys_user' AND INDEX_NAME = 'uk_email') = 0,
+    'ALTER TABLE `sys_user` ADD UNIQUE KEY `uk_email` (`email`)',
     'SELECT 1'
 ));
 PREPARE stmt FROM @sql;
