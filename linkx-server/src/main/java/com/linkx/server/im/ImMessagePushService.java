@@ -42,8 +42,12 @@ import java.util.concurrent.RejectedExecutionException;
 @RequiredArgsConstructor
 public class ImMessagePushService {
 
-    /** 跨实例 IM 帧投递 Pub/Sub 频道 */
-    public static final String CLUSTER_PUSH_CHANNEL = "linkx:im:push";
+    /** 跨实例 IM 帧投递 Redis Stream（替代 Pub/Sub，支持断线续读） */
+    public static final String CLUSTER_PUSH_STREAM = "linkx:im:push:stream";
+    /** @deprecated 兼容旧常量名，请使用 {@link #CLUSTER_PUSH_STREAM} */
+    @Deprecated
+    public static final String CLUSTER_PUSH_CHANNEL = CLUSTER_PUSH_STREAM;
+    private static final long CLUSTER_PUSH_STREAM_MAXLEN = 10_000L;
 
     private final ChatService chatService;
     private final ImConversationMemberMapper memberMapper;
@@ -486,11 +490,15 @@ public class ImMessagePushService {
 
     private void publishClusterPush(Long userId, String json) {
         try {
-            Map<String, Object> payload = new HashMap<>(4);
+            Map<String, String> payload = new HashMap<>(4);
             payload.put("userId", String.valueOf(userId));
             payload.put("frame", json);
             payload.put("origin", presenceService.getInstanceId());
-            redisTemplate.convertAndSend(CLUSTER_PUSH_CHANNEL, objectMapper.writeValueAsString(payload));
+            redisTemplate.opsForStream().add(
+                    org.springframework.data.redis.connection.stream.MapRecord.create(
+                            CLUSTER_PUSH_STREAM, payload));
+            // 近似裁剪，限制 Stream 长度，避免无限增长
+            redisTemplate.opsForStream().trim(CLUSTER_PUSH_STREAM, CLUSTER_PUSH_STREAM_MAXLEN, true);
         } catch (Exception e) {
             log.warn("发布跨实例 IM 推送失败: userId={}, err={}", userId, e.getMessage());
         }

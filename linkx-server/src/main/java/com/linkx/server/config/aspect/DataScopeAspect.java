@@ -5,6 +5,7 @@ import com.linkx.server.common.DataScope;
 import com.linkx.server.common.DataScopeContext;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.RbacConstants;
+import com.linkx.server.exception.CustomException;
 import com.linkx.server.service.RbacService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -29,8 +30,8 @@ import org.springframework.web.context.request.ServletRequestAttributes;
  * 方法执行完毕（无论成功与否）清除 ThreadLocal，避免线程池复用导致的脏读。
  * </p>
  * <p>
- * 当前为框架实现，暂未强制应用到现有 Service，避免破坏既有功能；
- * 新增 Service 可通过 {@code @DataScope} + {@link DataScopeContext#getUserId()} 接入数据权限。
+ * 未登录时 fail-closed 抛 401，禁止以 admin 级可见性放行。
+ * 现有 Service 可通过 {@code @DataScope} + {@link DataScopeContext#getUserId()} 接入数据权限。
  * </p>
  */
 @Slf4j
@@ -53,12 +54,8 @@ public class DataScopeAspect {
     public Object around(ProceedingJoinPoint joinPoint) throws Throwable {
         Long userId = currentUserId();
         if (userId == null) {
-            // 未登录上下文（LoginInterceptor 已保证登录，此处兜底）：不设置范围直接放行
-            try {
-                return joinPoint.proceed();
-            } finally {
-                DataScopeContext.clear();
-            }
+            // fail-closed：拦截器被绕过或非 Web 上下文时拒绝，禁止以 admin 级可见性执行
+            throw new CustomException(401, "未登录或登录已过期");
         }
         boolean isAdmin = rbacService.hasRole(userId, RbacConstants.ROLE_ADMIN);
         // admin: 不限制（null）；普通用户: 仅可见本人数据

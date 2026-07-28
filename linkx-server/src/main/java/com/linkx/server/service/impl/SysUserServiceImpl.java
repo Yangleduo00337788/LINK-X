@@ -367,13 +367,14 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     }
 
     @Override
+    @Transactional
     public void resetPasswordByEmail(String username, String code, String newPassword, String ip) {
         // 限流：每个 IP 每 5 分钟最多尝试 10 次
         rateLimitService.check("reset-verify:" + ip, 10, 300);
 
         verifyCodeInternal(username, code);
 
-        // 校验通过才进行下一步：重置密码
+        // 校验通过才进行下一步：重置密码（本方法带事务，保证 afterCommit 吊销生效）
         doResetPassword(username, newPassword, ip);
     }
 

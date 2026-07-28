@@ -42,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -118,9 +119,22 @@ public class CloudDriveServiceImpl implements CloudDriveService {
         SysUser me = sysUserMapper.selectOneById(userId);
         String uploader = me != null ? me.getNickname() : null;
         String uploaderAvatar = me != null ? mediaUrlService.resolve(me.getAvatar()) : null;
+        Map<Long, FolderListStats> folderStats = batchFolderListStats(userId, folders);
         for (CloudFolder f : folders) {
             if (q != null && !f.getName().toLowerCase(Locale.ROOT).contains(q)) continue;
-            result.add(toFolderVO(userId, f, uploader, uploaderAvatar));
+            FolderListStats stats = folderStats.getOrDefault(f.getId(), FolderListStats.EMPTY);
+            result.add(DriveItemVO.builder()
+                    .kind("folder")
+                    .id(f.getId())
+                    .name(f.getName())
+                    .parentId(f.getParentId())
+                    .fileSize(stats.sizeBytes())
+                    .childCount(stats.childCount())
+                    .uploaderName(uploader)
+                    .uploaderAvatar(uploaderAvatar)
+                    .createTime(f.getCreateTime() != null ? f.getCreateTime().getTime() : null)
+                    .updateTime(f.getUpdateTime() != null ? f.getUpdateTime().getTime() : null)
+                    .build());
         }
 
         QueryWrapper fileQw = QueryWrapper.create().where(CloudFile::getUserId).eq(userId);
@@ -762,23 +776,15 @@ public class CloudDriveServiceImpl implements CloudDriveService {
     }
 
     private DriveItemVO toFolderVO(Long userId, CloudFolder f, String uploader, String uploaderAvatar) {
-        long childFolders = cloudFolderMapper.selectCountByQuery(
-                QueryWrapper.create()
-                        .where(CloudFolder::getUserId).eq(userId)
-                        .and(CloudFolder::getParentId).eq(f.getId())
-        );
-        long childFiles = cloudFileMapper.selectCountByQuery(
-                QueryWrapper.create()
-                        .where(CloudFile::getUserId).eq(userId)
-                        .and(CloudFile::getFolderId).eq(f.getId())
-        );
+        FolderListStats stats = batchFolderListStats(userId, List.of(f))
+                .getOrDefault(f.getId(), FolderListStats.EMPTY);
         return DriveItemVO.builder()
                 .kind("folder")
                 .id(f.getId())
                 .name(f.getName())
                 .parentId(f.getParentId())
-                .fileSize(calcFolderSizeBytes(userId, f))
-                .childCount((int) (childFolders + childFiles))
+                .fileSize(stats.sizeBytes())
+                .childCount(stats.childCount())
                 .uploaderName(uploader)
                 .uploaderAvatar(uploaderAvatar)
                 .createTime(f.getCreateTime() != null ? f.getCreateTime().getTime() : null)
@@ -786,37 +792,70 @@ public class CloudDriveServiceImpl implements CloudDriveService {
                 .build();
     }
 
-    /** 统计文件夹及其子目录下全部文件占用（字节） */
-    private long calcFolderSizeBytes(Long userId, CloudFolder folder) {
-        Set<Long> folderIds = new HashSet<>();
-        LinkedList<Long> queue = new LinkedList<>();
-        folderIds.add(folder.getId());
-        queue.add(folder.getId());
-        while (!queue.isEmpty()) {
-            Long currentId = queue.removeFirst();
-            List<CloudFolder> children = cloudFolderMapper.selectListByQuery(
-                    QueryWrapper.create()
-                            .where(CloudFolder::getUserId).eq(userId)
-                            .and(CloudFolder::getParentId).eq(currentId)
-            );
-            for (CloudFolder child : children) {
-                if (folderIds.add(child.getId())) {
-                    queue.add(child.getId());
+    /**
+     * 批量计算文件夹直属子项数与子树占用，避免 listItems 对每个文件夹 N+1 查询。
+     */
+    private Map<Long, FolderListStats> batchFolderListStats(Long userId, List<CloudFolder> folders) {
+        if (folders == null || folders.isEmpty()) {
+            return Map.of();
+        }
+        Set<Long> targetIds = folders.stream().map(CloudFolder::getId).collect(Collectors.toSet());
+
+        List<CloudFolder> allFolders = cloudFolderMapper.selectListByQuery(
+                QueryWrapper.create().where(CloudFolder::getUserId).eq(userId)
+        );
+        Map<Long, List<CloudFolder>> childrenByParent = new HashMap<>();
+        for (CloudFolder folder : allFolders) {
+            Long parentId = folder.getParentId();
+            if (parentId == null) {
+                continue;
+            }
+            childrenByParent.computeIfAbsent(parentId, k -> new ArrayList<>()).add(folder);
+        }
+
+        List<CloudFile> allFiles = cloudFileMapper.selectListByQuery(
+                QueryWrapper.create().where(CloudFile::getUserId).eq(userId)
+        );
+        Map<Long, List<CloudFile>> filesByFolder = new HashMap<>();
+        for (CloudFile file : allFiles) {
+            if (file.getFolderId() == null) {
+                continue;
+            }
+            filesByFolder.computeIfAbsent(file.getFolderId(), k -> new ArrayList<>()).add(file);
+        }
+
+        Map<Long, FolderListStats> result = new HashMap<>();
+        for (Long folderId : targetIds) {
+            int directChildren = childrenByParent.getOrDefault(folderId, List.of()).size()
+                    + filesByFolder.getOrDefault(folderId, List.of()).size();
+
+            Set<Long> subtree = new HashSet<>();
+            LinkedList<Long> queue = new LinkedList<>();
+            subtree.add(folderId);
+            queue.add(folderId);
+            while (!queue.isEmpty()) {
+                Long current = queue.removeFirst();
+                for (CloudFolder child : childrenByParent.getOrDefault(current, List.of())) {
+                    if (subtree.add(child.getId())) {
+                        queue.add(child.getId());
+                    }
                 }
             }
-        }
-        List<CloudFile> files = cloudFileMapper.selectListByQuery(
-                QueryWrapper.create()
-                        .where(CloudFile::getUserId).eq(userId)
-                        .and(CloudFile::getFolderId).in(folderIds)
-        );
-        long sum = 0L;
-        for (CloudFile file : files) {
-            if (file.getFileSize() != null) {
-                sum += file.getFileSize();
+            long size = 0L;
+            for (Long id : subtree) {
+                for (CloudFile file : filesByFolder.getOrDefault(id, List.of())) {
+                    if (file.getFileSize() != null) {
+                        size += file.getFileSize();
+                    }
+                }
             }
+            result.put(folderId, new FolderListStats(directChildren, size));
         }
-        return sum;
+        return result;
+    }
+
+    private record FolderListStats(int childCount, long sizeBytes) {
+        private static final FolderListStats EMPTY = new FolderListStats(0, 0L);
     }
 
     private DriveItemVO toFileVO(CloudFile f, List<String> tags, String uploader, String uploaderAvatar) {

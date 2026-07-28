@@ -313,7 +313,10 @@ public class GroupInvitationServiceImpl implements GroupInvitationService {
     }
 
     /**
-     * ownerApprove：仅群主/管理员可邀请；anyMember：任意成员可邀请。
+     * 群邀请策略：
+     * - anyMember / 未配置：任意成员可邀请；
+     * - ownerApprove：仅群主/管理员可邀请；
+     * - 未知策略：fail-safe 拒绝（禁止 fail-open）。
      */
     private void enforceInvitePolicy(Long userId, ImConversation conversation) {
         String policy = conversation.getInvitePolicy();
@@ -321,7 +324,7 @@ public class GroupInvitationServiceImpl implements GroupInvitationService {
             return;
         }
         if (!"ownerApprove".equals(policy)) {
-            return;
+            throw new CustomException(500, "未知的群邀请策略：" + policy);
         }
         ImConversationMember m = memberMapper.selectOneByQuery(
                 QueryWrapper.create()

@@ -271,10 +271,12 @@ public class ChatServiceImpl implements ChatService {
         ).stream().collect(Collectors.toMap(SysUser::getId, Function.identity(), (a, b) -> a));
 
         Long lastReadMessageId = loadLastReadMessageId(userId, conversationId);
+        Map<Long, RedPacket> redPacketMap = loadRedPacketsForMessages(messages);
+        Map<Long, RedPacketRecord> myRedPacketRecordMap = loadMyRedPacketRecords(userId, redPacketMap.keySet());
         List<MessageVO> result = new ArrayList<>();
         for (ImMessage message : messages) {
             SysUser sender = senderMap.get(message.getSenderId());
-            result.add(toMessageVO(message, sender, userId, lastReadMessageId));
+            result.add(toMessageVO(message, sender, userId, lastReadMessageId, redPacketMap, myRedPacketRecordMap));
         }
         return result;
     }
@@ -1220,6 +1222,11 @@ public class ChatServiceImpl implements ChatService {
     }
 
     private MessageVO toMessageVO(ImMessage message, SysUser sender, Long currentUserId, Long lastReadMessageId) {
+        return toMessageVO(message, sender, currentUserId, lastReadMessageId, null, null);
+    }
+
+    private MessageVO toMessageVO(ImMessage message, SysUser sender, Long currentUserId, Long lastReadMessageId,
+                                  Map<Long, RedPacket> redPacketCache, Map<Long, RedPacketRecord> recordCache) {
         String fileUrl = message.getFileUrl();
         if (fileUrl != null
                 && !ImMessage.TYPE_RED_PACKET.equals(message.getType())
@@ -1255,20 +1262,27 @@ public class ChatServiceImpl implements ChatService {
                 .quoteType(message.getQuoteType());
 
         if (ImMessage.TYPE_RED_PACKET.equals(message.getType()) && message.getFileUrl() != null) {
-            fillRedPacketFields(builder, message, currentUserId);
+            fillRedPacketFields(builder, message, currentUserId, redPacketCache, recordCache);
         }
 
         return builder.build();
     }
 
     private void fillRedPacketFields(MessageVO.MessageVOBuilder builder, ImMessage message, Long currentUserId) {
+        fillRedPacketFields(builder, message, currentUserId, null, null);
+    }
+
+    private void fillRedPacketFields(MessageVO.MessageVOBuilder builder, ImMessage message, Long currentUserId,
+                                     Map<Long, RedPacket> redPacketCache, Map<Long, RedPacketRecord> recordCache) {
         Long redPacketId;
         try {
             redPacketId = Long.parseLong(message.getFileUrl());
         } catch (NumberFormatException e) {
             return;
         }
-        RedPacket redPacket = redPacketMapper.selectOneById(redPacketId);
+        RedPacket redPacket = redPacketCache != null
+                ? redPacketCache.get(redPacketId)
+                : redPacketMapper.selectOneById(redPacketId);
         if (redPacket == null) {
             return;
         }
@@ -1280,11 +1294,15 @@ public class ChatServiceImpl implements ChatService {
         BigDecimal totalYuan = redPacket.getTotalAmount();
         RedPacketRecord userRecord = null;
         if (currentUserId != null) {
-            userRecord = redPacketRecordMapper.selectOneByQuery(
-                    QueryWrapper.create()
-                            .eq("red_packet_id", redPacketId)
-                            .eq("user_id", currentUserId)
-            );
+            if (recordCache != null) {
+                userRecord = recordCache.get(redPacketId);
+            } else {
+                userRecord = redPacketRecordMapper.selectOneByQuery(
+                        QueryWrapper.create()
+                                .eq("red_packet_id", redPacketId)
+                                .eq("user_id", currentUserId)
+                );
+            }
         }
         builder
                 .redPacketId(String.valueOf(redPacketId))
@@ -1296,6 +1314,38 @@ public class ChatServiceImpl implements ChatService {
                 .redPacketReceived(userRecord != null)
                 .redPacketReceivedAmount(userRecord != null ? userRecord.getAmount() : null)
                 .redPacketStatus(redPacket.getStatus());
+    }
+
+    /** 批量加载消息列表中的红包，避免 listMessages N+1 */
+    private Map<Long, RedPacket> loadRedPacketsForMessages(List<ImMessage> messages) {
+        Set<Long> ids = new HashSet<>();
+        for (ImMessage message : messages) {
+            if (!ImMessage.TYPE_RED_PACKET.equals(message.getType()) || message.getFileUrl() == null) {
+                continue;
+            }
+            try {
+                ids.add(Long.parseLong(message.getFileUrl()));
+            } catch (NumberFormatException ignored) {
+                // skip
+            }
+        }
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return redPacketMapper.selectListByQuery(
+                QueryWrapper.create().where(RedPacket::getId).in(ids)
+        ).stream().collect(Collectors.toMap(RedPacket::getId, Function.identity(), (a, b) -> a));
+    }
+
+    private Map<Long, RedPacketRecord> loadMyRedPacketRecords(Long userId, Set<Long> redPacketIds) {
+        if (userId == null || redPacketIds == null || redPacketIds.isEmpty()) {
+            return Map.of();
+        }
+        return redPacketRecordMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .eq("user_id", userId)
+                        .in("red_packet_id", redPacketIds)
+        ).stream().collect(Collectors.toMap(RedPacketRecord::getRedPacketId, Function.identity(), (a, b) -> a));
     }
 
     private Long loadLastReadMessageId(Long userId, Long conversationId) {

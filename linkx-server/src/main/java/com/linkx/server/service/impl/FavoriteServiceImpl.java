@@ -73,9 +73,8 @@ public class FavoriteServiceImpl implements FavoriteService {
         if (!StringUtils.hasText(dto.getContent())) {
             throw new CustomException(400, "收藏内容不能为空");
         }
-        FavoriteStorage storage = refreshStorageStats(userId);
         long addSize = dto.getFileSize() != null ? Math.max(0, dto.getFileSize()) : 0L;
-        ensureFavoriteCapacity(storage, addSize);
+        ensureFavoriteCapacity(userId, addSize);
 
         Favorite fav = Favorite.builder()
                 .userId(userId)
@@ -88,7 +87,7 @@ public class FavoriteServiceImpl implements FavoriteService {
                 .fileSize(dto.getFileSize())
                 .build();
         favoriteMapper.insert(fav);
-        refreshStorageStats(userId);
+        applyStorageDelta(userId, addSize, 1);
         return toVO(fav);
     }
 
@@ -121,11 +120,12 @@ public class FavoriteServiceImpl implements FavoriteService {
         favoriteMapper.update(fav);
 
         Long newSize = fav.getFileSize() != null ? fav.getFileSize() : 0L;
-        if (!Objects.equals(oldSize, newSize)) {
-            FavoriteStorage storage = refreshStorageStats(userId);
-            ensureFavoriteCapacity(storage, 0L);
-        } else {
-            refreshStorageStats(userId);
+        long delta = newSize - oldSize;
+        if (delta > 0) {
+            ensureFavoriteCapacity(userId, delta);
+        }
+        if (delta != 0) {
+            applyStorageDelta(userId, delta, 0);
         }
         return toVO(fav);
     }
@@ -133,14 +133,15 @@ public class FavoriteServiceImpl implements FavoriteService {
     @Override
     @Transactional
     public void delete(Long userId, Long favoriteId) {
-        requireOwned(userId, favoriteId);
+        Favorite fav = requireOwned(userId, favoriteId);
+        long size = fav.getFileSize() != null ? Math.max(0, fav.getFileSize()) : 0L;
         favoriteMapper.deleteById(favoriteId);
-        refreshStorageStats(userId);
+        applyStorageDelta(userId, -size, -1);
     }
 
     @Override
     public FavoriteStorageVO getStorage(Long userId) {
-        FavoriteStorage storage = refreshStorageStats(userId);
+        FavoriteStorage storage = ensureStorage(userId);
         Map<String, Integer> typeCounts = countByType(userId);
         long used = storage.getUsedBytes() != null ? storage.getUsedBytes() : 0L;
         long quota = storage.getQuotaBytes() != null ? storage.getQuotaBytes() : FavoriteStorage.DEFAULT_QUOTA_BYTES;
@@ -267,7 +268,7 @@ public class FavoriteServiceImpl implements FavoriteService {
                 .build();
     }
 
-    /** 按收藏表汇总校正 used/itemCount */
+    /** 按收藏表汇总校正 used/itemCount（仅运维/纠偏场景，日常增删走 CAS） */
     private FavoriteStorage refreshStorageStats(Long userId) {
         FavoriteStorage storage = ensureStorage(userId);
         List<Favorite> all = favoriteMapper.selectListByQuery(
@@ -286,26 +287,49 @@ public class FavoriteServiceImpl implements FavoriteService {
         return storage;
     }
 
+    /** CAS 增量更新配额用量，避免全表扫描汇总 */
+    private void applyStorageDelta(Long userId, long bytesDelta, int itemDelta) {
+        if (bytesDelta == 0 && itemDelta == 0) {
+            return;
+        }
+        for (int attempt = 0; attempt < 8; attempt++) {
+            FavoriteStorage storage = ensureStorage(userId);
+            int version = storage.getVersion() != null ? storage.getVersion() : 0;
+            int rows = favoriteStorageMapper.casUpdateUsedBytes(userId, bytesDelta, itemDelta, version);
+            if (rows == 1) {
+                return;
+            }
+        }
+        // CAS 多次冲突：回退全量校正，保证最终一致
+        refreshStorageStats(userId);
+    }
+
     /**
      * 当前用量 + 新增字节若超出配额，按 10GiB 步长自动扩容，直到够用或达 60GiB 上限。
      */
-    private void ensureFavoriteCapacity(FavoriteStorage storage, long additionalBytes) {
-        long used = storage.getUsedBytes() != null ? storage.getUsedBytes() : 0L;
-        long quota = storage.getQuotaBytes() != null ? storage.getQuotaBytes() : FavoriteStorage.DEFAULT_QUOTA_BYTES;
-        long need = used + Math.max(0L, additionalBytes);
-        if (need <= quota) {
-            return;
+    private void ensureFavoriteCapacity(Long userId, long additionalBytes) {
+        for (int attempt = 0; attempt < 8; attempt++) {
+            FavoriteStorage storage = ensureStorage(userId);
+            long used = storage.getUsedBytes() != null ? storage.getUsedBytes() : 0L;
+            long quota = storage.getQuotaBytes() != null ? storage.getQuotaBytes() : FavoriteStorage.DEFAULT_QUOTA_BYTES;
+            long need = used + Math.max(0L, additionalBytes);
+            if (need <= quota) {
+                return;
+            }
+            long next = quota;
+            while (next < need && next + FavoriteStorage.EXPAND_STEP_BYTES <= FavoriteStorage.MAX_QUOTA_BYTES) {
+                next += FavoriteStorage.EXPAND_STEP_BYTES;
+            }
+            if (need > next) {
+                throw new CustomException(400, "已达最大收藏空间上限（60 GB）");
+            }
+            int version = storage.getVersion() != null ? storage.getVersion() : 0;
+            int rows = favoriteStorageMapper.casExpandQuota(userId, next, version);
+            if (rows == 1) {
+                return;
+            }
         }
-        long next = quota;
-        while (next < need && next + FavoriteStorage.EXPAND_STEP_BYTES <= FavoriteStorage.MAX_QUOTA_BYTES) {
-            next += FavoriteStorage.EXPAND_STEP_BYTES;
-        }
-        if (need > next) {
-            throw new CustomException(400, "已达最大收藏空间上限（60 GB）");
-        }
-        storage.setQuotaBytes(next);
-        storage.setVersion((storage.getVersion() != null ? storage.getVersion() : 0) + 1);
-        favoriteStorageMapper.update(storage);
+        throw new CustomException(409, "收藏空间扩容冲突，请重试");
     }
 
     private void ensurePresetTags(Long userId) {
