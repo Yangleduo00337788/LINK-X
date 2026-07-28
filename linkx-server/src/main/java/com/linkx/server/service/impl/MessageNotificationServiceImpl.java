@@ -94,15 +94,14 @@ public class MessageNotificationServiceImpl implements MessageNotificationServic
     @Override
     @Transactional
     public void markAllAsRead(Long userId) {
-        List<MessageNotification> unreadList = notificationMapper.selectListByQuery(
+        MessageNotification patch = new MessageNotification();
+        patch.setReadStatus(1);
+        notificationMapper.updateByQuery(
+                patch,
                 QueryWrapper.create()
                         .eq("user_id", userId)
                         .eq("read_status", 0)
         );
-        for (MessageNotification notification : unreadList) {
-            notification.setReadStatus(1);
-            notificationMapper.update(notification);
-        }
     }
 
     @Override
@@ -119,17 +118,15 @@ public class MessageNotificationServiceImpl implements MessageNotificationServic
     @Transactional
     public int clearAll(Long userId) {
         if (userId == null) return 0;
-        List<MessageNotification> all = notificationMapper.selectListByQuery(
+        long count = notificationMapper.selectCountByQuery(
                 QueryWrapper.create().eq("user_id", userId)
         );
-        if (all.isEmpty()) {
+        if (count <= 0) {
             return 0;
         }
-        for (MessageNotification n : all) {
-            notificationMapper.deleteById(n.getId());
-        }
-        log.info("清空用户 {} 的全部消息通知，共 {} 条", userId, all.size());
-        return all.size();
+        notificationMapper.deleteByQuery(QueryWrapper.create().eq("user_id", userId));
+        log.info("清空用户 {} 的全部消息通知，共 {} 条", userId, count);
+        return (int) Math.min(count, Integer.MAX_VALUE);
     }
 
     @Override

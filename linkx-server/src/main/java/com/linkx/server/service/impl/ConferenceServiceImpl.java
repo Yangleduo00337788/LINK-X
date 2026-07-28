@@ -49,7 +49,9 @@ public class ConferenceServiceImpl implements ConferenceService {
     /** 会议活跃已准入成员计数 key 前缀（Redis 原子计数器，防止 join 的 check-then-act 竞态导致超 maxParticipants） */
     private static final String ACTIVE_COUNT_KEY = "linkx:conference:active_count:";
     /** 计数 key 的保护性 TTL，避免极端场景（如 end 未触发）计数键长期残留 */
-    private static final Duration ACTIVE_COUNT_TTL = Duration.ofHours(8);
+    private static final Duration ACTIVE_COUNT_TTL = Duration.ofHours(2);
+    /** 会议最大人数硬上限（mesh 场景） */
+    private static final int MAX_PARTICIPANTS_HARD_LIMIT = 16;
 
     private final ConferenceMapper conferenceMapper;
     private final ConferenceMemberMapper memberMapper;
@@ -90,7 +92,7 @@ public class ConferenceServiceImpl implements ConferenceService {
         }
         int max = dto.getMaxParticipants() != null ? dto.getMaxParticipants() : 9;
         if (max < 2) max = 2;
-        if (max > 16) max = 16;
+        if (max > MAX_PARTICIPANTS_HARD_LIMIT) max = MAX_PARTICIPANTS_HARD_LIMIT;
         String scene = Conference.SCENE_CALL.equalsIgnoreCase(dto.getScene())
                 ? Conference.SCENE_CALL
                 : Conference.SCENE_MEETING;
@@ -271,12 +273,14 @@ public class ConferenceServiceImpl implements ConferenceService {
         if (StringUtils.hasText(conference.getPassword())) {
             String input = password != null ? password.trim() : "";
             String stored = conference.getPassword();
-            boolean ok;
+            boolean ok = false;
             if (stored.startsWith("$2a$") || stored.startsWith("$2b$") || stored.startsWith("$2y$")) {
                 ok = StringUtils.hasText(input) && PasswordEncoderHolder.matches(input, stored);
             } else {
-                // 兼容历史明文会议口令（一次性比对后仍不回写，新会议一律哈希）
-                ok = Objects.equals(stored, input);
+                // 历史明文口令已废弃：恒定失败路径，迫使重新创建会议
+                PasswordEncoderHolder.matches(input.isEmpty() ? "x" : input,
+                        "$2a$12$xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+                ok = false;
             }
             if (!ok) {
                 throw new CustomException(403, "会议密码错误");

@@ -165,11 +165,9 @@ public class TokenServiceImpl implements TokenService {
         if (!StringUtils.hasText(accessToken)) {
             throw new CustomException(401, "未提供访问令牌");
         }
-        // 解析并校验 access token 必须属于 ACCESS 类型
+        // 先校验 access 仍存活（含吊销/踢人），再执行登出吊销
+        assertAccessTokenActive(accessToken);
         Claims accessClaims = parseClaims(accessToken);
-        if (jwtUtils.getTokenType(accessToken) != TokenType.ACCESS) {
-            throw new CustomException(401, "无效的访问令牌");
-        }
         Long accessUserId = accessClaims.get("userId", Long.class);
 
         // 如果同时携带 refreshToken，必须属于同一用户，否则拒绝（防止用 A 的 token 吊销 B 的 refresh）
@@ -191,7 +189,7 @@ public class TokenServiceImpl implements TokenService {
             }
         }
 
-        // 校验通过后吊销
+        // 校验通过后吊销 access / refresh
         redisTemplate.delete(ACCESS_KEY_PREFIX + accessClaims.getId());
         revokeRawToken(refreshToken, TokenType.REFRESH);
     }
@@ -346,7 +344,14 @@ public class TokenServiceImpl implements TokenService {
             }
             Claims claims = jwtUtils.parseToken(token);
             String prefix = expectedType == TokenType.ACCESS ? ACCESS_KEY_PREFIX : REFRESH_KEY_PREFIX;
-            redisTemplate.delete(prefix + claims.getId());
+            String jti = claims.getId();
+            redisTemplate.delete(prefix + jti);
+            if (expectedType == TokenType.REFRESH) {
+                Long userId = claims.get("userId", Long.class);
+                if (userId != null && StringUtils.hasText(jti)) {
+                    redisTemplate.opsForSet().remove(USER_REFRESH_SET_PREFIX + userId, jti);
+                }
+            }
         } catch (Exception ignored) {
             // 登出时忽略无效 token
         }

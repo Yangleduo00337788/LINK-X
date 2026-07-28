@@ -18,6 +18,7 @@ import com.linkx.server.entity.GroupAsset;
 import com.linkx.server.entity.GroupInvitation;
 import com.linkx.server.entity.MessageNotification;
 import com.linkx.server.entity.SysUser;
+import com.linkx.server.entity.SysUserRelation;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.mapper.ImConversationMapper;
@@ -27,6 +28,7 @@ import com.linkx.server.mapper.GroupAssetMapper;
 import com.linkx.server.mapper.GroupInvitationMapper;
 import com.linkx.server.mapper.MessageNotificationMapper;
 import com.linkx.server.mapper.SysUserMapper;
+import com.linkx.server.mapper.SysUserRelationMapper;
 
 import java.util.Objects;
 import com.linkx.server.service.ChatService;
@@ -65,6 +67,7 @@ public class GroupServiceImpl implements GroupService {
     private final ImConversationMapper conversationMapper;
     private final ImConversationMemberMapper memberMapper;
     private final SysUserMapper sysUserMapper;
+    private final SysUserRelationMapper relationMapper;
     private final MediaUrlService mediaUrlService;
     private final ChatService chatService;
     private final ImMessagePushService imPushService;
@@ -90,14 +93,27 @@ public class GroupServiceImpl implements GroupService {
         }
 
         // 验证成员是否都是好友
+        List<Long> memberIds = dto.getMemberIds().stream().filter(Objects::nonNull).distinct().toList();
+        if (memberIds.isEmpty()) {
+            throw new CustomException(400, "请至少选择一名成员");
+        }
         List<SysUser> members = sysUserMapper.selectListByQuery(
-                QueryWrapper.create().where(SysUser::getId).in(dto.getMemberIds())
+                QueryWrapper.create().where(SysUser::getId).in(memberIds)
         );
-        if (members.size() != dto.getMemberIds().size()) {
+        if (members.size() != memberIds.size()) {
             throw new CustomException(400, "部分成员不存在");
         }
+        long friendCount = relationMapper.selectCountByQuery(
+                QueryWrapper.create()
+                        .where(SysUserRelation::getUserId).eq(userId)
+                        .and(SysUserRelation::getFriendId).in(memberIds)
+                        .and(SysUserRelation::getStatus).eq(1)
+        );
+        if (friendCount != memberIds.size()) {
+            throw new CustomException(400, "只能邀请好友加入群聊");
+        }
         // 创建者 + 初始成员不得超过上限
-        if (dto.getMemberIds().size() + 1 > MAX_GROUP_MEMBERS) {
+        if (memberIds.size() + 1 > MAX_GROUP_MEMBERS) {
             throw new CustomException(400, "群成员不得超过 " + MAX_GROUP_MEMBERS + " 人");
         }
 
@@ -111,18 +127,20 @@ public class GroupServiceImpl implements GroupService {
                 .build();
         conversationMapper.insert(group);
 
-        // 添加创建者为群主
-        memberMapper.insert(ImConversationMember.builder()
+        // 批量插入成员（群主 + 初始成员）
+        List<ImConversationMember> memberRows = new ArrayList<>();
+        memberRows.add(ImConversationMember.builder()
                 .conversationId(group.getId())
                 .userId(userId)
                 .role(ImConversationMember.ROLE_OWNER)
                 .muted(0)
                 .deleted(0)
                 .build());
-
-        // 添加其他成员
-        for (Long memberId : dto.getMemberIds()) {
-            memberMapper.insert(ImConversationMember.builder()
+        for (Long memberId : memberIds) {
+            if (memberId.equals(userId)) {
+                continue;
+            }
+            memberRows.add(ImConversationMember.builder()
                     .conversationId(group.getId())
                     .userId(memberId)
                     .role(ImConversationMember.ROLE_MEMBER)
@@ -130,6 +148,7 @@ public class GroupServiceImpl implements GroupService {
                     .deleted(0)
                     .build());
         }
+        memberMapper.insertBatch(memberRows);
 
         String creatorName = displayName(creator);
         emitSystemTip(userId, group.getId(), creatorName + " 发起了群聊");
@@ -988,11 +1007,10 @@ public class GroupServiceImpl implements GroupService {
             scheduleStart = group.getMuteAllStart() != null ? group.getMuteAllStart().getTime() : null;
             scheduleEnd = group.getMuteAllEnd().getTime();
         } else if (group.getMuteAllEnd() != null && !now.before(group.getMuteAllEnd())) {
-            // 读时懒清理：定时已结束但 cron 尚未扫到
+            // 读路径仅内存纠正；DB 清理交给定时任务，避免列表接口写库
             group.setMuteAll(0);
             group.setMuteAllStart(null);
             group.setMuteAllEnd(null);
-            persistMuteAllFields(group);
         }
         String signedAvatar = mediaUrlService.resolve(group.getAvatar());
         List<GroupMemberAvatarVO> memberAvatars = loadGroupMemberAvatarPreviews(Set.of(group.getId()))

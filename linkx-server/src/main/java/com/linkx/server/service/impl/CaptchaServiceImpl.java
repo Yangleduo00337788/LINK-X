@@ -40,7 +40,7 @@ public class CaptchaServiceImpl implements CaptchaService {
             "local code = ARGV[1] " +
             "local expected = redis.call('get', key) " +
             "if not expected then return -1 end " +  // -1: 验证码不存在或已过期
-            "if string.lower(expected) ~= string.lower(code) then " +
+            "if expected ~= code then " +
             "    redis.call('del', key) " +  // 验证失败也删除，防止暴力破解
             "    return 0 " +  // 0: 验证码错误
             "end " +
@@ -60,7 +60,7 @@ public class CaptchaServiceImpl implements CaptchaService {
             "local storedOwner = string.sub(bound, 1, delim - 1) " +
             "local storedCode = string.sub(bound, delim + 1) " +
             "if storedOwner ~= ownerId then return -2 end " +  // -2: ownerId 不匹配（不删除 key，防枚举）
-            "if string.lower(storedCode) ~= string.lower(code) then " +
+            "if storedCode ~= code then " +
             "    redis.call('del', key) " +  // 验证失败删除，防止暴力破解
             "    return 0 " +  // 0: 验证码错误
             "end " +

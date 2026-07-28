@@ -100,7 +100,8 @@ public class ImClusterPushSubscriber {
             return;
         }
         String origin = stringField(fields, "origin");
-        if (presenceService.getInstanceId().equals(origin)) {
+        // 缺 origin 一律丢弃，避免本机帧二次投递
+        if (origin == null || origin.isBlank() || presenceService.getInstanceId().equals(origin)) {
             return;
         }
         Long userId = parseUserId(stringField(fields, "userId"));

@@ -66,4 +66,7 @@ public class BalanceLog implements Serializable {
 
     @Column(onInsertValue = "NOW()")
     private Date createTime;
+
+    @Column(isLogicDelete = true)
+    private Integer deleted;
 }
