@@ -201,6 +201,9 @@ function mapApiProfile(data: ProfileSource) {
   }
 }
 
+// [P3-10] 收集消息自动重试定时器，登出/重置时统一清理，避免内存泄漏与登出后触发重试
+const pendingRetryTimers = new Set<ReturnType<typeof setTimeout>>()
+
 // 定义并导出 app Store
 export const useAppStore = defineStore('app', {
   // 应用全局初始状态
@@ -1029,6 +1032,11 @@ export const useAppStore = defineStore('app', {
 
     /** 重置聊天相关状态（登出时） */
     resetChatState() {
+      // [P3-10] 清理未执行的消息重试定时器，避免登出后仍触发重试
+      for (const timer of pendingRetryTimers) {
+        clearTimeout(timer)
+      }
+      pendingRetryTimers.clear()
       this.disconnectChatWebSocket()
       this.sessions = this.sessions.filter(s => !s.isReal)
       for (const id of Object.keys(this.messagesBySession)) {
@@ -1539,11 +1547,13 @@ export const useAppStore = defineStore('app', {
           if (retries < 2) {
             ;(local as { _autoRetry?: number })._autoRetry = retries + 1
             const delay = 1000 * Math.pow(2, retries)
-            window.setTimeout(() => {
+            const timer = setTimeout(() => {
+              pendingRetryTimers.delete(timer)
               void this.retryFailedMessage(clientMsgId).catch(() => {
                 /* 手动重试入口仍可用 */
               })
             }, delay)
+            pendingRetryTimers.add(timer)
           }
         }
       }

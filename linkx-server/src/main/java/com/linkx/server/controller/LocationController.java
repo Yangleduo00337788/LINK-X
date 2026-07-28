@@ -7,6 +7,8 @@ import com.linkx.server.common.Result;
 import com.linkx.server.controller.vo.LocationPlaceVO;
 import com.linkx.server.service.LocationService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,6 +20,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/location")
 @RequiredArgsConstructor
+@org.springframework.validation.annotation.Validated
 public class LocationController {
 
     private final LocationService locationService;
@@ -27,7 +30,7 @@ public class LocationController {
     @RateLimit(scope = "location:search", value = 30, window = 60)
     public Result<List<LocationPlaceVO>> search(
             @RequestParam String q,
-            @RequestParam(defaultValue = "8") int limit,
+            @RequestParam(defaultValue = "8") @Min(value = 1, message = "limit 必须 ≥1") @Max(value = 50, message = "limit 必须 ≤50") int limit,
             HttpServletRequest request) {
         AuthUtils.requireUserId(request, jwtUtils);
         return Result.success(locationService.search(q, limit));

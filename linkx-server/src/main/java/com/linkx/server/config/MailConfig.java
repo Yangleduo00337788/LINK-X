@@ -52,12 +52,11 @@ public class MailConfig {
         props.put("mail.smtp.writetimeout", 10000);
 
         if (mailConfig.isSsl()) {
-            // 465 端口走 SSL
+            // 465 端口走 SSL；SSL 与 STARTTLS 互斥，开启 SSL 时强制关闭 STARTTLS
             props.put("mail.smtp.ssl.enable", true);
-            // QQ 邮箱 SSL 也建议开启 STARTTLS
-            props.put("mail.smtp.starttls.enable", true);
-            props.put("mail.smtp.starttls.required", true);
-            // 信任 QQ 邮箱的证书
+            props.put("mail.smtp.starttls.enable", false);
+            props.put("mail.smtp.starttls.required", false);
+            // 信任邮件服务器证书
             props.put("mail.smtp.ssl.trust", mailConfig.getHost());
         } else if (mailConfig.isStartTls()) {
             // 587 端口走 STARTTLS（QQ 邮箱默认推荐）

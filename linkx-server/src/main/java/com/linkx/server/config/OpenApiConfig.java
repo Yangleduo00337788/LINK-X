@@ -25,6 +25,9 @@ public class OpenApiConfig {
     @Value("${server.servlet.context-path:/api}")
     private String contextPath;
 
+    @Value("${linkx.openapi.server-url:http://localhost:8080/api}")
+    private String openapiServerUrl;
+
     @Bean
     public OpenAPI linkxOpenAPI() {
         String jwtSchemeName = "bearerAuth";
@@ -45,7 +48,7 @@ public class OpenApiConfig {
                                 .url(contextPath)
                                 .description("API Base URL"),
                         new Server()
-                                .url("http://localhost:8080/api")
+                                .url(openapiServerUrl)
                                 .description("本地开发环境")))
                 .addSecurityItem(new SecurityRequirement().addList(jwtSchemeName))
                 .components(new Components()

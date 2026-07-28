@@ -3,6 +3,7 @@ package com.linkx.server.task;
 import com.linkx.server.service.GroupService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -17,6 +18,7 @@ public class GroupMuteTask {
     private final GroupService groupService;
 
     @Scheduled(cron = "0 * * * * ?")
+    @SchedulerLock(name = "groupMute_applyMuteSchedules", lockAtMostFor = "PT2M", lockAtLeastFor = "PT30S")
     public void applyMuteSchedules() {
         try {
             groupService.applyMuteSchedules();

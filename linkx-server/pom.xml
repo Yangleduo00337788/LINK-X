@@ -21,6 +21,8 @@
         <mybatis-flex.version>1.9.3</mybatis-flex.version>
         <jjwt.version>0.12.5</jjwt.version>
         <netty.version>4.1.115.Final</netty.version>
+        <shedlock.version>5.16.0</shedlock.version>
+        <spring-security.version>6.4.5</spring-security.version>
     </properties>
 
     <dependencies>
@@ -127,11 +129,23 @@
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
 
-        <!-- BCrypt 密码加密 -->
+        <!-- BCrypt 密码加密：迁移到 spring-security-crypto（jbcrypt 0.4 已停更 7 年） -->
         <dependency>
-            <groupId>org.mindrot</groupId>
-            <artifactId>jbcrypt</artifactId>
-            <version>0.4</version>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
+            <version>${spring-security.version}</version>
+        </dependency>
+
+        <!-- ShedLock：分布式定时任务锁，防多实例并发执行 -->
+        <dependency>
+            <groupId>net.javacrumbs.shedlock</groupId>
+            <artifactId>shedlock-spring</artifactId>
+            <version>${shedlock.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>net.javacrumbs.shedlock</groupId>
+            <artifactId>shedlock-provider-redis-spring</artifactId>
+            <version>${shedlock.version}</version>
         </dependency>
 
         <!-- MinIO 对象存储 -->
@@ -188,6 +202,29 @@
                         </path>
                     </annotationProcessorPaths>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>enforce-versions</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireJavaVersion>
+                                    <version>[21,22)</version>
+                                </requireJavaVersion>
+                                <requireMavenVersion>
+                                    <version>[3.8,)</version>
+                                </requireMavenVersion>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

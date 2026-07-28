@@ -44,8 +44,8 @@ mybatis-flex:
 # ---------- LinkX 测试业务覆盖 ----------
 linkx:
   jwt:
-    # 固定测试密钥（≥32 字符），勿用于真实环境
-    secret: Test-Local-JWT-Secret-For-Integration-2026!!
+    # 固定测试密钥（≥32 字符，勿含 secret/password 子串以通过强度校验），勿用于真实环境
+    secret: Test-Local-JWT-Key-For-Integration-2026!!
     access-expire: 7200000
     refresh-expire: 604800000
 

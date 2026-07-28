@@ -2,6 +2,7 @@ package com.linkx.server.service.impl;
 
 import com.linkx.server.common.InputSanitizer;
 import com.linkx.server.common.JwtUtils;
+import com.linkx.server.common.PasswordEncoderHolder;
 import com.linkx.server.common.SensitiveDataMasker;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.controller.dto.LoginDTO;
@@ -18,8 +19,8 @@ import com.mybatisflex.spring.service.impl.ServiceImpl;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 @Slf4j
@@ -52,7 +53,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             throw new CustomException(400, "注册失败，请检查信息后重试");
         }
 
-        String hashPassword = BCrypt.hashpw(registerDTO.getPassword(), BCrypt.gensalt(12));
+        String hashPassword = PasswordEncoderHolder.encode(registerDTO.getPassword());
 
         SysUser user = SysUser.builder()
                 .username(InputSanitizer.stripHtml(registerDTO.getUsername(), 64))
@@ -83,10 +84,10 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         String dummyHash = "$2a$10$xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
         boolean passwordValid = false;
         if (user != null) {
-            passwordValid = BCrypt.checkpw(loginDTO.getPassword(), user.getPassword());
+            passwordValid = PasswordEncoderHolder.matches(loginDTO.getPassword(), user.getPassword());
         } else {
             // 用户不存在时执行假校验，消耗相同时间
-            BCrypt.checkpw(loginDTO.getPassword(), dummyHash);
+            PasswordEncoderHolder.matches(loginDTO.getPassword(), dummyHash);
         }
 
         if (user == null || !passwordValid) {
@@ -98,7 +99,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
         // 登录成功后，如果用户的密码哈希 cost < 12，透明升级到 cost=12
         if (passwordNeedsRehash(user.getPassword())) {
-            String upgradedHash = BCrypt.hashpw(loginDTO.getPassword(), BCrypt.gensalt(12));
+            String upgradedHash = PasswordEncoderHolder.encode(loginDTO.getPassword());
             user.setPassword(upgradedHash);
             updateById(user);
             log.info("已透明升级用户 {} 的密码哈希到 cost=12", username);
@@ -235,12 +236,12 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         }
 
         // 验证旧密码
-        if (!BCrypt.checkpw(oldPassword, user.getPassword())) {
+        if (!PasswordEncoderHolder.matches(oldPassword, user.getPassword())) {
             throw new CustomException(400, "旧密码错误");
         }
 
         // 新密码加密（cost=12）并保存
-        String hashPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt(12));
+        String hashPassword = PasswordEncoderHolder.encode(newPassword);
         user.setPassword(hashPassword);
         updateById(user);
 
@@ -263,12 +264,12 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         SysUser user = getById(userId);
         if (user == null) {
             // 防御：用户不存在时也执行一次假的密码哈希计算
-            BCrypt.hashpw(newPassword, BCrypt.gensalt(12));
+            PasswordEncoderHolder.encode(newPassword);
             throw new CustomException(400, "操作失败，请稍后重试");
         }
 
         // 新密码加密（cost=12）并保存
-        String hashPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt(12));
+        String hashPassword = PasswordEncoderHolder.encode(newPassword);
         user.setPassword(hashPassword);
         updateById(user);
 
@@ -419,12 +420,12 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
                 .one();
 
         if (user == null) {
-            BCrypt.hashpw(newPassword, BCrypt.gensalt(12)); // 防时序攻击
+            PasswordEncoderHolder.encode(newPassword); // 防时序攻击
             throw new CustomException(400, "操作失败，请稍后重试");
         }
 
         // 重置密码
-        String hashPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt(12));
+        String hashPassword = PasswordEncoderHolder.encode(newPassword);
         user.setPassword(hashPassword);
         updateById(user);
 
@@ -503,7 +504,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (user == null) {
             throw new CustomException(404, "用户不存在");
         }
-        if (!BCrypt.checkpw(password, user.getPassword())) {
+        if (!PasswordEncoderHolder.matches(password, user.getPassword())) {
             throw new CustomException(400, "登录密码错误");
         }
         String normalized = phone.trim();
@@ -520,12 +521,13 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     }
 
     @Override
+    @Transactional
     public void deleteAccount(Long userId, String password) {
         SysUser user = getById(userId);
         if (user == null) {
             throw new CustomException(404, "用户不存在");
         }
-        if (!BCrypt.checkpw(password, user.getPassword())) {
+        if (!PasswordEncoderHolder.matches(password, user.getPassword())) {
             throw new CustomException(400, "登录密码错误");
         }
         user.setStatus(0);

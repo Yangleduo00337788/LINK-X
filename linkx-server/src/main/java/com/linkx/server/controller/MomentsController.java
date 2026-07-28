@@ -12,6 +12,8 @@ import com.linkx.server.controller.vo.MomentsPostVO;
 import com.linkx.server.service.MomentsService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -24,6 +26,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/moments")
 @RequiredArgsConstructor
+@org.springframework.validation.annotation.Validated
 public class MomentsController {
 
     private final MomentsService momentsService;
@@ -42,7 +45,7 @@ public class MomentsController {
     @RateLimit(scope = "moments:list", value = 60, window = 60)
     public Result<List<MomentsPostVO>> list(
             @RequestParam(required = false) String beforeId,
-            @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false) @Min(value = 1, message = "limit 必须 ≥1") @Max(value = 50, message = "limit 必须 ≤50") Integer limit,
             @RequestParam(required = false) String q,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
@@ -53,7 +56,7 @@ public class MomentsController {
     public Result<List<MomentsPostVO>> listByUser(
             @PathVariable String userId,
             @RequestParam(required = false) String beforeId,
-            @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false) @Min(value = 1, message = "limit 必须 ≥1") @Max(value = 50, message = "limit 必须 ≤50") Integer limit,
             @RequestParam(required = false) String q,
             HttpServletRequest request) {
         Long currentUserId = AuthUtils.requireUserId(request, jwtUtils);

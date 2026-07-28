@@ -2,9 +2,21 @@ const LOCK_PIN_KEY = 'lockPinHash'
 const FALLBACK_LOCK_PIN_KEY = 'linkx:lockPinHash'
 const LOCK_PIN_FLAG = 'linkx:lockPinConfigured'
 
-// PBKDF2 参数
-const PBKDF2_ITERATIONS = 100000
+// PBKDF2 参数：OWASP 2023 推荐 PBKDF2-SHA256 ≥ 600000 次
+const PBKDF2_ITERATIONS = 600000
 const SALT_LENGTH = 16
+
+/**
+ * 恒定时间字符串比较：逐字符 XOR 累计，避免因提前返回引入计时差异（防计时攻击）。
+ */
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let result = 0
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  }
+  return result === 0
+}
 
 async function generateSalt(): Promise<Uint8Array> {
   const salt = new Uint8Array(SALT_LENGTH)
@@ -111,8 +123,8 @@ export async function verifyLockPin(pin: string): Promise<boolean> {
   }
 
   const hash = await deriveKey(pin, salt)
-  // 比较时去掉 salt 部分
-  return hash.substring(SALT_LENGTH * 2) === storedHash
+  // [P3-9] 恒定时间比较，防止计时攻击
+  return constantTimeEqual(hash.substring(SALT_LENGTH * 2), storedHash)
 }
 
 export async function clearLockPin(): Promise<void> {

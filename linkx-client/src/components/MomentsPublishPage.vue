@@ -7,7 +7,7 @@
  *
  * 同一套页面、同一套交互,差异仅在标题与是否渲染媒体区。
  */
-import { computed, nextTick, ref, onMounted } from 'vue'
+import { computed, nextTick, ref, onMounted, onUnmounted } from 'vue'
 import { NIcon, NModal, NButton, NRadio, NRadioGroup, useMessage } from 'naive-ui'
 import {
   LocationOutline,
@@ -130,6 +130,14 @@ onMounted(() => {
       textArea.value?.focus()
     }
   })
+})
+
+// [P2-3] 组件卸载时释放所有视频 Object URL，避免内存泄漏
+onUnmounted(() => {
+  for (const v of videos.value) {
+    URL.revokeObjectURL(v.url)
+  }
+  videos.value = []
 })
 
 function closeWindow() {
@@ -264,7 +272,9 @@ function removeImage(idx: number) {
 }
 
 function removeVideo(idx: number) {
-  videos.value.splice(idx, 1)
+  // [P2-3] 先移除并释放 Object URL，避免内存泄漏
+  const removed = videos.value.splice(idx, 1)
+  if (removed[0]) URL.revokeObjectURL(removed[0].url)
 }
 
 // ========== 新增功能方法 ==========

@@ -1,6 +1,7 @@
 package com.linkx.server.exception;
 
 import com.linkx.server.common.Result;
+import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +30,15 @@ public class GlobalExceptionHandler {
         } else if (e instanceof BindException be && be.getBindingResult().hasErrors()) {
             message = be.getBindingResult().getAllErrors().getFirst().getDefaultMessage();
         }
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Result.error(400, message));
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<Result<?>> handleConstraintViolationException(ConstraintViolationException e) {
+        String message = e.getConstraintViolations().stream()
+                .findFirst()
+                .map(v -> v.getMessage())
+                .orElse("参数校验失败");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Result.error(400, message));
     }
 

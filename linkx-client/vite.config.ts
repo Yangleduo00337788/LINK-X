@@ -15,11 +15,14 @@ function copyPreloadCjs() {
   fs.copyFileSync(src, dest)
 }
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
   const isElectron = mode === 'electron'
 
   return {
     base: './',
+    // [P2-5] 生产构建移除 console / debugger，减少包体积并避免泄露调试信息
+    // esbuild drop 仅在 minify 生效时实际剥离，dev serve 不受影响
+    esbuild: command === 'build' ? { drop: ['console', 'debugger'] } : undefined,
     build: {
       chunkSizeWarningLimit: 2000,
       rollupOptions: {

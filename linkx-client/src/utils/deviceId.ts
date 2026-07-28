@@ -12,7 +12,10 @@ export function getOrCreateDeviceId(): string {
     localStorage.setItem(STORAGE_KEY, id)
     return id
   } catch {
-    return 'default-web-device'
+    // [P3-8] 回退使用随机 UUID，避免多端共用固定设备 ID 导致踢下线逻辑误判
+    return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `web-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
   }
 }
 

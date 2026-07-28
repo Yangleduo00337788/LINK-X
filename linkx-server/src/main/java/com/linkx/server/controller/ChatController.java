@@ -14,6 +14,8 @@ import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.service.ChatService;
 import com.linkx.server.service.ConversationDraftService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +32,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/chat")
 @RequiredArgsConstructor
+@org.springframework.validation.annotation.Validated
 public class ChatController {
 
     private final ChatService chatService;
@@ -55,7 +58,7 @@ public class ChatController {
     public Result<List<MessageVO>> listMessages(
             @PathVariable String conversationId,
             @RequestParam(required = false) String before,
-            @RequestParam(defaultValue = "50") int limit,
+            @RequestParam(defaultValue = "50") @Min(value = 1, message = "limit 必须 ≥1") @Max(value = 100, message = "limit 必须 ≤100") int limit,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         Long beforeId = before != null && !before.isBlank() ? parseId(before) : null;
@@ -101,7 +104,7 @@ public class ChatController {
             @RequestParam(required = false) String conversationId,
             @RequestParam(required = false) Long fromTime,
             @RequestParam(required = false) Long toTime,
-            @RequestParam(defaultValue = "50") int limit,
+            @RequestParam(defaultValue = "50") @Min(value = 1, message = "limit 必须 ≥1") @Max(value = 100, message = "limit 必须 ≤100") int limit,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         Long convId = conversationId != null && !conversationId.isBlank() ? parseId(conversationId) : null;
@@ -165,7 +168,7 @@ public class ChatController {
     public Result<MessageVO> quoteMessage(
             @PathVariable String conversationId,
             @PathVariable String messageId,
-            @org.springframework.web.bind.annotation.RequestBody SendMessageDTO body,
+            @org.springframework.web.bind.annotation.RequestBody @jakarta.validation.Valid SendMessageDTO body,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         MessageVO vo = chatService.quoteMessage(userId, parseId(conversationId), parseId(messageId), body);

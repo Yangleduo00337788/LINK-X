@@ -7,9 +7,11 @@ import com.linkx.server.service.RateLimitService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -24,16 +26,17 @@ public class RateLimitServiceImpl implements RateLimitService {
     private static final int REFRESH_FAIL_THRESHOLD = 10;
     private static final int REFRESH_FAIL_WINDOW_MINUTES = 15;
 
+    /** Lua 脚本：原子化 INCR + 首次设置 EXPIRE，避免 increment 与 expire 分两步导致计数无过期 */
+    private static final String INCR_EXPIRE_LUA =
+            "local c=redis.call('INCR',KEYS[1]) if c==1 then redis.call('EXPIRE',KEYS[1],ARGV[1]) end return c";
+
     private final StringRedisTemplate redisTemplate;
     private final LinkxProperties linkxProperties;
 
     @Override
     public void check(String key, int maxAttempts, int windowSeconds) {
         String redisKey = RATE_LIMIT_PREFIX + key;
-        Long count = redisTemplate.opsForValue().increment(redisKey);
-        if (count != null && count == 1L) {
-            redisTemplate.expire(redisKey, Duration.ofSeconds(windowSeconds));
-        }
+        Long count = atomicIncrAndExpire(redisKey, windowSeconds);
         if (count != null && count > maxAttempts) {
             throw new CustomException(429, "操作过于频繁，请稍后再试");
         }
@@ -48,20 +51,14 @@ public class RateLimitServiceImpl implements RateLimitService {
 
         // 检查 IP 级别限流
         String ipKey = RATE_LIMIT_PREFIX + LOGIN_FAIL_PREFIX + IP_PREFIX + ip;
-        Long ipCount = redisTemplate.opsForValue().increment(ipKey);
-        if (ipCount != null && ipCount == 1L) {
-            redisTemplate.expire(ipKey, Duration.ofMinutes(lockDuration));
-        }
+        Long ipCount = atomicIncrAndExpire(ipKey, lockDuration * 60L);
         if (ipCount != null && ipCount > ipMaxAttempts) {
             throw new CustomException(429, "该IP登录尝试过多，请" + lockDuration + "分钟后重试");
         }
 
         // 检查用户名级别限流
         String userKey = RATE_LIMIT_PREFIX + LOGIN_FAIL_PREFIX + username;
-        Long userCount = redisTemplate.opsForValue().increment(userKey);
-        if (userCount != null && userCount == 1L) {
-            redisTemplate.expire(userKey, Duration.ofMinutes(lockDuration));
-        }
+        Long userCount = atomicIncrAndExpire(userKey, lockDuration * 60L);
         if (userCount != null && userCount > maxAttempts) {
             // 设置账号锁定
             String lockKey = LOGIN_LOCK_PREFIX + username;
@@ -77,10 +74,7 @@ public class RateLimitServiceImpl implements RateLimitService {
         int windowSeconds = 60;
 
         String ipKey = RATE_LIMIT_PREFIX + "register:" + IP_PREFIX + ip;
-        Long count = redisTemplate.opsForValue().increment(ipKey);
-        if (count != null && count == 1L) {
-            redisTemplate.expire(ipKey, Duration.ofSeconds(windowSeconds));
-        }
+        Long count = atomicIncrAndExpire(ipKey, windowSeconds);
         if (count != null && count > maxAttempts) {
             throw new CustomException(429, "注册过于频繁，请稍后再试");
         }
@@ -113,6 +107,18 @@ public class RateLimitServiceImpl implements RateLimitService {
         // redisTemplate.delete(ipKey);
     }
 
+    /**
+     * 原子化自增并设置过期：仅首次自增（c==1）时设置 EXPIRE，避免计数键永不过期。
+     *
+     * @param key           Redis 限流键
+     * @param windowSeconds  窗口秒数
+     * @return 自增后的计数值
+     */
+    private Long atomicIncrAndExpire(String key, long windowSeconds) {
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>(INCR_EXPIRE_LUA, Long.class);
+        return redisTemplate.execute(script, List.of(key), String.valueOf(windowSeconds));
+    }
+
     private String getClientIp(HttpServletRequest request) {
         // 委托给 ClientIpResolver 统一处理（默认不信任 XFF，避免伪造 IP 绕过限流）
         return ClientIpResolver.resolve(request, linkxProperties);
@@ -122,10 +128,7 @@ public class RateLimitServiceImpl implements RateLimitService {
     public void recordRefreshFailure(HttpServletRequest request) {
         String ip = getClientIp(request);
         String key = RATE_LIMIT_PREFIX + REFRESH_FAIL_PREFIX + IP_PREFIX + ip;
-        Long count = redisTemplate.opsForValue().increment(key);
-        if (count != null && count == 1L) {
-            redisTemplate.expire(key, Duration.ofMinutes(REFRESH_FAIL_WINDOW_MINUTES));
-        }
+        Long count = atomicIncrAndExpire(key, REFRESH_FAIL_WINDOW_MINUTES * 60L);
         if (count != null && count >= REFRESH_FAIL_THRESHOLD) {
             throw new CustomException(429,
                     "refresh token 失败次数过多，请" + REFRESH_FAIL_WINDOW_MINUTES + "分钟后再试");

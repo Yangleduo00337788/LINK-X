@@ -709,12 +709,12 @@ public class GroupServiceImpl implements GroupService {
         }
 
         // 推送禁言状态变更给被禁言的成员
-        Map<String, Object> muteData = Map.of(
-                "conversationId", String.valueOf(conversationId),
-                "memberId", String.valueOf(memberId),
-                "muted", Boolean.TRUE.equals(dto.getMuted()),
-                "muteUntil", dto.getMuteUntil() != null ? dto.getMuteUntil() : null
-        );
+        // 注意：Map.of 不允许 null value，muteUntil 可能为 null，改用 HashMap
+        Map<String, Object> muteData = new java.util.HashMap<>();
+        muteData.put("conversationId", String.valueOf(conversationId));
+        muteData.put("memberId", String.valueOf(memberId));
+        muteData.put("muted", Boolean.TRUE.equals(dto.getMuted()));
+        muteData.put("muteUntil", dto.getMuteUntil());
         imPushService.pushToUser(memberId, "group_mute_changed", muteData);
     }
 

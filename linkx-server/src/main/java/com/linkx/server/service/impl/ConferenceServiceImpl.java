@@ -1,5 +1,6 @@
 package com.linkx.server.service.impl;
 
+import com.linkx.server.common.PasswordEncoderHolder;
 import com.linkx.server.controller.dto.CallSignalDTO;
 import com.linkx.server.controller.dto.ConferenceCreateDTO;
 import com.linkx.server.controller.dto.ConferenceSignalDTO;
@@ -20,7 +21,6 @@ import com.linkx.server.service.MediaUrlService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -81,7 +81,7 @@ public class ConferenceServiceImpl implements ConferenceService {
 
         String passwordHash = null;
         if (StringUtils.hasText(dto.getPassword())) {
-            passwordHash = BCrypt.hashpw(dto.getPassword().trim(), BCrypt.gensalt(12));
+            passwordHash = PasswordEncoderHolder.encode(dto.getPassword().trim());
         }
         int max = dto.getMaxParticipants() != null ? dto.getMaxParticipants() : 9;
         if (max < 2) max = 2;
@@ -247,7 +247,7 @@ public class ConferenceServiceImpl implements ConferenceService {
             String stored = conference.getPassword();
             boolean ok;
             if (stored.startsWith("$2a$") || stored.startsWith("$2b$") || stored.startsWith("$2y$")) {
-                ok = StringUtils.hasText(input) && BCrypt.checkpw(input, stored);
+                ok = StringUtils.hasText(input) && PasswordEncoderHolder.matches(input, stored);
             } else {
                 // 兼容历史明文会议口令（一次性比对后仍不回写，新会议一律哈希）
                 ok = Objects.equals(stored, input);
@@ -490,17 +490,19 @@ public class ConferenceServiceImpl implements ConferenceService {
         ));
     }
 
-    /** 向当前仍在会中且已准入的成员推送同一事件 */
+    /** 向当前仍在会中且已准入的成员推送同一事件（事务提交后推送，避免幽灵事件） */
     private void broadcastToActiveMembers(Long conferenceId, String action, Map<String, Object> payload) {
-        List<ConferenceMember> members = memberMapper.selectListByQuery(
-                QueryWrapper.create()
-                        .where(ConferenceMember::getConferenceId).eq(conferenceId)
-                        .and(ConferenceMember::getLeftFlag).eq(0)
-                        .and(ConferenceMember::getAdmitStatus).eq(1)
-        );
-        for (ConferenceMember m : members) {
-            pushService.pushToUser(m.getUserId(), action, payload);
-        }
+        runAfterCommit(() -> {
+            List<ConferenceMember> members = memberMapper.selectListByQuery(
+                    QueryWrapper.create()
+                            .where(ConferenceMember::getConferenceId).eq(conferenceId)
+                            .and(ConferenceMember::getLeftFlag).eq(0)
+                            .and(ConferenceMember::getAdmitStatus).eq(1)
+            );
+            for (ConferenceMember m : members) {
+                pushService.pushToUser(m.getUserId(), action, payload);
+            }
+        });
     }
 
     @Override
@@ -764,18 +766,20 @@ public class ConferenceServiceImpl implements ConferenceService {
     }
 
     private void broadcastToHosts(Long conferenceId, String action, Map<String, Object> payload) {
-        List<ConferenceMember> members = memberMapper.selectListByQuery(
-                QueryWrapper.create()
-                        .where(ConferenceMember::getConferenceId).eq(conferenceId)
-                        .and(ConferenceMember::getLeftFlag).eq(0)
-                        .and(ConferenceMember::getAdmitStatus).eq(1)
-        );
-        for (ConferenceMember m : members) {
-            if (ConferenceMember.ROLE_HOST.equals(m.getRole())
-                    || ConferenceMember.ROLE_CO_HOST.equals(m.getRole())) {
-                pushService.pushToUser(m.getUserId(), action, payload);
+        runAfterCommit(() -> {
+            List<ConferenceMember> members = memberMapper.selectListByQuery(
+                    QueryWrapper.create()
+                            .where(ConferenceMember::getConferenceId).eq(conferenceId)
+                            .and(ConferenceMember::getLeftFlag).eq(0)
+                            .and(ConferenceMember::getAdmitStatus).eq(1)
+            );
+            for (ConferenceMember m : members) {
+                if (ConferenceMember.ROLE_HOST.equals(m.getRole())
+                        || ConferenceMember.ROLE_CO_HOST.equals(m.getRole())) {
+                    pushService.pushToUser(m.getUserId(), action, payload);
+                }
             }
-        }
+        });
     }
 
     private String requireCallId(Long conferenceId) {
@@ -861,34 +865,43 @@ public class ConferenceServiceImpl implements ConferenceService {
         );
     }
 
-    /** 同步会话顶栏：进行中会议人数变化 */
+    /** 同步会话顶栏：进行中会议人数变化（事务提交后推送，避免幽灵事件） */
     private void notifyConversationPresence(Conference conference) {
         if (conference == null || conference.getConversationId() == null || conference.getId() == null) {
             return;
         }
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("conferenceId", conference.getId());
-        payload.put("conversationId", conference.getConversationId());
-        payload.put("title", conference.getTitle());
-        payload.put("type", conference.getType());
-        payload.put("scene", StringUtils.hasText(conference.getScene()) ? conference.getScene() : Conference.SCENE_MEETING);
-        payload.put("hasPassword", StringUtils.hasText(conference.getPassword()));
-        payload.put("participantCount", countAdmitted(conference.getId()));
-        payload.put("status", "active");
-        pushService.pushActionToConversationMembers(
-                conference.getConversationId(), "conference_presence", payload);
+        final Long conferenceId = conference.getId();
+        final Long conversationId = conference.getConversationId();
+        runAfterCommit(() -> {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("conferenceId", conferenceId);
+            payload.put("conversationId", conversationId);
+            payload.put("title", conference.getTitle());
+            payload.put("type", conference.getType());
+            payload.put("scene", StringUtils.hasText(conference.getScene()) ? conference.getScene() : Conference.SCENE_MEETING);
+            payload.put("hasPassword", StringUtils.hasText(conference.getPassword()));
+            payload.put("participantCount", countAdmitted(conferenceId));
+            payload.put("status", "active");
+            pushService.pushActionToConversationMembers(
+                    conversationId, "conference_presence", payload);
+        });
     }
 
-    /** 同步会话顶栏：会议结束 */
+    /** 同步会话顶栏：会议结束（事务提交后推送，避免幽灵事件） */
     private void notifyConversationEnded(Conference conference, String callId) {
         if (conference == null || conference.getConversationId() == null) {
             return;
         }
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("conferenceId", conference.getId());
-        payload.put("conversationId", conference.getConversationId());
-        payload.put("callId", callId != null ? callId : "");
-        pushService.pushActionToConversationMembers(
-                conference.getConversationId(), "conference_end", payload);
+        final Long conversationId = conference.getConversationId();
+        final Long conferenceId = conference.getId();
+        final String callIdVal = callId != null ? callId : "";
+        runAfterCommit(() -> {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("conferenceId", conferenceId);
+            payload.put("conversationId", conversationId);
+            payload.put("callId", callIdVal);
+            pushService.pushActionToConversationMembers(
+                    conversationId, "conference_end", payload);
+        });
     }
 }

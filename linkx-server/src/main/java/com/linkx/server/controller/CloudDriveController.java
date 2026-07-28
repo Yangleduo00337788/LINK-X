@@ -18,6 +18,8 @@ import com.linkx.server.exception.CustomException;
 import com.linkx.server.service.CloudDriveService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.ResponseEntity;
@@ -31,6 +33,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/cloud")
 @RequiredArgsConstructor
+@org.springframework.validation.annotation.Validated
 public class CloudDriveController {
 
     private final CloudDriveService cloudDriveService;
@@ -153,7 +156,7 @@ public class CloudDriveController {
     @GetMapping("/activities")
     public Result<List<DriveActivityVO>> activities(
             @RequestParam(required = false) String fileId,
-            @RequestParam(defaultValue = "50") int limit,
+            @RequestParam(defaultValue = "50") @Min(value = 1, message = "limit 必须 ≥1") @Max(value = 200, message = "limit 必须 ≤200") int limit,
             HttpServletRequest request) {
         return Result.success(cloudDriveService.listActivities(
                 uid(request), parseNullable(fileId), limit));

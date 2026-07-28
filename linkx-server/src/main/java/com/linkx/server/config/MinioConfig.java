@@ -64,6 +64,10 @@ public class MinioConfig {
                     minioProps.getBucketName(),
                     e.getMessage()
             );
+            throw new IllegalStateException(
+                    "MinIO 连接失败 (endpoint=" + minioProps.getEndpoint()
+                            + ", bucket=" + minioProps.getBucketName()
+                            + ")，启动中断以避免带病运行", e);
         }
         
         return client;

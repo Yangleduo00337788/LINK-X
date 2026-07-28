@@ -211,6 +211,14 @@ if (isDev) {
 app.commandLine.appendSwitch('--enable-geolocation')
 // 注意：不要使用 --use-fake-device-for-media-stream，否则摄像头/麦克风无真实画面与声音
 
+// [P2-8-5] 全局未捕获异常兜底：防止 Promise rejection / 同步异常导致进程崩溃或静默丢失
+process.on('unhandledRejection', (reason) => {
+  console.error('[electron] unhandledRejection:', reason)
+})
+process.on('uncaughtException', (err) => {
+  console.error('[electron] uncaughtException:', err)
+})
+
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 /** 主动退出时跳过「关窗最小化到托盘」 */
@@ -343,9 +351,13 @@ function parseIPLocationJson(json: Record<string, unknown>): string | null {
     const city = toCN(String(json.city || ''))
     if (region || city) return [region, city].filter(Boolean).join(' ')
   }
-  // ipinfo.io
+  // ipinfo.io / ipapi.co：两者都返回 city + region 字段
   if (json.city && json.region) {
     return `${toCN(String(json.region))} ${toCN(String(json.city))}`.trim()
+  }
+  // ipapi.co：返回 country_name + region + city，无 region 时退化为 country + city
+  if (json.city && json.country_name) {
+    return `${toCN(String(json.country_name))} ${toCN(String(json.city))}`.trim()
   }
   return null
 }
@@ -747,11 +759,12 @@ function registerWindowIpc() {
   })
 
   // 通过 IP 获取地理位置（优先国内可访问接口，失败再回退）
+  // [P2-8-4] 全部使用 HTTPS，避免明文 HTTP 被中间人篡改/窃听
   ipcMain.handle('fetch-ip-location', async () => {
     const services = [
       'https://ip9.com.cn/get',
       'https://ipinfo.io/json',
-      'http://ip-api.com/json/?fields=status,country,regionName,city,district&lang=zh'
+      'https://ipapi.co/json/'
     ]
     for (const url of services) {
       const result = await tryIPService(url)
@@ -1360,9 +1373,18 @@ app.whenReady().then(() => {
     const raw = process.env.VITE_WS_BASE_URL || 'ws://localhost:8081'
     try { const u = new URL(raw); return `${u.protocol}//${u.host}` } catch { return 'ws://localhost:8081' }
   })()
+  // [P2-8-2] CSP 策略强化：
+  // - dev mode：Vite HMR 需要内联脚本，保留 'unsafe-inline'
+  // - prod mode：构建产物无内联脚本，移除 script-src 'unsafe-inline' 降低 XSS 风险
+  // - style-src 保留 'unsafe-inline'：Vue 运行时 + Naive UI 动态注入样式必需
+  const scriptSrc = isDev ? "script-src 'self' 'unsafe-inline';" : "script-src 'self';"
   const csp = [
     "default-src 'self';",
-    "script-src 'self' 'unsafe-inline';",
+    "base-uri 'self';",
+    "object-src 'none';",
+    "frame-ancestors 'none';",
+    "form-action 'self';",
+    scriptSrc,
     "style-src 'self' 'unsafe-inline';",
     `img-src 'self' data: blob: ${mediaOrigins};`,
     "font-src 'self' data:;",

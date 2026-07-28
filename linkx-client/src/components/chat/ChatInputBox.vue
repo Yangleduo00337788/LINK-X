@@ -153,6 +153,8 @@ const mentionPickerRef = ref<InstanceType<typeof AtMentionPicker> | null>(null)
 
 const { draftBySession } = storeToRefs(appStore)
 let draftSaveTimer: ReturnType<typeof setTimeout> | null = null
+/** [P2] 收集本组件创建的 Object URL，组件卸载时统一释放，避免内存泄漏 */
+const objectUrls: string[] = []
 
 watch(
   currentSessionId,
@@ -432,6 +434,7 @@ async function handleFileSend(file: File) {
     }
   } else {
     const fileUrl = URL.createObjectURL(file)
+    objectUrls.push(fileUrl)
     try {
       await sendMessage(file.name, {
         type: 'file',
@@ -453,7 +456,11 @@ async function handleFileSend(file: File) {
       }
       message.success(t('chat.fileSent'))
       emit('scrollToBottom')
+      // [P2-1] 发送成功后释放 Object URL，避免内存泄漏
+      URL.revokeObjectURL(fileUrl)
     } catch {
+      // [P2-1] 发送失败也要释放 Object URL，避免内存泄漏
+      URL.revokeObjectURL(fileUrl)
       message.error(t('chat.fileSendFail'))
     }
   }
@@ -575,6 +582,8 @@ async function finishVoiceRecord(cancel: boolean) {
     })
     message.success(t('chat.voiceSent'))
     emit('scrollToBottom')
+    // [P2-2] 发送成功后释放语音 Object URL，避免内存泄漏
+    URL.revokeObjectURL(voiceUrl)
   } catch {
     URL.revokeObjectURL(voiceUrl)
     message.error(t('chat.voiceSendFail'))
@@ -647,6 +656,11 @@ watch(currentSessionId, () => {
 
 onUnmounted(() => {
   if (draftSaveTimer) clearTimeout(draftSaveTimer)
+  // [P2-1] 释放未清理的 Object URL（如发送失败后组件卸载）
+  for (const url of objectUrls) {
+    URL.revokeObjectURL(url)
+  }
+  objectUrls.length = 0
   if (isRecordingVoice.value && mediaRecorder && mediaRecorder.state !== 'inactive') {
     try {
       mediaRecorder.stop()

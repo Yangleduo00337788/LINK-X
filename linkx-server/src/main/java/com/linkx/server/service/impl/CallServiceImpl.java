@@ -235,11 +235,16 @@ public class CallServiceImpl implements CallService {
             java.util.Set<String> participants = redisTemplate.opsForSet().members(participantsKey);
             if (participants != null) {
                 for (String pid : participants) {
-                    long peerId = Long.parseLong(pid);
-                    if (peerId != userId) {
-                        targets.add(peerId);
-                    }
+                long peerId;
+                try {
+                    peerId = Long.parseLong(pid);
+                } catch (NumberFormatException e) {
+                    continue;
                 }
+                if (peerId != userId) {
+                    targets.add(peerId);
+                }
+            }
             }
         }
         if (targets.isEmpty()) {
@@ -533,7 +538,12 @@ public class CallServiceImpl implements CallService {
         java.util.Set<String> participants = redisTemplate.opsForSet().members(participantsKey);
         if (participants != null) {
             for (String pid : participants) {
-                long participantId = Long.parseLong(pid);
+                long participantId;
+                try {
+                    participantId = Long.parseLong(pid);
+                } catch (NumberFormatException e) {
+                    continue;
+                }
                 if (participantId != userId) {
                     pushService.pushToUser(participantId, "conference_join", Map.of(
                             "callId", callId,
@@ -554,7 +564,12 @@ public class CallServiceImpl implements CallService {
         java.util.Set<String> participants = redisTemplate.opsForSet().members(participantsKey);
         if (participants != null) {
             for (String pid : participants) {
-                long participantId = Long.parseLong(pid);
+                long participantId;
+                try {
+                    participantId = Long.parseLong(pid);
+                } catch (NumberFormatException e) {
+                    continue;
+                }
                 pushService.pushToUser(participantId, "conference_leave", Map.of(
                         "callId", callId,
                         "userId", userId
@@ -597,6 +612,7 @@ public class CallServiceImpl implements CallService {
                         put("avatar", user != null ? nullToEmpty(mediaUrlService.resolve(user.getAvatar())) : "");
                     }};
                 })
+                .filter(java.util.Objects::nonNull)
                 .toList();
     }
 }

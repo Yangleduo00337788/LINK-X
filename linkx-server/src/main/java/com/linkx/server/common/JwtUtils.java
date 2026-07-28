@@ -101,6 +101,11 @@ public class JwtUtils {
 
     public Long getUserIdFromToken(String token) {
         Claims claims = parseToken(token);
+        // 校验 token 类型必须为 ACCESS，防止 refresh token 被当作 access token 使用
+        TokenType tokenType = TokenType.fromClaim(claims.get("type", String.class));
+        if (tokenType != TokenType.ACCESS) {
+            throw new io.jsonwebtoken.JwtException("access token 类型校验失败，拒绝非 access 类型令牌");
+        }
         return claims.get("userId", Long.class);
     }
 

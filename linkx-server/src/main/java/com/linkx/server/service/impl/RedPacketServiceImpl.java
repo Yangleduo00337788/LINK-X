@@ -44,6 +44,7 @@ public class RedPacketServiceImpl implements RedPacketService {
     private final ChatService chatService;
     private final MediaUrlService mediaUrlService;
     private final StringRedisTemplate redisTemplate;
+    private final org.springframework.transaction.PlatformTransactionManager transactionManager;
 
     @Override
     @Transactional
@@ -108,6 +109,24 @@ public class RedPacketServiceImpl implements RedPacketService {
     @Transactional
     public RedPacketVO receiveRedPacket(Long userId, String redPacketIdStr) {
         Long redPacketId = parseId(redPacketIdStr);
+
+        // 先用非锁读检查过期：过期则独立事务标记后拒绝，
+        // 避免 FOR UPDATE 行锁内调 REQUIRES_NEW 更新同一行导致死锁
+        RedPacket snapshot = redPacketMapper.selectOneById(redPacketId);
+        if (snapshot == null) {
+            throw new CustomException(404, "红包不存在");
+        }
+        if (RedPacket.STATUS_EXPIRED.equals(snapshot.getStatus())) {
+            throw new CustomException(400, "红包已过期");
+        }
+        if (RedPacket.STATUS_FINISHED.equals(snapshot.getStatus())) {
+            throw new CustomException(400, "红包已领完");
+        }
+        if (snapshot.getExpireTime() != null && snapshot.getExpireTime().before(new Date())) {
+            markRedPacketExpiredInNewTx(redPacketId);
+            throw new CustomException(400, "红包已过期");
+        }
+
         RedPacket redPacket = redPacketMapper.selectByIdForUpdate(redPacketId);
 
             if (redPacket == null) {
@@ -126,8 +145,7 @@ public class RedPacketServiceImpl implements RedPacketService {
             }
 
             if (redPacket.getExpireTime().before(new Date())) {
-                redPacket.setStatus(RedPacket.STATUS_EXPIRED);
-                redPacketMapper.update(redPacket);
+                // 并发窗口内过期：仅拒绝，标记交由批处理任务 expireRedPackets
                 throw new CustomException(400, "红包已过期");
             }
 
@@ -275,7 +293,8 @@ public class RedPacketServiceImpl implements RedPacketService {
             return BigDecimal.valueOf(0.01).setScale(2, RoundingMode.HALF_UP);
         }
         long rangeUnits = range.multiply(BigDecimal.valueOf(100)).longValue();
-        long randomUnits = (long) (Math.random() * (rangeUnits + 1));
+        // [P3] 使用 ThreadLocalRandom 替代 Math.random()，避免全局锁竞争
+        long randomUnits = java.util.concurrent.ThreadLocalRandom.current().nextLong(rangeUnits + 1);
         BigDecimal amount = BigDecimal.valueOf(0.01)
                 .add(BigDecimal.valueOf(randomUnits).divide(BigDecimal.valueOf(100), 2, RoundingMode.DOWN));
 
@@ -289,11 +308,32 @@ public class RedPacketServiceImpl implements RedPacketService {
         return amount.setScale(2, RoundingMode.DOWN);
     }
 
+    /**
+     * 用独立事务（REQUIRES_NEW）标记红包过期，确保外层事务回滚后过期状态仍持久化。
+     * 必须在 FOR UPDATE 行锁获取前调用，否则会因行锁等待导致死锁。
+     */
+    private void markRedPacketExpiredInNewTx(Long redPacketId) {
+        org.springframework.transaction.support.TransactionTemplate tt =
+                new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+        tt.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        tt.executeWithoutResult(status -> {
+            RedPacket rp = redPacketMapper.selectOneById(redPacketId);
+            if (rp != null && RedPacket.STATUS_ACTIVE.equals(rp.getStatus())) {
+                rp.setStatus(RedPacket.STATUS_EXPIRED);
+                redPacketMapper.update(rp);
+            }
+        });
+    }
+
     private void checkAndMarkLucky(Long redPacketId, Long userId, BigDecimal amount) {
         // 只在红包被领完时（STATUS_FINISHED）才决定手气最佳，
         // 此时乐观锁已保证没有其他并发线程能再领取，避免多线程各自标记不同记录
         RedPacket redPacket = redPacketMapper.selectOneById(redPacketId);
         if (redPacket == null || !RedPacket.STATUS_FINISHED.equals(redPacket.getStatus())) {
+            return;
+        }
+        // 仅拼手气红包标记手气最佳，普通红包无此概念
+        if (!RedPacket.TYPE_LUCKY.equals(redPacket.getType())) {
             return;
         }
         // 直接用数据库排序查询当前最高金额的记录

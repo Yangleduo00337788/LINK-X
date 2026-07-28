@@ -16,6 +16,7 @@ import com.linkx.server.entity.CloudShare;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.entity.UserStorage;
 import com.linkx.server.common.FileExtensionValidator;
+import com.linkx.server.common.PasswordEncoderHolder;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.CloudActivityMapper;
 import com.linkx.server.mapper.CloudFileMapper;
@@ -30,7 +31,6 @@ import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.ObjectKeyOwnershipService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
-import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -501,7 +501,7 @@ public class CloudDriveServiceImpl implements CloudDriveService {
                 .targetId(targetId)
                 .token(token)
                 .passwordHash(StringUtils.hasText(dto.getPassword())
-                        ? BCrypt.hashpw(dto.getPassword().trim(), BCrypt.gensalt(12)) : null)
+                        ? PasswordEncoderHolder.encode(dto.getPassword().trim()) : null)
                 .expireAt(expireAt)
                 .maxDownloads(dto.getMaxDownloads())
                 .downloadCount(0)
@@ -883,7 +883,7 @@ public class CloudDriveServiceImpl implements CloudDriveService {
             if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(lockKey))) {
                 throw new CustomException(429, "提取码错误次数过多，请 " + SHARE_PWD_LOCK_MINUTES + " 分钟后重试");
             }
-            if (!StringUtils.hasText(password) || !BCrypt.checkpw(password, share.getPasswordHash())) {
+            if (!StringUtils.hasText(password) || !PasswordEncoderHolder.matches(password, share.getPasswordHash())) {
                 Long count = stringRedisTemplate.opsForValue().increment(failKey);
                 if (count != null && count == 1L) {
                     stringRedisTemplate.expire(failKey, Duration.ofMinutes(SHARE_PWD_LOCK_MINUTES));
