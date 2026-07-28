@@ -77,6 +77,11 @@ public class RedPacket implements Serializable {
      */
     private Date expireTime;
 
+    /**
+     * 客户端幂等ID（与发送者组成唯一约束，防重复发送）
+     */
+    private String clientMsgId;
+
     @Column(onInsertValue = "NOW()")
     private Date createTime;
 

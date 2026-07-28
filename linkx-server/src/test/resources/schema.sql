@@ -179,8 +179,10 @@ CREATE TABLE IF NOT EXISTS red_packet (
   greeting VARCHAR(255),
   status VARCHAR(20) NOT NULL DEFAULT 'active',
   expire_time DATETIME,
+  client_msg_id VARCHAR(128),
   create_time DATETIME,
-  version BIGINT NOT NULL DEFAULT 0
+  version BIGINT NOT NULL DEFAULT 0,
+  CONSTRAINT uk_sender_client_msg UNIQUE (sender_id, client_msg_id)
 );
 
 -- 红包领取记录表（与生产 uk_red_packet_user 对齐，防重复领取）

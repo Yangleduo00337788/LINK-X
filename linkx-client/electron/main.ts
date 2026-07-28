@@ -625,14 +625,34 @@ function registerWindowIpc() {
   /**
    * 检查更新后的自动下载安装：下载安装包到临时目录并拉起系统安装程序。
    * Windows 上 .exe/.msi 会进入安装向导；完成后由安装程序自行处理覆盖。
+   *
+   * 安全约束：
+   * 1. 仅允许 HTTPS（杜绝明文中间人篡改）
+   * 2. 域名必须在白名单内（默认 GitHub Releases，可通过 LINKX_UPDATE_HOSTS 扩展）
+   * 3. 文件扩展名仅允许 .exe/.msi/.dmg/.AppImage（安装包）
    */
   ipcMain.handle(
     'app:download-and-install-update',
     async (event, payload: { url?: string; version?: string; fileName?: string } = {}) => {
       try {
         const url = (payload.url || '').trim()
-        if (!/^https?:\/\//i.test(url)) {
+        if (!/^https:\/\//i.test(url)) {
+          return { ok: false, message: '仅支持 HTTPS 下载地址' }
+        }
+
+        // 域名白名单校验，防止渲染进程被 XSS 后下载执行任意来源 exe
+        const allowedHosts = (process.env.LINKX_UPDATE_HOSTS || 'github.com,objects.githubusercontent.com')
+          .split(',')
+          .map(h => h.trim().toLowerCase())
+          .filter(Boolean)
+        let parsedUrl: URL
+        try {
+          parsedUrl = new URL(url)
+        } catch {
           return { ok: false, message: '无效的下载地址' }
+        }
+        if (!allowedHosts.includes(parsedUrl.hostname.toLowerCase())) {
+          return { ok: false, message: '下载源不在允许的白名单内' }
         }
 
         let fileName = sanitizeFileName(payload.fileName || '')
@@ -647,6 +667,13 @@ function registerWindowIpc() {
         if (!fileName || fileName === 'download') {
           const ver = sanitizeFileName(payload.version || 'update')
           fileName = `LinkX-Setup-${ver}.exe`
+        }
+
+        // 扩展名白名单：仅允许安装包格式，防止下载执行任意类型文件
+        const allowedExts = ['.exe', '.msi', '.dmg', '.AppImage', '.deb', '.rpm']
+        const ext = path.extname(fileName).toLowerCase()
+        if (!allowedExts.includes(ext)) {
+          return { ok: false, message: '仅允许下载安装包格式(.exe/.msi/.dmg/.AppImage)' }
         }
 
         const dir = path.join(app.getPath('temp'), 'LinkX-Update')

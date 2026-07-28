@@ -13,11 +13,13 @@ import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.RedPacketService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -30,6 +32,9 @@ import java.util.stream.Collectors;
 public class RedPacketServiceImpl implements RedPacketService {
 
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+    /** 红包发送幂等键前缀，TTL 略大于红包过期时间(24h) */
+    private static final String IDEM_KEY_PREFIX = "linkx:redpacket:idem:";
+    private static final Duration IDEM_KEY_TTL = Duration.ofHours(25);
 
     private final RedPacketMapper redPacketMapper;
     private final RedPacketRecordMapper recordMapper;
@@ -38,6 +43,7 @@ public class RedPacketServiceImpl implements RedPacketService {
     private final BalanceService balanceService;
     private final ChatService chatService;
     private final MediaUrlService mediaUrlService;
+    private final StringRedisTemplate redisTemplate;
 
     @Override
     @Transactional
@@ -55,7 +61,9 @@ public class RedPacketServiceImpl implements RedPacketService {
         if (dto.getTotalCount() < 1) {
             throw new CustomException(400, "红包个数最少为1");
         }
-        if (dto.getTotalCount() > amount.divide(new BigDecimal("0.01"), 2, RoundingMode.DOWN).intValue()) {
+        // 用 compareTo 替代 intValue()，避免超大金额 int 溢出绕过校验
+        BigDecimal maxCount = amount.divide(new BigDecimal("0.01"), 2, RoundingMode.DOWN);
+        if (new BigDecimal(dto.getTotalCount()).compareTo(maxCount) > 0) {
             throw new CustomException(400, "每个红包金额不能少于0.01元");
         }
         String type = dto.getType() != null ? dto.getType() : RedPacket.TYPE_NORMAL;
@@ -65,8 +73,15 @@ public class RedPacketServiceImpl implements RedPacketService {
         dto.setType(type);
         dto.setTotalAmount(amount);
 
+        // 幂等去重：同一用户同一 clientMsgId 仅生效一次，防止网络重试/双击重复扣款
+        String idemKey = IDEM_KEY_PREFIX + userId + ":" + dto.getClientMsgId();
+        Boolean acquired = redisTemplate.opsForValue().setIfAbsent(idemKey, "1", IDEM_KEY_TTL);
+        if (Boolean.FALSE.equals(acquired)) {
+            throw new CustomException(409, "红包正在发送中，请勿重复提交");
+        }
+
         // 冻结红包金额（原子 SQL：balance >= amount，余额不足则失败）
-        balanceService.freezeBalance(userId, amount, null);
+        balanceService.freezeBalance(userId, amount, "redpacket:" + dto.getClientMsgId());
 
         RedPacket redPacket = RedPacket.builder()
                 .senderId(userId)
@@ -79,6 +94,7 @@ public class RedPacketServiceImpl implements RedPacketService {
                 .greeting(dto.getGreeting() != null ? dto.getGreeting() : "恭喜发财")
                 .status(RedPacket.STATUS_ACTIVE)
                 .expireTime(Date.from(Instant.now().plus(24, ChronoUnit.HOURS)))
+                .clientMsgId(dto.getClientMsgId())
                 .version(0L)
                 .build();
         redPacketMapper.insert(redPacket);

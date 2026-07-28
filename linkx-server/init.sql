@@ -365,11 +365,13 @@ CREATE TABLE IF NOT EXISTS `red_packet` (
   `greeting` varchar(200) DEFAULT '恭喜发财' COMMENT '祝福语',
   `status` varchar(20) NOT NULL DEFAULT 'active' COMMENT '状态: active(有效), expired(过期), finished(领完)',
   `expire_time` datetime NOT NULL COMMENT '过期时间',
+  `client_msg_id` varchar(128) DEFAULT NULL COMMENT '客户端幂等ID(与发送者组成唯一约束)',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `version` bigint NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',
   PRIMARY KEY (`id`),
   KEY `idx_conversation_time` (`conversation_id`,`create_time`),
-  KEY `idx_sender_time` (`sender_id`,`create_time`)
+  KEY `idx_sender_time` (`sender_id`,`create_time`),
+  UNIQUE KEY `uk_sender_client_msg` (`sender_id`,`client_msg_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='红包表';
 
 -- ================================================
