@@ -86,7 +86,21 @@ public class GroupInvitationServiceImpl implements GroupInvitationService {
                 .message(dto.getMessage())
                 .status(GroupInvitation.STATUS_PENDING)
                 .build();
-        invitationMapper.insert(inv);
+        try {
+            invitationMapper.insert(inv);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            // 并发邀请：另一线程已插入 pending 记录，重新查询返回
+            GroupInvitation concurrent = invitationMapper.selectOneByQuery(
+                    QueryWrapper.create()
+                            .where(GroupInvitation::getConversationId).eq(conversationId)
+                            .and(GroupInvitation::getInviteeUserId).eq(dto.getInviteeUserId())
+                            .and(GroupInvitation::getStatus).eq(GroupInvitation.STATUS_PENDING)
+            );
+            if (concurrent != null) {
+                return toVO(concurrent, conversation);
+            }
+            throw new CustomException(409, "邀请创建冲突，请重试");
+        }
         imPushService.pushToUser(dto.getInviteeUserId(), "notification_refresh", Map.of("type", "group_invitation"));
         return toVO(inv, conversation);
     }

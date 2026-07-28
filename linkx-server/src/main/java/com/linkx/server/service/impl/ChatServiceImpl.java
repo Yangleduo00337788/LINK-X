@@ -206,22 +206,34 @@ public class ChatServiceImpl implements ChatService {
                     .muteAll(0)
                     .deleted(0)
                     .build();
-            conversationMapper.insert(conversation);
+            try {
+                conversationMapper.insert(conversation);
 
-            memberMapper.insert(ImConversationMember.builder()
-                    .conversationId(conversation.getId())
-                    .userId(userId)
-                    .role(ImConversationMember.ROLE_MEMBER)
-                    .muted(0)
-                    .deleted(0)
-                    .build());
-            memberMapper.insert(ImConversationMember.builder()
-                    .conversationId(conversation.getId())
-                    .userId(friendId)
-                    .role(ImConversationMember.ROLE_MEMBER)
-                    .muted(0)
-                    .deleted(0)
-                    .build());
+                memberMapper.insert(ImConversationMember.builder()
+                        .conversationId(conversation.getId())
+                        .userId(userId)
+                        .role(ImConversationMember.ROLE_MEMBER)
+                        .muted(0)
+                        .deleted(0)
+                        .build());
+                memberMapper.insert(ImConversationMember.builder()
+                        .conversationId(conversation.getId())
+                        .userId(friendId)
+                        .role(ImConversationMember.ROLE_MEMBER)
+                        .muted(0)
+                        .deleted(0)
+                        .build());
+            } catch (org.springframework.dao.DuplicateKeyException e) {
+                // 并发创建：另一线程已插入，重新查询即可
+                conversation = conversationMapper.selectOneByQuery(
+                        QueryWrapper.create()
+                                .where(ImConversation::getType).eq(ImConversation.TYPE_PRIVATE)
+                                .and(ImConversation::getPrivateKey).eq(privateKey)
+                );
+                if (conversation == null) {
+                    throw new CustomException(500, "会话创建失败，请重试");
+                }
+            }
         } else {
             ensurePrivateMembership(conversation.getId(), userId);
             ensurePrivateMembership(conversation.getId(), friendId);
@@ -737,6 +749,8 @@ public class ChatServiceImpl implements ChatService {
             return 0;
         }
         Long current = member.getLastReadMessageId();
+        // 并发安全：取 max(current, lastReadMessageId) 作为已读位
+        // 注：此处为 check-then-set，极端并发下可能丢失一次更新，但已读回执非资金类操作，影响可控
         Long updated = lastReadMessageId == null ? current : (current == null ? lastReadMessageId : Math.max(current, lastReadMessageId));
         if (updated != null && !updated.equals(current)) {
             member.setLastReadMessageId(updated);

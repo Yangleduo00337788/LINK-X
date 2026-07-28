@@ -71,11 +71,15 @@ async function downloadFile() {
   }
 }
 
-// 在新窗口打开
+// 在新窗口打开（仅允许 http/https，防 javascript: 协议注入）
 function openFile() {
   const url = filePreview.value?.fileUrl
   if (!url) return
-  window.open(url, '_blank')
+  if (!/^https?:\/\//i.test(url)) {
+    console.warn('[FilePreviewPage] 拒绝非 HTTP(S) URL:', url)
+    return
+  }
+  window.open(url, '_blank', 'noopener,noreferrer')
 }
 </script>
 

@@ -19,7 +19,7 @@ public class AuditLogServiceImpl implements AuditLogService {
     private final SysAuditLogMapper auditLogMapper;
 
     @Override
-    @Async
+    @Async("auditExecutor")
     public void log(SysAuditLog.OperationType operationType, String description,
                     Long userId, String username, String ip, String userAgent,
                     boolean success, String reason) {
@@ -38,7 +38,7 @@ public class AuditLogServiceImpl implements AuditLogService {
     }
 
     @Override
-    @Async
+    @Async("auditExecutor")
     public void logWithTarget(SysAuditLog.OperationType operationType, String description,
                               Long userId, String username,
                               Long targetUserId, String targetUsername,
@@ -64,7 +64,7 @@ public class AuditLogServiceImpl implements AuditLogService {
     }
 
     @Override
-    @Async
+    @Async("auditExecutor")
     public void logWithExtra(SysAuditLog.OperationType operationType, String description,
                              Long userId, String username,
                              String ip, String userAgent,

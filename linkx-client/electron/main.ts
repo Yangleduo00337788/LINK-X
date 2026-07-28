@@ -63,6 +63,15 @@ async function readDownloadBytes(payload: DownloadFilePayload): Promise<Buffer> 
     throw new Error('缺少下载内容')
   }
   if (/^https?:\/\//i.test(url)) {
+    // 限制下载源为可信 API 域，防 SSRF / 任意 URL 下载到磁盘
+    const apiBase = process.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
+    let apiOrigin: string
+    try { const u = new URL(apiBase); apiOrigin = `${u.protocol}//${u.host}` } catch { apiOrigin = 'http://localhost:8080' }
+    let urlOrigin: string
+    try { const u = new URL(url); urlOrigin = `${u.protocol}//${u.host}` } catch { throw new Error('下载地址格式错误') }
+    if (urlOrigin !== apiOrigin) {
+      throw new Error('仅允许下载本应用 API 源的文件')
+    }
     const res = await net.fetch(url)
     if (!res.ok) {
       throw new Error(`下载失败 (${res.status})`)
@@ -1277,7 +1286,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      webviewTag: true
+      webviewTag: false
     }
   })
 

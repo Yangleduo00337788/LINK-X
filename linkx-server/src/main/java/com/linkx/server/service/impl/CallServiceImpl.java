@@ -116,7 +116,6 @@ public class CallServiceImpl implements CallService {
     }
 
     @Override
-    @Transactional
     public void cancel(Long userId, CallCancelDTO dto) {
         Map<Object, Object> data = requireCall(dto.getCallId());
         assertCaller(userId, data);
@@ -130,7 +129,6 @@ public class CallServiceImpl implements CallService {
     }
 
     @Override
-    @Transactional
     public void accept(Long userId, CallIdDTO dto) {
         Map<Object, Object> data = requireCall(dto.getCallId());
         assertCallee(userId, data);
@@ -144,7 +142,6 @@ public class CallServiceImpl implements CallService {
     }
 
     @Override
-    @Transactional
     public void reject(Long userId, CallIdDTO dto) {
         Map<Object, Object> data = requireCall(dto.getCallId());
         assertCallee(userId, data);
@@ -157,7 +154,6 @@ public class CallServiceImpl implements CallService {
     }
 
     @Override
-    @Transactional
     public void hangup(Long userId, CallIdDTO dto) {
         Map<Object, Object> data = requireCall(dto.getCallId());
         Long callerId = safeParseLong(data.get("callerId"), "callerId", dto.getCallId());
@@ -175,7 +171,6 @@ public class CallServiceImpl implements CallService {
     }
 
     @Override
-    @Transactional
     public void signal(Long userId, CallSignalDTO dto) {
         Map<Object, Object> data = requireCall(dto.getCallId());
         String status = str(data.get("status"));
@@ -354,7 +349,6 @@ public class CallServiceImpl implements CallService {
     // ==================== 断线重连 ====================
 
     @Override
-    @Transactional
     public void reconnect(Long userId, String callId) {
         Map<Object, Object> data = redisTemplate.opsForHash().entries(callKey(callId));
         if (data.isEmpty()) {
@@ -515,7 +509,6 @@ public class CallServiceImpl implements CallService {
     }
 
     @Override
-    @Transactional
     public void joinConference(Long userId, String callId) {
         Map<Object, Object> data = redisTemplate.opsForHash().entries(callKey(callId));
         if (data.isEmpty()) {
@@ -555,7 +548,6 @@ public class CallServiceImpl implements CallService {
     }
 
     @Override
-    @Transactional
     public void leaveConference(Long userId, String callId) {
         String participantsKey = "linkx:call:" + callId + ":participants";
         redisTemplate.opsForSet().remove(participantsKey, String.valueOf(userId));

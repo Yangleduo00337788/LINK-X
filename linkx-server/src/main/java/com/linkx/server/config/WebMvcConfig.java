@@ -76,7 +76,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/webjars/**",
                         "/actuator/health",
                         "/actuator/health/**",
-                        "/actuator/info",
                         "/error"
                 );
     }

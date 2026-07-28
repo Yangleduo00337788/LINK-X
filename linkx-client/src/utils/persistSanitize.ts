@@ -94,6 +94,9 @@ export function sanitizeAppPersistState(state: Record<string, unknown>): Record<
     if (typeof profile.avatar === 'string') {
       profile.avatar = stripEphemeralMediaUrl(profile.avatar)
     }
+    // PII 脱敏：email/phone 不持久化到 localStorage，登录后由接口重新拉取
+    delete profile.email
+    delete profile.phone
     next.userProfile = profile
   }
 

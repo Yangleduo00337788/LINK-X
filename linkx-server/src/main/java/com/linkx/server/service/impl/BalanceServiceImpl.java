@@ -144,15 +144,11 @@ public class BalanceServiceImpl implements BalanceService {
                     .build();
             try {
                 balanceMapper.insert(balance);
-            } catch (Exception e) {
+            } catch (org.springframework.dao.DuplicateKeyException e) {
                 // 并发插入导致 duplicate-key：忽略，重新查询
-                if (e.getMessage() != null && e.getMessage().contains("Duplicate entry")) {
-                    balance = balanceMapper.selectOneByQuery(
-                            QueryWrapper.create().eq("user_id", userId)
-                    );
-                } else {
-                    throw e;
-                }
+                balance = balanceMapper.selectOneByQuery(
+                        QueryWrapper.create().eq("user_id", userId)
+                );
             }
         }
 

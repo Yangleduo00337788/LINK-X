@@ -287,9 +287,14 @@ public class TokenServiceImpl implements TokenService {
         String revokeKey = "linkx:user:token-revoked:" + userId;
         String revokedAt = redisTemplate.opsForValue().get(revokeKey);
         if (revokedAt != null) {
-            Long tokenIssuedAt = claims.get("iat", Long.class) * 1000; // iat 是秒，转毫秒
-            Long revokedAtMs = Long.valueOf(revokedAt);
-            if (tokenIssuedAt < revokedAtMs) {
+            // iat 可能为 null（篡改/异常 token），拆箱前判空防 NPE
+            Long iat = claims.get("iat", Long.class);
+            if (iat == null) {
+                throw new CustomException(401, "令牌签发时间缺失，请重新登录");
+            }
+            long tokenIssuedAtMs = iat * 1000L; // iat 是秒，转毫秒
+            long revokedAtMs = Long.parseLong(revokedAt);
+            if (tokenIssuedAtMs < revokedAtMs) {
                 throw new CustomException(401, "登录已失效，请重新登录");
             }
         }

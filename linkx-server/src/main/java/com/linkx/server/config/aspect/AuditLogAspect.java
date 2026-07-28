@@ -100,7 +100,8 @@ public class AuditLogAspect {
             return result;
         } catch (Throwable e) {
             success = false;
-            reason = e.getMessage();
+            // 仅记录异常类型，不记录 message 避免泄露敏感信息（如 SQL/堆栈片段）到审计日志
+            reason = e.getClass().getSimpleName();
             throw e;
         } finally {
             // 登录成功后从响应补全 userId / username

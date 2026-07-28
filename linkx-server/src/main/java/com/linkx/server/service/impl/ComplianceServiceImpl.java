@@ -89,15 +89,22 @@ public class ComplianceServiceImpl implements ComplianceService {
             return m;
         }).collect(Collectors.toList());
 
-        List<Map<String, Object>> messages = messageMapper.selectListByQuery(
+        // 导出用户参与的所有会话消息（含发送和接收），满足 GDPR 数据可携权
+        List<Long> conversationIds = conversations.stream()
+                .map(m -> (Long) m.get("conversationId"))
+                .collect(Collectors.toList());
+        List<Map<String, Object>> messages = (conversationIds.isEmpty()
+                ? java.util.Collections.<ImMessage>emptyList()
+                : messageMapper.selectListByQuery(
                 QueryWrapper.create()
-                        .where(ImMessage::getSenderId).eq(userId)
+                        .where(ImMessage::getConversationId).in(conversationIds)
                         .orderBy(ImMessage::getCreateTime, false)
                         .limit(RECENT_MESSAGE_LIMIT)
-        ).stream().map(msg -> {
+        )).stream().map(msg -> {
             Map<String, Object> m = new HashMap<>();
             m.put("id", msg.getId());
             m.put("conversationId", msg.getConversationId());
+            m.put("senderId", msg.getSenderId());
             m.put("type", msg.getType());
             m.put("content", msg.getContent());
             m.put("createTime", msg.getCreateTime());

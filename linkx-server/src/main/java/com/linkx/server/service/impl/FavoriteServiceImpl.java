@@ -254,7 +254,7 @@ public class FavoriteServiceImpl implements FavoriteService {
                 .build();
         try {
             favoriteStorageMapper.insert(storage);
-        } catch (Exception ignored) {
+        } catch (org.springframework.dao.DuplicateKeyException ignored) {
             storage = favoriteStorageMapper.selectOneById(userId);
         }
         return storage != null ? storage : FavoriteStorage.builder()
@@ -322,7 +322,7 @@ public class FavoriteServiceImpl implements FavoriteService {
                         .sortOrder(order++)
                         .preset(1)
                         .build());
-            } catch (Exception ignored) {
+            } catch (org.springframework.dao.DuplicateKeyException ignored) {
                 // 并发下忽略
             }
         }

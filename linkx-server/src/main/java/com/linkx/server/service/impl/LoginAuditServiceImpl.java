@@ -15,7 +15,7 @@ public class LoginAuditServiceImpl implements LoginAuditService {
 
     private final SysLoginAuditMapper loginAuditMapper;
 
-    @Async
+    @Async("auditExecutor")
     @Override
     public void record(Long userId, String username, String ip, String userAgent, boolean success, String reason) {
         SysLoginAudit audit = SysLoginAudit.builder()

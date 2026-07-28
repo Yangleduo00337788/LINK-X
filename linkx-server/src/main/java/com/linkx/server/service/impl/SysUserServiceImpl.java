@@ -81,7 +81,8 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
                 .one();
 
         // 防御时间侧信道攻击：无论用户是否存在，都执行耗时操作
-        String dummyHash = "$2a$10$xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
+        // dummyHash cost=12 与真实 cost=12 一致，避免时序攻击区分用户存在性
+        String dummyHash = "$2a$12$xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
         boolean passwordValid = false;
         if (user != null) {
             passwordValid = PasswordEncoderHolder.matches(loginDTO.getPassword(), user.getPassword());
@@ -229,6 +230,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     }
 
     @Override
+    @Transactional
     public void changePassword(Long userId, String oldPassword, String newPassword) {
         SysUser user = getById(userId);
         if (user == null) {
@@ -246,11 +248,21 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         updateById(user);
 
         // 改密成功后立即吊销该用户的所有现有 refresh token，防止旧 token 继续可用
-        tokenService.revokeAllUserTokens(user.getId());
+        // 移到事务提交后执行，避免 DB 回滚但 Redis 已删除导致用户被登出而密码未改
+        Long userIdToRevoke = user.getId();
+        org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                new org.springframework.transaction.support.TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        tokenService.revokeAllUserTokens(userIdToRevoke);
+                    }
+                }
+        );
         log.info("用户 {} 修改了密码，已吊销所有现有 token", user.getUsername());
     }
 
     @Override
+    @Transactional
     public void resetPassword(Long userId, String captchaId, String captchaCode, String newPassword) {
         // 已登录用户改密：验证码开启时强制校验；CAPTCHA_ENABLED=false 时跳过（身份已由 token 保证）
         if (captchaService.isEnabled()) {
@@ -274,7 +286,16 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         updateById(user);
 
         // 使该用户的所有现有 refresh token 失效（包括从 Set 中删除）
-        tokenService.revokeAllUserTokens(user.getId());
+        // 移到事务提交后执行，避免 DB 回滚但 Redis 已删除导致用户被登出而密码未改
+        Long userIdToRevoke = user.getId();
+        org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                new org.springframework.transaction.support.TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        tokenService.revokeAllUserTokens(userIdToRevoke);
+                    }
+                }
+        );
 
         log.info("用户 {} 重置了密码", user.getUsername());
     }

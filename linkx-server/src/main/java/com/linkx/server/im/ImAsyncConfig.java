@@ -29,4 +29,23 @@ public class ImAsyncConfig {
         executor.initialize();
         return executor.getThreadPoolExecutor();
     }
+
+    /**
+     * 审计日志专用线程池。
+     * <p>
+     * 有界队列 + CallerRunsPolicy：队列满时由调用线程执行，避免审计日志丢失
+     * （审计日志不可丢，宁可阻塞主流程也不能丢弃）。
+     * </p>
+     */
+    @Bean(name = "auditExecutor")
+    public java.util.concurrent.Executor auditExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(1000);
+        executor.setThreadNamePrefix("audit-log-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+        return executor;
+    }
 }
