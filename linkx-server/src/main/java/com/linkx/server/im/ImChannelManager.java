@@ -21,6 +21,11 @@ public class ImChannelManager {
     public static final String DEFAULT_DEVICE_ID = "default-web-device";
 
     private final Map<Long, ChannelGroup> userChannels = new ConcurrentHashMap<>();
+    /**
+     * 反向索引：Channel -> userId，避免 remove(Channel) 时全表扫描 userChannels。
+     * 维护成本：add/remove 各一次 O(1) put/remove，与 ChannelGroup 内部维护一致。
+     */
+    private final Map<Channel, Long> channelToUser = new ConcurrentHashMap<>();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -31,6 +36,7 @@ public class ImChannelManager {
                 userId, id -> new DefaultChannelGroup(GlobalEventExecutor.INSTANCE));
         boolean becameOnline = group.isEmpty();
         group.add(channel);
+        channelToUser.put(channel, userId);
         log.debug("用户 {} 上线，当前连接数 {}", userId, group.size());
         return becameOnline;
     }
@@ -39,16 +45,23 @@ public class ImChannelManager {
      * @return true 表示本机该用户已无剩余连接（本机末断）
      */
     public boolean remove(Channel channel) {
-        Long[] becameOfflineUser = {null};
-        userChannels.entrySet().removeIf(entry -> {
-            boolean removed = entry.getValue().remove(channel);
-            if (removed && entry.getValue().isEmpty()) {
-                becameOfflineUser[0] = entry.getKey();
-                return true;
-            }
+        Long userId = channelToUser.remove(channel);
+        if (userId == null) {
+            // 未在本机注册（可能已被并发 remove），无需扫描
             return false;
-        });
-        return becameOfflineUser[0] != null;
+        }
+        ChannelGroup group = userChannels.get(userId);
+        if (group == null) {
+            return false;
+        }
+        boolean removed = group.remove(channel);
+        if (removed && group.isEmpty()) {
+            // 用 remove(key) 替代 removeIf，避免对整个 userChannels 做扫描；
+            // computeIfPresent 防止并发 add 引入的新 group 被误删
+            userChannels.computeIfPresent(userId, (k, v) -> v.isEmpty() ? null : v);
+            return true;
+        }
+        return false;
     }
 
     public ChannelGroup getChannels(Long userId) {

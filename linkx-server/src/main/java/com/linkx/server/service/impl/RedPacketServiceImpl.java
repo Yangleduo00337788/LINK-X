@@ -336,11 +336,13 @@ public class RedPacketServiceImpl implements RedPacketService {
         if (!RedPacket.TYPE_LUCKY.equals(redPacket.getType())) {
             return;
         }
-        // 直接用数据库排序查询当前最高金额的记录
+        // 直接用数据库排序查询当前最高金额的记录；
+        // 并列时按领取时间最早者优先（id 升序），保证"手气最佳"结果确定可复现
         RedPacketRecord currentMax = recordMapper.selectOneByQuery(
                 QueryWrapper.create()
                         .eq("red_packet_id", redPacketId)
                         .orderBy("amount", false)
+                        .orderBy("id", true)
                         .limit(1)
         );
         if (currentMax == null) return;
@@ -440,6 +442,9 @@ public class RedPacketServiceImpl implements RedPacketService {
     }
 
     private Long parseId(String id) {
+        if (id == null || id.isEmpty()) {
+            throw new CustomException(400, "无效的ID");
+        }
         try {
             return Long.parseLong(id);
         } catch (NumberFormatException e) {

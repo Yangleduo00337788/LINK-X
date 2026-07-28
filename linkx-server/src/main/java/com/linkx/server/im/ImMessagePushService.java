@@ -1,6 +1,7 @@
 package com.linkx.server.im;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.controller.dto.SendMessageDTO;
 import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.entity.ImConversationMember;
@@ -53,6 +54,7 @@ public class ImMessagePushService {
     private final StringRedisTemplate redisTemplate;
     private final MessageStormService messageStormService;
     private final PresenceService presenceService;
+    private final LinkxProperties linkxProperties;
 
     /**
      * 处理发送消息（异步，event-loop 立即返回）。
@@ -535,9 +537,17 @@ public class ImMessagePushService {
         if (lastServerMsgId != null) {
             qw.and(ImMessage::getId).gt(lastServerMsgId);
         }
-        qw.orderBy(ImMessage::getCreateTime, true).limit(200);
+        // 单批拉取上限可配置（linkx.im.sync-batch-size），多取 1 条用于判断是否还有更多
+        int batchSize = Math.max(1, linkxProperties.getIm().getSyncBatchSize());
+        qw.orderBy(ImMessage::getCreateTime, true).limit(batchSize + 1);
 
         List<ImMessage> offlineMessages = messageMapper.selectListByQuery(qw);
+
+        // 通过多取的 1 条判断 hasMore，客户端可基于本批最后一条 id 继续发起 sync 拉取剩余
+        boolean hasMore = offlineMessages.size() > batchSize;
+        if (hasMore) {
+            offlineMessages = offlineMessages.subList(0, batchSize);
+        }
 
         // 转换为 MessageVO 并推送
         if (!offlineMessages.isEmpty()) {
@@ -561,10 +571,17 @@ public class ImMessagePushService {
         resp.setAction("syncDone");
         resp.setCode(200);
         resp.setMessage("ok");
-        resp.setData(java.util.Map.of(
-                "userId", userId,
-                "offlineCount", offlineMessages.size()
-        ));
+        Long nextCursor = hasMore && !offlineMessages.isEmpty()
+                ? offlineMessages.get(offlineMessages.size() - 1).getId()
+                : null;
+        java.util.Map<String, Object> respData = new java.util.HashMap<>();
+        respData.put("userId", userId);
+        respData.put("offlineCount", offlineMessages.size());
+        respData.put("hasMore", hasMore);
+        if (nextCursor != null) {
+            respData.put("nextCursor", nextCursor);
+        }
+        resp.setData(respData);
         channel.writeAndFlush(new TextWebSocketFrame(toJson(resp)));
     }
 

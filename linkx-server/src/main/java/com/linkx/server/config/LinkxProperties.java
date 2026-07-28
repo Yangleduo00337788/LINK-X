@@ -28,6 +28,12 @@ public class LinkxProperties {
         private int websocketPort = 8081;
         private String websocketPath = "/ws";
         private int heartbeatIntervalSeconds = 30;
+        /**
+         * 客户端 sync 动作单次拉取的离线消息上限。
+         * 客户端通过 lastServerMsgId 游标分页，超过上限时响应 hasMore=true，
+         * 客户端可再次发起 sync 拉取剩余消息。
+         */
+        private int syncBatchSize = 200;
     }
 
     @Data

@@ -864,9 +864,11 @@ async function showDesktopNotice(title: string, body: string, silent = false): P
           icon: createTrayIcon()
         })
         let settled = false
+        let showTimer: NodeJS.Timeout | null = null
         const done = (ok: boolean) => {
           if (settled) return
           settled = true
+          if (showTimer) clearTimeout(showTimer)
           resolve(ok)
         }
         n.on('failed', (_e, err) => {
@@ -875,7 +877,8 @@ async function showDesktopNotice(title: string, body: string, silent = false): P
         })
         // 不信任 show：Windows 上可能 show 后又 failed
         n.show()
-        setTimeout(() => done(true), 800)
+        // 800ms 兜底完成 Promise；failed 提前触发时 done 内清理 timer 避免事件循环残留
+        showTimer = setTimeout(() => done(true), 800)
       } catch (e) {
         console.error('[Main] Notification error:', e)
         resolve(false)

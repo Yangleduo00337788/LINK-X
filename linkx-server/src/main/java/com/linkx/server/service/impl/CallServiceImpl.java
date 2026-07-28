@@ -590,21 +590,21 @@ public class CallServiceImpl implements CallService {
         if (participants == null) return List.of();
 
         return participants.stream()
-                .map(pid -> {
+                .<java.util.Map<String, Object>>mapMulti((String pid, java.util.function.Consumer<java.util.Map<String, Object>> downstream) -> {
                     long userId;
                     try {
                         userId = Long.parseLong(pid);
                     } catch (NumberFormatException e) {
-                        return null;
+                        // 跳过非法 ID，不产生 null 元素，避免下游 NPE
+                        return;
                     }
                     SysUser user = sysUserMapper.selectOneById(userId);
-                    return (java.util.Map<String, Object>) new java.util.HashMap<String, Object>() {{
-                        put("userId", userId);
-                        put("nickname", user != null ? displayName(user) : "用户");
-                        put("avatar", user != null ? nullToEmpty(mediaUrlService.resolve(user.getAvatar())) : "");
-                    }};
+                    java.util.Map<String, Object> item = new java.util.HashMap<>();
+                    item.put("userId", userId);
+                    item.put("nickname", user != null ? displayName(user) : "用户");
+                    item.put("avatar", user != null ? nullToEmpty(mediaUrlService.resolve(user.getAvatar())) : "");
+                    downstream.accept(item);
                 })
-                .filter(java.util.Objects::nonNull)
                 .toList();
     }
 }

@@ -66,8 +66,7 @@ public interface UserBalanceMapper extends BaseMapper<UserBalance> {
      * @return 更新行数，1 表示成功
      */
     @Update("UPDATE user_balance SET " +
-            "balance = balance + #{amount}, " +
-            "total_recharge = total_recharge + #{amount} " +
+            "balance = balance + #{amount} " +
             "WHERE user_id = #{toUserId}")
     int creditUser(@Param("toUserId") Long toUserId, @Param("amount") BigDecimal amount);
 

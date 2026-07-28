@@ -334,7 +334,6 @@ function toolFile() {
  * Electron 环境优先使用 desktopCapturer，浏览器环境使用 getDisplayMedia。
  */
 async function toolScreenshot() {
-  console.log('[截图] 按钮点击')
   if (!ensureCanSend()) return
 
   try {
@@ -342,17 +341,14 @@ async function toolScreenshot() {
 
     // Electron 环境：使用 captureScreen API
     if (window.electronAPI?.captureScreen) {
-      console.log('[截图] 使用 Electron captureScreen')
       const result = await window.electronAPI.captureScreen()
       if (!result) {
         message.warning(t('chat.screenshotFail'))
         return
       }
       dataUrl = result.dataURL
-      console.log('[截图] Electron 截图成功, length:', dataUrl.length)
     } else if (navigator.mediaDevices?.getDisplayMedia) {
       // 浏览器环境：使用 getDisplayMedia
-      console.log('[截图] 使用浏览器 getDisplayMedia')
       const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
       const video = document.createElement('video')
       video.srcObject = stream
@@ -363,7 +359,6 @@ async function toolScreenshot() {
       canvas.getContext('2d')?.drawImage(video, 0, 0)
       stream.getTracks().forEach(t => t.stop())
       dataUrl = canvas.toDataURL('image/png')
-      console.log('[截图] 浏览器截图成功, length:', dataUrl.length)
     } else {
       message.warning(t('chat.screenshotUnsupported'))
       return
