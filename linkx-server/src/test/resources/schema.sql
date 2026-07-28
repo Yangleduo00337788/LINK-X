@@ -120,7 +120,7 @@ CREATE TABLE IF NOT EXISTS im_message (
   file_name VARCHAR(255),
   file_size BIGINT,
   file_url VARCHAR(500),
-  client_msg_id VARCHAR(128),
+  client_msg_id VARCHAR(128) COMMENT '客户端幂等ID（与发送者组成唯一约束）',
   delivery_status VARCHAR(20) DEFAULT 'pending',
   read_status TINYINT NOT NULL DEFAULT 0,
   voice_duration INT,
@@ -138,6 +138,7 @@ CREATE TABLE IF NOT EXISTS im_message (
 );
 
 CREATE INDEX IF NOT EXISTS idx_im_message_conv_id ON im_message(conversation_id, id);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_sender_client_msg ON im_message(sender_id, client_msg_id);
 
 -- 消息风暴事件表（Redis 限流之外的持久化）
 CREATE TABLE IF NOT EXISTS im_message_storm_event (

@@ -208,7 +208,7 @@ CREATE TABLE IF NOT EXISTS `im_message` (
   `file_name` varchar(255) DEFAULT NULL COMMENT '文件名',
   `file_size` bigint DEFAULT NULL COMMENT '文件大小(字节)',
   `file_url` varchar(500) DEFAULT NULL COMMENT '文件/图片URL',
-  `client_msg_id` varchar(128) DEFAULT NULL COMMENT '客户端幂等ID',
+  `client_msg_id` varchar(128) DEFAULT NULL COMMENT '客户端幂等ID（与发送者组成唯一约束）',
   `delivery_status` varchar(20) DEFAULT 'pending' COMMENT '投递状态(pending/delivered/failed)',
   `read_status` tinyint NOT NULL DEFAULT 0 COMMENT '已读状态(0未读1已读)',
   `voice_duration` int DEFAULT NULL COMMENT '语音时长(秒)',
@@ -225,7 +225,8 @@ CREATE TABLE IF NOT EXISTS `im_message` (
   `deleted` tinyint(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除(0:未删除 1:已删除)',
   PRIMARY KEY (`id`),
   KEY `idx_conv_time` (`conversation_id`,`create_time`),
-  KEY `idx_im_message_conv_id` (`conversation_id`,`id`)
+  KEY `idx_im_message_conv_id` (`conversation_id`,`id`),
+  UNIQUE KEY `uk_sender_client_msg` (`sender_id`,`client_msg_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='IM消息表';
 
 -- ================================================

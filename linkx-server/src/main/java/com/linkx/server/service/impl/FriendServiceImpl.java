@@ -215,7 +215,10 @@ public class FriendServiceImpl implements FriendService {
 
         request.setStatus(SysFriendRequest.STATUS_ACCEPTED);
         request.setUpdateTime(new Date());
-        sysFriendRequestMapper.update(request);
+        int updated = sysFriendRequestMapper.update(request);
+        if (updated == 0) {
+            throw new CustomException(409, "该申请已被其他操作处理");
+        }
 
         createBidirectionalRelation(request.getFromUserId(), request.getToUserId());
         emitFriendCreatedTip(userId, request.getFromUserId());

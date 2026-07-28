@@ -51,7 +51,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         // Actuator：仅放行健康探针，禁止 metrics/prometheus 匿名
                         "/actuator/health",
                         "/actuator/health/**",
-                        "/actuator/info",
                         // 外链图片 HMAC 代理（签名校验，供 <img> 无 Authorization 加载）
                         "/media/external",
                         "/error"

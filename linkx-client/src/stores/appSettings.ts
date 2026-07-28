@@ -353,7 +353,6 @@ async function doFlush(store: ReturnType<typeof useAppSettingsStore>) {
   for (const k of Object.keys(pendingPatch)) {
     delete (pendingPatch as Record<string, unknown>)[k]
   }
-  void store
   flushing = true
   try {
     await preferenceApi.updatePreference(payload)

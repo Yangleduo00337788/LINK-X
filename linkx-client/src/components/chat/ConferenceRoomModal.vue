@@ -346,7 +346,8 @@ watch(
       joinedAt.value = Date.now()
       elapsedSec.value = 0
       elapsedTimer = setInterval(() => {
-        elapsedSec.value = Math.floor((Date.now() - joinedAt.value) / 1000)
+        const base = joinedAt.value
+        elapsedSec.value = base > 0 ? Math.floor((Date.now() - base) / 1000) : 0
       }, 1000)
     }
   },
@@ -379,8 +380,14 @@ watch(
 )
 
 onUnmounted(() => {
-  if (elapsedTimer) clearInterval(elapsedTimer)
-  if (roomNoticeTimer) clearTimeout(roomNoticeTimer)
+  if (elapsedTimer) {
+    clearInterval(elapsedTimer)
+    elapsedTimer = null
+  }
+  if (roomNoticeTimer) {
+    clearTimeout(roomNoticeTimer)
+    roomNoticeTimer = null
+  }
   remoteVideoEls.clear()
   remoteAudioEls.clear()
 })
@@ -451,13 +458,13 @@ function minimizeRoom() {
 }
 
 function toggleChat() {
-  conferenceStore.chatOpen = !conferenceStore.chatOpen
+  conferenceStore.toggleChatOpen()
   if (conferenceStore.chatOpen) membersPanelOpen.value = false
 }
 
 function openMembers() {
   membersPanelOpen.value = !membersPanelOpen.value
-  if (membersPanelOpen.value) conferenceStore.chatOpen = false
+  if (membersPanelOpen.value) conferenceStore.setChatOpen(false)
 }
 
 async function sendChatText() {

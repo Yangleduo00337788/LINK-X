@@ -22,6 +22,7 @@ import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.util.List;
@@ -47,6 +48,7 @@ public class CallServiceImpl implements CallService {
     private final MediaUrlService mediaUrlService;
 
     @Override
+    @Transactional
     public CallInviteVO invite(Long userId, CallInviteDTO dto) {
         Long conversationId = dto.getConversationId();
         chatService.assertConversationMember(userId, conversationId);
@@ -114,6 +116,7 @@ public class CallServiceImpl implements CallService {
     }
 
     @Override
+    @Transactional
     public void cancel(Long userId, CallCancelDTO dto) {
         Map<Object, Object> data = requireCall(dto.getCallId());
         assertCaller(userId, data);
@@ -122,11 +125,12 @@ public class CallServiceImpl implements CallService {
             throw new CustomException(400, "通话已不在振铃状态");
         }
         updateStatus(dto.getCallId(), "cancelled");
-        Long peerId = Long.parseLong(str(data.get("calleeId")));
+        Long peerId = safeParseLong(data.get("calleeId"), "calleeId", dto.getCallId());
         pushService.pushToUser(peerId, "call_cancel", buildEvent(dto.getCallId(), data, userId, "cancelled"));
     }
 
     @Override
+    @Transactional
     public void accept(Long userId, CallIdDTO dto) {
         Map<Object, Object> data = requireCall(dto.getCallId());
         assertCallee(userId, data);
@@ -135,11 +139,12 @@ public class CallServiceImpl implements CallService {
         }
         updateStatus(dto.getCallId(), "accepted");
         redisTemplate.expire(callKey(dto.getCallId()), CALL_TTL);
-        Long callerId = Long.parseLong(str(data.get("callerId")));
+        Long callerId = safeParseLong(data.get("callerId"), "callerId", dto.getCallId());
         pushService.pushToUser(callerId, "call_accept", buildEvent(dto.getCallId(), data, userId, "accepted"));
     }
 
     @Override
+    @Transactional
     public void reject(Long userId, CallIdDTO dto) {
         Map<Object, Object> data = requireCall(dto.getCallId());
         assertCallee(userId, data);
@@ -147,15 +152,16 @@ public class CallServiceImpl implements CallService {
             throw new CustomException(400, "通话已结束或已被处理");
         }
         updateStatus(dto.getCallId(), "rejected");
-        Long callerId = Long.parseLong(str(data.get("callerId")));
+        Long callerId = safeParseLong(data.get("callerId"), "callerId", dto.getCallId());
         pushService.pushToUser(callerId, "call_reject", buildEvent(dto.getCallId(), data, userId, "rejected"));
     }
 
     @Override
+    @Transactional
     public void hangup(Long userId, CallIdDTO dto) {
         Map<Object, Object> data = requireCall(dto.getCallId());
-        Long callerId = Long.parseLong(str(data.get("callerId")));
-        Long calleeId = Long.parseLong(str(data.get("calleeId")));
+        Long callerId = safeParseLong(data.get("callerId"), "callerId", dto.getCallId());
+        Long calleeId = safeParseLong(data.get("calleeId"), "calleeId", dto.getCallId());
         if (!userId.equals(callerId) && !userId.equals(calleeId)) {
             throw new CustomException(403, "无权操作该通话");
         }
@@ -169,6 +175,7 @@ public class CallServiceImpl implements CallService {
     }
 
     @Override
+    @Transactional
     public void signal(Long userId, CallSignalDTO dto) {
         Map<Object, Object> data = requireCall(dto.getCallId());
         String status = str(data.get("status"));
@@ -185,15 +192,15 @@ public class CallServiceImpl implements CallService {
             return;
         }
 
-        Long callerId = Long.parseLong(str(data.get("callerId")));
-        Long calleeId = Long.parseLong(str(data.get("calleeId")));
+        Long callerId = safeParseLong(data.get("callerId"), "callerId", dto.getCallId());
+        Long calleeId = safeParseLong(data.get("calleeId"), "calleeId", dto.getCallId());
         if (!userId.equals(callerId) && !userId.equals(calleeId)) {
             throw new CustomException(403, "无权发送信令");
         }
         Long peerId = userId.equals(callerId) ? calleeId : callerId;
         CallEventVO event = CallEventVO.builder()
                 .callId(dto.getCallId())
-                .conversationId(Long.parseLong(str(data.get("conversationId"))))
+                .conversationId(safeParseLong(data.get("conversationId"), "conversationId", dto.getCallId()))
                 .callType(str(data.get("callType")))
                 .status(status)
                 .fromUserId(userId)
@@ -212,7 +219,7 @@ public class CallServiceImpl implements CallService {
             throw new CustomException(403, "无权发送信令");
         }
 
-        Long conversationId = Long.parseLong(str(data.get("conversationId")));
+        Long conversationId = safeParseLong(data.get("conversationId"), "conversationId", dto.getCallId());
         String callType = str(data.get("callType"));
 
         java.util.Set<Long> targets = new java.util.HashSet<>();
@@ -228,8 +235,8 @@ public class CallServiceImpl implements CallService {
             java.util.Set<String> participants = redisTemplate.opsForSet().members(participantsKey);
             if (participants != null) {
                 for (String pid : participants) {
-                    Long peerId = Long.parseLong(pid);
-                    if (!peerId.equals(userId)) {
+                    long peerId = Long.parseLong(pid);
+                    if (peerId != userId) {
                         targets.add(peerId);
                     }
                 }
@@ -257,12 +264,12 @@ public class CallServiceImpl implements CallService {
 
     private CallEventVO buildEvent(String callId, Map<Object, Object> data, Long fromUserId, String status) {
         SysUser from = sysUserMapper.selectOneById(fromUserId);
-        Long callerId = Long.parseLong(str(data.get("callerId")));
-        Long calleeId = Long.parseLong(str(data.get("calleeId")));
+        Long callerId = safeParseLong(data.get("callerId"), "callerId", callId);
+        Long calleeId = safeParseLong(data.get("calleeId"), "calleeId", callId);
         Long toUserId = fromUserId.equals(callerId) ? calleeId : callerId;
         return CallEventVO.builder()
                 .callId(callId)
-                .conversationId(Long.parseLong(str(data.get("conversationId"))))
+                .conversationId(safeParseLong(data.get("conversationId"), "conversationId", callId))
                 .callType(str(data.get("callType")))
                 .status(status)
                 .fromUserId(fromUserId)
@@ -321,6 +328,14 @@ public class CallServiceImpl implements CallService {
         return value == null ? "" : value;
     }
 
+    private static long safeParseLong(Object value, String fieldName, String callId) {
+        try {
+            return Long.parseLong(str(value));
+        } catch (NumberFormatException e) {
+            throw new CustomException(500, "通话数据异常: " + fieldName + " 格式错误(callId=" + callId + ")");
+        }
+    }
+
     private static String displayName(SysUser user) {
         if (user == null) {
             return "用户";
@@ -334,14 +349,15 @@ public class CallServiceImpl implements CallService {
     // ==================== 断线重连 ====================
 
     @Override
+    @Transactional
     public void reconnect(Long userId, String callId) {
         Map<Object, Object> data = redisTemplate.opsForHash().entries(callKey(callId));
         if (data.isEmpty()) {
             throw new CustomException(404, "通话不存在或已过期");
         }
         String status = str(data.get("status"));
-        Long callerId = Long.parseLong(str(data.get("callerId")));
-        Long calleeId = Long.parseLong(str(data.get("calleeId")));
+        Long callerId = safeParseLong(data.get("callerId"), "callerId", callId);
+        Long calleeId = safeParseLong(data.get("calleeId"), "calleeId", callId);
 
         if (!userId.equals(callerId) && !userId.equals(calleeId)) {
             throw new CustomException(403, "无权重连该通话");
@@ -373,8 +389,8 @@ public class CallServiceImpl implements CallService {
             throw new CustomException(404, "通话不存在或已过期");
         }
         String status = str(data.get("status"));
-        Long callerId = Long.parseLong(str(data.get("callerId")));
-        Long calleeId = Long.parseLong(str(data.get("calleeId")));
+        Long callerId = safeParseLong(data.get("callerId"), "callerId", callId);
+        Long calleeId = safeParseLong(data.get("calleeId"), "calleeId", callId);
 
         if (!userId.equals(callerId) && !userId.equals(calleeId)) {
             throw new CustomException(403, "无权操作该通话");
@@ -494,6 +510,7 @@ public class CallServiceImpl implements CallService {
     }
 
     @Override
+    @Transactional
     public void joinConference(Long userId, String callId) {
         Map<Object, Object> data = redisTemplate.opsForHash().entries(callKey(callId));
         if (data.isEmpty()) {
@@ -503,7 +520,7 @@ public class CallServiceImpl implements CallService {
         if ("ended".equals(status) || "cancelled".equals(status)) {
             throw new CustomException(400, "会议已结束");
         }
-        Long conversationId = Long.parseLong(str(data.get("conversationId")));
+        Long conversationId = safeParseLong(data.get("conversationId"), "conversationId", callId);
         chatService.assertConversationMember(userId, conversationId);
 
         String participantsKey = "linkx:call:" + callId + ":participants";
@@ -516,8 +533,8 @@ public class CallServiceImpl implements CallService {
         java.util.Set<String> participants = redisTemplate.opsForSet().members(participantsKey);
         if (participants != null) {
             for (String pid : participants) {
-                Long participantId = Long.parseLong(pid);
-                if (!participantId.equals(userId)) {
+                long participantId = Long.parseLong(pid);
+                if (participantId != userId) {
                     pushService.pushToUser(participantId, "conference_join", Map.of(
                             "callId", callId,
                             "userId", userId
@@ -528,6 +545,7 @@ public class CallServiceImpl implements CallService {
     }
 
     @Override
+    @Transactional
     public void leaveConference(Long userId, String callId) {
         String participantsKey = "linkx:call:" + callId + ":participants";
         redisTemplate.opsForSet().remove(participantsKey, String.valueOf(userId));
@@ -536,7 +554,7 @@ public class CallServiceImpl implements CallService {
         java.util.Set<String> participants = redisTemplate.opsForSet().members(participantsKey);
         if (participants != null) {
             for (String pid : participants) {
-                Long participantId = Long.parseLong(pid);
+                long participantId = Long.parseLong(pid);
                 pushService.pushToUser(participantId, "conference_leave", Map.of(
                         "callId", callId,
                         "userId", userId
@@ -557,7 +575,7 @@ public class CallServiceImpl implements CallService {
         if (data.isEmpty()) {
             throw new CustomException(404, "会议不存在或已过期");
         }
-        Long conversationId = Long.parseLong(str(data.get("conversationId")));
+        Long conversationId = safeParseLong(data.get("conversationId"), "conversationId", callId);
         chatService.assertConversationMember(requesterId, conversationId);
 
         String participantsKey = "linkx:call:" + callId + ":participants";
@@ -566,7 +584,12 @@ public class CallServiceImpl implements CallService {
 
         return participants.stream()
                 .map(pid -> {
-                    Long userId = Long.parseLong(pid);
+                    long userId;
+                    try {
+                        userId = Long.parseLong(pid);
+                    } catch (NumberFormatException e) {
+                        return null;
+                    }
                     SysUser user = sysUserMapper.selectOneById(userId);
                     return (java.util.Map<String, Object>) new java.util.HashMap<String, Object>() {{
                         put("userId", userId);

@@ -55,5 +55,5 @@ export function uploadAvatar(file: File) {
  * @param userId 用户 ID
  */
 export function getUserProfile(userId: string | number) {
-  return apiClient.get<never, ApiResult<UserProfileData>>(`/user/${userId}/profile`)
+  return apiClient.get<never, ApiResult<UserProfileData>>(`/user/${String(userId)}/profile`)
 }

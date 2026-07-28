@@ -274,7 +274,7 @@ public class ChatServiceImpl implements ChatService {
             String dedupKey = buildClientMsgDedupKey(userId, dto.getClientMsgId());
             Boolean firstTime = redisTemplate.opsForValue().setIfAbsent(
                     dedupKey, "1", Duration.ofMinutes(10));
-            if (!Boolean.TRUE.equals(firstTime)) {
+            if (firstTime == null || !firstTime) {
                 ImMessage existing = messageMapper.selectOneByQuery(
                         QueryWrapper.create()
                                 .where(ImMessage::getSenderId).eq(userId)

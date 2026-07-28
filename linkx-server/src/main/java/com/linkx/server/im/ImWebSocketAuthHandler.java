@@ -50,7 +50,7 @@ public class ImWebSocketAuthHandler extends ChannelInboundHandlerAdapter {
             if (token == null || token.isBlank()) {
                 token = extractTokenFromQuery(request.uri());
                 if (token != null && !token.isBlank()) {
-                    log.debug("WebSocket 使用 query token（建议改用 Sec-WebSocket-Protocol）");
+                    log.warn("WebSocket 使用 query token，JWT 可能进入访问日志，请客户端改用 Sec-WebSocket-Protocol");
                 }
             }
             if (token == null || token.isBlank()) {
@@ -136,8 +136,11 @@ public class ImWebSocketAuthHandler extends ChannelInboundHandlerAdapter {
 
     private boolean isOriginAllowed(FullHttpRequest request) {
         String origin = request.headers().get("Origin");
-        // 无 Origin（Electron / 部分桌面壳）直接放行
         if (origin == null || origin.isBlank()) {
+            // 桌面客户端使用 file:// / app:// 等非 HTTP 协议，跳过 origin 检查
+            if (origin == null) {
+                log.warn("WebSocket 收到无 Origin 请求，建议桌面客户端配置明确的 origin");
+            }
             return true;
         }
         if (origin.startsWith("file://") || origin.startsWith("app://")) {
@@ -153,11 +156,15 @@ public class ImWebSocketAuthHandler extends ChannelInboundHandlerAdapter {
             }
         }
 
-        // 本地 Vite 开发：浏览器必带 http://localhost:端口 Origin；白名单未命中时仍放行本机
-        if (origin.startsWith("http://localhost:") || origin.startsWith("http://127.0.0.1:")) {
+        // 仅在明确配置为开发模式时才允许 localhost，生产环境必须显式配置白名单
+        boolean isDevMode = Boolean.TRUE.equals(linkxProperties.getApp().getDevModeEnabled());
+        if (isDevMode && (origin.startsWith("http://localhost:") || origin.startsWith("http://127.0.0.1:"))) {
+            log.debug("WebSocket 开发模式允许 localhost origin: {}", origin);
             return true;
         }
 
+        log.debug("WebSocket Origin 不在白名单: {} (白名单={}, devMode={})",
+                origin, allowed, isDevMode);
         return false;
     }
 

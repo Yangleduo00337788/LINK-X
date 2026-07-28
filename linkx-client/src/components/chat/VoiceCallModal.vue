@@ -90,7 +90,11 @@ watch(errorMessage, msg => {
   }
 })
 
-onUnmounted(clearDuration)
+onUnmounted(() => {
+  clearDuration()
+  clearInterval(durationTimer)
+  durationTimer = null
+})
 
 async function hangUp() {
   await callStore.hangup()

@@ -169,6 +169,8 @@ public class LinkxProperties {
         private String releaseNotes = "当前已是最新版本";
         /** 下载地址（可空） */
         private String downloadUrl = "";
+        /** 开发模式：允许 localhost origin 连接 WebSocket（生产环境必须关闭） */
+        private Boolean devModeEnabled = false;
     }
 
     /**

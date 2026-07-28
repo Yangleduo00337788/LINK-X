@@ -15,6 +15,7 @@ import com.linkx.server.entity.CloudFolder;
 import com.linkx.server.entity.CloudShare;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.entity.UserStorage;
+import com.linkx.server.common.FileExtensionValidator;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.CloudActivityMapper;
 import com.linkx.server.mapper.CloudFileMapper;
@@ -202,6 +203,10 @@ public class CloudDriveServiceImpl implements CloudDriveService {
         if (file == null || file.isEmpty()) {
             throw new CustomException(400, "文件不能为空");
         }
+
+        // 安全校验：扩展名白名单 + 危险扩展名黑名单
+        FileExtensionValidator.assertAllowedExtension(file);
+
         UserStorage storage = ensureStorage(userId);
         if (folderId != null) {
             requireFolder(userId, folderId);

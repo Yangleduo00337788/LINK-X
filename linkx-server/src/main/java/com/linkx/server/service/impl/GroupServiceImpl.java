@@ -27,6 +27,8 @@ import com.linkx.server.mapper.GroupAssetMapper;
 import com.linkx.server.mapper.GroupInvitationMapper;
 import com.linkx.server.mapper.MessageNotificationMapper;
 import com.linkx.server.mapper.SysUserMapper;
+
+import java.util.Objects;
 import com.linkx.server.service.ChatService;
 import com.linkx.server.service.GroupService;
 import com.linkx.server.service.MediaUrlService;
@@ -407,7 +409,7 @@ public class GroupServiceImpl implements GroupService {
         ImConversation group = assertGroupAdmin(userId, conversationId);
 
         // 不能移除群主
-        if (group.getOwnerId().equals(memberId)) {
+        if (Objects.equals(group.getOwnerId(), memberId)) {
             throw new CustomException(400, "不能移除群主");
         }
 
@@ -521,7 +523,7 @@ public class GroupServiceImpl implements GroupService {
         if (!ImConversationMember.ROLE_ADMIN.equals(role) && !ImConversationMember.ROLE_MEMBER.equals(role)) {
             throw new CustomException(400, "角色只能是管理员或普通成员");
         }
-        if (userId.equals(memberId)) {
+        if (Objects.equals(userId, memberId)) {
             throw new CustomException(400, "不能修改自己的角色");
         }
 
@@ -658,10 +660,10 @@ public class GroupServiceImpl implements GroupService {
         if (dto == null || dto.getMuted() == null) {
             throw new CustomException(400, "参数不能为空");
         }
-        if (group.getOwnerId().equals(memberId)) {
+        if (Objects.equals(group.getOwnerId(), memberId)) {
             throw new CustomException(400, "不能禁言群主");
         }
-        if (userId.equals(memberId)) {
+        if (Objects.equals(userId, memberId)) {
             throw new CustomException(400, "不能禁言自己");
         }
 
@@ -808,7 +810,7 @@ public class GroupServiceImpl implements GroupService {
         if (group == null || group.getType() != ImConversation.TYPE_GROUP) {
             throw new CustomException(404, "群聊不存在");
         }
-        if (!group.getOwnerId().equals(userId)) {
+        if (!Objects.equals(group.getOwnerId(), userId)) {
             throw new CustomException(403, "只有群主才能执行此操作");
         }
         assertGroupMember(userId, conversationId);
@@ -823,7 +825,7 @@ public class GroupServiceImpl implements GroupService {
         assertGroupMember(userId, conversationId);
 
         // 群主也算管理员
-        if (group.getOwnerId().equals(userId)) {
+        if (Objects.equals(group.getOwnerId(), userId)) {
             return group;
         }
 
@@ -1071,7 +1073,7 @@ public class GroupServiceImpl implements GroupService {
         int removed = 0;
         for (Long memberId : memberIds) {
             if (memberId.equals(userId)) continue;
-            if (group.getOwnerId().equals(memberId)) continue;
+            if (Objects.equals(group.getOwnerId(), memberId)) continue;
             ImConversationMember target = memberMapper.selectOneByQuery(
                     QueryWrapper.create()
                             .where(ImConversationMember::getConversationId).eq(conversationId)
@@ -1098,7 +1100,7 @@ public class GroupServiceImpl implements GroupService {
         int affected = 0;
         for (Long memberId : memberIds) {
             if (memberId.equals(userId)) continue;
-            if (group.getOwnerId().equals(memberId)) continue;
+            if (Objects.equals(group.getOwnerId(), memberId)) continue;
             ImConversationMember target = memberMapper.selectOneByQuery(
                     QueryWrapper.create()
                             .where(ImConversationMember::getConversationId).eq(conversationId)

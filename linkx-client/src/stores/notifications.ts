@@ -340,12 +340,13 @@ export const useNotificationsStore = defineStore('notifications', {
      * 调用后端清空当前用户全部消息通知,成功后清空本地 store。
      */
     async clearAllMessageNotifsRemote() {
+      const count = this.messageNotifs.length
       try {
         const res = await notificationApi.clearAllNotifications()
         if (res.code === 200) {
           this.messageNotifs = []
           this.serverUnreadCount = 0
-          return res.data ?? this.messageNotifs.length
+          return res.data ?? count
         }
       } catch (error) {
         console.error('清空通知失败:', error)

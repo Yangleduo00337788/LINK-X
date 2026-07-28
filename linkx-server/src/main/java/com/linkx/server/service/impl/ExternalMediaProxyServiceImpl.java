@@ -112,16 +112,23 @@ public class ExternalMediaProxyServiceImpl implements ExternalMediaProxyService 
         }
     }
 
+    private static final String PROXY_KEY_PURPOSE = "linkx-media-proxy-v1";
+
     private String sign(String url, long exp) {
-        String secret = linkxProperties.getJwt().getSecret();
-        if (!StringUtils.hasText(secret)) {
+        String jwtSecret = linkxProperties.getJwt().getSecret();
+        if (!StringUtils.hasText(jwtSecret)) {
             throw new IllegalStateException("JWT secret 未配置");
         }
         try {
+            // 使用 HKDF-like 方式从 JWT secret 派生独立的代理签名密钥
+            Mac prkMac = Mac.getInstance("HmacSHA256");
+            prkMac.init(new SecretKeySpec(jwtSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] prk = prkMac.doFinal(PROXY_KEY_PURPOSE.getBytes(StandardCharsets.UTF_8));
+
             Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            byte[] raw = mac.doFinal((url + "|" + exp).getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(raw).substring(0, 32);
+            mac.init(new SecretKeySpec(prk, "HmacSHA256"));
+            // 使用完整 HMAC 输出（64 hex chars = 256 bits），不做截断
+            return HexFormat.of().formatHex(mac.doFinal((url + "|" + exp).getBytes(StandardCharsets.UTF_8)));
         } catch (Exception e) {
             throw new IllegalStateException("HMAC 计算失败", e);
         }

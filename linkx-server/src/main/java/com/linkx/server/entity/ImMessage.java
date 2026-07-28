@@ -67,6 +67,7 @@ public class ImMessage implements Serializable {
 
     /**
      * 客户端消息幂等 ID，用于重试去重。
+     * DB 唯一约束兜底（Redis 已做去重）。
      */
     private String clientMsgId;
 

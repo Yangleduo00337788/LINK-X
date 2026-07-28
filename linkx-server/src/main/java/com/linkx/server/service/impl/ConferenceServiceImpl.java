@@ -166,7 +166,7 @@ public class ConferenceServiceImpl implements ConferenceService {
                 selfView.setIsSelf(true);
                 pushService.pushToUser(senderId, "message", selfView);
             } catch (Exception e) {
-                log.warn("emitConferenceInviteMessage failed: {}", e.toString());
+                log.warn("emitConferenceInviteMessage failed: {}", e.toString(), e);
             }
         };
         runAfterCommit(task);
@@ -206,11 +206,11 @@ public class ConferenceServiceImpl implements ConferenceService {
                         pushService.pushToUser(opId, "message", selfView);
                     }
                 } catch (Exception e) {
-                    log.warn("push conference ended tip failed: {}", e.toString());
+                    log.warn("push conference ended tip failed: {}", e.toString(), e);
                 }
             });
         } catch (Exception e) {
-            log.warn("emitConferenceEndedMessage failed: {}", e.toString());
+            log.warn("emitConferenceEndedMessage failed: {}", e.toString(), e);
         }
     }
 
@@ -418,6 +418,7 @@ public class ConferenceServiceImpl implements ConferenceService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public ConferenceInfoVO info(Long userId, Long conferenceId) {
         Conference conference = conferenceMapper.selectOneById(conferenceId);
         if (conference == null) {
@@ -428,6 +429,7 @@ public class ConferenceServiceImpl implements ConferenceService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<ConferenceInfoVO> listActive(Long userId) {
         List<ConferenceMember> memberships = memberMapper.selectListByQuery(
                 QueryWrapper.create()
@@ -608,6 +610,7 @@ public class ConferenceServiceImpl implements ConferenceService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<ConferenceInfoVO> listHistory(Long userId, Long conversationId) {
         chatService.assertConversationMember(userId, conversationId);
         List<Conference> list = conferenceMapper.selectListByQuery(

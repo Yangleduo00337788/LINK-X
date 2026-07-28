@@ -185,9 +185,12 @@ export const useGroupMetaStore = defineStore('groupMeta', {
           } catch {
             /* ignore */
           }
+        } else {
+          this.members[sessionId] = []
         }
       } catch (e) {
         console.error('加载群成员失败:', e)
+        this.members[sessionId] = []
       } finally {
         this.loading[`members-${sessionId}`] = false
         this._membersRefreshSeq[sessionId] = ((this._membersRefreshSeq[sessionId] || 0) + 1)
@@ -437,12 +440,17 @@ export const useGroupMetaStore = defineStore('groupMeta', {
       if (res.code === 200 && res.data) {
         const list = this.announcements[sessionId] || []
         if (pinned) {
-          for (const a of list) a.pinned = a.id === announcementId
+          this.announcements[sessionId] = list.map(a => ({
+            ...a,
+            pinned: a.id === announcementId
+          }))
         } else {
-          const target = list.find(a => a.id === announcementId)
-          if (target) target.pinned = false
+          this.announcements[sessionId] = list.map(a => ({
+            ...a,
+            pinned: false
+          }))
         }
-        list.sort((a, b) => Number(b.pinned) - Number(a.pinned))
+        this.announcements[sessionId].sort((a, b) => Number(b.pinned) - Number(a.pinned))
         this.refreshDisplayFromList(sessionId)
         return true
       }
@@ -547,12 +555,12 @@ export const useGroupMetaStore = defineStore('groupMeta', {
       item: Omit<GroupEssenceItem, 'id'> & { messageId?: string }
     ) {
       try {
-        const mid = item.messageId != null && item.messageId !== '' ? Number(item.messageId) : undefined
+        const mid = item.messageId != null && item.messageId !== '' ? item.messageId : undefined
         const res = await groupAssetApi.createGroupEssence(sessionId, {
           type: 'essence',
           title: item.user || '精华',
           content: item.content,
-          messageId: mid != null && Number.isFinite(mid) ? mid : undefined
+          messageId: mid ?? undefined
         })
         if (res.code === 200 && res.data) {
           if (!this.essence[sessionId]) this.essence[sessionId] = []

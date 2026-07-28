@@ -86,7 +86,7 @@ public class HealthController {
         } catch (Exception e) {
             log.warn("MySQL 健康检查失败: {}", e.getMessage());
             result.put("status", "DOWN");
-            result.put("error", e.getMessage());
+            // 不泄露具体错误信息，仅记录到日志
         }
         return result;
     }
@@ -101,7 +101,7 @@ public class HealthController {
         } catch (Exception e) {
             log.warn("Redis 健康检查失败: {}", e.getMessage());
             result.put("status", "DOWN");
-            result.put("error", e.getMessage());
+            // 不泄露具体错误信息，仅记录到日志
         }
         return result;
     }

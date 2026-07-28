@@ -123,13 +123,13 @@ public class CloudDriveController {
     }
 
     @PostMapping("/items/batch-delete")
-    public Result<Void> batchDelete(@RequestBody DriveBatchDTO dto, HttpServletRequest request) {
+    public Result<Void> batchDelete(@Valid @RequestBody DriveBatchDTO dto, HttpServletRequest request) {
         cloudDriveService.batchDelete(uid(request), dto);
         return Result.success(null);
     }
 
     @PostMapping("/items/batch-move")
-    public Result<Void> batchMove(@RequestBody DriveBatchDTO dto, HttpServletRequest request) {
+    public Result<Void> batchMove(@Valid @RequestBody DriveBatchDTO dto, HttpServletRequest request) {
         cloudDriveService.batchMove(uid(request), dto);
         return Result.success(null);
     }

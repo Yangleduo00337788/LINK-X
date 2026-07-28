@@ -14,6 +14,9 @@ import java.util.List;
 @Mapper
 public interface RedPacketMapper extends BaseMapper<RedPacket> {
 
+    @Select("SELECT * FROM red_packet WHERE id = #{id} FOR UPDATE")
+    RedPacket selectByIdForUpdate(@Param("id") Long id);
+
     /**
      * 原子更新红包剩余金额和个数（乐观锁保护）
      * @param id 红包ID

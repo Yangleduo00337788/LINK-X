@@ -88,15 +88,11 @@ public class RedPacketServiceImpl implements RedPacketService {
         return toRedPacketVO(redPacket, userId);
     }
 
-    private static final int MAX_RETRY_TIMES = 3;
-
     @Override
     @Transactional
     public RedPacketVO receiveRedPacket(Long userId, String redPacketIdStr) {
         Long redPacketId = parseId(redPacketIdStr);
-
-        for (int retry = 0; retry < MAX_RETRY_TIMES; retry++) {
-            RedPacket redPacket = redPacketMapper.selectOneById(redPacketId);
+        RedPacket redPacket = redPacketMapper.selectByIdForUpdate(redPacketId);
 
             if (redPacket == null) {
                 throw new CustomException(404, "红包不存在");
@@ -152,12 +148,14 @@ public class RedPacketServiceImpl implements RedPacketService {
             );
 
             if (updatedRows == 0) {
-                // 乐观锁冲突，重试
-                continue;
+                throw new CustomException(409, "红包状态已变化，请重试");
             }
 
             // 更新红包状态
             RedPacket updatedPacket = redPacketMapper.selectOneById(redPacketId);
+            if (updatedPacket == null) {
+                throw new CustomException(404, "红包不存在");
+            }
             if (updatedPacket.getRemainingCount() <= 0) {
                 updatedPacket.setStatus(RedPacket.STATUS_FINISHED);
                 redPacketMapper.update(updatedPacket);
@@ -183,10 +181,6 @@ public class RedPacketServiceImpl implements RedPacketService {
             checkAndMarkLucky(redPacketId, userId, receiveAmount);
 
             return toRedPacketVO(updatedPacket, userId);
-        }
-
-        // 重试次数耗尽
-        throw new CustomException(409, "系统繁忙，请稍后重试");
     }
 
     @Override

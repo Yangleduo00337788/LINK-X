@@ -125,8 +125,7 @@ apiClient.interceptors.request.use(async config => {
 })
 
 apiClient.interceptors.response.use(
-  // 拦截器解包 response.data，调用方直接获得 ApiResult
-  response => response.data as ApiResult<unknown> as never,
+  response => response.data as ApiResult<unknown>,
   async (error: AxiosError<ApiResult<unknown>>) => {
     const config = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
     if (isUnauthorized(error) && config && !config._retry) {

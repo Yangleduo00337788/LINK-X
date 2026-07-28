@@ -41,11 +41,15 @@ public class TokenServiceImpl implements TokenService {
     // Lua 脚本：原子性地验证并删除 refresh token
     private static final String REFRESH_TOKEN_LUA_SCRIPT =
             "local key = KEYS[1] " +
-            "local expectedJti = ARGV[1] " +
             "local value = redis.call('get', key) " +
             "if not value then return -1 end " +  // -1: token 不存在或已过期
             "redis.call('del', key) " +
             "return value";  // 返回 userId
+
+    private static final DefaultRedisScript<Long> RELEASE_LOCK_SCRIPT = new DefaultRedisScript<>(
+            "if redis.call('get', KEYS[1]) == ARGV[1] then " +
+            "return redis.call('del', KEYS[1]) else return 0 end",
+            Long.class);
 
     private final JwtUtils jwtUtils;
     private final StringRedisTemplate redisTemplate;
@@ -109,8 +113,9 @@ public class TokenServiceImpl implements TokenService {
         String refreshKey = REFRESH_KEY_PREFIX + refreshJti;
         String lockKey = REFRESH_LOCK_PREFIX + refreshJti;
 
-        // 使用分布式锁防止并发刷新导致的 Token 重复发放问题
-        Boolean locked = redisTemplate.opsForValue().setIfAbsent(lockKey, "1", Duration.ofSeconds(5));
+        // 锁值标识当前持有者，释放时通过 Lua 原子校验，避免超时后误删其他请求的新锁。
+        String lockValue = UUID.randomUUID().toString();
+        Boolean locked = redisTemplate.opsForValue().setIfAbsent(lockKey, lockValue, Duration.ofSeconds(10));
         if (!Boolean.TRUE.equals(locked)) {
             throw new CustomException(429, "Token 刷新过于频繁，请稍后重试");
         }
@@ -140,8 +145,7 @@ public class TokenServiceImpl implements TokenService {
 
             return issueTokenPair(user, normalizedDeviceId);
         } finally {
-            // 释放锁
-            redisTemplate.delete(lockKey);
+            redisTemplate.execute(RELEASE_LOCK_SCRIPT, Collections.singletonList(lockKey), lockValue);
         }
     }
 

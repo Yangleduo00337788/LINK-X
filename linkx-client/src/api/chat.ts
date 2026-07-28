@@ -164,6 +164,7 @@ export async function uploadChatFileSmart(
   onProgress?.(10)
   const result = await uploadChatFile(conversationId, file)
   if (result.code === 200) onProgress?.(100)
+  if (result.code !== 200) throw Object.assign(new Error(result.message || '上传失败'), { result })
   return result
 }
 

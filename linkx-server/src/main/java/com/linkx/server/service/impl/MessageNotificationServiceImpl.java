@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -30,6 +31,7 @@ public class MessageNotificationServiceImpl implements MessageNotificationServic
     private final MediaUrlService mediaUrlService;
 
     @Override
+    @Transactional(readOnly = true)
     public List<MessageNotificationVO> listUnread(Long userId) {
         List<MessageNotification> notifications = notificationMapper.selectListByQuery(
                 QueryWrapper.create()
@@ -41,6 +43,7 @@ public class MessageNotificationServiceImpl implements MessageNotificationServic
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<MessageNotificationVO> listAll(Long userId) {
         List<MessageNotification> notifications = notificationMapper.selectListByQuery(
                 QueryWrapper.create()
@@ -51,6 +54,7 @@ public class MessageNotificationServiceImpl implements MessageNotificationServic
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<MessageNotificationVO> listMineMentions(Long userId, boolean mentionOnly) {
         QueryWrapper wrapper = QueryWrapper.create()
                 .eq("user_id", userId)
@@ -64,6 +68,7 @@ public class MessageNotificationServiceImpl implements MessageNotificationServic
     }
 
     @Override
+    @Transactional(readOnly = true)
     public int getUnreadCount(Long userId) {
         Long count = notificationMapper.selectCountByQuery(
                 QueryWrapper.create()

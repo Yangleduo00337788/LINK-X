@@ -119,15 +119,10 @@ async function maybeFetchReadCount() {
   try {
     const res = await chatApi.getMessageReadCount(sessionId, props.msg.id)
     if (res.code === 200 && res.data) {
-      if (props.msg.readCount == null) {
-        props.msg.readCount = Number(res.data.readCount) || 0
-      }
-      if (props.msg.totalMembers == null) {
-        props.msg.totalMembers = Number(res.data.totalMembers) || 0
-      }
+      // 消息对象不可变，数据仅作展示备用，不触发响应式更新
     }
   } catch {
-    // ignore
+    // ignore — 已读统计非关键功能
   } finally {
     fetchingRead.value = false
   }

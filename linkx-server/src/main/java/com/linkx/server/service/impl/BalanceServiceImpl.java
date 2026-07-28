@@ -126,7 +126,18 @@ public class BalanceServiceImpl implements BalanceService {
                     .totalRecharge(BigDecimal.ZERO)
                     .totalWithdraw(BigDecimal.ZERO)
                     .build();
-            balanceMapper.insert(balance);
+            try {
+                balanceMapper.insert(balance);
+            } catch (Exception e) {
+                // 并发插入导致 duplicate-key：忽略，重新查询
+                if (e.getMessage() != null && e.getMessage().contains("Duplicate entry")) {
+                    balance = balanceMapper.selectOneByQuery(
+                            QueryWrapper.create().eq("user_id", userId)
+                    );
+                } else {
+                    throw e;
+                }
+            }
         }
 
         return balance;

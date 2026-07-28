@@ -302,18 +302,22 @@ export const useAppStore = defineStore('app', {
       this.currentSessionId = session.id
       this.sessionEnterTick++
       const s = this.sessions.find(x => x.id === session.id)
-      if (s?.unread) {
-        s.unread = 0 // 进入会话即清未读
+      const hadAtMe = !!(s?.atMe || s?.atMeMessageId)
+      if (s) {
+        this.$patch((state) => {
+          const idx = state.sessions.findIndex(x => x.id === session.id)
+          if (idx < 0) return
+          state.sessions[idx].unread = 0
+          state.sessions[idx].atMeNeedAck = hadAtMe
+          state.sessions[idx].atMe = hadAtMe
+        })
       }
       if (!this.messagesBySession[session.id]) {
         this.messagesBySession[session.id] = []
       }
 
       // 有未读 @：进会话后保留提示，需点浮层确认，避免贴底后「只剩普通消息」
-      const hadAtMe = !!(s?.atMe || s?.atMeMessageId)
-      if (s && hadAtMe) {
-        s.atMeNeedAck = true
-        s.atMe = true
+      if (hadAtMe && s) {
         const needRecover = !s.atMeMessageId
         if (session.isReal) {
           void this.loadSessionMessages(session.id).then(() => {
@@ -1184,7 +1188,7 @@ export const useAppStore = defineStore('app', {
       if (!msgs) return
       for (const m of msgs) {
         if (!m.isSelf) continue
-        if (m.id === lastReadMessageId || Number(m.id) <= Number(lastReadMessageId)) {
+        if (m.id === lastReadMessageId || m.id <= lastReadMessageId) {
           if (
             m.sendStatus === 'sent' ||
             m.sendStatus === 'delivered' ||

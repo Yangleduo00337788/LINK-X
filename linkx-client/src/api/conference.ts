@@ -48,21 +48,21 @@ export function create(payload: ConferenceCreatePayload) {
 
 export function join(conferenceId: string | number, password?: string) {
   return apiClient.post<never, ApiResult<ConferenceInfo>>('/conference/join', {
-    conferenceId,
+    conferenceId: String(conferenceId),
     password
   })
 }
 
 export function leave(conferenceId: string | number) {
-  return apiClient.post<never, ApiResult<null>>('/conference/leave', { conferenceId })
+  return apiClient.post<never, ApiResult<null>>('/conference/leave', { conferenceId: String(conferenceId) })
 }
 
 export function end(conferenceId: string | number) {
-  return apiClient.post<never, ApiResult<null>>('/conference/end', { conferenceId })
+  return apiClient.post<never, ApiResult<null>>('/conference/end', { conferenceId: String(conferenceId) })
 }
 
 export function info(conferenceId: string | number) {
-  return apiClient.get<never, ApiResult<ConferenceInfo>>(`/conference/info/${conferenceId}`)
+  return apiClient.get<never, ApiResult<ConferenceInfo>>(`/conference/info/${String(conferenceId)}`)
 }
 
 export function active() {
@@ -72,63 +72,63 @@ export function active() {
 /** 会话内进行中会议（聊天顶栏），无则 data 为空 */
 export function activeInConversation(conversationId: string | number) {
   return apiClient.get<never, ApiResult<ConferenceInfo | null>>('/conference/active-in-conversation', {
-    params: { conversationId }
+    params: { conversationId: String(conversationId) }
   })
 }
 
 export function history(conversationId: string | number) {
   return apiClient.get<never, ApiResult<ConferenceInfo[]>>('/conference/history', {
-    params: { conversationId }
+    params: { conversationId: String(conversationId) }
   })
 }
 
 export function mute(conferenceId: string | number, targetUserId: string | number, muted: boolean) {
   return apiClient.post<never, ApiResult<null>>('/conference/mute', {
-    conferenceId,
-    targetUserId,
+    conferenceId: String(conferenceId),
+    targetUserId: String(targetUserId),
     muted
   })
 }
 
 export function setVideo(conferenceId: string | number, videoOff: boolean) {
   return apiClient.post<never, ApiResult<null>>('/conference/video', {
-    conferenceId,
+    conferenceId: String(conferenceId),
     videoOff
   })
 }
 
 export function removeMember(conferenceId: string | number, targetUserId: string | number) {
   return apiClient.post<never, ApiResult<null>>('/conference/remove', {
-    conferenceId,
-    targetUserId
+    conferenceId: String(conferenceId),
+    targetUserId: String(targetUserId)
   })
 }
 
 export function transferHost(conferenceId: string | number, newHostId: string | number) {
   return apiClient.post<never, ApiResult<null>>('/conference/transfer-host', {
-    conferenceId,
-    newHostId
+    conferenceId: String(conferenceId),
+    newHostId: String(newHostId)
   })
 }
 
 export function admit(conferenceId: string | number, targetUserId: string | number) {
   return apiClient.post<never, ApiResult<null>>('/conference/admit', {
-    conferenceId,
-    targetUserId
+    conferenceId: String(conferenceId),
+    targetUserId: String(targetUserId)
   })
 }
 
 export function setRole(conferenceId: string | number, targetUserId: string | number, role: string) {
   return apiClient.post<never, ApiResult<null>>('/conference/set-role', {
-    conferenceId,
-    targetUserId,
+    conferenceId: String(conferenceId),
+    targetUserId: String(targetUserId),
     role
   })
 }
 
 export function raise(conferenceId: string | number, raised: boolean) {
   return apiClient.post<never, ApiResult<null>>('/conference/raise', {
-    conferenceId,
+    conferenceId: String(conferenceId),
     raised
   })
 }

@@ -363,6 +363,14 @@ export const useConferenceStore = defineStore('conference', {
       this.uiMinimized = false
     },
 
+    toggleChatOpen() {
+      this.chatOpen = !this.chatOpen
+    },
+
+    setChatOpen(open: boolean) {
+      this.chatOpen = open
+    },
+
     /** 收到/加载到会议邀请消息时同步顶栏（先乐观展示，再校验 ACTIVE） */
     noteConferenceInviteMessage(payload: {
       conversationId: string

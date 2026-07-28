@@ -141,12 +141,20 @@ public class ChatController {
     public Result<MessageVO> forwardMessage(
             @PathVariable String conversationId,
             @PathVariable String messageId,
-            @org.springframework.web.bind.annotation.RequestBody java.util.Map<String, Long> body,
+            @org.springframework.web.bind.annotation.RequestBody java.util.Map<String, Object> body,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        Long targetConversationId = body.get("targetConversationId");
-        if (targetConversationId == null) {
+        Object rawTargetId = body.get("targetConversationId");
+        if (rawTargetId == null) {
             throw new com.linkx.server.exception.CustomException(400, "目标会话 ID 不能为空");
+        }
+        Long targetConversationId;
+        if (rawTargetId instanceof Number) {
+            targetConversationId = ((Number) rawTargetId).longValue();
+        } else if (rawTargetId instanceof String) {
+            targetConversationId = Long.parseLong((String) rawTargetId);
+        } else {
+            throw new com.linkx.server.exception.CustomException(400, "目标会话 ID 格式无效");
         }
         MessageVO vo = chatService.forwardMessage(userId, parseId(conversationId), parseId(messageId), targetConversationId);
         return Result.success(vo);
