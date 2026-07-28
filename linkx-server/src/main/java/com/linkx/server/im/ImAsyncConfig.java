@@ -18,6 +18,9 @@ import java.util.concurrent.ThreadPoolExecutor;
 @EnableAsync
 public class ImAsyncConfig {
 
+    /**
+     * 单聊/小群发送与 sync/storm 等业务 IO 线程池。
+     */
     @Bean(name = "imPushExecutor")
     public ExecutorService imPushExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
@@ -26,6 +29,22 @@ public class ImAsyncConfig {
         executor.setQueueCapacity(500);
         executor.setThreadNamePrefix("im-push-");
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
+        executor.initialize();
+        return executor.getThreadPoolExecutor();
+    }
+
+    /**
+     * 大群扇出专用线程池，与 imPushExecutor 隔离，避免 500+ 成员群发占满队列导致单聊 503。
+     */
+    @Bean(name = "imFanoutExecutor")
+    public ExecutorService imFanoutExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(4);
+        executor.setMaxPoolSize(32);
+        executor.setQueueCapacity(2000);
+        executor.setThreadNamePrefix("im-fanout-");
+        // 扇出可降级：队列满时丢弃最旧批次任务，避免拖垮发送路径
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.DiscardOldestPolicy());
         executor.initialize();
         return executor.getThreadPoolExecutor();
     }

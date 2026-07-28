@@ -34,8 +34,8 @@ public class ImWebSocketChannelInitializer extends ChannelInitializer<SocketChan
         pipeline.addLast(new HttpServerCodec());
         pipeline.addLast(new ChunkedWriteHandler());
         pipeline.addLast(new HttpObjectAggregator(65536));
-        // 空闲连接超时（读60s/写30s）防止连接泄漏
-        pipeline.addLast(new io.netty.handler.timeout.IdleStateHandler(60, 30, 0));
+        // 仅检测读空闲：安静会话无下行时写空闲属正常，不可因此断连
+        pipeline.addLast(new io.netty.handler.timeout.IdleStateHandler(60, 0, 0));
         pipeline.addLast(new ImWebSocketIdleHandler());
         pipeline.addLast(new ImWebSocketAuthHandler(
                 jwtUtils, tokenService, channelManager, linkxProperties,

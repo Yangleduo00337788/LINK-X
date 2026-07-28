@@ -257,6 +257,12 @@ public class CloudDriveServiceImpl implements CloudDriveService {
         storage.setFileCount(storage.getFileCount() + 1);
         int rows = userStorageMapper.casUpdateUsedBytes(userId, size, 1, storage.getVersion());
         if (rows == 0) {
+            // CAS 失败：DB 行会随事务回滚，但 MinIO 对象已写入 → 异步删孤儿对象
+            try {
+                fileStorageService.deleteFile(key);
+            } catch (Exception e) {
+                // 吞掉：对象残留靠后续合规/运维清理；不可掩盖 409
+            }
             throw new CustomException(409, "存储信息冲突，请重试");
         }
 

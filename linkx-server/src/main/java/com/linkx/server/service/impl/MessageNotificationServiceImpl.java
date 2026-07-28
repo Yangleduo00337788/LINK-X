@@ -15,7 +15,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -39,7 +41,7 @@ public class MessageNotificationServiceImpl implements MessageNotificationServic
                         .eq("read_status", 0)
                         .orderBy("create_time", false)
         );
-        return notifications.stream().map(this::toVO).collect(Collectors.toList());
+        return toVOList(notifications);
     }
 
     @Override
@@ -50,7 +52,7 @@ public class MessageNotificationServiceImpl implements MessageNotificationServic
                         .eq("user_id", userId)
                         .orderBy("create_time", false)
         );
-        return notifications.stream().map(this::toVO).collect(Collectors.toList());
+        return toVOList(notifications);
     }
 
     @Override
@@ -64,7 +66,7 @@ public class MessageNotificationServiceImpl implements MessageNotificationServic
             wrapper.eq("type", "moments_mention");
         }
         List<MessageNotification> notifications = notificationMapper.selectListByQuery(wrapper);
-        return notifications.stream().map(this::toVO).collect(Collectors.toList());
+        return toVOList(notifications);
     }
 
     @Override
@@ -157,12 +159,34 @@ public class MessageNotificationServiceImpl implements MessageNotificationServic
         notificationMapper.insert(notification);
     }
 
-    private MessageNotificationVO toVO(MessageNotification notification) {
+    private List<MessageNotificationVO> toVOList(List<MessageNotification> notifications) {
+        if (notifications == null || notifications.isEmpty()) {
+            return List.of();
+        }
+        // 批量加载缺头像的发送者，消除 toVO N+1
+        Set<Long> missingAvatarSenderIds = notifications.stream()
+                .filter(n -> (n.getSenderAvatar() == null || n.getSenderAvatar().isBlank())
+                        && n.getSenderId() != null)
+                .map(MessageNotification::getSenderId)
+                .collect(Collectors.toSet());
+        Map<Long, SysUser> senderMap = Map.of();
+        if (!missingAvatarSenderIds.isEmpty()) {
+            senderMap = sysUserMapper.selectListByQuery(
+                    QueryWrapper.create().where(SysUser::getId).in(missingAvatarSenderIds)
+            ).stream().collect(Collectors.toMap(SysUser::getId, u -> u, (a, b) -> a));
+        }
+        Map<Long, SysUser> finalSenderMap = senderMap;
+        return notifications.stream()
+                .map(n -> toVO(n, finalSenderMap))
+                .collect(Collectors.toList());
+    }
+
+    private MessageNotificationVO toVO(MessageNotification notification, Map<Long, SysUser> senderMap) {
         // 库中存 object key；对外签发可访问 URL（与好友/友链头像一致）
         String avatar = notification.getSenderAvatar();
         if (avatar == null || avatar.isBlank()) {
             if (notification.getSenderId() != null) {
-                SysUser sender = sysUserMapper.selectOneById(notification.getSenderId());
+                SysUser sender = senderMap.get(notification.getSenderId());
                 if (sender != null) {
                     avatar = sender.getAvatar();
                 }
@@ -180,6 +204,10 @@ public class MessageNotificationServiceImpl implements MessageNotificationServic
                 .readStatus(notification.getReadStatus())
                 .createTime(notification.getCreateTime())
                 .build();
+    }
+
+    private MessageNotificationVO toVO(MessageNotification notification) {
+        return toVO(notification, Map.of());
     }
 
     /** 业务通知与系统通知分轨：moments / system / social / other */

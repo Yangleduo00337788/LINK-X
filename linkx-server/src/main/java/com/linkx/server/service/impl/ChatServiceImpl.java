@@ -1812,7 +1812,15 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public String findFileByHash(Long userId, String contentHash) {
-        return fileStorageService.findByContentHash(contentHash);
+        String existingKey = fileStorageService.findByContentHash(contentHash);
+        if (existingKey == null) {
+            return null;
+        }
+        // 秒传仅返回本人已 claim 的对象，避免跨用户泄露 file key
+        if (!objectKeyOwnershipService.isOwned(userId, existingKey)) {
+            return null;
+        }
+        return existingKey;
     }
 
     @Override

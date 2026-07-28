@@ -19,6 +19,7 @@ import io.netty.channel.group.ChannelGroup;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -33,7 +34,7 @@ import java.util.concurrent.RejectedExecutionException;
 /**
  * IM 消息处理与推送服务。
  * <p>
- * 所有 IO 密集操作（DB/Redis/推送扇出）通过 imPushExecutor 线程池执行，不阻塞 Netty event-loop。
+ * 所有 IO 密集操作（DB/Redis/推送扇出）通过 imPushExecutor / imFanoutExecutor 执行，不阻塞 Netty event-loop。
  * </p>
  */
 @Slf4j
@@ -50,7 +51,10 @@ public class ImMessagePushService {
     private final SysUserMapper sysUserMapper;
     private final ImChannelManager channelManager;
     private final ObjectMapper objectMapper;
+    @Qualifier("imPushExecutor")
     private final Executor imPushExecutor;
+    @Qualifier("imFanoutExecutor")
+    private final Executor imFanoutExecutor;
     private final StringRedisTemplate redisTemplate;
     private final MessageStormService messageStormService;
     private final PresenceService presenceService;
@@ -74,16 +78,14 @@ public class ImMessagePushService {
         dto.setFileUrl(frame.getFileUrl());
         dto.setClientMsgId(frame.getClientMsgId());
 
-        // 消息风暴检测（Redis 限流 + DB 落库）
-        if (messageStormService.checkAndRecordUserStorm(senderId)) {
-            sendErrorToSender(senderId, new CustomException(429, "发送过于频繁，请稍后再试"));
-            return;
-        }
-
-        // 整体 submit 到线程池，event-loop 立即返回（不阻塞 IO 线程）
+        // 风暴检测 + 发送均在 worker 内执行，避免 event-loop 上做 Redis/DB
         try {
             ((ExecutorService) imPushExecutor).submit(() -> {
                 try {
+                    if (messageStormService.checkAndRecordUserStorm(senderId)) {
+                        sendErrorToSender(senderId, new CustomException(429, "发送过于频繁，请稍后再试"));
+                        return;
+                    }
                     doSendAndPush(senderId, dto, frame.getClientMsgId());
                 } catch (Exception e) {
                     // worker 内异常：向发送者回错误帧，不静默吞
@@ -193,7 +195,7 @@ public class ImMessagePushService {
                 int end = Math.min(start + BATCH_SIZE, recipientCount);
                 java.util.List<Long> batch = recipients.subList(start, end);
                 try {
-                    ((ExecutorService) imPushExecutor).submit(() -> {
+                    ((ExecutorService) imFanoutExecutor).submit(() -> {
                         for (Long recipientId : batch) {
                             try {
                                 MessageVO payload = withPerspective(message, recipientId);
@@ -204,7 +206,7 @@ public class ImMessagePushService {
                         }
                     });
                 } catch (RejectedExecutionException e) {
-                    log.warn("大群推送线程池饱和，跳过分片 batchIdx={}", batchIdx);
+                    log.warn("大群扇出线程池饱和，跳过分片 batchIdx={}", batchIdx);
                 }
             }
         }
@@ -518,6 +520,37 @@ public class ImMessagePushService {
      * </p>
      */
     public void handleSync(Long userId, ImWsFrame frame, Channel channel) {
+        // DB 查询与批量序列化放到 imPushExecutor，避免阻塞 Netty event-loop
+        try {
+            ((ExecutorService) imPushExecutor).submit(() -> {
+                try {
+                    doHandleSync(userId, frame, channel);
+                } catch (Exception e) {
+                    log.warn("handleSync 失败: userId={}, err={}", userId, e.toString());
+                    try {
+                        ImWsFrame err = new ImWsFrame();
+                        err.setAction("syncDone");
+                        err.setCode(500);
+                        err.setMessage("同步失败");
+                        if (channel.isActive()) {
+                            channel.writeAndFlush(new TextWebSocketFrame(toJson(err)));
+                        }
+                    } catch (Exception ignored) {
+                        // ignore
+                    }
+                }
+            });
+        } catch (RejectedExecutionException e) {
+            log.warn("IM 推送线程池饱和，拒绝 sync userId={}", userId);
+            ImWsFrame err = new ImWsFrame();
+            err.setAction("syncDone");
+            err.setCode(503);
+            err.setMessage("服务繁忙，请稍后重试");
+            channel.writeAndFlush(new TextWebSocketFrame(toJson(err)));
+        }
+    }
+
+    private void doHandleSync(Long userId, ImWsFrame frame, Channel channel) {
         Long lastServerMsgId = null;
         if (frame.getServerMsgId() != null) {
             lastServerMsgId = frame.getServerMsgId();
@@ -534,7 +567,9 @@ public class ImMessagePushService {
             resp.setCode(200);
             resp.setMessage("ok");
             resp.setData(java.util.Map.of("userId", userId, "messages", java.util.List.of()));
-            channel.writeAndFlush(new TextWebSocketFrame(toJson(resp)));
+            if (channel.isActive()) {
+                channel.writeAndFlush(new TextWebSocketFrame(toJson(resp)));
+            }
             return;
         }
 
@@ -550,7 +585,8 @@ public class ImMessagePushService {
         }
         // 单批拉取上限可配置（linkx.im.sync-batch-size），多取 1 条用于判断是否还有更多
         int batchSize = Math.max(1, linkxProperties.getIm().getSyncBatchSize());
-        qw.orderBy(ImMessage::getCreateTime, true).limit(batchSize + 1);
+        // 游标与排序统一用 id（雪花），避免 createTime 排序 + id 游标导致漏/重
+        qw.orderBy(ImMessage::getId, true).limit(batchSize + 1);
 
         List<ImMessage> offlineMessages = messageMapper.selectListByQuery(qw);
 
@@ -570,6 +606,9 @@ public class ImMessagePushService {
                     com.linkx.server.entity.SysUser::getId, u -> u, (a, b) -> a));
 
             for (ImMessage msg : offlineMessages) {
+                if (!channel.isActive()) {
+                    return;
+                }
                 com.linkx.server.entity.SysUser sender = senderMap.get(msg.getSenderId());
                 MessageVO vo = toMessageVO(msg, sender, userId);
                 ImWsFrame pushFrame = buildFrame("message", withPerspective(vo, userId));
@@ -593,7 +632,9 @@ public class ImMessagePushService {
             respData.put("nextCursor", nextCursor);
         }
         resp.setData(respData);
-        channel.writeAndFlush(new TextWebSocketFrame(toJson(resp)));
+        if (channel.isActive()) {
+            channel.writeAndFlush(new TextWebSocketFrame(toJson(resp)));
+        }
     }
 
     private MessageVO toMessageVO(ImMessage msg, com.linkx.server.entity.SysUser sender, Long viewerId) {

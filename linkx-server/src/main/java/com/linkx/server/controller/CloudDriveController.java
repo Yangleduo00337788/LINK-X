@@ -177,6 +177,7 @@ public class CloudDriveController {
 
     /** 公开：查看分享（可免登录） */
     @GetMapping("/share/{token}")
+    @RateLimit(scope = "cloud:share:view", value = 60, window = 60, byUser = false)
     public Result<DriveShareVO> publicShare(
             @PathVariable String token,
             @RequestParam(required = false) String password) {
@@ -185,6 +186,7 @@ public class CloudDriveController {
 
     /** 公开：下载分享文件（短效签名，兼容旧客户端） */
     @GetMapping("/share/{token}/download")
+    @RateLimit(scope = "cloud:share:download", value = 30, window = 60, byUser = false)
     public Result<Map<String, String>> publicDownload(
             @PathVariable String token,
             @RequestParam(required = false) String password) {
@@ -194,6 +196,7 @@ public class CloudDriveController {
 
     /** 公开：中转下载分享文件（推荐，不向前端暴露 MinIO 签名） */
     @GetMapping("/share/{token}/content")
+    @RateLimit(scope = "cloud:share:content", value = 30, window = 60, byUser = false)
     public ResponseEntity<InputStreamResource> publicDownloadContent(
             @PathVariable String token,
             @RequestParam(required = false) String password) {

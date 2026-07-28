@@ -136,6 +136,7 @@ public class ChatController {
             throw new com.linkx.server.exception.CustomException(400, "编辑内容不能为空");
         }
         MessageVO vo = chatService.editMessage(userId, parseId(conversationId), parseId(messageId), newContent);
+        imMessagePushService.pushEditToConversationMembers(vo);
         return Result.success(vo);
     }
 
@@ -160,6 +161,8 @@ public class ChatController {
             throw new com.linkx.server.exception.CustomException(400, "目标会话 ID 格式无效");
         }
         MessageVO vo = chatService.forwardMessage(userId, parseId(conversationId), parseId(messageId), targetConversationId);
+        // 转发消息推送到目标会话成员（与 WS 发送路径一致）
+        imMessagePushService.pushToConversationMembers(vo, userId, vo.getClientMsgId());
         return Result.success(vo);
     }
 
@@ -172,6 +175,7 @@ public class ChatController {
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         MessageVO vo = chatService.quoteMessage(userId, parseId(conversationId), parseId(messageId), body);
+        imMessagePushService.pushToConversationMembers(vo, userId, vo.getClientMsgId());
         return Result.success(vo);
     }
 
