@@ -31,11 +31,13 @@ import com.linkx.server.service.ObjectKeyOwnershipService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.mindrot.jbcrypt.BCrypt;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Comparator;
@@ -54,6 +56,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class CloudDriveServiceImpl implements CloudDriveService {
 
+    private static final String SHARE_PWD_FAIL_PREFIX = "linkx:share:pwd:";
+    private static final String SHARE_PWD_LOCK_PREFIX = "linkx:share:pwd:lock:";
+    private static final int SHARE_PWD_MAX_ATTEMPTS = 5;
+    private static final int SHARE_PWD_LOCK_MINUTES = 5;
+
     private final UserStorageMapper userStorageMapper;
     private final CloudFolderMapper cloudFolderMapper;
     private final CloudFileMapper cloudFileMapper;
@@ -64,6 +71,7 @@ public class CloudDriveServiceImpl implements CloudDriveService {
     private final FileStorageService fileStorageService;
     private final MediaUrlService mediaUrlService;
     private final ObjectKeyOwnershipService objectKeyOwnershipService;
+    private final StringRedisTemplate stringRedisTemplate;
 
     @Override
     public DriveStorageVO getStorage(Long userId) {
@@ -544,15 +552,15 @@ public class CloudDriveServiceImpl implements CloudDriveService {
         if (!CloudShare.TYPE_FILE.equals(share.getShareType())) {
             throw new CustomException(400, "仅文件分享支持直接下载");
         }
-        if (share.getMaxDownloads() != null && share.getDownloadCount() >= share.getMaxDownloads()) {
+        // 原子递增下载次数，通过受影响行数判断是否超限，避免 check-then-set TOCTOU 竞态
+        int rows = cloudShareMapper.incrementDownloadCount(share.getId());
+        if (rows == 0) {
             throw new CustomException(400, "分享下载次数已用尽");
         }
         CloudFile file = cloudFileMapper.selectOneById(share.getTargetId());
         if (file == null) {
             throw new CustomException(404, "文件不存在");
         }
-        share.setDownloadCount(share.getDownloadCount() + 1);
-        cloudShareMapper.update(share);
         logActivity(share.getUserId(), CloudActivity.TARGET_FILE, file.getId(), file.getName(),
                 CloudActivity.ACTION_DOWNLOAD, "分享下载");
         return mediaUrlService.resolveShare(file.getFileKey());
@@ -573,15 +581,15 @@ public class CloudDriveServiceImpl implements CloudDriveService {
         if (!CloudShare.TYPE_FILE.equals(share.getShareType())) {
             throw new CustomException(400, "仅文件分享支持直接下载");
         }
-        if (share.getMaxDownloads() != null && share.getDownloadCount() >= share.getMaxDownloads()) {
+        // 原子递增下载次数，通过受影响行数判断是否超限，避免 check-then-set TOCTOU 竞态
+        int rows = cloudShareMapper.incrementDownloadCount(share.getId());
+        if (rows == 0) {
             throw new CustomException(400, "分享下载次数已用尽");
         }
         CloudFile file = cloudFileMapper.selectOneById(share.getTargetId());
         if (file == null) {
             throw new CustomException(404, "文件不存在");
         }
-        share.setDownloadCount(share.getDownloadCount() + 1);
-        cloudShareMapper.update(share);
         logActivity(share.getUserId(), CloudActivity.TARGET_FILE, file.getId(), file.getName(),
                 CloudActivity.ACTION_DOWNLOAD, "分享下载");
         return fileStorageService.openObject(file.getFileKey());
@@ -869,9 +877,25 @@ public class CloudDriveServiceImpl implements CloudDriveService {
             throw new CustomException(400, "分享已过期");
         }
         if (share.getPasswordHash() != null) {
+            String failKey = SHARE_PWD_FAIL_PREFIX + share.getId();
+            String lockKey = SHARE_PWD_LOCK_PREFIX + share.getId();
+            // 锁定期间直接拒绝，防止密码爆破
+            if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(lockKey))) {
+                throw new CustomException(429, "提取码错误次数过多，请 " + SHARE_PWD_LOCK_MINUTES + " 分钟后重试");
+            }
             if (!StringUtils.hasText(password) || !BCrypt.checkpw(password, share.getPasswordHash())) {
+                Long count = stringRedisTemplate.opsForValue().increment(failKey);
+                if (count != null && count == 1L) {
+                    stringRedisTemplate.expire(failKey, Duration.ofMinutes(SHARE_PWD_LOCK_MINUTES));
+                }
+                if (count != null && count >= SHARE_PWD_MAX_ATTEMPTS) {
+                    stringRedisTemplate.opsForValue().set(lockKey, "1", Duration.ofMinutes(SHARE_PWD_LOCK_MINUTES));
+                    throw new CustomException(429, "提取码错误次数过多，请 " + SHARE_PWD_LOCK_MINUTES + " 分钟后重试");
+                }
                 throw new CustomException(403, "提取码错误");
             }
+            // 密码校验通过，清除失败计数
+            stringRedisTemplate.delete(failKey);
         }
         return share;
     }

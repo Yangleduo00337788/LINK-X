@@ -181,7 +181,7 @@ public class FavoriteServiceImpl implements FavoriteService {
     @Transactional
     public FavoriteTagVO createTag(Long userId, SaveFavoriteTagDTO dto) {
         ensurePresetTags(userId);
-        String name = dto.getName().trim();
+        String name = dto.getName() == null ? "" : dto.getName().trim();
         if (!StringUtils.hasText(name)) {
             throw new CustomException(400, "标签名不能为空");
         }

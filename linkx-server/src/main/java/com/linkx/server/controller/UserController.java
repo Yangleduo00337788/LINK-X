@@ -319,7 +319,7 @@ public class UserController {
      */
     @PutMapping("/preference")
     public Result<UserPreferenceVO> updatePreference(
-            @RequestBody UserPreferenceDTO dto,
+            @Valid @RequestBody UserPreferenceDTO dto,
             HttpServletRequest request) {
         Long userId = getCurrentUserId(request);
         if (userId == null) {

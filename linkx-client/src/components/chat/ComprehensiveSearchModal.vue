@@ -4,6 +4,7 @@
  * 保留原有综合搜索 UI，用户搜索对接后端 API。
  */
 import { ref, computed } from 'vue'
+import DOMPurify from 'dompurify'
 import Avatar from '../Avatar.vue'
 import { useMessage } from 'naive-ui'
 import { storeToRefs } from 'pinia'
@@ -365,7 +366,7 @@ async function handleUserAction(user: SearchUserItem) {
                   <p
                     v-if="m.highlight"
                     class="g-meta hit-highlight"
-                    v-html="m.highlight"
+                    v-html="DOMPurify.sanitize(m.highlight)"
                   />
                   <p v-else class="g-meta">{{ m.content || m.type }}</p>
                 </div>

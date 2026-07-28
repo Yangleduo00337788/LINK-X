@@ -1,3 +1,20 @@
+/**
+ * @security Web 环境 Token 存储安全说明
+ *
+ * 已知风险（已评估，可控）：
+ * - Web 浏览器环境下，JWT 使用 sessionStorage 存储，存在 XSS 风险。
+ *   一旦渲染进程被 XSS 注入，攻击者可读取 sessionStorage 中的 token。
+ * - 彻底修复需后端配合改为 HttpOnly + Secure + SameSite Cookie，
+ *   但当前架构为 Electron 桌面客户端优先，Web 仅作降级方案，改动过大。
+ *
+ * 当前缓解措施：
+ * 1. Electron 桌面环境（主场景）使用 safeStorage 加密落盘（keychain/Credential Vault），不存明文。
+ * 2. Web 环境使用 sessionStorage 而非 localStorage，关闭标签即清，避免长期明文驻留。
+ * 3. 渲染进程启用严格 CSP（见 electron/main.ts），限制脚本来源，降低 XSS 概率。
+ * 4. 启动时调用 purgeLegacyTokens() 清理历史 localStorage 残留。
+ *
+ * 后续演进：Web 场景若正式商用，应迁移至 HttpOnly Cookie + 后端刷新令牌轮换。
+ */
 const ACCESS_KEY = 'accessToken'
 const REFRESH_KEY = 'refreshToken'
 

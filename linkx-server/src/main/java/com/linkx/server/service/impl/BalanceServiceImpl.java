@@ -85,7 +85,9 @@ public class BalanceServiceImpl implements BalanceService {
     @Transactional
     public void unfreezeAndTransfer(Long fromUserId, Long toUserId, BigDecimal amount, String bizId) {
         // 领取方可能尚无余额行，先确保存在，避免 UPDATE 0 行导致资金从冻结扣走却未入账
-        getOrCreateBalance(toUserId);
+        // 同时记录双方变动前余额，用于审计日志
+        UserBalance fromBefore = getOrCreateBalance(fromUserId);
+        UserBalance toBefore = getOrCreateBalance(toUserId);
 
         // 从发送者冻结金额扣减
         int rows = balanceMapper.unfreezeFromUser(fromUserId, amount);
@@ -98,16 +100,30 @@ public class BalanceServiceImpl implements BalanceService {
         if (credited == 0) {
             throw new CustomException(500, "领取入账失败，请稍后重试");
         }
+
+        // 审计日志：发送方冻结转出（balance 不变，仅 frozen 减少，记录解冻动作便于资金追踪）
+        logBalanceChange(fromUserId, "unfreeze", amount, fromBefore.getBalance(),
+                fromBefore.getBalance(), "REDPACKET_RECEIVE", bizId, "红包领取-冻结转出", null);
+        // 审计日志：接收方余额入账
+        logBalanceChange(toUserId, "add", amount, toBefore.getBalance(),
+                toBefore.getBalance().add(amount), "REDPACKET_RECEIVE", bizId, "红包领取-入账", null);
     }
 
     @Override
     @Transactional
     public void unfreezeAndDeduct(Long userId, BigDecimal amount, String bizId) {
+        // 记录变动前余额，用于审计日志
+        UserBalance before = getOrCreateBalance(userId);
+
         // 原子从冻结金额扣减并加回余额（红包过期退款）；不足则失败，避免静默铸币
         int rows = balanceMapper.unfreezeAndCredit(userId, amount);
         if (rows == 0) {
             throw new CustomException(400, "冻结金额不足，退款失败");
         }
+
+        // 审计日志：红包过期退款，冻结金额加回可用余额
+        logBalanceChange(userId, "unfreeze", amount, before.getBalance(),
+                before.getBalance().add(amount), "REDPACKET_REFUND", bizId, "红包过期-冻结退款", null);
     }
 
     /**

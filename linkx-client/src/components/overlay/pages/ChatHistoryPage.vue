@@ -10,6 +10,7 @@ import { useAppStore } from '../../../stores/app'
 import { useOverlayStore } from '../../../stores/overlay'
 import EmptyState from '../../common/EmptyState.vue'
 import { useI18n } from '../../../i18n'
+import DOMPurify from 'dompurify'
 import * as chatApi from '../../../api/chat'
 
 const appStore = useAppStore()
@@ -230,7 +231,7 @@ function clearTimeRange() {
                 <p
                   v-if="msg.highlight"
                   class="result-text"
-                  v-html="msg.highlight"
+                  v-html="DOMPurify.sanitize(msg.highlight)"
                 />
                 <p v-else class="result-text">{{ msg.content }}</p>
                 <span class="result-time">{{ msg.time }}</span>

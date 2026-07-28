@@ -33,9 +33,9 @@ public class EmailServiceImpl implements EmailService {
         boolean usernameOk = mail.getUsername() != null && !mail.getUsername().isEmpty();
         boolean passwordOk = mail.getPassword() != null && !mail.getPassword().isEmpty();
         if (usernameOk && passwordOk) {
-            log.info("邮件服务初始化完成：host={}, port={}, username={}, from={}, tls={}, ssl={}",
-                    mail.getHost(), mail.getPort(), mail.getUsername(), mail.getFrom(),
-                    mail.isStartTls(), mail.isSsl());
+            // 安全要求：日志禁止明文打印邮箱地址（username/from 均为邮箱），仅打印连接信息
+            log.info("邮件服务初始化完成：host={}, port={}, tls={}, ssl={}",
+                    mail.getHost(), mail.getPort(), mail.isStartTls(), mail.isSsl());
         } else {
             log.warn("邮件服务未完全配置（username={}, password={}），找回密码邮件功能将不可用",
                     usernameOk ? "已配置" : "未配置",

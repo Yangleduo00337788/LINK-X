@@ -97,7 +97,7 @@ public class CloudDriveController {
     @PatchMapping("/files/{fileId}")
     public Result<DriveItemVO> updateFile(
             @PathVariable String fileId,
-            @RequestBody UpdateDriveItemDTO dto,
+            @Valid @RequestBody UpdateDriveItemDTO dto,
             HttpServletRequest request) {
         return Result.success(cloudDriveService.updateFile(uid(request), parseId(fileId), dto));
     }
@@ -111,7 +111,7 @@ public class CloudDriveController {
     @PatchMapping("/folders/{folderId}")
     public Result<DriveItemVO> updateFolder(
             @PathVariable String folderId,
-            @RequestBody UpdateDriveItemDTO dto,
+            @Valid @RequestBody UpdateDriveItemDTO dto,
             HttpServletRequest request) {
         return Result.success(cloudDriveService.updateFolder(uid(request), parseId(folderId), dto));
     }

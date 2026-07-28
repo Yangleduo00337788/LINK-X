@@ -45,16 +45,10 @@ public class ImWebSocketAuthHandler extends ChannelInboundHandlerAdapter {
                 return;
             }
 
-            // 优先子协议传 token（避免 JWT 进入 URL/访问日志）；浏览器无 query 作兼容回退
+            // 强制仅通过子协议传 token：避免 JWT 进入 URL query 进而被 access log / 反代日志记录
             String token = extractTokenFromProtocol(request);
             if (token == null || token.isBlank()) {
-                token = extractTokenFromQuery(request.uri());
-                if (token != null && !token.isBlank()) {
-                    log.warn("WebSocket 使用 query token，JWT 可能进入访问日志，请客户端改用 Sec-WebSocket-Protocol");
-                }
-            }
-            if (token == null || token.isBlank()) {
-                log.warn("WebSocket 鉴权失败: 缺少 token, uri={}, origin={}",
+                log.warn("WebSocket 鉴权失败: 缺少子协议 token, uri={}, origin={}",
                         request.uri(), request.headers().get("Origin"));
                 reject(ctx, msg);
                 return;
@@ -136,15 +130,10 @@ public class ImWebSocketAuthHandler extends ChannelInboundHandlerAdapter {
 
     private boolean isOriginAllowed(FullHttpRequest request) {
         String origin = request.headers().get("Origin");
+        // null/空 Origin 默认拒绝；桌面客户端应配置明确 Origin 白名单（如 linkx:// 或具体 scheme）
         if (origin == null || origin.isBlank()) {
-            // 桌面客户端使用 file:// / app:// 等非 HTTP 协议，跳过 origin 检查
-            if (origin == null) {
-                log.warn("WebSocket 收到无 Origin 请求，建议桌面客户端配置明确的 origin");
-            }
-            return true;
-        }
-        if (origin.startsWith("file://") || origin.startsWith("app://")) {
-            return true;
+            log.warn("WebSocket 拒绝空 Origin：桌面客户端应配置明确 Origin 白名单");
+            return false;
         }
 
         List<String> allowed = linkxProperties.getCors().getAllowedOrigins();
@@ -166,12 +155,6 @@ public class ImWebSocketAuthHandler extends ChannelInboundHandlerAdapter {
         log.debug("WebSocket Origin 不在白名单: {} (白名单={}, devMode={})",
                 origin, allowed, isDevMode);
         return false;
-    }
-
-    private String extractTokenFromQuery(String uri) {
-        QueryStringDecoder decoder = new QueryStringDecoder(uri);
-        List<String> tokens = decoder.parameters().get("token");
-        return tokens != null && !tokens.isEmpty() ? tokens.get(0) : null;
     }
 
     private String extractParamFromQuery(String uri, String param) {

@@ -571,7 +571,26 @@ function registerWindowIpc() {
 
   ipcMain.handle('app:open-download-path', async (_event, customPath?: string) => {
     const { shell } = await import('electron')
-    const target = customPath && customPath.trim() ? customPath : app.getPath('downloads')
+    const downloadsRoot = app.getPath('downloads')
+    // customPath 来自渲染进程，不可信：默认仅打开系统下载目录
+    if (!customPath || !customPath.trim()) {
+      const err = await shell.openPath(downloadsRoot)
+      return !err
+    }
+    const target = path.resolve(customPath.trim())
+    // [P1-E3] 路径穿越防护：仅允许打开 downloads 目录子树内的路径
+    const rel = path.relative(downloadsRoot, target)
+    if (rel.startsWith('..') || path.isAbsolute(rel)) {
+      return false
+    }
+    // [P1-E3] 仅允许打开目录，拒绝文件类型，防止任意文件执行
+    try {
+      if (!fs.existsSync(target) || !fs.statSync(target).isDirectory()) {
+        return false
+      }
+    } catch {
+      return false
+    }
     const err = await shell.openPath(target)
     return !err
   })
@@ -1203,6 +1222,25 @@ ipcMain.on('window-open-register', () => {
   createRegisterWindow()
 })
 
+/** [P1-E2] 判断 URL 是否为应用自身源（开发环境为 Vite Dev Server，生产环境为 file://） */
+function isSelfOrigin(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    const devUrl = process.env.VITE_DEV_SERVER_URL
+    if (devUrl) {
+      try {
+        return parsed.origin === new URL(devUrl).origin
+      } catch {
+        return false
+      }
+    }
+    // 生产环境打包后加载本地 file:// 资源
+    return parsed.protocol === 'file:'
+  } catch {
+    return false
+  }
+}
+
 function createWindow() {
   if (isDev) {
     console.log('[electron] preload:', preloadPath, 'exists:', fs.existsSync(preloadPath))
@@ -1243,6 +1281,16 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../../dist/index.html'))
   }
+
+  // [P1-E1] 拒绝所有 window.open 新窗口，防止渲染进程被 XSS 后弹出恶意页面
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+
+  // [P1-E2] 限制页面导航：仅允许同源或 file:// 内部导航，阻止跳转到外部站点
+  mainWindow.webContents.on('will-navigate', (e, url) => {
+    if (url.startsWith('http') && !isSelfOrigin(url)) {
+      e.preventDefault()
+    }
+  })
 
   mainWindow.webContents.on('preload-error', (_e, preloadFile, err) => {
     console.error('[electron] preload-error:', preloadFile, err)

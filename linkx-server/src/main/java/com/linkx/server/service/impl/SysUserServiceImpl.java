@@ -243,6 +243,10 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         String hashPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt(12));
         user.setPassword(hashPassword);
         updateById(user);
+
+        // 改密成功后立即吊销该用户的所有现有 refresh token，防止旧 token 继续可用
+        tokenService.revokeAllUserTokens(user.getId());
+        log.info("用户 {} 修改了密码，已吊销所有现有 token", user.getUsername());
     }
 
     @Override

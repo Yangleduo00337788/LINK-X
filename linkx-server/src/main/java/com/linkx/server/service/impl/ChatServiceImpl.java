@@ -40,6 +40,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -285,6 +287,9 @@ public class ChatServiceImpl implements ChatService {
                     SysUser sender = sysUserMapper.selectOneById(userId);
                     return toMessageVO(existing, sender, userId, loadLastReadMessageId(userId, dto.getConversationId()));
                 }
+            } else {
+                // 事务回滚时补偿删除去重键，避免 10 分钟内阻塞同 client_msg_id 的合法重试
+                registerDedupKeyRollbackCleanup(dedupKey);
             }
         }
 
@@ -798,6 +803,32 @@ public class ChatServiceImpl implements ChatService {
 
     private String buildClientMsgDedupKey(Long userId, String clientMsgId) {
         return "linkx:msg:dedup:" + userId + ":" + clientMsgId;
+    }
+
+    /**
+     * 事务回滚时补偿删除 Redis 去重键。
+     * <p>
+     * 去重键在事务内、DB 操作之前写入 Redis，若事务回滚后键仍存活（TTL 10 分钟），
+     * 会导致同一 client_msg_id 的合法重试被误判为重复而阻塞。
+     * 通过 afterCompletion(STATUS_ROLLED_BACK) 在回滚后删除键，恢复重试能力。
+     * </p>
+     */
+    private void registerDedupKeyRollbackCleanup(String dedupKey) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_ROLLED_BACK) {
+                    try {
+                        redisTemplate.delete(dedupKey);
+                    } catch (Exception ignored) {
+                        // 补偿删除失败不影响主流程；键有 TTL 会自动过期
+                    }
+                }
+            }
+        });
     }
 
     private void assertGroupSpeakAllowed(Long userId, ImConversation group) {

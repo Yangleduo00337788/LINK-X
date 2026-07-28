@@ -1,17 +1,25 @@
 package com.linkx.server.service.impl;
 
 import com.linkx.server.controller.vo.UserDataExportVO;
+import com.linkx.server.entity.CalendarEvent;
+import com.linkx.server.entity.CloudFile;
 import com.linkx.server.entity.DeviceSession;
+import com.linkx.server.entity.Favorite;
 import com.linkx.server.entity.ImConversationMember;
 import com.linkx.server.entity.ImMessage;
+import com.linkx.server.entity.MomentsPost;
 import com.linkx.server.entity.Note;
 import com.linkx.server.entity.SysAuditLog;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.entity.SysUserRelation;
 import com.linkx.server.exception.CustomException;
+import com.linkx.server.mapper.CalendarEventMapper;
+import com.linkx.server.mapper.CloudFileMapper;
 import com.linkx.server.mapper.DeviceSessionMapper;
+import com.linkx.server.mapper.FavoriteMapper;
 import com.linkx.server.mapper.ImConversationMemberMapper;
 import com.linkx.server.mapper.ImMessageMapper;
+import com.linkx.server.mapper.MomentsPostMapper;
 import com.linkx.server.mapper.NoteMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.mapper.SysUserRelationMapper;
@@ -46,6 +54,10 @@ public class ComplianceServiceImpl implements ComplianceService {
     private final ImMessageMapper messageMapper;
     private final DeviceSessionMapper deviceSessionMapper;
     private final NoteMapper noteMapper;
+    private final CloudFileMapper cloudFileMapper;
+    private final FavoriteMapper favoriteMapper;
+    private final MomentsPostMapper momentsPostMapper;
+    private final CalendarEventMapper calendarEventMapper;
     private final DeviceSessionService deviceSessionService;
     private final TokenService tokenService;
     private final AuditLogService auditLogService;
@@ -158,6 +170,14 @@ public class ComplianceServiceImpl implements ComplianceService {
         }
 
         noteMapper.deleteByQuery(QueryWrapper.create().where(Note::getUserId).eq(userId));
+
+        // 合规清除扩展：云盘文件、收藏、朋友圈、日历事件、群成员关系
+        cloudFileMapper.deleteByQuery(QueryWrapper.create().where(CloudFile::getUserId).eq(userId));
+        favoriteMapper.deleteByQuery(QueryWrapper.create().where(Favorite::getUserId).eq(userId));
+        momentsPostMapper.deleteByQuery(QueryWrapper.create().where(MomentsPost::getUserId).eq(userId));
+        calendarEventMapper.deleteByQuery(QueryWrapper.create().where(CalendarEvent::getUserId).eq(userId));
+        memberMapper.deleteByQuery(QueryWrapper.create().where(ImConversationMember::getUserId).eq(userId));
+
         deviceSessionService.deleteAllByUser(userId);
         tokenService.revokeAllUserTokens(userId);
 

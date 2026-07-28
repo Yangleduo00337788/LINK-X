@@ -15,11 +15,11 @@ import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 @RequiredArgsConstructor
@@ -30,6 +30,9 @@ public class CaptchaServiceImpl implements CaptchaService {
     /** 排除易混淆字符 I/O/0/1，仅大写 + 数字，便于人工辨认 */
     private static final String CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private static final int CODE_LENGTH = 4;
+
+    // 安全要求：验证码必须使用密码学安全随机数，禁止使用 ThreadLocalRandom（可预测熵源）
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     // Lua 脚本：原子性地获取并删除验证码，防止竞态条件
     private static final String VALIDATE_CAPTCHA_LUA_SCRIPT =
@@ -153,7 +156,7 @@ public class CaptchaServiceImpl implements CaptchaService {
 
     private String randomCode() {
         StringBuilder sb = new StringBuilder(CODE_LENGTH);
-        ThreadLocalRandom random = ThreadLocalRandom.current();
+        SecureRandom random = SECURE_RANDOM;
         for (int i = 0; i < CODE_LENGTH; i++) {
             sb.append(CHARS.charAt(random.nextInt(CHARS.length())));
         }
@@ -177,7 +180,7 @@ public class CaptchaServiceImpl implements CaptchaService {
             g.setPaint(gradient);
             g.fillRect(0, 0, width, height);
 
-            ThreadLocalRandom random = ThreadLocalRandom.current();
+            SecureRandom random = SECURE_RANDOM;
             for (int i = 0; i < 40; i++) {
                 g.setColor(new Color(180 + random.nextInt(50), 185 + random.nextInt(40), 195 + random.nextInt(40), 80));
                 g.fillOval(random.nextInt(width), random.nextInt(height), 2, 2);
