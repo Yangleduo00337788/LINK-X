@@ -42,7 +42,13 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         String identity;
         if (annotation.byUser()) {
             Long userId = (Long) request.getAttribute("userId");
-            identity = userId != null ? String.valueOf(userId) : "anonymous";
+            if (userId != null) {
+                identity = String.valueOf(userId);
+            } else {
+                // 未登录时用客户端 IP 作为限流标识，避免所有匿名用户共享同一限流桶
+                String ip = ClientIpResolver.resolve(request, linkxProperties);
+                identity = "ip:" + (ip != null ? ip : request.getRemoteAddr());
+            }
         } else {
             identity = ClientIpResolver.resolve(request, linkxProperties);
         }

@@ -59,7 +59,7 @@ class ImMainLinkE2ETest {
         pushService = new ImMessagePushService(
                 chatService, memberMapper, messageMapper, sysUserMapper,
                 channelManager, objectMapper, Runnable::run, redisTemplate, messageStormService,
-                presenceService);
+                presenceService, new com.linkx.server.config.LinkxProperties());
     }
 
     @Nested

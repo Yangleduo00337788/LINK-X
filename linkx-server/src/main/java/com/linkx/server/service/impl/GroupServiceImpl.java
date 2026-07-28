@@ -1143,18 +1143,8 @@ public class GroupServiceImpl implements GroupService {
             throw new CustomException(400, "该用户已是群成员");
         }
         if (approve) {
-            if (existing != null) {
-                existing.setDeleted(0);
-                memberMapper.update(existing);
-            } else {
-                memberMapper.insert(ImConversationMember.builder()
-                        .conversationId(conversationId)
-                        .userId(applicantId)
-                        .role(ImConversationMember.ROLE_MEMBER)
-                        .muted(0)
-                        .deleted(0)
-                        .build());
-            }
+            // 复用 ensureActiveMembership 处理退群重入：恢复软删除行或新建，避免唯一键冲突
+            ensureActiveMembership(conversationId, applicantId);
             SysUser applicant = sysUserMapper.selectOneById(applicantId);
             emitSystemTip(userId, conversationId, displayName(applicant) + " 已加入群聊");
             imPushService.pushToUser(applicantId, "notification_refresh", Map.of(
@@ -1191,19 +1181,8 @@ public class GroupServiceImpl implements GroupService {
             throw new CustomException(400, "你已是群成员");
         }
         if (group.getJoinApproval() == null || group.getJoinApproval() == 0) {
-            // 无需审批，直接加入
-            if (existing != null) {
-                existing.setDeleted(0);
-                memberMapper.update(existing);
-            } else {
-                memberMapper.insert(ImConversationMember.builder()
-                        .conversationId(conversationId)
-                        .userId(userId)
-                        .role(ImConversationMember.ROLE_MEMBER)
-                        .muted(0)
-                        .deleted(0)
-                        .build());
-            }
+            // 无需审批，直接加入；复用 ensureActiveMembership 处理退群重入，避免唯一键冲突
+            ensureActiveMembership(conversationId, userId);
             SysUser user = sysUserMapper.selectOneById(userId);
             emitSystemTip(userId, conversationId, displayName(user) + " 加入了群聊");
         } else {

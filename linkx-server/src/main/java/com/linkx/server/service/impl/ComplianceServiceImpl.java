@@ -29,6 +29,7 @@ import com.linkx.server.service.ComplianceService;
 import com.linkx.server.service.DeviceSessionService;
 import com.linkx.server.service.TokenService;
 import com.mybatisflex.core.query.QueryWrapper;
+import com.mybatisflex.core.update.UpdateChain;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -164,17 +165,16 @@ public class ComplianceServiceImpl implements ComplianceService {
             throw new CustomException(400, "密码错误");
         }
 
-        // 逻辑删除本人发送的消息正文
-        List<ImMessage> sent = messageMapper.selectListByQuery(
-                QueryWrapper.create().where(ImMessage::getSenderId).eq(userId)
-        );
-        for (ImMessage msg : sent) {
-            msg.setContent("[已清除]");
-            msg.setFileUrl(null);
-            msg.setFileName(null);
-            msg.setDeleted(1);
-            messageMapper.update(msg);
-        }
+        // 合规脱敏：将本人发送消息的 content 替换为脱敏文本，保留消息结构不破坏会话连贯性，
+        // 接收方仍可见占位文案但不泄露原内容；附件信息一并清除。
+        // 使用 UpdateChain 单条 SQL 批量更新，避免 select-then-loop 的低效与 N+1 问题；
+        // 不设置 deleted=1，使接收方仍能看到占位文案而非消息消失。
+        UpdateChain.of(ImMessage.class)
+                .set(ImMessage::getContent, "[该用户已注销，消息已清除]")
+                .set(ImMessage::getFileUrl, null)
+                .set(ImMessage::getFileName, null)
+                .where(ImMessage::getSenderId).eq(userId)
+                .update();
 
         noteMapper.deleteByQuery(QueryWrapper.create().where(Note::getUserId).eq(userId));
 

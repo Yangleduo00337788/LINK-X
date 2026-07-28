@@ -4,9 +4,15 @@ import com.linkx.server.common.AuthUtils;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.Result;
 import com.linkx.server.controller.dto.AddGroupMembersDTO;
+import com.linkx.server.controller.dto.BatchMuteMembersDTO;
+import com.linkx.server.controller.dto.BatchRemoveMembersDTO;
 import com.linkx.server.controller.dto.CreateGroupDTO;
+import com.linkx.server.controller.dto.HandleJoinRequestDTO;
 import com.linkx.server.controller.dto.MuteAllDTO;
 import com.linkx.server.controller.dto.MuteMemberDTO;
+import com.linkx.server.controller.dto.RequestJoinDTO;
+import com.linkx.server.controller.dto.SetInvitePolicyDTO;
+import com.linkx.server.controller.dto.SetJoinApprovalDTO;
 import com.linkx.server.controller.dto.UpdateGroupDTO;
 import com.linkx.server.controller.dto.UpdateGroupRemarkDTO;
 import com.linkx.server.controller.dto.UpdateMemberRoleDTO;
@@ -205,23 +211,20 @@ public class GroupController {
     @PostMapping("/{conversationId}/members/batch-remove")
     public Result<Void> batchRemoveMembers(
             @PathVariable String conversationId,
-            @RequestBody java.util.Map<String, List<Long>> body,
+            @Valid @RequestBody BatchRemoveMembersDTO dto,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        groupService.batchRemoveMembers(userId, parseId(conversationId), body.get("memberIds"));
+        groupService.batchRemoveMembers(userId, parseId(conversationId), dto.getMemberIds());
         return Result.success(null);
     }
 
     @PostMapping("/{conversationId}/members/batch-mute")
     public Result<Void> batchMuteMembers(
             @PathVariable String conversationId,
-            @RequestBody java.util.Map<String, Object> body,
+            @Valid @RequestBody BatchMuteMembersDTO dto,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        @SuppressWarnings("unchecked")
-        List<Long> memberIds = ((List<Number>) body.get("memberIds")).stream().map(Number::longValue).toList();
-        boolean muted = Boolean.TRUE.equals(body.get("muted"));
-        groupService.batchMuteMembers(userId, parseId(conversationId), memberIds, muted);
+        groupService.batchMuteMembers(userId, parseId(conversationId), dto.getMemberIds(), dto.getMuted());
         return Result.success(null);
     }
 
@@ -230,20 +233,20 @@ public class GroupController {
     @PostMapping("/{conversationId}/join-approval")
     public Result<Void> setJoinApproval(
             @PathVariable String conversationId,
-            @RequestBody java.util.Map<String, Boolean> body,
+            @Valid @RequestBody SetJoinApprovalDTO dto,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        groupService.setJoinApproval(userId, parseId(conversationId), Boolean.TRUE.equals(body.get("required")));
+        groupService.setJoinApproval(userId, parseId(conversationId), dto.getRequired());
         return Result.success(null);
     }
 
     @PostMapping("/{conversationId}/join-request")
     public Result<Void> requestJoin(
             @PathVariable String conversationId,
-            @RequestBody(required = false) java.util.Map<String, String> body,
+            @Valid @RequestBody(required = false) RequestJoinDTO dto,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        String message = body != null ? body.get("message") : null;
+        String message = dto != null ? dto.getMessage() : null;
         groupService.requestJoin(userId, parseId(conversationId), message);
         return Result.success(null);
     }
@@ -260,10 +263,10 @@ public class GroupController {
     public Result<Void> handleJoinRequest(
             @PathVariable String conversationId,
             @PathVariable String applicantId,
-            @RequestBody java.util.Map<String, Boolean> body,
+            @Valid @RequestBody HandleJoinRequestDTO dto,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        groupService.handleJoinRequest(userId, parseId(conversationId), parseId(applicantId), Boolean.TRUE.equals(body.get("approve")));
+        groupService.handleJoinRequest(userId, parseId(conversationId), parseId(applicantId), dto.getApprove());
         return Result.success(null);
     }
 
@@ -291,10 +294,10 @@ public class GroupController {
     @PostMapping("/{conversationId}/invite-policy")
     public Result<Void> setInvitePolicy(
             @PathVariable String conversationId,
-            @RequestBody java.util.Map<String, String> body,
+            @Valid @RequestBody SetInvitePolicyDTO dto,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        groupService.setInvitePolicy(userId, parseId(conversationId), body.get("policy"));
+        groupService.setInvitePolicy(userId, parseId(conversationId), dto.getPolicy());
         return Result.success(null);
     }
 

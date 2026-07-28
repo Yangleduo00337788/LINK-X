@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, globalShortcut, safeStorage, desktopCapturer, Notification, net, session, type IpcMainEvent, type IpcMainInvokeEvent, type WebRequestHeadersReceivedCallbackParams, type OnHeadersReceivedListener } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, globalShortcut, safeStorage, desktopCapturer, dialog, Notification, net, session, type IpcMainEvent, type IpcMainInvokeEvent, type WebRequestHeadersReceivedCallbackParams, type OnHeadersReceivedListener } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import http from 'node:http'
@@ -230,8 +230,10 @@ process.on('uncaughtException', (err) => {
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
-/** 主动退出时跳过「关窗最小化到托盘」 */
+/** 主动退出时跳过「关窗最小化到托盘」*/
 let isQuitting = false
+/** [P2-E3] 截图会话内授权记忆：首次用户确认后本次会话不再询问 */
+let screenshotAllowed = false
 
 type OpenOnStartup = 'main' | 'tray'
 type AppLanguage = 'zh-CN' | 'en-US'
@@ -450,6 +452,7 @@ function registerWindowIpc() {
   ipcMain.removeHandler('app:set-shortcuts')
   ipcMain.removeHandler('app:get-shortcuts')
   ipcMain.removeHandler('app:get-download-path')
+  ipcMain.removeHandler('screen:capture')
 
   ipcMain.on('window-minimize', onMinimize)
   ipcMain.on('window-maximize', onMaximize)
@@ -824,6 +827,41 @@ function registerWindowIpc() {
       return showDesktopNotice(title, body, silent)
     }
   )
+
+  // [P2-E3] 屏幕截图：必须经用户确认后才调用 desktopCapturer，防止渲染进程静默截屏
+  // 首次弹窗确认，确认后本次会话内不再询问
+  ipcMain.handle('screen:capture', async (event) => {
+    if (!screenshotAllowed) {
+      const win = winFromSender(event) ?? mainWindow
+      if (!win) return null
+      const result = await dialog.showMessageBox(win, {
+        type: 'question',
+        buttons: ['允许', '取消'],
+        defaultId: 1,
+        title: '屏幕截图授权',
+        message: 'LinkX 请求进行屏幕截图，是否允许？',
+        detail: '截图将用于发送给聊天对象。'
+      })
+      if (result.response !== 0) return null
+      screenshotAllowed = true
+    }
+    try {
+      const sources = await desktopCapturer.getSources({
+        types: ['screen'],
+        thumbnailSize: { width: 1920, height: 1080 }
+      })
+      if (sources.length === 0) return null
+      const source = sources[0]
+      return {
+        dataURL: source.thumbnail.toDataURL(),
+        width: source.thumbnail.getSize().width,
+        height: source.thumbnail.getSize().height
+      }
+    } catch (e) {
+      console.error('[Main] 截图失败:', e)
+      return null
+    }
+  })
 }
 
 /** 广播应用内 toast，保证用户一定能看到 */

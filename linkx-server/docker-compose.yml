@@ -61,6 +61,10 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    # [P1-D5] read_only + tmpfs：根文件系统只读，/data 为 volume 挂载不受限制
+    read_only: true
+    tmpfs:
+      - /tmp
     networks:
       - linkx-net
     mem_limit: 256m
@@ -91,6 +95,11 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    # [P1-D5] read_only + tmpfs：根文件系统只读，临时目录走 tmpfs
+    # /data 为 volume 挂载不受 read_only 限制
+    read_only: true
+    tmpfs:
+      - /tmp
     networks:
       - linkx-net
     mem_limit: 512m

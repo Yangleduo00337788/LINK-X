@@ -18,6 +18,7 @@ import com.linkx.server.service.CallService;
 import com.linkx.server.service.ChatService;
 import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.MessageNotificationService;
+import com.linkx.server.service.RateLimitService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -38,6 +39,11 @@ public class CallServiceImpl implements CallService {
     /** 多人会议信令通道 TTL，与 ConferenceServiceImpl.CALL_ID_KEY 一致 */
     private static final Duration CONFERENCE_TTL = Duration.ofHours(4);
 
+    /** 信令限流：每用户每秒最多 10 个信令，防止信令风暴打满服务器 */
+    private static final int SIGNAL_RATE_MAX = 10;
+    private static final int SIGNAL_RATE_WINDOW_SECONDS = 1;
+    private static final String SIGNAL_RATE_KEY_PREFIX = "call:signal:rate:";
+
     private final ChatService chatService;
     private final ImConversationMapper conversationMapper;
     private final ImConversationMemberMapper memberMapper;
@@ -46,6 +52,7 @@ public class CallServiceImpl implements CallService {
     private final StringRedisTemplate redisTemplate;
     private final ImMessagePushService pushService;
     private final MediaUrlService mediaUrlService;
+    private final RateLimitService rateLimitService;
 
     @Override
     @Transactional
@@ -172,6 +179,13 @@ public class CallServiceImpl implements CallService {
 
     @Override
     public void signal(Long userId, CallSignalDTO dto) {
+        // 信令频率限制：每用户每秒最多 10 个，防止恶意客户端高频信令打满服务器
+        rateLimitService.check(
+                SIGNAL_RATE_KEY_PREFIX + userId,
+                SIGNAL_RATE_MAX,
+                SIGNAL_RATE_WINDOW_SECONDS,
+                "信令发送过于频繁，请稍后再试");
+
         Map<Object, Object> data = requireCall(dto.getCallId());
         String status = str(data.get("status"));
         if (!"accepted".equals(status) && !"connected".equals(status) && !"ringing".equals(status)) {

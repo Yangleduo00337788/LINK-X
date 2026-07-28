@@ -44,8 +44,9 @@ mybatis-flex:
 # ---------- LinkX 测试业务覆盖 ----------
 linkx:
   jwt:
-    # 固定测试密钥（≥32 字符，勿含 secret/password 子串以通过强度校验），勿用于真实环境
-    secret: Test-Local-JWT-Key-For-Integration-2026!!
+    # 测试密钥：优先读环境变量 JWT_SECRET，未设置时用占位默认值（仅测试环境）
+    # 默认值 ≥32 字符、不含 secret/password 子串以通过强度校验，勿用于真实环境
+    secret: ${JWT_SECRET:Test-Local-JWT-Key-For-Integration-2026!!}
     access-expire: 7200000
     refresh-expire: 604800000
 
@@ -71,10 +72,10 @@ linkx:
     websocket-port: -1
 
   minio:
-    # 与本机默认 MinIO root 对齐；多数单测不强制真上传，连通时可自动建桶
-    endpoint: http://127.0.0.1:9000
-    access-key: minioadmin
-    secret-key: minioadmin123
+    # 测试 MinIO 凭证：优先读环境变量，未设置时用本地默认值（仅测试环境）
+    endpoint: ${MINIO_ENDPOINT:http://127.0.0.1:9000}
+    access-key: ${MINIO_ACCESS_KEY:minioadmin}
+    secret-key: ${MINIO_SECRET_KEY:minioadmin123}
     bucket-name: linkx-test
     max-file-size: 10485760  # 10MB
 

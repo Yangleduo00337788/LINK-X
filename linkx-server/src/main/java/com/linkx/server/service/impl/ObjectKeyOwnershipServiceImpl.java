@@ -35,14 +35,34 @@ public class ObjectKeyOwnershipServiceImpl implements ObjectKeyOwnershipService 
         }
         String key = normalize(objectKey);
         Date now = new Date();
-        SysObjectOwnership row = SysObjectOwnership.builder()
-                .objectKey(key)
-                .userId(userId)
-                .createTime(now)
-                .updateTime(now)
-                .build();
-        // insertOrUpdate：覆盖属主（与原 Redis set 语义一致）
-        ownershipMapper.insertOrUpdate(row);
+        // 先查是否已有属主：若已被他人认领则不覆盖，避免属主篡改
+        SysObjectOwnership existing = ownershipMapper.selectOneById(key);
+        if (existing != null && existing.getUserId() != null
+                && !existing.getUserId().equals(userId)) {
+            log.debug("对象 {} 已被用户 {} 认领，用户 {} 无法覆盖属主", key, existing.getUserId(), userId);
+            // 仍同步 Redis 缓存为实际属主，防止缓存与 DB 不一致
+            redisTemplate.opsForValue().set(KEY_PREFIX + key,
+                    String.valueOf(existing.getUserId()), TTL);
+            return;
+        }
+        if (existing != null) {
+            // 已是自己认领过，仅刷新 updateTime
+            existing.setUpdateTime(now);
+            ownershipMapper.update(existing);
+        } else {
+            // 全新认领：insert，并发时 catch DuplicateKey 忽略（他人已认领）
+            SysObjectOwnership row = SysObjectOwnership.builder()
+                    .objectKey(key)
+                    .userId(userId)
+                    .createTime(now)
+                    .updateTime(now)
+                    .build();
+            try {
+                ownershipMapper.insert(row);
+            } catch (org.springframework.dao.DuplicateKeyException e) {
+                log.debug("对象 {} 并发认领，已被他人抢先登记", key);
+            }
+        }
         redisTemplate.opsForValue().set(KEY_PREFIX + key, String.valueOf(userId), TTL);
     }
 

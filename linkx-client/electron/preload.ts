@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, desktopCapturer } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 
 type WinAction = 'minimize' | 'maximize' | 'close'
 
@@ -21,20 +21,11 @@ function windowAction(action: WinAction) {
   })
 }
 
-// 屏幕截图 API
+// [P2-E3] 屏幕截图 API：改为通过 IPC 调用主进程，由主进程弹窗确认后再执行截图，
+// 避免渲染进程直接调用 desktopCapturer 静默截屏
 async function captureScreen(): Promise<{ dataURL: string; width: number; height: number } | null> {
   try {
-    const sources = await desktopCapturer.getSources({
-      types: ['screen'],
-      thumbnailSize: { width: 1920, height: 1080 }
-    })
-    if (sources.length === 0) return null
-    const source = sources[0]
-    return {
-      dataURL: source.thumbnail.toDataURL(),
-      width: source.thumbnail.getSize().width,
-      height: source.thumbnail.getSize().height
-    }
+    return await ipcRenderer.invoke('screen:capture')
   } catch (e) {
     console.error('截图失败:', e)
     return null

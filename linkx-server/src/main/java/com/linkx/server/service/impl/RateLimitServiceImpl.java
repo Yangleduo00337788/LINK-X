@@ -35,10 +35,15 @@ public class RateLimitServiceImpl implements RateLimitService {
 
     @Override
     public void check(String key, int maxAttempts, int windowSeconds) {
+        check(key, maxAttempts, windowSeconds, "操作过于频繁，请稍后再试");
+    }
+
+    @Override
+    public void check(String key, int maxAttempts, int windowSeconds, String message) {
         String redisKey = RATE_LIMIT_PREFIX + key;
         Long count = atomicIncrAndExpire(redisKey, windowSeconds);
         if (count != null && count > maxAttempts) {
-            throw new CustomException(429, "操作过于频繁，请稍后再试");
+            throw new CustomException(429, message);
         }
     }
 

@@ -1,6 +1,8 @@
 package com.linkx.server.service.impl;
 
+import com.linkx.server.common.FileExtensionValidator;
 import com.linkx.server.config.LinkxProperties;
+import com.linkx.server.exception.CustomException;
 import com.linkx.server.service.FileStorageService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -130,6 +132,11 @@ public class FileStorageServiceImpl implements FileStorageService {
         }
         if (extension.isEmpty() || !ALLOWED_EXTENSIONS.contains(extension.toLowerCase(Locale.ROOT))) {
             throw new IllegalArgumentException("不允许的文件扩展名: " + extension);
+        }
+
+        // magic bytes 校验：Content-Type 可伪造，需校验文件头特征防止伪装文件
+        if (!FileExtensionValidator.hasSafeContentSignature(file)) {
+            throw new CustomException(400, "文件内容与扩展名不匹配");
         }
 
         // 4. 生成 UUID 文件名（避免使用用户提供的文件名）

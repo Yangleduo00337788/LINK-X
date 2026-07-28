@@ -29,6 +29,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -45,6 +46,10 @@ import java.util.stream.Collectors;
 public class ConferenceServiceImpl implements ConferenceService {
 
     private static final String CALL_ID_KEY = "linkx:conference:call:";
+    /** 会议活跃已准入成员计数 key 前缀（Redis 原子计数器，防止 join 的 check-then-act 竞态导致超 maxParticipants） */
+    private static final String ACTIVE_COUNT_KEY = "linkx:conference:active_count:";
+    /** 计数 key 的保护性 TTL，避免极端场景（如 end 未触发）计数键长期残留 */
+    private static final Duration ACTIVE_COUNT_TTL = Duration.ofHours(8);
 
     private final ConferenceMapper conferenceMapper;
     private final ConferenceMemberMapper memberMapper;
@@ -122,6 +127,18 @@ public class ConferenceServiceImpl implements ConferenceService {
                 .build();
         memberMapper.insert(host);
 
+        // 初始化活跃已准入成员计数（主持人 1 人）；放到 afterCommit 避免 DB 回滚后 Redis 残留
+        final Long createdConferenceId = conference.getId();
+        runAfterCommit(() -> {
+            try {
+                redisTemplate.opsForValue().set(
+                        ACTIVE_COUNT_KEY + createdConferenceId, "1", ACTIVE_COUNT_TTL);
+            } catch (Exception e) {
+                log.warn("init conference active count failed, conferenceId={}: {}",
+                        createdConferenceId, e.toString(), e);
+            }
+        });
+
         String callId = callService.createConference(
                 userId,
                 dto.getConversationId(),
@@ -130,7 +147,16 @@ public class ConferenceServiceImpl implements ConferenceService {
                 conference.getTitle(),
                 StringUtils.hasText(passwordHash),
                 conference.getScene());
-        redisTemplate.opsForValue().set(CALL_ID_KEY + conference.getId(), callId, Duration.ofHours(4));
+        // Redis 写操作放到 afterCommit，避免 DB 回滚后 CALL_ID_KEY 残留
+        runAfterCommit(() -> {
+            try {
+                redisTemplate.opsForValue().set(
+                        CALL_ID_KEY + conference.getId(), callId, Duration.ofHours(4));
+            } catch (Exception e) {
+                log.warn("set CALL_ID_KEY after commit failed, conferenceId={}: {}",
+                        conference.getId(), e.toString(), e);
+            }
+        });
 
         emitConferenceInviteMessage(
                 userId,
@@ -260,13 +286,6 @@ public class ConferenceServiceImpl implements ConferenceService {
         boolean lobbyOn = Objects.equals(conference.getLobbyEnabled(), 1);
         boolean isCreator = Objects.equals(conference.getCreatorId(), userId);
 
-        long activeCount = memberMapper.selectCountByQuery(
-                QueryWrapper.create()
-                        .where(ConferenceMember::getConferenceId).eq(conferenceId)
-                        .and(ConferenceMember::getLeftFlag).eq(0)
-                        .and(ConferenceMember::getAdmitStatus).eq(1)
-        );
-
         ConferenceMember existing = memberMapper.selectOneByQuery(
                 QueryWrapper.create()
                         .where(ConferenceMember::getConferenceId).eq(conferenceId)
@@ -278,12 +297,21 @@ public class ConferenceServiceImpl implements ConferenceService {
                 || (existing != null && ConferenceMember.ROLE_CO_HOST.equals(existing.getRole()))
                 || (existing != null && Objects.equals(existing.getAdmitStatus(), 1) && Objects.equals(existing.getLeftFlag(), 0));
 
-        if (admitNow && existing == null && activeCount >= conference.getMaxParticipants()) {
-            throw new CustomException(400, "会议人数已满（上限 " + conference.getMaxParticipants() + " 人，mesh 建议≤9）");
-        }
-        if (admitNow && existing != null && Objects.equals(existing.getLeftFlag(), 1)
-                && activeCount >= conference.getMaxParticipants()) {
-            throw new CustomException(400, "会议人数已满（上限 " + conference.getMaxParticipants() + " 人，mesh 建议≤9）");
+        // 用 Redis 原子计数器替代 DB selectCount + insert 的 check-then-act 竞态，防止并发入会超 maxParticipants。
+        // 仅当本次会真正新增一个活跃已准入成员时才 INCR：新成员入会 或 已离开成员重新入会。
+        boolean needsIncr = admitNow && (existing == null || Objects.equals(existing.getLeftFlag(), 1));
+        if (needsIncr) {
+            String countKey = ACTIVE_COUNT_KEY + conferenceId;
+            Long newCount = redisTemplate.opsForValue().increment(countKey);
+            if (newCount != null && newCount > conference.getMaxParticipants()) {
+                // 超限：原子回滚计数，保证计数与 DB 一致
+                redisTemplate.opsForValue().decrement(countKey);
+                throw new CustomException(400, "会议人数已满（上限 " + conference.getMaxParticipants() + " 人，mesh 建议≤9）");
+            }
+            if (newCount != null) {
+                // 保护性 TTL，避免极端场景（如 end 未触发）计数键残留
+                redisTemplate.expire(countKey, ACTIVE_COUNT_TTL);
+            }
         }
 
         if (existing == null) {
@@ -367,6 +395,11 @@ public class ConferenceServiceImpl implements ConferenceService {
         member.setLeaveTime(new Date());
         memberMapper.update(member);
 
+        // 已准入成员离开时递减活跃计数，保持 Redis 计数与 DB 一致
+        if (Objects.equals(member.getAdmitStatus(), 1)) {
+            redisTemplate.opsForValue().decrement(ACTIVE_COUNT_KEY + conferenceId);
+        }
+
         String callId = redisTemplate.opsForValue().get(CALL_ID_KEY + conferenceId);
         if (callId != null) {
             callService.leaveConference(userId, callId);
@@ -413,6 +446,8 @@ public class ConferenceServiceImpl implements ConferenceService {
             }
         }
         redisTemplate.delete(CALL_ID_KEY + conferenceId);
+        // 会议结束清理活跃计数 key，避免残留
+        redisTemplate.delete(ACTIVE_COUNT_KEY + conferenceId);
         notifyConversationEnded(conference, callId);
         emitConferenceEndedMessage(userId, conference);
     }
@@ -436,11 +471,57 @@ public class ConferenceServiceImpl implements ConferenceService {
                         .where(ConferenceMember::getUserId).eq(userId)
                         .and(ConferenceMember::getLeftFlag).eq(0)
         );
-        return memberships.stream()
-                .map(m -> conferenceMapper.selectOneById(m.getConferenceId()))
-                .filter(c -> c != null && Objects.equals(c.getStatus(), Conference.STATUS_ACTIVE))
-                .map(c -> toInfo(c, redisTemplate.opsForValue().get(CALL_ID_KEY + c.getId()), userId))
+        if (memberships.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 收集去重后的会议ID（保持 membership 顺序）
+        List<Long> conferenceIds = memberships.stream()
+                .map(ConferenceMember::getConferenceId)
+                .filter(Objects::nonNull)
+                .distinct()
                 .collect(Collectors.toList());
+        if (conferenceIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 批量查询会议，避免 N+1；分批防止 IN 列表过长
+        Map<Long, Conference> conferenceMap = new HashMap<>();
+        int batchSize = 100;
+        for (int i = 0; i < conferenceIds.size(); i += batchSize) {
+            List<Long> batch = conferenceIds.subList(i, Math.min(i + batchSize, conferenceIds.size()));
+            List<Conference> batchConfs = conferenceMapper.selectListByIds(batch);
+            for (Conference c : batchConfs) {
+                if (c != null) {
+                    conferenceMap.put(c.getId(), c);
+                }
+            }
+        }
+
+        // 过滤 ACTIVE，保持原 membership 顺序
+        List<Conference> activeConfs = conferenceIds.stream()
+                .map(conferenceMap::get)
+                .filter(Objects::nonNull)
+                .filter(c -> Objects.equals(c.getStatus(), Conference.STATUS_ACTIVE))
+                .collect(Collectors.toList());
+        if (activeConfs.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 批量查询 Redis callId，避免 N 次 get
+        List<String> redisKeys = activeConfs.stream()
+                .map(c -> CALL_ID_KEY + c.getId())
+                .collect(Collectors.toList());
+        List<String> callIds = redisTemplate.opsForValue().multiGet(redisKeys);
+
+        // 组装结果，保持返回值结构不变
+        List<ConferenceInfoVO> result = new ArrayList<>(activeConfs.size());
+        for (int i = 0; i < activeConfs.size(); i++) {
+            Conference c = activeConfs.get(i);
+            String callId = (callIds != null && i < callIds.size()) ? callIds.get(i) : null;
+            result.add(toInfo(c, callId, userId));
+        }
+        return result;
     }
 
     @Override
@@ -554,14 +635,15 @@ public class ConferenceServiceImpl implements ConferenceService {
         if (Objects.equals(target.getAdmitStatus(), 1)) {
             return;
         }
-        long activeCount = memberMapper.selectCountByQuery(
-                QueryWrapper.create()
-                        .where(ConferenceMember::getConferenceId).eq(conferenceId)
-                        .and(ConferenceMember::getLeftFlag).eq(0)
-                        .and(ConferenceMember::getAdmitStatus).eq(1)
-        );
-        if (activeCount >= conference.getMaxParticipants()) {
+        // 用 Redis 原子计数器替代 DB selectCount + update 的 check-then-act 竞态，防止并发准入超限
+        String countKey = ACTIVE_COUNT_KEY + conferenceId;
+        Long newCount = redisTemplate.opsForValue().increment(countKey);
+        if (newCount != null && newCount > conference.getMaxParticipants()) {
+            redisTemplate.opsForValue().decrement(countKey);
             throw new CustomException(400, "会议人数已满（上限 " + conference.getMaxParticipants() + " 人）");
+        }
+        if (newCount != null) {
+            redisTemplate.expire(countKey, ACTIVE_COUNT_TTL);
         }
         target.setAdmitStatus(1);
         memberMapper.update(target);
@@ -591,9 +673,14 @@ public class ConferenceServiceImpl implements ConferenceService {
         if (ConferenceMember.ROLE_HOST.equals(target.getRole())) {
             throw new CustomException(400, "请先转让主持人");
         }
+        // 从等候室自动准入时递增活跃计数，保持 Redis 计数与 DB 一致
+        boolean wasAdmitted = Objects.equals(target.getAdmitStatus(), 1);
         target.setRole(normalized);
         target.setAdmitStatus(1);
         memberMapper.update(target);
+        if (!wasAdmitted) {
+            redisTemplate.opsForValue().increment(ACTIVE_COUNT_KEY + conferenceId);
+        }
         broadcastToActiveMembers(conferenceId, "conference_role", Map.of(
                 "conferenceId", conferenceId,
                 "userId", targetUserId,
@@ -852,6 +939,8 @@ public class ConferenceServiceImpl implements ConferenceService {
             }
         }
         redisTemplate.delete(CALL_ID_KEY + conference.getId());
+        // 强制结束会议清理活跃计数 key，避免残留
+        redisTemplate.delete(ACTIVE_COUNT_KEY + conference.getId());
         notifyConversationEnded(conference, callId);
         emitConferenceEndedMessage(null, conference);
     }

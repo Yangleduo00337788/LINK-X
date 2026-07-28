@@ -13,7 +13,7 @@ public final class UserProfileMapper {
     private UserProfileMapper() {
     }
 
-    /** 公开资料（不含邮箱/手机） */
+    /** 公开资料（不含邮箱/手机/birthday/createTime 等 PII） */
     public static UserProfileVO toProfileVO(SysUser user) {
         if (user == null) {
             return null;
@@ -25,20 +25,21 @@ public final class UserProfileMapper {
                 .avatar(user.getAvatar())
                 .signature(user.getSignature())
                 .gender(user.getGender())
-                .birthday(user.getBirthday())
                 .country(user.getCountry())
                 .province(user.getProvince())
                 .region(user.getRegion())
-                .createTime(user.getCreateTime())
                 .build();
     }
 
-    /** 本人私密资料（含脱敏邮箱/手机） */
+    /** 本人私密资料（含脱敏邮箱/手机/birthday/createTime） */
     public static UserProfileVO toPrivateProfileVO(SysUser user) {
         UserProfileVO vo = toProfileVO(user);
         if (vo == null) {
             return null;
         }
+        // birthday/createTime 仅本人可见，不在公开资料中暴露
+        vo.setBirthday(user.getBirthday());
+        vo.setCreateTime(user.getCreateTime());
         boolean emailBound = StringUtils.hasText(user.getEmail());
         boolean phoneBound = StringUtils.hasText(user.getPhone());
         vo.setEmailBound(emailBound);
@@ -59,7 +60,6 @@ public final class UserProfileMapper {
                 .avatar(user.getAvatar())
                 .signature(user.getSignature())
                 .gender(user.getGender())
-                .birthday(user.getBirthday())
                 .country(user.getCountry())
                 .province(user.getProvince())
                 .region(user.getRegion())
