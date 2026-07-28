@@ -40,8 +40,10 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
     private final com.linkx.server.service.UserPreferenceService userPreferenceService;
     private final DeviceSessionService deviceSessionService;
+    private final com.linkx.server.service.RbacService rbacService;
 
     @Override
+    @Transactional
     public void register(RegisterDTO registerDTO, HttpServletRequest request) {
         // IP 级别注册限流
         rateLimitService.checkRegisterRateLimit(request);
@@ -65,6 +67,11 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
                 .build();
 
         save(user);
+
+        // 注册成功后自动分配默认 user 角色，与用户创建保持同一事务，保证账号可用
+        rbacService.grantRole(user.getId(), com.linkx.server.common.RbacConstants.ROLE_USER, null);
+        log.info("用户 {} 注册成功并分配默认角色 {}", user.getUsername(),
+                com.linkx.server.common.RbacConstants.ROLE_USER);
     }
 
     @Override

@@ -1,6 +1,7 @@
 package com.linkx.server.im;
 
 import com.linkx.server.common.JwtUtils;
+import com.linkx.server.common.TokenCookieUtil;
 import com.linkx.server.common.TokenType;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.service.DeviceSessionService;
@@ -48,7 +49,14 @@ public class ImWebSocketAuthHandler extends ChannelInboundHandlerAdapter {
             // 强制仅通过子协议传 token：避免 JWT 进入 URL query 进而被 access log / 反代日志记录
             String token = extractTokenFromProtocol(request);
             if (token == null || token.isBlank()) {
-                log.warn("WebSocket 鉴权失败: 缺少子协议 token, uri={}, origin={}",
+                // Web 环境兜底：token 在 HttpOnly Cookie 中（浏览器 WebSocket 握手自动携带同站 Cookie），
+                // JS 无法读取，故子协议无 token 时从 Cookie 读取。Electron 仍走子协议，不受影响。
+                token = TokenCookieUtil.parseCookie(
+                        request.headers().get(HttpHeaderNames.COOKIE),
+                        TokenCookieUtil.ACCESS_TOKEN_COOKIE);
+            }
+            if (token == null || token.isBlank()) {
+                log.warn("WebSocket 鉴权失败: 缺少子协议 token 与 Cookie, uri={}, origin={}",
                         request.uri(), request.headers().get("Origin"));
                 reject(ctx, msg);
                 return;

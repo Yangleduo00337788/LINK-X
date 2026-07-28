@@ -18,7 +18,9 @@ import com.linkx.server.controller.vo.ConferenceInfoVO;
 import com.linkx.server.service.ConferenceService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -31,6 +33,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/conference")
 @RequiredArgsConstructor
+@Validated
 public class ConferenceController {
 
     private final ConferenceService conferenceService;
@@ -63,7 +66,7 @@ public class ConferenceController {
     }
 
     @GetMapping("/info/{id}")
-    public Result<ConferenceInfoVO> info(@PathVariable Long id, HttpServletRequest request) {
+    public Result<ConferenceInfoVO> info(@PathVariable @Positive(message = "ID必须为正数") Long id, HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         return Result.success(conferenceService.info(userId, id));
     }

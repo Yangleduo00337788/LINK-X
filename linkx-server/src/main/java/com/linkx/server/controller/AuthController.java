@@ -2,6 +2,7 @@ package com.linkx.server.controller;
 
 import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.common.Result;
+import com.linkx.server.common.TokenCookieUtil;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.config.aspect.AuditAction;
 import com.linkx.server.controller.dto.LoginDTO;
@@ -21,6 +22,7 @@ import com.linkx.server.service.RateLimitService;
 import com.linkx.server.service.SysUserService;
 import com.linkx.server.service.TokenService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -40,6 +42,7 @@ public class AuthController {
     private final CaptchaService captchaService;
     private final RateLimitService rateLimitService;
     private final LinkxProperties linkxProperties;
+    private final TokenCookieUtil tokenCookieUtil;
 
     @GetMapping("/captcha")
     public Result<CaptchaVO> captcha() {
@@ -64,19 +67,39 @@ public class AuthController {
 
     @AuditAction(operationType = "LOGIN", description = "用户登录")
     @PostMapping("/login")
-    public Result<TokenVO> login(@Valid @RequestBody LoginDTO loginDTO, HttpServletRequest request) {
+    public Result<TokenVO> login(@Valid @RequestBody LoginDTO loginDTO,
+                                 HttpServletRequest request,
+                                 HttpServletResponse response) {
         validateCaptchaIfEnabled(loginDTO.getCaptchaId(), loginDTO.getCaptchaCode());
         TokenVO tokenVO = sysUserService.login(loginDTO, clientIp(request), request.getHeader("User-Agent"), request);
+        // Web 环境：通过 HttpOnly + Secure + SameSite=Lax Cookie 下发 token，避免 XSS 窃取；
+        // Electron 环境忽略 Cookie，仍走 Authorization Header + safeStorage 落盘。
+        setTokenCookies(response, tokenVO, request);
         return Result.success(tokenVO);
     }
 
     @PostMapping("/refresh")
-    public Result<TokenVO> refresh(@Valid @RequestBody RefreshTokenDTO refreshTokenDTO, HttpServletRequest request) {
+    public Result<TokenVO> refresh(@RequestBody(required = false) RefreshTokenDTO refreshTokenDTO,
+                                   HttpServletRequest request,
+                                   HttpServletResponse response) {
         rateLimitService.check("refresh:" + clientIp(request), 30, 60);
+        // Web 环境 refreshToken 在 HttpOnly Cookie 中；Electron 在请求体中。两者兼容：请求体优先，Cookie 兜底。
+        String refreshToken = (refreshTokenDTO != null && refreshTokenDTO.getRefreshToken() != null
+                && !refreshTokenDTO.getRefreshToken().isBlank())
+                ? refreshTokenDTO.getRefreshToken()
+                : tokenCookieUtil.readRefreshToken(request);
+        if (refreshToken == null || refreshToken.isBlank()) {
+            throw new CustomException(400, "缺少刷新令牌");
+        }
         try {
             String deviceId = request.getHeader("X-Device-Id");
-            return Result.success(tokenService.refreshAccessToken(refreshTokenDTO.getRefreshToken(), deviceId));
+            TokenVO tokenVO = tokenService.refreshAccessToken(refreshToken, deviceId);
+            // 刷新成功：重新下发 Cookie，续期 HttpOnly Cookie 中的 token
+            setTokenCookies(response, tokenVO, request);
+            return Result.success(tokenVO);
         } catch (CustomException e) {
+            // 刷新失败：清除 Cookie，避免前端持有失效 Cookie 反复重试
+            tokenCookieUtil.clearTokenCookies(response, isSecure(request));
             try {
                 rateLimitService.recordRefreshFailure(request);
             } catch (CustomException rateLimitEx) {
@@ -90,14 +113,29 @@ public class AuthController {
     @PostMapping("/logout")
     public Result<Void> logout(
             @RequestHeader(value = "Authorization", required = false) String authorization,
-            @RequestBody(required = false) LogoutDTO logoutDTO) {
-        if (authorization == null || authorization.isBlank()) {
+            @RequestBody(required = false) LogoutDTO logoutDTO,
+            HttpServletRequest request,
+            HttpServletResponse response) {
+        // Access Token 读取顺序：Authorization Header（Electron）优先，Cookie（Web）兜底
+        String accessToken = null;
+        if (authorization != null && !authorization.isBlank()) {
+            accessToken = authorization.startsWith("Bearer ")
+                    ? authorization.substring(7)
+                    : authorization;
+        }
+        if (accessToken == null || accessToken.isBlank()) {
+            accessToken = tokenCookieUtil.readAccessToken(request);
+        }
+        if (accessToken == null || accessToken.isBlank()) {
             throw new com.linkx.server.exception.CustomException(401, "未提供访问令牌");
         }
-        String accessToken = authorization.startsWith("Bearer ")
-                ? authorization.substring(7)
-                : authorization;
-        String refreshToken = logoutDTO != null ? logoutDTO.getRefreshToken() : null;
+        // Refresh Token 读取顺序：请求体优先，Cookie 兜底
+        String refreshToken = (logoutDTO != null) ? logoutDTO.getRefreshToken() : null;
+        if (refreshToken == null || refreshToken.isBlank()) {
+            refreshToken = tokenCookieUtil.readRefreshToken(request);
+        }
+        // 先清 Cookie（Web 环境登出的关键动作），再做后端 token 吊销
+        tokenCookieUtil.clearTokenCookies(response, isSecure(request));
         tokenService.logout(accessToken, refreshToken);
         return Result.success(null);
     }
@@ -183,5 +221,24 @@ public class AuthController {
 
     private String clientIp(HttpServletRequest request) {
         return ClientIpResolver.resolve(request, linkxProperties);
+    }
+
+    /**
+     * 下发 token Cookie 到响应。Max-Age 取自 linkx.jwt.*-expire（毫秒转秒）。
+     */
+    private void setTokenCookies(HttpServletResponse response, TokenVO tokenVO, HttpServletRequest request) {
+        long accessMaxAgeSec = linkxProperties.getJwt().getAccessExpire() / 1000;
+        long refreshMaxAgeSec = linkxProperties.getJwt().getRefreshExpire() / 1000;
+        tokenCookieUtil.setTokenCookies(response,
+                tokenVO.getAccessToken(), tokenVO.getRefreshToken(),
+                accessMaxAgeSec, refreshMaxAgeSec, isSecure(request));
+    }
+
+    /**
+     * Cookie 是否标记 Secure：require-https 开启或请求本身为 HTTPS 时设 Secure，
+     * 本地 HTTP 开发不设（否则浏览器会丢弃 Secure Cookie）。
+     */
+    private boolean isSecure(HttpServletRequest request) {
+        return linkxProperties.getSecurity().isRequireHttps() || request.isSecure();
     }
 }

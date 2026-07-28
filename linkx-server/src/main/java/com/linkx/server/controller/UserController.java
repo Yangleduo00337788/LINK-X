@@ -22,7 +22,9 @@ import com.linkx.server.service.SysUserService;
 import com.linkx.server.service.UserPreferenceService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
+import org.springframework.validation.annotation.Validated;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
@@ -35,6 +37,7 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/user")
 @RequiredArgsConstructor
+@Validated
 public class UserController {
 
     private final SysUserService sysUserService;
@@ -207,7 +210,7 @@ public class UserController {
      * 获取用户公开资料（供其他用户查看）
      */
     @GetMapping("/{userId}/profile")
-    public Result<UserProfileVO> getUserProfile(@PathVariable Long userId) {
+    public Result<UserProfileVO> getUserProfile(@PathVariable @Positive(message = "ID必须为正数") Long userId) {
         SysUser user = sysUserService.getById(userId);
         if (user == null) {
             return Result.error(404, "用户不存在");

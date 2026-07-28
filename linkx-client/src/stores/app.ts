@@ -52,7 +52,7 @@ import * as authApi from '../api/auth'
 import * as userApi from '../api/user'
 import * as groupApi from '../api/group'
 import type { UpdateProfileRequest } from '../api/user'
-import { clearTokens, getRefreshToken, hasRefreshToken, saveTokenPair } from '../utils/tokenStorage'
+import { clearTokens, getRefreshToken, hasRefreshToken, isWebEnvironment, saveTokenPair } from '../utils/tokenStorage'
 import { hasLockPin as isLockPinConfigured, verifyLockPin as verifyLockPinHash, saveLockPinHash } from '../utils/lockPin'
 import type { UserInfo } from '../types/auth'
 import type { UserProfileData } from '../api/user'
@@ -1984,18 +1984,24 @@ export const useAppStore = defineStore('app', {
       const minLoadingMs = 1000
       let outcome: 'ok' | 'offline' | 'failed' = 'failed'
       try {
-        if (!(await hasRefreshToken())) {
-          this.savedLogin.autoLogin = false
-          return 'failed'
+        const isWeb = isWebEnvironment()
+        // Web 环境 refresh token 在 HttpOnly Cookie 中（本地不可读），跳过本地校验直接走刷新接口；
+        // Electron 环境必须从 safeStorage 读到 refresh token 才能刷新。
+        let refresh: string | null = null
+        if (!isWeb) {
+          if (!(await hasRefreshToken())) {
+            this.savedLogin.autoLogin = false
+            return 'failed'
+          }
+          refresh = await getRefreshToken()
+          if (!refresh) {
+            this.savedLogin.autoLogin = false
+            return 'failed'
+          }
         }
 
-        const refresh = await getRefreshToken()
-        if (!refresh) {
-          this.savedLogin.autoLogin = false
-          return 'failed'
-        }
-
-        const res = await authApi.refreshToken(refresh)
+        // Web 环境 refresh 为空字符串，后端从 HttpOnly Cookie 读取
+        const res = await authApi.refreshToken(refresh ?? '')
         if (res.code === 200 && res.data) {
           await saveTokenPair(res.data.accessToken, res.data.refreshToken)
           this.applyUserProfile(res.data.user)

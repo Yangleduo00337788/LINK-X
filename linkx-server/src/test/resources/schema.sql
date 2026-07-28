@@ -570,3 +570,81 @@ CREATE TABLE IF NOT EXISTS sys_object_ownership (
   create_time DATETIME,
   update_time DATETIME
 );
+
+-- ============================================================
+-- RBAC 角色权限表（与 init.sql 对齐）
+-- ============================================================
+
+-- 系统角色表
+CREATE TABLE IF NOT EXISTS sys_role (
+  id BIGINT NOT NULL PRIMARY KEY,
+  role_code VARCHAR(64) NOT NULL,
+  role_name VARCHAR(64) NOT NULL,
+  description VARCHAR(255),
+  status TINYINT NOT NULL DEFAULT 1,
+  create_time DATETIME,
+  update_time DATETIME,
+  create_by BIGINT,
+  update_by BIGINT,
+  deleted TINYINT NOT NULL DEFAULT 0
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_role_code ON sys_role(role_code);
+
+-- 用户-角色关联表
+CREATE TABLE IF NOT EXISTS sys_user_role (
+  id BIGINT NOT NULL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  role_id BIGINT NOT NULL,
+  create_time DATETIME,
+  create_by BIGINT,
+  deleted TINYINT NOT NULL DEFAULT 0
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_user_role ON sys_user_role(user_id, role_id);
+
+-- 系统权限表
+CREATE TABLE IF NOT EXISTS sys_permission (
+  id BIGINT NOT NULL PRIMARY KEY,
+  permission_code VARCHAR(128) NOT NULL,
+  permission_name VARCHAR(64) NOT NULL,
+  resource_type VARCHAR(16) NOT NULL DEFAULT 'api',
+  resource_path VARCHAR(255),
+  description VARCHAR(255),
+  status TINYINT NOT NULL DEFAULT 1,
+  create_time DATETIME,
+  update_time DATETIME,
+  deleted TINYINT NOT NULL DEFAULT 0
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_perm_code ON sys_permission(permission_code);
+
+-- 角色-权限关联表
+CREATE TABLE IF NOT EXISTS sys_role_permission (
+  id BIGINT NOT NULL PRIMARY KEY,
+  role_id BIGINT NOT NULL,
+  permission_id BIGINT NOT NULL,
+  create_time DATETIME,
+  create_by BIGINT,
+  deleted TINYINT NOT NULL DEFAULT 0
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_role_permission ON sys_role_permission(role_id, permission_id);
+
+-- RBAC 预置数据：admin / user 两个角色 + 基础权限
+INSERT IGNORE INTO sys_role (id, role_code, role_name, description, status, create_by) VALUES
+  (1001, 'admin', '系统管理员', '拥有全部权限', 1, NULL),
+  (1002, 'user', '普通用户', '注册用户默认角色', 1, NULL);
+
+INSERT IGNORE INTO sys_permission (id, permission_code, permission_name, resource_type, resource_path, description, status) VALUES
+  (2001, '*', '全部权限', 'api', '*', '通配符权限，拥有全部能力', 1),
+  (2002, 'rbac:role:create', '创建角色', 'api', '/rbac/role', '创建系统角色', 1),
+  (2003, 'rbac:role:list', '查询角色列表', 'api', '/rbac/role', '查询角色列表', 1),
+  (2004, 'rbac:user:grant', '分配用户角色', 'api', '/rbac/user/*/role/*', '为用户分配角色', 1),
+  (2005, 'rbac:user:revoke', '移除用户角色', 'api', '/rbac/user/*/role/*', '移除用户角色', 1),
+  (2006, 'rbac:user:permissions', '查询用户权限', 'api', '/rbac/user/*/permissions', '查询用户权限列表', 1);
+
+-- admin 角色拥有全部权限
+INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by) VALUES
+  (1, 1001, 2001, NULL),
+  (2, 1001, 2002, NULL),
+  (3, 1001, 2003, NULL),
+  (4, 1001, 2004, NULL),
+  (5, 1001, 2005, NULL),
+  (6, 1001, 2006, NULL);

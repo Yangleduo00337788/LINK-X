@@ -14,6 +14,9 @@ import java.net.ServerSocket;
  */
 public final class EmbeddedRedis {
 
+    /** 内嵌 Redis 固定密码，避免 .env.local 的 REDIS_PASSWORD 干扰测试连接。 */
+    public static final String PASSWORD = "linkx-test-redis-pass";
+
     private static RedisServer server;
     private static int port;
 
@@ -29,6 +32,8 @@ public final class EmbeddedRedis {
             server = RedisServer.newRedisServer()
                     .port(port)
                     .setting("bind 127.0.0.1")
+                    // 设置固定密码，隔离 .env.local 中 REDIS_PASSWORD 对测试的干扰
+                    .setting("requirepass " + PASSWORD)
                     // 限制内存使用（embedded-redis 1.4.3 已移除 maxheap 配置项，使用 maxmemory 兼容）
                     .setting("maxmemory 100mb")
                     .build();

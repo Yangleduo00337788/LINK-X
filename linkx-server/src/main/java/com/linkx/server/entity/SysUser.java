@@ -99,4 +99,8 @@ public class SysUser implements Serializable {
 
     // 手机号，用于账号安全绑定
     private String phone;
+
+    // 用户角色编码列表（非持久化，仅用于 VO 展示，由 RbacService 填充）
+    @Column(ignore = true)
+    private java.util.List<String> roleCodes;
 }

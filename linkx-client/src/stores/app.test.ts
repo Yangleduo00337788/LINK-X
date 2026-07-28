@@ -19,6 +19,9 @@ vi.mock('../utils/chatSocket', () => ({
 
 vi.mock('../utils/tokenStorage', () => ({
   getToken: vi.fn(() => Promise.resolve('mock-token')),
+  getRefreshToken: vi.fn(() => Promise.resolve(null)),
+  hasRefreshToken: vi.fn(() => Promise.resolve(false)),
+  isWebEnvironment: vi.fn(() => false),
   saveTokenPair: vi.fn(),
   clearTokens: vi.fn()
 }))

@@ -222,6 +222,7 @@ CREATE TABLE IF NOT EXISTS `im_message` (
   `quote_content` text COMMENT '引用内容快照',
   `quote_type` varchar(20) DEFAULT NULL COMMENT '引用消息类型',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '发送时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted` tinyint(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除(0:未删除 1:已删除)',
   PRIMARY KEY (`id`),
   KEY `idx_conv_time` (`conversation_id`,`create_time`),
@@ -346,6 +347,7 @@ CREATE TABLE IF NOT EXISTS `balance_log` (
   `remark` varchar(200) DEFAULT NULL COMMENT '备注',
   `operator_id` bigint DEFAULT NULL COMMENT '操作人ID(管理员操作时)',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `deleted` tinyint(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除(0:未删除 1:已删除)',
   PRIMARY KEY (`id`),
   KEY `idx_user_time` (`user_id`,`create_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='余额变动记录表';
@@ -367,6 +369,10 @@ CREATE TABLE IF NOT EXISTS `red_packet` (
   `expire_time` datetime NOT NULL COMMENT '过期时间',
   `client_msg_id` varchar(128) DEFAULT NULL COMMENT '客户端幂等ID(与发送者组成唯一约束)',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `create_by` bigint DEFAULT NULL COMMENT '创建人(发送者ID冗余)',
+  `update_by` bigint DEFAULT NULL COMMENT '更新人',
+  `deleted` tinyint(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除(0:未删除 1:已删除)',
   `version` bigint NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',
   PRIMARY KEY (`id`),
   KEY `idx_conversation_time` (`conversation_id`,`create_time`),
@@ -660,6 +666,8 @@ CREATE TABLE IF NOT EXISTS `cloud_file` (
   `description`    varchar(1000) DEFAULT NULL,
   `create_time`    datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `update_time`    datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `create_by`      bigint DEFAULT NULL COMMENT '创建人(上传者ID冗余)',
+  `update_by`      bigint DEFAULT NULL COMMENT '更新人',
   `deleted`        tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   KEY `idx_cfile_user_folder` (`user_id`, `folder_id`, `deleted`, `create_time`),
@@ -758,6 +766,7 @@ CREATE TABLE IF NOT EXISTS `conference` (
   `lobby_enabled` tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否开启等候室',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` tinyint(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除(0:未删除 1:已删除)',
   PRIMARY KEY (`id`),
   KEY `idx_conf_creator` (`creator_id`),
   KEY `idx_conf_status` (`status`),
@@ -779,6 +788,7 @@ CREATE TABLE IF NOT EXISTS `conference_member` (
   `join_time` datetime DEFAULT NULL COMMENT '加入时间',
   `leave_time` datetime DEFAULT NULL COMMENT '离开时间',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `deleted` tinyint(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除(0:未删除 1:已删除)',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_conf_user` (`conference_id`,`user_id`),
   KEY `idx_cm_user` (`user_id`)
@@ -795,4 +805,96 @@ CREATE TABLE IF NOT EXISTS `sys_object_ownership` (
   PRIMARY KEY (`object_key`),
   KEY `idx_user_id` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='对象属主登记表';
+
+-- ================================================
+-- 33. RBAC 角色表
+-- ================================================
+CREATE TABLE IF NOT EXISTS `sys_role` (
+  `id`          bigint NOT NULL COMMENT '主键ID(雪花算法)',
+  `role_code`   varchar(64) NOT NULL COMMENT '角色编码(唯一)',
+  `role_name`   varchar(64) NOT NULL COMMENT '角色名称',
+  `description` varchar(255) DEFAULT NULL COMMENT '角色描述',
+  `status`      tinyint NOT NULL DEFAULT 1 COMMENT '状态: 1启用 0停用',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `create_by`   bigint DEFAULT NULL COMMENT '创建人ID',
+  `update_by`   bigint DEFAULT NULL COMMENT '修改人ID',
+  `deleted`     tinyint NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0未删除 1已删除',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_role_code` (`role_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统角色表';
+
+-- ================================================
+-- 34. 用户-角色关联表
+-- ================================================
+CREATE TABLE IF NOT EXISTS `sys_user_role` (
+  `id`          bigint NOT NULL COMMENT '主键ID(雪花算法)',
+  `user_id`     bigint NOT NULL COMMENT '用户ID',
+  `role_id`     bigint NOT NULL COMMENT '角色ID',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `create_by`   bigint DEFAULT NULL COMMENT '创建人ID',
+  `deleted`     tinyint NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0未删除 1已删除',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_role` (`user_id`,`role_id`),
+  KEY `idx_sur_user_id` (`user_id`),
+  KEY `idx_sur_role_id` (`role_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户角色关联表';
+
+-- ================================================
+-- 35. 权限表
+-- ================================================
+CREATE TABLE IF NOT EXISTS `sys_permission` (
+  `id`              bigint NOT NULL COMMENT '主键ID(雪花算法)',
+  `permission_code` varchar(128) NOT NULL COMMENT '权限编码',
+  `permission_name` varchar(64) NOT NULL COMMENT '权限名称',
+  `resource_type`   varchar(16) NOT NULL DEFAULT 'api' COMMENT '资源类型: menu/button/api',
+  `resource_path`   varchar(255) DEFAULT NULL COMMENT '资源路径',
+  `description`     varchar(255) DEFAULT NULL COMMENT '描述',
+  `status`          tinyint NOT NULL DEFAULT 1 COMMENT '状态: 1启用 0停用',
+  `create_time`     datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time`     datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted`         tinyint NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0未删除 1已删除',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_perm_code` (`permission_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统权限表';
+
+-- ================================================
+-- 36. 角色-权限关联表
+-- ================================================
+CREATE TABLE IF NOT EXISTS `sys_role_permission` (
+  `id`            bigint NOT NULL COMMENT '主键ID(雪花算法)',
+  `role_id`       bigint NOT NULL COMMENT '角色ID',
+  `permission_id` bigint NOT NULL COMMENT '权限ID',
+  `create_time`   datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `create_by`     bigint DEFAULT NULL COMMENT '创建人ID',
+  `deleted`       tinyint NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0未删除 1已删除',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_role_permission` (`role_id`,`permission_id`),
+  KEY `idx_srp_role_id` (`role_id`),
+  KEY `idx_srp_permission_id` (`permission_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='角色权限关联表';
+
+-- ================================================
+-- RBAC 预置数据：admin / user 两个角色 + 基础权限
+-- ================================================
+INSERT IGNORE INTO `sys_role` (`id`,`role_code`,`role_name`,`description`,`status`,`create_by`) VALUES
+  (1001,'admin','系统管理员','拥有全部权限',1,NULL),
+  (1002,'user','普通用户','注册用户默认角色',1,NULL);
+
+INSERT IGNORE INTO `sys_permission` (`id`,`permission_code`,`permission_name`,`resource_type`,`resource_path`,`description`,`status`) VALUES
+  (2001,'*','全部权限','api','*','通配符权限，拥有全部能力',1),
+  (2002,'rbac:role:create','创建角色','api','/rbac/role','创建系统角色',1),
+  (2003,'rbac:role:list','查询角色列表','api','/rbac/role','查询角色列表',1),
+  (2004,'rbac:user:grant','分配用户角色','api','/rbac/user/*/role/*','为用户分配角色',1),
+  (2005,'rbac:user:revoke','移除用户角色','api','/rbac/user/*/role/*','移除用户角色',1),
+  (2006,'rbac:user:permissions','查询用户权限','api','/rbac/user/*/permissions','查询用户权限列表',1);
+
+-- admin 角色拥有全部权限
+INSERT IGNORE INTO `sys_role_permission` (`role_id`,`permission_id`,`create_by`) VALUES
+  (1001,2001,NULL),
+  (1001,2002,NULL),
+  (1001,2003,NULL),
+  (1001,2004,NULL),
+  (1001,2005,NULL),
+  (1001,2006,NULL);
 

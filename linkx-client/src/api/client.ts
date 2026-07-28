@@ -1,7 +1,7 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import type { ApiResult, TokenData } from '../types/auth'
 import { parseJsonPreservingIds } from '../utils/parseJson'
-import { clearTokens, getRefreshToken, getToken, saveTokenPair } from '../utils/tokenStorage'
+import { clearTokens, getRefreshToken, getToken, isWebEnvironment, saveTokenPair } from '../utils/tokenStorage'
 import { getDeviceName, getDeviceType, getOrCreateDeviceId } from '../utils/deviceId'
 
 const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
@@ -20,6 +20,10 @@ export const apiClient = axios.create({
     }
   ]
 })
+
+// Web 环境：携带 HttpOnly Cookie 完成鉴权（token 由后端 Cookie 管理，JS 不可读）；
+// Electron 环境：走 Authorization Header + safeStorage，无需携带 Cookie，保持 withCredentials=false 避免跨域凭证问题。
+apiClient.defaults.withCredentials = isWebEnvironment()
 
 let refreshing = false
 let refreshQueue: Array<(token: string | null) => void> = []
@@ -63,7 +67,10 @@ async function processUnauthorized(config?: InternalAxiosRequestConfig) {
           reject(new Error('登录已过期'))
           return
         }
-        config.headers.Authorization = `Bearer ${token}`
+        // Web 环境依赖 Cookie 鉴权，不设 Authorization Header；Electron 设新 access token
+        if (!isWebEnvironment()) {
+          config.headers.Authorization = `Bearer ${token}`
+        }
         applyDeviceHeaders(config.headers)
         resolve(apiClient(config))
       })
@@ -72,8 +79,11 @@ async function processUnauthorized(config?: InternalAxiosRequestConfig) {
 
   refreshing = true
   try {
+    const isWeb = isWebEnvironment()
     const refresh = await getRefreshToken()
-    if (!refresh) {
+    // Web 环境 refresh token 在 HttpOnly Cookie 中（本地不可读），仍尝试刷新；
+    // Electron 环境无本地 refresh token 则直接登出。
+    if (!refresh && !isWeb) {
       await redirectToLogin()
       return Promise.reject(new Error('登录已过期'))
     }
@@ -83,6 +93,8 @@ async function processUnauthorized(config?: InternalAxiosRequestConfig) {
       { refreshToken: refresh },
       {
         timeout: 10000,
+        // Web 环境携带 Cookie（refresh token 在 HttpOnly Cookie 中）；Electron 不需要
+        withCredentials: isWeb,
         headers: {
           'X-Device-Id': getOrCreateDeviceId(),
           'X-Device-Name': getDeviceName(),
@@ -95,12 +107,16 @@ async function processUnauthorized(config?: InternalAxiosRequestConfig) {
       return Promise.reject(new Error(res.message || '登录已过期'))
     }
 
+    // Web 环境 saveTokenPair 为 no-op（Cookie 由后端 Set-Cookie 管理）；Electron 落盘 safeStorage
     await saveTokenPair(res.data.accessToken, res.data.refreshToken)
     refreshQueue.forEach(cb => cb(res.data.accessToken))
     refreshQueue = []
 
     if (config) {
-      config.headers.Authorization = `Bearer ${res.data.accessToken}`
+      // Web 环境依赖 Cookie 鉴权，不设 Authorization Header；Electron 设新 access token
+      if (!isWeb) {
+        config.headers.Authorization = `Bearer ${res.data.accessToken}`
+      }
       applyDeviceHeaders(config.headers)
       return apiClient(config)
     }

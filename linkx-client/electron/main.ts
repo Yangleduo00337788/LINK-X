@@ -765,6 +765,15 @@ function registerWindowIpc() {
   ipcMain.handle('app:get-shortcuts', () => ({ ...currentShortcuts }))
 
   ipcMain.handle('app:set-shortcuts', (_event, payload: { toggleWindow?: string; lock?: string }) => {
+    // [P3-31] 校验快捷键格式，防止非法 Accelerator 导致注册异常或覆盖已有合法值
+    if (payload?.toggleWindow !== undefined && !isValidAccelerator(payload.toggleWindow)) {
+      console.warn('[shortcut] 非法 toggleWindow 快捷键:', payload.toggleWindow)
+      return false
+    }
+    if (payload?.lock !== undefined && !isValidAccelerator(payload.lock)) {
+      console.warn('[shortcut] 非法 lock 快捷键:', payload.lock)
+      return false
+    }
     if (payload?.toggleWindow) currentShortcuts.toggleWindow = String(payload.toggleWindow)
     if (payload?.lock) currentShortcuts.lock = String(payload.lock)
     return registerGlobalShortcuts()
@@ -1001,6 +1010,21 @@ function createTray() {
   tray.setToolTip('LinkX')
   rebuildTrayMenu()
   tray.on('double-click', () => showMainWindow())
+}
+
+/**
+ * 校验 Electron Accelerator 快捷键格式
+ * 空字符串或 null 表示"禁用快捷键"，允许通过（不注册）
+ * 非空字符串必须符合 Electron Accelerator 规范：修饰键(可多个) + 普通键
+ */
+function isValidAccelerator(accelerator: string | null | undefined): boolean {
+  // 空值表示禁用快捷键，允许通过
+  if (!accelerator) return true
+  // Electron Accelerator 合法格式：修饰键(CmdOrCtrl/Ctrl/Command/Alt/Shift/Super/Meta) + 普通键
+  // 普通键支持：字母/数字、F1-F24、方向键、功能键、媒体键等
+  const acceleratorRegex =
+    /^(CmdOrCtrl|Ctrl|Command|Alt|Shift|Super|Meta)(\+(CmdOrCtrl|Ctrl|Command|Alt|Shift|Super|Meta))*\+([A-Za-z0-9]|F[1-9]|F1[0-9]|F2[0-4]|Space|Tab|Enter|Up|Down|Left|Right|Home|End|PageUp|PageDown|Escape|Esc|Backspace|Delete|Insert|VolumeUp|VolumeDown|VolumeMute|MediaNextTrack|MediaPreviousTrack|MediaPlayPause|MediaStop)$/
+  return acceleratorRegex.test(accelerator)
 }
 
 function registerGlobalShortcuts(): boolean {
@@ -1396,11 +1420,12 @@ app.whenReady().then(() => {
   desktopPrefs = loadDesktopPrefs()
 
   // 允许本应用使用摄像头/麦克风（替代假设备开关，保证真实音视频）
+  // [P3-30] display-capture 不在此放行：屏幕共享走专门的 screen:capture IPC + dialog 确认，
+  // 避免任意页面通过 setPermissionRequestHandler 静默获取屏幕采集权限。
   const allowMediaPermissions = new Set([
     'media',
     'microphone',
     'camera',
-    'display-capture',
     'geolocation',
     'notifications'
   ])

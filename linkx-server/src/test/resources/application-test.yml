@@ -32,8 +32,8 @@ spring:
       host: 127.0.0.1
       port: 6379
       database: 0
-      # 无密码则保持为空（YAML 空值）
-      password:
+      # 测试环境建议设置密码，此处用环境变量注入兼容本地无密码 Redis
+      password: ${REDIS_PASSWORD:}
 
 # ---------- MyBatis-Flex（测试精简）----------
 mybatis-flex:

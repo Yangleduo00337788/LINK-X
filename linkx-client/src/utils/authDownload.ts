@@ -2,7 +2,7 @@
  * 带登录态的 API 资源下载（后端中转，不走 MinIO 预签名）。
  */
 
-import { getToken } from './tokenStorage'
+import { getToken, isWebEnvironment } from './tokenStorage'
 import { useAppSettingsStore } from '../stores/appSettings'
 import type { DownloadResult } from './downloadFile'
 
@@ -16,8 +16,11 @@ export async function downloadAuthenticatedApi(
   fileName: string,
   query?: Record<string, string | undefined>
 ): Promise<DownloadResult> {
+  const isWeb = isWebEnvironment()
   const token = await getToken('accessToken')
-  if (!token) {
+  // Web 环境 token 在 HttpOnly Cookie 中（本地不可读），仍可凭 Cookie 下载；
+  // Electron 环境必须有本地 token 走 Authorization Header。
+  if (!isWeb && !token) {
     return { ok: false, message: '未登录' }
   }
 
@@ -30,8 +33,14 @@ export async function downloadAuthenticatedApi(
   }
 
   try {
+    const headers: Record<string, string> = {}
+    if (token) {
+      headers.Authorization = `Bearer ${token}`
+    }
     const res = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${token}` }
+      headers,
+      // Web 环境携带 HttpOnly Cookie 完成鉴权；Electron 走 Authorization Header，用 same-origin 即可
+      credentials: isWeb ? 'include' : 'same-origin'
     })
     if (!res.ok) {
       return { ok: false, message: `下载失败 (${res.status})` }

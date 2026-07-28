@@ -1,4 +1,4 @@
-import { getToken } from './tokenStorage'
+import { getToken, isWebEnvironment } from './tokenStorage'
 import { parseJsonPreservingIds } from './parseJson'
 import type { MessageItem, WsIncomingFrame, WsSendPayload } from '../types/chat'
 
@@ -223,8 +223,11 @@ export async function connectChatSocket(nextHandlers: ChatSocketHandlers) {
     return
   }
 
+  const isWeb = isWebEnvironment()
   const token = await getToken('accessToken')
-  if (!token) {
+  // Web 环境 token 在 HttpOnly Cookie 中（本地不可读），浏览器 WebSocket 握手自动携带同站 Cookie，无需本地 token；
+  // Electron 环境需本地 token 走 Sec-WebSocket-Protocol 子协议。
+  if (!isWeb && !token) {
     handlers.onError(401, '未登录')
     return
   }
@@ -238,7 +241,11 @@ export async function connectChatSocket(nextHandlers: ChatSocketHandlers) {
     `${WS_BASE}/ws?deviceId=${deviceId}&deviceName=${deviceName}&deviceType=${deviceType}`
   console.log('[WebSocket] 正在连接:', `${WS_BASE}/ws`, window.electronAPI ? '(electron)' : '(browser)')
 
-  socket = new WebSocket(wsUrl, ['linkx-access-token', token])
+  // Web 环境只声明命名子协议（token 由 Cookie 携带，服务端从 Cookie 读取）；
+  // Electron 环境把 token 作为第二个子协议传入。
+  socket = isWeb
+    ? new WebSocket(wsUrl, ['linkx-access-token'])
+    : new WebSocket(wsUrl, ['linkx-access-token', token as string])
 
   await new Promise<void>((resolve, reject) => {
     let settled = false

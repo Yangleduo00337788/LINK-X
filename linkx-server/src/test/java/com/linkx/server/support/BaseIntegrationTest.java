@@ -46,6 +46,8 @@ public abstract class BaseIntegrationTest {
         int port = EmbeddedRedis.startIfNeeded();
         registry.add("spring.data.redis.host", () -> "127.0.0.1");
         registry.add("spring.data.redis.port", () -> port);
+        // 强制覆盖 .env.local 注入的 REDIS_PASSWORD，与内嵌 Redis 固定密码对齐
+        registry.add("spring.data.redis.password", () -> EmbeddedRedis.PASSWORD);
     }
 
     @Autowired

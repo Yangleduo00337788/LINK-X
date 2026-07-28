@@ -1,6 +1,7 @@
 package com.linkx.server.config.interceptor;
 
 import com.linkx.server.common.JwtUtils;
+import com.linkx.server.common.TokenCookieUtil;
 import com.linkx.server.common.TokenType;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.service.TokenService;
@@ -33,6 +34,9 @@ class LoginInterceptorTest {
     private TokenService tokenService;
 
     @Mock
+    private TokenCookieUtil tokenCookieUtil;
+
+    @Mock
     private HttpServletRequest request;
 
     @Mock
@@ -42,7 +46,7 @@ class LoginInterceptorTest {
 
     @BeforeEach
     void setUp() {
-        interceptor = new LoginInterceptor(jwtUtils, tokenService);
+        interceptor = new LoginInterceptor(jwtUtils, tokenService, tokenCookieUtil);
     }
 
     @Nested

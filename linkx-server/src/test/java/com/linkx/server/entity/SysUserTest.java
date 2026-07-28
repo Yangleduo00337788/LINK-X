@@ -84,12 +84,13 @@ class SysUserTest {
         @DisplayName("全参构造器应创建完整对象")
         void allArgsConstructorCreatesCompleteObject() {
             Date now = new Date();
+            java.util.List<String> roleCodes = java.util.List.of("user");
             SysUser user = new SysUser(
                     1L, "fulluser", "pass123", "全用户",
                     "http://avatar.url", "签名", "女",
                     1234567890L, "中国", "广东", "深圳",
                     1, now, now, 1L, 1L, 0,
-                    "fulluser@linkx.com", "13800138000"
+                    "fulluser@linkx.com", "13800138000", roleCodes
             );
 
             assertEquals(1L, user.getId());
@@ -110,6 +111,7 @@ class SysUserTest {
             assertEquals(1L, user.getCreateBy());
             assertEquals(1L, user.getUpdateBy());
             assertEquals(0, user.getDeleted());
+            assertEquals(roleCodes, user.getRoleCodes());
         }
     }
 

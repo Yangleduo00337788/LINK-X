@@ -1,26 +1,19 @@
 /**
  * @security Web 环境 Token 存储安全说明
  *
- * 已知风险（已评估，可控）：
- * - Web 浏览器环境下，JWT 使用 sessionStorage 存储，存在 XSS 风险。
- *   一旦渲染进程被 XSS 注入，攻击者可读取 sessionStorage 中的 token。
- * - 彻底修复需后端配合改为 HttpOnly + Secure + SameSite Cookie，
- *   但当前架构为 Electron 桌面客户端优先，Web 仅作降级方案，改动过大。
+ * Web 浏览器环境：Access/Refresh Token 由后端通过 HttpOnly + Secure + SameSite=Lax 的 Cookie 管理，
+ * JS 无法读取 HttpOnly Cookie，从根本上规避 XSS 窃取 token。本模块在 Web 环境下所有读写均为 no-op：
+ * - getAccessToken / getRefreshToken 返回 null（让请求拦截器不带 Authorization Header，依赖 Cookie）
+ * - setToken / saveTokenPair / clearTokens 为空操作（Cookie 由后端 login/refresh/logout 接口管理）
  *
- * 当前缓解措施：
- * 1. Electron 桌面环境（主场景）使用 safeStorage 加密落盘（keychain/Credential Vault），不存明文。
- * 2. Web 环境使用 sessionStorage 而非 localStorage，关闭标签即清，避免长期明文驻留。
- * 3. 渲染进程启用严格 CSP（见 electron/main.ts），限制脚本来源，降低 XSS 概率。
- * 4. 启动时调用 purgeLegacyTokens() 清理历史 localStorage 残留。
- *
- * 后续演进：Web 场景若正式商用，应迁移至 HttpOnly Cookie + 后端刷新令牌轮换。
+ * Electron 桌面环境：继续使用 safeStorage 加密落盘（keychain / Windows Credential Vault）+ Authorization Header，
+ * 不存明文，本模块仅对 Electron 环境生效。
  */
 const ACCESS_KEY = 'accessToken'
 const REFRESH_KEY = 'refreshToken'
 
 /**
- * Web 浏览器下使用 sessionStorage（关闭标签即清）
- * Electron 桌面应用使用 Electron 安全存储（keychain/Windows Credential Vault）
+ * Web 浏览器下历史遗留的 sessionStorage 临时存储 key（仅用于一次性清理历史明文残留）
  */
 const FALLBACK_PREFIX = 'linkx:session-token:'
 
@@ -33,15 +26,12 @@ function fallbackKey(key: TokenKey): string {
 }
 
 /**
- * 在 Web 环境下使用 sessionStorage（不是 localStorage）保存 token，
- * 浏览器关闭时自动清除，避免长期明文驻留。
+ * 是否为 Web 浏览器环境（非 Electron）。
+ * Web 环境 token 由后端 HttpOnly Cookie 管理；Electron 环境走 safeStorage + Authorization Header。
+ * 判定依据：preload 注入的 window.electronAPI.secureStorage 是否存在。
  */
-function webStorage(): Storage | null {
-  try {
-    return typeof sessionStorage !== 'undefined' ? sessionStorage : null
-  } catch {
-    return null
-  }
+export function isWebEnvironment(): boolean {
+  return !window.electronAPI?.secureStorage
 }
 
 async function isSecureStorageAvailable(): Promise<boolean> {
@@ -56,40 +46,43 @@ async function isSecureStorageAvailable(): Promise<boolean> {
 }
 
 async function secureGet(key: string): Promise<string | null> {
-  // 1. 优先 Electron 安全存储
+  // Web 环境：token 在 HttpOnly Cookie 中，JS 不可读，直接返回 null
+  if (isWebEnvironment()) {
+    return null
+  }
+  // Electron 环境：优先 safeStorage 加密存储
   const api = window.electronAPI?.secureStorage
   if (api && (await isSecureStorageAvailable())) {
-    const v = await api.get(key)
-    if (v) return v
-  }
-  // 2. Web 浏览器：sessionStorage 临时存储（不再使用 localStorage）
-  const ws = webStorage()
-  if (ws) {
-    return ws.getItem(fallbackKey(key as TokenKey))
+    return api.get(key)
   }
   return null
 }
 
-async function secureSet(key: string, value: string): Promise<void> {
+async function secureSet(key: string, _value: string): Promise<void> {
+  // Web 环境：no-op，token 由后端 Set-Cookie 管理
+  if (isWebEnvironment()) {
+    return
+  }
+  // Electron 环境：写入 safeStorage 加密存储
   const api = window.electronAPI?.secureStorage
   if (api && (await isSecureStorageAvailable())) {
-    await api.set(key, value)
-    // 清理可能残留的 localStorage 数据（一次性清理历史明文残留）
+    await api.set(key, _value)
+    // 清理可能残留的历史 sessionStorage/localStorage 数据（一次性清理历史明文残留）
     try {
+      sessionStorage.removeItem(fallbackKey(key as TokenKey))
       localStorage.removeItem(fallbackKey(key as TokenKey))
     } catch {
       // ignore
     }
-    return
-  }
-  // Web 环境：sessionStorage（关闭标签即清）
-  const ws = webStorage()
-  if (ws) {
-    ws.setItem(fallbackKey(key as TokenKey), value)
   }
 }
 
 async function secureRemove(key: string): Promise<void> {
+  // Web 环境：no-op，Cookie 由后端 logout 接口清除（HttpOnly Cookie JS 无法主动删除）
+  if (isWebEnvironment()) {
+    return
+  }
+  // Electron 环境：从 safeStorage 移除
   const api = window.electronAPI?.secureStorage
   if (api) {
     try {
@@ -98,9 +91,9 @@ async function secureRemove(key: string): Promise<void> {
       // ignore
     }
   }
+  // 兼顾清理历史 sessionStorage/localStorage 残留
   try {
     sessionStorage.removeItem(fallbackKey(key as TokenKey))
-    // 兼顾清理历史 localStorage 残留
     localStorage.removeItem(fallbackKey(key as TokenKey))
   } catch {
     // ignore
@@ -108,11 +101,13 @@ async function secureRemove(key: string): Promise<void> {
 }
 
 /**
- * 启动时清理历史 localStorage 中可能残留的 token
- * （因为之前用 localStorage 临时保存过，避免敏感数据长期驻留）
+ * 启动时清理历史 sessionStorage/localStorage 中可能残留的 token
+ * （之前用 sessionStorage 临时保存过，迁移到 HttpOnly Cookie 后避免敏感数据驻留）
  */
 export function purgeLegacyTokens() {
   try {
+    sessionStorage.removeItem(fallbackKey(ACCESS_KEY))
+    sessionStorage.removeItem(fallbackKey(REFRESH_KEY))
     localStorage.removeItem(fallbackKey(ACCESS_KEY))
     localStorage.removeItem(fallbackKey(REFRESH_KEY))
   } catch {
@@ -132,9 +127,16 @@ export async function getRefreshToken(): Promise<string | null> {
   return getToken(REFRESH_KEY)
 }
 
+/**
+ * 是否存在可用的 refresh token。
+ * Web 环境：本地不可读 HttpOnly Cookie，返回 true 表示「可能存在，应尝试刷新」，
+ *           由后端 /auth/refresh 接口据 Cookie 实际校验结果决定后续。
+ * Electron 环境：检查 safeStorage 中是否确实存在 refresh token。
+ */
 export async function hasRefreshToken(): Promise<boolean> {
-  const ws = webStorage()
-  if (ws && ws.getItem(fallbackKey(REFRESH_KEY))) return true
+  if (isWebEnvironment()) {
+    return true
+  }
   return !!(await getRefreshToken())
 }
 

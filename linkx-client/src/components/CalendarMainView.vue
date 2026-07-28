@@ -210,7 +210,7 @@ watch(selectedDate, () => {
 
 onMounted(() => {
   syncPanelToSelected()
-  if (!initialized.value) void fetchEvents()
+  if (!initialized.value) fetchEvents().catch(() => {})
   else startReminderWatch()
 })
 
@@ -234,13 +234,13 @@ function shiftMonth(delta: number) {
 }
 
 function goToday() {
-  void setSelectedDate(Date.now())
+  setSelectedDate(Date.now()).catch(() => {})
   syncPanelToSelected()
   showWeekList.value = false
 }
 
 function selectCell(cell: MonthCell) {
-  void setSelectedDate(new Date(cell.year, cell.month - 1, cell.date).getTime())
+  setSelectedDate(new Date(cell.year, cell.month - 1, cell.date).getTime()).catch(() => {})
   showWeekList.value = false
 }
 
