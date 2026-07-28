@@ -5,6 +5,8 @@ target/
 coverage/
 .env.local
 .env.prod
+# 前端本地 env（含本地接口地址/可能的 token）不入库
+linkx-client/.env
 !.env.local.example
 !.env.prod.example
 *.log

@@ -9,6 +9,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  * 从分版本 .env 文件加载键值。
  * <p>
@@ -17,6 +20,8 @@ import java.util.Map;
  * </p>
  */
 public final class DotEnvLoader {
+
+    private static final Logger log = LoggerFactory.getLogger(DotEnvLoader.class);
 
     private DotEnvLoader() {
     }
@@ -85,10 +90,10 @@ public final class DotEnvLoader {
 
     private static Path resolveEnvDirectory() {
         Path cwd = Path.of("").toAbsolutePath().normalize();
+        // 仅在当前目录与 linkx-server 子目录查找，禁止向上回溯，避免在意外目录加载 .env
         Path[] dirs = {
                 cwd,
-                cwd.resolve("linkx-server"),
-                cwd.getParent()
+                cwd.resolve("linkx-server")
         };
         for (Path dir : dirs) {
             if (dir == null || !Files.isDirectory(dir)) {
@@ -125,8 +130,9 @@ public final class DotEnvLoader {
                     map.put(key, value);
                 }
             }
-        } catch (IOException ignored) {
-            // 忽略不可读
+        } catch (IOException e) {
+            // 读取失败记录告警，便于排查配置未生效问题，不再静默吞掉
+            log.warn("读取 .env 文件失败: {} - {}", file.toAbsolutePath(), e.getMessage());
         }
         return map;
     }
@@ -161,7 +167,7 @@ public final class DotEnvLoader {
 
         static Result notFound() {
             return new Result(false, null, null, Map.of(),
-                    "未找到 .env.local / .env.prod（已查 user.dir、linkx-server/、上一级）");
+                    "未找到 .env.local / .env.prod（已查 user.dir、linkx-server/）");
         }
 
         static Result missingFile(String profile, Path expected) {
