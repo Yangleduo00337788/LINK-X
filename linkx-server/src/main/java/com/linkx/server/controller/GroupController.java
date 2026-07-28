@@ -286,7 +286,7 @@ public class GroupController {
             @PathVariable String conversationId,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        return Result.success(groupService.getAnnouncementReadCount(parseId(conversationId)));
+        return Result.success(groupService.getAnnouncementReadCount(userId, parseId(conversationId)));
     }
 
     // ==================== 群聊邀请策略 ====================

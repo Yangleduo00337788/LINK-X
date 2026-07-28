@@ -62,6 +62,7 @@ public class ComplianceServiceImpl implements ComplianceService {
     private final DeviceSessionService deviceSessionService;
     private final TokenService tokenService;
     private final AuditLogService auditLogService;
+    private final com.linkx.server.service.FileStorageService fileStorageService;
 
     @Override
     public UserDataExportVO exportUserData(Long userId) {
@@ -179,7 +180,21 @@ public class ComplianceServiceImpl implements ComplianceService {
         noteMapper.deleteByQuery(QueryWrapper.create().where(Note::getUserId).eq(userId));
 
         // 合规清除扩展：云盘文件、收藏、朋友圈、日历事件、群成员关系
+        // 删除云盘 DB 前先收集 objectKey 在事务内同步删 MinIO 对象，避免"DB 已清但对象残留"违反合规承诺
+        List<CloudFile> cloudFiles = cloudFileMapper.selectListByQuery(
+                QueryWrapper.create().where(CloudFile::getUserId).eq(userId));
+        List<String> objectKeys = cloudFiles.stream()
+                .map(CloudFile::getFileKey)
+                .filter(k -> k != null && !k.isBlank())
+                .toList();
         cloudFileMapper.deleteByQuery(QueryWrapper.create().where(CloudFile::getUserId).eq(userId));
+        for (String key : objectKeys) {
+            try {
+                fileStorageService.deleteFile(key);
+            } catch (Exception e) {
+                log.warn("合规清除删除 MinIO 对象失败: key={}, err={}", key, e.getMessage());
+            }
+        }
         favoriteMapper.deleteByQuery(QueryWrapper.create().where(Favorite::getUserId).eq(userId));
         momentsPostMapper.deleteByQuery(QueryWrapper.create().where(MomentsPost::getUserId).eq(userId));
         calendarEventMapper.deleteByQuery(QueryWrapper.create().where(CalendarEvent::getUserId).eq(userId));

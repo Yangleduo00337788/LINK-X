@@ -132,8 +132,14 @@ public class GroupAnnouncementServiceImpl implements GroupAnnouncementService {
         syncConversationSummary(conversationId);
     }
 
-    /** 把旧版 im_conversation.announcement 迁移为一条公告记录（仅一次） */
-    private void migrateLegacyIfNeeded(Long conversationId) {
+    /**
+     * 把旧版 im_conversation.announcement 迁移为一条公告记录（仅一次）。
+     * 必须独立事务 + catch DuplicateKeyException：
+     * - list/display 只读路径会调用本方法，若没有事务 + 幂等，并发迁移会导致唯一键冲突 500；
+     * - 选 REQUIRED 而非默认连接事务，便于 readOnly 调用栈内的隔离。
+     */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public void migrateLegacyIfNeeded(Long conversationId) {
         long count = announcementMapper.selectCountByQuery(
                 QueryWrapper.create().where(GroupAnnouncement::getConversationId).eq(conversationId)
         );
@@ -151,7 +157,11 @@ public class GroupAnnouncementServiceImpl implements GroupAnnouncementService {
                 .publisherId(publisherId)
                 .pinned(1)
                 .build();
-        announcementMapper.insert(row);
+        try {
+            announcementMapper.insert(row);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            // 并发迁移冲突：另一事务已写入，静默忽略
+        }
     }
 
     /** 同步会话表摘要字段，供会话列表兼容展示 */

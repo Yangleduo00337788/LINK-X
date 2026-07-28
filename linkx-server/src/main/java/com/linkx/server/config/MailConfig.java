@@ -45,7 +45,7 @@ public class MailConfig {
 
         Properties props = sender.getJavaMailProperties();
         props.put("mail.transport.protocol", "smtp");
-        props.put("mail.smtp.auth", true);
+        props.put("mail.smtp.auth", "true");
         // 超时设置，避免 SMTP 服务器无响应时阻塞业务
         props.put("mail.smtp.timeout", 10000);
         props.put("mail.smtp.connectiontimeout", 10000);

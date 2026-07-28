@@ -16,7 +16,8 @@ public enum TokenType {
 
     public static TokenType fromClaim(String claim) {
         if (claim == null) {
-            return ACCESS;
+            // fail-safe：缺失类型声明视为无效，避免被错误识别为 ACCESS 绕过类型校验
+            throw new IllegalArgumentException("token 类型声明缺失");
         }
         for (TokenType type : values()) {
             if (type.value.equalsIgnoreCase(claim)) {

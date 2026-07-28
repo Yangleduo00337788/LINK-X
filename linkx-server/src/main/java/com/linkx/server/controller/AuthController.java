@@ -79,7 +79,7 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public Result<TokenVO> refresh(@RequestBody(required = false) RefreshTokenDTO refreshTokenDTO,
+    public Result<TokenVO> refresh(@RequestBody(required = false) @jakarta.validation.Valid RefreshTokenDTO refreshTokenDTO,
                                    HttpServletRequest request,
                                    HttpServletResponse response) {
         rateLimitService.check("refresh:" + clientIp(request), 30, 60);

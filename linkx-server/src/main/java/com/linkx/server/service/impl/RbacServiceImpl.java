@@ -12,6 +12,7 @@ import com.linkx.server.mapper.SysPermissionMapper;
 import com.linkx.server.mapper.SysRoleMapper;
 import com.linkx.server.mapper.SysRolePermissionMapper;
 import com.linkx.server.mapper.SysUserRoleMapper;
+import com.linkx.server.service.AuditLogService;
 import com.linkx.server.service.RbacService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
@@ -46,6 +47,7 @@ public class RbacServiceImpl implements RbacService {
     private final SysRolePermissionMapper sysRolePermissionMapper;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
+    private final AuditLogService auditLogService;
 
     @Override
     public List<SysRole> getUserRoles(Long userId) {
@@ -208,20 +210,31 @@ public class RbacServiceImpl implements RbacService {
         if (userId == null || roleId == null) {
             throw new CustomException(400, "参数不能为空");
         }
-        // 幂等：已存在有效分配则直接返回
-        long exists = sysUserRoleMapper.selectCountByQuery(
-                QueryWrapper.create()
-                        .where(SysUserRole::getUserId).eq(userId)
-                        .and(SysUserRole::getRoleId).eq(roleId));
-        if (exists > 0) {
-            return;
+        // 超级角色保护：禁止授予超管（仅可由初始化脚本直接写 DB）
+        SysRole role = sysRoleMapper.selectOneById(roleId);
+        if (role == null) {
+            throw new CustomException(404, "角色不存在");
         }
+        if (RbacConstants.ROLE_SUPER_ADMIN.equals(role.getRoleCode())) {
+            throw new CustomException(403, "超级管理员角色不可通过接口授予");
+        }
+
         SysUserRole userRole = SysUserRole.builder()
                 .userId(userId)
                 .roleId(roleId)
                 .createBy(createBy)
                 .build();
-        sysUserRoleMapper.insert(userRole);
+        // catch 唯一索引冲突实现幂等（替代 check-then-insert 竞态）
+        try {
+            sysUserRoleMapper.insert(userRole);
+            // 审计：高敏操作落审计日志，便于溯源
+            auditLogService.log(
+                    com.linkx.server.entity.SysAuditLog.OperationType.ROLE_GRANT,
+                    "授权角色: userId=" + userId + ", roleCode=" + role.getRoleCode(),
+                    createBy, null, null, null, true, null);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            // 已存在有效分配，静默返回（幂等）
+        }
         evictUserCache(userId);
     }
 
@@ -231,10 +244,21 @@ public class RbacServiceImpl implements RbacService {
         if (userId == null || roleId == null) {
             return;
         }
-        sysUserRoleMapper.deleteByQuery(
+        // 超级角色保护：禁止撤销超管
+        SysRole role = sysRoleMapper.selectOneById(roleId);
+        if (role != null && RbacConstants.ROLE_SUPER_ADMIN.equals(role.getRoleCode())) {
+            throw new CustomException(403, "超级管理员角色不可撤销");
+        }
+        int affected = sysUserRoleMapper.deleteByQuery(
                 QueryWrapper.create()
                         .where(SysUserRole::getUserId).eq(userId)
                         .and(SysUserRole::getRoleId).eq(roleId));
+        if (affected > 0) {
+            auditLogService.log(
+                    com.linkx.server.entity.SysAuditLog.OperationType.ROLE_REVOKE,
+                    "撤销角色: userId=" + userId + ", roleCode=" + (role != null ? role.getRoleCode() : String.valueOf(roleId)),
+                    null, null, null, null, true, null);
+        }
         evictUserCache(userId);
     }
 

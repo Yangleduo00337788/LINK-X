@@ -34,6 +34,8 @@ public class BalanceServiceImpl implements BalanceService {
     @Override
     @Transactional
     public void deductBalance(Long userId, BigDecimal amount, String bizType, String bizId, String remark) {
+        // 金额必须为正数，防反向充值/扣款
+        requirePositiveAmount(amount);
         // 先获取当前余额用于记录日志
         UserBalance balance = getOrCreateBalance(userId);
         BigDecimal before = balance.getBalance();
@@ -52,6 +54,8 @@ public class BalanceServiceImpl implements BalanceService {
     @Override
     @Transactional
     public void addBalance(Long userId, BigDecimal amount, String bizType, String bizId, String remark) {
+        // 金额必须为正数，防反向充值/扣款
+        requirePositiveAmount(amount);
         // 先获取当前余额用于记录日志
         UserBalance balance = getOrCreateBalance(userId);
         BigDecimal before = balance.getBalance();
@@ -67,6 +71,8 @@ public class BalanceServiceImpl implements BalanceService {
     @Override
     @Transactional
     public void freezeBalance(Long userId, BigDecimal amount, String bizId) {
+        // 金额必须为正数，防反向冻结
+        requirePositiveAmount(amount);
         UserBalance balance = getOrCreateBalance(userId);
         BigDecimal before = balance.getBalance();
 
@@ -84,6 +90,8 @@ public class BalanceServiceImpl implements BalanceService {
     @Override
     @Transactional
     public void unfreezeAndTransfer(Long fromUserId, Long toUserId, BigDecimal amount, String bizId) {
+        // 金额必须为正数，防反向转账
+        requirePositiveAmount(amount);
         // 领取方可能尚无余额行，先确保存在，避免 UPDATE 0 行导致资金从冻结扣走却未入账
         // 同时记录双方变动前余额，用于审计日志
         UserBalance fromBefore = getOrCreateBalance(fromUserId);
@@ -112,6 +120,8 @@ public class BalanceServiceImpl implements BalanceService {
     @Override
     @Transactional
     public void unfreezeAndDeduct(Long userId, BigDecimal amount, String bizId) {
+        // 金额必须为正数，防反向退款
+        requirePositiveAmount(amount);
         // 记录变动前余额，用于审计日志
         UserBalance before = getOrCreateBalance(userId);
 
@@ -124,6 +134,15 @@ public class BalanceServiceImpl implements BalanceService {
         // 审计日志：红包过期退款，冻结金额加回可用余额
         logBalanceChange(userId, "unfreeze", amount, before.getBalance(),
                 before.getBalance().add(amount), "REDPACKET_REFUND", bizId, "红包过期-冻结退款", null);
+    }
+
+    /**
+     * 校验金额必须为正数；为 null、零或负数时拒绝，防止反向充值/扣款/退款/转账。
+     */
+    private void requirePositiveAmount(BigDecimal amount) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new CustomException(400, "金额必须大于 0");
+        }
     }
 
     /**

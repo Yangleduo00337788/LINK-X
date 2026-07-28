@@ -16,6 +16,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -80,6 +82,8 @@ public class RedPacketServiceImpl implements RedPacketService {
         if (Boolean.FALSE.equals(acquired)) {
             throw new CustomException(409, "红包正在发送中，请勿重复提交");
         }
+        // 事务回滚时清理幂等键，避免 IDEM_KEY_TTL 窗口内用户无法合法重试（资金侧故障）
+        registerIdempotencyKeyRollbackCleanup(idemKey);
 
         // 冻结红包金额（原子 SQL：balance >= amount，余额不足则失败）
         balanceService.freezeBalance(userId, amount, "redpacket:" + dto.getClientMsgId());
@@ -458,5 +462,30 @@ public class RedPacketServiceImpl implements RedPacketService {
                 .atZone(ZoneId.systemDefault())
                 .toLocalDateTime()
                 .format(TIME_FORMATTER);
+    }
+
+    /**
+     * 注册事务回滚时的幂等键清理钩子：
+     * 当前事务成功提交时幂等键保留（防止 TTL 窗口内重复发送）；
+     * 当前事务回滚时清理幂等键（防止余额已冻结/未冻结的中间态下用户被锁死无法重试）。
+     */
+    private void registerIdempotencyKeyRollbackCleanup(String idemKey) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status != STATUS_COMMITTED) {
+                    try {
+                        redisTemplate.delete(idemKey);
+                    } catch (Exception e) {
+                        // 不抛异常外溢到事务框架；清理失败仅依赖 TTL 自动过期兜底
+                        org.slf4j.LoggerFactory.getLogger(RedPacketServiceImpl.class)
+                                .warn("清理红包幂等键失败: key={}, err={}", idemKey, e.getMessage());
+                    }
+                }
+            }
+        });
     }
 }

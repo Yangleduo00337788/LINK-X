@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.Date;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -26,6 +27,18 @@ public class MessageStormServiceImpl implements MessageStormService {
 
     private static final String GROUP_STORM_PREFIX = "linkx:storm:";
 
+    /**
+     * 原子 INCR + EXPIRE Lua 脚本：
+     * - 第一次 INCR 时同时设置 TTL，避免非原子操作导致键永不过期；
+     * - 返回当前计数。
+     */
+    private static final String STORM_INCR_LUA =
+            "local n = redis.call('INCR', KEYS[1])\n" +
+            "if n == 1 then\n" +
+            "  redis.call('EXPIRE', KEYS[1], ARGV[1])\n" +
+            "end\n" +
+            "return n";
+
     private final StringRedisTemplate redisTemplate;
     private final ImMessageStormEventMapper stormEventMapper;
     private final AuditLogService auditLogService;
@@ -36,10 +49,16 @@ public class MessageStormServiceImpl implements MessageStormService {
             return false;
         }
         String key = USER_STORM_PREFIX + userId;
-        Long count = redisTemplate.opsForValue().increment(key);
-        if (count != null && count == 1L) {
-            redisTemplate.expire(key, Duration.ofSeconds(USER_STORM_WINDOW_SECONDS));
-        }
+        // 使用 Lua 脚本原子完成 INCR + EXPIRE，避免非原子操作导致键永不过期
+        // 键永不过期会让用户被永久限流（不可接受的故障）
+        Long count = redisTemplate.execute(
+                new org.springframework.data.redis.core.script.DefaultRedisScript<>(
+                        STORM_INCR_LUA,
+                        Long.class
+                ),
+                List.of(key),
+                String.valueOf(USER_STORM_WINDOW_SECONDS)
+        );
         if (count != null && count > USER_STORM_THRESHOLD) {
             // 同一窗口内只落库一次，避免刷爆
             if (count == USER_STORM_THRESHOLD + 1L) {

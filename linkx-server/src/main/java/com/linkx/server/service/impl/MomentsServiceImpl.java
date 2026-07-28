@@ -393,10 +393,15 @@ public class MomentsServiceImpl implements MomentsService {
                 )
         );
 
-        likeMapper.insert(MomentsLike.builder()
-                .postId(postId)
-                .userId(userId)
-                .build());
+        try {
+            likeMapper.insert(MomentsLike.builder()
+                    .postId(postId)
+                    .userId(userId)
+                    .build());
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            // 唯一索引冲突兜底：并发 like 命中唯一键，静默返回实现幂等
+            return;
+        }
 
         // 给动态作者推送消息通知(不通知自己赞自己)
         if (!post.getUserId().equals(userId)) {
@@ -446,6 +451,17 @@ public class MomentsServiceImpl implements MomentsService {
             mentionIds = parseMentionedUserIds(dto.getContent(), userId);
         }
         String mentionJson = mentionIds.isEmpty() ? null : toJsonString(mentionIds);
+
+        // 引用父评论时校验 parentId 属于同一动态，防止跨动态越权读取父评论
+        if (dto.getParentId() != null) {
+            MomentsComment parent = commentMapper.selectOneById(dto.getParentId());
+            if (parent == null) {
+                throw new CustomException(404, "引用的父评论不存在");
+            }
+            if (!postId.equals(parent.getPostId())) {
+                throw new CustomException(403, "引用的父评论不属于该动态");
+            }
+        }
 
         MomentsComment comment = MomentsComment.builder()
                 .postId(postId)

@@ -128,6 +128,10 @@ public class FriendServiceImpl implements FriendService {
         if (isFriend(fromUserId, target.getId())) {
             throw new CustomException(400, "对方已是你的好友");
         }
+        // 双向黑名单校验：任一方向被拉黑，均应拒绝（防绕过自动接受漏洞）
+        if (isBlockedEitherWay(fromUserId, target.getId())) {
+            throw new CustomException(403, "无法添加该用户为好友");
+        }
 
         SysFriendRequest reversePending = sysFriendRequestMapper.selectOneByQuery(
                 QueryWrapper.create()
@@ -368,6 +372,16 @@ public class FriendServiceImpl implements FriendService {
                         .and(SysUserRelation::getFriendId).eq(friendId)
                         .and(SysUserRelation::getStatus).eq(RELATION_STATUS_BLOCKED)
         ) > 0;
+    }
+
+    /**
+     * 双向黑名单校验：任一方向被拉黑均视为不可加好友/自动通过。
+     */
+    private boolean isBlockedEitherWay(Long userId, Long peerId) {
+        if (userId == null || peerId == null) {
+            return false;
+        }
+        return isBlocked(userId, peerId) || isBlocked(peerId, userId);
     }
 
     private SysUserRelation findRelationAnyStatus(Long userId, Long friendId) {

@@ -18,6 +18,20 @@ public final class RbacConstants {
     /** 普通用户角色编码，注册时默认分配 */
     public static final String ROLE_USER = "user";
 
+    /**
+     * 超级管理员角色编码（受保护）：
+     * - 仅可由更高权限角色授予；
+     * - 不可被 grant 给自己，防止意外提权。
+     */
+    public static final String ROLE_SUPER_ADMIN = "super_admin";
+
+    /**
+     * 当前进程的最高角色编码（数值越小权限越高，用于判断 grant 方向合法性）。
+     */
+    public static final int ROLE_LEVEL_SUPER_ADMIN = 0;
+    public static final int ROLE_LEVEL_ADMIN = 100;
+    public static final int ROLE_LEVEL_USER = 1000;
+
     /** 权限通配符，匹配全部权限（仅 admin 持有） */
     public static final String PERM_ALL = "*";
 

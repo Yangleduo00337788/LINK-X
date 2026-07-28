@@ -119,8 +119,8 @@ public interface GroupService {
     /** 标记群公告已读 */
     void markAnnouncementRead(Long userId, Long conversationId);
 
-    /** 获取群公告已读人数 */
-    long getAnnouncementReadCount(Long conversationId);
+    /** 获取群公告已读人数（限群成员可查，防 IDOR 越权探测） */
+    long getAnnouncementReadCount(Long userId, Long conversationId);
 
     // ==================== 群聊邀请策略 ====================
 

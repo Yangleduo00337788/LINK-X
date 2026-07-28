@@ -67,6 +67,9 @@ public class SysAuditLog implements Serializable {
         DATA_EXPORT("数据导出"),
         DATA_PURGE("数据清除"),
         DATA_RETENTION("数据留存清理"),
+        // P1-D8: RBAC 操作审计
+        ROLE_GRANT("授予角色"),
+        ROLE_REVOKE("撤销角色"),
         ;
 
         private final String description;

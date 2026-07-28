@@ -30,7 +30,18 @@ public final class ClientIpResolver {
                     && trusted.contains(request.getRemoteAddr())) {
                 String xff = request.getHeader("X-Forwarded-For");
                 if (StringUtils.hasText(xff)) {
-                    return xff.split(",")[0].trim();
+                    // 反向遍历 XFF 链：跳过所有在 trustedIps 中的代理 IP，
+                    // 返回第一个"非代理"的 IP（即真实客户端）。
+                    // 防攻击者伪造最左 IP（最左 IP 总是可被任意客户端控制）。
+                    String[] parts = xff.split(",");
+                    for (int i = parts.length - 1; i >= 0; i--) {
+                        String ip = parts[i].trim();
+                        if (StringUtils.hasText(ip) && !trusted.contains(ip)) {
+                            return ip;
+                        }
+                    }
+                    // XFF 全部都是代理 IP（异常情况），回退到第一个
+                    return parts[0].trim();
                 }
                 String realIp = request.getHeader("X-Real-IP");
                 if (StringUtils.hasText(realIp)) {

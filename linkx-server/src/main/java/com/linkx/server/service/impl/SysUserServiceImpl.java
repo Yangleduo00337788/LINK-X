@@ -41,6 +41,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     private final com.linkx.server.service.UserPreferenceService userPreferenceService;
     private final DeviceSessionService deviceSessionService;
     private final com.linkx.server.service.RbacService rbacService;
+    private final com.linkx.server.service.ComplianceService complianceService;
 
     @Override
     @Transactional
@@ -440,27 +441,40 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
      * 重置密码 + 通知的内部复用方法。
      */
     private void doResetPassword(String username, String newPassword, String ip) {
-        // 验证成功后强制删除 key（一次性使用）
-        redisTemplate.delete("linkx:reset-email:" + username);
-
         SysUser user = queryChain()
                 .where(SysUser::getUsername).eq(username)
                 .one();
 
         if (user == null) {
-            PasswordEncoderHolder.encode(newPassword); // 防时序攻击
+            // 防止用户不存在时跳过哈希 → 时序侧信道泄露
+            PasswordEncoderHolder.encode(newPassword);
             throw new CustomException(400, "操作失败，请稍后重试");
         }
 
-        // 重置密码
+        // 重置密码（事务内）
         String hashPassword = PasswordEncoderHolder.encode(newPassword);
         user.setPassword(hashPassword);
         updateById(user);
 
-        // 使所有 refresh token 失效
-        tokenService.revokeAllUserTokens(user.getId());
+        // 事务提交后再删 Redis 校验 key 并吊销 token，避免事务回滚但 Redis 已清的不一致
+        org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                new org.springframework.transaction.support.TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        try {
+                            redisTemplate.delete("linkx:reset-email:" + username);
+                        } catch (Exception e) {
+                            log.warn("清理 reset-email Redis key 失败: {}", e.getMessage());
+                        }
+                        try {
+                            tokenService.revokeAllUserTokens(user.getId());
+                        } catch (Exception e) {
+                            log.warn("吊销用户 token 失败: userId={}, {}", user.getId(), e.getMessage());
+                        }
+                    }
+                });
 
-        // 发送密码修改通知邮件
+        // 发送密码修改通知邮件（不影响 token 吊销顺序）
         try {
             if (user.getEmail() != null && !user.getEmail().isBlank()) {
                 emailService.sendPasswordChangedNotification(user.getEmail(), username, ip);
@@ -558,6 +572,10 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (!PasswordEncoderHolder.matches(password, user.getPassword())) {
             throw new CustomException(400, "登录密码错误");
         }
+        // 复用合规清除逻辑：级联删除云盘/收藏/朋友圈/日历/笔记/偏好/设备会话，
+        // 避免注销后关联资源残留
+        complianceService.purgeUserData(userId, password);
+
         user.setStatus(0);
         updateById(user);
         removeById(userId); // 逻辑删除

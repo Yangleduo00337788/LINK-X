@@ -380,6 +380,17 @@ public class ImMessagePushService {
             sendErrorToSender(userId, new CustomException(404, "消息不存在"));
             return;
         }
+        // 校验提交回执的用户必须是该消息所属会话的成员，
+        // 防止任意用户对任意消息伪造 deliveryReceipt。
+        long memberCount = memberMapper.selectCountByQuery(
+                QueryWrapper.create()
+                        .where(com.linkx.server.entity.ImConversationMember::getConversationId).eq(msg.getConversationId())
+                        .and(com.linkx.server.entity.ImConversationMember::getUserId).eq(userId)
+        );
+        if (memberCount == 0L) {
+            sendErrorToSender(userId, new CustomException(403, "仅会话成员可提交送达回执"));
+            return;
+        }
         // 更新投递状态
         updateDeliveryStatus(messageId, "delivered");
         // 向发送者推送送达回执

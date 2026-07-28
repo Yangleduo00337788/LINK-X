@@ -152,47 +152,61 @@ public class GroupInvitationServiceImpl implements GroupInvitationService {
 
         // 获取被接受者的信息
         SysUser invitee = userMapper.selectOneById(userId);
+        Long inviterUserId = inv.getInviterUserId();
+        Long conversationId = conversation.getId();
 
-        // 推送群会话信息给被接受者（让其可以直接加入会话列表）
-        GroupConversationVO groupVO = toGroupVO(conversation);
-        imPushService.pushToUser(userId, "group_added", Map.of(
-                "conversationId", String.valueOf(conversation.getId()),
-                "group", groupVO
-        ));
+        // 所有外部副作用（推送）延后到 afterCommit 执行，避免事务回滚导致"幽灵事件"
+        org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                new org.springframework.transaction.support.TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        try {
+                            // 推送群会话信息给被接受者（让其可以直接加入会话列表）
+                            GroupConversationVO groupVO = toGroupVO(conversation);
+                            imPushService.pushToUser(userId, "group_added", Map.of(
+                                    "conversationId", String.valueOf(conversationId),
+                                    "group", groupVO
+                            ));
 
-        // 推送系统消息，通知其他群成员有人加入了群
-        if (invitee != null) {
-            String inviteeName = invitee.getNickname() != null ? invitee.getNickname() : invitee.getUsername();
-            emitSystemTip(conversation.getId(), inviteeName + " 加入了群聊");
-        }
+                            // 推送系统消息，通知其他群成员有人加入了群
+                            if (invitee != null) {
+                                String inviteeName = invitee.getNickname() != null ? invitee.getNickname() : invitee.getUsername();
+                                emitSystemTip(conversationId, inviteeName + " 加入了群聊");
+                            }
 
-        // 推送通知刷新给邀请人
-        imPushService.pushToUser(inv.getInviterUserId(), "notification_refresh", Map.of(
-                "type", "group_join_approved",
-                "conversationId", String.valueOf(conversation.getId())
-        ));
+                            // 推送通知刷新给邀请人
+                            imPushService.pushToUser(inviterUserId, "notification_refresh", Map.of(
+                                    "type", "group_join_approved",
+                                    "conversationId", String.valueOf(conversationId)
+                            ));
 
-        // 推送 group_member_added 事件给所有群成员，刷新成员列表
-        if (invitee != null) {
-            String inviteeName = invitee.getNickname() != null ? invitee.getNickname() : invitee.getUsername();
-            Map<String, Object> memberData = Map.of(
-                    "conversationId", String.valueOf(conversation.getId()),
-                    "memberId", String.valueOf(userId),
-                    "memberName", inviteeName,
-                    "memberAvatar", mediaUrlService.resolve(invitee.getAvatar())
-            );
-            // 推送给除新成员外的所有群成员
-            List<ImConversationMember> members = memberMapper.selectListByQuery(
-                    QueryWrapper.create()
-                            .where(ImConversationMember::getConversationId).eq(conversation.getId())
-                            .and(ImConversationMember::getUserId).ne(userId)
-            );
-            for (ImConversationMember member : members) {
-                imPushService.pushToUser(member.getUserId(), "group_member_added", memberData);
-            }
-        }
+                            // 推送 group_member_added 事件给所有群成员，刷新成员列表
+                            if (invitee != null) {
+                                String inviteeName = invitee.getNickname() != null ? invitee.getNickname() : invitee.getUsername();
+                                Map<String, Object> memberData = Map.of(
+                                        "conversationId", String.valueOf(conversationId),
+                                        "memberId", String.valueOf(userId),
+                                        "memberName", inviteeName,
+                                        "memberAvatar", mediaUrlService.resolve(invitee.getAvatar())
+                                );
+                                // 推送给除新成员外的所有群成员
+                                List<ImConversationMember> members = memberMapper.selectListByQuery(
+                                        QueryWrapper.create()
+                                                .where(ImConversationMember::getConversationId).eq(conversationId)
+                                                .and(ImConversationMember::getUserId).ne(userId)
+                                );
+                                for (ImConversationMember member : members) {
+                                    imPushService.pushToUser(member.getUserId(), "group_member_added", memberData);
+                                }
+                            }
+                        } catch (Exception e) {
+                            log.warn("accept afterCommit push failed: {}", e.toString());
+                        }
+                    }
+                }
+        );
 
-        return groupVO;
+        return toGroupVO(conversation);
     }
 
     /**

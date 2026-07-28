@@ -89,4 +89,11 @@ public class RedPacket implements Serializable {
      * 乐观锁版本号（手动管理，用于并发控制）
      */
     private Long version;
+
+    /**
+     * 逻辑删除标记（0:未删除 1:已删除）。MyBatis-Flex deleteById 会自动改为 UPDATE deleted=1，
+     * 避免物理删除资金侧数据，便于审计追溯。
+     */
+    @Column(isLogicDelete = true)
+    private Integer deleted;
 }

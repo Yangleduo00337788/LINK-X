@@ -39,8 +39,8 @@ public final class FileExtensionValidator {
      * 设为 null 表示不限制（仅靠黑名单）；业务若需要严格白名单模式可在配置中覆盖。
      */
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
-            // 图片
-            "png", "jpg", "jpeg", "gif", "webp", "bmp", "ico", "tiff", "tif", "heic", "heif", "avif", "svg",
+            // 图片（移除 svg，防存储型 XSS；头像走 ImageUploadValidator 二次校验）
+            "png", "jpg", "jpeg", "gif", "webp", "bmp", "ico", "tiff", "tif", "heic", "heif", "avif",
             // 音视频
             "mp4", "mov", "avi", "mkv", "webm", "flv", "wmv", "m4v", "mp3", "wav", "ogg", "aac", "flac", "wma", "m4a",
             // 文档
@@ -134,7 +134,8 @@ public final class FileExtensionValidator {
                 return true;
             }
 
-            return true;
+            // 未知签名默认 return false（fail-safe）：避免伪装扩展名的可执行/脚本文件绕过校验
+            return false;
         } catch (IOException e) {
             return false;
         }

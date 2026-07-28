@@ -269,6 +269,9 @@ public class GroupServiceImpl implements GroupService {
             throw new CustomException(404, "群聊不存在");
         }
 
+        // 群邀请策略：ownerApprove 时仅群主/管理员可拉人；addMembers 同样受约束
+        enforceInvitePolicy(userId, group);
+
         List<ImConversationMember> addedMembers = new ArrayList<>();
         for (Long memberId : dto.getMemberIds()) {
             if (memberId == null) {
@@ -420,6 +423,12 @@ public class GroupServiceImpl implements GroupService {
         );
         if (member == null) {
             throw new CustomException(404, "该成员不在群中");
+        }
+
+        // 非群主不能移除管理员：与批量接口行为保持一致
+        boolean operatorIsOwner = Objects.equals(group.getOwnerId(), userId);
+        if (!operatorIsOwner && ImConversationMember.ROLE_ADMIN.equals(member.getRole())) {
+            throw new CustomException(403, "管理员不能移除其他管理员");
         }
 
         memberMapper.deleteById(member.getId());
@@ -840,6 +849,39 @@ public class GroupServiceImpl implements GroupService {
         return group;
     }
 
+    /**
+     * 群邀请策略校验：
+     * - anyMember：任意成员均可邀请（不限制）；
+     * - ownerApprove：仅群主/管理员可邀请；
+     * - 未知策略：fail-safe 拒绝（防 fail-open 默认放行漏洞）。
+     */
+    private void enforceInvitePolicy(Long userId, ImConversation conversation) {
+        String policy = conversation.getInvitePolicy();
+        if (policy == null || policy.isBlank()) {
+            // 未显式配置：默认 anyMember，保持与历史行为兼容
+            return;
+        }
+        if (!"anyMember".equals(policy) && !"ownerApprove".equals(policy)) {
+            // 未知策略：fail-safe 拒绝，避免放行错误配置
+            throw new CustomException(500, "未知的群邀请策略：" + policy);
+        }
+        if ("anyMember".equals(policy)) {
+            return;
+        }
+        // ownerApprove：仅群主/管理员可邀请
+        if (Objects.equals(conversation.getOwnerId(), userId)) {
+            return;
+        }
+        ImConversationMember m = memberMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).eq(conversation.getId())
+                        .and(ImConversationMember::getUserId).eq(userId)
+        );
+        if (m == null || !ImConversationMember.ROLE_ADMIN.equals(m.getRole())) {
+            throw new CustomException(403, "当前群聊仅群主或管理员可邀请成员");
+        }
+    }
+
     private GroupConversationVO toGroupConversationVO(ImConversation group, SysUser owner, Long viewerUserId) {
         // 统计成员数量
         long memberCount = memberMapper.selectCountByQuery(
@@ -1070,6 +1112,7 @@ public class GroupServiceImpl implements GroupService {
         if (memberIds == null || memberIds.isEmpty()) {
             throw new CustomException(400, "成员列表不能为空");
         }
+        boolean operatorIsOwner = Objects.equals(group.getOwnerId(), userId);
         int removed = 0;
         for (Long memberId : memberIds) {
             if (memberId.equals(userId)) continue;
@@ -1080,6 +1123,10 @@ public class GroupServiceImpl implements GroupService {
                             .and(ImConversationMember::getUserId).eq(memberId)
             );
             if (target != null) {
+                // 非群主不能移除管理员：仅群主可对其他管理员操作
+                if (!operatorIsOwner && ImConversationMember.ROLE_ADMIN.equals(target.getRole())) {
+                    throw new CustomException(403, "管理员不能移除其他管理员");
+                }
                 memberMapper.deleteById(target.getId());
                 removed++;
             }
@@ -1097,6 +1144,7 @@ public class GroupServiceImpl implements GroupService {
         if (memberIds == null || memberIds.isEmpty()) {
             throw new CustomException(400, "成员列表不能为空");
         }
+        boolean operatorIsOwner = Objects.equals(group.getOwnerId(), userId);
         int affected = 0;
         for (Long memberId : memberIds) {
             if (memberId.equals(userId)) continue;
@@ -1107,6 +1155,10 @@ public class GroupServiceImpl implements GroupService {
                             .and(ImConversationMember::getUserId).eq(memberId)
             );
             if (target != null) {
+                // 非群主不能禁言管理员：与单条 updateMemberMute 行为保持一致
+                if (!operatorIsOwner && ImConversationMember.ROLE_ADMIN.equals(target.getRole())) {
+                    throw new CustomException(403, "管理员不能禁言其他管理员");
+                }
                 target.setMuted(muted ? 1 : 0);
                 target.setMuteUntil(null);
                 memberMapper.update(target);
@@ -1296,7 +1348,9 @@ public class GroupServiceImpl implements GroupService {
     }
 
     @Override
-    public long getAnnouncementReadCount(Long conversationId) {
+    public long getAnnouncementReadCount(Long userId, Long conversationId) {
+        // 必须为群成员，防 IDOR 越权探测任意群公告已读数
+        assertGroupMember(userId, conversationId);
         return memberMapper.selectCountByQuery(
                 QueryWrapper.create()
                         .where(ImConversationMember::getConversationId).eq(conversationId)
