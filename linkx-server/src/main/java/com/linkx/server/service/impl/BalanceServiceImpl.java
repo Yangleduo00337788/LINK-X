@@ -9,11 +9,16 @@ import com.linkx.server.mapper.UserBalanceMapper;
 import com.linkx.server.service.BalanceService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
 
 /**
  * 余额服务实现
@@ -22,8 +27,12 @@ import java.math.RoundingMode;
 @RequiredArgsConstructor
 public class BalanceServiceImpl implements BalanceService {
 
+    private static final String IDEM_KEY_PREFIX = "linkx:balance:idem:";
+    private static final Duration IDEM_KEY_TTL = Duration.ofHours(48);
+
     private final UserBalanceMapper balanceMapper;
     private final BalanceLogMapper balanceLogMapper;
+    private final StringRedisTemplate redisTemplate;
 
     @Override
     public BalanceVO getBalance(Long userId) {
@@ -36,6 +45,10 @@ public class BalanceServiceImpl implements BalanceService {
     public void deductBalance(Long userId, BigDecimal amount, String bizType, String bizId, String remark) {
         // 金额必须为正数，防反向充值/扣款
         requirePositiveAmount(amount);
+        if (!acquireIdempotency("deduct", userId, bizType, bizId)) {
+            return; // 已成功处理，幂等返回
+        }
+
         // 先获取当前余额用于记录日志
         UserBalance balance = getOrCreateBalance(userId);
         BigDecimal before = balance.getBalance();
@@ -56,6 +69,10 @@ public class BalanceServiceImpl implements BalanceService {
     public void addBalance(Long userId, BigDecimal amount, String bizType, String bizId, String remark) {
         // 金额必须为正数，防反向充值/扣款
         requirePositiveAmount(amount);
+        if (!acquireIdempotency("add", userId, bizType, bizId)) {
+            return;
+        }
+
         // 先获取当前余额用于记录日志
         UserBalance balance = getOrCreateBalance(userId);
         BigDecimal before = balance.getBalance();
@@ -73,6 +90,10 @@ public class BalanceServiceImpl implements BalanceService {
     public void freezeBalance(Long userId, BigDecimal amount, String bizId) {
         // 金额必须为正数，防反向冻结
         requirePositiveAmount(amount);
+        if (!acquireIdempotency("freeze", userId, "freeze", bizId)) {
+            return;
+        }
+
         UserBalance balance = getOrCreateBalance(userId);
         BigDecimal before = balance.getBalance();
 
@@ -92,6 +113,11 @@ public class BalanceServiceImpl implements BalanceService {
     public void unfreezeAndTransfer(Long fromUserId, Long toUserId, BigDecimal amount, String bizId) {
         // 金额必须为正数，防反向转账
         requirePositiveAmount(amount);
+        // 领取幂等：同一 bizId 仅成功转出一次（接收方入账与之绑定）
+        if (!acquireIdempotency("transfer", fromUserId, "REDPACKET_RECEIVE", bizId)) {
+            return;
+        }
+
         // 领取方可能尚无余额行，先确保存在，避免 UPDATE 0 行导致资金从冻结扣走却未入账
         // 同时记录双方变动前余额，用于审计日志
         UserBalance fromBefore = getOrCreateBalance(fromUserId);
@@ -122,6 +148,10 @@ public class BalanceServiceImpl implements BalanceService {
     public void unfreezeAndDeduct(Long userId, BigDecimal amount, String bizId) {
         // 金额必须为正数，防反向退款
         requirePositiveAmount(amount);
+        if (!acquireIdempotency("refund", userId, "REDPACKET_REFUND", bizId)) {
+            return;
+        }
+
         // 记录变动前余额，用于审计日志
         UserBalance before = getOrCreateBalance(userId);
 
@@ -143,6 +173,53 @@ public class BalanceServiceImpl implements BalanceService {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new CustomException(400, "金额必须大于 0");
         }
+    }
+
+    /**
+     * bizId 非空时强制 Redis SETNX 幂等：同一 (op,user,bizType,bizId) 仅成功一次。
+     *
+     * @return true=首次获得锁，继续执行；false=已成功处理过，调用方应直接返回；
+     *         处理中（键在、日志无）抛 409。
+     */
+    private boolean acquireIdempotency(String op, Long userId, String bizType, String bizId) {
+        if (!StringUtils.hasText(bizId)) {
+            return true;
+        }
+        String type = StringUtils.hasText(bizType) ? bizType : "_";
+        String idemKey = IDEM_KEY_PREFIX + op + ":" + userId + ":" + type + ":" + bizId;
+        Boolean acquired = redisTemplate.opsForValue().setIfAbsent(idemKey, "1", IDEM_KEY_TTL);
+        if (Boolean.FALSE.equals(acquired)) {
+            long exists = balanceLogMapper.selectCountByQuery(
+                    QueryWrapper.create()
+                            .where(BalanceLog::getUserId).eq(userId)
+                            .and(BalanceLog::getBizId).eq(bizId)
+                            .and(BalanceLog::getBizType).eq(type)
+            );
+            if (exists > 0) {
+                return false;
+            }
+            throw new CustomException(409, "资金操作处理中，请稍后重试");
+        }
+        registerIdempotencyKeyRollbackCleanup(idemKey);
+        return true;
+    }
+
+    private void registerIdempotencyKeyRollbackCleanup(String idemKey) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status != STATUS_COMMITTED) {
+                    try {
+                        redisTemplate.delete(idemKey);
+                    } catch (Exception ignored) {
+                        // TTL 兜底
+                    }
+                }
+            }
+        });
     }
 
     /**

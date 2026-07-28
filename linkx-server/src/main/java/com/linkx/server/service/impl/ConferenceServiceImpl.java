@@ -312,6 +312,8 @@ public class ConferenceServiceImpl implements ConferenceService {
                 // 保护性 TTL，避免极端场景（如 end 未触发）计数键残留
                 redisTemplate.expire(countKey, ACTIVE_COUNT_TTL);
             }
+            // DB 事务回滚时回退本次 INCR，避免「空会议显示满员」
+            registerActiveCountRollback(countKey, +1);
         }
 
         if (existing == null) {
@@ -397,7 +399,10 @@ public class ConferenceServiceImpl implements ConferenceService {
 
         // 已准入成员离开时递减活跃计数，保持 Redis 计数与 DB 一致
         if (Objects.equals(member.getAdmitStatus(), 1)) {
-            redisTemplate.opsForValue().decrement(ACTIVE_COUNT_KEY + conferenceId);
+            String countKey = ACTIVE_COUNT_KEY + conferenceId;
+            redisTemplate.opsForValue().decrement(countKey);
+            // 事务回滚时恢复计数
+            registerActiveCountRollback(countKey, -1);
         }
 
         String callId = redisTemplate.opsForValue().get(CALL_ID_KEY + conferenceId);
@@ -546,6 +551,8 @@ public class ConferenceServiceImpl implements ConferenceService {
     public void mute(Long userId, Long conferenceId, Long targetUserId, boolean muted) {
         requireHostCoHostOrSelf(conferenceId, userId, targetUserId);
         ConferenceMember target = requireMember(conferenceId, targetUserId);
+        // 联席不可操作主持人（host > co-host > member）
+        assertCanOperateTarget(userId, conferenceId, target);
         target.setMuted(muted ? 1 : 0);
         memberMapper.update(target);
         // 广播给会中所有人，方便各端实时刷新静音图标
@@ -590,6 +597,9 @@ public class ConferenceServiceImpl implements ConferenceService {
     @Transactional
     public void removeMember(Long hostId, Long conferenceId, Long targetUserId) {
         requireHostOrCoHost(conferenceId, hostId);
+        ConferenceMember target = requireMember(conferenceId, targetUserId);
+        // 联席不可踢主持人；主持人互踢由转让流程处理
+        assertCanOperateTarget(hostId, conferenceId, target);
         Conference conference = conferenceMapper.selectOneById(conferenceId);
         leave(targetUserId, conferenceId);
         Map<String, Object> payload = new HashMap<>();
@@ -606,11 +616,26 @@ public class ConferenceServiceImpl implements ConferenceService {
         requireHost(conferenceId, hostId);
         ConferenceMember oldHost = requireMember(conferenceId, hostId);
         ConferenceMember newHost = requireMember(conferenceId, newHostId);
+        // 等候室成员被转让为主持人时，需计入活跃人数并加入信令通道
+        boolean wasAdmitted = Objects.equals(newHost.getAdmitStatus(), 1)
+                && Objects.equals(newHost.getLeftFlag(), 0);
         oldHost.setRole(ConferenceMember.ROLE_MEMBER);
         newHost.setRole(ConferenceMember.ROLE_HOST);
         newHost.setAdmitStatus(1);
+        newHost.setLeftFlag(0);
         memberMapper.update(oldHost);
         memberMapper.update(newHost);
+        if (!wasAdmitted) {
+            String countKey = ACTIVE_COUNT_KEY + conferenceId;
+            redisTemplate.opsForValue().increment(countKey);
+            redisTemplate.expire(countKey, ACTIVE_COUNT_TTL);
+            registerActiveCountRollback(countKey, +1);
+            Conference conference = conferenceMapper.selectOneById(conferenceId);
+            if (conference != null) {
+                String callId = ensureAndGetCallId(conference, newHostId);
+                callService.joinConference(newHostId, callId);
+            }
+        }
         broadcastToActiveMembers(conferenceId, "conference_host", Map.of(
                 "conferenceId", conferenceId,
                 "previousHostId", hostId,
@@ -645,6 +670,7 @@ public class ConferenceServiceImpl implements ConferenceService {
         if (newCount != null) {
             redisTemplate.expire(countKey, ACTIVE_COUNT_TTL);
         }
+        registerActiveCountRollback(countKey, +1);
         target.setAdmitStatus(1);
         memberMapper.update(target);
         String callId = ensureAndGetCallId(conference, hostId);
@@ -679,7 +705,9 @@ public class ConferenceServiceImpl implements ConferenceService {
         target.setAdmitStatus(1);
         memberMapper.update(target);
         if (!wasAdmitted) {
-            redisTemplate.opsForValue().increment(ACTIVE_COUNT_KEY + conferenceId);
+            String countKey = ACTIVE_COUNT_KEY + conferenceId;
+            redisTemplate.opsForValue().increment(countKey);
+            registerActiveCountRollback(countKey, +1);
         }
         broadcastToActiveMembers(conferenceId, "conference_role", Map.of(
                 "conferenceId", conferenceId,
@@ -850,6 +878,53 @@ public class ConferenceServiceImpl implements ConferenceService {
             return;
         }
         requireHostOrCoHost(conferenceId, operatorId);
+    }
+
+    /**
+     * 权限层级：host &gt; co-host &gt; member。联席不可禁言/踢主持人；不可操作同级联席（仅主持人可）。
+     */
+    private void assertCanOperateTarget(Long operatorId, Long conferenceId, ConferenceMember target) {
+        if (Objects.equals(operatorId, target.getUserId())) {
+            return;
+        }
+        ConferenceMember operator = requireMember(conferenceId, operatorId);
+        if (ConferenceMember.ROLE_HOST.equals(operator.getRole())) {
+            return;
+        }
+        if (ConferenceMember.ROLE_HOST.equals(target.getRole())) {
+            throw new CustomException(403, "联席主持人不能操作主持人");
+        }
+        if (ConferenceMember.ROLE_CO_HOST.equals(target.getRole())
+                && ConferenceMember.ROLE_CO_HOST.equals(operator.getRole())) {
+            throw new CustomException(403, "联席主持人不能操作其他联席主持人");
+        }
+    }
+
+    /**
+     * 事务回滚时按 delta 反向补偿 Redis 活跃计数。
+     * delta=+1 表示本次做了 INCR，回滚时 DECR；delta=-1 表示本次做了 DECR，回滚时 INCR。
+     */
+    private void registerActiveCountRollback(String countKey, int delta) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_COMMITTED) {
+                    return;
+                }
+                try {
+                    if (delta > 0) {
+                        redisTemplate.opsForValue().decrement(countKey);
+                    } else if (delta < 0) {
+                        redisTemplate.opsForValue().increment(countKey);
+                    }
+                } catch (Exception e) {
+                    log.warn("回滚会议活跃计数失败: key={}, delta={}, err={}", countKey, delta, e.getMessage());
+                }
+            }
+        });
     }
 
     private void broadcastToHosts(Long conferenceId, String action, Map<String, Object> payload) {

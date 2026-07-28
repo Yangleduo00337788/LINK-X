@@ -26,7 +26,6 @@ import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -387,25 +386,13 @@ public class UserController {
     }
 
     /**
-     * 从拦截器写入的 request 属性或 Authorization 头解析当前用户 ID
+     * 仅信任 LoginInterceptor 写入的 userId（已含吊销/踢人校验），禁止兜底解析 JWT。
      */
     private Long getCurrentUserId(HttpServletRequest request) {
         Object userIdAttr = request.getAttribute("userId");
         if (userIdAttr instanceof Long userId) {
             return userId;
         }
-
-        String token = request.getHeader("Authorization");
-        if (!StringUtils.hasText(token)) {
-            return null;
-        }
-        if (token.startsWith("Bearer ")) {
-            token = token.substring(7);
-        }
-        try {
-            return jwtUtils.getUserIdFromToken(token);
-        } catch (Exception e) {
-            return null;
-        }
+        return null;
     }
 }

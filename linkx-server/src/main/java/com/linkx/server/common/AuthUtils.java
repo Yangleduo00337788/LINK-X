@@ -2,10 +2,12 @@ package com.linkx.server.common;
 
 import com.linkx.server.exception.CustomException;
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.util.StringUtils;
 
 /**
  * 从 HTTP 请求中解析当前登录用户 ID。
+ * <p>
+ * 仅信任 LoginInterceptor 写入的 {@code userId} 属性（已含 JWT 类型/吊销/踢人校验），
+ * 禁止在此兜底解析 Authorization，避免绕过 Redis 存活检查。
  */
 public final class AuthUtils {
 
@@ -17,19 +19,7 @@ public final class AuthUtils {
         if (userIdAttr instanceof Long userId) {
             return userId;
         }
-
-        String token = request.getHeader("Authorization");
-        if (!StringUtils.hasText(token)) {
-            return null;
-        }
-        if (token.startsWith("Bearer ")) {
-            token = token.substring(7);
-        }
-        try {
-            return jwtUtils.getUserIdFromToken(token);
-        } catch (Exception e) {
-            return null;
-        }
+        return null;
     }
 
     public static Long requireUserId(HttpServletRequest request, JwtUtils jwtUtils) {

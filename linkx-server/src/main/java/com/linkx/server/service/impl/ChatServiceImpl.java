@@ -299,6 +299,8 @@ public class ChatServiceImpl implements ChatService {
                     SysUser sender = sysUserMapper.selectOneById(userId);
                     return toMessageVO(existing, sender, userId, loadLastReadMessageId(userId, dto.getConversationId()));
                 }
+                // 去重键已占用但消息尚未可见：并发写入中或刚回滚，禁止继续 insert 绕过去重
+                throw new CustomException(409, "消息处理中，请稍后重试");
             } else {
                 // 事务回滚时补偿删除去重键，避免 10 分钟内阻塞同 client_msg_id 的合法重试
                 registerDedupKeyRollbackCleanup(dedupKey);

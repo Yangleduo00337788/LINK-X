@@ -56,7 +56,9 @@ public class ExternalMediaProxyServiceImpl implements ExternalMediaProxyService 
         if (expiresEpochSec < now || expiresEpochSec > now + PROXY_TTL_SECONDS + 60) {
             throw new CustomException(403, "代理链接已过期");
         }
-        URI uri = SafeExternalUrl.parseAndValidate(url);
+        // 校验并钉死解析到的公网 IP，后续建连不再二次 DNS，防 rebinding
+        SafeExternalUrl.Validated validated = SafeExternalUrl.parseAndValidatePinned(url);
+        URI uri = validated.uri();
         String canonical = uri.toString();
         String expected = sign(canonical, expiresEpochSec);
         if (!constantTimeEquals(expected, signature.trim().toLowerCase(Locale.ROOT))) {
@@ -65,7 +67,7 @@ public class ExternalMediaProxyServiceImpl implements ExternalMediaProxyService 
 
         HttpURLConnection conn = null;
         try {
-            conn = (HttpURLConnection) uri.toURL().openConnection();
+            conn = SafeExternalUrl.openPinnedConnection(validated);
             conn.setInstanceFollowRedirects(false);
             conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
             conn.setReadTimeout(READ_TIMEOUT_MS);

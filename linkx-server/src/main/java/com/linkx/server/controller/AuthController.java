@@ -188,6 +188,8 @@ public class AuthController {
     public Result<Void> resetPasswordByEmail(
             @Valid @RequestBody ResetPasswordByEmailRequest request,
             HttpServletRequest httpRequest) {
+        // 防重置码爆破：同 IP 5 分钟最多 10 次
+        rateLimitService.check("reset-by-email:" + clientIp(httpRequest), 10, 300);
         sysUserService.resetPasswordByEmail(
                 request.getUsername(),
                 request.getCode(),
@@ -205,6 +207,8 @@ public class AuthController {
     public Result<Void> verifyResetCode(
             @Valid @RequestBody VerifyResetCodeRequest request,
             HttpServletRequest httpRequest) {
+        // 防重置码枚举：同 IP 5 分钟最多 20 次
+        rateLimitService.check("verify-reset:" + clientIp(httpRequest), 20, 300);
         sysUserService.verifyEmailResetCode(
                 request.getUsername(),
                 request.getCode(),

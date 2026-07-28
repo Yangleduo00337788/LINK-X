@@ -55,7 +55,6 @@ public class CallServiceImpl implements CallService {
     private final RateLimitService rateLimitService;
 
     @Override
-    @Transactional
     public CallInviteVO invite(Long userId, CallInviteDTO dto) {
         Long conversationId = dto.getConversationId();
         chatService.assertConversationMember(userId, conversationId);
@@ -73,22 +72,14 @@ public class CallServiceImpl implements CallService {
         String callId = UUID.randomUUID().toString().replace("-", "");
         String key = callKey(callId);
 
-        redisTemplate.opsForHash().putAll(key, Map.of(
-                "callerId", String.valueOf(userId),
-                "calleeId", String.valueOf(peerId),
-                "conversationId", String.valueOf(conversationId),
-                "callType", callType,
-                "status", "ringing"
-        ));
-        redisTemplate.expire(key, CALL_TTL);
-
         SysUser caller = sysUserMapper.selectOneById(userId);
         SysUser peer = sysUserMapper.selectOneById(peerId);
         String callerName = displayName(caller);
         String callerAvatar = caller != null ? nullToEmpty(mediaUrlService.resolve(caller.getAvatar())) : "";
 
         String content = "voice".equals(callType) ? "邀请你进行语音通话" : "邀请你进行视频通话";
-        // 通知表存原始 key；列表出口再签发。这里传 raw，避免把长签名 URL 写入 DB
+        // 先写 DB 通知，再写 Redis / 推送：避免「事务回滚但被叫已收到 call_invite」幽灵来电。
+        // 本方法不再包 @Transactional：Redis 与 WS 无法随 DB 回滚，失败时主动清理 Redis。
         notificationService.create(
                 peerId,
                 userId,
@@ -99,17 +90,35 @@ public class CallServiceImpl implements CallService {
                 content
         );
 
-        CallEventVO event = CallEventVO.builder()
-                .callId(callId)
-                .conversationId(conversationId)
-                .callType(callType)
-                .status("ringing")
-                .fromUserId(userId)
-                .toUserId(peerId)
-                .fromNickname(callerName)
-                .fromAvatar(callerAvatar)
-                .build();
-        pushService.pushToUser(peerId, "call_invite", event);
+        try {
+            redisTemplate.opsForHash().putAll(key, Map.of(
+                    "callerId", String.valueOf(userId),
+                    "calleeId", String.valueOf(peerId),
+                    "conversationId", String.valueOf(conversationId),
+                    "callType", callType,
+                    "status", "ringing"
+            ));
+            redisTemplate.expire(key, CALL_TTL);
+
+            CallEventVO event = CallEventVO.builder()
+                    .callId(callId)
+                    .conversationId(conversationId)
+                    .callType(callType)
+                    .status("ringing")
+                    .fromUserId(userId)
+                    .toUserId(peerId)
+                    .fromNickname(callerName)
+                    .fromAvatar(callerAvatar)
+                    .build();
+            pushService.pushToUser(peerId, "call_invite", event);
+        } catch (RuntimeException e) {
+            try {
+                redisTemplate.delete(key);
+            } catch (Exception ignored) {
+                // TTL 兜底
+            }
+            throw e;
+        }
 
         return CallInviteVO.builder()
                 .callId(callId)

@@ -55,6 +55,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/media/external",
                         "/error"
                 );
+        // 密码重置三端点保留 Login 排除（匿名可访问），但不排除 RateLimit：
+        // 实际限流由 AuthController 内 rateLimitService.check 执行（拦截器仅识别 @RateLimit）。
         registry.addInterceptor(rateLimitInterceptor)
                 .addPathPatterns("/**")
                 .excludePathPatterns(
@@ -64,9 +66,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/auth/logout",
                         "/auth/captcha",
                         "/auth/config",
-                        "/auth/send-reset-code",
-                        "/auth/verify-reset-code",
-                        "/auth/reset-password-by-email",
                         "/health",
                         "/health/**",
                         "/app/version",
