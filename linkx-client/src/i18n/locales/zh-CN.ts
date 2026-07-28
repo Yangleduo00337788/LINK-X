@@ -1252,7 +1252,7 @@ export default {
     typeBug: 'Bug 反馈',
     typeOther: '其他问题',
     faqSyncQ: '如何同步消息？',
-    faqSyncA: '登录后消息会通过 WebSocket（ws://host:8081/ws）实时同步；离线时可在网络恢复后自动重连。',
+    faqSyncA: '登录后消息会通过 WebSocket 实时同步；离线时可在网络恢复后自动重连。',
     faqDarkQ: '如何切换深色模式？',
     faqDarkA: '点击侧栏设置图标，或侧栏调色盘进入外观设置。',
     faqMomentsQ: '友链独立窗口如何使用？',

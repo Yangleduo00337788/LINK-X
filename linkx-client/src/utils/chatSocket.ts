@@ -1,8 +1,9 @@
 import { getToken, isWebEnvironment } from './tokenStorage'
 import { parseJsonPreservingIds } from './parseJson'
 import type { MessageItem, WsIncomingFrame, WsSendPayload } from '../types/chat'
+import { WS_BASE_URL } from '../config/endpoints'
 
-const WS_BASE = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8081'
+const WS_BASE = WS_BASE_URL
 
 export interface ChatSocketHandlers {
   onMessage: (message: MessageItem) => void

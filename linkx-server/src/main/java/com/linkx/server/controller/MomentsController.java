@@ -21,7 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 
 /**
- * ??????
+ * 朋友圈接口
  */
 @RestController
 @RequestMapping("/moments")

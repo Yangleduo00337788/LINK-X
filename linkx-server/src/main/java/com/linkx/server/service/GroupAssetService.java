@@ -10,6 +10,8 @@ public interface GroupAssetService {
 
     List<GroupAssetVO> list(Long userId, Long conversationId, String type);
 
+    List<GroupAssetVO> list(Long userId, Long conversationId, String type, Integer limit);
+
     GroupAssetVO create(Long userId, Long conversationId, CreateGroupAssetDTO dto);
 
     GroupAssetVO upload(Long userId, Long conversationId, String type, MultipartFile file, String album);

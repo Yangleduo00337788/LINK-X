@@ -1250,7 +1250,7 @@ export default {
     typeBug: 'Bug',
     typeOther: 'Other',
     faqSyncQ: 'How do messages sync?',
-    faqSyncA: 'After sign-in, messages sync in real time over WebSocket (ws://host:8081/ws). Offline clients reconnect when the network returns.',
+    faqSyncA: 'After sign-in, messages sync in real time over WebSocket. Offline clients reconnect when the network returns.',
     faqDarkQ: 'How do I switch dark mode?',
     faqDarkA: 'Open Settings from the sidebar, or use the theme palette for Appearance.',
     faqMomentsQ: 'How do I use the Moments window?',

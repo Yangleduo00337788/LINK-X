@@ -44,6 +44,7 @@ import { formatFileSize } from '../utils/file'
 import { generateDefaultAvatar } from '../utils/defaultAvatar'
 import { isDisplayableMediaUrl, normalizeMediaUrl } from '../utils/mediaUrl'
 import { useI18n } from '../i18n'
+import { API_BASE_URL } from '../config/endpoints'
 import Avatar from './Avatar.vue'
 
 const message = useMessage()
@@ -87,7 +88,7 @@ const sharePassword = ref('')
 const shareTarget = ref<DriveItemVO | null>(null)
 const shareSubmitting = ref(false)
 
-const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
+const apiBase = API_BASE_URL
 
 onMounted(() => {
   void drive.refreshAll()

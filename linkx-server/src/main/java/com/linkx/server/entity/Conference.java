@@ -56,4 +56,7 @@ public class Conference implements Serializable {
 
     @Column(onInsertValue = "NOW()", onUpdateValue = "NOW()")
     private Date updateTime;
+
+    @Column(isLogicDelete = true)
+    private Integer deleted;
 }

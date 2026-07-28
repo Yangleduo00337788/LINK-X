@@ -36,6 +36,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class GroupAssetServiceImpl implements GroupAssetService {
 
+    private static final int DEFAULT_LIST_LIMIT = 100;
+    private static final int MAX_LIST_LIMIT = 200;
+
     private static final DateTimeFormatter TIME_FMT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
@@ -49,10 +52,17 @@ public class GroupAssetServiceImpl implements GroupAssetService {
 
     @Override
     public List<GroupAssetVO> list(Long userId, Long conversationId, String type) {
+        return list(userId, conversationId, type, DEFAULT_LIST_LIMIT);
+    }
+
+    @Override
+    public List<GroupAssetVO> list(Long userId, Long conversationId, String type, Integer limit) {
         assertGroupMember(userId, conversationId);
+        int pageSize = limit == null || limit <= 0 ? DEFAULT_LIST_LIMIT : Math.min(limit, MAX_LIST_LIMIT);
         QueryWrapper qw = QueryWrapper.create()
                 .where(GroupAsset::getConversationId).eq(conversationId)
-                .orderBy(GroupAsset::getCreateTime, false);
+                .orderBy(GroupAsset::getCreateTime, false)
+                .limit(pageSize);
         if (StringUtils.hasText(type)) {
             qw.and(GroupAsset::getType).eq(normalizeType(type));
         }

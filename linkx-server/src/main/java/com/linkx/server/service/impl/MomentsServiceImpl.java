@@ -524,7 +524,13 @@ public class MomentsServiceImpl implements MomentsService {
         if (comment == null) {
             throw new CustomException(404, "评论不存在");
         }
-        if (!comment.getUserId().equals(userId)) {
+        boolean isAuthor = comment.getUserId().equals(userId);
+        boolean isPostOwner = false;
+        if (!isAuthor && comment.getPostId() != null) {
+            MomentsPost post = postMapper.selectOneById(comment.getPostId());
+            isPostOwner = post != null && userId.equals(post.getUserId());
+        }
+        if (!isAuthor && !isPostOwner) {
             throw new CustomException(403, "无权删除此评论");
         }
         commentMapper.deleteById(commentId);
@@ -810,28 +816,45 @@ public class MomentsServiceImpl implements MomentsService {
     }
 
     /**
-     * 从评论内容兜底解析 @提及:扫描 @昵称 形式,匹配好友/全部用户中匹配昵称的 ID。
-     * 仅作为服务端兜底,前端通常会在提交前就传入 mentions 列表。
+     * 从评论内容兜底解析 @提及：仅匹配「好友中昵称唯一」的用户，避免重名误@。
+     * 前端应优先传 mentions userId 列表；此方法仅作兜底。
      */
     private List<Long> parseMentionedUserIds(String content, Long selfUserId) {
         if (content == null || content.isEmpty()) {
             return Collections.emptyList();
         }
         java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("@([^\\s@]{1,32})").matcher(content);
-        List<String> names = new ArrayList<>();
+        LinkedHashSet<String> names = new LinkedHashSet<>();
         while (matcher.find()) {
             String name = matcher.group(1).trim();
-            if (!name.isEmpty()) names.add(name);
+            if (!name.isEmpty()) {
+                names.add(name);
+            }
         }
-        if (names.isEmpty()) return Collections.emptyList();
+        if (names.isEmpty()) {
+            return Collections.emptyList();
+        }
 
-        List<SysUser> users = userMapper.selectListByQuery(
-                QueryWrapper.create().in("nickname", names)
+        Set<Long> friendIds = getFriendIds(selfUserId);
+        if (friendIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<SysUser> friends = userMapper.selectListByQuery(
+                QueryWrapper.create().where(SysUser::getId).in(friendIds)
         );
+        Map<String, List<SysUser>> byNickname = friends.stream()
+                .filter(u -> u.getNickname() != null && !u.getNickname().isBlank())
+                .collect(Collectors.groupingBy(SysUser::getNickname));
+
         List<Long> ids = new ArrayList<>();
-        for (SysUser u : users) {
-            if (u != null && u.getId() != null && !u.getId().equals(selfUserId)) {
-                ids.add(u.getId());
+        for (String name : names) {
+            List<SysUser> matched = byNickname.getOrDefault(name, List.of());
+            // 仅昵称唯一时采纳，避免同名误伤
+            if (matched.size() == 1) {
+                Long id = matched.get(0).getId();
+                if (id != null && !id.equals(selfUserId)) {
+                    ids.add(id);
+                }
             }
         }
         return ids.stream().distinct().collect(Collectors.toList());

@@ -8,6 +8,7 @@ import * as momentsApi from '../api/moments'
 import { useAppStore } from './app'
 import { useContactsStore } from './contacts'
 import { normalizeMediaUrl, stripEphemeralMediaUrl } from '../utils/mediaUrl'
+import { API_BASE_URL } from '../config/endpoints'
 
 /** 单条评论 */
 export interface MomentComment {
@@ -76,7 +77,7 @@ function toDisplayableMediaUrl(raw?: string | null): string {
   const trimmed = raw.trim()
   // 服务端 HMAC 外链代理：相对 /api 的 /media/external?...
   if (trimmed.startsWith('/media/')) {
-    const apiBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api').replace(/\/$/, '')
+    const apiBase = API_BASE_URL
     return normalizeMediaUrl(`${apiBase}${trimmed}`) || ''
   }
   const url = normalizeMediaUrl(raw)

@@ -50,7 +50,8 @@ public final class InputSanitizer {
     }
 
     /**
-     * 严格清洗：去除任何 HTML 标签（用于纯文本字段如用户名）
+     * 转义 HTML 特殊字符（命名历史原因叫 stripHtml，实际为 escape，不剥离标签）。
+     * 用于标题/正文等需入库展示的文本字段。
      */
     public static String stripHtml(String value, int maxLen) {
         if (value == null) {

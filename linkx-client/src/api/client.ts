@@ -3,8 +3,9 @@ import type { ApiResult, TokenData } from '../types/auth'
 import { parseJsonPreservingIds } from '../utils/parseJson'
 import { clearTokens, getRefreshToken, getToken, isWebEnvironment, saveTokenPair } from '../utils/tokenStorage'
 import { getDeviceName, getDeviceType, getOrCreateDeviceId } from '../utils/deviceId'
+import { API_BASE_URL } from '../config/endpoints'
 
-const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
+const baseURL = API_BASE_URL
 
 export const apiClient = axios.create({
   baseURL,

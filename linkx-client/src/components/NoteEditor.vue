@@ -53,7 +53,7 @@ const mediaUrlCache = ref<Record<string, string>>({})
 const uploadingMedia = ref(false)
 
 const compiledMarkdown = computed(() => {
-  let md = content.value
+  let md = content.value ?? ''
   for (const [key, url] of Object.entries(mediaUrlCache.value)) {
     md = md.split(`(lx-media:${key})`).join(`(${url})`)
   }

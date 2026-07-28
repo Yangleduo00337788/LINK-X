@@ -5,8 +5,9 @@
 import { getToken, isWebEnvironment } from './tokenStorage'
 import { useAppSettingsStore } from '../stores/appSettings'
 import type { DownloadResult } from './downloadFile'
+import { API_BASE_URL } from '../config/endpoints'
 
-const apiBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api').replace(/\/$/, '')
+const apiBase = API_BASE_URL
 
 /**
  * 下载需鉴权的后端中转地址，例如 `/cloud/files/{id}/content`。

@@ -30,9 +30,10 @@ public class GroupAssetController {
     public Result<List<GroupAssetVO>> list(
             @PathVariable String conversationId,
             @RequestParam(required = false) String type,
+            @RequestParam(required = false) Integer limit,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        return Result.success(groupAssetService.list(userId, parseId(conversationId), type));
+        return Result.success(groupAssetService.list(userId, parseId(conversationId), type, limit));
     }
 
     @PostMapping

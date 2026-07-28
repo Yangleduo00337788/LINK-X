@@ -2,6 +2,7 @@ package com.linkx.server.controller;
 
 import com.linkx.server.common.AuthUtils;
 import com.linkx.server.common.JwtUtils;
+import com.linkx.server.common.RateLimit;
 import com.linkx.server.common.Result;
 import com.linkx.server.controller.dto.ConferenceAdmitDTO;
 import com.linkx.server.controller.dto.ConferenceCreateDTO;
@@ -145,6 +146,7 @@ public class ConferenceController {
     }
 
     @PostMapping("/signal")
+    @RateLimit(scope = "conference:signal", value = 20, window = 1)
     public Result<Void> signal(@Valid @RequestBody ConferenceSignalDTO dto, HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         conferenceService.signal(userId, dto);
