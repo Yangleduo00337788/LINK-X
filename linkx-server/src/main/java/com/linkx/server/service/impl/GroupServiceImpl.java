@@ -73,8 +73,12 @@ public class GroupServiceImpl implements GroupService {
     private final GroupAnnouncementMapper groupAnnouncementMapper;
     private final GroupAssetMapper groupAssetMapper;
     private final GroupInvitationMapper groupInvitationMapper;
+    private final com.linkx.server.mapper.ImMessageMapper messageMapper;
+    private final com.linkx.server.service.FileStorageService fileStorageService;
 
     private static final String NOTIFY_TYPE_GROUP_JOIN_REQUEST = "group_join_request";
+    /** 群成员上限（默认 500，与审查建议一致） */
+    private static final int MAX_GROUP_MEMBERS = 500;
 
     @Override
     @Transactional
@@ -91,6 +95,10 @@ public class GroupServiceImpl implements GroupService {
         );
         if (members.size() != dto.getMemberIds().size()) {
             throw new CustomException(400, "部分成员不存在");
+        }
+        // 创建者 + 初始成员不得超过上限
+        if (dto.getMemberIds().size() + 1 > MAX_GROUP_MEMBERS) {
+            throw new CustomException(400, "群成员不得超过 " + MAX_GROUP_MEMBERS + " 人");
         }
 
         // 创建群会话
@@ -272,6 +280,15 @@ public class GroupServiceImpl implements GroupService {
         // 群邀请策略：ownerApprove 时仅群主/管理员可拉人；addMembers 同样受约束
         enforceInvitePolicy(userId, group);
 
+        // 预检容量（保守：按请求人数估算，已在群中的会被 ensureActiveMembership 跳过）
+        long activeCount = memberMapper.selectCountByQuery(
+                QueryWrapper.create().where(ImConversationMember::getConversationId).eq(conversationId)
+        );
+        long requested = dto.getMemberIds().stream().filter(Objects::nonNull).distinct().count();
+        if (activeCount + requested > MAX_GROUP_MEMBERS) {
+            throw new CustomException(400, "群成员已达上限（" + MAX_GROUP_MEMBERS + " 人）");
+        }
+
         List<ImConversationMember> addedMembers = new ArrayList<>();
         for (Long memberId : dto.getMemberIds()) {
             if (memberId == null) {
@@ -350,6 +367,8 @@ public class GroupServiceImpl implements GroupService {
         if (active != null) {
             return null;
         }
+        // 新成员或恢复软删成员前校验上限
+        assertGroupNotFull(conversationId);
         ImConversationMember softDeleted = LogicDeleteManager.execWithoutLogicDelete(() ->
                 memberMapper.selectOneByQuery(
                         QueryWrapper.create()
@@ -378,6 +397,15 @@ public class GroupServiceImpl implements GroupService {
                 .build();
         memberMapper.insert(newMember);
         return newMember;
+    }
+
+    private void assertGroupNotFull(Long conversationId) {
+        long count = memberMapper.selectCountByQuery(
+                QueryWrapper.create().where(ImConversationMember::getConversationId).eq(conversationId)
+        );
+        if (count >= MAX_GROUP_MEMBERS) {
+            throw new CustomException(400, "群成员已达上限（" + MAX_GROUP_MEMBERS + " 人）");
+        }
     }
 
     private void markPendingInvitationsAccepted(Long conversationId, Set<Long> inviteeUserIds) {
@@ -464,7 +492,16 @@ public class GroupServiceImpl implements GroupService {
     public void dissolveGroup(Long userId, Long conversationId) {
         ImConversation group = assertGroupOwner(userId, conversationId);
 
-        // 清理关联数据：群公告、群资产、群邀请
+        // 先收集群资产 MinIO key，DB 清理后删对象
+        List<GroupAsset> assets = groupAssetMapper.selectListByQuery(
+                QueryWrapper.create().where(GroupAsset::getConversationId).eq(conversationId)
+        );
+        List<String> assetKeys = assets.stream()
+                .map(GroupAsset::getFileKey)
+                .filter(k -> k != null && !k.isBlank())
+                .toList();
+
+        // 清理关联数据：群公告、群资产、群邀请、入群申请通知
         groupAnnouncementMapper.deleteByQuery(
                 QueryWrapper.create().where(GroupAnnouncement::getConversationId).eq(conversationId)
         );
@@ -474,6 +511,20 @@ public class GroupServiceImpl implements GroupService {
         groupInvitationMapper.deleteByQuery(
                 QueryWrapper.create().where(GroupInvitation::getConversationId).eq(conversationId)
         );
+        notificationMapper.deleteByQuery(
+                QueryWrapper.create()
+                        .where(MessageNotification::getType).eq(NOTIFY_TYPE_GROUP_JOIN_REQUEST)
+                        .and(MessageNotification::getRelatedId).eq(conversationId)
+        );
+
+        // 逻辑删除会话消息（清空附件引用，避免残留可读内容）
+        com.linkx.server.entity.ImMessage msgPatch = new com.linkx.server.entity.ImMessage();
+        msgPatch.setContent(null);
+        msgPatch.setFileUrl(null);
+        msgPatch.setFileName(null);
+        msgPatch.setDeleted(1);
+        messageMapper.updateByQuery(msgPatch,
+                QueryWrapper.create().where(com.linkx.server.entity.ImMessage::getConversationId).eq(conversationId));
 
         // 删除所有成员
         memberMapper.deleteByQuery(
@@ -482,6 +533,30 @@ public class GroupServiceImpl implements GroupService {
 
         // 删除会话（逻辑删除）
         conversationMapper.deleteById(conversationId);
+
+        // 事务提交后再删 MinIO，避免回滚后对象已无
+        if (!assetKeys.isEmpty() && TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    for (String key : assetKeys) {
+                        try {
+                            fileStorageService.deleteFile(key);
+                        } catch (Exception e) {
+                            log.warn("解散群聊删除 MinIO 对象失败: key={}, err={}", key, e.getMessage());
+                        }
+                    }
+                }
+            });
+        } else {
+            for (String key : assetKeys) {
+                try {
+                    fileStorageService.deleteFile(key);
+                } catch (Exception e) {
+                    log.warn("解散群聊删除 MinIO 对象失败: key={}, err={}", key, e.getMessage());
+                }
+            }
+        }
     }
 
     @Override

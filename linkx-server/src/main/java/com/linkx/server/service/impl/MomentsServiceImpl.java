@@ -48,6 +48,7 @@ public class MomentsServiceImpl implements MomentsService {
     private final ExternalMediaProxyService externalMediaProxyService;
     private final ObjectKeyOwnershipService objectKeyOwnershipService;
     private final MessageNotificationService notificationService;
+    private final MessageNotificationMapper notificationMapper;
     private final ImMessagePushService imPushService;
     private final ObjectMapper objectMapper;
 
@@ -544,10 +545,36 @@ public class MomentsServiceImpl implements MomentsService {
             throw new CustomException(403, "无权删除此动态");
         }
 
+        // 删 DB 前收集图片 object key，提交后清 MinIO；并清相关通知
+        List<MomentsImage> images = imageMapper.selectListByQuery(
+                QueryWrapper.create().eq("post_id", postId)
+        );
+        List<String> objectKeys = images.stream()
+                .map(MomentsImage::getUrl)
+                .filter(u -> u != null && !u.isBlank())
+                .filter(u -> !mediaUrlService.isExternalHttpUrl(u))
+                .toList();
+
         imageMapper.deleteByQuery(QueryWrapper.create().eq("post_id", postId));
         likeMapper.deleteByQuery(QueryWrapper.create().eq("post_id", postId));
         commentMapper.deleteByQuery(QueryWrapper.create().eq("post_id", postId));
+        // 清除与该动态相关的通知（like/comment/mention/at）
+        notificationMapper.deleteByQuery(
+                QueryWrapper.create()
+                        .where(MessageNotification::getRelatedId).eq(postId)
+                        .and(MessageNotification::getType).like("moments_%")
+        );
         postMapper.deleteById(postId);
+
+        if (!objectKeys.isEmpty()) {
+            for (String keyOrUrl : objectKeys) {
+                try {
+                    fileStorageService.deleteFile(keyOrUrl);
+                } catch (Exception e) {
+                    log.warn("删除朋友圈图片对象失败: key={}, err={}", keyOrUrl, e.getMessage());
+                }
+            }
+        }
     }
 
     private void assertPostExists(Long postId) {

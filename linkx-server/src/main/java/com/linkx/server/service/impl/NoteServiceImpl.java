@@ -3,6 +3,7 @@ package com.linkx.server.service.impl;
 import com.linkx.server.controller.dto.SaveNoteDTO;
 import com.linkx.server.controller.vo.NoteFileUploadVO;
 import com.linkx.server.controller.vo.NoteVO;
+import com.linkx.server.common.InputSanitizer;
 import com.linkx.server.entity.Note;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.NoteMapper;
@@ -69,8 +70,10 @@ public class NoteServiceImpl implements NoteService {
     public NoteVO create(Long userId, SaveNoteDTO dto) {
         Note note = Note.builder()
                 .userId(userId)
-                .title(StringUtils.hasText(dto.getTitle()) ? dto.getTitle() : "无标题笔记")
-                .content(dto.getContent())
+                .title(StringUtils.hasText(dto.getTitle())
+                        ? InputSanitizer.stripHtml(dto.getTitle(), 200)
+                        : "无标题笔记")
+                .content(InputSanitizer.stripHtml(dto.getContent(), 100_000))
                 .type(normalizeType(dto.getType()))
                 .build();
         noteMapper.insert(note);
@@ -93,9 +96,9 @@ public class NoteServiceImpl implements NoteService {
         }
 
         if (StringUtils.hasText(dto.getTitle())) {
-            note.setTitle(dto.getTitle());
+            note.setTitle(InputSanitizer.stripHtml(dto.getTitle(), 200));
         }
-        note.setContent(dto.getContent());
+        note.setContent(InputSanitizer.stripHtml(dto.getContent(), 100_000));
         if (StringUtils.hasText(dto.getType())) {
             note.setType(normalizeType(dto.getType()));
         }

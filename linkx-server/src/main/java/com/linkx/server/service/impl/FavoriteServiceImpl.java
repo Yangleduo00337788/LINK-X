@@ -5,6 +5,7 @@ import com.linkx.server.controller.dto.SaveFavoriteTagDTO;
 import com.linkx.server.controller.vo.FavoriteStorageVO;
 import com.linkx.server.controller.vo.FavoriteTagVO;
 import com.linkx.server.controller.vo.FavoriteVO;
+import com.linkx.server.common.InputSanitizer;
 import com.linkx.server.entity.Favorite;
 import com.linkx.server.entity.FavoriteStorage;
 import com.linkx.server.entity.FavoriteTag;
@@ -78,8 +79,8 @@ public class FavoriteServiceImpl implements FavoriteService {
 
         Favorite fav = Favorite.builder()
                 .userId(userId)
-                .title(dto.getTitle())
-                .content(dto.getContent())
+                .title(dto.getTitle() != null ? InputSanitizer.stripHtml(dto.getTitle(), 200) : null)
+                .content(InputSanitizer.stripHtml(dto.getContent(), InputSanitizer.DEFAULT_MAX_LENGTH))
                 .type(normalizeType(dto.getType()))
                 .sourceType(dto.getSourceType())
                 .sourceId(dto.getSourceId())
@@ -97,10 +98,10 @@ public class FavoriteServiceImpl implements FavoriteService {
         Favorite fav = requireOwned(userId, favoriteId);
         Long oldSize = fav.getFileSize() != null ? fav.getFileSize() : 0L;
         if (dto.getTitle() != null) {
-            fav.setTitle(dto.getTitle());
+            fav.setTitle(InputSanitizer.stripHtml(dto.getTitle(), 200));
         }
         if (dto.getContent() != null) {
-            fav.setContent(dto.getContent());
+            fav.setContent(InputSanitizer.stripHtml(dto.getContent(), InputSanitizer.DEFAULT_MAX_LENGTH));
         }
         if (StringUtils.hasText(dto.getType())) {
             fav.setType(normalizeType(dto.getType()));

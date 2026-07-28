@@ -34,6 +34,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.util.Date;
@@ -162,6 +164,7 @@ public class ComplianceServiceImpl implements ComplianceService {
             throw new CustomException(404, "用户不存在");
         }
         if (!StringUtils.hasText(password) || !PasswordEncoderHolder.matches(password, user.getPassword())) {
+            // 失败审计不依赖事务：密码错误时尚无写操作
             audit(userId, "purge", "合规清除密码校验失败", false);
             throw new CustomException(400, "密码错误");
         }
@@ -210,7 +213,17 @@ public class ComplianceServiceImpl implements ComplianceService {
         user.setStatus(0);
         userMapper.update(user);
 
-        audit(userId, "purge", "用户数据清除完成", true);
+        // 成功审计放到 afterCommit，避免事务回滚但审计已异步落库
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    audit(userId, "purge", "用户数据清除完成", true);
+                }
+            });
+        } else {
+            audit(userId, "purge", "用户数据清除完成", true);
+        }
         log.info("合规清除完成: userId={}", userId);
     }
 

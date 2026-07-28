@@ -10,13 +10,16 @@ import org.springframework.web.bind.annotation.RestController;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 健康检查与系统状态端点
+ * 健康检查与系统状态端点。
+ * <p>
+ * 匿名可访问的探针仅返回粗粒度 UP/DOWN，不泄露 MySQL/Redis 延迟等组件细节；
+ * 详细组件状态仅通过 {@code /health/ready} 供编排探活（同样不返回 responseTime）。
+ * </p>
  */
 @Slf4j
 @RestController
@@ -27,25 +30,16 @@ public class HealthController {
     private final DataSource dataSource;
     private final StringRedisTemplate redisTemplate;
 
+    /**
+     * 公开健康检查：仅返回服务级状态，不暴露组件明细（防信息探测）。
+     */
     @GetMapping
     public Result<Map<String, Object>> health() {
         Map<String, Object> health = new HashMap<>();
-        health.put("status", "UP");
+        boolean allUp = isMysqlUp() && isRedisUp();
+        health.put("status", allUp ? "UP" : "DEGRADED");
         health.put("timestamp", Instant.now().toEpochMilli());
         health.put("service", "linkx-server");
-
-        // 检查 MySQL
-        health.put("mysql", checkMysql());
-
-        // 检查 Redis
-        health.put("redis", checkRedis());
-
-        // 计算总体状态
-        boolean allUp = "UP".equals(((Map<?, ?>) health.get("mysql")).get("status"))
-                && "UP".equals(((Map<?, ?>) health.get("redis")).get("status"));
-
-        health.put("status", allUp ? "UP" : "DEGRADED");
-
         return Result.success(health);
     }
 
@@ -57,11 +51,14 @@ public class HealthController {
         return Result.success(response);
     }
 
+    /**
+     * 就绪探针：返回组件 UP/DOWN，不返回延迟数值，降低信息面。
+     */
     @GetMapping("/ready")
     public Result<Map<String, Object>> readiness() {
         Map<String, Object> response = new HashMap<>();
-        boolean mysqlOk = checkMysql().get("status").equals("UP");
-        boolean redisOk = checkRedis().get("status").equals("UP");
+        boolean mysqlOk = isMysqlUp();
+        boolean redisOk = isRedisUp();
 
         if (mysqlOk && redisOk) {
             response.put("status", "UP");
@@ -76,33 +73,22 @@ public class HealthController {
         }
     }
 
-    private Map<String, Object> checkMysql() {
-        Map<String, Object> result = new HashMap<>();
-        long start = System.currentTimeMillis();
+    private boolean isMysqlUp() {
         try (Connection conn = dataSource.getConnection()) {
-            boolean valid = conn.isValid(2);
-            result.put("status", valid ? "UP" : "DOWN");
-            result.put("responseTime", System.currentTimeMillis() - start);
+            return conn.isValid(2);
         } catch (Exception e) {
             log.warn("MySQL 健康检查失败: {}", e.getMessage());
-            result.put("status", "DOWN");
-            // 不泄露具体错误信息，仅记录到日志
+            return false;
         }
-        return result;
     }
 
-    private Map<String, Object> checkRedis() {
-        Map<String, Object> result = new HashMap<>();
-        long start = System.currentTimeMillis();
+    private boolean isRedisUp() {
         try {
             String pong = redisTemplate.getConnectionFactory().getConnection().ping();
-            result.put("status", "PONG".equals(pong) ? "UP" : "DOWN");
-            result.put("responseTime", System.currentTimeMillis() - start);
+            return "PONG".equals(pong);
         } catch (Exception e) {
             log.warn("Redis 健康检查失败: {}", e.getMessage());
-            result.put("status", "DOWN");
-            // 不泄露具体错误信息，仅记录到日志
+            return false;
         }
-        return result;
     }
 }
