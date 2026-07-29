@@ -26,7 +26,7 @@ import { useMessage } from 'naive-ui'
 import type { ContactItem } from '../../types'
 import * as userApi from '../../api/user'
 import type { UserProfileData } from '../../api/user'
-import { generatePlaceholderImage } from '../../utils/defaultAvatar'
+import { normalizeMediaUrl } from '../../utils/mediaUrl'
 import { useI18n } from '../../i18n'
 import { formatFriendDisplayName, friendAvatarText } from '../../utils/friendDisplay'
 
@@ -45,7 +45,7 @@ const { userProfile, savedLogin, isOffline } = storeToRefs(appStore)
 const { onlineFriends } = storeToRefs(contactsStore)
 const { notifyFriendOnline } = storeToRefs(appSettingsStore)
 const { startChatWithContact, updateAvatar } = appStore
-const { posts } = storeToRefs(momentsStore)
+const { setFocusUser, loadFocusUserFeed, fetchUserMoments } = momentsStore
 
 const avatarInputRef = ref<HTMLInputElement | null>(null)
 const uploadingAvatar = ref(false)
@@ -55,6 +55,9 @@ const remarkDraft = ref('')
 const groupDraft = ref('')
 const savingRemark = ref(false)
 const savingGroup = ref(false)
+/** 资料卡友链真实缩略图（最多 4 张图片，不含占位） */
+const momentPreviewImages = ref<string[]>([])
+const loadingMomentPreviews = ref(false)
 
 const contact = computed<ContactItem | null>(() => currentContactProfile.value)
 const friendUserId = computed(() => (contact.value ? resolveContactUserId(contact.value) : null))
@@ -77,13 +80,14 @@ function resolveContactUserId(item: ContactItem): string | null {
   return null
 }
 
-/** 打开他人资料卡时拉取后端公开资料 */
+/** 打开他人资料卡时拉取公开资料 + 友链缩略图 */
 watch(
   () => [contactProfileOpen.value, profileCardIsSelf.value, contact.value?.id] as const,
   async ([open, isSelf, contactId]) => {
     remoteProfile.value = null
     remarkDraft.value = ''
     groupDraft.value = ''
+    momentPreviewImages.value = []
     if (!open || isSelf || !contactId || !contact.value) return
 
     remarkDraft.value = contact.value.remark || ''
@@ -93,15 +97,33 @@ watch(
     if (!userId) return
 
     loadingRemoteProfile.value = true
+    loadingMomentPreviews.value = true
     try {
-      const res = await userApi.getUserProfile(userId)
-      if (res.code === 200 && res.data) {
-        remoteProfile.value = res.data
+      const [profileRes, userPosts] = await Promise.all([
+        userApi.getUserProfile(userId).catch(() => null),
+        fetchUserMoments(userId).catch(() => [] as Awaited<ReturnType<typeof fetchUserMoments>>)
+      ])
+      if (profileRes && profileRes.code === 200 && profileRes.data) {
+        remoteProfile.value = profileRes.data
       }
+      const images: string[] = []
+      for (const post of userPosts || []) {
+        for (const raw of post.images || []) {
+          const url = normalizeMediaUrl(raw) || raw
+          if (!url) continue
+          const path = url.split('?')[0].toLowerCase()
+          if (/\.(mp4|webm|mov|m4v)$/i.test(path)) continue
+          images.push(url)
+          if (images.length >= 4) break
+        }
+        if (images.length >= 4) break
+      }
+      momentPreviewImages.value = images
     } catch {
       // API 失败时回退到本地联系人数据
     } finally {
       loadingRemoteProfile.value = false
+      loadingMomentPreviews.value = false
     }
   }
 )
@@ -152,21 +174,69 @@ const displayId = computed(() => {
   return /^\d+$/.test(id) ? id : `linkx_${id}`
 })
 
-/** 友链缩略图：优先取该用户动态图片，不足 4 张用默认渐变图补齐 */
-const momentPreviews = computed(() => {
-  if (!contact.value) return [] as string[]
-  const images: string[] = []
-  for (const post of posts.value) {
-    if (post.user !== contact.value.name) continue
-    if (post.images?.length) images.push(...post.images)
-    if (images.length >= 4) break
+function formatBirthday(ts: number | string | null | undefined): string {
+  if (ts == null || ts === '') return ''
+  const n = typeof ts === 'number' ? ts : Number(String(ts).trim())
+  const d = Number.isFinite(n) ? new Date(n) : new Date(String(ts))
+  if (Number.isNaN(d.getTime())) return ''
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function joinLocation(country?: string | null, province?: string | null, region?: string | null): string {
+  return [country, province, region]
+    .map(p => (p || '').trim())
+    .filter(p => p && p !== '请选择')
+    .join(' · ')
+}
+
+/** 性别 / 生日 / 地区：本人读 store，他人读公开资料（生日属 PII，仅本人可见） */
+const displayGender = computed(() => {
+  if (profileCardIsSelf.value) return userProfile.value.gender || ''
+  return remoteProfile.value?.gender || ''
+})
+
+const displayBirthdayText = computed(() => {
+  if (!profileCardIsSelf.value) return ''
+  return formatBirthday(userProfile.value.birthday)
+})
+
+const displayLocationText = computed(() => {
+  if (profileCardIsSelf.value) {
+    return joinLocation(userProfile.value.country, userProfile.value.province, userProfile.value.region)
   }
-  if (images.length) return images.slice(0, 4)
-  const name = contact.value!.name
-  return Array.from({ length: 4 }, (_, i) =>
-    generatePlaceholderImage(`${name}-${i}`, 120)
+  return joinLocation(
+    remoteProfile.value?.country,
+    remoteProfile.value?.province,
+    remoteProfile.value?.region
   )
 })
+
+const showProfileDetails = computed(
+  () =>
+    !!(displayGender.value || displayBirthdayText.value || displayLocationText.value) ||
+    profileCardIsSelf.value
+)
+
+/** 友链缩略图：仅展示真实图片，无图时留空由 UI 提示 */
+const momentPreviews = computed(() => momentPreviewImages.value)
+
+/** 打开对方友链：Electron 独立窗带 userId；Web 切主栏 moments */
+function openContactMoments() {
+  const userId = friendUserId.value
+  if (!userId || !contact.value) return
+  const name = displayName.value
+  closeContactProfile()
+  if (window.electronAPI?.openMoments) {
+    window.electronAPI.openMoments({ userId, name })
+    return
+  }
+  setFocusUser(userId, name)
+  void loadFocusUserFeed()
+  appStore.setNav('moments')
+}
 
 /** 从资料卡发起与该联系人的聊天 */
 async function handleSendMessage() {
@@ -327,6 +397,33 @@ async function saveGroup() {
           </button>
         </section>
 
+        <section v-if="showProfileDetails" class="profile-details">
+          <div class="detail-row">
+            <span class="detail-label">{{ t('modals.gender') }}</span>
+            <span class="detail-value" :class="{ muted: !displayGender }">
+              {{
+                displayGender === '女'
+                  ? t('modals.female')
+                  : displayGender === '男'
+                    ? t('modals.male')
+                    : t('modals.notFilled')
+              }}
+            </span>
+          </div>
+          <div v-if="profileCardIsSelf" class="detail-row">
+            <span class="detail-label">{{ t('modals.birthday') }}</span>
+            <span class="detail-value" :class="{ muted: !displayBirthdayText }">
+              {{ displayBirthdayText || t('modals.notFilled') }}
+            </span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">{{ t('modals.location') }}</span>
+            <span class="detail-value" :class="{ muted: !displayLocationText }">
+              {{ displayLocationText || t('modals.notFilled') }}
+            </span>
+          </div>
+        </section>
+
         <section v-if="profileCardIsSelf" class="online-section">
           <div class="online-section-head">
             <span class="online-section-title">{{ onlineFriendsTitle }}</span>
@@ -407,20 +504,30 @@ async function saveGroup() {
           <p class="edit-hint">{{ t('modals.friendGroupHint') }}</p>
         </section>
 
-        <section v-if="!profileCardIsSelf" class="moments-row">
+        <button
+          v-if="!profileCardIsSelf"
+          type="button"
+          class="moments-row"
+          @click="openContactMoments"
+        >
           <span class="moments-label">{{ t('modals.moments') }}</span>
           <div class="moments-thumbs">
-            <img
-              v-for="(img, i) in momentPreviews"
-              :key="i"
-              :src="img"
-              alt=""
-              class="thumb"
-              referrerpolicy="no-referrer"
-            />
+            <template v-if="momentPreviews.length">
+              <img
+                v-for="(img, i) in momentPreviews"
+                :key="i"
+                :src="img"
+                alt=""
+                class="thumb"
+                referrerpolicy="no-referrer"
+              />
+            </template>
+            <span v-else class="moments-empty">
+              {{ loadingMomentPreviews ? t('common.loading') : t('modals.noMomentsPreview') }}
+            </span>
           </div>
           <n-icon :component="ChevronForwardOutline" :size="16" class="moments-arrow" />
-        </section>
+        </button>
 
         <button v-if="!profileCardIsSelf" type="button" class="send-btn" @click="handleSendMessage">
           <n-icon :component="ChatbubbleEllipsesOutline" :size="18" />
@@ -524,14 +631,57 @@ async function saveGroup() {
   color: var(--lx-accent);
 }
 
+.profile-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 18px 14px;
+  border-bottom: 1px solid var(--lx-border-light);
+}
+
+.detail-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.detail-label {
+  flex-shrink: 0;
+  width: 36px;
+  color: var(--lx-text-muted);
+}
+
+.detail-value {
+  min-width: 0;
+  flex: 1;
+  color: var(--lx-text-body);
+  word-break: break-word;
+}
+
+.detail-value.muted {
+  color: var(--lx-text-muted);
+}
+
 .moments-row {
   display: flex;
   align-items: center;
   gap: 10px;
+  width: 100%;
   padding: 12px 18px;
+  border: none;
   border-top: 1px solid var(--lx-border-light);
   border-bottom: 1px solid var(--lx-border-light);
-  cursor: default;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+
+.moments-row:hover {
+  background: var(--lx-bg-panel);
 }
 
 .moments-label {
@@ -545,7 +695,13 @@ async function saveGroup() {
   display: flex;
   gap: 4px;
   justify-content: flex-end;
+  align-items: center;
   min-width: 0;
+}
+
+.moments-empty {
+  font-size: 12px;
+  color: var(--lx-text-muted);
 }
 
 .thumb {

@@ -9,7 +9,7 @@ declare global {
       minimize: () => Promise<void>           // 最小化当前窗口
       maximize: () => Promise<void>           // 最大化/还原窗口
       close: () => Promise<void>              // 关闭窗口
-      openMoments: () => void                 // 打开友链独立窗口
+      openMoments: (opts?: { userId?: string; name?: string }) => void // 打开友链独立窗口（可指定用户）
       openMomentsText: () => void            // 打开友链-发布文字独立窗口
       openMomentsMedia: () => void           // 打开友链-发布图片/视频独立窗口
       openNoteEditor: () => void             // 打开笔记编辑器独立窗口

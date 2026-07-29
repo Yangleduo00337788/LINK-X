@@ -140,10 +140,50 @@ export const useMomentsStore = defineStore('moments', {
     initialized: false,
     hasMore: true,
     loadingMore: false,
-    lastQuery: '' as string
+    lastQuery: '' as string,
+    /** 查看指定用户友链时的焦点用户（资料卡「友链」入口） */
+    focusUserId: null as string | null,
+    focusUserName: null as string | null,
+    focusUserPosts: [] as MomentPost[],
+    focusUserLoading: false
   }),
 
+  getters: {
+    /** 当前列表：焦点用户动态 或 全站好友动态 */
+    displayPosts(state): MomentPost[] {
+      return state.focusUserId ? state.focusUserPosts : state.posts
+    },
+    isUserFeed(state): boolean {
+      return !!state.focusUserId
+    }
+  },
+
   actions: {
+    setFocusUser(userId: string | null, userName?: string | null) {
+      this.focusUserId = userId
+      this.focusUserName = userName?.trim() || null
+      if (!userId) {
+        this.focusUserPosts = []
+        this.focusUserLoading = false
+      }
+    },
+
+    clearFocusUser() {
+      this.setFocusUser(null)
+    },
+
+    /** 加载焦点用户的友链列表 */
+    async loadFocusUserFeed() {
+      const userId = this.focusUserId
+      if (!userId) return
+      this.focusUserLoading = true
+      try {
+        this.focusUserPosts = await this.fetchUserMoments(userId)
+      } finally {
+        this.focusUserLoading = false
+      }
+    },
+
     /** 从后端加载朋友圈动态（首屏或搜索重置） */
     async fetchMoments(options?: { q?: string }) {
       try {
@@ -239,6 +279,15 @@ export const useMomentsStore = defineStore('moments', {
       return false
     },
 
+    /** 在全站列表或焦点用户列表中定位动态 */
+    findPost(postId: string): MomentPost | undefined {
+      const id = String(postId)
+      return (
+        this.focusUserPosts.find(p => String(p.id) === id) ||
+        this.posts.find(p => String(p.id) === id)
+      )
+    },
+
     /** 更新动态 */
     async updatePost(
       postId: string,
@@ -254,8 +303,11 @@ export const useMomentsStore = defineStore('moments', {
         const res = await momentsApi.updateMoments(postId, payload)
         if (res.code === 200 && res.data) {
           const mapped = mapPost(res.data)
-          const idx = this.posts.findIndex(p => String(p.id) === String(postId))
+          const id = String(postId)
+          const idx = this.posts.findIndex(p => String(p.id) === id)
           if (idx >= 0) this.posts.splice(idx, 1, mapped)
+          const fIdx = this.focusUserPosts.findIndex(p => String(p.id) === id)
+          if (fIdx >= 0) this.focusUserPosts.splice(fIdx, 1, mapped)
           return true
         }
       } catch (e) {
@@ -267,7 +319,7 @@ export const useMomentsStore = defineStore('moments', {
     /** 切换点赞状态（允许赞自己的动态） */
     async toggleLike(postId: string) {
       const id = String(postId)
-      const post = this.posts.find(p => String(p.id) === id)
+      const post = this.findPost(id)
       if (!post) return false
       const appStore = useAppStore()
       const userName = appStore.userProfile.nickname || '我'
@@ -306,7 +358,7 @@ export const useMomentsStore = defineStore('moments', {
       mentions: Array<string | number> = [],
       parentId?: string
     ) {
-      const post = this.posts.find(p => String(p.id) === String(postId))
+      const post = this.findPost(String(postId))
       if (!post || !content.trim()) return false
       const appStore = useAppStore()
 
@@ -343,7 +395,7 @@ export const useMomentsStore = defineStore('moments', {
       try {
         const res = await momentsApi.deleteComment(commentId)
         if (res.code === 200) {
-          const post = this.posts.find(p => p.id === postId)
+          const post = this.findPost(String(postId))
           if (post) {
             post.comments = post.comments.filter(c => c.id !== commentId)
           }
@@ -360,7 +412,9 @@ export const useMomentsStore = defineStore('moments', {
       try {
         const res = await momentsApi.deleteMoments(postId)
         if (res.code === 200) {
-          this.posts = this.posts.filter(p => p.id !== postId)
+          const id = String(postId)
+          this.posts = this.posts.filter(p => String(p.id) !== id)
+          this.focusUserPosts = this.focusUserPosts.filter(p => String(p.id) !== id)
           return true
         }
       } catch (e) {

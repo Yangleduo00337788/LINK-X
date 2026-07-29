@@ -742,6 +742,8 @@ export default {
     birthdayPh: 'Pick a date',
     country: 'Country',
     province: 'Province',
+    location: 'Location',
+    notFilled: 'Not set',
     pleaseSelect: 'Select',
     china: 'China',
     enterNickname: 'Enter a nickname',
@@ -952,6 +954,7 @@ export default {
     reportOk: 'Report submitted. Thank you',
     reportFail: 'Failed to submit report',
     moments: 'Moments',
+    noMomentsPreview: 'No posts yet',
     linkxId: 'LinkX ID: {id}'
   },
   favorites: {
@@ -1144,6 +1147,9 @@ export default {
     commentPhAt: 'Write a comment… Use @ to mention friends',
     empty: 'No posts yet',
     emptyHint: 'Tap Publish in the top right to share your first Moments post',
+    userFeedTitle: "{name}'s Moments",
+    userFeedEmptyHint: 'This user has not posted yet',
+    backToFeed: 'Back to feed',
     noMatch: 'No matching posts',
     tryOtherKeyword: 'Try another keyword',
     noMore: 'No more',

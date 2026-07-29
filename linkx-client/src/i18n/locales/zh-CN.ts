@@ -744,6 +744,8 @@ export default {
     birthdayPh: '选择生日',
     country: '国家',
     province: '省份',
+    location: '地区',
+    notFilled: '未填写',
     pleaseSelect: '请选择',
     china: '中国',
     enterNickname: '请输入昵称',
@@ -954,6 +956,7 @@ export default {
     reportOk: '举报已提交，感谢反馈',
     reportFail: '提交举报失败',
     moments: '友链',
+    noMomentsPreview: '暂无动态',
     linkxId: 'LinkX ID: {id}'
   },
   favorites: {
@@ -1146,6 +1149,9 @@ export default {
     commentPhAt: '写评论… 使用 @ 提及好友',
     empty: '暂无动态',
     emptyHint: '点击右上角「发布」分享第一条友链动态吧',
+    userFeedTitle: '{name}的友链',
+    userFeedEmptyHint: '对方还没有发布动态',
+    backToFeed: '返回全部动态',
     noMatch: '未找到相关动态',
     tryOtherKeyword: '换个关键词试试',
     noMore: '没有更多了',

@@ -15,6 +15,7 @@
  *  - 评论支持 @ 好友,后端会推送 moments_mention 通知给被@者
  */
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 // Naive UI 图标
 import { NIcon, useMessage } from 'naive-ui'
 // Ionicons5
@@ -63,10 +64,14 @@ const appStore = useAppStore()
 const momentsStore = useMomentsStore()
 const notificationsStore = useNotificationsStore()
 const contactsStore = useContactsStore()
+const route = useRoute()
+const router = useRouter()
 const { userProfile, theme } = storeToRefs(appStore)
-const { posts, hasMore, loadingMore } = storeToRefs(momentsStore)
+const { posts, hasMore, loadingMore, focusUserId, focusUserName, focusUserPosts, focusUserLoading, isUserFeed } =
+  storeToRefs(momentsStore)
 const { unreadMessageCount, momentsUnreadCount } = storeToRefs(notificationsStore)
-const { toggleLike, fetchMoments, loadMoreMoments, removePost, deleteComment, updatePost } = momentsStore
+const { toggleLike, fetchMoments, loadMoreMoments, removePost, deleteComment, updatePost, loadFocusUserFeed, clearFocusUser, setFocusUser } =
+  momentsStore
 const { fetchMessageNotifications, fetchNotificationCount } = notificationsStore
 const message = useMessage()
 const { t } = useI18n()
@@ -254,15 +259,61 @@ async function uploadBannerDirectly(file: File) {
 
 // 过滤列表（私密动态仅本人可见，作为前端兜底；搜索走服务端）
 const filteredPosts = computed(() => {
+  const source = isUserFeed.value ? focusUserPosts.value : posts.value
   const mine = myUserId.value
-  return posts.value.filter(p => {
+  return source.filter(p => {
     if (p.visibility === 2 && String(p.userId) !== String(mine)) return false
     return true
   })
 })
 
+const headerDisplayName = computed(() => {
+  if (isUserFeed.value) {
+    const name = focusUserName.value || focusUserPosts.value[0]?.user || t('modals.user')
+    return t('moments.userFeedTitle', { name })
+  }
+  return userProfile.value.nickname
+})
+
+const headerAvatar = computed(() => {
+  if (isUserFeed.value) {
+    const fromPost = focusUserPosts.value[0]?.avatar
+    return normalizeMediaUrl(fromPost) || generateDefaultAvatar(focusUserName.value || '?', 88)
+  }
+  return profileAvatar.value
+})
+
+/** 从路由或 store 同步「查看某人友链」焦点 */
+async function syncFocusFromRoute() {
+  const qUserId = typeof route.query.userId === 'string' ? route.query.userId.trim() : ''
+  const qName = typeof route.query.name === 'string' ? route.query.name : ''
+  if (qUserId) {
+    setFocusUser(qUserId, qName || null)
+    await loadFocusUserFeed()
+    return
+  }
+  // 独立窗：hash 去掉 userId 时退出个人友链；嵌入模式保留 store 里已设的焦点
+  if (!props.embedded && focusUserId.value) {
+    clearFocusUser()
+    await fetchMoments({ q: searchQuery.value.trim() || undefined })
+    return
+  }
+  if (focusUserId.value) {
+    await loadFocusUserFeed()
+  }
+}
+
+async function exitUserFeed() {
+  clearFocusUser()
+  if (route.query.userId || route.query.name) {
+    await router.replace({ path: route.path, query: {} })
+  }
+  await fetchMoments({ q: searchQuery.value.trim() || undefined })
+}
+
 let searchTimer: number | null = null
 watch(searchQuery, (q) => {
+  if (isUserFeed.value) return
   if (searchTimer != null) window.clearTimeout(searchTimer)
   searchTimer = window.setTimeout(() => {
     void fetchMoments({ q: q.trim() || undefined })
@@ -279,7 +330,12 @@ function isVideoUrl(url?: string): boolean {
 function handleScroll(e: Event) {
   const el = e.target as HTMLElement
   scrollTop.value = el.scrollTop
-  if (hasMore.value && !loadingMore.value && el.scrollHeight - el.scrollTop - el.clientHeight < 120) {
+  if (
+    !isUserFeed.value &&
+    hasMore.value &&
+    !loadingMore.value &&
+    el.scrollHeight - el.scrollTop - el.clientHeight < 120
+  ) {
     void loadMoreMoments()
   }
 }
@@ -350,9 +406,11 @@ onMounted(() => {
     }
     await Promise.all([
       fetchMessageNotifications(),
-      fetchMoments(),
       contactsStore.fetchFriends(),
-      loadMomentsBanner()
+      loadMomentsBanner(),
+      syncFocusFromRoute().then(async () => {
+        if (!focusUserId.value) await fetchMoments()
+      })
     ])
     // 刷新后清掉失败标记，让新签名 URL 有机会重新加载
     failedAvatars.value = {}
@@ -361,9 +419,17 @@ onMounted(() => {
   window.addEventListener('keydown', onPreviewKeydown)
   // 发布窗口发完后通过 IPC 通知本窗口刷新列表
   unsubscribeMomentsRefresh = window.electronAPI?.onMomentsRefresh?.(() => {
-    void fetchMoments()
+    if (focusUserId.value) void loadFocusUserFeed()
+    else void fetchMoments()
   }) ?? null
 })
+
+watch(
+  () => [route.query.userId, route.query.name] as const,
+  () => {
+    void syncFocusFromRoute()
+  }
+)
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onPreviewKeydown)
@@ -388,7 +454,11 @@ async function refresh() {
   if (refreshing.value) return
   refreshing.value = true
   document.querySelector('.moments-scroll-container')?.scrollTo({ top: 0, behavior: 'smooth' })
-  await Promise.all([fetchMoments(), fetchMessageNotifications()])
+  if (focusUserId.value) {
+    await Promise.all([loadFocusUserFeed(), fetchMessageNotifications()])
+  } else {
+    await Promise.all([fetchMoments(), fetchMessageNotifications()])
+  }
   failedAvatars.value = {}
   message.success(t('moments.refreshOk'))
   // 旋转动画保持至少 600ms,让用户感知到
@@ -751,8 +821,10 @@ function visibilityLabel(visibility?: number): string {
           </div>
         </div>
         <div class="user-info">
-          <span class="username">{{ userProfile.nickname }}</span>
-          <img :src="profileAvatar" alt="Avatar" class="avatar-img" referrerpolicy="no-referrer" />
+          <div class="user-info-text">
+            <span class="username">{{ headerDisplayName }}</span>
+          </div>
+          <img :src="headerAvatar" alt="Avatar" class="avatar-img" referrerpolicy="no-referrer" />
         </div>
       </div>
 
@@ -943,11 +1015,17 @@ function visibilityLabel(visibility?: number): string {
           </div>
         </div>
         <EmptyState
-          v-if="!filteredPosts.length"
+          v-if="!filteredPosts.length && !focusUserLoading"
           :title="searchQuery.trim() ? t('moments.noMatch') : t('moments.empty')"
-          :description="searchQuery.trim() ? t('moments.tryOtherKeyword') : t('moments.emptyHint')"
+          :description="
+            searchQuery.trim()
+              ? t('moments.tryOtherKeyword')
+              : isUserFeed
+                ? t('moments.userFeedEmptyHint')
+                : t('moments.emptyHint')
+          "
         />
-        <div v-else class="bottom-tip">
+        <div v-else-if="filteredPosts.length && !isUserFeed" class="bottom-tip">
           <button
             v-if="hasMore"
             type="button"
@@ -1000,6 +1078,15 @@ function visibilityLabel(visibility?: number): string {
         <div class="action-btn" :class="{ refreshing }" :title="t('moments.refresh')" @click.stop="refresh">
           <n-icon :component="RefreshOutline" size="22" class="refresh-icon" />
         </div>
+        <button
+          v-if="isUserFeed"
+          type="button"
+          class="back-feed-btn"
+          :title="t('moments.backToFeed')"
+          @click.stop="exitUserFeed"
+        >
+          {{ t('moments.backToFeed') }}
+        </button>
       </div>
       <div class="header-center" :class="{ visible: showTitle && !showNotifications }">
         <span v-if="!showSearch">{{ t('moments.title') }}</span>
@@ -1178,6 +1265,25 @@ function visibilityLabel(visibility?: number): string {
   cursor: pointer;
   transition: background 0.2s;
   pointer-events: auto;
+}
+
+.back-feed-btn {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  color: inherit;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background 0.2s, opacity 0.2s;
+}
+
+.back-feed-btn:hover {
+  background: rgba(255, 255, 255, 0.32);
 }
 
 .action-btn:hover {

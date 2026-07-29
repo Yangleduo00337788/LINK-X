@@ -53,6 +53,12 @@ const api = {
   isElectron: true as const,
   showCustomCaptionButtons: process.platform === 'win32' || process.platform === 'linux',
   hasNativeTitleBarOverlay: false,
+  openMoments: (opts?: { userId?: string; name?: string }) =>
+    ipcRenderer.send('window-open-moments', opts || {}),
+  openMomentsText: () => ipcRenderer.send('window-open-moments-text'),
+  openMomentsMedia: () => ipcRenderer.send('window-open-moments-media'),
+  openNoteEditor: () => ipcRenderer.send('window-open-note-editor'),
+  openRegister: () => ipcRenderer.send('window-open-register'),
   captureScreen,
   fetchIPLocation,
   notifyMomentsPublished: () => ipcRenderer.send('moments:published'),

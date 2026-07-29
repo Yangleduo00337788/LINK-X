@@ -60,6 +60,7 @@ public final class UserProfileMapper {
                 .avatar(user.getAvatar())
                 .signature(user.getSignature())
                 .gender(user.getGender())
+                .birthday(user.getBirthday())
                 .country(user.getCountry())
                 .province(user.getProvince())
                 .region(user.getRegion())

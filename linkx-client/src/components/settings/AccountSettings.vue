@@ -43,6 +43,32 @@ const emailDisplay = computed(() =>
     : t('account.unbound')
 )
 
+const genderDisplay = computed(() => {
+  const g = userProfile.value.gender
+  if (g === '女') return t('modals.female')
+  if (g === '男') return t('modals.male')
+  return t('modals.notFilled')
+})
+
+const birthdayDisplay = computed(() => {
+  const ts = userProfile.value.birthday
+  if (ts == null) return t('modals.notFilled')
+  const d = new Date(ts)
+  if (Number.isNaN(d.getTime())) return t('modals.notFilled')
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+})
+
+const locationDisplay = computed(() => {
+  const text = [userProfile.value.country, userProfile.value.province, userProfile.value.region]
+    .map(p => (p || '').trim())
+    .filter(p => p && p !== '请选择')
+    .join(' · ')
+  return text || t('modals.notFilled')
+})
+
 async function copyId() {
   try {
     await navigator.clipboard.writeText(String(displayId.value))
@@ -473,6 +499,25 @@ onMounted(() => {
           </div>
         </div>
       </div>
+
+      <button type="button" class="link-row" @click="openEditProfile">
+        <span class="link-label">{{ t('modals.gender') }}</span>
+        <span class="link-value" :class="{ muted: !userProfile.gender }">{{ genderDisplay }}</span>
+        <n-icon :component="ChevronForwardOutline" :size="16" class="link-chevron" />
+      </button>
+      <button type="button" class="link-row" @click="openEditProfile">
+        <span class="link-label">{{ t('modals.birthday') }}</span>
+        <span class="link-value" :class="{ muted: userProfile.birthday == null }">{{ birthdayDisplay }}</span>
+        <n-icon :component="ChevronForwardOutline" :size="16" class="link-chevron" />
+      </button>
+      <button type="button" class="link-row" @click="openEditProfile">
+        <span class="link-label">{{ t('modals.location') }}</span>
+        <span
+          class="link-value"
+          :class="{ muted: !userProfile.province && !userProfile.region }"
+        >{{ locationDisplay }}</span>
+        <n-icon :component="ChevronForwardOutline" :size="16" class="link-chevron" />
+      </button>
 
       <button type="button" class="link-row" @click="openPhoneModal">
         <span class="link-label">{{ t('account.phone') }}</span>

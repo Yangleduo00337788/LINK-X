@@ -175,19 +175,33 @@ function isLikelyNetworkError(error: unknown): boolean {
 
 type ProfileSource = Partial<UserProfileData & UserInfo>
 
+/**
+ * 解析生日为毫秒时间戳。
+ * 后端 Jackson 全局把 Long 序列化成字符串（防雪花 ID 精度丢失），
+ * 因此 birthday 常为 "946656000000"；Date.parse 对纯数字字符串会得到 NaN。
+ */
+function parseBirthday(value: unknown): number | null {
+  if (value == null || value === '') return null
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return null
+    if (/^-?\d+$/.test(trimmed)) {
+      const n = Number(trimmed)
+      return Number.isFinite(n) ? n : null
+    }
+    const parsed = Date.parse(trimmed)
+    return Number.isNaN(parsed) ? null : parsed
+  }
+  return null
+}
+
 /** 将后端用户资料写入 store 的 userProfile 结构 */
 function mapApiProfile(data: ProfileSource) {
   const gender = data.gender === '女' ? '女' : '男'
-  // birthday 可能是字符串（ISO）或数字（毫秒时间戳），统一转为数字
-  let birthday: number | null = null
-  if (data.birthday != null && data.birthday !== '') {
-    if (typeof data.birthday === 'number') {
-      birthday = data.birthday
-    } else {
-      const parsed = Date.parse(data.birthday)
-      birthday = isNaN(parsed) ? null : parsed
-    }
-  }
+  const birthday = parseBirthday(data.birthday)
   return {
     nickname: data.nickname || data.username || '',
     username: data.username || '',
@@ -1854,16 +1868,7 @@ export const useAppStore = defineStore('app', {
           this.userProfile.gender = payload.gender === '女' ? '女' : '男'
         }
         if (payload.birthday !== undefined) {
-          // birthday 可能是 string 或 number，统一转为 number | null
-          const b = payload.birthday
-          if (b == null || b === '') {
-            this.userProfile.birthday = null
-          } else if (typeof b === 'number') {
-            this.userProfile.birthday = b
-          } else {
-            const parsed = Date.parse(b)
-            this.userProfile.birthday = isNaN(parsed) ? null : parsed
-          }
+          this.userProfile.birthday = parseBirthday(payload.birthday)
         }
         if (payload.country !== undefined) this.userProfile.country = payload.country
         if (payload.province !== undefined) this.userProfile.province = payload.province

@@ -1063,10 +1063,37 @@ function registerGlobalShortcuts(): boolean {
 
 let momentsWindow: BrowserWindow | null = null
 
-function createMomentsWindow() {
-  if (momentsWindow) {
+type MomentsOpenPayload = { userId?: string; name?: string }
+
+function buildMomentsHash(opts?: MomentsOpenPayload): string {
+  if (opts?.userId) {
+    const params = new URLSearchParams()
+    params.set('userId', String(opts.userId))
+    if (opts.name) params.set('name', String(opts.name))
+    return `/moments?${params.toString()}`
+  }
+  return '/moments'
+}
+
+function loadMomentsHash(win: BrowserWindow, hashPath: string) {
+  if (isDev && process.env.VITE_DEV_SERVER_URL) {
+    win.loadURL(process.env.VITE_DEV_SERVER_URL + '#' + hashPath)
+  } else {
+    win.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: hashPath })
+  }
+}
+
+function createMomentsWindow(opts?: MomentsOpenPayload) {
+  const hashPath = buildMomentsHash(opts)
+
+  if (momentsWindow && !momentsWindow.isDestroyed()) {
     if (momentsWindow.isMinimized()) momentsWindow.restore()
     momentsWindow.focus()
+    // 已打开时切换到目标用户友链（或回到总览）
+    const hash = '#' + hashPath
+    momentsWindow.webContents
+      .executeJavaScript(`window.location.hash = ${JSON.stringify(hash)}`)
+      .catch(() => loadMomentsHash(momentsWindow!, hashPath))
     return
   }
 
@@ -1089,19 +1116,22 @@ function createMomentsWindow() {
     momentsWindow?.show()
   })
 
-  if (isDev && process.env.VITE_DEV_SERVER_URL) {
-    momentsWindow.loadURL(process.env.VITE_DEV_SERVER_URL + '#/moments')
-  } else {
-    momentsWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: 'moments' })
-  }
+  loadMomentsHash(momentsWindow, hashPath)
 
   momentsWindow.on('closed', () => {
     momentsWindow = null
   })
 }
 
-ipcMain.on('window-open-moments', () => {
-  createMomentsWindow()
+ipcMain.on('window-open-moments', (_event, payload?: MomentsOpenPayload) => {
+  const opts =
+    payload && typeof payload === 'object' && (payload.userId || payload.name)
+      ? {
+          userId: payload.userId ? String(payload.userId) : undefined,
+          name: payload.name ? String(payload.name) : undefined
+        }
+      : undefined
+  createMomentsWindow(opts)
 })
 
 /** 发布窗口通知：友链列表窗口刷新 */
