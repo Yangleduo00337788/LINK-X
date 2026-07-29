@@ -21,10 +21,15 @@ public class SchemaPatchRunner implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        ensureColumn(
+    ensureColumn(
                 "sys_user_relation",
                 "group_name",
                 "ALTER TABLE `sys_user_relation` ADD COLUMN `group_name` varchar(32) DEFAULT NULL COMMENT '好友分组名' AFTER `remark`"
+        );
+        ensureColumn(
+                "conference",
+                "scene",
+                "ALTER TABLE `conference` ADD COLUMN `scene` varchar(16) NOT NULL DEFAULT 'meeting' COMMENT '场景: call=电话 meeting=会议' AFTER `type`"
         );
     }
 

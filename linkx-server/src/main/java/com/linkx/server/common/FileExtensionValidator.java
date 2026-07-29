@@ -133,6 +133,34 @@ public final class FileExtensionValidator {
             if (header.length >= 4 && header[0] == 0x66 && header[1] == 0x4C && header[2] == 0x61 && header[3] == 0x43) {
                 return true;
             }
+            // WebM / Matroska（EBML）— 浏览器语音消息常用
+            if (header.length >= 4
+                    && header[0] == 0x1A && header[1] == 0x45
+                    && header[2] == (byte) 0xDF && header[3] == (byte) 0xA3) {
+                return true;
+            }
+            // Ogg（含 Opus）
+            if (header.length >= 4
+                    && header[0] == 0x4F && header[1] == 0x67
+                    && header[2] == 0x67 && header[3] == 0x53) {
+                return true;
+            }
+            // WAV（RIFF....WAVE）
+            if (header.length >= 12
+                    && header[0] == 0x52 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x46
+                    && header[8] == 0x57 && header[9] == 0x41 && header[10] == 0x56 && header[11] == 0x45) {
+                return true;
+            }
+            // MP3：ID3 标签或帧同步
+            if (header.length >= 3
+                    && header[0] == 0x49 && header[1] == 0x44 && header[2] == 0x33) {
+                return true;
+            }
+            if (header.length >= 2
+                    && (header[0] & 0xFF) == 0xFF
+                    && (header[1] & 0xE0) == 0xE0) {
+                return true;
+            }
 
             // 未知签名默认 return false（fail-safe）：避免伪装扩展名的可执行/脚本文件绕过校验
             return false;

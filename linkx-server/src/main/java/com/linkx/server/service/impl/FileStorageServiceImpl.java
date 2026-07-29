@@ -142,13 +142,10 @@ public class FileStorageServiceImpl implements FileStorageService {
         }
         String extension = extractExtension(originalFilename);
 
-        // 3. MIME 与扩展名白名单校验
-        String contentType = file.getContentType();
-        if (contentType != null && "image/jpg".equalsIgnoreCase(contentType)) {
-            contentType = "image/jpeg";
-        }
-        if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType.toLowerCase(Locale.ROOT))) {
-            throw new IllegalArgumentException("不允许的文件类型: " + contentType);
+        // 3. MIME 与扩展名白名单校验（剥离 ;codecs=opus 等参数）
+        String contentType = normalizeContentType(file.getContentType());
+        if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType)) {
+            throw new IllegalArgumentException("不允许的文件类型: " + file.getContentType());
         }
         if (extension.isEmpty() || !ALLOWED_EXTENSIONS.contains(extension.toLowerCase(Locale.ROOT))) {
             throw new IllegalArgumentException("不允许的文件扩展名: " + extension);
@@ -675,10 +672,14 @@ public class FileStorageServiceImpl implements FileStorageService {
             return null;
         }
         String ct = contentType.trim().toLowerCase(Locale.ROOT);
+        int semi = ct.indexOf(';');
+        if (semi >= 0) {
+            ct = ct.substring(0, semi).trim();
+        }
         if ("image/jpg".equals(ct)) {
             return "image/jpeg";
         }
-        return ct;
+        return ct.isEmpty() ? null : ct;
     }
 
     private void assertValidPartNumber(int partNumber) {

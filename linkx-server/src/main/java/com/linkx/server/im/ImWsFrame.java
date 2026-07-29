@@ -14,6 +14,8 @@ public class ImWsFrame {
     private String fileName;
     private Long fileSize;
     private String fileUrl;
+    /** 语音时长（秒），msgType=voice 时由客户端传入 */
+    private Integer voiceDuration;
     private Integer code;
     private String message;
     private Object data;

@@ -33,7 +33,7 @@ const conferenceStore = useConferenceStore()
 const appStore = useAppStore()
 const groupMeta = useGroupMetaStore()
 const {
-  visible,
+  showMeetingUi,
   phase,
   title,
   participants,
@@ -108,6 +108,9 @@ const displayParticipants = computed(() => {
 
 const inRoomMembers = computed(() => displayParticipants.value.filter(p => !p.waitingAdmit))
 const waitingMembers = computed(() => displayParticipants.value.filter(p => p.waitingAdmit))
+const memberCountLabel = computed(() =>
+  t('conference.memberCount', { n: inRoomMembers.value.length })
+)
 
 watch(
   () =>
@@ -314,16 +317,24 @@ watch(localStream, () => {
 })
 
 watch(errorMessage, msg => {
-  if (msg) {
-    message.info(msg)
-    roomNotice.value = msg
-    if (roomNoticeTimer) clearTimeout(roomNoticeTimer)
-    roomNoticeTimer = setTimeout(() => {
-      roomNotice.value = ''
-      roomNoticeTimer = null
-    }, 4500)
+  if (!msg) return
+  // 通话结束文案由 GroupCallModal 处理
+  if (
+    msg === t('conference.endedCallOk') ||
+    msg === t('conference.removedFromCall') ||
+    msg === t('conference.leaveCallOk')
+  ) {
     conferenceStore.clearError()
+    return
   }
+  message.info(msg)
+  roomNotice.value = msg
+  if (roomNoticeTimer) clearTimeout(roomNoticeTimer)
+  roomNoticeTimer = setTimeout(() => {
+    roomNotice.value = ''
+    roomNoticeTimer = null
+  }, 4500)
+  conferenceStore.clearError()
 })
 
 watch(
@@ -335,7 +346,7 @@ watch(
 )
 
 watch(
-  () => phase.value === 'in_room' && visible.value,
+  () => phase.value === 'in_room' && showMeetingUi.value,
   inRoom => {
     if (!inRoom) membersPanelOpen.value = false
     if (elapsedTimer) {
@@ -526,8 +537,8 @@ async function onAdmit(userId: string) {
 
 <template>
   <Teleport to="body">
-    <!-- 被邀请：轻量确认层 -->
-    <div v-if="invitePrompt && phase === 'lobby'" class="invite-mask">
+    <!-- 被邀请：轻量确认层（仅会议；群电话走 GroupCallModal） -->
+    <div v-if="showMeetingUi && invitePrompt && phase === 'lobby'" class="invite-mask">
       <div class="invite-card">
         <h3>{{ invitePrompt.restore ? t('conference.restoreTitle') : t('conference.inviteTitle') }}</h3>
         <p>{{ invitePrompt.title }}</p>
@@ -555,7 +566,7 @@ async function onAdmit(userId: string) {
     </div>
 
     <!-- 等候室 -->
-    <div v-if="visible && phase === 'waiting'" class="waiting-root">
+    <div v-if="showMeetingUi && phase === 'waiting'" class="waiting-root">
       <div class="waiting-card">
         <h3>{{ t('conference.waitingTitle') }}</h3>
         <p>{{ title }}</p>
@@ -567,7 +578,7 @@ async function onAdmit(userId: string) {
     </div>
 
     <div
-      v-if="visible && phase === 'in_room'"
+      v-if="showMeetingUi && phase === 'in_room'"
       class="room-root"
       :class="{
         'room-root--members-open': membersPanelOpen,
@@ -580,7 +591,7 @@ async function onAdmit(userId: string) {
           <div class="title-block">
             <h2>{{ title }}</h2>
             <div class="meta-row">
-              <span>{{ t('conference.memberCount', { n: inRoomMembers.length }) }}</span>
+              <span>{{ memberCountLabel }}</span>
               <span class="dot">·</span>
               <span class="timer">{{ elapsedLabel }}</span>
               <span v-if="networkHint" class="hint hint--warn">{{ networkHint }}</span>

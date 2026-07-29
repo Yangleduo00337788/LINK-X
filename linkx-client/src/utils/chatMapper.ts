@@ -281,7 +281,22 @@ export function messagePreviewFromItem(message: MessageItem): string {
     case 'file': return `[文件] ${message.fileName || message.content}`
     case 'image': return '[图片]'
     case 'redPacket': return '[红包]'
-    case 'conference': return `[会议] ${message.fileName || message.conferenceTitle || '多人会议'}`
+    case 'conference': {
+      const content = (message.content || '').trim()
+      if (/语音通话/.test(content) || message.fileName === '语音通话') {
+        return `[语音通话] ${message.fileName || message.conferenceTitle || '语音通话'}`
+      }
+      if (/视频通话/.test(content) || message.fileName === '视频通话') {
+        return `[视频通话] ${message.fileName || message.conferenceTitle || '视频通话'}`
+      }
+      const scene = (message as { conferenceScene?: string }).conferenceScene
+      const type = (message as { conferenceType?: string }).conferenceType
+      if (scene === 'call') {
+        const kind = type === 'voice' ? '语音通话' : '视频通话'
+        return `[${kind}] ${message.fileName || message.conferenceTitle || kind}`
+      }
+      return `[会议] ${message.fileName || message.conferenceTitle || '多人会议'}`
+    }
     case 'voice': return '[语音]'
     case 'location': return `[位置] ${message.content || ''}`
     case 'recall': return '撤回了一条消息'

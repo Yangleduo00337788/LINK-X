@@ -67,7 +67,11 @@ public class ConferenceServiceImpl implements ConferenceService {
     public ConferenceInfoVO create(Long userId, ConferenceCreateDTO dto) {
         chatService.assertConversationMember(userId, dto.getConversationId());
 
-        // 同会话已有 ACTIVE：复用；若信令通道已失效则重建，避免「会议不存在或已过期」
+        String wantScene = Conference.SCENE_CALL.equalsIgnoreCase(dto.getScene())
+                ? Conference.SCENE_CALL
+                : Conference.SCENE_MEETING;
+
+        // 同会话已有 ACTIVE：仅同场景复用；电话与会议互不占用
         List<Conference> actives = conferenceMapper.selectListByQuery(
                 QueryWrapper.create()
                         .where(Conference::getConversationId).eq(dto.getConversationId())
@@ -79,6 +83,14 @@ public class ConferenceServiceImpl implements ConferenceService {
             Conference keep = actives.get(0);
             for (int i = 1; i < actives.size(); i++) {
                 forceEndConference(actives.get(i));
+            }
+            String keepScene = StringUtils.hasText(keep.getScene()) ? keep.getScene() : Conference.SCENE_MEETING;
+            if (!wantScene.equalsIgnoreCase(keepScene)) {
+                boolean keepIsCall = Conference.SCENE_CALL.equalsIgnoreCase(keepScene);
+                throw new CustomException(409,
+                        keepIsCall
+                                ? "当前已有进行中的通话，请先结束后再发起会议"
+                                : "当前已有进行中的会议，请先结束后再发起通话");
             }
             ensureCallChannel(keep, userId);
             ConferenceInfoVO vo = join(userId, keep.getId(), dto.getPassword());
@@ -93,9 +105,7 @@ public class ConferenceServiceImpl implements ConferenceService {
         int max = dto.getMaxParticipants() != null ? dto.getMaxParticipants() : 9;
         if (max < 2) max = 2;
         if (max > MAX_PARTICIPANTS_HARD_LIMIT) max = MAX_PARTICIPANTS_HARD_LIMIT;
-        String scene = Conference.SCENE_CALL.equalsIgnoreCase(dto.getScene())
-                ? Conference.SCENE_CALL
-                : Conference.SCENE_MEETING;
+        String scene = wantScene;
         String mediaType = StringUtils.hasText(dto.getType()) ? dto.getType() : "video";
         String defaultTitle = Conference.SCENE_CALL.equals(scene)
                 ? ("voice".equalsIgnoreCase(mediaType) ? "语音通话" : "视频通话")

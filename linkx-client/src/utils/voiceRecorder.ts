@@ -46,9 +46,12 @@ export interface VoiceRecordResult {
  * 将 Blob 转为带正确扩展名的 File，供聊天上传接口使用。
  */
 export function blobToVoiceFile(blob: Blob, mimeType: string, durationSec: number): File {
-  const ext = voiceExtFromMime(mimeType || blob.type)
+  const raw = mimeType || blob.type || 'audio/webm'
+  // 上传只带基础 MIME，避免 audio/webm;codecs=opus 被服务端白名单拒绝
+  const baseType = raw.split(';')[0]?.trim().toLowerCase() || 'audio/webm'
+  const ext = voiceExtFromMime(baseType)
   const name = `voice_${Date.now()}_${durationSec}s.${ext}`
-  return new File([blob], name, { type: mimeType || blob.type || 'audio/webm' })
+  return new File([blob], name, { type: baseType })
 }
 
 /**

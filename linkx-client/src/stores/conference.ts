@@ -48,6 +48,8 @@ let signalQueue: Promise<void> = Promise.resolve()
  * 若直接丢弃，较小 userId 一侧已发 offer 会永远等不到 answer。
  */
 let earlySignals: { peerId: string; raw: CallEventPayload }[] = []
+/** 本端主动结束时忽略回推的 conference_end 提示，避免「已挂断」后再弹「会议已结束」 */
+const selfEndingIds = new Set<string>()
 
 /** admitStatus===0 为等候室；缺省视为已准入 */
 function isAdmittedParticipant(p: ConferenceParticipant): boolean {
@@ -114,6 +116,7 @@ export const useConferenceStore = defineStore('conference', {
       conversationId: string
       callId?: string
       hasPassword?: boolean
+      scene?: 'call' | 'meeting'
       /** refresh 后发现仍在会中 */
       restore?: boolean
     } | null,
@@ -126,6 +129,34 @@ export const useConferenceStore = defineStore('conference', {
     visible(state): boolean {
       if (state.uiMinimized && state.phase === 'in_room') return false
       return state.phase === 'lobby' || state.phase === 'waiting' || state.phase === 'in_room'
+    },
+    /** 会议室 UI（顶栏「会议」） */
+    showMeetingUi(state): boolean {
+      if (state.uiMinimized && state.phase === 'in_room') return false
+      if (state.phase === 'lobby' && state.invitePrompt) {
+        return state.invitePrompt.scene !== 'call'
+      }
+      if (state.phase === 'waiting' || state.phase === 'in_room') {
+        return state.scene === 'meeting'
+      }
+      return false
+    },
+    /** 群语音/视频电话 UI（顶栏电话，非会议） */
+    showGroupCallUi(state): boolean {
+      if (state.uiMinimized && state.phase === 'in_room') return false
+      if (state.phase === 'lobby' && state.invitePrompt) {
+        return state.invitePrompt.scene === 'call'
+      }
+      if (state.phase === 'waiting' || state.phase === 'in_room') {
+        return state.scene === 'call'
+      }
+      return false
+    },
+    showGroupVoiceUi(): boolean {
+      return this.showGroupCallUi && this.type === 'voice'
+    },
+    showGroupVideoUi(): boolean {
+      return this.showGroupCallUi && this.type === 'video'
     },
     isHost(state): boolean {
       const me = state.participants.find(p => String(p.userId) === state.myUserId)
@@ -330,9 +361,9 @@ export const useConferenceStore = defineStore('conference', {
       } catch (e) {
         console.warn('[conference] fetchSessionActive failed', e)
       }
-      // 新接口不可用或暂无记录时：用最近一条会议消息的 id 查 info
+      // 新接口不可用或暂无记录时：用最近一条会议消息的 id 查 info（须为数字雪花 ID）
       const hint = hintConferenceId || this.sessionActives[conversationId]?.conferenceId
-      if (hint) {
+      if (hint && /^\d+$/.test(String(hint))) {
         try {
           const infoRes = await conferenceApi.info(hint)
           if (infoRes.code === 200 && infoRes.data?.id != null && Number(infoRes.data.status) === 1) {
@@ -383,6 +414,8 @@ export const useConferenceStore = defineStore('conference', {
       const conversationId = String(payload.conversationId || '')
       const conferenceId = String(payload.conferenceId || '')
       if (!conversationId || !conferenceId || conferenceId === '0') return
+      // 1v1 通话消息 fileUrl 存的是 callId（UUID），不是会议雪花 ID，勿去拉 /conference/info
+      if (!/^\d+$/.test(conferenceId)) return
       this.upsertSessionActive({
         conferenceId,
         conversationId,
@@ -418,10 +451,19 @@ export const useConferenceStore = defineStore('conference', {
       const me = this.participants.find(p => String(p.userId) === myUserId)
       if (me) {
         this.micOn = !me.muted
-        this.cameraOn = !me.videoOff
+        // 视频电话默认开摄像头；语音电话强制关
+        if (this.type === 'voice') {
+          this.cameraOn = false
+        } else {
+          this.cameraOn = me.videoOff == null ? true : !me.videoOff
+        }
         localStream?.getAudioTracks().forEach(t => {
           t.enabled = this.micOn
         })
+      } else if (this.type === 'video') {
+        this.cameraOn = true
+      } else {
+        this.cameraOn = false
       }
       this.upsertSessionActiveFromInfo(info)
     },
@@ -445,6 +487,7 @@ export const useConferenceStore = defineStore('conference', {
           title: info.title || '多人会议',
           conversationId: info.conversationId != null ? String(info.conversationId) : '',
           callId: info.callId ? String(info.callId) : undefined,
+          scene: info.scene === 'call' ? 'call' : 'meeting',
           restore: true
         }
         if (this.phase === 'idle') this.phase = 'lobby'
@@ -505,7 +548,8 @@ export const useConferenceStore = defineStore('conference', {
           title: String(data.title || '多人会议'),
           conversationId,
           callId: data.callId != null ? String(data.callId) : undefined,
-          hasPassword: data.hasPassword === true || data.hasPassword === 1 || data.hasPassword === 'true'
+          hasPassword: data.hasPassword === true || data.hasPassword === 1 || data.hasPassword === 'true',
+          scene: data.scene === 'call' ? 'call' : 'meeting'
         }
         // 提前记下 callId，便于入会瞬间缓冲对端 offer（否则 phase≠in_room 时会被丢弃）
         if (data.callId != null) this.callId = String(data.callId)
@@ -519,12 +563,27 @@ export const useConferenceStore = defineStore('conference', {
         const conversationId = data.conversationId != null ? String(data.conversationId) : ''
         this.clearSessionActive(conversationId || null, cid || null)
         if (cid && cid === this.conferenceId) {
-          this.errorMessage = action === 'conference_remove' ? '你已被移出会议' : '会议已结束'
+          const isCall =
+            this.scene === 'call' ||
+            data.scene === 'call' ||
+            this.sessionActives[conversationId]?.scene === 'call'
+          const selfEnded = selfEndingIds.has(cid)
+          if (selfEnded) {
+            selfEndingIds.delete(cid)
+          } else if (action === 'conference_remove') {
+            this.errorMessage = isCall
+              ? t('conference.removedFromCall')
+              : t('conference.removedFromMeeting')
+          } else {
+            this.errorMessage = isCall ? t('conference.endedCallOk') : t('conference.endedOk')
+          }
           this.cleanupLocal()
           this.phase = 'ended'
           setTimeout(() => {
             if (this.phase === 'ended') this.phase = 'idle'
           }, 1200)
+        } else if (cid) {
+          selfEndingIds.delete(cid)
         }
         return
       }
@@ -1348,6 +1407,24 @@ export const useConferenceStore = defineStore('conference', {
     async leave() {
       const cid = this.conversationId
       const confId = this.conferenceId
+      // 群电话：发起人挂断 = 结束整场，避免顶栏仍显示「通话进行中」
+      if (this.scene === 'call' && this.isHost && this.conferenceId) {
+        if (cid) this.clearSessionActive(cid, confId)
+        if (confId) selfEndingIds.add(confId)
+        try {
+          await conferenceApi.end(this.conferenceId)
+        } catch {
+          try {
+            await conferenceApi.leave(this.conferenceId)
+          } catch {
+            /* ignore */
+          }
+          if (confId) selfEndingIds.delete(confId)
+        }
+        this.cleanupLocal()
+        this.phase = 'idle'
+        return
+      }
       if (this.conferenceId) {
         try {
           await conferenceApi.leave(this.conferenceId)
@@ -1365,7 +1442,13 @@ export const useConferenceStore = defineStore('conference', {
       if (!this.conferenceId) return
       const cid = this.conversationId
       const confId = this.conferenceId
-      await conferenceApi.end(this.conferenceId)
+      if (confId) selfEndingIds.add(confId)
+      try {
+        await conferenceApi.end(this.conferenceId)
+      } catch (e) {
+        if (confId) selfEndingIds.delete(confId)
+        throw e
+      }
       this.cleanupLocal()
       this.phase = 'idle'
       if (cid) this.clearSessionActive(cid, confId)

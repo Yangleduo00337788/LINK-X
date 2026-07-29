@@ -528,7 +528,7 @@ function onRedPacketClick(msg: ChatMessage) {
   openRedPacketReceive(msg.id)
 }
 
-/** 点击通话/会议气泡：1v1 回拨；会议则加入 */
+/** 点击通话/会议气泡：1v1 回拨；群电话加入通话；会议则加入 */
 async function onConferenceClick(msg: ChatMessage) {
   const content = msg.content || ''
   const isCall =
@@ -537,6 +537,25 @@ async function onConferenceClick(msg: ChatMessage) {
     msg.fileName === '语音通话' ||
     msg.fileName === '视频通话'
   const isMeetingHint = /会议/.test(content) || msg.conferenceScene === 'meeting'
+  const conferenceId = msg.conferenceId || msg.fileUrl
+
+  // 群聊电话气泡：加入已有通话（数字会议 ID），不要再新建一场
+  if (
+    isCall &&
+    !isMeetingHint &&
+    currentSession.value?.isGroup &&
+    conferenceId &&
+    /^\d+$/.test(String(conferenceId))
+  ) {
+    await joinConferenceById(
+      String(conferenceId),
+      msg.conferenceTitle || msg.fileName || t('conference.voiceCallTitle'),
+      !!msg.conferenceHasPassword,
+      msg.sessionId || currentSessionId.value || '',
+      'call'
+    )
+    return
+  }
 
   if (isCall && !isMeetingHint) {
     const callType: 'voice' | 'video' =
@@ -547,7 +566,6 @@ async function onConferenceClick(msg: ChatMessage) {
     return
   }
 
-  const conferenceId = msg.conferenceId || msg.fileUrl
   if (!conferenceId) {
     message.error(t('conference.joinFail'))
     return
@@ -556,7 +574,8 @@ async function onConferenceClick(msg: ChatMessage) {
     String(conferenceId),
     msg.conferenceTitle || msg.fileName || t('conference.defaultTitle'),
     !!msg.conferenceHasPassword,
-    msg.sessionId || currentSessionId.value || ''
+    msg.sessionId || currentSessionId.value || '',
+    'meeting'
   )
 }
 
@@ -581,7 +600,8 @@ async function onSessionConferenceJoin() {
     info.conferenceId,
     info.title,
     info.hasPassword,
-    info.conversationId
+    info.conversationId,
+    info.scene === 'call' ? 'call' : 'meeting'
   )
 }
 
@@ -589,7 +609,8 @@ async function joinConferenceById(
   conferenceId: string,
   title: string,
   hasPassword: boolean,
-  conversationId: string
+  conversationId: string,
+  scene: 'call' | 'meeting' = 'meeting'
 ) {
   const myId = String(userProfile.value.userId || '')
   if (!myId) {
@@ -602,6 +623,7 @@ async function joinConferenceById(
     store.conferenceId &&
     String(store.conferenceId) === String(conferenceId)
   ) {
+    store.restoreUi()
     return
   }
   if (hasPassword) {
@@ -609,7 +631,8 @@ async function joinConferenceById(
       conferenceId: String(conferenceId),
       title: title || t('conference.defaultTitle'),
       conversationId: conversationId || currentSessionId.value || '',
-      hasPassword: true
+      hasPassword: true,
+      scene
     }
     if (store.phase === 'idle' || store.phase === 'ended') {
       store.phase = 'lobby'
@@ -720,10 +743,14 @@ watch(
     const msgs = chatMessages.value
     for (let i = msgs.length - 1; i >= 0; i--) {
       const m = msgs[i]
-      if (m.type === 'conference' && (m.conferenceId || m.fileUrl)) {
-        hint = String(m.conferenceId || m.fileUrl)
-        break
-      }
+      if (m.type !== 'conference' || !(m.conferenceId || m.fileUrl)) continue
+      // 结束类系统文案不要当「进行中」hint；且须为数字会议 ID
+      const text = m.content || ''
+      if (/结束了/.test(text)) continue
+      const id = String(m.conferenceId || m.fileUrl)
+      if (!/^\d+$/.test(id)) continue
+      hint = id
+      break
     }
     void conferenceStore.fetchSessionActive(sid, hint)
   },

@@ -50,6 +50,7 @@ const ComprehensiveSearchModal = defineAsyncComponent(() => import('./chat/Compr
 const VoiceCallModal = defineAsyncComponent(() => import('./chat/VoiceCallModal.vue'))
 const VideoCallModal = defineAsyncComponent(() => import('./chat/VideoCallModal.vue'))
 const IncomingCallModal = defineAsyncComponent(() => import('./chat/IncomingCallModal.vue'))
+const GroupCallModal = defineAsyncComponent(() => import('./chat/GroupCallModal.vue'))
 const ConferenceRoomModal = defineAsyncComponent(() => import('./chat/ConferenceRoomModal.vue'))
 const AddGroupMembersModal = defineAsyncComponent(() => import('./chat/AddGroupMembersModal.vue'))
 const GroupFilesModal = defineAsyncComponent(() => import('./chat/GroupFilesModal.vue'))
@@ -245,6 +246,7 @@ const showMiddleList = computed(
     <VoiceCallModal />
     <VideoCallModal />
     <IncomingCallModal />
+    <GroupCallModal />
     <ConferenceRoomModal />
     <AddGroupMembersModal />
     <GroupFilesModal />

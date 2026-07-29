@@ -80,6 +80,7 @@ public class ImMessagePushService {
         dto.setFileName(frame.getFileName());
         dto.setFileSize(frame.getFileSize());
         dto.setFileUrl(frame.getFileUrl());
+        dto.setVoiceDuration(frame.getVoiceDuration());
         dto.setClientMsgId(frame.getClientMsgId());
 
         // 风暴检测 + 发送均在 worker 内执行，避免 event-loop 上做 Redis/DB

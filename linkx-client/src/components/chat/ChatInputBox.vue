@@ -749,39 +749,48 @@ function send() {
   })()
 }
 
-/** Enter 发送，Shift+Enter 保留默认换行；@ 面板打开时 Enter 选中成员 */
-function onEnter(e: KeyboardEvent) {
+/**
+ * 输入框按键：合并 Enter / @ 导航到同一 handler，
+ * 避免同时绑 @keydown 与 @keydown.enter 导致 NInput 收到 Array。
+ */
+function onInputKeyDown(e: KeyboardEvent) {
   if (showMentionPicker.value) {
-    if (e.shiftKey) return
-    e.preventDefault()
-    if (mentionCandidates.value.length) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      mentionPickerRef.value?.move(1)
+      return
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      mentionPickerRef.value?.move(-1)
+      return
+    }
+    if (e.key === 'Tab') {
+      e.preventDefault()
       const pick = mentionPickerRef.value?.confirm()
       if (pick) applyMention(pick.id, pick.name)
+      return
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      showMentionPicker.value = false
+      return
+    }
+    if (e.key === 'Enter') {
+      if (e.shiftKey) return
+      e.preventDefault()
+      if (mentionCandidates.value.length) {
+        const pick = mentionPickerRef.value?.confirm()
+        if (pick) applyMention(pick.id, pick.name)
+      }
+      return
     }
     return
   }
-  if (!e.shiftKey) {
+  // Enter 发送，Shift+Enter 换行
+  if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
     send()
-  }
-}
-
-/** 输入框按键：上下选择 @ 候选、Esc 关闭 */
-function onInputKeyDown(e: KeyboardEvent) {
-  if (!showMentionPicker.value) return
-  if (e.key === 'ArrowDown') {
-    e.preventDefault()
-    mentionPickerRef.value?.move(1)
-  } else if (e.key === 'ArrowUp') {
-    e.preventDefault()
-    mentionPickerRef.value?.move(-1)
-  } else if (e.key === 'Tab') {
-    e.preventDefault()
-    const pick = mentionPickerRef.value?.confirm()
-    if (pick) applyMention(pick.id, pick.name)
-  } else if (e.key === 'Escape') {
-    e.preventDefault()
-    showMentionPicker.value = false
   }
 }
 
@@ -844,7 +853,6 @@ defineExpose({
             :bordered="false"
             @update:value="onInputUpdate"
             @keydown="onInputKeyDown"
-            @keydown.enter="onEnter"
             @paste="onPaste"
           />
           <AtMentionPicker
