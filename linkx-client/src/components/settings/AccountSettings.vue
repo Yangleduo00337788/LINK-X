@@ -2,7 +2,6 @@
 import { computed, ref, onMounted } from 'vue'
 import { NButton, NAvatar, NIcon, NModal, NInput, NTag, useMessage, useDialog } from 'naive-ui'
 import {
-  WalletOutline,
   ChevronForwardOutline,
   CreateOutline,
   CopyOutline
@@ -12,7 +11,6 @@ import { useAppStore } from '../../stores/app'
 import { useChatModalsStore } from '../../stores/chatModals'
 import * as accountApi from '../../api/account'
 import * as authApi from '../../api/auth'
-import * as balanceApi from '../../api/balance'
 import * as feedbackApi from '../../api/feedback'
 import * as complianceApi from '../../api/compliance'
 import { generateDefaultAvatar } from '../../utils/defaultAvatar'
@@ -199,111 +197,6 @@ async function submitDeleteAccount() {
     message.error(err.response?.data?.message || err.message || t('account.deleteFail'))
   } finally {
     deleteLoading.value = false
-  }
-}
-
-const balance = ref<balanceApi.BalanceInfo | null>(null)
-const balanceLoading = ref(false)
-const balanceLogs = ref<balanceApi.BalanceLog[]>([])
-const balanceLogsLoading = ref(false)
-const rechargeAmount = ref('10')
-const rechargeLoading = ref(false)
-
-async function fetchBalance() {
-  balanceLoading.value = true
-  try {
-    const res = await balanceApi.getBalance()
-    if (res.code === 200 && res.data) {
-      balance.value = {
-        userId: String(res.data.userId),
-        balance: Number(res.data.balance),
-        frozen: Number(res.data.frozen),
-        available: Number(res.data.available),
-        totalRecharge: Number(res.data.totalRecharge),
-        totalWithdraw: Number(res.data.totalWithdraw)
-      }
-    }
-  } catch {
-    // 余额接口可能未开通，静默失败
-  } finally {
-    balanceLoading.value = false
-  }
-}
-
-async function fetchBalanceLogs() {
-  balanceLogsLoading.value = true
-  try {
-    const res = await balanceApi.listBalanceLogs({ limit: 30 })
-    if (res.code === 200 && Array.isArray(res.data)) {
-      balanceLogs.value = res.data.map(row => ({
-        ...row,
-        id: String(row.id),
-        amount: Number(row.amount),
-        balanceBefore: Number(row.balanceBefore),
-        balanceAfter: Number(row.balanceAfter)
-      }))
-    } else {
-      balanceLogs.value = []
-    }
-  } catch {
-    balanceLogs.value = []
-  } finally {
-    balanceLogsLoading.value = false
-  }
-}
-
-function formatMoney(amount: number) {
-  return Number(amount || 0).toFixed(2)
-}
-
-function balanceLogLabel(type: string): string {
-  const map: Record<string, string> = {
-    recharge: t('account.logRecharge'),
-    deduct: t('account.logDeduct'),
-    add: t('account.logAdd'),
-    freeze: t('account.logSendRp'),
-    send_redpacket: t('account.logSendRp'),
-    receive_redpacket: t('account.logRecvRp'),
-    refund: t('account.logRefund'),
-    unfreeze: t('account.logRefund')
-  }
-  return map[type] || type || t('account.logOther')
-}
-
-/** 支出类流水（含历史 freeze 正数）统一按支出展示 */
-function isExpenseLog(log: balanceApi.BalanceLog): boolean {
-  if (log.type === 'freeze' || log.type === 'send_redpacket' || log.type === 'deduct') return true
-  return Number(log.amount) < 0
-}
-
-async function submitRecharge() {
-  const amount = Number(rechargeAmount.value)
-  if (!Number.isFinite(amount) || amount < 0.01 || amount > 1000) {
-    message.warning(t('account.rechargeInvalid'))
-    return
-  }
-  rechargeLoading.value = true
-  try {
-    const res = await balanceApi.rechargeBalance(amount)
-    if (res.code === 200 && res.data) {
-      balance.value = {
-        userId: String(res.data.userId),
-        balance: Number(res.data.balance),
-        frozen: Number(res.data.frozen),
-        available: Number(res.data.available),
-        totalRecharge: Number(res.data.totalRecharge),
-        totalWithdraw: Number(res.data.totalWithdraw)
-      }
-      message.success(t('account.rechargeOk', { amount: formatMoney(amount) }))
-      await fetchBalanceLogs()
-    } else {
-      message.error(res.message || t('account.rechargeFail'))
-    }
-  } catch (e) {
-    const err = e as { message?: string }
-    message.error(err.message || t('account.rechargeFail'))
-  } finally {
-    rechargeLoading.value = false
   }
 }
 
@@ -547,8 +440,6 @@ async function handleLogoutDevice(deviceId: string) {
 
 onMounted(() => {
   void loadAuthConfig()
-  void fetchBalance()
-  void fetchBalanceLogs()
 })
 </script>
 
@@ -636,73 +527,6 @@ onMounted(() => {
         </div>
         <n-icon :component="ChevronForwardOutline" :size="16" class="link-chevron" />
       </button>
-    </section>
-
-    <section v-if="balance" class="group-card">
-      <div class="group-head">
-        <n-icon :component="WalletOutline" :size="18" class="group-ico" />
-        <span>{{ t('account.balanceTitle') }}</span>
-      </div>
-      <div class="balance-display">
-        <div class="balance-main">
-          <span class="balance-label">{{ t('account.available') }}</span>
-          <span class="balance-amount">¥ {{ formatMoney(balance.available) }}</span>
-        </div>
-        <div class="balance-details">
-          <div class="balance-item">
-            <span class="balance-item-label">{{ t('account.totalBalance') }}</span>
-            <span class="balance-item-value">¥ {{ formatMoney(balance.balance) }}</span>
-          </div>
-          <div class="balance-item">
-            <span class="balance-item-label">{{ t('account.frozen') }}</span>
-            <span class="balance-item-value">¥ {{ formatMoney(balance.frozen) }}</span>
-          </div>
-          <div class="balance-item">
-            <span class="balance-item-label">{{ t('account.totalRecharge') }}</span>
-            <span class="balance-item-value">¥ {{ formatMoney(balance.totalRecharge) }}</span>
-          </div>
-          <div class="balance-item">
-            <span class="balance-item-label">{{ t('account.totalWithdraw') }}</span>
-            <span class="balance-item-value">¥ {{ formatMoney(balance.totalWithdraw) }}</span>
-          </div>
-        </div>
-        <div class="recharge-row">
-          <span class="recharge-label">{{ t('account.recharge') }}</span>
-          <n-input
-            v-model:value="rechargeAmount"
-            class="recharge-input"
-            :placeholder="t('account.rechargePh')"
-            maxlength="8"
-          />
-          <n-button type="primary" size="small" :loading="rechargeLoading" @click="submitRecharge">
-            {{ t('account.rechargeBtn') }}
-          </n-button>
-        </div>
-        <div class="balance-logs">
-          <div class="balance-logs-head">
-            <span>{{ t('account.balanceLogs') }}</span>
-            <button type="button" class="logs-refresh" :disabled="balanceLogsLoading" @click="fetchBalanceLogs">
-              {{ t('common.refresh') }}
-            </button>
-          </div>
-          <div v-if="balanceLogsLoading && !balanceLogs.length" class="logs-empty">{{ t('common.loading') }}</div>
-          <div v-else-if="!balanceLogs.length" class="logs-empty">{{ t('account.balanceLogsEmpty') }}</div>
-          <ul v-else class="logs-list">
-            <li v-for="log in balanceLogs" :key="log.id" class="log-row">
-              <div class="log-main">
-                <span class="log-type">{{ balanceLogLabel(log.type) }}</span>
-                <span class="log-remark">{{ log.remark || '—' }}</span>
-              </div>
-              <div class="log-side">
-                <span class="log-amount" :class="{ income: !isExpenseLog(log) }">
-                  {{ isExpenseLog(log) ? '-' : '+' }}¥ {{ formatMoney(Math.abs(Number(log.amount))) }}
-                </span>
-                <span class="log-time">{{ log.time }}</span>
-              </div>
-            </li>
-          </ul>
-        </div>
-      </div>
     </section>
 
     <n-modal
@@ -1214,172 +1038,6 @@ onMounted(() => {
   color: var(--lx-accent);
   border-radius: 4px;
   font-size: 11px;
-}
-
-.balance-display {
-  padding: 8px 4px 12px;
-}
-
-.balance-main {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 16px;
-  padding: 0 14px;
-}
-
-.balance-label {
-  font-size: 12px;
-  color: var(--lx-text-secondary);
-}
-
-.balance-amount {
-  font-size: 32px;
-  font-weight: 700;
-  color: var(--lx-accent);
-  letter-spacing: -0.02em;
-  line-height: 1.1;
-}
-
-.balance-details {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  padding: 0 14px;
-}
-
-.balance-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 14px;
-  background: var(--lx-bg-card);
-  border: 1px solid var(--lx-border-light);
-  border-radius: 8px;
-}
-
-.balance-item-label {
-  font-size: 12px;
-  color: var(--lx-text-muted);
-}
-
-.balance-item-value {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--lx-text-body);
-}
-
-.recharge-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 14px 14px 0;
-  flex-wrap: wrap;
-}
-
-.recharge-label {
-  font-size: 13px;
-  color: var(--lx-text-secondary);
-  flex-shrink: 0;
-}
-
-.recharge-input {
-  width: 120px;
-  max-width: 40%;
-}
-
-.balance-logs {
-  margin-top: 16px;
-  padding: 0 14px;
-}
-
-.balance-logs-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  font-size: 13px;
-  color: var(--lx-text-secondary);
-}
-
-.logs-refresh {
-  border: none;
-  background: transparent;
-  color: var(--lx-accent);
-  cursor: pointer;
-  font-size: 12px;
-  padding: 0;
-}
-
-.logs-refresh:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.logs-empty {
-  font-size: 12px;
-  color: var(--lx-text-muted);
-  padding: 12px 0;
-}
-
-.logs-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  max-height: 240px;
-  overflow-y: auto;
-}
-
-.log-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--lx-border-light);
-}
-
-.log-main {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.log-type {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--lx-text-body);
-}
-
-.log-remark {
-  font-size: 12px;
-  color: var(--lx-text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.log-side {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
-.log-amount {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--lx-text-body);
-}
-
-.log-amount.income {
-  color: var(--lx-success, #18a058);
-}
-
-.log-time {
-  font-size: 11px;
-  color: var(--lx-text-muted);
 }
 
 .feedback-list {

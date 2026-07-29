@@ -51,6 +51,7 @@ import AtMentionPicker from './common/AtMentionPicker.vue'
 // 通知独立页
 import MomentsNotificationsPage from './MomentsNotificationsPage.vue'
 import MomentsComposerModal from './MomentsComposerModal.vue'
+import WindowCaptionButtons from './WindowCaptionButtons.vue'
 // 偏好 API
 import { getPreference, uploadMomentsBackground } from '../api/preference'
 import { useI18n } from '../i18n'
@@ -1010,6 +1011,9 @@ function visibilityLabel(visibility?: number): string {
           @click.stop
         />
       </div>
+      <div v-if="!embedded" class="header-right">
+        <WindowCaptionButtons />
+      </div>
     </div>
 
     <!-- 通知抽屉遮罩(点击空白处关闭) -->
@@ -1133,14 +1137,14 @@ function visibilityLabel(visibility?: number): string {
 .fixed-header {
   position: absolute;
   top: 0;
-  left: env(titlebar-area-x, 0px);
-  width: env(titlebar-area-width, 100%);
-  height: env(titlebar-area-height, 48px);
+  left: 0;
+  width: 100%;
+  height: 48px;
   min-height: 48px;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: space-between;
-  padding: 0 12px;
+  padding: 0 0 0 12px;
   z-index: 100;
   transition: background-color 0.3s ease, color 0.3s ease;
   box-sizing: border-box;
@@ -1153,6 +1157,14 @@ function visibilityLabel(visibility?: number): string {
   gap: 8px;
   -webkit-app-region: no-drag;
   pointer-events: auto;
+  align-self: center;
+}
+
+.header-right {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
 }
 
 .action-btn {
@@ -1196,6 +1208,10 @@ function visibilityLabel(visibility?: number): string {
   min-width: 0;
   padding: 0 8px;
   -webkit-app-region: no-drag;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .header-center.visible {

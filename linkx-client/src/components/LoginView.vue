@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { NInput, NButton, NIcon, NCheckbox, NModal, NSelect, useMessage } from 'naive-ui'
 import { RefreshOutline, MailOutline, ChevronDownOutline } from '@vicons/ionicons5'
 import Avatar from './Avatar.vue'
+import WindowCaptionButtons from './WindowCaptionButtons.vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
 import * as authApi from '../api/auth'
@@ -525,6 +526,7 @@ async function handleForgot() {
           </button>
         </div>
       </div>
+      <WindowCaptionButtons :show-maximize="false" />
     </div>
 
     <div class="login-body" :class="{ 'login-body--password': loginMode === 'password' }">
@@ -828,16 +830,19 @@ async function handleForgot() {
 .login-page--compact {
   min-height: 461px;
   padding: 0;
+  /* 与窗口外轮廓一致，防止渐变层方角漏出 */
+  border-radius: var(--lx-window-radius, 20px);
+  overflow: hidden;
+  clip-path: inset(0 round var(--lx-window-radius, 20px));
 }
 
 .login-win-bar {
   flex-shrink: 0;
-  height: env(titlebar-area-height, 36px);
-  width: env(titlebar-area-width, 100%);
-  margin-left: env(titlebar-area-x, 0px);
+  height: 40px;
+  width: 100%;
   box-sizing: border-box;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   -webkit-app-region: no-drag;
   position: relative;
   z-index: 20;
@@ -855,6 +860,7 @@ async function handleForgot() {
   display: flex;
   align-items: center;
   -webkit-app-region: no-drag;
+  padding-right: 4px;
 }
 
 .web-menu-btn {

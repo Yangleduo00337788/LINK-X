@@ -22,6 +22,7 @@ import {
   CloudUploadOutline
 } from '@vicons/ionicons5'
 import PinIcon from './icons/PinIcon.vue'
+import WindowCaptionButtons from './WindowCaptionButtons.vue'
 import { storeToRefs } from 'pinia'
 import { useNoteStore } from '../stores/note'
 import { useAppStore } from '../stores/app'
@@ -476,6 +477,7 @@ onUnmounted(() => {
         >
           <n-icon :component="TrashOutline" :size="16" />
         </button>
+        <WindowCaptionButtons />
       </div>
     </header>
 
@@ -593,14 +595,13 @@ onUnmounted(() => {
 }
 
 .title-bar {
-  height: env(titlebar-area-height, 40px);
-  width: env(titlebar-area-width, 100%);
-  margin-left: env(titlebar-area-x, 0px);
+  height: 40px;
+  width: 100%;
   box-sizing: border-box;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  padding: 0 4px 0 8px;
+  align-items: stretch;
+  padding: 0 0 0 8px;
   flex-shrink: 0;
   -webkit-app-region: drag;
   user-select: none;
@@ -622,6 +623,8 @@ onUnmounted(() => {
 
 .bar-right {
   justify-content: flex-end;
+  align-items: stretch;
+  gap: 0;
 }
 
 .bar-center {
@@ -632,6 +635,7 @@ onUnmounted(() => {
   pointer-events: none;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
 }
 

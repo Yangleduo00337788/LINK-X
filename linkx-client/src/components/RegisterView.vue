@@ -9,6 +9,7 @@ import { RefreshOutline } from '@vicons/ionicons5'
 import * as authApi from '../api/auth'
 import { validateUsername, validatePassword, validateNickname } from '../utils/validation'
 import { useI18n } from '../i18n'
+import WindowCaptionButtons from './WindowCaptionButtons.vue'
 
 const message = useMessage()
 const router = useRouter()
@@ -141,7 +142,8 @@ onMounted(() => {
     <div class="reg-win-bar">
       <div class="reg-title">{{ t('register.title') }}</div>
       <div class="drag-area" />
-      <button v-if="!isElectron" type="button" class="web-close" :title="t('common.back')" @click="closeOrBack">×</button>
+      <WindowCaptionButtons v-if="isElectron" :show-maximize="false" />
+      <button v-else type="button" class="web-close" :title="t('common.back')" @click="closeOrBack">×</button>
     </div>
 
     <div class="reg-body">
@@ -240,16 +242,18 @@ onMounted(() => {
 
 .register-page--compact {
   min-height: 520px;
+  border-radius: var(--lx-window-radius, 20px);
+  overflow: hidden;
+  clip-path: inset(0 round var(--lx-window-radius, 20px));
 }
 
 .reg-win-bar {
   flex-shrink: 0;
-  height: env(titlebar-area-height, 36px);
-  width: env(titlebar-area-width, 100%);
-  margin-left: env(titlebar-area-x, 0px);
+  height: 40px;
+  width: 100%;
   box-sizing: border-box;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   -webkit-app-region: no-drag;
   position: relative;
   z-index: 20;
@@ -262,6 +266,8 @@ onMounted(() => {
   color: #5c6370;
   user-select: none;
   -webkit-app-region: no-drag;
+  display: flex;
+  align-items: center;
 }
 
 .drag-area {

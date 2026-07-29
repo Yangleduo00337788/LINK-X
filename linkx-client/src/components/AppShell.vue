@@ -36,6 +36,8 @@ import CalendarMainView from './CalendarMainView.vue'
 import SettingsPanel from './SettingsPanel.vue'
 // 设置右侧主内容
 import SettingsMainView from './SettingsMainView.vue'
+// 余额主视图（全宽）
+import BalanceMainView from './BalanceMainView.vue'
 // 通用占位主视图
 import PlaceholderMainView from './PlaceholderMainView.vue'
 // 消息页站内「日程提醒」面板
@@ -160,6 +162,7 @@ const showSettingsMain = computed(() => navKey.value === 'settings')
 const showFilesMain = computed(() => navKey.value === 'files')
 const showFavoritesMain = computed(() => navKey.value === 'favorites')
 const showMomentsMain = computed(() => navKey.value === 'moments')
+const showBalanceMain = computed(() => navKey.value === 'balance')
 const showPlaceholder = computed(() => navKey.value === 'contacts')
 
 /** 设置页中间列固定略宽，且不显示拖拽条 */
@@ -173,14 +176,16 @@ const showListResizer = computed(
     !showSettingsMain.value &&
     !showFilesMain.value &&
     !showFavoritesMain.value &&
-    !showMomentsMain.value
+    !showMomentsMain.value &&
+    !showBalanceMain.value
 )
 const showMiddleList = computed(
   () =>
     !showCalendarMain.value &&
     !showFilesMain.value &&
     !showFavoritesMain.value &&
-    !showMomentsMain.value
+    !showMomentsMain.value &&
+    !showBalanceMain.value
 )
 </script>
 
@@ -224,7 +229,7 @@ const showMiddleList = computed(
           :class="{
             'col-chat--calendar': showCalendarMain,
             'col-chat--settings': showSettingsMain,
-            'col-chat--files': showFilesMain || showFavoritesMain || showMomentsMain
+            'col-chat--files': showFilesMain || showFavoritesMain || showMomentsMain || showBalanceMain
           }"
         >
           <SystemNotifyPanel v-if="showSystemNotify" />
@@ -233,6 +238,7 @@ const showMiddleList = computed(
           <FilesMainView v-else-if="showFilesMain" />
           <FavoritesMainView v-else-if="showFavoritesMain" />
           <MomentsMainView v-else-if="showMomentsMain" />
+          <BalanceMainView v-else-if="showBalanceMain" />
           <SettingsMainView v-else-if="showSettingsMain" />
           <ContactsMainView v-else-if="navKey === 'contacts'" />
           <PlaceholderMainView v-else-if="showPlaceholder" :nav="navKey" />
@@ -269,7 +275,7 @@ const showMiddleList = computed(
   display: flex;
   flex-direction: column;
   background: transparent;
-  border-radius: var(--lx-radius);
+  border-radius: 0;
   overflow: hidden;
   position: relative;
 }

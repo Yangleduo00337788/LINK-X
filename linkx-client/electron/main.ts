@@ -5,6 +5,7 @@ import http from 'node:http'
 import https from 'node:https'
 import { fileURLToPath } from 'node:url'
 import { Buffer } from 'node:buffer'
+import { execSync } from 'node:child_process'
 
 /** 渲染进程发起的受控下载请求 */
 type DownloadFilePayload = {
@@ -114,8 +115,6 @@ function collectTrustedMediaOrigins(): string {
   return [...origins].join(' ')
 }
 
-/** Windows/Linux 使用系统原生标题栏按钮（Win11 Caption Buttons） */
-const USE_NATIVE_TITLE_BAR_OVERLAY = process.platform === 'win32' || process.platform === 'linux'
 let currentUiTheme: 'light' | 'dark' = 'light'
 
 /** 全局快捷键（可由设置页覆盖） */
@@ -124,48 +123,44 @@ const currentShortcuts = {
   lock: 'CommandOrControl+Shift+K'
 }
 
-type TitleBarOverlayOpts = {
-  color: string
-  symbolColor: string
-  height: number
+/**
+ * 透明窗清空色：须与主题匹配，否则圆角抗锯齿会预乘出黑/白脏边。
+ * 必须用 rgba()，勿用 #RRGGBBAA / #AARRGGBB——八位 hex 在 Electron/Chromium
+ * 两端格式易歧义（例如 #FFFFFF00 会被当成不透明黄）。
+ */
+function windowBackgroundColor(theme: string = currentUiTheme) {
+  return theme === 'dark' ? 'rgba(0, 0, 0, 0)' : 'rgba(255, 255, 255, 0)'
 }
 
-function buildTitleBarOverlay(
-  theme: string = currentUiTheme,
-  height = 40
-): TitleBarOverlayOpts | undefined {
-  if (!USE_NATIVE_TITLE_BAR_OVERLAY) return undefined
-  const dark = theme === 'dark'
-  return {
-    // 透明底贴合 mica/acrylic，图标随明暗主题
-    color: dark ? '#1a1a1a00' : '#f5f5f500',
-    symbolColor: dark ? '#e6e6e6' : '#1f1f1f',
-    height
-  }
-}
-
-function applyTitleBarOverlay(win: BrowserWindow, theme?: string, height = 40) {
-  const opts = buildTitleBarOverlay(theme ?? currentUiTheme, height)
-  if (!opts || win.isDestroyed()) return
-  try {
-    win.setTitleBarOverlay(opts)
-  } catch (e) {
-    console.warn('[electron] setTitleBarOverlay failed:', e)
-  }
-}
-
-/** 无边框 + 可选原生窗控 */
-function framelessChrome(overlayHeight = 40): {
+/** 无边框；大圆角由渲染层 CSS 绘制；窗控由前端自绘以便裁进圆角 */
+function framelessChrome(): {
   frame: false
-  titleBarStyle: 'hidden'
-  titleBarOverlay?: TitleBarOverlayOpts
+  titleBarStyle: 'hidden' | 'hiddenInset'
+  transparent: true
+  backgroundColor: string
+  roundedCorners: false
+  /** 系统阴影跟矩形 HWND，会在 CSS 圆角外露脏角；轮廓改由 CSS inset 描边 */
+  hasShadow: false
 } {
-  const overlay = buildTitleBarOverlay(currentUiTheme, overlayHeight)
   return {
     frame: false,
-    titleBarStyle: 'hidden',
-    ...(overlay ? { titleBarOverlay: overlay } : {})
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden',
+    transparent: true,
+    backgroundColor: windowBackgroundColor(),
+    roundedCorners: false,
+    hasShadow: false
   }
+}
+
+/** 透明大圆角窗：同步清空色，并在 focus/blur 时重刷，避免 Win DWM 把四角画脏 */
+function prepareFramelessWindow(win: BrowserWindow) {
+  const refreshBg = () => {
+    if (win.isDestroyed()) return
+    win.setBackgroundColor(windowBackgroundColor())
+  }
+  refreshBg()
+  win.on('focus', refreshBg)
+  win.on('blur', refreshBg)
 }
 
 const SECURE_DIR = () => path.join(app.getPath('userData'), 'secure')
@@ -205,6 +200,15 @@ function resolvePreloadPath(): string {
 }
 
 const preloadPath = resolvePreloadPath()
+
+// Windows 控制台默认多为 GBK，Node 日志按 UTF-8 写出易乱码；尽量切到 UTF-8
+if (process.platform === 'win32') {
+  try {
+    execSync('chcp 65001', { stdio: 'ignore' })
+  } catch {
+    /* ignore */
+  }
+}
 
 // Windows 通知：开发态（未打包）必须用 execPath 作为 AUMID，否则 Toast 会 HRESULT 失败
 if (process.platform === 'win32') {
@@ -386,13 +390,13 @@ async function tryIPService(url: string): Promise<string | null> {
           const json = JSON.parse(data) as Record<string, unknown>
           resolve(parseIPLocationJson(json))
         } catch (e) {
-          console.error('[Main] 解析 IP 定位响应失败:', e)
+          console.error('[Main] failed to parse IP location response:', e)
           resolve(null)
         }
       })
     })
-    req.on('error', (e) => { console.error('[Main] IP 定位请求错误:', e.message); resolve(null) })
-    req.on('timeout', () => { console.error('[Main] IP 定位请求超时'); req.destroy(); resolve(null) })
+    req.on('error', (e) => { console.error('[Main] IP location request error:', e.message); resolve(null) })
+    req.on('timeout', () => { console.error('[Main] IP location request timeout'); req.destroy(); resolve(null) })
   })
 }
 
@@ -533,7 +537,7 @@ function registerWindowIpc() {
       win.center()
       return
     }
-    // 登录窗创建时因 maxSize 锁定，系统会关掉可最大化；切主界面需显式恢复，否则 titleBarOverlay 不显示最大化按钮
+    // 登录窗创建时因 maxSize 锁定会关掉可最大化；切主界面需显式恢复
     win.setMaximumSize(99999, 99999)
     win.setMinimumSize(966, 676)
     win.setResizable(true)
@@ -768,11 +772,11 @@ function registerWindowIpc() {
   ipcMain.handle('app:set-shortcuts', (_event, payload: { toggleWindow?: string; lock?: string }) => {
     // [P3-31] 校验快捷键格式，防止非法 Accelerator 导致注册异常或覆盖已有合法值
     if (payload?.toggleWindow !== undefined && !isValidAccelerator(payload.toggleWindow)) {
-      console.warn('[shortcut] 非法 toggleWindow 快捷键:', payload.toggleWindow)
+      console.warn('[shortcut] invalid toggleWindow accelerator:', payload.toggleWindow)
       return false
     }
     if (payload?.lock !== undefined && !isValidAccelerator(payload.lock)) {
-      console.warn('[shortcut] 非法 lock 快捷键:', payload.lock)
+      console.warn('[shortcut] invalid lock accelerator:', payload.lock)
       return false
     }
     if (payload?.toggleWindow) currentShortcuts.toggleWindow = String(payload.toggleWindow)
@@ -873,7 +877,7 @@ function registerWindowIpc() {
         height: source.thumbnail.getSize().height
       }
     } catch (e) {
-      console.error('[Main] 截图失败:', e)
+      console.error('[Main] screenshot failed:', e)
       return null
     }
   })
@@ -963,10 +967,6 @@ async function showDesktopNotice(title: string, body: string, silent = false): P
 
 registerWindowIpc()
 
-function windowBackgroundColor(theme?: string) {
-  return theme === 'dark' ? '#1a1a1a' : '#f5f5f5'
-}
-
 function applyAllWindowBackgrounds(theme: string) {
   const color = windowBackgroundColor(theme)
   BrowserWindow.getAllWindows().forEach(win => win.setBackgroundColor(color))
@@ -977,9 +977,6 @@ ipcMain.on('theme-changed', (_e, theme: string) => {
     currentUiTheme = theme
   }
   applyAllWindowBackgrounds(theme)
-  for (const win of BrowserWindow.getAllWindows()) {
-    applyTitleBarOverlay(win, theme)
-  }
 })
 
 function createTrayIcon(): Electron.NativeImage {
@@ -1026,10 +1023,12 @@ function createTray() {
 function isValidAccelerator(accelerator: string | null | undefined): boolean {
   // 空值表示禁用快捷键，允许通过
   if (!accelerator) return true
-  // Electron Accelerator 合法格式：修饰键(CmdOrCtrl/Ctrl/Command/Alt/Shift/Super/Meta) + 普通键
-  // 普通键支持：字母/数字、F1-F24、方向键、功能键、媒体键等
-  const acceleratorRegex =
-    /^(CmdOrCtrl|Ctrl|Command|Alt|Shift|Super|Meta)(\+(CmdOrCtrl|Ctrl|Command|Alt|Shift|Super|Meta))*\+([A-Za-z0-9]|F[1-9]|F1[0-9]|F2[0-4]|Space|Tab|Enter|Up|Down|Left|Right|Home|End|PageUp|PageDown|Escape|Esc|Backspace|Delete|Insert|VolumeUp|VolumeDown|VolumeMute|MediaNextTrack|MediaPreviousTrack|MediaPlayPause|MediaStop)$/
+  // 注意：CommandOrControl 必须写在 Command 之前，否则会被 Command 前缀误匹配
+  const mod =
+    'CommandOrControl|CmdOrCtrl|Command|Ctrl|Alt|Option|Shift|Super|Meta'
+  const key =
+    '[A-Za-z0-9]|F[1-9]|F1[0-9]|F2[0-4]|Space|Tab|Enter|Return|Up|Down|Left|Right|Home|End|PageUp|PageDown|Escape|Esc|Backspace|Delete|Insert|VolumeUp|VolumeDown|VolumeMute|MediaNextTrack|MediaPreviousTrack|MediaPlayPause|MediaStop|Plus|='
+  const acceleratorRegex = new RegExp(`^(${mod})(\\+(${mod}))*\\+(${key})$`)
   return acceleratorRegex.test(accelerator)
 }
 
@@ -1075,10 +1074,7 @@ function createMomentsWindow() {
     width: 440,
     height: 560,
     resizable: false,
-    ...framelessChrome(40),
-    transparent: false,
-    backgroundMaterial: 'acrylic',
-    backgroundColor: '#f5f5f5',
+    ...framelessChrome(),
     show: false,
     webPreferences: {
       preload: preloadPath,
@@ -1087,6 +1083,7 @@ function createMomentsWindow() {
       sandbox: true
     }
   })
+  prepareFramelessWindow(momentsWindow)
 
   momentsWindow.once('ready-to-show', () => {
     momentsWindow?.show()
@@ -1129,10 +1126,7 @@ function createMomentsTextWindow() {
     width: 420,
     height: 520,
     resizable: false,
-    ...framelessChrome(40),
-    transparent: false,
-    backgroundMaterial: 'acrylic',
-    backgroundColor: '#f5f5f5',
+    ...framelessChrome(),
     show: false,
     webPreferences: {
       preload: preloadPath,
@@ -1141,6 +1135,7 @@ function createMomentsTextWindow() {
       sandbox: true
     }
   })
+  prepareFramelessWindow(momentsTextWindow)
 
   momentsTextWindow.once('ready-to-show', () => {
     momentsTextWindow?.show()
@@ -1175,10 +1170,7 @@ function createMomentsMediaWindow() {
     width: 480,
     height: 600,
     resizable: false,
-    ...framelessChrome(40),
-    transparent: false,
-    backgroundMaterial: 'acrylic',
-    backgroundColor: '#f5f5f5',
+    ...framelessChrome(),
     show: false,
     webPreferences: {
       preload: preloadPath,
@@ -1187,6 +1179,7 @@ function createMomentsMediaWindow() {
       sandbox: true
     }
   })
+  prepareFramelessWindow(momentsMediaWindow)
 
   momentsMediaWindow.once('ready-to-show', () => {
     momentsMediaWindow?.show()
@@ -1221,10 +1214,7 @@ function createNoteEditorWindow() {
     height: 600,
     minWidth: 600,
     minHeight: 400,
-    ...framelessChrome(40),
-    transparent: false,
-    backgroundMaterial: 'mica',
-    backgroundColor: '#f5f5f5',
+    ...framelessChrome(),
     show: false,
     webPreferences: {
       preload: preloadPath,
@@ -1233,6 +1223,7 @@ function createNoteEditorWindow() {
       sandbox: true
     }
   })
+  prepareFramelessWindow(noteEditorWindow)
 
   noteEditorWindow.once('ready-to-show', () => {
     noteEditorWindow?.show()
@@ -1273,10 +1264,7 @@ function createRegisterWindow() {
     width: 360,
     height: 560,
     resizable: false,
-    ...framelessChrome(40),
-    transparent: false,
-    backgroundMaterial: 'mica',
-    backgroundColor: '#eef5fb',
+    ...framelessChrome(),
     show: false,
     // 不挂 parent，避免盖住登录窗；作为独立弹窗并列显示
     webPreferences: {
@@ -1286,6 +1274,7 @@ function createRegisterWindow() {
       sandbox: true
     }
   })
+  prepareFramelessWindow(registerWindow)
 
   // 放在登录窗右侧，登录页保持可见
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -1347,10 +1336,7 @@ function createWindow() {
     maxWidth: 319,
     maxHeight: 461,
     resizable: false,
-    ...framelessChrome(40),
-    transparent: false,
-    backgroundMaterial: 'mica',
-    backgroundColor: '#f5f5f5',
+    ...framelessChrome(),
     show: false,
     webPreferences: {
       preload: preloadPath,
@@ -1360,6 +1346,7 @@ function createWindow() {
       webviewTag: false
     }
   })
+  prepareFramelessWindow(mainWindow)
 
   mainWindow.once('ready-to-show', () => {
     // 「启动时打开 = 托盘」：仅驻留托盘，不弹出主窗口
@@ -1402,7 +1389,7 @@ function createWindow() {
       .executeJavaScript('typeof window.electronAPI !== "undefined"')
       .then(ok => {
         if (!ok) {
-          console.error('[electron] window.electronAPI 未注入，preload:', preloadPath)
+          console.error('[electron] window.electronAPI missing, preload:', preloadPath)
         } else {
           console.log('[electron] electronAPI OK')
         }
@@ -1423,6 +1410,11 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // Windows/Linux：去掉经典 File/Edit 菜单栏
+  if (process.platform !== 'darwin') {
+    Menu.setApplicationMenu(null)
+  }
+
   desktopPrefs = loadDesktopPrefs()
 
   // 允许本应用使用摄像头/麦克风（替代假设备开关，保证真实音视频）

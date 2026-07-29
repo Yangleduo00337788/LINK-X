@@ -45,6 +45,16 @@ if (appStore.theme !== bootTheme) {
 }
 applyDocumentTheme(bootTheme)
 
+// Electron：标记大圆角壳层，并随最大化取消圆角
+if (window.electronAPI?.isElectron) {
+  document.documentElement.classList.add('lx-electron')
+  const syncMaximized = (maximized: boolean) => {
+    document.documentElement.classList.toggle('is-maximized', maximized)
+  }
+  void window.electronAPI.isMaximized?.().then(syncMaximized).catch(() => {})
+  window.electronAPI.onMaximizedChange?.(syncMaximized)
+}
+
 // 从本地偏好恢复界面语言（pinia persist 已在 use 后可读）
 setLocale(settingsStore.language || 'zh-CN')
 

@@ -10,7 +10,7 @@
     "build": "vue-tsc --noEmit && vite build",
     "build:e2e": "vite build",
     "preview": "vite preview",
-    "electron:dev": "vite --mode electron",
+    "electron:dev": "node ./scripts/run-electron-dev.mjs",
     "electron:build": "vue-tsc --noEmit && vite build --mode electron && electron-builder",
     "electron:preview": "electron dist-electron/main/main.js",
     "test": "vitest run",

@@ -4,7 +4,7 @@
  */
 
 // 左侧 Sidebar 导航项 key，决定主内容区展示哪个模块
-export type NavKey = 'chat' | 'contacts' | 'favorites' | 'files' | 'calendar' | 'moments' | 'settings'
+export type NavKey = 'chat' | 'contacts' | 'favorites' | 'files' | 'calendar' | 'moments' | 'balance' | 'settings'
 
 /** 设置页分类（左侧导航 / 右侧锚点） */
 export type SettingsTab =

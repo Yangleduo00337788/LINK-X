@@ -2,18 +2,14 @@
 /**
  * 顶部主状态栏组件。
  * <p>
- * 显示品牌标识、会话标题、窗口置顶；最小化/最大化/关闭由 Windows 原生 titleBarOverlay 提供。
- * 置顶使用统一垂直 PinIcon，贴在原生窗控左侧。
- * 中间区域支持拖拽移动窗口。
+ * 显示品牌标识、会话标题、窗口置顶；最小化/最大化/关闭为自绘 Win11 风格窗控，
+ * 关闭键右上角圆角与窗口 --lx-window-radius 一致。
  * </p>
  */
-// Vue 响应式、计算属性与挂载钩子
 import { ref, computed, onMounted } from 'vue'
-// 统一垂直图钉图标
 import PinIcon from './icons/PinIcon.vue'
-// Pinia 响应式解构
+import WindowCaptionButtons from './WindowCaptionButtons.vue'
 import { storeToRefs } from 'pinia'
-// 应用全局状态 Store
 import { useAppStore } from '../stores/app'
 import { useI18n } from '../i18n'
 
@@ -107,7 +103,7 @@ async function togglePin() {
       <span v-if="centerTitle" class="session-title">{{ centerTitle }}</span>
     </div>
 
-    <!-- 右侧：置顶（统一垂直 PinIcon）；最小化/最大化/关闭由 titleBarOverlay 提供 -->
+    <!-- 右侧：置顶 + 自绘窗控（关闭键圆角与窗口一致） -->
     <div class="status-right">
       <button
         type="button"
@@ -119,6 +115,7 @@ async function togglePin() {
       >
         <PinIcon :size="14" />
       </button>
+      <WindowCaptionButtons />
     </div>
   </header>
 </template>
@@ -126,10 +123,9 @@ async function togglePin() {
 <style scoped>
 .main-status-bar {
   flex-shrink: 0;
-  height: env(titlebar-area-height, 40px);
-  min-height: env(titlebar-area-height, 40px);
-  width: env(titlebar-area-width, 100%);
-  margin-left: env(titlebar-area-x, 0px);
+  height: 40px;
+  min-height: 40px;
+  width: 100%;
   box-sizing: border-box;
   display: flex;
   align-items: stretch;

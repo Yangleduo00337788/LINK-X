@@ -52,6 +52,8 @@
   --lx-radius-sm: 9px;
   --lx-radius-md: 9px;
   --lx-avatar-radius: 12px;
+  /* Electron 窗口外轮廓（偏圆，关闭键由自绘按钮裁进此圆角） */
+  --lx-window-radius: 20px;
   --lx-sidebar-width: 64px;
 
   /* 阴影 */
@@ -127,6 +129,41 @@ body,
   font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Electron：透明 HWND + CSS 大圆角；窗控自绘以便裁进圆角 */
+html.lx-electron,
+html.lx-electron body {
+  background: transparent !important;
+}
+
+html.lx-electron #app {
+  background: var(--lx-bg-window);
+  border-radius: var(--lx-window-radius);
+  overflow: hidden;
+  /* clip-path 比 overflow+radius 更稳，避免子层（登录渐变）方角漏出 */
+  clip-path: inset(0 round var(--lx-window-radius));
+  /* 独立合成层，减轻透明窗圆角预乘脏边 */
+  transform: translateZ(0);
+  isolation: isolate;
+  /* 系统 hasShadow 已关（矩形阴影会露黑角）；用细描边保持轮廓 */
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+
+html.lx-electron.is-maximized #app {
+  border-radius: 0;
+  clip-path: none;
+  box-shadow: none;
+  transform: none;
+  isolation: auto;
+}
+
+html.lx-electron[data-theme='dark'] #app {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+html.lx-electron.is-maximized[data-theme='dark'] #app {
+  box-shadow: none;
 }
 
 * {
@@ -284,10 +321,15 @@ body,
   box-shadow: var(--lx-shadow-dropdown) !important;
 }
 
-/* 高层级弹窗 (10001+) 内的日期/下拉浮层需高于弹窗本身 */
+/*
+ * 高层级弹窗内的日期/下拉会 teleport 到 body，vueuc 会写 inline z-index（常 < 弹窗），
+ * 导致菜单被遮在弹窗背后（编辑资料省份下拉只露出底部几项）。必须 !important 压过 inline。
+ */
 .v-binder-follower-container:has(.n-date-panel),
-.v-binder-follower-container:has(.n-base-select-menu) {
-  z-index: 10003;
+.v-binder-follower-container:has(.n-base-select-menu),
+.v-binder-follower-container:has(.n-cascader-menu),
+.v-binder-follower-container:has(.n-time-picker-panel) {
+  z-index: 20000 !important;
 }
 
 /* Naive UI Modal / Card 暗色适配 */

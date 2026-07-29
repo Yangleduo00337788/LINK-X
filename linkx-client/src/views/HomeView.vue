@@ -82,6 +82,7 @@ watch(isLoggedIn, syncWindowMode, { immediate: true, flush: 'post' })
   height: 100%;
   min-height: 100%;
   overflow: hidden;
+  border-radius: inherit;
 }
 
 :deep(.app-shell) {

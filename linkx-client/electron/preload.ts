@@ -27,7 +27,7 @@ async function captureScreen(): Promise<{ dataURL: string; width: number; height
   try {
     return await ipcRenderer.invoke('screen:capture')
   } catch (e) {
-    console.error('截图失败:', e)
+    console.error('screenshot failed:', e)
     return null
   }
 }
@@ -41,8 +41,18 @@ const api = {
   minimize: () => windowAction('minimize'),
   maximize: () => windowAction('maximize'),
   close: () => windowAction('close'),
+  isMaximized: () => ipcRenderer.invoke('window:is-maximized') as Promise<boolean>,
+  onMaximizedChange: (callback: (maximized: boolean) => void) => {
+    if (typeof callback !== 'function') return () => {}
+    const channel = 'window-maximized-changed'
+    const listener = (_event: Electron.IpcRendererEvent, maximized: boolean) =>
+      callback(!!maximized)
+    ipcRenderer.on(channel, listener)
+    return () => ipcRenderer.removeListener(channel, listener)
+  },
   isElectron: true as const,
-  hasNativeTitleBarOverlay: process.platform === 'win32' || process.platform === 'linux',
+  showCustomCaptionButtons: process.platform === 'win32' || process.platform === 'linux',
+  hasNativeTitleBarOverlay: false,
   captureScreen,
   fetchIPLocation,
   notifyMomentsPublished: () => ipcRenderer.send('moments:published'),

@@ -70,6 +70,8 @@ declare global {
       onShortcutLock?: (callback: () => void) => () => void
       isElectron?: boolean
       hasNativeTitleBarOverlay?: boolean
+      /** Windows/Linux：自绘窗控（关闭键可裁进窗口圆角） */
+      showCustomCaptionButtons?: boolean
       /** 屏幕截图，返回截图数据或 null */
       captureScreen?: () => Promise<{ dataURL: string; width: number; height: number } | null>
       /** 通过 IP 获取地理位置，返回位置字符串或 null */

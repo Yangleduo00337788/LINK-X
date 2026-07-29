@@ -32,6 +32,7 @@ import {
 } from '../utils/file'
 import AtMentionPicker from './common/AtMentionPicker.vue'
 import LocationPickerPage from './LocationPickerPage.vue'
+import WindowCaptionButtons from './WindowCaptionButtons.vue'
 import { useI18n } from '../i18n'
 
 const route = useRoute()
@@ -441,14 +442,17 @@ async function publish() {
       <h1 class="page-title">
         {{ mode === 'text' ? t('moments.publishTextTitle') : t('moments.publishMediaTitle') }}
       </h1>
-      <button
-        type="button"
-        class="header-btn publish-btn"
-        :disabled="!canPublish"
-        @click="publish"
-      >
-        {{ publishing ? t('moments.publishing') : t('moments.publish') }}
-      </button>
+      <div class="header-right">
+        <button
+          type="button"
+          class="header-btn publish-btn"
+          :disabled="!canPublish"
+          @click="publish"
+        >
+          {{ publishing ? t('moments.publishing') : t('moments.publish') }}
+        </button>
+        <WindowCaptionButtons />
+      </div>
     </header>
 
     <!-- 上传进度条(发布中显示) -->
@@ -699,17 +703,16 @@ async function publish() {
 /* ========== 顶部栏 ========== */
 .page-header {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: space-between;
-  padding: 10px 14px;
+  padding: 0 0 0 14px;
   border-bottom: 1px solid var(--lx-border-light);
   -webkit-app-region: drag;
   flex-shrink: 0;
   background: var(--lx-bg-card);
   gap: 8px;
-  width: env(titlebar-area-width, 100%);
-  margin-left: env(titlebar-area-x, 0px);
-  min-height: env(titlebar-area-height, 48px);
+  width: 100%;
+  min-height: 48px;
   box-sizing: border-box;
 }
 
@@ -719,6 +722,15 @@ async function publish() {
   -webkit-app-region: no-drag;
   min-width: 60px;
   pointer-events: none;
+  align-items: center;
+}
+
+.header-right {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+  gap: 4px;
 }
 
 .header-btn {
@@ -728,9 +740,10 @@ async function publish() {
   font-size: 15px;
   color: var(--lx-text-body);
   cursor: pointer;
-  padding: 6px 4px;
+  padding: 6px 12px;
   transition: opacity 0.15s ease;
   flex-shrink: 0;
+  align-self: center;
 }
 .header-btn:active {
   opacity: 0.6;
@@ -765,6 +778,7 @@ async function publish() {
   flex: 1;
   text-align: center;
   min-width: 0;
+  align-self: center;
 }
 
 /* ========== 主内容 ========== */

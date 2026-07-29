@@ -2,12 +2,11 @@
 /**
  * 左侧导航栏组件。
  * <p>
- * 提供主导航切换（消息、联系人、收藏等）、个人头像入口、
- * 主题快捷入口与更多菜单（设置、锁定、退出等）。
+ * 提供主导航切换（消息、联系人、收藏等）、个人头像入口与更多菜单（设置、锁定、退出等）。
  * </p>
  */
-// Vue 渲染函数、nextTick 与组件类型
-import { h, nextTick, ref, computed, type Component } from 'vue'
+// Vue 渲染函数与组件类型
+import { h, ref, computed, type Component } from 'vue'
 import { NIcon, NDropdown, useMessage, type DropdownOption } from 'naive-ui'
 import {
   ChatbubbleEllipsesOutline,
@@ -17,7 +16,7 @@ import {
   BookmarkOutline,
   FolderOutline,
   CalendarOutline,
-  ColorPaletteOutline,
+  WalletOutline,
   TimeOutline,
   RefreshOutline,
   HelpCircleOutline,
@@ -107,6 +106,7 @@ const mainNav = computed(() => [
   { key: 'files' as NavKey, icon: FolderOutline, label: t('nav.files') },
   { key: 'calendar' as NavKey, icon: CalendarOutline, label: t('nav.calendar') },
   { key: 'moments' as NavKey, icon: ApertureOutline, label: t('nav.moments') },
+  { key: 'balance' as NavKey, icon: WalletOutline, label: t('nav.balance') },
   { key: 'settings' as NavKey, icon: SettingsOutline, label: t('nav.settings') }
 ])
 
@@ -184,15 +184,6 @@ function refreshNavData(key: NavKey) {
 // 文件导航点击处理
 function handleFilesClick() {
   setNav('files')
-}
-
-// 主题调色盘按钮：关闭 Overlay 与设置后打开外观设置
-function handlePaletteClick() {
-  closeOverlay()
-  settingsStore.closeSettings()
-  nextTick(() => {
-    openSettings('appearance') // 下一帧打开外观设置页
-  })
 }
 
 // 执行菜单动作前清理 Overlay 与聊天弹窗
@@ -312,18 +303,8 @@ function handleSelfAvatarClick(e: MouseEvent) {
       </button>
     </div>
 
-    <!-- 底部工具按钮：主题与更多菜单 -->
+    <!-- 底部工具按钮：更多菜单 -->
     <div class="nav-bottom">
-      <button
-        type="button"
-        class="nav-item"
-        :title="t('nav.themePalette')"
-        :aria-label="t('nav.themePalette')"
-        @click="handlePaletteClick"
-      >
-        <n-icon :component="ColorPaletteOutline" :size="20" />
-      </button>
-
       <n-dropdown
         v-model:show="menuDropdownShow"
         trigger="click"

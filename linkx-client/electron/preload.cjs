@@ -8,7 +8,7 @@ async function captureScreen() {
   try {
     return await ipcRenderer.invoke('screen:capture')
   } catch (e) {
-    console.error('截图失败:', e)
+    console.error('screenshot failed:', e)
     return null
   }
 }
@@ -65,8 +65,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('app:shortcut-lock', listener)
   },
   isElectron: true,
-  /** Windows/Linux：使用系统原生标题栏按钮（titleBarOverlay） */
-  hasNativeTitleBarOverlay: process.platform === 'win32' || process.platform === 'linux',
+  /** 使用自绘窗控（可裁进窗口圆角）；macOS 用系统红绿灯 */
+  showCustomCaptionButtons: process.platform === 'win32' || process.platform === 'linux',
+  hasNativeTitleBarOverlay: false,
   captureScreen,
   fetchIPLocation,
   /** 发布成功后通知友链列表窗口刷新 */
