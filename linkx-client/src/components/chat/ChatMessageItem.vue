@@ -18,8 +18,10 @@ import FileBubble from './bubbles/FileBubble.vue'
 import ImageBubble from './bubbles/ImageBubble.vue'
 import VoiceBubble from './bubbles/VoiceBubble.vue'
 import RedPacketBubble from './bubbles/RedPacketBubble.vue'
+import LocationBubble from './bubbles/LocationBubble.vue'
 import TextBubble from './bubbles/TextBubble.vue'
 import DataCardBubble from './bubbles/DataCardBubble.vue'
+import CallBubble from './bubbles/CallBubble.vue'
 
 const props = defineProps<{
   msg: ChatMessage
@@ -55,10 +57,7 @@ const isGroupChat = computed(() => !!currentSession.value?.isGroup)
 
 const isRecall = computed(() => props.msg.type === 'recall')
 const isSystemTip = computed(
-  () =>
-    props.msg.type === 'system' ||
-    props.msg.type === 'time' ||
-    props.msg.type === 'conference'
+  () => props.msg.type === 'system' || props.msg.type === 'time'
 )
 
 /** 撤回提示：你撤回了一条消息 / XXX撤回了一条消息 */
@@ -70,12 +69,6 @@ const recallTip = computed(() => {
 
 const tipText = computed(() => {
   if (isRecall.value) return recallTip.value
-  if (props.msg.type === 'conference') {
-    return (
-      props.msg.content ||
-      `${props.msg.senderName || ''} ${t('conference.bannerVideoOngoing')}`.trim()
-    )
-  }
   return props.msg.content || ''
 })
 
@@ -191,6 +184,8 @@ function onStatusClick() {
       <ImageBubble v-else-if="msg.type === 'image' || msg.isImage" :msg="msg" @click="emit('openImageView', msg)" />
       <VoiceBubble v-else-if="msg.type === 'voice'" :msg="msg" :playing="!!props.playing" @click="emit('playVoice', msg)" />
       <RedPacketBubble v-else-if="msg.type === 'redPacket'" :msg="msg" @click="emit('clickRedPacket', msg)" />
+      <LocationBubble v-else-if="msg.type === 'location'" :msg="msg" />
+      <CallBubble v-else-if="msg.type === 'conference'" :msg="msg" @click="emit('clickConference', msg)" />
       <DataCardBubble v-else-if="msg.type === 'dataCard'" :msg="msg" />
       <TextBubble v-else :msg="msg" />
       <div v-if="msg.isSelf && (statusText || msg.edited || readCountText)" class="msg-meta">

@@ -28,8 +28,7 @@ import java.util.Date;
 /**
  * 用户好友关系实体，对应数据库表 sys_user_relation。
  * <p>
- * 描述两个用户之间的好友关系，含备注与拉黑状态。
- * 当前仅有表结构与 Mapper，业务 API 尚未实现。
+ * 描述两个用户之间的好友关系，含备注、自定义分组与拉黑状态。
  * </p>
  */
 @Data // 自动生成属性访问方法
@@ -54,6 +53,9 @@ public class SysUserRelation implements Serializable {
 
     // 好友备注名，可为空
     private String remark;
+
+    // 好友分组名，可为空（仅自己可见）
+    private String groupName;
 
     // 关系状态：1=正常好友，2=已拉黑
     private Integer status;

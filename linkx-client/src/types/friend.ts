@@ -12,6 +12,8 @@ export interface FriendItem {
   nickname: string
   avatar?: string
   remark?: string
+  /** 好友分组名（仅自己可见） */
+  groupName?: string
   /** 是否在线（受对方「在线状态可见」约束） */
   online?: boolean
 }

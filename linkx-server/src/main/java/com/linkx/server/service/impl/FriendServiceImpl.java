@@ -262,8 +262,10 @@ public class FriendServiceImpl implements FriendService {
         }
 
         Map<Long, String> remarkMap = new java.util.HashMap<>();
+        Map<Long, String> groupMap = new java.util.HashMap<>();
         for (SysUserRelation relation : relations) {
             remarkMap.put(relation.getFriendId(), relation.getRemark());
+            groupMap.put(relation.getFriendId(), relation.getGroupName());
         }
 
         List<Long> friendIds = relations.stream().map(SysUserRelation::getFriendId).toList();
@@ -288,6 +290,7 @@ public class FriendServiceImpl implements FriendService {
                     .nickname(friend.getNickname())
                     .avatar(mediaUrlService.resolve(friend.getAvatar()))
                     .remark(remarkMap.get(friend.getId()))
+                    .groupName(groupMap.get(friend.getId()))
                     .online(online)
                     .build());
         }
@@ -330,6 +333,46 @@ public class FriendServiceImpl implements FriendService {
         );
         imPushService.pushToUser(userId, "notification_refresh", payload);
         imPushService.pushToUser(friendId, "notification_refresh", peerPayload);
+    }
+
+    @Override
+    @Transactional
+    public String updateFriendRemark(Long userId, Long friendId, String remark) {
+        if (!isFriend(userId, friendId)) {
+            throw new CustomException(404, "对方不是你的好友");
+        }
+        SysUserRelation relation = findRelationAnyStatus(userId, friendId);
+        if (relation == null) {
+            throw new CustomException(404, "对方不是你的好友");
+        }
+        String normalized = StringUtils.hasText(remark) ? remark.trim() : null;
+        if (normalized != null && normalized.length() > 64) {
+            normalized = normalized.substring(0, 64);
+        }
+        relation.setRemark(normalized);
+        relation.setUpdateTime(new Date());
+        sysUserRelationMapper.update(relation);
+        return normalized != null ? normalized : "";
+    }
+
+    @Override
+    @Transactional
+    public String updateFriendGroup(Long userId, Long friendId, String groupName) {
+        if (!isFriend(userId, friendId)) {
+            throw new CustomException(404, "对方不是你的好友");
+        }
+        SysUserRelation relation = findRelationAnyStatus(userId, friendId);
+        if (relation == null) {
+            throw new CustomException(404, "对方不是你的好友");
+        }
+        String normalized = StringUtils.hasText(groupName) ? groupName.trim() : null;
+        if (normalized != null && normalized.length() > 32) {
+            normalized = normalized.substring(0, 32);
+        }
+        relation.setGroupName(normalized);
+        relation.setUpdateTime(new Date());
+        sysUserRelationMapper.update(relation);
+        return normalized != null ? normalized : "";
     }
 
     @Override

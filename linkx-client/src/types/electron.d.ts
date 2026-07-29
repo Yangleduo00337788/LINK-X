@@ -78,6 +78,8 @@ declare global {
       notifyMomentsPublished?: () => void
       /** 订阅友链列表刷新，返回取消订阅函数 */
       onMomentsRefresh?: (callback: () => void) => () => void
+      /** 主进程写入系统剪贴板 */
+      clipboardWriteText?: (text: string) => Promise<boolean>
       /** 弹出系统桌面通知；silent=true 时不播放系统通知音 */
       showNotification?: (payload: {
         title?: string

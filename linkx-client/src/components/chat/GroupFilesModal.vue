@@ -1,6 +1,6 @@
 ﻿<script setup lang="ts">
 // Vue 响应式 API 与计算属性
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 // Pinia 响应式解构工具
 import { storeToRefs } from 'pinia'
 // 聊天弹窗状态 Store
@@ -36,6 +36,15 @@ const allFiles = computed(() => {
   if (!id) return []
   return groupMetaStore.filesFor(id)
 })
+
+watch(
+  [groupFilesOpen, currentSessionId],
+  ([open, id]) => {
+    if (!open || !id) return
+    void groupMetaStore.fetchFiles(id)
+  },
+  { immediate: true }
+)
 
 // 按搜索词过滤后的文件列表
 const filteredFiles = computed(() => {

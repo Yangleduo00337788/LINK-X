@@ -20,6 +20,8 @@ import {
   rejectFriendRequest,
   listFriends,
   deleteFriend,
+  updateFriendRemark,
+  updateFriendGroup,
   blockFriend,
   unblockFriend
 } from './friend'
@@ -73,6 +75,18 @@ describe('api/friend', () => {
     vi.mocked(apiClient.delete).mockResolvedValue({ code: 200, data: null } as any)
     await deleteFriend('1')
     expect(apiClient.delete).toHaveBeenCalled()
+  })
+
+  it('updateFriendRemark 应调用 apiClient', async () => {
+    vi.mocked(apiClient.put).mockResolvedValue({ code: 200, data: '备注' } as any)
+    await updateFriendRemark('1', '备注')
+    expect(apiClient.put).toHaveBeenCalledWith('/friend/1/remark', { remark: '备注' })
+  })
+
+  it('updateFriendGroup 应调用 apiClient', async () => {
+    vi.mocked(apiClient.put).mockResolvedValue({ code: 200, data: '同事' } as any)
+    await updateFriendGroup('1', '同事')
+    expect(apiClient.put).toHaveBeenCalledWith('/friend/1/group', { groupName: '同事' })
   })
 
   it('blockFriend 应调用 apiClient', async () => {

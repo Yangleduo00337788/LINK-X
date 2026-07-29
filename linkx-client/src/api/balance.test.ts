@@ -12,7 +12,9 @@ vi.mock('./client', () => ({
 
 import { apiClient } from './client'
 import {
-  getBalance
+  getBalance,
+  listBalanceLogs,
+  rechargeBalance
 } from './balance'
 
 describe('api/balance', () => {
@@ -21,7 +23,18 @@ describe('api/balance', () => {
   it('getBalance 应调用 apiClient', async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ code: 200, data: null } as any)
     await getBalance()
-    expect(apiClient.get).toHaveBeenCalled()
+    expect(apiClient.get).toHaveBeenCalledWith('/balance')
   })
 
+  it('listBalanceLogs 应调用 apiClient', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ code: 200, data: [] } as any)
+    await listBalanceLogs({ limit: 20 })
+    expect(apiClient.get).toHaveBeenCalledWith('/balance/logs', { params: { limit: 20 } })
+  })
+
+  it('rechargeBalance 应调用 apiClient', async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ code: 200, data: null } as any)
+    await rechargeBalance(10)
+    expect(apiClient.post).toHaveBeenCalledWith('/balance/recharge', { amount: 10 })
+  })
 })

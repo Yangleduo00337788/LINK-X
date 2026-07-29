@@ -28,6 +28,7 @@ import * as userApi from '../../api/user'
 import type { UserProfileData } from '../../api/user'
 import { generatePlaceholderImage } from '../../utils/defaultAvatar'
 import { useI18n } from '../../i18n'
+import { formatFriendDisplayName, friendAvatarText } from '../../utils/friendDisplay'
 
 const { t } = useI18n()
 const chatModalsStore = useChatModalsStore()
@@ -50,8 +51,19 @@ const avatarInputRef = ref<HTMLInputElement | null>(null)
 const uploadingAvatar = ref(false)
 const remoteProfile = ref<UserProfileData | null>(null)
 const loadingRemoteProfile = ref(false)
+const remarkDraft = ref('')
+const groupDraft = ref('')
+const savingRemark = ref(false)
+const savingGroup = ref(false)
 
 const contact = computed<ContactItem | null>(() => currentContactProfile.value)
+const friendUserId = computed(() => (contact.value ? resolveContactUserId(contact.value) : null))
+const existingGroupNames = computed(() => contactsStore.friendGroupNames)
+const isFriendContact = computed(() => {
+  const uid = friendUserId.value
+  if (!uid) return false
+  return contactsStore.items.some(c => String(c.userId ?? c.id) === uid)
+})
 const selfOnline = computed(() => !isOffline.value)
 const onlineFriendsTitle = computed(() =>
   t('presence.onlineFriendsTitle', { count: onlineFriends.value.length })
@@ -70,7 +82,12 @@ watch(
   () => [contactProfileOpen.value, profileCardIsSelf.value, contact.value?.id] as const,
   async ([open, isSelf, contactId]) => {
     remoteProfile.value = null
+    remarkDraft.value = ''
+    groupDraft.value = ''
     if (!open || isSelf || !contactId || !contact.value) return
+
+    remarkDraft.value = contact.value.remark || ''
+    groupDraft.value = contact.value.group || t('contacts.myFriends')
 
     const userId = resolveContactUserId(contact.value)
     if (!userId) return
@@ -92,7 +109,9 @@ watch(
 const displayName = computed(() => {
   if (!contact.value) return ''
   if (profileCardIsSelf.value) return userProfile.value.nickname || contact.value.name
-  return remoteProfile.value?.nickname || contact.value.name
+  const nickname =
+    contact.value.nickname || remoteProfile.value?.nickname || contact.value.name || '好友'
+  return formatFriendDisplayName(nickname, contact.value.remark)
 })
 
 const displayAvatarUrl = computed(() => {
@@ -211,6 +230,51 @@ function goNotifySettings() {
   closeContactProfile()
   settingsStore.openSettings('notifications')
 }
+
+async function saveRemark() {
+  const userId = friendUserId.value
+  if (!userId || !contact.value) return
+  savingRemark.value = true
+  try {
+    const value = await contactsStore.updateFriendRemark(userId, remarkDraft.value)
+    const nickname =
+      contact.value.nickname || remoteProfile.value?.nickname || '好友'
+    contact.value.remark = value || undefined
+    contact.value.nickname = nickname
+    contact.value.name = formatFriendDisplayName(nickname, value)
+    contact.value.avatarText = friendAvatarText(nickname, value)
+    // 同步会话显示名
+    const sid = appStore.sessions.find(
+      s => !s.isGroup && (String(s.peerUserId) === userId || s.id === contact.value!.id)
+    )?.id
+    if (sid) {
+      const session = appStore.sessions.find(s => s.id === sid)
+      if (session) session.name = contact.value.name
+    }
+    message.success(t('modals.friendRemarkSaved'))
+  } catch (e) {
+    message.error((e as Error).message || t('common.fail'))
+  } finally {
+    savingRemark.value = false
+  }
+}
+
+async function saveGroup() {
+  const userId = friendUserId.value
+  if (!userId || !contact.value) return
+  const next = groupDraft.value.trim()
+  savingGroup.value = true
+  try {
+    const value = await contactsStore.updateFriendGroup(userId, next)
+    contact.value.group = value
+    groupDraft.value = value
+    message.success(t('modals.friendGroupSaved'))
+  } catch (e) {
+    message.error((e as Error).message || t('common.fail'))
+  } finally {
+    savingGroup.value = false
+  }
+}
 </script>
 
 <template>
@@ -309,6 +373,38 @@ function goNotifySettings() {
               {{ t('presence.noOnlineFriends') }}
             </div>
           </div>
+        </section>
+
+        <section v-if="!profileCardIsSelf && isFriendContact" class="friend-edit">
+          <label class="edit-label">{{ t('modals.friendRemark') }}</label>
+          <div class="edit-row">
+            <input
+              v-model="remarkDraft"
+              class="edit-input"
+              :placeholder="t('modals.friendRemarkPh')"
+              maxlength="64"
+            />
+            <button type="button" class="edit-save" :disabled="savingRemark" @click="saveRemark">
+              {{ t('common.save') }}
+            </button>
+          </div>
+          <label class="edit-label">{{ t('modals.friendGroup') }}</label>
+          <div class="edit-row">
+            <input
+              v-model="groupDraft"
+              class="edit-input"
+              list="friend-group-suggestions"
+              :placeholder="t('modals.friendGroupPh')"
+              maxlength="32"
+            />
+            <datalist id="friend-group-suggestions">
+              <option v-for="g in existingGroupNames" :key="g" :value="g" />
+            </datalist>
+            <button type="button" class="edit-save" :disabled="savingGroup" @click="saveGroup">
+              {{ t('common.save') }}
+            </button>
+          </div>
+          <p class="edit-hint">{{ t('modals.friendGroupHint') }}</p>
         </section>
 
         <section v-if="!profileCardIsSelf" class="moments-row">
@@ -464,6 +560,55 @@ function goNotifySettings() {
 .moments-arrow {
   color: var(--lx-text-muted);
   flex-shrink: 0;
+}
+
+.friend-edit {
+  padding: 12px 16px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--lx-border-light);
+}
+.edit-label {
+  font-size: 12px;
+  color: var(--lx-text-muted);
+}
+.edit-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.edit-input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  border: 1px solid var(--lx-border-light);
+  border-radius: 6px;
+  padding: 0 10px;
+  background: var(--lx-bg-panel);
+  color: var(--lx-text-body);
+  font-size: 13px;
+}
+.edit-save {
+  flex-shrink: 0;
+  height: 32px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 6px;
+  background: var(--lx-accent);
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+.edit-save:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.edit-hint {
+  margin: -4px 0 8px;
+  font-size: 11px;
+  color: var(--lx-text-muted);
+  line-height: 1.4;
 }
 
 .send-btn {

@@ -21,7 +21,7 @@ public final class FileExtensionValidator {
 
     private static final Set<String> BLOCKED_EXTENSIONS = Set.of(
             "exe", "msi", "dll", "so", "dylib",
-            "bat", "sh", "cmd", "ps1", "vbs", "sh",
+            "bat", "cmd", "ps1", "vbs", "sh",
             "php", "phtml", "asp", "aspx", "jsp", "jspx",
             "html", "htm", "xhtml", "svg",
             "jar", "war", "ear",

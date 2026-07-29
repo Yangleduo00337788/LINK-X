@@ -43,6 +43,20 @@ public interface ChatService {
             String scene,
             boolean hasPassword);
 
+    /**
+     * 写入 1v1 音视频通话邀请提示（会话时间线可见）。
+     */
+    MessageVO postCallInviteMessage(
+            Long senderId,
+            Long conversationId,
+            String callId,
+            String callType);
+
+    /**
+     * 更新 1v1 通话提示文案（取消/拒绝/未接听/通话时长）。
+     */
+    MessageVO updateCallTipMessage(Long conversationId, String callId, String content);
+
     ChatFileUploadVO uploadChatFile(Long userId, Long conversationId, MultipartFile file);
 
     /**

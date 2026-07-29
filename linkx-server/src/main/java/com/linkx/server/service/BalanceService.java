@@ -3,6 +3,7 @@ package com.linkx.server.service;
 import com.linkx.server.controller.vo.BalanceVO;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 /**
  * 余额服务接口
@@ -13,6 +14,11 @@ public interface BalanceService {
      * 获取用户余额
      */
     BalanceVO getBalance(Long userId);
+
+    /**
+     * 余额流水（本人，按时间倒序）
+     */
+    List<com.linkx.server.controller.vo.BalanceLogVO> listLogs(Long userId, Integer limit, Long beforeId);
 
     /**
      * 扣减余额（用于发红包等场景）

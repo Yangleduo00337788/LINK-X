@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS `sys_user_relation` (
   `user_id` bigint NOT NULL COMMENT '用户ID',
   `friend_id` bigint NOT NULL COMMENT '好友ID',
   `remark` varchar(64) DEFAULT NULL COMMENT '好友备注',
+  `group_name` varchar(32) DEFAULT NULL COMMENT '好友分组名',
   `status` tinyint NOT NULL DEFAULT 1 COMMENT '状态(1:正常 2:拉黑)',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间(成为好友的时间)',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -350,7 +351,9 @@ CREATE TABLE IF NOT EXISTS `balance_log` (
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `deleted` tinyint(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除(0:未删除 1:已删除)',
   PRIMARY KEY (`id`),
-  KEY `idx_user_time` (`user_id`,`create_time`)
+  KEY `idx_user_time` (`user_id`,`create_time`),
+  -- 幂等键唯一索引：Redis宕机时的最后兜底，防止重复扣款/充值
+  UNIQUE KEY `uk_balance_idem` (`user_id`,`biz_type`,`biz_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='余额变动记录表';
 
 -- ================================================
@@ -359,7 +362,8 @@ CREATE TABLE IF NOT EXISTS `balance_log` (
 CREATE TABLE IF NOT EXISTS `red_packet` (
   `id` bigint NOT NULL COMMENT '主键ID',
   `sender_id` bigint NOT NULL COMMENT '发送者ID',
-  `conversation_id` bigint NOT NULL COMMENT '会话ID(群聊发送)',
+  `conversation_id` bigint NOT NULL COMMENT '会话ID',
+  `conversation_type` int DEFAULT NULL COMMENT '会话类型（1单聊 2群聊），冗余字段',
   `type` varchar(20) NOT NULL COMMENT '红包类型: normal(普通红包), lucky(拼手气红包)',
   `total_amount` decimal(12,2) NOT NULL COMMENT '总金额',
   `total_count` int NOT NULL COMMENT '红包个数',
@@ -448,6 +452,39 @@ SET @sql = (SELECT IF(
     (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'red_packet' AND COLUMN_NAME = 'version') = 0,
     'ALTER TABLE `red_packet` ADD COLUMN `version` bigint NOT NULL DEFAULT 0 COMMENT ''乐观锁版本号''',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- red_packet 表新增 client_msg_id 列（如不存在）- 客户端幂等ID
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'red_packet' AND COLUMN_NAME = 'client_msg_id') = 0,
+    'ALTER TABLE `red_packet` ADD COLUMN `client_msg_id` varchar(128) DEFAULT NULL COMMENT ''客户端幂等ID''',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- red_packet 表新增唯一索引 uk_sender_client_msg（如不存在）- 防重复发送
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'red_packet' AND INDEX_NAME = 'uk_sender_client_msg') = 0,
+    'ALTER TABLE `red_packet` ADD UNIQUE INDEX `uk_sender_client_msg` (`sender_id`, `client_msg_id`)',
+    'SELECT 1'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- balance_log 表新增 deleted 列（如不存在）- 逻辑删除必需
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'balance_log' AND COLUMN_NAME = 'deleted') = 0,
+    'ALTER TABLE `balance_log` ADD COLUMN `deleted` tinyint(1) NOT NULL DEFAULT 0 COMMENT ''逻辑删除''',
     'SELECT 1'
 ));
 PREPARE stmt FROM @sql;
@@ -1018,3 +1055,23 @@ SET @sql = (SELECT IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TAB
   'ALTER TABLE `group_invitation` ADD COLUMN `deleted` tinyint(1) NOT NULL DEFAULT 0 COMMENT ''逻辑删除''', 'SELECT 1'));
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
+-- sys_user_relation 好友分组名（存量库补列）
+SET @sql = (SELECT IF(
+  (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sys_user_relation' AND COLUMN_NAME = 'group_name') = 0,
+  'ALTER TABLE `sys_user_relation` ADD COLUMN `group_name` varchar(32) DEFAULT NULL COMMENT ''好友分组名'' AFTER `remark`',
+  'SELECT 1'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- balance_log 幂等键唯一索引（Redis宕机时的最后兜底，防止重复扣款/充值）
+SET @sql = (SELECT IF(
+  (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'balance_log' AND INDEX_NAME = 'uk_balance_idem') = 0,
+  'ALTER TABLE `balance_log` ADD UNIQUE INDEX `uk_balance_idem` (`user_id`, `biz_type`, `biz_id`)',
+  'SELECT 1'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- red_packet 表新增 conversation_type 列（用于区分单聊/群聊红包）
+SET @sql = (SELECT IF(
+  (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'red_packet' AND COLUMN_NAME = 'conversation_type') = 0,
+  'ALTER TABLE `red_packet` ADD COLUMN `conversation_type` INT DEFAULT NULL COMMENT ''会话类型（1单聊 2群聊），冗余字段''',
+  'SELECT 1'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;

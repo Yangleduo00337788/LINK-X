@@ -28,6 +28,16 @@ let signalQueue: Promise<void> = Promise.resolve()
 let iceRestartAttempts = 0
 let weakNetChecks = 0
 let statsTimer: ReturnType<typeof setInterval> | null = null
+/** 振铃超时：超时后主叫按未接听取消，被叫按拒绝 */
+let ringTimer: ReturnType<typeof setTimeout> | null = null
+const RING_TIMEOUT_MS = 55_000
+
+function clearRingTimer() {
+  if (ringTimer) {
+    clearTimeout(ringTimer)
+    ringTimer = null
+  }
+}
 
 interface NormalizedCallEvent {
   callId: string
@@ -128,6 +138,7 @@ export const useCallStore = defineStore('call', {
       this.micOn = true
       this.cameraOn = opts.callType === 'video'
       startCallRing()
+      this.armRingTimeout()
       // 主叫在振铃阶段即打开本地媒体：视频可预览，接通后立刻有音轨
       void this.ensureLocalMedia().catch(e => {
         const name = (e as DOMException)?.name
@@ -200,6 +211,7 @@ export const useCallStore = defineStore('call', {
 
     async acceptIncoming() {
       if (this.phase !== 'incoming' || !this.callId) return
+      clearRingTimer()
       try {
         const res = await callApi.acceptCall(this.callId)
         if (res.code !== 200) {
@@ -297,11 +309,40 @@ export const useCallStore = defineStore('call', {
       this.cameraOn = event.callType === 'video'
       this.errorMessage = ''
       startCallRing()
+      this.armRingTimeout()
+    },
+
+    armRingTimeout() {
+      clearRingTimer()
+      ringTimer = setTimeout(() => {
+        ringTimer = null
+        if (this.phase !== 'outgoing' && this.phase !== 'incoming') return
+        const callId = this.callId
+        if (!callId) {
+          this.cleanupLocal()
+          return
+        }
+        void (async () => {
+          try {
+            if (this.role === 'caller') {
+              await callApi.cancelCall(callId, 'timeout')
+              this.errorMessage = '对方无应答'
+            } else {
+              await callApi.rejectCall(callId)
+              this.errorMessage = '未接听'
+            }
+          } catch {
+            /* ignore */
+          }
+          this.cleanupLocal()
+        })()
+      }, RING_TIMEOUT_MS)
     },
 
     async onAccept(event: NormalizedCallEvent) {
       if (this.role !== 'caller' || this.callId !== event.callId) return
       if (this.phase !== 'outgoing') return
+      clearRingTimer()
       this.phase = 'connecting'
       playCallConnect()
       try {
@@ -630,6 +671,7 @@ export const useCallStore = defineStore('call', {
 
     cleanupLocal() {
       const shouldPlayEnd = this.phase !== 'idle'
+      clearRingTimer()
       stopCallRing()
       if (shouldPlayEnd) playCallEnd()
       this.stopWeakNetWatch()

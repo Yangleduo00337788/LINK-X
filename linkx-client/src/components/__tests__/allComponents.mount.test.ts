@@ -668,22 +668,6 @@ describe('all vue components mount smoke', () => {
     wrapper.unmount()
   })
 
-  it('mount components/FavoritesPanel.vue', async () => {
-    const mod = await import('@/components/FavoritesPanel.vue')
-    const Comp = mod.default
-    const wrapper = mount(Comp, {
-      global: {
-        plugins: [createPinia(), router],
-        stubs: true
-      },
-      props: {},
-      attachTo: document.body
-    })
-    await flushPromises()
-    expect(wrapper.exists()).toBe(true)
-    wrapper.unmount()
-  })
-
   it('mount components/FilesMainView.vue', async () => {
     const mod = await import('@/components/FilesMainView.vue')
     const Comp = mod.default
@@ -700,8 +684,8 @@ describe('all vue components mount smoke', () => {
     wrapper.unmount()
   })
 
-  it('mount components/FilesPanel.vue', async () => {
-    const mod = await import('@/components/FilesPanel.vue')
+  it('mount components/ShareLandingView.vue', async () => {
+    const mod = await import('@/components/ShareLandingView.vue')
     const Comp = mod.default
     const wrapper = mount(Comp, {
       global: {
@@ -709,6 +693,56 @@ describe('all vue components mount smoke', () => {
         stubs: true
       },
       props: {},
+      attachTo: document.body
+    })
+    await flushPromises()
+    expect(wrapper.exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('mount components/MomentsMainView.vue', async () => {
+    const mod = await import('@/components/MomentsMainView.vue')
+    const Comp = mod.default
+    const wrapper = mount(Comp, {
+      global: {
+        plugins: [createPinia(), router],
+        stubs: true
+      },
+      props: {},
+      attachTo: document.body
+    })
+    await flushPromises()
+    expect(wrapper.exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('mount components/chat/RedPacketHistoryModal.vue', async () => {
+    const mod = await import('@/components/chat/RedPacketHistoryModal.vue')
+    const Comp = mod.default
+    const wrapper = mount(Comp, {
+      global: {
+        plugins: [createPinia(), router],
+        stubs: true
+      },
+      props: {},
+      attachTo: document.body
+    })
+    await flushPromises()
+    expect(wrapper.exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('mount components/chat/bubbles/LocationBubble.vue', async () => {
+    const mod = await import('@/components/chat/bubbles/LocationBubble.vue')
+    const Comp = mod.default
+    const wrapper = mount(Comp, {
+      global: {
+        plugins: [createPinia(), router],
+        stubs: true
+      },
+      props: {
+        msg: { id: '1', content: '上海', type: 'location', isSelf: false, time: '' }
+      },
       attachTo: document.body
     })
     await flushPromises()

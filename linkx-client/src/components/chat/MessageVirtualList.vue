@@ -29,6 +29,8 @@ const listRef = ref<VirtualListInst | null>(null)
 const listItems = shallowRef<ChatMessage[]>(props.items)
 const padTop = ref(PAD_TOP_MIN)
 let scrollBottomToken = 0
+/** 程序化滚到底期间忽略 onScroll 的 token 打断，避免挂载在顶部时取消贴底 */
+let programmaticBottomUntil = 0
 let scrollRaf = 0
 let alignRaf = 0
 
@@ -93,7 +95,8 @@ function onScroll(e: Event) {
     const el = (e.target as HTMLElement) || getScrollElement()
     if (!el) return
     const dist = el.scrollHeight - el.scrollTop - el.clientHeight
-    if (dist > 24) scrollBottomToken++
+    // 进会话强制贴底时不要用「离底」打断，否则会卡在最新一页的顶部
+    if (dist > 24 && Date.now() >= programmaticBottomUntil) scrollBottomToken++
     emit('scroll', {
       scrollTop: el.scrollTop,
       scrollHeight: el.scrollHeight,
@@ -106,8 +109,13 @@ function onListResize() {
   scheduleAlignBottom()
 }
 
-function scrollToBottom() {
+/**
+ * 滚到最新消息。
+ * @param force 进入会话时强制贴底；即使当前离底很远也继续设 scrollTop
+ */
+function scrollToBottom(force = false) {
   const token = ++scrollBottomToken
+  if (force) programmaticBottomUntil = Date.now() + 400
   nextTick(() => {
     if (token !== scrollBottomToken) return
     if (listItems.value.length === 0) return
@@ -121,7 +129,9 @@ function scrollToBottom() {
       if (token !== scrollBottomToken) return
       const box = getScrollElement()
       if (!box) return
-      if (box.scrollHeight - box.scrollTop - box.clientHeight > 80) return
+      const dist = box.scrollHeight - box.scrollTop - box.clientHeight
+      // 非强制：仅在已接近底部时微调，避免打断用户上翻
+      if (!force && dist > 80) return
       box.scrollTop = box.scrollHeight
       scheduleAlignBottom()
     })

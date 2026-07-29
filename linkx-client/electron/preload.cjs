@@ -92,5 +92,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     get: key => ipcRenderer.invoke('secure-storage:get', key),
     set: (key, value) => ipcRenderer.invoke('secure-storage:set', key, value),
     remove: key => ipcRenderer.invoke('secure-storage:remove', key)
-  }
+  },
+  /** 主进程剪贴板写入（避免 Chromium clipboard 权限限制） */
+  clipboardWriteText: text => ipcRenderer.invoke('clipboard:write-text', text)
 })

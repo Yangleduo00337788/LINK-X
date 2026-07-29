@@ -332,6 +332,7 @@ public class ChatServiceImpl implements ChatService {
 
         String storedFileUrl = dto.getFileUrl();
         if (!ImMessage.TYPE_TEXT.equals(msgType)
+                && !ImMessage.TYPE_LOCATION.equals(msgType)
                 && !ImMessage.TYPE_RED_PACKET.equals(msgType)
                 && !ImMessage.TYPE_CONFERENCE.equals(msgType)) {
             storedFileUrl = normalizeAndAuthorizeMediaKey(userId, dto.getFileUrl());
@@ -516,6 +517,90 @@ public class ChatServiceImpl implements ChatService {
         conversationMapper.update(conversation);
 
         return toMessageVO(message, sender, senderId, loadLastReadMessageId(senderId, conversationId));
+    }
+
+    @Override
+    @Transactional
+    public MessageVO postCallInviteMessage(
+            Long senderId,
+            Long conversationId,
+            String callId,
+            String callType) {
+        if (senderId == null || conversationId == null || !StringUtils.hasText(callId)) {
+            throw new CustomException(400, "通话邀请参数不完整");
+        }
+        ImConversation conversation = conversationMapper.selectOneById(conversationId);
+        if (conversation == null) {
+            throw new CustomException(404, "会话不存在");
+        }
+        SysUser sender = sysUserMapper.selectOneById(senderId);
+        String name = sender != null
+                ? (StringUtils.hasText(sender.getNickname())
+                    ? sender.getNickname()
+                    : (StringUtils.hasText(sender.getUsername()) ? sender.getUsername() : "用户"))
+                : "用户";
+        boolean video = !"voice".equalsIgnoreCase(callType);
+        String typeLabel = video ? "视频通话" : "语音通话";
+        String text = name + "发起了" + typeLabel;
+
+        Date now = new Date();
+        ImMessage message = ImMessage.builder()
+                .conversationId(conversationId)
+                .senderId(senderId)
+                .type(ImMessage.TYPE_CONFERENCE)
+                .content(text)
+                .fileName(typeLabel)
+                .fileUrl(callId.trim())
+                .fileSize(0L)
+                .deliveryStatus("delivered")
+                .readStatus(0)
+                .createTime(now)
+                .deleted(0)
+                .build();
+        messageMapper.insert(message);
+        if (message.getCreateTime() == null) {
+            message.setCreateTime(now);
+        }
+
+        conversation.setLastMessageContent(buildPreview(message));
+        conversation.setLastMessageTime(message.getCreateTime());
+        conversationMapper.update(conversation);
+
+        return toMessageVO(message, sender, senderId, loadLastReadMessageId(senderId, conversationId));
+    }
+
+    @Override
+    @Transactional
+    public MessageVO updateCallTipMessage(Long conversationId, String callId, String content) {
+        if (conversationId == null || !StringUtils.hasText(callId) || !StringUtils.hasText(content)) {
+            return null;
+        }
+        ImMessage message = messageMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(ImMessage::getConversationId).eq(conversationId)
+                        .and(ImMessage::getType).eq(ImMessage.TYPE_CONFERENCE)
+                        .and(ImMessage::getFileUrl).eq(callId.trim())
+                        .and(ImMessage::getDeleted).eq(0)
+                        .orderBy(ImMessage::getId, false)
+                        .limit(1)
+        );
+        if (message == null) {
+            return null;
+        }
+        message.setContent(content.trim());
+        messageMapper.update(message);
+
+        ImConversation conversation = conversationMapper.selectOneById(conversationId);
+        if (conversation != null) {
+            conversation.setLastMessageContent(buildPreview(message));
+            conversation.setLastMessageTime(message.getCreateTime() != null ? message.getCreateTime() : new Date());
+            conversationMapper.update(conversation);
+        }
+
+        SysUser sender = message.getSenderId() != null
+                ? sysUserMapper.selectOneById(message.getSenderId())
+                : null;
+        return toMessageVO(message, sender, message.getSenderId(), null);
     }
 
     @Override
@@ -1044,21 +1129,72 @@ public class ChatServiceImpl implements ChatService {
     }
 
     private Map<Long, SysUser> loadPeerUsers(Long userId, List<ImConversation> conversations) {
+        // 收集所有私聊会话 ID
+        List<Long> privateConversationIds = conversations.stream()
+                .filter(c -> c.getType() == ImConversation.TYPE_PRIVATE)
+                .map(ImConversation::getId)
+                .collect(Collectors.toList());
+
+        if (privateConversationIds.isEmpty()) {
+            return Map.of();
+        }
+
+        // 批量查询私聊会话的所有成员
+        List<ImConversationMember> allMembers = memberMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(ImConversationMember::getConversationId).in(privateConversationIds)
+        );
+
+        // 按会话 ID 分组
+        Map<Long, List<ImConversationMember>> conversationMembersMap = allMembers.stream()
+                .collect(Collectors.groupingBy(ImConversationMember::getConversationId));
+
+        // 收集所有 peer ID（排除当前用户）
+        List<Long> peerIds = new ArrayList<>();
+        for (ImConversation conversation : conversations) {
+            if (conversation.getType() != ImConversation.TYPE_PRIVATE) {
+                continue;
+            }
+            List<ImConversationMember> members = conversationMembersMap.get(conversation.getId());
+            if (members != null) {
+                for (ImConversationMember member : members) {
+                    if (!member.getUserId().equals(userId)) {
+                        peerIds.add(member.getUserId());
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (peerIds.isEmpty()) {
+            return Map.of();
+        }
+
+        // 批量查询 peer 用户，避免 N+1
+        List<SysUser> peers = sysUserMapper.selectListByQuery(
+                QueryWrapper.create().where(SysUser::getId).in(peerIds)
+        );
+
+        // 建立 conversationId -> peer 用户 的映射
         Map<Long, SysUser> result = new HashMap<>();
         for (ImConversation conversation : conversations) {
             if (conversation.getType() != ImConversation.TYPE_PRIVATE) {
                 continue;
             }
-            try {
-                Long peerId = resolvePrivatePeerId(userId, conversation.getId());
-                if (peerId != null) {
-                    SysUser peer = sysUserMapper.selectOneById(peerId);
-                    if (peer != null) {
-                        result.put(conversation.getId(), peer);
+            List<ImConversationMember> members = conversationMembersMap.get(conversation.getId());
+            if (members != null) {
+                for (ImConversationMember member : members) {
+                    if (!member.getUserId().equals(userId)) {
+                        SysUser peer = peers.stream()
+                                .filter(u -> u.getId().equals(member.getUserId()))
+                                .findFirst()
+                                .orElse(null);
+                        if (peer != null) {
+                            result.put(conversation.getId(), peer);
+                        }
+                        break;
                     }
                 }
-            } catch (Exception e) {
-                continue;
             }
         }
         return result;
@@ -1428,16 +1564,17 @@ public class ChatServiceImpl implements ChatService {
         if (!ImMessage.TYPE_TEXT.equals(type)
                 && !ImMessage.TYPE_IMAGE.equals(type)
                 && !ImMessage.TYPE_FILE.equals(type)
-                && !ImMessage.TYPE_VOICE.equals(type)) {
+                && !ImMessage.TYPE_VOICE.equals(type)
+                && !ImMessage.TYPE_LOCATION.equals(type)) {
             throw new CustomException(400, "不支持的消息类型");
         }
         return type;
     }
 
     private void validateMessagePayload(String msgType, SendMessageDTO dto) {
-        if (ImMessage.TYPE_TEXT.equals(msgType)) {
+        if (ImMessage.TYPE_TEXT.equals(msgType) || ImMessage.TYPE_LOCATION.equals(msgType)) {
             if (!StringUtils.hasText(dto.getContent())) {
-                throw new CustomException(400, "文本消息不能为空");
+                throw new CustomException(400, ImMessage.TYPE_LOCATION.equals(msgType) ? "位置不能为空" : "文本消息不能为空");
             }
             return;
         }
@@ -1454,7 +1591,7 @@ public class ChatServiceImpl implements ChatService {
     }
 
     private String resolveContent(String msgType, SendMessageDTO dto, String storedFileUrl) {
-        if (ImMessage.TYPE_TEXT.equals(msgType)) {
+        if (ImMessage.TYPE_TEXT.equals(msgType) || ImMessage.TYPE_LOCATION.equals(msgType)) {
             return InputSanitizer.sanitizeText(dto.getContent(), 4000);
         }
         if (ImMessage.TYPE_IMAGE.equals(msgType)) {
@@ -1493,6 +1630,7 @@ public class ChatServiceImpl implements ChatService {
             case ImMessage.TYPE_IMAGE -> "[图片]";
             case ImMessage.TYPE_FILE -> "[文件] " + (message.getFileName() != null ? message.getFileName() : "文件");
             case ImMessage.TYPE_VOICE -> "[语音]";
+            case ImMessage.TYPE_LOCATION -> "[位置] " + (message.getContent() != null ? message.getContent() : "");
             case ImMessage.TYPE_RED_PACKET -> "[红包] " + (message.getFileName() != null ? message.getFileName() : "恭喜发财");
             case ImMessage.TYPE_CONFERENCE -> {
                 String c = message.getContent();
@@ -1862,7 +2000,7 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public String findFileByHash(Long userId, String contentHash) {
-        String existingKey = fileStorageService.findByContentHash(contentHash);
+        String existingKey = fileStorageService.getObjectKeyByHashInternal(contentHash);
         if (existingKey == null) {
             return null;
         }
@@ -1875,7 +2013,7 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public ChatFileUploadVO resolveFileByHash(Long userId, String contentHash, String fileName, Long fileSize, String contentType) {
-        String existingKey = fileStorageService.findByContentHash(contentHash);
+        String existingKey = fileStorageService.getObjectKeyByHashInternal(contentHash);
         if (existingKey == null) {
             return null;
         }

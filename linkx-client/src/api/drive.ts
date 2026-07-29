@@ -1,5 +1,7 @@
 import { apiClient } from './client'
 import type { ApiResult } from '../types/auth'
+import { API_BASE_URL } from '../config/endpoints'
+import { parseJsonPreservingIds } from '../utils/parseJson'
 
 export interface DriveStorageVO {
   usedBytes: number
@@ -158,4 +160,25 @@ export function createDriveShare(body: {
 
 export function revokeDriveShare(shareId: string) {
   return apiClient.delete<never, ApiResult<null>>(`/cloud/shares/${shareId}`)
+}
+
+/** 公开分享元信息（免登录，可选提取码） */
+export async function getPublicShare(
+  token: string,
+  password?: string
+): Promise<ApiResult<DriveShareVO>> {
+  const url = new URL(`${API_BASE_URL}/cloud/share/${encodeURIComponent(token)}`)
+  if (password) url.searchParams.set('password', password)
+  const res = await fetch(url.toString())
+  const text = await res.text()
+  let body: ApiResult<DriveShareVO>
+  try {
+    body = parseJsonPreservingIds(text) as ApiResult<DriveShareVO>
+  } catch {
+    throw new Error(`分享加载失败 (${res.status})`)
+  }
+  if (!body || typeof body.code !== 'number') {
+    throw new Error(`分享加载失败 (${res.status})`)
+  }
+  return body
 }

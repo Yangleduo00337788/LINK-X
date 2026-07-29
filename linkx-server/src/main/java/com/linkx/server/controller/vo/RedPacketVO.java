@@ -44,5 +44,8 @@ public class RedPacketVO {
 
     private BigDecimal receivedAmount;
 
+    /** 当前用户是否为红包发送者（服务端计算，避免前端 Long 精度丢失误判） */
+    private Boolean isSelf;
+
     private List<RedPacketRecordVO> records;
 }

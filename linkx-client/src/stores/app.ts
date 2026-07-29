@@ -104,17 +104,22 @@ function messagePreview(msg: ChatMessage): string {
   if (msg.type === 'file') return `[文件] ${msg.fileName || msg.content}`
   if (msg.type === 'image' || msg.isImage) return '[图片]'
   if (msg.type === 'voice') return '[语音]'
+  if (msg.type === 'location') return `[位置] ${msg.content || ''}`
   if (msg.type === 'redPacket') return `[红包] ${msg.redPacketGreeting || '恭喜发财'}`
   if (msg.type === 'conference') {
+    const content = (msg.content || '').trim()
+    if (content && (/语音通话|视频通话|会议/.test(content))) {
+      return content
+    }
     const scene = msg.conferenceScene
     const kind =
       scene === 'call'
         ? msg.conferenceType === 'voice'
           ? '语音通话'
           : '视频通话'
-        : /语音通话/.test(msg.content || '')
+        : /语音通话/.test(content)
           ? '语音通话'
-          : /视频通话/.test(msg.content || '')
+          : /视频通话/.test(content)
             ? '视频通话'
             : '会议'
     return `[${kind}] ${msg.conferenceTitle || msg.fileName || kind}`
@@ -414,17 +419,33 @@ export const useAppStore = defineStore('app', {
      * @returns 最终使用的会话对象
      */
     ensureSession(session: ChatSession) {
-      // 优先按 id 匹配；单聊还可按名称匹配（避免重复会话）
-      const exists =
-        this.sessions.find(s => s.id === session.id) ??
-        (!session.isGroup
-          ? this.sessions.find(s => !s.isGroup && s.name === session.name)
-          : undefined)
-      if (exists) {
-        this.selectSession(exists)
+      // 优先按 id 匹配
+      const existingById = this.sessions.find(s => s.id === session.id)
+      if (existingById) {
+        this.selectSession(existingById)
         this.navKey = 'chat'
-        return exists
+        return existingById
       }
+
+      // 后端返回的真实会话（isReal: true）：替换本地同名旧会话，避免残留缓存导致的 ID 不一致
+      if (session.isReal && !session.isGroup) {
+        const idx = this.sessions.findIndex(s => !s.isGroup && s.name === session.name && s.id !== session.id)
+        if (idx >= 0) {
+          this.sessions.splice(idx, 1)
+        }
+      }
+
+      // 单聊：按名称匹配（避免重复会话）
+      const existingByName =
+        !session.isGroup
+          ? this.sessions.find(s => !s.isGroup && s.name === session.name)
+          : undefined
+      if (existingByName) {
+        this.selectSession(existingByName)
+        this.navKey = 'chat'
+        return existingByName
+      }
+
       this.sessions.unshift(session) // 新会话插到列表顶部
       this.selectSession(session)
       this.navKey = 'chat'
@@ -1486,6 +1507,7 @@ export const useAppStore = defineStore('app', {
       const trimmed = content.trim()
 
       if (type === 'text' && !trimmed) return
+      if (type === 'location' && !trimmed) return
       if (type === 'image' && !trimmed && !options.rawFile && !options.fileUrl) return
       if (type === 'voice' && !options.voiceDuration) return
       if (type === 'redPacket' && !options.redPacketAmount) return
@@ -1663,15 +1685,24 @@ export const useAppStore = defineStore('app', {
           action: 'send',
           clientMsgId,
           conversationId: id,
-          msgType: type === 'text' ? 'text' : type === 'image' ? 'image' : type === 'voice' ? 'voice' : 'file',
-          content: type === 'text' ? trimmed : fileUrl,
+          msgType:
+            type === 'text'
+              ? 'text'
+              : type === 'location'
+                ? 'location'
+                : type === 'image'
+                  ? 'image'
+                  : type === 'voice'
+                    ? 'voice'
+                    : 'file',
+          content: type === 'text' || type === 'location' ? trimmed : fileUrl,
           fileName,
           fileSize: fileSizeNum,
-          fileUrl,
+          fileUrl: type === 'location' ? undefined : fileUrl,
           voiceDuration: type === 'voice' ? options.voiceDuration : undefined,
           quoteMessageId: options.replyTo?.id
         })
-        if (type === 'text') {
+        if (type === 'text' || type === 'location') {
           void this.clearSessionDraft(id)
         }
       } catch (e) {

@@ -26,6 +26,7 @@ import java.util.Map;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@SuppressWarnings("unchecked")
 public class ImClusterPushSubscriber {
 
     private static final String CURSOR_KEY_PREFIX = "linkx:im:push:cursor:";

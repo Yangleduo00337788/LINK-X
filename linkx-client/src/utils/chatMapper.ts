@@ -3,6 +3,7 @@ import type { ConversationItem, MessageItem } from '../types/chat'
 import { formatChatTime, formatFileSize } from './chatTime'
 import { normalizeMediaUrl } from './mediaUrl'
 import { t } from '../i18n'
+import { formatFriendDisplayName, friendAvatarText } from './friendDisplay'
 
 const GROUP_COLORS = ['#12b7f5', '#52c41a', '#722ed1', '#fa8c16', '#eb2f96', '#13c2c2']
 
@@ -56,14 +57,16 @@ export function conversationToSession(conv: ConversationItem): ChatSession {
   }
 
   // 单聊
-  const name = conv.peerRemark || conv.peerNickname || conv.peerUsername || '好友'
+  const nickname = conv.peerNickname || conv.peerUsername || '好友'
+  const remark = conv.peerRemark?.trim() || ''
+  const name = formatFriendDisplayName(nickname, remark)
   return {
     id: String(conv.id),
     name,
     lastMessage: conv.lastMessage || '',
     time: formatChatTime(conv.lastMessageTime),
-    avatarText: name.charAt(0) || '?',
-    avatarColor: pickColor(name),
+    avatarText: friendAvatarText(nickname, remark),
+    avatarColor: pickColor(nickname),
     avatarUrl: normalizeMediaUrl(conv.peerAvatar) || undefined,
     peerUserId: conv.peerUserId ? String(conv.peerUserId) : undefined,
     online: !!conv.peerOnline,
@@ -280,6 +283,7 @@ export function messagePreviewFromItem(message: MessageItem): string {
     case 'redPacket': return '[红包]'
     case 'conference': return `[会议] ${message.fileName || message.conferenceTitle || '多人会议'}`
     case 'voice': return '[语音]'
+    case 'location': return `[位置] ${message.content || ''}`
     case 'recall': return '撤回了一条消息'
     case 'system': return message.content || '[系统消息]'
     default: return message.content

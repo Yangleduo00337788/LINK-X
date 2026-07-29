@@ -58,7 +58,7 @@ class ImMainLinkE2ETest {
         channelManager = new ImChannelManager();
         pushService = new ImMessagePushService(
                 chatService, memberMapper, messageMapper, sysUserMapper,
-                channelManager, objectMapper, Runnable::run, redisTemplate, messageStormService,
+                channelManager, objectMapper, Runnable::run, Runnable::run, redisTemplate, messageStormService,
                 presenceService, new com.linkx.server.config.LinkxProperties());
     }
 

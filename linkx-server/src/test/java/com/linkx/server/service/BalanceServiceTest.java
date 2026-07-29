@@ -1,6 +1,7 @@
 package com.linkx.server.service;
 
 import com.linkx.server.controller.vo.BalanceVO;
+import com.linkx.server.exception.CustomException;
 import com.linkx.server.support.BaseIntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -66,6 +67,34 @@ class BalanceServiceTest extends BaseIntegrationTest {
             assertDoesNotThrow(() ->
                     balanceService.addBalance(1L, new BigDecimal("1.00"),
                             "test", "biz123", "测试增加"));
+        }
+    }
+
+    @Nested
+    @DisplayName("审计日志 afterCommit 测试")
+    class AuditLogAfterCommitTests {
+
+        @Test
+        @DisplayName("负数金额应拒绝")
+        void negativeAmount_shouldReject() {
+            assertThrows(CustomException.class, () ->
+                    balanceService.addBalance(1L, new BigDecimal("-1.00"),
+                            "test", "neg-test", "负数测试"));
+        }
+
+        @Test
+        @DisplayName("零金额应拒绝")
+        void zeroAmount_shouldReject() {
+            assertThrows(CustomException.class, () ->
+                    balanceService.addBalance(1L, BigDecimal.ZERO,
+                            "test", "zero-test", "零测试"));
+        }
+
+        @Test
+        @DisplayName("获取余额方法应可调用")
+        void getBalance_shouldWork() {
+            // 测试获取余额方法正常工作
+            assertDoesNotThrow(() -> balanceService.getBalance(1L));
         }
     }
 }

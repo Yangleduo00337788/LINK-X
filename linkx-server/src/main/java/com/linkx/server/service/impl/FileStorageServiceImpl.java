@@ -22,6 +22,8 @@ import io.minio.http.Method;
 import io.minio.errors.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -102,6 +104,24 @@ public class FileStorageServiceImpl implements FileStorageService {
     private final LinkxProperties linkxProperties;
     private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
+
+    @SuppressWarnings("SpringJavaInjectionPointAutowiringInspection")
+    @Qualifier("minioCleanupExecutor")
+    private final java.util.concurrent.ExecutorService minioCleanupExecutor;
+
+    @Override
+    @Async("minioCleanupExecutor")
+    public void deleteFileAsync(String objectKey) {
+        if (objectKey == null || objectKey.isBlank()) {
+            return;
+        }
+        try {
+            deleteFile(objectKey);
+            log.debug("异步删除 MinIO 对象完成: {}", objectKey);
+        } catch (Exception e) {
+            log.warn("异步删除 MinIO 对象失败: key={}, err={}", objectKey, e.getMessage());
+        }
+    }
 
     @Override
     public String uploadFile(MultipartFile file, String fileName) {
@@ -597,18 +617,34 @@ public class FileStorageServiceImpl implements FileStorageService {
 
     // ==================== 文件秒传/去重 ====================
 
+    /**
+     * 公开 API：检查内容哈希对应的对象是否存在。
+     * 业务层应通过 ObjectKeyOwnershipService 校验属主后再返回文件。
+     */
     @Override
-    public String findByContentHash(String contentHash) {
+    public boolean existsByContentHash(String contentHash) {
+        if (!StringUtils.hasText(contentHash) || !contentHash.matches("(?i)^[a-f0-9]{64}$")) {
+            return false;
+        }
+        return getObjectKeyByHashInternal(contentHash) != null;
+    }
+
+    /**
+     * 内部方法：根据内容哈希获取 objectKey（仅供属主校验，不对外暴露）。
+     */
+    @Override
+    public String getObjectKeyByHashInternal(String contentHash) {
         if (!StringUtils.hasText(contentHash) || !contentHash.matches("(?i)^[a-f0-9]{64}$")) {
             return null;
         }
+        String key = HASH_KEY_PREFIX + contentHash.toLowerCase(Locale.ROOT);
         try {
-            String objectKey = redisTemplate.opsForValue().get(HASH_KEY_PREFIX + contentHash.toLowerCase(Locale.ROOT));
+            String objectKey = redisTemplate.opsForValue().get(key);
             if (!StringUtils.hasText(objectKey)) {
                 return null;
             }
             if (!objectExists(objectKey)) {
-                redisTemplate.delete(HASH_KEY_PREFIX + contentHash.toLowerCase(Locale.ROOT));
+                redisTemplate.delete(key);
                 return null;
             }
             return objectKey;

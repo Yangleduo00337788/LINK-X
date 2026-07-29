@@ -9,7 +9,7 @@
 // Vue 响应式与计算属性
 import { ref, computed } from 'vue'
 // Naive UI 图标、骨架屏、虚拟列表与消息提示
-import { NIcon, NSkeleton, NVirtualList, useMessage } from 'naive-ui'
+import { NIcon, NSkeleton, useMessage } from 'naive-ui'
 // Ionicons5 右箭头图标
 import { ChevronForwardOutline } from '@vicons/ionicons5'
 // 面板搜索栏
@@ -80,13 +80,31 @@ const filteredContacts = computed(() => {
   return contacts.value.filter(c => c.name.toLowerCase().includes(q))
 })
 
-// 计算好友分组及在线/总数统计
+// 计算好友分组及在线/总数统计（按 group 字段动态分组）
 const friendGroups = computed(() => {
-  const friends = filteredContacts.value.filter(c => c.group === '我的好友')
-  const online = friends.filter(c => c.online).length // 在线好友数
-  return [
-    { name: t('contacts.myFriends'), online, total: friends.length, items: friends }
-  ]
+  const friends = filteredContacts.value
+  const map = new Map<string, ContactItem[]>()
+  for (const c of friends) {
+    const name = (c.group || t('contacts.myFriends')).trim() || t('contacts.myFriends')
+    const list = map.get(name) || []
+    list.push(c)
+    map.set(name, list)
+  }
+  const names = [...map.keys()].sort((a, b) => {
+    const def = t('contacts.myFriends')
+    if (a === def) return -1
+    if (b === def) return 1
+    return a.localeCompare(b, 'zh-CN')
+  })
+  return names.map(name => {
+    const items = map.get(name) || []
+    return {
+      name,
+      online: items.filter(c => c.online).length,
+      total: items.length,
+      items
+    }
+  })
 })
 
 // 计算群聊分组：置顶群聊与我加入的群聊
@@ -197,41 +215,39 @@ function onTabChange(tab: 'friends' | 'groups') {
 
       <!-- 好友或群聊列表 -->
       <template v-else>
-        <!-- 好友 Tab：虚拟滚动列表 -->
-        <div v-if="activeTab === 'friends'" class="contacts-list" style="height: 100%; display: flex; flex-direction: column;">
-          <div class="group-header" style="flex-shrink: 0;">
-            <span class="group-name">{{ t('contacts.myFriends') }}</span>
-            <span class="group-count">{{ friendGroups[0].online }}/{{ friendGroups[0].total }}</span>
-          </div>
-          <n-virtual-list
-            style="flex: 1; height: 100%; min-height: 0;"
-            :item-size="76"
-            :items="friendGroups[0].items"
-            item-key="id"
-          >
-            <template #default="{ item }">
-              <div
-                class="contact-row"
-                :class="{ active: currentSessionId === contactSessionId(item) }"
-                @click="handleContactClick(item, $event)"
-                @dblclick="handleContactDblClick(item)"
-              >
-                <Avatar
-                  :text="item.avatarText"
-                  :color="item.avatarColor"
-                  :size="46"
-                  :image-url="item.avatarUrl"
-                />
-                <div class="info">
-                  <div class="name-row">
-                    <span class="name">{{ item.name }}</span>
-                    <span class="status-dot" :class="{ online: item.online }"></span>
-                  </div>
-                  <span class="status">{{ item.online ? t('chat.online') : t('chat.offline') }}</span>
+        <!-- 好友 Tab：按分组展示 -->
+        <div v-if="activeTab === 'friends'" class="contacts-list" style="height: 100%; overflow-y: auto;">
+          <template v-if="friendGroups.length === 0">
+            <EmptyState :title="t('contacts.noMatch')" />
+          </template>
+          <div v-for="group in friendGroups" :key="group.name" class="group-section">
+            <div class="group-header">
+              <span class="group-name">{{ group.name }}</span>
+              <span class="group-count">{{ group.online }}/{{ group.total }}</span>
+            </div>
+            <div
+              v-for="item in group.items"
+              :key="item.id"
+              class="contact-row"
+              :class="{ active: currentSessionId === contactSessionId(item) }"
+              @click="handleContactClick(item, $event)"
+              @dblclick="handleContactDblClick(item)"
+            >
+              <Avatar
+                :text="item.avatarText"
+                :color="item.avatarColor"
+                :size="46"
+                :image-url="item.avatarUrl"
+              />
+              <div class="info">
+                <div class="name-row">
+                  <span class="name">{{ item.name }}</span>
+                  <span class="status-dot" :class="{ online: item.online }"></span>
                 </div>
+                <span class="status">{{ item.online ? t('chat.online') : t('chat.offline') }}</span>
               </div>
-            </template>
-          </n-virtual-list>
+            </div>
+          </div>
         </div>
 
         <!-- 群聊 Tab：分组列表 -->

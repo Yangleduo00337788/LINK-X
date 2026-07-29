@@ -17,10 +17,12 @@ import {
   HappyOutline,
   CutOutline,
   VolumeHighOutline,
+  VideocamOutline,
   GiftOutline,
   MicOutline,
   CloseOutline,
-  AtOutline
+  AtOutline,
+  LocationOutline
 } from '@vicons/ionicons5'
 // Pinia 响应式解构
 import { storeToRefs } from 'pinia'
@@ -36,6 +38,7 @@ import { useFilesStore } from '../../stores/files'
 import { useGroupMetaStore } from '../../stores/groupMeta'
 // 消息类型定义
 import type { ChatMessage, ContactItem } from '../../types'
+import LocationPickerPage from '../LocationPickerPage.vue'
 // 聊天表情常量列表
 import { CHAT_EMOJIS } from '../../constants/emojis'
 // 文件工具：大小格式化、DataURL 读取、图片大小上限
@@ -120,6 +123,32 @@ async function startVoiceCall() {
     await callStore.startOutgoing({
       conversationId: sessionId,
       callType: 'voice',
+      peerName: session.name,
+      peerAvatar: session.avatarUrl,
+      peerUserId: session.peerUserId
+    })
+  } catch (error) {
+    const err = error as { message?: string }
+    message.error(err.message || t('chat.callFailed'))
+  }
+}
+
+/** 从输入栏发起视频通话（仅单聊） */
+async function startVideoCall() {
+  const session = currentSession.value
+  const sessionId = currentSessionId.value
+  if (!session || !sessionId) {
+    message.warning(t('chat.selectSessionFirst'))
+    return
+  }
+  if (session.isGroup) {
+    message.warning(t('chat.callPrivateOnly'))
+    return
+  }
+  try {
+    await callStore.startOutgoing({
+      conversationId: sessionId,
+      callType: 'video',
       peerName: session.name,
       peerAvatar: session.avatarUrl,
       peerUserId: session.peerUserId
@@ -382,6 +411,26 @@ async function toolScreenshot() {
 function toolRedPacket() {
   if (props.isMyPhone) return
   openRedPacket()
+}
+
+const showLocationPicker = ref(false)
+
+function toolLocation() {
+  if (inputDisabled.value) return
+  showLocationPicker.value = true
+}
+
+async function onLocationSelect(location: string) {
+  showLocationPicker.value = false
+  const text = location?.trim()
+  if (!text) return
+  try {
+    await sendMessage(text, { type: 'location' })
+    emit('scrollToBottom')
+  } catch (e) {
+    const err = e as { message?: string }
+    message.error(err.message || t('common.fail'))
+  }
 }
 
 /** 图片 input change：取首个文件后交给 handleFileSend */
@@ -860,6 +909,15 @@ defineExpose({
           <button
             type="button"
             class="tool-btn"
+            :title="t('chat.location')"
+            :disabled="inputDisabled"
+            @click="toolLocation"
+          >
+            <n-icon :component="LocationOutline" :size="20" />
+          </button>
+          <button
+            type="button"
+            class="tool-btn"
             :class="{ 'tool-btn--recording': isRecordingVoice }"
             :title="
               isRecordingVoice
@@ -876,9 +934,14 @@ defineExpose({
         </div>
 
         <div class="toolbar-right">
-          <button type="button" class="tool-btn" :title="t('chat.voiceCall')" @click="startVoiceCall">
-            <n-icon :component="VolumeHighOutline" :size="20" />
-          </button>
+          <template v-if="!isGroupChat">
+            <button type="button" class="tool-btn" :title="t('chat.voiceCall')" @click="startVoiceCall">
+              <n-icon :component="VolumeHighOutline" :size="20" />
+            </button>
+            <button type="button" class="tool-btn" :title="t('chat.videoCall')" @click="startVideoCall">
+              <n-icon :component="VideocamOutline" :size="20" />
+            </button>
+          </template>
           <button
             type="button"
             class="send-btn"
@@ -891,6 +954,14 @@ defineExpose({
       </div>
     </div>
   </div>
+
+  <Teleport to="body">
+    <div v-if="showLocationPicker" class="location-overlay" @click.self="showLocationPicker = false">
+      <div class="location-panel" @click.stop>
+        <LocationPickerPage @select="onLocationSelect" @back="showLocationPicker = false" />
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -1091,4 +1162,22 @@ defineExpose({
   cursor: pointer;
 }
 
+.location-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2400;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.location-panel {
+  width: min(420px, 96vw);
+  height: min(640px, 90vh);
+  background: var(--lx-bg-card);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.28);
+}
 </style>

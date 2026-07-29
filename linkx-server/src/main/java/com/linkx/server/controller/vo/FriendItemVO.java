@@ -20,6 +20,9 @@ public class FriendItemVO {
 
     private String remark;
 
+    /** 好友分组名（仅自己可见） */
+    private String groupName;
+
     /** 是否在线（受对方「在线状态可见」偏好约束） */
     private Boolean online;
 }

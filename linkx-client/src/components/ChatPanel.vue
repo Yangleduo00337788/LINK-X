@@ -196,6 +196,7 @@ const {
   openGroupEssence,
   openGroupAnnouncement,
   openRedPacketReceive,
+  openRedPacketHistory,
   openContactProfile,
   openSelfProfile,
 } = chatModalsStore
@@ -205,7 +206,8 @@ const groupGridItems = computed(() => [
   { key: 'files', label: t('chat.groupFiles') },
   { key: 'album', label: t('chat.groupAlbum') },
   { key: 'essence', label: t('chat.groupEssence') },
-  { key: 'announcement', label: t('chat.groupAnnouncement') }
+  { key: 'announcement', label: t('chat.groupAnnouncement') },
+  { key: 'redPackets', label: t('chat.redPacketHistory') }
 ])
 
 // 群应用菜单项点击：打开对应群功能弹窗
@@ -214,6 +216,7 @@ function onGroupAppClick(key: string) {
   else if (key === 'album') openGroupAlbum()
   else if (key === 'essence') openGroupEssence()
   else if (key === 'announcement') openGroupAnnouncement()
+  else if (key === 'redPackets') openRedPacketHistory()
 }
 
 // 是否为「我的手机」会话
@@ -312,22 +315,42 @@ watch(
 /** 每次点选会话（含重复点同一会话）都进入最新消息位置 */
 watch(sessionEnterTick, () => {
   if (!hasSession.value) return
+  // 搜索/收藏跳转优先，不要强制贴底盖掉定位
+  if (pendingFocusMessageId.value) return
   stickToBottom.value = true
   loadingMore.value = false
-  loadMoreLockUntil = 0
+  // 进会话短暂锁定上拉，避免 VirtualList 挂载在顶部时误触发 load-more 把视口钉在旧消息
+  loadMoreLockUntil = Date.now() + 500
   highlightAtMeId.value = null
   if (highlightAtMeTimer) {
     window.clearTimeout(highlightAtMeTimer)
     highlightAtMeTimer = 0
   }
-  const run = () => scrollToBottom()
+  const run = () => scrollToBottom(true)
   nextTick(() => {
     run()
     requestAnimationFrame(run)
     window.setTimeout(run, 60)
     window.setTimeout(run, 180)
+    window.setTimeout(run, 360)
   })
 })
+
+/** 首屏历史从 loading → 完成后再强制贴底（缓存命中时 length 不变，仅靠 sessionEnterTick 可能早于列表挂载） */
+watch(
+  () => {
+    const sid = currentSessionId.value
+    return sid ? !!appStore.messagesLoading[sid] : false
+  },
+  (loading, wasLoading) => {
+    if (wasLoading && !loading && hasSession.value && stickToBottom.value && !pendingFocusMessageId.value) {
+      nextTick(() => {
+        scrollToBottom(true)
+        requestAnimationFrame(() => scrollToBottom(true))
+      })
+    }
+  }
+)
 
 // 切换会话时重置高亮（sessionEnterTick 已负责贴底）
 watch(currentSessionId, () => {
@@ -500,17 +523,30 @@ function openFileView(msg?: ChatMessage) {
   })
 }
 
-// 点击红包消息：自己发的提示，他人发的打开领取弹窗
+// 点击红包消息：打开红包详情弹窗（自己发的也可查看）
 function onRedPacketClick(msg: ChatMessage) {
-  if (msg.isSelf) {
-    message.info(t('chat.ownRedPacket'))
-    return
-  }
   openRedPacketReceive(msg.id)
 }
 
-/** 点击会议邀请卡片：已在会则忽略；需密码走邀请层；否则直接加入 */
+/** 点击通话/会议气泡：1v1 回拨；会议则加入 */
 async function onConferenceClick(msg: ChatMessage) {
+  const content = msg.content || ''
+  const isCall =
+    msg.conferenceScene === 'call' ||
+    /语音通话|视频通话/.test(content) ||
+    msg.fileName === '语音通话' ||
+    msg.fileName === '视频通话'
+  const isMeetingHint = /会议/.test(content) || msg.conferenceScene === 'meeting'
+
+  if (isCall && !isMeetingHint) {
+    const callType: 'voice' | 'video' =
+      msg.conferenceType === 'voice' || /语音通话/.test(content) || msg.fileName === '语音通话'
+        ? 'voice'
+        : 'video'
+    await startCall(callType)
+    return
+  }
+
   const conferenceId = msg.conferenceId || msg.fileUrl
   if (!conferenceId) {
     message.error(t('conference.joinFail'))
@@ -709,9 +745,9 @@ const messageListContainer = ref<HTMLElement | null>(null)
 // 聊天输入框组件引用
 const chatInputRef = ref<InstanceType<typeof ChatInputBox> | null>(null)
 
-function scrollToBottom() {
+function scrollToBottom(force = false) {
   stickToBottom.value = true
-  messageListRef.value?.scrollToBottom()
+  messageListRef.value?.scrollToBottom(force)
   const sid = currentSessionId.value
   if (sid) {
     void appStore.reportSessionRead(sid)
@@ -830,6 +866,11 @@ function onVirtualScroll(payload: {
   scrollHeight: number
   clientHeight: number
 }) {
+  // 进会话强制贴底窗口内：保持 stickToBottom，且不拉更早消息
+  if (Date.now() < loadMoreLockUntil) {
+    if (!stickToBottom.value) stickToBottom.value = true
+    return
+  }
   const distanceFromBottom = payload.scrollHeight - payload.scrollTop - payload.clientHeight
   const nextStick = distanceFromBottom < 24
   // 值不变不写 ref，避免滚动时整页重渲染
@@ -869,8 +910,12 @@ function copyMessage(msg: ChatMessage) {
     msg.type === 'file'
       ? msg.fileName || msg.content // 文件消息复制文件名
       : msg.content
-  navigator.clipboard.writeText(text)
-  message.success(t('chat.copied'))
+  void import('../utils/clipboard').then(({ copyText }) => {
+    void copyText(text || '').then(ok => {
+      if (ok) message.success(t('chat.copied'))
+      else message.warning(t('account.copyFail'))
+    })
+  })
 }
 
 // 收藏消息到收藏夹（图片/文件必须存完整 URL，禁止截断）

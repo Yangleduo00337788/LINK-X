@@ -29,7 +29,7 @@ const message = useMessage()
 const dialog = useDialog()
 // 抽屉是否打开、当前会话
 const { moreDrawerOpen } = storeToRefs(chatModalsStore)
-const { closeMore } = chatModalsStore
+const { closeMore, openRedPacketHistory } = chatModalsStore
 const { currentSession, currentSessionId } = storeToRefs(appStore)
 // 会话相关操作方法
 const {
@@ -81,6 +81,12 @@ function openFileTransfer() {
   setNav('files')
   closeMore()
   message.success(t('modals.fileTransferOpened'))
+}
+
+/** 打开会话红包记录 */
+function openRedPackets() {
+  openRedPacketHistory()
+  closeMore()
 }
 
 /** 二次确认后清空当前会话消息 */
@@ -162,6 +168,9 @@ function reportUser() {
           <!-- 快捷入口与危险操作 -->
           <button type="button" class="row link-row" @click="openFileTransfer">
             {{ t('modals.fileTransferList') }}
+          </button>
+          <button type="button" class="row link-row" @click="openRedPackets">
+            {{ t('modals.redPacketHistory') }}
           </button>
           <button type="button" class="row danger-text" @click="clearChat">
             {{ t('modals.clearChatHistory') }}

@@ -37,6 +37,11 @@ const router = createRouter({
       path: '/register',       // 注册独立窗口 / 页面
       name: 'register',
       component: () => import('../components/RegisterView.vue')
+    },
+    {
+      path: '/share/:token',   // 云盘公开分享落地页（免登录）
+      name: 'share',
+      component: () => import('../components/ShareLandingView.vue')
     }
   ]
 })

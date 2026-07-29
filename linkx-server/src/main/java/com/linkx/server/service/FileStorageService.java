@@ -37,6 +37,15 @@ public interface FileStorageService {
     void deleteFile(String objectName);
 
     /**
+     * 异步删除对象（用于批量清理等非关键路径，失败仅打日志）
+     *
+     * @param objectKey 对象 key
+     */
+    default void deleteFileAsync(String objectKey) {
+        // 默认实现为空，子类可覆盖
+    }
+
+    /**
      * 从 object key / 完整 MinIO URL（可含预签名 query）抽出规范 object key。
      * 非本桶 URL 时原样返回（调用方应先排除外链）。
      */
@@ -113,9 +122,23 @@ public interface FileStorageService {
      */
     String copyObject(String sourceObjectKey, String preferredFileName);
 
-    /** 按内容哈希查找已上传对象（秒传）；对象已删则返回 null */
-    String findByContentHash(String contentHash);
+    /**
+     * 检查内容哈希对应的对象是否存在于存储中（仅返回存在性，不返回 objectKey）。
+     * 秒传逻辑应在 ChatService 层通过 ObjectKeyOwnershipService 校验属主后再返回文件。
+     *
+     * @param contentHash SHA-256 哈希值（64位十六进制）
+     * @return true 如果对象存在且可访问
+     */
+    boolean existsByContentHash(String contentHash);
 
     /** 保存内容哈希与对象 key 映射 */
     void saveContentHash(String contentHash, String objectKey);
+
+    /**
+     * 根据内容哈希获取 objectKey（仅供内部使用，不对外暴露）。
+     *
+     * @param contentHash SHA-256 哈希值（64位十六进制）
+     * @return objectKey，如果不存在或哈希无效则返回 null
+     */
+    String getObjectKeyByHashInternal(String contentHash);
 }

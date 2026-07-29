@@ -6,6 +6,7 @@ import com.linkx.server.controller.dto.CallInviteDTO;
 import com.linkx.server.controller.dto.CallSignalDTO;
 import com.linkx.server.controller.vo.CallEventVO;
 import com.linkx.server.controller.vo.CallInviteVO;
+import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.entity.ImConversation;
 import com.linkx.server.entity.ImConversationMember;
 import com.linkx.server.entity.SysUser;
@@ -21,6 +22,7 @@ import com.linkx.server.service.MessageNotificationService;
 import com.linkx.server.service.RateLimitService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CallServiceImpl implements CallService {
@@ -120,6 +123,21 @@ public class CallServiceImpl implements CallService {
             throw e;
         }
 
+        // 会话时间线写入通话提示，双方聊天界面可见
+        try {
+            MessageVO tip = chatService.postCallInviteMessage(userId, conversationId, callId, callType);
+            if (tip != null && tip.getId() != null) {
+                redisTemplate.opsForHash().put(key, "tipMessageId", String.valueOf(tip.getId()));
+            }
+            pushService.pushToConversationMembers(tip, userId, null);
+            MessageVO selfView = tip;
+            selfView.setIsSelf(true);
+            pushService.pushToUser(userId, "message", selfView);
+        } catch (Exception e) {
+            // 通话已建立，提示消息失败不阻断主流程
+            log.warn("postCallInviteMessage failed: {}", e.toString());
+        }
+
         return CallInviteVO.builder()
                 .callId(callId)
                 .conversationId(conversationId)
@@ -139,9 +157,12 @@ public class CallServiceImpl implements CallService {
         if (!"ringing".equals(status)) {
             throw new CustomException(400, "通话已不在振铃状态");
         }
-        updateStatus(dto.getCallId(), "cancelled");
+        boolean missed = "timeout".equalsIgnoreCase(dto.getReason());
+        finalizeCallTip(dto.getCallId(), data, missed ? "missed" : "cancelled", 0);
+        updateStatus(dto.getCallId(), missed ? "missed" : "cancelled");
         Long peerId = safeParseLong(data.get("calleeId"), "calleeId", dto.getCallId());
-        pushService.pushToUser(peerId, "call_cancel", buildEvent(dto.getCallId(), data, userId, "cancelled"));
+        pushService.pushToUser(peerId, "call_cancel", buildEvent(dto.getCallId(), data, userId,
+                missed ? "missed" : "cancelled"));
     }
 
     @Override
@@ -151,8 +172,10 @@ public class CallServiceImpl implements CallService {
         if (!"ringing".equals(str(data.get("status")))) {
             throw new CustomException(400, "通话已结束或已被处理");
         }
-        updateStatus(dto.getCallId(), "accepted");
-        redisTemplate.expire(callKey(dto.getCallId()), CALL_TTL);
+        String key = callKey(dto.getCallId());
+        redisTemplate.opsForHash().put(key, "status", "accepted");
+        redisTemplate.opsForHash().put(key, "acceptedAt", String.valueOf(System.currentTimeMillis()));
+        redisTemplate.expire(key, CALL_TTL);
         Long callerId = safeParseLong(data.get("callerId"), "callerId", dto.getCallId());
         pushService.pushToUser(callerId, "call_accept", buildEvent(dto.getCallId(), data, userId, "accepted"));
     }
@@ -164,6 +187,7 @@ public class CallServiceImpl implements CallService {
         if (!"ringing".equals(str(data.get("status")))) {
             throw new CustomException(400, "通话已结束或已被处理");
         }
+        finalizeCallTip(dto.getCallId(), data, "rejected", 0);
         updateStatus(dto.getCallId(), "rejected");
         Long callerId = safeParseLong(data.get("callerId"), "callerId", dto.getCallId());
         pushService.pushToUser(callerId, "call_reject", buildEvent(dto.getCallId(), data, userId, "rejected"));
@@ -178,10 +202,31 @@ public class CallServiceImpl implements CallService {
             throw new CustomException(403, "无权操作该通话");
         }
         String status = str(data.get("status"));
-        if ("ended".equals(status) || "cancelled".equals(status) || "rejected".equals(status)) {
+        if ("ended".equals(status) || "cancelled".equals(status) || "rejected".equals(status)
+                || "missed".equals(status)) {
             return;
         }
-        updateStatus(dto.getCallId(), "ended");
+        if ("ringing".equals(status)) {
+            // 振铃中挂断：主叫≈取消，被叫≈拒绝
+            String result = userId.equals(callerId) ? "cancelled" : "rejected";
+            finalizeCallTip(dto.getCallId(), data, result, 0);
+            updateStatus(dto.getCallId(), result);
+        } else {
+            long acceptedAt = 0L;
+            try {
+                String raw = str(data.get("acceptedAt"));
+                if (!raw.isEmpty()) {
+                    acceptedAt = Long.parseLong(raw);
+                }
+            } catch (NumberFormatException ignored) {
+                acceptedAt = 0L;
+            }
+            long durationSec = acceptedAt > 0
+                    ? Math.max(1L, (System.currentTimeMillis() - acceptedAt) / 1000L)
+                    : 0L;
+            finalizeCallTip(dto.getCallId(), data, "answered", durationSec);
+            updateStatus(dto.getCallId(), "ended");
+        }
         Long peerId = userId.equals(callerId) ? calleeId : callerId;
         pushService.pushToUser(peerId, "call_hangup", buildEvent(dto.getCallId(), data, userId, "ended"));
     }
@@ -327,6 +372,42 @@ public class CallServiceImpl implements CallService {
         String key = callKey(callId);
         redisTemplate.opsForHash().put(key, "status", status);
         redisTemplate.expire(key, ENDED_TTL);
+    }
+
+    /**
+     * 将邀请提示更新为通话结果（取消/拒绝/未接听/时长），并推送 edit。
+     */
+    private void finalizeCallTip(String callId, Map<Object, Object> data, String result, long durationSec) {
+        try {
+            Long conversationId = safeParseLong(data.get("conversationId"), "conversationId", callId);
+            String callType = str(data.get("callType"));
+            boolean video = !"voice".equalsIgnoreCase(callType);
+            String typeLabel = video ? "视频通话" : "语音通话";
+            String content = switch (result) {
+                case "cancelled" -> typeLabel + " 已取消";
+                case "rejected" -> typeLabel + " 已拒绝";
+                case "missed" -> typeLabel + " 未接听";
+                case "answered" -> typeLabel + " " + formatCallDuration(durationSec);
+                default -> typeLabel;
+            };
+            MessageVO tip = chatService.updateCallTipMessage(conversationId, callId, content);
+            if (tip != null) {
+                pushService.pushEditToConversationMembers(tip);
+            }
+        } catch (Exception e) {
+            log.warn("finalizeCallTip failed callId={}: {}", callId, e.toString());
+        }
+    }
+
+    private static String formatCallDuration(long totalSec) {
+        long sec = Math.max(0L, totalSec);
+        long h = sec / 3600;
+        long m = (sec % 3600) / 60;
+        long s = sec % 60;
+        if (h > 0) {
+            return String.format("%d:%02d:%02d", h, m, s);
+        }
+        return String.format("%02d:%02d", m, s);
     }
 
     private Long resolvePrivatePeerId(Long userId, Long conversationId) {

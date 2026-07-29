@@ -50,9 +50,13 @@ import EmptyState from './common/EmptyState.vue'
 import AtMentionPicker from './common/AtMentionPicker.vue'
 // 通知独立页
 import MomentsNotificationsPage from './MomentsNotificationsPage.vue'
+import MomentsComposerModal from './MomentsComposerModal.vue'
 // 偏好 API
 import { getPreference, uploadMomentsBackground } from '../api/preference'
 import { useI18n } from '../i18n'
+
+/** 嵌入 AppShell 主栏时为 true（Web）；独立 Electron 窗为 false */
+const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false })
 
 const appStore = useAppStore()
 const momentsStore = useMomentsStore()
@@ -330,15 +334,17 @@ function onPreviewKeydown(e: KeyboardEvent) {
 let unsubscribeMomentsRefresh: (() => void) | null = null
 
 onMounted(() => {
-  applyDocumentTheme(appStore.theme)
-  notifyElectronTheme(appStore.theme)
+  if (!props.embedded) {
+    applyDocumentTheme(appStore.theme)
+    notifyElectronTheme(appStore.theme)
+  }
   window.addEventListener('click', closeBannerMenu)
-  // 独立窗口不走 HomeView，需自行恢复会话并连接 WS，才能实时刷新未读铃铛
+  // 独立窗口不走 HomeView，需自行恢复会话并连接 WS；嵌入模式由 AppShell 已登录
   void (async () => {
-    if (!appStore.isLoggedIn) {
+    if (!props.embedded && !appStore.isLoggedIn) {
       await appStore.tryAutoLogin()
     }
-    if (appStore.isLoggedIn) {
+    if (!props.embedded && appStore.isLoggedIn) {
       void appStore.connectChatWebSocket()
     }
     await Promise.all([
@@ -400,6 +406,8 @@ async function showMessage() {
 
 // 顶部发布菜单
 const showPublishMenu = ref(false)
+const showComposer = ref(false)
+const composerMode = ref<'text' | 'media'>('text')
 const publishMenuOptions = computed(() => [
   { label: t('moments.publishText'), key: 'text', icon: AtCircleOutline },
   { label: t('moments.publishMedia'), key: 'media', icon: ImageOutline }
@@ -407,16 +415,25 @@ const publishMenuOptions = computed(() => [
 function handlePublishMenuSelect(key: string | number) {
   showPublishMenu.value = false
   if (key === 'text') {
-    // 打开文字发布独立窗口
     if (window.electronAPI?.openMomentsText) {
       window.electronAPI.openMomentsText()
+    } else {
+      composerMode.value = 'text'
+      showComposer.value = true
     }
   } else if (key === 'media') {
-    // 打开图片/视频发布独立窗口
     if (window.electronAPI?.openMomentsMedia) {
       window.electronAPI.openMomentsMedia()
+    } else {
+      composerMode.value = 'media'
+      showComposer.value = true
     }
   }
+}
+
+function onComposerPublished() {
+  showComposer.value = false
+  void fetchMoments({ q: searchQuery.value.trim() || undefined })
 }
 
 // 跳到动态
@@ -709,8 +726,8 @@ function visibilityLabel(visibility?: number): string {
 </script>
 
 <template>
-  <!-- 友链独立窗口 -->
-  <div class="moments-wrapper standalone-window">
+  <!-- 友链：独立窗或嵌入 AppShell -->
+  <div class="moments-wrapper" :class="props.embedded ? 'embedded' : 'standalone-window'">
     <!-- 可滚动内容区 -->
     <div
       class="moments-scroll-container"
@@ -1051,6 +1068,13 @@ function visibilityLabel(visibility?: number): string {
       @change="onBannerFileSelected"
     />
 
+    <!-- Web / 嵌入模式：应用内发布浮层 -->
+    <MomentsComposerModal
+      v-model:visible="showComposer"
+      :initial-mode="composerMode"
+      @published="onComposerPublished"
+    />
+
     <!-- 背景图右键菜单 -->
     <Teleport to="body">
       <div
@@ -1095,6 +1119,15 @@ function visibilityLabel(visibility?: number): string {
   height: 100vh !important;
   border-radius: 0 !important;
   margin: 0 !important;
+}
+
+.moments-wrapper.embedded {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none;
+  border-radius: 0 !important;
+  margin: 0 !important;
+  background: var(--lx-bg-card);
 }
 
 .fixed-header {

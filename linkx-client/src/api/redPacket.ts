@@ -17,6 +17,8 @@ export interface RedPacket {
   time: string
   received: boolean
   receivedAmount?: number
+  /** 当前用户是否为发送者（服务端计算） */
+  isSelf?: boolean
   records?: RedPacketRecord[]
 }
 
@@ -36,6 +38,7 @@ export interface SendRedPacketPayload {
   totalAmount: number
   totalCount: number
   greeting?: string
+  clientMsgId?: string
 }
 
 /**

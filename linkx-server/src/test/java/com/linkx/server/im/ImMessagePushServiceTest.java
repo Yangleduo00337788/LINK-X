@@ -56,7 +56,7 @@ class ImMessagePushServiceTest {
         org.mockito.Mockito.lenient().when(presenceService.getInstanceId()).thenReturn("test-instance");
         pushService = new ImMessagePushService(
                 chatService, memberMapper, messageMapper, sysUserMapper,
-                channelManager, objectMapper, Runnable::run, redisTemplate, messageStormService,
+                channelManager, objectMapper, Runnable::run, Runnable::run, redisTemplate, messageStormService,
                 presenceService, new com.linkx.server.config.LinkxProperties());
     }
 

@@ -67,4 +67,23 @@ public class ImAsyncConfig {
         executor.initialize();
         return executor;
     }
+
+    /**
+     * MinIO 文件清理专用线程池（非关键路径，可丢弃）。
+     * <p>
+     * 有界队列 + DiscardPolicy：队列满时丢弃清理任务，依赖下次清理或合规兜底，
+     * 避免清理任务阻塞主业务流程。
+     * </p>
+     */
+    @Bean(name = "minioCleanupExecutor")
+    public ExecutorService minioCleanupExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(500);
+        executor.setThreadNamePrefix("minio-cleanup-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.DiscardPolicy());
+        executor.initialize();
+        return executor.getThreadPoolExecutor();
+    }
 }

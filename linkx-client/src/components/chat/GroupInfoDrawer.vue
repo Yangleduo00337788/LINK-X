@@ -356,13 +356,12 @@ async function saveGroupName() {
 /** 展示用群号：从 sessionId 提取数字后缀 */
 const groupId = computed(() => currentSessionId.value?.replace(/\D/g, '').slice(-10) || '—')
 
-/** 当前群成员列表 */
+/** 当前群成员列表（只读 store；加载由下方 watch 触发，避免 computed 副作用请求风暴） */
 const members = computed(() => {
   const id = currentSessionId.value
   if (!id) return []
-  void groupMetaStore.fetchMembers(id)
   void groupMetaStore.membersRefreshSeq[id]
-  return groupMetaStore.members[id] || []
+  return groupMetaStore.membersFor(id)
 })
 
 /** 设置群会话置顶 */

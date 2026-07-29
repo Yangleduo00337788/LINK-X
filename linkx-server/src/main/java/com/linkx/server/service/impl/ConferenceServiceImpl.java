@@ -475,7 +475,8 @@ public class ConferenceServiceImpl implements ConferenceService {
     @Override
     @Transactional(readOnly = true)
     public List<ConferenceInfoVO> listActive(Long userId) {
-        List<ConferenceMember> memberships = memberMapper.selectListByQuery(
+        try {
+            List<ConferenceMember> memberships = memberMapper.selectListByQuery(
                 QueryWrapper.create()
                         .where(ConferenceMember::getUserId).eq(userId)
                         .and(ConferenceMember::getLeftFlag).eq(0)
@@ -531,23 +532,33 @@ public class ConferenceServiceImpl implements ConferenceService {
             result.add(toInfo(c, callId, userId));
         }
         return result;
+        } catch (Exception e) {
+            log.error("listActive 失败: userId={}, error={}", userId, e.getMessage(), e);
+            throw e;
+        }
     }
 
     @Override
     public ConferenceInfoVO findActiveInConversation(Long userId, Long conversationId) {
-        chatService.assertConversationMember(userId, conversationId);
-        List<Conference> actives = conferenceMapper.selectListByQuery(
-                QueryWrapper.create()
-                        .where(Conference::getConversationId).eq(conversationId)
-                        .and(Conference::getStatus).eq(Conference.STATUS_ACTIVE)
-                        .orderBy(Conference::getStartTime, false)
-                        .limit(1)
-        );
-        if (actives.isEmpty()) {
-            return null;
+        try {
+            chatService.assertConversationMember(userId, conversationId);
+            List<Conference> actives = conferenceMapper.selectListByQuery(
+                    QueryWrapper.create()
+                            .where(Conference::getConversationId).eq(conversationId)
+                            .and(Conference::getStatus).eq(Conference.STATUS_ACTIVE)
+                            .orderBy(Conference::getStartTime, false)
+                            .limit(1)
+            );
+            if (actives.isEmpty()) {
+                return null;
+            }
+            Conference conference = actives.get(0);
+            return toInfo(conference, redisTemplate.opsForValue().get(CALL_ID_KEY + conference.getId()), userId);
+        } catch (Exception e) {
+            log.error("findActiveInConversation 失败: userId={}, conversationId={}, error={}",
+                    userId, conversationId, e.getMessage(), e);
+            throw e;
         }
-        Conference conference = actives.get(0);
-        return toInfo(conference, redisTemplate.opsForValue().get(CALL_ID_KEY + conference.getId()), userId);
     }
 
     @Override

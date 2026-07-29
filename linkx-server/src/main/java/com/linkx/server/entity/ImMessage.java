@@ -26,6 +26,8 @@ public class ImMessage implements Serializable {
     public static final String TYPE_IMAGE = "image";
     public static final String TYPE_FILE = "file";
     public static final String TYPE_VOICE = "voice";
+    /** 位置消息：content 存地点文案（与 LocationPicker 字符串兼容） */
+    public static final String TYPE_LOCATION = "location";
     /**
      * 红包消息：{@code fileUrl} 存红包 ID，{@code fileName} 存祝福语，{@code fileSize} 存总金额（分）。
      * <p>

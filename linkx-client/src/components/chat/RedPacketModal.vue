@@ -38,18 +38,17 @@ watch(
   { immediate: true }
 )
 
-const sessionIdNum = computed(() => {
-  const id = currentSession.value?.id
-  if (!id) return null
-  const n = Number(id)
-  return Number.isFinite(n) ? n : null
+const sessionId = computed(() => {
+  return currentSession.value?.id ?? null
 })
 
 const canSubmit = computed(() => {
   const amt = Number(amount.value)
+  const session = currentSession.value
   return (
     !submitting.value &&
-    sessionIdNum.value !== null &&
+    session?.id &&
+    session.isReal === true &&
     Number.isFinite(amt) &&
     amt >= 0.01 &&
     totalCount.value >= 1 &&
@@ -63,7 +62,7 @@ function close() {
 }
 
 async function send() {
-  if (!currentSession.value || sessionIdNum.value === null) {
+  if (!currentSession.value || sessionId.value === null) {
     message.warning(t('chat.selectSessionFirst'))
     return
   }
@@ -79,11 +78,12 @@ async function send() {
   submitting.value = true
   try {
     const res = await redPacketApi.sendRedPacket({
-      conversationId: String(sessionIdNum.value),
+      conversationId: sessionId.value,
       type: packetType.value,
       totalAmount: amt,
       totalCount: totalCount.value,
-      greeting: greeting.value.trim() || t('extra.greetingFallback')
+      greeting: greeting.value.trim() || t('extra.greetingFallback'),
+      clientMsgId: crypto.randomUUID()
     })
     if (res.code === 200 && res.data) {
       message.success(
@@ -92,6 +92,12 @@ async function send() {
           amount: amt.toFixed(2)
         })
       )
+      // 强制刷新当前会话消息：红包走 HTTP 落库，历史已加载时不会自动出现气泡
+      const sid = sessionId.value
+      if (sid) {
+        appStore.messagesLoaded[sid] = false
+        void appStore.loadSessionMessages(sid)
+      }
       void userProfile.value
       close()
     } else {

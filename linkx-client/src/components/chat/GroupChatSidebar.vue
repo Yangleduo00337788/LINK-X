@@ -64,7 +64,9 @@ const members = computed(() => {
 watch(
   currentSessionId,
   id => {
-    if (id) void groupMetaStore.fetchMembers(id)
+    if (!id) return
+    void groupMetaStore.fetchMembers(id)
+    void groupMetaStore.fetchAnnouncementDisplay(id)
   },
   { immediate: true }
 )

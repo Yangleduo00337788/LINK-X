@@ -84,11 +84,7 @@ public class MessageRetentionTask {
 
             // 提交后异步删 MinIO（失败仅打日志，依赖下次任务/合规清理兜底）
             for (String key : objectKeys) {
-                try {
-                    fileStorageService.deleteFile(key);
-                } catch (Exception e) {
-                    log.warn("留存清理删除 MinIO 对象失败: key={}, err={}", key, e.getMessage());
-                }
+                fileStorageService.deleteFileAsync(key);
             }
 
             total += ids.size();

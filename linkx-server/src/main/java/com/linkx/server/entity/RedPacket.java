@@ -43,6 +43,11 @@ public class RedPacket implements Serializable {
 
     private Long conversationId;
 
+    /**
+     * 会话类型（冗余存储，发红包时从 im_conversation.type 复制，用于领取时快速判断）
+     */
+    private Integer conversationType;
+
     private String type;
 
     /**

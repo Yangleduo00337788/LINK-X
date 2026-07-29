@@ -108,7 +108,10 @@ const api = {
     return () => ipcRenderer.removeListener('app:update-progress', listener)
   },
   // 主题变更通知（与主进程的 theme-changed 通道对应）
-  notifyThemeChange: (theme: 'light' | 'dark') => ipcRenderer.send('theme-changed', theme)
+  notifyThemeChange: (theme: 'light' | 'dark') => ipcRenderer.send('theme-changed', theme),
+  /** 主进程剪贴板写入（避免 Chromium clipboard 权限限制） */
+  clipboardWriteText: (text: string) =>
+    ipcRenderer.invoke('clipboard:write-text', text) as Promise<boolean>
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)

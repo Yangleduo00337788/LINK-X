@@ -9,18 +9,25 @@ import type { FriendItem } from '../types/friend'
 import * as friendApi from '../api/friend'
 import { normalizeMediaUrl } from '../utils/mediaUrl'
 import { sanitizeContactsPersistState } from '../utils/persistSanitize'
+import { formatFriendDisplayName, friendAvatarText } from '../utils/friendDisplay'
 
 const DEFAULT_AVATAR_COLOR = '#12b7f5'
+const DEFAULT_FRIEND_GROUP = '我的好友'
 
 function friendToContact(friend: FriendItem): ContactItem {
-  const displayName = friend.remark?.trim() || friend.nickname || friend.username
+  const nickname = friend.nickname || friend.username
+  const remark = friend.remark?.trim() || ''
+  const displayName = formatFriendDisplayName(nickname, remark)
+  const group = friend.groupName?.trim() || DEFAULT_FRIEND_GROUP
   return {
     id: String(friend.userId),
     userId: friend.userId,
     name: displayName,
-    avatarText: displayName.charAt(0) || '?',
+    nickname,
+    remark: remark || undefined,
+    avatarText: friendAvatarText(nickname, remark),
     avatarColor: DEFAULT_AVATAR_COLOR,
-    group: '我的好友',
+    group,
     avatarUrl: normalizeMediaUrl(friend.avatar) || undefined,
     online: !!friend.online
   }
@@ -34,12 +41,27 @@ export const useContactsStore = defineStore('contacts', {
 
   getters: {
     friends(state): ContactItem[] {
-      return state.items.filter(c => c.group === '我的好友')
+      return state.items
     },
 
     /** 当前在线好友（受对方「在线状态可见」约束） */
     onlineFriends(state): ContactItem[] {
-      return state.items.filter(c => c.group === '我的好友' && c.online)
+      return state.items.filter(c => c.online)
+    },
+
+    /** 已有分组名（去重，默认组优先） */
+    friendGroupNames(state): string[] {
+      const set = new Set<string>()
+      for (const c of state.items) {
+        set.add((c.group || DEFAULT_FRIEND_GROUP).trim() || DEFAULT_FRIEND_GROUP)
+      }
+      const names = [...set]
+      names.sort((a, b) => {
+        if (a === DEFAULT_FRIEND_GROUP) return -1
+        if (b === DEFAULT_FRIEND_GROUP) return 1
+        return a.localeCompare(b, 'zh-CN')
+      })
+      return names
     },
 
     searchUsers: state => (keyword: string) => {
@@ -69,6 +91,42 @@ export const useContactsStore = defineStore('contacts', {
         throw new Error(res.message || '删除好友失败')
       }
       this.removeByUserId(userId)
+    },
+
+    async updateFriendRemark(userId: string, remark: string) {
+      const res = await friendApi.updateFriendRemark(userId, remark)
+      if (res.code !== 200) {
+        throw new Error(res.message || '保存备注失败')
+      }
+      const value = (res.data ?? remark).trim()
+      const idx = this.items.findIndex(c => String(c.userId ?? c.id) === String(userId))
+      if (idx >= 0) {
+        const prev = this.items[idx]
+        const nickname = prev.nickname || (!prev.remark ? prev.name : '') || '好友'
+        const displayName = formatFriendDisplayName(nickname, value)
+        this.items.splice(idx, 1, {
+          ...prev,
+          remark: value || undefined,
+          nickname,
+          name: displayName,
+          avatarText: friendAvatarText(nickname, value)
+        })
+      }
+      return value
+    },
+
+    async updateFriendGroup(userId: string, groupName: string) {
+      const res = await friendApi.updateFriendGroup(userId, groupName)
+      if (res.code !== 200) {
+        throw new Error(res.message || '保存分组失败')
+      }
+      const value = (res.data ?? groupName).trim() || DEFAULT_FRIEND_GROUP
+      const idx = this.items.findIndex(c => String(c.userId ?? c.id) === String(userId))
+      if (idx >= 0) {
+        const prev = this.items[idx]
+        this.items.splice(idx, 1, { ...prev, group: value })
+      }
+      return value
     },
 
     syncFriendFromSession(session: {

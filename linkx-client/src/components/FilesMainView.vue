@@ -44,7 +44,7 @@ import { formatFileSize } from '../utils/file'
 import { generateDefaultAvatar } from '../utils/defaultAvatar'
 import { isDisplayableMediaUrl, normalizeMediaUrl } from '../utils/mediaUrl'
 import { useI18n } from '../i18n'
-import { API_BASE_URL } from '../config/endpoints'
+import { copyText } from '../utils/clipboard'
 import Avatar from './Avatar.vue'
 
 const message = useMessage()
@@ -87,8 +87,6 @@ const shareNeedPassword = ref(true)
 const sharePassword = ref('')
 const shareTarget = ref<DriveItemVO | null>(null)
 const shareSubmitting = ref(false)
-
-const apiBase = API_BASE_URL
 
 onMounted(() => {
   void drive.refreshAll()
@@ -325,12 +323,28 @@ async function confirmShare() {
   try {
     const password = shareNeedPassword.value ? sharePassword.value.trim() : undefined
     const share = await drive.createShare(target, { password, expireHours: 72 })
-    const fullUrl = `${apiBase}${share.shareUrl}`
-    await navigator.clipboard.writeText(
-      password ? `${fullUrl}\n${t('files.sharePasswordLabel')}: ${password}` : fullUrl
-    )
+    const fullUrl = `${window.location.origin}${window.location.pathname}#/share/${share.token}`
+    const clipText = password
+      ? `${fullUrl}\n${t('files.sharePasswordLabel')}: ${password}`
+      : fullUrl
     shareModalShow.value = false
-    message.success(t('files.shareCopied'))
+    const copied = await copyText(clipText)
+    if (copied) {
+      message.success(t('files.shareCopied'))
+    } else {
+      message.success(t('files.shareCreated'))
+      dialog.info({
+        title: t('files.shareLinkTitle'),
+        content: clipText,
+        positiveText: t('common.copy'),
+        negativeText: t('common.close'),
+        onPositiveClick: async () => {
+          const ok = await copyText(clipText)
+          if (ok) message.success(t('files.shareCopied'))
+          else message.warning(t('files.shareCreatedCopyFail'))
+        }
+      })
+    }
   } catch (err) {
     message.error(err instanceof Error ? err.message : t('files.shareFail'))
   } finally {

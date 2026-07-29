@@ -46,8 +46,11 @@ export function inviteCall(payload: CallInvitePayload) {
   })
 }
 
-export function cancelCall(callId: string) {
-  return apiClient.post<never, ApiResult<null>>('/call/cancel', { callId })
+export function cancelCall(callId: string, reason?: 'timeout') {
+  return apiClient.post<never, ApiResult<null>>('/call/cancel', {
+    callId,
+    ...(reason ? { reason } : {})
+  })
 }
 
 export function acceptCall(callId: string) {

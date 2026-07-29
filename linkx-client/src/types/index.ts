@@ -78,7 +78,7 @@ export interface ChatMessage {
   senderName?: string     // 群聊发送者昵称
   senderAvatar?: string   // 群聊发送者头像
   // 消息类型：文本/图片/文件/链接/系统/语音/红包/会议/数据卡片/撤回
-  type?: 'text' | 'image' | 'file' | 'link' | 'system' | 'voice' | 'redPacket' | 'conference' | 'dataCard' | 'recall' | 'time'
+  type?: 'text' | 'image' | 'file' | 'link' | 'system' | 'voice' | 'redPacket' | 'conference' | 'dataCard' | 'recall' | 'time' | 'location'
   linkUrl?: string        // 链接消息 URL
   /** 服务端创建时间（毫秒），用于撤回时限等 */
   createTime?: number
@@ -154,6 +154,10 @@ export interface ContactItem {
   avatarUrl?: string      // 头像图片 URL
   /** 后端用户 ID，存在时可拉取真实公开资料 */
   userId?: string
+  /** 好友备注（仅自己可见） */
+  remark?: string
+  /** 对方昵称（不含备注） */
+  nickname?: string
 }
 
 /** 收藏项 */

@@ -25,6 +25,12 @@ public interface FriendService {
 
     void deleteFriend(Long userId, Long friendId);
 
+    /** 更新好友备注（须为好友），返回规范化后的备注 */
+    String updateFriendRemark(Long userId, Long friendId, String remark);
+
+    /** 更新好友分组名（须为好友），返回规范化后的分组名 */
+    String updateFriendGroup(Long userId, Long friendId, String groupName);
+
     /** 屏蔽好友（status=已拉黑，会话仍可见但不可发消息） */
     void blockFriend(Long userId, Long friendId);
 

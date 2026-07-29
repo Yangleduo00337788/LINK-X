@@ -41,6 +41,16 @@ export function deleteFriend(friendId: string) {
   return apiClient.delete<never, ApiResult<null>>(`/friend/${friendId}`)
 }
 
+/** 更新好友备注 */
+export function updateFriendRemark(friendId: string, remark: string) {
+  return apiClient.put<never, ApiResult<string>>(`/friend/${friendId}/remark`, { remark })
+}
+
+/** 更新好友分组 */
+export function updateFriendGroup(friendId: string, groupName: string) {
+  return apiClient.put<never, ApiResult<string>>(`/friend/${friendId}/group`, { groupName })
+}
+
 /** 屏蔽/拉黑好友（关系仍在，status=已拉黑） */
 export function blockFriend(friendId: string) {
   return apiClient.post<never, ApiResult<null>>(`/friend/${friendId}/block`)

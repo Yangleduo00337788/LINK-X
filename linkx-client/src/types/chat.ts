@@ -32,7 +32,7 @@ export interface MessageItem {
   senderId: string
   senderNickname?: string
   senderAvatar?: string
-  type: 'text' | 'image' | 'file' | 'voice' | 'redPacket' | 'recall' | 'system' | 'conference'
+  type: 'text' | 'image' | 'file' | 'voice' | 'redPacket' | 'recall' | 'system' | 'conference' | 'location'
   content: string
   fileName?: string
   fileSize?: string | number
@@ -87,7 +87,7 @@ export interface WsSendPayload {
   action: 'send'
   clientMsgId: string
   conversationId: string
-  msgType: 'text' | 'image' | 'file' | 'voice'
+  msgType: 'text' | 'image' | 'file' | 'voice' | 'location'
   content?: string
   fileName?: string
   fileSize?: string | number

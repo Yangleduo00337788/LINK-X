@@ -26,6 +26,8 @@ import FavoritesMainView from './FavoritesMainView.vue'
 import FilesMainView from './FilesMainView.vue'
 // 友链面板
 import MomentsPanel from './MomentsPanel.vue'
+// 友链主视图（Web 内嵌）
+import MomentsMainView from './MomentsMainView.vue'
 // 日历列表面板
 import CalendarPanel from './CalendarPanel.vue'
 // 日历主视图
@@ -56,6 +58,7 @@ const GroupEssenceModal = defineAsyncComponent(() => import('./chat/GroupEssence
 const GroupAnnouncementModal = defineAsyncComponent(() => import('./chat/GroupAnnouncementModal.vue'))
 const RedPacketModal = defineAsyncComponent(() => import('./chat/RedPacketModal.vue'))
 const RedPacketReceiveModal = defineAsyncComponent(() => import('./chat/RedPacketReceiveModal.vue'))
+const RedPacketHistoryModal = defineAsyncComponent(() => import('./chat/RedPacketHistoryModal.vue'))
 const ContactProfileModal = defineAsyncComponent(() => import('./chat/ContactProfileModal.vue'))
 const EditProfileModal = defineAsyncComponent(() => import('./EditProfileModal.vue'))
 // Pinia 响应式解构
@@ -155,9 +158,8 @@ const showCalendarMain = computed(() => navKey.value === 'calendar')
 const showSettingsMain = computed(() => navKey.value === 'settings')
 const showFilesMain = computed(() => navKey.value === 'files')
 const showFavoritesMain = computed(() => navKey.value === 'favorites')
-const showPlaceholder = computed(() =>
-  ['contacts', 'moments'].includes(navKey.value)
-)
+const showMomentsMain = computed(() => navKey.value === 'moments')
+const showPlaceholder = computed(() => navKey.value === 'contacts')
 
 /** 设置页中间列固定略宽，且不显示拖拽条 */
 const settingsListWidth = 220
@@ -169,10 +171,15 @@ const showListResizer = computed(
     !showCalendarMain.value &&
     !showSettingsMain.value &&
     !showFilesMain.value &&
-    !showFavoritesMain.value
+    !showFavoritesMain.value &&
+    !showMomentsMain.value
 )
 const showMiddleList = computed(
-  () => !showCalendarMain.value && !showFilesMain.value && !showFavoritesMain.value
+  () =>
+    !showCalendarMain.value &&
+    !showFilesMain.value &&
+    !showFavoritesMain.value &&
+    !showMomentsMain.value
 )
 </script>
 
@@ -216,7 +223,7 @@ const showMiddleList = computed(
           :class="{
             'col-chat--calendar': showCalendarMain,
             'col-chat--settings': showSettingsMain,
-            'col-chat--files': showFilesMain || showFavoritesMain
+            'col-chat--files': showFilesMain || showFavoritesMain || showMomentsMain
           }"
         >
           <SystemNotifyPanel v-if="showSystemNotify" />
@@ -224,6 +231,7 @@ const showMiddleList = computed(
           <CalendarMainView v-else-if="showCalendarMain" />
           <FilesMainView v-else-if="showFilesMain" />
           <FavoritesMainView v-else-if="showFavoritesMain" />
+          <MomentsMainView v-else-if="showMomentsMain" />
           <SettingsMainView v-else-if="showSettingsMain" />
           <ContactsMainView v-else-if="navKey === 'contacts'" />
           <PlaceholderMainView v-else-if="showPlaceholder" :nav="navKey" />
@@ -245,6 +253,7 @@ const showMiddleList = computed(
     <GroupAnnouncementModal />
     <RedPacketModal />
     <RedPacketReceiveModal />
+    <RedPacketHistoryModal />
     <ContactProfileModal />
     <EditProfileModal />
     <OverlayHost />

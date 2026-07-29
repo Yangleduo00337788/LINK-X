@@ -1,9 +1,6 @@
 ﻿<script setup lang="ts">
 /**
- * 内嵌于 AppShell 侧栏的友链面板。
- *
- * 入口处不再提供发布编辑器,统一通过 window.electronAPI.openMoments
- * 打开独立窗口(与 Sidebar 一致的行为)。
+ * 中间列友链面板：Electron 开独立窗；Web 仅作提示（主栏渲染 MomentsMainView）。
  */
 import { onMounted } from 'vue'
 import { useAppStore } from '../stores/app'
@@ -18,10 +15,9 @@ onMounted(() => {
   if (!momentsStore.initialized) {
     void momentsStore.fetchMoments()
   }
-  // 桌面板式下,直接打开独立窗口
   if (window.electronAPI?.openMoments) {
     window.electronAPI.openMoments()
-    appStore.setNav('chat') // 回到聊天页避免空白
+    appStore.setNav('chat')
   }
 })
 </script>
@@ -29,8 +25,8 @@ onMounted(() => {
 <template>
   <div class="moments-panel">
     <div class="empty">
-      <h3>{{ t('moments.opening') }}</h3>
-      <p>{{ t('moments.openingHint') }}</p>
+      <h3>{{ t('moments.webFeedTitle') }}</h3>
+      <p>{{ t('moments.webFeedHint') }}</p>
     </div>
   </div>
 </template>
@@ -47,6 +43,7 @@ onMounted(() => {
 .empty {
   color: var(--lx-text-muted);
   text-align: center;
+  padding: 16px;
 }
 .empty h3 {
   font-size: 14px;
@@ -55,5 +52,6 @@ onMounted(() => {
 .empty p {
   font-size: 12px;
   margin: 0;
+  line-height: 1.5;
 }
 </style>

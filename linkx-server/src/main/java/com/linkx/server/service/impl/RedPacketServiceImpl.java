@@ -2,10 +2,12 @@ package com.linkx.server.service.impl;
 
 import com.linkx.server.controller.dto.SendMessageDTO;
 import com.linkx.server.controller.dto.SendRedPacketDTO;
+import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.controller.vo.RedPacketRecordVO;
 import com.linkx.server.controller.vo.RedPacketVO;
 import com.linkx.server.entity.*;
 import com.linkx.server.exception.CustomException;
+import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.mapper.*;
 import com.linkx.server.service.BalanceService;
 import com.linkx.server.service.ChatService;
@@ -13,6 +15,7 @@ import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.RedPacketService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +32,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class RedPacketServiceImpl implements RedPacketService {
@@ -42,55 +46,63 @@ public class RedPacketServiceImpl implements RedPacketService {
     private final RedPacketRecordMapper recordMapper;
     private final UserBalanceMapper balanceMapper;
     private final SysUserMapper userMapper;
+    private final ImConversationMapper conversationMapper;
     private final BalanceService balanceService;
     private final ChatService chatService;
     private final MediaUrlService mediaUrlService;
+    private final ImMessagePushService imMessagePushService;
     private final StringRedisTemplate redisTemplate;
     private final org.springframework.transaction.PlatformTransactionManager transactionManager;
 
     @Override
     @Transactional
     public RedPacketVO sendRedPacket(Long userId, SendRedPacketDTO dto) {
-        chatService.assertConversationMember(userId, dto.getConversationId());
+        try {
+            chatService.assertConversationMember(userId, dto.getConversationId());
 
-        if (dto.getTotalAmount() == null || dto.getTotalCount() == null) {
-            throw new CustomException(400, "红包金额与个数不能为空");
-        }
-        // 统一到分，拒绝超精度绕过
-        BigDecimal amount = dto.getTotalAmount().setScale(2, RoundingMode.HALF_UP);
-        if (amount.compareTo(new BigDecimal("0.01")) < 0) {
-            throw new CustomException(400, "红包金额必须大于0");
-        }
-        if (dto.getTotalCount() < 1) {
-            throw new CustomException(400, "红包个数最少为1");
-        }
-        // 用 compareTo 替代 intValue()，避免超大金额 int 溢出绕过校验
-        BigDecimal maxCount = amount.divide(new BigDecimal("0.01"), 2, RoundingMode.DOWN);
-        if (new BigDecimal(dto.getTotalCount()).compareTo(maxCount) > 0) {
-            throw new CustomException(400, "每个红包金额不能少于0.01元");
-        }
-        String type = dto.getType() != null ? dto.getType() : RedPacket.TYPE_NORMAL;
-        if (!RedPacket.TYPE_NORMAL.equals(type) && !RedPacket.TYPE_LUCKY.equals(type)) {
-            throw new CustomException(400, "红包类型仅支持 normal 或 lucky");
-        }
-        dto.setType(type);
-        dto.setTotalAmount(amount);
+            if (dto.getTotalAmount() == null || dto.getTotalCount() == null) {
+                throw new CustomException(400, "红包金额与个数不能为空");
+            }
+            // 统一到分，拒绝超精度绕过
+            BigDecimal amount = dto.getTotalAmount().setScale(2, RoundingMode.HALF_UP);
+            if (amount.compareTo(new BigDecimal("0.01")) < 0) {
+                throw new CustomException(400, "红包金额必须大于0");
+            }
+            if (dto.getTotalCount() < 1) {
+                throw new CustomException(400, "红包个数最少为1");
+            }
+            // 用 compareTo 替代 intValue()，避免超大金额 int 溢出绕过校验
+            BigDecimal maxCount = amount.divide(new BigDecimal("0.01"), 2, RoundingMode.DOWN);
+            if (new BigDecimal(dto.getTotalCount()).compareTo(maxCount) > 0) {
+                throw new CustomException(400, "每个红包金额不能少于0.01元");
+            }
+            String type = dto.getType() != null ? dto.getType() : RedPacket.TYPE_NORMAL;
+            if (!RedPacket.TYPE_NORMAL.equals(type) && !RedPacket.TYPE_LUCKY.equals(type)) {
+                throw new CustomException(400, "红包类型仅支持 normal 或 lucky");
+            }
+            dto.setType(type);
+            dto.setTotalAmount(amount);
 
-        // 幂等去重：同一用户同一 clientMsgId 仅生效一次，防止网络重试/双击重复扣款
-        String idemKey = IDEM_KEY_PREFIX + userId + ":" + dto.getClientMsgId();
-        Boolean acquired = redisTemplate.opsForValue().setIfAbsent(idemKey, "1", IDEM_KEY_TTL);
-        if (Boolean.FALSE.equals(acquired)) {
-            throw new CustomException(409, "红包正在发送中，请勿重复提交");
-        }
-        // 事务回滚时清理幂等键，避免 IDEM_KEY_TTL 窗口内用户无法合法重试（资金侧故障）
-        registerIdempotencyKeyRollbackCleanup(idemKey);
+            // 幂等去重：同一用户同一 clientMsgId 仅生效一次，防止网络重试/双击重复扣款
+            String idemKey = IDEM_KEY_PREFIX + userId + ":" + dto.getClientMsgId();
+            Boolean acquired = redisTemplate.opsForValue().setIfAbsent(idemKey, "1", IDEM_KEY_TTL);
+            if (Boolean.FALSE.equals(acquired)) {
+                throw new CustomException(409, "红包正在发送中，请勿重复提交");
+            }
+            // 事务回滚时清理幂等键，避免 IDEM_KEY_TTL 窗口内用户无法合法重试（资金侧故障）
+            registerIdempotencyKeyRollbackCleanup(idemKey);
 
-        // 冻结红包金额（原子 SQL：balance >= amount，余额不足则失败）
-        balanceService.freezeBalance(userId, amount, "redpacket:" + dto.getClientMsgId());
+            // 冻结红包金额（原子 SQL：balance >= amount，余额不足则失败）
+            balanceService.freezeBalance(userId, amount, "redpacket:" + dto.getClientMsgId());
+
+            // 获取会话类型（用于领取时判断是单聊还是群聊）
+            ImConversation conversation = conversationMapper.selectOneById(dto.getConversationId());
+            Integer conversationType = conversation != null ? conversation.getType() : null;
 
         RedPacket redPacket = RedPacket.builder()
                 .senderId(userId)
                 .conversationId(dto.getConversationId())
+                .conversationType(conversationType)
                 .type(dto.getType() != null ? dto.getType() : RedPacket.TYPE_NORMAL)
                 .totalAmount(dto.getTotalAmount())
                 .totalCount(dto.getTotalCount())
@@ -107,6 +119,11 @@ public class RedPacketServiceImpl implements RedPacketService {
         sendRedPacketMessage(userId, dto.getConversationId(), redPacket);
 
         return toRedPacketVO(redPacket, userId);
+        } catch (Exception e) {
+            log.error("sendRedPacket 失败: userId={}, conversationId={}, error={}",
+                    userId, dto.getConversationId(), e.getMessage(), e);
+            throw e;
+        }
     }
 
     @Override
@@ -140,22 +157,28 @@ public class RedPacketServiceImpl implements RedPacketService {
             // 非会话成员不可领取（防猜 ID 盗领）
             chatService.assertConversationMember(userId, redPacket.getConversationId());
 
-            if (redPacket.getStatus().equals(RedPacket.STATUS_FINISHED)) {
+            if (RedPacket.STATUS_FINISHED.equals(redPacket.getStatus())) {
                 throw new CustomException(400, "红包已领完");
             }
 
-            if (redPacket.getStatus().equals(RedPacket.STATUS_EXPIRED)) {
+            if (RedPacket.STATUS_EXPIRED.equals(redPacket.getStatus())) {
                 throw new CustomException(400, "红包已过期");
             }
 
-            if (redPacket.getExpireTime().before(new Date())) {
+            // selectByIdForUpdate 若映射异常导致 expireTime 为空，退回 snapshot 判断
+            Date expireTime = redPacket.getExpireTime() != null
+                    ? redPacket.getExpireTime()
+                    : snapshot.getExpireTime();
+            if (expireTime != null && expireTime.before(new Date())) {
                 // 并发窗口内过期：仅拒绝，标记交由批处理任务 expireRedPackets
                 throw new CustomException(400, "红包已过期");
             }
 
-            if (redPacket.getSenderId().equals(userId)) {
+            if (redPacket.getSenderId() != null && redPacket.getSenderId().equals(userId)) {
                 throw new CustomException(400, "不能领取自己的红包");
             }
+
+            // 私聊红包：发送者已拦截，对方可正常领取（勿再整体拒绝）
 
             RedPacketRecord existingRecord = recordMapper.selectOneByQuery(
                     QueryWrapper.create()
@@ -391,7 +414,31 @@ public class RedPacketServiceImpl implements RedPacketService {
         messageDTO.setFileSize(toSafeFenUnits(redPacket.getTotalAmount()));
 
         // 与发红包同一事务：消息失败则整笔回滚，避免有包无气泡
-        chatService.sendMessage(senderId, messageDTO);
+        MessageVO message = chatService.sendMessage(senderId, messageDTO);
+        // 事务提交后再推送，避免对端读到未提交数据；发送者本端也要推一条才能即时出泡
+        registerRedPacketPushAfterCommit(message, senderId);
+    }
+
+    private void registerRedPacketPushAfterCommit(MessageVO message, Long senderId) {
+        Runnable push = () -> {
+            try {
+                imMessagePushService.pushToConversationMembers(message, senderId, null);
+                message.setIsSelf(true);
+                imMessagePushService.pushToUser(senderId, "message", message);
+            } catch (Exception e) {
+                log.warn("红包消息推送失败: messageId={}, err={}", message.getId(), e.toString());
+            }
+        };
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            push.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                push.run();
+            }
+        });
     }
 
     private RedPacketVO toRedPacketVO(RedPacket redPacket, Long currentUserId) {
@@ -453,6 +500,7 @@ public class RedPacketServiceImpl implements RedPacketService {
                 .time(formatTime(redPacket.getCreateTime()))
                 .received(userRecord != null)
                 .receivedAmount(userRecord != null ? userRecord.getAmount() : null)
+                .isSelf(currentUserId != null && currentUserId.equals(redPacket.getSenderId()))
                 .records(recordVOs)
                 .build();
     }

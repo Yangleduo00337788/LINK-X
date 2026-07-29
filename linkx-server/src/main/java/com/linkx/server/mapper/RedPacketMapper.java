@@ -14,7 +14,13 @@ import java.util.List;
 @Mapper
 public interface RedPacketMapper extends BaseMapper<RedPacket> {
 
-    @Select("SELECT * FROM red_packet WHERE id = #{id} FOR UPDATE")
+    @Select("SELECT id, sender_id AS senderId, conversation_id AS conversationId, " +
+            "conversation_type AS conversationType, type, total_amount AS totalAmount, " +
+            "total_count AS totalCount, remaining_amount AS remainingAmount, " +
+            "remaining_count AS remainingCount, greeting, status, " +
+            "expire_time AS expireTime, client_msg_id AS clientMsgId, " +
+            "create_time AS createTime, version, deleted " +
+            "FROM red_packet WHERE id = #{id} FOR UPDATE")
     RedPacket selectByIdForUpdate(@Param("id") Long id);
 
     /**
@@ -46,7 +52,13 @@ public interface RedPacketMapper extends BaseMapper<RedPacket> {
      * @param expireTime 过期时间
      * @return 符合条件的红包列表（已锁定）
      */
-    @Select("SELECT * FROM red_packet WHERE status = #{status} AND expire_time < #{expireTime} FOR UPDATE")
+    @Select("SELECT id, sender_id AS senderId, conversation_id AS conversationId, " +
+            "conversation_type AS conversationType, type, total_amount AS totalAmount, " +
+            "total_count AS totalCount, remaining_amount AS remainingAmount, " +
+            "remaining_count AS remainingCount, greeting, status, " +
+            "expire_time AS expireTime, client_msg_id AS clientMsgId, " +
+            "create_time AS createTime, version, deleted " +
+            "FROM red_packet WHERE status = #{status} AND expire_time < #{expireTime} FOR UPDATE")
     List<RedPacket> selectExpiredForUpdate(
             @Param("status") String status,
             @Param("expireTime") Date expireTime

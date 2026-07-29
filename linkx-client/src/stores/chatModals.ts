@@ -28,6 +28,8 @@ export const useChatModalsStore = defineStore('chatModals', {
     redPacketOpen: false,               // 发红包模态框
     redPacketReceiveOpen: false,        // 领红包模态框
     redPacketReceiveMsgId: null as string | null, // 当前要领红包的消息 id
+    redPacketReceivePacketId: null as string | null, // 无消息时按红包 id 打开
+    redPacketHistoryOpen: false,        // 会话红包记录
     contactProfileOpen: false,          // 联系人资料卡是否显示
     editProfileOpen: false,             // 编辑资料弹窗是否显示
     currentContactProfile: null as ContactItem | null, // 资料卡展示的联系人
@@ -141,15 +143,24 @@ export const useChatModalsStore = defineStore('chatModals', {
     },
     /**
      * 打开领红包弹窗
-     * @param messageId 红包消息 id
+     * @param messageId 红包消息 id（可空，配合 redPacketId）
+     * @param redPacketId 红包业务 id（消息不在列表时使用）
      */
-    openRedPacketReceive(messageId: string) {
-      this.redPacketReceiveMsgId = messageId
+    openRedPacketReceive(messageId: string, redPacketId?: string) {
+      this.redPacketReceiveMsgId = messageId || null
+      this.redPacketReceivePacketId = redPacketId || null
       this.redPacketReceiveOpen = true
     },
     closeRedPacketReceive() {
       this.redPacketReceiveOpen = false
       this.redPacketReceiveMsgId = null
+      this.redPacketReceivePacketId = null
+    },
+    openRedPacketHistory() {
+      this.redPacketHistoryOpen = true
+    },
+    closeRedPacketHistory() {
+      this.redPacketHistoryOpen = false
     },
     /**
      * 打开他人联系人资料卡
@@ -242,6 +253,8 @@ export const useChatModalsStore = defineStore('chatModals', {
       this.redPacketOpen = false
       this.redPacketReceiveOpen = false
       this.redPacketReceiveMsgId = null
+      this.redPacketReceivePacketId = null
+      this.redPacketHistoryOpen = false
       this.contactProfileOpen = false
       this.editProfileOpen = false
       this.currentContactProfile = null

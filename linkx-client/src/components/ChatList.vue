@@ -74,6 +74,11 @@ function formatRemindPreview(content?: string): string {
   return raw
 }
 
+/** 会话预览是否为红包消息（列表用红色强调） */
+function isRedPacketPreview(text?: string) {
+  return !!text && text.includes('[红包]')
+}
+
 /** 消息页虚拟会话：日程提醒（默认不置顶） */
 const systemNotifySession = computed<ChatSession>(() => {
   const list = calendarRemindNotifs.value
@@ -281,7 +286,11 @@ function onContextMenuSelect(key: string) {
                     v-if="session.atMe || session.atMeMessageId"
                     class="at-me-hint"
                   >{{ t('chat.someoneAtMe') }}</span>
-                  {{ session.lastMessage }}
+                  <span
+                    v-if="isRedPacketPreview(session.lastMessage) && !!session.unread && !session.muted"
+                    class="red-packet-preview"
+                  >{{ session.lastMessage }}</span>
+                  <template v-else>{{ session.lastMessage }}</template>
                 </span>
               </div>
             </div>
@@ -484,10 +493,19 @@ function onContextMenuSelect(key: string) {
   color: var(--lx-text-secondary);
 }
 
+.last-message .red-packet-preview {
+  color: #e74c3c;
+  font-weight: 500;
+}
+
 .at-me-hint {
   color: var(--lx-danger);
   margin-right: 4px;
   flex-shrink: 0;
+}
+
+.red-packet-preview {
+  color: #e74c3c;
 }
 
 .skeleton-item {

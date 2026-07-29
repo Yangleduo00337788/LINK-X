@@ -14,7 +14,7 @@ import {
   MAX_IMAGE_BYTES,
   MAX_PUBLISH_IMAGE_BYTES
 } from '../utils/file'
-import { isDisplayableMediaUrl, normalizeMediaUrl } from '../utils/mediaUrl'
+import { normalizeMediaUrl } from '../utils/mediaUrl'
 import { t } from '../i18n'
 import axios from 'axios'
 
@@ -142,12 +142,9 @@ export const useGroupMetaStore = defineStore('groupMeta', {
       } else if (this.loading[`members-${sessionId}`]) {
         return
       }
-      const cached = this.members[sessionId]
-      if (!force && cached) {
-        const stale = cached.some(m => m.avatarUrl && !isDisplayableMediaUrl(m.avatarUrl))
-        if (!stale) return
-      }
+      if (!force && this.members[sessionId]) return
       this.loading[`members-${sessionId}`] = true
+      let changed = false
       try {
         const res = await groupApi.listGroupMembers(sessionId)
         if (res.code === 200 && res.data) {
@@ -171,6 +168,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
             muted: !!m.muted,
             muteUntil: m.muteUntil != null ? Number(m.muteUntil) : undefined
           }))
+          changed = true
           try {
             const { useAppStore } = await import('./app')
             const app = useAppStore()
@@ -185,20 +183,25 @@ export const useGroupMetaStore = defineStore('groupMeta', {
           } catch {
             /* ignore */
           }
-        } else {
+        } else if (!this.members[sessionId]) {
           this.members[sessionId] = []
+          changed = true
         }
       } catch (e) {
         console.error('加载群成员失败:', e)
-        this.members[sessionId] = []
+        if (!this.members[sessionId]) {
+          this.members[sessionId] = []
+          changed = true
+        }
       } finally {
         this.loading[`members-${sessionId}`] = false
-        this._membersRefreshSeq[sessionId] = ((this._membersRefreshSeq[sessionId] || 0) + 1)
+        if (changed) {
+          this._membersRefreshSeq[sessionId] = ((this._membersRefreshSeq[sessionId] || 0) + 1)
+        }
       }
     },
 
     membersFor(sessionId: string): GroupMember[] {
-      void this.fetchMembers(sessionId)
       void this.membersRefreshSeq[sessionId]
       return this.members[sessionId] || []
     },
@@ -378,9 +381,14 @@ export const useGroupMetaStore = defineStore('groupMeta', {
         const res = await groupAnnouncementApi.getDisplayAnnouncement(sessionId)
         if (res.code === 200) {
           this.announcementDisplay[sessionId] = res.data ? this.mapAnnouncement(res.data) : null
+        } else if (this.announcementDisplay[sessionId] === undefined) {
+          this.announcementDisplay[sessionId] = null
         }
       } catch (e) {
         console.error('加载公告摘要失败:', e)
+        if (this.announcementDisplay[sessionId] === undefined) {
+          this.announcementDisplay[sessionId] = null
+        }
       } finally {
         this.loading[`announcement-display-${sessionId}`] = false
       }
@@ -397,14 +405,10 @@ export const useGroupMetaStore = defineStore('groupMeta', {
     },
 
     announcementsFor(sessionId: string): GroupAnnouncementItem[] {
-      if (!this.announcements[sessionId]) void this.fetchAnnouncements(sessionId)
       return this.announcements[sessionId] || []
     },
 
     announcementShort(sessionId: string): string {
-      if (this.announcementDisplay[sessionId] === undefined) {
-        void this.fetchAnnouncementDisplay(sessionId)
-      }
       const content = (this.announcementDisplay[sessionId]?.content || '').trim()
       if (!content) return ''
       const firstLine = content.split('\n').find(l => l.trim()) || ''
@@ -485,9 +489,6 @@ export const useGroupMetaStore = defineStore('groupMeta', {
     },
 
     remarkFor(sessionId: string): string {
-      if (this.remarks[sessionId] === undefined) {
-        void this.fetchAnnouncement(sessionId)
-      }
       return this.remarks[sessionId] ?? ''
     },
 
@@ -686,7 +687,6 @@ export const useGroupMetaStore = defineStore('groupMeta', {
     },
 
     filesFor(sessionId: string): GroupFileItem[] {
-      if (!this.files[sessionId]) void this.fetchFiles(sessionId)
       return this.files[sessionId] || []
     },
 
@@ -705,7 +705,6 @@ export const useGroupMetaStore = defineStore('groupMeta', {
     },
 
     albumFor(sessionId: string): GroupAlbumItem[] {
-      if (!this.albums[sessionId]) void this.fetchAlbum(sessionId)
       return this.albums[sessionId] || []
     },
 
@@ -746,7 +745,6 @@ export const useGroupMetaStore = defineStore('groupMeta', {
     },
 
     essenceFor(sessionId: string): GroupEssenceItem[] {
-      if (!this.essence[sessionId]) void this.fetchEssence(sessionId)
       return this.essence[sessionId] || []
     },
 

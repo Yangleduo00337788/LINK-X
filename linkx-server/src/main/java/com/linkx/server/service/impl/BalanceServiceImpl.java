@@ -41,6 +41,42 @@ public class BalanceServiceImpl implements BalanceService {
     }
 
     @Override
+    public java.util.List<com.linkx.server.controller.vo.BalanceLogVO> listLogs(
+            Long userId, Integer limit, Long beforeId) {
+        int size = limit == null ? 20 : Math.min(Math.max(limit, 1), 50);
+        QueryWrapper qw = QueryWrapper.create()
+                .where(BalanceLog::getUserId).eq(userId)
+                .orderBy(BalanceLog::getId, false)
+                .limit(size);
+        if (beforeId != null && beforeId > 0) {
+            qw.and(BalanceLog::getId).lt(beforeId);
+        }
+        java.util.List<BalanceLog> rows = balanceLogMapper.selectListByQuery(qw);
+        java.util.List<com.linkx.server.controller.vo.BalanceLogVO> out = new java.util.ArrayList<>(rows.size());
+        java.time.format.DateTimeFormatter fmt =
+                java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+        for (BalanceLog row : rows) {
+            String time = "";
+            if (row.getCreateTime() != null) {
+                time = java.time.LocalDateTime.ofInstant(
+                                row.getCreateTime().toInstant(),
+                                java.time.ZoneId.systemDefault())
+                        .format(fmt);
+            }
+            out.add(com.linkx.server.controller.vo.BalanceLogVO.builder()
+                    .id(row.getId() != null ? String.valueOf(row.getId()) : null)
+                    .type(row.getType())
+                    .amount(row.getAmount())
+                    .balanceBefore(row.getBalanceBefore())
+                    .balanceAfter(row.getBalanceAfter())
+                    .remark(row.getRemark())
+                    .time(time)
+                    .build());
+        }
+        return out;
+    }
+
+    @Override
     @Transactional
     public void deductBalance(Long userId, BigDecimal amount, String bizType, String bizId, String remark) {
         // 金额必须为正数，防反向充值/扣款
@@ -60,8 +96,8 @@ public class BalanceServiceImpl implements BalanceService {
         }
 
         // 记录日志（金额存储为负数表示支出）
-        logBalanceChange(userId, "deduct", amount, before,
-                balance.getBalance().subtract(amount), bizType, bizId, remark, null);
+        logBalanceChange(userId, "deduct", amount.negate(), before,
+                before.subtract(amount), bizType, bizId, remark, null);
     }
 
     @Override
@@ -77,11 +113,12 @@ public class BalanceServiceImpl implements BalanceService {
         UserBalance balance = getOrCreateBalance(userId);
         BigDecimal before = balance.getBalance();
 
-        // 原子增加
+        // 原子增加（mapper 同步累加 total_recharge）
         balanceMapper.addBalance(userId, amount);
 
-        // 记录日志
-        logBalanceChange(userId, "add", amount, before,
+        // 充值业务记为 recharge，其余加款记为 add
+        String logType = BalanceLog.TYPE_RECHARGE.equals(bizType) ? BalanceLog.TYPE_RECHARGE : "add";
+        logBalanceChange(userId, logType, amount, before,
                 balance.getBalance().add(amount), bizType, bizId, remark, null);
     }
 
@@ -103,9 +140,17 @@ public class BalanceServiceImpl implements BalanceService {
             throw new CustomException(400, "余额不足，无法冻结");
         }
 
-        // 记录日志
-        logBalanceChange(userId, "freeze", amount, before,
-                balance.getBalance().subtract(amount), "freeze", bizId, "冻结金额（红包）", null);
+        // 发红包冻结：流水记为 send_redpacket，金额为负便于账户页展示支出
+        logBalanceChange(
+                userId,
+                BalanceLog.TYPE_SEND_REDPACKET,
+                amount.negate(),
+                before,
+                before.subtract(amount),
+                BalanceLog.TYPE_SEND_REDPACKET,
+                bizId,
+                "发红包",
+                null);
     }
 
     @Override
@@ -139,8 +184,8 @@ public class BalanceServiceImpl implements BalanceService {
         logBalanceChange(fromUserId, "unfreeze", amount, fromBefore.getBalance(),
                 fromBefore.getBalance(), "REDPACKET_RECEIVE", bizId, "红包领取-冻结转出", null);
         // 审计日志：接收方余额入账
-        logBalanceChange(toUserId, "add", amount, toBefore.getBalance(),
-                toBefore.getBalance().add(amount), "REDPACKET_RECEIVE", bizId, "红包领取-入账", null);
+        logBalanceChange(toUserId, BalanceLog.TYPE_RECEIVE_REDPACKET, amount, toBefore.getBalance(),
+                toBefore.getBalance().add(amount), "REDPACKET_RECEIVE", bizId, "收红包", null);
     }
 
     @Override
@@ -162,8 +207,8 @@ public class BalanceServiceImpl implements BalanceService {
         }
 
         // 审计日志：红包过期退款，冻结金额加回可用余额
-        logBalanceChange(userId, "unfreeze", amount, before.getBalance(),
-                before.getBalance().add(amount), "REDPACKET_REFUND", bizId, "红包过期-冻结退款", null);
+        logBalanceChange(userId, BalanceLog.TYPE_REFUND, amount, before.getBalance(),
+                before.getBalance().add(amount), "REDPACKET_REFUND", bizId, "红包过期退款", null);
     }
 
     /**
@@ -252,7 +297,7 @@ public class BalanceServiceImpl implements BalanceService {
     }
 
     /**
-     * 记录余额变动日志
+     * 记录余额变动日志（afterCommit 异步写，避免事务回滚但日志已落库）
      */
     private void logBalanceChange(Long userId, String type, BigDecimal amount,
                                    BigDecimal balanceBefore, BigDecimal balanceAfter,
@@ -268,7 +313,25 @@ public class BalanceServiceImpl implements BalanceService {
                 .remark(remark)
                 .operatorId(operatorId)
                 .build();
-        balanceLogMapper.insert(log);
+
+        // afterCommit 异步写：事务回滚时审计日志不入库
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    try {
+                        balanceLogMapper.insert(log);
+                    } catch (Exception e) {
+                        // 审计日志失败不影响主业务，仅记录日志
+                        org.slf4j.LoggerFactory.getLogger(BalanceServiceImpl.class)
+                                .error("审计日志写入失败: userId={}, bizId={}", userId, bizId, e);
+                    }
+                }
+            });
+        } else {
+            // 无事务时直接写入（如单元测试）
+            balanceLogMapper.insert(log);
+        }
     }
 
     private BalanceVO toBalanceVO(UserBalance balance) {

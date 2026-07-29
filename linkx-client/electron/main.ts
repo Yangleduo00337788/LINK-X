@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, globalShortcut, safeStorage, desktopCapturer, dialog, Notification, net, session, type IpcMainEvent, type IpcMainInvokeEvent, type WebRequestHeadersReceivedCallbackParams, type OnHeadersReceivedListener } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, globalShortcut, safeStorage, desktopCapturer, dialog, Notification, net, session, clipboard, type IpcMainEvent, type IpcMainInvokeEvent, type WebRequestHeadersReceivedCallbackParams, type OnHeadersReceivedListener } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import http from 'node:http'
@@ -453,6 +453,7 @@ function registerWindowIpc() {
   ipcMain.removeHandler('app:get-shortcuts')
   ipcMain.removeHandler('app:get-download-path')
   ipcMain.removeHandler('screen:capture')
+  ipcMain.removeHandler('clipboard:write-text')
 
   ipcMain.on('window-minimize', onMinimize)
   ipcMain.on('window-maximize', onMaximize)
@@ -839,6 +840,11 @@ function registerWindowIpc() {
 
   // [P2-E3] 屏幕截图：必须经用户确认后才调用 desktopCapturer，防止渲染进程静默截屏
   // 首次弹窗确认，确认后本次会话内不再询问
+  ipcMain.handle('clipboard:write-text', (_event, text: string) => {
+    clipboard.writeText(String(text ?? ''))
+    return true
+  })
+
   ipcMain.handle('screen:capture', async (event) => {
     if (!screenshotAllowed) {
       const win = winFromSender(event) ?? mainWindow

@@ -5,6 +5,8 @@ import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.RateLimit;
 import com.linkx.server.common.Result;
 import com.linkx.server.controller.dto.SendFriendRequestDTO;
+import com.linkx.server.controller.dto.UpdateFriendGroupDTO;
+import com.linkx.server.controller.dto.UpdateFriendRemarkDTO;
 import com.linkx.server.controller.vo.FriendItemVO;
 import com.linkx.server.controller.vo.FriendRequestVO;
 import com.linkx.server.controller.vo.UserSearchVO;
@@ -85,6 +87,26 @@ public class FriendController {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         friendService.deleteFriend(userId, parseRequestId(friendId));
         return Result.success(null);
+    }
+
+    @PutMapping("/{friendId}/remark")
+    public Result<String> updateFriendRemark(
+            @PathVariable String friendId,
+            @Valid @RequestBody UpdateFriendRemarkDTO dto,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        String remark = friendService.updateFriendRemark(userId, parseRequestId(friendId), dto.getRemark());
+        return Result.success(remark);
+    }
+
+    @PutMapping("/{friendId}/group")
+    public Result<String> updateFriendGroup(
+            @PathVariable String friendId,
+            @Valid @RequestBody UpdateFriendGroupDTO dto,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        String groupName = friendService.updateFriendGroup(userId, parseRequestId(friendId), dto.getGroupName());
+        return Result.success(groupName);
     }
 
     @PostMapping("/{friendId}/block")

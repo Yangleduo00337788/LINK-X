@@ -1,6 +1,6 @@
 ﻿<script setup lang="ts">
 // Vue 计算属性
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 // Pinia 响应式解构工具
 import { storeToRefs } from 'pinia'
 import { useMessage } from 'naive-ui'
@@ -38,6 +38,16 @@ const canManage = computed(() => {
   const members = groupMetaStore.membersFor(sid)
   return members.some(m => m.id === me && (m.role === 'owner' || m.role === 'admin'))
 })
+
+watch(
+  [groupEssenceOpen, currentSessionId],
+  ([open, id]) => {
+    if (!open || !id) return
+    void groupMetaStore.fetchEssence(id)
+    void groupMetaStore.fetchMembers(id)
+  },
+  { immediate: true }
+)
 
 // 关闭群精华弹窗
 function close() {

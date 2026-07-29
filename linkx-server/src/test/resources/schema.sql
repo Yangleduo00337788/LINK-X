@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS sys_user_relation (
   user_id BIGINT NOT NULL,
   friend_id BIGINT NOT NULL,
   remark VARCHAR(64),
+  group_name VARCHAR(32),
   status TINYINT NOT NULL DEFAULT 1,
   create_time DATETIME,
   update_time DATETIME,
@@ -220,7 +221,10 @@ CREATE TABLE IF NOT EXISTS balance_log (
   biz_id VARCHAR(64),
   remark VARCHAR(255),
   operator_id BIGINT,
-  create_time DATETIME
+  create_time DATETIME,
+  deleted TINYINT NOT NULL DEFAULT 0,
+  -- 幂等键唯一索引
+  UNIQUE KEY uk_balance_idem (user_id, biz_type, biz_id)
 );
 
 -- 朋友圈动态表
