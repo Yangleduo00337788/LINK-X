@@ -59,6 +59,8 @@ const api = {
   openMomentsMedia: () => ipcRenderer.send('window-open-moments-media'),
   openNoteEditor: () => ipcRenderer.send('window-open-note-editor'),
   openRegister: () => ipcRenderer.send('window-open-register'),
+  openHelp: () => ipcRenderer.send('window-open-help'),
+  openChatHistory: () => ipcRenderer.send('window-open-chat-history'),
   captureScreen,
   fetchIPLocation,
   notifyMomentsPublished: () => ipcRenderer.send('moments:published'),

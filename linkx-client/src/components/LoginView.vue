@@ -2,7 +2,14 @@
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { NInput, NButton, NIcon, NCheckbox, NModal, NSelect, useMessage } from 'naive-ui'
-import { RefreshOutline, MailOutline, ChevronDownOutline } from '@vicons/ionicons5'
+import {
+  RefreshOutline,
+  MailOutline,
+  ChevronDownOutline,
+  PersonOutline,
+  LockClosedOutline,
+  ShieldCheckmarkOutline
+} from '@vicons/ionicons5'
 import Avatar from './Avatar.vue'
 import WindowCaptionButtons from './WindowCaptionButtons.vue'
 import { storeToRefs } from 'pinia'
@@ -503,6 +510,13 @@ async function handleForgot() {
 
 <template>
   <div class="login-page" :class="{ 'login-page--compact': compact }">
+    <div class="login-atmosphere" aria-hidden="true">
+      <span class="orb orb-a" />
+      <span class="orb orb-b" />
+      <span class="orb orb-c" />
+      <span class="mesh" />
+    </div>
+
     <div class="login-win-bar">
       <div class="drag-area" />
       <div class="login-win-actions" @click.stop>
@@ -530,17 +544,22 @@ async function handleForgot() {
     </div>
 
     <div class="login-body" :class="{ 'login-body--password': loginMode === 'password' }">
-      <div class="avatar-glow" aria-hidden="true" />
-
-      <!-- 彩色品牌名仅快速登录展示；账密页只留头像，腾出表单空间 -->
-      <div v-if="loginMode === 'quick'" class="brand-title" aria-label="LinkX">LinkX</div>
+      <div
+        class="brand-title"
+        :class="{ 'brand-title--compact': loginMode === 'password' }"
+        aria-label="LinkX"
+      >
+        <span class="brand-mark">L</span>
+        <span class="brand-text">LinkX</span>
+      </div>
 
       <div class="profile-block" :class="{ 'profile-block--password': loginMode === 'password' }">
-        <div class="avatar-ring">
+        <div class="avatar-ring" :class="{ 'avatar-ring--lg': loginMode === 'quick' }">
+          <div class="avatar-glow" aria-hidden="true" />
           <Avatar
             :text="displayAvatarText"
             color="#12b7f5"
-            :size="loginMode === 'quick' ? 88 : 72"
+            :size="loginMode === 'quick' ? 88 : 68"
             :image-url="displayAvatarUrl"
           />
         </div>
@@ -565,7 +584,7 @@ async function handleForgot() {
       </div>
 
       <!-- 快速登录 -->
-      <div v-if="loginMode === 'quick'" class="quick-panel">
+      <div v-if="loginMode === 'quick'" class="quick-panel lx-panel">
         <button
           type="button"
           class="lx-login-btn"
@@ -579,7 +598,7 @@ async function handleForgot() {
       </div>
 
       <!-- 账密登录 -->
-      <div v-else class="password-panel">
+      <div v-else class="password-panel lx-panel">
         <n-input
           v-model:value="username"
           size="large"
@@ -588,7 +607,11 @@ async function handleForgot() {
           :bordered="false"
           :disabled="autoLogging"
           @keyup.enter="handleLogin"
-        />
+        >
+          <template #prefix>
+            <n-icon :component="PersonOutline" :size="16" class="field-ico" />
+          </template>
+        </n-input>
         <n-input
           v-model:value="password"
           type="password"
@@ -599,7 +622,11 @@ async function handleForgot() {
           :bordered="false"
           :disabled="autoLogging"
           @keyup.enter="handleLogin"
-        />
+        >
+          <template #prefix>
+            <n-icon :component="LockClosedOutline" :size="16" class="field-ico" />
+          </template>
+        </n-input>
 
         <div v-if="captchaEnabled" class="captcha-row">
           <div
@@ -625,8 +652,12 @@ async function handleForgot() {
             maxlength="4"
             :disabled="autoLogging"
             @keyup.enter="handleLogin"
-          />
-          <n-button quaternary circle :disabled="autoLogging" @click="loadCaptcha('login')">
+          >
+            <template #prefix>
+              <n-icon :component="ShieldCheckmarkOutline" :size="15" class="field-ico" />
+            </template>
+          </n-input>
+          <n-button quaternary circle class="captcha-refresh" :disabled="autoLogging" @click="loadCaptcha('login')">
             <template #icon>
               <n-icon :component="RefreshOutline" />
             </template>
@@ -662,7 +693,7 @@ async function handleForgot() {
             :class="{ disabled: autoLogging }"
             @click.prevent="switchToPasswordMode"
           >{{ t('login.passwordLogin') }}</a>
-          <span class="footer-sep">|</span>
+          <span class="footer-sep" />
           <a
             href="#"
             class="footer-link"
@@ -677,7 +708,7 @@ async function handleForgot() {
             class="footer-link"
             @click.prevent="switchToQuickMode"
           >{{ t('login.quickLogin') }}</a>
-          <span v-if="username.trim()" class="footer-sep">|</span>
+          <span v-if="username.trim()" class="footer-sep" />
           <a href="#" class="footer-link" @click.prevent="openRegister">{{ t('login.register') }}</a>
         </template>
       </div>
@@ -815,6 +846,11 @@ async function handleForgot() {
 
 <style scoped>
 .login-page {
+  --lx-login-accent: #12b7f5;
+  --lx-login-accent-deep: #0aa6e0;
+  --lx-login-ink: #1a2332;
+  --lx-login-muted: #7a8494;
+  position: relative;
   width: 100%;
   height: 100%;
   min-height: 100%;
@@ -822,15 +858,76 @@ async function handleForgot() {
   flex-direction: column;
   box-sizing: border-box;
   background:
-    radial-gradient(ellipse 70% 45% at 50% 32%, rgba(255, 210, 230, 0.42) 0%, transparent 70%),
-    linear-gradient(180deg, #dceefc 0%, #eef5fb 42%, #f7f9fc 100%);
+    linear-gradient(165deg, #d8ecfb 0%, #e8f3fc 38%, #f4f7fb 72%, #fafbfd 100%);
   overflow: hidden;
+  color: var(--lx-login-ink);
+  font-family: 'Segoe UI Variable', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+.login-atmosphere {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(2px);
+  animation: orb-drift 14s ease-in-out infinite;
+}
+
+.orb-a {
+  top: -12%;
+  left: -18%;
+  width: 220px;
+  height: 220px;
+  background: radial-gradient(circle, rgba(18, 183, 245, 0.34) 0%, transparent 68%);
+}
+
+.orb-b {
+  top: 8%;
+  right: -22%;
+  width: 260px;
+  height: 260px;
+  background: radial-gradient(circle, rgba(255, 176, 210, 0.32) 0%, transparent 70%);
+  animation-delay: -4s;
+}
+
+.orb-c {
+  bottom: -18%;
+  left: 18%;
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, rgba(91, 140, 255, 0.22) 0%, transparent 70%);
+  animation-delay: -8s;
+}
+
+.mesh {
+  position: absolute;
+  inset: 0;
+  opacity: 0.35;
+  background-image:
+    radial-gradient(rgba(255, 255, 255, 0.55) 0.8px, transparent 0.8px);
+  background-size: 18px 18px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.55), transparent 75%);
+}
+
+@keyframes orb-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(10px, -14px, 0) scale(1.06);
+  }
 }
 
 .login-page--compact {
   min-height: 461px;
   padding: 0;
-  /* 与窗口外轮廓一致，防止渐变层方角漏出 */
   border-radius: var(--lx-window-radius, 20px);
   overflow: hidden;
   clip-path: inset(0 round var(--lx-window-radius, 20px));
@@ -868,12 +965,18 @@ async function handleForgot() {
   height: 28px;
   margin-right: 8px;
   border: none;
-  border-radius: 4px;
-  background: rgba(0, 0, 0, 0.04);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.web-menu-btn:hover {
+  background: rgba(255, 255, 255, 0.85);
 }
 
 .web-menu-ico,
@@ -909,12 +1012,26 @@ async function handleForgot() {
   position: absolute;
   top: calc(100% + 4px);
   right: 6px;
-  min-width: 120px;
-  background: #fff;
-  border-radius: 6px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-  padding: 4px 0;
+  min-width: 128px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(12px);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(26, 35, 50, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  padding: 6px;
   z-index: 30;
+  animation: menu-in 0.16s ease;
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .login-menu-item {
@@ -923,14 +1040,16 @@ async function handleForgot() {
   border: none;
   background: transparent;
   text-align: left;
-  padding: 8px 16px;
+  padding: 8px 12px;
   font-size: 13px;
-  color: #1f2329;
+  color: var(--lx-login-ink);
   cursor: pointer;
+  border-radius: 7px;
 }
 
 .login-menu-item:hover {
-  background: #f5f7fa;
+  background: rgba(18, 183, 245, 0.1);
+  color: var(--lx-login-accent-deep);
 }
 
 .login-body {
@@ -939,42 +1058,71 @@ async function handleForgot() {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 8px 28px 18px;
+  padding: 4px 26px 16px;
   position: relative;
+  z-index: 1;
   box-sizing: border-box;
 }
 
 .login-body--password {
-  padding: 2px 24px 14px;
-}
-
-.avatar-glow {
-  position: absolute;
-  top: 56px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 160px;
-  height: 160px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.75) 0%, transparent 70%);
-  pointer-events: none;
-  z-index: 0;
+  padding: 0 22px 12px;
 }
 
 .brand-title {
   position: relative;
   z-index: 1;
-  margin-top: 12px;
-  margin-bottom: 32px;
-  font-size: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+  margin-bottom: 18px;
+  user-select: none;
+  animation: rise-in 0.45s ease both;
+}
+
+.brand-title--compact {
+  margin-top: 0;
+  margin-bottom: 8px;
+  gap: 6px;
+}
+
+.brand-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
   font-weight: 700;
-  letter-spacing: 1px;
+  color: #fff;
+  background: linear-gradient(145deg, #39c2f6 0%, #12b7f5 48%, #5b8cff 100%);
+  box-shadow:
+    0 6px 16px rgba(18, 183, 245, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.brand-title--compact .brand-mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  font-size: 12px;
+}
+
+.brand-text {
+  font-size: 30px;
+  font-weight: 720;
+  letter-spacing: 0.5px;
   line-height: 1;
-  background: linear-gradient(90deg, #12b7f5 0%, #5b8cff 45%, #c45dff 100%);
+  background: linear-gradient(100deg, #0ea5e0 0%, #12b7f5 35%, #5b8cff 70%, #a855f7 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  user-select: none;
+}
+
+.brand-title--compact .brand-text {
+  font-size: 20px;
 }
 
 .profile-block {
@@ -983,21 +1131,38 @@ async function handleForgot() {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 24px;
-  gap: 20px;
+  margin-bottom: 18px;
+  gap: 14px;
+  animation: rise-in 0.5s ease 0.05s both;
 }
 
 .profile-block--password {
-  margin-top: 10px;
-  margin-bottom: 36px;
+  margin-top: 2px;
+  margin-bottom: 14px;
   gap: 0;
 }
 
 .avatar-ring {
+  position: relative;
   padding: 3px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.95);
-  box-shadow: 0 2px 12px rgba(18, 183, 245, 0.18);
+  background: linear-gradient(145deg, #fff 0%, #e8f7ff 45%, #dce9ff 100%);
+  box-shadow:
+    0 8px 24px rgba(18, 183, 245, 0.2),
+    0 0 0 1px rgba(255, 255, 255, 0.8);
+}
+
+.avatar-ring--lg {
+  padding: 4px;
+}
+
+.avatar-glow {
+  position: absolute;
+  inset: -18px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(18, 183, 245, 0.22) 0%, transparent 68%);
+  pointer-events: none;
+  z-index: -1;
 }
 
 .profile-nickname {
@@ -1011,8 +1176,8 @@ async function handleForgot() {
 
 .nickname-text {
   font-size: 16px;
-  font-weight: 500;
-  color: #1a1a1a;
+  font-weight: 600;
+  color: var(--lx-login-ink);
   line-height: 1.3;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1023,39 +1188,53 @@ async function handleForgot() {
   color: #8f959e;
   cursor: pointer;
   flex-shrink: 0;
+  transition: color 0.15s ease, transform 0.15s ease;
 }
 
 .nickname-chevron:hover {
-  color: #12b7f5;
+  color: var(--lx-login-accent);
+  transform: translateY(1px);
+}
+
+.lx-panel {
+  width: 100%;
+  position: relative;
+  z-index: 1;
+  animation: rise-in 0.55s ease 0.1s both;
 }
 
 .password-panel {
-  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: 8px;
-  position: relative;
-  z-index: 1;
   flex: 1;
   min-height: 0;
 }
 
 .quick-panel {
-  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: 10px;
-  position: relative;
-  z-index: 1;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .options {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 2px;
+  padding: 2px 2px 0;
 }
 
 .options--quick {
@@ -1066,31 +1245,49 @@ async function handleForgot() {
 }
 
 .options :deep(.n-checkbox .n-checkbox__label) {
-  font-size: 13px;
-  color: #6b7280;
+  font-size: 12.5px;
+  color: var(--lx-login-muted);
 }
 
 .options :deep(.n-checkbox.n-checkbox--checked .n-checkbox-box) {
-  background-color: #12b7f5;
-  border-color: #12b7f5;
+  background-color: var(--lx-login-accent);
+  border-color: var(--lx-login-accent);
 }
 
 .lx-field {
   width: 100%;
 }
 
+.field-ico {
+  color: #9aa3b2;
+}
+
 .lx-field :deep(.n-input-wrapper) {
-  background: #ffffff;
-  border-radius: 10px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  padding-left: 14px;
-  padding-right: 14px;
+  background: rgba(255, 255, 255, 0.88);
+  border-radius: 12px;
+  box-shadow:
+    0 1px 2px rgba(26, 35, 50, 0.04),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.9);
+  padding-left: 12px;
+  padding-right: 12px;
   min-height: 38px;
+  transition: box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.lx-field :deep(.n-input--focus .n-input-wrapper) {
+  background: #fff;
+  box-shadow:
+    0 0 0 3px rgba(18, 183, 245, 0.16),
+    inset 0 0 0 1px rgba(18, 183, 245, 0.45);
 }
 
 .lx-field :deep(.n-input__input-el) {
   font-size: 13px;
   height: 38px;
+}
+
+.lx-field :deep(.n-input__prefix) {
+  margin-right: 6px;
 }
 
 .captcha-row {
@@ -1100,53 +1297,78 @@ async function handleForgot() {
 }
 
 .captcha-img {
-  width: 110px;
+  width: 102px;
   height: 38px;
-  border-radius: 10px;
+  border-radius: 12px;
   cursor: pointer;
   border: none;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: inset 0 0 0 1px rgba(18, 183, 245, 0.12);
   flex-shrink: 0;
   object-fit: contain;
+  transition: transform 0.15s ease;
+}
+
+.captcha-img:hover {
+  transform: scale(1.02);
 }
 
 .captcha-img--placeholder {
   background: linear-gradient(135deg, #e8eef5 0%, #f5f7fa 100%);
   border: 1px dashed #c5d0dc;
+  box-shadow: none;
 }
 
 .captcha-input {
   flex: 1;
+  min-width: 0;
+}
+
+.captcha-refresh {
+  color: var(--lx-login-muted) !important;
 }
 
 .lx-login-btn {
   width: 100%;
   height: 40px;
-  margin-top: 10px;
+  margin-top: 8px;
   border: none;
   border-radius: 20px;
-  background: #12b7f5;
+  background: linear-gradient(135deg, #39c2f6 0%, #12b7f5 48%, #0aa6e0 100%);
   color: #fff;
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 2px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: background 0.15s ease, opacity 0.15s ease;
+  box-shadow:
+    0 8px 20px rgba(18, 183, 245, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, opacity 0.15s ease;
   -webkit-app-region: no-drag;
 }
 
 .lx-login-btn:hover:not(:disabled) {
-  background: #0aa6e0;
+  filter: brightness(1.04);
+  transform: translateY(-1px);
+  box-shadow:
+    0 10px 24px rgba(18, 183, 245, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.lx-login-btn:active:not(:disabled) {
+  transform: translateY(0);
+  filter: brightness(0.98);
 }
 
 .lx-login-btn:disabled,
 .lx-login-btn.loading {
   cursor: default;
-  opacity: 0.92;
+  opacity: 0.9;
+  transform: none;
 }
 
 .btn-spinner {
@@ -1171,19 +1393,23 @@ async function handleForgot() {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 12px;
   font-size: 13px;
   position: relative;
   z-index: 1;
+  animation: rise-in 0.55s ease 0.16s both;
 }
 
 .footer-link {
-  color: #12b7f5;
+  color: var(--lx-login-accent-deep);
   text-decoration: none;
+  font-weight: 500;
+  transition: color 0.15s ease;
 }
 
 .footer-link:hover {
-  text-decoration: underline;
+  color: #088fc4;
+  text-decoration: none;
 }
 
 .footer-link.disabled {
@@ -1193,7 +1419,10 @@ async function handleForgot() {
 }
 
 .footer-sep {
-  color: #c5ccd3;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #c5ccd3;
   user-select: none;
 }
 
@@ -1231,14 +1460,14 @@ async function handleForgot() {
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
-  background: #f0f8ff;
-  border-left: 3px solid #12b7f5;
-  border-radius: 4px;
+  background: linear-gradient(135deg, #f0f8ff 0%, #f7fbff 100%);
+  border-left: 3px solid var(--lx-login-accent);
+  border-radius: 8px;
   margin-bottom: 8px;
 }
 
 .forgot-tip-icon {
-  color: #12b7f5;
+  color: var(--lx-login-accent);
   flex-shrink: 0;
 }
 
@@ -1261,7 +1490,7 @@ async function handleForgot() {
 }
 
 .resend-link {
-  color: #12b7f5;
+  color: var(--lx-login-accent);
   text-decoration: none;
   cursor: pointer;
 }
@@ -1278,5 +1507,16 @@ async function handleForgot() {
 
 .resend-sep {
   color: #ddd;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orb,
+  .brand-title,
+  .profile-block,
+  .lx-panel,
+  .footer,
+  .login-menu {
+    animation: none !important;
+  }
 }
 </style>

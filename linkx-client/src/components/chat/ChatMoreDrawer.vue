@@ -13,8 +13,6 @@ import { useChatModalsStore } from '../../stores/chatModals'
 // 会话操作：置顶、静音、屏蔽、清空、删除
 import { useAppStore } from '../../stores/app'
 // 全屏 overlay：帮助/反馈
-import { useOverlayStore } from '../../stores/overlay'
-// 联系人：删除好友
 import { useContactsStore } from '../../stores/contacts'
 // 置顶图标
 import PinIcon from '../icons/PinIcon.vue'
@@ -23,7 +21,6 @@ import { useI18n } from '../../i18n'
 const { t } = useI18n()
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
-const overlayStore = useOverlayStore()
 const contactsStore = useContactsStore()
 const message = useMessage()
 const dialog = useDialog()
@@ -41,7 +38,6 @@ const {
   removePrivateSessionByPeer,
   setNav
 } = appStore
-const { open: openOverlay } = overlayStore
 
 /**
  * 设置会话置顶。
@@ -137,8 +133,9 @@ function deleteFriend() {
 
 /** 打开帮助页引导用户举报 */
 function reportUser() {
-  openOverlay('help')
   closeMore()
+  // 跳转到独立帮助窗口（Overlay 上的 help 页已下线）
+  window.electronAPI?.openHelp?.()
   message.info(t('modals.reportHint'))
 }
 </script>

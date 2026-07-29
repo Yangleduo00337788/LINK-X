@@ -33,6 +33,7 @@
     "vueuc": "^0.4.65"
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.0",
     "@types/dompurify": "^3.0.5",
     "@types/marked": "^5.0.2",
     "@vitejs/plugin-vue": "^5.0.4",
@@ -43,8 +44,9 @@
     "electron-builder": "^24.13.3",
     "jsdom": "^24.0.0",
     "marked": "^18.0.5",
-    "@playwright/test": "^1.55.0",
+    "png-to-ico": "^3.0.2",
     "prettier": "^3.6.2",
+    "sharp": "^0.35.3",
     "typescript": "^5.4.5",
     "unocss": "^0.59.4",
     "vite": "^5.4.12",
@@ -56,6 +58,7 @@
   "build": {
     "appId": "com.linkx.app",
     "productName": "LinkX",
+    "icon": "build/icon",
     "directories": {
       "output": "release",
       "buildResources": "build"

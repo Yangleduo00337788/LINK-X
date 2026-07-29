@@ -14,6 +14,8 @@ declare global {
       openMomentsMedia: () => void           // 打开友链-发布图片/视频独立窗口
       openNoteEditor: () => void             // 打开笔记编辑器独立窗口
       openRegister?: () => void               // 打开注册独立窗口
+      openHelp?: () => void                   // 打开帮助独立窗口
+      openChatHistory?: () => void            // 打开聊天记录管理独立窗口
       isMaximized: () => Promise<boolean>     // 查询是否最大化
       isPinned: () => Promise<boolean>       // 查询是否置顶
       togglePin: () => Promise<boolean>     // 切换窗口置顶

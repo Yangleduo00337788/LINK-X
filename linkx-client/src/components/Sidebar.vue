@@ -62,8 +62,8 @@ const { setNav, logout, lock } = appStore
 const { openSelfProfile } = chatModalsStore
 // 解构打开设置方法
 const { openSettings } = settingsStore
-// 解构 Overlay 打开与关闭全部方法
-const { open: openOverlay, closeAll: closeOverlay } = overlayStore
+// 解构 Overlay 关闭全部方法
+const { closeAll: closeOverlay } = overlayStore
 
 // 获取 Naive UI 消息提示实例
 const message = useMessage()
@@ -206,8 +206,8 @@ function handleMenuSelect(key: string | number) {
     case 'history':
       runMenuAction(() => {
         prepareMenuAction()
-        setNav('chat')
-        openOverlay('chat-history') // 打开聊天记录管理 Overlay
+        // 打开聊天记录管理独立窗口
+        window.electronAPI?.openChatHistory?.()
       })
       break
     case 'update':
@@ -218,7 +218,8 @@ function handleMenuSelect(key: string | number) {
     case 'help':
       runMenuAction(() => {
         prepareMenuAction()
-        openOverlay('help') // 打开帮助 Overlay
+        // 打开帮助独立窗口
+        window.electronAPI?.openHelp?.()
       })
       break
     case 'lock':
@@ -259,6 +260,7 @@ function handleSelfAvatarClick(e: MouseEvent) {
     e
   )
 }
+
 </script>
 
 <template>
@@ -303,7 +305,7 @@ function handleSelfAvatarClick(e: MouseEvent) {
       </button>
     </div>
 
-    <!-- 底部工具按钮：更多菜单 -->
+    <!-- 底部：更多菜单（含聊天记录管理、帮助等） -->
     <div class="nav-bottom">
       <n-dropdown
         v-model:show="menuDropdownShow"

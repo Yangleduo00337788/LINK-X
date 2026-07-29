@@ -42,6 +42,16 @@ const router = createRouter({
       path: '/share/:token',   // 云盘公开分享落地页（免登录）
       name: 'share',
       component: () => import('../components/ShareLandingView.vue')
+    },
+    {
+      path: '/help',           // 帮助中心新页面（从左下角菜单进入）
+      name: 'help',
+      component: () => import('../views/HelpView.vue')
+    },
+    {
+      path: '/chat-history',   // 聊天记录管理新页面（从左下角菜单进入）
+      name: 'chat-history',
+      component: () => import('../views/ChatHistoryView.vue')
     }
   ]
 })

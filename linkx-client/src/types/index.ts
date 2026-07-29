@@ -20,9 +20,7 @@ export type SettingsTab =
 
 // 全屏 Overlay 页面标识，由 overlay store 栈管理
 export type OverlayPage =
-  | 'help'           // 帮助页
   | 'file-preview'   // 文件预览
-  | 'chat-history'   // 聊天记录
 
 /** 聊天会话（单聊或群聊列表项） */
 export interface ChatSession {

@@ -4,7 +4,7 @@
  */
 import { computed, ref, watch } from 'vue'
 import { NIcon, NInput, NEmpty, NDatePicker, useMessage } from 'naive-ui'
-import { ChatbubblesOutline, TimeOutline, SearchOutline } from '@vicons/ionicons5'
+import { ChatbubblesOutline, TimeOutline, SearchOutline, CloseOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../../../stores/app'
 import { useOverlayStore } from '../../../stores/overlay'
@@ -129,6 +129,10 @@ const currentSessionName = computed(() => {
   return sessions.value.find(s => s.id === currentSessionId.value)?.name || '—'
 })
 
+const totalSearchCount = computed(() =>
+  searchResults.value.reduce((sum, r) => sum + r.messages.length, 0)
+)
+
 function historyPreview(msg: (typeof currentMessages.value)[number]) {
   if (msg.type === 'file') return `${t('overlay.file')} ${msg.fileName || msg.content}`
   if (msg.type === 'image' || msg.isImage) return t('overlay.image')
@@ -164,8 +168,15 @@ function clearTimeRange() {
 
 <template>
   <div class="page-wrap history-page">
+    <!-- 搜索栏 -->
     <div class="search-bar">
-      <n-input v-model:value="searchQuery" :placeholder="t('overlay.searchHistory')" clearable>
+      <n-input
+        v-model:value="searchQuery"
+        :placeholder="t('overlay.searchHistory')"
+        clearable
+        size="medium"
+        class="search-input"
+      >
         <template #prefix>
           <n-icon :component="SearchOutline" />
         </template>
@@ -178,6 +189,7 @@ function clearTimeRange() {
           size="small"
           :start-placeholder="t('overlay.searchFrom')"
           :end-placeholder="t('overlay.searchTo')"
+          class="time-picker"
         />
         <button
           v-if="timeRange"
@@ -185,6 +197,7 @@ function clearTimeRange() {
           class="clear-time"
           @click="clearTimeRange"
         >
+          <n-icon :component="CloseOutline" :size="12" />
           {{ t('overlay.clearTimeRange') }}
         </button>
       </div>
@@ -194,21 +207,18 @@ function clearTimeRange() {
       <section class="panel-card history-card">
         <div class="history-hero">
           <div class="history-avatar">
-            <n-icon :component="SearchOutline" :size="28" />
+            <n-icon :component="SearchOutline" :size="26" />
           </div>
           <div class="history-meta">
             <h2 class="history-name">{{ t('overlay.searchResults') }}</h2>
             <p class="history-sub">
-              {{
-                t('overlay.resultCount', {
-                  n: searchResults.reduce((sum, r) => sum + r.messages.length, 0)
-                })
-              }}
+              {{ t('overlay.resultCount', { n: totalSearchCount }) }}
             </p>
           </div>
+          <span v-if="searching" class="searching-tag">{{ t('overlay.searching') }}</span>
         </div>
 
-        <div v-if="searchResults.length === 0" class="empty-search">
+        <div v-if="searchResults.length === 0 && !searching" class="empty-search">
           <n-empty :description="t('overlay.noMatchHistory')" />
         </div>
 
@@ -216,9 +226,9 @@ function clearTimeRange() {
           <div v-for="result in searchResults" :key="result.sessionId" class="result-group">
             <div class="result-session" @click="goToMessage(result.sessionId)">
               <span class="session-name">{{ result.sessionName }}</span>
-              <span class="result-count">{{
-                t('overlay.countUnit', { n: result.messages.length })
-              }}</span>
+              <span class="result-count">
+                {{ t('overlay.countUnit', { n: result.messages.length }) }}
+              </span>
             </div>
             <div
               v-for="msg in result.messages.slice(0, 5)"
@@ -249,7 +259,7 @@ function clearTimeRange() {
       <section class="panel-card history-card">
         <div class="history-hero">
           <div class="history-avatar">
-            <n-icon :component="ChatbubblesOutline" :size="28" />
+            <n-icon :component="ChatbubblesOutline" :size="26" />
           </div>
           <div class="history-meta">
             <h2 class="history-name">{{ currentSessionName }}</h2>
@@ -288,14 +298,24 @@ function clearTimeRange() {
 @import '../overlay-common.css';
 
 .history-page {
-  padding: 16px;
+  padding: 18px 4px 4px;
 }
 
+/* 搜索栏 —— 与上方 hero 同一节奏 */
 .search-bar {
-  margin-bottom: 16px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  padding: 14px 16px;
+  background: var(--lx-bg-card);
+  border: 1px solid var(--lx-border-light);
+  border-radius: 14px;
+  box-shadow: var(--lx-shadow-soft, 0 2px 12px rgba(0, 0, 0, 0.03));
+}
+
+.search-input :deep(.n-input__input-el),
+.search-input :deep(.n-input__placeholder) {
+  font-size: 14px;
 }
 
 .time-filters {
@@ -305,18 +325,35 @@ function clearTimeRange() {
   flex-wrap: wrap;
 }
 
-.clear-time {
-  border: none;
-  background: transparent;
-  color: var(--lx-accent);
-  cursor: pointer;
-  font-size: 13px;
-  padding: 0;
+.time-picker :deep(.n-input) {
+  border-radius: 8px;
 }
 
+.clear-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: var(--lx-bg-panel);
+  color: var(--lx-text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.clear-time:hover {
+  background: var(--lx-accent-soft);
+  color: var(--lx-accent);
+}
+
+/* hero 头 —— 更柔和 */
 .history-card {
-  background: var(--lx-bg-card);
-  border-radius: var(--lx-radius);
+  display: flex;
+  flex-direction: column;
+  min-height: min(560px, calc(100vh - 200px));
+  padding: 0;
   overflow: hidden;
 }
 
@@ -324,109 +361,161 @@ function clearTimeRange() {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 18px;
+  padding: 18px 20px;
+  background: linear-gradient(
+    135deg,
+    var(--lx-accent-soft),
+    color-mix(in srgb, var(--lx-accent-soft) 50%, transparent)
+  );
   border-bottom: 1px solid var(--lx-border-light);
 }
 
 .history-avatar {
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  background: var(--lx-accent-soft);
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--lx-bg-card);
+  color: var(--lx-accent);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--lx-accent);
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--lx-accent) 18%, transparent);
 }
 
 .history-meta {
   flex: 1;
+  min-width: 0;
 }
 
 .history-name {
+  margin: 0;
   font-size: 17px;
   font-weight: 600;
   color: var(--lx-text-body);
-  margin: 0;
+  letter-spacing: 0.2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .history-sub {
-  font-size: 13px;
-  color: var(--lx-text-muted);
   margin: 4px 0 0;
   display: flex;
   align-items: center;
   gap: 4px;
+  font-size: 13px;
+  color: var(--lx-text-secondary);
 }
 
+.searching-tag {
+  font-size: 12px;
+  color: var(--lx-accent);
+  background: var(--lx-bg-card);
+  padding: 4px 10px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+/* 空状态 */
 .empty-search,
 .empty-history {
-  padding: 40px 20px;
+  padding: 48px 20px;
   text-align: center;
 }
 
+/* 滚动容器 */
 .history-scroll,
 .search-results {
-  max-height: 500px;
+  flex: 1;
   overflow-y: auto;
-  padding: 12px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
+/* 搜索结果分组 */
 .result-group {
-  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .result-session {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
+  padding: 10px 14px;
   background: var(--lx-bg-panel);
-  border-radius: var(--lx-radius);
+  border-radius: 10px;
   cursor: pointer;
-  margin-bottom: 8px;
+  transition: background 0.15s ease, transform 0.12s ease;
+  font-weight: 500;
 }
 
 .result-session:hover {
   background: var(--lx-accent-soft);
 }
 
+.result-session:active {
+  transform: scale(0.99);
+}
+
 .session-name {
   font-size: 14px;
-  font-weight: 500;
   color: var(--lx-text-body);
+  font-weight: 500;
 }
 
 .result-count {
   font-size: 12px;
   color: var(--lx-text-muted);
+  background: var(--lx-bg-card);
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--lx-border-light);
 }
 
-.result-item {
+/* 消息项 */
+.result-item,
+.history-item {
   display: flex;
-  margin-bottom: 8px;
 }
 
-.result-item.self {
+.result-item.self,
+.history-item.self {
   justify-content: flex-end;
 }
 
-.result-bubble {
-  max-width: 75%;
+.result-bubble,
+.history-bubble {
+  max-width: min(86%, 480px);
   padding: 10px 14px;
   border-radius: 12px;
   background: var(--lx-bg-panel);
+  border: 1px solid var(--lx-border-light);
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.12s ease;
 }
 
-.result-item.self .result-bubble {
+.result-bubble:hover,
+.history-bubble:hover {
+  border-color: color-mix(in srgb, var(--lx-accent) 35%, transparent);
+}
+
+.result-item.self .result-bubble,
+.history-item.self .history-bubble {
   background: var(--lx-accent-soft);
+  border-color: color-mix(in srgb, var(--lx-accent) 25%, transparent);
 }
 
-.result-text {
+.result-text,
+.history-text {
   font-size: 14px;
   color: var(--lx-text-body);
   margin: 0;
-  line-height: 1.4;
+  line-height: 1.55;
   word-break: break-word;
 }
 
@@ -437,46 +526,13 @@ function clearTimeRange() {
   border-radius: 2px;
 }
 
-.result-time {
-  font-size: 11px;
-  color: var(--lx-text-muted);
-  margin-top: 4px;
-  display: block;
-}
-
-.history-item {
-  display: flex;
-  margin-bottom: 8px;
-}
-
-.history-item.self {
-  justify-content: flex-end;
-}
-
-.history-bubble {
-  max-width: 75%;
-  padding: 10px 14px;
-  border-radius: 12px;
-  background: var(--lx-bg-panel);
-}
-
-.history-item.self .history-bubble {
-  background: var(--lx-accent-soft);
-}
-
-.history-text {
-  font-size: 14px;
-  color: var(--lx-text-body);
-  margin: 0;
-  line-height: 1.4;
-  word-break: break-word;
-}
-
+.result-time,
 .history-time {
   font-size: 11px;
   color: var(--lx-text-muted);
-  margin-top: 4px;
+  margin-top: 6px;
   display: block;
+  text-align: right;
 }
 
 .result-more {

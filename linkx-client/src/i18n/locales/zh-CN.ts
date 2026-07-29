@@ -655,7 +655,7 @@ export default {
   },
   register: {
     title: '注册账号',
-    subtitle: '创建 LinkX 账号',
+    subtitle: '开启你的 LinkX 之旅',
     username: '用户名',
     password: '密码',
     nickname: '昵称',
@@ -1312,7 +1312,12 @@ export default {
     faqDarkQ: '如何切换深色模式？',
     faqDarkA: '点击侧栏设置图标，或侧栏调色盘进入外观设置。',
     faqMomentsQ: '友链如何使用？',
-    faqMomentsA: '点击侧栏友链：桌面端打开独立窗口；网页端在主栏浏览动态，可发布、点赞与评论。'
+    faqMomentsA: '点击侧栏友链：桌面端打开独立窗口；网页端在主栏浏览动态，可发布、点赞与评论。',
+    helpTitle: '帮助中心',
+    helpSub: '在这里找答案，或把问题告诉我们',
+    helpFooter: 'LinkX · 让沟通更简单',
+    feedbackContent: '反馈内容',
+    searching: '搜索中…'
   },
   shareLanding: {
     title: '云盘分享',

@@ -979,7 +979,24 @@ ipcMain.on('theme-changed', (_e, theme: string) => {
   applyAllWindowBackgrounds(theme)
 })
 
+/** 托盘图标：优先读取 build 目录下的 icon-32.png，回退到手绘蓝点 */
 function createTrayIcon(): Electron.NativeImage {
+  const candidates = [
+    path.join(__dirname, '../../build/icon-32.png'),
+    path.join(__dirname, '../../electron/icon-32.png'),
+    path.join(__dirname, '../build/icon-32.png')
+  ]
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p)) {
+        const img = nativeImage.createFromPath(p)
+        if (!img.isEmpty()) return img
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+  // 回退：16x16 纯蓝圆点，保证最小可用托盘体验
   const size = 16
   const canvas = Buffer.alloc(size * size * 4)
   for (let y = 0; y < size; y++) {
@@ -1332,6 +1349,72 @@ function createRegisterWindow() {
 
 ipcMain.on('window-open-register', () => {
   createRegisterWindow()
+})
+
+/**
+ * 帮助 / 聊天记录管理 独立窗口。
+ *
+ * 这两个页面与友链/笔记编辑器等"独立窗口"性质相同：
+ *  - 复用主窗口的同一个 Vite 入口（dist/index.html + hash 路由）
+ *  - 已有则 focus，否则 new BrowserWindow
+ *  - 主题跟着主窗口走
+ */
+function createHelpStandaloneWindow(hashPath: 'help' | 'chat-history', size: { width: number; height: number }) {
+  const stateRef = hashPath === 'help' ? helpWindowState : chatHistoryWindowState
+  let win = stateRef.win
+  if (win && !win.isDestroyed()) {
+    if (win.isMinimized()) win.restore()
+    win.focus()
+    return
+  }
+
+  win = new BrowserWindow({
+    width: size.width,
+    height: size.height,
+    minWidth: size.width,
+    minHeight: size.height,
+    resizable: true,
+    ...framelessChrome(),
+    show: false,
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
+    }
+  })
+  prepareFramelessWindow(win)
+
+  win.once('ready-to-show', () => {
+    win?.show()
+  })
+
+  if (isDev && process.env.VITE_DEV_SERVER_URL) {
+    win.loadURL(process.env.VITE_DEV_SERVER_URL + '#/' + hashPath)
+  } else {
+    win.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: '/' + hashPath })
+  }
+
+  win.on('closed', () => {
+    stateRef.win = null
+  })
+
+  stateRef.win = win
+}
+
+interface StandaloneWindowState {
+  win: BrowserWindow | null
+}
+
+const helpWindowState: StandaloneWindowState = { win: null }
+const chatHistoryWindowState: StandaloneWindowState = { win: null }
+
+ipcMain.on('window-open-help', () => {
+  createHelpStandaloneWindow('help', { width: 720, height: 760 })
+})
+
+ipcMain.on('window-open-chat-history', () => {
+  createHelpStandaloneWindow('chat-history', { width: 820, height: 760 })
 })
 
 /** [P1-E2] 判断 URL 是否为应用自身源（开发环境为 Vite Dev Server，生产环境为 file://） */

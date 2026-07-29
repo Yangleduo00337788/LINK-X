@@ -653,7 +653,7 @@ export default {
   },
   register: {
     title: 'Register',
-    subtitle: 'Create a LinkX account',
+    subtitle: 'Start your LinkX journey',
     username: 'Username',
     password: 'Password',
     nickname: 'Nickname',
@@ -1310,7 +1310,12 @@ export default {
     faqDarkQ: 'How do I switch dark mode?',
     faqDarkA: 'Open Settings from the sidebar, or use the theme palette for Appearance.',
     faqMomentsQ: 'How do I use Moments?',
-    faqMomentsA: 'Click Moments in the sidebar. Desktop opens a separate window; on the web the feed appears in the main pane where you can publish, like, and comment.'
+    faqMomentsA: 'Click Moments in the sidebar. Desktop opens a separate window; on the web the feed appears in the main pane where you can publish, like, and comment.',
+    helpTitle: 'Help Center',
+    helpSub: 'Find answers here, or tell us what went wrong',
+    helpFooter: 'LinkX · Simpler conversations',
+    feedbackContent: 'Feedback',
+    searching: 'Searching…'
   },
   shareLanding: {
     title: 'Shared drive file',

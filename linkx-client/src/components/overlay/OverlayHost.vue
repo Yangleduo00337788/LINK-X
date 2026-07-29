@@ -22,18 +22,14 @@ const { close } = overlayStore
 const { t } = useI18n()
 
 // 异步加载各覆盖层子页面（按需加载）
-const HelpPage = defineAsyncComponent(() => import('./pages/HelpPage.vue'))
 const FilePreviewPage = defineAsyncComponent(() => import('./pages/FilePreviewPage.vue'))
-const ChatHistoryPage = defineAsyncComponent(() => import('./pages/ChatHistoryPage.vue'))
 
 // 根据当前页面计算标题栏文案
 const pageTitle = computed(() => {
   const p = currentPage.value
   if (!p) return ''
   const titleMap: Record<OverlayPage, string> = {
-    help: t('overlay.help'),
-    'file-preview': t('overlay.filePreview'),
-    'chat-history': t('overlay.chatHistory')
+    'file-preview': t('overlay.filePreview')
   }
   return titleMap[p]
 })
@@ -56,9 +52,7 @@ const pageTitle = computed(() => {
 
     <!-- 覆盖层主体：按 currentPage 动态渲染子页面 -->
     <div class="overlay-body">
-      <HelpPage v-if="currentPage === 'help'" />
-      <FilePreviewPage v-else-if="currentPage === 'file-preview'" />
-      <ChatHistoryPage v-else-if="currentPage === 'chat-history'" />
+      <FilePreviewPage v-if="currentPage === 'file-preview'" />
     </div>
   </div>
 </template>
