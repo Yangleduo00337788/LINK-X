@@ -39,12 +39,19 @@ import java.nio.charset.StandardCharsets;
 @EnableScheduling
 public class LinkXServerApplication {
 
+    static {
+        // 须在 sun.net.www.protocol.http.HttpURLConnection 类初始化前设置，
+        // 否则钉 IP 代拉时 Host 头会被 JDK 静默丢弃。
+        System.setProperty("sun.net.http.allowRestrictedHeaders", "true");
+    }
+
     /**
      * Java 程序主入口方法。
      *
      * @param args 命令行启动参数（当前项目未使用，保留标准签名）
      */
     public static void main(String[] args) {
+        System.setProperty("sun.net.http.allowRestrictedHeaders", "true");
         DotEnvBootstrap.load();
         SpringApplication.run(LinkXServerApplication.class, args);
         System.out.println("(♥◠‿◠)ﾉﾞ  LinkX 单体后端服务启动成功   ლ(´ڡ`ლ)ﾞ");

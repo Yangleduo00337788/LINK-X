@@ -40,7 +40,10 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         response.setHeader("X-Content-Type-Options", "nosniff");
         response.setHeader("X-Frame-Options", "DENY");
         response.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-        response.setHeader("Cache-Control", "no-store");
+        // 媒体代理自带短时 Cache-Control，避免全局 no-store 覆盖导致重复代拉
+        if (!isMediaProxyPath(request)) {
+            response.setHeader("Cache-Control", "no-store");
+        }
         response.setHeader("X-Permitted-Cross-Domain-Policies", "none");
         response.setHeader("Permissions-Policy", "geolocation=(self), microphone=(self), camera=(self)");
 
@@ -58,13 +61,11 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
                         + "base-uri 'self'; "
                         + "form-action 'self'; "
                         + "frame-ancestors 'none'; "
-                        // [P3-17 技术债] script-src 保留 'unsafe-inline'：Vue 运行时模板编译需要内联脚本，
-                        // 移除会导致前端白屏。后续 Vue 改为全编译构建（runtime-only + 预编译模板）后可移除。
-                        // 优化计划：前端构建链切换为仅引用预编译模板组件，再收紧为 script-src 'self'。
+                        // [P2-S2] script-src 保留 'unsafe-inline'：Vue 运行时模板编译需要内联脚本，
+                        // 移除会导致前端白屏。需前端全编译构建（runtime-only + 预编译模板）后移除。
                         + "script-src 'self' 'unsafe-inline'; "
-                        // [P3-17 技术债] style-src 保留 'unsafe-inline'：NaiveUI 等组件库运行时动态注入样式需要，
-                        // 移除会导致样式错乱。后续可采用 CSP nonce / hash 方案后移除。
-                        // 优化计划：构建期抽取所有样式为外部文件，或为内联样式生成 hash 白名单。
+                        // [P2-S2] style-src 保留 'unsafe-inline'：NaiveUI 等组件库运行时动态注入样式需要，
+                        // 移除会导致样式错乱。需前端构建期抽取样式为外部文件后移除。
                         + "style-src 'self' 'unsafe-inline'; "
                         + "connect-src 'self' %s %s;",
                 minioOrigin, minioOrigin,
@@ -77,6 +78,15 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private static boolean isMediaProxyPath(HttpServletRequest request) {
+        String uri = request.getRequestURI();
+        if (uri == null) {
+            return false;
+        }
+        // context-path=/api 时为 /api/media/external
+        return uri.endsWith("/media/external") || uri.contains("/media/external?");
     }
 
     private boolean isSecureRequest(HttpServletRequest request) {

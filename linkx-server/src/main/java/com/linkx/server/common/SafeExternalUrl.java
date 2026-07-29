@@ -24,6 +24,12 @@ import java.util.Locale;
  */
 public final class SafeExternalUrl {
 
+    static {
+        // 钉 IP 建连时必须手动设 Host；JDK 默认把 Host 当受限头直接丢弃，
+        // CDN/防盗链会因此 403/404 →「外链图片不可用」。
+        System.setProperty("sun.net.http.allowRestrictedHeaders", "true");
+    }
+
     private SafeExternalUrl() {
     }
 
@@ -93,32 +99,49 @@ public final class SafeExternalUrl {
     /**
      * 用已校验的公网 IP 建连，Host/SNI 仍使用原始主机名，避免二次 DNS 解析。
      */
+    @SuppressWarnings("deprecation")
     public static HttpURLConnection openPinnedConnection(Validated validated) throws IOException {
         URI uri = validated.uri();
         InetAddress ip = validated.pinnedAddress();
         String host = uri.getHost();
         int port = uri.getPort();
+        boolean https = "https".equalsIgnoreCase(uri.getScheme());
+        int defaultPort = https ? 443 : 80;
         if (port < 0) {
-            port = "https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80;
+            port = defaultPort;
         }
         String file = buildFile(uri);
-        // 对 IPv6 用方括号；URL 构造走字面量 IP，不再触发 DNS
-        URL url = new URL(uri.getScheme(), ip.getHostAddress(), port, file);
+        // IPv6 字面量必须带方括号，否则 URL 解析失败
+        String ipLiteral = formatIpLiteral(ip);
+        URL url = new URL(uri.getScheme(), ipLiteral, port, file);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         String hostHeader = host;
-        int defaultPort = "https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80;
         if (uri.getPort() > 0 && uri.getPort() != defaultPort) {
             hostHeader = host + ":" + uri.getPort();
         }
+        // 依赖 allowRestrictedHeaders=true，否则 JDK 静默丢弃 Host
         conn.setRequestProperty("Host", hostHeader);
-        if (conn instanceof HttpsURLConnection https) {
+        if (conn instanceof HttpsURLConnection httpsConn) {
             SSLSocketFactory defaultFactory = HttpsURLConnection.getDefaultSSLSocketFactory();
-            https.setSSLSocketFactory(new SniSslSocketFactory(defaultFactory, host));
+            httpsConn.setSSLSocketFactory(new SniSslSocketFactory(defaultFactory, host));
             // 证书校验按原始主机名，而非字面量 IP
-            https.setHostnameVerifier((hostname, session) ->
+            httpsConn.setHostnameVerifier((hostname, session) ->
                     HttpsURLConnection.getDefaultHostnameVerifier().verify(host, session));
         }
         return conn;
+    }
+
+    static String formatIpLiteral(InetAddress ip) {
+        String addr = ip.getHostAddress();
+        // 去掉可能的 IPv6 scope id（如 fe80::1%eth0）
+        int scope = addr.indexOf('%');
+        if (scope >= 0) {
+            addr = addr.substring(0, scope);
+        }
+        if (addr.contains(":")) {
+            return "[" + addr + "]";
+        }
+        return addr;
     }
 
     private static String buildFile(URI uri) {
@@ -203,7 +226,8 @@ public final class SafeExternalUrl {
         }
 
         @Override
-        public Socket createSocket(InetAddress address, int port, InetAddress localAddress, int localPort) throws IOException {
+        public Socket createSocket(InetAddress address, int port, InetAddress localAddress, int localPort)
+                throws IOException {
             return configure(delegate.createSocket(address, port, localAddress, localPort));
         }
     }

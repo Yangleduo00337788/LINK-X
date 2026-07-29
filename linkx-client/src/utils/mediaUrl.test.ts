@@ -23,7 +23,12 @@ describe('mediaUrl', () => {
     expect(isEphemeralMediaUrl('https://x?X-Amz-Signature=1')).toBe(true)
     expect(isEphemeralMediaUrl('http://localhost:9000/b/a')).toBe(true)
     expect(isEphemeralMediaUrl('https://cdn/a.jpg')).toBe(false)
+    expect(isEphemeralMediaUrl('/media/external?u=https%3A%2F%2Fx&e=1&s=ab')).toBe(true)
+    expect(
+      isEphemeralMediaUrl('http://127.0.0.1:8080/api/media/external?u=https%3A%2F%2Fx&e=1&s=ab')
+    ).toBe(true)
     expect(stripEphemeralMediaUrl('https://x?X-Amz-Signature=1')).toBe('')
+    expect(stripEphemeralMediaUrl('/media/external?u=1&e=1&s=1')).toBe('')
     expect(stripEphemeralMediaUrl('https://cdn/a.jpg')).toBe('https://cdn/a.jpg')
     expect(stripEphemeralMediaUrl(null)).toBe('')
   })

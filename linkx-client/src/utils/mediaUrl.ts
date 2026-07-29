@@ -22,6 +22,7 @@ export function isDisplayableMediaUrl(url?: string | null): boolean {
  * 是否为不宜长期落盘的媒体地址。
  * - MinIO/S3 预签名（带 X-Amz-*，会过期）
  * - 本机 MinIO 直链（私有桶，无签名也会 403）
+ * - 朋友圈外链 HMAC 代理（/media/external?...&e=&s=，会过期）
  */
 export function isEphemeralMediaUrl(url?: string | null): boolean {
   if (!url) return false
@@ -29,6 +30,7 @@ export function isEphemeralMediaUrl(url?: string | null): boolean {
   if (!v) return false
   if (/[?&]X-Amz-/i.test(v)) return true
   if (/:\/\/(localhost|127\.0\.0\.1|\[::1\]):9000\//i.test(v)) return true
+  if (/\/media\/external(?:\?|$)/i.test(v)) return true
   return false
 }
 

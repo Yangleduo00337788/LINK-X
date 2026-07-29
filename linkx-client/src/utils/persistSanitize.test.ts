@@ -21,6 +21,14 @@ describe('isEphemeralMediaUrl', () => {
     expect(isEphemeralMediaUrl('http://127.0.0.1:9000/linkx/a.png')).toBe(true)
   })
 
+  it('detects HMAC media proxy urls', () => {
+    expect(isEphemeralMediaUrl('/media/external?u=https%3A%2F%2Fcdn%2Fa.png&e=1&s=ab')).toBe(true)
+    expect(
+      isEphemeralMediaUrl('http://127.0.0.1:8080/api/media/external?u=1&e=1&s=1')
+    ).toBe(true)
+    expect(stripEphemeralMediaUrl('/media/external?u=1&e=1&s=1')).toBe('')
+  })
+
   it('keeps external and data urls', () => {
     expect(isEphemeralMediaUrl('https://api.dicebear.com/7.x/adventurer/svg?seed=a')).toBe(false)
     expect(isEphemeralMediaUrl('data:image/png;base64,abc')).toBe(false)

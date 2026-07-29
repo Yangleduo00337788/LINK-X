@@ -26,10 +26,12 @@ import java.util.Locale;
 @RequiredArgsConstructor
 public class ExternalMediaProxyServiceImpl implements ExternalMediaProxyService {
 
-    private static final long PROXY_TTL_SECONDS = 3600L;
+    /** 与朋友圈长会话对齐；前端仍将代理 URL 视为临时地址不落盘 */
+    private static final long PROXY_TTL_SECONDS = 6 * 3600L;
     private static final int CONNECT_TIMEOUT_MS = 5_000;
     private static final int READ_TIMEOUT_MS = 10_000;
     private static final int MAX_BYTES = 15 * 1024 * 1024;
+    private static final int MAX_REDIRECTS = 5;
 
     private final LinkxProperties linkxProperties;
 
@@ -53,10 +55,13 @@ public class ExternalMediaProxyServiceImpl implements ExternalMediaProxyService 
             throw new CustomException(400, "无效的代理参数");
         }
         long now = Instant.now().getEpochSecond();
-        if (expiresEpochSec < now || expiresEpochSec > now + PROXY_TTL_SECONDS + 60) {
+        if (expiresEpochSec < now) {
             throw new CustomException(403, "代理链接已过期");
         }
-        // 校验并钉死解析到的公网 IP，后续建连不再二次 DNS，防 rebinding
+        if (expiresEpochSec > now + PROXY_TTL_SECONDS + 60) {
+            throw new CustomException(403, "代理签名无效");
+        }
+        // 先按调用方 URL 验签（与签发时 canonical 一致），再允许安全跟随跳转
         SafeExternalUrl.Validated validated = SafeExternalUrl.parseAndValidatePinned(url);
         URI uri = validated.uri();
         String canonical = uri.toString();
@@ -67,41 +72,59 @@ public class ExternalMediaProxyServiceImpl implements ExternalMediaProxyService 
 
         HttpURLConnection conn = null;
         try {
-            conn = SafeExternalUrl.openPinnedConnection(validated);
-            conn.setInstanceFollowRedirects(false);
-            conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
-            conn.setReadTimeout(READ_TIMEOUT_MS);
-            conn.setRequestMethod("GET");
-            conn.setRequestProperty("User-Agent", "LinkX-MediaProxy/1.0");
-            conn.setRequestProperty("Accept", "image/*,*/*;q=0.8");
-            // 不转发 Referer，降低防盗链与追踪耦合
-            int code = conn.getResponseCode();
-            if (code != 200) {
-                throw new CustomException(502, "外链图片不可用");
-            }
-            String contentType = conn.getContentType();
-            if (contentType == null || !contentType.toLowerCase(Locale.ROOT).startsWith("image/")) {
-                throw new CustomException(400, "外链不是图片资源");
-            }
-            long contentLength = conn.getContentLengthLong();
-            if (contentLength > MAX_BYTES) {
-                throw new CustomException(400, "外链图片过大");
-            }
-            try (InputStream in = conn.getInputStream();
-                 ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-                byte[] buf = new byte[8192];
-                int n;
-                int total = 0;
-                while ((n = in.read(buf)) >= 0) {
-                    total += n;
-                    if (total > MAX_BYTES) {
-                        throw new CustomException(400, "外链图片过大");
-                    }
-                    out.write(buf, 0, n);
+            for (int hop = 0; hop <= MAX_REDIRECTS; hop++) {
+                if (conn != null) {
+                    conn.disconnect();
                 }
-                String ct = contentType.split(";", 2)[0].trim();
-                return new ProxiedImage(out.toByteArray(), ct);
+                conn = SafeExternalUrl.openPinnedConnection(validated);
+                conn.setInstanceFollowRedirects(false);
+                conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
+                conn.setReadTimeout(READ_TIMEOUT_MS);
+                conn.setRequestMethod("GET");
+                conn.setRequestProperty("User-Agent", "LinkX-MediaProxy/1.0");
+                conn.setRequestProperty("Accept", "image/*,*/*;q=0.8");
+                // 不转发 Referer，降低防盗链与追踪耦合
+                int code = conn.getResponseCode();
+                if (isRedirect(code)) {
+                    if (hop >= MAX_REDIRECTS) {
+                        throw new CustomException(502, "外链图片不可用");
+                    }
+                    String location = conn.getHeaderField("Location");
+                    if (!StringUtils.hasText(location)) {
+                        throw new CustomException(502, "外链图片不可用");
+                    }
+                    URI next = validated.uri().resolve(location.trim());
+                    validated = SafeExternalUrl.parseAndValidatePinned(next.toString());
+                    continue;
+                }
+                if (code != 200) {
+                    throw new CustomException(502, "外链图片不可用");
+                }
+                String contentType = conn.getContentType();
+                if (contentType == null || !contentType.toLowerCase(Locale.ROOT).startsWith("image/")) {
+                    throw new CustomException(400, "外链不是图片资源");
+                }
+                long contentLength = conn.getContentLengthLong();
+                if (contentLength > MAX_BYTES) {
+                    throw new CustomException(400, "外链图片过大");
+                }
+                try (InputStream in = conn.getInputStream();
+                     ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+                    byte[] buf = new byte[8192];
+                    int n;
+                    int total = 0;
+                    while ((n = in.read(buf)) >= 0) {
+                        total += n;
+                        if (total > MAX_BYTES) {
+                            throw new CustomException(400, "外链图片过大");
+                        }
+                        out.write(buf, 0, n);
+                    }
+                    String ct = contentType.split(";", 2)[0].trim();
+                    return new ProxiedImage(out.toByteArray(), ct);
+                }
             }
+            throw new CustomException(502, "外链图片不可用");
         } catch (CustomException e) {
             throw e;
         } catch (Exception e) {
@@ -112,6 +135,10 @@ public class ExternalMediaProxyServiceImpl implements ExternalMediaProxyService 
                 conn.disconnect();
             }
         }
+    }
+
+    private static boolean isRedirect(int code) {
+        return code == 301 || code == 302 || code == 303 || code == 307 || code == 308;
     }
 
     private static final String PROXY_KEY_PURPOSE = "linkx-media-proxy-v1";

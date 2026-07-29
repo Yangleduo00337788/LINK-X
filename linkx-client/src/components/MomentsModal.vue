@@ -41,7 +41,7 @@ import { useContactsStore } from '../stores/contacts'
 // 主题同步工具
 import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
 // 媒体地址规范化
-import { normalizeMediaUrl } from '../utils/mediaUrl'
+import { normalizeMediaUrl, isEphemeralMediaUrl } from '../utils/mediaUrl'
 // 本地生成默认头像/封面
 import { generateDefaultAvatar, generateDefaultBanner } from '../utils/defaultAvatar'
 // 空状态组件
@@ -116,6 +116,36 @@ function onPostAvatarError(post: { id: string; avatar?: string }) {
   const url = normalizeMediaUrl(post.avatar)
   if (!url) return
   failedAvatars.value = { ...failedAvatars.value, [post.id]: url }
+  // 预签名/代理头像过期：合并刷新列表换新签名
+  if (isEphemeralMediaUrl(url)) {
+    void recoverEphemeralMomentsMedia()
+  }
+}
+
+/** 代理/预签名图裂图时防抖拉列表，换新 HMAC/预签名（避免长会话「代理链接已过期」） */
+let mediaRecoverTimer: ReturnType<typeof setTimeout> | null = null
+let mediaRecoverInFlight = false
+
+function recoverEphemeralMomentsMedia() {
+  if (mediaRecoverInFlight) return
+  if (mediaRecoverTimer) clearTimeout(mediaRecoverTimer)
+  mediaRecoverTimer = setTimeout(async () => {
+    mediaRecoverTimer = null
+    if (mediaRecoverInFlight) return
+    mediaRecoverInFlight = true
+    try {
+      await fetchMoments({ q: searchQuery.value.trim() || undefined })
+      failedAvatars.value = {}
+    } finally {
+      mediaRecoverInFlight = false
+    }
+  }, 400)
+}
+
+function onPostImageError(imgUrl: string) {
+  if (isEphemeralMediaUrl(imgUrl)) {
+    void recoverEphemeralMomentsMedia()
+  }
 }
 
 // ============================================================
@@ -331,6 +361,10 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onPreviewKeydown)
   window.removeEventListener('click', closeBannerMenu)
+  if (mediaRecoverTimer) {
+    clearTimeout(mediaRecoverTimer)
+    mediaRecoverTimer = null
+  }
   unsubscribeMomentsRefresh?.()
   unsubscribeMomentsRefresh = null
 })
@@ -748,6 +782,7 @@ function visibilityLabel(visibility?: number): string {
                     class="post-image"
                     loading="lazy"
                     referrerpolicy="no-referrer"
+                    @error="onPostImageError(img)"
                   />
                   <div class="image-overlay">
                     <span v-if="post.images.length > 1" class="image-index">{{ index + 1 }}</span>
