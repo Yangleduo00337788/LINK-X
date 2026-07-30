@@ -210,13 +210,14 @@ public class RbacServiceImpl implements RbacService {
         if (userId == null || roleId == null) {
             throw new CustomException(400, "参数不能为空");
         }
-        // 超级角色保护：禁止授予超管（仅可由初始化脚本直接写 DB）
+        // 内置高权角色保护：仅可由初始化脚本直接写 DB，禁止接口提权
         SysRole role = sysRoleMapper.selectOneById(roleId);
         if (role == null) {
             throw new CustomException(404, "角色不存在");
         }
-        if (RbacConstants.ROLE_SUPER_ADMIN.equals(role.getRoleCode())) {
-            throw new CustomException(403, "超级管理员角色不可通过接口授予");
+        if (RbacConstants.ROLE_SUPER_ADMIN.equals(role.getRoleCode())
+                || RbacConstants.ROLE_ADMIN.equals(role.getRoleCode())) {
+            throw new CustomException(403, "管理员角色不可通过接口授予");
         }
 
         SysUserRole userRole = SysUserRole.builder()
@@ -246,10 +247,11 @@ public class RbacServiceImpl implements RbacService {
         if (userId == null || roleId == null) {
             return;
         }
-        // 超级角色保护：禁止撤销超管
+        // 内置高权角色保护：禁止撤销管理员/超管
         SysRole role = sysRoleMapper.selectOneById(roleId);
-        if (role != null && RbacConstants.ROLE_SUPER_ADMIN.equals(role.getRoleCode())) {
-            throw new CustomException(403, "超级管理员角色不可撤销");
+        if (role != null && (RbacConstants.ROLE_SUPER_ADMIN.equals(role.getRoleCode())
+                || RbacConstants.ROLE_ADMIN.equals(role.getRoleCode()))) {
+            throw new CustomException(403, "管理员角色不可通过接口撤销");
         }
         int affected = sysUserRoleMapper.deleteByQuery(
                 QueryWrapper.create()

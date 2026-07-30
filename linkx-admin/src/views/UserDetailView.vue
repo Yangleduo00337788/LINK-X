@@ -16,11 +16,9 @@ import {
   type DataTableColumns,
 } from 'naive-ui'
 import {
-  banUser,
   freezeUser,
   getUser,
   listUserDevices,
-  unbanUser,
   unfreezeUser,
   type AdminUserDetail,
   type DeviceItem,
@@ -52,6 +50,18 @@ const rolesText = computed(() => {
   if (!user.value?.roles?.length) return '暂无'
   return user.value.roles.join(', ')
 })
+
+const ADMIN_ROLES = new Set(['admin', 'super_admin'])
+
+const canToggleStatus = computed(() => {
+  if (!user.value) return false
+  if (String(user.value.id) === String(auth.user?.id)) return false
+  if (user.value.roles?.some((r) => ADMIN_ROLES.has(r))) return false
+  return true
+})
+
+const canDisable = computed(() => auth.hasPermission(['admin:user:freeze', 'admin:user:ban']))
+const canEnable = computed(() => auth.hasPermission(['admin:user:unfreeze', 'admin:user:unban']))
 
 const deviceColumns: DataTableColumns<DeviceItem> = [
   { title: '设备 ID', key: 'id', ellipsis: { tooltip: true } },
@@ -95,10 +105,10 @@ async function loadDevices() {
   }
 }
 
-function confirmAction(label: string, action: () => Promise<unknown>) {
+function confirmAction(label: string, content: string, action: () => Promise<unknown>) {
   dialog.warning({
     title: `确认${label}`,
-    content: `确定要${label}该用户吗？`,
+    content,
     positiveText: '确定',
     negativeText: '取消',
     onPositiveClick: async () => {
@@ -122,30 +132,20 @@ onMounted(async () => {
       <NSpace>
         <NButton @click="router.back()">返回</NButton>
         <NButton
-          v-if="user?.status === 1 && auth.hasPermission('admin:user:freeze')"
-          @click="confirmAction('冻结', () => freezeUser(userId))"
-        >
-          冻结
-        </NButton>
-        <NButton
-          v-if="user?.status === 0 && auth.hasPermission('admin:user:unfreeze')"
-          @click="confirmAction('解冻', () => unfreezeUser(userId))"
-        >
-          解冻
-        </NButton>
-        <NButton
-          v-if="auth.hasPermission('admin:user:ban')"
+          v-if="canToggleStatus && user?.status === 1 && canDisable"
           type="error"
           secondary
-          @click="confirmAction('封禁', () => banUser(userId))"
+          @click="confirmAction('禁用', '禁用后该用户将无法登录，已登录会话会被踢下线。', () => freezeUser(userId))"
         >
-          封禁
+          禁用
         </NButton>
         <NButton
-          v-if="auth.hasPermission('admin:user:unban')"
-          @click="confirmAction('解封', () => unbanUser(userId))"
+          v-if="canToggleStatus && user?.status === 0 && canEnable"
+          type="primary"
+          secondary
+          @click="confirmAction('启用', '确定重新启用该用户吗？', () => unfreezeUser(userId))"
         >
-          解封
+          启用
         </NButton>
       </NSpace>
     </div>

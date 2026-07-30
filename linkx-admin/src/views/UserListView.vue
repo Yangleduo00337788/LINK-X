@@ -13,10 +13,8 @@ import {
   type DataTableColumns,
 } from 'naive-ui'
 import {
-  banUser,
   freezeUser,
   listUsers,
-  unbanUser,
   unfreezeUser,
   type AdminUserListItem,
 } from '@/api/users'
@@ -44,6 +42,23 @@ const statusOptions = [
   { label: '禁用', value: 0 },
 ]
 
+const ADMIN_ROLES = new Set(['admin', 'super_admin'])
+
+/** 自己与管理员账号不展示禁用/启用，避免误操作（后端也会拒绝） */
+function canToggleStatus(row: AdminUserListItem) {
+  if (String(row.id) === String(auth.user?.id)) return false
+  if (row.roles?.some((r) => ADMIN_ROLES.has(r))) return false
+  return true
+}
+
+function canDisable() {
+  return auth.hasPermission(['admin:user:freeze', 'admin:user:ban'])
+}
+
+function canEnable() {
+  return auth.hasPermission(['admin:user:unfreeze', 'admin:user:unban'])
+}
+
 const columns: DataTableColumns<AdminUserListItem> = [
   { title: 'ID', key: 'id', width: 80 },
   { title: '用户名', key: 'username', ellipsis: { tooltip: true } },
@@ -69,31 +84,44 @@ const columns: DataTableColumns<AdminUserListItem> = [
   {
     title: '操作',
     key: 'actions',
-    width: 260,
+    width: 160,
     fixed: 'right',
     render: (row) =>
       h(NSpace, { size: 8 }, () => [
         h(NButton, { size: 'tiny', onClick: () => router.push(`/admin/users/${row.id}`) }, () => '详情'),
-        row.status === 1 && auth.hasPermission('admin:user:freeze')
-          ? h(NButton, { size: 'tiny', onClick: () => confirmAction('冻结', () => freezeUser(row.id)) }, () => '冻结')
+        canToggleStatus(row) && row.status === 1 && canDisable()
+          ? h(
+              NButton,
+              {
+                size: 'tiny',
+                type: 'error',
+                secondary: true,
+                onClick: () =>
+                  confirmAction('禁用', '禁用后该用户将无法登录，已登录会话会被踢下线。', () => freezeUser(row.id)),
+              },
+              () => '禁用',
+            )
           : null,
-        row.status === 0 && auth.hasPermission('admin:user:unfreeze')
-          ? h(NButton, { size: 'tiny', onClick: () => confirmAction('解冻', () => unfreezeUser(row.id)) }, () => '解冻')
-          : null,
-        auth.hasPermission('admin:user:ban')
-          ? h(NButton, { size: 'tiny', type: 'error', secondary: true, onClick: () => confirmAction('封禁', () => banUser(row.id)) }, () => '封禁')
-          : null,
-        auth.hasPermission('admin:user:unban')
-          ? h(NButton, { size: 'tiny', onClick: () => confirmAction('解封', () => unbanUser(row.id)) }, () => '解封')
+        canToggleStatus(row) && row.status === 0 && canEnable()
+          ? h(
+              NButton,
+              {
+                size: 'tiny',
+                type: 'primary',
+                secondary: true,
+                onClick: () => confirmAction('启用', '确定重新启用该用户吗？', () => unfreezeUser(row.id)),
+              },
+              () => '启用',
+            )
           : null,
       ]),
   },
 ]
 
-function confirmAction(label: string, action: () => Promise<unknown>) {
+function confirmAction(label: string, content: string, action: () => Promise<unknown>) {
   dialog.warning({
     title: `确认${label}`,
-    content: `确定要${label}该用户吗？`,
+    content,
     positiveText: '确定',
     negativeText: '取消',
     onPositiveClick: async () => {

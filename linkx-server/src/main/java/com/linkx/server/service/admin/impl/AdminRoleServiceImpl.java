@@ -67,6 +67,9 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     @Override
     @Transactional
     public Long create(AdminRoleDTO dto, Long operatorId) {
+        if (isBuiltinProtectedRole(dto.getRoleCode())) {
+            throw new CustomException(400, "builtin role code is reserved");
+        }
         SysRole role = rbacService.createRole(dto.getRoleCode(), dto.getRoleName(), dto.getDescription(), operatorId);
         if (dto.getStatus() != null && dto.getStatus() != 1) {
             role.setStatus(dto.getStatus());
@@ -88,6 +91,9 @@ public class AdminRoleServiceImpl implements AdminRoleService {
             role.setDescription(dto.getDescription());
         }
         if (dto.getStatus() != null) {
+            if (dto.getStatus() != 1 && isBuiltinProtectedRole(role.getRoleCode())) {
+                throw new CustomException(400, "builtin role cannot be disabled");
+            }
             role.setStatus(dto.getStatus());
         }
         if (StringUtils.hasText(dto.getRoleCode()) && !dto.getRoleCode().equals(role.getRoleCode())) {
@@ -102,7 +108,7 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     @Transactional
     public void delete(Long id) {
         SysRole role = requireRole(id);
-        if ("admin".equals(role.getRoleCode()) || "super_admin".equals(role.getRoleCode()) || "user".equals(role.getRoleCode())) {
+        if (isBuiltinProtectedRole(role.getRoleCode())) {
             throw new CustomException(400, "builtin role cannot be deleted");
         }
         sysRoleMapper.deleteById(id);
@@ -192,6 +198,10 @@ public class AdminRoleServiceImpl implements AdminRoleService {
             throw new CustomException(404, "role not found");
         }
         return role;
+    }
+
+    private static boolean isBuiltinProtectedRole(String roleCode) {
+        return "admin".equals(roleCode) || "super_admin".equals(roleCode) || "user".equals(roleCode);
     }
 
     private int normalizePage(Integer page) {

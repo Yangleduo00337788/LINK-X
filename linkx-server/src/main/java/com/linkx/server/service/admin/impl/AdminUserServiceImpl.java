@@ -94,6 +94,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Override
     @Transactional
     public void update(Long id, AdminUserUpdateDTO dto, Long operatorId) {
+        assertCanModifyTarget(id, operatorId, false);
         SysUser user = requireUser(id);
         if (dto.getNickname() != null) {
             user.setNickname(InputSanitizer.sanitizeText(dto.getNickname(), 64));
@@ -118,6 +119,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Override
     @Transactional
     public void freeze(Long id, AdminUserActionDTO dto, Long operatorId) {
+        assertCanModifyTarget(id, operatorId, true);
         setStatus(id, 0, operatorId);
         tokenService.revokeAllUserTokens(id);
     }
@@ -125,12 +127,14 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Override
     @Transactional
     public void unfreeze(Long id, Long operatorId) {
+        assertCanModifyTarget(id, operatorId, true);
         setStatus(id, 1, operatorId);
     }
 
     @Override
     @Transactional
     public void ban(Long id, AdminUserActionDTO dto, Long operatorId) {
+        assertCanModifyTarget(id, operatorId, true);
         setStatus(id, 0, operatorId);
         tokenService.revokeAllUserTokens(id);
         deviceSessionService.deleteAllByUser(id);
@@ -139,6 +143,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Override
     @Transactional
     public void unban(Long id, Long operatorId) {
+        assertCanModifyTarget(id, operatorId, true);
         setStatus(id, 1, operatorId);
     }
 
@@ -177,6 +182,33 @@ public class AdminUserServiceImpl implements AdminUserService {
             throw new CustomException(404, "user not found");
         }
         return user;
+    }
+
+    /**
+     * @param statusAction true 表示冻/封等状态变更（禁止自操作与操作管理员）；
+     *                     false 表示资料编辑（允许改自己，禁止改其他管理员）
+     */
+    private void assertCanModifyTarget(Long targetUserId, Long operatorId, boolean statusAction) {
+        if (targetUserId == null || operatorId == null) {
+            throw new CustomException(400, "参数不能为空");
+        }
+        requireUser(targetUserId);
+        if (statusAction && targetUserId.equals(operatorId)) {
+            throw new CustomException(403, "不能对自己执行该操作");
+        }
+        if (isAdminUser(targetUserId) && (statusAction || !targetUserId.equals(operatorId))) {
+            throw new CustomException(403, "不能对管理员账号执行该操作");
+        }
+    }
+
+    private boolean isAdminUser(Long userId) {
+        List<String> roles = rbacService.getUserRoleCodes(userId);
+        for (String required : AdminConstants.ADMIN_ROLES) {
+            if (roles.contains(required)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private int normalizePage(Integer page) {
