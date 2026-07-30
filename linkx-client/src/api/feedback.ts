@@ -15,7 +15,9 @@ export interface FeedbackVO {
   id: string
   type: string
   content: string
-  status: 'pending' | 'processing' | 'resolved'
+  status: 'pending' | 'processing' | 'resolved' | 'replied' | 'closed'
+  reply?: string
+  replyTime?: string
   createTime: string
 }
 

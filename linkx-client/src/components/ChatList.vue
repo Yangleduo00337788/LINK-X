@@ -4,7 +4,7 @@
  * <p>
  * 展示会话列表，支持搜索过滤、虚拟滚动、右键菜单（置顶/免打扰/删除），
  * 以及通过添加按钮发起群聊或添加好友。
- * 列表中插入「日程提醒」站内通知虚拟会话（默认不置顶）。
+ * 列表中插入「日程提醒」「LinkX官方」站内通知虚拟会话（默认不置顶）。
  * </p>
  */
 import { ref, computed, onMounted } from 'vue'
@@ -13,7 +13,8 @@ import {
   PhonePortraitOutline,
   NotificationsOffOutline,
   WarningOutline,
-  CalendarOutline
+  CalendarOutline,
+  HeadsetOutline
 } from '@vicons/ionicons5'
 import PinIcon from './icons/PinIcon.vue'
 import PanelSearchBar from './PanelSearchBar.vue'
@@ -25,7 +26,7 @@ import { useAppStore } from '../stores/app'
 import { useChatModalsStore } from '../stores/chatModals'
 import { useNotificationsStore } from '../stores/notifications'
 import type { ChatSession } from '../types'
-import { SYSTEM_NOTIFY_SESSION_ID } from '../types'
+import { SYSTEM_NOTIFY_SESSION_ID, OFFICIAL_NOTIFY_SESSION_ID } from '../types'
 import { formatChatTime } from '../utils/chatTime'
 import { useI18n } from '../i18n'
 
@@ -36,7 +37,12 @@ const chatModalsStore = useChatModalsStore()
 const notificationsStore = useNotificationsStore()
 
 const { sortedSessions, currentSessionId, isLoading, isOffline } = storeToRefs(appStore)
-const { calendarRemindNotifs, calendarRemindUnreadCount } = storeToRefs(notificationsStore)
+const {
+  calendarRemindNotifs,
+  calendarRemindUnreadCount,
+  officialNotifs,
+  officialUnreadCount
+} = storeToRefs(notificationsStore)
 const { selectSession, toggleSessionPin, toggleSessionImportant, toggleSessionMute, deleteSession } =
   appStore
 const { openCreateGroup, openComprehensiveSearch } = chatModalsStore
@@ -97,12 +103,35 @@ const systemNotifySession = computed<ChatSession>(() => {
   }
 })
 
+/** 消息页虚拟会话：LinkX官方（反馈进度） */
+const officialNotifySession = computed<ChatSession>(() => {
+  const list = officialNotifs.value
+  const latest = list[0]
+  const preview = (latest?.content || '')
+    .split(/\r?\n/)
+    .map(s => s.trim())
+    .find(Boolean)
+  return {
+    id: OFFICIAL_NOTIFY_SESSION_ID,
+    name: t('chat.officialSession'),
+    lastMessage: preview || t('chat.noOfficial'),
+    time: formatNotifListTime(latest?.createTime),
+    avatarText: t('chat.officialAvatar'),
+    avatarColor: '#2f6fed',
+    unread: officialUnreadCount.value || undefined,
+    pinned: false,
+    isReal: false,
+    isOfficialNotify: true
+  }
+})
+
 const filteredSessions = computed(() => {
   const q = searchValue.value.trim().toLowerCase()
   const system = systemNotifySession.value
+  const official = officialNotifySession.value
   const rest = sortedSessions.value
-  // 不置顶：跟在普通会话后面，不插到列表最前
-  const merged = [...rest, system]
+  // 不置顶：跟在普通会话后面；官方在日程提醒下方
+  const merged = [...rest, system, official]
   if (!q) return merged
   return merged.filter(
     s => s.name.toLowerCase().includes(q) || s.lastMessage.toLowerCase().includes(q)
@@ -111,7 +140,7 @@ const filteredSessions = computed(() => {
 
 const contextMenuOptions = computed<DropdownOption[]>(() => {
   const s = contextSession.value
-  if (!s || s.isSystemNotify) return []
+  if (!s || s.isSystemNotify || s.isOfficialNotify) return []
   return [
     { label: s.important ? t('chat.unmarkImportant') : t('chat.markImportant'), key: 'important' },
     { label: s.pinned ? t('chat.unpin') : t('chat.pin'), key: 'pin' },
@@ -135,6 +164,10 @@ function onSelect(session: ChatSession) {
     appStore.currentSessionId = SYSTEM_NOTIFY_SESSION_ID
     return
   }
+  if (session.isOfficialNotify) {
+    appStore.currentSessionId = OFFICIAL_NOTIFY_SESSION_ID
+    return
+  }
   selectSession(session)
 }
 
@@ -149,7 +182,7 @@ function onAddSelect(key: string) {
 }
 
 function onSessionContext(e: MouseEvent, session: ChatSession) {
-  if (session.isSystemNotify) return
+  if (session.isSystemNotify || session.isOfficialNotify) return
   e.preventDefault()
   contextSession.value = session
   contextMenuX.value = e.clientX
@@ -246,9 +279,11 @@ function onContextMenuSelect(key: string) {
                   :icon="
                     session.isSystemNotify
                       ? CalendarOutline
-                      : isMyPhoneSession(session.name)
-                        ? PhonePortraitOutline
-                        : undefined
+                      : session.isOfficialNotify
+                        ? HeadsetOutline
+                        : isMyPhoneSession(session.name)
+                          ? PhonePortraitOutline
+                          : undefined
                   "
                 />
                 <div

@@ -42,9 +42,11 @@ import BalanceMainView from './BalanceMainView.vue'
 import PlaceholderMainView from './PlaceholderMainView.vue'
 // 消息页站内「日程提醒」面板
 import SystemNotifyPanel from './SystemNotifyPanel.vue'
+// 消息页站内「LinkX官方」面板
+import OfficialNotifyPanel from './OfficialNotifyPanel.vue'
 // 全屏 Overlay 宿主
 import OverlayHost from './overlay/OverlayHost.vue'
-import { SYSTEM_NOTIFY_SESSION_ID } from '../types'
+import { SYSTEM_NOTIFY_SESSION_ID, OFFICIAL_NOTIFY_SESSION_ID } from '../types'
 
 // 以下弹窗异步懒加载，减小首屏包体积
 const CreateGroupModal = defineAsyncComponent(() => import('./chat/CreateGroupModal.vue'))
@@ -157,6 +159,9 @@ const showChatPanel = computed(() => navKey.value === 'chat')
 const showSystemNotify = computed(
   () => navKey.value === 'chat' && currentSessionId.value === SYSTEM_NOTIFY_SESSION_ID
 )
+const showOfficialNotify = computed(
+  () => navKey.value === 'chat' && currentSessionId.value === OFFICIAL_NOTIFY_SESSION_ID
+)
 const showCalendarMain = computed(() => navKey.value === 'calendar')
 const showSettingsMain = computed(() => navKey.value === 'settings')
 const showFilesMain = computed(() => navKey.value === 'files')
@@ -233,6 +238,7 @@ const showMiddleList = computed(
           }"
         >
           <SystemNotifyPanel v-if="showSystemNotify" />
+          <OfficialNotifyPanel v-else-if="showOfficialNotify" />
           <ChatPanel v-else-if="showChatPanel" />
           <CalendarMainView v-else-if="showCalendarMain" />
           <FilesMainView v-else-if="showFilesMain" />

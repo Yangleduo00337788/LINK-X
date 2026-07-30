@@ -69,6 +69,10 @@ async function submitFeedback() {
       message.success(t('overlay.feedbackOk'))
       feedbackText.value = ''
       feedbackContact.value = ''
+      // 立即刷新官方会话，不等待推送
+      void import('../../../stores/notifications').then(({ useNotificationsStore }) => {
+        void useNotificationsStore().fetchMessageNotifications()
+      })
       close()
     } else {
       message.error(res.message || t('overlay.submitFail'))

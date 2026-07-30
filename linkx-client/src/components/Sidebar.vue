@@ -55,7 +55,7 @@ const notificationsStore = useNotificationsStore()
 const { t } = useI18n()
 // 解构导航键、用户资料、已保存登录信息、会话列表
 const { navKey, userProfile, savedLogin, sessions, isOffline } = storeToRefs(appStore)
-const { calendarRemindUnreadCount, contactsBadgeCount } = storeToRefs(notificationsStore)
+const { calendarRemindUnreadCount, officialUnreadCount, contactsBadgeCount } = storeToRefs(notificationsStore)
 // 解构导航切换、登出、锁定方法
 const { setNav, logout, lock } = appStore
 // 解构打开个人资料方法
@@ -110,13 +110,13 @@ const mainNav = computed(() => [
   { key: 'settings' as NavKey, icon: SettingsOutline, label: t('nav.settings') }
 ])
 
-/** 消息图标未读：普通会话未读 + 日历日程提醒未读（免打扰会话不计入） */
+/** 消息图标未读：普通会话未读 + 日历日程提醒未读 + 官方反馈未读（免打扰会话不计入） */
 const chatNavUnread = computed(() => {
   const sessionUnread = sessions.value.reduce((sum, s) => {
     if (s.muted) return sum
     return sum + (s.unread || 0)
   }, 0)
-  return sessionUnread + (calendarRemindUnreadCount.value || 0)
+  return sessionUnread + (calendarRemindUnreadCount.value || 0) + (officialUnreadCount.value || 0)
 })
 
 function navBadge(key: NavKey): number {

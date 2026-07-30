@@ -190,6 +190,52 @@ export function notifySocialEvent(kind: 'friend_request' | 'group_invitation'): 
   void showChatDesktopNotification(title, body, !settings.notifySound)
 }
 
+/** LinkX 官方反馈进度：声音 + 后台桌面通知 */
+export async function notifyOfficialFeedback(type: string, content?: string): Promise<void> {
+  const settings = useAppSettingsStore()
+  if (settings.notifyChat === false) return
+  if (
+    isInQuietHours(
+      new Date(),
+      !!settings.quietHoursEnabled,
+      settings.quietHoursStart || '22:00',
+      settings.quietHoursEnd || '08:00'
+    )
+  ) {
+    return
+  }
+
+  try {
+    const { useAppStore } = await import('../stores/app')
+    const { OFFICIAL_NOTIFY_SESSION_ID } = await import('../types')
+    const app = useAppStore()
+    if (isActivelyViewingSession(OFFICIAL_NOTIFY_SESSION_ID, app.currentSessionId)) {
+      return
+    }
+  } catch {
+    /* ignore */
+  }
+
+  if (settings.soundNotify) {
+    playTone((settings.notifyTone || 'default') as ToneId)
+  }
+
+  const title = t('chat.officialSession')
+  const bodyByType: Record<string, string> = {
+    feedback_submitted: t('chat.officialSubmittedAlert'),
+    feedback_replied: t('chat.officialRepliedAlert'),
+    feedback_closed: t('chat.officialClosedAlert'),
+    feedback_reopened: t('chat.officialReopenedAlert')
+  }
+  const body = settings.messageDetail
+    ? (content || '').trim() || bodyByType[type] || t('chat.officialUpdateAlert')
+    : bodyByType[type] || t('chat.officialUpdateAlert')
+
+  if (!isWindowInBackground()) return
+
+  void showChatDesktopNotification(title, body, !settings.notifySound)
+}
+
 /**
  * 好友上线提醒：前台应用内 toast + 后台桌面通知；受本地「好友上线提醒」开关约束。
  */

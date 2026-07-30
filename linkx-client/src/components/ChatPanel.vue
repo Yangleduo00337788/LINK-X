@@ -1231,7 +1231,7 @@ async function retryMessage(msg: ChatMessage) {
 }
 
 const forwardTargets = computed(() =>
-  sessions.value.filter(s => s.id !== currentSessionId.value && !s.isSystemNotify)
+  sessions.value.filter(s => s.id !== currentSessionId.value && !s.isSystemNotify && !s.isOfficialNotify)
 )
 
 // 是否正在拖拽文件到聊天区

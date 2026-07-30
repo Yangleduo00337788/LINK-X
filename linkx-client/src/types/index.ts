@@ -60,10 +60,15 @@ export interface ChatSession {
   isReal?: boolean
   /** 消息页虚拟会话：站内日程提醒 */
   isSystemNotify?: boolean
+  /** 消息页虚拟会话：LinkX 官方（反馈进度） */
+  isOfficialNotify?: boolean
 }
 
 /** 消息页「日程提醒」虚拟会话 ID */
 export const SYSTEM_NOTIFY_SESSION_ID = '__calendar_remind__'
+
+/** 消息页「LinkX官方」虚拟会话 ID */
+export const OFFICIAL_NOTIFY_SESSION_ID = '__linkx_official__'
 
 /** 单条聊天消息 */
 export interface ChatMessage {
