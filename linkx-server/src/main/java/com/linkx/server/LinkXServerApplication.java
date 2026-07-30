@@ -144,9 +144,11 @@ class JwtSecretValidator {
             log.warn("[安全警告] require-https 已开启，但 allowed-origins 中仍包含 http:// Origin");
         }
 
-        if (linkxProperties.getIm().getWebsocketPort() <= 0) {
-            log.error("[配置错误] IM_WS_PORT 必须大于 0");
-            throw new IllegalStateException("IM_WS_PORT 必须大于 0");
+        // -1：测试环境跳过绑定；0 非法；正端口为正式监听
+        int wsPort = linkxProperties.getIm().getWebsocketPort();
+        if (wsPort == 0 || wsPort < -1) {
+            log.error("[配置错误] IM_WS_PORT 非法: {}（测试可设 -1 跳过绑定，生产须 > 0）", wsPort);
+            throw new IllegalStateException("IM_WS_PORT 非法，请配置正端口或测试用 -1");
         }
         if (!StringUtils.hasText(linkxProperties.getIm().getWebsocketPath()) || !linkxProperties.getIm().getWebsocketPath().startsWith("/")) {
             log.error("[配置错误] IM WebSocket 路径必须以 / 开头");

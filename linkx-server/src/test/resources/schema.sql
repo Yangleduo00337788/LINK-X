@@ -304,6 +304,8 @@ CREATE TABLE IF NOT EXISTS sys_feedback (
   content TEXT,
   contact VARCHAR(128),
   status VARCHAR(20) DEFAULT 'pending',
+  reply TEXT,
+  reply_time DATETIME,
   create_time DATETIME
 );
 
@@ -654,3 +656,37 @@ INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by) V
   (4, 1001, 2004, NULL),
   (5, 1001, 2005, NULL),
   (6, 1001, 2006, NULL);
+
+-- 管理端菜单（测试最小表结构，避免 AdminMenuMapper 缺表）
+CREATE TABLE IF NOT EXISTS sys_admin_menu (
+  id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+  parent_id BIGINT NOT NULL DEFAULT 0,
+  name VARCHAR(64) NOT NULL,
+  title VARCHAR(64) NOT NULL,
+  path VARCHAR(255) NOT NULL,
+  component VARCHAR(255),
+  redirect VARCHAR(255),
+  icon VARCHAR(64),
+  menu_type VARCHAR(16) NOT NULL DEFAULT 'menu',
+  permission_code VARCHAR(128),
+  sort_order INT NOT NULL DEFAULT 0,
+  hidden TINYINT NOT NULL DEFAULT 0,
+  cacheable TINYINT NOT NULL DEFAULT 1,
+  external_link TINYINT NOT NULL DEFAULT 0,
+  keep_alive TINYINT NOT NULL DEFAULT 1,
+  status TINYINT NOT NULL DEFAULT 1,
+  remark VARCHAR(255),
+  created_by BIGINT,
+  created_at DATETIME,
+  updated_by BIGINT,
+  updated_at DATETIME,
+  deleted TINYINT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS sys_admin_role_menu (
+  id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+  role_id BIGINT NOT NULL,
+  menu_id BIGINT NOT NULL,
+  created_at DATETIME
+);
+
