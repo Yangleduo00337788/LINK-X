@@ -95,7 +95,7 @@ const columns: DataTableColumns<FeedbackItem> = [
               () => '关闭',
             )
           : null,
-        auth.hasPermission('admin:feedback:reopen') && row.status === 'closed'
+        auth.hasPermission('admin:feedback:reply') && row.status === 'closed'
           ? h(
               NButton,
               {
@@ -142,7 +142,7 @@ async function load() {
       page: query.page,
       size: query.size,
       keyword: query.keyword || undefined,
-      status: query.status || undefined,
+      feedbackStatus: query.status || undefined,
     })
     items.value = data.items || []
     total.value = data.total || 0

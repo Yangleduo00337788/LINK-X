@@ -2,8 +2,8 @@ package com.linkx.server.service.admin.impl;
 
 import com.linkx.server.common.admin.AdminConstants;
 import com.linkx.server.common.admin.PageResultVO;
+import com.linkx.server.controller.admin.dto.AdminFeedbackQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminFeedbackReplyDTO;
-import com.linkx.server.controller.admin.dto.AdminPageQueryDTO;
 import com.linkx.server.controller.admin.vo.AdminFeedbackVO;
 import com.linkx.server.entity.Feedback;
 import com.linkx.server.exception.CustomException;
@@ -34,7 +34,7 @@ public class AdminFeedbackServiceImpl implements AdminFeedbackService {
     private final ImMessagePushService imPushService;
 
     @Override
-    public PageResultVO<AdminFeedbackVO> list(AdminPageQueryDTO query) {
+    public PageResultVO<AdminFeedbackVO> list(AdminFeedbackQueryDTO query) {
         int page = normalizePage(query.getPage());
         int size = normalizeSize(query.getSize());
         QueryWrapper qw = QueryWrapper.create();
@@ -45,6 +45,9 @@ public class AdminFeedbackServiceImpl implements AdminFeedbackService {
                         .or(Feedback::getContent).like(kw)
                         .or(Feedback::getType).like(kw);
             });
+        }
+        if (StringUtils.hasText(query.getFeedbackStatus())) {
+            qw.and(Feedback::getStatus).eq(query.getFeedbackStatus().trim());
         }
         if (query.getStartTime() != null) {
             qw.and(Feedback::getCreateTime).ge(new Date(query.getStartTime()));

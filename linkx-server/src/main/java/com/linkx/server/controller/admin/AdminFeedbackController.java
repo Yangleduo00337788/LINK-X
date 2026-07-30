@@ -5,8 +5,8 @@ import com.linkx.server.common.RequireRole;
 import com.linkx.server.common.Result;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.config.aspect.AuditAction;
+import com.linkx.server.controller.admin.dto.AdminFeedbackQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminFeedbackReplyDTO;
-import com.linkx.server.controller.admin.dto.AdminPageQueryDTO;
 import com.linkx.server.controller.admin.vo.AdminFeedbackVO;
 import com.linkx.server.service.admin.AdminFeedbackService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -33,7 +33,7 @@ public class AdminFeedbackController {
     @Operation(summary = "查询反馈列表")
     @GetMapping
     @RequirePermission("admin:feedback:list")
-    public Result<PageResultVO<AdminFeedbackVO>> list(@Valid AdminPageQueryDTO query) {
+    public Result<PageResultVO<AdminFeedbackVO>> list(@Valid AdminFeedbackQueryDTO query) {
         return Result.success(adminFeedbackService.list(query));
     }
 
