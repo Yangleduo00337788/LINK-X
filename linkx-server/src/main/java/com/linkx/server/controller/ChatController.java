@@ -1,5 +1,7 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.linkx.server.common.AuthUtils;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.MediaStreamResponses;
@@ -30,6 +32,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 
 @RestController
+@Tag(name = "${openapi.tag.chat}")
 @RequestMapping("/chat")
 @RequiredArgsConstructor
 @org.springframework.validation.annotation.Validated

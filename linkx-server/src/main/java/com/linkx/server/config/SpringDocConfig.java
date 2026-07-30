@@ -1,22 +1,25 @@
 package com.linkx.server.config;
 
+import io.swagger.v3.oas.models.media.Content;
+import io.swagger.v3.oas.models.media.MediaType;
 import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.responses.ApiResponses;
 import org.springdoc.core.customizers.OperationCustomizer;
+import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.i18n.LocaleContextHolder;
+
+import java.util.Locale;
 
 /**
- * SpringDoc 自定义配置
+ * SpringDoc 自定义：通用错误响应随 Locale 切换文案。
  */
 @Configuration
 public class SpringDocConfig {
 
-    /**
-     * 自定义操作处理器 - 添加通用错误响应
-     */
     @Bean
-    public OperationCustomizer operationCustomizer() {
+    public OperationCustomizer operationCustomizer(MessageSource messageSource) {
         return (operation, handlerMethod) -> {
             ApiResponses responses = operation.getResponses();
             if (responses == null) {
@@ -24,27 +27,23 @@ public class SpringDocConfig {
                 operation.setResponses(responses);
             }
 
-            responses.addApiResponse("401", new ApiResponse()
-                    .description("未授权 - 需要登录或 Token 已过期")
-                    .content(new io.swagger.v3.oas.models.media.Content().addMediaType("application/json",
-                            new io.swagger.v3.oas.models.media.MediaType().example("{\"code\":401,\"message\":\"未登录或登录已过期\"}"))));
-
-            responses.addApiResponse("403", new ApiResponse()
-                    .description("禁止访问 - 无权限")
-                    .content(new io.swagger.v3.oas.models.media.Content().addMediaType("application/json",
-                            new io.swagger.v3.oas.models.media.MediaType().example("{\"code\":403,\"message\":\"无权限访问\"}"))));
-
-            responses.addApiResponse("400", new ApiResponse()
-                    .description("请求错误 - 参数校验失败")
-                    .content(new io.swagger.v3.oas.models.media.Content().addMediaType("application/json",
-                            new io.swagger.v3.oas.models.media.MediaType().example("{\"code\":400,\"message\":\"请求参数错误\"}"))));
-
-            responses.addApiResponse("500", new ApiResponse()
-                    .description("服务器内部错误")
-                    .content(new io.swagger.v3.oas.models.media.Content().addMediaType("application/json",
-                            new io.swagger.v3.oas.models.media.MediaType().example("{\"code\":500,\"message\":\"服务器内部错误\"}"))));
+            Locale locale = LocaleContextHolder.getLocale();
+            addResponse(responses, "401", messageSource, "openapi.response.401", "openapi.response.401.example", locale);
+            addResponse(responses, "403", messageSource, "openapi.response.403", "openapi.response.403.example", locale);
+            addResponse(responses, "400", messageSource, "openapi.response.400", "openapi.response.400.example", locale);
+            addResponse(responses, "500", messageSource, "openapi.response.500", "openapi.response.500.example", locale);
 
             return operation;
         };
+    }
+
+    private static void addResponse(ApiResponses responses, String code, MessageSource messageSource,
+                                    String descKey, String exampleKey, Locale locale) {
+        String desc = messageSource.getMessage(descKey, null, descKey, locale);
+        String example = messageSource.getMessage(exampleKey, null, "", locale);
+        responses.addApiResponse(code, new ApiResponse()
+                .description(desc)
+                .content(new Content().addMediaType("application/json",
+                        new MediaType().example(example))));
     }
 }

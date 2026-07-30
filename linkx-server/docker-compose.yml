@@ -105,6 +105,41 @@ services:
     mem_limit: 512m
     cpus: "1.0"
 
+  # 应用服务（默认不启动；需要时：docker compose --profile app up -d --build）
+  app:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: linkx-server:local
+    container_name: linkx-app
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    env_file:
+      - .env.docker
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:mysql://mysql:3306/linkx?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+      REDIS_HOST: redis
+      MINIO_ENDPOINT: http://minio:9000
+      TRUST_PROXY: "true"
+      DEV_MODE_ENABLED: "false"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - linkx-net
+    mem_limit: 1024m
+    cpus: "2.0"
+
 networks:
   linkx-net:
     driver: bridge

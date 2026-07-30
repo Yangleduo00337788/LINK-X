@@ -2,7 +2,7 @@
 # LinkX 集成测试配置（src/test/resources/application-test.yml）
 # -----------------------------------------------------------------------------
 # @ActiveProfiles("test") 时覆盖主 application.yml。
-# 主配置已改为单文件 + .env.*；测试仍独立，不依赖 .env.local。
+# 占位符由 .env.test 提供（可与 .env.local 合并，本文件优先）；CI 仅依赖 .env.test。
 # =============================================================================
 
 server:
@@ -19,6 +19,10 @@ spring:
     username: sa
     password: ""
     driver-class-name: org.h2.Driver
+
+  # 测试用 schema.sql 建表，不跑 Flyway（迁移面向 MySQL 生产/本地）
+  flyway:
+    enabled: false
 
   sql:
     init:

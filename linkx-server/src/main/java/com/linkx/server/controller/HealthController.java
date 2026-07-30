@@ -1,5 +1,7 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.linkx.server.common.Result;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +29,7 @@ import java.util.Set;
  */
 @Slf4j
 @RestController
+@Tag(name = "${openapi.tag.health}")
 @RequestMapping("/health")
 @RequiredArgsConstructor
 public class HealthController {

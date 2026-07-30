@@ -1,5 +1,7 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.linkx.server.common.AuthUtils;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.Result;
@@ -23,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 语音/视频通话信令控制器
  */
 @RestController
+@Tag(name = "${openapi.tag.call}")
 @RequestMapping("/call")
 @RequiredArgsConstructor
 public class CallController {

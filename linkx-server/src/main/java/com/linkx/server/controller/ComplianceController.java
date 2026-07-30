@@ -1,5 +1,7 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.linkx.server.common.AuthUtils;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.RateLimit;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 审计由 ComplianceService 记录（含 purge 密码失败），避免与 @AuditAction 重复落库。
  */
 @RestController
+@Tag(name = "${openapi.tag.compliance}")
 @RequestMapping("/compliance")
 @RequiredArgsConstructor
 public class ComplianceController {
@@ -29,14 +32,14 @@ public class ComplianceController {
     private final JwtUtils jwtUtils;
 
     @GetMapping("/export")
-    @RateLimit(scope = "compliance:export", value = 5, time = 60)
+    @RateLimit(scope = "compliance:export", value = 5, window = 60)
     public Result<UserDataExportVO> export(HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         return Result.success(complianceService.exportUserData(userId));
     }
 
     @PostMapping("/purge")
-    @RateLimit(scope = "compliance:purge", value = 3, time = 300)
+    @RateLimit(scope = "compliance:purge", value = 3, window = 300)
     public Result<Void> purge(
             @Valid @RequestBody CompliancePurgeDTO dto,
             HttpServletRequest request) {

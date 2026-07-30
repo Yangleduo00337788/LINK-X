@@ -1,5 +1,7 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.linkx.server.common.AuthUtils;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.RateLimit;
@@ -26,6 +28,7 @@ import java.util.UUID;
  * 余额控制器
  */
 @RestController
+@Tag(name = "${openapi.tag.balance}")
 @RequestMapping("/balance")
 @RequiredArgsConstructor
 public class BalanceController {

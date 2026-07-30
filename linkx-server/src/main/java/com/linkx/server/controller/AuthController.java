@@ -1,5 +1,7 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.common.Result;
 import com.linkx.server.common.TokenCookieUtil;
@@ -33,6 +35,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@Tag(name = "${openapi.tag.auth}")
 @RequestMapping("/auth")
 @RequiredArgsConstructor
 public class AuthController {

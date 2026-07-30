@@ -1,5 +1,7 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.common.ImageUploadValidator;
 import com.linkx.server.common.JwtUtils;
@@ -34,6 +36,7 @@ import org.springframework.web.multipart.MultipartFile;
  */
 @Slf4j
 @RestController
+@Tag(name = "${openapi.tag.user}")
 @RequestMapping("/user")
 @RequiredArgsConstructor
 @Validated

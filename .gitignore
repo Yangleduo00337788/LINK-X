@@ -19,3 +19,10 @@ pnpm-debug.log*
 linkx-client/playwright-report/
 linkx-client/test-results/
 linkx-client/blob-report/
+
+# 中间件本地数据与备份产物
+linkx-server/docker/mysql/data/
+linkx-server/docker/redis/data/
+linkx-server/docker/minio/data/
+linkx-server/backups/
+linkx-server/.env.docker

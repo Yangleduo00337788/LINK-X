@@ -1,0 +1,17 @@
+target/
+.git/
+.idea/
+*.iml
+.env.local
+.env.prod
+docker/mysql/data/
+docker/redis/data/
+docker/minio/data/
+backups/
+docs/
+scripts/
+*.md
+src/test/
+.mvn/
+mvnw
+mvnw.cmd

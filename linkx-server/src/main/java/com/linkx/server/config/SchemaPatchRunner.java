@@ -1,27 +1,35 @@
 package com.linkx.server.config;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * 存量库轻量补丁：确保关键列存在（init.sql 的 ALTER 不会在每次启动自动执行）。
+ * 遗留：启动时轻量补丁。已由 Flyway {@code db/migration} 接管。
+ * <p>
+ * 默认关闭；仅在紧急回退且 {@code linkx.schema-patch.enabled=true} 时启用。
+ * 后续 Schema 变更请新增 {@code Vn__*.sql}，勿再扩展本类。
  */
 @Slf4j
 @Component
 @Order(1)
-@RequiredArgsConstructor
+@ConditionalOnProperty(prefix = "linkx.schema-patch", name = "enabled", havingValue = "true")
 public class SchemaPatchRunner implements ApplicationRunner {
 
     private final JdbcTemplate jdbcTemplate;
 
+    public SchemaPatchRunner(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+    }
+
     @Override
     public void run(ApplicationArguments args) {
-    ensureColumn(
+        log.warn("SchemaPatchRunner 已启用（遗留回退路径）；请尽快改为仅使用 Flyway 迁移");
+        ensureColumn(
                 "sys_user_relation",
                 "group_name",
                 "ALTER TABLE `sys_user_relation` ADD COLUMN `group_name` varchar(32) DEFAULT NULL COMMENT '好友分组名' AFTER `remark`"

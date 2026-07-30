@@ -1,5 +1,7 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.linkx.server.common.AuthUtils;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.RateLimit;
@@ -19,6 +21,7 @@ import java.util.List;
  * 红包控制器
  */
 @RestController
+@Tag(name = "${openapi.tag.red-packet}")
 @RequestMapping("/red-packet")
 @RequiredArgsConstructor
 public class RedPacketController {

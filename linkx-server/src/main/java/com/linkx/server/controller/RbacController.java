@@ -1,5 +1,7 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.linkx.server.common.RbacConstants;
 import com.linkx.server.common.RequireRole;
 import com.linkx.server.common.Result;
@@ -28,6 +30,7 @@ import java.util.List;
  * </p>
  */
 @RestController
+@Tag(name = "${openapi.tag.rbac}")
 @RequestMapping("/rbac")
 @RequiredArgsConstructor
 @RequireRole(RbacConstants.ROLE_ADMIN)

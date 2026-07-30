@@ -1,5 +1,7 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.linkx.server.common.RateLimit;
 import com.linkx.server.service.ExternalMediaProxyService;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 外链图片 HMAC 代理：&lt;img&gt; 无法带 Authorization，故用短时签名 URL；登录拦截器排除本路径。
  */
 @RestController
+@Tag(name = "${openapi.tag.media}")
 @RequestMapping("/media")
 @RequiredArgsConstructor
 public class ExternalMediaController {

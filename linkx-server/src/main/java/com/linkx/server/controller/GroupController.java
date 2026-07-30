@@ -1,5 +1,7 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.linkx.server.common.AuthUtils;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.Result;
@@ -31,6 +33,7 @@ import java.util.List;
  * 群聊控制器
  */
 @RestController
+@Tag(name = "${openapi.tag.group}")
 @RequestMapping("/group")
 @RequiredArgsConstructor
 public class GroupController {

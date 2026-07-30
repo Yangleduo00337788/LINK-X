@@ -1,5 +1,7 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.linkx.server.common.AuthUtils;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.MediaStreamResponses;
@@ -31,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
+@Tag(name = "${openapi.tag.cloud-drive}")
 @RequestMapping("/cloud")
 @RequiredArgsConstructor
 @org.springframework.validation.annotation.Validated

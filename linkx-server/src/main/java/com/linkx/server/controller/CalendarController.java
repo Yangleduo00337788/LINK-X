@@ -1,5 +1,7 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.linkx.server.common.AuthUtils;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.Result;
@@ -19,6 +21,7 @@ import java.util.List;
  * 路径中的 eventId 使用字符串接收，再 Long.parseLong，避免雪花 ID 精度问题。
  */
 @RestController
+@Tag(name = "${openapi.tag.calendar}")
 @RequestMapping("/calendar")
 @RequiredArgsConstructor
 public class CalendarController {

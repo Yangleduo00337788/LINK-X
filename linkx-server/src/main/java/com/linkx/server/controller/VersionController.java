@@ -1,5 +1,7 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.linkx.server.common.Result;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.controller.vo.AppVersionVO;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
  * </p>
  */
 @RestController
+@Tag(name = "${openapi.tag.version}")
 @RequestMapping("/app")
 public class VersionController {
 

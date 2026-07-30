@@ -1,5 +1,7 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.linkx.server.common.AuthUtils;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.Result;
@@ -24,6 +26,7 @@ import java.util.List;
  * </p>
  */
 @RestController
+@Tag(name = "${openapi.tag.group-invitation}")
 @RequestMapping("/group/invitations")
 @RequiredArgsConstructor
 public class GroupInvitationController {

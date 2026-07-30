@@ -46,15 +46,15 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       # 最大连接数 ← HIKARI_MAX_POOL_SIZE
-      maximum-pool-size: ${HIKARI_MAX_POOL_SIZE:20}
+      maximum-pool-size: ${HIKARI_MAX_POOL_SIZE}
       # 最小空闲 ← HIKARI_MIN_IDLE
-      minimum-idle: ${HIKARI_MIN_IDLE:5}
+      minimum-idle: ${HIKARI_MIN_IDLE}
       # 获取连接超时（毫秒）← HIKARI_CONNECTION_TIMEOUT
-      connection-timeout: ${HIKARI_CONNECTION_TIMEOUT:30000}
+      connection-timeout: ${HIKARI_CONNECTION_TIMEOUT}
       # 空闲超时（毫秒）← HIKARI_IDLE_TIMEOUT
-      idle-timeout: ${HIKARI_IDLE_TIMEOUT:600000}
+      idle-timeout: ${HIKARI_IDLE_TIMEOUT}
       # 连接最大存活（毫秒）← HIKARI_MAX_LIFETIME
-      max-lifetime: ${HIKARI_MAX_LIFETIME:1800000}
+      max-lifetime: ${HIKARI_MAX_LIFETIME}
       pool-name: linkx-hikari
 
   data:
@@ -68,19 +68,32 @@ spring:
       # Redis DB 编号 ← REDIS_DATABASE
       database: ${REDIS_DATABASE}
       # 命令超时 ← REDIS_TIMEOUT
-      timeout: ${REDIS_TIMEOUT:3s}
+      timeout: ${REDIS_TIMEOUT}
       # 连接超时 ← REDIS_CONNECT_TIMEOUT
-      connect-timeout: ${REDIS_CONNECT_TIMEOUT:3s}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT}
       lettuce:
         pool:
           # 最大活跃连接 ← REDIS_LETTUCE_MAX_ACTIVE
-          max-active: ${REDIS_LETTUCE_MAX_ACTIVE:16}
+          max-active: ${REDIS_LETTUCE_MAX_ACTIVE}
           # 最大空闲 ← REDIS_LETTUCE_MAX_IDLE
-          max-idle: ${REDIS_LETTUCE_MAX_IDLE:8}
+          max-idle: ${REDIS_LETTUCE_MAX_IDLE}
           # 最小空闲 ← REDIS_LETTUCE_MIN_IDLE
-          min-idle: ${REDIS_LETTUCE_MIN_IDLE:2}
+          min-idle: ${REDIS_LETTUCE_MIN_IDLE}
           # 获取连接最大等待 ← REDIS_LETTUCE_MAX_WAIT
-          max-wait: ${REDIS_LETTUCE_MAX_WAIT:3s}
+          max-wait: ${REDIS_LETTUCE_MAX_WAIT}
+
+  # ---------- Flyway Schema 迁移 ----------
+  # 存量库：baseline-on-migrate=true，将当前结构记为版本 1，再执行 V2+。
+  # 新库：docker init.sql 建全量表后同样 baseline；后续变更只走 db/migration。
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    table: flyway_schema_history
+    baseline-on-migrate: true
+    baseline-version: 1
+    baseline-description: Existing schema (init.sql / prior deploys)
+    validate-on-migrate: true
+    encoding: UTF-8
 
 # ---------- MyBatis-Flex ORM（结构固定）----------
 mybatis-flex:
@@ -175,6 +188,8 @@ linkx:
     release-notes: ${APP_RELEASE_NOTES}
     # 下载地址 ← APP_DOWNLOAD_URL
     download-url: ${APP_DOWNLOAD_URL}
+    # 开发模式（允许 localhost WS）；生产必须 false ← DEV_MODE_ENABLED
+    dev-mode-enabled: ${DEV_MODE_ENABLED}
 
   retention:
     # 消息保留天数 ← MESSAGE_RETENTION_DAYS
@@ -209,6 +224,9 @@ management:
 
 # ---------- OpenAPI / Swagger ----------
 springdoc:
+  # 文档内容 i18n（配合 i18n/openapi*.properties 与 ?lang=）
+  disable-i18n: false
+  allowed-locales: zh_CN,en
   api-docs:
     # 是否启用 ← SPRINGDOC_ENABLED
     enabled: ${SPRINGDOC_ENABLED}
@@ -220,6 +238,8 @@ springdoc:
     operations-sorter: method
     tags-sorter: alpha
     display-request-duration: true
+    # 便于通过 ?lang= 切换后刷新文档
+    query-config-enabled: true
   show-actuator: false
 
 # ---------- 日志 ----------

@@ -1,5 +1,7 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.linkx.server.common.AuthUtils;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.RateLimit;
@@ -20,6 +22,7 @@ import java.util.List;
  * Note controller
  */
 @RestController
+@Tag(name = "${openapi.tag.note}")
 @RequestMapping("/notes")
 @RequiredArgsConstructor
 public class NoteController {

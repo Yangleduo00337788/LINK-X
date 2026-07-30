@@ -1,5 +1,7 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.linkx.server.common.AuthUtils;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.Result;
@@ -16,6 +18,7 @@ import java.util.Map;
  * 消息通知控制器
  */
 @RestController
+@Tag(name = "${openapi.tag.notification}")
 @RequestMapping("/notifications")
 @RequiredArgsConstructor
 public class MessageNotificationController {

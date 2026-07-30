@@ -9,6 +9,7 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.web.servlet.i18n.LocaleChangeInterceptor;
 
 /**
  * Web MVC 配置：拦截器与 CORS
@@ -21,9 +22,15 @@ public class WebMvcConfig implements WebMvcConfigurer {
     private final LoginInterceptor loginInterceptor;
     private final RateLimitInterceptor rateLimitInterceptor;
     private final LinkxProperties linkxProperties;
+    private final LocaleChangeInterceptor localeChangeInterceptor;
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
+        // Swagger 中英文：?lang=zh_CN|en → Cookie LINKX_LANG（须先于业务拦截器）
+        registry.addInterceptor(localeChangeInterceptor)
+                .addPathPatterns("/**")
+                .order(0);
+
         // context-path=/api 时，DispatcherServlet 内路径不含 /api 前缀，故用 /**
         registry.addInterceptor(loginInterceptor)
                 .addPathPatterns("/**")
@@ -48,6 +55,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/swagger-ui.html",
                         "/v3/api-docs/**",
                         "/webjars/**",
+                        "/swagger-i18n.js",
                         // Actuator：仅放行健康探针，禁止 metrics/prometheus 匿名
                         "/actuator/health",
                         "/actuator/health/**",
@@ -73,6 +81,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/swagger-ui.html",
                         "/v3/api-docs/**",
                         "/webjars/**",
+                        "/swagger-i18n.js",
                         "/actuator/health",
                         "/actuator/health/**",
                         "/error"

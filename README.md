@@ -142,6 +142,16 @@ docker-compose up -d
 ```
 然后通过 IDE 运行 `LinkXServerApplication` 启动后端服务。
 
+运维相关（备份 / Flyway 迁移 / 应用镜像）：见 [`linkx-server/docs/OPS.md`](linkx-server/docs/OPS.md)。
+
+```bash
+# 备份中间件数据
+./scripts/backup.sh
+
+# 构建并启动应用容器（需先准备 .env.docker）
+docker compose --profile app up -d --build
+```
+
 ---
 
 ## 项目结构
