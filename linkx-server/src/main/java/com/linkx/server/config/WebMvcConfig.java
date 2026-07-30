@@ -45,6 +45,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/auth/send-reset-code",
                         "/auth/verify-reset-code",
                         "/auth/reset-password-by-email",
+                        // 管理端匿名鉴权接口
+                        "/admin/auth/login",
+                        "/admin/auth/refresh",
+                        "/admin/auth/logout",
                         "/cloud/share/**",
                         // 健康检查 / 版本探测（客户端未登录前需可访问）
                         "/health",
@@ -74,6 +78,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/auth/logout",
                         "/auth/captcha",
                         "/auth/config",
+                        "/admin/auth/login",
+                        "/admin/auth/refresh",
+                        "/admin/auth/logout",
                         "/health",
                         "/health/**",
                         "/app/version",
