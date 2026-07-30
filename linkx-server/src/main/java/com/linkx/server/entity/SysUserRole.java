@@ -1,5 +1,6 @@
 package com.linkx.server.entity;
 
+import com.mybatisflex.annotation.Column;
 import com.mybatisflex.annotation.Id;
 import com.mybatisflex.annotation.KeyType;
 import com.mybatisflex.annotation.Table;
@@ -42,12 +43,14 @@ public class SysUserRole implements Serializable {
     // 角色 ID，关联 sys_role.id
     private Long roleId;
 
-    // 创建时间，数据库默认 CURRENT_TIMESTAMP
+    @Column(onInsertValue = "NOW()")
     private Date createTime;
 
     // 创建人 ID，审计字段（操作分配的管理员）
     private Long createBy;
 
     // 逻辑删除标记字段（关联表采用物理删除，恒为 0，保留以满足审计规范）
-    private Integer deleted;
+    @Column(onInsertValue = "0")
+    @Builder.Default
+    private Integer deleted = 0;
 }

@@ -223,6 +223,8 @@ public class RbacServiceImpl implements RbacService {
                 .userId(userId)
                 .roleId(roleId)
                 .createBy(createBy)
+                .deleted(0)
+                .createTime(new java.util.Date())
                 .build();
         // catch 唯一索引冲突实现幂等（替代 check-then-insert 竞态）
         try {
