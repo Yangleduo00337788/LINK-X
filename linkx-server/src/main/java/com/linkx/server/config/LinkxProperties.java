@@ -34,6 +34,10 @@ public class LinkxProperties {
          * 客户端可再次发起 sync 拉取剩余消息。
          */
         private int syncBatchSize = 200;
+
+        public void setHeartbeatIntervalSeconds(int heartbeatIntervalSeconds) {
+            this.heartbeatIntervalSeconds = Math.max(10, heartbeatIntervalSeconds);
+        }
     }
 
     @Data
@@ -69,6 +73,14 @@ public class LinkxProperties {
         private Long accessExpire = 1_800_000L;
         /** refresh token TTL：默认 3 天（毫秒） */
         private Long refreshExpire = 259_200_000L;
+
+        public void setAccessExpire(Long accessExpire) {
+            this.accessExpire = accessExpire == null ? 1_800_000L : Math.max(60_000L, accessExpire);
+        }
+
+        public void setRefreshExpire(Long refreshExpire) {
+            this.refreshExpire = refreshExpire == null ? 259_200_000L : Math.max(3600_000L, refreshExpire);
+        }
     }
 
     @Data
@@ -95,6 +107,10 @@ public class LinkxProperties {
          */
         public void setAllowedOrigins(List<String> origins) {
             this.allowedOrigins = normalizeOrigins(origins);
+        }
+
+        public boolean hasAllowedOrigins() {
+            return allowedOrigins != null && !allowedOrigins.isEmpty();
         }
 
         private static List<String> normalizeOrigins(List<String> origins) {
@@ -134,6 +150,20 @@ public class LinkxProperties {
         private boolean trustProxy = false;
         /** 仅在 trustProxy=true 时生效：允许信任的反代 IP 段，留空表示信任所有（不推荐） */
         private List<String> trustedIps = new ArrayList<>();
+
+        public void setTrustedIps(List<String> trustedIps) {
+            if (trustedIps == null) {
+                this.trustedIps = new ArrayList<>();
+                return;
+            }
+            List<String> out = new ArrayList<>();
+            for (String ip : trustedIps) {
+                if (ip != null && !ip.isBlank()) {
+                    out.add(ip.trim());
+                }
+            }
+            this.trustedIps = out;
+        }
     }
 
     /**
@@ -186,5 +216,9 @@ public class LinkxProperties {
     public static class Retention {
         /** 消息保留天数，默认 365 */
         private int messageDays = 365;
+
+        public void setMessageDays(int messageDays) {
+            this.messageDays = messageDays;
+        }
     }
 }

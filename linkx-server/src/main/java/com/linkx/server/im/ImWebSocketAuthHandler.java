@@ -56,14 +56,13 @@ public class ImWebSocketAuthHandler extends ChannelInboundHandlerAdapter {
                         TokenCookieUtil.ACCESS_TOKEN_COOKIE);
             }
             if (token == null || token.isBlank()) {
-                log.warn("WebSocket 鉴权失败: 缺少子协议 token 与 Cookie, uri={}, origin={}",
-                        request.uri(), request.headers().get("Origin"));
+                log.warn("WebSocket 鉴权失败: 缺少 token（subprotocol/cookie） origin={}",
+                        request.headers().get("Origin"));
                 reject(ctx, msg);
                 return;
             }
 
-            // Electron 客户端声明了子协议时，服务端必须回写匹配项，否则 Chromium 会直接关连接（1006）。
-            // 握手前只保留命名协议，去掉 JWT，避免 Netty 把 JWT 当第二个 subprotocol。
+            // Electron/浏览器客户端声明了子协议时，服务端只回写命名协议，避免把 JWT 继续带回响应头。
             if (request.headers().contains(HttpHeaderNames.SEC_WEBSOCKET_PROTOCOL)) {
                 request.headers().set(HttpHeaderNames.SEC_WEBSOCKET_PROTOCOL, ACCESS_TOKEN_PROTOCOL);
             }
@@ -124,8 +123,8 @@ public class ImWebSocketAuthHandler extends ChannelInboundHandlerAdapter {
             presenceService.markOffline(userId, deviceId, presenceConnId);
         }
         // 断连只刷新活跃时间，不删设备行；踢下线由 kickDevice 显式删除
-        if (deviceId != null && !deviceId.isBlank()) {
-            deviceSessionService.updateLastActive(deviceId);
+        if (userId != null && deviceId != null && !deviceId.isBlank()) {
+            deviceSessionService.updateLastActive(userId, deviceId);
         }
         ctx.fireChannelInactive();
     }
@@ -155,7 +154,8 @@ public class ImWebSocketAuthHandler extends ChannelInboundHandlerAdapter {
 
         // 仅在明确配置为开发模式时才允许 localhost，生产环境必须显式配置白名单
         boolean isDevMode = Boolean.TRUE.equals(linkxProperties.getApp().getDevModeEnabled());
-        if (isDevMode && (origin.startsWith("http://localhost:") || origin.startsWith("http://127.0.0.1:"))) {
+        if (isDevMode && (origin.startsWith("http://localhost:") || origin.startsWith("https://localhost:")
+                || origin.startsWith("http://127.0.0.1:") || origin.startsWith("https://127.0.0.1:"))) {
             log.debug("WebSocket 开发模式允许 localhost origin: {}", origin);
             return true;
         }
@@ -173,23 +173,28 @@ public class ImWebSocketAuthHandler extends ChannelInboundHandlerAdapter {
 
     /**
      * 从 Sec-WebSocket-Protocol 子协议提取 token。
-     * 客户端发送：{@code Sec-WebSocket-Protocol: linkx-access-token, <jwt>}
+     * 优先识别命名协议本身，随后在其后面的第一个非空 token 作为 JWT。
+     * 兼容：{@code linkx-access-token, <jwt>} 以及 {@code some-proto, linkx-access-token, <jwt>}。
      */
     private String extractTokenFromProtocol(FullHttpRequest request) {
         String header = request.headers().get(HttpHeaderNames.SEC_WEBSOCKET_PROTOCOL);
         if (header == null || header.isBlank()) {
             return null;
         }
+
         String[] parts = header.split(",");
-        for (int i = 0; i < parts.length - 1; i++) {
-            if (ACCESS_TOKEN_PROTOCOL.equalsIgnoreCase(parts[i].trim())) {
-                return parts[i + 1].trim();
+        boolean sawNamedProtocol = false;
+        for (String part : parts) {
+            String value = part == null ? "" : part.trim();
+            if (value.isEmpty()) {
+                continue;
             }
-        }
-        if (parts.length == 1) {
-            String trimmed = parts[0].trim();
-            if (trimmed.startsWith("eyJ")) {
-                return trimmed;
+            if (ACCESS_TOKEN_PROTOCOL.equalsIgnoreCase(value)) {
+                sawNamedProtocol = true;
+                continue;
+            }
+            if (sawNamedProtocol) {
+                return value;
             }
         }
         return null;

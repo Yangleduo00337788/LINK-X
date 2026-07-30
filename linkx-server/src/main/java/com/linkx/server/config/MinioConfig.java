@@ -5,8 +5,11 @@ import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import okhttp3.OkHttpClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Configuration
@@ -28,9 +31,18 @@ public class MinioConfig {
                     "MINIO_SECRET_KEY 未配置，请在 .env.local 或环境变量中设置（勿使用默认 minioadmin123）");
         }
 
+        // 显式超时，避免默认无限等待在网络抖动时拖垮业务线程
+        OkHttpClient httpClient = new OkHttpClient.Builder()
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .writeTimeout(60, TimeUnit.SECONDS)
+                .readTimeout(60, TimeUnit.SECONDS)
+                .callTimeout(120, TimeUnit.SECONDS)
+                .build();
+
         MinioClient client = MinioClient.builder()
                 .endpoint(minioProps.getEndpoint())
                 .credentials(minioProps.getAccessKey(), minioProps.getSecretKey())
+                .httpClient(httpClient)
                 .build();
         
         // 启动时检查并创建 bucket

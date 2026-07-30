@@ -25,12 +25,59 @@ export function cleanupNaiveUiOverlays() {
 
 /**
  * 退出登录或切换账号前重置 UI 层状态。
- * 关闭所有遮罩、设置面板、聊天弹窗，避免残留层挡住登录页。
+ * 关闭所有遮罩、设置面板、聊天弹窗，结束 1v1 / 会议 WebRTC，避免残留层挡住登录页。
  */
 export function resetSessionUi() {
-  useOverlayStore().closeAll()           // 清空 overlay 页面栈
-  useSettingsStore().closeSettings()     // 关闭设置模态框
-  useChatModalsStore().closeAllModals()  // 关闭红包/通话等聊天弹窗
-  void useCallStore().hangup()           // 结束进行中的 WebRTC 通话
+  useOverlayStore().closeAll()
+  useSettingsStore().closeSettings()
+  useChatModalsStore().closeAllModals()
+  void useCallStore().hangup()
+  // 会议流与 peer 连接：登出时必须释放，否则摄像头/麦克风会继续占用
+  void import('../stores/conference').then(({ useConferenceStore }) => {
+    const conference = useConferenceStore()
+    conference.cleanupLocal()
+    conference.phase = 'idle'
+  })
   cleanupNaiveUiOverlays()
+}
+
+/**
+ * 登出时重置业务 Store，避免下一账号看到上一账号缓存数据。
+ */
+export async function resetSessionStores() {
+  const [
+    { useContactsStore },
+    { useNotificationsStore },
+    { useMomentsStore },
+    { useFavoritesStore },
+    { useDriveStore },
+    { useFilesStore },
+    { useCalendarStore },
+    { useNoteStore },
+    { useGroupMetaStore },
+    { useAppSettingsStore }
+  ] = await Promise.all([
+    import('../stores/contacts'),
+    import('../stores/notifications'),
+    import('../stores/moments'),
+    import('../stores/favorites'),
+    import('../stores/drive'),
+    import('../stores/files'),
+    import('../stores/calendar'),
+    import('../stores/note'),
+    import('../stores/groupMeta'),
+    import('../stores/appSettings')
+  ])
+
+  useContactsStore().reset()
+  useNotificationsStore().resetFriends()
+  useNotificationsStore().clearMessageNotifs()
+  useMomentsStore().$reset()
+  useFavoritesStore().$reset()
+  useDriveStore().$reset()
+  useFilesStore().$reset()
+  useCalendarStore().$reset()
+  useNoteStore().$reset()
+  useGroupMetaStore().$reset()
+  useAppSettingsStore().reset()
 }

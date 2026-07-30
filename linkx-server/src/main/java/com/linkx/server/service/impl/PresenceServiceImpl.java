@@ -68,8 +68,24 @@ public class PresenceServiceImpl implements PresenceService {
                 member,
                 String.valueOf(ttlSeconds)
         );
-        trackInstanceMember(userId, member);
-        refreshInstanceHeartbeat();
+
+        boolean tracked = false;
+        try {
+            trackInstanceMember(userId, member);
+            tracked = true;
+            refreshInstanceHeartbeat();
+        } catch (Exception e) {
+            log.warn("presence 实例追踪更新失败: userId={}, instance={}, err={}", userId, INSTANCE_ID, e.getMessage());
+        }
+        if (!tracked) {
+            redisTemplate.opsForSet().remove(key, member);
+            Long after = redisTemplate.opsForSet().size(key);
+            if (after == null || after == 0L) {
+                redisTemplate.delete(key);
+            }
+            return;
+        }
+
         long before = counts != null && !counts.isEmpty() && counts.get(0) != null ? counts.get(0) : 0L;
         long after = counts != null && counts.size() > 1 && counts.get(1) != null ? counts.get(1) : 0L;
         boolean becameOnline = before == 0L && after > 0L;
@@ -91,7 +107,11 @@ public class PresenceServiceImpl implements PresenceService {
                 java.util.List.of(key),
                 member
         );
-        untrackInstanceMember(userId, member);
+        try {
+            untrackInstanceMember(userId, member);
+        } catch (Exception e) {
+            log.warn("presence 实例追踪移除失败: userId={}, instance={}, err={}", userId, INSTANCE_ID, e.getMessage());
+        }
         if (after == null || after == 0L) {
             publish(userId, false);
             log.debug("presence offline: userId={}, instance={}", userId, INSTANCE_ID);
@@ -100,16 +120,26 @@ public class PresenceServiceImpl implements PresenceService {
         }
     }
 
+    /**
+     * 原子刷新用户在线 TTL：仅当连接集合存在时才续期，避免 hasKey + expire 的竞态窗口。
+     */
+    private static final String TOUCH_LUA =
+            "if redis.call('EXISTS', KEYS[1]) == 1 then\n" +
+            "  return redis.call('EXPIRE', KEYS[1], ARGV[1])\n" +
+            "end\n" +
+            "return 0";
+
     @Override
     public void touch(Long userId) {
         if (userId == null) {
             return;
         }
         String key = connKey(userId);
-        Boolean exists = redisTemplate.hasKey(key);
-        if (Boolean.TRUE.equals(exists)) {
-            refreshTtl(key);
-        }
+        redisTemplate.execute(
+                new org.springframework.data.redis.core.script.DefaultRedisScript<>(TOUCH_LUA, Long.class),
+                java.util.List.of(key),
+                String.valueOf(ttl().getSeconds())
+        );
         refreshInstanceHeartbeat();
     }
 

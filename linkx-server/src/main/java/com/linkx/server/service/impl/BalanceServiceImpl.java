@@ -77,7 +77,7 @@ public class BalanceServiceImpl implements BalanceService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deductBalance(Long userId, BigDecimal amount, String bizType, String bizId, String remark) {
         // 金额必须为正数，防反向充值/扣款
         requirePositiveAmount(amount);
@@ -101,7 +101,7 @@ public class BalanceServiceImpl implements BalanceService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void addBalance(Long userId, BigDecimal amount, String bizType, String bizId, String remark) {
         // 金额必须为正数，防反向充值/扣款
         requirePositiveAmount(amount);
@@ -123,7 +123,7 @@ public class BalanceServiceImpl implements BalanceService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void freezeBalance(Long userId, BigDecimal amount, String bizId) {
         // 金额必须为正数，防反向冻结
         requirePositiveAmount(amount);
@@ -154,7 +154,7 @@ public class BalanceServiceImpl implements BalanceService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void unfreezeAndTransfer(Long fromUserId, Long toUserId, BigDecimal amount, String bizId) {
         // 金额必须为正数，防反向转账
         requirePositiveAmount(amount);
@@ -189,7 +189,7 @@ public class BalanceServiceImpl implements BalanceService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void unfreezeAndDeduct(Long userId, BigDecimal amount, String bizId) {
         // 金额必须为正数，防反向退款
         requirePositiveAmount(amount);

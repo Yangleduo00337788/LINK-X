@@ -14,7 +14,7 @@ public interface DeviceSessionService {
         return createOrUpdate(userId, deviceId, deviceName, deviceType, ip, userAgent);
     }
 
-    void updateLastActive(String deviceId);
+    void updateLastActive(Long userId, String deviceId);
 
     List<DeviceVO> listByUser(Long userId, String currentDeviceId);
 

@@ -1,6 +1,7 @@
 package com.linkx.server.service.impl;
 
 import com.linkx.server.config.LinkxProperties;
+import com.linkx.server.config.metrics.LinkxMetrics;
 import com.linkx.server.common.ImageUploadValidator;
 import com.linkx.server.common.InputSanitizer;
 import com.linkx.server.controller.dto.SendMessageDTO;
@@ -90,6 +91,7 @@ public class ChatServiceImpl implements ChatService {
     private final SensitiveWordService sensitiveWordService;
     private final MessageStormService messageStormService;
     private final AuditLogService auditLogService;
+    private final LinkxMetrics linkxMetrics;
 
     @Override
     public List<ConversationVO> listConversations(Long userId) {
@@ -381,6 +383,7 @@ public class ChatServiceImpl implements ChatService {
         conversation.setLastMessageTime(now);
         conversationMapper.update(conversation);
 
+        linkxMetrics.recordMessageSent();
         SysUser sender = sysUserMapper.selectOneById(userId);
         return toMessageVO(message, sender, userId, loadLastReadMessageId(userId, conversation.getId()));
     }

@@ -45,7 +45,7 @@ import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
 // 持久化前清理敏感或过大字段
 import { sanitizeAppPersistState } from '../utils/persistSanitize'
 // 登出时重置其它 UI Store
-import { resetSessionUi, cleanupNaiveUiOverlays } from '../utils/resetSessionUi'
+import { resetSessionUi, resetSessionStores, cleanupNaiveUiOverlays } from '../utils/resetSessionUi'
 import { useNotificationsStore } from './notifications'
 // HTTP 客户端与认证 API
 import * as authApi from '../api/auth'
@@ -1920,8 +1920,7 @@ export const useAppStore = defineStore('app', {
       }
 
       resetSessionUi()
-      useContactsStore().reset()
-      useNotificationsStore().resetFriends()
+      await resetSessionStores()
       this.resetChatState()
       this.isLocked = false
       this.isLoggedIn = false

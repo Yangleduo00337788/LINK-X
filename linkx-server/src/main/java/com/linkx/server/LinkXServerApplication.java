@@ -14,10 +14,12 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.mail.MailSenderAutoConfiguration;
 import org.springframework.boot.autoconfigure.mail.MailSenderValidatorAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.context.annotation.ComponentScan;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
+
+import java.util.List;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
@@ -75,7 +77,7 @@ class JwtSecretValidator {
     public void validateJwtSecret() {
         String secret = linkxProperties.getJwt().getSecret();
 
-        if (secret == null || secret.isEmpty()) {
+        if (!StringUtils.hasText(secret)) {
             log.error("[安全错误] JWT_SECRET 环境变量未设置，应用启动失败");
             throw new IllegalStateException(
                     "JWT Secret 不能为空。请设置 JWT_SECRET 环境变量，建议长度至少 32 个字符。" +
@@ -95,16 +97,14 @@ class JwtSecretValidator {
             );
         }
 
-        // 验证密钥是否可用于 HMAC-SHA256
         try {
-            SecretKey key = Keys.hmacShaKeyFor(secretBytes);
+            Keys.hmacShaKeyFor(secretBytes);
             log.info("[安全配置] JWT Secret 校验通过，密钥长度: {} 字节", secretBytes.length);
         } catch (Exception e) {
             log.error("[安全错误] JWT Secret 格式无效", e);
             throw new IllegalStateException("JWT Secret 格式无效，无法创建有效的 HMAC 密钥", e);
         }
 
-        // 安全检查：警告弱密钥
         if (secret.length() < 32 || !containsMixedCharacters(secret)) {
             log.warn("[安全警告] JWT Secret 强度可能不足，建议使用随机生成的长密钥");
         }
@@ -118,12 +118,43 @@ class JwtSecretValidator {
             else if (Character.isDigit(c)) hasDigit = true;
             else hasSpecial = true;
         }
-        // 至少包含三种类型字符
         int typeCount = 0;
         if (hasUpper) typeCount++;
         if (hasLower) typeCount++;
         if (hasDigit) typeCount++;
         if (hasSpecial) typeCount++;
         return typeCount >= 3;
+    }
+
+    @PostConstruct
+    public void validateCorsAndSecurityConfig() {
+        List<String> allowedOrigins = linkxProperties.getCors().getAllowedOrigins();
+        if (allowedOrigins == null || allowedOrigins.isEmpty()) {
+            log.error("[安全错误] CORS_ALLOWED_ORIGINS 未配置，Web 与 WebSocket origin 白名单为空");
+            throw new IllegalStateException("CORS_ALLOWED_ORIGINS 不能为空，请显式配置允许的 Origin 列表");
+        }
+
+        boolean hasWildcard = allowedOrigins.stream().anyMatch(origin -> "*".equals(origin.trim()));
+        if (hasWildcard) {
+            log.error("[安全错误] CORS_ALLOWED_ORIGINS 包含通配符 *，这会放大 WebSocket/跨域攻击面");
+            throw new IllegalStateException("CORS_ALLOWED_ORIGINS 不允许使用 *，请配置明确的 Origin 白名单");
+        }
+
+        if (linkxProperties.getSecurity().isRequireHttps() && allowedOrigins.stream().anyMatch(origin -> origin.startsWith("http://"))) {
+            log.warn("[安全警告] require-https 已开启，但 allowed-origins 中仍包含 http:// Origin");
+        }
+
+        if (linkxProperties.getIm().getWebsocketPort() <= 0) {
+            log.error("[配置错误] IM_WS_PORT 必须大于 0");
+            throw new IllegalStateException("IM_WS_PORT 必须大于 0");
+        }
+        if (!StringUtils.hasText(linkxProperties.getIm().getWebsocketPath()) || !linkxProperties.getIm().getWebsocketPath().startsWith("/")) {
+            log.error("[配置错误] IM WebSocket 路径必须以 / 开头");
+            throw new IllegalStateException("IM WebSocket 路径必须以 / 开头");
+        }
+        if (linkxProperties.getIm().getHeartbeatIntervalSeconds() < 10) {
+            log.error("[配置错误] heartbeat-interval-seconds 不能小于 10");
+            throw new IllegalStateException("heartbeat-interval-seconds 不能小于 10");
+        }
     }
 }

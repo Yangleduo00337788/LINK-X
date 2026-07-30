@@ -44,6 +44,18 @@ spring:
     password: ${DB_PASSWORD}
     # MySQL 8 驱动（固定）
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      # 最大连接数 ← HIKARI_MAX_POOL_SIZE
+      maximum-pool-size: ${HIKARI_MAX_POOL_SIZE:20}
+      # 最小空闲 ← HIKARI_MIN_IDLE
+      minimum-idle: ${HIKARI_MIN_IDLE:5}
+      # 获取连接超时（毫秒）← HIKARI_CONNECTION_TIMEOUT
+      connection-timeout: ${HIKARI_CONNECTION_TIMEOUT:30000}
+      # 空闲超时（毫秒）← HIKARI_IDLE_TIMEOUT
+      idle-timeout: ${HIKARI_IDLE_TIMEOUT:600000}
+      # 连接最大存活（毫秒）← HIKARI_MAX_LIFETIME
+      max-lifetime: ${HIKARI_MAX_LIFETIME:1800000}
+      pool-name: linkx-hikari
 
   data:
     redis:
@@ -55,6 +67,20 @@ spring:
       password: ${REDIS_PASSWORD}
       # Redis DB 编号 ← REDIS_DATABASE
       database: ${REDIS_DATABASE}
+      # 命令超时 ← REDIS_TIMEOUT
+      timeout: ${REDIS_TIMEOUT:3s}
+      # 连接超时 ← REDIS_CONNECT_TIMEOUT
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:3s}
+      lettuce:
+        pool:
+          # 最大活跃连接 ← REDIS_LETTUCE_MAX_ACTIVE
+          max-active: ${REDIS_LETTUCE_MAX_ACTIVE:16}
+          # 最大空闲 ← REDIS_LETTUCE_MAX_IDLE
+          max-idle: ${REDIS_LETTUCE_MAX_IDLE:8}
+          # 最小空闲 ← REDIS_LETTUCE_MIN_IDLE
+          min-idle: ${REDIS_LETTUCE_MIN_IDLE:2}
+          # 获取连接最大等待 ← REDIS_LETTUCE_MAX_WAIT
+          max-wait: ${REDIS_LETTUCE_MAX_WAIT:3s}
 
 # ---------- MyBatis-Flex ORM（结构固定）----------
 mybatis-flex:

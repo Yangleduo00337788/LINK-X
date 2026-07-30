@@ -5,6 +5,7 @@ import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.PasswordEncoderHolder;
 import com.linkx.server.common.SensitiveDataMasker;
 import com.linkx.server.config.LinkxProperties;
+import com.linkx.server.config.metrics.LinkxMetrics;
 import com.linkx.server.controller.dto.LoginDTO;
 import com.linkx.server.controller.dto.RegisterDTO;
 import com.linkx.server.controller.dto.UpdateProfileDTO;
@@ -42,6 +43,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     private final DeviceSessionService deviceSessionService;
     private final com.linkx.server.service.RbacService rbacService;
     private final com.linkx.server.service.ComplianceService complianceService;
+    private final LinkxMetrics linkxMetrics;
 
     @Override
     @Transactional
@@ -56,6 +58,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
                 .where(SysUser::getUsername).eq(username)
                 .count();
         if (count > 0) {
+            linkxMetrics.recordRegisterFailure();
             throw new CustomException(400, "注册失败，请检查信息后重试");
         }
         // 邮箱唯一性预检（与 DB 唯一索引双保险）
@@ -64,6 +67,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
                     .where(SysUser::getEmail).eq(email)
                     .count();
             if (emailCount > 0) {
+                linkxMetrics.recordRegisterFailure();
                 throw new CustomException(400, "注册失败，请检查信息后重试");
             }
         }
@@ -83,21 +87,26 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             save(user);
         } catch (org.springframework.dao.DuplicateKeyException e) {
             // 并发注册撞唯一索引时统一模糊错误，避免枚举用户名/邮箱
+            linkxMetrics.recordRegisterFailure();
             throw new CustomException(400, "注册失败，请检查信息后重试");
         }
 
         // 注册成功后自动分配默认 user 角色，与用户创建保持同一事务，保证账号可用
         rbacService.grantRole(user.getId(), com.linkx.server.common.RbacConstants.ROLE_USER, null);
+        linkxMetrics.recordRegisterSuccess();
         log.info("用户 {} 注册成功并分配默认角色 {}", user.getUsername(),
                 com.linkx.server.common.RbacConstants.ROLE_USER);
     }
 
     @Override
     public TokenVO login(LoginDTO loginDTO, String ip, String userAgent, HttpServletRequest request) {
+        long started = System.currentTimeMillis();
         String username = loginDTO.getUsername();
 
         // 检查账号是否被锁定
         if (rateLimitService.isAccountLocked(username, request)) {
+            linkxMetrics.recordLoginFailure();
+            linkxMetrics.recordLoginDuration(System.currentTimeMillis() - started);
             throw new CustomException(429, "登录失败次数过多，请稍后再试");
         }
 
@@ -120,6 +129,8 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             // 记录失败并检查限流
             rateLimitService.checkLoginRateLimit(username, request);
             loginAuditService.record(null, username, ip, userAgent, false, "用户名或密码错误");
+            linkxMetrics.recordLoginFailure();
+            linkxMetrics.recordLoginDuration(System.currentTimeMillis() - started);
             throw new CustomException(400, "用户名或密码错误");
         }
 
@@ -134,6 +145,8 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         // 用户存在且密码正确，继续检查账号状态
         if (user.getStatus() != 1) {
             loginAuditService.record(user.getId(), username, ip, userAgent, false, "账号已停用");
+            linkxMetrics.recordLoginFailure();
+            linkxMetrics.recordLoginDuration(System.currentTimeMillis() - started);
             throw new CustomException(403, "账号已被停用");
         }
 
@@ -155,6 +168,8 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
                 ip,
                 userAgent);
 
+        linkxMetrics.recordLoginSuccess();
+        linkxMetrics.recordLoginDuration(System.currentTimeMillis() - started);
         return tokenService.issueTokenPair(user, deviceId);
     }
 

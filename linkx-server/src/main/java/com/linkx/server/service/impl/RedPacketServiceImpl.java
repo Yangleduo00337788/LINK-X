@@ -55,7 +55,7 @@ public class RedPacketServiceImpl implements RedPacketService {
     private final org.springframework.transaction.PlatformTransactionManager transactionManager;
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public RedPacketVO sendRedPacket(Long userId, SendRedPacketDTO dto) {
         try {
             chatService.assertConversationMember(userId, dto.getConversationId());
@@ -127,7 +127,7 @@ public class RedPacketServiceImpl implements RedPacketService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public RedPacketVO receiveRedPacket(Long userId, String redPacketIdStr) {
         Long redPacketId = parseId(redPacketIdStr);
 
@@ -273,7 +273,7 @@ public class RedPacketServiceImpl implements RedPacketService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void expireRedPackets() {
         // 使用 FOR UPDATE 行锁，防止 TOCTOU 超退（并发领包时按快照多退）
         List<RedPacket> expiredPackets = redPacketMapper.selectExpiredForUpdate(

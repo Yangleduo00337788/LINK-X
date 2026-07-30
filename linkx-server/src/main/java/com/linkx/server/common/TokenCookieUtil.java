@@ -22,9 +22,9 @@ import org.springframework.stereotype.Component;
 public class TokenCookieUtil {
 
     /** Access Token Cookie 名 */
-    public static final String ACCESS_TOKEN_COOKIE = "access_token";
+    public static final String ACCESS_TOKEN_COOKIE = "__Host-access_token";
     /** Refresh Token Cookie 名 */
-    public static final String REFRESH_TOKEN_COOKIE = "refresh_token";
+    public static final String REFRESH_TOKEN_COOKIE = "__Host-refresh_token";
     /**
      * Cookie Path：设为根路径 {@code /}，使 Cookie 同时覆盖 HTTP API（{@code /api}）
      * 与 WebSocket（{@code /ws}，独立 Netty 端口）。若设为 {@code /api}，浏览器不会把 Cookie

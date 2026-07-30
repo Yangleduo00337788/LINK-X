@@ -28,8 +28,8 @@ public class AuditLogServiceImpl implements AuditLogService {
                 .description(description)
                 .userId(userId)
                 .username(username)
-                .ip(truncate(ip, 64))
-                .userAgent(truncate(userAgent, 512))
+                .ip(maskIp(ip))
+                .userAgent(sanitizeUserAgent(userAgent))
                 .status(success ? "SUCCESS" : "FAIL")
                 .failureReason(reason)
                 .createTime(new Date())
@@ -54,8 +54,8 @@ public class AuditLogServiceImpl implements AuditLogService {
                 .targetUsername(targetUsername)
                 .targetResourceId(truncate(targetResourceId, 128))
                 .targetResourceType(targetResourceType)
-                .ip(truncate(ip, 64))
-                .userAgent(truncate(userAgent, 512))
+                .ip(maskIp(ip))
+                .userAgent(sanitizeUserAgent(userAgent))
                 .status(success ? "SUCCESS" : "FAIL")
                 .failureReason(reason)
                 .createTime(new Date())
@@ -74,8 +74,8 @@ public class AuditLogServiceImpl implements AuditLogService {
                 .description(description)
                 .userId(userId)
                 .username(username)
-                .ip(truncate(ip, 64))
-                .userAgent(truncate(userAgent, 512))
+                .ip(maskIp(ip))
+                .userAgent(sanitizeUserAgent(userAgent))
                 .status(success ? "SUCCESS" : "FAIL")
                 .failureReason(reason)
                 .extraData(truncate(extraData, 2048))
@@ -89,5 +89,32 @@ public class AuditLogServiceImpl implements AuditLogService {
             return null;
         }
         return value.length() <= max ? value : value.substring(0, max);
+    }
+
+    private String sanitizeUserAgent(String userAgent) {
+        if (userAgent == null) {
+            return null;
+        }
+        String sanitized = userAgent.trim();
+        return sanitized.length() <= 256 ? sanitized : sanitized.substring(0, 256);
+    }
+
+    private String maskIp(String ip) {
+        if (ip == null) {
+            return null;
+        }
+        String trimmed = ip.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        int lastColon = trimmed.lastIndexOf(':');
+        if (lastColon > 0 && trimmed.indexOf(':') != lastColon) {
+            return "[redacted-ipv6]";
+        }
+        int lastDot = trimmed.lastIndexOf('.');
+        if (lastDot > 0) {
+            return trimmed.substring(0, lastDot + 1) + "*";
+        }
+        return "[redacted]";
     }
 }

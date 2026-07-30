@@ -3,6 +3,7 @@ package com.linkx.server.service.impl;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.TokenType;
 import com.linkx.server.config.LinkxProperties;
+import com.linkx.server.config.metrics.LinkxMetrics;
 import com.linkx.server.controller.vo.TokenVO;
 import com.linkx.server.common.UserProfileMapper;
 import com.linkx.server.controller.vo.UserInfoVO;
@@ -57,6 +58,7 @@ public class TokenServiceImpl implements TokenService {
     private final SysUserMapper sysUserMapper;
     private final LinkxProperties linkxProperties;
     private final MediaUrlService mediaUrlService;
+    private final LinkxMetrics linkxMetrics;
 
     @Override
     public TokenVO issueTokenPair(SysUser user) {
@@ -95,26 +97,28 @@ public class TokenServiceImpl implements TokenService {
     @Override
     public TokenVO refreshAccessToken(String refreshToken, String deviceId) {
         if (!StringUtils.hasText(refreshToken)) {
+            linkxMetrics.recordTokenRefreshFailure();
             throw new CustomException(401, "refreshToken 无效");
         }
 
-        // 先解析 token 获取 jti（不验证存储，仅解析 JWT）
         Claims claims;
         try {
             claims = jwtUtils.parseToken(refreshToken);
         } catch (Exception e) {
+            linkxMetrics.recordTokenRefreshFailure();
             throw new CustomException(401, "refreshToken 无效或已过期");
         }
 
         if (jwtUtils.getTokenType(refreshToken) != TokenType.REFRESH) {
+            linkxMetrics.recordTokenRefreshFailure();
             throw new CustomException(401, "refreshToken 无效");
         }
 
         String refreshJti = claims.getId();
         String refreshKey = REFRESH_KEY_PREFIX + refreshJti;
         String lockKey = REFRESH_LOCK_PREFIX + refreshJti;
+        String normalizedDeviceId = normalizeDeviceId(deviceId);
 
-        // 锁值标识当前持有者，释放时通过 Lua 原子校验，避免超时后误删其他请求的新锁。
         String lockValue = UUID.randomUUID().toString();
         Boolean locked = redisTemplate.opsForValue().setIfAbsent(lockKey, lockValue, Duration.ofSeconds(10));
         if (!Boolean.TRUE.equals(locked)) {
@@ -122,7 +126,6 @@ public class TokenServiceImpl implements TokenService {
         }
 
         try {
-            // 使用 Lua 脚本原子性地验证并删除 refresh token
             DefaultRedisScript<String> script = new DefaultRedisScript<>();
             script.setScriptText(REFRESH_TOKEN_LUA_SCRIPT);
             script.setResultType(String.class);
@@ -130,7 +133,6 @@ public class TokenServiceImpl implements TokenService {
             String userIdValue = redisTemplate.execute(script, Collections.singletonList(refreshKey), refreshJti);
 
             if (userIdValue == null || "-1".equals(userIdValue)) {
-                // JWT 仍有效但 Redis 已无：疑似 refresh 复用攻击 → 吊销该用户全部会话
                 Long reuseUserId = claims.get("userId", Long.class);
                 Date exp = claims.getExpiration();
                 if (reuseUserId != null && exp != null && exp.after(new Date())) {
@@ -140,21 +142,29 @@ public class TokenServiceImpl implements TokenService {
                         // 吊销失败仍返回 401
                     }
                 }
+                linkxMetrics.recordTokenRefreshFailure();
                 throw new CustomException(401, "refreshToken 已失效");
             }
 
             Long userId = Long.valueOf(userIdValue);
             SysUser user = sysUserMapper.selectOneById(userId);
             if (user == null || user.getStatus() != 1) {
+                linkxMetrics.recordTokenRefreshFailure();
                 throw new CustomException(401, "账号不可用");
             }
 
-            String normalizedDeviceId = normalizeDeviceId(deviceId);
             if (normalizedDeviceId != null && isDeviceKicked(userId, normalizedDeviceId)) {
+                linkxMetrics.recordTokenRefreshFailure();
                 throw new CustomException(401, "设备已被强制下线，请重新登录");
             }
 
-            return issueTokenPair(user, normalizedDeviceId);
+            if (normalizedDeviceId != null) {
+                clearDeviceKick(userId, normalizedDeviceId);
+            }
+
+            TokenVO tokenVO = issueTokenPair(user, normalizedDeviceId);
+            linkxMetrics.recordTokenRefreshSuccess();
+            return tokenVO;
         } finally {
             redisTemplate.execute(RELEASE_LOCK_SCRIPT, Collections.singletonList(lockKey), lockValue);
         }

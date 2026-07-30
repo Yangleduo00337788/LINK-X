@@ -20,6 +20,8 @@ public class DeviceVO implements Serializable {
     private String deviceName;
     private String deviceType;
     private String ip;
+    /** 脱敏后的设备浏览器/客户端标识，仅用于展示 */
+    private String userAgent;
     private Date lastActive;
     private boolean current;
 }

@@ -2,6 +2,7 @@ package com.linkx.server.im;
 
 import lombok.Data;
 
+
 @Data
 public class ImWsFrame {
 
@@ -18,5 +19,8 @@ public class ImWsFrame {
     private Integer voiceDuration;
     private Integer code;
     private String message;
+    /**
+     * 预留扩展字段，允许承载任意 JSON 结构。
+     */
     private Object data;
 }

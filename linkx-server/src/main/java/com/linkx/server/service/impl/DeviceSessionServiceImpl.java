@@ -30,20 +30,25 @@ public class DeviceSessionServiceImpl extends ServiceImpl<DeviceSessionMapper, D
 
     @Override
     public DeviceSession createOrUpdate(Long userId, String deviceId, String deviceName, String deviceType, String ip, String userAgent) {
+        String normalized = normalizeDeviceId(deviceId);
+        if (normalized == null) {
+            normalized = UUID.randomUUID().toString();
+        }
+
         DeviceSession session = deviceSessionMapper.selectOneByQuery(
                 QueryWrapper.create()
                         .where(DeviceSession::getUserId).eq(userId)
-                        .and(DeviceSession::getDeviceId).eq(deviceId)
+                        .and(DeviceSession::getDeviceId).eq(normalized)
         );
 
         if (session == null) {
             session = DeviceSession.builder()
                     .userId(userId)
-                    .deviceId(deviceId != null ? deviceId : UUID.randomUUID().toString())
+                    .deviceId(normalized)
                     .deviceName(deviceName)
                     .deviceType(deviceType)
                     .ip(ip)
-                    .userAgent(userAgent)
+                    .userAgent(sanitizeUserAgent(userAgent))
                     .lastActive(new Date())
                     .createTime(new Date())
                     .build();
@@ -52,16 +57,24 @@ public class DeviceSessionServiceImpl extends ServiceImpl<DeviceSessionMapper, D
             session.setLastActive(new Date());
             if (deviceName != null) session.setDeviceName(deviceName);
             if (deviceType != null) session.setDeviceType(deviceType);
+            if (ip != null) session.setIp(ip);
+            if (StringUtils.hasText(userAgent)) session.setUserAgent(sanitizeUserAgent(userAgent));
             deviceSessionMapper.update(session);
         }
         return session;
     }
 
     @Override
-    public void updateLastActive(String deviceId) {
+    public void updateLastActive(Long userId, String deviceId) {
+        String normalized = normalizeDeviceId(deviceId);
+        if (userId == null || normalized == null) {
+            return;
+        }
         DeviceSession session = deviceSessionMapper.selectOneByQuery(
                 QueryWrapper.create()
-                        .where(DeviceSession::getDeviceId).eq(deviceId)
+                        .where(DeviceSession::getUserId).eq(userId)
+                        .and(DeviceSession::getDeviceId).eq(normalized)
+                        .limit(1)
         );
         if (session != null) {
             session.setLastActive(new Date());
@@ -82,7 +95,8 @@ public class DeviceSessionServiceImpl extends ServiceImpl<DeviceSessionMapper, D
                         .id(s.getDeviceId())
                         .deviceName(s.getDeviceName() != null ? s.getDeviceName() : "未知设备")
                         .deviceType(s.getDeviceType() != null ? s.getDeviceType() : "Web")
-                        .ip(s.getIp())
+                        .ip(maskIp(s.getIp()))
+                        .userAgent(maskUserAgent(s.getUserAgent()))
                         .lastActive(s.getLastActive())
                         .current(currentDeviceId != null && s.getDeviceId().equals(currentDeviceId))
                         .build())
@@ -91,19 +105,23 @@ public class DeviceSessionServiceImpl extends ServiceImpl<DeviceSessionMapper, D
 
     @Override
     public void deleteDevice(Long userId, String deviceId) {
+        String normalized = normalizeDeviceId(deviceId);
+        if (userId == null || normalized == null) {
+            return;
+        }
         deviceSessionMapper.deleteByQuery(
                 QueryWrapper.create()
                         .where(DeviceSession::getUserId).eq(userId)
-                        .and(DeviceSession::getDeviceId).eq(deviceId)
+                        .and(DeviceSession::getDeviceId).eq(normalized)
         );
     }
 
     @Override
     public void kickDevice(Long userId, String deviceId, String operatorUsername, String ip, String userAgent) {
-        if (userId == null || !StringUtils.hasText(deviceId)) {
+        String normalized = normalizeDeviceId(deviceId);
+        if (userId == null || normalized == null) {
             return;
         }
-        String normalized = deviceId.trim();
         tokenService.revokeDeviceTokens(userId, normalized);
         int closed = channelManager.disconnectDevice(userId, normalized);
         deleteDevice(userId, normalized);
@@ -117,7 +135,7 @@ public class DeviceSessionServiceImpl extends ServiceImpl<DeviceSessionMapper, D
                 normalized,
                 "device",
                 ip,
-                userAgent,
+                sanitizeUserAgent(userAgent),
                 true,
                 null
         );
@@ -129,5 +147,48 @@ public class DeviceSessionServiceImpl extends ServiceImpl<DeviceSessionMapper, D
                 QueryWrapper.create()
                         .where(DeviceSession::getUserId).eq(userId)
         );
+    }
+
+    private String normalizeDeviceId(String deviceId) {
+        if (!StringUtils.hasText(deviceId)) {
+            return null;
+        }
+        String normalized = deviceId.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    private String sanitizeUserAgent(String userAgent) {
+        if (!StringUtils.hasText(userAgent)) {
+            return null;
+        }
+        String sanitized = userAgent.trim();
+        return sanitized.length() > 512 ? sanitized.substring(0, 512) : sanitized;
+    }
+
+    private String maskIp(String ip) {
+        if (!StringUtils.hasText(ip)) {
+            return null;
+        }
+        String trimmed = ip.trim();
+        int lastColon = trimmed.lastIndexOf(':');
+        if (lastColon > 0 && trimmed.indexOf(':') != lastColon) {
+            return "[redacted-ipv6]";
+        }
+        int lastDot = trimmed.lastIndexOf('.');
+        if (lastDot > 0) {
+            return trimmed.substring(0, lastDot + 1) + "*";
+        }
+        return "[redacted]";
+    }
+
+    private String maskUserAgent(String userAgent) {
+        if (!StringUtils.hasText(userAgent)) {
+            return null;
+        }
+        String sanitized = userAgent.trim();
+        if (sanitized.length() <= 64) {
+            return sanitized;
+        }
+        return sanitized.substring(0, 61) + "...";
     }
 }
