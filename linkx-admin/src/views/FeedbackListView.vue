@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { h, onMounted, reactive, ref } from 'vue'
+import { computed, h, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   NButton,
   NDataTable,
@@ -21,22 +22,27 @@ import {
 } from '@/api/feedback'
 import { formatTime } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
+import SearchAutoComplete from '@/components/SearchAutoComplete.vue'
 
 const message = useMessage()
 const dialog = useDialog()
 const auth = useAuthStore()
+const { t, locale } = useI18n()
 
 const loading = ref(false)
 const items = ref<FeedbackItem[]>([])
 const total = ref(0)
 const query = reactive({ page: 1, size: 20, keyword: '', status: '' as string })
 
-const statusOptions = [
-  { label: '全部状态', value: '' },
-  { label: '待处理', value: 'pending' },
-  { label: '已回复', value: 'replied' },
-  { label: '已关闭', value: 'closed' },
-]
+const statusOptions = computed(() => {
+  void locale.value
+  return [
+    { label: t('common.allStatus'), value: '' },
+    { label: t('feedback.pending'), value: 'pending' },
+    { label: t('feedback.replied'), value: 'replied' },
+    { label: t('feedback.closed'), value: 'closed' },
+  ]
+})
 
 const showReply = ref(false)
 const replyTarget = ref<FeedbackItem | null>(null)
@@ -50,68 +56,71 @@ function statusTag(status?: string) {
     closed: 'default',
   }
   const label: Record<string, string> = {
-    pending: '待处理',
-    replied: '已回复',
-    closed: '已关闭',
+    pending: t('feedback.pending'),
+    replied: t('feedback.replied'),
+    closed: t('feedback.closed'),
   }
   return h(NTag, { type: map[status || ''] || 'default', size: 'small' }, () => label[status || ''] || status || '-')
 }
 
-const columns: DataTableColumns<FeedbackItem> = [
-  { title: 'ID', key: 'id', width: 80 },
-  { title: '用户', key: 'username', width: 120 },
-  { title: '类型', key: 'type', width: 100 },
-  { title: '内容', key: 'content', ellipsis: { tooltip: true } },
-  { title: '联系方式', key: 'contact', width: 140, ellipsis: { tooltip: true } },
-  { title: '状态', key: 'status', width: 100, render: (row) => statusTag(row.status) },
-  { title: '时间', key: 'createTime', width: 170, render: (row) => formatTime(row.createTime) },
-  {
-    title: '操作',
-    key: 'actions',
-    width: 220,
-    render: (row) =>
-      h(NSpace, { size: 8 }, () => [
-        auth.hasPermission('admin:feedback:reply') && row.status !== 'closed'
-          ? h(NButton, { size: 'tiny', onClick: () => openReply(row) }, () => '回复')
-          : null,
-        auth.hasPermission('admin:feedback:close') && row.status !== 'closed'
-          ? h(
-              NButton,
-              {
-                size: 'tiny',
-                onClick: () =>
-                  dialog.warning({
-                    title: '关闭反馈',
-                    content: '确定关闭该反馈吗？',
-                    positiveText: '关闭',
-                    negativeText: '取消',
-                    onPositiveClick: async () => {
-                      await closeFeedback(row.id)
-                      message.success('已关闭')
-                      await load()
-                    },
-                  }),
-              },
-              () => '关闭',
-            )
-          : null,
-        auth.hasPermission('admin:feedback:reply') && row.status === 'closed'
-          ? h(
-              NButton,
-              {
-                size: 'tiny',
-                onClick: async () => {
-                  await reopenFeedback(row.id)
-                  message.success('已重新打开')
-                  await load()
+const columns = computed<DataTableColumns<FeedbackItem>>(() => {
+  void locale.value
+  return [
+    { title: 'ID', key: 'id', width: 80 },
+    { title: t('feedback.user'), key: 'username', width: 120 },
+    { title: t('feedback.type'), key: 'type', width: 100 },
+    { title: t('feedback.content'), key: 'content', ellipsis: { tooltip: true } },
+    { title: t('feedback.contact'), key: 'contact', width: 140, ellipsis: { tooltip: true } },
+    { title: t('common.status'), key: 'status', width: 100, render: (row) => statusTag(row.status) },
+    { title: t('common.time'), key: 'createTime', width: 170, render: (row) => formatTime(row.createTime) },
+    {
+      title: t('common.actions'),
+      key: 'actions',
+      width: 220,
+      render: (row) =>
+        h(NSpace, { size: 8 }, () => [
+          auth.hasPermission('admin:feedback:reply') && row.status !== 'closed'
+            ? h(NButton, { size: 'tiny', onClick: () => openReply(row) }, () => t('feedback.reply'))
+            : null,
+          auth.hasPermission('admin:feedback:close') && row.status !== 'closed'
+            ? h(
+                NButton,
+                {
+                  size: 'tiny',
+                  onClick: () =>
+                    dialog.warning({
+                      title: t('feedback.closeTitle'),
+                      content: t('feedback.closeConfirm'),
+                      positiveText: t('feedback.close'),
+                      negativeText: t('common.cancel'),
+                      onPositiveClick: async () => {
+                        await closeFeedback(row.id)
+                        message.success(t('feedback.closedSuccess'))
+                        await load()
+                      },
+                    }),
                 },
-              },
-              () => '重开',
-            )
-          : null,
-      ]),
-  },
-]
+                () => t('feedback.close'),
+              )
+            : null,
+          auth.hasPermission('admin:feedback:reply') && row.status === 'closed'
+            ? h(
+                NButton,
+                {
+                  size: 'tiny',
+                  onClick: async () => {
+                    await reopenFeedback(row.id)
+                    message.success(t('feedback.reopened'))
+                    await load()
+                  },
+                },
+                () => t('feedback.reopen'),
+              )
+            : null,
+        ]),
+    },
+  ]
+})
 
 function openReply(row: FeedbackItem) {
   replyTarget.value = row
@@ -121,13 +130,13 @@ function openReply(row: FeedbackItem) {
 
 async function submitReply() {
   if (!replyTarget.value || !replyContent.value.trim()) {
-    message.warning('请输入回复内容')
+    message.warning(t('feedback.replyRequired'))
     return
   }
   replySaving.value = true
   try {
     await replyFeedback(replyTarget.value.id, replyContent.value.trim())
-    message.success('回复成功')
+    message.success(t('feedback.replySuccess'))
     showReply.value = false
     await load()
   } finally {
@@ -151,25 +160,26 @@ async function load() {
   }
 }
 
+function search() {
+  query.page = 1
+  load()
+}
+
 onMounted(load)
 </script>
 
 <template>
   <div class="page">
-    <div class="page-header">
-      <h1 class="page-title">反馈管理</h1>
-    </div>
-    <div class="page-card">
-      <NSpace style="margin-bottom: 16px">
-        <NInput
-          v-model:value="query.keyword"
-          clearable
-          placeholder="搜索内容/用户"
-          style="width: 220px"
-          @keyup.enter="() => { query.page = 1; load() }"
+    <div class="page-shell">
+      <NSpace class="page-toolbar">
+        <SearchAutoComplete
+          v-model="query.keyword"
+          :placeholder="t('feedback.searchPlaceholder')"
+          width="220px"
+          @search="search"
         />
         <NSelect v-model:value="query.status" :options="statusOptions" style="width: 140px" />
-        <NButton type="primary" @click="() => { query.page = 1; load() }">查询</NButton>
+        <NButton type="primary" @click="search">{{ t('common.search') }}</NButton>
       </NSpace>
       <NDataTable
         :columns="columns"
@@ -180,6 +190,8 @@ onMounted(load)
           page: query.page,
           pageSize: query.size,
           itemCount: total,
+          showSizePicker: true,
+          pageSizes: [10, 20, 50],
           onUpdatePage: (p: number) => { query.page = p; load() },
           onUpdatePageSize: (s: number) => { query.size = s; query.page = 1; load() },
         }"
@@ -187,15 +199,29 @@ onMounted(load)
       />
     </div>
 
-    <NModal v-model:show="showReply" preset="card" title="回复反馈" style="width: 520px">
-      <p style="color: #a8b0bd; margin-top: 0">{{ replyTarget?.content }}</p>
-      <NInput v-model:value="replyContent" type="textarea" :rows="4" placeholder="请输入回复内容" />
+    <NModal v-model:show="showReply" preset="card" :title="t('feedback.replyTitle')" style="width: 520px">
+      <p class="reply-quote">{{ replyTarget?.content }}</p>
+      <NInput
+        v-model:value="replyContent"
+        type="textarea"
+        :rows="4"
+        :placeholder="t('feedback.replyPlaceholder')"
+      />
       <template #footer>
         <NSpace justify="end">
-          <NButton @click="showReply = false">取消</NButton>
-          <NButton type="primary" :loading="replySaving" @click="submitReply">提交</NButton>
+          <NButton @click="showReply = false">{{ t('common.cancel') }}</NButton>
+          <NButton type="primary" :loading="replySaving" @click="submitReply">{{ t('common.submit') }}</NButton>
         </NSpace>
       </template>
     </NModal>
   </div>
 </template>
+
+<style scoped>
+.reply-quote {
+  color: var(--lx-text-2);
+  margin-top: 0;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+</style>

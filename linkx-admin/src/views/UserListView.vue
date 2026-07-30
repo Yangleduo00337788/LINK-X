@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { h, onMounted, reactive, ref } from 'vue'
+import { computed, h, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import {
   NButton,
   NDataTable,
-  NInput,
   NSelect,
   NSpace,
   NTag,
@@ -20,11 +20,13 @@ import {
 } from '@/api/users'
 import { formatTime, userStatusLabel, userStatusType } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
+import SearchAutoComplete from '@/components/SearchAutoComplete.vue'
 
 const router = useRouter()
 const message = useMessage()
 const dialog = useDialog()
 const auth = useAuthStore()
+const { t, locale } = useI18n()
 
 const loading = ref(false)
 const items = ref<AdminUserListItem[]>([])
@@ -36,15 +38,17 @@ const query = reactive({
   status: '' as '' | number,
 })
 
-const statusOptions = [
-  { label: '全部状态', value: '' },
-  { label: '正常', value: 1 },
-  { label: '禁用', value: 0 },
-]
+const statusOptions = computed(() => {
+  void locale.value
+  return [
+    { label: t('common.allStatus'), value: '' },
+    { label: t('common.normal'), value: 1 },
+    { label: t('common.frozen'), value: 0 },
+  ]
+})
 
 const ADMIN_ROLES = new Set(['admin', 'super_admin'])
 
-/** 自己与管理员账号不展示禁用/启用，避免误操作（后端也会拒绝） */
 function canToggleStatus(row: AdminUserListItem) {
   if (String(row.id) === String(auth.user?.id)) return false
   if (row.roles?.some((r) => ADMIN_ROLES.has(r))) return false
@@ -59,74 +63,83 @@ function canEnable() {
   return auth.hasPermission(['admin:user:unfreeze', 'admin:user:unban'])
 }
 
-const columns: DataTableColumns<AdminUserListItem> = [
-  { title: 'ID', key: 'id', width: 80 },
-  { title: '用户名', key: 'username', ellipsis: { tooltip: true } },
-  { title: '昵称', key: 'nickname', ellipsis: { tooltip: true } },
-  { title: '邮箱', key: 'email', ellipsis: { tooltip: true } },
-  {
-    title: '状态',
-    key: 'status',
-    width: 90,
-    render: (row) => h(NTag, { type: userStatusType(row.status), size: 'small' }, () => userStatusLabel(row.status)),
-  },
-  {
-    title: '角色',
-    key: 'roles',
-    render: (row) => (row.roles?.length ? row.roles.join(', ') : '暂无'),
-  },
-  {
-    title: '创建时间',
-    key: 'createTime',
-    width: 170,
-    render: (row) => formatTime(row.createTime),
-  },
-  {
-    title: '操作',
-    key: 'actions',
-    width: 160,
-    fixed: 'right',
-    render: (row) =>
-      h(NSpace, { size: 8 }, () => [
-        h(NButton, { size: 'tiny', onClick: () => router.push(`/admin/users/${row.id}`) }, () => '详情'),
-        canToggleStatus(row) && row.status === 1 && canDisable()
-          ? h(
-              NButton,
-              {
-                size: 'tiny',
-                type: 'error',
-                secondary: true,
-                onClick: () =>
-                  confirmAction('禁用', '禁用后该用户将无法登录，已登录会话会被踢下线。', () => freezeUser(row.id)),
-              },
-              () => '禁用',
-            )
-          : null,
-        canToggleStatus(row) && row.status === 0 && canEnable()
-          ? h(
-              NButton,
-              {
-                size: 'tiny',
-                type: 'primary',
-                secondary: true,
-                onClick: () => confirmAction('启用', '确定重新启用该用户吗？', () => unfreezeUser(row.id)),
-              },
-              () => '启用',
-            )
-          : null,
-      ]),
-  },
-]
+const columns = computed<DataTableColumns<AdminUserListItem>>(() => {
+  void locale.value
+  return [
+    { title: 'ID', key: 'id', width: 80 },
+    { title: t('user.username'), key: 'username', ellipsis: { tooltip: true } },
+    { title: t('user.nickname'), key: 'nickname', ellipsis: { tooltip: true } },
+    { title: t('user.email'), key: 'email', ellipsis: { tooltip: true } },
+    {
+      title: t('common.status'),
+      key: 'status',
+      width: 90,
+      render: (row) =>
+        h(NTag, { type: userStatusType(row.status), size: 'small' }, () => userStatusLabel(row.status)),
+    },
+    {
+      title: t('user.roles'),
+      key: 'roles',
+      render: (row) => (row.roles?.length ? row.roles.join(', ') : t('common.none')),
+    },
+    {
+      title: t('common.createTime'),
+      key: 'createTime',
+      width: 170,
+      render: (row) => formatTime(row.createTime),
+    },
+    {
+      title: t('common.actions'),
+      key: 'actions',
+      width: 160,
+      fixed: 'right',
+      render: (row) =>
+        h(NSpace, { size: 8 }, () => [
+          h(NButton, { size: 'tiny', onClick: () => router.push(`/admin/users/${row.id}`) }, () =>
+            t('common.detail'),
+          ),
+          canToggleStatus(row) && row.status === 1 && canDisable()
+            ? h(
+                NButton,
+                {
+                  size: 'tiny',
+                  type: 'error',
+                  secondary: true,
+                  onClick: () =>
+                    confirmAction(t('user.freeze'), t('user.freezeConfirm'), () => freezeUser(row.id)),
+                },
+                () => t('user.freeze'),
+              )
+            : null,
+          canToggleStatus(row) && row.status === 0 && canEnable()
+            ? h(
+                NButton,
+                {
+                  size: 'tiny',
+                  type: 'primary',
+                  secondary: true,
+                  onClick: () =>
+                    confirmAction(t('user.unfreeze'), t('user.unfreezeConfirm'), () =>
+                      unfreezeUser(row.id),
+                    ),
+                },
+                () => t('user.unfreeze'),
+              )
+            : null,
+        ]),
+    },
+  ]
+})
 
 function confirmAction(label: string, content: string, action: () => Promise<unknown>) {
   dialog.warning({
-    title: `确认${label}`,
+    title: t('common.confirmAction', { action: label }),
     content,
-    positiveText: '确定',
-    negativeText: '取消',
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
     onPositiveClick: async () => {
       await action()
-      message.success(`${label}成功`)
+      message.success(t('common.actionSuccess', { action: label }))
       await load()
     },
   })
@@ -158,14 +171,16 @@ onMounted(load)
 
 <template>
   <div class="page">
-    <div class="page-header">
-      <h1 class="page-title">用户管理</h1>
-    </div>
-    <div class="page-card">
-      <NSpace style="margin-bottom: 16px">
-        <NInput v-model:value="query.keyword" clearable placeholder="搜索用户名/昵称/邮箱" style="width: 240px" @keyup.enter="search" />
+    <div class="page-shell">
+      <NSpace class="page-toolbar">
+        <SearchAutoComplete
+          v-model="query.keyword"
+          :placeholder="t('user.searchPlaceholder')"
+          width="240px"
+          @search="search"
+        />
         <NSelect v-model:value="query.status" :options="statusOptions" style="width: 140px" />
-        <NButton type="primary" @click="search">查询</NButton>
+        <NButton type="primary" @click="search">{{ t('common.search') }}</NButton>
       </NSpace>
       <NDataTable
         :columns="columns"

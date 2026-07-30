@@ -1,34 +1,40 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
-import { NButton, NDataTable, NInput, NSpace, type DataTableColumns } from 'naive-ui'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { NButton, NDataTable, NSpace, type DataTableColumns } from 'naive-ui'
 import { listAuditLogs, type AuditLog } from '@/api/logs'
 import { formatIp, formatTime } from '@/utils/format'
+import SearchAutoComplete from '@/components/SearchAutoComplete.vue'
 
+const { t, locale } = useI18n()
 const loading = ref(false)
 const items = ref<AuditLog[]>([])
 const total = ref(0)
 const query = reactive({ page: 1, size: 20, keyword: '' })
 
-const columns: DataTableColumns<AuditLog> = [
-  { title: 'ID', key: 'id', width: 80 },
-  { title: '操作类型', key: 'operationType', width: 140 },
-  { title: '描述', key: 'description', ellipsis: { tooltip: true } },
-  { title: '操作人', key: 'username', width: 120 },
-  { title: '目标用户', key: 'targetUsername', width: 120 },
-  {
-    title: 'IP',
-    key: 'ip',
-    width: 140,
-    render: (row) => formatIp(row.ip),
-  },
-  { title: '状态', key: 'status', width: 90 },
-  {
-    title: '时间',
-    key: 'createTime',
-    width: 170,
-    render: (row) => formatTime(row.createTime),
-  },
-]
+const columns = computed<DataTableColumns<AuditLog>>(() => {
+  void locale.value
+  return [
+    { title: 'ID', key: 'id', width: 80 },
+    { title: t('audit.operationType'), key: 'operationType', width: 140 },
+    { title: t('common.description'), key: 'description', ellipsis: { tooltip: true } },
+    { title: t('audit.operator'), key: 'username', width: 120 },
+    { title: t('audit.targetUser'), key: 'targetUsername', width: 120 },
+    {
+      title: 'IP',
+      key: 'ip',
+      width: 140,
+      render: (row) => formatIp(row.ip),
+    },
+    { title: t('common.status'), key: 'status', width: 90 },
+    {
+      title: t('common.time'),
+      key: 'createTime',
+      width: 170,
+      render: (row) => formatTime(row.createTime),
+    },
+  ]
+})
 
 async function load() {
   loading.value = true
@@ -45,24 +51,25 @@ async function load() {
   }
 }
 
+function search() {
+  query.page = 1
+  load()
+}
+
 onMounted(load)
 </script>
 
 <template>
   <div class="page">
-    <div class="page-header">
-      <h1 class="page-title">操作日志</h1>
-    </div>
-    <div class="page-card">
-      <NSpace style="margin-bottom: 16px">
-        <NInput
-          v-model:value="query.keyword"
-          clearable
-          placeholder="搜索操作类型/用户"
-          style="width: 240px"
-          @keyup.enter="() => { query.page = 1; load() }"
+    <div class="page-shell">
+      <NSpace class="page-toolbar">
+        <SearchAutoComplete
+          v-model="query.keyword"
+          :placeholder="t('audit.searchPlaceholder')"
+          width="240px"
+          @search="search"
         />
-        <NButton type="primary" @click="() => { query.page = 1; load() }">查询</NButton>
+        <NButton type="primary" @click="search">{{ t('common.search') }}</NButton>
       </NSpace>
       <NDataTable
         :columns="columns"
@@ -73,6 +80,8 @@ onMounted(load)
           page: query.page,
           pageSize: query.size,
           itemCount: total,
+          showSizePicker: true,
+          pageSizes: [10, 20, 50],
           onUpdatePage: (p: number) => { query.page = p; load() },
           onUpdatePageSize: (s: number) => { query.size = s; query.page = 1; load() },
         }"

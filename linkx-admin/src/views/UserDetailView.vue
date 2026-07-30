@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, h, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import {
   NButton,
   NDataTable,
@@ -31,23 +32,25 @@ const router = useRouter()
 const message = useMessage()
 const dialog = useDialog()
 const auth = useAuthStore()
+const { t, locale } = useI18n()
 
 const loading = ref(false)
 const user = ref<AdminUserDetail | null>(null)
 const devices = ref<DeviceItem[]>([])
 const deviceLoading = ref(false)
 
-/** 雪花 ID 必须保持字符串，Number() 会丢失精度导致查不到用户 */
 const userId = computed(() => String(route.params.id || ''))
 
 const regionText = computed(() => {
-  if (!user.value) return '暂无'
+  void locale.value
+  if (!user.value) return t('common.none')
   const parts = [user.value.country, user.value.province, user.value.region].filter(Boolean)
-  return parts.length ? parts.join(' / ') : '暂无'
+  return parts.length ? parts.join(' / ') : t('common.none')
 })
 
 const rolesText = computed(() => {
-  if (!user.value?.roles?.length) return '暂无'
+  void locale.value
+  if (!user.value?.roles?.length) return t('common.none')
   return user.value.roles.join(', ')
 })
 
@@ -63,29 +66,35 @@ const canToggleStatus = computed(() => {
 const canDisable = computed(() => auth.hasPermission(['admin:user:freeze', 'admin:user:ban']))
 const canEnable = computed(() => auth.hasPermission(['admin:user:unfreeze', 'admin:user:unban']))
 
-const deviceColumns: DataTableColumns<DeviceItem> = [
-  { title: '设备 ID', key: 'id', ellipsis: { tooltip: true } },
-  { title: '名称', key: 'deviceName' },
-  { title: '类型', key: 'deviceType', width: 100 },
-  {
-    title: 'IP',
-    key: 'ip',
-    width: 140,
-    render: (row) => formatIp(row.ip),
-  },
-  {
-    title: '当前',
-    key: 'current',
-    width: 80,
-    render: (row) => (row.current ? h(NTag, { type: 'success', size: 'small' }, () => '是') : '否'),
-  },
-  {
-    title: '最近活跃',
-    key: 'lastActive',
-    width: 170,
-    render: (row) => formatTime(row.lastActive),
-  },
-]
+const deviceColumns = computed<DataTableColumns<DeviceItem>>(() => {
+  void locale.value
+  return [
+    { title: t('user.deviceId'), key: 'id', ellipsis: { tooltip: true } },
+    { title: t('user.deviceName'), key: 'deviceName' },
+    { title: t('user.deviceType'), key: 'deviceType', width: 100 },
+    {
+      title: 'IP',
+      key: 'ip',
+      width: 140,
+      render: (row) => formatIp(row.ip),
+    },
+    {
+      title: t('user.current'),
+      key: 'current',
+      width: 80,
+      render: (row) =>
+        row.current
+          ? h(NTag, { type: 'success', size: 'small' }, () => t('common.yes'))
+          : t('common.no'),
+    },
+    {
+      title: t('user.lastActive'),
+      key: 'lastActive',
+      width: 170,
+      render: (row) => formatTime(row.lastActive),
+    },
+  ]
+})
 
 async function load() {
   loading.value = true
@@ -107,13 +116,13 @@ async function loadDevices() {
 
 function confirmAction(label: string, content: string, action: () => Promise<unknown>) {
   dialog.warning({
-    title: `确认${label}`,
+    title: t('common.confirmAction', { action: label }),
     content,
-    positiveText: '确定',
-    negativeText: '取消',
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
     onPositiveClick: async () => {
       await action()
-      message.success(`${label}成功`)
+      message.success(t('common.actionSuccess', { action: label }))
       await load()
     },
   })
@@ -127,50 +136,47 @@ onMounted(async () => {
 
 <template>
   <div class="page">
-    <div class="page-header">
-      <h1 class="page-title">用户详情</h1>
-      <NSpace>
-        <NButton @click="router.back()">返回</NButton>
-        <NButton
-          v-if="canToggleStatus && user?.status === 1 && canDisable"
-          type="error"
-          secondary
-          @click="confirmAction('禁用', '禁用后该用户将无法登录，已登录会话会被踢下线。', () => freezeUser(userId))"
-        >
-          禁用
-        </NButton>
-        <NButton
-          v-if="canToggleStatus && user?.status === 0 && canEnable"
-          type="primary"
-          secondary
-          @click="confirmAction('启用', '确定重新启用该用户吗？', () => unfreezeUser(userId))"
-        >
-          启用
-        </NButton>
-      </NSpace>
-    </div>
     <NSpin :show="loading">
-      <div v-if="user" class="page-card">
+      <div v-if="user" class="page-shell">
+        <NSpace class="page-toolbar" justify="end">
+          <NButton @click="router.back()">{{ t('common.back') }}</NButton>
+          <NButton
+            v-if="canToggleStatus && user?.status === 1 && canDisable"
+            type="error"
+            secondary
+            @click="confirmAction(t('user.freeze'), t('user.freezeConfirm'), () => freezeUser(userId))"
+          >
+            {{ t('user.freeze') }}
+          </NButton>
+          <NButton
+            v-if="canToggleStatus && user?.status === 0 && canEnable"
+            type="primary"
+            secondary
+            @click="confirmAction(t('user.unfreeze'), t('user.unfreezeConfirm'), () => unfreezeUser(userId))"
+          >
+            {{ t('user.unfreeze') }}
+          </NButton>
+        </NSpace>
         <NTabs type="line">
-          <NTabPane name="profile" tab="基本信息">
+          <NTabPane name="profile" :tab="t('user.tabProfile')">
             <NDescriptions label-placement="left" :column="2" bordered>
               <NDescriptionsItem label="ID">{{ user.id }}</NDescriptionsItem>
-              <NDescriptionsItem label="用户名">{{ user.username }}</NDescriptionsItem>
-              <NDescriptionsItem label="昵称">{{ user.nickname || '-' }}</NDescriptionsItem>
-              <NDescriptionsItem label="状态">
+              <NDescriptionsItem :label="t('user.username')">{{ user.username }}</NDescriptionsItem>
+              <NDescriptionsItem :label="t('user.nickname')">{{ user.nickname || '-' }}</NDescriptionsItem>
+              <NDescriptionsItem :label="t('common.status')">
                 <NTag :type="userStatusType(user.status)" size="small">{{ userStatusLabel(user.status) }}</NTag>
               </NDescriptionsItem>
-              <NDescriptionsItem label="邮箱">{{ displayOrNone(user.email) }}</NDescriptionsItem>
-              <NDescriptionsItem label="手机">{{ displayOrNone(user.phone) }}</NDescriptionsItem>
-              <NDescriptionsItem label="性别">{{ displayOrNone(user.gender) }}</NDescriptionsItem>
-              <NDescriptionsItem label="地区">{{ regionText }}</NDescriptionsItem>
-              <NDescriptionsItem label="签名" :span="2">{{ displayOrNone(user.signature) }}</NDescriptionsItem>
-              <NDescriptionsItem label="角色" :span="2">{{ rolesText }}</NDescriptionsItem>
-              <NDescriptionsItem label="创建时间">{{ formatTime(user.createTime) }}</NDescriptionsItem>
-              <NDescriptionsItem label="更新时间">{{ formatTime(user.updateTime) }}</NDescriptionsItem>
+              <NDescriptionsItem :label="t('user.email')">{{ displayOrNone(user.email) }}</NDescriptionsItem>
+              <NDescriptionsItem :label="t('user.phone')">{{ displayOrNone(user.phone) }}</NDescriptionsItem>
+              <NDescriptionsItem :label="t('user.gender')">{{ displayOrNone(user.gender) }}</NDescriptionsItem>
+              <NDescriptionsItem :label="t('user.region')">{{ regionText }}</NDescriptionsItem>
+              <NDescriptionsItem :label="t('user.signature')" :span="2">{{ displayOrNone(user.signature) }}</NDescriptionsItem>
+              <NDescriptionsItem :label="t('user.roles')" :span="2">{{ rolesText }}</NDescriptionsItem>
+              <NDescriptionsItem :label="t('common.createTime')">{{ formatTime(user.createTime) }}</NDescriptionsItem>
+              <NDescriptionsItem :label="t('common.updateTime')">{{ formatTime(user.updateTime) }}</NDescriptionsItem>
             </NDescriptions>
           </NTabPane>
-          <NTabPane name="devices" tab="设备">
+          <NTabPane name="devices" :tab="t('user.tabDevices')">
             <NDataTable :columns="deviceColumns" :data="devices" :loading="deviceLoading" />
           </NTabPane>
         </NTabs>

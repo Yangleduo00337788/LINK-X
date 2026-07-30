@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { h, onMounted, reactive, ref } from 'vue'
+import { computed, h, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
+  NAutoComplete,
   NButton,
   NDataTable,
   NForm,
@@ -16,6 +18,7 @@ import {
   type FormInst,
   type TreeOption,
 } from 'naive-ui'
+import SearchAutoComplete from '@/components/SearchAutoComplete.vue'
 import {
   assignRoleMenus,
   createRole,
@@ -29,11 +32,13 @@ import {
 import { listMenus } from '@/api/menus'
 import type { AdminMenuTree } from '@/types/api'
 import { formatTime } from '@/utils/format'
+import { resolveMenuLabel } from '@/utils/menuI18n'
 import { useAuthStore } from '@/stores/auth'
 
 const message = useMessage()
 const dialog = useDialog()
 const auth = useAuthStore()
+const { t, locale } = useI18n()
 
 const loading = ref(false)
 const items = ref<AdminRole[]>([])
@@ -44,6 +49,24 @@ const showForm = ref(false)
 const editing = ref<AdminRole | null>(null)
 const formRef = ref<FormInst | null>(null)
 const form = reactive<RolePayload>({ roleCode: '', roleName: '', description: '', status: 1 })
+
+const roleCodeOptions = computed(() => {
+  const q = form.roleCode.trim().toLowerCase()
+  const pool = [...new Set(items.value.map((r) => r.roleCode).filter(Boolean))]
+  return (q ? pool.filter((x) => x.toLowerCase().includes(q)) : pool).map((value) => ({
+    label: value,
+    value,
+  }))
+})
+
+const roleNameOptions = computed(() => {
+  const q = form.roleName.trim().toLowerCase()
+  const pool = [...new Set(items.value.map((r) => r.roleName).filter(Boolean))]
+  return (q ? pool.filter((x) => x.toLowerCase().includes(q)) : pool).map((value) => ({
+    label: value,
+    value,
+  }))
+})
 const saving = ref(false)
 
 const showMenuModal = ref(false)
@@ -52,69 +75,72 @@ const menuTree = ref<TreeOption[]>([])
 const checkedKeys = ref<number[]>([])
 const menuSaving = ref(false)
 
-const columns: DataTableColumns<AdminRole> = [
-  { title: 'ID', key: 'id', width: 80 },
-  { title: '角色编码', key: 'roleCode' },
-  { title: '角色名称', key: 'roleName' },
-  { title: '描述', key: 'description', ellipsis: { tooltip: true } },
-  {
-    title: '状态',
-    key: 'status',
-    width: 90,
-    render: (row) =>
-      h(NTag, { type: row.status === 1 ? 'success' : 'error', size: 'small' }, () =>
-        row.status === 1 ? '启用' : '停用',
-      ),
-  },
-  {
-    title: '创建时间',
-    key: 'createTime',
-    width: 170,
-    render: (row) => formatTime(row.createTime),
-  },
-  {
-    title: '操作',
-    key: 'actions',
-    width: 240,
-    render: (row) =>
-      h(NSpace, { size: 8 }, () => [
-        auth.hasPermission('admin:role:edit')
-          ? h(NButton, { size: 'tiny', onClick: () => openEdit(row) }, () => '编辑')
-          : null,
-        auth.hasPermission('admin:role:assign-menu')
-          ? h(NButton, { size: 'tiny', onClick: () => openMenus(row) }, () => '菜单')
-          : null,
-        auth.hasPermission('admin:role:delete')
-          ? h(
-              NButton,
-              {
-                size: 'tiny',
-                type: 'error',
-                secondary: true,
-                onClick: () =>
-                  dialog.warning({
-                    title: '删除角色',
-                    content: `确定删除角色「${row.roleName}」吗？`,
-                    positiveText: '删除',
-                    negativeText: '取消',
-                    onPositiveClick: async () => {
-                      await deleteRole(row.id)
-                      message.success('已删除')
-                      await load()
-                    },
-                  }),
-              },
-              () => '删除',
-            )
-          : null,
-      ]),
-  },
-]
+const columns = computed<DataTableColumns<AdminRole>>(() => {
+  void locale.value
+  return [
+    { title: 'ID', key: 'id', width: 80 },
+    { title: t('role.roleCode'), key: 'roleCode' },
+    { title: t('role.roleName'), key: 'roleName' },
+    { title: t('common.description'), key: 'description', ellipsis: { tooltip: true } },
+    {
+      title: t('common.status'),
+      key: 'status',
+      width: 90,
+      render: (row) =>
+        h(NTag, { type: row.status === 1 ? 'success' : 'error', size: 'small' }, () =>
+          row.status === 1 ? t('common.enabled') : t('common.disabled'),
+        ),
+    },
+    {
+      title: t('common.createTime'),
+      key: 'createTime',
+      width: 170,
+      render: (row) => formatTime(row.createTime),
+    },
+    {
+      title: t('common.actions'),
+      key: 'actions',
+      width: 240,
+      render: (row) =>
+        h(NSpace, { size: 8 }, () => [
+          auth.hasPermission('admin:role:edit')
+            ? h(NButton, { size: 'tiny', onClick: () => openEdit(row) }, () => t('common.edit'))
+            : null,
+          auth.hasPermission('admin:role:assign-menu')
+            ? h(NButton, { size: 'tiny', onClick: () => openMenus(row) }, () => t('role.menus'))
+            : null,
+          auth.hasPermission('admin:role:delete')
+            ? h(
+                NButton,
+                {
+                  size: 'tiny',
+                  type: 'error',
+                  secondary: true,
+                  onClick: () =>
+                    dialog.warning({
+                      title: t('role.deleteTitle'),
+                      content: t('role.deleteConfirm', { name: row.roleName }),
+                      positiveText: t('common.delete'),
+                      negativeText: t('common.cancel'),
+                      onPositiveClick: async () => {
+                        await deleteRole(row.id)
+                        message.success(t('common.deleted'))
+                        await load()
+                      },
+                    }),
+                },
+                () => t('common.delete'),
+              )
+            : null,
+        ]),
+    },
+  ]
+})
 
 function toTree(nodes: AdminMenuTree[]): TreeOption[] {
   return nodes.map((n) => ({
     key: n.id,
-    label: n.title || n.name,
+    label: resolveMenuLabel(t, n),
     children: n.children?.length ? toTree(n.children) : undefined,
   }))
 }
@@ -157,10 +183,10 @@ async function save() {
   try {
     if (editing.value) {
       await updateRole(editing.value.id, form)
-      message.success('更新成功')
+      message.success(t('common.updateSuccess'))
     } else {
       await createRole(form)
-      message.success('创建成功')
+      message.success(t('common.createSuccess'))
     }
     showForm.value = false
     await load()
@@ -182,7 +208,7 @@ async function saveMenus() {
   menuSaving.value = true
   try {
     await assignRoleMenus(menuRoleId.value, checkedKeys.value)
-    message.success('菜单权限已更新')
+    message.success(t('role.menusUpdated'))
     showMenuModal.value = false
   } finally {
     menuSaving.value = false
@@ -193,19 +219,30 @@ function onMenuChecked(keys: Array<string | number>) {
   checkedKeys.value = keys.map(Number)
 }
 
+function search() {
+  query.page = 1
+  load()
+}
+
 onMounted(load)
 </script>
 
 <template>
   <div class="page">
-    <div class="page-header">
-      <h1 class="page-title">角色管理</h1>
-      <NButton v-if="auth.hasPermission('admin:role:create')" type="primary" @click="openCreate">新建角色</NButton>
-    </div>
-    <div class="page-card">
-      <NSpace style="margin-bottom: 16px">
-        <NInput v-model:value="query.keyword" clearable placeholder="搜索角色" style="width: 220px" @keyup.enter="() => { query.page = 1; load() }" />
-        <NButton type="primary" @click="() => { query.page = 1; load() }">查询</NButton>
+    <div class="page-shell">
+      <NSpace class="page-toolbar" justify="space-between">
+        <NSpace>
+          <SearchAutoComplete
+            v-model="query.keyword"
+            :placeholder="t('role.searchPlaceholder')"
+            width="220px"
+            @search="search"
+          />
+          <NButton type="primary" @click="search">{{ t('common.search') }}</NButton>
+        </NSpace>
+        <NButton v-if="auth.hasPermission('admin:role:create')" type="primary" @click="openCreate">
+          {{ t('role.create') }}
+        </NButton>
       </NSpace>
       <NDataTable
         :columns="columns"
@@ -215,6 +252,8 @@ onMounted(load)
           page: query.page,
           pageSize: query.size,
           itemCount: total,
+          showSizePicker: true,
+          pageSizes: [10, 20, 50],
           onUpdatePage: (p: number) => { query.page = p; load() },
           onUpdatePageSize: (s: number) => { query.size = s; query.page = 1; load() },
         }"
@@ -222,27 +261,49 @@ onMounted(load)
       />
     </div>
 
-    <NModal v-model:show="showForm" preset="card" :title="editing ? '编辑角色' : '新建角色'" style="width: 480px">
+    <NModal
+      v-model:show="showForm"
+      preset="card"
+      :title="editing ? t('role.edit') : t('role.create')"
+      style="width: 480px"
+    >
       <NForm ref="formRef" :model="form" label-placement="left" label-width="80">
-        <NFormItem label="编码" path="roleCode" :rule="{ required: true, message: '必填' }">
-          <NInput v-model:value="form.roleCode" :disabled="!!editing" />
+        <NFormItem
+          :label="t('role.code')"
+          path="roleCode"
+          :rule="{ required: true, message: t('common.required') }"
+        >
+          <NAutoComplete
+            v-model:value="form.roleCode"
+            :disabled="!!editing"
+            :options="roleCodeOptions"
+            :placeholder="t('role.roleCode')"
+          />
         </NFormItem>
-        <NFormItem label="名称" path="roleName" :rule="{ required: true, message: '必填' }">
-          <NInput v-model:value="form.roleName" />
+        <NFormItem
+          :label="t('role.name')"
+          path="roleName"
+          :rule="{ required: true, message: t('common.required') }"
+        >
+          <NAutoComplete
+            v-model:value="form.roleName"
+            :options="roleNameOptions"
+            :placeholder="t('role.roleName')"
+          />
         </NFormItem>
-        <NFormItem label="描述">
+        <NFormItem :label="t('common.description')">
           <NInput v-model:value="form.description" type="textarea" />
         </NFormItem>
       </NForm>
       <template #footer>
         <NSpace justify="end">
-          <NButton @click="showForm = false">取消</NButton>
-          <NButton type="primary" :loading="saving" @click="save">保存</NButton>
+          <NButton @click="showForm = false">{{ t('common.cancel') }}</NButton>
+          <NButton type="primary" :loading="saving" @click="save">{{ t('common.save') }}</NButton>
         </NSpace>
       </template>
     </NModal>
 
-    <NModal v-model:show="showMenuModal" preset="card" title="分配菜单" style="width: 480px">
+    <NModal v-model:show="showMenuModal" preset="card" :title="t('role.assignMenus')" style="width: 480px">
       <NTree
         block-line
         checkable
@@ -254,8 +315,8 @@ onMounted(load)
       />
       <template #footer>
         <NSpace justify="end">
-          <NButton @click="showMenuModal = false">取消</NButton>
-          <NButton type="primary" :loading="menuSaving" @click="saveMenus">保存</NButton>
+          <NButton @click="showMenuModal = false">{{ t('common.cancel') }}</NButton>
+          <NButton type="primary" :loading="menuSaving" @click="saveMenus">{{ t('common.save') }}</NButton>
         </NSpace>
       </template>
     </NModal>
