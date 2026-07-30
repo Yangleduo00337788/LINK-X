@@ -68,6 +68,16 @@ public class AdminSettingController {
         return Result.success(adminSettingService.updateRegister(dto, operatorId));
     }
 
+    @Operation(summary = "更新登录配置")
+    @AuditAction(operationType = "UPDATE_SETTINGS", description = "更新登录配置")
+    @PutMapping("/login")
+    @RequirePermission("admin:setting:edit")
+    public Result<AdminSettingVO> updateLogin(@Valid @RequestBody com.linkx.server.controller.admin.dto.LoginSettingUpdateDTO dto,
+                                              HttpServletRequest request) {
+        Long operatorId = (Long) request.getAttribute("userId");
+        return Result.success(adminSettingService.updateLogin(dto, operatorId));
+    }
+
     @Operation(summary = "测试忘记密码邮件")
     @PostMapping("/test-forgot-password-email")
     @RequirePermission("admin:setting:edit")

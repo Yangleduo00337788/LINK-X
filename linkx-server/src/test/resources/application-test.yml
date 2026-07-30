@@ -61,7 +61,9 @@ linkx:
     register-enabled: true
     forgot-password-email-enabled: true
     login-max-attempts: 5
-    lock-duration-minutes: 15
+    admin-login-max-attempts: 5
+    lock-duration-minutes: 10
+    admin-lock-duration-minutes: 10
     # 放宽限流，避免批量用例触发 429
     rate-limit-login-per-minute: 1000
     rate-limit-register-per-minute: 1000

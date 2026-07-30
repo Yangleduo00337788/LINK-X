@@ -3,6 +3,7 @@ package com.linkx.server.service.admin.impl;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.controller.admin.dto.AdminSideSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.ClientSideSettingUpdateDTO;
+import com.linkx.server.controller.admin.dto.LoginSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.RegisterSettingUpdateDTO;
 import com.linkx.server.controller.admin.vo.AdminSettingVO;
 import com.linkx.server.entity.SysRuntimeSetting;
@@ -49,6 +50,18 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                 .register(AdminSettingVO.RegisterSide.builder()
                         .registerEnabled(auth.isRegisterEnabled())
                         .forgotPasswordEmailEnabled(auth.isForgotPasswordEmailEnabled())
+                        .build())
+                .login(AdminSettingVO.LoginSide.builder()
+                        .client(AdminSettingVO.LoginEntry.builder()
+                                .captchaEnabled(auth.isCaptchaEnabled())
+                                .maxAttempts(auth.getLoginMaxAttempts())
+                                .lockDurationMinutes(auth.getLockDurationMinutes())
+                                .build())
+                        .admin(AdminSettingVO.LoginEntry.builder()
+                                .captchaEnabled(auth.isAdminCaptchaEnabled())
+                                .maxAttempts(auth.getAdminLoginMaxAttempts())
+                                .lockDurationMinutes(auth.getAdminLockDurationMinutes())
+                                .build())
                         .build())
                 .admin(AdminSettingVO.AdminSide.builder()
                         .captchaEnabled(auth.isAdminCaptchaEnabled())
@@ -104,6 +117,24 @@ public class AdminSettingServiceImpl implements AdminSettingService {
     }
 
     @Override
+    @Transactional
+    public AdminSettingVO updateLogin(LoginSettingUpdateDTO dto, Long operatorId) {
+        SysRuntimeSetting row = loadOrCreateRow(operatorId);
+        LoginSettingUpdateDTO.Side client = dto.getClient();
+        LoginSettingUpdateDTO.Side admin = dto.getAdmin();
+        row.setClientCaptchaEnabled(Boolean.TRUE.equals(client.getCaptchaEnabled()));
+        row.setClientLoginMaxAttempts(client.getMaxAttempts());
+        row.setClientLockDurationMinutes(client.getLockDurationMinutes());
+        row.setAdminCaptchaEnabled(Boolean.TRUE.equals(admin.getCaptchaEnabled()));
+        row.setAdminLoginMaxAttempts(admin.getMaxAttempts());
+        row.setAdminLockDurationMinutes(admin.getLockDurationMinutes());
+        row.setUpdateBy(operatorId);
+        persist(row);
+        applyLoginSide(row);
+        return getSettings();
+    }
+
+    @Override
     public String testForgotPasswordEmail(String email) {
         String target = email == null ? "" : email.trim().toLowerCase();
         if (!StringUtils.hasText(target)) {
@@ -134,9 +165,13 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         return SysRuntimeSetting.builder()
                 .id(SysRuntimeSetting.SINGLETON_ID)
                 .adminCaptchaEnabled(auth.isAdminCaptchaEnabled())
+                .adminLoginMaxAttempts(auth.getAdminLoginMaxAttempts())
+                .adminLockDurationMinutes(auth.getAdminLockDurationMinutes())
                 .clientCaptchaEnabled(auth.isCaptchaEnabled())
                 .clientRegisterEnabled(auth.isRegisterEnabled())
                 .clientForgotPasswordEmailEnabled(auth.isForgotPasswordEmailEnabled())
+                .clientLoginMaxAttempts(auth.getLoginMaxAttempts())
+                .clientLockDurationMinutes(auth.getLockDurationMinutes())
                 .appVersion(app != null && StringUtils.hasText(app.getVersion()) ? app.getVersion() : "1.0.0")
                 .appChannel(app != null && StringUtils.hasText(app.getChannel()) ? app.getChannel() : "stable")
                 .releaseNotes(app != null ? nullToEmpty(app.getReleaseNotes()) : "")
@@ -159,6 +194,7 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         applyAdminSide(row);
         applyClientSide(row);
         applyRegisterSide(row);
+        applyLoginSide(row);
     }
 
     private void applyAdminSide(SysRuntimeSetting row) {
@@ -196,6 +232,31 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         if (row.getClientForgotPasswordEmailEnabled() != null) {
             linkxProperties.getAuth().setForgotPasswordEmailEnabled(row.getClientForgotPasswordEmailEnabled());
         }
+    }
+
+    private void applyLoginSide(SysRuntimeSetting row) {
+        LinkxProperties.Auth auth = linkxProperties.getAuth();
+        if (row.getClientCaptchaEnabled() != null) {
+            auth.setCaptchaEnabled(row.getClientCaptchaEnabled());
+        }
+        if (row.getAdminCaptchaEnabled() != null) {
+            auth.setAdminCaptchaEnabled(row.getAdminCaptchaEnabled());
+        }
+        if (row.getClientLoginMaxAttempts() != null) {
+            auth.setLoginMaxAttempts(row.getClientLoginMaxAttempts());
+        }
+        if (row.getAdminLoginMaxAttempts() != null) {
+            auth.setAdminLoginMaxAttempts(row.getAdminLoginMaxAttempts());
+        }
+        if (row.getClientLockDurationMinutes() != null) {
+            auth.setLockDurationMinutes(row.getClientLockDurationMinutes());
+        }
+        if (row.getAdminLockDurationMinutes() != null) {
+            auth.setAdminLockDurationMinutes(row.getAdminLockDurationMinutes());
+        }
+        log.info("Applied login settings: client(captcha={}, maxAttempts={}, lockMin={}), admin(captcha={}, maxAttempts={}, lockMin={})",
+                auth.isCaptchaEnabled(), auth.getLoginMaxAttempts(), auth.getLockDurationMinutes(),
+                auth.isAdminCaptchaEnabled(), auth.getAdminLoginMaxAttempts(), auth.getAdminLockDurationMinutes());
     }
 
     private static String nullToEmpty(String s) {

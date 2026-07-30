@@ -38,7 +38,7 @@ class RateLimitServiceTest extends BaseIntegrationTest {
         void clearLoginFailure_works() {
             String username = "clear_" + System.nanoTime();
             // 清除不应抛异常
-            assertDoesNotThrow(() -> rateLimitService.clearLoginFailure(username, null));
+            assertDoesNotThrow(() -> rateLimitService.clearLoginFailure(username, com.linkx.server.common.LoginSide.CLIENT));
         }
     }
 }

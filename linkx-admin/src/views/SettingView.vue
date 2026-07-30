@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
   NButton,
+  NDivider,
   NForm,
   NFormItem,
   NInput,
@@ -22,8 +23,8 @@ import { storeToRefs } from 'pinia'
 import {
   fetchSettings,
   testForgotPasswordEmail,
-  updateAdminSideSettings,
   updateClientSideSettings,
+  updateLoginSettings,
   updateRegisterSettings,
   type AdminSetting,
 } from '@/api/settings'
@@ -41,12 +42,12 @@ const { watermarkEnabled, watermarkFullscreen, watermarkLines, watermarkOpacity 
 
 const loading = ref(false)
 const savingRegister = ref(false)
-const savingAdmin = ref(false)
+const savingLogin = ref(false)
 const savingClient = ref(false)
 const testingEmail = ref(false)
 const showTestEmailModal = ref(false)
 const testEmail = ref('')
-const tabNames = new Set(['register', 'admin', 'client', 'watermark'])
+const tabNames = new Set(['register', 'login', 'client', 'watermark'])
 const activeTab = ref(
   tabNames.has(String(route.query.tab || '')) ? String(route.query.tab) : 'register',
 )
@@ -78,12 +79,21 @@ const registerForm = reactive({
   forgotPasswordEmailEnabled: true,
 })
 
-const adminForm = reactive({
-  captchaEnabled: false,
+const loginForm = reactive({
+  client: {
+    captchaEnabled: true,
+    maxAttempts: 5,
+    lockDurationMinutes: 10,
+  },
+  admin: {
+    captchaEnabled: true,
+    maxAttempts: 5,
+    lockDurationMinutes: 10,
+  },
 })
 
 const clientForm = reactive({
-  captchaEnabled: false,
+  captchaEnabled: true,
   appVersion: '',
   appChannel: 'stable',
   downloadUrl: '',
@@ -118,8 +128,17 @@ const opacityPercent = computed({
 function applySettings(data: AdminSetting) {
   registerForm.registerEnabled = data.register?.registerEnabled !== false
   registerForm.forgotPasswordEmailEnabled = data.register?.forgotPasswordEmailEnabled !== false
-  adminForm.captchaEnabled = !!data.admin?.captchaEnabled
-  clientForm.captchaEnabled = !!data.client?.captchaEnabled
+
+  loginForm.client.captchaEnabled =
+    data.login?.client?.captchaEnabled ?? data.client?.captchaEnabled !== false
+  loginForm.client.maxAttempts = data.login?.client?.maxAttempts ?? 5
+  loginForm.client.lockDurationMinutes = data.login?.client?.lockDurationMinutes ?? 10
+  loginForm.admin.captchaEnabled =
+    data.login?.admin?.captchaEnabled ?? data.admin?.captchaEnabled !== false
+  loginForm.admin.maxAttempts = data.login?.admin?.maxAttempts ?? 5
+  loginForm.admin.lockDurationMinutes = data.login?.admin?.lockDurationMinutes ?? 10
+
+  clientForm.captchaEnabled = loginForm.client.captchaEnabled
   clientForm.appVersion = data.client?.appVersion || ''
   clientForm.appChannel = data.client?.appChannel || 'stable'
   clientForm.downloadUrl = data.client?.downloadUrl || ''
@@ -154,18 +173,35 @@ async function saveRegister() {
   }
 }
 
-async function saveAdmin() {
+async function saveLogin() {
   if (!canEdit.value) return
-  savingAdmin.value = true
+  if (!loginForm.client.maxAttempts || !loginForm.admin.maxAttempts) {
+    message.warning(t('setting.maxAttemptsRequired'))
+    return
+  }
+  if (!loginForm.client.lockDurationMinutes || !loginForm.admin.lockDurationMinutes) {
+    message.warning(t('setting.lockDurationRequired'))
+    return
+  }
+  savingLogin.value = true
   try {
     applySettings(
-      await updateAdminSideSettings({
-        captchaEnabled: adminForm.captchaEnabled,
+      await updateLoginSettings({
+        client: {
+          captchaEnabled: loginForm.client.captchaEnabled,
+          maxAttempts: loginForm.client.maxAttempts,
+          lockDurationMinutes: loginForm.client.lockDurationMinutes,
+        },
+        admin: {
+          captchaEnabled: loginForm.admin.captchaEnabled,
+          maxAttempts: loginForm.admin.maxAttempts,
+          lockDurationMinutes: loginForm.admin.lockDurationMinutes,
+        },
       }),
     )
-    message.success(t('setting.adminSaved'))
+    message.success(t('setting.loginSaved'))
   } finally {
-    savingAdmin.value = false
+    savingLogin.value = false
   }
 }
 
@@ -187,7 +223,7 @@ async function saveClient() {
   try {
     applySettings(
       await updateClientSideSettings({
-        captchaEnabled: clientForm.captchaEnabled,
+        captchaEnabled: loginForm.client.captchaEnabled,
         appVersion: clientForm.appVersion.trim(),
         appChannel: clientForm.appChannel.trim(),
         downloadUrl: clientForm.downloadUrl.trim() || undefined,
@@ -220,7 +256,6 @@ async function runTestEmail() {
     showTestEmailModal.value = false
     return true
   } catch {
-    // 错误已由 request 拦截器提示
     return false
   } finally {
     testingEmail.value = false
@@ -296,19 +331,86 @@ onMounted(load)
             </NForm>
           </NTabPane>
 
-          <NTabPane name="admin" :tab="t('setting.adminTitle')">
-            <p class="section-hint">{{ t('setting.adminHint') }}</p>
-            <NForm label-placement="left" label-width="120" :disabled="!canEdit">
+          <NTabPane name="login" :tab="t('setting.loginTitle')">
+            <p class="section-hint">{{ t('setting.loginHint') }}</p>
+            <NForm label-placement="left" label-width="160" :disabled="!canEdit">
+              <h3 class="block-title">{{ t('setting.loginClientBlock') }}</h3>
               <NFormItem :label="t('setting.captcha')">
-                <NSwitch v-model:value="adminForm.captchaEnabled" />
-                <span class="field-hint">{{ adminForm.captchaEnabled ? t('common.on') : t('common.off') }}</span>
+                <NSwitch v-model:value="loginForm.client.captchaEnabled" />
+                <span class="field-hint">{{
+                  loginForm.client.captchaEnabled ? t('common.on') : t('common.off')
+                }}</span>
               </NFormItem>
+              <NFormItem :label="t('setting.maxAttempts')" required>
+                <div class="number-row">
+                  <NInputNumber
+                    v-model:value="loginForm.client.maxAttempts"
+                    :min="1"
+                    :max="100"
+                    :step="1"
+                    style="width: 160px"
+                  />
+                  <span class="field-hint">{{ t('setting.maxAttemptsHint') }}</span>
+                </div>
+              </NFormItem>
+              <NFormItem :label="t('setting.lockDuration')" required>
+                <div class="number-row">
+                  <NInputNumber
+                    v-model:value="loginForm.client.lockDurationMinutes"
+                    :min="1"
+                    :max="1440"
+                    :step="1"
+                    style="width: 160px"
+                  />
+                  <span class="field-hint">{{ t('setting.lockDurationHint') }}</span>
+                </div>
+              </NFormItem>
+
+              <NDivider />
+
+              <h3 class="block-title">{{ t('setting.loginAdminBlock') }}</h3>
+              <NFormItem :label="t('setting.captcha')">
+                <NSwitch v-model:value="loginForm.admin.captchaEnabled" />
+                <span class="field-hint">{{
+                  loginForm.admin.captchaEnabled ? t('common.on') : t('common.off')
+                }}</span>
+              </NFormItem>
+              <NFormItem :label="t('setting.maxAttempts')" required>
+                <div class="number-row">
+                  <NInputNumber
+                    v-model:value="loginForm.admin.maxAttempts"
+                    :min="1"
+                    :max="100"
+                    :step="1"
+                    style="width: 160px"
+                  />
+                  <span class="field-hint">{{ t('setting.maxAttemptsHint') }}</span>
+                </div>
+              </NFormItem>
+              <NFormItem :label="t('setting.lockDuration')" required>
+                <div class="number-row">
+                  <NInputNumber
+                    v-model:value="loginForm.admin.lockDurationMinutes"
+                    :min="1"
+                    :max="1440"
+                    :step="1"
+                    style="width: 160px"
+                  />
+                  <span class="field-hint">{{ t('setting.lockDurationHint') }}</span>
+                </div>
+              </NFormItem>
+
               <NFormItem v-if="canEdit">
                 <NSpace>
-                  <NButton type="primary" class="lx-float-btn" :loading="savingAdmin" @click="saveAdmin">
-                    {{ t('setting.saveAdmin') }}
+                  <NButton
+                    type="primary"
+                    class="lx-float-btn"
+                    :loading="savingLogin"
+                    @click="saveLogin"
+                  >
+                    {{ t('setting.saveLogin') }}
                   </NButton>
-                  <NButton class="lx-float-btn" :disabled="savingAdmin" @click="load">
+                  <NButton class="lx-float-btn" :disabled="savingLogin" @click="load">
                     {{ t('common.refresh') }}
                   </NButton>
                 </NSpace>
@@ -320,10 +422,6 @@ onMounted(load)
           <NTabPane name="client" :tab="t('setting.clientTitle')">
             <p class="section-hint">{{ t('setting.clientHint') }}</p>
             <NForm label-placement="left" label-width="120" :disabled="!canEdit">
-              <NFormItem :label="t('setting.captcha')">
-                <NSwitch v-model:value="clientForm.captchaEnabled" />
-                <span class="field-hint">{{ clientForm.captchaEnabled ? t('common.on') : t('common.off') }}</span>
-              </NFormItem>
               <NFormItem :label="t('setting.appVersion')" required>
                 <NInput
                   v-model:value="clientForm.appVersion"
@@ -462,13 +560,20 @@ onMounted(load)
   color: var(--lx-text-3);
   font-size: 13px;
 }
+.block-title {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--lx-text-1);
+}
 .opacity-row,
-.upload-row {
+.upload-row,
+.number-row {
   display: flex;
   align-items: center;
   gap: 12px;
   width: 100%;
-  max-width: 420px;
+  max-width: 520px;
 }
 .switch-with-action {
   display: flex;

@@ -70,6 +70,8 @@ public class SysAuditLog implements Serializable {
         // P1-D8: RBAC 操作审计
         ROLE_GRANT("授予角色"),
         ROLE_REVOKE("撤销角色"),
+        // 管理端系统配置
+        UPDATE_SETTINGS("更新系统配置"),
         ;
 
         private final String description;

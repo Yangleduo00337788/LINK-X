@@ -93,8 +93,14 @@ public class LinkxProperties {
         private boolean registerEnabled = true;
         /** 忘记密码邮箱验证是否启用 */
         private boolean forgotPasswordEmailEnabled = true;
+        /** 客户端登录失败最大次数 */
         private int loginMaxAttempts = 5;
-        private int lockDurationMinutes = 15;
+        /** 管理端登录失败最大次数 */
+        private int adminLoginMaxAttempts = 5;
+        /** 客户端自动封禁时长（分钟），默认 10 */
+        private int lockDurationMinutes = 10;
+        /** 管理端自动封禁时长（分钟），默认 10 */
+        private int adminLockDurationMinutes = 10;
         private int rateLimitLoginPerMinute = 10;
         private int rateLimitRegisterPerMinute = 5;
         // 业务接口默认限流配置
@@ -102,6 +108,22 @@ public class LinkxProperties {
         private int rateLimitListPerMinute = 60;
         private int rateLimitWritePerMinute = 30;
         private int rateLimitUploadPerMinute = 20;
+
+        public void setLoginMaxAttempts(int loginMaxAttempts) {
+            this.loginMaxAttempts = Math.max(1, loginMaxAttempts);
+        }
+
+        public void setAdminLoginMaxAttempts(int adminLoginMaxAttempts) {
+            this.adminLoginMaxAttempts = Math.max(1, adminLoginMaxAttempts);
+        }
+
+        public void setLockDurationMinutes(int lockDurationMinutes) {
+            this.lockDurationMinutes = Math.max(1, lockDurationMinutes);
+        }
+
+        public void setAdminLockDurationMinutes(int adminLockDurationMinutes) {
+            this.adminLockDurationMinutes = Math.max(1, adminLockDurationMinutes);
+        }
     }
 
     @Data

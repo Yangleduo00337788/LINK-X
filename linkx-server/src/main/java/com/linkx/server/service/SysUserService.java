@@ -1,5 +1,6 @@
 package com.linkx.server.service;
 
+import com.linkx.server.common.LoginSide;
 import com.linkx.server.controller.dto.LoginDTO;
 import com.linkx.server.controller.dto.RegisterDTO;
 import com.linkx.server.controller.dto.UpdateProfileDTO;
@@ -17,13 +18,28 @@ public interface SysUserService extends IService<SysUser> {
     /**
      * 校验用户名密码与账号状态，不签发令牌、不写设备会话。
      * 供管理端等需在签发前做额外授权检查的场景使用。
+     *
+     * @param side 登录入口（客户端 / 管理端），决定失败阈值与锁定配置
      */
-    SysUser verifyCredentials(LoginDTO loginDTO, String ip, String userAgent, HttpServletRequest request);
+    SysUser verifyCredentials(LoginDTO loginDTO, String ip, String userAgent, HttpServletRequest request, LoginSide side);
 
     /**
      * 在凭证已通过校验后建立设备会话并签发令牌。
      */
     TokenVO establishSession(SysUser user, String ip, String userAgent, HttpServletRequest request);
+
+    /**
+     * 将到期的自动封禁账号解封（status 禁用→启用）。可由定时任务或登录前调用。
+     *
+     * @return 解封账号数
+     */
+    int unlockExpiredAutoLocks();
+
+    /**
+     * 记录一次登录失败（密码错误 / 验证码错误等），达到阈值时自动禁用账号并抛出 429。
+     */
+    void onLoginFailure(String username, HttpServletRequest request, LoginSide side);
+
 
     /**
      * 更新用户资料

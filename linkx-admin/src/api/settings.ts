@@ -5,6 +5,17 @@ export interface RegisterSideSetting {
   forgotPasswordEmailEnabled?: boolean
 }
 
+export interface LoginEntrySetting {
+  captchaEnabled?: boolean
+  maxAttempts?: number
+  lockDurationMinutes?: number
+}
+
+export interface LoginSideSetting {
+  client?: LoginEntrySetting
+  admin?: LoginEntrySetting
+}
+
 export interface AdminSideSetting {
   captchaEnabled?: boolean
 }
@@ -20,6 +31,7 @@ export interface ClientSideSetting {
 
 export interface AdminSetting {
   register?: RegisterSideSetting
+  login?: LoginSideSetting
   admin?: AdminSideSetting
   client?: ClientSideSetting
 }
@@ -28,12 +40,15 @@ export type RegisterUpdatePayload = Required<
   Pick<RegisterSideSetting, 'registerEnabled' | 'forgotPasswordEmailEnabled'>
 >
 
-export type AdminSideUpdatePayload = Required<Pick<AdminSideSetting, 'captchaEnabled'>>
+export type LoginUpdatePayload = {
+  client: Required<LoginEntrySetting>
+  admin: Required<LoginEntrySetting>
+}
 
 export type ClientSideUpdatePayload = Required<
-  Pick<ClientSideSetting, 'captchaEnabled' | 'appVersion' | 'appChannel' | 'maxUploadBytes'>
+  Pick<ClientSideSetting, 'appVersion' | 'appChannel' | 'maxUploadBytes'>
 > &
-  Pick<ClientSideSetting, 'releaseNotes' | 'downloadUrl'>
+  Pick<ClientSideSetting, 'releaseNotes' | 'downloadUrl' | 'captchaEnabled'>
 
 export function fetchSettings() {
   return get<AdminSetting>('/admin/settings')
@@ -43,8 +58,8 @@ export function updateRegisterSettings(payload: RegisterUpdatePayload) {
   return put<AdminSetting>('/admin/settings/register', payload)
 }
 
-export function updateAdminSideSettings(payload: AdminSideUpdatePayload) {
-  return put<AdminSetting>('/admin/settings/admin', payload)
+export function updateLoginSettings(payload: LoginUpdatePayload) {
+  return put<AdminSetting>('/admin/settings/login', payload)
 }
 
 export function updateClientSideSettings(payload: ClientSideUpdatePayload) {

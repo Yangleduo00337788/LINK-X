@@ -2,6 +2,7 @@ package com.linkx.server.service.admin.impl;
 
 import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.common.InputSanitizer;
+import com.linkx.server.common.LoginSide;
 import com.linkx.server.common.TokenCookieUtil;
 import com.linkx.server.common.admin.AdminConstants;
 import com.linkx.server.config.LinkxProperties;
@@ -55,7 +56,16 @@ public class AdminAuthServiceImpl implements AdminAuthService {
 
     @Override
     public AdminLoginVO login(AdminLoginDTO dto, HttpServletRequest request, HttpServletResponse response) {
-        validateCaptchaIfEnabled(dto.getCaptchaId(), dto.getCaptchaCode());
+        try {
+            validateCaptchaIfEnabled(dto.getCaptchaId(), dto.getCaptchaCode());
+        } catch (CustomException e) {
+            try {
+                sysUserService.onLoginFailure(dto.getUsername(), request, LoginSide.ADMIN);
+            } catch (CustomException lockEx) {
+                throw lockEx;
+            }
+            throw e;
+        }
 
         LoginDTO loginDTO = new LoginDTO();
         loginDTO.setUsername(dto.getUsername());
@@ -67,7 +77,7 @@ public class AdminAuthServiceImpl implements AdminAuthService {
         String userAgent = request.getHeader("User-Agent");
 
         // 先校验凭证，通过管理员角色后再签发令牌，避免非管理员探测管理端仍获得会话
-        SysUser user = sysUserService.verifyCredentials(loginDTO, ip, userAgent, request);
+        SysUser user = sysUserService.verifyCredentials(loginDTO, ip, userAgent, request, LoginSide.ADMIN);
         try {
             assertAdminRole(user.getId());
         } catch (CustomException e) {

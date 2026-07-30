@@ -78,7 +78,17 @@ public class AuthController {
     public Result<TokenVO> login(@Valid @RequestBody LoginDTO loginDTO,
                                  HttpServletRequest request,
                                  HttpServletResponse response) {
-        validateCaptchaIfEnabled(loginDTO.getCaptchaId(), loginDTO.getCaptchaCode());
+        try {
+            validateCaptchaIfEnabled(loginDTO.getCaptchaId(), loginDTO.getCaptchaCode());
+        } catch (CustomException e) {
+            // 验证码错误也计入登录失败次数，达到阈值同样封禁
+            try {
+                sysUserService.onLoginFailure(loginDTO.getUsername(), request, com.linkx.server.common.LoginSide.CLIENT);
+            } catch (CustomException lockEx) {
+                throw lockEx;
+            }
+            throw e;
+        }
         TokenVO tokenVO = sysUserService.login(loginDTO, clientIp(request), request.getHeader("User-Agent"), request);
         // Web 环境：通过 HttpOnly + Secure + SameSite=Lax Cookie 下发 token，避免 XSS 窃取；
         // Electron 环境忽略 Cookie，仍走 Authorization Header + safeStorage 落盘。

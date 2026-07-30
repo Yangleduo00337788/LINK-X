@@ -2,6 +2,7 @@ package com.linkx.server.service.impl;
 
 import com.linkx.server.common.InputSanitizer;
 import com.linkx.server.common.JwtUtils;
+import com.linkx.server.common.LoginSide;
 import com.linkx.server.common.PasswordEncoderHolder;
 import com.linkx.server.common.SensitiveDataMasker;
 import com.linkx.server.config.LinkxProperties;
@@ -16,6 +17,7 @@ import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.*;
 import com.linkx.server.service.EmailService;
+import com.mybatisflex.core.update.UpdateChain;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -104,25 +106,34 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
     @Override
     public TokenVO login(LoginDTO loginDTO, String ip, String userAgent, HttpServletRequest request) {
-        SysUser user = verifyCredentials(loginDTO, ip, userAgent, request);
+        SysUser user = verifyCredentials(loginDTO, ip, userAgent, request, LoginSide.CLIENT);
         return establishSession(user, ip, userAgent, request);
     }
 
     @Override
-    public SysUser verifyCredentials(LoginDTO loginDTO, String ip, String userAgent, HttpServletRequest request) {
+    public SysUser verifyCredentials(LoginDTO loginDTO, String ip, String userAgent, HttpServletRequest request, LoginSide side) {
         long started = System.currentTimeMillis();
         String username = loginDTO.getUsername();
+        LoginSide loginSide = side == null ? LoginSide.CLIENT : side;
 
-        // 检查账号是否被锁定
-        if (rateLimitService.isAccountLocked(username, request)) {
+        // 检查账号是否被 Redis 临时锁定
+        if (rateLimitService.isAccountLocked(username, loginSide)) {
             linkxMetrics.recordLoginFailure();
             linkxMetrics.recordLoginDuration(System.currentTimeMillis() - started);
-            throw new CustomException(429, "登录失败次数过多，请稍后再试");
+            int minutes = loginSide == LoginSide.ADMIN
+                    ? linkxProperties.getAuth().getAdminLockDurationMinutes()
+                    : linkxProperties.getAuth().getLockDurationMinutes();
+            throw new CustomException(429, "登录失败次数过多，请" + minutes + "分钟后重试");
         }
 
         SysUser user = queryChain()
                 .where(SysUser::getUsername).eq(username)
                 .one();
+
+        // 登录前尝试解封：自动封禁到期则恢复启用
+        if (user != null) {
+            user = tryUnlockIfExpired(user);
+        }
 
         // 防御时间侧信道攻击：无论用户是否存在，都执行耗时操作
         // dummyHash cost=12 与真实 cost=12 一致，避免时序攻击区分用户存在性
@@ -136,8 +147,8 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         }
 
         if (user == null || !passwordValid) {
-            // 记录失败并检查限流
-            rateLimitService.checkLoginRateLimit(username, request);
+            // 记录失败并检查限流；刚触发锁定时同步将账号状态改为禁用
+            onLoginFailure(username, request, loginSide);
             loginAuditService.record(null, username, ip, userAgent, false, "用户名或密码错误");
             linkxMetrics.recordLoginFailure();
             linkxMetrics.recordLoginDuration(System.currentTimeMillis() - started);
@@ -168,8 +179,9 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         long started = System.currentTimeMillis();
         String username = user.getUsername();
 
-        // 登录成功，清除失败记录
-        rateLimitService.clearLoginFailure(username, request);
+        // 登录成功，清除两侧失败记录，避免跨入口残留
+        rateLimitService.clearLoginFailure(username, LoginSide.CLIENT);
+        rateLimitService.clearLoginFailure(username, LoginSide.ADMIN);
         loginAuditService.record(user.getId(), username, ip, userAgent, true, "登录成功");
 
         String deviceId = request.getHeader("X-Device-Id");
@@ -189,6 +201,96 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         linkxMetrics.recordLoginSuccess();
         linkxMetrics.recordLoginDuration(System.currentTimeMillis() - started);
         return tokenService.issueTokenPair(user, deviceId);
+    }
+
+    @Override
+    @Transactional
+    public int unlockExpiredAutoLocks() {
+        java.util.Date now = new java.util.Date();
+        java.util.List<SysUser> locked = queryChain()
+                .where(SysUser::getStatus).eq(0)
+                .and(SysUser::getAutoLockedUntil).isNotNull()
+                .and(SysUser::getAutoLockedUntil).le(now)
+                .list();
+        if (locked.isEmpty()) {
+            return 0;
+        }
+        int count = 0;
+        for (SysUser u : locked) {
+            clearAutoLock(u.getId());
+            rateLimitService.clearLoginFailure(u.getUsername(), LoginSide.CLIENT);
+            rateLimitService.clearLoginFailure(u.getUsername(), LoginSide.ADMIN);
+            count++;
+            log.info("自动解封到期账号 username={}", u.getUsername());
+        }
+        return count;
+    }
+
+    private SysUser tryUnlockIfExpired(SysUser user) {
+        if (user.getStatus() != null && user.getStatus() == 0
+                && user.getAutoLockedUntil() != null
+                && !user.getAutoLockedUntil().after(new java.util.Date())) {
+            clearAutoLock(user.getId());
+            user.setStatus(1);
+            user.setAutoLockedUntil(null);
+            rateLimitService.clearLoginFailure(user.getUsername(), LoginSide.CLIENT);
+            rateLimitService.clearLoginFailure(user.getUsername(), LoginSide.ADMIN);
+            log.info("登录前自动解封到期账号 username={}", user.getUsername());
+        }
+        return user;
+    }
+
+    @Override
+    public void onLoginFailure(String username, HttpServletRequest request, LoginSide side) {
+        LoginSide loginSide = side == null ? LoginSide.CLIENT : side;
+        if (username == null || username.isBlank()) {
+            return;
+        }
+        // 已锁定则直接拒绝，避免重复计数
+        if (rateLimitService.isAccountLocked(username, loginSide)) {
+            int minutes = loginSide == LoginSide.ADMIN
+                    ? linkxProperties.getAuth().getAdminLockDurationMinutes()
+                    : linkxProperties.getAuth().getLockDurationMinutes();
+            throw new CustomException(429, "登录失败次数过多，请" + minutes + "分钟后重试");
+        }
+        boolean newlyLocked = rateLimitService.checkLoginRateLimit(username, request, loginSide);
+        if (newlyLocked) {
+            autoDisableOnLock(username, loginSide);
+            int minutes = loginSide == LoginSide.ADMIN
+                    ? linkxProperties.getAuth().getAdminLockDurationMinutes()
+                    : linkxProperties.getAuth().getLockDurationMinutes();
+            log.warn("登录失败达阈值已锁定 username={}, side={}, maxAttempts={}, lockMinutes={}",
+                    username, loginSide,
+                    loginSide == LoginSide.ADMIN
+                            ? linkxProperties.getAuth().getAdminLoginMaxAttempts()
+                            : linkxProperties.getAuth().getLoginMaxAttempts(),
+                    minutes);
+            throw new CustomException(429, "登录失败次数过多，账号已禁用，请" + minutes + "分钟后重试");
+        }
+    }
+
+    private void clearAutoLock(Long userId) {
+        // 必须用 UpdateChain：普通 update 会忽略 null，解封截止时间清不掉
+        UpdateChain.of(SysUser.class)
+                .set(SysUser::getStatus, 1)
+                .set(SysUser::getAutoLockedUntil, null)
+                .where(SysUser::getId).eq(userId)
+                .update();
+    }
+
+    private void autoDisableOnLock(String username, LoginSide side) {
+        SysUser user = queryChain().where(SysUser::getUsername).eq(username).one();
+        if (user == null) {
+            return;
+        }
+        int minutes = side == LoginSide.ADMIN
+                ? linkxProperties.getAuth().getAdminLockDurationMinutes()
+                : linkxProperties.getAuth().getLockDurationMinutes();
+        java.util.Date until = new java.util.Date(System.currentTimeMillis() + minutes * 60_000L);
+        user.setStatus(0);
+        user.setAutoLockedUntil(until);
+        updateById(user);
+        log.warn("登录失败超限，账号已自动禁用 username={}, until={}, side={}", username, until, side);
     }
 
     @Override

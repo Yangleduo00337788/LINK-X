@@ -39,7 +39,9 @@ class LinkxPropertiesTest {
             assertTrue(props.getAuth().isRegisterEnabled());
             assertTrue(props.getAuth().isForgotPasswordEmailEnabled());
             assertEquals(5, props.getAuth().getLoginMaxAttempts());
-            assertEquals(15, props.getAuth().getLockDurationMinutes());
+            assertEquals(5, props.getAuth().getAdminLoginMaxAttempts());
+            assertEquals(10, props.getAuth().getLockDurationMinutes());
+            assertEquals(10, props.getAuth().getAdminLockDurationMinutes());
         }
 
         @Test

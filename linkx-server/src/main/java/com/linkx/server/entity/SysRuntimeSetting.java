@@ -31,12 +31,20 @@ public class SysRuntimeSetting implements Serializable {
 
     /** 管理端登录验证码 */
     private Boolean adminCaptchaEnabled;
+    /** 管理端登录失败最大次数 */
+    private Integer adminLoginMaxAttempts;
+    /** 管理端自动封禁分钟数 */
+    private Integer adminLockDurationMinutes;
     /** 客户端登录/注册验证码 */
     private Boolean clientCaptchaEnabled;
     /** 客户端是否开放注册 */
     private Boolean clientRegisterEnabled;
     /** 忘记密码邮箱验证是否启用 */
     private Boolean clientForgotPasswordEmailEnabled;
+    /** 客户端登录失败最大次数 */
+    private Integer clientLoginMaxAttempts;
+    /** 客户端自动封禁分钟数 */
+    private Integer clientLockDurationMinutes;
 
     private String appVersion;
     private String appChannel;

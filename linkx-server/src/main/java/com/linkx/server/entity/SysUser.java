@@ -78,6 +78,13 @@ public class SysUser implements Serializable {
     // 账号状态：1=正常，0=停用
     private Integer status;
 
+    /**
+     * 登录失败自动封禁截止时间。
+     * 非空表示本次禁用由登录失败触发，到期后自动解封；
+     * 人工禁用时为 null，不会自动解封。
+     */
+    private Date autoLockedUntil;
+
     // 记录创建时间，数据库默认 CURRENT_TIMESTAMP
     private Date createTime;
 

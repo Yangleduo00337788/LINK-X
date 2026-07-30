@@ -1,5 +1,6 @@
 package com.linkx.server.service;
 
+import com.linkx.server.common.LoginSide;
 import jakarta.servlet.http.HttpServletRequest;
 
 public interface RateLimitService {
@@ -18,12 +19,11 @@ public interface RateLimitService {
     void check(String key, int maxAttempts, int windowSeconds, String message);
 
     /**
-     * 检查登录限流：同时限制 IP 和用户名
-     * @param username 用户名
-     * @param request HTTP请求，用于获取IP
-     * @throws com.linkx.server.exception.CustomException 触发限流时抛出429
+     * 检查登录限流：同时限制 IP 和用户名（按登录侧使用独立阈值与 Redis 键）。
+     *
+     * @return true 表示本次调用刚触发账号锁定（调用方应同步将用户状态改为禁用）
      */
-    void checkLoginRateLimit(String username, HttpServletRequest request);
+    boolean checkLoginRateLimit(String username, HttpServletRequest request, LoginSide side);
 
     /**
      * 检查注册限流：限制IP
@@ -38,22 +38,17 @@ public interface RateLimitService {
      * @param request HTTP请求
      * @return 当前失败次数
      */
-    int recordLoginFailure(String username, HttpServletRequest request);
+    int recordLoginFailure(String username, HttpServletRequest request, LoginSide side);
 
     /**
-     * 检查账号是否被锁定
-     * @param username 用户名
-     * @param request HTTP请求
-     * @return 如果锁定返回true
+     * 检查账号是否被锁定（Redis 临时锁）
      */
-    boolean isAccountLocked(String username, HttpServletRequest request);
+    boolean isAccountLocked(String username, LoginSide side);
 
     /**
      * 清除登录失败记录（登录成功时调用）
-     * @param username 用户名
-     * @param request HTTP请求
      */
-    void clearLoginFailure(String username, HttpServletRequest request);
+    void clearLoginFailure(String username, LoginSide side);
 
     /**
      * 记录 refresh token 失败。连续失败会触发 IP 维度的锁定，

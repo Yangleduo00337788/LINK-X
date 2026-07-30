@@ -12,7 +12,10 @@ public class AdminSettingVO {
     @Schema(description = "注册配置（客户端）")
     private RegisterSide register;
 
-    @Schema(description = "管理端配置")
+    @Schema(description = "登录配置（客户端 + 管理端）")
+    private LoginSide login;
+
+    @Schema(description = "管理端配置（兼容旧字段，验证码请看 login）")
     private AdminSide admin;
 
     @Schema(description = "客户端配置")
@@ -26,6 +29,26 @@ public class AdminSettingVO {
         private Boolean registerEnabled;
         @Schema(description = "忘记密码邮箱验证是否启用")
         private Boolean forgotPasswordEmailEnabled;
+    }
+
+    @Data
+    @Builder
+    @Schema(description = "登录配置")
+    public static class LoginSide {
+        private LoginEntry client;
+        private LoginEntry admin;
+    }
+
+    @Data
+    @Builder
+    @Schema(description = "单侧登录配置")
+    public static class LoginEntry {
+        @Schema(description = "是否开启图形验证码")
+        private Boolean captchaEnabled;
+        @Schema(description = "登录失败最大重试次数")
+        private Integer maxAttempts;
+        @Schema(description = "自动封禁时长（分钟）")
+        private Integer lockDurationMinutes;
     }
 
     @Data

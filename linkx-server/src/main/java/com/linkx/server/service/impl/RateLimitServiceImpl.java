@@ -1,6 +1,7 @@
 package com.linkx.server.service.impl;
 
 import com.linkx.server.common.ClientIpResolver;
+import com.linkx.server.common.LoginSide;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.service.RateLimitService;
@@ -48,28 +49,29 @@ public class RateLimitServiceImpl implements RateLimitService {
     }
 
     @Override
-    public void checkLoginRateLimit(String username, HttpServletRequest request) {
+    public boolean checkLoginRateLimit(String username, HttpServletRequest request, LoginSide side) {
         String ip = getClientIp(request);
-        int maxAttempts = linkxProperties.getAuth().getLoginMaxAttempts();
-        int lockDuration = linkxProperties.getAuth().getLockDurationMinutes();
+        int maxAttempts = resolveMaxAttempts(side);
+        int lockDuration = resolveLockDuration(side);
         int ipMaxAttempts = maxAttempts * 3; // IP 限制更宽松
+        String sideKey = side.name().toLowerCase();
 
         // 检查 IP 级别限流
-        String ipKey = RATE_LIMIT_PREFIX + LOGIN_FAIL_PREFIX + IP_PREFIX + ip;
+        String ipKey = RATE_LIMIT_PREFIX + LOGIN_FAIL_PREFIX + sideKey + ":" + IP_PREFIX + ip;
         Long ipCount = atomicIncrAndExpire(ipKey, lockDuration * 60L);
-        if (ipCount != null && ipCount > ipMaxAttempts) {
+        if (ipCount != null && ipCount >= ipMaxAttempts) {
             throw new CustomException(429, "该IP登录尝试过多，请" + lockDuration + "分钟后重试");
         }
 
-        // 检查用户名级别限流
-        String userKey = RATE_LIMIT_PREFIX + LOGIN_FAIL_PREFIX + username;
+        // 检查用户名级别限流（达到 maxAttempts 次即锁定，含本次数）
+        String userKey = RATE_LIMIT_PREFIX + LOGIN_FAIL_PREFIX + sideKey + ":" + username;
         Long userCount = atomicIncrAndExpire(userKey, lockDuration * 60L);
-        if (userCount != null && userCount > maxAttempts) {
-            // 设置账号锁定
-            String lockKey = LOGIN_LOCK_PREFIX + username;
+        if (userCount != null && userCount >= maxAttempts) {
+            String lockKey = LOGIN_LOCK_PREFIX + sideKey + ":" + username;
             redisTemplate.opsForValue().set(lockKey, "1", Duration.ofMinutes(lockDuration));
-            throw new CustomException(429, "登录失败次数过多，请" + lockDuration + "分钟后重试");
+            return true;
         }
+        return false;
     }
 
     @Override
@@ -86,38 +88,40 @@ public class RateLimitServiceImpl implements RateLimitService {
     }
 
     @Override
-    public int recordLoginFailure(String username, HttpServletRequest request) {
-        // 已在 checkLoginRateLimit 中记录，此方法用于兼容旧接口
-        String userKey = RATE_LIMIT_PREFIX + LOGIN_FAIL_PREFIX + username;
+    public int recordLoginFailure(String username, HttpServletRequest request, LoginSide side) {
+        String sideKey = side.name().toLowerCase();
+        String userKey = RATE_LIMIT_PREFIX + LOGIN_FAIL_PREFIX + sideKey + ":" + username;
         String count = redisTemplate.opsForValue().get(userKey);
         return count != null ? Integer.parseInt(count) : 0;
     }
 
     @Override
-    public boolean isAccountLocked(String username, HttpServletRequest request) {
-        String lockKey = LOGIN_LOCK_PREFIX + username;
+    public boolean isAccountLocked(String username, LoginSide side) {
+        String lockKey = LOGIN_LOCK_PREFIX + side.name().toLowerCase() + ":" + username;
         return Boolean.TRUE.equals(redisTemplate.hasKey(lockKey));
     }
 
     @Override
-    public void clearLoginFailure(String username, HttpServletRequest request) {
-        String userKey = RATE_LIMIT_PREFIX + LOGIN_FAIL_PREFIX + username;
-        String lockKey = LOGIN_LOCK_PREFIX + username;
+    public void clearLoginFailure(String username, LoginSide side) {
+        String sideKey = side.name().toLowerCase();
+        String userKey = RATE_LIMIT_PREFIX + LOGIN_FAIL_PREFIX + sideKey + ":" + username;
+        String lockKey = LOGIN_LOCK_PREFIX + sideKey + ":" + username;
         redisTemplate.delete(userKey);
         redisTemplate.delete(lockKey);
+    }
 
-        // 也清除 IP 级别的记录（可选，保留可防范同一IP切换账号攻击）
-        // String ip = getClientIp(request);
-        // String ipKey = RATE_LIMIT_PREFIX + LOGIN_FAIL_PREFIX + IP_PREFIX + ip;
-        // redisTemplate.delete(ipKey);
+    private int resolveMaxAttempts(LoginSide side) {
+        LinkxProperties.Auth auth = linkxProperties.getAuth();
+        return side == LoginSide.ADMIN ? auth.getAdminLoginMaxAttempts() : auth.getLoginMaxAttempts();
+    }
+
+    private int resolveLockDuration(LoginSide side) {
+        LinkxProperties.Auth auth = linkxProperties.getAuth();
+        return side == LoginSide.ADMIN ? auth.getAdminLockDurationMinutes() : auth.getLockDurationMinutes();
     }
 
     /**
      * 原子化自增并设置过期：仅首次自增（c==1）时设置 EXPIRE，避免计数键永不过期。
-     *
-     * @param key           Redis 限流键
-     * @param windowSeconds  窗口秒数
-     * @return 自增后的计数值
      */
     private Long atomicIncrAndExpire(String key, long windowSeconds) {
         DefaultRedisScript<Long> script = new DefaultRedisScript<>(INCR_EXPIRE_LUA, Long.class);
@@ -125,7 +129,6 @@ public class RateLimitServiceImpl implements RateLimitService {
     }
 
     private String getClientIp(HttpServletRequest request) {
-        // 委托给 ClientIpResolver 统一处理（默认不信任 XFF，避免伪造 IP 绕过限流）
         return ClientIpResolver.resolve(request, linkxProperties);
     }
 

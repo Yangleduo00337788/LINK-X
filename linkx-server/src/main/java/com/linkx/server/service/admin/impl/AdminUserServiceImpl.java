@@ -17,6 +17,7 @@ import com.linkx.server.service.RbacService;
 import com.linkx.server.service.TokenService;
 import com.linkx.server.service.admin.AdminUserService;
 import com.mybatisflex.core.query.QueryWrapper;
+import com.mybatisflex.core.update.UpdateChain;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -154,11 +155,15 @@ public class AdminUserServiceImpl implements AdminUserService {
     }
 
     private void setStatus(Long id, int status, Long operatorId) {
-        SysUser user = requireUser(id);
-        user.setStatus(status);
-        user.setUpdateBy(operatorId);
-        user.setUpdateTime(new Date());
-        sysUserMapper.update(user);
+        requireUser(id);
+        // 人工启停清除自动封禁标记，避免到期误解封/误保留
+        UpdateChain.of(SysUser.class)
+                .set(SysUser::getStatus, status)
+                .set(SysUser::getAutoLockedUntil, null)
+                .set(SysUser::getUpdateBy, operatorId)
+                .set(SysUser::getUpdateTime, new Date())
+                .where(SysUser::getId).eq(id)
+                .update();
     }
 
     private AdminUserListVO toListVO(SysUser user) {

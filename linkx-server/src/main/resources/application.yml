@@ -121,10 +121,14 @@ linkx:
     register-enabled: ${REGISTER_ENABLED}
     # 忘记密码邮箱验证 ← FORGOT_PASSWORD_EMAIL_ENABLED
     forgot-password-email-enabled: ${FORGOT_PASSWORD_EMAIL_ENABLED}
-    # 登录失败锁定次数 ← AUTH_LOGIN_MAX_ATTEMPTS
+    # 客户端登录失败锁定次数 ← AUTH_LOGIN_MAX_ATTEMPTS
     login-max-attempts: ${AUTH_LOGIN_MAX_ATTEMPTS}
-    # 锁定时长（分钟）← AUTH_LOCK_DURATION_MINUTES
+    # 管理端登录失败锁定次数（默认跟随客户端）← AUTH_ADMIN_LOGIN_MAX_ATTEMPTS
+    admin-login-max-attempts: ${AUTH_ADMIN_LOGIN_MAX_ATTEMPTS:${AUTH_LOGIN_MAX_ATTEMPTS}}
+    # 客户端锁定时长（分钟）← AUTH_LOCK_DURATION_MINUTES
     lock-duration-minutes: ${AUTH_LOCK_DURATION_MINUTES}
+    # 管理端锁定时长（分钟，默认跟随客户端）← AUTH_ADMIN_LOCK_DURATION_MINUTES
+    admin-lock-duration-minutes: ${AUTH_ADMIN_LOCK_DURATION_MINUTES:${AUTH_LOCK_DURATION_MINUTES}}
     # 登录限流（次/分钟/IP）← AUTH_RATE_LIMIT_LOGIN
     rate-limit-login-per-minute: ${AUTH_RATE_LIMIT_LOGIN}
     # 注册限流（次/分钟/IP）← AUTH_RATE_LIMIT_REGISTER
