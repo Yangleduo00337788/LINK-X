@@ -89,6 +89,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/VersionView.vue'),
         meta: { title: '版本管理', permission: 'admin:version:list' },
       },
+      {
+        path: 'profile',
+        name: 'Profile',
+        component: () => import('@/views/ProfileView.vue'),
+        meta: { title: '个人中心', hidden: true },
+      },
     ],
   },
   {

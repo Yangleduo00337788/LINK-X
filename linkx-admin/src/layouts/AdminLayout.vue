@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, ref } from 'vue'
+import { computed, h, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   NLayout,
@@ -15,15 +15,27 @@ import {
   NText,
   type MenuOption,
 } from 'naive-ui'
-import { LogOutOutline, PersonCircleOutline, MenuOutline } from '@vicons/ionicons5'
+import { LogOutOutline, PersonCircleOutline, PersonOutline, MenuOutline } from '@vicons/ionicons5'
 import { useAuthStore } from '@/stores/auth'
 import { resolveMenuIcon } from '@/utils/icons'
+import { resolveAvatarSrc } from '@/utils/mediaUrl'
 import type { AdminMenuTree } from '@/types/api'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const collapsed = ref(false)
+
+const headerAvatarSrc = computed(() =>
+  resolveAvatarSrc(auth.user?.avatar, auth.user?.id, true),
+)
+const headerAvatarBroken = ref(false)
+watch(headerAvatarSrc, () => {
+  headerAvatarBroken.value = false
+})
+function onHeaderAvatarError() {
+  headerAvatarBroken.value = true
+}
 
 function toMenuOptions(menus: AdminMenuTree[]): MenuOption[] {
   return menus
@@ -69,6 +81,11 @@ function onMenuUpdate(key: string) {
 
 const userOptions = [
   {
+    label: '个人中心',
+    key: 'profile',
+    icon: () => h(NIcon, null, { default: () => h(PersonOutline) }),
+  },
+  {
     label: '退出登录',
     key: 'logout',
     icon: () => h(NIcon, null, { default: () => h(LogOutOutline) }),
@@ -76,6 +93,10 @@ const userOptions = [
 ]
 
 async function onUserSelect(key: string) {
+  if (key === 'profile') {
+    router.push('/admin/profile')
+    return
+  }
   if (key === 'logout') {
     await auth.logout()
     router.push('/login')
@@ -115,9 +136,20 @@ async function onUserSelect(key: string) {
           <NDropdown :options="userOptions" @select="onUserSelect">
             <NButton quaternary>
               <NSpace align="center" :size="8">
-                <NAvatar round size="small" :src="auth.user?.avatar">
-                  <NIcon :component="PersonCircleOutline" />
-                </NAvatar>
+                <span class="header-avatar">
+                  <img
+                    v-if="headerAvatarSrc && !headerAvatarBroken"
+                    :key="headerAvatarSrc"
+                    class="header-avatar-img"
+                    :src="headerAvatarSrc"
+                    alt=""
+                    referrerpolicy="no-referrer"
+                    @error="onHeaderAvatarError"
+                  />
+                  <NAvatar v-else round size="small">
+                    <NIcon :component="PersonCircleOutline" />
+                  </NAvatar>
+                </span>
                 <span>{{ auth.displayName }}</span>
               </NSpace>
             </NButton>
@@ -152,5 +184,19 @@ async function onUserSelect(key: string) {
   align-items: center;
   justify-content: space-between;
   padding: 0 20px;
+}
+.header-avatar {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  overflow: hidden;
+}
+.header-avatar-img {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
 }
 </style>

@@ -16,6 +16,7 @@ export interface PageQuery {
   size?: number
   keyword?: string
   status?: number | string
+  feedbackStatus?: string
   startTime?: number
   endTime?: number
   sortBy?: string
