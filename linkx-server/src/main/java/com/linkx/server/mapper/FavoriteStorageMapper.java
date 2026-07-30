@@ -9,8 +9,10 @@ import org.apache.ibatis.annotations.Update;
 @Mapper
 public interface FavoriteStorageMapper extends BaseMapper<FavoriteStorage> {
 
-    /** 原子更新用量/条目数并递增版本号；返回 1 表示 CAS 成功 */
-    @Update("UPDATE favorite_storage SET used_bytes = used_bytes + #{delta}, item_count = item_count + #{itemCountDelta}, version = version + 1 WHERE user_id = #{userId} AND version = #{expectedVersion}")
+    /** 原子更新用量/条目数并递增版本号；返回 1 表示 CAS 成功，0 表示冲突或结果将为负 */
+    @Update("UPDATE favorite_storage SET used_bytes = used_bytes + #{delta}, item_count = item_count + #{itemCountDelta}, version = version + 1 " +
+            "WHERE user_id = #{userId} AND version = #{expectedVersion} " +
+            "AND used_bytes + #{delta} >= 0 AND item_count + #{itemCountDelta} >= 0")
     int casUpdateUsedBytes(@Param("userId") Long userId,
                            @Param("delta") long delta,
                            @Param("itemCountDelta") int itemCountDelta,

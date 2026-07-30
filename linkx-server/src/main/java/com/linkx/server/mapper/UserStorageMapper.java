@@ -9,8 +9,10 @@ import org.apache.ibatis.annotations.Update;
 @Mapper
 public interface UserStorageMapper extends BaseMapper<UserStorage> {
 
-    /** 原子扣减用量并递增版本号，返回 1 表示成功（CAS）；0 表示并发冲突 */
-    @Update("UPDATE user_storage SET used_bytes = used_bytes + #{delta}, file_count = file_count + #{fileCountDelta}, version = version + 1 WHERE user_id = #{userId} AND version = #{expectedVersion}")
+    /** 原子扣减用量并递增版本号，返回 1 表示成功（CAS）；0 表示并发冲突或结果将为负 */
+    @Update("UPDATE user_storage SET used_bytes = used_bytes + #{delta}, file_count = file_count + #{fileCountDelta}, version = version + 1 " +
+            "WHERE user_id = #{userId} AND version = #{expectedVersion} " +
+            "AND used_bytes + #{delta} >= 0 AND file_count + #{fileCountDelta} >= 0")
     int casUpdateUsedBytes(@Param("userId") Long userId,
                            @Param("delta") long delta,
                            @Param("fileCountDelta") int fileCountDelta,
