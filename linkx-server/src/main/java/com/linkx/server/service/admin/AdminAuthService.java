@@ -2,6 +2,7 @@ package com.linkx.server.service.admin;
 
 import com.linkx.server.controller.admin.dto.AdminLoginDTO;
 import com.linkx.server.controller.admin.dto.AdminLogoutDTO;
+import com.linkx.server.controller.admin.dto.AdminProfileUpdateDTO;
 import com.linkx.server.controller.admin.dto.AdminRefreshDTO;
 import com.linkx.server.controller.admin.vo.AdminLoginVO;
 import com.linkx.server.controller.admin.vo.AdminMenuTreeVO;
@@ -17,6 +18,8 @@ public interface AdminAuthService {
     AdminLoginVO login(AdminLoginDTO dto, HttpServletRequest request, HttpServletResponse response);
 
     AdminUserProfileVO me(Long userId);
+
+    AdminUserProfileVO updateProfile(Long userId, AdminProfileUpdateDTO dto);
 
     List<AdminMenuTreeVO> menus(Long userId);
 

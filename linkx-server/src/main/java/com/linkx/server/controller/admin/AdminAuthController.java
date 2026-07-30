@@ -5,6 +5,7 @@ import com.linkx.server.common.Result;
 import com.linkx.server.config.aspect.AuditAction;
 import com.linkx.server.controller.admin.dto.AdminLoginDTO;
 import com.linkx.server.controller.admin.dto.AdminLogoutDTO;
+import com.linkx.server.controller.admin.dto.AdminProfileUpdateDTO;
 import com.linkx.server.controller.admin.dto.AdminRefreshDTO;
 import com.linkx.server.controller.admin.vo.AdminLoginVO;
 import com.linkx.server.controller.admin.vo.AdminMenuTreeVO;
@@ -18,6 +19,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -49,6 +51,16 @@ public class AdminAuthController {
     public Result<AdminUserProfileVO> me(HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         return Result.success(adminAuthService.me(userId));
+    }
+
+    @Operation(summary = "更新当前管理员资料")
+    @AuditAction(operationType = "UPDATE_PROFILE", description = "管理端更新个人资料")
+    @PutMapping("/profile")
+    @RequireRole({"admin", "super_admin"})
+    public Result<AdminUserProfileVO> updateProfile(@Valid @RequestBody AdminProfileUpdateDTO dto,
+                                                    HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        return Result.success(adminAuthService.updateProfile(userId, dto));
     }
 
     @Operation(summary = "获取当前管理员菜单")

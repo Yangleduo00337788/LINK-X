@@ -1,11 +1,13 @@
 package com.linkx.server.service.admin.impl;
 
 import com.linkx.server.common.ClientIpResolver;
+import com.linkx.server.common.InputSanitizer;
 import com.linkx.server.common.TokenCookieUtil;
 import com.linkx.server.common.admin.AdminConstants;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.controller.admin.dto.AdminLoginDTO;
 import com.linkx.server.controller.admin.dto.AdminLogoutDTO;
+import com.linkx.server.controller.admin.dto.AdminProfileUpdateDTO;
 import com.linkx.server.controller.admin.dto.AdminRefreshDTO;
 import com.linkx.server.controller.admin.vo.AdminLoginVO;
 import com.linkx.server.controller.admin.vo.AdminMenuTreeVO;
@@ -16,16 +18,22 @@ import com.linkx.server.entity.SysUser;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.CaptchaService;
+import com.linkx.server.service.LoginAuditService;
+import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.RbacService;
 import com.linkx.server.service.SysUserService;
 import com.linkx.server.service.TokenService;
 import com.linkx.server.service.admin.AdminAuthService;
 import com.linkx.server.service.admin.AdminMenuService;
+import com.mybatisflex.core.query.QueryWrapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -42,6 +50,8 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     private final AdminMenuService adminMenuService;
     private final TokenCookieUtil tokenCookieUtil;
     private final LinkxProperties linkxProperties;
+    private final LoginAuditService loginAuditService;
+    private final MediaUrlService mediaUrlService;
 
     @Override
     public AdminLoginVO login(AdminLoginDTO dto, HttpServletRequest request, HttpServletResponse response) {
@@ -53,17 +63,21 @@ public class AdminAuthServiceImpl implements AdminAuthService {
         loginDTO.setCaptchaId(dto.getCaptchaId());
         loginDTO.setCaptchaCode(dto.getCaptchaCode());
 
-        TokenVO tokenVO = sysUserService.login(
-                loginDTO,
-                ClientIpResolver.resolve(request, linkxProperties),
-                request.getHeader("User-Agent"),
-                request);
+        String ip = ClientIpResolver.resolve(request, linkxProperties);
+        String userAgent = request.getHeader("User-Agent");
 
-        Long userId = tokenVO.getUser().getId();
-        assertAdminRole(userId);
+        // 先校验凭证，通过管理员角色后再签发令牌，避免非管理员探测管理端仍获得会话
+        SysUser user = sysUserService.verifyCredentials(loginDTO, ip, userAgent, request);
+        try {
+            assertAdminRole(user.getId());
+        } catch (CustomException e) {
+            loginAuditService.record(user.getId(), user.getUsername(), ip, userAgent, false, "无管理端访问权限");
+            throw e;
+        }
 
+        TokenVO tokenVO = sysUserService.establishSession(user, ip, userAgent, request);
         setTokenCookies(response, tokenVO, request);
-        return toLoginVO(tokenVO, userId);
+        return toLoginVO(tokenVO, user.getId());
     }
 
     @Override
@@ -74,6 +88,46 @@ public class AdminAuthServiceImpl implements AdminAuthService {
         }
         assertAdminRole(userId);
         return buildProfile(user);
+    }
+
+    @Override
+    @Transactional
+    public AdminUserProfileVO updateProfile(Long userId, AdminProfileUpdateDTO dto) {
+        assertAdminRole(userId);
+        SysUser user = sysUserMapper.selectOneById(userId);
+        if (user == null) {
+            throw new CustomException(404, "用户不存在");
+        }
+        if (dto.getNickname() != null) {
+            String nickname = InputSanitizer.sanitizeText(dto.getNickname(), 64);
+            if (!StringUtils.hasText(nickname)) {
+                throw new CustomException(400, "昵称不能为空");
+            }
+            user.setNickname(nickname);
+        }
+        if (dto.getAvatar() != null) {
+            user.setAvatar(dto.getAvatar().isBlank() ? null : dto.getAvatar().trim());
+        }
+        if (dto.getEmail() != null) {
+            String email = dto.getEmail().trim();
+            if (email.isEmpty()) {
+                user.setEmail(null);
+            } else {
+                String normalized = email.toLowerCase();
+                long occupied = sysUserMapper.selectCountByQuery(
+                        QueryWrapper.create()
+                                .where(SysUser::getEmail).eq(normalized)
+                                .and(SysUser::getId).ne(userId));
+                if (occupied > 0) {
+                    throw new CustomException(400, "邮箱已被占用");
+                }
+                user.setEmail(normalized);
+            }
+        }
+        user.setUpdateBy(userId);
+        user.setUpdateTime(new Date());
+        sysUserMapper.update(user);
+        return buildProfile(sysUserMapper.selectOneById(userId));
     }
 
     @Override
@@ -147,11 +201,30 @@ public class AdminAuthServiceImpl implements AdminAuthService {
                 .id(user.getId())
                 .username(user.getUsername())
                 .nickname(user.getNickname())
-                .avatar(user.getAvatar())
+                .avatar(toAdminAvatarUrl(user))
                 .email(user.getEmail())
                 .roles(rbacService.getUserRoleCodes(user.getId()))
                 .permissions(new HashSet<>(rbacService.getUserPermissionCodes(user.getId())))
                 .build();
+    }
+
+    /**
+     * 管理端头像走同源 /media/avatars/{id}，避免浏览器直连 MinIO 预签名地址失败（私有桶 / 跨端口）。
+     * 外链头像仍原样返回。
+     */
+    private String toAdminAvatarUrl(SysUser user) {
+        if (user == null || !StringUtils.hasText(user.getAvatar())) {
+            return null;
+        }
+        String raw = user.getAvatar().trim();
+        if (mediaUrlService.isExternalHttpUrl(raw)
+                || raw.startsWith("data:")
+                || raw.startsWith("blob:")
+                || raw.startsWith("/")) {
+            return mediaUrlService.resolveAvatar(raw);
+        }
+        long v = user.getUpdateTime() != null ? user.getUpdateTime().getTime() : 0L;
+        return "/media/avatars/" + user.getId() + "?v=" + v;
     }
 
     private void assertAdminRole(Long userId) {

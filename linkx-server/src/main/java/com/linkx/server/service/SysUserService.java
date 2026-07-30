@@ -15,6 +15,17 @@ public interface SysUserService extends IService<SysUser> {
     TokenVO login(LoginDTO loginDTO, String ip, String userAgent, HttpServletRequest request);
 
     /**
+     * 校验用户名密码与账号状态，不签发令牌、不写设备会话。
+     * 供管理端等需在签发前做额外授权检查的场景使用。
+     */
+    SysUser verifyCredentials(LoginDTO loginDTO, String ip, String userAgent, HttpServletRequest request);
+
+    /**
+     * 在凭证已通过校验后建立设备会话并签发令牌。
+     */
+    TokenVO establishSession(SysUser user, String ip, String userAgent, HttpServletRequest request);
+
+    /**
      * 更新用户资料
      *
      * @param userId 用户 ID
