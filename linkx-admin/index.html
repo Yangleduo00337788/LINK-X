@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -8,6 +8,20 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <title>LinkX 管理后台</title>
+    <script>
+      try {
+        var raw = localStorage.getItem('linkx-admin-preferences')
+        if (raw) {
+          var p = JSON.parse(raw)
+          if (p.theme === 'light' || p.theme === 'dark') {
+            document.documentElement.setAttribute('data-theme', p.theme)
+          }
+          if (p.locale === 'zh-CN' || p.locale === 'en-US') {
+            document.documentElement.lang = p.locale === 'zh-CN' ? 'zh-CN' : 'en'
+          }
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="app"></div>

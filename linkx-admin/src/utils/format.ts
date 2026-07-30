@@ -1,4 +1,5 @@
 import dayjs from 'dayjs'
+import { tGlobal } from '@/i18n'
 
 export function formatTime(value?: string | number | Date | null) {
   if (value == null || value === '') return '-'
@@ -6,18 +7,18 @@ export function formatTime(value?: string | number | Date | null) {
   return d.isValid() ? d.format('YYYY-MM-DD HH:mm:ss') : '-'
 }
 
-/** 空值展示为「暂无」 */
+/** Empty values show as localized “N/A” */
 export function displayOrNone(value?: string | null) {
-  if (value == null || String(value).trim() === '') return '暂无'
+  if (value == null || String(value).trim() === '') return tGlobal('common.none')
   return value
 }
 
 /**
- * 将常见 IPv6 形式规范为 IPv4，便于管理端展示。
+ * Normalize common IPv6 forms to IPv4 for admin display.
  * ::1 → 127.0.0.1，::ffff:x.x.x.x → x.x.x.x
  */
 export function formatIp(ip?: string | null) {
-  if (ip == null || String(ip).trim() === '') return '暂无'
+  if (ip == null || String(ip).trim() === '') return tGlobal('common.none')
   let v = String(ip).trim()
   if (v.startsWith('[') && v.includes(']')) {
     v = v.slice(1, v.indexOf(']'))
@@ -43,13 +44,13 @@ export function formatIp(ip?: string | null) {
   return v
 }
 
-/** 后端：1 正常，0 禁用（冻结/封禁） */
+/** Backend: 1 active, 0 disabled (frozen/banned) */
 export function userStatusLabel(status?: number) {
   switch (status) {
     case 1:
-      return '正常'
+      return tGlobal('common.normal')
     case 0:
-      return '禁用'
+      return tGlobal('common.frozen')
     default:
       return status == null ? '-' : String(status)
   }

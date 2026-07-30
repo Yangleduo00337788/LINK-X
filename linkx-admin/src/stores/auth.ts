@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import * as authApi from '@/api/auth'
 import { clearTokens, getAccessToken, getRefreshToken } from '@/api/request'
 import type { AdminMenuTree, AdminUserProfile } from '@/types/api'
+import { tGlobal } from '@/i18n'
 
 export const useAuthStore = defineStore(
   'auth',
@@ -14,7 +15,9 @@ export const useAuthStore = defineStore(
     const permissions = ref<string[]>([])
 
     const isLoggedIn = computed(() => !!accessToken.value)
-    const displayName = computed(() => user.value?.nickname || user.value?.username || '管理员')
+    const displayName = computed(
+      () => user.value?.nickname || user.value?.username || tGlobal('common.admin'),
+    )
 
     function hasPermission(code?: string | string[]) {
       if (!code) return true

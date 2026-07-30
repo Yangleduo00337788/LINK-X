@@ -1,18 +1,20 @@
+import { watch } from 'vue'
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import i18n, { tGlobal } from '@/i18n'
 
 const routes: RouteRecordRaw[] = [
   {
     path: '/login',
     name: 'Login',
     component: () => import('@/views/LoginView.vue'),
-    meta: { public: true, title: '登录' },
+    meta: { public: true, titleKey: 'route.login' },
   },
   {
     path: '/forbidden',
     name: 'Forbidden',
     component: () => import('@/views/ForbiddenView.vue'),
-    meta: { public: true, title: '无权限' },
+    meta: { public: true, titleKey: 'route.forbidden' },
   },
   {
     path: '/',
@@ -27,73 +29,73 @@ const routes: RouteRecordRaw[] = [
         path: 'dashboard',
         name: 'Dashboard',
         component: () => import('@/views/DashboardView.vue'),
-        meta: { title: '仪表盘', permission: 'admin:dashboard:view' },
+        meta: { titleKey: 'route.dashboard', permission: 'admin:dashboard:view' },
       },
       {
         path: 'users',
         name: 'UserList',
         component: () => import('@/views/UserListView.vue'),
-        meta: { title: '用户管理', permission: 'admin:user:list' },
+        meta: { titleKey: 'route.users', permission: 'admin:user:list' },
       },
       {
         path: 'users/:id',
         name: 'UserDetail',
         component: () => import('@/views/UserDetailView.vue'),
-        meta: { title: '用户详情', permission: 'admin:user:view', hidden: true },
+        meta: { titleKey: 'route.userDetail', permission: 'admin:user:view', hidden: true },
       },
       {
         path: 'roles',
         name: 'RoleList',
         component: () => import('@/views/RoleListView.vue'),
-        meta: { title: '角色管理', permission: 'admin:role:list' },
+        meta: { titleKey: 'route.roles', permission: 'admin:role:list' },
       },
       {
         path: 'permissions',
         name: 'PermissionList',
         component: () => import('@/views/PermissionListView.vue'),
-        meta: { title: '权限管理', permission: 'admin:permission:list' },
+        meta: { titleKey: 'route.permissions', permission: 'admin:permission:list' },
       },
       {
         path: 'menus',
         name: 'MenuList',
         component: () => import('@/views/MenuListView.vue'),
-        meta: { title: '菜单管理', permission: 'admin:menu:list' },
+        meta: { titleKey: 'route.menus', permission: 'admin:menu:list' },
       },
       {
         path: 'audit-logs',
         name: 'AuditLogs',
         component: () => import('@/views/AuditLogView.vue'),
-        meta: { title: '操作日志', permission: 'admin:audit:list' },
+        meta: { titleKey: 'route.auditLogs', permission: 'admin:audit:list' },
       },
       {
         path: 'login-logs',
         name: 'LoginLogs',
         component: () => import('@/views/LoginLogView.vue'),
-        meta: { title: '登录日志', permission: 'admin:login-log:list' },
+        meta: { titleKey: 'route.loginLogs', permission: 'admin:login-log:list' },
       },
       {
         path: 'feedback',
         name: 'FeedbackList',
         component: () => import('@/views/FeedbackListView.vue'),
-        meta: { title: '反馈管理', permission: 'admin:feedback:list' },
+        meta: { titleKey: 'route.feedback', permission: 'admin:feedback:list' },
       },
       {
         path: 'settings',
         name: 'Settings',
         component: () => import('@/views/SettingView.vue'),
-        meta: { title: '系统配置', permission: 'admin:setting:view' },
+        meta: { titleKey: 'route.settings', permission: 'admin:setting:view' },
       },
       {
         path: 'versions',
         name: 'Versions',
         component: () => import('@/views/VersionView.vue'),
-        meta: { title: '版本管理', permission: 'admin:version:list' },
+        meta: { titleKey: 'route.versions', permission: 'admin:version:list' },
       },
       {
         path: 'profile',
         name: 'Profile',
         component: () => import('@/views/ProfileView.vue'),
-        meta: { title: '个人中心', hidden: true },
+        meta: { titleKey: 'route.profile', hidden: true },
       },
     ],
   },
@@ -101,7 +103,7 @@ const routes: RouteRecordRaw[] = [
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
     component: () => import('@/views/NotFoundView.vue'),
-    meta: { public: true, title: '页面不存在' },
+    meta: { public: true, titleKey: 'route.notFound' },
   },
 ]
 
@@ -110,8 +112,13 @@ const router = createRouter({
   routes,
 })
 
+export function syncDocumentTitle(titleKey?: string) {
+  const key = titleKey || 'app.brand'
+  document.title = `${tGlobal(key)} - ${tGlobal('app.name')}`
+}
+
 router.beforeEach(async (to) => {
-  document.title = `${(to.meta.title as string) || 'LinkX'} - LinkX 管理后台`
+  syncDocumentTitle(to.meta.titleKey as string | undefined)
   const auth = useAuthStore()
   auth.syncTokensFromStorage()
 
@@ -140,5 +147,13 @@ router.beforeEach(async (to) => {
 
   return true
 })
+
+watch(
+  () => i18n.global.locale.value,
+  () => {
+    const key = router.currentRoute.value.meta.titleKey as string | undefined
+    syncDocumentTitle(key)
+  },
+)
 
 export default router

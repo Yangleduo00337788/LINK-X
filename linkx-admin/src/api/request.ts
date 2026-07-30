@@ -1,9 +1,20 @@
 import axios, { type AxiosError, type AxiosRequestConfig, type InternalAxiosRequestConfig } from 'axios'
+import { computed, ref } from 'vue'
 import { createDiscreteApi, darkTheme } from 'naive-ui'
 import type { ApiResult } from '@/types/api'
+import type { AppTheme } from '@/i18n'
+import { tGlobal } from '@/i18n'
+
+const discreteTheme = ref<AppTheme>('dark')
+
+export function setDiscreteTheme(theme: AppTheme) {
+  discreteTheme.value = theme
+}
 
 const { message } = createDiscreteApi(['message'], {
-  configProviderProps: { theme: darkTheme },
+  configProviderProps: computed(() => ({
+    theme: discreteTheme.value === 'dark' ? darkTheme : null,
+  })),
 })
 
 const TOKEN_KEY = 'linkx_admin_access_token'
@@ -65,8 +76,9 @@ request.interceptors.response.use(
   (response) => {
     const payload = response.data as ApiResult
     if (payload && typeof payload.code === 'number' && payload.code !== 200) {
-      message.error(payload.message || '请求失败')
-      return Promise.reject(new Error(payload.message || '请求失败'))
+      const fallback = tGlobal('common.requestFailed')
+      message.error(payload.message || fallback)
+      return Promise.reject(new Error(payload.message || fallback))
     }
     return response
   },
@@ -85,7 +97,7 @@ request.interceptors.response.use(
         window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`
       }
     }
-    const msg = error.response?.data?.message || error.message || '网络错误'
+    const msg = error.response?.data?.message || error.message || tGlobal('common.networkError')
     if (status !== 401) message.error(msg)
     return Promise.reject(error)
   },

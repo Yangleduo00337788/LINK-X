@@ -7,56 +7,31 @@ import {
   NLoadingBarProvider,
   darkTheme,
   dateZhCN,
+  dateEnUS,
   zhCN,
-  type GlobalThemeOverrides,
+  enUS,
 } from 'naive-ui'
+import { storeToRefs } from 'pinia'
+import { usePreferencesStore } from '@/stores/preferences'
+import { darkThemeOverrides, lightThemeOverrides } from '@/theme/overrides'
 
-const themeOverrides: GlobalThemeOverrides = {
-  common: {
-    primaryColor: '#5b8def',
-    primaryColorHover: '#7aa3f5',
-    primaryColorPressed: '#3d6fd4',
-    primaryColorSuppl: '#5b8def',
-    bodyColor: '#0f1115',
-    cardColor: '#171a21',
-    modalColor: '#171a21',
-    popoverColor: '#1c2029',
-    tableColor: '#171a21',
-    borderColor: '#2a2f3a',
-    dividerColor: '#2a2f3a',
-    textColorBase: '#e8eaed',
-    textColor1: '#e8eaed',
-    textColor2: '#a8b0bd',
-    textColor3: '#7a8494',
-    fontFamily: '"IBM Plex Sans", "Segoe UI", sans-serif',
-    borderRadius: '6px',
-  },
-  Layout: {
-    siderColor: '#12151b',
-    headerColor: '#12151b',
-  },
-  Menu: {
-    itemTextColor: '#a8b0bd',
-    itemTextColorHover: '#e8eaed',
-    itemTextColorActive: '#e8eaed',
-    itemTextColorActiveHover: '#e8eaed',
-    itemIconColor: '#7a8494',
-    itemIconColorHover: '#e8eaed',
-    itemIconColorActive: '#5b8def',
-    itemColorActive: 'rgba(91, 141, 239, 0.12)',
-    itemColorHover: 'rgba(255, 255, 255, 0.04)',
-  },
-}
+const prefs = usePreferencesStore()
+const { theme, locale } = storeToRefs(prefs)
 
-const theme = computed(() => darkTheme)
+const naiveTheme = computed(() => (theme.value === 'dark' ? darkTheme : null))
+const themeOverrides = computed(() =>
+  theme.value === 'dark' ? darkThemeOverrides : lightThemeOverrides,
+)
+const naiveLocale = computed(() => (locale.value === 'zh-CN' ? zhCN : enUS))
+const naiveDateLocale = computed(() => (locale.value === 'zh-CN' ? dateZhCN : dateEnUS))
 </script>
 
 <template>
   <NConfigProvider
-    :theme="theme"
+    :theme="naiveTheme"
     :theme-overrides="themeOverrides"
-    :locale="zhCN"
-    :date-locale="dateZhCN"
+    :locale="naiveLocale"
+    :date-locale="naiveDateLocale"
   >
     <NLoadingBarProvider>
       <NDialogProvider>
