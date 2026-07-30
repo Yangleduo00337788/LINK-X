@@ -87,9 +87,7 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: 'versions',
-        name: 'Versions',
-        component: () => import('@/views/VersionView.vue'),
-        meta: { titleKey: 'route.versions', permission: 'admin:version:list' },
+        redirect: { path: '/admin/settings', query: { tab: 'client' } },
       },
       {
         path: 'profile',

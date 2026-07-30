@@ -37,6 +37,8 @@ export interface CaptchaData {
 /** GET /auth/config */
 export interface AuthConfig {
   captchaEnabled: boolean
+  registerEnabled?: boolean
+  forgotPasswordEmailEnabled?: boolean
 }
 
 export interface LoginRequest {

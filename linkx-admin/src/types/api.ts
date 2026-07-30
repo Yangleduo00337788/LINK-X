@@ -63,4 +63,6 @@ export interface CaptchaVO {
 
 export interface AuthConfigVO {
   captchaEnabled: boolean
+  registerEnabled?: boolean
+  forgotPasswordEmailEnabled?: boolean
 }

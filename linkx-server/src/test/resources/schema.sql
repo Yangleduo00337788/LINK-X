@@ -690,3 +690,19 @@ CREATE TABLE IF NOT EXISTS sys_admin_role_menu (
   created_at DATETIME
 );
 
+CREATE TABLE IF NOT EXISTS sys_runtime_setting (
+  id BIGINT NOT NULL PRIMARY KEY,
+  admin_captcha_enabled TINYINT NOT NULL DEFAULT 1,
+  client_captcha_enabled TINYINT NOT NULL DEFAULT 1,
+  client_register_enabled TINYINT NOT NULL DEFAULT 1,
+  client_forgot_password_email_enabled TINYINT NOT NULL DEFAULT 1,
+  app_version VARCHAR(32) NOT NULL DEFAULT '1.0.0',
+  app_channel VARCHAR(32) NOT NULL DEFAULT 'stable',
+  release_notes VARCHAR(2000),
+  download_url VARCHAR(512),
+  max_upload_bytes BIGINT NOT NULL DEFAULT 104857600,
+  update_by BIGINT,
+  create_time DATETIME,
+  update_time DATETIME
+);
+

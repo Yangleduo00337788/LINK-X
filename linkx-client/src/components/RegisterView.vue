@@ -31,6 +31,8 @@ const regCaptchaCode = ref('')
 const regCaptchaId = ref('')
 const regCaptchaImage = ref('')
 const captchaEnabled = ref(true)
+const registerEnabled = ref(true)
+const configLoaded = ref(false)
 const submitting = ref(false)
 
 const compact = computed(() => isElectron)
@@ -41,9 +43,13 @@ async function loadAuthConfig() {
     const res = await authApi.fetchAuthConfig()
     if (res.code === 200 && res.data) {
       captchaEnabled.value = !!res.data.captchaEnabled
+      registerEnabled.value = res.data.registerEnabled !== false
     }
   } catch {
     captchaEnabled.value = true
+    registerEnabled.value = true
+  } finally {
+    configLoaded.value = true
   }
 }
 
@@ -70,6 +76,10 @@ function closeOrBack() {
 }
 
 async function handleRegister() {
+  if (!registerEnabled.value) {
+    message.warning(t('register.disabled'))
+    return
+  }
   const user = regUser.value.trim()
   const pass = regPass.value
   const nickname = regNickname.value.trim() || user
@@ -165,9 +175,15 @@ onMounted(() => {
         <span class="brand-mark">L</span>
         <span class="brand-text">LinkX</span>
       </div>
-      <p class="reg-desc">{{ t('register.subtitle') }}</p>
+      <p class="reg-desc">{{ registerEnabled ? t('register.subtitle') : t('register.disabled') }}</p>
 
-      <div class="reg-form">
+      <div v-if="configLoaded && !registerEnabled" class="reg-disabled">
+        <n-button type="primary" size="large" round block class="submit-btn" @click="closeOrBack">
+          {{ t('common.back') }}
+        </n-button>
+      </div>
+
+      <div v-else class="reg-form">
         <n-input
           v-model:value="regUser"
           size="large"
@@ -465,6 +481,11 @@ onMounted(() => {
   flex-direction: column;
   gap: 9px;
   animation: rise-in 0.55s ease 0.1s both;
+}
+
+.reg-disabled {
+  width: 100%;
+  margin-top: 12px;
 }
 
 @keyframes rise-in {

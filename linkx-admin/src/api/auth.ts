@@ -19,7 +19,7 @@ export function fetchCaptcha() {
 }
 
 export function fetchAuthConfig() {
-  return get<AuthConfigVO>('/auth/config')
+  return get<AuthConfigVO>('/admin/auth/config')
 }
 
 export async function login(payload: LoginPayload) {

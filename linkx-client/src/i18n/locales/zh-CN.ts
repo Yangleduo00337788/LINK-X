@@ -646,6 +646,8 @@ export default {
     captcha: '验证码',
     refreshCaptcha: '点击刷新',
     register: '注册账号',
+    registerDisabled: '当前未开放注册',
+    forgotDisabled: '忘记密码邮箱验证未启用',
     quickLogin: '快速登录',
     networkTip: '请检查本机网络连接是否正常。若使用代理，请确认代理可访问 LinkX 服务。',
     feedbackPh: '请描述你的问题或建议',
@@ -672,6 +674,7 @@ export default {
   register: {
     title: '注册账号',
     subtitle: '开启你的 LinkX 之旅',
+    disabled: '当前未开放注册，请联系管理员',
     username: '用户名',
     password: '密码',
     nickname: '昵称',

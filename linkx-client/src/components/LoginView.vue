@@ -86,16 +86,22 @@ const captchaImage = ref('')
 const captchaCode = ref('')
 /** 与后端 CAPTCHA_ENABLED 对齐；默认 true，拉取 /auth/config 后再更新 */
 const captchaEnabled = ref(true)
+const registerEnabled = ref(true)
+const forgotPasswordEmailEnabled = ref(true)
 
 async function loadAuthConfig() {
   try {
     const res = await authApi.fetchAuthConfig()
     if (res.code === 200 && res.data) {
       captchaEnabled.value = !!res.data.captchaEnabled
+      registerEnabled.value = res.data.registerEnabled !== false
+      forgotPasswordEmailEnabled.value = res.data.forgotPasswordEmailEnabled !== false
     }
   } catch {
     // 拉不到配置时保持展示验证码，避免误关
     captchaEnabled.value = true
+    registerEnabled.value = true
+    forgotPasswordEmailEnabled.value = true
   }
 }
 
@@ -141,6 +147,10 @@ function onMenuAction(key: 'network' | 'forgot' | 'feedback') {
     return
   }
   if (key === 'forgot') {
+    if (!forgotPasswordEmailEnabled.value) {
+      message.warning(t('login.forgotDisabled'))
+      return
+    }
     void openForgot()
     return
   }
@@ -367,6 +377,10 @@ async function handleLogin() {
 
 function openRegister() {
   if (autoLogging.value) return
+  if (!registerEnabled.value) {
+    message.warning(t('login.registerDisabled'))
+    return
+  }
   if (window.electronAPI?.openRegister) {
     window.electronAPI.openRegister()
     return
@@ -532,7 +546,13 @@ async function handleForgot() {
           <button type="button" class="login-menu-item" role="menuitem" @click="onMenuAction('network')">
             {{ t('login.network') }}
           </button>
-          <button type="button" class="login-menu-item" role="menuitem" @click="onMenuAction('forgot')">
+          <button
+            v-if="forgotPasswordEmailEnabled"
+            type="button"
+            class="login-menu-item"
+            role="menuitem"
+            @click="onMenuAction('forgot')"
+          >
             {{ t('login.forgot') }}
           </button>
           <button type="button" class="login-menu-item" role="menuitem" @click="onMenuAction('feedback')">
@@ -693,13 +713,15 @@ async function handleForgot() {
             :class="{ disabled: autoLogging }"
             @click.prevent="switchToPasswordMode"
           >{{ t('login.passwordLogin') }}</a>
-          <span class="footer-sep" />
-          <a
-            href="#"
-            class="footer-link"
-            :class="{ disabled: autoLogging }"
-            @click.prevent="openRegister"
-          >{{ t('login.register') }}</a>
+          <template v-if="registerEnabled">
+            <span class="footer-sep" />
+            <a
+              href="#"
+              class="footer-link"
+              :class="{ disabled: autoLogging }"
+              @click.prevent="openRegister"
+            >{{ t('login.register') }}</a>
+          </template>
         </template>
         <template v-else>
           <a
@@ -708,8 +730,8 @@ async function handleForgot() {
             class="footer-link"
             @click.prevent="switchToQuickMode"
           >{{ t('login.quickLogin') }}</a>
-          <span v-if="username.trim()" class="footer-sep" />
-          <a href="#" class="footer-link" @click.prevent="openRegister">{{ t('login.register') }}</a>
+          <span v-if="username.trim() && registerEnabled" class="footer-sep" />
+          <a v-if="registerEnabled" href="#" class="footer-link" @click.prevent="openRegister">{{ t('login.register') }}</a>
         </template>
       </div>
     </div>

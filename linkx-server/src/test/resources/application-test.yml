@@ -57,6 +57,9 @@ linkx:
   auth:
     # 关闭验证码，简化 registerAndLogin 等测试辅助方法
     captcha-enabled: false
+    admin-captcha-enabled: false
+    register-enabled: true
+    forgot-password-email-enabled: true
     login-max-attempts: 5
     lock-duration-minutes: 15
     # 放宽限流，避免批量用例触发 429

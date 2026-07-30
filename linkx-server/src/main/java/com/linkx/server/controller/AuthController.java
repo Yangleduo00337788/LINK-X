@@ -52,17 +52,22 @@ public class AuthController {
         return Result.success(captchaService.generate());
     }
 
-    /** 匿名可读：客户端据此隐藏/展示验证码，与 CAPTCHA_ENABLED 对齐 */
+    /** 匿名可读：客户端据此隐藏/展示验证码、注册入口、忘记密码等 */
     @GetMapping("/config")
     public Result<AuthConfigVO> config() {
         return Result.success(AuthConfigVO.builder()
                 .captchaEnabled(captchaService.isEnabled())
+                .registerEnabled(linkxProperties.getAuth().isRegisterEnabled())
+                .forgotPasswordEmailEnabled(linkxProperties.getAuth().isForgotPasswordEmailEnabled())
                 .build());
     }
 
     @AuditAction(operationType = "REGISTER", description = "用户注册")
     @PostMapping("/register")
     public Result<Void> register(@Valid @RequestBody RegisterDTO registerDTO, HttpServletRequest request) {
+        if (!linkxProperties.getAuth().isRegisterEnabled()) {
+            throw new CustomException(403, "当前未开放注册");
+        }
         validateCaptchaIfEnabled(registerDTO.getCaptchaId(), registerDTO.getCaptchaCode());
         sysUserService.register(registerDTO, request);
         return Result.success(null);
@@ -179,6 +184,9 @@ public class AuthController {
     public Result<Void> sendResetCode(
             @Valid @RequestBody SendResetCodeRequest request,
             HttpServletRequest httpRequest) {
+        if (!linkxProperties.getAuth().isForgotPasswordEmailEnabled()) {
+            throw new CustomException(403, "忘记密码邮箱验证未启用");
+        }
         rateLimitService.check("send-reset:" + clientIp(httpRequest), 3, 60);
         sysUserService.sendPasswordResetEmailCode(request.getUsername(), clientIp(httpRequest));
         return Result.success(null);
@@ -191,6 +199,9 @@ public class AuthController {
     public Result<Void> resetPasswordByEmail(
             @Valid @RequestBody ResetPasswordByEmailRequest request,
             HttpServletRequest httpRequest) {
+        if (!linkxProperties.getAuth().isForgotPasswordEmailEnabled()) {
+            throw new CustomException(403, "忘记密码邮箱验证未启用");
+        }
         // 防重置码爆破：同 IP 5 分钟最多 10 次
         rateLimitService.check("reset-by-email:" + clientIp(httpRequest), 10, 300);
         sysUserService.resetPasswordByEmail(
@@ -210,6 +221,9 @@ public class AuthController {
     public Result<Void> verifyResetCode(
             @Valid @RequestBody VerifyResetCodeRequest request,
             HttpServletRequest httpRequest) {
+        if (!linkxProperties.getAuth().isForgotPasswordEmailEnabled()) {
+            throw new CustomException(403, "忘记密码邮箱验证未启用");
+        }
         // 防重置码枚举：同 IP 5 分钟最多 20 次
         rateLimitService.check("verify-reset:" + clientIp(httpRequest), 20, 300);
         sysUserService.verifyEmailResetCode(

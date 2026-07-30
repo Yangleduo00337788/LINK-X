@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, ref, watch } from 'vue'
+import { computed, h, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
@@ -27,7 +27,6 @@ import { resolveMenuLabel } from '@/utils/menuI18n'
 import PrefSwitcher from '@/components/PrefSwitcher.vue'
 import PageHeaderBar from '@/components/PageHeaderBar.vue'
 import AdminFloatActions from '@/components/AdminFloatActions.vue'
-import WatermarkOpacityPanel from '@/components/WatermarkOpacityPanel.vue'
 import type { AdminMenuTree } from '@/types/api'
 
 const route = useRoute()
@@ -52,7 +51,13 @@ function onHeaderAvatarError() {
 
 function toMenuOptions(menus: AdminMenuTree[]): MenuOption[] {
   return menus
-    .filter((m) => m.visible !== false && m.type !== 'button')
+    .filter(
+      (m) =>
+        m.visible !== false &&
+        m.type !== 'button' &&
+        m.name !== 'versions' &&
+        m.path !== '/admin/versions',
+    )
     .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0))
     .map((m) => {
       const children = m.children?.length ? toMenuOptions(m.children) : undefined
@@ -79,7 +84,6 @@ const menuOptions = computed(() => {
     { label: t('route.loginLogs'), key: '/admin/login-logs', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('LogIn')) }) },
     { label: t('route.feedback'), key: '/admin/feedback', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Message')) }) },
     { label: t('route.settings'), key: '/admin/settings', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Settings')) }) },
-    { label: t('route.versions'), key: '/admin/versions', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Cube')) }) },
   ] as MenuOption[]
 })
 
@@ -131,121 +135,118 @@ async function onUserSelect(key: string) {
     router.push('/login')
   }
 }
+
+onMounted(() => {
+  // 刷新侧边栏菜单，避免本地缓存仍显示已下线的「版本管理」等项
+  void auth.fetchMenusAndPermissions()
+})
 </script>
 
 <template>
-  <component
-    :is="showFullscreenWm ? NWatermark : 'div'"
-    v-bind="
-      showFullscreenWm
-        ? {
-            content: watermarkContent,
-            cross: true,
-            selectable: true,
-            fontSize: 14,
-            lineHeight: 18,
-            width: 220,
-            height: 140,
-            xOffset: 16,
-            yOffset: 80,
-            rotate: -18,
-            zIndex: 30,
-            fontColor: watermarkFontColor,
-            class: 'wm-fullscreen',
-          }
-        : { class: 'wm-host' }
-    "
-  >
-    <div class="wm-host">
-      <NLayout has-sider style="height: 100vh">
-        <NLayoutSider
-          bordered
-          collapse-mode="width"
-          :collapsed-width="64"
-          :width="232"
+  <div class="wm-host">
+    <NLayout has-sider style="height: 100vh">
+      <NLayoutSider
+        bordered
+        collapse-mode="width"
+        :collapsed-width="64"
+        :width="232"
+        :collapsed="collapsed"
+        show-trigger
+        @collapse="collapsed = true"
+        @expand="collapsed = false"
+      >
+        <div class="brand">
+          <NIcon size="22" :component="MenuOutline" />
+          <span v-show="!collapsed" class="brand-text">{{ t('app.brandAdmin') }}</span>
+        </div>
+        <NMenu
           :collapsed="collapsed"
-          show-trigger
-          @collapse="collapsed = true"
-          @expand="collapsed = false"
+          :collapsed-width="64"
+          :collapsed-icon-size="20"
+          :options="menuOptions"
+          :value="activeKey"
+          @update:value="onMenuUpdate"
+        />
+      </NLayoutSider>
+      <NLayout>
+        <NLayoutHeader bordered class="header">
+          <NText depth="3">{{ t('app.brandAdmin') }}</NText>
+          <NSpace align="center" :size="12">
+            <PrefSwitcher compact />
+            <NDropdown :options="userOptions" @select="onUserSelect">
+              <NButton quaternary class="lx-float-btn">
+                <NSpace align="center" :size="8">
+                  <span class="header-avatar">
+                    <img
+                      v-if="headerAvatarSrc && !headerAvatarBroken"
+                      :key="headerAvatarSrc"
+                      class="header-avatar-img"
+                      :src="headerAvatarSrc"
+                      alt=""
+                      referrerpolicy="no-referrer"
+                      @error="onHeaderAvatarError"
+                    />
+                    <NAvatar v-else round size="small">
+                      <NIcon :component="PersonCircleOutline" />
+                    </NAvatar>
+                  </span>
+                  <span>{{ auth.displayName }}</span>
+                </NSpace>
+              </NButton>
+            </NDropdown>
+          </NSpace>
+        </NLayoutHeader>
+        <NLayoutContent
+          class="main-content"
+          content-style="padding: 20px; min-height: calc(100vh - 56px);"
+          native-scrollbar
         >
-          <div class="brand">
-            <NIcon size="22" :component="MenuOutline" />
-            <span v-show="!collapsed" class="brand-text">{{ t('app.brandAdmin') }}</span>
-          </div>
-          <NMenu
-            :collapsed="collapsed"
-            :collapsed-width="64"
-            :collapsed-icon-size="20"
-            :options="menuOptions"
-            :value="activeKey"
-            @update:value="onMenuUpdate"
-          />
-        </NLayoutSider>
-        <NLayout>
-          <NLayoutHeader bordered class="header">
-            <NText depth="3">{{ t('app.brandAdmin') }}</NText>
-            <NSpace align="center" :size="12">
-              <PrefSwitcher compact />
-              <NDropdown :options="userOptions" @select="onUserSelect">
-                <NButton quaternary class="lx-float-btn">
-                  <NSpace align="center" :size="8">
-                    <span class="header-avatar">
-                      <img
-                        v-if="headerAvatarSrc && !headerAvatarBroken"
-                        :key="headerAvatarSrc"
-                        class="header-avatar-img"
-                        :src="headerAvatarSrc"
-                        alt=""
-                        referrerpolicy="no-referrer"
-                        @error="onHeaderAvatarError"
-                      />
-                      <NAvatar v-else round size="small">
-                        <NIcon :component="PersonCircleOutline" />
-                      </NAvatar>
-                    </span>
-                    <span>{{ auth.displayName }}</span>
-                  </NSpace>
-                </NButton>
-              </NDropdown>
-            </NSpace>
-          </NLayoutHeader>
-          <NLayoutContent
-            class="main-content"
-            content-style="padding: 20px; min-height: calc(100vh - 56px);"
-            native-scrollbar
-          >
-            <component
-              :is="showContentWm ? NWatermark : 'div'"
-              v-bind="
-                showContentWm
-                  ? {
-                      content: watermarkContent,
-                      cross: true,
-                      selectable: true,
-                      fontSize: 14,
-                      lineHeight: 18,
-                      width: 220,
-                      height: 140,
-                      xOffset: 12,
-                      yOffset: 60,
-                      rotate: -18,
-                      fontColor: watermarkFontColor,
-                    }
-                  : {}
-              "
+          <div class="content-inner">
+            <PageHeaderBar />
+            <router-view />
+            <!-- 内容区水印：覆盖层，避免切换时重挂载页面 -->
+            <NWatermark
+              v-if="showContentWm"
+              class="wm-content-overlay"
+              :content="watermarkContent"
+              cross
+              selectable
+              :font-size="14"
+              :line-height="18"
+              :width="220"
+              :height="140"
+              :x-offset="12"
+              :y-offset="60"
+              :rotate="-18"
+              :font-color="watermarkFontColor"
             >
-              <div class="content-inner">
-                <PageHeaderBar />
-                <router-view />
-              </div>
-            </component>
-          </NLayoutContent>
-        </NLayout>
+              <div class="wm-fill" />
+            </NWatermark>
+          </div>
+        </NLayoutContent>
       </NLayout>
-      <AdminFloatActions />
-      <WatermarkOpacityPanel />
-    </div>
-  </component>
+    </NLayout>
+    <!-- 全屏水印：覆盖层，避免切换时重挂载整页 -->
+    <NWatermark
+      v-if="showFullscreenWm"
+      class="wm-fullscreen-overlay"
+      :content="watermarkContent"
+      cross
+      selectable
+      :font-size="14"
+      :line-height="18"
+      :width="220"
+      :height="140"
+      :x-offset="16"
+      :y-offset="80"
+      :rotate="-18"
+      :z-index="30"
+      :font-color="watermarkFontColor"
+    >
+      <div class="wm-fill" />
+    </NWatermark>
+    <AdminFloatActions />
+  </div>
 </template>
 
 <style scoped>
@@ -253,9 +254,22 @@ async function onUserSelect(key: string) {
   height: 100vh;
   position: relative;
 }
-.wm-fullscreen {
-  display: block;
-  height: 100vh;
+.wm-fullscreen-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 30;
+}
+.wm-content-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+.wm-fill {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
 }
 .brand {
   display: flex;
@@ -296,6 +310,7 @@ async function onUserSelect(key: string) {
   background: var(--lx-body) !important;
 }
 .content-inner {
+  position: relative;
   min-height: 100%;
   /* keep table action column clear of collapsed FAB */
   padding-right: 8px;

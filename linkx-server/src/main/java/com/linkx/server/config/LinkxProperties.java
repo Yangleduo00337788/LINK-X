@@ -85,7 +85,14 @@ public class LinkxProperties {
 
     @Data
     public static class Auth {
+        /** 客户端登录/注册图形验证码 */
         private boolean captchaEnabled = true;
+        /** 管理端登录图形验证码（可与客户端独立开关） */
+        private boolean adminCaptchaEnabled = true;
+        /** 客户端是否开放注册 */
+        private boolean registerEnabled = true;
+        /** 忘记密码邮箱验证是否启用 */
+        private boolean forgotPasswordEmailEnabled = true;
         private int loginMaxAttempts = 5;
         private int lockDurationMinutes = 15;
         private int rateLimitLoginPerMinute = 10;

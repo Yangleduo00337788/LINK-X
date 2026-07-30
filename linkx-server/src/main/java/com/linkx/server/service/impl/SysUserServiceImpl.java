@@ -48,6 +48,10 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     @Override
     @Transactional
     public void register(RegisterDTO registerDTO, HttpServletRequest request) {
+        if (!linkxProperties.getAuth().isRegisterEnabled()) {
+            linkxMetrics.recordRegisterFailure();
+            throw new CustomException(403, "当前未开放注册");
+        }
         // IP 级别注册限流
         rateLimitService.checkRegisterRateLimit(request);
 
@@ -369,6 +373,9 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
     @Override
     public void sendPasswordResetEmailCode(String username, String ip) {
+        if (!linkxProperties.getAuth().isForgotPasswordEmailEnabled()) {
+            throw new CustomException(403, "忘记密码邮箱验证未启用");
+        }
         // 限流：每个 IP 每 5 分钟最多请求 5 次
         rateLimitService.check("reset-email:" + ip, 5, 300);
 

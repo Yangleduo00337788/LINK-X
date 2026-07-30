@@ -2,6 +2,7 @@ package com.linkx.server.controller.admin;
 
 import com.linkx.server.common.RequireRole;
 import com.linkx.server.common.Result;
+import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.config.aspect.AuditAction;
 import com.linkx.server.controller.admin.dto.AdminLoginDTO;
 import com.linkx.server.controller.admin.dto.AdminLogoutDTO;
@@ -10,6 +11,7 @@ import com.linkx.server.controller.admin.dto.AdminRefreshDTO;
 import com.linkx.server.controller.admin.vo.AdminLoginVO;
 import com.linkx.server.controller.admin.vo.AdminMenuTreeVO;
 import com.linkx.server.controller.admin.vo.AdminUserProfileVO;
+import com.linkx.server.controller.vo.AuthConfigVO;
 import com.linkx.server.service.admin.AdminAuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -35,6 +37,15 @@ import java.util.Set;
 public class AdminAuthController {
 
     private final AdminAuthService adminAuthService;
+    private final LinkxProperties linkxProperties;
+
+    @Operation(summary = "管理端认证配置（匿名可读）")
+    @GetMapping("/config")
+    public Result<AuthConfigVO> config() {
+        return Result.success(AuthConfigVO.builder()
+                .captchaEnabled(linkxProperties.getAuth().isAdminCaptchaEnabled())
+                .build());
+    }
 
     @Operation(summary = "管理员登录")
     @AuditAction(operationType = "LOGIN", description = "管理端登录")

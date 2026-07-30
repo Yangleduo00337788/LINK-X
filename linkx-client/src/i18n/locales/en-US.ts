@@ -644,6 +644,8 @@ export default {
     captcha: 'Captcha',
     refreshCaptcha: 'Click to refresh',
     register: 'Register',
+    registerDisabled: 'Registration is currently closed',
+    forgotDisabled: 'Forgot-password email is disabled',
     quickLogin: 'Quick sign-in',
     networkTip: 'Check your network connection. If you use a proxy, make sure it can reach LinkX.',
     feedbackPh: 'Describe your issue or suggestion',
@@ -670,6 +672,7 @@ export default {
   register: {
     title: 'Register',
     subtitle: 'Start your LinkX journey',
+    disabled: 'Registration is currently closed. Contact your admin.',
     username: 'Username',
     password: 'Password',
     nickname: 'Nickname',

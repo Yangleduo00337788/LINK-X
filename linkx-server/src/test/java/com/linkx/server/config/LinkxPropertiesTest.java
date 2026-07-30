@@ -36,6 +36,8 @@ class LinkxPropertiesTest {
 
             assertNotNull(props.getAuth());
             assertTrue(props.getAuth().isCaptchaEnabled());
+            assertTrue(props.getAuth().isRegisterEnabled());
+            assertTrue(props.getAuth().isForgotPasswordEmailEnabled());
             assertEquals(5, props.getAuth().getLoginMaxAttempts());
             assertEquals(15, props.getAuth().getLockDurationMinutes());
         }

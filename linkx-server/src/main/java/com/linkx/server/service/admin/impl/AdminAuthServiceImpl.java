@@ -242,7 +242,7 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     }
 
     private void validateCaptchaIfEnabled(String captchaId, String captchaCode) {
-        if (linkxProperties.getAuth().isCaptchaEnabled()) {
+        if (linkxProperties.getAuth().isAdminCaptchaEnabled()) {
             captchaService.validate(captchaId, captchaCode);
         }
     }
