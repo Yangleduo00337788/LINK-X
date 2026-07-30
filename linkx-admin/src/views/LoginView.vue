@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import {
+  NAutoComplete,
   NButton,
   NCard,
   NForm,
@@ -15,11 +17,13 @@ import {
 } from 'naive-ui'
 import { fetchAuthConfig, fetchCaptcha } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
+import PrefSwitcher from '@/components/PrefSwitcher.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 const message = useMessage()
+const { t, locale } = useI18n()
 
 const formRef = ref<FormInst | null>(null)
 const loading = ref(false)
@@ -34,19 +38,53 @@ const form = reactive({
   captchaCode: '',
 })
 
-const rules: FormRules = {
-  username: { required: true, message: '请输入用户名', trigger: 'blur' },
-  password: { required: true, message: '请输入密码', trigger: 'blur' },
-  captchaCode: {
-    required: true,
-    trigger: 'blur',
-    validator: (_r, v: string) => {
-      if (!captchaEnabled.value) return true
-      if (!v) return new Error('请输入验证码')
-      return true
-    },
-  },
+const usernameHistoryKey = 'linkx-admin-login-users'
+const usernameHistory = ref<string[]>(loadUsernameHistory())
+
+function loadUsernameHistory(): string[] {
+  try {
+    const raw = localStorage.getItem(usernameHistoryKey)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as unknown
+    return Array.isArray(parsed) ? parsed.filter((x) => typeof x === 'string').slice(0, 8) : []
+  } catch {
+    return []
+  }
 }
+
+const usernameOptions = computed(() => {
+  const q = form.username.trim().toLowerCase()
+  const pool = usernameHistory.value
+  return (q ? pool.filter((x) => x.toLowerCase().includes(q)) : pool).map((value) => ({
+    label: value,
+    value,
+  }))
+})
+
+function rememberUsername(name: string) {
+  const v = name.trim()
+  if (!v) return
+  const next = [v, ...usernameHistory.value.filter((x) => x !== v)].slice(0, 8)
+  usernameHistory.value = next
+  localStorage.setItem(usernameHistoryKey, JSON.stringify(next))
+}
+
+const rules = computed<FormRules>(() => {
+  void locale.value
+  return {
+    username: { required: true, message: t('login.usernameRequired'), trigger: 'blur' },
+    password: { required: true, message: t('login.passwordRequired'), trigger: 'blur' },
+    captchaCode: {
+      required: true,
+      trigger: 'blur',
+      validator: (_r, v: string) => {
+        if (!captchaEnabled.value) return true
+        if (!v) return new Error(t('login.captchaRequired'))
+        return true
+      },
+    },
+  }
+})
 
 async function loadCaptcha() {
   if (!captchaEnabled.value) return
@@ -75,7 +113,8 @@ async function submit() {
       captchaId: captchaEnabled.value ? captchaId.value : undefined,
       captchaCode: captchaEnabled.value ? form.captchaCode.trim() : undefined,
     })
-    message.success('登录成功')
+    rememberUsername(form.username)
+    message.success(t('login.success'))
     const redirect = (route.query.redirect as string) || '/admin/dashboard'
     router.replace(redirect)
   } catch {
@@ -99,34 +138,48 @@ onMounted(async () => {
 <template>
   <div class="login-page">
     <div class="login-bg" />
+    <div class="login-prefs">
+      <PrefSwitcher />
+    </div>
     <NCard class="login-card" :bordered="false">
-      <div class="login-brand">LinkX</div>
-      <p class="login-sub">管理后台</p>
+      <div class="login-brand">{{ t('app.brand') }}</div>
+      <p class="login-sub">{{ t('login.subtitle') }}</p>
       <NForm ref="formRef" :model="form" :rules="rules" size="large" @keyup.enter="submit">
-        <NFormItem path="username" label="用户名">
-          <NInput v-model:value="form.username" placeholder="请输入管理员账号" autocomplete="username" />
+        <NFormItem path="username" :label="t('login.username')">
+          <NAutoComplete
+            v-model:value="form.username"
+            :options="usernameOptions"
+            :placeholder="t('login.usernamePlaceholder')"
+            clearable
+          />
         </NFormItem>
-        <NFormItem path="password" label="密码">
+        <NFormItem path="password" :label="t('login.password')">
           <NInput
             v-model:value="form.password"
             type="password"
             show-password-on="click"
-            placeholder="请输入密码"
+            :placeholder="t('login.passwordPlaceholder')"
             autocomplete="current-password"
           />
         </NFormItem>
-        <NFormItem v-if="captchaEnabled" path="captchaCode" label="验证码">
+        <NFormItem v-if="captchaEnabled" path="captchaCode" :label="t('login.captcha')">
           <NSpace style="width: 100%" :wrap="false">
-            <NInput v-model:value="form.captchaCode" placeholder="验证码" style="flex: 1" />
+            <NInput
+              v-model:value="form.captchaCode"
+              :placeholder="t('login.captchaPlaceholder')"
+              style="flex: 1"
+            />
             <div class="captcha-box" @click="loadCaptcha">
               <NSpin :show="captchaLoading" size="small">
                 <img v-if="captchaImg" :src="captchaImg" alt="captcha" />
-                <span v-else>点击刷新</span>
+                <span v-else>{{ t('login.refreshCaptcha') }}</span>
               </NSpin>
             </div>
           </NSpace>
         </NFormItem>
-        <NButton type="primary" block :loading="loading" @click="submit">登录</NButton>
+        <NButton type="primary" block :loading="loading" @click="submit">
+          {{ t('login.submit') }}
+        </NButton>
       </NForm>
     </NCard>
   </div>
@@ -144,40 +197,49 @@ onMounted(async () => {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse 80% 60% at 20% 20%, rgba(91, 141, 239, 0.18), transparent 55%),
-    radial-gradient(ellipse 70% 50% at 80% 80%, rgba(60, 80, 110, 0.25), transparent 50%),
-    linear-gradient(160deg, #0b0d11 0%, #141820 45%, #0f1218 100%);
+    radial-gradient(ellipse 80% 60% at 20% 20%, var(--lx-login-grad-1), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 80% 80%, var(--lx-login-grad-2), transparent 50%),
+    var(--lx-login-base);
+}
+.login-prefs {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 2;
 }
 .login-card {
   position: relative;
   width: min(400px, calc(100vw - 32px));
-  background: rgba(23, 26, 33, 0.92) !important;
-  border: 1px solid #2a2f3a !important;
-  border-radius: 12px !important;
-  backdrop-filter: blur(8px);
+  background: var(--lx-login-card) !important;
+  border: 1px solid var(--lx-border) !important;
+  border-radius: 16px !important;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
 }
 .login-brand {
   font-size: 32px;
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: #e8eaed;
+  color: var(--lx-text);
 }
 .login-sub {
   margin: 4px 0 24px;
-  color: #7a8494;
+  color: var(--lx-text-3);
   font-size: 14px;
 }
 .captcha-box {
   width: 120px;
   height: 40px;
-  border-radius: 6px;
-  border: 1px solid #2a2f3a;
-  background: #12151b;
+  border-radius: 16px;
+  border: 1px solid var(--lx-border);
+  background: var(--lx-captcha-bg);
   cursor: pointer;
   display: grid;
   place-items: center;
   overflow: hidden;
   flex-shrink: 0;
+  color: var(--lx-text-3);
+  font-size: 12px;
 }
 .captcha-box img {
   width: 100%;

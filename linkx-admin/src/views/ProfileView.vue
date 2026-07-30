@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import {
+  NAutoComplete,
   NAvatar,
   NButton,
   NForm,
@@ -23,6 +25,7 @@ import { resolveAvatarSrc } from '@/utils/mediaUrl'
 const router = useRouter()
 const message = useMessage()
 const auth = useAuthStore()
+const { t, locale } = useI18n()
 
 const loading = ref(false)
 const profileSaving = ref(false)
@@ -38,6 +41,24 @@ const profileForm = reactive({
   avatar: '',
 })
 
+const nicknameOptions = computed(() => {
+  const pool = [auth.user?.nickname, auth.user?.username].filter(
+    (x): x is string => !!x && x.trim().length > 0,
+  )
+  const q = profileForm.nickname.trim().toLowerCase()
+  return [...new Set(pool)]
+    .filter((x) => !q || x.toLowerCase().includes(q))
+    .map((value) => ({ label: value, value }))
+})
+
+const emailOptions = computed(() => {
+  const pool = [auth.user?.email].filter((x): x is string => !!x && x.trim().length > 0)
+  const q = profileForm.email.trim().toLowerCase()
+  return [...new Set(pool)]
+    .filter((x) => !q || x.toLowerCase().includes(q))
+    .map((value) => ({ label: value, value }))
+})
+
 const pwdForm = reactive({
   oldPassword: '',
   newPassword: '',
@@ -45,61 +66,68 @@ const pwdForm = reactive({
 })
 
 const rolesText = computed(() => {
+  void locale.value
   const roles = auth.user?.roles
-  return roles?.length ? roles.join(', ') : '暂无'
+  return roles?.length ? roles.join(', ') : t('common.none')
 })
 
 const permissionCount = computed(() => auth.permissions?.length || auth.user?.permissions?.length || 0)
 
-const profileRules: FormRules = {
-  nickname: [
-    { required: true, message: '请输入昵称', trigger: ['blur', 'input'] },
-    { max: 64, message: '昵称最多 64 个字符', trigger: ['blur', 'input'] },
-  ],
-  email: [
-    {
-      validator: (_rule, value: string) => {
-        if (!value) return true
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-          return new Error('邮箱格式不正确')
-        }
-        return true
+const profileRules = computed<FormRules>(() => {
+  void locale.value
+  return {
+    nickname: [
+      { required: true, message: t('profile.nicknameRequired'), trigger: ['blur', 'input'] },
+      { max: 64, message: t('profile.nicknameMax'), trigger: ['blur', 'input'] },
+    ],
+    email: [
+      {
+        validator: (_rule, value: string) => {
+          if (!value) return true
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+            return new Error(t('profile.emailInvalid'))
+          }
+          return true
+        },
+        trigger: ['blur', 'input'],
       },
-      trigger: ['blur', 'input'],
-    },
-  ],
-  avatar: [],
-}
+    ],
+    avatar: [],
+  }
+})
 
-const pwdRules: FormRules = {
-  oldPassword: [{ required: true, message: '请输入当前密码', trigger: ['blur', 'input'] }],
-  newPassword: [
-    { required: true, message: '请输入新密码', trigger: ['blur', 'input'] },
-    {
-      validator: (_rule, value: string) => {
-        if (!value || value.length < 8 || value.length > 64) {
-          return new Error('新密码长度为 8-64 位')
-        }
-        if (!/(?=.*[A-Za-z])(?=.*\d)/.test(value)) {
-          return new Error('新密码须同时包含字母和数字')
-        }
-        return true
+const pwdRules = computed<FormRules>(() => {
+  void locale.value
+  return {
+    oldPassword: [{ required: true, message: t('profile.oldPasswordRequired'), trigger: ['blur', 'input'] }],
+    newPassword: [
+      { required: true, message: t('profile.newPasswordRequired'), trigger: ['blur', 'input'] },
+      {
+        validator: (_rule, value: string) => {
+          if (!value || value.length < 8 || value.length > 64) {
+            return new Error(t('profile.newPasswordLength'))
+          }
+          if (!/(?=.*[A-Za-z])(?=.*\d)/.test(value)) {
+            return new Error(t('profile.newPasswordPattern'))
+          }
+          return true
+        },
+        trigger: ['blur', 'input'],
       },
-      trigger: ['blur', 'input'],
-    },
-  ],
-  confirmPassword: [
-    {
-      required: true,
-      validator: (_rule, value: string) => {
-        if (!value) return new Error('请再次输入新密码')
-        if (value !== pwdForm.newPassword) return new Error('两次输入的新密码不一致')
-        return true
+    ],
+    confirmPassword: [
+      {
+        required: true,
+        validator: (_rule, value: string) => {
+          if (!value) return new Error(t('profile.confirmPasswordRequired'))
+          if (value !== pwdForm.newPassword) return new Error(t('profile.confirmPasswordMismatch'))
+          return true
+        },
+        trigger: ['blur', 'input'],
       },
-      trigger: ['blur', 'input'],
-    },
-  ],
-}
+    ],
+  }
+})
 
 function syncProfileForm() {
   profileForm.nickname = auth.user?.nickname || ''
@@ -130,7 +158,7 @@ async function submitProfile() {
       ...updated,
     }
     syncProfileForm()
-    message.success('资料已保存')
+    message.success(t('profile.profileSaved'))
   } finally {
     profileSaving.value = false
   }
@@ -147,11 +175,11 @@ async function handleAvatarChange(e: Event) {
   input.value = ''
   if (!file) return
   if (!file.type.startsWith('image/')) {
-    message.error('请选择图片文件')
+    message.error(t('profile.selectImage'))
     return
   }
   if (file.size > 10 * 1024 * 1024) {
-    message.error('图片不能超过 10MB')
+    message.error(t('profile.imageTooLarge'))
     return
   }
   const preview = URL.createObjectURL(file)
@@ -161,7 +189,7 @@ async function handleAvatarChange(e: Event) {
     await uploadAvatar(file)
     await auth.fetchProfile()
     syncProfileForm()
-    message.success('头像已更新')
+    message.success(t('profile.avatarUpdated'))
   } catch {
     syncProfileForm()
   } finally {
@@ -186,7 +214,7 @@ async function submitPassword() {
   pwdSaving.value = true
   try {
     await changePassword(pwdForm.oldPassword, pwdForm.newPassword)
-    message.success('密码已修改，请重新登录')
+    message.success(t('profile.passwordChanged'))
     pwdForm.oldPassword = ''
     pwdForm.newPassword = ''
     pwdForm.confirmPassword = ''
@@ -208,10 +236,9 @@ onMounted(refreshProfile)
 
 <template>
   <div class="page">
-    <div class="page-header">
-      <h1 class="page-title">个人中心</h1>
-      <NButton quaternary :loading="loading" @click="refreshProfile">刷新</NButton>
-    </div>
+    <NSpace justify="end" style="margin-bottom: 4px">
+      <NButton quaternary :loading="loading" @click="refreshProfile">{{ t('common.refresh') }}</NButton>
+    </NSpace>
 
     <NSpin :show="loading">
       <div class="profile-grid">
@@ -221,7 +248,7 @@ onMounted(refreshProfile)
               type="button"
               class="avatar-upload"
               :class="{ uploading: avatarUploading }"
-              title="点击上传头像"
+              :title="t('profile.uploadAvatar')"
               :disabled="avatarUploading"
               @click="triggerAvatarUpload"
             >
@@ -241,7 +268,7 @@ onMounted(refreshProfile)
               </span>
               <span class="avatar-mask">
                 <NIcon :size="22" :component="CameraOutline" />
-                <span>{{ avatarUploading ? '上传中' : '更换' }}</span>
+                <span>{{ avatarUploading ? t('profile.uploading') : t('profile.change') }}</span>
               </span>
             </button>
             <input
@@ -257,29 +284,37 @@ onMounted(refreshProfile)
             </div>
           </div>
 
-          <h2 class="section-title">基本资料</h2>
-          <p class="section-hint">用户名与角色不可在此修改。点击头像可上传新头像。</p>
+          <h2 class="section-title">{{ t('profile.basicInfo') }}</h2>
+          <p class="section-hint">{{ t('profile.basicHint') }}</p>
           <NForm
             ref="profileFormRef"
             :model="profileForm"
             :rules="profileRules"
             label-placement="left"
-            label-width="72"
+            label-width="88"
             require-mark-placement="right-hanging"
           >
-            <NFormItem label="用户 ID">
+            <NFormItem :label="t('profile.userId')">
               <NInput :value="String(auth.user?.id ?? '')" disabled />
             </NFormItem>
-            <NFormItem label="用户名">
+            <NFormItem :label="t('user.username')">
               <NInput :value="auth.user?.username || ''" disabled />
             </NFormItem>
-            <NFormItem label="昵称" path="nickname">
-              <NInput v-model:value="profileForm.nickname" maxlength="64" show-count placeholder="显示名称" />
+            <NFormItem :label="t('profile.nickname')" path="nickname">
+              <NAutoComplete
+                v-model:value="profileForm.nickname"
+                :options="nicknameOptions"
+                :placeholder="t('profile.nicknamePlaceholder')"
+              />
             </NFormItem>
-            <NFormItem label="邮箱" path="email">
-              <NInput v-model:value="profileForm.email" placeholder="选填，如 admin@example.com" />
+            <NFormItem :label="t('profile.email')" path="email">
+              <NAutoComplete
+                v-model:value="profileForm.email"
+                :options="emailOptions"
+                :placeholder="t('profile.emailPlaceholder')"
+              />
             </NFormItem>
-            <NFormItem label="角色">
+            <NFormItem :label="t('profile.roles')">
               <NSpace size="small">
                 <NTag
                   v-for="role in auth.user?.roles || []"
@@ -292,56 +327,60 @@ onMounted(refreshProfile)
                 <span v-if="!auth.user?.roles?.length">{{ rolesText }}</span>
               </NSpace>
             </NFormItem>
-            <NFormItem label="权限数">
+            <NFormItem :label="t('profile.permissionCount')">
               <span class="readonly-text">{{ permissionCount }}</span>
             </NFormItem>
             <NFormItem>
-              <NButton type="primary" :loading="profileSaving" @click="submitProfile">保存资料</NButton>
+              <NButton type="primary" :loading="profileSaving" @click="submitProfile">
+                {{ t('profile.saveProfile') }}
+              </NButton>
             </NFormItem>
           </NForm>
         </div>
 
         <div class="page-card">
-          <h2 class="section-title">修改密码</h2>
-          <p class="section-hint">修改成功后需要重新登录。</p>
+          <h2 class="section-title">{{ t('profile.changePassword') }}</h2>
+          <p class="section-hint">{{ t('profile.passwordHint') }}</p>
           <NForm
             ref="pwdFormRef"
             :model="pwdForm"
             :rules="pwdRules"
             label-placement="left"
-            label-width="96"
+            label-width="110"
             require-mark-placement="right-hanging"
             style="max-width: 420px"
           >
-            <NFormItem label="当前密码" path="oldPassword">
+            <NFormItem :label="t('profile.oldPassword')" path="oldPassword">
               <NInput
                 v-model:value="pwdForm.oldPassword"
                 type="password"
                 show-password-on="click"
-                placeholder="当前密码"
+                :placeholder="t('profile.oldPassword')"
                 autocomplete="current-password"
               />
             </NFormItem>
-            <NFormItem label="新密码" path="newPassword">
+            <NFormItem :label="t('profile.newPassword')" path="newPassword">
               <NInput
                 v-model:value="pwdForm.newPassword"
                 type="password"
                 show-password-on="click"
-                placeholder="8-64 位，含字母和数字"
+                :placeholder="t('profile.newPasswordPlaceholder')"
                 autocomplete="new-password"
               />
             </NFormItem>
-            <NFormItem label="确认密码" path="confirmPassword">
+            <NFormItem :label="t('profile.confirmPassword')" path="confirmPassword">
               <NInput
                 v-model:value="pwdForm.confirmPassword"
                 type="password"
                 show-password-on="click"
-                placeholder="再次输入新密码"
+                :placeholder="t('profile.confirmPasswordPlaceholder')"
                 autocomplete="new-password"
               />
             </NFormItem>
             <NFormItem>
-              <NButton type="primary" :loading="pwdSaving" @click="submitPassword">保存新密码</NButton>
+              <NButton type="primary" :loading="pwdSaving" @click="submitPassword">
+                {{ t('profile.savePassword') }}
+              </NButton>
             </NFormItem>
           </NForm>
         </div>
@@ -389,7 +428,7 @@ onMounted(refreshProfile)
   border-radius: 50%;
   object-fit: cover;
   display: block;
-  background: #2a2f3a;
+  background: var(--lx-avatar-bg);
 }
 
 .avatar-upload:disabled {
@@ -405,7 +444,7 @@ onMounted(refreshProfile)
   justify-content: center;
   gap: 2px;
   border-radius: 50%;
-  background: rgba(15, 18, 28, 0.55);
+  background: var(--lx-avatar-mask);
   color: #fff;
   font-size: 11px;
   opacity: 0;
@@ -425,7 +464,7 @@ onMounted(refreshProfile)
 
 .profile-sub {
   margin-top: 4px;
-  color: #9aa3b2;
+  color: var(--lx-text-3);
   font-size: 13px;
 }
 
@@ -437,12 +476,12 @@ onMounted(refreshProfile)
 
 .section-hint {
   margin: 0 0 16px;
-  color: #9aa3b2;
+  color: var(--lx-text-3);
   font-size: 13px;
 }
 
 .readonly-text {
-  color: #e8eaed;
+  color: var(--lx-text);
   line-height: 34px;
 }
 
