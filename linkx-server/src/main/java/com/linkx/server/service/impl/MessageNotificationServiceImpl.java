@@ -215,7 +215,7 @@ public class MessageNotificationServiceImpl implements MessageNotificationServic
         if (type.startsWith("moments_")) {
             return "moments";
         }
-        if ("calendar_remind".equals(type) || type.startsWith("system_")) {
+        if ("calendar_remind".equals(type) || type.startsWith("system_") || type.startsWith("feedback_")) {
             return "system";
         }
         if (type.startsWith("friend_") || type.startsWith("group_")) {

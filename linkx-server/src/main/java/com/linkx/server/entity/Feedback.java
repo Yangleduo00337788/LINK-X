@@ -1,5 +1,6 @@
 package com.linkx.server.entity;
 
+import com.mybatisflex.annotation.Column;
 import com.mybatisflex.annotation.Id;
 import com.mybatisflex.annotation.KeyType;
 import com.mybatisflex.annotation.Table;
@@ -30,5 +31,9 @@ public class Feedback implements Serializable {
     private String content;
     private String contact;
     private String status;
+    private String reply;
+    private Date replyTime;
+
+    @Column(onInsertValue = "NOW()")
     private Date createTime;
 }

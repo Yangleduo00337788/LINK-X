@@ -20,5 +20,7 @@ public class FeedbackVO implements Serializable {
     private String type;
     private String content;
     private String status;
+    private String reply;
+    private Date replyTime;
     private Date createTime;
 }

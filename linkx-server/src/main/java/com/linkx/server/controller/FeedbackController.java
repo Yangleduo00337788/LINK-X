@@ -55,6 +55,8 @@ public class FeedbackController {
                 .type(feedback.getType())
                 .content(feedback.getContent())
                 .status(feedback.getStatus())
+                .reply(feedback.getReply())
+                .replyTime(feedback.getReplyTime())
                 .createTime(feedback.getCreateTime())
                 .build();
     }
