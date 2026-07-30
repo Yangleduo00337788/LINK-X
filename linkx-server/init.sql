@@ -382,6 +382,7 @@ CREATE TABLE IF NOT EXISTS `red_packet` (
   PRIMARY KEY (`id`),
   KEY `idx_conversation_time` (`conversation_id`,`create_time`),
   KEY `idx_sender_time` (`sender_id`,`create_time`),
+  KEY `idx_status_expire` (`status`,`expire_time`),
   UNIQUE KEY `uk_sender_client_msg` (`sender_id`,`client_msg_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='红包表';
 
