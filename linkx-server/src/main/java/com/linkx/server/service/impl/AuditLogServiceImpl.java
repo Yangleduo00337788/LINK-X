@@ -1,5 +1,6 @@
 package com.linkx.server.service.impl;
 
+import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.entity.SysAuditLog;
 import com.linkx.server.mapper.SysAuditLogMapper;
 import com.linkx.server.service.AuditLogService;
@@ -103,8 +104,8 @@ public class AuditLogServiceImpl implements AuditLogService {
         if (ip == null) {
             return null;
         }
-        String trimmed = ip.trim();
-        if (trimmed.isEmpty()) {
+        String trimmed = ClientIpResolver.normalizeToIpv4(ip.trim());
+        if (trimmed == null || trimmed.isEmpty()) {
             return null;
         }
         int lastColon = trimmed.lastIndexOf(':');

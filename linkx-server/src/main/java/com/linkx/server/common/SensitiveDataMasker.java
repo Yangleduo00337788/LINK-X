@@ -40,12 +40,12 @@ public final class SensitiveDataMasker {
         return digits.substring(0, 3) + "****" + digits.substring(digits.length() - 4);
     }
 
-    /** IPv4/IPv6 粗粒度脱敏，日志与审计展示用。 */
+    /** IPv4/IPv6 粗粒度脱敏，日志与审计展示用。先规范为 IPv4 再脱敏。 */
     public static String maskIp(String ip) {
         if (!StringUtils.hasText(ip)) {
             return ip;
         }
-        String v = ip.trim();
+        String v = ClientIpResolver.normalizeToIpv4(ip.trim());
         if (v.contains(".")) {
             String[] parts = v.split("\\.");
             if (parts.length == 4) {

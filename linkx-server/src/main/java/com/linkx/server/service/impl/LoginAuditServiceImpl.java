@@ -1,5 +1,6 @@
 package com.linkx.server.service.impl;
 
+import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.entity.SysLoginAudit;
 import com.linkx.server.mapper.SysLoginAuditMapper;
 import com.linkx.server.service.LoginAuditService;
@@ -21,7 +22,7 @@ public class LoginAuditServiceImpl implements LoginAuditService {
         SysLoginAudit audit = SysLoginAudit.builder()
                 .userId(userId)
                 .username(username)
-                .ip(ip)
+                .ip(ClientIpResolver.normalizeToIpv4(ip))
                 .userAgent(truncate(userAgent, 512))
                 .success(success ? 1 : 0)
                 .reason(truncate(reason, 255))

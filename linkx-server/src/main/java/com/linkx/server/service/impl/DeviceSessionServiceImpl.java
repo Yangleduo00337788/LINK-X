@@ -1,5 +1,6 @@
 package com.linkx.server.service.impl;
 
+import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.controller.vo.DeviceVO;
 import com.linkx.server.entity.DeviceSession;
 import com.linkx.server.entity.SysAuditLog;
@@ -47,7 +48,7 @@ public class DeviceSessionServiceImpl extends ServiceImpl<DeviceSessionMapper, D
                     .deviceId(normalized)
                     .deviceName(deviceName)
                     .deviceType(deviceType)
-                    .ip(ip)
+                    .ip(ClientIpResolver.normalizeToIpv4(ip))
                     .userAgent(sanitizeUserAgent(userAgent))
                     .lastActive(new Date())
                     .createTime(new Date())
@@ -57,7 +58,7 @@ public class DeviceSessionServiceImpl extends ServiceImpl<DeviceSessionMapper, D
             session.setLastActive(new Date());
             if (deviceName != null) session.setDeviceName(deviceName);
             if (deviceType != null) session.setDeviceType(deviceType);
-            if (ip != null) session.setIp(ip);
+            if (ip != null) session.setIp(ClientIpResolver.normalizeToIpv4(ip));
             if (StringUtils.hasText(userAgent)) session.setUserAgent(sanitizeUserAgent(userAgent));
             deviceSessionMapper.update(session);
         }
@@ -169,7 +170,7 @@ public class DeviceSessionServiceImpl extends ServiceImpl<DeviceSessionMapper, D
         if (!StringUtils.hasText(ip)) {
             return null;
         }
-        String trimmed = ip.trim();
+        String trimmed = ClientIpResolver.normalizeToIpv4(ip.trim());
         int lastColon = trimmed.lastIndexOf(':');
         if (lastColon > 0 && trimmed.indexOf(':') != lastColon) {
             return "[redacted-ipv6]";
