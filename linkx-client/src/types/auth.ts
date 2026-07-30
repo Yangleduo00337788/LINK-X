@@ -39,6 +39,15 @@ export interface AuthConfig {
   captchaEnabled: boolean
   registerEnabled?: boolean
   forgotPasswordEmailEnabled?: boolean
+  passwordPolicy?: PasswordPolicy
+}
+
+export interface PasswordPolicy {
+  minLength?: number
+  maxLength?: number
+  requireUpperLower?: boolean
+  requireDigit?: boolean
+  requireSpecial?: boolean
 }
 
 export interface LoginRequest {

@@ -25,6 +25,7 @@ import {
   testForgotPasswordEmail,
   updateClientSideSettings,
   updateLoginSettings,
+  updatePasswordSettings,
   updateRegisterSettings,
   type AdminSetting,
 } from '@/api/settings'
@@ -43,11 +44,12 @@ const { watermarkEnabled, watermarkFullscreen, watermarkLines, watermarkOpacity 
 const loading = ref(false)
 const savingRegister = ref(false)
 const savingLogin = ref(false)
+const savingPassword = ref(false)
 const savingClient = ref(false)
 const testingEmail = ref(false)
 const showTestEmailModal = ref(false)
 const testEmail = ref('')
-const tabNames = new Set(['register', 'login', 'client', 'watermark'])
+const tabNames = new Set(['register', 'login', 'password', 'client', 'watermark'])
 const activeTab = ref(
   tabNames.has(String(route.query.tab || '')) ? String(route.query.tab) : 'register',
 )
@@ -90,6 +92,14 @@ const loginForm = reactive({
     maxAttempts: 5,
     lockDurationMinutes: 10,
   },
+})
+
+const passwordForm = reactive({
+  minLength: 8,
+  maxLength: 64,
+  requireUpperLower: false,
+  requireDigit: true,
+  requireSpecial: false,
 })
 
 const clientForm = reactive({
@@ -137,6 +147,12 @@ function applySettings(data: AdminSetting) {
     data.login?.admin?.captchaEnabled ?? data.admin?.captchaEnabled !== false
   loginForm.admin.maxAttempts = data.login?.admin?.maxAttempts ?? 5
   loginForm.admin.lockDurationMinutes = data.login?.admin?.lockDurationMinutes ?? 10
+
+  passwordForm.minLength = data.password?.minLength ?? 8
+  passwordForm.maxLength = data.password?.maxLength ?? 64
+  passwordForm.requireUpperLower = data.password?.requireUpperLower === true
+  passwordForm.requireDigit = data.password?.requireDigit !== false
+  passwordForm.requireSpecial = data.password?.requireSpecial === true
 
   clientForm.captchaEnabled = loginForm.client.captchaEnabled
   clientForm.appVersion = data.client?.appVersion || ''
@@ -202,6 +218,33 @@ async function saveLogin() {
     message.success(t('setting.loginSaved'))
   } finally {
     savingLogin.value = false
+  }
+}
+
+async function savePassword() {
+  if (!canEdit.value) return
+  if (!passwordForm.minLength || !passwordForm.maxLength) {
+    message.warning(t('setting.passwordLengthRequired'))
+    return
+  }
+  if (passwordForm.minLength > passwordForm.maxLength) {
+    message.warning(t('setting.passwordLengthOrder'))
+    return
+  }
+  savingPassword.value = true
+  try {
+    applySettings(
+      await updatePasswordSettings({
+        minLength: passwordForm.minLength,
+        maxLength: passwordForm.maxLength,
+        requireUpperLower: passwordForm.requireUpperLower,
+        requireDigit: passwordForm.requireDigit,
+        requireSpecial: passwordForm.requireSpecial,
+      }),
+    )
+    message.success(t('setting.passwordSaved'))
+  } finally {
+    savingPassword.value = false
   }
 }
 
@@ -411,6 +454,68 @@ onMounted(load)
                     {{ t('setting.saveLogin') }}
                   </NButton>
                   <NButton class="lx-float-btn" :disabled="savingLogin" @click="load">
+                    {{ t('common.refresh') }}
+                  </NButton>
+                </NSpace>
+              </NFormItem>
+              <p v-else class="readonly-hint">{{ t('setting.readonlyHint') }}</p>
+            </NForm>
+          </NTabPane>
+
+          <NTabPane name="password" :tab="t('setting.passwordTitle')">
+            <p class="section-hint">{{ t('setting.passwordHint') }}</p>
+            <NForm label-placement="left" label-width="180" :disabled="!canEdit">
+              <NFormItem :label="t('setting.passwordMinLength')" required>
+                <div class="number-row">
+                  <NInputNumber
+                    v-model:value="passwordForm.minLength"
+                    :min="4"
+                    :max="128"
+                    :step="1"
+                    style="width: 160px"
+                  />
+                </div>
+              </NFormItem>
+              <NFormItem :label="t('setting.passwordMaxLength')" required>
+                <div class="number-row">
+                  <NInputNumber
+                    v-model:value="passwordForm.maxLength"
+                    :min="4"
+                    :max="128"
+                    :step="1"
+                    style="width: 160px"
+                  />
+                </div>
+              </NFormItem>
+              <NFormItem :label="t('setting.passwordRequireUpperLower')">
+                <NSwitch v-model:value="passwordForm.requireUpperLower" />
+                <span class="field-hint">{{
+                  passwordForm.requireUpperLower ? t('common.on') : t('common.off')
+                }}</span>
+              </NFormItem>
+              <NFormItem :label="t('setting.passwordRequireDigit')">
+                <NSwitch v-model:value="passwordForm.requireDigit" />
+                <span class="field-hint">{{
+                  passwordForm.requireDigit ? t('common.on') : t('common.off')
+                }}</span>
+              </NFormItem>
+              <NFormItem :label="t('setting.passwordRequireSpecial')">
+                <NSwitch v-model:value="passwordForm.requireSpecial" />
+                <span class="field-hint">{{
+                  passwordForm.requireSpecial ? t('common.on') : t('common.off')
+                }}</span>
+              </NFormItem>
+              <NFormItem v-if="canEdit">
+                <NSpace>
+                  <NButton
+                    type="primary"
+                    class="lx-float-btn"
+                    :loading="savingPassword"
+                    @click="savePassword"
+                  >
+                    {{ t('setting.savePassword') }}
+                  </NButton>
+                  <NButton class="lx-float-btn" :disabled="savingPassword" @click="load">
                     {{ t('common.refresh') }}
                   </NButton>
                 </NSpace>

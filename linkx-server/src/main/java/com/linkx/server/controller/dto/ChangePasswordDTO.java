@@ -1,7 +1,6 @@
 package com.linkx.server.controller.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -12,7 +11,6 @@ public class ChangePasswordDTO {
     private String oldPassword;
 
     @NotBlank(message = "新密码不能为空")
-    @Size(min = 8, max = 64, message = "新密码长度需在 8-64 位之间")
-    @Pattern(regexp = "^(?=.*[A-Za-z])(?=.*\\d).+$", message = "新密码须同时包含字母和数字")
+    @Size(min = 1, max = 128, message = "新密码长度过长")
     private String newPassword;
 }

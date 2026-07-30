@@ -14,6 +14,7 @@ import * as authApi from '../../api/auth'
 import * as feedbackApi from '../../api/feedback'
 import * as complianceApi from '../../api/compliance'
 import { generateDefaultAvatar } from '../../utils/defaultAvatar'
+import { validatePassword } from '../../utils/validation'
 import { useI18n } from '../../i18n'
 
 const message = useMessage()
@@ -275,12 +276,29 @@ const passwordLoading = ref(false)
 const passwordCaptchaLoading = ref(false)
 /** 与 CAPTCHA_ENABLED / GET /auth/config 对齐 */
 const captchaEnabled = ref(true)
+const passwordPolicy = ref({
+  minLength: 8,
+  maxLength: 64,
+  requireUpperLower: false,
+  requireDigit: true,
+  requireSpecial: false,
+})
 
 async function loadAuthConfig() {
   try {
     const res = await authApi.fetchAuthConfig()
     if (res.code === 200 && res.data) {
       captchaEnabled.value = !!res.data.captchaEnabled
+      const p = res.data.passwordPolicy
+      if (p) {
+        passwordPolicy.value = {
+          minLength: p.minLength ?? 8,
+          maxLength: p.maxLength ?? 64,
+          requireUpperLower: p.requireUpperLower === true,
+          requireDigit: p.requireDigit !== false,
+          requireSpecial: p.requireSpecial === true,
+        }
+      }
     }
   } catch {
     captchaEnabled.value = true
@@ -315,8 +333,9 @@ async function handleChangePassword() {
     message.warning(t('account.passwordMismatch'))
     return
   }
-  if (passwordForm.value.newPassword.length < 8) {
-    message.warning(t('account.passwordTooShort'))
+  const passErr = validatePassword(passwordForm.value.newPassword, passwordPolicy.value)
+  if (passErr) {
+    message.warning(passErr)
     return
   }
   if (captchaEnabled.value && (!passwordForm.value.captchaId || !passwordForm.value.captchaCode)) {

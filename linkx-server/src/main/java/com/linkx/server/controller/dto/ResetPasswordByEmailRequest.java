@@ -19,7 +19,6 @@ public class ResetPasswordByEmailRequest {
     private String code;
 
     @NotBlank(message = "新密码不能为空")
-    @Size(min = 8, max = 64, message = "密码长度需在8-64位之间")
-    @Pattern(regexp = "^(?=.*[A-Za-z])(?=.*\\d).+$", message = "密码须同时包含字母和数字")
+    @Size(min = 1, max = 128, message = "密码长度过长")
     private String newPassword;
 }

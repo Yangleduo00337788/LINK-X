@@ -32,6 +32,13 @@ const regCaptchaId = ref('')
 const regCaptchaImage = ref('')
 const captchaEnabled = ref(true)
 const registerEnabled = ref(true)
+const passwordPolicy = ref({
+  minLength: 8,
+  maxLength: 64,
+  requireUpperLower: false,
+  requireDigit: true,
+  requireSpecial: false,
+})
 const configLoaded = ref(false)
 const submitting = ref(false)
 
@@ -44,6 +51,16 @@ async function loadAuthConfig() {
     if (res.code === 200 && res.data) {
       captchaEnabled.value = !!res.data.captchaEnabled
       registerEnabled.value = res.data.registerEnabled !== false
+      const p = res.data.passwordPolicy
+      if (p) {
+        passwordPolicy.value = {
+          minLength: p.minLength ?? 8,
+          maxLength: p.maxLength ?? 64,
+          requireUpperLower: p.requireUpperLower === true,
+          requireDigit: p.requireDigit !== false,
+          requireSpecial: p.requireSpecial === true,
+        }
+      }
     }
   } catch {
     captchaEnabled.value = true
@@ -90,7 +107,7 @@ async function handleRegister() {
     message.warning(userErr)
     return
   }
-  const passErr = validatePassword(pass, true)
+  const passErr = validatePassword(pass, passwordPolicy.value)
   if (passErr) {
     message.warning(passErr)
     return

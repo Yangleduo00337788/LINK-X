@@ -65,4 +65,13 @@ export interface AuthConfigVO {
   captchaEnabled: boolean
   registerEnabled?: boolean
   forgotPasswordEmailEnabled?: boolean
+  passwordPolicy?: PasswordPolicyVO
+}
+
+export interface PasswordPolicyVO {
+  minLength?: number
+  maxLength?: number
+  requireUpperLower?: boolean
+  requireDigit?: boolean
+  requireSpecial?: boolean
 }

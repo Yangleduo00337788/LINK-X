@@ -23,7 +23,11 @@ describe('LoginView 相关逻辑', () => {
   it('validation 工具与登录页共用规则', () => {
     expect(validateUsername('')).toBeTruthy()
     expect(validateUsername('user_01')).toBeNull()
-    expect(validatePassword('short')).toBeTruthy()
+    // 登录场景只要求非空
+    expect(validatePassword('short')).toBeNull()
+    expect(validatePassword('')).toBeTruthy()
+    // 设密场景走默认策略（8+，含数字）
+    expect(validatePassword('short', true)).toBeTruthy()
     expect(validatePassword('pass1234', true)).toBeNull()
   })
 

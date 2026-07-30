@@ -4,6 +4,7 @@ import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.controller.admin.dto.AdminSideSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.ClientSideSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.LoginSettingUpdateDTO;
+import com.linkx.server.controller.admin.dto.PasswordSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.RegisterSettingUpdateDTO;
 import com.linkx.server.controller.admin.vo.AdminSettingVO;
 import com.linkx.server.entity.SysRuntimeSetting;
@@ -62,6 +63,13 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                                 .maxAttempts(auth.getAdminLoginMaxAttempts())
                                 .lockDurationMinutes(auth.getAdminLockDurationMinutes())
                                 .build())
+                        .build())
+                .password(AdminSettingVO.PasswordSide.builder()
+                        .minLength(auth.getPasswordMinLength())
+                        .maxLength(auth.getPasswordMaxLength())
+                        .requireUpperLower(auth.isPasswordRequireUpperLower())
+                        .requireDigit(auth.isPasswordRequireDigit())
+                        .requireSpecial(auth.isPasswordRequireSpecial())
                         .build())
                 .admin(AdminSettingVO.AdminSide.builder()
                         .captchaEnabled(auth.isAdminCaptchaEnabled())
@@ -135,6 +143,24 @@ public class AdminSettingServiceImpl implements AdminSettingService {
     }
 
     @Override
+    @Transactional
+    public AdminSettingVO updatePassword(PasswordSettingUpdateDTO dto, Long operatorId) {
+        if (dto.getMinLength() > dto.getMaxLength()) {
+            throw new CustomException(400, "密码最小长度不能大于最大长度");
+        }
+        SysRuntimeSetting row = loadOrCreateRow(operatorId);
+        row.setPasswordMinLength(dto.getMinLength());
+        row.setPasswordMaxLength(dto.getMaxLength());
+        row.setPasswordRequireUpperLower(Boolean.TRUE.equals(dto.getRequireUpperLower()));
+        row.setPasswordRequireDigit(Boolean.TRUE.equals(dto.getRequireDigit()));
+        row.setPasswordRequireSpecial(Boolean.TRUE.equals(dto.getRequireSpecial()));
+        row.setUpdateBy(operatorId);
+        persist(row);
+        applyPasswordSide(row);
+        return getSettings();
+    }
+
+    @Override
     public String testForgotPasswordEmail(String email) {
         String target = email == null ? "" : email.trim().toLowerCase();
         if (!StringUtils.hasText(target)) {
@@ -172,6 +198,11 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                 .clientForgotPasswordEmailEnabled(auth.isForgotPasswordEmailEnabled())
                 .clientLoginMaxAttempts(auth.getLoginMaxAttempts())
                 .clientLockDurationMinutes(auth.getLockDurationMinutes())
+                .passwordMinLength(auth.getPasswordMinLength())
+                .passwordMaxLength(auth.getPasswordMaxLength())
+                .passwordRequireUpperLower(auth.isPasswordRequireUpperLower())
+                .passwordRequireDigit(auth.isPasswordRequireDigit())
+                .passwordRequireSpecial(auth.isPasswordRequireSpecial())
                 .appVersion(app != null && StringUtils.hasText(app.getVersion()) ? app.getVersion() : "1.0.0")
                 .appChannel(app != null && StringUtils.hasText(app.getChannel()) ? app.getChannel() : "stable")
                 .releaseNotes(app != null ? nullToEmpty(app.getReleaseNotes()) : "")
@@ -195,6 +226,7 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         applyClientSide(row);
         applyRegisterSide(row);
         applyLoginSide(row);
+        applyPasswordSide(row);
     }
 
     private void applyAdminSide(SysRuntimeSetting row) {
@@ -257,6 +289,28 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         log.info("Applied login settings: client(captcha={}, maxAttempts={}, lockMin={}), admin(captcha={}, maxAttempts={}, lockMin={})",
                 auth.isCaptchaEnabled(), auth.getLoginMaxAttempts(), auth.getLockDurationMinutes(),
                 auth.isAdminCaptchaEnabled(), auth.getAdminLoginMaxAttempts(), auth.getAdminLockDurationMinutes());
+    }
+
+    private void applyPasswordSide(SysRuntimeSetting row) {
+        LinkxProperties.Auth auth = linkxProperties.getAuth();
+        if (row.getPasswordMinLength() != null) {
+            auth.setPasswordMinLength(row.getPasswordMinLength());
+        }
+        if (row.getPasswordMaxLength() != null) {
+            auth.setPasswordMaxLength(row.getPasswordMaxLength());
+        }
+        if (row.getPasswordRequireUpperLower() != null) {
+            auth.setPasswordRequireUpperLower(row.getPasswordRequireUpperLower());
+        }
+        if (row.getPasswordRequireDigit() != null) {
+            auth.setPasswordRequireDigit(row.getPasswordRequireDigit());
+        }
+        if (row.getPasswordRequireSpecial() != null) {
+            auth.setPasswordRequireSpecial(row.getPasswordRequireSpecial());
+        }
+        log.info("Applied password policy: min={}, max={}, upperLower={}, digit={}, special={}",
+                auth.getPasswordMinLength(), auth.getPasswordMaxLength(),
+                auth.isPasswordRequireUpperLower(), auth.isPasswordRequireDigit(), auth.isPasswordRequireSpecial());
     }
 
     private static String nullToEmpty(String s) {

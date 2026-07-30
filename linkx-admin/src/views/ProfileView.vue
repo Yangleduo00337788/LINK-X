@@ -18,9 +18,10 @@ import {
   type FormRules,
 } from 'naive-ui'
 import { CameraOutline, PersonCircleOutline } from '@vicons/ionicons5'
-import { changePassword, updateProfile, uploadAvatar } from '@/api/auth'
+import { changePassword, fetchAuthConfig, updateProfile, uploadAvatar } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import { resolveAvatarSrc } from '@/utils/mediaUrl'
+import type { PasswordPolicyVO } from '@/types/api'
 
 const router = useRouter()
 const message = useMessage()
@@ -65,6 +66,32 @@ const pwdForm = reactive({
   confirmPassword: '',
 })
 
+const passwordPolicy = ref<Required<PasswordPolicyVO>>({
+  minLength: 8,
+  maxLength: 64,
+  requireUpperLower: false,
+  requireDigit: true,
+  requireSpecial: false,
+})
+
+async function loadPasswordPolicy() {
+  try {
+    const cfg = await fetchAuthConfig()
+    const p = cfg?.passwordPolicy
+    if (p) {
+      passwordPolicy.value = {
+        minLength: p.minLength ?? 8,
+        maxLength: p.maxLength ?? 64,
+        requireUpperLower: p.requireUpperLower === true,
+        requireDigit: p.requireDigit !== false,
+        requireSpecial: p.requireSpecial === true,
+      }
+    }
+  } catch {
+    /* keep defaults */
+  }
+}
+
 const rolesText = computed(() => {
   void locale.value
   const roles = auth.user?.roles
@@ -98,17 +125,30 @@ const profileRules = computed<FormRules>(() => {
 
 const pwdRules = computed<FormRules>(() => {
   void locale.value
+  const policy = passwordPolicy.value
   return {
     oldPassword: [{ required: true, message: t('profile.oldPasswordRequired'), trigger: ['blur', 'input'] }],
     newPassword: [
       { required: true, message: t('profile.newPasswordRequired'), trigger: ['blur', 'input'] },
       {
         validator: (_rule, value: string) => {
-          if (!value || value.length < 8 || value.length > 64) {
-            return new Error(t('profile.newPasswordLength'))
+          if (!value) return true
+          if (value.length < policy.minLength || value.length > policy.maxLength) {
+            return new Error(
+              t('profile.newPasswordLengthDynamic', {
+                min: policy.minLength,
+                max: policy.maxLength,
+              }),
+            )
           }
-          if (!/(?=.*[A-Za-z])(?=.*\d)/.test(value)) {
-            return new Error(t('profile.newPasswordPattern'))
+          if (policy.requireUpperLower && (!/[A-Z]/.test(value) || !/[a-z]/.test(value))) {
+            return new Error(t('profile.newPasswordUpperLower'))
+          }
+          if (policy.requireDigit && !/\d/.test(value)) {
+            return new Error(t('profile.newPasswordDigit'))
+          }
+          if (policy.requireSpecial && /^[A-Za-z0-9]+$/.test(value)) {
+            return new Error(t('profile.newPasswordSpecial'))
           }
           return true
         },
@@ -231,7 +271,10 @@ watch(
   { immediate: true },
 )
 
-onMounted(refreshProfile)
+onMounted(() => {
+  void refreshProfile()
+  void loadPasswordPolicy()
+})
 </script>
 
 <template>

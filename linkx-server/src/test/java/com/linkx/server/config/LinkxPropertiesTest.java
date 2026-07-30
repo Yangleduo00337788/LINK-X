@@ -42,6 +42,11 @@ class LinkxPropertiesTest {
             assertEquals(5, props.getAuth().getAdminLoginMaxAttempts());
             assertEquals(10, props.getAuth().getLockDurationMinutes());
             assertEquals(10, props.getAuth().getAdminLockDurationMinutes());
+            assertEquals(8, props.getAuth().getPasswordMinLength());
+            assertEquals(64, props.getAuth().getPasswordMaxLength());
+            assertFalse(props.getAuth().isPasswordRequireUpperLower());
+            assertTrue(props.getAuth().isPasswordRequireDigit());
+            assertFalse(props.getAuth().isPasswordRequireSpecial());
         }
 
         @Test

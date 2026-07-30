@@ -15,6 +15,9 @@ public class AdminSettingVO {
     @Schema(description = "登录配置（客户端 + 管理端）")
     private LoginSide login;
 
+    @Schema(description = "密码策略（管理端 / 客户端共用）")
+    private PasswordSide password;
+
     @Schema(description = "管理端配置（兼容旧字段，验证码请看 login）")
     private AdminSide admin;
 
@@ -49,6 +52,22 @@ public class AdminSettingVO {
         private Integer maxAttempts;
         @Schema(description = "自动封禁时长（分钟）")
         private Integer lockDurationMinutes;
+    }
+
+    @Data
+    @Builder
+    @Schema(description = "密码策略")
+    public static class PasswordSide {
+        @Schema(description = "最小长度")
+        private Integer minLength;
+        @Schema(description = "最大长度")
+        private Integer maxLength;
+        @Schema(description = "是否必须同时包含大小写字母")
+        private Boolean requireUpperLower;
+        @Schema(description = "是否必须包含数字")
+        private Boolean requireDigit;
+        @Schema(description = "是否必须包含特殊字符")
+        private Boolean requireSpecial;
     }
 
     @Data

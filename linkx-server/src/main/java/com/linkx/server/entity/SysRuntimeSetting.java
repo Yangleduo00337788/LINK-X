@@ -45,6 +45,16 @@ public class SysRuntimeSetting implements Serializable {
     private Integer clientLoginMaxAttempts;
     /** 客户端自动封禁分钟数 */
     private Integer clientLockDurationMinutes;
+    /** 密码最小长度 */
+    private Integer passwordMinLength;
+    /** 密码最大长度 */
+    private Integer passwordMaxLength;
+    /** 是否必须同时包含大小写字母 */
+    private Boolean passwordRequireUpperLower;
+    /** 是否必须包含数字 */
+    private Boolean passwordRequireDigit;
+    /** 是否必须包含特殊字符 */
+    private Boolean passwordRequireSpecial;
 
     private String appVersion;
     private String appChannel;

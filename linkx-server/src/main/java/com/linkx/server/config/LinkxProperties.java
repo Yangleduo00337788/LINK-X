@@ -101,6 +101,16 @@ public class LinkxProperties {
         private int lockDurationMinutes = 10;
         /** 管理端自动封禁时长（分钟），默认 10 */
         private int adminLockDurationMinutes = 10;
+        /** 密码最小长度（管理端/客户端共用） */
+        private int passwordMinLength = 8;
+        /** 密码最大长度 */
+        private int passwordMaxLength = 64;
+        /** 是否必须同时包含大小写字母 */
+        private boolean passwordRequireUpperLower = false;
+        /** 是否必须包含数字（默认 true，与历史规则一致） */
+        private boolean passwordRequireDigit = true;
+        /** 是否必须包含特殊字符 */
+        private boolean passwordRequireSpecial = false;
         private int rateLimitLoginPerMinute = 10;
         private int rateLimitRegisterPerMinute = 5;
         // 业务接口默认限流配置
@@ -123,6 +133,20 @@ public class LinkxProperties {
 
         public void setAdminLockDurationMinutes(int adminLockDurationMinutes) {
             this.adminLockDurationMinutes = Math.max(1, adminLockDurationMinutes);
+        }
+
+        public void setPasswordMinLength(int passwordMinLength) {
+            this.passwordMinLength = Math.max(4, Math.min(128, passwordMinLength));
+            if (this.passwordMaxLength < this.passwordMinLength) {
+                this.passwordMaxLength = this.passwordMinLength;
+            }
+        }
+
+        public void setPasswordMaxLength(int passwordMaxLength) {
+            this.passwordMaxLength = Math.max(4, Math.min(128, passwordMaxLength));
+            if (this.passwordMaxLength < this.passwordMinLength) {
+                this.passwordMinLength = this.passwordMaxLength;
+            }
         }
     }
 

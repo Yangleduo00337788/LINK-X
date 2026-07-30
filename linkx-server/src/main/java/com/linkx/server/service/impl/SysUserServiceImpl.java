@@ -46,6 +46,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     private final com.linkx.server.service.RbacService rbacService;
     private final com.linkx.server.service.ComplianceService complianceService;
     private final LinkxMetrics linkxMetrics;
+    private final PasswordPolicyService passwordPolicyService;
 
     @Override
     @Transactional
@@ -78,6 +79,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             }
         }
 
+        passwordPolicyService.validate(registerDTO.getPassword());
         String hashPassword = PasswordEncoderHolder.encode(registerDTO.getPassword());
 
         SysUser user = SysUser.builder()
@@ -407,6 +409,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             throw new CustomException(400, "旧密码错误");
         }
 
+        passwordPolicyService.validate(newPassword);
         // 新密码加密（cost=12）并保存
         String hashPassword = PasswordEncoderHolder.encode(newPassword);
         user.setPassword(hashPassword);
@@ -436,6 +439,8 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             }
             captchaService.validateForOwner(String.valueOf(userId), captchaId, captchaCode);
         }
+
+        passwordPolicyService.validate(newPassword);
 
         // 通过 userId 直接查找用户（不暴露用户是否存在，统一返回模糊错误）
         SysUser user = getById(userId);
@@ -602,6 +607,8 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
      * 重置密码 + 通知的内部复用方法。
      */
     private void doResetPassword(String username, String newPassword, String ip) {
+        passwordPolicyService.validate(newPassword);
+
         SysUser user = queryChain()
                 .where(SysUser::getUsername).eq(username)
                 .one();

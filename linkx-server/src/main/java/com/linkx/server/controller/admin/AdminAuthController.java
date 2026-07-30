@@ -42,8 +42,16 @@ public class AdminAuthController {
     @Operation(summary = "管理端认证配置（匿名可读）")
     @GetMapping("/config")
     public Result<AuthConfigVO> config() {
+        LinkxProperties.Auth auth = linkxProperties.getAuth();
         return Result.success(AuthConfigVO.builder()
-                .captchaEnabled(linkxProperties.getAuth().isAdminCaptchaEnabled())
+                .captchaEnabled(auth.isAdminCaptchaEnabled())
+                .passwordPolicy(AuthConfigVO.PasswordPolicy.builder()
+                        .minLength(auth.getPasswordMinLength())
+                        .maxLength(auth.getPasswordMaxLength())
+                        .requireUpperLower(auth.isPasswordRequireUpperLower())
+                        .requireDigit(auth.isPasswordRequireDigit())
+                        .requireSpecial(auth.isPasswordRequireSpecial())
+                        .build())
                 .build());
     }
 

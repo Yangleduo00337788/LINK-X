@@ -55,10 +55,18 @@ public class AuthController {
     /** 匿名可读：客户端据此隐藏/展示验证码、注册入口、忘记密码等 */
     @GetMapping("/config")
     public Result<AuthConfigVO> config() {
+        LinkxProperties.Auth auth = linkxProperties.getAuth();
         return Result.success(AuthConfigVO.builder()
                 .captchaEnabled(captchaService.isEnabled())
-                .registerEnabled(linkxProperties.getAuth().isRegisterEnabled())
-                .forgotPasswordEmailEnabled(linkxProperties.getAuth().isForgotPasswordEmailEnabled())
+                .registerEnabled(auth.isRegisterEnabled())
+                .forgotPasswordEmailEnabled(auth.isForgotPasswordEmailEnabled())
+                .passwordPolicy(AuthConfigVO.PasswordPolicy.builder()
+                        .minLength(auth.getPasswordMinLength())
+                        .maxLength(auth.getPasswordMaxLength())
+                        .requireUpperLower(auth.isPasswordRequireUpperLower())
+                        .requireDigit(auth.isPasswordRequireDigit())
+                        .requireSpecial(auth.isPasswordRequireSpecial())
+                        .build())
                 .build());
     }
 

@@ -88,6 +88,13 @@ const captchaCode = ref('')
 const captchaEnabled = ref(true)
 const registerEnabled = ref(true)
 const forgotPasswordEmailEnabled = ref(true)
+const passwordPolicy = ref({
+  minLength: 8,
+  maxLength: 64,
+  requireUpperLower: false,
+  requireDigit: true,
+  requireSpecial: false,
+})
 
 async function loadAuthConfig() {
   try {
@@ -96,6 +103,16 @@ async function loadAuthConfig() {
       captchaEnabled.value = !!res.data.captchaEnabled
       registerEnabled.value = res.data.registerEnabled !== false
       forgotPasswordEmailEnabled.value = res.data.forgotPasswordEmailEnabled !== false
+      const p = res.data.passwordPolicy
+      if (p) {
+        passwordPolicy.value = {
+          minLength: p.minLength ?? 8,
+          maxLength: p.maxLength ?? 64,
+          requireUpperLower: p.requireUpperLower === true,
+          requireDigit: p.requireDigit !== false,
+          requireSpecial: p.requireSpecial === true,
+        }
+      }
     }
   } catch {
     // 拉不到配置时保持展示验证码，避免误关
@@ -490,7 +507,7 @@ async function handleForgot() {
   const newPass = forgotNewPassword.value
   const confirmPass = forgotConfirmPassword.value
 
-  const passErr = validatePassword(newPass)
+  const passErr = validatePassword(newPass, passwordPolicy.value)
   if (passErr) {
     message.warning(passErr)
     return

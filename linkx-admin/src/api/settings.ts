@@ -16,6 +16,14 @@ export interface LoginSideSetting {
   admin?: LoginEntrySetting
 }
 
+export interface PasswordSideSetting {
+  minLength?: number
+  maxLength?: number
+  requireUpperLower?: boolean
+  requireDigit?: boolean
+  requireSpecial?: boolean
+}
+
 export interface AdminSideSetting {
   captchaEnabled?: boolean
 }
@@ -32,6 +40,7 @@ export interface ClientSideSetting {
 export interface AdminSetting {
   register?: RegisterSideSetting
   login?: LoginSideSetting
+  password?: PasswordSideSetting
   admin?: AdminSideSetting
   client?: ClientSideSetting
 }
@@ -44,6 +53,8 @@ export type LoginUpdatePayload = {
   client: Required<LoginEntrySetting>
   admin: Required<LoginEntrySetting>
 }
+
+export type PasswordUpdatePayload = Required<PasswordSideSetting>
 
 export type ClientSideUpdatePayload = Required<
   Pick<ClientSideSetting, 'appVersion' | 'appChannel' | 'maxUploadBytes'>
@@ -60,6 +71,10 @@ export function updateRegisterSettings(payload: RegisterUpdatePayload) {
 
 export function updateLoginSettings(payload: LoginUpdatePayload) {
   return put<AdminSetting>('/admin/settings/login', payload)
+}
+
+export function updatePasswordSettings(payload: PasswordUpdatePayload) {
+  return put<AdminSetting>('/admin/settings/password', payload)
 }
 
 export function updateClientSideSettings(payload: ClientSideUpdatePayload) {

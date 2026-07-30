@@ -15,4 +15,16 @@ public class AuthConfigVO {
     private boolean registerEnabled;
     /** 忘记密码邮箱验证是否启用 */
     private boolean forgotPasswordEmailEnabled;
+    /** 密码策略（管理端 / 客户端共用） */
+    private PasswordPolicy passwordPolicy;
+
+    @Data
+    @Builder
+    public static class PasswordPolicy {
+        private int minLength;
+        private int maxLength;
+        private boolean requireUpperLower;
+        private boolean requireDigit;
+        private boolean requireSpecial;
+    }
 }
