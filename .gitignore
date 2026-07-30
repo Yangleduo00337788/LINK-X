@@ -7,6 +7,8 @@ coverage/
 .env.prod
 # 前端本地 env（含本地接口地址/可能的 token）不入库
 linkx-client/.env
+linkx-admin/.env
+linkx-admin/dist/
 !.env.local.example
 !.env.prod.example
 *.log
