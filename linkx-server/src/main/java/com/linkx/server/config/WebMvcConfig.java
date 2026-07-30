@@ -63,8 +63,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         // Actuator：仅放行健康探针，禁止 metrics/prometheus 匿名
                         "/actuator/health",
                         "/actuator/health/**",
-                        // 外链图片 HMAC 代理（签名校验，供 <img> 无 Authorization 加载）
+                        // 外链 / 头像媒体代理（签名或公开读，供 <img> 无 Authorization 加载）
                         "/media/external",
+                        "/media/avatars/**",
                         "/error"
                 );
         // 密码重置三端点保留 Login 排除（匿名可访问），但不排除 RateLimit：

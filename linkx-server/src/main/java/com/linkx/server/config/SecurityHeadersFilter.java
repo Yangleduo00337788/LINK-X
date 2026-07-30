@@ -47,31 +47,29 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         response.setHeader("X-Permitted-Cross-Domain-Policies", "none");
         response.setHeader("Permissions-Policy", "geolocation=(self), microphone=(self), camera=(self)");
 
-        // 生产 HTTPS 部署仅允许同源 WebSocket；localhost 仅用于显式的本地开发模式。
-        String minioOrigin = linkxProperties.getMinio().getEndpoint();
-        int wsPort = linkxProperties.getIm().getWebsocketPort();
-        String wsOrigins = linkxProperties.getSecurity().isRequireHttps()
-                ? ""
-                : String.format("ws://127.0.0.1:%d ws://localhost:%d", wsPort, wsPort);
-        String csp = String.format(
-                "default-src 'self'; "
-                        + "img-src 'self' data: blob: %s; "
-                        + "media-src 'self' data: blob: %s; "
-                        + "object-src 'none'; "
-                        + "base-uri 'self'; "
-                        + "form-action 'self'; "
-                        + "frame-ancestors 'none'; "
-                        // [P2-S2] script-src 保留 'unsafe-inline'：Vue 运行时模板编译需要内联脚本，
-                        // 移除会导致前端白屏。需前端全编译构建（runtime-only + 预编译模板）后移除。
-                        + "script-src 'self' 'unsafe-inline'; "
-                        // [P2-S2] style-src 保留 'unsafe-inline'：NaiveUI 等组件库运行时动态注入样式需要，
-                        // 移除会导致样式错乱。需前端构建期抽取样式为外部文件后移除。
-                        + "style-src 'self' 'unsafe-inline'; "
-                        + "connect-src 'self' %s %s;",
-                minioOrigin, minioOrigin,
-                wsOrigins, minioOrigin
-        );
-        response.setHeader("Content-Security-Policy", csp);
+        // 媒体代理响应不要套页面级 CSP，避免个别浏览器对子资源策略表现异常
+        if (!isMediaProxyPath(request)) {
+            String minioOrigin = linkxProperties.getMinio().getEndpoint();
+            int wsPort = linkxProperties.getIm().getWebsocketPort();
+            String wsOrigins = linkxProperties.getSecurity().isRequireHttps()
+                    ? ""
+                    : String.format("ws://127.0.0.1:%d ws://localhost:%d", wsPort, wsPort);
+            String csp = String.format(
+                    "default-src 'self'; "
+                            + "img-src 'self' data: blob: %s; "
+                            + "media-src 'self' data: blob: %s; "
+                            + "object-src 'none'; "
+                            + "base-uri 'self'; "
+                            + "form-action 'self'; "
+                            + "frame-ancestors 'none'; "
+                            + "script-src 'self' 'unsafe-inline'; "
+                            + "style-src 'self' 'unsafe-inline'; "
+                            + "connect-src 'self' %s %s;",
+                    minioOrigin, minioOrigin,
+                    wsOrigins, minioOrigin
+            );
+            response.setHeader("Content-Security-Policy", csp);
+        }
 
         if (linkxProperties.getSecurity().isRequireHttps()) {
             response.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
@@ -85,8 +83,8 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         if (uri == null) {
             return false;
         }
-        // context-path=/api 时为 /api/media/external
-        return uri.endsWith("/media/external") || uri.contains("/media/external?");
+        // context-path=/api 时为 /api/media/external、/api/media/avatars/...
+        return uri.contains("/media/external") || uri.contains("/media/avatars/");
     }
 
     private boolean isSecureRequest(HttpServletRequest request) {

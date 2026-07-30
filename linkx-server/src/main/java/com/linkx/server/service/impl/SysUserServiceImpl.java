@@ -100,6 +100,12 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
     @Override
     public TokenVO login(LoginDTO loginDTO, String ip, String userAgent, HttpServletRequest request) {
+        SysUser user = verifyCredentials(loginDTO, ip, userAgent, request);
+        return establishSession(user, ip, userAgent, request);
+    }
+
+    @Override
+    public SysUser verifyCredentials(LoginDTO loginDTO, String ip, String userAgent, HttpServletRequest request) {
         long started = System.currentTimeMillis();
         String username = loginDTO.getUsername();
 
@@ -149,6 +155,14 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             linkxMetrics.recordLoginDuration(System.currentTimeMillis() - started);
             throw new CustomException(403, "账号已被停用");
         }
+
+        return user;
+    }
+
+    @Override
+    public TokenVO establishSession(SysUser user, String ip, String userAgent, HttpServletRequest request) {
+        long started = System.currentTimeMillis();
+        String username = user.getUsername();
 
         // 登录成功，清除失败记录
         rateLimitService.clearLoginFailure(username, request);
@@ -239,14 +253,19 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             throw new CustomException(404, "用户不存在");
         }
 
-        // 删除旧头像（如果是有效的对象名/URL）
+        // 删除旧头像（仅 MinIO object key；外链如 dicebear 不可当对象删除）
         String oldAvatar = user.getAvatar();
         if (oldAvatar != null && !oldAvatar.equals(DEFAULT_AVATAR) && !oldAvatar.isEmpty()) {
-            try {
-                fileStorageService.deleteFile(oldAvatar);
-            } catch (Exception e) {
-                // 删除失败不影响新头像上传
-                log.warn("删除旧头像失败: {}", e.getMessage());
+            String trimmed = oldAvatar.trim();
+            boolean external = trimmed.startsWith("http://") || trimmed.startsWith("https://")
+                    || trimmed.startsWith("data:") || trimmed.startsWith("blob:") || trimmed.startsWith("/");
+            if (!external) {
+                try {
+                    fileStorageService.deleteFile(trimmed);
+                } catch (Exception e) {
+                    // 删除失败不影响新头像上传
+                    log.warn("删除旧头像失败: {}", e.getMessage());
+                }
             }
         }
 
