@@ -41,6 +41,10 @@ public class RedPacketServiceImpl implements RedPacketService {
     /** 红包发送幂等键前缀，TTL 略大于红包过期时间(24h) */
     private static final String IDEM_KEY_PREFIX = "linkx:redpacket:idem:";
     private static final Duration IDEM_KEY_TTL = Duration.ofHours(25);
+    /** 过期退款单批行数，避免一次 FOR UPDATE 锁过多行 */
+    private static final int EXPIRE_BATCH_SIZE = 100;
+    /** 单次定时任务最多处理批次数，剩余留待下一分钟 */
+    private static final int EXPIRE_MAX_ROUNDS = 50;
 
     private final RedPacketMapper redPacketMapper;
     private final RedPacketRecordMapper recordMapper;
@@ -273,31 +277,44 @@ public class RedPacketServiceImpl implements RedPacketService {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void expireRedPackets() {
-        // 使用 FOR UPDATE 行锁，防止 TOCTOU 超退（并发领包时按快照多退）
-        List<RedPacket> expiredPackets = redPacketMapper.selectExpiredForUpdate(
-                RedPacket.STATUS_ACTIVE, new Date());
-
-        for (RedPacket packet : expiredPackets) {
-            // 用 DB 当前值退款，而非快照值
-            BigDecimal refundAmount = packet.getRemainingAmount();
-
-            // 先用乐观锁将状态更新为 EXPIRED（防止重复处理）
-            int updated = redPacketMapper.updateStatusWithVersion(
-                    packet.getId(), packet.getVersion(), RedPacket.STATUS_EXPIRED);
-
-            if (updated == 0) {
-                // 乐观锁冲突，说明红包在其他事务中被处理，跳过
-                continue;
-            }
-
-            // 退款（仅当有剩余金额时）
-            if (refundAmount.compareTo(BigDecimal.ZERO) > 0) {
-                balanceService.unfreezeAndDeduct(packet.getSenderId(), refundAmount,
-                        String.valueOf(packet.getId()));
+        // 分批事务处理：每批 LIMIT + FOR UPDATE，避免一次锁全表过期行
+        for (int round = 0; round < EXPIRE_MAX_ROUNDS; round++) {
+            int processed = expireRedPacketBatch();
+            if (processed == 0) {
+                break;
             }
         }
+    }
+
+    /**
+     * 单批过期退款（独立事务）。使用 FOR UPDATE 行锁，防止 TOCTOU 超退。
+     * @return 本批锁定并尝试处理的行数；0 表示无更多过期红包
+     */
+    private int expireRedPacketBatch() {
+        org.springframework.transaction.support.TransactionTemplate tt =
+                new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+        Integer processed = tt.execute(status -> {
+            List<RedPacket> expiredPackets = redPacketMapper.selectExpiredForUpdate(
+                    RedPacket.STATUS_ACTIVE, new Date(), EXPIRE_BATCH_SIZE);
+            if (expiredPackets.isEmpty()) {
+                return 0;
+            }
+            for (RedPacket packet : expiredPackets) {
+                BigDecimal refundAmount = packet.getRemainingAmount();
+                int updated = redPacketMapper.updateStatusWithVersion(
+                        packet.getId(), packet.getVersion(), RedPacket.STATUS_EXPIRED);
+                if (updated == 0) {
+                    continue;
+                }
+                if (refundAmount != null && refundAmount.compareTo(BigDecimal.ZERO) > 0) {
+                    balanceService.unfreezeAndDeduct(packet.getSenderId(), refundAmount,
+                            String.valueOf(packet.getId()));
+                }
+            }
+            return expiredPackets.size();
+        });
+        return processed != null ? processed : 0;
     }
 
     private BigDecimal calculateLuckyAmount(RedPacket redPacket) {

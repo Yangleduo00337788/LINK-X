@@ -172,6 +172,7 @@ CREATE TABLE IF NOT EXISTS red_packet (
   id BIGINT NOT NULL PRIMARY KEY,
   sender_id BIGINT,
   conversation_id BIGINT,
+  conversation_type INT,
   type VARCHAR(20) NOT NULL DEFAULT 'normal',
   total_amount DECIMAL(10,2),
   total_count INT,
@@ -183,6 +184,7 @@ CREATE TABLE IF NOT EXISTS red_packet (
   client_msg_id VARCHAR(128),
   create_time DATETIME,
   version BIGINT NOT NULL DEFAULT 0,
+  deleted TINYINT NOT NULL DEFAULT 0,
   CONSTRAINT uk_sender_client_msg UNIQUE (sender_id, client_msg_id)
 );
 
