@@ -50,6 +50,12 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: 'route.blacklist', permission: 'admin:blacklist:list' },
       },
       {
+        path: 'devices',
+        name: 'Devices',
+        component: () => import('@/views/DeviceListView.vue'),
+        meta: { titleKey: 'route.devices', permission: 'admin:device:list' },
+      },
+      {
         path: 'roles',
         name: 'RoleList',
         component: () => import('@/views/RoleListView.vue'),

@@ -33,6 +33,7 @@ export interface DeviceItem {
   userAgent?: string
   lastActive?: string
   current?: boolean
+  online?: boolean
 }
 
 export function listUsers(params: PageQuery) {

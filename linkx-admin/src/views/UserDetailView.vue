@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, onMounted, reactive, ref } from 'vue'
+import { computed, h, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
@@ -33,6 +33,8 @@ import {
   type DeviceItem,
   type UserLoginItem,
 } from '@/api/users'
+import { kickDevice } from '@/api/devices'
+import { onAdminRealtimeEvent } from '@/api/realtime'
 import { formatTime, displayOrNone, formatIp, userStatusLabel, userStatusType } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
 
@@ -51,6 +53,8 @@ const logins = ref<UserLoginItem[]>([])
 const loginLoading = ref(false)
 const loginTotal = ref(0)
 const loginQuery = reactive({ page: 1, size: 10 })
+
+let offRealtime: (() => void) | null = null
 
 const showEdit = ref(false)
 const editSaving = ref(false)
@@ -99,6 +103,17 @@ const deviceColumns = computed<DataTableColumns<DeviceItem>>(() => {
     { title: t('user.deviceName'), key: 'deviceName' },
     { title: t('user.deviceType'), key: 'deviceType', width: 100 },
     {
+      title: t('device.onlineStatus'),
+      key: 'online',
+      width: 90,
+      render: (row) =>
+        h(
+          NTag,
+          { type: row.online ? 'success' : 'default', size: 'small' },
+          () => (row.online ? t('device.online') : t('device.offline')),
+        ),
+    },
+    {
       title: 'IP',
       key: 'ip',
       width: 140,
@@ -119,9 +134,43 @@ const deviceColumns = computed<DataTableColumns<DeviceItem>>(() => {
       width: 170,
       render: (row) => formatTime(row.lastActive),
     },
+    {
+      title: t('common.actions'),
+      key: 'actions',
+      width: 110,
+      render: (row) =>
+        auth.hasPermission('admin:device:kick')
+          ? h(
+              NButton,
+              {
+                size: 'tiny',
+                type: 'error',
+                secondary: true,
+                onClick: () => confirmKickDevice(row),
+              },
+              () => t('device.kick'),
+            )
+          : null,
+    },
   ]
 })
 
+function confirmKickDevice(row: DeviceItem) {
+  dialog.warning({
+    title: t('device.kickTitle'),
+    content: t('device.kickConfirm', {
+      user: user.value?.username || userId.value,
+      device: row.deviceName || row.id,
+    }),
+    positiveText: t('device.kick'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      await kickDevice(userId.value, row.id)
+      message.success(t('device.kickSuccess'))
+      await loadDevices()
+    },
+  })
+}
 const loginColumns = computed<DataTableColumns<UserLoginItem>>(() => {
   void locale.value
   return [
@@ -231,6 +280,33 @@ function confirmAction(label: string, content: string, action: () => Promise<unk
 onMounted(async () => {
   await load()
   await Promise.all([loadDevices(), loadLogins()])
+  offRealtime = onAdminRealtimeEvent((evt) => {
+    if (evt?.type !== 'device_presence') return
+    const eventUserId = String(evt.relatedId || evt.userId || '')
+    const deviceId = typeof evt.deviceId === 'string' ? evt.deviceId : ''
+    if (!deviceId || eventUserId !== userId.value) return
+    const online = Boolean(evt.online)
+    let matched = false
+    devices.value = devices.value.map((row) => {
+      if (row.id === deviceId) {
+        matched = true
+        return {
+          ...row,
+          online,
+          lastActive: online ? new Date().toISOString() : row.lastActive,
+        }
+      }
+      return row
+    })
+    if (online && !matched) {
+      void loadDevices()
+    }
+  })
+})
+
+onUnmounted(() => {
+  offRealtime?.()
+  offRealtime = null
 })
 </script>
 
