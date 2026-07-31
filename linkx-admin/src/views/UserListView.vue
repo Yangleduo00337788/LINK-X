@@ -6,6 +6,10 @@ import {
   NButton,
   NDataTable,
   NDropdown,
+  NForm,
+  NFormItem,
+  NInput,
+  NModal,
   NSelect,
   NSpace,
   NTag,
@@ -19,6 +23,7 @@ import {
   exportUsers,
   freezeUser,
   listUsers,
+  resetUserPassword,
   unbanUser,
   unfreezeUser,
   type AdminUserListItem,
@@ -43,6 +48,16 @@ const query = reactive({
   keyword: '',
   status: '' as '' | number,
 })
+
+const showResetPassword = ref(false)
+const resetSaving = ref(false)
+const resetTargetId = ref('')
+const resetTargetName = ref('')
+const resetForm = reactive({
+  newPassword: '',
+  confirmPassword: '',
+})
+const generatedPassword = ref('')
 
 const statusOptions = computed(() => {
   void locale.value
@@ -85,6 +100,9 @@ function actionOptions(row: AdminUserListItem): DropdownOption[] {
     if (auth.hasPermission('admin:user:unban')) {
       opts.push({ label: t('user.unban'), key: 'unban' })
     }
+  }
+  if (auth.hasPermission('admin:user:reset-password')) {
+    opts.push({ label: t('user.resetPassword'), key: 'resetPassword' })
   }
   return opts
 }
@@ -141,7 +159,48 @@ const columns = computed<DataTableColumns<AdminUserListItem>>(() => {
   ]
 })
 
+function openResetPassword(row: AdminUserListItem) {
+  resetTargetId.value = row.id
+  resetTargetName.value = row.username || row.id
+  resetForm.newPassword = ''
+  resetForm.confirmPassword = ''
+  generatedPassword.value = ''
+  showResetPassword.value = true
+}
+
+async function submitResetPassword(generate: boolean) {
+  if (!generate) {
+    if (!resetForm.newPassword) {
+      message.warning(t('user.newPassword'))
+      return
+    }
+    if (resetForm.newPassword !== resetForm.confirmPassword) {
+      message.warning(t('user.passwordMismatch'))
+      return
+    }
+  }
+  resetSaving.value = true
+  try {
+    const result = await resetUserPassword(
+      resetTargetId.value,
+      generate ? undefined : resetForm.newPassword,
+    )
+    message.success(t('user.resetPasswordSuccess'))
+    if (result?.generated && result.temporaryPassword) {
+      generatedPassword.value = result.temporaryPassword
+    } else {
+      showResetPassword.value = false
+    }
+  } finally {
+    resetSaving.value = false
+  }
+}
+
 function handleAction(row: AdminUserListItem, key: string) {
+  if (key === 'resetPassword') {
+    openResetPassword(row)
+    return
+  }
   const map: Record<string, { label: string; content: string; action: () => Promise<unknown> }> = {
     freeze: {
       label: t('user.freeze'),
@@ -259,5 +318,61 @@ onMounted(load)
         remote
       />
     </div>
+
+    <NModal
+      v-model:show="showResetPassword"
+      preset="card"
+      :title="t('user.resetPasswordTitle')"
+      style="width: 480px"
+      @after-leave="generatedPassword = ''"
+    >
+      <p style="margin: 0 0 12px; color: var(--n-text-color-3); line-height: 1.5">
+        {{ t('user.resetPasswordHint') }}
+        <template v-if="resetTargetName">（{{ resetTargetName }}）</template>
+      </p>
+      <NForm v-if="!generatedPassword" label-placement="left" label-width="90">
+        <NFormItem :label="t('user.newPassword')">
+          <NInput
+            v-model:value="resetForm.newPassword"
+            type="password"
+            show-password-on="click"
+            :placeholder="t('user.newPassword')"
+          />
+        </NFormItem>
+        <NFormItem :label="t('user.confirmPassword')">
+          <NInput
+            v-model:value="resetForm.confirmPassword"
+            type="password"
+            show-password-on="click"
+            :placeholder="t('user.confirmPassword')"
+          />
+        </NFormItem>
+      </NForm>
+      <NInput
+        v-else
+        :value="generatedPassword"
+        type="textarea"
+        :rows="2"
+        readonly
+      />
+      <p v-if="generatedPassword" style="margin: 8px 0 0; color: var(--n-text-color-3)">
+        {{ t('user.resetPasswordGenerated') }}
+      </p>
+      <template #footer>
+        <NSpace justify="end">
+          <NButton @click="showResetPassword = false">
+            {{ generatedPassword ? t('common.close') : t('common.cancel') }}
+          </NButton>
+          <template v-if="!generatedPassword">
+            <NButton :loading="resetSaving" @click="submitResetPassword(true)">
+              {{ t('user.resetPasswordGenerate') }}
+            </NButton>
+            <NButton type="primary" :loading="resetSaving" @click="submitResetPassword(false)">
+              {{ t('common.confirm') }}
+            </NButton>
+          </template>
+        </NSpace>
+      </template>
+    </NModal>
   </div>
 </template>

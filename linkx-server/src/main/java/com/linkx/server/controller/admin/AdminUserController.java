@@ -9,10 +9,12 @@ import com.linkx.server.config.aspect.AuditAction;
 import com.linkx.server.controller.admin.dto.AdminPageQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminUserActionDTO;
 import com.linkx.server.controller.admin.dto.AdminUserQueryDTO;
+import com.linkx.server.controller.admin.dto.AdminUserResetPasswordDTO;
 import com.linkx.server.controller.admin.dto.AdminUserUpdateDTO;
 import com.linkx.server.controller.admin.vo.AdminLoginLogVO;
 import com.linkx.server.controller.admin.vo.AdminUserDetailVO;
 import com.linkx.server.controller.admin.vo.AdminUserListVO;
+import com.linkx.server.controller.admin.vo.AdminUserResetPasswordVO;
 import com.linkx.server.controller.vo.DeviceVO;
 import com.linkx.server.service.admin.AdminUserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -134,6 +136,17 @@ public class AdminUserController {
         Long operatorId = (Long) request.getAttribute("userId");
         adminUserService.unban(id, operatorId);
         return Result.success(null);
+    }
+
+    @Operation(summary = "重置用户密码", description = "不可重置管理员账号；会吊销该用户全部会话。newPassword 为空时生成临时密码并仅返回一次")
+    @AuditAction(operationType = "RESET_PASSWORD", description = "管理端重置用户密码")
+    @PostMapping("/{id}/reset-password")
+    @RequirePermission("admin:user:reset-password")
+    public Result<AdminUserResetPasswordVO> resetPassword(@PathVariable Long id,
+                                                          @RequestBody(required = false) @Valid AdminUserResetPasswordDTO dto,
+                                                          HttpServletRequest request) {
+        Long operatorId = (Long) request.getAttribute("userId");
+        return Result.success(adminUserService.resetPassword(id, dto, operatorId));
     }
 
     @Operation(summary = "查询用户设备")

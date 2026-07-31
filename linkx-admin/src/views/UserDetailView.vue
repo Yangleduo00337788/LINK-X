@@ -26,6 +26,7 @@ import {
   getUser,
   listUserDevices,
   listUserLogins,
+  resetUserPassword,
   unbanUser,
   unfreezeUser,
   updateUser,
@@ -65,6 +66,14 @@ const editForm = reactive({
   signature: '',
 })
 
+const showResetPassword = ref(false)
+const resetSaving = ref(false)
+const resetForm = reactive({
+  newPassword: '',
+  confirmPassword: '',
+})
+const generatedPassword = ref('')
+
 const userId = computed(() => String(route.params.id || ''))
 
 const regionText = computed(() => {
@@ -102,6 +111,10 @@ const canEdit = computed(() => {
   const isPortalUser = user.value.roles?.some((r) => ADMIN_PORTAL_ROLES.has(r))
   return isSelf || !isPortalUser
 })
+
+const canResetPassword = computed(
+  () => canToggleStatus.value && auth.hasPermission('admin:user:reset-password'),
+)
 
 const deviceColumns = computed<DataTableColumns<DeviceItem>>(() => {
   void locale.value
@@ -253,6 +266,41 @@ function openEdit() {
   showEdit.value = true
 }
 
+function openResetPassword() {
+  resetForm.newPassword = ''
+  resetForm.confirmPassword = ''
+  generatedPassword.value = ''
+  showResetPassword.value = true
+}
+
+async function submitResetPassword(generate: boolean) {
+  if (!generate) {
+    if (!resetForm.newPassword) {
+      message.warning(t('user.newPassword'))
+      return
+    }
+    if (resetForm.newPassword !== resetForm.confirmPassword) {
+      message.warning(t('user.passwordMismatch'))
+      return
+    }
+  }
+  resetSaving.value = true
+  try {
+    const result = await resetUserPassword(
+      userId.value,
+      generate ? undefined : resetForm.newPassword,
+    )
+    message.success(t('user.resetPasswordSuccess'))
+    if (result?.generated && result.temporaryPassword) {
+      generatedPassword.value = result.temporaryPassword
+    } else {
+      showResetPassword.value = false
+    }
+  } finally {
+    resetSaving.value = false
+  }
+}
+
 async function submitEdit() {
   editSaving.value = true
   try {
@@ -324,6 +372,14 @@ onUnmounted(() => {
         <NSpace class="page-toolbar" justify="end">
           <NButton @click="router.back()">{{ t('common.back') }}</NButton>
           <NButton v-if="canEdit" @click="openEdit">{{ t('user.editProfile') }}</NButton>
+          <NButton
+            v-if="canResetPassword"
+            type="warning"
+            secondary
+            @click="openResetPassword"
+          >
+            {{ t('user.resetPassword') }}
+          </NButton>
           <NButton
             v-if="canToggleStatus && user?.status === 1 && auth.hasPermission('admin:user:freeze')"
             type="warning"
@@ -431,6 +487,62 @@ onUnmounted(() => {
         <NSpace justify="end">
           <NButton @click="showEdit = false">{{ t('common.cancel') }}</NButton>
           <NButton type="primary" :loading="editSaving" @click="submitEdit">{{ t('common.save') }}</NButton>
+        </NSpace>
+      </template>
+    </NModal>
+
+    <NModal
+      v-model:show="showResetPassword"
+      preset="card"
+      :title="t('user.resetPasswordTitle')"
+      style="width: 480px"
+      @after-leave="generatedPassword = ''"
+    >
+      <p style="margin: 0 0 12px; color: var(--n-text-color-3); line-height: 1.5">
+        {{ t('user.resetPasswordHint') }}
+      </p>
+      <NForm v-if="!generatedPassword" label-placement="left" label-width="90">
+        <NFormItem :label="t('user.newPassword')">
+          <NInput
+            v-model:value="resetForm.newPassword"
+            type="password"
+            show-password-on="click"
+            :placeholder="t('user.newPassword')"
+          />
+        </NFormItem>
+        <NFormItem :label="t('user.confirmPassword')">
+          <NInput
+            v-model:value="resetForm.confirmPassword"
+            type="password"
+            show-password-on="click"
+            :placeholder="t('user.confirmPassword')"
+          />
+        </NFormItem>
+      </NForm>
+      <NInput
+        v-else
+        :value="generatedPassword"
+        type="textarea"
+        :rows="2"
+        readonly
+        :placeholder="t('user.resetPasswordGenerated')"
+      />
+      <p v-if="generatedPassword" style="margin: 8px 0 0; color: var(--n-text-color-3)">
+        {{ t('user.resetPasswordGenerated') }}
+      </p>
+      <template #footer>
+        <NSpace justify="end">
+          <NButton @click="showResetPassword = false">
+            {{ generatedPassword ? t('common.close') : t('common.cancel') }}
+          </NButton>
+          <template v-if="!generatedPassword">
+            <NButton :loading="resetSaving" @click="submitResetPassword(true)">
+              {{ t('user.resetPasswordGenerate') }}
+            </NButton>
+            <NButton type="primary" :loading="resetSaving" @click="submitResetPassword(false)">
+              {{ t('common.confirm') }}
+            </NButton>
+          </template>
         </NSpace>
       </template>
     </NModal>

@@ -1,6 +1,8 @@
 package com.linkx.server.service.admin.impl;
 
 import com.linkx.server.common.ClientIpResolver;
+import com.linkx.server.common.DataScope;
+import com.linkx.server.common.DataScopeContext;
 import com.linkx.server.common.admin.AdminConstants;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminDeviceQueryDTO;
@@ -40,6 +42,7 @@ public class AdminDeviceServiceImpl implements AdminDeviceService {
     private final AdminEventPublisher adminEventPublisher;
 
     @Override
+    @DataScope
     public PageResultVO<AdminDeviceVO> list(AdminDeviceQueryDTO query) {
         int page = normalizePage(query == null ? null : query.getPage());
         int size = normalizeSize(query == null ? null : query.getSize());
@@ -111,11 +114,20 @@ public class AdminDeviceServiceImpl implements AdminDeviceService {
 
     private QueryWrapper buildQuery(AdminDeviceQueryDTO query) {
         QueryWrapper qw = QueryWrapper.create();
+        Long scopeUserId = DataScopeContext.getUserId();
+        if (scopeUserId != null) {
+            qw.and(DeviceSession::getUserId).eq(scopeUserId);
+        }
         if (query == null) {
             return qw;
         }
         if (query.getUserId() != null) {
-            qw.and(DeviceSession::getUserId).eq(query.getUserId());
+            if (scopeUserId != null && !scopeUserId.equals(query.getUserId())) {
+                // 无范围时强制空结果，避免越权窥探他人设备
+                qw.and(DeviceSession::getUserId).eq(-1L);
+            } else {
+                qw.and(DeviceSession::getUserId).eq(query.getUserId());
+            }
         }
         if (StringUtils.hasText(query.getDeviceType())) {
             qw.and(DeviceSession::getDeviceType).eq(query.getDeviceType().trim());

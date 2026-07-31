@@ -129,6 +129,8 @@ linkx:
     lock-duration-minutes: ${AUTH_LOCK_DURATION_MINUTES}
     # 管理端锁定时长（分钟，默认跟随客户端）← AUTH_ADMIN_LOCK_DURATION_MINUTES
     admin-lock-duration-minutes: ${AUTH_ADMIN_LOCK_DURATION_MINUTES:${AUTH_LOCK_DURATION_MINUTES}}
+    # 管理端强制 TOTP（生产建议 true）← ADMIN_TOTP_REQUIRED
+    admin-totp-required: ${ADMIN_TOTP_REQUIRED:false}
     # 密码最小长度 ← AUTH_PASSWORD_MIN_LENGTH
     password-min-length: ${AUTH_PASSWORD_MIN_LENGTH:8}
     # 密码最大长度 ← AUTH_PASSWORD_MAX_LENGTH

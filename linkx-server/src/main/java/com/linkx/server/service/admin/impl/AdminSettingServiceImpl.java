@@ -19,6 +19,7 @@ import com.linkx.server.service.admin.AdminSettingService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -32,6 +33,7 @@ public class AdminSettingServiceImpl implements AdminSettingService {
     private final SysRuntimeSettingMapper runtimeSettingMapper;
     private final EmailService emailService;
     private final MailSenderHolder mailSenderHolder;
+    private final Environment environment;
 
     @PostConstruct
     public void loadOverridesFromDb() {
@@ -175,17 +177,36 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         SysRuntimeSetting row = loadOrCreateRow(operatorId);
         LoginSettingUpdateDTO.Side client = dto.getClient();
         LoginSettingUpdateDTO.Side admin = dto.getAdmin();
+        boolean totpRequired = Boolean.TRUE.equals(admin.getTotpRequired());
+        boolean captchaEnabled = Boolean.TRUE.equals(admin.getCaptchaEnabled());
+        if (isProdProfile()) {
+            if (!totpRequired) {
+                throw new CustomException(400, "生产环境不允许关闭管理端强制 TOTP");
+            }
+            if (!captchaEnabled) {
+                throw new CustomException(400, "生产环境不允许关闭管理端登录验证码");
+            }
+        }
         row.setClientCaptchaEnabled(Boolean.TRUE.equals(client.getCaptchaEnabled()));
         row.setClientLoginMaxAttempts(client.getMaxAttempts());
         row.setClientLockDurationMinutes(client.getLockDurationMinutes());
-        row.setAdminCaptchaEnabled(Boolean.TRUE.equals(admin.getCaptchaEnabled()));
+        row.setAdminCaptchaEnabled(captchaEnabled);
         row.setAdminLoginMaxAttempts(admin.getMaxAttempts());
         row.setAdminLockDurationMinutes(admin.getLockDurationMinutes());
-        row.setAdminTotpRequired(Boolean.TRUE.equals(admin.getTotpRequired()));
+        row.setAdminTotpRequired(totpRequired);
         row.setUpdateBy(operatorId);
         persist(row);
         applyLoginSide(row);
         return getSettings();
+    }
+
+    private boolean isProdProfile() {
+        for (String profile : environment.getActiveProfiles()) {
+            if ("prod".equalsIgnoreCase(profile)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

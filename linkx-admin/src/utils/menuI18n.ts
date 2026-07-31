@@ -81,6 +81,7 @@ const PERM_KEYS: Record<string, { name: string; desc?: string }> = {
   'admin:user:unfreeze': { name: 'perm.adminUserUnfreeze', desc: 'perm.adminUserUnfreezeDesc' },
   'admin:user:ban': { name: 'perm.adminUserBan', desc: 'perm.adminUserBanDesc' },
   'admin:user:unban': { name: 'perm.adminUserUnban', desc: 'perm.adminUserUnbanDesc' },
+  'admin:user:reset-password': { name: 'perm.adminUserResetPassword', desc: 'perm.adminUserResetPasswordDesc' },
   'admin:user:device:list': { name: 'perm.adminUserDeviceList', desc: 'perm.adminUserDeviceListDesc' },
   'admin:user:login:list': { name: 'perm.adminUserLoginList', desc: 'perm.adminUserLoginListDesc' },
   'admin:blacklist:list': { name: 'perm.adminBlacklistList', desc: 'perm.adminBlacklistListDesc' },

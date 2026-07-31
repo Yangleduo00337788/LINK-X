@@ -110,6 +110,25 @@ class AdminSecurityIT extends BaseIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
 
+        // 可重置普通用户密码（空 body → 生成临时密码）
+        TestUser resetTarget = registerAndLogin("admrpw");
+        mockMvc.perform(post("/admin/users/{id}/reset-password", resetTarget.userId)
+                        .header("Authorization", admin.bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.generated").value(true))
+                .andExpect(jsonPath("$.data.temporaryPassword").isNotEmpty());
+
+        // 禁止重置其他管理员密码
+        mockMvc.perform(post("/admin/users/{id}/reset-password", peerAdmin.userId)
+                        .header("Authorization", admin.bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+
         // 接口不可授予 admin
         TestUser target = registerAndLogin("admgrt");
         mockMvc.perform(post("/rbac/user/{userId}/role/{roleId}", target.userId, ADMIN_ROLE_ID)

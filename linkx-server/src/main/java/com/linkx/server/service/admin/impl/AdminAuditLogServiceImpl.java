@@ -1,8 +1,10 @@
 package com.linkx.server.service.admin.impl;
 
+import com.linkx.server.common.ClientIpResolver;
+import com.linkx.server.common.DataScope;
+import com.linkx.server.common.DataScopeContext;
 import com.linkx.server.common.admin.AdminConstants;
 import com.linkx.server.common.admin.PageResultVO;
-import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.controller.admin.dto.AdminPageQueryDTO;
 import com.linkx.server.controller.admin.vo.AdminLoginLogVO;
 import com.linkx.server.controller.admin.vo.AdminOperationLogVO;
@@ -29,6 +31,7 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
     private final SysLoginAuditMapper sysLoginAuditMapper;
 
     @Override
+    @DataScope
     public PageResultVO<AdminOperationLogVO> listAuditLogs(AdminPageQueryDTO query) {
         int page = normalizePage(query.getPage());
         int size = normalizeSize(query.getSize());
@@ -43,6 +46,7 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
     }
 
     @Override
+    @DataScope
     public List<AdminOperationLogVO> listAuditLogsForExport(AdminPageQueryDTO query) {
         QueryWrapper qw = buildAuditQuery(query);
         qw.orderBy(SysAuditLog::getCreateTime, false);
@@ -53,15 +57,17 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
     }
 
     @Override
+    @DataScope
     public AdminOperationLogVO auditDetail(Long id) {
         SysAuditLog log = sysAuditLogMapper.selectOneById(id);
-        if (log == null) {
+        if (log == null || !inScope(log.getUserId())) {
             throw new CustomException(404, "audit log not found");
         }
         return toAuditVO(log);
     }
 
     @Override
+    @DataScope
     public PageResultVO<AdminLoginLogVO> listLoginLogs(AdminPageQueryDTO query) {
         int page = normalizePage(query.getPage());
         int size = normalizeSize(query.getSize());
@@ -76,6 +82,7 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
     }
 
     @Override
+    @DataScope
     public List<AdminLoginLogVO> listLoginLogsForExport(AdminPageQueryDTO query) {
         QueryWrapper qw = buildLoginQuery(query);
         qw.orderBy(SysLoginAudit::getCreateTime, false);
@@ -86,9 +93,10 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
     }
 
     @Override
+    @DataScope
     public AdminLoginLogVO loginDetail(Long id) {
         SysLoginAudit log = sysLoginAuditMapper.selectOneById(id);
-        if (log == null) {
+        if (log == null || !inScope(log.getUserId())) {
             throw new CustomException(404, "login log not found");
         }
         return toLoginVO(log);
@@ -96,6 +104,7 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
 
     private QueryWrapper buildAuditQuery(AdminPageQueryDTO query) {
         QueryWrapper qw = QueryWrapper.create();
+        applyOperatorScope(qw);
         if (StringUtils.hasText(query.getKeyword())) {
             String kw = query.getKeyword().trim();
             qw.and((QueryWrapper w) -> {
@@ -115,6 +124,7 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
 
     private QueryWrapper buildLoginQuery(AdminPageQueryDTO query) {
         QueryWrapper qw = QueryWrapper.create();
+        applyLoginUserScope(qw);
         if (StringUtils.hasText(query.getKeyword())) {
             String kw = query.getKeyword().trim();
             qw.and((QueryWrapper w) -> {
@@ -133,6 +143,25 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
             qw.and(SysLoginAudit::getCreateTime).le(new Date(query.getEndTime()));
         }
         return qw;
+    }
+
+    private void applyOperatorScope(QueryWrapper qw) {
+        Long scopeUserId = DataScopeContext.getUserId();
+        if (scopeUserId != null) {
+            qw.and(SysAuditLog::getUserId).eq(scopeUserId);
+        }
+    }
+
+    private void applyLoginUserScope(QueryWrapper qw) {
+        Long scopeUserId = DataScopeContext.getUserId();
+        if (scopeUserId != null) {
+            qw.and(SysLoginAudit::getUserId).eq(scopeUserId);
+        }
+    }
+
+    private boolean inScope(Long rowUserId) {
+        Long scopeUserId = DataScopeContext.getUserId();
+        return scopeUserId == null || scopeUserId.equals(rowUserId);
     }
 
     private AdminOperationLogVO toAuditVO(SysAuditLog log) {

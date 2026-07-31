@@ -8,6 +8,8 @@ import com.linkx.server.controller.admin.dto.AdminUserUpdateDTO;
 import com.linkx.server.controller.admin.vo.AdminLoginLogVO;
 import com.linkx.server.controller.admin.vo.AdminUserDetailVO;
 import com.linkx.server.controller.admin.vo.AdminUserListVO;
+import com.linkx.server.controller.admin.dto.AdminUserResetPasswordDTO;
+import com.linkx.server.controller.admin.vo.AdminUserResetPasswordVO;
 import com.linkx.server.controller.vo.DeviceVO;
 
 import java.util.List;
@@ -29,6 +31,8 @@ public interface AdminUserService {
     void ban(Long id, AdminUserActionDTO dto, Long operatorId);
 
     void unban(Long id, Long operatorId);
+
+    AdminUserResetPasswordVO resetPassword(Long id, AdminUserResetPasswordDTO dto, Long operatorId);
 
     List<DeviceVO> devices(Long id);
 

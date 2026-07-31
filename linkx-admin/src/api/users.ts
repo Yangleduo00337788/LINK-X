@@ -64,6 +64,17 @@ export function unbanUser(id: string) {
   return post<null>(`/admin/users/${id}/unban`)
 }
 
+export interface ResetPasswordResult {
+  generated: boolean
+  temporaryPassword?: string | null
+}
+
+export function resetUserPassword(id: string, newPassword?: string) {
+  return post<ResetPasswordResult>(`/admin/users/${id}/reset-password`, {
+    newPassword: newPassword || undefined,
+  })
+}
+
 export function listUserDevices(id: string) {
   return get<DeviceItem[]>(`/admin/users/${id}/devices`)
 }

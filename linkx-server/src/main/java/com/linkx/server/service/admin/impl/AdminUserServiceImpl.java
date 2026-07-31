@@ -1,16 +1,22 @@
 package com.linkx.server.service.admin.impl;
 
+import com.linkx.server.common.DataScope;
+import com.linkx.server.common.DataScopeContext;
 import com.linkx.server.common.InputSanitizer;
+import com.linkx.server.common.PasswordEncoderHolder;
 import com.linkx.server.common.admin.AdminConstants;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.common.ClientIpResolver;
+import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.controller.admin.dto.AdminPageQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminUserActionDTO;
 import com.linkx.server.controller.admin.dto.AdminUserQueryDTO;
+import com.linkx.server.controller.admin.dto.AdminUserResetPasswordDTO;
 import com.linkx.server.controller.admin.dto.AdminUserUpdateDTO;
 import com.linkx.server.controller.admin.vo.AdminLoginLogVO;
 import com.linkx.server.controller.admin.vo.AdminUserDetailVO;
 import com.linkx.server.controller.admin.vo.AdminUserListVO;
+import com.linkx.server.controller.admin.vo.AdminUserResetPasswordVO;
 import com.linkx.server.controller.vo.DeviceVO;
 import com.linkx.server.entity.SysLoginAudit;
 import com.linkx.server.entity.SysUser;
@@ -18,6 +24,7 @@ import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.SysLoginAuditMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.DeviceSessionService;
+import com.linkx.server.service.PasswordPolicyService;
 import com.linkx.server.service.PresenceService;
 import com.linkx.server.service.RbacService;
 import com.linkx.server.service.TokenService;
@@ -28,8 +35,11 @@ import com.mybatisflex.core.update.UpdateChain;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
+import java.security.SecureRandom;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
@@ -39,6 +49,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AdminUserServiceImpl implements AdminUserService {
 
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+    private static final char[] PASSWORD_ALPHABET =
+            "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*".toCharArray();
+
     private final SysUserMapper sysUserMapper;
     private final SysLoginAuditMapper sysLoginAuditMapper;
     private final RbacService rbacService;
@@ -46,8 +60,11 @@ public class AdminUserServiceImpl implements AdminUserService {
     private final PresenceService presenceService;
     private final TokenService tokenService;
     private final AdminBlacklistService adminBlacklistService;
+    private final PasswordPolicyService passwordPolicyService;
+    private final LinkxProperties linkxProperties;
 
     @Override
+    @DataScope
     public PageResultVO<AdminUserListVO> list(AdminUserQueryDTO query) {
         int page = normalizePage(query.getPage());
         int size = normalizeSize(query.getSize());
@@ -62,6 +79,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     }
 
     @Override
+    @DataScope
     public List<AdminUserListVO> listForExport(AdminUserQueryDTO query) {
         QueryWrapper qw = buildListQuery(query);
         qw.orderBy(SysUser::getCreateTime, false);
@@ -73,6 +91,7 @@ public class AdminUserServiceImpl implements AdminUserService {
 
     private QueryWrapper buildListQuery(AdminUserQueryDTO query) {
         QueryWrapper qw = QueryWrapper.create();
+        applyDataScopeUserFilter(qw);
         if (StringUtils.hasText(query.getKeyword())) {
             String kw = query.getKeyword().trim();
             qw.and((QueryWrapper w) -> {
@@ -95,8 +114,9 @@ public class AdminUserServiceImpl implements AdminUserService {
     }
 
     @Override
+    @DataScope
     public AdminUserDetailVO detail(Long id) {
-        SysUser user = requireUser(id);
+        SysUser user = requireUserInScope(id);
         return AdminUserDetailVO.builder()
                 .id(user.getId())
                 .username(user.getUsername())
@@ -178,8 +198,39 @@ public class AdminUserServiceImpl implements AdminUserService {
     }
 
     @Override
+    @Transactional
+    public AdminUserResetPasswordVO resetPassword(Long id, AdminUserResetPasswordDTO dto, Long operatorId) {
+        assertCanModifyTarget(id, operatorId, true);
+        SysUser user = requireUser(id);
+
+        boolean generated = dto == null || !StringUtils.hasText(dto.getNewPassword());
+        String plain = generated ? generateTemporaryPassword() : dto.getNewPassword().trim();
+        passwordPolicyService.validate(plain);
+
+        user.setPassword(PasswordEncoderHolder.encode(plain));
+        user.setUpdateBy(operatorId);
+        user.setUpdateTime(new Date());
+        sysUserMapper.update(user);
+
+        Long userIdToRevoke = user.getId();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                tokenService.revokeAllUserTokens(userIdToRevoke);
+                deviceSessionService.deleteAllByUser(userIdToRevoke);
+            }
+        });
+
+        return AdminUserResetPasswordVO.builder()
+                .generated(generated)
+                .temporaryPassword(generated ? plain : null)
+                .build();
+    }
+
+    @Override
+    @DataScope
     public List<DeviceVO> devices(Long id) {
-        requireUser(id);
+        requireUserInScope(id);
         Set<String> onlineDevices = presenceService.onlineDeviceIds(id);
         return deviceSessionService.listByUser(id, null).stream()
                 .peek(device -> device.setOnline(device.getId() != null && onlineDevices.contains(device.getId())))
@@ -187,8 +238,9 @@ public class AdminUserServiceImpl implements AdminUserService {
     }
 
     @Override
+    @DataScope
     public PageResultVO<AdminLoginLogVO> logins(Long id, AdminPageQueryDTO query) {
-        requireUser(id);
+        requireUserInScope(id);
         int page = normalizePage(query == null ? null : query.getPage());
         int size = normalizeSize(query == null ? null : query.getSize());
         QueryWrapper qw = QueryWrapper.create().where(SysLoginAudit::getUserId).eq(id);
@@ -219,6 +271,27 @@ public class AdminUserServiceImpl implements AdminUserService {
         return PageResultVO.of(items, page, size, total);
     }
 
+    private String generateTemporaryPassword() {
+        int minLen = Math.max(10, linkxProperties.getAuth().getPasswordMinLength());
+        int len = Math.min(16, Math.max(minLen, linkxProperties.getAuth().getPasswordMaxLength()));
+        char[] chars = new char[len];
+        // 保证至少各类字符各一，满足常见策略
+        chars[0] = "ABCDEFGHJKLMNPQRSTUVWXYZ".charAt(SECURE_RANDOM.nextInt(23));
+        chars[1] = "abcdefghijkmnopqrstuvwxyz".charAt(SECURE_RANDOM.nextInt(23));
+        chars[2] = "23456789".charAt(SECURE_RANDOM.nextInt(8));
+        chars[3] = "!@#$%^&*".charAt(SECURE_RANDOM.nextInt(8));
+        for (int i = 4; i < len; i++) {
+            chars[i] = PASSWORD_ALPHABET[SECURE_RANDOM.nextInt(PASSWORD_ALPHABET.length)];
+        }
+        for (int i = len - 1; i > 0; i--) {
+            int j = SECURE_RANDOM.nextInt(i + 1);
+            char tmp = chars[i];
+            chars[i] = chars[j];
+            chars[j] = tmp;
+        }
+        return new String(chars);
+    }
+
     private void setStatus(Long id, int status, Long operatorId) {
         requireUser(id);
         // 人工启停清除自动封禁标记，避免到期误解封/误保留
@@ -246,6 +319,21 @@ public class AdminUserServiceImpl implements AdminUserService {
                 .build();
     }
 
+    private void applyDataScopeUserFilter(QueryWrapper qw) {
+        Long scopeUserId = DataScopeContext.getUserId();
+        if (scopeUserId != null) {
+            qw.and(SysUser::getId).eq(scopeUserId);
+        }
+    }
+
+    private SysUser requireUserInScope(Long id) {
+        Long scopeUserId = DataScopeContext.getUserId();
+        if (scopeUserId != null && !scopeUserId.equals(id)) {
+            throw new CustomException(404, "user not found");
+        }
+        return requireUser(id);
+    }
+
     private SysUser requireUser(Long id) {
         SysUser user = sysUserMapper.selectOneById(id);
         if (user == null) {
@@ -255,7 +343,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     }
 
     /**
-     * @param statusAction true 表示冻/封等状态变更（禁止自操作与操作管理员）；
+     * @param statusAction true 表示冻/封/重置密码等状态变更（禁止自操作与操作管理员）；
      *                     false 表示资料编辑（允许改自己，禁止改其他管理员）
      */
     private void assertCanModifyTarget(Long targetUserId, Long operatorId, boolean statusAction) {

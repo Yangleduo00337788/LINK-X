@@ -823,6 +823,7 @@ INSERT IGNORE INTO sys_permission (id, permission_code, permission_name, resourc
 (2103,'admin:user:view','查看用户详情','button',NULL,'用户详情',1),
 (2105,'admin:user:freeze','冻结用户','button',NULL,'冻结',1),
 (2107,'admin:user:ban','封禁用户','button',NULL,'封禁',1),
+(2173,'admin:user:reset-password','重置用户密码','button',NULL,'重置密码并吊销会话',1),
 (2121,'admin:audit:list','查看操作日志','page','/admin/audit-logs','操作日志',1),
 (2123,'admin:feedback:list','查看反馈列表','page','/admin/feedback','反馈管理',1),
 (2124,'admin:feedback:reply','回复反馈','button',NULL,'回复反馈',1),
@@ -849,7 +850,7 @@ INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, d
 -- audit: 用户处置 + 审核 + 风险 + 黑名单 + 设备 + 日志
 INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, deleted) VALUES
 (294101, 1004, 2101, NULL, 0),(294102, 1004, 2102, NULL, 0),(294103, 1004, 2103, NULL, 0),
-(294105, 1004, 2105, NULL, 0),(294107, 1004, 2107, NULL, 0),
+(294105, 1004, 2105, NULL, 0),(294107, 1004, 2107, NULL, 0),(294173, 1004, 2173, NULL, 0),
 (294121, 1004, 2121, NULL, 0),(294129, 1004, 2129, NULL, 0),(294130, 1004, 2130, NULL, 0),
 (294146, 1004, 2146, NULL, 0),(294148, 1004, 2148, NULL, 0),
 (294149, 1004, 2149, NULL, 0),(294171, 1004, 2171, NULL, 0),(294172, 1004, 2172, NULL, 0);
@@ -857,7 +858,7 @@ INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, d
 -- security: 日志/风险/黑名单/设备/用户处置
 INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, deleted) VALUES
 (295101, 1005, 2101, NULL, 0),(295102, 1005, 2102, NULL, 0),(295103, 1005, 2103, NULL, 0),
-(295105, 1005, 2105, NULL, 0),(295107, 1005, 2107, NULL, 0),
+(295105, 1005, 2105, NULL, 0),(295107, 1005, 2107, NULL, 0),(295173, 1005, 2173, NULL, 0),
 (295121, 1005, 2121, NULL, 0),(295146, 1005, 2146, NULL, 0),(295148, 1005, 2148, NULL, 0),
 (295149, 1005, 2149, NULL, 0),(295171, 1005, 2171, NULL, 0),(295172, 1005, 2172, NULL, 0);
 

@@ -140,8 +140,11 @@ class JwtSecretValidator {
             throw new IllegalStateException("CORS_ALLOWED_ORIGINS 不允许使用 *，请配置明确的 Origin 白名单");
         }
 
-        if (linkxProperties.getSecurity().isRequireHttps() && allowedOrigins.stream().anyMatch(origin -> origin.startsWith("http://"))) {
-            log.warn("[安全警告] require-https 已开启，但 allowed-origins 中仍包含 http:// Origin");
+        if (linkxProperties.getSecurity().isRequireHttps()
+                && allowedOrigins.stream().anyMatch(origin -> origin != null && origin.trim().startsWith("http://"))) {
+            log.error("[安全错误] require-https 已开启，但 CORS_ALLOWED_ORIGINS 仍包含 http:// Origin");
+            throw new IllegalStateException(
+                    "REQUIRE_HTTPS=true 时 CORS_ALLOWED_ORIGINS 不允许包含 http:// Origin，请改为 https://");
         }
 
         // -1：测试环境跳过绑定；0 非法；正端口为正式监听
