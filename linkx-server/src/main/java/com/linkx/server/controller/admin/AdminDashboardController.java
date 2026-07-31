@@ -23,7 +23,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/admin/dashboard")
 @RequiredArgsConstructor
-@RequireRole({"admin", "super_admin"})
+@RequireRole({"admin", "super_admin", "ops_admin", "audit_admin"})
 public class AdminDashboardController {
 
     private final AdminDashboardService adminDashboardService;

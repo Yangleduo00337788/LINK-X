@@ -27,7 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/admin/notices")
 @RequiredArgsConstructor
-@RequireRole({"admin", "super_admin"})
+@RequireRole({"admin", "super_admin", "ops_admin", "audit_admin"})
 public class AdminNoticeController {
 
     private final AdminNoticeService adminNoticeService;

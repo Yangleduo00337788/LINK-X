@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/admin/users")
 @RequiredArgsConstructor
-@RequireRole({"admin", "super_admin"})
+@RequireRole({"admin", "super_admin", "ops_admin", "audit_admin"})
 public class AdminUserController {
 
     private final AdminUserService adminUserService;

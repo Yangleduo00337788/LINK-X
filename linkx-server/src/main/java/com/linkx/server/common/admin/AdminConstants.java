@@ -8,8 +8,11 @@ public final class AdminConstants {
     private AdminConstants() {
     }
 
-    /** 可登录管理端的角色 */
-    public static final String[] ADMIN_ROLES = {"admin", "super_admin"};
+    /** 可登录管理端的角色（超管 / 运营 / 审核） */
+    public static final String[] ADMIN_ROLES = {"admin", "super_admin", "ops_admin", "audit_admin"};
+
+    public static final String ROLE_OPS_ADMIN = "ops_admin";
+    public static final String ROLE_AUDIT_ADMIN = "audit_admin";
 
     public static final int DEFAULT_PAGE = 1;
     public static final int DEFAULT_SIZE = 20;

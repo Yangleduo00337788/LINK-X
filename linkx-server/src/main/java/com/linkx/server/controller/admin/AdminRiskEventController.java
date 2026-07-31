@@ -32,7 +32,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/admin/risk-events")
 @RequiredArgsConstructor
-@RequireRole({"admin", "super_admin"})
+@RequireRole({"admin", "super_admin", "ops_admin", "audit_admin"})
 public class AdminRiskEventController {
 
     private final AdminRiskEventService adminRiskEventService;

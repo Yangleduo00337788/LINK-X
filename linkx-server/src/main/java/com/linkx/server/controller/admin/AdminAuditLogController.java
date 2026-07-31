@@ -25,7 +25,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/admin/audit-logs")
 @RequiredArgsConstructor
-@RequireRole({"admin", "super_admin"})
+@RequireRole({"admin", "super_admin", "ops_admin", "audit_admin"})
 public class AdminAuditLogController {
 
     private final AdminAuditLogService adminAuditLogService;

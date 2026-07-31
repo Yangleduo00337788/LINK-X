@@ -33,7 +33,7 @@ import java.util.List;
 @Tag(name = "${openapi.tag.rbac}")
 @RequestMapping("/rbac")
 @RequiredArgsConstructor
-@RequireRole(RbacConstants.ROLE_ADMIN)
+@RequireRole({RbacConstants.ROLE_ADMIN, RbacConstants.ROLE_SUPER_ADMIN})
 public class RbacController {
 
     private final RbacService rbacService;

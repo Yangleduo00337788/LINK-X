@@ -28,7 +28,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/admin/menus")
 @RequiredArgsConstructor
-@RequireRole({"admin", "super_admin"})
+@RequireRole({"admin", "super_admin", "ops_admin", "audit_admin"})
 public class AdminMenuController {
 
     private final AdminMenuService adminMenuService;
