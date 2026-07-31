@@ -73,6 +73,28 @@ public class ImChannelManager {
         return group != null && !group.isEmpty();
     }
 
+    /** 本机当前在线用户 ID 快照 */
+    public java.util.Set<Long> localOnlineUserIds() {
+        return java.util.Set.copyOf(userChannels.keySet());
+    }
+
+    /** 向本机全部在线连接投递同一帧 */
+    public void deliverToAllLocal(String json) {
+        if (json == null || json.isBlank()) {
+            return;
+        }
+        for (ChannelGroup group : userChannels.values()) {
+            if (group == null || group.isEmpty()) {
+                continue;
+            }
+            for (Channel channel : group) {
+                if (channel.isActive()) {
+                    channel.writeAndFlush(new TextWebSocketFrame(json));
+                }
+            }
+        }
+    }
+
     /**
      * 强制断开指定设备的 WebSocket：先推送 force_logout，再关闭通道。
      *

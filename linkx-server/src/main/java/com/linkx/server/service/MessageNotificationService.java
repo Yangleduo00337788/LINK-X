@@ -59,4 +59,19 @@ public interface MessageNotificationService {
      * 创建通知
      */
     void create(Long userId, Long senderId, String senderName, String senderAvatar, String type, Long relatedId, String content);
+
+    /**
+     * 批量为多用户创建同一条通知（系统公告广播等）。
+     *
+     * @return 实际插入条数
+     */
+    int createForUsers(List<Long> userIds, Long senderId, String senderName, String senderAvatar,
+                       String type, Long relatedId, String content);
+
+    /**
+     * 按类型与关联 ID 批量撤回通知（公告下线等）。
+     *
+     * @return 删除条数
+     */
+    int deleteByTypeAndRelatedId(String type, Long relatedId);
 }

@@ -105,9 +105,17 @@ public class ImClusterPushSubscriber {
         if (origin == null || origin.isBlank() || presenceService.getInstanceId().equals(origin)) {
             return;
         }
-        Long userId = parseUserId(stringField(fields, "userId"));
+        String userIdRaw = stringField(fields, "userId");
         String frame = stringField(fields, "frame");
-        if (userId == null || frame == null || frame.isBlank()) {
+        if (frame == null || frame.isBlank()) {
+            return;
+        }
+        if ("*".equals(userIdRaw)) {
+            pushService.deliverLocalBroadcast(frame);
+            return;
+        }
+        Long userId = parseUserId(userIdRaw);
+        if (userId == null) {
             return;
         }
         pushService.deliverLocal(userId, frame);

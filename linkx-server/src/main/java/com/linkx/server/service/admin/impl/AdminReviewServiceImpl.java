@@ -13,10 +13,10 @@ import com.linkx.server.mapper.FeedbackMapper;
 import com.linkx.server.mapper.admin.SysReviewTaskMapper;
 import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.MessageNotificationService;
+import com.linkx.server.service.admin.AdminEventPublisher;
 import com.linkx.server.service.admin.AdminReviewService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -35,8 +35,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AdminReviewServiceImpl implements AdminReviewService {
 
-    public static final String ADMIN_EVENTS_CHANNEL = "linkx:admin:events";
-
     private static final String OFFICIAL_SENDER = "LinkX\u5B98\u65B9";
     private static final Pattern REPORT_PREFIX = Pattern.compile("^\\[举报([^\\]]*)\\]");
     private static final Pattern GROUP_ID_LINE = Pattern.compile("(?m)^群ID:\\s*(.+)$");
@@ -50,7 +48,7 @@ public class AdminReviewServiceImpl implements AdminReviewService {
     private final FeedbackMapper feedbackMapper;
     private final MessageNotificationService notificationService;
     private final ImMessagePushService imPushService;
-    private final StringRedisTemplate redisTemplate;
+    private final AdminEventPublisher adminEventPublisher;
     private final MediaUrlService mediaUrlService;
 
     @Override
@@ -225,14 +223,7 @@ public class AdminReviewServiceImpl implements AdminReviewService {
     }
 
     private void publishAdminEvent(String type, Long reviewId) {
-        try {
-            String payload = "{\"type\":\"" + type + "\",\"reviewId\":\""
-                    + (reviewId != null ? reviewId : "") + "\",\"ts\":"
-                    + System.currentTimeMillis() + "}";
-            redisTemplate.convertAndSend(ADMIN_EVENTS_CHANNEL, payload);
-        } catch (Exception ignored) {
-            // 管理端轮询兜底，推送失败不阻断主流程
-        }
+        adminEventPublisher.publish(type, reviewId);
     }
 
     private SysReviewTask buildFromFeedback(Feedback feedback) {

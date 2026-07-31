@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -156,6 +157,69 @@ public class MessageNotificationServiceImpl implements MessageNotificationServic
         notificationMapper.insert(notification);
     }
 
+    @Override
+    @Transactional
+    public int createForUsers(List<Long> userIds, Long senderId, String senderName, String senderAvatar,
+                              String type, Long relatedId, String content) {
+        if (userIds == null || userIds.isEmpty()) {
+            return 0;
+        }
+        String name = senderName;
+        String avatar = senderAvatar;
+        if (senderId != null) {
+            SysUser sender = sysUserMapper.selectOneById(senderId);
+            if (sender != null) {
+                name = sender.getNickname() != null ? sender.getNickname() : sender.getUsername();
+                avatar = sender.getAvatar();
+            }
+        }
+        final String finalName = name;
+        final String finalAvatar = avatar;
+        int total = 0;
+        final int batchSize = 200;
+        for (int i = 0; i < userIds.size(); i += batchSize) {
+            List<Long> chunk = userIds.subList(i, Math.min(i + batchSize, userIds.size()));
+            List<MessageNotification> rows = chunk.stream()
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .map(uid -> MessageNotification.builder()
+                            .userId(uid)
+                            .senderId(senderId)
+                            .senderName(finalName)
+                            .senderAvatar(finalAvatar)
+                            .type(type)
+                            .relatedId(relatedId)
+                            .content(content)
+                            .readStatus(0)
+                            .build())
+                    .collect(Collectors.toList());
+            if (rows.isEmpty()) {
+                continue;
+            }
+            notificationMapper.insertBatch(rows);
+            total += rows.size();
+        }
+        return total;
+    }
+
+    @Override
+    @Transactional
+    public int deleteByTypeAndRelatedId(String type, Long relatedId) {
+        if (!StringUtils.hasText(type) || relatedId == null) {
+            return 0;
+        }
+        QueryWrapper qw = QueryWrapper.create()
+                .eq("type", type.trim())
+                .eq("related_id", relatedId);
+        long count = notificationMapper.selectCountByQuery(qw);
+        if (count <= 0) {
+            return 0;
+        }
+        notificationMapper.deleteByQuery(qw);
+        log.info("按 type+relatedId 撤回通知: type={}, relatedId={}, count={}", type, relatedId, count);
+        return (int) Math.min(count, Integer.MAX_VALUE);
+    }
+
     private List<MessageNotificationVO> toVOList(List<MessageNotification> notifications) {
         if (notifications == null || notifications.isEmpty()) {
             return List.of();
@@ -215,7 +279,8 @@ public class MessageNotificationServiceImpl implements MessageNotificationServic
         if (type.startsWith("moments_")) {
             return "moments";
         }
-        if ("calendar_remind".equals(type) || type.startsWith("system_") || type.startsWith("feedback_")) {
+        if ("calendar_remind".equals(type) || type.startsWith("system_") || type.startsWith("feedback_")
+                || type.startsWith("notice_") || type.startsWith("review_")) {
             return "system";
         }
         if (type.startsWith("friend_") || type.startsWith("group_")) {

@@ -461,6 +461,19 @@ public class ImMessagePushService {
     }
 
     /**
+     * 向本集群全部在线用户推送同一帧（系统公告等广播场景）。
+     * <p>仅投递在线连接；离线用户依赖 DB 通知在下次拉取时可见。</p>
+     */
+    public void pushToAllOnline(String action, Object data) {
+        String json = toJson(buildFrame(action, data));
+        if (json == null || json.isBlank()) {
+            return;
+        }
+        channelManager.deliverToAllLocal(json);
+        publishClusterBroadcast(json);
+    }
+
+    /**
      * 仅本机投递（供 presence / 集群订阅回调使用，避免二次广播）。
      */
     public void pushToUserLocal(Long userId, String action, Object data) {
@@ -486,6 +499,11 @@ public class ImMessagePushService {
                 channel.writeAndFlush(new TextWebSocketFrame(json));
             }
         }
+    }
+
+    /** 本机全部在线连接投递（集群广播回调）。 */
+    public void deliverLocalBroadcast(String json) {
+        channelManager.deliverToAllLocal(json);
     }
 
     /**
@@ -514,6 +532,22 @@ public class ImMessagePushService {
             redisTemplate.opsForStream().trim(CLUSTER_PUSH_STREAM, CLUSTER_PUSH_STREAM_MAXLEN, true);
         } catch (Exception e) {
             log.warn("发布跨实例 IM 推送失败: userId={}, err={}", userId, e.getMessage());
+        }
+    }
+
+    /** userId=* 表示全员广播，他机对本机全部在线连接投递 */
+    private void publishClusterBroadcast(String json) {
+        try {
+            Map<String, String> payload = new HashMap<>(4);
+            payload.put("userId", "*");
+            payload.put("frame", json);
+            payload.put("origin", presenceService.getInstanceId());
+            redisTemplate.opsForStream().add(
+                    org.springframework.data.redis.connection.stream.MapRecord.create(
+                            CLUSTER_PUSH_STREAM, payload));
+            redisTemplate.opsForStream().trim(CLUSTER_PUSH_STREAM, CLUSTER_PUSH_STREAM_MAXLEN, true);
+        } catch (Exception e) {
+            log.warn("发布跨实例 IM 广播失败: err={}", e.getMessage());
         }
     }
 
