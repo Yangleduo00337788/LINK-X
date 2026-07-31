@@ -19,4 +19,7 @@ public class AdminUserProfileVO {
     private String email;
     private List<String> roles;
     private Set<String> permissions;
+
+    @Schema(description = "是否已启用管理端 TOTP")
+    private Boolean totpEnabled;
 }

@@ -58,6 +58,9 @@ public class AdminSettingVO {
         private Integer maxAttempts;
         @Schema(description = "自动封禁时长（分钟）")
         private Integer lockDurationMinutes;
+
+        @Schema(description = "是否强制开启 TOTP 2FA（仅管理端）")
+        private Boolean totpRequired;
     }
 
     @Data

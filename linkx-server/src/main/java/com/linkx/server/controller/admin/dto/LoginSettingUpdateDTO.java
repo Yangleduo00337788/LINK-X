@@ -39,5 +39,8 @@ public class LoginSettingUpdateDTO {
         @Max(24 * 60)
         @Schema(description = "自动封禁时长（分钟），到期自动解封")
         private Integer lockDurationMinutes;
+
+        @Schema(description = "是否强制开启 TOTP 2FA（仅管理端侧生效）")
+        private Boolean totpRequired;
     }
 }

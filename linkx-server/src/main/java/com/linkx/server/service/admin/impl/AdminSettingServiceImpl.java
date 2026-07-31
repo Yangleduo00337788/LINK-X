@@ -67,6 +67,7 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                                 .captchaEnabled(auth.isAdminCaptchaEnabled())
                                 .maxAttempts(auth.getAdminLoginMaxAttempts())
                                 .lockDurationMinutes(auth.getAdminLockDurationMinutes())
+                                .totpRequired(auth.isAdminTotpRequired())
                                 .build())
                         .build())
                 .password(AdminSettingVO.PasswordSide.builder()
@@ -180,6 +181,7 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         row.setAdminCaptchaEnabled(Boolean.TRUE.equals(admin.getCaptchaEnabled()));
         row.setAdminLoginMaxAttempts(admin.getMaxAttempts());
         row.setAdminLockDurationMinutes(admin.getLockDurationMinutes());
+        row.setAdminTotpRequired(Boolean.TRUE.equals(admin.getTotpRequired()));
         row.setUpdateBy(operatorId);
         persist(row);
         applyLoginSide(row);
@@ -282,6 +284,7 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                 .adminCaptchaEnabled(auth.isAdminCaptchaEnabled())
                 .adminLoginMaxAttempts(auth.getAdminLoginMaxAttempts())
                 .adminLockDurationMinutes(auth.getAdminLockDurationMinutes())
+                .adminTotpRequired(auth.isAdminTotpRequired())
                 .clientCaptchaEnabled(auth.isCaptchaEnabled())
                 .clientRegisterEnabled(auth.isRegisterEnabled())
                 .clientForgotPasswordEmailEnabled(auth.isForgotPasswordEmailEnabled())
@@ -438,9 +441,13 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         if (row.getAdminLockDurationMinutes() != null) {
             auth.setAdminLockDurationMinutes(row.getAdminLockDurationMinutes());
         }
-        log.info("Applied login settings: client(captcha={}, maxAttempts={}, lockMin={}), admin(captcha={}, maxAttempts={}, lockMin={})",
+        if (row.getAdminTotpRequired() != null) {
+            auth.setAdminTotpRequired(row.getAdminTotpRequired());
+        }
+        log.info("Applied login settings: client(captcha={}, maxAttempts={}, lockMin={}), admin(captcha={}, maxAttempts={}, lockMin={}, totpRequired={})",
                 auth.isCaptchaEnabled(), auth.getLoginMaxAttempts(), auth.getLockDurationMinutes(),
-                auth.isAdminCaptchaEnabled(), auth.getAdminLoginMaxAttempts(), auth.getAdminLockDurationMinutes());
+                auth.isAdminCaptchaEnabled(), auth.getAdminLoginMaxAttempts(), auth.getAdminLockDurationMinutes(),
+                auth.isAdminTotpRequired());
     }
 
     private void applyPasswordSide(SysRuntimeSetting row) {

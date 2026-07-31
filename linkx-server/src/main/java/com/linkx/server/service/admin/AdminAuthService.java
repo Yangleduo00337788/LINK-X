@@ -4,8 +4,13 @@ import com.linkx.server.controller.admin.dto.AdminLoginDTO;
 import com.linkx.server.controller.admin.dto.AdminLogoutDTO;
 import com.linkx.server.controller.admin.dto.AdminProfileUpdateDTO;
 import com.linkx.server.controller.admin.dto.AdminRefreshDTO;
+import com.linkx.server.controller.admin.dto.AdminTotpChallengeDTO;
+import com.linkx.server.controller.admin.dto.AdminTotpConfirmDTO;
+import com.linkx.server.controller.admin.dto.AdminTotpDisableDTO;
+import com.linkx.server.controller.admin.dto.AdminTotpLoginDTO;
 import com.linkx.server.controller.admin.vo.AdminLoginVO;
 import com.linkx.server.controller.admin.vo.AdminMenuTreeVO;
+import com.linkx.server.controller.admin.vo.AdminTotpSetupVO;
 import com.linkx.server.controller.admin.vo.AdminUserProfileVO;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -16,6 +21,17 @@ import java.util.Set;
 public interface AdminAuthService {
 
     AdminLoginVO login(AdminLoginDTO dto, HttpServletRequest request, HttpServletResponse response);
+
+    AdminLoginVO verifyTotpLogin(AdminTotpLoginDTO dto, HttpServletRequest request, HttpServletResponse response);
+
+    AdminTotpSetupVO beginTotpSetup(Long userId);
+
+    AdminTotpSetupVO beginTotpSetupWithChallenge(AdminTotpChallengeDTO dto);
+
+    AdminLoginVO confirmTotp(Long userId, AdminTotpConfirmDTO dto,
+                             HttpServletRequest request, HttpServletResponse response);
+
+    AdminUserProfileVO disableTotp(Long userId, AdminTotpDisableDTO dto);
 
     AdminUserProfileVO me(Long userId);
 

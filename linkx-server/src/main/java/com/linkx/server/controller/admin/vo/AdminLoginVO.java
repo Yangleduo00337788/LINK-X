@@ -16,4 +16,16 @@ public class AdminLoginVO {
     private String refreshToken;
     private Long expiresIn;
     private AdminUserProfileVO user;
+
+    @Schema(description = "是否需要 TOTP 二次验证")
+    private Boolean requiresTotp;
+
+    @Schema(description = "是否需要先绑定 TOTP（强制策略）")
+    private Boolean requiresTotpSetup;
+
+    @Schema(description = "登录挑战令牌（二次验证 / 强制绑定时返回）")
+    private String challengeToken;
+
+    @Schema(description = "挑战令牌有效期（秒）")
+    private Long challengeExpiresIn;
 }

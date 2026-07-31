@@ -15,6 +15,8 @@ public class AuthConfigVO {
     private boolean registerEnabled;
     /** 忘记密码邮箱验证是否启用 */
     private boolean forgotPasswordEmailEnabled;
+    /** 管理端是否强制要求 TOTP */
+    private boolean totpRequired;
     /** 密码策略（管理端 / 客户端共用） */
     private PasswordPolicy passwordPolicy;
 

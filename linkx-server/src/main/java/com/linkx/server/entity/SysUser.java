@@ -107,6 +107,15 @@ public class SysUser implements Serializable {
     // 手机号，用于账号安全绑定
     private String phone;
 
+    /** 管理端 TOTP 是否已启用 */
+    private Integer totpEnabled;
+
+    /** TOTP Base32 密钥 */
+    private String totpSecret;
+
+    /** TOTP 首次确认时间 */
+    private Date totpConfirmedAt;
+
     // 用户角色编码列表（非持久化，仅用于 VO 展示，由 RbacService 填充）
     @Column(ignore = true)
     private java.util.List<String> roleCodes;

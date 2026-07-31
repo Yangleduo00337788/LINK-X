@@ -102,6 +102,8 @@ public class LinkxProperties {
         private int lockDurationMinutes = 10;
         /** 管理端自动封禁时长（分钟），默认 10 */
         private int adminLockDurationMinutes = 10;
+        /** 管理端是否强制要求开启 TOTP 2FA */
+        private boolean adminTotpRequired = false;
         /** 密码最小长度（管理端/客户端共用） */
         private int passwordMinLength = 8;
         /** 密码最大长度 */

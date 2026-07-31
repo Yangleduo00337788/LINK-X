@@ -3,15 +3,22 @@ package com.linkx.server.service.admin.impl;
 import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.common.InputSanitizer;
 import com.linkx.server.common.LoginSide;
+import com.linkx.server.common.PasswordEncoderHolder;
 import com.linkx.server.common.TokenCookieUtil;
 import com.linkx.server.common.admin.AdminConstants;
+import com.linkx.server.common.security.TotpUtils;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.controller.admin.dto.AdminLoginDTO;
 import com.linkx.server.controller.admin.dto.AdminLogoutDTO;
 import com.linkx.server.controller.admin.dto.AdminProfileUpdateDTO;
 import com.linkx.server.controller.admin.dto.AdminRefreshDTO;
+import com.linkx.server.controller.admin.dto.AdminTotpChallengeDTO;
+import com.linkx.server.controller.admin.dto.AdminTotpConfirmDTO;
+import com.linkx.server.controller.admin.dto.AdminTotpDisableDTO;
+import com.linkx.server.controller.admin.dto.AdminTotpLoginDTO;
 import com.linkx.server.controller.admin.vo.AdminLoginVO;
 import com.linkx.server.controller.admin.vo.AdminMenuTreeVO;
+import com.linkx.server.controller.admin.vo.AdminTotpSetupVO;
 import com.linkx.server.controller.admin.vo.AdminUserProfileVO;
 import com.linkx.server.controller.dto.LoginDTO;
 import com.linkx.server.controller.vo.TokenVO;
@@ -27,21 +34,31 @@ import com.linkx.server.service.TokenService;
 import com.linkx.server.service.admin.AdminAuthService;
 import com.linkx.server.service.admin.AdminMenuService;
 import com.mybatisflex.core.query.QueryWrapper;
+import com.mybatisflex.core.update.UpdateChain;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.Duration;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class AdminAuthServiceImpl implements AdminAuthService {
+
+    private static final String CHALLENGE_KEY = "linkx:admin:totp:challenge:";
+    private static final String SETUP_KEY = "linkx:admin:totp:setup:";
+    private static final Duration CHALLENGE_TTL = Duration.ofMinutes(5);
+    private static final Duration SETUP_TTL = Duration.ofMinutes(10);
+    private static final String ISSUER = "LinkX Admin";
 
     private final SysUserService sysUserService;
     private final SysUserMapper sysUserMapper;
@@ -53,6 +70,7 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     private final LinkxProperties linkxProperties;
     private final LoginAuditService loginAuditService;
     private final MediaUrlService mediaUrlService;
+    private final StringRedisTemplate redisTemplate;
 
     @Override
     public AdminLoginVO login(AdminLoginDTO dto, HttpServletRequest request, HttpServletResponse response) {
@@ -76,7 +94,6 @@ public class AdminAuthServiceImpl implements AdminAuthService {
         String ip = ClientIpResolver.resolve(request, linkxProperties);
         String userAgent = request.getHeader("User-Agent");
 
-        // 先校验凭证，通过管理员角色后再签发令牌，避免非管理员探测管理端仍获得会话
         SysUser user = sysUserService.verifyCredentials(loginDTO, ip, userAgent, request, LoginSide.ADMIN);
         try {
             assertAdminRole(user.getId());
@@ -85,17 +102,135 @@ public class AdminAuthServiceImpl implements AdminAuthService {
             throw e;
         }
 
+        if (isTotpEnabled(user)) {
+            return challengeResponse(user.getId(), true, false);
+        }
+        if (linkxProperties.getAuth().isAdminTotpRequired()) {
+            return challengeResponse(user.getId(), false, true);
+        }
+
         TokenVO tokenVO = sysUserService.establishSession(user, ip, userAgent, request);
         setTokenCookies(response, tokenVO, request);
         return toLoginVO(tokenVO, user.getId());
     }
 
     @Override
-    public AdminUserProfileVO me(Long userId) {
-        SysUser user = sysUserMapper.selectOneById(userId);
-        if (user == null) {
-            throw new CustomException(404, "用户不存在");
+    public AdminLoginVO verifyTotpLogin(AdminTotpLoginDTO dto, HttpServletRequest request, HttpServletResponse response) {
+        Long userId = peekChallenge(dto.getChallengeToken(), false);
+        SysUser user = requireUser(userId);
+        if (!isTotpEnabled(user) || !StringUtils.hasText(user.getTotpSecret())) {
+            throw new CustomException(400, "该账号未启用双因素认证");
         }
+        if (!TotpUtils.verify(user.getTotpSecret(), dto.getCode())) {
+            failTotp(user, request);
+            throw new CustomException(400, "验证码错误");
+        }
+        redisTemplate.delete(CHALLENGE_KEY + dto.getChallengeToken().trim());
+        return issueSession(user, request, response);
+    }
+
+    @Override
+    public AdminTotpSetupVO beginTotpSetup(Long userId) {
+        assertAdminRole(userId);
+        SysUser user = requireUser(userId);
+        if (isTotpEnabled(user)) {
+            throw new CustomException(400, "双因素认证已启用，请先关闭后再重新绑定");
+        }
+        return storePendingSecret(user);
+    }
+
+    @Override
+    public AdminTotpSetupVO beginTotpSetupWithChallenge(AdminTotpChallengeDTO dto) {
+        Long userId = peekChallenge(dto.getChallengeToken(), true);
+        SysUser user = requireUser(userId);
+        if (isTotpEnabled(user)) {
+            throw new CustomException(400, "双因素认证已启用");
+        }
+        return storePendingSecret(user);
+    }
+
+    @Override
+    @Transactional
+    public AdminLoginVO confirmTotp(Long userId, AdminTotpConfirmDTO dto,
+                                    HttpServletRequest request, HttpServletResponse response) {
+        boolean challengeFlow = StringUtils.hasText(dto.getChallengeToken());
+        Long effectiveUserId = userId;
+        if (challengeFlow) {
+            effectiveUserId = peekChallenge(dto.getChallengeToken(), true);
+        } else {
+            if (userId == null) {
+                throw new CustomException(400, "缺少挑战令牌");
+            }
+            assertAdminRole(userId);
+        }
+
+        SysUser user = requireUser(effectiveUserId);
+        String pending = redisTemplate.opsForValue().get(SETUP_KEY + effectiveUserId);
+        if (!StringUtils.hasText(pending)) {
+            throw new CustomException(400, "绑定已过期，请重新开始");
+        }
+        if (!TotpUtils.verify(pending, dto.getCode())) {
+            if (challengeFlow) {
+                failTotp(user, request);
+            }
+            throw new CustomException(400, "验证码错误");
+        }
+
+        Date now = new Date();
+        user.setTotpSecret(pending);
+        user.setTotpEnabled(1);
+        user.setTotpConfirmedAt(now);
+        user.setUpdateBy(effectiveUserId);
+        user.setUpdateTime(now);
+        sysUserMapper.update(user);
+        redisTemplate.delete(SETUP_KEY + effectiveUserId);
+        if (challengeFlow) {
+            redisTemplate.delete(CHALLENGE_KEY + dto.getChallengeToken().trim());
+            return issueSession(user, request, response);
+        }
+        return AdminLoginVO.builder()
+                .user(buildProfile(sysUserMapper.selectOneById(effectiveUserId)))
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public AdminUserProfileVO disableTotp(Long userId, AdminTotpDisableDTO dto) {
+        assertAdminRole(userId);
+        SysUser user = requireUser(userId);
+        if (!isTotpEnabled(user)) {
+            throw new CustomException(400, "双因素认证未启用");
+        }
+        if (linkxProperties.getAuth().isAdminTotpRequired()) {
+            throw new CustomException(400, "系统已强制开启双因素认证，无法关闭");
+        }
+        if (!PasswordEncoderHolder.matches(dto.getPassword(), user.getPassword())) {
+            throw new CustomException(400, "密码错误");
+        }
+        if (!TotpUtils.verify(user.getTotpSecret(), dto.getCode())) {
+            throw new CustomException(400, "验证码错误");
+        }
+        user.setTotpEnabled(0);
+        user.setTotpSecret(null);
+        user.setTotpConfirmedAt(null);
+        user.setUpdateBy(userId);
+        user.setUpdateTime(new Date());
+        // 普通 update 会忽略 null，密钥必须显式清空
+        UpdateChain.of(SysUser.class)
+                .set(SysUser::getTotpEnabled, 0)
+                .set(SysUser::getTotpSecret, (String) null)
+                .set(SysUser::getTotpConfirmedAt, (Date) null)
+                .set(SysUser::getUpdateBy, userId)
+                .set(SysUser::getUpdateTime, new Date())
+                .where(SysUser::getId).eq(userId)
+                .update();
+        redisTemplate.delete(SETUP_KEY + userId);
+        return buildProfile(sysUserMapper.selectOneById(userId));
+    }
+
+    @Override
+    public AdminUserProfileVO me(Long userId) {
+        SysUser user = requireUser(userId);
         assertAdminRole(userId);
         return buildProfile(user);
     }
@@ -104,10 +239,7 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     @Transactional
     public AdminUserProfileVO updateProfile(Long userId, AdminProfileUpdateDTO dto) {
         assertAdminRole(userId);
-        SysUser user = sysUserMapper.selectOneById(userId);
-        if (user == null) {
-            throw new CustomException(404, "用户不存在");
-        }
+        SysUser user = requireUser(userId);
         if (dto.getNickname() != null) {
             String nickname = InputSanitizer.sanitizeText(dto.getNickname(), 64);
             if (!StringUtils.hasText(nickname)) {
@@ -195,6 +327,85 @@ public class AdminAuthServiceImpl implements AdminAuthService {
         }
     }
 
+    private AdminTotpSetupVO storePendingSecret(SysUser user) {
+        String secret = TotpUtils.generateSecret();
+        redisTemplate.opsForValue().set(SETUP_KEY + user.getId(), secret, SETUP_TTL);
+        return AdminTotpSetupVO.builder()
+                .secret(secret)
+                .otpauthUri(TotpUtils.otpAuthUri(ISSUER, user.getUsername(), secret))
+                .build();
+    }
+
+    private AdminLoginVO challengeResponse(Long userId, boolean requiresTotp, boolean requiresSetup) {
+        String token = UUID.randomUUID().toString().replace("-", "");
+        String payload = userId + "|" + (requiresSetup ? "setup" : "verify");
+        redisTemplate.opsForValue().set(CHALLENGE_KEY + token, payload, CHALLENGE_TTL);
+        return AdminLoginVO.builder()
+                .requiresTotp(requiresTotp)
+                .requiresTotpSetup(requiresSetup)
+                .challengeToken(token)
+                .challengeExpiresIn(CHALLENGE_TTL.toSeconds())
+                .build();
+    }
+
+    private Long peekChallenge(String challengeToken, boolean expectSetup) {
+        if (!StringUtils.hasText(challengeToken)) {
+            throw new CustomException(400, "缺少挑战令牌");
+        }
+        String payload = redisTemplate.opsForValue().get(CHALLENGE_KEY + challengeToken.trim());
+        return parseChallenge(payload, expectSetup);
+    }
+
+    private Long parseChallenge(String payload, boolean expectSetup) {
+        if (!StringUtils.hasText(payload)) {
+            throw new CustomException(400, "挑战令牌无效或已过期");
+        }
+        String[] parts = payload.split("\\|", 2);
+        if (parts.length != 2) {
+            throw new CustomException(400, "挑战令牌无效");
+        }
+        String mode = parts[1];
+        if (expectSetup && !"setup".equals(mode)) {
+            throw new CustomException(400, "当前挑战不支持绑定");
+        }
+        if (!expectSetup && !"verify".equals(mode)) {
+            throw new CustomException(400, "当前挑战不支持验证");
+        }
+        try {
+            return Long.parseLong(parts[0]);
+        } catch (NumberFormatException e) {
+            throw new CustomException(400, "挑战令牌无效");
+        }
+    }
+
+    private AdminLoginVO issueSession(SysUser user, HttpServletRequest request, HttpServletResponse response) {
+        String ip = ClientIpResolver.resolve(request, linkxProperties);
+        String userAgent = request.getHeader("User-Agent");
+        TokenVO tokenVO = sysUserService.establishSession(user, ip, userAgent, request);
+        setTokenCookies(response, tokenVO, request);
+        return toLoginVO(tokenVO, user.getId());
+    }
+
+    private void failTotp(SysUser user, HttpServletRequest request) {
+        try {
+            sysUserService.onLoginFailure(user.getUsername(), request, LoginSide.ADMIN);
+        } catch (CustomException lockEx) {
+            throw lockEx;
+        }
+    }
+
+    private boolean isTotpEnabled(SysUser user) {
+        return user != null && user.getTotpEnabled() != null && user.getTotpEnabled() == 1;
+    }
+
+    private SysUser requireUser(Long userId) {
+        SysUser user = sysUserMapper.selectOneById(userId);
+        if (user == null) {
+            throw new CustomException(404, "用户不存在");
+        }
+        return user;
+    }
+
     private AdminLoginVO toLoginVO(TokenVO tokenVO, Long userId) {
         SysUser user = sysUserMapper.selectOneById(userId);
         long expiresIn = linkxProperties.getJwt().getAccessExpire() / 1000;
@@ -203,6 +414,8 @@ public class AdminAuthServiceImpl implements AdminAuthService {
                 .refreshToken(tokenVO.getRefreshToken())
                 .expiresIn(expiresIn)
                 .user(buildProfile(user))
+                .requiresTotp(false)
+                .requiresTotpSetup(false)
                 .build();
     }
 
@@ -215,13 +428,10 @@ public class AdminAuthServiceImpl implements AdminAuthService {
                 .email(user.getEmail())
                 .roles(rbacService.getUserRoleCodes(user.getId()))
                 .permissions(new HashSet<>(rbacService.getUserPermissionCodes(user.getId())))
+                .totpEnabled(isTotpEnabled(user))
                 .build();
     }
 
-    /**
-     * 管理端头像走同源 /media/avatars/{id}，避免浏览器直连 MinIO 预签名地址失败（私有桶 / 跨端口）。
-     * 外链头像仍原样返回。
-     */
     private String toAdminAvatarUrl(SysUser user) {
         if (user == null || !StringUtils.hasText(user.getAvatar())) {
             return null;

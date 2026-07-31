@@ -35,6 +35,8 @@ public class SysRuntimeSetting implements Serializable {
     private Integer adminLoginMaxAttempts;
     /** 管理端自动封禁分钟数 */
     private Integer adminLockDurationMinutes;
+    /** 管理端是否强制开启 2FA */
+    private Boolean adminTotpRequired;
     /** 客户端登录/注册验证码 */
     private Boolean clientCaptchaEnabled;
     /** 客户端是否开放注册 */

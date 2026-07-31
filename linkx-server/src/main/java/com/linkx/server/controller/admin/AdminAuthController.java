@@ -8,8 +8,13 @@ import com.linkx.server.controller.admin.dto.AdminLoginDTO;
 import com.linkx.server.controller.admin.dto.AdminLogoutDTO;
 import com.linkx.server.controller.admin.dto.AdminProfileUpdateDTO;
 import com.linkx.server.controller.admin.dto.AdminRefreshDTO;
+import com.linkx.server.controller.admin.dto.AdminTotpChallengeDTO;
+import com.linkx.server.controller.admin.dto.AdminTotpConfirmDTO;
+import com.linkx.server.controller.admin.dto.AdminTotpDisableDTO;
+import com.linkx.server.controller.admin.dto.AdminTotpLoginDTO;
 import com.linkx.server.controller.admin.vo.AdminLoginVO;
 import com.linkx.server.controller.admin.vo.AdminMenuTreeVO;
+import com.linkx.server.controller.admin.vo.AdminTotpSetupVO;
 import com.linkx.server.controller.admin.vo.AdminUserProfileVO;
 import com.linkx.server.controller.vo.AuthConfigVO;
 import com.linkx.server.service.admin.AdminAuthService;
@@ -45,6 +50,7 @@ public class AdminAuthController {
         LinkxProperties.Auth auth = linkxProperties.getAuth();
         return Result.success(AuthConfigVO.builder()
                 .captchaEnabled(auth.isAdminCaptchaEnabled())
+                .totpRequired(auth.isAdminTotpRequired())
                 .passwordPolicy(AuthConfigVO.PasswordPolicy.builder()
                         .minLength(auth.getPasswordMinLength())
                         .maxLength(auth.getPasswordMaxLength())
@@ -62,6 +68,61 @@ public class AdminAuthController {
                                       HttpServletRequest request,
                                       HttpServletResponse response) {
         return Result.success(adminAuthService.login(dto, request, response));
+    }
+
+    @Operation(summary = "管理员 TOTP 二次验证登录")
+    @AuditAction(operationType = "LOGIN", description = "管理端 TOTP 登录")
+    @PostMapping("/login/totp")
+    public Result<AdminLoginVO> loginTotp(@Valid @RequestBody AdminTotpLoginDTO dto,
+                                          HttpServletRequest request,
+                                          HttpServletResponse response) {
+        return Result.success(adminAuthService.verifyTotpLogin(dto, request, response));
+    }
+
+    @Operation(summary = "登录挑战下开始绑定 TOTP")
+    @PostMapping("/totp/setup-challenge")
+    public Result<AdminTotpSetupVO> setupTotpChallenge(@Valid @RequestBody AdminTotpChallengeDTO dto) {
+        return Result.success(adminAuthService.beginTotpSetupWithChallenge(dto));
+    }
+
+    @Operation(summary = "登录挑战下确认绑定 TOTP 并签发会话")
+    @AuditAction(operationType = "UPDATE_PROFILE", description = "强制绑定管理端 TOTP")
+    @PostMapping("/totp/confirm-challenge")
+    public Result<AdminLoginVO> confirmTotpChallenge(@Valid @RequestBody AdminTotpConfirmDTO dto,
+                                                     HttpServletRequest request,
+                                                     HttpServletResponse response) {
+        return Result.success(adminAuthService.confirmTotp(null, dto, request, response));
+    }
+
+    @Operation(summary = "登录后开始绑定 TOTP")
+    @PostMapping("/totp/setup")
+    @RequireRole({"admin", "super_admin"})
+    public Result<AdminTotpSetupVO> setupTotp(HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        return Result.success(adminAuthService.beginTotpSetup(userId));
+    }
+
+    @Operation(summary = "确认启用 TOTP（已登录）")
+    @AuditAction(operationType = "UPDATE_PROFILE", description = "启用管理端 TOTP")
+    @PostMapping("/totp/confirm")
+    @RequireRole({"admin", "super_admin"})
+    public Result<AdminUserProfileVO> confirmTotp(@Valid @RequestBody AdminTotpConfirmDTO dto,
+                                                  HttpServletRequest request,
+                                                  HttpServletResponse response) {
+        Long userId = (Long) request.getAttribute("userId");
+        dto.setChallengeToken(null);
+        AdminLoginVO vo = adminAuthService.confirmTotp(userId, dto, request, response);
+        return Result.success(vo.getUser());
+    }
+
+    @Operation(summary = "关闭 TOTP")
+    @AuditAction(operationType = "UPDATE_PROFILE", description = "关闭管理端 TOTP")
+    @PostMapping("/totp/disable")
+    @RequireRole({"admin", "super_admin"})
+    public Result<AdminUserProfileVO> disableTotp(@Valid @RequestBody AdminTotpDisableDTO dto,
+                                                  HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        return Result.success(adminAuthService.disableTotp(userId, dto));
     }
 
     @Operation(summary = "获取当前管理员信息")
