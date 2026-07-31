@@ -1,4 +1,5 @@
 import { get } from './request'
+import type { TrendData } from './statistics'
 
 export interface DashboardSummary {
   totalUsers: number
@@ -9,6 +10,33 @@ export interface DashboardSummary {
   riskEvents: number
 }
 
+export interface DashboardRealtime {
+  onlineDevices: number
+  todayNewUsers: number
+  todayMessages: number
+  todayLogins: number
+  riskEvents24h: number
+}
+
+export interface PendingTask {
+  type: string
+  title: string
+  count: number
+  path: string
+}
+
 export function fetchDashboardSummary() {
   return get<DashboardSummary>('/admin/dashboard/summary')
+}
+
+export function fetchDashboardTrends(days = 14) {
+  return get<TrendData>('/admin/dashboard/trends', { days })
+}
+
+export function fetchDashboardRealtime() {
+  return get<DashboardRealtime>('/admin/dashboard/realtime')
+}
+
+export function fetchPendingTasks() {
+  return get<PendingTask[]>('/admin/dashboard/pending-tasks')
 }
