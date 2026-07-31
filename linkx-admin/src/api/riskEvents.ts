@@ -48,6 +48,24 @@ export function handleRiskEvent(
   })
 }
 
+export interface RiskBatchResult {
+  successCount: number
+  failCount: number
+  failures?: { id: string; reason?: string }[]
+}
+
+export function batchRiskEvents(
+  ids: Array<string | number>,
+  action: 'handled' | 'ignored',
+  resolution?: string,
+) {
+  return post<RiskBatchResult>('/admin/risk-events/batch', {
+    ids,
+    action,
+    resolution,
+  })
+}
+
 export function exportRiskEvents(params: RiskEventQuery) {
   return downloadFile('/admin/risk-events/export', params as Record<string, unknown>, 'risk-events.csv')
 }

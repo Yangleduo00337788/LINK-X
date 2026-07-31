@@ -16,6 +16,7 @@ import {
   type DataTableColumns,
 } from 'naive-ui'
 import {
+  batchRiskEvents,
   exportRiskEvents,
   handleRiskEvent,
   listRiskEvents,
@@ -32,6 +33,8 @@ const { t, locale } = useI18n()
 
 const loading = ref(false)
 const exporting = ref(false)
+const batchSaving = ref(false)
+const checkedKeys = ref<Array<string | number>>([])
 const items = ref<RiskEventItem[]>([])
 const total = ref(0)
 const query = reactive({ page: 1, size: 20, keyword: '', status: 'pending', eventType: '', riskLevel: '' })
@@ -109,6 +112,8 @@ function typeLabel(type?: string) {
   const map: Record<string, string> = {
     SENSITIVE_WORD_MATCH: t('risk.typeSensitive'),
     MESSAGE_STORM: t('risk.typeStorm'),
+    LOGIN_LOCK: t('risk.typeLoginLock'),
+    RATE_LIMIT: t('risk.typeRateLimit'),
   }
   return map[type || ''] || type || '-'
 }
@@ -116,6 +121,7 @@ function typeLabel(type?: string) {
 const columns = computed<DataTableColumns<RiskEventItem>>(() => {
   void locale.value
   return [
+    { type: 'selection', disabled: (row) => row.status !== 'pending' },
     { title: 'ID', key: 'id', width: 90 },
     {
       title: t('risk.eventType'),
@@ -268,6 +274,7 @@ async function load(opts?: { silent?: boolean; announceNew?: boolean }) {
 
 function search() {
   query.page = 1
+  checkedKeys.value = []
   load()
 }
 
@@ -284,6 +291,34 @@ async function doExport() {
   } finally {
     exporting.value = false
   }
+}
+
+function doBatch(action: 'handled' | 'ignored') {
+  if (checkedKeys.value.length === 0) {
+    message.warning(t('risk.batchEmpty'))
+    return
+  }
+  dialog.warning({
+    title: action === 'handled' ? t('risk.batchHandleTitle') : t('risk.batchIgnoreTitle'),
+    content: t('risk.batchConfirm', { n: checkedKeys.value.length }),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      batchSaving.value = true
+      try {
+        const result = await batchRiskEvents(checkedKeys.value, action)
+        checkedKeys.value = []
+        if (result.failCount > 0) {
+          message.warning(t('risk.batchPartial', { ok: result.successCount, fail: result.failCount }))
+        } else {
+          message.success(t('risk.batchSuccess', { n: result.successCount }))
+        }
+        await load()
+      } finally {
+        batchSaving.value = false
+      }
+    },
+  })
 }
 
 function onVisibilityChange() {
@@ -327,19 +362,42 @@ onUnmounted(() => {
           <NSelect v-model:value="query.riskLevel" :options="levelOptions" style="width: 130px" />
           <NButton type="primary" @click="search">{{ t('common.search') }}</NButton>
         </NSpace>
-        <NButton
-          v-if="auth.hasPermission('admin:risk-event:export')"
-          :loading="exporting"
-          @click="doExport"
-        >
-          {{ t('common.export') }}
-        </NButton>
+        <NSpace>
+          <NButton
+            v-if="auth.hasPermission('admin:risk-event:batch')"
+            type="primary"
+            secondary
+            :loading="batchSaving"
+            :disabled="checkedKeys.length === 0"
+            @click="doBatch('handled')"
+          >
+            {{ t('risk.batchHandle') }}
+          </NButton>
+          <NButton
+            v-if="auth.hasPermission('admin:risk-event:batch')"
+            secondary
+            :loading="batchSaving"
+            :disabled="checkedKeys.length === 0"
+            @click="doBatch('ignored')"
+          >
+            {{ t('risk.batchIgnore') }}
+          </NButton>
+          <NButton
+            v-if="auth.hasPermission('admin:risk-event:export')"
+            :loading="exporting"
+            @click="doExport"
+          >
+            {{ t('common.export') }}
+          </NButton>
+        </NSpace>
       </NSpace>
       <NDataTable
+        v-model:checked-row-keys="checkedKeys"
         :columns="columns"
         :data="items"
         :loading="loading"
         :scroll-x="1200"
+        :row-key="(row: RiskEventItem) => row.id"
         :pagination="{
           page: query.page,
           pageSize: query.size,

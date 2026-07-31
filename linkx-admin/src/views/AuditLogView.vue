@@ -1,16 +1,25 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NButton, NDataTable, NSpace, type DataTableColumns } from 'naive-ui'
-import { listAuditLogs, type AuditLog } from '@/api/logs'
+import { NButton, NDataTable, NDatePicker, NSpace, useMessage, type DataTableColumns } from 'naive-ui'
+import { exportAuditLogs, listAuditLogs, type AuditLog } from '@/api/logs'
 import { formatIp, formatTime } from '@/utils/format'
+import { useAuthStore } from '@/stores/auth'
 import SearchAutoComplete from '@/components/SearchAutoComplete.vue'
 
+const message = useMessage()
+const auth = useAuthStore()
 const { t, locale } = useI18n()
 const loading = ref(false)
+const exporting = ref(false)
 const items = ref<AuditLog[]>([])
 const total = ref(0)
-const query = reactive({ page: 1, size: 20, keyword: '' })
+const query = reactive({
+  page: 1,
+  size: 20,
+  keyword: '',
+  range: null as [number, number] | null,
+})
 
 const columns = computed<DataTableColumns<AuditLog>>(() => {
   void locale.value
@@ -36,14 +45,20 @@ const columns = computed<DataTableColumns<AuditLog>>(() => {
   ]
 })
 
+function queryParams() {
+  return {
+    page: query.page,
+    size: query.size,
+    keyword: query.keyword || undefined,
+    startTime: query.range?.[0],
+    endTime: query.range?.[1],
+  }
+}
+
 async function load() {
   loading.value = true
   try {
-    const data = await listAuditLogs({
-      page: query.page,
-      size: query.size,
-      keyword: query.keyword || undefined,
-    })
+    const data = await listAuditLogs(queryParams())
     items.value = data.items || []
     total.value = data.total || 0
   } finally {
@@ -56,20 +71,49 @@ function search() {
   load()
 }
 
+async function doExport() {
+  exporting.value = true
+  try {
+    await exportAuditLogs({
+      keyword: query.keyword || undefined,
+      startTime: query.range?.[0],
+      endTime: query.range?.[1],
+    })
+    message.success(t('common.exportSuccess'))
+  } finally {
+    exporting.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
 <template>
   <div class="page">
     <div class="page-shell">
-      <NSpace class="page-toolbar">
-        <SearchAutoComplete
-          v-model="query.keyword"
-          :placeholder="t('audit.searchPlaceholder')"
-          width="240px"
-          @search="search"
-        />
-        <NButton type="primary" @click="search">{{ t('common.search') }}</NButton>
+      <NSpace class="page-toolbar" justify="space-between">
+        <NSpace>
+          <SearchAutoComplete
+            v-model="query.keyword"
+            :placeholder="t('audit.searchPlaceholder')"
+            width="220px"
+            @search="search"
+          />
+          <NDatePicker
+            v-model:value="query.range"
+            type="datetimerange"
+            clearable
+            style="width: 360px"
+          />
+          <NButton type="primary" @click="search">{{ t('common.search') }}</NButton>
+        </NSpace>
+        <NButton
+          v-if="auth.hasPermission('admin:audit:export')"
+          :loading="exporting"
+          @click="doExport"
+        >
+          {{ t('common.export') }}
+        </NButton>
       </NSpace>
       <NDataTable
         :columns="columns"
