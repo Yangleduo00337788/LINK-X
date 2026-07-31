@@ -32,21 +32,7 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
     public PageResultVO<AdminOperationLogVO> listAuditLogs(AdminPageQueryDTO query) {
         int page = normalizePage(query.getPage());
         int size = normalizeSize(query.getSize());
-        QueryWrapper qw = QueryWrapper.create();
-        if (StringUtils.hasText(query.getKeyword())) {
-            String kw = query.getKeyword().trim();
-            qw.and((QueryWrapper w) -> {
-                w.where(SysAuditLog::getUsername).like(kw)
-                        .or(SysAuditLog::getDescription).like(kw)
-                        .or(SysAuditLog::getOperationType).like(kw);
-            });
-        }
-        if (query.getStartTime() != null) {
-            qw.and(SysAuditLog::getCreateTime).ge(new Date(query.getStartTime()));
-        }
-        if (query.getEndTime() != null) {
-            qw.and(SysAuditLog::getCreateTime).le(new Date(query.getEndTime()));
-        }
+        QueryWrapper qw = buildAuditQuery(query);
         qw.orderBy(SysAuditLog::getCreateTime, false);
         long total = sysAuditLogMapper.selectCountByQuery(qw);
         qw.limit((page - 1L) * size, size);
@@ -54,6 +40,16 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
                 .map(this::toAuditVO)
                 .collect(Collectors.toList());
         return PageResultVO.of(items, page, size, total);
+    }
+
+    @Override
+    public List<AdminOperationLogVO> listAuditLogsForExport(AdminPageQueryDTO query) {
+        QueryWrapper qw = buildAuditQuery(query);
+        qw.orderBy(SysAuditLog::getCreateTime, false);
+        qw.limit(0, AdminConstants.EXPORT_MAX_SIZE);
+        return sysAuditLogMapper.selectListByQuery(qw).stream()
+                .map(this::toAuditVO)
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -69,6 +65,55 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
     public PageResultVO<AdminLoginLogVO> listLoginLogs(AdminPageQueryDTO query) {
         int page = normalizePage(query.getPage());
         int size = normalizeSize(query.getSize());
+        QueryWrapper qw = buildLoginQuery(query);
+        qw.orderBy(SysLoginAudit::getCreateTime, false);
+        long total = sysLoginAuditMapper.selectCountByQuery(qw);
+        qw.limit((page - 1L) * size, size);
+        List<AdminLoginLogVO> items = sysLoginAuditMapper.selectListByQuery(qw).stream()
+                .map(this::toLoginVO)
+                .collect(Collectors.toList());
+        return PageResultVO.of(items, page, size, total);
+    }
+
+    @Override
+    public List<AdminLoginLogVO> listLoginLogsForExport(AdminPageQueryDTO query) {
+        QueryWrapper qw = buildLoginQuery(query);
+        qw.orderBy(SysLoginAudit::getCreateTime, false);
+        qw.limit(0, AdminConstants.EXPORT_MAX_SIZE);
+        return sysLoginAuditMapper.selectListByQuery(qw).stream()
+                .map(this::toLoginVO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public AdminLoginLogVO loginDetail(Long id) {
+        SysLoginAudit log = sysLoginAuditMapper.selectOneById(id);
+        if (log == null) {
+            throw new CustomException(404, "login log not found");
+        }
+        return toLoginVO(log);
+    }
+
+    private QueryWrapper buildAuditQuery(AdminPageQueryDTO query) {
+        QueryWrapper qw = QueryWrapper.create();
+        if (StringUtils.hasText(query.getKeyword())) {
+            String kw = query.getKeyword().trim();
+            qw.and((QueryWrapper w) -> {
+                w.where(SysAuditLog::getUsername).like(kw)
+                        .or(SysAuditLog::getDescription).like(kw)
+                        .or(SysAuditLog::getOperationType).like(kw);
+            });
+        }
+        if (query.getStartTime() != null) {
+            qw.and(SysAuditLog::getCreateTime).ge(new Date(query.getStartTime()));
+        }
+        if (query.getEndTime() != null) {
+            qw.and(SysAuditLog::getCreateTime).le(new Date(query.getEndTime()));
+        }
+        return qw;
+    }
+
+    private QueryWrapper buildLoginQuery(AdminPageQueryDTO query) {
         QueryWrapper qw = QueryWrapper.create();
         if (StringUtils.hasText(query.getKeyword())) {
             String kw = query.getKeyword().trim();
@@ -87,22 +132,7 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
         if (query.getEndTime() != null) {
             qw.and(SysLoginAudit::getCreateTime).le(new Date(query.getEndTime()));
         }
-        qw.orderBy(SysLoginAudit::getCreateTime, false);
-        long total = sysLoginAuditMapper.selectCountByQuery(qw);
-        qw.limit((page - 1L) * size, size);
-        List<AdminLoginLogVO> items = sysLoginAuditMapper.selectListByQuery(qw).stream()
-                .map(this::toLoginVO)
-                .collect(Collectors.toList());
-        return PageResultVO.of(items, page, size, total);
-    }
-
-    @Override
-    public AdminLoginLogVO loginDetail(Long id) {
-        SysLoginAudit log = sysLoginAuditMapper.selectOneById(id);
-        if (log == null) {
-            throw new CustomException(404, "login log not found");
-        }
-        return toLoginVO(log);
+        return qw;
     }
 
     private AdminOperationLogVO toAuditVO(SysAuditLog log) {

@@ -1,8 +1,10 @@
 package com.linkx.server.service.admin;
 
 import com.linkx.server.common.admin.PageResultVO;
+import com.linkx.server.controller.admin.dto.AdminRiskEventBatchDTO;
 import com.linkx.server.controller.admin.dto.AdminRiskEventHandleDTO;
 import com.linkx.server.controller.admin.dto.AdminRiskEventQueryDTO;
+import com.linkx.server.controller.admin.vo.AdminReviewBatchResultVO;
 import com.linkx.server.controller.admin.vo.AdminRiskEventVO;
 
 import java.util.List;
@@ -14,6 +16,9 @@ public interface AdminRiskEventService {
     AdminRiskEventVO detail(Long id);
 
     void handle(Long id, AdminRiskEventHandleDTO dto, Long operatorId);
+
+    /** 批量处置（不连带处罚用户；返回成功/失败明细） */
+    AdminReviewBatchResultVO batch(AdminRiskEventBatchDTO dto, Long operatorId);
 
     long countPending();
 

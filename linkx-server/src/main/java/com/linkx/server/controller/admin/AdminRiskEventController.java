@@ -6,8 +6,10 @@ import com.linkx.server.common.Result;
 import com.linkx.server.common.admin.AdminCsvResponses;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.config.aspect.AuditAction;
+import com.linkx.server.controller.admin.dto.AdminRiskEventBatchDTO;
 import com.linkx.server.controller.admin.dto.AdminRiskEventHandleDTO;
 import com.linkx.server.controller.admin.dto.AdminRiskEventQueryDTO;
+import com.linkx.server.controller.admin.vo.AdminReviewBatchResultVO;
 import com.linkx.server.controller.admin.vo.AdminRiskEventVO;
 import com.linkx.server.service.admin.AdminRiskEventService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -83,5 +85,15 @@ public class AdminRiskEventController {
         Long operatorId = (Long) request.getAttribute("userId");
         adminRiskEventService.handle(id, dto, operatorId);
         return Result.success(null);
+    }
+
+    @Operation(summary = "批量处置风险事件")
+    @AuditAction(operationType = "RISK_EVENT_BATCH", description = "批量处置风险事件")
+    @PostMapping("/batch")
+    @RequirePermission("admin:risk-event:batch")
+    public Result<AdminReviewBatchResultVO> batch(@Valid @RequestBody AdminRiskEventBatchDTO dto,
+                                                  HttpServletRequest request) {
+        Long operatorId = (Long) request.getAttribute("userId");
+        return Result.success(adminRiskEventService.batch(dto, operatorId));
     }
 }

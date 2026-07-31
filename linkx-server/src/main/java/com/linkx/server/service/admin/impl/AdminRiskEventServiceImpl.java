@@ -2,9 +2,11 @@ package com.linkx.server.service.admin.impl;
 
 import com.linkx.server.common.admin.AdminConstants;
 import com.linkx.server.common.admin.PageResultVO;
+import com.linkx.server.controller.admin.dto.AdminRiskEventBatchDTO;
 import com.linkx.server.controller.admin.dto.AdminRiskEventHandleDTO;
 import com.linkx.server.controller.admin.dto.AdminRiskEventQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminUserActionDTO;
+import com.linkx.server.controller.admin.vo.AdminReviewBatchResultVO;
 import com.linkx.server.controller.admin.vo.AdminRiskEventVO;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.entity.admin.SysRiskEvent;
@@ -22,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -98,6 +101,45 @@ public class AdminRiskEventServiceImpl implements AdminRiskEventService {
         event.setUpdateTime(now);
         riskEventMapper.update(event);
         adminEventPublisher.publish("risk_handled", event.getId());
+    }
+
+    @Override
+    public AdminReviewBatchResultVO batch(AdminRiskEventBatchDTO dto, Long operatorId) {
+        String action = dto.getAction() == null ? "" : dto.getAction().trim().toLowerCase();
+        if (!"handled".equals(action) && !"ignored".equals(action)) {
+            throw new CustomException(400, "处置动作无效，仅支持 handled / ignored");
+        }
+        AdminRiskEventHandleDTO handleDto = new AdminRiskEventHandleDTO();
+        handleDto.setAction(action);
+        handleDto.setResolution(dto.getResolution());
+        handleDto.setUserAction("none");
+
+        int success = 0;
+        List<AdminReviewBatchResultVO.FailureItem> failures = new ArrayList<>();
+        for (Long id : dto.getIds()) {
+            if (id == null) {
+                continue;
+            }
+            try {
+                handle(id, handleDto, operatorId);
+                success++;
+            } catch (CustomException ex) {
+                failures.add(AdminReviewBatchResultVO.FailureItem.builder()
+                        .id(id)
+                        .reason(ex.getMessage())
+                        .build());
+            } catch (Exception ex) {
+                failures.add(AdminReviewBatchResultVO.FailureItem.builder()
+                        .id(id)
+                        .reason(ex.getMessage() != null ? ex.getMessage() : "unknown error")
+                        .build());
+            }
+        }
+        return AdminReviewBatchResultVO.builder()
+                .successCount(success)
+                .failCount(failures.size())
+                .failures(failures)
+                .build();
     }
 
     private String normalizeUserAction(String raw) {
