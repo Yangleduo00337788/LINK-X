@@ -74,6 +74,12 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: 'route.loginLogs', permission: 'admin:login-log:list' },
       },
       {
+        path: 'risk-events',
+        name: 'RiskEvents',
+        component: () => import('@/views/RiskEventView.vue'),
+        meta: { titleKey: 'route.riskEvents', permission: 'admin:risk-event:list' },
+      },
+      {
         path: 'feedback',
         name: 'FeedbackList',
         component: () => import('@/views/FeedbackListView.vue'),
