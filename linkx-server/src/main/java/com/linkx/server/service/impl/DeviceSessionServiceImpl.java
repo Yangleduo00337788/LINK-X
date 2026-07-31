@@ -4,8 +4,10 @@ import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.controller.vo.DeviceVO;
 import com.linkx.server.entity.DeviceSession;
 import com.linkx.server.entity.SysAuditLog;
+import com.linkx.server.entity.SysUser;
 import com.linkx.server.im.ImChannelManager;
 import com.linkx.server.mapper.DeviceSessionMapper;
+import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.AuditLogService;
 import com.linkx.server.service.DeviceSessionService;
 import com.linkx.server.service.TokenService;
@@ -25,6 +27,7 @@ import java.util.stream.Collectors;
 public class DeviceSessionServiceImpl extends ServiceImpl<DeviceSessionMapper, DeviceSession> implements DeviceSessionService {
 
     private final DeviceSessionMapper deviceSessionMapper;
+    private final SysUserMapper sysUserMapper;
     private final TokenService tokenService;
     private final ImChannelManager channelManager;
     private final AuditLogService auditLogService;
@@ -118,7 +121,7 @@ public class DeviceSessionServiceImpl extends ServiceImpl<DeviceSessionMapper, D
     }
 
     @Override
-    public void kickDevice(Long userId, String deviceId, String operatorUsername, String ip, String userAgent) {
+    public void kickDevice(Long userId, String deviceId, Long operatorId, String operatorUsername, String ip, String userAgent) {
         String normalized = normalizeDeviceId(deviceId);
         if (userId == null || normalized == null) {
             return;
@@ -126,13 +129,32 @@ public class DeviceSessionServiceImpl extends ServiceImpl<DeviceSessionMapper, D
         tokenService.revokeDeviceTokens(userId, normalized);
         int closed = channelManager.disconnectDevice(userId, normalized);
         deleteDevice(userId, normalized);
+
+        SysUser target = sysUserMapper.selectOneById(userId);
+        String targetUsername = target != null && StringUtils.hasText(target.getUsername())
+                ? target.getUsername()
+                : String.valueOf(userId);
+
+        Long resolvedOperatorId = operatorId != null ? operatorId : userId;
+        String resolvedOperatorName = StringUtils.hasText(operatorUsername) ? operatorUsername.trim() : null;
+        if (!StringUtils.hasText(resolvedOperatorName)) {
+            if (resolvedOperatorId.equals(userId)) {
+                resolvedOperatorName = targetUsername;
+            } else {
+                SysUser operator = sysUserMapper.selectOneById(resolvedOperatorId);
+                resolvedOperatorName = operator != null && StringUtils.hasText(operator.getUsername())
+                        ? operator.getUsername()
+                        : String.valueOf(resolvedOperatorId);
+            }
+        }
+
         auditLogService.logWithTarget(
                 SysAuditLog.OperationType.DEVICE_KICK,
                 "踢设备下线: " + normalized + " (断开连接 " + closed + ")",
+                resolvedOperatorId,
+                resolvedOperatorName,
                 userId,
-                operatorUsername,
-                userId,
-                operatorUsername,
+                targetUsername,
                 normalized,
                 "device",
                 ip,

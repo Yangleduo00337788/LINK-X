@@ -9,6 +9,7 @@ import com.linkx.server.mapper.DeviceSessionMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.DeviceSessionService;
 import com.linkx.server.service.PresenceService;
+import com.linkx.server.service.admin.AdminEventPublisher;
 import com.linkx.server.service.admin.impl.AdminDeviceServiceImpl;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,12 +40,15 @@ class AdminDeviceServiceTest {
     private DeviceSessionService deviceSessionService;
     @Mock
     private PresenceService presenceService;
+    @Mock
+    private AdminEventPublisher adminEventPublisher;
 
     private AdminDeviceServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new AdminDeviceServiceImpl(deviceSessionMapper, sysUserMapper, deviceSessionService, presenceService);
+        service = new AdminDeviceServiceImpl(
+                deviceSessionMapper, sysUserMapper, deviceSessionService, presenceService, adminEventPublisher);
     }
 
     @Test
@@ -93,7 +97,7 @@ class AdminDeviceServiceTest {
 
         ArgumentCaptor<String> operatorCaptor = ArgumentCaptor.forClass(String.class);
         verify(deviceSessionService).kickDevice(
-                eq(100L), eq("dev-1"), operatorCaptor.capture(), eq("127.0.0.1"), eq("JUnit"));
+                eq(100L), eq("dev-1"), eq(9L), operatorCaptor.capture(), eq("127.0.0.1"), eq("JUnit"));
         assertEquals("admin", operatorCaptor.getValue());
     }
 
@@ -105,6 +109,6 @@ class AdminDeviceServiceTest {
         CustomException ex = assertThrows(CustomException.class,
                 () -> service.kick(100L, "missing", 9L, null, "127.0.0.1", "JUnit"));
         assertEquals(404, ex.getCode());
-        verify(deviceSessionService, never()).kickDevice(any(), any(), any(), any(), any());
+        verify(deviceSessionService, never()).kickDevice(any(), any(), any(), any(), any(), any());
     }
 }

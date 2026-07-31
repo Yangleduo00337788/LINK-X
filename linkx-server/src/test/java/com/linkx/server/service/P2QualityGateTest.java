@@ -125,7 +125,7 @@ class P2QualityGateTest extends BaseIntegrationTest {
 
             assertTrue(awaitAuditExists(user.userId, "LOGIN"), "登录应写入 LOGIN 审计");
 
-            deviceSessionService.kickDevice(user.userId, deviceId, user.username, "127.0.0.1", "JUnit");
+            deviceSessionService.kickDevice(user.userId, deviceId, user.userId, user.username, "127.0.0.1", "JUnit");
             assertTrue(awaitAuditExists(user.userId, "DEVICE_KICK"), "踢下线应写入 DEVICE_KICK 审计");
 
             complianceService.exportUserData(user.userId);

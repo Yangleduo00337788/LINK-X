@@ -1,9 +1,11 @@
 package com.linkx.server.controller.admin;
 
+import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.common.RequirePermission;
 import com.linkx.server.common.RequireRole;
 import com.linkx.server.common.Result;
 import com.linkx.server.common.admin.PageResultVO;
+import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.controller.admin.dto.AdminDeviceQueryDTO;
 import com.linkx.server.controller.admin.vo.AdminDeviceVO;
 import com.linkx.server.service.admin.AdminDeviceService;
@@ -22,10 +24,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/admin/devices")
 @RequiredArgsConstructor
-@RequireRole({"admin", "super_admin"})
+@RequireRole({"admin", "super_admin", "ops_admin", "audit_admin"})
 public class AdminDeviceController {
 
     private final AdminDeviceService adminDeviceService;
+    private final LinkxProperties linkxProperties;
 
     @Operation(summary = "查询设备会话列表")
     @GetMapping
@@ -46,7 +49,7 @@ public class AdminDeviceController {
                 deviceId,
                 operatorId,
                 null,
-                request.getRemoteAddr(),
+                ClientIpResolver.resolve(request, linkxProperties),
                 request.getHeader("User-Agent")
         );
         return Result.success(null);

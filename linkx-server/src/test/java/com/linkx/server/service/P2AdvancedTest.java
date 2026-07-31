@@ -265,7 +265,7 @@ class P2AdvancedTest extends BaseIntegrationTest {
             String deviceId = "kick-" + UUID.randomUUID();
             TestUser user = registerAndLoginWithDevice("p2kick", deviceId);
 
-            deviceSessionService.kickDevice(user.userId, deviceId, user.username, "127.0.0.1", "JUnit");
+            deviceSessionService.kickDevice(user.userId, deviceId, user.userId, user.username, "127.0.0.1", "JUnit");
 
             assertTrue(tokenService.isDeviceKicked(user.userId, deviceId));
             List<DeviceVO> devices = deviceSessionService.listByUser(user.userId, deviceId);

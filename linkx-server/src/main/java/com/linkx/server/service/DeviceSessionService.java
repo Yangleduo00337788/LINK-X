@@ -22,8 +22,11 @@ public interface DeviceSessionService {
 
     /**
      * 真踢下线：吊销该设备 token、断开 WS、删除会话并写审计。
+     *
+     * @param operatorId       操作者用户 ID（管理端踢人必填；用户自助踢设备可与 userId 相同）
+     * @param operatorUsername 操作者用户名（可空，将按 operatorId 回查）
      */
-    void kickDevice(Long userId, String deviceId, String operatorUsername, String ip, String userAgent);
+    void kickDevice(Long userId, String deviceId, Long operatorId, String operatorUsername, String ip, String userAgent);
 
     /** WebSocket 断连时移除设备会话 */
     default void removeDevice(Long userId, String deviceId) {

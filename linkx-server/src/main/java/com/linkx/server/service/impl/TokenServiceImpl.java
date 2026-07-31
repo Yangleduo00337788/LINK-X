@@ -172,36 +172,43 @@ public class TokenServiceImpl implements TokenService {
 
     @Override
     public void logout(String accessToken, String refreshToken) {
-        if (!StringUtils.hasText(accessToken)) {
+        if (!StringUtils.hasText(accessToken) && !StringUtils.hasText(refreshToken)) {
             throw new CustomException(401, "未提供访问令牌");
         }
-        // 先校验 access 仍存活（含吊销/踢人），再执行登出吊销
-        assertAccessTokenActive(accessToken);
-        Claims accessClaims = parseClaims(accessToken);
-        Long accessUserId = accessClaims.get("userId", Long.class);
 
-        // 如果同时携带 refreshToken，必须属于同一用户，否则拒绝（防止用 A 的 token 吊销 B 的 refresh）
-        if (StringUtils.hasText(refreshToken)) {
+        // access 可能已过期/被踢：仍尽力吊销，避免 refresh 残留可换新会话
+        Long accessUserId = null;
+        if (StringUtils.hasText(accessToken)) {
             try {
-                if (jwtUtils.getTokenType(refreshToken) == TokenType.REFRESH) {
-                    Claims refreshClaims = jwtUtils.parseToken(refreshToken);
-                    Long refreshUserId = refreshClaims.get("userId", Long.class);
-                    if (refreshUserId == null || !refreshUserId.equals(accessUserId)) {
-                        throw new CustomException(401, "refreshToken 与当前用户不匹配");
+                Claims accessClaims = jwtUtils.parseToken(accessToken);
+                if (jwtUtils.getTokenType(accessToken) == TokenType.ACCESS) {
+                    accessUserId = accessClaims.get("userId", Long.class);
+                    if (StringUtils.hasText(accessClaims.getId())) {
+                        redisTemplate.delete(ACCESS_KEY_PREFIX + accessClaims.getId());
                     }
-                } else {
-                    throw new CustomException(401, "refreshToken 类型错误");
                 }
-            } catch (CustomException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new CustomException(401, "refreshToken 无效");
+            } catch (Exception ignored) {
+                // access 无效时继续处理 refresh
             }
         }
 
-        // 校验通过后吊销 access / refresh
-        redisTemplate.delete(ACCESS_KEY_PREFIX + accessClaims.getId());
-        revokeRawToken(refreshToken, TokenType.REFRESH);
+        if (StringUtils.hasText(refreshToken)) {
+            try {
+                if (jwtUtils.getTokenType(refreshToken) != TokenType.REFRESH) {
+                    throw new CustomException(401, "refreshToken 类型错误");
+                }
+                Claims refreshClaims = jwtUtils.parseToken(refreshToken);
+                Long refreshUserId = refreshClaims.get("userId", Long.class);
+                if (accessUserId != null && refreshUserId != null && !refreshUserId.equals(accessUserId)) {
+                    throw new CustomException(401, "refreshToken 与当前用户不匹配");
+                }
+                revokeRawToken(refreshToken, TokenType.REFRESH);
+            } catch (CustomException e) {
+                throw e;
+            } catch (Exception e) {
+                // refresh 已失效则视为登出成功
+            }
+        }
     }
 
     @Override

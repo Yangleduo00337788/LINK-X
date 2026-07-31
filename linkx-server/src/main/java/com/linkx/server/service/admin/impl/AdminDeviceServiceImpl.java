@@ -13,6 +13,7 @@ import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.DeviceSessionService;
 import com.linkx.server.service.PresenceService;
 import com.linkx.server.service.admin.AdminDeviceService;
+import com.linkx.server.service.admin.AdminEventPublisher;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -36,6 +37,7 @@ public class AdminDeviceServiceImpl implements AdminDeviceService {
     private final SysUserMapper sysUserMapper;
     private final DeviceSessionService deviceSessionService;
     private final PresenceService presenceService;
+    private final AdminEventPublisher adminEventPublisher;
 
     @Override
     public PageResultVO<AdminDeviceVO> list(AdminDeviceQueryDTO query) {
@@ -76,7 +78,24 @@ public class AdminDeviceServiceImpl implements AdminDeviceService {
         String operator = StringUtils.hasText(operatorUsername)
                 ? operatorUsername.trim()
                 : resolveOperatorName(operatorId);
-        deviceSessionService.kickDevice(userId, normalized, operator, ip, userAgent);
+        deviceSessionService.kickDevice(
+                userId,
+                normalized,
+                operatorId,
+                operator,
+                ip,
+                userAgent);
+        // 管理端列表即时收敛；跨实例 WS 依赖 token 吊销 + device:kicked
+        try {
+            adminEventPublisher.publish(
+                    "device_presence",
+                    userId,
+                    "{\"deviceId\":\"" + normalized.replace("\\", "\\\\").replace("\"", "\\\"")
+                            + "\",\"online\":false}"
+            );
+        } catch (Exception ignored) {
+            // 实时事件失败不影响踢下线
+        }
     }
 
     private String resolveOperatorName(Long operatorId) {

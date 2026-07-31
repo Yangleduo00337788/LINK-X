@@ -299,6 +299,7 @@ public class UserController {
         deviceSessionService.kickDevice(
                 userId,
                 deviceId,
+                userId,
                 username,
                 request.getRemoteAddr(),
                 request.getHeader("User-Agent"));
