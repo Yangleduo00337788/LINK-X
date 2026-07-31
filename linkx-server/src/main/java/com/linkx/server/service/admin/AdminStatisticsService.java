@@ -1,0 +1,28 @@
+package com.linkx.server.service.admin;
+
+import com.linkx.server.controller.admin.vo.AdminStatisticContentVO;
+import com.linkx.server.controller.admin.vo.AdminStatisticFeedbackVO;
+import com.linkx.server.controller.admin.vo.AdminStatisticOverviewVO;
+import com.linkx.server.controller.admin.vo.AdminStatisticRiskVO;
+import com.linkx.server.controller.admin.vo.AdminStatisticUserVO;
+import com.linkx.server.controller.admin.vo.AdminTrendVO;
+
+public interface AdminStatisticsService {
+
+    AdminStatisticOverviewVO overview(int days);
+
+    AdminStatisticUserVO users(int days);
+
+    AdminStatisticContentVO content(int days);
+
+    AdminStatisticRiskVO risk(int days);
+
+    AdminStatisticFeedbackVO feedback(int days);
+
+    /** 仪表盘趋势：新增用户 + 消息量 + 登录成功 */
+    AdminTrendVO dashboardTrends(int days);
+
+    long countOnlineDevices();
+
+    long countRiskEventsSince(java.util.Date since);
+}
