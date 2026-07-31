@@ -32,7 +32,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/admin/roles")
 @RequiredArgsConstructor
-@RequireRole({"admin", "super_admin", "ops_admin", "audit_admin"})
+@RequireRole(adminPortal = true)
 public class AdminRoleController {
 
     private final AdminRoleService adminRoleService;

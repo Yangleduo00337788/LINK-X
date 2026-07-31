@@ -448,15 +448,7 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     }
 
     private void assertAdminRole(Long userId) {
-        List<String> roles = rbacService.getUserRoleCodes(userId);
-        boolean ok = false;
-        for (String required : AdminConstants.ADMIN_ROLES) {
-            if (roles.contains(required)) {
-                ok = true;
-                break;
-            }
-        }
-        if (!ok) {
+        if (!AdminConstants.hasAdminPortalRole(rbacService.getUserRoleCodes(userId))) {
             throw new CustomException(403, "无管理端访问权限");
         }
     }

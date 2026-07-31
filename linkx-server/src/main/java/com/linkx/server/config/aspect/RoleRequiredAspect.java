@@ -3,6 +3,7 @@ package com.linkx.server.config.aspect;
 import com.linkx.server.common.AuthUtils;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.RequireRole;
+import com.linkx.server.common.admin.AdminConstants;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.service.RbacService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -61,7 +62,13 @@ public class RoleRequiredAspect {
             throw new CustomException(401, "未登录或登录已过期");
         }
         List<String> userRoles = rbacService.getUserRoleCodes(userId);
-        String[] required = annotation.value();
+        String[] required = annotation.adminPortal()
+                ? AdminConstants.ADMIN_ROLES
+                : annotation.value();
+        if (required.length == 0) {
+            log.warn("角色校验配置为空 userId={}, method={}", userId, joinPoint.getSignature());
+            throw new CustomException(403, "无权限访问该资源");
+        }
         boolean ok = annotation.logicalOr()
                 ? Arrays.stream(required).anyMatch(userRoles::contains)
                 : Arrays.stream(required).allMatch(userRoles::contains);

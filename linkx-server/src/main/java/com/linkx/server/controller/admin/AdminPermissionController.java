@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/admin/permissions")
 @RequiredArgsConstructor
-@RequireRole({"admin", "super_admin", "ops_admin", "audit_admin"})
+@RequireRole(adminPortal = true)
 public class AdminPermissionController {
 
     private final AdminRoleService adminRoleService;

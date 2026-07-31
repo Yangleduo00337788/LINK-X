@@ -53,11 +53,18 @@ const statusOptions = computed(() => {
   ]
 })
 
-const ADMIN_ROLES = new Set(['admin', 'super_admin'])
+const ADMIN_PORTAL_ROLES = new Set([
+  'admin',
+  'super_admin',
+  'ops_admin',
+  'audit_admin',
+  'security_admin',
+  'readonly_observer',
+])
 
 function canToggleStatus(row: AdminUserListItem) {
   if (String(row.id) === String(auth.user?.id)) return false
-  if (row.roles?.some((r) => ADMIN_ROLES.has(r))) return false
+  if (row.roles?.some((r) => ADMIN_PORTAL_ROLES.has(r))) return false
   return true
 }
 

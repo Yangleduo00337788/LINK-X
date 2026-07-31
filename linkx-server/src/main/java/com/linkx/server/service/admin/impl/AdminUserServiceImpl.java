@@ -272,13 +272,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     }
 
     private boolean isAdminUser(Long userId) {
-        List<String> roles = rbacService.getUserRoleCodes(userId);
-        for (String required : AdminConstants.ADMIN_ROLES) {
-            if (roles.contains(required)) {
-                return true;
-            }
-        }
-        return false;
+        return AdminConstants.hasAdminPortalRole(rbacService.getUserRoleCodes(userId));
     }
 
     private int normalizePage(Integer page) {

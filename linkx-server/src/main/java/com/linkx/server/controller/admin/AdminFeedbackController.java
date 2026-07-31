@@ -30,7 +30,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/admin/feedback")
 @RequiredArgsConstructor
-@RequireRole({"admin", "super_admin", "ops_admin", "audit_admin"})
+@RequireRole(adminPortal = true)
 public class AdminFeedbackController {
 
     private final AdminFeedbackService adminFeedbackService;

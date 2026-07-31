@@ -96,7 +96,7 @@ public class AdminAuthController {
 
     @Operation(summary = "登录后开始绑定 TOTP")
     @PostMapping("/totp/setup")
-    @RequireRole({"admin", "super_admin", "ops_admin", "audit_admin"})
+    @RequireRole(adminPortal = true)
     public Result<AdminTotpSetupVO> setupTotp(HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         return Result.success(adminAuthService.beginTotpSetup(userId));
@@ -105,7 +105,7 @@ public class AdminAuthController {
     @Operation(summary = "确认启用 TOTP（已登录）")
     @AuditAction(operationType = "UPDATE_PROFILE", description = "启用管理端 TOTP")
     @PostMapping("/totp/confirm")
-    @RequireRole({"admin", "super_admin", "ops_admin", "audit_admin"})
+    @RequireRole(adminPortal = true)
     public Result<AdminUserProfileVO> confirmTotp(@Valid @RequestBody AdminTotpConfirmDTO dto,
                                                   HttpServletRequest request,
                                                   HttpServletResponse response) {
@@ -118,7 +118,7 @@ public class AdminAuthController {
     @Operation(summary = "关闭 TOTP")
     @AuditAction(operationType = "UPDATE_PROFILE", description = "关闭管理端 TOTP")
     @PostMapping("/totp/disable")
-    @RequireRole({"admin", "super_admin", "ops_admin", "audit_admin"})
+    @RequireRole(adminPortal = true)
     public Result<AdminUserProfileVO> disableTotp(@Valid @RequestBody AdminTotpDisableDTO dto,
                                                   HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
@@ -127,7 +127,7 @@ public class AdminAuthController {
 
     @Operation(summary = "获取当前管理员信息")
     @GetMapping("/me")
-    @RequireRole({"admin", "super_admin", "ops_admin", "audit_admin"})
+    @RequireRole(adminPortal = true)
     public Result<AdminUserProfileVO> me(HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         return Result.success(adminAuthService.me(userId));
@@ -136,7 +136,7 @@ public class AdminAuthController {
     @Operation(summary = "更新当前管理员资料")
     @AuditAction(operationType = "UPDATE_PROFILE", description = "管理端更新个人资料")
     @PutMapping("/profile")
-    @RequireRole({"admin", "super_admin", "ops_admin", "audit_admin"})
+    @RequireRole(adminPortal = true)
     public Result<AdminUserProfileVO> updateProfile(@Valid @RequestBody AdminProfileUpdateDTO dto,
                                                     HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
@@ -145,7 +145,7 @@ public class AdminAuthController {
 
     @Operation(summary = "获取当前管理员菜单")
     @GetMapping("/menus")
-    @RequireRole({"admin", "super_admin", "ops_admin", "audit_admin"})
+    @RequireRole(adminPortal = true)
     public Result<List<AdminMenuTreeVO>> menus(HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         return Result.success(adminAuthService.menus(userId));
@@ -153,7 +153,7 @@ public class AdminAuthController {
 
     @Operation(summary = "获取当前管理员权限码")
     @GetMapping("/permissions")
-    @RequireRole({"admin", "super_admin", "ops_admin", "audit_admin"})
+    @RequireRole(adminPortal = true)
     public Result<Set<String>> permissions(HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         return Result.success(adminAuthService.permissions(userId));

@@ -80,20 +80,27 @@ const rolesText = computed(() => {
   return user.value.roles.join(', ')
 })
 
-const ADMIN_ROLES = new Set(['admin', 'super_admin'])
+const ADMIN_PORTAL_ROLES = new Set([
+  'admin',
+  'super_admin',
+  'ops_admin',
+  'audit_admin',
+  'security_admin',
+  'readonly_observer',
+])
 
 const canToggleStatus = computed(() => {
   if (!user.value) return false
   if (String(user.value.id) === String(auth.user?.id)) return false
-  if (user.value.roles?.some((r) => ADMIN_ROLES.has(r))) return false
+  if (user.value.roles?.some((r) => ADMIN_PORTAL_ROLES.has(r))) return false
   return true
 })
 
 const canEdit = computed(() => {
   if (!auth.hasPermission('admin:user:edit') || !user.value) return false
   const isSelf = String(user.value.id) === String(auth.user?.id)
-  const isAdmin = user.value.roles?.some((r) => ADMIN_ROLES.has(r))
-  return isSelf || !isAdmin
+  const isPortalUser = user.value.roles?.some((r) => ADMIN_PORTAL_ROLES.has(r))
+  return isSelf || !isPortalUser
 })
 
 const deviceColumns = computed<DataTableColumns<DeviceItem>>(() => {

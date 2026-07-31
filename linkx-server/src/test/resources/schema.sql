@@ -19,6 +19,9 @@ CREATE TABLE IF NOT EXISTS sys_user (
   region VARCHAR(64),
   email VARCHAR(128),
   phone VARCHAR(32),
+  totp_enabled TINYINT NOT NULL DEFAULT 0,
+  totp_secret VARCHAR(128),
+  totp_confirmed_at DATETIME,
   status TINYINT NOT NULL DEFAULT 1,
   auto_locked_until DATETIME,
   create_time DATETIME,
@@ -639,7 +642,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_role_permission ON sys_role_permission(role
 -- RBAC 预置数据：admin / user 两个角色 + 基础权限
 INSERT IGNORE INTO sys_role (id, role_code, role_name, description, status, create_by) VALUES
   (1001, 'admin', '系统管理员', '拥有全部权限', 1, NULL),
-  (1002, 'user', '普通用户', '注册用户默认角色', 1, NULL);
+  (1002, 'user', '普通用户', '注册用户默认角色', 1, NULL),
+  (1003, 'ops_admin', '运营管理员', '仪表盘、用户查看、反馈、公告、Banner、统计', 1, NULL),
+  (1004, 'audit_admin', '审核管理员', '用户处置、内容审核、敏感词、风控、黑名单、设备、日志', 1, NULL),
+  (1005, 'security_admin', '安全管理员', '登录审计、设备管理、风控、黑名单', 1, NULL),
+  (1006, 'readonly_observer', '只读观察员', '只读查看仪表盘、用户、日志、统计与审核列表', 1, NULL);
 
 INSERT IGNORE INTO sys_permission (id, permission_code, permission_name, resource_type, resource_path, description, status) VALUES
   (2001, '*', '全部权限', 'api', '*', '通配符权限，拥有全部能力', 1),
@@ -696,6 +703,7 @@ CREATE TABLE IF NOT EXISTS sys_runtime_setting (
   admin_captcha_enabled TINYINT NOT NULL DEFAULT 1,
   admin_login_max_attempts INT NOT NULL DEFAULT 5,
   admin_lock_duration_minutes INT NOT NULL DEFAULT 10,
+  admin_totp_required TINYINT NOT NULL DEFAULT 0,
   client_captcha_enabled TINYINT NOT NULL DEFAULT 1,
   client_register_enabled TINYINT NOT NULL DEFAULT 1,
   client_forgot_password_email_enabled TINYINT NOT NULL DEFAULT 1,
@@ -774,4 +782,88 @@ CREATE TABLE IF NOT EXISTS sys_admin_blacklist (
   create_time DATETIME,
   update_time DATETIME
 );
+
+-- =============================================================================
+-- 管理端角色冒烟：最小菜单 / 权限码 / 绑定（对齐 V5+V28+V30）
+-- =============================================================================
+INSERT IGNORE INTO sys_admin_menu
+(id, parent_id, name, title, path, component, icon, menu_type, permission_code, sort_order, hidden, cacheable, external_link, keep_alive, status, deleted) VALUES
+(1,  0, 'dashboard',   '仪表盘',   '/admin/dashboard',  'views/DashboardView',   'Dashboard', 'menu', 'admin:dashboard:view', 1, 0, 1, 0, 1, 1, 0),
+(2,  0, 'user',        '用户管理', '/admin/users',      'views/UserListView',    'People',    'menu', 'admin:user:list',      2, 0, 1, 0, 1, 1, 0),
+(7,  0, 'log',         '日志中心', '/admin/logs',       NULL,                    'History',   'dir',  NULL,                   4, 0, 1, 0, 1, 1, 0),
+(8,  7, 'audit-log',   '操作日志', '/admin/audit-logs', 'views/AuditLogView',    'Document',  'menu', 'admin:audit:list',     1, 0, 1, 0, 1, 1, 0),
+(9,  7, 'login-log',   '登录日志', '/admin/login-logs', 'views/LoginLogView',    'LogIn',     'menu', 'admin:login-log:list', 2, 0, 1, 0, 1, 1, 0),
+(10, 0, 'feedback',    '反馈管理', '/admin/feedback',   'views/FeedbackListView','Chatbox',   'menu', 'admin:feedback:list',  5, 0, 1, 0, 1, 1, 0),
+(11, 0, 'settings',    '系统配置', '/admin/settings',   'views/SettingView',     'Settings',  'menu', 'admin:setting:view',   6, 0, 1, 0, 1, 1, 0),
+(13, 0, 'review',      '审核中心', '/admin/review',     NULL,                    'Shield',    'dir',  NULL,                   5, 0, 1, 0, 1, 1, 0),
+(14, 13,'review-task', '违规内容', '/admin/reviews',    'views/ReviewListView',  'Document',  'menu', 'admin:review:list',    1, 0, 1, 0, 1, 1, 0),
+(16, 0, 'notices',     '公告管理', '/admin/notices',    'views/NoticeView',      'Bell',      'menu', 'admin:notice:list',    7, 0, 1, 0, 1, 1, 0),
+(18, 0, 'statistics',  '统计分析', '/admin/statistics', 'views/StatisticsView',  'Chart',     'menu', 'admin:statistics:view',9, 0, 1, 0, 1, 1, 0),
+(19, 7, 'risk-event',  '风险事件', '/admin/risk-events','views/RiskEventView',   'Warning',   'menu', 'admin:risk-event:list',3, 0, 1, 0, 1, 1, 0),
+(20, 0, 'blacklist',   '黑名单管理','/admin/blacklist', 'views/BlacklistView',   'Ban',       'menu', 'admin:blacklist:list', 2, 0, 1, 0, 1, 1, 0),
+(22, 0, 'devices',     '设备管理', '/admin/devices',    'views/DeviceListView',  'Phone',     'menu', 'admin:device:list',    2, 0, 1, 0, 1, 1, 0);
+
+INSERT IGNORE INTO sys_admin_role_menu (role_id, menu_id) VALUES
+-- admin 全量（测试用最小集）
+(1001, 1),(1001, 2),(1001, 7),(1001, 8),(1001, 9),(1001, 10),(1001, 11),
+(1001, 13),(1001, 14),(1001, 16),(1001, 18),(1001, 19),(1001, 20),(1001, 22),
+-- ops
+(1003, 1),(1003, 2),(1003, 10),(1003, 16),(1003, 18),
+-- audit
+(1004, 1),(1004, 2),(1004, 7),(1004, 8),(1004, 9),(1004, 19),
+(1004, 13),(1004, 14),(1004, 20),(1004, 22),
+-- security
+(1005, 1),(1005, 2),(1005, 7),(1005, 8),(1005, 9),(1005, 19),(1005, 20),(1005, 22),
+-- readonly
+(1006, 1),(1006, 2),(1006, 7),(1006, 8),(1006, 9),(1006, 19),(1006, 10),(1006, 13),(1006, 14),(1006, 18),(1006, 22);
+
+INSERT IGNORE INTO sys_permission (id, permission_code, permission_name, resource_type, resource_path, description, status) VALUES
+(2101,'admin:dashboard:view','查看仪表盘','page','/admin/dashboard','仪表盘',1),
+(2102,'admin:user:list','查看用户列表','page','/admin/users','用户管理',1),
+(2103,'admin:user:view','查看用户详情','button',NULL,'用户详情',1),
+(2105,'admin:user:freeze','冻结用户','button',NULL,'冻结',1),
+(2107,'admin:user:ban','封禁用户','button',NULL,'封禁',1),
+(2121,'admin:audit:list','查看操作日志','page','/admin/audit-logs','操作日志',1),
+(2123,'admin:feedback:list','查看反馈列表','page','/admin/feedback','反馈管理',1),
+(2124,'admin:feedback:reply','回复反馈','button',NULL,'回复反馈',1),
+(2126,'admin:setting:view','查看系统配置','page','/admin/settings','系统配置',1),
+(2127,'admin:setting:edit','编辑系统配置','button',NULL,'编辑配置',1),
+(2129,'admin:review:list','查看审核列表','page','/admin/reviews','内容审核',1),
+(2130,'admin:review:approve','审核通过','button',NULL,'审核通过',1),
+(2136,'admin:notice:list','查看公告列表','page','/admin/notices','公告管理',1),
+(2138,'admin:notice:create','新增公告','button',NULL,'新增公告',1),
+(2144,'admin:statistics:view','查看统计分析','page','/admin/statistics','统计中心',1),
+(2146,'admin:risk-event:list','查看风险事件','page','/admin/risk-events','风险事件列表',1),
+(2148,'admin:risk-event:handle','处置风险事件','button',NULL,'风险事件处置',1),
+(2149,'admin:blacklist:list','查看黑名单','page','/admin/blacklist','黑名单列表',1),
+(2171,'admin:device:list','查看设备列表','page','/admin/devices','设备会话列表',1),
+(2172,'admin:device:kick','强制设备下线','button',NULL,'踢设备下线',1);
+
+-- ops: 查看 + 反馈/公告/统计
+INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, deleted) VALUES
+(293101, 1003, 2101, NULL, 0),(293102, 1003, 2102, NULL, 0),(293103, 1003, 2103, NULL, 0),
+(293123, 1003, 2123, NULL, 0),(293124, 1003, 2124, NULL, 0),
+(293136, 1003, 2136, NULL, 0),(293138, 1003, 2138, NULL, 0),
+(293144, 1003, 2144, NULL, 0);
+
+-- audit: 用户处置 + 审核 + 风险 + 黑名单 + 设备 + 日志
+INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, deleted) VALUES
+(294101, 1004, 2101, NULL, 0),(294102, 1004, 2102, NULL, 0),(294103, 1004, 2103, NULL, 0),
+(294105, 1004, 2105, NULL, 0),(294107, 1004, 2107, NULL, 0),
+(294121, 1004, 2121, NULL, 0),(294129, 1004, 2129, NULL, 0),(294130, 1004, 2130, NULL, 0),
+(294146, 1004, 2146, NULL, 0),(294148, 1004, 2148, NULL, 0),
+(294149, 1004, 2149, NULL, 0),(294171, 1004, 2171, NULL, 0),(294172, 1004, 2172, NULL, 0);
+
+-- security: 日志/风险/黑名单/设备/用户处置
+INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, deleted) VALUES
+(295101, 1005, 2101, NULL, 0),(295102, 1005, 2102, NULL, 0),(295103, 1005, 2103, NULL, 0),
+(295105, 1005, 2105, NULL, 0),(295107, 1005, 2107, NULL, 0),
+(295121, 1005, 2121, NULL, 0),(295146, 1005, 2146, NULL, 0),(295148, 1005, 2148, NULL, 0),
+(295149, 1005, 2149, NULL, 0),(295171, 1005, 2171, NULL, 0),(295172, 1005, 2172, NULL, 0);
+
+-- readonly: 仅查看
+INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, deleted) VALUES
+(296101, 1006, 2101, NULL, 0),(296102, 1006, 2102, NULL, 0),(296103, 1006, 2103, NULL, 0),
+(296121, 1006, 2121, NULL, 0),(296123, 1006, 2123, NULL, 0),(296129, 1006, 2129, NULL, 0),
+(296144, 1006, 2144, NULL, 0),(296146, 1006, 2146, NULL, 0),(296171, 1006, 2171, NULL, 0);
 
