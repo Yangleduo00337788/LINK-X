@@ -1,4 +1,4 @@
-import { get, post, put } from './request'
+import { downloadFile, get, post, put } from './request'
 import type { PageQuery, PageResult } from '@/types/api'
 
 export interface AdminUserListItem {
@@ -80,5 +80,9 @@ export interface UserLoginItem {
 
 export function listUserLogins(id: string, params?: PageQuery) {
   return get<PageResult<UserLoginItem>>(`/admin/users/${id}/logins`, (params || {}) as Record<string, unknown>)
+}
+
+export function exportUsers(params: PageQuery) {
+  return downloadFile('/admin/users/export', params as Record<string, unknown>, 'users.csv')
 }
 

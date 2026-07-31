@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NSelect, NSpin, NTabPane, NTabs } from 'naive-ui'
+import { NButton, NSelect, NSpin, NTabPane, NTabs } from 'naive-ui'
 import {
+  exportStatistics,
   fetchStatisticContent,
   fetchStatisticFeedback,
   fetchStatisticOverview,
@@ -15,6 +16,7 @@ import {
   type StatisticUsers,
   type TrendData,
 } from '@/api/statistics'
+import { useAuthStore } from '@/stores/auth'
 import {
   LX_CHART_COLORS,
   buildAreaOption,
@@ -29,7 +31,9 @@ import {
 } from '@/utils/charts'
 
 const { t, locale } = useI18n()
+const auth = useAuthStore()
 const loading = ref(false)
+const exporting = ref(false)
 const days = ref(14)
 const tab = ref('overview')
 
@@ -374,6 +378,15 @@ watch(days, () => {
   void load()
 })
 
+async function doExport() {
+  exporting.value = true
+  try {
+    await exportStatistics(days.value)
+  } finally {
+    exporting.value = false
+  }
+}
+
 onMounted(() => {
   void load()
 })
@@ -386,13 +399,23 @@ onMounted(() => {
         <div class="stats-title">{{ t('statistics.title') }}</div>
         <div class="stats-sub">{{ t('statistics.subtitle') }}</div>
       </div>
-      <NSelect
-        v-model:value="days"
-        :options="daysOptions"
-        size="small"
-        style="width: 132px"
-        :consistent-menu-width="false"
-      />
+      <div class="stats-actions">
+        <NSelect
+          v-model:value="days"
+          :options="daysOptions"
+          size="small"
+          style="width: 132px"
+          :consistent-menu-width="false"
+        />
+        <NButton
+          v-if="auth.hasPermission('admin:statistics:export')"
+          size="small"
+          :loading="exporting"
+          @click="doExport"
+        >
+          {{ t('common.export') }}
+        </NButton>
+      </div>
     </div>
 
     <NSpin :show="loading">
@@ -615,6 +638,12 @@ onMounted(() => {
   justify-content: space-between;
   gap: 12px;
   padding: 2px 2px 4px;
+}
+
+.stats-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .stats-title {

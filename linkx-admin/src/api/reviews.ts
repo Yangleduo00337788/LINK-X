@@ -1,4 +1,4 @@
-import { get, post } from './request'
+import { downloadFile, get, post } from './request'
 import type { PageQuery, PageResult } from '@/types/api'
 
 export interface ReviewItem {
@@ -26,6 +26,12 @@ export interface ReviewQuery extends PageQuery {
   sourceType?: string
 }
 
+export interface ReviewBatchResult {
+  successCount: number
+  failCount: number
+  failures?: { id: string; reason?: string }[]
+}
+
 export function listReviews(params: ReviewQuery) {
   return get<PageResult<ReviewItem>>('/admin/reviews', params as Record<string, unknown>)
 }
@@ -40,4 +46,16 @@ export function approveReview(id: string, resolution?: string) {
 
 export function rejectReview(id: string, resolution?: string) {
   return post<null>(`/admin/reviews/${id}/reject`, { resolution })
+}
+
+export function batchReviews(ids: string[], action: 'approve' | 'reject', resolution?: string) {
+  return post<ReviewBatchResult>('/admin/reviews/batch', {
+    ids,
+    action,
+    resolution,
+  })
+}
+
+export function exportReviews(params: ReviewQuery) {
+  return downloadFile('/admin/reviews/export', params as Record<string, unknown>, 'reviews.csv')
 }

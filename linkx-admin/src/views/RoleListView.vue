@@ -9,6 +9,7 @@ import {
   NFormItem,
   NInput,
   NModal,
+  NSelect,
   NSpace,
   NTag,
   NTree,
@@ -21,15 +22,18 @@ import {
 import SearchAutoComplete from '@/components/SearchAutoComplete.vue'
 import {
   assignRoleMenus,
+  assignRoleUsers,
   createRole,
   deleteRole,
   getRoleMenus,
+  getRoleUsers,
   listRoles,
   updateRole,
   type AdminRole,
   type RolePayload,
 } from '@/api/roles'
 import { listMenus } from '@/api/menus'
+import { listUsers } from '@/api/users'
 import type { AdminMenuTree } from '@/types/api'
 import { formatTime } from '@/utils/format'
 import { resolveMenuLabel } from '@/utils/menuI18n'
@@ -75,6 +79,12 @@ const menuTree = ref<TreeOption[]>([])
 const checkedKeys = ref<number[]>([])
 const menuSaving = ref(false)
 
+const showUserModal = ref(false)
+const userRoleId = ref<number | null>(null)
+const userOptions = ref<{ label: string; value: string }[]>([])
+const selectedUserIds = ref<string[]>([])
+const userSaving = ref(false)
+
 const columns = computed<DataTableColumns<AdminRole>>(() => {
   void locale.value
   return [
@@ -100,7 +110,7 @@ const columns = computed<DataTableColumns<AdminRole>>(() => {
     {
       title: t('common.actions'),
       key: 'actions',
-      width: 240,
+      width: 300,
       render: (row) =>
         h(NSpace, { size: 8 }, () => [
           auth.hasPermission('admin:role:edit')
@@ -108,6 +118,9 @@ const columns = computed<DataTableColumns<AdminRole>>(() => {
             : null,
           auth.hasPermission('admin:role:assign-menu')
             ? h(NButton, { size: 'tiny', onClick: () => openMenus(row) }, () => t('role.menus'))
+            : null,
+          auth.hasPermission('admin:role:assign-user') && row.roleCode !== 'user'
+            ? h(NButton, { size: 'tiny', onClick: () => openUsers(row) }, () => t('role.users'))
             : null,
           auth.hasPermission('admin:role:delete')
             ? h(
@@ -215,6 +228,36 @@ async function saveMenus() {
   }
 }
 
+async function openUsers(row: AdminRole) {
+  userRoleId.value = row.id
+  const [assigned, candidates] = await Promise.all([
+    getRoleUsers(row.id),
+    listUsers({ page: 1, size: 100 }),
+  ])
+  const map = new Map<string, string>()
+  for (const u of assigned || []) {
+    map.set(String(u.id), `${u.username}${u.nickname ? ` (${u.nickname})` : ''}`)
+  }
+  for (const u of candidates.items || []) {
+    map.set(String(u.id), `${u.username}${u.nickname ? ` (${u.nickname})` : ''}`)
+  }
+  userOptions.value = [...map.entries()].map(([value, label]) => ({ value, label }))
+  selectedUserIds.value = (assigned || []).map((u) => String(u.id))
+  showUserModal.value = true
+}
+
+async function saveUsers() {
+  if (!userRoleId.value) return
+  userSaving.value = true
+  try {
+    await assignRoleUsers(userRoleId.value, selectedUserIds.value)
+    message.success(t('role.usersUpdated'))
+    showUserModal.value = false
+  } finally {
+    userSaving.value = false
+  }
+}
+
 function onMenuChecked(keys: Array<string | number>) {
   checkedKeys.value = keys.map(Number)
 }
@@ -317,6 +360,22 @@ onMounted(load)
         <NSpace justify="end">
           <NButton @click="showMenuModal = false">{{ t('common.cancel') }}</NButton>
           <NButton type="primary" :loading="menuSaving" @click="saveMenus">{{ t('common.save') }}</NButton>
+        </NSpace>
+      </template>
+    </NModal>
+
+    <NModal v-model:show="showUserModal" preset="card" :title="t('role.assignUsers')" style="width: 520px">
+      <NSelect
+        v-model:value="selectedUserIds"
+        multiple
+        filterable
+        :options="userOptions"
+        :placeholder="t('role.usersPlaceholder')"
+      />
+      <template #footer>
+        <NSpace justify="end">
+          <NButton @click="showUserModal = false">{{ t('common.cancel') }}</NButton>
+          <NButton type="primary" :loading="userSaving" @click="saveUsers">{{ t('common.save') }}</NButton>
         </NSpace>
       </template>
     </NModal>

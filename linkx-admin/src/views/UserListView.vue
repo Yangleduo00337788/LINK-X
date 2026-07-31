@@ -16,6 +16,7 @@ import {
 } from 'naive-ui'
 import {
   banUser,
+  exportUsers,
   freezeUser,
   listUsers,
   unbanUser,
@@ -33,6 +34,7 @@ const auth = useAuthStore()
 const { t, locale } = useI18n()
 
 const loading = ref(false)
+const exporting = ref(false)
 const items = ref<AdminUserListItem[]>([])
 const total = ref(0)
 const query = reactive({
@@ -195,21 +197,43 @@ function search() {
   load()
 }
 
+async function doExport() {
+  exporting.value = true
+  try {
+    await exportUsers({
+      keyword: query.keyword || undefined,
+      status: query.status === '' ? undefined : query.status,
+    })
+    message.success(t('common.exportSuccess'))
+  } finally {
+    exporting.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
 <template>
   <div class="page">
     <div class="page-shell">
-      <NSpace class="page-toolbar">
-        <SearchAutoComplete
-          v-model="query.keyword"
-          :placeholder="t('user.searchPlaceholder')"
-          width="240px"
-          @search="search"
-        />
-        <NSelect v-model:value="query.status" :options="statusOptions" style="width: 140px" />
-        <NButton type="primary" @click="search">{{ t('common.search') }}</NButton>
+      <NSpace class="page-toolbar" justify="space-between">
+        <NSpace>
+          <SearchAutoComplete
+            v-model="query.keyword"
+            :placeholder="t('user.searchPlaceholder')"
+            width="240px"
+            @search="search"
+          />
+          <NSelect v-model:value="query.status" :options="statusOptions" style="width: 140px" />
+          <NButton type="primary" @click="search">{{ t('common.search') }}</NButton>
+        </NSpace>
+        <NButton
+          v-if="auth.hasPermission('admin:user:export')"
+          :loading="exporting"
+          @click="doExport"
+        >
+          {{ t('common.export') }}
+        </NButton>
       </NSpace>
       <NDataTable
         :columns="columns"

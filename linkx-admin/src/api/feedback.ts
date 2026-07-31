@@ -1,4 +1,4 @@
-import { get, post } from './request'
+import { downloadFile, get, post } from './request'
 import type { PageQuery, PageResult } from '@/types/api'
 
 export interface FeedbackItem {
@@ -31,4 +31,8 @@ export function closeFeedback(id: string) {
 
 export function reopenFeedback(id: string) {
   return post<null>(`/admin/feedback/${id}/reopen`)
+}
+
+export function exportFeedback(params: PageQuery) {
+  return downloadFile('/admin/feedback/export', params as Record<string, unknown>, 'feedback.csv')
 }

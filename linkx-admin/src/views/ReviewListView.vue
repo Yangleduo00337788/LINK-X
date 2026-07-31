@@ -15,6 +15,8 @@ import {
 } from 'naive-ui'
 import {
   approveReview,
+  batchReviews,
+  exportReviews,
   listReviews,
   rejectReview,
   type ReviewItem,
@@ -41,6 +43,9 @@ const resolveTarget = ref<ReviewItem | null>(null)
 const resolveAction = ref<'approve' | 'reject'>('approve')
 const resolution = ref('')
 const resolveSaving = ref(false)
+const checkedKeys = ref<string[]>([])
+const exporting = ref(false)
+const batchSaving = ref(false)
 
 const statusOptions = computed(() => {
   void locale.value
@@ -88,6 +93,7 @@ function sourceLabel(source?: string) {
 const columns = computed<DataTableColumns<ReviewItem>>(() => {
   void locale.value
   return [
+    { type: 'selection', disabled: (row) => row.status !== 'pending' },
     { title: 'ID', key: 'id', width: 90 },
     {
       title: t('review.source'),
@@ -207,6 +213,48 @@ async function submitResolve() {
   }
 }
 
+async function doBatch(action: 'approve' | 'reject') {
+  if (!checkedKeys.value.length) {
+    message.warning(t('review.batchEmpty'))
+    return
+  }
+  dialog.warning({
+    title: action === 'approve' ? t('review.batchApproveTitle') : t('review.batchRejectTitle'),
+    content: t('review.batchConfirm', { n: checkedKeys.value.length }),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      batchSaving.value = true
+      try {
+        const result = await batchReviews(checkedKeys.value, action)
+        checkedKeys.value = []
+        if (result.failCount > 0) {
+          message.warning(t('review.batchPartial', { ok: result.successCount, fail: result.failCount }))
+        } else {
+          message.success(t('review.batchSuccess', { n: result.successCount }))
+        }
+        await load()
+      } finally {
+        batchSaving.value = false
+      }
+    },
+  })
+}
+
+async function doExport() {
+  exporting.value = true
+  try {
+    await exportReviews({
+      keyword: query.keyword || undefined,
+      reviewStatus: query.status || undefined,
+      sourceType: query.sourceType || undefined,
+    })
+    message.success(t('common.exportSuccess'))
+  } finally {
+    exporting.value = false
+  }
+}
+
 async function load(opts?: { silent?: boolean; announceNew?: boolean }) {
   const silent = !!opts?.silent
   if (!silent) loading.value = true
@@ -266,21 +314,54 @@ onUnmounted(() => {
 <template>
   <div class="page">
     <div class="page-shell">
-      <NSpace class="page-toolbar">
-        <SearchAutoComplete
-          v-model="query.keyword"
-          :placeholder="t('review.searchPlaceholder')"
-          width="220px"
-          @search="search"
-        />
-        <NSelect v-model:value="query.status" :options="statusOptions" style="width: 140px" />
-        <NSelect v-model:value="query.sourceType" :options="sourceOptions" style="width: 140px" />
-        <NButton type="primary" @click="search">{{ t('common.search') }}</NButton>
+      <NSpace class="page-toolbar" justify="space-between">
+        <NSpace>
+          <SearchAutoComplete
+            v-model="query.keyword"
+            :placeholder="t('review.searchPlaceholder')"
+            width="220px"
+            @search="search"
+          />
+          <NSelect v-model:value="query.status" :options="statusOptions" style="width: 140px" />
+          <NSelect v-model:value="query.sourceType" :options="sourceOptions" style="width: 140px" />
+          <NButton type="primary" @click="search">{{ t('common.search') }}</NButton>
+        </NSpace>
+        <NSpace>
+          <NButton
+            v-if="auth.hasPermission('admin:review:batch')"
+            :disabled="!checkedKeys.length"
+            :loading="batchSaving"
+            type="success"
+            secondary
+            @click="doBatch('approve')"
+          >
+            {{ t('review.batchApprove') }}
+          </NButton>
+          <NButton
+            v-if="auth.hasPermission('admin:review:batch')"
+            :disabled="!checkedKeys.length"
+            :loading="batchSaving"
+            type="error"
+            secondary
+            @click="doBatch('reject')"
+          >
+            {{ t('review.batchReject') }}
+          </NButton>
+          <NButton
+            v-if="auth.hasPermission('admin:review:export')"
+            :loading="exporting"
+            @click="doExport"
+          >
+            {{ t('common.export') }}
+          </NButton>
+        </NSpace>
       </NSpace>
       <NDataTable
+        v-model:checked-row-keys="checkedKeys"
         :columns="columns"
         :data="items"
         :loading="loading"
+        :row-key="(row: ReviewItem) => row.id"
         :scroll-x="1200"
         :pagination="{
           page: query.page,

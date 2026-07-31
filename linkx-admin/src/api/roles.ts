@@ -18,6 +18,13 @@ export interface RolePayload {
   status?: number
 }
 
+export interface RoleUser {
+  id: string
+  username: string
+  nickname?: string
+  status?: number
+}
+
 export function listRoles(params: PageQuery) {
   return get<PageResult<AdminRole>>('/admin/roles', params as Record<string, unknown>)
 }
@@ -44,4 +51,12 @@ export function getRoleMenus(id: number) {
 
 export function assignRoleMenus(id: number, menuIds: number[]) {
   return put<null>(`/admin/roles/${id}/menus`, { menuIds })
+}
+
+export function getRoleUsers(id: number) {
+  return get<RoleUser[]>(`/admin/roles/${id}/users`)
+}
+
+export function assignRoleUsers(id: number, userIds: string[]) {
+  return put<null>(`/admin/roles/${id}/users`, { userIds })
 }

@@ -16,6 +16,7 @@ import {
   type DataTableColumns,
 } from 'naive-ui'
 import {
+  exportRiskEvents,
   handleRiskEvent,
   listRiskEvents,
   type RiskEventItem,
@@ -30,6 +31,7 @@ const auth = useAuthStore()
 const { t, locale } = useI18n()
 
 const loading = ref(false)
+const exporting = ref(false)
 const items = ref<RiskEventItem[]>([])
 const total = ref(0)
 const query = reactive({ page: 1, size: 20, keyword: '', status: 'pending', eventType: '', riskLevel: '' })
@@ -269,6 +271,21 @@ function search() {
   load()
 }
 
+async function doExport() {
+  exporting.value = true
+  try {
+    await exportRiskEvents({
+      keyword: query.keyword || undefined,
+      eventStatus: query.status || undefined,
+      eventType: query.eventType || undefined,
+      riskLevel: query.riskLevel || undefined,
+    })
+    message.success(t('common.exportSuccess'))
+  } finally {
+    exporting.value = false
+  }
+}
+
 function onVisibilityChange() {
   if (document.visibilityState === 'visible') {
     void load({ silent: true, announceNew: true })
@@ -297,17 +314,26 @@ onUnmounted(() => {
 <template>
   <div class="page">
     <div class="page-shell">
-      <NSpace class="page-toolbar">
-        <SearchAutoComplete
-          v-model="query.keyword"
-          :placeholder="t('risk.searchPlaceholder')"
-          width="220px"
-          @search="search"
-        />
-        <NSelect v-model:value="query.status" :options="statusOptions" style="width: 140px" />
-        <NSelect v-model:value="query.eventType" :options="typeOptions" style="width: 150px" />
-        <NSelect v-model:value="query.riskLevel" :options="levelOptions" style="width: 130px" />
-        <NButton type="primary" @click="search">{{ t('common.search') }}</NButton>
+      <NSpace class="page-toolbar" justify="space-between">
+        <NSpace>
+          <SearchAutoComplete
+            v-model="query.keyword"
+            :placeholder="t('risk.searchPlaceholder')"
+            width="220px"
+            @search="search"
+          />
+          <NSelect v-model:value="query.status" :options="statusOptions" style="width: 140px" />
+          <NSelect v-model:value="query.eventType" :options="typeOptions" style="width: 150px" />
+          <NSelect v-model:value="query.riskLevel" :options="levelOptions" style="width: 130px" />
+          <NButton type="primary" @click="search">{{ t('common.search') }}</NButton>
+        </NSpace>
+        <NButton
+          v-if="auth.hasPermission('admin:risk-event:export')"
+          :loading="exporting"
+          @click="doExport"
+        >
+          {{ t('common.export') }}
+        </NButton>
       </NSpace>
       <NDataTable
         :columns="columns"

@@ -1,4 +1,4 @@
-import { get } from './request'
+import { downloadFile, get } from './request'
 
 export interface ChartSeries {
   name: string
@@ -83,4 +83,8 @@ export function fetchStatisticRisk(days = 14) {
 
 export function fetchStatisticFeedback(days = 14) {
   return get<StatisticFeedback>('/admin/statistics/feedback', { days })
+}
+
+export function exportStatistics(days = 14) {
+  return downloadFile('/admin/statistics/export', { days }, 'statistics.csv')
 }

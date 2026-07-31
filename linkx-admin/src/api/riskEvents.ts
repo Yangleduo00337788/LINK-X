@@ -1,4 +1,4 @@
-import { get, post } from './request'
+import { downloadFile, get, post } from './request'
 import type { PageQuery, PageResult } from '@/types/api'
 
 export interface RiskEventItem {
@@ -48,3 +48,6 @@ export function handleRiskEvent(
   })
 }
 
+export function exportRiskEvents(params: RiskEventQuery) {
+  return downloadFile('/admin/risk-events/export', params as Record<string, unknown>, 'risk-events.csv')
+}

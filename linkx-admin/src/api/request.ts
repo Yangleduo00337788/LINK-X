@@ -74,6 +74,9 @@ request.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 
 request.interceptors.response.use(
   (response) => {
+    if (response.config.responseType === 'blob' || response.data instanceof Blob) {
+      return response
+    }
     const payload = response.data as ApiResult
     if (payload && typeof payload.code === 'number' && payload.code !== 200) {
       const fallback = tGlobal('common.requestFailed')
@@ -121,6 +124,45 @@ export async function put<T>(url: string, body?: unknown) {
 export async function del<T>(url: string) {
   const { data } = await request.delete<ApiResult<T>>(url)
   return data.data
+}
+
+/** 下载 CSV / 二进制附件（非 JSON Result 包装） */
+export async function downloadFile(url: string, params?: Record<string, unknown>, fallbackName = 'export.csv') {
+  const response = await request.get(url, {
+    params,
+    responseType: 'blob',
+    // 跳过 JSON code 拦截：blob 响应无 Result 结构
+    transformResponse: [(data) => data],
+  })
+  const blob = response.data as Blob
+  // 若后端返回 JSON 错误，blob 里可能是错误文案
+  if (blob.type && blob.type.includes('application/json')) {
+    const text = await blob.text()
+    try {
+      const payload = JSON.parse(text) as ApiResult
+      const msg = payload.message || tGlobal('common.requestFailed')
+      message.error(msg)
+      throw new Error(msg)
+    } catch (e) {
+      if (e instanceof Error && e.message !== tGlobal('common.requestFailed')) throw e
+      message.error(tGlobal('common.requestFailed'))
+      throw e
+    }
+  }
+  const disposition = response.headers['content-disposition'] as string | undefined
+  let filename = fallbackName
+  if (disposition) {
+    const m = /filename="?([^";]+)"?/i.exec(disposition)
+    if (m?.[1]) filename = decodeURIComponent(m[1])
+  }
+  const href = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = href
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(href)
 }
 
 export default request
