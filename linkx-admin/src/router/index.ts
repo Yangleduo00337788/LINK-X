@@ -92,6 +92,18 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: 'route.sensitiveWords', permission: 'admin:sensitive-word:list' },
       },
       {
+        path: 'notices',
+        name: 'Notices',
+        component: () => import('@/views/NoticeView.vue'),
+        meta: { titleKey: 'route.notices', permission: 'admin:notice:list' },
+      },
+      {
+        path: 'notice-inbox',
+        name: 'NoticeInbox',
+        component: () => import('@/views/NoticeInboxView.vue'),
+        meta: { titleKey: 'route.noticeInbox', permission: 'admin:notice:inbox' },
+      },
+      {
         path: 'settings',
         name: 'Settings',
         component: () => import('@/views/SettingView.vue'),

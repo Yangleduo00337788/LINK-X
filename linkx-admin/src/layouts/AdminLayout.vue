@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, onMounted, ref, watch } from 'vue'
+import { computed, h, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
@@ -15,6 +15,7 @@ import {
   NSpace,
   NText,
   NWatermark,
+  useMessage,
   type MenuOption,
 } from 'naive-ui'
 import { LogOutOutline, PersonCircleOutline, PersonOutline, MenuOutline } from '@vicons/ionicons5'
@@ -24,19 +25,57 @@ import { usePreferencesStore } from '@/stores/preferences'
 import { resolveMenuIcon } from '@/utils/icons'
 import { resolveAvatarSrc } from '@/utils/mediaUrl'
 import { resolveMenuLabel } from '@/utils/menuI18n'
+import { onAdminRealtimeEvent, startAdminRealtime, stopAdminRealtime } from '@/api/realtime'
 import PrefSwitcher from '@/components/PrefSwitcher.vue'
 import PageHeaderBar from '@/components/PageHeaderBar.vue'
 import AdminFloatActions from '@/components/AdminFloatActions.vue'
+import AdminNoticeBell from '@/components/AdminNoticeBell.vue'
 import type { AdminMenuTree } from '@/types/api'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const prefs = usePreferencesStore()
+const message = useMessage()
 const { watermarkEnabled, watermarkFullscreen, watermarkLines, watermarkFontColor } =
   storeToRefs(prefs)
 const { t, locale } = useI18n()
 const collapsed = ref(false)
+
+let offRealtime: (() => void) | null = null
+
+onMounted(() => {
+  startAdminRealtime()
+  offRealtime = onAdminRealtimeEvent((evt) => {
+    // 仅管理端公告才弹实时横幅；客户端公告不互通到管理端提示
+    if (evt?.type === 'admin_notice_published') {
+      const title = typeof evt.title === 'string' ? evt.title : ''
+      const content = typeof evt.content === 'string' ? evt.content : ''
+      message.info(
+        title
+          ? t('notice.adminBulletin', { title, content: content || title })
+          : t('notice.adminBulletinGeneric'),
+        { duration: 6000 },
+      )
+    } else if (evt?.type === 'admin_notice_unpublished') {
+      const title = typeof evt.title === 'string' ? evt.title : ''
+      message.warning(
+        title
+          ? t('notice.adminBulletinRecalled', { title })
+          : t('notice.adminBulletinRecalledGeneric'),
+        { duration: 5000 },
+      )
+    }
+  })
+  // 刷新侧边栏菜单，避免本地缓存仍显示已下线的「版本管理」等项
+  void auth.fetchMenusAndPermissions()
+})
+
+onUnmounted(() => {
+  offRealtime?.()
+  offRealtime = null
+  stopAdminRealtime()
+})
 
 const headerAvatarSrc = computed(() =>
   resolveAvatarSrc(auth.user?.avatar, auth.user?.id, true),
@@ -85,6 +124,8 @@ const menuOptions = computed(() => {
     { label: t('route.feedback'), key: '/admin/feedback', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Message')) }) },
     { label: t('route.reviews'), key: '/admin/reviews', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Document')) }) },
     { label: t('route.sensitiveWords'), key: '/admin/sensitive-words', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Key')) }) },
+    { label: t('route.noticeInbox'), key: '/admin/notice-inbox', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Notifications')) }) },
+    { label: t('route.notices'), key: '/admin/notices', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Bell')) }) },
     { label: t('route.settings'), key: '/admin/settings', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Settings')) }) },
   ] as MenuOption[]
 })
@@ -133,15 +174,12 @@ async function onUserSelect(key: string) {
     return
   }
   if (key === 'logout') {
+    stopAdminRealtime()
     await auth.logout()
     router.push('/login')
   }
 }
 
-onMounted(() => {
-  // 刷新侧边栏菜单，避免本地缓存仍显示已下线的「版本管理」等项
-  void auth.fetchMenusAndPermissions()
-})
 </script>
 
 <template>
@@ -174,6 +212,7 @@ onMounted(() => {
         <NLayoutHeader bordered class="header">
           <NText depth="3">{{ t('app.brandAdmin') }}</NText>
           <NSpace align="center" :size="12">
+            <AdminNoticeBell />
             <PrefSwitcher compact />
             <NDropdown :options="userOptions" @select="onUserSelect">
               <NButton quaternary class="lx-float-btn">

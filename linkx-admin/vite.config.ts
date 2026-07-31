@@ -16,11 +16,20 @@ export default defineConfig({
       '/api': {
         target: 'http://127.0.0.1:8080',
         changeOrigin: true,
-        // 去掉浏览器带来的 Origin，避免后端 CORS 白名单拦截（开发代理场景）
+        // SSE 长连接勿缓冲
         configure: (proxy) => {
-          proxy.on('proxyReq', (proxyReq) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
             proxyReq.removeHeader('origin')
             proxyReq.removeHeader('referer')
+            if (req.url?.includes('/admin/events/stream')) {
+              proxyReq.setHeader('Accept', 'text/event-stream')
+            }
+          })
+          proxy.on('proxyRes', (proxyRes, req) => {
+            if (req.url?.includes('/admin/events/stream')) {
+              proxyRes.headers['cache-control'] = 'no-cache'
+              proxyRes.headers['x-accel-buffering'] = 'no'
+            }
           })
         },
       },
