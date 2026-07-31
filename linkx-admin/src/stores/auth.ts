@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import * as authApi from '@/api/auth'
 import { clearTokens, getAccessToken, getRefreshToken } from '@/api/request'
-import type { AdminMenuTree, AdminUserProfile } from '@/types/api'
+import type { AdminLoginResult, AdminMenuTree, AdminUserProfile } from '@/types/api'
 import { tGlobal } from '@/i18n'
 
 export const useAuthStore = defineStore(
@@ -27,13 +27,41 @@ export const useAuthStore = defineStore(
       return codes.some((c) => list.includes(c))
     }
 
-    async function login(payload: authApi.LoginPayload) {
-      const data = await authApi.login(payload)
+    async function applyLoginResult(data: AdminLoginResult) {
+      if (!data.accessToken || !data.refreshToken || !data.user) {
+        throw new Error('incomplete login result')
+      }
       accessToken.value = data.accessToken
       refreshToken.value = data.refreshToken
       user.value = data.user
       permissions.value = [...(data.user.permissions || [])]
       await fetchMenusAndPermissions()
+    }
+
+    /** 密码登录；若返回 challenge 则不写 token，由调用方进入 2FA 步骤 */
+    async function login(payload: authApi.LoginPayload): Promise<AdminLoginResult> {
+      const data = await authApi.login(payload)
+      if (data.requiresTotp || data.requiresTotpSetup) {
+        return data
+      }
+      if (data.accessToken && data.refreshToken) {
+        const { setTokens } = await import('@/api/request')
+        setTokens(data.accessToken, data.refreshToken)
+        await applyLoginResult(data)
+      }
+      return data
+    }
+
+    async function completeTotpLogin(challengeToken: string, code: string) {
+      const data = await authApi.verifyTotpLogin(challengeToken, code)
+      await applyLoginResult(data)
+      return data
+    }
+
+    async function completeTotpSetup(challengeToken: string, code: string) {
+      const data = await authApi.confirmTotpChallenge(challengeToken, code)
+      await applyLoginResult(data)
+      return data
     }
 
     async function fetchProfile() {
@@ -83,6 +111,8 @@ export const useAuthStore = defineStore(
       displayName,
       hasPermission,
       login,
+      completeTotpLogin,
+      completeTotpSetup,
       logout,
       fetchProfile,
       fetchMenusAndPermissions,

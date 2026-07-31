@@ -2,6 +2,7 @@ import { get, post, put, setTokens, clearTokens } from './request'
 import type {
   AdminLoginResult,
   AdminMenuTree,
+  AdminTotpSetup,
   AdminUserProfile,
   AuthConfigVO,
   CaptchaVO,
@@ -22,10 +23,44 @@ export function fetchAuthConfig() {
   return get<AuthConfigVO>('/admin/auth/config')
 }
 
+/** 密码登录；若开启 2FA 则返回 challenge，不写 token */
 export async function login(payload: LoginPayload) {
-  const data = await post<AdminLoginResult>('/admin/auth/login', payload)
-  setTokens(data.accessToken, data.refreshToken)
+  return post<AdminLoginResult>('/admin/auth/login', payload)
+}
+
+export async function verifyTotpLogin(challengeToken: string, code: string) {
+  const data = await post<AdminLoginResult>('/admin/auth/login/totp', { challengeToken, code })
+  if (data.accessToken && data.refreshToken) {
+    setTokens(data.accessToken, data.refreshToken)
+  }
   return data
+}
+
+export function beginTotpSetupChallenge(challengeToken: string) {
+  return post<AdminTotpSetup>('/admin/auth/totp/setup-challenge', { challengeToken })
+}
+
+export async function confirmTotpChallenge(challengeToken: string, code: string) {
+  const data = await post<AdminLoginResult>('/admin/auth/totp/confirm-challenge', {
+    challengeToken,
+    code,
+  })
+  if (data.accessToken && data.refreshToken) {
+    setTokens(data.accessToken, data.refreshToken)
+  }
+  return data
+}
+
+export function beginTotpSetup() {
+  return post<AdminTotpSetup>('/admin/auth/totp/setup')
+}
+
+export function confirmTotp(code: string) {
+  return post<AdminUserProfile>('/admin/auth/totp/confirm', { code })
+}
+
+export function disableTotp(password: string, code: string) {
+  return post<AdminUserProfile>('/admin/auth/totp/disable', { password, code })
 }
 
 export async function logout(refreshToken?: string) {

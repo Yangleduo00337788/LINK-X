@@ -93,6 +93,7 @@ const loginForm = reactive({
     captchaEnabled: true,
     maxAttempts: 5,
     lockDurationMinutes: 10,
+    totpRequired: false,
   },
 })
 
@@ -162,6 +163,7 @@ function applySettings(data: AdminSetting) {
     data.login?.admin?.captchaEnabled ?? data.admin?.captchaEnabled !== false
   loginForm.admin.maxAttempts = data.login?.admin?.maxAttempts ?? 5
   loginForm.admin.lockDurationMinutes = data.login?.admin?.lockDurationMinutes ?? 10
+  loginForm.admin.totpRequired = data.login?.admin?.totpRequired === true
 
   passwordForm.minLength = data.password?.minLength ?? 8
   passwordForm.maxLength = data.password?.maxLength ?? 64
@@ -264,6 +266,7 @@ async function saveLogin() {
           captchaEnabled: loginForm.admin.captchaEnabled,
           maxAttempts: loginForm.admin.maxAttempts,
           lockDurationMinutes: loginForm.admin.lockDurationMinutes,
+          totpRequired: loginForm.admin.totpRequired,
         },
       }),
     )
@@ -533,6 +536,10 @@ onMounted(load)
                   />
                   <span class="field-hint">{{ t('setting.lockDurationHint') }}</span>
                 </div>
+              </NFormItem>
+              <NFormItem :label="t('setting.totpRequired')">
+                <NSwitch v-model:value="loginForm.admin.totpRequired" />
+                <span class="field-hint">{{ t('setting.totpRequiredHint') }}</span>
               </NFormItem>
 
               <NFormItem v-if="canEdit">

@@ -10,21 +10,33 @@ import {
   NFormItem,
   NIcon,
   NInput,
+  NModal,
   NSpace,
   NSpin,
   NTag,
+  useDialog,
   useMessage,
   type FormInst,
   type FormRules,
 } from 'naive-ui'
 import { CameraOutline, PersonCircleOutline } from '@vicons/ionicons5'
-import { changePassword, fetchAuthConfig, updateProfile, uploadAvatar } from '@/api/auth'
+import QRCode from 'qrcode'
+import {
+  beginTotpSetup,
+  changePassword,
+  confirmTotp,
+  disableTotp,
+  fetchAuthConfig,
+  updateProfile,
+  uploadAvatar,
+} from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import { resolveAvatarSrc } from '@/utils/mediaUrl'
 import type { PasswordPolicyVO } from '@/types/api'
 
 const router = useRouter()
 const message = useMessage()
+const dialog = useDialog()
 const auth = useAuthStore()
 const { t, locale } = useI18n()
 
@@ -32,6 +44,15 @@ const loading = ref(false)
 const profileSaving = ref(false)
 const pwdSaving = ref(false)
 const avatarUploading = ref(false)
+const totpLoading = ref(false)
+const totpRequired = ref(false)
+const showTotpSetup = ref(false)
+const showTotpDisable = ref(false)
+const setupSecret = ref('')
+const qrDataUrl = ref('')
+const totpCode = ref('')
+const disablePassword = ref('')
+const disableCode = ref('')
 const profileFormRef = ref<FormInst | null>(null)
 const pwdFormRef = ref<FormInst | null>(null)
 const avatarInputRef = ref<HTMLInputElement | null>(null)
@@ -87,10 +108,13 @@ async function loadPasswordPolicy() {
         requireSpecial: p.requireSpecial === true,
       }
     }
+    totpRequired.value = !!cfg?.totpRequired
   } catch {
     /* keep defaults */
   }
 }
+
+const totpEnabled = computed(() => !!auth.user?.totpEnabled)
 
 const rolesText = computed(() => {
   void locale.value
@@ -265,6 +289,71 @@ async function submitPassword() {
   }
 }
 
+async function openTotpSetup() {
+  totpLoading.value = true
+  try {
+    const setup = await beginTotpSetup()
+    setupSecret.value = setup.secret
+    totpCode.value = ''
+    qrDataUrl.value = await QRCode.toDataURL(setup.otpauthUri, { width: 180, margin: 1 })
+    showTotpSetup.value = true
+  } finally {
+    totpLoading.value = false
+  }
+}
+
+async function submitTotpSetup() {
+  if (!/^\d{6}$/.test(totpCode.value.trim())) {
+    message.warning(t('login.totpCodeRequired'))
+    return
+  }
+  totpLoading.value = true
+  try {
+    const profile = await confirmTotp(totpCode.value.trim())
+    await auth.fetchProfile()
+    void profile
+    showTotpSetup.value = false
+    message.success(t('profile.totpEnabledSuccess'))
+  } finally {
+    totpLoading.value = false
+  }
+}
+
+function openTotpDisable() {
+  if (totpRequired.value) {
+    message.warning(t('profile.totpRequiredCannotDisable'))
+    return
+  }
+  disablePassword.value = ''
+  disableCode.value = ''
+  showTotpDisable.value = true
+}
+
+async function submitTotpDisable() {
+  if (!disablePassword.value || !/^\d{6}$/.test(disableCode.value.trim())) {
+    message.warning(t('profile.totpDisableIncomplete'))
+    return
+  }
+  dialog.warning({
+    title: t('profile.totpDisableTitle'),
+    content: t('profile.totpDisableConfirm'),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      totpLoading.value = true
+      try {
+        const profile = await disableTotp(disablePassword.value, disableCode.value.trim())
+        await auth.fetchProfile()
+        void profile
+        showTotpDisable.value = false
+        message.success(t('profile.totpDisabledSuccess'))
+      } finally {
+        totpLoading.value = false
+      }
+    },
+  })
+}
+
 watch(
   () => auth.user,
   () => syncProfileForm(),
@@ -427,8 +516,99 @@ onMounted(() => {
             </NFormItem>
           </NForm>
         </div>
+
+        <div class="page-card profile-card">
+          <h2 class="section-title">{{ t('profile.totpTitle') }}</h2>
+          <p class="section-hint">{{ t('profile.totpHint') }}</p>
+          <NSpace align="center" style="margin-bottom: 12px">
+            <NTag :type="totpEnabled ? 'success' : 'default'" size="small">
+              {{ totpEnabled ? t('profile.totpOn') : t('profile.totpOff') }}
+            </NTag>
+            <span v-if="totpRequired" class="readonly-text">{{ t('profile.totpRequiredHint') }}</span>
+          </NSpace>
+          <NSpace>
+            <NButton
+              v-if="!totpEnabled"
+              type="primary"
+              :loading="totpLoading"
+              @click="openTotpSetup"
+            >
+              {{ t('profile.totpEnable') }}
+            </NButton>
+            <NButton
+              v-else
+              type="error"
+              secondary
+              :disabled="totpRequired"
+              :loading="totpLoading"
+              @click="openTotpDisable"
+            >
+              {{ t('profile.totpDisable') }}
+            </NButton>
+          </NSpace>
+        </div>
       </div>
     </NSpin>
+
+    <NModal
+      v-model:show="showTotpSetup"
+      preset="card"
+      :title="t('profile.totpEnable')"
+      style="width: 420px"
+    >
+      <div class="totp-setup">
+        <img v-if="qrDataUrl" class="totp-qr" :src="qrDataUrl" alt="totp-qr" />
+        <p class="section-hint">{{ t('login.totpScanHint') }}</p>
+        <code class="totp-secret">{{ setupSecret }}</code>
+        <NInput
+          v-model:value="totpCode"
+          maxlength="6"
+          :placeholder="t('login.totpCodePlaceholder')"
+          style="margin-top: 12px"
+        />
+      </div>
+      <template #footer>
+        <NSpace justify="end">
+          <NButton @click="showTotpSetup = false">{{ t('common.cancel') }}</NButton>
+          <NButton type="primary" :loading="totpLoading" @click="submitTotpSetup">
+            {{ t('login.totpConfirmBind') }}
+          </NButton>
+        </NSpace>
+      </template>
+    </NModal>
+
+    <NModal
+      v-model:show="showTotpDisable"
+      preset="card"
+      :title="t('profile.totpDisableTitle')"
+      style="width: 420px"
+    >
+      <NForm label-placement="left" label-width="100">
+        <NFormItem :label="t('profile.oldPassword')">
+          <NInput
+            v-model:value="disablePassword"
+            type="password"
+            show-password-on="click"
+            :placeholder="t('profile.oldPassword')"
+          />
+        </NFormItem>
+        <NFormItem :label="t('login.totpCode')">
+          <NInput
+            v-model:value="disableCode"
+            maxlength="6"
+            :placeholder="t('login.totpCodePlaceholder')"
+          />
+        </NFormItem>
+      </NForm>
+      <template #footer>
+        <NSpace justify="end">
+          <NButton @click="showTotpDisable = false">{{ t('common.cancel') }}</NButton>
+          <NButton type="error" :loading="totpLoading" @click="submitTotpDisable">
+            {{ t('profile.totpDisable') }}
+          </NButton>
+        </NSpace>
+      </template>
+    </NModal>
   </div>
 </template>
 
@@ -526,6 +706,26 @@ onMounted(() => {
 .readonly-text {
   color: var(--lx-text);
   line-height: 34px;
+}
+
+.totp-setup {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+.totp-qr {
+  width: 180px;
+  height: 180px;
+  border-radius: 8px;
+  background: #fff;
+}
+.totp-secret {
+  font-size: 12px;
+  word-break: break-all;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--lx-captcha-bg, rgba(0, 0, 0, 0.04));
+  max-width: 100%;
 }
 
 @media (max-width: 900px) {

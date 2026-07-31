@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
@@ -15,7 +15,8 @@ import {
   type FormInst,
   type FormRules,
 } from 'naive-ui'
-import { fetchAuthConfig, fetchCaptcha } from '@/api/auth'
+import QRCode from 'qrcode'
+import { beginTotpSetupChallenge, fetchAuthConfig, fetchCaptcha } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import PrefSwitcher from '@/components/PrefSwitcher.vue'
 import AdminOpsBannerCarousel from '@/components/AdminOpsBannerCarousel.vue'
@@ -26,18 +27,30 @@ const route = useRoute()
 const message = useMessage()
 const { t, locale } = useI18n()
 
+type Step = 'password' | 'totp' | 'setup'
+
+const step = ref<Step>('password')
 const formRef = ref<FormInst | null>(null)
+const totpFormRef = ref<FormInst | null>(null)
 const loading = ref(false)
 const captchaEnabled = ref(true)
 const captchaId = ref('')
 const captchaImg = ref('')
 const captchaLoading = ref(false)
 const loginBannerCount = ref<number | null>(null)
+const challengeToken = ref('')
+const setupSecret = ref('')
+const setupUri = ref('')
+const qrDataUrl = ref('')
 
 const form = reactive({
   username: '',
   password: '',
   captchaCode: '',
+})
+
+const totpForm = reactive({
+  code: '',
 })
 
 const usernameHistoryKey = 'linkx-admin-login-users'
@@ -88,6 +101,20 @@ const rules = computed<FormRules>(() => {
   }
 })
 
+const totpRules = computed<FormRules>(() => {
+  void locale.value
+  return {
+    code: {
+      required: true,
+      trigger: 'blur',
+      validator: (_r, v: string) => {
+        if (!v || !/^\d{6}$/.test(v.trim())) return new Error(t('login.totpCodeRequired'))
+        return true
+      },
+    },
+  }
+})
+
 function onLoginBannerLoaded(payload: { count: number }) {
   loginBannerCount.value = payload.count
 }
@@ -109,26 +136,98 @@ async function loadCaptcha() {
   }
 }
 
+async function finishLogin() {
+  rememberUsername(form.username)
+  message.success(t('login.success'))
+  const redirect = (route.query.redirect as string) || '/admin/dashboard'
+  await router.replace(redirect)
+}
+
+async function renderQr(uri: string) {
+  try {
+    qrDataUrl.value = await QRCode.toDataURL(uri, { width: 180, margin: 1 })
+  } catch {
+    qrDataUrl.value = ''
+  }
+}
+
+async function enterSetup(token: string) {
+  challengeToken.value = token
+  step.value = 'setup'
+  loading.value = true
+  try {
+    const setup = await beginTotpSetupChallenge(token)
+    setupSecret.value = setup.secret
+    setupUri.value = setup.otpauthUri
+    await renderQr(setup.otpauthUri)
+    totpForm.code = ''
+    await nextTick()
+  } finally {
+    loading.value = false
+  }
+}
+
 async function submit() {
   await formRef.value?.validate()
   loading.value = true
   try {
-    await auth.login({
+    const data = await auth.login({
       username: form.username.trim(),
       password: form.password,
       captchaId: captchaEnabled.value ? captchaId.value : undefined,
       captchaCode: captchaEnabled.value ? form.captchaCode.trim() : undefined,
     })
-    rememberUsername(form.username)
-    message.success(t('login.success'))
-    const redirect = (route.query.redirect as string) || '/admin/dashboard'
-    router.replace(redirect)
+    if (data.requiresTotp && data.challengeToken) {
+      challengeToken.value = data.challengeToken
+      step.value = 'totp'
+      totpForm.code = ''
+      return
+    }
+    if (data.requiresTotpSetup && data.challengeToken) {
+      await enterSetup(data.challengeToken)
+      return
+    }
+    await finishLogin()
   } catch {
     await loadCaptcha()
   } finally {
     loading.value = false
   }
 }
+
+async function submitTotp() {
+  await totpFormRef.value?.validate()
+  loading.value = true
+  try {
+    if (step.value === 'setup') {
+      await auth.completeTotpSetup(challengeToken.value, totpForm.code.trim())
+    } else {
+      await auth.completeTotpLogin(challengeToken.value, totpForm.code.trim())
+    }
+    await finishLogin()
+  } catch {
+    totpForm.code = ''
+  } finally {
+    loading.value = false
+  }
+}
+
+function backToPassword() {
+  step.value = 'password'
+  challengeToken.value = ''
+  setupSecret.value = ''
+  setupUri.value = ''
+  qrDataUrl.value = ''
+  totpForm.code = ''
+  void loadCaptcha()
+}
+
+watch(
+  () => step.value,
+  (s) => {
+    if (s === 'totp' || s === 'setup') totpForm.code = ''
+  },
+)
 
 onMounted(async () => {
   try {
@@ -168,8 +267,24 @@ onMounted(async () => {
       <section class="login-panel">
         <NCard class="login-card" :bordered="false">
           <div class="login-brand">{{ t('app.brand') }}</div>
-          <p class="login-sub">{{ t('login.subtitle') }}</p>
-          <NForm ref="formRef" :model="form" :rules="rules" size="large" @keyup.enter="submit">
+          <p class="login-sub">
+            {{
+              step === 'totp'
+                ? t('login.totpSubtitle')
+                : step === 'setup'
+                  ? t('login.totpSetupSubtitle')
+                  : t('login.subtitle')
+            }}
+          </p>
+
+          <NForm
+            v-if="step === 'password'"
+            ref="formRef"
+            :model="form"
+            :rules="rules"
+            size="large"
+            @keyup.enter="submit"
+          >
             <NFormItem path="username" :label="t('login.username')">
               <NAutoComplete
                 v-model:value="form.username"
@@ -206,6 +321,38 @@ onMounted(async () => {
               {{ t('login.submit') }}
             </NButton>
           </NForm>
+
+          <div v-else>
+            <div v-if="step === 'setup'" class="totp-setup">
+              <img v-if="qrDataUrl" class="totp-qr" :src="qrDataUrl" alt="totp-qr" />
+              <p class="totp-hint">{{ t('login.totpScanHint') }}</p>
+              <code class="totp-secret">{{ setupSecret }}</code>
+            </div>
+            <NForm
+              ref="totpFormRef"
+              :model="totpForm"
+              :rules="totpRules"
+              size="large"
+              @keyup.enter="submitTotp"
+            >
+              <NFormItem path="code" :label="t('login.totpCode')">
+                <NInput
+                  v-model:value="totpForm.code"
+                  maxlength="6"
+                  :placeholder="t('login.totpCodePlaceholder')"
+                  autocomplete="one-time-code"
+                />
+              </NFormItem>
+              <NSpace vertical style="width: 100%">
+                <NButton type="primary" block :loading="loading" @click="submitTotp">
+                  {{ step === 'setup' ? t('login.totpConfirmBind') : t('login.totpVerify') }}
+                </NButton>
+                <NButton block quaternary :disabled="loading" @click="backToPassword">
+                  {{ t('login.back') }}
+                </NButton>
+              </NSpace>
+            </NForm>
+          </div>
         </NCard>
       </section>
     </div>
@@ -340,6 +487,32 @@ onMounted(async () => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+.totp-setup {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.totp-qr {
+  width: 180px;
+  height: 180px;
+  border-radius: 8px;
+  background: #fff;
+}
+.totp-hint {
+  margin: 0;
+  color: var(--lx-text-3);
+  font-size: 13px;
+  text-align: center;
+}
+.totp-secret {
+  font-size: 12px;
+  word-break: break-all;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--lx-captcha-bg);
+  max-width: 100%;
 }
 
 @media (max-width: 820px) {

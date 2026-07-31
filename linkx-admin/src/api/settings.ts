@@ -9,6 +9,7 @@ export interface LoginEntrySetting {
   captchaEnabled?: boolean
   maxAttempts?: number
   lockDurationMinutes?: number
+  totpRequired?: boolean
 }
 
 export interface LoginSideSetting {
@@ -63,8 +64,10 @@ export type RegisterUpdatePayload = Required<
 >
 
 export type LoginUpdatePayload = {
-  client: Required<LoginEntrySetting>
-  admin: Required<LoginEntrySetting>
+  client: Required<Pick<LoginEntrySetting, 'captchaEnabled' | 'maxAttempts' | 'lockDurationMinutes'>>
+  admin: Required<Pick<LoginEntrySetting, 'captchaEnabled' | 'maxAttempts' | 'lockDurationMinutes'>> & {
+    totpRequired: boolean
+  }
 }
 
 export type PasswordUpdatePayload = Required<PasswordSideSetting>

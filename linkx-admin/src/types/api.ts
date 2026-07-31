@@ -31,13 +31,23 @@ export interface AdminUserProfile {
   email?: string
   roles?: string[]
   permissions?: string[]
+  totpEnabled?: boolean
 }
 
 export interface AdminLoginResult {
-  accessToken: string
-  refreshToken: string
-  expiresIn: number
-  user: AdminUserProfile
+  accessToken?: string
+  refreshToken?: string
+  expiresIn?: number
+  user?: AdminUserProfile
+  requiresTotp?: boolean
+  requiresTotpSetup?: boolean
+  challengeToken?: string
+  challengeExpiresIn?: number
+}
+
+export interface AdminTotpSetup {
+  secret: string
+  otpauthUri: string
 }
 
 export interface AdminMenuTree {
@@ -65,6 +75,7 @@ export interface AuthConfigVO {
   captchaEnabled: boolean
   registerEnabled?: boolean
   forgotPasswordEmailEnabled?: boolean
+  totpRequired?: boolean
   passwordPolicy?: PasswordPolicyVO
 }
 
