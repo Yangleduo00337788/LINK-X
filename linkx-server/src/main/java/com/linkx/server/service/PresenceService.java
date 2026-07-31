@@ -34,6 +34,16 @@ public interface PresenceService {
     boolean isOnline(Long userId);
 
     /**
+     * 返回该用户当前仍有 WebSocket 连接的设备 ID 集合（集群视角）。
+     */
+    java.util.Set<String> onlineDeviceIds(Long userId);
+
+    /**
+     * 指定设备是否在线。
+     */
+    boolean isDeviceOnline(Long userId, String deviceId);
+
+    /**
      * 强制对外广播在线可见性（不修改连接集合）。
      * 用于「在线状态可见」开关：关 → offline，开且仍在线 → online。
      */

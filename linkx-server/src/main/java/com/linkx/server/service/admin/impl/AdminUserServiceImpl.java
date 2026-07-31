@@ -18,6 +18,7 @@ import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.SysLoginAuditMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.DeviceSessionService;
+import com.linkx.server.service.PresenceService;
 import com.linkx.server.service.RbacService;
 import com.linkx.server.service.TokenService;
 import com.linkx.server.service.admin.AdminBlacklistService;
@@ -31,6 +32,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -41,6 +43,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     private final SysLoginAuditMapper sysLoginAuditMapper;
     private final RbacService rbacService;
     private final DeviceSessionService deviceSessionService;
+    private final PresenceService presenceService;
     private final TokenService tokenService;
     private final AdminBlacklistService adminBlacklistService;
 
@@ -177,7 +180,10 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Override
     public List<DeviceVO> devices(Long id) {
         requireUser(id);
-        return deviceSessionService.listByUser(id, null);
+        Set<String> onlineDevices = presenceService.onlineDeviceIds(id);
+        return deviceSessionService.listByUser(id, null).stream()
+                .peek(device -> device.setOnline(device.getId() != null && onlineDevices.contains(device.getId())))
+                .collect(Collectors.toList());
     }
 
     @Override

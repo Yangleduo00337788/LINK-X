@@ -24,4 +24,6 @@ public class DeviceVO implements Serializable {
     private String userAgent;
     private Date lastActive;
     private boolean current;
+    /** 管理端：该设备当前是否有 WebSocket 连接 */
+    private boolean online;
 }

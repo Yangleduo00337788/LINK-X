@@ -3,21 +3,22 @@ package com.linkx.server.service.impl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.service.PresenceService;
+import com.linkx.server.service.admin.AdminEventPublisher;
 import jakarta.annotation.PreDestroy;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class PresenceServiceImpl implements PresenceService {
 
     public static final String CONN_KEY_PREFIX = "linkx:presence:conn:";
@@ -47,6 +48,17 @@ public class PresenceServiceImpl implements PresenceService {
     private final StringRedisTemplate redisTemplate;
     private final LinkxProperties linkxProperties;
     private final ObjectMapper objectMapper;
+    private final AdminEventPublisher adminEventPublisher;
+
+    public PresenceServiceImpl(StringRedisTemplate redisTemplate,
+                               LinkxProperties linkxProperties,
+                               ObjectMapper objectMapper,
+                               @Lazy AdminEventPublisher adminEventPublisher) {
+        this.redisTemplate = redisTemplate;
+        this.linkxProperties = linkxProperties;
+        this.objectMapper = objectMapper;
+        this.adminEventPublisher = adminEventPublisher;
+    }
 
     @Override
     public String getInstanceId() {
@@ -58,6 +70,8 @@ public class PresenceServiceImpl implements PresenceService {
         if (userId == null) {
             return;
         }
+        String presenceDeviceId = normalizePresenceDeviceId(deviceId);
+        boolean deviceWasOnline = isDeviceOnline(userId, presenceDeviceId);
         String key = connKey(userId);
         String member = member(deviceId, connId);
         long ttlSeconds = Math.max(ttl().getSeconds(), 30L);
@@ -93,6 +107,9 @@ public class PresenceServiceImpl implements PresenceService {
             publish(userId, true);
             log.debug("presence online: userId={}, instance={}", userId, INSTANCE_ID);
         }
+        if (!deviceWasOnline) {
+            publishAdminDevicePresence(userId, presenceDeviceId, true);
+        }
     }
 
     @Override
@@ -100,6 +117,7 @@ public class PresenceServiceImpl implements PresenceService {
         if (userId == null) {
             return;
         }
+        String presenceDeviceId = normalizePresenceDeviceId(deviceId);
         String key = connKey(userId);
         String member = member(deviceId, connId);
         Long after = redisTemplate.execute(
@@ -117,6 +135,9 @@ public class PresenceServiceImpl implements PresenceService {
             log.debug("presence offline: userId={}, instance={}", userId, INSTANCE_ID);
         } else {
             refreshTtl(key);
+        }
+        if (!isDeviceOnline(userId, presenceDeviceId)) {
+            publishAdminDevicePresence(userId, presenceDeviceId, false);
         }
     }
 
@@ -150,6 +171,43 @@ public class PresenceServiceImpl implements PresenceService {
         }
         Long size = redisTemplate.opsForSet().size(connKey(userId));
         return size != null && size > 0L;
+    }
+
+    @Override
+    public Set<String> onlineDeviceIds(Long userId) {
+        if (userId == null) {
+            return Set.of();
+        }
+        Set<String> members = redisTemplate.opsForSet().members(connKey(userId));
+        if (members == null || members.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> devices = new HashSet<>();
+        for (String member : members) {
+            String deviceId = extractDeviceId(member);
+            if (deviceId != null) {
+                devices.add(deviceId);
+            }
+        }
+        return devices;
+    }
+
+    @Override
+    public boolean isDeviceOnline(Long userId, String deviceId) {
+        if (userId == null || deviceId == null || deviceId.isBlank()) {
+            return false;
+        }
+        String target = deviceId.trim();
+        Set<String> members = redisTemplate.opsForSet().members(connKey(userId));
+        if (members == null || members.isEmpty()) {
+            return false;
+        }
+        for (String member : members) {
+            if (target.equals(extractDeviceId(member))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -237,12 +295,16 @@ public class PresenceServiceImpl implements PresenceService {
             return;
         }
         String member = entry.substring(sep + 1);
+        String deviceId = extractDeviceId(member);
         String key = connKey(userId);
         redisTemplate.opsForSet().remove(key, member);
         Long after = redisTemplate.opsForSet().size(key);
         if (after == null || after == 0L) {
             redisTemplate.delete(key);
             publish(userId, false);
+        }
+        if (deviceId != null && !isDeviceOnline(userId, deviceId)) {
+            publishAdminDevicePresence(userId, deviceId, false);
         }
     }
 
@@ -268,6 +330,25 @@ public class PresenceServiceImpl implements PresenceService {
         }
     }
 
+    private void publishAdminDevicePresence(Long userId, String deviceId, boolean online) {
+        if (userId == null || deviceId == null || deviceId.isBlank()) {
+            return;
+        }
+        try {
+            String escapedDevice = deviceId
+                    .replace("\\", "\\\\")
+                    .replace("\"", "\\\"");
+            adminEventPublisher.publish(
+                    "device_presence",
+                    userId,
+                    "{\"deviceId\":\"" + escapedDevice + "\",\"online\":" + online + "}"
+            );
+        } catch (Exception e) {
+            log.debug("发布管理端设备在线事件失败: userId={}, deviceId={}, err={}",
+                    userId, deviceId, e.getMessage());
+        }
+    }
+
     private void refreshTtl(String key) {
         redisTemplate.expire(key, ttl());
     }
@@ -285,9 +366,33 @@ public class PresenceServiceImpl implements PresenceService {
         return CONN_KEY_PREFIX + userId;
     }
 
+    private static String normalizePresenceDeviceId(String deviceId) {
+        if (deviceId == null || deviceId.isBlank()) {
+            return "default";
+        }
+        return deviceId.trim();
+    }
+
     private static String member(String deviceId, String connId) {
-        String device = (deviceId == null || deviceId.isBlank()) ? "default" : deviceId.trim();
+        String device = normalizePresenceDeviceId(deviceId);
         String conn = (connId == null || connId.isBlank()) ? UUID.randomUUID().toString() : connId.trim();
         return INSTANCE_ID + ":" + device + ":" + conn;
+    }
+
+    /** member 格式：instanceId:deviceId:connId（instanceId 不含冒号） */
+    private static String extractDeviceId(String member) {
+        if (member == null || member.isBlank()) {
+            return null;
+        }
+        int first = member.indexOf(':');
+        if (first < 0) {
+            return null;
+        }
+        int second = member.indexOf(':', first + 1);
+        if (second < 0) {
+            return null;
+        }
+        String device = member.substring(first + 1, second).trim();
+        return device.isEmpty() ? null : device;
     }
 }
