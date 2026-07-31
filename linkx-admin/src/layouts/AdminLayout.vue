@@ -127,6 +127,7 @@ const menuOptions = computed(() => {
     { label: t('route.noticeInbox'), key: '/admin/notice-inbox', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Notifications')) }) },
     { label: t('route.notices'), key: '/admin/notices', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Bell')) }) },
     { label: t('route.settings'), key: '/admin/settings', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Settings')) }) },
+    { label: t('route.statistics'), key: '/admin/statistics', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Chart')) }) },
   ] as MenuOption[]
 })
 

@@ -21,6 +21,7 @@ const MENU_NAME_KEYS: Record<string, string> = {
   'notice-inbox': 'route.noticeInbox',
   settings: 'route.settings',
   versions: 'route.versions',
+  statistics: 'route.statistics',
 }
 
 /** Backend menu path → i18n key (fallback) */
@@ -42,6 +43,7 @@ const MENU_PATH_KEYS: Record<string, string> = {
   '/admin/notice-inbox': 'route.noticeInbox',
   '/admin/settings': 'route.settings',
   '/admin/versions': 'route.versions',
+  '/admin/statistics': 'route.statistics',
 }
 
 export function resolveMenuLabel(
@@ -106,6 +108,8 @@ const PERM_KEYS: Record<string, { name: string; desc?: string }> = {
   'admin:setting:view': { name: 'perm.adminSettingView', desc: 'perm.adminSettingViewDesc' },
   'admin:setting:edit': { name: 'perm.adminSettingEdit', desc: 'perm.adminSettingEditDesc' },
   'admin:version:list': { name: 'perm.adminVersionList', desc: 'perm.adminVersionListDesc' },
+  'admin:statistics:view': { name: 'perm.adminStatisticsView', desc: 'perm.adminStatisticsViewDesc' },
+  'admin:statistics:export': { name: 'perm.adminStatisticsExport', desc: 'perm.adminStatisticsExportDesc' },
 }
 
 export function resolvePermissionName(

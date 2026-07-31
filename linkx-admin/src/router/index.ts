@@ -110,6 +110,12 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: 'route.settings', permission: 'admin:setting:view' },
       },
       {
+        path: 'statistics',
+        name: 'Statistics',
+        component: () => import('@/views/StatisticsView.vue'),
+        meta: { titleKey: 'route.statistics', permission: 'admin:statistics:view' },
+      },
+      {
         path: 'versions',
         redirect: { path: '/admin/settings', query: { tab: 'client' } },
       },

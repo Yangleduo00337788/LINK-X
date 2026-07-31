@@ -17,6 +17,7 @@ import {
   WarningOutline,
   EyeOutline,
   NotificationsOutline,
+  StatsChartOutline,
 } from '@vicons/ionicons5'
 
 const iconMap: Record<string, Component> = {
@@ -38,6 +39,8 @@ const iconMap: Record<string, Component> = {
   Eye: EyeOutline,
   Bell: NotificationsOutline,
   Notifications: NotificationsOutline,
+  Chart: StatsChartOutline,
+  Stats: StatsChartOutline,
 }
 
 export function resolveMenuIcon(name?: string): Component {
