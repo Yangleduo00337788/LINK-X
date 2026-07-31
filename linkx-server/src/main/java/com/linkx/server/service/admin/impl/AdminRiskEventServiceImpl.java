@@ -201,6 +201,49 @@ public class AdminRiskEventServiceImpl implements AdminRiskEventService {
                 .build());
     }
 
+    @Override
+    public void recordLoginLock(Long userId, String username, String ip, String side, int lockMinutes) {
+        String sideLabel = StringUtils.hasText(side) ? side.trim().toLowerCase() : "client";
+        String name = StringUtils.hasText(username) ? username.trim() : resolveUsername(userId);
+        insertEvent(SysRiskEvent.builder()
+                .eventType(SysRiskEvent.TYPE_LOGIN_LOCK)
+                .title("登录暴力破解锁定")
+                .detail("登录失败超限已锁定: user=" + (name == null ? "-" : name)
+                        + ", side=" + sideLabel + ", lockMinutes=" + lockMinutes)
+                .riskLevel(SysRiskEvent.LEVEL_HIGH)
+                .status(SysRiskEvent.STATUS_PENDING)
+                .userId(userId)
+                .username(name)
+                .ip(ip)
+                .extraData(sideLabel)
+                .targetResourceType("login")
+                .targetResourceId(sideLabel)
+                .createTime(new Date())
+                .updateTime(new Date())
+                .build());
+    }
+
+    @Override
+    public void recordRateLimit(Long userId, String identity, String scope, String ip) {
+        String scopeLabel = StringUtils.hasText(scope) ? scope.trim() : "unknown";
+        String idLabel = StringUtils.hasText(identity) ? identity.trim() : "-";
+        insertEvent(SysRiskEvent.builder()
+                .eventType(SysRiskEvent.TYPE_RATE_LIMIT)
+                .title("接口限流触发")
+                .detail("限流触发: scope=" + scopeLabel + ", identity=" + idLabel)
+                .riskLevel(SysRiskEvent.LEVEL_MEDIUM)
+                .status(SysRiskEvent.STATUS_PENDING)
+                .userId(userId)
+                .username(resolveUsername(userId))
+                .ip(ip)
+                .extraData(scopeLabel)
+                .targetResourceType("rate_limit")
+                .targetResourceId(scopeLabel)
+                .createTime(new Date())
+                .updateTime(new Date())
+                .build());
+    }
+
     private void insertEvent(SysRiskEvent event) {
         try {
             riskEventMapper.insert(event);

@@ -23,6 +23,8 @@ public class SysRiskEvent implements Serializable {
 
     public static final String TYPE_SENSITIVE_WORD_MATCH = "SENSITIVE_WORD_MATCH";
     public static final String TYPE_MESSAGE_STORM = "MESSAGE_STORM";
+    public static final String TYPE_LOGIN_LOCK = "LOGIN_LOCK";
+    public static final String TYPE_RATE_LIMIT = "RATE_LIMIT";
 
     public static final String STATUS_PENDING = "pending";
     public static final String STATUS_HANDLED = "handled";

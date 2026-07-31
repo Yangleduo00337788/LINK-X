@@ -60,6 +60,8 @@ const typeOptions = computed(() => {
     { label: t('risk.allTypes'), value: '' },
     { label: t('risk.typeSensitive'), value: 'SENSITIVE_WORD_MATCH' },
     { label: t('risk.typeStorm'), value: 'MESSAGE_STORM' },
+    { label: t('risk.typeLoginLock'), value: 'LOGIN_LOCK' },
+    { label: t('risk.typeRateLimit'), value: 'RATE_LIMIT' },
   ]
 })
 

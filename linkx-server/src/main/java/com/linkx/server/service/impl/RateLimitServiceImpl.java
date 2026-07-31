@@ -5,8 +5,10 @@ import com.linkx.server.common.LoginSide;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.service.RateLimitService;
+import com.linkx.server.service.admin.AdminRiskEventService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
@@ -14,6 +16,7 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class RateLimitServiceImpl implements RateLimitService {
@@ -33,6 +36,7 @@ public class RateLimitServiceImpl implements RateLimitService {
 
     private final StringRedisTemplate redisTemplate;
     private final LinkxProperties linkxProperties;
+    private final AdminRiskEventService adminRiskEventService;
 
     @Override
     public void check(String key, int maxAttempts, int windowSeconds) {
@@ -44,6 +48,10 @@ public class RateLimitServiceImpl implements RateLimitService {
         String redisKey = RATE_LIMIT_PREFIX + key;
         Long count = atomicIncrAndExpire(redisKey, windowSeconds);
         if (count != null && count > maxAttempts) {
+            // 仅首次超限落库，避免同一窗口重复刷风险事件
+            if (count == maxAttempts + 1L) {
+                recordBizRateLimit(key);
+            }
             throw new CustomException(429, message);
         }
     }
@@ -60,6 +68,13 @@ public class RateLimitServiceImpl implements RateLimitService {
         String ipKey = RATE_LIMIT_PREFIX + LOGIN_FAIL_PREFIX + sideKey + ":" + IP_PREFIX + ip;
         Long ipCount = atomicIncrAndExpire(ipKey, lockDuration * 60L);
         if (ipCount != null && ipCount >= ipMaxAttempts) {
+            if (ipCount == (long) ipMaxAttempts) {
+                try {
+                    adminRiskEventService.recordRateLimit(null, "ip:" + ip, "login-ip:" + sideKey, ip);
+                } catch (Exception e) {
+                    log.warn("登录 IP 限流风险事件写入失败: ip={}, side={}", ip, sideKey, e);
+                }
+            }
             throw new CustomException(429, "该IP登录尝试过多，请" + lockDuration + "分钟后重试");
         }
 
@@ -138,8 +153,48 @@ public class RateLimitServiceImpl implements RateLimitService {
         String key = RATE_LIMIT_PREFIX + REFRESH_FAIL_PREFIX + IP_PREFIX + ip;
         Long count = atomicIncrAndExpire(key, REFRESH_FAIL_WINDOW_MINUTES * 60L);
         if (count != null && count >= REFRESH_FAIL_THRESHOLD) {
+            if (count == (long) REFRESH_FAIL_THRESHOLD) {
+                try {
+                    adminRiskEventService.recordRateLimit(null, "ip:" + ip, "refresh-token", ip);
+                } catch (Exception e) {
+                    log.warn("refresh 限流风险事件写入失败: ip={}", ip, e);
+                }
+            }
             throw new CustomException(429,
                     "refresh token 失败次数过多，请" + REFRESH_FAIL_WINDOW_MINUTES + "分钟后再试");
+        }
+    }
+
+    private void recordBizRateLimit(String key) {
+        try {
+            // key 形如 biz:{scope}:{identity}
+            String raw = key == null ? "" : key;
+            String scope = "unknown";
+            String identity = raw;
+            Long userId = null;
+            String ip = null;
+            if (raw.startsWith("biz:")) {
+                String rest = raw.substring(4);
+                int idx = rest.indexOf(':');
+                if (idx > 0) {
+                    scope = rest.substring(0, idx);
+                    identity = rest.substring(idx + 1);
+                } else {
+                    scope = rest;
+                }
+            }
+            if (identity.startsWith("ip:")) {
+                ip = identity.substring(3);
+            } else {
+                try {
+                    userId = Long.parseLong(identity);
+                } catch (NumberFormatException ignored) {
+                    // identity 非数字时仅作为字符串记录
+                }
+            }
+            adminRiskEventService.recordRateLimit(userId, identity, scope, ip);
+        } catch (Exception e) {
+            log.warn("业务限流风险事件写入失败: key={}", key, e);
         }
     }
 }

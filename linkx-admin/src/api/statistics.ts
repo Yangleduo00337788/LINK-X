@@ -52,6 +52,8 @@ export interface StatisticRisk {
   reviewStatusBreakdown: BreakdownItem[]
   sensitiveHitsInRange: number
   messageStormsInRange: number
+  loginLocksInRange?: number
+  rateLimitsInRange?: number
   pendingReviews: number
 }
 

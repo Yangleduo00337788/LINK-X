@@ -180,6 +180,14 @@ public class AdminStatisticsServiceImpl implements AdminStatisticsService {
                         dailyCounts("SELECT DATE(create_time) AS d, COUNT(*) AS c FROM sys_risk_event "
                                 + "WHERE event_type = ? AND create_time >= ? GROUP BY DATE(create_time)",
                                 SysRiskEvent.TYPE_MESSAGE_STORM, start)),
+                series("loginLock", "登录锁定",
+                        dailyCounts("SELECT DATE(create_time) AS d, COUNT(*) AS c FROM sys_risk_event "
+                                + "WHERE event_type = ? AND create_time >= ? GROUP BY DATE(create_time)",
+                                SysRiskEvent.TYPE_LOGIN_LOCK, start)),
+                series("rateLimit", "限流触发",
+                        dailyCounts("SELECT DATE(create_time) AS d, COUNT(*) AS c FROM sys_risk_event "
+                                + "WHERE event_type = ? AND create_time >= ? GROUP BY DATE(create_time)",
+                                SysRiskEvent.TYPE_RATE_LIMIT, start)),
                 series("reviews", "审核任务",
                         dailyCounts("SELECT DATE(create_time) AS d, COUNT(*) AS c FROM sys_review_task "
                                 + "WHERE create_time >= ? GROUP BY DATE(create_time)", start)));
@@ -201,6 +209,8 @@ public class AdminStatisticsServiceImpl implements AdminStatisticsService {
                 .reviewStatusBreakdown(reviewStatus)
                 .sensitiveHitsInRange(sumSeries(trend, "sensitive"))
                 .messageStormsInRange(sumSeries(trend, "storm"))
+                .loginLocksInRange(sumSeries(trend, "loginLock"))
+                .rateLimitsInRange(sumSeries(trend, "rateLimit"))
                 .pendingReviews(pending)
                 .build();
     }

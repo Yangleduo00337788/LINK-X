@@ -17,6 +17,7 @@ import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.*;
 import com.linkx.server.service.EmailService;
+import com.linkx.server.service.admin.AdminRiskEventService;
 import com.mybatisflex.core.update.UpdateChain;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 import jakarta.servlet.http.HttpServletRequest;
@@ -47,6 +48,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     private final com.linkx.server.service.ComplianceService complianceService;
     private final LinkxMetrics linkxMetrics;
     private final PasswordPolicyService passwordPolicyService;
+    private final AdminRiskEventService adminRiskEventService;
 
     @Override
     @Transactional
@@ -350,6 +352,17 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
                             ? linkxProperties.getAuth().getAdminLoginMaxAttempts()
                             : linkxProperties.getAuth().getLoginMaxAttempts(),
                     minutes);
+            try {
+                SysUser lockedUser = queryChain().where(SysUser::getUsername).eq(username).one();
+                adminRiskEventService.recordLoginLock(
+                        lockedUser == null ? null : lockedUser.getId(),
+                        username,
+                        com.linkx.server.common.ClientIpResolver.resolve(request, linkxProperties),
+                        loginSide.name().toLowerCase(),
+                        minutes);
+            } catch (Exception e) {
+                log.warn("登录锁定风险事件写入失败: username={}, side={}", username, loginSide, e);
+            }
             throw new CustomException(429, "登录失败次数过多，账号已禁用，请" + minutes + "分钟后重试");
         }
     }

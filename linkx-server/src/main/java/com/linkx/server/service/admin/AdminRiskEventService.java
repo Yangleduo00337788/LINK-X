@@ -22,4 +22,17 @@ public interface AdminRiskEventService {
 
     /** 记录消息风暴风险事件 */
     void recordMessageStorm(Long userId, String eventType, int messageCount, Long conversationId);
+
+    /** 记录登录暴力破解锁定 */
+    void recordLoginLock(Long userId, String username, String ip, String side, int lockMinutes);
+
+    /**
+     * 记录接口/登录限流触发（仅首次超限时调用，避免刷爆）。
+     *
+     * @param userId   可空
+     * @param identity 限流标识（用户ID 或 ip:...）
+     * @param scope    限流范围
+     * @param ip       客户端 IP
+     */
+    void recordRateLimit(Long userId, String identity, String scope, String ip);
 }

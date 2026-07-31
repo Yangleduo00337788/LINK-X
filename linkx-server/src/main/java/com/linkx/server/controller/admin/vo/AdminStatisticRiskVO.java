@@ -15,5 +15,7 @@ public class AdminStatisticRiskVO {
     private List<AdminStatisticBreakdownVO> reviewStatusBreakdown;
     private long sensitiveHitsInRange;
     private long messageStormsInRange;
+    private long loginLocksInRange;
+    private long rateLimitsInRange;
     private long pendingReviews;
 }

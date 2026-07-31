@@ -52,6 +52,8 @@ function seriesName(key: string, fallback: string) {
     uploads: t('statistics.seriesUploads'),
     sensitive: t('statistics.seriesSensitive'),
     storm: t('statistics.seriesStorm'),
+    loginLock: t('statistics.seriesLoginLock'),
+    rateLimit: t('statistics.seriesRateLimit'),
     reviews: t('statistics.seriesReviews'),
     created: t('statistics.seriesCreated'),
     replied: t('statistics.seriesReplied'),
@@ -197,6 +199,8 @@ const riskRangeBars = computed<NamedValue[]>(() => {
   return [
     { key: 'sens', name: t('statistics.sensitiveHits'), value: r?.sensitiveHitsInRange ?? 0 },
     { key: 'storm', name: t('statistics.messageStorms'), value: r?.messageStormsInRange ?? 0 },
+    { key: 'loginLock', name: t('statistics.loginLocks'), value: r?.loginLocksInRange ?? 0 },
+    { key: 'rateLimit', name: t('statistics.rateLimits'), value: r?.rateLimitsInRange ?? 0 },
     { key: 'pending', name: t('dashboard.pendingReviews'), value: r?.pendingReviews ?? 0 },
   ]
 })
