@@ -74,7 +74,9 @@ const tipText = computed(() => {
 
 const statusText = computed(() => {
   if (!props.msg.isSelf) return ''
-  if (props.msg.sendStatus === 'failed') return t('chat.statusFailed')
+  if (props.msg.sendStatus === 'failed') {
+    return props.msg.sendFailReason || t('chat.statusFailed')
+  }
   if (
     props.msg.sendStatus === 'sending' &&
     props.msg.uploadProgress != null &&
@@ -87,6 +89,11 @@ const statusText = computed(() => {
   if (props.msg.sendStatus === 'delivered') return t('chat.statusDelivered')
   if (props.msg.sendStatus === 'sent') return t('chat.statusSent')
   return ''
+})
+
+const sensitiveAlertText = computed(() => {
+  if (!props.msg.isSelf || !props.msg.sensitiveAlert) return ''
+  return t('chat.sensitiveAlertTip')
 })
 
 const readCountText = computed(() => {
@@ -155,9 +162,10 @@ const selfAvatarProps = computed(() => ({
 }))
 
 function onStatusClick() {
-  if (props.msg.isSelf && props.msg.sendStatus === 'failed') {
-    emit('retry', props.msg)
-  }
+  if (!props.msg.isSelf || props.msg.sendStatus !== 'failed') return
+  // 业务拦截（如敏感词）不提供重试
+  if (props.msg.sendFailReason) return
+  emit('retry', props.msg)
 }
 </script>
 
@@ -188,18 +196,22 @@ function onStatusClick() {
       <CallBubble v-else-if="msg.type === 'conference'" :msg="msg" @click="emit('clickConference', msg)" />
       <DataCardBubble v-else-if="msg.type === 'dataCard'" :msg="msg" />
       <TextBubble v-else :msg="msg" />
-      <div v-if="msg.isSelf && (statusText || msg.edited || readCountText)" class="msg-meta">
+      <div
+        v-if="msg.isSelf && (statusText || msg.edited || readCountText || sensitiveAlertText)"
+        class="msg-meta"
+      >
         <button
           v-if="statusText"
           type="button"
           class="msg-status"
-          :class="{ failed: msg.sendStatus === 'failed' }"
+          :class="{ failed: msg.sendStatus === 'failed', 'no-retry': !!msg.sendFailReason }"
           @click="onStatusClick"
         >
           {{ statusText }}
         </button>
         <span v-if="msg.edited" class="msg-edited">{{ t('chat.editedLabel') }}</span>
         <span v-if="readCountText" class="msg-read">{{ readCountText }}</span>
+        <span v-if="sensitiveAlertText" class="msg-sensitive-alert">{{ sensitiveAlertText }}</span>
       </div>
     </div>
 
@@ -267,8 +279,15 @@ function onStatusClick() {
   cursor: default;
 }
 .msg-status.failed {
-  color: var(--lx-danger, #e74c3c);
+  color: var(--lx-danger, #e34d59);
   cursor: pointer;
+}
+.msg-status.failed.no-retry {
+  cursor: default;
+}
+.msg-sensitive-alert {
+  color: var(--lx-warning, #f0a020);
+  max-width: 240px;
 }
 .msg-edited,
 .msg-read {

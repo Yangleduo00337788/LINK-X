@@ -14,6 +14,8 @@ import {
   CubeOutline,
   GridOutline,
   AppsOutline,
+  WarningOutline,
+  EyeOutline,
 } from '@vicons/ionicons5'
 
 const iconMap: Record<string, Component> = {
@@ -31,6 +33,8 @@ const iconMap: Record<string, Component> = {
   Cube: CubeOutline,
   Users: PeopleOutline,
   Message: ChatboxEllipsesOutline,
+  Warning: WarningOutline,
+  Eye: EyeOutline,
 }
 
 export function resolveMenuIcon(name?: string): Component {

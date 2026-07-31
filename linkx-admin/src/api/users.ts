@@ -66,3 +66,19 @@ export function unbanUser(id: string) {
 export function listUserDevices(id: string) {
   return get<DeviceItem[]>(`/admin/users/${id}/devices`)
 }
+
+export interface UserLoginItem {
+  id: string
+  userId?: string
+  username?: string
+  ip?: string
+  userAgent?: string
+  success?: number
+  reason?: string
+  createTime?: string
+}
+
+export function listUserLogins(id: string, params?: PageQuery) {
+  return get<PageResult<UserLoginItem>>(`/admin/users/${id}/logins`, (params || {}) as Record<string, unknown>)
+}
+

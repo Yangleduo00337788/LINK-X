@@ -86,4 +86,9 @@ public class MessageVO {
     private java.math.BigDecimal redPacketReceivedAmount;
     /** 红包状态：active / finished / expired */
     private String redPacketStatus;
+
+    /**
+     * 仅告警敏感词命中：消息可发出，发送端展示提示（不落库，仅当次下行）。
+     */
+    private Boolean sensitiveAlert;
 }

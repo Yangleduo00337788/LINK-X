@@ -948,8 +948,9 @@ function reportGroup() {
         <!-- 举报群聊 -->
         <GroupReportPanel
           v-if="reportPanelOpen && currentSessionId"
-          :group-id="currentSessionId"
-          :group-name="currentSession?.groupName || currentSession?.name || ''"
+          target-kind="group"
+          :target-id="currentSessionId"
+          :target-name="currentSession?.groupName || currentSession?.name || ''"
           @back="closeReportPanel"
           @submitted="onReportSubmitted"
         />

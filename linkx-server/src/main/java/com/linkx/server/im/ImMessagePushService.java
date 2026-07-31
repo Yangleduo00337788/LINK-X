@@ -88,19 +88,20 @@ public class ImMessagePushService {
             ((ExecutorService) imPushExecutor).submit(() -> {
                 try {
                     if (messageStormService.checkAndRecordUserStorm(senderId)) {
-                        sendErrorToSender(senderId, new CustomException(429, "发送过于频繁，请稍后再试"));
+                        sendErrorToSender(senderId, new CustomException(429, "发送过于频繁，请稍后再试"),
+                                frame.getClientMsgId());
                         return;
                     }
                     doSendAndPush(senderId, dto, frame.getClientMsgId());
                 } catch (Exception e) {
                     // worker 内异常：向发送者回错误帧，不静默吞
-                    sendErrorToSender(senderId, e);
+                    sendErrorToSender(senderId, e, frame.getClientMsgId());
                 }
             });
         } catch (RejectedExecutionException e) {
             // 线程池饱和：立即向发送者回错误帧，event-loop 不阻塞
             log.warn("IM 推送线程池饱和，拒绝 senderId={} 的消息", senderId);
-            sendErrorToSender(senderId, new CustomException(503, "服务繁忙，请稍后重试"));
+            sendErrorToSender(senderId, new CustomException(503, "服务繁忙，请稍后重试"), frame.getClientMsgId());
         }
     }
 
@@ -111,6 +112,10 @@ public class ImMessagePushService {
      * @param e        异常（CustomException 取其 code/message，否则用 500）
      */
     private void sendErrorToSender(Long senderId, Exception e) {
+        sendErrorToSender(senderId, e, null);
+    }
+
+    private void sendErrorToSender(Long senderId, Exception e, String clientMsgId) {
         int code;
         String message;
         if (e instanceof CustomException ce) {
@@ -126,7 +131,7 @@ public class ImMessagePushService {
             return;
         }
         for (Channel channel : channels) {
-            sendError(channel, code, message);
+            sendError(channel, code, message, clientMsgId);
         }
     }
 
@@ -428,6 +433,10 @@ public class ImMessagePushService {
     }
 
     public void sendError(Channel channel, int code, String message) {
+        sendError(channel, code, message, null);
+    }
+
+    public void sendError(Channel channel, int code, String message, String clientMsgId) {
         if (!channel.isActive()) {
             return;
         }
@@ -435,6 +444,9 @@ public class ImMessagePushService {
         frame.setAction("error");
         frame.setCode(code);
         frame.setMessage(message);
+        if (clientMsgId != null && !clientMsgId.isBlank()) {
+            frame.setClientMsgId(clientMsgId);
+        }
         channel.writeAndFlush(new TextWebSocketFrame(toJson(frame)));
     }
 
@@ -671,6 +683,7 @@ public class ImMessagePushService {
     }
 
     private MessageVO withPerspective(MessageVO message, Long viewerId) {
+        boolean isSelf = message.getSenderId() != null && message.getSenderId().equals(viewerId);
         return MessageVO.builder()
                 .id(message.getId())
                 .conversationId(message.getConversationId())
@@ -684,7 +697,12 @@ public class ImMessagePushService {
                 .fileUrl(message.getFileUrl())
                 .voiceDuration(message.getVoiceDuration())
                 .createTime(message.getCreateTime())
-                .isSelf(message.getSenderId().equals(viewerId))
+                .deliveryStatus(message.getDeliveryStatus())
+                .edited(message.getEdited())
+                .clientMsgId(message.getClientMsgId())
+                .isSelf(isSelf)
+                // 仅告警提示只给发送端（ack），不下发给对端
+                .sensitiveAlert(isSelf && Boolean.TRUE.equals(message.getSensitiveAlert()) ? Boolean.TRUE : null)
                 // 红包专属字段（与 message 同一发送者视角，无需为 viewer 重算；
                 // 服务端在 toMessageVO 时已按 viewer 填好 received/receivedAmount/status）
                 .redPacketId(message.getRedPacketId())

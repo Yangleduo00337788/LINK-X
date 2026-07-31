@@ -83,6 +83,8 @@ const menuOptions = computed(() => {
     { label: t('route.auditLogs'), key: '/admin/audit-logs', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('History')) }) },
     { label: t('route.loginLogs'), key: '/admin/login-logs', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('LogIn')) }) },
     { label: t('route.feedback'), key: '/admin/feedback', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Message')) }) },
+    { label: t('route.reviews'), key: '/admin/reviews', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Document')) }) },
+    { label: t('route.sensitiveWords'), key: '/admin/sensitive-words', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Key')) }) },
     { label: t('route.settings'), key: '/admin/settings', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Settings')) }) },
   ] as MenuOption[]
 })

@@ -72,6 +72,9 @@ public class SysAuditLog implements Serializable {
         ROLE_REVOKE("撤销角色"),
         // 管理端系统配置
         UPDATE_SETTINGS("更新系统配置"),
+        // 管理端内容治理
+        CONTENT_REVIEW("内容审核"),
+        SENSITIVE_WORD_UPDATE("敏感词变更"),
         ;
 
         private final String description;

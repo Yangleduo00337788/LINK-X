@@ -1,20 +1,25 @@
 <script setup lang="ts">
 /**
- * 群聊举报面板。
+ * 举报面板（好友 / 群聊共用）。
  * <p>
  * 选择举报原因、填写说明并可选上传截图证据，提交至反馈接口。
  * </p>
  */
-import { ref, computed } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 import { NRadio, NRadioGroup, useMessage } from 'naive-ui'
 import * as feedbackApi from '../../api/feedback'
 import * as momentsApi from '../../api/moments'
 import { useI18n } from '../../i18n'
 
-const props = defineProps<{
-  groupId: string
-  groupName: string
-}>()
+const props = withDefaults(
+  defineProps<{
+    /** group：群聊举报；user：好友举报 */
+    targetKind?: 'group' | 'user'
+    targetId?: string
+    targetName?: string
+  }>(),
+  { targetKind: 'group', targetId: '', targetName: '' }
+)
 
 const emit = defineEmits<{
   (e: 'back'): void
@@ -24,12 +29,27 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const message = useMessage()
 
+interface EvidenceItem {
+  /** MinIO object key（提交用） */
+  key: string
+  /** 本地预览地址（blob:） */
+  previewUrl: string
+}
+
 const reason = ref('spam')
 const detail = ref('')
-const evidenceUrls = ref<string[]>([])
+const evidenceItems = ref<EvidenceItem[]>([])
 const uploading = ref(false)
 const submitting = ref(false)
 const fileInputRef = ref<HTMLInputElement | null>(null)
+
+onUnmounted(() => {
+  for (const item of evidenceItems.value) {
+    if (item.previewUrl.startsWith('blob:')) URL.revokeObjectURL(item.previewUrl)
+  }
+})
+
+const isGroup = computed(() => props.targetKind !== 'user')
 
 const reasonOptions = computed(() => [
   { value: 'spam', label: t('modals.reportReasonSpam') },
@@ -44,6 +64,16 @@ const reasonLabel = computed(() => {
   return reasonOptions.value.find(o => o.value === reason.value)?.label || reason.value
 })
 
+const panelTitle = computed(() =>
+  isGroup.value ? t('modals.reportTitle') : t('modals.reportUserTitle')
+)
+
+const hintText = computed(() =>
+  isGroup.value
+    ? t('modals.reportGroupHint', { name: props.targetName || t('modals.groupChat') })
+    : t('modals.reportUserHint', { name: props.targetName || t('modals.userFallback') })
+)
+
 function pickEvidence() {
   fileInputRef.value?.click()
 }
@@ -53,7 +83,7 @@ async function onEvidenceSelected(e: Event) {
   const files = Array.from(input.files || [])
   input.value = ''
   if (!files.length) return
-  if (evidenceUrls.value.length + files.length > 6) {
+  if (evidenceItems.value.length + files.length > 6) {
     message.warning(t('modals.reportEvidenceMax'))
     return
   }
@@ -70,7 +100,11 @@ async function onEvidenceSelected(e: Event) {
       }
       const res = await momentsApi.uploadMomentsImage(file)
       if (res.code === 200 && res.data) {
-        evidenceUrls.value.push(res.data)
+        // 上传接口只返回 object key，预览用本地 blob，避免裂图
+        evidenceItems.value.push({
+          key: res.data,
+          previewUrl: URL.createObjectURL(file)
+        })
       } else {
         message.error(res.message || t('modals.reportEvidenceFail'))
       }
@@ -83,7 +117,9 @@ async function onEvidenceSelected(e: Event) {
 }
 
 function removeEvidence(idx: number) {
-  evidenceUrls.value.splice(idx, 1)
+  const item = evidenceItems.value[idx]
+  if (item?.previewUrl.startsWith('blob:')) URL.revokeObjectURL(item.previewUrl)
+  evidenceItems.value.splice(idx, 1)
 }
 
 async function submit() {
@@ -92,21 +128,33 @@ async function submit() {
     return
   }
   const text = detail.value.trim()
-  if (!text && evidenceUrls.value.length === 0) {
+  if (!text && evidenceItems.value.length === 0) {
     message.warning(t('modals.reportNeedEvidence'))
     return
   }
 
-  const lines = [
-    `[举报群聊]`,
-    `群ID: ${props.groupId}`,
-    `群名称: ${props.groupName || '-'}`,
-    `原因: ${reasonLabel.value}`,
-    `说明: ${text || '-'}`,
-    evidenceUrls.value.length
-      ? `证据图片:\n${evidenceUrls.value.map((u, i) => `${i + 1}. ${u}`).join('\n')}`
-      : '证据图片: 无'
-  ]
+  const keys = evidenceItems.value.map(i => i.key)
+  const lines = isGroup.value
+    ? [
+        `[举报群聊]`,
+        `群ID: ${props.targetId}`,
+        `群名称: ${props.targetName || '-'}`,
+        `原因: ${reasonLabel.value}`,
+        `说明: ${text || '-'}`,
+        keys.length
+          ? `证据图片:\n${keys.map((u, i) => `${i + 1}. ${u}`).join('\n')}`
+          : '证据图片: 无'
+      ]
+    : [
+        `[举报用户]`,
+        `用户ID: ${props.targetId}`,
+        `用户名称: ${props.targetName || '-'}`,
+        `原因: ${reasonLabel.value}`,
+        `说明: ${text || '-'}`,
+        keys.length
+          ? `证据图片:\n${keys.map((u, i) => `${i + 1}. ${u}`).join('\n')}`
+          : '证据图片: 无'
+      ]
 
   submitting.value = true
   try {
@@ -133,11 +181,11 @@ async function submit() {
   <div class="report-panel">
     <div class="report-head">
       <button type="button" class="report-back" @click="emit('back')">‹</button>
-      <h3>{{ t('modals.reportTitle') }}</h3>
+      <h3>{{ panelTitle }}</h3>
     </div>
 
     <div class="report-scroll">
-      <p class="hint">{{ t('modals.reportGroupHint', { name: groupName || t('modals.groupChat') }) }}</p>
+      <p class="hint">{{ hintText }}</p>
 
       <section class="section">
         <h4>{{ t('modals.reportReason') }}</h4>
@@ -168,12 +216,12 @@ async function submit() {
         <h4>{{ t('modals.reportEvidence') }}</h4>
         <p class="sub-hint">{{ t('modals.reportEvidenceHint') }}</p>
         <div class="evidence-grid">
-          <div v-for="(url, idx) in evidenceUrls" :key="url" class="evidence-item">
-            <img :src="url" alt="" />
+          <div v-for="(item, idx) in evidenceItems" :key="item.key" class="evidence-item">
+            <img :src="item.previewUrl" alt="" />
             <button type="button" class="remove-btn" @click="removeEvidence(idx)">×</button>
           </div>
           <button
-            v-if="evidenceUrls.length < 6"
+            v-if="evidenceItems.length < 6"
             type="button"
             class="add-evidence"
             :disabled="uploading"

@@ -3,14 +3,19 @@ package com.linkx.server.service.admin.impl;
 import com.linkx.server.common.InputSanitizer;
 import com.linkx.server.common.admin.AdminConstants;
 import com.linkx.server.common.admin.PageResultVO;
+import com.linkx.server.common.ClientIpResolver;
+import com.linkx.server.controller.admin.dto.AdminPageQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminUserActionDTO;
 import com.linkx.server.controller.admin.dto.AdminUserQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminUserUpdateDTO;
+import com.linkx.server.controller.admin.vo.AdminLoginLogVO;
 import com.linkx.server.controller.admin.vo.AdminUserDetailVO;
 import com.linkx.server.controller.admin.vo.AdminUserListVO;
 import com.linkx.server.controller.vo.DeviceVO;
+import com.linkx.server.entity.SysLoginAudit;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.exception.CustomException;
+import com.linkx.server.mapper.SysLoginAuditMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.DeviceSessionService;
 import com.linkx.server.service.RbacService;
@@ -32,6 +37,7 @@ import java.util.stream.Collectors;
 public class AdminUserServiceImpl implements AdminUserService {
 
     private final SysUserMapper sysUserMapper;
+    private final SysLoginAuditMapper sysLoginAuditMapper;
     private final RbacService rbacService;
     private final DeviceSessionService deviceSessionService;
     private final TokenService tokenService;
@@ -152,6 +158,39 @@ public class AdminUserServiceImpl implements AdminUserService {
     public List<DeviceVO> devices(Long id) {
         requireUser(id);
         return deviceSessionService.listByUser(id, null);
+    }
+
+    @Override
+    public PageResultVO<AdminLoginLogVO> logins(Long id, AdminPageQueryDTO query) {
+        requireUser(id);
+        int page = normalizePage(query == null ? null : query.getPage());
+        int size = normalizeSize(query == null ? null : query.getSize());
+        QueryWrapper qw = QueryWrapper.create().where(SysLoginAudit::getUserId).eq(id);
+        if (query != null && query.getStatus() != null) {
+            qw.and(SysLoginAudit::getSuccess).eq(query.getStatus());
+        }
+        if (query != null && query.getStartTime() != null) {
+            qw.and(SysLoginAudit::getCreateTime).ge(new Date(query.getStartTime()));
+        }
+        if (query != null && query.getEndTime() != null) {
+            qw.and(SysLoginAudit::getCreateTime).le(new Date(query.getEndTime()));
+        }
+        qw.orderBy(SysLoginAudit::getCreateTime, false);
+        long total = sysLoginAuditMapper.selectCountByQuery(qw);
+        qw.limit((page - 1L) * size, size);
+        List<AdminLoginLogVO> items = sysLoginAuditMapper.selectListByQuery(qw).stream()
+                .map(log -> AdminLoginLogVO.builder()
+                        .id(log.getId())
+                        .userId(log.getUserId())
+                        .username(log.getUsername())
+                        .ip(ClientIpResolver.normalizeToIpv4(log.getIp()))
+                        .userAgent(log.getUserAgent())
+                        .success(log.getSuccess())
+                        .reason(log.getReason())
+                        .createTime(log.getCreateTime())
+                        .build())
+                .collect(Collectors.toList());
+        return PageResultVO.of(items, page, size, total);
     }
 
     private void setStatus(Long id, int status, Long operatorId) {

@@ -5,9 +5,11 @@ import com.linkx.server.common.RequireRole;
 import com.linkx.server.common.Result;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.config.aspect.AuditAction;
+import com.linkx.server.controller.admin.dto.AdminPageQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminUserActionDTO;
 import com.linkx.server.controller.admin.dto.AdminUserQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminUserUpdateDTO;
+import com.linkx.server.controller.admin.vo.AdminLoginLogVO;
 import com.linkx.server.controller.admin.vo.AdminUserDetailVO;
 import com.linkx.server.controller.admin.vo.AdminUserListVO;
 import com.linkx.server.controller.vo.DeviceVO;
@@ -111,5 +113,12 @@ public class AdminUserController {
     @RequirePermission("admin:user:device:list")
     public Result<List<DeviceVO>> devices(@PathVariable Long id) {
         return Result.success(adminUserService.devices(id));
+    }
+
+    @Operation(summary = "查询用户登录记录")
+    @GetMapping("/{id}/logins")
+    @RequirePermission("admin:user:login:list")
+    public Result<PageResultVO<AdminLoginLogVO>> logins(@PathVariable Long id, @Valid AdminPageQueryDTO query) {
+        return Result.success(adminUserService.logins(id, query));
     }
 }

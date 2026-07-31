@@ -5,17 +5,14 @@
  * 提供置顶、免打扰、屏蔽、文件传输、清空记录、删除好友与举报入口。
  * </p>
  */
-// Naive UI 开关、消息与确认对话框
+import { ref, watch } from 'vue'
 import { NSwitch, useMessage, useDialog } from 'naive-ui'
 import { storeToRefs } from 'pinia'
-// 聊天弹窗 store：抽屉开关
 import { useChatModalsStore } from '../../stores/chatModals'
-// 会话操作：置顶、静音、屏蔽、清空、删除
 import { useAppStore } from '../../stores/app'
-// 全屏 overlay：帮助/反馈
 import { useContactsStore } from '../../stores/contacts'
-// 置顶图标
 import PinIcon from '../icons/PinIcon.vue'
+import GroupReportPanel from './GroupReportPanel.vue'
 import { useI18n } from '../../i18n'
 
 const { t } = useI18n()
@@ -24,11 +21,9 @@ const appStore = useAppStore()
 const contactsStore = useContactsStore()
 const message = useMessage()
 const dialog = useDialog()
-// 抽屉是否打开、当前会话
 const { moreDrawerOpen } = storeToRefs(chatModalsStore)
 const { closeMore, openRedPacketHistory } = chatModalsStore
 const { currentSession, currentSessionId } = storeToRefs(appStore)
-// 会话相关操作方法
 const {
   toggleSessionPin,
   toggleSessionMute,
@@ -38,6 +33,12 @@ const {
   removePrivateSessionByPeer,
   setNav
 } = appStore
+
+const reportPanelOpen = ref(false)
+
+watch(moreDrawerOpen, open => {
+  if (!open) reportPanelOpen.value = false
+})
 
 /**
  * 设置会话置顶。
@@ -131,12 +132,22 @@ function deleteFriend() {
   })
 }
 
-/** 打开帮助页引导用户举报 */
+/** 打开好友举报面板（与群聊一致） */
 function reportUser() {
+  if (!currentSession.value?.peerUserId) {
+    message.warning(t('modals.reportFail'))
+    return
+  }
+  reportPanelOpen.value = true
+}
+
+function closeReportPanel() {
+  reportPanelOpen.value = false
+}
+
+function onReportSubmitted() {
+  reportPanelOpen.value = false
   closeMore()
-  // 跳转到独立帮助窗口（Overlay 上的 help 页已下线）
-  window.electronAPI?.openHelp?.()
-  message.info(t('modals.reportHint'))
 }
 </script>
 
@@ -179,6 +190,15 @@ function reportUser() {
             <a href="#" @click.prevent="reportUser">{{ t('modals.reportUser') }}</a>
           </p>
         </div>
+
+        <GroupReportPanel
+          v-if="reportPanelOpen && currentSession?.peerUserId"
+          target-kind="user"
+          :target-id="currentSession.peerUserId"
+          :target-name="currentSession.name || ''"
+          @back="closeReportPanel"
+          @submitted="onReportSubmitted"
+        />
       </aside>
     </div>
   </Transition>
@@ -197,13 +217,14 @@ function reportUser() {
   top: 0;
   right: 0;
   bottom: 0;
-  width: min(280px, 88%);
-  max-width: 320px;
+  width: min(320px, 88%);
+  max-width: 360px;
   background: var(--lx-bg-card);
   box-shadow: -4px 0 24px var(--lx-shadow-color);
   display: flex;
   flex-direction: column;
   will-change: transform;
+  overflow: hidden;
 }
 
 .drawer-inner {

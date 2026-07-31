@@ -8,7 +8,7 @@ const WS_BASE = WS_BASE_URL
 export interface ChatSocketHandlers {
   onMessage: (message: MessageItem) => void
   onAck: (clientMsgId: string, message: MessageItem) => void
-  onError: (code: number, message: string) => void
+  onError: (code: number, message: string, clientMsgId?: string) => void
   onOpen: () => void
   onClose: () => void
   /** 消息撤回推送 */
@@ -145,7 +145,7 @@ function handleFrame(raw: string) {
     case 'pong':
       break
     case 'error':
-      handlers?.onError(frame.code ?? 500, frame.message ?? 'WebSocket 错误')
+      handlers?.onError(frame.code ?? 500, frame.message ?? 'WebSocket 错误', frame.clientMsgId)
       break
     case 'force_logout':
       shouldReconnect = false

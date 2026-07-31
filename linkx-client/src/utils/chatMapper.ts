@@ -228,6 +228,7 @@ export function messageToChatMessage(message: MessageItem, sessionId: string): C
     deliveryStatus: message.deliveryStatus,
     edited: message.edited,
     clientMsgId: message.clientMsgId,
+    sensitiveAlert: !!message.sensitiveAlert,
     sendStatus: (message.isSelf ?? false) ? mapSendStatus(message.deliveryStatus) : undefined,
     replyTo: buildReplyTo(message, sessionId)
   }

@@ -225,7 +225,9 @@ export async function notifyOfficialFeedback(type: string, content?: string): Pr
     feedback_submitted: t('chat.officialSubmittedAlert'),
     feedback_replied: t('chat.officialRepliedAlert'),
     feedback_closed: t('chat.officialClosedAlert'),
-    feedback_reopened: t('chat.officialReopenedAlert')
+    feedback_reopened: t('chat.officialReopenedAlert'),
+    review_approved: t('chat.officialReviewApprovedAlert'),
+    review_rejected: t('chat.officialReviewRejectedAlert')
   }
   const body = settings.messageDetail
     ? (content || '').trim() || bodyByType[type] || t('chat.officialUpdateAlert')

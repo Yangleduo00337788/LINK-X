@@ -1,9 +1,11 @@
 package com.linkx.server.service.admin;
 
 import com.linkx.server.common.admin.PageResultVO;
+import com.linkx.server.controller.admin.dto.AdminPageQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminUserActionDTO;
 import com.linkx.server.controller.admin.dto.AdminUserQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminUserUpdateDTO;
+import com.linkx.server.controller.admin.vo.AdminLoginLogVO;
 import com.linkx.server.controller.admin.vo.AdminUserDetailVO;
 import com.linkx.server.controller.admin.vo.AdminUserListVO;
 import com.linkx.server.controller.vo.DeviceVO;
@@ -27,4 +29,6 @@ public interface AdminUserService {
     void unban(Long id, Long operatorId);
 
     List<DeviceVO> devices(Long id);
+
+    PageResultVO<AdminLoginLogVO> logins(Long id, AdminPageQueryDTO query);
 }

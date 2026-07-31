@@ -5,6 +5,7 @@ import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.mapper.FeedbackMapper;
 import com.linkx.server.service.FeedbackService;
 import com.linkx.server.service.MessageNotificationService;
+import com.linkx.server.service.admin.AdminReviewService;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ public class FeedbackServiceImpl extends ServiceImpl<FeedbackMapper, Feedback> i
     private final FeedbackMapper feedbackMapper;
     private final MessageNotificationService notificationService;
     private final ImMessagePushService imPushService;
+    private final AdminReviewService adminReviewService;
 
     @Override
     @Transactional
@@ -39,11 +41,18 @@ public class FeedbackServiceImpl extends ServiceImpl<FeedbackMapper, Feedback> i
                 .createTime(new Date())
                 .build();
         feedbackMapper.insert(feedback);
+        adminReviewService.createFromReportFeedback(feedback);
 
-        String notifyContent = "\u3010\u53CD\u9988\u5DF2\u63D0\u4EA4\u3011\n"
-                + "\u7C7B\u578B\uFF1A" + typeLabel(type) + "\n"
-                + "\u4F60\u7684\u53CD\u9988\uFF1A" + abbreviate(content, 200)
-                + "\n\u8BE6\u60C5\uFF1A\u6211\u4EEC\u5DF2\u6536\u5230\uFF0C\u4F1A\u5C3D\u5FEB\u5904\u7406";
+        boolean isReport = content != null && content.trim().startsWith("[举报");
+        String notifyContent = isReport
+                ? "\u3010\u4E3E\u62A5\u5DF2\u63D0\u4EA4\u3011\n"
+                    + "\u7C7B\u578B\uFF1A\u7528\u6237\u4E3E\u62A5\n"
+                    + "\u4F60\u7684\u4E3E\u62A5\uFF1A" + abbreviate(content, 200)
+                    + "\n\u8BE6\u60C5\uFF1A\u6211\u4EEC\u5DF2\u6536\u5230\uFF0C\u5C06\u5C3D\u5FEB\u6838\u5B9E\u5904\u7406"
+                : "\u3010\u53CD\u9988\u5DF2\u63D0\u4EA4\u3011\n"
+                    + "\u7C7B\u578B\uFF1A" + typeLabel(type) + "\n"
+                    + "\u4F60\u7684\u53CD\u9988\uFF1A" + abbreviate(content, 200)
+                    + "\n\u8BE6\u60C5\uFF1A\u6211\u4EEC\u5DF2\u6536\u5230\uFF0C\u4F1A\u5C3D\u5FEB\u5904\u7406";
         notificationService.create(
                 userId,
                 null,

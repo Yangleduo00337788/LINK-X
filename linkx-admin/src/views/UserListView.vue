@@ -5,16 +5,20 @@ import { useI18n } from 'vue-i18n'
 import {
   NButton,
   NDataTable,
+  NDropdown,
   NSelect,
   NSpace,
   NTag,
   useDialog,
   useMessage,
   type DataTableColumns,
+  type DropdownOption,
 } from 'naive-ui'
 import {
+  banUser,
   freezeUser,
   listUsers,
+  unbanUser,
   unfreezeUser,
   type AdminUserListItem,
 } from '@/api/users'
@@ -55,12 +59,25 @@ function canToggleStatus(row: AdminUserListItem) {
   return true
 }
 
-function canDisable() {
-  return auth.hasPermission(['admin:user:freeze', 'admin:user:ban'])
-}
-
-function canEnable() {
-  return auth.hasPermission(['admin:user:unfreeze', 'admin:user:unban'])
+function actionOptions(row: AdminUserListItem): DropdownOption[] {
+  if (!canToggleStatus(row)) return []
+  const opts: DropdownOption[] = []
+  if (row.status === 1) {
+    if (auth.hasPermission('admin:user:freeze')) {
+      opts.push({ label: t('user.freeze'), key: 'freeze' })
+    }
+    if (auth.hasPermission('admin:user:ban')) {
+      opts.push({ label: t('user.ban'), key: 'ban' })
+    }
+  } else {
+    if (auth.hasPermission('admin:user:unfreeze')) {
+      opts.push({ label: t('user.unfreeze'), key: 'unfreeze' })
+    }
+    if (auth.hasPermission('admin:user:unban')) {
+      opts.push({ label: t('user.unban'), key: 'unban' })
+    }
+  }
+  return opts
 }
 
 const columns = computed<DataTableColumns<AdminUserListItem>>(() => {
@@ -91,45 +108,57 @@ const columns = computed<DataTableColumns<AdminUserListItem>>(() => {
     {
       title: t('common.actions'),
       key: 'actions',
-      width: 160,
+      width: 180,
       fixed: 'right',
-      render: (row) =>
-        h(NSpace, { size: 8 }, () => [
+      render: (row) => {
+        const opts = actionOptions(row)
+        return h(NSpace, { size: 8 }, () => [
           h(NButton, { size: 'tiny', onClick: () => router.push(`/admin/users/${row.id}`) }, () =>
             t('common.detail'),
           ),
-          canToggleStatus(row) && row.status === 1 && canDisable()
+          opts.length
             ? h(
-                NButton,
+                NDropdown,
                 {
-                  size: 'tiny',
-                  type: 'error',
-                  secondary: true,
-                  onClick: () =>
-                    confirmAction(t('user.freeze'), t('user.freezeConfirm'), () => freezeUser(row.id)),
+                  options: opts,
+                  onSelect: (key: string) => handleAction(row, key),
                 },
-                () => t('user.freeze'),
+                () => h(NButton, { size: 'tiny' }, () => t('common.actions')),
               )
             : null,
-          canToggleStatus(row) && row.status === 0 && canEnable()
-            ? h(
-                NButton,
-                {
-                  size: 'tiny',
-                  type: 'primary',
-                  secondary: true,
-                  onClick: () =>
-                    confirmAction(t('user.unfreeze'), t('user.unfreezeConfirm'), () =>
-                      unfreezeUser(row.id),
-                    ),
-                },
-                () => t('user.unfreeze'),
-              )
-            : null,
-        ]),
+        ])
+      },
     },
   ]
 })
+
+function handleAction(row: AdminUserListItem, key: string) {
+  const map: Record<string, { label: string; content: string; action: () => Promise<unknown> }> = {
+    freeze: {
+      label: t('user.freeze'),
+      content: t('user.freezeConfirm'),
+      action: () => freezeUser(row.id),
+    },
+    unfreeze: {
+      label: t('user.unfreeze'),
+      content: t('user.unfreezeConfirm'),
+      action: () => unfreezeUser(row.id),
+    },
+    ban: {
+      label: t('user.ban'),
+      content: t('user.banConfirm'),
+      action: () => banUser(row.id),
+    },
+    unban: {
+      label: t('user.unban'),
+      content: t('user.unbanConfirm'),
+      action: () => unbanUser(row.id),
+    },
+  }
+  const item = map[key]
+  if (!item) return
+  confirmAction(item.label, item.content, item.action)
+}
 
 function confirmAction(label: string, content: string, action: () => Promise<unknown>) {
   dialog.warning({

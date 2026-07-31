@@ -342,9 +342,13 @@ public class ChatServiceImpl implements ChatService {
 
         // 敏感词过滤：文本消息进行 DFA 过滤
         String content = resolveContent(msgType, dto, storedFileUrl);
+        boolean sensitiveAlert = false;
         if (ImMessage.TYPE_TEXT.equals(msgType) && content != null) {
             SensitiveWordService.FilterResult filterResult = sensitiveWordService.filter(content);
             if (!filterResult.matchedWords().isEmpty()) {
+                String failReason = filterResult.blocked()
+                        ? "blocked"
+                        : (filterResult.filtered() ? "filtered" : (filterResult.alerted() ? "alert" : "matched"));
                 auditLogService.log(
                         SysAuditLog.OperationType.SENSITIVE_WORD_MATCH,
                         "敏感词命中: " + String.join(",", filterResult.matchedWords()),
@@ -353,13 +357,14 @@ public class ChatServiceImpl implements ChatService {
                         null,
                         null,
                         !filterResult.blocked(),
-                        filterResult.blocked() ? "blocked" : (filterResult.filtered() ? "filtered" : "alert")
+                        failReason
                 );
             }
             if (filterResult.blocked()) {
                 throw new CustomException(400, "消息包含违禁内容，无法发送");
             }
             content = filterResult.text();
+            sensitiveAlert = filterResult.alerted();
         }
 
         ImMessage message = ImMessage.builder()
@@ -385,7 +390,11 @@ public class ChatServiceImpl implements ChatService {
 
         linkxMetrics.recordMessageSent();
         SysUser sender = sysUserMapper.selectOneById(userId);
-        return toMessageVO(message, sender, userId, loadLastReadMessageId(userId, conversation.getId()));
+        MessageVO vo = toMessageVO(message, sender, userId, loadLastReadMessageId(userId, conversation.getId()));
+        if (sensitiveAlert) {
+            vo.setSensitiveAlert(Boolean.TRUE);
+        }
+        return vo;
     }
 
     @Override
@@ -1699,7 +1708,11 @@ public class ChatServiceImpl implements ChatService {
         refreshConversationLastMessage(conversationId);
 
         SysUser sender = sysUserMapper.selectOneById(userId);
-        return toMessageVO(message, sender, userId, loadLastReadMessageId(userId, conversationId));
+        MessageVO vo = toMessageVO(message, sender, userId, loadLastReadMessageId(userId, conversationId));
+        if (filterResult.alerted()) {
+            vo.setSensitiveAlert(Boolean.TRUE);
+        }
+        return vo;
     }
 
     @Override

@@ -73,6 +73,8 @@ export interface MessageItem {
   quoteContent?: string
   quoteSenderId?: string | number
   clientMsgId?: string
+  /** 仅告警敏感词命中（发送端提示） */
+  sensitiveAlert?: boolean
 }
 
 export interface ChatFileUploadResult {

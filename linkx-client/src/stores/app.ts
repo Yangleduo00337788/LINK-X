@@ -819,7 +819,11 @@ export const useAppStore = defineStore('app', {
             this.isOffline = true
           }
         },
-        onError: (code: number, msg: string) => {
+        onError: (code: number, msg: string, clientMsgId?: string) => {
+          if (clientMsgId) {
+            this.handleWsSendError(clientMsgId, code, msg)
+            return
+          }
           if (code !== 401) {
             console.warn('WebSocket 错误:', msg)
           }
@@ -1027,33 +1031,51 @@ export const useAppStore = defineStore('app', {
 
     /** 处理 WebSocket 发送确认，替换乐观消息 */
     handleWsAck(clientMsgId: string, message: MessageItem) {
-      const sessionId = String(message.conversationId)
-
-      console.log('[handleWsAck]', { clientMsgId, sessionId, messageId: message.id })
+      let sessionId = message.conversationId != null ? String(message.conversationId) : ''
 
       // 确保消息列表存在（如果没有，先初始化）
-      if (!this.messagesBySession[sessionId]) {
-        console.log('[handleWsAck] 初始化消息列表:', sessionId)
+      if (sessionId && !this.messagesBySession[sessionId]) {
         this.messagesBySession[sessionId] = []
       }
 
-      const index = this.messagesBySession[sessionId].findIndex(m => m.id === clientMsgId)
-      const chatMsg = messageToChatMessage(message, sessionId)
+      let index = sessionId
+        ? this.messagesBySession[sessionId].findIndex(m => m.id === clientMsgId || m.clientMsgId === clientMsgId)
+        : -1
 
-      console.log('[handleWsAck] 查找结果:', { index, msgsCount: this.messagesBySession[sessionId].length, clientMsgId })
+      // conversationId 异常时按 clientMsgId 回查，避免乐观消息一直卡在「发送中」
+      if (index < 0) {
+        for (const sid of Object.keys(this.messagesBySession)) {
+          const list = this.messagesBySession[sid]
+          const i = list?.findIndex(m => m.id === clientMsgId || m.clientMsgId === clientMsgId) ?? -1
+          if (i >= 0) {
+            sessionId = sid
+            index = i
+            break
+          }
+        }
+      }
+
+      if (!sessionId) return
+
+      if (!this.messagesBySession[sessionId]) {
+        this.messagesBySession[sessionId] = []
+      }
+
+      const chatMsg = messageToChatMessage(
+        { ...message, conversationId: message.conversationId ?? sessionId, isSelf: true },
+        sessionId
+      )
+      chatMsg.sendStatus = 'sent'
+      chatMsg.clientMsgId = clientMsgId
+      if (message.sensitiveAlert) {
+        chatMsg.sensitiveAlert = true
+      }
 
       if (index >= 0) {
-        console.log('[handleWsAck] 替换乐观消息:', { index, clientMsgId, newId: message.id })
-        // 使用 splice 直接操作 store 属性，触发 Vue 响应式更新
-        chatMsg.sendStatus = 'sent'
-        chatMsg.clientMsgId = clientMsgId
         this.messagesBySession[sessionId].splice(index, 1, chatMsg)
       } else {
         const exists = this.messagesBySession[sessionId].some(m => m.id === chatMsg.id)
-        console.log('[handleWsAck] 检查重复:', { exists, chatMsgId: chatMsg.id })
         if (!exists) {
-          console.log('[handleWsAck] 添加新消息到列表')
-          chatMsg.sendStatus = chatMsg.isSelf ? 'sent' : chatMsg.sendStatus
           this.messagesBySession[sessionId].push(chatMsg)
         }
       }
@@ -1062,6 +1084,32 @@ export const useAppStore = defineStore('app', {
       if (session) {
         session.lastMessage = messagePreviewFromItem(message)
         session.time = chatMsg.time
+      }
+    },
+
+    /**
+     * WebSocket 业务错误（如敏感词拦截）：标记对应乐观消息失败，不自动重试。
+     */
+    handleWsSendError(clientMsgId: string, code: number, msg: string) {
+      let marked = false
+      for (const sessionId of Object.keys(this.messagesBySession)) {
+        const list = this.messagesBySession[sessionId]
+        if (!list?.length) continue
+        const local = list.find(m => m.id === clientMsgId || m.clientMsgId === clientMsgId)
+        if (!local) continue
+        local.sendStatus = 'failed'
+        local.uploadProgress = undefined
+        local.sendFailReason = msg || t('chat.sensitiveBlocked')
+        if (local.type === 'file') local.fileStatus = t('chat.fileStatusFailed')
+        // 业务错误禁止自动重试
+        ;(local as { _autoRetry?: number })._autoRetry = 99
+        marked = true
+        break
+      }
+      if (code === 400 || marked) {
+        console.warn('[handleWsSendError]', { clientMsgId, code, msg })
+      } else if (code !== 401) {
+        console.warn('WebSocket 错误:', msg)
       }
     },
 

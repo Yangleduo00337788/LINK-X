@@ -2,7 +2,7 @@
 /**
  * 消息页「LinkX官方」主面板：按反馈单分组展示详细进度时间线，并实时跟随推送刷新。
  */
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { NIcon, NTag, useMessage } from 'naive-ui'
 import {
   HeadsetOutline,
@@ -17,6 +17,8 @@ import { storeToRefs } from 'pinia'
 import { useNotificationsStore } from '../stores/notifications'
 import EmptyState from './common/EmptyState.vue'
 import type { MessageNotification } from '../stores/notifications'
+import { resolveNoteMediaUrl } from '../api/note'
+import { normalizeMediaUrl } from '../utils/mediaUrl'
 import { useI18n } from '../i18n'
 
 const message = useMessage()
@@ -42,10 +44,16 @@ watch(
   }
 )
 
+interface BodyPart {
+  kind: 'text' | 'image'
+  text?: string
+  key?: string
+}
+
 interface ProgressStep {
   notif: MessageNotification
   title: string
-  bodyLines: string[]
+  bodyParts: BodyPart[]
 }
 
 interface FeedbackTicket {
@@ -54,6 +62,9 @@ interface FeedbackTicket {
   unread: boolean
   steps: ProgressStep[]
 }
+
+const EVIDENCE_KEY_RE = /^\d+\.\s*([\w./-]+\.(?:png|jpe?g|gif|webp|bmp))$/i
+const resolvedEvidenceUrls = ref<Record<string, string>>({})
 
 function formatTime(raw: string): string {
   if (!raw) return ''
@@ -83,6 +94,10 @@ function statusMeta(type?: string): { title: string; tag: 'info' | 'success' | '
       return { title: t('chat.officialStepClosed'), tag: 'default' }
     case 'feedback_reopened':
       return { title: t('chat.officialStepReopened'), tag: 'warning' }
+    case 'review_approved':
+      return { title: t('chat.officialStepApproved'), tag: 'success' }
+    case 'review_rejected':
+      return { title: t('chat.officialStepRejected'), tag: 'error' }
     default:
       return { title: t('chat.officialStepProgress'), tag: 'info' }
   }
@@ -98,19 +113,55 @@ function stepIcon(type?: string) {
       return CloseCircleOutline
     case 'feedback_reopened':
       return RefreshOutline
+    case 'review_approved':
+      return ChatbubbleEllipsesOutline
+    case 'review_rejected':
+      return CloseCircleOutline
     default:
       return HeadsetOutline
   }
 }
 
-/** 把通知正文拆成多行详细信息 */
-function parseBodyLines(content?: string): string[] {
+/** 把通知正文拆成文本行 + 证据图 key */
+function parseBodyParts(content?: string): BodyPart[] {
   if (!content) return []
-  return content
-    .split(/\r?\n/)
-    .map(s => s.trim())
-    .filter(Boolean)
-    .filter(s => !/^【.+】$/.test(s))
+  const parts: BodyPart[] = []
+  for (const raw of content.split(/\r?\n/)) {
+    const line = raw.trim()
+    if (!line || /^【.+】$/.test(line)) continue
+    if (/^证据图片:\s*$/.test(line)) continue
+    const m = line.match(EVIDENCE_KEY_RE)
+    if (m) {
+      parts.push({ kind: 'image', key: m[1] })
+      continue
+    }
+    if (/^证据图片:\s*无$/.test(line)) {
+      parts.push({ kind: 'text', text: line })
+      continue
+    }
+    parts.push({ kind: 'text', text: line })
+  }
+  return parts
+}
+
+async function resolveEvidenceKeys(parts: BodyPart[]) {
+  const keys = parts
+    .filter(p => p.kind === 'image' && p.key && !resolvedEvidenceUrls.value[p.key])
+    .map(p => p.key!)
+  if (!keys.length) return
+  await Promise.all(
+    keys.map(async key => {
+      try {
+        const res = await resolveNoteMediaUrl(key)
+        const url = normalizeMediaUrl(res.data) || res.data || ''
+        if (res.code === 200 && url) {
+          resolvedEvidenceUrls.value = { ...resolvedEvidenceUrls.value, [key]: url }
+        }
+      } catch {
+        /* ignore single key */
+      }
+    })
+  )
 }
 
 const tickets = computed<FeedbackTicket[]>(() => {
@@ -131,7 +182,7 @@ const tickets = computed<FeedbackTicket[]>(() => {
     ticket.steps.push({
       notif,
       title: meta.title,
-      bodyLines: parseBodyLines(notif.content)
+      bodyParts: parseBodyParts(notif.content)
     })
     if (notif.readStatus === 0) ticket.unread = true
     if (Date.parse(notif.createTime) >= Date.parse(ticket.latestTime)) {
@@ -149,6 +200,15 @@ const tickets = computed<FeedbackTicket[]>(() => {
     (a, b) => Date.parse(b.latestTime) - Date.parse(a.latestTime)
   )
 })
+
+watch(
+  tickets,
+  list => {
+    const parts = list.flatMap(t => t.steps.flatMap(s => s.bodyParts))
+    void resolveEvidenceKeys(parts)
+  },
+  { immediate: true, deep: true }
+)
 
 async function onClickStep(notif: MessageNotification) {
   if (notif.readStatus === 0) {
@@ -230,10 +290,21 @@ function latestStatus(ticket: FeedbackTicket) {
                   <span class="step-title">{{ step.title }}</span>
                   <span class="step-time">{{ formatTime(step.notif.createTime) }}</span>
                 </div>
-                <div v-if="step.bodyLines.length" class="step-detail">
-                  <p v-for="(line, idx) in step.bodyLines" :key="idx" class="detail-line">
-                    {{ line }}
-                  </p>
+                <div v-if="step.bodyParts.length" class="step-detail">
+                  <template v-for="(part, idx) in step.bodyParts" :key="idx">
+                    <p v-if="part.kind === 'text'" class="detail-line">{{ part.text }}</p>
+                    <a
+                      v-else-if="part.key && resolvedEvidenceUrls[part.key]"
+                      class="evidence-thumb"
+                      :href="resolvedEvidenceUrls[part.key]"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      @click.stop
+                    >
+                      <img :src="resolvedEvidenceUrls[part.key]" alt="" />
+                    </a>
+                    <p v-else-if="part.key" class="detail-line muted">{{ part.key }}</p>
+                  </template>
                 </div>
                 <p v-else class="step-detail plain">{{ step.notif.content }}</p>
               </div>
@@ -450,6 +521,27 @@ function latestStatus(ticket: FeedbackTicket) {
 
 .detail-line {
   margin: 0 0 2px;
+}
+
+.detail-line.muted {
+  color: var(--lx-text-tertiary, #999);
+  font-size: 12px;
+}
+
+.evidence-thumb {
+  display: inline-block;
+  margin: 4px 6px 4px 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--lx-divider);
+  line-height: 0;
+}
+
+.evidence-thumb img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  display: block;
 }
 
 .delete-btn {

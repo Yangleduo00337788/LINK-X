@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, onMounted, ref } from 'vue'
+import { computed, h, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
@@ -7,6 +7,10 @@ import {
   NDataTable,
   NDescriptions,
   NDescriptionsItem,
+  NForm,
+  NFormItem,
+  NInput,
+  NModal,
   NSpace,
   NSpin,
   NTabPane,
@@ -17,12 +21,17 @@ import {
   type DataTableColumns,
 } from 'naive-ui'
 import {
+  banUser,
   freezeUser,
   getUser,
   listUserDevices,
+  listUserLogins,
+  unbanUser,
   unfreezeUser,
+  updateUser,
   type AdminUserDetail,
   type DeviceItem,
+  type UserLoginItem,
 } from '@/api/users'
 import { formatTime, displayOrNone, formatIp, userStatusLabel, userStatusType } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
@@ -38,6 +47,19 @@ const loading = ref(false)
 const user = ref<AdminUserDetail | null>(null)
 const devices = ref<DeviceItem[]>([])
 const deviceLoading = ref(false)
+const logins = ref<UserLoginItem[]>([])
+const loginLoading = ref(false)
+const loginTotal = ref(0)
+const loginQuery = reactive({ page: 1, size: 10 })
+
+const showEdit = ref(false)
+const editSaving = ref(false)
+const editForm = reactive({
+  nickname: '',
+  email: '',
+  phone: '',
+  signature: '',
+})
 
 const userId = computed(() => String(route.params.id || ''))
 
@@ -63,8 +85,12 @@ const canToggleStatus = computed(() => {
   return true
 })
 
-const canDisable = computed(() => auth.hasPermission(['admin:user:freeze', 'admin:user:ban']))
-const canEnable = computed(() => auth.hasPermission(['admin:user:unfreeze', 'admin:user:unban']))
+const canEdit = computed(() => {
+  if (!auth.hasPermission('admin:user:edit') || !user.value) return false
+  const isSelf = String(user.value.id) === String(auth.user?.id)
+  const isAdmin = user.value.roles?.some((r) => ADMIN_ROLES.has(r))
+  return isSelf || !isAdmin
+})
 
 const deviceColumns = computed<DataTableColumns<DeviceItem>>(() => {
   void locale.value
@@ -96,6 +122,36 @@ const deviceColumns = computed<DataTableColumns<DeviceItem>>(() => {
   ]
 })
 
+const loginColumns = computed<DataTableColumns<UserLoginItem>>(() => {
+  void locale.value
+  return [
+    {
+      title: t('loginLog.result'),
+      key: 'success',
+      width: 90,
+      render: (row) =>
+        h(
+          NTag,
+          { type: row.success === 1 ? 'success' : 'error', size: 'small' },
+          () => (row.success === 1 ? t('user.loginSuccess') : t('user.loginFail')),
+        ),
+    },
+    {
+      title: 'IP',
+      key: 'ip',
+      width: 140,
+      render: (row) => formatIp(row.ip),
+    },
+    { title: t('loginLog.reason'), key: 'reason', ellipsis: { tooltip: true } },
+    {
+      title: t('common.time'),
+      key: 'createTime',
+      width: 170,
+      render: (row) => formatTime(row.createTime),
+    },
+  ]
+})
+
 async function load() {
   loading.value = true
   try {
@@ -106,11 +162,55 @@ async function load() {
 }
 
 async function loadDevices() {
+  if (!auth.hasPermission('admin:user:device:list')) return
   deviceLoading.value = true
   try {
     devices.value = (await listUserDevices(userId.value)) || []
   } finally {
     deviceLoading.value = false
+  }
+}
+
+async function loadLogins() {
+  if (!auth.hasPermission('admin:user:login:list')) return
+  loginLoading.value = true
+  try {
+    const data = await listUserLogins(userId.value, {
+      page: loginQuery.page,
+      size: loginQuery.size,
+    })
+    logins.value = data.items || []
+    loginTotal.value = data.total || 0
+  } finally {
+    loginLoading.value = false
+  }
+}
+
+function openEdit() {
+  if (!user.value) return
+  Object.assign(editForm, {
+    nickname: user.value.nickname || '',
+    email: user.value.email || '',
+    phone: user.value.phone || '',
+    signature: user.value.signature || '',
+  })
+  showEdit.value = true
+}
+
+async function submitEdit() {
+  editSaving.value = true
+  try {
+    await updateUser(userId.value, {
+      nickname: editForm.nickname.trim() || undefined,
+      email: editForm.email.trim() || undefined,
+      phone: editForm.phone.trim() || undefined,
+      signature: editForm.signature.trim() || undefined,
+    })
+    message.success(t('user.editSuccess'))
+    showEdit.value = false
+    await load()
+  } finally {
+    editSaving.value = false
   }
 }
 
@@ -130,7 +230,7 @@ function confirmAction(label: string, content: string, action: () => Promise<unk
 
 onMounted(async () => {
   await load()
-  await loadDevices()
+  await Promise.all([loadDevices(), loadLogins()])
 })
 </script>
 
@@ -140,21 +240,37 @@ onMounted(async () => {
       <div v-if="user" class="page-shell">
         <NSpace class="page-toolbar" justify="end">
           <NButton @click="router.back()">{{ t('common.back') }}</NButton>
+          <NButton v-if="canEdit" @click="openEdit">{{ t('user.editProfile') }}</NButton>
           <NButton
-            v-if="canToggleStatus && user?.status === 1 && canDisable"
-            type="error"
+            v-if="canToggleStatus && user?.status === 1 && auth.hasPermission('admin:user:freeze')"
+            type="warning"
             secondary
             @click="confirmAction(t('user.freeze'), t('user.freezeConfirm'), () => freezeUser(userId))"
           >
             {{ t('user.freeze') }}
           </NButton>
           <NButton
-            v-if="canToggleStatus && user?.status === 0 && canEnable"
+            v-if="canToggleStatus && user?.status === 1 && auth.hasPermission('admin:user:ban')"
+            type="error"
+            secondary
+            @click="confirmAction(t('user.ban'), t('user.banConfirm'), () => banUser(userId))"
+          >
+            {{ t('user.ban') }}
+          </NButton>
+          <NButton
+            v-if="canToggleStatus && user?.status === 0 && auth.hasPermission('admin:user:unfreeze')"
             type="primary"
             secondary
             @click="confirmAction(t('user.unfreeze'), t('user.unfreezeConfirm'), () => unfreezeUser(userId))"
           >
             {{ t('user.unfreeze') }}
+          </NButton>
+          <NButton
+            v-if="canToggleStatus && user?.status === 0 && auth.hasPermission('admin:user:unban')"
+            secondary
+            @click="confirmAction(t('user.unban'), t('user.unbanConfirm'), () => unbanUser(userId))"
+          >
+            {{ t('user.unban') }}
           </NButton>
         </NSpace>
         <NTabs type="line">
@@ -176,11 +292,64 @@ onMounted(async () => {
               <NDescriptionsItem :label="t('common.updateTime')">{{ formatTime(user.updateTime) }}</NDescriptionsItem>
             </NDescriptions>
           </NTabPane>
-          <NTabPane name="devices" :tab="t('user.tabDevices')">
+          <NTabPane
+            v-if="auth.hasPermission('admin:user:device:list')"
+            name="devices"
+            :tab="t('user.tabDevices')"
+          >
             <NDataTable :columns="deviceColumns" :data="devices" :loading="deviceLoading" />
+          </NTabPane>
+          <NTabPane
+            v-if="auth.hasPermission('admin:user:login:list')"
+            name="logins"
+            :tab="t('user.tabLogins')"
+          >
+            <NDataTable
+              :columns="loginColumns"
+              :data="logins"
+              :loading="loginLoading"
+              :pagination="{
+                page: loginQuery.page,
+                pageSize: loginQuery.size,
+                itemCount: loginTotal,
+                showSizePicker: true,
+                pageSizes: [10, 20, 50],
+                onUpdatePage: (p: number) => { loginQuery.page = p; loadLogins() },
+                onUpdatePageSize: (s: number) => { loginQuery.size = s; loginQuery.page = 1; loadLogins() },
+              }"
+              remote
+            />
           </NTabPane>
         </NTabs>
       </div>
     </NSpin>
+
+    <NModal v-model:show="showEdit" preset="card" :title="t('user.editTitle')" style="width: 480px">
+      <NForm label-placement="left" label-width="80">
+        <NFormItem :label="t('user.nickname')">
+          <NInput v-model:value="editForm.nickname" :placeholder="t('user.nicknamePlaceholder')" />
+        </NFormItem>
+        <NFormItem :label="t('user.email')">
+          <NInput v-model:value="editForm.email" :placeholder="t('user.emailPlaceholder')" />
+        </NFormItem>
+        <NFormItem :label="t('user.phone')">
+          <NInput v-model:value="editForm.phone" :placeholder="t('user.phonePlaceholder')" />
+        </NFormItem>
+        <NFormItem :label="t('user.signature')">
+          <NInput
+            v-model:value="editForm.signature"
+            type="textarea"
+            :rows="3"
+            :placeholder="t('user.signaturePlaceholder')"
+          />
+        </NFormItem>
+      </NForm>
+      <template #footer>
+        <NSpace justify="end">
+          <NButton @click="showEdit = false">{{ t('common.cancel') }}</NButton>
+          <NButton type="primary" :loading="editSaving" @click="submitEdit">{{ t('common.save') }}</NButton>
+        </NSpace>
+      </template>
+    </NModal>
   </div>
 </template>

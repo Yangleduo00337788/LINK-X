@@ -186,13 +186,20 @@ export const useNotificationsStore = defineStore('notifications', {
     calendarRemindUnreadCount(state): number {
       return state.messageNotifs.filter(n => n.type === 'calendar_remind' && n.readStatus === 0).length
     },
-    /** LinkX 官方（反馈进度）通知 */
+    /** LinkX 官方（反馈 / 举报审核进度）通知 */
     officialNotifs(state): MessageNotification[] {
-      return state.messageNotifs.filter(n => typeof n.type === 'string' && n.type.startsWith('feedback_'))
+      return state.messageNotifs.filter(
+        n =>
+          typeof n.type === 'string' &&
+          (n.type.startsWith('feedback_') || n.type.startsWith('review_'))
+      )
     },
     officialUnreadCount(state): number {
       return state.messageNotifs.filter(
-        n => typeof n.type === 'string' && n.type.startsWith('feedback_') && n.readStatus === 0
+        n =>
+          typeof n.type === 'string' &&
+          (n.type.startsWith('feedback_') || n.type.startsWith('review_')) &&
+          n.readStatus === 0
       ).length
     },
     totalUnreadCount(): number {
@@ -288,10 +295,13 @@ export const useNotificationsStore = defineStore('notifications', {
       await Promise.all(unread.map(n => this.markMessageAsRead(n.id)))
     },
 
-    /** 将全部 LinkX 官方（反馈）通知标为已读 */
+    /** 将全部 LinkX 官方（反馈 / 举报）通知标为已读 */
     async markOfficialNotifsAsRead() {
       const unread = this.messageNotifs.filter(
-        n => typeof n.type === 'string' && n.type.startsWith('feedback_') && n.readStatus === 0
+        n =>
+          typeof n.type === 'string' &&
+          (n.type.startsWith('feedback_') || n.type.startsWith('review_')) &&
+          n.readStatus === 0
       )
       if (!unread.length) return
       await Promise.all(unread.map(n => this.markMessageAsRead(n.id)))
@@ -405,6 +415,7 @@ export const useNotificationsStore = defineStore('notifications', {
         type === 'calendar_remind' ||
         type === 'group_join_request' ||
         type.startsWith('feedback_') ||
+        type.startsWith('review_') ||
         !type
       ) {
         tasks.push(this.fetchMessageNotifications(), this.fetchNotificationCount())
@@ -420,7 +431,7 @@ export const useNotificationsStore = defineStore('notifications', {
         const { notifySocialEvent } = await import('../utils/messageNotify')
         notifySocialEvent(type === 'group_join_request' ? 'group_invitation' : type)
       }
-      if (type.startsWith('feedback_')) {
+      if (type.startsWith('feedback_') || type.startsWith('review_')) {
         const { notifyOfficialFeedback } = await import('../utils/messageNotify')
         void notifyOfficialFeedback(type, typeof data?.content === 'string' ? data.content : undefined)
       }

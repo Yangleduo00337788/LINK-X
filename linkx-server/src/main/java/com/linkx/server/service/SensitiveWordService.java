@@ -92,7 +92,7 @@ public class SensitiveWordService {
      */
     public FilterResult filter(String text) {
         if (text == null || text.isBlank()) {
-            return new FilterResult(text, false, false, List.of());
+            return new FilterResult(text, false, false, false, List.of());
         }
 
         DfaNode root = rootNodeRef.get();
@@ -103,6 +103,7 @@ public class SensitiveWordService {
         StringBuilder result = new StringBuilder(text);
         boolean blocked = false;
         boolean filtered = false;
+        boolean alerted = false;
         java.util.List<String> matchedWords = new java.util.ArrayList<>();
 
         int i = 0;
@@ -142,8 +143,8 @@ public class SensitiveWordService {
                     filtered = true;
                     i += replacement.length();
                 } else {
-                    // alert: 不修改文本，仅标记
-                    filtered = true;
+                    // alert: 不修改文本，仅标记告警
+                    alerted = true;
                     i = matchEnd + 1;
                 }
             } else {
@@ -155,6 +156,7 @@ public class SensitiveWordService {
                 blocked ? text : result.toString(),
                 filtered,
                 blocked,
+                alerted,
                 matchedWords
         );
     }
@@ -218,7 +220,7 @@ public class SensitiveWordService {
 
     // ---- 结果类 ----
 
-    public record FilterResult(String text, boolean filtered, boolean blocked, List<String> matchedWords) {
+    public record FilterResult(String text, boolean filtered, boolean blocked, boolean alerted, List<String> matchedWords) {
     }
 
     public record DetectionResult(boolean hasMatch, List<String> matches) {

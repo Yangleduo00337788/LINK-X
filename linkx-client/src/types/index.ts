@@ -144,6 +144,10 @@ export interface ChatMessage {
   readCount?: number
   totalMembers?: number
   clientMsgId?: string
+  /** 仅告警敏感词命中提示（发送端） */
+  sensitiveAlert?: boolean
+  /** 业务发送失败原因（如违禁拦截），有值时不自动重试 */
+  sendFailReason?: string
 }
 
 /** 通讯录联系人项 */
