@@ -98,6 +98,8 @@ function statusMeta(type?: string): { title: string; tag: 'info' | 'success' | '
       return { title: t('chat.officialStepApproved'), tag: 'success' }
     case 'review_rejected':
       return { title: t('chat.officialStepRejected'), tag: 'error' }
+    case 'notice_published':
+      return { title: t('chat.officialStepNotice'), tag: 'info' }
     default:
       return { title: t('chat.officialStepProgress'), tag: 'info' }
   }
@@ -117,6 +119,8 @@ function stepIcon(type?: string) {
       return ChatbubbleEllipsesOutline
     case 'review_rejected':
       return CloseCircleOutline
+    case 'notice_published':
+      return HeadsetOutline
     default:
       return HeadsetOutline
   }
@@ -230,6 +234,14 @@ function latestStatus(ticket: FeedbackTicket) {
   const last = ticket.steps[ticket.steps.length - 1]
   return statusMeta(last?.notif.type)
 }
+
+function ticketLabel(ticket: FeedbackTicket) {
+  const type = ticket.steps[ticket.steps.length - 1]?.notif.type
+  if (typeof type === 'string' && type.startsWith('notice_')) {
+    return t('chat.officialNoticeTicket')
+  }
+  return t('chat.officialTicket')
+}
 </script>
 
 <template>
@@ -264,7 +276,7 @@ function latestStatus(ticket: FeedbackTicket) {
         >
           <div class="ticket-head">
             <div class="ticket-title-row">
-              <span class="ticket-label">{{ t('chat.officialTicket') }}</span>
+              <span class="ticket-label">{{ ticketLabel(ticket) }}</span>
               <NTag size="small" :type="latestStatus(ticket).tag" round>
                 {{ latestStatus(ticket).title }}
               </NTag>
