@@ -26,14 +26,17 @@ class AuthControllerTest extends BaseIntegrationTest {
         @DisplayName("正常注册应返回code=200")
         void normalRegister_returnsOk() throws Exception {
             String username = "testuser" + System.nanoTime();
+            String email = username + "@linkx.test";
+            String emailCode = seedRegisterEmailCode(email);
             String body = """
                 {
                     "username": "%s",
                     "password": "Test1234abcd",
                     "nickname": "测试用户",
-                    "email": "%s"
+                    "email": "%s",
+                    "emailCode": "%s"
                 }
-                """.formatted(username, username + "@linkx.test");
+                """.formatted(username, email, emailCode);
 
             mockMvc.perform(post("/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -47,22 +50,21 @@ class AuthControllerTest extends BaseIntegrationTest {
         void duplicateRegister_returnsError() throws Exception {
             String username = "dupuser" + System.nanoTime();
             String password = "Test1234abcd";
+            register(username, password, "重复测试");
+
+            // 换一个邮箱拿到验证码，但用户名重复应失败
+            String email2 = username + "b@linkx.test";
+            String emailCode = seedRegisterEmailCode(email2);
             String body = """
                 {
                     "username": "%s",
                     "password": "%s",
                     "nickname": "重复测试",
-                    "email": "%s"
+                    "email": "%s",
+                    "emailCode": "%s"
                 }
-                """.formatted(username, password, username + "@linkx.test");
+                """.formatted(username, password, email2, emailCode);
 
-            // 第一次注册成功
-            mockMvc.perform(post("/auth/register")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(body))
-                    .andExpect(jsonPath("$.code").value(200));
-
-            // 第二次注册失败
             mockMvc.perform(post("/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body))
@@ -77,7 +79,8 @@ class AuthControllerTest extends BaseIntegrationTest {
                     "username": "ab",
                     "password": "Test1234abcd",
                     "nickname": "短用户",
-                    "email": "shortuser@linkx.test"
+                    "email": "shortuser@linkx.test",
+                    "emailCode": "123456"
                 }
                 """;
 

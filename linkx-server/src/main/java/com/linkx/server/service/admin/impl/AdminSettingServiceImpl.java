@@ -1,9 +1,13 @@
 package com.linkx.server.service.admin.impl;
 
 import com.linkx.server.config.LinkxProperties;
+import com.linkx.server.config.MailSenderHolder;
+import com.linkx.server.config.MailTemplateDefaults;
 import com.linkx.server.controller.admin.dto.AdminSideSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.ClientSideSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.LoginSettingUpdateDTO;
+import com.linkx.server.controller.admin.dto.MailSettingUpdateDTO;
+import com.linkx.server.controller.admin.dto.MailTemplateSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.PasswordSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.RegisterSettingUpdateDTO;
 import com.linkx.server.controller.admin.vo.AdminSettingVO;
@@ -27,6 +31,7 @@ public class AdminSettingServiceImpl implements AdminSettingService {
     private final LinkxProperties linkxProperties;
     private final SysRuntimeSettingMapper runtimeSettingMapper;
     private final EmailService emailService;
+    private final MailSenderHolder mailSenderHolder;
 
     @PostConstruct
     public void loadOverridesFromDb() {
@@ -82,6 +87,45 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                         .downloadUrl(app != null ? app.getDownloadUrl() : null)
                         .maxUploadBytes(linkxProperties.getMinio().getMaxFileSize())
                         .build())
+                .mail(buildMailSide())
+                .mailTemplates(buildMailTemplatesSide())
+                .build();
+    }
+
+    private AdminSettingVO.MailSide buildMailSide() {
+        LinkxProperties.Mail mail = linkxProperties.getMail();
+        return AdminSettingVO.MailSide.builder()
+                .host(mail.getHost())
+                .port(mail.getPort())
+                .username(mail.getUsername())
+                .passwordConfigured(StringUtils.hasText(mail.getPassword()))
+                .from(mail.getFrom())
+                .fromName(mail.getFromName())
+                .startTls(mail.isStartTls())
+                .ssl(mail.isSsl())
+                .codeExpireMinutes(mail.getCodeExpireMinutes())
+                .build();
+    }
+
+    private AdminSettingVO.MailTemplatesSide buildMailTemplatesSide() {
+        LinkxProperties.MailTemplates t = linkxProperties.getMailTemplates();
+        return AdminSettingVO.MailTemplatesSide.builder()
+                .register(resolveTemplate(t.getRegisterSubject(), t.getRegisterHtml(),
+                        MailTemplateDefaults.REGISTER_SUBJECT, MailTemplateDefaults.REGISTER_HTML))
+                .reset(resolveTemplate(t.getResetSubject(), t.getResetHtml(),
+                        MailTemplateDefaults.RESET_SUBJECT, MailTemplateDefaults.RESET_HTML))
+                .welcome(resolveTemplate(t.getWelcomeSubject(), t.getWelcomeHtml(),
+                        MailTemplateDefaults.WELCOME_SUBJECT, MailTemplateDefaults.WELCOME_HTML))
+                .build();
+    }
+
+    private static AdminSettingVO.MailTemplate resolveTemplate(
+            String customSubject, String customHtml, String defaultSubject, String defaultHtml) {
+        boolean usingDefault = !StringUtils.hasText(customSubject) && !StringUtils.hasText(customHtml);
+        return AdminSettingVO.MailTemplate.builder()
+                .subject(StringUtils.hasText(customSubject) ? customSubject : defaultSubject)
+                .html(StringUtils.hasText(customHtml) ? customHtml : defaultHtml)
+                .usingDefault(usingDefault)
                 .build();
     }
 
@@ -161,6 +205,51 @@ public class AdminSettingServiceImpl implements AdminSettingService {
     }
 
     @Override
+    @Transactional
+    public AdminSettingVO updateMail(MailSettingUpdateDTO dto, Long operatorId) {
+        if (Boolean.TRUE.equals(dto.getStartTls()) && Boolean.TRUE.equals(dto.getSsl())) {
+            throw new CustomException(400, "STARTTLS 与 SSL 不能同时开启");
+        }
+        SysRuntimeSetting row = loadOrCreateRow(operatorId);
+        row.setMailHost(dto.getHost().trim());
+        row.setMailPort(dto.getPort());
+        row.setMailUsername(nullToEmpty(dto.getUsername()));
+        if (StringUtils.hasText(dto.getPassword())) {
+            row.setMailPassword(dto.getPassword().trim());
+        } else if (row.getMailPassword() == null) {
+            // 首次写入且未填密码：沿用当前内存配置（通常来自 env）
+            row.setMailPassword(nullToEmpty(linkxProperties.getMail().getPassword()));
+        }
+        row.setMailFrom(dto.getFrom().trim());
+        row.setMailFromName(nullToEmpty(dto.getFromName()));
+        row.setMailStartTls(Boolean.TRUE.equals(dto.getStartTls()));
+        row.setMailSsl(Boolean.TRUE.equals(dto.getSsl()));
+        row.setMailCodeExpireMinutes(dto.getCodeExpireMinutes());
+        row.setUpdateBy(operatorId);
+        persist(row);
+        applyMailSide(row);
+        mailSenderHolder.reload();
+        return getSettings();
+    }
+
+    @Override
+    @Transactional
+    public AdminSettingVO updateMailTemplates(MailTemplateSettingUpdateDTO dto, Long operatorId) {
+        SysRuntimeSetting row = loadOrCreateRow(operatorId);
+        // 空字符串表示恢复内置默认；写入空串避免 MyBatis 忽略 null 字段
+        row.setMailTplRegisterSubject(nullToEmpty(dto.getRegister().getSubject()));
+        row.setMailTplRegisterHtml(nullToEmpty(dto.getRegister().getHtml()));
+        row.setMailTplResetSubject(nullToEmpty(dto.getReset().getSubject()));
+        row.setMailTplResetHtml(nullToEmpty(dto.getReset().getHtml()));
+        row.setMailTplWelcomeSubject(nullToEmpty(dto.getWelcome().getSubject()));
+        row.setMailTplWelcomeHtml(nullToEmpty(dto.getWelcome().getHtml()));
+        row.setUpdateBy(operatorId);
+        persist(row);
+        applyMailTemplates(row);
+        return getSettings();
+    }
+
+    @Override
     public String testForgotPasswordEmail(String email) {
         String target = email == null ? "" : email.trim().toLowerCase();
         if (!StringUtils.hasText(target)) {
@@ -208,6 +297,21 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                 .releaseNotes(app != null ? nullToEmpty(app.getReleaseNotes()) : "")
                 .downloadUrl(app != null ? nullToEmpty(app.getDownloadUrl()) : "")
                 .maxUploadBytes(linkxProperties.getMinio().getMaxFileSize())
+                .mailHost(linkxProperties.getMail().getHost())
+                .mailPort(linkxProperties.getMail().getPort())
+                .mailUsername(nullToEmpty(linkxProperties.getMail().getUsername()))
+                .mailPassword(nullToEmpty(linkxProperties.getMail().getPassword()))
+                .mailFrom(linkxProperties.getMail().getFrom())
+                .mailFromName(nullToEmpty(linkxProperties.getMail().getFromName()))
+                .mailStartTls(linkxProperties.getMail().isStartTls())
+                .mailSsl(linkxProperties.getMail().isSsl())
+                .mailCodeExpireMinutes(linkxProperties.getMail().getCodeExpireMinutes())
+                .mailTplRegisterSubject(trimOrNull(linkxProperties.getMailTemplates().getRegisterSubject()))
+                .mailTplRegisterHtml(trimOrNull(linkxProperties.getMailTemplates().getRegisterHtml()))
+                .mailTplResetSubject(trimOrNull(linkxProperties.getMailTemplates().getResetSubject()))
+                .mailTplResetHtml(trimOrNull(linkxProperties.getMailTemplates().getResetHtml()))
+                .mailTplWelcomeSubject(trimOrNull(linkxProperties.getMailTemplates().getWelcomeSubject()))
+                .mailTplWelcomeHtml(trimOrNull(linkxProperties.getMailTemplates().getWelcomeHtml()))
                 .updateBy(operatorId)
                 .build();
     }
@@ -227,6 +331,54 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         applyRegisterSide(row);
         applyLoginSide(row);
         applyPasswordSide(row);
+        applyMailSide(row);
+        applyMailTemplates(row);
+        if (row.getMailHost() != null) {
+            mailSenderHolder.reload();
+        }
+    }
+
+    private void applyMailSide(SysRuntimeSetting row) {
+        LinkxProperties.Mail mail = linkxProperties.getMail();
+        if (row.getMailHost() != null) {
+            mail.setHost(nullToEmpty(row.getMailHost()));
+        }
+        if (row.getMailPort() != null && row.getMailPort() > 0) {
+            mail.setPort(row.getMailPort());
+        }
+        if (row.getMailUsername() != null) {
+            mail.setUsername(nullToEmpty(row.getMailUsername()));
+        }
+        if (row.getMailPassword() != null) {
+            mail.setPassword(row.getMailPassword());
+        }
+        if (row.getMailFrom() != null) {
+            mail.setFrom(nullToEmpty(row.getMailFrom()));
+        }
+        if (row.getMailFromName() != null) {
+            mail.setFromName(nullToEmpty(row.getMailFromName()));
+        }
+        if (row.getMailStartTls() != null) {
+            mail.setStartTls(row.getMailStartTls());
+        }
+        if (row.getMailSsl() != null) {
+            mail.setSsl(row.getMailSsl());
+        }
+        if (row.getMailCodeExpireMinutes() != null && row.getMailCodeExpireMinutes() > 0) {
+            mail.setCodeExpireMinutes(row.getMailCodeExpireMinutes());
+        }
+        log.info("Applied mail settings: host={}, port={}, tls={}, ssl={}, expireMin={}",
+                mail.getHost(), mail.getPort(), mail.isStartTls(), mail.isSsl(), mail.getCodeExpireMinutes());
+    }
+
+    private void applyMailTemplates(SysRuntimeSetting row) {
+        LinkxProperties.MailTemplates t = linkxProperties.getMailTemplates();
+        t.setRegisterSubject(nullToEmpty(row.getMailTplRegisterSubject()));
+        t.setRegisterHtml(nullToEmpty(row.getMailTplRegisterHtml()));
+        t.setResetSubject(nullToEmpty(row.getMailTplResetSubject()));
+        t.setResetHtml(nullToEmpty(row.getMailTplResetHtml()));
+        t.setWelcomeSubject(nullToEmpty(row.getMailTplWelcomeSubject()));
+        t.setWelcomeHtml(nullToEmpty(row.getMailTplWelcomeHtml()));
     }
 
     private void applyAdminSide(SysRuntimeSetting row) {
@@ -316,5 +468,11 @@ public class AdminSettingServiceImpl implements AdminSettingService {
     private static String nullToEmpty(String s) {
         if (s == null) return "";
         return s.trim();
+    }
+
+    private static String trimOrNull(String s) {
+        if (s == null) return null;
+        String t = s.trim();
+        return t.isEmpty() ? null : t;
     }
 }

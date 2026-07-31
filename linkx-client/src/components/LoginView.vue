@@ -404,7 +404,7 @@ function openRegister() {
   }
   // Web：新开标签/窗口，不替换当前登录页
   const url = `${window.location.origin}${window.location.pathname}${window.location.search}#/register`
-  const popup = window.open(url, 'linkx-register', 'width=360,height=560,menubar=no,toolbar=no,location=no,status=no')
+  const popup = window.open(url, 'linkx-register', 'width=360,height=640,menubar=no,toolbar=no,location=no,status=no')
   if (!popup) {
     void router.push('/register')
   }

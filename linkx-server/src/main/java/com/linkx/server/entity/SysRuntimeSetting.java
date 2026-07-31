@@ -61,6 +61,25 @@ public class SysRuntimeSetting implements Serializable {
     private String releaseNotes;
     private String downloadUrl;
     private Long maxUploadBytes;
+
+    /** SMTP 主机（空则沿用 env/yml） */
+    private String mailHost;
+    private Integer mailPort;
+    private String mailUsername;
+    private String mailPassword;
+    private String mailFrom;
+    private String mailFromName;
+    private Boolean mailStartTls;
+    private Boolean mailSsl;
+    private Integer mailCodeExpireMinutes;
+
+    private String mailTplRegisterSubject;
+    private String mailTplRegisterHtml;
+    private String mailTplResetSubject;
+    private String mailTplResetHtml;
+    private String mailTplWelcomeSubject;
+    private String mailTplWelcomeHtml;
+
     private Long updateBy;
 
     @Column(onInsertValue = "NOW()")

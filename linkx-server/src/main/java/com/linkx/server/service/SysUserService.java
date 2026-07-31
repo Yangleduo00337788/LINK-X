@@ -13,6 +13,11 @@ public interface SysUserService extends IService<SysUser> {
 
     void register(RegisterDTO registerDTO, HttpServletRequest request);
 
+    /**
+     * 发送客户端注册邮箱验证码。
+     */
+    void sendRegisterEmailCode(String email, String username, String ip);
+
     TokenVO login(LoginDTO loginDTO, String ip, String userAgent, HttpServletRequest request);
 
     /**

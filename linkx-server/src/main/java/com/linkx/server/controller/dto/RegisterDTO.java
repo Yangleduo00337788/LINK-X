@@ -25,6 +25,10 @@ public class RegisterDTO {
     @Pattern(regexp = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$", message = "请输入有效的邮箱地址")
     private String email;
 
+    @NotBlank(message = "邮箱验证码不能为空")
+    @Size(min = 4, max = 8, message = "邮箱验证码格式不正确")
+    private String emailCode;
+
     private String captchaId;
     private String captchaCode;
 }

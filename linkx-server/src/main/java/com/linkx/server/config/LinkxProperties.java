@@ -20,6 +20,7 @@ public class LinkxProperties {
     private final Im im = new Im();
     private final Proxy proxy = new Proxy();
     private final Mail mail = new Mail();
+    private final MailTemplates mailTemplates = new MailTemplates();
     private final App app = new App();
     private final Retention retention = new Retention();
 
@@ -242,6 +243,20 @@ public class LinkxProperties {
         private boolean ssl = false;
         /** 验证码有效期（分钟） */
         private int codeExpireMinutes = 10;
+    }
+
+    /**
+     * 可自定义邮件模板（空则使用内置默认）。
+     * 占位符：${USERNAME} ${NICKNAME} ${EMAIL} ${CODE} ${EXPIRE_MINUTES} ${YEAR}
+     */
+    @Data
+    public static class MailTemplates {
+        private String registerSubject = "";
+        private String registerHtml = "";
+        private String resetSubject = "";
+        private String resetHtml = "";
+        private String welcomeSubject = "";
+        private String welcomeHtml = "";
     }
 
     /**

@@ -6,6 +6,8 @@ import com.linkx.server.common.Result;
 import com.linkx.server.config.aspect.AuditAction;
 import com.linkx.server.controller.admin.dto.AdminSideSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.ClientSideSettingUpdateDTO;
+import com.linkx.server.controller.admin.dto.MailSettingUpdateDTO;
+import com.linkx.server.controller.admin.dto.MailTemplateSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.RegisterSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.TestForgotPasswordEmailDTO;
 import com.linkx.server.controller.admin.vo.AdminSettingVO;
@@ -87,6 +89,26 @@ public class AdminSettingController {
             HttpServletRequest request) {
         Long operatorId = (Long) request.getAttribute("userId");
         return Result.success(adminSettingService.updatePassword(dto, operatorId));
+    }
+
+    @Operation(summary = "更新邮件 SMTP 配置")
+    @AuditAction(operationType = "UPDATE_SETTINGS", description = "更新邮件配置")
+    @PutMapping("/mail")
+    @RequirePermission("admin:setting:edit")
+    public Result<AdminSettingVO> updateMail(@Valid @RequestBody MailSettingUpdateDTO dto,
+                                             HttpServletRequest request) {
+        Long operatorId = (Long) request.getAttribute("userId");
+        return Result.success(adminSettingService.updateMail(dto, operatorId));
+    }
+
+    @Operation(summary = "更新邮件模板")
+    @AuditAction(operationType = "UPDATE_SETTINGS", description = "更新邮件模板")
+    @PutMapping("/mail-templates")
+    @RequirePermission("admin:setting:edit")
+    public Result<AdminSettingVO> updateMailTemplates(@Valid @RequestBody MailTemplateSettingUpdateDTO dto,
+                                                      HttpServletRequest request) {
+        Long operatorId = (Long) request.getAttribute("userId");
+        return Result.success(adminSettingService.updateMailTemplates(dto, operatorId));
     }
 
     @Operation(summary = "测试忘记密码邮件")

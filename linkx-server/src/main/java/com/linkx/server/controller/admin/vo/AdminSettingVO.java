@@ -24,6 +24,12 @@ public class AdminSettingVO {
     @Schema(description = "客户端配置")
     private ClientSide client;
 
+    @Schema(description = "邮件 SMTP 配置")
+    private MailSide mail;
+
+    @Schema(description = "邮件模板配置")
+    private MailTemplatesSide mailTemplates;
+
     @Data
     @Builder
     @Schema(description = "注册配置")
@@ -89,5 +95,41 @@ public class AdminSettingVO {
         private String releaseNotes;
         private String downloadUrl;
         private Long maxUploadBytes;
+    }
+
+    @Data
+    @Builder
+    @Schema(description = "邮件 SMTP 配置")
+    public static class MailSide {
+        private String host;
+        private Integer port;
+        private String username;
+        @Schema(description = "是否已配置授权码（不回传明文）")
+        private Boolean passwordConfigured;
+        private String from;
+        private String fromName;
+        private Boolean startTls;
+        private Boolean ssl;
+        private Integer codeExpireMinutes;
+    }
+
+    @Data
+    @Builder
+    @Schema(description = "邮件模板")
+    public static class MailTemplatesSide {
+        private MailTemplate register;
+        private MailTemplate reset;
+        private MailTemplate welcome;
+    }
+
+    @Data
+    @Builder
+    @Schema(description = "单封邮件模板（HTML 正文；空自定义时返回默认）")
+    public static class MailTemplate {
+        private String subject;
+        @Schema(description = "HTML 正文")
+        private String html;
+        @Schema(description = "是否使用内置默认模板")
+        private Boolean usingDefault;
     }
 }

@@ -6,29 +6,27 @@ package com.linkx.server.service;
 public interface EmailService {
 
     /**
+     * 发送注册邮箱验证码
+     */
+    void sendRegisterCode(String to, String username, String code);
+
+    /**
      * 发送找回密码验证码邮件
-     *
-     * @param to      收件人邮箱
-     * @param username 用户名
-     * @param code    验证码
      */
     void sendPasswordResetCode(String to, String username, String code);
 
     /**
+     * 发送注册成功欢迎邮件
+     */
+    void sendWelcomeEmail(String to, String username, String nickname);
+
+    /**
      * 发送密码重置成功通知邮件
-     *
-     * @param to      收件人邮箱
-     * @param username 用户名
-     * @param ip      操作 IP
      */
     void sendPasswordChangedNotification(String to, String username, String ip);
 
     /**
      * 发送绑定/更换邮箱验证码
-     *
-     * @param to       目标邮箱
-     * @param username 用户名
-     * @param code     验证码
      */
     void sendBindEmailCode(String to, String username, String code);
 }

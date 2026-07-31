@@ -62,8 +62,14 @@ export interface RegisterRequest {
   password: string
   nickname: string
   email: string
+  emailCode: string
   captchaId?: string
   captchaCode?: string
+}
+
+export interface SendRegisterCodeRequest {
+  email: string
+  username?: string
 }
 
 export interface ResetPasswordRequest {

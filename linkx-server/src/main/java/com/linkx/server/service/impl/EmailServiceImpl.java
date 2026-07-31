@@ -1,6 +1,7 @@
 package com.linkx.server.service.impl;
 
 import com.linkx.server.config.LinkxProperties;
+import com.linkx.server.config.MailTemplateDefaults;
 import com.linkx.server.service.EmailService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -10,17 +11,22 @@ import org.springframework.mail.MailParseException;
 import org.springframework.mail.MailSendException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * 邮件服务实现类
  */
 @Slf4j
 @Service
+@Profile("!test")
 @RequiredArgsConstructor
 public class EmailServiceImpl implements EmailService {
 
@@ -44,10 +50,31 @@ public class EmailServiceImpl implements EmailService {
     }
 
     @Override
+    public void sendRegisterCode(String to, String username, String code) {
+        LinkxProperties.MailTemplates templates = linkxProperties.getMailTemplates();
+        String subject = resolveSubject(templates.getRegisterSubject(), MailTemplateDefaults.REGISTER_SUBJECT);
+        String html = resolveBody(templates.getRegisterHtml(), MailTemplateDefaults.REGISTER_HTML,
+                plainCodeVars(username, to, code));
+        sendHtmlEmail(to, subject, html);
+    }
+
+    @Override
     public void sendPasswordResetCode(String to, String username, String code) {
-        String subject = "【LinkX】重置密码验证码";
-        String htmlContent = buildPasswordResetEmailHtml(username, code);
-        sendHtmlEmail(to, subject, htmlContent);
+        LinkxProperties.MailTemplates templates = linkxProperties.getMailTemplates();
+        String subject = resolveSubject(templates.getResetSubject(), MailTemplateDefaults.RESET_SUBJECT);
+        String html = resolveBody(templates.getResetHtml(), MailTemplateDefaults.RESET_HTML,
+                plainCodeVars(username, to, code));
+        sendHtmlEmail(to, subject, html);
+    }
+
+    @Override
+    public void sendWelcomeEmail(String to, String username, String nickname) {
+        LinkxProperties.MailTemplates templates = linkxProperties.getMailTemplates();
+        String subject = resolveSubject(templates.getWelcomeSubject(), MailTemplateDefaults.WELCOME_SUBJECT);
+        Map<String, String> vars = plainBaseVars(username, to);
+        vars.put("NICKNAME", StringUtils.hasText(nickname) ? nickname : username);
+        String html = resolveBody(templates.getWelcomeHtml(), MailTemplateDefaults.WELCOME_HTML, vars);
+        sendHtmlEmail(to, subject, html);
     }
 
     @Override
@@ -62,6 +89,73 @@ public class EmailServiceImpl implements EmailService {
         String subject = "【LinkX】绑定邮箱验证码";
         String htmlContent = buildBindEmailHtml(username, code);
         sendHtmlEmail(to, subject, htmlContent);
+    }
+
+    private Map<String, String> plainCodeVars(String username, String email, String code) {
+        Map<String, String> vars = plainBaseVars(username, email);
+        vars.put("CODE", code == null ? "" : code);
+        vars.put("EXPIRE_MINUTES", String.valueOf(linkxProperties.getMail().getCodeExpireMinutes()));
+        return vars;
+    }
+
+    private Map<String, String> plainBaseVars(String username, String email) {
+        Map<String, String> vars = new HashMap<>();
+        vars.put("USERNAME", username == null ? "" : username);
+        vars.put("EMAIL", email == null ? "" : email);
+        vars.put("NICKNAME", username == null ? "" : username);
+        vars.put("YEAR", String.valueOf(java.time.Year.now().getValue()));
+        return vars;
+    }
+
+    private static String resolveSubject(String custom, String fallback) {
+        return StringUtils.hasText(custom) ? custom.trim() : fallback;
+    }
+
+    /**
+     * 纯文本模板渲染后包一层简单 HTML；若为历史 HTML 整页模板则按原样替换占位符发送。
+     */
+    private static String resolveBody(String custom, String fallback, Map<String, String> plainVars) {
+        String template = StringUtils.hasText(custom) ? custom : fallback;
+        if (looksLikeHtml(template)) {
+            Map<String, String> escaped = new HashMap<>();
+            for (Map.Entry<String, String> e : plainVars.entrySet()) {
+                escaped.put(e.getKey(), escapeHtml(e.getValue()));
+            }
+            return renderTemplate(template, escaped);
+        }
+        return wrapPlainTextAsHtml(renderTemplate(template, plainVars));
+    }
+
+    private static boolean looksLikeHtml(String s) {
+        if (s == null) return false;
+        String t = s.trim().toLowerCase();
+        return t.startsWith("<!doctype") || t.startsWith("<html")
+                || t.contains("<body") || t.contains("<div") || t.contains("<p ");
+    }
+
+    private static String wrapPlainTextAsHtml(String plain) {
+        String body = escapeHtml(plain == null ? "" : plain)
+                .replace("\r\n", "\n")
+                .replace("\n", "<br>\n");
+        return """
+                <!DOCTYPE html>
+                <html lang="zh-CN">
+                <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+                <body style="margin:0;padding:24px;background:#f4f6fa;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;color:#1f2329;">
+                  <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:12px;padding:28px 24px;box-shadow:0 4px 20px rgba(15,23,42,0.06);font-size:14px;line-height:1.7;color:#4e5969;">
+                    %s
+                  </div>
+                </body>
+                </html>
+                """.formatted(body);
+    }
+
+    private static String renderTemplate(String template, Map<String, String> vars) {
+        String result = template;
+        for (Map.Entry<String, String> e : vars.entrySet()) {
+            result = result.replace("${" + e.getKey() + "}", e.getValue() == null ? "" : e.getValue());
+        }
+        return result;
     }
 
     /**
@@ -463,7 +557,7 @@ public class EmailServiceImpl implements EmailService {
     /**
      * 简单的 HTML 转义，防止用户名/验证码/时间字符串中含特殊字符破坏 HTML 结构
      */
-    private String escapeHtml(String s) {
+    private static String escapeHtml(String s) {
         if (s == null) return "";
         return s
                 .replace("&", "&amp;")

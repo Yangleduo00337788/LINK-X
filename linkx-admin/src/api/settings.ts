@@ -37,12 +37,25 @@ export interface ClientSideSetting {
   maxUploadBytes?: number
 }
 
+export interface MailSideSetting {
+  host?: string
+  port?: number
+  username?: string
+  passwordConfigured?: boolean
+  from?: string
+  fromName?: string
+  startTls?: boolean
+  ssl?: boolean
+  codeExpireMinutes?: number
+}
+
 export interface AdminSetting {
   register?: RegisterSideSetting
   login?: LoginSideSetting
   password?: PasswordSideSetting
   admin?: AdminSideSetting
   client?: ClientSideSetting
+  mail?: MailSideSetting
 }
 
 export type RegisterUpdatePayload = Required<
@@ -60,6 +73,18 @@ export type ClientSideUpdatePayload = Required<
   Pick<ClientSideSetting, 'appVersion' | 'appChannel' | 'maxUploadBytes'>
 > &
   Pick<ClientSideSetting, 'releaseNotes' | 'downloadUrl' | 'captchaEnabled'>
+
+export type MailUpdatePayload = {
+  host: string
+  port: number
+  username?: string
+  password?: string
+  from: string
+  fromName?: string
+  startTls: boolean
+  ssl: boolean
+  codeExpireMinutes: number
+}
 
 export function fetchSettings() {
   return get<AdminSetting>('/admin/settings')
@@ -79,6 +104,10 @@ export function updatePasswordSettings(payload: PasswordUpdatePayload) {
 
 export function updateClientSideSettings(payload: ClientSideUpdatePayload) {
   return put<AdminSetting>('/admin/settings/client', payload)
+}
+
+export function updateMailSettings(payload: MailUpdatePayload) {
+  return put<AdminSetting>('/admin/settings/mail', payload)
 }
 
 export function testForgotPasswordEmail(email: string) {

@@ -6,6 +6,7 @@ import type {
   RegisterRequest,
   ResetPasswordByEmailRequest,
   ResetPasswordRequest,
+  SendRegisterCodeRequest,
   SendResetCodeRequest,
   TokenData
 } from '../types/auth'
@@ -26,6 +27,11 @@ export function login(payload: LoginRequest) {
 
 export function register(payload: RegisterRequest) {
   return apiClient.post<never, ApiResult<null>>('/auth/register', payload)
+}
+
+/** 发送注册邮箱验证码（{@code POST /auth/send-register-code}） */
+export function sendRegisterCode(payload: SendRegisterCodeRequest) {
+  return apiClient.post<never, ApiResult<null>>('/auth/send-register-code', payload)
 }
 
 export function refreshToken(refreshToken: string) {

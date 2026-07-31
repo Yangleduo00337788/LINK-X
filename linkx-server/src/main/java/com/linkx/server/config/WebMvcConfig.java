@@ -42,6 +42,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/auth/captcha",
                         "/auth/config",
                         // /auth/reset-password 需登录（拦截器写入 userId），不可排除
+                        "/auth/send-register-code",
                         "/auth/send-reset-code",
                         "/auth/verify-reset-code",
                         "/auth/reset-password-by-email",

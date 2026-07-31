@@ -13,6 +13,7 @@ import com.linkx.server.controller.dto.RefreshTokenDTO;
 import com.linkx.server.controller.dto.RegisterDTO;
 import com.linkx.server.controller.dto.ResetPasswordDTO;
 import com.linkx.server.controller.dto.ResetPasswordByEmailRequest;
+import com.linkx.server.controller.dto.SendRegisterCodeRequest;
 import com.linkx.server.controller.dto.SendResetCodeRequest;
 import com.linkx.server.controller.dto.VerifyResetCodeRequest;
 import com.linkx.server.controller.vo.AuthConfigVO;
@@ -68,6 +69,17 @@ public class AuthController {
                         .requireSpecial(auth.isPasswordRequireSpecial())
                         .build())
                 .build());
+    }
+
+    @PostMapping("/send-register-code")
+    public Result<Void> sendRegisterCode(@Valid @RequestBody SendRegisterCodeRequest body,
+                                         HttpServletRequest request) {
+        if (!linkxProperties.getAuth().isRegisterEnabled()) {
+            throw new CustomException(403, "当前未开放注册");
+        }
+        rateLimitService.check("send-register:" + clientIp(request), 3, 60);
+        sysUserService.sendRegisterEmailCode(body.getEmail(), body.getUsername(), clientIp(request));
+        return Result.success(null);
     }
 
     @AuditAction(operationType = "REGISTER", description = "用户注册")

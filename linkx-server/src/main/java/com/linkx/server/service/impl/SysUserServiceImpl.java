@@ -60,6 +60,9 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
         String username = InputSanitizer.stripHtml(registerDTO.getUsername(), 64);
         String email = InputSanitizer.sanitizeText(registerDTO.getEmail(), 128).trim().toLowerCase();
+        String emailCode = registerDTO.getEmailCode() == null ? "" : registerDTO.getEmailCode().trim();
+
+        verifyRegisterEmailCode(email, emailCode);
 
         long count = queryChain()
                 .where(SysUser::getUsername).eq(username)
@@ -81,11 +84,12 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
         passwordPolicyService.validate(registerDTO.getPassword());
         String hashPassword = PasswordEncoderHolder.encode(registerDTO.getPassword());
+        String nickname = InputSanitizer.sanitizeText(registerDTO.getNickname(), 64);
 
         SysUser user = SysUser.builder()
                 .username(username)
                 .password(hashPassword)
-                .nickname(InputSanitizer.sanitizeText(registerDTO.getNickname(), 64))
+                .nickname(nickname)
                 .email(email)
                 .avatar(DEFAULT_AVATAR)
                 .status(1)
@@ -101,9 +105,88 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
         // 注册成功后自动分配默认 user 角色，与用户创建保持同一事务，保证账号可用
         rbacService.grantRole(user.getId(), com.linkx.server.common.RbacConstants.ROLE_USER, null);
+        // 消费验证码，防止复用
+        redisTemplate.delete("linkx:register-email:" + email);
+        redisTemplate.delete("linkx:register-email:attempts:" + email);
         linkxMetrics.recordRegisterSuccess();
         log.info("用户 {} 注册成功并分配默认角色 {}", user.getUsername(),
                 com.linkx.server.common.RbacConstants.ROLE_USER);
+
+        try {
+            emailService.sendWelcomeEmail(email, username, nickname);
+        } catch (Exception e) {
+            log.warn("欢迎邮件发送失败（不影响注册）: user={}, err={}", username, e.getMessage());
+        }
+    }
+
+    @Override
+    public void sendRegisterEmailCode(String email, String username, String ip) {
+        if (!linkxProperties.getAuth().isRegisterEnabled()) {
+            throw new CustomException(403, "当前未开放注册");
+        }
+        rateLimitService.check("register-email:" + ip, 5, 300);
+        String normalized = email == null ? "" : email.trim().toLowerCase();
+        if (!StringUtils.hasText(normalized)) {
+            throw new CustomException(400, "邮箱不能为空");
+        }
+
+        long emailCount = queryChain().where(SysUser::getEmail).eq(normalized).count();
+        if (emailCount > 0) {
+            // 已注册：不发信、不暴露，统一成功
+            log.info("注册验证码请求：邮箱已存在 {}", SensitiveDataMasker.maskEmail(normalized));
+            return;
+        }
+
+        String code = String.format("%06d", new java.security.SecureRandom().nextInt(1_000_000));
+        int expireMinutes = linkxProperties.getMail().getCodeExpireMinutes();
+        String redisKey = "linkx:register-email:" + normalized;
+        redisTemplate.opsForValue().set(redisKey, code, java.time.Duration.ofMinutes(expireMinutes));
+
+        String displayName = StringUtils.hasText(username) ? username.trim() : normalized.split("@")[0];
+        try {
+            emailService.sendRegisterCode(normalized, displayName, code);
+            log.info("注册验证码已发送到 {}", SensitiveDataMasker.maskEmail(normalized));
+        } catch (CustomException e) {
+            redisTemplate.delete(redisKey);
+            throw e;
+        } catch (Exception e) {
+            redisTemplate.delete(redisKey);
+            String msg = e.getMessage() != null ? e.getMessage() : "邮件发送失败";
+            throw new CustomException(500, msg);
+        }
+    }
+
+    private void verifyRegisterEmailCode(String email, String code) {
+        String key = "linkx:register-email:" + email;
+        String attemptsKey = "linkx:register-email:attempts:" + email;
+        if (!StringUtils.hasText(code)) {
+            throw new CustomException(400, "请填写邮箱验证码");
+        }
+        String stored = redisTemplate.opsForValue().get(key);
+        if (stored == null) {
+            throw new CustomException(400, "邮箱验证码错误或已过期，请重新获取");
+        }
+        if (constantTimeEqualsIgnoreCase(stored, code.trim())) {
+            redisTemplate.delete(attemptsKey);
+            return;
+        }
+        Long attempts = redisTemplate.opsForValue().increment(attemptsKey);
+        if (attempts != null && attempts == 1L) {
+            Long ttl = redisTemplate.getExpire(key);
+            if (ttl != null && ttl > 0) {
+                redisTemplate.expire(attemptsKey, java.time.Duration.ofSeconds(ttl));
+            } else {
+                redisTemplate.expire(attemptsKey, java.time.Duration.ofMinutes(
+                        linkxProperties.getMail().getCodeExpireMinutes()));
+            }
+        }
+        if (attempts != null && attempts >= MAX_CODE_ATTEMPTS) {
+            redisTemplate.delete(key);
+            redisTemplate.delete(attemptsKey);
+            throw new CustomException(400, "验证码错误次数过多，已失效，请重新获取");
+        }
+        int remaining = MAX_CODE_ATTEMPTS - (attempts == null ? 0 : attempts.intValue());
+        throw new CustomException(400, String.format("邮箱验证码错误，还可再尝试 %d 次", Math.max(remaining, 0)));
     }
 
     @Override

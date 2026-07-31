@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -56,6 +57,9 @@ public abstract class BaseIntegrationTest {
     @Autowired
     protected ObjectMapper objectMapper;
 
+    @Autowired
+    protected StringRedisTemplate stringRedisTemplate;
+
     /** 已登录测试用户上下文。 */
     protected static final class TestUser {
         public final long userId;
@@ -92,8 +96,10 @@ public abstract class BaseIntegrationTest {
 
     protected void register(String username, String password, String nickname) {
         try {
+            String email = username + "@linkx.test";
+            String emailCode = seedRegisterEmailCode(email);
             String body = objectMapper.writeValueAsString(
-                    new RegisterReq(username, password, nickname, username + "@linkx.test"));
+                    new RegisterReq(username, password, nickname, email, emailCode));
             mockMvc.perform(post("/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body))
@@ -102,6 +108,36 @@ public abstract class BaseIntegrationTest {
         } catch (Exception e) {
             throw new IllegalStateException("注册测试用户失败: " + username, e);
         }
+    }
+
+    /**
+     * 直接写入 Redis 注册验证码，避免集成测试触发 send-register-code IP 限流。
+     */
+    protected String seedRegisterEmailCode(String email) {
+        String normalized = email.trim().toLowerCase();
+        String code = String.format("%06d", Math.abs(normalized.hashCode() % 1_000_000));
+        stringRedisTemplate.opsForValue().set(
+                "linkx:register-email:" + normalized,
+                code,
+                java.time.Duration.ofMinutes(10));
+        return code;
+    }
+
+    /** 走真实发送接口并读取 Redis（测试环境 NoOp 发信）。 */
+    protected String requestRegisterEmailCode(String email, String username) throws Exception {
+        String sendBody = """
+                {"email":"%s","username":"%s"}
+                """.formatted(email, username);
+        mockMvc.perform(post("/auth/send-register-code")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(sendBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+        String code = stringRedisTemplate.opsForValue().get("linkx:register-email:" + email.toLowerCase());
+        if (code == null || code.isBlank()) {
+            throw new IllegalStateException("注册验证码未写入 Redis: " + email);
+        }
+        return code;
     }
 
     protected TestUser login(String username, String password) {
@@ -145,7 +181,7 @@ public abstract class BaseIntegrationTest {
     }
 
     // ---- 简单请求体（避免依赖生产 DTO 的校验注解可见性） ----
-    private record RegisterReq(String username, String password, String nickname, String email) {
+    private record RegisterReq(String username, String password, String nickname, String email, String emailCode) {
     }
 
     private record LoginReq(String username, String password) {

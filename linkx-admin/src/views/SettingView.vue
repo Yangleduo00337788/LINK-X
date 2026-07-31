@@ -25,6 +25,7 @@ import {
   testForgotPasswordEmail,
   updateClientSideSettings,
   updateLoginSettings,
+  updateMailSettings,
   updatePasswordSettings,
   updateRegisterSettings,
   type AdminSetting,
@@ -46,10 +47,11 @@ const savingRegister = ref(false)
 const savingLogin = ref(false)
 const savingPassword = ref(false)
 const savingClient = ref(false)
+const savingMail = ref(false)
 const testingEmail = ref(false)
 const showTestEmailModal = ref(false)
 const testEmail = ref('')
-const tabNames = new Set(['register', 'login', 'password', 'client', 'watermark'])
+const tabNames = new Set(['register', 'login', 'password', 'client', 'mail', 'watermark'])
 const activeTab = ref(
   tabNames.has(String(route.query.tab || '')) ? String(route.query.tab) : 'register',
 )
@@ -111,6 +113,19 @@ const clientForm = reactive({
   releaseNotes: '',
 })
 
+const mailForm = reactive({
+  host: '',
+  port: 587 as number | null,
+  username: '',
+  password: '',
+  passwordConfigured: false,
+  from: '',
+  fromName: '',
+  startTls: true,
+  ssl: false,
+  codeExpireMinutes: 10 as number | null,
+})
+
 const channelOptions = [
   { label: 'stable', value: 'stable' },
   { label: 'beta', value: 'beta' },
@@ -162,6 +177,18 @@ function applySettings(data: AdminSetting) {
   clientForm.maxUploadMb = data.client?.maxUploadBytes
     ? Math.round((data.client.maxUploadBytes / (1024 * 1024)) * 10) / 10
     : 100
+
+  mailForm.host = data.mail?.host || ''
+  mailForm.port = data.mail?.port ?? 587
+  mailForm.username = data.mail?.username || ''
+  mailForm.password = ''
+  mailForm.passwordConfigured = data.mail?.passwordConfigured === true
+  mailForm.from = data.mail?.from || ''
+  mailForm.fromName = data.mail?.fromName || ''
+  mailForm.startTls = data.mail?.startTls !== false
+  mailForm.ssl = data.mail?.ssl === true
+  mailForm.codeExpireMinutes = data.mail?.codeExpireMinutes ?? 10
+  syncMailPortByEncryption()
 }
 
 async function load() {
@@ -171,6 +198,31 @@ async function load() {
   } finally {
     loading.value = false
   }
+}
+
+/** SSL → 465，STARTTLS → 587，保证端口与加密方式一致 */
+function syncMailPortByEncryption() {
+  if (mailForm.ssl) {
+    mailForm.port = 465
+  } else if (mailForm.startTls) {
+    mailForm.port = 587
+  }
+}
+
+function onMailStartTlsChange(enabled: boolean) {
+  mailForm.startTls = enabled
+  if (enabled) {
+    mailForm.ssl = false
+  }
+  syncMailPortByEncryption()
+}
+
+function onMailSslChange(enabled: boolean) {
+  mailForm.ssl = enabled
+  if (enabled) {
+    mailForm.startTls = false
+  }
+  syncMailPortByEncryption()
 }
 
 async function saveRegister() {
@@ -277,6 +329,46 @@ async function saveClient() {
     message.success(t('setting.clientSaved'))
   } finally {
     savingClient.value = false
+  }
+}
+
+async function saveMail() {
+  if (!canEdit.value) return
+  if (!mailForm.host.trim()) {
+    message.warning(t('setting.mailHostRequired'))
+    return
+  }
+  if (!mailForm.from.trim()) {
+    message.warning(t('setting.mailFromRequired'))
+    return
+  }
+  syncMailPortByEncryption()
+  if (!mailForm.port) {
+    message.warning(t('setting.mailPort'))
+    return
+  }
+  if (mailForm.startTls && mailForm.ssl) {
+    message.warning(t('setting.mailTlsConflict'))
+    return
+  }
+  savingMail.value = true
+  try {
+    applySettings(
+      await updateMailSettings({
+        host: mailForm.host.trim(),
+        port: mailForm.port,
+        username: mailForm.username.trim(),
+        password: mailForm.password.trim() || undefined,
+        from: mailForm.from.trim(),
+        fromName: mailForm.fromName.trim(),
+        startTls: mailForm.startTls,
+        ssl: mailForm.ssl,
+        codeExpireMinutes: mailForm.codeExpireMinutes || 10,
+      }),
+    )
+    message.success(t('setting.mailSaved'))
+  } finally {
+    savingMail.value = false
   }
 }
 
@@ -582,6 +674,76 @@ onMounted(load)
             </NForm>
           </NTabPane>
 
+          <NTabPane name="mail" :tab="t('setting.mailTitle')">
+            <p class="section-hint">{{ t('setting.mailHint') }}</p>
+            <NForm label-placement="left" label-width="140" :disabled="!canEdit">
+              <NFormItem :label="t('setting.mailHost')" required>
+                <NInput v-model:value="mailForm.host" placeholder="smtp.qq.com" style="max-width: 360px" />
+              </NFormItem>
+              <NFormItem :label="t('setting.mailPort')" required>
+                <NInputNumber v-model:value="mailForm.port" :min="1" :max="65535" style="width: 160px" />
+              </NFormItem>
+              <NFormItem :label="t('setting.mailUsername')">
+                <NInput v-model:value="mailForm.username" style="max-width: 360px" />
+              </NFormItem>
+              <NFormItem :label="t('setting.mailPassword')">
+                <div class="password-row">
+                  <NInput
+                    v-model:value="mailForm.password"
+                    type="password"
+                    show-password-on="click"
+                    :placeholder="t('setting.mailPasswordPh')"
+                    style="max-width: 360px"
+                  />
+                  <span class="field-hint">{{
+                    mailForm.passwordConfigured
+                      ? t('setting.mailPasswordConfigured')
+                      : t('setting.mailPasswordMissing')
+                  }}</span>
+                </div>
+              </NFormItem>
+              <NFormItem :label="t('setting.mailFrom')" required>
+                <NInput v-model:value="mailForm.from" style="max-width: 360px" />
+              </NFormItem>
+              <NFormItem :label="t('setting.mailFromName')">
+                <NInput v-model:value="mailForm.fromName" style="max-width: 360px" />
+              </NFormItem>
+              <NFormItem :label="t('setting.mailStartTls')">
+                <NSwitch :value="mailForm.startTls" @update:value="onMailStartTlsChange" />
+                <span class="field-hint">{{ mailForm.startTls ? t('common.on') : t('common.off') }} · {{ t('setting.mailPortAuto587') }}</span>
+              </NFormItem>
+              <NFormItem :label="t('setting.mailSsl')">
+                <NSwitch :value="mailForm.ssl" @update:value="onMailSslChange" />
+                <span class="field-hint">{{ mailForm.ssl ? t('common.on') : t('common.off') }} · {{ t('setting.mailPortAuto465') }}</span>
+              </NFormItem>
+              <NFormItem :label="t('setting.mailCodeExpire')" required>
+                <div class="number-row">
+                  <NInputNumber
+                    v-model:value="mailForm.codeExpireMinutes"
+                    :min="1"
+                    :max="1440"
+                    style="width: 160px"
+                  />
+                  <span class="field-hint">{{ t('setting.mailCodeExpireHint') }}</span>
+                </div>
+              </NFormItem>
+              <NFormItem v-if="canEdit">
+                <NSpace>
+                  <NButton type="primary" class="lx-float-btn" :loading="savingMail" @click="saveMail">
+                    {{ t('setting.saveMail') }}
+                  </NButton>
+                  <NButton class="lx-float-btn" :disabled="savingMail" @click="load">
+                    {{ t('common.refresh') }}
+                  </NButton>
+                  <NButton class="lx-float-btn" :loading="testingEmail" @click="openTestEmailModal">
+                    {{ t('setting.testEmail') }}
+                  </NButton>
+                </NSpace>
+              </NFormItem>
+              <p v-else class="readonly-hint">{{ t('setting.readonlyHint') }}</p>
+            </NForm>
+          </NTabPane>
+
           <NTabPane name="watermark" :tab="t('setting.watermarkTitle')">
             <p class="section-hint">{{ t('setting.watermarkHint') }}</p>
             <NForm label-placement="left" label-width="120">
@@ -673,7 +835,8 @@ onMounted(load)
 }
 .opacity-row,
 .upload-row,
-.number-row {
+.number-row,
+.password-row {
   display: flex;
   align-items: center;
   gap: 12px;

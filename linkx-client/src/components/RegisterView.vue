@@ -2,7 +2,7 @@
 /**
  * 独立注册页（Electron 子窗口 / Web 路由）。
  */
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { NInput, NButton, NIcon, useMessage } from 'naive-ui'
 import {
@@ -11,6 +11,7 @@ import {
   LockClosedOutline,
   HappyOutline,
   MailOutline,
+  KeyOutline,
   ShieldCheckmarkOutline
 } from '@vicons/ionicons5'
 import * as authApi from '../api/auth'
@@ -27,6 +28,7 @@ const regUser = ref('')
 const regPass = ref('')
 const regNickname = ref('')
 const regEmail = ref('')
+const regEmailCode = ref('')
 const regCaptchaCode = ref('')
 const regCaptchaId = ref('')
 const regCaptchaImage = ref('')
@@ -41,6 +43,9 @@ const passwordPolicy = ref({
 })
 const configLoaded = ref(false)
 const submitting = ref(false)
+const emailCodeSending = ref(false)
+const emailCodeCooldown = ref(0)
+let emailCooldownTimer: ReturnType<typeof setInterval> | null = null
 
 const compact = computed(() => isElectron)
 const submitLabel = computed(() => (submitting.value ? t('register.submitting') : t('register.submit')))
@@ -92,6 +97,52 @@ function closeOrBack() {
   void router.replace('/')
 }
 
+function startEmailCooldown(seconds = 60) {
+  emailCodeCooldown.value = seconds
+  if (emailCooldownTimer) clearInterval(emailCooldownTimer)
+  emailCooldownTimer = setInterval(() => {
+    emailCodeCooldown.value -= 1
+    if (emailCodeCooldown.value <= 0 && emailCooldownTimer) {
+      clearInterval(emailCooldownTimer)
+      emailCooldownTimer = null
+    }
+  }, 1000)
+}
+
+async function sendEmailCode() {
+  if (!registerEnabled.value) {
+    message.warning(t('register.disabled'))
+    return
+  }
+  const email = regEmail.value.trim()
+  if (!email) {
+    message.warning(t('register.enterEmail'))
+    return
+  }
+  if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
+    message.warning(t('register.invalidEmail'))
+    return
+  }
+  emailCodeSending.value = true
+  try {
+    const res = await authApi.sendRegisterCode({
+      email,
+      username: regUser.value.trim() || undefined
+    })
+    if (res.code === 200) {
+      message.success(t('register.codeSent'))
+      startEmailCooldown(60)
+    } else {
+      message.error(res.message || t('register.sendCodeFail'))
+    }
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || t('register.sendCodeFail'))
+  } finally {
+    emailCodeSending.value = false
+  }
+}
+
 async function handleRegister() {
   if (!registerEnabled.value) {
     message.warning(t('register.disabled'))
@@ -101,6 +152,7 @@ async function handleRegister() {
   const pass = regPass.value
   const nickname = regNickname.value.trim() || user
   const email = regEmail.value.trim()
+  const emailCode = regEmailCode.value.trim()
 
   const userErr = validateUsername(user)
   if (userErr) {
@@ -125,6 +177,10 @@ async function handleRegister() {
     message.warning(t('register.invalidEmail'))
     return
   }
+  if (!emailCode) {
+    message.warning(t('register.enterEmailCode'))
+    return
+  }
   if (captchaEnabled.value && !regCaptchaCode.value.trim()) {
     message.warning(t('register.enterCaptcha'))
     return
@@ -137,6 +193,7 @@ async function handleRegister() {
       password: pass,
       nickname,
       email,
+      emailCode,
       ...(captchaEnabled.value
         ? { captchaId: regCaptchaId.value, captchaCode: regCaptchaCode.value.trim() }
         : {})
@@ -168,6 +225,13 @@ onMounted(() => {
       void loadCaptcha()
     })
   })
+})
+
+onUnmounted(() => {
+  if (emailCooldownTimer) {
+    clearInterval(emailCooldownTimer)
+    emailCooldownTimer = null
+  }
 })
 </script>
 
@@ -247,6 +311,33 @@ onMounted(() => {
             <n-icon :component="MailOutline" :size="16" class="field-ico" />
           </template>
         </n-input>
+
+        <div class="email-code-row">
+          <n-input
+            v-model:value="regEmailCode"
+            size="large"
+            :placeholder="t('register.emailCodePh')"
+            class="lx-field email-code-input"
+            :bordered="false"
+            maxlength="8"
+          >
+            <template #prefix>
+              <n-icon :component="KeyOutline" :size="15" class="field-ico" />
+            </template>
+          </n-input>
+          <n-button
+            class="email-code-btn"
+            :loading="emailCodeSending"
+            :disabled="emailCodeCooldown > 0"
+            @click="sendEmailCode"
+          >
+            {{
+              emailCodeCooldown > 0
+                ? t('register.resendIn', { n: emailCodeCooldown })
+                : t('register.sendCode')
+            }}
+          </n-button>
+        </div>
 
         <div v-if="captchaEnabled" class="captcha-row">
           <div
@@ -550,6 +641,23 @@ onMounted(() => {
 
 .lx-field :deep(.n-input__prefix) {
   margin-right: 6px;
+}
+
+.email-code-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.email-code-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.email-code-btn {
+  flex-shrink: 0;
+  height: 40px;
+  border-radius: 12px;
 }
 
 .captcha-row {
