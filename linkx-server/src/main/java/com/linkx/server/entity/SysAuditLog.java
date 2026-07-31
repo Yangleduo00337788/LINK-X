@@ -75,10 +75,13 @@ public class SysAuditLog implements Serializable {
         // 管理端内容治理
         CONTENT_REVIEW("内容审核"),
         RISK_EVENT_HANDLE("风险事件处置"),
+        RISK_EVENT_BATCH("批量处置风险事件"),
         SENSITIVE_WORD_UPDATE("敏感词变更"),
         // 管理端运营
         NOTICE_UPDATE("公告变更"),
         NOTICE_PUBLISH("公告发布"),
+        BANNER_UPDATE("Banner变更"),
+        BANNER_PUBLISH("Banner发布"),
         ;
 
         private final String description;

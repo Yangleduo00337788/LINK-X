@@ -4,6 +4,9 @@ import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.Result;
 import com.linkx.server.config.LinkxProperties;
+import com.linkx.server.controller.admin.dto.AdminLoginDTO;
+import com.linkx.server.controller.admin.vo.AdminLoginVO;
+import com.linkx.server.controller.admin.vo.AdminUserProfileVO;
 import com.linkx.server.controller.dto.LoginDTO;
 import com.linkx.server.controller.dto.RegisterDTO;
 import com.linkx.server.controller.vo.TokenVO;
@@ -115,21 +118,34 @@ public class AuditLogAspect {
                     username = nameFromResult;
                 }
             }
-            try {
-                auditLogService.log(
-                        SysAuditLog.OperationType.valueOf(operationType),
-                        description,
-                        userId,
-                        username,
-                        ip,
-                        userAgent,
-                        success,
-                        reason
-                );
-            } catch (Exception e) {
-                log.warn("记录审计日志失败: {}", e.getMessage());
+            // 管理端 TOTP 挑战/强制绑定尚未发会话，不记成功 LOGIN
+            if (!(success && isAdminLoginChallengeOnly(result))) {
+                try {
+                    auditLogService.log(
+                            SysAuditLog.OperationType.valueOf(operationType),
+                            description,
+                            userId,
+                            username,
+                            ip,
+                            userAgent,
+                            success,
+                            reason
+                    );
+                } catch (Exception e) {
+                    log.warn("记录审计日志失败: {}", e.getMessage());
+                }
             }
         }
+    }
+
+    private static boolean isAdminLoginChallengeOnly(Object result) {
+        if (!(result instanceof Result<?> r) || !(r.getData() instanceof AdminLoginVO login)) {
+            return false;
+        }
+        boolean challenge = Boolean.TRUE.equals(login.getRequiresTotp())
+                || Boolean.TRUE.equals(login.getRequiresTotpSetup());
+        boolean noSession = login.getAccessToken() == null || login.getAccessToken().isBlank();
+        return challenge && noSession;
     }
 
     private HttpServletRequest getCurrentRequest() {
@@ -143,6 +159,9 @@ public class AuditLogAspect {
         }
         for (Object arg : args) {
             if (arg instanceof LoginDTO login) {
+                return login.getUsername();
+            }
+            if (arg instanceof AdminLoginDTO login) {
                 return login.getUsername();
             }
             if (arg instanceof RegisterDTO register) {
@@ -160,6 +179,10 @@ public class AuditLogAspect {
         if (data instanceof TokenVO token && token.getUser() != null) {
             return token.getUser().getId();
         }
+        if (data instanceof AdminLoginVO login && login.getUser() != null
+                && login.getAccessToken() != null && !login.getAccessToken().isBlank()) {
+            return login.getUser().getId();
+        }
         return null;
     }
 
@@ -170,6 +193,11 @@ public class AuditLogAspect {
         Object data = r.getData();
         if (data instanceof TokenVO token && token.getUser() != null) {
             UserInfoVO user = token.getUser();
+            return user.getUsername();
+        }
+        if (data instanceof AdminLoginVO login && login.getUser() != null
+                && login.getAccessToken() != null && !login.getAccessToken().isBlank()) {
+            AdminUserProfileVO user = login.getUser();
             return user.getUsername();
         }
         return null;
