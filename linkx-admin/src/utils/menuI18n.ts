@@ -6,6 +6,7 @@ type TFunc = ComposerTranslation | ((key: string) => string)
 const MENU_NAME_KEYS: Record<string, string> = {
   dashboard: 'route.dashboard',
   user: 'route.users',
+  blacklist: 'route.blacklist',
   rbac: 'route.rbac',
   role: 'route.roles',
   permission: 'route.permissions',
@@ -29,6 +30,7 @@ const MENU_NAME_KEYS: Record<string, string> = {
 const MENU_PATH_KEYS: Record<string, string> = {
   '/admin/dashboard': 'route.dashboard',
   '/admin/users': 'route.users',
+  '/admin/blacklist': 'route.blacklist',
   '/admin/rbac': 'route.rbac',
   '/admin/roles': 'route.roles',
   '/admin/permissions': 'route.permissions',
@@ -77,6 +79,9 @@ const PERM_KEYS: Record<string, { name: string; desc?: string }> = {
   'admin:user:unban': { name: 'perm.adminUserUnban', desc: 'perm.adminUserUnbanDesc' },
   'admin:user:device:list': { name: 'perm.adminUserDeviceList', desc: 'perm.adminUserDeviceListDesc' },
   'admin:user:login:list': { name: 'perm.adminUserLoginList', desc: 'perm.adminUserLoginListDesc' },
+  'admin:blacklist:list': { name: 'perm.adminBlacklistList', desc: 'perm.adminBlacklistListDesc' },
+  'admin:blacklist:add': { name: 'perm.adminBlacklistAdd', desc: 'perm.adminBlacklistAddDesc' },
+  'admin:blacklist:remove': { name: 'perm.adminBlacklistRemove', desc: 'perm.adminBlacklistRemoveDesc' },
   'admin:role:list': { name: 'perm.adminRoleList', desc: 'perm.adminRoleListDesc' },
   'admin:role:create': { name: 'perm.adminRoleCreate', desc: 'perm.adminRoleCreateDesc' },
   'admin:role:edit': { name: 'perm.adminRoleEdit', desc: 'perm.adminRoleEditDesc' },

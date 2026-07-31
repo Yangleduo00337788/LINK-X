@@ -20,6 +20,7 @@ import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.DeviceSessionService;
 import com.linkx.server.service.RbacService;
 import com.linkx.server.service.TokenService;
+import com.linkx.server.service.admin.AdminBlacklistService;
 import com.linkx.server.service.admin.AdminUserService;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.core.update.UpdateChain;
@@ -41,6 +42,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     private final RbacService rbacService;
     private final DeviceSessionService deviceSessionService;
     private final TokenService tokenService;
+    private final AdminBlacklistService adminBlacklistService;
 
     @Override
     public PageResultVO<AdminUserListVO> list(AdminUserQueryDTO query) {
@@ -145,6 +147,8 @@ public class AdminUserServiceImpl implements AdminUserService {
         setStatus(id, 0, operatorId);
         tokenService.revokeAllUserTokens(id);
         deviceSessionService.deleteAllByUser(id);
+        String reason = dto == null ? null : dto.getReason();
+        adminBlacklistService.recordBan(id, reason, operatorId);
     }
 
     @Override
@@ -152,6 +156,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     public void unban(Long id, Long operatorId) {
         assertCanModifyTarget(id, operatorId, true);
         setStatus(id, 1, operatorId);
+        adminBlacklistService.releaseByUserId(id, null, operatorId);
     }
 
     @Override

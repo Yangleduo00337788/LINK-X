@@ -759,3 +759,19 @@ CREATE TABLE IF NOT EXISTS sys_risk_event (
   update_time DATETIME
 );
 
+-- 管理端平台黑名单
+CREATE TABLE IF NOT EXISTS sys_admin_blacklist (
+  id BIGINT NOT NULL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  username VARCHAR(64),
+  nickname VARCHAR(64),
+  reason VARCHAR(255),
+  status VARCHAR(16) NOT NULL DEFAULT 'active',
+  created_by BIGINT,
+  released_by BIGINT,
+  released_at DATETIME,
+  release_reason VARCHAR(255),
+  create_time DATETIME,
+  update_time DATETIME
+);
+
