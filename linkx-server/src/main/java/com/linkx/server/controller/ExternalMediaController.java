@@ -6,7 +6,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import com.linkx.server.common.MediaStreamResponses;
 import com.linkx.server.common.RateLimit;
 import com.linkx.server.entity.SysUser;
+import com.linkx.server.entity.admin.SysBanner;
 import com.linkx.server.mapper.SysUserMapper;
+import com.linkx.server.mapper.admin.SysBannerMapper;
 import com.linkx.server.service.ExternalMediaProxyService;
 import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.MediaUrlService;
@@ -25,7 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.net.URI;
 
 /**
- * 媒体代理：外链 HMAC；用户头像同源流式输出（&lt;img&gt; 无法带 Authorization）。
+ * 媒体代理：外链 HMAC；用户头像 / Banner 同源流式输出（&lt;img&gt; 无法带 Authorization）。
  */
 @RestController
 @Tag(name = "${openapi.tag.media}")
@@ -35,6 +37,7 @@ public class ExternalMediaController {
 
     private final ExternalMediaProxyService externalMediaProxyService;
     private final SysUserMapper sysUserMapper;
+    private final SysBannerMapper sysBannerMapper;
     private final FileStorageService fileStorageService;
     private final MediaUrlService mediaUrlService;
 
@@ -81,6 +84,37 @@ public class ExternalMediaController {
             return MediaStreamResponses.inline(object, "avatar");
         } catch (Exception e) {
             String signed = mediaUrlService.resolveAvatar(avatar);
+            if (StringUtils.hasText(signed) && (signed.startsWith("http://") || signed.startsWith("https://"))) {
+                return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(signed)).build();
+            }
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @Operation(summary = "运营 Banner 图片（同源流，供 img 标签加载）")
+    @GetMapping("/banners/{id}")
+    @RateLimit(scope = "media:banner", value = 180, window = 60, byUser = false)
+    public ResponseEntity<?> bannerImage(@PathVariable Long id) {
+        SysBanner banner = sysBannerMapper.selectOneById(id);
+        if (banner == null
+                || (banner.getDeleted() != null && banner.getDeleted() == 1)
+                || !StringUtils.hasText(banner.getImageUrl())) {
+            return ResponseEntity.notFound().build();
+        }
+        String image = banner.getImageUrl().trim();
+        if (mediaUrlService.isExternalHttpUrl(image)
+                || image.startsWith("data:")
+                || image.startsWith("blob:")) {
+            return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(image)).build();
+        }
+        if (image.startsWith("/")) {
+            return ResponseEntity.notFound().build();
+        }
+        try {
+            FileStorageService.StoredObject object = fileStorageService.openObject(image);
+            return MediaStreamResponses.inline(object, "banner");
+        } catch (Exception e) {
+            String signed = mediaUrlService.resolveAvatar(image);
             if (StringUtils.hasText(signed) && (signed.startsWith("http://") || signed.startsWith("https://"))) {
                 return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(signed)).build();
             }

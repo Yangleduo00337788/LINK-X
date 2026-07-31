@@ -83,8 +83,10 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         if (uri == null) {
             return false;
         }
-        // context-path=/api 时为 /api/media/external、/api/media/avatars/...
-        return uri.contains("/media/external") || uri.contains("/media/avatars/");
+        // context-path=/api 时为 /api/media/external、/api/media/avatars/...、/api/media/banners/...
+        return uri.contains("/media/external")
+                || uri.contains("/media/avatars/")
+                || uri.contains("/media/banners/");
     }
 
     private boolean isSecureRequest(HttpServletRequest request) {

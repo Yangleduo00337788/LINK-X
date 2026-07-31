@@ -56,6 +56,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/health",
                         "/health/**",
                         "/app/version",
+                        "/app/banners",
                         // Swagger / OpenAPI（生产用 SPRINGDOC_ENABLED=false 关闭；开发可匿名访问）
                         "/swagger-ui/**",
                         "/swagger-ui.html",
@@ -68,6 +69,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         // 外链 / 头像媒体代理（签名或公开读，供 <img> 无 Authorization 加载）
                         "/media/external",
                         "/media/avatars/**",
+                        "/media/banners/**",
                         "/error"
                 );
         // 密码重置三端点保留 Login 排除（匿名可访问），但不排除 RateLimit：
@@ -88,6 +90,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/health",
                         "/health/**",
                         "/app/version",
+                        "/app/banners",
                         "/swagger-ui/**",
                         "/swagger-ui.html",
                         "/v3/api-docs/**",
