@@ -716,3 +716,46 @@ CREATE TABLE IF NOT EXISTS sys_runtime_setting (
   update_time DATETIME
 );
 
+-- 内容审核任务（仪表盘 pendingReviews 依赖）
+CREATE TABLE IF NOT EXISTS sys_review_task (
+  id BIGINT NOT NULL PRIMARY KEY,
+  source_type VARCHAR(32) NOT NULL,
+  target_type VARCHAR(32),
+  target_id VARCHAR(64),
+  reporter_user_id BIGINT,
+  reporter_username VARCHAR(64),
+  title VARCHAR(128),
+  content_snapshot CLOB NOT NULL,
+  risk_level VARCHAR(16) NOT NULL DEFAULT 'medium',
+  status VARCHAR(16) NOT NULL DEFAULT 'pending',
+  feedback_id BIGINT,
+  assignee_id BIGINT,
+  resolution VARCHAR(1000),
+  resolved_by BIGINT,
+  resolved_at DATETIME,
+  create_time DATETIME,
+  update_time DATETIME
+);
+
+-- 风险事件（仪表盘 riskEvents / 管理端风险处置依赖）
+CREATE TABLE IF NOT EXISTS sys_risk_event (
+  id BIGINT NOT NULL PRIMARY KEY,
+  event_type VARCHAR(32) NOT NULL,
+  title VARCHAR(128) NOT NULL,
+  detail CLOB,
+  risk_level VARCHAR(16) NOT NULL DEFAULT 'medium',
+  status VARCHAR(16) NOT NULL DEFAULT 'pending',
+  user_id BIGINT,
+  username VARCHAR(64),
+  target_resource_id VARCHAR(128),
+  target_resource_type VARCHAR(64),
+  ip VARCHAR(64),
+  extra_data VARCHAR(2048),
+  audit_log_id BIGINT,
+  resolution VARCHAR(1000),
+  handled_by BIGINT,
+  handled_at DATETIME,
+  create_time DATETIME,
+  update_time DATETIME
+);
+

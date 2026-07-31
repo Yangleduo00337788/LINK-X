@@ -10,18 +10,18 @@ import com.linkx.server.controller.admin.vo.AdminStatisticUserVO;
 import com.linkx.server.controller.admin.vo.AdminTrendVO;
 import com.linkx.server.entity.Feedback;
 import com.linkx.server.entity.ImMessage;
-import com.linkx.server.entity.SysAuditLog;
 import com.linkx.server.entity.SysLoginAudit;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.entity.admin.SysReviewTask;
+import com.linkx.server.entity.admin.SysRiskEvent;
 import com.linkx.server.mapper.CloudFileMapper;
 import com.linkx.server.mapper.DeviceSessionMapper;
 import com.linkx.server.mapper.FeedbackMapper;
 import com.linkx.server.mapper.ImMessageMapper;
-import com.linkx.server.mapper.SysAuditLogMapper;
 import com.linkx.server.mapper.SysLoginAuditMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.mapper.admin.SysReviewTaskMapper;
+import com.linkx.server.mapper.admin.SysRiskEventMapper;
 import com.linkx.server.service.admin.AdminReviewService;
 import com.linkx.server.service.admin.AdminStatisticsService;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -52,11 +52,11 @@ public class AdminStatisticsServiceImpl implements AdminStatisticsService {
     private final SysUserMapper sysUserMapper;
     private final DeviceSessionMapper deviceSessionMapper;
     private final FeedbackMapper feedbackMapper;
-    private final SysAuditLogMapper sysAuditLogMapper;
     private final SysLoginAuditMapper sysLoginAuditMapper;
     private final ImMessageMapper imMessageMapper;
     private final CloudFileMapper cloudFileMapper;
     private final SysReviewTaskMapper sysReviewTaskMapper;
+    private final SysRiskEventMapper sysRiskEventMapper;
     private final AdminReviewService adminReviewService;
 
     @Override
@@ -173,13 +173,13 @@ public class AdminStatisticsServiceImpl implements AdminStatisticsService {
 
         AdminTrendVO trend = buildTrend(range,
                 series("sensitive", "敏感词命中",
-                        dailyCounts("SELECT DATE(create_time) AS d, COUNT(*) AS c FROM sys_audit_log "
-                                + "WHERE operation_type = ? AND create_time >= ? GROUP BY DATE(create_time)",
-                                SysAuditLog.OperationType.SENSITIVE_WORD_MATCH.name(), start)),
+                        dailyCounts("SELECT DATE(create_time) AS d, COUNT(*) AS c FROM sys_risk_event "
+                                + "WHERE event_type = ? AND create_time >= ? GROUP BY DATE(create_time)",
+                                SysRiskEvent.TYPE_SENSITIVE_WORD_MATCH, start)),
                 series("storm", "消息风暴",
-                        dailyCounts("SELECT DATE(create_time) AS d, COUNT(*) AS c FROM sys_audit_log "
-                                + "WHERE operation_type = ? AND create_time >= ? GROUP BY DATE(create_time)",
-                                SysAuditLog.OperationType.MESSAGE_STORM.name(), start)),
+                        dailyCounts("SELECT DATE(create_time) AS d, COUNT(*) AS c FROM sys_risk_event "
+                                + "WHERE event_type = ? AND create_time >= ? GROUP BY DATE(create_time)",
+                                SysRiskEvent.TYPE_MESSAGE_STORM, start)),
                 series("reviews", "审核任务",
                         dailyCounts("SELECT DATE(create_time) AS d, COUNT(*) AS c FROM sys_review_task "
                                 + "WHERE create_time >= ? GROUP BY DATE(create_time)", start)));
@@ -265,12 +265,11 @@ public class AdminStatisticsServiceImpl implements AdminStatisticsService {
 
     @Override
     public long countRiskEventsSince(Date since) {
-        return sysAuditLogMapper.selectCountByQuery(
-                QueryWrapper.create()
-                        .where(SysAuditLog::getCreateTime).ge(since)
-                        .and(SysAuditLog::getOperationType).in(
-                                SysAuditLog.OperationType.SENSITIVE_WORD_MATCH.name(),
-                                SysAuditLog.OperationType.MESSAGE_STORM.name()));
+        QueryWrapper qw = QueryWrapper.create();
+        if (since != null) {
+            qw.where(SysRiskEvent::getCreateTime).ge(since);
+        }
+        return sysRiskEventMapper.selectCountByQuery(qw);
     }
 
     private int normalizeDays(int days) {

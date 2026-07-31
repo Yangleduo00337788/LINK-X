@@ -6,6 +6,7 @@ import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.ImMessageStormEventMapper;
 import com.linkx.server.service.AuditLogService;
 import com.linkx.server.service.MessageStormService;
+import com.linkx.server.service.admin.AdminRiskEventService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +43,7 @@ public class MessageStormServiceImpl implements MessageStormService {
     private final StringRedisTemplate redisTemplate;
     private final ImMessageStormEventMapper stormEventMapper;
     private final AuditLogService auditLogService;
+    private final AdminRiskEventService adminRiskEventService;
 
     @Override
     public boolean checkAndRecordUserStorm(Long userId) {
@@ -128,6 +130,7 @@ public class MessageStormServiceImpl implements MessageStormService {
                     true,
                     null
             );
+            adminRiskEventService.recordMessageStorm(userId, eventType, messageCount, conversationId);
         } catch (Exception e) {
             log.warn("风暴事件落库失败: userId={}, type={}", userId, eventType, e);
         }

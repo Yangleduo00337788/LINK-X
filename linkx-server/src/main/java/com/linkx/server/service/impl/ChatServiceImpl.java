@@ -34,6 +34,7 @@ import com.linkx.server.service.ObjectKeyOwnershipService;
 import com.linkx.server.service.SensitiveWordService;
 import com.linkx.server.service.UserPreferenceService;
 import com.linkx.server.service.AuditLogService;
+import com.linkx.server.service.admin.AdminRiskEventService;
 import com.linkx.server.entity.SysAuditLog;
 import com.mybatisflex.core.logicdelete.LogicDeleteManager;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -91,6 +92,7 @@ public class ChatServiceImpl implements ChatService {
     private final SensitiveWordService sensitiveWordService;
     private final MessageStormService messageStormService;
     private final AuditLogService auditLogService;
+    private final AdminRiskEventService adminRiskEventService;
     private final LinkxMetrics linkxMetrics;
 
     @Override
@@ -359,6 +361,11 @@ public class ChatServiceImpl implements ChatService {
                         !filterResult.blocked(),
                         failReason
                 );
+                adminRiskEventService.recordSensitiveMatch(
+                        userId,
+                        String.join(",", filterResult.matchedWords()),
+                        failReason,
+                        dto.getConversationId());
             }
             if (filterResult.blocked()) {
                 throw new CustomException(400, "消息包含违禁内容，无法发送");

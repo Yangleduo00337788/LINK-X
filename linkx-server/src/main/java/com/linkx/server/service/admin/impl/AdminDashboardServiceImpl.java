@@ -14,6 +14,7 @@ import com.linkx.server.mapper.SysLoginAuditMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.admin.AdminDashboardService;
 import com.linkx.server.service.admin.AdminReviewService;
+import com.linkx.server.service.admin.AdminRiskEventService;
 import com.linkx.server.service.admin.AdminStatisticsService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +36,7 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
     private final ImMessageMapper imMessageMapper;
     private final SysLoginAuditMapper sysLoginAuditMapper;
     private final AdminReviewService adminReviewService;
+    private final AdminRiskEventService adminRiskEventService;
     private final AdminStatisticsService adminStatisticsService;
 
     @Override
@@ -52,7 +54,7 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
 
         Calendar day = Calendar.getInstance();
         day.add(Calendar.DAY_OF_MONTH, -1);
-        long riskEvents = adminStatisticsService.countRiskEventsSince(day.getTime());
+        long riskEvents = adminRiskEventService.countSince(day.getTime());
 
         return AdminDashboardSummaryVO.builder()
                 .totalUsers(totalUsers)
@@ -89,7 +91,7 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
                 .todayNewUsers(todayNewUsers)
                 .todayMessages(todayMessages)
                 .todayLogins(todayLogins)
-                .riskEvents24h(adminStatisticsService.countRiskEventsSince(day.getTime()))
+                .riskEvents24h(adminRiskEventService.countSince(day.getTime()))
                 .build();
     }
 
@@ -98,9 +100,7 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
         long pendingFeedback = feedbackMapper.selectCountByQuery(
                 QueryWrapper.create().where(Feedback::getStatus).eq("pending"));
         long pendingReviews = adminReviewService.countPending();
-        Calendar day = Calendar.getInstance();
-        day.add(Calendar.DAY_OF_MONTH, -1);
-        long riskEvents = adminStatisticsService.countRiskEventsSince(day.getTime());
+        long riskEvents = adminRiskEventService.countPending();
 
         List<AdminPendingTaskVO> tasks = new ArrayList<>();
         if (pendingFeedback > 0) {
@@ -124,7 +124,7 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
                     .type("risk")
                     .title("riskEvents")
                     .count(riskEvents)
-                    .path("/admin/audit-logs")
+                    .path("/admin/risk-events")
                     .build());
         }
         return tasks;
