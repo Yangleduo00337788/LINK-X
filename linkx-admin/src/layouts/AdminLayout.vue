@@ -112,23 +112,9 @@ function toMenuOptions(menus: AdminMenuTree[]): MenuOption[] {
 
 const menuOptions = computed(() => {
   void locale.value
-  if (auth.menus.length) return toMenuOptions(auth.menus)
-  return [
-    { label: t('route.dashboard'), key: '/admin/dashboard', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Dashboard')) }) },
-    { label: t('route.users'), key: '/admin/users', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Users')) }) },
-    { label: t('route.roles'), key: '/admin/roles', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Badge')) }) },
-    { label: t('route.permissions'), key: '/admin/permissions', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Key')) }) },
-    { label: t('route.menus'), key: '/admin/menus', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Menu')) }) },
-    { label: t('route.auditLogs'), key: '/admin/audit-logs', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('History')) }) },
-    { label: t('route.loginLogs'), key: '/admin/login-logs', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('LogIn')) }) },
-    { label: t('route.feedback'), key: '/admin/feedback', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Message')) }) },
-    { label: t('route.reviews'), key: '/admin/reviews', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Document')) }) },
-    { label: t('route.sensitiveWords'), key: '/admin/sensitive-words', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Key')) }) },
-    { label: t('route.noticeInbox'), key: '/admin/notice-inbox', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Notifications')) }) },
-    { label: t('route.notices'), key: '/admin/notices', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Bell')) }) },
-    { label: t('route.settings'), key: '/admin/settings', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Settings')) }) },
-    { label: t('route.statistics'), key: '/admin/statistics', icon: () => h(NIcon, null, { default: () => h(resolveMenuIcon('Chart')) }) },
-  ] as MenuOption[]
+  // 仅渲染后端按角色过滤后的菜单；为空时不展示全量 fallback，避免越权侧栏
+  if (!auth.menus.length) return [] as MenuOption[]
+  return toMenuOptions(auth.menus)
 })
 
 const activeKey = computed(() => {

@@ -403,6 +403,8 @@ export default {
   },
   device: {
     searchPlaceholder: '搜索用户名/设备ID/名称/IP',
+    allTypes: '全部类型',
+    deviceType: '设备类型',
     kick: '强制下线',
     kickTitle: '强制设备下线',
     kickConfirm: '确定将 {user} 的设备「{device}」强制下线吗？该设备的登录态将立即失效。',
@@ -790,6 +792,7 @@ export default {
     testEmailOk: '测试邮件已发送',
     saveRegister: '保存注册配置',
     registerSaved: '注册配置已保存',
+    saveConfirm: '确认保存「{action}」？变更将立即影响线上行为。',
     loginTitle: '登录配置',
     loginHint: '客户端与管理端上下分区独立配置；登录失败超限将自动禁用，到期自动解封。',
     loginClientBlock: '客户端',

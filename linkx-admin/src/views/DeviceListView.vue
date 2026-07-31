@@ -5,11 +5,13 @@ import { useI18n } from 'vue-i18n'
 import {
   NButton,
   NDataTable,
+  NSelect,
   NSpace,
   NTag,
   useDialog,
   useMessage,
   type DataTableColumns,
+  type SelectOption,
 } from 'naive-ui'
 import { kickDevice, listDevices, type AdminDeviceItem } from '@/api/devices'
 import { onAdminRealtimeEvent } from '@/api/realtime'
@@ -30,6 +32,17 @@ const query = reactive({
   page: 1,
   size: 20,
   keyword: '',
+  deviceType: null as string | null,
+})
+
+const deviceTypeOptions = computed<SelectOption[]>(() => {
+  void locale.value
+  return [
+    { label: 'Web', value: 'Web' },
+    { label: 'Desktop', value: 'Desktop' },
+    { label: 'Android', value: 'Android' },
+    { label: 'iOS', value: 'iOS' },
+  ]
 })
 
 let offRealtime: (() => void) | null = null
@@ -182,6 +195,7 @@ async function load() {
       page: query.page,
       size: query.size,
       keyword: query.keyword || undefined,
+      deviceType: query.deviceType || undefined,
     })
     items.value = data.items || []
     total.value = data.total || 0
@@ -223,6 +237,14 @@ onUnmounted(() => {
           :placeholder="t('device.searchPlaceholder')"
           width="260px"
           @search="search"
+        />
+        <NSelect
+          v-model:value="query.deviceType"
+          :options="deviceTypeOptions"
+          :placeholder="t('device.deviceType')"
+          clearable
+          style="width: 140px"
+          @update:value="search"
         />
         <NButton type="primary" @click="search">{{ t('common.search') }}</NButton>
         <NButton @click="load">{{ t('common.refresh') }}</NButton>

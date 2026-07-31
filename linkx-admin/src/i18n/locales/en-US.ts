@@ -403,6 +403,8 @@ export default {
   },
   device: {
     searchPlaceholder: 'Search username / device ID / name / IP',
+    allTypes: 'All types',
+    deviceType: 'Device type',
     kick: 'Force offline',
     kickTitle: 'Force device offline',
     kickConfirm: 'Force offline device "{device}" for {user}? Its session will be revoked immediately.',
@@ -790,6 +792,7 @@ export default {
     testEmailOk: 'Test email sent',
     saveRegister: 'Save registration',
     registerSaved: 'Registration settings saved',
+    saveConfirm: 'Save "{action}"? Changes take effect immediately.',
     loginTitle: 'Login',
     loginHint:
       'Client and admin are configured separately. Too many failed attempts disable the account until the lock expires.',

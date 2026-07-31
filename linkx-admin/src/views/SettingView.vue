@@ -17,6 +17,7 @@ import {
   NSwitch,
   NTabPane,
   NTabs,
+  useDialog,
   useMessage,
 } from 'naive-ui'
 import { storeToRefs } from 'pinia'
@@ -37,6 +38,7 @@ const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const message = useMessage()
+const dialog = useDialog()
 const auth = useAuthStore()
 const prefs = usePreferencesStore()
 const { watermarkEnabled, watermarkFullscreen, watermarkLines, watermarkOpacity } =
@@ -229,18 +231,20 @@ function onMailSslChange(enabled: boolean) {
 
 async function saveRegister() {
   if (!canEdit.value) return
-  savingRegister.value = true
-  try {
-    applySettings(
-      await updateRegisterSettings({
-        registerEnabled: registerForm.registerEnabled,
-        forgotPasswordEmailEnabled: registerForm.forgotPasswordEmailEnabled,
-      }),
-    )
-    message.success(t('setting.registerSaved'))
-  } finally {
-    savingRegister.value = false
-  }
+  confirmSave(t('setting.saveRegister'), async () => {
+    savingRegister.value = true
+    try {
+      applySettings(
+        await updateRegisterSettings({
+          registerEnabled: registerForm.registerEnabled,
+          forgotPasswordEmailEnabled: registerForm.forgotPasswordEmailEnabled,
+        }),
+      )
+      message.success(t('setting.registerSaved'))
+    } finally {
+      savingRegister.value = false
+    }
+  })
 }
 
 async function saveLogin() {
@@ -253,27 +257,29 @@ async function saveLogin() {
     message.warning(t('setting.lockDurationRequired'))
     return
   }
-  savingLogin.value = true
-  try {
-    applySettings(
-      await updateLoginSettings({
-        client: {
-          captchaEnabled: loginForm.client.captchaEnabled,
-          maxAttempts: loginForm.client.maxAttempts,
-          lockDurationMinutes: loginForm.client.lockDurationMinutes,
-        },
-        admin: {
-          captchaEnabled: loginForm.admin.captchaEnabled,
-          maxAttempts: loginForm.admin.maxAttempts,
-          lockDurationMinutes: loginForm.admin.lockDurationMinutes,
-          totpRequired: loginForm.admin.totpRequired,
-        },
-      }),
-    )
-    message.success(t('setting.loginSaved'))
-  } finally {
-    savingLogin.value = false
-  }
+  confirmSave(t('setting.saveLogin'), async () => {
+    savingLogin.value = true
+    try {
+      applySettings(
+        await updateLoginSettings({
+          client: {
+            captchaEnabled: loginForm.client.captchaEnabled,
+            maxAttempts: loginForm.client.maxAttempts,
+            lockDurationMinutes: loginForm.client.lockDurationMinutes,
+          },
+          admin: {
+            captchaEnabled: loginForm.admin.captchaEnabled,
+            maxAttempts: loginForm.admin.maxAttempts,
+            lockDurationMinutes: loginForm.admin.lockDurationMinutes,
+            totpRequired: loginForm.admin.totpRequired,
+          },
+        }),
+      )
+      message.success(t('setting.loginSaved'))
+    } finally {
+      savingLogin.value = false
+    }
+  })
 }
 
 async function savePassword() {
@@ -286,21 +292,23 @@ async function savePassword() {
     message.warning(t('setting.passwordLengthOrder'))
     return
   }
-  savingPassword.value = true
-  try {
-    applySettings(
-      await updatePasswordSettings({
-        minLength: passwordForm.minLength,
-        maxLength: passwordForm.maxLength,
-        requireUpperLower: passwordForm.requireUpperLower,
-        requireDigit: passwordForm.requireDigit,
-        requireSpecial: passwordForm.requireSpecial,
-      }),
-    )
-    message.success(t('setting.passwordSaved'))
-  } finally {
-    savingPassword.value = false
-  }
+  confirmSave(t('setting.savePassword'), async () => {
+    savingPassword.value = true
+    try {
+      applySettings(
+        await updatePasswordSettings({
+          minLength: passwordForm.minLength,
+          maxLength: passwordForm.maxLength,
+          requireUpperLower: passwordForm.requireUpperLower,
+          requireDigit: passwordForm.requireDigit,
+          requireSpecial: passwordForm.requireSpecial,
+        }),
+      )
+      message.success(t('setting.passwordSaved'))
+    } finally {
+      savingPassword.value = false
+    }
+  })
 }
 
 async function saveClient() {
@@ -317,22 +325,24 @@ async function saveClient() {
     message.warning(t('setting.maxUploadRequired'))
     return
   }
-  savingClient.value = true
-  try {
-    applySettings(
-      await updateClientSideSettings({
-        captchaEnabled: loginForm.client.captchaEnabled,
-        appVersion: clientForm.appVersion.trim(),
-        appChannel: clientForm.appChannel.trim(),
-        downloadUrl: clientForm.downloadUrl.trim() || undefined,
-        releaseNotes: clientForm.releaseNotes.trim() || undefined,
-        maxUploadBytes: Math.round(clientForm.maxUploadMb * 1024 * 1024),
-      }),
-    )
-    message.success(t('setting.clientSaved'))
-  } finally {
-    savingClient.value = false
-  }
+  confirmSave(t('setting.saveClient'), async () => {
+    savingClient.value = true
+    try {
+      applySettings(
+        await updateClientSideSettings({
+          captchaEnabled: loginForm.client.captchaEnabled,
+          appVersion: clientForm.appVersion.trim(),
+          appChannel: clientForm.appChannel.trim(),
+          downloadUrl: clientForm.downloadUrl.trim() || undefined,
+          releaseNotes: clientForm.releaseNotes.trim() || undefined,
+          maxUploadBytes: Math.round(clientForm.maxUploadMb * 1024 * 1024),
+        }),
+      )
+      message.success(t('setting.clientSaved'))
+    } finally {
+      savingClient.value = false
+    }
+  })
 }
 
 async function saveMail() {
@@ -354,25 +364,37 @@ async function saveMail() {
     message.warning(t('setting.mailTlsConflict'))
     return
   }
-  savingMail.value = true
-  try {
-    applySettings(
-      await updateMailSettings({
-        host: mailForm.host.trim(),
-        port: mailForm.port,
-        username: mailForm.username.trim(),
-        password: mailForm.password.trim() || undefined,
-        from: mailForm.from.trim(),
-        fromName: mailForm.fromName.trim(),
-        startTls: mailForm.startTls,
-        ssl: mailForm.ssl,
-        codeExpireMinutes: mailForm.codeExpireMinutes || 10,
-      }),
-    )
-    message.success(t('setting.mailSaved'))
-  } finally {
-    savingMail.value = false
-  }
+  confirmSave(t('setting.saveMail'), async () => {
+    savingMail.value = true
+    try {
+      applySettings(
+        await updateMailSettings({
+          host: mailForm.host.trim(),
+          port: mailForm.port,
+          username: mailForm.username.trim(),
+          password: mailForm.password.trim() || undefined,
+          from: mailForm.from.trim(),
+          fromName: mailForm.fromName.trim(),
+          startTls: mailForm.startTls,
+          ssl: mailForm.ssl,
+          codeExpireMinutes: mailForm.codeExpireMinutes || 10,
+        }),
+      )
+      message.success(t('setting.mailSaved'))
+    } finally {
+      savingMail.value = false
+    }
+  })
+}
+
+function confirmSave(label: string, run: () => Promise<void>) {
+  dialog.warning({
+    title: t('common.confirmAction', { action: label }),
+    content: t('setting.saveConfirm', { action: label }),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: () => run(),
+  })
 }
 
 function openTestEmailModal() {
