@@ -38,3 +38,14 @@ export function resolveAvatarSrc(
   if (/^https?:\/\//i.test(v)) return v
   return ''
 }
+
+/** Banner 展示地址：同源 /media/banners/{id} 或外链 / blob */
+export function resolveBannerSrc(url?: string | null): string {
+  const v = (url || '').trim()
+  if (!v) return ''
+  if (v.startsWith('data:') || v.startsWith('blob:')) return v
+  if (isExternalCdn(v)) return v
+  if (v.startsWith('/media/')) return `${API_BASE()}${v}`
+  if (/^https?:\/\//i.test(v)) return v
+  return ''
+}

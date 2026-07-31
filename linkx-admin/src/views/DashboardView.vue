@@ -36,6 +36,7 @@ import {
 } from '@/api/dashboard'
 import type { TrendData } from '@/api/statistics'
 import { buildAreaOption, useChart } from '@/utils/charts'
+import AdminOpsBannerCarousel from '@/components/AdminOpsBannerCarousel.vue'
 
 const { t, locale } = useI18n()
 const router = useRouter()
@@ -45,6 +46,12 @@ const realtime = ref<DashboardRealtime | null>(null)
 const pending = ref<PendingTask[]>([])
 const trends = ref<TrendData | null>(null)
 const trendEl = ref<HTMLElement | null>(null)
+const opsBannerCount = ref<number | null>(null)
+const showFallbackBanners = computed(() => opsBannerCount.value === 0)
+
+function onOpsBannerLoaded(payload: { count: number }) {
+  opsBannerCount.value = payload.count
+}
 
 const cards = computed(() => {
   void locale.value
@@ -133,7 +140,19 @@ onMounted(async () => {
 <template>
   <div class="page">
     <div class="page-card carousel-wrap">
-      <NCarousel autoplay :interval="4500" show-arrow draggable style="height: 168px">
+      <AdminOpsBannerCarousel
+        position="home"
+        :height="240"
+        @loaded="onOpsBannerLoaded"
+      />
+      <NCarousel
+        v-if="showFallbackBanners"
+        autoplay
+        :interval="4500"
+        show-arrow
+        draggable
+        style="height: 240px"
+      >
         <div v-for="(b, i) in banners" :key="i" class="banner" :class="b.tone">
           <div class="banner-title">{{ b.title }}</div>
           <div class="banner-desc">{{ b.desc }}</div>
@@ -220,12 +239,12 @@ onMounted(async () => {
   overflow: hidden;
 }
 .banner {
-  height: 168px;
-  padding: 28px 32px;
+  height: 240px;
+  padding: 36px 40px;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 8px;
+  gap: 10px;
   color: #f5f7fb;
 }
 .banner-title {

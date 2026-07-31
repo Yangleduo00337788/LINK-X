@@ -116,6 +116,12 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: 'route.noticeInbox', permission: 'admin:notice:inbox' },
       },
       {
+        path: 'banners',
+        name: 'Banners',
+        component: () => import('@/views/BannerListView.vue'),
+        meta: { titleKey: 'route.banners', permission: 'admin:banner:list' },
+      },
+      {
         path: 'settings',
         name: 'Settings',
         component: () => import('@/views/SettingView.vue'),

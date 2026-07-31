@@ -18,6 +18,7 @@ import {
 import { fetchAuthConfig, fetchCaptcha } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import PrefSwitcher from '@/components/PrefSwitcher.vue'
+import AdminOpsBannerCarousel from '@/components/AdminOpsBannerCarousel.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -31,6 +32,7 @@ const captchaEnabled = ref(true)
 const captchaId = ref('')
 const captchaImg = ref('')
 const captchaLoading = ref(false)
+const loginBannerCount = ref<number | null>(null)
 
 const form = reactive({
   username: '',
@@ -85,6 +87,10 @@ const rules = computed<FormRules>(() => {
     },
   }
 })
+
+function onLoginBannerLoaded(payload: { count: number }) {
+  loginBannerCount.value = payload.count
+}
 
 async function loadCaptcha() {
   if (!captchaEnabled.value) return
@@ -141,47 +147,68 @@ onMounted(async () => {
     <div class="login-prefs">
       <PrefSwitcher />
     </div>
-    <NCard class="login-card" :bordered="false">
-      <div class="login-brand">{{ t('app.brand') }}</div>
-      <p class="login-sub">{{ t('login.subtitle') }}</p>
-      <NForm ref="formRef" :model="form" :rules="rules" size="large" @keyup.enter="submit">
-        <NFormItem path="username" :label="t('login.username')">
-          <NAutoComplete
-            v-model:value="form.username"
-            :options="usernameOptions"
-            :placeholder="t('login.usernamePlaceholder')"
-            clearable
-          />
-        </NFormItem>
-        <NFormItem path="password" :label="t('login.password')">
-          <NInput
-            v-model:value="form.password"
-            type="password"
-            show-password-on="click"
-            :placeholder="t('login.passwordPlaceholder')"
-            autocomplete="current-password"
-          />
-        </NFormItem>
-        <NFormItem v-if="captchaEnabled" path="captchaCode" :label="t('login.captcha')">
-          <NSpace style="width: 100%" :wrap="false">
-            <NInput
-              v-model:value="form.captchaCode"
-              :placeholder="t('login.captchaPlaceholder')"
-              style="flex: 1"
-            />
-            <div class="captcha-box" @click="loadCaptcha">
-              <NSpin :show="captchaLoading" size="small">
-                <img v-if="captchaImg" :src="captchaImg" alt="captcha" />
-                <span v-else>{{ t('login.refreshCaptcha') }}</span>
-              </NSpin>
-            </div>
-          </NSpace>
-        </NFormItem>
-        <NButton type="primary" block :loading="loading" @click="submit">
-          {{ t('login.submit') }}
-        </NButton>
-      </NForm>
-    </NCard>
+
+    <div class="login-split">
+      <aside class="login-visual">
+        <AdminOpsBannerCarousel
+          class="login-ops-banner"
+          position="login"
+          height="100%"
+          :radius="0"
+          :show-arrow="(loginBannerCount || 0) > 1"
+          @loaded="onLoginBannerLoaded"
+        />
+        <div v-if="loginBannerCount === 0" class="login-visual-fallback">
+          <div class="login-visual-mark">L</div>
+          <div class="login-visual-title">{{ t('app.brand') }}</div>
+          <p class="login-visual-desc">{{ t('login.subtitle') }}</p>
+        </div>
+      </aside>
+
+      <section class="login-panel">
+        <NCard class="login-card" :bordered="false">
+          <div class="login-brand">{{ t('app.brand') }}</div>
+          <p class="login-sub">{{ t('login.subtitle') }}</p>
+          <NForm ref="formRef" :model="form" :rules="rules" size="large" @keyup.enter="submit">
+            <NFormItem path="username" :label="t('login.username')">
+              <NAutoComplete
+                v-model:value="form.username"
+                :options="usernameOptions"
+                :placeholder="t('login.usernamePlaceholder')"
+                clearable
+              />
+            </NFormItem>
+            <NFormItem path="password" :label="t('login.password')">
+              <NInput
+                v-model:value="form.password"
+                type="password"
+                show-password-on="click"
+                :placeholder="t('login.passwordPlaceholder')"
+                autocomplete="current-password"
+              />
+            </NFormItem>
+            <NFormItem v-if="captchaEnabled" path="captchaCode" :label="t('login.captcha')">
+              <NSpace style="width: 100%" :wrap="false">
+                <NInput
+                  v-model:value="form.captchaCode"
+                  :placeholder="t('login.captchaPlaceholder')"
+                  style="flex: 1"
+                />
+                <div class="captcha-box" @click="loadCaptcha">
+                  <NSpin :show="captchaLoading" size="small">
+                    <img v-if="captchaImg" :src="captchaImg" alt="captcha" />
+                    <span v-else>{{ t('login.refreshCaptcha') }}</span>
+                  </NSpin>
+                </div>
+              </NSpace>
+            </NFormItem>
+            <NButton type="primary" block :loading="loading" @click="submit">
+              {{ t('login.submit') }}
+            </NButton>
+          </NForm>
+        </NCard>
+      </section>
+    </div>
   </div>
 </template>
 
@@ -192,6 +219,8 @@ onMounted(async () => {
   place-items: center;
   position: relative;
   overflow: hidden;
+  padding: 24px;
+  box-sizing: border-box;
 }
 .login-bg {
   position: absolute;
@@ -207,17 +236,83 @@ onMounted(async () => {
   right: 20px;
   z-index: 2;
 }
-.login-card {
+.login-split {
   position: relative;
-  width: min(400px, calc(100vw - 32px));
-  background: var(--lx-login-card) !important;
-  border: 1px solid var(--lx-border) !important;
-  border-radius: 16px !important;
+  z-index: 1;
+  width: min(960px, calc(100vw - 48px));
+  min-height: min(560px, calc(100vh - 48px));
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid var(--lx-border);
+  background: var(--lx-login-card);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.14);
   backdrop-filter: blur(10px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+}
+.login-visual {
+  position: relative;
+  min-height: 280px;
+  background:
+    linear-gradient(145deg, rgba(18, 183, 245, 0.22), transparent 55%),
+    linear-gradient(320deg, rgba(64, 128, 255, 0.18), transparent 50%),
+    var(--lx-login-base);
+}
+.login-ops-banner {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.login-visual-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 40px 36px;
+  color: var(--lx-text);
+}
+.login-visual-mark {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  font-size: 28px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #12b7f5, #3b82f6);
+  box-shadow: 0 10px 24px rgba(18, 183, 245, 0.35);
+  margin-bottom: 18px;
+}
+.login-visual-title {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.login-visual-desc {
+  margin: 10px 0 0;
+  max-width: 280px;
+  color: var(--lx-text-3);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.login-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 36px 28px;
+  background: var(--lx-login-card);
+}
+.login-card {
+  width: 100%;
+  max-width: 360px;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 .login-brand {
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 700;
   letter-spacing: 0.08em;
   color: var(--lx-text);
@@ -245,5 +340,24 @@ onMounted(async () => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+@media (max-width: 820px) {
+  .login-page {
+    padding: 16px;
+    place-items: stretch;
+  }
+  .login-split {
+    width: 100%;
+    min-height: auto;
+    grid-template-columns: 1fr;
+  }
+  .login-visual {
+    min-height: 200px;
+    aspect-ratio: 16 / 9;
+  }
+  .login-panel {
+    padding: 24px 20px 28px;
+  }
 }
 </style>
