@@ -5,6 +5,8 @@ import com.linkx.server.controller.admin.dto.AdminRiskEventHandleDTO;
 import com.linkx.server.controller.admin.dto.AdminRiskEventQueryDTO;
 import com.linkx.server.controller.admin.vo.AdminRiskEventVO;
 
+import java.util.List;
+
 public interface AdminRiskEventService {
 
     PageResultVO<AdminRiskEventVO> list(AdminRiskEventQueryDTO query);
@@ -16,6 +18,8 @@ public interface AdminRiskEventService {
     long countPending();
 
     long countSince(java.util.Date since);
+
+    List<AdminRiskEventVO> listForExport(AdminRiskEventQueryDTO query);
 
     /** 记录敏感词命中风险事件 */
     void recordSensitiveMatch(Long userId, String matchedWords, String failReason, Long conversationId);

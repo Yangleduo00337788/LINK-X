@@ -3,6 +3,7 @@ package com.linkx.server.controller.admin;
 import com.linkx.server.common.RequirePermission;
 import com.linkx.server.common.RequireRole;
 import com.linkx.server.common.Result;
+import com.linkx.server.common.admin.AdminCsvResponses;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.config.aspect.AuditAction;
 import com.linkx.server.controller.admin.dto.AdminPageQueryDTO;
@@ -19,6 +20,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,7 +29,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Tag(name = "管理端-用户管理")
 @RestController
@@ -43,6 +47,30 @@ public class AdminUserController {
     @RequirePermission("admin:user:list")
     public Result<PageResultVO<AdminUserListVO>> list(@Valid AdminUserQueryDTO query) {
         return Result.success(adminUserService.list(query));
+    }
+
+    @Operation(summary = "导出用户 CSV")
+    @GetMapping("/export")
+    @RequirePermission("admin:user:export")
+    public ResponseEntity<byte[]> export(@Valid AdminUserQueryDTO query) {
+        List<AdminUserListVO> items = adminUserService.listForExport(query);
+        List<String[]> rows = new ArrayList<>(items.size());
+        for (AdminUserListVO item : items) {
+            String roles = item.getRoles() == null ? "" : item.getRoles().stream().collect(Collectors.joining("|"));
+            rows.add(new String[]{
+                    AdminCsvResponses.cell(item.getId()),
+                    AdminCsvResponses.cell(item.getUsername()),
+                    AdminCsvResponses.cell(item.getNickname()),
+                    AdminCsvResponses.cell(item.getEmail()),
+                    AdminCsvResponses.cell(item.getPhone()),
+                    AdminCsvResponses.cell(item.getStatus()),
+                    roles,
+                    AdminCsvResponses.cell(item.getCreateTime()),
+            });
+        }
+        return AdminCsvResponses.csv("users",
+                List.of("id", "username", "nickname", "email", "phone", "status", "roles", "createTime"),
+                rows);
     }
 
     @Operation(summary = "查询用户详情")

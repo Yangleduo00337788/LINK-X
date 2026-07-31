@@ -16,6 +16,8 @@ public interface AdminUserService {
 
     PageResultVO<AdminUserListVO> list(AdminUserQueryDTO query);
 
+    List<AdminUserListVO> listForExport(AdminUserQueryDTO query);
+
     AdminUserDetailVO detail(Long id);
 
     void update(Long id, AdminUserUpdateDTO dto, Long operatorId);

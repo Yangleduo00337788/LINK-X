@@ -3,16 +3,23 @@ package com.linkx.server.service.admin.impl;
 import com.linkx.server.common.admin.AdminConstants;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminPageQueryDTO;
+import com.linkx.server.controller.admin.dto.AdminPermissionDTO;
 import com.linkx.server.controller.admin.dto.AdminRoleAssignMenuDTO;
+import com.linkx.server.controller.admin.dto.AdminRoleAssignUserDTO;
 import com.linkx.server.controller.admin.dto.AdminRoleDTO;
 import com.linkx.server.controller.admin.vo.AdminPermissionVO;
+import com.linkx.server.controller.admin.vo.AdminRoleUserVO;
 import com.linkx.server.controller.admin.vo.AdminRoleVO;
 import com.linkx.server.entity.SysPermission;
 import com.linkx.server.entity.SysRole;
+import com.linkx.server.entity.SysUser;
+import com.linkx.server.entity.SysUserRole;
 import com.linkx.server.entity.admin.AdminRoleMenu;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.SysPermissionMapper;
 import com.linkx.server.mapper.SysRoleMapper;
+import com.linkx.server.mapper.SysUserMapper;
+import com.linkx.server.mapper.SysUserRoleMapper;
 import com.linkx.server.mapper.admin.AdminRoleMenuMapper;
 import com.linkx.server.service.RbacService;
 import com.linkx.server.service.admin.AdminRoleService;
@@ -23,7 +30,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -33,6 +42,8 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     private final SysRoleMapper sysRoleMapper;
     private final SysPermissionMapper sysPermissionMapper;
     private final AdminRoleMenuMapper adminRoleMenuMapper;
+    private final SysUserRoleMapper sysUserRoleMapper;
+    private final SysUserMapper sysUserMapper;
     private final RbacService rbacService;
 
     @Override
@@ -149,6 +160,81 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     }
 
     @Override
+    public List<AdminRoleUserVO> listRoleUsers(Long roleId) {
+        requireRole(roleId);
+        List<SysUserRole> links = sysUserRoleMapper.selectListByQuery(
+                QueryWrapper.create().where(SysUserRole::getRoleId).eq(roleId));
+        if (links.isEmpty()) {
+            return List.of();
+        }
+        Set<Long> userIds = links.stream().map(SysUserRole::getUserId).collect(Collectors.toSet());
+        List<SysUser> users = sysUserMapper.selectListByQuery(
+                QueryWrapper.create().where(SysUser::getId).in(userIds));
+        return users.stream()
+                .map(u -> AdminRoleUserVO.builder()
+                        .id(u.getId())
+                        .username(u.getUsername())
+                        .nickname(u.getNickname())
+                        .status(u.getStatus())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public void assignUsers(Long roleId, AdminRoleAssignUserDTO dto, Long operatorId) {
+        SysRole role = requireRole(roleId);
+        if ("user".equals(role.getRoleCode())) {
+            throw new CustomException(400, "default user role cannot be reassigned here");
+        }
+        List<Long> targetIds = dto.getUserIds() == null ? List.of() : dto.getUserIds().stream()
+                .filter(id -> id != null)
+                .distinct()
+                .collect(Collectors.toList());
+
+        List<SysUserRole> existing = sysUserRoleMapper.selectListByQuery(
+                QueryWrapper.create().where(SysUserRole::getRoleId).eq(roleId));
+        Set<Long> oldUserIds = existing.stream().map(SysUserRole::getUserId).collect(Collectors.toSet());
+        Set<Long> newUserIds = new HashSet<>(targetIds);
+
+        // 超管角色至少保留 1 个用户
+        if ("super_admin".equals(role.getRoleCode()) && newUserIds.isEmpty()) {
+            throw new CustomException(400, "super_admin must keep at least one user");
+        }
+
+        for (Long uid : oldUserIds) {
+            if (!newUserIds.contains(uid)) {
+                sysUserRoleMapper.deleteByQuery(QueryWrapper.create()
+                        .where(SysUserRole::getRoleId).eq(roleId)
+                        .and(SysUserRole::getUserId).eq(uid));
+                rbacService.evictUserCache(uid);
+            }
+        }
+        Date now = new Date();
+        for (Long uid : newUserIds) {
+            if (oldUserIds.contains(uid)) {
+                continue;
+            }
+            SysUser user = sysUserMapper.selectOneById(uid);
+            if (user == null) {
+                throw new CustomException(404, "user not found: " + uid);
+            }
+            try {
+                sysUserRoleMapper.insert(SysUserRole.builder()
+                        .userId(uid)
+                        .roleId(roleId)
+                        .createBy(operatorId)
+                        .deleted(0)
+                        .createTime(now)
+                        .build());
+            } catch (org.springframework.dao.DuplicateKeyException ignored) {
+                // 幂等
+            }
+            rbacService.evictUserCache(uid);
+        }
+    }
+
+    @Override
     public PageResultVO<AdminPermissionVO> listPermissions(AdminPageQueryDTO query) {
         int page = normalizePage(query.getPage());
         int size = normalizeSize(query.getSize());
@@ -167,17 +253,93 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         long total = sysPermissionMapper.selectCountByQuery(qw);
         qw.limit((page - 1L) * size, size);
         List<AdminPermissionVO> items = sysPermissionMapper.selectListByQuery(qw).stream()
-                .map(p -> AdminPermissionVO.builder()
-                        .id(p.getId())
-                        .permissionCode(p.getPermissionCode())
-                        .permissionName(p.getPermissionName())
-                        .resourceType(p.getResourceType())
-                        .resourcePath(p.getResourcePath())
-                        .description(p.getDescription())
-                        .status(p.getStatus())
-                        .build())
+                .map(this::toPermissionVO)
                 .collect(Collectors.toList());
         return PageResultVO.of(items, page, size, total);
+    }
+
+    @Override
+    public AdminPermissionVO permissionDetail(Long id) {
+        return toPermissionVO(requirePermission(id));
+    }
+
+    @Override
+    @Transactional
+    public Long createPermission(AdminPermissionDTO dto) {
+        String code = dto.getPermissionCode().trim();
+        long exists = sysPermissionMapper.selectCountByQuery(
+                QueryWrapper.create().where(SysPermission::getPermissionCode).eq(code));
+        if (exists > 0) {
+            throw new CustomException(409, "permission code already exists");
+        }
+        Date now = new Date();
+        SysPermission perm = SysPermission.builder()
+                .permissionCode(code)
+                .permissionName(dto.getPermissionName().trim())
+                .resourceType(StringUtils.hasText(dto.getResourceType()) ? dto.getResourceType().trim() : "button")
+                .resourcePath(dto.getResourcePath())
+                .description(dto.getDescription())
+                .status(dto.getStatus() == null ? 1 : dto.getStatus())
+                .createTime(now)
+                .updateTime(now)
+                .deleted(0)
+                .build();
+        sysPermissionMapper.insert(perm);
+        return perm.getId();
+    }
+
+    @Override
+    @Transactional
+    public void updatePermission(Long id, AdminPermissionDTO dto) {
+        SysPermission perm = requirePermission(id);
+        if (StringUtils.hasText(dto.getPermissionCode())
+                && !dto.getPermissionCode().trim().equals(perm.getPermissionCode())) {
+            throw new CustomException(400, "permission code cannot be changed");
+        }
+        if (StringUtils.hasText(dto.getPermissionName())) {
+            perm.setPermissionName(dto.getPermissionName().trim());
+        }
+        if (dto.getResourceType() != null) {
+            perm.setResourceType(dto.getResourceType().trim());
+        }
+        if (dto.getResourcePath() != null) {
+            perm.setResourcePath(dto.getResourcePath());
+        }
+        if (dto.getDescription() != null) {
+            perm.setDescription(dto.getDescription());
+        }
+        if (dto.getStatus() != null) {
+            perm.setStatus(dto.getStatus());
+        }
+        perm.setUpdateTime(new Date());
+        sysPermissionMapper.update(perm);
+    }
+
+    @Override
+    @Transactional
+    public void deletePermission(Long id) {
+        requirePermission(id);
+        sysPermissionMapper.deleteById(id);
+    }
+
+    private AdminPermissionVO toPermissionVO(SysPermission p) {
+        return AdminPermissionVO.builder()
+                .id(p.getId())
+                .permissionCode(p.getPermissionCode())
+                .permissionName(p.getPermissionName())
+                .resourceType(p.getResourceType())
+                .resourcePath(p.getResourcePath())
+                .description(p.getDescription())
+                .status(p.getStatus())
+                .build();
+    }
+
+    private SysPermission requirePermission(Long id) {
+        SysPermission perm = sysPermissionMapper.selectOneById(id);
+        if (perm == null) {
+            throw new CustomException(404, "permission not found");
+        }
+        return perm;
     }
 
     private AdminRoleVO toRoleVO(SysRole role) {

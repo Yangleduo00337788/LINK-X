@@ -37,6 +37,27 @@ public class AdminFeedbackServiceImpl implements AdminFeedbackService {
     public PageResultVO<AdminFeedbackVO> list(AdminFeedbackQueryDTO query) {
         int page = normalizePage(query.getPage());
         int size = normalizeSize(query.getSize());
+        QueryWrapper qw = buildListQuery(query);
+        qw.orderBy(Feedback::getCreateTime, false);
+        long total = feedbackMapper.selectCountByQuery(qw);
+        qw.limit((page - 1L) * size, size);
+        List<AdminFeedbackVO> items = feedbackMapper.selectListByQuery(qw).stream()
+                .map(this::toVO)
+                .collect(Collectors.toList());
+        return PageResultVO.of(items, page, size, total);
+    }
+
+    @Override
+    public List<AdminFeedbackVO> listForExport(AdminFeedbackQueryDTO query) {
+        QueryWrapper qw = buildListQuery(query);
+        qw.orderBy(Feedback::getCreateTime, false);
+        qw.limit(0, AdminConstants.EXPORT_MAX_SIZE);
+        return feedbackMapper.selectListByQuery(qw).stream()
+                .map(this::toVO)
+                .collect(Collectors.toList());
+    }
+
+    private QueryWrapper buildListQuery(AdminFeedbackQueryDTO query) {
         QueryWrapper qw = QueryWrapper.create();
         if (StringUtils.hasText(query.getKeyword())) {
             String kw = query.getKeyword().trim();
@@ -55,13 +76,7 @@ public class AdminFeedbackServiceImpl implements AdminFeedbackService {
         if (query.getEndTime() != null) {
             qw.and(Feedback::getCreateTime).le(new Date(query.getEndTime()));
         }
-        qw.orderBy(Feedback::getCreateTime, false);
-        long total = feedbackMapper.selectCountByQuery(qw);
-        qw.limit((page - 1L) * size, size);
-        List<AdminFeedbackVO> items = feedbackMapper.selectListByQuery(qw).stream()
-                .map(this::toVO)
-                .collect(Collectors.toList());
-        return PageResultVO.of(items, page, size, total);
+        return qw;
     }
 
     @Override

@@ -14,4 +14,6 @@ public final class AdminConstants {
     public static final int DEFAULT_PAGE = 1;
     public static final int DEFAULT_SIZE = 20;
     public static final int MAX_SIZE = 100;
+    /** CSV 导出单次最大行数 */
+    public static final int EXPORT_MAX_SIZE = 5000;
 }

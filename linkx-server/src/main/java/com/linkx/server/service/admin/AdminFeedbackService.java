@@ -5,9 +5,13 @@ import com.linkx.server.controller.admin.dto.AdminFeedbackQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminFeedbackReplyDTO;
 import com.linkx.server.controller.admin.vo.AdminFeedbackVO;
 
+import java.util.List;
+
 public interface AdminFeedbackService {
 
     PageResultVO<AdminFeedbackVO> list(AdminFeedbackQueryDTO query);
+
+    List<AdminFeedbackVO> listForExport(AdminFeedbackQueryDTO query);
 
     AdminFeedbackVO detail(Long id);
 

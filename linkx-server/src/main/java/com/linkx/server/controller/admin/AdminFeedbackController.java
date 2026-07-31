@@ -3,6 +3,7 @@ package com.linkx.server.controller.admin;
 import com.linkx.server.common.RequirePermission;
 import com.linkx.server.common.RequireRole;
 import com.linkx.server.common.Result;
+import com.linkx.server.common.admin.AdminCsvResponses;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.config.aspect.AuditAction;
 import com.linkx.server.controller.admin.dto.AdminFeedbackQueryDTO;
@@ -14,12 +15,16 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Tag(name = "管理端-反馈管理")
 @RestController
@@ -35,6 +40,30 @@ public class AdminFeedbackController {
     @RequirePermission("admin:feedback:list")
     public Result<PageResultVO<AdminFeedbackVO>> list(@Valid AdminFeedbackQueryDTO query) {
         return Result.success(adminFeedbackService.list(query));
+    }
+
+    @Operation(summary = "导出反馈 CSV")
+    @GetMapping("/export")
+    @RequirePermission("admin:feedback:export")
+    public ResponseEntity<byte[]> export(@Valid AdminFeedbackQueryDTO query) {
+        List<AdminFeedbackVO> items = adminFeedbackService.listForExport(query);
+        List<String[]> rows = new ArrayList<>(items.size());
+        for (AdminFeedbackVO item : items) {
+            rows.add(new String[]{
+                    AdminCsvResponses.cell(item.getId()),
+                    AdminCsvResponses.cell(item.getUserId()),
+                    AdminCsvResponses.cell(item.getUsername()),
+                    AdminCsvResponses.cell(item.getType()),
+                    AdminCsvResponses.cell(item.getContent()),
+                    AdminCsvResponses.cell(item.getContact()),
+                    AdminCsvResponses.cell(item.getStatus()),
+                    AdminCsvResponses.cell(item.getReply()),
+                    AdminCsvResponses.cell(item.getCreateTime()),
+            });
+        }
+        return AdminCsvResponses.csv("feedback",
+                List.of("id", "userId", "username", "type", "content", "contact", "status", "reply", "createTime"),
+                rows);
     }
 
     @Operation(summary = "查询反馈详情")

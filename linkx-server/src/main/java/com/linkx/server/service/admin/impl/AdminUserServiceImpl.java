@@ -48,6 +48,27 @@ public class AdminUserServiceImpl implements AdminUserService {
     public PageResultVO<AdminUserListVO> list(AdminUserQueryDTO query) {
         int page = normalizePage(query.getPage());
         int size = normalizeSize(query.getSize());
+        QueryWrapper qw = buildListQuery(query);
+        qw.orderBy(SysUser::getCreateTime, false);
+        long total = sysUserMapper.selectCountByQuery(qw);
+        qw.limit((page - 1L) * size, size);
+        List<AdminUserListVO> items = sysUserMapper.selectListByQuery(qw).stream()
+                .map(this::toListVO)
+                .collect(Collectors.toList());
+        return PageResultVO.of(items, page, size, total);
+    }
+
+    @Override
+    public List<AdminUserListVO> listForExport(AdminUserQueryDTO query) {
+        QueryWrapper qw = buildListQuery(query);
+        qw.orderBy(SysUser::getCreateTime, false);
+        qw.limit(0, AdminConstants.EXPORT_MAX_SIZE);
+        return sysUserMapper.selectListByQuery(qw).stream()
+                .map(this::toListVO)
+                .collect(Collectors.toList());
+    }
+
+    private QueryWrapper buildListQuery(AdminUserQueryDTO query) {
         QueryWrapper qw = QueryWrapper.create();
         if (StringUtils.hasText(query.getKeyword())) {
             String kw = query.getKeyword().trim();
@@ -67,13 +88,7 @@ public class AdminUserServiceImpl implements AdminUserService {
         if (query.getEndTime() != null) {
             qw.and(SysUser::getCreateTime).le(new Date(query.getEndTime()));
         }
-        qw.orderBy(SysUser::getCreateTime, false);
-        long total = sysUserMapper.selectCountByQuery(qw);
-        qw.limit((page - 1L) * size, size);
-        List<AdminUserListVO> items = sysUserMapper.selectListByQuery(qw).stream()
-                .map(this::toListVO)
-                .collect(Collectors.toList());
-        return PageResultVO.of(items, page, size, total);
+        return qw;
     }
 
     @Override

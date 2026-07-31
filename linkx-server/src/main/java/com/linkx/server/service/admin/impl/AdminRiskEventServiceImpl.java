@@ -52,6 +52,16 @@ public class AdminRiskEventServiceImpl implements AdminRiskEventService {
     }
 
     @Override
+    public List<AdminRiskEventVO> listForExport(AdminRiskEventQueryDTO query) {
+        QueryWrapper qw = buildQuery(query);
+        qw.orderBy(SysRiskEvent::getCreateTime, false);
+        qw.limit(0, AdminConstants.EXPORT_MAX_SIZE);
+        return riskEventMapper.selectListByQuery(qw).stream()
+                .map(this::toVO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public AdminRiskEventVO detail(Long id) {
         return toVO(requireEvent(id));
     }

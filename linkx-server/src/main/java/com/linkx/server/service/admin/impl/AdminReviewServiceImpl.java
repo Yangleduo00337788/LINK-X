@@ -2,8 +2,10 @@ package com.linkx.server.service.admin.impl;
 
 import com.linkx.server.common.admin.AdminConstants;
 import com.linkx.server.common.admin.PageResultVO;
+import com.linkx.server.controller.admin.dto.AdminReviewBatchDTO;
 import com.linkx.server.controller.admin.dto.AdminReviewQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminReviewResolveDTO;
+import com.linkx.server.controller.admin.vo.AdminReviewBatchResultVO;
 import com.linkx.server.controller.admin.vo.AdminReviewVO;
 import com.linkx.server.entity.Feedback;
 import com.linkx.server.entity.admin.SysReviewTask;
@@ -56,6 +58,17 @@ public class AdminReviewServiceImpl implements AdminReviewService {
         ensureReportTasks();
         int page = normalizePage(query.getPage());
         int size = normalizeSize(query.getSize());
+        QueryWrapper qw = buildListQuery(query);
+        qw.orderBy(SysReviewTask::getCreateTime, false);
+        long total = reviewTaskMapper.selectCountByQuery(qw);
+        qw.limit((page - 1L) * size, size);
+        List<AdminReviewVO> items = reviewTaskMapper.selectListByQuery(qw).stream()
+                .map(this::toVO)
+                .collect(Collectors.toList());
+        return PageResultVO.of(items, page, size, total);
+    }
+
+    private QueryWrapper buildListQuery(AdminReviewQueryDTO query) {
         QueryWrapper qw = QueryWrapper.create();
         if (StringUtils.hasText(query.getKeyword())) {
             String kw = query.getKeyword().trim();
@@ -78,13 +91,18 @@ public class AdminReviewServiceImpl implements AdminReviewService {
         if (query.getEndTime() != null) {
             qw.and(SysReviewTask::getCreateTime).le(new Date(query.getEndTime()));
         }
+        return qw;
+    }
+
+    @Override
+    public List<AdminReviewVO> listForExport(AdminReviewQueryDTO query) {
+        ensureReportTasks();
+        QueryWrapper qw = buildListQuery(query);
         qw.orderBy(SysReviewTask::getCreateTime, false);
-        long total = reviewTaskMapper.selectCountByQuery(qw);
-        qw.limit((page - 1L) * size, size);
-        List<AdminReviewVO> items = reviewTaskMapper.selectListByQuery(qw).stream()
+        qw.limit(0, AdminConstants.EXPORT_MAX_SIZE);
+        return reviewTaskMapper.selectListByQuery(qw).stream()
                 .map(this::toVO)
                 .collect(Collectors.toList());
-        return PageResultVO.of(items, page, size, total);
     }
 
     @Override
@@ -102,6 +120,47 @@ public class AdminReviewServiceImpl implements AdminReviewService {
     @Transactional
     public void reject(Long id, AdminReviewResolveDTO dto, Long operatorId) {
         resolve(id, SysReviewTask.STATUS_REJECTED, dto, operatorId);
+    }
+
+    @Override
+    @Transactional
+    public AdminReviewBatchResultVO batch(AdminReviewBatchDTO dto, Long operatorId) {
+        String action = dto.getAction() == null ? "" : dto.getAction().trim().toLowerCase();
+        if (!"approve".equals(action) && !"reject".equals(action)) {
+            throw new CustomException(400, "action must be approve or reject");
+        }
+        String status = "approve".equals(action)
+                ? SysReviewTask.STATUS_APPROVED
+                : SysReviewTask.STATUS_REJECTED;
+        AdminReviewResolveDTO resolveDto = new AdminReviewResolveDTO();
+        resolveDto.setResolution(dto.getResolution());
+
+        int success = 0;
+        List<AdminReviewBatchResultVO.FailureItem> failures = new ArrayList<>();
+        for (Long id : dto.getIds()) {
+            if (id == null) {
+                continue;
+            }
+            try {
+                resolve(id, status, resolveDto, operatorId);
+                success++;
+            } catch (CustomException ex) {
+                failures.add(AdminReviewBatchResultVO.FailureItem.builder()
+                        .id(id)
+                        .reason(ex.getMessage())
+                        .build());
+            } catch (Exception ex) {
+                failures.add(AdminReviewBatchResultVO.FailureItem.builder()
+                        .id(id)
+                        .reason(ex.getMessage() != null ? ex.getMessage() : "unknown error")
+                        .build());
+            }
+        }
+        return AdminReviewBatchResultVO.builder()
+                .successCount(success)
+                .failCount(failures.size())
+                .failures(failures)
+                .build();
     }
 
     @Override

@@ -7,8 +7,9 @@ import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.config.aspect.AuditAction;
 import com.linkx.server.controller.admin.dto.AdminPageQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminRoleAssignMenuDTO;
+import com.linkx.server.controller.admin.dto.AdminRoleAssignUserDTO;
 import com.linkx.server.controller.admin.dto.AdminRoleDTO;
-import com.linkx.server.controller.admin.vo.AdminPermissionVO;
+import com.linkx.server.controller.admin.vo.AdminRoleUserVO;
 import com.linkx.server.controller.admin.vo.AdminRoleVO;
 import com.linkx.server.service.admin.AdminRoleService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -93,6 +94,25 @@ public class AdminRoleController {
     @RequirePermission("admin:role:assign-menu")
     public Result<Void> assignMenus(@PathVariable Long id, @Valid @RequestBody AdminRoleAssignMenuDTO dto) {
         adminRoleService.assignMenus(id, dto);
+        return Result.success(null);
+    }
+
+    @Operation(summary = "查询角色用户")
+    @GetMapping("/{id}/users")
+    @RequirePermission("admin:role:list")
+    public Result<List<AdminRoleUserVO>> users(@PathVariable Long id) {
+        return Result.success(adminRoleService.listRoleUsers(id));
+    }
+
+    @Operation(summary = "角色绑定用户")
+    @AuditAction(operationType = "ROLE_GRANT", description = "角色绑定用户")
+    @PutMapping("/{id}/users")
+    @RequirePermission("admin:role:assign-user")
+    public Result<Void> assignUsers(@PathVariable Long id,
+                                    @Valid @RequestBody AdminRoleAssignUserDTO dto,
+                                    HttpServletRequest request) {
+        Long operatorId = (Long) request.getAttribute("userId");
+        adminRoleService.assignUsers(id, dto, operatorId);
         return Result.success(null);
     }
 }
