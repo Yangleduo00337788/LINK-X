@@ -74,6 +74,7 @@ public class SysAuditLog implements Serializable {
         UPDATE_SETTINGS("更新系统配置"),
         // 管理端内容治理
         CONTENT_REVIEW("内容审核"),
+        RISK_EVENT_HANDLE("风险事件处置"),
         SENSITIVE_WORD_UPDATE("敏感词变更"),
         // 管理端运营
         NOTICE_UPDATE("公告变更"),
