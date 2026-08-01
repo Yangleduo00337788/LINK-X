@@ -9,13 +9,18 @@ import com.linkx.server.common.InputSanitizer;
 import com.linkx.server.entity.Favorite;
 import com.linkx.server.entity.FavoriteStorage;
 import com.linkx.server.entity.FavoriteTag;
+import com.linkx.server.entity.admin.SysReviewTask;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.FavoriteMapper;
 import com.linkx.server.mapper.FavoriteStorageMapper;
 import com.linkx.server.mapper.FavoriteTagMapper;
 import com.linkx.server.service.FavoriteService;
+import com.linkx.server.service.SensitiveWordService;
+import com.linkx.server.service.admin.AdminReviewService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -31,6 +36,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class FavoriteServiceImpl implements FavoriteService {
@@ -49,6 +55,8 @@ public class FavoriteServiceImpl implements FavoriteService {
     private final FavoriteMapper favoriteMapper;
     private final FavoriteStorageMapper favoriteStorageMapper;
     private final FavoriteTagMapper favoriteTagMapper;
+    private final SensitiveWordService sensitiveWordService;
+    private final ObjectProvider<AdminReviewService> adminReviewService;
 
     @Override
     public List<FavoriteVO> list(Long userId) {
@@ -73,13 +81,17 @@ public class FavoriteServiceImpl implements FavoriteService {
         if (!StringUtils.hasText(dto.getContent())) {
             throw new CustomException(400, "收藏内容不能为空");
         }
+        String title = dto.getTitle() != null ? InputSanitizer.stripHtml(dto.getTitle(), 200) : null;
+        String content = InputSanitizer.stripHtml(dto.getContent(), InputSanitizer.DEFAULT_MAX_LENGTH);
+        SensitiveHit hit = filterSensitiveOrThrow(userId, joinScanText(title, content), null);
+
         long addSize = dto.getFileSize() != null ? Math.max(0, dto.getFileSize()) : 0L;
         ensureFavoriteCapacity(userId, addSize);
 
         Favorite fav = Favorite.builder()
                 .userId(userId)
-                .title(dto.getTitle() != null ? InputSanitizer.stripHtml(dto.getTitle(), 200) : null)
-                .content(InputSanitizer.stripHtml(dto.getContent(), InputSanitizer.DEFAULT_MAX_LENGTH))
+                .title(title)
+                .content(content)
                 .type(normalizeType(dto.getType()))
                 .sourceType(dto.getSourceType())
                 .sourceId(dto.getSourceId())
@@ -88,6 +100,7 @@ public class FavoriteServiceImpl implements FavoriteService {
                 .build();
         favoriteMapper.insert(fav);
         applyStorageDelta(userId, addSize, 1);
+        enqueueSensitiveAfterPersist(userId, String.valueOf(fav.getId()), hit);
         return toVO(fav);
     }
 
@@ -102,6 +115,8 @@ public class FavoriteServiceImpl implements FavoriteService {
         if (dto.getContent() != null) {
             fav.setContent(InputSanitizer.stripHtml(dto.getContent(), InputSanitizer.DEFAULT_MAX_LENGTH));
         }
+        SensitiveHit hit = filterSensitiveOrThrow(
+                userId, joinScanText(fav.getTitle(), fav.getContent()), String.valueOf(favoriteId));
         if (StringUtils.hasText(dto.getType())) {
             fav.setType(normalizeType(dto.getType()));
         }
@@ -118,6 +133,7 @@ public class FavoriteServiceImpl implements FavoriteService {
             fav.setFileSize(dto.getFileSize());
         }
         favoriteMapper.update(fav);
+        enqueueSensitiveAfterPersist(userId, String.valueOf(favoriteId), hit);
 
         Long newSize = fav.getFileSize() != null ? fav.getFileSize() : 0L;
         long delta = newSize - oldSize;
@@ -137,6 +153,21 @@ public class FavoriteServiceImpl implements FavoriteService {
         long size = fav.getFileSize() != null ? Math.max(0, fav.getFileSize()) : 0L;
         favoriteMapper.deleteById(favoriteId);
         applyStorageDelta(userId, -size, -1);
+    }
+
+    @Override
+    @Transactional
+    public void adminDelete(Long favoriteId) {
+        Favorite fav = favoriteMapper.selectOneById(favoriteId);
+        if (fav == null) {
+            throw new CustomException(404, "收藏不存在");
+        }
+        long size = fav.getFileSize() != null ? Math.max(0, fav.getFileSize()) : 0L;
+        Long ownerId = fav.getUserId();
+        favoriteMapper.deleteById(favoriteId);
+        if (ownerId != null) {
+            applyStorageDelta(ownerId, -size, -1);
+        }
     }
 
     @Override
@@ -456,5 +487,78 @@ public class FavoriteServiceImpl implements FavoriteService {
                 .createTime(fav.getCreateTime() == null ? null : TIME_FMT.format(fav.getCreateTime().toInstant()))
                 .updateTime(fav.getUpdateTime() == null ? null : TIME_FMT.format(fav.getUpdateTime().toInstant()))
                 .build();
+    }
+
+    private static String joinScanText(String... parts) {
+        StringBuilder sb = new StringBuilder();
+        if (parts != null) {
+            for (String p : parts) {
+                if (StringUtils.hasText(p)) {
+                    if (!sb.isEmpty()) {
+                        sb.append(' ');
+                    }
+                    sb.append(p.trim());
+                }
+            }
+        }
+        return sb.toString();
+    }
+
+    private SensitiveHit filterSensitiveOrThrow(Long userId, String content, String existingId) {
+        if (!StringUtils.hasText(content)) {
+            return new SensitiveHit(null, null);
+        }
+        SensitiveWordService.FilterResult result = sensitiveWordService.filter(content);
+        if (result.matchedWords().isEmpty()) {
+            return new SensitiveHit(null, null);
+        }
+        String failReason = result.blocked()
+                ? "blocked"
+                : (result.filtered() ? "filtered" : (result.alerted() ? "alert" : "matched"));
+        String matchedWords = String.join(",", result.matchedWords());
+        if (result.blocked()) {
+            String targetId = existingId != null ? existingId : (userId + ":blocked:" + System.currentTimeMillis());
+            enqueueSensitiveReview(userId, targetId, content, matchedWords, failReason);
+            throw new CustomException(400, "收藏内容包含违规敏感词");
+        }
+        return new SensitiveHit(matchedWords, failReason);
+    }
+
+    private void enqueueSensitiveAfterPersist(Long userId, String favoriteId, SensitiveHit hit) {
+        if (hit == null || !hit.matched() || "blocked".equals(hit.failReason())) {
+            return;
+        }
+        Favorite fav = favoriteMapper.selectOneById(Long.parseLong(favoriteId));
+        String content = fav == null ? null : joinScanText(fav.getTitle(), fav.getContent());
+        enqueueSensitiveReview(userId, favoriteId, content, hit.matchedWords(), hit.failReason());
+    }
+
+    private void enqueueSensitiveReview(Long userId,
+                                        String targetId,
+                                        String content,
+                                        String matchedWords,
+                                        String failReason) {
+        AdminReviewService reviewService = adminReviewService.getIfAvailable();
+        if (reviewService == null) {
+            return;
+        }
+        try {
+            reviewService.createFromSensitiveHit(
+                    userId,
+                    SysReviewTask.TARGET_FAVORITE,
+                    targetId,
+                    null,
+                    content,
+                    matchedWords,
+                    failReason);
+        } catch (Exception e) {
+            log.warn("收藏敏感词入审失败: {}", e.getMessage());
+        }
+    }
+
+    private record SensitiveHit(String matchedWords, String failReason) {
+        boolean matched() {
+            return StringUtils.hasText(matchedWords);
+        }
     }
 }

@@ -37,6 +37,10 @@ public class SysReviewTask implements Serializable {
     public static final String TARGET_MOMENT = "moment";
     public static final String TARGET_MOMENT_COMMENT = "moment_comment";
     public static final String TARGET_ANNOUNCEMENT = "announcement";
+    /** 群文件 / 群相册 / 群精华（group_asset） */
+    public static final String TARGET_GROUP_FILE = "group_file";
+    /** 用户收藏 */
+    public static final String TARGET_FAVORITE = "favorite";
 
     @Id(keyType = KeyType.Generator, value = KeyGenerators.snowFlakeId)
     private Long id;

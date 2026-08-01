@@ -47,4 +47,16 @@ public class ClientSideSettingUpdateDTO {
     @Max(2L * 1024 * 1024 * 1024)
     @Schema(description = "最大上传字节数")
     private Long maxUploadBytes;
+
+    @NotNull
+    @Schema(description = "敏感词过滤总开关")
+    private Boolean sensitiveFilterEnabled;
+
+    @Size(max = 128)
+    @Schema(description = "客服邮箱")
+    private String supportEmail;
+
+    @Size(max = 64)
+    @Schema(description = "客服电话")
+    private String supportPhone;
 }

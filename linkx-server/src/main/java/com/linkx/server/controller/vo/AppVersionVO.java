@@ -35,4 +35,8 @@ public class AppVersionVO implements Serializable {
     private String channel;
     private String releaseNotes;
     private String downloadUrl;
+    /** 客服邮箱（可空） */
+    private String supportEmail;
+    /** 客服电话（可空） */
+    private String supportPhone;
 }

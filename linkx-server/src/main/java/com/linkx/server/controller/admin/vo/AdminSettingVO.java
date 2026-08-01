@@ -102,6 +102,12 @@ public class AdminSettingVO {
         @Schema(description = "最低支持版本（低于此版本强制升级）")
         private String minSupportedVersion;
         private Long maxUploadBytes;
+        @Schema(description = "敏感词过滤总开关")
+        private Boolean sensitiveFilterEnabled;
+        @Schema(description = "客服邮箱")
+        private String supportEmail;
+        @Schema(description = "客服电话")
+        private String supportPhone;
     }
 
     @Data

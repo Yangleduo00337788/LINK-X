@@ -20,6 +20,9 @@ public interface FavoriteService {
 
     void delete(Long userId, Long favoriteId);
 
+    /** 管理端强制删除收藏（审核处置）。 */
+    void adminDelete(Long favoriteId);
+
     FavoriteStorageVO getStorage(Long userId);
 
     List<FavoriteTagVO> listTags(Long userId);

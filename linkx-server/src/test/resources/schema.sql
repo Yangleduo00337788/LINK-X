@@ -818,7 +818,27 @@ CREATE TABLE IF NOT EXISTS sys_runtime_setting (
   app_channel VARCHAR(32) NOT NULL DEFAULT 'stable',
   release_notes VARCHAR(2000),
   download_url VARCHAR(512),
+  force_update TINYINT NOT NULL DEFAULT 0,
+  min_supported_version VARCHAR(32),
   max_upload_bytes BIGINT NOT NULL DEFAULT 104857600,
+  sensitive_filter_enabled TINYINT NOT NULL DEFAULT 1,
+  support_email VARCHAR(128),
+  support_phone VARCHAR(64),
+  mail_host VARCHAR(255),
+  mail_port INT,
+  mail_username VARCHAR(255),
+  mail_password VARCHAR(512),
+  mail_from VARCHAR(255),
+  mail_from_name VARCHAR(128),
+  mail_start_tls TINYINT,
+  mail_ssl TINYINT,
+  mail_code_expire_minutes INT,
+  mail_tpl_register_subject VARCHAR(255),
+  mail_tpl_register_html CLOB,
+  mail_tpl_reset_subject VARCHAR(255),
+  mail_tpl_reset_html CLOB,
+  mail_tpl_welcome_subject VARCHAR(255),
+  mail_tpl_welcome_html CLOB,
   update_by BIGINT,
   create_time DATETIME,
   update_time DATETIME
@@ -883,6 +903,23 @@ CREATE TABLE IF NOT EXISTS sys_admin_blacklist (
   update_time DATETIME
 );
 
+-- 管理端异步导出任务
+CREATE TABLE IF NOT EXISTS sys_admin_export_job (
+  id BIGINT NOT NULL PRIMARY KEY,
+  requester_id BIGINT NOT NULL,
+  module VARCHAR(32) NOT NULL,
+  query_json CLOB,
+  status VARCHAR(16) NOT NULL DEFAULT 'PENDING',
+  row_count INT,
+  file_name VARCHAR(128),
+  content_bytes BLOB,
+  error_message VARCHAR(512),
+  expire_at DATETIME,
+  create_time DATETIME,
+  update_time DATETIME,
+  deleted TINYINT DEFAULT 0
+);
+
 -- =============================================================================
 -- 管理端角色冒烟：最小菜单 / 权限码 / 绑定（对齐 V5+V28+V30）
 -- =============================================================================
@@ -902,6 +939,7 @@ INSERT IGNORE INTO sys_admin_menu
 (19, 7, 'risk-event',  '风险事件', '/admin/risk-events','views/RiskEventView',   'Warning',   'menu', 'admin:risk-event:list',3, 0, 1, 0, 1, 1, 0),
 (20, 0, 'blacklist',   '黑名单管理','/admin/blacklist', 'views/BlacklistView',   'Ban',       'menu', 'admin:blacklist:list', 2, 0, 1, 0, 1, 1, 0),
 (22, 0, 'devices',     '设备管理', '/admin/devices',    'views/DeviceListView',  'Phone',     'menu', 'admin:device:list',    2, 0, 1, 0, 1, 1, 0),
+(42, 7, 'rate-limit',  'IP 限流',  '/admin/rate-limits','views/RateLimitView',   'Speedometer','menu','admin:rate-limit:list',4, 0, 1, 0, 1, 1, 0),
 (40, 0, 'recommends',  '推荐位管理','/admin/recommends','views/RecommendListView','Star',     'menu', 'admin:recommend:list',11,0, 1, 0, 1, 1, 0),
 (41, 0, 'activities',  '活动管理', '/admin/activities', 'views/ActivityListView','Calendar',  'menu', 'admin:activity:list', 12,0, 1, 0, 1, 1, 0);
 
@@ -909,14 +947,14 @@ INSERT IGNORE INTO sys_admin_role_menu (role_id, menu_id) VALUES
 -- admin 全量（测试用最小集）
 (1001, 1),(1001, 2),(1001, 7),(1001, 8),(1001, 9),(1001, 10),(1001, 11),
 (1001, 13),(1001, 14),(1001, 16),(1001, 18),(1001, 19),(1001, 20),(1001, 22),
-(1001, 40),(1001, 41),
+(1001, 40),(1001, 41),(1001, 42),
 -- ops
 (1003, 1),(1003, 2),(1003, 10),(1003, 16),(1003, 18),(1003, 40),(1003, 41),
 -- audit
 (1004, 1),(1004, 2),(1004, 7),(1004, 8),(1004, 9),(1004, 19),
 (1004, 13),(1004, 14),(1004, 20),(1004, 22),
 -- security
-(1005, 1),(1005, 2),(1005, 7),(1005, 8),(1005, 9),(1005, 19),(1005, 20),(1005, 22),
+(1005, 1),(1005, 2),(1005, 7),(1005, 8),(1005, 9),(1005, 19),(1005, 20),(1005, 22),(1005, 42),
 -- readonly
 (1006, 1),(1006, 2),(1006, 7),(1006, 8),(1006, 9),(1006, 19),(1006, 10),(1006, 13),(1006, 14),(1006, 18),(1006, 22);
 
@@ -968,7 +1006,20 @@ INSERT IGNORE INTO sys_permission (id, permission_code, permission_name, resourc
 (2200,'admin:activity:edit','编辑活动','button',NULL,'编辑活动',1),
 (2201,'admin:activity:delete','删除活动','button',NULL,'删除活动',1),
 (2202,'admin:activity:publish','发布活动','button',NULL,'发布活动',1),
-(2203,'admin:activity:unpublish','下线活动','button',NULL,'下线活动',1);
+(2203,'admin:activity:unpublish','下线活动','button',NULL,'下线活动',1),
+(2204,'admin:role:assign-permission','角色分配权限','button',NULL,'角色权限点授权',1),
+(2205,'admin:rate-limit:list','查看 IP 限流','page','/admin/rate-limits','限流控制台',1),
+(2206,'admin:rate-limit:unblock','解除 IP 限流','button',NULL,'清除限流计数',1),
+(2207,'admin:rate-limit:whitelist','管理限流白名单','button',NULL,'IP 白名单',1),
+(2111,'admin:role:list','查看角色列表','page','/admin/roles','角色管理',1),
+(2112,'admin:role:create','新增角色','button',NULL,'新增角色',1),
+(2115,'admin:role:assign-menu','角色分配菜单','button',NULL,'菜单授权',1);
+
+-- admin: 角色权限管理（测试）
+INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, deleted) VALUES
+(291111, 1001, 2111, NULL, 0),(291112, 1001, 2112, NULL, 0),(291115, 1001, 2115, NULL, 0),
+(291204, 1001, 2204, NULL, 0),(291101, 1001, 2101, NULL, 0),
+(291205, 1001, 2205, NULL, 0),(291206, 1001, 2206, NULL, 0),(291207, 1001, 2207, NULL, 0);
 
 -- ops: 查看 + 反馈/公告/统计 + 用户导出 + 推荐位/活动
 INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, deleted) VALUES
@@ -1001,7 +1052,8 @@ INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, d
 (295149, 1005, 2149, NULL, 0),(295171, 1005, 2171, NULL, 0),(295172, 1005, 2172, NULL, 0),
 (295176, 1005, 2176, NULL, 0),(295177, 1005, 2177, NULL, 0),
 (295182, 1005, 2182, NULL, 0),(295183, 1005, 2183, NULL, 0),
-(295184, 1005, 2184, NULL, 0),(295185, 1005, 2185, NULL, 0);
+(295184, 1005, 2184, NULL, 0),(295185, 1005, 2185, NULL, 0),
+(295205, 1005, 2205, NULL, 0),(295206, 1005, 2206, NULL, 0),(295207, 1005, 2207, NULL, 0);
 
 -- readonly: 查看 + 导出（无写）
 INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, deleted) VALUES

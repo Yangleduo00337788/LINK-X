@@ -30,6 +30,8 @@ class SysUserMapperTest extends BaseIntegrationTest {
                     .username("mapper_test_" + System.nanoTime())
                     .password("hashedPassword")
                     .nickname("Mapper测试")
+                    .totpEnabled(0)
+                    .deviceBindingEnabled(0)
                     .status(1)
                     .deleted(0)
                     .build();
@@ -49,6 +51,8 @@ class SysUserMapperTest extends BaseIntegrationTest {
                     .username("selectbyid_" + System.nanoTime())
                     .password("pass123")
                     .nickname("Select测试")
+                    .totpEnabled(0)
+                    .deviceBindingEnabled(0)
                     .status(1)
                     .deleted(0)
                     .build();
@@ -70,6 +74,8 @@ class SysUserMapperTest extends BaseIntegrationTest {
                     .username("update_" + System.nanoTime())
                     .password("oldPass")
                     .nickname("原昵称")
+                    .totpEnabled(0)
+                    .deviceBindingEnabled(0)
                     .status(1)
                     .deleted(0)
                     .build();
@@ -94,6 +100,8 @@ class SysUserMapperTest extends BaseIntegrationTest {
                     .username("delete_" + System.nanoTime())
                     .password("pass")
                     .nickname("待删除")
+                    .totpEnabled(0)
+                    .deviceBindingEnabled(0)
                     .status(1)
                     .deleted(0)
                     .build();
@@ -125,6 +133,8 @@ class SysUserMapperTest extends BaseIntegrationTest {
                     .username(username)
                     .password("pass")
                     .nickname("查询测试")
+                    .totpEnabled(0)
+                    .deviceBindingEnabled(0)
                     .status(1)
                     .deleted(0)
                     .build();
@@ -148,6 +158,8 @@ class SysUserMapperTest extends BaseIntegrationTest {
                         .username(prefix + "_" + i)
                         .password("pass")
                         .nickname("模糊用户" + i)
+                        .totpEnabled(0)
+                        .deviceBindingEnabled(0)
                         .status(1)
                         .deleted(0)
                         .build();
@@ -169,6 +181,8 @@ class SysUserMapperTest extends BaseIntegrationTest {
                     .username(username)
                     .password("pass")
                     .nickname("多条件测试")
+                    .totpEnabled(0)
+                    .deviceBindingEnabled(0)
                     .status(1)
                     .deleted(0)
                     .build();
@@ -204,6 +218,8 @@ class SysUserMapperTest extends BaseIntegrationTest {
                     .username("ids_" + System.nanoTime())
                     .password("pass")
                     .nickname("IDs测试")
+                    .totpEnabled(0)
+                    .deviceBindingEnabled(0)
                     .status(1)
                     .deleted(0)
                     .build();

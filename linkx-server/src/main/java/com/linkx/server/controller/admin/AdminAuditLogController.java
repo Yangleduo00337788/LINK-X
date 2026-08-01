@@ -5,7 +5,7 @@ import com.linkx.server.common.RequireRole;
 import com.linkx.server.common.Result;
 import com.linkx.server.common.admin.AdminCsvResponses;
 import com.linkx.server.common.admin.PageResultVO;
-import com.linkx.server.controller.admin.dto.AdminPageQueryDTO;
+import com.linkx.server.controller.admin.dto.AdminAuditLogQueryDTO;
 import com.linkx.server.controller.admin.vo.AdminOperationLogVO;
 import com.linkx.server.service.admin.AdminAuditLogService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -33,14 +33,14 @@ public class AdminAuditLogController {
     @Operation(summary = "查询操作日志")
     @GetMapping
     @RequirePermission("admin:audit:list")
-    public Result<PageResultVO<AdminOperationLogVO>> list(@Valid AdminPageQueryDTO query) {
+    public Result<PageResultVO<AdminOperationLogVO>> list(@Valid AdminAuditLogQueryDTO query) {
         return Result.success(adminAuditLogService.listAuditLogs(query));
     }
 
     @Operation(summary = "导出操作日志 CSV")
     @GetMapping("/export")
     @RequirePermission("admin:audit:export")
-    public ResponseEntity<byte[]> export(@Valid AdminPageQueryDTO query) {
+    public ResponseEntity<byte[]> export(@Valid AdminAuditLogQueryDTO query) {
         List<AdminOperationLogVO> items = adminAuditLogService.listAuditLogsForExport(query);
         List<String[]> rows = new ArrayList<>(items.size());
         for (AdminOperationLogVO item : items) {

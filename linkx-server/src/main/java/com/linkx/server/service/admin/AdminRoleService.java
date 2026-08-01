@@ -4,6 +4,7 @@ import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminPageQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminPermissionDTO;
 import com.linkx.server.controller.admin.dto.AdminRoleAssignMenuDTO;
+import com.linkx.server.controller.admin.dto.AdminRoleAssignPermissionDTO;
 import com.linkx.server.controller.admin.dto.AdminRoleAssignUserDTO;
 import com.linkx.server.controller.admin.dto.AdminRoleDTO;
 import com.linkx.server.controller.admin.vo.AdminPermissionVO;
@@ -27,6 +28,10 @@ public interface AdminRoleService {
     List<Long> getRoleMenuIds(Long roleId);
 
     void assignMenus(Long roleId, AdminRoleAssignMenuDTO dto);
+
+    List<Long> getRolePermissionIds(Long roleId);
+
+    void assignPermissions(Long roleId, AdminRoleAssignPermissionDTO dto);
 
     List<AdminRoleUserVO> listRoleUsers(Long roleId);
 

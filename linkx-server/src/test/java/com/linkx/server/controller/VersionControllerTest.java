@@ -1,9 +1,11 @@
 package com.linkx.server.controller;
 
+import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.support.BaseIntegrationTest;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.context.TestPropertySource;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -20,14 +22,23 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * </p>
  */
 @DisplayName("应用版本接口测试")
-@TestPropertySource(properties = {
-        "linkx.app.version=1.10.0",
-        "linkx.app.channel=beta",
-        "linkx.app.release-notes=新版本来了",
-        "linkx.app.force-update=true",
-        "linkx.app.min-supported-version=1.8.0"
-})
 class VersionControllerTest extends BaseIntegrationTest {
+
+    @Autowired
+    private LinkxProperties linkxProperties;
+
+    @BeforeEach
+    void seedAppVersionProps() {
+        // 运行时配置表会覆盖 yml；用例内直接钉死内存属性，避免被其他 IT 污染
+        LinkxProperties.App app = linkxProperties.getApp();
+        app.setVersion("1.10.0");
+        app.setChannel("beta");
+        app.setReleaseNotes("新版本来了");
+        app.setForceUpdate(true);
+        app.setMinSupportedVersion("1.8.0");
+        app.setSupportEmail("support@version.test");
+        app.setSupportPhone("400-000-1111");
+    }
 
     @Test
     @DisplayName("无 current 参数：hasUpdate=false")
@@ -38,7 +49,9 @@ class VersionControllerTest extends BaseIntegrationTest {
                 .andExpect(jsonPath("$.data.hasUpdate").value(false))
                 .andExpect(jsonPath("$.data.forceUpdate").value(false))
                 .andExpect(jsonPath("$.data.channel").value("beta"))
-                .andExpect(jsonPath("$.data.releaseNotes").value("当前已是最新版本"));
+                .andExpect(jsonPath("$.data.releaseNotes").value("当前已是最新版本"))
+                .andExpect(jsonPath("$.data.supportEmail").value("support@version.test"))
+                .andExpect(jsonPath("$.data.supportPhone").value("400-000-1111"));
     }
 
     @Test

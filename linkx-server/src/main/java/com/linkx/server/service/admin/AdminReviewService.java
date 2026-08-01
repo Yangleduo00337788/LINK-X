@@ -32,7 +32,7 @@ public interface AdminReviewService {
      * 从敏感词命中创建审核任务（幂等：同 targetType+targetId 的待审任务不重复）。
      *
      * @param userId         涉事用户
-     * @param targetType     message / conversation / moment / moment_comment / announcement
+     * @param targetType     message / conversation / moment / moment_comment / announcement / group_file / favorite
      * @param targetId       目标资源 ID（字符串）
      * @param conversationId 可选会话 ID
      * @param content        命中文本快照

@@ -18,6 +18,9 @@ public interface GroupAssetService {
 
     void delete(Long userId, Long conversationId, Long assetId);
 
+    /** 管理端强制删除群资源（审核处置）。 */
+    void adminDelete(Long assetId);
+
     /** 鉴权后打开群资源文件流（群成员）。 */
     FileStorageService.StoredObject openAssetContent(Long userId, Long conversationId, Long assetId);
 

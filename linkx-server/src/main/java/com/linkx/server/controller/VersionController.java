@@ -60,6 +60,8 @@ public class VersionController {
                 .channel(AppVersionUtils.normalizeChannel(app.getChannel()))
                 .releaseNotes(hasUpdate ? nullToEmpty(app.getReleaseNotes()) : "当前已是最新版本")
                 .downloadUrl(nullToEmpty(app.getDownloadUrl()))
+                .supportEmail(nullToEmpty(app.getSupportEmail()))
+                .supportPhone(nullToEmpty(app.getSupportPhone()))
                 .build());
     }
 

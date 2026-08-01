@@ -7,6 +7,7 @@ import com.linkx.server.entity.GroupAsset;
 import com.linkx.server.entity.ImConversation;
 import com.linkx.server.entity.ImConversationMember;
 import com.linkx.server.entity.SysUser;
+import com.linkx.server.entity.admin.SysReviewTask;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.GroupAssetMapper;
 import com.linkx.server.mapper.ImConversationMapper;
@@ -16,8 +17,12 @@ import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.GroupAssetService;
 import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.ObjectKeyOwnershipService;
+import com.linkx.server.service.SensitiveWordService;
+import com.linkx.server.service.admin.AdminReviewService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -32,6 +37,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class GroupAssetServiceImpl implements GroupAssetService {
@@ -49,6 +55,8 @@ public class GroupAssetServiceImpl implements GroupAssetService {
     private final FileStorageService fileStorageService;
     private final MediaUrlService mediaUrlService;
     private final ObjectKeyOwnershipService objectKeyOwnershipService;
+    private final SensitiveWordService sensitiveWordService;
+    private final ObjectProvider<AdminReviewService> adminReviewService;
 
     @Override
     public List<GroupAssetVO> list(Long userId, Long conversationId, String type) {
@@ -88,6 +96,9 @@ public class GroupAssetServiceImpl implements GroupAssetService {
             objectKeyOwnershipService.assertOwned(userId, dto.getFileKey().trim());
         }
 
+        String scanText = joinScanText(dto.getTitle(), dto.getContent(), dto.getFileName());
+        SensitiveHit hit = filterSensitiveOrThrow(userId, conversationId, scanText, null);
+
         GroupAsset asset = GroupAsset.builder()
                 .conversationId(conversationId)
                 .uploaderId(userId)
@@ -101,6 +112,7 @@ public class GroupAssetServiceImpl implements GroupAssetService {
                 .downloadCount(0)
                 .build();
         groupAssetMapper.insert(asset);
+        enqueueSensitiveAfterPersist(userId, conversationId, String.valueOf(asset.getId()), hit);
         SysUser uploader = sysUserMapper.selectOneById(userId);
         return toVO(asset, uploader);
     }
@@ -130,6 +142,9 @@ public class GroupAssetServiceImpl implements GroupAssetService {
         try {
             String objectKey = fileStorageService.uploadFile(file, null);
             objectKeyOwnershipService.claim(userId, objectKey);
+            String scanText = joinScanText(albumName, file.getOriginalFilename());
+            SensitiveHit hit = filterSensitiveOrThrow(userId, conversationId, scanText, null);
+
             GroupAsset asset = GroupAsset.builder()
                     .conversationId(conversationId)
                     .uploaderId(userId)
@@ -142,7 +157,10 @@ public class GroupAssetServiceImpl implements GroupAssetService {
                     .downloadCount(0)
                     .build();
             groupAssetMapper.insert(asset);
+            enqueueSensitiveAfterPersist(userId, conversationId, String.valueOf(asset.getId()), hit);
             return toVO(asset, sysUserMapper.selectOneById(userId));
+        } catch (CustomException e) {
+            throw e;
         } catch (RuntimeException e) {
             throw new CustomException(400, e.getMessage());
         }
@@ -169,6 +187,16 @@ public class GroupAssetServiceImpl implements GroupAssetService {
             if (!isAdmin) {
                 throw new CustomException(403, "无权删除该资源");
             }
+        }
+        groupAssetMapper.deleteById(assetId);
+    }
+
+    @Override
+    @Transactional
+    public void adminDelete(Long assetId) {
+        GroupAsset asset = groupAssetMapper.selectOneById(assetId);
+        if (asset == null) {
+            throw new CustomException(404, "群文件不存在");
         }
         groupAssetMapper.deleteById(assetId);
     }
@@ -268,5 +296,77 @@ public class GroupAssetServiceImpl implements GroupAssetService {
                 .uploaderNickname(uploader != null ? uploader.getNickname() : null)
                 .createTime(asset.getCreateTime() == null ? null : TIME_FMT.format(asset.getCreateTime().toInstant()))
                 .build();
+    }
+
+    private static String joinScanText(String... parts) {
+        StringBuilder sb = new StringBuilder();
+        if (parts != null) {
+            for (String p : parts) {
+                if (StringUtils.hasText(p)) {
+                    if (!sb.isEmpty()) {
+                        sb.append(' ');
+                    }
+                    sb.append(p.trim());
+                }
+            }
+        }
+        return sb.toString();
+    }
+
+    private SensitiveHit filterSensitiveOrThrow(Long userId, Long conversationId, String content, String existingId) {
+        if (!StringUtils.hasText(content)) {
+            return new SensitiveHit("", null, null);
+        }
+        SensitiveWordService.FilterResult result = sensitiveWordService.filter(content);
+        if (result.matchedWords().isEmpty()) {
+            return new SensitiveHit(result.text(), null, null);
+        }
+        String failReason = result.blocked()
+                ? "blocked"
+                : (result.filtered() ? "filtered" : (result.alerted() ? "alert" : "matched"));
+        String matchedWords = String.join(",", result.matchedWords());
+        if (result.blocked()) {
+            String targetId = existingId != null ? existingId : (userId + ":blocked:" + System.currentTimeMillis());
+            enqueueSensitiveReview(userId, conversationId, targetId, content, matchedWords, failReason);
+            throw new CustomException(400, "内容包含违规敏感词，无法上传");
+        }
+        return new SensitiveHit(result.text(), matchedWords, failReason);
+    }
+
+    private void enqueueSensitiveAfterPersist(Long userId, Long conversationId, String assetId, SensitiveHit hit) {
+        if (hit == null || !hit.matched() || "blocked".equals(hit.failReason())) {
+            return;
+        }
+        enqueueSensitiveReview(userId, conversationId, assetId, hit.text(), hit.matchedWords(), hit.failReason());
+    }
+
+    private void enqueueSensitiveReview(Long userId,
+                                        Long conversationId,
+                                        String targetId,
+                                        String content,
+                                        String matchedWords,
+                                        String failReason) {
+        AdminReviewService reviewService = adminReviewService.getIfAvailable();
+        if (reviewService == null) {
+            return;
+        }
+        try {
+            reviewService.createFromSensitiveHit(
+                    userId,
+                    SysReviewTask.TARGET_GROUP_FILE,
+                    targetId,
+                    conversationId,
+                    content,
+                    matchedWords,
+                    failReason);
+        } catch (Exception e) {
+            log.warn("群文件敏感词入审失败: {}", e.getMessage());
+        }
+    }
+
+    private record SensitiveHit(String text, String matchedWords, String failReason) {
+        boolean matched() {
+            return StringUtils.hasText(matchedWords);
+        }
     }
 }

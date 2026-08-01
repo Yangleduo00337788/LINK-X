@@ -116,6 +116,9 @@ public class AdminUserServiceImpl implements AdminUserService {
         if (query.getStatus() != null) {
             qw.and(SysUser::getStatus).eq(query.getStatus());
         }
+        if (query.getDeptId() != null) {
+            qw.and(SysUser::getDeptId).eq(query.getDeptId());
+        }
         if (query.getStartTime() != null) {
             qw.and(SysUser::getCreateTime).ge(new Date(query.getStartTime()));
         }

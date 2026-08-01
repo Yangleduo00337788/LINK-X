@@ -53,7 +53,7 @@ class AuditLogServiceTest {
         assertEquals("用户登录", capturedLog.getDescription());
         assertEquals(userId, capturedLog.getUserId());
         assertEquals(username, capturedLog.getUsername());
-        assertEquals(ip, capturedLog.getIp());
+        assertEquals("192.168.1.*", capturedLog.getIp());
         assertEquals(userAgent, capturedLog.getUserAgent());
         assertEquals("SUCCESS", capturedLog.getStatus());
         assertNull(capturedLog.getFailureReason());
@@ -160,7 +160,7 @@ class AuditLogServiceTest {
         verify(auditLogMapper, times(1)).insert(captor.capture());
 
         SysAuditLog capturedLog = captor.getValue();
-        assertEquals(512, capturedLog.getUserAgent().length()); // 应该被截断到 512
+        assertEquals(256, capturedLog.getUserAgent().length()); // 应该被截断到 256
     }
 
     @Test

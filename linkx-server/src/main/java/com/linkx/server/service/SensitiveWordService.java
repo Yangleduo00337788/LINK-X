@@ -1,5 +1,6 @@
 package com.linkx.server.service;
 
+import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.entity.SysSensitiveWord;
 import com.linkx.server.mapper.SensitiveWordMapper;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -26,6 +27,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class SensitiveWordService {
 
     private final SensitiveWordMapper sensitiveWordMapper;
+    private final LinkxProperties linkxProperties;
 
     /** DFA 根节点（不可变快照，通过 AtomicReference 实现无锁热替换） */
     private final AtomicReference<DfaNode> rootNodeRef = new AtomicReference<>(new DfaNode());
@@ -36,8 +38,13 @@ public class SensitiveWordService {
     /** replacement 缓存：word -> replacement */
     private final AtomicReference<Map<String, String>> replacementCacheRef = new AtomicReference<>(Map.of());
 
-    public SensitiveWordService(SensitiveWordMapper sensitiveWordMapper) {
+    public SensitiveWordService(SensitiveWordMapper sensitiveWordMapper, LinkxProperties linkxProperties) {
         this.sensitiveWordMapper = sensitiveWordMapper;
+        this.linkxProperties = linkxProperties;
+    }
+
+    private boolean isMasterEnabled() {
+        return !Boolean.FALSE.equals(linkxProperties.getApp().getSensitiveFilterEnabled());
     }
 
     @PostConstruct
@@ -81,7 +88,7 @@ public class SensitiveWordService {
      * @return true 如果包含任何敏感词
      */
     public boolean containsSensitive(String text) {
-        if (text == null || text.isBlank()) return false;
+        if (!isMasterEnabled() || text == null || text.isBlank()) return false;
         return detect(text).hasMatch;
     }
 
@@ -91,7 +98,7 @@ public class SensitiveWordService {
      * @return 过滤结果
      */
     public FilterResult filter(String text) {
-        if (text == null || text.isBlank()) {
+        if (!isMasterEnabled() || text == null || text.isBlank()) {
             return new FilterResult(text, false, false, false, List.of());
         }
 

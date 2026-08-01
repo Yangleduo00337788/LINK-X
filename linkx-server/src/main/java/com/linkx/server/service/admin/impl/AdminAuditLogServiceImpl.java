@@ -5,6 +5,7 @@ import com.linkx.server.common.DataScope;
 import com.linkx.server.common.DataScopeContext;
 import com.linkx.server.common.admin.AdminConstants;
 import com.linkx.server.common.admin.PageResultVO;
+import com.linkx.server.controller.admin.dto.AdminAuditLogQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminPageQueryDTO;
 import com.linkx.server.controller.admin.vo.AdminLoginLogVO;
 import com.linkx.server.controller.admin.vo.AdminOperationLogVO;
@@ -32,12 +33,12 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
 
     @Override
     @DataScope
-    public PageResultVO<AdminOperationLogVO> listAuditLogs(AdminPageQueryDTO query) {
+    public PageResultVO<AdminOperationLogVO> listAuditLogs(AdminAuditLogQueryDTO query) {
         int page = normalizePage(query.getPage());
         int size = normalizeSize(query.getSize());
         QueryWrapper qw = buildAuditQuery(query);
-        qw.orderBy(SysAuditLog::getCreateTime, false);
         long total = sysAuditLogMapper.selectCountByQuery(qw);
+        qw.orderBy(SysAuditLog::getCreateTime, false);
         qw.limit((page - 1L) * size, size);
         List<AdminOperationLogVO> items = sysAuditLogMapper.selectListByQuery(qw).stream()
                 .map(this::toAuditVO)
@@ -47,7 +48,7 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
 
     @Override
     @DataScope
-    public List<AdminOperationLogVO> listAuditLogsForExport(AdminPageQueryDTO query) {
+    public List<AdminOperationLogVO> listAuditLogsForExport(AdminAuditLogQueryDTO query) {
         QueryWrapper qw = buildAuditQuery(query);
         qw.orderBy(SysAuditLog::getCreateTime, false);
         qw.limit(0, AdminConstants.EXPORT_MAX_SIZE);
@@ -72,8 +73,8 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
         int page = normalizePage(query.getPage());
         int size = normalizeSize(query.getSize());
         QueryWrapper qw = buildLoginQuery(query);
-        qw.orderBy(SysLoginAudit::getCreateTime, false);
         long total = sysLoginAuditMapper.selectCountByQuery(qw);
+        qw.orderBy(SysLoginAudit::getCreateTime, false);
         qw.limit((page - 1L) * size, size);
         List<AdminLoginLogVO> items = sysLoginAuditMapper.selectListByQuery(qw).stream()
                 .map(this::toLoginVO)
@@ -102,7 +103,7 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
         return toLoginVO(log);
     }
 
-    private QueryWrapper buildAuditQuery(AdminPageQueryDTO query) {
+    private QueryWrapper buildAuditQuery(AdminAuditLogQueryDTO query) {
         QueryWrapper qw = QueryWrapper.create();
         applyOperatorScope(qw);
         if (StringUtils.hasText(query.getKeyword())) {
@@ -112,6 +113,12 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
                         .or(SysAuditLog::getDescription).like(kw)
                         .or(SysAuditLog::getOperationType).like(kw);
             });
+        }
+        if (StringUtils.hasText(query.getOperationType())) {
+            qw.and(SysAuditLog::getOperationType).eq(query.getOperationType().trim());
+        }
+        if (StringUtils.hasText(query.getResultStatus())) {
+            qw.and(SysAuditLog::getStatus).eq(query.getResultStatus().trim());
         }
         if (query.getStartTime() != null) {
             qw.and(SysAuditLog::getCreateTime).ge(new Date(query.getStartTime()));

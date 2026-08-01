@@ -92,6 +92,9 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                         .forceUpdate(app != null && Boolean.TRUE.equals(app.getForceUpdate()))
                         .minSupportedVersion(app != null ? nullToEmpty(app.getMinSupportedVersion()) : "")
                         .maxUploadBytes(linkxProperties.getMinio().getMaxFileSize())
+                        .sensitiveFilterEnabled(app == null || !Boolean.FALSE.equals(app.getSensitiveFilterEnabled()))
+                        .supportEmail(app != null ? nullToEmpty(app.getSupportEmail()) : "")
+                        .supportPhone(app != null ? nullToEmpty(app.getSupportPhone()) : "")
                         .build())
                 .mail(buildMailSide())
                 .mailTemplates(buildMailTemplatesSide())
@@ -163,6 +166,9 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         row.setForceUpdate(Boolean.TRUE.equals(dto.getForceUpdate()));
         row.setMinSupportedVersion(minSupported);
         row.setMaxUploadBytes(dto.getMaxUploadBytes());
+        row.setSensitiveFilterEnabled(Boolean.TRUE.equals(dto.getSensitiveFilterEnabled()));
+        row.setSupportEmail(nullToEmpty(dto.getSupportEmail()));
+        row.setSupportPhone(nullToEmpty(dto.getSupportPhone()));
         row.setUpdateBy(operatorId);
         persist(row);
         applyClientSide(row);
@@ -333,6 +339,9 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                 .forceUpdate(app != null && Boolean.TRUE.equals(app.getForceUpdate()))
                 .minSupportedVersion(app != null ? nullToEmpty(app.getMinSupportedVersion()) : "")
                 .maxUploadBytes(linkxProperties.getMinio().getMaxFileSize())
+                .sensitiveFilterEnabled(app == null || !Boolean.FALSE.equals(app.getSensitiveFilterEnabled()))
+                .supportEmail(app != null ? nullToEmpty(app.getSupportEmail()) : "")
+                .supportPhone(app != null ? nullToEmpty(app.getSupportPhone()) : "")
                 .mailHost(linkxProperties.getMail().getHost())
                 .mailPort(linkxProperties.getMail().getPort())
                 .mailUsername(nullToEmpty(linkxProperties.getMail().getUsername()))
@@ -448,6 +457,15 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         }
         if (row.getMaxUploadBytes() != null && row.getMaxUploadBytes() > 0) {
             linkxProperties.getMinio().setMaxFileSize(row.getMaxUploadBytes());
+        }
+        if (row.getSensitiveFilterEnabled() != null) {
+            app.setSensitiveFilterEnabled(row.getSensitiveFilterEnabled());
+        }
+        if (row.getSupportEmail() != null) {
+            app.setSupportEmail(nullToEmpty(row.getSupportEmail()));
+        }
+        if (row.getSupportPhone() != null) {
+            app.setSupportPhone(nullToEmpty(row.getSupportPhone()));
         }
     }
 

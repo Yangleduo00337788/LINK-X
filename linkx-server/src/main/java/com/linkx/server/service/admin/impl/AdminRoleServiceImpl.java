@@ -6,6 +6,7 @@ import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminPageQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminPermissionDTO;
 import com.linkx.server.controller.admin.dto.AdminRoleAssignMenuDTO;
+import com.linkx.server.controller.admin.dto.AdminRoleAssignPermissionDTO;
 import com.linkx.server.controller.admin.dto.AdminRoleAssignUserDTO;
 import com.linkx.server.controller.admin.dto.AdminRoleDTO;
 import com.linkx.server.controller.admin.vo.AdminPermissionVO;
@@ -15,6 +16,7 @@ import com.linkx.server.entity.SysDept;
 import com.linkx.server.entity.SysPermission;
 import com.linkx.server.entity.SysRole;
 import com.linkx.server.entity.SysRoleDept;
+import com.linkx.server.entity.SysRolePermission;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.entity.SysUserRole;
 import com.linkx.server.entity.admin.AdminRoleMenu;
@@ -23,11 +25,13 @@ import com.linkx.server.mapper.SysDeptMapper;
 import com.linkx.server.mapper.SysPermissionMapper;
 import com.linkx.server.mapper.SysRoleDeptMapper;
 import com.linkx.server.mapper.SysRoleMapper;
+import com.linkx.server.mapper.SysRolePermissionMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.mapper.SysUserRoleMapper;
 import com.linkx.server.mapper.admin.AdminRoleMenuMapper;
 import com.linkx.server.service.RbacService;
 import com.linkx.server.service.admin.AdminRoleService;
+import com.mybatisflex.core.logicdelete.LogicDeleteManager;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -46,6 +50,7 @@ public class AdminRoleServiceImpl implements AdminRoleService {
 
     private final SysRoleMapper sysRoleMapper;
     private final SysPermissionMapper sysPermissionMapper;
+    private final SysRolePermissionMapper sysRolePermissionMapper;
     private final AdminRoleMenuMapper adminRoleMenuMapper;
     private final SysUserRoleMapper sysUserRoleMapper;
     private final SysUserMapper sysUserMapper;
@@ -189,6 +194,58 @@ public class AdminRoleServiceImpl implements AdminRoleService {
                     .menuId(menuId)
                     .createdAt(now)
                     .build());
+        }
+    }
+
+    @Override
+    public List<Long> getRolePermissionIds(Long roleId) {
+        requireRole(roleId);
+        return sysRolePermissionMapper.selectListByQuery(
+                        QueryWrapper.create().where(SysRolePermission::getRoleId).eq(roleId))
+                .stream()
+                .map(SysRolePermission::getPermissionId)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public void assignPermissions(Long roleId, AdminRoleAssignPermissionDTO dto) {
+        requireRole(roleId);
+        // sys_role_permission 有 uk(role_id, permission_id)；全局逻辑删除会导致软删后无法再插入，须物理删除
+        LogicDeleteManager.execWithoutLogicDelete(() ->
+                sysRolePermissionMapper.deleteByQuery(
+                        QueryWrapper.create().where(SysRolePermission::getRoleId).eq(roleId)));
+        List<Long> permissionIds = dto.getPermissionIds() == null ? List.of() : dto.getPermissionIds().stream()
+                .filter(id -> id != null)
+                .distinct()
+                .collect(Collectors.toList());
+        if (!permissionIds.isEmpty()) {
+            long validCount = sysPermissionMapper.selectCountByQuery(
+                    QueryWrapper.create().where(SysPermission::getId).in(permissionIds));
+            if (validCount != permissionIds.size()) {
+                throw new CustomException(400, "permission not found");
+            }
+            Date now = new Date();
+            for (Long permissionId : permissionIds) {
+                sysRolePermissionMapper.insert(SysRolePermission.builder()
+                        .roleId(roleId)
+                        .permissionId(permissionId)
+                        .createBy(null)
+                        .deleted(0)
+                        .createTime(now)
+                        .build());
+            }
+        }
+        evictRoleUsersCache(roleId);
+    }
+
+    private void evictRoleUsersCache(Long roleId) {
+        List<SysUserRole> links = sysUserRoleMapper.selectListByQuery(
+                QueryWrapper.create().where(SysUserRole::getRoleId).eq(roleId));
+        for (SysUserRole link : links) {
+            if (link.getUserId() != null) {
+                rbacService.evictUserCache(link.getUserId());
+            }
         }
     }
 

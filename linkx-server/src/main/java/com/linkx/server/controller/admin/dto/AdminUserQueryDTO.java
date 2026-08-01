@@ -9,4 +9,7 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 @Schema(description = "用户列表查询")
 public class AdminUserQueryDTO extends AdminPageQueryDTO {
+
+    @Schema(description = "部门 ID")
+    private Long deptId;
 }

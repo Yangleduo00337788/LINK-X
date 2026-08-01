@@ -14,4 +14,10 @@ public class AdminReviewQueryDTO extends AdminPageQueryDTO {
 
     @Schema(description = "来源：report/sensitive/manual")
     private String sourceType;
+
+    @Schema(description = "目标类型：moment/moment_comment/message/announcement 等")
+    private String targetType;
+
+    @Schema(description = "风险等级：low/medium/high/critical")
+    private String riskLevel;
 }

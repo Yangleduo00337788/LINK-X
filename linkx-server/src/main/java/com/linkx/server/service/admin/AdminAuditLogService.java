@@ -1,6 +1,7 @@
 package com.linkx.server.service.admin;
 
 import com.linkx.server.common.admin.PageResultVO;
+import com.linkx.server.controller.admin.dto.AdminAuditLogQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminPageQueryDTO;
 import com.linkx.server.controller.admin.vo.AdminLoginLogVO;
 import com.linkx.server.controller.admin.vo.AdminOperationLogVO;
@@ -9,10 +10,10 @@ import java.util.List;
 
 public interface AdminAuditLogService {
 
-    PageResultVO<AdminOperationLogVO> listAuditLogs(AdminPageQueryDTO query);
+    PageResultVO<AdminOperationLogVO> listAuditLogs(AdminAuditLogQueryDTO query);
 
     /** 导出用操作日志（最多 EXPORT_MAX_SIZE） */
-    List<AdminOperationLogVO> listAuditLogsForExport(AdminPageQueryDTO query);
+    List<AdminOperationLogVO> listAuditLogsForExport(AdminAuditLogQueryDTO query);
 
     AdminOperationLogVO auditDetail(Long id);
 

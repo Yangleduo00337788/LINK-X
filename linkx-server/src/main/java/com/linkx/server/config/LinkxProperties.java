@@ -281,6 +281,12 @@ public class LinkxProperties {
         private Boolean forceUpdate = false;
         /** 低于此版本强制升级（可空；空表示不额外按最低版本强更） */
         private String minSupportedVersion = "";
+        /** 敏感词过滤总开关（关闭后业务侧不再拦截） */
+        private Boolean sensitiveFilterEnabled = true;
+        /** 客服邮箱 */
+        private String supportEmail = "";
+        /** 客服电话 */
+        private String supportPhone = "";
         /** 开发模式：允许 localhost origin 连接 WebSocket（生产环境必须关闭） */
         private Boolean devModeEnabled = false;
     }

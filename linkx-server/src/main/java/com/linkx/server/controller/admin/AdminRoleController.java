@@ -8,6 +8,7 @@ import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.config.aspect.AuditAction;
 import com.linkx.server.controller.admin.dto.AdminPageQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminRoleAssignMenuDTO;
+import com.linkx.server.controller.admin.dto.AdminRoleAssignPermissionDTO;
 import com.linkx.server.controller.admin.dto.AdminRoleAssignUserDTO;
 import com.linkx.server.controller.admin.dto.AdminRoleDTO;
 import com.linkx.server.controller.admin.vo.AdminRoleUserVO;
@@ -97,6 +98,24 @@ public class AdminRoleController {
     @RequireStepUp("admin:role:assign-menu")
     public Result<Void> assignMenus(@PathVariable Long id, @Valid @RequestBody AdminRoleAssignMenuDTO dto) {
         adminRoleService.assignMenus(id, dto);
+        return Result.success(null);
+    }
+
+    @Operation(summary = "查询角色权限")
+    @GetMapping("/{id}/permissions")
+    @RequirePermission("admin:role:list")
+    public Result<List<Long>> permissions(@PathVariable Long id) {
+        return Result.success(adminRoleService.getRolePermissionIds(id));
+    }
+
+    @Operation(summary = "角色权限授权")
+    @AuditAction(operationType = "ROLE_GRANT", description = "角色权限授权")
+    @PutMapping("/{id}/permissions")
+    @RequirePermission("admin:role:assign-permission")
+    @RequireStepUp("admin:role:assign-permission")
+    public Result<Void> assignPermissions(@PathVariable Long id,
+                                          @Valid @RequestBody AdminRoleAssignPermissionDTO dto) {
+        adminRoleService.assignPermissions(id, dto);
         return Result.success(null);
     }
 

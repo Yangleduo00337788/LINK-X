@@ -4,6 +4,7 @@ import com.linkx.server.common.AuthUtils;
 import com.linkx.server.common.DataScopeContext;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.RbacConstants;
+import com.linkx.server.common.admin.AdminActorContext;
 import com.linkx.server.common.admin.AdminConstants;
 import com.linkx.server.common.admin.DataScopeType;
 import com.linkx.server.entity.SysDept;
@@ -184,10 +185,14 @@ public class DataScopeAspect {
 
     private Long currentUserId() {
         HttpServletRequest request = currentRequest();
-        if (request == null) {
-            return null;
+        if (request != null) {
+            Long fromRequest = AuthUtils.getUserId(request, jwtUtils);
+            if (fromRequest != null) {
+                return fromRequest;
+            }
         }
-        return AuthUtils.getUserId(request, jwtUtils);
+        // 异步导出等无 HTTP 请求的路径
+        return AdminActorContext.getUserId();
     }
 
     private HttpServletRequest currentRequest() {

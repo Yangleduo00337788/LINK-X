@@ -9,18 +9,24 @@ import com.linkx.server.controller.admin.dto.AdminUserActionDTO;
 import com.linkx.server.controller.admin.vo.AdminReviewBatchResultVO;
 import com.linkx.server.controller.admin.vo.AdminReviewVO;
 import com.linkx.server.controller.vo.MessageVO;
+import com.linkx.server.entity.Favorite;
 import com.linkx.server.entity.Feedback;
+import com.linkx.server.entity.GroupAsset;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.entity.admin.SysReviewTask;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.im.ImMessagePushService;
+import com.linkx.server.mapper.FavoriteMapper;
 import com.linkx.server.mapper.FeedbackMapper;
+import com.linkx.server.mapper.GroupAssetMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.mapper.admin.SysReviewTaskMapper;
 import com.linkx.server.entity.ImConversation;
 import com.linkx.server.mapper.ImConversationMapper;
 import com.linkx.server.service.ChatService;
+import com.linkx.server.service.FavoriteService;
 import com.linkx.server.service.GroupAnnouncementService;
+import com.linkx.server.service.GroupAssetService;
 import com.linkx.server.service.GroupService;
 import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.MessageNotificationService;
@@ -72,8 +78,12 @@ public class AdminReviewServiceImpl implements AdminReviewService {
     private final ChatService chatService;
     private final MomentsService momentsService;
     private final GroupAnnouncementService groupAnnouncementService;
+    private final GroupAssetService groupAssetService;
+    private final FavoriteService favoriteService;
     private final GroupService groupService;
     private final ImConversationMapper conversationMapper;
+    private final GroupAssetMapper groupAssetMapper;
+    private final FavoriteMapper favoriteMapper;
 
     public AdminReviewServiceImpl(
             SysReviewTaskMapper reviewTaskMapper,
@@ -88,8 +98,12 @@ public class AdminReviewServiceImpl implements AdminReviewService {
             @Lazy ChatService chatService,
             @Lazy MomentsService momentsService,
             @Lazy GroupAnnouncementService groupAnnouncementService,
+            @Lazy GroupAssetService groupAssetService,
+            @Lazy FavoriteService favoriteService,
             @Lazy GroupService groupService,
-            ImConversationMapper conversationMapper) {
+            ImConversationMapper conversationMapper,
+            GroupAssetMapper groupAssetMapper,
+            FavoriteMapper favoriteMapper) {
         this.reviewTaskMapper = reviewTaskMapper;
         this.feedbackMapper = feedbackMapper;
         this.sysUserMapper = sysUserMapper;
@@ -102,8 +116,12 @@ public class AdminReviewServiceImpl implements AdminReviewService {
         this.chatService = chatService;
         this.momentsService = momentsService;
         this.groupAnnouncementService = groupAnnouncementService;
+        this.groupAssetService = groupAssetService;
+        this.favoriteService = favoriteService;
         this.groupService = groupService;
         this.conversationMapper = conversationMapper;
+        this.groupAssetMapper = groupAssetMapper;
+        this.favoriteMapper = favoriteMapper;
     }
 
     @Override
@@ -112,8 +130,9 @@ public class AdminReviewServiceImpl implements AdminReviewService {
         int page = normalizePage(query.getPage());
         int size = normalizeSize(query.getSize());
         QueryWrapper qw = buildListQuery(query);
-        qw.orderBy(SysReviewTask::getCreateTime, false);
+        // count 不可带 ORDER BY：H2 会报 create_time 须出现在 GROUP BY
         long total = reviewTaskMapper.selectCountByQuery(qw);
+        qw.orderBy(SysReviewTask::getCreateTime, false);
         qw.limit((page - 1L) * size, size);
         List<AdminReviewVO> items = reviewTaskMapper.selectListByQuery(qw).stream()
                 .map(this::toVO)
@@ -137,6 +156,12 @@ public class AdminReviewServiceImpl implements AdminReviewService {
         }
         if (StringUtils.hasText(query.getSourceType())) {
             qw.and(SysReviewTask::getSourceType).eq(query.getSourceType().trim());
+        }
+        if (StringUtils.hasText(query.getTargetType())) {
+            qw.and(SysReviewTask::getTargetType).eq(query.getTargetType().trim());
+        }
+        if (StringUtils.hasText(query.getRiskLevel())) {
+            qw.and(SysReviewTask::getRiskLevel).eq(query.getRiskLevel().trim());
         }
         if (query.getStartTime() != null) {
             qw.and(SysReviewTask::getCreateTime).ge(new Date(query.getStartTime()));
@@ -570,8 +595,16 @@ public class AdminReviewServiceImpl implements AdminReviewService {
                     groupAnnouncementService.adminDelete(Long.parseLong(targetId.trim()));
                     return "delete_announcement";
                 }
+                case SysReviewTask.TARGET_GROUP_FILE -> {
+                    groupAssetService.adminDelete(Long.parseLong(targetId.trim()));
+                    return "delete_group_file";
+                }
+                case SysReviewTask.TARGET_FAVORITE -> {
+                    favoriteService.adminDelete(Long.parseLong(targetId.trim()));
+                    return "delete_favorite";
+                }
                 default -> throw new CustomException(400,
-                        "目标类型 " + targetType + " 不支持删除内容，请仅对消息/动态/评论/公告使用内容删除");
+                        "目标类型 " + targetType + " 不支持删除内容，请仅对消息/动态/评论/公告/群文件/收藏使用内容删除");
             }
         } catch (NumberFormatException ex) {
             throw new CustomException(400, "目标 ID 无效，无法删除内容");
@@ -594,6 +627,10 @@ public class AdminReviewServiceImpl implements AdminReviewService {
             suffixes.add("[已删除评论]");
         } else if ("delete_announcement".equals(appliedContent)) {
             suffixes.add("[已删除公告]");
+        } else if ("delete_group_file".equals(appliedContent)) {
+            suffixes.add("[已删除群文件]");
+        } else if ("delete_favorite".equals(appliedContent)) {
+            suffixes.add("[已删除收藏]");
         }
         if ("freeze".equals(appliedUser)) {
             suffixes.add("[同时冻结用户]");
@@ -735,6 +772,24 @@ public class AdminReviewServiceImpl implements AdminReviewService {
         if (SysReviewTask.TARGET_USER.equals(task.getTargetType()) && StringUtils.hasText(task.getTargetId())) {
             try {
                 return Long.parseLong(task.getTargetId().trim());
+            } catch (NumberFormatException ignored) {
+                // fall through
+            }
+        }
+        if (StringUtils.hasText(task.getTargetId())) {
+            try {
+                long tid = Long.parseLong(task.getTargetId().trim());
+                if (SysReviewTask.TARGET_GROUP_FILE.equals(task.getTargetType())) {
+                    GroupAsset asset = groupAssetMapper.selectOneById(tid);
+                    if (asset != null && asset.getUploaderId() != null) {
+                        return asset.getUploaderId();
+                    }
+                } else if (SysReviewTask.TARGET_FAVORITE.equals(task.getTargetType())) {
+                    Favorite fav = favoriteMapper.selectOneById(tid);
+                    if (fav != null && fav.getUserId() != null) {
+                        return fav.getUserId();
+                    }
+                }
             } catch (NumberFormatException ignored) {
                 // fall through
             }

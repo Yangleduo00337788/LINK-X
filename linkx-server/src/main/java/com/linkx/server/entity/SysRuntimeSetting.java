@@ -67,6 +67,12 @@ public class SysRuntimeSetting implements Serializable {
     /** 低于此版本强制升级（可空） */
     private String minSupportedVersion;
     private Long maxUploadBytes;
+    /** 敏感词过滤总开关 */
+    private Boolean sensitiveFilterEnabled;
+    /** 客服邮箱 */
+    private String supportEmail;
+    /** 客服电话 */
+    private String supportPhone;
 
     /** SMTP 主机（空则沿用 env/yml） */
     private String mailHost;
