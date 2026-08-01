@@ -86,4 +86,22 @@ public class ImAsyncConfig {
         executor.initialize();
         return executor.getThreadPoolExecutor();
     }
+
+    /**
+     * 管理端异步导出线程池。
+     * <p>
+     * 有界队列 + CallerRunsPolicy：队列满时回落到调用线程，避免导出任务静默丢弃。
+     * </p>
+     */
+    @Bean(name = "adminExportExecutor")
+    public java.util.concurrent.Executor adminExportExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(50);
+        executor.setThreadNamePrefix("admin-export-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+        return executor;
+    }
 }

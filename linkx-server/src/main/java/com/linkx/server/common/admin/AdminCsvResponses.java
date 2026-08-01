@@ -21,8 +21,20 @@ public final class AdminCsvResponses {
     }
 
     public static ResponseEntity<byte[]> csv(String filenamePrefix, List<String> headers, List<String[]> rows) {
+        byte[] out = toBytes(headers, rows);
+        String filename = buildFilename(filenamePrefix);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+                .body(out);
+    }
+
+    /** UTF-8 BOM + CSV 正文，供同步响应与异步落库共用。 */
+    public static byte[] toBytes(List<String> headers, List<String[]> rows) {
         StringBuilder sb = new StringBuilder();
-        appendRow(sb, headers.toArray(new String[0]));
+        if (headers != null) {
+            appendRow(sb, headers.toArray(new String[0]));
+        }
         if (rows != null) {
             for (String[] row : rows) {
                 appendRow(sb, row);
@@ -32,12 +44,12 @@ public final class AdminCsvResponses {
         byte[] out = new byte[UTF8_BOM.length + bodyBytes.length];
         System.arraycopy(UTF8_BOM, 0, out, 0, UTF8_BOM.length);
         System.arraycopy(bodyBytes, 0, out, UTF8_BOM.length, bodyBytes.length);
+        return out;
+    }
 
-        String filename = filenamePrefix + "_" + LocalDateTime.now().format(TS) + ".csv";
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
-                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
-                .body(out);
+    public static String buildFilename(String filenamePrefix) {
+        String prefix = (filenamePrefix == null || filenamePrefix.isBlank()) ? "export" : filenamePrefix.trim();
+        return prefix + "_" + LocalDateTime.now().format(TS) + ".csv";
     }
 
     private static void appendRow(StringBuilder sb, String[] cells) {
