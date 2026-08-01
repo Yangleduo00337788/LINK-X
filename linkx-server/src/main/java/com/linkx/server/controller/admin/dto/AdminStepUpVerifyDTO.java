@@ -8,7 +8,7 @@ import lombok.Data;
 @Schema(description = "校验二次验证码并签发 step-up token")
 public class AdminStepUpVerifyDTO {
 
-    @Schema(description = "验证方式：totp / email / sms", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "验证方式：totp / email", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank
     private String method;
 

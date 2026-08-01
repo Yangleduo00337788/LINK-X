@@ -78,8 +78,7 @@ public class AdminStepUpServiceImpl implements AdminStepUpService {
             // TOTP 无需预发码
             return buildOptions(user, action, method, null);
         }
-        // sms 预留
-        throw new CustomException(400, "短信二次验证尚未配置短信服务商");
+        throw new CustomException(400, "不支持的验证方式");
     }
 
     @Override
@@ -98,7 +97,7 @@ public class AdminStepUpServiceImpl implements AdminStepUpService {
         } else if ("email".equals(method)) {
             verifyEmailCode(userId, action, code);
         } else {
-            throw new CustomException(400, "短信二次验证尚未配置短信服务商");
+            throw new CustomException(400, "不支持的验证方式");
         }
 
         String token = UUID.randomUUID().toString().replace("-", "");
@@ -162,9 +161,6 @@ public class AdminStepUpServiceImpl implements AdminStepUpService {
     private void assertMethodAvailable(SysUser user, String method) {
         List<String> methods = availableMethods(user);
         if (!methods.contains(method)) {
-            if ("sms".equals(method)) {
-                throw new CustomException(400, "短信二次验证尚未配置短信服务商");
-            }
             if ("totp".equals(method)) {
                 throw new CustomException(400, "请先在个人中心启用 TOTP");
             }
@@ -181,7 +177,6 @@ public class AdminStepUpServiceImpl implements AdminStepUpService {
                 .totpEnabled(isTotpEnabled(user))
                 .emailBound(hasEmail(user))
                 .emailMasked(maskEmail(user.getEmail()))
-                .smsAvailable(false)
                 .action(action)
                 .method(method)
                 .expiresIn(expiresIn)

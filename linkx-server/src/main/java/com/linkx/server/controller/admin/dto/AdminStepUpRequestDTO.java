@@ -5,10 +5,10 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 @Data
-@Schema(description = "发起二次验证（发邮箱/短信验证码）")
+@Schema(description = "发起二次验证（发邮箱验证码或确认 TOTP）")
 public class AdminStepUpRequestDTO {
 
-    @Schema(description = "验证方式：totp / email / sms", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "验证方式：totp / email", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank
     private String method;
 

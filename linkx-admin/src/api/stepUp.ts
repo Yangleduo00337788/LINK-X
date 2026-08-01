@@ -1,13 +1,12 @@
 import { get, post } from './request'
 
-export type StepUpMethod = 'totp' | 'email' | 'sms'
+export type StepUpMethod = 'totp' | 'email'
 
 export interface StepUpChallenge {
   methods: StepUpMethod[]
   totpEnabled?: boolean
   emailBound?: boolean
   emailMasked?: string
-  smsAvailable?: boolean
   action?: string
   method?: string
   expiresIn?: number

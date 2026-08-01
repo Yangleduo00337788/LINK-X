@@ -11,7 +11,7 @@ import java.util.List;
 @Schema(description = "二次验证挑战信息 / 可用方式")
 public class AdminStepUpChallengeVO {
 
-    @Schema(description = "可用验证方式：totp / email（sms 未配置时不出现）")
+    @Schema(description = "可用验证方式：totp / email")
     private List<String> methods;
 
     @Schema(description = "是否已启用 TOTP")
@@ -22,9 +22,6 @@ public class AdminStepUpChallengeVO {
 
     @Schema(description = "掩码邮箱")
     private String emailMasked;
-
-    @Schema(description = "短信是否可用（当前未集成提供商）")
-    private Boolean smsAvailable;
 
     @Schema(description = "需要二次验证的动作")
     private String action;
