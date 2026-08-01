@@ -263,11 +263,11 @@ async function publish() {
     }
     publishing.value = true
     try {
-      const ok = await momentsStore.addPost(trimmed)
-      if (ok) {
+      const result = await momentsStore.addPost(trimmed)
+      if (result.ok) {
         showSuccessAnimation()
       } else {
-        message.error(t('moments.publishFail'))
+        message.error(result.message || t('moments.publishFail'))
       }
     } finally {
       publishing.value = false
@@ -301,11 +301,11 @@ async function publish() {
       }
     }
     const finalContent = (text.value.trim() || t('moments.shareImage')) + (videos.value.length ? t('extra.videoCountTag') : '')
-    const ok = await momentsStore.addPost(finalContent, uploaded)
-    if (ok) {
+    const result = await momentsStore.addPost(finalContent, uploaded)
+    if (result.ok) {
       showSuccessAnimation()
     } else {
-      message.error(t('moments.publishFail'))
+      message.error(result.message || t('moments.publishFail'))
     }
   } catch (e) {
     message.error(e instanceof Error ? e.message : t('moments.publishFailShort'))

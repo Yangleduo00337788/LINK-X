@@ -185,6 +185,8 @@ function handleFrame(raw: string) {
       break
     case 'group_renamed':
     case 'group_announcement_updated':
+    case 'group_dissolved':
+    case 'sensitive_alert_clear':
     case 'group_member_role_changed':
     case 'group_mute_changed':
     case 'group_mute_all_changed':

@@ -881,9 +881,19 @@ export const useAppStore = defineStore('app', {
             void this.handleGroupAdded(data)
             return
           }
-          // 群名变更推送
+          // 群名 / 公告变更推送
           if (action === 'group_renamed' || action === 'group_announcement_updated') {
             void this.handleGroupUpdate(data)
+            return
+          }
+          if (action === 'group_dissolved') {
+            this.handleGroupDissolved(data)
+            return
+          }
+          if (action === 'sensitive_alert_clear') {
+            const messageId = String(data.messageId || '')
+            const conversationId = data.conversationId ? String(data.conversationId) : undefined
+            if (messageId) this.clearSensitiveAlert(messageId, conversationId)
             return
           }
           // 群角色变更推送
@@ -1088,28 +1098,71 @@ export const useAppStore = defineStore('app', {
     },
 
     /**
-     * WebSocket 业务错误（如敏感词拦截）：标记对应乐观消息失败，不自动重试。
+     * WebSocket 业务错误（如敏感词拦截）：
+     * - 敏感词拦截：移除乐观消息，恢复会话预览，避免列表显示错误文案
+     * - 其它业务错误：标记失败且不自动重试
      */
     handleWsSendError(clientMsgId: string, code: number, msg: string) {
+      const reason = msg || t('chat.sensitiveBlocked')
+      const isSensitiveBlock = /违禁|敏感词|无法发送/.test(reason)
       let marked = false
       for (const sessionId of Object.keys(this.messagesBySession)) {
         const list = this.messagesBySession[sessionId]
         if (!list?.length) continue
-        const local = list.find(m => m.id === clientMsgId || m.clientMsgId === clientMsgId)
-        if (!local) continue
-        local.sendStatus = 'failed'
-        local.uploadProgress = undefined
-        local.sendFailReason = msg || t('chat.sensitiveBlocked')
-        if (local.type === 'file') local.fileStatus = t('chat.fileStatusFailed')
-        // 业务错误禁止自动重试
-        ;(local as { _autoRetry?: number })._autoRetry = 99
+        const index = list.findIndex(m => m.id === clientMsgId || m.clientMsgId === clientMsgId)
+        if (index < 0) continue
+        if (isSensitiveBlock) {
+          list.splice(index, 1)
+          const session = this.sessions.find(s => s.id === sessionId)
+          if (session) {
+            const last = [...list].reverse().find(m => m.sendStatus !== 'failed')
+            session.lastMessage = last ? messagePreview(last) : ''
+            session.time = last?.time || session.time
+          }
+        } else {
+          const local = list[index]
+          local.sendStatus = 'failed'
+          local.uploadProgress = undefined
+          local.sendFailReason = reason
+          if (local.type === 'file') local.fileStatus = t('chat.fileStatusFailed')
+          ;(local as { _autoRetry?: number })._autoRetry = 99
+        }
         marked = true
         break
       }
       if (code === 400 || marked) {
-        console.warn('[handleWsSendError]', { clientMsgId, code, msg })
+        console.warn('[handleWsSendError]', { clientMsgId, code, msg: reason })
       } else if (code !== 401) {
         console.warn('WebSocket 错误:', msg)
+      }
+    },
+
+    /** 管理端驳回/处理后，清除本地敏感词告警提示 */
+    clearSensitiveAlert(messageId: string, conversationId?: string) {
+      const id = String(messageId)
+      const sessionIds = conversationId
+        ? [String(conversationId)]
+        : Object.keys(this.messagesBySession)
+      for (const sessionId of sessionIds) {
+        const list = this.messagesBySession[sessionId]
+        if (!list?.length) continue
+        const local = list.find(m => m.id === id || m.clientMsgId === id)
+        if (!local) continue
+        local.sensitiveAlert = false
+        break
+      }
+    },
+
+    /** 群被解散：从会话列表移除 */
+    handleGroupDissolved(data: Record<string, unknown>) {
+      const conversationId = String(data.conversationId || '')
+      if (!conversationId) return
+      this.sessions = this.sessions.filter(s => s.id !== conversationId)
+      delete this.messagesBySession[conversationId]
+      delete this.messagesLoaded[conversationId]
+      delete this.messagesHasMore[conversationId]
+      if (this.currentSessionId === conversationId) {
+        this.currentSessionId = this.sessions[0]?.id ?? null
       }
     },
 
@@ -2225,7 +2278,7 @@ export const useAppStore = defineStore('app', {
      * 处理群信息变更的 WebSocket 推送。
      * 收到 group_renamed / group_announcement_updated 后，更新本地会话列表中的群信息。
      */
-    handleGroupUpdate(data: Record<string, unknown>) {
+    async handleGroupUpdate(data: Record<string, unknown>) {
       const conversationId = data.conversationId as string
       const groupData = data.group as {
         id?: number | string
@@ -2236,18 +2289,29 @@ export const useAppStore = defineStore('app', {
       if (!conversationId || !groupData) return
 
       const session = this.sessions.find(s => s.id === conversationId && s.isGroup)
-      if (!session) return
-
-      // 更新群名称
-      if (groupData.name && groupData.name !== session.groupName) {
-        session.groupName = groupData.name
-        // 如果没有备注，则更新显示名称
-        const remark = session.groupRemark || ''
-        session.name = remark || groupData.name
-        session.avatarText = session.name.charAt(0) || '群'
+      if (session) {
+        // 更新群名称
+        if (groupData.name && groupData.name !== session.groupName) {
+          session.groupName = groupData.name
+          const remark = session.groupRemark || ''
+          session.name = remark || groupData.name
+          session.avatarText = session.name.charAt(0) || '群'
+        }
       }
 
-      console.log('[handleGroupUpdate] 已更新群信息:', session.name)
+      // 公告变更：强制刷新摘要与列表，避免侧栏残留旧公告
+      try {
+        const { useGroupMetaStore } = await import('./groupMeta')
+        const meta = useGroupMetaStore()
+        await Promise.all([
+          meta.fetchAnnouncementDisplay(conversationId, true),
+          meta.fetchAnnouncements(conversationId, true),
+        ])
+      } catch (e) {
+        console.warn('[handleGroupUpdate] 刷新群公告失败:', e)
+      }
+
+      console.log('[handleGroupUpdate] 已更新群信息:', conversationId)
     },
 
     /**

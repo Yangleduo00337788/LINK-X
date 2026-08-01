@@ -270,13 +270,18 @@ export const useMomentsStore = defineStore('moments', {
           }
           mapped.time = '刚刚'
           this.posts.unshift(mapped)
-          return true
+          return { ok: true as const }
         }
         console.error('[Moments] 发布失败:', res.message)
+        return { ok: false as const, message: res.message || undefined }
       } catch (e) {
         console.error('[Moments] 发布异常:', e)
+        const ax = e as { response?: { data?: { message?: string } }; message?: string }
+        return {
+          ok: false as const,
+          message: ax.response?.data?.message || ax.message || undefined,
+        }
       }
-      return false
     },
 
     /** 在全站列表或焦点用户列表中定位动态 */

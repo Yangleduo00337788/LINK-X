@@ -399,12 +399,12 @@ async function publish() {
       || (videos.value.length ? (t('moments.shareVideo') || '分享视频') : '')
       || (mode.value === 'media' ? t('moments.shareImage') : '')
     const atUserIds = atUsers.value.map(u => u.id)
-    const ok = await momentsStore.addPost(finalContent, uploaded, {
+    const result = await momentsStore.addPost(finalContent, uploaded, {
       location: location.value || undefined,
       atUsers: atUserIds.length > 0 ? atUserIds : undefined,
       visibility: visibility.value
     })
-    if (ok) {
+    if (result.ok) {
       // 通知友链列表窗口立即刷新（发布页与列表页是独立 Electron 窗口）
       window.electronAPI?.notifyMomentsPublished?.()
       showSuccess.value = true
@@ -413,7 +413,7 @@ async function publish() {
         closeWindow()
       }, 1200)
     } else {
-      message.error(t('moments.publishFail'))
+      message.error(result.message || t('moments.publishFail'))
     }
   } catch (e) {
     message.error(e instanceof Error ? e.message : t('moments.publishFailShort'))

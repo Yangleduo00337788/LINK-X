@@ -374,21 +374,19 @@ export const useGroupMetaStore = defineStore('groupMeta', {
       }
     },
 
-    async fetchAnnouncementDisplay(sessionId: string) {
-      if (this.loading[`announcement-display-${sessionId}`]) return
+    async fetchAnnouncementDisplay(sessionId: string, force = false) {
+      if (!force && this.loading[`announcement-display-${sessionId}`]) return
       this.loading[`announcement-display-${sessionId}`] = true
       try {
         const res = await groupAnnouncementApi.getDisplayAnnouncement(sessionId)
         if (res.code === 200) {
           this.announcementDisplay[sessionId] = res.data ? this.mapAnnouncement(res.data) : null
-        } else if (this.announcementDisplay[sessionId] === undefined) {
+        } else {
           this.announcementDisplay[sessionId] = null
         }
       } catch (e) {
         console.error('加载公告摘要失败:', e)
-        if (this.announcementDisplay[sessionId] === undefined) {
-          this.announcementDisplay[sessionId] = null
-        }
+        this.announcementDisplay[sessionId] = null
       } finally {
         this.loading[`announcement-display-${sessionId}`] = false
       }
