@@ -3,6 +3,7 @@ package com.linkx.server.service.admin;
 import com.linkx.server.controller.admin.vo.AdminActivityHeatmapVO;
 import com.linkx.server.controller.admin.vo.AdminStatisticContentVO;
 import com.linkx.server.controller.admin.vo.AdminStatisticFeedbackVO;
+import com.linkx.server.controller.admin.vo.AdminStatisticGroupVO;
 import com.linkx.server.controller.admin.vo.AdminStatisticOverviewVO;
 import com.linkx.server.controller.admin.vo.AdminStatisticRiskVO;
 import com.linkx.server.controller.admin.vo.AdminStatisticUserVO;
@@ -19,6 +20,9 @@ public interface AdminStatisticsService {
     AdminStatisticRiskVO risk(int days);
 
     AdminStatisticFeedbackVO feedback(int days);
+
+    /** 群活跃度：新建/消息趋势 + Top 活跃群 */
+    AdminStatisticGroupVO groups(int days);
 
     /**
      * 活跃时段热力图（星期 × 小时）。

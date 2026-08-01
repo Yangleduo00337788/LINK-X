@@ -6,7 +6,9 @@ import com.linkx.server.entity.DeviceSession;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.DeviceSessionMapper;
+import com.linkx.server.mapper.SysDeviceBanMapper;
 import com.linkx.server.mapper.SysUserMapper;
+import com.linkx.server.service.AuditLogService;
 import com.linkx.server.service.DeviceSessionService;
 import com.linkx.server.service.PresenceService;
 import com.linkx.server.service.admin.AdminEventPublisher;
@@ -37,18 +39,23 @@ class AdminDeviceServiceTest {
     @Mock
     private SysUserMapper sysUserMapper;
     @Mock
+    private SysDeviceBanMapper deviceBanMapper;
+    @Mock
     private DeviceSessionService deviceSessionService;
     @Mock
     private PresenceService presenceService;
     @Mock
     private AdminEventPublisher adminEventPublisher;
+    @Mock
+    private AuditLogService auditLogService;
 
     private AdminDeviceServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new AdminDeviceServiceImpl(
-                deviceSessionMapper, sysUserMapper, deviceSessionService, presenceService, adminEventPublisher);
+                deviceSessionMapper, sysUserMapper, deviceBanMapper, deviceSessionService,
+                presenceService, adminEventPublisher, auditLogService);
     }
 
     @Test
@@ -70,6 +77,7 @@ class AdminDeviceServiceTest {
                 SysUser.builder().id(100L).username("alice").nickname("Alice").build()
         ));
         when(presenceService.onlineDeviceIds(100L)).thenReturn(Set.of("dev-1"));
+        when(deviceBanMapper.selectListByQuery(any(QueryWrapper.class))).thenReturn(List.of());
 
         AdminDeviceQueryDTO query = new AdminDeviceQueryDTO();
         query.setPage(1);

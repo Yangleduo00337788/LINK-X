@@ -145,11 +145,13 @@ class P2QualityGateTest extends BaseIntegrationTest {
             if (username.length() > 32) {
                 username = username.substring(0, 32);
             }
+            String email = username + "@linkx.test";
+            String emailCode = seedRegisterEmailCode(email);
             mockMvc.perform(post("/auth/register")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(String.format("""
-                                    {"username":"%s","password":"%s","nickname":"audreg","email":"%s@linkx.test"}
-                                    """, username, PASSWORD, username)))
+                                    {"username":"%s","password":"%s","nickname":"audreg","email":"%s","emailCode":"%s"}
+                                    """, username, PASSWORD, email, emailCode)))
                     .andExpect(jsonPath("$.code").value(200));
 
             assertTrue(awaitAuditByUsername(username, "REGISTER"), "注册应写入 REGISTER 审计");
@@ -173,6 +175,7 @@ class P2QualityGateTest extends BaseIntegrationTest {
             for (int i = 0; i < 40; i++) {
                 members.add(registerAndLogin("p2gfm" + i));
             }
+            ensureFriends(owner, members.toArray(new TestUser[0]));
 
             CreateGroupDTO dto = new CreateGroupDTO();
             dto.setName("扇出压测群");

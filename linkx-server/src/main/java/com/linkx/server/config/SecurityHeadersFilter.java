@@ -86,7 +86,9 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         // context-path=/api 时为 /api/media/external、/api/media/avatars/...、/api/media/banners/...
         return uri.contains("/media/external")
                 || uri.contains("/media/avatars/")
-                || uri.contains("/media/banners/");
+                || uri.contains("/media/banners/")
+                || uri.contains("/media/recommends/")
+                || uri.contains("/media/activities/");
     }
 
     private boolean isSecureRequest(HttpServletRequest request) {

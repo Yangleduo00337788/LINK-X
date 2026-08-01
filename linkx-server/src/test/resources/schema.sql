@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS sys_user (
   totp_confirmed_at DATETIME,
   status TINYINT NOT NULL DEFAULT 1,
   dept_id BIGINT,
+  device_binding_enabled TINYINT NOT NULL DEFAULT 0,
   auto_locked_until DATETIME,
   create_time DATETIME,
   update_time DATETIME,
@@ -342,6 +343,73 @@ CREATE TABLE IF NOT EXISTS sys_device_session (
   create_time DATETIME
 );
 
+-- 设备长期封禁
+CREATE TABLE IF NOT EXISTS sys_device_ban (
+  id BIGINT NOT NULL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  device_id VARCHAR(64) NOT NULL,
+  reason VARCHAR(255),
+  status VARCHAR(16) NOT NULL DEFAULT 'active',
+  banned_by BIGINT,
+  released_by BIGINT,
+  released_at DATETIME,
+  create_time DATETIME,
+  update_time DATETIME
+);
+
+-- 用户设备强绑定白名单
+CREATE TABLE IF NOT EXISTS sys_user_device_binding (
+  id BIGINT NOT NULL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  device_id VARCHAR(64) NOT NULL,
+  device_name VARCHAR(100),
+  approved_by BIGINT,
+  approved_at DATETIME,
+  create_time DATETIME
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_user_device_binding ON sys_user_device_binding(user_id, device_id);
+
+-- 运营推荐位
+CREATE TABLE IF NOT EXISTS sys_ops_recommend (
+  id BIGINT NOT NULL PRIMARY KEY,
+  slot_code VARCHAR(64) NOT NULL,
+  title VARCHAR(128),
+  subtitle VARCHAR(255),
+  image_url VARCHAR(1024) NOT NULL,
+  link_url VARCHAR(1024),
+  sort_order INT NOT NULL DEFAULT 0,
+  status VARCHAR(16) NOT NULL DEFAULT 'draft',
+  start_at DATETIME,
+  end_at DATETIME,
+  published_at DATETIME,
+  published_by BIGINT,
+  created_by BIGINT,
+  updated_by BIGINT,
+  create_time DATETIME,
+  update_time DATETIME,
+  deleted TINYINT NOT NULL DEFAULT 0
+);
+
+-- 运营活动
+CREATE TABLE IF NOT EXISTS sys_ops_activity (
+  id BIGINT NOT NULL PRIMARY KEY,
+  title VARCHAR(128),
+  cover_url VARCHAR(1024) NOT NULL,
+  link_url VARCHAR(1024),
+  description VARCHAR(1000),
+  sort_order INT NOT NULL DEFAULT 0,
+  status VARCHAR(16) NOT NULL DEFAULT 'draft',
+  start_at DATETIME,
+  end_at DATETIME,
+  published_at DATETIME,
+  published_by BIGINT,
+  created_by BIGINT,
+  updated_by BIGINT,
+  create_time DATETIME,
+  update_time DATETIME,
+  deleted TINYINT NOT NULL DEFAULT 0
+);
+
 -- 用户偏好设置表（per-user，一行一用户）
 CREATE TABLE IF NOT EXISTS user_preference (
   user_id BIGINT NOT NULL PRIMARY KEY,
@@ -558,7 +626,8 @@ CREATE TABLE IF NOT EXISTS conference (
   password VARCHAR(100),
   lobby_enabled TINYINT NOT NULL DEFAULT 0,
   create_time DATETIME,
-  update_time DATETIME
+  update_time DATETIME,
+  deleted TINYINT NOT NULL DEFAULT 0
 );
 
 -- 多人会议成员表
@@ -573,7 +642,8 @@ CREATE TABLE IF NOT EXISTS conference_member (
   admit_status TINYINT NOT NULL DEFAULT 1,
   join_time DATETIME,
   leave_time DATETIME,
-  create_time DATETIME
+  create_time DATETIME,
+  deleted TINYINT NOT NULL DEFAULT 0
 );
 
 -- MinIO 对象属主登记
@@ -831,14 +901,17 @@ INSERT IGNORE INTO sys_admin_menu
 (18, 0, 'statistics',  '统计分析', '/admin/statistics', 'views/StatisticsView',  'Chart',     'menu', 'admin:statistics:view',9, 0, 1, 0, 1, 1, 0),
 (19, 7, 'risk-event',  '风险事件', '/admin/risk-events','views/RiskEventView',   'Warning',   'menu', 'admin:risk-event:list',3, 0, 1, 0, 1, 1, 0),
 (20, 0, 'blacklist',   '黑名单管理','/admin/blacklist', 'views/BlacklistView',   'Ban',       'menu', 'admin:blacklist:list', 2, 0, 1, 0, 1, 1, 0),
-(22, 0, 'devices',     '设备管理', '/admin/devices',    'views/DeviceListView',  'Phone',     'menu', 'admin:device:list',    2, 0, 1, 0, 1, 1, 0);
+(22, 0, 'devices',     '设备管理', '/admin/devices',    'views/DeviceListView',  'Phone',     'menu', 'admin:device:list',    2, 0, 1, 0, 1, 1, 0),
+(40, 0, 'recommends',  '推荐位管理','/admin/recommends','views/RecommendListView','Star',     'menu', 'admin:recommend:list',11,0, 1, 0, 1, 1, 0),
+(41, 0, 'activities',  '活动管理', '/admin/activities', 'views/ActivityListView','Calendar',  'menu', 'admin:activity:list', 12,0, 1, 0, 1, 1, 0);
 
 INSERT IGNORE INTO sys_admin_role_menu (role_id, menu_id) VALUES
 -- admin 全量（测试用最小集）
 (1001, 1),(1001, 2),(1001, 7),(1001, 8),(1001, 9),(1001, 10),(1001, 11),
 (1001, 13),(1001, 14),(1001, 16),(1001, 18),(1001, 19),(1001, 20),(1001, 22),
+(1001, 40),(1001, 41),
 -- ops
-(1003, 1),(1003, 2),(1003, 10),(1003, 16),(1003, 18),
+(1003, 1),(1003, 2),(1003, 10),(1003, 16),(1003, 18),(1003, 40),(1003, 41),
 -- audit
 (1004, 1),(1004, 2),(1004, 7),(1004, 8),(1004, 9),(1004, 19),
 (1004, 13),(1004, 14),(1004, 20),(1004, 22),
@@ -877,15 +950,39 @@ INSERT IGNORE INTO sys_permission (id, permission_code, permission_name, resourc
 (2178,'admin:dept:list','查看部门','page','/admin/depts','部门管理',1),
 (2179,'admin:dept:create','新增部门','button',NULL,'新增部门',1),
 (2180,'admin:dept:edit','编辑部门','button',NULL,'编辑部门',1),
-(2181,'admin:dept:delete','删除部门','button',NULL,'删除部门',1);
+(2181,'admin:dept:delete','删除部门','button',NULL,'删除部门',1),
+(2182,'admin:device:ban','封禁设备','button',NULL,'设备长期封禁',1),
+(2183,'admin:device:unban','解封设备','button',NULL,'解除设备封禁',1),
+(2184,'admin:user:device-binding','设备强绑定开关','button',NULL,'启用/关闭用户强制设备绑定',1),
+(2185,'admin:user:device-approve','批准登录设备','button',NULL,'批准或撤销用户设备',1),
+(2190,'admin:recommend:list','查看推荐位列表','page','/admin/recommends','推荐位管理',1),
+(2191,'admin:recommend:view','查看推荐位详情','button',NULL,'推荐位详情',1),
+(2192,'admin:recommend:create','新增推荐位','button',NULL,'新增推荐位',1),
+(2193,'admin:recommend:edit','编辑推荐位','button',NULL,'编辑推荐位',1),
+(2194,'admin:recommend:delete','删除推荐位','button',NULL,'删除推荐位',1),
+(2195,'admin:recommend:publish','发布推荐位','button',NULL,'发布推荐位',1),
+(2196,'admin:recommend:unpublish','下线推荐位','button',NULL,'下线推荐位',1),
+(2197,'admin:activity:list','查看活动列表','page','/admin/activities','活动管理',1),
+(2198,'admin:activity:view','查看活动详情','button',NULL,'活动详情',1),
+(2199,'admin:activity:create','新增活动','button',NULL,'新增活动',1),
+(2200,'admin:activity:edit','编辑活动','button',NULL,'编辑活动',1),
+(2201,'admin:activity:delete','删除活动','button',NULL,'删除活动',1),
+(2202,'admin:activity:publish','发布活动','button',NULL,'发布活动',1),
+(2203,'admin:activity:unpublish','下线活动','button',NULL,'下线活动',1);
 
--- ops: 查看 + 反馈/公告/统计 + 用户导出
+-- ops: 查看 + 反馈/公告/统计 + 用户导出 + 推荐位/活动
 INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, deleted) VALUES
 (293101, 1003, 2101, NULL, 0),(293102, 1003, 2102, NULL, 0),(293103, 1003, 2103, NULL, 0),
 (293153, 1003, 2153, NULL, 0),
 (293123, 1003, 2123, NULL, 0),(293124, 1003, 2124, NULL, 0),
 (293136, 1003, 2136, NULL, 0),(293138, 1003, 2138, NULL, 0),
-(293144, 1003, 2144, NULL, 0);
+(293144, 1003, 2144, NULL, 0),
+(293190, 1003, 2190, NULL, 0),(293191, 1003, 2191, NULL, 0),(293192, 1003, 2192, NULL, 0),
+(293193, 1003, 2193, NULL, 0),(293194, 1003, 2194, NULL, 0),(293195, 1003, 2195, NULL, 0),
+(293196, 1003, 2196, NULL, 0),
+(293197, 1003, 2197, NULL, 0),(293198, 1003, 2198, NULL, 0),(293199, 1003, 2199, NULL, 0),
+(293200, 1003, 2200, NULL, 0),(293201, 1003, 2201, NULL, 0),(293202, 1003, 2202, NULL, 0),
+(293203, 1003, 2203, NULL, 0);
 
 -- audit: 用户处置 + 审核 + 风险 + 黑名单 + 设备 + 日志 + 导出
 INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, deleted) VALUES
@@ -902,7 +999,9 @@ INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, d
 (295105, 1005, 2105, NULL, 0),(295107, 1005, 2107, NULL, 0),(295173, 1005, 2173, NULL, 0),
 (295121, 1005, 2121, NULL, 0),(295146, 1005, 2146, NULL, 0),(295148, 1005, 2148, NULL, 0),(295156, 1005, 2156, NULL, 0),
 (295149, 1005, 2149, NULL, 0),(295171, 1005, 2171, NULL, 0),(295172, 1005, 2172, NULL, 0),
-(295176, 1005, 2176, NULL, 0),(295177, 1005, 2177, NULL, 0);
+(295176, 1005, 2176, NULL, 0),(295177, 1005, 2177, NULL, 0),
+(295182, 1005, 2182, NULL, 0),(295183, 1005, 2183, NULL, 0),
+(295184, 1005, 2184, NULL, 0),(295185, 1005, 2185, NULL, 0);
 
 -- readonly: 查看 + 导出（无写）
 INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, deleted) VALUES

@@ -2,14 +2,17 @@ package com.linkx.server.service.admin.impl;
 
 import com.linkx.server.controller.admin.vo.AdminActivityHeatmapVO;
 import com.linkx.server.controller.admin.vo.AdminChartSeriesVO;
+import com.linkx.server.controller.admin.vo.AdminGroupActivityItemVO;
 import com.linkx.server.controller.admin.vo.AdminStatisticBreakdownVO;
 import com.linkx.server.controller.admin.vo.AdminStatisticContentVO;
 import com.linkx.server.controller.admin.vo.AdminStatisticFeedbackVO;
+import com.linkx.server.controller.admin.vo.AdminStatisticGroupVO;
 import com.linkx.server.controller.admin.vo.AdminStatisticOverviewVO;
 import com.linkx.server.controller.admin.vo.AdminStatisticRiskVO;
 import com.linkx.server.controller.admin.vo.AdminStatisticUserVO;
 import com.linkx.server.controller.admin.vo.AdminTrendVO;
 import com.linkx.server.entity.Feedback;
+import com.linkx.server.entity.ImConversation;
 import com.linkx.server.entity.ImMessage;
 import com.linkx.server.entity.SysLoginAudit;
 import com.linkx.server.entity.SysUser;
@@ -205,14 +208,42 @@ public class AdminStatisticsServiceImpl implements AdminStatisticsService {
                 AdminStatisticBreakdownVO.builder().key("approved").name("已通过").value(approved).build(),
                 AdminStatisticBreakdownVO.builder().key("rejected").name("已拒绝").value(rejected).build());
 
+        AdminTrendVO reviewEfficiencyTrend = buildTrend(range,
+                series("reviewCreated", "新建审核",
+                        dailyCounts("SELECT DATE(create_time) AS d, COUNT(*) AS c FROM sys_review_task "
+                                + "WHERE create_time >= ? GROUP BY DATE(create_time)", start)),
+                series("reviewResolved", "结案审核",
+                        dailyCounts("SELECT DATE(resolved_at) AS d, COUNT(*) AS c FROM sys_review_task "
+                                + "WHERE resolved_at IS NOT NULL AND resolved_at >= ? "
+                                + "AND status IN (?, ?) GROUP BY DATE(resolved_at)",
+                                start, SysReviewTask.STATUS_APPROVED, SysReviewTask.STATUS_REJECTED)));
+
+        Double avgHandleMinutes = avgReviewHandleMinutes(start);
+
+        Date ago24h = Date.from(java.time.Instant.now().minus(java.time.Duration.ofHours(24)));
+        Date ago72h = Date.from(java.time.Instant.now().minus(java.time.Duration.ofHours(72)));
+        long pendingOver24h = sysReviewTaskMapper.selectCountByQuery(
+                QueryWrapper.create()
+                        .where(SysReviewTask::getStatus).eq(SysReviewTask.STATUS_PENDING)
+                        .and(SysReviewTask::getCreateTime).le(ago24h));
+        long pendingOver72h = sysReviewTaskMapper.selectCountByQuery(
+                QueryWrapper.create()
+                        .where(SysReviewTask::getStatus).eq(SysReviewTask.STATUS_PENDING)
+                        .and(SysReviewTask::getCreateTime).le(ago72h));
+
         return AdminStatisticRiskVO.builder()
                 .trend(trend)
+                .reviewEfficiencyTrend(reviewEfficiencyTrend)
                 .reviewStatusBreakdown(reviewStatus)
                 .sensitiveHitsInRange(sumSeries(trend, "sensitive"))
                 .messageStormsInRange(sumSeries(trend, "storm"))
                 .loginLocksInRange(sumSeries(trend, "loginLock"))
                 .rateLimitsInRange(sumSeries(trend, "rateLimit"))
                 .pendingReviews(pending)
+                .resolvedReviewsInRange(sumSeries(reviewEfficiencyTrend, "reviewResolved"))
+                .avgHandleMinutesInRange(avgHandleMinutes)
+                .pendingOver24h(pendingOver24h)
+                .pendingOver72h(pendingOver72h)
                 .build();
     }
 
@@ -247,6 +278,66 @@ public class AdminStatisticsServiceImpl implements AdminStatisticsService {
                 .createdInRange(sumSeries(trend, "created"))
                 .repliedInRange(sumSeries(trend, "replied"))
                 .closedInRange(closed)
+                .build();
+    }
+
+    @Override
+    public AdminStatisticGroupVO groups(int days) {
+        int range = normalizeDays(days);
+        Date start = startOfDaysAgo(range);
+
+        long totalGroups = countLong(
+                "SELECT COUNT(*) FROM im_conversation WHERE type = ? AND deleted = 0",
+                ImConversation.TYPE_GROUP);
+        Long activeGroups = jdbcTemplate.queryForObject(
+                "SELECT COUNT(DISTINCT m.conversation_id) FROM im_message m "
+                        + "INNER JOIN im_conversation c ON c.id = m.conversation_id "
+                        + "WHERE c.type = ? AND c.deleted = 0 AND m.deleted = 0 AND m.create_time >= ?",
+                Long.class, ImConversation.TYPE_GROUP, start);
+
+        AdminTrendVO trend = buildTrend(range,
+                series("newGroups", "新建群",
+                        dailyCounts("SELECT DATE(create_time) AS d, COUNT(*) AS c FROM im_conversation "
+                                + "WHERE type = ? AND deleted = 0 AND create_time >= ? GROUP BY DATE(create_time)",
+                                ImConversation.TYPE_GROUP, start)),
+                series("groupMessages", "群消息",
+                        dailyCounts("SELECT DATE(m.create_time) AS d, COUNT(*) AS c FROM im_message m "
+                                + "INNER JOIN im_conversation c ON c.id = m.conversation_id "
+                                + "WHERE c.type = ? AND c.deleted = 0 AND m.deleted = 0 AND m.create_time >= ? "
+                                + "GROUP BY DATE(m.create_time)",
+                                ImConversation.TYPE_GROUP, start)));
+
+        List<AdminGroupActivityItemVO> topGroups = new ArrayList<>();
+        jdbcTemplate.query(
+                "SELECT c.id AS id, c.name AS name, c.last_message_time AS last_msg, "
+                        + "COUNT(m.id) AS msg_cnt, "
+                        + "(SELECT COUNT(*) FROM im_conversation_member cm "
+                        + " WHERE cm.conversation_id = c.id AND cm.deleted = 0) AS member_cnt "
+                        + "FROM im_conversation c "
+                        + "LEFT JOIN im_message m ON m.conversation_id = c.id "
+                        + " AND m.deleted = 0 AND m.create_time >= ? "
+                        + "WHERE c.type = ? AND c.deleted = 0 "
+                        + "GROUP BY c.id, c.name, c.last_message_time "
+                        + "ORDER BY msg_cnt DESC, c.id DESC "
+                        + "LIMIT 10",
+                rs -> {
+                    topGroups.add(AdminGroupActivityItemVO.builder()
+                            .id(rs.getLong("id"))
+                            .name(rs.getString("name"))
+                            .messageCount(rs.getLong("msg_cnt"))
+                            .memberCount(rs.getLong("member_cnt"))
+                            .lastMessageTime(rs.getTimestamp("last_msg"))
+                            .build());
+                },
+                start, ImConversation.TYPE_GROUP);
+
+        return AdminStatisticGroupVO.builder()
+                .totalGroups(totalGroups)
+                .activeGroupsInRange(activeGroups == null ? 0L : activeGroups)
+                .newGroupsInRange(sumSeries(trend, "newGroups"))
+                .groupMessagesInRange(sumSeries(trend, "groupMessages"))
+                .trend(trend)
+                .topGroups(topGroups)
                 .build();
     }
 
@@ -339,6 +430,37 @@ public class AdminStatisticsServiceImpl implements AdminStatisticsService {
             return "messages";
         }
         return "logins";
+    }
+
+    private long countLong(String sql, Object... args) {
+        Long n = jdbcTemplate.queryForObject(sql, Long.class, args);
+        return n == null ? 0L : n;
+    }
+
+    /** 区间内已结案审核的平均处理时长（分钟）。 */
+    private Double avgReviewHandleMinutes(Date since) {
+        List<SysReviewTask> rows = sysReviewTaskMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(SysReviewTask::getResolvedAt).ge(since)
+                        .and(SysReviewTask::getStatus).in(
+                                SysReviewTask.STATUS_APPROVED, SysReviewTask.STATUS_REJECTED));
+        double sum = 0;
+        int n = 0;
+        for (SysReviewTask t : rows) {
+            if (t.getCreateTime() == null || t.getResolvedAt() == null) {
+                continue;
+            }
+            long minutes = (t.getResolvedAt().getTime() - t.getCreateTime().getTime()) / 60_000L;
+            if (minutes < 0) {
+                continue;
+            }
+            sum += minutes;
+            n++;
+        }
+        if (n == 0) {
+            return null;
+        }
+        return Math.round((sum / n) * 10.0) / 10.0;
     }
 
     private Date startOfToday() {

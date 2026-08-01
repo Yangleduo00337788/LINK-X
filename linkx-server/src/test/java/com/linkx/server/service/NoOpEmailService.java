@@ -36,4 +36,9 @@ public class NoOpEmailService implements EmailService {
     public void sendBindEmailCode(String to, String username, String code) {
         // no-op
     }
+
+    @Override
+    public void sendAdminStepUpCode(String to, String username, String code) {
+        // no-op
+    }
 }

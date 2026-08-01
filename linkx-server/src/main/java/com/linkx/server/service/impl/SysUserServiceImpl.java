@@ -44,6 +44,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
     private final com.linkx.server.service.UserPreferenceService userPreferenceService;
     private final DeviceSessionService deviceSessionService;
+    private final DeviceSecurityService deviceSecurityService;
     private final com.linkx.server.service.RbacService rbacService;
     private final com.linkx.server.service.ComplianceService complianceService;
     private final LinkxMetrics linkxMetrics;
@@ -275,6 +276,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (deviceId == null || deviceId.isBlank()) {
             deviceId = "default-web-device";
         }
+        deviceSecurityService.assertDeviceAllowed(user.getId(), deviceId);
         String deviceName = request.getHeader("X-Device-Name");
         String deviceType = request.getHeader("X-Device-Type");
         deviceSessionService.createOrUpdate(

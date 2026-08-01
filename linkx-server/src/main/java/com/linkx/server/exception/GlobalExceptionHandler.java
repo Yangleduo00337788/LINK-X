@@ -22,7 +22,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(CustomException.class)
     public ResponseEntity<Result<?>> handleCustomException(CustomException e) {
         log.warn("业务异常: {}", e.getMessage());
-        return ResponseEntity.status(mapStatus(e.getCode())).body(Result.error(e.getCode(), e.getMessage()));
+        return ResponseEntity.status(mapStatus(e.getCode()))
+                .body(Result.error(e.getCode(), e.getMessage(), e.getData()));
     }
 
     @ExceptionHandler({MethodArgumentNotValidException.class, BindException.class})
@@ -87,6 +88,7 @@ public class GlobalExceptionHandler {
             case 403 -> HttpStatus.FORBIDDEN;
             case 404 -> HttpStatus.NOT_FOUND;
             case 405 -> HttpStatus.METHOD_NOT_ALLOWED;
+            case 428 -> HttpStatus.PRECONDITION_REQUIRED;
             case 429 -> HttpStatus.TOO_MANY_REQUESTS;
             default -> code >= 500 ? HttpStatus.INTERNAL_SERVER_ERROR : HttpStatus.BAD_REQUEST;
         };

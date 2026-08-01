@@ -7,6 +7,7 @@ import com.linkx.server.common.admin.AdminCsvResponses;
 import com.linkx.server.controller.admin.vo.AdminActivityHeatmapVO;
 import com.linkx.server.controller.admin.vo.AdminStatisticContentVO;
 import com.linkx.server.controller.admin.vo.AdminStatisticFeedbackVO;
+import com.linkx.server.controller.admin.vo.AdminStatisticGroupVO;
 import com.linkx.server.controller.admin.vo.AdminStatisticOverviewVO;
 import com.linkx.server.controller.admin.vo.AdminStatisticRiskVO;
 import com.linkx.server.controller.admin.vo.AdminStatisticUserVO;
@@ -76,6 +77,15 @@ public class AdminStatisticsController {
             @Parameter(description = "天数，默认 14，范围 7-90")
             @RequestParam(defaultValue = "14") int days) {
         return Result.success(adminStatisticsService.feedback(days));
+    }
+
+    @Operation(summary = "群活跃度统计")
+    @GetMapping("/groups")
+    @RequirePermission("admin:statistics:view")
+    public Result<AdminStatisticGroupVO> groups(
+            @Parameter(description = "天数，默认 14，范围 7-90")
+            @RequestParam(defaultValue = "14") int days) {
+        return Result.success(adminStatisticsService.groups(days));
     }
 
     @Operation(summary = "活跃时段热力图")

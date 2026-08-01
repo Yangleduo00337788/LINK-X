@@ -14,6 +14,7 @@ import {
 import { storeToRefs } from 'pinia'
 import { usePreferencesStore } from '@/stores/preferences'
 import { darkThemeOverrides, lightThemeOverrides } from '@/theme/overrides'
+import StepUpModal from '@/components/StepUpModal.vue'
 
 const prefs = usePreferencesStore()
 const { theme, locale } = storeToRefs(prefs)
@@ -37,6 +38,7 @@ const naiveDateLocale = computed(() => (locale.value === 'zh-CN' ? dateZhCN : da
       <NDialogProvider>
         <NMessageProvider>
           <router-view />
+          <StepUpModal />
         </NMessageProvider>
       </NDialogProvider>
     </NLoadingBarProvider>

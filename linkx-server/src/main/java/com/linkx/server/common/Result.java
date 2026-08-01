@@ -82,6 +82,13 @@ public class Result<T> implements Serializable {
     }
 
     /**
+     * 构造带载荷的失败响应（如 step-up 可用验证方式）。
+     */
+    public static <T> Result<T> error(Integer code, String message, T data) {
+        return new Result<>(code, message, data);
+    }
+
+    /**
      * 构造默认 500 错误的失败响应。
      *
      * @param message 错误描述

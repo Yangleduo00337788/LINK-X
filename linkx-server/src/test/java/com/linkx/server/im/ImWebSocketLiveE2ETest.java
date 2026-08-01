@@ -57,8 +57,9 @@ class ImWebSocketLiveE2ETest extends BaseIntegrationTest {
     @Test
     @DisplayName("合法 token 可握手，ping 应回 pong")
     void handshakeAndHeartbeat() throws Exception {
-        TestUser user = registerAndLoginWithDevice("wsping", "ws-ping-" + UUID.randomUUID());
-        try (WsSession session = connect(user.accessToken, "ws-ping-dev")) {
+        String deviceId = "ws-ping-" + UUID.randomUUID();
+        TestUser user = registerAndLoginWithDevice("wsping", deviceId);
+        try (WsSession session = connect(user.accessToken, deviceId)) {
             assertTrue(session.awaitOpen(5, TimeUnit.SECONDS));
             session.send("""
                     {"action":"ping"}
@@ -72,14 +73,16 @@ class ImWebSocketLiveE2ETest extends BaseIntegrationTest {
     @Test
     @DisplayName("双端在线：发送方收 ack，接收方收 message")
     void sendReceivePushChain() throws Exception {
-        TestUser alice = registerAndLoginWithDevice("wsa", "ws-a-" + UUID.randomUUID());
-        TestUser bob = registerAndLoginWithDevice("wsb", "ws-b-" + UUID.randomUUID());
+        String aliceDevice = "ws-a-" + UUID.randomUUID();
+        String bobDevice = "ws-b-" + UUID.randomUUID();
+        TestUser alice = registerAndLoginWithDevice("wsa", aliceDevice);
+        TestUser bob = registerAndLoginWithDevice("wsb", bobDevice);
         ConversationVO conv = becomeFriendsAndOpen(alice, bob);
         String clientMsgId = UUID.randomUUID().toString();
         String content = "hello-ws-" + System.nanoTime();
 
-        try (WsSession aliceWs = connect(alice.accessToken, "ws-a-dev");
-             WsSession bobWs = connect(bob.accessToken, "ws-b-dev")) {
+        try (WsSession aliceWs = connect(alice.accessToken, aliceDevice);
+             WsSession bobWs = connect(bob.accessToken, bobDevice)) {
             assertTrue(aliceWs.awaitOpen(5, TimeUnit.SECONDS));
             assertTrue(bobWs.awaitOpen(5, TimeUnit.SECONDS));
 
@@ -106,14 +109,16 @@ class ImWebSocketLiveE2ETest extends BaseIntegrationTest {
     @Test
     @DisplayName("离线期间消息可经 sync 补齐（乱序/断线补偿）")
     void offlineThenSyncRecovers() throws Exception {
-        TestUser alice = registerAndLoginWithDevice("wssynca", "ws-sa-" + UUID.randomUUID());
-        TestUser bob = registerAndLoginWithDevice("wssyncb", "ws-sb-" + UUID.randomUUID());
+        String aliceDevice = "ws-sa-" + UUID.randomUUID();
+        String bobDevice = "ws-sb-" + UUID.randomUUID();
+        TestUser alice = registerAndLoginWithDevice("wssynca", aliceDevice);
+        TestUser bob = registerAndLoginWithDevice("wssyncb", bobDevice);
         ConversationVO conv = becomeFriendsAndOpen(alice, bob);
         String content1 = "offline-1-" + System.nanoTime();
         String content2 = "offline-2-" + System.nanoTime();
 
         // Bob 先不上线；Alice 在线发送两条
-        try (WsSession aliceWs = connect(alice.accessToken, "ws-sa-dev")) {
+        try (WsSession aliceWs = connect(alice.accessToken, aliceDevice)) {
             assertTrue(aliceWs.awaitOpen(5, TimeUnit.SECONDS));
             String id1 = UUID.randomUUID().toString();
             String id2 = UUID.randomUUID().toString();
@@ -130,7 +135,7 @@ class ImWebSocketLiveE2ETest extends BaseIntegrationTest {
         }
 
         // Bob 上线后 sync（lastServerMsgId=0 拉全量缺口）
-        try (WsSession bobWs = connect(bob.accessToken, "ws-sb-dev")) {
+        try (WsSession bobWs = connect(bob.accessToken, bobDevice)) {
             assertTrue(bobWs.awaitOpen(5, TimeUnit.SECONDS));
             bobWs.send("""
                     {"action":"sync","serverMsgId":0}
@@ -175,11 +180,13 @@ class ImWebSocketLiveE2ETest extends BaseIntegrationTest {
 
     private static WsSession connect(String accessToken, String deviceId) throws Exception {
         awaitPortOpen(WS_PORT, 15_000);
-        URI uri = URI.create("ws://127.0.0.1:" + WS_PORT + "/ws?token="
-                + accessToken + "&deviceId=" + deviceId + "&deviceName=JUnit&deviceType=Test");
+        URI uri = URI.create("ws://127.0.0.1:" + WS_PORT + "/ws?deviceId="
+                + deviceId + "&deviceName=JUnit&deviceType=Test");
         WsSession session = new WsSession();
         HttpClient.newHttpClient()
                 .newWebSocketBuilder()
+                .header("Origin", "http://localhost:5173")
+                .subprotocols("linkx-access-token", accessToken)
                 .connectTimeout(Duration.ofSeconds(5))
                 .buildAsync(uri, session)
                 .get(8, TimeUnit.SECONDS);

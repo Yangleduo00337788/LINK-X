@@ -26,4 +26,10 @@ public class DeviceVO implements Serializable {
     private boolean current;
     /** 管理端：该设备当前是否有 WebSocket 连接 */
     private boolean online;
+
+    /** 管理端：是否处于长期封禁 */
+    private boolean banned;
+
+    /** 管理端：是否已批准（强绑定白名单） */
+    private boolean approved;
 }

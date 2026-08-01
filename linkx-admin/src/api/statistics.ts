@@ -49,12 +49,17 @@ export interface StatisticContent {
 
 export interface StatisticRisk {
   trend: TrendData
+  reviewEfficiencyTrend?: TrendData
   reviewStatusBreakdown: BreakdownItem[]
   sensitiveHitsInRange: number
   messageStormsInRange: number
   loginLocksInRange?: number
   rateLimitsInRange?: number
   pendingReviews: number
+  resolvedReviewsInRange?: number
+  avgHandleMinutesInRange?: number | null
+  pendingOver24h?: number
+  pendingOver72h?: number
 }
 
 export interface StatisticFeedback {
@@ -63,6 +68,23 @@ export interface StatisticFeedback {
   createdInRange: number
   repliedInRange: number
   closedInRange: number
+}
+
+export interface GroupActivityItem {
+  id: number
+  name?: string
+  messageCount: number
+  memberCount: number
+  lastMessageTime?: string
+}
+
+export interface StatisticGroups {
+  totalGroups: number
+  activeGroupsInRange: number
+  newGroupsInRange: number
+  groupMessagesInRange: number
+  trend: TrendData
+  topGroups: GroupActivityItem[]
 }
 
 export type HeatmapMetric = 'logins' | 'messages'
@@ -94,6 +116,10 @@ export function fetchStatisticRisk(days = 14) {
 
 export function fetchStatisticFeedback(days = 14) {
   return get<StatisticFeedback>('/admin/statistics/feedback', { days })
+}
+
+export function fetchStatisticGroups(days = 14) {
+  return get<StatisticGroups>('/admin/statistics/groups', { days })
 }
 
 export function exportStatistics(days = 14) {

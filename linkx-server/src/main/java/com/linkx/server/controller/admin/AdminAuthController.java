@@ -8,17 +8,23 @@ import com.linkx.server.controller.admin.dto.AdminLoginDTO;
 import com.linkx.server.controller.admin.dto.AdminLogoutDTO;
 import com.linkx.server.controller.admin.dto.AdminProfileUpdateDTO;
 import com.linkx.server.controller.admin.dto.AdminRefreshDTO;
+import com.linkx.server.controller.admin.dto.AdminStepUpRequestDTO;
+import com.linkx.server.controller.admin.dto.AdminStepUpVerifyDTO;
 import com.linkx.server.controller.admin.dto.AdminTotpChallengeDTO;
 import com.linkx.server.controller.admin.dto.AdminTotpConfirmDTO;
 import com.linkx.server.controller.admin.dto.AdminTotpDisableDTO;
 import com.linkx.server.controller.admin.dto.AdminTotpLoginDTO;
 import com.linkx.server.controller.admin.vo.AdminLoginVO;
 import com.linkx.server.controller.admin.vo.AdminMenuTreeVO;
+import com.linkx.server.controller.admin.vo.AdminStepUpChallengeVO;
+import com.linkx.server.controller.admin.vo.AdminStepUpTokenVO;
 import com.linkx.server.controller.admin.vo.AdminTotpSetupVO;
 import com.linkx.server.controller.admin.vo.AdminUserProfileVO;
 import com.linkx.server.controller.vo.AuthConfigVO;
 import com.linkx.server.service.admin.AdminAuthService;
+import com.linkx.server.service.admin.AdminStepUpService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -30,6 +36,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -42,6 +49,7 @@ import java.util.Set;
 public class AdminAuthController {
 
     private final AdminAuthService adminAuthService;
+    private final AdminStepUpService adminStepUpService;
     private final LinkxProperties linkxProperties;
 
     @Operation(summary = "管理端认证配置（匿名可读）")
@@ -157,6 +165,36 @@ public class AdminAuthController {
     public Result<Set<String>> permissions(HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         return Result.success(adminAuthService.permissions(userId));
+    }
+
+    @Operation(summary = "查询高危操作二次验证可用方式")
+    @GetMapping("/step-up/options")
+    @RequireRole(adminPortal = true)
+    public Result<AdminStepUpChallengeVO> stepUpOptions(
+            @Parameter(description = "动作标识，如 admin:user:ban")
+            @RequestParam(required = false) String action,
+            HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        return Result.success(adminStepUpService.options(userId, action));
+    }
+
+    @Operation(summary = "发起二次验证（邮箱发码；TOTP 仅确认可用）")
+    @PostMapping("/step-up/request")
+    @RequireRole(adminPortal = true)
+    public Result<AdminStepUpChallengeVO> stepUpRequest(@Valid @RequestBody AdminStepUpRequestDTO dto,
+                                                        HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        return Result.success(adminStepUpService.request(userId, dto));
+    }
+
+    @Operation(summary = "校验二次验证码并签发短效 step-up token")
+    @AuditAction(operationType = "UPDATE_PROFILE", description = "管理端高危操作二次验证")
+    @PostMapping("/step-up/verify")
+    @RequireRole(adminPortal = true)
+    public Result<AdminStepUpTokenVO> stepUpVerify(@Valid @RequestBody AdminStepUpVerifyDTO dto,
+                                                   HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        return Result.success(adminStepUpService.verify(userId, dto));
     }
 
     @Operation(summary = "管理员退出登录")

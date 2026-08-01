@@ -46,4 +46,7 @@ public class AdminDeviceVO {
 
     @Schema(description = "当前是否在线（WebSocket 连接存在）")
     private Boolean online;
+
+    @Schema(description = "该用户下此设备是否处于长期封禁")
+    private Boolean banned;
 }

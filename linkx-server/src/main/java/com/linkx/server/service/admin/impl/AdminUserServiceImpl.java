@@ -18,13 +18,19 @@ import com.linkx.server.controller.admin.vo.AdminUserDetailVO;
 import com.linkx.server.controller.admin.vo.AdminUserListVO;
 import com.linkx.server.controller.admin.vo.AdminUserResetPasswordVO;
 import com.linkx.server.controller.vo.DeviceVO;
+import com.linkx.server.entity.SysAuditLog;
 import com.linkx.server.entity.SysDept;
+import com.linkx.server.entity.SysDeviceBan;
 import com.linkx.server.entity.SysLoginAudit;
 import com.linkx.server.entity.SysUser;
+import com.linkx.server.entity.SysUserDeviceBinding;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.SysDeptMapper;
+import com.linkx.server.mapper.SysDeviceBanMapper;
 import com.linkx.server.mapper.SysLoginAuditMapper;
+import com.linkx.server.mapper.SysUserDeviceBindingMapper;
 import com.linkx.server.mapper.SysUserMapper;
+import com.linkx.server.service.AuditLogService;
 import com.linkx.server.service.DeviceSessionService;
 import com.linkx.server.service.PasswordPolicyService;
 import com.linkx.server.service.PresenceService;
@@ -58,12 +64,15 @@ public class AdminUserServiceImpl implements AdminUserService {
     private final SysUserMapper sysUserMapper;
     private final SysDeptMapper sysDeptMapper;
     private final SysLoginAuditMapper sysLoginAuditMapper;
+    private final SysDeviceBanMapper deviceBanMapper;
+    private final SysUserDeviceBindingMapper deviceBindingMapper;
     private final RbacService rbacService;
     private final DeviceSessionService deviceSessionService;
     private final PresenceService presenceService;
     private final TokenService tokenService;
     private final AdminBlacklistService adminBlacklistService;
     private final PasswordPolicyService passwordPolicyService;
+    private final AuditLogService auditLogService;
     private final LinkxProperties linkxProperties;
 
     @Override
@@ -136,6 +145,7 @@ public class AdminUserServiceImpl implements AdminUserService {
                 .status(user.getStatus())
                 .deptId(user.getDeptId())
                 .deptName(resolveDeptName(user.getDeptId()))
+                .deviceBindingEnabled(Integer.valueOf(1).equals(user.getDeviceBindingEnabled()))
                 .roles(rbacService.getUserRoleCodes(id))
                 .permissions(rbacService.getUserPermissionCodes(id))
                 .createTime(user.getCreateTime())
@@ -281,9 +291,184 @@ public class AdminUserServiceImpl implements AdminUserService {
     public List<DeviceVO> devices(Long id) {
         requireUserInScope(id);
         Set<String> onlineDevices = presenceService.onlineDeviceIds(id);
+        Set<String> bannedDevices = loadBannedDeviceIds(id);
+        Set<String> approvedDevices = loadApprovedDeviceIds(id);
         return deviceSessionService.listByUser(id, null).stream()
-                .peek(device -> device.setOnline(device.getId() != null && onlineDevices.contains(device.getId())))
+                .peek(device -> {
+                    String deviceId = device.getId();
+                    device.setOnline(deviceId != null && onlineDevices.contains(deviceId));
+                    device.setBanned(deviceId != null && bannedDevices.contains(deviceId));
+                    device.setApproved(deviceId != null && approvedDevices.contains(deviceId));
+                })
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    @DataScope
+    public void setDeviceBindingEnabled(Long id, boolean enabled, Long operatorId, String ip, String userAgent) {
+        assertCanModifyTarget(id, operatorId, true);
+        SysUser user = requireUserInScope(id);
+        boolean current = Integer.valueOf(1).equals(user.getDeviceBindingEnabled());
+        if (current == enabled) {
+            return;
+        }
+        Date now = new Date();
+        UpdateChain.of(SysUser.class)
+                .set(SysUser::getDeviceBindingEnabled, enabled ? 1 : 0)
+                .set(SysUser::getUpdateBy, operatorId)
+                .set(SysUser::getUpdateTime, now)
+                .where(SysUser::getId).eq(id)
+                .update();
+        if (enabled) {
+            approveCurrentSessions(id, operatorId, now);
+        }
+        String operator = resolveOperatorName(operatorId);
+        auditLogService.logWithTarget(
+                SysAuditLog.OperationType.DEVICE_BINDING_TOGGLE,
+                enabled ? "启用设备强绑定" : "关闭设备强绑定",
+                operatorId,
+                operator,
+                id,
+                user.getUsername(),
+                String.valueOf(id),
+                "user",
+                ip,
+                userAgent,
+                true,
+                null
+        );
+    }
+
+    @Override
+    @Transactional
+    @DataScope
+    public void approveDevice(Long id, String deviceId, String deviceName, Long operatorId, String ip, String userAgent) {
+        assertCanModifyTarget(id, operatorId, true);
+        SysUser user = requireUserInScope(id);
+        if (!StringUtils.hasText(deviceId)) {
+            throw new CustomException(400, "设备ID不能为空");
+        }
+        String normalized = deviceId.trim();
+        if (deviceBindingMapper.selectCountByQuery(
+                QueryWrapper.create()
+                        .where(SysUserDeviceBinding::getUserId).eq(id)
+                        .and(SysUserDeviceBinding::getDeviceId).eq(normalized)) > 0) {
+            throw new CustomException(400, "该设备已在白名单中");
+        }
+        Date now = new Date();
+        String name = StringUtils.hasText(deviceName)
+                ? InputSanitizer.sanitizeText(deviceName.trim(), 100)
+                : null;
+        deviceBindingMapper.insert(SysUserDeviceBinding.builder()
+                .userId(id)
+                .deviceId(normalized)
+                .deviceName(name)
+                .approvedBy(operatorId)
+                .approvedAt(now)
+                .createTime(now)
+                .build());
+        String operator = resolveOperatorName(operatorId);
+        auditLogService.logWithTarget(
+                SysAuditLog.OperationType.DEVICE_APPROVE,
+                "批准登录设备: " + normalized,
+                operatorId,
+                operator,
+                id,
+                user.getUsername(),
+                normalized,
+                "device",
+                ip,
+                userAgent,
+                true,
+                null
+        );
+    }
+
+    @Override
+    @Transactional
+    @DataScope
+    public void revokeDeviceApproval(Long id, String deviceId, Long operatorId, String ip, String userAgent) {
+        assertCanModifyTarget(id, operatorId, true);
+        SysUser user = requireUserInScope(id);
+        if (!StringUtils.hasText(deviceId)) {
+            throw new CustomException(400, "设备ID不能为空");
+        }
+        String normalized = deviceId.trim();
+        SysUserDeviceBinding binding = deviceBindingMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(SysUserDeviceBinding::getUserId).eq(id)
+                        .and(SysUserDeviceBinding::getDeviceId).eq(normalized)
+                        .limit(1)
+        );
+        if (binding == null) {
+            throw new CustomException(404, "该设备不在白名单中");
+        }
+        deviceBindingMapper.deleteById(binding.getId());
+        if (Integer.valueOf(1).equals(user.getDeviceBindingEnabled())) {
+            String operator = resolveOperatorName(operatorId);
+            deviceSessionService.kickDevice(id, normalized, operatorId, operator, ip, userAgent);
+        }
+        String operator = resolveOperatorName(operatorId);
+        auditLogService.logWithTarget(
+                SysAuditLog.OperationType.DEVICE_REVOKE,
+                "撤销登录设备: " + normalized,
+                operatorId,
+                operator,
+                id,
+                user.getUsername(),
+                normalized,
+                "device",
+                ip,
+                userAgent,
+                true,
+                null
+        );
+    }
+
+    private void approveCurrentSessions(Long userId, Long operatorId, Date now) {
+        List<DeviceVO> sessions = deviceSessionService.listByUser(userId, null);
+        Set<String> existing = loadApprovedDeviceIds(userId);
+        for (DeviceVO session : sessions) {
+            if (session.getId() == null || existing.contains(session.getId())) {
+                continue;
+            }
+            deviceBindingMapper.insert(SysUserDeviceBinding.builder()
+                    .userId(userId)
+                    .deviceId(session.getId())
+                    .deviceName(session.getDeviceName())
+                    .approvedBy(operatorId)
+                    .approvedAt(now)
+                    .createTime(now)
+                    .build());
+        }
+    }
+
+    private Set<String> loadBannedDeviceIds(Long userId) {
+        List<SysDeviceBan> bans = deviceBanMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(SysDeviceBan::getUserId).eq(userId)
+                        .and(SysDeviceBan::getStatus).eq(SysDeviceBan.STATUS_ACTIVE)
+        );
+        return bans.stream().map(SysDeviceBan::getDeviceId).collect(Collectors.toSet());
+    }
+
+    private Set<String> loadApprovedDeviceIds(Long userId) {
+        List<SysUserDeviceBinding> bindings = deviceBindingMapper.selectListByQuery(
+                QueryWrapper.create().where(SysUserDeviceBinding::getUserId).eq(userId)
+        );
+        return bindings.stream().map(SysUserDeviceBinding::getDeviceId).collect(Collectors.toSet());
+    }
+
+    private String resolveOperatorName(Long operatorId) {
+        if (operatorId == null) {
+            return "admin";
+        }
+        SysUser operator = sysUserMapper.selectOneById(operatorId);
+        if (operator != null && StringUtils.hasText(operator.getUsername())) {
+            return operator.getUsername();
+        }
+        return String.valueOf(operatorId);
     }
 
     @Override

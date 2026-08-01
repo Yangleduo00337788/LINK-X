@@ -27,6 +27,8 @@ public class AdminUserDetailVO {
     private Integer status;
     private Long deptId;
     private String deptName;
+    /** 是否强制设备绑定 */
+    private Boolean deviceBindingEnabled;
     private List<String> roles;
     private List<String> permissions;
     private Date createTime;

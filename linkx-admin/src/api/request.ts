@@ -4,6 +4,8 @@ import { createDiscreteApi, darkTheme } from 'naive-ui'
 import type { ApiResult } from '@/types/api'
 import type { AppTheme } from '@/i18n'
 import { tGlobal } from '@/i18n'
+import { promptStepUp } from '@/composables/useStepUpGate'
+import type { StepUpChallenge } from '@/api/stepUp'
 
 const discreteTheme = ref<AppTheme>('dark')
 
@@ -72,6 +74,24 @@ request.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config
 })
 
+type RetryConfig = AxiosRequestConfig & { _retry?: boolean; _stepUpRetry?: boolean }
+
+async function handleStepUp(original: RetryConfig, challenge: StepUpChallenge) {
+  if (original._stepUpRetry) {
+    return Promise.reject(new Error(tGlobal('stepUp.failed')))
+  }
+  const stepUpToken = await promptStepUp(challenge)
+  if (!stepUpToken) {
+    return Promise.reject(new Error(tGlobal('stepUp.cancelled')))
+  }
+  original._stepUpRetry = true
+  original.headers = {
+    ...original.headers,
+    'X-Step-Up-Token': stepUpToken,
+  }
+  return request(original)
+}
+
 request.interceptors.response.use(
   (response) => {
     if (response.config.responseType === 'blob' || response.data instanceof Blob) {
@@ -79,6 +99,9 @@ request.interceptors.response.use(
     }
     const payload = response.data as ApiResult
     if (payload && typeof payload.code === 'number' && payload.code !== 200) {
+      if (payload.code === 428 && payload.data) {
+        return handleStepUp(response.config as RetryConfig, payload.data as StepUpChallenge)
+      }
       const fallback = tGlobal('common.requestFailed')
       message.error(payload.message || fallback)
       return Promise.reject(new Error(payload.message || fallback))
@@ -86,8 +109,14 @@ request.interceptors.response.use(
     return response
   },
   async (error: AxiosError<ApiResult>) => {
-    const original = error.config as (AxiosRequestConfig & { _retry?: boolean }) | undefined
+    const original = error.config as RetryConfig | undefined
     const status = error.response?.status
+    const payload = error.response?.data
+
+    if (status === 428 && original && payload?.data) {
+      return handleStepUp(original, payload.data as StepUpChallenge)
+    }
+
     if (status === 401 && original && !original._retry && !original.url?.includes('/admin/auth/login')) {
       original._retry = true
       refreshing = refreshing || refreshAccessToken().finally(() => { refreshing = null })
@@ -100,8 +129,8 @@ request.interceptors.response.use(
         window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`
       }
     }
-    const msg = error.response?.data?.message || error.message || tGlobal('common.networkError')
-    if (status !== 401) message.error(msg)
+    const msg = payload?.message || error.message || tGlobal('common.networkError')
+    if (status !== 401 && status !== 428) message.error(msg)
     return Promise.reject(error)
   },
 )

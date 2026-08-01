@@ -41,6 +41,20 @@ export function resolveAvatarSrc(
 
 /** Banner 展示地址：同源 /media/banners/{id} 或外链 / blob */
 export function resolveBannerSrc(url?: string | null): string {
+  return resolveOpsMediaSrc(url)
+}
+
+/** 推荐位展示地址：同源 /media/recommends/{id} 或外链 / blob */
+export function resolveRecommendSrc(url?: string | null): string {
+  return resolveOpsMediaSrc(url)
+}
+
+/** 活动封面展示地址：同源 /media/activities/{id} 或外链 / blob */
+export function resolveActivitySrc(url?: string | null): string {
+  return resolveOpsMediaSrc(url)
+}
+
+function resolveOpsMediaSrc(url?: string | null): string {
   const v = (url || '').trim()
   if (!v) return ''
   if (v.startsWith('data:') || v.startsWith('blob:')) return v

@@ -34,6 +34,7 @@ export interface AdminUserDetail extends AdminUserListItem {
   province?: string
   region?: string
   permissions?: string[]
+  deviceBindingEnabled?: boolean
 }
 
 export interface DeviceItem {
@@ -45,6 +46,8 @@ export interface DeviceItem {
   lastActive?: string
   current?: boolean
   online?: boolean
+  banned?: boolean
+  approved?: boolean
 }
 
 export function listUsers(params: PageQuery) {
@@ -88,6 +91,18 @@ export function resetUserPassword(id: string, newPassword?: string) {
 
 export function listUserDevices(id: string) {
   return get<DeviceItem[]>(`/admin/users/${id}/devices`)
+}
+
+export function setUserDeviceBinding(id: string, enabled: boolean) {
+  return post<null>(`/admin/users/${id}/device-binding`, { enabled })
+}
+
+export function approveUserDevice(id: string, deviceId: string) {
+  return post<null>(`/admin/users/${id}/devices/${encodeURIComponent(deviceId)}/approve`)
+}
+
+export function revokeUserDevice(id: string, deviceId: string) {
+  return post<null>(`/admin/users/${id}/devices/${encodeURIComponent(deviceId)}/revoke`)
 }
 
 export interface UserLoginItem {

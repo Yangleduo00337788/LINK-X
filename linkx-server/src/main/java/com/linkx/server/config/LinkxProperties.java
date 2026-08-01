@@ -104,6 +104,8 @@ public class LinkxProperties {
         private int adminLockDurationMinutes = 10;
         /** 管理端是否强制要求开启 TOTP 2FA */
         private boolean adminTotpRequired = false;
+        /** 管理端高危操作是否启用二次验证（TOTP/邮箱） */
+        private boolean adminStepUpEnabled = true;
         /** 密码最小长度（管理端/客户端共用） */
         private int passwordMinLength = 8;
         /** 密码最大长度 */

@@ -58,6 +58,8 @@ linkx:
     # 关闭验证码，简化 registerAndLogin 等测试辅助方法
     captcha-enabled: false
     admin-captcha-enabled: false
+    # 既有安全用例不带 step-up；专项 IT 再显式打开
+    admin-step-up-enabled: false
     register-enabled: true
     forgot-password-email-enabled: true
     login-max-attempts: 5

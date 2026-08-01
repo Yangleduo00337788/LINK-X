@@ -134,6 +134,18 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: 'route.banners', permission: 'admin:banner:list' },
       },
       {
+        path: 'recommends',
+        name: 'Recommends',
+        component: () => import('@/views/RecommendListView.vue'),
+        meta: { titleKey: 'route.recommends', permission: 'admin:recommend:list' },
+      },
+      {
+        path: 'activities',
+        name: 'Activities',
+        component: () => import('@/views/ActivityListView.vue'),
+        meta: { titleKey: 'route.activities', permission: 'admin:activity:list' },
+      },
+      {
         path: 'settings',
         name: 'Settings',
         component: () => import('@/views/SettingView.vue'),

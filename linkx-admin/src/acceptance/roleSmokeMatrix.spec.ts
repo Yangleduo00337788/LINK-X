@@ -21,6 +21,8 @@ const FIXTURES: Record<
         children: [{ name: 'notices' }, { name: 'banners' }, { name: 'notice-inbox' }],
       },
       { name: 'statistics' },
+      { name: 'recommends' },
+      { name: 'activities' },
     ],
     permissions: [
       'admin:dashboard:view',
@@ -33,6 +35,8 @@ const FIXTURES: Record<
       'admin:banner:list',
       'admin:statistics:view',
       'admin:user:export',
+      'admin:recommend:list',
+      'admin:activity:list',
     ],
   },
   audit_admin: {

@@ -2,6 +2,7 @@ package com.linkx.server.controller.admin;
 
 import com.linkx.server.common.RequirePermission;
 import com.linkx.server.common.RequireRole;
+import com.linkx.server.common.RequireStepUp;
 import com.linkx.server.common.Result;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.config.aspect.AuditAction;
@@ -76,6 +77,7 @@ public class AdminRoleController {
     @AuditAction(operationType = "ROLE_REVOKE", description = "删除角色")
     @DeleteMapping("/{id}")
     @RequirePermission("admin:role:delete")
+    @RequireStepUp("admin:role:delete")
     public Result<Void> delete(@PathVariable Long id) {
         adminRoleService.delete(id);
         return Result.success(null);
@@ -92,6 +94,7 @@ public class AdminRoleController {
     @AuditAction(operationType = "ROLE_GRANT", description = "角色菜单授权")
     @PutMapping("/{id}/menus")
     @RequirePermission("admin:role:assign-menu")
+    @RequireStepUp("admin:role:assign-menu")
     public Result<Void> assignMenus(@PathVariable Long id, @Valid @RequestBody AdminRoleAssignMenuDTO dto) {
         adminRoleService.assignMenus(id, dto);
         return Result.success(null);
@@ -108,6 +111,7 @@ public class AdminRoleController {
     @AuditAction(operationType = "ROLE_GRANT", description = "角色绑定用户")
     @PutMapping("/{id}/users")
     @RequirePermission("admin:role:assign-user")
+    @RequireStepUp("admin:role:assign-user")
     public Result<Void> assignUsers(@PathVariable Long id,
                                     @Valid @RequestBody AdminRoleAssignUserDTO dto,
                                     HttpServletRequest request) {

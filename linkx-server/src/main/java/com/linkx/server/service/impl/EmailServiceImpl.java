@@ -91,6 +91,13 @@ public class EmailServiceImpl implements EmailService {
         sendHtmlEmail(to, subject, htmlContent);
     }
 
+    @Override
+    public void sendAdminStepUpCode(String to, String username, String code) {
+        String subject = "【LinkX】管理端高危操作验证码";
+        String htmlContent = buildAdminStepUpHtml(username, code);
+        sendHtmlEmail(to, subject, htmlContent);
+    }
+
     private Map<String, String> plainCodeVars(String username, String email, String code) {
         Map<String, String> vars = plainBaseVars(username, email);
         vars.put("CODE", code == null ? "" : code);
@@ -233,6 +240,24 @@ public class EmailServiceImpl implements EmailService {
                 <p style="margin:0 0 16px;color:#646a73;font-size:14px;">您好，%s！请使用以下验证码完成邮箱绑定：</p>
                 <div style="font-size:32px;font-weight:700;letter-spacing:6px;color:#12b7f5;text-align:center;padding:16px 0;">%s</div>
                 <p style="margin:16px 0 0;color:#8f959e;font-size:12px;">验证码 %d 分钟内有效。如非本人操作，请忽略本邮件。</p>
+              </div>
+            </body>
+            </html>
+            """.formatted(escapeHtml(username), escapeHtml(code), expireMinutes);
+    }
+
+    private String buildAdminStepUpHtml(String username, String code) {
+        int expireMinutes = 10;
+        return """
+            <!DOCTYPE html>
+            <html lang="zh-CN">
+            <head><meta charset="UTF-8"><title>高危操作验证码</title></head>
+            <body style="margin:0;padding:24px;background:#f4f6fa;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;color:#1f2329;">
+              <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:12px;padding:32px 28px;box-shadow:0 4px 20px rgba(15,23,42,0.06);">
+                <div style="font-size:20px;font-weight:700;margin-bottom:8px;">管理端二次验证</div>
+                <p style="margin:0 0 16px;color:#646a73;font-size:14px;">您好，%s！您正在执行高危操作，请使用以下验证码完成确认：</p>
+                <div style="font-size:32px;font-weight:700;letter-spacing:6px;color:#ef4444;text-align:center;padding:16px 0;">%s</div>
+                <p style="margin:16px 0 0;color:#8f959e;font-size:12px;">验证码 %d 分钟内有效。如非本人操作，请立即修改密码并检查账号安全。</p>
               </div>
             </body>
             </html>

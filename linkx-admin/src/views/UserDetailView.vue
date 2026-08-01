@@ -14,6 +14,7 @@ import {
   NSelect,
   NSpace,
   NSpin,
+  NSwitch,
   NTabPane,
   NTabs,
   NTag,
@@ -22,12 +23,15 @@ import {
   type DataTableColumns,
 } from 'naive-ui'
 import {
+  approveUserDevice,
   banUser,
   freezeUser,
   getUser,
   listUserDevices,
   listUserLogins,
   resetUserPassword,
+  revokeUserDevice,
+  setUserDeviceBinding,
   unbanUser,
   unfreezeUser,
   updateUser,
@@ -35,7 +39,7 @@ import {
   type DeviceItem,
   type UserLoginItem,
 } from '@/api/users'
-import { kickDevice } from '@/api/devices'
+import { banDevice, kickDevice, unbanDevice } from '@/api/devices'
 import { listDepts, type AdminDept } from '@/api/depts'
 import { onAdminRealtimeEvent } from '@/api/realtime'
 import { formatTime, displayOrNone, formatIp, userStatusLabel, userStatusType } from '@/utils/format'
@@ -139,6 +143,26 @@ const deviceColumns = computed<DataTableColumns<DeviceItem>>(() => {
         ),
     },
     {
+      title: t('device.approved'),
+      key: 'approved',
+      width: 90,
+      render: (row) =>
+        h(
+          NTag,
+          { type: row.approved ? 'success' : 'warning', size: 'small' },
+          () => (row.approved ? t('device.approved') : t('device.unapproved')),
+        ),
+    },
+    {
+      title: t('device.banned'),
+      key: 'banned',
+      width: 80,
+      render: (row) =>
+        row.banned
+          ? h(NTag, { type: 'error', size: 'small' }, () => t('device.banned'))
+          : '-',
+    },
+    {
       title: 'IP',
       key: 'ip',
       width: 140,
@@ -162,20 +186,79 @@ const deviceColumns = computed<DataTableColumns<DeviceItem>>(() => {
     {
       title: t('common.actions'),
       key: 'actions',
-      width: 110,
-      render: (row) =>
-        auth.hasPermission('admin:device:kick')
-          ? h(
+      width: 260,
+      render: (row) => {
+        const buttons = []
+        if (auth.hasPermission('admin:device:kick')) {
+          buttons.push(
+            h(
+              NButton,
+              {
+                size: 'tiny',
+                type: 'warning',
+                secondary: true,
+                onClick: () => confirmKickDevice(row),
+              },
+              () => t('device.kick'),
+            ),
+          )
+        }
+        if (auth.hasPermission('admin:user:device-approve')) {
+          if (row.approved) {
+            buttons.push(
+              h(
+                NButton,
+                {
+                  size: 'tiny',
+                  secondary: true,
+                  onClick: () => confirmRevokeDevice(row),
+                },
+                () => t('device.revoke'),
+              ),
+            )
+          } else {
+            buttons.push(
+              h(
+                NButton,
+                {
+                  size: 'tiny',
+                  type: 'primary',
+                  secondary: true,
+                  onClick: () => confirmApproveDevice(row),
+                },
+                () => t('device.approve'),
+              ),
+            )
+          }
+        }
+        if (row.banned && auth.hasPermission('admin:device:unban')) {
+          buttons.push(
+            h(
+              NButton,
+              {
+                size: 'tiny',
+                secondary: true,
+                onClick: () => confirmUnbanDevice(row),
+              },
+              () => t('device.unban'),
+            ),
+          )
+        } else if (!row.banned && auth.hasPermission('admin:device:ban')) {
+          buttons.push(
+            h(
               NButton,
               {
                 size: 'tiny',
                 type: 'error',
                 secondary: true,
-                onClick: () => confirmKickDevice(row),
+                onClick: () => confirmBanDevice(row),
               },
-              () => t('device.kick'),
-            )
-          : null,
+              () => t('device.ban'),
+            ),
+          )
+        }
+        return buttons.length ? h(NSpace, { size: 4 }, () => buttons) : null
+      },
     },
   ]
 })
@@ -192,6 +275,83 @@ function confirmKickDevice(row: DeviceItem) {
     onPositiveClick: async () => {
       await kickDevice(userId.value, row.id)
       message.success(t('device.kickSuccess'))
+      await loadDevices()
+    },
+  })
+}
+
+function confirmBanDevice(row: DeviceItem) {
+  dialog.error({
+    title: t('device.banTitle'),
+    content: t('device.banConfirm', {
+      user: user.value?.username || userId.value,
+      device: row.deviceName || row.id,
+    }),
+    positiveText: t('device.ban'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      await banDevice(userId.value, row.id)
+      message.success(t('device.banSuccess'))
+      await loadDevices()
+    },
+  })
+}
+
+function confirmUnbanDevice(row: DeviceItem) {
+  dialog.warning({
+    title: t('device.unbanTitle'),
+    content: t('device.unbanConfirm', {
+      user: user.value?.username || userId.value,
+      device: row.deviceName || row.id,
+    }),
+    positiveText: t('device.unban'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      await unbanDevice(userId.value, row.id)
+      message.success(t('device.unbanSuccess'))
+      await loadDevices()
+    },
+  })
+}
+
+function confirmApproveDevice(row: DeviceItem) {
+  dialog.warning({
+    title: t('device.approve'),
+    content: row.deviceName || row.id,
+    positiveText: t('device.approve'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      await approveUserDevice(userId.value, row.id)
+      message.success(t('device.approveSuccess'))
+      await loadDevices()
+    },
+  })
+}
+
+function confirmRevokeDevice(row: DeviceItem) {
+  dialog.warning({
+    title: t('device.revoke'),
+    content: row.deviceName || row.id,
+    positiveText: t('device.revoke'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      await revokeUserDevice(userId.value, row.id)
+      message.success(t('device.revokeSuccess'))
+      await loadDevices()
+    },
+  })
+}
+
+async function toggleDeviceBinding(enabled: boolean) {
+  dialog.warning({
+    title: t('device.binding'),
+    content: enabled ? t('device.bindingEnableConfirm') : t('device.bindingDisableConfirm'),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      await setUserDeviceBinding(userId.value, enabled)
+      message.success(t('device.bindingSuccess'))
+      await load()
       await loadDevices()
     },
   })
@@ -448,6 +608,16 @@ onUnmounted(() => {
               <NDescriptionsItem :label="t('user.signature')" :span="2">{{ displayOrNone(user.signature) }}</NDescriptionsItem>
               <NDescriptionsItem :label="t('user.roles')" :span="2">{{ rolesText }}</NDescriptionsItem>
               <NDescriptionsItem :label="t('user.dept')">{{ user.deptName || t('common.none') }}</NDescriptionsItem>
+              <NDescriptionsItem :label="t('device.binding')">
+                <NSpace align="center">
+                  <span>{{ user.deviceBindingEnabled ? t('device.bindingOn') : t('device.bindingOff') }}</span>
+                  <NSwitch
+                    v-if="auth.hasPermission('admin:user:device-binding')"
+                    :value="!!user.deviceBindingEnabled"
+                    @update:value="toggleDeviceBinding"
+                  />
+                </NSpace>
+              </NDescriptionsItem>
               <NDescriptionsItem :label="t('common.createTime')">{{ formatTime(user.createTime) }}</NDescriptionsItem>
               <NDescriptionsItem :label="t('common.updateTime')">{{ formatTime(user.updateTime) }}</NDescriptionsItem>
             </NDescriptions>

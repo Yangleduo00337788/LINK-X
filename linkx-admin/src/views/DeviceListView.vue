@@ -14,7 +14,14 @@ import {
   type DataTableColumns,
   type SelectOption,
 } from 'naive-ui'
-import { exportDevices, kickDevice, listDevices, type AdminDeviceItem } from '@/api/devices'
+import {
+  banDevice,
+  exportDevices,
+  kickDevice,
+  listDevices,
+  unbanDevice,
+  type AdminDeviceItem,
+} from '@/api/devices'
 import { onAdminRealtimeEvent } from '@/api/realtime'
 import { formatIp, formatTime } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
@@ -108,6 +115,15 @@ const columns = computed<DataTableColumns<AdminDeviceItem>>(() => {
         ),
     },
     {
+      title: t('device.banned'),
+      key: 'banned',
+      width: 90,
+      render: (row) =>
+        row.banned
+          ? h(NTag, { type: 'error', size: 'small' }, () => t('device.banned'))
+          : '-',
+    },
+    {
       title: 'IP',
       key: 'ip',
       width: 140,
@@ -128,21 +144,52 @@ const columns = computed<DataTableColumns<AdminDeviceItem>>(() => {
     {
       title: t('common.actions'),
       key: 'actions',
-      width: 120,
+      width: 220,
       fixed: 'right',
-      render: (row) =>
-        auth.hasPermission('admin:device:kick')
-          ? h(
+      render: (row) => {
+        const buttons = []
+        if (auth.hasPermission('admin:device:kick')) {
+          buttons.push(
+            h(
+              NButton,
+              {
+                size: 'tiny',
+                type: 'warning',
+                secondary: true,
+                onClick: () => confirmKick(row),
+              },
+              () => t('device.kick'),
+            ),
+          )
+        }
+        if (row.banned && auth.hasPermission('admin:device:unban')) {
+          buttons.push(
+            h(
+              NButton,
+              {
+                size: 'tiny',
+                secondary: true,
+                onClick: () => confirmUnban(row),
+              },
+              () => t('device.unban'),
+            ),
+          )
+        } else if (!row.banned && auth.hasPermission('admin:device:ban')) {
+          buttons.push(
+            h(
               NButton,
               {
                 size: 'tiny',
                 type: 'error',
                 secondary: true,
-                onClick: () => confirmKick(row),
+                onClick: () => confirmBan(row),
               },
-              () => t('device.kick'),
-            )
-          : null,
+              () => t('device.ban'),
+            ),
+          )
+        }
+        return buttons.length ? h(NSpace, { size: 4 }, () => buttons) : null
+      },
     },
   ]
 })
@@ -186,6 +233,42 @@ function confirmKick(row: AdminDeviceItem) {
     onPositiveClick: async () => {
       await kickDevice(row.userId!, row.deviceId)
       message.success(t('device.kickSuccess'))
+      await load()
+    },
+  })
+}
+
+function confirmBan(row: AdminDeviceItem) {
+  if (!row.userId || !row.deviceId) return
+  dialog.error({
+    title: t('device.banTitle'),
+    content: t('device.banConfirm', {
+      user: row.username || row.userId,
+      device: row.deviceName || row.deviceId,
+    }),
+    positiveText: t('device.ban'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      await banDevice(row.userId!, row.deviceId)
+      message.success(t('device.banSuccess'))
+      await load()
+    },
+  })
+}
+
+function confirmUnban(row: AdminDeviceItem) {
+  if (!row.userId || !row.deviceId) return
+  dialog.warning({
+    title: t('device.unbanTitle'),
+    content: t('device.unbanConfirm', {
+      user: row.username || row.userId,
+      device: row.deviceName || row.deviceId,
+    }),
+    positiveText: t('device.unban'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      await unbanDevice(row.userId!, row.deviceId)
+      message.success(t('device.unbanSuccess'))
       await load()
     },
   })

@@ -2,11 +2,14 @@ package com.linkx.server.controller.admin;
 
 import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.common.RequirePermission;
+import com.linkx.server.common.RequireStepUp;
 import com.linkx.server.common.RequireRole;
 import com.linkx.server.common.Result;
 import com.linkx.server.common.admin.AdminCsvResponses;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.config.LinkxProperties;
+import com.linkx.server.config.aspect.AuditAction;
+import com.linkx.server.controller.admin.dto.AdminDeviceBanDTO;
 import com.linkx.server.controller.admin.dto.AdminDeviceQueryDTO;
 import com.linkx.server.controller.admin.vo.AdminDeviceVO;
 import com.linkx.server.service.admin.AdminDeviceService;
@@ -19,6 +22,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -72,6 +76,7 @@ public class AdminDeviceController {
     @Operation(summary = "强制设备下线", description = "吊销 token、断开连接并删除会话，写审计日志")
     @PostMapping("/{userId}/{deviceId}/kick")
     @RequirePermission("admin:device:kick")
+    @RequireStepUp("admin:device:kick")
     public Result<Void> kick(@PathVariable Long userId,
                              @PathVariable String deviceId,
                              HttpServletRequest request) {
@@ -81,6 +86,46 @@ public class AdminDeviceController {
                 deviceId,
                 operatorId,
                 null,
+                ClientIpResolver.resolve(request, linkxProperties),
+                request.getHeader("User-Agent")
+        );
+        return Result.success(null);
+    }
+
+    @Operation(summary = "长期封禁设备", description = "写入封禁记录并强制下线，阻止该用户用此设备再次登录")
+    @AuditAction(operationType = "DEVICE_BAN", description = "封禁设备")
+    @PostMapping("/{userId}/{deviceId}/ban")
+    @RequirePermission("admin:device:ban")
+    @RequireStepUp("admin:device:ban")
+    public Result<Void> ban(@PathVariable Long userId,
+                            @PathVariable String deviceId,
+                            @RequestBody(required = false) @Valid AdminDeviceBanDTO dto,
+                            HttpServletRequest request) {
+        Long operatorId = (Long) request.getAttribute("userId");
+        adminDeviceService.ban(
+                userId,
+                deviceId,
+                dto == null ? null : dto.getReason(),
+                operatorId,
+                ClientIpResolver.resolve(request, linkxProperties),
+                request.getHeader("User-Agent")
+        );
+        return Result.success(null);
+    }
+
+    @Operation(summary = "解封设备")
+    @AuditAction(operationType = "DEVICE_UNBAN", description = "解封设备")
+    @PostMapping("/{userId}/{deviceId}/unban")
+    @RequirePermission("admin:device:unban")
+    @RequireStepUp("admin:device:unban")
+    public Result<Void> unban(@PathVariable Long userId,
+                              @PathVariable String deviceId,
+                              HttpServletRequest request) {
+        Long operatorId = (Long) request.getAttribute("userId");
+        adminDeviceService.unban(
+                userId,
+                deviceId,
+                operatorId,
                 ClientIpResolver.resolve(request, linkxProperties),
                 request.getHeader("User-Agent")
         );

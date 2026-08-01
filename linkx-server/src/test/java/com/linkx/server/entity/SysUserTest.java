@@ -89,7 +89,7 @@ class SysUserTest {
                     1L, "fulluser", "pass123", "全用户",
                     "http://avatar.url", "签名", "女",
                     1234567890L, "中国", "广东", "深圳",
-                    1, null, null, now, now, 1L, 1L, 0,
+                    1, null, 0, null, now, now, 1L, 1L, 0,
                     "fulluser@linkx.com", "13800138000",
                     0, null, null,
                     roleCodes

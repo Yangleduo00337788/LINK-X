@@ -44,6 +44,41 @@ class AdminStatisticsIT extends BaseIntegrationTest {
     }
 
     @Test
+    @DisplayName("群活跃度统计返回趋势与 Top 列表")
+    void groupsActivityEndpoint() throws Exception {
+        TestUser admin = registerAndLogin("statgrp");
+        grantAdmin(admin.userId);
+        admin = login(admin.username, "Test1234abcd");
+
+        mockMvc.perform(get("/admin/statistics/groups")
+                        .param("days", "14")
+                        .header("Authorization", admin.bearer()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.totalGroups").exists())
+                .andExpect(jsonPath("$.data.trend.series").isArray())
+                .andExpect(jsonPath("$.data.topGroups").isArray());
+    }
+
+    @Test
+    @DisplayName("风控统计含审核效率字段")
+    void riskIncludesReviewEfficiency() throws Exception {
+        TestUser admin = registerAndLogin("statrev");
+        grantAdmin(admin.userId);
+        admin = login(admin.username, "Test1234abcd");
+
+        mockMvc.perform(get("/admin/statistics/risk")
+                        .param("days", "14")
+                        .header("Authorization", admin.bearer()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.reviewEfficiencyTrend.series").isArray())
+                .andExpect(jsonPath("$.data.pendingOver24h").exists())
+                .andExpect(jsonPath("$.data.pendingOver72h").exists())
+                .andExpect(jsonPath("$.data.resolvedReviewsInRange").exists());
+    }
+
+    @Test
     @DisplayName("活跃时段热力图支持 messages 指标")
     void activityHeatmapMessagesMetric() throws Exception {
         TestUser admin = registerAndLogin("stathmm");

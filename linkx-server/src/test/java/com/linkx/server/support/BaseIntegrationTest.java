@@ -2,6 +2,9 @@ package com.linkx.server.support;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linkx.server.controller.dto.SendFriendRequestDTO;
+import com.linkx.server.controller.vo.FriendRequestVO;
+import com.linkx.server.service.FriendService;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -14,6 +17,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -59,6 +63,9 @@ public abstract class BaseIntegrationTest {
 
     @Autowired
     protected StringRedisTemplate stringRedisTemplate;
+
+    @Autowired
+    protected FriendService friendService;
 
     /** 已登录测试用户上下文。 */
     protected static final class TestUser {
@@ -178,6 +185,34 @@ public abstract class BaseIntegrationTest {
         String password = "Test1234abcd";
         register(username, password, nicknamePrefix + USER_SEQ.get());
         return login(username, password, deviceId);
+    }
+
+    /** 建立双向好友（建群前必需）。已是好友时忽略重复请求错误。 */
+    protected void ensureFriends(TestUser a, TestUser b) {
+        if (a == null || b == null || a.userId == b.userId) {
+            return;
+        }
+        try {
+            SendFriendRequestDTO req = new SendFriendRequestDTO();
+            req.setUsername(b.username);
+            req.setMessage("it-friend");
+            friendService.sendFriendRequest(a.userId, req);
+            List<FriendRequestVO> incoming = friendService.listIncomingRequests(b.userId);
+            if (incoming != null && !incoming.isEmpty()) {
+                friendService.acceptFriendRequest(b.userId, incoming.get(0).getId());
+            }
+        } catch (Exception ignored) {
+            // 已是好友或并发重复请求时允许继续
+        }
+    }
+
+    protected void ensureFriends(TestUser owner, TestUser... members) {
+        if (owner == null || members == null) {
+            return;
+        }
+        for (TestUser member : members) {
+            ensureFriends(owner, member);
+        }
     }
 
     // ---- 简单请求体（避免依赖生产 DTO 的校验注解可见性） ----

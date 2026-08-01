@@ -58,14 +58,16 @@ class DualClientLiveSmokeTest extends BaseIntegrationTest {
     @Test
     @DisplayName("双端：收消息发 deliveryReceipt，发送方收到回执；markAsRead 后收到 readReceipt")
     void deliveryAndReadReceipt_dualOnline() throws Exception {
-        TestUser alice = registerAndLoginWithDevice("dcala", "dc-a-" + UUID.randomUUID());
-        TestUser bob = registerAndLoginWithDevice("dcalb", "dc-b-" + UUID.randomUUID());
+        String aliceDevice = "dc-a-" + UUID.randomUUID();
+        String bobDevice = "dc-b-" + UUID.randomUUID();
+        TestUser alice = registerAndLoginWithDevice("dcala", aliceDevice);
+        TestUser bob = registerAndLoginWithDevice("dcalb", bobDevice);
         ConversationVO conv = becomeFriendsAndOpen(alice, bob);
         String content = "dual-read-" + System.nanoTime();
         String clientMsgId = UUID.randomUUID().toString();
 
-        try (WsSession aliceWs = connect(alice.accessToken, "dc-a-dev");
-             WsSession bobWs = connect(bob.accessToken, "dc-b-dev")) {
+        try (WsSession aliceWs = connect(alice.accessToken, aliceDevice);
+             WsSession bobWs = connect(bob.accessToken, bobDevice)) {
             assertTrue(aliceWs.awaitOpen(5, TimeUnit.SECONDS));
             assertTrue(bobWs.awaitOpen(5, TimeUnit.SECONDS));
 
@@ -114,13 +116,15 @@ class DualClientLiveSmokeTest extends BaseIntegrationTest {
     @Test
     @DisplayName("双端：拉黑后发送方 WS 发送应失败（error），解除后可再发")
     void blockThenUnblock_wsSend() throws Exception {
-        TestUser alice = registerAndLoginWithDevice("dcbla", "dc-ba-" + UUID.randomUUID());
-        TestUser bob = registerAndLoginWithDevice("dcblb", "dc-bb-" + UUID.randomUUID());
+        String aliceDevice = "dc-ba-" + UUID.randomUUID();
+        String bobDevice = "dc-bb-" + UUID.randomUUID();
+        TestUser alice = registerAndLoginWithDevice("dcbla", aliceDevice);
+        TestUser bob = registerAndLoginWithDevice("dcblb", bobDevice);
         ConversationVO conv = becomeFriendsAndOpen(alice, bob);
 
         friendService.blockFriend(alice.userId, bob.userId);
 
-        try (WsSession aliceWs = connect(alice.accessToken, "dc-ba-dev")) {
+        try (WsSession aliceWs = connect(alice.accessToken, aliceDevice)) {
             assertTrue(aliceWs.awaitOpen(5, TimeUnit.SECONDS));
             String blockedId = UUID.randomUUID().toString();
             aliceWs.send(String.format("""
@@ -161,11 +165,14 @@ class DualClientLiveSmokeTest extends BaseIntegrationTest {
 
     private static WsSession connect(String accessToken, String deviceId) throws Exception {
         awaitPortOpen(WS_PORT, 15_000);
-        URI uri = URI.create("ws://127.0.0.1:" + WS_PORT + "/ws?token="
-                + accessToken + "&deviceId=" + deviceId + "&deviceName=JUnit&deviceType=Test");
+        // token 必须走子协议；Origin 需命中测试白名单（见 application-test.yml）
+        URI uri = URI.create("ws://127.0.0.1:" + WS_PORT + "/ws?deviceId="
+                + deviceId + "&deviceName=JUnit&deviceType=Test");
         WsSession session = new WsSession();
         HttpClient.newHttpClient()
                 .newWebSocketBuilder()
+                .header("Origin", "http://localhost:5173")
+                .subprotocols("linkx-access-token", accessToken)
                 .connectTimeout(Duration.ofSeconds(5))
                 .buildAsync(uri, session)
                 .get(8, TimeUnit.SECONDS);

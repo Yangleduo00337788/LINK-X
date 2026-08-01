@@ -3,15 +3,20 @@ package com.linkx.server.service.admin.impl;
 import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.common.DataScope;
 import com.linkx.server.common.DataScopeContext;
+import com.linkx.server.common.InputSanitizer;
 import com.linkx.server.common.admin.AdminConstants;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminDeviceQueryDTO;
 import com.linkx.server.controller.admin.vo.AdminDeviceVO;
 import com.linkx.server.entity.DeviceSession;
+import com.linkx.server.entity.SysAuditLog;
+import com.linkx.server.entity.SysDeviceBan;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.DeviceSessionMapper;
+import com.linkx.server.mapper.SysDeviceBanMapper;
 import com.linkx.server.mapper.SysUserMapper;
+import com.linkx.server.service.AuditLogService;
 import com.linkx.server.service.DeviceSessionService;
 import com.linkx.server.service.PresenceService;
 import com.linkx.server.service.admin.AdminDeviceService;
@@ -37,9 +42,11 @@ public class AdminDeviceServiceImpl implements AdminDeviceService {
 
     private final DeviceSessionMapper deviceSessionMapper;
     private final SysUserMapper sysUserMapper;
+    private final SysDeviceBanMapper deviceBanMapper;
     private final DeviceSessionService deviceSessionService;
     private final PresenceService presenceService;
     private final AdminEventPublisher adminEventPublisher;
+    private final AuditLogService auditLogService;
 
     @Override
     @DataScope
@@ -53,8 +60,9 @@ public class AdminDeviceServiceImpl implements AdminDeviceService {
         List<DeviceSession> rows = deviceSessionMapper.selectListByQuery(qw);
         Map<Long, SysUser> users = resolveUsers(rows);
         Map<Long, Set<String>> onlineByUser = resolveOnlineDevices(rows);
+        Set<String> bannedKeys = resolveBannedKeys(rows);
         List<AdminDeviceVO> items = rows.stream()
-                .map(row -> toVO(row, users.get(row.getUserId()), onlineByUser))
+                .map(row -> toVO(row, users.get(row.getUserId()), onlineByUser, bannedKeys))
                 .collect(Collectors.toList());
         return PageResultVO.of(items, page, size, total);
     }
@@ -68,8 +76,9 @@ public class AdminDeviceServiceImpl implements AdminDeviceService {
         List<DeviceSession> rows = deviceSessionMapper.selectListByQuery(qw);
         Map<Long, SysUser> users = resolveUsers(rows);
         Map<Long, Set<String>> onlineByUser = resolveOnlineDevices(rows);
+        Set<String> bannedKeys = resolveBannedKeys(rows);
         return rows.stream()
-                .map(row -> toVO(row, users.get(row.getUserId()), onlineByUser))
+                .map(row -> toVO(row, users.get(row.getUserId()), onlineByUser, bannedKeys))
                 .collect(Collectors.toList());
     }
 
@@ -102,17 +111,141 @@ public class AdminDeviceServiceImpl implements AdminDeviceService {
                 operator,
                 ip,
                 userAgent);
-        // 管理端列表即时收敛；跨实例 WS 依赖 token 吊销 + device:kicked
+        publishOffline(userId, normalized);
+    }
+
+    @Override
+    @Transactional
+    public void ban(Long userId, String deviceId, String reason, Long operatorId, String ip, String userAgent) {
+        if (userId == null) {
+            throw new CustomException(400, "用户ID不能为空");
+        }
+        if (!StringUtils.hasText(deviceId)) {
+            throw new CustomException(400, "设备ID不能为空");
+        }
+        String normalized = deviceId.trim();
+        SysUser target = sysUserMapper.selectOneById(userId);
+        if (target == null) {
+            throw new CustomException(404, "用户不存在");
+        }
+        if (hasActiveBan(userId, normalized)) {
+            throw new CustomException(400, "该设备已处于封禁状态");
+        }
+        Date now = new Date();
+        String sanitizedReason = StringUtils.hasText(reason)
+                ? InputSanitizer.sanitizeText(reason.trim(), 255)
+                : null;
+        DeviceSession existing = deviceSessionMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(DeviceSession::getUserId).eq(userId)
+                        .and(DeviceSession::getDeviceId).eq(normalized)
+                        .limit(1)
+        );
+
+        deviceBanMapper.insert(SysDeviceBan.builder()
+                .userId(userId)
+                .deviceId(normalized)
+                .reason(sanitizedReason)
+                .status(SysDeviceBan.STATUS_ACTIVE)
+                .bannedBy(operatorId)
+                .createTime(now)
+                .updateTime(now)
+                .build());
+
+        String operator = resolveOperatorName(operatorId);
+        // 踢下线会删除会话；重建一条离线会话，便于列表展示与解封
+        String deviceName = existing != null && StringUtils.hasText(existing.getDeviceName())
+                ? existing.getDeviceName() : "Banned Device";
+        String deviceType = existing != null ? existing.getDeviceType() : null;
+        String sessionIp = existing != null ? existing.getIp() : ip;
+        String sessionUa = existing != null ? existing.getUserAgent() : userAgent;
+        deviceSessionService.kickDevice(userId, normalized, operatorId, operator, ip, userAgent);
+        deviceSessionService.createOrUpdate(
+                userId, normalized, deviceName, deviceType, sessionIp, sessionUa);
+        publishOffline(userId, normalized);
+
+        auditLogService.logWithTarget(
+                SysAuditLog.OperationType.DEVICE_BAN,
+                "封禁设备: " + normalized + (sanitizedReason != null ? " (" + sanitizedReason + ")" : ""),
+                operatorId,
+                operator,
+                userId,
+                target.getUsername(),
+                normalized,
+                "device",
+                ip,
+                userAgent,
+                true,
+                null
+        );
+    }
+
+    @Override
+    @Transactional
+    public void unban(Long userId, String deviceId, Long operatorId, String ip, String userAgent) {
+        if (userId == null) {
+            throw new CustomException(400, "用户ID不能为空");
+        }
+        if (!StringUtils.hasText(deviceId)) {
+            throw new CustomException(400, "设备ID不能为空");
+        }
+        String normalized = deviceId.trim();
+        SysDeviceBan ban = deviceBanMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(SysDeviceBan::getUserId).eq(userId)
+                        .and(SysDeviceBan::getDeviceId).eq(normalized)
+                        .and(SysDeviceBan::getStatus).eq(SysDeviceBan.STATUS_ACTIVE)
+                        .orderBy(SysDeviceBan::getCreateTime, false)
+                        .limit(1)
+        );
+        if (ban == null) {
+            throw new CustomException(404, "未找到有效的设备封禁记录");
+        }
+        Date now = new Date();
+        ban.setStatus(SysDeviceBan.STATUS_RELEASED);
+        ban.setReleasedBy(operatorId);
+        ban.setReleasedAt(now);
+        ban.setUpdateTime(now);
+        deviceBanMapper.update(ban);
+
+        SysUser target = sysUserMapper.selectOneById(userId);
+        String operator = resolveOperatorName(operatorId);
+        auditLogService.logWithTarget(
+                SysAuditLog.OperationType.DEVICE_UNBAN,
+                "解封设备: " + normalized,
+                operatorId,
+                operator,
+                userId,
+                target == null ? null : target.getUsername(),
+                normalized,
+                "device",
+                ip,
+                userAgent,
+                true,
+                null
+        );
+    }
+
+    private void publishOffline(Long userId, String deviceId) {
         try {
             adminEventPublisher.publish(
                     "device_presence",
                     userId,
-                    "{\"deviceId\":\"" + normalized.replace("\\", "\\\\").replace("\"", "\\\"")
+                    "{\"deviceId\":\"" + deviceId.replace("\\", "\\\\").replace("\"", "\\\"")
                             + "\",\"online\":false}"
             );
         } catch (Exception ignored) {
-            // 实时事件失败不影响踢下线
+            // 实时事件失败不影响主流程
         }
+    }
+
+    private boolean hasActiveBan(Long userId, String deviceId) {
+        return deviceBanMapper.selectCountByQuery(
+                QueryWrapper.create()
+                        .where(SysDeviceBan::getUserId).eq(userId)
+                        .and(SysDeviceBan::getDeviceId).eq(deviceId)
+                        .and(SysDeviceBan::getStatus).eq(SysDeviceBan.STATUS_ACTIVE)
+        ) > 0;
     }
 
     private String resolveOperatorName(Long operatorId) {
@@ -141,7 +274,6 @@ public class AdminDeviceServiceImpl implements AdminDeviceService {
         }
         if (query.getUserId() != null) {
             if (allowed != null && !allowed.contains(query.getUserId())) {
-                // 无范围时强制空结果，避免越权窥探他人设备
                 qw.and(DeviceSession::getUserId).eq(-1L);
             } else {
                 qw.and(DeviceSession::getUserId).eq(query.getUserId());
@@ -216,9 +348,46 @@ public class AdminDeviceServiceImpl implements AdminDeviceService {
         return map;
     }
 
-    private AdminDeviceVO toVO(DeviceSession row, SysUser user, Map<Long, Set<String>> onlineByUser) {
+    private Set<String> resolveBannedKeys(List<DeviceSession> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptySet();
+        }
+        Set<Long> userIds = new HashSet<>();
+        Set<String> deviceIds = new HashSet<>();
+        for (DeviceSession row : rows) {
+            if (row.getUserId() != null) {
+                userIds.add(row.getUserId());
+            }
+            if (StringUtils.hasText(row.getDeviceId())) {
+                deviceIds.add(row.getDeviceId());
+            }
+        }
+        if (userIds.isEmpty() || deviceIds.isEmpty()) {
+            return Collections.emptySet();
+        }
+        List<SysDeviceBan> bans = deviceBanMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .where(SysDeviceBan::getUserId).in(userIds)
+                        .and(SysDeviceBan::getDeviceId).in(deviceIds)
+                        .and(SysDeviceBan::getStatus).eq(SysDeviceBan.STATUS_ACTIVE)
+        );
+        Set<String> keys = new HashSet<>();
+        for (SysDeviceBan ban : bans) {
+            keys.add(banKey(ban.getUserId(), ban.getDeviceId()));
+        }
+        return keys;
+    }
+
+    private static String banKey(Long userId, String deviceId) {
+        return userId + "|" + deviceId;
+    }
+
+    private AdminDeviceVO toVO(DeviceSession row, SysUser user,
+                               Map<Long, Set<String>> onlineByUser, Set<String> bannedKeys) {
         Set<String> onlineDevices = onlineByUser.getOrDefault(row.getUserId(), Collections.emptySet());
         boolean online = row.getDeviceId() != null && onlineDevices.contains(row.getDeviceId());
+        boolean banned = row.getUserId() != null && row.getDeviceId() != null
+                && bannedKeys.contains(banKey(row.getUserId(), row.getDeviceId()));
         return AdminDeviceVO.builder()
                 .id(row.getId())
                 .userId(row.getUserId())
@@ -232,6 +401,7 @@ public class AdminDeviceServiceImpl implements AdminDeviceService {
                 .lastActive(row.getLastActive())
                 .createTime(row.getCreateTime())
                 .online(online)
+                .banned(banned)
                 .build();
     }
 

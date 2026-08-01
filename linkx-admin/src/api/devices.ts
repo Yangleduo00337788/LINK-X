@@ -14,6 +14,7 @@ export interface AdminDeviceItem {
   lastActive?: string
   createTime?: string
   online?: boolean
+  banned?: boolean
 }
 
 export interface DeviceQuery extends PageQuery {
@@ -27,6 +28,14 @@ export function listDevices(params: DeviceQuery) {
 
 export function kickDevice(userId: string, deviceId: string) {
   return post<null>(`/admin/devices/${userId}/${encodeURIComponent(deviceId)}/kick`)
+}
+
+export function banDevice(userId: string, deviceId: string, reason?: string) {
+  return post<null>(`/admin/devices/${userId}/${encodeURIComponent(deviceId)}/ban`, { reason })
+}
+
+export function unbanDevice(userId: string, deviceId: string) {
+  return post<null>(`/admin/devices/${userId}/${encodeURIComponent(deviceId)}/unban`)
 }
 
 export function exportDevices(params: DeviceQuery) {

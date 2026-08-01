@@ -23,13 +23,15 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
   {
     roleCode: 'ops_admin',
     label: '运营管理员',
-    mustMenus: ['dashboard', 'feedback', 'notices', 'statistics'],
+    mustMenus: ['dashboard', 'feedback', 'notices', 'statistics', 'recommends', 'activities'],
     mustNotMenus: ['settings', 'risk-event', 'devices'],
     allowPerms: [
       'admin:dashboard:view',
       'admin:feedback:reply',
       'admin:notice:create',
       'admin:user:export',
+      'admin:recommend:list',
+      'admin:activity:list',
     ],
     denyPerms: [
       'admin:setting:edit',
@@ -39,7 +41,14 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
       'admin:device:export',
       'admin:menu:create',
     ],
-    allowRoutes: ['/admin/dashboard', '/admin/feedback', '/admin/notices', '/admin/statistics'],
+    allowRoutes: [
+      '/admin/dashboard',
+      '/admin/feedback',
+      '/admin/notices',
+      '/admin/statistics',
+      '/admin/recommends',
+      '/admin/activities',
+    ],
     denyRoutes: ['/admin/settings', '/admin/risk-events', '/admin/devices', '/admin/menus'],
   },
   {
@@ -115,6 +124,8 @@ export const ADMIN_ROUTE_PERMISSIONS: Array<{ path: string; permission?: string;
   { path: '/admin/notices', permission: 'admin:notice:list', name: 'Notices' },
   { path: '/admin/notice-inbox', permission: 'admin:notice:inbox', name: 'NoticeInbox' },
   { path: '/admin/banners', permission: 'admin:banner:list', name: 'Banners' },
+  { path: '/admin/recommends', permission: 'admin:recommend:list', name: 'Recommends' },
+  { path: '/admin/activities', permission: 'admin:activity:list', name: 'Activities' },
   { path: '/admin/settings', permission: 'admin:setting:view', name: 'Settings' },
   { path: '/admin/statistics', permission: 'admin:statistics:view', name: 'Statistics' },
   { path: '/admin/profile', name: 'Profile' },

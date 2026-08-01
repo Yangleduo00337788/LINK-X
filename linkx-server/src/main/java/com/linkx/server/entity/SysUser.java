@@ -81,6 +81,9 @@ public class SysUser implements Serializable {
     /** 所属部门 ID，可空 */
     private Long deptId;
 
+    /** 是否强制设备绑定：1=仅白名单设备可登录，0=关闭 */
+    private Integer deviceBindingEnabled;
+
     /**
      * 登录失败自动封禁截止时间。
      * 非空表示本次禁用由登录失败触发，到期后自动解封；

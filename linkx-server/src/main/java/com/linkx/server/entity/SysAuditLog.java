@@ -46,6 +46,11 @@ public class SysAuditLog implements Serializable {
         DEVICE_LOGIN("设备上线"),
         DEVICE_KICK("踢设备下线"),
         DEVICE_KICK_ALL("踢所有设备下线"),
+        DEVICE_BAN("封禁设备"),
+        DEVICE_UNBAN("解封设备"),
+        DEVICE_BINDING_TOGGLE("设备强绑定开关"),
+        DEVICE_APPROVE("批准登录设备"),
+        DEVICE_REVOKE("撤销登录设备"),
         // P2: 安全审计增强
         RECALL_MESSAGE("撤回消息"),
         EDIT_MESSAGE("编辑消息"),
@@ -82,6 +87,10 @@ public class SysAuditLog implements Serializable {
         NOTICE_PUBLISH("公告发布"),
         BANNER_UPDATE("Banner变更"),
         BANNER_PUBLISH("Banner发布"),
+        RECOMMEND_UPDATE("推荐位变更"),
+        RECOMMEND_PUBLISH("推荐位发布"),
+        ACTIVITY_UPDATE("活动变更"),
+        ACTIVITY_PUBLISH("活动发布"),
         ;
 
         private final String description;

@@ -37,4 +37,10 @@ public interface AdminUserService {
     List<DeviceVO> devices(Long id);
 
     PageResultVO<AdminLoginLogVO> logins(Long id, AdminPageQueryDTO query);
+
+    void setDeviceBindingEnabled(Long id, boolean enabled, Long operatorId, String ip, String userAgent);
+
+    void approveDevice(Long id, String deviceId, String deviceName, Long operatorId, String ip, String userAgent);
+
+    void revokeDeviceApproval(Long id, String deviceId, Long operatorId, String ip, String userAgent);
 }

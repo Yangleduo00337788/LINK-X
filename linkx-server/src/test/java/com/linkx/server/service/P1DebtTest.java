@@ -326,6 +326,7 @@ class P1DebtTest extends BaseIntegrationTest {
     // ---- helpers ----
 
     private long createGroup(TestUser owner, TestUser... members) throws Exception {
+        ensureFriends(owner, members);
         StringBuilder ids = new StringBuilder();
         for (int i = 0; i < members.length; i++) {
             if (i > 0) {

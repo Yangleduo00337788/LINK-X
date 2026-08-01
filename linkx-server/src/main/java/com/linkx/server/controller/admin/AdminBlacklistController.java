@@ -1,6 +1,7 @@
 package com.linkx.server.controller.admin;
 
 import com.linkx.server.common.RequirePermission;
+import com.linkx.server.common.RequireStepUp;
 import com.linkx.server.common.RequireRole;
 import com.linkx.server.common.Result;
 import com.linkx.server.common.admin.AdminCsvResponses;
@@ -81,6 +82,7 @@ public class AdminBlacklistController {
     @AuditAction(operationType = "BLACKLIST_ADD", description = "加入黑名单")
     @PostMapping
     @RequirePermission("admin:blacklist:add")
+    @RequireStepUp("admin:blacklist:add")
     public Result<Void> add(@Valid @RequestBody AdminBlacklistAddDTO dto, HttpServletRequest request) {
         Long operatorId = (Long) request.getAttribute("userId");
         adminBlacklistService.add(dto, operatorId);
@@ -91,6 +93,7 @@ public class AdminBlacklistController {
     @AuditAction(operationType = "BLACKLIST_REMOVE", description = "移出黑名单")
     @PostMapping("/{id}/release")
     @RequirePermission("admin:blacklist:remove")
+    @RequireStepUp("admin:blacklist:remove")
     public Result<Void> release(@PathVariable Long id,
                                 @RequestBody(required = false) AdminBlacklistReleaseDTO dto,
                                 HttpServletRequest request) {

@@ -1,6 +1,7 @@
 package com.linkx.server.controller.admin;
 
 import com.linkx.server.common.RequirePermission;
+import com.linkx.server.common.RequireStepUp;
 import com.linkx.server.common.RequireRole;
 import com.linkx.server.common.Result;
 import com.linkx.server.config.aspect.AuditAction;
@@ -74,6 +75,7 @@ public class AdminSettingController {
     @AuditAction(operationType = "UPDATE_SETTINGS", description = "更新登录配置")
     @PutMapping("/login")
     @RequirePermission("admin:setting:edit")
+    @RequireStepUp("admin:setting:edit")
     public Result<AdminSettingVO> updateLogin(@Valid @RequestBody com.linkx.server.controller.admin.dto.LoginSettingUpdateDTO dto,
                                               HttpServletRequest request) {
         Long operatorId = (Long) request.getAttribute("userId");
@@ -84,6 +86,7 @@ public class AdminSettingController {
     @AuditAction(operationType = "UPDATE_SETTINGS", description = "更新密码策略")
     @PutMapping("/password")
     @RequirePermission("admin:setting:edit")
+    @RequireStepUp("admin:setting:edit")
     public Result<AdminSettingVO> updatePassword(
             @Valid @RequestBody com.linkx.server.controller.admin.dto.PasswordSettingUpdateDTO dto,
             HttpServletRequest request) {
@@ -95,6 +98,7 @@ public class AdminSettingController {
     @AuditAction(operationType = "UPDATE_SETTINGS", description = "更新邮件配置")
     @PutMapping("/mail")
     @RequirePermission("admin:setting:edit")
+    @RequireStepUp("admin:setting:edit")
     public Result<AdminSettingVO> updateMail(@Valid @RequestBody MailSettingUpdateDTO dto,
                                              HttpServletRequest request) {
         Long operatorId = (Long) request.getAttribute("userId");

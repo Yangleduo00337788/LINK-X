@@ -29,4 +29,9 @@ public interface EmailService {
      * 发送绑定/更换邮箱验证码
      */
     void sendBindEmailCode(String to, String username, String code);
+
+    /**
+     * 发送管理端高危操作二次验证码
+     */
+    void sendAdminStepUpCode(String to, String username, String code);
 }

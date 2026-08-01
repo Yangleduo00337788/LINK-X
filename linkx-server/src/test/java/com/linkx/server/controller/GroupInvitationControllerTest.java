@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class GroupInvitationControllerTest extends BaseIntegrationTest {
 
     private long createGroup(TestUser owner, TestUser member) throws Exception {
+        ensureFriends(owner, member);
         String body = String.format("""
                 {"name":"邀请群","memberIds":[%d]}
                 """, member.userId);

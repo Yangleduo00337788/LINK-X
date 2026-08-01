@@ -1,11 +1,15 @@
 package com.linkx.server.controller.admin;
 
+import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.common.RequirePermission;
 import com.linkx.server.common.RequireRole;
+import com.linkx.server.common.RequireStepUp;
 import com.linkx.server.common.Result;
 import com.linkx.server.common.admin.AdminCsvResponses;
 import com.linkx.server.common.admin.PageResultVO;
+import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.config.aspect.AuditAction;
+import com.linkx.server.controller.admin.dto.AdminDeviceBindingDTO;
 import com.linkx.server.controller.admin.dto.AdminPageQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminUserActionDTO;
 import com.linkx.server.controller.admin.dto.AdminUserQueryDTO;
@@ -43,6 +47,7 @@ import java.util.stream.Collectors;
 public class AdminUserController {
 
     private final AdminUserService adminUserService;
+    private final LinkxProperties linkxProperties;
 
     @Operation(summary = "查询用户列表")
     @GetMapping
@@ -98,6 +103,7 @@ public class AdminUserController {
     @AuditAction(operationType = "UPDATE_PROFILE", description = "冻结用户")
     @PostMapping("/{id}/freeze")
     @RequirePermission("admin:user:freeze")
+    @RequireStepUp("admin:user:freeze")
     public Result<Void> freeze(@PathVariable Long id,
                                @RequestBody(required = false) AdminUserActionDTO dto,
                                HttpServletRequest request) {
@@ -110,6 +116,7 @@ public class AdminUserController {
     @AuditAction(operationType = "UPDATE_PROFILE", description = "解冻用户")
     @PostMapping("/{id}/unfreeze")
     @RequirePermission("admin:user:unfreeze")
+    @RequireStepUp("admin:user:unfreeze")
     public Result<Void> unfreeze(@PathVariable Long id, HttpServletRequest request) {
         Long operatorId = (Long) request.getAttribute("userId");
         adminUserService.unfreeze(id, operatorId);
@@ -120,6 +127,7 @@ public class AdminUserController {
     @AuditAction(operationType = "BLACKLIST_ADD", description = "封禁用户")
     @PostMapping("/{id}/ban")
     @RequirePermission("admin:user:ban")
+    @RequireStepUp("admin:user:ban")
     public Result<Void> ban(@PathVariable Long id,
                             @RequestBody(required = false) AdminUserActionDTO dto,
                             HttpServletRequest request) {
@@ -132,6 +140,7 @@ public class AdminUserController {
     @AuditAction(operationType = "BLACKLIST_REMOVE", description = "解封用户")
     @PostMapping("/{id}/unban")
     @RequirePermission("admin:user:unban")
+    @RequireStepUp("admin:user:unban")
     public Result<Void> unban(@PathVariable Long id, HttpServletRequest request) {
         Long operatorId = (Long) request.getAttribute("userId");
         adminUserService.unban(id, operatorId);
@@ -142,6 +151,7 @@ public class AdminUserController {
     @AuditAction(operationType = "RESET_PASSWORD", description = "管理端重置用户密码")
     @PostMapping("/{id}/reset-password")
     @RequirePermission("admin:user:reset-password")
+    @RequireStepUp("admin:user:reset-password")
     public Result<AdminUserResetPasswordVO> resetPassword(@PathVariable Long id,
                                                           @RequestBody(required = false) @Valid AdminUserResetPasswordDTO dto,
                                                           HttpServletRequest request) {
@@ -154,6 +164,64 @@ public class AdminUserController {
     @RequirePermission("admin:user:device:list")
     public Result<List<DeviceVO>> devices(@PathVariable Long id) {
         return Result.success(adminUserService.devices(id));
+    }
+
+    @Operation(summary = "设置用户设备强绑定")
+    @AuditAction(operationType = "DEVICE_BINDING_TOGGLE", description = "设备强绑定开关")
+    @PostMapping("/{id}/device-binding")
+    @RequirePermission("admin:user:device-binding")
+    @RequireStepUp("admin:user:device-binding")
+    public Result<Void> setDeviceBinding(@PathVariable Long id,
+                                         @Valid @RequestBody AdminDeviceBindingDTO dto,
+                                         HttpServletRequest request) {
+        Long operatorId = (Long) request.getAttribute("userId");
+        adminUserService.setDeviceBindingEnabled(
+                id,
+                Boolean.TRUE.equals(dto.getEnabled()),
+                operatorId,
+                ClientIpResolver.resolve(request, linkxProperties),
+                request.getHeader("User-Agent")
+        );
+        return Result.success(null);
+    }
+
+    @Operation(summary = "批准用户登录设备")
+    @AuditAction(operationType = "DEVICE_APPROVE", description = "批准登录设备")
+    @PostMapping("/{id}/devices/{deviceId}/approve")
+    @RequirePermission("admin:user:device-approve")
+    @RequireStepUp("admin:user:device-approve")
+    public Result<Void> approveDevice(@PathVariable Long id,
+                                      @PathVariable String deviceId,
+                                      HttpServletRequest request) {
+        Long operatorId = (Long) request.getAttribute("userId");
+        adminUserService.approveDevice(
+                id,
+                deviceId,
+                null,
+                operatorId,
+                ClientIpResolver.resolve(request, linkxProperties),
+                request.getHeader("User-Agent")
+        );
+        return Result.success(null);
+    }
+
+    @Operation(summary = "撤销用户登录设备批准")
+    @AuditAction(operationType = "DEVICE_REVOKE", description = "撤销登录设备")
+    @PostMapping("/{id}/devices/{deviceId}/revoke")
+    @RequirePermission("admin:user:device-approve")
+    @RequireStepUp("admin:user:device-approve")
+    public Result<Void> revokeDevice(@PathVariable Long id,
+                                     @PathVariable String deviceId,
+                                     HttpServletRequest request) {
+        Long operatorId = (Long) request.getAttribute("userId");
+        adminUserService.revokeDeviceApproval(
+                id,
+                deviceId,
+                operatorId,
+                ClientIpResolver.resolve(request, linkxProperties),
+                request.getHeader("User-Agent")
+        );
+        return Result.success(null);
     }
 
     @Operation(summary = "查询用户登录记录")

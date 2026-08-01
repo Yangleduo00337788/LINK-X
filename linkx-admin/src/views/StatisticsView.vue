@@ -1,24 +1,28 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NButton, NSelect, NSpin, NTabPane, NTabs } from 'naive-ui'
+import { NButton, NDataTable, NSelect, NSpin, NTabPane, NTabs, type DataTableColumns } from 'naive-ui'
 import {
   exportStatistics,
   fetchActivityHeatmap,
   fetchStatisticContent,
   fetchStatisticFeedback,
+  fetchStatisticGroups,
   fetchStatisticOverview,
   fetchStatisticRisk,
   fetchStatisticUsers,
   type ActivityHeatmap,
+  type GroupActivityItem,
   type HeatmapMetric,
   type StatisticContent,
   type StatisticFeedback,
+  type StatisticGroups,
   type StatisticOverview,
   type StatisticRisk,
   type StatisticUsers,
   type TrendData,
 } from '@/api/statistics'
+import { formatTime } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
 import {
   LX_CHART_COLORS,
@@ -47,6 +51,7 @@ const users = ref<StatisticUsers | null>(null)
 const content = ref<StatisticContent | null>(null)
 const risk = ref<StatisticRisk | null>(null)
 const feedback = ref<StatisticFeedback | null>(null)
+const groups = ref<StatisticGroups | null>(null)
 const heatmap = ref<ActivityHeatmap | null>(null)
 
 const daysOptions = useDaysOptions((k) => t(k))
@@ -85,6 +90,10 @@ function seriesName(key: string, fallback: string) {
     loginLock: t('statistics.seriesLoginLock'),
     rateLimit: t('statistics.seriesRateLimit'),
     reviews: t('statistics.seriesReviews'),
+    reviewCreated: t('statistics.seriesReviewCreated'),
+    reviewResolved: t('statistics.seriesReviewResolved'),
+    newGroups: t('statistics.seriesNewGroups'),
+    groupMessages: t('statistics.seriesGroupMessages'),
     created: t('statistics.seriesCreated'),
     replied: t('statistics.seriesReplied'),
     logins: t('statistics.seriesLogins'),
@@ -235,6 +244,25 @@ const riskRangeBars = computed<NamedValue[]>(() => {
   ]
 })
 
+const reviewEfficiencyBars = computed<NamedValue[]>(() => {
+  void locale.value
+  const r = risk.value
+  return [
+    { key: 'resolved', name: t('statistics.resolvedReviews'), value: r?.resolvedReviewsInRange ?? 0 },
+    { key: 'pending', name: t('dashboard.pendingReviews'), value: r?.pendingReviews ?? 0 },
+    { key: 'over24', name: t('statistics.pendingOver24h'), value: r?.pendingOver24h ?? 0 },
+    { key: 'over72', name: t('statistics.pendingOver72h'), value: r?.pendingOver72h ?? 0 },
+  ]
+})
+
+function fmtMinutes(n: number | null | undefined) {
+  if (n == null || Number.isNaN(n)) return '-'
+  if (n < 60) return `${n}${t('statistics.minutesUnit')}`
+  const h = Math.floor(n / 60)
+  const m = Math.round(n % 60)
+  return m > 0 ? `${h}${t('statistics.hoursUnit')}${m}${t('statistics.minutesUnit')}` : `${h}${t('statistics.hoursUnit')}`
+}
+
 const feedbackRangeBars = computed<NamedValue[]>(() => {
   void locale.value
   const f = feedback.value
@@ -242,6 +270,40 @@ const feedbackRangeBars = computed<NamedValue[]>(() => {
     { key: 'created', name: t('statistics.createdInRange'), value: f?.createdInRange ?? 0 },
     { key: 'replied', name: t('statistics.repliedInRange'), value: f?.repliedInRange ?? 0 },
     { key: 'closed', name: t('statistics.closedInRange'), value: f?.closedInRange ?? 0 },
+  ]
+})
+
+const groupRangeBars = computed<NamedValue[]>(() => {
+  void locale.value
+  const g = groups.value
+  return [
+    { key: 'total', name: t('statistics.totalGroups'), value: g?.totalGroups ?? 0 },
+    { key: 'active', name: t('statistics.activeGroups'), value: g?.activeGroupsInRange ?? 0 },
+    { key: 'new', name: t('statistics.newGroupsInRange'), value: g?.newGroupsInRange ?? 0 },
+    { key: 'msg', name: t('statistics.groupMessagesInRange'), value: g?.groupMessagesInRange ?? 0 },
+  ]
+})
+
+const topGroupBars = computed<NamedValue[]>(() => {
+  void locale.value
+  return (groups.value?.topGroups || []).slice(0, 8).map((g) => ({
+    key: String(g.id),
+    name: g.name || t('statistics.unnamedGroup'),
+    value: g.messageCount || 0,
+  }))
+})
+
+const topGroupColumns = computed<DataTableColumns<GroupActivityItem>>(() => {
+  void locale.value
+  return [
+    { title: t('statistics.groupName'), key: 'name', ellipsis: { tooltip: true },
+      render: (row) => row.name || t('statistics.unnamedGroup') },
+    { title: t('statistics.groupMessages'), key: 'messageCount', width: 100,
+      render: (row) => fmt(row.messageCount || 0) },
+    { title: t('statistics.groupMembers'), key: 'memberCount', width: 90,
+      render: (row) => fmt(row.memberCount || 0) },
+    { title: t('statistics.lastMessage'), key: 'lastMessageTime', width: 160,
+      render: (row) => formatTime(row.lastMessageTime) },
   ]
 })
 
@@ -288,6 +350,10 @@ const riskBarOpt = computed(() => buildHBarOption(riskRangeBars.value))
 const riskColOpt = computed(() =>
   buildColumnOption(risk.value?.trend, seriesName, { stacked: true }),
 )
+const reviewEffAreaOpt = computed(() =>
+  buildAreaOption(risk.value?.reviewEfficiencyTrend, seriesName),
+)
+const reviewEffBarOpt = computed(() => buildHBarOption(reviewEfficiencyBars.value))
 
 const feedbackAreaOpt = computed(() => buildAreaOption(feedback.value?.trend, seriesName))
 const feedbackDonutOpt = computed(() =>
@@ -297,6 +363,11 @@ const feedbackBarOpt = computed(() => buildHBarOption(feedbackRangeBars.value))
 const feedbackColOpt = computed(() =>
   buildColumnOption(feedback.value?.trend, seriesName, { stacked: true }),
 )
+
+const groupAreaOpt = computed(() => buildAreaOption(groups.value?.trend, seriesName))
+const groupBarOpt = computed(() => buildHBarOption(groupRangeBars.value))
+const groupTopOpt = computed(() => buildHBarOption(topGroupBars.value))
+const groupColOpt = computed(() => buildColumnOption(groups.value?.trend, seriesName))
 
 /* --- DOM refs + bindings --- */
 const sparkEl0 = ref<HTMLElement | null>(null)
@@ -321,11 +392,18 @@ const riskAreaEl = ref<HTMLElement | null>(null)
 const riskDonutEl = ref<HTMLElement | null>(null)
 const riskBarEl = ref<HTMLElement | null>(null)
 const riskColEl = ref<HTMLElement | null>(null)
+const reviewEffAreaEl = ref<HTMLElement | null>(null)
+const reviewEffBarEl = ref<HTMLElement | null>(null)
 
 const feedbackAreaEl = ref<HTMLElement | null>(null)
 const feedbackDonutEl = ref<HTMLElement | null>(null)
 const feedbackBarEl = ref<HTMLElement | null>(null)
 const feedbackColEl = ref<HTMLElement | null>(null)
+
+const groupAreaEl = ref<HTMLElement | null>(null)
+const groupBarEl = ref<HTMLElement | null>(null)
+const groupTopEl = ref<HTMLElement | null>(null)
+const groupColEl = ref<HTMLElement | null>(null)
 
 const overviewCharts = [
   useChart(sparkEl0, spark0),
@@ -353,12 +431,20 @@ const riskCharts = [
   useChart(riskDonutEl, riskDonutOpt),
   useChart(riskBarEl, riskBarOpt),
   useChart(riskColEl, riskColOpt),
+  useChart(reviewEffAreaEl, reviewEffAreaOpt),
+  useChart(reviewEffBarEl, reviewEffBarOpt),
 ]
 const feedbackCharts = [
   useChart(feedbackAreaEl, feedbackAreaOpt),
   useChart(feedbackDonutEl, feedbackDonutOpt),
   useChart(feedbackBarEl, feedbackBarOpt),
   useChart(feedbackColEl, feedbackColOpt),
+]
+const groupCharts = [
+  useChart(groupAreaEl, groupAreaOpt),
+  useChart(groupBarEl, groupBarOpt),
+  useChart(groupTopEl, groupTopOpt),
+  useChart(groupColEl, groupColOpt),
 ]
 
 const heatmapOpt = computed(() =>
@@ -373,6 +459,7 @@ const chartsByTab: Record<string, typeof overviewCharts> = {
   content: contentCharts,
   risk: riskCharts,
   feedback: feedbackCharts,
+  groups: groupCharts,
   advanced: advancedCharts,
 }
 
@@ -389,12 +476,13 @@ async function load() {
   loading.value = true
   try {
     const d = days.value
-    const [ov, us, ct, rk, fb, hm] = await Promise.all([
+    const [ov, us, ct, rk, fb, gp, hm] = await Promise.all([
       fetchStatisticOverview(d),
       fetchStatisticUsers(d),
       fetchStatisticContent(d),
       fetchStatisticRisk(d),
       fetchStatisticFeedback(d),
+      fetchStatisticGroups(d),
       fetchActivityHeatmap(d, heatmapMetric.value),
     ])
     overview.value = ov
@@ -402,6 +490,7 @@ async function load() {
     content.value = ct
     risk.value = rk
     feedback.value = fb
+    groups.value = gp
     heatmap.value = hm
   } finally {
     loading.value = false
@@ -592,6 +681,32 @@ onMounted(() => {
 
         <!-- Risk -->
         <NTabPane name="risk" :tab="t('statistics.tabRisk')">
+          <div class="kpi-row risk-kpi">
+            <div class="kpi-card">
+              <div class="kpi-label">{{ t('statistics.avgHandleTime') }}</div>
+              <div class="kpi-value" :style="{ color: LX_CHART_COLORS[0] }">
+                {{ fmtMinutes(risk?.avgHandleMinutesInRange) }}
+              </div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">{{ t('statistics.resolvedReviews') }}</div>
+              <div class="kpi-value" :style="{ color: LX_CHART_COLORS[1] }">
+                {{ fmt(risk?.resolvedReviewsInRange ?? 0) }}
+              </div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">{{ t('statistics.pendingOver24h') }}</div>
+              <div class="kpi-value" :style="{ color: LX_CHART_COLORS[2] }">
+                {{ fmt(risk?.pendingOver24h ?? 0) }}
+              </div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">{{ t('statistics.pendingOver72h') }}</div>
+              <div class="kpi-value" :style="{ color: LX_CHART_COLORS[4] }">
+                {{ fmt(risk?.pendingOver72h ?? 0) }}
+              </div>
+            </div>
+          </div>
           <div class="chart-grid g-2-1">
             <div class="chart-panel">
               <div class="panel-head">
@@ -622,6 +737,22 @@ onMounted(() => {
                 <div class="panel-desc">{{ t('statistics.panelStackDesc') }}</div>
               </div>
               <div ref="riskColEl" class="chart-box" />
+            </div>
+          </div>
+          <div class="chart-grid g-2-1 mt">
+            <div class="chart-panel">
+              <div class="panel-head">
+                <div class="panel-title">{{ t('statistics.reviewEfficiency') }}</div>
+                <div class="panel-desc">{{ t('statistics.reviewEfficiencyDesc') }}</div>
+              </div>
+              <div ref="reviewEffAreaEl" class="chart-box tall" />
+            </div>
+            <div class="chart-panel">
+              <div class="panel-head">
+                <div class="panel-title">{{ t('statistics.reviewBacklog') }}</div>
+                <div class="panel-desc">{{ t('statistics.reviewBacklogDesc') }}</div>
+              </div>
+              <div ref="reviewEffBarEl" class="chart-box tall" />
             </div>
           </div>
         </NTabPane>
@@ -659,6 +790,73 @@ onMounted(() => {
               </div>
               <div ref="feedbackColEl" class="chart-box" />
             </div>
+          </div>
+        </NTabPane>
+
+        <!-- Groups -->
+        <NTabPane name="groups" :tab="t('statistics.tabGroups')">
+          <div class="kpi-row risk-kpi">
+            <div class="kpi-card">
+              <div class="kpi-label">{{ t('statistics.totalGroups') }}</div>
+              <div class="kpi-value" :style="{ color: LX_CHART_COLORS[0] }">{{ fmt(groups?.totalGroups ?? 0) }}</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">{{ t('statistics.activeGroups') }}</div>
+              <div class="kpi-value" :style="{ color: LX_CHART_COLORS[1] }">{{ fmt(groups?.activeGroupsInRange ?? 0) }}</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">{{ t('statistics.newGroupsInRange') }}</div>
+              <div class="kpi-value" :style="{ color: LX_CHART_COLORS[2] }">{{ fmt(groups?.newGroupsInRange ?? 0) }}</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">{{ t('statistics.groupMessagesInRange') }}</div>
+              <div class="kpi-value" :style="{ color: LX_CHART_COLORS[3] }">{{ fmt(groups?.groupMessagesInRange ?? 0) }}</div>
+            </div>
+          </div>
+          <div class="chart-grid g-2-1">
+            <div class="chart-panel">
+              <div class="panel-head">
+                <div class="panel-title">{{ t('statistics.groupTrend') }}</div>
+                <div class="panel-desc">{{ t('statistics.groupTrendDesc') }}</div>
+              </div>
+              <div ref="groupAreaEl" class="chart-box tall" />
+            </div>
+            <div class="chart-panel">
+              <div class="panel-head">
+                <div class="panel-title">{{ t('statistics.rangeSummary') }}</div>
+                <div class="panel-desc">{{ t('statistics.panelCompareDesc') }}</div>
+              </div>
+              <div ref="groupBarEl" class="chart-box tall" />
+            </div>
+          </div>
+          <div class="chart-grid g-1-1 mt">
+            <div class="chart-panel">
+              <div class="panel-head">
+                <div class="panel-title">{{ t('statistics.topGroups') }}</div>
+                <div class="panel-desc">{{ t('statistics.topGroupsDesc') }}</div>
+              </div>
+              <div ref="groupTopEl" class="chart-box" />
+            </div>
+            <div class="chart-panel">
+              <div class="panel-head">
+                <div class="panel-title">{{ t('statistics.groupColumns') }}</div>
+                <div class="panel-desc">{{ t('statistics.panelStackDesc') }}</div>
+              </div>
+              <div ref="groupColEl" class="chart-box" />
+            </div>
+          </div>
+          <div class="chart-panel mt">
+            <div class="panel-head">
+              <div class="panel-title">{{ t('statistics.topGroupsTable') }}</div>
+              <div class="panel-desc">{{ t('statistics.topGroupsDesc') }}</div>
+            </div>
+            <NDataTable
+              size="small"
+              :columns="topGroupColumns"
+              :data="groups?.topGroups || []"
+              :bordered="false"
+              :pagination="false"
+            />
           </div>
         </NTabPane>
 
