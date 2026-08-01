@@ -128,15 +128,19 @@ public class AdminDeviceServiceImpl implements AdminDeviceService {
 
     private QueryWrapper buildQuery(AdminDeviceQueryDTO query) {
         QueryWrapper qw = QueryWrapper.create();
-        Long scopeUserId = DataScopeContext.getUserId();
-        if (scopeUserId != null) {
-            qw.and(DeviceSession::getUserId).eq(scopeUserId);
+        var allowed = DataScopeContext.getAllowedUserIds();
+        if (allowed != null) {
+            if (allowed.isEmpty()) {
+                qw.and(DeviceSession::getUserId).eq(-1L);
+            } else {
+                qw.and(DeviceSession::getUserId).in(allowed);
+            }
         }
         if (query == null) {
             return qw;
         }
         if (query.getUserId() != null) {
-            if (scopeUserId != null && !scopeUserId.equals(query.getUserId())) {
+            if (allowed != null && !allowed.contains(query.getUserId())) {
                 // 无范围时强制空结果，避免越权窥探他人设备
                 qw.and(DeviceSession::getUserId).eq(-1L);
             } else {

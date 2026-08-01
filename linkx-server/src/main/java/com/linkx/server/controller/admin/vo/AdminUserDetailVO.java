@@ -25,6 +25,8 @@ public class AdminUserDetailVO {
     private String email;
     private String phone;
     private Integer status;
+    private Long deptId;
+    private String deptName;
     private List<String> roles;
     private List<String> permissions;
     private Date createTime;

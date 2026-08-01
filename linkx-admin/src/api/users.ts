@@ -9,10 +9,21 @@ export interface AdminUserListItem {
   avatar?: string
   email?: string
   phone?: string
+  deptId?: number
+  deptName?: string
   status?: number
   roles?: string[]
   createTime?: string
   updateTime?: string
+}
+
+export interface UserUpdatePayload {
+  nickname?: string
+  email?: string
+  phone?: string
+  signature?: string
+  /** 0 表示清除部门 */
+  deptId?: number
 }
 
 export interface AdminUserDetail extends AdminUserListItem {
@@ -44,7 +55,7 @@ export function getUser(id: string) {
   return get<AdminUserDetail>(`/admin/users/${id}`)
 }
 
-export function updateUser(id: string, body: Partial<AdminUserDetail>) {
+export function updateUser(id: string, body: UserUpdatePayload) {
   return put<null>(`/admin/users/${id}`, body)
 }
 

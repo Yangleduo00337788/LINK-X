@@ -155,6 +155,7 @@ public class RbacServiceImpl implements RbacService {
                 .roleName(roleName)
                 .description(description)
                 .status(1)
+                .dataScope(1)
                 .createBy(createBy)
                 .updateBy(createBy)
                 .build();

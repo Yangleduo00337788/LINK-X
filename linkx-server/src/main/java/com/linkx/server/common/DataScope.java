@@ -10,13 +10,8 @@ import java.lang.annotation.Target;
  * 数据权限注解。
  * <p>
  * 标注在 Service 方法上，由 {@code DataScopeAspect} 拦截，
- * 根据当前登录用户的角色判定数据可见范围：
- * <ul>
- *   <li>管理端门户角色：可见全部数据（{@link DataScopeContext#getUserId()} 返回 null）</li>
- *   <li>普通用户：仅可见本人数据（{@link DataScopeContext#getUserId()} 返回当前 userId）</li>
- * </ul>
- * Service 方法内通过 {@link DataScopeContext#getUserId()} 读取范围标识，
- * 手动拼接到 MyBatis-Flex QueryWrapper 的过滤条件中。
+ * 按角色 {@code data_scope}（全部 / 仅本人 / 本部门及下级）写入 {@link DataScopeContext}。
+ * Service 通过 {@link DataScopeContext#getAllowedUserIds()} 拼接过滤条件。
  * </p>
  */
 @Target(ElementType.METHOD)
@@ -24,6 +19,6 @@ import java.lang.annotation.Target;
 @Documented
 public @interface DataScope {
 
-    /** 用户表别名，用于拼接 SQL 条件（如 "u" 对应 u.id = ?），预留扩展 */
+    /** 用户表别名，预留扩展 */
     String userAlias() default "u";
 }

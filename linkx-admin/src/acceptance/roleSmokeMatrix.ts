@@ -105,6 +105,7 @@ export const ADMIN_ROUTE_PERMISSIONS: Array<{ path: string; permission?: string;
   { path: '/admin/roles', permission: 'admin:role:list', name: 'RoleList' },
   { path: '/admin/permissions', permission: 'admin:permission:list', name: 'PermissionList' },
   { path: '/admin/menus', permission: 'admin:menu:list', name: 'MenuList' },
+  { path: '/admin/depts', permission: 'admin:dept:list', name: 'DeptList' },
   { path: '/admin/audit-logs', permission: 'admin:audit:list', name: 'AuditLogs' },
   { path: '/admin/login-logs', permission: 'admin:login-log:list', name: 'LoginLogs' },
   { path: '/admin/risk-events', permission: 'admin:risk-event:list', name: 'RiskEvents' },

@@ -1,35 +1,70 @@
 package com.linkx.server.common;
 
+import java.util.Collections;
+import java.util.Set;
+
 /**
  * 数据权限上下文。
  * <p>
- * 通过 ThreadLocal 在当前线程内传递数据范围标识。
- * {@link com.linkx.server.config.aspect.DataScopeAspect} 在方法执行前写入，
- * Service 方法读取后拼接过滤条件，方法执行完毕由切面清除，避免线程池复用导致的脏读。
- * </p>
- * <p>
- * 语义：userId 为 null 表示不限制（admin 全量可见）；非 null 表示仅可见该用户数据。
+ * {@code allowedUserIds == null} 表示不限制（全部可见）；
+ * 非 null 表示仅可见集合内用户的数据。
  * </p>
  */
 public final class DataScopeContext {
 
-    private static final ThreadLocal<Long> CURRENT_USER_ID = new ThreadLocal<>();
+    private static final ThreadLocal<Set<Long>> ALLOWED_USER_IDS = new ThreadLocal<>();
 
     private DataScopeContext() {
     }
 
-    /** 设置当前数据范围的用户 ID（null 表示不限制） */
-    public static void setUserId(Long userId) {
-        CURRENT_USER_ID.set(userId);
+    /** 不限制（全部可见） */
+    public static void setUnrestricted() {
+        ALLOWED_USER_IDS.set(null);
     }
 
-    /** 获取当前数据范围的用户 ID（null 表示不限制） */
+    /** 限制为指定用户集合（空集表示无可见数据） */
+    public static void setAllowedUserIds(Set<Long> userIds) {
+        if (userIds == null) {
+            ALLOWED_USER_IDS.set(null);
+            return;
+        }
+        ALLOWED_USER_IDS.set(Collections.unmodifiableSet(userIds));
+    }
+
+    /**
+     * 可见用户 ID 集合；{@code null} 表示不限制。
+     */
+    public static Set<Long> getAllowedUserIds() {
+        return ALLOWED_USER_IDS.get();
+    }
+
+    /**
+     * 兼容旧语义：不限制返回 null；仅一人时返回该 ID；多人时返回 null 并由调用方改读 {@link #getAllowedUserIds()}。
+     *
+     * @deprecated 请使用 {@link #getAllowedUserIds()} / {@link #allows(Long)}
+     */
+    @Deprecated
     public static Long getUserId() {
-        return CURRENT_USER_ID.get();
+        Set<Long> allowed = ALLOWED_USER_IDS.get();
+        if (allowed == null) {
+            return null;
+        }
+        if (allowed.size() == 1) {
+            return allowed.iterator().next();
+        }
+        return null;
     }
 
-    /** 清除当前线程的数据范围标识，必须在使用后调用以防内存泄漏 */
+    /** 当前范围是否允许访问指定用户数据 */
+    public static boolean allows(Long userId) {
+        Set<Long> allowed = ALLOWED_USER_IDS.get();
+        if (allowed == null) {
+            return true;
+        }
+        return userId != null && allowed.contains(userId);
+    }
+
     public static void clear() {
-        CURRENT_USER_ID.remove();
+        ALLOWED_USER_IDS.remove();
     }
 }

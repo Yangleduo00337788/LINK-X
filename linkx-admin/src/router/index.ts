@@ -74,6 +74,12 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: 'route.menus', permission: 'admin:menu:list' },
       },
       {
+        path: 'depts',
+        name: 'DeptList',
+        component: () => import('@/views/DeptListView.vue'),
+        meta: { titleKey: 'route.depts', permission: 'admin:dept:list' },
+      },
+      {
         path: 'audit-logs',
         name: 'AuditLogs',
         component: () => import('@/views/AuditLogView.vue'),

@@ -18,9 +18,11 @@ import com.linkx.server.controller.admin.vo.AdminUserDetailVO;
 import com.linkx.server.controller.admin.vo.AdminUserListVO;
 import com.linkx.server.controller.admin.vo.AdminUserResetPasswordVO;
 import com.linkx.server.controller.vo.DeviceVO;
+import com.linkx.server.entity.SysDept;
 import com.linkx.server.entity.SysLoginAudit;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.exception.CustomException;
+import com.linkx.server.mapper.SysDeptMapper;
 import com.linkx.server.mapper.SysLoginAuditMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.DeviceSessionService;
@@ -54,6 +56,7 @@ public class AdminUserServiceImpl implements AdminUserService {
             "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*".toCharArray();
 
     private final SysUserMapper sysUserMapper;
+    private final SysDeptMapper sysDeptMapper;
     private final SysLoginAuditMapper sysLoginAuditMapper;
     private final RbacService rbacService;
     private final DeviceSessionService deviceSessionService;
@@ -131,6 +134,8 @@ public class AdminUserServiceImpl implements AdminUserService {
                 .email(user.getEmail())
                 .phone(user.getPhone())
                 .status(user.getStatus())
+                .deptId(user.getDeptId())
+                .deptName(resolveDeptName(user.getDeptId()))
                 .roles(rbacService.getUserRoleCodes(id))
                 .permissions(rbacService.getUserPermissionCodes(id))
                 .createTime(user.getCreateTime())
@@ -158,9 +163,29 @@ public class AdminUserServiceImpl implements AdminUserService {
         if (dto.getPhone() != null) {
             user.setPhone(dto.getPhone());
         }
+        Long clearDeptId = null;
+        if (dto.getDeptId() != null) {
+            if (dto.getDeptId() == 0L) {
+                clearDeptId = 0L;
+            } else {
+                SysDept dept = sysDeptMapper.selectOneById(dto.getDeptId());
+                if (dept == null) {
+                    throw new CustomException(400, "部门不存在");
+                }
+                user.setDeptId(dto.getDeptId());
+            }
+        }
         user.setUpdateBy(operatorId);
         user.setUpdateTime(new Date());
         sysUserMapper.update(user);
+        if (clearDeptId != null) {
+            UpdateChain.of(SysUser.class)
+                    .set(SysUser::getDeptId, null)
+                    .set(SysUser::getUpdateBy, operatorId)
+                    .set(SysUser::getUpdateTime, new Date())
+                    .where(SysUser::getId).eq(id)
+                    .update();
+        }
     }
 
     @Override
@@ -337,22 +362,36 @@ public class AdminUserServiceImpl implements AdminUserService {
                 .email(user.getEmail())
                 .phone(user.getPhone())
                 .status(user.getStatus())
+                .deptId(user.getDeptId())
+                .deptName(resolveDeptName(user.getDeptId()))
                 .roles(rbacService.getUserRoleCodes(user.getId()))
                 .createTime(user.getCreateTime())
                 .updateTime(user.getUpdateTime())
                 .build();
     }
 
-    private void applyDataScopeUserFilter(QueryWrapper qw) {
-        Long scopeUserId = DataScopeContext.getUserId();
-        if (scopeUserId != null) {
-            qw.and(SysUser::getId).eq(scopeUserId);
+    private String resolveDeptName(Long deptId) {
+        if (deptId == null) {
+            return null;
         }
+        SysDept dept = sysDeptMapper.selectOneById(deptId);
+        return dept == null ? null : dept.getName();
+    }
+
+    private void applyDataScopeUserFilter(QueryWrapper qw) {
+        var allowed = DataScopeContext.getAllowedUserIds();
+        if (allowed == null) {
+            return;
+        }
+        if (allowed.isEmpty()) {
+            qw.and(SysUser::getId).eq(-1L);
+            return;
+        }
+        qw.and(SysUser::getId).in(allowed);
     }
 
     private SysUser requireUserInScope(Long id) {
-        Long scopeUserId = DataScopeContext.getUserId();
-        if (scopeUserId != null && !scopeUserId.equals(id)) {
+        if (!DataScopeContext.allows(id)) {
             throw new CustomException(404, "user not found");
         }
         return requireUser(id);

@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS sys_user (
   totp_secret VARCHAR(128),
   totp_confirmed_at DATETIME,
   status TINYINT NOT NULL DEFAULT 1,
+  dept_id BIGINT,
   auto_locked_until DATETIME,
   create_time DATETIME,
   update_time DATETIME,
@@ -594,6 +595,7 @@ CREATE TABLE IF NOT EXISTS sys_role (
   role_name VARCHAR(64) NOT NULL,
   description VARCHAR(255),
   status TINYINT NOT NULL DEFAULT 1,
+  data_scope TINYINT NOT NULL DEFAULT 1,
   create_time DATETIME,
   update_time DATETIME,
   create_by BIGINT,
@@ -601,6 +603,25 @@ CREATE TABLE IF NOT EXISTS sys_role (
   deleted TINYINT NOT NULL DEFAULT 0
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uk_role_code ON sys_role(role_code);
+
+CREATE TABLE IF NOT EXISTS sys_dept (
+  id BIGINT NOT NULL PRIMARY KEY,
+  parent_id BIGINT NOT NULL DEFAULT 0,
+  name VARCHAR(64) NOT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  status TINYINT NOT NULL DEFAULT 1,
+  create_time DATETIME,
+  update_time DATETIME,
+  create_by BIGINT,
+  update_by BIGINT,
+  deleted TINYINT NOT NULL DEFAULT 0
+);
+
+INSERT IGNORE INTO sys_dept (id, parent_id, name, sort_order, status) VALUES
+  (1, 0, '总部', 1, 1),
+  (2, 1, '运营部', 1, 1),
+  (3, 1, '审核部', 2, 1),
+  (4, 1, '安全部', 3, 1);
 
 -- 用户-角色关联表
 CREATE TABLE IF NOT EXISTS sys_user_role (
@@ -640,13 +661,13 @@ CREATE TABLE IF NOT EXISTS sys_role_permission (
 CREATE UNIQUE INDEX IF NOT EXISTS uk_role_permission ON sys_role_permission(role_id, permission_id);
 
 -- RBAC 预置数据：admin / user 两个角色 + 基础权限
-INSERT IGNORE INTO sys_role (id, role_code, role_name, description, status, create_by) VALUES
-  (1001, 'admin', '系统管理员', '拥有全部权限', 1, NULL),
-  (1002, 'user', '普通用户', '注册用户默认角色', 1, NULL),
-  (1003, 'ops_admin', '运营管理员', '仪表盘、用户查看、反馈、公告、Banner、统计', 1, NULL),
-  (1004, 'audit_admin', '审核管理员', '用户处置、内容审核、敏感词、风控、黑名单、设备、日志', 1, NULL),
-  (1005, 'security_admin', '安全管理员', '登录审计、设备管理、风控、黑名单', 1, NULL),
-  (1006, 'readonly_observer', '只读观察员', '只读查看仪表盘、用户、日志、统计与审核列表', 1, NULL);
+INSERT IGNORE INTO sys_role (id, role_code, role_name, description, status, data_scope, create_by) VALUES
+  (1001, 'admin', '系统管理员', '拥有全部权限', 1, 1, NULL),
+  (1002, 'user', '普通用户', '注册用户默认角色', 1, 2, NULL),
+  (1003, 'ops_admin', '运营管理员', '仪表盘、用户查看、反馈、公告、Banner、统计', 1, 1, NULL),
+  (1004, 'audit_admin', '审核管理员', '用户处置、内容审核、敏感词、风控、黑名单、设备、日志', 1, 1, NULL),
+  (1005, 'security_admin', '安全管理员', '登录审计、设备管理、风控、黑名单', 1, 1, NULL),
+  (1006, 'readonly_observer', '只读观察员', '只读查看仪表盘、用户、日志、统计与审核列表', 1, 1, NULL);
 
 INSERT IGNORE INTO sys_permission (id, permission_code, permission_name, resource_type, resource_path, description, status) VALUES
   (2001, '*', '全部权限', 'api', '*', '通配符权限，拥有全部能力', 1),
@@ -841,8 +862,13 @@ INSERT IGNORE INTO sys_permission (id, permission_code, permission_name, resourc
 (2156,'admin:risk-event:export','导出风险事件','button',NULL,'风险事件导出',1),
 (2171,'admin:device:list','查看设备列表','page','/admin/devices','设备会话列表',1),
 (2172,'admin:device:kick','强制设备下线','button',NULL,'踢设备下线',1),
-(2174,'admin:device:export','导出设备列表','button',NULL,'设备会话导出',1),
-(2175,'admin:blacklist:export','导出黑名单','button',NULL,'黑名单导出',1);
+(2174,'admin:menu:reorder','调整菜单排序','button',NULL,'菜单拖拽/上下排序',1),
+(2176,'admin:device:export','导出设备列表','button',NULL,'设备会话导出',1),
+(2177,'admin:blacklist:export','导出黑名单','button',NULL,'黑名单导出',1),
+(2178,'admin:dept:list','查看部门','page','/admin/depts','部门管理',1),
+(2179,'admin:dept:create','新增部门','button',NULL,'新增部门',1),
+(2180,'admin:dept:edit','编辑部门','button',NULL,'编辑部门',1),
+(2181,'admin:dept:delete','删除部门','button',NULL,'删除部门',1);
 
 -- ops: 查看 + 反馈/公告/统计 + 用户导出
 INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, deleted) VALUES
@@ -859,7 +885,7 @@ INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, d
 (294121, 1004, 2121, NULL, 0),(294129, 1004, 2129, NULL, 0),(294130, 1004, 2130, NULL, 0),
 (294146, 1004, 2146, NULL, 0),(294148, 1004, 2148, NULL, 0),(294156, 1004, 2156, NULL, 0),
 (294149, 1004, 2149, NULL, 0),(294171, 1004, 2171, NULL, 0),(294172, 1004, 2172, NULL, 0),
-(294174, 1004, 2174, NULL, 0),(294175, 1004, 2175, NULL, 0);
+(294176, 1004, 2176, NULL, 0),(294177, 1004, 2177, NULL, 0);
 
 -- security: 日志/风险/黑名单/设备/用户处置 + 导出
 INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, deleted) VALUES
@@ -867,7 +893,7 @@ INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, d
 (295105, 1005, 2105, NULL, 0),(295107, 1005, 2107, NULL, 0),(295173, 1005, 2173, NULL, 0),
 (295121, 1005, 2121, NULL, 0),(295146, 1005, 2146, NULL, 0),(295148, 1005, 2148, NULL, 0),(295156, 1005, 2156, NULL, 0),
 (295149, 1005, 2149, NULL, 0),(295171, 1005, 2171, NULL, 0),(295172, 1005, 2172, NULL, 0),
-(295174, 1005, 2174, NULL, 0),(295175, 1005, 2175, NULL, 0);
+(295176, 1005, 2176, NULL, 0),(295177, 1005, 2177, NULL, 0);
 
 -- readonly: 查看 + 导出（无写）
 INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, deleted) VALUES
@@ -875,5 +901,5 @@ INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, d
 (296153, 1006, 2153, NULL, 0),
 (296121, 1006, 2121, NULL, 0),(296123, 1006, 2123, NULL, 0),(296129, 1006, 2129, NULL, 0),
 (296144, 1006, 2144, NULL, 0),(296146, 1006, 2146, NULL, 0),(296171, 1006, 2171, NULL, 0),
-(296174, 1006, 2174, NULL, 0);
+(296176, 1006, 2176, NULL, 0);
 

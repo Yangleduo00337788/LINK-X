@@ -16,6 +16,9 @@ public class AdminRoleVO {
     private String roleName;
     private String description;
     private Integer status;
+    /** 数据范围：1全部 2仅本人 3本部门及下级 */
+    private Integer dataScope;
     private Date createTime;
     private Date updateTime;
 }
+

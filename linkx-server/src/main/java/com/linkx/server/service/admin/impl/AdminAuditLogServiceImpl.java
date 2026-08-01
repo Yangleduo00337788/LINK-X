@@ -146,22 +146,31 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
     }
 
     private void applyOperatorScope(QueryWrapper qw) {
-        Long scopeUserId = DataScopeContext.getUserId();
-        if (scopeUserId != null) {
-            qw.and(SysAuditLog::getUserId).eq(scopeUserId);
+        var allowed = DataScopeContext.getAllowedUserIds();
+        if (allowed == null) {
+            return;
         }
+        if (allowed.isEmpty()) {
+            qw.and(SysAuditLog::getUserId).eq(-1L);
+            return;
+        }
+        qw.and(SysAuditLog::getUserId).in(allowed);
     }
 
     private void applyLoginUserScope(QueryWrapper qw) {
-        Long scopeUserId = DataScopeContext.getUserId();
-        if (scopeUserId != null) {
-            qw.and(SysLoginAudit::getUserId).eq(scopeUserId);
+        var allowed = DataScopeContext.getAllowedUserIds();
+        if (allowed == null) {
+            return;
         }
+        if (allowed.isEmpty()) {
+            qw.and(SysLoginAudit::getUserId).eq(-1L);
+            return;
+        }
+        qw.and(SysLoginAudit::getUserId).in(allowed);
     }
 
     private boolean inScope(Long rowUserId) {
-        Long scopeUserId = DataScopeContext.getUserId();
-        return scopeUserId == null || scopeUserId.equals(rowUserId);
+        return DataScopeContext.allows(rowUserId);
     }
 
     private AdminOperationLogVO toAuditVO(SysAuditLog log) {

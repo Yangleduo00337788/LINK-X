@@ -78,6 +78,9 @@ public class SysUser implements Serializable {
     // 账号状态：1=正常，0=停用
     private Integer status;
 
+    /** 所属部门 ID，可空 */
+    private Long deptId;
+
     /**
      * 登录失败自动封禁截止时间。
      * 非空表示本次禁用由登录失败触发，到期后自动解封；

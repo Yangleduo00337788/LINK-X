@@ -9,19 +9,15 @@ import java.util.List;
 
 @Data
 @Builder
-@Schema(description = "用户列表项")
-public class AdminUserListVO {
+@Schema(description = "部门节点")
+public class AdminDeptVO {
 
     private Long id;
-    private String username;
-    private String nickname;
-    private String avatar;
-    private String email;
-    private String phone;
+    private Long parentId;
+    private String name;
+    private Integer sortOrder;
     private Integer status;
-    private Long deptId;
-    private String deptName;
-    private List<String> roles;
     private Date createTime;
     private Date updateTime;
+    private List<AdminDeptVO> children;
 }

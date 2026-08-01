@@ -45,6 +45,12 @@ public class SysRole implements Serializable {
     // 状态：1=启用，0=停用
     private Integer status;
 
+    /**
+     * 数据权限范围：1=全部，2=仅本人，3=本部门及下级。
+     * 见 {@link com.linkx.server.common.admin.DataScopeType}。
+     */
+    private Integer dataScope;
+
     // 创建时间，数据库默认 CURRENT_TIMESTAMP
     private Date createTime;
 

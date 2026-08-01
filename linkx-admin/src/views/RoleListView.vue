@@ -52,7 +52,7 @@ const query = reactive({ page: 1, size: 20, keyword: '' })
 const showForm = ref(false)
 const editing = ref<AdminRole | null>(null)
 const formRef = ref<FormInst | null>(null)
-const form = reactive<RolePayload>({ roleCode: '', roleName: '', description: '', status: 1 })
+const form = reactive<RolePayload>({ roleCode: '', roleName: '', description: '', dataScope: 1, status: 1 })
 
 const roleCodeOptions = computed(() => {
   const q = form.roleCode.trim().toLowerCase()
@@ -85,12 +85,28 @@ const userOptions = ref<{ label: string; value: string }[]>([])
 const selectedUserIds = ref<string[]>([])
 const userSaving = ref(false)
 
+const dataScopeOptions = computed(() => {
+  void locale.value
+  return [
+    { label: t('role.dataScopeAll'), value: 1 },
+    { label: t('role.dataScopeSelf'), value: 2 },
+    { label: t('role.dataScopeDept'), value: 3 },
+  ]
+})
+
+function dataScopeLabel(scope?: number) {
+  if (scope === 2) return t('role.dataScopeSelf')
+  if (scope === 3) return t('role.dataScopeDept')
+  return t('role.dataScopeAll')
+}
+
 const columns = computed<DataTableColumns<AdminRole>>(() => {
   void locale.value
   return [
     { title: 'ID', key: 'id', width: 80 },
     { title: t('role.roleCode'), key: 'roleCode' },
     { title: t('role.roleName'), key: 'roleName' },
+    { title: t('role.dataScope'), key: 'dataScope', width: 140, render: (row) => dataScopeLabel(row.dataScope) },
     { title: t('common.description'), key: 'description', ellipsis: { tooltip: true } },
     {
       title: t('common.status'),
@@ -175,7 +191,7 @@ async function load() {
 
 function openCreate() {
   editing.value = null
-  Object.assign(form, { roleCode: '', roleName: '', description: '', status: 1 })
+  Object.assign(form, { roleCode: '', roleName: '', description: '', dataScope: 1, status: 1 })
   showForm.value = true
 }
 
@@ -185,6 +201,7 @@ function openEdit(row: AdminRole) {
     roleCode: row.roleCode,
     roleName: row.roleName,
     description: row.description || '',
+    dataScope: row.dataScope ?? 1,
     status: row.status ?? 1,
   })
   showForm.value = true
@@ -336,6 +353,9 @@ onMounted(load)
         </NFormItem>
         <NFormItem :label="t('common.description')">
           <NInput v-model:value="form.description" type="textarea" />
+        </NFormItem>
+        <NFormItem :label="t('role.dataScope')" path="dataScope">
+          <NSelect v-model:value="form.dataScope" :options="dataScopeOptions" />
         </NFormItem>
       </NForm>
       <template #footer>

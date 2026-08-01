@@ -11,6 +11,7 @@ import {
   NFormItem,
   NInput,
   NModal,
+  NSelect,
   NSpace,
   NSpin,
   NTabPane,
@@ -35,6 +36,7 @@ import {
   type UserLoginItem,
 } from '@/api/users'
 import { kickDevice } from '@/api/devices'
+import { listDepts, type AdminDept } from '@/api/depts'
 import { onAdminRealtimeEvent } from '@/api/realtime'
 import { formatTime, displayOrNone, formatIp, userStatusLabel, userStatusType } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
@@ -64,7 +66,10 @@ const editForm = reactive({
   email: '',
   phone: '',
   signature: '',
+  deptId: 0 as number,
 })
+
+const deptOptions = ref<{ label: string; value: number }[]>([])
 
 const showResetPassword = ref(false)
 const resetSaving = ref(false)
@@ -255,6 +260,19 @@ async function loadLogins() {
   }
 }
 
+function flattenDepts(nodes: AdminDept[], depth = 0, acc: { label: string; value: number }[] = []) {
+  for (const d of nodes) {
+    acc.push({ label: `${'  '.repeat(depth)}${d.name}`, value: d.id })
+    if (d.children?.length) flattenDepts(d.children, depth + 1, acc)
+  }
+  return acc
+}
+
+async function loadDeptOptions() {
+  const tree = (await listDepts()) || []
+  deptOptions.value = [{ label: t('user.deptNone'), value: 0 }, ...flattenDepts(tree)]
+}
+
 function openEdit() {
   if (!user.value) return
   Object.assign(editForm, {
@@ -262,6 +280,7 @@ function openEdit() {
     email: user.value.email || '',
     phone: user.value.phone || '',
     signature: user.value.signature || '',
+    deptId: user.value.deptId ?? 0,
   })
   showEdit.value = true
 }
@@ -309,6 +328,7 @@ async function submitEdit() {
       email: editForm.email.trim() || undefined,
       phone: editForm.phone.trim() || undefined,
       signature: editForm.signature.trim() || undefined,
+      deptId: editForm.deptId ?? 0,
     })
     message.success(t('user.editSuccess'))
     showEdit.value = false
@@ -334,7 +354,7 @@ function confirmAction(label: string, content: string, action: () => Promise<unk
 
 onMounted(async () => {
   await load()
-  await Promise.all([loadDevices(), loadLogins()])
+  await Promise.all([loadDevices(), loadLogins(), loadDeptOptions()])
   offRealtime = onAdminRealtimeEvent((evt) => {
     if (evt?.type !== 'device_presence') return
     const eventUserId = String(evt.relatedId || evt.userId || '')
@@ -427,6 +447,7 @@ onUnmounted(() => {
               <NDescriptionsItem :label="t('user.region')">{{ regionText }}</NDescriptionsItem>
               <NDescriptionsItem :label="t('user.signature')" :span="2">{{ displayOrNone(user.signature) }}</NDescriptionsItem>
               <NDescriptionsItem :label="t('user.roles')" :span="2">{{ rolesText }}</NDescriptionsItem>
+              <NDescriptionsItem :label="t('user.dept')">{{ user.deptName || t('common.none') }}</NDescriptionsItem>
               <NDescriptionsItem :label="t('common.createTime')">{{ formatTime(user.createTime) }}</NDescriptionsItem>
               <NDescriptionsItem :label="t('common.updateTime')">{{ formatTime(user.updateTime) }}</NDescriptionsItem>
             </NDescriptions>
@@ -473,6 +494,14 @@ onUnmounted(() => {
         </NFormItem>
         <NFormItem :label="t('user.phone')">
           <NInput v-model:value="editForm.phone" :placeholder="t('user.phonePlaceholder')" />
+        </NFormItem>
+        <NFormItem :label="t('user.dept')">
+          <NSelect
+            v-model:value="editForm.deptId"
+            :options="deptOptions"
+            filterable
+            :placeholder="t('user.deptPlaceholder')"
+          />
         </NFormItem>
         <NFormItem :label="t('user.signature')">
           <NInput

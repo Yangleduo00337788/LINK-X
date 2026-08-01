@@ -25,4 +25,8 @@ public class AdminRoleDTO {
 
     @Schema(description = "状态 1启用 0停用")
     private Integer status;
+
+    @Schema(description = "数据范围：1全部 2仅本人 3本部门及下级")
+    private Integer dataScope;
 }
+

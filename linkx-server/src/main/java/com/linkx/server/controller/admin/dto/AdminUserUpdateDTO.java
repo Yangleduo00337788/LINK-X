@@ -27,4 +27,7 @@ public class AdminUserUpdateDTO {
     @Schema(description = "手机号")
     @Size(max = 32)
     private String phone;
+
+    @Schema(description = "所属部门 ID，传 null 不改；传 0 清空")
+    private Long deptId;
 }

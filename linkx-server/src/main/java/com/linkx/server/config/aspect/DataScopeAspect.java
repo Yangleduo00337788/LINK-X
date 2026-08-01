@@ -6,8 +6,15 @@ import com.linkx.server.common.DataScopeContext;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.RbacConstants;
 import com.linkx.server.common.admin.AdminConstants;
+import com.linkx.server.common.admin.DataScopeType;
+import com.linkx.server.entity.SysDept;
+import com.linkx.server.entity.SysRole;
+import com.linkx.server.entity.SysUser;
 import com.linkx.server.exception.CustomException;
+import com.linkx.server.mapper.SysDeptMapper;
+import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.RbacService;
+import com.mybatisflex.core.query.QueryWrapper;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,21 +26,22 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.util.ArrayDeque;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Queue;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 /**
- * 数据权限切面。
- * <p>
- * 拦截标注 {@link DataScope} 的 Service 方法，根据当前登录用户角色判定数据可见范围，
- * 写入 {@link DataScopeContext}（ThreadLocal）供 Service 方法读取并拼接过滤条件：
+ * 数据权限切面：按角色 {@code data_scope} 写入 {@link DataScopeContext}。
  * <ul>
- *   <li>管理端门户角色（含 admin / super_admin）：{@code DataScopeContext.getUserId()} 为 null，不限制</li>
- *   <li>普通用户：返回当前 userId，Service 据此过滤本人数据</li>
+ *   <li>超管 / data_scope=全部：不限制</li>
+ *   <li>仅本人：仅当前用户</li>
+ *   <li>本部门及下级：同部门树下的用户（无部门时回退仅本人）</li>
  * </ul>
- * 方法执行完毕（无论成功与否）清除 ThreadLocal，避免线程池复用导致的脏读。
- * </p>
- * <p>
- * 未登录时 fail-closed 抛 401，禁止以 admin 级可见性放行。
- * 管理端查询 Service 通过 {@code @DataScope} + {@link DataScopeContext#getUserId()} 接入。
- * </p>
+ * 多角色取最宽范围。未登录 fail-closed。
  */
 @Slf4j
 @Aspect
@@ -43,10 +51,9 @@ public class DataScopeAspect {
 
     private final RbacService rbacService;
     private final JwtUtils jwtUtils;
+    private final SysUserMapper sysUserMapper;
+    private final SysDeptMapper sysDeptMapper;
 
-    /**
-     * 数据权限切入点：方法上标注 @DataScope
-     */
     @Pointcut("@annotation(com.linkx.server.common.DataScope)")
     public void dataScopePointcut() {
     }
@@ -55,19 +62,88 @@ public class DataScopeAspect {
     public Object around(ProceedingJoinPoint joinPoint) throws Throwable {
         Long userId = currentUserId();
         if (userId == null) {
-            // fail-closed：拦截器被绕过或非 Web 上下文时拒绝，禁止以 admin 级可见性执行
             throw new CustomException(401, "未登录或登录已过期");
         }
-        boolean unrestricted = rbacService.hasRole(userId, RbacConstants.ROLE_ADMIN)
-                || rbacService.hasRole(userId, RbacConstants.ROLE_SUPER_ADMIN)
-                || AdminConstants.hasAdminPortalRole(rbacService.getUserRoleCodes(userId));
-        // 管理端门户角色: 不限制（null）；普通用户: 仅可见本人数据
-        DataScopeContext.setUserId(unrestricted ? null : userId);
+        resolveAndSet(userId);
         try {
             return joinPoint.proceed();
         } finally {
             DataScopeContext.clear();
         }
+    }
+
+    private void resolveAndSet(Long userId) {
+        List<String> roleCodes = rbacService.getUserRoleCodes(userId);
+        boolean superAdmin = roleCodes.contains(RbacConstants.ROLE_ADMIN)
+                || roleCodes.contains(RbacConstants.ROLE_SUPER_ADMIN)
+                || roleCodes.contains(AdminConstants.ROLE_ADMIN)
+                || roleCodes.contains(AdminConstants.ROLE_SUPER_ADMIN);
+        if (superAdmin) {
+            DataScopeContext.setUnrestricted();
+            return;
+        }
+        // 非管理端门户：始终仅本人（客户端调用 @DataScope 的路径）
+        if (!AdminConstants.hasAdminPortalRole(roleCodes)) {
+            DataScopeContext.setAllowedUserIds(Set.of(userId));
+            return;
+        }
+
+        List<SysRole> roles = rbacService.getUserRoles(userId);
+        int scope = DataScopeType.SELF;
+        if (roles != null) {
+            for (SysRole role : roles) {
+                if (!AdminConstants.hasAdminPortalRole(List.of(role.getRoleCode()))) {
+                    continue;
+                }
+                Integer ds = role.getDataScope();
+                if (!DataScopeType.isValid(ds)) {
+                    ds = DataScopeType.ALL;
+                }
+                scope = DataScopeType.widest(scope, ds);
+            }
+        }
+        if (scope == DataScopeType.ALL) {
+            DataScopeContext.setUnrestricted();
+            return;
+        }
+        if (scope == DataScopeType.SELF) {
+            DataScopeContext.setAllowedUserIds(Set.of(userId));
+            return;
+        }
+        // DEPT：本部门及下级；无部门时回退仅本人
+        SysUser user = sysUserMapper.selectOneById(userId);
+        Long deptId = user != null ? user.getDeptId() : null;
+        if (deptId == null) {
+            DataScopeContext.setAllowedUserIds(Set.of(userId));
+            return;
+        }
+        Set<Long> deptIds = collectDeptTreeIds(deptId);
+        Set<Long> allowed = sysUserMapper.selectListByQuery(
+                        QueryWrapper.create().where(SysUser::getDeptId).in(deptIds))
+                .stream()
+                .map(SysUser::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(HashSet::new));
+        allowed.add(userId);
+        DataScopeContext.setAllowedUserIds(allowed);
+    }
+
+    private Set<Long> collectDeptTreeIds(Long rootId) {
+        List<SysDept> all = sysDeptMapper.selectListByQuery(
+                QueryWrapper.create().where(SysDept::getStatus).eq(1));
+        Set<Long> result = new HashSet<>();
+        Queue<Long> queue = new ArrayDeque<>();
+        queue.add(rootId);
+        result.add(rootId);
+        while (!queue.isEmpty()) {
+            Long parent = queue.poll();
+            for (SysDept d : all) {
+                if (parent.equals(d.getParentId()) && result.add(d.getId())) {
+                    queue.add(d.getId());
+                }
+            }
+        }
+        return result;
     }
 
     private Long currentUserId() {

@@ -1,8 +1,8 @@
--- 设备 / 黑名单列表导出权限
+-- device / blacklist export permissions
 INSERT IGNORE INTO `sys_permission`
 (`id`,`permission_code`,`permission_name`,`resource_type`,`resource_path`,`description`,`status`) VALUES
-(2174,'admin:device:export','导出设备列表','button',NULL,'设备会话导出',1),
-(2175,'admin:blacklist:export','导出黑名单','button',NULL,'黑名单导出',1);
+(2174,'admin:device:export','export devices','button',NULL,'device session export',1),
+(2175,'admin:blacklist:export','export blacklist','button',NULL,'blacklist export',1);
 
 INSERT IGNORE INTO `sys_role_permission` (`role_id`,`permission_id`,`create_by`) VALUES
 (1001,2174,NULL),
@@ -13,5 +13,5 @@ INSERT IGNORE INTO `sys_role_permission` (`id`,`role_id`,`permission_id`,`create
 (294175,1004,2175,NULL,0),
 (295174,1005,2174,NULL,0),
 (295175,1005,2175,NULL,0),
--- 只读可导出设备（有设备列表）；黑名单无菜单故不授导出
+-- readonly can export devices; no blacklist menu so no blacklist export
 (296174,1006,2174,NULL,0);

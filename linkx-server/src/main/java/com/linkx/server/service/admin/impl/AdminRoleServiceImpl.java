@@ -1,6 +1,7 @@
 package com.linkx.server.service.admin.impl;
 
 import com.linkx.server.common.admin.AdminConstants;
+import com.linkx.server.common.admin.DataScopeType;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminPageQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminPermissionDTO;
@@ -82,8 +83,19 @@ public class AdminRoleServiceImpl implements AdminRoleService {
             throw new CustomException(400, "builtin role code is reserved");
         }
         SysRole role = rbacService.createRole(dto.getRoleCode(), dto.getRoleName(), dto.getDescription(), operatorId);
+        boolean dirty = false;
         if (dto.getStatus() != null && dto.getStatus() != 1) {
             role.setStatus(dto.getStatus());
+            dirty = true;
+        }
+        if (dto.getDataScope() != null) {
+            if (!DataScopeType.isValid(dto.getDataScope())) {
+                throw new CustomException(400, "invalid dataScope");
+            }
+            role.setDataScope(dto.getDataScope());
+            dirty = true;
+        }
+        if (dirty) {
             role.setUpdateBy(operatorId);
             role.setUpdateTime(new Date());
             sysRoleMapper.update(role);
@@ -109,6 +121,15 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         }
         if (StringUtils.hasText(dto.getRoleCode()) && !dto.getRoleCode().equals(role.getRoleCode())) {
             throw new CustomException(400, "role code cannot be changed");
+        }
+        if (dto.getDataScope() != null) {
+            if (!DataScopeType.isValid(dto.getDataScope())) {
+                throw new CustomException(400, "invalid dataScope");
+            }
+            if (isBuiltinProtectedRole(role.getRoleCode()) && dto.getDataScope() != DataScopeType.ALL) {
+                throw new CustomException(400, "builtin admin role must keep dataScope=ALL");
+            }
+            role.setDataScope(dto.getDataScope());
         }
         role.setUpdateBy(operatorId);
         role.setUpdateTime(new Date());
@@ -343,12 +364,17 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     }
 
     private AdminRoleVO toRoleVO(SysRole role) {
+        Integer dataScope = role.getDataScope();
+        if (!DataScopeType.isValid(dataScope)) {
+            dataScope = DataScopeType.ALL;
+        }
         return AdminRoleVO.builder()
                 .id(role.getId())
                 .roleCode(role.getRoleCode())
                 .roleName(role.getRoleName())
                 .description(role.getDescription())
                 .status(role.getStatus())
+                .dataScope(dataScope)
                 .createTime(role.getCreateTime())
                 .updateTime(role.getUpdateTime())
                 .build();
