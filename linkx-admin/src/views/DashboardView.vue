@@ -24,6 +24,10 @@ import {
   PersonAddOutline,
   ChatbubblesOutline,
   LogInOutline,
+  FlagOutline,
+  KeyOutline,
+  BanOutline,
+  TimeOutline,
 } from '@vicons/ionicons5'
 import {
   fetchDashboardRealtime,
@@ -62,7 +66,11 @@ const cards = computed(() => {
     { key: 'mau' as const, label: t('dashboard.mau'), icon: PulseOutline },
     { key: 'onlineDevices' as const, label: t('dashboard.onlineDevices'), icon: PhonePortraitOutline },
     { key: 'pendingFeedback' as const, label: t('dashboard.pendingFeedback'), icon: ChatbubbleEllipsesOutline },
+    { key: 'overdueFeedback' as const, label: t('dashboard.overdueFeedback'), icon: TimeOutline },
+    { key: 'pendingReports' as const, label: t('dashboard.pendingReports'), icon: FlagOutline },
     { key: 'pendingReviews' as const, label: t('dashboard.pendingReviews'), icon: DocumentTextOutline },
+    { key: 'todaySensitiveHits' as const, label: t('dashboard.todaySensitiveHits'), icon: KeyOutline },
+    { key: 'todayRiskBlocks' as const, label: t('dashboard.todayRiskBlocks'), icon: BanOutline },
     { key: 'riskEvents' as const, label: t('dashboard.riskEvents'), icon: WarningOutline },
   ]
 })
@@ -110,6 +118,8 @@ function seriesName(key: string, fallback: string) {
 function taskTitle(task: PendingTask) {
   const map: Record<string, string> = {
     pendingFeedback: t('dashboard.pendingFeedback'),
+    overdueFeedback: t('dashboard.overdueFeedback'),
+    pendingReports: t('dashboard.pendingReports'),
     pendingReviews: t('dashboard.pendingReviews'),
     riskEvents: t('dashboard.riskEvents'),
   }
@@ -163,7 +173,7 @@ onMounted(async () => {
     </div>
 
     <NSpin :show="loading">
-      <NGrid cols="1 s:2 m:3" responsive="screen" :x-gap="16" :y-gap="16">
+      <NGrid cols="1 s:2 m:3 l:4" responsive="screen" :x-gap="16" :y-gap="16">
         <NGi v-for="card in cards" :key="card.key">
           <div class="page-card stat-card">
             <div class="stat-icon">

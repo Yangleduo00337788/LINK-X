@@ -10,7 +10,11 @@ export interface DashboardSummary {
   mau: number
   onlineDevices: number
   pendingFeedback: number
+  overdueFeedback: number
   pendingReviews: number
+  pendingReports: number
+  todaySensitiveHits: number
+  todayRiskBlocks: number
   riskEvents: number
 }
 

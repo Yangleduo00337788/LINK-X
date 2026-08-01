@@ -115,6 +115,7 @@ export interface UserLoginItem {
   userId?: string
   username?: string
   ip?: string
+  region?: string
   userAgent?: string
   success?: number
   reason?: string

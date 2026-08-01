@@ -116,6 +116,16 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: 'route.reviews', permission: 'admin:review:list' },
       },
       {
+        path: 'reports',
+        name: 'ReportList',
+        component: () => import('@/views/ReviewListView.vue'),
+        meta: {
+          titleKey: 'route.reports',
+          permission: 'admin:review:list',
+          reportOnly: true,
+        },
+      },
+      {
         path: 'sensitive-words',
         name: 'SensitiveWordList',
         component: () => import('@/views/SensitiveWordListView.vue'),

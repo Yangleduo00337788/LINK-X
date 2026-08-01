@@ -376,6 +376,13 @@ const loginColumns = computed<DataTableColumns<UserLoginItem>>(() => {
       width: 140,
       render: (row) => formatIp(row.ip),
     },
+    {
+      title: t('loginLog.region'),
+      key: 'region',
+      width: 160,
+      ellipsis: { tooltip: true },
+      render: (row) => row.region || '-',
+    },
     { title: t('loginLog.reason'), key: 'reason', ellipsis: { tooltip: true } },
     {
       title: t('common.time'),

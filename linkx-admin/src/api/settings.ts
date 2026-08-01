@@ -41,6 +41,7 @@ export interface ClientSideSetting {
   sensitiveFilterEnabled?: boolean
   supportEmail?: string
   supportPhone?: string
+  feedbackSlaHours?: number
 }
 
 export interface MailSideSetting {
@@ -80,7 +81,12 @@ export type PasswordUpdatePayload = Required<PasswordSideSetting>
 export type ClientSideUpdatePayload = Required<
   Pick<
     ClientSideSetting,
-    'appVersion' | 'appChannel' | 'maxUploadBytes' | 'forceUpdate' | 'sensitiveFilterEnabled'
+    | 'appVersion'
+    | 'appChannel'
+    | 'maxUploadBytes'
+    | 'forceUpdate'
+    | 'sensitiveFilterEnabled'
+    | 'feedbackSlaHours'
   >
 > &
   Pick<

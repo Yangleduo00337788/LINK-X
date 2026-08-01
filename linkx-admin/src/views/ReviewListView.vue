@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, h, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import {
   NButton,
   NDataTable,
@@ -33,7 +34,11 @@ import SearchAutoComplete from '@/components/SearchAutoComplete.vue'
 const message = useMessage()
 const dialog = useDialog()
 const auth = useAuthStore()
+const route = useRoute()
 const { t, locale } = useI18n()
+
+/** 举报独立入口：锁定 sourceType=report，收窄目标类型 */
+const reportOnly = computed(() => !!route.meta.reportOnly)
 
 const loading = ref(false)
 const items = ref<ReviewItem[]>([])
@@ -95,6 +100,13 @@ const sourceOptions = computed(() => {
 
 const targetTypeOptions = computed(() => {
   void locale.value
+  if (reportOnly.value) {
+    return [
+      { label: t('review.allTargetTypes'), value: '' },
+      { label: t('review.targetUser'), value: 'user' },
+      { label: t('review.targetGroup'), value: 'group' },
+    ]
+  }
   return [
     { label: t('review.allTargetTypes'), value: '' },
     { label: 'moment', value: 'moment' },
@@ -389,6 +401,7 @@ async function load(opts?: { silent?: boolean; announceNew?: boolean }) {
   const silent = !!opts?.silent
   if (!silent) loading.value = true
   try {
+    if (reportOnly.value) query.sourceType = 'report'
     const data = await listReviews({
       page: query.page,
       size: query.size,
@@ -432,6 +445,10 @@ function onVisibilityChange() {
 }
 
 onMounted(() => {
+  if (reportOnly.value) {
+    query.sourceType = 'report'
+    query.status = query.status || 'pending'
+  }
   void load()
   pollTimer.value = setInterval(() => {
     if (document.visibilityState !== 'visible') return
@@ -462,10 +479,17 @@ onUnmounted(() => {
             @search="search"
           />
           <NSelect v-model:value="query.status" :options="statusOptions" style="width: 140px" />
-          <NSelect v-model:value="query.sourceType" :options="sourceOptions" style="width: 140px" />
+          <NSelect
+            v-if="!reportOnly"
+            v-model:value="query.sourceType"
+            :options="sourceOptions"
+            style="width: 140px"
+          />
           <NSelect v-model:value="query.targetType" :options="targetTypeOptions" style="width: 160px" />
           <NSelect v-model:value="query.riskLevel" :options="riskLevelOptions" style="width: 130px" />
-          <NButton secondary @click="applyReportPreset">{{ t('review.reportPreset') }}</NButton>
+          <NButton v-if="!reportOnly" secondary @click="applyReportPreset">
+            {{ t('review.reportPreset') }}
+          </NButton>
           <NDatePicker
             v-model:value="query.range"
             type="datetimerange"

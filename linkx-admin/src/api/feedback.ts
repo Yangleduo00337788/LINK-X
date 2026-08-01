@@ -12,6 +12,7 @@ export interface FeedbackItem {
   status?: string
   reply?: string
   createTime?: string
+  overdue?: boolean
 }
 
 export function listFeedback(params: PageQuery) {

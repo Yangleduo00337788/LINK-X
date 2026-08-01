@@ -119,6 +119,7 @@ const clientForm = reactive({
   sensitiveFilterEnabled: true,
   supportEmail: '',
   supportPhone: '',
+  feedbackSlaHours: 24,
 })
 
 const mailForm = reactive({
@@ -191,6 +192,7 @@ function applySettings(data: AdminSetting) {
   clientForm.sensitiveFilterEnabled = data.client?.sensitiveFilterEnabled !== false
   clientForm.supportEmail = data.client?.supportEmail || ''
   clientForm.supportPhone = data.client?.supportPhone || ''
+  clientForm.feedbackSlaHours = data.client?.feedbackSlaHours ?? 24
 
   mailForm.host = data.mail?.host || ''
   mailForm.port = data.mail?.port ?? 587
@@ -351,6 +353,7 @@ async function saveClient() {
           sensitiveFilterEnabled: clientForm.sensitiveFilterEnabled,
           supportEmail: clientForm.supportEmail.trim() || undefined,
           supportPhone: clientForm.supportPhone.trim() || undefined,
+          feedbackSlaHours: clientForm.feedbackSlaHours || 24,
         }),
       )
       message.success(t('setting.clientSaved'))
@@ -728,6 +731,19 @@ onMounted(load)
               <NFormItem :label="t('setting.supportPhone')">
                 <NInput v-model:value="clientForm.supportPhone" style="max-width: 280px" />
               </NFormItem>
+              <NFormItem :label="t('setting.feedbackSlaHours')">
+                <div class="upload-row">
+                  <NInputNumber
+                    v-model:value="clientForm.feedbackSlaHours"
+                    :min="1"
+                    :max="720"
+                    :step="1"
+                    style="width: 160px"
+                  />
+                  <span class="field-hint">{{ t('setting.feedbackSlaHoursUnit') }}</span>
+                </div>
+              </NFormItem>
+              <p class="field-hint channel-hint">{{ t('setting.feedbackSlaHint') }}</p>
               <NFormItem :label="t('setting.releaseNotes')">
                 <NInput
                   v-model:value="clientForm.releaseNotes"

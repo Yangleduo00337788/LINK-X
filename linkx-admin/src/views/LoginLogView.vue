@@ -52,6 +52,13 @@ const columns = computed<DataTableColumns<LoginLog>>(() => {
       width: 140,
       render: (row) => formatIp(row.ip),
     },
+    {
+      title: t('loginLog.region'),
+      key: 'region',
+      width: 180,
+      ellipsis: { tooltip: true },
+      render: (row) => row.region || '-',
+    },
     { title: 'UA', key: 'userAgent', ellipsis: { tooltip: true } },
     {
       title: t('loginLog.result'),

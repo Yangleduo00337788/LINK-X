@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import {
   NButton,
   NDataTable,
@@ -9,6 +10,7 @@ import {
   NModal,
   NSelect,
   NSpace,
+  NSwitch,
   NTag,
   useDialog,
   useMessage,
@@ -29,6 +31,7 @@ import SearchAutoComplete from '@/components/SearchAutoComplete.vue'
 const message = useMessage()
 const dialog = useDialog()
 const auth = useAuthStore()
+const route = useRoute()
 const { t, locale } = useI18n()
 
 const loading = ref(false)
@@ -40,6 +43,7 @@ const query = reactive({
   size: 20,
   keyword: '',
   status: '' as string,
+  overdueOnly: false,
   range: null as [number, number] | null,
 })
 
@@ -58,7 +62,11 @@ const replyTarget = ref<FeedbackItem | null>(null)
 const replyContent = ref('')
 const replySaving = ref(false)
 
-function statusTag(status?: string) {
+function statusTag(row: FeedbackItem) {
+  const status = row.status
+  if (row.overdue) {
+    return h(NTag, { type: 'error', size: 'small' }, () => t('feedback.overdue'))
+  }
   const map: Record<string, 'warning' | 'success' | 'default'> = {
     pending: 'warning',
     replied: 'success',
@@ -80,7 +88,7 @@ const columns = computed<DataTableColumns<FeedbackItem>>(() => {
     { title: t('feedback.type'), key: 'type', width: 100 },
     { title: t('feedback.content'), key: 'content', ellipsis: { tooltip: true } },
     { title: t('feedback.contact'), key: 'contact', width: 140, ellipsis: { tooltip: true } },
-    { title: t('common.status'), key: 'status', width: 100, render: (row) => statusTag(row.status) },
+    { title: t('common.status'), key: 'status', width: 100, render: (row) => statusTag(row) },
     { title: t('common.time'), key: 'createTime', width: 170, render: (row) => formatTime(row.createTime) },
     {
       title: t('common.actions'),
@@ -160,7 +168,8 @@ async function load() {
       page: query.page,
       size: query.size,
       keyword: query.keyword || undefined,
-      feedbackStatus: query.status || undefined,
+      feedbackStatus: query.overdueOnly ? 'pending' : query.status || undefined,
+      overdueOnly: query.overdueOnly || undefined,
       startTime: query.range?.[0],
       endTime: query.range?.[1],
     })
@@ -181,7 +190,8 @@ async function doExport() {
   try {
     await exportFeedback({
       keyword: query.keyword || undefined,
-      feedbackStatus: query.status || undefined,
+      feedbackStatus: query.overdueOnly ? 'pending' : query.status || undefined,
+      overdueOnly: query.overdueOnly || undefined,
       startTime: query.range?.[0],
       endTime: query.range?.[1],
     })
@@ -191,7 +201,14 @@ async function doExport() {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  const overdue = route.query.overdueOnly
+  if (overdue === '1' || overdue === 'true') {
+    query.overdueOnly = true
+    query.status = 'pending'
+  }
+  load()
+})
 </script>
 
 <template>
@@ -205,7 +222,16 @@ onMounted(load)
             width="220px"
             @search="search"
           />
-          <NSelect v-model:value="query.status" :options="statusOptions" style="width: 140px" />
+          <NSelect
+            v-model:value="query.status"
+            :options="statusOptions"
+            :disabled="query.overdueOnly"
+            style="width: 140px"
+          />
+          <NSpace align="center">
+            <span class="muted">{{ t('feedback.overdueOnly') }}</span>
+            <NSwitch v-model:value="query.overdueOnly" @update:value="search" />
+          </NSpace>
           <NDatePicker
             v-model:value="query.range"
             type="datetimerange"
@@ -259,6 +285,10 @@ onMounted(load)
 </template>
 
 <style scoped>
+.muted {
+  color: var(--lx-text-2);
+  font-size: 13px;
+}
 .reply-quote {
   color: var(--lx-text-2);
   margin-top: 0;

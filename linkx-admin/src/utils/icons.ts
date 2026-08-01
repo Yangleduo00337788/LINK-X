@@ -20,6 +20,7 @@ import {
   StatsChartOutline,
   BanOutline,
   PhonePortraitOutline,
+  FlagOutline,
 } from '@vicons/ionicons5'
 
 const iconMap: Record<string, Component> = {
@@ -46,6 +47,7 @@ const iconMap: Record<string, Component> = {
   Ban: BanOutline,
   Phone: PhonePortraitOutline,
   Devices: PhonePortraitOutline,
+  Flag: FlagOutline,
 }
 
 export function resolveMenuIcon(name?: string): Component {

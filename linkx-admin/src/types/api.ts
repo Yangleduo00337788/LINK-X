@@ -17,6 +17,7 @@ export interface PageQuery {
   keyword?: string
   status?: number | string
   feedbackStatus?: string
+  overdueOnly?: boolean
   startTime?: number
   endTime?: number
   sortBy?: string

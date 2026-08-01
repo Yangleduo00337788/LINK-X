@@ -25,6 +25,7 @@ export interface LoginLog {
   userId?: number
   username?: string
   ip?: string
+  region?: string
   userAgent?: string
   success?: number
   reason?: string
