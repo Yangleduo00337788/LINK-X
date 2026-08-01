@@ -1,5 +1,11 @@
 import { del, get, post, put } from './request'
-import type { AdminMenuTree, PageQuery, PageResult } from '@/types/api'
+import type {
+  AdminMenuPayload,
+  AdminMenuReorderItem,
+  AdminMenuTree,
+  PageQuery,
+  PageResult,
+} from '@/types/api'
 
 export interface AdminPermission {
   id: number
@@ -22,6 +28,22 @@ export interface PermissionPayload {
 
 export function listMenus() {
   return get<AdminMenuTree[]>('/admin/menus')
+}
+
+export function createMenu(body: AdminMenuPayload) {
+  return post<number>('/admin/menus', body)
+}
+
+export function updateMenu(id: number, body: AdminMenuPayload) {
+  return put<null>(`/admin/menus/${id}`, body)
+}
+
+export function deleteMenu(id: number) {
+  return del<null>(`/admin/menus/${id}`)
+}
+
+export function reorderMenus(items: AdminMenuReorderItem[]) {
+  return post<null>('/admin/menus/reorder', { items })
 }
 
 export function listPermissions(params: PageQuery) {

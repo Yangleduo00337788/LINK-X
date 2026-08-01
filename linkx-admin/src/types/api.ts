@@ -63,7 +63,30 @@ export interface AdminMenuTree {
   permission?: string
   sort?: number
   visible?: boolean
+  status?: number
   children?: AdminMenuTree[]
+}
+
+export interface AdminMenuPayload {
+  parentId: number
+  name: string
+  title: string
+  path: string
+  component?: string
+  redirect?: string
+  icon?: string
+  menuType: string
+  permissionCode?: string
+  sortOrder?: number
+  hidden?: number
+  status?: number
+  remark?: string
+}
+
+export interface AdminMenuReorderItem {
+  id: number
+  parentId?: number
+  sortOrder: number
 }
 
 export interface CaptchaVO {

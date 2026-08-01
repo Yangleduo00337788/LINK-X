@@ -24,6 +24,7 @@ public class AdminMenuTreeVO {
     private String permission;
     private Integer sort;
     private Boolean visible;
+    private Integer status;
     @Builder.Default
     private List<AdminMenuTreeVO> children = new ArrayList<>();
 }

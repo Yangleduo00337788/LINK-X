@@ -1,6 +1,7 @@
 package com.linkx.server.service.admin;
 
 import com.linkx.server.controller.admin.dto.AdminMenuDTO;
+import com.linkx.server.controller.admin.dto.AdminMenuReorderDTO;
 import com.linkx.server.controller.admin.vo.AdminMenuTreeVO;
 import com.linkx.server.controller.admin.vo.AdminMenuVO;
 
@@ -19,4 +20,6 @@ public interface AdminMenuService {
     void update(Long id, AdminMenuDTO dto, Long operatorId);
 
     void delete(Long id);
+
+    void reorder(AdminMenuReorderDTO dto, Long operatorId);
 }

@@ -103,6 +103,7 @@ const PERM_KEYS: Record<string, { name: string; desc?: string }> = {
   'admin:menu:create': { name: 'perm.adminMenuCreate', desc: 'perm.adminMenuCreateDesc' },
   'admin:menu:edit': { name: 'perm.adminMenuEdit', desc: 'perm.adminMenuEditDesc' },
   'admin:menu:delete': { name: 'perm.adminMenuDelete', desc: 'perm.adminMenuDeleteDesc' },
+  'admin:menu:reorder': { name: 'perm.adminMenuReorder', desc: 'perm.adminMenuReorderDesc' },
   'admin:audit:list': { name: 'perm.adminAuditList', desc: 'perm.adminAuditListDesc' },
   'admin:audit:export': { name: 'perm.adminAuditExport', desc: 'perm.adminAuditExportDesc' },
   'admin:login-log:list': { name: 'perm.adminLoginLogList', desc: 'perm.adminLoginLogListDesc' },

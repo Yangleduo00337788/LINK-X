@@ -5,6 +5,7 @@ import com.linkx.server.common.RequireRole;
 import com.linkx.server.common.Result;
 import com.linkx.server.config.aspect.AuditAction;
 import com.linkx.server.controller.admin.dto.AdminMenuDTO;
+import com.linkx.server.controller.admin.dto.AdminMenuReorderDTO;
 import com.linkx.server.controller.admin.vo.AdminMenuTreeVO;
 import com.linkx.server.controller.admin.vo.AdminMenuVO;
 import com.linkx.server.service.admin.AdminMenuService;
@@ -74,6 +75,16 @@ public class AdminMenuController {
     @RequirePermission("admin:menu:delete")
     public Result<Void> delete(@PathVariable Long id) {
         adminMenuService.delete(id);
+        return Result.success(null);
+    }
+
+    @Operation(summary = "调整菜单排序")
+    @AuditAction(operationType = "UPDATE_PROFILE", description = "调整管理端菜单排序")
+    @PostMapping("/reorder")
+    @RequirePermission("admin:menu:reorder")
+    public Result<Void> reorder(@Valid @RequestBody AdminMenuReorderDTO dto, HttpServletRequest request) {
+        Long operatorId = (Long) request.getAttribute("userId");
+        adminMenuService.reorder(dto, operatorId);
         return Result.success(null);
     }
 }

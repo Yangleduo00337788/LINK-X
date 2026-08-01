@@ -2,6 +2,7 @@ package com.linkx.server.service.admin.impl;
 
 import com.linkx.server.common.RbacConstants;
 import com.linkx.server.controller.admin.dto.AdminMenuDTO;
+import com.linkx.server.controller.admin.dto.AdminMenuReorderDTO;
 import com.linkx.server.controller.admin.vo.AdminMenuTreeVO;
 import com.linkx.server.controller.admin.vo.AdminMenuVO;
 import com.linkx.server.entity.SysRole;
@@ -38,7 +39,8 @@ public class AdminMenuServiceImpl implements AdminMenuService {
 
     @Override
     public List<AdminMenuTreeVO> treeAll() {
-        return buildTree(listEnabledMenus());
+        // 管理页需看到停用菜单，便于编辑/启停
+        return buildTree(listAllMenus());
     }
 
     @Override
@@ -70,8 +72,12 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         if (existing != null) {
             throw new CustomException(409, "菜单标识已存在");
         }
+        Long parentId = dto.getParentId() == null ? 0L : dto.getParentId();
+        if (parentId > 0) {
+            requireMenu(parentId);
+        }
         AdminMenu menu = AdminMenu.builder()
-                .parentId(dto.getParentId() == null ? 0L : dto.getParentId())
+                .parentId(parentId)
                 .name(dto.getName())
                 .title(dto.getTitle())
                 .path(dto.getPath())
@@ -110,7 +116,17 @@ public class AdminMenuServiceImpl implements AdminMenuService {
             menu.setName(dto.getName());
         }
         if (dto.getParentId() != null) {
-            menu.setParentId(dto.getParentId());
+            Long newParent = dto.getParentId();
+            if (Objects.equals(newParent, id)) {
+                throw new CustomException(400, "父菜单不能是自己");
+            }
+            if (newParent > 0 && isDescendant(id, newParent)) {
+                throw new CustomException(400, "不能将菜单移动到其子节点下");
+            }
+            if (newParent > 0) {
+                requireMenu(newParent);
+            }
+            menu.setParentId(newParent);
         }
         if (dto.getTitle() != null) {
             menu.setTitle(dto.getTitle());
@@ -164,6 +180,32 @@ public class AdminMenuServiceImpl implements AdminMenuService {
                 QueryWrapper.create().where(AdminRoleMenu::getMenuId).eq(id));
     }
 
+    @Override
+    @Transactional
+    public void reorder(AdminMenuReorderDTO dto, Long operatorId) {
+        Date now = new Date();
+        for (AdminMenuReorderDTO.Item item : dto.getItems()) {
+            AdminMenu menu = requireMenu(item.getId());
+            if (item.getParentId() != null) {
+                Long newParent = item.getParentId();
+                if (Objects.equals(newParent, item.getId())) {
+                    throw new CustomException(400, "父菜单不能是自己");
+                }
+                if (newParent > 0 && isDescendant(item.getId(), newParent)) {
+                    throw new CustomException(400, "不能将菜单移动到其子节点下");
+                }
+                if (newParent > 0) {
+                    requireMenu(newParent);
+                }
+                menu.setParentId(newParent);
+            }
+            menu.setSortOrder(item.getSortOrder());
+            menu.setUpdatedBy(operatorId);
+            menu.setUpdatedAt(now);
+            adminMenuMapper.update(menu);
+        }
+    }
+
     private Set<Long> resolveAllowedMenuIds(Long userId, List<AdminMenu> all, Set<String> perms) {
         Set<Long> allowed = new HashSet<>();
 
@@ -203,6 +245,31 @@ public class AdminMenuServiceImpl implements AdminMenuService {
                         .where(AdminMenu::getStatus).eq(1)
                         .orderBy(AdminMenu::getSortOrder, true)
                         .orderBy(AdminMenu::getId, true));
+    }
+
+    private List<AdminMenu> listAllMenus() {
+        return adminMenuMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .orderBy(AdminMenu::getSortOrder, true)
+                        .orderBy(AdminMenu::getId, true));
+    }
+
+    /** 判断 candidateId 是否位于 rootId 的子孙节点中 */
+    private boolean isDescendant(Long rootId, Long candidateId) {
+        List<AdminMenu> all = listAllMenus();
+        Map<Long, Long> parentOf = all.stream()
+                .collect(Collectors.toMap(AdminMenu::getId,
+                        m -> m.getParentId() == null ? 0L : m.getParentId(),
+                        (a, b) -> a));
+        Long current = candidateId;
+        int guard = 0;
+        while (current != null && current > 0 && guard++ < 64) {
+            if (Objects.equals(current, rootId)) {
+                return true;
+            }
+            current = parentOf.get(current);
+        }
+        return false;
     }
 
     private List<AdminMenuTreeVO> buildTree(List<AdminMenu> menus) {
@@ -247,6 +314,7 @@ public class AdminMenuServiceImpl implements AdminMenuService {
                 .permission(menu.getPermissionCode())
                 .sort(menu.getSortOrder())
                 .visible(menu.getHidden() == null || menu.getHidden() == 0)
+                .status(menu.getStatus())
                 .children(new ArrayList<>())
                 .build();
     }
