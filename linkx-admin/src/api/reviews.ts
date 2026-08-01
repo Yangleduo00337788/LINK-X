@@ -6,6 +6,8 @@ export interface ReviewItem {
   sourceType?: string
   targetType?: string
   targetId?: string
+  /** 涉事用户 ID */
+  subjectUserId?: string
   reporterUserId?: string
   reporterUsername?: string
   title?: string
@@ -19,6 +21,17 @@ export interface ReviewItem {
   resolvedBy?: string
   resolvedAt?: string
   createTime?: string
+}
+
+export type ReviewUserAction = 'none' | 'freeze' | 'ban'
+export type ReviewContentAction = 'none' | 'delete'
+export type ReviewGroupAction = 'none' | 'dissolve' | 'freeze_owner' | 'ban_owner'
+
+export interface ReviewResolvePayload {
+  resolution?: string
+  userAction?: ReviewUserAction
+  contentAction?: ReviewContentAction
+  groupAction?: ReviewGroupAction
 }
 
 export interface ReviewQuery extends PageQuery {
@@ -40,19 +53,33 @@ export function getReview(id: string) {
   return get<ReviewItem>(`/admin/reviews/${id}`)
 }
 
-export function approveReview(id: string, resolution?: string) {
-  return post<null>(`/admin/reviews/${id}/approve`, { resolution })
+export function approveReview(id: string, payload?: ReviewResolvePayload | string) {
+  const body =
+    typeof payload === 'string' || payload === undefined
+      ? { resolution: payload }
+      : payload
+  return post<null>(`/admin/reviews/${id}/approve`, body)
 }
 
-export function rejectReview(id: string, resolution?: string) {
-  return post<null>(`/admin/reviews/${id}/reject`, { resolution })
+export function rejectReview(id: string, payload?: ReviewResolvePayload | string) {
+  const body =
+    typeof payload === 'string' || payload === undefined
+      ? { resolution: payload }
+      : payload
+  return post<null>(`/admin/reviews/${id}/reject`, body)
 }
 
-export function batchReviews(ids: string[], action: 'approve' | 'reject', resolution?: string) {
+export function batchReviews(
+  ids: string[],
+  action: 'approve' | 'reject',
+  resolution?: string,
+  extra?: Pick<ReviewResolvePayload, 'userAction' | 'contentAction'>,
+) {
   return post<ReviewBatchResult>('/admin/reviews/batch', {
     ids,
     action,
     resolution,
+    ...(action === 'approve' ? extra : {}),
   })
 }
 

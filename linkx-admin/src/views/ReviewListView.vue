@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import {
   NButton,
   NDataTable,
+  NFormItem,
   NInput,
   NModal,
   NSelect,
@@ -19,7 +20,10 @@ import {
   exportReviews,
   listReviews,
   rejectReview,
+  type ReviewContentAction,
+  type ReviewGroupAction,
   type ReviewItem,
+  type ReviewUserAction,
 } from '@/api/reviews'
 import { formatTime } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
@@ -42,10 +46,15 @@ const showResolve = ref(false)
 const resolveTarget = ref<ReviewItem | null>(null)
 const resolveAction = ref<'approve' | 'reject'>('approve')
 const resolution = ref('')
+const userAction = ref<ReviewUserAction>('none')
+const contentAction = ref<ReviewContentAction>('none')
+const groupAction = ref<ReviewGroupAction>('none')
 const resolveSaving = ref(false)
 const checkedKeys = ref<string[]>([])
 const exporting = ref(false)
 const batchSaving = ref(false)
+
+const DELETABLE_TARGETS = new Set(['message', 'moment', 'moment_comment', 'announcement'])
 
 const statusOptions = computed(() => {
   void locale.value
@@ -66,6 +75,37 @@ const sourceOptions = computed(() => {
     { label: t('review.sourceManual'), value: 'manual' },
   ]
 })
+
+const userActionOptions = computed(() => {
+  void locale.value
+  return [
+    { label: t('review.userActionNone'), value: 'none' },
+    { label: t('review.userActionFreeze'), value: 'freeze' },
+    { label: t('review.userActionBan'), value: 'ban' },
+  ]
+})
+
+const contentActionOptions = computed(() => {
+  void locale.value
+  return [
+    { label: t('review.contentActionNone'), value: 'none' },
+    { label: t('review.contentActionDelete'), value: 'delete' },
+  ]
+})
+
+const groupActionOptions = computed(() => {
+  void locale.value
+  return [
+    { label: t('review.groupActionNone'), value: 'none' },
+    { label: t('review.groupActionDissolve'), value: 'dissolve' },
+    { label: t('review.groupActionFreezeOwner'), value: 'freeze_owner' },
+    { label: t('review.groupActionBanOwner'), value: 'ban_owner' },
+  ]
+})
+
+function isGroupTarget(row?: ReviewItem | null) {
+  return row?.targetType === 'group'
+}
 
 function statusTag(status?: string) {
   const map: Record<string, 'warning' | 'success' | 'error' | 'default'> = {
@@ -90,6 +130,10 @@ function sourceLabel(source?: string) {
   return map[source || ''] || source || '-'
 }
 
+function canDeleteContent(row?: ReviewItem | null) {
+  return !!row && DELETABLE_TARGETS.has(row.targetType || '')
+}
+
 const columns = computed<DataTableColumns<ReviewItem>>(() => {
   void locale.value
   return [
@@ -104,7 +148,17 @@ const columns = computed<DataTableColumns<ReviewItem>>(() => {
     { title: t('review.title'), key: 'title', width: 160, ellipsis: { tooltip: true } },
     { title: t('review.content'), key: 'contentSnapshot', ellipsis: { tooltip: true } },
     { title: t('review.reporter'), key: 'reporterUsername', width: 110 },
-    { title: t('review.target'), key: 'targetId', width: 120, ellipsis: { tooltip: true } },
+    {
+      title: t('review.target'),
+      key: 'targetId',
+      width: 140,
+      ellipsis: { tooltip: true },
+      render: (row) => {
+        const type = row.targetType || '-'
+        const id = row.targetId || '-'
+        return `${type}:${id}`
+      },
+    },
     { title: t('common.status'), key: 'status', width: 100, render: (row) => statusTag(row.status) },
     {
       title: t('common.time'),
@@ -138,18 +192,22 @@ function openResolve(row: ReviewItem, action: 'approve' | 'reject') {
   resolveTarget.value = row
   resolveAction.value = action
   resolution.value = ''
+  userAction.value = 'none'
+  contentAction.value = 'none'
+  groupAction.value = 'none'
   showResolve.value = true
 }
 
 function stripEvidenceText(content?: string) {
   if (!content) return '-'
-  // JS 不支持 (?m) 内联标志，须用 m 标志
-  return content
-    .replace(/^证据图片:\s*$/gm, '')
-    .replace(/^\d+\.\s*[\w./-]+\.(?:png|jpe?g|gif|webp|bmp)\s*$/gim, '')
-    .replace(/^证据图片:\s*无\s*$/gm, `${t('review.evidence')}: ${t('review.evidenceNone')}`)
-    .replace(/\n{3,}/g, '\n\n')
-    .trim() || '-'
+  return (
+    content
+      .replace(/^证据图片:\s*$/gm, '')
+      .replace(/^\d+\.\s*[\w./-]+\.(?:png|jpe?g|gif|webp|bmp)\s*$/gim, '')
+      .replace(/^证据图片:\s*无\s*$/gm, `${t('review.evidence')}: ${t('review.evidenceNone')}`)
+      .replace(/\n{3,}/g, '\n\n')
+      .trim() || '-'
+  )
 }
 
 function showDetail(row: ReviewItem) {
@@ -161,7 +219,12 @@ function showDetail(row: ReviewItem) {
         'div',
         { style: 'line-height: 1.6; max-height: 420px; overflow: auto;' },
         [
-          h('div', { style: 'white-space: pre-wrap; margin-bottom: 12px;' }, stripEvidenceText(row.contentSnapshot)),
+          h('div', `${t('review.source')}: ${sourceLabel(row.sourceType)}`),
+          h('div', `${t('review.targetType')}: ${row.targetType || '-'}`),
+          h('div', `${t('review.target')}: ${row.targetId || '-'}`),
+          h('div', `${t('review.subjectUser')}: ${row.subjectUserId || '-'}`),
+          h('div', `${t('review.riskLevel')}: ${row.riskLevel || '-'}`),
+          h('div', { style: 'white-space: pre-wrap; margin: 12px 0;' }, stripEvidenceText(row.contentSnapshot)),
           urls.length
             ? h('div', { style: 'margin-bottom: 8px; font-weight: 600;' }, t('review.evidence'))
             : null,
@@ -200,14 +263,33 @@ async function submitResolve() {
   try {
     const note = resolution.value.trim() || undefined
     if (resolveAction.value === 'approve') {
-      await approveReview(resolveTarget.value.id, note)
-      message.success(t('review.approveSuccess'))
+      const isGroup = isGroupTarget(resolveTarget.value)
+      const punish = isGroup ? 'none' : userAction.value
+      const content = canDeleteContent(resolveTarget.value) ? contentAction.value : 'none'
+      const group = isGroup ? groupAction.value : 'none'
+      await approveReview(resolveTarget.value.id, {
+        resolution: note,
+        userAction: punish,
+        contentAction: content,
+        groupAction: group,
+      })
+      if (group === 'dissolve') {
+        message.success(t('review.groupActionDissolve'))
+      } else if (content === 'delete') {
+        message.success(t('review.approveWithDeleteSuccess'))
+      } else if (punish !== 'none' || group === 'freeze_owner' || group === 'ban_owner') {
+        message.success(t('review.approveWithPunishSuccess'))
+      } else {
+        message.success(t('review.approveSuccess'))
+      }
     } else {
-      await rejectReview(resolveTarget.value.id, note)
+      await rejectReview(resolveTarget.value.id, { resolution: note })
       message.success(t('review.rejectSuccess'))
     }
     showResolve.value = false
     await load()
+  } catch {
+    // 错误文案由 request 拦截器统一弹出（如「群主已被封禁」）
   } finally {
     resolveSaving.value = false
   }
@@ -380,7 +462,7 @@ onUnmounted(() => {
       v-model:show="showResolve"
       preset="card"
       :title="resolveAction === 'approve' ? t('review.approveTitle') : t('review.rejectTitle')"
-      style="width: 520px"
+      style="width: 560px"
     >
       <p class="quote">{{ stripEvidenceText(resolveTarget?.contentSnapshot) }}</p>
       <div v-if="resolveTarget?.evidenceUrls?.length" class="evidence-block">
@@ -397,6 +479,24 @@ onUnmounted(() => {
           </a>
         </div>
       </div>
+
+      <template v-if="resolveAction === 'approve'">
+        <template v-if="isGroupTarget(resolveTarget)">
+          <NFormItem :label="t('review.groupAction')">
+            <NSelect v-model:value="groupAction" :options="groupActionOptions" />
+          </NFormItem>
+          <p class="hint">{{ t('review.groupActionHint') }}</p>
+        </template>
+        <NFormItem v-else :label="t('review.userAction')">
+          <NSelect v-model:value="userAction" :options="userActionOptions" />
+        </NFormItem>
+        <NFormItem v-if="canDeleteContent(resolveTarget)" :label="t('review.contentAction')">
+          <NSelect v-model:value="contentAction" :options="contentActionOptions" />
+        </NFormItem>
+        <p v-if="canDeleteContent(resolveTarget)" class="hint">{{ t('review.contentActionHint') }}</p>
+      </template>
+      <p v-else class="hint">{{ t('review.rejectHint') }}</p>
+
       <NInput
         v-model:value="resolution"
         type="textarea"
@@ -428,6 +528,12 @@ onUnmounted(() => {
   white-space: pre-wrap;
   max-height: 180px;
   overflow: auto;
+}
+.hint {
+  color: var(--lx-text-3, #999);
+  font-size: 12px;
+  margin: 0 0 12px;
+  line-height: 1.5;
 }
 .evidence-block {
   margin-bottom: 12px;
