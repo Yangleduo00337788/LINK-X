@@ -1,4 +1,5 @@
-import { downloadFile, get, post, put } from './request'
+import { runAsyncExport } from './exportJobs'
+import { get, post, put } from './request'
 import type { PageQuery, PageResult } from '@/types/api'
 
 export interface AdminUserListItem {
@@ -50,7 +51,11 @@ export interface DeviceItem {
   approved?: boolean
 }
 
-export function listUsers(params: PageQuery) {
+export interface UserListQuery extends PageQuery {
+  deptId?: number
+}
+
+export function listUsers(params: UserListQuery) {
   return get<PageResult<AdminUserListItem>>('/admin/users', params as Record<string, unknown>)
 }
 
@@ -120,7 +125,7 @@ export function listUserLogins(id: string, params?: PageQuery) {
   return get<PageResult<UserLoginItem>>(`/admin/users/${id}/logins`, (params || {}) as Record<string, unknown>)
 }
 
-export function exportUsers(params: PageQuery) {
-  return downloadFile('/admin/users/export', params as Record<string, unknown>, 'users.csv')
+export function exportUsers(params: UserListQuery) {
+  return runAsyncExport('users', params as Record<string, unknown>)
 }
 

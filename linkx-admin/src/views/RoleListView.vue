@@ -22,10 +22,12 @@ import {
 import SearchAutoComplete from '@/components/SearchAutoComplete.vue'
 import {
   assignRoleMenus,
+  assignRolePermissions,
   assignRoleUsers,
   createRole,
   deleteRole,
   getRoleMenus,
+  getRolePermissions,
   getRoleUsers,
   listRoles,
   updateRole,
@@ -33,7 +35,7 @@ import {
   type RolePayload,
 } from '@/api/roles'
 import { listDepts, type AdminDept } from '@/api/depts'
-import { listMenus } from '@/api/menus'
+import { listMenus, listPermissions, type AdminPermission } from '@/api/menus'
 import { listUsers } from '@/api/users'
 import type { AdminMenuTree } from '@/types/api'
 import { formatTime } from '@/utils/format'
@@ -88,6 +90,12 @@ const menuRoleId = ref<number | null>(null)
 const menuTree = ref<TreeOption[]>([])
 const checkedKeys = ref<number[]>([])
 const menuSaving = ref(false)
+
+const showPermModal = ref(false)
+const permRoleId = ref<number | null>(null)
+const permTree = ref<TreeOption[]>([])
+const checkedPermKeys = ref<number[]>([])
+const permSaving = ref(false)
 
 const showUserModal = ref(false)
 const userRoleId = ref<number | null>(null)
@@ -167,7 +175,7 @@ const columns = computed<DataTableColumns<AdminRole>>(() => {
     {
       title: t('common.actions'),
       key: 'actions',
-      width: 300,
+      width: 380,
       render: (row) =>
         h(NSpace, { size: 8 }, () => [
           auth.hasPermission('admin:role:edit')
@@ -175,6 +183,9 @@ const columns = computed<DataTableColumns<AdminRole>>(() => {
             : null,
           auth.hasPermission('admin:role:assign-menu')
             ? h(NButton, { size: 'tiny', onClick: () => openMenus(row) }, () => t('role.menus'))
+            : null,
+          auth.hasPermission('admin:role:assign-permission')
+            ? h(NButton, { size: 'tiny', onClick: () => openPermissions(row) }, () => t('role.permissions'))
             : null,
           auth.hasPermission('admin:role:assign-user') && row.roleCode !== 'user'
             ? h(NButton, { size: 'tiny', onClick: () => openUsers(row) }, () => t('role.users'))
@@ -305,6 +316,61 @@ async function saveMenus() {
   } finally {
     menuSaving.value = false
   }
+}
+
+function toPermTree(perms: AdminPermission[]): TreeOption[] {
+  const groups = new Map<string, TreeOption[]>()
+  for (const p of perms) {
+    const type = p.resourceType || 'other'
+    if (!groups.has(type)) groups.set(type, [])
+    groups.get(type)!.push({
+      key: p.id,
+      label: `${p.permissionName} (${p.permissionCode})`,
+    })
+  }
+  return [...groups.entries()].map(([type, children]) => ({
+    key: `type:${type}`,
+    label: type,
+    children,
+  }))
+}
+
+async function loadAllPermissions(): Promise<AdminPermission[]> {
+  const pageSize = 100
+  let page = 1
+  const all: AdminPermission[] = []
+  for (;;) {
+    const data = await listPermissions({ page, size: pageSize })
+    all.push(...(data.items || []))
+    if (all.length >= (data.total || 0) || !(data.items || []).length) break
+    page += 1
+    if (page > 20) break
+  }
+  return all
+}
+
+async function openPermissions(row: AdminRole) {
+  permRoleId.value = row.id
+  const [perms, selected] = await Promise.all([loadAllPermissions(), getRolePermissions(row.id)])
+  permTree.value = toPermTree(perms)
+  checkedPermKeys.value = selected || []
+  showPermModal.value = true
+}
+
+async function savePermissions() {
+  if (!permRoleId.value) return
+  permSaving.value = true
+  try {
+    await assignRolePermissions(permRoleId.value, checkedPermKeys.value)
+    message.success(t('role.permissionsUpdated'))
+    showPermModal.value = false
+  } finally {
+    permSaving.value = false
+  }
+}
+
+function onPermChecked(keys: Array<string | number>) {
+  checkedPermKeys.value = keys.map(Number).filter((id) => Number.isFinite(id) && id > 0)
 }
 
 async function openUsers(row: AdminRole) {
@@ -456,6 +522,24 @@ onMounted(load)
         <NSpace justify="end">
           <NButton @click="showMenuModal = false">{{ t('common.cancel') }}</NButton>
           <NButton type="primary" :loading="menuSaving" @click="saveMenus">{{ t('common.save') }}</NButton>
+        </NSpace>
+      </template>
+    </NModal>
+
+    <NModal v-model:show="showPermModal" preset="card" :title="t('role.assignPermissions')" style="width: 560px">
+      <NTree
+        block-line
+        checkable
+        cascade
+        selectable
+        :data="permTree"
+        :checked-keys="checkedPermKeys"
+        @update:checked-keys="onPermChecked"
+      />
+      <template #footer>
+        <NSpace justify="end">
+          <NButton @click="showPermModal = false">{{ t('common.cancel') }}</NButton>
+          <NButton type="primary" :loading="permSaving" @click="savePermissions">{{ t('common.save') }}</NButton>
         </NSpace>
       </template>
     </NModal>

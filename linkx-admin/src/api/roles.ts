@@ -57,6 +57,14 @@ export function assignRoleMenus(id: number, menuIds: number[]) {
   return put<null>(`/admin/roles/${id}/menus`, { menuIds })
 }
 
+export function getRolePermissions(id: number) {
+  return get<number[]>(`/admin/roles/${id}/permissions`)
+}
+
+export function assignRolePermissions(id: number, permissionIds: number[]) {
+  return put<null>(`/admin/roles/${id}/permissions`, { permissionIds })
+}
+
 export function getRoleUsers(id: number) {
   return get<RoleUser[]>(`/admin/roles/${id}/users`)
 }

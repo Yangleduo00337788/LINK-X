@@ -1,4 +1,5 @@
-import { downloadFile, get, post } from './request'
+import { runAsyncExport } from './exportJobs'
+import { get, post } from './request'
 import type { PageQuery, PageResult } from '@/types/api'
 
 export interface FeedbackItem {
@@ -34,5 +35,5 @@ export function reopenFeedback(id: string) {
 }
 
 export function exportFeedback(params: PageQuery) {
-  return downloadFile('/admin/feedback/export', params as Record<string, unknown>, 'feedback.csv')
+  return runAsyncExport('feedback', params as Record<string, unknown>)
 }

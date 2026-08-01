@@ -65,6 +65,11 @@ onMounted(() => {
           : t('notice.adminBulletinRecalledGeneric'),
         { duration: 5000 },
       )
+    } else if (evt?.type === 'export_ready') {
+      message.success(t('common.exportReady'), { duration: 4000 })
+    } else if (evt?.type === 'export_failed') {
+      const err = typeof evt.error === 'string' ? evt.error : ''
+      message.error(err || t('common.exportFailed'), { duration: 5000 })
     }
   })
   // 刷新侧边栏菜单，避免本地缓存仍显示已下线的「版本管理」等项

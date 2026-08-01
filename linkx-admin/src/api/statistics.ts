@@ -1,4 +1,5 @@
-import { downloadFile, get } from './request'
+import { runAsyncExport } from './exportJobs'
+import { get } from './request'
 
 export interface ChartSeries {
   name: string
@@ -123,7 +124,7 @@ export function fetchStatisticGroups(days = 14) {
 }
 
 export function exportStatistics(days = 14) {
-  return downloadFile('/admin/statistics/export', { days }, 'statistics.csv')
+  return runAsyncExport('statistics', { days })
 }
 
 export function fetchActivityHeatmap(days = 30, metric: HeatmapMetric = 'logins') {

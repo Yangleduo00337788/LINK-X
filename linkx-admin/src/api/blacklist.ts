@@ -1,4 +1,5 @@
-import { downloadFile, get, post } from './request'
+import { runAsyncExport } from './exportJobs'
+import { get, post } from './request'
 import type { PageQuery, PageResult } from '@/types/api'
 
 export interface BlacklistItem {
@@ -38,5 +39,5 @@ export function releaseBlacklist(id: string, reason?: string) {
 }
 
 export function exportBlacklist(params: BlacklistQuery) {
-  return downloadFile('/admin/blacklist/export', params as Record<string, unknown>, 'blacklist.csv')
+  return runAsyncExport('blacklist', params as Record<string, unknown>)
 }

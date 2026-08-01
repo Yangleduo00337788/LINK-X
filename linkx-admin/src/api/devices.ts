@@ -1,4 +1,5 @@
-import { downloadFile, get, post } from './request'
+import { runAsyncExport } from './exportJobs'
+import { get, post } from './request'
 import type { PageQuery, PageResult } from '@/types/api'
 
 export interface AdminDeviceItem {
@@ -39,5 +40,5 @@ export function unbanDevice(userId: string, deviceId: string) {
 }
 
 export function exportDevices(params: DeviceQuery) {
-  return downloadFile('/admin/devices/export', params as Record<string, unknown>, 'devices.csv')
+  return runAsyncExport('devices', params as Record<string, unknown>)
 }

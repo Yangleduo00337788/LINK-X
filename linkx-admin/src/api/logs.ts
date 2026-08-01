@@ -1,4 +1,5 @@
-import { downloadFile, get } from './request'
+import { runAsyncExport } from './exportJobs'
+import { get } from './request'
 import type { PageQuery, PageResult } from '@/types/api'
 
 export interface AuditLog {
@@ -30,12 +31,18 @@ export interface LoginLog {
   createTime?: string
 }
 
-export function listAuditLogs(params: PageQuery) {
+export interface AuditLogQuery extends PageQuery {
+  operationType?: string
+  /** SUCCESS / FAIL */
+  resultStatus?: string
+}
+
+export function listAuditLogs(params: AuditLogQuery) {
   return get<PageResult<AuditLog>>('/admin/audit-logs', params as Record<string, unknown>)
 }
 
-export function exportAuditLogs(params: PageQuery) {
-  return downloadFile('/admin/audit-logs/export', params as Record<string, unknown>, 'audit-logs.csv')
+export function exportAuditLogs(params: AuditLogQuery) {
+  return runAsyncExport('audit-logs', params as Record<string, unknown>)
 }
 
 export function listLoginLogs(params: PageQuery) {
@@ -43,5 +50,5 @@ export function listLoginLogs(params: PageQuery) {
 }
 
 export function exportLoginLogs(params: PageQuery) {
-  return downloadFile('/admin/login-logs/export', params as Record<string, unknown>, 'login-logs.csv')
+  return runAsyncExport('login-logs', params as Record<string, unknown>)
 }

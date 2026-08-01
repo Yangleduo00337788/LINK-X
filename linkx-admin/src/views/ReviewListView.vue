@@ -44,6 +44,8 @@ const query = reactive({
   keyword: '',
   status: '',
   sourceType: '',
+  targetType: '',
+  riskLevel: '',
   range: null as [number, number] | null,
 })
 const knownIds = ref<Set<string>>(new Set())
@@ -62,7 +64,14 @@ const checkedKeys = ref<string[]>([])
 const exporting = ref(false)
 const batchSaving = ref(false)
 
-const DELETABLE_TARGETS = new Set(['message', 'moment', 'moment_comment', 'announcement'])
+const DELETABLE_TARGETS = new Set([
+  'message',
+  'moment',
+  'moment_comment',
+  'announcement',
+  'group_file',
+  'favorite',
+])
 
 const statusOptions = computed(() => {
   void locale.value
@@ -81,6 +90,33 @@ const sourceOptions = computed(() => {
     { label: t('review.sourceReport'), value: 'report' },
     { label: t('review.sourceSensitive'), value: 'sensitive' },
     { label: t('review.sourceManual'), value: 'manual' },
+  ]
+})
+
+const targetTypeOptions = computed(() => {
+  void locale.value
+  return [
+    { label: t('review.allTargetTypes'), value: '' },
+    { label: 'moment', value: 'moment' },
+    { label: 'moment_comment', value: 'moment_comment' },
+    { label: 'message', value: 'message' },
+    { label: 'announcement', value: 'announcement' },
+    { label: 'group_file', value: 'group_file' },
+    { label: 'favorite', value: 'favorite' },
+    { label: 'user', value: 'user' },
+    { label: 'group', value: 'group' },
+    { label: 'conversation', value: 'conversation' },
+  ]
+})
+
+const riskLevelOptions = computed(() => {
+  void locale.value
+  return [
+    { label: t('review.allRiskLevels'), value: '' },
+    { label: t('review.riskLow'), value: 'low' },
+    { label: t('review.riskMedium'), value: 'medium' },
+    { label: t('review.riskHigh'), value: 'high' },
+    { label: t('review.riskCritical'), value: 'critical' },
   ]
 })
 
@@ -338,6 +374,8 @@ async function doExport() {
       keyword: query.keyword || undefined,
       reviewStatus: query.status || undefined,
       sourceType: query.sourceType || undefined,
+      targetType: query.targetType || undefined,
+      riskLevel: query.riskLevel || undefined,
       startTime: query.range?.[0],
       endTime: query.range?.[1],
     })
@@ -357,6 +395,8 @@ async function load(opts?: { silent?: boolean; announceNew?: boolean }) {
       keyword: query.keyword || undefined,
       reviewStatus: query.status || undefined,
       sourceType: query.sourceType || undefined,
+      targetType: query.targetType || undefined,
+      riskLevel: query.riskLevel || undefined,
       startTime: query.range?.[0],
       endTime: query.range?.[1],
     })
@@ -378,6 +418,11 @@ async function load(opts?: { silent?: boolean; announceNew?: boolean }) {
 function search() {
   query.page = 1
   load()
+}
+
+function applyReportPreset() {
+  query.sourceType = 'report'
+  search()
 }
 
 function onVisibilityChange() {
@@ -418,6 +463,9 @@ onUnmounted(() => {
           />
           <NSelect v-model:value="query.status" :options="statusOptions" style="width: 140px" />
           <NSelect v-model:value="query.sourceType" :options="sourceOptions" style="width: 140px" />
+          <NSelect v-model:value="query.targetType" :options="targetTypeOptions" style="width: 160px" />
+          <NSelect v-model:value="query.riskLevel" :options="riskLevelOptions" style="width: 130px" />
+          <NButton secondary @click="applyReportPreset">{{ t('review.reportPreset') }}</NButton>
           <NDatePicker
             v-model:value="query.range"
             type="datetimerange"

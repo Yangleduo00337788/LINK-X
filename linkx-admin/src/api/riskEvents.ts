@@ -1,4 +1,5 @@
-import { downloadFile, get, post } from './request'
+import { runAsyncExport } from './exportJobs'
+import { get, post } from './request'
 import type { PageQuery, PageResult } from '@/types/api'
 
 export interface RiskEventItem {
@@ -67,5 +68,5 @@ export function batchRiskEvents(
 }
 
 export function exportRiskEvents(params: RiskEventQuery) {
-  return downloadFile('/admin/risk-events/export', params as Record<string, unknown>, 'risk-events.csv')
+  return runAsyncExport('risk-events', params as Record<string, unknown>)
 }

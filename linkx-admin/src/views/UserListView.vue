@@ -29,6 +29,7 @@ import {
   unfreezeUser,
   type AdminUserListItem,
 } from '@/api/users'
+import { listDepts, type AdminDept } from '@/api/depts'
 import { formatTime, userStatusLabel, userStatusType } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
 import SearchAutoComplete from '@/components/SearchAutoComplete.vue'
@@ -48,8 +49,10 @@ const query = reactive({
   size: 20,
   keyword: '',
   status: '' as '' | number,
+  deptId: null as number | null,
   range: null as [number, number] | null,
 })
+const deptOptions = ref<{ label: string; value: number | null }[]>([])
 
 const showResetPassword = ref(false)
 const resetSaving = ref(false)
@@ -252,6 +255,7 @@ async function load() {
       size: query.size,
       keyword: query.keyword || undefined,
       status: query.status === '' ? undefined : query.status,
+      deptId: query.deptId ?? undefined,
       startTime: query.range?.[0],
       endTime: query.range?.[1],
     })
@@ -273,6 +277,7 @@ async function doExport() {
     await exportUsers({
       keyword: query.keyword || undefined,
       status: query.status === '' ? undefined : query.status,
+      deptId: query.deptId ?? undefined,
       startTime: query.range?.[0],
       endTime: query.range?.[1],
     })
@@ -282,7 +287,34 @@ async function doExport() {
   }
 }
 
-onMounted(load)
+function flattenDepts(nodes: AdminDept[], prefix = ''): { label: string; value: number }[] {
+  const out: { label: string; value: number }[] = []
+  for (const n of nodes) {
+    const label = prefix ? `${prefix} / ${n.name}` : n.name
+    out.push({ label, value: n.id })
+    if (n.children?.length) {
+      out.push(...flattenDepts(n.children, label))
+    }
+  }
+  return out
+}
+
+async function loadDepts() {
+  try {
+    const tree = await listDepts()
+    deptOptions.value = [
+      { label: t('user.allDepts'), value: null },
+      ...flattenDepts(tree || []),
+    ]
+  } catch {
+    deptOptions.value = [{ label: t('user.allDepts'), value: null }]
+  }
+}
+
+onMounted(() => {
+  void loadDepts()
+  void load()
+})
 </script>
 
 <template>
@@ -297,6 +329,13 @@ onMounted(load)
             @search="search"
           />
           <NSelect v-model:value="query.status" :options="statusOptions" style="width: 140px" />
+          <NSelect
+            v-model:value="query.deptId"
+            :options="deptOptions"
+            clearable
+            style="width: 180px"
+            :placeholder="t('user.allDepts')"
+          />
           <NDatePicker
             v-model:value="query.range"
             type="datetimerange"

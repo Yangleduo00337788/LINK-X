@@ -116,6 +116,9 @@ const clientForm = reactive({
   releaseNotes: '',
   forceUpdate: false,
   minSupportedVersion: '',
+  sensitiveFilterEnabled: true,
+  supportEmail: '',
+  supportPhone: '',
 })
 
 const mailForm = reactive({
@@ -185,6 +188,9 @@ function applySettings(data: AdminSetting) {
   clientForm.maxUploadMb = data.client?.maxUploadBytes
     ? Math.round((data.client.maxUploadBytes / (1024 * 1024)) * 10) / 10
     : 100
+  clientForm.sensitiveFilterEnabled = data.client?.sensitiveFilterEnabled !== false
+  clientForm.supportEmail = data.client?.supportEmail || ''
+  clientForm.supportPhone = data.client?.supportPhone || ''
 
   mailForm.host = data.mail?.host || ''
   mailForm.port = data.mail?.port ?? 587
@@ -342,6 +348,9 @@ async function saveClient() {
           forceUpdate: clientForm.forceUpdate,
           minSupportedVersion: clientForm.minSupportedVersion.trim() || undefined,
           maxUploadBytes: Math.round(clientForm.maxUploadMb * 1024 * 1024),
+          sensitiveFilterEnabled: clientForm.sensitiveFilterEnabled,
+          supportEmail: clientForm.supportEmail.trim() || undefined,
+          supportPhone: clientForm.supportPhone.trim() || undefined,
         }),
       )
       message.success(t('setting.clientSaved'))
@@ -703,6 +712,21 @@ onMounted(load)
                   />
                   <span class="field-hint">MB</span>
                 </div>
+              </NFormItem>
+              <NFormItem :label="t('setting.sensitiveFilterEnabled')">
+                <NSpace align="center">
+                  <NSwitch v-model:value="clientForm.sensitiveFilterEnabled" />
+                  <span class="field-hint">
+                    {{ clientForm.sensitiveFilterEnabled ? t('common.on') : t('common.off') }}
+                  </span>
+                </NSpace>
+              </NFormItem>
+              <p class="field-hint channel-hint">{{ t('setting.sensitiveFilterHint') }}</p>
+              <NFormItem :label="t('setting.supportEmail')">
+                <NInput v-model:value="clientForm.supportEmail" style="max-width: 360px" />
+              </NFormItem>
+              <NFormItem :label="t('setting.supportPhone')">
+                <NInput v-model:value="clientForm.supportPhone" style="max-width: 280px" />
               </NFormItem>
               <NFormItem :label="t('setting.releaseNotes')">
                 <NInput

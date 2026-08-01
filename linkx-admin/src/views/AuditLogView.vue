@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NButton, NDataTable, NDatePicker, NSpace, useMessage, type DataTableColumns } from 'naive-ui'
+import {
+  NButton,
+  NDataTable,
+  NDatePicker,
+  NSelect,
+  NSpace,
+  useMessage,
+  type DataTableColumns,
+} from 'naive-ui'
 import { exportAuditLogs, listAuditLogs, type AuditLog } from '@/api/logs'
 import { formatIp, formatTime } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
@@ -18,7 +26,31 @@ const query = reactive({
   page: 1,
   size: 20,
   keyword: '',
+  operationType: '',
+  resultStatus: '',
   range: null as [number, number] | null,
+})
+
+const operationTypeOptions = computed(() => {
+  void locale.value
+  return [
+    { label: t('audit.allOperationTypes'), value: '' },
+    { label: 'ROLE_GRANT', value: 'ROLE_GRANT' },
+    { label: 'ROLE_REVOKE', value: 'ROLE_REVOKE' },
+    { label: 'USER_BAN', value: 'USER_BAN' },
+    { label: 'USER_FREEZE', value: 'USER_FREEZE' },
+    { label: 'UPDATE_PROFILE', value: 'UPDATE_PROFILE' },
+    { label: 'SETTING_UPDATE', value: 'SETTING_UPDATE' },
+  ]
+})
+
+const resultStatusOptions = computed(() => {
+  void locale.value
+  return [
+    { label: t('audit.allResultStatus'), value: '' },
+    { label: t('audit.resultSuccess'), value: 'SUCCESS' },
+    { label: t('audit.resultFail'), value: 'FAIL' },
+  ]
 })
 
 const columns = computed<DataTableColumns<AuditLog>>(() => {
@@ -50,6 +82,8 @@ function queryParams() {
     page: query.page,
     size: query.size,
     keyword: query.keyword || undefined,
+    operationType: query.operationType || undefined,
+    resultStatus: query.resultStatus || undefined,
     startTime: query.range?.[0],
     endTime: query.range?.[1],
   }
@@ -76,6 +110,8 @@ async function doExport() {
   try {
     await exportAuditLogs({
       keyword: query.keyword || undefined,
+      operationType: query.operationType || undefined,
+      resultStatus: query.resultStatus || undefined,
       startTime: query.range?.[0],
       endTime: query.range?.[1],
     })
@@ -99,6 +135,8 @@ onMounted(load)
             width="220px"
             @search="search"
           />
+          <NSelect v-model:value="query.operationType" :options="operationTypeOptions" style="width: 170px" />
+          <NSelect v-model:value="query.resultStatus" :options="resultStatusOptions" style="width: 130px" />
           <NDatePicker
             v-model:value="query.range"
             type="datetimerange"

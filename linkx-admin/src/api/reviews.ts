@@ -1,4 +1,5 @@
-import { downloadFile, get, post } from './request'
+import { runAsyncExport } from './exportJobs'
+import { get, post } from './request'
 import type { PageQuery, PageResult } from '@/types/api'
 
 export interface ReviewItem {
@@ -37,6 +38,8 @@ export interface ReviewResolvePayload {
 export interface ReviewQuery extends PageQuery {
   reviewStatus?: string
   sourceType?: string
+  targetType?: string
+  riskLevel?: string
 }
 
 export interface ReviewBatchResult {
@@ -84,5 +87,5 @@ export function batchReviews(
 }
 
 export function exportReviews(params: ReviewQuery) {
-  return downloadFile('/admin/reviews/export', params as Record<string, unknown>, 'reviews.csv')
+  return runAsyncExport('reviews', params as Record<string, unknown>)
 }
