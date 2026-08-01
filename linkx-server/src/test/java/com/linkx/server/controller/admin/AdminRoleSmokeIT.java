@@ -55,6 +55,7 @@ class AdminRoleSmokeIT extends BaseIntegrationTest {
         assertFalse(menuNames.contains("settings"));
         assertFalse(menuNames.contains("risk-event"));
         assertFalse(menuNames.contains("devices"));
+        assertFalse(menuNames.contains("rate-limit"));
 
         Set<String> perms = permissions(ops);
         assertTrue(perms.contains("admin:dashboard:view"));
@@ -63,6 +64,7 @@ class AdminRoleSmokeIT extends BaseIntegrationTest {
         assertFalse(perms.contains("admin:setting:edit"));
         assertFalse(perms.contains("admin:user:freeze"));
         assertFalse(perms.contains("admin:risk-event:handle"));
+        assertFalse(perms.contains("admin:rate-limit:list"));
 
         mockMvc.perform(get("/admin/dashboard/summary").header("Authorization", ops.bearer()))
                 .andExpect(status().isOk())
@@ -84,10 +86,12 @@ class AdminRoleSmokeIT extends BaseIntegrationTest {
 
         Set<String> menuNames = menuNames(audit);
         assertTrue(menuNames.contains("review-task") || menuNames.contains("review"));
+        assertTrue(menuNames.contains("report-task"));
         assertTrue(menuNames.contains("risk-event"));
         assertTrue(menuNames.contains("devices"));
         assertFalse(menuNames.contains("notices"));
         assertFalse(menuNames.contains("statistics"));
+        assertFalse(menuNames.contains("rate-limit"));
 
         Set<String> perms = permissions(audit);
         assertTrue(perms.contains("admin:review:approve"));
@@ -95,6 +99,7 @@ class AdminRoleSmokeIT extends BaseIntegrationTest {
         assertTrue(perms.contains("admin:user:freeze"));
         assertFalse(perms.contains("admin:notice:create"));
         assertFalse(perms.contains("admin:setting:edit"));
+        assertFalse(perms.contains("admin:rate-limit:list"));
 
         mockMvc.perform(post("/admin/notices")
                         .header("Authorization", audit.bearer())
@@ -107,7 +112,7 @@ class AdminRoleSmokeIT extends BaseIntegrationTest {
     }
 
     @Test
-    @DisplayName("安全管理员：可登录风控与设备；不可回复反馈 / 新建公告")
+    @DisplayName("安全管理员：可登录风控、设备与 IP 限流；不可回复反馈 / 新建公告")
     void securityAdminMenusAndDeniedOpsWrites() throws Exception {
         TestUser security = promoteAndRelogin("sec", ROLE_SECURITY, AdminConstants.ROLE_SECURITY_ADMIN);
 
@@ -115,6 +120,7 @@ class AdminRoleSmokeIT extends BaseIntegrationTest {
         assertTrue(menuNames.contains("risk-event"));
         assertTrue(menuNames.contains("devices"));
         assertTrue(menuNames.contains("blacklist"));
+        assertTrue(menuNames.contains("rate-limit"));
         assertTrue(menuNames.contains("audit-log") || menuNames.contains("log"));
         assertFalse(menuNames.contains("feedback"));
         assertFalse(menuNames.contains("notices"));
@@ -123,8 +129,17 @@ class AdminRoleSmokeIT extends BaseIntegrationTest {
         assertTrue(perms.contains("admin:risk-event:handle"));
         assertTrue(perms.contains("admin:device:kick"));
         assertTrue(perms.contains("admin:blacklist:list"));
+        assertTrue(perms.contains("admin:rate-limit:list"));
+        assertTrue(perms.contains("admin:rate-limit:unblock"));
+        assertTrue(perms.contains("admin:rate-limit:whitelist"));
         assertFalse(perms.contains("admin:feedback:reply"));
         assertFalse(perms.contains("admin:notice:create"));
+
+        mockMvc.perform(get("/admin/rate-limits/hits")
+                        .header("Authorization", security.bearer())
+                        .param("limit", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
 
         mockMvc.perform(post("/admin/feedback/1/reply")
                         .header("Authorization", security.bearer())
@@ -147,6 +162,7 @@ class AdminRoleSmokeIT extends BaseIntegrationTest {
         assertFalse(menuNames.contains("settings"));
         assertFalse(menuNames.contains("blacklist"));
         assertFalse(menuNames.contains("notices"));
+        assertFalse(menuNames.contains("rate-limit"));
 
         Set<String> perms = permissions(observer);
         assertTrue(perms.contains("admin:dashboard:view"));
@@ -158,6 +174,7 @@ class AdminRoleSmokeIT extends BaseIntegrationTest {
         assertFalse(perms.contains("admin:notice:create"));
         assertFalse(perms.contains("admin:setting:edit"));
         assertFalse(perms.contains("admin:risk-event:handle"));
+        assertFalse(perms.contains("admin:rate-limit:list"));
 
         mockMvc.perform(get("/admin/dashboard/summary").header("Authorization", observer.bearer()))
                 .andExpect(status().isOk())

@@ -49,7 +49,11 @@ const FIXTURES: Record<
       },
       {
         name: 'review',
-        children: [{ name: 'review-task' }, { name: 'sensitive-word' }],
+        children: [
+          { name: 'report-task' },
+          { name: 'review-task' },
+          { name: 'sensitive-word' },
+        ],
       },
       { name: 'blacklist' },
       { name: 'devices' },
@@ -72,7 +76,12 @@ const FIXTURES: Record<
       { name: 'user' },
       {
         name: 'log',
-        children: [{ name: 'audit-log' }, { name: 'login-log' }, { name: 'risk-event' }],
+        children: [
+          { name: 'audit-log' },
+          { name: 'login-log' },
+          { name: 'risk-event' },
+          { name: 'rate-limit' },
+        ],
       },
       { name: 'blacklist' },
       { name: 'devices' },
@@ -86,6 +95,9 @@ const FIXTURES: Record<
       'admin:device:export',
       'admin:blacklist:list',
       'admin:blacklist:export',
+      'admin:rate-limit:list',
+      'admin:rate-limit:unblock',
+      'admin:rate-limit:whitelist',
       'admin:audit:list',
       'admin:login-log:list',
     ],
