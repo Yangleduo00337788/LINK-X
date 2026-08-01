@@ -15,6 +15,8 @@ public class AdminLoginLogVO {
     private Long userId;
     private String username;
     private String ip;
+    @Schema(description = "IP 归属地")
+    private String region;
     private String userAgent;
     private Integer success;
     private String reason;

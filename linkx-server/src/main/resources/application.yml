@@ -221,6 +221,10 @@ linkx:
     # 消息保留天数 ← MESSAGE_RETENTION_DAYS
     message-days: ${MESSAGE_RETENTION_DAYS}
 
+  ip-geo:
+    # 可选：外部 ip2region.xdb 路径（也可放 classpath:ip2region/ip2region.xdb）
+    xdb-path: ${IP_GEO_XDB_PATH:}
+
 # ---------- Actuator ----------
 management:
   endpoints:

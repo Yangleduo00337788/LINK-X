@@ -171,6 +171,13 @@
             <version>8.5.7</version>
         </dependency>
 
+        <!-- 离线 IP 归属地（需放置 ip2region.xdb，见 resources/ip2region/README.md） -->
+        <dependency>
+            <groupId>org.lionsoul</groupId>
+            <artifactId>ip2region</artifactId>
+            <version>2.7.0</version>
+        </dependency>
+
         <!-- Servlet 用于文件上传 -->
         <dependency>
             <groupId>jakarta.servlet</groupId>

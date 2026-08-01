@@ -32,6 +32,7 @@ import com.linkx.server.mapper.SysUserDeviceBindingMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.AuditLogService;
 import com.linkx.server.service.DeviceSessionService;
+import com.linkx.server.service.IpGeoService;
 import com.linkx.server.service.PasswordPolicyService;
 import com.linkx.server.service.PresenceService;
 import com.linkx.server.service.RbacService;
@@ -73,6 +74,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     private final AdminBlacklistService adminBlacklistService;
     private final PasswordPolicyService passwordPolicyService;
     private final AuditLogService auditLogService;
+    private final IpGeoService ipGeoService;
     private final LinkxProperties linkxProperties;
 
     @Override
@@ -494,16 +496,20 @@ public class AdminUserServiceImpl implements AdminUserService {
         long total = sysLoginAuditMapper.selectCountByQuery(qw);
         qw.limit((page - 1L) * size, size);
         List<AdminLoginLogVO> items = sysLoginAuditMapper.selectListByQuery(qw).stream()
-                .map(log -> AdminLoginLogVO.builder()
-                        .id(log.getId())
-                        .userId(log.getUserId())
-                        .username(log.getUsername())
-                        .ip(ClientIpResolver.normalizeToIpv4(log.getIp()))
-                        .userAgent(log.getUserAgent())
-                        .success(log.getSuccess())
-                        .reason(log.getReason())
-                        .createTime(log.getCreateTime())
-                        .build())
+                .map(log -> {
+                    String ip = ClientIpResolver.normalizeToIpv4(log.getIp());
+                    return AdminLoginLogVO.builder()
+                            .id(log.getId())
+                            .userId(log.getUserId())
+                            .username(log.getUsername())
+                            .ip(ip)
+                            .region(ipGeoService.resolve(ip))
+                            .userAgent(log.getUserAgent())
+                            .success(log.getSuccess())
+                            .reason(log.getReason())
+                            .createTime(log.getCreateTime())
+                            .build();
+                })
                 .collect(Collectors.toList());
         return PageResultVO.of(items, page, size, total);
     }

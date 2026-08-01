@@ -49,6 +49,7 @@ public class AdminLoginLogController {
                     AdminCsvResponses.cell(item.getUserId()),
                     AdminCsvResponses.cell(item.getUsername()),
                     AdminCsvResponses.cell(item.getIp()),
+                    AdminCsvResponses.cell(item.getRegion()),
                     AdminCsvResponses.cell(item.getUserAgent()),
                     AdminCsvResponses.cell(item.getSuccess()),
                     AdminCsvResponses.cell(item.getReason()),
@@ -56,7 +57,7 @@ public class AdminLoginLogController {
             });
         }
         return AdminCsvResponses.csv("login-logs",
-                List.of("id", "userId", "username", "ip", "userAgent", "success", "reason", "createTime"),
+                List.of("id", "userId", "username", "ip", "region", "userAgent", "success", "reason", "createTime"),
                 rows);
     }
 

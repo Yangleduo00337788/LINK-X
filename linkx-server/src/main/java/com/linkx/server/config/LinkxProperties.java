@@ -23,6 +23,7 @@ public class LinkxProperties {
     private final MailTemplates mailTemplates = new MailTemplates();
     private final App app = new App();
     private final Retention retention = new Retention();
+    private final IpGeo ipGeo = new IpGeo();
 
     @Data
     public static class Im {
@@ -287,6 +288,8 @@ public class LinkxProperties {
         private String supportEmail = "";
         /** 客服电话 */
         private String supportPhone = "";
+        /** 反馈处理 SLA（小时），超时未回复视为逾期 */
+        private Integer feedbackSlaHours = 24;
         /** 开发模式：允许 localhost origin 连接 WebSocket（生产环境必须关闭） */
         private Boolean devModeEnabled = false;
     }
@@ -302,5 +305,14 @@ public class LinkxProperties {
         public void setMessageDays(int messageDays) {
             this.messageDays = messageDays;
         }
+    }
+
+    /**
+     * IP 归属地：优先 classpath {@code ip2region/ip2region.xdb}，否则读 {@code xdb-path}。
+     */
+    @Data
+    public static class IpGeo {
+        /** 外部 xdb 绝对/相对路径（可空） */
+        private String xdbPath = "";
     }
 }

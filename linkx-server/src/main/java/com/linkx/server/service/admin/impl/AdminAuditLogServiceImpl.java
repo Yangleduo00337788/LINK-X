@@ -14,6 +14,7 @@ import com.linkx.server.entity.SysLoginAudit;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.SysAuditLogMapper;
 import com.linkx.server.mapper.SysLoginAuditMapper;
+import com.linkx.server.service.IpGeoService;
 import com.linkx.server.service.admin.AdminAuditLogService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,7 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
 
     private final SysAuditLogMapper sysAuditLogMapper;
     private final SysLoginAuditMapper sysLoginAuditMapper;
+    private final IpGeoService ipGeoService;
 
     @Override
     @DataScope
@@ -201,11 +203,13 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
     }
 
     private AdminLoginLogVO toLoginVO(SysLoginAudit log) {
+        String ip = ClientIpResolver.normalizeToIpv4(log.getIp());
         return AdminLoginLogVO.builder()
                 .id(log.getId())
                 .userId(log.getUserId())
                 .username(log.getUsername())
-                .ip(ClientIpResolver.normalizeToIpv4(log.getIp()))
+                .ip(ip)
+                .region(ipGeoService.resolve(ip))
                 .userAgent(log.getUserAgent())
                 .success(log.getSuccess())
                 .reason(log.getReason())

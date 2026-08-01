@@ -216,13 +216,14 @@ public class AdminExportCsvBuilder {
                     AdminCsvResponses.cell(item.getUserId()),
                     AdminCsvResponses.cell(item.getUsername()),
                     AdminCsvResponses.cell(item.getIp()),
+                    AdminCsvResponses.cell(item.getRegion()),
                     AdminCsvResponses.cell(item.getUserAgent()),
                     AdminCsvResponses.cell(item.getSuccess()),
                     AdminCsvResponses.cell(item.getReason()),
                     AdminCsvResponses.cell(item.getCreateTime()),
             });
         }
-        return payload(module, List.of("id", "userId", "username", "ip", "userAgent", "success", "reason", "createTime"), rows);
+        return payload(module, List.of("id", "userId", "username", "ip", "region", "userAgent", "success", "reason", "createTime"), rows);
     }
 
     private CsvPayload buildStatistics(Map<?, ?> queryMap, AdminExportModule module) {
