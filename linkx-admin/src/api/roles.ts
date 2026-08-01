@@ -7,6 +7,7 @@ export interface AdminRole {
   roleName: string
   description?: string
   dataScope?: number
+  deptIds?: number[]
   status?: number
   createTime?: string
   updateTime?: string
@@ -17,6 +18,7 @@ export interface RolePayload {
   roleName: string
   description?: string
   dataScope?: number
+  deptIds?: number[]
   status?: number
 }
 

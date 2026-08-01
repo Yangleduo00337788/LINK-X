@@ -4,11 +4,14 @@ import { useI18n } from 'vue-i18n'
 import { NButton, NSelect, NSpin, NTabPane, NTabs } from 'naive-ui'
 import {
   exportStatistics,
+  fetchActivityHeatmap,
   fetchStatisticContent,
   fetchStatisticFeedback,
   fetchStatisticOverview,
   fetchStatisticRisk,
   fetchStatisticUsers,
+  type ActivityHeatmap,
+  type HeatmapMetric,
   type StatisticContent,
   type StatisticFeedback,
   type StatisticOverview,
@@ -23,6 +26,7 @@ import {
   buildColumnOption,
   buildDonutOption,
   buildHBarOption,
+  buildHeatmapOption,
   buildSparkOption,
   seriesValues,
   useChart,
@@ -36,14 +40,36 @@ const loading = ref(false)
 const exporting = ref(false)
 const days = ref(14)
 const tab = ref('overview')
+const heatmapMetric = ref<HeatmapMetric>('logins')
 
 const overview = ref<StatisticOverview | null>(null)
 const users = ref<StatisticUsers | null>(null)
 const content = ref<StatisticContent | null>(null)
 const risk = ref<StatisticRisk | null>(null)
 const feedback = ref<StatisticFeedback | null>(null)
+const heatmap = ref<ActivityHeatmap | null>(null)
 
 const daysOptions = useDaysOptions((k) => t(k))
+const heatmapMetricOptions = computed(() => {
+  void locale.value
+  return [
+    { label: t('statistics.metricLogins'), value: 'logins' },
+    { label: t('statistics.metricMessages'), value: 'messages' },
+  ]
+})
+const weekdayLabels = computed(() => {
+  void locale.value
+  return [
+    t('statistics.weekdayMon'),
+    t('statistics.weekdayTue'),
+    t('statistics.weekdayWed'),
+    t('statistics.weekdayThu'),
+    t('statistics.weekdayFri'),
+    t('statistics.weekdaySat'),
+    t('statistics.weekdaySun'),
+  ]
+})
+const hourLabels = computed(() => Array.from({ length: 24 }, (_, i) => String(i)))
 
 function seriesName(key: string, fallback: string) {
   void locale.value
@@ -335,12 +361,19 @@ const feedbackCharts = [
   useChart(feedbackColEl, feedbackColOpt),
 ]
 
+const heatmapOpt = computed(() =>
+  buildHeatmapOption(heatmap.value, weekdayLabels.value, hourLabels.value),
+)
+const heatmapEl = ref<HTMLElement | null>(null)
+const advancedCharts = [useChart(heatmapEl, heatmapOpt)]
+
 const chartsByTab: Record<string, typeof overviewCharts> = {
   overview: overviewCharts,
   users: userCharts,
   content: contentCharts,
   risk: riskCharts,
   feedback: feedbackCharts,
+  advanced: advancedCharts,
 }
 
 function refreshActiveTab() {
@@ -356,18 +389,20 @@ async function load() {
   loading.value = true
   try {
     const d = days.value
-    const [ov, us, ct, rk, fb] = await Promise.all([
+    const [ov, us, ct, rk, fb, hm] = await Promise.all([
       fetchStatisticOverview(d),
       fetchStatisticUsers(d),
       fetchStatisticContent(d),
       fetchStatisticRisk(d),
       fetchStatisticFeedback(d),
+      fetchActivityHeatmap(d, heatmapMetric.value),
     ])
     overview.value = ov
     users.value = us
     content.value = ct
     risk.value = rk
     feedback.value = fb
+    heatmap.value = hm
   } finally {
     loading.value = false
     refreshActiveTab()
@@ -375,6 +410,10 @@ async function load() {
 }
 
 watch(days, () => {
+  void load()
+})
+
+watch(heatmapMetric, () => {
   void load()
 })
 
@@ -622,6 +661,32 @@ onMounted(() => {
             </div>
           </div>
         </NTabPane>
+
+        <!-- Advanced -->
+        <NTabPane name="advanced" :tab="t('statistics.tabAdvanced')">
+          <div class="chart-panel">
+            <div class="panel-head heatmap-head">
+              <div>
+                <div class="panel-title">{{ t('statistics.activityHeatmap') }}</div>
+                <div class="panel-desc">{{ t('statistics.activityHeatmapDesc') }}</div>
+              </div>
+              <div class="heatmap-meta">
+                <NSelect
+                  v-model:value="heatmapMetric"
+                  :options="heatmapMetricOptions"
+                  size="small"
+                  style="width: 140px"
+                  :consistent-menu-width="false"
+                />
+                <div class="heatmap-total">
+                  {{ t('statistics.heatmapTotal') }}:
+                  <strong>{{ fmt(heatmap?.total ?? 0) }}</strong>
+                </div>
+              </div>
+            </div>
+            <div ref="heatmapEl" class="chart-box heatmap" />
+          </div>
+        </NTabPane>
       </NTabs>
     </NSpin>
   </div>
@@ -750,6 +815,35 @@ onMounted(() => {
 
 .chart-box.tall {
   height: 300px;
+}
+
+.chart-box.heatmap {
+  height: 420px;
+}
+
+.heatmap-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.heatmap-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.heatmap-total {
+  font-size: 12px;
+  color: var(--lx-text-3);
+  white-space: nowrap;
+}
+
+.heatmap-total strong {
+  color: var(--lx-text);
+  font-variant-numeric: tabular-nums;
 }
 
 .mt {

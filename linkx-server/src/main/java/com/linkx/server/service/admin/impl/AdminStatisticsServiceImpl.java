@@ -1,5 +1,6 @@
 package com.linkx.server.service.admin.impl;
 
+import com.linkx.server.controller.admin.vo.AdminActivityHeatmapVO;
 import com.linkx.server.controller.admin.vo.AdminChartSeriesVO;
 import com.linkx.server.controller.admin.vo.AdminStatisticBreakdownVO;
 import com.linkx.server.controller.admin.vo.AdminStatisticContentVO;
@@ -250,6 +251,50 @@ public class AdminStatisticsServiceImpl implements AdminStatisticsService {
     }
 
     @Override
+    public AdminActivityHeatmapVO activityHeatmap(int days, String metric) {
+        int range = normalizeDays(days);
+        Date start = startOfDaysAgo(range);
+        String m = normalizeHeatmapMetric(metric);
+        // MySQL DAYOFWEEK: 1=周日..7=周六 → 周一=0..周日=6
+        String sql = "messages".equals(m)
+                ? "SELECT MOD(DAYOFWEEK(create_time) + 5, 7) AS wd, HOUR(create_time) AS h, COUNT(*) AS c "
+                + "FROM im_message WHERE deleted = 0 AND create_time >= ? GROUP BY wd, h"
+                : "SELECT MOD(DAYOFWEEK(create_time) + 5, 7) AS wd, HOUR(create_time) AS h, COUNT(*) AS c "
+                + "FROM sys_login_audit WHERE success = 1 AND create_time >= ? GROUP BY wd, h";
+
+        long[][] matrix = new long[7][24];
+        jdbcTemplate.query(sql, rs -> {
+            int wd = rs.getInt("wd");
+            int h = rs.getInt("h");
+            long c = rs.getLong("c");
+            if (wd >= 0 && wd < 7 && h >= 0 && h < 24) {
+                matrix[wd][h] = c;
+            }
+        }, start);
+
+        List<List<Long>> cells = new ArrayList<>(7 * 24);
+        long max = 0L;
+        long total = 0L;
+        for (int wd = 0; wd < 7; wd++) {
+            for (int h = 0; h < 24; h++) {
+                long c = matrix[wd][h];
+                cells.add(List.of((long) wd, (long) h, c));
+                if (c > max) {
+                    max = c;
+                }
+                total += c;
+            }
+        }
+        return AdminActivityHeatmapVO.builder()
+                .metric(m)
+                .days(range)
+                .maxValue(max)
+                .total(total)
+                .cells(cells)
+                .build();
+    }
+
+    @Override
     public AdminTrendVO dashboardTrends(int days) {
         int range = normalizeDays(days);
         Date start = startOfDaysAgo(range);
@@ -287,6 +332,13 @@ public class AdminStatisticsServiceImpl implements AdminStatisticsService {
             return DEFAULT_DAYS;
         }
         return Math.min(MAX_DAYS, Math.max(MIN_DAYS, days));
+    }
+
+    private String normalizeHeatmapMetric(String metric) {
+        if (metric != null && "messages".equalsIgnoreCase(metric.trim())) {
+            return "messages";
+        }
+        return "logins";
     }
 
     private Date startOfToday() {

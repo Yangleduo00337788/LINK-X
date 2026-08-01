@@ -623,6 +623,15 @@ INSERT IGNORE INTO sys_dept (id, parent_id, name, sort_order, status) VALUES
   (3, 1, '审核部', 2, 1),
   (4, 1, '安全部', 3, 1);
 
+-- 角色自定义数据范围部门
+CREATE TABLE IF NOT EXISTS sys_role_dept (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  role_id BIGINT NOT NULL,
+  dept_id BIGINT NOT NULL,
+  create_time DATETIME
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_role_dept ON sys_role_dept(role_id, dept_id);
+
 -- 用户-角色关联表
 CREATE TABLE IF NOT EXISTS sys_user_role (
   id BIGINT NOT NULL PRIMARY KEY,

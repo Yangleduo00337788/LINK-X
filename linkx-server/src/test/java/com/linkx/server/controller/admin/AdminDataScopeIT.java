@@ -3,12 +3,15 @@ package com.linkx.server.controller.admin;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.linkx.server.common.admin.DataScopeType;
 import com.linkx.server.entity.SysRole;
+import com.linkx.server.entity.SysRoleDept;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.entity.SysUserRole;
+import com.linkx.server.mapper.SysRoleDeptMapper;
 import com.linkx.server.mapper.SysRoleMapper;
 import com.linkx.server.mapper.SysUserRoleMapper;
 import com.linkx.server.service.RbacService;
 import com.linkx.server.support.BaseIntegrationTest;
+import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.core.update.UpdateChain;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,6 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -37,6 +41,8 @@ class AdminDataScopeIT extends BaseIntegrationTest {
     private SysUserRoleMapper sysUserRoleMapper;
     @Autowired
     private SysRoleMapper sysRoleMapper;
+    @Autowired
+    private SysRoleDeptMapper sysRoleDeptMapper;
     @Autowired
     private RbacService rbacService;
 
@@ -131,6 +137,61 @@ class AdminDataScopeIT extends BaseIntegrationTest {
             assertTrue(ids.contains(sameDept.userId));
             assertFalse(ids.contains(otherDept.userId));
         } finally {
+            UpdateChain.of(SysRole.class)
+                    .set(SysRole::getDataScope, original == null ? DataScopeType.ALL : original)
+                    .where(SysRole::getId).eq(ROLE_OPS)
+                    .update();
+        }
+    }
+
+    @Test
+    @DisplayName("角色 dataScope=CUSTOM 时仅见绑定部门用户")
+    void customScopeSeesBoundDeptUsers() throws Exception {
+        Integer original = sysRoleMapper.selectOneById(ROLE_OPS).getDataScope();
+        try {
+            TestUser ops = registerAndLogin("dscust");
+            grantRole(ops.userId, ROLE_OPS);
+            UpdateChain.of(SysRole.class)
+                    .set(SysRole::getDataScope, DataScopeType.CUSTOM)
+                    .where(SysRole::getId).eq(ROLE_OPS)
+                    .update();
+            sysRoleDeptMapper.deleteByQuery(
+                    QueryWrapper.create().where(SysRoleDept::getRoleId).eq(ROLE_OPS));
+            sysRoleDeptMapper.insert(SysRoleDept.builder()
+                    .roleId(ROLE_OPS)
+                    .deptId(3L)
+                    .createTime(new Date())
+                    .build());
+            rbacService.evictUserCache(ops.userId);
+            ops = login(ops.username, "Test1234abcd");
+
+            TestUser inScope = registerAndLogin("dscin");
+            UpdateChain.of(SysUser.class)
+                    .set(SysUser::getDeptId, 3L)
+                    .where(SysUser::getId).eq(inScope.userId)
+                    .update();
+
+            TestUser outScope = registerAndLogin("dscout");
+            UpdateChain.of(SysUser.class)
+                    .set(SysUser::getDeptId, 2L)
+                    .where(SysUser::getId).eq(outScope.userId)
+                    .update();
+
+            MvcResult result = mockMvc.perform(get("/admin/users")
+                            .param("page", "1")
+                            .param("size", "100")
+                            .header("Authorization", ops.bearer()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(200))
+                    .andReturn();
+
+            Set<Long> ids = userIdsFromPage(result);
+            assertTrue(ids.contains(ops.userId));
+            assertTrue(ids.contains(inScope.userId));
+            assertFalse(ids.contains(outScope.userId));
+        } finally {
+            sysRoleDeptMapper.deleteByQuery(
+                    QueryWrapper.create().where(SysRoleDept::getRoleId).eq(ROLE_OPS));
             UpdateChain.of(SysRole.class)
                     .set(SysRole::getDataScope, original == null ? DataScopeType.ALL : original)
                     .where(SysRole::getId).eq(ROLE_OPS)

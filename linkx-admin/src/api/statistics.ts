@@ -65,6 +65,17 @@ export interface StatisticFeedback {
   closedInRange: number
 }
 
+export type HeatmapMetric = 'logins' | 'messages'
+
+export interface ActivityHeatmap {
+  metric: HeatmapMetric | string
+  days: number
+  maxValue: number
+  total: number
+  /** [weekday(0=Mon..6=Sun), hour(0-23), count] */
+  cells: number[][]
+}
+
 export function fetchStatisticOverview(days = 14) {
   return get<StatisticOverview>('/admin/statistics/overview', { days })
 }
@@ -87,4 +98,8 @@ export function fetchStatisticFeedback(days = 14) {
 
 export function exportStatistics(days = 14) {
   return downloadFile('/admin/statistics/export', { days }, 'statistics.csv')
+}
+
+export function fetchActivityHeatmap(days = 30, metric: HeatmapMetric = 'logins') {
+  return get<ActivityHeatmap>('/admin/statistics/activity-heatmap', { days, metric })
 }

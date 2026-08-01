@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, onMounted, reactive, ref } from 'vue'
+import { computed, h, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   NAutoComplete,
@@ -32,6 +32,7 @@ import {
   type AdminRole,
   type RolePayload,
 } from '@/api/roles'
+import { listDepts, type AdminDept } from '@/api/depts'
 import { listMenus } from '@/api/menus'
 import { listUsers } from '@/api/users'
 import type { AdminMenuTree } from '@/types/api'
@@ -52,7 +53,16 @@ const query = reactive({ page: 1, size: 20, keyword: '' })
 const showForm = ref(false)
 const editing = ref<AdminRole | null>(null)
 const formRef = ref<FormInst | null>(null)
-const form = reactive<RolePayload>({ roleCode: '', roleName: '', description: '', dataScope: 1, status: 1 })
+const form = reactive<RolePayload>({
+  roleCode: '',
+  roleName: '',
+  description: '',
+  dataScope: 1,
+  deptIds: [],
+  status: 1,
+})
+const deptTree = ref<TreeOption[]>([])
+const checkedDeptKeys = ref<number[]>([])
 
 const roleCodeOptions = computed(() => {
   const q = form.roleCode.trim().toLowerCase()
@@ -91,13 +101,44 @@ const dataScopeOptions = computed(() => {
     { label: t('role.dataScopeAll'), value: 1 },
     { label: t('role.dataScopeSelf'), value: 2 },
     { label: t('role.dataScopeDept'), value: 3 },
+    { label: t('role.dataScopeCustom'), value: 4 },
   ]
 })
 
 function dataScopeLabel(scope?: number) {
   if (scope === 2) return t('role.dataScopeSelf')
   if (scope === 3) return t('role.dataScopeDept')
+  if (scope === 4) return t('role.dataScopeCustom')
   return t('role.dataScopeAll')
+}
+
+function toDeptTree(nodes: AdminDept[]): TreeOption[] {
+  return (nodes || []).map((n) => ({
+    key: n.id,
+    label: n.name,
+    children: n.children?.length ? toDeptTree(n.children) : undefined,
+  }))
+}
+
+async function ensureDeptTree() {
+  if (deptTree.value.length) return
+  const data = await listDepts()
+  deptTree.value = toDeptTree(data || [])
+}
+
+watch(
+  () => form.dataScope,
+  (scope) => {
+    if (scope !== 4) {
+      checkedDeptKeys.value = []
+      form.deptIds = []
+    }
+  },
+)
+
+function onDeptChecked(keys: Array<string | number>) {
+  checkedDeptKeys.value = keys.map(Number)
+  form.deptIds = checkedDeptKeys.value
 }
 
 const columns = computed<DataTableColumns<AdminRole>>(() => {
@@ -189,33 +230,54 @@ async function load() {
   }
 }
 
-function openCreate() {
+async function openCreate() {
   editing.value = null
-  Object.assign(form, { roleCode: '', roleName: '', description: '', dataScope: 1, status: 1 })
+  Object.assign(form, {
+    roleCode: '',
+    roleName: '',
+    description: '',
+    dataScope: 1,
+    deptIds: [],
+    status: 1,
+  })
+  checkedDeptKeys.value = []
+  await ensureDeptTree()
   showForm.value = true
 }
 
-function openEdit(row: AdminRole) {
+async function openEdit(row: AdminRole) {
   editing.value = row
+  const deptIds = row.deptIds || []
   Object.assign(form, {
     roleCode: row.roleCode,
     roleName: row.roleName,
     description: row.description || '',
     dataScope: row.dataScope ?? 1,
+    deptIds: [...deptIds],
     status: row.status ?? 1,
   })
+  checkedDeptKeys.value = [...deptIds]
+  await ensureDeptTree()
   showForm.value = true
 }
 
 async function save() {
   await formRef.value?.validate()
+  if (form.dataScope === 4 && (!form.deptIds || form.deptIds.length === 0)) {
+    message.warning(t('role.customDeptsRequired'))
+    return
+  }
   saving.value = true
   try {
+    const payload: RolePayload = {
+      ...form,
+      deptIds: form.dataScope === 4 ? form.deptIds || [] : [],
+    }
     if (editing.value) {
-      await updateRole(editing.value.id, form)
+      await updateRole(editing.value.id, payload)
       message.success(t('common.updateSuccess'))
     } else {
-      await createRole(form)
+      await createRole(payload)
       message.success(t('common.createSuccess'))
     }
     showForm.value = false
@@ -325,9 +387,9 @@ onMounted(load)
       v-model:show="showForm"
       preset="card"
       :title="editing ? t('role.edit') : t('role.create')"
-      style="width: 480px"
+      style="width: 520px"
     >
-      <NForm ref="formRef" :model="form" label-placement="left" label-width="80">
+      <NForm ref="formRef" :model="form" label-placement="left" label-width="88">
         <NFormItem
           :label="t('role.code')"
           path="roleCode"
@@ -356,6 +418,20 @@ onMounted(load)
         </NFormItem>
         <NFormItem :label="t('role.dataScope')" path="dataScope">
           <NSelect v-model:value="form.dataScope" :options="dataScopeOptions" />
+        </NFormItem>
+        <NFormItem v-if="form.dataScope === 4" :label="t('role.customDepts')">
+          <div class="dept-picker">
+            <div class="dept-hint">{{ t('role.customDeptsHint') }}</div>
+            <NTree
+              block-line
+              checkable
+              cascade
+              selectable
+              :data="deptTree"
+              :checked-keys="checkedDeptKeys"
+              @update:checked-keys="onDeptChecked"
+            />
+          </div>
         </NFormItem>
       </NForm>
       <template #footer>
@@ -401,3 +477,15 @@ onMounted(load)
     </NModal>
   </div>
 </template>
+
+<style scoped>
+.dept-picker {
+  width: 100%;
+}
+
+.dept-hint {
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--lx-text-3);
+}
+</style>

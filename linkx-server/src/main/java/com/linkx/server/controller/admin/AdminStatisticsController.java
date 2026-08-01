@@ -4,6 +4,7 @@ import com.linkx.server.common.RequirePermission;
 import com.linkx.server.common.RequireRole;
 import com.linkx.server.common.Result;
 import com.linkx.server.common.admin.AdminCsvResponses;
+import com.linkx.server.controller.admin.vo.AdminActivityHeatmapVO;
 import com.linkx.server.controller.admin.vo.AdminStatisticContentVO;
 import com.linkx.server.controller.admin.vo.AdminStatisticFeedbackVO;
 import com.linkx.server.controller.admin.vo.AdminStatisticOverviewVO;
@@ -75,6 +76,17 @@ public class AdminStatisticsController {
             @Parameter(description = "天数，默认 14，范围 7-90")
             @RequestParam(defaultValue = "14") int days) {
         return Result.success(adminStatisticsService.feedback(days));
+    }
+
+    @Operation(summary = "活跃时段热力图")
+    @GetMapping("/activity-heatmap")
+    @RequirePermission("admin:statistics:view")
+    public Result<AdminActivityHeatmapVO> activityHeatmap(
+            @Parameter(description = "天数，默认 30，范围 7-90")
+            @RequestParam(defaultValue = "30") int days,
+            @Parameter(description = "指标：logins（默认）或 messages")
+            @RequestParam(defaultValue = "logins") String metric) {
+        return Result.success(adminStatisticsService.activityHeatmap(days, metric));
     }
 
     @Operation(summary = "导出统计总览 CSV")

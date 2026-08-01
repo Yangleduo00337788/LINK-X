@@ -46,7 +46,7 @@ public class SysRole implements Serializable {
     private Integer status;
 
     /**
-     * 数据权限范围：1=全部，2=仅本人，3=本部门及下级。
+     * 数据权限范围：1=全部，2=仅本人，3=本部门及下级，4=自定义组织。
      * 见 {@link com.linkx.server.common.admin.DataScopeType}。
      */
     private Integer dataScope;

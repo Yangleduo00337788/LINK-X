@@ -1,24 +1,27 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, watch, type Ref } from 'vue'
 import * as echarts from 'echarts/core'
-import { BarChart, LineChart, PieChart } from 'echarts/charts'
+import { BarChart, HeatmapChart, LineChart, PieChart } from 'echarts/charts'
 import {
   GridComponent,
   LegendComponent,
   TooltipComponent,
   GraphicComponent,
+  VisualMapComponent,
 } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsType } from 'echarts/core'
-import type { BreakdownItem, ChartSeries, TrendData } from '@/api/statistics'
+import type { ActivityHeatmap, BreakdownItem, ChartSeries, TrendData } from '@/api/statistics'
 
 echarts.use([
   LineChart,
   BarChart,
   PieChart,
+  HeatmapChart,
   GridComponent,
   LegendComponent,
   TooltipComponent,
   GraphicComponent,
+  VisualMapComponent,
   CanvasRenderer,
 ])
 
@@ -291,6 +294,84 @@ export function buildHBarOption(
           position: 'right',
           color: th.textMuted,
           fontSize: 11,
+        },
+      },
+    ],
+  })
+}
+
+/** cells from API are [weekday, hour, count]; ECharts expects [x=hour, y=weekday, value] */
+export function buildHeatmapOption(
+  heatmap: ActivityHeatmap | null | undefined,
+  weekdayLabels: string[],
+  hourLabels: string[],
+) {
+  const th = chartTheme()
+  const raw = heatmap?.cells || []
+  const data = raw.map((c) => {
+    const wd = Number(c[0]) || 0
+    const hour = Number(c[1]) || 0
+    const value = Number(c[2]) || 0
+    return [hour, wd, value]
+  })
+  const max = Math.max(Number(heatmap?.maxValue) || 0, 1)
+  return noAnim({
+    textStyle: { color: th.text, fontFamily: 'IBM Plex Sans, Segoe UI, sans-serif' },
+    tooltip: {
+      ...baseTooltip(),
+      position: 'top' as const,
+      formatter: (p: { data?: number[]; name?: string }) => {
+        const d = p?.data
+        if (!d || d.length < 3) return ''
+        const hour = d[0]
+        const wd = d[1]
+        const value = d[2]
+        return `${weekdayLabels[wd] || ''} ${hourLabels[hour] || hour}:00<br/>${value}`
+      },
+    },
+    grid: { left: 8, right: 16, top: 12, bottom: 48, containLabel: true },
+    xAxis: {
+      type: 'category' as const,
+      data: hourLabels,
+      splitArea: { show: true },
+      axisLabel: { color: th.textMuted, fontSize: 10, interval: 0 },
+      axisLine: { show: false },
+      axisTick: { show: false },
+    },
+    yAxis: {
+      type: 'category' as const,
+      data: weekdayLabels,
+      splitArea: { show: true },
+      axisLabel: { color: th.textMuted, fontSize: 11 },
+      axisLine: { show: false },
+      axisTick: { show: false },
+    },
+    visualMap: {
+      min: 0,
+      max,
+      calculable: true,
+      orient: 'horizontal' as const,
+      left: 'center',
+      bottom: 0,
+      itemWidth: 12,
+      itemHeight: 100,
+      textStyle: { color: th.textMuted, fontSize: 11 },
+      inRange: {
+        color: th.dark
+          ? ['#1e293b', '#1d4ed8', '#60a5fa']
+          : ['#eff6ff', '#3D7EFF', '#1e3a8a'],
+      },
+    },
+    series: [
+      {
+        type: 'heatmap',
+        data,
+        label: { show: false },
+        emphasis: {
+          itemStyle: {
+            shadowBlur: 6,
+            shadowColor: 'rgba(0,0,0,0.25)',
+          },
         },
       },
     ],

@@ -11,13 +11,17 @@ import com.linkx.server.controller.admin.dto.AdminRoleDTO;
 import com.linkx.server.controller.admin.vo.AdminPermissionVO;
 import com.linkx.server.controller.admin.vo.AdminRoleUserVO;
 import com.linkx.server.controller.admin.vo.AdminRoleVO;
+import com.linkx.server.entity.SysDept;
 import com.linkx.server.entity.SysPermission;
 import com.linkx.server.entity.SysRole;
+import com.linkx.server.entity.SysRoleDept;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.entity.SysUserRole;
 import com.linkx.server.entity.admin.AdminRoleMenu;
 import com.linkx.server.exception.CustomException;
+import com.linkx.server.mapper.SysDeptMapper;
 import com.linkx.server.mapper.SysPermissionMapper;
+import com.linkx.server.mapper.SysRoleDeptMapper;
 import com.linkx.server.mapper.SysRoleMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.mapper.SysUserRoleMapper;
@@ -45,6 +49,8 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     private final AdminRoleMenuMapper adminRoleMenuMapper;
     private final SysUserRoleMapper sysUserRoleMapper;
     private final SysUserMapper sysUserMapper;
+    private final SysDeptMapper sysDeptMapper;
+    private final SysRoleDeptMapper sysRoleDeptMapper;
     private final RbacService rbacService;
 
     @Override
@@ -100,6 +106,7 @@ public class AdminRoleServiceImpl implements AdminRoleService {
             role.setUpdateTime(new Date());
             sysRoleMapper.update(role);
         }
+        syncRoleDepts(role.getId(), role.getDataScope(), dto.getDeptIds());
         return role.getId();
     }
 
@@ -134,6 +141,10 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         role.setUpdateBy(operatorId);
         role.setUpdateTime(new Date());
         sysRoleMapper.update(role);
+        Integer scope = role.getDataScope();
+        if (dto.getDataScope() != null || dto.getDeptIds() != null || scope == DataScopeType.CUSTOM) {
+            syncRoleDepts(id, scope, dto.getDeptIds());
+        }
     }
 
     @Override
@@ -146,6 +157,7 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         sysRoleMapper.deleteById(id);
         adminRoleMenuMapper.deleteByQuery(
                 QueryWrapper.create().where(AdminRoleMenu::getRoleId).eq(id));
+        clearRoleDepts(id);
     }
 
     @Override
@@ -375,9 +387,76 @@ public class AdminRoleServiceImpl implements AdminRoleService {
                 .description(role.getDescription())
                 .status(role.getStatus())
                 .dataScope(dataScope)
+                .deptIds(listRoleDeptIds(role.getId()))
                 .createTime(role.getCreateTime())
                 .updateTime(role.getUpdateTime())
                 .build();
+    }
+
+    private void syncRoleDepts(Long roleId, Integer dataScope, List<Long> deptIds) {
+        int scope = DataScopeType.isValid(dataScope) ? dataScope : DataScopeType.ALL;
+        if (scope != DataScopeType.CUSTOM) {
+            clearRoleDepts(roleId);
+            return;
+        }
+        if (deptIds == null) {
+            if (listRoleDeptIds(roleId).isEmpty()) {
+                throw new CustomException(400, "custom dataScope requires at least one department");
+            }
+            return;
+        }
+        List<Long> cleaned = normalizeDeptIds(deptIds);
+        if (cleaned.isEmpty()) {
+            throw new CustomException(400, "custom dataScope requires at least one department");
+        }
+        clearRoleDepts(roleId);
+        Date now = new Date();
+        for (Long deptId : cleaned) {
+            sysRoleDeptMapper.insert(SysRoleDept.builder()
+                    .roleId(roleId)
+                    .deptId(deptId)
+                    .createTime(now)
+                    .build());
+        }
+    }
+
+    private List<Long> normalizeDeptIds(List<Long> deptIds) {
+        if (deptIds == null || deptIds.isEmpty()) {
+            return List.of();
+        }
+        List<Long> cleaned = deptIds.stream()
+                .filter(id -> id != null && id > 0)
+                .distinct()
+                .collect(Collectors.toList());
+        if (cleaned.isEmpty()) {
+            return List.of();
+        }
+        Set<Long> existing = sysDeptMapper.selectListByQuery(
+                        QueryWrapper.create().where(SysDept::getId).in(cleaned))
+                .stream()
+                .map(SysDept::getId)
+                .collect(Collectors.toSet());
+        for (Long id : cleaned) {
+            if (!existing.contains(id)) {
+                throw new CustomException(400, "department not found: " + id);
+            }
+        }
+        return cleaned;
+    }
+
+    private void clearRoleDepts(Long roleId) {
+        sysRoleDeptMapper.deleteByQuery(
+                QueryWrapper.create().where(SysRoleDept::getRoleId).eq(roleId));
+    }
+
+    private List<Long> listRoleDeptIds(Long roleId) {
+        return sysRoleDeptMapper.selectListByQuery(
+                        QueryWrapper.create().where(SysRoleDept::getRoleId).eq(roleId))
+                .stream()
+                .map(SysRoleDept::getDeptId)
+                .filter(id -> id != null)
+                .distinct()
+                .collect(Collectors.toList());
     }
 
     private SysRole requireRole(Long id) {
