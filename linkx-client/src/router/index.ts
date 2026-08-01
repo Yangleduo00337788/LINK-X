@@ -52,6 +52,11 @@ const router = createRouter({
       path: '/chat-history',   // 聊天记录管理新页面（从左下角菜单进入）
       name: 'chat-history',
       component: () => import('../views/ChatHistoryView.vue')
+    },
+    {
+      path: '/image-viewer',   // 图片预览独立窗口（聊天双击图片）
+      name: 'image-viewer',
+      component: () => import('../views/ImageViewerView.vue')
     }
   ]
 })

@@ -1,16 +1,16 @@
 <script setup lang="ts">
 /**
- * 图片消息气泡。
- * <p>
- * content 字段存储图片 URL 或 DataURL；预签名过期时自动刷新。
- * </p>
+ * 图片消息气泡：无边框直出，双击进入预览。
  */
 import { ref, watch } from 'vue'
 import type { ChatMessage } from '../../../types'
 import * as chatApi from '../../../api/chat'
 import { recoverMediaUrlOnError } from '../../../utils/mediaUrl'
+import { useI18n } from '../../../i18n'
 
 const props = defineProps<{ msg: ChatMessage }>()
+const emit = defineEmits<{ (e: 'preview', msg: ChatMessage): void }>()
+const { t } = useI18n()
 const displaySrc = ref(props.msg.content || props.msg.fileUrl || '')
 
 watch(
@@ -30,19 +30,46 @@ async function onImgError() {
     displaySrc.value = next
   }
 }
+
+function onDblClick(e: MouseEvent) {
+  e.preventDefault()
+  e.stopPropagation()
+  emit('preview', props.msg)
+}
 </script>
 
 <template>
-  <!-- 图片气泡：点击由父组件处理预览 -->
-  <div class="lx-bubble image-bubble" :class="{ self: msg.isSelf }">
+  <div class="image-bubble" :class="{ self: msg.isSelf }" @dblclick="onDblClick">
     <img
       :src="displaySrc"
       class="lx-bubble-image"
-      alt="图片消息"
+      :alt="msg.fileName || t('chat.imageMessage')"
+      :title="t('chat.imageDblClickHint')"
       loading="lazy"
       decoding="async"
       referrerpolicy="no-referrer"
+      draggable="false"
       @error="onImgError"
+      @dblclick="onDblClick"
     />
   </div>
 </template>
+
+<style scoped>
+.image-bubble {
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  line-height: 0;
+}
+.lx-bubble-image {
+  max-width: 220px;
+  max-height: 280px;
+  border-radius: 8px;
+  object-fit: cover;
+  cursor: zoom-in;
+  display: block;
+  user-select: none;
+}
+</style>

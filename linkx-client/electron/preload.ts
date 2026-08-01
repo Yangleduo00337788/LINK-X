@@ -61,6 +61,44 @@ const api = {
   openRegister: () => ipcRenderer.send('window-open-register'),
   openHelp: () => ipcRenderer.send('window-open-help'),
   openChatHistory: () => ipcRenderer.send('window-open-chat-history'),
+  openImageViewer: (payload: {
+    url: string
+    fileName?: string
+    fileSize?: string
+    items?: Array<{ url: string; fileName?: string; fileSize?: string }>
+    index?: number
+  }) => ipcRenderer.send('window-open-image-viewer', payload || {}),
+  getImageViewerPayload: () =>
+    ipcRenderer.invoke('image-viewer:get-payload') as Promise<{
+      url?: string
+      fileName?: string
+      fileSize?: string
+      items?: Array<{ url: string; fileName?: string; fileSize?: string }>
+      index?: number
+    } | null>,
+  onImageViewerPayload: (
+    callback: (data: {
+      url?: string
+      fileName?: string
+      fileSize?: string
+      items?: Array<{ url: string; fileName?: string; fileSize?: string }>
+      index?: number
+    }) => void
+  ) => {
+    if (typeof callback !== 'function') return () => {}
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      data: {
+        url?: string
+        fileName?: string
+        fileSize?: string
+        items?: Array<{ url: string; fileName?: string; fileSize?: string }>
+        index?: number
+      }
+    ) => callback(data || {})
+    ipcRenderer.on('image-viewer:payload', listener)
+    return () => ipcRenderer.removeListener('image-viewer:payload', listener)
+  },
   captureScreen,
   fetchIPLocation,
   notifyMomentsPublished: () => ipcRenderer.send('moments:published'),
@@ -129,7 +167,11 @@ const api = {
   notifyThemeChange: (theme: 'light' | 'dark') => ipcRenderer.send('theme-changed', theme),
   /** 主进程剪贴板写入（避免 Chromium clipboard 权限限制） */
   clipboardWriteText: (text: string) =>
-    ipcRenderer.invoke('clipboard:write-text', text) as Promise<boolean>
+    ipcRenderer.invoke('clipboard:write-text', text) as Promise<boolean>,
+  clipboardWriteImage: (payload: { dataUrl?: string; url?: string }) =>
+    ipcRenderer.invoke('clipboard:write-image', payload || {}) as Promise<boolean>,
+  openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url) as Promise<boolean>,
+  openPath: (filePath: string) => ipcRenderer.invoke('shell:open-path', filePath) as Promise<boolean>
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)

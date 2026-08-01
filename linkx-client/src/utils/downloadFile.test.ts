@@ -28,7 +28,8 @@ describe('downloadFileWithSettings', () => {
       url: 'https://example.com/a.txt',
       fileName: 'a.txt',
       directory: undefined,
-      askEveryTime: true
+      askEveryTime: true,
+      openAfter: undefined
     })
     expect(result).toEqual({ ok: true, path: 'D:\\dl\\a.txt' })
   })

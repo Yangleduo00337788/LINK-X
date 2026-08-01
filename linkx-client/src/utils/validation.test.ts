@@ -17,7 +17,8 @@ describe('validation', () => {
 
   it('validatePassword', () => {
     expect(validatePassword('')).toBeTruthy()
-    expect(validatePassword('short')).toBeTruthy()
+    // 登录场景只要求非空，不卡长度
+    expect(validatePassword('short')).toBeNull()
     expect(validatePassword('password')).toBeNull()
     expect(validatePassword('password', true)).toBeTruthy()
     expect(validatePassword('pass1234', true)).toBeNull()

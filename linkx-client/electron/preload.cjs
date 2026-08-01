@@ -29,6 +29,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openRegister: () => ipcRenderer.send('window-open-register'),
   openHelp: () => ipcRenderer.send('window-open-help'),
   openChatHistory: () => ipcRenderer.send('window-open-chat-history'),
+  /** 打开图片预览独立窗口（深色查看器） */
+  openImageViewer: payload => ipcRenderer.send('window-open-image-viewer', payload || {}),
+  getImageViewerPayload: () => ipcRenderer.invoke('image-viewer:get-payload'),
+  onImageViewerPayload: callback => {
+    if (typeof callback !== 'function') return () => {}
+    const listener = (_event, data) => callback(data || {})
+    ipcRenderer.on('image-viewer:payload', listener)
+    return () => ipcRenderer.removeListener('image-viewer:payload', listener)
+  },
   isMaximized: () => ipcRenderer.invoke('window:is-maximized'),
   isPinned: () => ipcRenderer.invoke('window:is-pinned'),
   togglePin: () => ipcRenderer.invoke('window:toggle-pin'),
@@ -97,5 +106,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     remove: key => ipcRenderer.invoke('secure-storage:remove', key)
   },
   /** 主进程剪贴板写入（避免 Chromium clipboard 权限限制） */
-  clipboardWriteText: text => ipcRenderer.invoke('clipboard:write-text', text)
+  clipboardWriteText: text => ipcRenderer.invoke('clipboard:write-text', text),
+  clipboardWriteImage: payload => ipcRenderer.invoke('clipboard:write-image', payload || {}),
+  openExternal: url => ipcRenderer.invoke('shell:open-external', url),
+  openPath: filePath => ipcRenderer.invoke('shell:open-path', filePath)
 })

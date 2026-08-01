@@ -492,12 +492,70 @@ async function playVoice(msg: ChatMessage) {
   tryPlay(src)
 }
 
-// 打开图片预览 Overlay
-function openImageView(msg: ChatMessage) {
+// 双击图片：Electron 开独立预览窗；Web 回退 Overlay
+async function openImageView(msg: ChatMessage) {
+  let fileUrl = msg.content || msg.fileUrl || ''
+  if (!fileUrl) {
+    message.warning(t('chat.fileOpenMissing'))
+    return
+  }
+  // object key 等非 http 地址先刷新为可访问 URL
+  if (!/^https?:\/\//i.test(fileUrl) && !fileUrl.startsWith('blob:') && !fileUrl.startsWith('data:')) {
+    const next = await recoverMediaUrlOnError(fileUrl, async () => {
+      const res = await chatApi.refreshMessageMediaUrl(msg.id)
+      if (res.code === 200 && res.data?.url) return res.data.url
+      return null
+    })
+    if (next) fileUrl = next
+  }
+
+  const conversationId = currentSessionId.value || msg.sessionId || ''
+  const gallery = (currentMessages.value || [])
+    .filter(m => m.type === 'image' || m.isImage)
+    .map(m => ({
+      url: m.content || m.fileUrl || '',
+      fileName: m.fileName || t('chat.imageMessage'),
+      fileSize: m.fileSize,
+      messageId: m.id,
+      conversationId: m.sessionId || conversationId
+    }))
+    .filter(i => !!i.url)
+  let index = msg.id ? gallery.findIndex(i => i.messageId === msg.id) : -1
+  if (index < 0) index = gallery.findIndex(i => i.url === fileUrl)
+  if (index < 0) index = 0
+  // 当前张使用已刷新的可访问 URL
+  if (gallery[index]) {
+    gallery[index] = { ...gallery[index], url: fileUrl }
+  }
+
+  const payload = {
+    url: fileUrl,
+    fileName: msg.fileName || t('chat.imageMessage'),
+    fileSize: msg.fileSize,
+    items: gallery.length
+      ? gallery
+      : [
+          {
+            url: fileUrl,
+            fileName: msg.fileName,
+            fileSize: msg.fileSize,
+            messageId: msg.id,
+            conversationId
+          }
+        ],
+    index: gallery.length ? index : 0
+  }
+
+  if (window.electronAPI?.openImageViewer) {
+    window.electronAPI.openImageViewer(payload)
+    return
+  }
+
   openOverlay('file-preview', {
     filePreview: {
-      fileName: t('chat.imageMessage'),
-      fileUrl: msg.content,
+      fileName: payload.fileName,
+      fileUrl: payload.url,
+      fileSize: payload.fileSize,
       isImage: true
     }
   })
@@ -512,17 +570,42 @@ onUnmounted(() => {
   }
 })
 
-// 打开文件预览 Overlay
+// 打开文件预览 Overlay（非聊天主路径；群文件等仍可能调用）
 function openFileView(msg?: ChatMessage) {
-  const fileName = msg?.fileName || msg?.content || 'Screenshot 2026-07-05-18-48.png'
+  const fileName = msg?.fileName || msg?.content || t('chat.fileFallback')
   openOverlay('file-preview', {
     filePreview: {
       fileName,
-      fileUrl: msg?.fileUrl,
+      fileUrl: msg?.fileUrl || msg?.content,
       fileSize: msg?.fileSize,
       isImage: msg?.type === 'image' || msg?.isImage
     }
   })
+}
+
+/** 聊天文件：点击 / 左侧图标 → 下载并用系统默认程序打开 */
+async function openChatFile(msg: ChatMessage) {
+  let url = msg.fileUrl || (msg.type === 'file' ? '' : msg.content) || ''
+  if (!url) {
+    message.error(t('chat.fileOpenMissing'))
+    return
+  }
+  if (!/^https?:\/\//i.test(url) && !url.startsWith('blob:') && !url.startsWith('data:')) {
+    const next = await recoverMediaUrlOnError(url, async () => {
+      const res = await chatApi.refreshMessageMediaUrl(msg.id)
+      if (res.code === 200 && res.data?.url) return res.data.url
+      return null
+    })
+    if (next) url = next
+  }
+  const { downloadFileWithSettings } = await import('../utils/downloadFile')
+  const result = await downloadFileWithSettings(url, msg.fileName || msg.content || 'file', {
+    openAfter: true
+  })
+  if (result.canceled) return
+  if (!result.ok) {
+    message.error(result.message || t('files.downloadFail'))
+  }
 }
 
 // 点击红包消息：打开红包详情弹窗（自己发的也可查看）
@@ -1430,6 +1513,7 @@ function onDrop(e: DragEvent) {
                         @contextmenu="onMsgContext"
                         @play-voice="playVoice"
                         @open-file-view="openFileView"
+                        @open-chat-file="openChatFile"
                         @open-image-view="openImageView"
                         @click-red-packet="onRedPacketClick"
                         @click-conference="onConferenceClick"
@@ -1957,17 +2041,19 @@ function onDrop(e: DragEvent) {
 }
 
 .lx-bubble-image {
-  max-width: 200px;
-  max-height: 200px;
-  border-radius: var(--lx-radius);
+  max-width: 220px;
+  max-height: 280px;
+  border-radius: 8px;
   object-fit: cover;
-  cursor: pointer;
+  cursor: zoom-in;
   display: block;
 }
 
 .image-bubble {
-  padding: 4px;
-  background: var(--lx-bg-card);
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 .hidden-file-input {

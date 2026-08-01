@@ -16,6 +16,48 @@ declare global {
       openRegister?: () => void               // 打开注册独立窗口
       openHelp?: () => void                   // 打开帮助独立窗口
       openChatHistory?: () => void            // 打开聊天记录管理独立窗口
+      /** 打开图片预览独立窗口 */
+      openImageViewer?: (payload: {
+        url: string
+        fileName?: string
+        fileSize?: string
+        items?: Array<{
+          url: string
+          fileName?: string
+          fileSize?: string
+          messageId?: string
+          conversationId?: string
+        }>
+        index?: number
+      }) => void
+      getImageViewerPayload?: () => Promise<{
+        url?: string
+        fileName?: string
+        fileSize?: string
+        items?: Array<{
+          url: string
+          fileName?: string
+          fileSize?: string
+          messageId?: string
+          conversationId?: string
+        }>
+        index?: number
+      } | null>
+      onImageViewerPayload?: (
+        callback: (data: {
+          url?: string
+          fileName?: string
+          fileSize?: string
+          items?: Array<{
+            url: string
+            fileName?: string
+            fileSize?: string
+            messageId?: string
+            conversationId?: string
+          }>
+          index?: number
+        }) => void
+      ) => () => void
       isMaximized: () => Promise<boolean>     // 查询是否最大化
       isPinned: () => Promise<boolean>       // 查询是否置顶
       togglePin: () => Promise<boolean>     // 切换窗口置顶
@@ -52,6 +94,7 @@ declare global {
         fileName?: string
         directory?: string
         askEveryTime?: boolean
+        openAfter?: boolean
       }) => Promise<{ ok: boolean; path?: string; canceled?: boolean; message?: string }>
       /** 下载更新包并拉起安装程序（桌面端） */
       downloadAndInstallUpdate?: (payload: {
@@ -84,6 +127,9 @@ declare global {
       onMomentsRefresh?: (callback: () => void) => () => void
       /** 主进程写入系统剪贴板 */
       clipboardWriteText?: (text: string) => Promise<boolean>
+      clipboardWriteImage?: (payload: { dataUrl?: string; url?: string }) => Promise<boolean>
+      openExternal?: (url: string) => Promise<boolean>
+      openPath?: (filePath: string) => Promise<boolean>
       /** 弹出系统桌面通知；silent=true 时不播放系统通知音 */
       showNotification?: (payload: {
         title?: string

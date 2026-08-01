@@ -71,7 +71,7 @@ describe('chatMapper', () => {
         lastMessage: 'hi'
       }
       const session = conversationToSession(conv)
-      expect(session.name).toBe('Buddy')
+      expect(session.name).toBe('（Zhang）Buddy')
     })
 
     it('should fallback to default values', () => {

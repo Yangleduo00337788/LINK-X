@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 文件预览页面
+ * 文件 / 图片预览页面（图片参考图二：大图横幅 + 底部信息条）
  */
 import { computed, ref } from 'vue'
 import { NButton, NIcon, useMessage } from 'naive-ui'
@@ -17,22 +17,32 @@ const { t } = useI18n()
 const message = useMessage()
 const downloading = ref(false)
 
-// 文件大小格式化
-function formatFileSize(bytes: number | string | undefined): string {
-  if (!bytes) return t('overlay.unknownSize')
-  const size = typeof bytes === 'string' ? parseInt(bytes) : bytes
+/** 已是人类可读则原样展示；纯数字按字节格式化 */
+function displayFileSize(raw: number | string | undefined): string {
+  if (raw == null || raw === '') return t('overlay.unknownSize')
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim()
+    if (!trimmed) return t('overlay.unknownSize')
+    // 已格式化：含单位字母
+    if (/[a-zA-Z]/.test(trimmed) && !/^\d+(\.\d+)?$/.test(trimmed)) {
+      return trimmed
+    }
+    const n = Number(trimmed)
+    if (!Number.isFinite(n) || n < 0) return trimmed
+    return formatBytes(n)
+  }
+  return formatBytes(raw)
+}
+
+function formatBytes(size: number): string {
   if (size < 1024) return `${size} B`
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
   if (size < 1024 * 1024 * 1024) return `${(size / 1024 / 1024).toFixed(1)} MB`
   return `${(size / 1024 / 1024 / 1024).toFixed(1)} GB`
 }
 
-// 判断是否为图片
-const isImage = computed(() => {
-  return filePreview.value?.isImage || false
-})
+const isImage = computed(() => !!filePreview.value?.isImage)
 
-// 文件图标
 const fileIcon = computed(() => {
   if (isImage.value) return null
   const name = filePreview.value?.fileName || ''
@@ -47,7 +57,6 @@ const fileIcon = computed(() => {
   return t('overlay.fileLabel')
 })
 
-// 下载文件（遵守文件管理：下载目录 / 保存方式）
 async function downloadFile() {
   const url = filePreview.value?.fileUrl
   if (!url || downloading.value) return
@@ -71,7 +80,6 @@ async function downloadFile() {
   }
 }
 
-// 在新窗口打开（仅允许 http/https，防 javascript: 协议注入）
 function openFile() {
   const url = filePreview.value?.fileUrl
   if (!url) return
@@ -84,52 +92,62 @@ function openFile() {
 </script>
 
 <template>
-  <div class="page-wrap file-preview-page">
-    <section class="group-card file-preview">
-      <!-- 关闭按钮 -->
-      <button type="button" class="close-btn" @click="close">
+  <div class="page-wrap file-preview-page" :class="{ 'is-image': isImage }">
+    <section class="preview-card" :class="{ 'preview-card--image': isImage }">
+      <button type="button" class="close-btn" :aria-label="t('common.close')" @click="close">
         <n-icon :component="CloseOutline" :size="20" />
       </button>
 
-      <!-- 预览区域 -->
-      <div v-if="filePreview?.fileUrl && isImage" class="preview-box preview-img-wrap">
-        <img :src="filePreview.fileUrl" :alt="filePreview.fileName" class="preview-img" />
-      </div>
-      <div v-else class="preview-box">
-        <div class="file-icon-large">{{ fileIcon }}</div>
-      </div>
+      <!-- 图片：横幅预览 + 底部信息叠层 -->
+      <template v-if="filePreview?.fileUrl && isImage">
+        <div class="banner">
+          <img :src="filePreview.fileUrl" :alt="filePreview.fileName" class="banner-img" />
+          <div class="banner-meta">
+            <span class="banner-name">{{ filePreview.fileName || t('overlay.unknownFile') }}</span>
+            <span class="banner-size">{{ displayFileSize(filePreview.fileSize) }}</span>
+          </div>
+        </div>
+        <div class="file-actions">
+          <n-button type="primary" round :loading="downloading" :disabled="downloading" @click="downloadFile">
+            <template #icon>
+              <n-icon :component="CloudDownloadOutline" />
+            </template>
+            {{ t('overlay.download') }}
+          </n-button>
+        </div>
+      </template>
 
-      <!-- 文件信息 -->
-      <div class="file-info">
-        <h3 class="file-name">{{ filePreview?.fileName || t('overlay.unknownFile') }}</h3>
-        <p class="file-meta">{{ formatFileSize(filePreview?.fileSize) }}</p>
-      </div>
-
-      <!-- 操作按钮 -->
-      <div class="file-actions">
-        <n-button
-          v-if="filePreview?.fileUrl"
-          type="primary"
-          :loading="downloading"
-          :disabled="downloading"
-          @click="downloadFile"
-        >
-          <template #icon>
-            <n-icon :component="CloudDownloadOutline" />
-          </template>
-          {{ t('overlay.download') }}
-        </n-button>
-        <n-button
-          v-if="filePreview?.fileUrl && !isImage"
-          secondary
-          @click="openFile"
-        >
-          <template #icon>
-            <n-icon :component="OpenOutline" />
-          </template>
-          {{ t('overlay.openBrowser') }}
-        </n-button>
-      </div>
+      <!-- 普通文件 -->
+      <template v-else>
+        <div class="preview-box">
+          <div class="file-icon-large">{{ fileIcon }}</div>
+        </div>
+        <div class="file-info">
+          <h3 class="file-name">{{ filePreview?.fileName || t('overlay.unknownFile') }}</h3>
+          <p class="file-meta">{{ displayFileSize(filePreview?.fileSize) }}</p>
+        </div>
+        <div class="file-actions">
+          <n-button
+            v-if="filePreview?.fileUrl"
+            type="primary"
+            round
+            :loading="downloading"
+            :disabled="downloading"
+            @click="downloadFile"
+          >
+            <template #icon>
+              <n-icon :component="CloudDownloadOutline" />
+            </template>
+            {{ t('overlay.download') }}
+          </n-button>
+          <n-button v-if="filePreview?.fileUrl" secondary round @click="openFile">
+            <template #icon>
+              <n-icon :component="OpenOutline" />
+            </template>
+            {{ t('overlay.openBrowser') }}
+          </n-button>
+        </div>
+      </template>
     </section>
   </div>
 </template>
@@ -142,54 +160,112 @@ function openFile() {
   align-items: center;
   justify-content: center;
   min-height: 100%;
-  padding: 20px;
+  padding: 24px 20px;
 }
 
-.file-preview {
+.preview-card {
   width: 100%;
-  max-width: 500px;
-  padding: 24px;
+  max-width: 520px;
+  padding: 28px 24px 24px;
   position: relative;
   text-align: center;
+  background: var(--lx-bg-card);
+  border: 1px solid var(--lx-border-light);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+}
+
+.preview-card--image {
+  max-width: 560px;
+  padding: 16px 16px 20px;
 }
 
 .close-btn {
   position: absolute;
   top: 12px;
   right: 12px;
+  z-index: 2;
   width: 32px;
   height: 32px;
   border: none;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+}
+
+.preview-card:not(.preview-card--image) .close-btn {
   background: transparent;
   color: var(--lx-text-muted);
-  cursor: pointer;
-  border-radius: var(--lx-radius);
+}
+
+.preview-card:not(.preview-card--image) .close-btn:hover {
+  background: var(--lx-bg-hover);
+  color: var(--lx-text-body);
+}
+
+.close-btn:hover {
+  filter: brightness(1.1);
+}
+
+.banner {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #1a1a1e;
+  min-height: 220px;
+  max-height: min(520px, 62vh);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.close-btn:hover {
-  background: var(--lx-bg-hover);
-  color: var(--lx-text-body);
+.banner-img {
+  display: block;
+  width: 100%;
+  max-height: min(520px, 62vh);
+  object-fit: contain;
+}
+
+.banner-meta {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(20, 22, 28, 0.72);
+  color: #fff;
+  backdrop-filter: blur(8px);
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.banner-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  text-align: left;
+}
+
+.banner-size {
+  flex-shrink: 0;
+  opacity: 0.85;
 }
 
 .preview-box {
   margin: 20px auto;
-}
-
-.preview-img-wrap {
-  max-height: 400px;
-  overflow: hidden;
-  border-radius: var(--lx-radius);
-  background: var(--lx-bg-panel);
-}
-
-.preview-img {
-  max-width: 100%;
-  max-height: 400px;
-  object-fit: contain;
-  border-radius: var(--lx-radius);
 }
 
 .file-icon-large {
@@ -228,6 +304,6 @@ function openFile() {
   display: flex;
   gap: 12px;
   justify-content: center;
-  margin-top: 20px;
+  margin-top: 18px;
 }
 </style>

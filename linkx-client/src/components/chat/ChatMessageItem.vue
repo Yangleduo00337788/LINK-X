@@ -6,7 +6,8 @@
  * </p>
  */
 import { computed, ref } from 'vue'
-import { PhonePortraitOutline } from '@vicons/ionicons5'
+import { NIcon } from 'naive-ui'
+import { FolderOutline, PhonePortraitOutline } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
 import type { ChatMessage } from '../../types'
 import { useAppStore } from '../../stores/app'
@@ -35,6 +36,7 @@ const emit = defineEmits<{
   (e: 'contextmenu', event: MouseEvent, msg: ChatMessage): void
   (e: 'playVoice', msg: ChatMessage): void
   (e: 'openFileView', msg: ChatMessage): void
+  (e: 'openChatFile', msg: ChatMessage): void
   (e: 'openImageView', msg: ChatMessage): void
   (e: 'clickRedPacket', msg: ChatMessage): void
   (e: 'clickConference', msg: ChatMessage): void
@@ -42,6 +44,8 @@ const emit = defineEmits<{
   (e: 'openSelfProfile', event: MouseEvent): void
   (e: 'retry', msg: ChatMessage): void
 }>()
+
+const fileHover = ref(false)
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -188,8 +192,28 @@ function onStatusClick() {
       @contextmenu="emit('contextmenu', $event, msg)"
       @mouseenter="maybeFetchReadCount"
     >
-      <FileBubble v-if="msg.type === 'file'" :msg="msg" @click="emit('openFileView', msg)" />
-      <ImageBubble v-else-if="msg.type === 'image' || msg.isImage" :msg="msg" @click="emit('openImageView', msg)" />
+      <div
+        v-if="msg.type === 'file'"
+        class="file-msg-wrap"
+        @mouseenter="fileHover = true"
+        @mouseleave="fileHover = false"
+      >
+        <button
+          v-show="fileHover"
+          type="button"
+          class="file-side-open"
+          :title="t('chat.openFile')"
+          @click.stop="emit('openChatFile', msg)"
+        >
+          <n-icon :component="FolderOutline" :size="18" />
+        </button>
+        <FileBubble :msg="msg" @click="emit('openChatFile', msg)" />
+      </div>
+      <ImageBubble
+        v-else-if="msg.type === 'image' || msg.isImage"
+        :msg="msg"
+        @preview="emit('openImageView', msg)"
+      />
       <VoiceBubble v-else-if="msg.type === 'voice'" :msg="msg" :playing="!!props.playing" @click="emit('playVoice', msg)" />
       <RedPacketBubble v-else-if="msg.type === 'redPacket'" :msg="msg" @click="emit('clickRedPacket', msg)" />
       <LocationBubble v-else-if="msg.type === 'location'" :msg="msg" />
@@ -260,6 +284,37 @@ function onStatusClick() {
 }
 .message-row.left .bubble-wrapper {
   align-items: flex-start;
+}
+.file-msg-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.file-side-open {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: var(--lx-bg-card, #3a3a3a);
+  color: var(--lx-text-body, #ddd);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+}
+.file-side-open:hover {
+  background: var(--lx-accent, #12b7f5);
+  color: #fff;
+}
+.message-row.right .file-msg-wrap {
+  flex-direction: row;
+}
+.message-row.left .file-msg-wrap {
+  flex-direction: row;
 }
 .msg-meta {
   display: flex;
@@ -367,8 +422,8 @@ function onStatusClick() {
   padding: 4px 8px; border-radius: var(--lx-radius); margin-bottom: 6px;
   border-left: 2px solid var(--lx-accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
 }
-.lx-bubble-image { max-width: 200px; max-height: 200px; border-radius: var(--lx-radius); object-fit: cover; cursor: pointer; display: block; }
-.image-bubble { padding: 4px; background: var(--lx-bg-card); cursor: pointer; }
+.lx-bubble-image { max-width: 220px; max-height: 280px; border-radius: 8px; object-fit: cover; cursor: zoom-in; display: block; }
+.image-bubble { padding: 0; background: transparent; border: none; box-shadow: none; }
 .voice-bubble { display: inline-flex; align-items: center; gap: 8px; min-width: 72px; cursor: pointer; }
 .voice-bubble.playing { color: var(--lx-accent); }
 .voice-ico { flex-shrink: 0; }

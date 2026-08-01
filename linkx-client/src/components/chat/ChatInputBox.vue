@@ -398,7 +398,13 @@ async function toolScreenshot() {
       return
     }
 
-    await sendMessage(dataUrl, { type: 'image', isImage: true })
+    const shotName = `截图_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.png`
+    await sendMessage(dataUrl, {
+      type: 'image',
+      isImage: true,
+      fileName: shotName,
+      fileSize: formatFileSize(Math.round(dataUrl.length * 0.75))
+    })
     message.success(t('chat.screenshotSent'))
     emit('scrollToBottom')
   } catch (e) {
@@ -470,7 +476,13 @@ async function handleFileSend(file: File) {
       return
     }
     try {
-      await sendMessage('', { type: 'image', isImage: true, rawFile: file })
+      await sendMessage('', {
+        type: 'image',
+        isImage: true,
+        rawFile: file,
+        fileName: file.name,
+        fileSize: formatFileSize(file.size)
+      })
       message.success(t('chat.imageSent'))
       emit('scrollToBottom')
     } catch {
@@ -733,7 +745,15 @@ function send() {
     try {
       if (inputValue.value.startsWith('/img ')) {
         const url = inputValue.value.replace('/img ', '').trim()
-        await sendMessage(url, { type: 'image', isImage: true })
+        let imgName = t('chat.imageMessage')
+        try {
+          const path = new URL(url).pathname
+          const base = path.split('/').pop()
+          if (base) imgName = decodeURIComponent(base)
+        } catch {
+          /* keep fallback name */
+        }
+        await sendMessage(url, { type: 'image', isImage: true, fileName: imgName })
       } else {
         await sendMessage(inputValue.value, { type: 'text', replyTo: props.replyingTo })
       }

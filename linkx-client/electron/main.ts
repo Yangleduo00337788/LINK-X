@@ -17,6 +17,8 @@ type DownloadFilePayload = {
   directory?: string
   /** true：每次弹出另存为；false：直接写入下载目录 */
   askEveryTime?: boolean
+  /** true：保存后用系统默认程序打开 */
+  openAfter?: boolean
 }
 
 function sanitizeFileName(name: string): string {
@@ -55,6 +57,22 @@ function uniqueSavePath(dir: string, fileName: string): string {
   return candidate
 }
 
+/** 允许主进程直接拉取的下载源：API + MinIO/CDN 等可信媒体域 */
+function isAllowedDownloadOrigin(urlOrigin: string): boolean {
+  const allowed = new Set<string>()
+  const apiBase = process.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
+  try {
+    const u = new URL(apiBase)
+    allowed.add(`${u.protocol}//${u.host}`)
+  } catch {
+    allowed.add('http://localhost:8080')
+  }
+  for (const part of collectTrustedMediaOrigins().split(/\s+/)) {
+    if (part) allowed.add(part)
+  }
+  return allowed.has(urlOrigin)
+}
+
 async function readDownloadBytes(payload: DownloadFilePayload): Promise<Buffer> {
   if (payload.data != null) {
     return Buffer.from(payload.data instanceof ArrayBuffer ? new Uint8Array(payload.data) : payload.data)
@@ -64,14 +82,15 @@ async function readDownloadBytes(payload: DownloadFilePayload): Promise<Buffer> 
     throw new Error('缺少下载内容')
   }
   if (/^https?:\/\//i.test(url)) {
-    // 限制下载源为可信 API 域，防 SSRF / 任意 URL 下载到磁盘
-    const apiBase = process.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
-    let apiOrigin: string
-    try { const u = new URL(apiBase); apiOrigin = `${u.protocol}//${u.host}` } catch { apiOrigin = 'http://localhost:8080' }
+    // 限制下载源为可信 API / MinIO 域，防 SSRF / 任意 URL 下载到磁盘
     let urlOrigin: string
-    try { const u = new URL(url); urlOrigin = `${u.protocol}//${u.host}` } catch { throw new Error('下载地址格式错误') }
-    if (urlOrigin !== apiOrigin) {
-      throw new Error('仅允许下载本应用 API 源的文件')
+    try {
+      urlOrigin = new URL(url).origin
+    } catch {
+      throw new Error('下载地址格式错误')
+    }
+    if (!isAllowedDownloadOrigin(urlOrigin)) {
+      throw new Error('仅允许下载本应用可信源的文件')
     }
     const res = await net.fetch(url)
     if (!res.ok) {
@@ -404,6 +423,26 @@ function winFromSender(event: IpcMainEvent | IpcMainInvokeEvent): BrowserWindow 
   return BrowserWindow.fromWebContents(event.sender) ?? mainWindow
 }
 
+/** 图片预览独立窗口载荷（URL 可能很长，不走 hash query） */
+type ImageViewerItem = {
+  url: string
+  fileName?: string
+  fileSize?: string
+  messageId?: string
+  conversationId?: string
+}
+
+type ImageViewerPayload = {
+  url?: string
+  fileName?: string
+  fileSize?: string
+  items?: ImageViewerItem[]
+  index?: number
+}
+
+let imageViewerWindow: BrowserWindow | null = null
+let imageViewerPayload: ImageViewerPayload | null = null
+
 function onMinimize(event: IpcMainEvent) {
   winFromSender(event)?.minimize()
 }
@@ -458,6 +497,10 @@ function registerWindowIpc() {
   ipcMain.removeHandler('app:get-download-path')
   ipcMain.removeHandler('screen:capture')
   ipcMain.removeHandler('clipboard:write-text')
+  ipcMain.removeHandler('clipboard:write-image')
+  ipcMain.removeHandler('shell:open-external')
+  ipcMain.removeHandler('shell:open-path')
+  ipcMain.removeHandler('image-viewer:get-payload')
 
   ipcMain.on('window-minimize', onMinimize)
   ipcMain.on('window-maximize', onMaximize)
@@ -664,6 +707,15 @@ function registerWindowIpc() {
 
       const bytes = await readDownloadBytes(payload)
       await fs.promises.writeFile(targetPath, bytes)
+
+      // 聊天「打开文件」：保存后用系统默认程序打开
+      if (payload.openAfter) {
+        const { shell } = await import('electron')
+        const openErr = await shell.openPath(targetPath)
+        if (openErr) {
+          return { ok: true, path: targetPath, message: openErr }
+        }
+      }
       return { ok: true, path: targetPath }
     } catch (e) {
       return { ok: false, message: e instanceof Error ? e.message : '下载失败' }
@@ -848,6 +900,58 @@ function registerWindowIpc() {
     clipboard.writeText(String(text ?? ''))
     return true
   })
+
+  /** 写入图片到剪贴板：支持 dataURL 或 http(s) URL（主进程拉取，避开 CORS） */
+  ipcMain.handle(
+    'clipboard:write-image',
+    async (_event, payload: { dataUrl?: string; url?: string } = {}) => {
+      try {
+        let img = nativeImage.createEmpty()
+        const dataUrl = (payload.dataUrl || '').trim()
+        if (dataUrl.startsWith('data:image/')) {
+          img = nativeImage.createFromDataURL(dataUrl)
+        } else {
+          const url = (payload.url || '').trim()
+          if (!/^https?:\/\//i.test(url)) return false
+          const res = await net.fetch(url)
+          if (!res.ok) return false
+          const buf = Buffer.from(await res.arrayBuffer())
+          img = nativeImage.createFromBuffer(buf)
+        }
+        if (img.isEmpty()) return false
+        clipboard.writeImage(img)
+        return true
+      } catch {
+        return false
+      }
+    }
+  )
+
+  ipcMain.handle('shell:open-external', async (_event, url: string) => {
+    try {
+      const target = String(url || '').trim()
+      if (!/^https?:\/\//i.test(target) && !target.startsWith('file:')) return false
+      const { shell } = await import('electron')
+      await shell.openExternal(target)
+      return true
+    } catch {
+      return false
+    }
+  })
+
+  ipcMain.handle('shell:open-path', async (_event, filePath: string) => {
+    try {
+      const target = path.resolve(String(filePath || '').trim())
+      if (!target || !fs.existsSync(target)) return false
+      const { shell } = await import('electron')
+      const err = await shell.openPath(target)
+      return !err
+    } catch {
+      return false
+    }
+  })
+
+  ipcMain.handle('image-viewer:get-payload', () => imageViewerPayload)
 
   ipcMain.handle('screen:capture', async (event) => {
     if (!screenshotAllowed) {
@@ -1415,6 +1519,79 @@ ipcMain.on('window-open-help', () => {
 
 ipcMain.on('window-open-chat-history', () => {
   createHelpStandaloneWindow('chat-history', { width: 820, height: 760 })
+})
+
+function createImageViewerWindow(payload: ImageViewerPayload) {
+  const url = (payload.url || '').trim()
+  if (!url) return
+
+  const items = Array.isArray(payload.items)
+    ? payload.items
+        .filter(i => i && typeof i.url === 'string' && i.url.trim())
+        .map(i => ({
+          url: String(i.url).trim(),
+          fileName: i.fileName ? String(i.fileName) : undefined,
+          fileSize: i.fileSize ? String(i.fileSize) : undefined,
+          messageId: i.messageId ? String(i.messageId) : undefined,
+          conversationId: i.conversationId ? String(i.conversationId) : undefined
+        }))
+    : undefined
+
+  imageViewerPayload = {
+    url,
+    fileName: payload.fileName ? String(payload.fileName) : undefined,
+    fileSize: payload.fileSize ? String(payload.fileSize) : undefined,
+    items,
+    index: typeof payload.index === 'number' ? payload.index : 0
+  }
+
+  if (imageViewerWindow && !imageViewerWindow.isDestroyed()) {
+    if (imageViewerWindow.isMinimized()) imageViewerWindow.restore()
+    imageViewerWindow.focus()
+    imageViewerWindow.webContents.send('image-viewer:payload', imageViewerPayload)
+    return
+  }
+
+  imageViewerWindow = new BrowserWindow({
+    width: 960,
+    height: 720,
+    minWidth: 640,
+    minHeight: 480,
+    resizable: true,
+    ...framelessChrome(),
+    // 跟随当前 UI 主题，避免亮色主题下先闪黑底
+    backgroundColor: currentUiTheme === 'dark' ? '#1a1a1a' : '#f5f5f5',
+    show: false,
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
+    }
+  })
+  prepareFramelessWindow(imageViewerWindow)
+
+  imageViewerWindow.once('ready-to-show', () => {
+    imageViewerWindow?.show()
+  })
+
+  if (isDev && process.env.VITE_DEV_SERVER_URL) {
+    imageViewerWindow.loadURL(process.env.VITE_DEV_SERVER_URL + '#/image-viewer')
+  } else {
+    imageViewerWindow.loadFile(path.join(__dirname, '../../dist/index.html'), {
+      hash: '/image-viewer'
+    })
+  }
+
+  imageViewerWindow.on('closed', () => {
+    imageViewerWindow = null
+    imageViewerPayload = null
+  })
+}
+
+ipcMain.on('window-open-image-viewer', (_event, payload?: ImageViewerPayload) => {
+  if (!payload || typeof payload !== 'object') return
+  createImageViewerWindow(payload)
 })
 
 /** [P1-E2] 判断 URL 是否为应用自身源（开发环境为 Vite Dev Server，生产环境为 file://） */

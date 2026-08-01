@@ -7,6 +7,63 @@ export type DownloadResult = {
   message?: string
 }
 
+export type DownloadOptions = {
+  /** 保存后用系统默认程序打开（仅 Electron） */
+  openAfter?: boolean
+  /** 已在渲染进程读好的二进制（blob/裁剪结果），优先于 url 拉取 */
+  data?: ArrayBuffer | Uint8Array | Blob
+}
+
+/** dataURL → ArrayBuffer（不走 fetch，避免 Electron 下失败） */
+function dataUrlToArrayBuffer(dataUrl: string): ArrayBuffer {
+  const comma = dataUrl.indexOf(',')
+  if (comma < 0) throw new Error('无效的 data URL')
+  const meta = dataUrl.slice(0, comma)
+  const body = dataUrl.slice(comma + 1)
+  if (/;base64/i.test(meta)) {
+    const binary = atob(body)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+    return bytes.buffer
+  }
+  const text = decodeURIComponent(body)
+  return new TextEncoder().encode(text).buffer
+}
+
+/** blob:/data: → ArrayBuffer；xhr 对 blob 比 fetch 更稳 */
+async function readLocalUrlAsArrayBuffer(url: string): Promise<ArrayBuffer> {
+  if (url.startsWith('data:')) {
+    return dataUrlToArrayBuffer(url)
+  }
+  if (!url.startsWith('blob:')) {
+    throw new Error('不是本地地址')
+  }
+  return await new Promise<ArrayBuffer>((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('GET', url, true)
+    xhr.responseType = 'arraybuffer'
+    xhr.onload = () => {
+      if (xhr.status === 0 || (xhr.status >= 200 && xhr.status < 300)) {
+        resolve(xhr.response as ArrayBuffer)
+      } else {
+        reject(new Error(`读取文件失败 (${xhr.status})`))
+      }
+    }
+    xhr.onerror = () => reject(new Error('读取本地文件失败'))
+    xhr.send()
+  })
+}
+
+async function toArrayBuffer(
+  data: ArrayBuffer | Uint8Array | Blob
+): Promise<ArrayBuffer> {
+  if (data instanceof ArrayBuffer) return data
+  if (data instanceof Uint8Array) {
+    return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer
+  }
+  return await data.arrayBuffer()
+}
+
 /**
  * 按「文件管理」设置下载/保存文件。
  * - Electron：遵守下载目录 + 保存方式（询问 / 自动）
@@ -14,48 +71,103 @@ export type DownloadResult = {
  */
 export async function downloadFileWithSettings(
   url: string,
-  fileName: string
+  fileName: string,
+  options: DownloadOptions = {}
 ): Promise<DownloadResult> {
-  if (!url) {
+  if (!url && !options.data) {
     return { ok: false, message: '缺少文件地址' }
   }
 
   const settings = useAppSettingsStore()
   const directory = (settings.downloadPath || '').trim() || undefined
-  const askEveryTime = !!settings.downloadAskEveryTime
+  // 「打开文件」时跳过另存为弹窗，直接写入下载目录并打开
+  const askEveryTime = options.openAfter ? false : !!settings.downloadAskEveryTime
   const name = (fileName || 'download').trim() || 'download'
 
   const api = window.electronAPI?.downloadFile
   if (api) {
     try {
-      // http(s) 由主进程拉取，避免跨域；blob/data 等在渲染进程读入后传二进制
-      if (/^https?:\/\//i.test(url)) {
+      // 1) 调用方已提供二进制（裁剪/烘焙结果）
+      if (options.data) {
+        const data = await toArrayBuffer(options.data)
         return await api({
-          url,
+          data,
           fileName: name,
           directory,
-          askEveryTime
+          askEveryTime,
+          openAfter: options.openAfter
         })
       }
 
-      const res = await fetch(url)
-      if (!res.ok) {
-        return { ok: false, message: `读取文件失败 (${res.status})` }
+      // 2) blob:/data: 在渲染进程读入再交给主进程（不让主进程 fetch blob）
+      if (url.startsWith('blob:') || url.startsWith('data:')) {
+        const data = await readLocalUrlAsArrayBuffer(url)
+        return await api({
+          data,
+          fileName: name,
+          directory,
+          askEveryTime,
+          openAfter: options.openAfter
+        })
       }
-      const data = await res.arrayBuffer()
-      return await api({
-        data,
-        fileName: name,
-        directory,
-        askEveryTime
-      })
+
+      // 3) http(s) 先走主进程；失败则渲染进程拉取后回传（兼容 MinIO 预签名）
+      if (/^https?:\/\//i.test(url)) {
+        const primary = await api({
+          url,
+          fileName: name,
+          directory,
+          askEveryTime,
+          openAfter: options.openAfter
+        })
+        if (primary.ok || primary.canceled) return primary
+
+        try {
+          const res = await fetch(url)
+          if (!res.ok) {
+            return {
+              ok: false,
+              message: primary.message || `下载失败 (${res.status})`
+            }
+          }
+          const data = await res.arrayBuffer()
+          return await api({
+            data,
+            fileName: name,
+            directory,
+            askEveryTime,
+            openAfter: options.openAfter
+          })
+        } catch {
+          return { ok: false, message: primary.message || '下载失败' }
+        }
+      }
+
+      return { ok: false, message: '不支持的下载地址' }
     } catch (e) {
       return { ok: false, message: e instanceof Error ? e.message : '下载失败' }
     }
   }
 
-  // Web：无法控制目录，使用浏览器下载
+  // Web：无法控制目录；「打开」优先新窗口，否则触发下载
   try {
+    if (options.data) {
+      const buf = await toArrayBuffer(options.data)
+      const blob = new Blob([buf])
+      const objectUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = objectUrl
+      a.download = name
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(objectUrl)
+      return { ok: true }
+    }
+    if (options.openAfter && /^https?:\/\//i.test(url)) {
+      window.open(url, '_blank', 'noopener,noreferrer')
+      return { ok: true }
+    }
     const a = document.createElement('a')
     a.href = url
     a.download = name

@@ -1776,6 +1776,10 @@ export const useAppStore = defineStore('app', {
                 local.fileUrl = displayUrl
                 if (type === 'image') local.content = displayUrl
                 local.fileName = fileName
+                if (fileSizeNum > 0) {
+                  const { formatFileSize } = await import('../utils/chatTime')
+                  local.fileSize = formatFileSize(fileSizeNum)
+                }
                 local.uploadProgress = 100
                 if (type === 'file') local.fileStatus = t('chat.fileStatusSending')
               }
