@@ -45,4 +45,12 @@ public final class AdminConstants {
         }
         return false;
     }
+
+    /** 是否可编辑其他管理端账号的资料（含部门归属）。冻/封等状态操作仍禁止。 */
+    public static boolean canEditAdminProfiles(Collection<String> roles) {
+        if (roles == null || roles.isEmpty()) {
+            return false;
+        }
+        return roles.contains(ROLE_ADMIN) || roles.contains(ROLE_SUPER_ADMIN);
+    }
 }
