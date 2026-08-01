@@ -377,6 +377,17 @@ public class AdminReviewServiceImpl implements AdminReviewService {
                 QueryWrapper.create().where(SysReviewTask::getStatus).eq(SysReviewTask.STATUS_PENDING));
     }
 
+    @Override
+    public long countPendingBySource(String sourceType) {
+        ensureReportTasks();
+        QueryWrapper qw = QueryWrapper.create()
+                .where(SysReviewTask::getStatus).eq(SysReviewTask.STATUS_PENDING);
+        if (StringUtils.hasText(sourceType)) {
+            qw.and(SysReviewTask::getSourceType).eq(sourceType.trim());
+        }
+        return reviewTaskMapper.selectCountByQuery(qw);
+    }
+
     private void resolve(Long id, String status, AdminReviewResolveDTO dto, Long operatorId) {
         SysReviewTask task = requireTask(id);
         if (!SysReviewTask.STATUS_PENDING.equals(task.getStatus())) {

@@ -51,4 +51,7 @@ public interface AdminReviewService {
     void ensureReportTasks();
 
     long countPending();
+
+    /** 按来源统计待审任务数（会先补齐举报任务） */
+    long countPendingBySource(String sourceType);
 }

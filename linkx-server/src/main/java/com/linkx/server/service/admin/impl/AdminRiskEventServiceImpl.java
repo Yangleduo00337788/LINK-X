@@ -213,6 +213,18 @@ public class AdminRiskEventServiceImpl implements AdminRiskEventService {
     }
 
     @Override
+    public long countSinceByType(String eventType, Date since) {
+        QueryWrapper qw = QueryWrapper.create();
+        if (StringUtils.hasText(eventType)) {
+            qw.where(SysRiskEvent::getEventType).eq(eventType.trim());
+        }
+        if (since != null) {
+            qw.and(SysRiskEvent::getCreateTime).ge(since);
+        }
+        return riskEventMapper.selectCountByQuery(qw);
+    }
+
+    @Override
     public void recordSensitiveMatch(Long userId, String matchedWords, String failReason, Long conversationId) {
         String words = matchedWords == null ? "" : matchedWords.trim();
         String level = "blocked".equals(failReason)

@@ -24,6 +24,9 @@ public interface AdminRiskEventService {
 
     long countSince(java.util.Date since);
 
+    /** 按事件类型统计自 since 以来的数量 */
+    long countSinceByType(String eventType, java.util.Date since);
+
     List<AdminRiskEventVO> listForExport(AdminRiskEventQueryDTO query);
 
     /** 记录敏感词命中风险事件 */

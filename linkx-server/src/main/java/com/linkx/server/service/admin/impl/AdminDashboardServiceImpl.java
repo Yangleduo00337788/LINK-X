@@ -8,11 +8,14 @@ import com.linkx.server.entity.Feedback;
 import com.linkx.server.entity.ImMessage;
 import com.linkx.server.entity.SysLoginAudit;
 import com.linkx.server.entity.SysUser;
+import com.linkx.server.entity.admin.SysReviewTask;
+import com.linkx.server.entity.admin.SysRiskEvent;
 import com.linkx.server.mapper.FeedbackMapper;
 import com.linkx.server.mapper.ImMessageMapper;
 import com.linkx.server.mapper.SysLoginAuditMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.admin.AdminDashboardService;
+import com.linkx.server.service.admin.AdminFeedbackService;
 import com.linkx.server.service.admin.AdminReviewService;
 import com.linkx.server.service.admin.AdminRiskEventService;
 import com.linkx.server.service.admin.AdminStatisticsService;
@@ -37,6 +40,7 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
     private final FeedbackMapper feedbackMapper;
     private final ImMessageMapper imMessageMapper;
     private final SysLoginAuditMapper sysLoginAuditMapper;
+    private final AdminFeedbackService adminFeedbackService;
     private final AdminReviewService adminReviewService;
     private final AdminRiskEventService adminRiskEventService;
     private final AdminStatisticsService adminStatisticsService;
@@ -50,7 +54,15 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
         long onlineDevices = adminStatisticsService.countOnlineDevices();
         long pendingFeedback = feedbackMapper.selectCountByQuery(
                 QueryWrapper.create().where(Feedback::getStatus).eq("pending"));
+        long overdueFeedback = adminFeedbackService.countOverdue();
         long pendingReviews = adminReviewService.countPending();
+        long pendingReports = adminReviewService.countPendingBySource(SysReviewTask.SOURCE_REPORT);
+
+        Date todayStart = Date.from(LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant());
+        long todaySensitiveHits = adminRiskEventService.countSinceByType(
+                SysRiskEvent.TYPE_SENSITIVE_WORD_MATCH, todayStart);
+        long todayRiskBlocks = adminRiskEventService.countSinceByType(
+                SysRiskEvent.TYPE_RATE_LIMIT, todayStart);
 
         Calendar day = Calendar.getInstance();
         day.add(Calendar.DAY_OF_MONTH, -1);
@@ -64,7 +76,11 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
                 .mau(mau)
                 .onlineDevices(onlineDevices)
                 .pendingFeedback(pendingFeedback)
+                .overdueFeedback(overdueFeedback)
                 .pendingReviews(pendingReviews)
+                .pendingReports(pendingReports)
+                .todaySensitiveHits(todaySensitiveHits)
+                .todayRiskBlocks(todayRiskBlocks)
                 .riskEvents(riskEvents)
                 .build();
     }
@@ -102,10 +118,22 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
     public List<AdminPendingTaskVO> pendingTasks() {
         long pendingFeedback = feedbackMapper.selectCountByQuery(
                 QueryWrapper.create().where(Feedback::getStatus).eq("pending"));
+        long overdueFeedback = adminFeedbackService.countOverdue();
+        long pendingReports = adminReviewService.countPendingBySource(SysReviewTask.SOURCE_REPORT);
         long pendingReviews = adminReviewService.countPending();
+        // 非举报待审（敏感词等），避免与举报待办重复展示
+        long pendingOtherReviews = Math.max(0, pendingReviews - pendingReports);
         long riskEvents = adminRiskEventService.countPending();
 
         List<AdminPendingTaskVO> tasks = new ArrayList<>();
+        if (overdueFeedback > 0) {
+            tasks.add(AdminPendingTaskVO.builder()
+                    .type("feedback_overdue")
+                    .title("overdueFeedback")
+                    .count(overdueFeedback)
+                    .path("/admin/feedback?overdueOnly=1")
+                    .build());
+        }
         if (pendingFeedback > 0) {
             tasks.add(AdminPendingTaskVO.builder()
                     .type("feedback")
@@ -114,11 +142,19 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
                     .path("/admin/feedback")
                     .build());
         }
-        if (pendingReviews > 0) {
+        if (pendingReports > 0) {
+            tasks.add(AdminPendingTaskVO.builder()
+                    .type("report")
+                    .title("pendingReports")
+                    .count(pendingReports)
+                    .path("/admin/reports")
+                    .build());
+        }
+        if (pendingOtherReviews > 0) {
             tasks.add(AdminPendingTaskVO.builder()
                     .type("review")
                     .title("pendingReviews")
-                    .count(pendingReviews)
+                    .count(pendingOtherReviews)
                     .path("/admin/reviews")
                     .build());
         }
