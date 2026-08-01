@@ -24,4 +24,16 @@ public class AdminReviewBatchDTO {
     @Schema(description = "处理意见")
     @Size(max = 1000)
     private String resolution;
+
+    @Schema(description = "用户处置：none / freeze / ban（批量通过时可带；批量驳回忽略）")
+    @Size(max = 16)
+    private String userAction;
+
+    @Schema(description = "内容处置：none / delete（批量通过时可带；批量驳回忽略）")
+    @Size(max = 16)
+    private String contentAction;
+
+    @Schema(description = "群处置：none / dissolve / freeze_owner / ban_owner")
+    @Size(max = 32)
+    private String groupAction;
 }

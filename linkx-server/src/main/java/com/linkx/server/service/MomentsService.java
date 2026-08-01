@@ -62,6 +62,12 @@ public interface MomentsService {
      */
     void delete(Long userId, Long postId);
 
+    /** 管理端强制删除动态（跳过作者校验） */
+    void adminDeletePost(Long postId);
+
+    /** 管理端强制删除评论（跳过作者校验） */
+    void adminDeleteComment(Long commentId);
+
     /**
      * 上传朋友圈图片或视频
      *

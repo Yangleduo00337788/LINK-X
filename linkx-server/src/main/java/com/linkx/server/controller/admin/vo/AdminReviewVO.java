@@ -16,6 +16,8 @@ public class AdminReviewVO {
     private String sourceType;
     private String targetType;
     private String targetId;
+    /** 涉事用户 ID（举报对象或敏感词命中作者） */
+    private Long subjectUserId;
     private Long reporterUserId;
     private String reporterUsername;
     private String title;

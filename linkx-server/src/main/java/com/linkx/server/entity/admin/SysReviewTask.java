@@ -29,6 +29,15 @@ public class SysReviewTask implements Serializable {
     public static final String STATUS_APPROVED = "approved";
     public static final String STATUS_REJECTED = "rejected";
 
+    /** 审核目标类型 */
+    public static final String TARGET_USER = "user";
+    public static final String TARGET_GROUP = "group";
+    public static final String TARGET_MESSAGE = "message";
+    public static final String TARGET_CONVERSATION = "conversation";
+    public static final String TARGET_MOMENT = "moment";
+    public static final String TARGET_MOMENT_COMMENT = "moment_comment";
+    public static final String TARGET_ANNOUNCEMENT = "announcement";
+
     @Id(keyType = KeyType.Generator, value = KeyGenerators.snowFlakeId)
     private Long id;
 

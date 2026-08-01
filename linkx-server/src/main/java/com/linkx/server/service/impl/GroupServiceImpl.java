@@ -509,7 +509,24 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public void dissolveGroup(Long userId, Long conversationId) {
-        ImConversation group = assertGroupOwner(userId, conversationId);
+        assertGroupOwner(userId, conversationId);
+        doDissolveGroup(conversationId, "群主已解散该群聊");
+    }
+
+    @Override
+    @Transactional
+    public void adminDissolveGroup(Long conversationId, Long operatorId) {
+        ImConversation group = conversationMapper.selectOneById(conversationId);
+        if (group == null || group.getType() == null || group.getType() != ImConversation.TYPE_GROUP) {
+            throw new CustomException(404, "群聊不存在");
+        }
+        doDissolveGroup(conversationId, "该群聊因违规已被管理员解散");
+    }
+
+    private void doDissolveGroup(Long conversationId, String tip) {
+        List<ImConversationMember> members = memberMapper.selectListByQuery(
+                QueryWrapper.create().where(ImConversationMember::getConversationId).eq(conversationId)
+        );
 
         // 先收集群资产 MinIO key，DB 清理后删对象
         List<GroupAsset> assets = groupAssetMapper.selectListByQuery(
@@ -544,6 +561,17 @@ public class GroupServiceImpl implements GroupService {
         msgPatch.setDeleted(1);
         messageMapper.updateByQuery(msgPatch,
                 QueryWrapper.create().where(com.linkx.server.entity.ImMessage::getConversationId).eq(conversationId));
+
+        // 先推送解散事件，再删成员关系
+        Map<String, Object> payload = Map.of(
+                "conversationId", String.valueOf(conversationId),
+                "reason", tip == null ? "" : tip
+        );
+        for (ImConversationMember member : members) {
+            if (member.getUserId() != null) {
+                imPushService.pushToUser(member.getUserId(), "group_dissolved", payload);
+            }
+        }
 
         // 删除所有成员
         memberMapper.deleteByQuery(

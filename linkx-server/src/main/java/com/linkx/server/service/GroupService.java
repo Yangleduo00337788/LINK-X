@@ -63,6 +63,11 @@ public interface GroupService {
     void dissolveGroup(Long userId, Long conversationId);
 
     /**
+     * 管理端强制解散群聊（跳过群主校验），并推送成员通知。
+     */
+    void adminDissolveGroup(Long conversationId, Long operatorId);
+
+    /**
      * 转让群主
      */
     void transferOwner(Long userId, Long conversationId, Long newOwnerId);

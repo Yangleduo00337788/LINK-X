@@ -18,4 +18,7 @@ public interface GroupAnnouncementService {
     GroupAnnouncementVO update(Long userId, Long conversationId, Long announcementId, UpdateGroupAnnouncementDTO dto);
 
     void delete(Long userId, Long conversationId, Long announcementId);
+
+    /** 管理端强制删除公告（跳过群管理员校验） */
+    void adminDelete(Long announcementId);
 }

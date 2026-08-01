@@ -13,9 +13,15 @@ import com.linkx.server.mapper.GroupAnnouncementMapper;
 import com.linkx.server.mapper.ImConversationMapper;
 import com.linkx.server.mapper.ImConversationMemberMapper;
 import com.linkx.server.mapper.SysUserMapper;
+import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.service.GroupAnnouncementService;
+import com.linkx.server.service.SensitiveWordService;
+import com.linkx.server.service.admin.AdminReviewService;
+import com.linkx.server.entity.admin.SysReviewTask;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -24,6 +30,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -31,6 +38,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class GroupAnnouncementServiceImpl implements GroupAnnouncementService {
@@ -42,6 +50,9 @@ public class GroupAnnouncementServiceImpl implements GroupAnnouncementService {
     private final ImConversationMapper conversationMapper;
     private final ImConversationMemberMapper memberMapper;
     private final SysUserMapper sysUserMapper;
+    private final SensitiveWordService sensitiveWordService;
+    private final ObjectProvider<AdminReviewService> adminReviewService;
+    private final ImMessagePushService imPushService;
 
     @Override
     public List<GroupAnnouncementVO> list(Long userId, Long conversationId) {
@@ -77,18 +88,21 @@ public class GroupAnnouncementServiceImpl implements GroupAnnouncementService {
         if (!StringUtils.hasText(content)) {
             throw new CustomException(400, "公告内容不能为空");
         }
+        SensitiveHit hit = filterSensitiveOrThrow(userId, conversationId, content, null);
         boolean pin = Boolean.TRUE.equals(dto.getPinned());
         if (pin) {
             clearPinned(conversationId);
         }
         GroupAnnouncement row = GroupAnnouncement.builder()
                 .conversationId(conversationId)
-                .content(content)
+                .content(hit.text())
                 .publisherId(userId)
                 .pinned(pin ? 1 : 0)
                 .build();
         announcementMapper.insert(row);
+        enqueueSensitiveAfterPersist(userId, conversationId, String.valueOf(row.getId()), hit);
         syncConversationSummary(conversationId);
+        pushAnnouncementUpdated(conversationId);
         SysUser publisher = sysUserMapper.selectOneById(userId);
         String role = resolveRole(conversationId, userId);
         return toVO(row, publisher, role);
@@ -105,7 +119,10 @@ public class GroupAnnouncementServiceImpl implements GroupAnnouncementService {
             if (!StringUtils.hasText(content)) {
                 throw new CustomException(400, "公告内容不能为空");
             }
-            row.setContent(content);
+            SensitiveHit hit = filterSensitiveOrThrow(
+                    userId, conversationId, content, String.valueOf(announcementId));
+            row.setContent(hit.text());
+            enqueueSensitiveAfterPersist(userId, conversationId, String.valueOf(announcementId), hit);
         }
         if (dto.getPinned() != null) {
             if (Boolean.TRUE.equals(dto.getPinned())) {
@@ -118,6 +135,7 @@ public class GroupAnnouncementServiceImpl implements GroupAnnouncementService {
         row.setUpdateTime(new Date());
         announcementMapper.update(row);
         syncConversationSummary(conversationId);
+        pushAnnouncementUpdated(conversationId);
         SysUser publisher = sysUserMapper.selectOneById(row.getPublisherId());
         String role = resolveRole(conversationId, row.getPublisherId());
         return toVO(row, publisher, role);
@@ -130,6 +148,105 @@ public class GroupAnnouncementServiceImpl implements GroupAnnouncementService {
         GroupAnnouncement row = requireAnnouncement(conversationId, announcementId);
         announcementMapper.deleteById(row.getId());
         syncConversationSummary(conversationId);
+        pushAnnouncementUpdated(conversationId);
+    }
+
+    @Override
+    @Transactional
+    public void adminDelete(Long announcementId) {
+        GroupAnnouncement row = announcementMapper.selectOneById(announcementId);
+        if (row == null) {
+            throw new CustomException(404, "公告不存在");
+        }
+        Long conversationId = row.getConversationId();
+        announcementMapper.deleteById(row.getId());
+        if (conversationId != null) {
+            syncConversationSummary(conversationId);
+            pushAnnouncementUpdated(conversationId);
+        }
+    }
+
+    private void pushAnnouncementUpdated(Long conversationId) {
+        if (conversationId == null) {
+            return;
+        }
+        ImConversation group = conversationMapper.selectOneById(conversationId);
+        String announcement = group == null || group.getAnnouncement() == null ? "" : group.getAnnouncement();
+        String name = group == null ? null : group.getName();
+        List<ImConversationMember> members = memberMapper.selectListByQuery(
+                QueryWrapper.create().where(ImConversationMember::getConversationId).eq(conversationId)
+        );
+        Map<String, Object> groupPayload = new HashMap<>();
+        groupPayload.put("id", conversationId);
+        groupPayload.put("name", name);
+        groupPayload.put("announcement", announcement);
+        Map<String, Object> data = new HashMap<>();
+        data.put("conversationId", String.valueOf(conversationId));
+        data.put("group", groupPayload);
+        for (ImConversationMember member : members) {
+            if (member.getUserId() != null) {
+                imPushService.pushToUser(member.getUserId(), "group_announcement_updated", data);
+            }
+        }
+    }
+
+    private record SensitiveHit(String text, String matchedWords, String failReason, String original) {
+        boolean matched() {
+            return matchedWords != null && !matchedWords.isBlank();
+        }
+    }
+
+    private SensitiveHit filterSensitiveOrThrow(Long userId, Long conversationId, String content, String existingId) {
+        SensitiveWordService.FilterResult result = sensitiveWordService.filter(content);
+        if (result.matchedWords().isEmpty()) {
+            return new SensitiveHit(result.text(), null, null, content);
+        }
+        String failReason = result.blocked()
+                ? "blocked"
+                : (result.filtered() ? "filtered" : (result.alerted() ? "alert" : "matched"));
+        String matchedWords = String.join(",", result.matchedWords());
+        if (result.blocked()) {
+            String targetId = existingId != null ? existingId : String.valueOf(conversationId);
+            String targetType = existingId != null
+                    ? SysReviewTask.TARGET_ANNOUNCEMENT
+                    : SysReviewTask.TARGET_CONVERSATION;
+            enqueueSensitiveReview(userId, targetType, targetId, conversationId, content, matchedWords, failReason);
+            throw new CustomException(400, "公告包含违规敏感词，无法发布");
+        }
+        return new SensitiveHit(result.text(), matchedWords, failReason, content);
+    }
+
+    private void enqueueSensitiveAfterPersist(Long userId, Long conversationId, String announcementId, SensitiveHit hit) {
+        if (hit == null || !hit.matched() || "blocked".equals(hit.failReason())) {
+            return;
+        }
+        enqueueSensitiveReview(
+                userId,
+                SysReviewTask.TARGET_ANNOUNCEMENT,
+                announcementId,
+                conversationId,
+                hit.original(),
+                hit.matchedWords(),
+                hit.failReason());
+    }
+
+    private void enqueueSensitiveReview(Long userId,
+                                        String targetType,
+                                        String targetId,
+                                        Long conversationId,
+                                        String content,
+                                        String matchedWords,
+                                        String failReason) {
+        AdminReviewService reviewService = adminReviewService.getIfAvailable();
+        if (reviewService == null) {
+            return;
+        }
+        try {
+            reviewService.createFromSensitiveHit(
+                    userId, targetType, targetId, conversationId, content, matchedWords, failReason);
+        } catch (Exception e) {
+            log.warn("群公告敏感词入审失败: {}", e.getMessage());
+        }
     }
 
     /**

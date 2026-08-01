@@ -25,6 +25,11 @@ public interface ChatService {
     MessageVO recallMessage(Long userId, Long conversationId, Long messageId);
 
     /**
+     * 管理端强制撤回消息（无发送者/时限限制），供内容审核处置。
+     */
+    MessageVO adminForceRecallMessage(Long messageId);
+
+    /**
      * 写入系统提示消息（服务端内部调用，不走客户端上行校验）。
      */
     MessageVO postSystemMessage(Long operatorId, Long conversationId, String content);

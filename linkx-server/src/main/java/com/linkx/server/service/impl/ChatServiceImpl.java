@@ -35,10 +35,13 @@ import com.linkx.server.service.SensitiveWordService;
 import com.linkx.server.service.UserPreferenceService;
 import com.linkx.server.service.AuditLogService;
 import com.linkx.server.service.admin.AdminRiskEventService;
+import com.linkx.server.service.admin.AdminReviewService;
 import com.linkx.server.entity.SysAuditLog;
+import com.linkx.server.entity.admin.SysReviewTask;
 import com.mybatisflex.core.logicdelete.LogicDeleteManager;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -93,6 +96,7 @@ public class ChatServiceImpl implements ChatService {
     private final MessageStormService messageStormService;
     private final AuditLogService auditLogService;
     private final AdminRiskEventService adminRiskEventService;
+    private final ObjectProvider<AdminReviewService> adminReviewService;
     private final LinkxMetrics linkxMetrics;
 
     @Override
@@ -345,15 +349,20 @@ public class ChatServiceImpl implements ChatService {
         // 敏感词过滤：文本消息进行 DFA 过滤
         String content = resolveContent(msgType, dto, storedFileUrl);
         boolean sensitiveAlert = false;
+        String sensitiveFailReason = null;
+        String sensitiveMatchedWords = null;
+        String originalSensitiveContent = content;
         if (ImMessage.TYPE_TEXT.equals(msgType) && content != null) {
             SensitiveWordService.FilterResult filterResult = sensitiveWordService.filter(content);
             if (!filterResult.matchedWords().isEmpty()) {
                 String failReason = filterResult.blocked()
                         ? "blocked"
                         : (filterResult.filtered() ? "filtered" : (filterResult.alerted() ? "alert" : "matched"));
+                sensitiveFailReason = failReason;
+                sensitiveMatchedWords = String.join(",", filterResult.matchedWords());
                 auditLogService.log(
                         SysAuditLog.OperationType.SENSITIVE_WORD_MATCH,
-                        "敏感词命中: " + String.join(",", filterResult.matchedWords()),
+                        "敏感词命中: " + sensitiveMatchedWords,
                         userId,
                         null,
                         null,
@@ -363,11 +372,19 @@ public class ChatServiceImpl implements ChatService {
                 );
                 adminRiskEventService.recordSensitiveMatch(
                         userId,
-                        String.join(",", filterResult.matchedWords()),
+                        sensitiveMatchedWords,
                         failReason,
                         dto.getConversationId());
             }
             if (filterResult.blocked()) {
+                enqueueSensitiveReview(
+                        userId,
+                        SysReviewTask.TARGET_CONVERSATION,
+                        String.valueOf(dto.getConversationId()),
+                        dto.getConversationId(),
+                        originalSensitiveContent,
+                        sensitiveMatchedWords,
+                        "blocked");
                 throw new CustomException(400, "消息包含违禁内容，无法发送");
             }
             content = filterResult.text();
@@ -389,6 +406,17 @@ public class ChatServiceImpl implements ChatService {
                 .deleted(0)
                 .build();
         messageMapper.insert(message);
+
+        if (sensitiveFailReason != null && !"blocked".equals(sensitiveFailReason)) {
+            enqueueSensitiveReview(
+                    userId,
+                    SysReviewTask.TARGET_MESSAGE,
+                    String.valueOf(message.getId()),
+                    dto.getConversationId(),
+                    originalSensitiveContent,
+                    sensitiveMatchedWords,
+                    sensitiveFailReason);
+        }
 
         Date now = message.getCreateTime() != null ? message.getCreateTime() : new Date();
         conversation.setLastMessageContent(buildPreview(message));
@@ -426,6 +454,24 @@ public class ChatServiceImpl implements ChatService {
             throw new CustomException(400, "超过撤回时限");
         }
 
+        return markMessageRecalled(message, userId);
+    }
+
+    @Override
+    @Transactional
+    public MessageVO adminForceRecallMessage(Long messageId) {
+        ImMessage message = messageMapper.selectOneById(messageId);
+        if (message == null) {
+            throw new CustomException(404, "消息不存在");
+        }
+        if (ImMessage.TYPE_RECALL.equals(message.getType())) {
+            SysUser sender = sysUserMapper.selectOneById(message.getSenderId());
+            return toMessageVO(message, sender, message.getSenderId(), null);
+        }
+        return markMessageRecalled(message, message.getSenderId());
+    }
+
+    private MessageVO markMessageRecalled(ImMessage message, Long viewerUserId) {
         message.setType(ImMessage.TYPE_RECALL);
         message.setContent("");
         message.setFileName("");
@@ -434,10 +480,30 @@ public class ChatServiceImpl implements ChatService {
         message.setVoiceDuration(0);
         messageMapper.update(message);
 
-        refreshConversationLastMessage(conversationId);
+        refreshConversationLastMessage(message.getConversationId());
 
-        SysUser sender = sysUserMapper.selectOneById(userId);
-        return toMessageVO(message, sender, userId, loadLastReadMessageId(userId, conversationId));
+        SysUser sender = sysUserMapper.selectOneById(message.getSenderId());
+        Long uid = viewerUserId != null ? viewerUserId : message.getSenderId();
+        return toMessageVO(message, sender, uid, loadLastReadMessageId(uid, message.getConversationId()));
+    }
+
+    private void enqueueSensitiveReview(Long userId,
+                                        String targetType,
+                                        String targetId,
+                                        Long conversationId,
+                                        String content,
+                                        String matchedWords,
+                                        String failReason) {
+        AdminReviewService reviewService = adminReviewService.getIfAvailable();
+        if (reviewService == null) {
+            return;
+        }
+        try {
+            reviewService.createFromSensitiveHit(
+                    userId, targetType, targetId, conversationId, content, matchedWords, failReason);
+        } catch (Exception e) {
+            // 入审失败不影响主链路
+        }
     }
 
     @Override
@@ -1700,9 +1766,43 @@ public class ChatServiceImpl implements ChatService {
         }
 
         // 敏感词过滤
+        String originalContent = sanitized;
         SensitiveWordService.FilterResult filterResult = sensitiveWordService.filter(sanitized);
-        if (filterResult.blocked()) {
-            throw new CustomException(400, "编辑内容包含违禁内容，无法保存");
+        if (!filterResult.matchedWords().isEmpty()) {
+            String failReason = filterResult.blocked()
+                    ? "blocked"
+                    : (filterResult.filtered() ? "filtered" : (filterResult.alerted() ? "alert" : "matched"));
+            String matchedWords = String.join(",", filterResult.matchedWords());
+            auditLogService.log(
+                    SysAuditLog.OperationType.SENSITIVE_WORD_MATCH,
+                    "敏感词命中(编辑): " + matchedWords,
+                    userId,
+                    null,
+                    null,
+                    null,
+                    !filterResult.blocked(),
+                    failReason
+            );
+            adminRiskEventService.recordSensitiveMatch(userId, matchedWords, failReason, conversationId);
+            if (filterResult.blocked()) {
+                enqueueSensitiveReview(
+                        userId,
+                        SysReviewTask.TARGET_MESSAGE,
+                        String.valueOf(messageId),
+                        conversationId,
+                        originalContent,
+                        matchedWords,
+                        "blocked");
+                throw new CustomException(400, "编辑内容包含违禁内容，无法保存");
+            }
+            enqueueSensitiveReview(
+                    userId,
+                    SysReviewTask.TARGET_MESSAGE,
+                    String.valueOf(messageId),
+                    conversationId,
+                    originalContent,
+                    matchedWords,
+                    failReason);
         }
         sanitized = filterResult.text();
 

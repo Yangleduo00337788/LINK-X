@@ -5,21 +5,35 @@ import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminReviewBatchDTO;
 import com.linkx.server.controller.admin.dto.AdminReviewQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminReviewResolveDTO;
+import com.linkx.server.controller.admin.dto.AdminUserActionDTO;
 import com.linkx.server.controller.admin.vo.AdminReviewBatchResultVO;
 import com.linkx.server.controller.admin.vo.AdminReviewVO;
+import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.entity.Feedback;
+import com.linkx.server.entity.SysUser;
 import com.linkx.server.entity.admin.SysReviewTask;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.mapper.FeedbackMapper;
+import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.mapper.admin.SysReviewTaskMapper;
+import com.linkx.server.entity.ImConversation;
+import com.linkx.server.mapper.ImConversationMapper;
+import com.linkx.server.service.ChatService;
+import com.linkx.server.service.GroupAnnouncementService;
+import com.linkx.server.service.GroupService;
 import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.MessageNotificationService;
+import com.linkx.server.service.MomentsService;
+import com.linkx.server.service.RbacService;
 import com.linkx.server.service.admin.AdminEventPublisher;
 import com.linkx.server.service.admin.AdminReviewService;
+import com.linkx.server.service.admin.AdminUserService;
 import com.mybatisflex.core.query.QueryWrapper;
-import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
@@ -33,8 +47,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
-@RequiredArgsConstructor
 public class AdminReviewServiceImpl implements AdminReviewService {
 
     private static final String OFFICIAL_SENDER = "LinkX\u5B98\u65B9";
@@ -48,10 +62,49 @@ public class AdminReviewServiceImpl implements AdminReviewService {
 
     private final SysReviewTaskMapper reviewTaskMapper;
     private final FeedbackMapper feedbackMapper;
+    private final SysUserMapper sysUserMapper;
     private final MessageNotificationService notificationService;
     private final ImMessagePushService imPushService;
     private final AdminEventPublisher adminEventPublisher;
     private final MediaUrlService mediaUrlService;
+    private final AdminUserService adminUserService;
+    private final RbacService rbacService;
+    private final ChatService chatService;
+    private final MomentsService momentsService;
+    private final GroupAnnouncementService groupAnnouncementService;
+    private final GroupService groupService;
+    private final ImConversationMapper conversationMapper;
+
+    public AdminReviewServiceImpl(
+            SysReviewTaskMapper reviewTaskMapper,
+            FeedbackMapper feedbackMapper,
+            SysUserMapper sysUserMapper,
+            MessageNotificationService notificationService,
+            ImMessagePushService imPushService,
+            AdminEventPublisher adminEventPublisher,
+            MediaUrlService mediaUrlService,
+            AdminUserService adminUserService,
+            RbacService rbacService,
+            @Lazy ChatService chatService,
+            @Lazy MomentsService momentsService,
+            @Lazy GroupAnnouncementService groupAnnouncementService,
+            @Lazy GroupService groupService,
+            ImConversationMapper conversationMapper) {
+        this.reviewTaskMapper = reviewTaskMapper;
+        this.feedbackMapper = feedbackMapper;
+        this.sysUserMapper = sysUserMapper;
+        this.notificationService = notificationService;
+        this.imPushService = imPushService;
+        this.adminEventPublisher = adminEventPublisher;
+        this.mediaUrlService = mediaUrlService;
+        this.adminUserService = adminUserService;
+        this.rbacService = rbacService;
+        this.chatService = chatService;
+        this.momentsService = momentsService;
+        this.groupAnnouncementService = groupAnnouncementService;
+        this.groupService = groupService;
+        this.conversationMapper = conversationMapper;
+    }
 
     @Override
     public PageResultVO<AdminReviewVO> list(AdminReviewQueryDTO query) {
@@ -134,6 +187,11 @@ public class AdminReviewServiceImpl implements AdminReviewService {
                 : SysReviewTask.STATUS_REJECTED;
         AdminReviewResolveDTO resolveDto = new AdminReviewResolveDTO();
         resolveDto.setResolution(dto.getResolution());
+        if ("approve".equals(action)) {
+            resolveDto.setUserAction(dto.getUserAction());
+            resolveDto.setContentAction(dto.getContentAction());
+            resolveDto.setGroupAction(dto.getGroupAction());
+        }
 
         int success = 0;
         List<AdminReviewBatchResultVO.FailureItem> failures = new ArrayList<>();
@@ -180,6 +238,86 @@ public class AdminReviewServiceImpl implements AdminReviewService {
     }
 
     @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void createFromSensitiveHit(Long userId,
+                                       String targetType,
+                                       String targetId,
+                                       Long conversationId,
+                                       String content,
+                                       String matchedWords,
+                                       String failReason) {
+        if (!StringUtils.hasText(targetType) || !StringUtils.hasText(targetId)) {
+            return;
+        }
+        String type = targetType.trim();
+        String tid = targetId.trim();
+        // 拦截发送无消息 ID：用唯一 targetId，避免与同会话其它待审冲突；也避免被外层事务回滚
+        if ("blocked".equals(failReason) && SysReviewTask.TARGET_CONVERSATION.equals(type)) {
+            tid = tid + ":blocked:" + System.currentTimeMillis();
+        }
+        SysReviewTask existing = reviewTaskMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(SysReviewTask::getSourceType).eq(SysReviewTask.SOURCE_SENSITIVE)
+                        .and(SysReviewTask::getTargetType).eq(type)
+                        .and(SysReviewTask::getTargetId).eq(tid)
+                        .and(SysReviewTask::getStatus).eq(SysReviewTask.STATUS_PENDING)
+                        .limit(1)
+        );
+        if (existing != null) {
+            return;
+        }
+
+        String reason = StringUtils.hasText(failReason) ? failReason.trim() : "matched";
+        String riskLevel = "blocked".equals(reason)
+                ? "high"
+                : ("alert".equals(reason) ? "medium" : "low");
+        String words = matchedWords == null ? "" : matchedWords.trim();
+        String username = resolveUsername(userId);
+
+        StringBuilder snapshot = new StringBuilder();
+        snapshot.append("敏感词命中 (").append(reason).append(")\n");
+        if (userId != null) {
+            snapshot.append("用户ID: ").append(userId).append('\n');
+            if (StringUtils.hasText(username)) {
+                snapshot.append("用户名: ").append(username).append('\n');
+            }
+        }
+        if (conversationId != null) {
+            snapshot.append("会话ID: ").append(conversationId).append('\n');
+        }
+        snapshot.append("目标类型: ").append(type).append('\n');
+        snapshot.append("目标ID: ").append(tid).append('\n');
+        if (StringUtils.hasText(words)) {
+            snapshot.append("敏感词: ").append(words).append('\n');
+        }
+        if (StringUtils.hasText(content)) {
+            snapshot.append("内容: ").append(abbreviate(content.trim(), 800));
+        }
+
+        String title = "敏感词命中";
+        if (StringUtils.hasText(words)) {
+            title = "敏感词命中: " + abbreviate(words, 40);
+        }
+
+        Date now = new Date();
+        SysReviewTask task = SysReviewTask.builder()
+                .sourceType(SysReviewTask.SOURCE_SENSITIVE)
+                .targetType(type)
+                .targetId(tid)
+                .reporterUserId(null)
+                .reporterUsername("系统")
+                .title(title)
+                .contentSnapshot(snapshot.toString())
+                .riskLevel(riskLevel)
+                .status(SysReviewTask.STATUS_PENDING)
+                .createTime(now)
+                .updateTime(now)
+                .build();
+        reviewTaskMapper.insert(task);
+        publishAdminEvent("review_created", task.getId());
+    }
+
+    @Override
     @Transactional
     public void ensureReportTasks() {
         List<Feedback> reports = feedbackMapper.selectListByQuery(
@@ -219,10 +357,34 @@ public class AdminReviewServiceImpl implements AdminReviewService {
         if (!SysReviewTask.STATUS_PENDING.equals(task.getStatus())) {
             throw new CustomException(400, "review already resolved");
         }
+
+        boolean approved = SysReviewTask.STATUS_APPROVED.equals(status);
+        boolean isGroupTarget = SysReviewTask.TARGET_GROUP.equals(task.getTargetType());
+        String userAction = approved && !isGroupTarget
+                ? normalizeUserAction(dto != null ? dto.getUserAction() : null) : "none";
+        String contentAction = approved ? normalizeContentAction(dto != null ? dto.getContentAction() : null) : "none";
+        String groupAction = approved && isGroupTarget
+                ? normalizeGroupAction(dto != null ? dto.getGroupAction() : null) : "none";
+
+        String appliedContent = "none";
+        String appliedUser = "none";
+        String appliedGroup = "none";
+        if (approved) {
+            if ("delete".equals(contentAction)) {
+                appliedContent = applyContentAction(task);
+            }
+            if (!"none".equals(groupAction)) {
+                appliedGroup = applyGroupAction(task, groupAction, dto != null ? dto.getResolution() : null, operatorId);
+            }
+            if (!"none".equals(userAction)) {
+                appliedUser = applyUserAction(task, userAction, dto != null ? dto.getResolution() : null, operatorId);
+            }
+        }
+
         Date now = new Date();
         task.setStatus(status);
-        task.setResolution(dto != null && StringUtils.hasText(dto.getResolution())
-                ? dto.getResolution().trim() : null);
+        task.setResolution(buildResolution(
+                dto != null ? dto.getResolution() : null, appliedContent, appliedUser, appliedGroup));
         task.setResolvedBy(operatorId);
         task.setResolvedAt(now);
         task.setUpdateTime(now);
@@ -240,8 +402,216 @@ public class AdminReviewServiceImpl implements AdminReviewService {
             }
         }
 
+        // 驳回=不认定违规：清除发送端「含敏感词」提示；通过后提示也不再需要
+        clearSensitiveAlertHint(task);
         notifyReporter(task, status, operatorId);
         publishAdminEvent("review_resolved", task.getId());
+    }
+
+    private String normalizeUserAction(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return "none";
+        }
+        String action = raw.trim().toLowerCase();
+        if ("none".equals(action) || "freeze".equals(action) || "ban".equals(action)) {
+            return action;
+        }
+        throw new CustomException(400, "用户处置动作无效，仅支持 none / freeze / ban");
+    }
+
+    private String normalizeContentAction(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return "none";
+        }
+        String action = raw.trim().toLowerCase();
+        if ("none".equals(action) || "delete".equals(action)) {
+            return action;
+        }
+        throw new CustomException(400, "内容处置动作无效，仅支持 none / delete");
+    }
+
+    private String normalizeGroupAction(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return "none";
+        }
+        String action = raw.trim().toLowerCase();
+        if ("none".equals(action) || "dissolve".equals(action)
+                || "freeze_owner".equals(action) || "ban_owner".equals(action)) {
+            return action;
+        }
+        throw new CustomException(400, "群处置动作无效，仅支持 none / dissolve / freeze_owner / ban_owner");
+    }
+
+    private String applyUserAction(SysReviewTask task, String userAction, String resolution, Long operatorId) {
+        Long subjectId = resolveSubjectUserId(task);
+        if (subjectId == null) {
+            throw new CustomException(400, "该审核任务没有关联用户，无法处罚");
+        }
+        return punishUser(subjectId, userAction, resolution, task, operatorId);
+    }
+
+    private String applyGroupAction(SysReviewTask task, String groupAction, String resolution, Long operatorId) {
+        Long groupId = parseLongId(task.getTargetId());
+        if (groupId == null) {
+            throw new CustomException(400, "群 ID 无效，无法处置");
+        }
+        ImConversation group = conversationMapper.selectOneById(groupId);
+        if (group == null || group.getType() == null || group.getType() != ImConversation.TYPE_GROUP) {
+            throw new CustomException(404, "群聊不存在或已解散");
+        }
+        if ("dissolve".equals(groupAction)) {
+            groupService.adminDissolveGroup(groupId, operatorId);
+            return "dissolve";
+        }
+        Long ownerId = group.getOwnerId();
+        if (ownerId == null) {
+            throw new CustomException(400, "群主信息不存在，无法处罚");
+        }
+        try {
+            String mapped = "freeze_owner".equals(groupAction) ? "freeze" : "ban";
+            punishUser(ownerId, mapped, resolution, task, operatorId);
+            return groupAction;
+        } catch (CustomException ex) {
+            String msg = ex.getMessage() == null ? "" : ex.getMessage();
+            if (msg.contains("已被封禁")) {
+                throw new CustomException(ex.getCode(), "群主已被封禁，无需重复操作");
+            }
+            if (msg.contains("已被冻结") || msg.contains("冻结或封禁")) {
+                throw new CustomException(ex.getCode(), "群主已处于冻结或封禁状态，无需重复操作");
+            }
+            throw ex;
+        }
+    }
+
+    private String punishUser(Long subjectId, String userAction, String resolution, SysReviewTask task, Long operatorId) {
+        String reason = StringUtils.hasText(resolution)
+                ? resolution.trim()
+                : ("审核处置: " + (task.getTitle() == null ? task.getId() : task.getTitle()));
+        AdminUserActionDTO actionDTO = new AdminUserActionDTO();
+        actionDTO.setReason(reason.length() > 255 ? reason.substring(0, 255) : reason);
+
+        if ("freeze".equals(userAction)) {
+            if (!rbacService.hasPermission(operatorId, "admin:user:freeze")) {
+                throw new CustomException(403, "无冻结用户权限");
+            }
+            adminUserService.freeze(subjectId, actionDTO, operatorId);
+            return "freeze";
+        }
+        if (!rbacService.hasPermission(operatorId, "admin:user:ban")) {
+            throw new CustomException(403, "无封禁用户权限");
+        }
+        adminUserService.ban(subjectId, actionDTO, operatorId);
+        return "ban";
+    }
+
+    private void clearSensitiveAlertHint(SysReviewTask task) {
+        if (task == null || !SysReviewTask.SOURCE_SENSITIVE.equals(task.getSourceType())) {
+            return;
+        }
+        if (!SysReviewTask.TARGET_MESSAGE.equals(task.getTargetType())) {
+            return;
+        }
+        Long messageId = parseLongId(task.getTargetId());
+        Long subjectId = resolveSubjectUserId(task);
+        if (messageId == null || subjectId == null) {
+            return;
+        }
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("messageId", String.valueOf(messageId));
+        if (StringUtils.hasText(task.getContentSnapshot())) {
+            Matcher m = Pattern.compile("(?m)^会话ID:\\s*(.+)$").matcher(task.getContentSnapshot());
+            if (m.find()) {
+                payload.put("conversationId", m.group(1).trim());
+            }
+        }
+        imPushService.pushToUser(subjectId, "sensitive_alert_clear", payload);
+    }
+
+    private static Long parseLongId(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return null;
+        }
+        try {
+            String id = raw.trim();
+            int colon = id.indexOf(':');
+            if (colon > 0) {
+                id = id.substring(0, colon);
+            }
+            return Long.parseLong(id);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private String applyContentAction(SysReviewTask task) {
+        String targetType = task.getTargetType() == null ? "" : task.getTargetType().trim();
+        String targetId = task.getTargetId();
+        if (!StringUtils.hasText(targetId)) {
+            throw new CustomException(400, "该审核任务没有可删除的内容目标");
+        }
+        try {
+            switch (targetType) {
+                case SysReviewTask.TARGET_MESSAGE -> {
+                    MessageVO recalled = chatService.adminForceRecallMessage(Long.parseLong(targetId.trim()));
+                    if (recalled != null) {
+                        imPushService.pushRecallToConversationMembers(recalled);
+                    }
+                    return "delete_message";
+                }
+                case SysReviewTask.TARGET_MOMENT -> {
+                    momentsService.adminDeletePost(Long.parseLong(targetId.trim()));
+                    return "delete_moment";
+                }
+                case SysReviewTask.TARGET_MOMENT_COMMENT -> {
+                    momentsService.adminDeleteComment(Long.parseLong(targetId.trim()));
+                    return "delete_moment_comment";
+                }
+                case SysReviewTask.TARGET_ANNOUNCEMENT -> {
+                    groupAnnouncementService.adminDelete(Long.parseLong(targetId.trim()));
+                    return "delete_announcement";
+                }
+                default -> throw new CustomException(400,
+                        "目标类型 " + targetType + " 不支持删除内容，请仅对消息/动态/评论/公告使用内容删除");
+            }
+        } catch (NumberFormatException ex) {
+            throw new CustomException(400, "目标 ID 无效，无法删除内容");
+        } catch (CustomException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            log.warn("审核删除内容失败 reviewId={} target={}:{}", task.getId(), targetType, targetId, ex);
+            throw new CustomException(400, "删除内容失败: " + (ex.getMessage() != null ? ex.getMessage() : "unknown"));
+        }
+    }
+
+    private String buildResolution(String resolution, String appliedContent, String appliedUser, String appliedGroup) {
+        String base = StringUtils.hasText(resolution) ? resolution.trim() : "";
+        List<String> suffixes = new ArrayList<>();
+        if ("delete_message".equals(appliedContent)) {
+            suffixes.add("[已撤回消息]");
+        } else if ("delete_moment".equals(appliedContent)) {
+            suffixes.add("[已删除动态]");
+        } else if ("delete_moment_comment".equals(appliedContent)) {
+            suffixes.add("[已删除评论]");
+        } else if ("delete_announcement".equals(appliedContent)) {
+            suffixes.add("[已删除公告]");
+        }
+        if ("freeze".equals(appliedUser)) {
+            suffixes.add("[同时冻结用户]");
+        } else if ("ban".equals(appliedUser)) {
+            suffixes.add("[同时封禁用户]");
+        }
+        if ("dissolve".equals(appliedGroup)) {
+            suffixes.add("[已解散群聊]");
+        } else if ("freeze_owner".equals(appliedGroup)) {
+            suffixes.add("[已冻结群主]");
+        } else if ("ban_owner".equals(appliedGroup)) {
+            suffixes.add("[已封禁群主]");
+        }
+        if (suffixes.isEmpty()) {
+            return StringUtils.hasText(base) ? base : null;
+        }
+        String merged = (StringUtils.hasText(base) ? base + " " : "") + String.join(" ", suffixes);
+        return merged.length() > 1000 ? merged.substring(0, 1000) : merged;
     }
 
     private void notifyReporter(SysReviewTask task, String status, Long operatorId) {
@@ -251,17 +621,17 @@ public class AdminReviewServiceImpl implements AdminReviewService {
         }
         boolean approved = SysReviewTask.STATUS_APPROVED.equals(status);
         String type = approved ? "review_approved" : "review_rejected";
-        String title = approved ? "\u4E3E\u62A5\u5DF2\u5904\u7406" : "\u4E3E\u62A5\u672A\u901A\u8FC7";
+        String title = approved ? "举报已处理" : "举报未通过";
         StringBuilder content = new StringBuilder();
-        content.append("\u3010").append(title).append("\u3011\n");
-        content.append("\u6807\u9898\uFF1A").append(abbreviate(task.getTitle(), 40)).append('\n');
+        content.append("【").append(title).append("】\n");
+        content.append("标题：").append(abbreviate(task.getTitle(), 40)).append('\n');
         if (StringUtils.hasText(task.getResolution())) {
-            content.append("\u5904\u7406\u610F\u89C1\uFF1A").append(abbreviate(task.getResolution(), 200));
+            content.append("处理意见：").append(abbreviate(task.getResolution(), 200));
         } else {
-            content.append("\u8BE6\u60C5\uFF1A")
+            content.append("详情：")
                     .append(approved
-                            ? "\u6211\u4EEC\u5DF2\u6838\u5B9E\u5E76\u5B8C\u6210\u5904\u7406\uFF0C\u611F\u8C22\u4F60\u7684\u53CD\u9988"
-                            : "\u7ECF\u6838\u5B9E\u6682\u672A\u8BA4\u5B9A\u8FDD\u89C4\uFF0C\u5982\u6709\u66F4\u591A\u8BC1\u636E\u53EF\u518D\u6B21\u4E3E\u62A5");
+                            ? "我们已核实并完成处理，感谢你的反馈"
+                            : "经核实暂未认定违规，如有更多证据可再次举报");
         }
         String body = content.toString();
         Long relatedId = task.getFeedbackId() != null ? task.getFeedbackId() : task.getId();
@@ -289,7 +659,7 @@ public class AdminReviewServiceImpl implements AdminReviewService {
         String content = feedback.getContent() == null ? "" : feedback.getContent();
         Matcher prefix = REPORT_PREFIX.matcher(content);
         String reportKind = prefix.find() ? prefix.group(1) : "内容";
-        String targetType = reportKind.contains("群") ? "group" : "user";
+        String targetType = reportKind.contains("群") ? SysReviewTask.TARGET_GROUP : SysReviewTask.TARGET_USER;
         String targetId = null;
         Matcher gid = GROUP_ID_LINE.matcher(content);
         if (gid.find()) {
@@ -333,7 +703,7 @@ public class AdminReviewServiceImpl implements AdminReviewService {
             return "";
         }
         String t = text.trim().replaceAll("\\s+", " ");
-        return t.length() <= max ? t : t.substring(0, max) + "\u2026";
+        return t.length() <= max ? t : t.substring(0, max) + "…";
     }
 
     private AdminReviewVO toVO(SysReviewTask task) {
@@ -342,6 +712,7 @@ public class AdminReviewServiceImpl implements AdminReviewService {
                 .sourceType(task.getSourceType())
                 .targetType(task.getTargetType())
                 .targetId(task.getTargetId())
+                .subjectUserId(resolveSubjectUserId(task))
                 .reporterUserId(task.getReporterUserId())
                 .reporterUsername(task.getReporterUsername())
                 .title(task.getTitle())
@@ -355,6 +726,43 @@ public class AdminReviewServiceImpl implements AdminReviewService {
                 .resolvedAt(task.getResolvedAt())
                 .createTime(task.getCreateTime())
                 .build();
+    }
+
+    private Long resolveSubjectUserId(SysReviewTask task) {
+        if (task == null) {
+            return null;
+        }
+        if (SysReviewTask.TARGET_USER.equals(task.getTargetType()) && StringUtils.hasText(task.getTargetId())) {
+            try {
+                return Long.parseLong(task.getTargetId().trim());
+            } catch (NumberFormatException ignored) {
+                // fall through
+            }
+        }
+        String content = task.getContentSnapshot();
+        if (!StringUtils.hasText(content)) {
+            return null;
+        }
+        Matcher uid = USER_ID_LINE.matcher(content);
+        if (uid.find()) {
+            try {
+                return Long.parseLong(uid.group(1).trim());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private String resolveUsername(Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        SysUser user = sysUserMapper.selectOneById(userId);
+        if (user == null) {
+            return null;
+        }
+        return StringUtils.hasText(user.getNickname()) ? user.getNickname() : user.getUsername();
     }
 
     /** 从举报正文解析证据 object key 并签发可访问 URL */
