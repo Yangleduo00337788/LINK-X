@@ -145,6 +145,11 @@ public class AdminBlacklistServiceImpl implements AdminBlacklistService {
         releaseRecord(active, releaseReason, operatorId);
     }
 
+    @Override
+    public boolean hasActiveBan(Long userId) {
+        return userId != null && findActiveByUserId(userId) != null;
+    }
+
     private void releaseRecord(SysAdminBlacklist entry, String releaseReason, Long operatorId) {
         Date now = new Date();
         entry.setStatus(SysAdminBlacklist.STATUS_RELEASED);

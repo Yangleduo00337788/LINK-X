@@ -167,6 +167,13 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Transactional
     public void freeze(Long id, AdminUserActionDTO dto, Long operatorId) {
         assertCanModifyTarget(id, operatorId, true);
+        SysUser user = requireUser(id);
+        if (adminBlacklistService.hasActiveBan(id)) {
+            throw new CustomException(400, "该用户已被封禁，无需冻结");
+        }
+        if (user.getStatus() != null && user.getStatus() == 0) {
+            throw new CustomException(400, "该用户已被冻结，无需重复操作");
+        }
         setStatus(id, 0, operatorId);
         tokenService.revokeAllUserTokens(id);
     }
@@ -175,6 +182,13 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Transactional
     public void unfreeze(Long id, Long operatorId) {
         assertCanModifyTarget(id, operatorId, true);
+        if (adminBlacklistService.hasActiveBan(id)) {
+            throw new CustomException(400, "该用户为封禁状态，请使用解封而非解冻");
+        }
+        SysUser user = requireUser(id);
+        if (user.getStatus() == null || user.getStatus() != 0) {
+            throw new CustomException(400, "该用户当前不是冻结状态");
+        }
         setStatus(id, 1, operatorId);
     }
 
@@ -182,6 +196,9 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Transactional
     public void ban(Long id, AdminUserActionDTO dto, Long operatorId) {
         assertCanModifyTarget(id, operatorId, true);
+        if (adminBlacklistService.hasActiveBan(id)) {
+            throw new CustomException(400, "该用户已被封禁，无需重复操作");
+        }
         setStatus(id, 0, operatorId);
         tokenService.revokeAllUserTokens(id);
         deviceSessionService.deleteAllByUser(id);
@@ -193,6 +210,13 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Transactional
     public void unban(Long id, Long operatorId) {
         assertCanModifyTarget(id, operatorId, true);
+        if (!adminBlacklistService.hasActiveBan(id)) {
+            SysUser user = requireUser(id);
+            if (user.getStatus() != null && user.getStatus() == 0) {
+                throw new CustomException(400, "该用户为冻结状态，请使用解冻而非解封");
+            }
+            throw new CustomException(400, "该用户未被封禁");
+        }
         setStatus(id, 1, operatorId);
         adminBlacklistService.releaseByUserId(id, null, operatorId);
     }

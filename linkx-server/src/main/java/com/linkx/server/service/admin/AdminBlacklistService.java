@@ -21,4 +21,7 @@ public interface AdminBlacklistService {
 
     /** 由用户解封动作同步释放生效中的黑名单记录 */
     void releaseByUserId(Long userId, String releaseReason, Long operatorId);
+
+    /** 是否存在生效中的封禁黑名单 */
+    boolean hasActiveBan(Long userId);
 }
