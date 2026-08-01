@@ -60,6 +60,18 @@ public class AdminBlacklistServiceImpl implements AdminBlacklistService {
     }
 
     @Override
+    public List<AdminBlacklistVO> listForExport(AdminBlacklistQueryDTO query) {
+        QueryWrapper qw = buildQuery(query);
+        qw.orderBy(SysAdminBlacklist::getCreateTime, false);
+        qw.limit(0, AdminConstants.EXPORT_MAX_SIZE);
+        List<SysAdminBlacklist> rows = blacklistMapper.selectListByQuery(qw);
+        Map<Long, String> operatorNames = resolveOperatorNames(rows);
+        return rows.stream()
+                .map(row -> toVO(row, operatorNames))
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public AdminBlacklistVO detail(Long id) {
         SysAdminBlacklist row = requireEntry(id);
         Map<Long, String> operatorNames = resolveOperatorNames(List.of(row));

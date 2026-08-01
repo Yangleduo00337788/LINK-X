@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import {
   NButton,
   NDataTable,
+  NDatePicker,
   NSelect,
   NSpace,
   NTag,
@@ -13,7 +14,7 @@ import {
   type DataTableColumns,
   type SelectOption,
 } from 'naive-ui'
-import { kickDevice, listDevices, type AdminDeviceItem } from '@/api/devices'
+import { exportDevices, kickDevice, listDevices, type AdminDeviceItem } from '@/api/devices'
 import { onAdminRealtimeEvent } from '@/api/realtime'
 import { formatIp, formatTime } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
@@ -26,6 +27,7 @@ const auth = useAuthStore()
 const { t, locale } = useI18n()
 
 const loading = ref(false)
+const exporting = ref(false)
 const items = ref<AdminDeviceItem[]>([])
 const total = ref(0)
 const query = reactive({
@@ -33,6 +35,7 @@ const query = reactive({
   size: 20,
   keyword: '',
   deviceType: null as string | null,
+  range: null as [number, number] | null,
 })
 
 const deviceTypeOptions = computed<SelectOption[]>(() => {
@@ -196,6 +199,8 @@ async function load() {
       size: query.size,
       keyword: query.keyword || undefined,
       deviceType: query.deviceType || undefined,
+      startTime: query.range?.[0],
+      endTime: query.range?.[1],
     })
     items.value = data.items || []
     total.value = data.total || 0
@@ -207,6 +212,21 @@ async function load() {
 function search() {
   query.page = 1
   load()
+}
+
+async function doExport() {
+  exporting.value = true
+  try {
+    await exportDevices({
+      keyword: query.keyword || undefined,
+      deviceType: query.deviceType || undefined,
+      startTime: query.range?.[0],
+      endTime: query.range?.[1],
+    })
+    message.success(t('common.exportSuccess'))
+  } finally {
+    exporting.value = false
+  }
 }
 
 onMounted(() => {
@@ -231,23 +251,38 @@ onUnmounted(() => {
 <template>
   <div class="page">
     <div class="page-shell">
-      <NSpace class="page-toolbar">
-        <SearchAutoComplete
-          v-model="query.keyword"
-          :placeholder="t('device.searchPlaceholder')"
-          width="260px"
-          @search="search"
-        />
-        <NSelect
-          v-model:value="query.deviceType"
-          :options="deviceTypeOptions"
-          :placeholder="t('device.deviceType')"
-          clearable
-          style="width: 140px"
-          @update:value="search"
-        />
-        <NButton type="primary" @click="search">{{ t('common.search') }}</NButton>
-        <NButton @click="load">{{ t('common.refresh') }}</NButton>
+      <NSpace class="page-toolbar" justify="space-between">
+        <NSpace>
+          <SearchAutoComplete
+            v-model="query.keyword"
+            :placeholder="t('device.searchPlaceholder')"
+            width="260px"
+            @search="search"
+          />
+          <NSelect
+            v-model:value="query.deviceType"
+            :options="deviceTypeOptions"
+            :placeholder="t('device.deviceType')"
+            clearable
+            style="width: 140px"
+            @update:value="search"
+          />
+          <NDatePicker
+            v-model:value="query.range"
+            type="datetimerange"
+            clearable
+            style="width: 360px"
+          />
+          <NButton type="primary" @click="search">{{ t('common.search') }}</NButton>
+          <NButton @click="load">{{ t('common.refresh') }}</NButton>
+        </NSpace>
+        <NButton
+          v-if="auth.hasPermission('admin:device:export')"
+          :loading="exporting"
+          @click="doExport"
+        >
+          {{ t('common.export') }}
+        </NButton>
       </NSpace>
       <NDataTable
         :columns="columns"

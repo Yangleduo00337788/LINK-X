@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import {
   NButton,
   NDataTable,
+  NDatePicker,
   NForm,
   NFormItem,
   NInput,
@@ -20,6 +21,7 @@ import {
 } from 'naive-ui'
 import {
   addBlacklist,
+  exportBlacklist,
   listBlacklist,
   releaseBlacklist,
   type BlacklistItem,
@@ -36,9 +38,16 @@ const auth = useAuthStore()
 const { t, locale } = useI18n()
 
 const loading = ref(false)
+const exporting = ref(false)
 const items = ref<BlacklistItem[]>([])
 const total = ref(0)
-const query = reactive({ page: 1, size: 20, keyword: '', status: 'active' })
+const query = reactive({
+  page: 1,
+  size: 20,
+  keyword: '',
+  status: 'active',
+  range: null as [number, number] | null,
+})
 
 const showAdd = ref(false)
 const addSaving = ref(false)
@@ -210,6 +219,8 @@ async function load() {
       size: query.size,
       keyword: query.keyword || undefined,
       entryStatus: query.status || undefined,
+      startTime: query.range?.[0],
+      endTime: query.range?.[1],
     })
     items.value = data.items || []
     total.value = data.total || 0
@@ -223,6 +234,21 @@ function search() {
   load()
 }
 
+async function doExport() {
+  exporting.value = true
+  try {
+    await exportBlacklist({
+      keyword: query.keyword || undefined,
+      entryStatus: query.status || undefined,
+      startTime: query.range?.[0],
+      endTime: query.range?.[1],
+    })
+    message.success(t('common.exportSuccess'))
+  } finally {
+    exporting.value = false
+  }
+}
+
 onMounted(() => {
   void load()
 })
@@ -231,22 +257,37 @@ onMounted(() => {
 <template>
   <div class="page">
     <div class="page-shell">
-      <NSpace class="page-toolbar">
-        <SearchAutoComplete
-          v-model="query.keyword"
-          :placeholder="t('blacklist.searchPlaceholder')"
-          width="220px"
-          @search="search"
-        />
-        <NSelect v-model:value="query.status" :options="statusOptions" style="width: 140px" />
-        <NButton type="primary" @click="search">{{ t('common.search') }}</NButton>
+      <NSpace class="page-toolbar" justify="space-between">
+        <NSpace>
+          <SearchAutoComplete
+            v-model="query.keyword"
+            :placeholder="t('blacklist.searchPlaceholder')"
+            width="220px"
+            @search="search"
+          />
+          <NSelect v-model:value="query.status" :options="statusOptions" style="width: 140px" />
+          <NDatePicker
+            v-model:value="query.range"
+            type="datetimerange"
+            clearable
+            style="width: 360px"
+          />
+          <NButton type="primary" @click="search">{{ t('common.search') }}</NButton>
+          <NButton
+            v-if="auth.hasPermission('admin:blacklist:add')"
+            type="error"
+            secondary
+            @click="openAdd"
+          >
+            {{ t('blacklist.add') }}
+          </NButton>
+        </NSpace>
         <NButton
-          v-if="auth.hasPermission('admin:blacklist:add')"
-          type="error"
-          secondary
-          @click="openAdd"
+          v-if="auth.hasPermission('admin:blacklist:export')"
+          :loading="exporting"
+          @click="doExport"
         >
-          {{ t('blacklist.add') }}
+          {{ t('common.export') }}
         </NButton>
       </NSpace>
       <NDataTable

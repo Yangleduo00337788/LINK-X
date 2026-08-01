@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import {
   NButton,
   NDataTable,
+  NDatePicker,
   NInput,
   NModal,
   NSelect,
@@ -34,7 +35,13 @@ const loading = ref(false)
 const exporting = ref(false)
 const items = ref<FeedbackItem[]>([])
 const total = ref(0)
-const query = reactive({ page: 1, size: 20, keyword: '', status: '' as string })
+const query = reactive({
+  page: 1,
+  size: 20,
+  keyword: '',
+  status: '' as string,
+  range: null as [number, number] | null,
+})
 
 const statusOptions = computed(() => {
   void locale.value
@@ -154,6 +161,8 @@ async function load() {
       size: query.size,
       keyword: query.keyword || undefined,
       feedbackStatus: query.status || undefined,
+      startTime: query.range?.[0],
+      endTime: query.range?.[1],
     })
     items.value = data.items || []
     total.value = data.total || 0
@@ -173,6 +182,8 @@ async function doExport() {
     await exportFeedback({
       keyword: query.keyword || undefined,
       feedbackStatus: query.status || undefined,
+      startTime: query.range?.[0],
+      endTime: query.range?.[1],
     })
     message.success(t('common.exportSuccess'))
   } finally {
@@ -195,6 +206,12 @@ onMounted(load)
             @search="search"
           />
           <NSelect v-model:value="query.status" :options="statusOptions" style="width: 140px" />
+          <NDatePicker
+            v-model:value="query.range"
+            type="datetimerange"
+            clearable
+            style="width: 360px"
+          />
           <NButton type="primary" @click="search">{{ t('common.search') }}</NButton>
         </NSpace>
         <NButton

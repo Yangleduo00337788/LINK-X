@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import {
   NButton,
   NDataTable,
+  NDatePicker,
   NInput,
   NModal,
   NRadio,
@@ -37,7 +38,15 @@ const batchSaving = ref(false)
 const checkedKeys = ref<Array<string | number>>([])
 const items = ref<RiskEventItem[]>([])
 const total = ref(0)
-const query = reactive({ page: 1, size: 20, keyword: '', status: 'pending', eventType: '', riskLevel: '' })
+const query = reactive({
+  page: 1,
+  size: 20,
+  keyword: '',
+  status: 'pending',
+  eventType: '',
+  riskLevel: '',
+  range: null as [number, number] | null,
+})
 const knownIds = ref<Set<string>>(new Set())
 const pollTimer = ref<ReturnType<typeof setInterval> | null>(null)
 const POLL_MS = 5000
@@ -256,6 +265,8 @@ async function load(opts?: { silent?: boolean; announceNew?: boolean }) {
       eventStatus: query.status || undefined,
       eventType: query.eventType || undefined,
       riskLevel: query.riskLevel || undefined,
+      startTime: query.range?.[0],
+      endTime: query.range?.[1],
     })
     const next = data.items || []
     if (opts?.announceNew && knownIds.value.size > 0) {
@@ -286,6 +297,8 @@ async function doExport() {
       eventStatus: query.status || undefined,
       eventType: query.eventType || undefined,
       riskLevel: query.riskLevel || undefined,
+      startTime: query.range?.[0],
+      endTime: query.range?.[1],
     })
     message.success(t('common.exportSuccess'))
   } finally {
@@ -360,6 +373,12 @@ onUnmounted(() => {
           <NSelect v-model:value="query.status" :options="statusOptions" style="width: 140px" />
           <NSelect v-model:value="query.eventType" :options="typeOptions" style="width: 150px" />
           <NSelect v-model:value="query.riskLevel" :options="levelOptions" style="width: 130px" />
+          <NDatePicker
+            v-model:value="query.range"
+            type="datetimerange"
+            clearable
+            style="width: 360px"
+          />
           <NButton type="primary" @click="search">{{ t('common.search') }}</NButton>
         </NSpace>
         <NSpace>

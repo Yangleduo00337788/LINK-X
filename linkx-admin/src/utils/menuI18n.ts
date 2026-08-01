@@ -89,6 +89,8 @@ const PERM_KEYS: Record<string, { name: string; desc?: string }> = {
   'admin:blacklist:remove': { name: 'perm.adminBlacklistRemove', desc: 'perm.adminBlacklistRemoveDesc' },
   'admin:device:list': { name: 'perm.adminDeviceList', desc: 'perm.adminDeviceListDesc' },
   'admin:device:kick': { name: 'perm.adminDeviceKick', desc: 'perm.adminDeviceKickDesc' },
+  'admin:device:export': { name: 'perm.adminDeviceExport', desc: 'perm.adminDeviceExportDesc' },
+  'admin:blacklist:export': { name: 'perm.adminBlacklistExport', desc: 'perm.adminBlacklistExportDesc' },
   'admin:role:list': { name: 'perm.adminRoleList', desc: 'perm.adminRoleListDesc' },
   'admin:role:create': { name: 'perm.adminRoleCreate', desc: 'perm.adminRoleCreateDesc' },
   'admin:role:edit': { name: 'perm.adminRoleEdit', desc: 'perm.adminRoleEditDesc' },

@@ -1,4 +1,4 @@
-import { get, post } from './request'
+import { downloadFile, get, post } from './request'
 import type { PageQuery, PageResult } from '@/types/api'
 
 export interface AdminDeviceItem {
@@ -27,4 +27,8 @@ export function listDevices(params: DeviceQuery) {
 
 export function kickDevice(userId: string, deviceId: string) {
   return post<null>(`/admin/devices/${userId}/${encodeURIComponent(deviceId)}/kick`)
+}
+
+export function exportDevices(params: DeviceQuery) {
+  return downloadFile('/admin/devices/export', params as Record<string, unknown>, 'devices.csv')
 }

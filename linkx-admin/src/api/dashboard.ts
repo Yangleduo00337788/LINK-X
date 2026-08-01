@@ -3,7 +3,11 @@ import type { TrendData } from './statistics'
 
 export interface DashboardSummary {
   totalUsers: number
+  /** 兼容字段，等同 wau */
   activeUsers: number
+  dau: number
+  wau: number
+  mau: number
   onlineDevices: number
   pendingFeedback: number
   pendingReviews: number

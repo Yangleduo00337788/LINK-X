@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import {
   NButton,
   NDataTable,
+  NDatePicker,
   NDropdown,
   NForm,
   NFormItem,
@@ -47,6 +48,7 @@ const query = reactive({
   size: 20,
   keyword: '',
   status: '' as '' | number,
+  range: null as [number, number] | null,
 })
 
 const showResetPassword = ref(false)
@@ -250,6 +252,8 @@ async function load() {
       size: query.size,
       keyword: query.keyword || undefined,
       status: query.status === '' ? undefined : query.status,
+      startTime: query.range?.[0],
+      endTime: query.range?.[1],
     })
     items.value = data.items || []
     total.value = data.total || 0
@@ -269,6 +273,8 @@ async function doExport() {
     await exportUsers({
       keyword: query.keyword || undefined,
       status: query.status === '' ? undefined : query.status,
+      startTime: query.range?.[0],
+      endTime: query.range?.[1],
     })
     message.success(t('common.exportSuccess'))
   } finally {
@@ -291,6 +297,12 @@ onMounted(load)
             @search="search"
           />
           <NSelect v-model:value="query.status" :options="statusOptions" style="width: 140px" />
+          <NDatePicker
+            v-model:value="query.range"
+            type="datetimerange"
+            clearable
+            style="width: 360px"
+          />
           <NButton type="primary" @click="search">{{ t('common.search') }}</NButton>
         </NSpace>
         <NButton

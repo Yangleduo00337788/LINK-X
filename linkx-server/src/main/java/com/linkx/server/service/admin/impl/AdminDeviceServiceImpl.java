@@ -60,6 +60,20 @@ public class AdminDeviceServiceImpl implements AdminDeviceService {
     }
 
     @Override
+    @DataScope
+    public List<AdminDeviceVO> listForExport(AdminDeviceQueryDTO query) {
+        QueryWrapper qw = buildQuery(query);
+        qw.orderBy(DeviceSession::getLastActive, false);
+        qw.limit(0, AdminConstants.EXPORT_MAX_SIZE);
+        List<DeviceSession> rows = deviceSessionMapper.selectListByQuery(qw);
+        Map<Long, SysUser> users = resolveUsers(rows);
+        Map<Long, Set<String>> onlineByUser = resolveOnlineDevices(rows);
+        return rows.stream()
+                .map(row -> toVO(row, users.get(row.getUserId()), onlineByUser))
+                .collect(Collectors.toList());
+    }
+
+    @Override
     @Transactional
     public void kick(Long userId, String deviceId, Long operatorId, String operatorUsername, String ip, String userAgent) {
         if (userId == null) {

@@ -57,7 +57,9 @@ const cards = computed(() => {
   void locale.value
   return [
     { key: 'totalUsers' as const, label: t('dashboard.totalUsers'), icon: PeopleOutline },
-    { key: 'activeUsers' as const, label: t('dashboard.activeUsers'), icon: PulseOutline },
+    { key: 'dau' as const, label: t('dashboard.dau'), icon: PulseOutline },
+    { key: 'wau' as const, label: t('dashboard.wau'), icon: PulseOutline },
+    { key: 'mau' as const, label: t('dashboard.mau'), icon: PulseOutline },
     { key: 'onlineDevices' as const, label: t('dashboard.onlineDevices'), icon: PhonePortraitOutline },
     { key: 'pendingFeedback' as const, label: t('dashboard.pendingFeedback'), icon: ChatbubbleEllipsesOutline },
     { key: 'pendingReviews' as const, label: t('dashboard.pendingReviews'), icon: DocumentTextOutline },
@@ -71,7 +73,7 @@ const realtimeCards = computed(() => {
     { key: 'todayNewUsers' as const, label: t('statistics.todayNewUsers'), icon: PersonAddOutline },
     { key: 'todayMessages' as const, label: t('statistics.todayMessages'), icon: ChatbubblesOutline },
     { key: 'todayLogins' as const, label: t('statistics.todayLogins'), icon: LogInOutline },
-    { key: 'onlineDevices' as const, label: t('dashboard.onlineDevices'), icon: PhonePortraitOutline },
+    { key: 'riskEvents24h' as const, label: t('dashboard.riskEvents24h'), icon: WarningOutline },
   ]
 })
 

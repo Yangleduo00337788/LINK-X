@@ -837,34 +837,43 @@ INSERT IGNORE INTO sys_permission (id, permission_code, permission_name, resourc
 (2146,'admin:risk-event:list','查看风险事件','page','/admin/risk-events','风险事件列表',1),
 (2148,'admin:risk-event:handle','处置风险事件','button',NULL,'风险事件处置',1),
 (2149,'admin:blacklist:list','查看黑名单','page','/admin/blacklist','黑名单列表',1),
+(2153,'admin:user:export','导出用户数据','button',NULL,'用户列表导出',1),
+(2156,'admin:risk-event:export','导出风险事件','button',NULL,'风险事件导出',1),
 (2171,'admin:device:list','查看设备列表','page','/admin/devices','设备会话列表',1),
-(2172,'admin:device:kick','强制设备下线','button',NULL,'踢设备下线',1);
+(2172,'admin:device:kick','强制设备下线','button',NULL,'踢设备下线',1),
+(2174,'admin:device:export','导出设备列表','button',NULL,'设备会话导出',1),
+(2175,'admin:blacklist:export','导出黑名单','button',NULL,'黑名单导出',1);
 
--- ops: 查看 + 反馈/公告/统计
+-- ops: 查看 + 反馈/公告/统计 + 用户导出
 INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, deleted) VALUES
 (293101, 1003, 2101, NULL, 0),(293102, 1003, 2102, NULL, 0),(293103, 1003, 2103, NULL, 0),
+(293153, 1003, 2153, NULL, 0),
 (293123, 1003, 2123, NULL, 0),(293124, 1003, 2124, NULL, 0),
 (293136, 1003, 2136, NULL, 0),(293138, 1003, 2138, NULL, 0),
 (293144, 1003, 2144, NULL, 0);
 
--- audit: 用户处置 + 审核 + 风险 + 黑名单 + 设备 + 日志
+-- audit: 用户处置 + 审核 + 风险 + 黑名单 + 设备 + 日志 + 导出
 INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, deleted) VALUES
 (294101, 1004, 2101, NULL, 0),(294102, 1004, 2102, NULL, 0),(294103, 1004, 2103, NULL, 0),
 (294105, 1004, 2105, NULL, 0),(294107, 1004, 2107, NULL, 0),(294173, 1004, 2173, NULL, 0),
 (294121, 1004, 2121, NULL, 0),(294129, 1004, 2129, NULL, 0),(294130, 1004, 2130, NULL, 0),
-(294146, 1004, 2146, NULL, 0),(294148, 1004, 2148, NULL, 0),
-(294149, 1004, 2149, NULL, 0),(294171, 1004, 2171, NULL, 0),(294172, 1004, 2172, NULL, 0);
+(294146, 1004, 2146, NULL, 0),(294148, 1004, 2148, NULL, 0),(294156, 1004, 2156, NULL, 0),
+(294149, 1004, 2149, NULL, 0),(294171, 1004, 2171, NULL, 0),(294172, 1004, 2172, NULL, 0),
+(294174, 1004, 2174, NULL, 0),(294175, 1004, 2175, NULL, 0);
 
--- security: 日志/风险/黑名单/设备/用户处置
+-- security: 日志/风险/黑名单/设备/用户处置 + 导出
 INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, deleted) VALUES
 (295101, 1005, 2101, NULL, 0),(295102, 1005, 2102, NULL, 0),(295103, 1005, 2103, NULL, 0),
 (295105, 1005, 2105, NULL, 0),(295107, 1005, 2107, NULL, 0),(295173, 1005, 2173, NULL, 0),
-(295121, 1005, 2121, NULL, 0),(295146, 1005, 2146, NULL, 0),(295148, 1005, 2148, NULL, 0),
-(295149, 1005, 2149, NULL, 0),(295171, 1005, 2171, NULL, 0),(295172, 1005, 2172, NULL, 0);
+(295121, 1005, 2121, NULL, 0),(295146, 1005, 2146, NULL, 0),(295148, 1005, 2148, NULL, 0),(295156, 1005, 2156, NULL, 0),
+(295149, 1005, 2149, NULL, 0),(295171, 1005, 2171, NULL, 0),(295172, 1005, 2172, NULL, 0),
+(295174, 1005, 2174, NULL, 0),(295175, 1005, 2175, NULL, 0);
 
--- readonly: 仅查看
+-- readonly: 查看 + 导出（无写）
 INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, deleted) VALUES
 (296101, 1006, 2101, NULL, 0),(296102, 1006, 2102, NULL, 0),(296103, 1006, 2103, NULL, 0),
+(296153, 1006, 2153, NULL, 0),
 (296121, 1006, 2121, NULL, 0),(296123, 1006, 2123, NULL, 0),(296129, 1006, 2129, NULL, 0),
-(296144, 1006, 2144, NULL, 0),(296146, 1006, 2146, NULL, 0),(296171, 1006, 2171, NULL, 0);
+(296144, 1006, 2144, NULL, 0),(296146, 1006, 2146, NULL, 0),(296171, 1006, 2171, NULL, 0),
+(296174, 1006, 2174, NULL, 0);
 

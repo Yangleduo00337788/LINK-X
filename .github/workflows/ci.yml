@@ -30,9 +30,25 @@ jobs:
       - name: Run regression suite
         run: >
           mvn -B -q
-          -Dtest=MessageFlowTest,ImMainLinkE2ETest,ImWebSocketLiveE2ETest,DualClientLiveSmokeTest,AlignmentGapSmokeTest,WebSocketNormalLinkTest,MessageReliabilityFlowTest,ExceptionPathTest,P1DebtTest,P2AdvancedTest,P2QualityGateTest,P2DataGovernanceTest,ChatSearchEnhanceTest,GroupInvitationControllerTest,ChatControllerTest
+          -Dtest=MessageFlowTest,ImMainLinkE2ETest,ImWebSocketLiveE2ETest,DualClientLiveSmokeTest,AlignmentGapSmokeTest,WebSocketNormalLinkTest,MessageReliabilityFlowTest,ExceptionPathTest,P1DebtTest,P2AdvancedTest,P2QualityGateTest,P2DataGovernanceTest,ChatSearchEnhanceTest,GroupInvitationControllerTest,ChatControllerTest,AdminRoleSmokeIT,AdminSecurityIT,AdminMenuIT,VersionControllerTest,AppVersionUtilsTest,ProductionSecurityValidatorTest,ProductionSecretRulesTest
           test
         timeout-minutes: 45
+
+  admin-unit:
+    name: Admin unit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: linkx-admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: linkx-admin/package-lock.json
+      - run: npm ci
+      - run: npm test
 
   client-unit:
     name: Client unit

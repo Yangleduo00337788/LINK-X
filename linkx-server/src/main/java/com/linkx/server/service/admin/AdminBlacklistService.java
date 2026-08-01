@@ -6,9 +6,13 @@ import com.linkx.server.controller.admin.dto.AdminBlacklistQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminBlacklistReleaseDTO;
 import com.linkx.server.controller.admin.vo.AdminBlacklistVO;
 
+import java.util.List;
+
 public interface AdminBlacklistService {
 
     PageResultVO<AdminBlacklistVO> list(AdminBlacklistQueryDTO query);
+
+    List<AdminBlacklistVO> listForExport(AdminBlacklistQueryDTO query);
 
     AdminBlacklistVO detail(Long id);
 

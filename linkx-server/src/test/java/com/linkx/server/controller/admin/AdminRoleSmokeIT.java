@@ -186,6 +186,37 @@ class AdminRoleSmokeIT extends BaseIntegrationTest {
     }
 
     @Test
+    @DisplayName("导出权限：运营可导出用户、不可导出风险；安全可导出设备；只读可导出用户")
+    void exportPermissionSmoke() throws Exception {
+        TestUser ops = promoteAndRelogin("opex", ROLE_OPS, AdminConstants.ROLE_OPS_ADMIN);
+        TestUser security = promoteAndRelogin("scex", ROLE_SECURITY, AdminConstants.ROLE_SECURITY_ADMIN);
+        TestUser observer = promoteAndRelogin("roex", ROLE_READONLY, AdminConstants.ROLE_READONLY_OBSERVER);
+
+        Set<String> opsPerms = permissions(ops);
+        assertTrue(opsPerms.contains("admin:user:export"));
+        assertFalse(opsPerms.contains("admin:risk-event:export"));
+        assertFalse(opsPerms.contains("admin:device:export"));
+
+        Set<String> securityPerms = permissions(security);
+        assertTrue(securityPerms.contains("admin:device:export"));
+        assertTrue(securityPerms.contains("admin:blacklist:export"));
+
+        Set<String> readonlyPerms = permissions(observer);
+        assertTrue(readonlyPerms.contains("admin:user:export"));
+        assertTrue(readonlyPerms.contains("admin:device:export"));
+
+        mockMvc.perform(get("/admin/users/export").header("Authorization", ops.bearer()))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/admin/risk-events/export").header("Authorization", ops.bearer()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        mockMvc.perform(get("/admin/devices/export").header("Authorization", security.bearer()))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/admin/users/export").header("Authorization", observer.bearer()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     @DisplayName("管理端登录：四类角色均可拿到令牌")
     void portalRolesCanAdminLogin() throws Exception {
         assertAdminLoginWorks(ROLE_OPS, "oplgn");

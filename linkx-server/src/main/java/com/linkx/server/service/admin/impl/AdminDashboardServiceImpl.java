@@ -26,6 +26,8 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -42,11 +44,9 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
     @Override
     public AdminDashboardSummaryVO summary() {
         long totalUsers = sysUserMapper.selectCountByQuery(QueryWrapper.create());
-        Calendar cal = Calendar.getInstance();
-        cal.add(Calendar.DAY_OF_MONTH, -7);
-        Date weekAgo = cal.getTime();
-        long activeUsers = sysUserMapper.selectCountByQuery(
-                QueryWrapper.create().where(SysUser::getUpdateTime).ge(weekAgo));
+        long dau = countDistinctLoginUsersSince(daysAgo(1));
+        long wau = countDistinctLoginUsersSince(daysAgo(7));
+        long mau = countDistinctLoginUsersSince(daysAgo(30));
         long onlineDevices = adminStatisticsService.countOnlineDevices();
         long pendingFeedback = feedbackMapper.selectCountByQuery(
                 QueryWrapper.create().where(Feedback::getStatus).eq("pending"));
@@ -58,7 +58,10 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
 
         return AdminDashboardSummaryVO.builder()
                 .totalUsers(totalUsers)
-                .activeUsers(activeUsers)
+                .activeUsers(wau)
+                .dau(dau)
+                .wau(wau)
+                .mau(mau)
                 .onlineDevices(onlineDevices)
                 .pendingFeedback(pendingFeedback)
                 .pendingReviews(pendingReviews)
@@ -128,5 +131,26 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
                     .build());
         }
         return tasks;
+    }
+
+    private Date daysAgo(int days) {
+        Calendar cal = Calendar.getInstance();
+        cal.add(Calendar.DAY_OF_MONTH, -days);
+        return cal.getTime();
+    }
+
+    /** 成功登录用户去重（按 userId）。 */
+    private long countDistinctLoginUsersSince(Date since) {
+        List<SysLoginAudit> rows = sysLoginAuditMapper.selectListByQuery(
+                QueryWrapper.create()
+                        .select(SysLoginAudit::getUserId)
+                        .where(SysLoginAudit::getSuccess).eq(1)
+                        .and(SysLoginAudit::getCreateTime).ge(since)
+                        .and(SysLoginAudit::getUserId).isNotNull());
+        return rows.stream()
+                .map(SysLoginAudit::getUserId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet())
+                .size();
     }
 }

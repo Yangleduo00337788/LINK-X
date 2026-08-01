@@ -1,4 +1,4 @@
-import { get, post } from './request'
+import { downloadFile, get, post } from './request'
 import type { PageQuery, PageResult } from '@/types/api'
 
 export interface BlacklistItem {
@@ -35,4 +35,8 @@ export function addBlacklist(userId: string, reason?: string) {
 
 export function releaseBlacklist(id: string, reason?: string) {
   return post<null>(`/admin/blacklist/${id}/release`, { reason })
+}
+
+export function exportBlacklist(params: BlacklistQuery) {
+  return downloadFile('/admin/blacklist/export', params as Record<string, unknown>, 'blacklist.csv')
 }

@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import {
   NButton,
   NDataTable,
+  NDatePicker,
   NFormItem,
   NInput,
   NModal,
@@ -37,7 +38,14 @@ const { t, locale } = useI18n()
 const loading = ref(false)
 const items = ref<ReviewItem[]>([])
 const total = ref(0)
-const query = reactive({ page: 1, size: 20, keyword: '', status: '', sourceType: '' })
+const query = reactive({
+  page: 1,
+  size: 20,
+  keyword: '',
+  status: '',
+  sourceType: '',
+  range: null as [number, number] | null,
+})
 const knownIds = ref<Set<string>>(new Set())
 const pollTimer = ref<ReturnType<typeof setInterval> | null>(null)
 const POLL_MS = 5000
@@ -330,6 +338,8 @@ async function doExport() {
       keyword: query.keyword || undefined,
       reviewStatus: query.status || undefined,
       sourceType: query.sourceType || undefined,
+      startTime: query.range?.[0],
+      endTime: query.range?.[1],
     })
     message.success(t('common.exportSuccess'))
   } finally {
@@ -347,6 +357,8 @@ async function load(opts?: { silent?: boolean; announceNew?: boolean }) {
       keyword: query.keyword || undefined,
       reviewStatus: query.status || undefined,
       sourceType: query.sourceType || undefined,
+      startTime: query.range?.[0],
+      endTime: query.range?.[1],
     })
     const next = data.items || []
     if (opts?.announceNew && knownIds.value.size > 0) {
@@ -406,6 +418,12 @@ onUnmounted(() => {
           />
           <NSelect v-model:value="query.status" :options="statusOptions" style="width: 140px" />
           <NSelect v-model:value="query.sourceType" :options="sourceOptions" style="width: 140px" />
+          <NDatePicker
+            v-model:value="query.range"
+            type="datetimerange"
+            clearable
+            style="width: 360px"
+          />
           <NButton type="primary" @click="search">{{ t('common.search') }}</NButton>
         </NSpace>
         <NSpace>
