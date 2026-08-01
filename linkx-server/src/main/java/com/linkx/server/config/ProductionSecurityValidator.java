@@ -6,6 +6,7 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -16,7 +17,7 @@ import java.util.List;
  * 生产环境启动安全加固校验（文档 §11）。
  * <p>
  * 强制 HTTPS、关闭开发模式、管理端强制 TOTP、CORS 仅 HTTPS Origin、
- * JWT/MinIO 等密钥不得为空弱值。不通过则拒绝启动。
+ * JWT/DB/Redis/MinIO 等密钥不得为空或弱值。不通过则拒绝启动。
  * </p>
  */
 @Slf4j
@@ -26,10 +27,27 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ProductionSecurityValidator implements ApplicationRunner {
 
+    private static final int MIN_JWT_LENGTH = 32;
+    private static final int MIN_DB_PASSWORD_LENGTH = 8;
+    private static final int MIN_REDIS_PASSWORD_LENGTH = 8;
+    private static final int MIN_MINIO_SECRET_LENGTH = 8;
+
     private final LinkxProperties linkxProperties;
+    private final Environment environment;
 
     @Override
     public void run(ApplicationArguments args) {
+        List<String> errors = collectErrors();
+        if (!errors.isEmpty()) {
+            String msg = "[生产安全] 启动校验失败:\n - " + String.join("\n - ", errors);
+            log.error(msg);
+            throw new IllegalStateException(msg);
+        }
+        log.info("[生产安全] 加固校验通过：HTTPS / TOTP / 验证码 / CORS / 密钥强度");
+    }
+
+    /** 供单测直接断言校验项。 */
+    List<String> collectErrors() {
         List<String> errors = new ArrayList<>();
 
         if (!linkxProperties.getSecurity().isRequireHttps()) {
@@ -58,9 +76,31 @@ public class ProductionSecurityValidator implements ApplicationRunner {
             }
         }
 
-        if (!StringUtils.hasText(linkxProperties.getMinio().getAccessKey())
-                || !StringUtils.hasText(linkxProperties.getMinio().getSecretKey())) {
-            errors.add("MINIO_ACCESS_KEY / MINIO_SECRET_KEY 不能为空");
+        String jwtSecret = linkxProperties.getJwt().getSecret();
+        if (ProductionSecretRules.isWeakSecret(jwtSecret, MIN_JWT_LENGTH)) {
+            errors.add("JWT_SECRET 不能为空、过短（<" + MIN_JWT_LENGTH + "）或使用常见弱值/占位符");
+        }
+
+        String dbPassword = firstNonBlank(
+                environment.getProperty("spring.datasource.password"),
+                environment.getProperty("DB_PASSWORD"));
+        if (ProductionSecretRules.isWeakSecret(dbPassword, MIN_DB_PASSWORD_LENGTH)) {
+            errors.add("DB_PASSWORD 不能为空、过短（<" + MIN_DB_PASSWORD_LENGTH + "）或使用常见弱值/占位符");
+        }
+
+        String redisPassword = firstNonBlank(
+                environment.getProperty("spring.data.redis.password"),
+                environment.getProperty("REDIS_PASSWORD"));
+        if (ProductionSecretRules.isWeakSecret(redisPassword, MIN_REDIS_PASSWORD_LENGTH)) {
+            errors.add("REDIS_PASSWORD 不能为空、过短（<" + MIN_REDIS_PASSWORD_LENGTH + "）或使用常见弱值/占位符");
+        }
+
+        String minioAccess = linkxProperties.getMinio().getAccessKey();
+        String minioSecret = linkxProperties.getMinio().getSecretKey();
+        if (ProductionSecretRules.isBlank(minioAccess)
+                || ProductionSecretRules.isWeakSecret(minioSecret, MIN_MINIO_SECRET_LENGTH)
+                || "minioadmin".equalsIgnoreCase(trim(minioAccess))) {
+            errors.add("MINIO_ACCESS_KEY / MINIO_SECRET_KEY 不能为空、使用默认 minioadmin 或弱密钥");
         }
 
         String minioEndpoint = linkxProperties.getMinio().getEndpoint();
@@ -68,12 +108,20 @@ public class ProductionSecurityValidator implements ApplicationRunner {
             errors.add("MINIO_ENDPOINT 生产环境应使用 https://");
         }
 
-        if (!errors.isEmpty()) {
-            String msg = "[生产安全] 启动校验失败:\n - " + String.join("\n - ", errors);
-            log.error(msg);
-            throw new IllegalStateException(msg);
-        }
+        return errors;
+    }
 
-        log.info("[生产安全] 加固校验通过：HTTPS / TOTP / 验证码 / CORS / MinIO 密钥");
+    private static String firstNonBlank(String a, String b) {
+        if (StringUtils.hasText(a)) {
+            return a;
+        }
+        if (StringUtils.hasText(b)) {
+            return b;
+        }
+        return a;
+    }
+
+    private static String trim(String value) {
+        return value == null ? null : value.trim();
     }
 }

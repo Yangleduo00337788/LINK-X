@@ -109,9 +109,10 @@ public class AdminAuthServiceImpl implements AdminAuthService {
             return challengeResponse(user.getId(), false, true);
         }
 
+        boolean newLoginIp = isNewLoginIp(user.getId(), ip);
         TokenVO tokenVO = sysUserService.establishSession(user, ip, userAgent, request);
         setTokenCookies(response, tokenVO, request);
-        return toLoginVO(tokenVO, user.getId());
+        return toLoginVO(tokenVO, user.getId(), ip, newLoginIp);
     }
 
     @Override
@@ -320,7 +321,8 @@ public class AdminAuthServiceImpl implements AdminAuthService {
             Long userId = tokenVO.getUser().getId();
             assertAdminRole(userId);
             setTokenCookies(response, tokenVO, request);
-            return toLoginVO(tokenVO, userId);
+            // 刷新令牌不视为新登录，不做新 IP 提示
+            return toLoginVO(tokenVO, userId, null, false);
         } catch (CustomException e) {
             tokenCookieUtil.clearTokenCookies(response, isSecure(request));
             throw e;
@@ -381,9 +383,28 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     private AdminLoginVO issueSession(SysUser user, HttpServletRequest request, HttpServletResponse response) {
         String ip = ClientIpResolver.resolve(request, linkxProperties);
         String userAgent = request.getHeader("User-Agent");
+        boolean newLoginIp = isNewLoginIp(user.getId(), ip);
         TokenVO tokenVO = sysUserService.establishSession(user, ip, userAgent, request);
         setTokenCookies(response, tokenVO, request);
-        return toLoginVO(tokenVO, user.getId());
+        return toLoginVO(tokenVO, user.getId(), ip, newLoginIp);
+    }
+
+    /** 有历史成功登录且当前 IP 不在近期成功 IP 中 → 新 IP。 */
+    private boolean isNewLoginIp(Long userId, String ip) {
+        String normalized = ClientIpResolver.normalizeToIpv4(ip);
+        if (!StringUtils.hasText(normalized)) {
+            return false;
+        }
+        List<String> recent = loginAuditService.recentSuccessfulIps(userId, 10);
+        if (recent == null || recent.isEmpty()) {
+            return false;
+        }
+        for (String known : recent) {
+            if (normalized.equalsIgnoreCase(known)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void failTotp(SysUser user, HttpServletRequest request) {
@@ -406,9 +427,12 @@ public class AdminAuthServiceImpl implements AdminAuthService {
         return user;
     }
 
-    private AdminLoginVO toLoginVO(TokenVO tokenVO, Long userId) {
+    private AdminLoginVO toLoginVO(TokenVO tokenVO, Long userId, String loginIp, boolean newLoginIp) {
         SysUser user = sysUserMapper.selectOneById(userId);
         long expiresIn = linkxProperties.getJwt().getAccessExpire() / 1000;
+        String normalizedIp = StringUtils.hasText(loginIp)
+                ? ClientIpResolver.normalizeToIpv4(loginIp)
+                : null;
         return AdminLoginVO.builder()
                 .accessToken(tokenVO.getAccessToken())
                 .refreshToken(tokenVO.getRefreshToken())
@@ -416,6 +440,8 @@ public class AdminAuthServiceImpl implements AdminAuthService {
                 .user(buildProfile(user))
                 .requiresTotp(false)
                 .requiresTotpSetup(false)
+                .loginIp(normalizedIp)
+                .newLoginIp(newLoginIp)
                 .build();
     }
 

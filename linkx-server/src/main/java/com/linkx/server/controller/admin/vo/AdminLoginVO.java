@@ -28,4 +28,10 @@ public class AdminLoginVO {
 
     @Schema(description = "挑战令牌有效期（秒）")
     private Long challengeExpiresIn;
+
+    @Schema(description = "本次登录 IP（规范化后）")
+    private String loginIp;
+
+    @Schema(description = "是否为相对近期成功登录的新 IP（有历史记录且当前 IP 未见过）")
+    private Boolean newLoginIp;
 }

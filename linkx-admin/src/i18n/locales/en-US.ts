@@ -266,6 +266,9 @@ export default {
     refreshCaptcha: 'Click to refresh',
     submit: 'Sign in',
     success: 'Signed in',
+    newIpWarn: 'New IP login detected. If this was not you, change your password and review device sessions.',
+    newIpWarnWithIp:
+      'New IP login detected ({ip}). If this was not you, change your password and review device sessions.',
     totpSubtitle: 'Enter your authenticator code',
     totpSetupSubtitle: 'Two-factor authentication is required',
     totpCode: 'Code',

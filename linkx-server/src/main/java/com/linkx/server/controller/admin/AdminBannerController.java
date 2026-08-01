@@ -43,6 +43,7 @@ public class AdminBannerController {
     }
 
     @Operation(summary = "上传 Banner 图片")
+    @AuditAction(operationType = "BANNER_UPDATE", description = "上传Banner图片")
     @PostMapping("/upload")
     @RequirePermission({"admin:banner:create", "admin:banner:edit"})
     public Result<AdminBannerUploadVO> upload(@RequestParam("file") MultipartFile file,

@@ -43,6 +43,10 @@ export interface AdminLoginResult {
   requiresTotpSetup?: boolean
   challengeToken?: string
   challengeExpiresIn?: number
+  /** 本次登录 IP */
+  loginIp?: string
+  /** 相对近期成功登录是否为新 IP */
+  newLoginIp?: boolean
 }
 
 export interface AdminTotpSetup {

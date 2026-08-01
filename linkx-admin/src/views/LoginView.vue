@@ -136,9 +136,17 @@ async function loadCaptcha() {
   }
 }
 
-async function finishLogin() {
+async function finishLogin(loginResult?: { newLoginIp?: boolean; loginIp?: string }) {
   rememberUsername(form.username)
   message.success(t('login.success'))
+  if (loginResult?.newLoginIp) {
+    message.warning(
+      loginResult.loginIp
+        ? t('login.newIpWarnWithIp', { ip: loginResult.loginIp })
+        : t('login.newIpWarn'),
+      { duration: 6000 },
+    )
+  }
   const redirect = (route.query.redirect as string) || '/admin/dashboard'
   await router.replace(redirect)
 }
@@ -187,7 +195,7 @@ async function submit() {
       await enterSetup(data.challengeToken)
       return
     }
-    await finishLogin()
+    await finishLogin(data)
   } catch {
     await loadCaptcha()
   } finally {
@@ -199,12 +207,11 @@ async function submitTotp() {
   await totpFormRef.value?.validate()
   loading.value = true
   try {
-    if (step.value === 'setup') {
-      await auth.completeTotpSetup(challengeToken.value, totpForm.code.trim())
-    } else {
-      await auth.completeTotpLogin(challengeToken.value, totpForm.code.trim())
-    }
-    await finishLogin()
+    const data =
+      step.value === 'setup'
+        ? await auth.completeTotpSetup(challengeToken.value, totpForm.code.trim())
+        : await auth.completeTotpLogin(challengeToken.value, totpForm.code.trim())
+    await finishLogin(data)
   } catch {
     totpForm.code = ''
   } finally {

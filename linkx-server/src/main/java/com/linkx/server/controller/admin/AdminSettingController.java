@@ -112,6 +112,7 @@ public class AdminSettingController {
     }
 
     @Operation(summary = "测试忘记密码邮件")
+    @AuditAction(operationType = "UPDATE_SETTINGS", description = "测试忘记密码邮件")
     @PostMapping("/test-forgot-password-email")
     @RequirePermission("admin:setting:edit")
     public Result<String> testForgotPasswordEmail(@Valid @RequestBody TestForgotPasswordEmailDTO dto) {

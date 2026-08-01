@@ -266,6 +266,8 @@ export default {
     refreshCaptcha: '点击刷新',
     submit: '登录',
     success: '登录成功',
+    newIpWarn: '检测到新 IP 登录，如非本人操作请立即修改密码并检查设备会话。',
+    newIpWarnWithIp: '检测到新 IP 登录（{ip}），如非本人操作请立即修改密码并检查设备会话。',
     totpSubtitle: '请输入双因素验证码',
     totpSetupSubtitle: '系统要求绑定双因素认证',
     totpCode: '验证码',
