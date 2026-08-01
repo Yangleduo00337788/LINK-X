@@ -97,6 +97,10 @@ public class AdminSettingVO {
         private String appChannel;
         private String releaseNotes;
         private String downloadUrl;
+        @Schema(description = "有可用更新时是否强制升级")
+        private Boolean forceUpdate;
+        @Schema(description = "最低支持版本（低于此版本强制升级）")
+        private String minSupportedVersion;
         private Long maxUploadBytes;
     }
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { NButton, useDialog, useMessage } from 'naive-ui'
-import { APP_CLIENT_VERSION } from '../../utils/appVersion'
+import { APP_CLIENT_CHANNEL, APP_CLIENT_VERSION } from '../../utils/appVersion'
 import * as versionApi from '../../api/version'
 import { useI18n } from '../../i18n'
 
@@ -76,11 +76,31 @@ async function startDownloadAndInstall(info: {
   }
 }
 
+function showUpdateDialog(info: versionApi.AppVersion) {
+  const notes = (info.releaseNotes || '').trim()
+  const force = info.forceUpdate === true
+  dialog.warning({
+    title: force ? t('about.forceUpdateTitle') : t('about.updateTitle'),
+    content:
+      t('about.found', { version: info.version, notes: notes || t('about.noNotes') }) +
+      '\n\n' +
+      (force ? t('about.forceUpdateHint') : t('about.autoInstallHint')),
+    positiveText: t('about.downloadInstall'),
+    negativeText: force ? undefined : t('common.cancel'),
+    closable: !force,
+    maskClosable: !force,
+    closeOnEsc: !force,
+    onPositiveClick: () => {
+      void startDownloadAndInstall(info)
+    }
+  })
+}
+
 async function checkUpdate() {
   if (checking.value || updating.value) return
   checking.value = true
   try {
-    const res = await versionApi.checkUpdate(APP_CLIENT_VERSION)
+    const res = await versionApi.checkUpdate(APP_CLIENT_VERSION, APP_CLIENT_CHANNEL)
     if (res.code !== 200 || !res.data) {
       message.error(res.message || t('about.checkFail'))
       return
@@ -90,20 +110,7 @@ async function checkUpdate() {
       message.success(t('about.latest', { version: info.version }))
       return
     }
-
-    const notes = (info.releaseNotes || '').trim()
-    dialog.warning({
-      title: t('about.updateTitle'),
-      content:
-        t('about.found', { version: info.version, notes: notes || t('about.noNotes') }) +
-        '\n\n' +
-        t('about.autoInstallHint'),
-      positiveText: t('about.downloadInstall'),
-      negativeText: t('common.cancel'),
-      onPositiveClick: () => {
-        void startDownloadAndInstall(info)
-      }
-    })
+    showUpdateDialog(info)
   } catch (e) {
     console.warn('[AboutSettings] 检查更新失败:', e)
     message.error(t('about.checkFailRetry'))
@@ -119,7 +126,7 @@ async function checkUpdate() {
       <div class="about-glow" />
       <img src="../../assets/logo-linkx.svg" alt="LinkX" class="about-logo" />
       <h3 class="about-name">LinkX</h3>
-      <p class="about-ver">Version {{ APP_CLIENT_VERSION }} · Beta</p>
+      <p class="about-ver">Version {{ APP_CLIENT_VERSION }} · {{ APP_CLIENT_CHANNEL }}</p>
       <p class="about-desc">{{ t('about.desc') }}</p>
       <div class="about-actions">
         <n-button

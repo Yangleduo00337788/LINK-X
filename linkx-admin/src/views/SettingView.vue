@@ -114,6 +114,8 @@ const clientForm = reactive({
   downloadUrl: '',
   maxUploadMb: 100,
   releaseNotes: '',
+  forceUpdate: false,
+  minSupportedVersion: '',
 })
 
 const mailForm = reactive({
@@ -178,6 +180,8 @@ function applySettings(data: AdminSetting) {
   clientForm.appChannel = data.client?.appChannel || 'stable'
   clientForm.downloadUrl = data.client?.downloadUrl || ''
   clientForm.releaseNotes = data.client?.releaseNotes || ''
+  clientForm.forceUpdate = data.client?.forceUpdate === true
+  clientForm.minSupportedVersion = data.client?.minSupportedVersion || ''
   clientForm.maxUploadMb = data.client?.maxUploadBytes
     ? Math.round((data.client.maxUploadBytes / (1024 * 1024)) * 10) / 10
     : 100
@@ -335,6 +339,8 @@ async function saveClient() {
           appChannel: clientForm.appChannel.trim(),
           downloadUrl: clientForm.downloadUrl.trim() || undefined,
           releaseNotes: clientForm.releaseNotes.trim() || undefined,
+          forceUpdate: clientForm.forceUpdate,
+          minSupportedVersion: clientForm.minSupportedVersion.trim() || undefined,
           maxUploadBytes: Math.round(clientForm.maxUploadMb * 1024 * 1024),
         }),
       )
@@ -665,6 +671,23 @@ onMounted(load)
                   style="max-width: 280px"
                 />
               </NFormItem>
+              <p class="field-hint channel-hint">{{ t('setting.channelHint') }}</p>
+              <NFormItem :label="t('setting.forceUpdate')">
+                <NSpace align="center">
+                  <NSwitch v-model:value="clientForm.forceUpdate" />
+                  <span class="field-hint">
+                    {{ clientForm.forceUpdate ? t('common.on') : t('common.off') }}
+                  </span>
+                </NSpace>
+              </NFormItem>
+              <NFormItem :label="t('setting.minSupportedVersion')">
+                <NInput
+                  v-model:value="clientForm.minSupportedVersion"
+                  :placeholder="t('setting.minSupportedVersionPh')"
+                  style="max-width: 280px"
+                />
+              </NFormItem>
+              <p class="field-hint channel-hint">{{ t('setting.minSupportedVersionHint') }}</p>
               <NFormItem :label="t('setting.downloadUrl')">
                 <NInput v-model:value="clientForm.downloadUrl" :placeholder="t('setting.downloadUrlPh')" />
               </NFormItem>
@@ -891,6 +914,9 @@ onMounted(load)
   margin-left: 10px;
   color: var(--lx-text-3);
   font-size: 13px;
+}
+.channel-hint {
+  margin: -4px 0 12px 120px;
 }
 .readonly-hint {
   margin: 0;

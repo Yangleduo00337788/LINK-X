@@ -62,6 +62,10 @@ public class SysRuntimeSetting implements Serializable {
     private String appChannel;
     private String releaseNotes;
     private String downloadUrl;
+    /** 有更新时是否强制升级 */
+    private Boolean forceUpdate;
+    /** 低于此版本强制升级（可空） */
+    private String minSupportedVersion;
     private Long maxUploadBytes;
 
     /** SMTP 主机（空则沿用 env/yml） */

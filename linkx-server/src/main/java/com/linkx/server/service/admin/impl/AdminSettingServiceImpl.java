@@ -16,6 +16,7 @@ import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.SysRuntimeSettingMapper;
 import com.linkx.server.service.EmailService;
 import com.linkx.server.service.admin.AdminSettingService;
+import com.linkx.server.util.AppVersionUtils;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -88,6 +89,8 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                         .appChannel(app != null ? app.getChannel() : null)
                         .releaseNotes(app != null ? app.getReleaseNotes() : null)
                         .downloadUrl(app != null ? app.getDownloadUrl() : null)
+                        .forceUpdate(app != null && Boolean.TRUE.equals(app.getForceUpdate()))
+                        .minSupportedVersion(app != null ? nullToEmpty(app.getMinSupportedVersion()) : "")
                         .maxUploadBytes(linkxProperties.getMinio().getMaxFileSize())
                         .build())
                 .mail(buildMailSide())
@@ -146,12 +149,19 @@ public class AdminSettingServiceImpl implements AdminSettingService {
     @Override
     @Transactional
     public AdminSettingVO updateClientSide(ClientSideSettingUpdateDTO dto, Long operatorId) {
+        String appVersion = dto.getAppVersion().trim();
+        String minSupported = nullToEmpty(dto.getMinSupportedVersion());
+        if (StringUtils.hasText(minSupported) && AppVersionUtils.compare(minSupported, appVersion) > 0) {
+            throw new CustomException(400, "最低支持版本不能高于应用版本");
+        }
         SysRuntimeSetting row = loadOrCreateRow(operatorId);
         row.setClientCaptchaEnabled(Boolean.TRUE.equals(dto.getCaptchaEnabled()));
-        row.setAppVersion(dto.getAppVersion().trim());
-        row.setAppChannel(dto.getAppChannel().trim());
+        row.setAppVersion(appVersion);
+        row.setAppChannel(AppVersionUtils.normalizeChannel(dto.getAppChannel()));
         row.setReleaseNotes(nullToEmpty(dto.getReleaseNotes()));
         row.setDownloadUrl(nullToEmpty(dto.getDownloadUrl()));
+        row.setForceUpdate(Boolean.TRUE.equals(dto.getForceUpdate()));
+        row.setMinSupportedVersion(minSupported);
         row.setMaxUploadBytes(dto.getMaxUploadBytes());
         row.setUpdateBy(operatorId);
         persist(row);
@@ -320,6 +330,8 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                 .appChannel(app != null && StringUtils.hasText(app.getChannel()) ? app.getChannel() : "stable")
                 .releaseNotes(app != null ? nullToEmpty(app.getReleaseNotes()) : "")
                 .downloadUrl(app != null ? nullToEmpty(app.getDownloadUrl()) : "")
+                .forceUpdate(app != null && Boolean.TRUE.equals(app.getForceUpdate()))
+                .minSupportedVersion(app != null ? nullToEmpty(app.getMinSupportedVersion()) : "")
                 .maxUploadBytes(linkxProperties.getMinio().getMaxFileSize())
                 .mailHost(linkxProperties.getMail().getHost())
                 .mailPort(linkxProperties.getMail().getPort())
@@ -427,6 +439,12 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         }
         if (row.getDownloadUrl() != null) {
             app.setDownloadUrl(nullToEmpty(row.getDownloadUrl()));
+        }
+        if (row.getForceUpdate() != null) {
+            app.setForceUpdate(row.getForceUpdate());
+        }
+        if (row.getMinSupportedVersion() != null) {
+            app.setMinSupportedVersion(nullToEmpty(row.getMinSupportedVersion()));
         }
         if (row.getMaxUploadBytes() != null && row.getMaxUploadBytes() > 0) {
             linkxProperties.getMinio().setMaxFileSize(row.getMaxUploadBytes());

@@ -275,6 +275,10 @@ public class LinkxProperties {
         private String releaseNotes = "当前已是最新版本";
         /** 下载地址（可空） */
         private String downloadUrl = "";
+        /** 有可用更新时是否强制升级 */
+        private Boolean forceUpdate = false;
+        /** 低于此版本强制升级（可空；空表示不额外按最低版本强更） */
+        private String minSupportedVersion = "";
         /** 开发模式：允许 localhost origin 连接 WebSocket（生产环境必须关闭） */
         private Boolean devModeEnabled = false;
     }

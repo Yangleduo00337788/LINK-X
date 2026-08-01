@@ -14,7 +14,8 @@ import java.io.Serializable;
  * - version：服务端最新版本；
  * - currentVersion：客户端当前版本（来自请求参数）；
  * - hasUpdate：true 表示需要提示升级；
- * - forceUpdate：true 表示强制升级（保留字段，预留策略）；
+ * - forceUpdate：true 表示强制升级（管理端开关或低于最低支持版本）；
+ * - channel：当前发布渠道；
  * - releaseNotes：升级提示；
  * - downloadUrl：下载地址（可空）。
  * </p>

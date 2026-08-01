@@ -210,6 +210,10 @@ linkx:
     release-notes: ${APP_RELEASE_NOTES}
     # 下载地址 ← APP_DOWNLOAD_URL
     download-url: ${APP_DOWNLOAD_URL}
+    # 有更新时是否强制升级 ← APP_FORCE_UPDATE
+    force-update: ${APP_FORCE_UPDATE:false}
+    # 最低支持版本（低于则强更；空表示不额外按最低版本强更）← APP_MIN_SUPPORTED_VERSION
+    min-supported-version: ${APP_MIN_SUPPORTED_VERSION:}
     # 开发模式（允许 localhost WS）；生产必须 false ← DEV_MODE_ENABLED
     dev-mode-enabled: ${DEV_MODE_ENABLED}
 

@@ -4,6 +4,7 @@
 
 import { apiClient } from './client'
 import type { ApiResult } from '../types/auth'
+import { APP_CLIENT_CHANNEL } from '../utils/appVersion'
 
 export interface AppVersion {
   /** 服务端最新版本号 */
@@ -12,7 +13,7 @@ export interface AppVersion {
   currentVersion: string
   /** 是否需要升级 */
   hasUpdate: boolean
-  /** 是否强制升级（保留字段） */
+  /** 是否强制升级 */
   forceUpdate: boolean
   /** 发布渠道 */
   channel: string
@@ -25,9 +26,10 @@ export interface AppVersion {
 /**
  * 检查更新
  * @param current 客户端当前版本号
+ * @param channel 客户端渠道（默认构建渠道）
  */
-export function checkUpdate(current: string) {
+export function checkUpdate(current: string, channel: string = APP_CLIENT_CHANNEL) {
   return apiClient.get<never, ApiResult<AppVersion>>('/app/version', {
-    params: { current }
+    params: { current, channel }
   })
 }

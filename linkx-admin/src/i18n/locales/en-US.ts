@@ -887,6 +887,12 @@ export default {
     appVersionPh: 'e.g. 1.0.0',
     channel: 'Channel',
     channelPh: 'stable / beta / dev',
+    channelHint: 'stable is visible to all; beta/dev only to the same channel (gray release).',
+    forceUpdate: 'Force update',
+    minSupportedVersion: 'Min supported version',
+    minSupportedVersionPh: 'e.g. 1.0.0, optional',
+    minSupportedVersionHint:
+      'Clients below this version are forced to update, ignoring channel gray release.',
     downloadUrl: 'Download URL',
     downloadUrlPh: 'https://example.com/download',
     maxUpload: 'Max upload',

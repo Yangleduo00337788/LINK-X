@@ -438,6 +438,8 @@ export default {
     found: 'New version {version}: {notes}',
     download: ' (download: {url})',
     updateTitle: 'Update available',
+    forceUpdateTitle: 'Update required',
+    forceUpdateHint: 'This version is no longer supported. Please update to continue.',
     noNotes: 'No release notes',
     autoInstallHint: 'LinkX will download the installer and launch it automatically.',
     downloadInstall: 'Download & install',

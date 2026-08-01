@@ -35,6 +35,14 @@ public class ClientSideSettingUpdateDTO {
     private String downloadUrl;
 
     @NotNull
+    @Schema(description = "有可用更新时是否强制升级")
+    private Boolean forceUpdate;
+
+    @Size(max = 32)
+    @Schema(description = "最低支持版本（低于此版本强制升级；空表示不额外强更）")
+    private String minSupportedVersion;
+
+    @NotNull
     @Min(1024L)
     @Max(2L * 1024 * 1024 * 1024)
     @Schema(description = "最大上传字节数")

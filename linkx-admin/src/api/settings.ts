@@ -35,6 +35,8 @@ export interface ClientSideSetting {
   appChannel?: string
   releaseNotes?: string
   downloadUrl?: string
+  forceUpdate?: boolean
+  minSupportedVersion?: string
   maxUploadBytes?: number
 }
 
@@ -73,9 +75,9 @@ export type LoginUpdatePayload = {
 export type PasswordUpdatePayload = Required<PasswordSideSetting>
 
 export type ClientSideUpdatePayload = Required<
-  Pick<ClientSideSetting, 'appVersion' | 'appChannel' | 'maxUploadBytes'>
+  Pick<ClientSideSetting, 'appVersion' | 'appChannel' | 'maxUploadBytes' | 'forceUpdate'>
 > &
-  Pick<ClientSideSetting, 'releaseNotes' | 'downloadUrl' | 'captchaEnabled'>
+  Pick<ClientSideSetting, 'releaseNotes' | 'downloadUrl' | 'captchaEnabled' | 'minSupportedVersion'>
 
 export type MailUpdatePayload = {
   host: string

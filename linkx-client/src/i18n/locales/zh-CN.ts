@@ -440,6 +440,8 @@ export default {
     found: '发现新版本 {version}：{notes}',
     download: '（下载：{url}）',
     updateTitle: '发现新版本',
+    forceUpdateTitle: '必须更新',
+    forceUpdateHint: '当前版本已不再支持，请立即更新后继续使用。',
     noNotes: '暂无更新说明',
     autoInstallHint: '确认后将自动下载安装包并启动安装程序。',
     downloadInstall: '下载并安装',

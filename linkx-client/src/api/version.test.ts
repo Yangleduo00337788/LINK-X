@@ -18,10 +18,12 @@ import {
 describe('api/version', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('checkUpdate 应调用 apiClient', async () => {
+  it('checkUpdate 应调用 apiClient 并携带 channel', async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ code: 200, data: null } as any)
-    await checkUpdate('1')
-    expect(apiClient.get).toHaveBeenCalled()
+    await checkUpdate('1.0.0', 'beta')
+    expect(apiClient.get).toHaveBeenCalledWith('/app/version', {
+      params: { current: '1.0.0', channel: 'beta' }
+    })
   })
 
 })
