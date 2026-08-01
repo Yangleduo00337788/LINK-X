@@ -95,10 +95,19 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                         .sensitiveFilterEnabled(app == null || !Boolean.FALSE.equals(app.getSensitiveFilterEnabled()))
                         .supportEmail(app != null ? nullToEmpty(app.getSupportEmail()) : "")
                         .supportPhone(app != null ? nullToEmpty(app.getSupportPhone()) : "")
+                        .feedbackSlaHours(resolveFeedbackSlaHours(app))
                         .build())
                 .mail(buildMailSide())
                 .mailTemplates(buildMailTemplatesSide())
                 .build();
+    }
+
+    private static int resolveFeedbackSlaHours(LinkxProperties.App app) {
+        Integer hours = app != null ? app.getFeedbackSlaHours() : null;
+        if (hours == null || hours < 1) {
+            return 24;
+        }
+        return Math.min(hours, 720);
     }
 
     private AdminSettingVO.MailSide buildMailSide() {
@@ -169,6 +178,7 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         row.setSensitiveFilterEnabled(Boolean.TRUE.equals(dto.getSensitiveFilterEnabled()));
         row.setSupportEmail(nullToEmpty(dto.getSupportEmail()));
         row.setSupportPhone(nullToEmpty(dto.getSupportPhone()));
+        row.setFeedbackSlaHours(dto.getFeedbackSlaHours());
         row.setUpdateBy(operatorId);
         persist(row);
         applyClientSide(row);
@@ -342,6 +352,7 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                 .sensitiveFilterEnabled(app == null || !Boolean.FALSE.equals(app.getSensitiveFilterEnabled()))
                 .supportEmail(app != null ? nullToEmpty(app.getSupportEmail()) : "")
                 .supportPhone(app != null ? nullToEmpty(app.getSupportPhone()) : "")
+                .feedbackSlaHours(resolveFeedbackSlaHours(app))
                 .mailHost(linkxProperties.getMail().getHost())
                 .mailPort(linkxProperties.getMail().getPort())
                 .mailUsername(nullToEmpty(linkxProperties.getMail().getUsername()))
@@ -466,6 +477,9 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         }
         if (row.getSupportPhone() != null) {
             app.setSupportPhone(nullToEmpty(row.getSupportPhone()));
+        }
+        if (row.getFeedbackSlaHours() != null && row.getFeedbackSlaHours() > 0) {
+            app.setFeedbackSlaHours(Math.min(row.getFeedbackSlaHours(), 720));
         }
     }
 

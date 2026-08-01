@@ -59,4 +59,10 @@ public class ClientSideSettingUpdateDTO {
     @Size(max = 64)
     @Schema(description = "客服电话")
     private String supportPhone;
+
+    @NotNull
+    @Min(1)
+    @Max(720)
+    @Schema(description = "反馈处理 SLA（小时），1–720")
+    private Integer feedbackSlaHours;
 }

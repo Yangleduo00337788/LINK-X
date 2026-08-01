@@ -20,4 +20,7 @@ public interface AdminFeedbackService {
     void close(Long id, Long operatorId);
 
     void reopen(Long id, Long operatorId);
+
+    /** 超过 SLA 仍未处理的 pending 反馈数 */
+    long countOverdue();
 }

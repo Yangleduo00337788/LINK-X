@@ -130,7 +130,8 @@ class AdminClientSettingIT extends BaseIntegrationTest {
                   "maxUploadBytes":%d,
                   "sensitiveFilterEnabled":%s,
                   "supportEmail":"%s",
-                  "supportPhone":"%s"
+                  "supportPhone":"%s",
+                  "feedbackSlaHours":%d
                 }
                 """.formatted(
                 client.path("captchaEnabled").asBoolean(false),
@@ -143,7 +144,8 @@ class AdminClientSettingIT extends BaseIntegrationTest {
                 client.path("maxUploadBytes").asLong(20L * 1024 * 1024),
                 sensitiveEnabled,
                 email == null ? "" : email,
-                phone == null ? "" : phone
+                phone == null ? "" : phone,
+                client.path("feedbackSlaHours").asInt(24)
         );
         mockMvc.perform(put("/admin/settings/client")
                         .header("Authorization", admin.bearer())

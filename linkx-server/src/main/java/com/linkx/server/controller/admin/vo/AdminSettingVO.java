@@ -108,6 +108,8 @@ public class AdminSettingVO {
         private String supportEmail;
         @Schema(description = "客服电话")
         private String supportPhone;
+        @Schema(description = "反馈处理 SLA（小时）")
+        private Integer feedbackSlaHours;
     }
 
     @Data

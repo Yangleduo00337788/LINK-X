@@ -21,4 +21,6 @@ public class AdminFeedbackVO {
     private String status;
     private String reply;
     private Date createTime;
+    @Schema(description = "是否超过反馈 SLA 仍未处理（仅 pending）")
+    private Boolean overdue;
 }

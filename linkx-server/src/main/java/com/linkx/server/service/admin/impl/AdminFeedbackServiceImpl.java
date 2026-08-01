@@ -2,6 +2,7 @@ package com.linkx.server.service.admin.impl;
 
 import com.linkx.server.common.admin.AdminConstants;
 import com.linkx.server.common.admin.PageResultVO;
+import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.controller.admin.dto.AdminFeedbackQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminFeedbackReplyDTO;
 import com.linkx.server.controller.admin.vo.AdminFeedbackVO;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -28,10 +30,12 @@ import java.util.stream.Collectors;
 public class AdminFeedbackServiceImpl implements AdminFeedbackService {
 
     private static final String OFFICIAL_SENDER = "LinkX\u5B98\u65B9";
+    private static final int DEFAULT_SLA_HOURS = 24;
 
     private final FeedbackMapper feedbackMapper;
     private final MessageNotificationService notificationService;
     private final ImMessagePushService imPushService;
+    private final LinkxProperties linkxProperties;
 
     @Override
     public PageResultVO<AdminFeedbackVO> list(AdminFeedbackQueryDTO query) {
@@ -76,7 +80,19 @@ public class AdminFeedbackServiceImpl implements AdminFeedbackService {
         if (query.getEndTime() != null) {
             qw.and(Feedback::getCreateTime).le(new Date(query.getEndTime()));
         }
+        if (Boolean.TRUE.equals(query.getOverdueOnly())) {
+            qw.and(Feedback::getStatus).eq("pending");
+            qw.and(Feedback::getCreateTime).le(slaCutoff());
+        }
         return qw;
+    }
+
+    @Override
+    public long countOverdue() {
+        return feedbackMapper.selectCountByQuery(
+                QueryWrapper.create()
+                        .where(Feedback::getStatus).eq("pending")
+                        .and(Feedback::getCreateTime).le(slaCutoff()));
     }
 
     @Override
@@ -210,7 +226,30 @@ public class AdminFeedbackServiceImpl implements AdminFeedbackService {
                 .status(feedback.getStatus())
                 .reply(reply)
                 .createTime(feedback.getCreateTime())
+                .overdue(isOverdue(feedback))
                 .build();
+    }
+
+    private boolean isOverdue(Feedback feedback) {
+        if (feedback == null || !"pending".equals(feedback.getStatus()) || feedback.getCreateTime() == null) {
+            return false;
+        }
+        return !feedback.getCreateTime().after(slaCutoff());
+    }
+
+    private Date slaCutoff() {
+        Calendar cal = Calendar.getInstance();
+        cal.add(Calendar.HOUR_OF_DAY, -resolveSlaHours());
+        return cal.getTime();
+    }
+
+    private int resolveSlaHours() {
+        LinkxProperties.App app = linkxProperties.getApp();
+        Integer hours = app != null ? app.getFeedbackSlaHours() : null;
+        if (hours == null || hours < 1) {
+            return DEFAULT_SLA_HOURS;
+        }
+        return Math.min(hours, 720);
     }
 
     private Feedback requireFeedback(Long id) {

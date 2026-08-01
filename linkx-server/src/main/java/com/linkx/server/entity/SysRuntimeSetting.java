@@ -73,6 +73,8 @@ public class SysRuntimeSetting implements Serializable {
     private String supportEmail;
     /** 客服电话 */
     private String supportPhone;
+    /** 反馈处理 SLA（小时），超时未回复视为逾期 */
+    private Integer feedbackSlaHours;
 
     /** SMTP 主机（空则沿用 env/yml） */
     private String mailHost;

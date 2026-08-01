@@ -11,4 +11,7 @@ public class AdminFeedbackQueryDTO extends AdminPageQueryDTO {
 
     @Schema(description = "反馈状态：pending/replied/closed")
     private String feedbackStatus;
+
+    @Schema(description = "仅看超过 SLA 的待处理反馈")
+    private Boolean overdueOnly;
 }
