@@ -21,6 +21,7 @@ import PanelSearchBar from './PanelSearchBar.vue'
 import Avatar from './Avatar.vue'
 import GroupAvatar from './GroupAvatar.vue'
 import EmptyState from './common/EmptyState.vue'
+import OpsRecommendCarousel from './ops/OpsRecommendCarousel.vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
 import { useChatModalsStore } from '../stores/chatModals'
@@ -32,6 +33,7 @@ import { useI18n } from '../i18n'
 
 const message = useMessage()
 const { t } = useI18n()
+const showSidebarOps = ref(false)
 const appStore = useAppStore()
 const chatModalsStore = useChatModalsStore()
 const notificationsStore = useNotificationsStore()
@@ -223,6 +225,16 @@ function onContextMenuSelect(key: string) {
       @add-select="onAddSelect"
     />
 
+    <div v-show="showSidebarOps" class="ops-slot">
+      <OpsRecommendCarousel
+        slot-code="chat_sidebar"
+        :height="76"
+        :radius="10"
+        :show-caption="true"
+        @loaded="(p) => (showSidebarOps = p.count > 0)"
+      />
+    </div>
+
     <div v-if="isOffline" class="offline-banner">
       <n-icon :component="WarningOutline" :size="16" />
       <span>{{ t('chat.offlineBanner') }}</span>
@@ -355,6 +367,11 @@ function onContextMenuSelect(key: string) {
   display: flex;
   flex-direction: column;
   border-right: none;
+  flex-shrink: 0;
+}
+
+.ops-slot {
+  padding: 0 12px 8px;
   flex-shrink: 0;
 }
 

@@ -4,7 +4,10 @@ import {
   isEphemeralMediaUrl,
   stripEphemeralMediaUrl,
   normalizeMediaUrl,
-  recoverMediaUrlOnError
+  recoverMediaUrlOnError,
+  resolveOpsMediaSrc,
+  resolveRecommendSrc,
+  resolveActivitySrc
 } from './mediaUrl'
 
 describe('mediaUrl', () => {
@@ -39,6 +42,13 @@ describe('mediaUrl', () => {
     expect(normalizeMediaUrl('http://localhost:9000/a')).toBe('http://127.0.0.1:9000/a')
     expect(normalizeMediaUrl('http://[::1]:9000/a')).toBe('http://127.0.0.1:9000/a')
     expect(normalizeMediaUrl('https://x?X-Amz-Signature=1')).toContain('X-Amz-')
+  })
+
+  it('resolveOpsMediaSrc prefixes /media paths', () => {
+    expect(resolveRecommendSrc('/media/recommends/1')).toContain('/media/recommends/1')
+    expect(resolveActivitySrc('/media/activities/2')).toContain('/media/activities/2')
+    expect(resolveOpsMediaSrc('https://cdn.example/a.png')).toBe('https://cdn.example/a.png')
+    expect(resolveOpsMediaSrc('')).toBe('')
   })
 
   it('recoverMediaUrlOnError', async () => {

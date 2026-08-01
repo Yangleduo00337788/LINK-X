@@ -1177,6 +1177,11 @@ export default {
     historyHint: '仅展示元数据，不含音视频回放（需独立媒体服务）',
     historyEmpty: '暂无已结束的会议'
   },
+  ops: {
+    activitiesTitle: '热门活动',
+    noActivities: '暂无活动',
+    untitledActivity: '活动'
+  },
   moments: {
     title: '友链',
     publishText: '发布文字',

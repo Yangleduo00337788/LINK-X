@@ -26,6 +26,8 @@ import {
 import Avatar from './Avatar.vue'
 // 空状态 Logo 占位
 import PenguinWatermark from './PenguinWatermark.vue'
+// 未选会话时的运营发现区（推荐位 + 活动）
+import DiscoverEmptyPane from './ops/DiscoverEmptyPane.vue'
 // 群聊侧边栏
 import GroupChatSidebar from './chat/GroupChatSidebar.vue'
 // 好友聊天更多抽屉
@@ -1449,10 +1451,11 @@ function onDrop(e: DragEvent) {
                   {{ t('chat.someoneAtMeFab') }}
                 </button>
 
-                <!-- 无消息或未选会话时的占位水印 -->
+                <!-- 未选会话：发现区（推荐位 + 活动）；已选但无消息：水印 -->
+                <DiscoverEmptyPane v-else-if="!hasSession" />
                 <PenguinWatermark
-                  v-else-if="!(hasSession && chatMessages.length)"
-                  :hint="hasSession ? t('chat.emptyChat') : t('chat.selectChatHint')"
+                  v-else-if="!chatMessages.length"
+                  :hint="t('chat.emptyChat')"
                 />
               </div>
             </div>

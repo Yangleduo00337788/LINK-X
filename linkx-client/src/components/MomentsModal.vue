@@ -47,6 +47,7 @@ import { normalizeMediaUrl, isEphemeralMediaUrl } from '../utils/mediaUrl'
 import { generateDefaultAvatar, generateDefaultBanner } from '../utils/defaultAvatar'
 // 空状态组件
 import EmptyState from './common/EmptyState.vue'
+import OpsRecommendCarousel from './ops/OpsRecommendCarousel.vue'
 // @ 面板
 import AtMentionPicker from './common/AtMentionPicker.vue'
 // 通知独立页
@@ -794,6 +795,8 @@ function visibilityLabel(visibility?: number): string {
   if (visibility === 2) return t('moments.private')
   return ''
 }
+
+const showMomentsOps = ref(false)
 </script>
 
 <template>
@@ -826,6 +829,16 @@ function visibilityLabel(visibility?: number): string {
           </div>
           <img :src="headerAvatar" alt="Avatar" class="avatar-img" referrerpolicy="no-referrer" />
         </div>
+      </div>
+
+      <div v-show="showMomentsOps" class="moments-ops-slot">
+        <OpsRecommendCarousel
+          slot-code="moments"
+          :height="108"
+          :radius="12"
+          :show-arrow="true"
+          @loaded="(p) => (showMomentsOps = p.count > 0)"
+        />
       </div>
 
       <!-- 动态列表(发布编辑器已迁移至独立 Modal) -->
@@ -1397,6 +1410,10 @@ function visibilityLabel(visibility?: number): string {
 .backdrop-fade-enter-from,
 .backdrop-fade-leave-to {
   opacity: 0;
+}
+
+.moments-ops-slot {
+  padding: 12px 20px 0;
 }
 
 .moments-content {

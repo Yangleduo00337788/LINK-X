@@ -1175,6 +1175,11 @@ export default {
     historyHint: 'Metadata only — no recording playback (needs a media server)',
     historyEmpty: 'No ended meetings yet'
   },
+  ops: {
+    activitiesTitle: 'Campaigns',
+    noActivities: 'No campaigns yet',
+    untitledActivity: 'Campaign'
+  },
   moments: {
     title: 'Moments',
     publishText: 'Text post',

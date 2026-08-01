@@ -1,3 +1,5 @@
+import { API_BASE_URL } from '../config/endpoints'
+
 /**
  * 规范化媒体地址。
  *
@@ -5,6 +7,24 @@
  * 但预签名 URL 的 Host 参与 AWS 签名，禁止改写，否则浏览器会 403、头像空白。
  * 正确做法：后端用 127.0.0.1 重新签发；前端仅对「未签名」的 localhost 做兼容改写。
  */
+
+/** 运营媒体（推荐位/活动/Banner）：同源 /media/... 或外链 */
+export function resolveOpsMediaSrc(url?: string | null): string {
+  const v = (url || '').trim()
+  if (!v) return ''
+  if (v.startsWith('data:') || v.startsWith('blob:')) return v
+  if (v.startsWith('/media/')) return normalizeMediaUrl(`${API_BASE_URL}${v}`)
+  if (/^https?:\/\//i.test(v) && !/[?&]X-Amz-/i.test(v)) return normalizeMediaUrl(v)
+  return normalizeMediaUrl(v)
+}
+
+export function resolveRecommendSrc(url?: string | null): string {
+  return resolveOpsMediaSrc(url)
+}
+
+export function resolveActivitySrc(url?: string | null): string {
+  return resolveOpsMediaSrc(url)
+}
 
 /** 是否可作为 <img src> 使用（已签发 http(s) / data / blob / 本地静态路径） */
 export function isDisplayableMediaUrl(url?: string | null): boolean {
