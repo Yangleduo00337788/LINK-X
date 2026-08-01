@@ -54,17 +54,21 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             window = annotation.window();
         }
 
+        String clientIp = ClientIpResolver.resolve(request, linkxProperties);
+        if (rateLimitService.isWhitelisted(clientIp)) {
+            return true;
+        }
+
         if (byUser) {
             Long userId = (Long) request.getAttribute("userId");
             if (userId != null) {
                 identity = String.valueOf(userId);
             } else {
                 // 未登录时用客户端 IP 作为限流标识，避免所有匿名用户共享同一限流桶
-                String ip = ClientIpResolver.resolve(request, linkxProperties);
-                identity = "ip:" + (ip != null ? ip : request.getRemoteAddr());
+                identity = "ip:" + (clientIp != null ? clientIp : request.getRemoteAddr());
             }
         } else {
-            identity = ClientIpResolver.resolve(request, linkxProperties);
+            identity = clientIp;
         }
 
         String key = "biz:" + scope + ":" + identity;

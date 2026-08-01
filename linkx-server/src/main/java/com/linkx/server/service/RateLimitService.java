@@ -1,7 +1,10 @@
 package com.linkx.server.service;
 
 import com.linkx.server.common.LoginSide;
+import com.linkx.server.controller.admin.vo.AdminRateLimitHitVO;
 import jakarta.servlet.http.HttpServletRequest;
+
+import java.util.List;
 
 public interface RateLimitService {
 
@@ -55,4 +58,19 @@ public interface RateLimitService {
      * 防止攻击者对 refresh 接口进行暴力枚举。
      */
     void recordRefreshFailure(HttpServletRequest request);
+
+    /** 扫描当前活跃限流计数（管理端控制台）。 */
+    List<AdminRateLimitHitVO> listActiveHits(String ipFilter, int limit);
+
+    /** 清除与指定 IP 相关的限流计数键，返回删除数量。 */
+    int clearIpRateLimits(String ip);
+
+    List<String> listWhitelist();
+
+    void addWhitelist(String ip);
+
+    void removeWhitelist(String ip);
+
+    /** IP 是否在限流白名单中。 */
+    boolean isWhitelisted(String ip);
 }

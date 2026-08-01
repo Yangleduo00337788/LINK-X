@@ -3,18 +3,25 @@ package com.linkx.server.service.impl;
 import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.common.LoginSide;
 import com.linkx.server.config.LinkxProperties;
+import com.linkx.server.controller.admin.vo.AdminRateLimitHitVO;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.service.RateLimitService;
 import com.linkx.server.service.admin.AdminRiskEventService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -26,6 +33,7 @@ public class RateLimitServiceImpl implements RateLimitService {
     private static final String LOGIN_LOCK_PREFIX = "linkx:login:lock:";
     private static final String REFRESH_FAIL_PREFIX = "linkx:refresh:fail:";
     private static final String IP_PREFIX = "ip:";
+    private static final String WHITELIST_KEY = "linkx:rate:whitelist";
 
     private static final int REFRESH_FAIL_THRESHOLD = 10;
     private static final int REFRESH_FAIL_WINDOW_MINUTES = 15;
@@ -45,6 +53,9 @@ public class RateLimitServiceImpl implements RateLimitService {
 
     @Override
     public void check(String key, int maxAttempts, int windowSeconds, String message) {
+        if (key != null && key.contains("ip:") && isWhitelisted(extractIpFromKey(key))) {
+            return;
+        }
         String redisKey = RATE_LIMIT_PREFIX + key;
         Long count = atomicIncrAndExpire(redisKey, windowSeconds);
         if (count != null && count > maxAttempts) {
@@ -59,6 +70,9 @@ public class RateLimitServiceImpl implements RateLimitService {
     @Override
     public boolean checkLoginRateLimit(String username, HttpServletRequest request, LoginSide side) {
         String ip = getClientIp(request);
+        if (isWhitelisted(ip)) {
+            return false;
+        }
         int maxAttempts = resolveMaxAttempts(side);
         int lockDuration = resolveLockDuration(side);
         int ipMaxAttempts = maxAttempts * 3; // IP 限制更宽松
@@ -92,6 +106,9 @@ public class RateLimitServiceImpl implements RateLimitService {
     @Override
     public void checkRegisterRateLimit(HttpServletRequest request) {
         String ip = getClientIp(request);
+        if (isWhitelisted(ip)) {
+            return;
+        }
         int maxAttempts = linkxProperties.getAuth().getRateLimitRegisterPerMinute();
         int windowSeconds = 60;
 
@@ -150,6 +167,9 @@ public class RateLimitServiceImpl implements RateLimitService {
     @Override
     public void recordRefreshFailure(HttpServletRequest request) {
         String ip = getClientIp(request);
+        if (isWhitelisted(ip)) {
+            return;
+        }
         String key = RATE_LIMIT_PREFIX + REFRESH_FAIL_PREFIX + IP_PREFIX + ip;
         Long count = atomicIncrAndExpire(key, REFRESH_FAIL_WINDOW_MINUTES * 60L);
         if (count != null && count >= REFRESH_FAIL_THRESHOLD) {
@@ -196,5 +216,171 @@ public class RateLimitServiceImpl implements RateLimitService {
         } catch (Exception e) {
             log.warn("业务限流风险事件写入失败: key={}", key, e);
         }
+    }
+
+    @Override
+    public List<AdminRateLimitHitVO> listActiveHits(String ipFilter, int limit) {
+        int max = Math.max(1, Math.min(limit <= 0 ? 100 : limit, 300));
+        String filter = StringUtils.hasText(ipFilter) ? ipFilter.trim() : null;
+        List<AdminRateLimitHitVO> hits = new ArrayList<>();
+        ScanOptions options = ScanOptions.scanOptions().match(RATE_LIMIT_PREFIX + "*").count(200).build();
+        try (Cursor<String> cursor = redisTemplate.scan(options)) {
+            while (cursor.hasNext() && hits.size() < max) {
+                String key = cursor.next();
+                if (WHITELIST_KEY.equals(key)) {
+                    continue;
+                }
+                AdminRateLimitHitVO hit = toHit(key);
+                if (hit == null) {
+                    continue;
+                }
+                if (filter != null) {
+                    boolean match = (hit.getIp() != null && hit.getIp().contains(filter))
+                            || (hit.getRedisKey() != null && hit.getRedisKey().contains(filter));
+                    if (!match) {
+                        continue;
+                    }
+                }
+                hits.add(hit);
+            }
+        }
+        return hits;
+    }
+
+    @Override
+    public int clearIpRateLimits(String ip) {
+        if (!StringUtils.hasText(ip)) {
+            throw new CustomException(400, "IP 不能为空");
+        }
+        String normalized = ip.trim();
+        Set<String> toDelete = new HashSet<>();
+        String needle = "ip:" + normalized;
+        ScanOptions options = ScanOptions.scanOptions().match(RATE_LIMIT_PREFIX + "*").count(200).build();
+        try (Cursor<String> cursor = redisTemplate.scan(options)) {
+            while (cursor.hasNext()) {
+                String key = cursor.next();
+                if (WHITELIST_KEY.equals(key)) {
+                    continue;
+                }
+                if (key.contains(needle) || key.endsWith(":" + normalized)) {
+                    toDelete.add(key);
+                }
+            }
+        }
+        int deleted = 0;
+        for (String key : toDelete) {
+            Boolean ok = redisTemplate.delete(key);
+            if (Boolean.TRUE.equals(ok)) {
+                deleted++;
+            }
+        }
+        return deleted;
+    }
+
+    @Override
+    public List<String> listWhitelist() {
+        Set<String> members = redisTemplate.opsForSet().members(WHITELIST_KEY);
+        if (members == null || members.isEmpty()) {
+            return List.of();
+        }
+        return members.stream().sorted().toList();
+    }
+
+    @Override
+    public void addWhitelist(String ip) {
+        String normalized = requireIp(ip);
+        redisTemplate.opsForSet().add(WHITELIST_KEY, normalized);
+    }
+
+    @Override
+    public void removeWhitelist(String ip) {
+        String normalized = requireIp(ip);
+        redisTemplate.opsForSet().remove(WHITELIST_KEY, normalized);
+    }
+
+    @Override
+    public boolean isWhitelisted(String ip) {
+        if (!StringUtils.hasText(ip)) {
+            return false;
+        }
+        Boolean member = redisTemplate.opsForSet().isMember(WHITELIST_KEY, ip.trim());
+        return Boolean.TRUE.equals(member);
+    }
+
+    private AdminRateLimitHitVO toHit(String redisKey) {
+        if (!StringUtils.hasText(redisKey) || !redisKey.startsWith(RATE_LIMIT_PREFIX)) {
+            return null;
+        }
+        String raw = redisKey.substring(RATE_LIMIT_PREFIX.length());
+        String value = redisTemplate.opsForValue().get(redisKey);
+        long count = 0L;
+        if (value != null) {
+            try {
+                count = Long.parseLong(value);
+            } catch (NumberFormatException ignored) {
+                count = 0L;
+            }
+        }
+        Long ttl = redisTemplate.getExpire(redisKey);
+        String scope = "unknown";
+        String identity = raw;
+        String ip = extractIpFromKey(raw);
+        if (raw.startsWith("biz:")) {
+            String rest = raw.substring(4);
+            int idx = rest.indexOf(':');
+            if (idx > 0) {
+                scope = rest.substring(0, idx);
+                identity = rest.substring(idx + 1);
+            } else {
+                scope = rest;
+            }
+        } else if (raw.startsWith(LOGIN_FAIL_PREFIX)) {
+            scope = "login-fail";
+            identity = raw.substring(LOGIN_FAIL_PREFIX.length());
+        } else if (raw.startsWith(REFRESH_FAIL_PREFIX)) {
+            scope = "refresh-fail";
+            identity = raw.substring(REFRESH_FAIL_PREFIX.length());
+        } else if (raw.startsWith("register:")) {
+            scope = "register";
+            identity = raw.substring("register:".length());
+        } else {
+            int idx = raw.indexOf(':');
+            if (idx > 0) {
+                scope = raw.substring(0, idx);
+                identity = raw.substring(idx + 1);
+            }
+        }
+        return AdminRateLimitHitVO.builder()
+                .redisKey(redisKey)
+                .scope(scope)
+                .ip(ip)
+                .identity(identity)
+                .count(count)
+                .ttlSeconds(ttl != null && ttl >= 0 ? ttl : null)
+                .build();
+    }
+
+    private static String extractIpFromKey(String keyOrRaw) {
+        if (!StringUtils.hasText(keyOrRaw)) {
+            return null;
+        }
+        int idx = keyOrRaw.indexOf("ip:");
+        if (idx < 0) {
+            return null;
+        }
+        String rest = keyOrRaw.substring(idx + 3);
+        int colon = rest.indexOf(':');
+        return colon > 0 ? rest.substring(0, colon) : rest;
+    }
+
+    private static String requireIp(String ip) {
+        if (!StringUtils.hasText(ip)) {
+            throw new CustomException(400, "IP 不能为空");
+        }
+        String normalized = ip.trim();
+        if (normalized.length() > 64 || normalized.contains(" ") || normalized.contains("*")) {
+            throw new CustomException(400, "IP 格式无效");
+        }
+        return normalized;
     }
 }
