@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { NButton, useDialog, useMessage } from 'naive-ui'
 import { APP_CLIENT_CHANNEL, APP_CLIENT_VERSION } from '../../utils/appVersion'
 import * as versionApi from '../../api/version'
@@ -11,6 +11,24 @@ const { t } = useI18n()
 const checking = ref(false)
 const updating = ref(false)
 const progressText = ref('')
+const supportEmail = ref('')
+const supportPhone = ref('')
+
+const hasSupportContact = computed(
+  () => !!(supportEmail.value.trim() || supportPhone.value.trim())
+)
+
+async function loadSupportContact() {
+  try {
+    const res = await versionApi.checkUpdate(APP_CLIENT_VERSION, APP_CLIENT_CHANNEL)
+    if (res.code === 200 && res.data) {
+      supportEmail.value = (res.data.supportEmail || '').trim()
+      supportPhone.value = (res.data.supportPhone || '').trim()
+    }
+  } catch (e) {
+    console.warn('[AboutSettings] 加载客服联系方式失败:', e)
+  }
+}
 
 /**
  * 发现新版本后自动下载并拉起安装。
@@ -106,6 +124,8 @@ async function checkUpdate() {
       return
     }
     const info = res.data
+    supportEmail.value = (info.supportEmail || '').trim()
+    supportPhone.value = (info.supportPhone || '').trim()
     if (!info.hasUpdate) {
       message.success(t('about.latest', { version: info.version }))
       return
@@ -118,6 +138,10 @@ async function checkUpdate() {
     checking.value = false
   }
 }
+
+onMounted(() => {
+  void loadSupportContact()
+})
 </script>
 
 <template>
@@ -138,6 +162,19 @@ async function checkUpdate() {
           {{ updating ? progressText || t('about.downloading') : t('about.checkUpdate') }}
         </n-button>
       </div>
+
+      <div v-if="hasSupportContact" class="about-support">
+        <p class="about-support-title">{{ t('about.supportContact') }}</p>
+        <p v-if="supportEmail" class="about-support-line">
+          <span class="about-support-label">{{ t('about.supportEmail') }}</span>
+          <a class="about-support-link" :href="`mailto:${supportEmail}`">{{ supportEmail }}</a>
+        </p>
+        <p v-if="supportPhone" class="about-support-line">
+          <span class="about-support-label">{{ t('about.supportPhone') }}</span>
+          <a class="about-support-link" :href="`tel:${supportPhone}`">{{ supportPhone }}</a>
+        </p>
+      </div>
+
       <p class="about-copy">© 2026 LinkX Team</p>
     </section>
   </div>
@@ -206,6 +243,46 @@ async function checkUpdate() {
 .about-actions {
   position: relative;
   margin-top: 20px;
+}
+
+.about-support {
+  position: relative;
+  margin: 22px auto 0;
+  max-width: 320px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--lx-bg-soft, rgba(0, 0, 0, 0.03));
+  border: 1px solid var(--lx-border-light);
+  text-align: left;
+}
+
+.about-support-title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lx-text-body);
+}
+
+.about-support-line {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--lx-text-secondary);
+}
+
+.about-support-label {
+  margin-right: 8px;
+  color: var(--lx-text-muted);
+}
+
+.about-support-link {
+  color: var(--lx-accent, #3b82f6);
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.about-support-link:hover {
+  text-decoration: underline;
 }
 
 .about-copy {

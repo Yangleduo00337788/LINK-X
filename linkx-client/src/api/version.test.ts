@@ -19,11 +19,26 @@ describe('api/version', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('checkUpdate 应调用 apiClient 并携带 channel', async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ code: 200, data: null } as any)
-    await checkUpdate('1.0.0', 'beta')
+    vi.mocked(apiClient.get).mockResolvedValue({
+      code: 200,
+      data: {
+        version: '1.0.1',
+        currentVersion: '1.0.0',
+        hasUpdate: true,
+        forceUpdate: false,
+        channel: 'beta',
+        releaseNotes: 'notes',
+        downloadUrl: '',
+        supportEmail: 'help@linkx.test',
+        supportPhone: '400-123-4567'
+      }
+    } as any)
+    const res = await checkUpdate('1.0.0', 'beta')
     expect(apiClient.get).toHaveBeenCalledWith('/app/version', {
       params: { current: '1.0.0', channel: 'beta' }
     })
+    expect(res.data?.supportEmail).toBe('help@linkx.test')
+    expect(res.data?.supportPhone).toBe('400-123-4567')
   })
 
 })

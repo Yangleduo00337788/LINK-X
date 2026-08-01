@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { NButton, NIcon, NInput, NSelect, useMessage } from 'naive-ui'
 import {
   HelpCircleOutline,
@@ -7,12 +7,15 @@ import {
   MoonOutline,
   ApertureOutline,
   MailOutline,
+  CallOutline,
   ChevronDownOutline,
   SendOutline,
   ChatbubblesOutline
 } from '@vicons/ionicons5'
 import { useOverlayStore } from '../../../stores/overlay'
 import * as feedbackApi from '../../../api/feedback'
+import * as versionApi from '../../../api/version'
+import { APP_CLIENT_CHANNEL, APP_CLIENT_VERSION } from '../../../utils/appVersion'
 import { useI18n } from '../../../i18n'
 
 const message = useMessage()
@@ -25,6 +28,28 @@ const feedbackType = ref<'bug' | 'suggestion' | 'other'>('suggestion')
 const feedbackContact = ref('')
 const submitting = ref(false)
 const expandedFaq = ref<number | null>(0)
+const supportEmail = ref('')
+const supportPhone = ref('')
+
+const hasSupportContact = computed(
+  () => !!(supportEmail.value.trim() || supportPhone.value.trim())
+)
+
+async function loadSupportContact() {
+  try {
+    const res = await versionApi.checkUpdate(APP_CLIENT_VERSION, APP_CLIENT_CHANNEL)
+    if (res.code === 200 && res.data) {
+      supportEmail.value = (res.data.supportEmail || '').trim()
+      supportPhone.value = (res.data.supportPhone || '').trim()
+    }
+  } catch (e) {
+    console.warn('[HelpPage] 加载客服联系方式失败:', e)
+  }
+}
+
+onMounted(() => {
+  void loadSupportContact()
+})
 
 const faqItems = computed(() => [
   {
@@ -133,6 +158,28 @@ async function submitFeedback() {
           </button>
           <div v-if="expandedFaq === index" class="faq-a">{{ item.a }}</div>
         </div>
+      </div>
+    </section>
+
+    <!-- 客服联系方式 -->
+    <section v-if="hasSupportContact" class="panel-card support-card">
+      <div class="panel-head compact">
+        <div class="panel-head-icon soft">
+          <n-icon :component="CallOutline" :size="20" />
+        </div>
+        <div>
+          <h2 class="panel-title">{{ t('overlay.supportContact') }}</h2>
+        </div>
+      </div>
+      <div class="support-list">
+        <p v-if="supportEmail" class="support-line">
+          <span class="support-label">{{ t('overlay.supportEmail') }}</span>
+          <a class="support-link" :href="`mailto:${supportEmail}`">{{ supportEmail }}</a>
+        </p>
+        <p v-if="supportPhone" class="support-line">
+          <span class="support-label">{{ t('overlay.supportPhone') }}</span>
+          <a class="support-link" :href="`tel:${supportPhone}`">{{ supportPhone }}</a>
+        </p>
       </div>
     </section>
 
@@ -339,6 +386,35 @@ async function submitFeedback() {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+.support-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 2px;
+}
+
+.support-line {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--lx-text-secondary);
+}
+
+.support-label {
+  margin-right: 8px;
+  color: var(--lx-text-muted);
+}
+
+.support-link {
+  color: var(--lx-accent);
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.support-link:hover {
+  text-decoration: underline;
 }
 
 /* 反馈表单 —— 标签 + 控件，控件之间留白一致 */

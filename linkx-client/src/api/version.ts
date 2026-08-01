@@ -21,6 +21,10 @@ export interface AppVersion {
   releaseNotes: string
   /** 下载地址（可空） */
   downloadUrl: string
+  /** 客服邮箱（可空） */
+  supportEmail?: string
+  /** 客服电话（可空） */
+  supportPhone?: string
 }
 
 /**
