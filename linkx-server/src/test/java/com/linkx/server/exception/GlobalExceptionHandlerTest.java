@@ -1,11 +1,15 @@
 package com.linkx.server.exception;
 
 import com.linkx.server.common.Result;
+import org.apache.catalina.connector.ClientAbortException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
+
+import java.io.IOException;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -115,6 +119,17 @@ class GlobalExceptionHandlerTest {
 
             assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
             assertEquals(500, response.getBody().getCode());
+        }
+
+        @Test
+        @DisplayName("客户端中断连接不应当系统 500")
+        void clientAbort_returnsNull() {
+            Exception ex = new AsyncRequestNotUsableException(
+                    "ServletOutputStream failed to write",
+                    new ClientAbortException(new IOException("你的主机中的软件中止了一个已建立的连接。")));
+
+            assertNull(handler.handleException(ex));
+            assertDoesNotThrow(() -> handler.handleClientAbort(ex));
         }
     }
 
