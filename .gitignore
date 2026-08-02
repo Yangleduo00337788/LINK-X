@@ -21,6 +21,8 @@ pnpm-debug.log*
 linkx-client/playwright-report/
 linkx-client/test-results/
 linkx-client/blob-report/
+linkx-client/admin-e2e-report/
+scripts/admin-e2e-report/
 
 # 中间件本地数据与备份产物
 linkx-server/docker/mysql/data/
