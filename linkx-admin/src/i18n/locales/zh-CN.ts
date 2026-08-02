@@ -961,7 +961,7 @@ export default {
     nicknameRequired: '请输入昵称',
     nicknameMax: '昵称最多 64 个字符',
     email: '邮箱',
-    emailPlaceholder: '选填，如 admin@example.com',
+    emailPlaceholder: "选填，如 admin{'@'}example.com",
     emailInvalid: '邮箱格式不正确',
     roles: '角色',
     permissionCount: '权限数',

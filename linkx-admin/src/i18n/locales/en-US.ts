@@ -963,7 +963,7 @@ export default {
     nicknameRequired: 'Please enter a nickname',
     nicknameMax: 'Nickname must be at most 64 characters',
     email: 'Email',
-    emailPlaceholder: 'Optional, e.g. admin@example.com',
+    emailPlaceholder: "Optional, e.g. admin{'@'}example.com",
     emailInvalid: 'Invalid email format',
     roles: 'Roles',
     permissionCount: 'Permissions',
