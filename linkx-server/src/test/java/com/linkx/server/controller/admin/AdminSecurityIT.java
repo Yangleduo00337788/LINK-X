@@ -70,7 +70,7 @@ class AdminSecurityIT extends BaseIntegrationTest {
     }
 
     @Test
-    @DisplayName("管理员可访问管理端；不能冻封自己或其他管理员；不能通过接口授 admin")
+    @DisplayName("管理员可访问管理端；可管理其他管理员；不能冻封自己；不能通过接口授 admin")
     void adminProtections() throws Exception {
         TestUser admin = registerAndLogin("admok");
         promoteToAdmin(admin.userId);
@@ -93,13 +93,13 @@ class AdminSecurityIT extends BaseIntegrationTest {
         TestUser peerAdmin = registerAndLogin("admpair");
         promoteToAdmin(peerAdmin.userId);
 
-        // 禁止冻封其他管理员
+        // admin 可冻封其他管理员
         mockMvc.perform(post("/admin/users/{id}/ban", peerAdmin.userId)
                         .header("Authorization", admin.bearer())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value(403));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
 
         // 普通用户可被冻结
         TestUser victim = registerAndLogin("admvct");
@@ -121,13 +121,16 @@ class AdminSecurityIT extends BaseIntegrationTest {
                 .andExpect(jsonPath("$.data.generated").value(true))
                 .andExpect(jsonPath("$.data.temporaryPassword").isNotEmpty());
 
-        // 禁止重置其他管理员密码
-        mockMvc.perform(post("/admin/users/{id}/reset-password", peerAdmin.userId)
+        // admin 可重置其他管理员密码
+        TestUser peerAdmin2 = registerAndLogin("admpw2");
+        promoteToAdmin(peerAdmin2.userId);
+        mockMvc.perform(post("/admin/users/{id}/reset-password", peerAdmin2.userId)
                         .header("Authorization", admin.bearer())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value(403));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.generated").value(true));
 
         // 接口不可授予 admin
         TestUser target = registerAndLogin("admgrt");

@@ -600,8 +600,8 @@ public class AdminUserServiceImpl implements AdminUserService {
     }
 
     /**
-     * @param statusAction true 表示冻/封/重置密码等状态变更（禁止自操作与操作管理员）；
-     *                     false 表示资料编辑（允许改自己；admin/super_admin 可改其他管理端账号资料含部门）
+     * @param statusAction true 表示冻/封/重置密码等状态变更（禁止自操作；admin/super_admin 可操作其他管理端账号）；
+     *                     false 表示资料编辑（允许改自己；admin/super_admin 可改其他管理端账号）
      */
     private void assertCanModifyTarget(Long targetUserId, Long operatorId, boolean statusAction) {
         if (targetUserId == null || operatorId == null) {
@@ -614,14 +614,11 @@ public class AdminUserServiceImpl implements AdminUserService {
         if (!isAdminUser(targetUserId)) {
             return;
         }
-        if (statusAction) {
-            throw new CustomException(403, "不能对管理员账号执行该操作");
-        }
-        // 资料编辑：本人，或 admin/super_admin 可改其他管理端账号（用于分配部门等）
+        // 管理端账号：资料可改自己；状态类操作已在上方禁止自操作
         if (targetUserId.equals(operatorId)) {
             return;
         }
-        if (!AdminConstants.canEditAdminProfiles(rbacService.getUserRoleCodes(operatorId))) {
+        if (!AdminConstants.canManageOtherAdmins(rbacService.getUserRoleCodes(operatorId))) {
             throw new CustomException(403, "不能对管理员账号执行该操作");
         }
     }

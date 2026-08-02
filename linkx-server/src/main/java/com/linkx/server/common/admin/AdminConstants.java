@@ -46,8 +46,11 @@ public final class AdminConstants {
         return false;
     }
 
-    /** 是否可编辑其他管理端账号的资料（含部门归属）。冻/封等状态操作仍禁止。 */
-    public static boolean canEditAdminProfiles(Collection<String> roles) {
+    /**
+     * 是否可管理其他管理端账号（资料编辑、冻/封/解冻/解封、重置密码）。
+     * 仍禁止对自己执行状态类操作。
+     */
+    public static boolean canManageOtherAdmins(Collection<String> roles) {
         if (roles == null || roles.isEmpty()) {
             return false;
         }
