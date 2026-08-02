@@ -14,6 +14,7 @@ export interface RiskEventItem {
   targetResourceId?: string
   targetResourceType?: string
   ip?: string
+  region?: string
   extraData?: string
   auditLogId?: string
   resolution?: string

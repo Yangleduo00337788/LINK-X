@@ -704,6 +704,7 @@ export default {
     detail: 'Detail',
     user: 'User',
     target: 'Target',
+    region: 'Region',
     riskLevel: 'Risk level',
     levelHigh: 'High',
     levelMedium: 'Medium',

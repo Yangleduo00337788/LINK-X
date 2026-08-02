@@ -23,7 +23,7 @@ import {
   listRiskEvents,
   type RiskEventItem,
 } from '@/api/riskEvents'
-import { formatTime } from '@/utils/format'
+import { formatIp, formatTime } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
 import SearchAutoComplete from '@/components/SearchAutoComplete.vue'
 
@@ -142,6 +142,19 @@ const columns = computed<DataTableColumns<RiskEventItem>>(() => {
     { title: t('risk.detail'), key: 'detail', ellipsis: { tooltip: true } },
     { title: t('risk.user'), key: 'username', width: 110 },
     {
+      title: 'IP',
+      key: 'ip',
+      width: 130,
+      render: (row) => formatIp(row.ip),
+    },
+    {
+      title: t('risk.region'),
+      key: 'region',
+      width: 160,
+      ellipsis: { tooltip: true },
+      render: (row) => row.region || '-',
+    },
+    {
       title: t('risk.riskLevel'),
       key: 'riskLevel',
       width: 90,
@@ -219,7 +232,8 @@ function showDetail(row: RiskEventItem) {
         h('div', `${t('risk.riskLevel')}: ${row.riskLevel || '-'}`),
         h('div', `${t('risk.user')}: ${row.username || row.userId || '-'}`),
         h('div', `${t('risk.target')}: ${row.targetResourceId || '-'}`),
-        h('div', `IP: ${row.ip || '-'}`),
+        h('div', `IP: ${formatIp(row.ip)}`),
+        h('div', `${t('risk.region')}: ${row.region || '-'}`),
         h('div', { style: 'margin-top: 10px;' }, row.detail || '-'),
         row.resolution
           ? h('div', { style: 'margin-top: 12px;' }, `${t('risk.resolution')}: ${row.resolution}`)

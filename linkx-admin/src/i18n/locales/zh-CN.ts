@@ -702,6 +702,7 @@ export default {
     detail: '详情',
     user: '关联用户',
     target: '目标资源',
+    region: '归属地',
     riskLevel: '风险等级',
     levelHigh: '高',
     levelMedium: '中',
