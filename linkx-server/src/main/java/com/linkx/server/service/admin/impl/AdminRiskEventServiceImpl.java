@@ -1,5 +1,6 @@
 package com.linkx.server.service.admin.impl;
 
+import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.common.admin.AdminConstants;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminRiskEventBatchDTO;
@@ -13,6 +14,7 @@ import com.linkx.server.entity.admin.SysRiskEvent;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.mapper.admin.SysRiskEventMapper;
+import com.linkx.server.service.IpGeoService;
 import com.linkx.server.service.RbacService;
 import com.linkx.server.service.admin.AdminEventPublisher;
 import com.linkx.server.service.admin.AdminRiskEventService;
@@ -39,6 +41,7 @@ public class AdminRiskEventServiceImpl implements AdminRiskEventService {
     private final AdminEventPublisher adminEventPublisher;
     private final AdminUserService adminUserService;
     private final RbacService rbacService;
+    private final IpGeoService ipGeoService;
 
     @Override
     public PageResultVO<AdminRiskEventVO> list(AdminRiskEventQueryDTO query) {
@@ -366,6 +369,7 @@ public class AdminRiskEventServiceImpl implements AdminRiskEventService {
     }
 
     private AdminRiskEventVO toVO(SysRiskEvent event) {
+        String ip = ClientIpResolver.normalizeToIpv4(event.getIp());
         return AdminRiskEventVO.builder()
                 .id(event.getId())
                 .eventType(event.getEventType())
@@ -377,7 +381,8 @@ public class AdminRiskEventServiceImpl implements AdminRiskEventService {
                 .username(event.getUsername())
                 .targetResourceId(event.getTargetResourceId())
                 .targetResourceType(event.getTargetResourceType())
-                .ip(event.getIp())
+                .ip(ip)
+                .region(ipGeoService.resolve(ip))
                 .extraData(event.getExtraData())
                 .auditLogId(event.getAuditLogId())
                 .resolution(event.getResolution())

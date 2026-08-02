@@ -22,6 +22,8 @@ public class AdminRiskEventVO {
     private String targetResourceId;
     private String targetResourceType;
     private String ip;
+    @Schema(description = "IP 归属地")
+    private String region;
     private String extraData;
     private Long auditLogId;
     private String resolution;

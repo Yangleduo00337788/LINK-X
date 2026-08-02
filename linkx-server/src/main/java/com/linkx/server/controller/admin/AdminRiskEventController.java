@@ -59,12 +59,13 @@ public class AdminRiskEventController {
                     AdminCsvResponses.cell(item.getStatus()),
                     AdminCsvResponses.cell(item.getUsername()),
                     AdminCsvResponses.cell(item.getIp()),
+                    AdminCsvResponses.cell(item.getRegion()),
                     AdminCsvResponses.cell(item.getResolution()),
                     AdminCsvResponses.cell(item.getCreateTime()),
             });
         }
         return AdminCsvResponses.csv("risk-events",
-                List.of("id", "eventType", "title", "riskLevel", "status", "username", "ip", "resolution", "createTime"),
+                List.of("id", "eventType", "title", "riskLevel", "status", "username", "ip", "region", "resolution", "createTime"),
                 rows);
     }
 

@@ -143,11 +143,12 @@ public class AdminExportCsvBuilder {
                     AdminCsvResponses.cell(item.getStatus()),
                     AdminCsvResponses.cell(item.getUsername()),
                     AdminCsvResponses.cell(item.getIp()),
+                    AdminCsvResponses.cell(item.getRegion()),
                     AdminCsvResponses.cell(item.getResolution()),
                     AdminCsvResponses.cell(item.getCreateTime()),
             });
         }
-        return payload(module, List.of("id", "eventType", "title", "riskLevel", "status", "username", "ip", "resolution", "createTime"), rows);
+        return payload(module, List.of("id", "eventType", "title", "riskLevel", "status", "username", "ip", "region", "resolution", "createTime"), rows);
     }
 
     private CsvPayload buildReviews(AdminReviewQueryDTO query, AdminExportModule module) {
