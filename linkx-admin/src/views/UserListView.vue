@@ -82,9 +82,16 @@ const ADMIN_PORTAL_ROLES = new Set([
   'readonly_observer',
 ])
 
+const PRIVILEGED_ADMIN_ROLES = new Set(['admin', 'super_admin'])
+
+function isPrivilegedOperator() {
+  return auth.user?.roles?.some((r) => PRIVILEGED_ADMIN_ROLES.has(r)) ?? false
+}
+
 function canToggleStatus(row: AdminUserListItem) {
   if (String(row.id) === String(auth.user?.id)) return false
-  if (row.roles?.some((r) => ADMIN_PORTAL_ROLES.has(r))) return false
+  const isPortalUser = row.roles?.some((r) => ADMIN_PORTAL_ROLES.has(r))
+  if (isPortalUser && !isPrivilegedOperator()) return false
   return true
 }
 
@@ -300,6 +307,11 @@ function flattenDepts(nodes: AdminDept[], prefix = ''): { label: string; value: 
 }
 
 async function loadDepts() {
+  // 无部门权限时不请求，避免非特权角色进入用户列表即刷 403
+  if (!auth.hasPermission('admin:dept:list')) {
+    deptOptions.value = [{ label: t('user.allDepts'), value: null }]
+    return
+  }
   try {
     const tree = await listDepts()
     deptOptions.value = [
@@ -330,6 +342,7 @@ onMounted(() => {
           />
           <NSelect v-model:value="query.status" :options="statusOptions" style="width: 140px" />
           <NSelect
+            v-if="auth.hasPermission('admin:dept:list')"
             v-model:value="query.deptId"
             :options="deptOptions"
             clearable

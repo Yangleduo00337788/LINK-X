@@ -107,13 +107,18 @@ const ADMIN_PORTAL_ROLES = new Set([
   'readonly_observer',
 ])
 
-/** admin / super_admin 可编辑其他管理端账号资料（含部门） */
-const PRIVILEGED_EDIT_ROLES = new Set(['admin', 'super_admin'])
+/** admin / super_admin 可管理其他管理端账号（资料、冻/封、重置密码） */
+const PRIVILEGED_ADMIN_ROLES = new Set(['admin', 'super_admin'])
+
+function isPrivilegedOperator() {
+  return auth.user?.roles?.some((r) => PRIVILEGED_ADMIN_ROLES.has(r)) ?? false
+}
 
 const canToggleStatus = computed(() => {
   if (!user.value) return false
   if (String(user.value.id) === String(auth.user?.id)) return false
-  if (user.value.roles?.some((r) => ADMIN_PORTAL_ROLES.has(r))) return false
+  const isPortalUser = user.value.roles?.some((r) => ADMIN_PORTAL_ROLES.has(r))
+  if (isPortalUser && !isPrivilegedOperator()) return false
   return true
 })
 
@@ -123,7 +128,7 @@ const canEdit = computed(() => {
   if (isSelf) return true
   const isPortalUser = user.value.roles?.some((r) => ADMIN_PORTAL_ROLES.has(r))
   if (!isPortalUser) return true
-  return auth.user?.roles?.some((r) => PRIVILEGED_EDIT_ROLES.has(r)) ?? false
+  return isPrivilegedOperator()
 })
 
 const canResetPassword = computed(
