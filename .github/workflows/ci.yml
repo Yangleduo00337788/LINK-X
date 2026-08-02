@@ -30,7 +30,7 @@ jobs:
       - name: Run regression suite
         run: >
           mvn -B -q
-          -Dtest=MessageFlowTest,ImMainLinkE2ETest,ImWebSocketLiveE2ETest,DualClientLiveSmokeTest,AlignmentGapSmokeTest,WebSocketNormalLinkTest,MessageReliabilityFlowTest,ExceptionPathTest,P1DebtTest,P2AdvancedTest,P2QualityGateTest,P2DataGovernanceTest,ChatSearchEnhanceTest,GroupInvitationControllerTest,ChatControllerTest,AdminRoleSmokeIT,AdminSecurityIT,AdminMenuIT,AdminDataScopeIT,AdminStatisticsIT,AdminStepUpIT,AdminDeviceSecurityIT,AdminOpsConfigIT,VersionControllerTest,AppVersionUtilsTest,ProductionSecurityValidatorTest,ProductionSecretRulesTest
+          -Dtest=MessageFlowTest,ImMainLinkE2ETest,ImWebSocketLiveE2ETest,DualClientLiveSmokeTest,AlignmentGapSmokeTest,WebSocketNormalLinkTest,MessageReliabilityFlowTest,ExceptionPathTest,P1DebtTest,P2AdvancedTest,P2QualityGateTest,P2DataGovernanceTest,ChatSearchEnhanceTest,GroupInvitationControllerTest,ChatControllerTest,AdminRoleSmokeIT,AdminSecurityIT,AdminMenuIT,AdminDataScopeIT,AdminStatisticsIT,AdminStepUpIT,AdminDeviceSecurityIT,AdminOpsConfigIT,AdminRateLimitIT,AdminRolePermissionIT,AdminExportJobIT,AdminClientSettingIT,AdminAdvancedFilterIT,AdminM6FeaturesIT,VersionControllerTest,AppVersionUtilsTest,ProductionSecurityValidatorTest,ProductionSecretRulesTest
           test
         timeout-minutes: 45
 
@@ -49,6 +49,8 @@ jobs:
           cache-dependency-path: linkx-admin/package-lock.json
       - run: npm ci
       - run: npm test
+      - name: Typecheck & build
+        run: npm run build
 
   client-unit:
     name: Client unit
