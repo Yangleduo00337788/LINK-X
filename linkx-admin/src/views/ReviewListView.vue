@@ -3,6 +3,7 @@ import { computed, h, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import {
+  NAlert,
   NButton,
   NDataTable,
   NDatePicker,
@@ -39,6 +40,9 @@ const { t, locale } = useI18n()
 
 /** 举报独立入口：锁定 sourceType=report，收窄目标类型 */
 const reportOnly = computed(() => !!route.meta.reportOnly)
+/** 群公告审核独立入口：锁定 targetType=announcement */
+const announcementOnly = computed(() => !!route.meta.announcementOnly)
+const presetLocked = computed(() => reportOnly.value || announcementOnly.value)
 
 const loading = ref(false)
 const items = ref<ReviewItem[]>([])
@@ -100,6 +104,9 @@ const sourceOptions = computed(() => {
 
 const targetTypeOptions = computed(() => {
   void locale.value
+  if (announcementOnly.value) {
+    return [{ label: t('review.targetAnnouncement'), value: 'announcement' }]
+  }
   if (reportOnly.value) {
     return [
       { label: t('review.allTargetTypes'), value: '' },
@@ -427,6 +434,7 @@ async function load(opts?: { silent?: boolean; announceNew?: boolean }) {
   if (!silent) loading.value = true
   try {
     if (reportOnly.value) query.sourceType = 'report'
+    if (announcementOnly.value) query.targetType = 'announcement'
     const data = await listReviews({
       page: query.page,
       size: query.size,
@@ -474,6 +482,10 @@ onMounted(() => {
     query.sourceType = 'report'
     query.status = query.status || 'pending'
   }
+  if (announcementOnly.value) {
+    query.targetType = 'announcement'
+    query.status = query.status || 'pending'
+  }
   void load()
   pollTimer.value = setInterval(() => {
     if (document.visibilityState !== 'visible') return
@@ -495,6 +507,9 @@ onUnmounted(() => {
 <template>
   <div class="page">
     <div class="page-shell">
+      <NAlert v-if="announcementOnly" type="info" :bordered="false" class="preset-hint">
+        {{ t('review.announcementOnlyHint') }}
+      </NAlert>
       <NSpace class="page-toolbar" justify="space-between">
         <NSpace>
           <SearchAutoComplete
@@ -505,12 +520,13 @@ onUnmounted(() => {
           />
           <NSelect v-model:value="query.status" :options="statusOptions" style="width: 140px" />
           <NSelect
-            v-if="!reportOnly"
+            v-if="!presetLocked"
             v-model:value="query.sourceType"
             :options="sourceOptions"
             style="width: 140px"
           />
           <NSelect
+            v-if="!announcementOnly"
             v-model:value="query.targetType"
             :options="targetTypeOptions"
             style="width: 160px"
@@ -520,7 +536,7 @@ onUnmounted(() => {
             :options="riskLevelOptions"
             style="width: 130px"
           />
-          <NButton v-if="!reportOnly" secondary @click="applyReportPreset">
+          <NButton v-if="!presetLocked" secondary @click="applyReportPreset">
             {{ t('review.reportPreset') }}
           </NButton>
           <NDatePicker
@@ -660,6 +676,9 @@ onUnmounted(() => {
   white-space: pre-wrap;
   max-height: 180px;
   overflow: auto;
+}
+.preset-hint {
+  margin-bottom: 12px;
 }
 .hint {
   color: var(--lx-text-3, #999);

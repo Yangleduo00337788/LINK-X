@@ -89,7 +89,7 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
   {
     roleCode: 'audit_admin',
     label: '审核管理员',
-    mustMenus: ['review-task', 'report-task', 'risk-event', 'devices'],
+    mustMenus: ['review-task', 'report-task', 'announcement-review', 'risk-event', 'devices'],
     mustNotMenus: ['notices', 'statistics', 'settings', 'rate-limit'],
     allowPerms: ['admin:review:approve', 'admin:risk-event:handle', 'admin:user:freeze'],
     denyPerms: [
@@ -99,7 +99,13 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
       'admin:rate-limit:list',
       'admin:role:assign-permission',
     ],
-    allowRoutes: ['/admin/reviews', '/admin/reports', '/admin/risk-events', '/admin/devices'],
+    allowRoutes: [
+      '/admin/reviews',
+      '/admin/reports',
+      '/admin/announcement-reviews',
+      '/admin/risk-events',
+      '/admin/devices',
+    ],
     denyRoutes: [
       '/admin/notices',
       '/admin/statistics',
@@ -185,6 +191,11 @@ export const ADMIN_ROUTE_PERMISSIONS: Array<{ path: string; permission?: string;
   { path: '/admin/feedback', permission: 'admin:feedback:list', name: 'FeedbackList' },
   { path: '/admin/reviews', permission: 'admin:review:list', name: 'ReviewList' },
   { path: '/admin/reports', permission: 'admin:review:list', name: 'ReportList' },
+  {
+    path: '/admin/announcement-reviews',
+    permission: 'admin:review:list',
+    name: 'AnnouncementReviewList',
+  },
   {
     path: '/admin/sensitive-words',
     permission: 'admin:sensitive-word:list',

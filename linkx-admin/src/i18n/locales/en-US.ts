@@ -91,6 +91,7 @@ export default {
     review: 'Moderation',
     reviews: 'Reviews',
     reports: 'Reports',
+    announcementReviews: 'Announcement reviews',
     sensitiveWords: 'Sensitive Words',
     notices: 'Notices',
     noticeInbox: 'Notifications',
@@ -621,6 +622,9 @@ export default {
     sourceSensitive: 'Sensitive word',
     sourceManual: 'Manual',
     reportPreset: 'Reports only',
+    announcementOnlyHint:
+      'Shows announcement review tasks only, including sensitive-word hits and user reports.',
+    targetAnnouncement: 'Announcement',
     title: 'Title',
     content: 'Content',
     reporter: 'Reporter',

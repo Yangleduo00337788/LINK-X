@@ -111,6 +111,7 @@ class AdminRoleSmokeIT extends BaseIntegrationTest {
         Set<String> menuNames = menuNames(audit);
         assertTrue(menuNames.contains("review-task") || menuNames.contains("review"));
         assertTrue(menuNames.contains("report-task"));
+        assertTrue(menuNames.contains("announcement-review"));
         assertTrue(menuNames.contains("risk-event"));
         assertTrue(menuNames.contains("devices"));
         assertFalse(menuNames.contains("notices"));

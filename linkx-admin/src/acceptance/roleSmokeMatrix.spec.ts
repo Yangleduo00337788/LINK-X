@@ -16,6 +16,7 @@ const FIXTURES: Record<
     menus: [
       { name: 'dashboard' },
       { name: 'settings' },
+      { name: 'versions' },
       {
         name: 'log',
         children: [{ name: 'risk-event' }, { name: 'rate-limit' }],
@@ -62,7 +63,12 @@ const FIXTURES: Record<
       },
       {
         name: 'review',
-        children: [{ name: 'report-task' }, { name: 'review-task' }, { name: 'sensitive-word' }],
+        children: [
+          { name: 'report-task' },
+          { name: 'review-task' },
+          { name: 'announcement-review' },
+          { name: 'sensitive-word' },
+        ],
       },
       { name: 'blacklist' },
       { name: 'devices' },

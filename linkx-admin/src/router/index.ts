@@ -126,6 +126,16 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        path: 'announcement-reviews',
+        name: 'AnnouncementReviewList',
+        component: () => import('@/views/ReviewListView.vue'),
+        meta: {
+          titleKey: 'route.announcementReviews',
+          permission: 'admin:review:list',
+          announcementOnly: true,
+        },
+      },
+      {
         path: 'sensitive-words',
         name: 'SensitiveWordList',
         component: () => import('@/views/SensitiveWordListView.vue'),

@@ -954,6 +954,7 @@ INSERT IGNORE INTO sys_admin_menu
 (13, 0, 'review',      '审核中心', '/admin/review',     NULL,                    'Shield',    'dir',  NULL,                   5, 0, 1, 0, 1, 1, 0),
 (14, 13,'review-task', '违规内容', '/admin/reviews',    'views/ReviewListView',  'Document',  'menu', 'admin:review:list',    1, 0, 1, 0, 1, 1, 0),
 (43, 13,'report-task', '用户举报', '/admin/reports',    'views/ReviewListView',  'Flag',      'menu', 'admin:review:list',    0, 0, 1, 0, 1, 1, 0),
+(44, 13,'announcement-review', '群公告审核', '/admin/announcement-reviews', 'views/ReviewListView', 'Megaphone', 'menu', 'admin:review:list', 2, 0, 1, 0, 1, 1, 0),
 (16, 0, 'notices',     '公告管理', '/admin/notices',    'views/NoticeView',      'Bell',      'menu', 'admin:notice:list',    7, 0, 1, 0, 1, 1, 0),
 (18, 0, 'statistics',  '统计分析', '/admin/statistics', 'views/StatisticsView',  'Chart',     'menu', 'admin:statistics:view',9, 0, 1, 0, 1, 1, 0),
 (19, 7, 'risk-event',  '风险事件', '/admin/risk-events','views/RiskEventView',   'Warning',   'menu', 'admin:risk-event:list',3, 0, 1, 0, 1, 1, 0),
@@ -966,13 +967,13 @@ INSERT IGNORE INTO sys_admin_menu
 INSERT IGNORE INTO sys_admin_role_menu (role_id, menu_id) VALUES
 -- admin 全量（测试用最小集）
 (1001, 1),(1001, 2),(1001, 7),(1001, 8),(1001, 9),(1001, 10),(1001, 11),
-(1001, 13),(1001, 14),(1001, 43),(1001, 16),(1001, 18),(1001, 19),(1001, 20),(1001, 22),
+(1001, 13),(1001, 14),(1001, 43),(1001, 44),(1001, 16),(1001, 18),(1001, 19),(1001, 20),(1001, 22),
 (1001, 40),(1001, 41),(1001, 42),
 -- ops
 (1003, 1),(1003, 2),(1003, 10),(1003, 16),(1003, 18),(1003, 40),(1003, 41),
 -- audit
 (1004, 1),(1004, 2),(1004, 7),(1004, 8),(1004, 9),(1004, 19),
-(1004, 13),(1004, 14),(1004, 43),(1004, 20),(1004, 22),
+(1004, 13),(1004, 14),(1004, 43),(1004, 44),(1004, 20),(1004, 22),
 -- security
 (1005, 1),(1005, 2),(1005, 7),(1005, 8),(1005, 9),(1005, 19),(1005, 20),(1005, 22),(1005, 42),
 -- readonly
