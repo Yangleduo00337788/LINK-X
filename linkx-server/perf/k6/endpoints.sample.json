@@ -1,0 +1,15 @@
+{
+  "generatedAt": "2026-08-02T00:00:00.000Z",
+  "source": "sample",
+  "count": 8,
+  "endpoints": [
+    { "method": "GET", "path": "/health", "operationId": "health", "tags": ["health"], "mutating": false, "security": false },
+    { "method": "GET", "path": "/health/live", "operationId": "live", "tags": ["health"], "mutating": false, "security": false },
+    { "method": "GET", "path": "/auth/config", "operationId": "authConfig", "tags": ["auth"], "mutating": false, "security": false },
+    { "method": "POST", "path": "/auth/login", "operationId": "login", "tags": ["auth"], "mutating": true, "security": false },
+    { "method": "GET", "path": "/chat/sessions", "operationId": "sessions", "tags": ["chat"], "mutating": false, "security": true },
+    { "method": "GET", "path": "/friend/list", "operationId": "friends", "tags": ["friend"], "mutating": false, "security": true },
+    { "method": "GET", "path": "/group/list", "operationId": "groups", "tags": ["group"], "mutating": false, "security": true },
+    { "method": "GET", "path": "/user/me", "operationId": "me", "tags": ["user"], "mutating": false, "security": true }
+  ]
+}

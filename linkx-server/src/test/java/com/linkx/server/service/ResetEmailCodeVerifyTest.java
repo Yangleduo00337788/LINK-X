@@ -72,34 +72,26 @@ class ResetEmailCodeVerifyTest extends BaseIntegrationTest {
 
     @Test
     void fullFlow_sendCode_thenVerify_correctCodeSucceeds() throws Exception {
-        // 注册一个真实用户 + 设置邮箱
+        // 注册真实用户（含邮箱验证码），确保 send-reset-code 能落 Redis
         String username = "rt" + System.nanoTime() % 1_000_000_000L;
+        if (username.length() > 32) {
+            username = username.substring(0, 32);
+        }
         String password = "Test1234abcd";
-        // 注册
-        mockMvc.perform(post("/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"username":"%s","password":"%s","nickname":"测试","email":"%s@linkx.test"}
-                                """.formatted(username, password, username)))
-                .andReturn();
+        register(username, password, "重置测试");
 
-        // 调用 send-reset-code
         MvcResult sr = mockMvc.perform(post("/auth/send-reset-code")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"username":"%s"}
                                 """.formatted(username)))
                 .andReturn();
-        System.out.println(">>> send-reset-code http=" + sr.getResponse().getStatus());
         assertEquals(200, objectMapper.readTree(sr.getResponse().getContentAsString()).get("code").asInt());
 
-        // 取 Redis 中的验证码
         String stored = redis.opsForValue().get("linkx:reset-email:" + username);
-        System.out.println(">>> Redis 里的验证码=" + stored);
         assertNotNull(stored, "发送后 Redis 必须存有验证码");
         assertEquals(6, stored.length());
 
-        // 用错误验证码 → 应该 400
         MvcResult wrong = mockMvc.perform(post("/auth/reset-password-by-email")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -107,15 +99,11 @@ class ResetEmailCodeVerifyTest extends BaseIntegrationTest {
                                 """.formatted(username)))
                 .andReturn();
         JsonNode wrongBody = objectMapper.readTree(wrong.getResponse().getContentAsString());
-        System.out.println(">>> [错误验证码] body=" + wrongBody);
         assertEquals(400, wrongBody.get("code").asInt());
 
-        // ★ 新行为：错误一次不应该删掉验证码，让用户继续尝试
         String stillThere = redis.opsForValue().get("linkx:reset-email:" + username);
-        System.out.println(">>> 错误一次后 Redis 残留=" + stillThere);
         assertNotNull(stillThere, "错误一次不应该删除 key，验证码应该还在（避免用户手抖一次后正确码被吞）");
 
-        // 用正确的验证码再请求 → 应该走到 user 查询步骤（用户不存在，但验证码已经被消费前的 key 仍然在）
         String bodyCorrect = """
                 {"username":"%s","code":"%s","newPassword":"Test1234abcd"}
                 """.formatted(username, stored);
@@ -124,8 +112,6 @@ class ResetEmailCodeVerifyTest extends BaseIntegrationTest {
                         .content(bodyCorrect))
                 .andReturn();
         JsonNode okBody = objectMapper.readTree(ok.getResponse().getContentAsString());
-        System.out.println(">>> [第一次错后用正确验证码] body=" + okBody);
-        // 这里可能 400（用户不存在），但不能是「验证码错误」类的提示
-        // 如果是「验证码错误」说明验证码被吃掉了
+        assertEquals(200, okBody.get("code").asInt(), "正确验证码应成功重置密码: " + okBody);
     }
 }

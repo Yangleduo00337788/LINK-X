@@ -111,7 +111,7 @@ const columns = computed<DataTableColumns<SensitiveWordItem>>(() => {
       width: 90,
       render: (row) =>
         h(NTag, { type: row.enabled ? 'success' : 'default', size: 'small' }, () =>
-          row.enabled ? t('common.enabled') : t('common.disabled'),
+          row.enabled ? t('common.enabled') : t('common.disabled')
         ),
     },
     {
@@ -149,7 +149,7 @@ const columns = computed<DataTableColumns<SensitiveWordItem>>(() => {
                       },
                     }),
                 },
-                () => t('common.delete'),
+                () => t('common.delete')
               )
             : null,
         ]),
@@ -282,8 +282,15 @@ onMounted(load)
           itemCount: total,
           showSizePicker: true,
           pageSizes: [10, 20, 50],
-          onUpdatePage: (p: number) => { query.page = p; load() },
-          onUpdatePageSize: (s: number) => { query.size = s; query.page = 1; load() },
+          onUpdatePage: (p: number) => {
+            query.page = p
+            load()
+          },
+          onUpdatePageSize: (s: number) => {
+            query.size = s
+            query.page = 1
+            load()
+          },
         }"
         remote
       />
@@ -305,7 +312,11 @@ onMounted(load)
         <NFormItem :label="t('sensitive.action')" path="action">
           <NSelect v-model:value="form.action" :options="actionOptions" />
         </NFormItem>
-        <NFormItem v-if="form.action === 'filter'" :label="t('sensitive.replacement')" path="replacement">
+        <NFormItem
+          v-if="form.action === 'filter'"
+          :label="t('sensitive.replacement')"
+          path="replacement"
+        >
           <NInput v-model:value="form.replacement" />
         </NFormItem>
         <NFormItem :label="t('common.status')" path="enabled">
@@ -315,7 +326,9 @@ onMounted(load)
       <template #footer>
         <NSpace justify="end">
           <NButton @click="showForm = false">{{ t('common.cancel') }}</NButton>
-          <NButton type="primary" :loading="saving" @click="submitForm">{{ t('common.save') }}</NButton>
+          <NButton type="primary" :loading="saving" @click="submitForm">{{
+            t('common.save')
+          }}</NButton>
         </NSpace>
       </template>
     </NModal>

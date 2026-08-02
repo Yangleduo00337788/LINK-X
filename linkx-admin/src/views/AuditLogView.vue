@@ -135,8 +135,16 @@ onMounted(load)
             width="220px"
             @search="search"
           />
-          <NSelect v-model:value="query.operationType" :options="operationTypeOptions" style="width: 170px" />
-          <NSelect v-model:value="query.resultStatus" :options="resultStatusOptions" style="width: 130px" />
+          <NSelect
+            v-model:value="query.operationType"
+            :options="operationTypeOptions"
+            style="width: 170px"
+          />
+          <NSelect
+            v-model:value="query.resultStatus"
+            :options="resultStatusOptions"
+            style="width: 130px"
+          />
           <NDatePicker
             v-model:value="query.range"
             type="datetimerange"
@@ -164,8 +172,15 @@ onMounted(load)
           itemCount: total,
           showSizePicker: true,
           pageSizes: [10, 20, 50],
-          onUpdatePage: (p: number) => { query.page = p; load() },
-          onUpdatePageSize: (s: number) => { query.size = s; query.page = 1; load() },
+          onUpdatePage: (p: number) => {
+            query.page = p
+            load()
+          },
+          onUpdatePageSize: (s: number) => {
+            query.size = s
+            query.page = 1
+            load()
+          },
         }"
         remote
       />

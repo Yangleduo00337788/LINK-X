@@ -1,5 +1,6 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.linkx.server.common.Result;
@@ -52,6 +53,7 @@ public class HealthController {
     /**
      * 公开健康检查：仅返回服务级状态，不暴露组件明细（防信息探测）。
      */
+    @Operation(summary = "公开健康检查")
     @GetMapping
     public Result<Map<String, Object>> health() {
         Map<String, Object> health = new HashMap<>();
@@ -62,6 +64,7 @@ public class HealthController {
         return Result.success(health);
     }
 
+    @Operation(summary = "存活探针")
     @GetMapping("/live")
     public Result<Map<String, Object>> liveness() {
         Map<String, Object> response = new HashMap<>();
@@ -74,6 +77,7 @@ public class HealthController {
      * 就绪探针：返回组件 UP/DOWN，不返回延迟数值，降低信息面。
      * 仅允许内网 IP 访问，防止外部探测。
      */
+    @Operation(summary = "就绪探针")
     @GetMapping("/ready")
     public Result<Map<String, Object>> readiness(HttpServletRequest request) {
         Map<String, Object> response = new HashMap<>();

@@ -55,7 +55,7 @@ onMounted(() => {
         title
           ? t('notice.adminBulletin', { title, content: content || title })
           : t('notice.adminBulletinGeneric'),
-        { duration: 6000 },
+        { duration: 6000 }
       )
     } else if (evt?.type === 'admin_notice_unpublished') {
       const title = typeof evt.title === 'string' ? evt.title : ''
@@ -63,7 +63,7 @@ onMounted(() => {
         title
           ? t('notice.adminBulletinRecalled', { title })
           : t('notice.adminBulletinRecalledGeneric'),
-        { duration: 5000 },
+        { duration: 5000 }
       )
     } else if (evt?.type === 'export_ready') {
       message.success(t('common.exportReady'), { duration: 4000 })
@@ -82,9 +82,7 @@ onUnmounted(() => {
   stopAdminRealtime()
 })
 
-const headerAvatarSrc = computed(() =>
-  resolveAvatarSrc(auth.user?.avatar, auth.user?.id, true),
-)
+const headerAvatarSrc = computed(() => resolveAvatarSrc(auth.user?.avatar, auth.user?.id, true))
 const headerAvatarBroken = ref(false)
 watch(headerAvatarSrc, () => {
   headerAvatarBroken.value = false
@@ -98,9 +96,7 @@ function toMenuOptions(menus: AdminMenuTree[]): MenuOption[] {
     .filter(
       (m) =>
         m.visible !== false &&
-        m.type !== 'button' &&
-        m.name !== 'versions' &&
-        m.path !== '/admin/versions',
+        m.type !== 'button'
     )
     .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0))
     .map((m) => {
@@ -171,7 +167,6 @@ async function onUserSelect(key: string) {
     router.push('/login')
   }
 }
-
 </script>
 
 <template>

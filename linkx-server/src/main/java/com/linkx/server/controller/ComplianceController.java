@@ -1,5 +1,6 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.linkx.server.common.AuthUtils;
@@ -31,6 +32,7 @@ public class ComplianceController {
     private final ComplianceService complianceService;
     private final JwtUtils jwtUtils;
 
+    @Operation(summary = "导出个人数据")
     @GetMapping("/export")
     @RateLimit(scope = "compliance:export", value = 5, window = 60)
     public Result<UserDataExportVO> export(HttpServletRequest request) {
@@ -38,6 +40,7 @@ public class ComplianceController {
         return Result.success(complianceService.exportUserData(userId));
     }
 
+    @Operation(summary = "清除个人数据")
     @PostMapping("/purge")
     @RateLimit(scope = "compliance:purge", value = 3, window = 300)
     public Result<Void> purge(

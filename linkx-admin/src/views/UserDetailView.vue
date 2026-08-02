@@ -42,7 +42,13 @@ import {
 import { banDevice, kickDevice, unbanDevice } from '@/api/devices'
 import { listDepts, type AdminDept } from '@/api/depts'
 import { onAdminRealtimeEvent } from '@/api/realtime'
-import { formatTime, displayOrNone, formatIp, userStatusLabel, userStatusType } from '@/utils/format'
+import {
+  formatTime,
+  displayOrNone,
+  formatIp,
+  userStatusLabel,
+  userStatusType,
+} from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
@@ -132,7 +138,7 @@ const canEdit = computed(() => {
 })
 
 const canResetPassword = computed(
-  () => canToggleStatus.value && auth.hasPermission('admin:user:reset-password'),
+  () => canToggleStatus.value && auth.hasPermission('admin:user:reset-password')
 )
 
 const deviceColumns = computed<DataTableColumns<DeviceItem>>(() => {
@@ -146,10 +152,8 @@ const deviceColumns = computed<DataTableColumns<DeviceItem>>(() => {
       key: 'online',
       width: 90,
       render: (row) =>
-        h(
-          NTag,
-          { type: row.online ? 'success' : 'default', size: 'small' },
-          () => (row.online ? t('device.online') : t('device.offline')),
+        h(NTag, { type: row.online ? 'success' : 'default', size: 'small' }, () =>
+          row.online ? t('device.online') : t('device.offline')
         ),
     },
     {
@@ -157,10 +161,8 @@ const deviceColumns = computed<DataTableColumns<DeviceItem>>(() => {
       key: 'approved',
       width: 90,
       render: (row) =>
-        h(
-          NTag,
-          { type: row.approved ? 'success' : 'warning', size: 'small' },
-          () => (row.approved ? t('device.approved') : t('device.unapproved')),
+        h(NTag, { type: row.approved ? 'success' : 'warning', size: 'small' }, () =>
+          row.approved ? t('device.approved') : t('device.unapproved')
         ),
     },
     {
@@ -168,9 +170,7 @@ const deviceColumns = computed<DataTableColumns<DeviceItem>>(() => {
       key: 'banned',
       width: 80,
       render: (row) =>
-        row.banned
-          ? h(NTag, { type: 'error', size: 'small' }, () => t('device.banned'))
-          : '-',
+        row.banned ? h(NTag, { type: 'error', size: 'small' }, () => t('device.banned')) : '-',
     },
     {
       title: 'IP',
@@ -209,8 +209,8 @@ const deviceColumns = computed<DataTableColumns<DeviceItem>>(() => {
                 secondary: true,
                 onClick: () => confirmKickDevice(row),
               },
-              () => t('device.kick'),
-            ),
+              () => t('device.kick')
+            )
           )
         }
         if (auth.hasPermission('admin:user:device-approve')) {
@@ -223,8 +223,8 @@ const deviceColumns = computed<DataTableColumns<DeviceItem>>(() => {
                   secondary: true,
                   onClick: () => confirmRevokeDevice(row),
                 },
-                () => t('device.revoke'),
-              ),
+                () => t('device.revoke')
+              )
             )
           } else {
             buttons.push(
@@ -236,8 +236,8 @@ const deviceColumns = computed<DataTableColumns<DeviceItem>>(() => {
                   secondary: true,
                   onClick: () => confirmApproveDevice(row),
                 },
-                () => t('device.approve'),
-              ),
+                () => t('device.approve')
+              )
             )
           }
         }
@@ -250,8 +250,8 @@ const deviceColumns = computed<DataTableColumns<DeviceItem>>(() => {
                 secondary: true,
                 onClick: () => confirmUnbanDevice(row),
               },
-              () => t('device.unban'),
-            ),
+              () => t('device.unban')
+            )
           )
         } else if (!row.banned && auth.hasPermission('admin:device:ban')) {
           buttons.push(
@@ -263,8 +263,8 @@ const deviceColumns = computed<DataTableColumns<DeviceItem>>(() => {
                 secondary: true,
                 onClick: () => confirmBanDevice(row),
               },
-              () => t('device.ban'),
-            ),
+              () => t('device.ban')
+            )
           )
         }
         return buttons.length ? h(NSpace, { size: 4 }, () => buttons) : null
@@ -374,10 +374,8 @@ const loginColumns = computed<DataTableColumns<UserLoginItem>>(() => {
       key: 'success',
       width: 90,
       render: (row) =>
-        h(
-          NTag,
-          { type: row.success === 1 ? 'success' : 'error', size: 'small' },
-          () => (row.success === 1 ? t('user.loginSuccess') : t('user.loginFail')),
+        h(NTag, { type: row.success === 1 ? 'success' : 'error', size: 'small' }, () =>
+          row.success === 1 ? t('user.loginSuccess') : t('user.loginFail')
         ),
     },
     {
@@ -484,7 +482,7 @@ async function submitResetPassword(generate: boolean) {
   try {
     const result = await resetUserPassword(
       userId.value,
-      generate ? undefined : resetForm.newPassword,
+      generate ? undefined : resetForm.newPassword
     )
     message.success(t('user.resetPasswordSuccess'))
     if (result?.generated && result.temporaryPassword) {
@@ -569,19 +567,16 @@ onUnmounted(() => {
         <NSpace class="page-toolbar" justify="end">
           <NButton @click="router.back()">{{ t('common.back') }}</NButton>
           <NButton v-if="canEdit" @click="openEdit">{{ t('user.editProfile') }}</NButton>
-          <NButton
-            v-if="canResetPassword"
-            type="warning"
-            secondary
-            @click="openResetPassword"
-          >
+          <NButton v-if="canResetPassword" type="warning" secondary @click="openResetPassword">
             {{ t('user.resetPassword') }}
           </NButton>
           <NButton
             v-if="canToggleStatus && user?.status === 1 && auth.hasPermission('admin:user:freeze')"
             type="warning"
             secondary
-            @click="confirmAction(t('user.freeze'), t('user.freezeConfirm'), () => freezeUser(userId))"
+            @click="
+              confirmAction(t('user.freeze'), t('user.freezeConfirm'), () => freezeUser(userId))
+            "
           >
             {{ t('user.freeze') }}
           </NButton>
@@ -594,10 +589,16 @@ onUnmounted(() => {
             {{ t('user.ban') }}
           </NButton>
           <NButton
-            v-if="canToggleStatus && user?.status === 0 && auth.hasPermission('admin:user:unfreeze')"
+            v-if="
+              canToggleStatus && user?.status === 0 && auth.hasPermission('admin:user:unfreeze')
+            "
             type="primary"
             secondary
-            @click="confirmAction(t('user.unfreeze'), t('user.unfreezeConfirm'), () => unfreezeUser(userId))"
+            @click="
+              confirmAction(t('user.unfreeze'), t('user.unfreezeConfirm'), () =>
+                unfreezeUser(userId)
+              )
+            "
           >
             {{ t('user.unfreeze') }}
           </NButton>
@@ -614,20 +615,38 @@ onUnmounted(() => {
             <NDescriptions label-placement="left" :column="2" bordered>
               <NDescriptionsItem label="ID">{{ user.id }}</NDescriptionsItem>
               <NDescriptionsItem :label="t('user.username')">{{ user.username }}</NDescriptionsItem>
-              <NDescriptionsItem :label="t('user.nickname')">{{ user.nickname || '-' }}</NDescriptionsItem>
+              <NDescriptionsItem :label="t('user.nickname')">{{
+                user.nickname || '-'
+              }}</NDescriptionsItem>
               <NDescriptionsItem :label="t('common.status')">
-                <NTag :type="userStatusType(user.status)" size="small">{{ userStatusLabel(user.status) }}</NTag>
+                <NTag :type="userStatusType(user.status)" size="small">{{
+                  userStatusLabel(user.status)
+                }}</NTag>
               </NDescriptionsItem>
-              <NDescriptionsItem :label="t('user.email')">{{ displayOrNone(user.email) }}</NDescriptionsItem>
-              <NDescriptionsItem :label="t('user.phone')">{{ displayOrNone(user.phone) }}</NDescriptionsItem>
-              <NDescriptionsItem :label="t('user.gender')">{{ displayOrNone(user.gender) }}</NDescriptionsItem>
+              <NDescriptionsItem :label="t('user.email')">{{
+                displayOrNone(user.email)
+              }}</NDescriptionsItem>
+              <NDescriptionsItem :label="t('user.phone')">{{
+                displayOrNone(user.phone)
+              }}</NDescriptionsItem>
+              <NDescriptionsItem :label="t('user.gender')">{{
+                displayOrNone(user.gender)
+              }}</NDescriptionsItem>
               <NDescriptionsItem :label="t('user.region')">{{ regionText }}</NDescriptionsItem>
-              <NDescriptionsItem :label="t('user.signature')" :span="2">{{ displayOrNone(user.signature) }}</NDescriptionsItem>
-              <NDescriptionsItem :label="t('user.roles')" :span="2">{{ rolesText }}</NDescriptionsItem>
-              <NDescriptionsItem :label="t('user.dept')">{{ user.deptName || t('common.none') }}</NDescriptionsItem>
+              <NDescriptionsItem :label="t('user.signature')" :span="2">{{
+                displayOrNone(user.signature)
+              }}</NDescriptionsItem>
+              <NDescriptionsItem :label="t('user.roles')" :span="2">{{
+                rolesText
+              }}</NDescriptionsItem>
+              <NDescriptionsItem :label="t('user.dept')">{{
+                user.deptName || t('common.none')
+              }}</NDescriptionsItem>
               <NDescriptionsItem :label="t('device.binding')">
                 <NSpace align="center">
-                  <span>{{ user.deviceBindingEnabled ? t('device.bindingOn') : t('device.bindingOff') }}</span>
+                  <span>{{
+                    user.deviceBindingEnabled ? t('device.bindingOn') : t('device.bindingOff')
+                  }}</span>
                   <NSwitch
                     v-if="auth.hasPermission('admin:user:device-binding')"
                     :value="!!user.deviceBindingEnabled"
@@ -635,8 +654,12 @@ onUnmounted(() => {
                   />
                 </NSpace>
               </NDescriptionsItem>
-              <NDescriptionsItem :label="t('common.createTime')">{{ formatTime(user.createTime) }}</NDescriptionsItem>
-              <NDescriptionsItem :label="t('common.updateTime')">{{ formatTime(user.updateTime) }}</NDescriptionsItem>
+              <NDescriptionsItem :label="t('common.createTime')">{{
+                formatTime(user.createTime)
+              }}</NDescriptionsItem>
+              <NDescriptionsItem :label="t('common.updateTime')">{{
+                formatTime(user.updateTime)
+              }}</NDescriptionsItem>
             </NDescriptions>
           </NTabPane>
           <NTabPane
@@ -661,8 +684,15 @@ onUnmounted(() => {
                 itemCount: loginTotal,
                 showSizePicker: true,
                 pageSizes: [10, 20, 50],
-                onUpdatePage: (p: number) => { loginQuery.page = p; loadLogins() },
-                onUpdatePageSize: (s: number) => { loginQuery.size = s; loginQuery.page = 1; loadLogins() },
+                onUpdatePage: (p: number) => {
+                  loginQuery.page = p
+                  loadLogins()
+                },
+                onUpdatePageSize: (s: number) => {
+                  loginQuery.size = s
+                  loginQuery.page = 1
+                  loadLogins()
+                },
               }"
               remote
             />
@@ -702,7 +732,9 @@ onUnmounted(() => {
       <template #footer>
         <NSpace justify="end">
           <NButton @click="showEdit = false">{{ t('common.cancel') }}</NButton>
-          <NButton type="primary" :loading="editSaving" @click="submitEdit">{{ t('common.save') }}</NButton>
+          <NButton type="primary" :loading="editSaving" @click="submitEdit">{{
+            t('common.save')
+          }}</NButton>
         </NSpace>
       </template>
     </NModal>

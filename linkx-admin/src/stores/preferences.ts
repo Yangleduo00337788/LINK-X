@@ -83,7 +83,7 @@ export const usePreferencesStore = defineStore(
         setDiscreteTheme(t)
         applyDom(l, t)
       },
-      { immediate: false },
+      { immediate: false }
     )
 
     return {
@@ -118,5 +118,5 @@ export const usePreferencesStore = defineStore(
         'watermarkOpacity',
       ],
     },
-  },
+  }
 )

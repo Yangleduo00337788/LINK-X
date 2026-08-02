@@ -33,4 +33,15 @@ public interface AdminSettingService {
      * @return 成功时的提示文案
      */
     String testForgotPasswordEmail(String email);
+
+    /**
+     * 将已发布版本同步到运行时配置（供客户端检查更新）。
+     */
+    void syncPublishedAppVersion(String version,
+                                 String channel,
+                                 String releaseNotes,
+                                 String downloadUrl,
+                                 Boolean forceUpdate,
+                                 String minSupportedVersion,
+                                 Long operatorId);
 }

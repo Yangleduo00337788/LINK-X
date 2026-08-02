@@ -132,7 +132,7 @@ function sideTag(side?: string) {
   return h(
     NTag,
     { type: side === 'admin' ? 'info' : 'success', size: 'small', bordered: false },
-    () => sideLabel(side),
+    () => sideLabel(side)
   )
 }
 
@@ -209,13 +209,13 @@ const columns = computed<DataTableColumns<NoticeItem>>(() => {
                         message.success(
                           row.targetSide === 'admin'
                             ? t('notice.publishSuccessAdmin')
-                            : t('notice.publishSuccessClient'),
+                            : t('notice.publishSuccessClient')
                         )
                         await load()
                       },
                     }),
                 },
-                () => t('notice.publish'),
+                () => t('notice.publish')
               )
             : null,
           row.status === 'published' && auth.hasPermission('admin:notice:unpublish')
@@ -238,7 +238,7 @@ const columns = computed<DataTableColumns<NoticeItem>>(() => {
                       },
                     }),
                 },
-                () => t('notice.unpublish'),
+                () => t('notice.unpublish')
               )
             : null,
           row.status !== 'published' && auth.hasPermission('admin:notice:delete')
@@ -261,7 +261,7 @@ const columns = computed<DataTableColumns<NoticeItem>>(() => {
                       },
                     }),
                 },
-                () => t('common.delete'),
+                () => t('common.delete')
               )
             : null,
         ]),
@@ -352,7 +352,11 @@ onMounted(() => {
     if (!evt?.type) return
     const type = String(evt.type)
     // 列表协同刷新；管理端公告横幅由 Layout 处理
-    if (type.startsWith('notice_') || type === 'admin_notice_published' || type === 'admin_notice_unpublished') {
+    if (
+      type.startsWith('notice_') ||
+      type === 'admin_notice_published' ||
+      type === 'admin_notice_unpublished'
+    ) {
       void load()
     }
   })
@@ -388,7 +392,11 @@ onUnmounted(() => {
             width="220px"
             @search="search"
           />
-          <NSelect v-model:value="query.noticeStatus" :options="statusOptions" style="width: 140px" />
+          <NSelect
+            v-model:value="query.noticeStatus"
+            :options="statusOptions"
+            style="width: 140px"
+          />
           <NButton type="primary" @click="search">{{ t('common.search') }}</NButton>
         </NSpace>
         <NButton
@@ -410,8 +418,15 @@ onUnmounted(() => {
           itemCount: total,
           showSizePicker: true,
           pageSizes: [10, 20, 50],
-          onUpdatePage: (p: number) => { query.page = p; load() },
-          onUpdatePageSize: (s: number) => { query.size = s; query.page = 1; load() },
+          onUpdatePage: (p: number) => {
+            query.page = p
+            load()
+          },
+          onUpdatePageSize: (s: number) => {
+            query.size = s
+            query.page = 1
+            load()
+          },
         }"
         remote
       />
@@ -438,7 +453,12 @@ onUnmounted(() => {
           </NRadioGroup>
         </NFormItem>
         <NFormItem :label="t('notice.title')" path="title">
-          <NInput v-model:value="form.title" :placeholder="t('notice.titlePlaceholder')" maxlength="128" show-count />
+          <NInput
+            v-model:value="form.title"
+            :placeholder="t('notice.titlePlaceholder')"
+            maxlength="128"
+            show-count
+          />
         </NFormItem>
         <NFormItem :label="t('notice.content')" path="content">
           <NInput
@@ -454,7 +474,9 @@ onUnmounted(() => {
       <template #footer>
         <NSpace justify="end">
           <NButton @click="showForm = false">{{ t('common.cancel') }}</NButton>
-          <NButton type="primary" :loading="saving" @click="submitForm">{{ t('common.save') }}</NButton>
+          <NButton type="primary" :loading="saving" @click="submitForm">{{
+            t('common.save')
+          }}</NButton>
         </NSpace>
       </template>
     </NModal>
@@ -479,7 +501,9 @@ onUnmounted(() => {
           </div>
           <div class="notice-detail__row">
             <span class="notice-detail__label">{{ t('common.status') }}</span>
-            <NTag :type="statusType(detailItem.status)" size="small">{{ statusLabel(detailItem.status) }}</NTag>
+            <NTag :type="statusType(detailItem.status)" size="small">{{
+              statusLabel(detailItem.status)
+            }}</NTag>
           </div>
           <div class="notice-detail__row">
             <span class="notice-detail__label">{{ t('notice.publishedAt') }}</span>

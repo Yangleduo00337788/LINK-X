@@ -1,0 +1,8 @@
+# Public surface for CI curl gate (relative to API root, e.g. http://127.0.0.1:8080/api)
+# Lines starting with # are ignored. Expect status < 500.
+/health
+/health/live
+/auth/config
+/auth/captcha
+/admin/auth/config
+/app/version

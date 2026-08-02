@@ -77,7 +77,11 @@ function statusTag(row: FeedbackItem) {
     replied: t('feedback.replied'),
     closed: t('feedback.closed'),
   }
-  return h(NTag, { type: map[status || ''] || 'default', size: 'small' }, () => label[status || ''] || status || '-')
+  return h(
+    NTag,
+    { type: map[status || ''] || 'default', size: 'small' },
+    () => label[status || ''] || status || '-'
+  )
 }
 
 const columns = computed<DataTableColumns<FeedbackItem>>(() => {
@@ -89,7 +93,12 @@ const columns = computed<DataTableColumns<FeedbackItem>>(() => {
     { title: t('feedback.content'), key: 'content', ellipsis: { tooltip: true } },
     { title: t('feedback.contact'), key: 'contact', width: 140, ellipsis: { tooltip: true } },
     { title: t('common.status'), key: 'status', width: 100, render: (row) => statusTag(row) },
-    { title: t('common.time'), key: 'createTime', width: 170, render: (row) => formatTime(row.createTime) },
+    {
+      title: t('common.time'),
+      key: 'createTime',
+      width: 170,
+      render: (row) => formatTime(row.createTime),
+    },
     {
       title: t('common.actions'),
       key: 'actions',
@@ -117,7 +126,7 @@ const columns = computed<DataTableColumns<FeedbackItem>>(() => {
                       },
                     }),
                 },
-                () => t('feedback.close'),
+                () => t('feedback.close')
               )
             : null,
           auth.hasPermission('admin:feedback:reply') && row.status === 'closed'
@@ -131,7 +140,7 @@ const columns = computed<DataTableColumns<FeedbackItem>>(() => {
                     await load()
                   },
                 },
-                () => t('feedback.reopen'),
+                () => t('feedback.reopen')
               )
             : null,
         ]),
@@ -259,14 +268,26 @@ onMounted(() => {
           itemCount: total,
           showSizePicker: true,
           pageSizes: [10, 20, 50],
-          onUpdatePage: (p: number) => { query.page = p; load() },
-          onUpdatePageSize: (s: number) => { query.size = s; query.page = 1; load() },
+          onUpdatePage: (p: number) => {
+            query.page = p
+            load()
+          },
+          onUpdatePageSize: (s: number) => {
+            query.size = s
+            query.page = 1
+            load()
+          },
         }"
         remote
       />
     </div>
 
-    <NModal v-model:show="showReply" preset="card" :title="t('feedback.replyTitle')" style="width: 520px">
+    <NModal
+      v-model:show="showReply"
+      preset="card"
+      :title="t('feedback.replyTitle')"
+      style="width: 520px"
+    >
       <p class="reply-quote">{{ replyTarget?.content }}</p>
       <NInput
         v-model:value="replyContent"
@@ -277,7 +298,9 @@ onMounted(() => {
       <template #footer>
         <NSpace justify="end">
           <NButton @click="showReply = false">{{ t('common.cancel') }}</NButton>
-          <NButton type="primary" :loading="replySaving" @click="submitReply">{{ t('common.submit') }}</NButton>
+          <NButton type="primary" :loading="replySaving" @click="submitReply">{{
+            t('common.submit')
+          }}</NButton>
         </NSpace>
       </template>
     </NModal>

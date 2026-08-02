@@ -7,7 +7,9 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.io.IOException;
 
@@ -91,6 +93,36 @@ class GlobalExceptionHandlerTest {
             assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
             assertEquals(500, response.getBody().getCode());
             assertEquals("仅消息的异常", response.getBody().getMessage());
+        }
+    }
+
+    @Nested
+    @DisplayName("缺参/类型错误应返回 400")
+    class HandleBadRequestParamTests {
+
+        @Test
+        @DisplayName("缺少请求参数返回 400")
+        void missingParam_returns400() {
+            var ex = new MissingServletRequestParameterException("q", "String");
+
+            ResponseEntity<Result<?>> response = handler.handleMissingParam(ex);
+
+            assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+            assertEquals(400, response.getBody().getCode());
+            assertTrue(response.getBody().getMessage().contains("q"));
+        }
+
+        @Test
+        @DisplayName("参数类型不匹配返回 400")
+        void typeMismatch_returns400() {
+            var ex = new MethodArgumentTypeMismatchException(
+                    "abc", Long.class, "conversationId", null, new NumberFormatException("abc"));
+
+            ResponseEntity<Result<?>> response = handler.handleTypeMismatch(ex);
+
+            assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+            assertEquals(400, response.getBody().getCode());
+            assertTrue(response.getBody().getMessage().contains("conversationId"));
         }
     }
 

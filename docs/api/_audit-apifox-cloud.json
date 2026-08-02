@@ -1,0 +1,98 @@
+{
+  "generatedAt": "2026-08-02T13:33:10.865Z",
+  "projectId": "8663484",
+  "counts": {
+    "apifoxCloud": 393,
+    "localOpenApi": 381,
+    "apifoxUiShown": 393,
+    "deltaVsLocal": 12
+  },
+  "onlyInApifox": [
+    {
+      "method": "GET",
+      "path": "/admin/banners/1",
+      "tags": [],
+      "summary": "GET /admin/banners/{id}",
+      "operationId": ""
+    },
+    {
+      "method": "GET",
+      "path": "/admin/blacklist/1",
+      "tags": [],
+      "summary": "GET /admin/blacklist/{id}",
+      "operationId": ""
+    },
+    {
+      "method": "GET",
+      "path": "/admin/feedback/1",
+      "tags": [],
+      "summary": "GET /admin/feedback/{id}",
+      "operationId": ""
+    },
+    {
+      "method": "GET",
+      "path": "/admin/notices/1",
+      "tags": [],
+      "summary": "GET /admin/notices/{id}",
+      "operationId": ""
+    },
+    {
+      "method": "GET",
+      "path": "/admin/permissions/1",
+      "tags": [],
+      "summary": "GET /admin/permissions/{id}",
+      "operationId": ""
+    },
+    {
+      "method": "GET",
+      "path": "/admin/recommends/1",
+      "tags": [],
+      "summary": "GET /admin/recommends/{id}",
+      "operationId": ""
+    },
+    {
+      "method": "GET",
+      "path": "/admin/reviews/1",
+      "tags": [],
+      "summary": "GET /admin/reviews/{id}",
+      "operationId": ""
+    },
+    {
+      "method": "GET",
+      "path": "/admin/risk-events/1",
+      "tags": [],
+      "summary": "GET /admin/risk-events/{id}",
+      "operationId": ""
+    },
+    {
+      "method": "GET",
+      "path": "/admin/roles/1",
+      "tags": [],
+      "summary": "GET /admin/roles/{id}",
+      "operationId": ""
+    },
+    {
+      "method": "GET",
+      "path": "/admin/roles/1/menus",
+      "tags": [],
+      "summary": "GET /admin/roles/{id}/menus",
+      "operationId": ""
+    },
+    {
+      "method": "GET",
+      "path": "/admin/roles/1/permissions",
+      "tags": [],
+      "summary": "GET /admin/roles/{id}/permissions",
+      "operationId": ""
+    },
+    {
+      "method": "GET",
+      "path": "/admin/roles/1/users",
+      "tags": [],
+      "summary": "GET /admin/roles/{id}/users",
+      "operationId": ""
+    }
+  ],
+  "onlyInLocal": [],
+  "aligned": false
+}

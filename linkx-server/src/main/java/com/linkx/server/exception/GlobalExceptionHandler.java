@@ -5,14 +5,18 @@ import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.catalina.connector.ClientAbortException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.servlet.NoHandlerFoundException;
@@ -24,8 +28,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(CustomException.class)
     public ResponseEntity<Result<?>> handleCustomException(CustomException e) {
         log.warn("业务异常: {}", e.getMessage());
-        return ResponseEntity.status(mapStatus(e.getCode()))
-                .body(Result.error(e.getCode(), e.getMessage(), e.getData()));
+        return json(mapStatus(e.getCode()), Result.error(e.getCode(), e.getMessage(), e.getData()));
     }
 
     @ExceptionHandler({MethodArgumentNotValidException.class, BindException.class})
@@ -36,7 +39,7 @@ public class GlobalExceptionHandler {
         } else if (e instanceof BindException be && be.getBindingResult().hasErrors()) {
             message = be.getBindingResult().getAllErrors().getFirst().getDefaultMessage();
         }
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Result.error(400, message));
+        return json(HttpStatus.BAD_REQUEST, Result.error(400, message));
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
@@ -45,7 +48,7 @@ public class GlobalExceptionHandler {
                 .findFirst()
                 .map(v -> v.getMessage())
                 .orElse("参数校验失败");
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Result.error(400, message));
+        return json(HttpStatus.BAD_REQUEST, Result.error(400, message));
     }
 
     @ExceptionHandler({MaxUploadSizeExceededException.class, MultipartException.class})
@@ -54,23 +57,53 @@ public class GlobalExceptionHandler {
         String message = e instanceof MaxUploadSizeExceededException
                 ? "文件大小超过限制"
                 : "文件上传解析失败，请重试";
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Result.error(400, message));
+        return json(HttpStatus.BAD_REQUEST, Result.error(400, message));
     }
 
     @ExceptionHandler(NoHandlerFoundException.class)
     public ResponseEntity<Result<?>> handleNotFound(NoHandlerFoundException e) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Result.error(404, "接口不存在"));
+        return json(HttpStatus.NOT_FOUND, Result.error(404, "接口不存在"));
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<Result<?>> handleMethodNotSupported(HttpRequestMethodNotSupportedException e) {
-        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(Result.error(405, "请求方法不允许"));
+        return json(HttpStatus.METHOD_NOT_ALLOWED, Result.error(405, "请求方法不允许"));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Result<?>> handleMessageNotReadable(HttpMessageNotReadableException e) {
         log.warn("请求体解析失败: {}", e.getMessage());
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Result.error(400, "请求体格式错误"));
+        return json(HttpStatus.BAD_REQUEST, Result.error(400, "请求体格式错误"));
+    }
+
+    /** 缺必填 query/form 参数 → 400（避免落入通用 500） */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<Result<?>> handleMissingParam(MissingServletRequestParameterException e) {
+        String name = e.getParameterName();
+        String message = (name == null || name.isBlank()) ? "缺少必要参数" : ("缺少必要参数: " + name);
+        return json(HttpStatus.BAD_REQUEST, Result.error(400, message));
+    }
+
+    /** 参数类型不匹配（如 conversationId=abc）→ 400 */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Result<?>> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
+        String name = e.getName();
+        String message = (name == null || name.isBlank()) ? "参数格式错误" : ("参数格式错误: " + name);
+        return json(HttpStatus.BAD_REQUEST, Result.error(400, message));
+    }
+
+    /**
+     * SSE 等接口 Accept 仅为 text/event-stream 时，业务 4xx JSON 可能二次触发不可接受媒体类型；
+     * 统一强制 application/json，避免被记成 500。
+     */
+    @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
+    public ResponseEntity<Result<?>> handleNotAcceptable(HttpMediaTypeNotAcceptableException e) {
+        log.warn("响应媒体类型不可接受: {}", e.getMessage());
+        return json(HttpStatus.NOT_ACCEPTABLE, Result.error(406, "不支持的响应类型"));
+    }
+
+    private static ResponseEntity<Result<?>> json(HttpStatus status, Result<?> body) {
+        return ResponseEntity.status(status).contentType(MediaType.APPLICATION_JSON).body(body);
     }
 
     /**
@@ -92,8 +125,7 @@ public class GlobalExceptionHandler {
             return null;
         }
         log.error("系统内部异常: ", e);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Result.error(500, "系统内部繁忙，请稍后再试"));
+        return json(HttpStatus.INTERNAL_SERVER_ERROR, Result.error(500, "系统内部繁忙，请稍后再试"));
     }
 
     private static boolean isClientAbort(Throwable e) {

@@ -123,10 +123,12 @@ export interface UserLoginItem {
 }
 
 export function listUserLogins(id: string, params?: PageQuery) {
-  return get<PageResult<UserLoginItem>>(`/admin/users/${id}/logins`, (params || {}) as Record<string, unknown>)
+  return get<PageResult<UserLoginItem>>(
+    `/admin/users/${id}/logins`,
+    (params || {}) as Record<string, unknown>
+  )
 }
 
 export function exportUsers(params: UserListQuery) {
   return runAsyncExport('users', params as Record<string, unknown>)
 }
-

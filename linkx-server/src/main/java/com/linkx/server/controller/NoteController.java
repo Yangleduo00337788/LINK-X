@@ -1,5 +1,6 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.linkx.server.common.AuthUtils;
@@ -30,12 +31,14 @@ public class NoteController {
     private final NoteService noteService;
     private final JwtUtils jwtUtils;
 
+    @Operation(summary = "获取笔记列表")
     @GetMapping
     public Result<List<NoteVO>> list(HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         return Result.success(noteService.list(userId));
     }
 
+    @Operation(summary = "获取笔记详情")
     @GetMapping("/{noteId}")
     public Result<NoteVO> get(
             @PathVariable String noteId,
@@ -44,6 +47,7 @@ public class NoteController {
         return Result.success(noteService.get(userId, parseId(noteId)));
     }
 
+    @Operation(summary = "创建笔记")
     @PostMapping
     public Result<NoteVO> create(
             @Valid @RequestBody SaveNoteDTO dto,
@@ -52,6 +56,7 @@ public class NoteController {
         return Result.success(noteService.create(userId, dto));
     }
 
+    @Operation(summary = "更新笔记")
     @PutMapping("/{noteId}")
     public Result<NoteVO> update(
             @PathVariable String noteId,
@@ -61,6 +66,7 @@ public class NoteController {
         return Result.success(noteService.update(userId, parseId(noteId), dto));
     }
 
+    @Operation(summary = "删除笔记")
     @DeleteMapping("/{noteId}")
     public Result<Void> delete(
             @PathVariable String noteId,
@@ -70,6 +76,7 @@ public class NoteController {
         return Result.success(null);
     }
 
+    @Operation(summary = "上传笔记附件")
     @PostMapping("/upload")
     @RateLimit(scope = "notes:upload", value = 30, window = 60)
     public Result<NoteFileUploadVO> upload(
@@ -79,6 +86,7 @@ public class NoteController {
         return Result.success(noteService.upload(userId, file));
     }
 
+    @Operation(summary = "解析笔记媒体 URL")
     @GetMapping("/media-url")
     public Result<String> resolveMedia(
             @RequestParam("key") String key,

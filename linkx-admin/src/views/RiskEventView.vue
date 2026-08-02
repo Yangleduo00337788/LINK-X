@@ -100,7 +100,11 @@ function statusTag(status?: string) {
     handled: t('risk.handled'),
     ignored: t('risk.ignored'),
   }
-  return h(NTag, { type: map[status || ''] || 'default', size: 'small' }, () => label[status || ''] || status || '-')
+  return h(
+    NTag,
+    { type: map[status || ''] || 'default', size: 'small' },
+    () => label[status || ''] || status || '-'
+  )
 }
 
 function levelTag(level?: string) {
@@ -114,7 +118,11 @@ function levelTag(level?: string) {
     medium: t('risk.levelMedium'),
     low: t('risk.levelLow'),
   }
-  return h(NTag, { type: map[level || ''] || 'default', size: 'small' }, () => label[level || ''] || level || '-')
+  return h(
+    NTag,
+    { type: map[level || ''] || 'default', size: 'small' },
+    () => label[level || ''] || level || '-'
+  )
 }
 
 function typeLabel(type?: string) {
@@ -160,7 +168,12 @@ const columns = computed<DataTableColumns<RiskEventItem>>(() => {
       width: 90,
       render: (row) => levelTag(row.riskLevel),
     },
-    { title: t('common.status'), key: 'status', width: 100, render: (row) => statusTag(row.status) },
+    {
+      title: t('common.status'),
+      key: 'status',
+      width: 100,
+      render: (row) => statusTag(row.status),
+    },
     {
       title: t('common.time'),
       key: 'createTime',
@@ -177,15 +190,20 @@ const columns = computed<DataTableColumns<RiskEventItem>>(() => {
           row.status === 'pending' && auth.hasPermission('admin:risk-event:handle')
             ? h(
                 NButton,
-                { size: 'tiny', type: 'primary', secondary: true, onClick: () => openHandle(row, 'handled') },
-                () => t('risk.handle'),
+                {
+                  size: 'tiny',
+                  type: 'primary',
+                  secondary: true,
+                  onClick: () => openHandle(row, 'handled'),
+                },
+                () => t('risk.handle')
               )
             : null,
           row.status === 'pending' && auth.hasPermission('admin:risk-event:handle')
             ? h(
                 NButton,
                 { size: 'tiny', secondary: true, onClick: () => openHandle(row, 'ignored') },
-                () => t('risk.ignore'),
+                () => t('risk.ignore')
               )
             : null,
         ]),
@@ -227,18 +245,22 @@ function showDetail(row: RiskEventItem) {
   dialog.info({
     title: row.title || t('risk.detailTitle'),
     content: () =>
-      h('div', { style: 'line-height: 1.7; max-height: 420px; overflow: auto; white-space: pre-wrap;' }, [
-        h('div', `${t('risk.eventType')}: ${typeLabel(row.eventType)}`),
-        h('div', `${t('risk.riskLevel')}: ${row.riskLevel || '-'}`),
-        h('div', `${t('risk.user')}: ${row.username || row.userId || '-'}`),
-        h('div', `${t('risk.target')}: ${row.targetResourceId || '-'}`),
-        h('div', `IP: ${formatIp(row.ip)}`),
-        h('div', `${t('risk.region')}: ${row.region || '-'}`),
-        h('div', { style: 'margin-top: 10px;' }, row.detail || '-'),
-        row.resolution
-          ? h('div', { style: 'margin-top: 12px;' }, `${t('risk.resolution')}: ${row.resolution}`)
-          : null,
-      ]),
+      h(
+        'div',
+        { style: 'line-height: 1.7; max-height: 420px; overflow: auto; white-space: pre-wrap;' },
+        [
+          h('div', `${t('risk.eventType')}: ${typeLabel(row.eventType)}`),
+          h('div', `${t('risk.riskLevel')}: ${row.riskLevel || '-'}`),
+          h('div', `${t('risk.user')}: ${row.username || row.userId || '-'}`),
+          h('div', `${t('risk.target')}: ${row.targetResourceId || '-'}`),
+          h('div', `IP: ${formatIp(row.ip)}`),
+          h('div', `${t('risk.region')}: ${row.region || '-'}`),
+          h('div', { style: 'margin-top: 10px;' }, row.detail || '-'),
+          row.resolution
+            ? h('div', { style: 'margin-top: 12px;' }, `${t('risk.resolution')}: ${row.resolution}`)
+            : null,
+        ]
+      ),
     positiveText: t('common.confirm'),
   })
 }
@@ -252,14 +274,16 @@ async function submitHandle() {
       handleTarget.value.id,
       handleAction.value,
       resolution.value.trim() || undefined,
-      punish,
+      punish
     )
     if (punish === 'freeze') {
       message.success(t('risk.handleWithFreezeSuccess'))
     } else if (punish === 'ban') {
       message.success(t('risk.handleWithBanSuccess'))
     } else {
-      message.success(handleAction.value === 'handled' ? t('risk.handleSuccess') : t('risk.ignoreSuccess'))
+      message.success(
+        handleAction.value === 'handled' ? t('risk.handleSuccess') : t('risk.ignoreSuccess')
+      )
     }
     showHandle.value = false
     await load()
@@ -336,7 +360,9 @@ function doBatch(action: 'handled' | 'ignored') {
         const result = await batchRiskEvents(checkedKeys.value, action)
         checkedKeys.value = []
         if (result.failCount > 0) {
-          message.warning(t('risk.batchPartial', { ok: result.successCount, fail: result.failCount }))
+          message.warning(
+            t('risk.batchPartial', { ok: result.successCount, fail: result.failCount })
+          )
         } else {
           message.success(t('risk.batchSuccess', { n: result.successCount }))
         }
@@ -437,8 +463,15 @@ onUnmounted(() => {
           itemCount: total,
           showSizePicker: true,
           pageSizes: [10, 20, 50],
-          onUpdatePage: (p: number) => { query.page = p; load() },
-          onUpdatePageSize: (s: number) => { query.size = s; query.page = 1; load() },
+          onUpdatePage: (p: number) => {
+            query.page = p
+            load()
+          },
+          onUpdatePageSize: (s: number) => {
+            query.size = s
+            query.page = 1
+            load()
+          },
         }"
         remote
       />
@@ -477,7 +510,9 @@ onUnmounted(() => {
         <NSpace justify="end">
           <NButton @click="showHandle = false">{{ t('common.cancel') }}</NButton>
           <NButton
-            :type="handleAction === 'handled' ? (userAction === 'ban' ? 'error' : 'primary') : 'default'"
+            :type="
+              handleAction === 'handled' ? (userAction === 'ban' ? 'error' : 'primary') : 'default'
+            "
             :loading="handleSaving"
             @click="submitHandle"
           >

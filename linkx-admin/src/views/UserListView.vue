@@ -132,7 +132,9 @@ const columns = computed<DataTableColumns<AdminUserListItem>>(() => {
       key: 'status',
       width: 90,
       render: (row) =>
-        h(NTag, { type: userStatusType(row.status), size: 'small' }, () => userStatusLabel(row.status)),
+        h(NTag, { type: userStatusType(row.status), size: 'small' }, () =>
+          userStatusLabel(row.status)
+        ),
     },
     {
       title: t('user.roles'),
@@ -154,7 +156,7 @@ const columns = computed<DataTableColumns<AdminUserListItem>>(() => {
         const opts = actionOptions(row)
         return h(NSpace, { size: 8 }, () => [
           h(NButton, { size: 'tiny', onClick: () => router.push(`/admin/users/${row.id}`) }, () =>
-            t('common.detail'),
+            t('common.detail')
           ),
           opts.length
             ? h(
@@ -163,7 +165,7 @@ const columns = computed<DataTableColumns<AdminUserListItem>>(() => {
                   options: opts,
                   onSelect: (key: string) => handleAction(row, key),
                 },
-                () => h(NButton, { size: 'tiny' }, () => t('common.actions')),
+                () => h(NButton, { size: 'tiny' }, () => t('common.actions'))
               )
             : null,
         ])
@@ -196,7 +198,7 @@ async function submitResetPassword(generate: boolean) {
   try {
     const result = await resetUserPassword(
       resetTargetId.value,
-      generate ? undefined : resetForm.newPassword,
+      generate ? undefined : resetForm.newPassword
     )
     message.success(t('user.resetPasswordSuccess'))
     if (result?.generated && result.temporaryPassword) {
@@ -374,8 +376,15 @@ onMounted(() => {
           itemCount: total,
           showSizePicker: true,
           pageSizes: [10, 20, 50],
-          onUpdatePage: (p: number) => { query.page = p; load() },
-          onUpdatePageSize: (s: number) => { query.size = s; query.page = 1; load() },
+          onUpdatePage: (p: number) => {
+            query.page = p
+            load()
+          },
+          onUpdatePageSize: (s: number) => {
+            query.size = s
+            query.page = 1
+            load()
+          },
         }"
         :scroll-x="1100"
         remote
@@ -411,13 +420,7 @@ onMounted(() => {
           />
         </NFormItem>
       </NForm>
-      <NInput
-        v-else
-        :value="generatedPassword"
-        type="textarea"
-        :rows="2"
-        readonly
-      />
+      <NInput v-else :value="generatedPassword" type="textarea" :rows="2" readonly />
       <p v-if="generatedPassword" style="margin: 8px 0 0; color: var(--n-text-color-3)">
         {{ t('user.resetPasswordGenerated') }}
       </p>

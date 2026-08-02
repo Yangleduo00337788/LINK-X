@@ -21,7 +21,7 @@ const { theme, locale } = storeToRefs(prefs)
 
 const naiveTheme = computed(() => (theme.value === 'dark' ? darkTheme : null))
 const themeOverrides = computed(() =>
-  theme.value === 'dark' ? darkThemeOverrides : lightThemeOverrides,
+  theme.value === 'dark' ? darkThemeOverrides : lightThemeOverrides
 )
 const naiveLocale = computed(() => (locale.value === 'zh-CN' ? zhCN : enUS))
 const naiveDateLocale = computed(() => (locale.value === 'zh-CN' ? dateZhCN : dateEnUS))

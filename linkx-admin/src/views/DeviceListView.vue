@@ -75,7 +75,7 @@ const columns = computed<DataTableColumns<AdminDeviceItem>>(() => {
             disabled: !row.userId || !auth.hasPermission('admin:user:view'),
             onClick: () => row.userId && router.push(`/admin/users/${row.userId}`),
           },
-          () => row.username || row.userId || '-',
+          () => row.username || row.userId || '-'
         ),
     },
     {
@@ -108,10 +108,8 @@ const columns = computed<DataTableColumns<AdminDeviceItem>>(() => {
       key: 'online',
       width: 90,
       render: (row) =>
-        h(
-          NTag,
-          { type: row.online ? 'success' : 'default', size: 'small' },
-          () => (row.online ? t('device.online') : t('device.offline')),
+        h(NTag, { type: row.online ? 'success' : 'default', size: 'small' }, () =>
+          row.online ? t('device.online') : t('device.offline')
         ),
     },
     {
@@ -119,9 +117,7 @@ const columns = computed<DataTableColumns<AdminDeviceItem>>(() => {
       key: 'banned',
       width: 90,
       render: (row) =>
-        row.banned
-          ? h(NTag, { type: 'error', size: 'small' }, () => t('device.banned'))
-          : '-',
+        row.banned ? h(NTag, { type: 'error', size: 'small' }, () => t('device.banned')) : '-',
     },
     {
       title: 'IP',
@@ -158,8 +154,8 @@ const columns = computed<DataTableColumns<AdminDeviceItem>>(() => {
                 secondary: true,
                 onClick: () => confirmKick(row),
               },
-              () => t('device.kick'),
-            ),
+              () => t('device.kick')
+            )
           )
         }
         if (row.banned && auth.hasPermission('admin:device:unban')) {
@@ -171,8 +167,8 @@ const columns = computed<DataTableColumns<AdminDeviceItem>>(() => {
                 secondary: true,
                 onClick: () => confirmUnban(row),
               },
-              () => t('device.unban'),
-            ),
+              () => t('device.unban')
+            )
           )
         } else if (!row.banned && auth.hasPermission('admin:device:ban')) {
           buttons.push(
@@ -184,8 +180,8 @@ const columns = computed<DataTableColumns<AdminDeviceItem>>(() => {
                 secondary: true,
                 onClick: () => confirmBan(row),
               },
-              () => t('device.ban'),
-            ),
+              () => t('device.ban')
+            )
           )
         }
         return buttons.length ? h(NSpace, { size: 4 }, () => buttons) : null
@@ -194,7 +190,12 @@ const columns = computed<DataTableColumns<AdminDeviceItem>>(() => {
   ]
 })
 
-function applyPresenceEvent(evt: { relatedId?: string; userId?: string; deviceId?: unknown; online?: unknown }) {
+function applyPresenceEvent(evt: {
+  relatedId?: string
+  userId?: string
+  deviceId?: unknown
+  online?: unknown
+}) {
   const userId = String(evt.relatedId || evt.userId || '')
   const deviceId = typeof evt.deviceId === 'string' ? evt.deviceId : ''
   if (!userId || !deviceId) return
@@ -378,8 +379,15 @@ onUnmounted(() => {
           itemCount: total,
           showSizePicker: true,
           pageSizes: [10, 20, 50],
-          onUpdatePage: (p: number) => { query.page = p; load() },
-          onUpdatePageSize: (s: number) => { query.size = s; query.page = 1; load() },
+          onUpdatePage: (p: number) => {
+            query.page = p
+            load()
+          },
+          onUpdatePageSize: (s: number) => {
+            query.size = s
+            query.page = 1
+            load()
+          },
         }"
         remote
       />

@@ -19,7 +19,14 @@ import {
   type FormInst,
   type SelectOption,
 } from 'naive-ui'
-import { createDept, deleteDept, listDepts, updateDept, type AdminDept, type DeptPayload } from '@/api/depts'
+import {
+  createDept,
+  deleteDept,
+  listDepts,
+  updateDept,
+  type AdminDept,
+  type DeptPayload,
+} from '@/api/depts'
 import { useAuthStore } from '@/stores/auth'
 
 const { t, locale } = useI18n()
@@ -93,7 +100,7 @@ const columns = computed<DataTableColumns<AdminDept>>(() => {
       width: 90,
       render: (row) =>
         h(NTag, { type: row.status === 0 ? 'warning' : 'success', size: 'small' }, () =>
-          row.status === 0 ? t('common.disabled') : t('common.enabled'),
+          row.status === 0 ? t('common.disabled') : t('common.enabled')
         ),
     },
     {
@@ -105,16 +112,14 @@ const columns = computed<DataTableColumns<AdminDept>>(() => {
         const buttons: ReturnType<typeof h>[] = []
         if (auth.hasPermission('admin:dept:edit')) {
           buttons.push(
-            h(NButton, { size: 'tiny', onClick: () => openEdit(row) }, () => t('common.edit')),
+            h(NButton, { size: 'tiny', onClick: () => openEdit(row) }, () => t('common.edit'))
           )
         }
         if (auth.hasPermission('admin:dept:create')) {
           buttons.push(
-            h(
-              NButton,
-              { size: 'tiny', secondary: true, onClick: () => openCreate(row.id) },
-              () => t('dept.addChild'),
-            ),
+            h(NButton, { size: 'tiny', secondary: true, onClick: () => openCreate(row.id) }, () =>
+              t('dept.addChild')
+            )
           )
         }
         if (auth.hasPermission('admin:dept:delete')) {
@@ -138,8 +143,8 @@ const columns = computed<DataTableColumns<AdminDept>>(() => {
                     },
                   }),
               },
-              () => t('common.delete'),
-            ),
+              () => t('common.delete')
+            )
           )
         }
         return h(NSpace, { size: 6, wrap: false }, () => buttons)
@@ -216,7 +221,11 @@ onMounted(load)
     <div class="page-shell">
       <NSpace class="page-toolbar" justify="space-between">
         <div class="page-hint">{{ t('dept.hint') }}</div>
-        <NButton v-if="auth.hasPermission('admin:dept:create')" type="primary" @click="openCreate(0)">
+        <NButton
+          v-if="auth.hasPermission('admin:dept:create')"
+          type="primary"
+          @click="openCreate(0)"
+        >
           {{ t('dept.create') }}
         </NButton>
       </NSpace>

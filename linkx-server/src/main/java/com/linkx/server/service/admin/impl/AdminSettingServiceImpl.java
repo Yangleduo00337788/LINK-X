@@ -299,6 +299,28 @@ public class AdminSettingServiceImpl implements AdminSettingService {
     }
 
     @Override
+    @Transactional
+    public void syncPublishedAppVersion(String version,
+                                        String channel,
+                                        String releaseNotes,
+                                        String downloadUrl,
+                                        Boolean forceUpdate,
+                                        String minSupportedVersion,
+                                        Long operatorId) {
+        SysRuntimeSetting row = loadOrCreateRow(operatorId);
+        row.setAppVersion(version.trim());
+        row.setAppChannel(AppVersionUtils.normalizeChannel(channel));
+        row.setReleaseNotes(nullToEmpty(releaseNotes));
+        row.setDownloadUrl(nullToEmpty(downloadUrl));
+        row.setForceUpdate(Boolean.TRUE.equals(forceUpdate));
+        row.setMinSupportedVersion(nullToEmpty(minSupportedVersion));
+        row.setUpdateBy(operatorId);
+        persist(row);
+        applyClientSide(row);
+        log.info("Synced published app version {} ({}) to runtime settings", version, channel);
+    }
+
+    @Override
     public String testForgotPasswordEmail(String email) {
         String target = email == null ? "" : email.trim().toLowerCase();
         if (!StringUtils.hasText(target)) {

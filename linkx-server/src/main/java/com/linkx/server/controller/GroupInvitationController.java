@@ -1,5 +1,6 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.linkx.server.common.AuthUtils;
@@ -37,6 +38,7 @@ public class GroupInvitationController {
     /**
      * 当前用户收到的群邀请列表。
      */
+    @Operation(summary = "获取我的群邀请列表")
     @GetMapping
     public Result<List<GroupInvitationVO>> list(HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
@@ -46,6 +48,7 @@ public class GroupInvitationController {
     /**
      * 接受邀请：写入会话成员表，返回新会话信息（前端可直接打开该群会话）。
      */
+    @Operation(summary = "接受群邀请")
     @PostMapping("/{invitationId}/accept")
     public Result<GroupConversationVO> accept(
             @PathVariable String invitationId,
@@ -57,6 +60,7 @@ public class GroupInvitationController {
     /**
      * 拒绝邀请。
      */
+    @Operation(summary = "拒绝群邀请")
     @PostMapping("/{invitationId}/reject")
     public Result<Void> reject(
             @PathVariable String invitationId,
@@ -69,6 +73,7 @@ public class GroupInvitationController {
     /**
      * 群成员邀请新成员入群（owner/admin/member 均可作为邀请人）。
      */
+    @Operation(summary = "邀请用户入群")
     @PostMapping("/{conversationId}")
     public Result<GroupInvitationVO> invite(
             @PathVariable String conversationId,

@@ -91,7 +91,7 @@ const columns = computed<DataTableColumns<AdminPermission>>(() => {
       width: 90,
       render: (row) =>
         h(NTag, { type: row.status === 1 ? 'success' : 'default', size: 'small' }, () =>
-          row.status === 1 ? t('common.enabled') : t('common.disabled'),
+          row.status === 1 ? t('common.enabled') : t('common.disabled')
         ),
     },
     {
@@ -123,7 +123,7 @@ const columns = computed<DataTableColumns<AdminPermission>>(() => {
                       },
                     }),
                 },
-                () => t('common.delete'),
+                () => t('common.delete')
               )
             : null,
         ]),
@@ -211,7 +211,11 @@ onMounted(load)
           />
           <NButton type="primary" @click="search">{{ t('common.search') }}</NButton>
         </NSpace>
-        <NButton v-if="auth.hasPermission('admin:permission:create')" type="primary" @click="openCreate">
+        <NButton
+          v-if="auth.hasPermission('admin:permission:create')"
+          type="primary"
+          @click="openCreate"
+        >
           {{ t('permission.create') }}
         </NButton>
       </NSpace>
@@ -225,8 +229,15 @@ onMounted(load)
           itemCount: total,
           showSizePicker: true,
           pageSizes: [10, 20, 50],
-          onUpdatePage: (p: number) => { query.page = p; load() },
-          onUpdatePageSize: (s: number) => { query.size = s; query.page = 1; load() },
+          onUpdatePage: (p: number) => {
+            query.page = p
+            load()
+          },
+          onUpdatePageSize: (s: number) => {
+            query.size = s
+            query.page = 1
+            load()
+          },
         }"
         remote
       />

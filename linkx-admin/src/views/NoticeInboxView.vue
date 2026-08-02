@@ -1,15 +1,7 @@
 <script setup lang="ts">
 import { computed, h, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import {
-  NButton,
-  NDataTable,
-  NEmpty,
-  NModal,
-  NSpace,
-  NTag,
-  type DataTableColumns,
-} from 'naive-ui'
+import { NButton, NDataTable, NEmpty, NModal, NSpace, NTag, type DataTableColumns } from 'naive-ui'
 import { listNoticeInbox, type NoticeItem } from '@/api/notices'
 import { formatTime } from '@/utils/format'
 import SearchAutoComplete from '@/components/SearchAutoComplete.vue'
@@ -49,7 +41,7 @@ const columns = computed<DataTableColumns<NoticeItem>>(() => {
               openDetail(row)
             },
           },
-          row.title,
+          row.title
         ),
     },
     {
@@ -62,8 +54,7 @@ const columns = computed<DataTableColumns<NoticeItem>>(() => {
       title: t('common.status'),
       key: 'status',
       width: 100,
-      render: () =>
-        h(NTag, { type: 'success', size: 'small' }, () => t('notice.published')),
+      render: () => h(NTag, { type: 'success', size: 'small' }, () => t('notice.published')),
     },
     {
       title: t('notice.publishedAt'),
@@ -79,7 +70,7 @@ const columns = computed<DataTableColumns<NoticeItem>>(() => {
         h(
           NButton,
           { text: true, type: 'primary', size: 'small', onClick: () => openDetail(row) },
-          () => t('common.detail'),
+          () => t('common.detail')
         ),
     },
   ]

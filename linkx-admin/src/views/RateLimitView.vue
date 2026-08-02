@@ -66,7 +66,7 @@ const hitColumns = computed<DataTableColumns<RateLimitHit>>(() => {
             type: 'warning',
             onClick: () => confirmUnblock(row.ip!),
           },
-          () => t('rateLimit.unblock'),
+          () => t('rateLimit.unblock')
         )
       },
     },
@@ -76,10 +76,11 @@ const hitColumns = computed<DataTableColumns<RateLimitHit>>(() => {
 async function loadHits() {
   loading.value = true
   try {
-    hits.value = (await listRateLimitHits({
-      ip: query.ip || undefined,
-      limit: 200,
-    })) || []
+    hits.value =
+      (await listRateLimitHits({
+        ip: query.ip || undefined,
+        limit: 200,
+      })) || []
   } finally {
     loading.value = false
   }

@@ -268,7 +268,7 @@
                 <configuration>
                     <forkCount>1</forkCount>
                     <reuseForks>true</reuseForks>
-                    <argLine>@{argLine} -Xmx768m -XX:MaxMetaspaceSize=256m -XX:TieredStopAtLevel=1 -XX:+UseSerialGC -Djdk.net.URLClassPath.disableClassPathURLCheck=true</argLine>
+                    <argLine>@{argLine} -javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar -Xmx768m -XX:MaxMetaspaceSize=256m -XX:TieredStopAtLevel=1 -XX:+UseSerialGC -Djdk.net.URLClassPath.disableClassPathURLCheck=true</argLine>
                     <systemPropertyVariables>
                         <spring.profiles.active>test</spring.profiles.active>
                     </systemPropertyVariables>
@@ -314,7 +314,7 @@
                             </excludes>
                         </configuration>
                     </execution>
-                    <!-- 回归门禁：当前约 45%+，目标逐步抬升至 1.00（计划 B 口径） -->
+                    <!-- Phase 3.2b：LINE≥80% / INSTRUCTION≥78%（防回退）；下一轮冲 100% 见 COVERAGE.md -->
                     <execution>
                         <id>check</id>
                         <phase>verify</phase>
@@ -322,6 +322,12 @@
                             <goal>check</goal>
                         </goals>
                         <configuration>
+                            <excludes>
+                                <exclude>**/entity/table/**</exclude>
+                                <exclude>**/controller/dto/**</exclude>
+                                <exclude>**/controller/vo/**</exclude>
+                                <exclude>**/mapper/**</exclude>
+                            </excludes>
                             <rules>
                                 <rule>
                                     <element>BUNDLE</element>
@@ -329,12 +335,12 @@
                                         <limit>
                                             <counter>LINE</counter>
                                             <value>COVEREDRATIO</value>
-                                            <minimum>0.45</minimum>
+                                            <minimum>0.80</minimum>
                                         </limit>
                                         <limit>
                                             <counter>INSTRUCTION</counter>
                                             <value>COVEREDRATIO</value>
-                                            <minimum>0.40</minimum>
+                                            <minimum>0.78</minimum>
                                         </limit>
                                     </limits>
                                 </rule>

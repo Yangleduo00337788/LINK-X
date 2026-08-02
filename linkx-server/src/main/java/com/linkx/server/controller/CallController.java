@@ -1,5 +1,6 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.linkx.server.common.AuthUtils;
@@ -33,6 +34,7 @@ public class CallController {
     private final CallService callService;
     private final JwtUtils jwtUtils;
 
+    @Operation(summary = "发起通话邀请")
     @PostMapping("/invite")
     public Result<CallInviteVO> invite(
             @Valid @RequestBody CallInviteDTO dto,
@@ -41,6 +43,7 @@ public class CallController {
         return Result.success(callService.invite(userId, dto));
     }
 
+    @Operation(summary = "取消通话邀请")
     @PostMapping("/cancel")
     public Result<Void> cancel(
             @Valid @RequestBody CallCancelDTO dto,
@@ -50,6 +53,7 @@ public class CallController {
         return Result.success(null);
     }
 
+    @Operation(summary = "接听通话")
     @PostMapping("/accept")
     public Result<Void> accept(
             @Valid @RequestBody CallIdDTO dto,
@@ -59,6 +63,7 @@ public class CallController {
         return Result.success(null);
     }
 
+    @Operation(summary = "拒绝通话")
     @PostMapping("/reject")
     public Result<Void> reject(
             @Valid @RequestBody CallIdDTO dto,
@@ -68,6 +73,7 @@ public class CallController {
         return Result.success(null);
     }
 
+    @Operation(summary = "挂断通话")
     @PostMapping("/hangup")
     public Result<Void> hangup(
             @Valid @RequestBody CallIdDTO dto,
@@ -80,6 +86,7 @@ public class CallController {
     /**
      * 中继 WebRTC SDP / ICE 到对端
      */
+    @Operation(summary = "中继 WebRTC 信令")
     @PostMapping("/signal")
     public Result<Void> signal(
             @Valid @RequestBody CallSignalDTO dto,
@@ -89,6 +96,7 @@ public class CallController {
         return Result.success(null);
     }
 
+    @Operation(summary = "通话重连")
     @PostMapping("/reconnect")
     public Result<Void> reconnect(
             @Valid @RequestBody CallIdDTO dto,
@@ -98,6 +106,7 @@ public class CallController {
         return Result.success(null);
     }
 
+    @Operation(summary = "切换通话设备")
     @PostMapping("/switch-device")
     public Result<Void> switchDevice(
             @Valid @RequestBody CallSwitchDeviceDTO dto,
@@ -107,6 +116,7 @@ public class CallController {
         return Result.success(null);
     }
 
+    @Operation(summary = "创建会议通话")
     @PostMapping("/conference/create")
     public Result<String> createConference(
             @Valid @RequestBody CallConferenceCreateDTO dto,
@@ -116,6 +126,7 @@ public class CallController {
         return Result.success(callService.createConference(userId, dto.getConversationId(), callType));
     }
 
+    @Operation(summary = "加入会议通话")
     @PostMapping("/conference/join")
     public Result<Void> joinConference(
             @Valid @RequestBody CallIdDTO dto,
@@ -125,6 +136,7 @@ public class CallController {
         return Result.success(null);
     }
 
+    @Operation(summary = "离开会议通话")
     @PostMapping("/conference/leave")
     public Result<Void> leaveConference(
             @Valid @RequestBody CallIdDTO dto,
@@ -134,6 +146,7 @@ public class CallController {
         return Result.success(null);
     }
 
+    @Operation(summary = "查询会议参与者")
     @PostMapping("/conference/participants")
     public Result<java.util.List<java.util.Map<String, Object>>> getParticipants(
             @Valid @RequestBody CallIdDTO dto,

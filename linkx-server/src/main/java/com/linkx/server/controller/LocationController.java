@@ -1,5 +1,6 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.linkx.server.common.AuthUtils;
@@ -29,6 +30,7 @@ public class LocationController {
     private final LocationService locationService;
     private final JwtUtils jwtUtils;
 
+    @Operation(summary = "搜索地点")
     @GetMapping("/search")
     @RateLimit(scope = "location:search", value = 30, window = 60)
     public Result<List<LocationPlaceVO>> search(

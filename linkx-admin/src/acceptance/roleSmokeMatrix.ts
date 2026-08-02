@@ -21,6 +21,33 @@ export type RoleSmokeCase = {
 
 export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
   {
+    roleCode: 'super_admin',
+    label: '超级管理员',
+    mustMenus: ['dashboard', 'settings', 'rate-limit', 'versions'],
+    mustNotMenus: [],
+    allowPerms: [
+      'admin:dashboard:view',
+      'admin:setting:edit',
+      'admin:menu:create',
+      'admin:role:assign-permission',
+      'admin:rate-limit:list',
+      'admin:risk-event:handle',
+      'admin:notice:create',
+    ],
+    denyPerms: [],
+    allowRoutes: [
+      '/admin/dashboard',
+      '/admin/settings',
+      '/admin/menus',
+      '/admin/roles',
+      '/admin/rate-limits',
+      '/admin/risk-events',
+      '/admin/notices',
+      '/admin/versions',
+    ],
+    denyRoutes: [],
+  },
+  {
     roleCode: 'ops_admin',
     label: '运营管理员',
     mustMenus: ['dashboard', 'feedback', 'notices', 'statistics', 'recommends', 'activities'],
@@ -51,7 +78,13 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
       '/admin/recommends',
       '/admin/activities',
     ],
-    denyRoutes: ['/admin/settings', '/admin/risk-events', '/admin/devices', '/admin/rate-limits', '/admin/menus'],
+    denyRoutes: [
+      '/admin/settings',
+      '/admin/risk-events',
+      '/admin/devices',
+      '/admin/rate-limits',
+      '/admin/menus',
+    ],
   },
   {
     roleCode: 'audit_admin',
@@ -67,7 +100,13 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
       'admin:role:assign-permission',
     ],
     allowRoutes: ['/admin/reviews', '/admin/reports', '/admin/risk-events', '/admin/devices'],
-    denyRoutes: ['/admin/notices', '/admin/statistics', '/admin/settings', '/admin/rate-limits', '/admin/menus'],
+    denyRoutes: [
+      '/admin/notices',
+      '/admin/statistics',
+      '/admin/settings',
+      '/admin/rate-limits',
+      '/admin/menus',
+    ],
   },
   {
     roleCode: 'security_admin',
@@ -118,7 +157,13 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
       'admin:role:assign-permission',
     ],
     allowRoutes: ['/admin/dashboard', '/admin/statistics', '/admin/users', '/admin/devices'],
-    denyRoutes: ['/admin/settings', '/admin/blacklist', '/admin/notices', '/admin/rate-limits', '/admin/menus'],
+    denyRoutes: [
+      '/admin/settings',
+      '/admin/blacklist',
+      '/admin/notices',
+      '/admin/rate-limits',
+      '/admin/menus',
+    ],
   },
 ]
 
@@ -140,7 +185,11 @@ export const ADMIN_ROUTE_PERMISSIONS: Array<{ path: string; permission?: string;
   { path: '/admin/feedback', permission: 'admin:feedback:list', name: 'FeedbackList' },
   { path: '/admin/reviews', permission: 'admin:review:list', name: 'ReviewList' },
   { path: '/admin/reports', permission: 'admin:review:list', name: 'ReportList' },
-  { path: '/admin/sensitive-words', permission: 'admin:sensitive-word:list', name: 'SensitiveWordList' },
+  {
+    path: '/admin/sensitive-words',
+    permission: 'admin:sensitive-word:list',
+    name: 'SensitiveWordList',
+  },
   { path: '/admin/notices', permission: 'admin:notice:list', name: 'Notices' },
   { path: '/admin/notice-inbox', permission: 'admin:notice:inbox', name: 'NoticeInbox' },
   { path: '/admin/banners', permission: 'admin:banner:list', name: 'Banners' },
@@ -160,7 +209,7 @@ export function hasPermission(permissions: string[], code?: string | string[]) {
 
 export function collectMenuNames(
   menus: Array<{ name?: string; children?: unknown[] }>,
-  out: Set<string> = new Set(),
+  out: Set<string> = new Set()
 ): Set<string> {
   for (const m of menus) {
     if (m.name) out.add(m.name)
@@ -174,7 +223,7 @@ export function collectMenuNames(
 export function assertRoleSmoke(
   role: RoleSmokeCase,
   menus: Array<{ name?: string; children?: unknown[] }>,
-  permissions: string[],
+  permissions: string[]
 ) {
   const names = collectMenuNames(menus)
   const failures: string[] = []

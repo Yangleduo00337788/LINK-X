@@ -25,7 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * M5 按角色冒烟：对齐管理端开发文档 §37.4。
  * <p>
- * 覆盖运营 / 审核 / 安全 / 只读四类角色的登录、菜单裁剪、权限码与写操作 403。
+ * 覆盖超管 / 运营 / 审核 / 安全 / 只读五类角色的登录、菜单裁剪、权限码与写操作 403。
  * 列表类业务查询在 H2 上存在 MySQL 方言差异，此处不作为冒烟断言点。
  */
 @DisplayName("管理端角色冒烟")
@@ -41,6 +41,30 @@ class AdminRoleSmokeIT extends BaseIntegrationTest {
 
     @Autowired
     private RbacService rbacService;
+
+    @Test
+    @DisplayName("超级管理员：全菜单与敏感写操作可用")
+    void superAdminFullAccess() throws Exception {
+        TestUser admin = promoteAndRelogin("sup", 1001L, AdminConstants.ROLE_ADMIN);
+
+        Set<String> menuNames = menuNames(admin);
+        assertTrue(menuNames.contains("dashboard"));
+        assertTrue(menuNames.contains("settings"));
+        assertTrue(menuNames.contains("rate-limit"));
+
+        Set<String> perms = permissions(admin);
+        assertTrue(perms.contains("*") || perms.contains("admin:setting:edit"));
+
+        mockMvc.perform(get("/admin/settings").header("Authorization", admin.bearer()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        mockMvc.perform(get("/admin/rate-limits/hits")
+                        .header("Authorization", admin.bearer())
+                        .param("limit", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+    }
 
     @Test
     @DisplayName("运营管理员：可登录、见运营菜单；不可改配置 / 冻用户")

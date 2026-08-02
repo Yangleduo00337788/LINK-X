@@ -9,7 +9,11 @@ const { t } = useI18n()
 
 <template>
   <div class="center">
-    <NResult status="403" :title="t('error.forbiddenTitle')" :description="t('error.forbiddenDesc')">
+    <NResult
+      status="403"
+      :title="t('error.forbiddenTitle')"
+      :description="t('error.forbiddenDesc')"
+    >
       <template #footer>
         <NButton type="primary" @click="router.push('/admin/dashboard')">
           {{ t('error.backDashboard') }}

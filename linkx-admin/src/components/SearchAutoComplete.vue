@@ -14,7 +14,7 @@ const props = withDefaults(
     placeholder: '',
     suggestions: () => [],
     width: '240px',
-  },
+  }
 )
 
 const emit = defineEmits<{

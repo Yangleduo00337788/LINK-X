@@ -342,7 +342,8 @@ export default {
     refreshCaptcha: 'Click to refresh',
     submit: 'Sign in',
     success: 'Signed in',
-    newIpWarn: 'New IP login detected. If this was not you, change your password and review device sessions.',
+    newIpWarn:
+      'New IP login detected. If this was not you, change your password and review device sessions.',
     newIpWarnWithIp:
       'New IP login detected ({ip}). If this was not you, change your password and review device sessions.',
     totpSubtitle: 'Enter your authenticator code',
@@ -559,11 +560,13 @@ export default {
     deviceType: 'Device type',
     kick: 'Force offline',
     kickTitle: 'Force device offline',
-    kickConfirm: 'Force offline device "{device}" for {user}? Its session will be revoked immediately.',
+    kickConfirm:
+      'Force offline device "{device}" for {user}? Its session will be revoked immediately.',
     kickSuccess: 'Device forced offline',
     ban: 'Long-term ban',
     banTitle: 'Ban device',
-    banConfirm: 'Permanently ban device "{device}" for {user}? It will be kicked and blocked from login.',
+    banConfirm:
+      'Permanently ban device "{device}" for {user}? It will be kicked and blocked from login.',
     banSuccess: 'Device banned',
     unban: 'Unban',
     unbanTitle: 'Unban device',
@@ -579,7 +582,8 @@ export default {
     binding: 'Device binding',
     bindingOn: 'Binding on',
     bindingOff: 'Binding off',
-    bindingEnableConfirm: 'Only whitelisted devices can log in. Current sessions will be auto-approved.',
+    bindingEnableConfirm:
+      'Only whitelisted devices can log in. Current sessions will be auto-approved.',
     bindingDisableConfirm: 'Device whitelist checks will stop.',
     bindingSuccess: 'Device binding updated',
     onlineStatus: 'Status',
@@ -784,8 +788,10 @@ export default {
     unpublish: 'Unpublish',
     unpublishTitle: 'Unpublish notice',
     unpublishConfirm: 'Unpublish notice "{title}"? Delivered notice content will be recalled.',
-    unpublishConfirmAdmin: 'Unpublish admin notice "{title}"? It will be removed from the notification center.',
-    unpublishConfirmClient: 'Unpublish client notice "{title}"? It will be recalled from all users\' LinkX Official session.',
+    unpublishConfirmAdmin:
+      'Unpublish admin notice "{title}"? It will be removed from the notification center.',
+    unpublishConfirmClient:
+      'Unpublish client notice "{title}"? It will be recalled from all users\' LinkX Official session.',
     unpublishSuccess: 'Unpublished and recalled',
     deleteTitle: 'Delete notice',
     deleteConfirm: 'Delete notice "{title}"?',
@@ -796,9 +802,12 @@ export default {
     sideAdmin: 'Admin',
     sideClient: 'Client',
     sideRequired: 'Please select audience',
-    sideAdminHint: 'Publishing pushes to the admin notification center; unpublishing recalls it. Clients are not notified',
-    sideClientHint: 'Publishing pushes to client LinkX Official; unpublishing recalls it. Admin bulletin is not shown',
-    publishConfirmAdmin: 'Publish admin notice "{title}"? Online admins will be notified and it will appear in the notification center.',
+    sideAdminHint:
+      'Publishing pushes to the admin notification center; unpublishing recalls it. Clients are not notified',
+    sideClientHint:
+      'Publishing pushes to client LinkX Official; unpublishing recalls it. Admin bulletin is not shown',
+    publishConfirmAdmin:
+      'Publish admin notice "{title}"? Online admins will be notified and it will appear in the notification center.',
     publishConfirmClient: 'Publish client notice "{title}"? All client users will be notified.',
     publishSuccessAdmin: 'Published to admin',
     publishSuccessClient: 'Published to clients',
@@ -808,7 +817,8 @@ export default {
     adminBulletinRecalledGeneric: 'An admin notice has been unpublished',
     bellTooltip: 'Notifications',
     bellTitle: 'Notifications',
-    inboxHint: 'Shows currently active admin notices. Unpublished notices are removed automatically.',
+    inboxHint:
+      'Shows currently active admin notices. Unpublished notices are removed automatically.',
     inboxEmpty: 'No active admin notices',
     inboxDetailTitle: 'Notification detail',
   },
@@ -840,7 +850,8 @@ export default {
     always: 'Always on',
     expired: 'Expired',
     pending: 'Scheduled',
-    scheduleHint: 'Leave start/end empty for always-on. Expired banners stay “Published” but will not display.',
+    scheduleHint:
+      'Leave start/end empty for always-on. Expired banners stay “Published” but will not display.',
     startAt: 'Start at',
     endAt: 'End at',
     draft: 'Draft',
@@ -889,7 +900,8 @@ export default {
     sortOrder: 'Sort',
     window: 'Schedule',
     always: 'Always on',
-    scheduleHint: 'Leave start/end empty for always-on. Expired items stay “Published” but will not display.',
+    scheduleHint:
+      'Leave start/end empty for always-on. Expired items stay “Published” but will not display.',
     startAt: 'Start',
     endAt: 'End',
     draft: 'Draft',
@@ -930,7 +942,8 @@ export default {
     sortOrder: 'Sort',
     window: 'Schedule',
     always: 'Always on',
-    scheduleHint: 'Leave start/end empty for always-on. Expired items stay “Published” but will not display.',
+    scheduleHint:
+      'Leave start/end empty for always-on. Expired items stay “Published” but will not display.',
     startAt: 'Start',
     endAt: 'End',
     draft: 'Draft',
@@ -1042,7 +1055,8 @@ export default {
     edit: 'Edit department',
     addChild: 'Add child',
     deleteTitle: 'Delete department',
-    deleteConfirm: 'Delete department “{name}”? Cannot delete if it has children or assigned users.',
+    deleteConfirm:
+      'Delete department “{name}”? Cannot delete if it has children or assigned users.',
     parent: 'Parent',
     rootParent: 'Root',
     name: 'Name',
@@ -1137,7 +1151,8 @@ export default {
   setting: {
     title: 'Settings',
     registerTitle: 'Registration',
-    registerHint: 'Controls client registration and forgot-password email. Changes apply immediately.',
+    registerHint:
+      'Controls client registration and forgot-password email. Changes apply immediately.',
     openRegister: 'Allow client registration',
     forgotPasswordEmail: 'Forgot-password email',
     testEmail: 'Test',
@@ -1263,6 +1278,21 @@ export default {
     saved: 'Version info saved',
     readonlyHint: 'Your account can view but not edit versions',
     hint: 'Changes take effect immediately. Clients will see them on the next update check.',
+    channelAll: 'All channels',
+    deleteTitle: 'Delete version',
+    listHint:
+      'Maintain version drafts and publish here. Publishing syncs to the client update check API; previous releases are archived.',
+    create: 'New version',
+    edit: 'Edit version',
+    publish: 'Publish',
+    publishTitle: 'Publish version',
+    publishConfirm: 'Publish version {version}? Clients will see it immediately.',
+    published: 'Version published',
+    deleteConfirm: 'Delete draft version {version}?',
+    statusDraft: 'Draft',
+    statusPublished: 'Published',
+    statusArchived: 'Archived',
+    publishedAt: 'Published at',
   },
   error: {
     forbiddenTitle: 'Access denied',

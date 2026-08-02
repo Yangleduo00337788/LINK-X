@@ -12,5 +12,23 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.{test,spec}.{js,ts}'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html', 'lcov'],
+      // Phase 3.1：先锁工具/矩阵层 40%+；api/router/stores/i18n/views 后续轮次纳入（见 COVERAGE.md）
+      include: [
+        'src/utils/format.ts',
+        'src/utils/mediaUrl.ts',
+        'src/utils/menuI18n.ts',
+        'src/acceptance/roleSmokeMatrix.ts',
+      ],
+      exclude: ['src/**/*.{test,spec}.{js,ts}'],
+      thresholds: {
+        lines: 40,
+        statements: 40,
+        functions: 30,
+        branches: 30,
+      },
+    },
   },
 })

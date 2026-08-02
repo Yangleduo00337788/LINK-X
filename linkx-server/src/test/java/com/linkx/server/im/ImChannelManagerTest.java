@@ -7,6 +7,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.Set;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -178,6 +180,52 @@ class ImChannelManagerTest {
                 assertNotNull(ch);
             }
             assertEquals(1, count, "应有1个通道");
+        }
+    }
+
+    @Nested
+    @DisplayName("disconnectDevice / deliverToAllLocal")
+    class DeviceAndBroadcast {
+
+        @Test
+        @DisplayName("disconnectDevice 匹配默认设备")
+        void disconnectDefaultDevice() {
+            io.netty.channel.embedded.EmbeddedChannel ch = new io.netty.channel.embedded.EmbeddedChannel();
+            channelManager.add(100L, ch);
+            int closed = channelManager.disconnectDevice(100L, null);
+            assertEquals(1, closed);
+            assertFalse(channelManager.isOnline(100L));
+        }
+
+        @Test
+        @DisplayName("disconnectDevice 无连接返回 0")
+        void disconnectMissing() {
+            assertEquals(0, channelManager.disconnectDevice(999L, "dev-1"));
+        }
+
+        @Test
+        @DisplayName("deliverToAllLocal 空 JSON 跳过")
+        void deliverBlankSkipped() {
+            io.netty.channel.embedded.EmbeddedChannel ch = new io.netty.channel.embedded.EmbeddedChannel();
+            channelManager.add(1L, ch);
+            channelManager.deliverToAllLocal("  ");
+            assertNull(ch.readOutbound());
+        }
+
+        @Test
+        @DisplayName("localOnlineUserIds 快照")
+        void localOnlineUserIds() {
+            channelManager.add(1L, createMockChannel());
+            channelManager.add(2L, createMockChannel());
+            assertEquals(Set.of(1L, 2L), channelManager.localOnlineUserIds());
+        }
+
+        @Test
+        @DisplayName("add 首连返回 becameOnline")
+        void addBecameOnlineFlag() {
+            Channel ch = createMockChannel();
+            assertTrue(channelManager.add(50L, ch));
+            assertFalse(channelManager.add(50L, createMockChannel()));
         }
     }
 }

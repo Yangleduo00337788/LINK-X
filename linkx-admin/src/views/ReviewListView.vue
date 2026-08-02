@@ -174,7 +174,11 @@ function statusTag(status?: string) {
     approved: t('review.approved'),
     rejected: t('review.rejected'),
   }
-  return h(NTag, { type: map[status || ''] || 'default', size: 'small' }, () => label[status || ''] || status || '-')
+  return h(
+    NTag,
+    { type: map[status || ''] || 'default', size: 'small' },
+    () => label[status || ''] || status || '-'
+  )
 }
 
 function sourceLabel(source?: string) {
@@ -215,7 +219,12 @@ const columns = computed<DataTableColumns<ReviewItem>>(() => {
         return `${type}:${id}`
       },
     },
-    { title: t('common.status'), key: 'status', width: 100, render: (row) => statusTag(row.status) },
+    {
+      title: t('common.status'),
+      key: 'status',
+      width: 100,
+      render: (row) => statusTag(row.status),
+    },
     {
       title: t('common.time'),
       key: 'createTime',
@@ -230,13 +239,27 @@ const columns = computed<DataTableColumns<ReviewItem>>(() => {
         h(NSpace, { size: 8 }, () => [
           h(NButton, { size: 'tiny', onClick: () => showDetail(row) }, () => t('common.detail')),
           row.status === 'pending' && auth.hasPermission('admin:review:approve')
-            ? h(NButton, { size: 'tiny', type: 'success', secondary: true, onClick: () => openResolve(row, 'approve') }, () =>
-                t('review.approve'),
+            ? h(
+                NButton,
+                {
+                  size: 'tiny',
+                  type: 'success',
+                  secondary: true,
+                  onClick: () => openResolve(row, 'approve'),
+                },
+                () => t('review.approve')
               )
             : null,
           row.status === 'pending' && auth.hasPermission('admin:review:reject')
-            ? h(NButton, { size: 'tiny', type: 'error', secondary: true, onClick: () => openResolve(row, 'reject') }, () =>
-                t('review.reject'),
+            ? h(
+                NButton,
+                {
+                  size: 'tiny',
+                  type: 'error',
+                  secondary: true,
+                  onClick: () => openResolve(row, 'reject'),
+                },
+                () => t('review.reject')
               )
             : null,
         ]),
@@ -271,44 +294,44 @@ function showDetail(row: ReviewItem) {
   dialog.info({
     title: row.title || t('review.detailTitle'),
     content: () =>
-      h(
-        'div',
-        { style: 'line-height: 1.6; max-height: 420px; overflow: auto;' },
-        [
-          h('div', `${t('review.source')}: ${sourceLabel(row.sourceType)}`),
-          h('div', `${t('review.targetType')}: ${row.targetType || '-'}`),
-          h('div', `${t('review.target')}: ${row.targetId || '-'}`),
-          h('div', `${t('review.subjectUser')}: ${row.subjectUserId || '-'}`),
-          h('div', `${t('review.riskLevel')}: ${row.riskLevel || '-'}`),
-          h('div', { style: 'white-space: pre-wrap; margin: 12px 0;' }, stripEvidenceText(row.contentSnapshot)),
-          urls.length
-            ? h('div', { style: 'margin-bottom: 8px; font-weight: 600;' }, t('review.evidence'))
-            : null,
-          urls.length
-            ? h(
-                'div',
-                { style: 'display: flex; flex-direction: column; gap: 10px;' },
-                urls.map((src) =>
-                  h('a', { href: src, target: '_blank', rel: 'noopener noreferrer' }, [
-                    h('img', {
-                      src,
-                      alt: '',
-                      style:
-                        'max-width: 100%; max-height: 360px; width: auto; height: auto; object-fit: contain; border-radius: 8px; border: 1px solid var(--lx-border, #e5e5e5); display: block;',
-                    }),
-                  ]),
-                ),
+      h('div', { style: 'line-height: 1.6; max-height: 420px; overflow: auto;' }, [
+        h('div', `${t('review.source')}: ${sourceLabel(row.sourceType)}`),
+        h('div', `${t('review.targetType')}: ${row.targetType || '-'}`),
+        h('div', `${t('review.target')}: ${row.targetId || '-'}`),
+        h('div', `${t('review.subjectUser')}: ${row.subjectUserId || '-'}`),
+        h('div', `${t('review.riskLevel')}: ${row.riskLevel || '-'}`),
+        h(
+          'div',
+          { style: 'white-space: pre-wrap; margin: 12px 0;' },
+          stripEvidenceText(row.contentSnapshot)
+        ),
+        urls.length
+          ? h('div', { style: 'margin-bottom: 8px; font-weight: 600;' }, t('review.evidence'))
+          : null,
+        urls.length
+          ? h(
+              'div',
+              { style: 'display: flex; flex-direction: column; gap: 10px;' },
+              urls.map((src) =>
+                h('a', { href: src, target: '_blank', rel: 'noopener noreferrer' }, [
+                  h('img', {
+                    src,
+                    alt: '',
+                    style:
+                      'max-width: 100%; max-height: 360px; width: auto; height: auto; object-fit: contain; border-radius: 8px; border: 1px solid var(--lx-border, #e5e5e5); display: block;',
+                  }),
+                ])
               )
-            : null,
-          row.resolution
-            ? h(
-                'div',
-                { style: 'white-space: pre-wrap; margin-top: 12px;' },
-                `${t('review.resolution')}: ${row.resolution}`,
-              )
-            : null,
-        ],
-      ),
+            )
+          : null,
+        row.resolution
+          ? h(
+              'div',
+              { style: 'white-space: pre-wrap; margin-top: 12px;' },
+              `${t('review.resolution')}: ${row.resolution}`
+            )
+          : null,
+      ]),
     positiveText: t('common.confirm'),
   })
 }
@@ -367,7 +390,9 @@ async function doBatch(action: 'approve' | 'reject') {
         const result = await batchReviews(checkedKeys.value, action)
         checkedKeys.value = []
         if (result.failCount > 0) {
-          message.warning(t('review.batchPartial', { ok: result.successCount, fail: result.failCount }))
+          message.warning(
+            t('review.batchPartial', { ok: result.successCount, fail: result.failCount })
+          )
         } else {
           message.success(t('review.batchSuccess', { n: result.successCount }))
         }
@@ -485,8 +510,16 @@ onUnmounted(() => {
             :options="sourceOptions"
             style="width: 140px"
           />
-          <NSelect v-model:value="query.targetType" :options="targetTypeOptions" style="width: 160px" />
-          <NSelect v-model:value="query.riskLevel" :options="riskLevelOptions" style="width: 130px" />
+          <NSelect
+            v-model:value="query.targetType"
+            :options="targetTypeOptions"
+            style="width: 160px"
+          />
+          <NSelect
+            v-model:value="query.riskLevel"
+            :options="riskLevelOptions"
+            style="width: 130px"
+          />
           <NButton v-if="!reportOnly" secondary @click="applyReportPreset">
             {{ t('review.reportPreset') }}
           </NButton>
@@ -541,8 +574,15 @@ onUnmounted(() => {
           itemCount: total,
           showSizePicker: true,
           pageSizes: [10, 20, 50],
-          onUpdatePage: (p: number) => { query.page = p; load() },
-          onUpdatePageSize: (s: number) => { query.size = s; query.page = 1; load() },
+          onUpdatePage: (p: number) => {
+            query.page = p
+            load()
+          },
+          onUpdatePageSize: (s: number) => {
+            query.size = s
+            query.page = 1
+            load()
+          },
         }"
         remote
       />
@@ -583,7 +623,9 @@ onUnmounted(() => {
         <NFormItem v-if="canDeleteContent(resolveTarget)" :label="t('review.contentAction')">
           <NSelect v-model:value="contentAction" :options="contentActionOptions" />
         </NFormItem>
-        <p v-if="canDeleteContent(resolveTarget)" class="hint">{{ t('review.contentActionHint') }}</p>
+        <p v-if="canDeleteContent(resolveTarget)" class="hint">
+          {{ t('review.contentActionHint') }}
+        </p>
       </template>
       <p v-else class="hint">{{ t('review.rejectHint') }}</p>
 

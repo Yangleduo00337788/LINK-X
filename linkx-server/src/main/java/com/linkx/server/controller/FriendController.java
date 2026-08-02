@@ -1,5 +1,6 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.linkx.server.common.AuthUtils;
@@ -29,6 +30,7 @@ public class FriendController {
     private final FriendService friendService;
     private final JwtUtils jwtUtils;
 
+    @Operation(summary = "搜索用户")
     @GetMapping("/search")
     @RateLimit(scope = "friend:search", value = 30, window = 60)
     public Result<List<UserSearchVO>> searchUsers(
@@ -38,6 +40,7 @@ public class FriendController {
         return Result.success(friendService.searchUsers(keyword, userId));
     }
 
+    @Operation(summary = "发送好友申请")
     @PostMapping("/request")
     public Result<Void> sendFriendRequest(
             @Valid @RequestBody SendFriendRequestDTO dto,
@@ -47,18 +50,21 @@ public class FriendController {
         return Result.success(null);
     }
 
+    @Operation(summary = "获取收到的好友申请")
     @GetMapping("/requests/incoming")
     public Result<List<FriendRequestVO>> listIncomingRequests(HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         return Result.success(friendService.listIncomingRequests(userId));
     }
 
+    @Operation(summary = "获取发出的好友申请")
     @GetMapping("/requests/outgoing")
     public Result<List<FriendRequestVO>> listOutgoingRequests(HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         return Result.success(friendService.listOutgoingRequests(userId));
     }
 
+    @Operation(summary = "接受好友申请")
     @PostMapping("/requests/{id}/accept")
     public Result<Void> acceptFriendRequest(
             @PathVariable String id,
@@ -68,6 +74,7 @@ public class FriendController {
         return Result.success(null);
     }
 
+    @Operation(summary = "拒绝好友申请")
     @PostMapping("/requests/{id}/reject")
     public Result<Void> rejectFriendRequest(
             @PathVariable String id,
@@ -77,12 +84,14 @@ public class FriendController {
         return Result.success(null);
     }
 
+    @Operation(summary = "获取好友列表")
     @GetMapping("/list")
     public Result<List<FriendItemVO>> listFriends(HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         return Result.success(friendService.listFriends(userId));
     }
 
+    @Operation(summary = "删除好友")
     @DeleteMapping("/{friendId}")
     public Result<Void> deleteFriend(
             @PathVariable String friendId,
@@ -92,6 +101,7 @@ public class FriendController {
         return Result.success(null);
     }
 
+    @Operation(summary = "修改好友备注")
     @PutMapping("/{friendId}/remark")
     public Result<String> updateFriendRemark(
             @PathVariable String friendId,
@@ -102,6 +112,7 @@ public class FriendController {
         return Result.success(remark);
     }
 
+    @Operation(summary = "修改好友分组")
     @PutMapping("/{friendId}/group")
     public Result<String> updateFriendGroup(
             @PathVariable String friendId,
@@ -112,6 +123,7 @@ public class FriendController {
         return Result.success(groupName);
     }
 
+    @Operation(summary = "拉黑好友")
     @PostMapping("/{friendId}/block")
     public Result<Void> blockFriend(
             @PathVariable String friendId,
@@ -121,6 +133,7 @@ public class FriendController {
         return Result.success(null);
     }
 
+    @Operation(summary = "取消拉黑好友")
     @PostMapping("/{friendId}/unblock")
     public Result<Void> unblockFriend(
             @PathVariable String friendId,

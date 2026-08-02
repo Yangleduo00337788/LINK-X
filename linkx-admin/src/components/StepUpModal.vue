@@ -1,7 +1,17 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NButton, NForm, NFormItem, NInput, NModal, NRadioButton, NRadioGroup, NSpace, useMessage } from 'naive-ui'
+import {
+  NButton,
+  NForm,
+  NFormItem,
+  NInput,
+  NModal,
+  NRadioButton,
+  NRadioGroup,
+  NSpace,
+  useMessage,
+} from 'naive-ui'
 import { requestStepUp, verifyStepUp, type StepUpMethod } from '@/api/stepUp'
 import { useStepUpGate } from '@/composables/useStepUpGate'
 
@@ -77,16 +87,26 @@ function cancel() {
     style="width: 420px"
     :mask-closable="false"
     :close-on-esc="false"
-    @update:show="(v) => { if (!v) cancel() }"
+    @update:show="
+      (v) => {
+        if (!v) cancel()
+      }
+    "
   >
     <p class="stepup-desc">{{ t('stepUp.desc') }}</p>
-    <p v-if="action" class="stepup-action">{{ t('stepUp.action') }}: <code>{{ action }}</code></p>
+    <p v-if="action" class="stepup-action">
+      {{ t('stepUp.action') }}: <code>{{ action }}</code>
+    </p>
 
     <NForm label-placement="left" label-width="72" class="stepup-form">
       <NFormItem v-if="methods.length > 1" :label="t('stepUp.method')">
         <NRadioGroup v-model:value="method" size="small">
-          <NRadioButton v-if="methods.includes('totp')" value="totp">{{ t('stepUp.methodTotp') }}</NRadioButton>
-          <NRadioButton v-if="methods.includes('email')" value="email">{{ t('stepUp.methodEmail') }}</NRadioButton>
+          <NRadioButton v-if="methods.includes('totp')" value="totp">{{
+            t('stepUp.methodTotp')
+          }}</NRadioButton>
+          <NRadioButton v-if="methods.includes('email')" value="email">{{
+            t('stepUp.methodEmail')
+          }}</NRadioButton>
         </NRadioGroup>
       </NFormItem>
 
@@ -112,7 +132,9 @@ function cancel() {
     <template #footer>
       <NSpace justify="end">
         <NButton @click="cancel">{{ t('common.cancel') }}</NButton>
-        <NButton type="primary" :loading="verifying" @click="confirm">{{ t('stepUp.verify') }}</NButton>
+        <NButton type="primary" :loading="verifying" @click="confirm">{{
+          t('stepUp.verify')
+        }}</NButton>
       </NSpace>
     </template>
   </NModal>

@@ -1,5 +1,6 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.linkx.server.common.AuthUtils;
@@ -43,12 +44,14 @@ public class ChatController {
     private final ConversationDraftService conversationDraftService;
     private final JwtUtils jwtUtils;
 
+    @Operation(summary = "获取会话列表")
     @GetMapping("/sessions")
     public Result<List<ConversationVO>> listSessions(HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         return Result.success(chatService.listConversations(userId));
     }
 
+    @Operation(summary = "打开或创建私聊会话")
     @PostMapping("/private/{friendId}")
     public Result<ConversationVO> openPrivateChat(
             @PathVariable String friendId,
@@ -57,6 +60,7 @@ public class ChatController {
         return Result.success(chatService.getOrCreatePrivateConversation(userId, parseId(friendId)));
     }
 
+    @Operation(summary = "分页获取会话消息")
     @GetMapping("/sessions/{conversationId}/messages")
     public Result<List<MessageVO>> listMessages(
             @PathVariable String conversationId,
@@ -68,6 +72,7 @@ public class ChatController {
         return Result.success(chatService.listMessages(userId, parseId(conversationId), beforeId, limit));
     }
 
+    @Operation(summary = "上传聊天附件")
     @PostMapping("/sessions/{conversationId}/upload")
     @RateLimit(scope = "chat:upload", value = 20, window = 60)
     public Result<ChatFileUploadVO> uploadFile(
@@ -79,6 +84,7 @@ public class ChatController {
     }
 
     /** 鉴权中转下载聊天附件（会话成员） */
+    @Operation(summary = "下载聊天附件")
     @GetMapping("/messages/{messageId}/file")
     public ResponseEntity<InputStreamResource> downloadMessageFile(
             @PathVariable String messageId,
@@ -91,6 +97,7 @@ public class ChatController {
     }
 
     /** 重新签发消息媒体预签名 URL（过期自愈） */
+    @Operation(summary = "刷新消息媒体 URL")
     @GetMapping("/messages/{messageId}/media-url")
     public Result<java.util.Map<String, String>> refreshMessageMediaUrl(
             @PathVariable String messageId,
@@ -100,6 +107,7 @@ public class ChatController {
         return Result.success(java.util.Map.of("url", url));
     }
 
+    @Operation(summary = "搜索聊天消息")
     @GetMapping("/search")
     public Result<List<ChatSearchHitVO>> search(
             @RequestParam String q,
@@ -114,6 +122,7 @@ public class ChatController {
         return Result.success(chatService.searchMessages(userId, q, type, convId, fromTime, toTime, limit));
     }
 
+    @Operation(summary = "撤回消息")
     @PostMapping("/sessions/{conversationId}/messages/{messageId}/recall")
     @RateLimit(scope = "chat:recall", value = 30, window = 60)
     public Result<MessageVO> recallMessage(
@@ -126,6 +135,7 @@ public class ChatController {
         return Result.success(vo);
     }
 
+    @Operation(summary = "编辑消息")
     @PostMapping("/sessions/{conversationId}/messages/{messageId}/edit")
     @RateLimit(scope = "chat:edit", value = 20, window = 60)
     public Result<MessageVO> editMessage(
@@ -143,6 +153,7 @@ public class ChatController {
         return Result.success(vo);
     }
 
+    @Operation(summary = "转发消息")
     @PostMapping("/sessions/{conversationId}/messages/{messageId}/forward")
     @RateLimit(scope = "chat:forward", value = 30, window = 60)
     public Result<MessageVO> forwardMessage(
@@ -169,6 +180,7 @@ public class ChatController {
         return Result.success(vo);
     }
 
+    @Operation(summary = "引用回复消息")
     @PostMapping("/sessions/{conversationId}/messages/{messageId}/quote")
     @RateLimit(scope = "chat:quote", value = 30, window = 60)
     public Result<MessageVO> quoteMessage(
@@ -182,6 +194,7 @@ public class ChatController {
         return Result.success(vo);
     }
 
+    @Operation(summary = "标记会话已读")
     @PostMapping("/sessions/{conversationId}/read")
     public Result<Long> markAsRead(
             @PathVariable String conversationId,
@@ -198,6 +211,7 @@ public class ChatController {
      * 获取消息已读人数（群聊场景）。
      * 返回 { readCount, totalMembers } 结构。
      */
+    @Operation(summary = "获取消息已读人数")
     @GetMapping("/sessions/{conversationId}/messages/{messageId}/read-count")
     public Result<java.util.Map<String, Object>> getMessageReadCount(
             @PathVariable String conversationId,
@@ -214,6 +228,7 @@ public class ChatController {
         ));
     }
 
+    @Operation(summary = "获取会话未读数")
     @GetMapping("/sessions/{conversationId}/unread")
     public Result<Long> getUnreadCount(
             @PathVariable String conversationId,
@@ -223,12 +238,14 @@ public class ChatController {
         return Result.success(unreadCount);
     }
 
+    @Operation(summary = "获取总未读数")
     @GetMapping("/unread-total")
     public Result<Long> getTotalUnreadCount(HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         return Result.success(chatService.getTotalUnreadCount(userId));
     }
 
+    @Operation(summary = "置顶/取消置顶会话")
     @PostMapping("/sessions/{conversationId}/pin")
     public Result<Void> togglePin(
             @PathVariable String conversationId,
@@ -238,6 +255,7 @@ public class ChatController {
         return Result.success();
     }
 
+    @Operation(summary = "标记/取消重要会话")
     @PostMapping("/sessions/{conversationId}/important")
     public Result<Void> toggleImportant(
             @PathVariable String conversationId,
@@ -247,6 +265,7 @@ public class ChatController {
         return Result.success();
     }
 
+    @Operation(summary = "静音/取消静音会话")
     @PostMapping("/sessions/{conversationId}/mute")
     public Result<Void> toggleMute(
             @PathVariable String conversationId,
@@ -258,6 +277,7 @@ public class ChatController {
 
     // ==================== 分片上传（断点续传） ====================
 
+    @Operation(summary = "初始化分片上传")
     @PostMapping("/sessions/{conversationId}/upload/init")
     @RateLimit(scope = "chat:upload:init", value = 30, window = 60)
     public Result<java.util.Map<String, Object>> initiateMultipartUpload(
@@ -287,6 +307,7 @@ public class ChatController {
                 userId, parseId(conversationId), fileName, contentType, fileSize));
     }
 
+    @Operation(summary = "上传分片")
     @PostMapping("/sessions/{conversationId}/upload/part")
     @RateLimit(scope = "chat:upload:part", value = 100, window = 60)
     public Result<java.util.Map<String, String>> uploadPart(
@@ -301,6 +322,7 @@ public class ChatController {
         return Result.success(java.util.Map.of("etag", etag, "partNumber", String.valueOf(partNumber)));
     }
 
+    @Operation(summary = "查询已上传分片")
     @GetMapping("/sessions/{conversationId}/upload/{uploadId}/parts")
     @RateLimit(scope = "chat:upload:parts", value = 60, window = 60)
     public Result<java.util.List<java.util.Map<String, Object>>> listUploadedParts(
@@ -319,6 +341,7 @@ public class ChatController {
                 .toList());
     }
 
+    @Operation(summary = "完成分片上传")
     @PostMapping("/sessions/{conversationId}/upload/complete")
     @RateLimit(scope = "chat:upload:complete", value = 30, window = 60)
     public Result<ChatFileUploadVO> completeMultipartUpload(
@@ -354,6 +377,7 @@ public class ChatController {
         return Result.success(vo);
     }
 
+    @Operation(summary = "中止分片上传")
     @PostMapping("/sessions/{conversationId}/upload/abort")
     @RateLimit(scope = "chat:upload:abort", value = 30, window = 60)
     public Result<Void> abortMultipartUpload(
@@ -367,6 +391,7 @@ public class ChatController {
 
     // ==================== 文件秒传 ====================
 
+    @Operation(summary = "校验文件哈希（秒传）")
     @PostMapping("/upload/check-hash")
     @RateLimit(scope = "chat:upload:hash", value = 30, window = 60)
     public Result<java.util.Map<String, Object>> checkFileHash(
@@ -403,6 +428,7 @@ public class ChatController {
 
     // ==================== 会话草稿 ====================
 
+    @Operation(summary = "保存会话草稿")
     @PostMapping("/sessions/{conversationId}/draft")
     public Result<Void> saveDraft(
             @PathVariable String conversationId,
@@ -414,6 +440,7 @@ public class ChatController {
         return Result.success();
     }
 
+    @Operation(summary = "获取会话草稿")
     @GetMapping("/sessions/{conversationId}/draft")
     public Result<String> getDraft(
             @PathVariable String conversationId,

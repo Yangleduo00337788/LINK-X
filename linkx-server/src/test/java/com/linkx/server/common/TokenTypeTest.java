@@ -66,9 +66,9 @@ class TokenTypeTest {
         }
 
         @Test
-        @DisplayName("null应默认返回ACCESS")
-        void nullClaim_returnsAccess() {
-            assertEquals(TokenType.ACCESS, TokenType.fromClaim(null));
+        @DisplayName("null应抛出IllegalArgumentException（防类型绕过）")
+        void nullClaim_throwsException() {
+            assertThrows(IllegalArgumentException.class, () -> TokenType.fromClaim(null));
         }
 
         @Test

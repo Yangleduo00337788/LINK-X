@@ -19,13 +19,7 @@ import {
   type FormInst,
   type SelectOption,
 } from 'naive-ui'
-import {
-  createMenu,
-  deleteMenu,
-  listMenus,
-  reorderMenus,
-  updateMenu,
-} from '@/api/menus'
+import { createMenu, deleteMenu, listMenus, reorderMenus, updateMenu } from '@/api/menus'
 import type { AdminMenuPayload, AdminMenuTree } from '@/types/api'
 import { resolveMenuLabel } from '@/utils/menuI18n'
 import { useAuthStore } from '@/stores/auth'
@@ -115,9 +109,7 @@ function siblingsOf(row: AdminMenuTree): AdminMenuTree[] {
 
 async function move(row: AdminMenuTree, direction: -1 | 1) {
   if (!auth.hasPermission('admin:menu:reorder')) return
-  const siblings = [...siblingsOf(row)].sort(
-    (a, b) => (a.sort ?? 0) - (b.sort ?? 0) || a.id - b.id,
-  )
+  const siblings = [...siblingsOf(row)].sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0) || a.id - b.id)
   const idx = siblings.findIndex((s) => s.id === row.id)
   const swapIdx = idx + direction
   if (idx < 0 || swapIdx < 0 || swapIdx >= siblings.length) return
@@ -182,7 +174,7 @@ const columns = computed<DataTableColumns<AdminMenuTree>>(() => {
       width: 70,
       render: (row) =>
         h(NTag, { type: row.visible === false ? 'default' : 'success', size: 'small' }, () =>
-          row.visible === false ? t('common.hide') : t('common.show'),
+          row.visible === false ? t('common.hide') : t('common.show')
         ),
     },
     {
@@ -191,7 +183,7 @@ const columns = computed<DataTableColumns<AdminMenuTree>>(() => {
       width: 70,
       render: (row) =>
         h(NTag, { type: row.status === 0 ? 'warning' : 'success', size: 'small' }, () =>
-          row.status === 0 ? t('common.disabled') : t('common.enabled'),
+          row.status === 0 ? t('common.disabled') : t('common.enabled')
         ),
     },
     {
@@ -201,9 +193,7 @@ const columns = computed<DataTableColumns<AdminMenuTree>>(() => {
       fixed: 'right',
       render: (row) => {
         const siblings = siblingsOf(row)
-        const sorted = [...siblings].sort(
-          (a, b) => (a.sort ?? 0) - (b.sort ?? 0) || a.id - b.id,
-        )
+        const sorted = [...siblings].sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0) || a.id - b.id)
         const idx = sorted.findIndex((s) => s.id === row.id)
         const buttons: ReturnType<typeof h>[] = []
         if (auth.hasPermission('admin:menu:reorder')) {
@@ -215,7 +205,7 @@ const columns = computed<DataTableColumns<AdminMenuTree>>(() => {
                 disabled: idx <= 0,
                 onClick: () => move(row, -1),
               },
-              () => t('menu.moveUp'),
+              () => t('menu.moveUp')
             ),
             h(
               NButton,
@@ -224,22 +214,20 @@ const columns = computed<DataTableColumns<AdminMenuTree>>(() => {
                 disabled: idx < 0 || idx >= sorted.length - 1,
                 onClick: () => move(row, 1),
               },
-              () => t('menu.moveDown'),
-            ),
+              () => t('menu.moveDown')
+            )
           )
         }
         if (auth.hasPermission('admin:menu:edit')) {
           buttons.push(
-            h(NButton, { size: 'tiny', onClick: () => openEdit(row) }, () => t('common.edit')),
+            h(NButton, { size: 'tiny', onClick: () => openEdit(row) }, () => t('common.edit'))
           )
         }
         if (auth.hasPermission('admin:menu:create')) {
           buttons.push(
-            h(
-              NButton,
-              { size: 'tiny', secondary: true, onClick: () => openCreate(row.id) },
-              () => t('menu.addChild'),
-            ),
+            h(NButton, { size: 'tiny', secondary: true, onClick: () => openCreate(row.id) }, () =>
+              t('menu.addChild')
+            )
           )
         }
         if (auth.hasPermission('admin:menu:delete')) {
@@ -263,8 +251,8 @@ const columns = computed<DataTableColumns<AdminMenuTree>>(() => {
                     },
                   }),
               },
-              () => t('common.delete'),
-            ),
+              () => t('common.delete')
+            )
           )
         }
         return h(NSpace, { size: 6, wrap: false }, () => buttons)
@@ -361,7 +349,11 @@ onMounted(load)
     <div class="page-shell">
       <NSpace class="page-toolbar" justify="space-between">
         <div class="page-hint">{{ t('menu.hint') }}</div>
-        <NButton v-if="auth.hasPermission('admin:menu:create')" type="primary" @click="openCreate(0)">
+        <NButton
+          v-if="auth.hasPermission('admin:menu:create')"
+          type="primary"
+          @click="openCreate(0)"
+        >
           {{ t('menu.create') }}
         </NButton>
       </NSpace>

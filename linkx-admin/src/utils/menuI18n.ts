@@ -66,7 +66,7 @@ const MENU_PATH_KEYS: Record<string, string> = {
 
 export function resolveMenuLabel(
   t: TFunc,
-  menu: { name?: string; path?: string; title?: string },
+  menu: { name?: string; path?: string; title?: string }
 ): string {
   const byName = menu.name && MENU_NAME_KEYS[menu.name]
   if (byName) return String(t(byName))
@@ -91,34 +91,70 @@ const PERM_KEYS: Record<string, { name: string; desc?: string }> = {
   'admin:user:unfreeze': { name: 'perm.adminUserUnfreeze', desc: 'perm.adminUserUnfreezeDesc' },
   'admin:user:ban': { name: 'perm.adminUserBan', desc: 'perm.adminUserBanDesc' },
   'admin:user:unban': { name: 'perm.adminUserUnban', desc: 'perm.adminUserUnbanDesc' },
-  'admin:user:reset-password': { name: 'perm.adminUserResetPassword', desc: 'perm.adminUserResetPasswordDesc' },
-  'admin:user:device:list': { name: 'perm.adminUserDeviceList', desc: 'perm.adminUserDeviceListDesc' },
+  'admin:user:reset-password': {
+    name: 'perm.adminUserResetPassword',
+    desc: 'perm.adminUserResetPasswordDesc',
+  },
+  'admin:user:device:list': {
+    name: 'perm.adminUserDeviceList',
+    desc: 'perm.adminUserDeviceListDesc',
+  },
   'admin:user:login:list': { name: 'perm.adminUserLoginList', desc: 'perm.adminUserLoginListDesc' },
   'admin:blacklist:list': { name: 'perm.adminBlacklistList', desc: 'perm.adminBlacklistListDesc' },
   'admin:blacklist:add': { name: 'perm.adminBlacklistAdd', desc: 'perm.adminBlacklistAddDesc' },
-  'admin:blacklist:remove': { name: 'perm.adminBlacklistRemove', desc: 'perm.adminBlacklistRemoveDesc' },
+  'admin:blacklist:remove': {
+    name: 'perm.adminBlacklistRemove',
+    desc: 'perm.adminBlacklistRemoveDesc',
+  },
   'admin:device:list': { name: 'perm.adminDeviceList', desc: 'perm.adminDeviceListDesc' },
   'admin:device:kick': { name: 'perm.adminDeviceKick', desc: 'perm.adminDeviceKickDesc' },
   'admin:device:ban': { name: 'perm.adminDeviceBan', desc: 'perm.adminDeviceBanDesc' },
   'admin:device:unban': { name: 'perm.adminDeviceUnban', desc: 'perm.adminDeviceUnbanDesc' },
-  'admin:user:device-binding': { name: 'perm.adminUserDeviceBinding', desc: 'perm.adminUserDeviceBindingDesc' },
-  'admin:user:device-approve': { name: 'perm.adminUserDeviceApprove', desc: 'perm.adminUserDeviceApproveDesc' },
+  'admin:user:device-binding': {
+    name: 'perm.adminUserDeviceBinding',
+    desc: 'perm.adminUserDeviceBindingDesc',
+  },
+  'admin:user:device-approve': {
+    name: 'perm.adminUserDeviceApprove',
+    desc: 'perm.adminUserDeviceApproveDesc',
+  },
   'admin:device:export': { name: 'perm.adminDeviceExport', desc: 'perm.adminDeviceExportDesc' },
-  'admin:blacklist:export': { name: 'perm.adminBlacklistExport', desc: 'perm.adminBlacklistExportDesc' },
+  'admin:blacklist:export': {
+    name: 'perm.adminBlacklistExport',
+    desc: 'perm.adminBlacklistExportDesc',
+  },
   'admin:role:list': { name: 'perm.adminRoleList', desc: 'perm.adminRoleListDesc' },
   'admin:role:create': { name: 'perm.adminRoleCreate', desc: 'perm.adminRoleCreateDesc' },
   'admin:role:edit': { name: 'perm.adminRoleEdit', desc: 'perm.adminRoleEditDesc' },
   'admin:role:delete': { name: 'perm.adminRoleDelete', desc: 'perm.adminRoleDeleteDesc' },
-  'admin:role:assign-menu': { name: 'perm.adminRoleAssignMenu', desc: 'perm.adminRoleAssignMenuDesc' },
+  'admin:role:assign-menu': {
+    name: 'perm.adminRoleAssignMenu',
+    desc: 'perm.adminRoleAssignMenuDesc',
+  },
   'admin:role:assign-permission': {
     name: 'perm.adminRoleAssignPermission',
     desc: 'perm.adminRoleAssignPermissionDesc',
   },
-  'admin:role:assign-user': { name: 'perm.adminRoleAssignUser', desc: 'perm.adminRoleAssignUserDesc' },
-  'admin:permission:list': { name: 'perm.adminPermissionList', desc: 'perm.adminPermissionListDesc' },
-  'admin:permission:create': { name: 'perm.adminPermissionCreate', desc: 'perm.adminPermissionCreateDesc' },
-  'admin:permission:edit': { name: 'perm.adminPermissionEdit', desc: 'perm.adminPermissionEditDesc' },
-  'admin:permission:delete': { name: 'perm.adminPermissionDelete', desc: 'perm.adminPermissionDeleteDesc' },
+  'admin:role:assign-user': {
+    name: 'perm.adminRoleAssignUser',
+    desc: 'perm.adminRoleAssignUserDesc',
+  },
+  'admin:permission:list': {
+    name: 'perm.adminPermissionList',
+    desc: 'perm.adminPermissionListDesc',
+  },
+  'admin:permission:create': {
+    name: 'perm.adminPermissionCreate',
+    desc: 'perm.adminPermissionCreateDesc',
+  },
+  'admin:permission:edit': {
+    name: 'perm.adminPermissionEdit',
+    desc: 'perm.adminPermissionEditDesc',
+  },
+  'admin:permission:delete': {
+    name: 'perm.adminPermissionDelete',
+    desc: 'perm.adminPermissionDeleteDesc',
+  },
   'admin:menu:list': { name: 'perm.adminMenuList', desc: 'perm.adminMenuListDesc' },
   'admin:menu:create': { name: 'perm.adminMenuCreate', desc: 'perm.adminMenuCreateDesc' },
   'admin:menu:edit': { name: 'perm.adminMenuEdit', desc: 'perm.adminMenuEditDesc' },
@@ -131,33 +167,63 @@ const PERM_KEYS: Record<string, { name: string; desc?: string }> = {
   'admin:audit:list': { name: 'perm.adminAuditList', desc: 'perm.adminAuditListDesc' },
   'admin:audit:export': { name: 'perm.adminAuditExport', desc: 'perm.adminAuditExportDesc' },
   'admin:login-log:list': { name: 'perm.adminLoginLogList', desc: 'perm.adminLoginLogListDesc' },
-  'admin:login-log:export': { name: 'perm.adminLoginLogExport', desc: 'perm.adminLoginLogExportDesc' },
+  'admin:login-log:export': {
+    name: 'perm.adminLoginLogExport',
+    desc: 'perm.adminLoginLogExportDesc',
+  },
   'admin:risk-event:list': { name: 'perm.adminRiskEventList', desc: 'perm.adminRiskEventListDesc' },
   'admin:risk-event:view': { name: 'perm.adminRiskEventView', desc: 'perm.adminRiskEventViewDesc' },
-  'admin:risk-event:handle': { name: 'perm.adminRiskEventHandle', desc: 'perm.adminRiskEventHandleDesc' },
-  'admin:risk-event:batch': { name: 'perm.adminRiskEventBatch', desc: 'perm.adminRiskEventBatchDesc' },
-  'admin:risk-event:export': { name: 'perm.adminRiskEventExport', desc: 'perm.adminRiskEventExportDesc' },
+  'admin:risk-event:handle': {
+    name: 'perm.adminRiskEventHandle',
+    desc: 'perm.adminRiskEventHandleDesc',
+  },
+  'admin:risk-event:batch': {
+    name: 'perm.adminRiskEventBatch',
+    desc: 'perm.adminRiskEventBatchDesc',
+  },
+  'admin:risk-event:export': {
+    name: 'perm.adminRiskEventExport',
+    desc: 'perm.adminRiskEventExportDesc',
+  },
   'admin:feedback:list': { name: 'perm.adminFeedbackList', desc: 'perm.adminFeedbackListDesc' },
   'admin:feedback:reply': { name: 'perm.adminFeedbackReply', desc: 'perm.adminFeedbackReplyDesc' },
   'admin:feedback:close': { name: 'perm.adminFeedbackClose', desc: 'perm.adminFeedbackCloseDesc' },
-  'admin:feedback:export': { name: 'perm.adminFeedbackExport', desc: 'perm.adminFeedbackExportDesc' },
+  'admin:feedback:export': {
+    name: 'perm.adminFeedbackExport',
+    desc: 'perm.adminFeedbackExportDesc',
+  },
   'admin:review:list': { name: 'perm.adminReviewList', desc: 'perm.adminReviewListDesc' },
   'admin:review:approve': { name: 'perm.adminReviewApprove', desc: 'perm.adminReviewApproveDesc' },
   'admin:review:reject': { name: 'perm.adminReviewReject', desc: 'perm.adminReviewRejectDesc' },
   'admin:review:batch': { name: 'perm.adminReviewBatch', desc: 'perm.adminReviewBatchDesc' },
   'admin:review:export': { name: 'perm.adminReviewExport', desc: 'perm.adminReviewExportDesc' },
   'admin:user:export': { name: 'perm.adminUserExport', desc: 'perm.adminUserExportDesc' },
-  'admin:sensitive-word:list': { name: 'perm.adminSensitiveList', desc: 'perm.adminSensitiveListDesc' },
-  'admin:sensitive-word:create': { name: 'perm.adminSensitiveCreate', desc: 'perm.adminSensitiveCreateDesc' },
-  'admin:sensitive-word:edit': { name: 'perm.adminSensitiveEdit', desc: 'perm.adminSensitiveEditDesc' },
-  'admin:sensitive-word:delete': { name: 'perm.adminSensitiveDelete', desc: 'perm.adminSensitiveDeleteDesc' },
+  'admin:sensitive-word:list': {
+    name: 'perm.adminSensitiveList',
+    desc: 'perm.adminSensitiveListDesc',
+  },
+  'admin:sensitive-word:create': {
+    name: 'perm.adminSensitiveCreate',
+    desc: 'perm.adminSensitiveCreateDesc',
+  },
+  'admin:sensitive-word:edit': {
+    name: 'perm.adminSensitiveEdit',
+    desc: 'perm.adminSensitiveEditDesc',
+  },
+  'admin:sensitive-word:delete': {
+    name: 'perm.adminSensitiveDelete',
+    desc: 'perm.adminSensitiveDeleteDesc',
+  },
   'admin:notice:list': { name: 'perm.adminNoticeList', desc: 'perm.adminNoticeListDesc' },
   'admin:notice:view': { name: 'perm.adminNoticeView', desc: 'perm.adminNoticeViewDesc' },
   'admin:notice:create': { name: 'perm.adminNoticeCreate', desc: 'perm.adminNoticeCreateDesc' },
   'admin:notice:edit': { name: 'perm.adminNoticeEdit', desc: 'perm.adminNoticeEditDesc' },
   'admin:notice:delete': { name: 'perm.adminNoticeDelete', desc: 'perm.adminNoticeDeleteDesc' },
   'admin:notice:publish': { name: 'perm.adminNoticePublish', desc: 'perm.adminNoticePublishDesc' },
-  'admin:notice:unpublish': { name: 'perm.adminNoticeUnpublish', desc: 'perm.adminNoticeUnpublishDesc' },
+  'admin:notice:unpublish': {
+    name: 'perm.adminNoticeUnpublish',
+    desc: 'perm.adminNoticeUnpublishDesc',
+  },
   'admin:notice:inbox': { name: 'perm.adminNoticeInbox', desc: 'perm.adminNoticeInboxDesc' },
   'admin:banner:list': { name: 'perm.adminBannerList', desc: 'perm.adminBannerListDesc' },
   'admin:banner:view': { name: 'perm.adminBannerView', desc: 'perm.adminBannerViewDesc' },
@@ -165,44 +231,69 @@ const PERM_KEYS: Record<string, { name: string; desc?: string }> = {
   'admin:banner:edit': { name: 'perm.adminBannerEdit', desc: 'perm.adminBannerEditDesc' },
   'admin:banner:delete': { name: 'perm.adminBannerDelete', desc: 'perm.adminBannerDeleteDesc' },
   'admin:banner:publish': { name: 'perm.adminBannerPublish', desc: 'perm.adminBannerPublishDesc' },
-  'admin:banner:unpublish': { name: 'perm.adminBannerUnpublish', desc: 'perm.adminBannerUnpublishDesc' },
+  'admin:banner:unpublish': {
+    name: 'perm.adminBannerUnpublish',
+    desc: 'perm.adminBannerUnpublishDesc',
+  },
   'admin:recommend:list': { name: 'perm.adminRecommendList', desc: 'perm.adminRecommendListDesc' },
   'admin:recommend:view': { name: 'perm.adminRecommendView', desc: 'perm.adminRecommendViewDesc' },
-  'admin:recommend:create': { name: 'perm.adminRecommendCreate', desc: 'perm.adminRecommendCreateDesc' },
+  'admin:recommend:create': {
+    name: 'perm.adminRecommendCreate',
+    desc: 'perm.adminRecommendCreateDesc',
+  },
   'admin:recommend:edit': { name: 'perm.adminRecommendEdit', desc: 'perm.adminRecommendEditDesc' },
-  'admin:recommend:delete': { name: 'perm.adminRecommendDelete', desc: 'perm.adminRecommendDeleteDesc' },
-  'admin:recommend:publish': { name: 'perm.adminRecommendPublish', desc: 'perm.adminRecommendPublishDesc' },
-  'admin:recommend:unpublish': { name: 'perm.adminRecommendUnpublish', desc: 'perm.adminRecommendUnpublishDesc' },
+  'admin:recommend:delete': {
+    name: 'perm.adminRecommendDelete',
+    desc: 'perm.adminRecommendDeleteDesc',
+  },
+  'admin:recommend:publish': {
+    name: 'perm.adminRecommendPublish',
+    desc: 'perm.adminRecommendPublishDesc',
+  },
+  'admin:recommend:unpublish': {
+    name: 'perm.adminRecommendUnpublish',
+    desc: 'perm.adminRecommendUnpublishDesc',
+  },
   'admin:activity:list': { name: 'perm.adminActivityList', desc: 'perm.adminActivityListDesc' },
   'admin:activity:view': { name: 'perm.adminActivityView', desc: 'perm.adminActivityViewDesc' },
-  'admin:activity:create': { name: 'perm.adminActivityCreate', desc: 'perm.adminActivityCreateDesc' },
+  'admin:activity:create': {
+    name: 'perm.adminActivityCreate',
+    desc: 'perm.adminActivityCreateDesc',
+  },
   'admin:activity:edit': { name: 'perm.adminActivityEdit', desc: 'perm.adminActivityEditDesc' },
-  'admin:activity:delete': { name: 'perm.adminActivityDelete', desc: 'perm.adminActivityDeleteDesc' },
-  'admin:activity:publish': { name: 'perm.adminActivityPublish', desc: 'perm.adminActivityPublishDesc' },
-  'admin:activity:unpublish': { name: 'perm.adminActivityUnpublish', desc: 'perm.adminActivityUnpublishDesc' },
+  'admin:activity:delete': {
+    name: 'perm.adminActivityDelete',
+    desc: 'perm.adminActivityDeleteDesc',
+  },
+  'admin:activity:publish': {
+    name: 'perm.adminActivityPublish',
+    desc: 'perm.adminActivityPublishDesc',
+  },
+  'admin:activity:unpublish': {
+    name: 'perm.adminActivityUnpublish',
+    desc: 'perm.adminActivityUnpublishDesc',
+  },
   'admin:setting:view': { name: 'perm.adminSettingView', desc: 'perm.adminSettingViewDesc' },
   'admin:setting:edit': { name: 'perm.adminSettingEdit', desc: 'perm.adminSettingEditDesc' },
   'admin:version:list': { name: 'perm.adminVersionList', desc: 'perm.adminVersionListDesc' },
-  'admin:statistics:view': { name: 'perm.adminStatisticsView', desc: 'perm.adminStatisticsViewDesc' },
-  'admin:statistics:export': { name: 'perm.adminStatisticsExport', desc: 'perm.adminStatisticsExportDesc' },
+  'admin:statistics:view': {
+    name: 'perm.adminStatisticsView',
+    desc: 'perm.adminStatisticsViewDesc',
+  },
+  'admin:statistics:export': {
+    name: 'perm.adminStatisticsExport',
+    desc: 'perm.adminStatisticsExportDesc',
+  },
 }
 
-export function resolvePermissionName(
-  t: TFunc,
-  code?: string,
-  fallback?: string,
-): string {
+export function resolvePermissionName(t: TFunc, code?: string, fallback?: string): string {
   if (!code) return fallback || '-'
   const keys = PERM_KEYS[code]
   if (keys) return String(t(keys.name))
   return fallback || code
 }
 
-export function resolvePermissionDesc(
-  t: TFunc,
-  code?: string,
-  fallback?: string,
-): string {
+export function resolvePermissionDesc(t: TFunc, code?: string, fallback?: string): string {
   if (!code) return fallback || '-'
   const keys = PERM_KEYS[code]
   if (keys?.desc) return String(t(keys.desc))

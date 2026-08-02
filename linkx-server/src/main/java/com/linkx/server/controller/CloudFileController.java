@@ -1,5 +1,6 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.linkx.server.common.AuthUtils;
@@ -28,6 +29,7 @@ public class CloudFileController {
     private final CloudFileService cloudFileService;
     private final JwtUtils jwtUtils;
 
+    @Operation(summary = "查询我的云文件列表")
     @GetMapping
     public Result<List<CloudFileVO>> listMine(
             @RequestParam(required = false) String category,

@@ -1,16 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import {
-  NBadge,
-  NButton,
-  NEmpty,
-  NIcon,
-  NModal,
-  NPopover,
-  NSpin,
-  NTooltip,
-} from 'naive-ui'
+import { NBadge, NButton, NEmpty, NIcon, NModal, NPopover, NSpin, NTooltip } from 'naive-ui'
 import { NotificationsOutline } from '@vicons/ionicons5'
 import { listNoticeInbox, type NoticeItem } from '@/api/notices'
 import { onAdminRealtimeEvent } from '@/api/realtime'
@@ -33,8 +24,8 @@ let offRealtime: (() => void) | null = null
 
 const canView = computed(() => auth.hasPermission('admin:notice:inbox'))
 
-const unreadCount = computed(() =>
-  items.value.filter((n) => n.id && !seenIds.value.has(String(n.id))).length,
+const unreadCount = computed(
+  () => items.value.filter((n) => n.id && !seenIds.value.has(String(n.id))).length
 )
 
 function loadSeen(): Set<string> {
@@ -174,7 +165,12 @@ onUnmounted(() => {
               <div class="notice-item__time">{{ formatTime(row.publishedAt) }}</div>
             </button>
           </template>
-          <NEmpty v-else :description="t('notice.inboxEmpty')" size="small" class="notice-panel__empty" />
+          <NEmpty
+            v-else
+            :description="t('notice.inboxEmpty')"
+            size="small"
+            class="notice-panel__empty"
+          />
         </div>
       </NSpin>
     </div>

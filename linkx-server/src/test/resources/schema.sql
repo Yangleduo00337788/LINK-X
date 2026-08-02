@@ -845,6 +845,24 @@ CREATE TABLE IF NOT EXISTS sys_runtime_setting (
   update_time DATETIME
 );
 
+CREATE TABLE IF NOT EXISTS sys_app_version (
+  id BIGINT NOT NULL PRIMARY KEY,
+  version VARCHAR(32) NOT NULL,
+  channel VARCHAR(32) NOT NULL DEFAULT 'stable',
+  release_notes VARCHAR(2000),
+  download_url VARCHAR(512),
+  force_update TINYINT NOT NULL DEFAULT 0,
+  min_supported_version VARCHAR(32),
+  status VARCHAR(16) NOT NULL DEFAULT 'draft',
+  published_at DATETIME,
+  published_by BIGINT,
+  created_by BIGINT,
+  updated_by BIGINT,
+  create_time DATETIME,
+  update_time DATETIME,
+  deleted TINYINT NOT NULL DEFAULT 0
+);
+
 -- 内容审核任务（仪表盘 pendingReviews 依赖）
 CREATE TABLE IF NOT EXISTS sys_review_task (
   id BIGINT NOT NULL PRIMARY KEY,

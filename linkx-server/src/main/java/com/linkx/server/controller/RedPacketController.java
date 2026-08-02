@@ -1,5 +1,6 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.linkx.server.common.AuthUtils;
@@ -32,6 +33,7 @@ public class RedPacketController {
     /**
      * 发送红包
      */
+    @Operation(summary = "发送红包")
     @PostMapping
     @RateLimit(scope = "red-packet:send", value = 10, window = 60)
     @AuditAction(operationType = "RED_PACKET", description = "发送红包")
@@ -45,6 +47,7 @@ public class RedPacketController {
     /**
      * 领取红包
      */
+    @Operation(summary = "领取红包")
     @PostMapping("/{redPacketId}/receive")
     @RateLimit(scope = "red-packet:receive", value = 30, window = 60)
     @AuditAction(operationType = "RED_PACKET", description = "领取红包")
@@ -58,6 +61,7 @@ public class RedPacketController {
     /**
      * 获取红包详情
      */
+    @Operation(summary = "获取红包详情")
     @GetMapping("/{redPacketId}")
     @RateLimit(scope = "red-packet:detail", value = 60, window = 60)
     public Result<RedPacketVO> getRedPacket(
@@ -70,6 +74,7 @@ public class RedPacketController {
     /**
      * 获取会话中的红包列表
      */
+    @Operation(summary = "获取会话红包列表")
     @GetMapping("/conversation/{conversationId}")
     @RateLimit(scope = "red-packet:list", value = 60, window = 60)
     public Result<List<RedPacketVO>> listByConversation(

@@ -1,5 +1,6 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.linkx.server.common.ClientIpResolver;
@@ -48,12 +49,14 @@ public class AuthController {
     private final LinkxProperties linkxProperties;
     private final TokenCookieUtil tokenCookieUtil;
 
+    @Operation(summary = "获取图形验证码")
     @GetMapping("/captcha")
     public Result<CaptchaVO> captcha() {
         return Result.success(captchaService.generate());
     }
 
     /** 匿名可读：客户端据此隐藏/展示验证码、注册入口、忘记密码等 */
+    @Operation(summary = "获取认证配置")
     @GetMapping("/config")
     public Result<AuthConfigVO> config() {
         LinkxProperties.Auth auth = linkxProperties.getAuth();
@@ -71,6 +74,7 @@ public class AuthController {
                 .build());
     }
 
+    @Operation(summary = "发送注册邮箱验证码")
     @PostMapping("/send-register-code")
     public Result<Void> sendRegisterCode(@Valid @RequestBody SendRegisterCodeRequest body,
                                          HttpServletRequest request) {
@@ -82,6 +86,7 @@ public class AuthController {
         return Result.success(null);
     }
 
+    @Operation(summary = "用户注册")
     @AuditAction(operationType = "REGISTER", description = "用户注册")
     @PostMapping("/register")
     public Result<Void> register(@Valid @RequestBody RegisterDTO registerDTO, HttpServletRequest request) {
@@ -93,6 +98,7 @@ public class AuthController {
         return Result.success(null);
     }
 
+    @Operation(summary = "用户登录")
     @AuditAction(operationType = "LOGIN", description = "用户登录")
     @PostMapping("/login")
     public Result<TokenVO> login(@Valid @RequestBody LoginDTO loginDTO,
@@ -116,6 +122,7 @@ public class AuthController {
         return Result.success(tokenVO);
     }
 
+    @Operation(summary = "刷新访问令牌")
     @PostMapping("/refresh")
     public Result<TokenVO> refresh(@RequestBody(required = false) @jakarta.validation.Valid RefreshTokenDTO refreshTokenDTO,
                                    HttpServletRequest request,
@@ -147,6 +154,7 @@ public class AuthController {
         }
     }
 
+    @Operation(summary = "用户登出")
     @AuditAction(operationType = "LOGOUT", description = "用户登出")
     @PostMapping("/logout")
     public Result<Void> logout(
@@ -178,6 +186,7 @@ public class AuthController {
         return Result.success(null);
     }
 
+    @Operation(summary = "重置密码（已登录）")
     @AuditAction(operationType = "RESET_PASSWORD", description = "重置密码")
     @PostMapping("/reset-password")
     public Result<Void> resetPassword(
@@ -196,6 +205,7 @@ public class AuthController {
      * 生成重置密码专用验证码（与当前登录账号绑定，防横向越权）。
      * 需要已登录，验证码绑定到 token 中的 userId。
      */
+    @Operation(summary = "获取重置密码验证码")
     @PostMapping("/reset-password-captcha")
     public Result<CaptchaVO> resetPasswordCaptcha(HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
@@ -210,6 +220,7 @@ public class AuthController {
      * 发送密码重置邮件验证码
      * 用户输入用户名，系统查找该用户的邮箱并发送验证码
      */
+    @Operation(summary = "发送忘记密码邮箱验证码")
     @PostMapping("/send-reset-code")
     public Result<Void> sendResetCode(
             @Valid @RequestBody SendResetCodeRequest request,
@@ -225,6 +236,7 @@ public class AuthController {
     /**
      * 通过邮箱验证码重置密码
      */
+    @Operation(summary = "通过邮箱验证码重置密码")
     @PostMapping("/reset-password-by-email")
     public Result<Void> resetPasswordByEmail(
             @Valid @RequestBody ResetPasswordByEmailRequest request,
@@ -247,6 +259,7 @@ public class AuthController {
      * 仅校验邮箱验证码，不消费。
      * 提供给前端在进入「重置密码」表单前先校验，避免用户填好新密码后才发现验证码错了。
      */
+    @Operation(summary = "校验忘记密码邮箱验证码")
     @PostMapping("/verify-reset-code")
     public Result<Void> verifyResetCode(
             @Valid @RequestBody VerifyResetCodeRequest request,

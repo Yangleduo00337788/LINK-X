@@ -1,25 +1,15 @@
 package com.linkx.server.controller;
 
+import com.linkx.server.support.BaseIntegrationTest;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
- * 健康检查端点测试
+ * 健康检查端点测试（继承 BaseIntegrationTest 以启用内嵌 Redis）。
  */
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("test")
-class HealthControllerTest {
-
-    @Autowired
-    private MockMvc mockMvc;
+class HealthControllerTest extends BaseIntegrationTest {
 
     @Test
     void healthEndpointShouldBeAccessibleWithoutAuth() throws Exception {
@@ -45,12 +35,10 @@ class HealthControllerTest {
     }
 
     @Test
-    void healthShouldIncludeMysqlAndRedisStatus() throws Exception {
+    void healthShouldIncludeServiceStatusAndTimestamp() throws Exception {
         mockMvc.perform(get("/health"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.mysql").exists())
-                .andExpect(jsonPath("$.data.redis").exists())
-                .andExpect(jsonPath("$.data.mysql.status").exists())
-                .andExpect(jsonPath("$.data.redis.status").exists());
+                .andExpect(jsonPath("$.data.status").value("UP"))
+                .andExpect(jsonPath("$.data.timestamp").exists());
     }
 }

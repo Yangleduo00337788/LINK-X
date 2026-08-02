@@ -41,7 +41,7 @@ export function handleRiskEvent(
   id: string,
   action: 'handled' | 'ignored',
   resolution?: string,
-  userAction?: 'none' | 'freeze' | 'ban',
+  userAction?: 'none' | 'freeze' | 'ban'
 ) {
   return post<null>(`/admin/risk-events/${id}/handle`, {
     action,
@@ -59,7 +59,7 @@ export interface RiskBatchResult {
 export function batchRiskEvents(
   ids: Array<string | number>,
   action: 'handled' | 'ignored',
-  resolution?: string,
+  resolution?: string
 ) {
   return post<RiskBatchResult>('/admin/risk-events/batch', {
     ids,

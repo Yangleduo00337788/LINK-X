@@ -1,5 +1,6 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.linkx.server.common.AuthUtils;
@@ -30,6 +31,7 @@ public class FeedbackController {
     private final SysUserMapper sysUserMapper;
     private final JwtUtils jwtUtils;
 
+    @Operation(summary = "提交意见反馈")
     @PostMapping
     public Result<FeedbackVO> submit(@Valid @RequestBody FeedbackDTO dto, HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
@@ -42,6 +44,7 @@ public class FeedbackController {
         return Result.success(toVO(feedback));
     }
 
+    @Operation(summary = "查询我的反馈列表")
     @GetMapping
     public Result<List<FeedbackVO>> list(HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);

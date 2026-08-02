@@ -58,17 +58,13 @@ export function getReview(id: string) {
 
 export function approveReview(id: string, payload?: ReviewResolvePayload | string) {
   const body =
-    typeof payload === 'string' || payload === undefined
-      ? { resolution: payload }
-      : payload
+    typeof payload === 'string' || payload === undefined ? { resolution: payload } : payload
   return post<null>(`/admin/reviews/${id}/approve`, body)
 }
 
 export function rejectReview(id: string, payload?: ReviewResolvePayload | string) {
   const body =
-    typeof payload === 'string' || payload === undefined
-      ? { resolution: payload }
-      : payload
+    typeof payload === 'string' || payload === undefined ? { resolution: payload } : payload
   return post<null>(`/admin/reviews/${id}/reject`, body)
 }
 
@@ -76,7 +72,7 @@ export function batchReviews(
   ids: string[],
   action: 'approve' | 'reject',
   resolution?: string,
-  extra?: Pick<ReviewResolvePayload, 'userAction' | 'contentAction'>,
+  extra?: Pick<ReviewResolvePayload, 'userAction' | 'contentAction'>
 ) {
   return post<ReviewBatchResult>('/admin/reviews/batch', {
     ids,

@@ -70,8 +70,12 @@ export type RegisterUpdatePayload = Required<
 >
 
 export type LoginUpdatePayload = {
-  client: Required<Pick<LoginEntrySetting, 'captchaEnabled' | 'maxAttempts' | 'lockDurationMinutes'>>
-  admin: Required<Pick<LoginEntrySetting, 'captchaEnabled' | 'maxAttempts' | 'lockDurationMinutes'>> & {
+  client: Required<
+    Pick<LoginEntrySetting, 'captchaEnabled' | 'maxAttempts' | 'lockDurationMinutes'>
+  >
+  admin: Required<
+    Pick<LoginEntrySetting, 'captchaEnabled' | 'maxAttempts' | 'lockDurationMinutes'>
+  > & {
     totpRequired: boolean
   }
 }
@@ -91,7 +95,12 @@ export type ClientSideUpdatePayload = Required<
 > &
   Pick<
     ClientSideSetting,
-    'releaseNotes' | 'downloadUrl' | 'captchaEnabled' | 'minSupportedVersion' | 'supportEmail' | 'supportPhone'
+    | 'releaseNotes'
+    | 'downloadUrl'
+    | 'captchaEnabled'
+    | 'minSupportedVersion'
+    | 'supportEmail'
+    | 'supportPhone'
   >
 
 export type MailUpdatePayload = {

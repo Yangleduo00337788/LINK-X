@@ -48,7 +48,7 @@ function sleep(ms: number) {
 export async function runAsyncExport(
   module: ExportModule,
   query?: Record<string, unknown>,
-  options?: { timeoutMs?: number; intervalMs?: number },
+  options?: { timeoutMs?: number; intervalMs?: number }
 ) {
   const timeoutMs = options?.timeoutMs ?? 60_000
   const intervalMs = options?.intervalMs ?? 800

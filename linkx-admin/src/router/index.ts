@@ -175,7 +175,9 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: 'versions',
-        redirect: { path: '/admin/settings', query: { tab: 'client' } },
+        name: 'VersionList',
+        component: () => import('@/views/VersionListView.vue'),
+        meta: { titleKey: 'route.versions', permission: 'admin:version:list' },
       },
       {
         path: 'profile',
@@ -239,7 +241,7 @@ watch(
   () => {
     const key = router.currentRoute.value.meta.titleKey as string | undefined
     syncDocumentTitle(key)
-  },
+  }
 )
 
 export default router

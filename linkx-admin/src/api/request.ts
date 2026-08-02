@@ -1,4 +1,8 @@
-import axios, { type AxiosError, type AxiosRequestConfig, type InternalAxiosRequestConfig } from 'axios'
+import axios, {
+  type AxiosError,
+  type AxiosRequestConfig,
+  type InternalAxiosRequestConfig,
+} from 'axios'
 import { computed, ref } from 'vue'
 import { createDiscreteApi, darkTheme } from 'naive-ui'
 import type { ApiResult } from '@/types/api'
@@ -53,7 +57,7 @@ async function refreshAccessToken(): Promise<string | null> {
   try {
     const { data } = await axios.post<ApiResult<{ accessToken: string; refreshToken: string }>>(
       `${import.meta.env.VITE_API_BASE_URL || '/api'}/admin/auth/refresh`,
-      { refreshToken },
+      { refreshToken }
     )
     if (data.code === 200 && data.data?.accessToken) {
       setTokens(data.data.accessToken, data.data.refreshToken || refreshToken)
@@ -117,9 +121,18 @@ request.interceptors.response.use(
       return handleStepUp(original, payload.data as StepUpChallenge)
     }
 
-    if (status === 401 && original && !original._retry && !original.url?.includes('/admin/auth/login')) {
+    if (
+      status === 401 &&
+      original &&
+      !original._retry &&
+      !original.url?.includes('/admin/auth/login')
+    ) {
       original._retry = true
-      refreshing = refreshing || refreshAccessToken().finally(() => { refreshing = null })
+      refreshing =
+        refreshing ||
+        refreshAccessToken().finally(() => {
+          refreshing = null
+        })
       const token = await refreshing
       if (token) {
         original.headers = { ...original.headers, Authorization: `Bearer ${token}` }
@@ -132,7 +145,7 @@ request.interceptors.response.use(
     const msg = payload?.message || error.message || tGlobal('common.networkError')
     if (status !== 401 && status !== 428) message.error(msg)
     return Promise.reject(error)
-  },
+  }
 )
 
 export async function get<T>(url: string, params?: Record<string, unknown>) {
@@ -156,7 +169,11 @@ export async function del<T>(url: string) {
 }
 
 /** 下载 CSV / 二进制附件（非 JSON Result 包装） */
-export async function downloadFile(url: string, params?: Record<string, unknown>, fallbackName = 'export.csv') {
+export async function downloadFile(
+  url: string,
+  params?: Record<string, unknown>,
+  fallbackName = 'export.csv'
+) {
   const response = await request.get(url, {
     params,
     responseType: 'blob',

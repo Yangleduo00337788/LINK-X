@@ -320,6 +320,8 @@ REQUIRE_HTTPS=true
 
 首次运行 E2E 测试前，请执行 `npx playwright install chromium` 安装浏览器。打包产物输出目录：`release/`（由 electron-builder 配置）。
 
+全项目测试命令矩阵、压测与安全扫描说明见 [docs/testing/README.md](docs/testing/README.md)。管理端同样支持 `npm run test` / `npm run test:e2e`（`linkx-admin`）。
+
 ---
 
 ## 依赖版本清单

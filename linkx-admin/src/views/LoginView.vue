@@ -144,7 +144,7 @@ async function finishLogin(loginResult?: { newLoginIp?: boolean; loginIp?: strin
       loginResult.loginIp
         ? t('login.newIpWarnWithIp', { ip: loginResult.loginIp })
         : t('login.newIpWarn'),
-      { duration: 6000 },
+      { duration: 6000 }
     )
   }
   const redirect = (route.query.redirect as string) || '/admin/dashboard'
@@ -233,7 +233,7 @@ watch(
   () => step.value,
   (s) => {
     if (s === 'totp' || s === 'setup') totpForm.code = ''
-  },
+  }
 )
 
 onMounted(async () => {
@@ -409,8 +409,7 @@ onMounted(async () => {
   min-height: 280px;
   background:
     linear-gradient(145deg, rgba(18, 183, 245, 0.22), transparent 55%),
-    linear-gradient(320deg, rgba(64, 128, 255, 0.18), transparent 50%),
-    var(--lx-login-base);
+    linear-gradient(320deg, rgba(64, 128, 255, 0.18), transparent 50%), var(--lx-login-base);
 }
 .login-ops-banner {
   position: absolute;

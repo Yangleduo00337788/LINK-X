@@ -21,7 +21,10 @@ export interface SensitiveWordPayload {
 }
 
 export function listSensitiveWords(params: PageQuery) {
-  return get<PageResult<SensitiveWordItem>>('/admin/sensitive-words', params as Record<string, unknown>)
+  return get<PageResult<SensitiveWordItem>>(
+    '/admin/sensitive-words',
+    params as Record<string, unknown>
+  )
 }
 
 export function createSensitiveWord(body: SensitiveWordPayload) {

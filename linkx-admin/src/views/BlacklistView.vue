@@ -84,7 +84,11 @@ function statusTag(status?: string) {
     active: t('blacklist.active'),
     released: t('blacklist.released'),
   }
-  return h(NTag, { type: map[status || ''] || 'default', size: 'small' }, () => label[status || ''] || status || '-')
+  return h(
+    NTag,
+    { type: map[status || ''] || 'default', size: 'small' },
+    () => label[status || ''] || status || '-'
+  )
 }
 
 const columns = computed<DataTableColumns<BlacklistItem>>(() => {
@@ -104,7 +108,7 @@ const columns = computed<DataTableColumns<BlacklistItem>>(() => {
             disabled: !row.userId || !auth.hasPermission('admin:user:view'),
             onClick: () => row.userId && router.push(`/admin/users/${row.userId}`),
           },
-          () => row.username || row.userId || '-',
+          () => row.username || row.userId || '-'
         ),
     },
     { title: t('user.nickname'), key: 'nickname', ellipsis: { tooltip: true } },
@@ -148,7 +152,7 @@ const columns = computed<DataTableColumns<BlacklistItem>>(() => {
                   secondary: true,
                   onClick: () => confirmRelease(row),
                 },
-                () => t('blacklist.release'),
+                () => t('blacklist.release')
               )
             : null,
         ]),
@@ -301,14 +305,26 @@ onMounted(() => {
           itemCount: total,
           showSizePicker: true,
           pageSizes: [10, 20, 50],
-          onUpdatePage: (p: number) => { query.page = p; load() },
-          onUpdatePageSize: (s: number) => { query.size = s; query.page = 1; load() },
+          onUpdatePage: (p: number) => {
+            query.page = p
+            load()
+          },
+          onUpdatePageSize: (s: number) => {
+            query.size = s
+            query.page = 1
+            load()
+          },
         }"
         remote
       />
     </div>
 
-    <NModal v-model:show="showAdd" preset="card" :title="t('blacklist.addTitle')" style="width: 480px">
+    <NModal
+      v-model:show="showAdd"
+      preset="card"
+      :title="t('blacklist.addTitle')"
+      style="width: 480px"
+    >
       <NForm ref="formRef" :model="addForm" :rules="rules" label-placement="top">
         <NFormItem :label="t('blacklist.user')" path="userId">
           <NSelect

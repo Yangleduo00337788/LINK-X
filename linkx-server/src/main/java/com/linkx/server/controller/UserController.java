@@ -1,5 +1,6 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.linkx.server.common.ClientIpResolver;
@@ -58,6 +59,7 @@ public class UserController {
     /**
      * 获取当前登录用户信息
      */
+    @Operation(summary = "获取当前用户信息")
     @GetMapping("/me")
     public Result<UserProfileVO> getCurrentUser(HttpServletRequest request) {
         Long userId = getCurrentUserId(request);
@@ -76,6 +78,7 @@ public class UserController {
     /**
      * 更新用户资料
      */
+    @Operation(summary = "更新用户资料")
     @PutMapping("/profile")
     public Result<UserProfileVO> updateProfile(
             @Valid @RequestBody UpdateProfileDTO dto,
@@ -92,6 +95,7 @@ public class UserController {
     /**
      * 发送绑定邮箱验证码
      */
+    @Operation(summary = "发送绑定邮箱验证码")
     @PostMapping("/bind-email/send-code")
     public Result<Void> sendBindEmailCode(
             @Valid @RequestBody com.linkx.server.controller.dto.SendBindEmailCodeDTO dto,
@@ -107,6 +111,7 @@ public class UserController {
     /**
      * 绑定/更换邮箱
      */
+    @Operation(summary = "绑定或更换邮箱")
     @PostMapping("/bind-email")
     public Result<UserProfileVO> bindEmail(
             @Valid @RequestBody com.linkx.server.controller.dto.BindEmailDTO dto,
@@ -123,6 +128,7 @@ public class UserController {
     /**
      * 绑定/更换手机号
      */
+    @Operation(summary = "绑定或更换手机号")
     @PostMapping("/bind-phone")
     public Result<UserProfileVO> bindPhone(
             @Valid @RequestBody com.linkx.server.controller.dto.BindPhoneDTO dto,
@@ -139,6 +145,7 @@ public class UserController {
     /**
      * 注销账号
      */
+    @Operation(summary = "注销账号")
     @PostMapping("/delete-account")
     public Result<Void> deleteAccount(
             @Valid @RequestBody com.linkx.server.controller.dto.DeleteAccountDTO dto,
@@ -154,6 +161,7 @@ public class UserController {
     /**
      * 上传用户头像
      */
+    @Operation(summary = "上传用户头像")
     @PostMapping("/avatar")
     public Result<String> uploadAvatar(
             @RequestParam("file") MultipartFile file,
@@ -185,6 +193,7 @@ public class UserController {
     /**
      * 上传友链背景图
      */
+    @Operation(summary = "上传朋友圈背景图")
     @PostMapping("/moments-background")
     public Result<UserPreferenceVO> uploadMomentsBackground(
             @RequestParam("file") MultipartFile file,
@@ -211,6 +220,7 @@ public class UserController {
     /**
      * 获取用户公开资料（供其他用户查看）
      */
+    @Operation(summary = "获取用户公开资料")
     @GetMapping("/{userId}/profile")
     public Result<UserProfileVO> getUserProfile(@PathVariable @Positive(message = "ID必须为正数") Long userId) {
         SysUser user = sysUserService.getById(userId);
@@ -247,6 +257,7 @@ public class UserController {
     /**
      * 修改密码
      */
+    @Operation(summary = "修改密码")
     @PostMapping("/change-password")
     public Result<Void> changePassword(
             @Valid @RequestBody ChangePasswordDTO dto,
@@ -262,6 +273,7 @@ public class UserController {
     /**
      * 获取登录设备列表
      */
+    @Operation(summary = "获取登录设备列表")
     @GetMapping("/devices")
     public Result<java.util.List<DeviceVO>> listDevices(HttpServletRequest request) {
         Long userId = getCurrentUserId(request);
@@ -279,6 +291,7 @@ public class UserController {
     /**
      * 强制下线指定设备（吊销该端 token、断开 WS、写审计）
      */
+    @Operation(summary = "强制下线指定设备")
     @DeleteMapping("/devices/{deviceId}")
     public Result<Void> logoutDevice(
             @PathVariable String deviceId,
@@ -310,6 +323,7 @@ public class UserController {
      * 获取当前用户的偏好设置。
      * 若尚无记录，返回与表默认值一致的虚拟对象（不写入库）。
      */
+    @Operation(summary = "获取用户偏好设置")
     @GetMapping("/preference")
     public Result<UserPreferenceVO> getPreference(HttpServletRequest request) {
         Long userId = getCurrentUserId(request);
@@ -323,6 +337,7 @@ public class UserController {
      * 局部更新当前用户的偏好设置（PUT 语义）。
      * 请求体中为 null 的字段保持不变；语言/聊天背景为空字符串也视为"不修改"。
      */
+    @Operation(summary = "更新用户偏好设置")
     @PutMapping("/preference")
     public Result<UserPreferenceVO> updatePreference(
             @Valid @RequestBody UserPreferenceDTO dto,

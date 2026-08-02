@@ -91,6 +91,8 @@ public class SysAuditLog implements Serializable {
         RECOMMEND_PUBLISH("推荐位发布"),
         ACTIVITY_UPDATE("活动变更"),
         ACTIVITY_PUBLISH("活动发布"),
+        VERSION_UPDATE("版本变更"),
+        VERSION_PUBLISH("版本发布"),
         ;
 
         private final String description;

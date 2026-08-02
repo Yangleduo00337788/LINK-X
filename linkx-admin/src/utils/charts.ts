@@ -26,14 +26,7 @@ echarts.use([
 ])
 
 /** LinkX analytics palette — independent of any third-party brand */
-export const LX_CHART_COLORS = [
-  '#3D7EFF',
-  '#14B8A6',
-  '#F59E0B',
-  '#8B5CF6',
-  '#EF4444',
-  '#64748B',
-]
+export const LX_CHART_COLORS = ['#3D7EFF', '#14B8A6', '#F59E0B', '#8B5CF6', '#EF4444', '#64748B']
 
 function isDarkTheme() {
   return document.documentElement.getAttribute('data-theme') === 'dark'
@@ -76,7 +69,7 @@ export type NamedValue = { key: string; name: string; value: number }
 export function buildAreaOption(
   trend: TrendData | null | undefined,
   nameOf: (key: string, fallback: string) => string,
-  opts?: { stacked?: boolean; smooth?: boolean },
+  opts?: { stacked?: boolean; smooth?: boolean }
 ) {
   const th = chartTheme()
   const stacked = opts?.stacked ?? false
@@ -131,7 +124,7 @@ export function buildAreaOption(
 export function buildColumnOption(
   trend: TrendData | null | undefined,
   nameOf: (key: string, fallback: string) => string,
-  opts?: { stacked?: boolean },
+  opts?: { stacked?: boolean }
 ) {
   const th = chartTheme()
   const stacked = opts?.stacked ?? false
@@ -181,7 +174,7 @@ export function buildColumnOption(
 export function buildDonutOption(
   items: BreakdownItem[] | NamedValue[] | null | undefined,
   nameOf: (key: string, fallback: string) => string,
-  centerLabel?: string,
+  centerLabel?: string
 ) {
   const th = chartTheme()
   const list = items || []
@@ -248,17 +241,18 @@ export function buildDonutOption(
   })
 }
 
-export function buildHBarOption(
-  items: NamedValue[],
-  opts?: { colorByIndex?: boolean },
-) {
+export function buildHBarOption(items: NamedValue[], opts?: { colorByIndex?: boolean }) {
   const th = chartTheme()
   const names = items.map((i) => i.name)
   const values = items.map((i) => i.value)
   return noAnim({
     color: LX_CHART_COLORS,
     textStyle: { color: th.text, fontFamily: 'IBM Plex Sans, Segoe UI, sans-serif' },
-    tooltip: { ...baseTooltip(), trigger: 'axis' as const, axisPointer: { type: 'shadow' as const } },
+    tooltip: {
+      ...baseTooltip(),
+      trigger: 'axis' as const,
+      axisPointer: { type: 'shadow' as const },
+    },
     grid: { left: 8, right: 28, top: 8, bottom: 8, containLabel: true },
     xAxis: {
       type: 'value' as const,
@@ -283,9 +277,10 @@ export function buildHBarOption(
         data: values.map((v, i) => ({
           value: v,
           itemStyle: {
-            color: opts?.colorByIndex === false
-              ? LX_CHART_COLORS[0]
-              : LX_CHART_COLORS[i % LX_CHART_COLORS.length],
+            color:
+              opts?.colorByIndex === false
+                ? LX_CHART_COLORS[0]
+                : LX_CHART_COLORS[i % LX_CHART_COLORS.length],
             borderRadius: [0, 6, 6, 0],
           },
         })),
@@ -304,7 +299,7 @@ export function buildHBarOption(
 export function buildHeatmapOption(
   heatmap: ActivityHeatmap | null | undefined,
   weekdayLabels: string[],
-  hourLabels: string[],
+  hourLabels: string[]
 ) {
   const th = chartTheme()
   const raw = heatmap?.cells || []
@@ -357,9 +352,7 @@ export function buildHeatmapOption(
       itemHeight: 100,
       textStyle: { color: th.textMuted, fontSize: 11 },
       inRange: {
-        color: th.dark
-          ? ['#1e293b', '#1d4ed8', '#60a5fa']
-          : ['#eff6ff', '#3D7EFF', '#1e3a8a'],
+        color: th.dark ? ['#1e293b', '#1d4ed8', '#60a5fa'] : ['#eff6ff', '#3D7EFF', '#1e3a8a'],
       },
     },
     series: [
@@ -408,7 +401,7 @@ export function buildSparkOption(values: number[], color = LX_CHART_COLORS[0]) {
 export function useChart(
   elRef: Ref<HTMLElement | null>,
   option: Ref<unknown>,
-  opts?: { onClick?: (params: { name?: string; dataIndex?: number }) => void },
+  opts?: { onClick?: (params: { name?: string; dataIndex?: number }) => void }
 ) {
   let chart: EChartsType | null = null
 
@@ -462,9 +455,13 @@ export function useChart(
     window.addEventListener('resize', resize)
   })
 
-  watch(option, () => {
-    if (isReady()) refresh()
-  }, { deep: true })
+  watch(
+    option,
+    () => {
+      if (isReady()) refresh()
+    },
+    { deep: true }
+  )
 
   onBeforeUnmount(() => {
     window.removeEventListener('resize', resize)

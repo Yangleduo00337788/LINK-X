@@ -3,6 +3,7 @@ import {
   ADMIN_ROUTE_PERMISSIONS,
   ROLE_SMOKE_CASES,
   assertRoleSmoke,
+  collectMenuNames,
   hasPermission,
 } from './roleSmokeMatrix'
 
@@ -11,6 +12,18 @@ const FIXTURES: Record<
   string,
   { menus: Array<{ name: string; children?: Array<{ name: string }> }>; permissions: string[] }
 > = {
+  super_admin: {
+    menus: [
+      { name: 'dashboard' },
+      { name: 'settings' },
+      {
+        name: 'log',
+        children: [{ name: 'risk-event' }, { name: 'rate-limit' }],
+      },
+      { name: 'notices' },
+    ],
+    permissions: ['*'],
+  },
   ops_admin: {
     menus: [
       { name: 'dashboard' },
@@ -49,11 +62,7 @@ const FIXTURES: Record<
       },
       {
         name: 'review',
-        children: [
-          { name: 'report-task' },
-          { name: 'review-task' },
-          { name: 'sensitive-word' },
-        ],
+        children: [{ name: 'report-task' }, { name: 'review-task' }, { name: 'sensitive-word' }],
       },
       { name: 'blacklist' },
       { name: 'devices' },
@@ -150,15 +159,38 @@ describe('前端角色冒烟矩阵', () => {
   })
 
   it('受保护管理路由均声明 permission（profile 除外）', () => {
-    const missing = ADMIN_ROUTE_PERMISSIONS.filter(
-      (r) => r.name !== 'Profile' && !r.permission,
-    )
+    const missing = ADMIN_ROUTE_PERMISSIONS.filter((r) => r.name !== 'Profile' && !r.permission)
     expect(missing).toEqual([])
   })
 
   it('菜单管理写权限对非超管角色均为 deny', () => {
     for (const role of ROLE_SMOKE_CASES) {
+      if (role.roleCode === 'super_admin') continue
       expect(role.denyPerms.some((p) => p.startsWith('admin:menu:'))).toBe(true)
     }
+  })
+
+  it('collectMenuNames 递归收集菜单 name', () => {
+    const names = collectMenuNames([
+      { name: 'dashboard' },
+      {
+        name: 'log',
+        children: [{ name: 'audit-log' }, { name: 'login-log' }],
+      },
+    ])
+    expect([...names].sort()).toEqual(['audit-log', 'dashboard', 'log', 'login-log'])
+  })
+
+  it('hasPermission 支持 * 与数组权限码', () => {
+    expect(hasPermission(['*'], 'admin:user:list')).toBe(true)
+    expect(hasPermission(['admin:a', 'admin:b'], ['admin:b', 'admin:c'])).toBe(true)
+    expect(hasPermission(['admin:a'], 'admin:b')).toBe(false)
+    expect(hasPermission(['admin:a'], undefined)).toBe(true)
+  })
+
+  it('assertRoleSmoke 对缺失菜单返回失败原因', () => {
+    const role = ROLE_SMOKE_CASES[0]
+    const failures = assertRoleSmoke(role, [{ name: 'dashboard' }], role.allowPerms)
+    expect(failures.some((f) => f.startsWith('missing menu:'))).toBe(true)
   })
 })

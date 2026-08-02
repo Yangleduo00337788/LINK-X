@@ -66,7 +66,7 @@ const columns = computed<DataTableColumns<LoginLog>>(() => {
       width: 90,
       render: (row) =>
         h(NTag, { type: row.success === 1 ? 'success' : 'error', size: 'small' }, () =>
-          row.success === 1 ? t('common.success') : t('common.failed'),
+          row.success === 1 ? t('common.success') : t('common.failed')
         ),
     },
     { title: t('loginLog.reason'), key: 'reason', ellipsis: { tooltip: true } },
@@ -135,11 +135,7 @@ onMounted(load)
             width="220px"
             @search="search"
           />
-          <NSelect
-            v-model:value="query.status"
-            :options="resultOptions"
-            style="width: 130px"
-          />
+          <NSelect v-model:value="query.status" :options="resultOptions" style="width: 130px" />
           <NDatePicker
             v-model:value="query.range"
             type="datetimerange"
@@ -167,8 +163,15 @@ onMounted(load)
           itemCount: total,
           showSizePicker: true,
           pageSizes: [10, 20, 50],
-          onUpdatePage: (p: number) => { query.page = p; load() },
-          onUpdatePageSize: (s: number) => { query.size = s; query.page = 1; load() },
+          onUpdatePage: (p: number) => {
+            query.page = p
+            load()
+          },
+          onUpdatePageSize: (s: number) => {
+            query.size = s
+            query.page = 1
+            load()
+          },
         }"
         remote
       />

@@ -1,5 +1,6 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.linkx.server.common.AuthUtils;
@@ -29,6 +30,7 @@ public class GroupAssetController {
     private final GroupAssetService groupAssetService;
     private final JwtUtils jwtUtils;
 
+    @Operation(summary = "获取群文件/相册列表")
     @GetMapping
     public Result<List<GroupAssetVO>> list(
             @PathVariable String conversationId,
@@ -39,6 +41,7 @@ public class GroupAssetController {
         return Result.success(groupAssetService.list(userId, parseId(conversationId), type, limit));
     }
 
+    @Operation(summary = "创建群资源记录")
     @PostMapping
     public Result<GroupAssetVO> create(
             @PathVariable String conversationId,
@@ -48,6 +51,7 @@ public class GroupAssetController {
         return Result.success(groupAssetService.create(userId, parseId(conversationId), dto));
     }
 
+    @Operation(summary = "上传群文件/相册")
     @PostMapping("/upload")
     @RateLimit(scope = "group:asset-upload", value = 30, window = 60)
     public Result<GroupAssetVO> upload(
@@ -60,6 +64,7 @@ public class GroupAssetController {
         return Result.success(groupAssetService.upload(userId, parseId(conversationId), type, file, album));
     }
 
+    @Operation(summary = "删除群资源")
     @DeleteMapping("/{assetId}")
     public Result<Void> delete(
             @PathVariable String conversationId,
@@ -71,6 +76,7 @@ public class GroupAssetController {
     }
 
     /** 鉴权中转下载群文件/相册（群成员） */
+    @Operation(summary = "下载群资源内容")
     @GetMapping("/{assetId}/content")
     public ResponseEntity<InputStreamResource> downloadContent(
             @PathVariable String conversationId,

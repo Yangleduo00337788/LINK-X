@@ -16,7 +16,7 @@ const props = withDefaults(
     height: 168,
     radius: 12,
     showArrow: true,
-  },
+  }
 )
 
 const emit = defineEmits<{
@@ -27,12 +27,10 @@ const items = ref<BannerItem[]>([])
 const loading = ref(false)
 
 const heightCss = computed(() =>
-  typeof props.height === 'number' ? `${props.height}px` : props.height,
+  typeof props.height === 'number' ? `${props.height}px` : props.height
 )
 
-const visible = computed(() =>
-  items.value.filter((b) => !!resolveBannerSrc(b.imageUrl)),
-)
+const visible = computed(() => items.value.filter((b) => !!resolveBannerSrc(b.imageUrl)))
 
 async function load() {
   loading.value = true
@@ -61,7 +59,7 @@ watch(
   () => props.position,
   () => {
     void load()
-  },
+  }
 )
 
 onMounted(() => {

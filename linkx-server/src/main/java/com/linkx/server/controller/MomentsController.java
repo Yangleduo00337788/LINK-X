@@ -1,5 +1,6 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.linkx.server.common.AuthUtils;
@@ -35,6 +36,7 @@ public class MomentsController {
     private final MomentsService momentsService;
     private final JwtUtils jwtUtils;
 
+    @Operation(summary = "发布朋友圈动态")
     @PostMapping
     @RateLimit(scope = "moments:publish", value = 10, window = 60)
     public Result<MomentsPostVO> publish(
@@ -44,6 +46,7 @@ public class MomentsController {
         return Result.success(momentsService.publish(userId, dto));
     }
 
+    @Operation(summary = "获取朋友圈动态列表")
     @GetMapping
     @RateLimit(scope = "moments:list", value = 60, window = 60)
     public Result<List<MomentsPostVO>> list(
@@ -55,6 +58,7 @@ public class MomentsController {
         return Result.success(momentsService.list(userId, parseOptionalId(beforeId), limit, q));
     }
 
+    @Operation(summary = "获取指定用户朋友圈")
     @GetMapping("/user/{userId}")
     public Result<List<MomentsPostVO>> listByUser(
             @PathVariable String userId,
@@ -67,6 +71,7 @@ public class MomentsController {
                 currentUserId, parseId(userId), parseOptionalId(beforeId), limit, q));
     }
 
+    @Operation(summary = "更新朋友圈动态")
     @PutMapping("/{postId}")
     @RateLimit(scope = "moments:update", value = 20, window = 60)
     public Result<MomentsPostVO> update(
@@ -77,6 +82,7 @@ public class MomentsController {
         return Result.success(momentsService.update(userId, parseId(postId), dto));
     }
 
+    @Operation(summary = "点赞动态")
     @PostMapping("/{postId}/like")
     @RateLimit(scope = "moments:like", value = 30, window = 60)
     public Result<Void> like(
@@ -87,6 +93,7 @@ public class MomentsController {
         return Result.success(null);
     }
 
+    @Operation(summary = "取消点赞")
     @DeleteMapping("/{postId}/like")
     public Result<Void> unlike(
             @PathVariable String postId,
@@ -96,6 +103,7 @@ public class MomentsController {
         return Result.success(null);
     }
 
+    @Operation(summary = "评论动态")
     @PostMapping("/{postId}/comment")
     @RateLimit(scope = "moments:comment", value = 30, window = 60)
     public Result<MomentsCommentVO> comment(
@@ -106,6 +114,7 @@ public class MomentsController {
         return Result.success(momentsService.comment(userId, parseId(postId), dto));
     }
 
+    @Operation(summary = "删除评论")
     @DeleteMapping("/comment/{commentId}")
     public Result<Void> deleteComment(
             @PathVariable String commentId,
@@ -115,6 +124,7 @@ public class MomentsController {
         return Result.success(null);
     }
 
+    @Operation(summary = "删除动态")
     @DeleteMapping("/{postId}")
     public Result<Void> delete(
             @PathVariable String postId,
@@ -139,6 +149,7 @@ public class MomentsController {
         return parseId(id);
     }
 
+    @Operation(summary = "上传朋友圈图片")
     @PostMapping("/upload")
     @RateLimit(scope = "moments:upload", value = 30, window = 60)
     public Result<String> uploadImage(

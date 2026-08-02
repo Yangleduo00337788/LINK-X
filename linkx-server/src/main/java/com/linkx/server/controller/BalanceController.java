@@ -1,5 +1,6 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.linkx.server.common.AuthUtils;
@@ -39,6 +40,7 @@ public class BalanceController {
     /**
      * 获取当前用户余额
      */
+    @Operation(summary = "查询当前用户余额")
     @GetMapping
     public Result<BalanceVO> getBalance(HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
@@ -48,6 +50,7 @@ public class BalanceController {
     /**
      * 余额流水（本人）
      */
+    @Operation(summary = "查询余额流水")
     @GetMapping("/logs")
     public Result<List<BalanceLogVO>> listLogs(
             @RequestParam(required = false) Integer limit,
@@ -60,6 +63,7 @@ public class BalanceController {
     /**
      * 演示充值（无真实支付网关；限流防刷）
      */
+    @Operation(summary = "账户充值（演示）")
     @PostMapping("/recharge")
     @RateLimit(scope = "balance:recharge", value = 10, window = 60)
     public Result<BalanceVO> recharge(

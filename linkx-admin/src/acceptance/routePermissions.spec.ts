@@ -13,7 +13,7 @@ describe('路由权限与冒烟矩阵一致性', () => {
       const segment = route.path.replace(/^\/admin\//, '')
       expect(routerSrc, `route ${route.path} missing in router`).toContain(`path: '${segment}'`)
       expect(routerSrc, `permission ${route.permission} missing for ${route.path}`).toContain(
-        `permission: '${route.permission}'`,
+        `permission: '${route.permission}'`
       )
     }
   })

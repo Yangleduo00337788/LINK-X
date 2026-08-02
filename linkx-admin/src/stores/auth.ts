@@ -16,7 +16,7 @@ export const useAuthStore = defineStore(
 
     const isLoggedIn = computed(() => !!accessToken.value)
     const displayName = computed(
-      () => user.value?.nickname || user.value?.username || tGlobal('common.admin'),
+      () => user.value?.nickname || user.value?.username || tGlobal('common.admin')
     )
 
     function hasPermission(code?: string | string[]) {
@@ -124,5 +124,5 @@ export const useAuthStore = defineStore(
       key: 'linkx-admin-auth',
       paths: ['user', 'menus', 'permissions'],
     },
-  },
+  }
 )

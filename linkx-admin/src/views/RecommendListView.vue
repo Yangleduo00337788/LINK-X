@@ -242,7 +242,7 @@ const columns = computed<DataTableColumns<RecommendItem>>(() => {
                       },
                     }),
                 },
-                () => t('recommend.publish'),
+                () => t('recommend.publish')
               )
             : null,
           row.status === 'published' && auth.hasPermission('admin:recommend:unpublish')
@@ -265,7 +265,7 @@ const columns = computed<DataTableColumns<RecommendItem>>(() => {
                       },
                     }),
                 },
-                () => t('recommend.unpublish'),
+                () => t('recommend.unpublish')
               )
             : null,
           row.status !== 'published' && auth.hasPermission('admin:recommend:delete')
@@ -288,7 +288,7 @@ const columns = computed<DataTableColumns<RecommendItem>>(() => {
                       },
                     }),
                 },
-                () => t('common.delete'),
+                () => t('common.delete')
               )
             : null,
         ]),
@@ -314,9 +314,11 @@ function openCreate() {
 
 function openEdit(row: RecommendItem) {
   editing.value = row
-  const slot = (['discover', 'chat_sidebar', 'moments'].includes(String(row.slotCode))
-    ? row.slotCode
-    : 'discover') as RecommendSlot
+  const slot = (
+    ['discover', 'chat_sidebar', 'moments'].includes(String(row.slotCode))
+      ? row.slotCode
+      : 'discover'
+  ) as RecommendSlot
   Object.assign(form, {
     title: row.title || '',
     subtitle: row.subtitle || '',
@@ -433,8 +435,16 @@ onMounted(load)
             width="220px"
             @search="search"
           />
-          <NSelect v-model:value="query.recommendStatus" :options="statusOptions" style="width: 140px" />
-          <NSelect v-model:value="query.slotCode" :options="slotFilterOptions" style="width: 150px" />
+          <NSelect
+            v-model:value="query.recommendStatus"
+            :options="statusOptions"
+            style="width: 140px"
+          />
+          <NSelect
+            v-model:value="query.slotCode"
+            :options="slotFilterOptions"
+            style="width: 150px"
+          />
           <NButton type="primary" @click="search">{{ t('common.search') }}</NButton>
         </NSpace>
         <NButton
@@ -493,7 +503,12 @@ onMounted(load)
               @click="pickImage"
             >
               <NSpin v-if="imageUploading" size="small" />
-              <img v-else-if="form.previewUrl" class="ops-upload-img" :src="form.previewUrl" alt="" />
+              <img
+                v-else-if="form.previewUrl"
+                class="ops-upload-img"
+                :src="form.previewUrl"
+                alt=""
+              />
               <span v-else class="ops-upload-placeholder">{{ t('recommend.uploadHint') }}</span>
               <span class="ops-upload-mask">
                 {{ imageUploading ? t('recommend.uploading') : t('recommend.changeImage') }}
@@ -509,7 +524,11 @@ onMounted(load)
           </div>
         </NFormItem>
         <NFormItem :label="t('recommend.linkUrl')" path="linkUrl">
-          <NInput v-model:value="form.linkUrl" :placeholder="t('recommend.linkPlaceholder')" maxlength="1024" />
+          <NInput
+            v-model:value="form.linkUrl"
+            :placeholder="t('recommend.linkPlaceholder')"
+            maxlength="1024"
+          />
         </NFormItem>
         <NFormItem :label="t('recommend.slot')" path="slotCode">
           <NSelect v-model:value="form.slotCode" :options="slotOptions" />
@@ -528,7 +547,9 @@ onMounted(load)
       <template #footer>
         <NSpace justify="end">
           <NButton @click="showForm = false">{{ t('common.cancel') }}</NButton>
-          <NButton type="primary" :loading="saving" @click="submitForm">{{ t('common.save') }}</NButton>
+          <NButton type="primary" :loading="saving" @click="submitForm">{{
+            t('common.save')
+          }}</NButton>
         </NSpace>
       </template>
     </NModal>

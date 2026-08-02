@@ -65,7 +65,7 @@ const profileForm = reactive({
 
 const nicknameOptions = computed(() => {
   const pool = [auth.user?.nickname, auth.user?.username].filter(
-    (x): x is string => !!x && x.trim().length > 0,
+    (x): x is string => !!x && x.trim().length > 0
   )
   const q = profileForm.nickname.trim().toLowerCase()
   return [...new Set(pool)]
@@ -122,7 +122,9 @@ const rolesText = computed(() => {
   return roles?.length ? roles.join(', ') : t('common.none')
 })
 
-const permissionCount = computed(() => auth.permissions?.length || auth.user?.permissions?.length || 0)
+const permissionCount = computed(
+  () => auth.permissions?.length || auth.user?.permissions?.length || 0
+)
 
 const profileRules = computed<FormRules>(() => {
   void locale.value
@@ -151,7 +153,9 @@ const pwdRules = computed<FormRules>(() => {
   void locale.value
   const policy = passwordPolicy.value
   return {
-    oldPassword: [{ required: true, message: t('profile.oldPasswordRequired'), trigger: ['blur', 'input'] }],
+    oldPassword: [
+      { required: true, message: t('profile.oldPasswordRequired'), trigger: ['blur', 'input'] },
+    ],
     newPassword: [
       { required: true, message: t('profile.newPasswordRequired'), trigger: ['blur', 'input'] },
       {
@@ -162,7 +166,7 @@ const pwdRules = computed<FormRules>(() => {
               t('profile.newPasswordLengthDynamic', {
                 min: policy.minLength,
                 max: policy.maxLength,
-              }),
+              })
             )
           }
           if (policy.requireUpperLower && (!/[A-Z]/.test(value) || !/[a-z]/.test(value))) {
@@ -263,7 +267,7 @@ async function handleAvatarChange(e: Event) {
 }
 
 const avatarDisplaySrc = computed(() =>
-  resolveAvatarSrc(profileForm.avatar || auth.user?.avatar, auth.user?.id, true),
+  resolveAvatarSrc(profileForm.avatar || auth.user?.avatar, auth.user?.id, true)
 )
 const avatarBroken = ref(false)
 watch(avatarDisplaySrc, () => {
@@ -357,7 +361,7 @@ async function submitTotpDisable() {
 watch(
   () => auth.user,
   () => syncProfileForm(),
-  { immediate: true },
+  { immediate: true }
 )
 
 onMounted(() => {
@@ -369,7 +373,9 @@ onMounted(() => {
 <template>
   <div class="page">
     <NSpace justify="end" style="margin-bottom: 4px">
-      <NButton quaternary :loading="loading" @click="refreshProfile">{{ t('common.refresh') }}</NButton>
+      <NButton quaternary :loading="loading" @click="refreshProfile">{{
+        t('common.refresh')
+      }}</NButton>
     </NSpace>
 
     <NSpin :show="loading">
@@ -448,12 +454,7 @@ onMounted(() => {
             </NFormItem>
             <NFormItem :label="t('profile.roles')">
               <NSpace size="small">
-                <NTag
-                  v-for="role in auth.user?.roles || []"
-                  :key="role"
-                  size="small"
-                  type="info"
-                >
+                <NTag v-for="role in auth.user?.roles || []" :key="role" size="small" type="info">
                   {{ role }}
                 </NTag>
                 <span v-if="!auth.user?.roles?.length">{{ rolesText }}</span>
@@ -524,7 +525,9 @@ onMounted(() => {
             <NTag :type="totpEnabled ? 'success' : 'default'" size="small">
               {{ totpEnabled ? t('profile.totpOn') : t('profile.totpOff') }}
             </NTag>
-            <span v-if="totpRequired" class="readonly-text">{{ t('profile.totpRequiredHint') }}</span>
+            <span v-if="totpRequired" class="readonly-text">{{
+              t('profile.totpRequiredHint')
+            }}</span>
           </NSpace>
           <NSpace>
             <NButton

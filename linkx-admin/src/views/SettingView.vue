@@ -55,7 +55,7 @@ const showTestEmailModal = ref(false)
 const testEmail = ref('')
 const tabNames = new Set(['register', 'login', 'password', 'client', 'mail', 'watermark'])
 const activeTab = ref(
-  tabNames.has(String(route.query.tab || '')) ? String(route.query.tab) : 'register',
+  tabNames.has(String(route.query.tab || '')) ? String(route.query.tab) : 'register'
 )
 
 watch(activeTab, (tab) => {
@@ -75,7 +75,7 @@ watch(
     if (tabNames.has(name) && activeTab.value !== name) {
       activeTab.value = name
     }
-  },
+  }
 )
 
 const canEdit = computed(() => auth.hasPermission('admin:setting:edit'))
@@ -147,11 +147,12 @@ watch(watermarkLines, (lines) => {
   linesText.value = lines.join('\n')
 })
 
-const lineCount = computed(() =>
-  linesText.value
-    .split('\n')
-    .map((l) => l.trim())
-    .filter(Boolean).length,
+const lineCount = computed(
+  () =>
+    linesText.value
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean).length
 )
 
 const opacityPercent = computed({
@@ -250,7 +251,7 @@ async function saveRegister() {
         await updateRegisterSettings({
           registerEnabled: registerForm.registerEnabled,
           forgotPasswordEmailEnabled: registerForm.forgotPasswordEmailEnabled,
-        }),
+        })
       )
       message.success(t('setting.registerSaved'))
     } finally {
@@ -285,7 +286,7 @@ async function saveLogin() {
             lockDurationMinutes: loginForm.admin.lockDurationMinutes,
             totpRequired: loginForm.admin.totpRequired,
           },
-        }),
+        })
       )
       message.success(t('setting.loginSaved'))
     } finally {
@@ -314,7 +315,7 @@ async function savePassword() {
           requireUpperLower: passwordForm.requireUpperLower,
           requireDigit: passwordForm.requireDigit,
           requireSpecial: passwordForm.requireSpecial,
-        }),
+        })
       )
       message.success(t('setting.passwordSaved'))
     } finally {
@@ -354,7 +355,7 @@ async function saveClient() {
           supportEmail: clientForm.supportEmail.trim() || undefined,
           supportPhone: clientForm.supportPhone.trim() || undefined,
           feedbackSlaHours: clientForm.feedbackSlaHours || 24,
-        }),
+        })
       )
       message.success(t('setting.clientSaved'))
     } finally {
@@ -397,7 +398,7 @@ async function saveMail() {
           startTls: mailForm.startTls,
           ssl: mailForm.ssl,
           codeExpireMinutes: mailForm.codeExpireMinutes || 10,
-        }),
+        })
       )
       message.success(t('setting.mailSaved'))
     } finally {
@@ -702,7 +703,10 @@ onMounted(load)
               </NFormItem>
               <p class="field-hint channel-hint">{{ t('setting.minSupportedVersionHint') }}</p>
               <NFormItem :label="t('setting.downloadUrl')">
-                <NInput v-model:value="clientForm.downloadUrl" :placeholder="t('setting.downloadUrlPh')" />
+                <NInput
+                  v-model:value="clientForm.downloadUrl"
+                  :placeholder="t('setting.downloadUrlPh')"
+                />
               </NFormItem>
               <NFormItem :label="t('setting.maxUpload')" required>
                 <div class="upload-row">
@@ -755,7 +759,12 @@ onMounted(load)
               </NFormItem>
               <NFormItem v-if="canEdit">
                 <NSpace>
-                  <NButton type="primary" class="lx-float-btn" :loading="savingClient" @click="saveClient">
+                  <NButton
+                    type="primary"
+                    class="lx-float-btn"
+                    :loading="savingClient"
+                    @click="saveClient"
+                  >
                     {{ t('setting.saveClient') }}
                   </NButton>
                   <NButton class="lx-float-btn" :disabled="savingClient" @click="load">
@@ -771,10 +780,19 @@ onMounted(load)
             <p class="section-hint">{{ t('setting.mailHint') }}</p>
             <NForm label-placement="left" label-width="140" :disabled="!canEdit">
               <NFormItem :label="t('setting.mailHost')" required>
-                <NInput v-model:value="mailForm.host" placeholder="smtp.qq.com" style="max-width: 360px" />
+                <NInput
+                  v-model:value="mailForm.host"
+                  placeholder="smtp.qq.com"
+                  style="max-width: 360px"
+                />
               </NFormItem>
               <NFormItem :label="t('setting.mailPort')" required>
-                <NInputNumber v-model:value="mailForm.port" :min="1" :max="65535" style="width: 160px" />
+                <NInputNumber
+                  v-model:value="mailForm.port"
+                  :min="1"
+                  :max="65535"
+                  style="width: 160px"
+                />
               </NFormItem>
               <NFormItem :label="t('setting.mailUsername')">
                 <NInput v-model:value="mailForm.username" style="max-width: 360px" />
@@ -803,11 +821,17 @@ onMounted(load)
               </NFormItem>
               <NFormItem :label="t('setting.mailStartTls')">
                 <NSwitch :value="mailForm.startTls" @update:value="onMailStartTlsChange" />
-                <span class="field-hint">{{ mailForm.startTls ? t('common.on') : t('common.off') }} · {{ t('setting.mailPortAuto587') }}</span>
+                <span class="field-hint"
+                  >{{ mailForm.startTls ? t('common.on') : t('common.off') }} ·
+                  {{ t('setting.mailPortAuto587') }}</span
+                >
               </NFormItem>
               <NFormItem :label="t('setting.mailSsl')">
                 <NSwitch :value="mailForm.ssl" @update:value="onMailSslChange" />
-                <span class="field-hint">{{ mailForm.ssl ? t('common.on') : t('common.off') }} · {{ t('setting.mailPortAuto465') }}</span>
+                <span class="field-hint"
+                  >{{ mailForm.ssl ? t('common.on') : t('common.off') }} ·
+                  {{ t('setting.mailPortAuto465') }}</span
+                >
               </NFormItem>
               <NFormItem :label="t('setting.mailCodeExpire')" required>
                 <div class="number-row">
@@ -822,7 +846,12 @@ onMounted(load)
               </NFormItem>
               <NFormItem v-if="canEdit">
                 <NSpace>
-                  <NButton type="primary" class="lx-float-btn" :loading="savingMail" @click="saveMail">
+                  <NButton
+                    type="primary"
+                    class="lx-float-btn"
+                    :loading="savingMail"
+                    @click="saveMail"
+                  >
                     {{ t('setting.saveMail') }}
                   </NButton>
                   <NButton class="lx-float-btn" :disabled="savingMail" @click="load">
@@ -841,10 +870,7 @@ onMounted(load)
             <p class="section-hint">{{ t('setting.watermarkHint') }}</p>
             <NForm label-placement="left" label-width="120">
               <NFormItem :label="t('setting.watermarkEnabled')">
-                <NSwitch
-                  :value="watermarkEnabled"
-                  @update:value="prefs.setWatermarkEnabled"
-                />
+                <NSwitch :value="watermarkEnabled" @update:value="prefs.setWatermarkEnabled" />
               </NFormItem>
               <NFormItem :label="t('setting.watermarkFullscreen')">
                 <NSwitch
@@ -880,10 +906,19 @@ onMounted(load)
               </NFormItem>
               <NFormItem>
                 <NSpace>
-                  <NButton type="primary" class="lx-float-btn" :disabled="!watermarkEnabled" @click="saveWatermark">
+                  <NButton
+                    type="primary"
+                    class="lx-float-btn"
+                    :disabled="!watermarkEnabled"
+                    @click="saveWatermark"
+                  >
                     {{ t('common.save') }}
                   </NButton>
-                  <NButton class="lx-float-btn" :disabled="!watermarkEnabled" @click="resetWatermark">
+                  <NButton
+                    class="lx-float-btn"
+                    :disabled="!watermarkEnabled"
+                    @click="resetWatermark"
+                  >
                     {{ t('setting.watermarkResetBtn') }}
                   </NButton>
                 </NSpace>

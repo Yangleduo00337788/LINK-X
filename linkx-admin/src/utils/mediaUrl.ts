@@ -20,7 +20,7 @@ function isExternalCdn(url: string): boolean {
 export function resolveAvatarSrc(
   url?: string | null,
   userId?: number | null,
-  forceProxy = false,
+  forceProxy = false
 ): string {
   const v = (url || '').trim()
   if (v.startsWith('data:') || v.startsWith('blob:')) return v

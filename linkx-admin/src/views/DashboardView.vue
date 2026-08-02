@@ -2,15 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import {
-  NCarousel,
-  NGi,
-  NGrid,
-  NIcon,
-  NNumberAnimation,
-  NSpin,
-  NStatistic,
-} from 'naive-ui'
+import { NCarousel, NGi, NGrid, NIcon, NNumberAnimation, NSpin, NStatistic } from 'naive-ui'
 import {
   PersonAddOutline,
   ChatbubblesOutline,
@@ -60,7 +52,11 @@ const realtimeCards = computed(() => {
   void locale.value
   return [
     { key: 'todayNewUsers' as const, label: t('statistics.todayNewUsers'), icon: PersonAddOutline },
-    { key: 'todayMessages' as const, label: t('statistics.todayMessages'), icon: ChatbubblesOutline },
+    {
+      key: 'todayMessages' as const,
+      label: t('statistics.todayMessages'),
+      icon: ChatbubblesOutline,
+    },
     { key: 'todayLogins' as const, label: t('statistics.todayLogins'), icon: LogInOutline },
     { key: 'riskEvents24h' as const, label: t('dashboard.riskEvents24h'), icon: WarningOutline },
   ]
@@ -145,7 +141,11 @@ const opsItems = computed<NamedValue[]>(() => {
     { key: 'overdueFeedback', name: metricName('overdueFeedback'), value: s?.overdueFeedback ?? 0 },
     { key: 'pendingReports', name: metricName('pendingReports'), value: s?.pendingReports ?? 0 },
     { key: 'pendingReviews', name: metricName('pendingReviews'), value: s?.pendingReviews ?? 0 },
-    { key: 'todaySensitiveHits', name: metricName('todaySensitiveHits'), value: s?.todaySensitiveHits ?? 0 },
+    {
+      key: 'todaySensitiveHits',
+      name: metricName('todaySensitiveHits'),
+      value: s?.todaySensitiveHits ?? 0,
+    },
     { key: 'todayRiskBlocks', name: metricName('todayRiskBlocks'), value: s?.todayRiskBlocks ?? 0 },
     { key: 'riskEvents', name: metricName('riskEvents'), value: s?.riskEvents ?? 0 },
   ]
@@ -163,7 +163,11 @@ const pendingItems = computed<NamedValue[]>(() => {
 const trendOption = computed(() => buildAreaOption(trends.value, seriesName))
 const scaleOption = computed(() => buildHBarOption(scaleItems.value))
 const opsOption = computed(() =>
-  buildDonutOption(opsItems.value, (key, fallback) => metricName(key) || fallback, t('dashboard.opsRiskCenter')),
+  buildDonutOption(
+    opsItems.value,
+    (key, fallback) => metricName(key) || fallback,
+    t('dashboard.opsRiskCenter')
+  )
 )
 const pendingOption = computed(() => buildHBarOption(pendingItems.value))
 
@@ -208,11 +212,7 @@ onMounted(async () => {
 <template>
   <div class="page">
     <div class="page-card carousel-wrap">
-      <AdminOpsBannerCarousel
-        position="home"
-        :height="240"
-        @loaded="onOpsBannerLoaded"
-      />
+      <AdminOpsBannerCarousel position="home" :height="240" @loaded="onOpsBannerLoaded" />
       <NCarousel
         v-if="showFallbackBanners"
         autoplay

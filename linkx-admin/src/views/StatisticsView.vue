@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NButton, NDataTable, NSelect, NSpin, NTabPane, NTabs, type DataTableColumns } from 'naive-ui'
+import {
+  NButton,
+  NDataTable,
+  NSelect,
+  NSpin,
+  NTabPane,
+  NTabs,
+  type DataTableColumns,
+} from 'naive-ui'
 import {
   exportStatistics,
   fetchActivityHeatmap,
@@ -179,7 +187,11 @@ const overviewPending = computed(() => {
   void locale.value
   const o = overview.value
   return [
-    { key: 'pendingFeedback', name: t('dashboard.pendingFeedback'), value: o?.pendingFeedback ?? 0 },
+    {
+      key: 'pendingFeedback',
+      name: t('dashboard.pendingFeedback'),
+      value: o?.pendingFeedback ?? 0,
+    },
     { key: 'pendingReviews', name: t('dashboard.pendingReviews'), value: o?.pendingReviews ?? 0 },
     { key: 'riskEvents', name: t('dashboard.riskEvents'), value: o?.riskEvents ?? 0 },
   ]
@@ -248,7 +260,11 @@ const reviewEfficiencyBars = computed<NamedValue[]>(() => {
   void locale.value
   const r = risk.value
   return [
-    { key: 'resolved', name: t('statistics.resolvedReviews'), value: r?.resolvedReviewsInRange ?? 0 },
+    {
+      key: 'resolved',
+      name: t('statistics.resolvedReviews'),
+      value: r?.resolvedReviewsInRange ?? 0,
+    },
     { key: 'pending', name: t('dashboard.pendingReviews'), value: r?.pendingReviews ?? 0 },
     { key: 'over24', name: t('statistics.pendingOver24h'), value: r?.pendingOver24h ?? 0 },
     { key: 'over72', name: t('statistics.pendingOver72h'), value: r?.pendingOver72h ?? 0 },
@@ -260,7 +276,9 @@ function fmtMinutes(n: number | null | undefined) {
   if (n < 60) return `${n}${t('statistics.minutesUnit')}`
   const h = Math.floor(n / 60)
   const m = Math.round(n % 60)
-  return m > 0 ? `${h}${t('statistics.hoursUnit')}${m}${t('statistics.minutesUnit')}` : `${h}${t('statistics.hoursUnit')}`
+  return m > 0
+    ? `${h}${t('statistics.hoursUnit')}${m}${t('statistics.minutesUnit')}`
+    : `${h}${t('statistics.hoursUnit')}`
 }
 
 const feedbackRangeBars = computed<NamedValue[]>(() => {
@@ -296,72 +314,102 @@ const topGroupBars = computed<NamedValue[]>(() => {
 const topGroupColumns = computed<DataTableColumns<GroupActivityItem>>(() => {
   void locale.value
   return [
-    { title: t('statistics.groupName'), key: 'name', ellipsis: { tooltip: true },
-      render: (row) => row.name || t('statistics.unnamedGroup') },
-    { title: t('statistics.groupMessages'), key: 'messageCount', width: 100,
-      render: (row) => fmt(row.messageCount || 0) },
-    { title: t('statistics.groupMembers'), key: 'memberCount', width: 90,
-      render: (row) => fmt(row.memberCount || 0) },
-    { title: t('statistics.lastMessage'), key: 'lastMessageTime', width: 160,
-      render: (row) => formatTime(row.lastMessageTime) },
+    {
+      title: t('statistics.groupName'),
+      key: 'name',
+      ellipsis: { tooltip: true },
+      render: (row) => row.name || t('statistics.unnamedGroup'),
+    },
+    {
+      title: t('statistics.groupMessages'),
+      key: 'messageCount',
+      width: 100,
+      render: (row) => fmt(row.messageCount || 0),
+    },
+    {
+      title: t('statistics.groupMembers'),
+      key: 'memberCount',
+      width: 90,
+      render: (row) => fmt(row.memberCount || 0),
+    },
+    {
+      title: t('statistics.lastMessage'),
+      key: 'lastMessageTime',
+      width: 160,
+      render: (row) => formatTime(row.lastMessageTime),
+    },
   ]
 })
 
 /* --- chart option refs --- */
-const spark0 = computed(() => buildSparkOption(overviewKpis.value[0]?.spark || [], LX_CHART_COLORS[0]))
-const spark1 = computed(() => buildSparkOption(overviewKpis.value[1]?.spark || [], LX_CHART_COLORS[1]))
-const spark2 = computed(() => buildSparkOption(overviewKpis.value[2]?.spark || [], LX_CHART_COLORS[2]))
-const spark3 = computed(() => buildSparkOption(overviewKpis.value[3]?.spark || [], LX_CHART_COLORS[3]))
+const spark0 = computed(() =>
+  buildSparkOption(overviewKpis.value[0]?.spark || [], LX_CHART_COLORS[0])
+)
+const spark1 = computed(() =>
+  buildSparkOption(overviewKpis.value[1]?.spark || [], LX_CHART_COLORS[1])
+)
+const spark2 = computed(() =>
+  buildSparkOption(overviewKpis.value[2]?.spark || [], LX_CHART_COLORS[2])
+)
+const spark3 = computed(() =>
+  buildSparkOption(overviewKpis.value[3]?.spark || [], LX_CHART_COLORS[3])
+)
 
 const overviewAreaOpt = computed(() => buildAreaOption(overviewTrend.value, seriesName))
 const overviewPendingOpt = computed(() =>
-  buildDonutOption(overviewPending.value, (k, f) => breakdownName(k, f) || f, t('statistics.chartTotal')),
+  buildDonutOption(
+    overviewPending.value,
+    (k, f) => breakdownName(k, f) || f,
+    t('statistics.chartTotal')
+  )
 )
 const overviewScaleOpt = computed(() => buildHBarOption(overviewScale.value))
 const overviewTodayOpt = computed(() => buildColumnOption(overviewToday.value, seriesName))
 
 const userAreaOpt = computed(() => buildAreaOption(users.value?.trend, seriesName))
 const userDonutOpt = computed(() =>
-  buildDonutOption(users.value?.statusBreakdown, breakdownName, t('statistics.chartUsers')),
+  buildDonutOption(users.value?.statusBreakdown, breakdownName, t('statistics.chartUsers'))
 )
 const userBarOpt = computed(() => buildHBarOption(userRangeBars.value))
 const userLoginColOpt = computed(() =>
   buildColumnOption(
     {
       labels: users.value?.trend?.labels || [],
-      series: (users.value?.trend?.series || []).filter((s) =>
-        s.key === 'loginSuccess' || s.key === 'loginFail',
+      series: (users.value?.trend?.series || []).filter(
+        (s) => s.key === 'loginSuccess' || s.key === 'loginFail'
       ),
     },
     seriesName,
-    { stacked: true },
-  ),
+    { stacked: true }
+  )
 )
 
-const contentAreaOpt = computed(() => buildAreaOption(content.value?.trend, seriesName, { stacked: true }))
+const contentAreaOpt = computed(() =>
+  buildAreaOption(content.value?.trend, seriesName, { stacked: true })
+)
 const contentBarOpt = computed(() => buildHBarOption(contentRangeBars.value))
 const contentColOpt = computed(() => buildColumnOption(content.value?.trend, seriesName))
 
 const riskAreaOpt = computed(() => buildAreaOption(risk.value?.trend, seriesName))
 const riskDonutOpt = computed(() =>
-  buildDonutOption(risk.value?.reviewStatusBreakdown, breakdownName, t('statistics.chartReviews')),
+  buildDonutOption(risk.value?.reviewStatusBreakdown, breakdownName, t('statistics.chartReviews'))
 )
 const riskBarOpt = computed(() => buildHBarOption(riskRangeBars.value))
 const riskColOpt = computed(() =>
-  buildColumnOption(risk.value?.trend, seriesName, { stacked: true }),
+  buildColumnOption(risk.value?.trend, seriesName, { stacked: true })
 )
 const reviewEffAreaOpt = computed(() =>
-  buildAreaOption(risk.value?.reviewEfficiencyTrend, seriesName),
+  buildAreaOption(risk.value?.reviewEfficiencyTrend, seriesName)
 )
 const reviewEffBarOpt = computed(() => buildHBarOption(reviewEfficiencyBars.value))
 
 const feedbackAreaOpt = computed(() => buildAreaOption(feedback.value?.trend, seriesName))
 const feedbackDonutOpt = computed(() =>
-  buildDonutOption(feedback.value?.statusBreakdown, breakdownName, t('statistics.chartFeedback')),
+  buildDonutOption(feedback.value?.statusBreakdown, breakdownName, t('statistics.chartFeedback'))
 )
 const feedbackBarOpt = computed(() => buildHBarOption(feedbackRangeBars.value))
 const feedbackColOpt = computed(() =>
-  buildColumnOption(feedback.value?.trend, seriesName, { stacked: true }),
+  buildColumnOption(feedback.value?.trend, seriesName, { stacked: true })
 )
 
 const groupAreaOpt = computed(() => buildAreaOption(groups.value?.trend, seriesName))
@@ -448,7 +496,7 @@ const groupCharts = [
 ]
 
 const heatmapOpt = computed(() =>
-  buildHeatmapOption(heatmap.value, weekdayLabels.value, hourLabels.value),
+  buildHeatmapOption(heatmap.value, weekdayLabels.value, hourLabels.value)
 )
 const heatmapEl = ref<HTMLElement | null>(null)
 const advancedCharts = [useChart(heatmapEl, heatmapOpt)]
@@ -547,35 +595,49 @@ onMounted(() => {
     </div>
 
     <NSpin :show="loading">
-      <NTabs v-model:value="tab" type="line" :animated="false" display-directive="show" class="stats-tabs">
+      <NTabs
+        v-model:value="tab"
+        type="line"
+        :animated="false"
+        display-directive="show"
+        class="stats-tabs"
+      >
         <!-- Overview -->
         <NTabPane name="overview" :tab="t('statistics.tabOverview')">
           <div class="kpi-row">
             <div class="kpi-card">
               <div class="kpi-meta">
                 <div class="kpi-label">{{ overviewKpis[0]?.label }}</div>
-                <div class="kpi-value" :style="{ color: overviewKpis[0]?.color }">{{ fmt(overviewKpis[0]?.value ?? 0) }}</div>
+                <div class="kpi-value" :style="{ color: overviewKpis[0]?.color }">
+                  {{ fmt(overviewKpis[0]?.value ?? 0) }}
+                </div>
               </div>
               <div ref="sparkEl0" class="kpi-spark" />
             </div>
             <div class="kpi-card">
               <div class="kpi-meta">
                 <div class="kpi-label">{{ overviewKpis[1]?.label }}</div>
-                <div class="kpi-value" :style="{ color: overviewKpis[1]?.color }">{{ fmt(overviewKpis[1]?.value ?? 0) }}</div>
+                <div class="kpi-value" :style="{ color: overviewKpis[1]?.color }">
+                  {{ fmt(overviewKpis[1]?.value ?? 0) }}
+                </div>
               </div>
               <div ref="sparkEl1" class="kpi-spark" />
             </div>
             <div class="kpi-card">
               <div class="kpi-meta">
                 <div class="kpi-label">{{ overviewKpis[2]?.label }}</div>
-                <div class="kpi-value" :style="{ color: overviewKpis[2]?.color }">{{ fmt(overviewKpis[2]?.value ?? 0) }}</div>
+                <div class="kpi-value" :style="{ color: overviewKpis[2]?.color }">
+                  {{ fmt(overviewKpis[2]?.value ?? 0) }}
+                </div>
               </div>
               <div ref="sparkEl2" class="kpi-spark" />
             </div>
             <div class="kpi-card">
               <div class="kpi-meta">
                 <div class="kpi-label">{{ overviewKpis[3]?.label }}</div>
-                <div class="kpi-value" :style="{ color: overviewKpis[3]?.color }">{{ fmt(overviewKpis[3]?.value ?? 0) }}</div>
+                <div class="kpi-value" :style="{ color: overviewKpis[3]?.color }">
+                  {{ fmt(overviewKpis[3]?.value ?? 0) }}
+                </div>
               </div>
               <div ref="sparkEl3" class="kpi-spark" />
             </div>
@@ -798,19 +860,27 @@ onMounted(() => {
           <div class="kpi-row risk-kpi">
             <div class="kpi-card">
               <div class="kpi-label">{{ t('statistics.totalGroups') }}</div>
-              <div class="kpi-value" :style="{ color: LX_CHART_COLORS[0] }">{{ fmt(groups?.totalGroups ?? 0) }}</div>
+              <div class="kpi-value" :style="{ color: LX_CHART_COLORS[0] }">
+                {{ fmt(groups?.totalGroups ?? 0) }}
+              </div>
             </div>
             <div class="kpi-card">
               <div class="kpi-label">{{ t('statistics.activeGroups') }}</div>
-              <div class="kpi-value" :style="{ color: LX_CHART_COLORS[1] }">{{ fmt(groups?.activeGroupsInRange ?? 0) }}</div>
+              <div class="kpi-value" :style="{ color: LX_CHART_COLORS[1] }">
+                {{ fmt(groups?.activeGroupsInRange ?? 0) }}
+              </div>
             </div>
             <div class="kpi-card">
               <div class="kpi-label">{{ t('statistics.newGroupsInRange') }}</div>
-              <div class="kpi-value" :style="{ color: LX_CHART_COLORS[2] }">{{ fmt(groups?.newGroupsInRange ?? 0) }}</div>
+              <div class="kpi-value" :style="{ color: LX_CHART_COLORS[2] }">
+                {{ fmt(groups?.newGroupsInRange ?? 0) }}
+              </div>
             </div>
             <div class="kpi-card">
               <div class="kpi-label">{{ t('statistics.groupMessagesInRange') }}</div>
-              <div class="kpi-value" :style="{ color: LX_CHART_COLORS[3] }">{{ fmt(groups?.groupMessagesInRange ?? 0) }}</div>
+              <div class="kpi-value" :style="{ color: LX_CHART_COLORS[3] }">
+                {{ fmt(groups?.groupMessagesInRange ?? 0) }}
+              </div>
             </div>
           </div>
           <div class="chart-grid g-2-1">

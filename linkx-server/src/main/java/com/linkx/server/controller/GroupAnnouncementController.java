@@ -1,5 +1,6 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.linkx.server.common.AuthUtils;
@@ -26,6 +27,7 @@ public class GroupAnnouncementController {
     private final GroupAnnouncementService announcementService;
     private final JwtUtils jwtUtils;
 
+    @Operation(summary = "获取群公告列表")
     @GetMapping
     public Result<List<GroupAnnouncementVO>> list(
             @PathVariable String conversationId,
@@ -35,6 +37,7 @@ public class GroupAnnouncementController {
     }
 
     /** 侧栏/抽屉摘要：置顶优先，否则最新 */
+    @Operation(summary = "获取群公告展示摘要")
     @GetMapping("/display")
     public Result<GroupAnnouncementVO> display(
             @PathVariable String conversationId,
@@ -43,6 +46,7 @@ public class GroupAnnouncementController {
         return Result.success(announcementService.display(userId, parseId(conversationId)));
     }
 
+    @Operation(summary = "发布群公告")
     @PostMapping
     public Result<GroupAnnouncementVO> create(
             @PathVariable String conversationId,
@@ -52,6 +56,7 @@ public class GroupAnnouncementController {
         return Result.success(announcementService.create(userId, parseId(conversationId), dto));
     }
 
+    @Operation(summary = "更新群公告")
     @PutMapping("/{announcementId}")
     public Result<GroupAnnouncementVO> update(
             @PathVariable String conversationId,
@@ -63,6 +68,7 @@ public class GroupAnnouncementController {
                 userId, parseId(conversationId), parseId(announcementId), dto));
     }
 
+    @Operation(summary = "删除群公告")
     @DeleteMapping("/{announcementId}")
     public Result<Void> delete(
             @PathVariable String conversationId,

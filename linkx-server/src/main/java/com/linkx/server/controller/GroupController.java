@@ -1,5 +1,6 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.linkx.server.common.AuthUtils;
@@ -44,6 +45,7 @@ public class GroupController {
     /**
      * 创建群聊
      */
+    @Operation(summary = "创建群聊")
     @PostMapping
     public Result<GroupConversationVO> createGroup(
             @Valid @RequestBody CreateGroupDTO dto,
@@ -55,6 +57,7 @@ public class GroupController {
     /**
      * 获取我的群聊列表
      */
+    @Operation(summary = "获取我的群聊列表")
     @GetMapping("/list")
     public Result<List<ConversationVO>> listGroups(HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
@@ -64,6 +67,7 @@ public class GroupController {
     /**
      * 获取群详情
      */
+    @Operation(summary = "获取群详情")
     @GetMapping("/{conversationId}/info")
     public Result<GroupConversationVO> getGroupInfo(
             @PathVariable String conversationId,
@@ -75,6 +79,7 @@ public class GroupController {
     /**
      * 更新群信息
      */
+    @Operation(summary = "更新群信息")
     @PutMapping("/{conversationId}")
     public Result<GroupConversationVO> updateGroup(
             @PathVariable String conversationId,
@@ -87,6 +92,7 @@ public class GroupController {
     /**
      * 获取群成员列表
      */
+    @Operation(summary = "获取群成员列表")
     @GetMapping("/{conversationId}/members")
     public Result<List<GroupMemberVO>> listMembers(
             @PathVariable String conversationId,
@@ -98,6 +104,7 @@ public class GroupController {
     /**
      * 添加群成员
      */
+    @Operation(summary = "添加群成员")
     @PostMapping("/{conversationId}/members")
     public Result<List<GroupMemberVO>> addMembers(
             @PathVariable String conversationId,
@@ -110,6 +117,7 @@ public class GroupController {
     /**
      * 移除群成员
      */
+    @Operation(summary = "移除群成员")
     @DeleteMapping("/{conversationId}/members/{memberId}")
     public Result<Void> removeMember(
             @PathVariable String conversationId,
@@ -123,6 +131,7 @@ public class GroupController {
     /**
      * 退出群聊
      */
+    @Operation(summary = "退出群聊")
     @PostMapping("/{conversationId}/quit")
     public Result<Void> quitGroup(
             @PathVariable String conversationId,
@@ -135,6 +144,7 @@ public class GroupController {
     /**
      * 解散群聊
      */
+    @Operation(summary = "解散群聊")
     @DeleteMapping("/{conversationId}")
     public Result<Void> dissolveGroup(
             @PathVariable String conversationId,
@@ -147,6 +157,7 @@ public class GroupController {
     /**
      * 转让群主
      */
+    @Operation(summary = "转让群主")
     @PostMapping("/{conversationId}/transfer")
     public Result<Void> transferOwner(
             @PathVariable String conversationId,
@@ -160,6 +171,7 @@ public class GroupController {
     /**
      * 设置或取消管理员（仅群主）
      */
+    @Operation(summary = "设置成员角色")
     @PutMapping("/{conversationId}/members/{memberId}/role")
     public Result<Void> updateMemberRole(
             @PathVariable String conversationId,
@@ -174,6 +186,7 @@ public class GroupController {
     /**
      * 全体禁言 / 定时全体禁言（群主或管理员）
      */
+    @Operation(summary = "设置全体禁言")
     @PutMapping("/{conversationId}/mute-all")
     public Result<GroupConversationVO> updateMuteAll(
             @PathVariable String conversationId,
@@ -186,6 +199,7 @@ public class GroupController {
     /**
      * 指定成员禁言（群主或管理员）
      */
+    @Operation(summary = "设置成员禁言")
     @PutMapping("/{conversationId}/members/{memberId}/mute")
     public Result<Void> updateMemberMute(
             @PathVariable String conversationId,
@@ -200,6 +214,7 @@ public class GroupController {
     /**
      * 更新当前用户对本群的备注
      */
+    @Operation(summary = "更新本群备注")
     @PutMapping("/{conversationId}/remark")
     public Result<String> updateMyRemark(
             @PathVariable String conversationId,
@@ -211,6 +226,7 @@ public class GroupController {
 
     // ==================== 群成员批量管理 ====================
 
+    @Operation(summary = "批量移除群成员")
     @PostMapping("/{conversationId}/members/batch-remove")
     public Result<Void> batchRemoveMembers(
             @PathVariable String conversationId,
@@ -221,6 +237,7 @@ public class GroupController {
         return Result.success(null);
     }
 
+    @Operation(summary = "批量禁言群成员")
     @PostMapping("/{conversationId}/members/batch-mute")
     public Result<Void> batchMuteMembers(
             @PathVariable String conversationId,
@@ -233,6 +250,7 @@ public class GroupController {
 
     // ==================== 入群审核 ====================
 
+    @Operation(summary = "设置入群审核")
     @PostMapping("/{conversationId}/join-approval")
     public Result<Void> setJoinApproval(
             @PathVariable String conversationId,
@@ -243,6 +261,7 @@ public class GroupController {
         return Result.success(null);
     }
 
+    @Operation(summary = "申请加入群聊")
     @PostMapping("/{conversationId}/join-request")
     public Result<Void> requestJoin(
             @PathVariable String conversationId,
@@ -254,6 +273,7 @@ public class GroupController {
         return Result.success(null);
     }
 
+    @Operation(summary = "获取入群申请列表")
     @GetMapping("/{conversationId}/join-requests")
     public Result<java.util.List<com.linkx.server.controller.vo.GroupJoinRequestVO>> listJoinRequests(
             @PathVariable String conversationId,
@@ -262,6 +282,7 @@ public class GroupController {
         return Result.success(groupService.listJoinRequests(userId, parseId(conversationId)));
     }
 
+    @Operation(summary = "处理入群申请")
     @PostMapping("/{conversationId}/join-request/{applicantId}")
     public Result<Void> handleJoinRequest(
             @PathVariable String conversationId,
@@ -275,6 +296,7 @@ public class GroupController {
 
     // ==================== 群公告已读统计 ====================
 
+    @Operation(summary = "标记群公告已读")
     @PostMapping("/{conversationId}/announcement/read")
     public Result<Void> markAnnouncementRead(
             @PathVariable String conversationId,
@@ -284,6 +306,7 @@ public class GroupController {
         return Result.success(null);
     }
 
+    @Operation(summary = "获取群公告已读人数")
     @GetMapping("/{conversationId}/announcement/read-count")
     public Result<Long> getAnnouncementReadCount(
             @PathVariable String conversationId,
@@ -294,6 +317,7 @@ public class GroupController {
 
     // ==================== 群聊邀请策略 ====================
 
+    @Operation(summary = "设置群邀请策略")
     @PostMapping("/{conversationId}/invite-policy")
     public Result<Void> setInvitePolicy(
             @PathVariable String conversationId,

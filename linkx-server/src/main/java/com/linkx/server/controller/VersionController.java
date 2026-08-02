@@ -1,5 +1,6 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.linkx.server.common.Result;
@@ -33,6 +34,7 @@ public class VersionController {
         this.linkxProperties = linkxProperties;
     }
 
+    @Operation(summary = "检查应用更新")
     @GetMapping("/version")
     public Result<AppVersionVO> checkVersion(
             @RequestParam(value = "current", required = false) String current,

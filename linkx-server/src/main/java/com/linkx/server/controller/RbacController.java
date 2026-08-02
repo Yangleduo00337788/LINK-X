@@ -1,5 +1,6 @@
 package com.linkx.server.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.linkx.server.common.RbacConstants;
@@ -45,6 +46,7 @@ public class RbacController {
      * @param request HTTP 请求（取操作人 ID）
      * @return 新建角色
      */
+    @Operation(summary = "创建角色")
     @PostMapping("/role")
     public Result<SysRole> createRole(@Valid @RequestBody CreateRoleDTO dto, HttpServletRequest request) {
         Long createBy = (Long) request.getAttribute("userId");
@@ -57,6 +59,7 @@ public class RbacController {
      *
      * @return 角色列表
      */
+    @Operation(summary = "查询角色列表")
     @GetMapping("/role")
     public Result<List<SysRole>> listRoles() {
         return Result.success(rbacService.listAllRoles());
@@ -70,6 +73,7 @@ public class RbacController {
      * @param request HTTP 请求（取操作人 ID）
      * @return 操作结果
      */
+    @Operation(summary = "为用户分配角色")
     @PostMapping("/user/{userId}/role/{roleId}")
     public Result<Void> grantRole(@PathVariable Long userId,
                                   @PathVariable Long roleId,
@@ -86,6 +90,7 @@ public class RbacController {
      * @param roleId 角色 ID
      * @return 操作结果
      */
+    @Operation(summary = "移除用户角色")
     @DeleteMapping("/user/{userId}/role/{roleId}")
     public Result<Void> revokeRole(@PathVariable Long userId, @PathVariable Long roleId) {
         rbacService.revokeRoleById(userId, roleId);
@@ -98,6 +103,7 @@ public class RbacController {
      * @param userId 用户 ID
      * @return 权限编码集合
      */
+    @Operation(summary = "查询用户权限")
     @GetMapping("/user/{userId}/permissions")
     public Result<List<String>> userPermissions(@PathVariable Long userId) {
         return Result.success(rbacService.getUserPermissionCodes(userId));

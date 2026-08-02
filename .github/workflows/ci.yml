@@ -14,8 +14,58 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  detect-changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      server: ${{ steps.set.outputs.server }}
+      client: ${{ steps.set.outputs.client }}
+      admin: ${{ steps.set.outputs.admin }}
+      security: ${{ steps.set.outputs.security }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Path filter (PR only)
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            server:
+              - 'linkx-server/**'
+              - '.github/workflows/**'
+            client:
+              - 'linkx-client/**'
+            admin:
+              - 'linkx-admin/**'
+            security:
+              - 'linkx-server/**'
+              - 'linkx-server/pom.xml'
+              - 'linkx-server/perf/zap/**'
+              - 'linkx-client/package-lock.json'
+              - 'linkx-admin/package-lock.json'
+              - '.github/workflows/**'
+              - 'docs/testing/SECURITY.md'
+      - name: Set outputs
+        id: set
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "server=true" >> "$GITHUB_OUTPUT"
+            echo "client=true" >> "$GITHUB_OUTPUT"
+            echo "admin=true" >> "$GITHUB_OUTPUT"
+            echo "security=true" >> "$GITHUB_OUTPUT"
+            echo "Trunk push: run all jobs"
+          else
+            echo "server=${{ steps.filter.outputs.server }}" >> "$GITHUB_OUTPUT"
+            echo "client=${{ steps.filter.outputs.client }}" >> "$GITHUB_OUTPUT"
+            echo "admin=${{ steps.filter.outputs.admin }}" >> "$GITHUB_OUTPUT"
+            echo "security=${{ steps.filter.outputs.security }}" >> "$GITHUB_OUTPUT"
+            echo "PR filters: server=${{ steps.filter.outputs.server }} client=${{ steps.filter.outputs.client }} admin=${{ steps.filter.outputs.admin }} security=${{ steps.filter.outputs.security }}"
+          fi
+
   server-tests:
     name: Server tests
+    needs: detect-changes
+    if: needs.detect-changes.outputs.server == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -27,15 +77,14 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
-      - name: Run regression suite
-        run: >
-          mvn -B -q
-          -Dtest=MessageFlowTest,ImMainLinkE2ETest,ImWebSocketLiveE2ETest,DualClientLiveSmokeTest,AlignmentGapSmokeTest,WebSocketNormalLinkTest,MessageReliabilityFlowTest,ExceptionPathTest,P1DebtTest,P2AdvancedTest,P2QualityGateTest,P2DataGovernanceTest,ChatSearchEnhanceTest,GroupInvitationControllerTest,ChatControllerTest,AdminRoleSmokeIT,AdminSecurityIT,AdminMenuIT,AdminDataScopeIT,AdminStatisticsIT,AdminStepUpIT,AdminDeviceSecurityIT,AdminOpsConfigIT,AdminRateLimitIT,AdminRolePermissionIT,AdminExportJobIT,AdminClientSettingIT,AdminAdvancedFilterIT,AdminM6FeaturesIT,VersionControllerTest,AppVersionUtilsTest,ProductionSecurityValidatorTest,ProductionSecretRulesTest
-          test
-        timeout-minutes: 45
+      - name: Run full suite + JaCoCo gate
+        run: mvn -B -q verify
+        timeout-minutes: 90
 
   admin-unit:
     name: Admin unit
+    needs: detect-changes
+    if: needs.detect-changes.outputs.admin == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -48,12 +97,15 @@ jobs:
           cache: npm
           cache-dependency-path: linkx-admin/package-lock.json
       - run: npm ci
-      - run: npm test
+      - name: Unit + coverage gate
+        run: npm run test:coverage
       - name: Typecheck & build
         run: npm run build
 
   client-unit:
     name: Client unit
+    needs: detect-changes
+    if: needs.detect-changes.outputs.client == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -66,10 +118,12 @@ jobs:
           cache: npm
           cache-dependency-path: linkx-client/package-lock.json
       - run: npm ci
-      - run: npm test
+      - run: npm run test:coverage
 
   client-e2e:
     name: Client E2E smoke
+    needs: detect-changes
+    if: needs.detect-changes.outputs.client == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -89,8 +143,50 @@ jobs:
         env:
           CI: true
 
+  admin-e2e:
+    name: Admin E2E smoke
+    needs: detect-changes
+    if: needs.detect-changes.outputs.admin == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: linkx-admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: linkx-admin/package-lock.json
+      - run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: E2E smoke
+        run: npm run test:e2e
+        env:
+          CI: true
+
+  load-smoke:
+    name: Load scripts smoke
+    needs: detect-changes
+    if: needs.detect-changes.outputs.server == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validate k6 assets
+        working-directory: linkx-server/perf/k6
+        run: node scripts/validate-scripts.js
+      - name: Endpoint vs test matrix (B floor)
+        working-directory: linkx-server/perf/k6
+        run: node scripts/endpoint-test-matrix.mjs --fail-under 0.70
+
   dependency-scan:
     name: SCA & SAST scan
+    needs: detect-changes
+    if: needs.detect-changes.outputs.security == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -103,6 +199,13 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            linkx-client/package-lock.json
+            linkx-admin/package-lock.json
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
@@ -117,3 +220,144 @@ jobs:
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
+      - name: OSV Scanner
+        uses: google/osv-scanner-action/scan-action@v2.2.2
+        with:
+          scan-args: |-
+            --recursive
+            ./linkx-server
+            ./linkx-client
+            ./linkx-admin
+        continue-on-error: true
+      - name: npm audit (client)
+        working-directory: linkx-client
+        run: npm ci && npm audit --audit-level=high
+        continue-on-error: true
+      - name: npm audit (admin)
+        working-directory: linkx-admin
+        run: npm ci && npm audit --audit-level=high
+        continue-on-error: true
+
+  zap-baseline:
+    name: ZAP baseline (public surface)
+    needs: detect-changes
+    if: needs.detect-changes.outputs.security == 'true'
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7.2.4
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Compile with test classpath
+        working-directory: linkx-server
+        run: mvn -B -q -DskipTests test-compile
+      - name: Start linkx-server (test profile)
+        working-directory: linkx-server
+        env:
+          REDIS_PASSWORD: ''
+        run: |
+          nohup mvn -B -q spring-boot:run \
+            -Dspring-boot.run.profiles=test \
+            -Dspring-boot.run.useTestClasspath=true \
+            -Dspring-boot.run.arguments=--server.port=8080 \
+            > /tmp/linkx-dast.log 2>&1 &
+          echo $! > /tmp/linkx-dast.pid
+          for i in $(seq 1 90); do
+            if curl -sf http://127.0.0.1:8080/api/health >/dev/null; then
+              echo "Server ready after ${i}s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "=== server log ==="
+          tail -n 200 /tmp/linkx-dast.log || true
+          exit 1
+      - name: Curl public URL gate
+        run: bash linkx-server/perf/zap/check-public-urls.sh http://127.0.0.1:8080/api
+      - name: ZAP Baseline
+        uses: zaproxy/action-baseline@v0.14.0
+        with:
+          # localhost so the action can attach --network host on Linux runners
+          target: 'http://localhost:8080/api/health'
+          fail_action: false
+          allow_issue_writing: false
+          cmd_options: '-m 5'
+          artifact_name: zap-baseline-report
+      - name: Stop server
+        if: always()
+        run: |
+          if [ -f /tmp/linkx-dast.pid ]; then
+            kill "$(cat /tmp/linkx-dast.pid)" 2>/dev/null || true
+          fi
+
+  ci-ok:
+    name: CI OK
+    needs:
+      - detect-changes
+      - server-tests
+      - admin-unit
+      - client-unit
+      - client-e2e
+      - admin-e2e
+      - load-smoke
+      - dependency-scan
+      - zap-baseline
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Aggregate required results
+        env:
+          NEED_SERVER: ${{ needs.detect-changes.outputs.server }}
+          NEED_CLIENT: ${{ needs.detect-changes.outputs.client }}
+          NEED_ADMIN: ${{ needs.detect-changes.outputs.admin }}
+          NEED_SECURITY: ${{ needs.detect-changes.outputs.security }}
+          R_SERVER: ${{ needs.server-tests.result }}
+          R_ADMIN_UNIT: ${{ needs.admin-unit.result }}
+          R_CLIENT_UNIT: ${{ needs.client-unit.result }}
+          R_CLIENT_E2E: ${{ needs.client-e2e.result }}
+          R_ADMIN_E2E: ${{ needs.admin-e2e.result }}
+          R_LOAD: ${{ needs.load-smoke.result }}
+          R_DEP: ${{ needs.dependency-scan.result }}
+          R_ZAP: ${{ needs.zap-baseline.result }}
+          R_DETECT: ${{ needs.detect-changes.result }}
+        run: |
+          set -e
+          fail=0
+          check() {
+            local needed="$1" result="$2" name="$3"
+            if [ "$needed" = "true" ]; then
+              if [ "$result" != "success" ]; then
+                echo "FAIL: $name required but result=$result"
+                fail=1
+              else
+                echo "OK: $name"
+              fi
+            else
+              echo "SKIP: $name (not required, result=$result)"
+            fi
+          }
+          if [ "$R_DETECT" != "success" ]; then
+            echo "FAIL: detect-changes result=$R_DETECT"
+            exit 1
+          fi
+          check "$NEED_SERVER" "$R_SERVER" server-tests
+          check "$NEED_SERVER" "$R_LOAD" load-smoke
+          check "$NEED_CLIENT" "$R_CLIENT_UNIT" client-unit
+          check "$NEED_CLIENT" "$R_CLIENT_E2E" client-e2e
+          check "$NEED_ADMIN" "$R_ADMIN_UNIT" admin-unit
+          check "$NEED_ADMIN" "$R_ADMIN_E2E" admin-e2e
+          check "$NEED_SECURITY" "$R_DEP" dependency-scan
+          check "$NEED_SECURITY" "$R_ZAP" zap-baseline
+          exit "$fail"

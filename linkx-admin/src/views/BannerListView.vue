@@ -124,7 +124,11 @@ const rules = computed<FormRules>(() => {
         return true
       },
     },
-    position: { required: true, message: t('banner.positionRequired'), trigger: ['change', 'blur'] },
+    position: {
+      required: true,
+      message: t('banner.positionRequired'),
+      trigger: ['change', 'blur'],
+    },
   }
 })
 
@@ -222,11 +226,11 @@ const columns = computed<DataTableColumns<BannerItem>>(() => {
         ]
         if (isScheduleExpired(row)) {
           tags.push(
-            h(NTag, { type: 'error', size: 'small', bordered: false }, () => t('banner.expired')),
+            h(NTag, { type: 'error', size: 'small', bordered: false }, () => t('banner.expired'))
           )
         } else if (isSchedulePending(row)) {
           tags.push(
-            h(NTag, { type: 'info', size: 'small', bordered: false }, () => t('banner.pending')),
+            h(NTag, { type: 'info', size: 'small', bordered: false }, () => t('banner.pending'))
           )
         }
         return h(NSpace, { size: 4 }, () => tags)
@@ -282,7 +286,7 @@ const columns = computed<DataTableColumns<BannerItem>>(() => {
                       },
                     }),
                 },
-                () => t('banner.publish'),
+                () => t('banner.publish')
               )
             : null,
           row.status === 'published' && auth.hasPermission('admin:banner:unpublish')
@@ -305,7 +309,7 @@ const columns = computed<DataTableColumns<BannerItem>>(() => {
                       },
                     }),
                 },
-                () => t('banner.unpublish'),
+                () => t('banner.unpublish')
               )
             : null,
           row.status !== 'published' && auth.hasPermission('admin:banner:delete')
@@ -328,7 +332,7 @@ const columns = computed<DataTableColumns<BannerItem>>(() => {
                       },
                     }),
                 },
-                () => t('common.delete'),
+                () => t('common.delete')
               )
             : null,
         ]),
@@ -470,7 +474,11 @@ onMounted(load)
             width="220px"
             @search="search"
           />
-          <NSelect v-model:value="query.bannerStatus" :options="statusOptions" style="width: 140px" />
+          <NSelect
+            v-model:value="query.bannerStatus"
+            :options="statusOptions"
+            style="width: 140px"
+          />
           <NSelect
             v-model:value="query.position"
             :options="positionFilterOptions"
@@ -571,27 +579,19 @@ onMounted(load)
           <NInputNumber v-model:value="form.sortOrder" :min="0" style="width: 160px" />
         </NFormItem>
         <NFormItem :label="t('banner.startAt')" path="startAt">
-          <NDatePicker
-            v-model:value="form.startAt"
-            type="datetime"
-            clearable
-            style="width: 100%"
-          />
+          <NDatePicker v-model:value="form.startAt" type="datetime" clearable style="width: 100%" />
         </NFormItem>
         <NFormItem :label="t('banner.endAt')" path="endAt">
-          <NDatePicker
-            v-model:value="form.endAt"
-            type="datetime"
-            clearable
-            style="width: 100%"
-          />
+          <NDatePicker v-model:value="form.endAt" type="datetime" clearable style="width: 100%" />
         </NFormItem>
         <div class="banner-schedule-hint">{{ t('banner.scheduleHint') }}</div>
       </NForm>
       <template #footer>
         <NSpace justify="end">
           <NButton @click="showForm = false">{{ t('common.cancel') }}</NButton>
-          <NButton type="primary" :loading="saving" @click="submitForm">{{ t('common.save') }}</NButton>
+          <NButton type="primary" :loading="saving" @click="submitForm">{{
+            t('common.save')
+          }}</NButton>
         </NSpace>
       </template>
     </NModal>

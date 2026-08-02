@@ -141,7 +141,7 @@ watch(
       checkedDeptKeys.value = []
       form.deptIds = []
     }
-  },
+  }
 )
 
 function onDeptChecked(keys: Array<string | number>) {
@@ -155,7 +155,12 @@ const columns = computed<DataTableColumns<AdminRole>>(() => {
     { title: 'ID', key: 'id', width: 80 },
     { title: t('role.roleCode'), key: 'roleCode' },
     { title: t('role.roleName'), key: 'roleName' },
-    { title: t('role.dataScope'), key: 'dataScope', width: 140, render: (row) => dataScopeLabel(row.dataScope) },
+    {
+      title: t('role.dataScope'),
+      key: 'dataScope',
+      width: 140,
+      render: (row) => dataScopeLabel(row.dataScope),
+    },
     { title: t('common.description'), key: 'description', ellipsis: { tooltip: true } },
     {
       title: t('common.status'),
@@ -163,7 +168,7 @@ const columns = computed<DataTableColumns<AdminRole>>(() => {
       width: 90,
       render: (row) =>
         h(NTag, { type: row.status === 1 ? 'success' : 'error', size: 'small' }, () =>
-          row.status === 1 ? t('common.enabled') : t('common.disabled'),
+          row.status === 1 ? t('common.enabled') : t('common.disabled')
         ),
     },
     {
@@ -185,7 +190,9 @@ const columns = computed<DataTableColumns<AdminRole>>(() => {
             ? h(NButton, { size: 'tiny', onClick: () => openMenus(row) }, () => t('role.menus'))
             : null,
           auth.hasPermission('admin:role:assign-permission')
-            ? h(NButton, { size: 'tiny', onClick: () => openPermissions(row) }, () => t('role.permissions'))
+            ? h(NButton, { size: 'tiny', onClick: () => openPermissions(row) }, () =>
+                t('role.permissions')
+              )
             : null,
           auth.hasPermission('admin:role:assign-user') && row.roleCode !== 'user'
             ? h(NButton, { size: 'tiny', onClick: () => openUsers(row) }, () => t('role.users'))
@@ -210,7 +217,7 @@ const columns = computed<DataTableColumns<AdminRole>>(() => {
                       },
                     }),
                 },
-                () => t('common.delete'),
+                () => t('common.delete')
               )
             : null,
         ]),
@@ -442,8 +449,15 @@ onMounted(load)
           itemCount: total,
           showSizePicker: true,
           pageSizes: [10, 20, 50],
-          onUpdatePage: (p: number) => { query.page = p; load() },
-          onUpdatePageSize: (s: number) => { query.size = s; query.page = 1; load() },
+          onUpdatePage: (p: number) => {
+            query.page = p
+            load()
+          },
+          onUpdatePageSize: (s: number) => {
+            query.size = s
+            query.page = 1
+            load()
+          },
         }"
         remote
       />
@@ -508,7 +522,12 @@ onMounted(load)
       </template>
     </NModal>
 
-    <NModal v-model:show="showMenuModal" preset="card" :title="t('role.assignMenus')" style="width: 480px">
+    <NModal
+      v-model:show="showMenuModal"
+      preset="card"
+      :title="t('role.assignMenus')"
+      style="width: 480px"
+    >
       <NTree
         block-line
         checkable
@@ -521,12 +540,19 @@ onMounted(load)
       <template #footer>
         <NSpace justify="end">
           <NButton @click="showMenuModal = false">{{ t('common.cancel') }}</NButton>
-          <NButton type="primary" :loading="menuSaving" @click="saveMenus">{{ t('common.save') }}</NButton>
+          <NButton type="primary" :loading="menuSaving" @click="saveMenus">{{
+            t('common.save')
+          }}</NButton>
         </NSpace>
       </template>
     </NModal>
 
-    <NModal v-model:show="showPermModal" preset="card" :title="t('role.assignPermissions')" style="width: 560px">
+    <NModal
+      v-model:show="showPermModal"
+      preset="card"
+      :title="t('role.assignPermissions')"
+      style="width: 560px"
+    >
       <NTree
         block-line
         checkable
@@ -539,12 +565,19 @@ onMounted(load)
       <template #footer>
         <NSpace justify="end">
           <NButton @click="showPermModal = false">{{ t('common.cancel') }}</NButton>
-          <NButton type="primary" :loading="permSaving" @click="savePermissions">{{ t('common.save') }}</NButton>
+          <NButton type="primary" :loading="permSaving" @click="savePermissions">{{
+            t('common.save')
+          }}</NButton>
         </NSpace>
       </template>
     </NModal>
 
-    <NModal v-model:show="showUserModal" preset="card" :title="t('role.assignUsers')" style="width: 520px">
+    <NModal
+      v-model:show="showUserModal"
+      preset="card"
+      :title="t('role.assignUsers')"
+      style="width: 520px"
+    >
       <NSelect
         v-model:value="selectedUserIds"
         multiple
@@ -555,7 +588,9 @@ onMounted(load)
       <template #footer>
         <NSpace justify="end">
           <NButton @click="showUserModal = false">{{ t('common.cancel') }}</NButton>
-          <NButton type="primary" :loading="userSaving" @click="saveUsers">{{ t('common.save') }}</NButton>
+          <NButton type="primary" :loading="userSaving" @click="saveUsers">{{
+            t('common.save')
+          }}</NButton>
         </NSpace>
       </template>
     </NModal>

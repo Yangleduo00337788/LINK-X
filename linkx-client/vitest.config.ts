@@ -23,12 +23,12 @@ export default defineConfig({
       reporter: ['text', 'json', 'html', 'lcov'],
       include: ['src/**/*.{ts,vue}'],
       exclude: ['src/**/*.d.ts', 'src/**/types/**', 'src/test/**', 'src/**/*.{test,spec}.{js,ts}'],
-      // 回归门禁（当前约 15%+）；目标逐步抬升至 100%（计划 B 口径）
+      // Phase 3.1 门禁；目标逐步抬升至 100%（见 docs/testing/COVERAGE.md）
       thresholds: {
-        lines: 15,
-        functions: 10,
-        branches: 20,
-        statements: 15,
+        lines: 40,
+        functions: 20,
+        branches: 30,
+        statements: 40,
       },
     },
   },

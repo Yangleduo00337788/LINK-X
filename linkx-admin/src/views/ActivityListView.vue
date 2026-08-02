@@ -205,7 +205,7 @@ const columns = computed<DataTableColumns<ActivityItem>>(() => {
                       },
                     }),
                 },
-                () => t('activity.publish'),
+                () => t('activity.publish')
               )
             : null,
           row.status === 'published' && auth.hasPermission('admin:activity:unpublish')
@@ -228,7 +228,7 @@ const columns = computed<DataTableColumns<ActivityItem>>(() => {
                       },
                     }),
                 },
-                () => t('activity.unpublish'),
+                () => t('activity.unpublish')
               )
             : null,
           row.status !== 'published' && auth.hasPermission('admin:activity:delete')
@@ -251,7 +251,7 @@ const columns = computed<DataTableColumns<ActivityItem>>(() => {
                       },
                     }),
                 },
-                () => t('common.delete'),
+                () => t('common.delete')
               )
             : null,
         ]),
@@ -389,7 +389,11 @@ onMounted(load)
             width="220px"
             @search="search"
           />
-          <NSelect v-model:value="query.activityStatus" :options="statusOptions" style="width: 140px" />
+          <NSelect
+            v-model:value="query.activityStatus"
+            :options="statusOptions"
+            style="width: 140px"
+          />
           <NButton type="primary" @click="search">{{ t('common.search') }}</NButton>
         </NSpace>
         <NButton
@@ -445,7 +449,12 @@ onMounted(load)
               @click="pickImage"
             >
               <NSpin v-if="imageUploading" size="small" />
-              <img v-else-if="form.previewUrl" class="ops-upload-img" :src="form.previewUrl" alt="" />
+              <img
+                v-else-if="form.previewUrl"
+                class="ops-upload-img"
+                :src="form.previewUrl"
+                alt=""
+              />
               <span v-else class="ops-upload-placeholder">{{ t('activity.uploadHint') }}</span>
               <span class="ops-upload-mask">
                 {{ imageUploading ? t('activity.uploading') : t('activity.changeImage') }}
@@ -470,7 +479,11 @@ onMounted(load)
           />
         </NFormItem>
         <NFormItem :label="t('activity.linkUrl')" path="linkUrl">
-          <NInput v-model:value="form.linkUrl" :placeholder="t('activity.linkPlaceholder')" maxlength="1024" />
+          <NInput
+            v-model:value="form.linkUrl"
+            :placeholder="t('activity.linkPlaceholder')"
+            maxlength="1024"
+          />
         </NFormItem>
         <NFormItem :label="t('activity.sortOrder')" path="sortOrder">
           <NInputNumber v-model:value="form.sortOrder" :min="0" style="width: 160px" />
@@ -486,7 +499,9 @@ onMounted(load)
       <template #footer>
         <NSpace justify="end">
           <NButton @click="showForm = false">{{ t('common.cancel') }}</NButton>
-          <NButton type="primary" :loading="saving" @click="submitForm">{{ t('common.save') }}</NButton>
+          <NButton type="primary" :loading="saving" @click="submitForm">{{
+            t('common.save')
+          }}</NButton>
         </NSpace>
       </template>
     </NModal>
