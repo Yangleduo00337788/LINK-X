@@ -408,6 +408,7 @@ export function buildSparkOption(values: number[], color = LX_CHART_COLORS[0]) {
 export function useChart(
   elRef: Ref<HTMLElement | null>,
   option: Ref<unknown>,
+  opts?: { onClick?: (params: { name?: string; dataIndex?: number }) => void },
 ) {
   let chart: EChartsType | null = null
 
@@ -431,6 +432,14 @@ export function useChart(
     dispose()
     chart = echarts.init(el)
     chart.setOption(opt as Record<string, unknown>, true)
+    if (opts?.onClick) {
+      chart.on('click', (params) => {
+        opts.onClick?.({
+          name: typeof params.name === 'string' ? params.name : undefined,
+          dataIndex: typeof params.dataIndex === 'number' ? params.dataIndex : undefined,
+        })
+      })
+    }
     chart.resize()
     return true
   }

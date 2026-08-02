@@ -380,6 +380,9 @@ export default {
     trendsTitle: 'Last 14 days',
     pendingTitle: 'Pending tasks',
     realtimeTitle: 'Today realtime',
+    scaleTitle: 'Users & activity',
+    opsRiskTitle: 'Ops & risk',
+    opsRiskCenter: 'Total',
     noPending: 'No pending tasks',
   },
   statistics: {

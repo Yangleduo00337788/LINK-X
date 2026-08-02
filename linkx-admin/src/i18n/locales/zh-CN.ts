@@ -379,6 +379,9 @@ export default {
     trendsTitle: '近 14 日趋势',
     pendingTitle: '待处理事项',
     realtimeTitle: '今日实时',
+    scaleTitle: '用户与活跃',
+    opsRiskTitle: '待办与风控',
+    opsRiskCenter: '合计',
     noPending: '暂无待处理事项',
   },
   statistics: {

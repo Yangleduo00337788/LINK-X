@@ -7,27 +7,15 @@ import {
   NGi,
   NGrid,
   NIcon,
-  NList,
-  NListItem,
   NNumberAnimation,
   NSpin,
   NStatistic,
-  NThing,
 } from 'naive-ui'
 import {
-  PeopleOutline,
-  PulseOutline,
-  PhonePortraitOutline,
-  ChatbubbleEllipsesOutline,
-  DocumentTextOutline,
-  WarningOutline,
   PersonAddOutline,
   ChatbubblesOutline,
   LogInOutline,
-  FlagOutline,
-  KeyOutline,
-  BanOutline,
-  TimeOutline,
+  WarningOutline,
 } from '@vicons/ionicons5'
 import {
   fetchDashboardRealtime,
@@ -39,7 +27,13 @@ import {
   type PendingTask,
 } from '@/api/dashboard'
 import type { TrendData } from '@/api/statistics'
-import { buildAreaOption, useChart } from '@/utils/charts'
+import {
+  buildAreaOption,
+  buildDonutOption,
+  buildHBarOption,
+  useChart,
+  type NamedValue,
+} from '@/utils/charts'
 import AdminOpsBannerCarousel from '@/components/AdminOpsBannerCarousel.vue'
 
 const { t, locale } = useI18n()
@@ -49,31 +43,18 @@ const summary = ref<DashboardSummary | null>(null)
 const realtime = ref<DashboardRealtime | null>(null)
 const pending = ref<PendingTask[]>([])
 const trends = ref<TrendData | null>(null)
+
 const trendEl = ref<HTMLElement | null>(null)
+const scaleEl = ref<HTMLElement | null>(null)
+const opsEl = ref<HTMLElement | null>(null)
+const pendingEl = ref<HTMLElement | null>(null)
+
 const opsBannerCount = ref<number | null>(null)
 const showFallbackBanners = computed(() => opsBannerCount.value === 0)
 
 function onOpsBannerLoaded(payload: { count: number }) {
   opsBannerCount.value = payload.count
 }
-
-const cards = computed(() => {
-  void locale.value
-  return [
-    { key: 'totalUsers' as const, label: t('dashboard.totalUsers'), icon: PeopleOutline },
-    { key: 'dau' as const, label: t('dashboard.dau'), icon: PulseOutline },
-    { key: 'wau' as const, label: t('dashboard.wau'), icon: PulseOutline },
-    { key: 'mau' as const, label: t('dashboard.mau'), icon: PulseOutline },
-    { key: 'onlineDevices' as const, label: t('dashboard.onlineDevices'), icon: PhonePortraitOutline },
-    { key: 'pendingFeedback' as const, label: t('dashboard.pendingFeedback'), icon: ChatbubbleEllipsesOutline },
-    { key: 'overdueFeedback' as const, label: t('dashboard.overdueFeedback'), icon: TimeOutline },
-    { key: 'pendingReports' as const, label: t('dashboard.pendingReports'), icon: FlagOutline },
-    { key: 'pendingReviews' as const, label: t('dashboard.pendingReviews'), icon: DocumentTextOutline },
-    { key: 'todaySensitiveHits' as const, label: t('dashboard.todaySensitiveHits'), icon: KeyOutline },
-    { key: 'todayRiskBlocks' as const, label: t('dashboard.todayRiskBlocks'), icon: BanOutline },
-    { key: 'riskEvents' as const, label: t('dashboard.riskEvents'), icon: WarningOutline },
-  ]
-})
 
 const realtimeCards = computed(() => {
   void locale.value
@@ -115,6 +96,24 @@ function seriesName(key: string, fallback: string) {
   return map[key] || fallback
 }
 
+function metricName(key: string) {
+  const map: Record<string, string> = {
+    totalUsers: t('dashboard.totalUsers'),
+    dau: t('dashboard.dau'),
+    wau: t('dashboard.wau'),
+    mau: t('dashboard.mau'),
+    onlineDevices: t('dashboard.onlineDevices'),
+    pendingFeedback: t('dashboard.pendingFeedback'),
+    overdueFeedback: t('dashboard.overdueFeedback'),
+    pendingReports: t('dashboard.pendingReports'),
+    pendingReviews: t('dashboard.pendingReviews'),
+    todaySensitiveHits: t('dashboard.todaySensitiveHits'),
+    todayRiskBlocks: t('dashboard.todayRiskBlocks'),
+    riskEvents: t('dashboard.riskEvents'),
+  }
+  return map[key] || key
+}
+
 function taskTitle(task: PendingTask) {
   const map: Record<string, string> = {
     pendingFeedback: t('dashboard.pendingFeedback'),
@@ -126,8 +125,65 @@ function taskTitle(task: PendingTask) {
   return map[task.title] || task.title
 }
 
+const scaleItems = computed<NamedValue[]>(() => {
+  void locale.value
+  const s = summary.value
+  return [
+    { key: 'totalUsers', name: metricName('totalUsers'), value: s?.totalUsers ?? 0 },
+    { key: 'dau', name: metricName('dau'), value: s?.dau ?? 0 },
+    { key: 'wau', name: metricName('wau'), value: s?.wau ?? 0 },
+    { key: 'mau', name: metricName('mau'), value: s?.mau ?? 0 },
+    { key: 'onlineDevices', name: metricName('onlineDevices'), value: s?.onlineDevices ?? 0 },
+  ]
+})
+
+const opsItems = computed<NamedValue[]>(() => {
+  void locale.value
+  const s = summary.value
+  return [
+    { key: 'pendingFeedback', name: metricName('pendingFeedback'), value: s?.pendingFeedback ?? 0 },
+    { key: 'overdueFeedback', name: metricName('overdueFeedback'), value: s?.overdueFeedback ?? 0 },
+    { key: 'pendingReports', name: metricName('pendingReports'), value: s?.pendingReports ?? 0 },
+    { key: 'pendingReviews', name: metricName('pendingReviews'), value: s?.pendingReviews ?? 0 },
+    { key: 'todaySensitiveHits', name: metricName('todaySensitiveHits'), value: s?.todaySensitiveHits ?? 0 },
+    { key: 'todayRiskBlocks', name: metricName('todayRiskBlocks'), value: s?.todayRiskBlocks ?? 0 },
+    { key: 'riskEvents', name: metricName('riskEvents'), value: s?.riskEvents ?? 0 },
+  ]
+})
+
+const pendingItems = computed<NamedValue[]>(() => {
+  void locale.value
+  return pending.value.map((task) => ({
+    key: task.type,
+    name: taskTitle(task),
+    value: task.count ?? 0,
+  }))
+})
+
 const trendOption = computed(() => buildAreaOption(trends.value, seriesName))
+const scaleOption = computed(() => buildHBarOption(scaleItems.value))
+const opsOption = computed(() =>
+  buildDonutOption(opsItems.value, (key, fallback) => metricName(key) || fallback, t('dashboard.opsRiskCenter')),
+)
+const pendingOption = computed(() => buildHBarOption(pendingItems.value))
+
 const trendChart = useChart(trendEl, trendOption)
+const scaleChart = useChart(scaleEl, scaleOption)
+const opsChart = useChart(opsEl, opsOption)
+const pendingChart = useChart(pendingEl, pendingOption, {
+  onClick: ({ dataIndex }) => {
+    if (dataIndex == null) return
+    const task = pending.value[dataIndex]
+    if (task?.path) router.push(task.path)
+  },
+})
+
+function refreshCharts() {
+  trendChart.refresh()
+  scaleChart.refresh()
+  opsChart.refresh()
+  pendingChart.refresh()
+}
 
 onMounted(async () => {
   loading.value = true
@@ -144,7 +200,7 @@ onMounted(async () => {
     trends.value = tr
   } finally {
     loading.value = false
-    trendChart.refresh()
+    refreshCharts()
   }
 })
 </script>
@@ -173,60 +229,13 @@ onMounted(async () => {
     </div>
 
     <NSpin :show="loading">
-      <NGrid cols="1 s:2 m:3 l:4" responsive="screen" :x-gap="16" :y-gap="16">
-        <NGi v-for="card in cards" :key="card.key">
-          <div class="page-card stat-card">
-            <div class="stat-icon">
-              <NIcon :size="22" :component="card.icon" />
-            </div>
-            <NStatistic :label="card.label">
-              <NNumberAnimation
-                :from="0"
-                :to="summary?.[card.key] ?? 0"
-                :active="!!summary"
-                :precision="0"
-                show-separator
-              />
-            </NStatistic>
-          </div>
-        </NGi>
-      </NGrid>
-
-      <NGrid cols="1 m:3" responsive="screen" :x-gap="16" :y-gap="16" class="section">
-        <NGi :span="2">
-          <div class="page-card chart-card">
-            <div class="section-title">{{ t('dashboard.trendsTitle') }}</div>
-            <div ref="trendEl" class="chart" />
-          </div>
-        </NGi>
-        <NGi>
-          <div class="page-card chart-card">
-            <div class="section-title">{{ t('dashboard.pendingTitle') }}</div>
-            <NList v-if="pending.length" hoverable clickable>
-              <NListItem
-                v-for="task in pending"
-                :key="task.type"
-                @click="router.push(task.path)"
-              >
-                <NThing :title="taskTitle(task)" :description="task.path">
-                  <template #header-extra>
-                    <span class="task-count">{{ task.count }}</span>
-                  </template>
-                </NThing>
-              </NListItem>
-            </NList>
-            <div v-else class="empty">{{ t('dashboard.noPending') }}</div>
-          </div>
-        </NGi>
-      </NGrid>
-
       <div class="section">
         <div class="section-title inline">{{ t('dashboard.realtimeTitle') }}</div>
         <NGrid cols="1 s:2 m:4" responsive="screen" :x-gap="16" :y-gap="16">
           <NGi v-for="card in realtimeCards" :key="card.key">
-            <div class="page-card stat-card compact">
+            <div class="page-card stat-card">
               <div class="stat-icon">
-                <NIcon :size="20" :component="card.icon" />
+                <NIcon :size="22" :component="card.icon" />
               </div>
               <NStatistic :label="card.label">
                 <NNumberAnimation
@@ -241,6 +250,37 @@ onMounted(async () => {
           </NGi>
         </NGrid>
       </div>
+
+      <NGrid cols="1 m:2" responsive="screen" :x-gap="16" :y-gap="16" class="section">
+        <NGi>
+          <div class="page-card chart-card">
+            <div class="section-title">{{ t('dashboard.scaleTitle') }}</div>
+            <div ref="scaleEl" class="chart" />
+          </div>
+        </NGi>
+        <NGi>
+          <div class="page-card chart-card">
+            <div class="section-title">{{ t('dashboard.opsRiskTitle') }}</div>
+            <div ref="opsEl" class="chart" />
+          </div>
+        </NGi>
+      </NGrid>
+
+      <NGrid cols="1 m:3" responsive="screen" :x-gap="16" :y-gap="16" class="section">
+        <NGi :span="2">
+          <div class="page-card chart-card">
+            <div class="section-title">{{ t('dashboard.trendsTitle') }}</div>
+            <div ref="trendEl" class="chart" />
+          </div>
+        </NGi>
+        <NGi>
+          <div class="page-card chart-card">
+            <div class="section-title">{{ t('dashboard.pendingTitle') }}</div>
+            <div v-if="pendingItems.length" ref="pendingEl" class="chart chart-clickable" />
+            <div v-else class="empty">{{ t('dashboard.noPending') }}</div>
+          </div>
+        </NGi>
+      </NGrid>
     </NSpin>
   </div>
 </template>
@@ -288,9 +328,6 @@ onMounted(async () => {
   gap: 8px;
   padding: 20px !important;
 }
-.stat-card.compact {
-  min-height: 100px;
-}
 .stat-icon {
   position: absolute;
   right: 18px;
@@ -323,10 +360,8 @@ onMounted(async () => {
   width: 100%;
   height: 300px;
 }
-.task-count {
-  font-size: 18px;
-  font-weight: 650;
-  color: var(--lx-stat-accent, #5b8def);
+.chart-clickable {
+  cursor: pointer;
 }
 .empty {
   padding: 48px 12px;
