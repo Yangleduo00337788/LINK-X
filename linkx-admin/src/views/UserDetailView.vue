@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, h, onMounted, onUnmounted, reactive, ref, type VNode } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
@@ -198,7 +198,7 @@ const deviceColumns = computed<DataTableColumns<DeviceItem>>(() => {
       key: 'actions',
       width: 260,
       render: (row) => {
-        const buttons = []
+        const buttons: VNode[] = []
         if (auth.hasPermission('admin:device:kick')) {
           buttons.push(
             h(

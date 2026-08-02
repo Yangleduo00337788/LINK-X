@@ -18,6 +18,7 @@ import {
   useMessage,
   type DataTableColumns,
   type DropdownOption,
+  type SelectOption,
 } from 'naive-ui'
 import {
   banUser,
@@ -52,7 +53,7 @@ const query = reactive({
   deptId: null as number | null,
   range: null as [number, number] | null,
 })
-const deptOptions = ref<{ label: string; value: number | null }[]>([])
+const deptOptions = ref<SelectOption[]>([])
 
 const showResetPassword = ref(false)
 const resetSaving = ref(false)
@@ -308,18 +309,16 @@ function flattenDepts(nodes: AdminDept[], prefix = ''): { label: string; value: 
 
 async function loadDepts() {
   // 无部门权限时不请求，避免非特权角色进入用户列表即刷 403
+  const allOpt = { label: t('user.allDepts'), value: null as unknown as number }
   if (!auth.hasPermission('admin:dept:list')) {
-    deptOptions.value = [{ label: t('user.allDepts'), value: null }]
+    deptOptions.value = [allOpt]
     return
   }
   try {
     const tree = await listDepts()
-    deptOptions.value = [
-      { label: t('user.allDepts'), value: null },
-      ...flattenDepts(tree || []),
-    ]
+    deptOptions.value = [allOpt, ...flattenDepts(tree || [])]
   } catch {
-    deptOptions.value = [{ label: t('user.allDepts'), value: null }]
+    deptOptions.value = [allOpt]
   }
 }
 

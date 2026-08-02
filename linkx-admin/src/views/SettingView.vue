@@ -374,7 +374,8 @@ async function saveMail() {
     return
   }
   syncMailPortByEncryption()
-  if (!mailForm.port) {
+  const mailPort = mailForm.port
+  if (!mailPort) {
     message.warning(t('setting.mailPort'))
     return
   }
@@ -388,7 +389,7 @@ async function saveMail() {
       applySettings(
         await updateMailSettings({
           host: mailForm.host.trim(),
-          port: mailForm.port,
+          port: mailPort,
           username: mailForm.username.trim(),
           password: mailForm.password.trim() || undefined,
           from: mailForm.from.trim(),
