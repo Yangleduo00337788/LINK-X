@@ -50,7 +50,7 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
   {
     roleCode: 'ops_admin',
     label: '运营管理员',
-    mustMenus: ['dashboard', 'feedback', 'notices', 'statistics', 'recommends', 'activities'],
+    mustMenus: ['dashboard', 'feedback', 'notices', 'statistics', 'recommends', 'activities', 'homepage-orchestration'],
     mustNotMenus: ['settings', 'risk-event', 'devices', 'rate-limit'],
     allowPerms: [
       'admin:dashboard:view',
@@ -61,6 +61,7 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
       'admin:user:export',
       'admin:recommend:list',
       'admin:activity:list',
+      'admin:homepage:list',
     ],
     denyPerms: [
       'admin:setting:edit',
@@ -80,6 +81,7 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
       '/admin/statistics',
       '/admin/recommends',
       '/admin/activities',
+      '/admin/homepage-orchestration',
     ],
     denyRoutes: [
       '/admin/settings',
@@ -203,6 +205,11 @@ export const ADMIN_ROUTE_PERMISSIONS: Array<{ path: string; permission?: string;
     path: '/admin/abnormal-access',
     permission: 'admin:abnormal-access:list',
     name: 'AbnormalAccess',
+  },
+  {
+    path: '/admin/homepage-orchestration',
+    permission: 'admin:homepage:list',
+    name: 'HomepageOrchestration',
   },
   { path: '/admin/reviews', permission: 'admin:review:list', name: 'ReviewList' },
   { path: '/admin/reports', permission: 'admin:review:list', name: 'ReportList' },

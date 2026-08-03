@@ -187,6 +187,12 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: 'route.activities', permission: 'admin:activity:list' },
       },
       {
+        path: 'homepage-orchestration',
+        name: 'HomepageOrchestration',
+        component: () => import('@/views/HomepageOrchestrationView.vue'),
+        meta: { titleKey: 'route.homepageOrchestration', permission: 'admin:homepage:list' },
+      },
+      {
         path: 'settings',
         name: 'Settings',
         component: () => import('@/views/SettingView.vue'),
