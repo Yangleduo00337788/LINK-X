@@ -110,6 +110,18 @@ public class AdminSettingVO {
         private String supportPhone;
         @Schema(description = "反馈处理 SLA（小时）")
         private Integer feedbackSlaHours;
+        @Schema(description = "是否启用反馈超时升级")
+        private Boolean feedbackEscalationEnabled;
+        @Schema(description = "升级时尝试按分流规则自动改派")
+        private Boolean feedbackEscalationAutoReassign;
+        @Schema(description = "同一工单重复升级间隔（小时）")
+        private Integer feedbackEscalationIntervalHours;
+        @Schema(description = "审核任务 SLA（小时）")
+        private Integer reviewSlaHours;
+        @Schema(description = "是否启用审核超时督办")
+        private Boolean reviewEscalationEnabled;
+        @Schema(description = "同一审核任务重复督办间隔（小时）")
+        private Integer reviewEscalationIntervalHours;
     }
 
     @Data

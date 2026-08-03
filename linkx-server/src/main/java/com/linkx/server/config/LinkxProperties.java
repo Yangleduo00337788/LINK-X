@@ -290,6 +290,18 @@ public class LinkxProperties {
         private String supportPhone = "";
         /** 反馈处理 SLA（小时），超时未回复视为逾期 */
         private Integer feedbackSlaHours = 24;
+        /** 是否启用反馈超时升级 */
+        private Boolean feedbackEscalationEnabled = false;
+        /** 升级时尝试按分流规则自动改派 */
+        private Boolean feedbackEscalationAutoReassign = true;
+        /** 同一工单重复升级间隔（小时） */
+        private Integer feedbackEscalationIntervalHours = 24;
+        /** 审核任务 SLA（小时） */
+        private Integer reviewSlaHours = 24;
+        /** 是否启用审核超时督办 */
+        private Boolean reviewEscalationEnabled = false;
+        /** 同一审核任务重复督办间隔（小时） */
+        private Integer reviewEscalationIntervalHours = 24;
         /** 开发模式：允许 localhost origin 连接 WebSocket（生产环境必须关闭） */
         private Boolean devModeEnabled = false;
     }

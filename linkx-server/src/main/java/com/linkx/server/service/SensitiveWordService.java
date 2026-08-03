@@ -5,7 +5,6 @@ import com.linkx.server.entity.SysSensitiveWord;
 import com.linkx.server.mapper.SensitiveWordMapper;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
@@ -52,8 +51,7 @@ public class SensitiveWordService {
         refreshDictionary();
     }
 
-    /** 每 5 分钟刷新敏感词库 */
-    @Scheduled(fixedDelay = 300_000, initialDelay = 300_000)
+    /** 每 5 分钟刷新敏感词库（由定时任务编排器调度） */
     public void refreshDictionary() {
         try {
             List<SysSensitiveWord> words = sensitiveWordMapper.selectListByQuery(

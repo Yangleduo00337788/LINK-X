@@ -75,6 +75,18 @@ public class SysRuntimeSetting implements Serializable {
     private String supportPhone;
     /** 反馈处理 SLA（小时），超时未回复视为逾期 */
     private Integer feedbackSlaHours;
+    /** 是否启用反馈超时升级 */
+    private Boolean feedbackEscalationEnabled;
+    /** 升级时尝试按分流规则自动改派 */
+    private Boolean feedbackEscalationAutoReassign;
+    /** 同一工单重复升级间隔（小时） */
+    private Integer feedbackEscalationIntervalHours;
+    /** 审核任务 SLA（小时） */
+    private Integer reviewSlaHours;
+    /** 是否启用审核超时督办 */
+    private Boolean reviewEscalationEnabled;
+    /** 同一审核任务重复督办间隔（小时） */
+    private Integer reviewEscalationIntervalHours;
 
     /** SMTP 主机（空则沿用 env/yml） */
     private String mailHost;

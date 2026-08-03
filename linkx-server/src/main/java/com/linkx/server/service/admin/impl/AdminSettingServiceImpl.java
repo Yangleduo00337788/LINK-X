@@ -97,6 +97,12 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                         .supportEmail(app != null ? nullToEmpty(app.getSupportEmail()) : "")
                         .supportPhone(app != null ? nullToEmpty(app.getSupportPhone()) : "")
                         .feedbackSlaHours(resolveFeedbackSlaHours(app))
+                        .feedbackEscalationEnabled(resolveFeedbackEscalationEnabled(app))
+                        .feedbackEscalationAutoReassign(resolveFeedbackEscalationAutoReassign(app))
+                        .feedbackEscalationIntervalHours(resolveFeedbackEscalationIntervalHours(app))
+                        .reviewSlaHours(resolveReviewSlaHours(app))
+                        .reviewEscalationEnabled(resolveReviewEscalationEnabled(app))
+                        .reviewEscalationIntervalHours(resolveReviewEscalationIntervalHours(app))
                         .build())
                 .mail(buildMailSide())
                 .mailTemplates(buildMailTemplatesSide())
@@ -145,6 +151,42 @@ public class AdminSettingServiceImpl implements AdminSettingService {
 
     private int resolveFeedbackSlaHours(LinkxProperties.App app) {
         Integer hours = app != null ? app.getFeedbackSlaHours() : null;
+        if (hours == null || hours < 1) {
+            return 24;
+        }
+        return Math.min(hours, 720);
+    }
+
+    private boolean resolveFeedbackEscalationEnabled(LinkxProperties.App app) {
+        return app != null && Boolean.TRUE.equals(app.getFeedbackEscalationEnabled());
+    }
+
+    private boolean resolveFeedbackEscalationAutoReassign(LinkxProperties.App app) {
+        return app == null || !Boolean.FALSE.equals(app.getFeedbackEscalationAutoReassign());
+    }
+
+    private int resolveFeedbackEscalationIntervalHours(LinkxProperties.App app) {
+        Integer hours = app != null ? app.getFeedbackEscalationIntervalHours() : null;
+        if (hours == null || hours < 1) {
+            return 24;
+        }
+        return Math.min(hours, 720);
+    }
+
+    private int resolveReviewSlaHours(LinkxProperties.App app) {
+        Integer hours = app != null ? app.getReviewSlaHours() : null;
+        if (hours == null || hours < 1) {
+            return 24;
+        }
+        return Math.min(hours, 720);
+    }
+
+    private boolean resolveReviewEscalationEnabled(LinkxProperties.App app) {
+        return app != null && Boolean.TRUE.equals(app.getReviewEscalationEnabled());
+    }
+
+    private int resolveReviewEscalationIntervalHours(LinkxProperties.App app) {
+        Integer hours = app != null ? app.getReviewEscalationIntervalHours() : null;
         if (hours == null || hours < 1) {
             return 24;
         }
@@ -220,6 +262,12 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         row.setSupportEmail(nullToEmpty(dto.getSupportEmail()));
         row.setSupportPhone(nullToEmpty(dto.getSupportPhone()));
         row.setFeedbackSlaHours(dto.getFeedbackSlaHours());
+        row.setFeedbackEscalationEnabled(Boolean.TRUE.equals(dto.getFeedbackEscalationEnabled()));
+        row.setFeedbackEscalationAutoReassign(Boolean.TRUE.equals(dto.getFeedbackEscalationAutoReassign()));
+        row.setFeedbackEscalationIntervalHours(dto.getFeedbackEscalationIntervalHours());
+        row.setReviewSlaHours(dto.getReviewSlaHours());
+        row.setReviewEscalationEnabled(Boolean.TRUE.equals(dto.getReviewEscalationEnabled()));
+        row.setReviewEscalationIntervalHours(dto.getReviewEscalationIntervalHours());
         row.setUpdateBy(operatorId);
         persist(row);
         applyClientSide(row);
@@ -416,6 +464,12 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                 .supportEmail(app != null ? nullToEmpty(app.getSupportEmail()) : "")
                 .supportPhone(app != null ? nullToEmpty(app.getSupportPhone()) : "")
                 .feedbackSlaHours(resolveFeedbackSlaHours(app))
+                .feedbackEscalationEnabled(resolveFeedbackEscalationEnabled(app))
+                .feedbackEscalationAutoReassign(resolveFeedbackEscalationAutoReassign(app))
+                .feedbackEscalationIntervalHours(resolveFeedbackEscalationIntervalHours(app))
+                .reviewSlaHours(resolveReviewSlaHours(app))
+                .reviewEscalationEnabled(resolveReviewEscalationEnabled(app))
+                .reviewEscalationIntervalHours(resolveReviewEscalationIntervalHours(app))
                 .mailHost(linkxProperties.getMail().getHost())
                 .mailPort(linkxProperties.getMail().getPort())
                 .mailUsername(nullToEmpty(linkxProperties.getMail().getUsername()))
@@ -543,6 +597,24 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         }
         if (row.getFeedbackSlaHours() != null && row.getFeedbackSlaHours() > 0) {
             app.setFeedbackSlaHours(Math.min(row.getFeedbackSlaHours(), 720));
+        }
+        if (row.getFeedbackEscalationEnabled() != null) {
+            app.setFeedbackEscalationEnabled(row.getFeedbackEscalationEnabled());
+        }
+        if (row.getFeedbackEscalationAutoReassign() != null) {
+            app.setFeedbackEscalationAutoReassign(row.getFeedbackEscalationAutoReassign());
+        }
+        if (row.getFeedbackEscalationIntervalHours() != null && row.getFeedbackEscalationIntervalHours() > 0) {
+            app.setFeedbackEscalationIntervalHours(Math.min(row.getFeedbackEscalationIntervalHours(), 720));
+        }
+        if (row.getReviewSlaHours() != null && row.getReviewSlaHours() > 0) {
+            app.setReviewSlaHours(Math.min(row.getReviewSlaHours(), 720));
+        }
+        if (row.getReviewEscalationEnabled() != null) {
+            app.setReviewEscalationEnabled(row.getReviewEscalationEnabled());
+        }
+        if (row.getReviewEscalationIntervalHours() != null && row.getReviewEscalationIntervalHours() > 0) {
+            app.setReviewEscalationIntervalHours(Math.min(row.getReviewEscalationIntervalHours(), 720));
         }
     }
 

@@ -65,4 +65,34 @@ public class ClientSideSettingUpdateDTO {
     @Max(720)
     @Schema(description = "反馈处理 SLA（小时），1–720")
     private Integer feedbackSlaHours;
+
+    @NotNull
+    @Schema(description = "是否启用反馈超时升级")
+    private Boolean feedbackEscalationEnabled;
+
+    @NotNull
+    @Schema(description = "升级时尝试按分流规则自动改派")
+    private Boolean feedbackEscalationAutoReassign;
+
+    @NotNull
+    @Min(1)
+    @Max(720)
+    @Schema(description = "同一工单重复升级间隔（小时），1–720")
+    private Integer feedbackEscalationIntervalHours;
+
+    @NotNull
+    @Min(1)
+    @Max(720)
+    @Schema(description = "审核任务 SLA（小时），1–720")
+    private Integer reviewSlaHours;
+
+    @NotNull
+    @Schema(description = "是否启用审核超时督办")
+    private Boolean reviewEscalationEnabled;
+
+    @NotNull
+    @Min(1)
+    @Max(720)
+    @Schema(description = "同一审核任务重复督办间隔（小时），1–720")
+    private Integer reviewEscalationIntervalHours;
 }
