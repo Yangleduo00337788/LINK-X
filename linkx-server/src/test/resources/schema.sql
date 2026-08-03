@@ -966,6 +966,7 @@ INSERT IGNORE INTO sys_admin_menu
 (7,  0, 'log',         '日志中心', '/admin/logs',       NULL,                    'History',   'dir',  NULL,                   4, 0, 1, 0, 1, 1, 0),
 (8,  7, 'audit-log',   '操作日志', '/admin/audit-logs', 'views/AuditLogView',    'Document',  'menu', 'admin:audit:list',     1, 0, 1, 0, 1, 1, 0),
 (9,  7, 'login-log',   '登录日志', '/admin/login-logs', 'views/LoginLogView',    'LogIn',     'menu', 'admin:login-log:list', 2, 0, 1, 0, 1, 1, 0),
+(45, 7, 'abnormal-access', '异常访问', '/admin/abnormal-access', 'views/AbnormalAccessView', 'AlertCircle', 'menu', 'admin:abnormal-access:list', 5, 0, 1, 0, 1, 1, 0),
 (10, 0, 'feedback',    '反馈管理', '/admin/feedback',   'views/FeedbackListView','Chatbox',   'menu', 'admin:feedback:list',  5, 0, 1, 0, 1, 1, 0),
 (11, 0, 'settings',    '系统配置', '/admin/settings',   'views/SettingView',     'Settings',  'menu', 'admin:setting:view',   6, 0, 1, 0, 1, 1, 0),
 (13, 0, 'review',      '审核中心', '/admin/review',     NULL,                    'Shield',    'dir',  NULL,                   5, 0, 1, 0, 1, 1, 0),
@@ -985,14 +986,14 @@ INSERT IGNORE INTO sys_admin_role_menu (role_id, menu_id) VALUES
 -- admin 全量（测试用最小集）
 (1001, 1),(1001, 2),(1001, 7),(1001, 8),(1001, 9),(1001, 10),(1001, 11),
 (1001, 13),(1001, 14),(1001, 43),(1001, 44),(1001, 16),(1001, 18),(1001, 19),(1001, 20),(1001, 22),
-(1001, 40),(1001, 41),(1001, 42),
+(1001, 40),(1001, 41),(1001, 42),(1001, 45),
 -- ops
 (1003, 1),(1003, 2),(1003, 10),(1003, 16),(1003, 18),(1003, 40),(1003, 41),
 -- audit
-(1004, 1),(1004, 2),(1004, 7),(1004, 8),(1004, 9),(1004, 19),
+(1004, 1),(1004, 2),(1004, 7),(1004, 8),(1004, 9),(1004, 19),(1004, 45),
 (1004, 13),(1004, 14),(1004, 43),(1004, 44),(1004, 20),(1004, 22),
 -- security
-(1005, 1),(1005, 2),(1005, 7),(1005, 8),(1005, 9),(1005, 19),(1005, 20),(1005, 22),(1005, 42),
+(1005, 1),(1005, 2),(1005, 7),(1005, 8),(1005, 9),(1005, 19),(1005, 20),(1005, 22),(1005, 42),(1005, 45),
 -- readonly
 (1006, 1),(1006, 2),(1006, 7),(1006, 8),(1006, 9),(1006, 19),(1006, 10),(1006, 13),(1006, 14),(1006, 18),(1006, 22);
 
@@ -1017,6 +1018,8 @@ INSERT IGNORE INTO sys_permission (id, permission_code, permission_name, resourc
 (2217,'admin:feedback-dispatch-rule:create','新增分流规则','button',NULL,'新增规则',1),
 (2218,'admin:feedback-dispatch-rule:edit','编辑分流规则','button',NULL,'编辑规则',1),
 (2219,'admin:feedback-dispatch-rule:delete','删除分流规则','button',NULL,'删除规则',1),
+(2220,'admin:abnormal-access:list','查看异常访问','page','/admin/abnormal-access','统一异常访问记录',1),
+(2221,'admin:abnormal-access:export','导出异常访问','button',NULL,'异常访问记录导出',1),
 (2136,'admin:notice:list','查看公告列表','page','/admin/notices','公告管理',1),
 (2138,'admin:notice:create','新增公告','button',NULL,'新增公告',1),
 (2144,'admin:statistics:view','查看统计分析','page','/admin/statistics','统计中心',1),
@@ -1087,6 +1090,7 @@ INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, d
 (294101, 1004, 2101, NULL, 0),(294102, 1004, 2102, NULL, 0),(294103, 1004, 2103, NULL, 0),
 (294105, 1004, 2105, NULL, 0),(294107, 1004, 2107, NULL, 0),(294173, 1004, 2173, NULL, 0),
 (294121, 1004, 2121, NULL, 0),(294129, 1004, 2129, NULL, 0),(294130, 1004, 2130, NULL, 0),(294131, 1004, 2213, NULL, 0),
+(294220, 1004, 2220, NULL, 0),(294221, 1004, 2221, NULL, 0),
 (294146, 1004, 2146, NULL, 0),(294148, 1004, 2148, NULL, 0),(294156, 1004, 2156, NULL, 0),
 (294149, 1004, 2149, NULL, 0),(294171, 1004, 2171, NULL, 0),(294172, 1004, 2172, NULL, 0),
 (294176, 1004, 2176, NULL, 0),(294177, 1004, 2177, NULL, 0);
@@ -1100,7 +1104,8 @@ INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, d
 (295176, 1005, 2176, NULL, 0),(295177, 1005, 2177, NULL, 0),
 (295182, 1005, 2182, NULL, 0),(295183, 1005, 2183, NULL, 0),
 (295184, 1005, 2184, NULL, 0),(295185, 1005, 2185, NULL, 0),
-(295205, 1005, 2205, NULL, 0),(295206, 1005, 2206, NULL, 0),(295207, 1005, 2207, NULL, 0);
+(295205, 1005, 2205, NULL, 0),(295206, 1005, 2206, NULL, 0),(295207, 1005, 2207, NULL, 0),
+(295220, 1005, 2220, NULL, 0),(295221, 1005, 2221, NULL, 0);
 
 -- readonly: 查看 + 导出（无写）
 INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, deleted) VALUES
