@@ -1,5 +1,5 @@
 import { runAsyncExport } from './exportJobs'
-import { get, post } from './request'
+import { get, post, put } from './request'
 import type { PageQuery, PageResult } from '@/types/api'
 
 export interface FeedbackItem {
@@ -13,6 +13,9 @@ export interface FeedbackItem {
   reply?: string
   createTime?: string
   overdue?: boolean
+  assigneeId?: string
+  assigneeName?: string
+  assignedAt?: string
 }
 
 export function listFeedback(params: PageQuery) {
@@ -33,6 +36,10 @@ export function closeFeedback(id: string) {
 
 export function reopenFeedback(id: string) {
   return post<null>(`/admin/feedback/${id}/reopen`)
+}
+
+export function assignFeedback(id: string, assigneeId: string | null) {
+  return put<null>(`/admin/feedback/${id}/assign`, { assigneeId })
 }
 
 export function exportFeedback(params: PageQuery) {

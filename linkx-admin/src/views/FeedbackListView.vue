@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   NButton,
   NDataTable,
@@ -15,8 +15,10 @@ import {
   useDialog,
   useMessage,
   type DataTableColumns,
+  type SelectOption,
 } from 'naive-ui'
 import {
+  assignFeedback,
   closeFeedback,
   exportFeedback,
   listFeedback,
@@ -24,6 +26,7 @@ import {
   replyFeedback,
   type FeedbackItem,
 } from '@/api/feedback'
+import { listUsers } from '@/api/users'
 import { formatTime } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
 import SearchAutoComplete from '@/components/SearchAutoComplete.vue'
@@ -32,7 +35,10 @@ const message = useMessage()
 const dialog = useDialog()
 const auth = useAuthStore()
 const route = useRoute()
+const router = useRouter()
 const { t, locale } = useI18n()
+
+const assigneeOptions = ref<SelectOption[]>([])
 
 const loading = ref(false)
 const exporting = ref(false)
@@ -44,8 +50,15 @@ const query = reactive({
   keyword: '',
   status: '' as string,
   overdueOnly: false,
+  unassignedOnly: false,
+  mineOnly: false,
   range: null as [number, number] | null,
 })
+
+const showAssign = ref(false)
+const assignTarget = ref<FeedbackItem | null>(null)
+const assigneeId = ref<string | null>(null)
+const assignSaving = ref(false)
 
 const statusOptions = computed(() => {
   void locale.value
@@ -92,6 +105,12 @@ const columns = computed<DataTableColumns<FeedbackItem>>(() => {
     { title: t('feedback.type'), key: 'type', width: 100 },
     { title: t('feedback.content'), key: 'content', ellipsis: { tooltip: true } },
     { title: t('feedback.contact'), key: 'contact', width: 140, ellipsis: { tooltip: true } },
+    {
+      title: t('feedback.assignee'),
+      key: 'assigneeName',
+      width: 110,
+      render: (row) => row.assigneeName || t('feedback.unassigned'),
+    },
     { title: t('common.status'), key: 'status', width: 100, render: (row) => statusTag(row) },
     {
       title: t('common.time'),
@@ -102,9 +121,16 @@ const columns = computed<DataTableColumns<FeedbackItem>>(() => {
     {
       title: t('common.actions'),
       key: 'actions',
-      width: 220,
+      width: 280,
       render: (row) =>
         h(NSpace, { size: 8 }, () => [
+          auth.hasPermission('admin:feedback:assign')
+            ? h(
+                NButton,
+                { size: 'tiny', onClick: () => openAssign(row) },
+                () => t('feedback.assign')
+              )
+            : null,
           auth.hasPermission('admin:feedback:reply') && row.status !== 'closed'
             ? h(NButton, { size: 'tiny', onClick: () => openReply(row) }, () => t('feedback.reply'))
             : null,
@@ -148,6 +174,25 @@ const columns = computed<DataTableColumns<FeedbackItem>>(() => {
   ]
 })
 
+function openAssign(row: FeedbackItem) {
+  assignTarget.value = row
+  assigneeId.value = row.assigneeId || null
+  showAssign.value = true
+}
+
+async function submitAssign() {
+  if (!assignTarget.value) return
+  assignSaving.value = true
+  try {
+    await assignFeedback(assignTarget.value.id, assigneeId.value)
+    message.success(t('feedback.assignSuccess'))
+    showAssign.value = false
+    await load()
+  } finally {
+    assignSaving.value = false
+  }
+}
+
 function openReply(row: FeedbackItem) {
   replyTarget.value = row
   replyContent.value = ''
@@ -179,6 +224,8 @@ async function load() {
       keyword: query.keyword || undefined,
       feedbackStatus: query.overdueOnly ? 'pending' : query.status || undefined,
       overdueOnly: query.overdueOnly || undefined,
+      unassignedOnly: query.unassignedOnly || undefined,
+      mineOnly: query.mineOnly || undefined,
       startTime: query.range?.[0],
       endTime: query.range?.[1],
     })
@@ -201,6 +248,8 @@ async function doExport() {
       keyword: query.keyword || undefined,
       feedbackStatus: query.overdueOnly ? 'pending' : query.status || undefined,
       overdueOnly: query.overdueOnly || undefined,
+      unassignedOnly: query.unassignedOnly || undefined,
+      mineOnly: query.mineOnly || undefined,
       startTime: query.range?.[0],
       endTime: query.range?.[1],
     })
@@ -210,12 +259,17 @@ async function doExport() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   const overdue = route.query.overdueOnly
   if (overdue === '1' || overdue === 'true') {
     query.overdueOnly = true
     query.status = 'pending'
   }
+  const data = await listUsers({ page: 1, size: 100 })
+  assigneeOptions.value = (data.items || []).map((u) => ({
+    label: u.nickname || u.username || u.id,
+    value: u.id,
+  }))
   load()
 })
 </script>
@@ -241,6 +295,14 @@ onMounted(() => {
             <span class="muted">{{ t('feedback.overdueOnly') }}</span>
             <NSwitch v-model:value="query.overdueOnly" @update:value="search" />
           </NSpace>
+          <NSpace align="center">
+            <span class="muted">{{ t('feedback.unassignedOnly') }}</span>
+            <NSwitch v-model:value="query.unassignedOnly" @update:value="search" />
+          </NSpace>
+          <NSpace align="center">
+            <span class="muted">{{ t('feedback.mineOnly') }}</span>
+            <NSwitch v-model:value="query.mineOnly" @update:value="search" />
+          </NSpace>
           <NDatePicker
             v-model:value="query.range"
             type="datetimerange"
@@ -249,6 +311,12 @@ onMounted(() => {
           />
           <NButton type="primary" @click="search">{{ t('common.search') }}</NButton>
         </NSpace>
+        <NButton
+          v-if="auth.hasPermission('admin:feedback-dispatch-rule:list')"
+          @click="router.push('/admin/feedback-dispatch-rules')"
+        >
+          {{ t('feedback.dispatchRules') }}
+        </NButton>
         <NButton
           v-if="auth.hasPermission('admin:feedback:export')"
           :loading="exporting"
@@ -261,7 +329,7 @@ onMounted(() => {
         :columns="columns"
         :data="items"
         :loading="loading"
-        :scroll-x="1100"
+        :scroll-x="1200"
         :pagination="{
           page: query.page,
           pageSize: query.size,
@@ -299,6 +367,30 @@ onMounted(() => {
         <NSpace justify="end">
           <NButton @click="showReply = false">{{ t('common.cancel') }}</NButton>
           <NButton type="primary" :loading="replySaving" @click="submitReply">{{
+            t('common.submit')
+          }}</NButton>
+        </NSpace>
+      </template>
+    </NModal>
+
+    <NModal
+      v-model:show="showAssign"
+      preset="card"
+      :title="t('feedback.assignTitle')"
+      style="width: 480px"
+    >
+      <p class="reply-quote">{{ assignTarget?.content }}</p>
+      <NSelect
+        v-model:value="assigneeId"
+        clearable
+        filterable
+        :options="assigneeOptions"
+        :placeholder="t('feedback.assigneePlaceholder')"
+      />
+      <template #footer>
+        <NSpace justify="end">
+          <NButton @click="showAssign = false">{{ t('common.cancel') }}</NButton>
+          <NButton type="primary" :loading="assignSaving" @click="submitAssign">{{
             t('common.submit')
           }}</NButton>
         </NSpace>

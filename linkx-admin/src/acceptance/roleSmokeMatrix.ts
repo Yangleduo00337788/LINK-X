@@ -55,6 +55,8 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
     allowPerms: [
       'admin:dashboard:view',
       'admin:feedback:reply',
+      'admin:feedback:assign',
+      'admin:feedback-dispatch-rule:list',
       'admin:notice:create',
       'admin:user:export',
       'admin:recommend:list',
@@ -73,6 +75,7 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
     allowRoutes: [
       '/admin/dashboard',
       '/admin/feedback',
+      '/admin/feedback-dispatch-rules',
       '/admin/notices',
       '/admin/statistics',
       '/admin/recommends',
@@ -189,6 +192,11 @@ export const ADMIN_ROUTE_PERMISSIONS: Array<{ path: string; permission?: string;
   { path: '/admin/risk-events', permission: 'admin:risk-event:list', name: 'RiskEvents' },
   { path: '/admin/rate-limits', permission: 'admin:rate-limit:list', name: 'RateLimits' },
   { path: '/admin/feedback', permission: 'admin:feedback:list', name: 'FeedbackList' },
+  {
+    path: '/admin/feedback-dispatch-rules',
+    permission: 'admin:feedback-dispatch-rule:list',
+    name: 'FeedbackDispatchRules',
+  },
   { path: '/admin/reviews', permission: 'admin:review:list', name: 'ReviewList' },
   { path: '/admin/reports', permission: 'admin:review:list', name: 'ReportList' },
   {
