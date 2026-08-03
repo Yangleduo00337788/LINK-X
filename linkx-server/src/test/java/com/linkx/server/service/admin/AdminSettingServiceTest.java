@@ -132,6 +132,12 @@ class AdminSettingServiceTest {
             dto.setSupportEmail("support@test.com");
             dto.setSupportPhone("400-000");
             dto.setFeedbackSlaHours(48);
+            dto.setFeedbackEscalationEnabled(true);
+            dto.setFeedbackEscalationAutoReassign(true);
+            dto.setFeedbackEscalationIntervalHours(12);
+            dto.setReviewSlaHours(48);
+            dto.setReviewEscalationEnabled(false);
+            dto.setReviewEscalationIntervalHours(24);
             AdminSettingVO vo = service.updateClientSide(dto, OPERATOR_ID);
             assertEquals("2.0.0", vo.getClient().getAppVersion());
             assertEquals("beta", vo.getClient().getAppChannel());
@@ -149,6 +155,12 @@ class AdminSettingServiceTest {
             dto.setMaxUploadBytes(10_485_760L);
             dto.setSensitiveFilterEnabled(true);
             dto.setFeedbackSlaHours(24);
+            dto.setFeedbackEscalationEnabled(false);
+            dto.setFeedbackEscalationAutoReassign(true);
+            dto.setFeedbackEscalationIntervalHours(24);
+            dto.setReviewSlaHours(24);
+            dto.setReviewEscalationEnabled(false);
+            dto.setReviewEscalationIntervalHours(24);
             CustomException ex = assertThrows(CustomException.class,
                     () -> service.updateClientSide(dto, OPERATOR_ID));
             assertEquals(400, ex.getCode());

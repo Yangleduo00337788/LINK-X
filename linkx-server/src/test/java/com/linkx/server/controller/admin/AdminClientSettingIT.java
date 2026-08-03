@@ -57,7 +57,13 @@ class AdminClientSettingIT extends BaseIntegrationTest {
                         "sensitiveFilterEnabled":%s,
                         "supportEmail":"%s",
                         "supportPhone":"%s",
-                        "feedbackSlaHours":%d
+                        "feedbackSlaHours":%d,
+                        "feedbackEscalationEnabled":%s,
+                        "feedbackEscalationAutoReassign":%s,
+                        "feedbackEscalationIntervalHours":%d,
+                        "reviewSlaHours":%d,
+                        "reviewEscalationEnabled":%s,
+                        "reviewEscalationIntervalHours":%d
                       }
                     }
                     """.formatted(
@@ -72,7 +78,13 @@ class AdminClientSettingIT extends BaseIntegrationTest {
                     client.path("sensitiveFilterEnabled").asBoolean(true),
                     email,
                     client.path("supportPhone").asText(""),
-                    client.path("feedbackSlaHours").asInt(24)
+                    client.path("feedbackSlaHours").asInt(24),
+                    client.path("feedbackEscalationEnabled").asBoolean(false),
+                    client.path("feedbackEscalationAutoReassign").asBoolean(true),
+                    client.path("feedbackEscalationIntervalHours").asInt(24),
+                    client.path("reviewSlaHours").asInt(24),
+                    client.path("reviewEscalationEnabled").asBoolean(false),
+                    client.path("reviewEscalationIntervalHours").asInt(24)
             );
             mockMvc.perform(put("/admin/settings")
                             .header("Authorization", admin.bearer())
@@ -187,7 +199,13 @@ class AdminClientSettingIT extends BaseIntegrationTest {
                   "sensitiveFilterEnabled":%s,
                   "supportEmail":"%s",
                   "supportPhone":"%s",
-                  "feedbackSlaHours":%d
+                  "feedbackSlaHours":%d,
+                  "feedbackEscalationEnabled":%s,
+                  "feedbackEscalationAutoReassign":%s,
+                  "feedbackEscalationIntervalHours":%d,
+                  "reviewSlaHours":%d,
+                  "reviewEscalationEnabled":%s,
+                  "reviewEscalationIntervalHours":%d
                 }
                 """.formatted(
                 client.path("captchaEnabled").asBoolean(false),
@@ -201,7 +219,13 @@ class AdminClientSettingIT extends BaseIntegrationTest {
                 sensitiveEnabled,
                 email == null ? "" : email,
                 phone == null ? "" : phone,
-                client.path("feedbackSlaHours").asInt(24)
+                client.path("feedbackSlaHours").asInt(24),
+                client.path("feedbackEscalationEnabled").asBoolean(false),
+                client.path("feedbackEscalationAutoReassign").asBoolean(true),
+                client.path("feedbackEscalationIntervalHours").asInt(24),
+                client.path("reviewSlaHours").asInt(24),
+                client.path("reviewEscalationEnabled").asBoolean(false),
+                client.path("reviewEscalationIntervalHours").asInt(24)
         );
         mockMvc.perform(put("/admin/settings/client")
                         .header("Authorization", admin.bearer())

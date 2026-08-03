@@ -91,11 +91,10 @@ async function login(username: string, password: string) {
 }
 
 const creds = parseCredentials()
-const liveEnabled = process.env.ROLE_SMOKE_LIVE === '1' || creds.length > 0
 
-describe.skipIf(!liveEnabled)('五角色生产 API 抽检 @live', () => {
-  if (!liveEnabled) {
-    it.skip('skipped — set ROLE_SMOKE_LIVE=1 or credentials', () => {})
+describe('五角色生产 API 抽检 @live', () => {
+  if (creds.length === 0) {
+    it.skip('skipped — set ROLE_SMOKE_CREDENTIALS or ADMIN_SMOKE_* env vars', () => {})
     return
   }
 

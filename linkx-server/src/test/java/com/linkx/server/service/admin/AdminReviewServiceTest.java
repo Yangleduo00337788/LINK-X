@@ -3,6 +3,7 @@ package com.linkx.server.service.admin;
 import com.linkx.server.controller.admin.dto.AdminReviewBatchDTO;
 import com.linkx.server.controller.admin.dto.AdminReviewQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminReviewResolveDTO;
+import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.entity.Favorite;
 import com.linkx.server.entity.Feedback;
@@ -67,16 +68,18 @@ class AdminReviewServiceTest {
     @Mock ImConversationMapper conversationMapper;
     @Mock GroupAssetMapper groupAssetMapper;
     @Mock FavoriteMapper favoriteMapper;
+    @Mock LinkxProperties linkxProperties;
 
     private AdminReviewServiceImpl service;
 
     @BeforeEach
     void setUp() {
+        lenient().when(linkxProperties.getApp()).thenReturn(new LinkxProperties.App());
         service = new AdminReviewServiceImpl(
                 reviewTaskMapper, feedbackMapper, sysUserMapper, notificationService, imPushService,
                 adminEventPublisher, mediaUrlService, adminUserService, rbacService, chatService,
                 momentsService, groupAnnouncementService, groupAssetService, favoriteService,
-                groupService, conversationMapper, groupAssetMapper, favoriteMapper);
+                groupService, conversationMapper, groupAssetMapper, favoriteMapper, linkxProperties);
     }
 
     private SysReviewTask pending(Long id) {

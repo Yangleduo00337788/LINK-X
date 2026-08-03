@@ -30,6 +30,10 @@ spring:
       mode: always
       schema-locations: classpath:schema.sql
 
+  autoconfigure:
+    exclude:
+      - com.aizuda.snailjob.client.starter.SnailJobClientJobCoreAutoConfiguration
+
   data:
     redis:
       # 测试仍依赖真实 Redis（限流/token/属主登记等）；需本机 6379 可用
@@ -106,6 +110,13 @@ linkx:
     start-tls: false
     ssl: false
     code-expire-minutes: 10
+
+  snail-job:
+    sync-jobs-on-startup: false
+
+# ---------- SnailJob（集成测试默认关闭，避免依赖调度服务端）----------
+snail-job:
+  enabled: false
 
 # ---------- 测试日志尽量安静 ----------
 logging:

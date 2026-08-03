@@ -334,6 +334,8 @@ CREATE TABLE IF NOT EXISTS sys_feedback (
   reply_time DATETIME,
   assignee_id BIGINT,
   assigned_at DATETIME,
+  escalated_at DATETIME,
+  escalation_count INT NOT NULL DEFAULT 0,
   create_time DATETIME
 );
 
@@ -872,6 +874,12 @@ CREATE TABLE IF NOT EXISTS sys_runtime_setting (
   support_email VARCHAR(128),
   support_phone VARCHAR(64),
   feedback_sla_hours INT NOT NULL DEFAULT 24,
+  feedback_escalation_enabled TINYINT NOT NULL DEFAULT 0,
+  feedback_escalation_auto_reassign TINYINT NOT NULL DEFAULT 1,
+  feedback_escalation_interval_hours INT NOT NULL DEFAULT 24,
+  review_sla_hours INT NOT NULL DEFAULT 24,
+  review_escalation_enabled TINYINT NOT NULL DEFAULT 0,
+  review_escalation_interval_hours INT NOT NULL DEFAULT 24,
   mail_host VARCHAR(255),
   mail_port INT,
   mail_username VARCHAR(255),
@@ -924,6 +932,8 @@ CREATE TABLE IF NOT EXISTS sys_review_task (
   status VARCHAR(16) NOT NULL DEFAULT 'pending',
   feedback_id BIGINT,
   assignee_id BIGINT,
+  escalated_at DATETIME,
+  escalation_count INT NOT NULL DEFAULT 0,
   resolution VARCHAR(1000),
   resolved_by BIGINT,
   resolved_at DATETIME,

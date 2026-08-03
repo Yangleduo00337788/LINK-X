@@ -63,7 +63,15 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
   },
   {
     roleCode: 'ops_admin',
-    mustMenus: ['dashboard', 'feedback', 'notices', 'statistics', 'recommends', 'activities', 'homepage-orchestration'],
+    mustMenus: [
+      'dashboard',
+      'feedback',
+      'notices',
+      'statistics',
+      'recommends',
+      'activities',
+      'homepage-orchestration',
+    ],
     mustNotMenus: ['settings', 'risk-event', 'devices', 'rate-limit'],
     allowPerms: [
       'admin:dashboard:view',
@@ -106,9 +114,22 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
   },
   {
     roleCode: 'audit_admin',
-    mustMenus: ['review-task', 'report-task', 'announcement-review', 'risk-event', 'devices', 'abnormal-access'],
+    mustMenus: [
+      'review-task',
+      'report-task',
+      'announcement-review',
+      'risk-event',
+      'devices',
+      'abnormal-access',
+    ],
     mustNotMenus: ['notices', 'statistics', 'settings', 'rate-limit'],
-    allowPerms: ['admin:review:approve', 'admin:review:delete-content', 'admin:risk-event:handle', 'admin:user:freeze', 'admin:abnormal-access:list'],
+    allowPerms: [
+      'admin:review:approve',
+      'admin:review:delete-content',
+      'admin:risk-event:handle',
+      'admin:user:freeze',
+      'admin:abnormal-access:list',
+    ],
     denyPerms: [
       'admin:notice:create',
       'admin:setting:edit',
@@ -153,7 +174,13 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
       'admin:menu:delete',
       'admin:role:assign-permission',
     ],
-    allowRoutes: ['/admin/risk-events', '/admin/devices', '/admin/blacklist', '/admin/rate-limits', '/admin/abnormal-access'],
+    allowRoutes: [
+      '/admin/risk-events',
+      '/admin/devices',
+      '/admin/blacklist',
+      '/admin/rate-limits',
+      '/admin/abnormal-access',
+    ],
     denyRoutes: ['/admin/feedback', '/admin/notices', '/admin/menus'],
   },
   {

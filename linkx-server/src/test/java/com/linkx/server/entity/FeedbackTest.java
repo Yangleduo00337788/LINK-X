@@ -84,7 +84,7 @@ class FeedbackTest {
         @DisplayName("全参构造器应创建完整对象")
         void allArgsConstructorWorks() {
             Date now = new Date();
-            Feedback feedback = new Feedback(1L, 100L, "user", "bug", "内容", "contact", "open", "reply", now, null, null, now);
+            Feedback feedback = new Feedback(1L, 100L, "user", "bug", "内容", "contact", "open", "reply", now, null, null, null, null, now);
 
             assertEquals(1L, feedback.getId());
             assertEquals(100L, feedback.getUserId());

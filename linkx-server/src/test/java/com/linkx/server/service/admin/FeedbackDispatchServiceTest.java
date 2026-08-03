@@ -79,6 +79,29 @@ class FeedbackDispatchServiceTest {
         verify(feedbackMapper, never()).update(any());
     }
 
+    @Test
+    @DisplayName("tryReassign 匹配到新处理人时改派")
+    void tryReassign_updatesWhenDifferent() {
+        when(ruleMapper.selectListByQuery(any(QueryWrapper.class)))
+                .thenReturn(List.of(rule("r1", "bug", null, 88L, 1)));
+
+        Feedback fb = Feedback.builder().id(3L).assigneeId(10L).type("bug").content("x").build();
+        assertTrue(service.tryReassign(fb));
+        assertEquals(88L, fb.getAssigneeId());
+        verify(feedbackMapper).update(fb);
+    }
+
+    @Test
+    @DisplayName("tryReassign 无新处理人时跳过")
+    void tryReassign_skipWhenSame() {
+        when(ruleMapper.selectListByQuery(any(QueryWrapper.class)))
+                .thenReturn(List.of(rule("r1", "bug", null, 10L, 1)));
+
+        Feedback fb = Feedback.builder().id(4L).assigneeId(10L).type("bug").content("x").build();
+        assertFalse(service.tryReassign(fb));
+        verify(feedbackMapper, never()).update(any());
+    }
+
     private static SysFeedbackDispatchRule rule(String name, String type, String keyword, Long assignee, int priority) {
         return SysFeedbackDispatchRule.builder()
                 .name(name)
