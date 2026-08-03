@@ -121,9 +121,19 @@ const columns = computed<DataTableColumns<FeedbackItem>>(() => {
     {
       title: t('common.actions'),
       key: 'actions',
-      width: 280,
+      width: 320,
       render: (row) =>
         h(NSpace, { size: 8 }, () => [
+          h(
+            NButton,
+            {
+              size: 'tiny',
+              type: 'primary',
+              secondary: true,
+              onClick: () => router.push(`/admin/feedback/${row.id}`),
+            },
+            () => t('feedback.viewDetail')
+          ),
           auth.hasPermission('admin:feedback:assign')
             ? h(
                 NButton,
@@ -329,7 +339,7 @@ onMounted(async () => {
         :columns="columns"
         :data="items"
         :loading="loading"
-        :scroll-x="1200"
+        :scroll-x="1240"
         :pagination="{
           page: query.page,
           pageSize: query.size,

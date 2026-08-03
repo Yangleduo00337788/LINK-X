@@ -196,6 +196,7 @@ export const ADMIN_ROUTE_PERMISSIONS: Array<{ path: string; permission?: string;
   { path: '/admin/risk-events', permission: 'admin:risk-event:list', name: 'RiskEvents' },
   { path: '/admin/rate-limits', permission: 'admin:rate-limit:list', name: 'RateLimits' },
   { path: '/admin/feedback', permission: 'admin:feedback:list', name: 'FeedbackList' },
+  { path: '/admin/feedback/:id', permission: 'admin:feedback:list', name: 'FeedbackDetail' },
   {
     path: '/admin/feedback-dispatch-rules',
     permission: 'admin:feedback-dispatch-rule:list',

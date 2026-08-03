@@ -18,7 +18,12 @@ const title = computed(() => {
   return key ? t(key) : t('route.admin')
 })
 
-const showBack = computed(() => route.name === 'UserDetail' || route.meta.hidden === true)
+const showBack = computed(
+  () =>
+    route.name === 'UserDetail' ||
+    route.name === 'FeedbackDetail' ||
+    route.meta.hidden === true
+)
 
 const crumbs = computed(() => {
   void locale.value
@@ -29,6 +34,9 @@ const crumbs = computed(() => {
   if (route.path.startsWith('/admin/users/') && route.name === 'UserDetail') {
     items.push({ label: t('route.users'), path: '/admin/users' })
     items.push({ label: t('route.userDetail') })
+  } else if (route.path.startsWith('/admin/feedback/') && route.name === 'FeedbackDetail') {
+    items.push({ label: t('route.feedback'), path: '/admin/feedback' })
+    items.push({ label: t('route.feedbackDetail') })
   } else if (titleKey && route.path !== '/admin/dashboard') {
     items.push({ label: t(titleKey) })
   } else if (route.path === '/admin/dashboard') {

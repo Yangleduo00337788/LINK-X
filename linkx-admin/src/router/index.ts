@@ -116,6 +116,12 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: 'route.feedback', permission: 'admin:feedback:list' },
       },
       {
+        path: 'feedback/:id',
+        name: 'FeedbackDetail',
+        component: () => import('@/views/FeedbackDetailView.vue'),
+        meta: { titleKey: 'route.feedbackDetail', permission: 'admin:feedback:list', hidden: true },
+      },
+      {
         path: 'feedback-dispatch-rules',
         name: 'FeedbackDispatchRules',
         component: () => import('@/views/FeedbackDispatchRuleListView.vue'),
