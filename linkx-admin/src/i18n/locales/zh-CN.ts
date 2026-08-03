@@ -1165,6 +1165,9 @@ export default {
     notFound: '反馈不存在或无权查看',
     assignedAt: '指派时间',
     noReplyYet: '暂无回复',
+    conversation: '对话记录',
+    senderAdmin: '官方客服',
+    senderUser: '用户',
     typeBug: '缺陷反馈',
     typeSuggestion: '功能建议',
     typeOther: '其他',
@@ -1366,5 +1369,14 @@ export default {
     notFoundTitle: '页面不存在',
     notFoundDesc: '请检查地址是否正确',
     backHome: '返回首页',
+  },
+  acceptance: {
+    roles: {
+      superAdmin: '超级管理员',
+      opsAdmin: '运营管理员',
+      auditAdmin: '审核管理员',
+      securityAdmin: '安全管理员',
+      readonlyObserver: '只读观察员',
+    },
   },
 }

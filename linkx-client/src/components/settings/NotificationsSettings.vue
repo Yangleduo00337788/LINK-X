@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { NSwitch, NIcon, NRadioGroup, NRadio, NButton, NTimePicker } from 'naive-ui'
 import { MusicalNotesOutline, PlayCircleOutline, MoonOutline, OptionsOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
@@ -24,7 +25,19 @@ const {
 } = storeToRefs(appSettingsStore)
 const { t } = useI18n()
 
-const tones = listTones()
+const tones = computed(() =>
+  listTones().map(tone => ({
+    id: tone.id,
+    label: t(`notifications.tonePresets.${tone.id}.label` as 'notifications.tonePresets.default.label'),
+    description: t(
+      `notifications.tonePresets.${tone.id}.description` as 'notifications.tonePresets.default.description'
+    )
+  }))
+)
+
+const activeToneLabel = computed(
+  () => tones.value.find(x => x.id === notifyTone.value)?.label || ''
+)
 
 function toggleSwitch(key: Parameters<typeof appSettingsStore.scheduleSave>[0]) {
   unlockAudio()
@@ -223,7 +236,7 @@ function onQuietEnd(v: number | null) {
           <template #icon>
             <n-icon :component="PlayCircleOutline" />
           </template>
-          {{ t('notifications.previewTone', { label: tones.find(x => x.id === notifyTone)?.label || '' }) }}
+          {{ t('notifications.previewTone', { label: activeToneLabel }) }}
         </n-button>
       </div>
       <p class="local-note">{{ t('notifications.desktopLocalOnly') }}</p>

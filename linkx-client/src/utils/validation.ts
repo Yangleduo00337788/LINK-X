@@ -1,3 +1,5 @@
+import { t } from '../i18n'
+
 const USERNAME_PATTERN = /^[a-zA-Z0-9_]+$/
 
 export interface PasswordPolicy {
@@ -28,9 +30,9 @@ export function normalizePasswordPolicy(policy?: PasswordPolicy | null): Require
 
 export function validateUsername(username: string): string | null {
   const value = username.trim()
-  if (!value) return '请输入用户名'
-  if (value.length < 4 || value.length > 32) return '用户名长度为 4-32 个字符'
-  if (!USERNAME_PATTERN.test(value)) return '用户名只能包含字母、数字和下划线'
+  if (!value) return t('validation.usernameRequired')
+  if (value.length < 4 || value.length > 32) return t('validation.usernameLength')
+  if (!USERNAME_PATTERN.test(value)) return t('validation.usernamePattern')
   return null
 }
 
@@ -42,13 +44,13 @@ export function validatePassword(
   forSetPassword: boolean | PasswordPolicy = false,
 ): string | null {
   const value = password.trim()
-  if (!value) return '请输入密码'
+  if (!value) return t('validation.passwordRequired')
 
   const isSet =
     forSetPassword === true || (typeof forSetPassword === 'object' && forSetPassword !== null)
   if (!isSet) {
     // 登录：不按策略卡长度，避免历史短密码无法登录
-    if (value.length > 128) return '密码过长'
+    if (value.length > 128) return t('validation.passwordTooLong')
     return null
   }
 
@@ -56,30 +58,30 @@ export function validatePassword(
     typeof forSetPassword === 'object' ? forSetPassword : undefined,
   )
   if (value.length < policy.minLength || value.length > policy.maxLength) {
-    return `密码长度为 ${policy.minLength}-${policy.maxLength} 个字符`
+    return t('validation.passwordLength', { min: policy.minLength, max: policy.maxLength })
   }
   if (policy.requireUpperLower) {
     if (!/[A-Z]/.test(value) || !/[a-z]/.test(value)) {
-      return '密码须同时包含大写和小写字母'
+      return t('validation.passwordUpperLower')
     }
   }
   if (policy.requireDigit && !/\d/.test(value)) {
-    return '密码须包含数字'
+    return t('validation.passwordDigit')
   }
   if (policy.requireSpecial && /^[A-Za-z0-9]+$/.test(value)) {
-    return '密码须包含特殊字符'
+    return t('validation.passwordSpecial')
   }
   return null
 }
 
 export function validateNickname(nickname: string): string | null {
   const value = nickname.trim()
-  if (!value) return '请输入昵称'
-  if (value.length > 64) return '昵称长度为 1-64 个字符'
+  if (!value) return t('validation.nicknameRequired')
+  if (value.length > 64) return t('validation.nicknameLength')
   return null
 }
 
 export function validateLockPin(pin: string): string | null {
-  if (!/^\d{4,6}$/.test(pin)) return '锁屏密码须为 4-6 位数字'
+  if (!/^\d{4,6}$/.test(pin)) return t('validation.lockPinFormat')
   return null
 }

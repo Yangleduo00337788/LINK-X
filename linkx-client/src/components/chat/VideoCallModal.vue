@@ -8,8 +8,10 @@ import { Mic, MicOff, Videocam, VideocamOff, Call } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useCallStore } from '../../stores/call'
 import { useAppStore } from '../../stores/app'
+import { useI18n } from '../../i18n'
 
 const message = useMessage()
+const { t } = useI18n()
 const callStore = useCallStore()
 const appStore = useAppStore()
 const {
@@ -28,9 +30,16 @@ const localVideoRef = ref<HTMLVideoElement | null>(null)
 const remoteVideoRef = ref<HTMLVideoElement | null>(null)
 
 const statusText = computed(() => {
-  if (phase.value === 'outgoing') return `正在呼叫 ${peerName.value || '好友'}…`
-  if (phase.value === 'connecting') return '正在接通…'
-  return `与 ${peerName.value || '好友'} 视频通话中`
+  const peer = peerName.value || t('modals.friend')
+  if (phase.value === 'outgoing') return t('modals.callingPeer', { name: peer })
+  if (phase.value === 'connecting') return t('modals.connectingCall')
+  return t('modals.videoWithPeer', { name: peer })
+})
+
+const placeholderText = computed(() => {
+  if (phase.value === 'outgoing') return t('modals.waitAnswer')
+  if (phase.value === 'connecting') return t('modals.connectingCall')
+  return t('modals.waitingRemoteVideo')
 })
 
 watch(errorMessage, msg => {
@@ -109,15 +118,21 @@ async function hangUp() {
             playsinline
           />
           <div v-if="!remoteStream" class="video-placeholder">
-            <span class="ph-text">
-              {{ phase === 'outgoing' ? '等待接听' : phase === 'connecting' ? '正在接通…' : '等待对方画面' }}
-            </span>
+            <span class="ph-text">{{ placeholderText }}</span>
           </div>
           <div class="state-badges">
-            <span class="badge" :class="{ off: !micOn }" :title="micOn ? '麦克风已开' : '麦克风已关'">
+            <span
+              class="badge"
+              :class="{ off: !micOn }"
+              :title="micOn ? t('modals.micOnTitle') : t('modals.micOffTitle')"
+            >
               <n-icon :component="micOn ? Mic : MicOff" :size="16" />
             </span>
-            <span class="badge" :class="{ off: !cameraOn }" :title="cameraOn ? '摄像头已开' : '摄像头已关'">
+            <span
+              class="badge"
+              :class="{ off: !cameraOn }"
+              :title="cameraOn ? t('modals.cameraOnTitle') : t('modals.cameraOffTitle')"
+            >
               <n-icon :component="cameraOn ? Videocam : VideocamOff" :size="16" />
             </span>
           </div>
@@ -130,23 +145,23 @@ async function hangUp() {
               muted
               playsinline
             />
-            <span v-if="!localStream" class="pip-name">正在打开摄像头…</span>
-            <span v-else-if="!cameraOn" class="pip-name">摄像头已关</span>
+            <span v-if="!localStream" class="pip-name">{{ t('modals.openingCamera') }}</span>
+            <span v-else-if="!cameraOn" class="pip-name">{{ t('modals.cameraOffLabel') }}</span>
             <span v-else class="pip-name">{{ userProfile.nickname }}</span>
           </div>
         </div>
         <div class="call-controls">
           <button type="button" class="ctl" :class="{ off: !micOn }" @click="callStore.toggleMic()">
             <n-icon :component="micOn ? Mic : MicOff" :size="26" />
-            <span>{{ micOn ? '关闭麦克风' : '开启麦克风' }}</span>
+            <span>{{ micOn ? t('modals.muteMic') : t('modals.unmuteMic') }}</span>
           </button>
           <button type="button" class="ctl" :class="{ off: !cameraOn }" @click="callStore.toggleCamera()">
             <n-icon :component="cameraOn ? Videocam : VideocamOff" :size="26" />
-            <span>{{ cameraOn ? '关闭视频' : '开启视频' }}</span>
+            <span>{{ cameraOn ? t('modals.muteVideo') : t('modals.unmuteVideo') }}</span>
           </button>
           <button type="button" class="ctl hangup" @click="hangUp">
             <n-icon :component="Call" :size="26" />
-            <span>挂断</span>
+            <span>{{ t('conference.hangUp') }}</span>
           </button>
         </div>
       </div>

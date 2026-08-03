@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { t } from '../i18n'
 import {
   ICE_RESTART_MAX_ATTEMPTS,
   WEAK_NET_CONFIRM_CHECKS,
@@ -46,7 +47,7 @@ describe('callNetworkPolicy — ICE restart 模拟', () => {
       action: 'restart',
       nextAttempts: 1,
       disableCamera: true,
-      message: '网络波动，正在尝试重连…'
+      message: t('errors.networkFluctuating')
     })
   })
 
@@ -74,7 +75,7 @@ describe('callNetworkPolicy — ICE restart 模拟', () => {
         cameraOn: true,
         isActive: true
       })
-    ).toEqual({ action: 'give_up', message: '通话连接已断开' })
+    ).toEqual({ action: 'give_up', message: t('errors.callDisconnected') })
   })
 
   it('第二次 restart 仍可执行（未达上限）', () => {
@@ -137,7 +138,7 @@ describe('callNetworkPolicy — 弱网关视频模拟', () => {
     })
     expect(d).toEqual({
       action: 'disable_camera',
-      message: '网络较差，已自动关闭视频以保持通话'
+      message: t('errors.weakNetDisableVideo')
     })
   })
 

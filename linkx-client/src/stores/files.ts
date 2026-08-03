@@ -5,6 +5,7 @@
 import { defineStore } from 'pinia'
 import * as filesApi from '../api/files'
 import { formatFileSize } from '../utils/file'
+import { t } from '../i18n'
 
 export interface LocalFileItem {
   id: string
@@ -105,7 +106,7 @@ export const useFilesStore = defineStore('files', {
         const res = await filesApi.listCloudFiles(category, 100)
         if (res.code === 200 && res.data) {
           this.items = res.data.map(f => {
-            const title = f.title || f.fileName || '文件'
+            const title = f.title || f.fileName || t('defaults.file')
             const ext = extOf(title)
             const sizeBytes = normalizeFileSize(f.fileSize as number | string | null | undefined)
             const convName = (f.conversationName || '').trim()
@@ -117,7 +118,7 @@ export const useFilesStore = defineStore('files', {
               time: formatTime(f.createTime as number | string | null | undefined),
               timeFull: formatTimeFull(f.createTime as number | string | null | undefined),
               type: typeOf(ext, f.category),
-              sender: f.senderName || convName || '未知',
+              sender: f.senderName || convName || t('defaults.unknown'),
               fileUrl: f.fileUrl,
               conversationId: f.conversationId != null ? String(f.conversationId) : undefined,
               // 私聊会话常无群名：用发送者昵称作为文件夹名，避免显示「未分组」
@@ -144,8 +145,8 @@ export const useFilesStore = defineStore('files', {
         title: fileName,
         size: fileSize,
         sizeBytes: 0,
-        time: '刚刚',
-        timeFull: '刚刚',
+        time: t('defaults.justNow'),
+        timeFull: t('defaults.justNow'),
         type: typeOf(ext),
         sender,
         fileUrl,

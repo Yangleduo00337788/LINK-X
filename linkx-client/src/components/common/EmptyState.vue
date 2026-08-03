@@ -7,6 +7,9 @@
  */
 // Naive UI 图标组件
 import { NIcon } from 'naive-ui'
+import { useI18n } from '../../i18n'
+
+useI18n()
 
 // 定义组件可接收的属性：图标、标题、描述（均为可选）
 defineProps<{

@@ -1,6 +1,8 @@
 /** 好友展示名：（昵称）备注；无备注时仅昵称 */
+import { t } from '../i18n'
+
 export function formatFriendDisplayName(nickname?: string | null, remark?: string | null): string {
-  const nick = (nickname || '').trim() || '好友'
+  const nick = (nickname || '').trim() || t('modals.friend')
   const r = (remark || '').trim()
   return r ? `（${nick}）${r}` : nick
 }

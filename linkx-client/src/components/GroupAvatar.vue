@@ -5,6 +5,9 @@
  */
 import { computed, ref, watch } from 'vue'
 import { isDisplayableMediaUrl, normalizeMediaUrl } from '../utils/mediaUrl'
+import { useI18n } from '../i18n'
+
+const { t } = useI18n()
 
 export interface GroupAvatarFace {
   text?: string
@@ -114,7 +117,7 @@ function pickColor(seed: string): string {
       fontSize: `${size * 0.38}px`
     }"
   >
-    {{ (text || '群').charAt(0) }}
+    {{ (text || t('defaults.groupChar')).charAt(0) }}
   </div>
 </template>
 

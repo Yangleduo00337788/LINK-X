@@ -9,6 +9,9 @@ import * as friendApi from '../api/friend'
 import * as notificationApi from '../api/notification'
 import * as groupInvitationApi from '../api/groupInvitation'
 import { normalizeMediaUrl } from '../utils/mediaUrl'
+import type { InviteStatus } from '../types/inviteStatus'
+import { INVITE_STATUS } from '../types/inviteStatus'
+import { t } from '../i18n'
 
 /** 好友相关通知（加好友、验证等） */
 export interface FriendNotification {
@@ -24,7 +27,7 @@ export interface FriendNotification {
   createTime: string
   message: string
   source: string
-  status: '等待验证' | '已同意' | '已拒绝'
+  status: InviteStatus
 }
 
 /** 群邀请通知（来自 {@code /group/invitations}） */
@@ -39,7 +42,7 @@ export interface GroupNotification {
   message?: string
   date: string              // 人类可读日期
   createTime: string
-  status: '等待验证' | '已同意' | '已拒绝' | '已过期'
+  status: InviteStatus
 }
 
 /** 消息通知 */
@@ -68,17 +71,17 @@ function formatRequestDate(value: string): string {
   return `${y}/${m}/${d}`
 }
 
-function mapRequestStatus(status: FriendRequestItem['status']): FriendNotification['status'] {
-  if (status === 1) return '已同意'
-  if (status === 2) return '已拒绝'
-  return '等待验证'
+function mapRequestStatus(status: FriendRequestItem['status']): InviteStatus {
+  if (status === 1) return INVITE_STATUS.ACCEPTED
+  if (status === 2) return INVITE_STATUS.REJECTED
+  return INVITE_STATUS.PENDING
 }
 
-function mapInvitationStatus(status: number): GroupNotification['status'] {
-  if (status === 1) return '已同意'
-  if (status === 2) return '已拒绝'
-  if (status === 3) return '已过期'
-  return '等待验证'
+function mapInvitationStatus(status: number): InviteStatus {
+  if (status === 1) return INVITE_STATUS.ACCEPTED
+  if (status === 2) return INVITE_STATUS.REJECTED
+  if (status === 3) return INVITE_STATUS.EXPIRED
+  return INVITE_STATUS.PENDING
 }
 
 function mapInvitation(item: groupInvitationApi.GroupInvitation): GroupNotification {
@@ -87,9 +90,9 @@ function mapInvitation(item: groupInvitationApi.GroupInvitation): GroupNotificat
     id,
     invitationId: id,
     conversationId: toIdString(item.conversationId),
-    groupName: item.groupName || '群聊',
+    groupName: item.groupName || t('defaults.group'),
     inviterUserId: toIdString(item.inviterUserId),
-    inviter: item.inviterNickname || '用户',
+    inviter: item.inviterNickname || t('defaults.user'),
     inviterAvatar: normalizeMediaUrl(item.inviterAvatar) || undefined,
     message: item.message || '',
     date: formatRequestDate(String(item.createTime ?? '')),
@@ -115,10 +118,10 @@ function mapRequestItem(item: FriendRequestItem): FriendNotification {
     direction: item.direction,
     avatar: normalizeMediaUrl(item.peerAvatar) || '',
     name: item.peerNickname || item.peerUsername,
-    action: isIncoming ? '请求加为好友' : '正在验证你的邀请',
+    action: '',
     date: formatRequestDate(item.createTime),
     createTime: item.createTime,
-    message: item.message || (isIncoming ? '' : '请求添加对方为好友'),
+    message: item.message || '',
     source: '',
     status: mapRequestStatus(item.status)
   }
@@ -128,7 +131,7 @@ function mapRawNotification(n: notificationApi.MessageNotificationVO): MessageNo
   return {
     id: String(n.id),
     senderId: String(n.senderId),
-    senderName: n.senderName || '用户',
+    senderName: n.senderName || t('defaults.user'),
     senderAvatar: normalizeMediaUrl(n.senderAvatar) || undefined,
     type: n.type,
     category: n.category,
@@ -153,12 +156,12 @@ export const useNotificationsStore = defineStore('notifications', {
   getters: {
     pendingFriendCount(state): number {
       return state.friendNotifs.filter(
-        n => n.direction === 'incoming' && n.status === '等待验证'
+        n => n.direction === 'incoming' && n.status === INVITE_STATUS.PENDING
       ).length
     },
     /** 待处理群邀请数（等待验证） */
     pendingGroupCount(state): number {
-      return state.groupNotifs.filter(n => n.status === '等待验证').length
+      return state.groupNotifs.filter(n => n.status === INVITE_STATUS.PENDING).length
     },
     /** 联系人导航角标：待处理好友申请 + 待处理群邀请 */
     contactsBadgeCount(): number {
@@ -252,20 +255,20 @@ export const useNotificationsStore = defineStore('notifications', {
     async acceptGroupInvitationAction(invitationId: string) {
       const res = await groupInvitationApi.acceptGroupInvitation(invitationId)
       if (res.code !== 200) {
-        throw new Error(res.message || '接受群邀请失败')
+        throw new Error(res.message || t('errors.acceptGroupInviteFailed'))
       }
       const n = this.groupNotifs.find(x => x.id === String(invitationId))
-      if (n) n.status = '已同意'
+      if (n) n.status = INVITE_STATUS.ACCEPTED
       return res.data
     },
 
     async rejectGroupInvitationAction(invitationId: string) {
       const res = await groupInvitationApi.rejectGroupInvitation(invitationId)
       if (res.code !== 200) {
-        throw new Error(res.message || '拒绝群邀请失败')
+        throw new Error(res.message || t('errors.rejectGroupInviteFailed'))
       }
       const n = this.groupNotifs.find(x => x.id === String(invitationId))
-      if (n) n.status = '已拒绝'
+      if (n) n.status = INVITE_STATUS.REJECTED
     },
 
     async fetchMessageNotifications() {
@@ -505,7 +508,7 @@ export const useNotificationsStore = defineStore('notifications', {
     async acceptFriendRequest(requestId: string) {
       const res = await friendApi.acceptFriendRequest(requestId)
       if (res.code !== 200) {
-        throw new Error(res.message || '同意好友申请失败')
+        throw new Error(res.message || t('errors.acceptFriendRequestFailed'))
       }
       await this.fetchFriendRequests()
       return this.friendNotifs.find(n => n.requestId === requestId)
@@ -514,7 +517,7 @@ export const useNotificationsStore = defineStore('notifications', {
     async rejectFriendRequest(requestId: string) {
       const res = await friendApi.rejectFriendRequest(requestId)
       if (res.code !== 200) {
-        throw new Error(res.message || '拒绝好友申请失败')
+        throw new Error(res.message || t('errors.rejectFriendRequestFailed'))
       }
       await this.fetchFriendRequests()
       return this.friendNotifs.find(n => n.requestId === requestId)

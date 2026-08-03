@@ -13,6 +13,8 @@ import { storeToRefs } from 'pinia'
 import { useNotificationsStore } from '../../stores/notifications'
 import { useAppStore } from '../../stores/app'
 import * as groupApi from '../../api/group'
+import { INVITE_STATUS } from '../../types/inviteStatus'
+import type { InviteStatus } from '../../types/inviteStatus'
 import { useI18n } from '../../i18n'
 
 const message = useMessage()
@@ -40,11 +42,12 @@ onMounted(() => {
   void fetchMessageNotifications()
 })
 
-function statusLabel(status: string) {
-  if (status === '等待验证') return t('contacts.waiting')
-  if (status === '已同意') return t('contacts.accepted')
-  if (status === '已拒绝') return t('contacts.rejected')
-  return status
+function statusLabel(status: InviteStatus | string) {
+  if (status === INVITE_STATUS.PENDING) return t('contacts.waiting')
+  if (status === INVITE_STATUS.ACCEPTED) return t('contacts.accepted')
+  if (status === INVITE_STATUS.REJECTED) return t('contacts.rejected')
+  if (status === INVITE_STATUS.EXPIRED) return t('contacts.expired')
+  return String(status)
 }
 
 async function handleAccept(id: string) {
@@ -121,7 +124,7 @@ const isEmpty = computed(() => !groupNotifs.value.length && !joinRequestNotifs.v
       <div v-if="isEmpty" class="empty">{{ t('contacts.emptyGroupNotif') }}</div>
       <div v-else class="notif-list">
         <div v-for="item in joinRequestNotifs" :key="'jr-' + item.id" class="notif-card">
-          <div class="group-icon">申</div>
+          <div class="group-icon">{{ t('contacts.joinApplyShort') }}</div>
           <div class="info">
             <div class="title-line">
               <span class="name">{{ t('modals.joinRequests') }}</span>
@@ -174,7 +177,7 @@ const isEmpty = computed(() => !groupNotifs.value.length && !joinRequestNotifs.v
             </div>
             <div class="message">{{ item.inviter }}：{{ item.message }}</div>
           </div>
-          <div v-if="item.status === '等待验证'" class="actions-right">
+          <div v-if="item.status === INVITE_STATUS.PENDING" class="actions-right">
             <button type="button" class="btn accept" @click="handleAccept(item.id)">
               {{ t('contacts.accept') }}
             </button>

@@ -3,6 +3,7 @@ package com.linkx.server.service.admin.impl;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.config.MailSenderHolder;
 import com.linkx.server.config.MailTemplateDefaults;
+import com.linkx.server.controller.admin.dto.AdminSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.AdminSideSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.ClientSideSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.LoginSettingUpdateDTO;
@@ -102,7 +103,47 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                 .build();
     }
 
-    private static int resolveFeedbackSlaHours(LinkxProperties.App app) {
+    @Override
+    @Transactional
+    public AdminSettingVO updateSettings(AdminSettingUpdateDTO dto, Long operatorId) {
+        if (dto == null || !hasAnySection(dto)) {
+            throw new CustomException(400, "至少提供一个配置分组");
+        }
+        if (dto.getRegister() != null) {
+            updateRegister(dto.getRegister(), operatorId);
+        }
+        if (dto.getLogin() != null) {
+            updateLogin(dto.getLogin(), operatorId);
+        }
+        if (dto.getPassword() != null) {
+            updatePassword(dto.getPassword(), operatorId);
+        }
+        if (dto.getAdmin() != null) {
+            updateAdminSide(dto.getAdmin(), operatorId);
+        }
+        if (dto.getClient() != null) {
+            updateClientSide(dto.getClient(), operatorId);
+        }
+        if (dto.getMail() != null) {
+            updateMail(dto.getMail(), operatorId);
+        }
+        if (dto.getMailTemplates() != null) {
+            updateMailTemplates(dto.getMailTemplates(), operatorId);
+        }
+        return getSettings();
+    }
+
+    private static boolean hasAnySection(AdminSettingUpdateDTO dto) {
+        return dto.getRegister() != null
+                || dto.getLogin() != null
+                || dto.getPassword() != null
+                || dto.getAdmin() != null
+                || dto.getClient() != null
+                || dto.getMail() != null
+                || dto.getMailTemplates() != null;
+    }
+
+    private int resolveFeedbackSlaHours(LinkxProperties.App app) {
         Integer hours = app != null ? app.getFeedbackSlaHours() : null;
         if (hours == null || hours < 1) {
             return 24;

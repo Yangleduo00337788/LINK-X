@@ -17,6 +17,9 @@ import { applyDocumentTheme } from '../utils/themeSync'
 import { isChatSocketConnected } from '../utils/chatSocket'
 // 登录页同步导入：自动登录需先画出登录窗再 loading，异步会先闪空白再跳主界面
 import LoginView from '../components/LoginView.vue'
+import { useI18n } from '../i18n'
+
+const { t } = useI18n()
 
 // 主界面懒加载，缩短登录态首屏体积
 const AppShell = defineAsyncComponent(() => import('../components/AppShell.vue'))
@@ -69,7 +72,7 @@ watch(isLoggedIn, syncWindowMode, { immediate: true, flush: 'post' })
     <Suspense v-if="isLoggedIn">
       <AppShell />
       <template #fallback>
-        <div class="auth-loading" aria-busy="true" aria-label="正在进入主界面" />
+        <div class="auth-loading" aria-busy="true" :aria-label="t('common.enteringMain')" />
       </template>
     </Suspense>
     <LoginView v-else />

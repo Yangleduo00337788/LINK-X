@@ -1,8 +1,12 @@
 package com.linkx.server.service.impl;
 
+import com.linkx.server.controller.vo.FeedbackReplyVO;
+import com.linkx.server.controller.vo.FeedbackVO;
 import com.linkx.server.entity.Feedback;
+import com.linkx.server.exception.CustomException;
 import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.mapper.FeedbackMapper;
+import com.linkx.server.service.FeedbackReplyService;
 import com.linkx.server.service.FeedbackService;
 import com.linkx.server.service.MessageNotificationService;
 import com.linkx.server.service.admin.AdminReviewService;
@@ -29,6 +33,7 @@ public class FeedbackServiceImpl extends ServiceImpl<FeedbackMapper, Feedback> i
     private final ImMessagePushService imPushService;
     private final AdminReviewService adminReviewService;
     private final FeedbackDispatchService feedbackDispatchService;
+    private final FeedbackReplyService feedbackReplyService;
 
     @Override
     @Transactional
@@ -80,6 +85,54 @@ public class FeedbackServiceImpl extends ServiceImpl<FeedbackMapper, Feedback> i
                         .where(Feedback::getUserId).eq(userId)
                         .orderBy(Feedback::getCreateTime, false)
         );
+    }
+
+    @Override
+    public FeedbackVO getDetail(Long userId, Long feedbackId) {
+        Feedback feedback = requireOwned(userId, feedbackId);
+        return toVO(feedback, true);
+    }
+
+    @Override
+    public List<FeedbackReplyVO> listReplies(Long userId, Long feedbackId) {
+        requireOwned(userId, feedbackId);
+        return feedbackReplyService.listByFeedbackId(feedbackId);
+    }
+
+    @Override
+    @Transactional
+    public FeedbackReplyVO userReply(Long userId, String username, Long feedbackId, String content) {
+        Feedback feedback = requireOwned(userId, feedbackId);
+        if ("closed".equals(feedback.getStatus())) {
+            throw new CustomException(400, "feedback is closed");
+        }
+        FeedbackReplyVO reply = feedbackReplyService.addUserReply(feedback, userId, username, content);
+        feedback.setStatus("pending");
+        feedbackMapper.update(feedback);
+        return reply;
+    }
+
+    private Feedback requireOwned(Long userId, Long feedbackId) {
+        Feedback feedback = feedbackMapper.selectOneById(feedbackId);
+        if (feedback == null || !userId.equals(feedback.getUserId())) {
+            throw new CustomException(404, "feedback not found");
+        }
+        return feedback;
+    }
+
+    private FeedbackVO toVO(Feedback feedback, boolean withReplies) {
+        FeedbackVO.FeedbackVOBuilder builder = FeedbackVO.builder()
+                .id(feedback.getId())
+                .type(feedback.getType())
+                .content(feedback.getContent())
+                .status(feedback.getStatus())
+                .reply(feedback.getReply())
+                .replyTime(feedback.getReplyTime())
+                .createTime(feedback.getCreateTime());
+        if (withReplies) {
+            builder.replies(feedbackReplyService.listByFeedbackId(feedback.getId()));
+        }
+        return builder.build();
     }
 
     private static String typeLabel(String type) {

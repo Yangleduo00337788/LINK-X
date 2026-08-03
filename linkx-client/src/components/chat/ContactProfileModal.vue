@@ -28,6 +28,7 @@ import * as userApi from '../../api/user'
 import type { UserProfileData } from '../../api/user'
 import { normalizeMediaUrl } from '../../utils/mediaUrl'
 import { useI18n } from '../../i18n'
+import { PROFILE_GENDER_FEMALE, PROFILE_GENDER_MALE } from '../../types/profileGender'
 import { formatFriendDisplayName, friendAvatarText } from '../../utils/friendDisplay'
 
 const { t } = useI18n()
@@ -196,6 +197,13 @@ function joinLocation(country?: string | null, province?: string | null, region?
 const displayGender = computed(() => {
   if (profileCardIsSelf.value) return userProfile.value.gender || ''
   return remoteProfile.value?.gender || ''
+})
+
+const genderLabel = computed(() => {
+  const g = displayGender.value
+  if (g === PROFILE_GENDER_FEMALE) return t('modals.female')
+  if (g === PROFILE_GENDER_MALE) return t('modals.male')
+  return t('modals.notFilled')
 })
 
 const displayBirthdayText = computed(() => {
@@ -401,13 +409,7 @@ async function saveGroup() {
           <div class="detail-row">
             <span class="detail-label">{{ t('modals.gender') }}</span>
             <span class="detail-value" :class="{ muted: !displayGender }">
-              {{
-                displayGender === '女'
-                  ? t('modals.female')
-                  : displayGender === '男'
-                    ? t('modals.male')
-                    : t('modals.notFilled')
-              }}
+              {{ genderLabel }}
             </span>
           </div>
           <div v-if="profileCardIsSelf" class="detail-row">

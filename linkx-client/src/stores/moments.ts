@@ -9,6 +9,7 @@ import { useAppStore } from './app'
 import { useContactsStore } from './contacts'
 import { normalizeMediaUrl, stripEphemeralMediaUrl } from '../utils/mediaUrl'
 import { API_BASE_URL } from '../config/endpoints'
+import { t } from '../i18n'
 
 /** 单条评论 */
 export interface MomentComment {
@@ -46,7 +47,7 @@ function mapPost(p: momentsApi.MomentsPost): MomentPost {
   return {
     id: String(p.id),
     userId,
-    user: p.nickname || '用户',
+    user: p.nickname || t('defaults.user'),
     avatar: resolveAuthorAvatar(userId, p.avatar),
     content: p.content,
     images: (p.images || []).map(url => toDisplayableMediaUrl(url)).filter(Boolean),
@@ -61,7 +62,7 @@ function mapPost(p: momentsApi.MomentsPost): MomentPost {
     comments: (p.comments || []).map(c => ({
       id: String(c.id),
       userId: String(c.userId),
-      user: c.nickname || '用户',
+      user: c.nickname || t('defaults.user'),
       avatar: resolveAuthorAvatar(String(c.userId), c.avatar),
       content: c.content,
       mentions: Array.isArray(c.mentions) ? c.mentions : undefined,
@@ -265,10 +266,10 @@ export const useMomentsStore = defineStore('moments', {
           if (!mapped.avatar) {
             mapped.avatar = toDisplayableMediaUrl(appStore.userProfile.avatar)
           }
-          if (!mapped.user || mapped.user === '用户') {
-            mapped.user = appStore.userProfile.nickname || '我'
+          if (!mapped.user || mapped.user === t('defaults.user')) {
+            mapped.user = appStore.userProfile.nickname || t('defaults.me')
           }
-          mapped.time = '刚刚'
+          mapped.time = t('defaults.justNow')
           this.posts.unshift(mapped)
           return { ok: true as const }
         }
@@ -327,7 +328,7 @@ export const useMomentsStore = defineStore('moments', {
       const post = this.findPost(id)
       if (!post) return false
       const appStore = useAppStore()
-      const userName = appStore.userProfile.nickname || '我'
+      const userName = appStore.userProfile.nickname || t('defaults.me')
       if (!Array.isArray(post.likedBy)) post.likedBy = []
 
       const wasLiked = post.liked

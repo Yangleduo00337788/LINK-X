@@ -8,6 +8,9 @@
 import { NIcon } from 'naive-ui'
 import { MicOutline } from '@vicons/ionicons5'
 import type { ChatMessage } from '../../../types'
+import { useI18n } from '../../../i18n'
+
+useI18n()
 
 defineProps<{ msg: ChatMessage; playing: boolean }>()
 

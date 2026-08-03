@@ -1,26 +1,26 @@
 <script setup lang="ts">
 /**
  * 红包消息卡片气泡。
- * <p>
- * 展示祝福语、类型标签（普通/拼手气）、领取状态与剩余个数；
- * opened / finished / expired 时视觉降级。
- * </p>
  */
 import { computed } from 'vue'
 import type { ChatMessage } from '../../../types'
+import { useI18n } from '../../../i18n'
 
 const props = defineProps<{ msg: ChatMessage }>()
+const { t } = useI18n()
 
 const isLucky = computed(() => props.msg.redPacketType === 'lucky')
 
-const typeLabel = computed(() => (isLucky.value ? '拼手气' : '普通红包'))
+const typeLabel = computed(() =>
+  isLucky.value ? t('modals.luckyShort') : t('modals.normalPacket')
+)
 
 const subText = computed(() => {
-  if (props.msg.redPacketStatus === 'expired') return '已过期'
-  if (props.msg.redPacketStatus === 'finished') return '已领完'
-  if (props.msg.redPacketReceived || props.msg.redPacketOpened) return '已领取'
+  if (props.msg.redPacketStatus === 'expired') return t('modals.rpStatusExpired')
+  if (props.msg.redPacketStatus === 'finished') return t('modals.rpStatusFinished')
+  if (props.msg.redPacketReceived || props.msg.redPacketOpened) return t('modals.rpStatusClaimed')
   if (props.msg.isSelf) return typeLabel.value
-  return '领取红包'
+  return t('modals.openRedPacket')
 })
 </script>
 
@@ -35,16 +35,23 @@ const subText = computed(() => {
       expired: msg.redPacketStatus === 'expired'
     }"
   >
-    <div class="rp-icon">{{ isLucky ? '拼' : '福' }}</div>
+    <div class="rp-icon">{{ isLucky ? t('modals.rpLuckyChar') : t('modals.rpNormalChar') }}</div>
     <div class="rp-text">
       <div class="rp-title-row">
-        <span class="rp-title">{{ msg.redPacketGreeting || msg.content || '恭喜发财' }}</span>
+        <span class="rp-title">{{
+          msg.redPacketGreeting || msg.content || t('modals.greetingFallback')
+        }}</span>
         <span class="rp-type-tag" :class="{ lucky: isLucky }">{{ typeLabel }}</span>
       </div>
       <div class="rp-sub">
         <span>{{ subText }}</span>
         <span v-if="msg.redPacketTotalCount && msg.redPacketTotalCount > 1" class="rp-count">
-          · 剩余 {{ msg.redPacketRemainingCount ?? msg.redPacketTotalCount }}/{{ msg.redPacketTotalCount }}
+          {{
+            t('modals.rpBubbleRemain', {
+              remain: msg.redPacketRemainingCount ?? msg.redPacketTotalCount,
+              total: msg.redPacketTotalCount
+            })
+          }}
         </span>
       </div>
     </div>
@@ -70,7 +77,6 @@ const subText = computed(() => {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(232, 76, 61, 0.45);
 }
-/* 拼手气：偏金红，与普通红包区分 */
 .red-packet-card.lucky:not(.finished):not(.expired) {
   background: linear-gradient(135deg, #f39c12, #e74c3c 55%, #c0392b);
   box-shadow: 0 2px 10px rgba(243, 156, 18, 0.4);

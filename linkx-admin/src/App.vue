@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   NConfigProvider,
   NMessageProvider,
@@ -17,6 +18,7 @@ import { darkThemeOverrides, lightThemeOverrides } from '@/theme/overrides'
 import StepUpModal from '@/components/StepUpModal.vue'
 
 const prefs = usePreferencesStore()
+useI18n()
 const { theme, locale } = storeToRefs(prefs)
 
 const naiveTheme = computed(() => (theme.value === 'dark' ? darkTheme : null))

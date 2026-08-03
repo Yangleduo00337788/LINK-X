@@ -5,6 +5,9 @@ import { FilterOutline, TrashOutline } from '@vicons/ionicons5'
 import { NIcon } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import { useNotificationsStore } from '../../stores/notifications'
+import type { FriendNotification } from '../../stores/notifications'
+import { INVITE_STATUS } from '../../types/inviteStatus'
+import type { InviteStatus } from '../../types/inviteStatus'
 import { useContactsStore } from '../../stores/contacts'
 import { useAppStore } from '../../stores/app'
 import { useI18n } from '../../i18n'
@@ -26,16 +29,29 @@ onMounted(() => {
   void fetchFriendRequests()
 })
 
-function statusLabel(status: string) {
-  if (status === '等待验证') return t('contacts.waiting')
-  if (status === '已同意') return t('contacts.accepted')
-  if (status === '已拒绝') return t('contacts.rejected')
-  return status
+function statusLabel(status: InviteStatus | string) {
+  if (status === INVITE_STATUS.PENDING) return t('contacts.waiting')
+  if (status === INVITE_STATUS.ACCEPTED) return t('contacts.accepted')
+  if (status === INVITE_STATUS.REJECTED) return t('contacts.rejected')
+  if (status === INVITE_STATUS.EXPIRED) return t('contacts.expired')
+  return String(status)
+}
+
+function friendActionText(direction: FriendNotification['direction']) {
+  return direction === 'incoming'
+    ? t('contacts.friendActionIncoming')
+    : t('contacts.friendActionOutgoing')
+}
+
+function friendMessageText(item: FriendNotification) {
+  if (item.message) return item.message
+  if (item.direction === 'outgoing') return t('contacts.defaultOutgoingMessage')
+  return t('contacts.none')
 }
 
 async function handleAccept(id: string) {
   const n = notificationsStore.findFriendNotif(id)
-  if (!n || n.status !== '等待验证' || n.direction !== 'incoming') return
+  if (!n || n.status !== INVITE_STATUS.PENDING || n.direction !== 'incoming') return
 
   try {
     const accepted = await acceptFriendRequest(n.requestId)
@@ -56,7 +72,7 @@ async function handleAccept(id: string) {
 
 async function handleReject(id: string) {
   const n = notificationsStore.findFriendNotif(id)
-  if (!n || n.status !== '等待验证' || n.direction !== 'incoming') return
+  if (!n || n.status !== INVITE_STATUS.PENDING || n.direction !== 'incoming') return
 
   try {
     await rejectFriendRequest(n.requestId)
@@ -100,14 +116,14 @@ function handleClear() {
           <div class="info">
             <div class="title-line">
               <span class="name">{{ item.name }}</span>
-              <span class="action-text">{{ item.action }}</span>
+              <span class="action-text">{{ friendActionText(item.direction) }}</span>
               <span class="date">{{ item.date }}</span>
             </div>
-            <div class="message">{{ t('contacts.messageLabel', { msg: item.message || t('contacts.none') }) }}</div>
+            <div class="message">{{ t('contacts.messageLabel', { msg: friendMessageText(item) }) }}</div>
             <div v-if="item.source" class="source">{{ t('contacts.sourceLabel', { source: item.source }) }}</div>
           </div>
           <div
-            v-if="item.status === '等待验证' && item.direction === 'incoming'"
+            v-if="item.status === INVITE_STATUS.PENDING && item.direction === 'incoming'"
             class="actions-right"
           >
             <button type="button" class="btn accept" @click="handleAccept(item.id)">{{ t('contacts.accept') }}</button>

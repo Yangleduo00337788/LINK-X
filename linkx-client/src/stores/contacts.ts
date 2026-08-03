@@ -10,15 +10,19 @@ import * as friendApi from '../api/friend'
 import { normalizeMediaUrl } from '../utils/mediaUrl'
 import { sanitizeContactsPersistState } from '../utils/persistSanitize'
 import { formatFriendDisplayName, friendAvatarText } from '../utils/friendDisplay'
+import { t } from '../i18n'
 
 const DEFAULT_AVATAR_COLOR = '#12b7f5'
-const DEFAULT_FRIEND_GROUP = '我的好友'
+
+function defaultFriendGroup(): string {
+  return t('defaults.myFriends')
+}
 
 function friendToContact(friend: FriendItem): ContactItem {
   const nickname = friend.nickname || friend.username
   const remark = friend.remark?.trim() || ''
   const displayName = formatFriendDisplayName(nickname, remark)
-  const group = friend.groupName?.trim() || DEFAULT_FRIEND_GROUP
+  const group = friend.groupName?.trim() || defaultFriendGroup()
   return {
     id: String(friend.userId),
     userId: friend.userId,
@@ -53,12 +57,13 @@ export const useContactsStore = defineStore('contacts', {
     friendGroupNames(state): string[] {
       const set = new Set<string>()
       for (const c of state.items) {
-        set.add((c.group || DEFAULT_FRIEND_GROUP).trim() || DEFAULT_FRIEND_GROUP)
+        set.add((c.group || defaultFriendGroup()).trim() || defaultFriendGroup())
       }
       const names = [...set]
+      const defaultGroup = defaultFriendGroup()
       names.sort((a, b) => {
-        if (a === DEFAULT_FRIEND_GROUP) return -1
-        if (b === DEFAULT_FRIEND_GROUP) return 1
+        if (a === defaultGroup) return -1
+        if (b === defaultGroup) return 1
         return a.localeCompare(b, 'zh-CN')
       })
       return names
@@ -88,7 +93,7 @@ export const useContactsStore = defineStore('contacts', {
     async deleteFriend(userId: string) {
       const res = await friendApi.deleteFriend(userId)
       if (res.code !== 200) {
-        throw new Error(res.message || '删除好友失败')
+        throw new Error(res.message || t('errors.deleteFriendFailed'))
       }
       this.removeByUserId(userId)
     },
@@ -96,13 +101,13 @@ export const useContactsStore = defineStore('contacts', {
     async updateFriendRemark(userId: string, remark: string) {
       const res = await friendApi.updateFriendRemark(userId, remark)
       if (res.code !== 200) {
-        throw new Error(res.message || '保存备注失败')
+        throw new Error(res.message || t('errors.saveRemarkFailed'))
       }
       const value = (res.data ?? remark).trim()
       const idx = this.items.findIndex(c => String(c.userId ?? c.id) === String(userId))
       if (idx >= 0) {
         const prev = this.items[idx]
-        const nickname = prev.nickname || (!prev.remark ? prev.name : '') || '好友'
+        const nickname = prev.nickname || (!prev.remark ? prev.name : '') || t('defaults.friend')
         const displayName = formatFriendDisplayName(nickname, value)
         this.items.splice(idx, 1, {
           ...prev,
@@ -118,9 +123,9 @@ export const useContactsStore = defineStore('contacts', {
     async updateFriendGroup(userId: string, groupName: string) {
       const res = await friendApi.updateFriendGroup(userId, groupName)
       if (res.code !== 200) {
-        throw new Error(res.message || '保存分组失败')
+        throw new Error(res.message || t('errors.saveGroupFailed'))
       }
-      const value = (res.data ?? groupName).trim() || DEFAULT_FRIEND_GROUP
+      const value = (res.data ?? groupName).trim() || defaultFriendGroup()
       const idx = this.items.findIndex(c => String(c.userId ?? c.id) === String(userId))
       if (idx >= 0) {
         const prev = this.items[idx]
@@ -147,7 +152,7 @@ export const useContactsStore = defineStore('contacts', {
         name: session.name,
         avatarText: session.avatarText,
         avatarColor: session.avatarColor,
-        group: '我的好友',
+        group: defaultFriendGroup(),
         online: session.online,
         avatarUrl: session.avatarUrl
       })

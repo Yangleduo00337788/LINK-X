@@ -1,3 +1,5 @@
+import { t } from '../i18n'
+
 /** 将时间戳格式化为 HH:mm（兼容后端 Long 字符串） */
 export function formatChatTime(timestamp?: string | number | null): string {
   const ms = typeof timestamp === 'string' ? Number(timestamp) : timestamp
@@ -23,24 +25,27 @@ export function formatMessageDivider(timestamp?: string | number | null): string
   const dayDiff = Math.round((startOfToday - startOfThat) / (24 * 60 * 60 * 1000))
 
   if (dayDiff === 0) return hm
-  if (dayDiff === 1) return `昨天 ${hm}`
+  if (dayDiff === 1) return t('chat.timeYesterdayHm', { time: hm })
   if (date.getFullYear() === now.getFullYear()) {
-    return `${date.getMonth() + 1}月${date.getDate()}日 ${hm}`
+    return t('chat.timeMonthDayHm', {
+      month: date.getMonth() + 1,
+      day: date.getDate(),
+      time: hm
+    })
   }
-  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${hm}`
+  return t('chat.timeYearMonthDayHm', {
+    year: date.getFullYear(),
+    month: date.getMonth() + 1,
+    day: date.getDate(),
+    time: hm
+  })
 }
 
 /** 两条消息间隔超过此时长则插入时间分割线（毫秒） */
 export const MESSAGE_TIME_GAP_MS = 5 * 60 * 1000
 
 /**
- * 将时间戳格式化为相对时间描述（中文）。
- * - 1 分钟内: "刚刚"
- * - 1-59 分钟: "N 分钟前"
- * - 1-23 小时: "N 小时前"
- * - 1 天: "昨天 HH:mm"
- * - 2-7 天: "N 天前"
- * - 超过 7 天: "M/DD" 或 "YYYY/MM/DD"
+ * 将时间戳格式化为相对时间描述。
  */
 export function formatRelativeTime(timestamp?: string | number | null): string {
   const ms = typeof timestamp === 'string' ? Number(timestamp) : timestamp
@@ -54,18 +59,18 @@ export function formatRelativeTime(timestamp?: string | number | null): string {
   const hour = 60 * minute
   const day = 24 * hour
 
-  if (diff < minute) return '刚刚'
-  if (diff < hour) return `${Math.floor(diff / minute)} 分钟前`
-  if (diff < day) return `${Math.floor(diff / hour)} 小时前`
+  if (diff < minute) return t('chat.justNow')
+  if (diff < hour) return t('chat.minutesAgo', { n: Math.floor(diff / minute) })
+  if (diff < day) return t('chat.hoursAgo', { n: Math.floor(diff / hour) })
 
   const date = new Date(ms)
   const nowDate = new Date()
 
   if (diff < 2 * day) {
-    return `昨天 ${formatChatTime(ms)}`
+    return t('chat.timeYesterdayHm', { time: formatChatTime(ms) })
   }
   if (diff < 7 * day) {
-    return `${Math.floor(diff / day)} 天前`
+    return t('chat.daysAgo', { n: Math.floor(diff / day) })
   }
 
   const month = (date.getMonth() + 1).toString().padStart(2, '0')

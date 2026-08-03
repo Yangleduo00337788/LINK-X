@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { NCarousel } from 'naive-ui'
 import { listPublishedBanners, type BannerItem, type BannerPosition } from '@/api/banners'
 import { resolveBannerSrc } from '@/utils/mediaUrl'
@@ -22,6 +23,8 @@ const props = withDefaults(
 const emit = defineEmits<{
   loaded: [payload: { count: number }]
 }>()
+
+useI18n()
 
 const items = ref<BannerItem[]>([])
 const loading = ref(false)

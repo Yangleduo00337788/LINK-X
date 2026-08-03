@@ -70,6 +70,9 @@ const EditProfileModal = defineAsyncComponent(() => import('./EditProfileModal.v
 import { storeToRefs } from 'pinia'
 // 应用全局状态 Store
 import { useAppStore } from '../stores/app'
+import { useI18n } from '../i18n'
+
+useI18n()
 
 // 获取应用 Store 实例
 const appStore = useAppStore()

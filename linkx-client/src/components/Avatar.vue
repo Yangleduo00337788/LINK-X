@@ -13,6 +13,9 @@ import { computed, ref, watch } from 'vue'
 // Vue 组件类型定义
 import type { Component } from 'vue'
 import { isDisplayableMediaUrl, normalizeMediaUrl } from '../utils/mediaUrl'
+import { useI18n } from '../i18n'
+
+useI18n()
 
 // 定义组件属性：文字、背景色、尺寸、图标、图片 URL
 const props = defineProps<{

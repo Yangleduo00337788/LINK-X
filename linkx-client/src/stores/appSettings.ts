@@ -18,7 +18,7 @@ import { defineStore } from 'pinia'
 import type { ChatBackgroundId } from '../types'
 import * as preferenceApi from '../api/preference'
 import { onPreferenceChange } from '../utils/preferenceEvents'
-import { setLocale } from '../i18n'
+import { setLocale, t } from '../i18n'
 
 // 服务端偏好字段 → 本地 state 字段 一一对应
 type SyncableKey =
@@ -65,30 +65,6 @@ const SYNCABLE_KEYS: SyncableKey[] = [
   'notifyMoments',
   'notifySystem'
 ]
-
-// 字段到"中文显示名"的映射，供 toast 文案使用
-const FIELD_LABEL: Record<SyncableKey, string> = {
-  autoStart: '开机自动启动',
-  soundNotify: '新消息声音提示',
-  messageDetail: '通知显示消息详情',
-  notifyAtMe: '群聊 @ 我',
-  notifySound: '通知声音',
-  privacyVerifyFriend: '加好友需验证',
-  privacyAllowStranger: '允许陌生人会话',
-  privacyShowOnline: '在线状态可见',
-  language: '界面语言',
-  chatBackground: '聊天背景',
-  notifyTone: '提示音',
-  favoritesViewMode: '收藏视图',
-  favoritesSort: '收藏排序',
-  quietHoursEnabled: '免打扰时段',
-  quietHoursStart: '免打扰开始',
-  quietHoursEnd: '免打扰结束',
-  notifyChat: '聊天消息提醒',
-  notifySocial: '社交提醒',
-  notifyMoments: '友链提醒',
-  notifySystem: '系统提醒'
-}
 
 // debounce 800ms：避免快速连续点击导致请求风暴
 const SAVE_DEBOUNCE_MS = 800
@@ -359,15 +335,14 @@ async function doFlush(store: ReturnType<typeof useAppSettingsStore>) {
     // 成功：广播 success 事件，附上字段→值映射供组件拼 toast 文案
     onPreferenceChange.emit({
       kind: 'success',
-      fields: payload,
-      fieldLabel: payload ? FIELD_LABEL : FIELD_LABEL
+      fields: payload
     })
   } catch (e) {
     // 失败：广播 error 事件（错误原因附在 message）
     onPreferenceChange.emit({
       kind: 'error',
       fields: payload,
-      message: e instanceof Error ? e.message : '保存失败'
+      message: e instanceof Error ? e.message : t('errors.saveFailed')
     })
     console.warn('[appSettings] 保存偏好失败:', e)
   } finally {

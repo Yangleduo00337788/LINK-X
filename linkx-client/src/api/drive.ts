@@ -2,6 +2,7 @@ import { apiClient } from './client'
 import type { ApiResult } from '../types/auth'
 import { API_BASE_URL } from '../config/endpoints'
 import { parseJsonPreservingIds } from '../utils/parseJson'
+import { t } from '../i18n'
 
 export interface DriveStorageVO {
   usedBytes: number
@@ -175,10 +176,10 @@ export async function getPublicShare(
   try {
     body = parseJsonPreservingIds(text) as ApiResult<DriveShareVO>
   } catch {
-    throw new Error(`分享加载失败 (${res.status})`)
+    throw new Error(t('errors.shareLoadFailed', { status: String(res.status) }))
   }
   if (!body || typeof body.code !== 'number') {
-    throw new Error(`分享加载失败 (${res.status})`)
+    throw new Error(t('errors.shareLoadFailed', { status: String(res.status) }))
   }
   return body
 }

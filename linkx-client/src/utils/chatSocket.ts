@@ -2,6 +2,7 @@ import { getToken, isWebEnvironment } from './tokenStorage'
 import { parseJsonPreservingIds } from './parseJson'
 import type { MessageItem, WsIncomingFrame, WsSendPayload } from '../types/chat'
 import { WS_BASE_URL } from '../config/endpoints'
+import { t } from '../i18n'
 
 const WS_BASE = WS_BASE_URL
 
@@ -62,7 +63,7 @@ function scheduleReconnect() {
       : Math.min(1000 * 2 ** reconnectAttempts, 30000)
   reconnectAttempts += 1
   if (reconnectAttempts === MAX_RECONNECT_ATTEMPTS + 1) {
-    handlers?.onError(503, '连接已断开，将在后台继续尝试重连')
+    handlers?.onError(503, t('errors.wsReconnectBackground'))
   }
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null
@@ -101,7 +102,7 @@ function handleFrame(raw: string) {
   try {
     frame = parseJsonPreservingIds(raw) as WsIncomingFrame
   } catch {
-    handlers?.onError(400, '消息格式错误')
+    handlers?.onError(400, t('errors.wsBadMessageFormat'))
     return
   }
 
@@ -145,7 +146,7 @@ function handleFrame(raw: string) {
     case 'pong':
       break
     case 'error':
-      handlers?.onError(frame.code ?? 500, frame.message ?? 'WebSocket 错误', frame.clientMsgId)
+      handlers?.onError(frame.code ?? 500, frame.message ?? t('errors.wsGenericError'), frame.clientMsgId)
       break
     case 'force_logout':
       shouldReconnect = false
@@ -159,7 +160,7 @@ function handleFrame(raw: string) {
           authInitializing: false
         })
       })
-      handlers?.onError(401, frame.message ?? '设备已被强制下线')
+      handlers?.onError(401, frame.message ?? t('errors.wsForceLogout'))
       break
     case 'call_invite':
     case 'call_accept':
@@ -231,7 +232,7 @@ export async function connectChatSocket(nextHandlers: ChatSocketHandlers) {
   // Web 环境 token 在 HttpOnly Cookie 中（本地不可读），浏览器 WebSocket 握手自动携带同站 Cookie，无需本地 token；
   // Electron 环境需本地 token 走 Sec-WebSocket-Protocol 子协议。
   if (!isWeb && !token) {
-    handlers.onError(401, '未登录')
+    handlers.onError(401, t('errors.wsNotLoggedIn'))
     return
   }
 
@@ -255,7 +256,7 @@ export async function connectChatSocket(nextHandlers: ChatSocketHandlers) {
     const timer = window.setTimeout(() => {
       if (settled) return
       settled = true
-      reject(new Error('WebSocket 连接超时'))
+      reject(new Error(t('errors.wsConnectTimeout')))
     }, 8000)
 
     socket!.onopen = () => {
@@ -277,7 +278,7 @@ export async function connectChatSocket(nextHandlers: ChatSocketHandlers) {
 
     socket!.onerror = () => {
       console.error('[WebSocket] 连接错误!')
-      handlers?.onError(500, 'WebSocket 连接异常')
+      handlers?.onError(500, t('errors.wsConnectError'))
     }
 
     socket!.onclose = event => {
@@ -293,7 +294,7 @@ export async function connectChatSocket(nextHandlers: ChatSocketHandlers) {
       if (!settled) {
         settled = true
         window.clearTimeout(timer)
-        reject(new Error(event.reason || 'WebSocket 已关闭'))
+        reject(new Error(event.reason || t('errors.wsClosed')))
       }
     }
   }).catch(err => {
@@ -309,7 +310,7 @@ function waitForSocketOpen(timeoutMs: number): Promise<void> {
   }
   if (!socket || socket.readyState === WebSocket.CLOSED) {
     return Promise.reject(
-      new Error(`WebSocket 未连接（目标 ${WS_BASE}/ws）。请确认后端已启动：HTTP 8080 与 IM 8081 均需在监听`)
+      new Error(t('errors.wsNotConnected', { url: `${WS_BASE}/ws` }))
     )
   }
   return new Promise((resolve, reject) => {
@@ -322,12 +323,12 @@ function waitForSocketOpen(timeoutMs: number): Promise<void> {
       }
       if (!socket || socket.readyState === WebSocket.CLOSED) {
         window.clearInterval(timer)
-        reject(new Error('WebSocket 连接被关闭'))
+        reject(new Error(t('errors.wsConnectionClosed')))
         return
       }
       if (Date.now() - start > timeoutMs) {
         window.clearInterval(timer)
-        reject(new Error('WebSocket 连接超时'))
+        reject(new Error(t('errors.wsConnectTimeout')))
       }
     }, 50)
   })
@@ -347,7 +348,7 @@ export async function ensureChatSocketConnected(
     return
   }
   if (!handlers) {
-    throw new Error('WebSocket 未初始化')
+    throw new Error(t('errors.wsNotInitialized'))
   }
   // 用户主动操作时重置退避，避免「后端刚恢复但桌面端已停连」
   resetChatSocketReconnect()
@@ -371,7 +372,7 @@ export function disconnectChatSocket() {
 
 export function sendChatMessage(payload: WsSendPayload) {
   if (!socket || socket.readyState !== WebSocket.OPEN) {
-    throw new Error('WebSocket 未连接')
+    throw new Error(t('errors.wsDisconnected'))
   }
   const msg = {
     action: payload.action,

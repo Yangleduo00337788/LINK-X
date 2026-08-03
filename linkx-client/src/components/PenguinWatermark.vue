@@ -1,13 +1,18 @@
 ﻿<script setup lang="ts">
-// LinkX Logo 占位组件：空状态占位，可自定义提示文案
-withDefaults(
+import { computed } from 'vue'
+import { useI18n } from '../i18n'
+
+const props = withDefaults(
   defineProps<{
-    hint?: string // 底部提示文字，默认引导选择会话
+    hint?: string
   }>(),
   {
-    hint: '在左侧选择会话开始聊天'
+    hint: undefined
   }
 )
+
+const { t } = useI18n()
+const displayHint = computed(() => props.hint ?? t('chat.selectChatHint'))
 </script>
 
 <template>
@@ -15,7 +20,6 @@ withDefaults(
     <div class="logo-lockup" aria-hidden="true">
       <svg class="logo-mark" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
         <circle cx="32" cy="32" r="30" fill="var(--lx-accent)"/>
-        <!-- 双环相扣：流畅曲线，比节点 X 更轻盈 -->
         <g transform="translate(32 32)" fill="none" stroke="#fff" stroke-width="4.2" stroke-linecap="round">
           <ellipse rx="14.5" ry="6.9" transform="rotate(-42)"/>
           <ellipse rx="14.5" ry="6.9" transform="rotate(42)"/>
@@ -23,7 +27,7 @@ withDefaults(
       </svg>
       <span class="logo-wordmark">LinkX</span>
     </div>
-    <p v-if="hint" class="hint">{{ hint }}</p>
+    <p v-if="displayHint" class="hint">{{ displayHint }}</p>
   </div>
 </template>
 

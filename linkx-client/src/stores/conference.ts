@@ -265,7 +265,7 @@ export const useConferenceStore = defineStore('conference', {
     async joinExisting(conferenceId: string, myUserId: string, password?: string) {
       const res = await conferenceApi.join(conferenceId, password)
       if (res.code !== 200 || !res.data) {
-        const err = new Error(res.message || '加入会议失败') as Error & { code?: number }
+        const err = new Error(res.message || t('conference.joinFail')) as Error & { code?: number }
         err.code = res.code
         throw err
       }
@@ -290,7 +290,7 @@ export const useConferenceStore = defineStore('conference', {
       const next: SessionActiveConference = {
         conferenceId: String(payload.conferenceId),
         conversationId: cid,
-        title: payload.title || prev?.title || '多人会议',
+        title: payload.title || prev?.title || t('conference.defaultTitle'),
         type: payload.type === 'voice' || payload.type === 'video'
           ? payload.type
           : prev?.type || 'video',
@@ -316,7 +316,7 @@ export const useConferenceStore = defineStore('conference', {
       this.upsertSessionActive({
         conferenceId: String(info.id),
         conversationId: String(info.conversationId),
-        title: info.title || '多人会议',
+        title: info.title || t('conference.defaultTitle'),
         type: info.type === 'voice' ? 'voice' : 'video',
         scene: info.scene === 'call' ? 'call' : 'meeting',
         hasPassword: !!info.hasPassword,
@@ -419,7 +419,7 @@ export const useConferenceStore = defineStore('conference', {
       this.upsertSessionActive({
         conferenceId,
         conversationId,
-        title: payload.title || '多人会议',
+        title: payload.title || t('conference.defaultTitle'),
         type: payload.type === 'voice' ? 'voice' : 'video',
         scene: payload.scene === 'call' ? 'call' : 'meeting',
         hasPassword: !!payload.hasPassword,
@@ -432,7 +432,7 @@ export const useConferenceStore = defineStore('conference', {
       this.conferenceId = String(info.id)
       this.callId = info.callId ? String(info.callId) : null
       this.conversationId = info.conversationId != null ? String(info.conversationId) : null
-      this.title = info.title || '多人会议'
+      this.title = info.title || t('conference.defaultTitle')
       this.type = info.type === 'voice' ? 'voice' : 'video'
       this.scene = info.scene === 'call' ? 'call' : 'meeting'
       this.creatorId = info.creatorId != null ? String(info.creatorId) : ''
@@ -484,7 +484,7 @@ export const useConferenceStore = defineStore('conference', {
         if (this.conferenceId === conferenceId && this.phase === 'lobby') return
         this.invitePrompt = {
           conferenceId,
-          title: info.title || '多人会议',
+          title: info.title || t('conference.defaultTitle'),
           conversationId: info.conversationId != null ? String(info.conversationId) : '',
           callId: info.callId ? String(info.callId) : undefined,
           scene: info.scene === 'call' ? 'call' : 'meeting',
@@ -505,7 +505,7 @@ export const useConferenceStore = defineStore('conference', {
       if (!payload.conferenceId) return
       this.invitePrompt = {
         conferenceId: String(payload.conferenceId),
-        title: payload.title || '多人会议',
+        title: payload.title || t('conference.defaultTitle'),
         conversationId: payload.conversationId ? String(payload.conversationId) : '',
         restore: false
       }
@@ -529,7 +529,7 @@ export const useConferenceStore = defineStore('conference', {
           this.upsertSessionActive({
             conferenceId,
             conversationId,
-            title: String(data.title || this.sessionActives[conversationId]?.title || '多人会议'),
+            title: String(data.title || this.sessionActives[conversationId]?.title || t('conference.defaultTitle')),
             type: data.type === 'voice' || data.callType === 'voice' ? 'voice' : 'video',
             scene: data.scene === 'call' ? 'call' : 'meeting',
             hasPassword:
@@ -545,7 +545,7 @@ export const useConferenceStore = defineStore('conference', {
         if (this.phase === 'in_room' || this.phase === 'waiting') return
         this.invitePrompt = {
           conferenceId,
-          title: String(data.title || '多人会议'),
+          title: String(data.title || t('conference.defaultTitle')),
           conversationId,
           callId: data.callId != null ? String(data.callId) : undefined,
           hasPassword: data.hasPassword === true || data.hasPassword === 1 || data.hasPassword === 'true',
@@ -555,7 +555,7 @@ export const useConferenceStore = defineStore('conference', {
         if (data.callId != null) this.callId = String(data.callId)
         this.phase = this.phase === 'idle' ? 'lobby' : this.phase
         startCallRing()
-        this.notifyConferenceInvite(String(data.title || '多人会议'), String(data.creatorName || ''))
+        this.notifyConferenceInvite(String(data.title || t('conference.defaultTitle')), String(data.creatorName || ''))
         return
       }
       if (action === 'conference_end' || action === 'conference_remove') {
@@ -853,9 +853,7 @@ export const useConferenceStore = defineStore('conference', {
         if (state === 'connected') {
           iceRestartAttempts.delete(peerId)
           if (
-            this.networkHint.includes('连接') ||
-            this.networkHint.includes('重建') ||
-            this.networkHint.includes('connection') ||
+            this.networkHint.includes('connect') ||
             this.networkHint.includes('rebuild') ||
             this.networkHint.includes('retry')
           ) {
@@ -1150,7 +1148,7 @@ export const useConferenceStore = defineStore('conference', {
         this.localStream = markRaw(localStream)
         if (wantVideo && localStream.getVideoTracks().some(t => t.readyState === 'live')) {
           // 成功拿到摄像头时清掉「已降级」提示
-          if (this.networkHint.includes('摄像头') || this.networkHint.includes('降级') || this.networkHint.includes('Camera') || this.networkHint.includes('audio')) {
+          if (this.networkHint.includes('Camera') || this.networkHint.includes('audio') || this.networkHint.includes('fallback') || this.networkHint.includes('降级') || this.networkHint.includes('摄像头')) {
             this.networkHint = ''
           }
         }
@@ -1464,13 +1462,13 @@ export const useConferenceStore = defineStore('conference', {
       try {
         if (typeof Notification === 'undefined') return
         const body = creatorName
-          ? `${creatorName} 邀请你加入「${title}」`
-          : `邀请你加入「${title}」`
+          ? t('conference.inviteBody', { creator: creatorName, title })
+          : t('conference.inviteBodyNoCreator', { title })
         if (Notification.permission === 'granted') {
-          new Notification('会议邀请', { body, silent: true })
+          new Notification(t('conference.notificationTitle'), { body, silent: true })
         } else if (Notification.permission === 'default') {
           void Notification.requestPermission().then(p => {
-            if (p === 'granted') new Notification('会议邀请', { body, silent: true })
+            if (p === 'granted') new Notification(t('conference.notificationTitle'), { body, silent: true })
           })
         }
       } catch {

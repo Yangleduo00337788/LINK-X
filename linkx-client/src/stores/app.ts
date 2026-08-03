@@ -23,6 +23,17 @@ import {
   messageToChatMessage,
   messagePreviewFromItem
 } from '../utils/chatMapper'
+import {
+  filePreviewLabel,
+  imagePreviewPlaceholder,
+  locationPreviewLabel,
+  meetingPreviewLabel,
+  recalledPreviewLabel,
+  redPacketPreviewLabel,
+  videoCallPreviewLabel,
+  voiceCallPreviewLabel,
+  voicePreviewLabel
+} from '../utils/messagePreviewText'
 import { compareMessageOrder } from '../utils/messageOrder'
 import {
   contentMentionsUser,
@@ -36,6 +47,7 @@ import { generateUuidV4 } from '../utils/parseJson'
 import type { MessageItem } from '../types/chat'
 import { normalizeMediaUrl } from '../utils/mediaUrl'
 import { t } from '../i18n'
+import { normalizeProfileGender, PROFILE_GENDER_MALE } from '../types/profileGender'
 // 通讯录 Store（加群/加好友后同步联系人）
 import { useContactsStore } from './contacts'
 // 群元数据 Store（邀请成员等）
@@ -101,30 +113,32 @@ const GROUP_COLORS = ['#12b7f5', '#52c41a', '#722ed1', '#fa8c16', '#eb2f96', '#1
  * @param msg 聊天消息
  */
 function messagePreview(msg: ChatMessage): string {
-  if (msg.type === 'file') return `[文件] ${msg.fileName || msg.content}`
-  if (msg.type === 'image' || msg.isImage) return '[图片]'
-  if (msg.type === 'voice') return '[语音]'
-  if (msg.type === 'location') return `[位置] ${msg.content || ''}`
-  if (msg.type === 'redPacket') return `[红包] ${msg.redPacketGreeting || '恭喜发财'}`
+  if (msg.type === 'file') return filePreviewLabel(msg.fileName || msg.content)
+  if (msg.type === 'image' || msg.isImage) return imagePreviewPlaceholder()
+  if (msg.type === 'voice') return voicePreviewLabel()
+  if (msg.type === 'location') return locationPreviewLabel(msg.content || '')
+  if (msg.type === 'redPacket') {
+    return redPacketPreviewLabel(msg.redPacketGreeting)
+  }
   if (msg.type === 'conference') {
     const content = (msg.content || '').trim()
-    if (content && (/语音通话|视频通话|会议/.test(content))) {
+    if (content && (/语音通话|视频通话|会议|Voice call|Video call|Meeting/i.test(content))) {
       return content
     }
     const scene = msg.conferenceScene
     const kind =
       scene === 'call'
         ? msg.conferenceType === 'voice'
-          ? '语音通话'
-          : '视频通话'
-        : /语音通话/.test(content)
-          ? '语音通话'
-          : /视频通话/.test(content)
-            ? '视频通话'
-            : '会议'
+          ? voiceCallPreviewLabel()
+          : videoCallPreviewLabel()
+        : /语音通话|Voice call/i.test(content)
+          ? voiceCallPreviewLabel()
+          : /视频通话|Video call/i.test(content)
+            ? videoCallPreviewLabel()
+            : meetingPreviewLabel()
     return `[${kind}] ${msg.conferenceTitle || msg.fileName || kind}`
   }
-  if (msg.type === 'recall') return '撤回了一条消息'
+  if (msg.type === 'recall') return recalledPreviewLabel()
   return msg.content
 }
 
@@ -200,17 +214,17 @@ function parseBirthday(value: unknown): number | null {
 
 /** 将后端用户资料写入 store 的 userProfile 结构 */
 function mapApiProfile(data: ProfileSource) {
-  const gender = data.gender === '女' ? '女' : '男'
+  const gender = normalizeProfileGender(data.gender)
   const birthday = parseBirthday(data.birthday)
   return {
     nickname: data.nickname || data.username || '',
     username: data.username || '',
-    signature: data.signature?.trim() ? data.signature : '编辑个性签名',
+    signature: data.signature?.trim() ? data.signature : t('modals.editSignature'),
     avatar: normalizeMediaUrl(data.avatar) || '',
     userId: sanitizeUserId(data.id),
-    gender: gender as '男' | '女',
+    gender,
     birthday,
-    country: data.country || '中国',
+    country: data.country || t('modals.china'),
     province: data.province || '',
     region: data.region || '',
     email: data.email || null,
@@ -240,12 +254,12 @@ export const useAppStore = defineStore('app', {
     userProfile: {
       nickname: '',
       username: '',
-      signature: '编辑个性签名',
+      signature: t('modals.editSignature'),
       avatar: '',
       userId: '',
-      gender: '男' as '男' | '女',
+      gender: PROFILE_GENDER_MALE,
       birthday: null as number | null,
-      country: '中国',
+      country: t('modals.china'),
       province: '',
       region: '',
       email: null as string | null,
@@ -488,7 +502,7 @@ export const useAppStore = defineStore('app', {
         groupName?.trim() ||
         (members.length <= 2
           ? members.map(m => m.name).join('、')
-          : `群聊（${members.length + 1}人）`)
+          : t('chat.groupWithCount', { n: members.length + 1 }))
 
       try {
         const res = await groupApi.createGroup({
@@ -512,7 +526,7 @@ export const useAppStore = defineStore('app', {
               ? memberAvatars
               : [
                   {
-                    text: this.userProfile.nickname?.charAt(0) || '我',
+                    text: this.userProfile.nickname?.charAt(0) || t('defaults.me'),
                     color: pickGroupColor(this.userProfile.nickname || 'me'),
                     imageUrl: this.userProfile.avatar || undefined
                   },
@@ -526,9 +540,9 @@ export const useAppStore = defineStore('app', {
             id: String(groupConv.id),
             name: groupConv.name || name,
             groupName: groupConv.name || name,
-            lastMessage: '系统：欢迎加入群聊',
+            lastMessage: t('chat.systemWelcomeJoin'),
             time: nowTime(),
-            avatarText: (groupConv.name || name).charAt(0) || '群',
+            avatarText: (groupConv.name || name).charAt(0) || t('defaults.groupChar'),
             avatarColor: pickGroupColor(groupConv.name || name),
             avatarUrl: normalizeMediaUrl(groupConv.avatar) || undefined,
             memberAvatars: faces,
@@ -539,7 +553,7 @@ export const useAppStore = defineStore('app', {
             {
               id: `msg-sys-${Date.now()}`,
               sessionId: session.id,
-              content: `系统：${this.userProfile.nickname} 发起了群聊`,
+              content: t('chat.systemGroupCreated', { name: this.userProfile.nickname }),
               time: nowTime(),
               isSelf: false,
               type: 'system'
@@ -548,7 +562,7 @@ export const useAppStore = defineStore('app', {
           this.ensureSession(session)
           return session
         }
-        throw new Error(res.message || '创建群聊失败')
+        throw new Error(res.message || t('modals.createFail'))
       } catch (e) {
         console.error('创建群聊失败:', e)
         throw e
@@ -575,7 +589,7 @@ export const useAppStore = defineStore('app', {
         return session
       }
 
-      throw new Error('群聊不存在或你尚未加入')
+      throw new Error(t('errors.groupNotFound'))
     },
 
     async addFriendSession(friend: { userId: string; name: string; avatarUrl?: string }) {
@@ -792,7 +806,7 @@ export const useAppStore = defineStore('app', {
           if (!session.avatarUrl && avatarUrl) {
             session.avatarUrl = avatarUrl
           }
-          if (session.name === '好友' && name) {
+          if (session.name === t('defaults.friend') && name) {
             session.name = name
             session.avatarText = name.charAt(0) || '?'
           }
@@ -800,7 +814,7 @@ export const useAppStore = defineStore('app', {
           await this.loadSessionMessages(session.id)
           return session
         }
-        throw new Error(res.message || '打开会话失败')
+        throw new Error(res.message || t('contacts.openSessionFail'))
       } catch (e) {
         console.error('打开单聊失败:', e)
         throw e
@@ -1198,7 +1212,7 @@ export const useAppStore = defineStore('app', {
         const res = await chatApi.togglePin(sessionId)
         if (res.code !== 200) {
           s.pinned = prev
-          throw new Error(res.message || '置顶失败')
+          throw new Error(res.message || t('errors.pinFailed'))
         }
       } catch (e) {
         s.pinned = prev
@@ -1217,7 +1231,7 @@ export const useAppStore = defineStore('app', {
         const res = await chatApi.toggleImportant(sessionId)
         if (res.code !== 200) {
           s.important = prev
-          throw new Error(res.message || '标记重要失败')
+          throw new Error(res.message || t('errors.markImportantFailed'))
         }
       } catch (e) {
         s.important = prev
@@ -1253,7 +1267,7 @@ export const useAppStore = defineStore('app', {
         const res = await chatApi.toggleMute(sessionId)
         if (res.code !== 200) {
           s.muted = prev
-          throw new Error(res.message || '免打扰失败')
+          throw new Error(res.message || t('errors.muteSessionFailed'))
         }
       } catch (e) {
         s.muted = prev
@@ -1373,7 +1387,7 @@ export const useAppStore = defineStore('app', {
       try {
         const res = await chatApi.editMessage(sessionId, messageId, trimmed)
         if (res.code !== 200 || !res.data) {
-          throw new Error(res.message || '编辑失败')
+          throw new Error(res.message || t('chat.editFail'))
         }
         this.applyEditedMessage(res.data)
         return true
@@ -1389,7 +1403,7 @@ export const useAppStore = defineStore('app', {
       try {
         const res = await chatApi.forwardMessage(sessionId, messageId, targetConversationId)
         if (res.code !== 200 || !res.data) {
-          throw new Error(res.message || '转发失败')
+          throw new Error(res.message || t('chat.forwardFail'))
         }
         const targetId = String(res.data.conversationId || targetConversationId)
         const chatMsg = messageToChatMessage(res.data, targetId)
@@ -1492,7 +1506,7 @@ export const useAppStore = defineStore('app', {
           : await friendApi.blockFriend(peerId)
         if (res.code !== 200) {
           s.blocked = prev
-          throw new Error(res.message || '操作失败')
+          throw new Error(res.message || t('errors.operationFailed'))
         }
       } catch (e) {
         s.blocked = prev
@@ -1517,7 +1531,7 @@ export const useAppStore = defineStore('app', {
           await useGroupMetaStore().fetchMembers(sessionId, true)
           return true
         }
-        throw new Error(res.message || '邀请成员失败')
+        throw new Error(res.message || t('errors.inviteMemberFailed'))
       } catch (e) {
         console.error('邀请成员失败:', e)
         throw e
@@ -1533,7 +1547,7 @@ export const useAppStore = defineStore('app', {
       try {
         const res = await groupApi.quitGroup(sessionId)
         if (res.code !== 200) {
-          throw new Error(res.message || '退出群聊失败')
+          throw new Error(res.message || t('errors.quitGroupFailed'))
         }
         this.deleteSession(sessionId)
         useGroupMetaStore().clearForSession(sessionId)
@@ -1549,7 +1563,7 @@ export const useAppStore = defineStore('app', {
     async transferGroupOwner(sessionId: string, newOwnerId: string): Promise<void> {
       const res = await groupApi.transferGroupOwner(sessionId, newOwnerId)
       if (res.code !== 200) {
-        throw new Error(res.message || '转让群主失败')
+        throw new Error(res.message || t('modals.transferOwnerFail'))
       }
       await useGroupMetaStore().fetchMembers(sessionId, true)
     },
@@ -1564,7 +1578,7 @@ export const useAppStore = defineStore('app', {
     ): Promise<void> {
       const res = await groupApi.updateMemberRole(sessionId, memberId, role)
       if (res.code !== 200) {
-        throw new Error(res.message || '更新成员角色失败')
+        throw new Error(res.message || t('errors.updateRoleFailed'))
       }
       await useGroupMetaStore().fetchMembers(sessionId, true)
     },
@@ -1575,7 +1589,7 @@ export const useAppStore = defineStore('app', {
     async dissolveGroup(sessionId: string): Promise<void> {
       const res = await groupApi.dissolveGroup(sessionId)
       if (res.code !== 200) {
-        throw new Error(res.message || '解散群聊失败')
+        throw new Error(res.message || t('modals.dissolveFail'))
       }
       this.deleteSession(sessionId)
       useGroupMetaStore().clearForSession(sessionId)
@@ -1587,7 +1601,7 @@ export const useAppStore = defineStore('app', {
     async removeGroupMember(sessionId: string, memberId: string): Promise<void> {
       const res = await groupApi.removeGroupMember(sessionId, memberId)
       if (res.code !== 200) {
-        throw new Error(res.message || '移除成员失败')
+        throw new Error(res.message || t('modals.removeMemberFail'))
       }
       await useGroupMetaStore().fetchMembers(sessionId, true)
     },
@@ -1637,11 +1651,11 @@ export const useAppStore = defineStore('app', {
         sessionId: id,
         content:
           type === 'file'
-            ? (options.fileName || trimmed || '文件')
+            ? (options.fileName || trimmed || t('defaults.file'))
             : type === 'voice'
-              ? '[语音消息]'
+              ? t('chat.voiceMessageTag')
               : type === 'redPacket'
-                ? (options.redPacketGreeting || trimmed || '恭喜发财')
+                ? (options.redPacketGreeting || trimmed || t('modals.greetingFallback'))
                 : (trimmed || content),
         time,
         createTime: Date.now(),
@@ -1705,7 +1719,7 @@ export const useAppStore = defineStore('app', {
             clientMsgId
           })
           if (res.code !== 200 || !res.data) {
-            throw new Error(res.message || '发送失败')
+            throw new Error(res.message || t('chat.messageSendFail'))
           }
           const chatMsg = messageToChatMessage(res.data, id)
           chatMsg.sendStatus = 'sent'
@@ -1752,7 +1766,7 @@ export const useAppStore = defineStore('app', {
             const uploadRes = await chatApi.uploadChatFileSmart(id, uploadFile, applyUploadProgress)
             console.log('[发送消息] 上传结果:', uploadRes)
             if (uploadRes.code !== 200 || !uploadRes.data) {
-              throw new Error(uploadRes.message || '文件上传失败')
+              throw new Error(uploadRes.message || t('errors.uploadFailed'))
             }
             // 入库/发送用 object key；本地预览用预签名 url
             const objectKey = uploadRes.data.fileKey || uploadRes.data.url
@@ -1792,7 +1806,7 @@ export const useAppStore = defineStore('app', {
         }
 
         if ((type === 'image' || type === 'file' || type === 'voice') && !fileUrl) {
-          throw new Error('文件上传失败')
+          throw new Error(t('errors.uploadFailed'))
         }
 
         if (!isChatSocketConnected()) {
@@ -1850,7 +1864,7 @@ export const useAppStore = defineStore('app', {
       try {
         const res = await chatApi.recallMessage(sessionId, messageId)
         if (res.code !== 200 || !res.data) {
-          throw new Error(res.message || '撤回失败')
+          throw new Error(res.message || t('chat.recallFail'))
         }
         this.applyRecalledMessage(res.data)
         return true
@@ -1869,7 +1883,7 @@ export const useAppStore = defineStore('app', {
         { ...message, type: 'recall', content: '', fileName: '', fileUrl: '' },
         sessionId
       )
-      chatMsg.content = '撤回了一条消息'
+      chatMsg.content = t('chat.preview.recalled')
       chatMsg.type = 'recall'
       chatMsg.isImage = false
       chatMsg.fileUrl = undefined
@@ -1961,7 +1975,7 @@ export const useAppStore = defineStore('app', {
           this.applyUserProfile(res.data)
           return res.data
         }
-        throw new Error(res.message || '更新失败')
+        throw new Error(res.message || t('errors.updateFailed'))
       } catch (error) {
         // 网络失败时仍更新本地已提交的字段，避免用户感知丢失
         if (payload.nickname !== undefined) {
@@ -1970,7 +1984,7 @@ export const useAppStore = defineStore('app', {
         }
         if (payload.signature !== undefined) this.userProfile.signature = payload.signature
         if (payload.gender !== undefined) {
-          this.userProfile.gender = payload.gender === '女' ? '女' : '男'
+          this.userProfile.gender = normalizeProfileGender(payload.gender)
         }
         if (payload.birthday !== undefined) {
           this.userProfile.birthday = parseBirthday(payload.birthday)
@@ -1992,7 +2006,7 @@ export const useAppStore = defineStore('app', {
         }
         return this.userProfile.avatar
       }
-      throw new Error(res.message || '上传失败')
+      throw new Error(res.message || t('errors.uploadFailed'))
     },
 
     /** 获取当前用户信息 */
@@ -2041,7 +2055,7 @@ export const useAppStore = defineStore('app', {
       }
       this.userProfile.nickname = ''
       this.userProfile.username = ''
-      this.userProfile.signature = '编辑个性签名'
+      this.userProfile.signature = t('modals.editSignature')
       this.userProfile.avatar = ''
       this.userProfile.userId = ''
       this.userProfile.email = null
@@ -2095,7 +2109,7 @@ export const useAppStore = defineStore('app', {
           void this.loadSocialData()
           return true
         }
-        throw new Error(res.message || '登录失败')
+        throw new Error(res.message || t('login.loginFail'))
       } finally {
         this.isLoading = false
       }
@@ -2247,12 +2261,12 @@ export const useAppStore = defineStore('app', {
       // 构建群会话对象
       const session: ChatSession = {
         id: String(groupData.id ?? conversationId),
-        name: groupData.name || '群聊',
-        groupName: groupData.name || '群聊',
-        lastMessage: '你已加入群聊',
+        name: groupData.name || t('defaults.group'),
+        groupName: groupData.name || t('defaults.group'),
+        lastMessage: t('chat.joinedGroupLastMessage'),
         time: nowTime(),
-        avatarText: (groupData.name || '群').charAt(0) || '群',
-        avatarColor: pickGroupColor(groupData.name || '群'),
+        avatarText: (groupData.name || t('defaults.groupChar')).charAt(0) || t('defaults.groupChar'),
+        avatarColor: pickGroupColor(groupData.name || t('defaults.groupChar')),
         avatarUrl: normalizeMediaUrl(groupData.avatar),
         memberAvatars: (groupData.memberAvatars || []).slice(0, 9).map((m, i) => ({
           text: (m.nickname || '?').charAt(0) || '?',
@@ -2268,7 +2282,7 @@ export const useAppStore = defineStore('app', {
         {
           id: `msg-sys-${Date.now()}`,
           sessionId: session.id,
-          content: `系统：你被邀请加入了群聊`,
+          content: t('chat.systemInvitedJoin'),
           time: nowTime(),
           isSelf: false,
           type: 'system'
@@ -2299,7 +2313,7 @@ export const useAppStore = defineStore('app', {
           session.groupName = groupData.name
           const remark = session.groupRemark || ''
           session.name = remark || groupData.name
-          session.avatarText = session.name.charAt(0) || '群'
+          session.avatarText = session.name.charAt(0) || t('defaults.groupChar')
         }
       }
 
@@ -2380,11 +2394,11 @@ export const useAppStore = defineStore('app', {
         const momentPost: import('./moments').MomentPost = {
           id: String(postData.id),
           userId: String(postData.userId ?? ''),
-          user: postData.nickname || '用户',
+          user: postData.nickname || t('defaults.user'),
           avatar: normalizeMediaUrl(postData.avatar) || '',
           content: postData.content || '',
           images: (postData.images || []).map(url => normalizeMediaUrl(url)).filter(Boolean) as string[],
-          time: postData.time || '刚刚',
+          time: postData.time || t('defaults.justNow'),
           likes: 0,
           liked: false,
           likedBy: [],

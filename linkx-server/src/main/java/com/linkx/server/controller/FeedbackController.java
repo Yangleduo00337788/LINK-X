@@ -7,6 +7,8 @@ import com.linkx.server.common.AuthUtils;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.Result;
 import com.linkx.server.controller.dto.FeedbackDTO;
+import com.linkx.server.controller.dto.FeedbackFollowUpDTO;
+import com.linkx.server.controller.vo.FeedbackReplyVO;
 import com.linkx.server.controller.vo.FeedbackVO;
 import com.linkx.server.entity.Feedback;
 import com.linkx.server.entity.SysUser;
@@ -41,7 +43,7 @@ public class FeedbackController {
         String username = user != null ? user.getUsername() : "unknown";
 
         Feedback feedback = feedbackService.create(userId, username, dto.getType(), dto.getContent(), dto.getContact());
-        return Result.success(toVO(feedback));
+        return Result.success(toVO(feedback, false));
     }
 
     @Operation(summary = "查询我的反馈列表")
@@ -49,10 +51,40 @@ public class FeedbackController {
     public Result<List<FeedbackVO>> list(HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         List<Feedback> list = feedbackService.listByUser(userId);
-        return Result.success(list.stream().map(this::toVO).collect(Collectors.toList()));
+        return Result.success(list.stream().map(f -> toVO(f, false)).collect(Collectors.toList()));
     }
 
-    private FeedbackVO toVO(Feedback feedback) {
+    @Operation(summary = "查询我的反馈详情（含多轮回复）")
+    @GetMapping("/{id}")
+    public Result<FeedbackVO> detail(@PathVariable Long id, HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(feedbackService.getDetail(userId, id));
+    }
+
+    @Operation(summary = "查询反馈回复记录")
+    @GetMapping("/{id}/replies")
+    public Result<List<FeedbackReplyVO>> listReplies(@PathVariable Long id, HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(feedbackService.listReplies(userId, id));
+    }
+
+    @Operation(summary = "用户补充说明/追评")
+    @PostMapping("/{id}/replies")
+    public Result<FeedbackReplyVO> userReply(@PathVariable Long id,
+                                             @Valid @RequestBody FeedbackFollowUpDTO dto,
+                                             HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        SysUser user = sysUserMapper.selectOneByQuery(
+                QueryWrapper.create().where(SysUser::getId).eq(userId)
+        );
+        String username = user != null ? user.getUsername() : "user";
+        return Result.success(feedbackService.userReply(userId, username, id, dto.getContent()));
+    }
+
+    private FeedbackVO toVO(Feedback feedback, boolean withReplies) {
+        if (withReplies) {
+            return feedbackService.getDetail(feedback.getUserId(), feedback.getId());
+        }
         return FeedbackVO.builder()
                 .id(feedback.getId())
                 .type(feedback.getType())

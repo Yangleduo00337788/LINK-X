@@ -3,6 +3,8 @@
  * 真实 RTCPeerConnection 行为由 call store 调用本模块决策后执行。
  */
 
+import { t } from '../i18n'
+
 export const ICE_RESTART_MAX_ATTEMPTS = 2
 export const WEAK_NET_LOSS_THRESHOLD = 0.12
 export const WEAK_NET_CONFIRM_CHECKS = 2
@@ -52,15 +54,15 @@ export function decideIceRestart(input: {
 }): IceRestartDecision {
   if (!input.isActive) return { action: 'noop' }
   if (input.attemptsSoFar >= ICE_RESTART_MAX_ATTEMPTS) {
-    return { action: 'give_up', message: '通话连接已断开' }
+    return { action: 'give_up', message: t('errors.callDisconnected') }
   }
   const nextAttempts = input.attemptsSoFar + 1
   const disableCamera =
     input.callType === 'video' && input.cameraOn && nextAttempts >= 1
   const message =
     input.reason === 'disconnected'
-      ? '网络波动，正在尝试重连…'
-      : '连接失败，正在尝试 ICE 重连…'
+      ? t('errors.networkFluctuating')
+      : t('errors.iceReconnecting')
   return { action: 'restart', nextAttempts, disableCamera, message }
 }
 
@@ -86,7 +88,7 @@ export function decideWeakNetVideo(input: {
   if (nextChecks >= WEAK_NET_CONFIRM_CHECKS) {
     return {
       action: 'disable_camera',
-      message: '网络较差，已自动关闭视频以保持通话'
+      message: t('errors.weakNetDisableVideo')
     }
   }
   return { action: 'accumulate', nextChecks }

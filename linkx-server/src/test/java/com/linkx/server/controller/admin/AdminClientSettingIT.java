@@ -34,6 +34,62 @@ class AdminClientSettingIT extends BaseIntegrationTest {
     private SensitiveWordService sensitiveWordService;
 
     @Test
+    @DisplayName("统一 PUT /admin/settings 可更新客户端配置")
+    void unifiedPut_clientSection() throws Exception {
+        TestUser admin = registerAndLogin("cssettings");
+        grantAdmin(admin.userId);
+        admin = login(admin.username, PASSWORD);
+
+        JsonNode client = readClientSettings(admin);
+        String email = "unified-" + System.nanoTime() + "@linkx.test";
+        try {
+            String body = """
+                    {
+                      "client": {
+                        "captchaEnabled":%s,
+                        "appVersion":"%s",
+                        "appChannel":"%s",
+                        "releaseNotes":%s,
+                        "downloadUrl":%s,
+                        "forceUpdate":%s,
+                        "minSupportedVersion":"%s",
+                        "maxUploadBytes":%d,
+                        "sensitiveFilterEnabled":%s,
+                        "supportEmail":"%s",
+                        "supportPhone":"%s",
+                        "feedbackSlaHours":%d
+                      }
+                    }
+                    """.formatted(
+                    client.path("captchaEnabled").asBoolean(false),
+                    client.path("appVersion").asText("1.0.0"),
+                    client.path("appChannel").asText("stable"),
+                    jsonString(client.path("releaseNotes").asText("")),
+                    jsonString(client.path("downloadUrl").asText("")),
+                    client.path("forceUpdate").asBoolean(false),
+                    client.path("minSupportedVersion").asText(""),
+                    client.path("maxUploadBytes").asLong(20L * 1024 * 1024),
+                    client.path("sensitiveFilterEnabled").asBoolean(true),
+                    email,
+                    client.path("supportPhone").asText(""),
+                    client.path("feedbackSlaHours").asInt(24)
+            );
+            mockMvc.perform(put("/admin/settings")
+                            .header("Authorization", admin.bearer())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(200))
+                    .andExpect(jsonPath("$.data.client.supportEmail").value(email));
+        } finally {
+            putClient(admin, client,
+                    client.path("supportEmail").asText(""),
+                    client.path("supportPhone").asText(""),
+                    client.path("sensitiveFilterEnabled").asBoolean(true));
+        }
+    }
+
+    @Test
     @DisplayName("更新客服邮箱/电话后公开版本接口可读取")
     void supportContactExposedOnAppVersion() throws Exception {
         TestUser admin = registerAndLogin("cssupport");

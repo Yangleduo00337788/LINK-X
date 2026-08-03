@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.util.Date;
+import java.util.List;
 
 @Data
 @Builder
@@ -23,4 +24,5 @@ public class FeedbackVO implements Serializable {
     private String reply;
     private Date replyTime;
     private Date createTime;
+    private List<FeedbackReplyVO> replies;
 }

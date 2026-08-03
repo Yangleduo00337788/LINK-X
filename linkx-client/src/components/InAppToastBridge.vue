@@ -4,6 +4,9 @@
  */
 import { onMounted, onBeforeUnmount } from 'vue'
 import { useNotification } from 'naive-ui'
+import { useI18n } from '../i18n'
+
+useI18n()
 
 const notification = useNotification()
 let unsubscribe: (() => void) | null = null

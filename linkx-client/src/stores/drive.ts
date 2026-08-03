@@ -5,6 +5,7 @@ import { defineStore } from 'pinia'
 import * as driveApi from '../api/drive'
 import type { DriveActivityVO, DriveItemVO, DriveStorageVO } from '../api/drive'
 import { formatFileSize } from '../utils/file'
+import { t } from '../i18n'
 
 export const useDriveStore = defineStore('drive', {
   state: () => ({
@@ -131,7 +132,7 @@ export const useDriveStore = defineStore('drive', {
         for (const file of list) {
           const res = await driveApi.uploadDriveFile(file, this.folderId)
           if (res.code !== 200) {
-            throw new Error(res.message || '上传失败')
+            throw new Error(res.message || t('errors.uploadFailed'))
           }
         }
         await this.refreshAll()
@@ -142,14 +143,14 @@ export const useDriveStore = defineStore('drive', {
 
     async createFolder(name: string) {
       const res = await driveApi.createDriveFolder(name, this.folderId)
-      if (res.code !== 200) throw new Error(res.message || '创建失败')
+      if (res.code !== 200) throw new Error(res.message || t('errors.driveCreateFailed'))
       await this.refreshAll()
       return res.data
     },
 
     async expandStorage() {
       const res = await driveApi.expandDriveStorage()
-      if (res.code !== 200) throw new Error(res.message || '扩容失败')
+      if (res.code !== 200) throw new Error(res.message || t('errors.driveExpandFailed'))
       this.storage = res.data
       return res.data
     },
@@ -157,7 +158,7 @@ export const useDriveStore = defineStore('drive', {
     async deleteSelected() {
       if (!this.selectedIds.length) return
       const res = await driveApi.batchDeleteDriveItems(this.selectedItems)
-      if (res.code !== 200) throw new Error(res.message || '删除失败')
+      if (res.code !== 200) throw new Error(res.message || t('errors.driveDeleteFailed'))
       if (this.detailItem && this.selectedIds.includes(this.detailItem.id)) {
         this.detailItem = null
       }
@@ -170,7 +171,7 @@ export const useDriveStore = defineStore('drive', {
         item.kind === 'folder'
           ? await driveApi.deleteDriveFolder(item.id)
           : await driveApi.deleteDriveFile(item.id)
-      if (res.code !== 200) throw new Error(res.message || '删除失败')
+      if (res.code !== 200) throw new Error(res.message || t('errors.driveDeleteFailed'))
       if (this.detailItem?.id === item.id) this.detailItem = null
       await this.refreshAll()
     },
@@ -178,7 +179,7 @@ export const useDriveStore = defineStore('drive', {
     async moveSelected(targetFolderId: string | null) {
       if (!this.selectedIds.length) return
       const res = await driveApi.batchMoveDriveItems(this.selectedItems, targetFolderId)
-      if (res.code !== 200) throw new Error(res.message || '移动失败')
+      if (res.code !== 200) throw new Error(res.message || t('errors.driveMoveFailed'))
       this.clearSelection()
       await this.refreshAll()
     },
@@ -188,7 +189,7 @@ export const useDriveStore = defineStore('drive', {
         item.kind === 'folder'
           ? await driveApi.updateDriveFolder(item.id, { name })
           : await driveApi.updateDriveFile(item.id, { name })
-      if (res.code !== 200) throw new Error(res.message || '重命名失败')
+      if (res.code !== 200) throw new Error(res.message || t('errors.driveRenameFailed'))
       await this.refreshAll()
       if (this.detailItem?.id === item.id && res.data) {
         this.detailItem = res.data
@@ -197,13 +198,13 @@ export const useDriveStore = defineStore('drive', {
 
     async updateDescription(fileId: string, description: string) {
       const res = await driveApi.updateDriveFile(fileId, { description })
-      if (res.code !== 200) throw new Error(res.message || '保存失败')
+      if (res.code !== 200) throw new Error(res.message || t('errors.driveSaveFailed'))
       if (this.detailItem?.id === fileId && res.data) this.detailItem = res.data
     },
 
     async addTag(fileId: string, tagName: string) {
       const res = await driveApi.addDriveTag(fileId, tagName)
-      if (res.code !== 200) throw new Error(res.message || '添加标签失败')
+      if (res.code !== 200) throw new Error(res.message || t('errors.driveAddTagFailed'))
       if (this.detailItem?.id === fileId) {
         this.detailItem = { ...this.detailItem, tags: res.data || [] }
       }
@@ -212,7 +213,7 @@ export const useDriveStore = defineStore('drive', {
 
     async removeTag(fileId: string, tagName: string) {
       const res = await driveApi.removeDriveTag(fileId, tagName)
-      if (res.code !== 200) throw new Error(res.message || '移除标签失败')
+      if (res.code !== 200) throw new Error(res.message || t('errors.driveRemoveTagFailed'))
       if (this.detailItem?.id === fileId) {
         this.detailItem = { ...this.detailItem, tags: res.data || [] }
       }
@@ -225,7 +226,7 @@ export const useDriveStore = defineStore('drive', {
         password: opts?.password,
         expireHours: opts?.expireHours
       })
-      if (res.code !== 200 || !res.data) throw new Error(res.message || '创建分享失败')
+      if (res.code !== 200 || !res.data) throw new Error(res.message || t('errors.driveShareCreateFailed'))
       if (item.kind === 'file') await this.fetchActivities(item.id)
       return res.data
     }

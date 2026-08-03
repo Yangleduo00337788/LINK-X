@@ -8,6 +8,9 @@
  */
 // Vue Router 路由视图组件，用于渲染匹配的路由页面
 import { RouterView } from 'vue-router'
+import { useI18n } from './i18n'
+
+useI18n()
 </script>
 
 <template>

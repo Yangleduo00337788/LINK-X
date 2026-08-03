@@ -10,6 +10,9 @@ import { nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { VirtualList } from 'vueuc'
 import type { ChatMessage } from '../../types'
 import type { VirtualListInst } from 'vueuc'
+import { useI18n } from '../../i18n'
+
+useI18n()
 
 const props = defineProps<{
   items: ChatMessage[]

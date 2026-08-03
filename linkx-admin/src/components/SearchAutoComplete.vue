@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { NAutoComplete } from 'naive-ui'
 
 const props = withDefaults(
@@ -22,6 +23,8 @@ const emit = defineEmits<{
   search: []
   enter: []
 }>()
+
+useI18n()
 
 const historyKey = 'linkx-admin-search-history'
 const localHistory = ref<string[]>(loadHistory())

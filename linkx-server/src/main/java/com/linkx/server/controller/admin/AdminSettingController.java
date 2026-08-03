@@ -5,6 +5,7 @@ import com.linkx.server.common.RequireStepUp;
 import com.linkx.server.common.RequireRole;
 import com.linkx.server.common.Result;
 import com.linkx.server.config.aspect.AuditAction;
+import com.linkx.server.controller.admin.dto.AdminSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.AdminSideSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.ClientSideSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.MailSettingUpdateDTO;
@@ -12,12 +13,16 @@ import com.linkx.server.controller.admin.dto.MailTemplateSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.RegisterSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.TestForgotPasswordEmailDTO;
 import com.linkx.server.controller.admin.vo.AdminSettingVO;
+import com.linkx.server.exception.CustomException;
 import com.linkx.server.service.admin.AdminSettingService;
+import com.linkx.server.service.admin.AdminStepUpService;
+import com.linkx.server.service.admin.impl.AdminStepUpServiceImpl;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -33,12 +38,24 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminSettingController {
 
     private final AdminSettingService adminSettingService;
+    private final AdminStepUpService adminStepUpService;
 
     @Operation(summary = "查询系统配置")
     @GetMapping
     @RequirePermission("admin:setting:view")
     public Result<AdminSettingVO> get() {
         return Result.success(adminSettingService.getSettings());
+    }
+
+    @Operation(summary = "统一更新系统配置（仅提交需变更的分组）")
+    @AuditAction(operationType = "UPDATE_SETTINGS", description = "更新系统配置")
+    @PutMapping
+    @RequirePermission("admin:setting:edit")
+    public Result<AdminSettingVO> update(@Valid @RequestBody AdminSettingUpdateDTO dto,
+                                         HttpServletRequest request) {
+        enforceStepUpIfNeeded(dto, request);
+        Long operatorId = (Long) request.getAttribute("userId");
+        return Result.success(adminSettingService.updateSettings(dto, operatorId));
     }
 
     @Operation(summary = "更新管理端配置")
@@ -121,5 +138,31 @@ public class AdminSettingController {
     @RequirePermission("admin:setting:edit")
     public Result<String> testForgotPasswordEmail(@Valid @RequestBody TestForgotPasswordEmailDTO dto) {
         return Result.success(adminSettingService.testForgotPasswordEmail(dto.getEmail()));
+    }
+
+    private void enforceStepUpIfNeeded(AdminSettingUpdateDTO dto, HttpServletRequest request) {
+        if (dto == null || !requiresSensitiveStepUp(dto) || !adminStepUpService.isEnabled()) {
+            return;
+        }
+        Long userId = (Long) request.getAttribute("userId");
+        if (userId == null) {
+            throw new CustomException(401, "未登录或登录已过期");
+        }
+        String token = request.getHeader(AdminStepUpServiceImpl.HEADER);
+        if (!StringUtils.hasText(token)
+                || !adminStepUpService.consumeToken(userId, token, "admin:setting:edit")) {
+            var options = adminStepUpService.options(userId, "admin:setting:edit");
+            if (options.getMethods() == null || options.getMethods().isEmpty()) {
+                throw new CustomException(403, "高危操作需二次验证，请先启用 TOTP 或绑定邮箱");
+            }
+            throw new CustomException(
+                    AdminStepUpServiceImpl.CODE_STEP_UP_REQUIRED,
+                    "需要二次验证",
+                    options);
+        }
+    }
+
+    private static boolean requiresSensitiveStepUp(AdminSettingUpdateDTO dto) {
+        return dto.getLogin() != null || dto.getPassword() != null || dto.getMail() != null;
     }
 }

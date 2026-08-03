@@ -19,6 +19,17 @@ export interface FeedbackVO {
   reply?: string
   replyTime?: string
   createTime: string
+  replies?: FeedbackReplyVO[]
+}
+
+export interface FeedbackReplyVO {
+  id: string
+  feedbackId?: string
+  senderType?: 'admin' | 'user'
+  senderId?: string
+  senderName?: string
+  content?: string
+  createTime?: string
 }
 
 /**
@@ -33,4 +44,12 @@ export function submitFeedback(payload: FeedbackPayload) {
  */
 export function listFeedback() {
   return apiClient.get<never, ApiResult<FeedbackVO[]>>('/feedback')
+}
+
+export function getFeedbackDetail(id: string) {
+  return apiClient.get<never, ApiResult<FeedbackVO>>(`/feedback/${id}`)
+}
+
+export function followUpFeedback(id: string, content: string) {
+  return apiClient.post<never, ApiResult<FeedbackReplyVO>>(`/feedback/${id}/replies`, { content })
 }

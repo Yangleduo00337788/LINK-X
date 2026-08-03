@@ -5,6 +5,7 @@ import com.linkx.server.controller.admin.dto.AdminFeedbackAssignDTO;
 import com.linkx.server.controller.admin.dto.AdminFeedbackQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminFeedbackReplyDTO;
 import com.linkx.server.controller.admin.vo.AdminFeedbackVO;
+import com.linkx.server.controller.vo.FeedbackReplyVO;
 
 import java.util.List;
 
@@ -15,6 +16,8 @@ public interface AdminFeedbackService {
     List<AdminFeedbackVO> listForExport(AdminFeedbackQueryDTO query);
 
     AdminFeedbackVO detail(Long id);
+
+    List<FeedbackReplyVO> listReplies(Long id);
 
     void reply(Long id, AdminFeedbackReplyDTO dto, Long operatorId);
 

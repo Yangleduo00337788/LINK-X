@@ -1179,6 +1179,9 @@ export default {
     notFound: 'Feedback not found or access denied',
     assignedAt: 'Assigned at',
     noReplyYet: 'No reply yet',
+    conversation: 'Conversation',
+    senderAdmin: 'Official support',
+    senderUser: 'User',
     typeBug: 'Bug report',
     typeSuggestion: 'Suggestion',
     typeOther: 'Other',
@@ -1386,5 +1389,14 @@ export default {
     notFoundTitle: 'Page not found',
     notFoundDesc: 'Please check the URL',
     backHome: 'Back to home',
+  },
+  acceptance: {
+    roles: {
+      superAdmin: 'Super admin',
+      opsAdmin: 'Ops admin',
+      auditAdmin: 'Audit admin',
+      securityAdmin: 'Security admin',
+      readonlyObserver: 'Read-only observer',
+    },
   },
 }

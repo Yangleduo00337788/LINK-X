@@ -4,7 +4,7 @@
  * @see docs/testing/ADMIN_FIVE_ROLE_CHECKLIST.md
  */
 import { describe, expect, it } from 'vitest'
-import { ROLE_SMOKE_CASES, assertRoleSmoke } from './roleSmokeMatrix'
+import { ROLE_SMOKE_CASES, assertRoleSmoke, roleSmokeLabel } from './roleSmokeMatrix'
 
 const API_BASE = (
   import.meta.env.ADMIN_API_BASE ||
@@ -101,7 +101,7 @@ describe.skipIf(!liveEnabled)('五角色生产 API 抽检 @live', () => {
 
   for (const cred of creds) {
     const role = ROLE_SMOKE_CASES.find((r) => r.roleCode === cred.roleCode)
-    it(`${role?.label ?? cred.roleCode} (${cred.roleCode})`, async () => {
+    it(`${role ? roleSmokeLabel(role.roleCode) : cred.roleCode} (${cred.roleCode})`, async () => {
       expect(role, `unknown roleCode ${cred.roleCode}`).toBeTruthy()
 
       const token = await login(cred.username, cred.password)

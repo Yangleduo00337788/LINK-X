@@ -1,35 +1,34 @@
 <script setup lang="ts">
 /**
  * 数据卡片消息气泡（如套餐/流量卡样式）。
- * <p>
- * 字段来自 ChatMessage 的 dataCard* 扩展属性。
- * </p>
  */
 import { PhonePortraitOutline } from '@vicons/ionicons5'
 import { NIcon } from 'naive-ui'
 import type { ChatMessage } from '../../../types'
+import { useI18n } from '../../../i18n'
 
 defineProps<{
   msg: ChatMessage
 }>()
+
+const { t } = useI18n()
 </script>
 
 <template>
-  <!-- 结构化数据卡片：头部 + 分隔线 + 数值区 -->
   <div class="data-card">
     <div class="card-header">
       <div class="card-icon">
         <n-icon :component="PhonePortraitOutline" :size="20" />
       </div>
       <div class="card-info">
-        <div class="card-title">{{ msg.dataCardTitle || '卡片' }}</div>
-        <div class="card-sub">{{ msg.dataCardSub || '描述信息' }}</div>
+        <div class="card-title">{{ msg.dataCardTitle || t('modals.dataCardTitle') }}</div>
+        <div class="card-sub">{{ msg.dataCardSub || t('modals.dataCardSub') }}</div>
       </div>
-      <div class="card-tag">套餐</div>
+      <div class="card-tag">{{ t('modals.dataCardTag') }}</div>
     </div>
     <div class="card-divider" />
     <div class="card-body">
-      <div class="card-label">{{ msg.dataCardLabel || '标签' }}</div>
+      <div class="card-label">{{ msg.dataCardLabel || t('modals.dataCardLabel') }}</div>
       <div class="card-value">{{ msg.dataCardValue || '-' }}</div>
     </div>
   </div>

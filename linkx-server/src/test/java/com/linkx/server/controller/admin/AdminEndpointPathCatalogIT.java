@@ -30,6 +30,7 @@ class AdminEndpointPathCatalogIT extends BaseIntegrationTest {
             "/admin/events/stream",
             "/admin/feedback/{id}",
             "/admin/feedback/export",
+            "/admin/feedback/{id}/replies",
             "/admin/feedback-dispatch-rules",
             "/admin/feedback-dispatch-rules/{id}",
             "/admin/abnormal-access",
@@ -85,6 +86,7 @@ class AdminEndpointPathCatalogIT extends BaseIntegrationTest {
             "/admin/feedback/{id}/close",
             "/admin/feedback/{id}/reopen",
             "/admin/feedback/{id}/reply",
+            "/admin/feedback/{id}/replies",
             "/admin/feedback-dispatch-rules",
             "/admin/permissions",
             "/admin/rate-limits/unblock",
@@ -122,6 +124,7 @@ class AdminEndpointPathCatalogIT extends BaseIntegrationTest {
             "/admin/feedback/{id}/assign",
             "/admin/feedback-dispatch-rules/{id}",
             "/admin/homepage-sections/reorder",
+            "/admin/settings",
     };
 
     private static final String[] DELETE_PATHS = {

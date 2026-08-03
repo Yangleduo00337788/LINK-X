@@ -1,21 +1,15 @@
 <script setup lang="ts">
 /**
- * 消息页「LinkX官方」主面板：按反馈单分组展示详细进度时间线，并实时跟随推送刷新。
+ * 消息页「LinkX官方」主面板：以好友聊天气泡形式展示反馈进度与系统通知。
  */
 import { computed, onMounted, ref, watch } from 'vue'
-import { NIcon, NTag, useMessage } from 'naive-ui'
-import {
-  HeadsetOutline,
-  CheckmarkDoneOutline,
-  TrashOutline,
-  CreateOutline,
-  ChatbubbleEllipsesOutline,
-  CloseCircleOutline,
-  RefreshOutline
-} from '@vicons/ionicons5'
+import { NIcon, useMessage } from 'naive-ui'
+import { HeadsetOutline, CheckmarkDoneOutline, TrashOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useNotificationsStore } from '../stores/notifications'
+import { useAppStore } from '../stores/app'
 import EmptyState from './common/EmptyState.vue'
+import Avatar from './Avatar.vue'
 import type { MessageNotification } from '../stores/notifications'
 import { resolveNoteMediaUrl } from '../api/note'
 import { normalizeMediaUrl } from '../utils/mediaUrl'
@@ -24,8 +18,10 @@ import { useI18n } from '../i18n'
 const message = useMessage()
 const { t } = useI18n()
 const notificationsStore = useNotificationsStore()
+const appStore = useAppStore()
 
 const { officialNotifs } = storeToRefs(notificationsStore)
+const { userProfile } = storeToRefs(appStore)
 const {
   fetchMessageNotifications,
   markMessageAsRead,
@@ -37,34 +33,38 @@ onMounted(() => {
   void fetchMessageNotifications()
 })
 
-watch(
-  () => officialNotifs.value.length,
-  () => {
-    // 推送刷新后列表变化时保持最新
-  }
-)
-
 interface BodyPart {
   kind: 'text' | 'image'
   text?: string
   key?: string
 }
 
-interface ProgressStep {
-  notif: MessageNotification
-  title: string
-  bodyParts: BodyPart[]
-}
-
-interface FeedbackTicket {
+interface OfficialChatMessage {
   id: string
-  latestTime: string
+  notifId: string
+  time: string
+  isSelf: boolean
+  text: string
+  images: BodyPart[]
   unread: boolean
-  steps: ProgressStep[]
+  isSystemTip?: boolean
 }
 
 const EVIDENCE_KEY_RE = /^\d+\.\s*([\w./-]+\.(?:png|jpe?g|gif|webp|bmp))$/i
 const resolvedEvidenceUrls = ref<Record<string, string>>({})
+
+const officialAvatarProps = computed(() => ({
+  text: t('chat.officialAvatar'),
+  color: '#2f6fed',
+  size: 36
+}))
+
+const selfAvatarProps = computed(() => ({
+  text: t('chat.me'),
+  color: 'var(--lx-success)',
+  size: 36,
+  imageUrl: userProfile.value.avatar || undefined
+}))
 
 function formatTime(raw: string): string {
   if (!raw) return ''
@@ -84,46 +84,32 @@ function formatTime(raw: string): string {
   return `${m}-${d} ${hh}:${mm}`
 }
 
-function statusMeta(type?: string): { title: string; tag: 'info' | 'success' | 'warning' | 'error' | 'default' } {
+function statusTitle(type?: string): string {
   switch (type) {
     case 'feedback_submitted':
-      return { title: t('chat.officialStepSubmitted'), tag: 'info' }
+      return t('chat.officialStepSubmitted')
     case 'feedback_replied':
-      return { title: t('chat.officialStepReplied'), tag: 'success' }
+      return t('chat.officialStepReplied')
     case 'feedback_closed':
-      return { title: t('chat.officialStepClosed'), tag: 'default' }
+      return t('chat.officialStepClosed')
     case 'feedback_reopened':
-      return { title: t('chat.officialStepReopened'), tag: 'warning' }
+      return t('chat.officialStepReopened')
     case 'review_approved':
-      return { title: t('chat.officialStepApproved'), tag: 'success' }
+      return t('chat.officialStepApproved')
     case 'review_rejected':
-      return { title: t('chat.officialStepRejected'), tag: 'error' }
+      return t('chat.officialStepRejected')
     case 'notice_published':
-      return { title: t('chat.officialStepNotice'), tag: 'info' }
+      return t('chat.officialStepNotice')
     default:
-      return { title: t('chat.officialStepProgress'), tag: 'info' }
+      return t('chat.officialStepProgress')
   }
 }
 
-function stepIcon(type?: string) {
-  switch (type) {
-    case 'feedback_submitted':
-      return CreateOutline
-    case 'feedback_replied':
-      return ChatbubbleEllipsesOutline
-    case 'feedback_closed':
-      return CloseCircleOutline
-    case 'feedback_reopened':
-      return RefreshOutline
-    case 'review_approved':
-      return ChatbubbleEllipsesOutline
-    case 'review_rejected':
-      return CloseCircleOutline
-    case 'notice_published':
-      return HeadsetOutline
-    default:
-      return HeadsetOutline
+function extractValue(line: string, prefixes: string[]): string | null {
+  for (const prefix of prefixes) {
+    if (line.startsWith(prefix)) return line.slice(prefix.length).trim()
   }
+  return null
 }
 
 /** 把通知正文拆成文本行 + 证据图 key */
@@ -139,14 +125,99 @@ function parseBodyParts(content?: string): BodyPart[] {
       parts.push({ kind: 'image', key: m[1] })
       continue
     }
-    if (/^证据图片:\s*无$/.test(line)) {
-      parts.push({ kind: 'text', text: line })
-      continue
-    }
+    if (/^证据图片:\s*无$/.test(line)) continue
     parts.push({ kind: 'text', text: line })
   }
   return parts
 }
+
+function makeChatMessage(
+  notif: MessageNotification,
+  suffix: string,
+  isSelf: boolean,
+  text: string,
+  images: BodyPart[] = []
+): OfficialChatMessage {
+  return {
+    id: `${notif.id}:${suffix}`,
+    notifId: notif.id,
+    time: notif.createTime,
+    isSelf,
+    text,
+    images,
+    unread: notif.readStatus === 0
+  }
+}
+
+function expandNotification(notif: MessageNotification): OfficialChatMessage[] {
+  const parts = parseBodyParts(notif.content)
+  const textLines = parts.filter(p => p.kind === 'text').map(p => p.text!)
+  const imageParts = parts.filter(p => p.kind === 'image')
+
+  if (notif.type === 'feedback_submitted') {
+    const messages: OfficialChatMessage[] = []
+    let userText = ''
+    let officialText = ''
+    for (const line of textLines) {
+      const feedback = extractValue(line, ['你的反馈：', '你的举报：'])
+      if (feedback) userText = feedback
+      const detail = extractValue(line, ['详情：'])
+      if (detail) officialText = detail
+    }
+    if (userText) {
+      messages.push(makeChatMessage(notif, 'user', true, userText, imageParts))
+    }
+    if (officialText) {
+      messages.push(makeChatMessage(notif, 'ack', false, officialText))
+    }
+    if (!messages.length) {
+      messages.push(makeChatMessage(notif, 'fallback', false, notif.content || statusTitle(notif.type)))
+    }
+    return messages
+  }
+
+  if (
+    notif.type === 'feedback_replied' ||
+    notif.type === 'feedback_closed' ||
+    notif.type === 'feedback_reopened'
+  ) {
+    for (const line of textLines) {
+      const detail = extractValue(line, ['详情：'])
+      if (detail) return [makeChatMessage(notif, 'reply', false, detail)]
+    }
+    return [makeChatMessage(notif, 'status', false, statusTitle(notif.type))]
+  }
+
+  const displayLines: string[] = []
+  for (const line of textLines) {
+    if (line.startsWith('类型：')) continue
+    if (line.startsWith('你的反馈：') || line.startsWith('你的举报：')) continue
+    const detail = extractValue(line, ['详情：'])
+    if (detail) {
+      displayLines.push(detail)
+      continue
+    }
+    displayLines.push(line)
+  }
+  const text = displayLines.join('\n').trim() || statusTitle(notif.type)
+  return [makeChatMessage(notif, 'official', false, text, imageParts)]
+}
+
+const chatMessages = computed<OfficialChatMessage[]>(() => {
+  const sorted = [...officialNotifs.value].sort(
+    (a, b) => Date.parse(a.createTime) - Date.parse(b.createTime)
+  )
+  return sorted.flatMap(expandNotification)
+})
+
+watch(
+  chatMessages,
+  list => {
+    const parts = list.flatMap(m => m.images)
+    void resolveEvidenceKeys(parts)
+  },
+  { immediate: true, deep: true }
+)
 
 async function resolveEvidenceKeys(parts: BodyPart[]) {
   const keys = parts
@@ -168,55 +239,9 @@ async function resolveEvidenceKeys(parts: BodyPart[]) {
   )
 }
 
-const tickets = computed<FeedbackTicket[]>(() => {
-  const map = new Map<string, FeedbackTicket>()
-  for (const notif of officialNotifs.value) {
-    const key = notif.relatedId || notif.id
-    let ticket = map.get(key)
-    if (!ticket) {
-      ticket = {
-        id: key,
-        latestTime: notif.createTime,
-        unread: false,
-        steps: []
-      }
-      map.set(key, ticket)
-    }
-    const meta = statusMeta(notif.type)
-    ticket.steps.push({
-      notif,
-      title: meta.title,
-      bodyParts: parseBodyParts(notif.content)
-    })
-    if (notif.readStatus === 0) ticket.unread = true
-    if (Date.parse(notif.createTime) >= Date.parse(ticket.latestTime)) {
-      ticket.latestTime = notif.createTime
-    }
-  }
-  // 每张工单内按时间正序（时间线从早到晚）
-  for (const ticket of map.values()) {
-    ticket.steps.sort(
-      (a, b) => Date.parse(a.notif.createTime) - Date.parse(b.notif.createTime)
-    )
-  }
-  // 工单按最新进度倒序
-  return [...map.values()].sort(
-    (a, b) => Date.parse(b.latestTime) - Date.parse(a.latestTime)
-  )
-})
-
-watch(
-  tickets,
-  list => {
-    const parts = list.flatMap(t => t.steps.flatMap(s => s.bodyParts))
-    void resolveEvidenceKeys(parts)
-  },
-  { immediate: true, deep: true }
-)
-
-async function onClickStep(notif: MessageNotification) {
-  if (notif.readStatus === 0) {
-    void markMessageAsRead(notif.id)
+async function onClickMessage(msg: OfficialChatMessage) {
+  if (msg.unread) {
+    void markMessageAsRead(msg.notifId)
   }
 }
 
@@ -225,22 +250,9 @@ async function markAllRead() {
   message.success(t('chat.markedAllRead'))
 }
 
-async function clearOne(notif: MessageNotification, e: Event) {
+async function clearOne(msg: OfficialChatMessage, e: Event) {
   e.stopPropagation()
-  await deleteMessageNotification(notif.id)
-}
-
-function latestStatus(ticket: FeedbackTicket) {
-  const last = ticket.steps[ticket.steps.length - 1]
-  return statusMeta(last?.notif.type)
-}
-
-function ticketLabel(ticket: FeedbackTicket) {
-  const type = ticket.steps[ticket.steps.length - 1]?.notif.type
-  if (typeof type === 'string' && type.startsWith('notice_')) {
-    return t('chat.officialNoticeTicket')
-  }
-  return t('chat.officialTicket')
+  await deleteMessageNotification(msg.notifId)
 }
 </script>
 
@@ -263,74 +275,55 @@ function ticketLabel(ticket: FeedbackTicket) {
 
     <div class="content">
       <EmptyState
-        v-if="tickets.length === 0"
+        v-if="chatMessages.length === 0"
         :title="t('chat.noOfficial')"
         :description="t('chat.officialEmptyDesc')"
       />
-      <div v-else class="ticket-list">
-        <article
-          v-for="ticket in tickets"
-          :key="ticket.id"
-          class="ticket"
-          :class="{ unread: ticket.unread }"
+      <div v-else class="chat-scroll">
+        <div
+          v-for="msg in chatMessages"
+          :key="msg.id"
+          class="message-row"
+          :class="[msg.isSelf ? 'right' : 'left', { unread: msg.unread }]"
+          @click="onClickMessage(msg)"
         >
-          <div class="ticket-head">
-            <div class="ticket-title-row">
-              <span class="ticket-label">{{ ticketLabel(ticket) }}</span>
-              <NTag size="small" :type="latestStatus(ticket).tag" round>
-                {{ latestStatus(ticket).title }}
-              </NTag>
+          <Avatar v-if="!msg.isSelf" v-bind="officialAvatarProps" />
+
+          <div class="bubble-wrapper">
+            <div class="lx-bubble" :class="{ self: msg.isSelf }">
+              <p class="lx-bubble-text">{{ msg.text }}</p>
+              <div v-if="msg.images.length" class="bubble-images">
+                <a
+                  v-for="(img, idx) in msg.images"
+                  :key="idx"
+                  class="evidence-thumb"
+                  :href="img.key ? resolvedEvidenceUrls[img.key] : undefined"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  @click.stop
+                >
+                  <img
+                    v-if="img.key && resolvedEvidenceUrls[img.key]"
+                    :src="resolvedEvidenceUrls[img.key]"
+                    alt=""
+                  />
+                </a>
+              </div>
             </div>
-            <span class="ticket-time">{{ formatTime(ticket.latestTime) }}</span>
+            <span class="msg-time">{{ formatTime(msg.time) }}</span>
           </div>
 
-          <ol class="timeline">
-            <li
-              v-for="step in ticket.steps"
-              :key="step.notif.id"
-              class="timeline-item"
-              :class="{ unread: step.notif.readStatus === 0 }"
-              @click="onClickStep(step.notif)"
-            >
-              <div class="dot-col">
-                <div class="dot">
-                  <n-icon :component="stepIcon(step.notif.type)" :size="14" />
-                </div>
-              </div>
-              <div class="step-body">
-                <div class="step-top">
-                  <span class="step-title">{{ step.title }}</span>
-                  <span class="step-time">{{ formatTime(step.notif.createTime) }}</span>
-                </div>
-                <div v-if="step.bodyParts.length" class="step-detail">
-                  <template v-for="(part, idx) in step.bodyParts" :key="idx">
-                    <p v-if="part.kind === 'text'" class="detail-line">{{ part.text }}</p>
-                    <a
-                      v-else-if="part.key && resolvedEvidenceUrls[part.key]"
-                      class="evidence-thumb"
-                      :href="resolvedEvidenceUrls[part.key]"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      @click.stop
-                    >
-                      <img :src="resolvedEvidenceUrls[part.key]" alt="" />
-                    </a>
-                    <p v-else-if="part.key" class="detail-line muted">{{ part.key }}</p>
-                  </template>
-                </div>
-                <p v-else class="step-detail plain">{{ step.notif.content }}</p>
-              </div>
-              <button
-                type="button"
-                class="delete-btn"
-                :title="t('common.delete')"
-                @click="clearOne(step.notif, $event)"
-              >
-                <n-icon :component="TrashOutline" :size="15" />
-              </button>
-            </li>
-          </ol>
-        </article>
+          <Avatar v-if="msg.isSelf" v-bind="selfAvatarProps" />
+
+          <button
+            type="button"
+            class="delete-btn"
+            :title="t('common.delete')"
+            @click="clearOne(msg, $event)"
+          >
+            <n-icon :component="TrashOutline" :size="15" />
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -403,166 +396,91 @@ function ticketLabel(ticket: FeedbackTicket) {
 .content {
   flex: 1;
   overflow: auto;
-  padding: 12px 16px 20px;
+  padding: 16px 20px 24px;
 }
 
-.ticket-list {
+.chat-scroll {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 
-.ticket {
-  border: 1px solid var(--lx-divider);
-  border-radius: 12px;
-  background: var(--lx-bg-panel, #fff);
-  overflow: hidden;
-}
-
-.ticket.unread {
-  border-color: rgba(47, 111, 237, 0.35);
-  box-shadow: 0 0 0 1px rgba(47, 111, 237, 0.08);
-}
-
-.ticket-head {
+.message-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 14px;
-  background: rgba(47, 111, 237, 0.04);
-  border-bottom: 1px solid var(--lx-divider);
-}
-
-.ticket-title-row {
-  display: flex;
-  align-items: center;
   gap: 8px;
-  min-width: 0;
-}
-
-.ticket-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--lx-text-primary);
-}
-
-.ticket-time {
-  flex-shrink: 0;
-  font-size: 12px;
-  color: var(--lx-text-tertiary, #999);
-}
-
-.timeline {
-  list-style: none;
-  margin: 0;
-  padding: 8px 0;
-}
-
-.timeline-item {
-  display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 10px 14px;
-  cursor: pointer;
   position: relative;
+  padding-right: 28px;
 }
 
-.timeline-item:hover {
-  background: var(--lx-bg-hover, rgba(0, 0, 0, 0.03));
+.message-row.left {
+  justify-content: flex-start;
 }
 
-.timeline-item.unread .step-title {
-  color: #2f6fed;
+.message-row.right {
+  justify-content: flex-end;
 }
 
-.dot-col {
-  width: 24px;
-  flex-shrink: 0;
+.message-row.unread .lx-bubble:not(.self) {
+  box-shadow: 0 0 0 1px rgba(47, 111, 237, 0.35);
+}
+
+.bubble-wrapper {
+  max-width: min(420px, 72%);
   display: flex;
-  justify-content: center;
-  padding-top: 2px;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.dot {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(47, 111, 237, 0.12);
-  color: #2f6fed;
+.message-row.left .bubble-wrapper {
+  align-items: flex-start;
 }
 
-.step-body {
-  flex: 1;
-  min-width: 0;
+.message-row.right .bubble-wrapper {
+  align-items: flex-end;
 }
 
-.step-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.step-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--lx-text-primary);
-}
-
-.step-time {
-  flex-shrink: 0;
-  font-size: 12px;
+.msg-time {
+  font-size: 11px;
   color: var(--lx-text-tertiary, #999);
+  padding: 0 4px;
 }
 
-.step-detail {
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--lx-text-secondary);
-  word-break: break-word;
-}
-
-.step-detail.plain {
-  margin: 0;
-}
-
-.detail-line {
-  margin: 0 0 2px;
-}
-
-.detail-line.muted {
-  color: var(--lx-text-tertiary, #999);
-  font-size: 12px;
+.bubble-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
 }
 
 .evidence-thumb {
   display: inline-block;
-  margin: 4px 6px 4px 0;
   border-radius: 8px;
   overflow: hidden;
-  border: 1px solid var(--lx-divider);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   line-height: 0;
 }
 
+.message-row.left .evidence-thumb {
+  border-color: var(--lx-divider);
+}
+
 .evidence-thumb img {
-  width: 72px;
-  height: 72px;
+  width: 120px;
+  height: 120px;
   object-fit: cover;
   display: block;
 }
 
 .delete-btn {
-  flex-shrink: 0;
+  position: absolute;
+  top: 4px;
+  right: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   border: none;
   border-radius: 6px;
   background: transparent;
@@ -571,12 +489,45 @@ function ticketLabel(ticket: FeedbackTicket) {
   opacity: 0;
 }
 
-.timeline-item:hover .delete-btn {
+.message-row:hover .delete-btn {
   opacity: 1;
 }
 
 .delete-btn:hover {
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--lx-bg-hover, rgba(0, 0, 0, 0.06));
   color: var(--lx-danger, #e34d59);
+}
+</style>
+
+<style>
+/* 与 ChatMessageItem 保持一致的气泡样式（官方会话独立渲染，需自带） */
+.official-notify-panel .lx-bubble {
+  position: relative;
+  background: #ffffff;
+  padding: 10px 12px;
+  border-radius: var(--lx-radius);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--lx-text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.official-notify-panel .lx-bubble.self {
+  background: #4facfe;
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(79, 172, 254, 0.3);
+  border: none;
+}
+
+.official-notify-panel .lx-bubble.self .lx-bubble-text {
+  color: #ffffff;
+}
+
+.official-notify-panel .lx-bubble-text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--lx-text);
 }
 </style>

@@ -352,6 +352,16 @@ CREATE TABLE IF NOT EXISTS sys_feedback_dispatch_rule (
   deleted TINYINT NOT NULL DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS sys_feedback_reply (
+  id BIGINT NOT NULL PRIMARY KEY,
+  feedback_id BIGINT NOT NULL,
+  sender_type VARCHAR(16) NOT NULL,
+  sender_id BIGINT,
+  sender_name VARCHAR(64),
+  content TEXT NOT NULL,
+  create_time DATETIME
+);
+
 -- 消息通知表
 CREATE TABLE IF NOT EXISTS message_notification (
   id BIGINT NOT NULL PRIMARY KEY,

@@ -1,6 +1,7 @@
 // 消息 / 会话类型
 import type { ChatMessage, ChatSession } from '../types'
 import { isEphemeralMediaUrl, stripEphemeralMediaUrl } from './mediaUrl'
+import { imagePreviewPlaceholder } from './messagePreviewText'
 
 // 持久化时单条图片 data URL 最大字符数，超出则替换为占位符
 const MAX_PERSIST_IMAGE_CHARS = 120_000
@@ -30,13 +31,13 @@ function sanitizeMessageForPersist(msg: ChatMessage): ChatMessage {
     next.content.startsWith('data:') &&
     next.content.length > MAX_PERSIST_IMAGE_CHARS
   ) {
-    next.content = '[图片]'
+    next.content = imagePreviewPlaceholder()
     next.isImage = true
   }
 
   // 图片 content 若是预签名/本机 MinIO，落盘无意义，下次进会话会重新拉取
   if ((next.type === 'image' || next.isImage) && isEphemeralMediaUrl(next.content)) {
-    next.content = '[图片]'
+    next.content = imagePreviewPlaceholder()
   }
 
   if (next.voiceUrl?.startsWith('blob:') || isEphemeralMediaUrl(next.voiceUrl)) {

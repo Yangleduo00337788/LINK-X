@@ -12,6 +12,9 @@ import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../../../stores/app'
 import { splitMentionContent } from '../../../utils/messageNotify'
+import { useI18n } from '../../../i18n'
+
+useI18n()
 
 const props = defineProps<{ msg: ChatMessage }>()
 

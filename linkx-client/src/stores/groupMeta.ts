@@ -18,7 +18,10 @@ import { normalizeMediaUrl } from '../utils/mediaUrl'
 import { t } from '../i18n'
 import axios from 'axios'
 
-/** 群精华条目 */
+function defaultAlbumLabel(): string {
+  return t('defaults.defaultAlbum')
+}
+
 export interface GroupEssenceItem {
   id: string
   user: string
@@ -91,7 +94,7 @@ export interface GroupAlbumFolder {
 }
 
 function formatBytes(n?: number): string {
-  if (n == null || Number.isNaN(n)) return '未知'
+  if (n == null || Number.isNaN(n)) return t('defaults.unknown')
   return formatFileSize(n)
 }
 
@@ -99,7 +102,7 @@ function extractApiErrorMessage(e: unknown): string | undefined {
   if (axios.isAxiosError(e)) {
     const msg = (e.response?.data as { message?: string } | undefined)?.message
     if (msg) return msg
-    if (e.code === 'ECONNABORTED') return '上传超时，请稍后重试'
+    if (e.code === 'ECONNABORTED') return t('errors.uploadTimeout')
     if (e.message) return e.message
   }
   if (e instanceof Error && e.message) return e.message
@@ -150,8 +153,8 @@ export const useGroupMetaStore = defineStore('groupMeta', {
         if (res.code === 200 && res.data) {
           this.members[sessionId] = res.data.map(m => ({
             id: String(m.userId),
-            name: m.nickname || '用户',
-            avatarText: (m.nickname || '用户').charAt(0),
+            name: m.nickname || t('defaults.user'),
+            avatarText: (m.nickname || t('defaults.user')).charAt(0),
             avatarColor: '#12b7f5',
             avatarUrl: normalizeMediaUrl(m.avatar) || undefined,
             role: m.role,
@@ -226,7 +229,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
                 const remark = (res.data.myRemark || '').trim()
                 session.groupRemark = remark || undefined
                 session.name = remark || groupName
-                session.avatarText = session.name.charAt(0) || '群'
+                session.avatarText = session.name.charAt(0) || t('defaults.groupChar')
               }
             } catch {
               /* ignore */
@@ -299,7 +302,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
     ): Promise<void> {
       const res = await groupApi.updateMuteAll(sessionId, payload)
       if (res.code !== 200) {
-        throw new Error(res.message || '设置全体禁言失败')
+        throw new Error(res.message || t('errors.muteAllFailed'))
       }
       if (res.data) {
         this.applyMuteFromGroupInfo(sessionId, res.data)
@@ -331,7 +334,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
         muteUntil
       })
       if (res.code !== 200) {
-        throw new Error(res.message || '设置成员禁言失败')
+        throw new Error(res.message || t('errors.muteMemberFailed'))
       }
       await this.fetchMembers(sessionId, true)
       // 若操作的是自己（理论上不应），或刷新我的禁言状态
@@ -341,16 +344,16 @@ export const useGroupMetaStore = defineStore('groupMeta', {
     mapAnnouncement(a: GroupAnnouncementVO): GroupAnnouncementItem {
       const role =
         a.publisherRole === 'owner'
-          ? '群主'
+          ? t('defaults.roleOwner')
           : a.publisherRole === 'admin'
-            ? '管理员'
+            ? t('defaults.roleAdmin')
             : a.publisherRole === 'member'
-              ? '成员'
+              ? t('defaults.roleMember')
               : ''
       return {
         id: String(a.id),
         content: a.content || '',
-        author: a.publisherNickname || '成员',
+        author: a.publisherNickname || t('defaults.roleMember'),
         role,
         time: a.updateTime || a.createTime || '',
         pinned: !!a.pinned
@@ -506,7 +509,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
               session.groupName = groupName
               session.groupRemark = value || undefined
               session.name = value || groupName
-              session.avatarText = session.name.charAt(0) || '群'
+              session.avatarText = session.name.charAt(0) || t('defaults.groupChar')
             }
           } catch {
             /* ignore */
@@ -534,7 +537,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
               session.groupName = newName
               const remark = (this.remarks[sessionId] || session.groupRemark || '').trim()
               session.name = remark || newName
-              session.avatarText = session.name.charAt(0) || '群'
+              session.avatarText = session.name.charAt(0) || t('defaults.groupChar')
               session.avatarColor = session.avatarColor || '#e74c3c'
             }
           } catch {
@@ -557,7 +560,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
         const mid = item.messageId != null && item.messageId !== '' ? item.messageId : undefined
         const res = await groupAssetApi.createGroupEssence(sessionId, {
           type: 'essence',
-          title: item.user || '精华',
+          title: item.user || t('defaults.essenceTitle'),
           content: item.content,
           messageId: mid ?? undefined
         })
@@ -619,9 +622,9 @@ export const useGroupMetaStore = defineStore('groupMeta', {
         if (res.code === 200 && res.data) {
           this.files[sessionId] = res.data.map(a => ({
             id: String(a.id),
-            name: a.fileName || a.title || '文件',
+            name: a.fileName || a.title || t('defaults.file'),
             size: formatBytes(a.fileSize),
-            user: a.uploaderNickname || '成员',
+            user: a.uploaderNickname || t('defaults.roleMember'),
             date: (a.createTime || '').slice(0, 10),
             downloads: a.downloadCount || 0,
             fileUrl: a.fileUrl
@@ -648,9 +651,9 @@ export const useGroupMetaStore = defineStore('groupMeta', {
             id: String(a.id),
             url: a.fileUrl || '',
             name: a.fileName || a.title || '',
-            user: a.uploaderNickname || '成员',
+            user: a.uploaderNickname || t('defaults.roleMember'),
             uploaderId: a.uploaderId ? String(a.uploaderId) : undefined,
-            albumName: a.content || a.title || '默认相册',
+            albumName: a.content || a.title || defaultAlbumLabel(),
             time: (a.createTime || '').slice(0, 10)
           }))
         }
@@ -671,7 +674,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
         if (res.code === 200 && res.data) {
           this.essence[sessionId] = res.data.map(a => ({
             id: String(a.id),
-            user: a.uploaderNickname || '成员',
+            user: a.uploaderNickname || t('defaults.roleMember'),
             date: (a.createTime || '').slice(0, 10),
             type: 'link' as const,
             content: a.content || a.title || ''
@@ -714,7 +717,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
         map.set(name, { name, count: 0 })
       }
       for (const p of photos) {
-        const name = p.albumName || '默认相册'
+        const name = p.albumName || defaultAlbumLabel()
         const cur = map.get(name)
         if (cur) {
           cur.count += 1
@@ -723,12 +726,13 @@ export const useGroupMetaStore = defineStore('groupMeta', {
           map.set(name, { name, count: 1, coverUrl: p.url })
         }
       }
-      if (!map.has('默认相册')) {
-        map.set('默认相册', { name: '默认相册', count: 0 })
+      const albumKey = defaultAlbumLabel()
+      if (!map.has(albumKey)) {
+        map.set(albumKey, { name: albumKey, count: 0 })
       }
       return [...map.values()].sort((a, b) => {
-        if (a.name === '默认相册') return -1
-        if (b.name === '默认相册') return 1
+        if (a.name === albumKey) return -1
+        if (b.name === albumKey) return 1
         return a.name.localeCompare(b.name, 'zh-CN')
       })
     },
@@ -737,7 +741,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
       const n = name.trim()
       if (!n || n.length > 32) return false
       if (!this.albumFolders[sessionId]) this.albumFolders[sessionId] = []
-      if (this.albumFolders[sessionId].includes(n) || n === '默认相册') return true
+      if (this.albumFolders[sessionId].includes(n) || n === defaultAlbumLabel()) return true
       this.albumFolders[sessionId].push(n)
       return true
     },
@@ -754,8 +758,8 @@ export const useGroupMetaStore = defineStore('groupMeta', {
           id: String(res.data.id),
           name: res.data.fileName || file.name,
           size: formatBytes(res.data.fileSize ?? file.size),
-          user: res.data.uploaderNickname || '我',
-          date: (res.data.createTime || '').slice(0, 10) || '刚刚',
+          user: res.data.uploaderNickname || t('defaults.me'),
+          date: (res.data.createTime || '').slice(0, 10) || t('defaults.justNow'),
           downloads: 0,
           fileUrl: res.data.fileUrl
         })
@@ -767,24 +771,24 @@ export const useGroupMetaStore = defineStore('groupMeta', {
     async uploadAlbumImages(
       sessionId: string,
       files: File[],
-      albumName = '默认相册'
+      albumName = defaultAlbumLabel()
     ): Promise<{ ok: number; error?: string }> {
       // 打断进行中的列表拉取，避免上传成功后又被旧列表覆盖
       this.albumFetchSeq[sessionId] = (this.albumFetchSeq[sessionId] || 0) + 1
       this.loading[`album-${sessionId}`] = false
 
-      const album = (albumName || '默认相册').trim() || '默认相册'
+      const album = (albumName || defaultAlbumLabel()).trim() || defaultAlbumLabel()
       let ok = 0
       let lastError: string | undefined
       if (!this.albums[sessionId]) this.albums[sessionId] = []
       for (const file of files) {
         try {
           if (!file.type.startsWith('image/') && !/\.(jpe?g|png|gif|webp)$/i.test(file.name)) {
-            lastError = '相册仅支持图片文件'
+            lastError = t('errors.albumImagesOnly')
             continue
           }
           if (file.size > MAX_PUBLISH_IMAGE_BYTES) {
-            lastError = `图片不能超过 ${formatFileSize(MAX_PUBLISH_IMAGE_BYTES)}`
+            lastError = t('chat.imageTooLarge', { size: formatFileSize(MAX_PUBLISH_IMAGE_BYTES) })
             continue
           }
           let uploadFile: File = file
@@ -805,18 +809,18 @@ export const useGroupMetaStore = defineStore('groupMeta', {
               id: String(res.data.id),
               url: res.data.fileUrl || '',
               name: res.data.fileName || file.name,
-              user: res.data.uploaderNickname || '我',
+              user: res.data.uploaderNickname || t('defaults.me'),
               uploaderId: res.data.uploaderId ? String(res.data.uploaderId) : undefined,
               albumName: res.data.content || res.data.title || album,
-              time: (res.data.createTime || '').slice(0, 10) || '刚刚'
+              time: (res.data.createTime || '').slice(0, 10) || t('defaults.justNow')
             })
             ok += 1
           } else {
-            lastError = res.message || '上传失败'
+            lastError = res.message || t('errors.uploadFailed')
           }
         } catch (e) {
           console.error('上传群相册失败:', e)
-          lastError = extractApiErrorMessage(e) || '上传失败'
+          lastError = extractApiErrorMessage(e) || t('errors.uploadFailed')
         }
       }
       return { ok, error: ok > 0 ? undefined : lastError }

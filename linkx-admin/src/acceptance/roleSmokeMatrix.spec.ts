@@ -5,6 +5,7 @@ import {
   assertRoleSmoke,
   collectMenuNames,
   hasPermission,
+  roleSmokeLabel,
 } from './roleSmokeMatrix'
 
 /** 与后端种子角色权限对齐的前端冒烟夹具（菜单 name + 权限码） */
@@ -37,6 +38,7 @@ const FIXTURES: Record<
       { name: 'statistics' },
       { name: 'recommends' },
       { name: 'activities' },
+      { name: 'homepage-orchestration' },
     ],
     permissions: [
       'admin:dashboard:view',
@@ -44,6 +46,8 @@ const FIXTURES: Record<
       'admin:user:view',
       'admin:feedback:list',
       'admin:feedback:reply',
+      'admin:feedback:assign',
+      'admin:feedback-dispatch-rule:list',
       'admin:notice:list',
       'admin:notice:create',
       'admin:banner:list',
@@ -51,6 +55,7 @@ const FIXTURES: Record<
       'admin:user:export',
       'admin:recommend:list',
       'admin:activity:list',
+      'admin:homepage:list',
     ],
   },
   audit_admin: {
@@ -72,6 +77,7 @@ const FIXTURES: Record<
       },
       { name: 'blacklist' },
       { name: 'devices' },
+      { name: 'abnormal-access' },
     ],
     permissions: [
       'admin:dashboard:view',
@@ -84,6 +90,7 @@ const FIXTURES: Record<
       'admin:risk-event:handle',
       'admin:device:list',
       'admin:blacklist:list',
+      'admin:abnormal-access:list',
     ],
   },
   security_admin: {
@@ -101,6 +108,7 @@ const FIXTURES: Record<
       },
       { name: 'blacklist' },
       { name: 'devices' },
+      { name: 'abnormal-access' },
     ],
     permissions: [
       'admin:dashboard:view',
@@ -114,6 +122,7 @@ const FIXTURES: Record<
       'admin:rate-limit:list',
       'admin:rate-limit:unblock',
       'admin:rate-limit:whitelist',
+      'admin:abnormal-access:list',
       'admin:audit:list',
       'admin:login-log:list',
     ],
@@ -150,7 +159,7 @@ const FIXTURES: Record<
 
 describe('前端角色冒烟矩阵', () => {
   for (const role of ROLE_SMOKE_CASES) {
-    it(`${role.label}(${role.roleCode})：菜单/权限/路由可见性符合预期`, () => {
+    it(`${roleSmokeLabel(role.roleCode)}(${role.roleCode})：菜单/权限/路由可见性符合预期`, () => {
       const fixture = FIXTURES[role.roleCode]
       expect(fixture, `missing fixture for ${role.roleCode}`).toBeTruthy()
       const failures = assertRoleSmoke(role, fixture.menus, fixture.permissions)

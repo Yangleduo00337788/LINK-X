@@ -115,28 +115,41 @@ export type MailUpdatePayload = {
   codeExpireMinutes: number
 }
 
+export type AdminSettingUpdatePayload = {
+  register?: RegisterUpdatePayload
+  login?: LoginUpdatePayload
+  password?: PasswordUpdatePayload
+  admin?: AdminSideSetting
+  client?: ClientSideUpdatePayload
+  mail?: MailUpdatePayload
+}
+
 export function fetchSettings() {
   return get<AdminSetting>('/admin/settings')
 }
 
+export function updateSettings(payload: AdminSettingUpdatePayload) {
+  return put<AdminSetting>('/admin/settings', payload)
+}
+
 export function updateRegisterSettings(payload: RegisterUpdatePayload) {
-  return put<AdminSetting>('/admin/settings/register', payload)
+  return updateSettings({ register: payload })
 }
 
 export function updateLoginSettings(payload: LoginUpdatePayload) {
-  return put<AdminSetting>('/admin/settings/login', payload)
+  return updateSettings({ login: payload })
 }
 
 export function updatePasswordSettings(payload: PasswordUpdatePayload) {
-  return put<AdminSetting>('/admin/settings/password', payload)
+  return updateSettings({ password: payload })
 }
 
 export function updateClientSideSettings(payload: ClientSideUpdatePayload) {
-  return put<AdminSetting>('/admin/settings/client', payload)
+  return updateSettings({ client: payload })
 }
 
 export function updateMailSettings(payload: MailUpdatePayload) {
-  return put<AdminSetting>('/admin/settings/mail', payload)
+  return updateSettings({ mail: payload })
 }
 
 export function testForgotPasswordEmail(email: string) {

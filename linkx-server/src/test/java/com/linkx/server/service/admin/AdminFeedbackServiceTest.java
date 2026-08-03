@@ -39,6 +39,7 @@ class AdminFeedbackServiceTest {
     @Mock SysUserMapper sysUserMapper;
     @Mock MessageNotificationService notificationService;
     @Mock ImMessagePushService imPushService;
+    @Mock com.linkx.server.service.FeedbackReplyService feedbackReplyService;
 
     private LinkxProperties linkxProperties;
     private AdminFeedbackServiceImpl service;
@@ -47,7 +48,8 @@ class AdminFeedbackServiceTest {
     void setUp() {
         linkxProperties = new LinkxProperties();
         service = new AdminFeedbackServiceImpl(
-                feedbackMapper, sysUserMapper, notificationService, imPushService, linkxProperties);
+                feedbackMapper, sysUserMapper, notificationService, imPushService, linkxProperties,
+                feedbackReplyService);
     }
 
     private Feedback feedback(Long id, String status, String type) {
@@ -128,6 +130,7 @@ class AdminFeedbackServiceTest {
         service.reply(4L, replyDto, 9L);
         assertEquals("replied", fb.getStatus());
         assertEquals("fixed in v2", fb.getReply());
+        verify(feedbackReplyService).addAdminReply(eq(fb), eq("fixed in v2"), eq(9L));
         verify(notificationService).create(eq(100L), eq(9L), anyString(), isNull(),
                 eq("feedback_replied"), eq(4L), anyString());
         verify(imPushService).pushToUser(eq(100L), eq("notification_refresh"), anyMap());

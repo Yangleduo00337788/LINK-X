@@ -14,8 +14,10 @@ import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
 import * as redPacketApi from '../../api/redPacket'
 import type { RedPacket, RedPacketRecord } from '../../api/redPacket'
+import { useI18n } from '../../i18n'
 
 const message = useMessage()
+const { t } = useI18n()
 const chatModalsStore = useChatModalsStore()
 const appStore = useAppStore()
 const { redPacketReceiveOpen, redPacketReceiveMsgId, redPacketReceivePacketId } =
@@ -57,7 +59,7 @@ const isLucky = computed(
     packetMsg.value?.redPacketType === 'lucky' ||
     standalone.type === 'lucky'
 )
-const typeLabel = computed(() => (isLucky.value ? '拼手气红包' : '普通红包'))
+const typeLabel = computed(() => (isLucky.value ? t('modals.luckyPacket') : t('modals.normalPacket')))
 const opened = computed(
   () =>
     !!packetMsg.value?.redPacketOpened ||
@@ -78,15 +80,15 @@ const remaining = computed(() => {
 })
 const packetStatus = computed(() => packetMsg.value?.redPacketStatus || standalone.status)
 const greeting = computed(
-  () => packetMsg.value?.redPacketGreeting || standalone.greeting || '恭喜发财'
+  () => packetMsg.value?.redPacketGreeting || standalone.greeting || t('modals.greetingFallback')
 )
 const statusText = computed(() => {
   const s = packetStatus.value
-  if (s === 'finished') return '已领完'
-  if (s === 'expired') return '已过期'
-  if (isSelfPacket.value) return '已发出'
-  if (opened.value) return '已领取'
-  return '未领取'
+  if (s === 'finished') return t('modals.rpStatusFinished')
+  if (s === 'expired') return t('modals.rpStatusExpired')
+  if (isSelfPacket.value) return t('modals.rpStatusSent')
+  if (opened.value) return t('modals.rpStatusClaimed')
+  return t('modals.rpStatusPending')
 })
 const displayAmount = computed(() => {
   const raw =
@@ -184,23 +186,23 @@ async function openPacket() {
     standalone.redPacketId ||
     redPacketReceivePacketId.value
   if (!redPacketId) {
-    message.warning('红包信息缺失')
+    message.warning(t('modals.rpInfoMissing'))
     return
   }
   if (isSelfPacket.value) {
-    message.info('这是你发出的红包')
+    message.info(t('modals.rpOwnPacket'))
     return
   }
   if (msg?.redPacketReceived || msg?.redPacketOpened || standalone.received || standalone.opened) {
-    message.info('已领取过该红包')
+    message.info(t('modals.rpAlreadyReceived'))
     return
   }
   if (packetStatus.value === 'finished') {
-    message.warning('红包已领完')
+    message.warning(t('modals.rpFinished'))
     return
   }
   if (packetStatus.value === 'expired') {
-    message.warning('红包已过期')
+    message.warning(t('modals.rpExpired'))
     return
   }
   if (opening.value) return
@@ -234,12 +236,12 @@ async function openPacket() {
       animPhase.value = 'revealed'
     } else {
       animPhase.value = 'idle'
-      message.warning(res.message || '领取失败')
+      message.warning(res.message || t('modals.rpReceiveFail'))
     }
   } catch (e) {
     animPhase.value = 'idle'
     const err = e as { response?: { data?: { message?: string } }; message?: string }
-    message.error(err.response?.data?.message || err.message || '领取失败')
+    message.error(err.response?.data?.message || err.message || t('modals.rpReceiveFail'))
   } finally {
     opening.value = false
   }
@@ -256,11 +258,11 @@ async function openPacket() {
       >
         <div class="packet-cover">
           <span class="type-badge" :class="{ lucky: isLucky }">{{ typeLabel }}</span>
-          <p class="from">{{ isSelfPacket ? '你发出的红包' : '收到红包' }}</p>
+          <p class="from">{{ isSelfPacket ? t('modals.rpFromSelf') : t('modals.rpReceived') }}</p>
           <p class="greeting">{{ greeting }}</p>
 
           <div v-if="animPhase === 'spinning'" class="open-spinner" aria-hidden="true">
-            <span class="open-circle">开</span>
+            <span class="open-circle">{{ t('modals.rpOpen') }}</span>
           </div>
 
           <p
@@ -271,19 +273,19 @@ async function openPacket() {
             ¥{{ displayAmount }}
           </p>
           <p v-else-if="isSelfPacket" class="amount">¥{{ displayAmount }}</p>
-          <p v-else-if="packetStatus === 'finished'" class="hint">红包已领完</p>
-          <p v-else-if="packetStatus === 'expired'" class="hint">红包已过期</p>
-          <p v-else-if="!isSelfPacket" class="hint">点击下方拆开红包</p>
-          <p v-else class="hint">等待对方领取</p>
+          <p v-else-if="packetStatus === 'finished'" class="hint">{{ t('modals.rpFinished') }}</p>
+          <p v-else-if="packetStatus === 'expired'" class="hint">{{ t('modals.rpExpired') }}</p>
+          <p v-else-if="!isSelfPacket" class="hint">{{ t('modals.rpTapOpen') }}</p>
+          <p v-else class="hint">{{ t('modals.rpWaitPeer') }}</p>
 
-          <p class="status">{{ statusText }} · 剩余 {{ remaining }} 个</p>
+          <p class="status">{{ t('modals.rpStatusRemain', { status: statusText, n: remaining }) }}</p>
         </div>
 
         <div v-if="redPacketRecords.length > 0 && (isSelfPacket || opened)" class="record-list">
           <div v-for="record in redPacketRecords" :key="record.id" class="record-item">
-            <span class="record-name">{{ record.nickname || '用户' }}</span>
+            <span class="record-name">{{ record.nickname || t('modals.rpUserFallback') }}</span>
             <span class="record-amount">¥{{ Number(record.amount).toFixed(2) }}</span>
-            <span v-if="record.isLucky" class="lucky-tag">手气最佳</span>
+            <span v-if="record.isLucky" class="lucky-tag">{{ t('modals.rpLuckyBest') }}</span>
           </div>
         </div>
 
@@ -296,9 +298,9 @@ async function openPacket() {
             :disabled="opening"
             @click="openPacket"
           >
-            {{ opening ? '拆开中…' : '开' }}
+            {{ opening ? t('modals.rpOpening') : t('modals.rpOpen') }}
           </button>
-          <n-button v-else @click="close">关闭</n-button>
+          <n-button v-else @click="close">{{ t('modals.close') }}</n-button>
         </div>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { apiClient } from './client'
 import type { ApiResult } from '../types/auth'
 import type { ChatFileUploadResult, ConversationItem, MessageItem } from '../types/chat'
+import { t } from '../i18n'
 
 export function listSessions() {
   return apiClient.get<unknown, ApiResult<ConversationItem[]>>('/chat/sessions')
@@ -164,7 +165,7 @@ export async function uploadChatFileSmart(
   onProgress?.(10)
   const result = await uploadChatFile(conversationId, file)
   if (result.code === 200) onProgress?.(100)
-  if (result.code !== 200) throw Object.assign(new Error(result.message || '上传失败'), { result })
+  if (result.code !== 200) throw Object.assign(new Error(result.message || t('errors.uploadFailed')), { result })
   return result
 }
 
@@ -181,7 +182,7 @@ async function uploadChatFileMultipart(
     fileSize: file.size
   })
   if (init.code !== 200 || !init.data?.uploadId || !init.data.objectName) {
-    throw new Error(init.message || '初始化分片上传失败')
+    throw new Error(init.message || t('errors.multipartInitFailed'))
   }
 
   const { uploadId, objectName } = init.data
@@ -217,7 +218,7 @@ async function uploadChatFileMultipart(
         blob
       })
       if (partRes.code !== 200 || !partRes.data?.etag) {
-        throw new Error(partRes.message || `分片 ${partNumber} 上传失败`)
+        throw new Error(partRes.message || t('errors.chunkUploadFailed', { part: String(partNumber) }))
       }
       parts.push({ partNumber, etag: partRes.data.etag })
       finishedParts += 1

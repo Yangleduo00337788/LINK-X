@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { NIcon } from 'naive-ui'
 import {
   MoonOutline,
@@ -21,6 +22,13 @@ const appStore = useAppStore()
 const appSettingsStore = useAppSettingsStore()
 const { accentColor, themeMode } = storeToRefs(appSettingsStore)
 const { t } = useI18n()
+
+const accentPresets = computed(() =>
+  ACCENT_PRESETS.map(c => ({
+    ...c,
+    label: t(`appearance.accentPresets.${c.id}` as 'appearance.accentPresets.cyan')
+  }))
+)
 
 function applyThemeMode(mode: 'system' | 'light' | 'dark') {
   themeMode.value = mode
@@ -77,7 +85,7 @@ function pickAccent(id: string) {
       <div class="group-head"><span>{{ t('appearance.accent') }}</span></div>
       <div class="accent-row">
         <button
-          v-for="c in ACCENT_PRESETS"
+          v-for="c in accentPresets"
           :key="c.id"
           type="button"
           class="accent-dot"

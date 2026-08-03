@@ -13,6 +13,7 @@ import {
   shouldFallbackToVoiceOnCameraDenied
 } from '../utils/callNetworkPolicy'
 import { resolveIceServers } from '../utils/iceServers'
+import { t } from '../i18n'
 
 export type CallPhase = 'idle' | 'outgoing' | 'incoming' | 'connecting' | 'connected' | 'ended'
 export type CallRole = 'caller' | 'callee' | null
@@ -117,14 +118,14 @@ export const useCallStore = defineStore('call', {
       peerUserId?: string
     }) {
       if (this.isActive) {
-        throw new Error('当前已有通话进行中')
+        throw new Error(t('errors.callInProgress'))
       }
       const res = await callApi.inviteCall({
         conversationId: opts.conversationId,
         callType: opts.callType
       })
       if (res.code !== 200 || !res.data?.callId) {
-        throw new Error(res.message || '发起通话失败')
+        throw new Error(res.message || t('errors.callInviteFail'))
       }
       this.role = 'caller'
       this.callId = res.data.callId
@@ -144,10 +145,10 @@ export const useCallStore = defineStore('call', {
         const name = (e as DOMException)?.name
         this.errorMessage =
           name === 'NotAllowedError'
-            ? '请允许使用摄像头/麦克风'
+            ? t('errors.mediaPermissionDenied')
             : name === 'NotReadableError'
-              ? '摄像头或麦克风被占用，请关闭其他占用设备的应用后重试'
-              : (e as Error).message || '无法打开摄像头/麦克风'
+              ? t('errors.mediaDeviceBusy')
+              : (e as Error).message || t('errors.mediaOpenFail')
       })
     },
 
@@ -163,13 +164,13 @@ export const useCallStore = defineStore('call', {
           void this.onAccept(event)
           break
         case 'call_reject':
-          this.onRemoteEnd('对方已拒绝')
+          this.onRemoteEnd(t('errors.peerRejected'))
           break
         case 'call_cancel':
-          this.onRemoteEnd('对方已取消')
+          this.onRemoteEnd(t('errors.peerCancelled'))
           break
         case 'call_hangup':
-          this.onRemoteEnd('对方已挂断')
+          this.onRemoteEnd(t('errors.peerHungUp'))
           break
         case 'call_signal':
           signalQueue = signalQueue
@@ -180,8 +181,8 @@ export const useCallStore = defineStore('call', {
               if (name === 'NotReadableError' || name === 'NotAllowedError') {
                 this.errorMessage =
                   name === 'NotAllowedError'
-                    ? '请允许使用摄像头/麦克风'
-                    : '摄像头或麦克风被占用，请关闭其他占用设备的应用后重试'
+                    ? t('errors.mediaPermissionDenied')
+                    : t('errors.mediaDeviceBusy')
               }
             })
           break
@@ -196,9 +197,9 @@ export const useCallStore = defineStore('call', {
           const deviceType = String(rawMap.deviceType || '')
           const enabled = rawMap.enabled === true
           if (deviceType === 'video' && !enabled) {
-            this.errorMessage = '对方已关闭摄像头'
+            this.errorMessage = t('errors.peerCameraOff')
           } else if (deviceType === 'audio' && !enabled) {
-            this.errorMessage = '对方已关闭麦克风'
+            this.errorMessage = t('errors.peerMicOff')
           } else {
             this.errorMessage = ''
           }
@@ -215,14 +216,14 @@ export const useCallStore = defineStore('call', {
       try {
         const res = await callApi.acceptCall(this.callId)
         if (res.code !== 200) {
-          throw new Error(res.message || '接听失败')
+          throw new Error(res.message || t('errors.acceptCallFail'))
         }
         this.phase = 'connecting'
         playCallConnect()
         // 被叫只建 PeerConnection；媒体在收到 offer 后再采集，避免与 ensureLocalMedia 并发抢设备
         await this.ensurePeerConnection()
       } catch (e) {
-        this.errorMessage = (e as Error).message || '接听失败'
+        this.errorMessage = (e as Error).message || t('errors.acceptCallFail')
         this.cleanupLocal()
       }
     },
@@ -301,7 +302,7 @@ export const useCallStore = defineStore('call', {
       this.callId = event.callId
       this.conversationId = event.conversationId
       this.callType = event.callType
-      this.peerName = event.fromNickname || '好友'
+      this.peerName = event.fromNickname || t('defaults.friend')
       this.peerAvatar = event.fromAvatar || ''
       this.peerUserId = event.fromUserId
       this.phase = 'incoming'
@@ -326,10 +327,10 @@ export const useCallStore = defineStore('call', {
           try {
             if (this.role === 'caller') {
               await callApi.cancelCall(callId, 'timeout')
-              this.errorMessage = '对方无应答'
+              this.errorMessage = t('errors.peerNoAnswer')
             } else {
               await callApi.rejectCall(callId)
-              this.errorMessage = '未接听'
+              this.errorMessage = t('errors.callNotAnswered')
             }
           } catch {
             /* ignore */
@@ -350,7 +351,7 @@ export const useCallStore = defineStore('call', {
         await this.ensureLocalMedia()
         await this.createAndSendOffer()
       } catch (e) {
-        this.errorMessage = (e as Error).message || '建立通话失败'
+        this.errorMessage = (e as Error).message || t('errors.connectCallFail')
         await this.hangup()
       }
     },
@@ -446,7 +447,7 @@ export const useCallStore = defineStore('call', {
           void this.tryIceRestart(state)
         } else if (state === 'closed') {
           if (this.isActive) {
-            this.errorMessage = '通话连接已断开'
+            this.errorMessage = t('errors.callDisconnected')
             this.cleanupLocal()
           }
         }
@@ -497,7 +498,7 @@ export const useCallStore = defineStore('call', {
         })
       } catch (e) {
         console.warn('ICE restart 失败', e)
-        this.errorMessage = '通话连接已断开'
+        this.errorMessage = t('errors.callDisconnected')
         this.cleanupLocal()
       }
     },
@@ -598,8 +599,8 @@ export const useCallStore = defineStore('call', {
             this.cameraOn = false
             this.errorMessage =
               name === 'NotAllowedError'
-                ? '未获得摄像头权限，已降级为语音通话'
-                : '摄像头不可用，已降级为语音通话'
+                ? t('errors.cameraDeniedVoiceFallback')
+                : t('errors.cameraUnavailableVoiceFallback')
             const audioOnly = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
             audioOnly.getAudioTracks().forEach(t => {
               t.enabled = this.micOn
@@ -614,10 +615,7 @@ export const useCallStore = defineStore('call', {
             return
           }
           if (name === 'NotReadableError') {
-            throw new DOMException(
-              '摄像头或麦克风被占用，请关闭其他占用设备的应用后重试',
-              'NotReadableError'
-            )
+            throw new DOMException(t('errors.mediaDeviceBusy'), 'NotReadableError')
           }
           throw e
         }

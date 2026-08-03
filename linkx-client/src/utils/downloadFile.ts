@@ -1,4 +1,5 @@
 import { useAppSettingsStore } from '../stores/appSettings'
+import { t } from '../i18n'
 
 export type DownloadResult = {
   ok: boolean
@@ -17,7 +18,7 @@ export type DownloadOptions = {
 /** dataURL → ArrayBuffer（不走 fetch，避免 Electron 下失败） */
 function dataUrlToArrayBuffer(dataUrl: string): ArrayBuffer {
   const comma = dataUrl.indexOf(',')
-  if (comma < 0) throw new Error('无效的 data URL')
+  if (comma < 0) throw new Error(t('errors.invalidDataUrl'))
   const meta = dataUrl.slice(0, comma)
   const body = dataUrl.slice(comma + 1)
   if (/;base64/i.test(meta)) {
@@ -36,7 +37,7 @@ async function readLocalUrlAsArrayBuffer(url: string): Promise<ArrayBuffer> {
     return dataUrlToArrayBuffer(url)
   }
   if (!url.startsWith('blob:')) {
-    throw new Error('不是本地地址')
+    throw new Error(t('errors.notLocalPath'))
   }
   return await new Promise<ArrayBuffer>((resolve, reject) => {
     const xhr = new XMLHttpRequest()
@@ -46,10 +47,10 @@ async function readLocalUrlAsArrayBuffer(url: string): Promise<ArrayBuffer> {
       if (xhr.status === 0 || (xhr.status >= 200 && xhr.status < 300)) {
         resolve(xhr.response as ArrayBuffer)
       } else {
-        reject(new Error(`读取文件失败 (${xhr.status})`))
+        reject(new Error(t('errors.readFileFailed', { status: String(xhr.status) })))
       }
     }
-    xhr.onerror = () => reject(new Error('读取本地文件失败'))
+    xhr.onerror = () => reject(new Error(t('errors.readLocalFileFailed')))
     xhr.send()
   })
 }
@@ -75,7 +76,7 @@ export async function downloadFileWithSettings(
   options: DownloadOptions = {}
 ): Promise<DownloadResult> {
   if (!url && !options.data) {
-    return { ok: false, message: '缺少文件地址' }
+    return { ok: false, message: t('errors.missingFileUrl') }
   }
 
   const settings = useAppSettingsStore()
@@ -127,7 +128,7 @@ export async function downloadFileWithSettings(
           if (!res.ok) {
             return {
               ok: false,
-              message: primary.message || `下载失败 (${res.status})`
+              message: primary.message || t('errors.downloadFailedWithStatus', { status: String(res.status) })
             }
           }
           const data = await res.arrayBuffer()
@@ -139,13 +140,13 @@ export async function downloadFileWithSettings(
             openAfter: options.openAfter
           })
         } catch {
-          return { ok: false, message: primary.message || '下载失败' }
+          return { ok: false, message: primary.message || t('errors.downloadFailed') }
         }
       }
 
-      return { ok: false, message: '不支持的下载地址' }
+      return { ok: false, message: t('errors.unsupportedDownloadUrl') }
     } catch (e) {
-      return { ok: false, message: e instanceof Error ? e.message : '下载失败' }
+      return { ok: false, message: e instanceof Error ? e.message : t('errors.downloadFailed') }
     }
   }
 
@@ -178,6 +179,6 @@ export async function downloadFileWithSettings(
     document.body.removeChild(a)
     return { ok: true }
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : '下载失败' }
+    return { ok: false, message: e instanceof Error ? e.message : t('errors.downloadFailed') }
   }
 }

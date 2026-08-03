@@ -1,6 +1,22 @@
 /**
  * 前端角色冒烟矩阵（对齐后端 AdminRoleSmokeIT / 管理端开发文档 §37.4）
- *
+ */
+import { tGlobal } from '@/i18n'
+
+const ROLE_LABEL_KEYS: Record<string, string> = {
+  super_admin: 'acceptance.roles.superAdmin',
+  ops_admin: 'acceptance.roles.opsAdmin',
+  audit_admin: 'acceptance.roles.auditAdmin',
+  security_admin: 'acceptance.roles.securityAdmin',
+  readonly_observer: 'acceptance.roles.readonlyObserver',
+}
+
+export function roleSmokeLabel(roleCode: string): string {
+  const key = ROLE_LABEL_KEYS[roleCode]
+  return key ? String(tGlobal(key)) : roleCode
+}
+
+/**
  * - mustMenus: 登录后侧边栏应出现的菜单 name
  * - mustNotMenus: 不应出现的菜单 name
  * - allowPerms: 应具备的权限码（用于按钮/路由）
@@ -10,7 +26,6 @@
  */
 export type RoleSmokeCase = {
   roleCode: string
-  label: string
   mustMenus: string[]
   mustNotMenus: string[]
   allowPerms: string[]
@@ -22,7 +37,6 @@ export type RoleSmokeCase = {
 export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
   {
     roleCode: 'super_admin',
-    label: '超级管理员',
     mustMenus: ['dashboard', 'settings', 'rate-limit', 'versions'],
     mustNotMenus: [],
     allowPerms: [
@@ -49,7 +63,6 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
   },
   {
     roleCode: 'ops_admin',
-    label: '运营管理员',
     mustMenus: ['dashboard', 'feedback', 'notices', 'statistics', 'recommends', 'activities', 'homepage-orchestration'],
     mustNotMenus: ['settings', 'risk-event', 'devices', 'rate-limit'],
     allowPerms: [
@@ -93,7 +106,6 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
   },
   {
     roleCode: 'audit_admin',
-    label: '审核管理员',
     mustMenus: ['review-task', 'report-task', 'announcement-review', 'risk-event', 'devices', 'abnormal-access'],
     mustNotMenus: ['notices', 'statistics', 'settings', 'rate-limit'],
     allowPerms: ['admin:review:approve', 'admin:review:delete-content', 'admin:risk-event:handle', 'admin:user:freeze', 'admin:abnormal-access:list'],
@@ -122,7 +134,6 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
   },
   {
     roleCode: 'security_admin',
-    label: '安全管理员',
     mustMenus: ['risk-event', 'devices', 'blacklist', 'rate-limit', 'abnormal-access'],
     mustNotMenus: ['feedback', 'notices', 'settings'],
     allowPerms: [
@@ -147,7 +158,6 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
   },
   {
     roleCode: 'readonly_observer',
-    label: '只读观察员',
     mustMenus: ['dashboard', 'statistics', 'user', 'devices'],
     mustNotMenus: ['settings', 'blacklist', 'notices', 'rate-limit'],
     allowPerms: [

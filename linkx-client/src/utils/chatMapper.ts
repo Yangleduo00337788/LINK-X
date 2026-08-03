@@ -4,6 +4,19 @@ import { formatChatTime, formatFileSize } from './chatTime'
 import { normalizeMediaUrl } from './mediaUrl'
 import { t } from '../i18n'
 import { formatFriendDisplayName, friendAvatarText } from './friendDisplay'
+import {
+  filePreviewLabel,
+  imagePreviewPlaceholder,
+  locationPreviewLabel,
+  meetingPreviewLabel,
+  multiMeetingPreviewLabel,
+  recalledPreviewLabel,
+  redPacketPreviewLabel,
+  systemPreviewLabel,
+  videoCallPreviewLabel,
+  voiceCallPreviewLabel,
+  voicePreviewLabel
+} from './messagePreviewText'
 
 const GROUP_COLORS = ['#12b7f5', '#52c41a', '#722ed1', '#fa8c16', '#eb2f96', '#13c2c2']
 
@@ -32,7 +45,7 @@ export function conversationToSession(conv: ConversationItem): ChatSession {
   const isGroup = conv.type === 2
 
   if (isGroup) {
-    const groupName = conv.name || '群聊'
+    const groupName = conv.name || t('modals.groupChat')
     const remark = conv.myRemark?.trim() || ''
     const name = remark || groupName
     return {
@@ -42,7 +55,7 @@ export function conversationToSession(conv: ConversationItem): ChatSession {
       groupRemark: remark || undefined,
       lastMessage: conv.lastMessage || '',
       time: formatChatTime(conv.lastMessageTime),
-      avatarText: name.charAt(0) || '群',
+      avatarText: name.charAt(0) || t('defaults.groupChar'),
       avatarColor: pickColor(groupName),
       // 仅自定义群头像；默认用 memberAvatars 拼图
       avatarUrl: normalizeMediaUrl(conv.avatar) || undefined,
@@ -57,7 +70,7 @@ export function conversationToSession(conv: ConversationItem): ChatSession {
   }
 
   // 单聊
-  const nickname = conv.peerNickname || conv.peerUsername || '好友'
+  const nickname = conv.peerNickname || conv.peerUsername || t('defaults.friend')
   const remark = conv.peerRemark?.trim() || ''
   const name = formatFriendDisplayName(nickname, remark)
   return {
@@ -115,11 +128,11 @@ export function messageToChatMessage(message: MessageItem, sessionId: string): C
       isImage = true
       break
     case 'voice':
-      content = '[语音]'
+      content = voicePreviewLabel()
       fileUrl = message.fileUrl || message.content
       break
     case 'recall':
-      content = '撤回了一条消息'
+      content = recalledPreviewLabel()
       isImage = false
       fileUrl = undefined
       fileName = undefined
@@ -134,7 +147,7 @@ export function messageToChatMessage(message: MessageItem, sessionId: string): C
     case 'redPacket': {
       // 服务端下行时已经把红包专属字段填到 message 上；若未填，从通用字段反推
       redPacketId = message.redPacketId ?? message.fileUrl ?? undefined
-      redPacketGreeting = message.redPacketGreeting ?? message.fileName ?? '恭喜发财'
+      redPacketGreeting = message.redPacketGreeting ?? message.fileName ?? t('modals.greetingFallback')
       const rawTotal = message.redPacketTotalAmount ?? message.fileSize
       // 后端约定 fileSize 为「分」，totalAmount 也可能是「分」；用 toYuan 统一展示
       redPacketAmount = rawTotal != null ? formatYuan(rawTotal) : ''
@@ -145,21 +158,21 @@ export function messageToChatMessage(message: MessageItem, sessionId: string): C
       const rawRecv = message.redPacketReceivedAmount
       redPacketReceivedAmount = rawRecv != null ? formatYuan(rawRecv) : undefined
       redPacketStatus = message.redPacketStatus ?? 'active'
-      content = `[红包] ${redPacketGreeting}`
+      content = t('chat.redPacketBracket', { greeting: redPacketGreeting })
       fileName = redPacketGreeting
       fileUrl = redPacketId
-      fileSize = redPacketAmount ? `${redPacketAmount} 元` : undefined
+      fileSize = redPacketAmount ? t('chat.currencyYuan', { amount: redPacketAmount }) : undefined
       break
     }
     case 'conference': {
       conferenceId = message.conferenceId ?? message.fileUrl ?? undefined
-      conferenceTitle = message.conferenceTitle ?? message.fileName ?? '多人会议'
+      conferenceTitle = message.conferenceTitle ?? message.fileName ?? multiMeetingPreviewLabel()
       const rawPwd = message.conferenceHasPassword
       conferenceHasPassword =
         rawPwd === true ||
         Number(message.fileSize) === 1 ||
         String(message.fileSize) === '1'
-      content = message.content || `[会议] ${conferenceTitle}`
+      content = message.content || t('chat.meetingBracket', { title: conferenceTitle })
       // 文案区分：语音通话 / 视频通话 / 会议
       const rawType = (message as { conferenceType?: string }).conferenceType
       const rawScene = (message as { conferenceScene?: string }).conferenceScene
@@ -279,29 +292,37 @@ function formatYuan(value: string | number): string {
 
 export function messagePreviewFromItem(message: MessageItem): string {
   switch (message.type) {
-    case 'file': return `[文件] ${message.fileName || message.content}`
-    case 'image': return '[图片]'
-    case 'redPacket': return '[红包]'
+    case 'file':
+      return filePreviewLabel(message.fileName || message.content)
+    case 'image':
+      return imagePreviewPlaceholder()
+    case 'redPacket':
+      return redPacketPreviewLabel()
     case 'conference': {
       const content = (message.content || '').trim()
-      if (/语音通话/.test(content) || message.fileName === '语音通话') {
-        return `[语音通话] ${message.fileName || message.conferenceTitle || '语音通话'}`
+      if (/语音通话|Voice call/i.test(content) || message.fileName === '语音通话') {
+        return `[${voiceCallPreviewLabel()}] ${message.fileName || message.conferenceTitle || voiceCallPreviewLabel()}`
       }
-      if (/视频通话/.test(content) || message.fileName === '视频通话') {
-        return `[视频通话] ${message.fileName || message.conferenceTitle || '视频通话'}`
+      if (/视频通话|Video call/i.test(content) || message.fileName === '视频通话') {
+        return `[${videoCallPreviewLabel()}] ${message.fileName || message.conferenceTitle || videoCallPreviewLabel()}`
       }
       const scene = (message as { conferenceScene?: string }).conferenceScene
       const type = (message as { conferenceType?: string }).conferenceType
       if (scene === 'call') {
-        const kind = type === 'voice' ? '语音通话' : '视频通话'
+        const kind = type === 'voice' ? voiceCallPreviewLabel() : videoCallPreviewLabel()
         return `[${kind}] ${message.fileName || message.conferenceTitle || kind}`
       }
-      return `[会议] ${message.fileName || message.conferenceTitle || '多人会议'}`
+      return `[${meetingPreviewLabel()}] ${message.fileName || message.conferenceTitle || multiMeetingPreviewLabel()}`
     }
-    case 'voice': return '[语音]'
-    case 'location': return `[位置] ${message.content || ''}`
-    case 'recall': return '撤回了一条消息'
-    case 'system': return message.content || '[系统消息]'
-    default: return message.content
+    case 'voice':
+      return voicePreviewLabel()
+    case 'location':
+      return locationPreviewLabel(message.content || '')
+    case 'recall':
+      return recalledPreviewLabel()
+    case 'system':
+      return systemPreviewLabel(message.content)
+    default:
+      return message.content
   }
 }

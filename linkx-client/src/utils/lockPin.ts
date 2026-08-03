@@ -1,3 +1,5 @@
+import { t } from '../i18n'
+
 const LOCK_PIN_KEY = 'lockPinHash'
 const FALLBACK_LOCK_PIN_KEY = 'linkx:lockPinHash'
 const LOCK_PIN_FLAG = 'linkx:lockPinConfigured'
@@ -84,7 +86,7 @@ async function secureSet(key: string, value: string): Promise<void> {
     return
   }
   // 安全增强：不允许明文回退到 localStorage
-  throw new Error('安全存储不可用，无法保存 PIN')
+  throw new Error(t('errors.pinStorageUnavailable'))
 }
 
 async function secureRemove(key: string): Promise<void> {

@@ -10,6 +10,7 @@ import com.linkx.server.controller.admin.dto.AdminFeedbackAssignDTO;
 import com.linkx.server.controller.admin.dto.AdminFeedbackQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminFeedbackReplyDTO;
 import com.linkx.server.controller.admin.vo.AdminFeedbackVO;
+import com.linkx.server.controller.vo.FeedbackReplyVO;
 import com.linkx.server.service.admin.AdminFeedbackService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -78,6 +79,13 @@ public class AdminFeedbackController {
     @RequirePermission("admin:feedback:list")
     public Result<AdminFeedbackVO> detail(@PathVariable Long id) {
         return Result.success(adminFeedbackService.detail(id));
+    }
+
+    @Operation(summary = "查询反馈回复记录")
+    @GetMapping("/{id}/replies")
+    @RequirePermission("admin:feedback:list")
+    public Result<List<FeedbackReplyVO>> listReplies(@PathVariable Long id) {
+        return Result.success(adminFeedbackService.listReplies(id));
     }
 
     @Operation(summary = "回复反馈")

@@ -6,6 +6,7 @@ import { getToken, isWebEnvironment } from './tokenStorage'
 import { useAppSettingsStore } from '../stores/appSettings'
 import type { DownloadResult } from './downloadFile'
 import { API_BASE_URL } from '../config/endpoints'
+import { t } from '../i18n'
 
 const apiBase = API_BASE_URL
 
@@ -22,7 +23,7 @@ export async function downloadAuthenticatedApi(
   // Web 环境 token 在 HttpOnly Cookie 中（本地不可读），仍可凭 Cookie 下载；
   // Electron 环境必须有本地 token 走 Authorization Header。
   if (!isWeb && !token) {
-    return { ok: false, message: '未登录' }
+    return { ok: false, message: t('errors.wsNotLoggedIn') }
   }
 
   const path = apiPath.startsWith('/') ? apiPath : `/${apiPath}`
@@ -44,7 +45,7 @@ export async function downloadAuthenticatedApi(
       credentials: isWeb ? 'include' : 'same-origin'
     })
     if (!res.ok) {
-      return { ok: false, message: `下载失败 (${res.status})` }
+      return { ok: false, message: t('errors.downloadFailedWithStatus', { status: String(res.status) }) }
     }
     const blob = await res.blob()
     const objectUrl = URL.createObjectURL(blob)
@@ -73,7 +74,7 @@ export async function downloadAuthenticatedApi(
       URL.revokeObjectURL(objectUrl)
     }
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : '下载失败' }
+    return { ok: false, message: e instanceof Error ? e.message : t('errors.downloadFailed') }
   }
 }
 
@@ -110,7 +111,7 @@ export async function downloadShareContent(
   try {
     const res = await fetch(url.toString())
     if (!res.ok) {
-      return { ok: false, message: `下载失败 (${res.status})` }
+      return { ok: false, message: t('errors.downloadFailedWithStatus', { status: String(res.status) }) }
     }
     const blob = await res.blob()
     const objectUrl = URL.createObjectURL(blob)
@@ -124,6 +125,6 @@ export async function downloadShareContent(
       URL.revokeObjectURL(objectUrl)
     }
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : '下载失败' }
+    return { ok: false, message: e instanceof Error ? e.message : t('errors.downloadFailed') }
   }
 }

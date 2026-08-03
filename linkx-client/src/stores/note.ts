@@ -6,6 +6,7 @@
 import { defineStore } from 'pinia'
 import * as noteApi from '../api/note'
 import { useFavoritesStore } from './favorites'
+import { t } from '../i18n'
 
 /** 后端笔记类型 */
 export type NoteType = 'note' | 'image' | 'link' | 'file'
@@ -69,7 +70,7 @@ export const useNoteStore = defineStore('note', {
         if (res.code === 200 && res.data) {
           this.notes = res.data.map(n => ({
             id: String(n.id),
-            title: n.title || '无标题',
+            title: n.title || t('defaults.untitled'),
             content: n.content,
             type: 'note',
             createTime: n.createTime,
@@ -92,7 +93,7 @@ export const useNoteStore = defineStore('note', {
         if (res.code === 200 && res.data) {
           const note: Note = {
             id: String(res.data.id),
-            title: res.data.title || '无标题',
+            title: res.data.title || t('defaults.untitled'),
             content: res.data.content,
             type: 'note',
             createTime: res.data.createTime,
@@ -119,7 +120,7 @@ export const useNoteStore = defineStore('note', {
           if (idx >= 0) {
             this.notes[idx] = {
               id: String(res.data.id),
-              title: res.data.title || '无标题',
+              title: res.data.title || t('defaults.untitled'),
               content: res.data.content,
               type: 'note',
               createTime: res.data.createTime,
@@ -169,7 +170,7 @@ export const useNoteStore = defineStore('note', {
         if (res.code === 200 && res.data) {
           const note: Note = {
             id: String(res.data.id),
-            title: res.data.title || '无标题',
+            title: res.data.title || t('defaults.untitled'),
             content: res.data.content,
             type: (res.data.type as NoteType) || 'note',
             createTime: res.data.createTime,
@@ -201,7 +202,7 @@ export const useNoteStore = defineStore('note', {
 
     /** 保存当前编辑内容（自动保存） */
     async save() {
-      const title = this.title.trim() || '无标题'
+      const title = this.title.trim() || t('defaults.untitled')
       const content = this.content
 
       if (this.currentNoteId) {

@@ -37,8 +37,10 @@ import {
   isVoiceDurationValid,
   pickVoiceMimeType
 } from '../utils/voiceRecorder'
+import { useI18n } from '../i18n'
 
 const message = useMessage()
+const { t } = useI18n()
 const noteStore = useNoteStore()
 const appStore = useAppStore()
 const { title, content, notes, currentNoteId, saving } = storeToRefs(noteStore)
@@ -96,24 +98,24 @@ let noteVoiceMaxTimer: number | null = null
 const historyStack = ref<string[]>([''])
 const historyIndex = ref(0)
 
-const moreOptions: DropdownOption[] = [
-  { label: '插入图片', key: 'image' },
-  { label: '插入位置', key: 'location' },
+const moreOptions = computed<DropdownOption[]>(() => [
+  { label: t('noteEditor.insertImage'), key: 'image' },
+  { label: t('noteEditor.insertLocation'), key: 'location' },
   { type: 'divider', key: 'd1' },
-  { label: '清空笔记', key: 'clear' }
-]
+  { label: t('noteEditor.clearNote'), key: 'clear' }
+])
 
 const noteListOptions = computed<DropdownOption[]>(() => [
-  { label: '新建笔记', key: 'new' },
+  { label: t('noteEditor.newNote'), key: 'new' },
   ...notes.value.slice(0, 10).map(n => ({
-    label: n.title || '无标题',
+    label: n.title || t('noteEditor.untitled'),
     key: n.id
   }))
 ])
 
 function syncTitleFromContent() {
   const first = content.value.split('\n').find(line => line.trim())?.trim() ?? ''
-  title.value = first.slice(0, 80) || '无标题'
+  title.value = first.slice(0, 80) || t('noteEditor.untitled')
 }
 
 function scheduleSave() {
@@ -220,15 +222,15 @@ async function insertImage(e: Event) {
   try {
     const res = await noteApi.uploadNoteFile(file)
     if (res.code !== 200 || !res.data?.fileKey) {
-      throw new Error(res.message || '上传失败')
+      throw new Error(res.message || t('noteEditor.uploadFail'))
     }
     if (res.data.url) {
       mediaUrlCache.value = { ...mediaUrlCache.value, [res.data.fileKey]: res.data.url }
     }
     insertBlock(`![${file.name}](lx-media:${res.data.fileKey})`)
-    message.success('图片已插入')
+    message.success(t('noteEditor.imageInserted'))
   } catch (err) {
-    message.error(err instanceof Error ? err.message : '图片上传失败')
+    message.error(err instanceof Error ? err.message : t('noteEditor.imageUploadFail'))
   } finally {
     uploadingMedia.value = false
   }
@@ -243,15 +245,15 @@ async function insertFile(e: Event) {
   try {
     const res = await noteApi.uploadNoteFile(file)
     if (res.code !== 200 || !res.data?.fileKey) {
-      throw new Error(res.message || '上传失败')
+      throw new Error(res.message || t('noteEditor.uploadFail'))
     }
     if (res.data.url) {
       mediaUrlCache.value = { ...mediaUrlCache.value, [res.data.fileKey]: res.data.url }
     }
-    insertBlock(`[附件: ${file.name}](lx-media:${res.data.fileKey})`)
-    message.success('附件已插入')
+    insertBlock(`[${t('noteEditor.attachmentMd', { name: file.name })}](lx-media:${res.data.fileKey})`)
+    message.success(t('noteEditor.attachmentInserted'))
   } catch (err) {
-    message.error(err instanceof Error ? err.message : '附件上传失败')
+    message.error(err instanceof Error ? err.message : t('noteEditor.attachmentUploadFail'))
   } finally {
     uploadingMedia.value = false
   }
@@ -295,7 +297,7 @@ async function finishNoteVoice(cancel: boolean) {
   resetNoteVoice()
   if (cancel || !blob || blob.size === 0) return
   if (!isVoiceDurationValid(durationSec)) {
-    message.warning('录音时间太短')
+    message.warning(t('chat.voiceTooShort'))
     return
   }
 
@@ -304,15 +306,15 @@ async function finishNoteVoice(cancel: boolean) {
   try {
     const res = await noteApi.uploadNoteFile(file)
     if (res.code !== 200 || !res.data?.fileKey) {
-      throw new Error(res.message || '上传失败')
+      throw new Error(res.message || t('noteEditor.uploadFail'))
     }
     if (res.data.url) {
       mediaUrlCache.value = { ...mediaUrlCache.value, [res.data.fileKey]: res.data.url }
     }
-    insertBlock(`[语音 ${durationSec}"](lx-media:${res.data.fileKey})`)
-    message.success('语音已插入')
+    insertBlock(`[${t('noteEditor.voiceMd', { n: durationSec })}](lx-media:${res.data.fileKey})`)
+    message.success(t('noteEditor.voiceInserted'))
   } catch (err) {
-    message.error(err instanceof Error ? err.message : '语音上传失败')
+    message.error(err instanceof Error ? err.message : t('noteEditor.voiceUploadFail'))
   } finally {
     uploadingMedia.value = false
   }
@@ -325,7 +327,7 @@ async function toggleNoteVoice() {
     return
   }
   if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-    message.warning('当前环境不支持语音录制')
+    message.warning(t('chat.voiceUnsupported'))
     return
   }
   try {
@@ -345,10 +347,10 @@ async function toggleNoteVoice() {
     noteVoiceMaxTimer = window.setTimeout(() => {
       void finishNoteVoice(false)
     }, VOICE_MAX_SECONDS * 1000)
-    message.info('正在录音，再次点击结束')
+    message.info(t('noteEditor.voiceRecordingHint'))
   } catch {
     resetNoteVoice()
-    message.error('无法使用麦克风，请检查权限')
+    message.error(t('chat.voiceMicDenied'))
   }
 }
 
@@ -358,17 +360,17 @@ function onMoreSelect(key: string) {
     showLocationPicker.value = true
   } else if (key === 'clear') {
     content.value = ''
-    title.value = '无标题'
+    title.value = t('noteEditor.untitled')
     pushHistorySnapshot()
-    message.success('笔记已清空')
+    message.success(t('noteEditor.noteCleared'))
   }
 }
 
 function onLocationPicked(location: string) {
   showLocationPicker.value = false
   if (!location?.trim()) return
-  insertBlock(`[位置: ${location.trim()}]`)
-  message.success('位置已插入')
+  insertBlock(`[${t('noteEditor.locationMd', { location: location.trim() })}]`)
+  message.success(t('noteEditor.locationInserted'))
 }
 
 function onNoteSelect(key: string) {
@@ -391,9 +393,9 @@ async function deleteCurrentNote() {
   if (!currentNoteId.value) return
   try {
     await noteStore.deleteNote(currentNoteId.value)
-    message.success('笔记已删除')
+    message.success(t('noteEditor.noteDeleted'))
   } catch {
-    message.error('删除失败')
+    message.error(t('noteEditor.deleteFail'))
   }
 }
 
@@ -440,31 +442,31 @@ onUnmounted(() => {
           type="button"
           class="icon-btn pin"
           :class="{ active: isPinned }"
-          title="置顶"
+          :title="t('noteEditor.pin')"
           @click="togglePin"
         >
           <PinIcon :size="14" />
         </button>
       </div>
       <div class="bar-center">
-        {{ title || '无标题' }}
-        <span v-if="saving" class="saving-indicator">保存中...</span>
+        {{ title || t('noteEditor.untitled') }}
+        <span v-if="saving" class="saving-indicator">{{ t('noteEditor.saving') }}</span>
       </div>
       <div class="bar-side bar-right no-drag">
         <!-- CRUD 操作按钮 -->
-        <button type="button" class="icon-btn" title="新建笔记" @click="noteStore.newNote()">
+        <button type="button" class="icon-btn" :title="t('noteEditor.newNote')" @click="noteStore.newNote()">
           <n-icon :component="AddOutline" :size="16" />
         </button>
-        <button type="button" class="icon-btn" title="保存笔记" @click="() => noteStore.save()">
+        <button type="button" class="icon-btn" :title="t('noteEditor.saveNote')" @click="() => noteStore.save()">
           <n-icon :component="CloudUploadOutline" :size="16" />
         </button>
         <n-dropdown trigger="click" :options="noteListOptions" @select="onNoteSelect">
-          <button type="button" class="icon-btn" title="打开笔记">
+          <button type="button" class="icon-btn" :title="t('noteEditor.openNote')">
             <n-icon :component="DocumentTextOutline" :size="16" />
           </button>
         </n-dropdown>
         <n-dropdown trigger="click" :options="moreOptions" @select="onMoreSelect">
-          <button type="button" class="icon-btn" title="更多操作">
+          <button type="button" class="icon-btn" :title="t('noteEditor.moreActions')">
             <n-icon :component="EllipsisHorizontalOutline" :size="16" />
           </button>
         </n-dropdown>
@@ -472,7 +474,7 @@ onUnmounted(() => {
           v-if="currentNoteId"
           type="button"
           class="icon-btn delete-btn"
-          title="删除笔记"
+          :title="t('noteEditor.deleteNote')"
           @click="deleteCurrentNote"
         >
           <n-icon :component="TrashOutline" :size="16" />
@@ -489,60 +491,60 @@ onUnmounted(() => {
         type="button"
         class="icon-btn"
         :class="{ recording: isRecordingNote }"
-        title="语音输入"
+        :title="t('noteEditor.voiceInput')"
         @click="toggleNoteVoice"
       >
         <n-icon :component="MicOutline" :size="18" />
       </button>
-      <button type="button" class="icon-btn" title="附件" @click="fileInputRef?.click()">
+      <button type="button" class="icon-btn" :title="t('noteEditor.attachment')" @click="fileInputRef?.click()">
         <n-icon :component="FolderOpenOutline" :size="18" />
       </button>
 
       <span class="v-sep" />
 
-      <button type="button" class="text-btn" title="加粗" @click="wrapSelection('**')">B</button>
-      <button type="button" class="icon-btn" title="标题" @click="insertBlock('## 小标题')">
+      <button type="button" class="text-btn" :title="t('noteEditor.bold')" @click="wrapSelection('**')">B</button>
+      <button type="button" class="icon-btn" :title="t('noteEditor.heading')" @click="insertBlock(t('noteEditor.headingSnippet'))">
         <n-icon :component="TextOutline" :size="17" />
       </button>
-      <button type="button" class="text-btn underline" title="下划线" @click="wrapSelection('__')">U</button>
-      <button type="button" class="text-btn italic" title="斜体" @click="wrapSelection('_')">I</button>
+      <button type="button" class="text-btn underline" :title="t('noteEditor.underline')" @click="wrapSelection('__')">U</button>
+      <button type="button" class="text-btn italic" :title="t('noteEditor.italic')" @click="wrapSelection('_')">I</button>
 
       <span class="v-sep" />
 
-      <button type="button" class="icon-btn" title="分隔线" @click="insertBlock('---')">
+      <button type="button" class="icon-btn" :title="t('noteEditor.divider')" @click="insertBlock('---')">
         <n-icon :component="ReorderTwoOutline" :size="18" />
       </button>
       <button
         type="button"
         class="icon-btn"
-        title="无序列表"
-        @click="insertBlock('- 列表项 1\n- 列表项 2\n- 列表项 3')"
+        :title="t('noteEditor.unorderedList')"
+        @click="insertBlock(t('noteEditor.unorderedListSnippet'))"
       >
         <n-icon :component="ListOutline" :size="18" />
       </button>
       <button
         type="button"
         class="icon-btn"
-        title="有序列表"
-        @click="insertBlock('1. 列表项 1\n2. 列表项 2\n3. 列表项 3')"
+        :title="t('noteEditor.orderedList')"
+        @click="insertBlock(t('noteEditor.orderedListSnippet'))"
       >
         <span class="num-list">1.</span>
       </button>
-      <button type="button" class="icon-btn" title="待办清单" @click="insertBlock('- [ ] 待办事项')">
+      <button type="button" class="icon-btn" :title="t('noteEditor.todoList')" @click="insertBlock(t('noteEditor.todoSnippet'))">
         <n-icon :component="CheckboxOutline" :size="18" />
       </button>
 
       <span class="v-sep" />
 
-      <button type="button" class="icon-btn" title="撤销" @click="undo">
+      <button type="button" class="icon-btn" :title="t('noteEditor.undo')" @click="undo">
         <n-icon :component="ArrowUndoOutline" :size="18" />
       </button>
-      <button type="button" class="icon-btn" title="重做" @click="redo">
+      <button type="button" class="icon-btn" :title="t('noteEditor.redo')" @click="redo">
         <n-icon :component="ArrowRedoOutline" :size="18" />
       </button>
 
       <n-dropdown trigger="click" :options="moreOptions" @select="onMoreSelect">
-        <button type="button" class="icon-btn" title="更多">
+        <button type="button" class="icon-btn" :title="t('noteEditor.more')">
           <n-icon :component="EllipsisHorizontalOutline" :size="18" />
         </button>
       </n-dropdown>
@@ -553,7 +555,7 @@ onUnmounted(() => {
         type="button"
         class="icon-btn"
         :class="{ active: showPreview }"
-        title="实时预览"
+        :title="t('noteEditor.livePreview')"
         @click="showPreview = !showPreview"
       >
         <n-icon :component="EyeOutline" :size="18" />
@@ -567,7 +569,7 @@ onUnmounted(() => {
         v-model="content"
         class="editor-input"
         :class="{ 'half-width': showPreview }"
-        placeholder="按住 Ctrl + Win 可以使用语音输入文字，记录的文字、图片等内容将自动保存。"
+        :placeholder="t('noteEditor.placeholder')"
       />
       <div v-if="showPreview" class="markdown-preview markdown-body" v-html="compiledMarkdown"></div>
     </main>

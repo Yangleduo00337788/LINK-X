@@ -8,8 +8,10 @@ import { Mic, MicOff, Videocam, Call } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
 import { storeToRefs } from 'pinia'
 import { useCallStore } from '../../stores/call'
+import { useI18n } from '../../i18n'
 
 const message = useMessage()
+const { t } = useI18n()
 const callStore = useCallStore()
 const {
   showVoiceUi,
@@ -27,13 +29,13 @@ let durationTimer: ReturnType<typeof setInterval> | null = null
 const remoteAudioRef = ref<HTMLAudioElement | null>(null)
 
 const statusText = computed(() => {
-  if (phase.value === 'outgoing') return '等待对方接听...'
-  if (phase.value === 'connecting') return '正在接通...'
+  if (phase.value === 'outgoing') return t('modals.waitPeerAnswer')
+  if (phase.value === 'connecting') return t('modals.connectingCall')
   const m = Math.floor(seconds.value / 60)
     .toString()
     .padStart(2, '0')
   const s = (seconds.value % 60).toString().padStart(2, '0')
-  return `通话中 ${m}:${s}`
+  return t('modals.inCallDuration', { time: `${m}:${s}` })
 })
 
 function clearDuration() {
@@ -101,11 +103,11 @@ async function hangUp() {
 }
 
 async function switchToVideo() {
-  message.info('请挂断后重新发起视频通话')
+  message.info(t('modals.switchToVideoHint'))
 }
 
 function avatarText(name: string) {
-  return name?.charAt(0) || '友'
+  return name?.charAt(0) || t('modals.friendChar')
 }
 </script>
 
@@ -124,26 +126,26 @@ function avatarText(name: string) {
             :image-url="peerAvatar || undefined"
             :size="88"
           />
-          <p class="peer">{{ peerName || '好友' }}</p>
+          <p class="peer">{{ peerName || t('modals.friend') }}</p>
           <div class="state-badges">
             <span class="badge" :class="{ off: !micOn }">
               <n-icon :component="micOn ? Mic : MicOff" :size="14" />
-              {{ micOn ? '麦克风开' : '麦克风关' }}
+              {{ micOn ? t('modals.micOnShort') : t('modals.micOffShort') }}
             </span>
           </div>
         </div>
         <div class="call-controls">
           <button type="button" class="ctl" :class="{ off: !micOn }" @click="callStore.toggleMic()">
             <n-icon :component="micOn ? Mic : MicOff" :size="28" />
-            <span>{{ micOn ? '关闭麦克风' : '开启麦克风' }}</span>
+            <span>{{ micOn ? t('modals.muteMic') : t('modals.unmuteMic') }}</span>
           </button>
           <button type="button" class="ctl" @click="switchToVideo">
             <n-icon :component="Videocam" :size="28" />
-            <span>视频通话</span>
+            <span>{{ t('chat.videoCall') }}</span>
           </button>
           <button type="button" class="ctl hangup" @click="hangUp">
             <n-icon :component="Call" :size="28" />
-            <span>挂断</span>
+            <span>{{ t('conference.hangUp') }}</span>
           </button>
         </div>
       </div>

@@ -15,6 +15,9 @@ import FriendNotifications from './contacts/FriendNotifications.vue'
 import GroupNotifications from './contacts/GroupNotifications.vue'
 // 通用占位主视图
 import PlaceholderMainView from './PlaceholderMainView.vue'
+import { useI18n } from '../i18n'
+
+useI18n()
 
 // 获取应用 Store 实例
 const appStore = useAppStore()

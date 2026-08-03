@@ -4,6 +4,8 @@
  * @param bytes 文件字节数
  * @returns 如 "512 B" / "1.2 KB" / "3.5 MB" / "1.2 GB"
  */
+import { t } from '../i18n'
+
 export function formatFileSize(bytes: number): string {
   const n = Number(bytes)
   if (!Number.isFinite(n) || n < 0) return '0 B'
@@ -34,7 +36,7 @@ export function readFileAsDataUrl(file: File): Promise<string> {
 export function dataUrlToFile(dataUrl: string, fileName: string): File {
   const comma = dataUrl.indexOf(',')
   if (comma < 0) {
-    throw new Error('无效的图片数据')
+    throw new Error(t('errors.invalidImageData'))
   }
   const header = dataUrl.slice(0, comma)
   const base64 = dataUrl.slice(comma + 1)
@@ -129,7 +131,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image()
     img.onload = () => resolve(img)
-    img.onerror = () => reject(new Error('图片解码失败'))
+    img.onerror = () => reject(new Error(t('errors.imageDecodeFailed')))
     img.src = src
   })
 }

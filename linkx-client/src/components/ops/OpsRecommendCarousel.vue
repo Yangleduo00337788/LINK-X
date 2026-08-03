@@ -7,6 +7,9 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { NCarousel } from 'naive-ui'
 import { listRecommends, type AppRecommend, type RecommendSlot } from '../../api/recommends'
 import { resolveRecommendSrc } from '../../utils/mediaUrl'
+import { useI18n } from '../../i18n'
+
+useI18n()
 
 const props = withDefaults(
   defineProps<{

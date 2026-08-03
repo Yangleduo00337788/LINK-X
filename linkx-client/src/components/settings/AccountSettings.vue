@@ -230,10 +230,17 @@ async function submitDeleteAccount() {
 const showFeedbackHistory = ref(false)
 const feedbackList = ref<feedbackApi.FeedbackVO[]>([])
 const feedbackLoading = ref(false)
+const expandedFeedbackId = ref<string | null>(null)
+const feedbackDetails = ref<Record<string, feedbackApi.FeedbackVO>>({})
+const followUpDraft = ref<Record<string, string>>({})
+const followUpLoadingId = ref<string | null>(null)
 
 async function openFeedbackHistory() {
   showFeedbackHistory.value = true
   feedbackLoading.value = true
+  expandedFeedbackId.value = null
+  feedbackDetails.value = {}
+  followUpDraft.value = {}
   try {
     const res = await feedbackApi.listFeedback()
     if (res.code === 200 && res.data) {
@@ -246,14 +253,64 @@ async function openFeedbackHistory() {
   }
 }
 
+async function toggleFeedbackDetail(id: string) {
+  if (expandedFeedbackId.value === id) {
+    expandedFeedbackId.value = null
+    return
+  }
+  expandedFeedbackId.value = id
+  if (feedbackDetails.value[id]) return
+  try {
+    const res = await feedbackApi.getFeedbackDetail(id)
+    if (res.code === 200 && res.data) {
+      feedbackDetails.value = { ...feedbackDetails.value, [id]: res.data }
+    }
+  } catch {
+    message.error(t('account.feedbackListFail'))
+  }
+}
+
+async function submitFollowUp(id: string) {
+  const content = (followUpDraft.value[id] || '').trim()
+  if (!content) {
+    message.warning(t('account.followUpRequired'))
+    return
+  }
+  followUpLoadingId.value = id
+  try {
+    const res = await feedbackApi.followUpFeedback(id, content)
+    if (res.code === 200) {
+      message.success(t('account.followUpSuccess'))
+      followUpDraft.value = { ...followUpDraft.value, [id]: '' }
+      const detailRes = await feedbackApi.getFeedbackDetail(id)
+      if (detailRes.code === 200 && detailRes.data) {
+        feedbackDetails.value = { ...feedbackDetails.value, [id]: detailRes.data }
+        feedbackList.value = feedbackList.value.map((item) =>
+          item.id === id ? { ...item, status: detailRes.data.status } : item
+        )
+      }
+    } else {
+      message.error(res.message || t('account.followUpFail'))
+    }
+  } catch (e) {
+    const err = e as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || t('account.followUpFail'))
+  } finally {
+    followUpLoadingId.value = null
+  }
+}
+
 function getFeedbackStatusType(status: string) {
-  if (status === 'resolved') return 'success'
-  if (status === 'processing') return 'warning'
+  if (status === 'resolved' || status === 'replied') return 'success'
+  if (status === 'processing' || status === 'pending') return 'warning'
+  if (status === 'closed') return 'default'
   return 'default'
 }
 
 function getFeedbackStatusText(status: string) {
   if (status === 'resolved') return t('account.statusResolved')
+  if (status === 'replied') return t('account.statusReplied')
+  if (status === 'closed') return t('account.statusClosed')
   if (status === 'processing') return t('account.statusProcessing')
   return t('account.statusPending')
 }
@@ -695,6 +752,50 @@ onMounted(() => {
             <span class="feedback-time">{{ item.createTime }}</span>
           </div>
           <div class="feedback-content">{{ item.content }}</div>
+          <div v-if="item.reply" class="feedback-reply">
+            <span class="feedback-reply-label">{{ t('account.officialReply') }}</span>
+            {{ item.reply }}
+          </div>
+          <div class="feedback-actions">
+            <n-button size="tiny" tertiary @click="toggleFeedbackDetail(item.id)">
+              {{
+                expandedFeedbackId === item.id
+                  ? t('account.hideConversation')
+                  : t('account.viewConversation')
+              }}
+            </n-button>
+          </div>
+          <div v-if="expandedFeedbackId === item.id" class="feedback-thread">
+            <div
+              v-for="reply in feedbackDetails[item.id]?.replies || []"
+              :key="reply.id"
+              class="feedback-thread-item"
+              :class="reply.senderType === 'admin' ? 'is-admin' : 'is-user'"
+            >
+              <div class="feedback-thread-meta">
+                <span>{{ reply.senderName || (reply.senderType === 'admin' ? t('account.officialReply') : t('account.myReply')) }}</span>
+                <span>{{ reply.createTime }}</span>
+              </div>
+              <div>{{ reply.content }}</div>
+            </div>
+            <div v-if="item.status !== 'closed'" class="feedback-follow-up">
+              <n-input
+                v-model:value="followUpDraft[item.id]"
+                type="textarea"
+                :rows="2"
+                :placeholder="t('account.followUpPlaceholder')"
+              />
+              <n-button
+                size="small"
+                type="primary"
+                class="feedback-follow-up-btn"
+                :loading="followUpLoadingId === item.id"
+                @click="submitFollowUp(item.id)"
+              >
+                {{ t('account.followUp') }}
+              </n-button>
+            </div>
+          </div>
         </div>
       </div>
     </n-modal>
@@ -1133,5 +1234,53 @@ onMounted(() => {
   font-size: 14px;
   color: var(--lx-text-body);
   line-height: 1.5;
+  white-space: pre-wrap;
+}
+.feedback-reply {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(24, 160, 88, 0.08);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.feedback-reply-label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--lx-text-muted);
+  font-size: 12px;
+}
+.feedback-actions {
+  margin-top: 8px;
+}
+.feedback-thread {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.feedback-thread-item {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--lx-card-bg, rgba(0, 0, 0, 0.03));
+  font-size: 13px;
+  line-height: 1.5;
+}
+.feedback-thread-item.is-admin {
+  background: rgba(24, 160, 88, 0.08);
+}
+.feedback-thread-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+  color: var(--lx-text-muted);
+  font-size: 12px;
+}
+.feedback-follow-up {
+  margin-top: 4px;
+}
+.feedback-follow-up-btn {
+  margin-top: 8px;
 }
 </style>

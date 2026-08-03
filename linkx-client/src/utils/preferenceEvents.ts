@@ -13,8 +13,8 @@ export type PreferenceChangeEvent =
       kind: 'success'
       /** 本次成功保存的字段→值映射 */
       fields: UserPreferencePatch
-      /** 字段名 → 中文标签，供 toast 文案复用 */
-      fieldLabel: Record<string, string>
+      /** @deprecated Toast 文案改由组件侧 t(settings.fields.*) 生成 */
+      fieldLabel?: Record<string, string>
     }
   | {
       kind: 'error'

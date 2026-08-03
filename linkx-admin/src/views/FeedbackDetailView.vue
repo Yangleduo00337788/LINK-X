@@ -236,18 +236,41 @@ onMounted(async () => {
           <NDescriptionsItem :label="t('feedback.assignedAt')">
             {{ formatTime(feedback.assignedAt) }}
           </NDescriptionsItem>
-          <NDescriptionsItem :label="t('feedback.content')" :span="2">
-            <div class="content-block">{{ feedback.content || t('common.none') }}</div>
-          </NDescriptionsItem>
-          <NDescriptionsItem :label="t('feedback.reply')" :span="2">
-            <div class="content-block reply-block">
-              {{ feedback.reply ? feedback.reply : t('feedback.noReplyYet') }}
-            </div>
-          </NDescriptionsItem>
           <NDescriptionsItem :label="t('common.createTime')">
             {{ formatTime(feedback.createTime) }}
           </NDescriptionsItem>
         </NDescriptions>
+
+        <section class="thread-section">
+          <h3 class="thread-title">{{ t('feedback.conversation') }}</h3>
+          <div class="thread-list">
+            <article class="thread-item thread-item--user">
+              <div class="thread-meta">
+                <span class="thread-sender">{{ feedback.username || t('feedback.user') }}</span>
+                <span class="thread-time">{{ formatTime(feedback.createTime) }}</span>
+              </div>
+              <div class="thread-content">{{ feedback.content || t('common.none') }}</div>
+            </article>
+            <article
+              v-for="item in feedback.replies || []"
+              :key="item.id"
+              class="thread-item"
+              :class="item.senderType === 'admin' ? 'thread-item--admin' : 'thread-item--user'"
+            >
+              <div class="thread-meta">
+                <span class="thread-sender">
+                  {{
+                    item.senderName ||
+                    (item.senderType === 'admin' ? t('feedback.senderAdmin') : t('feedback.senderUser'))
+                  }}
+                </span>
+                <span class="thread-time">{{ formatTime(item.createTime) }}</span>
+              </div>
+              <div class="thread-content">{{ item.content }}</div>
+            </article>
+            <p v-if="!feedback.replies?.length" class="thread-empty">{{ t('feedback.noReplyYet') }}</p>
+          </div>
+        </section>
       </div>
     </NSpin>
 
@@ -319,5 +342,50 @@ onMounted(async () => {
   margin-top: 0;
   margin-bottom: 12px;
   line-height: 1.5;
+}
+.thread-section {
+  margin-top: 20px;
+}
+.thread-title {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.thread-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.thread-item {
+  border: 1px solid var(--lx-border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: var(--lx-card);
+}
+.thread-item--admin {
+  border-color: rgba(24, 160, 88, 0.35);
+  background: rgba(24, 160, 88, 0.06);
+}
+.thread-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  color: var(--lx-text-2);
+  font-size: 12px;
+}
+.thread-sender {
+  font-weight: 600;
+  color: var(--lx-text-1);
+}
+.thread-content {
+  white-space: pre-wrap;
+  line-height: 1.6;
+  word-break: break-word;
+}
+.thread-empty {
+  margin: 0;
+  color: var(--lx-text-2);
+  font-size: 13px;
 }
 </style>

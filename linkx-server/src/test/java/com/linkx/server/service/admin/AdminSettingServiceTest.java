@@ -2,6 +2,7 @@ package com.linkx.server.service.admin;
 
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.config.MailSenderHolder;
+import com.linkx.server.controller.admin.dto.AdminSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.AdminSideSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.ClientSideSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.LoginSettingUpdateDTO;
@@ -286,6 +287,24 @@ class AdminSettingServiceTest {
             AdminSettingVO vo = service.updateMailTemplates(dto, OPERATOR_ID);
             assertEquals("Reg Sub", vo.getMailTemplates().getRegister().getSubject());
             assertFalse(vo.getMailTemplates().getRegister().getUsingDefault());
+        }
+
+        @Test
+        @DisplayName("updateSettings 单分组与空请求")
+        void updateSettings_partialAndEmpty() {
+            when(runtimeSettingMapper.selectOneById(SysRuntimeSetting.SINGLETON_ID)).thenReturn(existingRow());
+            RegisterSettingUpdateDTO register = new RegisterSettingUpdateDTO();
+            register.setRegisterEnabled(false);
+            register.setForgotPasswordEmailEnabled(true);
+            AdminSettingUpdateDTO dto = new AdminSettingUpdateDTO();
+            dto.setRegister(register);
+            AdminSettingVO vo = service.updateSettings(dto, OPERATOR_ID);
+            assertFalse(vo.getRegister().getRegisterEnabled());
+
+            AdminSettingUpdateDTO empty = new AdminSettingUpdateDTO();
+            CustomException ex = assertThrows(CustomException.class,
+                    () -> service.updateSettings(empty, OPERATOR_ID));
+            assertEquals(400, ex.getCode());
         }
 
         @Test

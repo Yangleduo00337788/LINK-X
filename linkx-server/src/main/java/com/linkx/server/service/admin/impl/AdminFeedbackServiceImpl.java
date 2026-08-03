@@ -7,12 +7,14 @@ import com.linkx.server.controller.admin.dto.AdminFeedbackAssignDTO;
 import com.linkx.server.controller.admin.dto.AdminFeedbackQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminFeedbackReplyDTO;
 import com.linkx.server.controller.admin.vo.AdminFeedbackVO;
+import com.linkx.server.controller.vo.FeedbackReplyVO;
 import com.linkx.server.entity.Feedback;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.mapper.FeedbackMapper;
 import com.linkx.server.mapper.SysUserMapper;
+import com.linkx.server.service.FeedbackReplyService;
 import com.linkx.server.service.MessageNotificationService;
 import com.linkx.server.service.admin.AdminFeedbackService;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -40,6 +42,7 @@ public class AdminFeedbackServiceImpl implements AdminFeedbackService {
     private final MessageNotificationService notificationService;
     private final ImMessagePushService imPushService;
     private final LinkxProperties linkxProperties;
+    private final FeedbackReplyService feedbackReplyService;
 
     @Override
     public PageResultVO<AdminFeedbackVO> list(AdminFeedbackQueryDTO query) {
@@ -106,15 +109,28 @@ public class AdminFeedbackServiceImpl implements AdminFeedbackService {
 
     @Override
     public AdminFeedbackVO detail(Long id) {
-        return toVO(requireFeedback(id));
+        Feedback feedback = requireFeedback(id);
+        AdminFeedbackVO vo = toVO(feedback);
+        vo.setReplies(feedbackReplyService.listByFeedbackId(id));
+        return vo;
+    }
+
+    @Override
+    public List<FeedbackReplyVO> listReplies(Long id) {
+        requireFeedback(id);
+        return feedbackReplyService.listByFeedbackId(id);
     }
 
     @Override
     @Transactional
     public void reply(Long id, AdminFeedbackReplyDTO dto, Long operatorId) {
         Feedback feedback = requireFeedback(id);
+        if ("closed".equals(feedback.getStatus())) {
+            throw new CustomException(400, "feedback is closed");
+        }
         Date now = new Date();
         String replyText = dto.getContent().trim();
+        feedbackReplyService.addAdminReply(feedback, replyText, operatorId);
         feedback.setReply(replyText);
         feedback.setReplyTime(now);
         feedback.setStatus("replied");
@@ -253,6 +269,7 @@ public class AdminFeedbackServiceImpl implements AdminFeedbackService {
                 .contact(feedback.getContact())
                 .status(feedback.getStatus())
                 .reply(reply)
+                .replyTime(feedback.getReplyTime())
                 .createTime(feedback.getCreateTime())
                 .overdue(isOverdue(feedback))
                 .assigneeId(feedback.getAssigneeId())

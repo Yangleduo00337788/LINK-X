@@ -1,5 +1,6 @@
 package com.linkx.server.service.admin;
 
+import com.linkx.server.controller.admin.dto.AdminSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.AdminSideSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.ClientSideSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.LoginSettingUpdateDTO;
@@ -12,6 +13,8 @@ import com.linkx.server.controller.admin.vo.AdminSettingVO;
 public interface AdminSettingService {
 
     AdminSettingVO getSettings();
+
+    AdminSettingVO updateSettings(AdminSettingUpdateDTO dto, Long operatorId);
 
     AdminSettingVO updateAdminSide(AdminSideSettingUpdateDTO dto, Long operatorId);
 

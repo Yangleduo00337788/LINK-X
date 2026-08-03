@@ -7,6 +7,7 @@
 import { defineStore } from 'pinia'
 // 导入联系人类型（资料卡展示用）
 import type { ContactItem } from '../types'
+import { t } from '../i18n'
 
 // 定义并导出 chatModals Store
 export const useChatModalsStore = defineStore('chatModals', {
@@ -187,10 +188,10 @@ export const useChatModalsStore = defineStore('chatModals', {
       this.currentContactProfile = {
         id: profile.username || 'self',
         name: profile.nickname,
-        avatarText: profile.avatarText || profile.nickname.charAt(0) || '我',
+        avatarText: profile.avatarText || profile.nickname.charAt(0) || t('defaults.me'),
         avatarColor: profile.avatarUrl ? 'transparent' : 'var(--lx-success)',
         avatarUrl: profile.avatarUrl,
-        group: '我的好友',
+        group: t('defaults.myFriends'),
         online: true,
         userId: profile.userId != null ? String(profile.userId) : undefined
       }

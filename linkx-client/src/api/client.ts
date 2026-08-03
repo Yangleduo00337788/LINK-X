@@ -4,6 +4,7 @@ import { parseJsonPreservingIds } from '../utils/parseJson'
 import { clearTokens, getRefreshToken, getToken, isWebEnvironment, saveTokenPair } from '../utils/tokenStorage'
 import { getDeviceName, getDeviceType, getOrCreateDeviceId } from '../utils/deviceId'
 import { API_BASE_URL } from '../config/endpoints'
+import { t } from '../i18n'
 
 const baseURL = API_BASE_URL
 
@@ -58,14 +59,14 @@ async function processUnauthorized(config?: InternalAxiosRequestConfig) {
   const url = config?.url ?? ''
   if (url.includes('/auth/refresh') || url.includes('/auth/login') || url.includes('/auth/register')) {
     await clearTokens()
-    return Promise.reject(new Error('未授权'))
+    return Promise.reject(new Error(t('errors.unauthorized')))
   }
 
   if (refreshing) {
     return new Promise((resolve, reject) => {
       refreshQueue.push(token => {
         if (!token || !config) {
-          reject(new Error('登录已过期'))
+          reject(new Error(t('errors.sessionExpired')))
           return
         }
         // Web 环境依赖 Cookie 鉴权，不设 Authorization Header；Electron 设新 access token
@@ -86,7 +87,7 @@ async function processUnauthorized(config?: InternalAxiosRequestConfig) {
     // Electron 环境无本地 refresh token 则直接登出。
     if (!refresh && !isWeb) {
       await redirectToLogin()
-      return Promise.reject(new Error('登录已过期'))
+      return Promise.reject(new Error(t('errors.sessionExpired')))
     }
 
     const { data: res } = await axios.post<ApiResult<TokenData>>(
@@ -105,7 +106,7 @@ async function processUnauthorized(config?: InternalAxiosRequestConfig) {
     )
     if (res.code !== 200 || !res.data) {
       await redirectToLogin()
-      return Promise.reject(new Error(res.message || '登录已过期'))
+      return Promise.reject(new Error(res.message || t('errors.sessionExpired')))
     }
 
     // Web 环境 saveTokenPair 为 no-op（Cookie 由后端 Set-Cookie 管理）；Electron 落盘 safeStorage

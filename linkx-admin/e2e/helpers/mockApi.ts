@@ -133,6 +133,19 @@ export async function installAdminApiMocks(page: Page) {
       )
     }
 
+    if (path === '/admin/settings' && method === 'PUT') {
+      const body = route.request().postDataJSON() as Record<string, unknown> | null
+      return route.fulfill(
+        ok({
+          register: body?.register ?? { registerEnabled: true, forgotPasswordEmailEnabled: true },
+          login: body?.login ?? {},
+          password: body?.password ?? {},
+          client: body?.client ?? {},
+          mail: body?.mail ?? {},
+        })
+      )
+    }
+
     if (path.startsWith('/admin/settings') && method === 'GET') {
       return route.fulfill(
         ok({

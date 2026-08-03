@@ -8,9 +8,10 @@ import type { FavoriteItem } from '../types'
 import * as favoriteApi from '../api/favorite'
 import type { FavoriteStorageVO, FavoriteTagVO, FavoriteVO } from '../api/favorite'
 import { isDisplayableMediaUrl, normalizeMediaUrl } from '../utils/mediaUrl'
+import { t } from '../i18n'
 
 function nowLabel(): string {
-  return '今天'
+  return t('defaults.today')
 }
 
 function mapFavoriteType(type?: string): FavoriteItem['type'] {
@@ -80,7 +81,7 @@ function mapVo(f: FavoriteVO): FavoriteItem {
   }
   return {
     id: String(f.id),
-    title: f.title || '无标题',
+    title: f.title || t('defaults.untitled'),
     preview: type === 'image' || type === 'file' ? (f.title || content.slice(0, 80)) : content.slice(0, 120),
     content,
     type,
@@ -252,7 +253,7 @@ export const useFavoritesStore = defineStore('favorites', {
     async createTag(name: string, color?: string) {
       const res = await favoriteApi.createFavoriteTag({ name, color })
       if (res.code !== 200 || !res.data) {
-        throw new Error(res.message || '创建标签失败')
+        throw new Error(res.message || t('errors.createTagFailed'))
       }
       await this.fetchTags()
       return res.data
@@ -261,7 +262,7 @@ export const useFavoritesStore = defineStore('favorites', {
     async deleteTag(tagId: string) {
       const res = await favoriteApi.deleteFavoriteTag(tagId)
       if (res.code !== 200) {
-        throw new Error(res.message || '删除标签失败')
+        throw new Error(res.message || t('errors.deleteTagFailed'))
       }
       await this.fetchTags()
     }

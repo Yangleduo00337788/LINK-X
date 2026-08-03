@@ -15,15 +15,10 @@
 
 export type ToneId = 'default' | 'chime' | 'bell' | 'pop'
 
-const TONE_LIST: { id: ToneId; label: string; description: string }[] = [
-  { id: 'default', label: '经典', description: '清脆双音' },
-  { id: 'chime', label: '风铃', description: '水晶短琶音' },
-  { id: 'bell', label: '钟声', description: '中频慢衰减' },
-  { id: 'pop', label: '气泡', description: '轻快短促' }
-]
+const TONE_IDS: ToneId[] = ['default', 'chime', 'bell', 'pop']
 
 export function listTones() {
-  return TONE_LIST
+  return TONE_IDS.map(id => ({ id }))
 }
 
 let cachedCtx: AudioContext | null = null
