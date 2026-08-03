@@ -6,6 +6,7 @@ import com.linkx.server.common.Result;
 import com.linkx.server.common.admin.AdminCsvResponses;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.config.aspect.AuditAction;
+import com.linkx.server.controller.admin.dto.AdminFeedbackAssignDTO;
 import com.linkx.server.controller.admin.dto.AdminFeedbackQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminFeedbackReplyDTO;
 import com.linkx.server.controller.admin.vo.AdminFeedbackVO;
@@ -19,6 +20,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -38,7 +40,12 @@ public class AdminFeedbackController {
     @Operation(summary = "查询反馈列表")
     @GetMapping
     @RequirePermission("admin:feedback:list")
-    public Result<PageResultVO<AdminFeedbackVO>> list(@Valid AdminFeedbackQueryDTO query) {
+    public Result<PageResultVO<AdminFeedbackVO>> list(@Valid AdminFeedbackQueryDTO query,
+                                                      HttpServletRequest request) {
+        if (Boolean.TRUE.equals(query.getMineOnly())) {
+            query.setAssigneeId((Long) request.getAttribute("userId"));
+            query.setUnassignedOnly(false);
+        }
         return Result.success(adminFeedbackService.list(query));
     }
 
@@ -102,6 +109,18 @@ public class AdminFeedbackController {
     public Result<Void> reopen(@PathVariable Long id, HttpServletRequest request) {
         Long operatorId = (Long) request.getAttribute("userId");
         adminFeedbackService.reopen(id, operatorId);
+        return Result.success(null);
+    }
+
+    @Operation(summary = "指派/改派反馈")
+    @AuditAction(operationType = "UPDATE_PROFILE", description = "指派反馈")
+    @PutMapping("/{id}/assign")
+    @RequirePermission("admin:feedback:assign")
+    public Result<Void> assign(@PathVariable Long id,
+                               @Valid @RequestBody AdminFeedbackAssignDTO dto,
+                               HttpServletRequest request) {
+        Long operatorId = (Long) request.getAttribute("userId");
+        adminFeedbackService.assign(id, dto, operatorId);
         return Result.success(null);
     }
 }

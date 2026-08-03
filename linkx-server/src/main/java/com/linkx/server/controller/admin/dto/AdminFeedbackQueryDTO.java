@@ -14,4 +14,13 @@ public class AdminFeedbackQueryDTO extends AdminPageQueryDTO {
 
     @Schema(description = "仅看超过 SLA 的待处理反馈")
     private Boolean overdueOnly;
+
+    @Schema(description = "处理人用户ID")
+    private Long assigneeId;
+
+    @Schema(description = "仅未指派")
+    private Boolean unassignedOnly;
+
+    @Schema(description = "仅指派给我（服务端会覆盖 assigneeId）")
+    private Boolean mineOnly;
 }
