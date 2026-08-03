@@ -301,6 +301,26 @@ CREATE TABLE IF NOT EXISTS note (
   deleted TINYINT NOT NULL DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS sys_homepage_section (
+  id BIGINT NOT NULL PRIMARY KEY,
+  section_type VARCHAR(32) NOT NULL,
+  section_key VARCHAR(64) NOT NULL,
+  title VARCHAR(128) NOT NULL,
+  enabled TINYINT NOT NULL DEFAULT 1,
+  sort_order INT NOT NULL DEFAULT 0,
+  create_time DATETIME,
+  update_time DATETIME,
+  deleted TINYINT NOT NULL DEFAULT 0
+);
+
+INSERT IGNORE INTO sys_homepage_section (id, section_type, section_key, title, enabled, sort_order, deleted) VALUES
+(5301, 'banner', 'home', '首页 Banner', 1, 10, 0),
+(5302, 'recommend', 'discover', '发现页推荐位', 1, 20, 0),
+(5303, 'recommend', 'chat_sidebar', '聊天侧栏推荐', 1, 30, 0),
+(5304, 'recommend', 'moments', '朋友圈推荐', 1, 40, 0),
+(5305, 'activity', 'default', '活动专区', 1, 50, 0),
+(5306, 'notice', 'pinned', '置顶公告', 1, 60, 0);
+
 -- 用户反馈表
 CREATE TABLE IF NOT EXISTS sys_feedback (
   id BIGINT NOT NULL PRIMARY KEY,
@@ -980,15 +1000,16 @@ INSERT IGNORE INTO sys_admin_menu
 (22, 0, 'devices',     '设备管理', '/admin/devices',    'views/DeviceListView',  'Phone',     'menu', 'admin:device:list',    2, 0, 1, 0, 1, 1, 0),
 (42, 7, 'rate-limit',  'IP 限流',  '/admin/rate-limits','views/RateLimitView',   'Speedometer','menu','admin:rate-limit:list',4, 0, 1, 0, 1, 1, 0),
 (40, 0, 'recommends',  '推荐位管理','/admin/recommends','views/RecommendListView','Star',     'menu', 'admin:recommend:list',11,0, 1, 0, 1, 1, 0),
-(41, 0, 'activities',  '活动管理', '/admin/activities', 'views/ActivityListView','Calendar',  'menu', 'admin:activity:list', 12,0, 1, 0, 1, 1, 0);
+(41, 0, 'activities',  '活动管理', '/admin/activities', 'views/ActivityListView','Calendar',  'menu', 'admin:activity:list', 12,0, 1, 0, 1, 1, 0),
+(46, 0, 'homepage-orchestration', '首页编排', '/admin/homepage-orchestration', 'views/HomepageOrchestrationView', 'Layout', 'menu', 'admin:homepage:list', 8, 0, 1, 0, 1, 1, 0);
 
 INSERT IGNORE INTO sys_admin_role_menu (role_id, menu_id) VALUES
 -- admin 全量（测试用最小集）
 (1001, 1),(1001, 2),(1001, 7),(1001, 8),(1001, 9),(1001, 10),(1001, 11),
 (1001, 13),(1001, 14),(1001, 43),(1001, 44),(1001, 16),(1001, 18),(1001, 19),(1001, 20),(1001, 22),
-(1001, 40),(1001, 41),(1001, 42),(1001, 45),
+(1001, 40),(1001, 41),(1001, 42),(1001, 45),(1001, 46),
 -- ops
-(1003, 1),(1003, 2),(1003, 10),(1003, 16),(1003, 18),(1003, 40),(1003, 41),
+(1003, 1),(1003, 2),(1003, 10),(1003, 16),(1003, 18),(1003, 40),(1003, 41),(1003, 46),
 -- audit
 (1004, 1),(1004, 2),(1004, 7),(1004, 8),(1004, 9),(1004, 19),(1004, 45),
 (1004, 13),(1004, 14),(1004, 43),(1004, 44),(1004, 20),(1004, 22),
@@ -1020,6 +1041,8 @@ INSERT IGNORE INTO sys_permission (id, permission_code, permission_name, resourc
 (2219,'admin:feedback-dispatch-rule:delete','删除分流规则','button',NULL,'删除规则',1),
 (2220,'admin:abnormal-access:list','查看异常访问','page','/admin/abnormal-access','统一异常访问记录',1),
 (2221,'admin:abnormal-access:export','导出异常访问','button',NULL,'异常访问记录导出',1),
+(2222,'admin:homepage:list','查看首页编排','page','/admin/homepage-orchestration','首页运营编排',1),
+(2223,'admin:homepage:edit','编辑首页编排','button',NULL,'调整区块排序与启用',1),
 (2136,'admin:notice:list','查看公告列表','page','/admin/notices','公告管理',1),
 (2138,'admin:notice:create','新增公告','button',NULL,'新增公告',1),
 (2144,'admin:statistics:view','查看统计分析','page','/admin/statistics','统计中心',1),
@@ -1076,6 +1099,7 @@ INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, d
 (293123, 1003, 2123, NULL, 0),(293124, 1003, 2124, NULL, 0),
 (293214, 1003, 2214, NULL, 0),(293215, 1003, 2215, NULL, 0),(293216, 1003, 2216, NULL, 0),
 (293217, 1003, 2217, NULL, 0),(293218, 1003, 2218, NULL, 0),(293219, 1003, 2219, NULL, 0),
+(293222, 1003, 2222, NULL, 0),(293223, 1003, 2223, NULL, 0),
 (293136, 1003, 2136, NULL, 0),(293138, 1003, 2138, NULL, 0),
 (293144, 1003, 2144, NULL, 0),
 (293190, 1003, 2190, NULL, 0),(293191, 1003, 2191, NULL, 0),(293192, 1003, 2192, NULL, 0),

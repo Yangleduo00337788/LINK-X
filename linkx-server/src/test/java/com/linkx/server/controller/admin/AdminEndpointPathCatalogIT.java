@@ -35,6 +35,7 @@ class AdminEndpointPathCatalogIT extends BaseIntegrationTest {
             "/admin/abnormal-access",
             "/admin/abnormal-access/summary",
             "/admin/abnormal-access/export",
+            "/admin/homepage-sections",
             "/admin/permissions",
             "/admin/permissions/{id}",
             "/admin/rate-limits/whitelist",
@@ -120,6 +121,7 @@ class AdminEndpointPathCatalogIT extends BaseIntegrationTest {
             "/admin/versions/{id}",
             "/admin/feedback/{id}/assign",
             "/admin/feedback-dispatch-rules/{id}",
+            "/admin/homepage-sections/reorder",
     };
 
     private static final String[] DELETE_PATHS = {
