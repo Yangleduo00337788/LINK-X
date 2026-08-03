@@ -1,6 +1,5 @@
-package com.linkx.server.entity;
+package com.linkx.server.entity.admin;
 
-import com.mybatisflex.annotation.Column;
 import com.mybatisflex.annotation.Id;
 import com.mybatisflex.annotation.KeyType;
 import com.mybatisflex.annotation.Table;
@@ -17,25 +16,23 @@ import java.util.Date;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table("sys_feedback")
-public class Feedback implements Serializable {
+@Table("sys_feedback_dispatch_rule")
+public class SysFeedbackDispatchRule implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
     @Id(keyType = KeyType.Generator, value = KeyGenerators.snowFlakeId)
     private Long id;
 
-    private Long userId;
-    private String username;
-    private String type;
-    private String content;
-    private String contact;
-    private String status;
-    private String reply;
-    private Date replyTime;
+    private String name;
+    private String feedbackType;
+    private String keyword;
     private Long assigneeId;
-    private Date assignedAt;
-
-    @Column(onInsertValue = "NOW()")
+    private Integer priority;
+    private Boolean enabled;
+    private Long createdBy;
+    private Long updatedBy;
     private Date createTime;
+    private Date updateTime;
+    private Integer deleted;
 }

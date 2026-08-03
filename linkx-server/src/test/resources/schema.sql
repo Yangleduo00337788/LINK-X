@@ -312,7 +312,24 @@ CREATE TABLE IF NOT EXISTS sys_feedback (
   status VARCHAR(20) DEFAULT 'pending',
   reply TEXT,
   reply_time DATETIME,
+  assignee_id BIGINT,
+  assigned_at DATETIME,
   create_time DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS sys_feedback_dispatch_rule (
+  id BIGINT NOT NULL PRIMARY KEY,
+  name VARCHAR(64) NOT NULL,
+  feedback_type VARCHAR(32),
+  keyword VARCHAR(128),
+  assignee_id BIGINT NOT NULL,
+  priority INT NOT NULL DEFAULT 0,
+  enabled TINYINT NOT NULL DEFAULT 1,
+  created_by BIGINT,
+  updated_by BIGINT,
+  create_time DATETIME,
+  update_time DATETIME,
+  deleted TINYINT NOT NULL DEFAULT 0
 );
 
 -- 消息通知表
@@ -994,6 +1011,12 @@ INSERT IGNORE INTO sys_permission (id, permission_code, permission_name, resourc
 (2129,'admin:review:list','查看审核列表','page','/admin/reviews','内容审核',1),
 (2130,'admin:review:approve','审核通过','button',NULL,'审核通过',1),
 (2213,'admin:review:delete-content','下架审核内容','button',NULL,'独立删除/撤回违规内容',1),
+(2214,'admin:feedback:assign','指派反馈','button',NULL,'手动指派/改派反馈',1),
+(2215,'admin:feedback-dispatch-rule:list','查看分流规则','page','/admin/feedback-dispatch-rules','反馈分流规则',1),
+(2216,'admin:feedback-dispatch-rule:view','查看规则详情','button',NULL,'规则详情',1),
+(2217,'admin:feedback-dispatch-rule:create','新增分流规则','button',NULL,'新增规则',1),
+(2218,'admin:feedback-dispatch-rule:edit','编辑分流规则','button',NULL,'编辑规则',1),
+(2219,'admin:feedback-dispatch-rule:delete','删除分流规则','button',NULL,'删除规则',1),
 (2136,'admin:notice:list','查看公告列表','page','/admin/notices','公告管理',1),
 (2138,'admin:notice:create','新增公告','button',NULL,'新增公告',1),
 (2144,'admin:statistics:view','查看统计分析','page','/admin/statistics','统计中心',1),
@@ -1048,6 +1071,8 @@ INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, d
 (293101, 1003, 2101, NULL, 0),(293102, 1003, 2102, NULL, 0),(293103, 1003, 2103, NULL, 0),
 (293153, 1003, 2153, NULL, 0),
 (293123, 1003, 2123, NULL, 0),(293124, 1003, 2124, NULL, 0),
+(293214, 1003, 2214, NULL, 0),(293215, 1003, 2215, NULL, 0),(293216, 1003, 2216, NULL, 0),
+(293217, 1003, 2217, NULL, 0),(293218, 1003, 2218, NULL, 0),(293219, 1003, 2219, NULL, 0),
 (293136, 1003, 2136, NULL, 0),(293138, 1003, 2138, NULL, 0),
 (293144, 1003, 2144, NULL, 0),
 (293190, 1003, 2190, NULL, 0),(293191, 1003, 2191, NULL, 0),(293192, 1003, 2192, NULL, 0),
