@@ -12,7 +12,7 @@ import {
   type DataTableColumns,
 } from 'naive-ui'
 import { exportLoginLogs, listLoginLogs, type LoginLog } from '@/api/logs'
-import { formatIp, formatTime } from '@/utils/format'
+import { displayOrNone, formatIp, formatTime } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
 import SearchAutoComplete from '@/components/SearchAutoComplete.vue'
 
@@ -57,7 +57,7 @@ const columns = computed<DataTableColumns<LoginLog>>(() => {
       key: 'region',
       width: 180,
       ellipsis: { tooltip: true },
-      render: (row) => row.region || '-',
+      render: (row) => displayOrNone(row.region),
     },
     { title: 'UA', key: 'userAgent', ellipsis: { tooltip: true } },
     {

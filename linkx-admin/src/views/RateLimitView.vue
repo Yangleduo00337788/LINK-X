@@ -22,6 +22,7 @@ import {
   unblockRateLimitIp,
   type RateLimitHit,
 } from '@/api/rateLimits'
+import { displayCount, displayOrNone } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
 
 const { t, locale } = useI18n()
@@ -44,21 +45,21 @@ const hitColumns = computed<DataTableColumns<RateLimitHit>>(() => {
   void locale.value
   return [
     { title: t('rateLimit.scope'), key: 'scope', width: 140, ellipsis: { tooltip: true } },
-    { title: 'IP', key: 'ip', width: 140, render: (row) => row.ip || '-' },
-    { title: t('rateLimit.identity'), key: 'identity', ellipsis: { tooltip: true } },
-    { title: t('rateLimit.count'), key: 'count', width: 90 },
+    { title: 'IP', key: 'ip', width: 140, render: (row) => displayOrNone(row.ip) },
+    { title: t('rateLimit.identity'), key: 'identity', ellipsis: { tooltip: true }, render: (row) => displayOrNone(row.identity) },
+    { title: t('rateLimit.count'), key: 'count', width: 90, render: (row) => displayCount(row.count) },
     {
       title: 'TTL',
       key: 'ttlSeconds',
       width: 100,
-      render: (row) => (row.ttlSeconds == null ? '-' : `${row.ttlSeconds}s`),
+      render: (row) => (row.ttlSeconds == null ? displayOrNone(null) : `${row.ttlSeconds}s`),
     },
     {
       title: t('common.actions'),
       key: 'actions',
       width: 120,
       render: (row) => {
-        if (!canUnblock.value || !row.ip) return '-'
+        if (!canUnblock.value || !row.ip) return displayOrNone(null)
         return h(
           NButton,
           {

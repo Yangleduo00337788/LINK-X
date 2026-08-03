@@ -5,9 +5,19 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 
 @DisplayName("IP 归属地解析")
 class IpGeoServiceImplTest {
+
+    @Test
+    @DisplayName("空 IP 返回 null")
+    void resolveEmptyIp() {
+        IpGeoServiceImpl service = new IpGeoServiceImpl(mock(com.linkx.server.config.LinkxProperties.class));
+        assertEquals(null, service.resolve(null));
+        assertEquals(null, service.resolve(""));
+        assertEquals(null, service.resolve("   "));
+    }
 
     @Test
     @DisplayName("内网 / 回环地址识别")

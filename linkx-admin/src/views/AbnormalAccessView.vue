@@ -24,7 +24,7 @@ import {
   type AbnormalAccessItem,
   type AbnormalAccessSummary,
 } from '@/api/abnormalAccess'
-import { formatIp, formatTime } from '@/utils/format'
+import { displayCount, displayOrNone, formatIp, formatTime } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
 import SearchAutoComplete from '@/components/SearchAutoComplete.vue'
 
@@ -67,6 +67,27 @@ function sourceTag(row: AbnormalAccessItem) {
   return h(NTag, { type: meta.type, size: 'small' }, () => meta.label)
 }
 
+function metricText(row: AbnormalAccessItem) {
+  if (row.source === 'rate_limit') {
+    const count = displayCount(row.hitCount)
+    if (row.ttlSeconds != null && row.ttlSeconds > 0) {
+      return `${count} (${row.ttlSeconds}s)`
+    }
+    return count
+  }
+  if (row.source === 'login_fail') {
+    return t('abnormalAccess.metricLoginFail')
+  }
+  if (row.source === 'risk_event') {
+    const status = row.status
+    if (status === 'pending') return t('risk.pending')
+    if (status === 'handled') return t('risk.handled')
+    if (status === 'ignored') return t('risk.ignored')
+    return displayOrNone(status)
+  }
+  return displayOrNone(null)
+}
+
 const columns = computed<DataTableColumns<AbnormalAccessItem>>(() => {
   void locale.value
   return [
@@ -79,7 +100,7 @@ const columns = computed<DataTableColumns<AbnormalAccessItem>>(() => {
     { title: t('abnormalAccess.category'), key: 'category', width: 120, ellipsis: { tooltip: true } },
     { title: t('abnormalAccess.titleCol'), key: 'title', width: 160, ellipsis: { tooltip: true } },
     { title: t('abnormalAccess.detail'), key: 'detail', ellipsis: { tooltip: true } },
-    { title: t('loginLog.username'), key: 'username', width: 120, render: (row) => row.username || row.identity || '-' },
+    { title: t('loginLog.username'), key: 'username', width: 120, render: (row) => displayOrNone(row.username || row.identity) },
     {
       title: 'IP',
       key: 'ip',
@@ -90,13 +111,13 @@ const columns = computed<DataTableColumns<AbnormalAccessItem>>(() => {
       title: t('loginLog.region'),
       key: 'region',
       width: 120,
-      render: (row) => row.region || '-',
+      render: (row) => displayOrNone(row.region),
     },
     {
-      title: t('abnormalAccess.hitCount'),
-      key: 'hitCount',
-      width: 90,
-      render: (row) => (row.hitCount == null ? '-' : String(row.hitCount)),
+      title: t('abnormalAccess.metric'),
+      key: 'metric',
+      width: 110,
+      render: (row) => metricText(row),
     },
     {
       title: t('common.time'),
@@ -110,6 +131,20 @@ const columns = computed<DataTableColumns<AbnormalAccessItem>>(() => {
       width: 140,
       render: (row) =>
         h(NSpace, { size: 8 }, () => [
+          row.source === 'login_fail' && auth.hasPermission('admin:login-log:list')
+            ? h(
+                NButton,
+                {
+                  size: 'tiny',
+                  onClick: () =>
+                    router.push({
+                      path: '/admin/login-logs',
+                      query: { keyword: row.username || row.ip || '' },
+                    }),
+                },
+                () => t('abnormalAccess.viewLoginLog')
+              )
+            : null,
           row.source === 'risk_event' && row.sourceId
             ? h(
                 NButton,

@@ -11,7 +11,7 @@ vi.mock('@/i18n', () => ({
   },
 }))
 
-import { displayOrNone, formatIp, formatTime, userStatusLabel, userStatusType } from './format'
+import { displayCount, displayOrNone, formatIp, formatTime, userStatusLabel, userStatusType } from './format'
 
 describe('format', () => {
   describe('formatTime', () => {
@@ -36,6 +36,18 @@ describe('format', () => {
 
     it('returns the original value when present', () => {
       expect(displayOrNone('hello')).toBe('hello')
+    })
+  })
+
+  describe('displayCount', () => {
+    it('returns localized N/A for empty numeric values', () => {
+      expect(displayCount(null)).toBe('N/A')
+      expect(displayCount(undefined)).toBe('N/A')
+    })
+
+    it('returns stringified number when present', () => {
+      expect(displayCount(0)).toBe('0')
+      expect(displayCount(12)).toBe('12')
     })
   })
 

@@ -61,7 +61,7 @@ public class IpGeoServiceImpl implements IpGeoService {
     @Override
     public String resolve(String ip) {
         if (!StringUtils.hasText(ip)) {
-            return "-";
+            return null;
         }
         String normalized = ip.trim();
         if (isPrivateOrLocal(normalized)) {

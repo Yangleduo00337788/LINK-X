@@ -117,7 +117,9 @@ const columns = computed<DataTableColumns<AdminDeviceItem>>(() => {
       key: 'banned',
       width: 90,
       render: (row) =>
-        row.banned ? h(NTag, { type: 'error', size: 'small' }, () => t('device.banned')) : '-',
+        row.banned
+          ? h(NTag, { type: 'error', size: 'small' }, () => t('device.banned'))
+          : h(NTag, { type: 'success', size: 'small' }, () => t('device.notBanned')),
     },
     {
       title: 'IP',

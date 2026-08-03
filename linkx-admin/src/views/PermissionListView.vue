@@ -78,7 +78,17 @@ const columns = computed<DataTableColumns<AdminPermission>>(() => {
       render: (row) => resolvePermissionName(t, row.permissionCode, row.permissionName),
     },
     { title: t('permission.resourceType'), key: 'resourceType', width: 120 },
-    { title: t('permission.resourcePath'), key: 'resourcePath', ellipsis: { tooltip: true } },
+    {
+      title: t('permission.resourcePath'),
+      key: 'resourcePath',
+      width: 200,
+      ellipsis: { tooltip: true },
+      render: (row) => {
+        if (row.resourcePath) return row.resourcePath
+        if (row.resourceType === 'button') return t('permission.noResourcePath')
+        return t('common.none')
+      },
+    },
     {
       title: t('common.description'),
       key: 'description',

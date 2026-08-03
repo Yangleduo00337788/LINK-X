@@ -13,6 +13,12 @@ export function displayOrNone(value?: string | null) {
   return value
 }
 
+/** Numeric empty → localized “暂无”，否则原样展示 */
+export function displayCount(value?: number | null) {
+  if (value == null || Number.isNaN(value)) return tGlobal('common.none')
+  return String(value)
+}
+
 /**
  * Normalize common IPv6 forms to IPv4 for admin display.
  * ::1 → 127.0.0.1，::ffff:x.x.x.x → x.x.x.x

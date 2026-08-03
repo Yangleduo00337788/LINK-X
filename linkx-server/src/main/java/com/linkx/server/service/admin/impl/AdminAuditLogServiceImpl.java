@@ -11,9 +11,11 @@ import com.linkx.server.controller.admin.vo.AdminLoginLogVO;
 import com.linkx.server.controller.admin.vo.AdminOperationLogVO;
 import com.linkx.server.entity.SysAuditLog;
 import com.linkx.server.entity.SysLoginAudit;
+import com.linkx.server.entity.SysUser;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.SysAuditLogMapper;
 import com.linkx.server.mapper.SysLoginAuditMapper;
+import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.IpGeoService;
 import com.linkx.server.service.admin.AdminAuditLogService;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -22,7 +24,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -32,6 +37,7 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
     private final SysAuditLogMapper sysAuditLogMapper;
     private final SysLoginAuditMapper sysLoginAuditMapper;
     private final IpGeoService ipGeoService;
+    private final SysUserMapper sysUserMapper;
 
     @Override
     @DataScope
@@ -45,6 +51,7 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
         List<AdminOperationLogVO> items = sysAuditLogMapper.selectListByQuery(qw).stream()
                 .map(this::toAuditVO)
                 .collect(Collectors.toList());
+        enrichUsernames(items);
         return PageResultVO.of(items, page, size, total);
     }
 
@@ -54,9 +61,11 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
         QueryWrapper qw = buildAuditQuery(query);
         qw.orderBy(SysAuditLog::getCreateTime, false);
         qw.limit(0, AdminConstants.EXPORT_MAX_SIZE);
-        return sysAuditLogMapper.selectListByQuery(qw).stream()
+        List<AdminOperationLogVO> items = sysAuditLogMapper.selectListByQuery(qw).stream()
                 .map(this::toAuditVO)
                 .collect(Collectors.toList());
+        enrichUsernames(items);
+        return items;
     }
 
     @Override
@@ -66,7 +75,7 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
         if (log == null || !inScope(log.getUserId())) {
             throw new CustomException(404, "audit log not found");
         }
-        return toAuditVO(log);
+        return enrichUsername(toAuditVO(log));
     }
 
     @Override
@@ -180,6 +189,39 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
 
     private boolean inScope(Long rowUserId) {
         return DataScopeContext.allows(rowUserId);
+    }
+
+    private AdminOperationLogVO enrichUsername(AdminOperationLogVO vo) {
+        enrichUsernames(List.of(vo));
+        return vo;
+    }
+
+    private void enrichUsernames(List<AdminOperationLogVO> items) {
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+        Set<Long> ids = new HashSet<>();
+        for (AdminOperationLogVO vo : items) {
+            if (!StringUtils.hasText(vo.getUsername()) && vo.getUserId() != null) {
+                ids.add(vo.getUserId());
+            }
+            if (!StringUtils.hasText(vo.getTargetUsername()) && vo.getTargetUserId() != null) {
+                ids.add(vo.getTargetUserId());
+            }
+        }
+        if (ids.isEmpty()) {
+            return;
+        }
+        Map<Long, String> names = sysUserMapper.selectListByIds(ids).stream()
+                .collect(Collectors.toMap(SysUser::getId, SysUser::getUsername, (a, b) -> a));
+        for (AdminOperationLogVO vo : items) {
+            if (!StringUtils.hasText(vo.getUsername()) && vo.getUserId() != null) {
+                vo.setUsername(names.get(vo.getUserId()));
+            }
+            if (!StringUtils.hasText(vo.getTargetUsername()) && vo.getTargetUserId() != null) {
+                vo.setTargetUsername(names.get(vo.getTargetUserId()));
+            }
+        }
     }
 
     private AdminOperationLogVO toAuditVO(SysAuditLog log) {

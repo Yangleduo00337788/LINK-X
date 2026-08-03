@@ -11,7 +11,7 @@ import {
   type DataTableColumns,
 } from 'naive-ui'
 import { exportAuditLogs, listAuditLogs, type AuditLog } from '@/api/logs'
-import { formatIp, formatTime } from '@/utils/format'
+import { displayOrNone, formatIp, formatTime } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
 import SearchAutoComplete from '@/components/SearchAutoComplete.vue'
 
@@ -58,9 +58,19 @@ const columns = computed<DataTableColumns<AuditLog>>(() => {
   return [
     { title: 'ID', key: 'id', width: 80 },
     { title: t('audit.operationType'), key: 'operationType', width: 140 },
-    { title: t('common.description'), key: 'description', ellipsis: { tooltip: true } },
-    { title: t('audit.operator'), key: 'username', width: 120 },
-    { title: t('audit.targetUser'), key: 'targetUsername', width: 120 },
+    { title: t('common.description'), key: 'description', width: 220, ellipsis: { tooltip: true } },
+    {
+      title: t('audit.operator'),
+      key: 'username',
+      width: 120,
+      render: (row) => displayOrNone(row.username),
+    },
+    {
+      title: t('audit.targetUser'),
+      key: 'targetUsername',
+      width: 120,
+      render: (row) => displayOrNone(row.targetUsername),
+    },
     {
       title: 'IP',
       key: 'ip',

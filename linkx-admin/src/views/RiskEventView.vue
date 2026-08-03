@@ -23,7 +23,7 @@ import {
   listRiskEvents,
   type RiskEventItem,
 } from '@/api/riskEvents'
-import { formatIp, formatTime } from '@/utils/format'
+import { displayCount, displayOrNone, formatIp, formatTime } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
 import SearchAutoComplete from '@/components/SearchAutoComplete.vue'
 
@@ -160,7 +160,7 @@ const columns = computed<DataTableColumns<RiskEventItem>>(() => {
       key: 'region',
       width: 160,
       ellipsis: { tooltip: true },
-      render: (row) => row.region || '-',
+      render: (row) => displayOrNone(row.region),
     },
     {
       title: t('risk.riskLevel'),
@@ -254,7 +254,7 @@ function showDetail(row: RiskEventItem) {
           h('div', `${t('risk.user')}: ${row.username || row.userId || '-'}`),
           h('div', `${t('risk.target')}: ${row.targetResourceId || '-'}`),
           h('div', `IP: ${formatIp(row.ip)}`),
-          h('div', `${t('risk.region')}: ${row.region || '-'}`),
+          h('div', `${t('risk.region')}: ${displayOrNone(row.region)}`),
           h('div', { style: 'margin-top: 10px;' }, row.detail || '-'),
           row.resolution
             ? h('div', { style: 'margin-top: 12px;' }, `${t('risk.resolution')}: ${row.resolution}`)

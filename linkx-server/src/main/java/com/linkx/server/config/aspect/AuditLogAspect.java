@@ -12,6 +12,8 @@ import com.linkx.server.controller.dto.RegisterDTO;
 import com.linkx.server.controller.vo.TokenVO;
 import com.linkx.server.controller.vo.UserInfoVO;
 import com.linkx.server.entity.SysAuditLog;
+import com.linkx.server.entity.SysUser;
+import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.AuditLogService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +42,7 @@ public class AuditLogAspect {
     private final AuditLogService auditLogService;
     private final JwtUtils jwtUtils;
     private final LinkxProperties linkxProperties;
+    private final SysUserMapper sysUserMapper;
 
     /**
      * 审计操作注解切入点
@@ -121,6 +124,9 @@ public class AuditLogAspect {
             // 管理端 TOTP 挑战/强制绑定尚未发会话，不记成功 LOGIN
             if (!(success && isAdminLoginChallengeOnly(result))) {
                 try {
+                    if (!org.springframework.util.StringUtils.hasText(username) && userId != null) {
+                        username = resolveUsername(userId);
+                    }
                     auditLogService.log(
                             SysAuditLog.OperationType.valueOf(operationType),
                             description,
@@ -201,5 +207,13 @@ public class AuditLogAspect {
             return user.getUsername();
         }
         return null;
+    }
+
+    private String resolveUsername(Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        SysUser user = sysUserMapper.selectOneById(userId);
+        return user == null ? null : user.getUsername();
     }
 }

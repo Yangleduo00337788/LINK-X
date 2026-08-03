@@ -34,13 +34,14 @@ class AdminAuditLogServiceTest {
     @Mock SysAuditLogMapper sysAuditLogMapper;
     @Mock SysLoginAuditMapper sysLoginAuditMapper;
     @Mock IpGeoService ipGeoService;
+    @Mock com.linkx.server.mapper.SysUserMapper sysUserMapper;
 
     private AdminAuditLogServiceImpl service;
 
     @BeforeEach
     void setUp() {
         DataScopeContext.setUnrestricted();
-        service = new AdminAuditLogServiceImpl(sysAuditLogMapper, sysLoginAuditMapper, ipGeoService);
+        service = new AdminAuditLogServiceImpl(sysAuditLogMapper, sysLoginAuditMapper, ipGeoService, sysUserMapper);
     }
 
     @AfterEach
