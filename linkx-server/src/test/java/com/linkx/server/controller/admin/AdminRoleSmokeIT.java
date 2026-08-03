@@ -76,6 +76,8 @@ class AdminRoleSmokeIT extends BaseIntegrationTest {
         assertTrue(menuNames.contains("feedback"));
         assertTrue(menuNames.contains("notices"));
         assertTrue(menuNames.contains("statistics"));
+        assertTrue(menuNames.contains("system-monitor"));
+        assertTrue(menuNames.contains("monitor-service"));
         assertFalse(menuNames.contains("settings"));
         assertFalse(menuNames.contains("risk-event"));
         assertFalse(menuNames.contains("devices"));
@@ -85,6 +87,7 @@ class AdminRoleSmokeIT extends BaseIntegrationTest {
         assertTrue(perms.contains("admin:dashboard:view"));
         assertTrue(perms.contains("admin:feedback:reply"));
         assertTrue(perms.contains("admin:notice:create"));
+        assertTrue(perms.contains("admin:system-monitor:view"));
         assertFalse(perms.contains("admin:setting:edit"));
         assertFalse(perms.contains("admin:user:freeze"));
         assertFalse(perms.contains("admin:risk-event:handle"));
@@ -93,6 +96,16 @@ class AdminRoleSmokeIT extends BaseIntegrationTest {
         mockMvc.perform(get("/admin/dashboard/summary").header("Authorization", ops.bearer()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
+
+        mockMvc.perform(get("/admin/system-monitor/service").header("Authorization", ops.bearer()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.jvmHeapUsagePercent").exists());
+
+        mockMvc.perform(get("/admin/system-monitor/tables").header("Authorization", ops.bearer()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.tables").isArray());
 
         TestUser victim = registerAndLogin("opsvct");
         mockMvc.perform(post("/admin/users/{id}/freeze", victim.userId)

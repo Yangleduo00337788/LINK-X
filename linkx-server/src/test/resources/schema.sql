@@ -996,6 +996,15 @@ CREATE TABLE IF NOT EXISTS sys_admin_export_job (
   deleted TINYINT DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS sys_monitor_metric_snapshot (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  snapshot_at DATETIME NOT NULL,
+  category VARCHAR(32) NOT NULL,
+  metric_key VARCHAR(64) NOT NULL,
+  metric_value DOUBLE NOT NULL,
+  extra_json VARCHAR(512)
+);
+
 -- =============================================================================
 -- 管理端角色冒烟：最小菜单 / 权限码 / 绑定（对齐 V5+V28+V30）
 -- =============================================================================
@@ -1021,15 +1030,21 @@ INSERT IGNORE INTO sys_admin_menu
 (42, 7, 'rate-limit',  'IP 限流',  '/admin/rate-limits','views/RateLimitView',   'Speedometer','menu','admin:rate-limit:list',4, 0, 1, 0, 1, 1, 0),
 (40, 0, 'recommends',  '推荐位管理','/admin/recommends','views/RecommendListView','Star',     'menu', 'admin:recommend:list',11,0, 1, 0, 1, 1, 0),
 (41, 0, 'activities',  '活动管理', '/admin/activities', 'views/ActivityListView','Calendar',  'menu', 'admin:activity:list', 12,0, 1, 0, 1, 1, 0),
-(46, 0, 'homepage-orchestration', '首页编排', '/admin/homepage-orchestration', 'views/HomepageOrchestrationView', 'Layout', 'menu', 'admin:homepage:list', 8, 0, 1, 0, 1, 1, 0);
+(46, 0, 'homepage-orchestration', '首页编排', '/admin/homepage-orchestration', 'views/HomepageOrchestrationView', 'Layout', 'menu', 'admin:homepage:list', 8, 0, 1, 0, 1, 1, 0),
+(49, 0, 'system-monitor', '系统监控', '/admin/system-monitor', NULL, 'Pulse', 'dir', 'admin:system-monitor:view', 9, 0, 1, 0, 1, 1, 0),
+(50, 49, 'monitor-cache', '缓存监控', '/admin/system-monitor/cache', 'views/monitor/CacheMonitorView', 'Layers', 'menu', 'admin:system-monitor:view', 1, 0, 1, 0, 1, 1, 0),
+(51, 49, 'monitor-service', '服务监控', '/admin/system-monitor/service', 'views/monitor/ServiceMonitorView', 'Server', 'menu', 'admin:system-monitor:view', 2, 0, 1, 0, 1, 1, 0),
+(52, 49, 'monitor-api', 'API访问统计', '/admin/system-monitor/api-stats', 'views/monitor/ApiStatsMonitorView', 'Analytics', 'menu', 'admin:system-monitor:view', 3, 0, 1, 0, 1, 1, 0),
+(53, 49, 'monitor-tasks', '定时任务', '/admin/system-monitor/tasks', 'views/monitor/TaskMonitorView', 'Timer', 'menu', 'admin:system-monitor:view', 4, 0, 1, 0, 1, 1, 0),
+(54, 49, 'monitor-sql', 'SQL监控', '/admin/system-monitor/sql', 'views/monitor/SqlMonitorView', 'Code', 'menu', 'admin:system-monitor:view', 5, 0, 1, 0, 1, 1, 0);
 
 INSERT IGNORE INTO sys_admin_role_menu (role_id, menu_id) VALUES
 -- admin 全量（测试用最小集）
 (1001, 1),(1001, 2),(1001, 7),(1001, 8),(1001, 9),(1001, 10),(1001, 11),
 (1001, 13),(1001, 14),(1001, 43),(1001, 44),(1001, 16),(1001, 18),(1001, 19),(1001, 20),(1001, 22),
-(1001, 40),(1001, 41),(1001, 42),(1001, 45),(1001, 46),
+(1001, 40),(1001, 41),(1001, 42),(1001, 45),(1001, 46),(1001, 50),(1001, 51),(1001, 52),(1001, 53),(1001, 54),
 -- ops
-(1003, 1),(1003, 2),(1003, 10),(1003, 16),(1003, 18),(1003, 40),(1003, 41),(1003, 46),
+(1003, 1),(1003, 2),(1003, 10),(1003, 16),(1003, 18),(1003, 40),(1003, 41),(1003, 46),(1003, 50),(1003, 51),(1003, 52),(1003, 53),(1003, 54),
 -- audit
 (1004, 1),(1004, 2),(1004, 7),(1004, 8),(1004, 9),(1004, 19),(1004, 45),
 (1004, 13),(1004, 14),(1004, 43),(1004, 44),(1004, 20),(1004, 22),
@@ -1104,7 +1119,8 @@ INSERT IGNORE INTO sys_permission (id, permission_code, permission_name, resourc
 (2207,'admin:rate-limit:whitelist','管理限流白名单','button',NULL,'IP 白名单',1),
 (2111,'admin:role:list','查看角色列表','page','/admin/roles','角色管理',1),
 (2112,'admin:role:create','新增角色','button',NULL,'新增角色',1),
-(2115,'admin:role:assign-menu','角色分配菜单','button',NULL,'菜单授权',1);
+(2115,'admin:role:assign-menu','角色分配菜单','button',NULL,'菜单授权',1),
+(2228,'admin:system-monitor:view','查看系统监控','page','/admin/system-monitor','运行状态、依赖健康、数据库表体量',1);
 
 -- admin: 角色权限管理（测试）
 INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, deleted) VALUES
@@ -1127,7 +1143,8 @@ INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, d
 (293196, 1003, 2196, NULL, 0),
 (293197, 1003, 2197, NULL, 0),(293198, 1003, 2198, NULL, 0),(293199, 1003, 2199, NULL, 0),
 (293200, 1003, 2200, NULL, 0),(293201, 1003, 2201, NULL, 0),(293202, 1003, 2202, NULL, 0),
-(293203, 1003, 2203, NULL, 0);
+(293203, 1003, 2203, NULL, 0),
+(293228, 1003, 2228, NULL, 0);
 
 -- audit: 用户处置 + 审核 + 风险 + 黑名单 + 设备 + 日志 + 导出
 INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, deleted) VALUES

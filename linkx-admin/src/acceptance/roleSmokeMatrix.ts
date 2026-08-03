@@ -37,7 +37,7 @@ export type RoleSmokeCase = {
 export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
   {
     roleCode: 'super_admin',
-    mustMenus: ['dashboard', 'settings', 'rate-limit', 'versions'],
+    mustMenus: ['dashboard', 'settings', 'rate-limit', 'versions', 'system-monitor', 'monitor-service'],
     mustNotMenus: [],
     allowPerms: [
       'admin:dashboard:view',
@@ -45,6 +45,7 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
       'admin:menu:create',
       'admin:role:assign-permission',
       'admin:rate-limit:list',
+      'admin:system-monitor:view',
       'admin:risk-event:handle',
       'admin:notice:create',
     ],
@@ -58,6 +59,8 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
       '/admin/risk-events',
       '/admin/notices',
       '/admin/versions',
+      '/admin/system-monitor',
+      '/admin/system-monitor/tasks',
     ],
     denyRoutes: [],
   },
@@ -71,6 +74,8 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
       'recommends',
       'activities',
       'homepage-orchestration',
+      'system-monitor',
+      'monitor-tasks',
     ],
     mustNotMenus: ['settings', 'risk-event', 'devices', 'rate-limit'],
     allowPerms: [
@@ -83,6 +88,7 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
       'admin:recommend:list',
       'admin:activity:list',
       'admin:homepage:list',
+      'admin:system-monitor:view',
     ],
     denyPerms: [
       'admin:setting:edit',
@@ -103,6 +109,8 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
       '/admin/recommends',
       '/admin/activities',
       '/admin/homepage-orchestration',
+      '/admin/system-monitor',
+      '/admin/system-monitor/tasks',
     ],
     denyRoutes: [
       '/admin/settings',
