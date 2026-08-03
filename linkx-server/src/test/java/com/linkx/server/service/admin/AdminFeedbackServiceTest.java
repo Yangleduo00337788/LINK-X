@@ -1,13 +1,16 @@
 package com.linkx.server.service.admin;
 
 import com.linkx.server.config.LinkxProperties;
+import com.linkx.server.controller.admin.dto.AdminFeedbackAssignDTO;
 import com.linkx.server.controller.admin.dto.AdminFeedbackQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminFeedbackReplyDTO;
 import com.linkx.server.controller.admin.vo.AdminFeedbackVO;
 import com.linkx.server.entity.Feedback;
+import com.linkx.server.entity.SysUser;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.mapper.FeedbackMapper;
+import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.MessageNotificationService;
 import com.linkx.server.service.admin.impl.AdminFeedbackServiceImpl;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -33,6 +36,7 @@ import static org.mockito.Mockito.*;
 class AdminFeedbackServiceTest {
 
     @Mock FeedbackMapper feedbackMapper;
+    @Mock SysUserMapper sysUserMapper;
     @Mock MessageNotificationService notificationService;
     @Mock ImMessagePushService imPushService;
 
@@ -43,7 +47,7 @@ class AdminFeedbackServiceTest {
     void setUp() {
         linkxProperties = new LinkxProperties();
         service = new AdminFeedbackServiceImpl(
-                feedbackMapper, notificationService, imPushService, linkxProperties);
+                feedbackMapper, sysUserMapper, notificationService, imPushService, linkxProperties);
     }
 
     private Feedback feedback(Long id, String status, String type) {
@@ -193,5 +197,24 @@ class AdminFeedbackServiceTest {
         assertEquals("feedback_replied", payload.get("type"));
         assertEquals("6", payload.get("relatedId"));
         assertNotNull(payload.get("content"));
+    }
+
+    @Test
+    @DisplayName("指派与取消指派")
+    void assign_and_unassign() {
+        Feedback fb = feedback(7L, "pending", "bug");
+        when(feedbackMapper.selectOneById(7L)).thenReturn(fb);
+        when(sysUserMapper.selectOneById(8L)).thenReturn(SysUser.builder().id(8L).username("handler").build());
+
+        AdminFeedbackAssignDTO dto = new AdminFeedbackAssignDTO();
+        dto.setAssigneeId(8L);
+        service.assign(7L, dto, 1L);
+        assertEquals(8L, fb.getAssigneeId());
+        assertNotNull(fb.getAssignedAt());
+
+        dto.setAssigneeId(null);
+        service.assign(7L, dto, 1L);
+        assertNull(fb.getAssigneeId());
+        assertNull(fb.getAssignedAt());
     }
 }
