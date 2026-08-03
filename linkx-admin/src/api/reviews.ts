@@ -68,6 +68,10 @@ export function rejectReview(id: string, payload?: ReviewResolvePayload | string
   return post<null>(`/admin/reviews/${id}/reject`, body)
 }
 
+export function deleteReviewContent(id: string, payload?: Pick<ReviewResolvePayload, 'resolution'>) {
+  return post<null>(`/admin/reviews/${id}/delete-content`, payload ?? {})
+}
+
 export function batchReviews(
   ids: string[],
   action: 'approve' | 'reject',

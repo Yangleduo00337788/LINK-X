@@ -87,6 +87,7 @@ class AdminEndpointPathCatalogIT extends BaseIntegrationTest {
             "/admin/reviews/batch",
             "/admin/reviews/{id}/approve",
             "/admin/reviews/{id}/reject",
+            "/admin/reviews/{id}/delete-content",
             "/admin/notices",
             "/admin/notices/{id}/publish",
             "/admin/notices/{id}/unpublish",

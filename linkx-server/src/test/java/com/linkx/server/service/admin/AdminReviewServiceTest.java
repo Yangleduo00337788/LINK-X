@@ -335,6 +335,37 @@ class AdminReviewServiceTest {
     }
 
     @Test
+    @DisplayName("独立下架内容")
+    void deleteContent_standalone() {
+        SysReviewTask task = pending(80L, SysReviewTask.TARGET_MOMENT, "20");
+        when(reviewTaskMapper.selectOneById(80L)).thenReturn(task);
+
+        AdminReviewResolveDTO dto = new AdminReviewResolveDTO();
+        dto.setResolution("违规下架");
+        service.deleteContent(80L, dto, 3L);
+
+        verify(momentsService).adminDeletePost(20L);
+        assertEquals(SysReviewTask.STATUS_APPROVED, task.getStatus());
+        assertTrue(task.getResolution().contains("已删除动态"));
+    }
+
+    @Test
+    @DisplayName("驳回时可附带下架内容")
+    void reject_with_delete_content() {
+        SysReviewTask task = pending(81L, SysReviewTask.TARGET_ANNOUNCEMENT, "21");
+        when(reviewTaskMapper.selectOneById(81L)).thenReturn(task);
+
+        AdminReviewResolveDTO dto = new AdminReviewResolveDTO();
+        dto.setResolution("不通过并删除");
+        dto.setContentAction("delete");
+        service.reject(81L, dto, 2L);
+
+        verify(groupAnnouncementService).adminDelete(21L);
+        assertEquals(SysReviewTask.STATUS_REJECTED, task.getStatus());
+        assertTrue(task.getResolution().contains("已删除公告"));
+    }
+
+    @Test
     @DisplayName("非法处置动作与已处理任务")
     void invalid_actions_and_already_resolved() {
         SysReviewTask done = pending(60L);

@@ -993,6 +993,7 @@ INSERT IGNORE INTO sys_permission (id, permission_code, permission_name, resourc
 (2127,'admin:setting:edit','编辑系统配置','button',NULL,'编辑配置',1),
 (2129,'admin:review:list','查看审核列表','page','/admin/reviews','内容审核',1),
 (2130,'admin:review:approve','审核通过','button',NULL,'审核通过',1),
+(2213,'admin:review:delete-content','下架审核内容','button',NULL,'独立删除/撤回违规内容',1),
 (2136,'admin:notice:list','查看公告列表','page','/admin/notices','公告管理',1),
 (2138,'admin:notice:create','新增公告','button',NULL,'新增公告',1),
 (2144,'admin:statistics:view','查看统计分析','page','/admin/statistics','统计中心',1),
@@ -1060,7 +1061,7 @@ INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, d
 INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, deleted) VALUES
 (294101, 1004, 2101, NULL, 0),(294102, 1004, 2102, NULL, 0),(294103, 1004, 2103, NULL, 0),
 (294105, 1004, 2105, NULL, 0),(294107, 1004, 2107, NULL, 0),(294173, 1004, 2173, NULL, 0),
-(294121, 1004, 2121, NULL, 0),(294129, 1004, 2129, NULL, 0),(294130, 1004, 2130, NULL, 0),
+(294121, 1004, 2121, NULL, 0),(294129, 1004, 2129, NULL, 0),(294130, 1004, 2130, NULL, 0),(294131, 1004, 2213, NULL, 0),
 (294146, 1004, 2146, NULL, 0),(294148, 1004, 2148, NULL, 0),(294156, 1004, 2156, NULL, 0),
 (294149, 1004, 2149, NULL, 0),(294171, 1004, 2171, NULL, 0),(294172, 1004, 2172, NULL, 0),
 (294176, 1004, 2176, NULL, 0),(294177, 1004, 2177, NULL, 0);

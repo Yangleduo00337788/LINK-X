@@ -20,6 +20,7 @@ import {
 import {
   approveReview,
   batchReviews,
+  deleteReviewContent,
   exportReviews,
   listReviews,
   rejectReview,
@@ -245,6 +246,18 @@ const columns = computed<DataTableColumns<ReviewItem>>(() => {
       render: (row) =>
         h(NSpace, { size: 8 }, () => [
           h(NButton, { size: 'tiny', onClick: () => showDetail(row) }, () => t('common.detail')),
+          row.status === 'pending' && auth.hasPermission('admin:review:delete-content') && canDeleteContent(row)
+            ? h(
+                NButton,
+                {
+                  size: 'tiny',
+                  type: 'warning',
+                  tertiary: true,
+                  onClick: () => confirmDeleteContent(row),
+                },
+                () => t('review.deleteContent')
+              )
+            : null,
           row.status === 'pending' && auth.hasPermission('admin:review:approve')
             ? h(
                 NButton,
@@ -369,8 +382,13 @@ async function submitResolve() {
         message.success(t('review.approveSuccess'))
       }
     } else {
-      await rejectReview(resolveTarget.value.id, { resolution: note })
-      message.success(t('review.rejectSuccess'))
+      const content = canDeleteContent(resolveTarget.value) ? contentAction.value : 'none'
+      await rejectReview(resolveTarget.value.id, { resolution: note, contentAction: content })
+      if (content === 'delete') {
+        message.success(t('review.rejectWithDeleteSuccess'))
+      } else {
+        message.success(t('review.rejectSuccess'))
+      }
     }
     showResolve.value = false
     await load()
@@ -379,6 +397,24 @@ async function submitResolve() {
   } finally {
     resolveSaving.value = false
   }
+}
+
+function confirmDeleteContent(row: ReviewItem) {
+  dialog.warning({
+    title: t('review.deleteContentTitle'),
+    content: t('review.deleteContentConfirm', { title: row.title || row.id }),
+    positiveText: t('review.deleteContent'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      try {
+        await deleteReviewContent(row.id)
+        message.success(t('review.deleteContentSuccess'))
+        await load()
+      } catch {
+        // request 拦截器统一提示
+      }
+    },
+  })
 }
 
 async function doBatch(action: 'approve' | 'reject') {
@@ -643,7 +679,15 @@ onUnmounted(() => {
           {{ t('review.contentActionHint') }}
         </p>
       </template>
-      <p v-else class="hint">{{ t('review.rejectHint') }}</p>
+      <template v-else>
+        <NFormItem v-if="canDeleteContent(resolveTarget)" :label="t('review.contentAction')">
+          <NSelect v-model:value="contentAction" :options="contentActionOptions" />
+        </NFormItem>
+        <p v-if="canDeleteContent(resolveTarget)" class="hint">
+          {{ t('review.contentActionHint') }}
+        </p>
+        <p v-else class="hint">{{ t('review.rejectHint') }}</p>
+      </template>
 
       <NInput
         v-model:value="resolution"

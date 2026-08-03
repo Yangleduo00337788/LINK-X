@@ -23,6 +23,11 @@ public interface AdminReviewService {
 
     void reject(Long id, AdminReviewResolveDTO dto, Long operatorId);
 
+    /**
+     * 独立下架内容：删除目标资源并将待处理任务标记为已通过。
+     */
+    void deleteContent(Long id, AdminReviewResolveDTO dto, Long operatorId);
+
     AdminReviewBatchResultVO batch(AdminReviewBatchDTO dto, Long operatorId);
 
     /** 从举报类反馈创建审核任务（幂等） */

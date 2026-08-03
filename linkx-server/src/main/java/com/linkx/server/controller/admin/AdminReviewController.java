@@ -87,6 +87,18 @@ public class AdminReviewController {
         return Result.success(null);
     }
 
+    @Operation(summary = "独立下架内容")
+    @AuditAction(operationType = "CONTENT_REVIEW", description = "下架审核内容")
+    @PostMapping("/{id}/delete-content")
+    @RequirePermission("admin:review:delete-content")
+    public Result<Void> deleteContent(@PathVariable Long id,
+                                      @RequestBody(required = false) @Valid AdminReviewResolveDTO dto,
+                                      HttpServletRequest request) {
+        Long operatorId = (Long) request.getAttribute("userId");
+        adminReviewService.deleteContent(id, dto == null ? new AdminReviewResolveDTO() : dto, operatorId);
+        return Result.success(null);
+    }
+
     @Operation(summary = "审核驳回")
     @AuditAction(operationType = "CONTENT_REVIEW", description = "审核驳回")
     @PostMapping("/{id}/reject")

@@ -79,6 +79,7 @@ const FIXTURES: Record<
       'admin:user:freeze',
       'admin:review:list',
       'admin:review:approve',
+      'admin:review:delete-content',
       'admin:risk-event:list',
       'admin:risk-event:handle',
       'admin:device:list',

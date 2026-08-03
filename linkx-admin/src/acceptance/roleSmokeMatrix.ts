@@ -91,7 +91,7 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
     label: '审核管理员',
     mustMenus: ['review-task', 'report-task', 'announcement-review', 'risk-event', 'devices'],
     mustNotMenus: ['notices', 'statistics', 'settings', 'rate-limit'],
-    allowPerms: ['admin:review:approve', 'admin:risk-event:handle', 'admin:user:freeze'],
+    allowPerms: ['admin:review:approve', 'admin:review:delete-content', 'admin:risk-event:handle', 'admin:user:freeze'],
     denyPerms: [
       'admin:notice:create',
       'admin:setting:edit',

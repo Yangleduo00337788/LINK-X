@@ -202,6 +202,25 @@ public class AdminReviewServiceImpl implements AdminReviewService {
 
     @Override
     @Transactional
+    public void deleteContent(Long id, AdminReviewResolveDTO dto, Long operatorId) {
+        SysReviewTask task = requireTask(id);
+        if (!SysReviewTask.STATUS_PENDING.equals(task.getStatus())) {
+            throw new CustomException(400, "仅待处理任务可下架内容");
+        }
+        String appliedContent = applyContentAction(task);
+        Date now = new Date();
+        task.setStatus(SysReviewTask.STATUS_APPROVED);
+        task.setResolution(buildResolution(
+                dto != null ? dto.getResolution() : null, appliedContent, "none", "none"));
+        task.setResolvedBy(operatorId);
+        task.setResolvedAt(now);
+        task.setUpdateTime(now);
+        reviewTaskMapper.update(task);
+        afterTaskResolved(task, SysReviewTask.STATUS_APPROVED, operatorId);
+    }
+
+    @Override
+    @Transactional
     public AdminReviewBatchResultVO batch(AdminReviewBatchDTO dto, Long operatorId) {
         String action = dto.getAction() == null ? "" : dto.getAction().trim().toLowerCase();
         if (!"approve".equals(action) && !"reject".equals(action)) {
@@ -398,17 +417,20 @@ public class AdminReviewServiceImpl implements AdminReviewService {
         boolean isGroupTarget = SysReviewTask.TARGET_GROUP.equals(task.getTargetType());
         String userAction = approved && !isGroupTarget
                 ? normalizeUserAction(dto != null ? dto.getUserAction() : null) : "none";
-        String contentAction = approved ? normalizeContentAction(dto != null ? dto.getContentAction() : null) : "none";
         String groupAction = approved && isGroupTarget
                 ? normalizeGroupAction(dto != null ? dto.getGroupAction() : null) : "none";
+        String contentAction = normalizeContentAction(dto != null ? dto.getContentAction() : null);
+        if (!approved && !"delete".equals(contentAction)) {
+            contentAction = "none";
+        }
 
         String appliedContent = "none";
         String appliedUser = "none";
         String appliedGroup = "none";
+        if ("delete".equals(contentAction)) {
+            appliedContent = applyContentAction(task);
+        }
         if (approved) {
-            if ("delete".equals(contentAction)) {
-                appliedContent = applyContentAction(task);
-            }
             if (!"none".equals(groupAction)) {
                 appliedGroup = applyGroupAction(task, groupAction, dto != null ? dto.getResolution() : null, operatorId);
             }
@@ -426,19 +448,21 @@ public class AdminReviewServiceImpl implements AdminReviewService {
         task.setUpdateTime(now);
         reviewTaskMapper.update(task);
 
+        afterTaskResolved(task, status, operatorId);
+    }
+
+    private void afterTaskResolved(SysReviewTask task, String status, Long operatorId) {
         if (task.getFeedbackId() != null) {
             Feedback feedback = feedbackMapper.selectOneById(task.getFeedbackId());
             if (feedback != null && !"closed".equals(feedback.getStatus())) {
                 feedback.setStatus("closed");
                 if (StringUtils.hasText(task.getResolution())) {
                     feedback.setReply(task.getResolution());
-                    feedback.setReplyTime(now);
+                    feedback.setReplyTime(task.getResolvedAt() != null ? task.getResolvedAt() : new Date());
                 }
                 feedbackMapper.update(feedback);
             }
         }
-
-        // 驳回=不认定违规：清除发送端「含敏感词」提示；通过后提示也不再需要
         clearSensitiveAlertHint(task);
         notifyReporter(task, status, operatorId);
         publishAdminEvent("review_resolved", task.getId());

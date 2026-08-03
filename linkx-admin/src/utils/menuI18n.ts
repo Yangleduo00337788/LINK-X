@@ -197,6 +197,10 @@ const PERM_KEYS: Record<string, { name: string; desc?: string }> = {
   'admin:review:list': { name: 'perm.adminReviewList', desc: 'perm.adminReviewListDesc' },
   'admin:review:approve': { name: 'perm.adminReviewApprove', desc: 'perm.adminReviewApproveDesc' },
   'admin:review:reject': { name: 'perm.adminReviewReject', desc: 'perm.adminReviewRejectDesc' },
+  'admin:review:delete-content': {
+    name: 'perm.adminReviewDeleteContent',
+    desc: 'perm.adminReviewDeleteContentDesc',
+  },
   'admin:review:batch': { name: 'perm.adminReviewBatch', desc: 'perm.adminReviewBatchDesc' },
   'admin:review:export': { name: 'perm.adminReviewExport', desc: 'perm.adminReviewExportDesc' },
   'admin:user:export': { name: 'perm.adminUserExport', desc: 'perm.adminUserExportDesc' },
