@@ -200,9 +200,41 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: 'scheduled-tasks',
-        name: 'ScheduledTasks',
-        component: () => import('@/views/ScheduledTaskListView.vue'),
-        meta: { titleKey: 'route.scheduledTasks', permission: 'admin:scheduled-task:list' },
+        redirect: '/admin/system-monitor/tasks',
+      },
+      {
+        path: 'system-monitor',
+        redirect: '/admin/system-monitor/service',
+      },
+      {
+        path: 'system-monitor/cache',
+        name: 'MonitorCache',
+        component: () => import('@/views/monitor/CacheMonitorView.vue'),
+        meta: { titleKey: 'route.monitorCache', permission: 'admin:system-monitor:view' },
+      },
+      {
+        path: 'system-monitor/service',
+        name: 'MonitorService',
+        component: () => import('@/views/monitor/ServiceMonitorView.vue'),
+        meta: { titleKey: 'route.monitorService', permission: 'admin:system-monitor:view' },
+      },
+      {
+        path: 'system-monitor/api-stats',
+        name: 'MonitorApiStats',
+        component: () => import('@/views/monitor/ApiStatsMonitorView.vue'),
+        meta: { titleKey: 'route.monitorApi', permission: 'admin:system-monitor:view' },
+      },
+      {
+        path: 'system-monitor/tasks',
+        name: 'MonitorTasks',
+        component: () => import('@/views/monitor/TaskMonitorView.vue'),
+        meta: { titleKey: 'route.monitorTasks', permission: 'admin:system-monitor:view' },
+      },
+      {
+        path: 'system-monitor/sql',
+        name: 'MonitorSql',
+        component: () => import('@/views/monitor/SqlMonitorView.vue'),
+        meta: { titleKey: 'route.monitorSql', permission: 'admin:system-monitor:view' },
       },
       {
         path: 'settings',
