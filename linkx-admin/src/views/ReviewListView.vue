@@ -202,6 +202,26 @@ function canDeleteContent(row?: ReviewItem | null) {
   return !!row && DELETABLE_TARGETS.has(row.targetType || '')
 }
 
+function riskLevelTag(level?: string) {
+  const map: Record<string, 'error' | 'warning' | 'info' | 'default'> = {
+    critical: 'error',
+    high: 'error',
+    medium: 'warning',
+    low: 'info',
+  }
+  const label: Record<string, string> = {
+    critical: t('review.riskCritical'),
+    high: t('review.riskHigh'),
+    medium: t('review.riskMedium'),
+    low: t('review.riskLow'),
+  }
+  return h(
+    NTag,
+    { type: map[level || ''] || 'default', size: 'small' },
+    () => label[level || ''] || level || '-'
+  )
+}
+
 const columns = computed<DataTableColumns<ReviewItem>>(() => {
   void locale.value
   return [
@@ -226,6 +246,12 @@ const columns = computed<DataTableColumns<ReviewItem>>(() => {
         const id = row.targetId || '-'
         return `${type}:${id}`
       },
+    },
+    {
+      title: t('review.riskLevel'),
+      key: 'riskLevel',
+      width: 90,
+      render: (row) => riskLevelTag(row.riskLevel),
     },
     {
       title: t('common.status'),
@@ -319,7 +345,10 @@ function showDetail(row: ReviewItem) {
         h('div', `${t('review.targetType')}: ${row.targetType || '-'}`),
         h('div', `${t('review.target')}: ${row.targetId || '-'}`),
         h('div', `${t('review.subjectUser')}: ${row.subjectUserId || '-'}`),
-        h('div', `${t('review.riskLevel')}: ${row.riskLevel || '-'}`),
+        h('div', { style: 'display:flex; align-items:center; gap:8px;' }, [
+          h('span', `${t('review.riskLevel')}:`),
+          riskLevelTag(row.riskLevel),
+        ]),
         h(
           'div',
           { style: 'white-space: pre-wrap; margin: 12px 0;' },
@@ -570,7 +599,9 @@ onUnmounted(() => {
           <NSelect
             v-model:value="query.riskLevel"
             :options="riskLevelOptions"
+            clearable
             style="width: 130px"
+            @update:value="search"
           />
           <NButton v-if="!presetLocked" secondary @click="applyReportPreset">
             {{ t('review.reportPreset') }}
@@ -619,7 +650,7 @@ onUnmounted(() => {
         :data="items"
         :loading="loading"
         :row-key="(row: ReviewItem) => row.id"
-        :scroll-x="1200"
+        :scroll-x="1320"
         :pagination="{
           page: query.page,
           pageSize: query.size,
