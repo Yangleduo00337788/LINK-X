@@ -1,6 +1,6 @@
 # 反馈自动分流规则引擎 — 评估结论
 
-> 评估日期：2026-08-02 · 关联：`V46` 反馈 SLA、`AdminFeedbackServiceImpl`
+> 评估日期：2026-08-03（修订）· 关联：`V46` SLA、`V51` 轻量分流、`V54` 多轮回复、**`V55` 超时升级**
 
 ## 1. 现状（已具备）
 
@@ -11,58 +11,58 @@
 | 超时筛选 | `GET /admin/feedback?overdueOnly=true` |
 | 仪表盘待办 | `overdueFeedback` 计数 |
 | 人工处置 | 回复 / 关闭 / 重开，状态 `pending → replied → closed` |
+| **处理人指派** | `sys_feedback.assignee_id`、`PUT /admin/feedback/{id}/assign`（`V51`） |
+| **轻量自动分流** | `sys_feedback_dispatch_rule`：按 `type` / `keyword` + 优先级匹配（`V51`） |
+| **我的工单** | `GET /admin/feedback?mineOnly=true`（`V51`） |
+| **分流规则 UI** | `/admin/feedback-dispatch-rules` CRUD（`V51`） |
+| **多轮回复** | `sys_feedback_reply` + 详情页回复线程（`V54`） |
+| **超时升级/改派** | `V55`：`FeedbackEscalationTask` 每小时扫描；无处理人自动分流、可选改派；SSE `feedback_escalated` + 审计 `FEEDBACK_ESCALATE` |
+| **升级筛选** | `GET /admin/feedback?escalatedOnly=true`；列表展示 `escalated` / `escalationCount` |
+| **升级配置** | `feedback_escalation_enabled` / `auto_reassign` / `interval_hours`，管理端「系统配置 → 客户端」 |
 
-**结论：** 运营侧「超时可见、可筛、可统计」已闭环，满足当前 M6 目标。
+**结论：** 运营侧「超时可见、可筛、可统计、可指派、可自动初分、可定时升级」已闭环。
 
-## 2. 缺口（自动分流尚未做）
+## 2. 仍缺能力（完整版规则引擎）
 
 | 项 | 说明 |
 |----|------|
-| 处理人字段 | `sys_feedback` **无** `assignee_id`（审核任务 `sys_review_task` 有） |
-| 分流规则 | 无按类型/关键词/负载/班次的规则配置 |
-| 自动派单 | 新建反馈时无自动写入 assignee |
-| 升级策略 | 超时后无自动改派、通知上级、或升优先级 |
-| 规则引擎表 | 无 `sys_feedback_dispatch_rule` 等配置表 |
-| 管理端 UI | 无规则 CRUD、无「我的工单」视图 |
+| 负载/班次分流 | 无按值班表、队列深度、轮询指派 |
+| 条件+动作可视化 | 当前仅 type/keyword 静态规则，无条件组合器 |
+| 上级角色通知 | 升级仅 SSE 广播 + 审计，无按角色邮件/站内催办上级 |
 
 ## 3. 方案对比
 
-### 方案 A：暂不实施（推荐）
+### 方案 A：SLA + 轻量分流（**已交付**）
 
-- **理由：** SLA 已覆盖「发现超时」；团队规模小阶段人工认领成本可接受。
-- **成本：** 0 开发量。
-- **风险：** 工单量大时人工分拣效率低（可等业务量触发再立项）。
+- SLA、指派、分流规则、多轮回复、超时升级（V55）。
 
-### 方案 B：最小派单（M7 轻量，约 3–5 人日）
+### 方案 B：超时升级/改派（**V55 已落地**）
 
-1. `sys_feedback` 增加 `assignee_id`、`assigned_at`
-2. 管理端列表支持「指派给我 / 未指派」筛选 + 手动指派下拉
-3. 可选：按 `type` 的静态映射（JSON 配置，非完整规则引擎）
+1. 定时任务扫描 `pending` 且超过 SLA、且距上次升级超过间隔
+2. 动作：无 assignee 自动分流 → 可选按规则改派 → SSE 通知管理端
+3. 审计：记入 `sys_audit_log`（`FEEDBACK_ESCALATE`）
 
-### 方案 C：完整规则引擎（第二版，约 2–3 周）
+### 方案 C：完整规则引擎（第二版 backlog）
 
-1. 规则表：条件（type/关键词/渠道）+ 动作（指派角色/用户/队列）
-2. 定时任务：扫描超时 → 升级/通知（邮件/站内/SSE）
-3. 与部门、`ops_admin` 值班表联动
-4. 审计：指派/改派记入 `sys_audit_log`
+1. 规则表扩展：条件组合 + 动作（指派/升级/通知）
+2. 与部门、值班表联动
+3. 规则命中模拟与统计
 
-## 4. 决策
+## 4. 决策（2026-08-03 更新）
 
 | 维度 | 结论 |
 |------|------|
-| **当前迭代** | **不做**（方案 A） |
-| **触发条件** | 待处理反馈常态 >50/天，或平均首次响应 >SLA 的 50% |
-| **下一里程碑** | 若立项，优先 **方案 B**，验证指派流程后再考虑方案 C |
-| **依赖** | 方案 B 仅需 Flyway + `AdminFeedbackController`；方案 C 需通知通道与规则 UI |
+| **当前迭代** | **方案 B 已立项并交付（V55）** |
+| **默认行为** | 升级默认关闭，需运营在系统配置中手动开启 |
+| **下一里程碑** | 若工单量继续增长，考虑方案 C 或上级角色催办 |
 
-## 5. 若实施方案 B 的任务拆解（备忘）
+## 5. 实现备忘（V55）
 
-1. `V48__feedback_assignee.sql`：`assignee_id`、`assigned_at`
-2. `PUT /admin/feedback/{id}/assign` + 权限 `admin:feedback:assign`
-3. 列表筛选 `assigneeId` / `unassignedOnly`
-4. `FeedbackListView`：指派列 + 筛选
-5. 单元测试 + `AdminFeedbackServiceTest` 补充
+- 迁移：`V55__feedback_escalation.sql`
+- 服务：`FeedbackEscalationService` + `FeedbackEscalationTask`（cron `0 15 * * * *`）
+- 配置：`LinkxProperties.App` + `sys_runtime_setting` 三字段
+- 前端：系统配置开关 + 反馈列表「已升级」标记与筛选
 
 ---
 
-**批准建议：** 维持 SLA 运营流程；将自动分流列入 **第二版 backlog**（见 `docs/admin/ADMIN_V2_BACKLOG.md`），不在当前迭代排期。
+**批准建议：** 生产启用前在测试环境验证分流规则与升级间隔；默认保持关闭，由运营按需开启。

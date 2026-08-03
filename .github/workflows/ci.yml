@@ -97,6 +97,10 @@ jobs:
           cache: npm
           cache-dependency-path: linkx-admin/package-lock.json
       - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Format check
+        run: npm run format:check
       - name: Unit + coverage gate
         run: npm run test:coverage
       - name: Typecheck & build
