@@ -92,9 +92,9 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
   {
     roleCode: 'audit_admin',
     label: '审核管理员',
-    mustMenus: ['review-task', 'report-task', 'announcement-review', 'risk-event', 'devices'],
+    mustMenus: ['review-task', 'report-task', 'announcement-review', 'risk-event', 'devices', 'abnormal-access'],
     mustNotMenus: ['notices', 'statistics', 'settings', 'rate-limit'],
-    allowPerms: ['admin:review:approve', 'admin:review:delete-content', 'admin:risk-event:handle', 'admin:user:freeze'],
+    allowPerms: ['admin:review:approve', 'admin:review:delete-content', 'admin:risk-event:handle', 'admin:user:freeze', 'admin:abnormal-access:list'],
     denyPerms: [
       'admin:notice:create',
       'admin:setting:edit',
@@ -108,6 +108,7 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
       '/admin/announcement-reviews',
       '/admin/risk-events',
       '/admin/devices',
+      '/admin/abnormal-access',
     ],
     denyRoutes: [
       '/admin/notices',
@@ -120,7 +121,7 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
   {
     roleCode: 'security_admin',
     label: '安全管理员',
-    mustMenus: ['risk-event', 'devices', 'blacklist', 'rate-limit'],
+    mustMenus: ['risk-event', 'devices', 'blacklist', 'rate-limit', 'abnormal-access'],
     mustNotMenus: ['feedback', 'notices', 'settings'],
     allowPerms: [
       'admin:risk-event:handle',
@@ -131,6 +132,7 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
       'admin:rate-limit:list',
       'admin:rate-limit:unblock',
       'admin:rate-limit:whitelist',
+      'admin:abnormal-access:list',
     ],
     denyPerms: [
       'admin:feedback:reply',
@@ -138,7 +140,7 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
       'admin:menu:delete',
       'admin:role:assign-permission',
     ],
-    allowRoutes: ['/admin/risk-events', '/admin/devices', '/admin/blacklist', '/admin/rate-limits'],
+    allowRoutes: ['/admin/risk-events', '/admin/devices', '/admin/blacklist', '/admin/rate-limits', '/admin/abnormal-access'],
     denyRoutes: ['/admin/feedback', '/admin/notices', '/admin/menus'],
   },
   {
@@ -196,6 +198,11 @@ export const ADMIN_ROUTE_PERMISSIONS: Array<{ path: string; permission?: string;
     path: '/admin/feedback-dispatch-rules',
     permission: 'admin:feedback-dispatch-rule:list',
     name: 'FeedbackDispatchRules',
+  },
+  {
+    path: '/admin/abnormal-access',
+    permission: 'admin:abnormal-access:list',
+    name: 'AbnormalAccess',
   },
   { path: '/admin/reviews', permission: 'admin:review:list', name: 'ReviewList' },
   { path: '/admin/reports', permission: 'admin:review:list', name: 'ReportList' },

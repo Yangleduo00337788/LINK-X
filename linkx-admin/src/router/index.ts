@@ -92,6 +92,12 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: 'route.loginLogs', permission: 'admin:login-log:list' },
       },
       {
+        path: 'abnormal-access',
+        name: 'AbnormalAccess',
+        component: () => import('@/views/AbnormalAccessView.vue'),
+        meta: { titleKey: 'route.abnormalAccess', permission: 'admin:abnormal-access:list' },
+      },
+      {
         path: 'risk-events',
         name: 'RiskEvents',
         component: () => import('@/views/RiskEventView.vue'),
