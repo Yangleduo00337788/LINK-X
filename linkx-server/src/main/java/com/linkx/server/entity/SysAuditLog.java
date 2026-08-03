@@ -93,6 +93,10 @@ public class SysAuditLog implements Serializable {
         ACTIVITY_PUBLISH("活动发布"),
         VERSION_UPDATE("版本变更"),
         VERSION_PUBLISH("版本发布"),
+        FEEDBACK_ESCALATE("反馈超时升级"),
+        REVIEW_ESCALATE("审核超时督办"),
+        AEGIS_CAPTURE("灵犀盾事件捕获"),
+        AEGIS_ESCALATE("灵犀盾超时升级"),
         ;
 
         private final String description;

@@ -23,4 +23,7 @@ public class AdminFeedbackQueryDTO extends AdminPageQueryDTO {
 
     @Schema(description = "仅指派给我（服务端会覆盖 assigneeId）")
     private Boolean mineOnly;
+
+    @Schema(description = "仅已升级工单")
+    private Boolean escalatedOnly;
 }

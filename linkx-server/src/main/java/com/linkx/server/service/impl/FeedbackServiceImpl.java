@@ -45,6 +45,7 @@ public class FeedbackServiceImpl extends ServiceImpl<FeedbackMapper, Feedback> i
                 .content(content)
                 .contact(contact)
                 .status("pending")
+                .escalationCount(0)
                 .createTime(new Date())
                 .build();
         feedbackMapper.insert(feedback);

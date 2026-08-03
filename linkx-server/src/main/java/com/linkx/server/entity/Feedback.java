@@ -35,6 +35,9 @@ public class Feedback implements Serializable {
     private Date replyTime;
     private Long assigneeId;
     private Date assignedAt;
+    private Date escalatedAt;
+    @Column(onInsertValue = "0")
+    private Integer escalationCount;
 
     @Column(onInsertValue = "NOW()")
     private Date createTime;

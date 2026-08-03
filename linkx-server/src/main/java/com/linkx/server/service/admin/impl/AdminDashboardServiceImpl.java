@@ -56,6 +56,7 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
                 QueryWrapper.create().where(Feedback::getStatus).eq("pending"));
         long overdueFeedback = adminFeedbackService.countOverdue();
         long pendingReviews = adminReviewService.countPending();
+        long overdueReviews = adminReviewService.countOverdue();
         long pendingReports = adminReviewService.countPendingBySource(SysReviewTask.SOURCE_REPORT);
 
         Date todayStart = Date.from(LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant());
@@ -78,6 +79,7 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
                 .pendingFeedback(pendingFeedback)
                 .overdueFeedback(overdueFeedback)
                 .pendingReviews(pendingReviews)
+                .overdueReviews(overdueReviews)
                 .pendingReports(pendingReports)
                 .todaySensitiveHits(todaySensitiveHits)
                 .todayRiskBlocks(todayRiskBlocks)
@@ -119,6 +121,7 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
         long pendingFeedback = feedbackMapper.selectCountByQuery(
                 QueryWrapper.create().where(Feedback::getStatus).eq("pending"));
         long overdueFeedback = adminFeedbackService.countOverdue();
+        long overdueReviews = adminReviewService.countOverdue();
         long pendingReports = adminReviewService.countPendingBySource(SysReviewTask.SOURCE_REPORT);
         long pendingReviews = adminReviewService.countPending();
         // 非举报待审（敏感词等），避免与举报待办重复展示
@@ -132,6 +135,14 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
                     .title("overdueFeedback")
                     .count(overdueFeedback)
                     .path("/admin/feedback?overdueOnly=1")
+                    .build());
+        }
+        if (overdueReviews > 0) {
+            tasks.add(AdminPendingTaskVO.builder()
+                    .type("review_overdue")
+                    .title("overdueReviews")
+                    .count(overdueReviews)
+                    .path("/admin/reviews?overdueOnly=1")
                     .build());
         }
         if (pendingFeedback > 0) {

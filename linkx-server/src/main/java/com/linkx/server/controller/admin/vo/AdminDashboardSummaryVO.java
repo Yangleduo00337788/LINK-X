@@ -23,6 +23,8 @@ public class AdminDashboardSummaryVO {
     @Schema(description = "超过 SLA 仍未处理的反馈")
     private long overdueFeedback;
     private long pendingReviews;
+    @Schema(description = "超过 SLA 仍未处理的审核任务")
+    private long overdueReviews;
     @Schema(description = "待处理举报（source_type=report）")
     private long pendingReports;
     @Schema(description = "今日敏感词命中次数")

@@ -55,6 +55,23 @@ public class FeedbackDispatchServiceImpl implements FeedbackDispatchService {
         });
     }
 
+    @Override
+    @Transactional
+    public boolean tryReassign(Feedback feedback) {
+        if (feedback == null || feedback.getId() == null) {
+            return false;
+        }
+        return matchAssignee(feedback)
+                .filter(assigneeId -> feedback.getAssigneeId() == null || !assigneeId.equals(feedback.getAssigneeId()))
+                .map(assigneeId -> {
+                    feedback.setAssigneeId(assigneeId);
+                    feedback.setAssignedAt(new Date());
+                    feedbackMapper.update(feedback);
+                    return true;
+                })
+                .orElse(false);
+    }
+
     static boolean matches(SysFeedbackDispatchRule rule, Feedback feedback) {
         if (rule == null || feedback == null) {
             return false;

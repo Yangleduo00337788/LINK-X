@@ -28,6 +28,11 @@ public class AdminFeedbackVO {
     private Long assigneeId;
     private String assigneeName;
     private Date assignedAt;
+    @Schema(description = "是否已触发超时升级")
+    private Boolean escalated;
+    @Schema(description = "升级次数")
+    private Integer escalationCount;
+    private Date escalatedAt;
     @Schema(description = "多轮回复记录（详情接口返回）")
     private List<FeedbackReplyVO> replies;
 }

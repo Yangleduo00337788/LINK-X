@@ -96,6 +96,9 @@ public class AdminFeedbackServiceImpl implements AdminFeedbackService {
         } else if (query.getAssigneeId() != null) {
             qw.and(Feedback::getAssigneeId).eq(query.getAssigneeId());
         }
+        if (Boolean.TRUE.equals(query.getEscalatedOnly())) {
+            qw.and(Feedback::getEscalationCount).gt(0);
+        }
         return qw;
     }
 
@@ -275,7 +278,18 @@ public class AdminFeedbackServiceImpl implements AdminFeedbackService {
                 .assigneeId(feedback.getAssigneeId())
                 .assigneeName(resolveAssigneeName(feedback.getAssigneeId()))
                 .assignedAt(feedback.getAssignedAt())
+                .escalated(isEscalated(feedback))
+                .escalationCount(normalizeEscalationCount(feedback.getEscalationCount()))
+                .escalatedAt(feedback.getEscalatedAt())
                 .build();
+    }
+
+    private static boolean isEscalated(Feedback feedback) {
+        return feedback != null && feedback.getEscalationCount() != null && feedback.getEscalationCount() > 0;
+    }
+
+    private static int normalizeEscalationCount(Integer count) {
+        return count == null || count < 0 ? 0 : count;
     }
 
     private String resolveAssigneeName(Long assigneeId) {

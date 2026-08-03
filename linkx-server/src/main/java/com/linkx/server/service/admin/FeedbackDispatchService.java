@@ -15,4 +15,11 @@ public interface FeedbackDispatchService {
      * 新建反馈后自动分流（仅当尚未指派时）。
      */
     void applyAutoDispatch(Feedback feedback);
+
+    /**
+     * 按分流规则改派（已有处理人且匹配到新处理人时更新）。
+     *
+     * @return 是否发生改派
+     */
+    boolean tryReassign(Feedback feedback);
 }
