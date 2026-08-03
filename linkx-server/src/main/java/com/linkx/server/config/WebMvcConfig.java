@@ -62,6 +62,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/app/banners",
                         "/app/recommends",
                         "/app/activities",
+                        "/app/homepage",
                         // Swagger / OpenAPI（生产用 SPRINGDOC_ENABLED=false 关闭；开发可匿名访问）
                         "/swagger-ui/**",
                         "/swagger-ui.html",
@@ -103,6 +104,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/app/banners",
                         "/app/recommends",
                         "/app/activities",
+                        "/app/homepage",
                         "/swagger-ui/**",
                         "/swagger-ui.html",
                         "/v3/api-docs/**",
