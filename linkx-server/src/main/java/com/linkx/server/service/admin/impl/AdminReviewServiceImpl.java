@@ -8,6 +8,7 @@ import com.linkx.server.controller.admin.dto.AdminReviewResolveDTO;
 import com.linkx.server.controller.admin.dto.AdminUserActionDTO;
 import com.linkx.server.controller.admin.vo.AdminReviewBatchResultVO;
 import com.linkx.server.controller.admin.vo.AdminReviewVO;
+import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.entity.Favorite;
 import com.linkx.server.entity.Feedback;
@@ -84,6 +85,7 @@ public class AdminReviewServiceImpl implements AdminReviewService {
     private final ImConversationMapper conversationMapper;
     private final GroupAssetMapper groupAssetMapper;
     private final FavoriteMapper favoriteMapper;
+    private final LinkxProperties linkxProperties;
 
     public AdminReviewServiceImpl(
             SysReviewTaskMapper reviewTaskMapper,
@@ -103,7 +105,8 @@ public class AdminReviewServiceImpl implements AdminReviewService {
             @Lazy GroupService groupService,
             ImConversationMapper conversationMapper,
             GroupAssetMapper groupAssetMapper,
-            FavoriteMapper favoriteMapper) {
+            FavoriteMapper favoriteMapper,
+            LinkxProperties linkxProperties) {
         this.reviewTaskMapper = reviewTaskMapper;
         this.feedbackMapper = feedbackMapper;
         this.sysUserMapper = sysUserMapper;
@@ -122,6 +125,7 @@ public class AdminReviewServiceImpl implements AdminReviewService {
         this.conversationMapper = conversationMapper;
         this.groupAssetMapper = groupAssetMapper;
         this.favoriteMapper = favoriteMapper;
+        this.linkxProperties = linkxProperties;
     }
 
     @Override
@@ -168,6 +172,13 @@ public class AdminReviewServiceImpl implements AdminReviewService {
         }
         if (query.getEndTime() != null) {
             qw.and(SysReviewTask::getCreateTime).le(new Date(query.getEndTime()));
+        }
+        if (Boolean.TRUE.equals(query.getOverdueOnly())) {
+            qw.and(SysReviewTask::getStatus).eq(SysReviewTask.STATUS_PENDING);
+            qw.and(SysReviewTask::getCreateTime).le(ReviewEscalationServiceImpl.slaCutoff(linkxProperties));
+        }
+        if (Boolean.TRUE.equals(query.getEscalatedOnly())) {
+            qw.and(SysReviewTask::getEscalationCount).gt(0);
         }
         return qw;
     }
@@ -394,6 +405,15 @@ public class AdminReviewServiceImpl implements AdminReviewService {
         ensureReportTasks();
         return reviewTaskMapper.selectCountByQuery(
                 QueryWrapper.create().where(SysReviewTask::getStatus).eq(SysReviewTask.STATUS_PENDING));
+    }
+
+    @Override
+    public long countOverdue() {
+        ensureReportTasks();
+        return reviewTaskMapper.selectCountByQuery(
+                QueryWrapper.create()
+                        .where(SysReviewTask::getStatus).eq(SysReviewTask.STATUS_PENDING)
+                        .and(SysReviewTask::getCreateTime).le(ReviewEscalationServiceImpl.slaCutoff(linkxProperties)));
     }
 
     @Override
@@ -797,7 +817,19 @@ public class AdminReviewServiceImpl implements AdminReviewService {
                 .resolvedBy(task.getResolvedBy())
                 .resolvedAt(task.getResolvedAt())
                 .createTime(task.getCreateTime())
+                .overdue(ReviewEscalationServiceImpl.isOverdue(task, linkxProperties))
+                .escalated(isEscalated(task))
+                .escalationCount(normalizeEscalationCount(task.getEscalationCount()))
+                .escalatedAt(task.getEscalatedAt())
                 .build();
+    }
+
+    private static boolean isEscalated(SysReviewTask task) {
+        return task != null && task.getEscalationCount() != null && task.getEscalationCount() > 0;
+    }
+
+    private static int normalizeEscalationCount(Integer count) {
+        return count == null || count < 0 ? 0 : count;
     }
 
     private Long resolveSubjectUserId(SysReviewTask task) {

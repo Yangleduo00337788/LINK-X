@@ -20,4 +20,10 @@ public class AdminReviewQueryDTO extends AdminPageQueryDTO {
 
     @Schema(description = "风险等级：low/medium/high/critical")
     private String riskLevel;
+
+    @Schema(description = "仅显示超过 SLA 的待审任务")
+    private Boolean overdueOnly;
+
+    @Schema(description = "仅显示已督办任务")
+    private Boolean escalatedOnly;
 }

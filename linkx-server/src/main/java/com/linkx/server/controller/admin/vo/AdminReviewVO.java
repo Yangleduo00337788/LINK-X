@@ -31,4 +31,12 @@ public class AdminReviewVO {
     private Long resolvedBy;
     private Date resolvedAt;
     private Date createTime;
+    @Schema(description = "是否超过审核 SLA")
+    private Boolean overdue;
+    @Schema(description = "是否已督办")
+    private Boolean escalated;
+    @Schema(description = "督办次数")
+    private Integer escalationCount;
+    @Schema(description = "最近督办时间")
+    private Date escalatedAt;
 }
