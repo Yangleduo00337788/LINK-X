@@ -167,10 +167,7 @@ onMounted(async () => {
       <div v-else-if="feedback" class="page-shell">
         <NSpace class="page-toolbar" justify="end">
           <NButton @click="router.push('/admin/feedback')">{{ t('feedback.backToList') }}</NButton>
-          <NButton
-            v-if="auth.hasPermission('admin:feedback:assign')"
-            @click="openAssign"
-          >
+          <NButton v-if="auth.hasPermission('admin:feedback:assign')" @click="openAssign">
             {{ t('feedback.assign') }}
           </NButton>
           <NButton
@@ -199,7 +196,9 @@ onMounted(async () => {
         <NDescriptions label-placement="left" :column="2" bordered>
           <NDescriptionsItem label="ID">{{ feedback.id }}</NDescriptionsItem>
           <NDescriptionsItem :label="t('common.status')">
-            <NTag v-if="feedback.overdue" type="error" size="small">{{ t('feedback.overdue') }}</NTag>
+            <NTag v-if="feedback.overdue" type="error" size="small">{{
+              t('feedback.overdue')
+            }}</NTag>
             <NTag v-else-if="feedback.status === 'pending'" type="warning" size="small">
               {{ t('feedback.pending') }}
             </NTag>
@@ -226,7 +225,9 @@ onMounted(async () => {
             </NSpace>
             <span v-else>{{ displayOrNone(feedback.username) }}</span>
           </NDescriptionsItem>
-          <NDescriptionsItem :label="t('feedback.type')">{{ typeLabel(feedback.type) }}</NDescriptionsItem>
+          <NDescriptionsItem :label="t('feedback.type')">{{
+            typeLabel(feedback.type)
+          }}</NDescriptionsItem>
           <NDescriptionsItem :label="t('feedback.contact')" :span="2">
             {{ displayOrNone(feedback.contact) }}
           </NDescriptionsItem>
@@ -261,14 +262,18 @@ onMounted(async () => {
                 <span class="thread-sender">
                   {{
                     item.senderName ||
-                    (item.senderType === 'admin' ? t('feedback.senderAdmin') : t('feedback.senderUser'))
+                    (item.senderType === 'admin'
+                      ? t('feedback.senderAdmin')
+                      : t('feedback.senderUser'))
                   }}
                 </span>
                 <span class="thread-time">{{ formatTime(item.createTime) }}</span>
               </div>
               <div class="thread-content">{{ item.content }}</div>
             </article>
-            <p v-if="!feedback.replies?.length" class="thread-empty">{{ t('feedback.noReplyYet') }}</p>
+            <p v-if="!feedback.replies?.length" class="thread-empty">
+              {{ t('feedback.noReplyYet') }}
+            </p>
           </div>
         </section>
       </div>

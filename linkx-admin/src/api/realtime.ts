@@ -77,7 +77,7 @@ async function connectLoop() {
           if (parsed) dispatch(parsed)
         }
       }
-    } catch (e) {
+    } catch {
       if (abort?.signal.aborted) return
       // network / abort
     }

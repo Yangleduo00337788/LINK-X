@@ -19,10 +19,7 @@ const title = computed(() => {
 })
 
 const showBack = computed(
-  () =>
-    route.name === 'UserDetail' ||
-    route.name === 'FeedbackDetail' ||
-    route.meta.hidden === true
+  () => route.name === 'UserDetail' || route.name === 'FeedbackDetail' || route.meta.hidden === true
 )
 
 const crumbs = computed(() => {

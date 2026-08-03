@@ -12,6 +12,7 @@ import {
   NModal,
   NSelect,
   NSpace,
+  NSwitch,
   NTag,
   useDialog,
   useMessage,
@@ -56,6 +57,8 @@ const query = reactive({
   sourceType: '',
   targetType: '',
   riskLevel: '',
+  overdueOnly: false,
+  escalatedOnly: false,
   range: null as [number, number] | null,
 })
 const knownIds = ref<Set<string>>(new Set())
@@ -171,7 +174,18 @@ function isGroupTarget(row?: ReviewItem | null) {
   return row?.targetType === 'group'
 }
 
-function statusTag(status?: string) {
+function statusTag(row: ReviewItem) {
+  const status = row.status
+  const tags: ReturnType<typeof h>[] = []
+  if (row.escalated) {
+    const label =
+      row.escalationCount && row.escalationCount > 1
+        ? t('review.escalatedCount', { count: row.escalationCount })
+        : t('review.escalated')
+    tags.push(h(NTag, { type: 'error', size: 'small' }, () => label))
+  } else if (row.overdue) {
+    tags.push(h(NTag, { type: 'error', size: 'small' }, () => t('review.overdue')))
+  }
   const map: Record<string, 'warning' | 'success' | 'error' | 'default'> = {
     pending: 'warning',
     approved: 'success',
@@ -182,11 +196,15 @@ function statusTag(status?: string) {
     approved: t('review.approved'),
     rejected: t('review.rejected'),
   }
-  return h(
-    NTag,
-    { type: map[status || ''] || 'default', size: 'small' },
-    () => label[status || ''] || status || '-'
+  tags.push(
+    h(
+      NTag,
+      { type: map[status || ''] || 'default', size: 'small' },
+      () => label[status || ''] || status || '-'
+    )
   )
+  if (tags.length === 1) return tags[0]
+  return h(NSpace, { size: 4, align: 'center' }, () => tags)
 }
 
 function sourceLabel(source?: string) {
@@ -257,7 +275,7 @@ const columns = computed<DataTableColumns<ReviewItem>>(() => {
       title: t('common.status'),
       key: 'status',
       width: 100,
-      render: (row) => statusTag(row.status),
+      render: (row) => statusTag(row),
     },
     {
       title: t('common.time'),
@@ -272,7 +290,9 @@ const columns = computed<DataTableColumns<ReviewItem>>(() => {
       render: (row) =>
         h(NSpace, { size: 8 }, () => [
           h(NButton, { size: 'tiny', onClick: () => showDetail(row) }, () => t('common.detail')),
-          row.status === 'pending' && auth.hasPermission('admin:review:delete-content') && canDeleteContent(row)
+          row.status === 'pending' &&
+          auth.hasPermission('admin:review:delete-content') &&
+          canDeleteContent(row)
             ? h(
                 NButton,
                 {
@@ -481,10 +501,12 @@ async function doExport() {
   try {
     await exportReviews({
       keyword: query.keyword || undefined,
-      reviewStatus: query.status || undefined,
+      reviewStatus: query.overdueOnly ? 'pending' : query.status || undefined,
       sourceType: query.sourceType || undefined,
       targetType: query.targetType || undefined,
       riskLevel: query.riskLevel || undefined,
+      overdueOnly: query.overdueOnly || undefined,
+      escalatedOnly: query.escalatedOnly || undefined,
       startTime: query.range?.[0],
       endTime: query.range?.[1],
     })
@@ -504,10 +526,12 @@ async function load(opts?: { silent?: boolean; announceNew?: boolean }) {
       page: query.page,
       size: query.size,
       keyword: query.keyword || undefined,
-      reviewStatus: query.status || undefined,
+      reviewStatus: query.overdueOnly ? 'pending' : query.status || undefined,
       sourceType: query.sourceType || undefined,
       targetType: query.targetType || undefined,
       riskLevel: query.riskLevel || undefined,
+      overdueOnly: query.overdueOnly || undefined,
+      escalatedOnly: query.escalatedOnly || undefined,
       startTime: query.range?.[0],
       endTime: query.range?.[1],
     })
@@ -543,6 +567,10 @@ function onVisibilityChange() {
 }
 
 onMounted(() => {
+  const overdue = route.query.overdueOnly
+  if (overdue === '1' || overdue === 'true') {
+    query.overdueOnly = true
+  }
   if (reportOnly.value) {
     query.sourceType = 'report'
     query.status = query.status || 'pending'
@@ -583,7 +611,15 @@ onUnmounted(() => {
             width="220px"
             @search="search"
           />
-          <NSelect v-model:value="query.status" :options="statusOptions" style="width: 140px" />
+          <NSelect v-model:value="query.status" :options="statusOptions" :disabled="query.overdueOnly" style="width: 140px" />
+          <NSpace align="center" :size="4">
+            <span class="muted">{{ t('review.overdueOnly') }}</span>
+            <NSwitch v-model:value="query.overdueOnly" @update:value="search" />
+          </NSpace>
+          <NSpace align="center" :size="4">
+            <span class="muted">{{ t('review.escalatedOnly') }}</span>
+            <NSwitch v-model:value="query.escalatedOnly" @update:value="search" />
+          </NSpace>
           <NSelect
             v-if="!presetLocked"
             v-model:value="query.sourceType"
@@ -754,6 +790,10 @@ onUnmounted(() => {
 }
 .preset-hint {
   margin-bottom: 12px;
+}
+.muted {
+  color: var(--lx-text-3, #999);
+  font-size: 13px;
 }
 .hint {
   color: var(--lx-text-3, #999);

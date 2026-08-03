@@ -42,6 +42,12 @@ export interface ClientSideSetting {
   supportEmail?: string
   supportPhone?: string
   feedbackSlaHours?: number
+  feedbackEscalationEnabled?: boolean
+  feedbackEscalationAutoReassign?: boolean
+  feedbackEscalationIntervalHours?: number
+  reviewSlaHours?: number
+  reviewEscalationEnabled?: boolean
+  reviewEscalationIntervalHours?: number
 }
 
 export interface MailSideSetting {
@@ -91,6 +97,12 @@ export type ClientSideUpdatePayload = Required<
     | 'forceUpdate'
     | 'sensitiveFilterEnabled'
     | 'feedbackSlaHours'
+    | 'feedbackEscalationEnabled'
+    | 'feedbackEscalationAutoReassign'
+    | 'feedbackEscalationIntervalHours'
+    | 'reviewSlaHours'
+    | 'reviewEscalationEnabled'
+    | 'reviewEscalationIntervalHours'
   >
 > &
   Pick<

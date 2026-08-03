@@ -96,10 +96,8 @@ const columns = computed<DataTableColumns<HomepageSectionItem>>(() => {
       width: 120,
       render: (row) =>
         row.managePath
-          ? h(
-              NButton,
-              { size: 'tiny', onClick: () => router.push(row.managePath!) },
-              () => t('homepage.manageContent')
+          ? h(NButton, { size: 'tiny', onClick: () => router.push(row.managePath!) }, () =>
+              t('homepage.manageContent')
             )
           : '-',
     },

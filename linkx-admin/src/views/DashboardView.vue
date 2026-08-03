@@ -101,6 +101,7 @@ function metricName(key: string) {
     onlineDevices: t('dashboard.onlineDevices'),
     pendingFeedback: t('dashboard.pendingFeedback'),
     overdueFeedback: t('dashboard.overdueFeedback'),
+    overdueReviews: t('dashboard.overdueReviews'),
     pendingReports: t('dashboard.pendingReports'),
     pendingReviews: t('dashboard.pendingReviews'),
     todaySensitiveHits: t('dashboard.todaySensitiveHits'),
@@ -114,6 +115,7 @@ function taskTitle(task: PendingTask) {
   const map: Record<string, string> = {
     pendingFeedback: t('dashboard.pendingFeedback'),
     overdueFeedback: t('dashboard.overdueFeedback'),
+    overdueReviews: t('dashboard.overdueReviews'),
     pendingReports: t('dashboard.pendingReports'),
     pendingReviews: t('dashboard.pendingReviews'),
     riskEvents: t('dashboard.riskEvents'),
@@ -139,6 +141,7 @@ const opsItems = computed<NamedValue[]>(() => {
   return [
     { key: 'pendingFeedback', name: metricName('pendingFeedback'), value: s?.pendingFeedback ?? 0 },
     { key: 'overdueFeedback', name: metricName('overdueFeedback'), value: s?.overdueFeedback ?? 0 },
+    { key: 'overdueReviews', name: metricName('overdueReviews'), value: s?.overdueReviews ?? 0 },
     { key: 'pendingReports', name: metricName('pendingReports'), value: s?.pendingReports ?? 0 },
     { key: 'pendingReviews', name: metricName('pendingReviews'), value: s?.pendingReviews ?? 0 },
     {

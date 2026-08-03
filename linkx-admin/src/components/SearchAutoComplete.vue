@@ -14,6 +14,7 @@ const props = withDefaults(
   {
     placeholder: '',
     suggestions: () => [],
+    style: undefined,
     width: '240px',
   }
 )

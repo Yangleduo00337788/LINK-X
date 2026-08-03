@@ -120,6 +120,12 @@ const clientForm = reactive({
   supportEmail: '',
   supportPhone: '',
   feedbackSlaHours: 24,
+  feedbackEscalationEnabled: false,
+  feedbackEscalationAutoReassign: true,
+  feedbackEscalationIntervalHours: 24,
+  reviewSlaHours: 24,
+  reviewEscalationEnabled: false,
+  reviewEscalationIntervalHours: 24,
 })
 
 const mailForm = reactive({
@@ -194,6 +200,12 @@ function applySettings(data: AdminSetting) {
   clientForm.supportEmail = data.client?.supportEmail || ''
   clientForm.supportPhone = data.client?.supportPhone || ''
   clientForm.feedbackSlaHours = data.client?.feedbackSlaHours ?? 24
+  clientForm.feedbackEscalationEnabled = data.client?.feedbackEscalationEnabled === true
+  clientForm.feedbackEscalationAutoReassign = data.client?.feedbackEscalationAutoReassign !== false
+  clientForm.feedbackEscalationIntervalHours = data.client?.feedbackEscalationIntervalHours ?? 24
+  clientForm.reviewSlaHours = data.client?.reviewSlaHours ?? 24
+  clientForm.reviewEscalationEnabled = data.client?.reviewEscalationEnabled === true
+  clientForm.reviewEscalationIntervalHours = data.client?.reviewEscalationIntervalHours ?? 24
 
   mailForm.host = data.mail?.host || ''
   mailForm.port = data.mail?.port ?? 587
@@ -355,6 +367,12 @@ async function saveClient() {
           supportEmail: clientForm.supportEmail.trim() || undefined,
           supportPhone: clientForm.supportPhone.trim() || undefined,
           feedbackSlaHours: clientForm.feedbackSlaHours || 24,
+          feedbackEscalationEnabled: clientForm.feedbackEscalationEnabled,
+          feedbackEscalationAutoReassign: clientForm.feedbackEscalationAutoReassign,
+          feedbackEscalationIntervalHours: clientForm.feedbackEscalationIntervalHours || 24,
+          reviewSlaHours: clientForm.reviewSlaHours || 24,
+          reviewEscalationEnabled: clientForm.reviewEscalationEnabled,
+          reviewEscalationIntervalHours: clientForm.reviewEscalationIntervalHours || 24,
         })
       )
       message.success(t('setting.clientSaved'))
@@ -749,6 +767,84 @@ onMounted(load)
                 </div>
               </NFormItem>
               <p class="field-hint channel-hint">{{ t('setting.feedbackSlaHint') }}</p>
+              <NFormItem :label="t('setting.feedbackEscalationEnabled')">
+                <NSpace align="center">
+                  <NSwitch v-model:value="clientForm.feedbackEscalationEnabled" />
+                  <span class="field-hint">
+                    {{
+                      clientForm.feedbackEscalationEnabled ? t('common.on') : t('common.off')
+                    }}
+                  </span>
+                </NSpace>
+              </NFormItem>
+              <p class="field-hint channel-hint">{{ t('setting.feedbackEscalationHint') }}</p>
+              <NFormItem
+                v-if="clientForm.feedbackEscalationEnabled"
+                :label="t('setting.feedbackEscalationAutoReassign')"
+              >
+                <NSpace align="center">
+                  <NSwitch v-model:value="clientForm.feedbackEscalationAutoReassign" />
+                  <span class="field-hint">
+                    {{
+                      clientForm.feedbackEscalationAutoReassign ? t('common.on') : t('common.off')
+                    }}
+                  </span>
+                </NSpace>
+              </NFormItem>
+              <NFormItem
+                v-if="clientForm.feedbackEscalationEnabled"
+                :label="t('setting.feedbackEscalationIntervalHours')"
+              >
+                <div class="upload-row">
+                  <NInputNumber
+                    v-model:value="clientForm.feedbackEscalationIntervalHours"
+                    :min="1"
+                    :max="720"
+                    :step="1"
+                    style="width: 160px"
+                  />
+                  <span class="field-hint">{{ t('setting.feedbackSlaHoursUnit') }}</span>
+                </div>
+              </NFormItem>
+              <NFormItem :label="t('setting.reviewSlaHours')">
+                <div class="upload-row">
+                  <NInputNumber
+                    v-model:value="clientForm.reviewSlaHours"
+                    :min="1"
+                    :max="720"
+                    :step="1"
+                    style="width: 160px"
+                  />
+                  <span class="field-hint">{{ t('setting.feedbackSlaHoursUnit') }}</span>
+                </div>
+              </NFormItem>
+              <p class="field-hint channel-hint">{{ t('setting.reviewSlaHint') }}</p>
+              <NFormItem :label="t('setting.reviewEscalationEnabled')">
+                <NSpace align="center">
+                  <NSwitch v-model:value="clientForm.reviewEscalationEnabled" />
+                  <span class="field-hint">
+                    {{
+                      clientForm.reviewEscalationEnabled ? t('common.on') : t('common.off')
+                    }}
+                  </span>
+                </NSpace>
+              </NFormItem>
+              <p class="field-hint channel-hint">{{ t('setting.reviewEscalationHint') }}</p>
+              <NFormItem
+                v-if="clientForm.reviewEscalationEnabled"
+                :label="t('setting.reviewEscalationIntervalHours')"
+              >
+                <div class="upload-row">
+                  <NInputNumber
+                    v-model:value="clientForm.reviewEscalationIntervalHours"
+                    :min="1"
+                    :max="720"
+                    :step="1"
+                    style="width: 160px"
+                  />
+                  <span class="field-hint">{{ t('setting.feedbackSlaHoursUnit') }}</span>
+                </div>
+              </NFormItem>
               <NFormItem :label="t('setting.releaseNotes')">
                 <NInput
                   v-model:value="clientForm.releaseNotes"

@@ -22,6 +22,10 @@ export interface ReviewItem {
   resolvedBy?: string
   resolvedAt?: string
   createTime?: string
+  overdue?: boolean
+  escalated?: boolean
+  escalationCount?: number
+  escalatedAt?: string
 }
 
 export type ReviewUserAction = 'none' | 'freeze' | 'ban'
@@ -40,6 +44,8 @@ export interface ReviewQuery extends PageQuery {
   sourceType?: string
   targetType?: string
   riskLevel?: string
+  overdueOnly?: boolean
+  escalatedOnly?: boolean
 }
 
 export interface ReviewBatchResult {
@@ -68,7 +74,10 @@ export function rejectReview(id: string, payload?: ReviewResolvePayload | string
   return post<null>(`/admin/reviews/${id}/reject`, body)
 }
 
-export function deleteReviewContent(id: string, payload?: Pick<ReviewResolvePayload, 'resolution'>) {
+export function deleteReviewContent(
+  id: string,
+  payload?: Pick<ReviewResolvePayload, 'resolution'>
+) {
   return post<null>(`/admin/reviews/${id}/delete-content`, payload ?? {})
 }
 

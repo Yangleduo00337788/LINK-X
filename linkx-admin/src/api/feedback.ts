@@ -27,6 +27,9 @@ export interface FeedbackItem {
   assigneeId?: string
   assigneeName?: string
   assignedAt?: string
+  escalated?: boolean
+  escalationCount?: number
+  escalatedAt?: string
   replies?: FeedbackReplyItem[]
 }
 

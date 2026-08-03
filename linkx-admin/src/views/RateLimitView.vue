@@ -46,8 +46,18 @@ const hitColumns = computed<DataTableColumns<RateLimitHit>>(() => {
   return [
     { title: t('rateLimit.scope'), key: 'scope', width: 140, ellipsis: { tooltip: true } },
     { title: 'IP', key: 'ip', width: 140, render: (row) => displayOrNone(row.ip) },
-    { title: t('rateLimit.identity'), key: 'identity', ellipsis: { tooltip: true }, render: (row) => displayOrNone(row.identity) },
-    { title: t('rateLimit.count'), key: 'count', width: 90, render: (row) => displayCount(row.count) },
+    {
+      title: t('rateLimit.identity'),
+      key: 'identity',
+      ellipsis: { tooltip: true },
+      render: (row) => displayOrNone(row.identity),
+    },
+    {
+      title: t('rateLimit.count'),
+      key: 'count',
+      width: 90,
+      render: (row) => displayCount(row.count),
+    },
     {
       title: 'TTL',
       key: 'ttlSeconds',

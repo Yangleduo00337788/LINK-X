@@ -23,7 +23,7 @@ import {
   listRiskEvents,
   type RiskEventItem,
 } from '@/api/riskEvents'
-import { displayCount, displayOrNone, formatIp, formatTime } from '@/utils/format'
+import { displayOrNone, formatIp, formatTime } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
 import SearchAutoComplete from '@/components/SearchAutoComplete.vue'
 

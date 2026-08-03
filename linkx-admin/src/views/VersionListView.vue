@@ -165,7 +165,7 @@ const columns = computed<DataTableColumns<VersionItem>>(() => {
                   secondary: true,
                   onClick: () => confirmPublish(row),
                 },
-                () => t('version.publish'),
+                () => t('version.publish')
               )
             : null,
           row.status === 'draft' && auth.hasPermission('admin:version:delete')
@@ -177,7 +177,7 @@ const columns = computed<DataTableColumns<VersionItem>>(() => {
                   tertiary: true,
                   onClick: () => confirmDelete(row),
                 },
-                () => t('common.delete'),
+                () => t('common.delete')
               )
             : null,
         ]),

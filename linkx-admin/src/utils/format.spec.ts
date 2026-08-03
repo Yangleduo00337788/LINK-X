@@ -11,7 +11,14 @@ vi.mock('@/i18n', () => ({
   },
 }))
 
-import { displayCount, displayOrNone, formatIp, formatTime, userStatusLabel, userStatusType } from './format'
+import {
+  displayCount,
+  displayOrNone,
+  formatIp,
+  formatTime,
+  userStatusLabel,
+  userStatusType,
+} from './format'
 
 describe('format', () => {
   describe('formatTime', () => {

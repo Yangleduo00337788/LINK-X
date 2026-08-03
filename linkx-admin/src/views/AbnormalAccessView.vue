@@ -97,10 +97,20 @@ const columns = computed<DataTableColumns<AbnormalAccessItem>>(() => {
       width: 110,
       render: (row) => sourceTag(row),
     },
-    { title: t('abnormalAccess.category'), key: 'category', width: 120, ellipsis: { tooltip: true } },
+    {
+      title: t('abnormalAccess.category'),
+      key: 'category',
+      width: 120,
+      ellipsis: { tooltip: true },
+    },
     { title: t('abnormalAccess.titleCol'), key: 'title', width: 160, ellipsis: { tooltip: true } },
     { title: t('abnormalAccess.detail'), key: 'detail', ellipsis: { tooltip: true } },
-    { title: t('loginLog.username'), key: 'username', width: 120, render: (row) => displayOrNone(row.username || row.identity) },
+    {
+      title: t('loginLog.username'),
+      key: 'username',
+      width: 120,
+      render: (row) => displayOrNone(row.username || row.identity),
+    },
     {
       title: 'IP',
       key: 'ip',
@@ -150,7 +160,8 @@ const columns = computed<DataTableColumns<AbnormalAccessItem>>(() => {
                 NButton,
                 {
                   size: 'tiny',
-                  onClick: () => router.push({ path: '/admin/risk-events', query: { highlight: row.sourceId } }),
+                  onClick: () =>
+                    router.push({ path: '/admin/risk-events', query: { highlight: row.sourceId } }),
                 },
                 () => t('abnormalAccess.viewRisk')
               )
@@ -230,12 +241,18 @@ onMounted(async () => {
         </NGridItem>
         <NGridItem>
           <NCard size="small">
-            <NStatistic :label="t('abnormalAccess.rateLimitActive')" :value="summary.rateLimitActive" />
+            <NStatistic
+              :label="t('abnormalAccess.rateLimitActive')"
+              :value="summary.rateLimitActive"
+            />
           </NCard>
         </NGridItem>
         <NGridItem>
           <NCard size="small">
-            <NStatistic :label="t('abnormalAccess.riskEventPending')" :value="summary.riskEventPending" />
+            <NStatistic
+              :label="t('abnormalAccess.riskEventPending')"
+              :value="summary.riskEventPending"
+            />
           </NCard>
         </NGridItem>
       </NGrid>
@@ -254,7 +271,11 @@ onMounted(async () => {
             style="width: 150px"
             @update:value="search"
           />
-          <NInput v-model:value="query.ip" :placeholder="t('abnormalAccess.ipPlaceholder')" style="width: 160px" />
+          <NInput
+            v-model:value="query.ip"
+            :placeholder="t('abnormalAccess.ipPlaceholder')"
+            style="width: 160px"
+          />
           <NDatePicker
             v-model:value="query.range"
             type="datetimerange"

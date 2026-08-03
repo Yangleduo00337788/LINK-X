@@ -78,15 +78,27 @@ const typeOptions = computed(() => {
 
 const rules = computed<FormRules>(() => ({
   name: [{ required: true, message: t('feedbackDispatch.nameRequired'), trigger: 'blur' }],
-  assigneeId: [{ required: true, message: t('feedbackDispatch.assigneeRequired'), trigger: 'change' }],
+  assigneeId: [
+    { required: true, message: t('feedbackDispatch.assigneeRequired'), trigger: 'change' },
+  ],
 }))
 
 const columns = computed<DataTableColumns<FeedbackDispatchRuleItem>>(() => {
   void locale.value
   return [
     { title: t('feedbackDispatch.name'), key: 'name', width: 140 },
-    { title: t('feedback.type'), key: 'feedbackType', width: 100, render: (row) => row.feedbackType || t('feedbackDispatch.anyType') },
-    { title: t('feedbackDispatch.keyword'), key: 'keyword', width: 120, ellipsis: { tooltip: true } },
+    {
+      title: t('feedback.type'),
+      key: 'feedbackType',
+      width: 100,
+      render: (row) => row.feedbackType || t('feedbackDispatch.anyType'),
+    },
+    {
+      title: t('feedbackDispatch.keyword'),
+      key: 'keyword',
+      width: 120,
+      ellipsis: { tooltip: true },
+    },
     { title: t('feedback.assignee'), key: 'assigneeName', width: 120 },
     { title: t('feedbackDispatch.priority'), key: 'priority', width: 90 },
     {
@@ -94,10 +106,8 @@ const columns = computed<DataTableColumns<FeedbackDispatchRuleItem>>(() => {
       key: 'enabled',
       width: 90,
       render: (row) =>
-        h(
-          NTag,
-          { type: row.enabled ? 'success' : 'default', size: 'small' },
-          () => (row.enabled ? t('common.enabled') : t('common.disabled'))
+        h(NTag, { type: row.enabled ? 'success' : 'default', size: 'small' }, () =>
+          row.enabled ? t('common.enabled') : t('common.disabled')
         ),
     },
     {
@@ -309,7 +319,9 @@ onMounted(async () => {
       <template #footer>
         <NSpace justify="end">
           <NButton @click="showForm = false">{{ t('common.cancel') }}</NButton>
-          <NButton type="primary" :loading="saving" @click="submitForm">{{ t('common.submit') }}</NButton>
+          <NButton type="primary" :loading="saving" @click="submitForm">{{
+            t('common.submit')
+          }}</NButton>
         </NSpace>
       </template>
     </NModal>

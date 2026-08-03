@@ -50,6 +50,7 @@ const query = reactive({
   keyword: '',
   status: '' as string,
   overdueOnly: false,
+  escalatedOnly: false,
   unassignedOnly: false,
   mineOnly: false,
   range: null as [number, number] | null,
@@ -77,8 +78,15 @@ const replySaving = ref(false)
 
 function statusTag(row: FeedbackItem) {
   const status = row.status
-  if (row.overdue) {
-    return h(NTag, { type: 'error', size: 'small' }, () => t('feedback.overdue'))
+  const tags = []
+  if (row.escalated) {
+    const label =
+      row.escalationCount && row.escalationCount > 1
+        ? t('feedback.escalatedCount', { count: row.escalationCount })
+        : t('feedback.escalated')
+    tags.push(h(NTag, { type: 'error', size: 'small' }, () => label))
+  } else if (row.overdue) {
+    tags.push(h(NTag, { type: 'error', size: 'small' }, () => t('feedback.overdue')))
   }
   const map: Record<string, 'warning' | 'success' | 'default'> = {
     pending: 'warning',
@@ -90,11 +98,15 @@ function statusTag(row: FeedbackItem) {
     replied: t('feedback.replied'),
     closed: t('feedback.closed'),
   }
-  return h(
-    NTag,
-    { type: map[status || ''] || 'default', size: 'small' },
-    () => label[status || ''] || status || '-'
+  tags.push(
+    h(
+      NTag,
+      { type: map[status || ''] || 'default', size: 'small' },
+      () => label[status || ''] || status || '-'
+    )
   )
+  if (tags.length === 1) return tags[0]
+  return h(NSpace, { size: 4, align: 'center' }, () => tags)
 }
 
 const columns = computed<DataTableColumns<FeedbackItem>>(() => {
@@ -135,10 +147,8 @@ const columns = computed<DataTableColumns<FeedbackItem>>(() => {
             () => t('feedback.viewDetail')
           ),
           auth.hasPermission('admin:feedback:assign')
-            ? h(
-                NButton,
-                { size: 'tiny', onClick: () => openAssign(row) },
-                () => t('feedback.assign')
+            ? h(NButton, { size: 'tiny', onClick: () => openAssign(row) }, () =>
+                t('feedback.assign')
               )
             : null,
           auth.hasPermission('admin:feedback:reply') && row.status !== 'closed'
@@ -234,6 +244,7 @@ async function load() {
       keyword: query.keyword || undefined,
       feedbackStatus: query.overdueOnly ? 'pending' : query.status || undefined,
       overdueOnly: query.overdueOnly || undefined,
+      escalatedOnly: query.escalatedOnly || undefined,
       unassignedOnly: query.unassignedOnly || undefined,
       mineOnly: query.mineOnly || undefined,
       startTime: query.range?.[0],
@@ -258,6 +269,7 @@ async function doExport() {
       keyword: query.keyword || undefined,
       feedbackStatus: query.overdueOnly ? 'pending' : query.status || undefined,
       overdueOnly: query.overdueOnly || undefined,
+      escalatedOnly: query.escalatedOnly || undefined,
       unassignedOnly: query.unassignedOnly || undefined,
       mineOnly: query.mineOnly || undefined,
       startTime: query.range?.[0],
@@ -304,6 +316,10 @@ onMounted(async () => {
           <NSpace align="center">
             <span class="muted">{{ t('feedback.overdueOnly') }}</span>
             <NSwitch v-model:value="query.overdueOnly" @update:value="search" />
+          </NSpace>
+          <NSpace align="center">
+            <span class="muted">{{ t('feedback.escalatedOnly') }}</span>
+            <NSwitch v-model:value="query.escalatedOnly" @update:value="search" />
           </NSpace>
           <NSpace align="center">
             <span class="muted">{{ t('feedback.unassignedOnly') }}</span>
