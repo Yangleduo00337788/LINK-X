@@ -8,8 +8,6 @@ import com.linkx.server.service.FileStorageService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -36,8 +34,6 @@ public class MessageRetentionTask {
     private final FileStorageService fileStorageService;
 
     /** 每天凌晨 3 点执行 */
-    @Scheduled(cron = "0 0 3 * * ?")
-    @SchedulerLock(name = "messageRetention_purgeExpiredMessages", lockAtMostFor = "PT30M", lockAtLeastFor = "PT1M")
     public void purgeExpiredMessages() {
         int retentionDays = linkxProperties.getRetention().getMessageDays();
         if (retentionDays <= 0) {

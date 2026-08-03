@@ -3,8 +3,6 @@ package com.linkx.server.task;
 import com.linkx.server.service.RedPacketService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
@@ -20,8 +18,6 @@ public class RedPacketTask {
     /**
      * 每分钟检查过期红包并退款
      */
-    @Scheduled(cron = "0 * * * * ?")
-    @SchedulerLock(name = "redPacket_expireRedPackets", lockAtMostFor = "PT2M", lockAtLeastFor = "PT30S")
     public void expireRedPackets() {
         try {
             log.info("开始执行红包过期检查任务");

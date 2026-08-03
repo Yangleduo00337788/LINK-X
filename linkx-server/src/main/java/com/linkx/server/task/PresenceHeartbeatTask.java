@@ -3,7 +3,6 @@ package com.linkx.server.task;
 import com.linkx.server.service.PresenceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
@@ -16,7 +15,6 @@ public class PresenceHeartbeatTask {
 
     private final PresenceService presenceService;
 
-    @Scheduled(fixedDelay = 5_000, initialDelay = 3_000)
     public void heartbeatAndSweep() {
         try {
             presenceService.refreshInstanceHeartbeat();

@@ -225,6 +225,28 @@ linkx:
     # 可选：外部 ip2region.xdb 路径（也可放 classpath:ip2region/ip2region.xdb）
     xdb-path: ${IP_GEO_XDB_PATH:}
 
+  snail-job:
+    # SnailJob 控制台地址（管理端只读页跳转）
+    admin-console-url: ${SNAIL_JOB_ADMIN_URL:http://127.0.0.1:18080}
+    # 启动时通过 OpenAPI 注册内置任务（已存在则跳过）
+    sync-jobs-on-startup: ${SNAIL_JOB_SYNC_JOBS:true}
+
+# ---------- SnailJob 客户端 ----------
+snail-job:
+  enabled: ${SNAIL_JOB_ENABLED:true}
+  server:
+    host: ${SNAIL_JOB_SERVER_HOST:127.0.0.1}
+    port: ${SNAIL_JOB_SERVER_PORT:17888}
+  namespace: ${SNAIL_JOB_NAMESPACE:764d604ec6fc45f68cd92514c40e9e1a}
+  group: ${SNAIL_JOB_GROUP:linkx_server}
+  token: ${SNAIL_JOB_TOKEN:SJ_Wyz3dmsdbDOkDujOTSSoBjGQP1BMsVnj}
+  host: ${SNAIL_JOB_CLIENT_HOST:}
+  port: ${SNAIL_JOB_CLIENT_PORT:17889}
+  openapi:
+    host: ${SNAIL_JOB_OPENAPI_HOST:127.0.0.1}
+    port: ${SNAIL_JOB_OPENAPI_PORT:18080}
+    prefix: snail-job
+
 # ---------- Actuator ----------
 management:
   endpoints:

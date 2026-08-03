@@ -3,8 +3,6 @@ package com.linkx.server.task;
 import com.linkx.server.service.SysUserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
@@ -17,8 +15,6 @@ public class AutoUnlockTask {
 
     private final SysUserService sysUserService;
 
-    @Scheduled(fixedDelayString = "60000")
-    @SchedulerLock(name = "autoUnlock_expiredAccounts", lockAtMostFor = "PT2M", lockAtLeastFor = "PT30S")
     public void unlockExpired() {
         try {
             int n = sysUserService.unlockExpiredAutoLocks();

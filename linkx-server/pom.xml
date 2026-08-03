@@ -21,7 +21,7 @@
         <mybatis-flex.version>1.9.3</mybatis-flex.version>
         <jjwt.version>0.12.5</jjwt.version>
         <netty.version>4.1.115.Final</netty.version>
-        <shedlock.version>5.16.0</shedlock.version>
+        <snail-job.version>1.9.0</snail-job.version>
         <spring-security.version>6.4.5</spring-security.version>
     </properties>
 
@@ -152,16 +152,16 @@
             <version>${spring-security.version}</version>
         </dependency>
 
-        <!-- ShedLock：分布式定时任务锁，防多实例并发执行 -->
+        <!-- SnailJob：分布式任务调度客户端 -->
         <dependency>
-            <groupId>net.javacrumbs.shedlock</groupId>
-            <artifactId>shedlock-spring</artifactId>
-            <version>${shedlock.version}</version>
+            <groupId>com.aizuda</groupId>
+            <artifactId>snail-job-client-starter</artifactId>
+            <version>${snail-job.version}</version>
         </dependency>
         <dependency>
-            <groupId>net.javacrumbs.shedlock</groupId>
-            <artifactId>shedlock-provider-redis-spring</artifactId>
-            <version>${shedlock.version}</version>
+            <groupId>com.aizuda</groupId>
+            <artifactId>snail-job-client-job-core</artifactId>
+            <version>${snail-job.version}</version>
         </dependency>
 
         <!-- MinIO 对象存储 -->

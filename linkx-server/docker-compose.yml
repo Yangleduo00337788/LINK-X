@@ -14,6 +14,7 @@ services:
     volumes:
       - ./docker/mysql/data:/var/lib/mysql
       - ./init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./docker/mysql/init-snail-job-db.sql:/docker-entrypoint-initdb.d/02-snail-job-db.sql:ro
     restart: always
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
@@ -105,6 +106,28 @@ services:
     mem_limit: 512m
     cpus: "1.0"
 
+  snail-job:
+    image: opensnail/snail-job:1.9.0
+    container_name: linkx-snail-job
+    ports:
+      - "127.0.0.1:18080:8080"
+      - "127.0.0.1:17888:17888"
+    environment:
+      TZ: Asia/Shanghai
+      PARAMS: >-
+        --spring.datasource.url=jdbc:mysql://mysql:3306/snail_job?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+        --spring.datasource.username=root
+        --spring.datasource.password=${MYSQL_ROOT_PASSWORD}
+        --spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - linkx-net
+    mem_limit: 512m
+    cpus: "1.0"
+
   # 应用服务（默认不启动；需要时：docker compose --profile app up -d --build）
   app:
     profiles: ["app"]
@@ -125,6 +148,10 @@ services:
       MINIO_ENDPOINT: http://minio:9000
       TRUST_PROXY: "true"
       DEV_MODE_ENABLED: "false"
+      SNAIL_JOB_SERVER_HOST: snail-job
+      SNAIL_JOB_OPENAPI_HOST: snail-job
+      SNAIL_JOB_OPENAPI_PORT: 8080
+      SNAIL_JOB_ADMIN_URL: http://127.0.0.1:18080
     depends_on:
       mysql:
         condition: service_healthy
@@ -132,6 +159,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      snail-job:
+        condition: service_started
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
