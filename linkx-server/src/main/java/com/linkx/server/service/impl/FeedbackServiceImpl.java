@@ -6,6 +6,7 @@ import com.linkx.server.mapper.FeedbackMapper;
 import com.linkx.server.service.FeedbackService;
 import com.linkx.server.service.MessageNotificationService;
 import com.linkx.server.service.admin.AdminReviewService;
+import com.linkx.server.service.admin.FeedbackDispatchService;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ public class FeedbackServiceImpl extends ServiceImpl<FeedbackMapper, Feedback> i
     private final MessageNotificationService notificationService;
     private final ImMessagePushService imPushService;
     private final AdminReviewService adminReviewService;
+    private final FeedbackDispatchService feedbackDispatchService;
 
     @Override
     @Transactional
@@ -41,6 +43,7 @@ public class FeedbackServiceImpl extends ServiceImpl<FeedbackMapper, Feedback> i
                 .createTime(new Date())
                 .build();
         feedbackMapper.insert(feedback);
+        feedbackDispatchService.applyAutoDispatch(feedback);
         adminReviewService.createFromReportFeedback(feedback);
 
         boolean isReport = content != null && content.trim().startsWith("[举报");

@@ -1,6 +1,7 @@
 package com.linkx.server.service.admin;
 
 import com.linkx.server.common.admin.PageResultVO;
+import com.linkx.server.controller.admin.dto.AdminFeedbackAssignDTO;
 import com.linkx.server.controller.admin.dto.AdminFeedbackQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminFeedbackReplyDTO;
 import com.linkx.server.controller.admin.vo.AdminFeedbackVO;
@@ -20,6 +21,8 @@ public interface AdminFeedbackService {
     void close(Long id, Long operatorId);
 
     void reopen(Long id, Long operatorId);
+
+    void assign(Long id, AdminFeedbackAssignDTO dto, Long operatorId);
 
     /** 超过 SLA 仍未处理的 pending 反馈数 */
     long countOverdue();

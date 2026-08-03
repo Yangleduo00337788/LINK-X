@@ -3,13 +3,16 @@ package com.linkx.server.service.admin.impl;
 import com.linkx.server.common.admin.AdminConstants;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.config.LinkxProperties;
+import com.linkx.server.controller.admin.dto.AdminFeedbackAssignDTO;
 import com.linkx.server.controller.admin.dto.AdminFeedbackQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminFeedbackReplyDTO;
 import com.linkx.server.controller.admin.vo.AdminFeedbackVO;
 import com.linkx.server.entity.Feedback;
+import com.linkx.server.entity.SysUser;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.mapper.FeedbackMapper;
+import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.MessageNotificationService;
 import com.linkx.server.service.admin.AdminFeedbackService;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -33,6 +36,7 @@ public class AdminFeedbackServiceImpl implements AdminFeedbackService {
     private static final int DEFAULT_SLA_HOURS = 24;
 
     private final FeedbackMapper feedbackMapper;
+    private final SysUserMapper sysUserMapper;
     private final MessageNotificationService notificationService;
     private final ImMessagePushService imPushService;
     private final LinkxProperties linkxProperties;
@@ -83,6 +87,11 @@ public class AdminFeedbackServiceImpl implements AdminFeedbackService {
         if (Boolean.TRUE.equals(query.getOverdueOnly())) {
             qw.and(Feedback::getStatus).eq("pending");
             qw.and(Feedback::getCreateTime).le(slaCutoff());
+        }
+        if (Boolean.TRUE.equals(query.getUnassignedOnly())) {
+            qw.and(Feedback::getAssigneeId).isNull();
+        } else if (query.getAssigneeId() != null) {
+            qw.and(Feedback::getAssigneeId).eq(query.getAssigneeId());
         }
         return qw;
     }
@@ -152,6 +161,25 @@ public class AdminFeedbackServiceImpl implements AdminFeedbackService {
                 content
         );
         pushFeedback(feedback.getUserId(), "feedback_closed", feedback.getId(), content);
+    }
+
+    @Override
+    @Transactional
+    public void assign(Long id, AdminFeedbackAssignDTO dto, Long operatorId) {
+        Feedback feedback = requireFeedback(id);
+        Long assigneeId = dto.getAssigneeId();
+        if (assigneeId != null) {
+            SysUser assignee = sysUserMapper.selectOneById(assigneeId);
+            if (assignee == null) {
+                throw new CustomException(400, "assignee not found");
+            }
+            feedback.setAssigneeId(assigneeId);
+            feedback.setAssignedAt(new Date());
+        } else {
+            feedback.setAssigneeId(null);
+            feedback.setAssignedAt(null);
+        }
+        feedbackMapper.update(feedback);
     }
 
     @Override
@@ -227,7 +255,21 @@ public class AdminFeedbackServiceImpl implements AdminFeedbackService {
                 .reply(reply)
                 .createTime(feedback.getCreateTime())
                 .overdue(isOverdue(feedback))
+                .assigneeId(feedback.getAssigneeId())
+                .assigneeName(resolveAssigneeName(feedback.getAssigneeId()))
+                .assignedAt(feedback.getAssignedAt())
                 .build();
+    }
+
+    private String resolveAssigneeName(Long assigneeId) {
+        if (assigneeId == null) {
+            return null;
+        }
+        SysUser user = sysUserMapper.selectOneById(assigneeId);
+        if (user == null) {
+            return null;
+        }
+        return StringUtils.hasText(user.getNickname()) ? user.getNickname() : user.getUsername();
     }
 
     private boolean isOverdue(Feedback feedback) {
