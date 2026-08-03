@@ -70,6 +70,10 @@ onMounted(() => {
     } else if (evt?.type === 'export_failed') {
       const err = typeof evt.error === 'string' ? evt.error : ''
       message.error(err || t('common.exportFailed'), { duration: 5000 })
+    } else if (evt?.type === 'feedback_escalated') {
+      message.warning(t('feedback.escalatedRealtime'), { duration: 5000 })
+    } else if (evt?.type === 'review_escalated') {
+      message.warning(t('review.escalatedRealtime'), { duration: 5000 })
     }
   })
   // 刷新侧边栏菜单，避免本地缓存仍显示已下线的「版本管理」等项
@@ -93,11 +97,7 @@ function onHeaderAvatarError() {
 
 function toMenuOptions(menus: AdminMenuTree[]): MenuOption[] {
   return menus
-    .filter(
-      (m) =>
-        m.visible !== false &&
-        m.type !== 'button'
-    )
+    .filter((m) => m.visible !== false && m.type !== 'button')
     .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0))
     .map((m) => {
       const children = m.children?.length ? toMenuOptions(m.children) : undefined

@@ -12,6 +12,7 @@ export interface DashboardSummary {
   pendingFeedback: number
   overdueFeedback: number
   pendingReviews: number
+  overdueReviews: number
   pendingReports: number
   todaySensitiveHits: number
   todayRiskBlocks: number

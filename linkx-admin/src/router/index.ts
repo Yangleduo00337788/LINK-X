@@ -199,6 +199,12 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: 'route.homepageOrchestration', permission: 'admin:homepage:list' },
       },
       {
+        path: 'scheduled-tasks',
+        name: 'ScheduledTasks',
+        component: () => import('@/views/ScheduledTaskListView.vue'),
+        meta: { titleKey: 'route.scheduledTasks', permission: 'admin:scheduled-task:list' },
+      },
+      {
         path: 'settings',
         name: 'Settings',
         component: () => import('@/views/SettingView.vue'),
