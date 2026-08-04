@@ -114,6 +114,10 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: 'route.rateLimits', permission: 'admin:rate-limit:list' },
       },
       {
+        path: 'feedback-hub',
+        redirect: '/admin/feedback',
+      },
+      {
         path: 'feedback',
         name: 'FeedbackList',
         component: () => import('@/views/FeedbackListView.vue'),
@@ -239,6 +243,10 @@ const routes: RouteRecordRaw[] = [
         name: 'MonitorSql',
         component: () => import('@/views/monitor/SqlMonitorView.vue'),
         meta: { titleKey: 'route.monitorSql', permission: 'admin:system-monitor:view' },
+      },
+      {
+        path: 'settings-hub',
+        redirect: '/admin/settings',
       },
       {
         path: 'settings',

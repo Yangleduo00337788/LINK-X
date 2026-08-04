@@ -69,6 +69,7 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
     mustMenus: [
       'dashboard',
       'feedback',
+      'feedback-dispatch-rules',
       'notices',
       'statistics',
       'recommends',
@@ -275,8 +276,34 @@ export const ADMIN_ROUTE_PERMISSIONS: Array<{ path: string; permission?: string;
   { path: '/admin/recommends', permission: 'admin:recommend:list', name: 'Recommends' },
   { path: '/admin/activities', permission: 'admin:activity:list', name: 'Activities' },
   { path: '/admin/settings', permission: 'admin:setting:view', name: 'Settings' },
+  { path: '/admin/versions', permission: 'admin:version:list', name: 'Versions' },
   { path: '/admin/statistics', permission: 'admin:statistics:view', name: 'Statistics' },
   { path: '/admin/profile', name: 'Profile' },
+  {
+    path: '/admin/system-monitor/cache',
+    permission: 'admin:system-monitor:view',
+    name: 'MonitorCache',
+  },
+  {
+    path: '/admin/system-monitor/service',
+    permission: 'admin:system-monitor:view',
+    name: 'MonitorService',
+  },
+  {
+    path: '/admin/system-monitor/api-stats',
+    permission: 'admin:system-monitor:view',
+    name: 'MonitorApiStats',
+  },
+  {
+    path: '/admin/system-monitor/tasks',
+    permission: 'admin:system-monitor:view',
+    name: 'MonitorTasks',
+  },
+  {
+    path: '/admin/system-monitor/sql',
+    permission: 'admin:system-monitor:view',
+    name: 'MonitorSql',
+  },
 ]
 
 export function hasPermission(permissions: string[], code?: string | string[]) {

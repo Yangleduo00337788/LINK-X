@@ -1031,7 +1031,9 @@ INSERT IGNORE INTO sys_admin_menu
 (14, 13,'review-task', '违规内容', '/admin/reviews',    'views/ReviewListView',  'Clipboard', 'menu', 'admin:review:list',    2, 0, 1, 0, 1, 1, 0),
 (44, 13,'announcement-review', '群公告审核', '/admin/announcement-reviews', 'views/ReviewListView', 'Megaphone', 'menu', 'admin:review:list', 3, 0, 1, 0, 1, 1, 0),
 (15, 13,'sensitive-word',  '敏感词管理', '/admin/sensitive-words', 'views/SensitiveWordListView', 'Funnel', 'menu', 'admin:sensitive-word:list', 4, 0, 1, 0, 1, 1, 0),
-(10, 0, 'feedback',    '反馈管理', '/admin/feedback',   'views/FeedbackListView','Chatbox',   'menu', 'admin:feedback:list',  7, 0, 1, 0, 1, 1, 0),
+(10, 0, 'feedback-center','反馈中心', '/admin/feedback-hub', NULL,                    'Chatbox',   'dir',  NULL,                   7, 0, 1, 0, 1, 1, 0),
+(101,10,'feedback',    '反馈列表', '/admin/feedback',   'views/FeedbackListView','Chatbox',   'menu', 'admin:feedback:list',  1, 0, 1, 0, 1, 1, 0),
+(102,10,'feedback-dispatch-rules', '分流规则', '/admin/feedback-dispatch-rules', 'views/FeedbackDispatchRuleListView', 'GitNetwork', 'menu', 'admin:feedback-dispatch-rule:list', 2, 0, 1, 0, 1, 1, 0),
 (55, 0, 'notice-center', '通知公告', '/admin/notice-hub', NULL, 'Mail', 'dir', NULL, 8, 0, 1, 0, 1, 1, 0),
 (17, 55,'notice-inbox', '通知中心', '/admin/notice-inbox', 'views/NoticeInboxView', 'Notifications', 'menu', 'admin:notice:inbox', 1, 0, 1, 0, 1, 1, 0),
 (16, 55,'notices',     '公告管理', '/admin/notices',    'views/NoticeView',      'Newspaper', 'menu', 'admin:notice:list',    2, 0, 1, 0, 1, 1, 0),
@@ -1046,17 +1048,20 @@ INSERT IGNORE INTO sys_admin_menu
 (52, 49, 'monitor-api', 'API访问统计', '/admin/system-monitor/api-stats', 'views/monitor/ApiStatsMonitorView', 'Analytics', 'menu', 'admin:system-monitor:view', 3, 0, 1, 0, 1, 1, 0),
 (53, 49, 'monitor-tasks', '定时任务', '/admin/system-monitor/tasks', 'views/monitor/TaskMonitorView', 'Timer', 'menu', 'admin:system-monitor:view', 4, 0, 1, 0, 1, 1, 0),
 (54, 49, 'monitor-sql', 'SQL监控', '/admin/system-monitor/sql', 'views/monitor/SqlMonitorView', 'Code', 'menu', 'admin:system-monitor:view', 5, 0, 1, 0, 1, 1, 0),
-(11, 0, 'settings',    '系统配置', '/admin/settings',   'views/SettingView',     'Settings',  'menu', 'admin:setting:view',   11, 0, 1, 0, 1, 1, 0),
+(11, 0, 'settings-center','系统配置', '/admin/settings-hub', NULL,                    'Settings',  'dir',  NULL,                   11, 0, 1, 0, 1, 1, 0),
+(111,11,'settings',    '配置中心', '/admin/settings',   'views/SettingView',     'Settings',  'menu', 'admin:setting:view',   1, 0, 1, 0, 1, 1, 0),
+(12, 11, 'versions',   '版本发布', '/admin/versions',   'views/VersionListView', 'Cube',      'menu', 'admin:version:list',   2, 0, 1, 0, 1, 1, 0),
 (18, 0, 'statistics',  '统计分析', '/admin/statistics', 'views/StatisticsView',  'Chart',     'menu', 'admin:statistics:view',12, 0, 1, 0, 1, 1, 0);
 
 INSERT IGNORE INTO sys_admin_role_menu (role_id, menu_id) VALUES
 -- admin 全量（测试用最小集）
-(1001, 1),(1001, 2),(1001, 3),(1001, 4),(1001, 5),(1001, 6),(1001, 7),(1001, 8),(1001, 9),(1001, 10),(1001, 11),
+(1001, 1),(1001, 2),(1001, 3),(1001, 4),(1001, 5),(1001, 6),(1001, 7),(1001, 8),(1001, 9),(1001, 10),(1001, 11),(1001, 12),(1001, 111),
+(1001, 101),(1001, 102),
 (1001, 13),(1001, 14),(1001, 15),(1001, 16),(1001, 17),(1001, 18),(1001, 19),(1001, 20),(1001, 22),(1001, 23),
 (1001, 40),(1001, 41),(1001, 42),(1001, 43),(1001, 44),(1001, 45),(1001, 46),(1001, 49),(1001, 50),(1001, 51),(1001, 52),(1001, 53),(1001, 54),
 (1001, 55),(1001, 56),(1001, 58),(1001, 21),
 -- ops
-(1003, 1),(1003, 2),(1003, 10),(1003, 16),(1003, 17),(1003, 18),(1003, 40),(1003, 41),(1003, 46),(1003, 49),(1003, 50),(1003, 51),(1003, 52),(1003, 53),(1003, 54),
+(1003, 1),(1003, 2),(1003, 10),(1003, 101),(1003, 102),(1003, 16),(1003, 17),(1003, 18),(1003, 40),(1003, 41),(1003, 46),(1003, 49),(1003, 50),(1003, 51),(1003, 52),(1003, 53),(1003, 54),
 (1003, 55),(1003, 56),(1003, 21),
 -- audit
 (1004, 1),(1004, 2),(1004, 7),(1004, 8),(1004, 9),(1004, 19),(1004, 45),

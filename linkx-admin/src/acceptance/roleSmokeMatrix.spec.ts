@@ -16,13 +16,19 @@ const FIXTURES: Record<
   super_admin: {
     menus: [
       { name: 'dashboard' },
-      { name: 'settings' },
-      { name: 'versions' },
+      {
+        name: 'settings-center',
+        children: [{ name: 'settings' }, { name: 'versions' }],
+      },
       {
         name: 'log',
         children: [{ name: 'risk-event' }, { name: 'rate-limit' }],
       },
       { name: 'notices' },
+      {
+        name: 'system-monitor',
+        children: [{ name: 'monitor-service' }],
+      },
     ],
     permissions: ['*'],
   },
@@ -30,15 +36,19 @@ const FIXTURES: Record<
     menus: [
       { name: 'dashboard' },
       { name: 'user' },
-      { name: 'feedback' },
       {
-        name: 'ops',
-        children: [{ name: 'notices' }, { name: 'banners' }, { name: 'notice-inbox' }],
+        name: 'feedback-center',
+        children: [{ name: 'feedback' }, { name: 'feedback-dispatch-rules' }],
       },
+      { name: 'notices' },
       { name: 'statistics' },
       { name: 'recommends' },
       { name: 'activities' },
       { name: 'homepage-orchestration' },
+      {
+        name: 'system-monitor',
+        children: [{ name: 'monitor-tasks' }],
+      },
     ],
     permissions: [
       'admin:dashboard:view',
@@ -56,6 +66,7 @@ const FIXTURES: Record<
       'admin:recommend:list',
       'admin:activity:list',
       'admin:homepage:list',
+      'admin:system-monitor:view',
     ],
   },
   audit_admin: {

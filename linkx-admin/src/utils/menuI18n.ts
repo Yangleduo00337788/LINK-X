@@ -19,6 +19,8 @@ const MENU_NAME_KEYS: Record<string, string> = {
   'risk-event': 'route.riskEvents',
   'rate-limit': 'route.rateLimits',
   feedback: 'route.feedback',
+  'feedback-center': 'route.feedbackCenter',
+  'feedback-dispatch-rules': 'route.feedbackDispatchRules',
   review: 'route.review',
   'review-task': 'route.reviews',
   'report-task': 'route.reports',
@@ -41,6 +43,7 @@ const MENU_NAME_KEYS: Record<string, string> = {
   'monitor-tasks': 'route.monitorTasks',
   'monitor-sql': 'route.monitorSql',
   settings: 'route.settings',
+  'settings-center': 'route.settingsCenter',
   versions: 'route.versions',
   statistics: 'route.statistics',
 }
@@ -62,6 +65,8 @@ const MENU_PATH_KEYS: Record<string, string> = {
   '/admin/risk-events': 'route.riskEvents',
   '/admin/rate-limits': 'route.rateLimits',
   '/admin/feedback': 'route.feedback',
+  '/admin/feedback-hub': 'route.feedback',
+  '/admin/feedback-dispatch-rules': 'route.feedbackDispatchRules',
   '/admin/review': 'route.review',
   '/admin/reviews': 'route.reviews',
   '/admin/reports': 'route.reports',
@@ -84,6 +89,7 @@ const MENU_PATH_KEYS: Record<string, string> = {
   '/admin/system-monitor/tasks': 'route.monitorTasks',
   '/admin/system-monitor/sql': 'route.monitorSql',
   '/admin/settings': 'route.settings',
+  '/admin/settings-hub': 'route.settingsCenter',
   '/admin/versions': 'route.versions',
   '/admin/statistics': 'route.statistics',
 }
