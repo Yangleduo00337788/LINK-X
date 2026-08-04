@@ -120,6 +120,29 @@ public class RateLimitServiceImpl implements RateLimitService {
     }
 
     @Override
+    public void checkLoginRequestRateLimit(HttpServletRequest request, LoginSide side) {
+        String ip = getClientIp(request);
+        if (isWhitelisted(ip)) {
+            return;
+        }
+        LoginSide loginSide = side == null ? LoginSide.CLIENT : side;
+        int maxAttempts = linkxProperties.getAuth().getRateLimitLoginPerMinute();
+        String sideKey = loginSide.name().toLowerCase();
+        String ipKey = RATE_LIMIT_PREFIX + "login-request:" + sideKey + ":" + IP_PREFIX + ip;
+        Long count = atomicIncrAndExpire(ipKey, 60L);
+        if (count != null && count > maxAttempts) {
+            if (count == maxAttempts + 1L) {
+                try {
+                    adminRiskEventService.recordRateLimit(null, "ip:" + ip, "login-request:" + sideKey, ip);
+                } catch (Exception e) {
+                    log.warn("登录请求限流风险事件写入失败: ip={}, side={}", ip, sideKey, e);
+                }
+            }
+            throw new CustomException(429, "登录请求过于频繁，请稍后再试");
+        }
+    }
+
+    @Override
     public int recordLoginFailure(String username, HttpServletRequest request, LoginSide side) {
         String sideKey = side.name().toLowerCase();
         String userKey = RATE_LIMIT_PREFIX + LOGIN_FAIL_PREFIX + sideKey + ":" + username;

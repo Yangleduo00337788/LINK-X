@@ -208,6 +208,14 @@ public class SensitiveWordService {
         return new DetectionResult(!matches.isEmpty(), matches);
     }
 
+    /** 查询敏感词处置动作（用于管理端模拟展示） */
+    public String actionForWord(String word) {
+        if (word == null || word.isBlank()) {
+            return SysSensitiveWord.ACTION_FILTER;
+        }
+        return actionCacheRef.get().getOrDefault(word.toLowerCase(), SysSensitiveWord.ACTION_FILTER);
+    }
+
     // ---- DFA 内部结构 ----
 
     private static class DfaNode {

@@ -2,7 +2,7 @@
 import AdminFormShell from '@/components/AdminFormShell.vue'
 import { computed, h, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   NAlert,
   NButton,
@@ -24,6 +24,7 @@ import {
   batchReviews,
   deleteReviewContent,
   exportReviews,
+  getReview,
   listReviews,
   rejectReview,
   type ReviewContentAction,
@@ -40,6 +41,7 @@ const message = useMessage()
 const dialog = useDialog()
 const auth = useAuthStore()
 const route = useRoute()
+const router = useRouter()
 const { t, locale } = useI18n()
 
 /** 举报独立入口：锁定 sourceType=report，收窄目标类型 */
@@ -222,6 +224,32 @@ function canDeleteContent(row?: ReviewItem | null) {
   return !!row && DELETABLE_TARGETS.has(row.targetType || '')
 }
 
+function isHighRiskLevel(level?: string) {
+  return level === 'high' || level === 'critical'
+}
+
+function rowProps(row: ReviewItem) {
+  if (isHighRiskLevel(row.riskLevel)) {
+    return { class: 'row-high-risk' }
+  }
+  return {}
+}
+
+function applyQuickRiskFilter(level: string) {
+  query.riskLevel = level
+  search()
+}
+
+function riskLevelLabel(level?: string) {
+  const label: Record<string, string> = {
+    critical: t('review.riskCritical'),
+    high: t('review.riskHigh'),
+    medium: t('review.riskMedium'),
+    low: t('review.riskLow'),
+  }
+  return label[level || ''] || level || '-'
+}
+
 function riskLevelTag(level?: string) {
   const map: Record<string, 'error' | 'warning' | 'info' | 'default'> = {
     critical: 'error',
@@ -358,53 +386,109 @@ function stripEvidenceText(content?: string) {
 }
 
 function showDetail(row: ReviewItem) {
-  const urls = row.evidenceUrls || []
-  dialog.info({
-    title: row.title || t('review.detailTitle'),
-    content: () =>
-      h('div', { style: 'line-height: 1.6; max-height: 420px; overflow: auto;' }, [
-        h('div', `${t('review.source')}: ${sourceLabel(row.sourceType)}`),
-        h('div', `${t('review.targetType')}: ${row.targetType || '-'}`),
-        h('div', `${t('review.target')}: ${row.targetId || '-'}`),
-        h('div', `${t('review.subjectUser')}: ${row.subjectUserId || '-'}`),
-        h('div', { style: 'display:flex; align-items:center; gap:8px;' }, [
-          h('span', `${t('review.riskLevel')}:`),
-          riskLevelTag(row.riskLevel),
-        ]),
-        h(
-          'div',
-          { style: 'white-space: pre-wrap; margin: 12px 0;' },
-          stripEvidenceText(row.contentSnapshot)
-        ),
-        urls.length
-          ? h('div', { style: 'margin-bottom: 8px; font-weight: 600;' }, t('review.evidence'))
-          : null,
-        urls.length
-          ? h(
-              'div',
-              { style: 'display: flex; flex-direction: column; gap: 10px;' },
-              urls.map((src) =>
-                h('a', { href: src, target: '_blank', rel: 'noopener noreferrer' }, [
-                  h('img', {
-                    src,
-                    alt: '',
-                    style:
-                      'max-width: 100%; max-height: 360px; width: auto; height: auto; object-fit: contain; border-radius: var(--lx-radius); border: 1px solid var(--lx-border, #e5e5e5); display: block;',
-                  }),
-                ])
+  void (async () => {
+    let detail = row
+    try {
+      detail = await getReview(row.id)
+    } catch {
+      // 列表数据兜底
+    }
+    const ctx = detail.riskContext
+    const riskEventsLink = detail.subjectUserId
+      ? h(
+          NButton,
+          {
+            size: 'small',
+            tertiary: true,
+            onClick: () =>
+              router.push({
+                path: '/admin/risk-events',
+                query: { keyword: detail.subjectUserId },
+              }),
+          },
+          () => t('review.viewUserRiskEvents')
+        )
+      : null
+    const urls = detail.evidenceUrls || []
+
+    dialog.info({
+      title: detail.title || t('review.detailTitle'),
+      content: () =>
+        h('div', { style: 'line-height: 1.6; max-height: 480px; overflow: auto;' }, [
+          h('div', `${t('review.source')}: ${sourceLabel(detail.sourceType)}`),
+          h('div', `${t('review.targetType')}: ${detail.targetType || '-'}`),
+          h('div', `${t('review.target')}: ${detail.targetId || '-'}`),
+          h('div', `${t('review.subjectUser')}: ${detail.subjectUserId || '-'}`),
+          h('div', { style: 'display:flex; align-items:center; gap:8px; flex-wrap: wrap;' }, [
+            h('span', `${t('review.riskLevel')}:`),
+            riskLevelTag(detail.riskLevel),
+            ctx?.computedRiskLevel && ctx.computedRiskLevel !== detail.riskLevel
+              ? h(
+                  'span',
+                  { class: 'muted-inline' },
+                  `${t('review.computedRiskLevel')}: ${riskLevelLabel(ctx.computedRiskLevel)}`
+                )
+              : null,
+          ]),
+          ctx
+            ? h('div', { class: 'risk-panel' }, [
+                h('div', { class: 'risk-panel-title' }, t('review.riskContextTitle')),
+                h('div', `${t('review.riskScore')}: ${ctx.riskScore ?? 0}`),
+                h('div', `${t('review.recentRisk24h')}: ${ctx.recentRiskEventCount24h ?? 0}`),
+                h('div', `${t('review.recentHighRisk24h')}: ${ctx.recentHighRiskCount24h ?? 0}`),
+                ctx.riskFactors?.length
+                  ? h('ul', { class: 'risk-factors' }, ctx.riskFactors.map((f) => h('li', f)))
+                  : null,
+                ctx.recentRiskEvents?.length
+                  ? h(
+                      'div',
+                      { class: 'risk-events' },
+                      ctx.recentRiskEvents.map((ev) =>
+                        h('div', { class: 'risk-event-row' }, [
+                          riskLevelTag(ev.riskLevel),
+                          h('span', ev.title || ev.eventType || '-'),
+                        ])
+                      )
+                    )
+                  : h('div', { class: 'muted-inline' }, t('review.noRiskContext')),
+                riskEventsLink,
+              ])
+            : null,
+          h(
+            'div',
+            { style: 'white-space: pre-wrap; margin: 12px 0;' },
+            stripEvidenceText(detail.contentSnapshot)
+          ),
+          urls.length
+            ? h('div', { style: 'margin-bottom: 8px; font-weight: 600;' }, t('review.evidence'))
+            : null,
+          urls.length
+            ? h(
+                'div',
+                { style: 'display: flex; flex-direction: column; gap: 10px;' },
+                urls.map((src) =>
+                  h('a', { href: src, target: '_blank', rel: 'noopener noreferrer' }, [
+                    h('img', {
+                      src,
+                      alt: '',
+                      style:
+                        'max-width: 100%; max-height: 360px; width: auto; height: auto; object-fit: contain; border-radius: var(--lx-radius); border: 1px solid var(--lx-border, #e5e5e5); display: block;',
+                    }),
+                  ])
+                )
               )
-            )
-          : null,
-        row.resolution
-          ? h(
-              'div',
-              { style: 'white-space: pre-wrap; margin-top: 12px;' },
-              `${t('review.resolution')}: ${row.resolution}`
-            )
-          : null,
-      ]),
-    positiveText: t('common.confirm'),
-  })
+            : null,
+          detail.resolution
+            ? h(
+                'div',
+                { style: 'white-space: pre-wrap; margin-top: 12px;' },
+                `${t('review.resolution')}: ${detail.resolution}`
+              )
+            : null,
+        ]),
+      positiveText: t('common.confirm'),
+    })
+  })()
 }
 
 async function submitResolve() {
@@ -642,6 +726,26 @@ onUnmounted(() => {
             style="width: 130px"
             @update:value="search"
           />
+          <NSpace :size="4" align="center">
+            <NTag
+              size="small"
+              :type="query.riskLevel === 'high' ? 'error' : 'default'"
+              :checkable="false"
+              class="quick-tag"
+              @click="applyQuickRiskFilter('high')"
+            >
+              {{ t('review.riskHigh') }}
+            </NTag>
+            <NTag
+              size="small"
+              :type="query.riskLevel === 'critical' ? 'error' : 'default'"
+              :checkable="false"
+              class="quick-tag"
+              @click="applyQuickRiskFilter('critical')"
+            >
+              {{ t('review.riskCritical') }}
+            </NTag>
+          </NSpace>
           <NButton v-if="!presetLocked" secondary @click="applyReportPreset">
             {{ t('review.reportPreset') }}
           </NButton>
@@ -689,6 +793,7 @@ onUnmounted(() => {
         :data="items"
         :loading="loading"
         :row-key="(row: ReviewItem) => row.id"
+        :row-props="rowProps"
         :scroll-x="1320"
         :pagination="{
           page: query.page,
@@ -825,5 +930,41 @@ onUnmounted(() => {
   border-radius: var(--lx-radius);
   border: 1px solid var(--lx-border, #e5e5e5);
   display: block;
+}
+:deep(.row-high-risk td) {
+  background: color-mix(in srgb, var(--n-color-error) 6%, transparent);
+}
+.quick-tag {
+  cursor: pointer;
+}
+.risk-panel {
+  margin: 12px 0;
+  padding: 12px;
+  border-radius: var(--lx-radius);
+  border: 1px solid var(--lx-border, #e5e5e5);
+  background: var(--lx-bg-2, #fafafa);
+}
+.risk-panel-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.risk-factors {
+  margin: 8px 0;
+  padding-left: 18px;
+}
+.risk-events {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0;
+}
+.risk-event-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.muted-inline {
+  color: var(--lx-text-3, #999);
+  font-size: 12px;
 }
 </style>

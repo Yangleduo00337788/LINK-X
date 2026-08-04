@@ -173,7 +173,7 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
   },
   {
     roleCode: 'security_admin',
-    mustMenus: ['risk-event', 'devices', 'blacklist', 'rate-limit', 'abnormal-access'],
+    mustMenus: ['risk-event', 'devices', 'blacklist', 'rate-limit', 'abnormal-access', 'risk-policy'],
     mustNotMenus: ['feedback', 'feedback-center', 'notices', 'settings-center', 'settings', 'versions'],
     allowPerms: [
       'admin:risk-event:handle',
@@ -185,6 +185,8 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
       'admin:rate-limit:unblock',
       'admin:rate-limit:whitelist',
       'admin:abnormal-access:list',
+      'admin:risk-policy:list',
+      'admin:risk-policy:edit',
     ],
     denyPerms: [
       'admin:feedback:reply',
@@ -198,6 +200,7 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
       '/admin/blacklist',
       '/admin/rate-limits',
       '/admin/abnormal-access',
+      '/admin/risk-policies',
     ],
     denyRoutes: ['/admin/feedback', '/admin/notices', '/admin/menus'],
   },
@@ -249,6 +252,7 @@ export const ADMIN_ROUTE_PERMISSIONS: Array<{ path: string; permission?: string;
   { path: '/admin/audit-logs', permission: 'admin:audit:list', name: 'AuditLogs' },
   { path: '/admin/login-logs', permission: 'admin:login-log:list', name: 'LoginLogs' },
   { path: '/admin/risk-events', permission: 'admin:risk-event:list', name: 'RiskEvents' },
+  { path: '/admin/risk-policies', permission: 'admin:risk-policy:list', name: 'RiskPolicies' },
   { path: '/admin/rate-limits', permission: 'admin:rate-limit:list', name: 'RateLimits' },
   { path: '/admin/feedback', permission: 'admin:feedback:list', name: 'FeedbackList' },
   { path: '/admin/feedback/:id', permission: 'admin:feedback:list', name: 'FeedbackDetail' },

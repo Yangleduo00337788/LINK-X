@@ -2,6 +2,24 @@ import { runAsyncExport } from './exportJobs'
 import { get, post } from './request'
 import type { PageQuery, PageResult } from '@/types/api'
 
+export interface ReviewRiskEventBrief {
+  id?: string
+  eventType?: string
+  title?: string
+  riskLevel?: string
+  status?: string
+  createTime?: string
+}
+
+export interface ReviewRiskContext {
+  riskScore?: number
+  computedRiskLevel?: string
+  riskFactors?: string[]
+  recentRiskEventCount24h?: number
+  recentHighRiskCount24h?: number
+  recentRiskEvents?: ReviewRiskEventBrief[]
+}
+
 export interface ReviewItem {
   id: string
   sourceType?: string
@@ -26,6 +44,7 @@ export interface ReviewItem {
   escalated?: boolean
   escalationCount?: number
   escalatedAt?: string
+  riskContext?: ReviewRiskContext
 }
 
 export type ReviewUserAction = 'none' | 'freeze' | 'ban'

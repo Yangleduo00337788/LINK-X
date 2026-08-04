@@ -39,4 +39,7 @@ public class AdminReviewVO {
     private Integer escalationCount;
     @Schema(description = "最近督办时间")
     private Date escalatedAt;
+
+    @Schema(description = "风险上下文（详情接口填充）")
+    private AdminReviewRiskContextVO riskContext;
 }

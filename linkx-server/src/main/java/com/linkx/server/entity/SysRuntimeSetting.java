@@ -88,6 +88,37 @@ public class SysRuntimeSetting implements Serializable {
     /** 同一审核任务重复督办间隔（小时） */
     private Integer reviewEscalationIntervalHours;
 
+    /** 用户消息风暴阈值 */
+    private Integer riskStormUserThreshold;
+    /** 用户消息风暴窗口（秒） */
+    private Integer riskStormUserWindowSeconds;
+    /** 群风暴最低成员数 */
+    private Integer riskStormGroupMinMembers;
+    /** 大群成员数分界 */
+    private Integer riskStormGroupLargeMembers;
+    /** 中群每分钟上限 */
+    private Integer riskStormGroupMidPerMinute;
+    /** 大群每分钟上限 */
+    private Integer riskStormGroupLargePerMinute;
+    /** 中风险分数线 */
+    private Integer riskScoreMediumMin;
+    /** 高风险分数线 */
+    private Integer riskScoreHighMin;
+    /** 危急风险分数线 */
+    private Integer riskScoreCriticalMin;
+    /** 登录接口每分钟限流 */
+    private Integer rateLimitLoginPerMinute;
+    /** 注册接口每分钟限流 */
+    private Integer rateLimitRegisterPerMinute;
+    /** 搜索接口每分钟限流 */
+    private Integer rateLimitSearchPerMinute;
+    /** 列表接口每分钟限流 */
+    private Integer rateLimitListPerMinute;
+    /** 写接口每分钟限流 */
+    private Integer rateLimitWritePerMinute;
+    /** 上传接口每分钟限流 */
+    private Integer rateLimitUploadPerMinute;
+
     /** SMTP 主机（空则沿用 env/yml） */
     private String mailHost;
     private Integer mailPort;

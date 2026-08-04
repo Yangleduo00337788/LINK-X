@@ -9,8 +9,10 @@ import java.lang.annotation.Target;
  * 业务接口限流注解
  * <p>
  * 使用方法：在 Controller 方法上标注
- * {@code @RateLimit(scope = "search", value = 30, window = 60)}
- * 表示该接口每分钟最多 30 次（按用户 + IP 维度计数）
+ * {@code @RateLimit(scope = "friend:search", value = 30, window = 60)}
+ * <p>
+ * 当 {@code window=60} 时，{@code value} 仅作兜底；实际阈值由管理端「风控策略」中的
+ * 搜索/列表/写入/上传每分钟限额覆盖（按 scope 自动归类）。
  */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)

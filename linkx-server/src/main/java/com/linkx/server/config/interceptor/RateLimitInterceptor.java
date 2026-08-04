@@ -5,6 +5,7 @@ import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.RateLimit;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.exception.CustomException;
+import com.linkx.server.service.BizRateLimitPolicyResolver;
 import com.linkx.server.service.RateLimitService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -28,6 +29,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     private final RateLimitService rateLimitService;
     private final JwtUtils jwtUtils;
     private final LinkxProperties linkxProperties;
+    private final BizRateLimitPolicyResolver bizRateLimitPolicyResolver;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
@@ -35,23 +37,17 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             return true;
         }
         RateLimit annotation = hm.getMethodAnnotation(RateLimit.class);
+        BizRateLimitPolicyResolver.ResolvedLimit policy = bizRateLimitPolicyResolver.resolve(annotation);
         String identity;
         String scope;
-        int max;
-        int window;
-        boolean byUser;
+        int max = policy.maxAttempts();
+        int window = policy.windowSeconds();
+        boolean byUser = annotation == null || annotation.byUser();
 
         if (annotation == null) {
-            // 无注解时仍施加全局默认限流，避免无防护接口被刷爆
-            byUser = true;
             scope = "global-default";
-            max = 120;
-            window = 60;
         } else {
-            byUser = annotation.byUser();
             scope = annotation.scope();
-            max = annotation.value();
-            window = annotation.window();
         }
 
         String clientIp = ClientIpResolver.resolve(request, linkxProperties);

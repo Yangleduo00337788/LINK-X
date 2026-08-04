@@ -28,6 +28,7 @@ import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.MessageNotificationService;
 import com.linkx.server.service.MomentsService;
 import com.linkx.server.service.RbacService;
+import com.linkx.server.service.admin.ReviewRiskScoringService;
 import com.linkx.server.service.admin.impl.AdminReviewServiceImpl;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -69,17 +70,21 @@ class AdminReviewServiceTest {
     @Mock GroupAssetMapper groupAssetMapper;
     @Mock FavoriteMapper favoriteMapper;
     @Mock LinkxProperties linkxProperties;
+    @Mock ReviewRiskScoringService reviewRiskScoringService;
 
     private AdminReviewServiceImpl service;
 
     @BeforeEach
     void setUp() {
         lenient().when(linkxProperties.getApp()).thenReturn(new LinkxProperties.App());
+        lenient().when(reviewRiskScoringService.elevateLevel(any(), any())).thenAnswer(inv ->
+                inv.getArgument(0, String.class));
         service = new AdminReviewServiceImpl(
                 reviewTaskMapper, feedbackMapper, sysUserMapper, notificationService, imPushService,
                 adminEventPublisher, mediaUrlService, adminUserService, rbacService, chatService,
                 momentsService, groupAnnouncementService, groupAssetService, favoriteService,
-                groupService, conversationMapper, groupAssetMapper, favoriteMapper, linkxProperties);
+                groupService, conversationMapper, groupAssetMapper, favoriteMapper, linkxProperties,
+                reviewRiskScoringService);
     }
 
     private SysReviewTask pending(Long id) {

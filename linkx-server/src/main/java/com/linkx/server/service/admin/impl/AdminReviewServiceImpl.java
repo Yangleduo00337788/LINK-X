@@ -35,6 +35,7 @@ import com.linkx.server.service.MomentsService;
 import com.linkx.server.service.RbacService;
 import com.linkx.server.service.admin.AdminEventPublisher;
 import com.linkx.server.service.admin.AdminReviewService;
+import com.linkx.server.service.admin.ReviewRiskScoringService;
 import com.linkx.server.service.admin.AdminUserService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.extern.slf4j.Slf4j;
@@ -86,6 +87,7 @@ public class AdminReviewServiceImpl implements AdminReviewService {
     private final GroupAssetMapper groupAssetMapper;
     private final FavoriteMapper favoriteMapper;
     private final LinkxProperties linkxProperties;
+    private final ReviewRiskScoringService reviewRiskScoringService;
 
     public AdminReviewServiceImpl(
             SysReviewTaskMapper reviewTaskMapper,
@@ -106,7 +108,8 @@ public class AdminReviewServiceImpl implements AdminReviewService {
             ImConversationMapper conversationMapper,
             GroupAssetMapper groupAssetMapper,
             FavoriteMapper favoriteMapper,
-            LinkxProperties linkxProperties) {
+            LinkxProperties linkxProperties,
+            ReviewRiskScoringService reviewRiskScoringService) {
         this.reviewTaskMapper = reviewTaskMapper;
         this.feedbackMapper = feedbackMapper;
         this.sysUserMapper = sysUserMapper;
@@ -126,6 +129,7 @@ public class AdminReviewServiceImpl implements AdminReviewService {
         this.groupAssetMapper = groupAssetMapper;
         this.favoriteMapper = favoriteMapper;
         this.linkxProperties = linkxProperties;
+        this.reviewRiskScoringService = reviewRiskScoringService;
     }
 
     @Override
@@ -196,7 +200,10 @@ public class AdminReviewServiceImpl implements AdminReviewService {
 
     @Override
     public AdminReviewVO detail(Long id) {
-        return toVO(requireTask(id));
+        SysReviewTask task = requireTask(id);
+        AdminReviewVO vo = toVO(task);
+        vo.setRiskContext(reviewRiskScoringService.buildContext(task));
+        return vo;
     }
 
     @Override
@@ -770,6 +777,8 @@ public class AdminReviewServiceImpl implements AdminReviewService {
             }
         }
         Date now = new Date();
+        Long subjectUserId = subjectUserIdFromTarget(targetType, targetId);
+        String riskLevel = reviewRiskScoringService.elevateLevel("medium", subjectUserId);
         return SysReviewTask.builder()
                 .sourceType(SysReviewTask.SOURCE_REPORT)
                 .targetType(targetType)
@@ -778,7 +787,7 @@ public class AdminReviewServiceImpl implements AdminReviewService {
                 .reporterUsername(feedback.getUsername())
                 .title(title)
                 .contentSnapshot(content)
-                .riskLevel("medium")
+                .riskLevel(riskLevel)
                 .status(SysReviewTask.STATUS_PENDING)
                 .feedbackId(feedback.getId())
                 .createTime(now)
@@ -830,6 +839,17 @@ public class AdminReviewServiceImpl implements AdminReviewService {
 
     private static int normalizeEscalationCount(Integer count) {
         return count == null || count < 0 ? 0 : count;
+    }
+
+    private static Long subjectUserIdFromTarget(String targetType, String targetId) {
+        if (SysReviewTask.TARGET_USER.equals(targetType) && StringUtils.hasText(targetId)) {
+            try {
+                return Long.parseLong(targetId.trim());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
     }
 
     private Long resolveSubjectUserId(SysReviewTask task) {

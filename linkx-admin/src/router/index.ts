@@ -108,6 +108,12 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: 'route.riskEvents', permission: 'admin:risk-event:list' },
       },
       {
+        path: 'risk-policies',
+        name: 'RiskPolicies',
+        component: () => import('@/views/RiskPolicyView.vue'),
+        meta: { titleKey: 'route.riskPolicies', permission: 'admin:risk-policy:list' },
+      },
+      {
         path: 'rate-limits',
         name: 'RateLimits',
         component: () => import('@/views/RateLimitView.vue'),

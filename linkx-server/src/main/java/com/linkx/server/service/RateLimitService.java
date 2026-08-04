@@ -36,6 +36,11 @@ public interface RateLimitService {
     void checkRegisterRateLimit(HttpServletRequest request);
 
     /**
+     * 登录接口每分钟请求限流（按 IP + 登录侧），与失败锁定策略独立。
+     */
+    void checkLoginRequestRateLimit(HttpServletRequest request, LoginSide side);
+
+    /**
      * 记录登录失败（用于账号锁定）
      * @param username 用户名
      * @param request HTTP请求

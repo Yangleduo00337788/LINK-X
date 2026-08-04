@@ -204,6 +204,8 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         String username = loginDTO.getUsername();
         LoginSide loginSide = side == null ? LoginSide.CLIENT : side;
 
+        rateLimitService.checkLoginRequestRateLimit(request, loginSide);
+
         // 检查账号是否被 Redis 临时锁定
         if (rateLimitService.isAccountLocked(username, loginSide)) {
             linkxMetrics.recordLoginFailure();

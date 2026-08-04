@@ -504,6 +504,7 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         applyRegisterSide(row);
         applyLoginSide(row);
         applyPasswordSide(row);
+        applyRiskPolicySide(row);
         applyMailSide(row);
         applyMailTemplates(row);
         if (row.getMailHost() != null) {
@@ -676,6 +677,56 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         log.info("Applied password policy: min={}, max={}, upperLower={}, digit={}, special={}",
                 auth.getPasswordMinLength(), auth.getPasswordMaxLength(),
                 auth.isPasswordRequireUpperLower(), auth.isPasswordRequireDigit(), auth.isPasswordRequireSpecial());
+    }
+
+    private void applyRiskPolicySide(SysRuntimeSetting row) {
+        LinkxProperties.RiskPolicy policy = linkxProperties.getRiskPolicy();
+        LinkxProperties.Auth auth = linkxProperties.getAuth();
+        if (row.getRiskStormUserThreshold() != null) {
+            policy.setMessageStormUserThreshold(row.getRiskStormUserThreshold());
+        }
+        if (row.getRiskStormUserWindowSeconds() != null) {
+            policy.setMessageStormUserWindowSeconds(row.getRiskStormUserWindowSeconds());
+        }
+        if (row.getRiskStormGroupMinMembers() != null) {
+            policy.setMessageStormGroupMinMembers(row.getRiskStormGroupMinMembers());
+        }
+        if (row.getRiskStormGroupLargeMembers() != null) {
+            policy.setMessageStormGroupLargeMemberThreshold(row.getRiskStormGroupLargeMembers());
+        }
+        if (row.getRiskStormGroupMidPerMinute() != null) {
+            policy.setMessageStormGroupMidMaxPerMinute(row.getRiskStormGroupMidPerMinute());
+        }
+        if (row.getRiskStormGroupLargePerMinute() != null) {
+            policy.setMessageStormGroupLargeMaxPerMinute(row.getRiskStormGroupLargePerMinute());
+        }
+        if (row.getRiskScoreMediumMin() != null) {
+            policy.setScoreMediumMin(row.getRiskScoreMediumMin());
+        }
+        if (row.getRiskScoreHighMin() != null) {
+            policy.setScoreHighMin(row.getRiskScoreHighMin());
+        }
+        if (row.getRiskScoreCriticalMin() != null) {
+            policy.setScoreCriticalMin(row.getRiskScoreCriticalMin());
+        }
+        if (row.getRateLimitLoginPerMinute() != null) {
+            auth.setRateLimitLoginPerMinute(row.getRateLimitLoginPerMinute());
+        }
+        if (row.getRateLimitRegisterPerMinute() != null) {
+            auth.setRateLimitRegisterPerMinute(row.getRateLimitRegisterPerMinute());
+        }
+        if (row.getRateLimitSearchPerMinute() != null) {
+            auth.setRateLimitSearchPerMinute(row.getRateLimitSearchPerMinute());
+        }
+        if (row.getRateLimitListPerMinute() != null) {
+            auth.setRateLimitListPerMinute(row.getRateLimitListPerMinute());
+        }
+        if (row.getRateLimitWritePerMinute() != null) {
+            auth.setRateLimitWritePerMinute(row.getRateLimitWritePerMinute());
+        }
+        if (row.getRateLimitUploadPerMinute() != null) {
+            auth.setRateLimitUploadPerMinute(row.getRateLimitUploadPerMinute());
+        }
     }
 
     private static String nullToEmpty(String s) {

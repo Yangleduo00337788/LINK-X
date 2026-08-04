@@ -7,6 +7,7 @@ import com.linkx.server.mapper.ImMessageStormEventMapper;
 import com.linkx.server.service.AuditLogService;
 import com.linkx.server.service.MessageStormService;
 import com.linkx.server.service.admin.AdminRiskEventService;
+import com.linkx.server.config.LinkxProperties;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,8 +24,6 @@ import java.util.List;
 public class MessageStormServiceImpl implements MessageStormService {
 
     private static final String USER_STORM_PREFIX = "linkx:msg:storm:";
-    private static final int USER_STORM_THRESHOLD = 30;
-    private static final int USER_STORM_WINDOW_SECONDS = 10;
 
     private static final String GROUP_STORM_PREFIX = "linkx:storm:";
 
@@ -44,6 +43,15 @@ public class MessageStormServiceImpl implements MessageStormService {
     private final ImMessageStormEventMapper stormEventMapper;
     private final AuditLogService auditLogService;
     private final AdminRiskEventService adminRiskEventService;
+    private final LinkxProperties linkxProperties;
+
+    private int userStormThreshold() {
+        return linkxProperties.getRiskPolicy().getMessageStormUserThreshold();
+    }
+
+    private int userStormWindowSeconds() {
+        return linkxProperties.getRiskPolicy().getMessageStormUserWindowSeconds();
+    }
 
     @Override
     public boolean checkAndRecordUserStorm(Long userId) {
@@ -59,13 +67,14 @@ public class MessageStormServiceImpl implements MessageStormService {
                         Long.class
                 ),
                 List.of(key),
-                String.valueOf(USER_STORM_WINDOW_SECONDS)
+                String.valueOf(userStormWindowSeconds())
         );
-        if (count != null && count > USER_STORM_THRESHOLD) {
+        int threshold = userStormThreshold();
+        if (count != null && count > threshold) {
             // 同一窗口内只落库一次，避免刷爆
-            if (count == USER_STORM_THRESHOLD + 1L) {
+            if (count == threshold + 1L) {
                 persist(userId, null, ImMessageStormEvent.TYPE_USER_RATE,
-                        count.intValue(), USER_STORM_WINDOW_SECONDS, null);
+                        count.intValue(), userStormWindowSeconds(), null);
             }
             log.warn("消息风暴检测: userId={}, count={}", userId, count);
             return true;
@@ -75,10 +84,13 @@ public class MessageStormServiceImpl implements MessageStormService {
 
     @Override
     public void checkAndRecordGroupStorm(Long userId, Long conversationId, int memberCount) {
-        if (memberCount < 500) {
+        LinkxProperties.RiskPolicy policy = linkxProperties.getRiskPolicy();
+        if (memberCount < policy.getMessageStormGroupMinMembers()) {
             return;
         }
-        int maxPerMinute = memberCount >= 1000 ? 5 : 10;
+        int maxPerMinute = memberCount >= policy.getMessageStormGroupLargeMemberThreshold()
+                ? policy.getMessageStormGroupLargeMaxPerMinute()
+                : policy.getMessageStormGroupMidMaxPerMinute();
         String userStormKey = GROUP_STORM_PREFIX + conversationId + ":user:" + userId;
         Long count = redisTemplate.execute(
                 new org.springframework.data.redis.core.script.DefaultRedisScript<>(

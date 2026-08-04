@@ -24,6 +24,7 @@ public class LinkxProperties {
     private final App app = new App();
     private final Retention retention = new Retention();
     private final IpGeo ipGeo = new IpGeo();
+    private final RiskPolicy riskPolicy = new RiskPolicy();
 
     @Data
     public static class Im {
@@ -326,5 +327,62 @@ public class LinkxProperties {
     public static class IpGeo {
         /** 外部 xdb 绝对/相对路径（可空） */
         private String xdbPath = "";
+    }
+
+    /**
+     * 风控策略阈值（消息风暴、风险评分、业务限流）。
+     * 管理端可在运行时通过 {@code sys_runtime_setting} 覆盖。
+     */
+    @Data
+    public static class RiskPolicy {
+        private int messageStormUserThreshold = 30;
+        private int messageStormUserWindowSeconds = 10;
+        private int messageStormGroupMinMembers = 500;
+        private int messageStormGroupLargeMemberThreshold = 1000;
+        private int messageStormGroupMidMaxPerMinute = 10;
+        private int messageStormGroupLargeMaxPerMinute = 5;
+        private int scoreMediumMin = 40;
+        private int scoreHighMin = 65;
+        private int scoreCriticalMin = 85;
+
+        public void setMessageStormUserThreshold(int messageStormUserThreshold) {
+            this.messageStormUserThreshold = Math.max(1, messageStormUserThreshold);
+        }
+
+        public void setMessageStormUserWindowSeconds(int messageStormUserWindowSeconds) {
+            this.messageStormUserWindowSeconds = Math.max(1, messageStormUserWindowSeconds);
+        }
+
+        public void setMessageStormGroupMinMembers(int messageStormGroupMinMembers) {
+            this.messageStormGroupMinMembers = Math.max(1, messageStormGroupMinMembers);
+        }
+
+        public void setMessageStormGroupLargeMemberThreshold(int messageStormGroupLargeMemberThreshold) {
+            this.messageStormGroupLargeMemberThreshold = Math.max(1, messageStormGroupLargeMemberThreshold);
+        }
+
+        public void setMessageStormGroupMidMaxPerMinute(int messageStormGroupMidMaxPerMinute) {
+            this.messageStormGroupMidMaxPerMinute = Math.max(1, messageStormGroupMidMaxPerMinute);
+        }
+
+        public void setMessageStormGroupLargeMaxPerMinute(int messageStormGroupLargeMaxPerMinute) {
+            this.messageStormGroupLargeMaxPerMinute = Math.max(1, messageStormGroupLargeMaxPerMinute);
+        }
+
+        public void setScoreMediumMin(int scoreMediumMin) {
+            this.scoreMediumMin = clampScore(scoreMediumMin);
+        }
+
+        public void setScoreHighMin(int scoreHighMin) {
+            this.scoreHighMin = clampScore(scoreHighMin);
+        }
+
+        public void setScoreCriticalMin(int scoreCriticalMin) {
+            this.scoreCriticalMin = clampScore(scoreCriticalMin);
+        }
+
+        private static int clampScore(int value) {
+            return Math.max(0, Math.min(100, value));
+        }
     }
 }

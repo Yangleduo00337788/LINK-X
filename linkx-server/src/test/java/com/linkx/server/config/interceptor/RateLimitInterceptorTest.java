@@ -3,6 +3,7 @@ package com.linkx.server.config.interceptor;
 import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.config.LinkxProperties;
+import com.linkx.server.service.BizRateLimitPolicyResolver;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.service.RateLimitService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -35,6 +36,9 @@ class RateLimitInterceptorTest {
     private LinkxProperties linkxProperties;
 
     @Mock
+    private BizRateLimitPolicyResolver bizRateLimitPolicyResolver;
+
+    @Mock
     private HttpServletRequest request;
 
     @Mock
@@ -44,7 +48,8 @@ class RateLimitInterceptorTest {
 
     @BeforeEach
     void setUp() {
-        interceptor = new RateLimitInterceptor(rateLimitService, jwtUtils, linkxProperties);
+        interceptor = new RateLimitInterceptor(
+                rateLimitService, jwtUtils, linkxProperties, bizRateLimitPolicyResolver);
     }
 
     @Nested
