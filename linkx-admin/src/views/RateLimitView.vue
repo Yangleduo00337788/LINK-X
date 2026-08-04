@@ -158,30 +158,31 @@ onMounted(() => {
 
 <template>
   <div class="page">
-    <div class="toolbar">
-      <NSpace>
-        <NInput
-          v-model:value="query.ip"
-          clearable
-          :placeholder="t('rateLimit.ipFilter')"
-          style="width: 220px"
-          @keyup.enter="loadHits"
-        />
-        <NButton type="primary" :loading="loading" @click="loadHits">
-          {{ t('common.search') }}
-        </NButton>
-        <NButton @click="goHistory">{{ t('rateLimit.historyEvents') }}</NButton>
+    <div class="page-shell">
+      <NSpace class="page-toolbar" justify="space-between">
+        <NSpace>
+          <NInput
+            v-model:value="query.ip"
+            clearable
+            :placeholder="t('rateLimit.ipFilter')"
+            style="width: 220px"
+            @keyup.enter="loadHits"
+          />
+          <NButton type="primary" :loading="loading" @click="loadHits">
+            {{ t('common.search') }}
+          </NButton>
+          <NButton @click="goHistory">{{ t('rateLimit.historyEvents') }}</NButton>
+        </NSpace>
       </NSpace>
+      <NDataTable
+        :columns="hitColumns"
+        :data="hits"
+        :loading="loading"
+        :bordered="false"
+        size="small"
+        :scroll-x="900"
+      />
     </div>
-
-    <NDataTable
-      :columns="hitColumns"
-      :data="hits"
-      :loading="loading"
-      :bordered="false"
-      size="small"
-      :scroll-x="900"
-    />
 
     <div class="whitelist">
       <h3>{{ t('rateLimit.whitelist') }}</h3>
@@ -215,22 +216,6 @@ onMounted(() => {
 .page {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-}
-.toolbar {
-  display: flex;
-  justify-content: space-between;
-}
-.whitelist {
-  padding-top: 8px;
-  border-top: 1px solid var(--lx-border, rgba(127, 127, 127, 0.2));
-}
-.whitelist h3 {
-  margin: 0 0 12px;
-  font-size: 15px;
-}
-.muted {
-  color: var(--lx-text-3, #999);
-  font-size: 13px;
+  gap: 12px;
 }
 </style>

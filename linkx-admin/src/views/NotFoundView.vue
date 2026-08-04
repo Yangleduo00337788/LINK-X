@@ -2,13 +2,14 @@
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { NButton, NResult } from 'naive-ui'
+import AuthPageShell from '@/components/AuthPageShell.vue'
 
 const router = useRouter()
 const { t } = useI18n()
 </script>
 
 <template>
-  <div class="center">
+  <AuthPageShell mode="centered">
     <NResult status="404" :title="t('error.notFoundTitle')" :description="t('error.notFoundDesc')">
       <template #footer>
         <NButton type="primary" @click="router.push('/admin/dashboard')">
@@ -16,14 +17,5 @@ const { t } = useI18n()
         </NButton>
       </template>
     </NResult>
-  </div>
+  </AuthPageShell>
 </template>
-
-<style scoped>
-.center {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-}
-</style>

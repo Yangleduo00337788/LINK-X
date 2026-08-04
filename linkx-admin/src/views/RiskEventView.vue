@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AdminFormShell from '@/components/AdminFormShell.vue'
 import { computed, h, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
@@ -25,6 +26,7 @@ import {
 } from '@/api/riskEvents'
 import { displayOrNone, formatIp, formatTime } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
+import { notifyPendingTask } from '@/utils/adminNotify'
 import SearchAutoComplete from '@/components/SearchAutoComplete.vue'
 
 const message = useMessage()
@@ -311,6 +313,7 @@ async function load(opts?: { silent?: boolean; announceNew?: boolean }) {
       const fresh = next.filter((row) => !knownIds.value.has(String(row.id)))
       if (fresh.length > 0 && query.page === 1 && query.status === 'pending') {
         message.info(t('risk.newArrived', { n: fresh.length }))
+        notifyPendingTask(t, locale.value)
       }
     }
     items.value = next
@@ -477,12 +480,12 @@ onUnmounted(() => {
       />
     </div>
 
-    <NModal
+    <AdminFormShell
       v-model:show="showHandle"
-      preset="card"
+      
       :title="handleAction === 'handled' ? t('risk.handleTitle') : t('risk.ignoreTitle')"
-      style="width: 520px"
-    >
+      
+     :width="520">
       <p class="quote">{{ handleTarget?.detail || '-' }}</p>
       <p v-if="handleTarget?.username || handleTarget?.userId" class="user-line">
         {{ t('risk.user') }}: {{ handleTarget?.username || handleTarget?.userId }}
@@ -520,7 +523,7 @@ onUnmounted(() => {
           </NButton>
         </NSpace>
       </template>
-    </NModal>
+    </AdminFormShell>
   </div>
 </template>
 

@@ -9,6 +9,7 @@ import com.linkx.server.mapper.FeedbackMapper;
 import com.linkx.server.service.FeedbackReplyService;
 import com.linkx.server.service.FeedbackService;
 import com.linkx.server.service.MessageNotificationService;
+import com.linkx.server.service.admin.AdminEventPublisher;
 import com.linkx.server.service.admin.AdminReviewService;
 import com.linkx.server.service.admin.FeedbackDispatchService;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -16,6 +17,8 @@ import com.mybatisflex.spring.service.impl.ServiceImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.Date;
 import java.util.HashMap;
@@ -34,6 +37,7 @@ public class FeedbackServiceImpl extends ServiceImpl<FeedbackMapper, Feedback> i
     private final AdminReviewService adminReviewService;
     private final FeedbackDispatchService feedbackDispatchService;
     private final FeedbackReplyService feedbackReplyService;
+    private final AdminEventPublisher adminEventPublisher;
 
     @Override
     @Transactional
@@ -52,7 +56,9 @@ public class FeedbackServiceImpl extends ServiceImpl<FeedbackMapper, Feedback> i
         feedbackDispatchService.applyAutoDispatch(feedback);
         adminReviewService.createFromReportFeedback(feedback);
 
-        boolean isReport = content != null && content.trim().startsWith("[举报");
+        boolean isReport = isReportContent(content);
+        publishAdminFeedbackCreated(feedback, isReport);
+
         String notifyContent = isReport
                 ? "\u3010\u4E3E\u62A5\u5DF2\u63D0\u4EA4\u3011\n"
                     + "\u7C7B\u578B\uFF1A\u7528\u6237\u4E3E\u62A5\n"
@@ -149,5 +155,40 @@ public class FeedbackServiceImpl extends ServiceImpl<FeedbackMapper, Feedback> i
         if (text == null) return "";
         String t = text.trim().replaceAll("\\s+", " ");
         return t.length() <= max ? t : t.substring(0, max) + "\u2026";
+    }
+
+    private static boolean isReportContent(String content) {
+        return content != null && content.trim().startsWith("[举报");
+    }
+
+    /** 普通反馈通知管理端；举报类由 review_created 事件覆盖，避免重复提醒。 */
+    private void publishAdminFeedbackCreated(Feedback feedback, boolean isReport) {
+        if (isReport || feedback == null || feedback.getId() == null) {
+            return;
+        }
+        Long feedbackId = feedback.getId();
+        String extraJson = String.format(
+                "{\"feedbackType\":\"%s\",\"username\":\"%s\",\"content\":\"%s\"}",
+                escapeJson(feedback.getType() == null ? "" : feedback.getType()),
+                escapeJson(feedback.getUsername() == null ? "" : feedback.getUsername()),
+                escapeJson(abbreviate(feedback.getContent(), 200)));
+        Runnable publish = () -> adminEventPublisher.publish("feedback_created", feedbackId, extraJson);
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    publish.run();
+                }
+            });
+        } else {
+            publish.run();
+        }
+    }
+
+    private static String escapeJson(String s) {
+        if (s == null) {
+            return "";
+        }
+        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "");
     }
 }

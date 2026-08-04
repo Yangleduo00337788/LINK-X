@@ -122,7 +122,7 @@ export const useAuthStore = defineStore(
   {
     persist: {
       key: 'linkx-admin-auth',
-      paths: ['user', 'menus', 'permissions'],
+      paths: ['user', 'permissions'],
     },
   }
 )

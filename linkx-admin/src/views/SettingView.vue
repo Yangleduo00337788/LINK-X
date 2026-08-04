@@ -7,6 +7,7 @@ import {
   NDivider,
   NForm,
   NFormItem,
+  NIcon,
   NInput,
   NInputNumber,
   NModal,
@@ -20,6 +21,7 @@ import {
   useDialog,
   useMessage,
 } from 'naive-ui'
+import { PlayCircleOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import {
   fetchSettings,
@@ -33,15 +35,16 @@ import {
 } from '@/api/settings'
 import { useAuthStore } from '@/stores/auth'
 import { usePreferencesStore } from '@/stores/preferences'
+import { ensureVoices, listVoicesForLang, previewSpeech, unlockSpeech } from '@/utils/voiceNotify'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const message = useMessage()
 const dialog = useDialog()
 const auth = useAuthStore()
 const prefs = usePreferencesStore()
-const { watermarkEnabled, watermarkFullscreen, watermarkLines, watermarkOpacity } =
+const { watermarkEnabled, watermarkFullscreen, watermarkLines, watermarkOpacity, voiceNotifyEnabled, speechVoiceUri } =
   storeToRefs(prefs)
 
 const loading = ref(false)
@@ -53,7 +56,7 @@ const savingMail = ref(false)
 const testingEmail = ref(false)
 const showTestEmailModal = ref(false)
 const testEmail = ref('')
-const tabNames = new Set(['register', 'login', 'password', 'client', 'mail', 'watermark'])
+const tabNames = new Set(['register', 'login', 'password', 'client', 'mail', 'watermark', 'sound'])
 const activeTab = ref(
   tabNames.has(String(route.query.tab || '')) ? String(route.query.tab) : 'register'
 )
@@ -79,6 +82,61 @@ watch(
 )
 
 const canEdit = computed(() => auth.hasPermission('admin:setting:edit'))
+
+const speechVoices = ref<SpeechSynthesisVoice[]>([])
+
+const voiceOptions = computed(() => {
+  const items = listVoicesForLang(locale.value, speechVoices.value).map((voice) => ({
+    uri: voice.voiceURI,
+    name: voice.name,
+    lang: voice.lang,
+    local: voice.localService,
+  }))
+  return items
+})
+
+async function refreshSpeechVoices() {
+  speechVoices.value = await ensureVoices()
+}
+
+watch(
+  activeTab,
+  (tab) => {
+    if (tab === 'sound') void refreshSpeechVoices()
+  },
+  { immediate: true }
+)
+
+watch(locale, () => {
+  if (activeTab.value === 'sound') void refreshSpeechVoices()
+})
+
+function onVoiceToggle(next: boolean) {
+  unlockSpeech(locale.value)
+  prefs.setVoiceNotifyEnabled(next)
+  if (next) {
+    void previewSpeech(t('voiceNotify.pendingTask'), locale.value).then((ok) => {
+      if (!ok) message.warning(t('setting.voiceUnsupported'))
+    })
+  }
+}
+
+async function previewVoice() {
+  const ok = await previewSpeech(t('voiceNotify.pendingTask'), locale.value)
+  if (!ok) message.warning(t('setting.voiceUnsupported'))
+}
+
+function pickSpeechVoice(uri: string) {
+  unlockSpeech(locale.value)
+  prefs.setSpeechVoiceUri(uri)
+  void previewSpeech(t('voiceNotify.pendingTask'), locale.value).then((ok) => {
+    if (!ok) message.warning(t('setting.voiceUnsupported'))
+  })
+}
+
+function isVoiceSelected(uri: string) {
+  return (speechVoiceUri.value || '') === uri
+}
 
 const registerForm = reactive({
   registerEnabled: true,
@@ -1021,6 +1079,81 @@ onMounted(load)
               </NFormItem>
             </NForm>
           </NTabPane>
+
+          <NTabPane name="sound" :tab="t('setting.soundTitle')">
+            <p class="section-hint">{{ t('setting.soundHint') }}</p>
+            <NForm label-placement="left" label-width="120">
+              <NFormItem :label="t('setting.voiceNotifyEnabled')">
+                <div class="switch-with-action">
+                  <NSwitch :value="voiceNotifyEnabled" @update:value="onVoiceToggle" />
+                  <NButton
+                    size="small"
+                    quaternary
+                    class="test-btn"
+                    :disabled="!voiceNotifyEnabled"
+                    @click="previewVoice"
+                  >
+                    {{ t('setting.voicePreview') }}
+                  </NButton>
+                </div>
+              </NFormItem>
+              <NFormItem :label="t('setting.speechVoice')">
+                <div class="tone-grid">
+                  <div
+                    class="tone-card"
+                    :class="{ 'tone-card--active': !speechVoiceUri }"
+                  >
+                    <button type="button" class="tone-card__select" @click="pickSpeechVoice('')">
+                      <span class="tone-card__label">{{ t('setting.voiceAuto') }}</span>
+                      <span class="tone-card__desc">{{ t('setting.voiceAutoDesc') }}</span>
+                    </button>
+                    <NButton
+                      size="small"
+                      quaternary
+                      class="tone-card__play"
+                      @click="pickSpeechVoice('')"
+                    >
+                      <template #icon>
+                        <NIcon :component="PlayCircleOutline" />
+                      </template>
+                      {{ t('setting.voicePreview') }}
+                    </NButton>
+                  </div>
+                  <div
+                    v-for="voice in voiceOptions"
+                    :key="voice.uri"
+                    class="tone-card"
+                    :class="{ 'tone-card--active': isVoiceSelected(voice.uri) }"
+                  >
+                    <button
+                      type="button"
+                      class="tone-card__select"
+                      @click="pickSpeechVoice(voice.uri)"
+                    >
+                      <span class="tone-card__label">{{ voice.name }}</span>
+                      <span class="tone-card__desc">
+                        {{ voice.lang }}{{ voice.local ? ` · ${t('setting.voiceLocal')}` : '' }}
+                      </span>
+                    </button>
+                    <NButton
+                      size="small"
+                      quaternary
+                      class="tone-card__play"
+                      @click="pickSpeechVoice(voice.uri)"
+                    >
+                      <template #icon>
+                        <NIcon :component="PlayCircleOutline" />
+                      </template>
+                      {{ t('setting.voicePreview') }}
+                    </NButton>
+                  </div>
+                </div>
+                <p v-if="!voiceOptions.length" class="section-hint voice-empty">
+                  {{ t('setting.voiceEmpty') }}
+                </p>
+              </NFormItem>
+            </NForm>
+          </NTabPane>
         </NTabs>
       </NSpin>
     </div>
@@ -1053,9 +1186,9 @@ onMounted(load)
 }
 .block-title {
   margin: 0 0 12px;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
-  color: var(--lx-text-1);
+  color: var(--lx-text);
 }
 .opacity-row,
 .upload-row,
@@ -1094,5 +1227,56 @@ onMounted(load)
   margin: 0;
   color: var(--lx-text-3);
   font-size: 13px;
+}
+.tone-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  width: 100%;
+  max-width: 720px;
+}
+.tone-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--n-border-color);
+  border-radius: var(--lx-radius, 8px);
+  background: var(--n-color-embedded);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.tone-card--active {
+  border-color: var(--n-primary-color);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--n-primary-color) 35%, transparent);
+}
+.tone-card__select {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  padding: 0;
+}
+.tone-card__label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.tone-card__desc {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--lx-text-3);
+  line-height: 1.4;
+}
+.tone-card__play {
+  flex-shrink: 0;
+}
+.voice-empty {
+  margin: 8px 0 0;
 }
 </style>

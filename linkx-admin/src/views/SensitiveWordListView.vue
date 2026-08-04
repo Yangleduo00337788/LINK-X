@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AdminFormShell from '@/components/AdminFormShell.vue'
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
@@ -296,12 +297,12 @@ onMounted(load)
       />
     </div>
 
-    <NModal
+    <AdminFormShell
       v-model:show="showForm"
-      preset="card"
+      
       :title="editing ? t('sensitive.editTitle') : t('sensitive.createTitle')"
-      style="width: 480px"
-    >
+      
+     :width="480">
       <NForm ref="formRef" :model="form" :rules="rules" label-placement="left" label-width="90">
         <NFormItem :label="t('sensitive.word')" path="word">
           <NInput v-model:value="form.word" :placeholder="t('sensitive.wordPlaceholder')" />
@@ -331,6 +332,6 @@ onMounted(load)
           }}</NButton>
         </NSpace>
       </template>
-    </NModal>
+    </AdminFormShell>
   </div>
 </template>

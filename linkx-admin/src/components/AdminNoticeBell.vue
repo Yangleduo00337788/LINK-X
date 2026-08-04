@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AdminFormShell from '@/components/AdminFormShell.vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NBadge, NButton, NEmpty, NIcon, NModal, NPopover, NSpin, NTooltip } from 'naive-ui'
@@ -133,7 +134,7 @@ onUnmounted(() => {
       <NTooltip>
         <template #trigger>
           <NBadge :value="unreadCount" :max="99" :show-zero="false">
-            <NButton quaternary class="lx-float-btn notice-bell-btn" aria-label="notices">
+            <NButton quaternary circle class="lx-float-btn header-action-btn" aria-label="notices">
               <template #icon>
                 <NIcon :component="NotificationsOutline" :size="18" />
               </template>
@@ -176,11 +177,10 @@ onUnmounted(() => {
     </div>
   </NPopover>
 
-  <NModal
+  <AdminFormShell
     v-model:show="showDetail"
-    preset="card"
     :title="t('notice.inboxDetailTitle')"
-    style="width: 520px; max-width: 92vw"
+    :width="520"
   >
     <template v-if="detailItem">
       <div class="notice-detail">
@@ -198,13 +198,10 @@ onUnmounted(() => {
         </div>
       </div>
     </template>
-  </NModal>
+  </AdminFormShell>
 </template>
 
 <style scoped>
-.notice-bell-btn {
-  padding: 0 8px;
-}
 .notice-panel {
   margin: -4px -8px;
 }
@@ -301,7 +298,7 @@ onUnmounted(() => {
   margin: 0;
   padding: 12px;
   background: var(--n-color-embedded);
-  border-radius: 6px;
+  border-radius: var(--lx-radius);
   white-space: pre-wrap;
   word-break: break-word;
   font-family: inherit;

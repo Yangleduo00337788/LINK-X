@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AdminFormShell from '@/components/AdminFormShell.vue'
 import { computed, h, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
@@ -432,12 +433,12 @@ onUnmounted(() => {
       />
     </div>
 
-    <NModal
+    <AdminFormShell
       v-model:show="showForm"
-      preset="card"
+      
       :title="editing ? t('notice.editTitle') : t('notice.createTitle')"
-      style="width: 560px"
-    >
+      
+     :width="560">
       <NForm ref="formRef" :model="form" :rules="rules" label-placement="left" label-width="80">
         <NFormItem :label="t('notice.targetSide')" path="targetSide">
           <NRadioGroup
@@ -479,14 +480,14 @@ onUnmounted(() => {
           }}</NButton>
         </NSpace>
       </template>
-    </NModal>
+    </AdminFormShell>
 
-    <NModal
+    <AdminFormShell
       v-model:show="showDetail"
-      preset="card"
+      
       :title="t('notice.detailTitle')"
-      style="width: 560px"
-    >
+      
+     :width="560">
       <template v-if="detailItem">
         <div class="notice-detail">
           <div class="notice-detail__row">
@@ -515,7 +516,7 @@ onUnmounted(() => {
           </div>
         </div>
       </template>
-    </NModal>
+    </AdminFormShell>
   </div>
 </template>
 

@@ -570,12 +570,8 @@ onMounted(() => {
 
 <template>
   <div class="page stats-page">
-    <div class="stats-toolbar">
-      <div>
-        <div class="stats-title">{{ t('statistics.title') }}</div>
-        <div class="stats-sub">{{ t('statistics.subtitle') }}</div>
-      </div>
-      <div class="stats-actions">
+    <div class="page-shell">
+      <NSpace class="page-toolbar stats-actions-bar" justify="end">
         <NSelect
           v-model:value="days"
           :options="daysOptions"
@@ -591,8 +587,7 @@ onMounted(() => {
         >
           {{ t('common.export') }}
         </NButton>
-      </div>
-    </div>
+      </NSpace>
 
     <NSpin :show="loading">
       <NTabs
@@ -957,6 +952,7 @@ onMounted(() => {
         </NTabPane>
       </NTabs>
     </NSpin>
+    </div>
   </div>
 </template>
 
@@ -965,30 +961,8 @@ onMounted(() => {
   gap: 12px;
 }
 
-.stats-toolbar {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 2px 2px 4px;
-}
-
-.stats-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.stats-title {
-  font-size: 18px;
-  font-weight: 650;
-  letter-spacing: 0.01em;
-}
-
-.stats-sub {
-  margin-top: 4px;
-  font-size: 12px;
-  color: var(--lx-text-3);
+.stats-actions-bar {
+  margin-bottom: 12px;
 }
 
 .stats-tabs :deep(.n-tabs-nav) {
@@ -1005,8 +979,8 @@ onMounted(() => {
 .kpi-card {
   background: var(--lx-card);
   border: 1px solid var(--lx-border);
-  border-radius: 12px;
-  padding: 14px 14px 8px;
+  border-radius: var(--lx-radius);
+  padding: 16px 20px 10px;
   box-shadow: var(--lx-card-shadow);
   display: flex;
   flex-direction: column;
@@ -1026,10 +1000,11 @@ onMounted(() => {
 
 .kpi-value {
   font-size: 24px;
-  font-weight: 650;
-  letter-spacing: 0.01em;
+  font-weight: 600;
+  letter-spacing: 0;
   line-height: 1.15;
   font-variant-numeric: tabular-nums;
+  color: var(--lx-oa-blue);
 }
 
 .kpi-spark {
@@ -1054,20 +1029,41 @@ onMounted(() => {
 .chart-panel {
   background: var(--lx-card);
   border: 1px solid var(--lx-border);
-  border-radius: 12px;
-  padding: 14px 14px 10px;
+  border-radius: var(--lx-radius);
+  padding: 0;
   box-shadow: var(--lx-card-shadow);
   min-width: 0;
+  overflow: hidden;
 }
 
 .panel-head {
-  margin-bottom: 4px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--lx-border);
+  background: var(--lx-panel-head-bg);
+  margin-bottom: 0;
+}
+
+.chart-panel .chart-box,
+.chart-panel .n-data-table {
+  padding: 14px 20px 16px;
 }
 
 .panel-title {
-  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--lx-text);
+}
+
+.panel-title::before {
+  content: '';
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--lx-oa-blue);
+  flex-shrink: 0;
 }
 
 .panel-desc {

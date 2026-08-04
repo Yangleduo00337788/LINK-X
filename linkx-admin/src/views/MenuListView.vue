@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AdminFormShell from '@/components/AdminFormShell.vue'
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
@@ -369,12 +370,12 @@ onMounted(load)
       </NSpin>
     </div>
 
-    <NModal
+    <AdminFormShell
       v-model:show="showForm"
-      preset="card"
+      
       :title="editing ? t('menu.edit') : t('menu.create')"
-      style="width: 560px"
-    >
+      
+     :width="560">
       <NForm ref="formRef" :model="form" label-placement="left" label-width="96">
         <NFormItem :label="t('menu.parent')" path="parentId">
           <NSelect v-model:value="form.parentId" :options="parentOptions" filterable />
@@ -432,7 +433,7 @@ onMounted(load)
           <NButton type="primary" :loading="saving" @click="save">{{ t('common.save') }}</NButton>
         </NSpace>
       </template>
-    </NModal>
+    </AdminFormShell>
   </div>
 </template>
 

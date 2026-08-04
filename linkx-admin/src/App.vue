@@ -14,16 +14,16 @@ import {
 } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import { usePreferencesStore } from '@/stores/preferences'
-import { darkThemeOverrides, lightThemeOverrides } from '@/theme/overrides'
+import { buildThemeOverrides } from '@/theme/buildOverrides'
 import StepUpModal from '@/components/StepUpModal.vue'
 
 const prefs = usePreferencesStore()
 useI18n()
-const { theme, locale } = storeToRefs(prefs)
+const { theme, locale, primaryColor, roundedCorners } = storeToRefs(prefs)
 
 const naiveTheme = computed(() => (theme.value === 'dark' ? darkTheme : null))
 const themeOverrides = computed(() =>
-  theme.value === 'dark' ? darkThemeOverrides : lightThemeOverrides
+  buildThemeOverrides(theme.value, primaryColor.value, roundedCorners.value)
 )
 const naiveLocale = computed(() => (locale.value === 'zh-CN' ? zhCN : enUS))
 const naiveDateLocale = computed(() => (locale.value === 'zh-CN' ? dateZhCN : dateEnUS))

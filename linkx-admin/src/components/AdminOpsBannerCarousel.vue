@@ -15,7 +15,7 @@ const props = withDefaults(
   }>(),
   {
     height: 168,
-    radius: 12,
+    radius: 10,
     showArrow: true,
   }
 )

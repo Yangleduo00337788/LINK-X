@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AdminFormShell from '@/components/AdminFormShell.vue'
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
@@ -290,12 +291,12 @@ onMounted(async () => {
       />
     </div>
 
-    <NModal
+    <AdminFormShell
       v-model:show="showForm"
-      preset="card"
+      
       :title="editing ? t('feedbackDispatch.editTitle') : t('feedbackDispatch.createTitle')"
-      style="width: 520px"
-    >
+      
+     :width="520">
       <NForm ref="formRef" :model="form" :rules="rules" label-placement="left" label-width="100">
         <NFormItem :label="t('feedbackDispatch.name')" path="name">
           <NInput v-model:value="form.name" />
@@ -324,6 +325,6 @@ onMounted(async () => {
           }}</NButton>
         </NSpace>
       </template>
-    </NModal>
+    </AdminFormShell>
   </div>
 </template>

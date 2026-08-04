@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, h, onMounted, reactive, ref } from 'vue'
+import AdminFormShell from '@/components/AdminFormShell.vue'
+import { computed, h, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -29,6 +30,8 @@ import {
 import { listUsers } from '@/api/users'
 import { formatTime } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
+import { notifyPendingTask } from '@/utils/adminNotify'
+import { onAdminRealtimeEvent } from '@/api/realtime'
 import SearchAutoComplete from '@/components/SearchAutoComplete.vue'
 
 const message = useMessage()
@@ -75,6 +78,10 @@ const showReply = ref(false)
 const replyTarget = ref<FeedbackItem | null>(null)
 const replyContent = ref('')
 const replySaving = ref(false)
+const knownIds = ref<Set<string>>(new Set())
+const pollTimer = ref<ReturnType<typeof setInterval> | null>(null)
+let offRealtime: (() => void) | null = null
+const POLL_MS = 12000
 
 function statusTag(row: FeedbackItem) {
   const status = row.status
@@ -235,8 +242,8 @@ async function submitReply() {
   }
 }
 
-async function load() {
-  loading.value = true
+async function load(opts?: { silent?: boolean; announceNew?: boolean }) {
+  if (!opts?.silent) loading.value = true
   try {
     const data = await listFeedback({
       page: query.page,
@@ -250,10 +257,21 @@ async function load() {
       startTime: query.range?.[0],
       endTime: query.range?.[1],
     })
-    items.value = data.items || []
+    const next = data.items || []
+    const pendingFilter =
+      query.overdueOnly || !query.status || query.status === 'pending'
+    if (opts?.announceNew && knownIds.value.size > 0 && pendingFilter) {
+      const fresh = next.filter((row) => !knownIds.value.has(String(row.id)))
+      if (fresh.length > 0 && query.page === 1) {
+        message.info(t('feedback.createdRealtime'))
+        notifyPendingTask(t, locale.value)
+      }
+    }
+    items.value = next
     total.value = data.total || 0
+    knownIds.value = new Set(next.map((row) => String(row.id)))
   } finally {
-    loading.value = false
+    if (!opts?.silent) loading.value = false
   }
 }
 
@@ -281,6 +299,12 @@ async function doExport() {
   }
 }
 
+function onVisibilityChange() {
+  if (document.visibilityState === 'visible') {
+    void load({ silent: true, announceNew: true })
+  }
+}
+
 onMounted(async () => {
   const overdue = route.query.overdueOnly
   if (overdue === '1' || overdue === 'true') {
@@ -292,7 +316,28 @@ onMounted(async () => {
     label: u.nickname || u.username || u.id,
     value: u.id,
   }))
-  load()
+  void load()
+  pollTimer.value = setInterval(() => {
+    if (document.visibilityState !== 'visible') return
+    if (showReply.value || showAssign.value) return
+    void load({ silent: true, announceNew: true })
+  }, POLL_MS)
+  document.addEventListener('visibilitychange', onVisibilityChange)
+  offRealtime = onAdminRealtimeEvent((evt) => {
+    if (evt?.type === 'feedback_created' || evt?.type === 'feedback_escalated') {
+      void load({ silent: true, announceNew: false })
+    }
+  })
+})
+
+onUnmounted(() => {
+  if (pollTimer.value) {
+    clearInterval(pollTimer.value)
+    pollTimer.value = null
+  }
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+  offRealtime?.()
+  offRealtime = null
 })
 </script>
 
@@ -376,12 +421,12 @@ onMounted(async () => {
       />
     </div>
 
-    <NModal
+    <AdminFormShell
       v-model:show="showReply"
-      preset="card"
+      
       :title="t('feedback.replyTitle')"
-      style="width: 520px"
-    >
+      
+     :width="520">
       <p class="reply-quote">{{ replyTarget?.content }}</p>
       <NInput
         v-model:value="replyContent"
@@ -397,14 +442,14 @@ onMounted(async () => {
           }}</NButton>
         </NSpace>
       </template>
-    </NModal>
+    </AdminFormShell>
 
-    <NModal
+    <AdminFormShell
       v-model:show="showAssign"
-      preset="card"
+      
       :title="t('feedback.assignTitle')"
-      style="width: 480px"
-    >
+      
+     :width="480">
       <p class="reply-quote">{{ assignTarget?.content }}</p>
       <NSelect
         v-model:value="assigneeId"
@@ -421,7 +466,7 @@ onMounted(async () => {
           }}</NButton>
         </NSpace>
       </template>
-    </NModal>
+    </AdminFormShell>
   </div>
 </template>
 

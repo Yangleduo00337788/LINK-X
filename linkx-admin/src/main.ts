@@ -6,6 +6,7 @@ import router from './router'
 import i18n from './i18n'
 import { usePreferencesStore } from './stores/preferences'
 import './style.css'
+import './styles/motion.css'
 
 const app = createApp(App)
 const pinia = createPinia()

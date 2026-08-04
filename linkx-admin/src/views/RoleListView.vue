@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AdminFormShell from '@/components/AdminFormShell.vue'
 import { computed, h, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
@@ -463,12 +464,12 @@ onMounted(load)
       />
     </div>
 
-    <NModal
+    <AdminFormShell
       v-model:show="showForm"
-      preset="card"
+      
       :title="editing ? t('role.edit') : t('role.create')"
-      style="width: 520px"
-    >
+      
+     :width="520">
       <NForm ref="formRef" :model="form" label-placement="left" label-width="88">
         <NFormItem
           :label="t('role.code')"
@@ -520,14 +521,14 @@ onMounted(load)
           <NButton type="primary" :loading="saving" @click="save">{{ t('common.save') }}</NButton>
         </NSpace>
       </template>
-    </NModal>
+    </AdminFormShell>
 
-    <NModal
+    <AdminFormShell
       v-model:show="showMenuModal"
-      preset="card"
+      
       :title="t('role.assignMenus')"
-      style="width: 480px"
-    >
+      
+     :width="480">
       <NTree
         block-line
         checkable
@@ -545,14 +546,14 @@ onMounted(load)
           }}</NButton>
         </NSpace>
       </template>
-    </NModal>
+    </AdminFormShell>
 
-    <NModal
+    <AdminFormShell
       v-model:show="showPermModal"
-      preset="card"
+      
       :title="t('role.assignPermissions')"
-      style="width: 560px"
-    >
+      
+     :width="560">
       <NTree
         block-line
         checkable
@@ -570,14 +571,14 @@ onMounted(load)
           }}</NButton>
         </NSpace>
       </template>
-    </NModal>
+    </AdminFormShell>
 
-    <NModal
+    <AdminFormShell
       v-model:show="showUserModal"
-      preset="card"
+      
       :title="t('role.assignUsers')"
-      style="width: 520px"
-    >
+      
+     :width="520">
       <NSelect
         v-model:value="selectedUserIds"
         multiple
@@ -593,7 +594,7 @@ onMounted(load)
           }}</NButton>
         </NSpace>
       </template>
-    </NModal>
+    </AdminFormShell>
   </div>
 </template>
 

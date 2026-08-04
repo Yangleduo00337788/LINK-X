@@ -25,8 +25,24 @@ echarts.use([
   CanvasRenderer,
 ])
 
-/** LinkX analytics palette — independent of any third-party brand */
+export function chartPrimaryColor() {
+  return (
+    getComputedStyle(document.documentElement).getPropertyValue('--lx-oa-blue').trim() ||
+    '#1890ff'
+  )
+}
+
+/** LinkX analytics palette — first color follows theme primary */
 export const LX_CHART_COLORS = ['#3D7EFF', '#14B8A6', '#F59E0B', '#8B5CF6', '#EF4444', '#64748B']
+
+export function chartColors() {
+  const primary = chartPrimaryColor()
+  return [primary, ...LX_CHART_COLORS.slice(1)]
+}
+
+function palette() {
+  return chartColors()
+}
 
 function isDarkTheme() {
   return document.documentElement.getAttribute('data-theme') === 'dark'
@@ -81,15 +97,15 @@ export function buildAreaOption(
     showSymbol: false,
     stack: stacked ? 'total' : undefined,
     data: s.data || [],
-    itemStyle: { color: LX_CHART_COLORS[i % LX_CHART_COLORS.length] },
+    itemStyle: { color: palette()[i % palette().length] },
     lineStyle: { width: 2 },
     areaStyle: {
       opacity: stacked ? 0.55 : 0.12,
-      color: LX_CHART_COLORS[i % LX_CHART_COLORS.length],
+      color: palette()[i % palette().length],
     },
   }))
   return noAnim({
-    color: LX_CHART_COLORS,
+    color: palette(),
     textStyle: { color: th.text, fontFamily: 'IBM Plex Sans, Segoe UI, sans-serif' },
     tooltip: { ...baseTooltip(), trigger: 'axis' as const },
     legend: {
@@ -135,12 +151,12 @@ export function buildColumnOption(
     barMaxWidth: stacked ? 28 : 18,
     data: s.data || [],
     itemStyle: {
-      color: LX_CHART_COLORS[i % LX_CHART_COLORS.length],
-      borderRadius: stacked ? 0 : [4, 4, 0, 0],
+      color: palette()[i % palette().length],
+      borderRadius: stacked ? 0 : [10, 10, 0, 0],
     },
   }))
   return noAnim({
-    color: LX_CHART_COLORS,
+    color: palette(),
     textStyle: { color: th.text, fontFamily: 'IBM Plex Sans, Segoe UI, sans-serif' },
     tooltip: { ...baseTooltip(), trigger: 'axis' as const },
     legend: {
@@ -173,14 +189,15 @@ export function buildColumnOption(
 
 export function buildDonutOption(
   items: BreakdownItem[] | NamedValue[] | null | undefined,
-  nameOf: (key: string, fallback: string) => string,
+  nameOf?: (key: string, fallback: string) => string,
   centerLabel?: string
 ) {
+  const labelOf = nameOf ?? ((_, fallback) => fallback)
   const th = chartTheme()
   const list = items || []
   const total = list.reduce((s, it) => s + (it.value || 0), 0)
   return noAnim({
-    color: LX_CHART_COLORS,
+    color: palette(),
     textStyle: { color: th.text, fontFamily: 'IBM Plex Sans, Segoe UI, sans-serif' },
     tooltip: {
       ...baseTooltip(),
@@ -231,9 +248,9 @@ export function buildDonutOption(
         avoidLabelOverlap: true,
         label: { show: false },
         labelLine: { show: false },
-        itemStyle: { borderRadius: 4, borderColor: th.dark ? '#171a21' : '#fff', borderWidth: 2 },
+        itemStyle: { borderRadius: 10, borderColor: th.dark ? '#171a21' : '#fff', borderWidth: 2 },
         data: list.map((it) => ({
-          name: nameOf(it.key, it.name),
+          name: labelOf(it.key, it.name),
           value: it.value,
         })),
       },
@@ -246,7 +263,7 @@ export function buildHBarOption(items: NamedValue[], opts?: { colorByIndex?: boo
   const names = items.map((i) => i.name)
   const values = items.map((i) => i.value)
   return noAnim({
-    color: LX_CHART_COLORS,
+    color: palette(),
     textStyle: { color: th.text, fontFamily: 'IBM Plex Sans, Segoe UI, sans-serif' },
     tooltip: {
       ...baseTooltip(),
@@ -279,9 +296,9 @@ export function buildHBarOption(items: NamedValue[], opts?: { colorByIndex?: boo
           itemStyle: {
             color:
               opts?.colorByIndex === false
-                ? LX_CHART_COLORS[0]
-                : LX_CHART_COLORS[i % LX_CHART_COLORS.length],
-            borderRadius: [0, 6, 6, 0],
+                ? palette()[0]
+                : palette()[i % palette().length],
+            borderRadius: [0, 10, 10, 0],
           },
         })),
         label: {
@@ -371,7 +388,7 @@ export function buildHeatmapOption(
   })
 }
 
-export function buildSparkOption(values: number[], color = LX_CHART_COLORS[0]) {
+export function buildSparkOption(values: number[], color = chartPrimaryColor()) {
   const th = chartTheme()
   return noAnim({
     grid: { left: 0, right: 0, top: 4, bottom: 0 },
@@ -454,6 +471,13 @@ export function useChart(
     refresh()
     window.addEventListener('resize', resize)
   })
+
+  watch(
+    () => elRef.value,
+    () => {
+      if (isReady()) refresh()
+    }
+  )
 
   watch(
     option,

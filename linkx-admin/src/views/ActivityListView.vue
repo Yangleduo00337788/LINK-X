@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AdminFormShell from '@/components/AdminFormShell.vue'
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
@@ -145,7 +146,7 @@ const columns = computed<DataTableColumns<ActivityItem>>(() => {
               width: 72,
               height: 40,
               objectFit: 'cover',
-              style: 'border-radius: 4px',
+              style: 'border-radius: var(--lx-radius)',
             })
           : '-'
       },
@@ -429,12 +430,12 @@ onMounted(load)
       />
     </div>
 
-    <NModal
+    <AdminFormShell
       v-model:show="showForm"
-      preset="card"
+      
       :title="editing ? t('activity.editTitle') : t('activity.createTitle')"
-      style="width: 560px"
-    >
+      
+     :width="560">
       <NForm ref="formRef" :model="form" :rules="rules" label-placement="left" label-width="90">
         <NFormItem :label="t('activity.title')" path="title">
           <NInput v-model:value="form.title" maxlength="128" show-count />
@@ -504,7 +505,7 @@ onMounted(load)
           }}</NButton>
         </NSpace>
       </template>
-    </NModal>
+    </AdminFormShell>
   </div>
 </template>
 
@@ -522,7 +523,7 @@ onMounted(load)
   height: 120px;
   padding: 0;
   border: 1px dashed var(--n-border-color);
-  border-radius: 8px;
+  border-radius: var(--lx-radius);
   background: var(--n-color);
   cursor: pointer;
   overflow: hidden;

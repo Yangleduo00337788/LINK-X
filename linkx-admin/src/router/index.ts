@@ -29,7 +29,11 @@ const routes: RouteRecordRaw[] = [
         path: 'dashboard',
         name: 'Dashboard',
         component: () => import('@/views/DashboardView.vue'),
-        meta: { titleKey: 'route.dashboard', permission: 'admin:dashboard:view' },
+        meta: {
+          titleKey: 'route.dashboard',
+          permission: 'admin:dashboard:view',
+          hidePageHeader: true,
+        },
       },
       {
         path: 'users',

@@ -37,6 +37,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -47,6 +48,7 @@ import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -56,6 +58,11 @@ public class AdminSystemMonitorMetricsServiceImpl implements AdminSystemMonitorM
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
     private static final long SNAIL_JOB_TIMEOUT_MS = 2_000;
+    private static final long REDIS_QPS_BASELINE_INTERVAL_MS = 60_000;
+
+    /** Redis total_commands_processed 基准，用于跨请求估算 QPS */
+    private final AtomicLong redisCommandsBaseline = new AtomicLong(-1);
+    private final AtomicLong redisCommandsBaselineAtMs = new AtomicLong(0);
 
     private final JdbcTemplate jdbcTemplate;
     private final DataSource dataSource;
@@ -77,11 +84,14 @@ public class AdminSystemMonitorMetricsServiceImpl implements AdminSystemMonitorM
         double hitRate = hits + misses > 0 ? hits * 100.0 / (hits + misses) : 0;
         long connected = parseLong(info.getProperty("connected_clients"));
         long totalCommands = parseLong(info.getProperty("total_commands_processed"));
-        double qps = estimateQps("redis", "total_commands", totalCommands);
+        long instantaneousOps = parseLong(info.getProperty("instantaneous_ops_per_sec"));
+        double qps = resolveRedisQps(totalCommands, instantaneousOps);
 
         double memoryPct = maxMemory > 0 ? usedMemory * 100.0 / maxMemory : 0;
+        double memoryUsedMb = usedMemory / 1024.0 / 1024.0;
         Map<String, Double> metrics = new LinkedHashMap<>();
         metrics.put("memory_used", (double) usedMemory);
+        metrics.put("memory_used_mb", memoryUsedMb);
         metrics.put("memory_pct", memoryPct);
         metrics.put("connected_clients", (double) connected);
         metrics.put("hit_rate", hitRate);
@@ -101,10 +111,10 @@ public class AdminSystemMonitorMetricsServiceImpl implements AdminSystemMonitorM
                 .qps(round2(qps))
                 .redisVersion(info.getProperty("redis_version"))
                 .info(infoMap)
-                .memoryTrend(snapshotService.loadHourlyTrend("redis", "memory_pct", hours))
-                .qpsTrend(snapshotService.loadHourlyTrend("redis", "qps", hours))
-                .hitRateTrend(snapshotService.loadHourlyTrend("redis", "hit_rate", hours))
-                .connectionsTrend(snapshotService.loadHourlyTrend("redis", "connected_clients", hours))
+                .memoryTrend(snapshotService.loadHourlyTrend("redis", "memory_used_mb", hours, memoryUsedMb))
+                .qpsTrend(snapshotService.loadHourlyTrend("redis", "qps", hours, qps))
+                .hitRateTrend(snapshotService.loadHourlyTrend("redis", "hit_rate", hours, hitRate))
+                .connectionsTrend(snapshotService.loadHourlyTrend("redis", "connected_clients", hours, (double) connected))
                 .build();
     }
 
@@ -181,8 +191,9 @@ public class AdminSystemMonitorMetricsServiceImpl implements AdminSystemMonitorM
                 .diskFreeBytes(diskFree)
                 .diskUsagePercent(round1(diskPct))
                 .diskPath(disk.getPath())
-                .cpuTrend(snapshotService.loadHourlyTrend("jvm", "cpu_load", hours))
-                .memoryTrend(snapshotService.loadHourlyTrend("jvm", "jvm_heap_pct", hours))
+                .cpuTrend(snapshotService.loadHourlyTrend("jvm", "cpu_load", hours,
+                        systemCpu >= 0 ? systemCpu : null))
+                .memoryTrend(snapshotService.loadHourlyTrend("jvm", "jvm_heap_pct", hours, heapPct))
                 .build();
     }
 
@@ -249,17 +260,10 @@ public class AdminSystemMonitorMetricsServiceImpl implements AdminSystemMonitorM
         AdminSnailJobOverviewVO overview = loadSnailJobOverview();
         List<AdminSnailJobTaskVO> tasks = overview != null ? overview.getTasks() : List.of();
 
-        long successBatches = 0;
-        long failedBatches = 0;
         AdminMonitorTrendVO dailyTrend = loadTaskDailyTrend(safeDays);
-        if (dailyTrend.getSeries() != null && dailyTrend.getSeries().size() >= 2) {
-            for (Number n : dailyTrend.getSeries().get(0).getData()) {
-                successBatches += n.longValue();
-            }
-            for (Number n : dailyTrend.getSeries().get(1).getData()) {
-                failedBatches += n.longValue();
-            }
-        }
+        long[] batchCounts = countTaskBatches(safeDays);
+        long successBatches = batchCounts[0];
+        long failedBatches = batchCounts[1];
 
         long totalBatches = successBatches + failedBatches;
         double successRate = totalBatches > 0 ? successBatches * 100.0 / totalBatches : 0;
@@ -296,11 +300,14 @@ public class AdminSystemMonitorMetricsServiceImpl implements AdminSystemMonitorM
         AdminSystemConnectionPoolVO pool = loadConnectionPool();
         long questions = queryGlobalStatus("Questions");
         long slowQueries = queryGlobalStatus("Slow_queries");
-        long active = pool != null && pool.getActiveConnections() != null ? pool.getActiveConnections() : 0;
+        int active = pool != null && pool.getActiveConnections() != null ? pool.getActiveConnections() : 0;
+        int idle = pool != null && pool.getIdleConnections() != null ? pool.getIdleConnections() : 0;
+        int total = pool != null && pool.getTotalConnections() != null ? pool.getTotalConnections() : active + idle;
 
         snapshotService.recordIfDue("hikari", Map.of(
                 "active_connections", (double) active,
-                "idle_connections", (double) (pool != null && pool.getIdleConnections() != null ? pool.getIdleConnections() : 0)));
+                "idle_connections", (double) idle,
+                "total_connections", (double) total));
 
         return AdminMonitorSqlVO.builder()
                 .refreshedAt(LocalDateTime.now(ZONE))
@@ -309,7 +316,7 @@ public class AdminSystemMonitorMetricsServiceImpl implements AdminSystemMonitorM
                 .questionsTotal(questions)
                 .slowQueries(slowQueries)
                 .topStatements(loadTopSqlStatements(safeLimit))
-                .connectionTrend(snapshotService.loadHourlyTrend("hikari", "active_connections", hours))
+                .connectionTrend(snapshotService.loadHourlyTrend("hikari", "total_connections", hours, (double) total))
                 .build();
     }
 
@@ -338,16 +345,18 @@ public class AdminSystemMonitorMetricsServiceImpl implements AdminSystemMonitorM
             byDay.put(d, new long[]{0, 0});
             labels.add(d.format(fmt));
         }
+        long sinceEpochMs = LocalDate.now(ZONE).minusDays(days - 1).atStartOfDay(ZONE).toInstant().toEpochMilli();
         try {
             jdbcTemplate.query(
                     """
-                            SELECT DATE(b.execution_at) AS d,
+                            SELECT DATE(FROM_UNIXTIME(b.execution_at / 1000)) AS d,
                                    SUM(CASE WHEN b.task_batch_status = 3 THEN 1 ELSE 0 END) AS success_cnt,
                                    SUM(CASE WHEN b.task_batch_status = 4 THEN 1 ELSE 0 END) AS fail_cnt
                             FROM snail_job.sj_job_task_batch b
                             WHERE b.deleted = 0
-                              AND b.execution_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
-                            GROUP BY DATE(b.execution_at)
+                              AND b.execution_at > 0
+                              AND b.execution_at >= ?
+                            GROUP BY DATE(FROM_UNIXTIME(b.execution_at / 1000))
                             """,
                     rs -> {
                         LocalDate d = rs.getDate("d").toLocalDate();
@@ -357,7 +366,7 @@ public class AdminSystemMonitorMetricsServiceImpl implements AdminSystemMonitorM
                             arr[1] = rs.getLong("fail_cnt");
                         }
                     },
-                    days);
+                    sinceEpochMs);
         } catch (DataAccessException ex) {
             log.debug("Task daily trend unavailable: {}", ex.getMessage());
         }
@@ -371,6 +380,35 @@ public class AdminSystemMonitorMetricsServiceImpl implements AdminSystemMonitorM
                         AdminMonitorSeriesVO.builder().key("success").name("success").data(successData).build(),
                         AdminMonitorSeriesVO.builder().key("fail").name("fail").data(failData).build()))
                 .build();
+    }
+
+    /** 近 N 日批次成功/失败次数（execution_at 为毫秒时间戳） */
+    private long[] countTaskBatches(int days) {
+        long sinceEpochMs = LocalDate.now(ZONE).minusDays(days - 1).atStartOfDay(ZONE).toInstant().toEpochMilli();
+        try {
+            long[] counts = new long[]{0, 0};
+            jdbcTemplate.query(
+                    """
+                            SELECT
+                                COALESCE(SUM(CASE WHEN task_batch_status = 3 THEN 1 ELSE 0 END), 0) AS success_cnt,
+                                COALESCE(SUM(CASE WHEN task_batch_status = 4 THEN 1 ELSE 0 END), 0) AS fail_cnt
+                            FROM snail_job.sj_job_task_batch
+                            WHERE deleted = 0
+                              AND execution_at > 0
+                              AND execution_at >= ?
+                            """,
+                    rs -> {
+                        if (rs.next()) {
+                            counts[0] = rs.getLong("success_cnt");
+                            counts[1] = rs.getLong("fail_cnt");
+                        }
+                    },
+                    sinceEpochMs);
+            return counts;
+        } catch (DataAccessException ex) {
+            log.debug("Task batch count unavailable: {}", ex.getMessage());
+            return new long[]{0, 0};
+        }
     }
 
     private AdminMonitorTrendVO buildHttpDailyTrend(int days) {
@@ -459,6 +497,87 @@ public class AdminSystemMonitorMetricsServiceImpl implements AdminSystemMonitorM
                 .build();
     }
 
+    /**
+     * Redis QPS：优先用两次采样间命令增量 / 实际间隔；无增量时回退 Redis instantaneous_ops_per_sec。
+     */
+    private double resolveRedisQps(long totalCommands, long instantaneousOps) {
+        long nowMs = System.currentTimeMillis();
+        if (redisCommandsBaseline.get() < 0) {
+            loadRedisCommandsBaselineFromDb();
+        }
+
+        long baseline = redisCommandsBaseline.get();
+        long baselineAt = redisCommandsBaselineAtMs.get();
+        double qps = instantaneousOps > 0 ? instantaneousOps : 0;
+
+        if (baseline >= 0 && baselineAt > 0) {
+            long elapsedMs = nowMs - baselineAt;
+            if (elapsedMs > REDIS_QPS_BASELINE_INTERVAL_MS * 5) {
+                redisCommandsBaseline.set(totalCommands);
+                redisCommandsBaselineAtMs.set(nowMs);
+                persistRedisCommandsBaseline(totalCommands);
+                return round2(instantaneousOps > 0 ? instantaneousOps : 0);
+            }
+            elapsedMs = Math.max(1000, elapsedMs);
+            if (totalCommands >= baseline) {
+                long delta = totalCommands - baseline;
+                if (delta > 0) {
+                    qps = delta * 1000.0 / elapsedMs;
+                }
+            }
+        }
+
+        if (baseline < 0 || nowMs - baselineAt >= REDIS_QPS_BASELINE_INTERVAL_MS) {
+            redisCommandsBaseline.set(totalCommands);
+            redisCommandsBaselineAtMs.set(nowMs);
+            persistRedisCommandsBaseline(totalCommands);
+            if (baseline < 0) {
+                return round2(instantaneousOps > 0 ? instantaneousOps : 0);
+            }
+        }
+
+        return round2(qps);
+    }
+
+    private void loadRedisCommandsBaselineFromDb() {
+        try {
+            jdbcTemplate.query(
+                    """
+                            SELECT metric_value, snapshot_at
+                            FROM sys_monitor_metric_snapshot
+                            WHERE category = ? AND metric_key = ?
+                            ORDER BY snapshot_at DESC
+                            LIMIT 1
+                            """,
+                    rs -> {
+                        if (rs.next()) {
+                            redisCommandsBaseline.set((long) rs.getDouble("metric_value"));
+                            Timestamp ts = rs.getTimestamp("snapshot_at");
+                            if (ts != null) {
+                                redisCommandsBaselineAtMs.set(ts.toInstant().toEpochMilli());
+                            }
+                        }
+                    },
+                    "redis", "total_commands");
+        } catch (DataAccessException ex) {
+            log.debug("Redis QPS baseline unavailable: {}", ex.getMessage());
+        }
+    }
+
+    private void persistRedisCommandsBaseline(long totalCommands) {
+        try {
+            jdbcTemplate.update(
+                    """
+                            INSERT INTO sys_monitor_metric_snapshot
+                            (snapshot_at, category, metric_key, metric_value)
+                            VALUES (?, ?, ?, ?)
+                            """,
+                    LocalDateTime.now(ZONE), "redis", "total_commands", (double) totalCommands);
+        } catch (DataAccessException ex) {
+            log.debug("Redis QPS baseline persist skipped: {}", ex.getMessage());
+        }
+    }
+
     private Properties loadRedisInfo() {
         try (var connection = redisConnectionFactory.getConnection()) {
             Properties props = connection.serverCommands().info();
@@ -466,33 +585,6 @@ public class AdminSystemMonitorMetricsServiceImpl implements AdminSystemMonitorM
         } catch (RuntimeException ex) {
             log.debug("Redis info failed: {}", ex.getMessage());
             return new Properties();
-        }
-    }
-
-    private double estimateQps(String category, String counterKey, long currentTotal) {
-        try {
-            Double last = jdbcTemplate.query(
-                    """
-                            SELECT metric_value FROM sys_monitor_metric_snapshot
-                            WHERE category = ? AND metric_key = ?
-                            ORDER BY snapshot_at DESC LIMIT 1
-                            """,
-                    rs -> rs.next() ? rs.getDouble(1) : null,
-                    category, counterKey);
-            if (last == null) {
-                jdbcTemplate.update(
-                        """
-                                INSERT INTO sys_monitor_metric_snapshot
-                                (snapshot_at, category, metric_key, metric_value)
-                                VALUES (?, ?, ?, ?)
-                                """,
-                        LocalDateTime.now(ZONE), category, counterKey, (double) currentTotal);
-                return 0;
-            }
-            double delta = currentTotal - last;
-            return delta > 0 ? delta / 60.0 : 0;
-        } catch (DataAccessException ex) {
-            return 0;
         }
     }
 

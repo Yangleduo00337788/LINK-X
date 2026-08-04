@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AdminFormShell from '@/components/AdminFormShell.vue'
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -319,12 +320,12 @@ onMounted(() => {
       />
     </div>
 
-    <NModal
+    <AdminFormShell
       v-model:show="showAdd"
-      preset="card"
+      
       :title="t('blacklist.addTitle')"
-      style="width: 480px"
-    >
+      
+     :width="480">
       <NForm ref="formRef" :model="addForm" :rules="rules" label-placement="top">
         <NFormItem :label="t('blacklist.user')" path="userId">
           <NSelect
@@ -355,6 +356,6 @@ onMounted(() => {
           </NButton>
         </NSpace>
       </template>
-    </NModal>
+    </AdminFormShell>
   </div>
 </template>

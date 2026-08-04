@@ -13,8 +13,25 @@
         var raw = localStorage.getItem('linkx-admin-preferences')
         if (raw) {
           var p = JSON.parse(raw)
-          if (p.theme === 'light' || p.theme === 'dark') {
-            document.documentElement.setAttribute('data-theme', p.theme)
+          var appearance = p.appearancePreset
+          var theme = p.theme
+          if (appearance === 'dark') theme = 'dark'
+          else if (appearance === 'light' || appearance === 'mixed') theme = 'light'
+          if (theme === 'light' || theme === 'dark') {
+            document.documentElement.setAttribute('data-theme', theme)
+          }
+          if (appearance === 'mixed' || appearance === 'dark') {
+            document.documentElement.setAttribute('data-nav-theme', 'dark')
+          } else if (appearance === 'light') {
+            document.documentElement.setAttribute('data-nav-theme', 'light')
+          }
+          if (p.layoutMode === 'side' || p.layoutMode === 'top' || p.layoutMode === 'mix') {
+            document.documentElement.setAttribute('data-layout', p.layoutMode)
+          }
+          if (typeof p.primaryColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(p.primaryColor)) {
+            document.documentElement.style.setProperty('--lx-oa-blue', p.primaryColor)
+            document.documentElement.style.setProperty('--lx-accent', p.primaryColor)
+            document.documentElement.style.setProperty('--lx-stat-accent', p.primaryColor)
           }
           if (p.locale === 'zh-CN' || p.locale === 'en-US') {
             document.documentElement.lang = p.locale === 'zh-CN' ? 'zh-CN' : 'en'

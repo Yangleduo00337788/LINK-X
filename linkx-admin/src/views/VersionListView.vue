@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AdminFormShell from '@/components/AdminFormShell.vue'
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
@@ -310,9 +311,35 @@ onMounted(() => {
 
 <template>
   <div class="page">
-    <div class="page-header">
-      <h2>{{ t('version.title') }}</h2>
-      <NSpace>
+    <div class="page-shell">
+      <NAlert type="info" :bordered="false" class="page-hint">
+        {{ t('version.listHint') }}
+      </NAlert>
+      <NSpace class="page-toolbar" justify="space-between">
+        <NSpace>
+          <SearchAutoComplete
+            v-model="query.keyword"
+            :placeholder="t('common.search')"
+            @search="onSearch"
+          />
+          <NSelect
+            v-model:value="query.versionStatus"
+            :options="statusOptions"
+            :placeholder="t('common.status')"
+            clearable
+            style="width: 140px"
+            @update:value="onSearch"
+          />
+          <NSelect
+            v-model:value="query.channel"
+            :options="channelOptions"
+            :placeholder="t('version.channel')"
+            clearable
+            style="width: 120px"
+            @update:value="onSearch"
+          />
+          <NButton type="primary" @click="onSearch">{{ t('common.search') }}</NButton>
+        </NSpace>
         <NButton
           v-if="auth.hasPermission('admin:version:create')"
           type="primary"
@@ -321,70 +348,39 @@ onMounted(() => {
           {{ t('version.create') }}
         </NButton>
       </NSpace>
+      <NSpin :show="loading">
+        <NDataTable
+          :columns="columns"
+          :data="items"
+          :bordered="false"
+          :single-line="false"
+          :scroll-x="1100"
+          :loading="loading"
+          :pagination="{
+            page: query.page,
+            pageSize: query.size,
+            itemCount: total,
+            showSizePicker: true,
+            pageSizes: [10, 20, 50],
+            onUpdatePage: (p: number) => {
+              query.page = p
+              load()
+            },
+            onUpdatePageSize: (s: number) => {
+              query.size = s
+              query.page = 1
+              load()
+            },
+          }"
+          remote
+        />
+      </NSpin>
     </div>
 
-    <NAlert type="info" :bordered="false" class="hint">
-      {{ t('version.listHint') }}
-    </NAlert>
-
-    <div class="toolbar">
-      <SearchAutoComplete
-        v-model="query.keyword"
-        :placeholder="t('common.search')"
-        @search="onSearch"
-      />
-      <NSelect
-        v-model:value="query.versionStatus"
-        :options="statusOptions"
-        :placeholder="t('common.status')"
-        clearable
-        style="width: 140px"
-        @update:value="onSearch"
-      />
-      <NSelect
-        v-model:value="query.channel"
-        :options="channelOptions"
-        :placeholder="t('version.channel')"
-        clearable
-        style="width: 120px"
-        @update:value="onSearch"
-      />
-      <NButton @click="onSearch">{{ t('common.search') }}</NButton>
-    </div>
-
-    <NSpin :show="loading">
-      <NDataTable
-        :columns="columns"
-        :data="items"
-        :bordered="false"
-        :single-line="false"
-        :scroll-x="1100"
-        :loading="loading"
-        :pagination="{
-          page: query.page,
-          pageSize: query.size,
-          itemCount: total,
-          showSizePicker: true,
-          pageSizes: [10, 20, 50],
-          onUpdatePage: (p: number) => {
-            query.page = p
-            load()
-          },
-          onUpdatePageSize: (s: number) => {
-            query.size = s
-            query.page = 1
-            load()
-          },
-        }"
-        remote
-      />
-    </NSpin>
-
-    <NModal
+    <AdminFormShell
       v-model:show="showForm"
-      preset="card"
       :title="editing ? t('version.edit') : t('version.create')"
-      style="width: 560px; max-width: 95vw"
+      :width="560"
       :mask-closable="false"
     >
       <NForm ref="formRef" :model="form" :rules="rules" label-placement="left" label-width="120">
@@ -418,26 +414,11 @@ onMounted(() => {
           <NButton type="primary" :loading="saving" @click="save">{{ t('common.save') }}</NButton>
         </NSpace>
       </template>
-    </NModal>
+    </AdminFormShell>
   </div>
 </template>
 
 <style scoped>
-.page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-.hint {
-  margin-bottom: 16px;
-}
-.toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 16px;
-}
 .pager {
   display: flex;
   align-items: center;

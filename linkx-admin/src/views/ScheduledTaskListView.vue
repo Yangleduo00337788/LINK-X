@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AdminFormShell from '@/components/AdminFormShell.vue'
 import { computed, h, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
@@ -384,23 +385,21 @@ onUnmounted(() => {
       />
     </div>
 
-    <NModal
+    <AdminFormShell
       v-model:show="showHistory"
-      preset="card"
       :title="t('scheduledTask.historyTitle', { name: historyTask?.jobName || '' })"
-      style="width: 760px; max-width: 95vw"
+      :width="760"
     >
       <div v-if="historyMeta" class="history-meta">{{ historyMeta }}</div>
       <NSpin :show="historyLoading">
         <NDataTable :columns="batchColumns" :data="batches" :bordered="false" size="small" />
       </NSpin>
-    </NModal>
+    </AdminFormShell>
 
-    <NModal
+    <AdminFormShell
       v-model:show="showLogs"
-      preset="card"
       :title="t('scheduledTask.logTitle', { id: activeBatch?.id || '' })"
-      style="width: 720px; max-width: 95vw"
+      :width="720"
     >
       <NSpin :show="logsLoading">
         <div v-if="!logs.length" class="empty-logs">{{ t('common.none') }}</div>
@@ -409,7 +408,7 @@ onUnmounted(() => {
           <pre class="log-message">{{ log.message }}</pre>
         </div>
       </NSpin>
-    </NModal>
+    </AdminFormShell>
   </div>
 </template>
 

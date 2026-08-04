@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AdminFormShell from '@/components/AdminFormShell.vue'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -553,12 +554,12 @@ onMounted(() => {
       </div>
     </NSpin>
 
-    <NModal
+    <AdminFormShell
       v-model:show="showTotpSetup"
-      preset="card"
+      
       :title="t('profile.totpEnable')"
-      style="width: 420px"
-    >
+      
+     :width="420">
       <div class="totp-setup">
         <img v-if="qrDataUrl" class="totp-qr" :src="qrDataUrl" alt="totp-qr" />
         <p class="section-hint">{{ t('login.totpScanHint') }}</p>
@@ -578,14 +579,14 @@ onMounted(() => {
           </NButton>
         </NSpace>
       </template>
-    </NModal>
+    </AdminFormShell>
 
-    <NModal
+    <AdminFormShell
       v-model:show="showTotpDisable"
-      preset="card"
+      
       :title="t('profile.totpDisableTitle')"
-      style="width: 420px"
-    >
+      
+     :width="420">
       <NForm label-placement="left" label-width="100">
         <NFormItem :label="t('profile.oldPassword')">
           <NInput
@@ -611,7 +612,7 @@ onMounted(() => {
           </NButton>
         </NSpace>
       </template>
-    </NModal>
+    </AdminFormShell>
   </div>
 </template>
 
@@ -694,18 +695,6 @@ onMounted(() => {
   font-size: 13px;
 }
 
-.section-title {
-  margin: 0 0 6px;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.section-hint {
-  margin: 0 0 16px;
-  color: var(--lx-text-3);
-  font-size: 13px;
-}
-
 .readonly-text {
   color: var(--lx-text);
   line-height: 34px;
@@ -719,14 +708,14 @@ onMounted(() => {
 .totp-qr {
   width: 180px;
   height: 180px;
-  border-radius: 8px;
+  border-radius: var(--lx-radius);
   background: #fff;
 }
 .totp-secret {
   font-size: 12px;
   word-break: break-all;
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: var(--lx-radius);
   background: var(--lx-captcha-bg, rgba(0, 0, 0, 0.04));
   max-width: 100%;
 }

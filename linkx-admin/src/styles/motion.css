@@ -1,0 +1,79 @@
+/* ── LinkX Admin motion (B端惯例：轻量、无白屏闪烁) ── */
+
+@keyframes lx-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes lx-orb-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(10px, -12px, 0) scale(1.05);
+  }
+}
+
+/* 仅首屏/登录壳使用的一次性淡入 */
+.lx-appear-in {
+  animation: lx-fade-in 0.28s ease both;
+}
+
+/* 后台暂不做路由页切换动画，避免按钮/文字叠影 */
+
+/* 登录步骤切换：小区域交叉淡入淡出，不用位移 */
+.lx-auth-step-enter-active,
+.lx-auth-step-leave-active {
+  transition: opacity 0.16s ease;
+}
+
+.lx-auth-step-enter-from,
+.lx-auth-step-leave-to {
+  opacity: 0;
+}
+
+.lx-auth-step-leave-active {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+}
+
+.lx-auth-step-enter-active {
+  position: relative;
+}
+
+.page-shell,
+.page-card,
+.lx-panel {
+  transition:
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.page-shell:hover,
+.page-card:hover,
+.lx-panel:hover {
+  box-shadow: var(--lx-card-shadow-hover);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .lx-route-enter-active,
+  .lx-auth-step-enter-active,
+  .lx-auth-step-leave-active {
+    transition: none !important;
+  }
+}

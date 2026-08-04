@@ -110,6 +110,14 @@ export function toTrendData(trend?: MonitorTrend | null): TrendData | null {
   }
 }
 
+/** 除最后一个实时点外无历史采样（全为 0） */
+export function isSparseMonitorTrend(trend?: MonitorTrend | null): boolean {
+  const series = trend?.series?.[0]?.data
+  if (!series || series.length <= 1) return true
+  const historical = series.slice(0, -1)
+  return historical.every((n) => !Number(n))
+}
+
 export function fetchMonitorCache(hours = 24) {
   return get<MonitorCache>('/admin/system-monitor/cache', { hours })
 }

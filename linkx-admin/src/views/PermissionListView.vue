@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AdminFormShell from '@/components/AdminFormShell.vue'
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
@@ -253,12 +254,12 @@ onMounted(load)
       />
     </div>
 
-    <NModal
+    <AdminFormShell
       v-model:show="showForm"
-      preset="card"
+      
       :title="editing ? t('permission.edit') : t('permission.create')"
-      style="width: 520px"
-    >
+      
+     :width="520">
       <NForm ref="formRef" :model="form" label-placement="left" label-width="100">
         <NFormItem
           :label="t('permission.permissionCode')"
@@ -293,6 +294,6 @@ onMounted(load)
           <NButton type="primary" :loading="saving" @click="save">{{ t('common.save') }}</NButton>
         </NSpace>
       </template>
-    </NModal>
+    </AdminFormShell>
   </div>
 </template>

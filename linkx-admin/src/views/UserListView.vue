@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AdminFormShell from '@/components/AdminFormShell.vue'
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -391,13 +392,13 @@ onMounted(() => {
       />
     </div>
 
-    <NModal
+    <AdminFormShell
       v-model:show="showResetPassword"
-      preset="card"
+      
       :title="t('user.resetPasswordTitle')"
-      style="width: 480px"
+      
       @after-leave="generatedPassword = ''"
-    >
+     :width="480">
       <p style="margin: 0 0 12px; color: var(--n-text-color-3); line-height: 1.5">
         {{ t('user.resetPasswordHint') }}
         <template v-if="resetTargetName">（{{ resetTargetName }}）</template>
@@ -439,6 +440,6 @@ onMounted(() => {
           </template>
         </NSpace>
       </template>
-    </NModal>
+    </AdminFormShell>
   </div>
 </template>

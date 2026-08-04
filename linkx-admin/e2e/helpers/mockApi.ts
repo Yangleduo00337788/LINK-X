@@ -24,7 +24,7 @@ const MOCK_MENUS = [
     id: 1,
     name: 'dashboard',
     path: '/admin/dashboard',
-    title: '仪表盘',
+    title: '工作台',
     children: [],
   },
   {

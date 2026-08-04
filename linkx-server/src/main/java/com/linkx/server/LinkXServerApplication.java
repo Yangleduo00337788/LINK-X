@@ -16,6 +16,7 @@ import org.springframework.boot.autoconfigure.mail.MailSenderAutoConfiguration;
 import org.springframework.boot.autoconfigure.mail.MailSenderValidatorAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -38,6 +39,7 @@ import java.nio.charset.StandardCharsets;
 @MapperScan("com.linkx.server.mapper")
 @EnableConfigurationProperties(LinkxProperties.class)
 @EnableAsync
+@EnableScheduling
 public class LinkXServerApplication {
 
     static {

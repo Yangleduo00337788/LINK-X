@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AdminFormShell from '@/components/AdminFormShell.vue'
 import { computed, h, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
@@ -32,6 +33,7 @@ import {
 } from '@/api/reviews'
 import { formatTime } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
+import { notifyPendingTask } from '@/utils/adminNotify'
 import SearchAutoComplete from '@/components/SearchAutoComplete.vue'
 
 const message = useMessage()
@@ -387,7 +389,7 @@ function showDetail(row: ReviewItem) {
                     src,
                     alt: '',
                     style:
-                      'max-width: 100%; max-height: 360px; width: auto; height: auto; object-fit: contain; border-radius: 8px; border: 1px solid var(--lx-border, #e5e5e5); display: block;',
+                      'max-width: 100%; max-height: 360px; width: auto; height: auto; object-fit: contain; border-radius: var(--lx-radius); border: 1px solid var(--lx-border, #e5e5e5); display: block;',
                   }),
                 ])
               )
@@ -540,6 +542,7 @@ async function load(opts?: { silent?: boolean; announceNew?: boolean }) {
       const fresh = next.filter((row) => !knownIds.value.has(String(row.id)))
       if (fresh.length > 0 && query.page === 1) {
         message.info(t('review.newArrived', { n: fresh.length }))
+        notifyPendingTask(t, locale.value)
       }
     }
     items.value = next
@@ -707,12 +710,12 @@ onUnmounted(() => {
       />
     </div>
 
-    <NModal
+    <AdminFormShell
       v-model:show="showResolve"
-      preset="card"
+      
       :title="resolveAction === 'approve' ? t('review.approveTitle') : t('review.rejectTitle')"
-      style="width: 560px"
-    >
+      
+     :width="560">
       <p class="quote">{{ stripEvidenceText(resolveTarget?.contentSnapshot) }}</p>
       <div v-if="resolveTarget?.evidenceUrls?.length" class="evidence-block">
         <div class="evidence-label">{{ t('review.evidence') }}</div>
@@ -774,7 +777,7 @@ onUnmounted(() => {
           </NButton>
         </NSpace>
       </template>
-    </NModal>
+    </AdminFormShell>
   </div>
 </template>
 
@@ -819,7 +822,7 @@ onUnmounted(() => {
   width: auto;
   height: auto;
   object-fit: contain;
-  border-radius: 8px;
+  border-radius: var(--lx-radius);
   border: 1px solid var(--lx-border, #e5e5e5);
   display: block;
 }

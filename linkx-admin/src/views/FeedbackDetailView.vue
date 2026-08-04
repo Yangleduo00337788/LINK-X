@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AdminFormShell from '@/components/AdminFormShell.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -279,12 +280,12 @@ onMounted(async () => {
       </div>
     </NSpin>
 
-    <NModal
+    <AdminFormShell
       v-model:show="showReply"
-      preset="card"
+      
       :title="t('feedback.replyTitle')"
-      style="width: 520px"
-    >
+      
+     :width="520">
       <p class="reply-quote">{{ feedback?.content }}</p>
       <NInput
         v-model:value="replyContent"
@@ -300,14 +301,14 @@ onMounted(async () => {
           </NButton>
         </NSpace>
       </template>
-    </NModal>
+    </AdminFormShell>
 
-    <NModal
+    <AdminFormShell
       v-model:show="showAssign"
-      preset="card"
+      
       :title="t('feedback.assignTitle')"
-      style="width: 480px"
-    >
+      
+     :width="480">
       <p class="reply-quote">{{ feedback?.content }}</p>
       <NSelect
         v-model:value="assigneeId"
@@ -324,7 +325,7 @@ onMounted(async () => {
           </NButton>
         </NSpace>
       </template>
-    </NModal>
+    </AdminFormShell>
   </div>
 </template>
 
@@ -363,7 +364,7 @@ onMounted(async () => {
 }
 .thread-item {
   border: 1px solid var(--lx-border);
-  border-radius: 10px;
+  border-radius: var(--lx-radius);
   padding: 12px 14px;
   background: var(--lx-card);
 }

@@ -18,8 +18,11 @@ import {
 import QRCode from 'qrcode'
 import { beginTotpSetupChallenge, fetchAuthConfig, fetchCaptcha } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
-import PrefSwitcher from '@/components/PrefSwitcher.vue'
+import AuthPageShell from '@/components/AuthPageShell.vue'
 import AdminOpsBannerCarousel from '@/components/AdminOpsBannerCarousel.vue'
+import AdminBrandLogo from '@/components/AdminBrandLogo.vue'
+import LoginHeroIllustration from '@/components/LoginHeroIllustration.vue'
+import { unlockSpeech } from '@/utils/voiceNotify'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -137,6 +140,7 @@ async function loadCaptcha() {
 }
 
 async function finishLogin(loginResult?: { newLoginIp?: boolean; loginIp?: string }) {
+  unlockSpeech()
   rememberUsername(form.username)
   message.success(t('login.success'))
   if (loginResult?.newLoginIp) {
@@ -176,6 +180,7 @@ async function enterSetup(token: string) {
 }
 
 async function submit() {
+  unlockSpeech(locale.value)
   await formRef.value?.validate()
   loading.value = true
   try {
@@ -204,6 +209,7 @@ async function submit() {
 }
 
 async function submitTotp() {
+  unlockSpeech(locale.value)
   await totpFormRef.value?.validate()
   loading.value = true
   try {
@@ -248,237 +254,151 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="login-page">
-    <div class="login-bg" />
-    <div class="login-prefs">
-      <PrefSwitcher />
-    </div>
+  <AuthPageShell>
+    <template #visual>
+      <AdminOpsBannerCarousel
+        class="login-ops-banner"
+        position="login"
+        height="100%"
+        :radius="0"
+        :show-arrow="(loginBannerCount || 0) > 1"
+        @loaded="onLoginBannerLoaded"
+      />
+    </template>
+    <template v-if="loginBannerCount === 0" #visual-fallback>
+      <LoginHeroIllustration />
+    </template>
 
-    <div class="login-split">
-      <aside class="login-visual">
-        <AdminOpsBannerCarousel
-          class="login-ops-banner"
-          position="login"
-          height="100%"
-          :radius="0"
-          :show-arrow="(loginBannerCount || 0) > 1"
-          @loaded="onLoginBannerLoaded"
-        />
-        <div v-if="loginBannerCount === 0" class="login-visual-fallback">
-          <div class="login-visual-mark">L</div>
-          <div class="login-visual-title">{{ t('app.brand') }}</div>
-          <p class="login-visual-desc">{{ t('login.subtitle') }}</p>
-        </div>
-      </aside>
+    <NCard class="login-card" :bordered="false">
+      <AdminBrandLogo size="login" class="login-brand-logo" />
+      <p class="login-sub">
+        {{
+          step === 'totp'
+            ? t('login.totpSubtitle')
+            : step === 'setup'
+              ? t('login.totpSetupSubtitle')
+              : t('login.subtitle')
+        }}
+      </p>
 
-      <section class="login-panel">
-        <NCard class="login-card" :bordered="false">
-          <div class="login-brand">{{ t('app.brand') }}</div>
-          <p class="login-sub">
-            {{
-              step === 'totp'
-                ? t('login.totpSubtitle')
-                : step === 'setup'
-                  ? t('login.totpSetupSubtitle')
-                  : t('login.subtitle')
-            }}
-          </p>
-
-          <NForm
-            v-if="step === 'password'"
-            ref="formRef"
-            :model="form"
-            :rules="rules"
-            size="large"
-            @keyup.enter="submit"
-          >
-            <NFormItem path="username" :label="t('login.username')">
-              <NAutoComplete
-                v-model:value="form.username"
-                :options="usernameOptions"
-                :placeholder="t('login.usernamePlaceholder')"
-                clearable
-              />
-            </NFormItem>
-            <NFormItem path="password" :label="t('login.password')">
+      <div class="login-step-wrap">
+        <Transition name="lx-auth-step">
+        <NForm
+          v-if="step === 'password'"
+          key="password"
+          ref="formRef"
+          :model="form"
+          :rules="rules"
+          size="large"
+          @keyup.enter="submit"
+        >
+          <NFormItem path="username" :label="t('login.username')">
+            <NAutoComplete
+              v-model:value="form.username"
+              :options="usernameOptions"
+              :placeholder="t('login.usernamePlaceholder')"
+              clearable
+            />
+          </NFormItem>
+          <NFormItem path="password" :label="t('login.password')">
+            <NInput
+              v-model:value="form.password"
+              type="password"
+              show-password-on="click"
+              :placeholder="t('login.passwordPlaceholder')"
+              autocomplete="current-password"
+            />
+          </NFormItem>
+          <NFormItem v-if="captchaEnabled" path="captchaCode" :label="t('login.captcha')">
+            <NSpace style="width: 100%" :wrap="false">
               <NInput
-                v-model:value="form.password"
-                type="password"
-                show-password-on="click"
-                :placeholder="t('login.passwordPlaceholder')"
-                autocomplete="current-password"
+                v-model:value="form.captchaCode"
+                :placeholder="t('login.captchaPlaceholder')"
+                style="flex: 1"
+              />
+              <div class="captcha-box" @click="loadCaptcha">
+                <NSpin :show="captchaLoading" size="small">
+                  <img v-if="captchaImg" :src="captchaImg" alt="captcha" />
+                  <span v-else>{{ t('login.refreshCaptcha') }}</span>
+                </NSpin>
+              </div>
+            </NSpace>
+          </NFormItem>
+          <NButton type="primary" block :loading="loading" @click="submit">
+            {{ t('login.submit') }}
+          </NButton>
+        </NForm>
+
+        <div v-else key="totp">
+          <div v-if="step === 'setup'" class="totp-setup">
+            <img v-if="qrDataUrl" class="totp-qr" :src="qrDataUrl" alt="totp-qr" />
+            <p class="totp-hint">{{ t('login.totpScanHint') }}</p>
+            <code class="totp-secret">{{ setupSecret }}</code>
+          </div>
+          <NForm
+            ref="totpFormRef"
+            :model="totpForm"
+            :rules="totpRules"
+            size="large"
+            @keyup.enter="submitTotp"
+          >
+            <NFormItem path="code" :label="t('login.totpCode')">
+              <NInput
+                v-model:value="totpForm.code"
+                maxlength="6"
+                :placeholder="t('login.totpCodePlaceholder')"
+                autocomplete="one-time-code"
               />
             </NFormItem>
-            <NFormItem v-if="captchaEnabled" path="captchaCode" :label="t('login.captcha')">
-              <NSpace style="width: 100%" :wrap="false">
-                <NInput
-                  v-model:value="form.captchaCode"
-                  :placeholder="t('login.captchaPlaceholder')"
-                  style="flex: 1"
-                />
-                <div class="captcha-box" @click="loadCaptcha">
-                  <NSpin :show="captchaLoading" size="small">
-                    <img v-if="captchaImg" :src="captchaImg" alt="captcha" />
-                    <span v-else>{{ t('login.refreshCaptcha') }}</span>
-                  </NSpin>
-                </div>
-              </NSpace>
-            </NFormItem>
-            <NButton type="primary" block :loading="loading" @click="submit">
-              {{ t('login.submit') }}
-            </NButton>
+            <NSpace vertical style="width: 100%">
+              <NButton type="primary" block :loading="loading" @click="submitTotp">
+                {{ step === 'setup' ? t('login.totpConfirmBind') : t('login.totpVerify') }}
+              </NButton>
+              <NButton block quaternary :disabled="loading" @click="backToPassword">
+                {{ t('login.back') }}
+              </NButton>
+            </NSpace>
           </NForm>
-
-          <div v-else>
-            <div v-if="step === 'setup'" class="totp-setup">
-              <img v-if="qrDataUrl" class="totp-qr" :src="qrDataUrl" alt="totp-qr" />
-              <p class="totp-hint">{{ t('login.totpScanHint') }}</p>
-              <code class="totp-secret">{{ setupSecret }}</code>
-            </div>
-            <NForm
-              ref="totpFormRef"
-              :model="totpForm"
-              :rules="totpRules"
-              size="large"
-              @keyup.enter="submitTotp"
-            >
-              <NFormItem path="code" :label="t('login.totpCode')">
-                <NInput
-                  v-model:value="totpForm.code"
-                  maxlength="6"
-                  :placeholder="t('login.totpCodePlaceholder')"
-                  autocomplete="one-time-code"
-                />
-              </NFormItem>
-              <NSpace vertical style="width: 100%">
-                <NButton type="primary" block :loading="loading" @click="submitTotp">
-                  {{ step === 'setup' ? t('login.totpConfirmBind') : t('login.totpVerify') }}
-                </NButton>
-                <NButton block quaternary :disabled="loading" @click="backToPassword">
-                  {{ t('login.back') }}
-                </NButton>
-              </NSpace>
-            </NForm>
-          </div>
-        </NCard>
-      </section>
-    </div>
-  </div>
+        </div>
+        </Transition>
+      </div>
+    </NCard>
+  </AuthPageShell>
 </template>
 
 <style scoped>
-.login-page {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  position: relative;
-  overflow: hidden;
-  padding: 24px;
-  box-sizing: border-box;
-}
-.login-bg {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(ellipse 80% 60% at 20% 20%, var(--lx-login-grad-1), transparent 55%),
-    radial-gradient(ellipse 70% 50% at 80% 80%, var(--lx-login-grad-2), transparent 50%),
-    var(--lx-login-base);
-}
-.login-prefs {
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  z-index: 2;
-}
-.login-split {
-  position: relative;
-  z-index: 1;
-  width: min(960px, calc(100vw - 48px));
-  min-height: min(560px, calc(100vh - 48px));
-  display: grid;
-  grid-template-columns: 1.15fr 0.85fr;
-  border-radius: 20px;
-  overflow: hidden;
-  border: 1px solid var(--lx-border);
-  background: var(--lx-login-card);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.14);
-  backdrop-filter: blur(10px);
-}
-.login-visual {
-  position: relative;
-  min-height: 280px;
-  background:
-    linear-gradient(145deg, rgba(18, 183, 245, 0.22), transparent 55%),
-    linear-gradient(320deg, rgba(64, 128, 255, 0.18), transparent 50%), var(--lx-login-base);
-}
 .login-ops-banner {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
 }
-.login-visual-fallback {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 40px 36px;
-  color: var(--lx-text);
-}
-.login-visual-mark {
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
-  display: grid;
-  place-items: center;
-  font-size: 28px;
-  font-weight: 700;
-  color: #fff;
-  background: linear-gradient(135deg, #12b7f5, #3b82f6);
-  box-shadow: 0 10px 24px rgba(18, 183, 245, 0.35);
-  margin-bottom: 18px;
-}
-.login-visual-title {
-  font-size: 32px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-}
-.login-visual-desc {
-  margin: 10px 0 0;
-  max-width: 280px;
-  color: var(--lx-text-3);
-  font-size: 14px;
-  line-height: 1.6;
-}
-.login-panel {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 36px 28px;
-  background: var(--lx-login-card);
-}
+
 .login-card {
   width: 100%;
-  max-width: 360px;
   background: transparent !important;
   box-shadow: none !important;
 }
-.login-brand {
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--lx-text);
+
+.login-brand-logo {
+  margin-bottom: 4px;
 }
+
 .login-sub {
-  margin: 4px 0 24px;
+  margin: 8px 0 24px;
   color: var(--lx-text-3);
   font-size: 14px;
 }
+
+.login-step-wrap {
+  position: relative;
+  min-height: 220px;
+}
+
 .captcha-box {
   width: 120px;
   height: 40px;
-  border-radius: 16px;
+  border-radius: var(--lx-radius);
   border: 1px solid var(--lx-border);
   background: var(--lx-captcha-bg);
   cursor: pointer;
@@ -488,55 +408,47 @@ onMounted(async () => {
   flex-shrink: 0;
   color: var(--lx-text-3);
   font-size: 12px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
+
+.captcha-box:hover {
+  border-color: var(--lx-oa-blue);
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.12);
+}
+
 .captcha-box img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
+
 .totp-setup {
   display: grid;
   justify-items: center;
   gap: 8px;
   margin-bottom: 16px;
 }
+
 .totp-qr {
   width: 180px;
   height: 180px;
-  border-radius: 8px;
+  border-radius: var(--lx-radius);
   background: #fff;
 }
+
 .totp-hint {
   margin: 0;
   color: var(--lx-text-3);
   font-size: 13px;
   text-align: center;
 }
+
 .totp-secret {
   font-size: 12px;
   word-break: break-all;
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: var(--lx-radius);
   background: var(--lx-captcha-bg);
   max-width: 100%;
-}
-
-@media (max-width: 820px) {
-  .login-page {
-    padding: 16px;
-    place-items: stretch;
-  }
-  .login-split {
-    width: 100%;
-    min-height: auto;
-    grid-template-columns: 1fr;
-  }
-  .login-visual {
-    min-height: 200px;
-    aspect-ratio: 16 / 9;
-  }
-  .login-panel {
-    padding: 24px 20px 28px;
-  }
 }
 </style>

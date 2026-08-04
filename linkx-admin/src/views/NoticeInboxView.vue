@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AdminFormShell from '@/components/AdminFormShell.vue'
 import { computed, h, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NButton, NDataTable, NEmpty, NModal, NSpace, NTag, type DataTableColumns } from 'naive-ui'
@@ -174,11 +175,10 @@ onUnmounted(() => {
       </NDataTable>
     </div>
 
-    <NModal
+    <AdminFormShell
       v-model:show="showDetail"
-      preset="card"
       :title="t('notice.inboxDetailTitle')"
-      style="width: 560px; max-width: 92vw"
+      :width="560"
     >
       <template v-if="detailItem">
         <div class="notice-detail">
@@ -196,19 +196,11 @@ onUnmounted(() => {
           </div>
         </div>
       </template>
-    </NModal>
+    </AdminFormShell>
   </div>
 </template>
 
 <style scoped>
-.page {
-  padding: 0;
-}
-.page-shell {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
 .inbox-hint {
   margin: 0;
   font-size: 13px;
@@ -250,7 +242,7 @@ onUnmounted(() => {
   margin: 0;
   padding: 12px;
   background: var(--n-color-embedded);
-  border-radius: 6px;
+  border-radius: var(--lx-radius);
   white-space: pre-wrap;
   word-break: break-word;
   font-family: inherit;

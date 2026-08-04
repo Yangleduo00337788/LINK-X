@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AdminFormShell from '@/components/AdminFormShell.vue'
 import { computed, h, onMounted, onUnmounted, reactive, ref, type VNode } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -701,7 +702,7 @@ onUnmounted(() => {
       </div>
     </NSpin>
 
-    <NModal v-model:show="showEdit" preset="card" :title="t('user.editTitle')" style="width: 480px">
+    <AdminFormShell v-model:show="showEdit"  :title="t('user.editTitle')"  :width="480">
       <NForm label-placement="left" label-width="80">
         <NFormItem :label="t('user.nickname')">
           <NInput v-model:value="editForm.nickname" :placeholder="t('user.nicknamePlaceholder')" />
@@ -737,15 +738,15 @@ onUnmounted(() => {
           }}</NButton>
         </NSpace>
       </template>
-    </NModal>
+    </AdminFormShell>
 
-    <NModal
+    <AdminFormShell
       v-model:show="showResetPassword"
-      preset="card"
+      
       :title="t('user.resetPasswordTitle')"
-      style="width: 480px"
+      
       @after-leave="generatedPassword = ''"
-    >
+     :width="480">
       <p style="margin: 0 0 12px; color: var(--n-text-color-3); line-height: 1.5">
         {{ t('user.resetPasswordHint') }}
       </p>
@@ -793,6 +794,6 @@ onUnmounted(() => {
           </template>
         </NSpace>
       </template>
-    </NModal>
+    </AdminFormShell>
   </div>
 </template>
