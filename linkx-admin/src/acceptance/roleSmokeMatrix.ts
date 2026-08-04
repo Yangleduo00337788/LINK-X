@@ -37,7 +37,15 @@ export type RoleSmokeCase = {
 export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
   {
     roleCode: 'super_admin',
-    mustMenus: ['dashboard', 'settings', 'rate-limit', 'versions', 'system-monitor', 'monitor-service'],
+    mustMenus: [
+      'dashboard',
+      'settings-center',
+      'settings',
+      'versions',
+      'rate-limit',
+      'system-monitor',
+      'monitor-service',
+    ],
     mustNotMenus: [],
     allowPerms: [
       'admin:dashboard:view',
@@ -68,6 +76,7 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
     roleCode: 'ops_admin',
     mustMenus: [
       'dashboard',
+      'feedback-center',
       'feedback',
       'feedback-dispatch-rules',
       'notices',
@@ -78,7 +87,7 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
       'system-monitor',
       'monitor-tasks',
     ],
-    mustNotMenus: ['settings', 'risk-event', 'devices', 'rate-limit'],
+    mustNotMenus: ['settings-center', 'settings', 'versions', 'risk-event', 'devices', 'rate-limit'],
     allowPerms: [
       'admin:dashboard:view',
       'admin:feedback:reply',
@@ -131,7 +140,7 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
       'devices',
       'abnormal-access',
     ],
-    mustNotMenus: ['notices', 'statistics', 'settings', 'rate-limit'],
+    mustNotMenus: ['notices', 'statistics', 'settings-center', 'settings', 'versions', 'rate-limit'],
     allowPerms: [
       'admin:review:approve',
       'admin:review:delete-content',
@@ -165,7 +174,7 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
   {
     roleCode: 'security_admin',
     mustMenus: ['risk-event', 'devices', 'blacklist', 'rate-limit', 'abnormal-access'],
-    mustNotMenus: ['feedback', 'notices', 'settings'],
+    mustNotMenus: ['feedback', 'feedback-center', 'notices', 'settings-center', 'settings', 'versions'],
     allowPerms: [
       'admin:risk-event:handle',
       'admin:device:kick',
@@ -195,7 +204,7 @@ export const ROLE_SMOKE_CASES: RoleSmokeCase[] = [
   {
     roleCode: 'readonly_observer',
     mustMenus: ['dashboard', 'statistics', 'user', 'devices'],
-    mustNotMenus: ['settings', 'blacklist', 'notices', 'rate-limit'],
+    mustNotMenus: ['settings-center', 'settings', 'versions', 'blacklist', 'notices', 'rate-limit'],
     allowPerms: [
       'admin:dashboard:view',
       'admin:statistics:view',

@@ -62,6 +62,18 @@ export interface MailSideSetting {
   codeExpireMinutes?: number
 }
 
+export interface MailTemplateSetting {
+  subject?: string
+  html?: string
+  usingDefault?: boolean
+}
+
+export interface MailTemplatesSideSetting {
+  register?: MailTemplateSetting
+  reset?: MailTemplateSetting
+  welcome?: MailTemplateSetting
+}
+
 export interface AdminSetting {
   register?: RegisterSideSetting
   login?: LoginSideSetting
@@ -69,6 +81,7 @@ export interface AdminSetting {
   admin?: AdminSideSetting
   client?: ClientSideSetting
   mail?: MailSideSetting
+  mailTemplates?: MailTemplatesSideSetting
 }
 
 export type RegisterUpdatePayload = Required<
@@ -127,6 +140,17 @@ export type MailUpdatePayload = {
   codeExpireMinutes: number
 }
 
+export type MailTemplateUpdatePayload = {
+  subject?: string
+  html?: string
+}
+
+export type MailTemplatesUpdatePayload = {
+  register: MailTemplateUpdatePayload
+  reset: MailTemplateUpdatePayload
+  welcome: MailTemplateUpdatePayload
+}
+
 export type AdminSettingUpdatePayload = {
   register?: RegisterUpdatePayload
   login?: LoginUpdatePayload
@@ -162,6 +186,10 @@ export function updateClientSideSettings(payload: ClientSideUpdatePayload) {
 
 export function updateMailSettings(payload: MailUpdatePayload) {
   return updateSettings({ mail: payload })
+}
+
+export function updateMailTemplates(payload: MailTemplatesUpdatePayload) {
+  return put<AdminSetting>('/admin/settings/mail-templates', payload)
 }
 
 export function testForgotPasswordEmail(email: string) {

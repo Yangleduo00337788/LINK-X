@@ -18,6 +18,7 @@ import {
   NSwitch,
   NTabPane,
   NTabs,
+  NTag,
   useDialog,
   useMessage,
 } from 'naive-ui'
@@ -29,9 +30,11 @@ import {
   updateClientSideSettings,
   updateLoginSettings,
   updateMailSettings,
+  updateMailTemplates,
   updatePasswordSettings,
   updateRegisterSettings,
   type AdminSetting,
+  type MailTemplateSetting,
 } from '@/api/settings'
 import { useAuthStore } from '@/stores/auth'
 import { usePreferencesStore } from '@/stores/preferences'
@@ -53,10 +56,20 @@ const savingLogin = ref(false)
 const savingPassword = ref(false)
 const savingClient = ref(false)
 const savingMail = ref(false)
+const savingMailTemplates = ref(false)
 const testingEmail = ref(false)
 const showTestEmailModal = ref(false)
 const testEmail = ref('')
-const tabNames = new Set(['register', 'login', 'password', 'client', 'mail', 'watermark', 'sound'])
+const tabNames = new Set([
+  'register',
+  'login',
+  'password',
+  'client',
+  'mail',
+  'mail-templates',
+  'watermark',
+  'sound',
+])
 const activeTab = ref(
   tabNames.has(String(route.query.tab || '')) ? String(route.query.tab) : 'register'
 )
@@ -199,6 +212,22 @@ const mailForm = reactive({
   codeExpireMinutes: 10 as number | null,
 })
 
+type MailTemplateFormItem = {
+  subject: string
+  html: string
+  usingDefault: boolean
+}
+
+const mailTemplatesForm = reactive<{
+  register: MailTemplateFormItem
+  reset: MailTemplateFormItem
+  welcome: MailTemplateFormItem
+}>({
+  register: { subject: '', html: '', usingDefault: true },
+  reset: { subject: '', html: '', usingDefault: true },
+  welcome: { subject: '', html: '', usingDefault: true },
+})
+
 const channelOptions = [
   { label: 'stable', value: 'stable' },
   { label: 'beta', value: 'beta' },
@@ -276,6 +305,17 @@ function applySettings(data: AdminSetting) {
   mailForm.ssl = data.mail?.ssl === true
   mailForm.codeExpireMinutes = data.mail?.codeExpireMinutes ?? 10
   syncMailPortByEncryption()
+
+  applyMailTemplate('register', data.mailTemplates?.register)
+  applyMailTemplate('reset', data.mailTemplates?.reset)
+  applyMailTemplate('welcome', data.mailTemplates?.welcome)
+}
+
+function applyMailTemplate(key: 'register' | 'reset' | 'welcome', tpl?: MailTemplateSetting) {
+  const target = mailTemplatesForm[key]
+  target.subject = tpl?.subject || ''
+  target.html = tpl?.html || ''
+  target.usingDefault = tpl?.usingDefault !== false
 }
 
 async function load() {
@@ -479,6 +519,46 @@ async function saveMail() {
       message.success(t('setting.mailSaved'))
     } finally {
       savingMail.value = false
+    }
+  })
+}
+
+function resetMailTemplate(key: 'register' | 'reset' | 'welcome') {
+  mailTemplatesForm[key].subject = ''
+  mailTemplatesForm[key].html = ''
+  mailTemplatesForm[key].usingDefault = true
+}
+
+function onMailTemplateEdit(key: 'register' | 'reset' | 'welcome') {
+  mailTemplatesForm[key].usingDefault = false
+}
+
+function buildMailTemplatePayload(key: 'register' | 'reset' | 'welcome') {
+  const item = mailTemplatesForm[key]
+  if (item.usingDefault) {
+    return { subject: '', html: '' }
+  }
+  return {
+    subject: item.subject.trim(),
+    html: item.html.trim(),
+  }
+}
+
+async function saveMailTemplates() {
+  if (!canEdit.value) return
+  confirmSave(t('setting.saveMailTemplates'), async () => {
+    savingMailTemplates.value = true
+    try {
+      applySettings(
+        await updateMailTemplates({
+          register: buildMailTemplatePayload('register'),
+          reset: buildMailTemplatePayload('reset'),
+          welcome: buildMailTemplatePayload('welcome'),
+        })
+      )
+      message.success(t('setting.mailTemplatesSaved'))
+    } finally {
+      savingMailTemplates.value = false
     }
   })
 }
@@ -1020,6 +1100,83 @@ onMounted(load)
             </NForm>
           </NTabPane>
 
+          <NTabPane name="mail-templates" :tab="t('setting.mailTemplatesTitle')">
+            <p class="section-hint">{{ t('setting.mailTemplatesHint') }}</p>
+            <NForm label-placement="top" :disabled="!canEdit">
+              <template v-for="key in ['register', 'reset', 'welcome'] as const" :key="key">
+                <NDivider v-if="key !== 'register'" />
+                <div class="template-block">
+                  <div class="template-head">
+                    <h3 class="block-title">
+                      {{
+                        key === 'register'
+                          ? t('setting.mailTemplateRegister')
+                          : key === 'reset'
+                            ? t('setting.mailTemplateReset')
+                            : t('setting.mailTemplateWelcome')
+                      }}
+                    </h3>
+                    <NTag
+                      size="small"
+                      :type="mailTemplatesForm[key].usingDefault ? 'default' : 'success'"
+                      :bordered="false"
+                    >
+                      {{
+                        mailTemplatesForm[key].usingDefault
+                          ? t('setting.mailTemplateUsingDefault')
+                          : t('setting.mailTemplateCustom')
+                      }}
+                    </NTag>
+                    <NButton
+                      v-if="canEdit"
+                      size="small"
+                      tertiary
+                      class="template-reset-btn"
+                      @click="resetMailTemplate(key)"
+                    >
+                      {{ t('setting.mailTemplateResetDefault') }}
+                    </NButton>
+                  </div>
+                  <NFormItem :label="t('setting.mailTemplateSubject')">
+                    <NInput
+                      v-model:value="mailTemplatesForm[key].subject"
+                      @update:value="onMailTemplateEdit(key)"
+                    />
+                  </NFormItem>
+                  <NFormItem :label="t('setting.mailTemplateHtml')">
+                    <NInput
+                      v-model:value="mailTemplatesForm[key].html"
+                      type="textarea"
+                      :rows="10"
+                      class="template-html"
+                      @update:value="onMailTemplateEdit(key)"
+                    />
+                  </NFormItem>
+                </div>
+              </template>
+              <NFormItem v-if="canEdit">
+                <NSpace>
+                  <NButton
+                    type="primary"
+                    class="lx-float-btn"
+                    :loading="savingMailTemplates"
+                    @click="saveMailTemplates"
+                  >
+                    {{ t('setting.saveMailTemplates') }}
+                  </NButton>
+                  <NButton
+                    class="lx-float-btn"
+                    :disabled="savingMailTemplates"
+                    @click="load"
+                  >
+                    {{ t('common.refresh') }}
+                  </NButton>
+                </NSpace>
+              </NFormItem>
+              <p v-else class="readonly-hint">{{ t('setting.readonlyHint') }}</p>
+            </NForm>
+          </NTabPane>
+
           <NTabPane name="watermark" :tab="t('setting.watermarkTitle')">
             <p class="section-hint">{{ t('setting.watermarkHint') }}</p>
             <NForm label-placement="left" label-width="120">
@@ -1278,5 +1435,26 @@ onMounted(load)
 }
 .voice-empty {
   margin: 8px 0 0;
+}
+.template-block {
+  margin-bottom: 8px;
+}
+.template-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.template-head .block-title {
+  margin: 0;
+}
+.template-reset-btn {
+  margin-left: auto;
+}
+.template-html :deep(textarea) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
 }
 </style>
