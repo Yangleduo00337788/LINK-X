@@ -105,7 +105,7 @@ class AdminRoleSmokeIT extends BaseIntegrationTest {
         mockMvc.perform(get("/admin/system-monitor/tables").header("Authorization", ops.bearer()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.tables").isArray());
+                .andExpect(jsonPath("$.data.tableList").isArray());
 
         TestUser victim = registerAndLogin("opsvct");
         mockMvc.perform(post("/admin/users/{id}/freeze", victim.userId)

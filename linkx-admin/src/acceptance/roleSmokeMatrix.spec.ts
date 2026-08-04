@@ -185,8 +185,10 @@ describe('前端角色冒烟矩阵', () => {
     }
   })
 
-  it('受保护管理路由均声明 permission（profile 除外）', () => {
-    const missing = ADMIN_ROUTE_PERMISSIONS.filter((r) => r.name !== 'Profile' && !r.permission)
+  it('受保护管理路由均声明 permission（profile / export-jobs 除外）', () => {
+    const missing = ADMIN_ROUTE_PERMISSIONS.filter(
+      (r) => r.name !== 'Profile' && r.name !== 'ExportJobs' && !r.permission
+    )
     expect(missing).toEqual([])
   })
 

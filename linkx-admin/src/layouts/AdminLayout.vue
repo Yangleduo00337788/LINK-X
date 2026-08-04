@@ -18,7 +18,7 @@ import {
   useMessage,
   type MenuOption,
 } from 'naive-ui'
-import { LogOutOutline, PersonCircleOutline, PersonOutline } from '@vicons/ionicons5'
+import { LogOutOutline, PersonCircleOutline, PersonOutline, DownloadOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
 import { usePreferencesStore } from '@/stores/preferences'
@@ -427,6 +427,11 @@ const userOptions = computed(() => {
   void locale.value
   return [
     {
+      label: t('layout.exportJobs'),
+      key: 'export-jobs',
+      icon: () => h(NIcon, null, { default: () => h(DownloadOutline) }),
+    },
+    {
       label: t('layout.profile'),
       key: 'profile',
       icon: () => h(NIcon, null, { default: () => h(PersonOutline) }),
@@ -440,6 +445,10 @@ const userOptions = computed(() => {
 })
 
 async function onUserSelect(key: string) {
+  if (key === 'export-jobs') {
+    router.push('/admin/export-jobs')
+    return
+  }
   if (key === 'profile') {
     router.push('/admin/profile')
     return

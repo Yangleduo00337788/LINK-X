@@ -15,7 +15,7 @@ public class AdminSystemTableStatsVO {
     private LocalDateTime refreshedAt;
     private String schemaName;
     private AdminSystemStorageSummaryVO storage;
-    private List<AdminSystemTableStatVO> tables;
+    private List<AdminSystemTableStatVO> tableList;
     @Schema(description = "information_schema 行数为估算值")
     private Boolean rowCountApproximate;
     @Schema(description = "是否来自缓存")

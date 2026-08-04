@@ -1,4 +1,5 @@
 import { downloadFile, get, post } from './request'
+import type { PageQuery, PageResult } from '@/types/api'
 
 export type ExportModule =
   | 'users'
@@ -31,6 +32,10 @@ export function createExportJob(module: ExportModule, query?: Record<string, unk
 
 export function getExportJob(id: string | number) {
   return get<ExportJob>(`/admin/export-jobs/${id}`)
+}
+
+export function listExportJobs(params?: PageQuery) {
+  return get<PageResult<ExportJob>>('/admin/export-jobs', params as Record<string, unknown>)
 }
 
 export function downloadExportJob(id: string | number, fallbackName = 'export.csv') {

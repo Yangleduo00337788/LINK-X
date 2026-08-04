@@ -272,6 +272,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/ProfileView.vue'),
         meta: { titleKey: 'route.profile', hidden: true },
       },
+      {
+        path: 'export-jobs',
+        name: 'ExportJobs',
+        component: () => import('@/views/ExportJobListView.vue'),
+        meta: { titleKey: 'route.exportJobs', hidden: true },
+      },
     ],
   },
   {

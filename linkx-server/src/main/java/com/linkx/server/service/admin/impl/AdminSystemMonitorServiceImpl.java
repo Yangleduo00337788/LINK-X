@@ -110,21 +110,63 @@ public class AdminSystemMonitorServiceImpl implements AdminSystemMonitorService 
                 .refreshedAt(LocalDateTime.now(ZONE))
                 .schemaName(schemaName)
                 .storage(storage)
-                .tables(tables)
+                .tableList(tables)
                 .rowCountApproximate(true)
                 .cached(fromCache)
                 .build();
     }
 
     private String resolveSchemaName() {
+        try (Connection connection = dataSource.getConnection()) {
+            String catalog = connection.getCatalog();
+            if (catalog != null && !catalog.isBlank()) {
+                return catalog.trim();
+            }
+        } catch (SQLException ex) {
+            log.debug("connection catalog unavailable: {}", ex.getMessage());
+        }
+
+        String fromConfig = schemaFromJdbcUrl(environment.getProperty("spring.datasource.url"));
+        if (fromConfig != null && !fromConfig.isBlank()) {
+            return fromConfig;
+        }
+
         try {
             String schema = jdbcTemplate.queryForObject(
-                    "SELECT COALESCE(DATABASE(), CURRENT_SCHEMA())", String.class);
-            return schema != null ? schema : "unknown";
+                    "SELECT COALESCE(DATABASE(), SCHEMA())", String.class);
+            if (schema != null && !schema.isBlank()) {
+                return schema.trim();
+            }
         } catch (DataAccessException ex) {
-            log.warn("Failed to resolve database schema: {}", ex.getMessage());
-            return "unknown";
+            log.warn("Failed to resolve database schema via SQL: {}", ex.getMessage());
         }
+        return "unknown";
+    }
+
+    private static String schemaFromJdbcUrl(String jdbcUrl) {
+        if (jdbcUrl == null || jdbcUrl.isBlank()) {
+            return null;
+        }
+        String normalized = jdbcUrl.trim();
+        int scheme = normalized.indexOf("://");
+        if (scheme < 0) {
+            return null;
+        }
+        int slash = normalized.indexOf('/', scheme + 3);
+        if (slash < 0 || slash + 1 >= normalized.length()) {
+            return null;
+        }
+        String dbPart = normalized.substring(slash + 1);
+        int query = dbPart.indexOf('?');
+        if (query >= 0) {
+            dbPart = dbPart.substring(0, query);
+        }
+        int semicolon = dbPart.indexOf(';');
+        if (semicolon >= 0) {
+            dbPart = dbPart.substring(0, semicolon);
+        }
+        dbPart = dbPart.trim();
+        return dbPart.isEmpty() ? null : dbPart;
     }
 
     private AdminSystemRuntimeVO loadRuntime() {

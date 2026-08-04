@@ -1,4 +1,5 @@
-import { get } from './request'
+import request, { get } from './request'
+import type { ApiResult } from '@/types/api'
 
 export interface SystemRuntime {
   uptimeMs: number
@@ -100,7 +101,8 @@ export interface SystemTableStats {
   refreshedAt?: string
   schemaName?: string
   storage: SystemStorageSummary
-  tables: SystemTableStat[]
+  tables?: SystemTableStat[]
+  tableList: SystemTableStat[]
   rowCountApproximate?: boolean
   cached?: boolean
 }
@@ -109,6 +111,28 @@ export function fetchSystemMonitorOverview() {
   return get<SystemMonitorOverview>('/admin/system-monitor')
 }
 
-export function fetchSystemMonitorTables(refresh = false) {
-  return get<SystemTableStats>('/admin/system-monitor/tables', { refresh })
+const TABLES_API_TIMEOUT_MS = 60_000
+
+function asTableList(raw: unknown): SystemTableStat[] {
+  if (Array.isArray(raw)) return raw
+  if (raw && typeof raw === 'object') {
+    return Object.values(raw as Record<string, SystemTableStat>).filter(
+      (row) => row && typeof row === 'object' && typeof row.tableName === 'string'
+    )
+  }
+  return []
+}
+
+function normalizeTableStats(raw: SystemTableStats | null | undefined): SystemTableStats | null {
+  if (!raw) return null
+  const tables = asTableList(raw.tableList ?? raw.tables)
+  return { ...raw, tableList: tables, tables }
+}
+
+export async function fetchSystemMonitorTables(refresh = false) {
+  const { data } = await request.get<ApiResult<SystemTableStats>>('/admin/system-monitor/tables', {
+    params: { refresh: refresh ? true : undefined },
+    timeout: TABLES_API_TIMEOUT_MS,
+  })
+  return normalizeTableStats(data.data)
 }

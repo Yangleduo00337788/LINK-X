@@ -68,6 +68,7 @@ export default {
     exportQueued: 'Export job submitted…',
     exportFailed: 'Export failed',
     exportReady: 'Export ready to download',
+    download: 'Download',
   },
   route: {
     login: 'Login',
@@ -119,6 +120,7 @@ export default {
     statistics: 'Statistics',
     profile: 'Profile',
     notFound: 'Not Found',
+    exportJobs: 'My exports',
     admin: 'Admin',
   },
   perm: {
@@ -338,6 +340,7 @@ export default {
   layout: {
     profile: 'Profile',
     logout: 'Log out',
+    exportJobs: 'My exports',
     themeLight: 'Light',
     themeDark: 'Dark',
     themeConfig: 'Theme settings',
@@ -791,6 +794,30 @@ export default {
     escalatedOnly: 'Escalated only',
     escalatedRealtime: 'Review task(s) escalated for SLA breach — please handle promptly',
   },
+  exportJob: {
+    listHint:
+      'Async export jobs you submitted. Download successful files here; inspect failures for error details. Files expire after 24 hours.',
+    module: 'Module',
+    rowCount: 'Rows',
+    fileName: 'File name',
+    errorMessage: 'Error',
+    expireAt: 'Expires at',
+    downloadOk: 'Download started',
+    statusPending: 'Queued',
+    statusRunning: 'Running',
+    statusSuccess: 'Done',
+    statusFailed: 'Failed',
+    statusExpired: 'Expired',
+    moduleUsers: 'Users',
+    moduleDevices: 'Devices',
+    moduleBlacklist: 'Blacklist',
+    moduleRiskEvents: 'Risk events',
+    moduleReviews: 'Reviews',
+    moduleFeedback: 'Feedback',
+    moduleAuditLogs: 'Audit logs',
+    moduleLoginLogs: 'Login logs',
+    moduleStatistics: 'Statistics',
+  },
   scheduledTask: {
     pageHint: 'View and adjust server scheduled jobs. Use Run now for local testing.',
     snailJobHint:
@@ -849,6 +876,17 @@ export default {
     loading: 'Loading…',
     loadingTables: 'Loading database table sizes…',
     refreshTables: 'Refresh tables',
+    loadTables: 'Load tables',
+    tablesLoadHint: 'Table size scan is slow — load on demand so SQL metrics above stay fast.',
+    tablesLoadTimeout: 'Table size query timed out. Retry later or ask ops to check the database.',
+    tablesLoadEmpty: 'Table size API returned no data',
+    tablesListMismatch: 'Summary shows tables but the detail list is empty — try Refresh',
+    tablesNoMatch: 'No tables match your search — clear the filter',
+    tablesClearSearch: 'Clear search',
+    tablesShown: 'Showing {shown} / {total} tables',
+    tablesSchemaUnknown:
+      'Cannot resolve database name (ensure DB_URL includes a schema, e.g. jdbc:mysql://host:3306/linkx)',
+    refreshingTables: 'Refreshing…',
     tablesCached: '(cached)',
     rowCountHint:
       'Row counts come from information_schema.TABLE_ROWS. For InnoDB they are estimates for capacity trends, not exact COUNT(*).',
