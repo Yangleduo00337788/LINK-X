@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
@@ -113,5 +114,42 @@ public class JwtUtils {
     public TokenType getTokenType(String token) {
         Claims claims = parseToken(token);
         return TokenType.fromClaim(claims.get("type", String.class));
+    }
+
+    public String getJtiFromToken(String token) {
+        Claims claims = parseToken(token);
+        String jti = claims.getId();
+        if (!StringUtils.hasText(jti)) {
+            jti = claims.get("jti", String.class);
+        }
+        if (!StringUtils.hasText(jti)) {
+            throw new io.jsonwebtoken.JwtException("token 缺少 jti");
+        }
+        return jti.trim();
+    }
+
+    /**
+     * 由 access token 的 jti 派生 API 签名密钥（hex，32 字节），登录时下发给前端。
+     */
+    public String deriveApiSignKeyHex(String jti) {
+        if (!StringUtils.hasText(jti)) {
+            throw new IllegalArgumentException("jti is required");
+        }
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(getSecretKey());
+            byte[] raw = mac.doFinal(("linkx-api-sign:" + jti.trim()).getBytes(StandardCharsets.UTF_8));
+            return bytesToHex(raw);
+        } catch (Exception e) {
+            throw new IllegalStateException("derive api sign key failed", e);
+        }
+    }
+
+    private static String bytesToHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder(bytes.length * 2);
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
     }
 }

@@ -17,6 +17,8 @@ public class AdminLoginVO {
     private Long expiresIn;
     private AdminUserProfileVO user;
 
+    private String apiSignKey;
+
     @Schema(description = "是否需要 TOTP 二次验证")
     private Boolean requiresTotp;
 

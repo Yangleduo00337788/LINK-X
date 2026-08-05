@@ -1,6 +1,7 @@
 package com.linkx.server.service.admin.impl;
 
 import com.linkx.server.common.ClientIpResolver;
+import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.InputSanitizer;
 import com.linkx.server.common.LoginSide;
 import com.linkx.server.common.PasswordEncoderHolder;
@@ -31,6 +32,8 @@ import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.RbacService;
 import com.linkx.server.service.SysUserService;
 import com.linkx.server.service.TokenService;
+import com.linkx.server.service.admin.AdminAccessRiskAssessment;
+import com.linkx.server.service.admin.AdminAccessRiskService;
 import com.linkx.server.service.admin.AdminAuthService;
 import com.linkx.server.service.admin.AdminMenuService;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -71,12 +74,18 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     private final LoginAuditService loginAuditService;
     private final MediaUrlService mediaUrlService;
     private final StringRedisTemplate redisTemplate;
+    private final JwtUtils jwtUtils;
+    private final AdminAccessRiskService adminAccessRiskService;
 
     @Override
     public AdminLoginVO login(AdminLoginDTO dto, HttpServletRequest request, HttpServletResponse response) {
+        String ip = ClientIpResolver.resolve(request, linkxProperties);
+        String deviceId = request.getHeader("X-Device-Id");
+        AdminAccessRiskAssessment preRisk = adminAccessRiskService.evaluatePreLogin(ip, deviceId);
         try {
-            validateCaptchaIfEnabled(dto.getCaptchaId(), dto.getCaptchaCode());
+            validateCaptchaForLogin(dto.getCaptchaId(), dto.getCaptchaCode(), preRisk);
         } catch (CustomException e) {
+            adminAccessRiskService.recordLoginFailure(ip);
             try {
                 sysUserService.onLoginFailure(dto.getUsername(), request, LoginSide.ADMIN);
             } catch (CustomException lockEx) {
@@ -91,10 +100,15 @@ public class AdminAuthServiceImpl implements AdminAuthService {
         loginDTO.setCaptchaId(dto.getCaptchaId());
         loginDTO.setCaptchaCode(dto.getCaptchaCode());
 
-        String ip = ClientIpResolver.resolve(request, linkxProperties);
         String userAgent = request.getHeader("User-Agent");
 
-        SysUser user = sysUserService.verifyCredentials(loginDTO, ip, userAgent, request, LoginSide.ADMIN);
+        SysUser user;
+        try {
+            user = sysUserService.verifyCredentials(loginDTO, ip, userAgent, request, LoginSide.ADMIN);
+        } catch (CustomException e) {
+            adminAccessRiskService.recordLoginFailure(ip);
+            throw e;
+        }
         try {
             assertAdminRole(user.getId());
         } catch (CustomException e) {
@@ -111,8 +125,11 @@ public class AdminAuthServiceImpl implements AdminAuthService {
 
         boolean newLoginIp = isNewLoginIp(user.getId(), ip);
         TokenVO tokenVO = sysUserService.establishSession(user, ip, userAgent, request);
+        adminAccessRiskService.clearLoginFailures(ip);
         setTokenCookies(response, tokenVO, request);
-        return toLoginVO(tokenVO, user.getId(), ip, newLoginIp);
+        AdminLoginVO vo = toLoginVO(tokenVO, user.getId(), ip, newLoginIp);
+        adminAccessRiskService.evaluatePostLogin(user.getId(), ip, deviceId, newLoginIp);
+        return vo;
     }
 
     @Override
@@ -383,10 +400,14 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     private AdminLoginVO issueSession(SysUser user, HttpServletRequest request, HttpServletResponse response) {
         String ip = ClientIpResolver.resolve(request, linkxProperties);
         String userAgent = request.getHeader("User-Agent");
+        String deviceId = request.getHeader("X-Device-Id");
         boolean newLoginIp = isNewLoginIp(user.getId(), ip);
         TokenVO tokenVO = sysUserService.establishSession(user, ip, userAgent, request);
+        adminAccessRiskService.clearLoginFailures(ip);
         setTokenCookies(response, tokenVO, request);
-        return toLoginVO(tokenVO, user.getId(), ip, newLoginIp);
+        AdminLoginVO vo = toLoginVO(tokenVO, user.getId(), ip, newLoginIp);
+        adminAccessRiskService.evaluatePostLogin(user.getId(), ip, deviceId, newLoginIp);
+        return vo;
     }
 
     /** 有历史成功登录且当前 IP 不在近期成功 IP 中 → 新 IP。 */
@@ -433,11 +454,17 @@ public class AdminAuthServiceImpl implements AdminAuthService {
         String normalizedIp = StringUtils.hasText(loginIp)
                 ? ClientIpResolver.normalizeToIpv4(loginIp)
                 : null;
+        String apiSignKey = null;
+        if (linkxProperties.getSecurity().isApiSignEnabled()) {
+            String jti = jwtUtils.getJtiFromToken(tokenVO.getAccessToken());
+            apiSignKey = jwtUtils.deriveApiSignKeyHex(jti);
+        }
         return AdminLoginVO.builder()
                 .accessToken(tokenVO.getAccessToken())
                 .refreshToken(tokenVO.getRefreshToken())
                 .expiresIn(expiresIn)
                 .user(buildProfile(user))
+                .apiSignKey(apiSignKey)
                 .requiresTotp(false)
                 .requiresTotpSetup(false)
                 .loginIp(normalizedIp)
@@ -476,6 +503,13 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     private void assertAdminRole(Long userId) {
         if (!AdminConstants.hasAdminPortalRole(rbacService.getUserRoleCodes(userId))) {
             throw new CustomException(403, "无管理端访问权限");
+        }
+    }
+
+    private void validateCaptchaForLogin(String captchaId, String captchaCode, AdminAccessRiskAssessment risk) {
+        boolean required = linkxProperties.getAuth().isAdminCaptchaEnabled() || risk.isRequireCaptcha();
+        if (required) {
+            captchaService.validate(captchaId, captchaCode);
         }
     }
 
