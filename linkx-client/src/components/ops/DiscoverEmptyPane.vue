@@ -54,10 +54,12 @@ function onActivityLoaded(payload: { count: number }) {
   width: 100%;
   height: 100%;
   min-height: 0;
+  flex: 1;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: auto;
+  overflow: hidden;
   padding: 24px 20px;
   box-sizing: border-box;
 }

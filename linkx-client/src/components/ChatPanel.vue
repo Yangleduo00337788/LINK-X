@@ -1492,7 +1492,11 @@ function onDrop(e: DragEvent) {
           />
           <div class="chat-content-stack">
             <!-- 消息列表区域 -->
-            <div class="message-area" :class="{ 'message-area--padded': hasSession }" :style="chatBgStyle">
+            <div
+              class="message-area"
+              :class="{ 'message-area--padded': hasSession }"
+              :style="hasSession ? chatBgStyle : undefined"
+            >
               <div class="message-list-container" ref="messageListContainer">
 
                 <MessageVirtualList

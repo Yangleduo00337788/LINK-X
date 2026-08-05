@@ -7,6 +7,8 @@ withDefaults(
   defineProps<{
     /** split: 登录左右分栏；centered: 403/404 等居中卡片 */
     mode?: 'split' | 'centered'
+    /** 全屏沉浸式分栏（登录页参考阿里云/整页铺满） */
+    immersive?: boolean
     /** 左侧主标题（无 banner 时展示） */
     visualTitle?: string
     /** 左侧副标题 */
@@ -14,6 +16,7 @@ withDefaults(
   }>(),
   {
     mode: 'split',
+    immersive: false,
     visualTitle: '',
     visualDesc: '',
   }
@@ -21,7 +24,7 @@ withDefaults(
 </script>
 
 <template>
-  <div class="auth-page" :class="[`auth-page--${mode}`]">
+  <div class="auth-page" :class="[`auth-page--${mode}`, { 'auth-page--immersive': immersive }]">
     <div class="auth-bg" aria-hidden="true">
       <div class="auth-bg-base" />
       <span class="auth-aurora auth-aurora-a" />
@@ -182,6 +185,88 @@ withDefaults(
   pointer-events: auto;
 }
 
+.auth-page--immersive {
+  padding: 0;
+  place-items: stretch;
+  background: linear-gradient(
+    102deg,
+    #dce9f8 0%,
+    #e8f2fb 16%,
+    #f0f6fc 34%,
+    #f7fafd 52%,
+    #fbfcfe 68%,
+    #ffffff 100%
+  );
+}
+
+.auth-page--immersive::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 58%;
+  height: 42%;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.28;
+  background-image: radial-gradient(rgba(148, 163, 184, 0.45) 1px, transparent 1px);
+  background-size: 18px 18px;
+  mask-image: linear-gradient(135deg, transparent 25%, #000 75%);
+}
+
+.auth-page--immersive .auth-bg {
+  display: none;
+}
+
+.auth-page--immersive .auth-prefs {
+  top: 16px;
+  right: 24px;
+  z-index: 3;
+}
+
+.auth-page--immersive .auth-shell {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  min-height: 100vh;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  background: transparent;
+  grid-template-columns: minmax(0, 1.42fr) minmax(400px, 0.58fr);
+}
+
+.auth-page--immersive .auth-visual {
+  min-height: 100vh;
+  background: transparent;
+  overflow: hidden;
+}
+
+.auth-page--immersive .auth-visual-fallback {
+  position: relative;
+  inset: auto;
+  height: 100%;
+  justify-content: flex-start;
+  overflow: visible;
+}
+
+.auth-page--immersive .auth-panel {
+  min-height: 100vh;
+  padding: 32px 48px 32px 16px;
+  background: transparent;
+  align-items: center;
+  position: relative;
+  z-index: 2;
+}
+
+.auth-page--immersive .auth-panel-inner {
+  max-width: 400px;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .auth-shell {
   position: relative;
   z-index: 1;
@@ -205,11 +290,8 @@ withDefaults(
 .auth-visual {
   position: relative;
   min-height: 280px;
-  background:
-    linear-gradient(145deg, rgba(24, 144, 255, 0.12), transparent 55%),
-    linear-gradient(320deg, rgba(19, 194, 194, 0.08), transparent 50%),
-    color-mix(in srgb, var(--lx-login-card) 88%, transparent);
-  border-right: 1px solid color-mix(in srgb, var(--lx-border) 70%, transparent);
+  overflow: hidden;
+  background: #e8f0fa;
 }
 
 .auth-visual-fallback {
@@ -278,6 +360,23 @@ withDefaults(
   }
 }
 
+@media (max-width: 960px) {
+  .auth-page--immersive .auth-shell {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
+  .auth-page--immersive .auth-visual {
+    min-height: auto;
+    aspect-ratio: auto;
+  }
+
+  .auth-page--immersive .auth-panel {
+    min-height: auto;
+    padding: 24px 20px 32px;
+  }
+}
+
 @media (max-width: 820px) {
   .auth-page {
     padding: 16px;
@@ -293,8 +392,6 @@ withDefaults(
   .auth-visual {
     min-height: 200px;
     aspect-ratio: 16 / 9;
-    border-right: none;
-    border-bottom: 1px solid color-mix(in srgb, var(--lx-border) 70%, transparent);
   }
 
   .auth-panel {

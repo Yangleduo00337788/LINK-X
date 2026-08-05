@@ -20,7 +20,8 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "icons:generate": "node scripts/icon-generator/generate-icons.mjs && node scripts/icon-generator/generate-ico.mjs"
   },
   "dependencies": {
     "@vicons/ionicons5": "^0.12.0",

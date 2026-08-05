@@ -21,10 +21,13 @@ import org.springframework.stereotype.Component;
 @Component
 public class TokenCookieUtil {
 
-    /** Access Token Cookie 名 */
+    /** Access Token Cookie 名（HTTPS / Secure 环境，__Host- 前缀） */
     public static final String ACCESS_TOKEN_COOKIE = "__Host-access_token";
-    /** Refresh Token Cookie 名 */
+    /** Refresh Token Cookie 名（HTTPS / Secure 环境） */
     public static final String REFRESH_TOKEN_COOKIE = "__Host-refresh_token";
+    /** 本地 HTTP 开发用 Cookie 名（无 __Host- 前缀，可不设 Secure） */
+    public static final String ACCESS_TOKEN_COOKIE_DEV = "linkx_access_token";
+    public static final String REFRESH_TOKEN_COOKIE_DEV = "linkx_refresh_token";
     /**
      * Cookie Path：设为根路径 {@code /}，使 Cookie 同时覆盖 HTTP API（{@code /api}）
      * 与 WebSocket（{@code /ws}，独立 Netty 端口）。若设为 {@code /api}，浏览器不会把 Cookie
@@ -48,13 +51,15 @@ public class TokenCookieUtil {
                                 String accessToken, String refreshToken,
                                 long accessMaxAgeSec, long refreshMaxAgeSec,
                                 boolean secure) {
+        String accessName = secure ? ACCESS_TOKEN_COOKIE : ACCESS_TOKEN_COOKIE_DEV;
+        String refreshName = secure ? REFRESH_TOKEN_COOKIE : REFRESH_TOKEN_COOKIE_DEV;
         if (accessToken != null && !accessToken.isBlank()) {
             response.addHeader("Set-Cookie", buildCookie(
-                    ACCESS_TOKEN_COOKIE, accessToken, accessMaxAgeSec, secure).toString());
+                    accessName, accessToken, accessMaxAgeSec, secure).toString());
         }
         if (refreshToken != null && !refreshToken.isBlank()) {
             response.addHeader("Set-Cookie", buildCookie(
-                    REFRESH_TOKEN_COOKIE, refreshToken, refreshMaxAgeSec, secure).toString());
+                    refreshName, refreshToken, refreshMaxAgeSec, secure).toString());
         }
     }
 
@@ -64,9 +69,17 @@ public class TokenCookieUtil {
      */
     public void clearTokenCookies(HttpServletResponse response, boolean secure) {
         response.addHeader("Set-Cookie", buildCookie(
-                ACCESS_TOKEN_COOKIE, "", 0, secure).toString());
+                secure ? ACCESS_TOKEN_COOKIE : ACCESS_TOKEN_COOKIE_DEV, "", 0, secure).toString());
         response.addHeader("Set-Cookie", buildCookie(
-                REFRESH_TOKEN_COOKIE, "", 0, secure).toString());
+                secure ? REFRESH_TOKEN_COOKIE : REFRESH_TOKEN_COOKIE_DEV, "", 0, secure).toString());
+        // 兼容切换过 secure 模式的残留 Cookie
+        if (secure) {
+            response.addHeader("Set-Cookie", buildCookie(ACCESS_TOKEN_COOKIE_DEV, "", 0, false).toString());
+            response.addHeader("Set-Cookie", buildCookie(REFRESH_TOKEN_COOKIE_DEV, "", 0, false).toString());
+        } else {
+            response.addHeader("Set-Cookie", buildCookie(ACCESS_TOKEN_COOKIE, "", 0, true).toString());
+            response.addHeader("Set-Cookie", buildCookie(REFRESH_TOKEN_COOKIE, "", 0, true).toString());
+        }
     }
 
     /**
@@ -75,7 +88,11 @@ public class TokenCookieUtil {
      * @return token 值；不存在或为空返回 null
      */
     public String readAccessToken(HttpServletRequest request) {
-        return readCookie(request, ACCESS_TOKEN_COOKIE);
+        String token = readCookie(request, ACCESS_TOKEN_COOKIE);
+        if (token == null) {
+            token = readCookie(request, ACCESS_TOKEN_COOKIE_DEV);
+        }
+        return token;
     }
 
     /**
@@ -84,7 +101,11 @@ public class TokenCookieUtil {
      * @return token 值；不存在或为空返回 null
      */
     public String readRefreshToken(HttpServletRequest request) {
-        return readCookie(request, REFRESH_TOKEN_COOKIE);
+        String token = readCookie(request, REFRESH_TOKEN_COOKIE);
+        if (token == null) {
+            token = readCookie(request, REFRESH_TOKEN_COOKIE_DEV);
+        }
+        return token;
     }
 
     /**

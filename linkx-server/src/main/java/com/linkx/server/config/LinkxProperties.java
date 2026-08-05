@@ -90,8 +90,12 @@ public class LinkxProperties {
     public static class Auth {
         /** 客户端登录/注册图形验证码 */
         private boolean captchaEnabled = true;
-        /** 管理端登录图形验证码（可与客户端独立开关） */
-        private boolean adminCaptchaEnabled = true;
+    /** 管理端登录图形验证码（可与客户端独立开关） */
+    private boolean adminCaptchaEnabled = true;
+    /** 客户端验证码类型：image | slider */
+    private String clientCaptchaType = "image";
+    /** 管理端验证码类型：image | slider */
+    private String adminCaptchaType = "image";
         /** 客户端是否开放注册 */
         private boolean registerEnabled = true;
         /** 忘记密码邮箱验证是否启用 */

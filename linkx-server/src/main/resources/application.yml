@@ -118,6 +118,8 @@ linkx:
     captcha-enabled: ${CAPTCHA_ENABLED}
     # 管理端图形验证码开关（默认跟随客户端）← ADMIN_CAPTCHA_ENABLED
     admin-captcha-enabled: ${ADMIN_CAPTCHA_ENABLED:${CAPTCHA_ENABLED}}
+    client-captcha-type: ${CLIENT_CAPTCHA_TYPE:image}
+    admin-captcha-type: ${ADMIN_CAPTCHA_TYPE:image}
     # 客户端是否开放注册 ← REGISTER_ENABLED
     register-enabled: ${REGISTER_ENABLED}
     # 忘记密码邮箱验证 ← FORGOT_PASSWORD_EMAIL_ENABLED

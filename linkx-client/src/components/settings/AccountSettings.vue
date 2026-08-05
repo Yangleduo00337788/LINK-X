@@ -16,6 +16,7 @@ import * as complianceApi from '../../api/compliance'
 import { generateDefaultAvatar } from '../../utils/defaultAvatar'
 import { validatePassword } from '../../utils/validation'
 import { useI18n } from '../../i18n'
+import SliderCaptcha from '../SliderCaptcha.vue'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -327,7 +328,10 @@ const passwordForm = ref({
   confirmPassword: '',
   captchaId: '',
   captchaCode: '',
-  captchaImage: ''
+  captchaImage: '',
+  captchaType: 'image' as 'image' | 'slider',
+  puzzleImage: '',
+  puzzleY: 0,
 })
 const passwordLoading = ref(false)
 const passwordCaptchaLoading = ref(false)
@@ -370,6 +374,9 @@ async function loadResetCaptcha() {
     if (res.code === 200 && res.data) {
       passwordForm.value.captchaId = res.data.captchaId
       passwordForm.value.captchaImage = res.data.imageBase64
+      passwordForm.value.captchaType = res.data.type === 'slider' ? 'slider' : 'image'
+      passwordForm.value.puzzleImage = res.data.puzzleImageBase64 || ''
+      passwordForm.value.puzzleY = res.data.puzzleY ?? 0
       passwordForm.value.captchaCode = ''
     } else {
       message.error(res.message || t('account.captchaFail'))
@@ -379,6 +386,10 @@ async function loadResetCaptcha() {
   } finally {
     passwordCaptchaLoading.value = false
   }
+}
+
+function onPasswordSliderSuccess(offset: number) {
+  passwordForm.value.captchaCode = String(offset)
 }
 
 async function handleChangePassword() {
@@ -419,7 +430,10 @@ async function handleChangePassword() {
         confirmPassword: '',
         captchaId: '',
         captchaCode: '',
-        captchaImage: ''
+        captchaImage: '',
+        captchaType: 'image',
+        puzzleImage: '',
+        puzzleY: 0,
       }
     } else {
       message.error(res.message || t('account.passwordChangeFail'))
@@ -439,7 +453,10 @@ function openPasswordModal() {
     confirmPassword: '',
     captchaId: '',
     captchaCode: '',
-    captchaImage: ''
+    captchaImage: '',
+    captchaType: 'image',
+    puzzleImage: '',
+    puzzleY: 0,
   }
   showPasswordModal.value = true
   void loadResetCaptcha()
@@ -679,7 +696,16 @@ onMounted(() => {
         </div>
         <div v-if="captchaEnabled" class="form-item">
           <label>{{ t('account.captcha') }}</label>
-          <div class="captcha-row">
+          <SliderCaptcha
+            v-if="passwordForm.captchaType === 'slider'"
+            :background="passwordForm.captchaImage"
+            :puzzle="passwordForm.puzzleImage"
+            :puzzle-y="passwordForm.puzzleY"
+            :disabled="passwordCaptchaLoading"
+            @success="onPasswordSliderSuccess"
+            @refresh="loadResetCaptcha"
+          />
+          <div v-else class="captcha-row">
             <n-input v-model:value="passwordForm.captchaCode" :placeholder="t('account.captchaPh')" />
             <div class="captcha-img-wrap" :class="{ loading: passwordCaptchaLoading }" @click="loadResetCaptcha">
               <img v-if="passwordForm.captchaImage" :src="passwordForm.captchaImage" alt="captcha" />

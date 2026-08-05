@@ -9,6 +9,7 @@
 import { ref, computed, onMounted } from 'vue'
 import PinIcon from './icons/PinIcon.vue'
 import WindowCaptionButtons from './WindowCaptionButtons.vue'
+import BrandMarkIcon from './BrandMarkIcon.vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
 import { useI18n } from '../i18n'
@@ -70,14 +71,7 @@ async function togglePin() {
     <!-- 左侧：品牌与标题 -->
     <div class="status-left">
       <div class="brand-block" title="LinkX">
-        <svg class="brand-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <rect width="24" height="24" rx="6.5" fill="var(--lx-text)"/>
-          <!-- 双环相扣：Link，斜交轮廓：X -->
-          <g transform="translate(12 12)" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round">
-            <ellipse rx="6.4" ry="3.05" transform="rotate(-42)"/>
-            <ellipse rx="6.4" ry="3.05" transform="rotate(42)"/>
-          </g>
-        </svg>
+        <BrandMarkIcon :size="38" />
         <span class="brand-text">LinkX</span>
       </div>
 
@@ -149,22 +143,19 @@ async function togglePin() {
 .brand-block {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   flex-shrink: 0;
   margin-right: 33px;
   user-select: none;
-}
-
-.brand-icon {
-  flex-shrink: 0;
 }
 
 .brand-text {
   font-size: 16px;
   font-weight: 700;
   color: var(--lx-text);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   line-height: 1;
+  margin-left: -1px;
 }
 
 .profile-col {

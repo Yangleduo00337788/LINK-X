@@ -29,14 +29,18 @@ export interface TokenData {
 }
 
 export interface CaptchaData {
+  type?: 'image' | 'slider'
   captchaId: string
   imageBase64: string
+  puzzleImageBase64?: string
+  puzzleY?: number
   expireSeconds: string | number
 }
 
 /** GET /auth/config */
 export interface AuthConfig {
   captchaEnabled: boolean
+  captchaType?: 'image' | 'slider'
   registerEnabled?: boolean
   forgotPasswordEmailEnabled?: boolean
   passwordPolicy?: PasswordPolicy

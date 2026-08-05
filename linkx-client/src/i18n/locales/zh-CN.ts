@@ -684,6 +684,11 @@ export default {
     latestVersion: '当前已是最新版本',
     me: '我'
   },
+  captcha: {
+    sliderHint: '向右拖动滑块，将拼图对齐缺口',
+    sliderRelease: '已拖动，请继续操作',
+    completeSlider: '请完成滑块验证',
+  },
   login: {
     user: 'LinkX 用户',
     account: '账号',

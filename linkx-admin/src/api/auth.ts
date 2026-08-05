@@ -16,7 +16,7 @@ export interface LoginPayload {
 }
 
 export function fetchCaptcha() {
-  return get<CaptchaVO>('/auth/captcha')
+  return get<CaptchaVO>('/admin/auth/captcha')
 }
 
 export function fetchAuthConfig() {

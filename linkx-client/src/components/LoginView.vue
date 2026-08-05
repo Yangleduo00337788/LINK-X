@@ -12,6 +12,8 @@ import {
 } from '@vicons/ionicons5'
 import Avatar from './Avatar.vue'
 import WindowCaptionButtons from './WindowCaptionButtons.vue'
+import BrandMarkIcon from './BrandMarkIcon.vue'
+import SliderCaptcha from './SliderCaptcha.vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
 import * as authApi from '../api/auth'
@@ -84,6 +86,9 @@ const loginButtonText = computed(() => {
 const captchaId = ref('')
 const captchaImage = ref('')
 const captchaCode = ref('')
+const captchaType = ref<'image' | 'slider'>('image')
+const puzzleImage = ref('')
+const puzzleY = ref(0)
 /** 与后端 CAPTCHA_ENABLED 对齐；默认 true，拉取 /auth/config 后再更新 */
 const captchaEnabled = ref(true)
 const registerEnabled = ref(true)
@@ -101,6 +106,7 @@ async function loadAuthConfig() {
     const res = await authApi.fetchAuthConfig()
     if (res.code === 200 && res.data) {
       captchaEnabled.value = !!res.data.captchaEnabled
+      captchaType.value = res.data.captchaType === 'slider' ? 'slider' : 'image'
       registerEnabled.value = res.data.registerEnabled !== false
       forgotPasswordEmailEnabled.value = res.data.forgotPasswordEmailEnabled !== false
       const p = res.data.passwordPolicy
@@ -208,6 +214,10 @@ function onDocClick() {
   if (showMenu.value) closeMenu()
 }
 
+function onSliderSuccess(offset: number) {
+  captchaCode.value = String(offset)
+}
+
 async function loadCaptcha(target: 'login' | 'register' = 'login') {
   if (target !== 'login' || !captchaEnabled.value) return
   try {
@@ -215,6 +225,9 @@ async function loadCaptcha(target: 'login' | 'register' = 'login') {
     if (res.code === 200 && res.data) {
       captchaId.value = res.data.captchaId
       captchaImage.value = res.data.imageBase64
+      captchaType.value = res.data.type === 'slider' ? 'slider' : 'image'
+      puzzleImage.value = res.data.puzzleImageBase64 || ''
+      puzzleY.value = res.data.puzzleY ?? 0
       captchaCode.value = ''
     }
   } catch {
@@ -372,7 +385,9 @@ async function handleLogin() {
     return
   }
   if (captchaEnabled.value && !captchaCode.value.trim()) {
-    message.warning(t('login.enterCaptcha'))
+    message.warning(
+      captchaType.value === 'slider' ? t('captcha.completeSlider') : t('login.enterCaptcha')
+    )
     return
   }
 
@@ -586,7 +601,7 @@ async function handleForgot() {
         :class="{ 'brand-title--compact': loginMode === 'password' }"
         aria-label="LinkX"
       >
-        <span class="brand-mark">L</span>
+        <BrandMarkIcon :size="loginMode === 'password' ? 34 : 40" />
         <span class="brand-text">LinkX</span>
       </div>
 
@@ -666,39 +681,50 @@ async function handleForgot() {
         </n-input>
 
         <div v-if="captchaEnabled" class="captcha-row">
-          <div
-            v-if="!captchaImage"
-            class="captcha-img captcha-img--placeholder"
-            :title="t('login.refreshCaptcha')"
-            @click="!autoLogging && loadCaptcha('login')"
-          />
-          <img
-            v-else
-            :src="captchaImage"
-            :alt="t('login.captcha')"
-            class="captcha-img"
-            :title="t('login.refreshCaptcha')"
-            @click="!autoLogging && loadCaptcha('login')"
-          />
-          <n-input
-            v-model:value="captchaCode"
-            size="large"
-            :placeholder="t('login.captcha')"
-            class="lx-field captcha-input"
-            :bordered="false"
-            maxlength="4"
+          <SliderCaptcha
+            v-if="captchaType === 'slider'"
+            :background="captchaImage"
+            :puzzle="puzzleImage"
+            :puzzle-y="puzzleY"
             :disabled="autoLogging"
-            @keyup.enter="handleLogin"
-          >
-            <template #prefix>
-              <n-icon :component="ShieldCheckmarkOutline" :size="15" class="field-ico" />
-            </template>
-          </n-input>
-          <n-button quaternary circle class="captcha-refresh" :disabled="autoLogging" @click="loadCaptcha('login')">
-            <template #icon>
-              <n-icon :component="RefreshOutline" />
-            </template>
-          </n-button>
+            @success="onSliderSuccess"
+            @refresh="loadCaptcha('login')"
+          />
+          <template v-else>
+            <div
+              v-if="!captchaImage"
+              class="captcha-img captcha-img--placeholder"
+              :title="t('login.refreshCaptcha')"
+              @click="!autoLogging && loadCaptcha('login')"
+            />
+            <img
+              v-else
+              :src="captchaImage"
+              :alt="t('login.captcha')"
+              class="captcha-img"
+              :title="t('login.refreshCaptcha')"
+              @click="!autoLogging && loadCaptcha('login')"
+            />
+            <n-input
+              v-model:value="captchaCode"
+              size="large"
+              :placeholder="t('login.captcha')"
+              class="lx-field captcha-input"
+              :bordered="false"
+              maxlength="4"
+              :disabled="autoLogging"
+              @keyup.enter="handleLogin"
+            >
+              <template #prefix>
+                <n-icon :component="ShieldCheckmarkOutline" :size="15" class="field-ico" />
+              </template>
+            </n-input>
+            <n-button quaternary circle class="captcha-refresh" :disabled="autoLogging" @click="loadCaptcha('login')">
+              <template #icon>
+                <n-icon :component="RefreshOutline" />
+              </template>
+            </n-button>
+          </template>
         </div>
 
         <div class="options">
@@ -1124,29 +1150,6 @@ async function handleForgot() {
   margin-top: 0;
   margin-bottom: 8px;
   gap: 6px;
-}
-
-.brand-mark {
-  width: 28px;
-  height: 28px;
-  border-radius: 9px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 15px;
-  font-weight: 700;
-  color: #fff;
-  background: linear-gradient(145deg, #39c2f6 0%, #12b7f5 48%, #5b8cff 100%);
-  box-shadow:
-    0 6px 16px rgba(18, 183, 245, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35);
-}
-
-.brand-title--compact .brand-mark {
-  width: 22px;
-  height: 22px;
-  border-radius: 7px;
-  font-size: 12px;
 }
 
 .brand-text {

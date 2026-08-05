@@ -11,6 +11,8 @@ import lombok.Data;
 public class AuthConfigVO {
     /** 是否启用图形验证码（登录/注册校验） */
     private boolean captchaEnabled;
+    /** 验证码类型：image | slider */
+    private String captchaType;
     /** 客户端是否开放注册 */
     private boolean registerEnabled;
     /** 忘记密码邮箱验证是否启用 */

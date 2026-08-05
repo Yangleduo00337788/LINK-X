@@ -3,6 +3,7 @@ package com.linkx.server.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import com.linkx.server.common.CaptchaType;
 import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.common.Result;
 import com.linkx.server.common.TokenCookieUtil;
@@ -62,6 +63,7 @@ public class AuthController {
         LinkxProperties.Auth auth = linkxProperties.getAuth();
         return Result.success(AuthConfigVO.builder()
                 .captchaEnabled(captchaService.isEnabled())
+                .captchaType(CaptchaType.fromWire(linkxProperties.getAuth().getClientCaptchaType()).toWire())
                 .registerEnabled(auth.isRegisterEnabled())
                 .forgotPasswordEmailEnabled(auth.isForgotPasswordEmailEnabled())
                 .passwordPolicy(AuthConfigVO.PasswordPolicy.builder()

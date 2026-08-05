@@ -120,6 +120,7 @@ const AUTH_BOOTSTRAP_PATHS = [
   '/admin/auth/refresh',
   '/admin/auth/logout',
   '/auth/captcha',
+  '/admin/auth/captcha',
 ]
 
 export function shouldEncryptRequest(url?: string): boolean {

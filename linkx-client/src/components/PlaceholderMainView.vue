@@ -171,6 +171,7 @@ function previewActiveFile() {
   padding: 24px;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
 .functional-region.body.body--embed {

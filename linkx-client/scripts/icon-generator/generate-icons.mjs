@@ -1,71 +1,72 @@
 /**
  * LinkX Icon Generator
  *
- * Generates all required icon sizes from the SVG source.
- * Run: node generate-icons.mjs
+ * Generates tray, window, installer and favicon assets from logo-mark.png
+ * (same artwork as the top-left BrandMarkIcon).
  *
- * Requires: npm install sharp (dev dependency)
+ * Run: npm run icons:generate
  */
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const svgPath = path.join(__dirname, 'icon.svg')
-const outDir = __dirname
+const rootDir = path.join(__dirname, '../..')
+const sourcePath = path.join(rootDir, 'src/assets/logo-mark.png')
+const buildDir = path.join(rootDir, 'build')
+const publicDir = path.join(rootDir, 'public')
 
-// Target sizes for different platforms
-const sizes = [
-  // Windows ICO (multi-resolution)
-  { name: 'icon-16.png',   size: 16 },
-  { name: 'icon-24.png',   size: 24 },
-  { name: 'icon-32.png',   size: 32 },
-  { name: 'icon-48.png',   size: 48 },
-  { name: 'icon-64.png',   size: 64 },
-  { name: 'icon-128.png',  size: 128 },
-  { name: 'icon-256.png',  size: 256 },
-  { name: 'icon-512.png',  size: 512 },
-  // electron-builder auto-generates .ico from 256 and 512, but we provide 256x256 too
-  { name: 'icon.ico',      size: 256 },  // placeholder, real .ico needs a dedicated tool
-]
+const pngSizes = [16, 24, 32, 48, 64, 128, 256, 512, 1024]
 
 async function generate() {
-  // Check if sharp is installed
   let sharp
   try {
     sharp = (await import('sharp')).default
   } catch {
-    console.error('Error: sharp is not installed.')
-    console.error('Please run: npm install sharp')
-    console.error('Then run this script again: node generate-icons.mjs')
+    console.error('Error: sharp is not installed. Run: npm install')
     process.exit(1)
   }
 
-  const svgBuffer = fs.readFileSync(svgPath)
-  console.log('SVG source loaded:', svgPath)
-
-  for (const { name, size } of sizes) {
-    const outPath = path.join(outDir, name)
-    await sharp(svgBuffer)
-      .resize(size, size)
-      .png({ quality: 100 })
-      .toFile(outPath)
-    console.log(`  Generated: ${name} (${size}x${size})`)
+  if (!fs.existsSync(sourcePath)) {
+    console.error('Missing source logo:', sourcePath)
+    process.exit(1)
   }
 
-  // Generate macOS ICNS base sizes (electron-builder will handle conversion)
-  const macSizes = [16, 32, 64, 128, 256, 512, 1024]
-  for (const size of macSizes) {
-    const outPath = path.join(outDir, `icon-${size}.png`)
-    await sharp(svgBuffer)
-      .resize(size, size)
-      .png({ quality: 100 })
+  fs.mkdirSync(buildDir, { recursive: true })
+  fs.mkdirSync(publicDir, { recursive: true })
+
+  const sourceBuffer = fs.readFileSync(sourcePath)
+  console.log('Source logo:', sourcePath)
+
+  for (const size of pngSizes) {
+    const outPath = path.join(buildDir, `icon-${size}.png`)
+    await sharp(sourceBuffer)
+      .resize(size, size, { fit: 'contain', background: { r: 253, g: 253, b: 253, alpha: 1 } })
+      .png()
       .toFile(outPath)
-    console.log(`  Generated: icon-${size}.png`)
+    console.log(`  build/icon-${size}.png`)
   }
 
-  console.log('\nAll icons generated successfully!')
-  console.log('For electron-builder, place these in linkx-client/build/')
+  const icon512 = path.join(buildDir, 'icon-512.png')
+  await sharp(sourceBuffer)
+    .resize(512, 512, { fit: 'contain', background: { r: 253, g: 253, b: 253, alpha: 1 } })
+    .png()
+    .toFile(path.join(buildDir, 'icon.png'))
+  console.log('  build/icon.png (512)')
+
+  for (const size of [32, 192]) {
+    const outPath = path.join(publicDir, size === 32 ? 'favicon.png' : 'apple-touch-icon.png')
+    await sharp(sourceBuffer)
+      .resize(size, size, { fit: 'contain', background: { r: 253, g: 253, b: 253, alpha: 1 } })
+      .png()
+      .toFile(outPath)
+    console.log(`  public/${path.basename(outPath)}`)
+  }
+
+  console.log('\nPNG icons generated. Run generate-ico.mjs for Windows .ico')
 }
 
-generate().catch(e => { console.error(e); process.exit(1) })
+generate().catch((e) => {
+  console.error(e)
+  process.exit(1)
+})

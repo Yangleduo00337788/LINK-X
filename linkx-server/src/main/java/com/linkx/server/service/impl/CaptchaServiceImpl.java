@@ -1,5 +1,7 @@
 package com.linkx.server.service.impl;
 
+import com.linkx.server.common.CaptchaScope;
+import com.linkx.server.common.CaptchaType;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.controller.vo.CaptchaVO;
 import com.linkx.server.exception.CustomException;
@@ -31,69 +33,100 @@ public class CaptchaServiceImpl implements CaptchaService {
     private static final String CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private static final int CODE_LENGTH = 4;
 
-    // 安全要求：验证码必须使用密码学安全随机数，禁止使用 ThreadLocalRandom（可预测熵源）
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
-    // Lua 脚本：原子性地获取并删除验证码，防止竞态条件
     private static final String VALIDATE_CAPTCHA_LUA_SCRIPT =
             "local key = KEYS[1] " +
             "local code = ARGV[1] " +
             "local expected = redis.call('get', key) " +
-            "if not expected then return -1 end " +  // -1: 验证码不存在或已过期
+            "if not expected then return -1 end " +
             "if expected ~= code then " +
-            "    redis.call('del', key) " +  // 验证失败也删除，防止暴力破解
-            "    return 0 " +  // 0: 验证码错误
+            "    redis.call('del', key) " +
+            "    return 0 " +
             "end " +
             "redis.call('del', key) " +
-            "return 1";  // 1: 验证成功
-
-    // Lua 脚本：验证账号绑定的验证码（密码重置专用）
-    // 原子性：检查 ownerId 绑定 + 验证验证码，全部在一个原子操作中完成
-    private static final String VALIDATE_CAPTCHA_FOR_OWNER_LUA_SCRIPT =
-            "local key = KEYS[1] " +
-            "local ownerId = ARGV[1] " +
-            "local code = ARGV[2] " +
-            "local bound = redis.call('get', key) " +
-            "if not bound then return -1 end " +  // -1: 验证码不存在或已过期
-            "local delim = string.find(bound, ':') " +
-            "if not delim then redis.call('del', key); return -1 end " +  // 数据格式错误
-            "local storedOwner = string.sub(bound, 1, delim - 1) " +
-            "local storedCode = string.sub(bound, delim + 1) " +
-            "if storedOwner ~= ownerId then return -2 end " +  // -2: ownerId 不匹配（不删除 key，防枚举）
-            "if storedCode ~= code then " +
-            "    redis.call('del', key) " +  // 验证失败删除，防止暴力破解
-            "    return 0 " +  // 0: 验证码错误
-            "end " +
-            "redis.call('del', key) " +
-            "return 1";  // 1: 验证成功
+            "return 1";
 
     private final StringRedisTemplate redisTemplate;
     private final LinkxProperties linkxProperties;
 
     @Override
-    public CaptchaVO generate() {
+    public CaptchaType resolveType(CaptchaScope scope) {
+        LinkxProperties.Auth auth = linkxProperties.getAuth();
+        if (scope == CaptchaScope.ADMIN) {
+            return CaptchaType.fromWire(auth.getAdminCaptchaType());
+        }
+        return CaptchaType.fromWire(auth.getClientCaptchaType());
+    }
+
+    @Override
+    public CaptchaVO generate(CaptchaScope scope) {
+        CaptchaType type = resolveType(scope);
+        if (type == CaptchaType.SLIDER) {
+            return generateSlider();
+        }
+        return generateImage();
+    }
+
+    @Override
+    public CaptchaVO generateForOwner(String ownerId) {
+        CaptchaType type = resolveType(CaptchaScope.CLIENT);
+        if (type == CaptchaType.SLIDER) {
+            return generateSliderForOwner(ownerId);
+        }
+        return generateImageForOwner(ownerId);
+    }
+
+    private CaptchaVO generateImage() {
         String code = randomCode();
         String captchaId = UUID.randomUUID().toString();
         redisTemplate.opsForValue().set(CAPTCHA_KEY_PREFIX + captchaId, code, CAPTCHA_TTL);
-
         return CaptchaVO.builder()
+                .type(CaptchaType.IMAGE.toWire())
                 .captchaId(captchaId)
                 .imageBase64(renderImageBase64(code))
                 .expireSeconds(CAPTCHA_TTL.toSeconds())
                 .build();
     }
 
-    @Override
-    public CaptchaVO generateForOwner(String ownerId) {
+    private CaptchaVO generateSlider() {
+        SliderCaptchaRenderer.SliderAssets assets = SliderCaptchaRenderer.generate(SECURE_RANDOM);
+        String captchaId = UUID.randomUUID().toString();
+        redisTemplate.opsForValue().set(CAPTCHA_KEY_PREFIX + captchaId, assets.getStoredValue(), CAPTCHA_TTL);
+        return CaptchaVO.builder()
+                .type(CaptchaType.SLIDER.toWire())
+                .captchaId(captchaId)
+                .imageBase64(assets.getBackgroundBase64())
+                .puzzleImageBase64(assets.getPuzzleBase64())
+                .puzzleY(assets.getPuzzleY())
+                .expireSeconds(CAPTCHA_TTL.toSeconds())
+                .build();
+    }
+
+    private CaptchaVO generateImageForOwner(String ownerId) {
         String code = randomCode();
         String captchaId = UUID.randomUUID().toString();
-        // 将验证码与 ownerId 绑定存储：key = "linkx:captcha:owner:{captchaId}", value = "{ownerId}:{code}"
-        String boundValue = ownerId + ":" + code;
+        String boundValue = ownerId + "|" + code;
         redisTemplate.opsForValue().set(CAPTCHA_KEY_PREFIX + "owner:" + captchaId, boundValue, CAPTCHA_TTL);
-
         return CaptchaVO.builder()
+                .type(CaptchaType.IMAGE.toWire())
                 .captchaId(captchaId)
                 .imageBase64(renderImageBase64(code))
+                .expireSeconds(CAPTCHA_TTL.toSeconds())
+                .build();
+    }
+
+    private CaptchaVO generateSliderForOwner(String ownerId) {
+        SliderCaptchaRenderer.SliderAssets assets = SliderCaptchaRenderer.generate(SECURE_RANDOM);
+        String captchaId = UUID.randomUUID().toString();
+        String boundValue = ownerId + "|" + assets.getStoredValue();
+        redisTemplate.opsForValue().set(CAPTCHA_KEY_PREFIX + "owner:" + captchaId, boundValue, CAPTCHA_TTL);
+        return CaptchaVO.builder()
+                .type(CaptchaType.SLIDER.toWire())
+                .captchaId(captchaId)
+                .imageBase64(assets.getBackgroundBase64())
+                .puzzleImageBase64(assets.getPuzzleBase64())
+                .puzzleY(assets.getPuzzleY())
                 .expireSeconds(CAPTCHA_TTL.toSeconds())
                 .build();
     }
@@ -106,20 +139,20 @@ public class CaptchaServiceImpl implements CaptchaService {
 
         String key = CAPTCHA_KEY_PREFIX + captchaId;
         String trimmedCode = captchaCode.trim();
+        String stored = redisTemplate.opsForValue().get(key);
+        if (stored == null) {
+            throw new CustomException(400, "验证码已过期，请重新获取");
+        }
+        if (SliderCaptchaRenderer.isSliderValue(stored)) {
+            validateSliderAndDelete(key, stored, trimmedCode);
+            return;
+        }
 
         DefaultRedisScript<Long> script = new DefaultRedisScript<>();
         script.setScriptText(VALIDATE_CAPTCHA_LUA_SCRIPT);
         script.setResultType(Long.class);
-
         Long result = redisTemplate.execute(script, Collections.singletonList(key), trimmedCode);
-
-        if (result == null || result == -1) {
-            throw new CustomException(400, "验证码已过期，请重新获取");
-        }
-        if (result == 0) {
-            throw new CustomException(400, "验证码错误");
-        }
-        // result == 1: 验证成功，验证码已被原子删除
+        handleValidateResult(result);
     }
 
     @Override
@@ -130,23 +163,69 @@ public class CaptchaServiceImpl implements CaptchaService {
 
         String key = CAPTCHA_KEY_PREFIX + "owner:" + captchaId;
         String trimmedCode = captchaCode.trim();
-
-        DefaultRedisScript<Long> script = new DefaultRedisScript<>();
-        script.setScriptText(VALIDATE_CAPTCHA_FOR_OWNER_LUA_SCRIPT);
-        script.setResultType(Long.class);
-
-        Long result = redisTemplate.execute(script, Collections.singletonList(key), ownerId, trimmedCode);
-
-        if (result == null || result == -1) {
+        String bound = redisTemplate.opsForValue().get(key);
+        if (bound == null) {
             throw new CustomException(400, "验证码已过期，请重新获取");
         }
-        if (result == -2) {
+
+        int delim = bound.indexOf('|');
+        if (delim <= 0) {
+            redisTemplate.delete(key);
+            throw new CustomException(400, "验证码已过期，请重新获取");
+        }
+        String storedOwner = bound.substring(0, delim);
+        String storedCode = bound.substring(delim + 1);
+        if (!ownerId.equals(storedOwner)) {
             throw new CustomException(400, "验证码与账号不匹配，请重新获取");
+        }
+
+        if (SliderCaptchaRenderer.isSliderValue(storedCode)) {
+            if (!SliderCaptchaRenderer.matchesSlider(storedCode, trimmedCode)) {
+                redisTemplate.delete(key);
+                throw new CustomException(400, "验证码错误");
+            }
+            redisTemplate.delete(key);
+            return;
+        }
+
+        if (!constantTimeEquals(storedCode, trimmedCode)) {
+            redisTemplate.delete(key);
+            throw new CustomException(400, "验证码错误");
+        }
+        redisTemplate.delete(key);
+    }
+
+    private static boolean constantTimeEquals(String a, String b) {
+        if (a == null || b == null) {
+            return false;
+        }
+        byte[] x = a.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] y = b.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        if (x.length != y.length) {
+            return false;
+        }
+        int diff = 0;
+        for (int i = 0; i < x.length; i++) {
+            diff |= x[i] ^ y[i];
+        }
+        return diff == 0;
+    }
+
+    private void validateSliderAndDelete(String key, String stored, String submitted) {
+        if (!SliderCaptchaRenderer.matchesSlider(stored, submitted)) {
+            redisTemplate.delete(key);
+            throw new CustomException(400, "验证码错误");
+        }
+        redisTemplate.delete(key);
+    }
+
+    private void handleValidateResult(Long result) {
+        if (result == null || result == -1) {
+            throw new CustomException(400, "验证码已过期，请重新获取");
         }
         if (result == 0) {
             throw new CustomException(400, "验证码错误");
         }
-        // result == 1: 验证成功，验证码已被原子删除，ownerId 绑定已校验
     }
 
     @Override
@@ -156,16 +235,12 @@ public class CaptchaServiceImpl implements CaptchaService {
 
     private String randomCode() {
         StringBuilder sb = new StringBuilder(CODE_LENGTH);
-        SecureRandom random = SECURE_RANDOM;
         for (int i = 0; i < CODE_LENGTH; i++) {
-            sb.append(CHARS.charAt(random.nextInt(CHARS.length())));
+            sb.append(CHARS.charAt(SECURE_RANDOM.nextInt(CHARS.length())));
         }
         return sb.toString();
     }
 
-    /**
-     * 渲染 4 位验证码：留足边距，轻微旋转，避免被前端缩略裁切后看不全。
-     */
     private String renderImageBase64(String code) {
         int width = 140;
         int height = 44;
@@ -180,28 +255,26 @@ public class CaptchaServiceImpl implements CaptchaService {
             g.setPaint(gradient);
             g.fillRect(0, 0, width, height);
 
-            SecureRandom random = SECURE_RANDOM;
             for (int i = 0; i < 40; i++) {
-                g.setColor(new Color(180 + random.nextInt(50), 185 + random.nextInt(40), 195 + random.nextInt(40), 80));
-                g.fillOval(random.nextInt(width), random.nextInt(height), 2, 2);
+                g.setColor(new Color(180 + SECURE_RANDOM.nextInt(50), 185 + SECURE_RANDOM.nextInt(40), 195 + SECURE_RANDOM.nextInt(40), 80));
+                g.fillOval(SECURE_RANDOM.nextInt(width), SECURE_RANDOM.nextInt(height), 2, 2);
             }
             for (int i = 0; i < 4; i++) {
-                g.setColor(new Color(160 + random.nextInt(60), 165 + random.nextInt(50), 175 + random.nextInt(50), 90));
+                g.setColor(new Color(160 + SECURE_RANDOM.nextInt(60), 165 + SECURE_RANDOM.nextInt(50), 175 + SECURE_RANDOM.nextInt(50), 90));
                 g.setStroke(new BasicStroke(1.0f));
-                g.drawLine(random.nextInt(width), random.nextInt(height), random.nextInt(width), random.nextInt(height));
+                g.drawLine(SECURE_RANDOM.nextInt(width), SECURE_RANDOM.nextInt(height), SECURE_RANDOM.nextInt(width), SECURE_RANDOM.nextInt(height));
             }
 
             g.setFont(new Font("Arial", Font.BOLD, 26));
             int slot = width / Math.max(code.length(), 1);
             for (int i = 0; i < code.length(); i++) {
                 String charStr = String.valueOf(code.charAt(i));
-                g.setColor(new Color(20 + random.nextInt(70), 25 + random.nextInt(70), 40 + random.nextInt(80)));
+                g.setColor(new Color(20 + SECURE_RANDOM.nextInt(70), 25 + SECURE_RANDOM.nextInt(70), 40 + SECURE_RANDOM.nextInt(80)));
 
                 AffineTransform old = g.getTransform();
                 double cx = slot * i + slot / 2.0;
                 double cy = height / 2.0;
-                // 轻微倾斜，避免旋转过大把字甩出画布
-                double angle = (random.nextDouble() - 0.5) * Math.PI / 9;
+                double angle = (SECURE_RANDOM.nextDouble() - 0.5) * Math.PI / 9;
                 g.rotate(angle, cx, cy);
                 FontMetrics fm = g.getFontMetrics();
                 int x = (int) (cx - fm.stringWidth(charStr) / 2.0);

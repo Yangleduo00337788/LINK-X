@@ -25,8 +25,11 @@ public class LoginSettingUpdateDTO {
     @Schema(description = "单侧登录配置")
     public static class Side {
         @NotNull
-        @Schema(description = "是否开启图形验证码")
+        @Schema(description = "是否开启验证码")
         private Boolean captchaEnabled;
+
+        @Schema(description = "验证码类型：image | slider")
+        private String captchaType;
 
         @NotNull
         @Min(1)

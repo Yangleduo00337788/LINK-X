@@ -18,6 +18,8 @@ import * as authApi from '../api/auth'
 import { validateUsername, validatePassword, validateNickname } from '../utils/validation'
 import { useI18n } from '../i18n'
 import WindowCaptionButtons from './WindowCaptionButtons.vue'
+import BrandMarkIcon from './BrandMarkIcon.vue'
+import SliderCaptcha from './SliderCaptcha.vue'
 
 const message = useMessage()
 const router = useRouter()
@@ -32,6 +34,9 @@ const regEmailCode = ref('')
 const regCaptchaCode = ref('')
 const regCaptchaId = ref('')
 const regCaptchaImage = ref('')
+const regCaptchaType = ref<'image' | 'slider'>('image')
+const regPuzzleImage = ref('')
+const regPuzzleY = ref(0)
 const captchaEnabled = ref(true)
 const registerEnabled = ref(true)
 const passwordPolicy = ref({
@@ -55,6 +60,7 @@ async function loadAuthConfig() {
     const res = await authApi.fetchAuthConfig()
     if (res.code === 200 && res.data) {
       captchaEnabled.value = !!res.data.captchaEnabled
+      regCaptchaType.value = res.data.captchaType === 'slider' ? 'slider' : 'image'
       registerEnabled.value = res.data.registerEnabled !== false
       const p = res.data.passwordPolicy
       if (p) {
@@ -75,6 +81,10 @@ async function loadAuthConfig() {
   }
 }
 
+function onRegSliderSuccess(offset: number) {
+  regCaptchaCode.value = String(offset)
+}
+
 async function loadCaptcha() {
   if (!captchaEnabled.value) return
   try {
@@ -82,6 +92,9 @@ async function loadCaptcha() {
     if (res.code === 200 && res.data) {
       regCaptchaId.value = res.data.captchaId
       regCaptchaImage.value = res.data.imageBase64
+      regCaptchaType.value = res.data.type === 'slider' ? 'slider' : 'image'
+      regPuzzleImage.value = res.data.puzzleImageBase64 || ''
+      regPuzzleY.value = res.data.puzzleY ?? 0
       regCaptchaCode.value = ''
     }
   } catch {
@@ -182,7 +195,9 @@ async function handleRegister() {
     return
   }
   if (captchaEnabled.value && !regCaptchaCode.value.trim()) {
-    message.warning(t('register.enterCaptcha'))
+    message.warning(
+      regCaptchaType.value === 'slider' ? t('captcha.completeSlider') : t('register.enterCaptcha')
+    )
     return
   }
 
@@ -253,7 +268,7 @@ onUnmounted(() => {
 
     <div class="reg-body">
       <div class="brand-title" aria-label="LinkX">
-        <span class="brand-mark">L</span>
+        <BrandMarkIcon :size="36" />
         <span class="brand-text">LinkX</span>
       </div>
       <p class="reg-desc">{{ registerEnabled ? t('register.subtitle') : t('register.disabled') }}</p>
@@ -340,38 +355,48 @@ onUnmounted(() => {
         </div>
 
         <div v-if="captchaEnabled" class="captcha-row">
-          <div
-            v-if="!regCaptchaImage"
-            class="captcha-img captcha-img--placeholder"
-            :title="t('login.refreshCaptcha')"
-            @click="loadCaptcha"
+          <SliderCaptcha
+            v-if="regCaptchaType === 'slider'"
+            :background="regCaptchaImage"
+            :puzzle="regPuzzleImage"
+            :puzzle-y="regPuzzleY"
+            @success="onRegSliderSuccess"
+            @refresh="loadCaptcha"
           />
-          <img
-            v-else
-            :src="regCaptchaImage"
-            :alt="t('register.captcha')"
-            class="captcha-img"
-            :title="t('login.refreshCaptcha')"
-            @click="loadCaptcha"
-          />
-          <n-input
-            v-model:value="regCaptchaCode"
-            size="large"
-            :placeholder="t('register.captchaPh')"
-            class="lx-field captcha-input"
-            :bordered="false"
-            maxlength="4"
-            @keyup.enter="handleRegister"
-          >
-            <template #prefix>
-              <n-icon :component="ShieldCheckmarkOutline" :size="15" class="field-ico" />
-            </template>
-          </n-input>
-          <n-button quaternary circle class="captcha-refresh" @click="loadCaptcha">
-            <template #icon>
-              <n-icon :component="RefreshOutline" />
-            </template>
-          </n-button>
+          <template v-else>
+            <div
+              v-if="!regCaptchaImage"
+              class="captcha-img captcha-img--placeholder"
+              :title="t('login.refreshCaptcha')"
+              @click="loadCaptcha"
+            />
+            <img
+              v-else
+              :src="regCaptchaImage"
+              :alt="t('register.captcha')"
+              class="captcha-img"
+              :title="t('login.refreshCaptcha')"
+              @click="loadCaptcha"
+            />
+            <n-input
+              v-model:value="regCaptchaCode"
+              size="large"
+              :placeholder="t('register.captchaPh')"
+              class="lx-field captcha-input"
+              :bordered="false"
+              maxlength="4"
+              @keyup.enter="handleRegister"
+            >
+              <template #prefix>
+                <n-icon :component="ShieldCheckmarkOutline" :size="15" class="field-ico" />
+              </template>
+            </n-input>
+            <n-button quaternary circle class="captcha-refresh" @click="loadCaptcha">
+              <template #icon>
+                <n-icon :component="RefreshOutline" />
+              </template>
+            </n-button>
+          </template>
         </div>
 
         <button
@@ -547,22 +572,6 @@ onUnmounted(() => {
   margin-bottom: 8px;
   user-select: none;
   animation: rise-in 0.45s ease both;
-}
-
-.brand-mark {
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  font-weight: 700;
-  color: #fff;
-  background: linear-gradient(145deg, #39c2f6 0%, #12b7f5 48%, #5b8cff 100%);
-  box-shadow:
-    0 6px 16px rgba(18, 183, 245, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
 .brand-text {

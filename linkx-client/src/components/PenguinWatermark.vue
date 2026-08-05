@@ -1,13 +1,20 @@
 ﻿<script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from '../i18n'
+import BrandMarkIcon from './BrandMarkIcon.vue'
 
 const props = withDefaults(
   defineProps<{
     hint?: string
+    /** Logo 尺寸（px） */
+    size?: number
+    /** 铺满父容器居中 */
+    fill?: boolean
   }>(),
   {
-    hint: undefined
+    hint: undefined,
+    size: 128,
+    fill: true
   }
 )
 
@@ -16,61 +23,43 @@ const displayHint = computed(() => props.hint ?? t('chat.selectChatHint'))
 </script>
 
 <template>
-  <div class="logo-wrap">
-    <div class="logo-lockup" aria-hidden="true">
-      <svg class="logo-mark" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="32" cy="32" r="30" fill="var(--lx-accent)"/>
-        <g transform="translate(32 32)" fill="none" stroke="#fff" stroke-width="4.2" stroke-linecap="round">
-          <ellipse rx="14.5" ry="6.9" transform="rotate(-42)"/>
-          <ellipse rx="14.5" ry="6.9" transform="rotate(42)"/>
-        </g>
-      </svg>
-      <span class="logo-wordmark">LinkX</span>
-    </div>
+  <div class="logo-wrap" :class="{ 'logo-wrap--fill': fill }">
+    <BrandMarkIcon :size="size" />
     <p v-if="displayHint" class="hint">{{ displayHint }}</p>
   </div>
 </template>
 
 <style scoped>
 .logo-wrap {
-  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 12px;
   min-height: 200px;
   padding: 24px;
+  box-sizing: border-box;
 }
 
-.logo-lockup {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  opacity: 0.42;
-  pointer-events: none;
-  user-select: none;
-}
-
-.logo-mark {
-  width: 48px;
-  height: 48px;
-  flex-shrink: 0;
-}
-
-.logo-wordmark {
-  font-size: 34px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--lx-text-body);
-  line-height: 1;
-  font-family: 'Segoe UI Semibold', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+.logo-wrap--fill {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  z-index: 0;
 }
 
 .hint {
-  margin: 14px 0 0;
-  font-size: 13px;
-  color: var(--lx-text-muted, #b8b8b8);
-  letter-spacing: 0.06em;
+  margin: 0;
+  padding: 0 16px;
+  font-size: 14px;
   font-weight: 400;
+  line-height: 1.65;
+  letter-spacing: 0.14em;
+  text-align: center;
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  color: var(--lx-text-muted);
 }
 </style>

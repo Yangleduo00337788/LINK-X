@@ -415,8 +415,18 @@ export default {
   voiceNotify: {
     pendingTask: '您有一条待处理事项，请注意查收',
   },
+  captcha: {
+    sliderHint: '向右拖动滑块，将拼图对齐缺口',
+    sliderRelease: '已拖动，请点击登录',
+    completeSlider: '请完成滑块验证',
+  },
   login: {
     subtitle: '管理后台',
+    heroSlogan: '连接无限 · 智联未来',
+    heroTagline: '智能、高效、安全的一体化管理平台',
+    welcomeTitle: '欢迎登录 LinkX 管理系统',
+    welcomeHint: '请输入您的账号信息',
+    copyright: '© 2026 LinkX. All rights reserved.',
     username: '用户名',
     password: '密码',
     captcha: '验证码',
@@ -1838,6 +1848,9 @@ export default {
     loginClientBlock: '客户端',
     loginAdminBlock: '管理端',
     captcha: '验证码',
+    captchaType: '验证码类型',
+    captchaTypeImage: '图形验证码',
+    captchaTypeSlider: '滑块验证码',
     maxAttempts: '最大重试次数',
     maxAttemptsHint: '超出后账号自动改为禁用',
     lockDuration: '锁定时间',

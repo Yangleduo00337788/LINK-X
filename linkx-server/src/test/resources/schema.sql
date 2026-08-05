@@ -883,10 +883,12 @@ CREATE TABLE IF NOT EXISTS sys_admin_role_menu (
 CREATE TABLE IF NOT EXISTS sys_runtime_setting (
   id BIGINT NOT NULL PRIMARY KEY,
   admin_captcha_enabled TINYINT NOT NULL DEFAULT 1,
+  admin_captcha_type VARCHAR(16) NOT NULL DEFAULT 'image',
   admin_login_max_attempts INT NOT NULL DEFAULT 5,
   admin_lock_duration_minutes INT NOT NULL DEFAULT 10,
   admin_totp_required TINYINT NOT NULL DEFAULT 0,
   client_captcha_enabled TINYINT NOT NULL DEFAULT 1,
+  client_captcha_type VARCHAR(16) NOT NULL DEFAULT 'image',
   client_register_enabled TINYINT NOT NULL DEFAULT 1,
   client_forgot_password_email_enabled TINYINT NOT NULL DEFAULT 1,
   client_login_max_attempts INT NOT NULL DEFAULT 5,

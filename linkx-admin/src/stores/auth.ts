@@ -1,11 +1,17 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import * as authApi from '@/api/auth'
-import { clearTokens, ensureApiSignKey } from '@/api/request'
+import { clearTokens, ensureApiSignKey, setSessionTokens } from '@/api/request'
 import type { AdminLoginResult, AdminMenuTree, AdminUserProfile } from '@/types/api'
 import { tGlobal } from '@/i18n'
 import { useSecurityStore } from '@/stores/security'
 import { isSessionActive, setSessionActive } from '@/utils/sessionState'
+
+function rollbackSession(security = useSecurityStore()) {
+  clearTokens()
+  security.resetSession()
+  setSessionActive(false)
+}
 
 export const useAuthStore = defineStore(
   'auth',
@@ -32,12 +38,21 @@ export const useAuthStore = defineStore(
       if (!data.user) {
         throw new Error('incomplete login result')
       }
+      const security = useSecurityStore()
       setSessionActive(true)
+      setSessionTokens(data.accessToken, data.refreshToken)
       user.value = data.user
       permissions.value = [...(data.user.permissions || [])]
-      const security = useSecurityStore()
       security.setApiSignKey(data.apiSignKey)
-      await fetchMenusAndPermissions()
+      try {
+        await fetchMenusAndPermissions()
+      } catch (e) {
+        rollbackSession(security)
+        user.value = null
+        menus.value = []
+        permissions.value = []
+        throw e
+      }
     }
 
     /** 密码登录；若返回 challenge 则不写 token，由调用方进入 2FA 步骤 */
@@ -75,14 +90,14 @@ export const useAuthStore = defineStore(
 
     /** 页面刷新后凭 HttpOnly Cookie 恢复会话 */
     async function restoreSession(): Promise<boolean> {
-      if (isSessionActive() && user.value) {
+      if (isSessionActive() && user.value && menus.value.length > 0) {
         return true
       }
       try {
         await fetchProfile()
         return true
       } catch {
-        setSessionActive(false)
+        rollbackSession()
         user.value = null
         menus.value = []
         permissions.value = []
@@ -114,7 +129,7 @@ export const useAuthStore = defineStore(
     }
 
     function resetLocalSession() {
-      clearTokens()
+      rollbackSession()
       user.value = null
       menus.value = []
       permissions.value = []

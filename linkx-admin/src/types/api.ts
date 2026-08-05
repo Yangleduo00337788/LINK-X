@@ -97,12 +97,16 @@ export interface AdminMenuReorderItem {
 }
 
 export interface CaptchaVO {
+  type?: 'image' | 'slider'
   captchaId: string
   imageBase64: string
+  puzzleImageBase64?: string
+  puzzleY?: number
 }
 
 export interface AuthConfigVO {
   captchaEnabled: boolean
+  captchaType?: 'image' | 'slider'
   registerEnabled?: boolean
   forgotPasswordEmailEnabled?: boolean
   totpRequired?: boolean

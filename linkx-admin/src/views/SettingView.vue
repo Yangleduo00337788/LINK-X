@@ -165,16 +165,23 @@ const registerForm = reactive({
 const loginForm = reactive({
   client: {
     captchaEnabled: true,
+    captchaType: 'image' as 'image' | 'slider',
     maxAttempts: 5,
     lockDurationMinutes: 10,
   },
   admin: {
     captchaEnabled: true,
+    captchaType: 'image' as 'image' | 'slider',
     maxAttempts: 5,
     lockDurationMinutes: 10,
     totpRequired: false,
   },
 })
+
+const captchaTypeOptions = computed(() => [
+  { label: t('setting.captchaTypeImage'), value: 'image' },
+  { label: t('setting.captchaTypeSlider'), value: 'slider' },
+])
 
 const passwordForm = reactive({
   minLength: 8,
@@ -278,10 +285,14 @@ function applySettings(data: AdminSetting) {
 
   loginForm.client.captchaEnabled =
     data.login?.client?.captchaEnabled ?? data.client?.captchaEnabled !== false
+  loginForm.client.captchaType =
+    data.login?.client?.captchaType === 'slider' ? 'slider' : 'image'
   loginForm.client.maxAttempts = data.login?.client?.maxAttempts ?? 5
   loginForm.client.lockDurationMinutes = data.login?.client?.lockDurationMinutes ?? 10
   loginForm.admin.captchaEnabled =
     data.login?.admin?.captchaEnabled ?? data.admin?.captchaEnabled !== false
+  loginForm.admin.captchaType =
+    data.login?.admin?.captchaType === 'slider' ? 'slider' : 'image'
   loginForm.admin.maxAttempts = data.login?.admin?.maxAttempts ?? 5
   loginForm.admin.lockDurationMinutes = data.login?.admin?.lockDurationMinutes ?? 10
   loginForm.admin.totpRequired = data.login?.admin?.totpRequired === true
@@ -411,11 +422,13 @@ async function saveLogin() {
         await updateLoginSettings({
           client: {
             captchaEnabled: loginForm.client.captchaEnabled,
+            captchaType: loginForm.client.captchaType,
             maxAttempts: loginForm.client.maxAttempts,
             lockDurationMinutes: loginForm.client.lockDurationMinutes,
           },
           admin: {
             captchaEnabled: loginForm.admin.captchaEnabled,
+            captchaType: loginForm.admin.captchaType,
             maxAttempts: loginForm.admin.maxAttempts,
             lockDurationMinutes: loginForm.admin.lockDurationMinutes,
             totpRequired: loginForm.admin.totpRequired,
@@ -739,6 +752,13 @@ onMounted(load)
                   loginForm.client.captchaEnabled ? t('common.on') : t('common.off')
                 }}</span>
               </NFormItem>
+              <NFormItem v-if="loginForm.client.captchaEnabled" :label="t('setting.captchaType')">
+                <NSelect
+                  v-model:value="loginForm.client.captchaType"
+                  :options="captchaTypeOptions"
+                  style="width: 220px"
+                />
+              </NFormItem>
               <NFormItem :label="t('setting.maxAttempts')" required>
                 <div class="number-row">
                   <NInputNumber
@@ -772,6 +792,13 @@ onMounted(load)
                 <span class="field-hint">{{
                   loginForm.admin.captchaEnabled ? t('common.on') : t('common.off')
                 }}</span>
+              </NFormItem>
+              <NFormItem v-if="loginForm.admin.captchaEnabled" :label="t('setting.captchaType')">
+                <NSelect
+                  v-model:value="loginForm.admin.captchaType"
+                  :options="captchaTypeOptions"
+                  style="width: 220px"
+                />
               </NFormItem>
               <NFormItem :label="t('setting.maxAttempts')" required>
                 <div class="number-row">

@@ -5,7 +5,6 @@ import { useI18n } from 'vue-i18n'
 import {
   NAutoComplete,
   NButton,
-  NCard,
   NForm,
   NFormItem,
   NInput,
@@ -21,8 +20,8 @@ import { useAuthStore } from '@/stores/auth'
 import { useSecurityStore } from '@/stores/security'
 import AuthPageShell from '@/components/AuthPageShell.vue'
 import AdminOpsBannerCarousel from '@/components/AdminOpsBannerCarousel.vue'
-import AdminBrandLogo from '@/components/AdminBrandLogo.vue'
 import LoginHeroIllustration from '@/components/LoginHeroIllustration.vue'
+import SliderCaptcha from '@/components/SliderCaptcha.vue'
 import { unlockSpeech } from '@/utils/voiceNotify'
 
 const auth = useAuthStore()
@@ -39,8 +38,11 @@ const formRef = ref<FormInst | null>(null)
 const totpFormRef = ref<FormInst | null>(null)
 const loading = ref(false)
 const captchaEnabled = ref(true)
+const captchaType = ref<'image' | 'slider'>('image')
 const captchaId = ref('')
 const captchaImg = ref('')
+const puzzleImg = ref('')
+const puzzleY = ref(0)
 const captchaLoading = ref(false)
 const loginBannerCount = ref<number | null>(null)
 const challengeToken = ref('')
@@ -130,15 +132,22 @@ async function loadCaptcha() {
   try {
     const data = await fetchCaptcha()
     captchaId.value = data.captchaId
+    captchaType.value = data.type === 'slider' ? 'slider' : 'image'
     captchaImg.value = data.imageBase64.startsWith('data:')
       ? data.imageBase64
       : `data:image/png;base64,${data.imageBase64}`
+    puzzleImg.value = data.puzzleImageBase64 || ''
+    puzzleY.value = data.puzzleY ?? 0
     form.captchaCode = ''
   } catch {
     /* request already toasts */
   } finally {
     captchaLoading.value = false
   }
+}
+
+function onSliderSuccess(offset: number) {
+  form.captchaCode = String(offset)
 }
 
 async function finishLogin(loginResult?: { newLoginIp?: boolean; loginIp?: string }) {
@@ -205,6 +214,7 @@ async function submit() {
     }
     await finishLogin(data)
   } catch (error) {
+    auth.resetLocalSession()
     const msg = error instanceof Error ? error.message : t('common.requestFailed')
     if (msg) message.error(msg)
     await loadCaptcha()
@@ -253,6 +263,7 @@ onMounted(async () => {
   try {
     const cfg = await fetchAuthConfig()
     captchaEnabled.value = !!cfg.captchaEnabled
+    captchaType.value = cfg.captchaType === 'slider' ? 'slider' : 'image'
     securityStore.applyFromAuthConfig(cfg)
   } catch {
     captchaEnabled.value = true
@@ -262,7 +273,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <AuthPageShell>
+  <AuthPageShell immersive>
     <template #visual>
       <AdminOpsBannerCarousel
         class="login-ops-banner"
@@ -277,17 +288,19 @@ onMounted(async () => {
       <LoginHeroIllustration />
     </template>
 
-    <NCard class="login-card" :bordered="false">
-      <AdminBrandLogo size="login" class="login-brand-logo" />
-      <p class="login-sub">
-        {{
-          step === 'totp'
-            ? t('login.totpSubtitle')
-            : step === 'setup'
-              ? t('login.totpSetupSubtitle')
-              : t('login.subtitle')
-        }}
-      </p>
+    <div class="login-form-card">
+      <header class="login-form-head">
+        <h1 class="login-form-title">
+          {{
+            step === 'totp'
+              ? t('login.totpSubtitle')
+              : step === 'setup'
+                ? t('login.totpSetupSubtitle')
+                : t('login.welcomeTitle')
+          }}
+        </h1>
+        <p v-if="step === 'password'" class="login-form-hint">{{ t('login.welcomeHint') }}</p>
+      </header>
 
       <div class="login-step-wrap">
         <Transition name="lx-auth-step">
@@ -298,9 +311,10 @@ onMounted(async () => {
           :model="form"
           :rules="rules"
           size="large"
+          :show-label="false"
           @keyup.enter="submit"
         >
-          <NFormItem path="username" :label="t('login.username')">
+          <NFormItem path="username">
             <NAutoComplete
               v-model:value="form.username"
               :options="usernameOptions"
@@ -308,7 +322,7 @@ onMounted(async () => {
               clearable
             />
           </NFormItem>
-          <NFormItem path="password" :label="t('login.password')">
+          <NFormItem path="password">
             <NInput
               v-model:value="form.password"
               type="password"
@@ -317,8 +331,17 @@ onMounted(async () => {
               autocomplete="current-password"
             />
           </NFormItem>
-          <NFormItem v-if="captchaEnabled" path="captchaCode" :label="t('login.captcha')">
-            <NSpace style="width: 100%" :wrap="false">
+          <NFormItem v-if="captchaEnabled" path="captchaCode">
+            <SliderCaptcha
+              v-if="captchaType === 'slider'"
+              :background="captchaImg"
+              :puzzle="puzzleImg"
+              :puzzle-y="puzzleY"
+              :disabled="captchaLoading"
+              @success="onSliderSuccess"
+              @refresh="loadCaptcha"
+            />
+            <NSpace v-else style="width: 100%" :wrap="false">
               <NInput
                 v-model:value="form.captchaCode"
                 :placeholder="t('login.captchaPlaceholder')"
@@ -332,7 +355,13 @@ onMounted(async () => {
               </div>
             </NSpace>
           </NFormItem>
-          <NButton type="primary" block :loading="loading" @click="submit">
+          <NButton
+            class="login-submit-btn"
+            color="#2b7fff"
+            block
+            :loading="loading"
+            @click="submit"
+          >
             {{ t('login.submit') }}
           </NButton>
         </NForm>
@@ -370,7 +399,11 @@ onMounted(async () => {
         </div>
         </Transition>
       </div>
-    </NCard>
+
+      <footer v-if="step === 'password'" class="login-form-footer">
+        {{ t('login.copyright') }}
+      </footer>
+    </div>
   </AuthPageShell>
 </template>
 
@@ -382,25 +415,115 @@ onMounted(async () => {
   height: 100%;
 }
 
-.login-card {
+.login-form-card {
   width: 100%;
-  background: transparent !important;
-  box-shadow: none !important;
+  padding: 36px 40px 24px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.06);
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.8);
 }
 
-.login-brand-logo {
-  margin-bottom: 4px;
+.login-form-head {
+  margin-bottom: 32px;
 }
 
-.login-sub {
-  margin: 8px 0 24px;
-  color: var(--lx-text-3);
+.login-form-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: #1a1a1a;
+}
+
+.login-form-hint {
+  margin: 10px 0 0;
   font-size: 14px;
+  color: #bfbfbf;
+}
+
+.login-step-wrap :deep(.n-form-item) {
+  margin-bottom: 20px;
+}
+
+.login-step-wrap :deep(.n-input) {
+  --n-height: 44px;
 }
 
 .login-step-wrap {
   position: relative;
   min-height: 220px;
+}
+
+.login-step-wrap :deep(.slider-captcha) {
+  width: 100%;
+  max-width: 100%;
+}
+
+.login-step-wrap :deep(.slider-captcha__panel),
+.login-step-wrap :deep(.slider-captcha__track) {
+  width: 100%;
+  max-width: 100%;
+}
+
+.login-step-wrap :deep(.slider-captcha__bg) {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 2 / 1;
+}
+
+.login-submit-btn {
+  height: 44px !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  border-radius: 8px !important;
+}
+
+.login-step-wrap :deep(.slider-captcha__thumb) {
+  color: #2b7fff;
+}
+
+.login-step-wrap :deep(.slider-captcha__track-fill) {
+  background: rgba(43, 127, 255, 0.15);
+}
+
+.login-step-wrap :deep(.slider-captcha__track--dragging .slider-captcha__track-fill) {
+  background: rgba(43, 127, 255, 0.25);
+}
+
+.login-step-wrap :deep(.slider-captcha__thumb--dragging) {
+  background: #eef5ff;
+  box-shadow: 0 2px 10px rgba(43, 127, 255, 0.25);
+}
+
+.login-form-footer {
+  margin-top: 32px;
+  padding-top: 0;
+  border-top: none;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #bfbfbf;
+  text-align: center;
+}
+
+[data-theme='dark'] .login-form-card {
+  background: #1a1f2e;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme='dark'] .login-form-title {
+  color: #e5eaf3;
+}
+
+[data-theme='dark'] .login-form-hint,
+[data-theme='dark'] .login-form-footer {
+  color: #8b95a5;
+}
+
+[data-theme='dark'] .login-form-footer {
+  border-top-color: rgba(255, 255, 255, 0.08);
 }
 
 .captcha-box {

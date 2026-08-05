@@ -54,6 +54,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/admin/auth/refresh",
                         "/admin/auth/logout",
                         "/admin/auth/config",
+                        "/admin/auth/captcha",
                         "/cloud/share/**",
                         // 健康检查 / 版本探测（客户端未登录前需可访问）
                         "/health",
@@ -98,6 +99,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/admin/auth/refresh",
                         "/admin/auth/logout",
                         "/admin/auth/config",
+                        "/admin/auth/captcha",
                         "/health",
                         "/health/**",
                         "/app/version",

@@ -1,6 +1,7 @@
 package com.linkx.server.service;
 
 import com.linkx.server.controller.vo.CaptchaVO;
+import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.support.BaseIntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -18,6 +19,9 @@ class CaptchaServiceTest extends BaseIntegrationTest {
     @Autowired
     private CaptchaService captchaService;
 
+    @Autowired
+    private LinkxProperties linkxProperties;
+
     @Nested
     @DisplayName("generate 生成验证码测试")
     class GenerateTests {
@@ -32,7 +36,20 @@ class CaptchaServiceTest extends BaseIntegrationTest {
             assertFalse(captcha.getCaptchaId().isEmpty());
             assertNotNull(captcha.getImageBase64());
             assertTrue(captcha.getImageBase64().startsWith("data:image/png;base64,"));
-            assertEquals(300, captcha.getExpireSeconds()); // 5分钟
+            assertEquals("image", captcha.getType());
+            assertEquals(300, captcha.getExpireSeconds());
+        }
+
+        @Test
+        @DisplayName("滑块验证码生成应包含拼图块")
+        void generate_slider_success() {
+            linkxProperties.getAuth().setClientCaptchaType("slider");
+            CaptchaVO captcha = captchaService.generate();
+
+            assertEquals("slider", captcha.getType());
+            assertNotNull(captcha.getPuzzleImageBase64());
+            assertTrue(captcha.getPuzzleImageBase64().startsWith("data:image/png;base64,"));
+            assertNotNull(captcha.getPuzzleY());
         }
 
         @Test

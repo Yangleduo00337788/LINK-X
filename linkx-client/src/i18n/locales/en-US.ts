@@ -682,6 +682,11 @@ export default {
     latestVersion: 'You are on the latest version',
     me: 'Me'
   },
+  captcha: {
+    sliderHint: 'Drag the slider to align the puzzle piece',
+    sliderRelease: 'Done — continue',
+    completeSlider: 'Please complete the slider captcha',
+  },
   login: {
     user: 'LinkX user',
     account: 'Account',

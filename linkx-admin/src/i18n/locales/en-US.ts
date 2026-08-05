@@ -415,8 +415,18 @@ export default {
   voiceNotify: {
     pendingTask: 'You have a pending task. Please check.',
   },
+  captcha: {
+    sliderHint: 'Drag the slider to align the puzzle piece',
+    sliderRelease: 'Done — click Login',
+    completeSlider: 'Please complete the slider captcha',
+  },
   login: {
     subtitle: 'Admin Console',
+    heroSlogan: 'Connect Without Limits · Smart Future',
+    heroTagline: 'An intelligent, efficient, and secure integrated management platform',
+    welcomeTitle: 'Welcome to LinkX Admin',
+    welcomeHint: 'Please enter your account credentials',
+    copyright: '© 2026 LinkX. All rights reserved.',
     username: 'Username',
     password: 'Password',
     captcha: 'Captcha',
@@ -1859,6 +1869,9 @@ export default {
     loginClientBlock: 'Client',
     loginAdminBlock: 'Admin',
     captcha: 'Captcha',
+    captchaType: 'Captcha type',
+    captchaTypeImage: 'Image captcha',
+    captchaTypeSlider: 'Slider captcha',
     maxAttempts: 'Max attempts',
     maxAttemptsHint: 'Account is disabled after exceeding this count',
     lockDuration: 'Lock duration',

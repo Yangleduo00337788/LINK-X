@@ -4,6 +4,7 @@ import { NButton, useDialog, useMessage } from 'naive-ui'
 import { APP_CLIENT_CHANNEL, APP_CLIENT_VERSION } from '../../utils/appVersion'
 import * as versionApi from '../../api/version'
 import { useI18n } from '../../i18n'
+import BrandMarkIcon from '../BrandMarkIcon.vue'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -148,7 +149,9 @@ onMounted(() => {
   <div class="settings-scroll about-scroll">
     <section class="about-card">
       <div class="about-glow" />
-      <img src="../../assets/logo-linkx.svg" alt="LinkX" class="about-logo" />
+      <div class="about-logo">
+        <BrandMarkIcon :size="72" />
+      </div>
       <h3 class="about-name">LinkX</h3>
       <p class="about-ver">Version {{ APP_CLIENT_VERSION }} · {{ APP_CLIENT_CHANNEL }}</p>
       <p class="about-desc">{{ t('about.desc') }}</p>
@@ -211,8 +214,9 @@ onMounted(() => {
 
 .about-logo {
   position: relative;
-  width: 72px;
-  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin: 0 auto 12px;
 }
 

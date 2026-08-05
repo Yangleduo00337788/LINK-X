@@ -1083,18 +1083,53 @@ ipcMain.on('theme-changed', (_e, theme: string) => {
   applyAllWindowBackgrounds(theme)
 })
 
-/** 托盘图标：优先读取 build 目录下的 icon-32.png，回退到手绘蓝点 */
-function createTrayIcon(): Electron.NativeImage {
-  const candidates = [
-    path.join(__dirname, '../../build/icon-32.png'),
-    path.join(__dirname, '../../electron/icon-32.png'),
-    path.join(__dirname, '../build/icon-32.png')
+/** 解析 build 目录下的应用资源（开发/打包路径兼容） */
+function resolveBuildAsset(fileName: string): string | null {
+  const roots = [
+    path.join(__dirname, '../../build'),
+    path.join(__dirname, '../build')
   ]
-  for (const p of candidates) {
+  for (const root of roots) {
+    const candidate = path.join(root, fileName)
     try {
-      if (fs.existsSync(p)) {
-        const img = nativeImage.createFromPath(p)
-        if (!img.isEmpty()) return img
+      if (fs.existsSync(candidate)) return candidate
+    } catch {
+      /* fall through */
+    }
+  }
+  return null
+}
+
+function resolveAppIconPath(): string | undefined {
+  const preferred =
+    process.platform === 'win32'
+      ? 'icon.ico'
+      : process.platform === 'darwin'
+        ? 'icon.icns'
+        : 'icon.png'
+  return resolveBuildAsset(preferred) ?? resolveBuildAsset('icon.png') ?? undefined
+}
+
+function createAppIconImage(): Electron.NativeImage | undefined {
+  const iconPath = resolveAppIconPath()
+  if (!iconPath) return undefined
+  const img = nativeImage.createFromPath(iconPath)
+  return img.isEmpty() ? undefined : img
+}
+
+function browserWindowIconOptions(): Pick<Electron.BrowserWindowConstructorOptions, 'icon'> {
+  const icon = createAppIconImage()
+  return icon ? { icon } : {}
+}
+
+/** 托盘图标：读取 build/icon-32.png，回退到手绘蓝点 */
+function createTrayIcon(): Electron.NativeImage {
+  const trayPath = resolveBuildAsset('icon-32.png') ?? resolveBuildAsset('icon.png')
+  if (trayPath) {
+    try {
+      const img = nativeImage.createFromPath(trayPath)
+      if (!img.isEmpty()) {
+        return img.resize({ width: 16, height: 16 })
       }
     } catch {
       /* fall through */
@@ -1219,6 +1254,7 @@ function createMomentsWindow(opts?: MomentsOpenPayload) {
   }
 
   momentsWindow = new BrowserWindow({
+    ...browserWindowIconOptions(),
     width: 440,
     height: 560,
     resizable: false,
@@ -1274,6 +1310,7 @@ function createMomentsTextWindow() {
   }
 
   momentsTextWindow = new BrowserWindow({
+    ...browserWindowIconOptions(),
     width: 420,
     height: 520,
     resizable: false,
@@ -1318,6 +1355,7 @@ function createMomentsMediaWindow() {
   }
 
   momentsMediaWindow = new BrowserWindow({
+    ...browserWindowIconOptions(),
     width: 480,
     height: 600,
     resizable: false,
@@ -1361,6 +1399,7 @@ function createNoteEditorWindow() {
   }
 
   noteEditorWindow = new BrowserWindow({
+    ...browserWindowIconOptions(),
     width: 800,
     height: 600,
     minWidth: 600,
@@ -1412,6 +1451,7 @@ function createRegisterWindow() {
   }
 
   registerWindow = new BrowserWindow({
+    ...browserWindowIconOptions(),
     width: 360,
     height: 560,
     resizable: false,
@@ -1473,6 +1513,7 @@ function createHelpStandaloneWindow(hashPath: 'help' | 'chat-history', size: { w
   }
 
   win = new BrowserWindow({
+    ...browserWindowIconOptions(),
     width: size.width,
     height: size.height,
     minWidth: size.width,
@@ -1553,6 +1594,7 @@ function createImageViewerWindow(payload: ImageViewerPayload) {
   }
 
   imageViewerWindow = new BrowserWindow({
+    ...browserWindowIconOptions(),
     width: 960,
     height: 720,
     minWidth: 640,
@@ -1619,6 +1661,7 @@ function createWindow() {
   }
 
   mainWindow = new BrowserWindow({
+    ...browserWindowIconOptions(),
     width: 319,
     height: 461,
     minWidth: 319,
@@ -1700,6 +1743,11 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  const appIcon = createAppIconImage()
+  if (appIcon && process.platform === 'darwin' && app.dock) {
+    app.dock.setIcon(appIcon)
+  }
+
   // Windows/Linux：去掉经典 File/Edit 菜单栏
   if (process.platform !== 'darwin') {
     Menu.setApplicationMenu(null)

@@ -31,6 +31,8 @@ public class SysRuntimeSetting implements Serializable {
 
     /** 管理端登录验证码 */
     private Boolean adminCaptchaEnabled;
+    /** 管理端验证码类型：image | slider */
+    private String adminCaptchaType;
     /** 管理端登录失败最大次数 */
     private Integer adminLoginMaxAttempts;
     /** 管理端自动封禁分钟数 */
@@ -39,6 +41,8 @@ public class SysRuntimeSetting implements Serializable {
     private Boolean adminTotpRequired;
     /** 客户端登录/注册验证码 */
     private Boolean clientCaptchaEnabled;
+    /** 客户端验证码类型：image | slider */
+    private String clientCaptchaType;
     /** 客户端是否开放注册 */
     private Boolean clientRegisterEnabled;
     /** 忘记密码邮箱验证是否启用 */

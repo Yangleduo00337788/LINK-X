@@ -44,6 +44,24 @@ const LEGACY_ACCESS_KEY = 'linkx_admin_access_token'
 const LEGACY_REFRESH_KEY = 'linkx_admin_refresh_token'
 const LEGACY_API_SIGN_KEY = 'linkx_admin_api_sign_key'
 
+/** 内存令牌：本地 HTTP 开发时 Cookie 可能不可用，与 HttpOnly Cookie 双轨兼容 */
+let memoryAccessToken = ''
+let memoryRefreshToken = ''
+
+/** 写入当前会话令牌（仅内存，不落盘） */
+export function setSessionTokens(accessToken?: string, refreshToken?: string) {
+  if (accessToken !== undefined) {
+    memoryAccessToken = accessToken.trim()
+  }
+  if (refreshToken !== undefined) {
+    memoryRefreshToken = refreshToken.trim()
+  }
+}
+
+export function getMemoryRefreshToken() {
+  return memoryRefreshToken
+}
+
 /** 清理历史 localStorage / sessionStorage 明文凭据（迁移至 HttpOnly Cookie 后的一次性兼容） */
 export function purgeLegacyTokens() {
   try {
@@ -56,6 +74,8 @@ export function purgeLegacyTokens() {
 }
 
 export function clearTokens() {
+  memoryAccessToken = ''
+  memoryRefreshToken = ''
   purgeLegacyTokens()
   setSessionActive(false)
   useSecurityStore().clearApiSignKey()
@@ -65,6 +85,10 @@ export function clearTokens() {
 export async function ensureApiSignKey(): Promise<void> {
   const security = useSecurityStore()
   if (!security.apiSignEnabled || security.apiSignKey) {
+    return
+  }
+  // 未建立会话时不应刷新令牌，避免登录页出现无意义的 400
+  if (!isSessionActive()) {
     return
   }
   await refreshAccessToken()
@@ -80,12 +104,19 @@ let refreshing: Promise<boolean> | null = null
 
 async function refreshAccessToken(): Promise<boolean> {
   try {
+    const body = memoryRefreshToken ? { refreshToken: memoryRefreshToken } : {}
     const { data } = await axios.post<ApiResult<AdminLoginResult>>(
       `${import.meta.env.VITE_API_BASE_URL || '/api'}/admin/auth/refresh`,
-      {},
+      body,
       { headers: getDeviceHeaders(), withCredentials: true }
     )
     if (data.code === 200 && data.data) {
+      if (data.data.accessToken) {
+        memoryAccessToken = data.data.accessToken
+      }
+      if (data.data.refreshToken) {
+        memoryRefreshToken = data.data.refreshToken
+      }
       if (data.data.apiSignKey) {
         useSecurityStore().setApiSignKey(data.data.apiSignKey)
       }
@@ -118,6 +149,9 @@ request.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
   }
 
   Object.assign(config.headers, getDeviceHeaders())
+  if (memoryAccessToken) {
+    config.headers.Authorization = `Bearer ${memoryAccessToken}`
+  }
 
   const security = useSecurityStore()
   const url = config.url || ''
@@ -263,6 +297,10 @@ request.interceptors.response.use(
       !original._retry &&
       !original.url?.includes('/admin/auth/login')
     ) {
+      // 登录页且无会话：跳过 refresh 重试，避免控制台刷 400/401
+      if (!isSessionActive() && window.location.pathname.startsWith('/login')) {
+        return Promise.reject(error)
+      }
       original._retry = true
       refreshing =
         refreshing ||

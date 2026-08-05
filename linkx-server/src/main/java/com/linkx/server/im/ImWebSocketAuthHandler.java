@@ -54,6 +54,11 @@ public class ImWebSocketAuthHandler extends ChannelInboundHandlerAdapter {
                 token = TokenCookieUtil.parseCookie(
                         request.headers().get(HttpHeaderNames.COOKIE),
                         TokenCookieUtil.ACCESS_TOKEN_COOKIE);
+                if (token == null || token.isBlank()) {
+                    token = TokenCookieUtil.parseCookie(
+                            request.headers().get(HttpHeaderNames.COOKIE),
+                            TokenCookieUtil.ACCESS_TOKEN_COOKIE_DEV);
+                }
             }
             if (token == null || token.isBlank()) {
                 log.warn("WebSocket 鉴权失败: 缺少 token（subprotocol/cookie） origin={}",

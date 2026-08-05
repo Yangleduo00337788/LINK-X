@@ -1,5 +1,6 @@
 package com.linkx.server.service.admin.impl;
 
+import com.linkx.server.common.CaptchaType;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.config.MailSenderHolder;
 import com.linkx.server.config.MailTemplateDefaults;
@@ -65,11 +66,13 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                 .login(AdminSettingVO.LoginSide.builder()
                         .client(AdminSettingVO.LoginEntry.builder()
                                 .captchaEnabled(auth.isCaptchaEnabled())
+                                .captchaType(CaptchaType.fromWire(auth.getClientCaptchaType()).toWire())
                                 .maxAttempts(auth.getLoginMaxAttempts())
                                 .lockDurationMinutes(auth.getLockDurationMinutes())
                                 .build())
                         .admin(AdminSettingVO.LoginEntry.builder()
                                 .captchaEnabled(auth.isAdminCaptchaEnabled())
+                                .captchaType(CaptchaType.fromWire(auth.getAdminCaptchaType()).toWire())
                                 .maxAttempts(auth.getAdminLoginMaxAttempts())
                                 .lockDurationMinutes(auth.getAdminLockDurationMinutes())
                                 .totpRequired(auth.isAdminTotpRequired())
@@ -313,9 +316,11 @@ public class AdminSettingServiceImpl implements AdminSettingService {
             }
         }
         row.setClientCaptchaEnabled(Boolean.TRUE.equals(client.getCaptchaEnabled()));
+        row.setClientCaptchaType(normalizeCaptchaType(client.getCaptchaType()));
         row.setClientLoginMaxAttempts(client.getMaxAttempts());
         row.setClientLockDurationMinutes(client.getLockDurationMinutes());
         row.setAdminCaptchaEnabled(captchaEnabled);
+        row.setAdminCaptchaType(normalizeCaptchaType(admin.getCaptchaType()));
         row.setAdminLoginMaxAttempts(admin.getMaxAttempts());
         row.setAdminLockDurationMinutes(admin.getLockDurationMinutes());
         row.setAdminTotpRequired(totpRequired);
@@ -471,10 +476,12 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         return SysRuntimeSetting.builder()
                 .id(SysRuntimeSetting.SINGLETON_ID)
                 .adminCaptchaEnabled(auth.isAdminCaptchaEnabled())
+                .adminCaptchaType(CaptchaType.fromWire(auth.getAdminCaptchaType()).toWire())
                 .adminLoginMaxAttempts(auth.getAdminLoginMaxAttempts())
                 .adminLockDurationMinutes(auth.getAdminLockDurationMinutes())
                 .adminTotpRequired(auth.isAdminTotpRequired())
                 .clientCaptchaEnabled(auth.isCaptchaEnabled())
+                .clientCaptchaType(CaptchaType.fromWire(auth.getClientCaptchaType()).toWire())
                 .clientRegisterEnabled(auth.isRegisterEnabled())
                 .clientForgotPasswordEmailEnabled(auth.isForgotPasswordEmailEnabled())
                 .clientLoginMaxAttempts(auth.getLoginMaxAttempts())
@@ -665,8 +672,14 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         if (row.getClientCaptchaEnabled() != null) {
             auth.setCaptchaEnabled(row.getClientCaptchaEnabled());
         }
+        if (row.getClientCaptchaType() != null) {
+            auth.setClientCaptchaType(normalizeCaptchaType(row.getClientCaptchaType()));
+        }
         if (row.getAdminCaptchaEnabled() != null) {
             auth.setAdminCaptchaEnabled(row.getAdminCaptchaEnabled());
+        }
+        if (row.getAdminCaptchaType() != null) {
+            auth.setAdminCaptchaType(normalizeCaptchaType(row.getAdminCaptchaType()));
         }
         if (row.getClientLoginMaxAttempts() != null) {
             auth.setLoginMaxAttempts(row.getClientLoginMaxAttempts());
@@ -683,10 +696,14 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         if (row.getAdminTotpRequired() != null) {
             auth.setAdminTotpRequired(row.getAdminTotpRequired());
         }
-        log.info("Applied login settings: client(captcha={}, maxAttempts={}, lockMin={}), admin(captcha={}, maxAttempts={}, lockMin={}, totpRequired={})",
-                auth.isCaptchaEnabled(), auth.getLoginMaxAttempts(), auth.getLockDurationMinutes(),
-                auth.isAdminCaptchaEnabled(), auth.getAdminLoginMaxAttempts(), auth.getAdminLockDurationMinutes(),
+        log.info("Applied login settings: client(captcha={}, type={}, maxAttempts={}, lockMin={}), admin(captcha={}, type={}, maxAttempts={}, lockMin={}, totpRequired={})",
+                auth.isCaptchaEnabled(), auth.getClientCaptchaType(), auth.getLoginMaxAttempts(), auth.getLockDurationMinutes(),
+                auth.isAdminCaptchaEnabled(), auth.getAdminCaptchaType(), auth.getAdminLoginMaxAttempts(), auth.getAdminLockDurationMinutes(),
                 auth.isAdminTotpRequired());
+    }
+
+    private static String normalizeCaptchaType(String type) {
+        return CaptchaType.fromWire(type).toWire();
     }
 
     private void applyPasswordSide(SysRuntimeSetting row) {

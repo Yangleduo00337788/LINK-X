@@ -11,6 +11,7 @@ const EXCLUDED_PATHS = [
   '/admin/auth/refresh',
   '/admin/auth/logout',
   '/auth/captcha',
+  '/admin/auth/captcha',
 ]
 
 export function shouldSignRequest(url?: string): boolean {

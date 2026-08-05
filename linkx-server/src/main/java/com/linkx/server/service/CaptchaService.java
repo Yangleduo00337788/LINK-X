@@ -1,10 +1,18 @@
 package com.linkx.server.service;
 
+import com.linkx.server.common.CaptchaScope;
+import com.linkx.server.common.CaptchaType;
 import com.linkx.server.controller.vo.CaptchaVO;
 
 public interface CaptchaService {
 
-    CaptchaVO generate();
+    CaptchaVO generate(CaptchaScope scope);
+
+    default CaptchaVO generate() {
+        return generate(CaptchaScope.CLIENT);
+    }
+
+    CaptchaType resolveType(CaptchaScope scope);
 
     /**
      * 生成绑定到指定账号的验证码。
