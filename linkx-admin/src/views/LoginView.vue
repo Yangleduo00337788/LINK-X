@@ -17,7 +17,9 @@ import {
 } from 'naive-ui'
 import QRCode from 'qrcode'
 import { beginTotpSetupChallenge, fetchAuthConfig, fetchCaptcha } from '@/api/auth'
+import { clearTokens } from '@/api/request'
 import { useAuthStore } from '@/stores/auth'
+import { useSecurityStore } from '@/stores/security'
 import AuthPageShell from '@/components/AuthPageShell.vue'
 import AdminOpsBannerCarousel from '@/components/AdminOpsBannerCarousel.vue'
 import AdminBrandLogo from '@/components/AdminBrandLogo.vue'
@@ -25,6 +27,7 @@ import LoginHeroIllustration from '@/components/LoginHeroIllustration.vue'
 import { unlockSpeech } from '@/utils/voiceNotify'
 
 const auth = useAuthStore()
+const securityStore = useSecurityStore()
 const router = useRouter()
 const route = useRoute()
 const message = useMessage()
@@ -183,6 +186,7 @@ async function submit() {
   unlockSpeech(locale.value)
   await formRef.value?.validate()
   loading.value = true
+  securityStore.resetSession()
   try {
     const data = await auth.login({
       username: form.username.trim(),
@@ -201,7 +205,9 @@ async function submit() {
       return
     }
     await finishLogin(data)
-  } catch {
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : t('common.requestFailed')
+    if (msg) message.error(msg)
     await loadCaptcha()
   } finally {
     loading.value = false
@@ -243,9 +249,14 @@ watch(
 )
 
 onMounted(async () => {
+  clearTokens()
+  auth.$patch({ user: null, menus: [], permissions: [] })
+  auth.syncTokensFromStorage()
+  securityStore.resetSession()
   try {
     const cfg = await fetchAuthConfig()
     captchaEnabled.value = !!cfg.captchaEnabled
+    securityStore.applyFromAuthConfig(cfg)
   } catch {
     captchaEnabled.value = true
   }

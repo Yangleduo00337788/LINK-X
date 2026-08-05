@@ -33,12 +33,15 @@ import {
   updateMailTemplates,
   updatePasswordSettings,
   updateRegisterSettings,
+  updateSecuritySettings,
   type AdminSetting,
   type MailTemplateSetting,
 } from '@/api/settings'
+import { fetchAuthConfig } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import { usePreferencesStore } from '@/stores/preferences'
 import { ensureVoices, listVoicesForLang, previewSpeech, unlockSpeech } from '@/utils/voiceNotify'
+import { useSecurityStore } from '@/stores/security'
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -46,6 +49,7 @@ const router = useRouter()
 const message = useMessage()
 const dialog = useDialog()
 const auth = useAuthStore()
+const securityStore = useSecurityStore()
 const prefs = usePreferencesStore()
 const { watermarkEnabled, watermarkFullscreen, watermarkLines, watermarkOpacity, voiceNotifyEnabled, speechVoiceUri } =
   storeToRefs(prefs)
@@ -57,6 +61,7 @@ const savingPassword = ref(false)
 const savingClient = ref(false)
 const savingMail = ref(false)
 const savingMailTemplates = ref(false)
+const savingSecurity = ref(false)
 const testingEmail = ref(false)
 const showTestEmailModal = ref(false)
 const testEmail = ref('')
@@ -67,6 +72,7 @@ const tabNames = new Set([
   'client',
   'mail',
   'mail-templates',
+  'security',
   'watermark',
   'sound',
 ])
@@ -228,6 +234,19 @@ const mailTemplatesForm = reactive<{
   welcome: { subject: '', html: '', usingDefault: true },
 })
 
+const securityForm = reactive({
+  apiSignEnabled: true,
+  apiEncryptEnabled: false,
+  disableFrontendDebug: false,
+})
+
+watch(
+  () => securityForm.apiEncryptEnabled,
+  (enabled) => {
+    if (enabled) securityForm.apiSignEnabled = true
+  }
+)
+
 const channelOptions = [
   { label: 'stable', value: 'stable' },
   { label: 'beta', value: 'beta' },
@@ -309,6 +328,11 @@ function applySettings(data: AdminSetting) {
   applyMailTemplate('register', data.mailTemplates?.register)
   applyMailTemplate('reset', data.mailTemplates?.reset)
   applyMailTemplate('welcome', data.mailTemplates?.welcome)
+
+  securityForm.apiSignEnabled = data.security?.apiSignEnabled !== false
+  securityForm.apiEncryptEnabled = data.security?.apiEncryptEnabled === true
+  securityForm.disableFrontendDebug = data.security?.disableFrontendDebug === true
+  securityStore.applyFromSettings(data.security)
 }
 
 function applyMailTemplate(key: 'register' | 'reset' | 'welcome', tpl?: MailTemplateSetting) {
@@ -559,6 +583,44 @@ async function saveMailTemplates() {
       message.success(t('setting.mailTemplatesSaved'))
     } finally {
       savingMailTemplates.value = false
+    }
+  })
+}
+
+async function saveSecurity() {
+  if (!canEdit.value) return
+  const enablingDebugBlock = securityForm.disableFrontendDebug
+  confirmSave(t('setting.saveSecurity'), async () => {
+    savingSecurity.value = true
+    try {
+      // 仅关闭加密时提前同步 store；开启加密须等服务端保存成功后再同步，否则请求体被加密而服务端尚未解密
+      const preSync: {
+        apiSignEnabled: boolean
+        disableFrontendDebug: boolean
+        apiEncryptEnabled?: boolean
+      } = {
+        apiSignEnabled: securityForm.apiSignEnabled,
+        disableFrontendDebug: securityForm.disableFrontendDebug,
+      }
+      if (!securityForm.apiEncryptEnabled || securityStore.apiEncryptEnabled) {
+        preSync.apiEncryptEnabled = securityForm.apiEncryptEnabled
+      }
+      securityStore.applyFromSettings(preSync)
+      applySettings(
+        await updateSecuritySettings({
+          apiSignEnabled: securityForm.apiSignEnabled,
+          apiEncryptEnabled: securityForm.apiEncryptEnabled,
+          disableFrontendDebug: securityForm.disableFrontendDebug,
+        })
+      )
+      const cfg = await fetchAuthConfig()
+      securityStore.applyFromAuthConfig(cfg)
+      message.success(t('setting.securitySaved'))
+      if (enablingDebugBlock) {
+        window.location.reload()
+      }
+    } finally {
+      savingSecurity.value = false
     }
   })
 }
@@ -1169,6 +1231,55 @@ onMounted(load)
                     :disabled="savingMailTemplates"
                     @click="load"
                   >
+                    {{ t('common.refresh') }}
+                  </NButton>
+                </NSpace>
+              </NFormItem>
+              <p v-else class="readonly-hint">{{ t('setting.readonlyHint') }}</p>
+            </NForm>
+          </NTabPane>
+
+          <NTabPane name="security" :tab="t('setting.securityTitle')">
+            <p class="section-hint">{{ t('setting.securityHint') }}</p>
+            <NForm label-placement="left" label-width="180" :disabled="!canEdit">
+              <NFormItem :label="t('setting.apiSignEnabled')">
+                <NSpace align="center">
+                  <NSwitch v-model:value="securityForm.apiSignEnabled" />
+                  <span class="field-hint">
+                    {{ securityForm.apiSignEnabled ? t('common.on') : t('common.off') }}
+                  </span>
+                </NSpace>
+              </NFormItem>
+              <p class="field-hint channel-hint">{{ t('setting.apiSignHint') }}</p>
+              <NFormItem :label="t('setting.apiEncryptEnabled')">
+                <NSpace align="center">
+                  <NSwitch v-model:value="securityForm.apiEncryptEnabled" />
+                  <span class="field-hint">
+                    {{ securityForm.apiEncryptEnabled ? t('common.on') : t('common.off') }}
+                  </span>
+                </NSpace>
+              </NFormItem>
+              <p class="field-hint channel-hint">{{ t('setting.apiEncryptHint') }}</p>
+              <NFormItem :label="t('setting.disableFrontendDebug')">
+                <NSpace align="center">
+                  <NSwitch v-model:value="securityForm.disableFrontendDebug" />
+                  <span class="field-hint">
+                    {{ securityForm.disableFrontendDebug ? t('common.on') : t('common.off') }}
+                  </span>
+                </NSpace>
+              </NFormItem>
+              <p class="field-hint channel-hint">{{ t('setting.disableFrontendDebugHint') }}</p>
+              <NFormItem v-if="canEdit">
+                <NSpace>
+                  <NButton
+                    type="primary"
+                    class="lx-float-btn"
+                    :loading="savingSecurity"
+                    @click="saveSecurity"
+                  >
+                    {{ t('setting.saveSecurity') }}
+                  </NButton>
+                  <NButton class="lx-float-btn" :disabled="savingSecurity" @click="load">
                     {{ t('common.refresh') }}
                   </NButton>
                 </NSpace>

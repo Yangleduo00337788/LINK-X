@@ -69,6 +69,8 @@ async function confirm() {
     }
     const result = await verifyStepUp(method.value, code.value.trim(), action.value)
     resolveStepUp(result.stepUpToken)
+  } catch {
+    /* 错误由 request 拦截器提示 */
   } finally {
     verifying.value = false
   }

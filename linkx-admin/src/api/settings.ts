@@ -74,6 +74,12 @@ export interface MailTemplatesSideSetting {
   welcome?: MailTemplateSetting
 }
 
+export interface SecuritySideSetting {
+  apiSignEnabled?: boolean
+  apiEncryptEnabled?: boolean
+  disableFrontendDebug?: boolean
+}
+
 export interface AdminSetting {
   register?: RegisterSideSetting
   login?: LoginSideSetting
@@ -82,6 +88,7 @@ export interface AdminSetting {
   client?: ClientSideSetting
   mail?: MailSideSetting
   mailTemplates?: MailTemplatesSideSetting
+  security?: SecuritySideSetting
 }
 
 export type RegisterUpdatePayload = Required<
@@ -151,6 +158,8 @@ export type MailTemplatesUpdatePayload = {
   welcome: MailTemplateUpdatePayload
 }
 
+export type SecurityUpdatePayload = Required<SecuritySideSetting>
+
 export type AdminSettingUpdatePayload = {
   register?: RegisterUpdatePayload
   login?: LoginUpdatePayload
@@ -158,6 +167,7 @@ export type AdminSettingUpdatePayload = {
   admin?: AdminSideSetting
   client?: ClientSideUpdatePayload
   mail?: MailUpdatePayload
+  security?: SecurityUpdatePayload
 }
 
 export function fetchSettings() {
@@ -186,6 +196,10 @@ export function updateClientSideSettings(payload: ClientSideUpdatePayload) {
 
 export function updateMailSettings(payload: MailUpdatePayload) {
   return updateSettings({ mail: payload })
+}
+
+export function updateSecuritySettings(payload: SecurityUpdatePayload) {
+  return put<AdminSetting>('/admin/settings/security', payload)
 }
 
 export function updateMailTemplates(payload: MailTemplatesUpdatePayload) {
