@@ -139,9 +139,13 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         // 客户端 apiClient 拦截器对每个请求都会带上设备头，须放行否则预检失败（验证码等匿名接口也会挂）
                         "X-Device-Id",
                         "X-Device-Name",
-                        "X-Device-Type"
+                        "X-Device-Type",
+                        "X-LinkX-Timestamp",
+                        "X-LinkX-Nonce",
+                        "X-LinkX-Signature",
+                        "X-Step-Up-Token"
                 )
-                .exposedHeaders("Authorization")
+                .exposedHeaders("Authorization", "X-LinkX-Timestamp", "X-LinkX-Nonce", "X-LinkX-Signature")
                 .allowCredentials(true)
                 .maxAge(3600)
                 .allowedOrigins(origins.toArray(String[]::new));

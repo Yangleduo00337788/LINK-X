@@ -35,4 +35,8 @@ public class AdminSettingUpdateDTO {
     @Valid
     @Schema(description = "邮件模板配置")
     private MailTemplateSettingUpdateDTO mailTemplates;
+
+    @Valid
+    @Schema(description = "安全配置")
+    private SecuritySettingUpdateDTO security;
 }

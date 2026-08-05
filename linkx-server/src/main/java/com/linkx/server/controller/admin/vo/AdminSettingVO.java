@@ -30,6 +30,21 @@ public class AdminSettingVO {
     @Schema(description = "邮件模板配置")
     private MailTemplatesSide mailTemplates;
 
+    @Schema(description = "安全配置（管理端）")
+    private SecuritySide security;
+
+    @Data
+    @Builder
+    @Schema(description = "安全配置")
+    public static class SecuritySide {
+        @Schema(description = "是否禁止前端调试")
+        private Boolean disableFrontendDebug;
+        @Schema(description = "是否启用 API 请求签名")
+        private Boolean apiSignEnabled;
+        @Schema(description = "是否启用 API 请求/响应体加密")
+        private Boolean apiEncryptEnabled;
+    }
+
     @Data
     @Builder
     @Schema(description = "注册配置")

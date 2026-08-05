@@ -25,6 +25,7 @@ import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.RbacService;
 import com.linkx.server.service.SysUserService;
 import com.linkx.server.service.TokenService;
+import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.TokenCookieUtil;
 import com.linkx.server.service.admin.impl.AdminAuthServiceImpl;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -64,6 +65,8 @@ class AdminAuthServiceTest {
     @Mock LoginAuditService loginAuditService;
     @Mock MediaUrlService mediaUrlService;
     @Mock StringRedisTemplate redisTemplate;
+    @Mock JwtUtils jwtUtils;
+    @Mock AdminAccessRiskService adminAccessRiskService;
     @Mock ValueOperations<String, String> valueOps;
     @Mock HttpServletRequest request;
     @Mock HttpServletResponse response;
@@ -79,11 +82,18 @@ class AdminAuthServiceTest {
         linkxProperties.getJwt().setAccessExpire(1_800_000L);
         linkxProperties.getJwt().setRefreshExpire(259_200_000L);
         linkxProperties.getSecurity().setRequireHttps(false);
+        linkxProperties.getSecurity().setApiSignEnabled(false);
+
+        when(adminAccessRiskService.evaluatePreLogin(any(), any()))
+                .thenReturn(AdminAccessRiskAssessment.none());
+        when(adminAccessRiskService.evaluatePostLogin(any(), any(), any(), anyBoolean()))
+                .thenReturn(AdminAccessRiskAssessment.none());
 
         service = new AdminAuthServiceImpl(
                 sysUserService, sysUserMapper, tokenService, rbacService, captchaService,
                 adminMenuService, tokenCookieUtil, linkxProperties, loginAuditService,
-                mediaUrlService, redisTemplate);
+                mediaUrlService, redisTemplate, jwtUtils,
+                adminAccessRiskService);
     }
 
     private SysUser adminUser(Long id) {

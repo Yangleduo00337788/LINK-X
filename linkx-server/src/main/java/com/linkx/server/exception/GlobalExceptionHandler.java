@@ -13,6 +13,7 @@ import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
@@ -92,8 +93,13 @@ public class GlobalExceptionHandler {
         return json(HttpStatus.BAD_REQUEST, Result.error(400, message));
     }
 
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<Result<?>> handleMediaTypeNotSupported(HttpMediaTypeNotSupportedException e) {
+        log.warn("不支持的请求媒体类型: {}", e.getMessage());
+        return json(HttpStatus.UNSUPPORTED_MEDIA_TYPE, Result.error(415, "不支持的请求格式"));
+    }
+
     /**
-     * SSE 等接口 Accept 仅为 text/event-stream 时，业务 4xx JSON 可能二次触发不可接受媒体类型；
      * 统一强制 application/json，避免被记成 500。
      */
     @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)

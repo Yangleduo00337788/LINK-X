@@ -8,6 +8,7 @@ import com.linkx.server.controller.admin.dto.MailSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.MailTemplateSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.PasswordSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.RegisterSettingUpdateDTO;
+import com.linkx.server.controller.admin.dto.SecuritySettingUpdateDTO;
 import com.linkx.server.controller.admin.vo.AdminSettingVO;
 
 public interface AdminSettingService {
@@ -29,6 +30,8 @@ public interface AdminSettingService {
     AdminSettingVO updateMail(MailSettingUpdateDTO dto, Long operatorId);
 
     AdminSettingVO updateMailTemplates(MailTemplateSettingUpdateDTO dto, Long operatorId);
+
+    AdminSettingVO updateSecurity(SecuritySettingUpdateDTO dto, Long operatorId);
 
     /**
      * 发送一封测试用的「忘记密码」邮件，用于校验 SMTP 是否可用。

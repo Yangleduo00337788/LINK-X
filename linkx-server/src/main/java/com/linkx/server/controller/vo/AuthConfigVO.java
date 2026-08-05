@@ -19,6 +19,12 @@ public class AuthConfigVO {
     private boolean totpRequired;
     /** 密码策略（管理端 / 客户端共用） */
     private PasswordPolicy passwordPolicy;
+    /** 是否启用 API 请求签名（管理端） */
+    private boolean apiSignEnabled;
+    /** 是否启用 API 请求/响应体加密（管理端） */
+    private boolean apiEncryptEnabled;
+    /** 是否禁止前端调试 */
+    private boolean disableFrontendDebug;
 
     @Data
     @Builder

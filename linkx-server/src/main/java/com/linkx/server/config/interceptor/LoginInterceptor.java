@@ -28,6 +28,11 @@ public class LoginInterceptor implements HandlerInterceptor {
 
         // Token 读取顺序：Authorization Header（Electron）优先，Cookie（Web 环境 HttpOnly Cookie）兜底
         String token = request.getHeader("Authorization");
+        if (StringUtils.hasText(token)) {
+            if (token.startsWith("Bearer ")) {
+                token = token.substring(7).trim();
+            }
+        }
         if (!StringUtils.hasText(token)) {
             String cookieToken = tokenCookieUtil.readAccessToken(request);
             if (StringUtils.hasText(cookieToken)) {
@@ -36,10 +41,6 @@ public class LoginInterceptor implements HandlerInterceptor {
         }
         if (!StringUtils.hasText(token)) {
             throw new CustomException(401, "未登录或登录已过期");
-        }
-
-        if (token.startsWith("Bearer ")) {
-            token = token.substring(7);
         }
 
         try {

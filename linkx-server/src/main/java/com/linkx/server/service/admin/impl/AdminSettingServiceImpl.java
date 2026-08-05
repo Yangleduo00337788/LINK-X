@@ -11,6 +11,7 @@ import com.linkx.server.controller.admin.dto.MailSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.MailTemplateSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.PasswordSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.RegisterSettingUpdateDTO;
+import com.linkx.server.controller.admin.dto.SecuritySettingUpdateDTO;
 import com.linkx.server.controller.admin.vo.AdminSettingVO;
 import com.linkx.server.entity.SysRuntimeSetting;
 import com.linkx.server.exception.CustomException;
@@ -106,6 +107,11 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                         .build())
                 .mail(buildMailSide())
                 .mailTemplates(buildMailTemplatesSide())
+                .security(AdminSettingVO.SecuritySide.builder()
+                        .disableFrontendDebug(linkxProperties.getSecurity().isDisableFrontendDebug())
+                        .apiSignEnabled(linkxProperties.getSecurity().isApiSignEnabled())
+                        .apiEncryptEnabled(linkxProperties.getSecurity().isApiEncryptEnabled())
+                        .build())
                 .build();
     }
 
@@ -136,6 +142,9 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         if (dto.getMailTemplates() != null) {
             updateMailTemplates(dto.getMailTemplates(), operatorId);
         }
+        if (dto.getSecurity() != null) {
+            updateSecurity(dto.getSecurity(), operatorId);
+        }
         return getSettings();
     }
 
@@ -146,7 +155,8 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                 || dto.getAdmin() != null
                 || dto.getClient() != null
                 || dto.getMail() != null
-                || dto.getMailTemplates() != null;
+                || dto.getMailTemplates() != null
+                || dto.getSecurity() != null;
     }
 
     private int resolveFeedbackSlaHours(LinkxProperties.App app) {
@@ -389,6 +399,27 @@ public class AdminSettingServiceImpl implements AdminSettingService {
 
     @Override
     @Transactional
+    public AdminSettingVO updateSecurity(SecuritySettingUpdateDTO dto, Long operatorId) {
+        SysRuntimeSetting row = loadOrCreateRow(operatorId);
+        row.setDisableFrontendDebug(Boolean.TRUE.equals(dto.getDisableFrontendDebug()));
+        if (dto.getApiSignEnabled() != null) {
+            row.setApiSignEnabled(Boolean.TRUE.equals(dto.getApiSignEnabled()));
+        }
+        if (dto.getApiEncryptEnabled() != null) {
+            boolean encrypt = Boolean.TRUE.equals(dto.getApiEncryptEnabled());
+            row.setApiEncryptEnabled(encrypt);
+            if (encrypt) {
+                row.setApiSignEnabled(true);
+            }
+        }
+        row.setUpdateBy(operatorId);
+        persist(row);
+        applySecuritySide(row);
+        return getSettings();
+    }
+
+    @Override
+    @Transactional
     public void syncPublishedAppVersion(String version,
                                         String channel,
                                         String releaseNotes,
@@ -507,6 +538,7 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         applyRiskPolicySide(row);
         applyMailSide(row);
         applyMailTemplates(row);
+        applySecuritySide(row);
         if (row.getMailHost() != null) {
             mailSenderHolder.reload();
         }
@@ -727,6 +759,24 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         if (row.getRateLimitUploadPerMinute() != null) {
             auth.setRateLimitUploadPerMinute(row.getRateLimitUploadPerMinute());
         }
+    }
+
+    private void applySecuritySide(SysRuntimeSetting row) {
+        LinkxProperties.Security security = linkxProperties.getSecurity();
+        if (row.getDisableFrontendDebug() != null) {
+            security.setDisableFrontendDebug(row.getDisableFrontendDebug());
+        }
+        if (row.getApiSignEnabled() != null) {
+            security.setApiSignEnabled(row.getApiSignEnabled());
+        }
+        if (row.getApiEncryptEnabled() != null) {
+            security.setApiEncryptEnabled(row.getApiEncryptEnabled());
+            if (Boolean.TRUE.equals(row.getApiEncryptEnabled())) {
+                security.setApiSignEnabled(true);
+            }
+        }
+        log.info("Applied security settings: apiSign={}, apiEncrypt={}, disableFrontendDebug={}",
+                security.isApiSignEnabled(), security.isApiEncryptEnabled(), security.isDisableFrontendDebug());
     }
 
     private static String nullToEmpty(String s) {

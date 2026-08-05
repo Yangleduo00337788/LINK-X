@@ -1,5 +1,6 @@
 package com.linkx.server.controller.admin;
 
+import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.common.RequireRole;
 import com.linkx.server.common.Result;
 import com.linkx.server.config.LinkxProperties;
@@ -21,6 +22,7 @@ import com.linkx.server.controller.admin.vo.AdminStepUpTokenVO;
 import com.linkx.server.controller.admin.vo.AdminTotpSetupVO;
 import com.linkx.server.controller.admin.vo.AdminUserProfileVO;
 import com.linkx.server.controller.vo.AuthConfigVO;
+import com.linkx.server.service.admin.AdminAccessRiskService;
 import com.linkx.server.service.admin.AdminAuthService;
 import com.linkx.server.service.admin.AdminStepUpService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -51,14 +53,22 @@ public class AdminAuthController {
     private final AdminAuthService adminAuthService;
     private final AdminStepUpService adminStepUpService;
     private final LinkxProperties linkxProperties;
+    private final AdminAccessRiskService adminAccessRiskService;
 
     @Operation(summary = "管理端认证配置（匿名可读）")
     @GetMapping("/config")
-    public Result<AuthConfigVO> config() {
+    public Result<AuthConfigVO> config(HttpServletRequest request) {
         LinkxProperties.Auth auth = linkxProperties.getAuth();
+        LinkxProperties.Security security = linkxProperties.getSecurity();
+        String ip = ClientIpResolver.resolve(request, linkxProperties);
+        String deviceId = request.getHeader("X-Device-Id");
+        boolean riskCaptcha = adminAccessRiskService.evaluatePreLogin(ip, deviceId).isRequireCaptcha();
         return Result.success(AuthConfigVO.builder()
-                .captchaEnabled(auth.isAdminCaptchaEnabled())
+                .captchaEnabled(auth.isAdminCaptchaEnabled() || riskCaptcha)
                 .totpRequired(auth.isAdminTotpRequired())
+                .apiSignEnabled(security.isApiSignEnabled())
+                .apiEncryptEnabled(security.isApiEncryptEnabled())
+                .disableFrontendDebug(security.isDisableFrontendDebug())
                 .passwordPolicy(AuthConfigVO.PasswordPolicy.builder()
                         .minLength(auth.getPasswordMinLength())
                         .maxLength(auth.getPasswordMaxLength())

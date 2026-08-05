@@ -11,6 +11,7 @@ import com.linkx.server.controller.admin.dto.ClientSideSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.MailSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.MailTemplateSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.RegisterSettingUpdateDTO;
+import com.linkx.server.controller.admin.dto.SecuritySettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.TestForgotPasswordEmailDTO;
 import com.linkx.server.controller.admin.vo.AdminSettingVO;
 import com.linkx.server.exception.CustomException;
@@ -132,6 +133,17 @@ public class AdminSettingController {
         return Result.success(adminSettingService.updateMailTemplates(dto, operatorId));
     }
 
+    @Operation(summary = "更新安全配置")
+    @AuditAction(operationType = "UPDATE_SETTINGS", description = "更新安全配置")
+    @PutMapping("/security")
+    @RequirePermission("admin:setting:edit")
+    @RequireStepUp("admin:setting:edit")
+    public Result<AdminSettingVO> updateSecurity(@Valid @RequestBody SecuritySettingUpdateDTO dto,
+                                               HttpServletRequest request) {
+        Long operatorId = (Long) request.getAttribute("userId");
+        return Result.success(adminSettingService.updateSecurity(dto, operatorId));
+    }
+
     @Operation(summary = "测试忘记密码邮件")
     @AuditAction(operationType = "UPDATE_SETTINGS", description = "测试忘记密码邮件")
     @PostMapping("/test-forgot-password-email")
@@ -163,6 +175,7 @@ public class AdminSettingController {
     }
 
     private static boolean requiresSensitiveStepUp(AdminSettingUpdateDTO dto) {
-        return dto.getLogin() != null || dto.getPassword() != null || dto.getMail() != null;
+        return dto.getLogin() != null || dto.getPassword() != null || dto.getMail() != null
+                || dto.getSecurity() != null;
     }
 }
