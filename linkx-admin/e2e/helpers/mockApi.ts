@@ -74,6 +74,9 @@ export async function installAdminApiMocks(page: Page) {
           captchaEnabled: false,
           totpEnabled: false,
           registerEnabled: false,
+          apiSignEnabled: false,
+          apiEncryptEnabled: false,
+          disableFrontendDebug: false,
         })
       )
     }
