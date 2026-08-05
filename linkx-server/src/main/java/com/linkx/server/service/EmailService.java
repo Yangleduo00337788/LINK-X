@@ -34,4 +34,9 @@ public interface EmailService {
      * 发送管理端高危操作二次验证码
      */
     void sendAdminStepUpCode(String to, String username, String code);
+
+    /**
+     * 审批待办通知邮件（指定用户被指派审批时）。
+     */
+    void sendApprovalPendingNotification(String to, String displayName, String title, String stepName);
 }

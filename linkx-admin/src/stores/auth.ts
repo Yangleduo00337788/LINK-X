@@ -121,8 +121,9 @@ export const useAuthStore = defineStore(
   },
   {
     persist: {
-      key: 'linkx-admin-auth',
-      paths: ['user', 'permissions'],
+      // 权限不落地 localStorage，避免迁移后仍用旧 permissions 渲染按钮/路由
+      key: 'linkx-admin-auth-v2',
+      paths: ['user'],
     },
   }
 )

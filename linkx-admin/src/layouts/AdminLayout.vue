@@ -139,18 +139,36 @@ onMounted(() => {
       message.error(err || t('common.exportFailed'), { duration: 5000 })
       maybeNotify(evt)
     } else if (evt?.type === 'feedback_escalated') {
+      if (!auth.hasPermission('admin:feedback:list')) return
       message.warning(t('feedback.escalatedRealtime'), { duration: 5000 })
       maybeNotify(evt)
     } else if (evt?.type === 'feedback_created') {
+      if (!auth.hasPermission('admin:feedback:list')) return
       message.info(t('feedback.createdRealtime'), { duration: 5000 })
       maybeNotify(evt)
     } else if (evt?.type === 'review_escalated') {
+      if (!auth.hasPermission('admin:review:list')) return
       message.warning(t('review.escalatedRealtime'), { duration: 5000 })
       maybeNotify(evt)
     } else if (evt?.type === 'review_created') {
+      if (!auth.hasPermission('admin:review:list')) return
       message.info(t('review.newArrived', { n: 1 }), { duration: 5000 })
       maybeNotify(evt)
+    } else if (evt?.type === 'approval_pending') {
+      if (!auth.hasPermission('admin:approval:inbox')) return
+      const title = typeof evt.title === 'string' ? evt.title : ''
+      const stepName = typeof evt.stepName === 'string' ? evt.stepName : ''
+      message.info(
+        stepName
+          ? t('approvalInbox.pendingRealtime', { step: stepName, title: title || '—' })
+          : t('approvalInbox.pendingRealtimeGeneric'),
+        { duration: 6000 }
+      )
+      maybeNotify(evt)
+    } else if (evt?.type === 'permissions_refresh') {
+      void auth.fetchMenusAndPermissions()
     } else if (evt?.type === 'risk_created') {
+      if (!auth.hasPermission('admin:risk-event:list')) return
       message.info(t('risk.newArrived', { n: 1 }), { duration: 5000 })
       maybeNotify(evt)
     }

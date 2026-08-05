@@ -12,6 +12,7 @@ import com.linkx.server.task.MessageRetentionTask;
 import com.linkx.server.task.PresenceHeartbeatTask;
 import com.linkx.server.task.ReviewEscalationTask;
 import com.linkx.server.task.RedPacketTask;
+import com.linkx.server.task.StatisticSnapshotTask;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -127,6 +128,18 @@ public final class LinkxSnailJobExecutors {
 
         public ExecuteResult jobExecute(JobArgs jobArgs) {
             delegate.refreshDictionary();
+            return ExecuteResult.success();
+        }
+    }
+
+    @Component
+    @JobExecutor(name = "statistic_snapshot_daily")
+    @RequiredArgsConstructor
+    public static class StatisticSnapshotDailyJobExecutor {
+        private final StatisticSnapshotTask delegate;
+
+        public ExecuteResult jobExecute(JobArgs jobArgs) {
+            delegate.captureDailySnapshots();
             return ExecuteResult.success();
         }
     }

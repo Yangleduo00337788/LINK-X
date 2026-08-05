@@ -78,6 +78,15 @@ export interface RiskPolicySimulateResult {
   riskScore?: number
   riskLevel?: string
   riskFactors?: string[]
+  ruleScoreDelta?: number
+  ruleBlocked?: boolean
+  ruleAlerted?: boolean
+  matchedRules?: Array<{
+    ruleId?: string
+    ruleName?: string
+    scoreDelta?: number
+    actionType?: string
+  }>
 }
 
 export function fetchRiskPolicies() {

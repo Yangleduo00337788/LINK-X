@@ -14,4 +14,10 @@ public class AdminRiskPolicySimulateDTO {
 
     @Schema(description = "模拟涉事用户 ID（用于叠加历史风险分）")
     private Long subjectUserId;
+
+    @Schema(description = "模拟消息条数（规则链）")
+    private Integer messageCount;
+
+    @Schema(description = "模拟群成员数（规则链）")
+    private Integer memberCount;
 }

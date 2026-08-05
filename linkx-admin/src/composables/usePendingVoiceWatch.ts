@@ -3,6 +3,7 @@ import { useI18n } from 'vue-i18n'
 import { fetchDashboardSummary } from '@/api/dashboard'
 import { notifyPendingTask } from '@/utils/adminNotify'
 import { usePreferencesStore } from '@/stores/preferences'
+import { useAuthStore } from '@/stores/auth'
 
 const POLL_MS = 12000
 
@@ -10,6 +11,7 @@ const POLL_MS = 12000
 export function usePendingVoiceWatch() {
   const { t, locale } = useI18n()
   const prefs = usePreferencesStore()
+  const auth = useAuthStore()
   let timer: ReturnType<typeof setInterval> | null = null
   let lastPendingFeedback: number | null = null
   let baselineReady = false
@@ -17,6 +19,7 @@ export function usePendingVoiceWatch() {
   async function tick() {
     if (document.visibilityState !== 'visible') return
     if (!prefs.voiceNotifyEnabled) return
+    if (!auth.hasPermission('admin:feedback:list')) return
     try {
       const summary = await fetchDashboardSummary()
       const current = Number(summary?.pendingFeedback ?? 0)

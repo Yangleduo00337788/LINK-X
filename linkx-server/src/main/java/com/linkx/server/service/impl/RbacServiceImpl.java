@@ -7,11 +7,13 @@ import com.linkx.server.entity.SysPermission;
 import com.linkx.server.entity.SysRole;
 import com.linkx.server.entity.SysRolePermission;
 import com.linkx.server.entity.SysUserRole;
+import com.linkx.server.entity.admin.SysApprovalTempGrant;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.SysPermissionMapper;
 import com.linkx.server.mapper.SysRoleMapper;
 import com.linkx.server.mapper.SysRolePermissionMapper;
 import com.linkx.server.mapper.SysUserRoleMapper;
+import com.linkx.server.mapper.admin.SysApprovalTempGrantMapper;
 import com.linkx.server.service.AuditLogService;
 import com.linkx.server.service.RbacService;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -22,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -45,6 +48,7 @@ public class RbacServiceImpl implements RbacService {
     private final SysUserRoleMapper sysUserRoleMapper;
     private final SysPermissionMapper sysPermissionMapper;
     private final SysRolePermissionMapper sysRolePermissionMapper;
+    private final SysApprovalTempGrantMapper approvalTempGrantMapper;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final AuditLogService auditLogService;
@@ -119,9 +123,11 @@ public class RbacServiceImpl implements RbacService {
         }
         List<String> codes = getUserPermissions(userId).stream()
                 .map(SysPermission::getPermissionCode)
-                .toList();
-        writeCache(key, codes);
-        return codes;
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        codes.addAll(activeTempPermissionCodes(userId));
+        List<String> merged = codes.stream().distinct().toList();
+        writeCache(key, merged);
+        return merged;
     }
 
     @Override
@@ -138,7 +144,6 @@ public class RbacServiceImpl implements RbacService {
             return false;
         }
         List<String> perms = getUserPermissionCodes(userId);
-        // 持有通配符权限视为通过全部权限校验
         return perms.contains(permCode) || perms.contains(RbacConstants.PERM_ALL);
     }
 
@@ -279,6 +284,33 @@ public class RbacServiceImpl implements RbacService {
             // Redis 异常不影响 DB 事务，缓存会在 TTL 后自然失效
             log.warn("清除用户 RBAC 缓存失败 userId={}, err={}", userId, e.getMessage());
         }
+    }
+
+    @Override
+    public void evictAllUserCaches() {
+        List<Long> userIds = sysUserRoleMapper.selectListByQuery(QueryWrapper.create())
+                .stream()
+                .map(SysUserRole::getUserId)
+                .distinct()
+                .toList();
+        for (Long userId : userIds) {
+            evictUserCache(userId);
+        }
+        log.info("已清除 {} 个用户的 RBAC 缓存", userIds.size());
+    }
+
+    private List<String> activeTempPermissionCodes(Long userId) {
+        if (userId == null) {
+            return List.of();
+        }
+        return approvalTempGrantMapper.selectListByQuery(
+                        QueryWrapper.create()
+                                .where(SysApprovalTempGrant::getUserId).eq(userId)
+                                .and(SysApprovalTempGrant::getRevokedAt).isNull())
+                .stream()
+                .map(SysApprovalTempGrant::getPermissionCode)
+                .distinct()
+                .toList();
     }
 
     /**

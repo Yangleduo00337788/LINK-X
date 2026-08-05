@@ -1,5 +1,7 @@
 package com.linkx.server.service.admin;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +16,9 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -28,7 +32,8 @@ public class AdminEventHub implements MessageListener {
     private static final long SSE_TIMEOUT_MS = 30L * 60 * 1000;
 
     private final RedisConnectionFactory connectionFactory;
-    private final List<SseEmitter> emitters = new CopyOnWriteArrayList<>();
+    private final ObjectMapper objectMapper;
+    private final List<AdminSseConnection> connections = new CopyOnWriteArrayList<>();
     private RedisMessageListenerContainer container;
 
     @PostConstruct
@@ -50,26 +55,28 @@ public class AdminEventHub implements MessageListener {
                 // ignore
             }
         }
-        for (SseEmitter emitter : emitters) {
+        for (AdminSseConnection conn : connections) {
             try {
-                emitter.complete();
+                conn.emitter().complete();
             } catch (Exception ignored) {
                 // ignore
             }
         }
-        emitters.clear();
+        connections.clear();
     }
 
-    public SseEmitter subscribe() {
+    public SseEmitter subscribe(Long userId) {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
-        emitters.add(emitter);
-        emitter.onCompletion(() -> emitters.remove(emitter));
-        emitter.onTimeout(() -> emitters.remove(emitter));
-        emitter.onError(e -> emitters.remove(emitter));
+        AdminSseConnection conn = new AdminSseConnection(userId, emitter);
+        connections.add(conn);
+        Runnable remove = () -> connections.remove(conn);
+        emitter.onCompletion(remove);
+        emitter.onTimeout(remove);
+        emitter.onError(e -> remove.run());
         try {
             emitter.send(SseEmitter.event().name("connected").data("{\"ok\":true}"));
         } catch (IOException e) {
-            emitters.remove(emitter);
+            connections.remove(conn);
             emitter.completeWithError(e);
         }
         return emitter;
@@ -85,17 +92,55 @@ public class AdminEventHub implements MessageListener {
     }
 
     private void fanout(String payload) {
-        for (SseEmitter emitter : emitters) {
+        Set<Long> targets = parseTargetUserIds(payload);
+        for (AdminSseConnection conn : connections) {
+            if (targets != null && !targets.isEmpty()) {
+                Long userId = conn.userId();
+                if (userId == null || !targets.contains(userId)) {
+                    continue;
+                }
+            }
             try {
-                emitter.send(SseEmitter.event().name("admin_event").data(payload));
+                conn.emitter().send(SseEmitter.event().name("admin_event").data(payload));
             } catch (Exception e) {
-                emitters.remove(emitter);
+                connections.remove(conn);
                 try {
-                    emitter.complete();
+                    conn.emitter().complete();
                 } catch (Exception ignored) {
                     // ignore
                 }
             }
+        }
+    }
+
+    private Set<Long> parseTargetUserIds(String payload) {
+        try {
+            JsonNode root = objectMapper.readTree(payload);
+            JsonNode arr = root.get("targetUserIds");
+            if (arr == null || !arr.isArray() || arr.isEmpty()) {
+                return null;
+            }
+            Set<Long> ids = new HashSet<>();
+            for (JsonNode node : arr) {
+                if (node.isNumber()) {
+                    ids.add(node.longValue());
+                } else if (node.isTextual()) {
+                    try {
+                        ids.add(Long.parseLong(node.asText()));
+                    } catch (NumberFormatException ignored) {
+                        // skip
+                    }
+                }
+            }
+            return ids.isEmpty() ? null : ids;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public record AdminSseConnection(Long userId, SseEmitter emitter, long connectedAt) {
+        AdminSseConnection(Long userId, SseEmitter emitter) {
+            this(userId, emitter, System.currentTimeMillis());
         }
     }
 }

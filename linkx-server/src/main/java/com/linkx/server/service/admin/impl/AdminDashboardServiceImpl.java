@@ -1,5 +1,6 @@
 package com.linkx.server.service.admin.impl;
 
+import com.linkx.server.common.RbacConstants;
 import com.linkx.server.controller.admin.vo.AdminDashboardRealtimeVO;
 import com.linkx.server.controller.admin.vo.AdminDashboardSummaryVO;
 import com.linkx.server.controller.admin.vo.AdminPendingTaskVO;
@@ -14,6 +15,7 @@ import com.linkx.server.mapper.FeedbackMapper;
 import com.linkx.server.mapper.ImMessageMapper;
 import com.linkx.server.mapper.SysLoginAuditMapper;
 import com.linkx.server.mapper.SysUserMapper;
+import com.linkx.server.service.RbacService;
 import com.linkx.server.service.admin.AdminDashboardService;
 import com.linkx.server.service.admin.AdminFeedbackService;
 import com.linkx.server.service.admin.AdminReviewService;
@@ -44,30 +46,34 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
     private final AdminReviewService adminReviewService;
     private final AdminRiskEventService adminRiskEventService;
     private final AdminStatisticsService adminStatisticsService;
+    private final RbacService rbacService;
 
     @Override
-    public AdminDashboardSummaryVO summary() {
+    public AdminDashboardSummaryVO summary(Long operatorUserId) {
+        boolean canFeedback = hasPerm(operatorUserId, "admin:feedback:list");
+        boolean canReview = hasPerm(operatorUserId, "admin:review:list");
+        boolean canRisk = hasPerm(operatorUserId, "admin:risk-event:list");
         long totalUsers = sysUserMapper.selectCountByQuery(QueryWrapper.create());
         long dau = countDistinctLoginUsersSince(daysAgo(1));
         long wau = countDistinctLoginUsersSince(daysAgo(7));
         long mau = countDistinctLoginUsersSince(daysAgo(30));
         long onlineDevices = adminStatisticsService.countOnlineDevices();
-        long pendingFeedback = feedbackMapper.selectCountByQuery(
-                QueryWrapper.create().where(Feedback::getStatus).eq("pending"));
-        long overdueFeedback = adminFeedbackService.countOverdue();
-        long pendingReviews = adminReviewService.countPending();
-        long overdueReviews = adminReviewService.countOverdue();
-        long pendingReports = adminReviewService.countPendingBySource(SysReviewTask.SOURCE_REPORT);
+        long pendingFeedback = canFeedback ? feedbackMapper.selectCountByQuery(
+                QueryWrapper.create().where(Feedback::getStatus).eq("pending")) : 0L;
+        long overdueFeedback = canFeedback ? adminFeedbackService.countOverdue() : 0L;
+        long pendingReviews = canReview ? adminReviewService.countPending() : 0L;
+        long overdueReviews = canReview ? adminReviewService.countOverdue() : 0L;
+        long pendingReports = canReview ? adminReviewService.countPendingBySource(SysReviewTask.SOURCE_REPORT) : 0L;
 
         Date todayStart = Date.from(LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant());
-        long todaySensitiveHits = adminRiskEventService.countSinceByType(
-                SysRiskEvent.TYPE_SENSITIVE_WORD_MATCH, todayStart);
-        long todayRiskBlocks = adminRiskEventService.countSinceByType(
-                SysRiskEvent.TYPE_RATE_LIMIT, todayStart);
+        long todaySensitiveHits = canRisk ? adminRiskEventService.countSinceByType(
+                SysRiskEvent.TYPE_SENSITIVE_WORD_MATCH, todayStart) : 0L;
+        long todayRiskBlocks = canRisk ? adminRiskEventService.countSinceByType(
+                SysRiskEvent.TYPE_RATE_LIMIT, todayStart) : 0L;
 
         Calendar day = Calendar.getInstance();
         day.add(Calendar.DAY_OF_MONTH, -1);
-        long riskEvents = adminRiskEventService.countSince(day.getTime());
+        long riskEvents = canRisk ? adminRiskEventService.countSince(day.getTime()) : 0L;
 
         return AdminDashboardSummaryVO.builder()
                 .totalUsers(totalUsers)
@@ -93,7 +99,8 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
     }
 
     @Override
-    public AdminDashboardRealtimeVO realtime() {
+    public AdminDashboardRealtimeVO realtime(Long operatorUserId) {
+        boolean canRisk = hasPerm(operatorUserId, "admin:risk-event:list");
         Date todayStart = Date.from(LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant());
         Calendar day = Calendar.getInstance();
         day.add(Calendar.DAY_OF_MONTH, -1);
@@ -112,21 +119,24 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
                 .todayNewUsers(todayNewUsers)
                 .todayMessages(todayMessages)
                 .todayLogins(todayLogins)
-                .riskEvents24h(adminRiskEventService.countSince(day.getTime()))
+                .riskEvents24h(canRisk ? adminRiskEventService.countSince(day.getTime()) : 0L)
                 .build();
     }
 
     @Override
-    public List<AdminPendingTaskVO> pendingTasks() {
-        long pendingFeedback = feedbackMapper.selectCountByQuery(
-                QueryWrapper.create().where(Feedback::getStatus).eq("pending"));
-        long overdueFeedback = adminFeedbackService.countOverdue();
-        long overdueReviews = adminReviewService.countOverdue();
-        long pendingReports = adminReviewService.countPendingBySource(SysReviewTask.SOURCE_REPORT);
-        long pendingReviews = adminReviewService.countPending();
-        // 非举报待审（敏感词等），避免与举报待办重复展示
+    public List<AdminPendingTaskVO> pendingTasks(Long operatorUserId) {
+        boolean canFeedback = hasPerm(operatorUserId, "admin:feedback:list");
+        boolean canReview = hasPerm(operatorUserId, "admin:review:list");
+        boolean canRisk = hasPerm(operatorUserId, "admin:risk-event:list");
+
+        long pendingFeedback = canFeedback ? feedbackMapper.selectCountByQuery(
+                QueryWrapper.create().where(Feedback::getStatus).eq("pending")) : 0L;
+        long overdueFeedback = canFeedback ? adminFeedbackService.countOverdue() : 0L;
+        long overdueReviews = canReview ? adminReviewService.countOverdue() : 0L;
+        long pendingReports = canReview ? adminReviewService.countPendingBySource(SysReviewTask.SOURCE_REPORT) : 0L;
+        long pendingReviews = canReview ? adminReviewService.countPending() : 0L;
         long pendingOtherReviews = Math.max(0, pendingReviews - pendingReports);
-        long riskEvents = adminRiskEventService.countPending();
+        long riskEvents = canRisk ? adminRiskEventService.countPending() : 0L;
 
         List<AdminPendingTaskVO> tasks = new ArrayList<>();
         if (overdueFeedback > 0) {
@@ -178,6 +188,17 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
                     .build());
         }
         return tasks;
+    }
+
+    private boolean hasPerm(Long userId, String permissionCode) {
+        if (userId == null) {
+            return true;
+        }
+        if (permissionCode == null || permissionCode.isBlank()) {
+            return false;
+        }
+        return rbacService.hasPermission(userId, permissionCode)
+                || rbacService.hasPermission(userId, RbacConstants.PERM_ALL);
     }
 
     private Date daysAgo(int days) {

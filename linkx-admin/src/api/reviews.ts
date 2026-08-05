@@ -45,6 +45,10 @@ export interface ReviewItem {
   escalationCount?: number
   escalatedAt?: string
   riskContext?: ReviewRiskContext
+  /** 关联审批实例 ID */
+  approvalInstanceId?: string | number
+  /** 审批状态 pending|approved|rejected */
+  approvalStatus?: string
 }
 
 export type ReviewUserAction = 'none' | 'freeze' | 'ban'

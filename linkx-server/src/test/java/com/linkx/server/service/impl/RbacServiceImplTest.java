@@ -11,6 +11,7 @@ import com.linkx.server.mapper.SysPermissionMapper;
 import com.linkx.server.mapper.SysRoleMapper;
 import com.linkx.server.mapper.SysRolePermissionMapper;
 import com.linkx.server.mapper.SysUserRoleMapper;
+import com.linkx.server.mapper.admin.SysApprovalTempGrantMapper;
 import com.linkx.server.service.AuditLogService;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,6 +47,7 @@ class RbacServiceImplTest {
     @Mock SysUserRoleMapper sysUserRoleMapper;
     @Mock SysPermissionMapper sysPermissionMapper;
     @Mock SysRolePermissionMapper sysRolePermissionMapper;
+    @Mock SysApprovalTempGrantMapper approvalTempGrantMapper;
     @Mock StringRedisTemplate redisTemplate;
     @Mock ValueOperations<String, String> valueOps;
     @Mock AuditLogService auditLogService;
@@ -57,9 +59,10 @@ class RbacServiceImplTest {
     void setUp() {
         objectMapper = new ObjectMapper();
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(approvalTempGrantMapper.selectListByQuery(any(QueryWrapper.class))).thenReturn(List.of());
         service = new RbacServiceImpl(
                 sysRoleMapper, sysUserRoleMapper, sysPermissionMapper,
-                sysRolePermissionMapper, redisTemplate, objectMapper, auditLogService
+                sysRolePermissionMapper, approvalTempGrantMapper, redisTemplate, objectMapper, auditLogService
         );
     }
 

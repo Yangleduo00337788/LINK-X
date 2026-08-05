@@ -16,6 +16,7 @@ import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.mapper.admin.SysRiskEventMapper;
 import com.linkx.server.service.IpGeoService;
 import com.linkx.server.service.RbacService;
+import com.linkx.server.service.admin.AdminAudienceService;
 import com.linkx.server.service.admin.AdminEventPublisher;
 import com.linkx.server.service.admin.AdminRiskEventService;
 import com.linkx.server.service.admin.AdminUserService;
@@ -39,6 +40,7 @@ public class AdminRiskEventServiceImpl implements AdminRiskEventService {
     private final SysRiskEventMapper riskEventMapper;
     private final SysUserMapper sysUserMapper;
     private final AdminEventPublisher adminEventPublisher;
+    private final AdminAudienceService adminAudienceService;
     private final AdminUserService adminUserService;
     private final RbacService rbacService;
     private final IpGeoService ipGeoService;
@@ -103,7 +105,8 @@ public class AdminRiskEventServiceImpl implements AdminRiskEventService {
         event.setHandledAt(now);
         event.setUpdateTime(now);
         riskEventMapper.update(event);
-        adminEventPublisher.publish("risk_handled", event.getId());
+        adminEventPublisher.publishToUsers(
+                "risk_handled", event.getId(), adminAudienceService.riskOperatorUserIds());
     }
 
     @Override
@@ -314,7 +317,8 @@ public class AdminRiskEventServiceImpl implements AdminRiskEventService {
     private void insertEvent(SysRiskEvent event) {
         try {
             riskEventMapper.insert(event);
-            adminEventPublisher.publish("risk_created", event.getId());
+            adminEventPublisher.publishToUsers(
+                    "risk_created", event.getId(), adminAudienceService.riskOperatorUserIds());
         } catch (Exception e) {
             log.warn("风险事件落库失败: type={}, userId={}", event.getEventType(), event.getUserId(), e);
         }

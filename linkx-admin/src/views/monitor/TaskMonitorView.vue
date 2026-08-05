@@ -68,6 +68,7 @@ const activeBatch = ref<SnailJobBatchItem | null>(null)
 const logs = ref<SnailJobLogItem[]>([])
 
 const canOpenConsole = computed(() => auth.hasPermission('admin:scheduled-task:console'))
+const canViewScheduledTasks = computed(() => auth.hasPermission('admin:scheduled-task:list'))
 
 const trendOpt = computed(() =>
   buildAreaOption(
@@ -304,6 +305,7 @@ async function loadMetrics() {
 }
 
 async function loadLive(silent = false) {
+  if (!canViewScheduledTasks.value) return
   if (!silent) liveLoading.value = true
   try {
     overview.value = await fetchSnailJobOverview()
@@ -313,7 +315,10 @@ async function loadLive(silent = false) {
 }
 
 async function loadAll() {
-  await Promise.all([loadMetrics(), loadLive()])
+  await loadMetrics()
+  if (canViewScheduledTasks.value) {
+    await loadLive()
+  }
 }
 
 function openConsole() {
@@ -322,7 +327,7 @@ function openConsole() {
 }
 
 async function openHistory(row: SnailJobTaskItem) {
-  if (!row.jobId) return
+  if (!canViewScheduledTasks.value || !row.jobId) return
   historyTask.value = row
   showHistory.value = true
   batchPage.value = 1
@@ -330,7 +335,7 @@ async function openHistory(row: SnailJobTaskItem) {
 }
 
 async function loadBatches() {
-  if (!historyTask.value?.jobId) return
+  if (!canViewScheduledTasks.value || !historyTask.value?.jobId) return
   historyLoading.value = true
   try {
     const res = await fetchSnailJobBatches(historyTask.value.jobId, batchPage.value, batchPageSize)
@@ -342,6 +347,7 @@ async function loadBatches() {
 }
 
 async function openLogs(batch: SnailJobBatchItem) {
+  if (!canViewScheduledTasks.value) return
   activeBatch.value = batch
   showLogs.value = true
   logsLoading.value = true
@@ -354,7 +360,7 @@ async function openLogs(batch: SnailJobBatchItem) {
 }
 
 function onVisibilityChange() {
-  if (document.visibilityState === 'visible') {
+  if (document.visibilityState === 'visible' && canViewScheduledTasks.value) {
     void loadLive(true)
   }
 }
@@ -363,6 +369,7 @@ onMounted(() => {
   void loadAll()
   pollTimer.value = setInterval(() => {
     if (document.visibilityState !== 'visible') return
+    if (!canViewScheduledTasks.value) return
     if (showHistory.value || showLogs.value) return
     void loadLive(true)
   }, POLL_MS)

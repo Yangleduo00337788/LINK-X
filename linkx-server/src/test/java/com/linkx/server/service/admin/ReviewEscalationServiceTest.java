@@ -29,6 +29,7 @@ class ReviewEscalationServiceTest {
 
     @Mock SysReviewTaskMapper reviewTaskMapper;
     @Mock AdminEventPublisher adminEventPublisher;
+    @Mock AdminAudienceService adminAudienceService;
     @Mock AuditLogService auditLogService;
 
     private LinkxProperties linkxProperties;
@@ -41,7 +42,7 @@ class ReviewEscalationServiceTest {
         linkxProperties.getApp().setReviewEscalationEnabled(true);
         linkxProperties.getApp().setReviewEscalationIntervalHours(24);
         service = new ReviewEscalationServiceImpl(
-                reviewTaskMapper, linkxProperties, adminEventPublisher, auditLogService);
+                reviewTaskMapper, linkxProperties, adminEventPublisher, adminAudienceService, auditLogService);
     }
 
     @Test
@@ -57,6 +58,7 @@ class ReviewEscalationServiceTest {
     void escalate_pendingReview() {
         SysReviewTask task = overdueTask(1L);
         when(reviewTaskMapper.selectListByQuery(any(QueryWrapper.class))).thenReturn(List.of(task));
+        when(adminAudienceService.reviewOperatorUserIds()).thenReturn(List.of(2L));
 
         assertEquals(1, service.processOverdueEscalations());
 
@@ -64,7 +66,7 @@ class ReviewEscalationServiceTest {
         verify(reviewTaskMapper).update(captor.capture());
         assertEquals(1, captor.getValue().getEscalationCount());
         assertNotNull(captor.getValue().getEscalatedAt());
-        verify(adminEventPublisher).publish(eq("review_escalated"), eq(1L), anyString());
+        verify(adminEventPublisher).publishToUsers(eq("review_escalated"), eq(1L), eq(List.of(2L)), anyString());
         verify(auditLogService).logWithExtra(
                 eq(SysAuditLog.OperationType.REVIEW_ESCALATE),
                 contains("#1"),

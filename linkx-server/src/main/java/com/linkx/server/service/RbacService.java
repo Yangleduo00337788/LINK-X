@@ -133,4 +133,9 @@ public interface RbacService {
      * @param userId 用户 ID
      */
     void evictUserCache(Long userId);
+
+    /**
+     * 清除全部已绑定角色用户的 RBAC 缓存（迁移/权限修复后启动时调用）。
+     */
+    void evictAllUserCaches();
 }

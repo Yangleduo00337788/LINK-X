@@ -6,8 +6,10 @@ import com.linkx.server.entity.SysUser;
 import com.linkx.server.entity.admin.SysFeedbackDispatchRule;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.SysUserMapper;
+import com.linkx.server.mapper.admin.SysDutyScheduleMapper;
 import com.linkx.server.mapper.admin.SysFeedbackDispatchRuleMapper;
 import com.linkx.server.service.admin.impl.AdminFeedbackDispatchRuleServiceImpl;
+import com.linkx.server.service.admin.rule.FeedbackAssigneeResolver;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,22 +30,24 @@ class AdminFeedbackDispatchRuleServiceTest {
 
     @Mock SysFeedbackDispatchRuleMapper ruleMapper;
     @Mock SysUserMapper sysUserMapper;
+    @Mock SysDutyScheduleMapper dutyScheduleMapper;
+    @Mock FeedbackAssigneeResolver assigneeResolver;
+    @Mock FeedbackDispatchService feedbackDispatchService;
 
     private AdminFeedbackDispatchRuleServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new AdminFeedbackDispatchRuleServiceImpl(ruleMapper, sysUserMapper);
+        service = new AdminFeedbackDispatchRuleServiceImpl(
+                ruleMapper, sysUserMapper, dutyScheduleMapper, assigneeResolver, feedbackDispatchService);
     }
 
     @Test
     @DisplayName("CRUD 基本流程")
     void crud_ok() {
         when(sysUserMapper.selectOneById(7L)).thenReturn(SysUser.builder().id(7L).username("ops").build());
-        when(ruleMapper.selectOneById(1L)).thenAnswer(inv -> {
-            SysFeedbackDispatchRule r = entity(1L);
-            return r;
-        });
+        doNothing().when(assigneeResolver).validateRuleAssignee(any());
+        when(ruleMapper.selectOneById(1L)).thenAnswer(inv -> entity(1L));
 
         AdminFeedbackDispatchRuleDTO dto = new AdminFeedbackDispatchRuleDTO();
         dto.setName(" bug rule ");
@@ -80,10 +84,11 @@ class AdminFeedbackDispatchRuleServiceTest {
     @Test
     @DisplayName("无效处理人")
     void create_invalidAssignee() {
-        when(sysUserMapper.selectOneById(99L)).thenReturn(null);
         AdminFeedbackDispatchRuleDTO dto = new AdminFeedbackDispatchRuleDTO();
         dto.setName("r");
         dto.setAssigneeId(99L);
+        doThrow(new CustomException(400, "assignee not found"))
+                .when(assigneeResolver).validateRuleAssignee(any());
         assertThrows(CustomException.class, () -> service.create(dto, 1L));
     }
 
@@ -93,6 +98,8 @@ class AdminFeedbackDispatchRuleServiceTest {
                 .name("rule")
                 .feedbackType("bug")
                 .assigneeId(7L)
+                .assigneeSource("fixed")
+                .actionType("assign")
                 .priority(1)
                 .enabled(true)
                 .deleted(0)

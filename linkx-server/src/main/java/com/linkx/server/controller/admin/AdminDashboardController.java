@@ -11,6 +11,7 @@ import com.linkx.server.service.admin.AdminDashboardService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -31,8 +32,9 @@ public class AdminDashboardController {
     @Operation(summary = "仪表盘摘要")
     @GetMapping("/summary")
     @RequirePermission("admin:dashboard:view")
-    public Result<AdminDashboardSummaryVO> summary() {
-        return Result.success(adminDashboardService.summary());
+    public Result<AdminDashboardSummaryVO> summary(HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        return Result.success(adminDashboardService.summary(userId));
     }
 
     @Operation(summary = "仪表盘趋势")
@@ -47,14 +49,16 @@ public class AdminDashboardController {
     @Operation(summary = "实时指标")
     @GetMapping("/realtime")
     @RequirePermission("admin:dashboard:view")
-    public Result<AdminDashboardRealtimeVO> realtime() {
-        return Result.success(adminDashboardService.realtime());
+    public Result<AdminDashboardRealtimeVO> realtime(HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        return Result.success(adminDashboardService.realtime(userId));
     }
 
     @Operation(summary = "待处理任务")
     @GetMapping("/pending-tasks")
     @RequirePermission("admin:dashboard:view")
-    public Result<List<AdminPendingTaskVO>> pendingTasks() {
-        return Result.success(adminDashboardService.pendingTasks());
+    public Result<List<AdminPendingTaskVO>> pendingTasks(HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        return Result.success(adminDashboardService.pendingTasks(userId));
     }
 }

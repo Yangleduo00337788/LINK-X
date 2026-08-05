@@ -5,6 +5,7 @@ import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.RequirePermission;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.service.RbacService;
+import com.linkx.server.service.admin.ApprovalTempGrantService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +41,7 @@ public class PermissionRequiredAspect {
 
     private final RbacService rbacService;
     private final JwtUtils jwtUtils;
+    private final ApprovalTempGrantService approvalTempGrantService;
 
     /**
      * 权限校验切入点：方法或类上标注 @RequirePermission
@@ -63,6 +65,12 @@ public class PermissionRequiredAspect {
         boolean ok = annotation.logicalOr()
                 ? Arrays.stream(required).anyMatch(code -> rbacService.hasPermission(userId, code))
                 : Arrays.stream(required).allMatch(code -> rbacService.hasPermission(userId, code));
+        if (!ok && needsApprovalTempSync(required)) {
+            approvalTempGrantService.syncGrantsForUser(userId);
+            ok = annotation.logicalOr()
+                    ? Arrays.stream(required).anyMatch(code -> rbacService.hasPermission(userId, code))
+                    : Arrays.stream(required).allMatch(code -> rbacService.hasPermission(userId, code));
+        }
         if (!ok) {
             log.warn("权限校验失败 userId={}, required={}", userId, Arrays.toString(required));
             throw new CustomException(403, "无权限访问该资源");
@@ -91,5 +99,9 @@ public class PermissionRequiredAspect {
     private HttpServletRequest currentRequest() {
         ServletRequestAttributes attr = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         return attr != null ? attr.getRequest() : null;
+    }
+
+    private static boolean needsApprovalTempSync(String[] required) {
+        return Arrays.stream(required).anyMatch(ApprovalTempGrantService.APPROVAL_TEMP_PERMISSIONS::contains);
     }
 }

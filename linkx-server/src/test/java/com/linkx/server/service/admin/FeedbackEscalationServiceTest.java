@@ -30,6 +30,7 @@ class FeedbackEscalationServiceTest {
     @Mock FeedbackMapper feedbackMapper;
     @Mock FeedbackDispatchService feedbackDispatchService;
     @Mock AdminEventPublisher adminEventPublisher;
+    @Mock AdminAudienceService adminAudienceService;
     @Mock AuditLogService auditLogService;
 
     private LinkxProperties linkxProperties;
@@ -42,8 +43,9 @@ class FeedbackEscalationServiceTest {
         linkxProperties.getApp().setFeedbackEscalationEnabled(true);
         linkxProperties.getApp().setFeedbackEscalationAutoReassign(true);
         linkxProperties.getApp().setFeedbackEscalationIntervalHours(24);
+        lenient().when(adminAudienceService.feedbackOperatorUserIds()).thenReturn(List.of(1L));
         service = new FeedbackEscalationServiceImpl(
-                feedbackMapper, feedbackDispatchService, linkxProperties, adminEventPublisher, auditLogService);
+                feedbackMapper, feedbackDispatchService, linkxProperties, adminEventPublisher, adminAudienceService, auditLogService);
     }
 
     @Test
@@ -74,7 +76,7 @@ class FeedbackEscalationServiceTest {
         Feedback updated = captor.getValue();
         assertEquals(1, updated.getEscalationCount());
         assertNotNull(updated.getEscalatedAt());
-        verify(adminEventPublisher).publish(eq("feedback_escalated"), eq(1L), anyString());
+        verify(adminEventPublisher).publishToUsers(eq("feedback_escalated"), eq(1L), eq(List.of(1L)), anyString());
         verify(auditLogService).logWithExtra(
                 eq(SysAuditLog.OperationType.FEEDBACK_ESCALATE),
                 contains("#1"),

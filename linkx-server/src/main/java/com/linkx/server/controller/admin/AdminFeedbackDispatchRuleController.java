@@ -6,8 +6,10 @@ import com.linkx.server.common.Result;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.config.aspect.AuditAction;
 import com.linkx.server.controller.admin.dto.AdminFeedbackDispatchRuleDTO;
+import com.linkx.server.controller.admin.dto.AdminFeedbackDispatchSimulateDTO;
 import com.linkx.server.controller.admin.dto.AdminPageQueryDTO;
 import com.linkx.server.controller.admin.vo.AdminFeedbackDispatchRuleVO;
+import com.linkx.server.controller.admin.vo.AdminFeedbackDispatchSimulateVO;
 import com.linkx.server.service.admin.AdminFeedbackDispatchRuleService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -75,5 +77,12 @@ public class AdminFeedbackDispatchRuleController {
         Long operatorId = (Long) request.getAttribute("userId");
         adminFeedbackDispatchRuleService.delete(id, operatorId);
         return Result.success(null);
+    }
+
+    @Operation(summary = "模拟分流规则")
+    @PostMapping("/simulate")
+    @RequirePermission("admin:feedback-dispatch-rule:simulate")
+    public Result<AdminFeedbackDispatchSimulateVO> simulate(@Valid @RequestBody AdminFeedbackDispatchSimulateDTO dto) {
+        return Result.success(adminFeedbackDispatchRuleService.simulate(dto));
     }
 }

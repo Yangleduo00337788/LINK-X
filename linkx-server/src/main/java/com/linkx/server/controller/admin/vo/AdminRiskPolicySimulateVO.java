@@ -21,6 +21,19 @@ public class AdminRiskPolicySimulateVO {
     private int riskScore;
     private String riskLevel;
     private List<String> riskFactors;
+    private List<MatchedRuleDetail> matchedRules;
+    private int ruleScoreDelta;
+    private boolean ruleBlocked;
+    private boolean ruleAlerted;
+
+    @Data
+    @Builder
+    public static class MatchedRuleDetail {
+        private Long ruleId;
+        private String ruleName;
+        private Integer scoreDelta;
+        private String actionType;
+    }
 
     @Data
     @Builder

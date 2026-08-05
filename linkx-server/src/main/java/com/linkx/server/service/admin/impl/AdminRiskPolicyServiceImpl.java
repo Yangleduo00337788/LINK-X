@@ -12,6 +12,9 @@ import com.linkx.server.mapper.SysRuntimeSettingMapper;
 import com.linkx.server.service.SensitiveWordService;
 import com.linkx.server.service.admin.AdminRiskPolicyService;
 import com.linkx.server.service.admin.ReviewRiskScoringService;
+import com.linkx.server.service.admin.rule.RiskRuleContext;
+import com.linkx.server.service.admin.rule.RiskRuleEngine;
+import com.linkx.server.service.admin.rule.RiskRuleEvaluationResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +31,7 @@ public class AdminRiskPolicyServiceImpl implements AdminRiskPolicyService {
     private final SysRuntimeSettingMapper runtimeSettingMapper;
     private final SensitiveWordService sensitiveWordService;
     private final ReviewRiskScoringService reviewRiskScoringService;
+    private final RiskRuleEngine riskRuleEngine;
 
     @Override
     public AdminRiskPolicyVO getOverview() {
@@ -136,22 +140,61 @@ public class AdminRiskPolicyServiceImpl implements AdminRiskPolicyService {
             factors.add("用户历史风险 +" + historyScore);
             score = Math.min(100, score + historyScore);
         }
+
+        RiskRuleContext ruleContext = RiskRuleContext.builder()
+                .scope("simulate")
+                .text(text)
+                .subjectUserId(dto != null ? dto.getSubjectUserId() : null)
+                .historyScore(historyScore)
+                .messageCount(dto != null ? dto.getMessageCount() : null)
+                .memberCount(dto != null ? dto.getMemberCount() : null)
+                .sensitiveBlocked(filterResult.blocked())
+                .sensitiveAlerted(filterResult.alerted())
+                .sensitiveFiltered(filterResult.filtered())
+                .build();
+        RiskRuleEvaluationResult ruleResult = riskRuleEngine.evaluate(ruleContext);
+        if (ruleResult.getScoreDelta() > 0) {
+            score = Math.min(100, score + ruleResult.getScoreDelta());
+        }
+        factors.addAll(ruleResult.getFactors());
+
         String level = reviewRiskScoringService.scoreToLevel(score);
 
         List<AdminRiskPolicySimulateVO.MatchedWordDetail> details = buildMatchedDetails(filterResult.matchedWords());
 
         return AdminRiskPolicySimulateVO.builder()
                 .sensitiveFilterEnabled(enabled)
-                .blocked(filterResult.blocked())
+                .blocked(filterResult.blocked() || ruleResult.isBlocked())
                 .filtered(filterResult.filtered())
-                .alerted(filterResult.alerted())
+                .alerted(filterResult.alerted() || ruleResult.isAlerted())
                 .filteredText(filterResult.text())
                 .matchedWords(filterResult.matchedWords())
                 .matchedDetails(details)
                 .riskScore(score)
                 .riskLevel(level)
                 .riskFactors(factors)
+                .ruleScoreDelta(ruleResult.getScoreDelta())
+                .ruleBlocked(ruleResult.isBlocked())
+                .ruleAlerted(ruleResult.isAlerted())
+                .matchedRules(buildMatchedRuleDetails(ruleResult))
                 .build();
+    }
+
+    private List<AdminRiskPolicySimulateVO.MatchedRuleDetail> buildMatchedRuleDetails(
+            RiskRuleEvaluationResult ruleResult) {
+        if (ruleResult.getMatchedRules() == null || ruleResult.getMatchedRules().isEmpty()) {
+            return List.of();
+        }
+        List<AdminRiskPolicySimulateVO.MatchedRuleDetail> out = new ArrayList<>();
+        for (RiskRuleEvaluationResult.MatchedRule rule : ruleResult.getMatchedRules()) {
+            out.add(AdminRiskPolicySimulateVO.MatchedRuleDetail.builder()
+                    .ruleId(rule.getRuleId())
+                    .ruleName(rule.getRuleName())
+                    .scoreDelta(rule.getScoreDelta())
+                    .actionType(rule.getActionType())
+                    .build());
+        }
+        return out;
     }
 
     private AdminRiskPolicyVO buildOverview() {

@@ -27,8 +27,15 @@ public class SysFeedbackDispatchRule implements Serializable {
     private String name;
     private String feedbackType;
     private String keyword;
+    private String conditionJson;
     private Long assigneeId;
+    private String assigneeSource;
+    private Long dutyScheduleId;
     private Integer priority;
+    private String actionType;
+    private String actionConfig;
+    private String notifyRoles;
+    private String notifyChannels;
     private Boolean enabled;
     private Long createdBy;
     private Long updatedBy;

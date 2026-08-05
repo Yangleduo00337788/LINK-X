@@ -1,16 +1,25 @@
 package com.linkx.server.service.admin;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.entity.Feedback;
 import com.linkx.server.entity.admin.SysFeedbackDispatchRule;
 import com.linkx.server.mapper.FeedbackMapper;
+import com.linkx.server.mapper.admin.SysDutyScheduleMapper;
+import com.linkx.server.mapper.admin.SysDutyScheduleSlotMapper;
 import com.linkx.server.mapper.admin.SysFeedbackDispatchRuleMapper;
 import com.linkx.server.service.admin.impl.FeedbackDispatchServiceImpl;
+import com.linkx.server.service.admin.rule.FeedbackAssigneeResolver;
+import com.linkx.server.service.admin.rule.FeedbackRuleConditionEvaluator;
 import com.mybatisflex.core.query.QueryWrapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 
 import java.util.List;
 
@@ -24,12 +33,26 @@ class FeedbackDispatchServiceTest {
 
     @Mock SysFeedbackDispatchRuleMapper ruleMapper;
     @Mock FeedbackMapper feedbackMapper;
+    @Mock AdminEventPublisher adminEventPublisher;
+    @Mock AdminAudienceService adminAudienceService;
+    @Mock SysDutyScheduleMapper dutyScheduleMapper;
+    @Mock SysDutyScheduleSlotMapper dutyScheduleSlotMapper;
+    @Mock StringRedisTemplate redisTemplate;
+    @Mock ValueOperations<String, String> valueOperations;
 
     private FeedbackDispatchServiceImpl service;
 
-    @org.junit.jupiter.api.BeforeEach
+    @BeforeEach
     void setUp() {
-        service = new FeedbackDispatchServiceImpl(ruleMapper, feedbackMapper);
+        ObjectMapper objectMapper = new ObjectMapper();
+        LinkxProperties linkxProperties = new LinkxProperties();
+        FeedbackRuleConditionEvaluator conditionEvaluator =
+                new FeedbackRuleConditionEvaluator(objectMapper, linkxProperties);
+        FeedbackAssigneeResolver assigneeResolver = new FeedbackAssigneeResolver(
+                dutyScheduleMapper, dutyScheduleSlotMapper, redisTemplate, objectMapper);
+        lenient().when(adminAudienceService.feedbackOperatorUserIds()).thenReturn(List.of(1L));
+        service = new FeedbackDispatchServiceImpl(
+                ruleMapper, feedbackMapper, conditionEvaluator, assigneeResolver, adminEventPublisher, adminAudienceService);
     }
 
     @Test
@@ -59,6 +82,7 @@ class FeedbackDispatchServiceTest {
         assertEquals(99L, fb.getAssigneeId());
         assertNotNull(fb.getAssignedAt());
         verify(feedbackMapper).update(fb);
+        verify(adminEventPublisher).publishToUsers(eq("feedback_assigned"), eq(1L), eq(List.of(1L)), any());
     }
 
     @Test
@@ -102,12 +126,36 @@ class FeedbackDispatchServiceTest {
         verify(feedbackMapper, never()).update(any());
     }
 
+    @Test
+    @DisplayName("仅通知动作可命中")
+    void evaluate_notifyOnly() {
+        SysFeedbackDispatchRule notifyRule = SysFeedbackDispatchRule.builder()
+                .id(100L)
+                .name("notify-ops")
+                .feedbackType("bug")
+                .actionType("notify")
+                .notifyRoles("ops")
+                .priority(5)
+                .enabled(true)
+                .deleted(0)
+                .build();
+        when(ruleMapper.selectListByQuery(any(QueryWrapper.class))).thenReturn(List.of(notifyRule));
+
+        Feedback fb = Feedback.builder().type("bug").content("x").build();
+        var result = service.evaluate(fb);
+        assertTrue(result.isPresent());
+        assertNull(result.get().getAssigneeId());
+        assertEquals("notify", result.get().getActionType());
+    }
+
     private static SysFeedbackDispatchRule rule(String name, String type, String keyword, Long assignee, int priority) {
         return SysFeedbackDispatchRule.builder()
                 .name(name)
                 .feedbackType(type)
                 .keyword(keyword)
                 .assigneeId(assignee)
+                .assigneeSource("fixed")
+                .actionType("assign")
                 .priority(priority)
                 .enabled(true)
                 .deleted(0)

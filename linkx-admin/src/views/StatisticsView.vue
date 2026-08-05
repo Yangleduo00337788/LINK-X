@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import {
   NButton,
   NDataTable,
@@ -47,6 +48,7 @@ import {
 } from '@/utils/charts'
 
 const { t, locale } = useI18n()
+const router = useRouter()
 const auth = useAuthStore()
 const loading = ref(false)
 const exporting = ref(false)
@@ -579,6 +581,20 @@ onMounted(() => {
           style="width: 132px"
           :consistent-menu-width="false"
         />
+        <NButton
+          v-if="auth.hasPermission('admin:bi:view')"
+          size="small"
+          @click="router.push('/admin/bi-analytics')"
+        >
+          {{ t('statistics.openBiAnalytics') }}
+        </NButton>
+        <NButton
+          v-if="auth.hasPermission('admin:big-screen:view')"
+          size="small"
+          @click="router.push('/admin/big-screen')"
+        >
+          {{ t('route.bigScreen') }}
+        </NButton>
         <NButton
           v-if="auth.hasPermission('admin:statistics:export')"
           size="small"

@@ -9,6 +9,7 @@ import com.linkx.server.mapper.FeedbackMapper;
 import com.linkx.server.service.FeedbackReplyService;
 import com.linkx.server.service.FeedbackService;
 import com.linkx.server.service.MessageNotificationService;
+import com.linkx.server.service.admin.AdminAudienceService;
 import com.linkx.server.service.admin.AdminEventPublisher;
 import com.linkx.server.service.admin.AdminReviewService;
 import com.linkx.server.service.admin.FeedbackDispatchService;
@@ -38,6 +39,7 @@ public class FeedbackServiceImpl extends ServiceImpl<FeedbackMapper, Feedback> i
     private final FeedbackDispatchService feedbackDispatchService;
     private final FeedbackReplyService feedbackReplyService;
     private final AdminEventPublisher adminEventPublisher;
+    private final AdminAudienceService adminAudienceService;
 
     @Override
     @Transactional
@@ -172,7 +174,11 @@ public class FeedbackServiceImpl extends ServiceImpl<FeedbackMapper, Feedback> i
                 escapeJson(feedback.getType() == null ? "" : feedback.getType()),
                 escapeJson(feedback.getUsername() == null ? "" : feedback.getUsername()),
                 escapeJson(abbreviate(feedback.getContent(), 200)));
-        Runnable publish = () -> adminEventPublisher.publish("feedback_created", feedbackId, extraJson);
+        Runnable publish = () -> adminEventPublisher.publishToUsers(
+                "feedback_created",
+                feedbackId,
+                adminAudienceService.feedbackOperatorUserIds(),
+                extraJson);
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override

@@ -5,6 +5,7 @@ import com.linkx.server.entity.Feedback;
 import com.linkx.server.entity.SysAuditLog;
 import com.linkx.server.mapper.FeedbackMapper;
 import com.linkx.server.service.AuditLogService;
+import com.linkx.server.service.admin.AdminAudienceService;
 import com.linkx.server.service.admin.AdminEventPublisher;
 import com.linkx.server.service.admin.FeedbackDispatchService;
 import com.linkx.server.service.admin.FeedbackEscalationService;
@@ -31,6 +32,7 @@ public class FeedbackEscalationServiceImpl implements FeedbackEscalationService 
     private final FeedbackDispatchService feedbackDispatchService;
     private final LinkxProperties linkxProperties;
     private final AdminEventPublisher adminEventPublisher;
+    private final AdminAudienceService adminAudienceService;
     private final AuditLogService auditLogService;
 
     @Override
@@ -88,7 +90,11 @@ public class FeedbackEscalationServiceImpl implements FeedbackEscalationService 
                 feedback.getAssigneeId() != null ? feedback.getAssigneeId() : "",
                 nextCount,
                 reassigned);
-        adminEventPublisher.publish("feedback_escalated", feedback.getId(), extraJson);
+        adminEventPublisher.publishToUsers(
+                "feedback_escalated",
+                feedback.getId(),
+                adminAudienceService.feedbackOperatorUserIds(),
+                extraJson);
 
         auditLogService.logWithExtra(
                 SysAuditLog.OperationType.FEEDBACK_ESCALATE,

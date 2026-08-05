@@ -5,6 +5,8 @@ import com.linkx.server.controller.admin.vo.AdminReviewRiskContextVO;
 import com.linkx.server.entity.admin.SysReviewTask;
 import com.linkx.server.mapper.admin.SysRiskEventMapper;
 import com.linkx.server.service.admin.impl.ReviewRiskScoringServiceImpl;
+import com.linkx.server.service.admin.rule.RiskRuleEngine;
+import com.linkx.server.service.admin.rule.RiskRuleEvaluationResult;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -24,13 +26,14 @@ import static org.mockito.Mockito.when;
 class ReviewRiskScoringServiceTest {
 
     @Mock SysRiskEventMapper riskEventMapper;
+    @Mock RiskRuleEngine riskRuleEngine;
 
     private ReviewRiskScoringService service;
 
     @BeforeEach
     void setUp() {
         LinkxProperties props = new LinkxProperties();
-        service = new ReviewRiskScoringServiceImpl(riskEventMapper, props);
+        service = new ReviewRiskScoringServiceImpl(riskEventMapper, props, riskRuleEngine);
     }
 
     @Test
@@ -43,6 +46,7 @@ class ReviewRiskScoringServiceTest {
 
     @Test
     void buildContext_pendingHighTask() {
+        when(riskRuleEngine.evaluate(any())).thenReturn(RiskRuleEvaluationResult.builder().build());
         when(riskEventMapper.selectCountByQuery(any(QueryWrapper.class))).thenReturn(0L);
         when(riskEventMapper.selectListByQuery(any(QueryWrapper.class))).thenReturn(List.of());
 

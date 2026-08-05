@@ -98,6 +98,23 @@ public class EmailServiceImpl implements EmailService {
         sendHtmlEmail(to, subject, htmlContent);
     }
 
+    @Override
+    public void sendApprovalPendingNotification(String to, String displayName, String title, String stepName) {
+        String subject = "【LinkX】您有新的审批待办";
+        String safeName = StringUtils.hasText(displayName) ? displayName : "管理员";
+        String safeTitle = title == null ? "" : title;
+        String safeStep = stepName == null ? "审批" : stepName;
+        String html = """
+                <div style="font-family:sans-serif;line-height:1.6">
+                  <p>您好，%s：</p>
+                  <p>系统已将您指定为审批环节「%s」的处理人。</p>
+                  <p><strong>待办标题：</strong>%s</p>
+                  <p>请登录 LinkX 管理端，在「审批待办」中及时处理。若您不在线，本次已临时开放相关审批权限。</p>
+                </div>
+                """.formatted(safeName, safeStep, safeTitle);
+        sendHtmlEmail(to, subject, html);
+    }
+
     private Map<String, String> plainCodeVars(String username, String email, String code) {
         Map<String, String> vars = plainBaseVars(username, email);
         vars.put("CODE", code == null ? "" : code);

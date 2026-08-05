@@ -32,10 +32,13 @@ import {
   type ReviewItem,
   type ReviewUserAction,
 } from '@/api/reviews'
+import { listApprovalFlows } from '@/api/approvalFlows'
+import { getApprovalInstance, startApproval, type ApprovalInstance } from '@/api/approvals'
 import { formatTime } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
 import { notifyPendingTask } from '@/utils/adminNotify'
 import SearchAutoComplete from '@/components/SearchAutoComplete.vue'
+import ApprovalInstanceDetailPanel from '@/components/ApprovalInstanceDetailPanel.vue'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -80,6 +83,17 @@ const resolveSaving = ref(false)
 const checkedKeys = ref<string[]>([])
 const exporting = ref(false)
 const batchSaving = ref(false)
+
+const showStartApproval = ref(false)
+const startApprovalTarget = ref<ReviewItem | null>(null)
+const approvalFlowOptions = ref<{ label: string; value: string }[]>([])
+const selectedFlowId = ref<string | null>(null)
+const startApprovalSaving = ref(false)
+
+const showApprovalDetail = ref(false)
+const approvalDetailLoading = ref(false)
+const approvalInstance = ref<ApprovalInstance | null>(null)
+const approvalDetailTitle = ref('')
 
 const DELETABLE_TARGETS = new Set([
   'message',
@@ -207,6 +221,26 @@ function statusTag(row: ReviewItem) {
       () => label[status || ''] || status || '-'
     )
   )
+  if (row.approvalStatus) {
+    const approvalStatus = row.approvalStatus
+    const approvalMap: Record<string, 'warning' | 'success' | 'error' | 'default'> = {
+      pending: 'warning',
+      approved: 'success',
+      rejected: 'error',
+    }
+    const approvalLabel: Record<string, string> = {
+      pending: t('review.approvalPending'),
+      approved: t('review.approvalApproved'),
+      rejected: t('review.approvalRejected'),
+    }
+    tags.push(
+      h(
+        NTag,
+        { type: approvalMap[approvalStatus] || 'default', size: 'small', bordered: false },
+        () => approvalLabel[approvalStatus] || approvalStatus
+      )
+    )
+  }
   if (tags.length === 1) return tags[0]
   return h(NSpace, { size: 4, align: 'center' }, () => tags)
 }
@@ -226,6 +260,74 @@ function canDeleteContent(row?: ReviewItem | null) {
 
 function isHighRiskLevel(level?: string) {
   return level === 'high' || level === 'critical'
+}
+
+function canStartApproval(row?: ReviewItem | null) {
+  return (
+    !!row &&
+    row.status === 'pending' &&
+    !row.approvalInstanceId &&
+    auth.hasPermission('admin:approval:start')
+  )
+}
+
+function hasApproval(row?: ReviewItem | null) {
+  return !!row?.approvalInstanceId
+}
+
+async function openStartApproval(row: ReviewItem) {
+  startApprovalTarget.value = row
+  selectedFlowId.value = null
+  approvalFlowOptions.value = []
+  showStartApproval.value = true
+  try {
+    const data = await listApprovalFlows({ page: 1, size: 100, status: 1, keyword: 'review' })
+    approvalFlowOptions.value = (data.items || [])
+      .filter((flow) => flow.enabled !== false && flow.bizType === 'review')
+      .map((flow) => ({ label: flow.name, value: flow.id }))
+    if (approvalFlowOptions.value.length === 1) {
+      selectedFlowId.value = approvalFlowOptions.value[0].value
+    }
+  } catch {
+    message.error(t('common.requestFailed'))
+  }
+}
+
+async function submitStartApproval() {
+  if (!startApprovalTarget.value) return
+  if (!selectedFlowId.value) {
+    message.warning(t('review.pickApprovalFlowRequired'))
+    return
+  }
+  startApprovalSaving.value = true
+  try {
+    await startApproval({
+      flowId: selectedFlowId.value,
+      bizType: 'review',
+      bizId: String(startApprovalTarget.value.id),
+      title: startApprovalTarget.value.title || `审核任务 #${startApprovalTarget.value.id}`,
+    })
+    message.success(t('review.startApprovalSuccess'))
+    showStartApproval.value = false
+    await load()
+  } finally {
+    startApprovalSaving.value = false
+  }
+}
+
+async function openApprovalDetail(row: ReviewItem) {
+  if (!row.approvalInstanceId) return
+  approvalDetailTitle.value = row.title || t('approvalInbox.detailTitle')
+  approvalInstance.value = null
+  showApprovalDetail.value = true
+  approvalDetailLoading.value = true
+  try {
+    approvalInstance.value = await getApprovalInstance(String(row.approvalInstanceId))
+  } catch {
+    showApprovalDetail.value = false
+  } finally {
+    approvalDetailLoading.value = false
+  }
 }
 
 function rowProps(row: ReviewItem) {
@@ -316,10 +418,33 @@ const columns = computed<DataTableColumns<ReviewItem>>(() => {
     {
       title: t('common.actions'),
       key: 'actions',
-      width: 220,
+      width: 300,
       render: (row) =>
         h(NSpace, { size: 8 }, () => [
           h(NButton, { size: 'tiny', onClick: () => showDetail(row) }, () => t('common.detail')),
+          canStartApproval(row)
+            ? h(
+                NButton,
+                {
+                  size: 'tiny',
+                  type: 'info',
+                  secondary: true,
+                  onClick: () => openStartApproval(row),
+                },
+                () => t('review.startApproval')
+              )
+            : null,
+          hasApproval(row) && auth.hasPermission('admin:approval:inbox')
+            ? h(
+                NButton,
+                {
+                  size: 'tiny',
+                  tertiary: true,
+                  onClick: () => openApprovalDetail(row),
+                },
+                () => t('review.viewApproval')
+              )
+            : null,
           row.status === 'pending' &&
           auth.hasPermission('admin:review:delete-content') &&
           canDeleteContent(row)
@@ -794,7 +919,7 @@ onUnmounted(() => {
         :loading="loading"
         :row-key="(row: ReviewItem) => row.id"
         :row-props="rowProps"
-        :scroll-x="1320"
+        :scroll-x="1400"
         :pagination="{
           page: query.page,
           pageSize: query.size,
@@ -883,6 +1008,53 @@ onUnmounted(() => {
         </NSpace>
       </template>
     </AdminFormShell>
+
+    <AdminFormShell
+      v-model:show="showStartApproval"
+      :title="t('review.startApprovalTitle')"
+      :width="480"
+    >
+      <p class="quote">{{ startApprovalTarget?.title || '-' }}</p>
+      <NAlert
+        v-if="!approvalFlowOptions.length"
+        type="warning"
+        :bordered="false"
+        class="preset-hint"
+      >
+        {{ t('review.noApprovalFlow') }}
+      </NAlert>
+      <NFormItem :label="t('review.pickApprovalFlow')">
+        <NSelect
+          v-model:value="selectedFlowId"
+          :options="approvalFlowOptions"
+          :placeholder="t('review.pickApprovalFlow')"
+          clearable
+        />
+      </NFormItem>
+      <template #footer>
+        <NSpace justify="end">
+          <NButton @click="showStartApproval = false">{{ t('common.cancel') }}</NButton>
+          <NButton
+            type="primary"
+            :loading="startApprovalSaving"
+            :disabled="!approvalFlowOptions.length"
+            @click="submitStartApproval"
+          >
+            {{ t('review.startApproval') }}
+          </NButton>
+        </NSpace>
+      </template>
+    </AdminFormShell>
+
+    <NModal
+      v-model:show="showApprovalDetail"
+      preset="card"
+      style="width: 720px; max-width: 96vw"
+      :title="approvalDetailTitle"
+    >
+      <div v-if="approvalDetailLoading" class="muted">{{ t('common.loading') }}</div>
+      <ApprovalInstanceDetailPanel v-else :instance="approvalInstance" />
+    </NModal>
   </div>
 </template>
 

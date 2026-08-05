@@ -40,6 +40,11 @@ public class AdminReviewVO {
     @Schema(description = "最近督办时间")
     private Date escalatedAt;
 
+    @Schema(description = "关联审批实例 ID")
+    private Long approvalInstanceId;
+    @Schema(description = "审批状态 pending|approved|rejected")
+    private String approvalStatus;
+
     @Schema(description = "风险上下文（详情接口填充）")
     private AdminReviewRiskContextVO riskContext;
 }

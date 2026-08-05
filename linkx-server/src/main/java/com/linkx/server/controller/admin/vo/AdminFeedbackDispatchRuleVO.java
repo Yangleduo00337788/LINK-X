@@ -15,8 +15,16 @@ public class AdminFeedbackDispatchRuleVO {
     private String name;
     private String feedbackType;
     private String keyword;
+    private String conditionJson;
     private Long assigneeId;
     private String assigneeName;
+    private String assigneeSource;
+    private Long dutyScheduleId;
+    private String dutyScheduleName;
+    private String actionType;
+    private String actionConfig;
+    private String notifyRoles;
+    private String notifyChannels;
     private Integer priority;
     private Boolean enabled;
     private Date createTime;

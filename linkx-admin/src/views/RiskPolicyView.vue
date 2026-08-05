@@ -314,6 +314,17 @@ onMounted(() => {
             <ul v-if="simulateResult.riskFactors?.length" class="factors">
               <li v-for="(factor, idx) in simulateResult.riskFactors" :key="idx">{{ factor }}</li>
             </ul>
+            <div v-if="simulateResult.matchedRules?.length" class="matched">
+              <div class="matched-title">{{ t('riskPolicy.matchedRules') }}</div>
+              <NSpace>
+                <NTag v-for="rule in simulateResult.matchedRules" :key="rule.ruleId" size="small">
+                  {{ rule.ruleName }} +{{ rule.scoreDelta }} · {{ rule.actionType }}
+                </NTag>
+              </NSpace>
+              <p v-if="simulateResult.ruleScoreDelta" class="muted">
+                {{ t('riskPolicy.ruleScoreDelta') }}: {{ simulateResult.ruleScoreDelta }}
+              </p>
+            </div>
           </div>
         </NCard>
       </div>

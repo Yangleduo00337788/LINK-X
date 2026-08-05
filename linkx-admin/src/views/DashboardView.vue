@@ -325,24 +325,33 @@ const activeItems = computed<NamedValue[]>(() => {
 const riskSnapshot = computed(() => {
   void locale.value
   const s = summary.value
-  return [
+  const items = [
     {
       key: 'todaySensitiveHits',
       label: metricName('todaySensitiveHits'),
       value: toNum(s?.todaySensitiveHits),
+      perm: 'admin:risk-event:list',
     },
     {
       key: 'todayRiskBlocks',
       label: metricName('todayRiskBlocks'),
       value: toNum(s?.todayRiskBlocks),
+      perm: 'admin:risk-event:list',
     },
-    { key: 'pendingReviews', label: metricName('pendingReviews'), value: toNum(s?.pendingReviews) },
+    {
+      key: 'pendingReviews',
+      label: metricName('pendingReviews'),
+      value: toNum(s?.pendingReviews),
+      perm: 'admin:review:list',
+    },
     {
       key: 'pendingFeedback',
       label: metricName('pendingFeedback'),
       value: toNum(s?.pendingFeedback),
+      perm: 'admin:feedback:list',
     },
   ]
+  return items.filter((item) => auth.hasPermission(item.perm))
 })
 
 const quickLinks = computed(() => {

@@ -38,6 +38,7 @@ class AdminRiskEventServiceTest {
     @Mock SysRiskEventMapper riskEventMapper;
     @Mock SysUserMapper sysUserMapper;
     @Mock AdminEventPublisher adminEventPublisher;
+    @Mock AdminAudienceService adminAudienceService;
     @Mock AdminUserService adminUserService;
     @Mock RbacService rbacService;
     @Mock IpGeoService ipGeoService;
@@ -46,8 +47,9 @@ class AdminRiskEventServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(adminAudienceService.riskOperatorUserIds()).thenReturn(List.of(1L));
         service = new AdminRiskEventServiceImpl(
-                riskEventMapper, sysUserMapper, adminEventPublisher, adminUserService,
+                riskEventMapper, sysUserMapper, adminEventPublisher, adminAudienceService, adminUserService,
                 rbacService, ipGeoService);
     }
 
@@ -106,7 +108,7 @@ class AdminRiskEventServiceTest {
         service.handle(2L, handled, 9L);
         assertEquals(SysRiskEvent.STATUS_HANDLED, event.getStatus());
         assertEquals("已核实", event.getResolution());
-        verify(adminEventPublisher).publish("risk_handled", 2L);
+        verify(adminEventPublisher).publishToUsers(eq("risk_handled"), eq(2L), eq(List.of(1L)));
 
         SysRiskEvent ignored = pendingEvent(3L);
         when(riskEventMapper.selectOneById(3L)).thenReturn(ignored);
@@ -237,7 +239,7 @@ class AdminRiskEventServiceTest {
 
         ArgumentCaptor<SysRiskEvent> captor = ArgumentCaptor.forClass(SysRiskEvent.class);
         verify(riskEventMapper, atLeast(7)).insert(captor.capture());
-        verify(adminEventPublisher, atLeast(7)).publish(eq("risk_created"), any());
+        verify(adminEventPublisher, atLeast(7)).publishToUsers(eq("risk_created"), any(), eq(List.of(1L)));
 
         List<SysRiskEvent> events = captor.getAllValues();
         assertTrue(events.stream().anyMatch(e -> SysRiskEvent.LEVEL_HIGH.equals(e.getRiskLevel())

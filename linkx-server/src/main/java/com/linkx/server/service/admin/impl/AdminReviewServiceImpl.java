@@ -15,6 +15,7 @@ import com.linkx.server.entity.Feedback;
 import com.linkx.server.entity.GroupAsset;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.entity.admin.SysReviewTask;
+import com.linkx.server.entity.admin.SysApprovalInstance;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.mapper.FavoriteMapper;
@@ -22,6 +23,7 @@ import com.linkx.server.mapper.FeedbackMapper;
 import com.linkx.server.mapper.GroupAssetMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.mapper.admin.SysReviewTaskMapper;
+import com.linkx.server.mapper.admin.SysApprovalInstanceMapper;
 import com.linkx.server.entity.ImConversation;
 import com.linkx.server.mapper.ImConversationMapper;
 import com.linkx.server.service.ChatService;
@@ -33,9 +35,11 @@ import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.MessageNotificationService;
 import com.linkx.server.service.MomentsService;
 import com.linkx.server.service.RbacService;
+import com.linkx.server.service.admin.AdminAudienceService;
 import com.linkx.server.service.admin.AdminEventPublisher;
 import com.linkx.server.service.admin.AdminReviewService;
 import com.linkx.server.service.admin.ReviewRiskScoringService;
+import com.linkx.server.service.admin.approval.ApprovalFlowEngine;
 import com.linkx.server.service.admin.AdminUserService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.extern.slf4j.Slf4j;
@@ -74,6 +78,7 @@ public class AdminReviewServiceImpl implements AdminReviewService {
     private final MessageNotificationService notificationService;
     private final ImMessagePushService imPushService;
     private final AdminEventPublisher adminEventPublisher;
+    private final AdminAudienceService adminAudienceService;
     private final MediaUrlService mediaUrlService;
     private final AdminUserService adminUserService;
     private final RbacService rbacService;
@@ -88,6 +93,8 @@ public class AdminReviewServiceImpl implements AdminReviewService {
     private final FavoriteMapper favoriteMapper;
     private final LinkxProperties linkxProperties;
     private final ReviewRiskScoringService reviewRiskScoringService;
+    private final ApprovalFlowEngine approvalFlowEngine;
+    private final SysApprovalInstanceMapper approvalInstanceMapper;
 
     public AdminReviewServiceImpl(
             SysReviewTaskMapper reviewTaskMapper,
@@ -96,6 +103,7 @@ public class AdminReviewServiceImpl implements AdminReviewService {
             MessageNotificationService notificationService,
             ImMessagePushService imPushService,
             AdminEventPublisher adminEventPublisher,
+            AdminAudienceService adminAudienceService,
             MediaUrlService mediaUrlService,
             AdminUserService adminUserService,
             RbacService rbacService,
@@ -109,13 +117,16 @@ public class AdminReviewServiceImpl implements AdminReviewService {
             GroupAssetMapper groupAssetMapper,
             FavoriteMapper favoriteMapper,
             LinkxProperties linkxProperties,
-            ReviewRiskScoringService reviewRiskScoringService) {
+            ReviewRiskScoringService reviewRiskScoringService,
+            @Lazy ApprovalFlowEngine approvalFlowEngine,
+            SysApprovalInstanceMapper approvalInstanceMapper) {
         this.reviewTaskMapper = reviewTaskMapper;
         this.feedbackMapper = feedbackMapper;
         this.sysUserMapper = sysUserMapper;
         this.notificationService = notificationService;
         this.imPushService = imPushService;
         this.adminEventPublisher = adminEventPublisher;
+        this.adminAudienceService = adminAudienceService;
         this.mediaUrlService = mediaUrlService;
         this.adminUserService = adminUserService;
         this.rbacService = rbacService;
@@ -130,6 +141,8 @@ public class AdminReviewServiceImpl implements AdminReviewService {
         this.favoriteMapper = favoriteMapper;
         this.linkxProperties = linkxProperties;
         this.reviewRiskScoringService = reviewRiskScoringService;
+        this.approvalFlowEngine = approvalFlowEngine;
+        this.approvalInstanceMapper = approvalInstanceMapper;
     }
 
     @Override
@@ -296,7 +309,7 @@ public class AdminReviewServiceImpl implements AdminReviewService {
         }
         SysReviewTask task = buildFromFeedback(feedback);
         reviewTaskMapper.insert(task);
-        publishAdminEvent("review_created", task.getId());
+        afterReviewCreated(task);
     }
 
     @Override
@@ -376,7 +389,7 @@ public class AdminReviewServiceImpl implements AdminReviewService {
                 .updateTime(now)
                 .build();
         reviewTaskMapper.insert(task);
-        publishAdminEvent("review_created", task.getId());
+        afterReviewCreated(task);
     }
 
     @Override
@@ -402,7 +415,7 @@ public class AdminReviewServiceImpl implements AdminReviewService {
             if (!linked.contains(feedback.getId())) {
                 SysReviewTask task = buildFromFeedback(feedback);
                 reviewTaskMapper.insert(task);
-                publishAdminEvent("review_created", task.getId());
+                afterReviewCreated(task);
             }
         }
     }
@@ -751,7 +764,12 @@ public class AdminReviewServiceImpl implements AdminReviewService {
     }
 
     private void publishAdminEvent(String type, Long reviewId) {
-        adminEventPublisher.publish(type, reviewId);
+        adminEventPublisher.publishToUsers(type, reviewId, adminAudienceService.reviewOperatorUserIds());
+    }
+
+    private void afterReviewCreated(SysReviewTask task) {
+        publishAdminEvent("review_created", task.getId());
+        approvalFlowEngine.tryAutoStartForReview(task, null);
     }
 
     private SysReviewTask buildFromFeedback(Feedback feedback) {
@@ -830,7 +848,17 @@ public class AdminReviewServiceImpl implements AdminReviewService {
                 .escalated(isEscalated(task))
                 .escalationCount(normalizeEscalationCount(task.getEscalationCount()))
                 .escalatedAt(task.getEscalatedAt())
+                .approvalInstanceId(task.getApprovalInstanceId())
+                .approvalStatus(resolveApprovalStatus(task.getApprovalInstanceId()))
                 .build();
+    }
+
+    private String resolveApprovalStatus(Long approvalInstanceId) {
+        if (approvalInstanceId == null) {
+            return null;
+        }
+        SysApprovalInstance instance = approvalInstanceMapper.selectOneById(approvalInstanceId);
+        return instance != null ? instance.getStatus() : null;
     }
 
     private static boolean isEscalated(SysReviewTask task) {

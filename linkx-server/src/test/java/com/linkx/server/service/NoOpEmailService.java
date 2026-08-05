@@ -41,4 +41,9 @@ public class NoOpEmailService implements EmailService {
     public void sendAdminStepUpCode(String to, String username, String code) {
         // no-op
     }
+
+    @Override
+    public void sendApprovalPendingNotification(String to, String displayName, String title, String stepName) {
+        // no-op
+    }
 }

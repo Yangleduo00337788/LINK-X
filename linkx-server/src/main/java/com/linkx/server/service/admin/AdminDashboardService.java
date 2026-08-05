@@ -9,11 +9,11 @@ import java.util.List;
 
 public interface AdminDashboardService {
 
-    AdminDashboardSummaryVO summary();
+    AdminDashboardSummaryVO summary(Long operatorUserId);
 
     AdminTrendVO trends(int days);
 
-    AdminDashboardRealtimeVO realtime();
+    AdminDashboardRealtimeVO realtime(Long operatorUserId);
 
-    List<AdminPendingTaskVO> pendingTasks();
+    List<AdminPendingTaskVO> pendingTasks(Long operatorUserId);
 }

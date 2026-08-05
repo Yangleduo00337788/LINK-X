@@ -114,6 +114,12 @@ const routes: RouteRecordRaw[] = [
         meta: { titleKey: 'route.riskPolicies', permission: 'admin:risk-policy:list' },
       },
       {
+        path: 'risk-rules',
+        name: 'RiskRules',
+        component: () => import('@/views/RiskRuleListView.vue'),
+        meta: { titleKey: 'route.riskRules', permission: 'admin:risk-rule:list' },
+      },
+      {
         path: 'rate-limits',
         name: 'RateLimits',
         component: () => import('@/views/RateLimitView.vue'),
@@ -145,6 +151,15 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        path: 'duty-schedules',
+        name: 'DutySchedules',
+        component: () => import('@/views/DutyScheduleListView.vue'),
+        meta: {
+          titleKey: 'route.dutySchedules',
+          permission: 'admin:duty-schedule:list',
+        },
+      },
+      {
         path: 'reviews',
         name: 'ReviewList',
         component: () => import('@/views/ReviewListView.vue'),
@@ -169,6 +184,18 @@ const routes: RouteRecordRaw[] = [
           permission: 'admin:review:list',
           announcementOnly: true,
         },
+      },
+      {
+        path: 'approval-flows',
+        name: 'ApprovalFlows',
+        component: () => import('@/views/ApprovalFlowListView.vue'),
+        meta: { titleKey: 'route.approvalFlows', permission: 'admin:approval-flow:list' },
+      },
+      {
+        path: 'approval-inbox',
+        name: 'ApprovalInbox',
+        component: () => import('@/views/ApprovalInboxView.vue'),
+        meta: { titleKey: 'route.approvalInbox', permission: 'admin:approval:inbox' },
       },
       {
         path: 'sensitive-words',
@@ -265,6 +292,18 @@ const routes: RouteRecordRaw[] = [
         name: 'Statistics',
         component: () => import('@/views/StatisticsView.vue'),
         meta: { titleKey: 'route.statistics', permission: 'admin:statistics:view' },
+      },
+      {
+        path: 'bi-analytics',
+        name: 'BiAnalytics',
+        component: () => import('@/views/BiAnalyticsView.vue'),
+        meta: { titleKey: 'route.biAnalytics', permission: 'admin:bi:view' },
+      },
+      {
+        path: 'big-screen',
+        name: 'BigScreen',
+        component: () => import('@/views/BigScreenView.vue'),
+        meta: { titleKey: 'route.bigScreen', permission: 'admin:big-screen:view' },
       },
       {
         path: 'versions',

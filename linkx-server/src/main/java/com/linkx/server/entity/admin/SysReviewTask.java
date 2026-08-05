@@ -56,6 +56,7 @@ public class SysReviewTask implements Serializable {
     private String status;
     private Long feedbackId;
     private Long assigneeId;
+    private Long approvalInstanceId;
     private Date escalatedAt;
     private Integer escalationCount;
     private String resolution;

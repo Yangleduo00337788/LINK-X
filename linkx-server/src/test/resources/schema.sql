@@ -344,11 +344,44 @@ CREATE TABLE IF NOT EXISTS sys_feedback_dispatch_rule (
   name VARCHAR(64) NOT NULL,
   feedback_type VARCHAR(32),
   keyword VARCHAR(128),
-  assignee_id BIGINT NOT NULL,
+  condition_json CLOB,
+  assignee_id BIGINT,
+  assignee_source VARCHAR(16) NOT NULL DEFAULT 'fixed',
+  duty_schedule_id BIGINT,
   priority INT NOT NULL DEFAULT 0,
+  action_type VARCHAR(32) NOT NULL DEFAULT 'assign',
+  action_config CLOB,
+  notify_roles VARCHAR(256),
+  notify_channels VARCHAR(64),
   enabled TINYINT NOT NULL DEFAULT 1,
   created_by BIGINT,
   updated_by BIGINT,
+  create_time DATETIME,
+  update_time DATETIME,
+  deleted TINYINT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS sys_duty_schedule (
+  id BIGINT NOT NULL PRIMARY KEY,
+  name VARCHAR(64) NOT NULL,
+  description VARCHAR(256),
+  timezone VARCHAR(64) NOT NULL DEFAULT 'Asia/Shanghai',
+  enabled TINYINT NOT NULL DEFAULT 1,
+  created_by BIGINT,
+  updated_by BIGINT,
+  create_time DATETIME,
+  update_time DATETIME,
+  deleted TINYINT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS sys_duty_schedule_slot (
+  id BIGINT NOT NULL PRIMARY KEY,
+  schedule_id BIGINT NOT NULL,
+  weekday TINYINT NOT NULL,
+  start_time TIME NOT NULL,
+  end_time TIME NOT NULL,
+  assignee_id BIGINT NOT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
   create_time DATETIME,
   update_time DATETIME,
   deleted TINYINT NOT NULL DEFAULT 0
@@ -915,6 +948,43 @@ CREATE TABLE IF NOT EXISTS sys_runtime_setting (
   update_time DATETIME
 );
 
+CREATE TABLE IF NOT EXISTS sys_risk_rule (
+  id BIGINT NOT NULL PRIMARY KEY,
+  name VARCHAR(64) NOT NULL,
+  scope VARCHAR(32) NOT NULL DEFAULT 'global',
+  keyword VARCHAR(128),
+  condition_json CLOB,
+  score_delta INT NOT NULL DEFAULT 0,
+  action_type VARCHAR(32) NOT NULL DEFAULT 'score_only',
+  action_config CLOB,
+  priority INT NOT NULL DEFAULT 0,
+  enabled TINYINT NOT NULL DEFAULT 1,
+  created_by BIGINT,
+  updated_by BIGINT,
+  create_time DATETIME,
+  update_time DATETIME,
+  deleted TINYINT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS sys_admin_statistic_snapshot (
+  id BIGINT NOT NULL PRIMARY KEY,
+  snapshot_date DATE NOT NULL,
+  metric_domain VARCHAR(32) NOT NULL DEFAULT 'statistic',
+  metric_key VARCHAR(64) NOT NULL,
+  dimension_key VARCHAR(64) NOT NULL DEFAULT 'all',
+  dimension_value VARCHAR(128),
+  metric_value BIGINT NOT NULL DEFAULT 0,
+  extra_json CLOB,
+  create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS sys_admin_dashboard_snapshot (
+  id BIGINT NOT NULL PRIMARY KEY,
+  snapshot_date DATE NOT NULL,
+  summary_json CLOB NOT NULL,
+  create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS sys_app_version (
   id BIGINT NOT NULL PRIMARY KEY,
   version VARCHAR(32) NOT NULL,
@@ -933,6 +1003,62 @@ CREATE TABLE IF NOT EXISTS sys_app_version (
   deleted TINYINT NOT NULL DEFAULT 0
 );
 
+-- 审批流（V75）
+CREATE TABLE IF NOT EXISTS sys_approval_flow (
+  id BIGINT NOT NULL PRIMARY KEY,
+  name VARCHAR(64) NOT NULL,
+  biz_type VARCHAR(32) NOT NULL DEFAULT 'review',
+  description VARCHAR(256),
+  steps_json CLOB NOT NULL,
+  enabled TINYINT NOT NULL DEFAULT 1,
+  auto_start TINYINT NOT NULL DEFAULT 0,
+  priority INT NOT NULL DEFAULT 0,
+  created_by BIGINT,
+  updated_by BIGINT,
+  create_time DATETIME,
+  update_time DATETIME,
+  deleted TINYINT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS sys_approval_instance (
+  id BIGINT NOT NULL PRIMARY KEY,
+  flow_id BIGINT NOT NULL,
+  flow_name VARCHAR(64) NOT NULL,
+  biz_type VARCHAR(32) NOT NULL,
+  biz_id VARCHAR(64) NOT NULL,
+  title VARCHAR(256) NOT NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'pending',
+  current_step INT NOT NULL DEFAULT 0,
+  applicant_id BIGINT,
+  applicant_name VARCHAR(64),
+  finished_at DATETIME,
+  create_time DATETIME,
+  update_time DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS sys_approval_record (
+  id BIGINT NOT NULL PRIMARY KEY,
+  instance_id BIGINT NOT NULL,
+  step_index INT NOT NULL,
+  step_name VARCHAR(64) NOT NULL,
+  node_type VARCHAR(16) NOT NULL,
+  assignee_id BIGINT NOT NULL,
+  assignee_name VARCHAR(64),
+  status VARCHAR(16) NOT NULL DEFAULT 'pending',
+  comment VARCHAR(512),
+  action_time DATETIME,
+  create_time DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS sys_approval_temp_grant (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  record_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  permission_code VARCHAR(64) NOT NULL,
+  granted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  revoked_at DATETIME
+);
+
 -- 内容审核任务（仪表盘 pendingReviews 依赖）
 CREATE TABLE IF NOT EXISTS sys_review_task (
   id BIGINT NOT NULL PRIMARY KEY,
@@ -947,6 +1073,7 @@ CREATE TABLE IF NOT EXISTS sys_review_task (
   status VARCHAR(16) NOT NULL DEFAULT 'pending',
   feedback_id BIGINT,
   assignee_id BIGINT,
+  approval_instance_id BIGINT,
   escalated_at DATETIME,
   escalation_count INT NOT NULL DEFAULT 0,
   resolution VARCHAR(1000),
@@ -1030,6 +1157,8 @@ INSERT IGNORE INTO sys_admin_menu
 (58, 0, 'security-center', '安全风控', '/admin/security', NULL, 'LockClosed', 'dir', NULL, 3, 0, 1, 0, 1, 1, 0),
 (20, 58, 'blacklist',   '黑名单管理','/admin/blacklist', 'views/BlacklistView',   'Ban',       'menu', 'admin:blacklist:list', 1, 0, 1, 0, 1, 1, 0),
 (22, 58, 'devices',     '设备管理', '/admin/devices',    'views/DeviceListView',  'Phone',     'menu', 'admin:device:list',    2, 0, 1, 0, 1, 1, 0),
+(71, 58, 'risk-policy', '风控策略', '/admin/risk-policies', 'views/RiskPolicyView', 'Options', 'menu', 'admin:risk-policy:list', 3, 0, 1, 0, 1, 1, 0),
+(72, 58, 'risk-rules',  '风控规则', '/admin/risk-rules', 'views/RiskRuleListView', 'Shield', 'menu', 'admin:risk-rule:list', 4, 0, 1, 0, 1, 1, 0),
 (3,  0, 'rbac',        '权限中心', '/admin/rbac',       NULL,                    'Shield',    'dir',  NULL,                   4, 0, 1, 0, 1, 1, 0),
 (4,  3, 'role',        '角色管理', '/admin/roles',      'views/RoleListView',    'Badge',     'menu', 'admin:role:list',      1, 0, 1, 0, 1, 1, 0),
 (5,  3, 'permission',  '权限管理', '/admin/permissions','views/PermissionListView','Key',     'menu', 'admin:permission:list',2, 0, 1, 0, 1, 1, 0),
@@ -1045,10 +1174,13 @@ INSERT IGNORE INTO sys_admin_menu
 (43, 13,'report-task', '用户举报', '/admin/reports',    'views/ReviewListView',  'Flag',      'menu', 'admin:review:list',    1, 0, 1, 0, 1, 1, 0),
 (14, 13,'review-task', '违规内容', '/admin/reviews',    'views/ReviewListView',  'Clipboard', 'menu', 'admin:review:list',    2, 0, 1, 0, 1, 1, 0),
 (44, 13,'announcement-review', '群公告审核', '/admin/announcement-reviews', 'views/ReviewListView', 'Megaphone', 'menu', 'admin:review:list', 3, 0, 1, 0, 1, 1, 0),
-(15, 13,'sensitive-word',  '敏感词管理', '/admin/sensitive-words', 'views/SensitiveWordListView', 'Funnel', 'menu', 'admin:sensitive-word:list', 4, 0, 1, 0, 1, 1, 0),
+(75, 13, 'approval-flows', '审批流程', '/admin/approval-flows', 'views/ApprovalFlowListView', 'GitBranch', 'menu', 'admin:approval-flow:list', 5, 0, 1, 0, 1, 1, 0),
+(76, 13, 'approval-inbox', '审批待办', '/admin/approval-inbox', 'views/ApprovalInboxView', 'CheckmarkDone', 'menu', 'admin:approval:inbox', 6, 0, 1, 0, 1, 1, 0),
+(15, 13,'sensitive-word',  '敏感词管理', '/admin/sensitive-words', 'views/SensitiveWordListView', 'Funnel', 'menu', 'admin:sensitive-word:list', 7, 0, 1, 0, 1, 1, 0),
 (10, 0, 'feedback-center','反馈中心', '/admin/feedback-hub', NULL,                    'Chatbox',   'dir',  NULL,                   7, 0, 1, 0, 1, 1, 0),
 (101,10,'feedback',    '反馈列表', '/admin/feedback',   'views/FeedbackListView','Chatbox',   'menu', 'admin:feedback:list',  1, 0, 1, 0, 1, 1, 0),
 (102,10,'feedback-dispatch-rules', '分流规则', '/admin/feedback-dispatch-rules', 'views/FeedbackDispatchRuleListView', 'GitNetwork', 'menu', 'admin:feedback-dispatch-rule:list', 2, 0, 1, 0, 1, 1, 0),
+(103, 10, 'duty-schedules', '值班表', '/admin/duty-schedules', 'views/DutyScheduleListView', 'Time', 'menu', 'admin:duty-schedule:list', 3, 0, 1, 0, 1, 1, 0),
 (55, 0, 'notice-center', '通知公告', '/admin/notice-hub', NULL, 'Mail', 'dir', NULL, 8, 0, 1, 0, 1, 1, 0),
 (17, 55,'notice-inbox', '通知中心', '/admin/notice-inbox', 'views/NoticeInboxView', 'Notifications', 'menu', 'admin:notice:inbox', 1, 0, 1, 0, 1, 1, 0),
 (16, 55,'notices',     '公告管理', '/admin/notices',    'views/NoticeView',      'Newspaper', 'menu', 'admin:notice:list',    2, 0, 1, 0, 1, 1, 0),
@@ -1066,25 +1198,27 @@ INSERT IGNORE INTO sys_admin_menu
 (11, 0, 'settings-center','系统配置', '/admin/settings-hub', NULL,                    'Settings',  'dir',  NULL,                   11, 0, 1, 0, 1, 1, 0),
 (111,11,'settings',    '配置中心', '/admin/settings',   'views/SettingView',     'Settings',  'menu', 'admin:setting:view',   1, 0, 1, 0, 1, 1, 0),
 (12, 11, 'versions',   '版本发布', '/admin/versions',   'views/VersionListView', 'Cube',      'menu', 'admin:version:list',   2, 0, 1, 0, 1, 1, 0),
-(18, 0, 'statistics',  '统计分析', '/admin/statistics', 'views/StatisticsView',  'Chart',     'menu', 'admin:statistics:view',12, 0, 1, 0, 1, 1, 0);
+(18, 0, 'statistics',  '统计分析', '/admin/statistics', 'views/StatisticsView',  'Chart',     'menu', 'admin:statistics:view',12, 0, 1, 0, 1, 1, 0),
+(73, 18, 'bi-analytics', '高级分析', '/admin/bi-analytics', 'views/BiAnalyticsView', 'Analytics', 'menu', 'admin:bi:view', 2, 0, 1, 0, 1, 1, 0),
+(74, 18, 'big-screen', '实时大屏', '/admin/big-screen', 'views/BigScreenView', 'Tv', 'menu', 'admin:big-screen:view', 3, 0, 0, 0, 0, 1, 0);
 
 INSERT IGNORE INTO sys_admin_role_menu (role_id, menu_id) VALUES
 -- admin 全量（测试用最小集）
 (1001, 1),(1001, 2),(1001, 3),(1001, 4),(1001, 5),(1001, 6),(1001, 7),(1001, 8),(1001, 9),(1001, 10),(1001, 11),(1001, 12),(1001, 111),
 (1001, 101),(1001, 102),
-(1001, 13),(1001, 14),(1001, 15),(1001, 16),(1001, 17),(1001, 18),(1001, 19),(1001, 20),(1001, 22),(1001, 23),
+(1001, 13),(1001, 14),(1001, 15),(1001, 16),(1001, 17),(1001, 18),(1001, 73),(1001, 74),(1001, 75),(1001, 76),(1001, 19),(1001, 20),(1001, 22),(1001, 23),
 (1001, 40),(1001, 41),(1001, 42),(1001, 43),(1001, 44),(1001, 45),(1001, 46),(1001, 49),(1001, 50),(1001, 51),(1001, 52),(1001, 53),(1001, 54),
 (1001, 55),(1001, 56),(1001, 58),(1001, 21),
 -- ops
-(1003, 1),(1003, 2),(1003, 10),(1003, 101),(1003, 102),(1003, 16),(1003, 17),(1003, 18),(1003, 40),(1003, 41),(1003, 46),(1003, 49),(1003, 50),(1003, 51),(1003, 52),(1003, 53),(1003, 54),
+(1003, 1),(1003, 2),(1003, 10),(1003, 101),(1003, 102),(1003, 103),(1003, 16),(1003, 17),(1003, 18),(1003, 73),(1003, 74),(1003, 40),(1003, 41),(1003, 46),(1003, 49),(1003, 50),(1003, 51),(1003, 52),(1003, 53),(1003, 54),
 (1003, 55),(1003, 56),(1003, 21),
 -- audit
 (1004, 1),(1004, 2),(1004, 7),(1004, 8),(1004, 9),(1004, 19),(1004, 45),
-(1004, 13),(1004, 14),(1004, 15),(1004, 43),(1004, 44),(1004, 20),(1004, 22),(1004, 58),
+(1004, 13),(1004, 14),(1004, 15),(1004, 43),(1004, 44),(1004, 75),(1004, 76),(1004, 20),(1004, 22),(1004, 58),
 -- security
-(1005, 1),(1005, 2),(1005, 7),(1005, 8),(1005, 9),(1005, 19),(1005, 20),(1005, 22),(1005, 42),(1005, 45),(1005, 58),
+(1005, 1),(1005, 2),(1005, 7),(1005, 8),(1005, 9),(1005, 19),(1005, 20),(1005, 22),(1005, 42),(1005, 45),(1005, 58),(1005, 71),(1005, 72),(1005, 73),(1005, 74),
 -- readonly
-(1006, 1),(1006, 2),(1006, 7),(1006, 8),(1006, 9),(1006, 19),(1006, 10),(1006, 13),(1006, 14),(1006, 18),(1006, 22);
+(1006, 1),(1006, 2),(1006, 7),(1006, 8),(1006, 9),(1006, 19),(1006, 18),(1006, 22);
 
 INSERT IGNORE INTO sys_permission (id, permission_code, permission_name, resource_type, resource_path, description, status) VALUES
 (2101,'admin:dashboard:view','查看工作台','page','/admin/dashboard','工作台',1),
@@ -1111,6 +1245,22 @@ INSERT IGNORE INTO sys_permission (id, permission_code, permission_name, resourc
 (2221,'admin:abnormal-access:export','导出异常访问','button',NULL,'异常访问记录导出',1),
 (2222,'admin:homepage:list','查看首页编排','page','/admin/homepage-orchestration','首页运营编排',1),
 (2223,'admin:homepage:edit','编辑首页编排','button',NULL,'调整区块排序与启用',1),
+(2224,'admin:scheduled-task:list','查看定时任务','page','/admin/scheduled-tasks','定时任务列表',1),
+(2225,'admin:feedback-dispatch-rule:simulate','规则模拟','button',NULL,'反馈分流规则模拟',1),
+(2227,'admin:scheduled-task:console','打开 SnailJob 控制台','button',NULL,'跳转调度中心进行 cron/启停等写操作',1),
+(2240,'admin:risk-policy:list','查看风控策略','page','/admin/risk-policies','风控策略可视化',1),
+(2241,'admin:risk-policy:edit','编辑风控策略','button',NULL,'更新阈值与命中模拟',1),
+(2250,'admin:risk-rule:list','查看风控规则','page','/admin/risk-rules','风控自定义规则',1),
+(2251,'admin:risk-rule:view','查看风控规则详情','button',NULL,'规则详情',1),
+(2252,'admin:risk-rule:create','新增风控规则','button',NULL,'新增规则',1),
+(2253,'admin:risk-rule:edit','编辑风控规则','button',NULL,'编辑规则',1),
+(2254,'admin:risk-rule:delete','删除风控规则','button',NULL,'删除规则',1),
+(2255,'admin:risk-rule:simulate','风控规则模拟','button',NULL,'单条规则模拟',1),
+(2280,'admin:duty-schedule:list','查看值班表','page','/admin/duty-schedules','反馈值班表',1),
+(2281,'admin:duty-schedule:view','查看值班表详情','button',NULL,'值班表详情',1),
+(2282,'admin:duty-schedule:create','新增值班表','button',NULL,'新增值班表',1),
+(2283,'admin:duty-schedule:edit','编辑值班表','button',NULL,'编辑值班表',1),
+(2284,'admin:duty-schedule:delete','删除值班表','button',NULL,'删除值班表',1),
 (2136,'admin:notice:list','查看公告列表','page','/admin/notices','公告管理',1),
 (2138,'admin:notice:create','新增公告','button',NULL,'新增公告',1),
 (2144,'admin:statistics:view','查看统计分析','page','/admin/statistics','统计中心',1),
@@ -1153,13 +1303,25 @@ INSERT IGNORE INTO sys_permission (id, permission_code, permission_name, resourc
 (2111,'admin:role:list','查看角色列表','page','/admin/roles','角色管理',1),
 (2112,'admin:role:create','新增角色','button',NULL,'新增角色',1),
 (2115,'admin:role:assign-menu','角色分配菜单','button',NULL,'菜单授权',1),
-(2228,'admin:system-monitor:view','查看系统监控','page','/admin/system-monitor','运行状态、依赖健康、数据库表体量',1);
+(2228,'admin:system-monitor:view','查看系统监控','page','/admin/system-monitor','运行状态、依赖健康、数据库表体量',1),
+(2260,'admin:bi:view','高级 BI 分析','page','/admin/bi-analytics','自定义维度/对比/下钻',1),
+(2261,'admin:big-screen:view','实时大屏','page','/admin/big-screen','WebSocket/SSE 大屏',1),
+(2270,'admin:approval-flow:list','查看审批流程','page','/admin/approval-flows','审批流程定义',1),
+(2271,'admin:approval-flow:create','新增审批流程','button',NULL,'新增流程',1),
+(2272,'admin:approval-flow:edit','编辑审批流程','button',NULL,'编辑流程',1),
+(2273,'admin:approval-flow:delete','删除审批流程','button',NULL,'删除流程',1),
+(2274,'admin:approval:inbox','审批待办','page','/admin/approval-inbox','我的审批待办',1),
+(2275,'admin:approval:action','审批处理','button',NULL,'通过/驳回',1),
+(2276,'admin:approval:start','发起审批','button',NULL,'手动发起审批',1);
 
 -- admin: 角色权限管理（测试）
 INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, deleted) VALUES
 (291111, 1001, 2111, NULL, 0),(291112, 1001, 2112, NULL, 0),(291115, 1001, 2115, NULL, 0),
 (291204, 1001, 2204, NULL, 0),(291101, 1001, 2101, NULL, 0),
-(291205, 1001, 2205, NULL, 0),(291206, 1001, 2206, NULL, 0),(291207, 1001, 2207, NULL, 0);
+(291205, 1001, 2205, NULL, 0),(291206, 1001, 2206, NULL, 0),(291207, 1001, 2207, NULL, 0),
+(291260, 1001, 2260, NULL, 0),(291261, 1001, 2261, NULL, 0),
+(291270, 1001, 2270, NULL, 0),(291271, 1001, 2271, NULL, 0),(291272, 1001, 2272, NULL, 0),(291273, 1001, 2273, NULL, 0),
+(291274, 1001, 2274, NULL, 0),(291275, 1001, 2275, NULL, 0),(291276, 1001, 2276, NULL, 0);
 
 -- ops: 查看 + 反馈/公告/统计 + 用户导出 + 推荐位/活动
 INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, deleted) VALUES
@@ -1177,7 +1339,11 @@ INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, d
 (293197, 1003, 2197, NULL, 0),(293198, 1003, 2198, NULL, 0),(293199, 1003, 2199, NULL, 0),
 (293200, 1003, 2200, NULL, 0),(293201, 1003, 2201, NULL, 0),(293202, 1003, 2202, NULL, 0),
 (293203, 1003, 2203, NULL, 0),
-(293228, 1003, 2228, NULL, 0);
+(293228, 1003, 2228, NULL, 0),
+(293224, 1003, 2224, NULL, 0),(293225, 1003, 2225, NULL, 0),
+(293260, 1003, 2260, NULL, 0),
+(293280, 1003, 2280, NULL, 0),(293281, 1003, 2281, NULL, 0),(293282, 1003, 2282, NULL, 0),
+(293283, 1003, 2283, NULL, 0),(293284, 1003, 2284, NULL, 0);
 
 -- audit: 用户处置 + 审核 + 风险 + 黑名单 + 设备 + 日志 + 导出
 INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, deleted) VALUES
@@ -1187,7 +1353,9 @@ INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, d
 (294220, 1004, 2220, NULL, 0),(294221, 1004, 2221, NULL, 0),
 (294146, 1004, 2146, NULL, 0),(294148, 1004, 2148, NULL, 0),(294156, 1004, 2156, NULL, 0),
 (294149, 1004, 2149, NULL, 0),(294171, 1004, 2171, NULL, 0),(294172, 1004, 2172, NULL, 0),
-(294176, 1004, 2176, NULL, 0),(294177, 1004, 2177, NULL, 0);
+(294182, 1004, 2182, NULL, 0),(294183, 1004, 2183, NULL, 0),
+(294176, 1004, 2176, NULL, 0),(294177, 1004, 2177, NULL, 0),
+(294270, 1004, 2270, NULL, 0),(294274, 1004, 2274, NULL, 0),(294275, 1004, 2275, NULL, 0),(294276, 1004, 2276, NULL, 0);
 
 -- security: 日志/风险/黑名单/设备/用户处置 + 导出
 INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, deleted) VALUES
@@ -1199,13 +1367,17 @@ INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, d
 (295182, 1005, 2182, NULL, 0),(295183, 1005, 2183, NULL, 0),
 (295184, 1005, 2184, NULL, 0),(295185, 1005, 2185, NULL, 0),
 (295205, 1005, 2205, NULL, 0),(295206, 1005, 2206, NULL, 0),(295207, 1005, 2207, NULL, 0),
-(295220, 1005, 2220, NULL, 0),(295221, 1005, 2221, NULL, 0);
+(295220, 1005, 2220, NULL, 0),(295221, 1005, 2221, NULL, 0),
+(295240, 1005, 2240, NULL, 0),(295241, 1005, 2241, NULL, 0),
+(295250, 1005, 2250, NULL, 0),(295251, 1005, 2251, NULL, 0),(295252, 1005, 2252, NULL, 0),
+(295253, 1005, 2253, NULL, 0),(295254, 1005, 2254, NULL, 0),(295255, 1005, 2255, NULL, 0),
+(295260, 1005, 2260, NULL, 0),(295261, 1005, 2261, NULL, 0);
 
 -- readonly: 查看 + 导出（无写）
 INSERT IGNORE INTO sys_role_permission (id, role_id, permission_id, create_by, deleted) VALUES
 (296101, 1006, 2101, NULL, 0),(296102, 1006, 2102, NULL, 0),(296103, 1006, 2103, NULL, 0),
 (296153, 1006, 2153, NULL, 0),
-(296121, 1006, 2121, NULL, 0),(296123, 1006, 2123, NULL, 0),(296129, 1006, 2129, NULL, 0),
+(296121, 1006, 2121, NULL, 0),
 (296144, 1006, 2144, NULL, 0),(296146, 1006, 2146, NULL, 0),(296171, 1006, 2171, NULL, 0),
 (296176, 1006, 2176, NULL, 0);
 

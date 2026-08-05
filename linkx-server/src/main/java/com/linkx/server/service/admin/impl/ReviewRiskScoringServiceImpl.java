@@ -7,6 +7,9 @@ import com.linkx.server.entity.admin.SysReviewTask;
 import com.linkx.server.entity.admin.SysRiskEvent;
 import com.linkx.server.mapper.admin.SysRiskEventMapper;
 import com.linkx.server.service.admin.ReviewRiskScoringService;
+import com.linkx.server.service.admin.rule.RiskRuleContext;
+import com.linkx.server.service.admin.rule.RiskRuleEngine;
+import com.linkx.server.service.admin.rule.RiskRuleEvaluationResult;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -25,6 +28,7 @@ public class ReviewRiskScoringServiceImpl implements ReviewRiskScoringService {
 
     private final SysRiskEventMapper riskEventMapper;
     private final LinkxProperties linkxProperties;
+    private final RiskRuleEngine riskRuleEngine;
 
     @Override
     public AdminReviewRiskContextVO buildContext(SysReviewTask task) {
@@ -50,6 +54,21 @@ public class ReviewRiskScoringServiceImpl implements ReviewRiskScoringService {
             score = Math.min(100, score + 10);
             factors.add("已督办任务 +10");
         }
+
+        RiskRuleContext ruleContext = RiskRuleContext.builder()
+                .scope("review")
+                .text(task.getContentSnapshot())
+                .subjectUserId(subjectUserId)
+                .historyScore(historyScore)
+                .taskRiskLevel(task.getRiskLevel())
+                .escalationCount(task.getEscalationCount())
+                .build();
+        RiskRuleEvaluationResult ruleResult = riskRuleEngine.evaluate(ruleContext);
+        if (ruleResult.getScoreDelta() > 0) {
+            score = Math.min(100, score + ruleResult.getScoreDelta());
+        }
+        factors.addAll(ruleResult.getFactors());
+
         String computedLevel = scoreToLevel(score);
         String stored = normalizeLevel(task.getRiskLevel());
         if (levelRank(computedLevel) < levelRank(stored)) {

@@ -40,7 +40,10 @@ public final class SnailJobJobCatalog {
                         5, 60),
                 fixed("sensitive_word_refresh", "敏感词库刷新",
                         "从数据库重新加载敏感词 DFA",
-                        300, 300)
+                        300, 300),
+                cron("statistic_snapshot_daily", "统计快照",
+                        "写入昨日统计指标与工作台摘要快照",
+                        "0 5 0 * * ?", 1800)
         );
     }
 

@@ -6,8 +6,16 @@ export interface FeedbackDispatchRuleItem {
   name: string
   feedbackType?: string
   keyword?: string
+  conditionJson?: string
   assigneeId?: string
   assigneeName?: string
+  assigneeSource?: string
+  dutyScheduleId?: string
+  dutyScheduleName?: string
+  actionType?: string
+  actionConfig?: string
+  notifyRoles?: string
+  notifyChannels?: string
   priority?: number
   enabled?: boolean
   createTime?: string
@@ -18,9 +26,36 @@ export interface FeedbackDispatchRulePayload {
   name: string
   feedbackType?: string
   keyword?: string
-  assigneeId: string
+  conditionJson?: string
+  assigneeId?: string
+  assigneeSource?: string
+  dutyScheduleId?: string
+  actionType?: string
+  actionConfig?: string
+  notifyRoles?: string
+  notifyChannels?: string
   priority?: number
   enabled?: boolean
+}
+
+export interface FeedbackDispatchSimulatePayload {
+  type?: string
+  content?: string
+  status?: string
+  hasAssignee?: boolean
+  createOffsetHours?: number
+}
+
+export interface FeedbackDispatchSimulateResult {
+  matched: boolean
+  ruleId?: string
+  ruleName?: string
+  assigneeId?: string
+  assigneeName?: string
+  actionType?: string
+  assigneeSource?: string
+  notifyRoles?: string
+  notifyChannels?: string
 }
 
 export function listFeedbackDispatchRules(params: PageQuery) {
@@ -40,4 +75,8 @@ export function updateFeedbackDispatchRule(id: string, body: FeedbackDispatchRul
 
 export function deleteFeedbackDispatchRule(id: string) {
   return del<null>(`/admin/feedback-dispatch-rules/${id}`)
+}
+
+export function simulateFeedbackDispatchRule(body: FeedbackDispatchSimulatePayload) {
+  return post<FeedbackDispatchSimulateResult>('/admin/feedback-dispatch-rules/simulate', body)
 }

@@ -5,6 +5,7 @@ import com.linkx.server.entity.SysAuditLog;
 import com.linkx.server.entity.admin.SysReviewTask;
 import com.linkx.server.mapper.admin.SysReviewTaskMapper;
 import com.linkx.server.service.AuditLogService;
+import com.linkx.server.service.admin.AdminAudienceService;
 import com.linkx.server.service.admin.AdminEventPublisher;
 import com.linkx.server.service.admin.ReviewEscalationService;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -29,6 +30,7 @@ public class ReviewEscalationServiceImpl implements ReviewEscalationService {
     private final SysReviewTaskMapper reviewTaskMapper;
     private final LinkxProperties linkxProperties;
     private final AdminEventPublisher adminEventPublisher;
+    private final AdminAudienceService adminAudienceService;
     private final AuditLogService auditLogService;
 
     @Override
@@ -76,7 +78,11 @@ public class ReviewEscalationServiceImpl implements ReviewEscalationService {
                 task.getSourceType() == null ? "" : task.getSourceType(),
                 task.getTargetType() == null ? "" : task.getTargetType(),
                 nextCount);
-        adminEventPublisher.publish("review_escalated", task.getId(), extraJson);
+        adminEventPublisher.publishToUsers(
+                "review_escalated",
+                task.getId(),
+                adminAudienceService.reviewOperatorUserIds(),
+                extraJson);
 
         auditLogService.logWithExtra(
                 SysAuditLog.OperationType.REVIEW_ESCALATE,

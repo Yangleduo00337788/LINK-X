@@ -29,6 +29,8 @@ import com.linkx.server.service.MessageNotificationService;
 import com.linkx.server.service.MomentsService;
 import com.linkx.server.service.RbacService;
 import com.linkx.server.service.admin.ReviewRiskScoringService;
+import com.linkx.server.service.admin.AdminAudienceService;
+import com.linkx.server.service.admin.AdminEventPublisher;
 import com.linkx.server.service.admin.impl.AdminReviewServiceImpl;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -57,6 +59,7 @@ class AdminReviewServiceTest {
     @Mock MessageNotificationService notificationService;
     @Mock ImMessagePushService imPushService;
     @Mock AdminEventPublisher adminEventPublisher;
+    @Mock AdminAudienceService adminAudienceService;
     @Mock MediaUrlService mediaUrlService;
     @Mock AdminUserService adminUserService;
     @Mock RbacService rbacService;
@@ -71,6 +74,8 @@ class AdminReviewServiceTest {
     @Mock FavoriteMapper favoriteMapper;
     @Mock LinkxProperties linkxProperties;
     @Mock ReviewRiskScoringService reviewRiskScoringService;
+    @Mock com.linkx.server.service.admin.approval.ApprovalFlowEngine approvalFlowEngine;
+    @Mock com.linkx.server.mapper.admin.SysApprovalInstanceMapper approvalInstanceMapper;
 
     private AdminReviewServiceImpl service;
 
@@ -81,10 +86,10 @@ class AdminReviewServiceTest {
                 inv.getArgument(0, String.class));
         service = new AdminReviewServiceImpl(
                 reviewTaskMapper, feedbackMapper, sysUserMapper, notificationService, imPushService,
-                adminEventPublisher, mediaUrlService, adminUserService, rbacService, chatService,
+                adminEventPublisher, adminAudienceService, mediaUrlService, adminUserService, rbacService, chatService,
                 momentsService, groupAnnouncementService, groupAssetService, favoriteService,
                 groupService, conversationMapper, groupAssetMapper, favoriteMapper, linkxProperties,
-                reviewRiskScoringService);
+                reviewRiskScoringService, approvalFlowEngine, approvalInstanceMapper);
     }
 
     private SysReviewTask pending(Long id) {
@@ -225,8 +230,9 @@ class AdminReviewServiceTest {
             ((SysReviewTask) inv.getArgument(0)).setId(100L);
             return 1;
         });
+        when(adminAudienceService.reviewOperatorUserIds()).thenReturn(List.of(1L));
         service.createFromReportFeedback(fb);
-        verify(adminEventPublisher).publish(eq("review_created"), eq(100L));
+        verify(adminEventPublisher).publishToUsers(eq("review_created"), eq(100L), eq(List.of(1L)));
 
         when(sysUserMapper.selectOneById(9L)).thenReturn(
                 SysUser.builder().id(9L).username("alice").nickname("A").build());

@@ -102,6 +102,8 @@ const FIXTURES: Record<
       'admin:device:list',
       'admin:blacklist:list',
       'admin:abnormal-access:list',
+      'admin:device:ban',
+      'admin:device:unban',
     ],
   },
   security_admin: {
@@ -120,6 +122,7 @@ const FIXTURES: Record<
       { name: 'blacklist' },
       { name: 'devices' },
       { name: 'abnormal-access' },
+      { name: 'risk-policy' },
     ],
     permissions: [
       'admin:dashboard:view',
@@ -134,6 +137,8 @@ const FIXTURES: Record<
       'admin:rate-limit:unblock',
       'admin:rate-limit:whitelist',
       'admin:abnormal-access:list',
+      'admin:risk-policy:list',
+      'admin:risk-policy:edit',
       'admin:audit:list',
       'admin:login-log:list',
     ],
@@ -145,10 +150,6 @@ const FIXTURES: Record<
       {
         name: 'log',
         children: [{ name: 'audit-log' }, { name: 'login-log' }, { name: 'risk-event' }],
-      },
-      {
-        name: 'review',
-        children: [{ name: 'review-task' }, { name: 'sensitive-word' }],
       },
       { name: 'devices' },
       { name: 'statistics' },
@@ -163,7 +164,6 @@ const FIXTURES: Record<
       'admin:audit:list',
       'admin:login-log:list',
       'admin:risk-event:list',
-      'admin:review:list',
     ],
   },
 }
