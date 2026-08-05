@@ -349,7 +349,9 @@ router.beforeEach(async (to) => {
   auth.syncTokensFromStorage()
 
   if (to.meta.public) {
-    if (to.path === '/login' && auth.isLoggedIn) return '/admin/dashboard'
+    if (to.path === '/login' && auth.isLoggedIn && auth.user && auth.menus.length > 0) {
+      return '/admin/dashboard'
+    }
     return true
   }
 

@@ -1,9 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import * as authApi from '@/api/auth'
-import { clearTokens, getAccessToken, getRefreshToken } from '@/api/request'
+import { clearTokens, getAccessToken, getRefreshToken, setTokens, ensureApiSignKey } from '@/api/request'
 import type { AdminLoginResult, AdminMenuTree, AdminUserProfile } from '@/types/api'
 import { tGlobal } from '@/i18n'
+import { useSecurityStore } from '@/stores/security'
 
 export const useAuthStore = defineStore(
   'auth',
@@ -31,10 +32,13 @@ export const useAuthStore = defineStore(
       if (!data.accessToken || !data.refreshToken || !data.user) {
         throw new Error('incomplete login result')
       }
+      setTokens(data.accessToken, data.refreshToken)
       accessToken.value = data.accessToken
       refreshToken.value = data.refreshToken
       user.value = data.user
       permissions.value = [...(data.user.permissions || [])]
+      const security = useSecurityStore()
+      security.setApiSignKey(data.apiSignKey)
       await fetchMenusAndPermissions()
     }
 
@@ -45,8 +49,6 @@ export const useAuthStore = defineStore(
         return data
       }
       if (data.accessToken && data.refreshToken) {
-        const { setTokens } = await import('@/api/request')
-        setTokens(data.accessToken, data.refreshToken)
         await applyLoginResult(data)
       }
       return data
@@ -66,6 +68,7 @@ export const useAuthStore = defineStore(
 
     async function fetchProfile() {
       if (!getAccessToken()) return
+      await ensureApiSignKey()
       const me = await authApi.fetchMe()
       user.value = me
       permissions.value = [...(me.permissions || [])]
@@ -84,11 +87,13 @@ export const useAuthStore = defineStore(
     }
 
     async function logout() {
+      const security = useSecurityStore()
       try {
         await authApi.logout(refreshToken.value || undefined)
       } catch {
         clearTokens()
       }
+      security.resetSession()
       accessToken.value = ''
       refreshToken.value = ''
       user.value = null

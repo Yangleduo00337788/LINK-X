@@ -48,6 +48,8 @@ export interface AdminLoginResult {
   loginIp?: string
   /** 相对近期成功登录是否为新 IP */
   newLoginIp?: boolean
+  /** HMAC 请求签名密钥（hex），登录/刷新时下发 */
+  apiSignKey?: string
 }
 
 export interface AdminTotpSetup {
@@ -104,6 +106,9 @@ export interface AuthConfigVO {
   registerEnabled?: boolean
   forgotPasswordEmailEnabled?: boolean
   totpRequired?: boolean
+  apiSignEnabled?: boolean
+  apiEncryptEnabled?: boolean
+  disableFrontendDebug?: boolean
   passwordPolicy?: PasswordPolicyVO
 }
 

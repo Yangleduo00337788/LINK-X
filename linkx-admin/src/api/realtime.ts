@@ -1,4 +1,8 @@
-import { getAccessToken } from './request'
+import { getAccessToken, ensureApiSignKey } from './request'
+import { useSecurityStore } from '@/stores/security'
+import { buildApiSignHeaders } from '@/utils/apiSign'
+import { buildEncryptedQueryHeader } from '@/utils/apiEncrypt'
+import { getDeviceHeaders } from '@/utils/deviceId'
 
 export type AdminRealtimeEvent = {
   type?: string
@@ -9,6 +13,8 @@ export type AdminRealtimeEvent = {
 }
 
 type Handler = (event: AdminRealtimeEvent) => void
+
+const STREAM_PATH = '/admin/events/stream'
 
 let abort: AbortController | null = null
 const handlers = new Set<Handler>()
@@ -35,6 +41,34 @@ function dispatch(event: AdminRealtimeEvent) {
   })
 }
 
+async function buildStreamHeaders(token: string): Promise<Record<string, string>> {
+  await ensureApiSignKey()
+  const headers: Record<string, string> = {
+    Accept: 'text/event-stream',
+    Authorization: `Bearer ${token}`,
+    ...getDeviceHeaders(),
+  }
+  const security = useSecurityStore()
+  if (security.apiSignEnabled && security.apiSignKey) {
+    let querySignMaterial = ''
+    if (security.apiEncryptEnabled) {
+      const encryptedQuery = await buildEncryptedQueryHeader(security.apiSignKey, {})
+      headers['X-LinkX-Content-Encrypted'] = '1'
+      headers['X-LinkX-Encrypted-Query'] = encryptedQuery
+      querySignMaterial = encryptedQuery
+    }
+    const signHeaders = await buildApiSignHeaders(
+      security.apiSignKey,
+      'GET',
+      STREAM_PATH,
+      '',
+      querySignMaterial
+    )
+    Object.assign(headers, signHeaders)
+  }
+  return headers
+}
+
 async function connectLoop() {
   while (abort && !abort.signal.aborted) {
     const token = getAccessToken()
@@ -43,12 +77,10 @@ async function connectLoop() {
       continue
     }
     try {
-      const res = await fetch(`${apiBase()}/admin/events/stream`, {
+      const headers = await buildStreamHeaders(token)
+      const res = await fetch(`${apiBase()}${STREAM_PATH}`, {
         method: 'GET',
-        headers: {
-          Accept: 'text/event-stream',
-          Authorization: `Bearer ${token}`,
-        },
+        headers,
         signal: abort.signal,
       })
       if (!res.ok || !res.body) {
@@ -79,7 +111,6 @@ async function connectLoop() {
       }
     } catch {
       if (abort?.signal.aborted) return
-      // network / abort
     }
     await sleep(2000)
   }

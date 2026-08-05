@@ -5,6 +5,7 @@ import App from './App.vue'
 import router from './router'
 import i18n from './i18n'
 import { usePreferencesStore } from './stores/preferences'
+import { bootstrapSecurity } from './security/bootstrap'
 import './style.css'
 import './styles/motion.css'
 
@@ -18,4 +19,6 @@ app.use(router)
 const prefs = usePreferencesStore(pinia)
 prefs.hydrate()
 
-app.mount('#app')
+void bootstrapSecurity().finally(() => {
+  app.mount('#app')
+})
