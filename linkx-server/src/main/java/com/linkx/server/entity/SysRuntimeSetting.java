@@ -87,6 +87,12 @@ public class SysRuntimeSetting implements Serializable {
     private Boolean reviewEscalationEnabled;
     /** 同一审核任务重复督办间隔（小时） */
     private Integer reviewEscalationIntervalHours;
+    /** 是否启用管理端 API 请求/响应体加密 */
+    private Boolean apiEncryptEnabled;
+    /** 是否禁止管理端前端调试 */
+    private Boolean disableFrontendDebug;
+    /** 是否启用 API 请求签名 */
+    private Boolean apiSignEnabled;
 
     /** 用户消息风暴阈值 */
     private Integer riskStormUserThreshold;

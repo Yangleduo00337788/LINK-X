@@ -197,6 +197,18 @@ public class LinkxProperties {
     public static class Security {
         /** 生产环境可开启 HTTPS 强制（本地开发保持 false） */
         private boolean requireHttps = false;
+        /** 是否启用管理端 API HMAC 请求签名（轻量，默认开启） */
+        private boolean apiSignEnabled = true;
+        /** 是否启用管理端 API 请求/响应体 AES 加密（依赖签名密钥，默认关闭） */
+        private boolean apiEncryptEnabled = false;
+        /** 签名时间戳允许偏差（秒） */
+        private int apiSignTtlSeconds = 120;
+        /** 是否禁止管理端打开开发者工具 */
+        private boolean disableFrontendDebug = false;
+
+        public void setApiSignTtlSeconds(int apiSignTtlSeconds) {
+            this.apiSignTtlSeconds = Math.max(30, Math.min(600, apiSignTtlSeconds));
+        }
     }
 
     /**
