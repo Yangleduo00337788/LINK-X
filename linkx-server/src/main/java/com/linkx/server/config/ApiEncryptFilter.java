@@ -4,9 +4,11 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.Result;
+import com.linkx.server.common.TokenCookieUtil;
 import com.linkx.server.common.TokenType;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.util.AdminApiSecurityPaths;
+import com.linkx.server.util.AdminBearerTokenResolver;
 import com.linkx.server.util.ApiEncryptUtils;
 import com.linkx.server.util.ApiQueryUtils;
 import com.linkx.server.util.ApiSignUtils;
@@ -39,6 +41,7 @@ public class ApiEncryptFilter extends OncePerRequestFilter {
     private final LinkxProperties linkxProperties;
     private final ObjectMapper objectMapper;
     private final JwtUtils jwtUtils;
+    private final TokenCookieUtil tokenCookieUtil;
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -60,7 +63,7 @@ public class ApiEncryptFilter extends OncePerRequestFilter {
             HttpServletRequest request,
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
-        String token = readBearerToken(request);
+        String token = AdminBearerTokenResolver.resolve(request, tokenCookieUtil);
         if (!StringUtils.hasText(token)) {
             filterChain.doFilter(request, response);
             return;
@@ -160,14 +163,6 @@ public class ApiEncryptFilter extends OncePerRequestFilter {
             return new byte[0];
         }
         return StreamUtils.copyToByteArray(request.getInputStream());
-    }
-
-    private static String readBearerToken(HttpServletRequest request) {
-        String auth = request.getHeader("Authorization");
-        if (StringUtils.hasText(auth) && auth.startsWith("Bearer ")) {
-            return auth.substring(7).trim();
-        }
-        return null;
     }
 
     private void writeJsonError(HttpServletResponse response, int code, String message) throws IOException {

@@ -1,21 +1,21 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import * as authApi from '@/api/auth'
-import { clearTokens, getAccessToken, getRefreshToken, setTokens, ensureApiSignKey } from '@/api/request'
+import { clearTokens, ensureApiSignKey } from '@/api/request'
 import type { AdminLoginResult, AdminMenuTree, AdminUserProfile } from '@/types/api'
 import { tGlobal } from '@/i18n'
 import { useSecurityStore } from '@/stores/security'
+import { isSessionActive, setSessionActive } from '@/utils/sessionState'
 
 export const useAuthStore = defineStore(
   'auth',
   () => {
-    const accessToken = ref(getAccessToken() || '')
-    const refreshToken = ref(getRefreshToken() || '')
     const user = ref<AdminUserProfile | null>(null)
     const menus = ref<AdminMenuTree[]>([])
     const permissions = ref<string[]>([])
 
-    const isLoggedIn = computed(() => !!accessToken.value)
+    const isLoggedIn = computed(() => isSessionActive())
+
     const displayName = computed(
       () => user.value?.nickname || user.value?.username || tGlobal('common.admin')
     )
@@ -29,12 +29,10 @@ export const useAuthStore = defineStore(
     }
 
     async function applyLoginResult(data: AdminLoginResult) {
-      if (!data.accessToken || !data.refreshToken || !data.user) {
+      if (!data.user) {
         throw new Error('incomplete login result')
       }
-      setTokens(data.accessToken, data.refreshToken)
-      accessToken.value = data.accessToken
-      refreshToken.value = data.refreshToken
+      setSessionActive(true)
       user.value = data.user
       permissions.value = [...(data.user.permissions || [])]
       const security = useSecurityStore()
@@ -48,7 +46,7 @@ export const useAuthStore = defineStore(
       if (data.requiresTotp || data.requiresTotpSetup) {
         return data
       }
-      if (data.accessToken && data.refreshToken) {
+      if (data.user) {
         await applyLoginResult(data)
       }
       return data
@@ -67,14 +65,29 @@ export const useAuthStore = defineStore(
     }
 
     async function fetchProfile() {
-      if (!getAccessToken()) return
       await ensureApiSignKey()
       const me = await authApi.fetchMe()
       user.value = me
       permissions.value = [...(me.permissions || [])]
-      accessToken.value = getAccessToken() || ''
-      refreshToken.value = getRefreshToken() || ''
+      setSessionActive(true)
       await fetchMenusAndPermissions()
+    }
+
+    /** 页面刷新后凭 HttpOnly Cookie 恢复会话 */
+    async function restoreSession(): Promise<boolean> {
+      if (isSessionActive() && user.value) {
+        return true
+      }
+      try {
+        await fetchProfile()
+        return true
+      } catch {
+        setSessionActive(false)
+        user.value = null
+        menus.value = []
+        permissions.value = []
+        return false
+      }
     }
 
     async function fetchMenusAndPermissions() {
@@ -89,26 +102,25 @@ export const useAuthStore = defineStore(
     async function logout() {
       const security = useSecurityStore()
       try {
-        await authApi.logout(refreshToken.value || undefined)
+        await authApi.logout()
       } catch {
         clearTokens()
       }
       security.resetSession()
-      accessToken.value = ''
-      refreshToken.value = ''
+      setSessionActive(false)
       user.value = null
       menus.value = []
       permissions.value = []
     }
 
-    function syncTokensFromStorage() {
-      accessToken.value = getAccessToken() || ''
-      refreshToken.value = getRefreshToken() || ''
+    function resetLocalSession() {
+      clearTokens()
+      user.value = null
+      menus.value = []
+      permissions.value = []
     }
 
     return {
-      accessToken,
-      refreshToken,
       user,
       menus,
       permissions,
@@ -120,8 +132,9 @@ export const useAuthStore = defineStore(
       completeTotpSetup,
       logout,
       fetchProfile,
+      restoreSession,
       fetchMenusAndPermissions,
-      syncTokensFromStorage,
+      resetLocalSession,
     }
   },
   {

@@ -6,7 +6,8 @@
 #   .env.local  ← SPRING_PROFILES_ACTIVE=local
 #   .env.prod   ← SPRING_PROFILES_ACTIVE=prod
 # 或操作系统/容器环境变量（优先级高于 .env 文件）。
-# 写法说明：只用 ${NAME}，不用 ${NAME:默认值}，避免和 env 两套值混淆。
+# 写法说明：敏感项只用 ${NAME}，由 .env.* 注入。
+# 以下带 :默认 的占位符仅为非敏感行为开关/策略回退（如 ADMIN_TOTP_REQUIRED:false）。
 # 测试：src/test/resources/application-test.yml
 # 改 env 或本文件后需重启后端
 # =============================================================================
@@ -226,25 +227,35 @@ linkx:
     xdb-path: ${IP_GEO_XDB_PATH:}
 
   snail-job:
-    # SnailJob 控制台地址（管理端只读页跳转）
-    admin-console-url: ${SNAIL_JOB_ADMIN_URL:http://127.0.0.1:18080}
-    # 启动时通过 OpenAPI 注册内置任务（已存在则跳过）
-    sync-jobs-on-startup: ${SNAIL_JOB_SYNC_JOBS:true}
+    # SnailJob 控制台地址（管理端只读页跳转）← SNAIL_JOB_ADMIN_URL
+    admin-console-url: ${SNAIL_JOB_ADMIN_URL}
+    # 启动时通过 OpenAPI 注册内置任务（已存在则跳过）← SNAIL_JOB_SYNC_JOBS
+    sync-jobs-on-startup: ${SNAIL_JOB_SYNC_JOBS}
 
 # ---------- SnailJob 客户端 ----------
 snail-job:
-  enabled: ${SNAIL_JOB_ENABLED:true}
+  # 是否启用客户端 ← SNAIL_JOB_ENABLED
+  enabled: ${SNAIL_JOB_ENABLED}
   server:
-    host: ${SNAIL_JOB_SERVER_HOST:127.0.0.1}
-    port: ${SNAIL_JOB_SERVER_PORT:17888}
-  namespace: ${SNAIL_JOB_NAMESPACE:764d604ec6fc45f68cd92514c40e9e1a}
-  group: ${SNAIL_JOB_GROUP:linkx_server}
-  token: ${SNAIL_JOB_TOKEN:SJ_Wyz3dmsdbDOkDujOTSSoBjGQP1BMsVnj}
-  host: ${SNAIL_JOB_CLIENT_HOST:}
-  port: ${SNAIL_JOB_CLIENT_PORT:17889}
+    # gRPC 主机 ← SNAIL_JOB_SERVER_HOST
+    host: ${SNAIL_JOB_SERVER_HOST}
+    # gRPC 端口 ← SNAIL_JOB_SERVER_PORT
+    port: ${SNAIL_JOB_SERVER_PORT}
+  # 命名空间 ← SNAIL_JOB_NAMESPACE
+  namespace: ${SNAIL_JOB_NAMESPACE}
+  # 客户端组 ← SNAIL_JOB_GROUP
+  group: ${SNAIL_JOB_GROUP}
+  # 客户端 Token（须在 SnailJob 控制台创建，禁止写入 yml 默认值）← SNAIL_JOB_TOKEN
+  token: ${SNAIL_JOB_TOKEN}
+  # 客户端对外 host（多实例可留空）← SNAIL_JOB_CLIENT_HOST
+  host: ${SNAIL_JOB_CLIENT_HOST}
+  # 客户端端口 ← SNAIL_JOB_CLIENT_PORT
+  port: ${SNAIL_JOB_CLIENT_PORT}
   openapi:
-    host: ${SNAIL_JOB_OPENAPI_HOST:127.0.0.1}
-    port: ${SNAIL_JOB_OPENAPI_PORT:18080}
+    # OpenAPI 主机 ← SNAIL_JOB_OPENAPI_HOST
+    host: ${SNAIL_JOB_OPENAPI_HOST}
+    # OpenAPI 端口 ← SNAIL_JOB_OPENAPI_PORT
+    port: ${SNAIL_JOB_OPENAPI_PORT}
     prefix: snail-job
 
 # ---------- Actuator ----------

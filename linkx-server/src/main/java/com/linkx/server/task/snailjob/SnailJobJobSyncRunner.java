@@ -15,11 +15,11 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
-@ConditionalOnProperty(prefix = "linkx.snail-job", name = "sync-jobs-on-startup", havingValue = "true", matchIfMissing = true)
-@ConditionalOnProperty(prefix = "snail-job", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "linkx.snail-job", name = "sync-jobs-on-startup", havingValue = "true", matchIfMissing = false)
+@ConditionalOnProperty(prefix = "snail-job", name = "enabled", havingValue = "true", matchIfMissing = false)
 public class SnailJobJobSyncRunner implements ApplicationRunner {
 
-    @Value("${snail-job.group:linkx_server}")
+    @Value("${snail-job.group}")
     private String groupName;
 
     @Override

@@ -8,7 +8,7 @@ export async function bootstrapSecurity() {
   try {
     const { data } = await axios.get<ApiResult<AuthConfigVO>>(
       `${import.meta.env.VITE_API_BASE_URL || '/api'}/admin/auth/config`,
-      { headers: getDeviceHeaders() }
+      { headers: getDeviceHeaders(), withCredentials: true }
     )
     if (data.code === 200 && data.data) {
       useSecurityStore().applyFromAuthConfig(data.data)

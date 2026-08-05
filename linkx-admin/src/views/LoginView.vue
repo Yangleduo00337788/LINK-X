@@ -17,7 +17,6 @@ import {
 } from 'naive-ui'
 import QRCode from 'qrcode'
 import { beginTotpSetupChallenge, fetchAuthConfig, fetchCaptcha } from '@/api/auth'
-import { clearTokens } from '@/api/request'
 import { useAuthStore } from '@/stores/auth'
 import { useSecurityStore } from '@/stores/security'
 import AuthPageShell from '@/components/AuthPageShell.vue'
@@ -249,9 +248,7 @@ watch(
 )
 
 onMounted(async () => {
-  clearTokens()
-  auth.$patch({ user: null, menus: [], permissions: [] })
-  auth.syncTokensFromStorage()
+  auth.resetLocalSession()
   securityStore.resetSession()
   try {
     const cfg = await fetchAuthConfig()

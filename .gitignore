@@ -3,26 +3,42 @@ dist/
 dist-electron/
 target/
 coverage/
+# 本地/生产 env（任意目录下同名文件均忽略）
 .env.local
 .env.prod
+.env.docker
 # 前端本地 env（含本地接口地址/可能的 token）不入库
 linkx-client/.env
 linkx-admin/.env
 linkx-admin/dist/
 !.env.local.example
 !.env.prod.example
+!.env.docker.example
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 .DS_Store
+Thumbs.db
 *.timestamp-*.mjs
-linkx-client/playwright-report/
-linkx-client/test-results/
-linkx-client/blob-report/
+# Playwright / E2E 产物（各子项目）
+**/playwright-report/
+**/test-results/
+**/blob-report/
 linkx-client/admin-e2e-report/
 scripts/admin-e2e-report/
+
+# 脚本生成的凭据备份（禁止入库）
+scripts/.password_backup.json
+**/.password_backup.json
+
+# IDE（根目录 .idea 勿提交；各子项目可保留自己的 .vscode/extensions.json）
+.idea/
+!.idea/.gitignore
+
+# TypeScript 增量构建缓存
+*.tsbuildinfo
 
 # 中间件本地数据与备份产物
 linkx-server/docker/mysql/data/

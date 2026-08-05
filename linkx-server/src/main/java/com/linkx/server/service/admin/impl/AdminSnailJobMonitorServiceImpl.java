@@ -34,13 +34,13 @@ public class AdminSnailJobMonitorServiceImpl implements AdminSnailJobMonitorServ
 
     private final JdbcTemplate jdbcTemplate;
 
-    @Value("${linkx.snail-job.admin-console-url:http://127.0.0.1:18080}")
+    @Value("${linkx.snail-job.admin-console-url}")
     private String adminConsoleUrl;
 
-    @Value("${snail-job.group:linkx_server}")
+    @Value("${snail-job.group}")
     private String clientGroup;
 
-    @Value("${snail-job.namespace:764d604ec6fc45f68cd92514c40e9e1a}")
+    @Value("${snail-job.namespace}")
     private String namespaceId;
 
     @Override

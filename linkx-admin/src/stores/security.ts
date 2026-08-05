@@ -2,12 +2,11 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { startAntiDebug, stopAntiDebug } from '@/utils/antiDebug'
 
-const API_SIGN_KEY_STORAGE = 'linkx_admin_api_sign_key'
-
 export const useSecurityStore = defineStore('security', () => {
   const apiSignEnabled = ref(true)
   const apiEncryptEnabled = ref(false)
   const disableFrontendDebug = ref(false)
+  /** 仅内存持有，页面刷新后通过 refresh 接口补发 */
   const apiSignKey = ref('')
 
   function applyFromAuthConfig(config: {
@@ -53,33 +52,10 @@ export const useSecurityStore = defineStore('security', () => {
 
   function setApiSignKey(key?: string) {
     apiSignKey.value = key?.trim() || ''
-    try {
-      if (apiSignKey.value) {
-        sessionStorage.setItem(API_SIGN_KEY_STORAGE, apiSignKey.value)
-      } else {
-        sessionStorage.removeItem(API_SIGN_KEY_STORAGE)
-      }
-    } catch {
-      /* ignore */
-    }
   }
 
   function clearApiSignKey() {
     apiSignKey.value = ''
-    try {
-      sessionStorage.removeItem(API_SIGN_KEY_STORAGE)
-    } catch {
-      /* ignore */
-    }
-  }
-
-  try {
-    const stored = sessionStorage.getItem(API_SIGN_KEY_STORAGE)
-    if (stored?.trim()) {
-      apiSignKey.value = stored.trim()
-    }
-  } catch {
-    /* ignore */
   }
 
   function resetSession() {

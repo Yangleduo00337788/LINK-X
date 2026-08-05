@@ -112,11 +112,23 @@ linkx:
     code-expire-minutes: 10
 
   snail-job:
+    admin-console-url: http://127.0.0.1:18080
     sync-jobs-on-startup: false
 
 # ---------- SnailJob（集成测试默认关闭，避免依赖调度服务端）----------
 snail-job:
   enabled: false
+  server:
+    host: 127.0.0.1
+    port: 17888
+  namespace: linkx-test-namespace
+  group: linkx_server
+  token: ""
+  host: ""
+  port: 17889
+  openapi:
+    host: 127.0.0.1
+    port: 18080
 
 # ---------- 测试日志尽量安静 ----------
 logging:

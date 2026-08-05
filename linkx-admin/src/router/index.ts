@@ -346,7 +346,6 @@ export function syncDocumentTitle(titleKey?: string) {
 router.beforeEach(async (to) => {
   syncDocumentTitle(to.meta.titleKey as string | undefined)
   const auth = useAuthStore()
-  auth.syncTokensFromStorage()
 
   if (to.meta.public) {
     if (to.path === '/login' && auth.isLoggedIn && auth.user && auth.menus.length > 0) {
@@ -355,13 +354,16 @@ router.beforeEach(async (to) => {
     return true
   }
 
-  if (!auth.isLoggedIn) {
-    return { path: '/login', query: { redirect: to.fullPath } }
+  if (!auth.isLoggedIn || !auth.user) {
+    const ok = await auth.restoreSession()
+    if (!ok) {
+      return { path: '/login', query: { redirect: to.fullPath } }
+    }
   }
 
-  if (!auth.user || !auth.menus.length) {
+  if (!auth.menus.length) {
     try {
-      await auth.fetchProfile()
+      await auth.fetchMenusAndPermissions()
     } catch {
       await auth.logout()
       return { path: '/login', query: { redirect: to.fullPath } }

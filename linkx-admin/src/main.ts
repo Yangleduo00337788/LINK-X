@@ -6,6 +6,7 @@ import router from './router'
 import i18n from './i18n'
 import { usePreferencesStore } from './stores/preferences'
 import { bootstrapSecurity } from './security/bootstrap'
+import { purgeLegacyTokens } from './api/request'
 import './style.css'
 import './styles/motion.css'
 
@@ -18,6 +19,7 @@ app.use(router)
 
 const prefs = usePreferencesStore(pinia)
 prefs.hydrate()
+purgeLegacyTokens()
 
 void bootstrapSecurity().finally(() => {
   app.mount('#app')

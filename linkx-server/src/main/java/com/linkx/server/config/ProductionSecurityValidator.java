@@ -108,7 +108,26 @@ public class ProductionSecurityValidator implements ApplicationRunner {
             errors.add("MINIO_ENDPOINT 生产环境应使用 https://");
         }
 
+        if (isSnailJobEnabled()) {
+            String token = firstNonBlank(
+                    environment.getProperty("snail-job.token"),
+                    environment.getProperty("SNAIL_JOB_TOKEN"));
+            if (ProductionSecretRules.isWeakSecret(token, 16)) {
+                errors.add("SNAIL_JOB_TOKEN 在启用调度客户端时不能为空、过短（<16）或使用常见弱值");
+            }
+            if ("SJ_Wyz3dmsdbDOkDujOTSSoBjGQP1BMsVnj".equals(trim(token))) {
+                errors.add("SNAIL_JOB_TOKEN 不得使用仓库示例默认值");
+            }
+        }
+
         return errors;
+    }
+
+    private boolean isSnailJobEnabled() {
+        String enabled = firstNonBlank(
+                environment.getProperty("snail-job.enabled"),
+                environment.getProperty("SNAIL_JOB_ENABLED"));
+        return Boolean.parseBoolean(enabled);
     }
 
     private static String firstNonBlank(String a, String b) {

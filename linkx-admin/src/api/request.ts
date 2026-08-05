@@ -1,7 +1,6 @@
 import axios, {
   type AxiosError,
   type AxiosRequestConfig,
-  type AxiosResponse,
   type InternalAxiosRequestConfig,
 } from 'axios'
 import { computed, ref } from 'vue'
@@ -26,6 +25,7 @@ import {
   wrapEncryptedBody,
 } from '@/utils/apiEncrypt'
 import { getDeviceHeaders } from '@/utils/deviceId'
+import { isSessionActive, setSessionActive } from '@/utils/sessionState'
 import type { AdminLoginResult } from '@/types/api'
 
 const discreteTheme = ref<AppTheme>('dark')
@@ -40,32 +40,31 @@ const { message } = createDiscreteApi(['message'], {
   })),
 })
 
-const TOKEN_KEY = 'linkx_admin_access_token'
-const REFRESH_KEY = 'linkx_admin_refresh_token'
+const LEGACY_ACCESS_KEY = 'linkx_admin_access_token'
+const LEGACY_REFRESH_KEY = 'linkx_admin_refresh_token'
+const LEGACY_API_SIGN_KEY = 'linkx_admin_api_sign_key'
 
-export function getAccessToken() {
-  return localStorage.getItem(TOKEN_KEY)
-}
-
-export function getRefreshToken() {
-  return localStorage.getItem(REFRESH_KEY)
-}
-
-export function setTokens(accessToken: string, refreshToken: string) {
-  localStorage.setItem(TOKEN_KEY, accessToken)
-  localStorage.setItem(REFRESH_KEY, refreshToken)
+/** 清理历史 localStorage / sessionStorage 明文凭据（迁移至 HttpOnly Cookie 后的一次性兼容） */
+export function purgeLegacyTokens() {
+  try {
+    localStorage.removeItem(LEGACY_ACCESS_KEY)
+    localStorage.removeItem(LEGACY_REFRESH_KEY)
+    sessionStorage.removeItem(LEGACY_API_SIGN_KEY)
+  } catch {
+    /* ignore */
+  }
 }
 
 export function clearTokens() {
-  localStorage.removeItem(TOKEN_KEY)
-  localStorage.removeItem(REFRESH_KEY)
+  purgeLegacyTokens()
+  setSessionActive(false)
   useSecurityStore().clearApiSignKey()
 }
 
-/** 页面刷新后若签名密钥丢失，用 refresh 补发 */
+/** 页面刷新后若签名密钥丢失，用 refresh Cookie 补发 apiSignKey */
 export async function ensureApiSignKey(): Promise<void> {
   const security = useSecurityStore()
-  if (!security.apiSignEnabled || security.apiSignKey || !getRefreshToken()) {
+  if (!security.apiSignEnabled || security.apiSignKey) {
     return
   }
   await refreshAccessToken()
@@ -74,32 +73,30 @@ export async function ensureApiSignKey(): Promise<void> {
 const request = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
   timeout: 30000,
+  withCredentials: true,
 })
 
-let refreshing: Promise<string | null> | null = null
+let refreshing: Promise<boolean> | null = null
 
-async function refreshAccessToken(): Promise<string | null> {
-  const refreshToken = getRefreshToken()
-  if (!refreshToken) return null
+async function refreshAccessToken(): Promise<boolean> {
   try {
     const { data } = await axios.post<ApiResult<AdminLoginResult>>(
       `${import.meta.env.VITE_API_BASE_URL || '/api'}/admin/auth/refresh`,
-      { refreshToken },
-      { headers: getDeviceHeaders() }
+      {},
+      { headers: getDeviceHeaders(), withCredentials: true }
     )
-    if (data.code === 200 && data.data?.accessToken) {
-      setTokens(data.data.accessToken, data.data.refreshToken || refreshToken)
+    if (data.code === 200 && data.data) {
       if (data.data.apiSignKey) {
         useSecurityStore().setApiSignKey(data.data.apiSignKey)
       }
-      return data.data.accessToken
+      setSessionActive(true)
+      return true
     }
   } catch {
     /* fall through */
   }
   clearTokens()
-  useSecurityStore().clearApiSignKey()
-  return null
+  return false
 }
 
 type RetryConfig = AxiosRequestConfig & {
@@ -121,11 +118,6 @@ request.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
   }
 
   Object.assign(config.headers, getDeviceHeaders())
-
-  const token = getAccessToken()
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
 
   const security = useSecurityStore()
   const url = config.url || ''
@@ -149,7 +141,7 @@ request.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
 
   const useEncrypt =
     security.apiEncryptEnabled &&
-    token &&
+    isSessionActive() &&
     security.apiSignKey &&
     shouldEncryptRequest(url) &&
     !isFormData
@@ -187,7 +179,7 @@ request.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
 
   const needsSign =
     security.apiSignEnabled &&
-    token &&
+    isSessionActive() &&
     security.apiSignKey &&
     shouldSignRequest(url) &&
     !isFormData
@@ -277,9 +269,8 @@ request.interceptors.response.use(
         refreshAccessToken().finally(() => {
           refreshing = null
         })
-      const token = await refreshing
-      if (token) {
-        original.headers = { ...original.headers, Authorization: `Bearer ${token}` }
+      const ok = await refreshing
+      if (ok) {
         return request(original)
       }
       if (!window.location.pathname.includes('/login')) {

@@ -1,8 +1,9 @@
-import { getAccessToken, ensureApiSignKey } from './request'
+import { ensureApiSignKey } from './request'
 import { useSecurityStore } from '@/stores/security'
 import { buildApiSignHeaders } from '@/utils/apiSign'
 import { buildEncryptedQueryHeader } from '@/utils/apiEncrypt'
 import { getDeviceHeaders } from '@/utils/deviceId'
+import { isSessionActive } from '@/utils/sessionState'
 
 export type AdminRealtimeEvent = {
   type?: string
@@ -41,11 +42,10 @@ function dispatch(event: AdminRealtimeEvent) {
   })
 }
 
-async function buildStreamHeaders(token: string): Promise<Record<string, string>> {
+async function buildStreamHeaders(): Promise<Record<string, string>> {
   await ensureApiSignKey()
   const headers: Record<string, string> = {
     Accept: 'text/event-stream',
-    Authorization: `Bearer ${token}`,
     ...getDeviceHeaders(),
   }
   const security = useSecurityStore()
@@ -71,16 +71,16 @@ async function buildStreamHeaders(token: string): Promise<Record<string, string>
 
 async function connectLoop() {
   while (abort && !abort.signal.aborted) {
-    const token = getAccessToken()
-    if (!token) {
+    if (!isSessionActive()) {
       await sleep(3000)
       continue
     }
     try {
-      const headers = await buildStreamHeaders(token)
+      const headers = await buildStreamHeaders()
       const res = await fetch(`${apiBase()}${STREAM_PATH}`, {
         method: 'GET',
         headers,
+        credentials: 'include',
         signal: abort.signal,
       })
       if (!res.ok || !res.body) {

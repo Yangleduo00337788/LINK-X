@@ -3,9 +3,11 @@ package com.linkx.server.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.Result;
+import com.linkx.server.common.TokenCookieUtil;
 import com.linkx.server.common.TokenType;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.util.AdminApiSecurityPaths;
+import com.linkx.server.util.AdminBearerTokenResolver;
 import com.linkx.server.util.ApiEncryptUtils;
 import com.linkx.server.util.ApiSignUtils;
 import jakarta.servlet.http.HttpServletRequest;
@@ -31,6 +33,7 @@ public class ApiEncryptResponseAdvice implements ResponseBodyAdvice<Result<?>> {
     private final LinkxProperties linkxProperties;
     private final ObjectMapper objectMapper;
     private final JwtUtils jwtUtils;
+    private final TokenCookieUtil tokenCookieUtil;
 
     @Override
     public boolean supports(MethodParameter returnType, Class<? extends HttpMessageConverter<?>> converterType) {
@@ -60,7 +63,7 @@ public class ApiEncryptResponseAdvice implements ResponseBodyAdvice<Result<?>> {
             return body;
         }
 
-        String token = readBearerToken(raw);
+        String token = AdminBearerTokenResolver.resolve(raw, tokenCookieUtil);
         if (!StringUtils.hasText(token)) {
             return body;
         }
@@ -83,13 +86,5 @@ public class ApiEncryptResponseAdvice implements ResponseBodyAdvice<Result<?>> {
             return body;
         }
         return body;
-    }
-
-    private static String readBearerToken(HttpServletRequest request) {
-        String auth = request.getHeader("Authorization");
-        if (StringUtils.hasText(auth) && auth.startsWith("Bearer ")) {
-            return auth.substring(7).trim();
-        }
-        return null;
     }
 }

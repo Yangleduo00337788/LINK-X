@@ -182,10 +182,22 @@ export async function installAdminApiMocks(page: Page) {
   })
 }
 
-/** 注入已登录 token，跳过登录表单。 */
+/** 注入已登录会话（E2E mock 不校验 Cookie，restoreSession 会拉 /me）。 */
 export async function injectAdminSession(page: Page) {
   await page.addInitScript(() => {
-    localStorage.setItem('linkx_admin_access_token', 'e2e-access-token')
-    localStorage.setItem('linkx_admin_refresh_token', 'e2e-refresh-token')
+    localStorage.removeItem('linkx_admin_access_token')
+    localStorage.removeItem('linkx_admin_refresh_token')
+    localStorage.setItem(
+      'linkx-admin-auth-v2',
+      JSON.stringify({
+        user: {
+          id: 1,
+          username: 'e2e_admin',
+          nickname: 'E2E Admin',
+          avatar: '',
+          permissions: ['*'],
+        },
+      })
+    )
   })
 }

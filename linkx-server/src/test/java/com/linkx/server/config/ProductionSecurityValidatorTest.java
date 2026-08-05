@@ -76,4 +76,14 @@ class ProductionSecurityValidatorTest {
         props.getMinio().setSecretKey("minioadmin");
         assertTrue(validator.collectErrors().stream().anyMatch(e -> e.contains("MINIO")));
     }
+
+    @Test
+    @DisplayName("启用 SnailJob 时示例 Token 失败")
+    void exampleSnailJobTokenFails() {
+        when(environment.getProperty("snail-job.enabled")).thenReturn("true");
+        when(environment.getProperty("SNAIL_JOB_ENABLED")).thenReturn(null);
+        when(environment.getProperty("snail-job.token")).thenReturn("SJ_Wyz3dmsdbDOkDujOTSSoBjGQP1BMsVnj");
+        when(environment.getProperty("SNAIL_JOB_TOKEN")).thenReturn(null);
+        assertTrue(validator.collectErrors().stream().anyMatch(e -> e.contains("SNAIL_JOB_TOKEN")));
+    }
 }

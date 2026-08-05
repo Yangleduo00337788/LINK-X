@@ -1,4 +1,4 @@
-import { get, post, put, setTokens, clearTokens } from './request'
+import { get, post, put, clearTokens } from './request'
 import type {
   AdminLoginResult,
   AdminMenuTree,
@@ -29,11 +29,7 @@ export async function login(payload: LoginPayload) {
 }
 
 export async function verifyTotpLogin(challengeToken: string, code: string) {
-  const data = await post<AdminLoginResult>('/admin/auth/login/totp', { challengeToken, code })
-  if (data.accessToken && data.refreshToken) {
-    setTokens(data.accessToken, data.refreshToken)
-  }
-  return data
+  return post<AdminLoginResult>('/admin/auth/login/totp', { challengeToken, code })
 }
 
 export function beginTotpSetupChallenge(challengeToken: string) {
@@ -41,14 +37,10 @@ export function beginTotpSetupChallenge(challengeToken: string) {
 }
 
 export async function confirmTotpChallenge(challengeToken: string, code: string) {
-  const data = await post<AdminLoginResult>('/admin/auth/totp/confirm-challenge', {
+  return post<AdminLoginResult>('/admin/auth/totp/confirm-challenge', {
     challengeToken,
     code,
   })
-  if (data.accessToken && data.refreshToken) {
-    setTokens(data.accessToken, data.refreshToken)
-  }
-  return data
 }
 
 export function beginTotpSetup() {
@@ -63,9 +55,9 @@ export function disableTotp(password: string, code: string) {
   return post<AdminUserProfile>('/admin/auth/totp/disable', { password, code })
 }
 
-export async function logout(refreshToken?: string) {
+export async function logout() {
   try {
-    await post<null>('/admin/auth/logout', refreshToken ? { refreshToken } : {})
+    await post<null>('/admin/auth/logout', {})
   } finally {
     clearTokens()
   }
