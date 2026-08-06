@@ -80,6 +80,10 @@ export function bindPhone(payload: { phone: string; password: string }) {
   return apiClient.post<never, ApiResult<UserProfileData>>('/user/bind-phone', payload)
 }
 
+export function changeUsername(payload: { username: string; password: string }) {
+  return apiClient.post<never, ApiResult<UserProfileData>>('/user/change-username', payload)
+}
+
 export function deleteAccount(payload: { password: string }) {
   return apiClient.post<never, ApiResult<null>>('/user/delete-account', payload)
 }

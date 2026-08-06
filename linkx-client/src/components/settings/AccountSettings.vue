@@ -14,7 +14,8 @@ import * as authApi from '../../api/auth'
 import * as feedbackApi from '../../api/feedback'
 import * as complianceApi from '../../api/compliance'
 import { generateDefaultAvatar } from '../../utils/defaultAvatar'
-import { validatePassword } from '../../utils/validation'
+import { validatePassword, validateUsername } from '../../utils/validation'
+import { copyText } from '../../utils/clipboard'
 import { useI18n } from '../../i18n'
 import SliderCaptcha from '../SliderCaptcha.vue'
 
@@ -27,12 +28,11 @@ const { t } = useI18n()
 const { userProfile, savedLogin } = storeToRefs(appStore)
 
 const displayUsername = computed(
-  () => savedLogin.value.username || userProfile.value.username || '—'
+  () => userProfile.value.username || savedLogin.value.username || '—'
 )
 const defaultAvatar = computed(() =>
   generateDefaultAvatar(userProfile.value.nickname || t('common.me'))
 )
-const displayId = computed(() => userProfile.value.userId || displayUsername.value)
 
 const phoneDisplay = computed(() =>
   userProfile.value.phoneBound
@@ -71,13 +71,15 @@ const locationDisplay = computed(() => {
   return text || t('modals.notFilled')
 })
 
-async function copyId() {
-  try {
-    await navigator.clipboard.writeText(String(displayId.value))
-    message.success(t('account.idCopied'))
-  } catch {
-    message.error(t('account.copyFail'))
+async function copyLinkxId() {
+  const text = String(displayUsername.value)
+  if (!text || text === '—') {
+    message.warning(t('account.copyEmpty'))
+    return
   }
+  const ok = await copyText(text)
+  if (ok) message.success(t('account.linkxIdCopied'))
+  else message.error(t('account.copyFail'))
 }
 
 function openEditProfile() {
@@ -91,6 +93,49 @@ function applyBoundProfile(data: Parameters<typeof appStore.applyUserProfile>[0]
 const showPhoneModal = ref(false)
 const phoneForm = ref({ phone: '', password: '' })
 const phoneLoading = ref(false)
+
+const showLinkxIdModal = ref(false)
+const linkxIdForm = ref({ username: '', password: '' })
+const linkxIdLoading = ref(false)
+
+function openLinkxIdModal() {
+  linkxIdForm.value = {
+    username: displayUsername.value === '—' ? '' : displayUsername.value,
+    password: ''
+  }
+  showLinkxIdModal.value = true
+}
+
+async function submitChangeLinkxId() {
+  const usernameErr = validateUsername(linkxIdForm.value.username)
+  if (usernameErr) {
+    message.warning(usernameErr)
+    return
+  }
+  if (!linkxIdForm.value.password) {
+    message.warning(t('account.passwordRequired'))
+    return
+  }
+  linkxIdLoading.value = true
+  try {
+    const res = await accountApi.changeUsername({
+      username: linkxIdForm.value.username.trim(),
+      password: linkxIdForm.value.password
+    })
+    if (res.code === 200 && res.data) {
+      applyBoundProfile(res.data)
+      message.success(t('account.linkxIdChanged'))
+      showLinkxIdModal.value = false
+    } else {
+      message.error(res.message || t('account.linkxIdChangeFail'))
+    }
+  } catch (e) {
+    const err = e as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || t('account.linkxIdChangeFail'))
+  } finally {
+    linkxIdLoading.value = false
+  }
+}
 
 function openPhoneModal() {
   phoneForm.value = { phone: '', password: '' }
@@ -580,18 +625,26 @@ onMounted(() => {
           <div class="profile-name-row">
             <span class="profile-name">{{ userProfile.nickname || t('account.noNickname') }}</span>
           </div>
-          <button type="button" class="profile-signature" @click="openEditProfile">
-            <span>{{ userProfile.signature || t('account.editSignature') }}</span>
-            <n-icon :component="CreateOutline" :size="12" />
-          </button>
           <div class="profile-id-row">
-            <span>ID: {{ displayId }}</span>
-            <button type="button" class="copy-btn" :title="t('account.copyId')" @click="copyId">
+            <span>{{ t('modals.linkxId', { id: displayUsername }) }}</span>
+            <button type="button" class="copy-btn" :title="t('account.copyLinkxId')" @click="copyLinkxId">
               <n-icon :component="CopyOutline" :size="14" />
+            </button>
+            <button type="button" class="copy-btn" :title="t('account.editLinkxId')" @click="openLinkxIdModal">
+              <n-icon :component="CreateOutline" :size="14" />
             </button>
           </div>
         </div>
       </div>
+
+      <button type="button" class="link-row" @click="openLinkxIdModal">
+        <span class="link-label">{{ t('account.linkxIdLabel') }}</span>
+        <div class="link-text compact">
+          <span class="link-value">{{ displayUsername }}</span>
+          <span class="link-desc">{{ t('account.linkxIdDesc') }}</span>
+        </div>
+        <n-icon :component="ChevronForwardOutline" :size="16" class="link-chevron" />
+      </button>
 
       <button type="button" class="link-row" @click="openEditProfile">
         <span class="link-label">{{ t('modals.gender') }}</span>
@@ -827,6 +880,44 @@ onMounted(() => {
     </n-modal>
 
     <n-modal
+      v-model:show="showLinkxIdModal"
+      preset="card"
+      :title="t('account.changeLinkxId')"
+      to="body"
+      :z-index="11000"
+      style="max-width: 400px"
+    >
+      <div class="password-form">
+        <div class="form-item">
+          <label>{{ t('account.linkxIdLabel') }}</label>
+          <n-input
+            v-model:value="linkxIdForm.username"
+            maxlength="32"
+            :placeholder="t('account.linkxIdPh')"
+          />
+          <span class="field-hint">{{ t('account.linkxIdHint') }}</span>
+        </div>
+        <div class="form-item">
+          <label>{{ t('account.loginPassword') }}</label>
+          <n-input
+            v-model:value="linkxIdForm.password"
+            type="password"
+            show-password-on="click"
+            :placeholder="t('account.passwordVerifyPh')"
+          />
+        </div>
+      </div>
+      <template #footer>
+        <div class="modal-footer">
+          <n-button @click="showLinkxIdModal = false">{{ t('common.cancel') }}</n-button>
+          <n-button type="primary" :loading="linkxIdLoading" @click="submitChangeLinkxId">
+            {{ t('account.confirmChange') }}
+          </n-button>
+        </div>
+      </template>
+    </n-modal>
+
+    <n-modal
       v-model:show="showPhoneModal"
       preset="card"
       :title="userProfile.phoneBound ? t('account.changePhone') : t('account.bindPhone')"
@@ -1003,31 +1094,6 @@ onMounted(() => {
   color: var(--lx-text-body);
 }
 
-.profile-signature {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  max-width: 100%;
-  border: none;
-  background: none;
-  padding: 0;
-  margin: 0;
-  font-size: 12px;
-  color: var(--lx-text-muted);
-  cursor: pointer;
-  text-align: left;
-}
-
-.profile-signature span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.profile-signature:hover {
-  color: var(--lx-accent);
-}
-
 .profile-id-row {
   display: inline-flex;
   align-items: center;
@@ -1035,6 +1101,11 @@ onMounted(() => {
   font-size: 12px;
   color: var(--lx-text-secondary);
   margin-top: 2px;
+}
+
+.profile-id-row.muted {
+  color: var(--lx-text-muted);
+  font-size: 11px;
 }
 
 .copy-btn {
@@ -1143,6 +1214,12 @@ onMounted(() => {
 .form-item label {
   font-size: 14px;
   color: var(--lx-text-secondary);
+}
+
+.field-hint {
+  font-size: 11px;
+  color: var(--lx-text-muted);
+  line-height: 1.4;
 }
 
 .modal-footer {
