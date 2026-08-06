@@ -145,6 +145,11 @@ public interface SysUserService extends IService<SysUser> {
     void bindPhone(Long userId, String phone, String password);
 
     /**
+     * 修改 LinkX ID（登录用户名）
+     */
+    SysUser changeUsername(Long userId, String newUsername, String password);
+
+    /**
      * 注销账号（逻辑删除 + 吊销全部 Token）
      */
     void deleteAccount(Long userId, String password);

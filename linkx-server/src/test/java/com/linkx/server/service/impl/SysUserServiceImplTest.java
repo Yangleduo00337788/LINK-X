@@ -763,6 +763,37 @@ class SysUserServiceImplTest {
     }
 
     @Nested
+    @DisplayName("修改 LinkX ID")
+    class ChangeUsername {
+        @Test
+        @DisplayName("changeUsername 密码错误")
+        void wrongPassword() {
+            doReturn(activeUser()).when(service).getById(USER_ID);
+            assertThrows(CustomException.class,
+                    () -> service.changeUsername(USER_ID, "new_linkx_id", "wrong"));
+        }
+
+        @Test
+        @DisplayName("changeUsername 已被占用")
+        void taken() {
+            doReturn(activeUser()).when(service).getById(USER_ID);
+            when(sysUserMapper.selectCountByQuery(any(QueryWrapper.class))).thenReturn(1L);
+            assertThrows(CustomException.class,
+                    () -> service.changeUsername(USER_ID, "taken_id", PASSWORD));
+        }
+
+        @Test
+        @DisplayName("changeUsername 成功")
+        void success() {
+            SysUser user = activeUser();
+            doReturn(user).when(service).getById(USER_ID);
+            when(sysUserMapper.selectCountByQuery(any(QueryWrapper.class))).thenReturn(0L);
+            SysUser updated = service.changeUsername(USER_ID, "new_linkx_id", PASSWORD);
+            assertEquals("new_linkx_id", updated.getUsername());
+        }
+    }
+
+    @Nested
     @DisplayName("账号注销与解锁")
     class AccountLifecycle {
         @Test

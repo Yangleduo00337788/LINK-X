@@ -84,6 +84,14 @@ public class FriendController {
         return Result.success(null);
     }
 
+    @Operation(summary = "清空已处理的好友申请")
+    @DeleteMapping("/requests/clear")
+    public Result<Integer> clearProcessedFriendRequests(HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        int cleared = friendService.clearProcessedFriendRequests(userId);
+        return Result.success(cleared);
+    }
+
     @Operation(summary = "获取好友列表")
     @GetMapping("/list")
     public Result<List<FriendItemVO>> listFriends(HttpServletRequest request) {

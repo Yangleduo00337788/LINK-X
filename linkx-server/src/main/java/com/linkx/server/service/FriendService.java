@@ -21,6 +21,13 @@ public interface FriendService {
 
     void rejectFriendRequest(Long userId, Long requestId);
 
+    /**
+     * 清空当前用户已处理的好友申请记录（已同意/已拒绝），保留待处理申请。
+     *
+     * @return 清空的记录数
+     */
+    int clearProcessedFriendRequests(Long userId);
+
     List<FriendItemVO> listFriends(Long userId);
 
     void deleteFriend(Long userId, Long friendId);

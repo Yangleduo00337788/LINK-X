@@ -235,6 +235,16 @@ public class GroupInvitationServiceImpl implements GroupInvitationService {
         invitationMapper.update(inv);
     }
 
+    @Override
+    @Transactional
+    public int clearProcessedInvitations(Long userId) {
+        return invitationMapper.deleteByQuery(
+                QueryWrapper.create()
+                        .where(GroupInvitation::getInviteeUserId).eq(userId)
+                        .and(GroupInvitation::getStatus).ne(GroupInvitation.STATUS_PENDING)
+        );
+    }
+
     private void clearInvitationsWithStatus(Long conversationId, Long inviteeUserId, int status, Long keepId) {
         List<GroupInvitation> old = invitationMapper.selectListByQuery(
                 QueryWrapper.create()

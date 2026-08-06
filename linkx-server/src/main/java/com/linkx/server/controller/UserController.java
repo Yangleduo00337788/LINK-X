@@ -143,6 +143,22 @@ public class UserController {
     }
 
     /**
+     * 修改 LinkX ID（登录用户名）
+     */
+    @Operation(summary = "修改 LinkX ID")
+    @PostMapping("/change-username")
+    public Result<UserProfileVO> changeUsername(
+            @Valid @RequestBody com.linkx.server.controller.dto.ChangeUsernameDTO dto,
+            HttpServletRequest request) {
+        Long userId = getCurrentUserId(request);
+        if (userId == null) {
+            return Result.error(401, "未登录");
+        }
+        SysUser updated = sysUserService.changeUsername(userId, dto.getUsername(), dto.getPassword());
+        return Result.success(buildPrivateUserProfileVO(updated));
+    }
+
+    /**
      * 注销账号
      */
     @Operation(summary = "注销账号")

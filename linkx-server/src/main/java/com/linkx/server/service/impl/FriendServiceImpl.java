@@ -70,13 +70,34 @@ public class FriendServiceImpl implements FriendService {
             throw new CustomException(400, "搜索关键词至少2个字符");
         }
 
+        // 纯数字：按用户编号（内部 ID）精确查找
+        if (q.chars().allMatch(Character::isDigit)) {
+            try {
+                long numericId = Long.parseLong(q);
+                if (numericId > 0) {
+                    SysUser byId = sysUserMapper.selectOneById(numericId);
+                    if (byId != null && Integer.valueOf(1).equals(byId.getStatus())) {
+                        return List.of(toSearchVO(byId));
+                    }
+                }
+            } catch (NumberFormatException ignored) {
+                /* fall through */
+            }
+        }
+
         // 优先精确匹配 LinkX ID（username）
         SysUser exactUser = sysUserMapper.selectOneByQuery(
                 QueryWrapper.create()
                         .where(SysUser::getUsername).eq(q)
-                        .and(SysUser::getId).ne(currentUserId)
                         .and(SysUser::getStatus).eq(1)
         );
+        if (exactUser == null) {
+            exactUser = sysUserMapper.selectOneByQuery(
+                    QueryWrapper.create()
+                            .where("LOWER(username) = {0}", q.toLowerCase())
+                            .and(SysUser::getStatus).eq(1)
+            );
+        }
         if (exactUser != null) {
             return List.of(toSearchVO(exactUser));
         }
@@ -84,13 +105,11 @@ public class FriendServiceImpl implements FriendService {
         List<SysUser> byUsername = sysUserMapper.selectListByQuery(
                 QueryWrapper.create()
                         .where(SysUser::getUsername).like(q)
-                        .and(SysUser::getId).ne(currentUserId)
                         .and(SysUser::getStatus).eq(1)
         );
         List<SysUser> byNickname = sysUserMapper.selectListByQuery(
                 QueryWrapper.create()
                         .where(SysUser::getNickname).like(q)
-                        .and(SysUser::getId).ne(currentUserId)
                         .and(SysUser::getStatus).eq(1)
         );
 
@@ -247,6 +266,23 @@ public class FriendServiceImpl implements FriendService {
         request.setUpdateTime(new Date());
         sysFriendRequestMapper.update(request);
         imPushService.pushToUser(request.getFromUserId(), "notification_refresh", Map.of("type", "friend_rejected"));
+    }
+
+    @Override
+    @Transactional
+    public int clearProcessedFriendRequests(Long userId) {
+        int cleared = 0;
+        cleared += sysFriendRequestMapper.deleteByQuery(
+                QueryWrapper.create()
+                        .where(SysFriendRequest::getFromUserId).eq(userId)
+                        .and(SysFriendRequest::getStatus).ne(SysFriendRequest.STATUS_PENDING)
+        );
+        cleared += sysFriendRequestMapper.deleteByQuery(
+                QueryWrapper.create()
+                        .where(SysFriendRequest::getToUserId).eq(userId)
+                        .and(SysFriendRequest::getStatus).ne(SysFriendRequest.STATUS_PENDING)
+        );
+        return cleared;
     }
 
     @Override

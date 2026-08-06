@@ -106,6 +106,15 @@ class FriendServiceImplTest {
             List<UserSearchVO> list = service.searchUsers("bo", USER_ID);
             assertEquals(2, list.size());
         }
+
+        @Test
+        @DisplayName("可搜到自己")
+        void includeSelf() {
+            when(sysUserMapper.selectOneByQuery(any(QueryWrapper.class))).thenReturn(user(USER_ID, "me"));
+            List<UserSearchVO> list = service.searchUsers("me", USER_ID);
+            assertEquals(1, list.size());
+            assertEquals(USER_ID, list.get(0).getId());
+        }
     }
 
     @Nested
@@ -169,6 +178,14 @@ class FriendServiceImplTest {
             service.rejectFriendRequest(USER_ID, 1L);
             assertEquals(SysFriendRequest.STATUS_REJECTED, req.getStatus());
             verify(sysFriendRequestMapper).update(req);
+        }
+
+        @Test
+        @DisplayName("clearProcessedFriendRequests 仅删除已处理记录")
+        void clearProcessed() {
+            when(sysFriendRequestMapper.deleteByQuery(any(QueryWrapper.class))).thenReturn(2, 1);
+            assertEquals(3, service.clearProcessedFriendRequests(USER_ID));
+            verify(sysFriendRequestMapper, times(2)).deleteByQuery(any(QueryWrapper.class));
         }
     }
 

@@ -70,6 +70,14 @@ public class GroupInvitationController {
         return Result.success(null);
     }
 
+    @Operation(summary = "清空已处理的群邀请")
+    @DeleteMapping("/clear")
+    public Result<Integer> clearProcessed(HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        int cleared = invitationService.clearProcessedInvitations(userId);
+        return Result.success(cleared);
+    }
+
     /**
      * 群成员邀请新成员入群（owner/admin/member 均可作为邀请人）。
      */

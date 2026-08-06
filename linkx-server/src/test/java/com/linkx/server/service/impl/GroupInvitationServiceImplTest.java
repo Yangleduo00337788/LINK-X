@@ -362,5 +362,13 @@ class GroupInvitationServiceImplTest {
             service.reject(INVITEE_ID, INVITATION_ID);
             verify(invitationMapper).update(argThat(i -> i.getStatus() == GroupInvitation.STATUS_REJECTED));
         }
+
+        @Test
+        @DisplayName("clearProcessedInvitations 仅删除已处理邀请")
+        void clearProcessed() {
+            when(invitationMapper.deleteByQuery(any(QueryWrapper.class))).thenReturn(2);
+            assertEquals(2, service.clearProcessedInvitations(INVITEE_ID));
+            verify(invitationMapper).deleteByQuery(any(QueryWrapper.class));
+        }
     }
 }

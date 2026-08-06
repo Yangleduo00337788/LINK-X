@@ -247,4 +247,25 @@ class MessageNotificationServiceImplTest {
             assertThrows(CustomException.class, () -> service.delete(USER_ID, 3L));
         }
     }
+
+    @Nested
+    @DisplayName("clearReadByType")
+    class ClearReadByType {
+        @Test
+        @DisplayName("清空已读入群申请通知")
+        void clearGroupJoinRequests() {
+            when(notificationMapper.selectCountByQuery(any(QueryWrapper.class))).thenReturn(3L);
+            when(notificationMapper.deleteByQuery(any(QueryWrapper.class))).thenReturn(3);
+            assertEquals(3, service.clearReadByType(USER_ID, "group_join_request"));
+            verify(notificationMapper).deleteByQuery(any(QueryWrapper.class));
+        }
+
+        @Test
+        @DisplayName("无数据时返回 0")
+        void empty() {
+            when(notificationMapper.selectCountByQuery(any(QueryWrapper.class))).thenReturn(0L);
+            assertEquals(0, service.clearReadByType(USER_ID, "group_join_request"));
+            verify(notificationMapper, never()).deleteByQuery(any(QueryWrapper.class));
+        }
+    }
 }

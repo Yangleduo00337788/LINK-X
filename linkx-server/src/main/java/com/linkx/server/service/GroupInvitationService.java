@@ -35,4 +35,11 @@ public interface GroupInvitationService {
      * 拒绝邀请
      */
     void reject(Long userId, Long invitationId);
+
+    /**
+     * 清空当前用户已处理的群邀请（已同意/已拒绝/已过期），保留待处理邀请。
+     *
+     * @return 清空的记录数
+     */
+    int clearProcessedInvitations(Long userId);
 }

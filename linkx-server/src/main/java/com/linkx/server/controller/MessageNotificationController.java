@@ -73,6 +73,14 @@ public class MessageNotificationController {
         return Result.success(cleared);
     }
 
+    @Operation(summary = "清空已读入群申请通知")
+    @DeleteMapping("/group-join-requests/clear")
+    public Result<Integer> clearReadGroupJoinRequests(HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        int cleared = notificationService.clearReadByType(userId, "group_join_request");
+        return Result.success(cleared);
+    }
+
     /**
      * 获取未读通知数量
      */

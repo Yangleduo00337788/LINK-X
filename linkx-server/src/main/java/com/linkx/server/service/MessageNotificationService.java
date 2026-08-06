@@ -56,6 +56,11 @@ public interface MessageNotificationService {
     int clearAll(Long userId);
 
     /**
+     * 清空指定用户某类型下已读通知（逻辑删除）。
+     */
+    int clearReadByType(Long userId, String type);
+
+    /**
      * 创建通知
      */
     void create(Long userId, Long senderId, String senderName, String senderAvatar, String type, Long relatedId, String content);

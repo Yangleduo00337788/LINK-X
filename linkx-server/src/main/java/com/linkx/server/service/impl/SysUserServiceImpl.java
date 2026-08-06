@@ -838,6 +838,43 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
     @Override
     @Transactional
+    public SysUser changeUsername(Long userId, String newUsername, String password) {
+        SysUser user = getById(userId);
+        if (user == null) {
+            throw new CustomException(404, "用户不存在");
+        }
+        if (!PasswordEncoderHolder.matches(password, user.getPassword())) {
+            throw new CustomException(400, "登录密码错误");
+        }
+
+        String username = InputSanitizer.stripHtml(newUsername, 64);
+        if (!StringUtils.hasText(username)) {
+            throw new CustomException(400, "LinkX ID 不能为空");
+        }
+        if (!username.matches("^[a-zA-Z0-9_]{4,32}$")) {
+            throw new CustomException(400, "LinkX ID 只能包含 4-32 位字母、数字和下划线");
+        }
+        if (username.equals(user.getUsername())) {
+            return user;
+        }
+
+        long used = queryChain()
+                .where(SysUser::getUsername).eq(username)
+                .and(SysUser::getId).ne(userId)
+                .count();
+        if (used > 0) {
+            throw new CustomException(400, "该 LinkX ID 已被占用");
+        }
+
+        String oldUsername = user.getUsername();
+        user.setUsername(username);
+        updateById(user);
+        log.info("用户 {} 修改 LinkX ID 为 {}", oldUsername, username);
+        return user;
+    }
+
+    @Override
+    @Transactional
     public void deleteAccount(Long userId, String password) {
         SysUser user = getById(userId);
         if (user == null) {

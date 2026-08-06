@@ -132,6 +132,25 @@ public class MessageNotificationServiceImpl implements MessageNotificationServic
 
     @Override
     @Transactional
+    public int clearReadByType(Long userId, String type) {
+        if (userId == null || !StringUtils.hasText(type)) {
+            return 0;
+        }
+        QueryWrapper qw = QueryWrapper.create()
+                .eq("user_id", userId)
+                .eq("type", type.trim())
+                .eq("read_status", 1);
+        long count = notificationMapper.selectCountByQuery(qw);
+        if (count <= 0) {
+            return 0;
+        }
+        notificationMapper.deleteByQuery(qw);
+        log.info("清空用户 {} 的已读 {} 通知，共 {} 条", userId, type, count);
+        return (int) Math.min(count, Integer.MAX_VALUE);
+    }
+
+    @Override
+    @Transactional
     public void create(Long userId, Long senderId, String senderName, String senderAvatar, String type, Long relatedId, String content) {
         // 获取发送者信息
         String name = senderName;
