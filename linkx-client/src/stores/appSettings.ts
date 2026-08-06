@@ -30,6 +30,7 @@ type SyncableKey =
   | 'privacyVerifyFriend'
   | 'privacyAllowStranger'
   | 'privacyShowOnline'
+  | 'privacySendReadReceipt'
   | 'language'
   | 'chatBackground'
   | 'notifyTone'
@@ -52,6 +53,7 @@ const SYNCABLE_KEYS: SyncableKey[] = [
   'privacyVerifyFriend',
   'privacyAllowStranger',
   'privacyShowOnline',
+  'privacySendReadReceipt',
   'language',
   'chatBackground',
   'notifyTone',
@@ -83,6 +85,7 @@ function defaultState() {
     privacyVerifyFriend: true,
     privacyAllowStranger: false,
     privacyShowOnline: true,
+    privacySendReadReceipt: true,
     language: 'zh-CN' as string,
     chatBackground: 'default' as ChatBackgroundId,
     notifyTone: 'default' as NotifyToneId,
@@ -207,6 +210,9 @@ export const useAppSettingsStore = defineStore('appSettings', {
       if (typeof data.privacyVerifyFriend === 'boolean') this.privacyVerifyFriend = data.privacyVerifyFriend
       if (typeof data.privacyAllowStranger === 'boolean') this.privacyAllowStranger = data.privacyAllowStranger
       if (typeof data.privacyShowOnline === 'boolean') this.privacyShowOnline = data.privacyShowOnline
+      if (typeof data.privacySendReadReceipt === 'boolean') {
+        this.privacySendReadReceipt = data.privacySendReadReceipt
+      }
       if (typeof data.language === 'string' && data.language) this.language = data.language
       if (typeof data.chatBackground === 'string' && data.chatBackground) this.chatBackground = data.chatBackground as ChatBackgroundId
       if (typeof (data as { notifyTone?: unknown }).notifyTone === 'string') {
@@ -273,6 +279,7 @@ export const useAppSettingsStore = defineStore('appSettings', {
       'privacyVerifyFriend',
       'privacyAllowStranger',
       'privacyShowOnline',
+      'privacySendReadReceipt',
       'language',
       'chatBackground',
       'notifyTone',

@@ -14,6 +14,7 @@ export interface UserPreference {
   privacyVerifyFriend: boolean
   privacyAllowStranger: boolean
   privacyShowOnline: boolean
+  privacySendReadReceipt: boolean
   language: string
   chatBackground: string
   notifyTone: string

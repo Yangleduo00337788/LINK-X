@@ -8,7 +8,8 @@ const appSettingsStore = useAppSettingsStore()
 const {
   privacyVerifyFriend,
   privacyAllowStranger,
-  privacyShowOnline
+  privacyShowOnline,
+  privacySendReadReceipt
 } = storeToRefs(appSettingsStore)
 const { t } = useI18n()
 </script>
@@ -49,6 +50,16 @@ const { t } = useI18n()
           v-model:value="privacyShowOnline"
           size="small"
           @update:value="appSettingsStore.scheduleSave('privacyShowOnline')"
+        />
+      <div class="setting-row">
+        <div class="setting-text">
+          <span class="setting-name">{{ t('privacy.sendReadReceipt') }}</span>
+          <span class="setting-desc">{{ t('privacy.sendReadReceiptDesc') }}</span>
+        </div>
+        <n-switch
+          v-model:value="privacySendReadReceipt"
+          size="small"
+          @update:value="appSettingsStore.scheduleSave('privacySendReadReceipt')"
         />
       </div>
     </section>

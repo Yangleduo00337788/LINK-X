@@ -106,7 +106,9 @@ export default {
     allowStranger: 'Allow stranger chats',
     allowStrangerDesc: 'When off, non-friends cannot start a private chat with you',
     showOnline: 'Show online status',
-    showOnlineDesc: 'When off, friends will not see your online indicator'
+    showOnlineDesc: 'When off, friends will not see your online indicator',
+    sendReadReceipt: 'Send read receipts',
+    sendReadReceiptDesc: 'When off, others cannot see whether you have read their messages'
   },
   presence: {
     peopleOnline: '{count} online',
@@ -290,6 +292,13 @@ export default {
     fileFallback: 'File',
     editedLabel: 'Edited',
     readCount: '{read}/{total} read',
+    lastSeenJustNow: 'Just online',
+    lastSeenMinutes: 'Online {n} min ago',
+    lastSeenHours: 'Online {n} h ago',
+    lastSeenDays: 'Online {n} d ago',
+    lastSeenLongAgo: 'Offline for a long time',
+    typingPrivate: 'Typing…',
+    typingGroup: '{name} is typing…',
     invite: 'Invite',
     groupApps: 'Group apps',
     selectChatHint: 'Select a chat on the left to start',

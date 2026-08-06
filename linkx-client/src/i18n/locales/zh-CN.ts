@@ -107,7 +107,9 @@ export default {
     allowStranger: '允许陌生人会话',
     allowStrangerDesc: '关闭后，非好友无法向你发起私聊',
     showOnline: '在线状态可见',
-    showOnlineDesc: '关闭后，好友侧不展示你的在线绿点'
+    showOnlineDesc: '关闭后，好友侧不展示你的在线绿点',
+    sendReadReceipt: '发送已读回执',
+    sendReadReceiptDesc: '关闭后，对方将看不到你是否已读消息'
   },
   presence: {
     peopleOnline: '{count}人在线',
@@ -292,6 +294,13 @@ export default {
     fileFallback: '文件',
     editedLabel: '已编辑',
     readCount: '{read}/{total}人已读',
+    lastSeenJustNow: '刚刚在线',
+    lastSeenMinutes: '{n}分钟前在线',
+    lastSeenHours: '{n}小时前在线',
+    lastSeenDays: '{n}天前在线',
+    lastSeenLongAgo: '很久未在线',
+    typingPrivate: '对方正在输入…',
+    typingGroup: '{name} 正在输入…',
     invite: '邀请',
     groupApps: '群应用',
     selectChatHint: '在左侧选择会话开始聊天',
