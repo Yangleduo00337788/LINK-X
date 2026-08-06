@@ -107,7 +107,7 @@ async function togglePin() {
         :aria-pressed="isPinned"
         @click="togglePin"
       >
-        <PinIcon :size="14" />
+        <PinIcon :size="14" :filled="isPinned" />
       </button>
       <WindowCaptionButtons />
     </div>
