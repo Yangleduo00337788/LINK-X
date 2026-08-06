@@ -48,8 +48,11 @@ public class UserPreference implements Serializable {
     /** 允许陌生人会话 */
     private Boolean privacyAllowStranger;
 
-    /** 在线状态可见 */
-    private Boolean privacyShowOnline;
+  /** 在线状态可见 */
+  private Boolean privacyShowOnline;
+
+  /** 向他人发送已读回执 */
+  private Boolean privacySendReadReceipt;
 
     /** 界面语言 */
     private String language;

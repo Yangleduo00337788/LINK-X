@@ -28,6 +28,7 @@ public class UserPreferenceVO implements Serializable {
     private Boolean privacyVerifyFriend;
     private Boolean privacyAllowStranger;
     private Boolean privacyShowOnline;
+    private Boolean privacySendReadReceipt;
 
     private String language;
     private String chatBackground;

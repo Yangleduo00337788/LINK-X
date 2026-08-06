@@ -544,6 +544,7 @@ CREATE TABLE IF NOT EXISTS `user_preference` (
   `privacy_verify_friend` tinyint(1) NOT NULL DEFAULT 1 COMMENT '加好友需验证',
   `privacy_allow_stranger` tinyint(1) NOT NULL DEFAULT 0 COMMENT '允许陌生人会话',
   `privacy_show_online` tinyint(1) NOT NULL DEFAULT 1 COMMENT '在线状态可见',
+  `privacy_send_read_receipt` tinyint(1) NOT NULL DEFAULT 1 COMMENT '向他人发送已读回执',
   `language` varchar(16) NOT NULL DEFAULT 'zh-CN' COMMENT '界面语言',
   `chat_background` varchar(32) NOT NULL DEFAULT 'default' COMMENT '聊天背景主题',
   `notify_tone` varchar(32) NOT NULL DEFAULT 'default' COMMENT '提示音（音色 ID）',

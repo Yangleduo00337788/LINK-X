@@ -20,6 +20,7 @@ public class UserPreferenceDTO {
     private Boolean privacyVerifyFriend;
     private Boolean privacyAllowStranger;
     private Boolean privacyShowOnline;
+    private Boolean privacySendReadReceipt;
 
     @Size(max = 16, message = "语言代码最长16字符")
     private String language;

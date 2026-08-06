@@ -503,6 +503,7 @@ CREATE TABLE IF NOT EXISTS user_preference (
   privacy_verify_friend TINYINT NOT NULL DEFAULT 1,
   privacy_allow_stranger TINYINT NOT NULL DEFAULT 0,
   privacy_show_online TINYINT NOT NULL DEFAULT 1,
+  privacy_send_read_receipt TINYINT NOT NULL DEFAULT 1,
   language VARCHAR(16) NOT NULL DEFAULT 'zh-CN',
   chat_background VARCHAR(32) NOT NULL DEFAULT 'default',
   notify_tone VARCHAR(32) NOT NULL DEFAULT 'default',
