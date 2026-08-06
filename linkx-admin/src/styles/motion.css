@@ -41,6 +41,7 @@
   position: absolute;
   inset: 0;
   width: 100%;
+  pointer-events: none;
 }
 
 .lx-auth-step-enter-active {

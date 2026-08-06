@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { NIcon } from 'naive-ui'
 import { RefreshOutline, ArrowForwardOutline } from '@vicons/ionicons5'
 import { useI18n } from 'vue-i18n'
 
-const CANVAS_WIDTH = 300
+/** 与服务端 SliderCaptchaRenderer 画布尺寸一致 */
+const DESIGN_WIDTH = 300
+const DESIGN_HEIGHT = 150
 const THUMB_SIZE = 40
 
 const props = withDefaults(
@@ -29,20 +31,40 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
+const panelRef = ref<HTMLElement | null>(null)
 const trackRef = ref<HTMLElement | null>(null)
+const layoutWidth = ref(DESIGN_WIDTH)
 const offset = ref(0)
 const dragging = ref(false)
 const committed = ref(false)
 const startX = ref(0)
 const startOffset = ref(0)
 
+let resizeObserver: ResizeObserver | null = null
+let activePointerId: number | null = null
+
 const ready = computed(() => !!props.background && !!props.puzzle)
-const maxOffset = computed(() => Math.max(0, CANVAS_WIDTH - THUMB_SIZE))
+const scale = computed(() => layoutWidth.value / DESIGN_WIDTH)
+const panelHeight = computed(() => Math.round(DESIGN_HEIGHT * scale.value))
+const thumbSize = computed(() => THUMB_SIZE * scale.value)
+const maxOffset = computed(() => Math.max(0, layoutWidth.value - thumbSize.value))
+const puzzleTop = computed(() => Math.round((props.puzzleY ?? 0) * scale.value))
+
+const puzzleStyle = computed(() => ({
+  left: `${offset.value}px`,
+  top: `${puzzleTop.value}px`,
+  transform: `scale(${scale.value})`,
+  transformOrigin: 'top left',
+}))
+
+const trackFillWidth = computed(() => `${offset.value + thumbSize.value}px`)
+const thumbTransform = computed(() => `translateX(${offset.value}px)`)
 
 function resetSlider() {
   offset.value = 0
   dragging.value = false
   committed.value = false
+  activePointerId = null
 }
 
 watch(
@@ -50,44 +72,94 @@ watch(
   () => resetSlider()
 )
 
+function measureLayout() {
+  const root = panelRef.value?.parentElement
+  if (!root) return
+  const available = Math.round(root.clientWidth || DESIGN_WIDTH)
+  layoutWidth.value = Math.min(DESIGN_WIDTH, Math.max(1, available))
+}
+
 function clampOffset(value: number) {
   return Math.max(0, Math.min(maxOffset.value, value))
 }
 
+function toDesignOffset(displayOffset: number) {
+  return Math.round(displayOffset / scale.value)
+}
+
+function removeDocListeners() {
+  document.removeEventListener('pointermove', onDocMove)
+  document.removeEventListener('pointerup', onDocUp)
+  document.removeEventListener('pointercancel', onDocUp)
+}
+
+function releasePointerCapture(target: EventTarget | null) {
+  if (activePointerId == null || !(target instanceof HTMLElement)) return
+  try {
+    if (target.hasPointerCapture(activePointerId)) {
+      target.releasePointerCapture(activePointerId)
+    }
+  } catch {
+    /* noop */
+  }
+  activePointerId = null
+}
+
 function onDocMove(e: PointerEvent) {
-  if (!dragging.value) return
+  if (!dragging.value || activePointerId !== e.pointerId) return
   offset.value = clampOffset(startOffset.value + (e.clientX - startX.value))
 }
 
 function endDrag() {
   if (!dragging.value) return
   dragging.value = false
-  document.removeEventListener('pointermove', onDocMove)
-  document.removeEventListener('pointerup', onDocUp)
-  document.removeEventListener('pointercancel', onDocUp)
+  removeDocListeners()
+  releasePointerCapture(trackRef.value)
+
   if (!ready.value || offset.value <= 0) {
     offset.value = 0
     committed.value = false
     return
   }
   committed.value = true
-  emit('success', Math.round(offset.value))
+  emit('success', toDesignOffset(offset.value))
 }
 
-function onDocUp() {
+function onDocUp(e: PointerEvent) {
+  if (activePointerId !== e.pointerId) return
   endDrag()
 }
 
-function onPointerDown(e: PointerEvent) {
+function beginDrag(e: PointerEvent, nextOffset?: number) {
   if (props.disabled || !ready.value) return
   e.preventDefault()
+  e.stopPropagation()
+
+  if (typeof nextOffset === 'number') {
+    offset.value = clampOffset(nextOffset)
+  }
+
   dragging.value = true
   committed.value = false
   startX.value = e.clientX
   startOffset.value = offset.value
+  activePointerId = e.pointerId
+  trackRef.value?.setPointerCapture(e.pointerId)
+
   document.addEventListener('pointermove', onDocMove)
   document.addEventListener('pointerup', onDocUp)
   document.addEventListener('pointercancel', onDocUp)
+}
+
+function onThumbPointerDown(e: PointerEvent) {
+  beginDrag(e)
+}
+
+function onTrackPointerDown(e: PointerEvent) {
+  if (props.disabled || !ready.value || !trackRef.value) return
+  const rect = trackRef.value.getBoundingClientRect()
+  const next = e.clientX - rect.left - thumbSize.value / 2
+  beginDrag(e, next)
 }
 
 function onRefresh() {
@@ -96,10 +168,20 @@ function onRefresh() {
   emit('refresh')
 }
 
+onMounted(() => {
+  measureLayout()
+  const root = panelRef.value?.parentElement
+  if (root) {
+    resizeObserver = new ResizeObserver(() => measureLayout())
+    resizeObserver.observe(root)
+  }
+  requestAnimationFrame(measureLayout)
+})
+
 onBeforeUnmount(() => {
-  document.removeEventListener('pointermove', onDocMove)
-  document.removeEventListener('pointerup', onDocUp)
-  document.removeEventListener('pointercancel', onDocUp)
+  resizeObserver?.disconnect()
+  removeDocListeners()
+  releasePointerCapture(trackRef.value)
 })
 
 defineExpose({ reset: resetSlider })
@@ -107,11 +189,16 @@ defineExpose({ reset: resetSlider })
 
 <template>
   <div class="slider-captcha" :class="{ 'slider-captcha--disabled': disabled }">
-    <div class="slider-captcha__panel">
+    <div
+      ref="panelRef"
+      class="slider-captcha__panel"
+      :style="{ width: `${layoutWidth}px`, height: `${panelHeight}px` }"
+    >
       <img
         v-if="background"
         :src="background"
         class="slider-captcha__bg"
+        :style="{ width: `${layoutWidth}px`, height: `${panelHeight}px` }"
         alt=""
         draggable="false"
       />
@@ -119,7 +206,7 @@ defineExpose({ reset: resetSlider })
         v-if="puzzle"
         :src="puzzle"
         class="slider-captcha__puzzle"
-        :style="{ left: `${offset}px`, top: `${puzzleY}px` }"
+        :style="puzzleStyle"
         alt=""
         draggable="false"
       />
@@ -138,16 +225,18 @@ defineExpose({ reset: resetSlider })
       ref="trackRef"
       class="slider-captcha__track"
       :class="{ 'slider-captcha__track--dragging': dragging }"
+      :style="{ width: `${layoutWidth}px` }"
+      @pointerdown="onTrackPointerDown"
     >
-      <div class="slider-captcha__track-fill" :style="{ width: `${offset + THUMB_SIZE}px` }" />
+      <div class="slider-captcha__track-fill" :style="{ width: trackFillWidth }" />
       <span class="slider-captcha__hint">
         {{ committed ? t('captcha.sliderRelease') : t('captcha.sliderHint') }}
       </span>
       <div
         class="slider-captcha__thumb"
         :class="{ 'slider-captcha__thumb--dragging': dragging }"
-        :style="{ transform: `translateX(${offset}px)` }"
-        @pointerdown.stop="onPointerDown"
+        :style="{ width: `${thumbSize}px`, height: `${thumbSize - 4}px`, transform: thumbTransform }"
+        @pointerdown.stop="onThumbPointerDown"
       >
         <NIcon :component="ArrowForwardOutline" :size="18" />
       </div>
@@ -157,8 +246,8 @@ defineExpose({ reset: resetSlider })
 
 <style scoped>
 .slider-captcha {
-  width: 300px;
-  max-width: 100%;
+  width: 100%;
+  max-width: 300px;
   user-select: none;
 }
 
@@ -169,8 +258,6 @@ defineExpose({ reset: resetSlider })
 
 .slider-captcha__panel {
   position: relative;
-  width: 300px;
-  height: 150px;
   border-radius: 10px;
   overflow: hidden;
   background: var(--lx-captcha-bg, rgba(0, 0, 0, 0.04));
@@ -178,8 +265,6 @@ defineExpose({ reset: resetSlider })
 
 .slider-captcha__bg {
   display: block;
-  width: 300px;
-  height: 150px;
   pointer-events: none;
 }
 
@@ -212,13 +297,13 @@ defineExpose({ reset: resetSlider })
 .slider-captcha__track {
   position: relative;
   margin-top: 10px;
-  width: 300px;
   height: 40px;
   border-radius: 20px;
   background: var(--lx-captcha-bg, rgba(0, 0, 0, 0.06));
   border: 1px solid rgba(0, 0, 0, 0.06);
   overflow: hidden;
   touch-action: none;
+  cursor: pointer;
 }
 
 .slider-captcha__track-fill {
@@ -251,8 +336,6 @@ defineExpose({ reset: resetSlider })
   top: 2px;
   left: 0;
   z-index: 2;
-  width: 36px;
-  height: 36px;
   border-radius: 50%;
   background: #fff;
   border: 1px solid rgba(0, 0, 0, 0.08);

@@ -1,27 +1,25 @@
-/**
- * 生成默认头像的 Data URL（圆形渐变 + 首字母）
- * 替代第三方 dicebear、picsum、unsplash 等远程占位图
- */
+import logoMark from '../assets/logo-mark-transparent.png'
+import { isDisplayableMediaUrl, normalizeMediaUrl } from './mediaUrl'
+
+/** 客户端默认头像：项目 Logo */
+export const DEFAULT_AVATAR_URL: string = logoMark
 
 /**
- * 根据用户名生成首字母头像
- * @param name 用户名/昵称
- * @param size 像素尺寸（默认 80）
- * @returns SVG data URL
+ * 解析用户头像 URL；无有效头像时回退为项目 Logo。
  */
-export function generateDefaultAvatar(name: string, size = 80): string {
-  const displayName = name?.trim() || '?'
-  const initial = displayName.charAt(0).toUpperCase()
-  const color = pickColor(displayName)
-  const textColor = '#ffffff'
+export function resolveUserAvatarUrl(url?: string | null): string {
+  const normalized = normalizeMediaUrl(url)
+  if (normalized && isDisplayableMediaUrl(normalized)) return normalized
+  return DEFAULT_AVATAR_URL
+}
 
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-    <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}" fill="${color}"/>
-    <text x="${size / 2}" y="${size / 2 + size * 0.12}" text-anchor="middle"
-          font-family="-apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif"
-          font-size="${size * 0.5}" font-weight="600" fill="${textColor}">${escapeXml(initial)}</text>
-  </svg>`
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
+/**
+ * 默认头像（项目 Logo）。
+ * @param _name 保留参数以兼容既有调用
+ * @param _size 保留参数以兼容既有调用
+ */
+export function generateDefaultAvatar(_name?: string, _size = 80): string {
+  return DEFAULT_AVATAR_URL
 }
 
 /**

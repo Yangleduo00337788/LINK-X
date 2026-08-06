@@ -7,6 +7,7 @@ import { defineStore } from 'pinia'
 import type { ContactItem } from '../types'
 import type { FriendItem } from '../types/friend'
 import * as friendApi from '../api/friend'
+import { resolveUserAvatarUrl } from '../utils/defaultAvatar'
 import { normalizeMediaUrl } from '../utils/mediaUrl'
 import { sanitizeContactsPersistState } from '../utils/persistSanitize'
 import { formatFriendDisplayName, friendAvatarText } from '../utils/friendDisplay'
@@ -32,7 +33,7 @@ function friendToContact(friend: FriendItem): ContactItem {
     avatarText: friendAvatarText(nickname, remark),
     avatarColor: DEFAULT_AVATAR_COLOR,
     group,
-    avatarUrl: normalizeMediaUrl(friend.avatar) || undefined,
+    avatarUrl: resolveUserAvatarUrl(friend.avatar),
     online: !!friend.online
   }
 }

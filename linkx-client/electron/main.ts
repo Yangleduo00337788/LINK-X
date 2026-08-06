@@ -1111,6 +1111,16 @@ function resolveAppIconPath(): string | undefined {
 }
 
 function createAppIconImage(): Electron.NativeImage | undefined {
+  // Windows 任务栏/窗口图标：优先 PNG（透明圆角），.ico 在部分 DPI 下圆角不明显
+  if (process.platform === 'win32') {
+    for (const file of ['icon-256.png', 'icon-128.png', 'icon.png']) {
+      const pngPath = resolveBuildAsset(file)
+      if (!pngPath) continue
+      const pngImg = nativeImage.createFromPath(pngPath)
+      if (!pngImg.isEmpty()) return pngImg
+    }
+  }
+
   const iconPath = resolveAppIconPath()
   if (!iconPath) return undefined
   const img = nativeImage.createFromPath(iconPath)
@@ -1122,14 +1132,19 @@ function browserWindowIconOptions(): Pick<Electron.BrowserWindowConstructorOptio
   return icon ? { icon } : {}
 }
 
-/** 托盘图标：读取 build/icon-32.png，回退到手绘蓝点 */
+/** 托盘图标：专用圆形 icon-tray.png，缩到任务栏仍显圆润 */
 function createTrayIcon(): Electron.NativeImage {
-  const trayPath = resolveBuildAsset('icon-32.png') ?? resolveBuildAsset('icon.png')
+  const trayPath =
+    resolveBuildAsset('icon-tray.png') ??
+    resolveBuildAsset('icon-64.png') ??
+    resolveBuildAsset('icon-48.png') ??
+    resolveBuildAsset('icon-32.png') ??
+    resolveBuildAsset('icon.png')
   if (trayPath) {
     try {
       const img = nativeImage.createFromPath(trayPath)
       if (!img.isEmpty()) {
-        return img.resize({ width: 16, height: 16 })
+        return img
       }
     } catch {
       /* fall through */

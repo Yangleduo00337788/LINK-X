@@ -4,10 +4,8 @@
  * 按成员数 1–9 排布；无自定义群头像时作为默认展示。
  */
 import { computed, ref, watch } from 'vue'
+import { DEFAULT_AVATAR_URL } from '../utils/defaultAvatar'
 import { isDisplayableMediaUrl, normalizeMediaUrl } from '../utils/mediaUrl'
-import { useI18n } from '../i18n'
-
-const { t } = useI18n()
 
 export interface GroupAvatarFace {
   text?: string
@@ -34,13 +32,13 @@ const useCustom = computed(() => isDisplayableMediaUrl(customUrl.value))
 const cells = computed(() => {
   const list = (props.faces || []).slice(0, 9)
   return list.map((f, i) => {
-    const url = normalizeMediaUrl(f.imageUrl)
-    const showImg = isDisplayableMediaUrl(url) && !failed.value[i]
+    const raw = normalizeMediaUrl(f.imageUrl)
+    const isDefaultLogo = !raw || raw === DEFAULT_AVATAR_URL
+    const hasCustom = isDisplayableMediaUrl(raw) && !failed.value[i] && !isDefaultLogo
     return {
-      text: (f.text || '?').charAt(0),
-      color: f.color || pickColor(f.text || String(i)),
-      imageUrl: showImg ? url : '',
-      showImg
+      imageUrl: hasCustom ? raw : DEFAULT_AVATAR_URL,
+      isLogo: !hasCustom,
+      color: f.color || '#f0f4f8'
     }
   })
 })
@@ -59,15 +57,8 @@ watch(
 )
 
 function onCellError(index: number) {
+  if (cells.value[index]?.isLogo) return
   failed.value = { ...failed.value, [index]: true }
-}
-
-const COLORS = ['#12b7f5', '#52c41a', '#722ed1', '#fa8c16', '#eb2f96', '#13c2c2', '#f5222d', '#faad14']
-
-function pickColor(seed: string): string {
-  let hash = 0
-  for (let i = 0; i < seed.length; i++) hash += seed.charCodeAt(i)
-  return COLORS[hash % COLORS.length]
 }
 </script>
 
@@ -95,16 +86,16 @@ function pickColor(seed: string): string {
       v-for="(cell, i) in cells"
       :key="i"
       class="cell"
-      :style="{ backgroundColor: cell.color }"
+      :style="{ backgroundColor: cell.isLogo ? '#f0f4f8' : cell.color }"
     >
       <img
-        v-if="cell.showImg"
         :src="cell.imageUrl"
         alt=""
+        class="cell-img"
+        :class="{ 'cell-img--logo': cell.isLogo }"
         referrerpolicy="no-referrer"
         @error="onCellError(i)"
       />
-      <span v-else class="cell-text">{{ cell.text }}</span>
     </div>
   </div>
   <div
@@ -112,12 +103,10 @@ function pickColor(seed: string): string {
     class="group-avatar fallback"
     :style="{
       width: `${size}px`,
-      height: `${size}px`,
-      backgroundColor: color || '#12b7f5',
-      fontSize: `${size * 0.38}px`
+      height: `${size}px`
     }"
   >
-    {{ (text || t('defaults.groupChar')).charAt(0) }}
+    <img :src="DEFAULT_AVATAR_URL" alt="" class="full-img full-img--logo" referrerpolicy="no-referrer" />
   </div>
 </template>
 
@@ -145,8 +134,7 @@ function pickColor(seed: string): string {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--lx-bg-card, #fff);
-  font-weight: 500;
+  background: #f0f4f8;
   border-radius: 50%;
 }
 
@@ -159,19 +147,23 @@ function pickColor(seed: string): string {
   min-height: 0;
 }
 
-.cell img {
+.cell-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
 
-.cell-text {
-  color: #fff;
-  font-weight: 600;
-  font-size: 0.28em;
-  line-height: 1;
-  user-select: none;
+.cell-img--logo {
+  object-fit: contain;
+  padding: 12%;
+  box-sizing: border-box;
+}
+
+.full-img--logo {
+  object-fit: contain;
+  padding: 10%;
+  box-sizing: border-box;
 }
 
 .n1 {

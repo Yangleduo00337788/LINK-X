@@ -13,18 +13,27 @@ withDefaults(
     visualTitle?: string
     /** 左侧副标题 */
     visualDesc?: string
+    /** 登录页专用样式（右上角切换器用蓝色高亮） */
+    loginPage?: boolean
   }>(),
   {
     mode: 'split',
     immersive: false,
     visualTitle: '',
     visualDesc: '',
+    loginPage: false,
   }
 )
 </script>
 
 <template>
-  <div class="auth-page" :class="[`auth-page--${mode}`, { 'auth-page--immersive': immersive }]">
+  <div
+    class="auth-page"
+    :class="[
+      `auth-page--${mode}`,
+      { 'auth-page--immersive': immersive, 'auth-page--login': loginPage },
+    ]"
+  >
     <div class="auth-bg" aria-hidden="true">
       <div class="auth-bg-base" />
       <span class="auth-aurora auth-aurora-a" />
@@ -185,33 +194,29 @@ withDefaults(
   pointer-events: auto;
 }
 
+.auth-page--login .auth-prefs :deep(.n-button--primary-type) {
+  --n-color: #1677ff !important;
+  --n-color-hover: #4096ff !important;
+  --n-color-pressed: #0958d9 !important;
+  --n-text-color: #fff !important;
+}
+
 .auth-page--immersive {
   padding: 0;
   place-items: stretch;
-  background: linear-gradient(
-    102deg,
-    #dce9f8 0%,
-    #e8f2fb 16%,
-    #f0f6fc 34%,
-    #f7fafd 52%,
-    #fbfcfe 68%,
-    #ffffff 100%
-  );
+  background: linear-gradient(135deg, #eef4fb 0%, #f3f7fc 42%, #f7faff 100%);
 }
 
 .auth-page--immersive::after {
   content: '';
   position: absolute;
-  top: 0;
-  right: 0;
-  width: 58%;
-  height: 42%;
+  inset: 0;
   pointer-events: none;
   z-index: 0;
-  opacity: 0.28;
-  background-image: radial-gradient(rgba(148, 163, 184, 0.45) 1px, transparent 1px);
+  opacity: 0.45;
+  background-image: radial-gradient(rgba(148, 163, 184, 0.28) 1px, transparent 1px);
   background-size: 18px 18px;
-  mask-image: linear-gradient(135deg, transparent 25%, #000 75%);
+  mask-image: linear-gradient(115deg, transparent 0%, transparent 38%, #000 62%, #000 100%);
 }
 
 .auth-page--immersive .auth-bg {
@@ -234,7 +239,7 @@ withDefaults(
   box-shadow: none;
   backdrop-filter: none;
   background: transparent;
-  grid-template-columns: minmax(0, 1.42fr) minmax(400px, 0.58fr);
+  grid-template-columns: minmax(0, 1.28fr) minmax(380px, 0.72fr);
 }
 
 .auth-page--immersive .auth-visual {
@@ -253,7 +258,7 @@ withDefaults(
 
 .auth-page--immersive .auth-panel {
   min-height: 100vh;
-  padding: 32px 48px 32px 16px;
+  padding: 40px 72px 40px 24px;
   background: transparent;
   align-items: center;
   position: relative;
@@ -261,7 +266,7 @@ withDefaults(
 }
 
 .auth-page--immersive .auth-panel-inner {
-  max-width: 400px;
+  max-width: 420px;
   width: 100%;
   margin-left: auto;
   margin-right: auto;

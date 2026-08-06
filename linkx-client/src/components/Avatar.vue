@@ -12,6 +12,7 @@ import { NIcon } from 'naive-ui'
 import { computed, ref, watch } from 'vue'
 // Vue 组件类型定义
 import type { Component } from 'vue'
+import { DEFAULT_AVATAR_URL } from '../utils/defaultAvatar'
 import { isDisplayableMediaUrl, normalizeMediaUrl } from '../utils/mediaUrl'
 import { useI18n } from '../i18n'
 
@@ -24,22 +25,37 @@ const props = defineProps<{
   size?: number // 头像尺寸（像素），默认 44
   icon?: Component // 可选图标组件
   imageUrl?: string // 可选图片 URL，优先级高于 icon 和 text
+  /** logo：无头像时用项目 Logo；initial：用首字/图标 */
+  fallback?: 'logo' | 'initial'
 }>()
 
 // 计算实际尺寸，未传入时使用默认值 44
 const size = computed(() => props.size ?? 44)
 // 根据尺寸计算文字字号（约为尺寸的 38%）
 const fontSize = computed(() => `${size.value * 0.38}px`)
-const resolvedImageUrl = computed(() => normalizeMediaUrl(props.imageUrl))
 const imgFailed = ref(false)
+const useLogoFallback = computed(() => (props.fallback ?? 'logo') === 'logo' && !props.icon)
 
-watch(resolvedImageUrl, () => {
-  imgFailed.value = false
+watch(
+  () => props.imageUrl,
+  () => {
+    imgFailed.value = false
+  }
+)
+
+const hasCustomImage = computed(() => {
+  const url = normalizeMediaUrl(props.imageUrl)
+  return !!url && isDisplayableMediaUrl(url) && !imgFailed.value
 })
 
-const showImage = computed(
-  () => !!resolvedImageUrl.value && isDisplayableMediaUrl(resolvedImageUrl.value) && !imgFailed.value
-)
+const displayImageUrl = computed(() => {
+  if (hasCustomImage.value) return normalizeMediaUrl(props.imageUrl)
+  if (useLogoFallback.value) return DEFAULT_AVATAR_URL
+  return ''
+})
+
+const showImage = computed(() => !!displayImageUrl.value)
+const isLogoDisplay = computed(() => showImage.value && !hasCustomImage.value)
 
 function onImgError() {
   imgFailed.value = true
@@ -50,19 +66,21 @@ function onImgError() {
   <!-- 头像容器，动态设置宽高、背景色、字号 -->
   <div
     class="avatar"
+    :class="{ 'avatar--logo': isLogoDisplay }"
     :style="{
       width: `${size}px`,
       height: `${size}px`,
-      backgroundColor: color,
+      backgroundColor: isLogoDisplay ? '#f0f4f8' : color,
       fontSize: fontSize
     }"
   >
-    <!-- 优先展示图片；加载失败回退文字/图标，避免裂图图标 -->
+    <!-- 优先展示图片；无头像或加载失败时回退项目 Logo -->
     <img
       v-if="showImage"
-      :src="resolvedImageUrl"
+      :src="displayImageUrl"
       alt=""
       class="avatar-img"
+      :class="{ 'avatar-img--logo': isLogoDisplay }"
       decoding="async"
       referrerpolicy="no-referrer"
       @error="onImgError"
@@ -91,5 +109,11 @@ function onImgError() {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+.avatar-img--logo {
+  object-fit: contain;
+  padding: 10%;
+  box-sizing: border-box;
 }
 </style>

@@ -8,14 +8,26 @@ const canvasRef = ref<HTMLCanvasElement | null>(null)
 const prefs = usePreferencesStore()
 const { theme } = storeToRefs(prefs)
 
+type ParticleHue = 'blue' | 'teal' | 'purple' | 'yellow' | 'pink'
+
 interface Particle {
   x: number
   y: number
   vx: number
   vy: number
   r: number
-  hue: 'blue' | 'teal'
+  hue: ParticleHue
 }
+
+const props = withDefaults(
+  defineProps<{
+    /** brand: 蓝青连线；colorful: 多彩散点（登录页装饰背景） */
+    palette?: 'brand' | 'colorful'
+    /** 登录装饰场景下忽略系统「减少动态效果」 */
+    alwaysAnimate?: boolean
+  }>(),
+  { palette: 'brand', alwaysAnimate: false }
+)
 
 let raf = 0
 let particles: Particle[] = []
@@ -31,19 +43,72 @@ function readReducedMotion() {
 }
 
 function particleCount() {
-  return Math.min(88, Math.max(36, Math.floor((width * height) / 16000)))
+  const base = Math.floor((width * height) / 16000)
+  if (props.palette === 'colorful') {
+    return Math.min(120, Math.max(48, base + 16))
+  }
+  return Math.min(88, Math.max(36, base))
+}
+
+function randomHue(): ParticleHue {
+  if (props.palette === 'brand') {
+    return Math.random() > 0.78 ? 'teal' : 'blue'
+  }
+  const roll = Math.random()
+  if (roll < 0.28) return 'purple'
+  if (roll < 0.52) return 'yellow'
+  if (roll < 0.76) return 'pink'
+  return 'blue'
+}
+
+function speedLimits() {
+  if (props.palette === 'colorful') {
+    return { min: 0.42, max: 1.15, damp: 0.9992 }
+  }
+  return { min: 0.26, max: 0.62, damp: 0.992 }
+}
+
+function randomVelocity() {
+  const { min, max } = speedLimits()
+  const angle = Math.random() * Math.PI * 2
+  const speed = min + Math.random() * (max - min)
+  return {
+    vx: Math.cos(angle) * speed,
+    vy: Math.sin(angle) * speed,
+  }
+}
+
+function enforceMinSpeed(p: Particle) {
+  const { min, max } = speedLimits()
+  const speed = Math.hypot(p.vx, p.vy)
+  if (speed < min) {
+    const angle = speed > 0.001 ? Math.atan2(p.vy, p.vx) : Math.random() * Math.PI * 2
+    p.vx = Math.cos(angle) * min
+    p.vy = Math.sin(angle) * min
+    return
+  }
+  if (speed > max) {
+    p.vx = (p.vx / speed) * max
+    p.vy = (p.vy / speed) * max
+  }
 }
 
 function initParticles() {
   const n = particleCount()
-  particles = Array.from({ length: n }, () => ({
-    x: Math.random() * width,
-    y: Math.random() * height,
-    vx: (Math.random() - 0.5) * 0.42,
-    vy: (Math.random() - 0.5) * 0.42,
-    r: Math.random() * 1.6 + 0.9,
-    hue: Math.random() > 0.78 ? 'teal' : 'blue',
-  }))
+  particles = Array.from({ length: n }, () => {
+    const velocity = randomVelocity()
+    return {
+      x: Math.random() * width,
+      y: Math.random() * height,
+      ...velocity,
+      r: Math.random() * (props.palette === 'colorful' ? 2.2 : 1.6) + (props.palette === 'colorful' ? 1.1 : 0.9),
+      hue: randomHue(),
+    }
+  })
+}
+
+function shouldAnimate() {
+  return props.alwaysAnimate || !reducedMotion
 }
 
 function resize() {
@@ -67,6 +132,14 @@ function resize() {
 }
 
 function dotColor(p: Particle, isDark: boolean) {
+  const colorful: Record<ParticleHue, string> = {
+    blue: 'rgba(96, 165, 250, 0.62)',
+    teal: 'rgba(45, 212, 191, 0.55)',
+    purple: 'rgba(167, 139, 250, 0.68)',
+    yellow: 'rgba(251, 191, 36, 0.72)',
+    pink: 'rgba(244, 114, 182, 0.62)',
+  }
+  if (props.palette === 'colorful') return colorful[p.hue]
   if (p.hue === 'teal') {
     return isDark ? 'rgba(19, 194, 194, 0.5)' : 'rgba(19, 194, 194, 0.42)'
   }
@@ -75,14 +148,17 @@ function dotColor(p: Particle, isDark: boolean) {
 
 function tick() {
   const canvas = canvasRef.value
-  if (!canvas || reducedMotion) return
+  if (!canvas || !shouldAnimate()) return
 
   const ctx = canvas.getContext('2d')
   if (!ctx) return
 
   const isDark = theme.value === 'dark'
-  const linkDist = 132
+  const linkDist = props.palette === 'colorful' ? 108 : 132
   const mouseRadius = 140
+  const drawLinks = props.palette !== 'colorful'
+  const { damp } = speedLimits()
+  const t = performance.now() * 0.001
 
   ctx.clearRect(0, 0, width, height)
 
@@ -98,8 +174,14 @@ function tick() {
       }
     }
 
-    p.vx = Math.max(-0.55, Math.min(0.55, p.vx * 0.992))
-    p.vy = Math.max(-0.55, Math.min(0.55, p.vy * 0.992))
+    if (props.palette === 'colorful') {
+      p.vx += Math.sin(t + p.y * 0.01) * 0.004
+      p.vy += Math.cos(t + p.x * 0.01) * 0.004
+    }
+
+    p.vx *= damp
+    p.vy *= damp
+    enforceMinSpeed(p)
     p.x += p.vx
     p.y += p.vy
 
@@ -109,21 +191,23 @@ function tick() {
     p.y = Math.max(0, Math.min(height, p.y))
   }
 
-  for (let i = 0; i < particles.length; i++) {
-    const a = particles[i]
-    for (let j = i + 1; j < particles.length; j++) {
-      const b = particles[j]
-      const dist = Math.hypot(a.x - b.x, a.y - b.y)
-      if (dist >= linkDist) continue
-      const alpha = (1 - dist / linkDist) * (isDark ? 0.28 : 0.22)
-      ctx.strokeStyle = isDark
-        ? `rgba(64, 169, 255, ${alpha})`
-        : `rgba(24, 144, 255, ${alpha})`
-      ctx.lineWidth = 1
-      ctx.beginPath()
-      ctx.moveTo(a.x, a.y)
-      ctx.lineTo(b.x, b.y)
-      ctx.stroke()
+  if (drawLinks) {
+    for (let i = 0; i < particles.length; i++) {
+      const a = particles[i]
+      for (let j = i + 1; j < particles.length; j++) {
+        const b = particles[j]
+        const dist = Math.hypot(a.x - b.x, a.y - b.y)
+        if (dist >= linkDist) continue
+        const alpha = (1 - dist / linkDist) * (isDark ? 0.28 : 0.22)
+        ctx.strokeStyle = isDark
+          ? `rgba(64, 169, 255, ${alpha})`
+          : `rgba(24, 144, 255, ${alpha})`
+        ctx.lineWidth = 1
+        ctx.beginPath()
+        ctx.moveTo(a.x, a.y)
+        ctx.lineTo(b.x, b.y)
+        ctx.stroke()
+      }
     }
   }
 
@@ -139,7 +223,7 @@ function tick() {
 
 function start() {
   cancelAnimationFrame(raf)
-  if (reducedMotion) return
+  if (!shouldAnimate()) return
   raf = requestAnimationFrame(tick)
 }
 
@@ -163,7 +247,7 @@ function onVisibilityChange() {
 
 function onReducedMotionChange() {
   readReducedMotion()
-  if (reducedMotion) {
+  if (!shouldAnimate()) {
     cancelAnimationFrame(raf)
     const ctx = canvasRef.value?.getContext('2d')
     if (ctx) ctx.clearRect(0, 0, width, height)
@@ -174,7 +258,6 @@ function onReducedMotionChange() {
 
 onMounted(() => {
   readReducedMotion()
-  resize()
 
   const host = hostRef.value
   host?.addEventListener('mousemove', onMouseMove)
@@ -187,7 +270,11 @@ onMounted(() => {
 
   document.addEventListener('visibilitychange', onVisibilityChange)
   window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', onReducedMotionChange)
-  start()
+
+  requestAnimationFrame(() => {
+    resize()
+    start()
+  })
 })
 
 onUnmounted(() => {
@@ -211,7 +298,7 @@ onUnmounted(() => {
   position: absolute;
   inset: 0;
   overflow: hidden;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .auth-particle-canvas {

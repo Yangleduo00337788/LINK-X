@@ -29,7 +29,7 @@ import { useCalendarStore } from '../stores/calendar'
 import type { CalendarEvent } from '../stores/calendar'
 import type { ChatSession } from '../types'
 import { SYSTEM_NOTIFY_SESSION_ID, OFFICIAL_NOTIFY_SESSION_ID } from '../types'
-import logoMark from '../assets/logo-mark-transparent.png'
+import { DEFAULT_AVATAR_URL } from '../utils/defaultAvatar'
 import { formatChatTime } from '../utils/chatTime'
 import { useI18n } from '../i18n'
 
@@ -136,7 +136,7 @@ const officialNotifySession = computed<ChatSession>(() => {
     time: formatNotifListTime(latest?.createTime),
     avatarText: t('chat.officialAvatar'),
     avatarColor: '#f0f4f8',
-    avatarUrl: logoMark,
+    avatarUrl: DEFAULT_AVATAR_URL,
     unread: officialUnreadCount.value || undefined,
     pinned: false,
     isReal: false,

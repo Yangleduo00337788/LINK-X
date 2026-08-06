@@ -14,6 +14,7 @@ import {
   MAX_IMAGE_BYTES,
   MAX_PUBLISH_IMAGE_BYTES
 } from '../utils/file'
+import { resolveUserAvatarUrl } from '../utils/defaultAvatar'
 import { normalizeMediaUrl } from '../utils/mediaUrl'
 import { t } from '../i18n'
 import axios from 'axios'
@@ -156,7 +157,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
             name: m.nickname || t('defaults.user'),
             avatarText: (m.nickname || t('defaults.user')).charAt(0),
             avatarColor: '#12b7f5',
-            avatarUrl: normalizeMediaUrl(m.avatar) || undefined,
+            avatarUrl: resolveUserAvatarUrl(m.avatar),
             role: m.role,
             badge: [
               m.role === 'owner'

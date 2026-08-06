@@ -2,6 +2,7 @@ import type { ChatMessage, ChatSession } from '../types'
 import type { ConversationItem, MessageItem } from '../types/chat'
 import { formatChatTime, formatFileSize } from './chatTime'
 import { normalizeMediaUrl } from './mediaUrl'
+import { resolveUserAvatarUrl } from './defaultAvatar'
 import { t } from '../i18n'
 import { formatFriendDisplayName, friendAvatarText } from './friendDisplay'
 import {
@@ -35,7 +36,7 @@ function mapMemberAvatars(
     return {
       text: name.charAt(0) || '?',
       color: pickColor(name),
-      imageUrl: normalizeMediaUrl(m.avatar) || undefined
+      imageUrl: resolveUserAvatarUrl(m.avatar)
     }
   })
 }
@@ -80,7 +81,7 @@ export function conversationToSession(conv: ConversationItem): ChatSession {
     time: formatChatTime(conv.lastMessageTime),
     avatarText: friendAvatarText(nickname, remark),
     avatarColor: pickColor(nickname),
-    avatarUrl: normalizeMediaUrl(conv.peerAvatar) || undefined,
+    avatarUrl: resolveUserAvatarUrl(conv.peerAvatar),
     peerUserId: conv.peerUserId ? String(conv.peerUserId) : undefined,
     online: !!conv.peerOnline,
     isGroup: false,
@@ -211,7 +212,7 @@ export function messageToChatMessage(message: MessageItem, sessionId: string): C
     isSelf: message.isSelf ?? false,
     senderId: message.senderId ? String(message.senderId) : undefined,
     senderName: message.senderNickname,
-    senderAvatar: normalizeMediaUrl(message.senderAvatar) || undefined,
+    senderAvatar: resolveUserAvatarUrl(message.senderAvatar),
     type,
     fileName,
     fileSize,
