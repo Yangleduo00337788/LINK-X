@@ -16,6 +16,8 @@ import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.service.ChatService;
 import com.linkx.server.service.ConversationDraftService;
+import com.linkx.server.service.UserPreferenceService;
+import com.linkx.server.entity.UserPreference;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -42,6 +44,7 @@ public class ChatController {
     private final ChatService chatService;
     private final ImMessagePushService imMessagePushService;
     private final ConversationDraftService conversationDraftService;
+    private final UserPreferenceService userPreferenceService;
     private final JwtUtils jwtUtils;
 
     @Operation(summary = "获取会话列表")
@@ -202,8 +205,10 @@ public class ChatController {
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         Long unreadCount = chatService.markAsRead(userId, parseId(conversationId), parseId(lastMessageId));
-        // 广播已读回执给会话其他成员
-        imMessagePushService.pushReadReceipt(parseId(conversationId), userId, parseId(lastMessageId));
+        UserPreference pref = userPreferenceService.getOrDefault(userId);
+        if (Boolean.TRUE.equals(pref.getPrivacySendReadReceipt())) {
+            imMessagePushService.pushReadReceipt(parseId(conversationId), userId, parseId(lastMessageId));
+        }
         return Result.success(unreadCount);
     }
 

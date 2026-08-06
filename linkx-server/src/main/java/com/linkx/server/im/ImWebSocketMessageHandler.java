@@ -53,6 +53,7 @@ public class ImWebSocketMessageHandler extends SimpleChannelInboundHandler<TextW
                 case "sync" -> pushService.handleSync(userId, wsFrame, ctx.channel());
                 case "recall" -> pushService.handleRecall(userId, wsFrame);
                 case "edit" -> pushService.handleEdit(userId, wsFrame);
+                case "typing" -> pushService.handleTyping(userId, wsFrame);
                 default -> pushService.sendError(ctx.channel(), 400, "不支持的 action: " + wsFrame.getAction());
             }
         } catch (CustomException e) {

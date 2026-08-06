@@ -271,6 +271,34 @@ public class ImMessagePushService {
     }
 
     /**
+     * 广播正在输入状态给会话其他成员。
+     */
+    public void handleTyping(Long userId, ImWsFrame frame) {
+        try {
+            Long conversationId = parseId(frame.getConversationId(), "会话 ID");
+            chatService.assertConversationMember(userId, conversationId);
+            java.util.Map<String, Object> data = new java.util.HashMap<>();
+            data.put("conversationId", conversationId);
+            data.put("userId", userId);
+            data.put("typing", true);
+            String json = toJson(buildFrame("typing", data));
+            List<ImConversationMember> members = memberMapper.selectListByQuery(
+                    QueryWrapper.create()
+                            .where(ImConversationMember::getConversationId).eq(conversationId)
+            );
+            for (ImConversationMember member : members) {
+                Long recipientId = member.getUserId();
+                if (recipientId.equals(userId)) continue;
+                pushFrameToUser(recipientId, json, true);
+            }
+        } catch (CustomException e) {
+            sendErrorToSender(userId, e);
+        } catch (Exception e) {
+            log.warn("处理 typing 失败: {}", e.getMessage());
+        }
+    }
+
+    /**
      * 广播已读回执给会话其他成员。
      * 当用户标记已读时调用，向会话中的其他在线成员推送 readReceipt 帧。
      */
