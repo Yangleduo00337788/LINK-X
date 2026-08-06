@@ -374,6 +374,33 @@ export const useNotificationsStore = defineStore('notifications', {
       }
     },
 
+    /** 删除当前用户全部 LinkX 官方通知 */
+    async clearOfficialNotifs() {
+      const official = this.messageNotifs.filter(
+        n =>
+          typeof n.type === 'string' &&
+          (n.type.startsWith('feedback_') ||
+            n.type.startsWith('review_') ||
+            n.type.startsWith('notice_'))
+      )
+      if (!official.length) return 0
+
+      let cleared = 0
+      for (const n of official) {
+        try {
+          const res = await notificationApi.deleteNotification(n.id)
+          if (res.code === 200) cleared += 1
+        } catch (error) {
+          console.error('删除官方通知失败:', error)
+        }
+      }
+
+      const officialIds = new Set(official.map(n => n.id))
+      this.messageNotifs = this.messageNotifs.filter(n => !officialIds.has(n.id))
+      void this.fetchNotificationCount()
+      return cleared
+    },
+
     /**
      * 调用后端清空当前用户全部消息通知,成功后清空本地 store。
      */
@@ -450,6 +477,12 @@ export const useNotificationsStore = defineStore('notifications', {
       ) {
         const { notifySocialEvent } = await import('../utils/messageNotify')
         notifySocialEvent(type === 'group_join_request' ? 'group_invitation' : type)
+      }
+      if (type === 'calendar_remind') {
+        const { notifyCalendarRemind } = await import('../utils/messageNotify')
+        const content = typeof data?.content === 'string' ? data.content : ''
+        const phase = data?.phase === 'start' ? 'start' : 'ahead'
+        notifyCalendarRemind(content, phase)
       }
       // 下线撤回不播官方提示音/桌面通知
       if (

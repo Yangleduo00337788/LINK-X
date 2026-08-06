@@ -41,7 +41,8 @@ public interface CalendarService {
     void delete(Long userId, Long eventId);
 
     /**
-     * 触发日程提醒：写入消息通知列表（不弹系统窗）
+     * 触发日程提醒：写入消息通知列表
+     * @param phase ahead=开始前提醒，start=到点提醒
      */
-    void fireReminder(Long userId, Long eventId);
+    void fireReminder(Long userId, Long eventId, String phase);
 }

@@ -111,6 +111,33 @@ export interface CreateGroupMember {
 /** 群头像可选背景色池 */
 const GROUP_COLORS = ['#12b7f5', '#52c41a', '#722ed1', '#fa8c16', '#eb2f96', '#13c2c2']
 
+function preserveMessageSendMeta(next: ChatMessage, prev: ChatMessage | null | undefined) {
+  if (!prev) return
+  if (prev.readCount != null) next.readCount = prev.readCount
+  if (prev.totalMembers != null) next.totalMembers = prev.totalMembers
+  next.uploadProgress = undefined
+  if (prev.type === 'file' && next.sendStatus === 'sent') {
+    next.fileStatus = undefined
+  }
+}
+
+function applyGroupReadMetaToMessage(
+  chatMsg: ChatMessage,
+  sessionId: string,
+  session: ChatSession | undefined
+) {
+  if (!session?.isGroup) return
+  if (chatMsg.totalMembers != null && chatMsg.totalMembers > 0) {
+    if (chatMsg.readCount == null) chatMsg.readCount = 0
+    return
+  }
+  const memberCount = useGroupMetaStore().membersFor(sessionId).length
+  if (memberCount > 0) {
+    chatMsg.totalMembers = memberCount
+    chatMsg.readCount = chatMsg.readCount ?? 0
+  }
+}
+
 /**
  * 根据消息类型生成会话列表「最后一条消息」预览文案
  * @param msg 聊天消息
@@ -239,6 +266,7 @@ function mapApiProfile(data: ProfileSource) {
 
 // [P3-10] 收集消息自动重试定时器，登出/重置时统一清理，避免内存泄漏与登出后触发重试
 const pendingRetryTimers = new Set<ReturnType<typeof setTimeout>>()
+const groupReadCountRefreshTimers: Record<string, ReturnType<typeof setTimeout>> = {}
 
 // 定义并导出 app Store
 export const useAppStore = defineStore('app', {
@@ -632,6 +660,9 @@ export const useAppStore = defineStore('app', {
           useNotificationsStore().fetchGroupInvitations(),
           useNotificationsStore().fetchMessageNotifications()
         ])
+        void import('./calendar').then(({ useCalendarStore }) => {
+          void useCalendarStore().ensureReminderWatch()
+        })
         // 确保登录后不自动选中任何会话
         this.currentSessionId = null
         await this.loadChatSessions()
@@ -662,8 +693,15 @@ export const useAppStore = defineStore('app', {
         this.sessions = realSessions.map(s => {
           const prev = prevById.get(s.id)
           if (!prev) return s
+          const wasOnline = !!prev.online
+          const nowOnline = !!s.online
+          let lastSeenAt = s.lastSeenAt ?? prev.lastSeenAt
+          if (wasOnline && !nowOnline && !lastSeenAt) {
+            lastSeenAt = Date.now()
+          }
           return {
             ...s,
+            lastSeenAt,
             unread: s.unread ?? prev.unread,
             atMe: prev.atMe,
             atMeMessageId: prev.atMeMessageId,
@@ -1119,7 +1157,10 @@ export const useAppStore = defineStore('app', {
         chatMsg.sensitiveAlert = true
       }
       const prev = index >= 0 ? this.messagesBySession[sessionId][index] : null
+      const session = this.sessions.find(s => s.id === sessionId)
       preserveReplyTo(chatMsg, prev)
+      preserveMessageSendMeta(chatMsg, prev)
+      applyGroupReadMetaToMessage(chatMsg, sessionId, session)
       if (chatMsg.replyTo) enrichMessageReplyQuotes([chatMsg, ...this.messagesBySession[sessionId]])
 
       if (index >= 0) {
@@ -1131,10 +1172,12 @@ export const useAppStore = defineStore('app', {
         }
       }
 
-      const session = this.sessions.find(s => s.id === sessionId)
       if (session) {
         session.lastMessage = messagePreviewFromItem(message)
         session.time = chatMsg.time
+      }
+      if (session?.isGroup) {
+        this.scheduleLatestSelfGroupReadCountRefresh(sessionId)
       }
     },
 
@@ -1343,7 +1386,7 @@ export const useAppStore = defineStore('app', {
       const changed = contacts.setOnline(userId, online)
       const now = Date.now()
       for (const session of this.sessions) {
-        if (!session.isGroup && session.peerUserId === userId) {
+        if (!session.isGroup && session.peerUserId && String(session.peerUserId) === userId) {
           session.online = online
           if (!online) session.lastSeenAt = now
         }
@@ -1367,6 +1410,7 @@ export const useAppStore = defineStore('app', {
       if (!target) return
       target.deliveryStatus = String(data.deliveryStatus || 'delivered')
       target.sendStatus = 'delivered'
+      if (target.type === 'file') target.fileStatus = undefined
     },
 
     handleReadReceipt(data: Record<string, unknown>) {
@@ -1380,7 +1424,7 @@ export const useAppStore = defineStore('app', {
 
       const session = this.sessions.find(s => s.id === sessionId)
       if (session?.isGroup) {
-        this.applyGroupReadReceipt(sessionId, lastReadMessageId)
+        this.scheduleLatestSelfGroupReadCountRefresh(sessionId)
         return
       }
 
@@ -1396,20 +1440,43 @@ export const useAppStore = defineStore('app', {
         ) {
           m.sendStatus = 'read'
           m.deliveryStatus = 'read'
+          if (m.type === 'file') m.fileStatus = undefined
         }
       }
     },
 
-    /** 群聊：按已读游标递增己方消息已读人数，不标单聊式「已读」 */
-    applyGroupReadReceipt(sessionId: string, lastReadMessageId: string) {
+    /** 群聊：仅刷新最新一条己方消息的已读人数（避免历史消息被游标误标全员已读） */
+    scheduleLatestSelfGroupReadCountRefresh(sessionId: string) {
+      const prev = groupReadCountRefreshTimers[sessionId]
+      if (prev) clearTimeout(prev)
+      groupReadCountRefreshTimers[sessionId] = setTimeout(() => {
+        delete groupReadCountRefreshTimers[sessionId]
+        void this.fetchLatestSelfGroupReadCount(sessionId)
+      }, 300)
+    },
+
+    async fetchLatestSelfGroupReadCount(sessionId: string) {
       const msgs = this.messagesBySession[sessionId]
-      if (!msgs) return
-      for (const m of msgs) {
-        if (!m.isSelf || !/^\d+$/.test(m.id)) continue
-        if (!isMessageIdAtOrBefore(m.id, lastReadMessageId)) continue
-        if (m.totalMembers == null || m.totalMembers <= 0) continue
-        const next = Math.min((m.readCount ?? 0) + 1, m.totalMembers)
-        m.readCount = next
+      if (!msgs?.length) return
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        const m = msgs[i]
+        if (!m.isSelf) continue
+        if (m.type === 'time' || m.type === 'system' || m.type === 'recall') continue
+        if (!/^\d+$/.test(m.id)) continue
+        try {
+          const res = await chatApi.getMessageReadCount(sessionId, m.id)
+          if (res.code === 200 && res.data) {
+            this.setMessageReadCount(
+              sessionId,
+              m.id,
+              Number(res.data.readCount) || 0,
+              Number(res.data.totalMembers) || 0
+            )
+          }
+        } catch {
+          /* ignore */
+        }
+        break
       }
     },
 
@@ -1432,7 +1499,10 @@ export const useAppStore = defineStore('app', {
       const msgs = this.messagesBySession[sessionId]
       if (!msgs) return
       for (const m of msgs) {
-        if (m.isSelf) m.totalMembers = totalMembers
+        if (m.isSelf) {
+          m.totalMembers = totalMembers
+          if (m.readCount == null) m.readCount = 0
+        }
       }
     },
 
@@ -1442,13 +1512,11 @@ export const useAppStore = defineStore('app', {
       if (!sessionId || !userId) return
       const me = this.userProfile.userId ? String(this.userProfile.userId) : ''
       if (userId === me) return
+      const session = this.sessions.find(s => s.id === sessionId)
+      if (!session || session.isGroup) return
       const until = Date.now() + 4000
       let name: string | undefined
-      const session = this.sessions.find(s => s.id === sessionId)
-      if (session?.isGroup) {
-        const member = useGroupMetaStore().membersFor(sessionId).find(m => m.id === userId)
-        name = member?.name
-      } else if (session?.peerUserId === userId) {
+      if (session.peerUserId && String(session.peerUserId) === userId) {
         name = session.name
       }
       this.typingBySession[sessionId] = { userId, name, until }
@@ -1780,8 +1848,16 @@ export const useAppStore = defineStore('app', {
       } as ChatMessage & { _autoRetry?: number }
 
       if (session?.isGroup) {
-        const memberCount = useGroupMetaStore().membersFor(id).length
-        if (memberCount > 0) optimistic.totalMembers = memberCount
+        const gm = useGroupMetaStore()
+        let memberCount = gm.membersFor(id).length
+        if (memberCount <= 0) {
+          await gm.fetchMembers(id)
+          memberCount = gm.membersFor(id).length
+        }
+        if (memberCount > 0) {
+          optimistic.totalMembers = memberCount
+          optimistic.readCount = 0
+        }
       }
 
       if (!this.messagesBySession[id]) {
@@ -1833,6 +1909,8 @@ export const useAppStore = defineStore('app', {
           const idx = this.messagesBySession[id]?.findIndex(m => m.id === clientMsgId) ?? -1
           const prev = idx >= 0 ? this.messagesBySession[id][idx] : null
           preserveReplyTo(chatMsg, prev, options.replyTo)
+          preserveMessageSendMeta(chatMsg, prev)
+          applyGroupReadMetaToMessage(chatMsg, id, session)
           if (chatMsg.replyTo) {
             enrichMessageReplyQuotes([chatMsg, ...(this.messagesBySession[id] || [])])
           }

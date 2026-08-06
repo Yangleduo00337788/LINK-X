@@ -278,6 +278,54 @@ export function notifyFriendOnline(friendName: string, avatarUrl?: string): void
   void showChatDesktopNotification(name, body, !settings.notifySound)
 }
 
+/** 日程提醒：应用内 toast + 提示音；后台时桌面通知 */
+let lastCalendarNotifyKey = ''
+let lastCalendarNotifyAt = 0
+
+export function notifyCalendarRemind(body: string, phase: 'ahead' | 'start' = 'ahead'): void {
+  const dedupeKey = `${phase}:${body}`
+  const now = Date.now()
+  if (dedupeKey === lastCalendarNotifyKey && now - lastCalendarNotifyAt < 3000) {
+    return
+  }
+  lastCalendarNotifyKey = dedupeKey
+  lastCalendarNotifyAt = now
+
+  const settings = useAppSettingsStore()
+  if (settings.notifyChat === false) return
+  if (
+    isInQuietHours(
+      new Date(),
+      !!settings.quietHoursEnabled,
+      settings.quietHoursStart || '22:00',
+      settings.quietHoursEnd || '08:00'
+    )
+  ) {
+    return
+  }
+
+  if (settings.soundNotify) {
+    playTone((settings.notifyTone || 'default') as ToneId)
+  }
+
+  const title =
+    phase === 'start' ? t('calendar.remindStartedTitle') : t('chat.calendarRemind')
+  const content = (body || '').trim() || title
+
+  if (!isWindowInBackground()) {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('linkx:calendar-remind', {
+          detail: { title, body: content }
+        })
+      )
+    }
+    return
+  }
+
+  void showChatDesktopNotification(title, content, !settings.notifySound)
+}
+
 async function showChatDesktopNotification(
   title: string,
   body: string,

@@ -182,6 +182,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
                 color: m.avatarColor,
                 imageUrl: m.avatarUrl
               }))
+              app.enrichGroupSelfMessageReadMeta(sessionId, this.members[sessionId].length)
             }
           } catch {
             /* ignore */

@@ -3,7 +3,7 @@
  * 日历主视图 — 按设计稿：顶栏 + 月网格 + 底部日程卡片列表
  */
 import { ref, computed, watch, onMounted } from 'vue'
-import { NInput, NButton, NIcon, NDropdown, useMessage, useDialog } from 'naive-ui'
+import { NButton, NIcon, NDropdown, useMessage, useDialog } from 'naive-ui'
 import {
   CalendarOutline,
   ChevronBackOutline,
@@ -17,6 +17,7 @@ import {
 import { storeToRefs } from 'pinia'
 import { useCalendarStore } from '../stores/calendar'
 import type { CalendarEvent } from '../stores/calendar'
+import CalendarEventModal from './calendar/CalendarEventModal.vue'
 import { useI18n } from '../i18n'
 
 const message = useMessage()
@@ -24,7 +25,7 @@ const dialog = useDialog()
 const { t } = useI18n()
 const calendarStore = useCalendarStore()
 const { selectedDate, events, eventsOnSelected, selectedDateKey, initialized } = storeToRefs(calendarStore)
-const { setSelectedDate, addEvent, updateEvent, removeEvent, fetchEvents, toggleRemind, startReminderWatch, isRemindOn } =
+const { setSelectedDate, removeEvent, fetchEvents, toggleRemind, startReminderWatch, isRemindOn } =
   calendarStore
 
 /** 与设计稿一致：周日为一周起始 */
@@ -35,10 +36,8 @@ const EVENT_COLORS = ['#3370ff', '#f54a45', '#ff8800', '#7b61ff', '#00b578', '#1
 const panelYear = ref(new Date().getFullYear())
 const panelMonth = ref(new Date().getMonth())
 
-const showForm = ref(false)
-const editingId = ref<string | null>(null)
-const formTitle = ref('')
-const formTime = ref('09:00')
+const showEventModal = ref(false)
+const editingEvent = ref<CalendarEvent | null>(null)
 const showWeekList = ref(false)
 
 const panelTitle = computed(() =>
@@ -167,14 +166,24 @@ function eventColor(ev: CalendarEvent, idx = 0) {
   return EVENT_COLORS[(h + idx) % EVENT_COLORS.length]
 }
 
-/** 根据开始时间推断状态徽标 */
+/** 根据开始/结束时间推断状态徽标 */
 function eventStatus(ev: CalendarEvent): { text: string; tone: 'active' | 'soon' | 'done' } | null {
   if (!ev.time || ev.date !== selectedDateKey.value) return null
   const [hh, mm] = ev.time.split(':').map(Number)
   if (Number.isNaN(hh)) return null
   const start = new Date(selectedDate.value)
   start.setHours(hh, mm || 0, 0, 0)
-  const end = new Date(start.getTime() + 60 * 60 * 1000)
+  let end: Date
+  if (ev.endTime) {
+    const [eh, em] = ev.endTime.split(':').map(Number)
+    end = new Date(selectedDate.value)
+    end.setHours(eh, em || 0, 0, 0)
+    if (end.getTime() <= start.getTime()) {
+      end = new Date(start.getTime() + 60 * 60 * 1000)
+    }
+  } else {
+    end = new Date(start.getTime() + 60 * 60 * 1000)
+  }
   const now = Date.now()
   if (now >= start.getTime() && now < end.getTime()) return { text: t('calendar.ongoing'), tone: 'active' }
   if (now < start.getTime() && start.getTime() - now <= 2 * 60 * 60 * 1000) {
@@ -188,9 +197,16 @@ function formatTimeRange(ev: CalendarEvent) {
   if (!ev.time) return t('calendar.allDay')
   const [hh, mm] = ev.time.split(':').map(Number)
   if (Number.isNaN(hh)) return ev.time
-  const endH = (hh + 1) % 24
   const pad = (n: number) => String(n).padStart(2, '0')
-  return `${pad(hh)}:${pad(mm || 0)} - ${pad(endH)}:${pad(mm || 0)}`
+  const startLabel = `${pad(hh)}:${pad(mm || 0)}`
+  if (ev.endTime) {
+    const [eh, em] = ev.endTime.split(':').map(Number)
+    if (!Number.isNaN(eh)) {
+      return `${startLabel} - ${pad(eh)}:${pad(em || 0)}`
+    }
+  }
+  const endH = (hh + 1) % 24
+  return `${startLabel} - ${pad(endH)}:${pad(mm || 0)}`
 }
 
 function syncPanelToSelected() {
@@ -245,58 +261,22 @@ function selectCell(cell: MonthCell) {
 }
 
 function resetForm() {
-  editingId.value = null
-  formTitle.value = ''
-  formTime.value = '09:00'
-  showForm.value = false
+  editingEvent.value = null
+  showEventModal.value = false
 }
 
 function openAddForm() {
-  editingId.value = null
-  formTitle.value = ''
-  formTime.value = '09:00'
-  showForm.value = true
+  editingEvent.value = null
+  showEventModal.value = true
   showWeekList.value = false
 }
 
 function openEditForm(event: CalendarEvent) {
-  editingId.value = event.id
-  formTitle.value = event.title
-  formTime.value = event.time || '09:00'
-  showForm.value = true
+  editingEvent.value = event
+  showEventModal.value = true
 }
 
-async function saveEvent() {
-  const title = formTitle.value.trim()
-  if (!title) {
-    message.warning(t('calendar.titleRequired'))
-    return
-  }
-  const time = formTime.value.trim()
-  const normalizedTime = time
-    ? time.replace(/^(\d):/, '0$1:').replace(/:(\d)$/, ':0$1')
-    : undefined
-  const color = EVENT_COLORS[Math.floor(Math.random() * EVENT_COLORS.length)]
-  const payload = {
-    title,
-    date: selectedDateKey.value,
-    time: normalizedTime,
-    color
-  }
-  if (editingId.value) {
-    const ok = await updateEvent(editingId.value, {
-      title: payload.title,
-      date: payload.date,
-      time: payload.time,
-      color: undefined
-    })
-    if (ok) message.success(t('calendar.updated'))
-    else message.error(t('calendar.updateFail'))
-  } else {
-    const id = await addEvent(payload)
-    if (id) message.success(t('calendar.added'))
-    else message.error(t('calendar.addFail'))
-  }
+function onEventSaved() {
   resetForm()
 }
 
@@ -309,7 +289,7 @@ function confirmDelete(event: CalendarEvent) {
     onPositiveClick: async () => {
       const ok = await removeEvent(event.id)
       if (ok) message.success(t('calendar.deleted'))
-      if (editingId.value === event.id) resetForm()
+      if (editingEvent.value?.id === event.id) resetForm()
     }
   })
 }
@@ -412,15 +392,6 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
           </button>
         </header>
 
-        <div v-if="showForm" class="event-form">
-          <n-input v-model:value="formTitle" :placeholder="t('calendar.titlePh')" maxlength="100" />
-          <n-input v-model:value="formTime" :placeholder="t('calendar.timePh')" maxlength="5" />
-          <div class="form-actions">
-            <n-button size="small" @click="resetForm">{{ t('common.cancel') }}</n-button>
-            <n-button size="small" type="primary" @click="saveEvent">{{ t('common.save') }}</n-button>
-          </div>
-        </div>
-
         <div v-if="agendaList.length" class="card-list">
           <article
             v-for="(event, idx) in agendaList"
@@ -485,6 +456,13 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
         </button>
       </section>
     </div>
+
+    <CalendarEventModal
+      v-model:show="showEventModal"
+      :editing-event="editingEvent"
+      :default-date="selectedDateKey"
+      @saved="onEventSaved"
+    />
   </div>
 </template>
 
@@ -767,24 +745,6 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
 }
 .manage-btn:hover {
   background: var(--lx-accent-soft);
-}
-
-.event-form {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 12px;
-  padding: 12px;
-  background: var(--lx-bg-card);
-  border-radius: 12px;
-  border: 1px solid var(--lx-border-light);
-  flex-shrink: 0;
-}
-
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
 }
 
 .card-list {

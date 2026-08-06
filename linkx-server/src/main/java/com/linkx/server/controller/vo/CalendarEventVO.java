@@ -27,6 +27,8 @@ public class CalendarEventVO implements Serializable {
 
     private String time;
 
+    private String endTime;
+
     private String color;
 
     private Date createTime;

@@ -501,6 +501,7 @@ CREATE TABLE IF NOT EXISTS `calendar_event` (
   `title` varchar(200) NOT NULL COMMENT '日程标题',
   `date` varchar(10) NOT NULL COMMENT '日期 YYYY-MM-DD',
   `time` varchar(5) DEFAULT NULL COMMENT '时间 HH:mm',
+  `end_time` varchar(5) DEFAULT NULL COMMENT '结束时间 HH:mm',
   `color` varchar(50) DEFAULT 'var(--lx-accent)' COMMENT '展示颜色',
   `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',

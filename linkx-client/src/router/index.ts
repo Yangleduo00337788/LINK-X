@@ -49,6 +49,11 @@ const router = createRouter({
       component: () => import('../views/HelpView.vue')
     },
     {
+      path: '/official-notify/:id',
+      name: 'official-notify-detail',
+      component: () => import('../views/OfficialNotifyDetailView.vue')
+    },
+    {
       path: '/chat-history',   // 聊天记录管理新页面（从左下角菜单进入）
       name: 'chat-history',
       component: () => import('../views/ChatHistoryView.vue')

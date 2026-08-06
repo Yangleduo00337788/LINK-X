@@ -39,12 +39,12 @@ const { navKey, currentSession } = storeToRefs(appStore)
 // 窗口是否置顶的状态
 const isPinned = ref(false)
 
-// 计算中间标题栏显示的会话名称（仅在聊天导航且有当前会话时）
+// 计算中间标题栏：聊天主区已有顶栏时不重复显示会话名
 const centerTitle = computed(() => {
-  if (navKey.value === 'chat' && currentSession.value) {
-    return currentSession.value.name // 显示当前会话名称
-  }
-  return '' // 其他导航不显示中间标题
+  if (navKey.value !== 'chat' || !currentSession.value) return ''
+  const s = currentSession.value
+  if (s.isSystemNotify || s.isOfficialNotify) return ''
+  return ''
 })
 
 const pinTitle = computed(() => (isPinned.value ? t('shell.unpin') : t('shell.pin')))

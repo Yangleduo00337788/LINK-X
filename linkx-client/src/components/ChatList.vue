@@ -13,8 +13,7 @@ import {
   PhonePortraitOutline,
   NotificationsOffOutline,
   WarningOutline,
-  CalendarOutline,
-  HeadsetOutline
+  CalendarOutline
 } from '@vicons/ionicons5'
 import PinIcon from './icons/PinIcon.vue'
 import PanelSearchBar from './PanelSearchBar.vue'
@@ -26,8 +25,11 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
 import { useChatModalsStore } from '../stores/chatModals'
 import { useNotificationsStore } from '../stores/notifications'
+import { useCalendarStore } from '../stores/calendar'
+import type { CalendarEvent } from '../stores/calendar'
 import type { ChatSession } from '../types'
 import { SYSTEM_NOTIFY_SESSION_ID, OFFICIAL_NOTIFY_SESSION_ID } from '../types'
+import logoMark from '../assets/logo-mark-transparent.png'
 import { formatChatTime } from '../utils/chatTime'
 import { useI18n } from '../i18n'
 
@@ -37,6 +39,7 @@ const showSidebarOps = ref(false)
 const appStore = useAppStore()
 const chatModalsStore = useChatModalsStore()
 const notificationsStore = useNotificationsStore()
+const calendarStore = useCalendarStore()
 
 const { sortedSessions, currentSessionId, isLoading, isOffline } = storeToRefs(appStore)
 const {
@@ -45,6 +48,7 @@ const {
   officialNotifs,
   officialUnreadCount
 } = storeToRefs(notificationsStore)
+const { remindedUpcomingEvents } = storeToRefs(calendarStore)
 const { selectSession, toggleSessionPin, toggleSessionImportant, toggleSessionMute, deleteSession } =
   appStore
 const { openCreateGroup, openComprehensiveSearch } = chatModalsStore
@@ -59,7 +63,13 @@ const contextMenuY = ref(0)
 
 onMounted(() => {
   void fetchMessageNotifications()
+  void calendarStore.ensureReminderWatch()
 })
+
+function formatUpcomingEventPreview(ev: CalendarEvent): string {
+  const timePart = `${ev.date} ${ev.time || ''}`.trim()
+  return t('chat.remindAtWithTitle', { time: timePart, title: ev.title })
+}
 
 function formatNotifListTime(raw?: string): string {
   if (!raw) return ''
@@ -91,10 +101,16 @@ function isRedPacketPreview(text?: string) {
 const systemNotifySession = computed<ChatSession>(() => {
   const list = calendarRemindNotifs.value
   const latest = list[0]
+  const upcoming = remindedUpcomingEvents.value[0]
+  const preview = latest
+    ? formatRemindPreview(latest.content)
+    : upcoming
+      ? formatUpcomingEventPreview(upcoming)
+      : t('chat.noRemind')
   return {
     id: SYSTEM_NOTIFY_SESSION_ID,
     name: t('chat.calendarRemind'),
-    lastMessage: formatRemindPreview(latest?.content),
+    lastMessage: preview,
     time: formatNotifListTime(latest?.createTime),
     avatarText: t('chat.remindAvatar'),
     avatarColor: '#12b7f5',
@@ -119,7 +135,8 @@ const officialNotifySession = computed<ChatSession>(() => {
     lastMessage: preview || t('chat.noOfficial'),
     time: formatNotifListTime(latest?.createTime),
     avatarText: t('chat.officialAvatar'),
-    avatarColor: '#2f6fed',
+    avatarColor: '#f0f4f8',
+    avatarUrl: logoMark,
     unread: officialUnreadCount.value || undefined,
     pinned: false,
     isReal: false,
@@ -292,7 +309,7 @@ function onContextMenuSelect(key: string) {
                     session.isSystemNotify
                       ? CalendarOutline
                       : session.isOfficialNotify
-                        ? HeadsetOutline
+                        ? undefined
                         : isMyPhoneSession(session.name)
                           ? PhonePortraitOutline
                           : undefined
@@ -318,11 +335,11 @@ function onContextMenuSelect(key: string) {
 
               <div class="session-content">
                 <div class="session-name">
-                  <span v-if="session.important" class="important-mark" :title="t('chat.important')">★</span>
-                  <PinIcon v-if="session.pinned" :size="12" filled class="pin-icon" /><span
-                    class="session-name-text"
-                    >{{ session.name }}</span
-                  >
+                  <span class="session-name-text">
+                    <span v-if="session.important" class="important-mark" :title="t('chat.important')">★</span>
+                    <PinIcon v-if="session.pinned" :size="12" filled class="pin-icon" />
+                    {{ session.name }}
+                  </span>
                 </div>
                 <span class="session-meta">
                   <n-icon
@@ -522,11 +539,21 @@ function onContextMenuSelect(key: string) {
   font-size: 14px;
   font-weight: 500;
   color: var(--lx-text-body);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pin-icon,
+.important-mark {
+  display: inline;
+  vertical-align: baseline;
 }
 
 .pin-icon {
   flex-shrink: 0;
   color: var(--lx-accent);
+  margin-right: 2px;
 }
 
 .important-mark {

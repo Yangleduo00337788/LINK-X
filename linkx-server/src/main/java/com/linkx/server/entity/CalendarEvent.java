@@ -36,6 +36,8 @@ public class CalendarEvent implements Serializable {
 
     private String time;
 
+    private String endTime;
+
     private String color;
 
     @Column(onInsertValue = "NOW()")

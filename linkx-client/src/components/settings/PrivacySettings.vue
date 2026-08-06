@@ -51,6 +51,7 @@ const { t } = useI18n()
           size="small"
           @update:value="appSettingsStore.scheduleSave('privacyShowOnline')"
         />
+      </div>
       <div class="setting-row">
         <div class="setting-text">
           <span class="setting-name">{{ t('privacy.sendReadReceipt') }}</span>

@@ -74,6 +74,7 @@ public class CalendarServiceImpl implements CalendarService {
                 .title(dto.getTitle())
                 .date(dto.getDate())
                 .time(dto.getTime())
+                .endTime(dto.getEndTime())
                 .color(dto.getColor() != null ? dto.getColor() : "var(--lx-accent)")
                 .build();
         calendarEventMapper.insert(event);
@@ -95,6 +96,7 @@ public class CalendarServiceImpl implements CalendarService {
         event.setTitle(dto.getTitle());
         event.setDate(dto.getDate());
         event.setTime(dto.getTime());
+        event.setEndTime(dto.getEndTime());
         if (dto.getColor() != null) {
             event.setColor(dto.getColor());
         }
@@ -121,7 +123,7 @@ public class CalendarServiceImpl implements CalendarService {
 
     @Override
     @Transactional
-    public void fireReminder(Long userId, Long eventId) {
+    public void fireReminder(Long userId, Long eventId, String phase) {
         CalendarEvent event = calendarEventMapper.selectOneByQuery(
                 QueryWrapper.create()
                         .eq("id", eventId)
@@ -134,8 +136,10 @@ public class CalendarServiceImpl implements CalendarService {
         String timePart = event.getTime() != null && !event.getTime().isBlank()
                 ? event.getTime()
                 : "全天";
-        String content = String.format("将于 %s %s 开始 · %s",
-                event.getDate(), timePart, event.getTitle());
+        boolean atStart = "start".equalsIgnoreCase(String.valueOf(phase).trim());
+        String content = atStart
+                ? String.format("%s %s 已开始 · %s", event.getDate(), timePart, event.getTitle())
+                : String.format("将于 %s %s 开始 · %s", event.getDate(), timePart, event.getTitle());
         notificationService.create(
                 userId,
                 null,
@@ -145,7 +149,12 @@ public class CalendarServiceImpl implements CalendarService {
                 eventId,
                 content
         );
-        imPushService.pushToUser(userId, "notification_refresh", Map.of("type", "calendar_remind"));
+        Map<String, Object> payload = new java.util.HashMap<>();
+        payload.put("type", "calendar_remind");
+        payload.put("phase", atStart ? "start" : "ahead");
+        payload.put("content", content);
+        payload.put("relatedId", String.valueOf(eventId));
+        imPushService.pushToUser(userId, "notification_refresh", payload);
     }
 
     private CalendarEventVO toVO(CalendarEvent event) {
@@ -154,6 +163,7 @@ public class CalendarServiceImpl implements CalendarService {
                 .title(event.getTitle())
                 .date(event.getDate())
                 .time(event.getTime())
+                .endTime(event.getEndTime())
                 .color(event.getColor())
                 .createTime(event.getCreateTime())
                 .updateTime(event.getUpdateTime())

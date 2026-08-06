@@ -5,7 +5,7 @@
  * 根据消息类型渲染对应气泡子组件，并处理头像展示与事件向上传递。
  * </p>
  */
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { NIcon } from 'naive-ui'
 import { FolderOutline, PhonePortraitOutline } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
@@ -23,8 +23,7 @@ import LocationBubble from './bubbles/LocationBubble.vue'
 import TextBubble from './bubbles/TextBubble.vue'
 import DataCardBubble from './bubbles/DataCardBubble.vue'
 import CallBubble from './bubbles/CallBubble.vue'
-import MessageStatusIcon from './MessageStatusIcon.vue'
-import { groupReadCountLabel } from '../../utils/messageStatus'
+import { groupReadCountLabel, privateStatusLabel } from '../../utils/messageStatus'
 
 const props = defineProps<{
   msg: ChatMessage
@@ -78,41 +77,42 @@ const tipText = computed(() => {
   return props.msg.content || ''
 })
 
-/** 单聊：失败/上传中显示文字；已发送/送达/已读用图标 */
-const statusText = computed(() => {
+/** 单聊：全部用文字展示发送状态 */
+const statusLabel = computed(() => {
   if (!props.msg.isSelf || isGroupChat.value) return ''
-  if (props.msg.sendStatus === 'failed') {
-    return props.msg.sendFailReason || t('chat.statusFailed')
-  }
-  if (
-    props.msg.sendStatus === 'sending' &&
-    props.msg.uploadProgress != null &&
-    props.msg.uploadProgress < 100
-  ) {
-    return t('chat.statusUploading', { n: props.msg.uploadProgress })
-  }
-  if (props.msg.sendStatus === 'sending') return t('chat.statusSending')
-  return ''
+  return privateStatusLabel(props.msg, t)
 })
-
-const showStatusIcon = computed(
-  () => props.msg.isSelf && !isGroupChat.value && props.msg.sendStatus !== 'failed' && props.msg.sendStatus !== 'sending'
-)
 
 const sensitiveAlertText = computed(() => {
   if (!props.msg.isSelf || !props.msg.sensitiveAlert) return ''
   return t('chat.sensitiveAlertTip')
 })
 
+/** 群聊仅在最新一条己方消息展示已读人数 */
+const isLatestSelfMessage = computed(() => {
+  if (!props.msg.isSelf || !isGroupChat.value) return false
+  const sessionId = props.msg.sessionId || currentSession.value?.id
+  if (!sessionId) return true
+  const list = appStore.messagesBySession[sessionId]
+  if (!list?.length) return true
+  for (let i = list.length - 1; i >= 0; i--) {
+    const m = list[i]
+    if (!m.isSelf) continue
+    if (m.type === 'time' || m.type === 'system' || m.type === 'recall') continue
+    return m.id === props.msg.id
+  }
+  return false
+})
+
 const readCountText = computed(() => {
-  if (!props.msg.isSelf || !isGroupChat.value) return ''
+  if (!props.msg.isSelf || !isGroupChat.value || !isLatestSelfMessage.value) return ''
   return groupReadCountLabel(props.msg, t)
 })
 
 const fetchingRead = ref(false)
 
 async function maybeFetchReadCount() {
-  if (!props.msg.isSelf || !isGroupChat.value) return
+  if (!isLatestSelfMessage.value) return
   if (props.msg.sendStatus === 'sending' || props.msg.sendStatus === 'failed') return
   const sessionId = props.msg.sessionId || currentSession.value?.id
   if (!sessionId || !props.msg.id || props.msg.id.includes('-')) return
@@ -134,6 +134,10 @@ async function maybeFetchReadCount() {
     fetchingRead.value = false
   }
 }
+
+onMounted(() => {
+  maybeFetchReadCount()
+})
 
 /**
  * 对方头像 props（computed，避免滚动时每帧重复算 + 误触发群成员请求）。
@@ -224,18 +228,22 @@ function onStatusClick() {
       <DataCardBubble v-else-if="msg.type === 'dataCard'" :msg="msg" />
       <TextBubble v-else :msg="msg" />
       <div
-        v-if="msg.isSelf && (statusText || showStatusIcon || readCountText || msg.edited || sensitiveAlertText)"
+        v-if="msg.isSelf && (statusLabel || readCountText || msg.edited || sensitiveAlertText)"
         class="msg-meta"
       >
-        <MessageStatusIcon v-if="showStatusIcon" :msg="msg" :group-mode="isGroupChat" />
         <button
-          v-if="statusText"
+          v-if="statusLabel"
           type="button"
           class="msg-status"
-          :class="{ failed: msg.sendStatus === 'failed', 'no-retry': !!msg.sendFailReason }"
+          :class="{
+            failed: msg.sendStatus === 'failed',
+            read: msg.sendStatus === 'read',
+            delivered: msg.sendStatus === 'delivered',
+            'no-retry': !!msg.sendFailReason
+          }"
           @click="onStatusClick"
         >
-          {{ statusText }}
+          {{ statusLabel }}
         </button>
         <span v-if="msg.edited" class="msg-edited">{{ t('chat.editedLabel') }}</span>
         <span v-if="readCountText" class="msg-read">{{ readCountText }}</span>
@@ -344,6 +352,12 @@ function onStatusClick() {
 }
 .msg-status.failed.no-retry {
   cursor: default;
+}
+.msg-status.read {
+  color: var(--lx-accent, #12b7f5);
+}
+.msg-status.delivered {
+  color: var(--lx-text-muted, #999);
 }
 .msg-sensitive-alert {
   color: var(--lx-warning, #f0a020);

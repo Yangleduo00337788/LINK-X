@@ -1567,6 +1567,7 @@ interface StandaloneWindowState {
 
 const helpWindowState: StandaloneWindowState = { win: null }
 const chatHistoryWindowState: StandaloneWindowState = { win: null }
+const officialNotifyDetailWindowState: StandaloneWindowState = { win: null }
 
 ipcMain.on('window-open-help', () => {
   createHelpStandaloneWindow('help', { width: 720, height: 760 })
@@ -1575,6 +1576,61 @@ ipcMain.on('window-open-help', () => {
 ipcMain.on('window-open-chat-history', () => {
   createHelpStandaloneWindow('chat-history', { width: 820, height: 760 })
 })
+
+ipcMain.on('window-open-official-notify-detail', (_event, notifId: unknown) => {
+  const id = String(notifId ?? '').trim()
+  if (!id) return
+  createOfficialNotifyDetailWindow(id)
+})
+
+function createOfficialNotifyDetailWindow(notifId: string) {
+  const hashPath = `official-notify/${encodeURIComponent(notifId)}`
+  let win = officialNotifyDetailWindowState.win
+  if (win && !win.isDestroyed()) {
+    if (isDev && process.env.VITE_DEV_SERVER_URL) {
+      win.loadURL(process.env.VITE_DEV_SERVER_URL + '#/' + hashPath)
+    } else {
+      win.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: '/' + hashPath })
+    }
+    if (win.isMinimized()) win.restore()
+    win.focus()
+    return
+  }
+
+  win = new BrowserWindow({
+    ...browserWindowIconOptions(),
+    width: 520,
+    height: 680,
+    minWidth: 400,
+    minHeight: 480,
+    resizable: true,
+    ...framelessChrome(),
+    show: false,
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
+    }
+  })
+  prepareFramelessWindow(win)
+
+  win.once('ready-to-show', () => {
+    win?.show()
+  })
+
+  if (isDev && process.env.VITE_DEV_SERVER_URL) {
+    win.loadURL(process.env.VITE_DEV_SERVER_URL + '#/' + hashPath)
+  } else {
+    win.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: '/' + hashPath })
+  }
+
+  win.on('closed', () => {
+    officialNotifyDetailWindowState.win = null
+  })
+
+  officialNotifyDetailWindowState.win = win
+}
 
 function createImageViewerWindow(payload: ImageViewerPayload) {
   const url = (payload.url || '').trim()

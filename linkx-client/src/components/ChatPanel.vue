@@ -240,21 +240,37 @@ const isFriendChat = computed(
   () => hasSession.value && !currentSession.value?.isGroup && !isMyPhone.value
 )
 
+const peerOnline = computed(() => {
+  const session = currentSession.value
+  if (!isFriendChat.value || !session) return false
+  if (session.online) return true
+  if (session.peerUserId) {
+    const peerId = String(session.peerUserId)
+    const contact = contactsStore.items.find(c => String(c.userId ?? c.id) === peerId)
+    if (contact?.online) return true
+  }
+  return false
+})
+
 const peerLastSeenText = computed(() => {
-  if (!isFriendChat.value || currentSession.value?.online) return ''
-  const at = currentSession.value?.lastSeenAt
-  if (!at) return ''
+  if (!isFriendChat.value || peerOnline.value) return ''
+  const session = currentSession.value
+  let at = session?.lastSeenAt
+  if (!at && session?.peerUserId) {
+    const peerId = String(session.peerUserId)
+    const contact = contactsStore.items.find(c => String(c.userId ?? c.id) === peerId)
+    at = contact?.lastSeenAt
+  }
+  if (!at) return t('chat.lastSeenLongAgo')
   return formatLastSeen(at, t)
 })
 
 const typingHint = computed(() => {
+  if (!isFriendChat.value) return ''
   const sid = currentSessionId.value
   if (!sid) return ''
   const tip = typingBySession.value[sid]
   if (!tip || tip.until < Date.now()) return ''
-  if (isGroupChat.value) {
-    return t('chat.typingGroup', { name: tip.name || t('chat.messageFallback') })
-  }
   return t('chat.typingPrivate')
 })
 
@@ -335,6 +351,9 @@ watch(
   }
 )
 
+/** 切换会话贴底完成前隐藏列表，避免从顶部闪到底部 */
+const messageEntering = ref(false)
+
 /** 每次点选会话（含重复点同一会话）都进入最新消息位置 */
 watch(sessionEnterTick, () => {
   if (!hasSession.value) return
@@ -349,13 +368,17 @@ watch(sessionEnterTick, () => {
     window.clearTimeout(highlightAtMeTimer)
     highlightAtMeTimer = 0
   }
+  messageEntering.value = true
+  const finish = () => {
+    messageEntering.value = false
+  }
   const run = () => scrollToBottom(true)
   nextTick(() => {
     run()
-    requestAnimationFrame(run)
-    window.setTimeout(run, 60)
-    window.setTimeout(run, 180)
-    window.setTimeout(run, 360)
+    requestAnimationFrame(() => {
+      run()
+      requestAnimationFrame(finish)
+    })
   })
 })
 
@@ -367,9 +390,13 @@ watch(
   },
   (loading, wasLoading) => {
     if (wasLoading && !loading && hasSession.value && stickToBottom.value && !pendingFocusMessageId.value) {
+      messageEntering.value = true
       nextTick(() => {
         scrollToBottom(true)
-        requestAnimationFrame(() => scrollToBottom(true))
+        requestAnimationFrame(() => {
+          scrollToBottom(true)
+          messageEntering.value = false
+        })
       })
     }
   }
@@ -1413,19 +1440,18 @@ function onDrop(e: DragEvent) {
       <!-- 好友顶栏 -->
       <header v-if="isFriendChat" class="chat-header">
         <div class="chat-header-left">
-          <button v-if="isFriendChat" type="button" class="avatar-btn" @click="openPeerProfile">
+          <button type="button" class="avatar-btn" @click="openPeerProfile">
             <Avatar v-bind="peerAvatarProps(32)" />
           </button>
-          <Avatar v-else v-bind="peerAvatarProps(32)" />
-          <span class="chat-peer-name">{{ currentSession?.name }}</span>
-          <span
-            v-if="currentSession?.online"
-            class="online-dot"
-            :title="t('chat.online')"
-          />
-          <span v-else-if="peerLastSeenText" class="peer-last-seen">{{ peerLastSeenText }}</span>
+          <div class="peer-meta">
+            <span class="chat-peer-name">{{ currentSession?.name }}</span>
+            <div class="peer-status-line">
+              <span v-if="peerOnline" class="peer-online-text">{{ t('chat.online') }}</span>
+              <span v-else-if="peerLastSeenText" class="peer-last-seen">{{ peerLastSeenText }}</span>
+              <span v-if="typingHint" class="peer-typing">{{ typingHint }}</span>
+            </div>
+          </div>
         </div>
-        <div v-if="typingHint" class="chat-typing-hint">{{ typingHint }}</div>
         <div class="chat-header-actions">
           <button
             type="button"
@@ -1544,18 +1570,23 @@ function onDrop(e: DragEvent) {
               :class="{ 'message-area--padded': hasSession }"
               :style="hasSession ? chatBgStyle : undefined"
             >
-              <div class="message-list-container" ref="messageListContainer">
+              <div
+                class="message-list-container"
+                ref="messageListContainer"
+                :class="{ 'is-entering': messageEntering }"
+              >
 
                 <MessageVirtualList
-                  v-if="hasSession && chatMessages.length"
-                  :key="currentSessionId || 'none'"
+                  v-if="hasSession"
+                  v-show="chatMessages.length"
+                  :session-id="currentSessionId || ''"
                   ref="messageListRef"
                   :items="chatMessages"
                   @scroll="onVirtualScroll"
                 >
                   <template #default="{ msg }">
                       <div
-                      v-memo="[msg.id, msg.content, msg.type, msg.sendStatus, msg.uploadProgress, msg.fileStatus, msg.edited, msg.readCount, playingVoiceId === msg.id, msg.senderAvatar, msg.isSelf, highlightAtMeId === msg.id]"
+                      v-memo="[msg.id, msg.content, msg.type, msg.sendStatus, msg.uploadProgress, msg.fileStatus, msg.edited, msg.readCount, msg.totalMembers, playingVoiceId === msg.id, msg.senderAvatar, msg.isSelf, highlightAtMeId === msg.id]"
                     >
                       <ChatMessageItem
                         :msg="msg"
@@ -1802,9 +1833,27 @@ function onDrop(e: DragEvent) {
 
 .chat-header-left {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   min-width: 0;
+  flex: 1;
+  padding-top: 2px;
+}
+
+.peer-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.peer-status-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  line-height: 1.2;
 }
 
 .chat-peer-name {
@@ -1812,29 +1861,29 @@ function onDrop(e: DragEvent) {
   font-weight: 600;
   color: var(--lx-text);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  line-height: 1.25;
 }
 
-.online-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--lx-success);
-  flex-shrink: 0;
-  box-shadow: 0 0 0 2px rgba(82, 196, 26, 0.25);
+.peer-online-text {
+  font-size: 12px;
+  color: var(--lx-success);
+  line-height: 1.2;
 }
 
 .peer-last-seen {
   font-size: 12px;
   color: var(--lx-text-muted);
   white-space: nowrap;
+  line-height: 1.2;
 }
 
-.chat-typing-hint {
-  flex: 1;
-  min-width: 0;
+.peer-typing {
   font-size: 12px;
-  color: var(--lx-text-muted);
-  padding-left: 4px;
+  color: var(--lx-accent);
+  line-height: 1.2;
 }
 
 .chat-header-actions {
@@ -1906,6 +1955,10 @@ function onDrop(e: DragEvent) {
   display: flex;
   flex-direction: column;
   position: relative;
+}
+
+.message-list-container.is-entering :deep(.msg-vl) {
+  visibility: hidden;
 }
 
 .at-me-fab {

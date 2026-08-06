@@ -109,9 +109,10 @@ public class CalendarController {
     @PostMapping("/{eventId}/remind")
     public Result<Void> fireReminder(
             @PathVariable String eventId,
+            @RequestParam(value = "phase", defaultValue = "ahead") String phase,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        calendarService.fireReminder(userId, parseId(eventId));
+        calendarService.fireReminder(userId, parseId(eventId), phase);
         return Result.success(null);
     }
 

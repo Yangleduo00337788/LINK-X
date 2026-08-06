@@ -7,6 +7,7 @@
 // 从 Pinia 导入 defineStore
 import { defineStore } from 'pinia'
 import * as calendarApi from '../api/calendar'
+import { t } from '../i18n'
 
 /** 日历事件项 */
 export interface CalendarEvent {
@@ -14,6 +15,7 @@ export interface CalendarEvent {
   title: string    // 事件标题
   date: string     // 日期键 YYYY-MM-DD
   time?: string    // 可选开始时间 HH:mm
+  endTime?: string // 可选结束时间 HH:mm
   color?: string   // 可选展示颜色（CSS 变量或色值）
 }
 
@@ -55,8 +57,8 @@ function eventStartMs(ev: CalendarEvent): number | null {
   return new Date(y, mo - 1, d, hh, mm || 0, 0, 0).getTime()
 }
 
-function remindKey(ev: CalendarEvent) {
-  return `${ev.id}@${ev.date}@${ev.time || 'allday'}`
+function remindKey(ev: CalendarEvent, phase: 'ahead' | 'start' = 'ahead') {
+  return `${ev.id}@${ev.date}@${ev.time || 'allday'}@${phase}`
 }
 
 // 定义并导出 calendar Store
@@ -70,7 +72,9 @@ export const useCalendarStore = defineStore('calendar', {
     /** 已开启提醒的日程 id */
     remindEventIds: [] as string[],
     /** 已触发过的提醒键，避免重复写入消息 */
-    firedRemindKeys: [] as string[]
+    firedRemindKeys: [] as string[],
+    /** 延时提醒：eventId -> 截止时间戳 */
+    snoozedUntil: {} as Record<string, number>
   }),
 
   getters: {
@@ -101,7 +105,19 @@ export const useCalendarStore = defineStore('calendar', {
       return new Set(state.events.map(e => e.date))
     },
 
-    isRemindOn: state => (eventId: string) => state.remindEventIds.includes(eventId)
+    isRemindOn: state => (eventId: string) => state.remindEventIds.includes(eventId),
+
+    /** 已开启提醒、尚未结束的日程（用于消息页预览） */
+    remindedUpcomingEvents(state): CalendarEvent[] {
+      const now = Date.now()
+      return [...state.events]
+        .filter(e => state.remindEventIds.includes(e.id) && e.time)
+        .filter(e => {
+          const start = eventStartMs(e)
+          return start != null && now <= start + 60_000
+        })
+        .sort((a, b) => a.date.localeCompare(b.date) || (a.time || '').localeCompare(b.time || ''))
+    }
   },
 
   actions: {
@@ -118,6 +134,7 @@ export const useCalendarStore = defineStore('calendar', {
             title: e.title,
             date: e.date,
             time: e.time,
+            endTime: e.endTime,
             color: e.color
           }))
           this.initialized = true
@@ -149,6 +166,7 @@ export const useCalendarStore = defineStore('calendar', {
             title: e.title,
             date: e.date,
             time: e.time,
+            endTime: e.endTime,
             color: e.color
           }))
           this.events = [...others, ...dayEvents]
@@ -168,6 +186,7 @@ export const useCalendarStore = defineStore('calendar', {
             title: res.data.title,
             date: res.data.date,
             time: res.data.time,
+            endTime: res.data.endTime,
             color: res.data.color
           }
           const idx = this.events.findIndex(e => e.id === event.id)
@@ -211,6 +230,7 @@ export const useCalendarStore = defineStore('calendar', {
           title: payload.title,
           date: payload.date,
           time: payload.time,
+          endTime: payload.endTime,
           color: payload.color
         })
         if (res.code === 200 && res.data) {
@@ -219,6 +239,7 @@ export const useCalendarStore = defineStore('calendar', {
             title: res.data.title,
             date: res.data.date,
             time: res.data.time,
+            endTime: res.data.endTime,
             color: res.data.color
           }
           this.events.push(event)
@@ -243,6 +264,7 @@ export const useCalendarStore = defineStore('calendar', {
           title: patch.title!,
           date: patch.date!,
           time: patch.time,
+          endTime: patch.endTime,
           color: patch.color
         })
         console.log('[Calendar] 更新结果:', res)
@@ -253,6 +275,7 @@ export const useCalendarStore = defineStore('calendar', {
               title: res.data.title,
               date: res.data.date,
               time: res.data.time,
+              endTime: res.data.endTime,
               color: res.data.color
             })
           }
@@ -294,11 +317,13 @@ export const useCalendarStore = defineStore('calendar', {
       const on = this.remindEventIds.includes(eventId)
       if (on) {
         this.remindEventIds = this.remindEventIds.filter(id => id !== eventId)
-        const key = remindKey(ev)
-        const t = scheduledTimeouts.get(key)
-        if (t) {
-          clearTimeout(t)
-          scheduledTimeouts.delete(key)
+        for (const phase of ['ahead', 'start'] as const) {
+          const key = remindKey(ev, phase)
+          const t = scheduledTimeouts.get(key)
+          if (t) {
+            clearTimeout(t)
+            scheduledTimeouts.delete(key)
+          }
         }
         return 'off'
       }
@@ -308,35 +333,89 @@ export const useCalendarStore = defineStore('calendar', {
       if (start <= Date.now()) return 'expired'
 
       this.remindEventIds = [...this.remindEventIds, eventId]
-      const key = remindKey(ev)
-      this.firedRemindKeys = this.firedRemindKeys.filter(k => k !== key)
+      this.firedRemindKeys = this.firedRemindKeys.filter(
+        k => !k.startsWith(`${ev.id}@${ev.date}@`)
+      )
       this.startReminderWatch()
       this.scheduleEventReminder(ev)
       return 'on'
     },
 
-    /** 为单个日程设置精确超时（比轮询更准时） */
+    /** 设置提醒开关（非切换语义） */
+    async setRemindEnabled(
+      eventId: string,
+      enabled: boolean
+    ): Promise<'on' | 'off' | 'expired' | 'no-time'> {
+      const on = this.remindEventIds.includes(eventId)
+      if (enabled === on) return on ? 'on' : 'off'
+      return this.toggleRemind(eventId)
+    },
+
+    /** 登录后或进入消息页时：拉取日程并启动提醒监听 */
+    async ensureReminderWatch() {
+      if (!this.initialized) {
+        await this.fetchEvents()
+      } else {
+        this.startReminderWatch()
+      }
+      await this.checkReminders()
+    },
+
+    /** 为单个日程设置精确超时（提前提醒 + 到点提醒） */
     scheduleEventReminder(ev: CalendarEvent) {
       const start = eventStartMs(ev)
       if (start == null) return
-      const key = remindKey(ev)
+      const aheadAt = start - REMIND_AHEAD_MINUTES * 60 * 1000
+      this.scheduleReminderTimeout(ev, 'ahead', aheadAt)
+      this.scheduleReminderTimeout(ev, 'start', start)
+    },
+
+    scheduleReminderTimeout(ev: CalendarEvent, phase: 'ahead' | 'start', fireAt: number) {
+      const key = remindKey(ev, phase)
       const existing = scheduledTimeouts.get(key)
       if (existing) clearTimeout(existing)
 
-      const fireAt = start - REMIND_AHEAD_MINUTES * 60 * 1000
       const delay = fireAt - Date.now()
       if (delay <= 0) {
-        // 已进入提醒窗口，立刻检查
         void this.checkReminders()
         return
       }
-      // setTimeout 最大延迟约 24.8 天，超出则依赖轮询
       if (delay > 2_147_000_000) return
       const t = setTimeout(() => {
         scheduledTimeouts.delete(key)
         void this.checkReminders()
       }, delay)
       scheduledTimeouts.set(key, t)
+    },
+
+    async fireReminderPhase(ev: CalendarEvent, phase: 'ahead' | 'start') {
+      const key = remindKey(ev, phase)
+      if (this.firedRemindKeys.includes(key)) return
+      this.firedRemindKeys = [...this.firedRemindKeys, key]
+      try {
+        const res = await calendarApi.fireReminder(ev.id, phase)
+        if (res.code !== 200) {
+          this.firedRemindKeys = this.firedRemindKeys.filter(k => k !== key)
+          console.warn('[Calendar] 写入提醒消息失败:', res.message)
+          return
+        }
+        const timePart = `${ev.date} ${ev.time || ''}`.trim()
+        const body =
+          phase === 'start'
+            ? t('calendar.remindStartedBody', { time: timePart, title: ev.title })
+            : t('calendar.remindAheadBody', { time: timePart, title: ev.title })
+        void import('./notifications').then(({ useNotificationsStore }) => {
+          void useNotificationsStore().refreshFromSocket({
+            type: 'calendar_remind',
+            phase,
+            content: body,
+            relatedId: ev.id
+          })
+        })
+      } catch (e) {
+        this.firedRemindKeys = this.firedRemindKeys.filter(k => k !== key)
+        console.warn('[Calendar] 写入提醒消息异常:', e)
+      }
     },
 
     /** 扫描到期提醒并写入消息通知列表 */
@@ -352,32 +431,34 @@ export const useCalendarStore = defineStore('calendar', {
         }
         const start = eventStartMs(ev)
         if (start == null) continue
-        const key = remindKey(ev)
-        if (this.firedRemindKeys.includes(key)) continue
-        // 已过开始时间超过 1 分钟：清理开关，不再提醒
+
+        const snoozeUntil = this.snoozedUntil[id]
+        if (snoozeUntil && now < snoozeUntil) continue
+        if (snoozeUntil && now >= snoozeUntil) {
+          delete this.snoozedUntil[id]
+        }
+
         if (now > start + 60_000) {
           this.remindEventIds = this.remindEventIds.filter(x => x !== id)
           continue
         }
-        // 进入「开始前 N 分钟」窗口（含已开始但未超过 1 分钟）
-        if (now >= start - windowMs && now <= start + 60_000) {
-          // 先标记，避免并发轮询重复写入
-          this.firedRemindKeys = [...this.firedRemindKeys, key]
-          try {
-            const res = await calendarApi.fireReminder(id)
-            if (res.code !== 200) {
-              this.firedRemindKeys = this.firedRemindKeys.filter(k => k !== key)
-              console.warn('[Calendar] 写入提醒消息失败:', res.message)
-              continue
-            }
-            // WS 推送会刷新；再主动拉一次兜底
-            void import('./notifications').then(({ useNotificationsStore }) => {
-              void useNotificationsStore().refreshFromSocket()
-            })
-          } catch (e) {
-            this.firedRemindKeys = this.firedRemindKeys.filter(k => k !== key)
-            console.warn('[Calendar] 写入提醒消息异常:', e)
-          }
+
+        const aheadKey = remindKey(ev, 'ahead')
+        if (
+          !this.firedRemindKeys.includes(aheadKey) &&
+          now >= start - windowMs &&
+          now < start
+        ) {
+          await this.fireReminderPhase(ev, 'ahead')
+        }
+
+        const startKey = remindKey(ev, 'start')
+        if (
+          !this.firedRemindKeys.includes(startKey) &&
+          now >= start &&
+          now <= start + 60_000
+        ) {
+          await this.fireReminderPhase(ev, 'start')
         }
       }
     },
@@ -403,12 +484,38 @@ export const useCalendarStore = defineStore('calendar', {
       }
       for (const t of scheduledTimeouts.values()) clearTimeout(t)
       scheduledTimeouts.clear()
+    },
+
+    /** 延时提醒若干分钟（仅影响当前日程） */
+    snoozeReminder(eventId: string, minutes = 10) {
+      const ev = this.events.find(e => e.id === eventId)
+      if (!ev) return
+      const until = Date.now() + minutes * 60 * 1000
+      this.snoozedUntil = { ...this.snoozedUntil, [eventId]: until }
+      this.firedRemindKeys = this.firedRemindKeys.filter(k => !k.startsWith(`${ev.id}@`))
+      const delay = until - Date.now()
+      if (delay > 0 && delay <= 2_147_000_000) {
+        const key = `snooze:${eventId}`
+        const existing = scheduledTimeouts.get(key)
+        if (existing) clearTimeout(existing)
+        const t = setTimeout(() => {
+          scheduledTimeouts.delete(key)
+          void this.checkReminders()
+        }, delay)
+        scheduledTimeouts.set(key, t)
+      }
+    },
+
+    /** 取消某日程的提醒开关 */
+    async cancelReminderForEvent(eventId: string) {
+      await this.setRemindEnabled(eventId, false)
+      delete this.snoozedUntil[eventId]
     }
   },
 
   // 持久化事件列表与提醒开关
   persist: {
     key: 'linkx-calendar',
-    paths: ['events', 'remindEventIds', 'firedRemindKeys']
+    paths: ['events', 'remindEventIds', 'firedRemindKeys', 'snoozedUntil']
   }
 })

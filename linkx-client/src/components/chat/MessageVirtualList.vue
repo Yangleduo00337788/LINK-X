@@ -16,6 +16,8 @@ useI18n()
 
 const props = defineProps<{
   items: ChatMessage[]
+  /** 当前会话 id，用于区分换会话 vs 同会话消息增量 */
+  sessionId?: string
 }>()
 
 const emit = defineEmits<{
@@ -38,11 +40,47 @@ let scrollRaf = 0
 let alignRaf = 0
 
 watch(
-  () => props.items,
-  items => {
+  () => [props.sessionId, props.items] as const,
+  ([sid, items], oldVal) => {
+    const prevItems = oldVal?.[1] ?? []
+    const prevSid = oldVal?.[0] ?? ''
+    const sessionChanged = sid !== prevSid
+
     listItems.value = items
-    // 列表变化后先清贴底 padding，待布局完成再重算，避免沿用旧空白
-    padTop.value = PAD_TOP_MIN
+
+    if (sessionChanged) {
+      scrollToBottom(true)
+      scheduleAlignBottom()
+      return
+    }
+
+    if (items.length === 0) {
+      padTop.value = PAD_TOP_MIN
+      return
+    }
+
+    const prevFirst = prevItems[0]?.id
+    const nextFirst = items[0]?.id
+    const prevLast = prevItems[prevItems.length - 1]?.id
+    const nextLast = items[items.length - 1]?.id
+    const isPrepend =
+      prevFirst && nextFirst && prevFirst !== nextFirst && items.length >= prevItems.length
+    const isTailAppend =
+      items.length > prevItems.length && prevFirst === nextFirst && prevLast !== nextLast
+
+    if (isPrepend) {
+      scheduleAlignBottom()
+      return
+    }
+
+    if (isTailAppend) {
+      scheduleAlignBottom()
+      return
+    }
+
+    if (prevFirst !== nextFirst || items.length < prevItems.length) {
+      padTop.value = PAD_TOP_MIN
+    }
     scheduleAlignBottom()
   }
 )

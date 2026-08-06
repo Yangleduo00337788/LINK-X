@@ -19,6 +19,9 @@ public class SaveCalendarEventDTO {
     @Pattern(regexp = "^([01]\\d|2[0-3]):([0-5]\\d)$", message = "时间格式错误，应为 HH:mm")
     private String time;
 
+    @Pattern(regexp = "^([01]\\d|2[0-3]):([0-5]\\d)$", message = "结束时间格式错误，应为 HH:mm")
+    private String endTime;
+
     @Size(max = 50, message = "颜色值过长")
     private String color;
 }

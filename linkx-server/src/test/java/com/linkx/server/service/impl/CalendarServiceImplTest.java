@@ -108,7 +108,7 @@ class CalendarServiceImplTest {
             service.delete(USER_ID, 1L);
             verify(calendarEventMapper).deleteById(1L);
 
-            service.fireReminder(USER_ID, 1L);
+            service.fireReminder(USER_ID, 1L, "ahead");
             verify(notificationService).create(eq(USER_ID), isNull(), eq("日程提醒"), isNull(),
                     eq("calendar_remind"), eq(1L), contains("New"));
             verify(imPushService).pushToUser(eq(USER_ID), eq("notification_refresh"), anyMap());
@@ -120,7 +120,7 @@ class CalendarServiceImplTest {
             CalendarEvent e = event(2L);
             e.setTime("  ");
             when(calendarEventMapper.selectOneByQuery(any(QueryWrapper.class))).thenReturn(e);
-            service.fireReminder(USER_ID, 2L);
+            service.fireReminder(USER_ID, 2L, "ahead");
             verify(notificationService).create(anyLong(), any(), anyString(), any(), anyString(), anyLong(),
                     contains("全天"));
         }

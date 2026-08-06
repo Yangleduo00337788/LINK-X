@@ -283,6 +283,7 @@ CREATE TABLE IF NOT EXISTS calendar_event (
   title VARCHAR(128),
   date VARCHAR(20),
   time VARCHAR(10),
+  end_time VARCHAR(10),
   color VARCHAR(20),
   create_time DATETIME,
   update_time DATETIME,

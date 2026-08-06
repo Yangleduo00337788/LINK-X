@@ -8,6 +8,10 @@ vi.mock('../api/chat', () => ({
   listMessages: vi.fn(),
   openPrivateChat: vi.fn(),
   togglePin: vi.fn(async () => ({ code: 200, data: true, message: 'ok' })),
+  getMessageReadCount: vi.fn(async () => ({
+    code: 200,
+    data: { readCount: 2, totalMembers: 5 }
+  }))
 }))
 
 vi.mock('../utils/chatSocket', () => ({
@@ -121,7 +125,7 @@ describe('useAppStore', () => {
     expect(store.messagesBySession['c1'][1].sendStatus).toBe('read')
   })
 
-  it('handleReadReceipt 群聊应递增已读人数而非标已读', () => {
+  it('handleReadReceipt 群聊应刷新最新己方消息已读人数', async () => {
     const store = useAppStore()
     store.sessions = [{ id: 'g1', isGroup: true } as any]
     store.messagesBySession['g1'] = [
@@ -132,7 +136,9 @@ describe('useAppStore', () => {
       readerId: '9',
       lastReadMessageId: '100'
     })
-    expect(store.messagesBySession['g1'][0].readCount).toBe(2)
+    await vi.waitFor(() => {
+      expect(store.messagesBySession['g1'][0].readCount).toBe(2)
+    })
     expect(store.messagesBySession['g1'][0].sendStatus).toBe('sent')
   })
 

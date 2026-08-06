@@ -2,12 +2,13 @@
 /**
  * 消息页「日程提醒」主面板：展示站内日程提醒消息列表。
  */
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { NIcon, useMessage } from 'naive-ui'
 import { CalendarOutline, CheckmarkDoneOutline, TrashOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useNotificationsStore } from '../stores/notifications'
 import { useCalendarStore } from '../stores/calendar'
+import type { CalendarEvent } from '../stores/calendar'
 import { useAppStore } from '../stores/app'
 import EmptyState from './common/EmptyState.vue'
 import type { MessageNotification } from '../stores/notifications'
@@ -20,6 +21,7 @@ const calendarStore = useCalendarStore()
 const appStore = useAppStore()
 
 const { calendarRemindNotifs } = storeToRefs(notificationsStore)
+const { remindedUpcomingEvents } = storeToRefs(calendarStore)
 const {
   fetchMessageNotifications,
   markMessageAsRead,
@@ -29,6 +31,7 @@ const {
 
 onMounted(() => {
   void fetchMessageNotifications()
+  void calendarStore.ensureReminderWatch()
 })
 
 function formatTime(raw: string): string {
@@ -52,15 +55,28 @@ function formatTime(raw: string): string {
 function formatRemindContent(content?: string): string {
   if (!content) return ''
   const raw = content.replace(/^[「【\[]([^」】\]]*)[」】\]]\s*/, '$1 ').trim()
-  const m = raw.match(/^(?:(.+?)\s+)?将于\s+(.+)$/)
-  if (m?.[2]) {
-    const title = (m[1] || '').trim()
+  const ahead = raw.match(/^(?:(.+?)\s+)?将于\s+(.+)$/)
+  if (ahead?.[2]) {
+    const title = (ahead[1] || '').trim()
     return title
-      ? t('chat.remindAtWithTitle', { time: m[2], title })
-      : t('chat.remindAt', { time: m[2] })
+      ? t('chat.remindAtWithTitle', { time: ahead[2], title })
+      : t('chat.remindAt', { time: ahead[2] })
+  }
+  const started = raw.match(/^(.+?\s+\d{1,2}:\d{2})\s+已开始\s*·\s*(.+)$/)
+  if (started) {
+    return t('chat.remindStartedWithTitle', { time: started[1], title: started[2] })
   }
   return raw
 }
+
+function formatUpcomingEvent(ev: CalendarEvent): string {
+  const timePart = `${ev.date} ${ev.time || ''}`.trim()
+  return t('chat.remindAtWithTitle', { time: timePart, title: ev.title })
+}
+
+const showUpcoming = computed(
+  () => calendarRemindNotifs.value.length === 0 && remindedUpcomingEvents.value.length > 0
+)
 
 async function onClickItem(notif: MessageNotification) {
   if (notif.readStatus === 0) {
@@ -77,7 +93,6 @@ async function onClickItem(notif: MessageNotification) {
     if (ev?.date) dateKey = ev.date
   }
   if (!dateKey) {
-    // 从文案兜底解析「将于 YYYY-MM-DD」
     const m = notif.content?.match(/(\d{4}-\d{2}-\d{2})/)
     if (m) dateKey = m[1]
   }
@@ -88,14 +103,56 @@ async function onClickItem(notif: MessageNotification) {
   appStore.setNav('calendar')
 }
 
+function openUpcomingEvent(ev: CalendarEvent) {
+  const [y, mo, d] = ev.date.split('-').map(Number)
+  void calendarStore.setSelectedDate(new Date(y, mo - 1, d).getTime())
+  appStore.setNav('calendar')
+}
+
 async function markAllRead() {
   await markCalendarRemindsAsRead()
   message.success(t('chat.markedAllRead'))
 }
 
+async function dismissNotif(notif: MessageNotification) {
+  if (notif.readStatus === 0) {
+    await markMessageAsRead(notif.id)
+  }
+}
+
+async function closeNotif(notif: MessageNotification, options?: { silent?: boolean }) {
+  if (notif.readStatus === 0) {
+    await markMessageAsRead(notif.id)
+  }
+  await deleteMessageNotification(notif.id)
+  if (!options?.silent) {
+    message.success(t('chat.remindClosed'))
+  }
+}
+
+async function cancelEventReminder(notif: MessageNotification) {
+  if (!notif.relatedId) {
+    await closeNotif(notif)
+    return
+  }
+  await calendarStore.cancelReminderForEvent(notif.relatedId)
+  await closeNotif(notif, { silent: true })
+  message.success(t('chat.remindCancelled'))
+}
+
+async function snoozeEventReminder(notif: MessageNotification, minutes = 10) {
+  if (!notif.relatedId) {
+    await dismissNotif(notif)
+    return
+  }
+  calendarStore.snoozeReminder(notif.relatedId, minutes)
+  await dismissNotif(notif)
+  message.success(t('chat.remindSnoozed', { n: minutes }))
+}
+
 async function clearOne(notif: MessageNotification, e: Event) {
   e.stopPropagation()
-  await deleteMessageNotification(notif.id)
+  await closeNotif(notif)
 }
 </script>
 
@@ -114,39 +171,79 @@ async function clearOne(notif: MessageNotification, e: Event) {
     </header>
 
     <div class="content">
+      <section v-if="showUpcoming" class="upcoming-section">
+        <h3 class="section-title">{{ t('chat.upcomingRemindTitle') }}</h3>
+        <p class="section-desc">{{ t('chat.upcomingRemindDesc') }}</p>
+        <ul class="upcoming-list">
+          <li v-for="ev in remindedUpcomingEvents" :key="ev.id">
+            <button type="button" class="upcoming-row" @click="openUpcomingEvent(ev)">
+              <span class="upcoming-title">{{ ev.title }}</span>
+              <span class="upcoming-time">{{ formatUpcomingEvent(ev) }}</span>
+            </button>
+          </li>
+        </ul>
+      </section>
+
       <EmptyState
-        v-if="calendarRemindNotifs.length === 0"
+        v-if="calendarRemindNotifs.length === 0 && !showUpcoming"
         :title="t('chat.noRemind')"
         :description="t('chat.remindEmptyDesc')"
       />
-      <ul v-else class="notif-list">
-        <li
+
+      <div v-else-if="calendarRemindNotifs.length" class="notif-cards">
+        <article
           v-for="notif in calendarRemindNotifs"
           :key="notif.id"
-          class="notif-row"
+          class="remind-card"
           :class="{ unread: notif.readStatus === 0 }"
           @click="onClickItem(notif)"
         >
-          <div class="icon-wrap">
-            <n-icon :component="CalendarOutline" :size="22" />
-          </div>
-          <div class="info">
-            <div class="top">
-              <span class="name">{{ t('chat.calendarRemind') }}</span>
-              <span class="time">{{ formatTime(notif.createTime) }}</span>
+          <div class="remind-card-head">
+            <div class="icon-wrap">
+              <n-icon :component="CalendarOutline" :size="22" />
             </div>
-            <div class="preview">{{ formatRemindContent(notif.content) }}</div>
+            <div class="info">
+              <div class="top">
+                <span class="name">{{ t('chat.calendarRemind') }}</span>
+                <span class="time">{{ formatTime(notif.createTime) }}</span>
+              </div>
+              <div class="preview">{{ formatRemindContent(notif.content) }}</div>
+            </div>
+            <button
+              type="button"
+              class="delete-btn"
+              :title="t('common.delete')"
+              @click="clearOne(notif, $event)"
+            >
+              <n-icon :component="TrashOutline" :size="16" />
+            </button>
           </div>
-          <button
-            type="button"
-            class="delete-btn"
-            :title="t('common.delete')"
-            @click="clearOne(notif, $event)"
-          >
-            <n-icon :component="TrashOutline" :size="16" />
-          </button>
-        </li>
-      </ul>
+          <div class="remind-actions" @click.stop>
+            <button type="button" class="remind-action-btn primary" @click="dismissNotif(notif)">
+              {{ t('chat.remindDismiss') }}
+            </button>
+            <button
+              v-if="notif.relatedId"
+              type="button"
+              class="remind-action-btn"
+              @click="snoozeEventReminder(notif, 10)"
+            >
+              {{ t('chat.remindSnooze') }}
+            </button>
+            <button
+              v-if="notif.relatedId"
+              type="button"
+              class="remind-action-btn"
+              @click="cancelEventReminder(notif)"
+            >
+              {{ t('chat.remindCancelSchedule') }}
+            </button>
+            <button type="button" class="remind-action-btn muted" @click="closeNotif(notif)">
+              {{ t('chat.remindClose') }}
+            </button>
+          </div>
+        </article>
+      </div>
     </div>
   </div>
 </template>
@@ -213,6 +310,130 @@ async function clearOne(notif: MessageNotification, e: Event) {
   flex: 1;
   overflow-y: auto;
   padding: 8px 0;
+}
+
+.upcoming-section {
+  padding: 12px 20px 16px;
+}
+
+.section-title {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--lx-text-body);
+}
+
+.section-desc {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--lx-text-muted);
+}
+
+.upcoming-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.upcoming-row {
+  width: 100%;
+  border: 1px solid var(--lx-border-light);
+  background: var(--lx-bg-card);
+  border-radius: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.upcoming-row:hover {
+  background: var(--lx-bg-hover);
+}
+
+.upcoming-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--lx-text-body);
+}
+
+.upcoming-time {
+  font-size: 12px;
+  color: var(--lx-text-muted);
+}
+
+.notif-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px 16px;
+}
+
+.remind-card {
+  background: var(--lx-bg-card);
+  border: 1px solid var(--lx-border-light);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease;
+}
+
+.remind-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.remind-card.unread {
+  background: rgba(18, 183, 245, 0.06);
+  border-color: rgba(18, 183, 245, 0.18);
+}
+
+.remind-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 14px 10px;
+}
+
+.remind-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 14px 14px;
+  border-top: 1px solid var(--lx-border-light);
+  padding-top: 10px;
+}
+
+.remind-action-btn {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--lx-border-light);
+  background: var(--lx-bg-panel);
+  color: var(--lx-text-body);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.remind-action-btn:hover {
+  background: var(--lx-bg-hover);
+  border-color: var(--lx-accent);
+  color: var(--lx-accent);
+}
+
+.remind-action-btn.primary {
+  background: var(--lx-accent-soft);
+  border-color: transparent;
+  color: var(--lx-accent);
+  font-weight: 600;
+}
+
+.remind-action-btn.muted {
+  color: var(--lx-text-muted);
 }
 
 .notif-list {

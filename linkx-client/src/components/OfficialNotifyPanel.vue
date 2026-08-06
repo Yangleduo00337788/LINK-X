@@ -1,217 +1,64 @@
 <script setup lang="ts">
 /**
- * 消息页「LinkX官方」主面板：以好友聊天气泡形式展示反馈进度与系统通知。
+ * 消息页「LinkX官方」：微信团队式服务通知卡片流。
  */
 import { computed, onMounted, ref, watch } from 'vue'
-import { NIcon, useMessage } from 'naive-ui'
-import { HeadsetOutline, CheckmarkDoneOutline, TrashOutline } from '@vicons/ionicons5'
+import { NIcon, NDropdown, useMessage, useDialog, type DropdownOption } from 'naive-ui'
+import {
+  CheckmarkDoneOutline,
+  TrashOutline,
+  EllipsisHorizontalOutline,
+  ChevronForwardOutline
+} from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useNotificationsStore } from '../stores/notifications'
-import { useAppStore } from '../stores/app'
 import EmptyState from './common/EmptyState.vue'
-import Avatar from './Avatar.vue'
+import BrandMarkIcon from './BrandMarkIcon.vue'
 import type { MessageNotification } from '../stores/notifications'
 import { resolveNoteMediaUrl } from '../api/note'
 import { normalizeMediaUrl } from '../utils/mediaUrl'
 import { useI18n } from '../i18n'
+import {
+  buildOfficialNotifyViewModel,
+  formatOfficialDividerTime,
+  type OfficialBodyPart,
+  type OfficialNotifyViewModel
+} from '../utils/officialNotifyContent'
+import { openOfficialNotifyDetail } from '../utils/openOfficialNotifyDetail'
 
 const message = useMessage()
+const dialog = useDialog()
 const { t } = useI18n()
 const notificationsStore = useNotificationsStore()
-const appStore = useAppStore()
 
 const { officialNotifs } = storeToRefs(notificationsStore)
-const { userProfile } = storeToRefs(appStore)
 const {
   fetchMessageNotifications,
   markMessageAsRead,
   markOfficialNotifsAsRead,
-  deleteMessageNotification
+  deleteMessageNotification,
+  clearOfficialNotifs
 } = notificationsStore
 
 onMounted(() => {
   void fetchMessageNotifications()
 })
 
-interface BodyPart {
-  kind: 'text' | 'image'
-  text?: string
-  key?: string
-}
-
-interface OfficialChatMessage {
-  id: string
-  notifId: string
-  time: string
-  isSelf: boolean
-  text: string
-  images: BodyPart[]
-  unread: boolean
-  isSystemTip?: boolean
-}
-
-const EVIDENCE_KEY_RE = /^\d+\.\s*([\w./-]+\.(?:png|jpe?g|gif|webp|bmp))$/i
 const resolvedEvidenceUrls = ref<Record<string, string>>({})
 
-const officialAvatarProps = computed(() => ({
-  text: t('chat.officialAvatar'),
-  color: '#2f6fed',
-  size: 36
-}))
-
-const selfAvatarProps = computed(() => ({
-  text: t('chat.me'),
-  color: 'var(--lx-success)',
-  size: 36,
-  imageUrl: userProfile.value.avatar || undefined
-}))
-
-function formatTime(raw: string): string {
-  if (!raw) return ''
-  const date = new Date(raw)
-  if (Number.isNaN(date.getTime())) return raw
-  const now = Date.now()
-  const diff = Math.max(0, now - date.getTime())
-  const minutes = Math.floor(diff / 60000)
-  if (minutes < 1) return t('chat.justNow')
-  if (minutes < 60) return t('chat.minutesAgo', { n: minutes })
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return t('chat.hoursAgo', { n: hours })
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  const hh = String(date.getHours()).padStart(2, '0')
-  const mm = String(date.getMinutes()).padStart(2, '0')
-  return `${m}-${d} ${hh}:${mm}`
+function notificationToFeedItem(notif: MessageNotification): OfficialNotifyViewModel {
+  return buildOfficialNotifyViewModel(notif, t)
 }
 
-function statusTitle(type?: string): string {
-  switch (type) {
-    case 'feedback_submitted':
-      return t('chat.officialStepSubmitted')
-    case 'feedback_replied':
-      return t('chat.officialStepReplied')
-    case 'feedback_closed':
-      return t('chat.officialStepClosed')
-    case 'feedback_reopened':
-      return t('chat.officialStepReopened')
-    case 'review_approved':
-      return t('chat.officialStepApproved')
-    case 'review_rejected':
-      return t('chat.officialStepRejected')
-    case 'notice_published':
-      return t('chat.officialStepNotice')
-    default:
-      return t('chat.officialStepProgress')
-  }
-}
-
-function extractValue(line: string, prefixes: string[]): string | null {
-  for (const prefix of prefixes) {
-    if (line.startsWith(prefix)) return line.slice(prefix.length).trim()
-  }
-  return null
-}
-
-/** 把通知正文拆成文本行 + 证据图 key */
-function parseBodyParts(content?: string): BodyPart[] {
-  if (!content) return []
-  const parts: BodyPart[] = []
-  for (const raw of content.split(/\r?\n/)) {
-    const line = raw.trim()
-    if (!line || /^【.+】$/.test(line)) continue
-    if (/^证据图片:\s*$/.test(line)) continue
-    const m = line.match(EVIDENCE_KEY_RE)
-    if (m) {
-      parts.push({ kind: 'image', key: m[1] })
-      continue
-    }
-    if (/^证据图片:\s*无$/.test(line)) continue
-    parts.push({ kind: 'text', text: line })
-  }
-  return parts
-}
-
-function makeChatMessage(
-  notif: MessageNotification,
-  suffix: string,
-  isSelf: boolean,
-  text: string,
-  images: BodyPart[] = []
-): OfficialChatMessage {
-  return {
-    id: `${notif.id}:${suffix}`,
-    notifId: notif.id,
-    time: notif.createTime,
-    isSelf,
-    text,
-    images,
-    unread: notif.readStatus === 0
-  }
-}
-
-function expandNotification(notif: MessageNotification): OfficialChatMessage[] {
-  const parts = parseBodyParts(notif.content)
-  const textLines = parts.filter(p => p.kind === 'text').map(p => p.text!)
-  const imageParts = parts.filter(p => p.kind === 'image')
-
-  if (notif.type === 'feedback_submitted') {
-    const messages: OfficialChatMessage[] = []
-    let userText = ''
-    let officialText = ''
-    for (const line of textLines) {
-      const feedback = extractValue(line, ['你的反馈：', '你的举报：'])
-      if (feedback) userText = feedback
-      const detail = extractValue(line, ['详情：'])
-      if (detail) officialText = detail
-    }
-    if (userText) {
-      messages.push(makeChatMessage(notif, 'user', true, userText, imageParts))
-    }
-    if (officialText) {
-      messages.push(makeChatMessage(notif, 'ack', false, officialText))
-    }
-    if (!messages.length) {
-      messages.push(makeChatMessage(notif, 'fallback', false, notif.content || statusTitle(notif.type)))
-    }
-    return messages
-  }
-
-  if (
-    notif.type === 'feedback_replied' ||
-    notif.type === 'feedback_closed' ||
-    notif.type === 'feedback_reopened'
-  ) {
-    for (const line of textLines) {
-      const detail = extractValue(line, ['详情：'])
-      if (detail) return [makeChatMessage(notif, 'reply', false, detail)]
-    }
-    return [makeChatMessage(notif, 'status', false, statusTitle(notif.type))]
-  }
-
-  const displayLines: string[] = []
-  for (const line of textLines) {
-    if (line.startsWith('类型：')) continue
-    if (line.startsWith('你的反馈：') || line.startsWith('你的举报：')) continue
-    const detail = extractValue(line, ['详情：'])
-    if (detail) {
-      displayLines.push(detail)
-      continue
-    }
-    displayLines.push(line)
-  }
-  const text = displayLines.join('\n').trim() || statusTitle(notif.type)
-  return [makeChatMessage(notif, 'official', false, text, imageParts)]
-}
-
-const chatMessages = computed<OfficialChatMessage[]>(() => {
+const feedItems = computed<OfficialNotifyViewModel[]>(() => {
   const sorted = [...officialNotifs.value].sort(
     (a, b) => Date.parse(a.createTime) - Date.parse(b.createTime)
   )
-  return sorted.flatMap(expandNotification)
+  return sorted.map(notificationToFeedItem)
 })
 
 watch(
-  chatMessages,
+  feedItems,
   list => {
     const parts = list.flatMap(m => m.images)
     void resolveEvidenceKeys(parts)
@@ -219,7 +66,7 @@ watch(
   { immediate: true, deep: true }
 )
 
-async function resolveEvidenceKeys(parts: BodyPart[]) {
+async function resolveEvidenceKeys(parts: OfficialBodyPart[]) {
   const keys = parts
     .filter(p => p.kind === 'image' && p.key && !resolvedEvidenceUrls.value[p.key])
     .map(p => p.key!)
@@ -233,16 +80,21 @@ async function resolveEvidenceKeys(parts: BodyPart[]) {
           resolvedEvidenceUrls.value = { ...resolvedEvidenceUrls.value, [key]: url }
         }
       } catch {
-        /* ignore single key */
+        /* ignore */
       }
     })
   )
 }
 
-async function onClickMessage(msg: OfficialChatMessage) {
-  if (msg.unread) {
-    void markMessageAsRead(msg.notifId)
+async function onClickItem(item: OfficialNotifyViewModel) {
+  if (item.unread) {
+    void markMessageAsRead(item.notifId)
   }
+}
+
+function openDetail(item: OfficialNotifyViewModel) {
+  void onClickItem(item)
+  openOfficialNotifyDetail(item.notifId)
 }
 
 async function markAllRead() {
@@ -250,9 +102,42 @@ async function markAllRead() {
   message.success(t('chat.markedAllRead'))
 }
 
-async function clearOne(msg: OfficialChatMessage, e: Event) {
+async function clearOne(item: OfficialNotifyViewModel, e: Event) {
   e.stopPropagation()
-  await deleteMessageNotification(msg.notifId)
+  await deleteMessageNotification(item.notifId)
+}
+
+const headerMoreOptions = computed<DropdownOption[]>(() => [
+  { label: t('chat.markRead'), key: 'markRead' },
+  { label: t('chat.officialClearAll'), key: 'clearAll' }
+])
+
+function onHeaderMoreSelect(key: string) {
+  if (key === 'markRead') {
+    void markAllRead()
+    return
+  }
+  if (key === 'clearAll') {
+    const count = officialNotifs.value.length
+    if (count === 0) {
+      message.info(t('chat.officialNothingToClear'))
+      return
+    }
+    dialog.warning({
+      title: t('chat.officialClearAll'),
+      content: t('chat.officialClearConfirm', { n: count }),
+      positiveText: t('common.confirm'),
+      negativeText: t('common.cancel'),
+      onPositiveClick: async () => {
+        const cleared = await clearOfficialNotifs()
+        if (cleared > 0) {
+          message.success(t('chat.officialClearedCount', { n: cleared }))
+        } else {
+          message.warning(t('chat.officialNothingToClear'))
+        }
+      }
+    })
+  }
 }
 </script>
 
@@ -260,41 +145,45 @@ async function clearOne(msg: OfficialChatMessage, e: Event) {
   <div class="official-notify-panel">
     <header class="header">
       <div class="title-wrap">
-        <n-icon :component="HeadsetOutline" :size="22" class="title-icon" />
-        <div>
-          <h2 class="title">{{ t('chat.officialSession') }}</h2>
-          <p class="subtitle">{{ t('chat.officialSubtitle') }}</p>
-        </div>
+        <BrandMarkIcon :size="28" />
+        <h2 class="title">{{ t('chat.officialSession') }}</h2>
       </div>
       <div class="actions">
         <button type="button" class="action-btn" :title="t('chat.markRead')" @click="markAllRead">
           <n-icon :component="CheckmarkDoneOutline" :size="18" />
         </button>
+        <n-dropdown trigger="click" :options="headerMoreOptions" @select="onHeaderMoreSelect">
+          <button type="button" class="action-btn" :title="t('chat.officialMore')">
+            <n-icon :component="EllipsisHorizontalOutline" :size="18" />
+          </button>
+        </n-dropdown>
       </div>
     </header>
 
     <div class="content">
       <EmptyState
-        v-if="chatMessages.length === 0"
+        v-if="feedItems.length === 0"
         :title="t('chat.noOfficial')"
         :description="t('chat.officialEmptyDesc')"
       />
-      <div v-else class="chat-scroll">
-        <div
-          v-for="msg in chatMessages"
-          :key="msg.id"
-          class="message-row"
-          :class="[msg.isSelf ? 'right' : 'left', { unread: msg.unread }]"
-          @click="onClickMessage(msg)"
-        >
-          <Avatar v-if="!msg.isSelf" v-bind="officialAvatarProps" />
-
-          <div class="bubble-wrapper">
-            <div class="lx-bubble" :class="{ self: msg.isSelf }">
-              <p class="lx-bubble-text">{{ msg.text }}</p>
-              <div v-if="msg.images.length" class="bubble-images">
+      <div v-else class="feed-scroll">
+        <div v-for="item in feedItems" :key="item.id" class="feed-block">
+          <div class="feed-divider-time">{{ formatOfficialDividerTime(item.time) }}</div>
+          <div class="feed-card" :class="{ unread: item.unread }">
+            <div class="feed-card-main" @click="onClickItem(item)">
+              <h3 class="feed-card-title">{{ item.title }}</h3>
+              <p v-if="item.dateLabel" class="feed-card-date">{{ item.dateLabel }}</p>
+              <p v-if="item.body" class="feed-card-body">{{ item.body }}</p>
+              <dl v-if="item.fields.length" class="feed-fields">
+                <div v-for="(field, idx) in item.fields" :key="idx" class="feed-field-row">
+                  <dt>{{ field.label }}：</dt>
+                  <dd>{{ field.value }}</dd>
+                </div>
+              </dl>
+              <p v-if="item.footerHint" class="feed-footer-hint">{{ item.footerHint }}</p>
+              <div v-if="item.images.length" class="feed-images">
                 <a
-                  v-for="(img, idx) in msg.images"
+                  v-for="(img, idx) in item.images"
                   :key="idx"
                   class="evidence-thumb"
                   :href="img.key ? resolvedEvidenceUrls[img.key] : undefined"
@@ -310,19 +199,19 @@ async function clearOne(msg: OfficialChatMessage, e: Event) {
                 </a>
               </div>
             </div>
-            <span class="msg-time">{{ formatTime(msg.time) }}</span>
+            <button type="button" class="feed-detail-row" @click.stop="openDetail(item)">
+              <span>{{ t('chat.officialDetail') }}</span>
+              <n-icon :component="ChevronForwardOutline" :size="16" />
+            </button>
+            <button
+              type="button"
+              class="delete-btn"
+              :title="t('common.delete')"
+              @click="clearOne(item, $event)"
+            >
+              <n-icon :component="TrashOutline" :size="15" />
+            </button>
           </div>
-
-          <Avatar v-if="msg.isSelf" v-bind="selfAvatarProps" />
-
-          <button
-            type="button"
-            class="delete-btn"
-            :title="t('common.delete')"
-            @click="clearOne(msg, $event)"
-          >
-            <n-icon :component="TrashOutline" :size="15" />
-          </button>
         </div>
       </div>
     </div>
@@ -334,17 +223,27 @@ async function clearOne(msg: OfficialChatMessage, e: Event) {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--lx-bg-window, var(--lx-bg-panel));
+  background: #ededed;
+}
+
+:global([data-theme='dark']) .official-notify-panel {
+  background: var(--lx-bg-window, #1a1a1a);
 }
 
 .header {
-  min-height: 60px;
+  min-height: 52px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 20px;
-  border-bottom: 1px solid var(--lx-divider);
+  padding: 10px 16px;
+  border-bottom: 1px solid #e0e0e0;
+  background: #f7f7f7;
+}
+
+:global([data-theme='dark']) .header {
+  background: var(--lx-bg-panel, #222);
+  border-bottom-color: var(--lx-divider);
 }
 
 .title-wrap {
@@ -353,21 +252,11 @@ async function clearOne(msg: OfficialChatMessage, e: Event) {
   gap: 10px;
 }
 
-.title-icon {
-  color: #2f6fed;
-}
-
 .title {
   margin: 0;
   font-size: 17px;
   font-weight: 600;
   color: var(--lx-text-primary);
-}
-
-.subtitle {
-  margin: 2px 0 0;
-  font-size: 12px;
-  color: var(--lx-text-tertiary, #999);
 }
 
 .actions {
@@ -389,145 +278,213 @@ async function clearOne(msg: OfficialChatMessage, e: Event) {
 }
 
 .action-btn:hover {
-  background: var(--lx-bg-hover, rgba(0, 0, 0, 0.06));
+  background: rgba(0, 0, 0, 0.06);
   color: var(--lx-text-primary);
 }
 
 .content {
   flex: 1;
   overflow: auto;
-  padding: 16px 20px 24px;
+  padding: 16px 12px 24px;
+  background: #ededed;
 }
 
-.chat-scroll {
+:global([data-theme='dark']) .content {
+  background: var(--lx-bg-window, #1a1a1a);
+}
+
+.feed-scroll {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
 }
 
-.message-row {
+.feed-block {
   display: flex;
+  flex-direction: column;
   gap: 8px;
-  align-items: flex-start;
+}
+
+.feed-divider-time {
+  font-size: 12px;
+  color: #b2b2b2;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.feed-card {
   position: relative;
-  padding-right: 28px;
+  width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 
-.message-row.left {
-  justify-content: flex-start;
+:global([data-theme='dark']) .feed-card {
+  background: var(--lx-bg-card, #2a2a2a);
+  box-shadow: none;
+  border: 1px solid var(--lx-divider);
 }
 
-.message-row.right {
-  justify-content: flex-end;
+.feed-card.unread .feed-card-title::after {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: #fa5151;
+  vertical-align: middle;
 }
 
-.message-row.unread .lx-bubble:not(.self) {
-  box-shadow: 0 0 0 1px rgba(47, 111, 237, 0.35);
+.feed-card-main {
+  padding: 16px 16px 12px;
+  cursor: default;
 }
 
-.bubble-wrapper {
-  max-width: min(420px, 72%);
+.feed-card-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: #111;
+}
+
+:global([data-theme='dark']) .feed-card-title {
+  color: var(--lx-text-primary);
+}
+
+.feed-card-date {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #b2b2b2;
+}
+
+.feed-card-body {
+  margin: 12px 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #333;
+  word-break: break-word;
+}
+
+:global([data-theme='dark']) .feed-card-body {
+  color: var(--lx-text-body, #ddd);
+}
+
+.feed-fields {
+  margin: 12px 0 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
-.message-row.left .bubble-wrapper {
-  align-items: flex-start;
+.feed-field-row {
+  display: flex;
+  gap: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #333;
 }
 
-.message-row.right .bubble-wrapper {
-  align-items: flex-end;
+:global([data-theme='dark']) .feed-field-row {
+  color: var(--lx-text-body, #ddd);
 }
 
-.msg-time {
-  font-size: 11px;
-  color: var(--lx-text-tertiary, #999);
-  padding: 0 4px;
+.feed-field-row dt {
+  flex-shrink: 0;
+  margin: 0;
+  font-weight: 400;
 }
 
-.bubble-images {
+.feed-field-row dd {
+  margin: 0;
+  flex: 1;
+  word-break: break-word;
+}
+
+.feed-footer-hint {
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #b2b2b2;
+}
+
+.feed-images {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .evidence-thumb {
   display: inline-block;
-  border-radius: 8px;
+  border-radius: 6px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  border: 1px solid #e5e5e5;
   line-height: 0;
 }
 
-.message-row.left .evidence-thumb {
-  border-color: var(--lx-divider);
-}
-
 .evidence-thumb img {
-  width: 120px;
-  height: 120px;
+  width: 100px;
+  height: 100px;
   object-fit: cover;
   display: block;
 }
 
+.feed-detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  border-top: 1px solid #ededed;
+  background: #fff;
+  font-size: 14px;
+  color: #333;
+  cursor: pointer;
+}
+
+:global([data-theme='dark']) .feed-detail-row {
+  background: var(--lx-bg-card, #2a2a2a);
+  border-top-color: var(--lx-divider);
+  color: var(--lx-text-body);
+}
+
+.feed-detail-row:hover {
+  background: #f7f7f7;
+}
+
+:global([data-theme='dark']) .feed-detail-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
 .delete-btn {
   position: absolute;
-  top: 4px;
-  right: 0;
+  top: 6px;
+  right: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   border: none;
   border-radius: 6px;
-  background: transparent;
-  color: var(--lx-text-tertiary, #999);
+  background: rgba(255, 255, 255, 0.9);
+  color: #b2b2b2;
   cursor: pointer;
   opacity: 0;
+  transition: opacity 0.15s ease;
 }
 
-.message-row:hover .delete-btn {
+.feed-card:hover .delete-btn {
   opacity: 1;
 }
 
 .delete-btn:hover {
-  background: var(--lx-bg-hover, rgba(0, 0, 0, 0.06));
   color: var(--lx-danger, #e34d59);
-}
-</style>
-
-<style>
-/* 与 ChatMessageItem 保持一致的气泡样式（官方会话独立渲染，需自带） */
-.official-notify-panel .lx-bubble {
-  position: relative;
-  background: #ffffff;
-  padding: 10px 12px;
-  border-radius: var(--lx-radius);
-  font-size: 14px;
-  line-height: 1.55;
-  color: var(--lx-text);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-  border: 1px solid rgba(0, 0, 0, 0.06);
-}
-
-.official-notify-panel .lx-bubble.self {
-  background: #4facfe;
-  color: #ffffff;
-  box-shadow: 0 1px 2px rgba(79, 172, 254, 0.3);
-  border: none;
-}
-
-.official-notify-panel .lx-bubble.self .lx-bubble-text {
-  color: #ffffff;
-}
-
-.official-notify-panel .lx-bubble-text {
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: var(--lx-text);
 }
 </style>

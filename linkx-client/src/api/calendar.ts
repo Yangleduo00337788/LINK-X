@@ -10,6 +10,7 @@ export interface CalendarEventVO {
   title: string
   date: string
   time?: string
+  endTime?: string
   color?: string
   createTime?: string
   updateTime?: string
@@ -19,6 +20,7 @@ export interface SaveCalendarEventPayload {
   title: string
   date: string
   time?: string
+  endTime?: string
   color?: string
 }
 
@@ -67,6 +69,8 @@ export function deleteEvent(eventId: string) {
 /**
  * 触发日程提醒：服务端写入消息通知列表
  */
-export function fireReminder(eventId: string) {
-  return apiClient.post<never, ApiResult<null>>(`/calendar/${eventId}/remind`)
+export function fireReminder(eventId: string, phase: 'ahead' | 'start' = 'ahead') {
+  return apiClient.post<never, ApiResult<null>>(`/calendar/${eventId}/remind`, null, {
+    params: { phase }
+  })
 }

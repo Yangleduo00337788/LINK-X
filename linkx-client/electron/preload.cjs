@@ -35,6 +35,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openRegister: () => ipcRenderer.send('window-open-register'),
   openHelp: () => ipcRenderer.send('window-open-help'),
   openChatHistory: () => ipcRenderer.send('window-open-chat-history'),
+  openOfficialNotifyDetail: (notifId) =>
+    ipcRenderer.send('window-open-official-notify-detail', notifId),
   /** 打开图片预览独立窗口（深色查看器） */
   openImageViewer: payload => ipcRenderer.send('window-open-image-viewer', payload || {}),
   getImageViewerPayload: () => ipcRenderer.invoke('image-viewer:get-payload'),

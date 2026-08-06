@@ -67,6 +67,8 @@ const api = {
   openRegister: () => ipcRenderer.send('window-open-register'),
   openHelp: () => ipcRenderer.send('window-open-help'),
   openChatHistory: () => ipcRenderer.send('window-open-chat-history'),
+  openOfficialNotifyDetail: (notifId: string) =>
+    ipcRenderer.send('window-open-official-notify-detail', notifId),
   openImageViewer: (payload: {
     url: string
     fileName?: string

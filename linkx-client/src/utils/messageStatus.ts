@@ -23,9 +23,6 @@ export function fileStatusFromSendStatus(
   msg: ChatMessage,
   t: Translate
 ): string {
-  if (msg.fileStatus && msg.sendStatus !== 'sent' && msg.sendStatus !== 'delivered' && msg.sendStatus !== 'read') {
-    return msg.fileStatus
-  }
   if (!msg.isSelf) return t('chat.fileStatusReceived')
   if (msg.sendStatus === 'failed') return t('chat.fileStatusFailed')
   if (
@@ -35,10 +32,13 @@ export function fileStatusFromSendStatus(
   ) {
     return t('chat.fileStatusUploading', { n: msg.uploadProgress })
   }
-  if (msg.sendStatus === 'sending') return t('chat.fileStatusSending')
+  if (msg.sendStatus === 'sending') {
+    return msg.fileStatus || t('chat.fileStatusSending')
+  }
   if (msg.sendStatus === 'read') return t('chat.statusRead')
   if (msg.sendStatus === 'delivered') return t('chat.statusDelivered')
-  return t('chat.fileStatusSent')
+  if (msg.sendStatus === 'sent') return t('chat.statusSent')
+  return msg.fileStatus || t('chat.fileStatusSent')
 }
 
 export function formatLastSeen(ts: number | undefined, t: Translate): string {

@@ -21,6 +21,16 @@ function onFriendOnline(ev: Event) {
   })
 }
 
+function onCalendarRemind(ev: Event) {
+  const detail = (ev as CustomEvent<{ title?: string; body?: string }>).detail || {}
+  notification.create({
+    title: detail.title || 'LinkX',
+    content: detail.body || '',
+    duration: 6000,
+    keepAliveOnHover: true
+  })
+}
+
 onMounted(() => {
   unsubscribe =
     window.electronAPI?.onInAppToast?.(({ title, body }) => {
@@ -32,12 +42,14 @@ onMounted(() => {
       })
     }) ?? null
   window.addEventListener('linkx:friend-online', onFriendOnline)
+  window.addEventListener('linkx:calendar-remind', onCalendarRemind)
 })
 
 onBeforeUnmount(() => {
   unsubscribe?.()
   unsubscribe = null
   window.removeEventListener('linkx:friend-online', onFriendOnline)
+  window.removeEventListener('linkx:calendar-remind', onCalendarRemind)
 })
 </script>
 
