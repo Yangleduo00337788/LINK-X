@@ -36,6 +36,7 @@ import {
 } from '../utils/messagePreviewText'
 import { compareMessageOrder } from '../utils/messageOrder'
 import { enrichMessageReplyQuotes, preserveReplyTo } from '../utils/enrichMessageReply'
+import { isMessageIdAtOrBefore } from '../utils/messageStatus'
 import {
   contentMentionsUser,
   notifyFriendOnline,
@@ -53,6 +54,7 @@ import { normalizeProfileGender, PROFILE_GENDER_MALE } from '../types/profileGen
 import { useContactsStore } from './contacts'
 // 群元数据 Store（邀请成员等）
 import { useGroupMetaStore } from './groupMeta'
+import { useAppSettingsStore } from './appSettings'
 // 主题同步到 document 与 Electron 主进程
 import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
 // 持久化前清理敏感或过大字段
@@ -279,6 +281,8 @@ export const useAppStore = defineStore('app', {
     messagesLoading: {} as Record<string, boolean>, // 各会话是否正在加载历史
     /** 各会话输入草稿（打开会话时从服务端拉取） */
     draftBySession: {} as Record<string, string>,
+    /** 会话内对方正在输入（userId + 过期时间） */
+    typingBySession: {} as Record<string, { userId: string; name?: string; until: number }>,
     savedLogin: {
       username: '',
       rememberMe: true,
@@ -377,6 +381,7 @@ export const useAppStore = defineStore('app', {
     /** 向服务端上报已读游标（清服务端未读并广播 readReceipt） */
     async reportSessionRead(sessionId: string) {
       if (!sessionId) return
+      if (!useAppSettingsStore().privacySendReadReceipt) return
       const msgs = this.messagesBySession[sessionId] || []
       let lastId = ''
       for (let i = msgs.length - 1; i >= 0; i--) {
@@ -720,6 +725,14 @@ export const useAppStore = defineStore('app', {
           merged.sort(compareMessageOrder)
           enrichMessageReplyQuotes(merged)
 
+          const session = this.sessions.find(s => s.id === sessionId)
+          if (session?.isGroup) {
+            const members = useGroupMetaStore().membersFor(sessionId)
+            if (members.length) {
+              this.enrichGroupSelfMessageReadMeta(sessionId, members.length)
+            }
+          }
+
           console.log('[loadSessionMessages]', {
             sessionId,
             serverCount: serverMessages.length,
@@ -888,6 +901,10 @@ export const useAppStore = defineStore('app', {
           }
           if (action === 'readReceipt') {
             this.handleReadReceipt(data)
+            return
+          }
+          if (action === 'typing') {
+            this.handleTypingIndicator(data)
             return
           }
           if (action === 'edit') {
@@ -1324,10 +1341,15 @@ export const useAppStore = defineStore('app', {
       const online = data.online === true || data.online === 'true' || data.online === 1
       const contacts = useContactsStore()
       const changed = contacts.setOnline(userId, online)
+      const now = Date.now()
       for (const session of this.sessions) {
         if (!session.isGroup && session.peerUserId === userId) {
           session.online = online
+          if (!online) session.lastSeenAt = now
         }
+      }
+      if (!online) {
+        contacts.setLastSeen(userId, now)
       }
       if (changed && online) {
         const friend = contacts.items.find(c => String(c.userId ?? c.id) === userId)
@@ -1352,21 +1374,90 @@ export const useAppStore = defineStore('app', {
       const lastReadMessageId =
         data.lastReadMessageId != null ? String(data.lastReadMessageId) : ''
       if (!sessionId || !lastReadMessageId || lastReadMessageId === '0') return
+      const readerId = data.readerId != null ? String(data.readerId) : ''
+      const me = this.userProfile.userId ? String(this.userProfile.userId) : ''
+      if (readerId && me && readerId === me) return
+
+      const session = this.sessions.find(s => s.id === sessionId)
+      if (session?.isGroup) {
+        this.applyGroupReadReceipt(sessionId, lastReadMessageId)
+        return
+      }
+
       const msgs = this.messagesBySession[sessionId]
       if (!msgs) return
       for (const m of msgs) {
         if (!m.isSelf) continue
-        if (m.id === lastReadMessageId || m.id <= lastReadMessageId) {
-          if (
-            m.sendStatus === 'sent' ||
-            m.sendStatus === 'delivered' ||
-            m.sendStatus === 'sending'
-          ) {
-            m.sendStatus = 'read'
-            m.deliveryStatus = 'read'
-          }
+        if (!isMessageIdAtOrBefore(m.id, lastReadMessageId)) continue
+        if (
+          m.sendStatus === 'sent' ||
+          m.sendStatus === 'delivered' ||
+          m.sendStatus === 'sending'
+        ) {
+          m.sendStatus = 'read'
+          m.deliveryStatus = 'read'
         }
       }
+    },
+
+    /** 群聊：按已读游标递增己方消息已读人数，不标单聊式「已读」 */
+    applyGroupReadReceipt(sessionId: string, lastReadMessageId: string) {
+      const msgs = this.messagesBySession[sessionId]
+      if (!msgs) return
+      for (const m of msgs) {
+        if (!m.isSelf || !/^\d+$/.test(m.id)) continue
+        if (!isMessageIdAtOrBefore(m.id, lastReadMessageId)) continue
+        if (m.totalMembers == null || m.totalMembers <= 0) continue
+        const next = Math.min((m.readCount ?? 0) + 1, m.totalMembers)
+        m.readCount = next
+      }
+    },
+
+    setMessageReadCount(
+      sessionId: string,
+      messageId: string,
+      readCount: number,
+      totalMembers: number
+    ) {
+      const msgs = this.messagesBySession[sessionId]
+      if (!msgs) return
+      const target = msgs.find(m => m.id === messageId)
+      if (!target) return
+      target.readCount = readCount
+      target.totalMembers = totalMembers
+    },
+
+    enrichGroupSelfMessageReadMeta(sessionId: string, totalMembers: number) {
+      if (!totalMembers || totalMembers <= 0) return
+      const msgs = this.messagesBySession[sessionId]
+      if (!msgs) return
+      for (const m of msgs) {
+        if (m.isSelf) m.totalMembers = totalMembers
+      }
+    },
+
+    handleTypingIndicator(data: Record<string, unknown>) {
+      const sessionId = data.conversationId != null ? String(data.conversationId) : ''
+      const userId = data.userId != null ? String(data.userId) : ''
+      if (!sessionId || !userId) return
+      const me = this.userProfile.userId ? String(this.userProfile.userId) : ''
+      if (userId === me) return
+      const until = Date.now() + 4000
+      let name: string | undefined
+      const session = this.sessions.find(s => s.id === sessionId)
+      if (session?.isGroup) {
+        const member = useGroupMetaStore().membersFor(sessionId).find(m => m.id === userId)
+        name = member?.name
+      } else if (session?.peerUserId === userId) {
+        name = session.name
+      }
+      this.typingBySession[sessionId] = { userId, name, until }
+      setTimeout(() => {
+        const cur = this.typingBySession[sessionId]
+        if (cur && cur.until <= Date.now()) {
+          delete this.typingBySession[sessionId]
+        }
+      }, 4100)
     },
 
     applyEditedMessage(message: MessageItem) {
@@ -1687,6 +1778,11 @@ export const useAppStore = defineStore('app', {
         clientMsgId,
         ...(options.autoRetryCount != null ? { _autoRetry: options.autoRetryCount } : {})
       } as ChatMessage & { _autoRetry?: number }
+
+      if (session?.isGroup) {
+        const memberCount = useGroupMetaStore().membersFor(id).length
+        if (memberCount > 0) optimistic.totalMembers = memberCount
+      }
 
       if (!this.messagesBySession[id]) {
         this.messagesBySession[id] = []

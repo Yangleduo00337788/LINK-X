@@ -143,6 +143,11 @@ function handleFrame(raw: string) {
         handlers?.onCustomAction?.('readReceipt', frame.data as Record<string, unknown>)
       }
       break
+    case 'typing':
+      if (frame.data) {
+        handlers?.onCustomAction?.('typing', frame.data as Record<string, unknown>)
+      }
+      break
     case 'pong':
       break
     case 'error':
@@ -394,6 +399,13 @@ export function sendDeliveryReceipt(serverMsgId: string) {
   if (!socket || socket.readyState !== WebSocket.OPEN) return
   if (!serverMsgId || !/^\d+$/.test(serverMsgId)) return
   socket.send(JSON.stringify({ action: 'deliveryReceipt', serverMsgId }))
+}
+
+/** 通知会话内其他成员正在输入 */
+export function sendTypingIndicator(conversationId: string) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) return
+  if (!conversationId) return
+  socket.send(JSON.stringify({ action: 'typing', conversationId }))
 }
 
 export function isChatSocketConnected() {

@@ -109,6 +109,7 @@ export interface WsIncomingFrame {
     | 'edit'
     | 'deliveryReceipt'
     | 'readReceipt'
+    | 'typing'
     | 'call_invite'
     | 'call_accept'
     | 'call_reject'

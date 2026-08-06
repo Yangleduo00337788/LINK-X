@@ -182,9 +182,19 @@ export const useContactsStore = defineStore('contacts', {
       if (idx < 0) return false
       const prev = this.items[idx]
       if (prev.online === online) return false
-      // 替换元素，确保虚拟列表等依赖 items 引用变化的视图能刷新
-      this.items.splice(idx, 1, { ...prev, online })
+      const patch: Partial<ContactItem> = { online }
+      if (!online) patch.lastSeenAt = Date.now()
+      this.items.splice(idx, 1, { ...prev, ...patch })
       return true
+    },
+
+    setLastSeen(userId: string | number, ts: number) {
+      const id = String(userId)
+      const idx = this.items.findIndex(c => String(c.userId ?? c.id) === id)
+      if (idx < 0) return
+      const prev = this.items[idx]
+      if (prev.lastSeenAt === ts) return
+      this.items.splice(idx, 1, { ...prev, lastSeenAt: ts })
     },
 
     reset() {

@@ -51,6 +51,8 @@ export interface ChatSession {
   groupRemark?: string
   /** 好友在线状态（单聊） */
   online?: boolean
+  /** 对方最后在线时间戳（客户端 presence 离线时记录） */
+  lastSeenAt?: number
   avatarUrl?: string      // 远程头像 URL（单聊或自定义群头像）
   /** 群成员头像拼图（群聊默认头像） */
   memberAvatars?: Array<{ text: string; color?: string; imageUrl?: string }>
@@ -158,6 +160,8 @@ export interface ContactItem {
   avatarColor: string
   group: string           // 分组名（如「我的好友」）
   online?: boolean
+  /** 最后在线时间戳 */
+  lastSeenAt?: number
   avatarUrl?: string      // 头像图片 URL
   /** 后端用户 ID，存在时可拉取真实公开资料 */
   userId?: string
