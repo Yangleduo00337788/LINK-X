@@ -692,10 +692,11 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
   align-items: center;
-  gap: 20px clamp(120px, 18vw, 296px);
+  gap: 20px clamp(24px, 4vw, 56px);
   width: 100%;
+  max-width: 1080px;
   min-height: auto;
-  margin: 0;
+  margin: 0 auto;
 }
 
 /* ── 左侧品牌 + 插图 ── */
@@ -864,7 +865,7 @@ onUnmounted(() => {
 .login-card {
   width: 100%;
   max-width: 360px;
-  justify-self: end;
+  justify-self: start;
   margin-left: 0;
   background: #fff;
   border-radius: 16px;
