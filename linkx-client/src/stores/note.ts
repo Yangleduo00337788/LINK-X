@@ -252,17 +252,21 @@ export const useNoteStore = defineStore('note', {
       localStorage.removeItem(NOTE_TYPE_STORAGE_KEY)
     },
 
-    /** 初始化：加载笔记列表并恢复草稿 */
+    /** 初始化：仅加载笔记列表，编辑器始终从空白开始 */
     async init() {
-      await this.fetchNotes()
-      if (!this.currentNoteId) {
-        this.loadDraft()
+      if (!this.initialized) {
+        await this.fetchNotes()
       }
+    },
+
+    /** 打开编辑器前重置为空白（不恢复草稿与上次编辑状态） */
+    prepareBlankEditor() {
+      this.newNote()
     }
   },
 
   persist: {
     key: 'linkx-note',
-    paths: ['notes', 'currentNoteId', 'title', 'content', 'noteType']
+    paths: ['notes']
   }
 })

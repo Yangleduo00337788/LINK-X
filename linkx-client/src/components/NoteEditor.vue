@@ -2,12 +2,12 @@
 /**
  * 笔记编辑器独立窗口
  */
-import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed, nextTick, type ComponentPublicInstance } from 'vue'
 import { NIcon, NDropdown, useMessage } from 'naive-ui'
 import type { DropdownOption } from 'naive-ui'
 import {
-  MicOutline,
   FolderOpenOutline,
+  ImageOutline,
   ListOutline,
   CheckboxOutline,
   TextOutline,
@@ -15,29 +15,47 @@ import {
   ArrowRedoOutline,
   EllipsisHorizontalOutline,
   ReorderTwoOutline,
-  EyeOutline,
   TrashOutline,
   AddOutline,
   DocumentTextOutline,
   CloudUploadOutline
 } from '@vicons/ionicons5'
 import PinIcon from './icons/PinIcon.vue'
+import NoteTextBlockEditor from './NoteTextBlockEditor.vue'
 import WindowCaptionButtons from './WindowCaptionButtons.vue'
 import { storeToRefs } from 'pinia'
 import { useNoteStore } from '../stores/note'
 import { useAppStore } from '../stores/app'
 import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
-import { marked } from 'marked'
-import DOMPurify from 'dompurify'
 import * as noteApi from '../api/note'
 import LocationPickerPage from './LocationPickerPage.vue'
-import {
-  VOICE_MAX_SECONDS,
-  blobToVoiceFile,
-  isVoiceDurationValid,
-  pickVoiceMimeType
-} from '../utils/voiceRecorder'
 import { useI18n } from '../i18n'
+import { deriveNoteTitle } from '../utils/noteTitle'
+import {
+  fileKindFromName,
+  fileKindLabel,
+  mediaKeyFromRef,
+  parseAttachmentMeta,
+  parseNoteBlocks,
+  serializeNoteBlocks
+} from '../utils/noteBlocks'
+import { formatFileSize } from '../utils/file'
+import { emptyFormatState, type NoteFormatAction, type NoteFormatState } from '../utils/noteEditorFormat'
+
+type NoteTextBlockEditorInstance = ComponentPublicInstance & {
+  focus: () => void
+  focusEnd: () => void
+  forceSyncFromModel: () => void
+  prepareToolbarAction: () => void
+  runFormat: (action: NoteFormatAction) => void
+  insertText: (text: string) => void
+}
+
+function syncAllTextBlocks() {
+  for (const editor of Object.values(textBlockRefs.value)) {
+    editor?.forceSyncFromModel?.()
+  }
+}
 
 const message = useMessage()
 const { t } = useI18n()
@@ -46,23 +64,138 @@ const appStore = useAppStore()
 const { title, content, notes, currentNoteId, saving } = storeToRefs(noteStore)
 const { theme } = storeToRefs(appStore)
 
-const contentRef = ref<HTMLTextAreaElement | null>(null)
+const documentEl = ref<HTMLElement | null>(null)
 const isPinned = ref(false)
-const isRecordingNote = ref(false)
-const showPreview = ref(false)
 const showNoteList = ref(false)
 const showLocationPicker = ref(false)
 const mediaUrlCache = ref<Record<string, string>>({})
 const uploadingMedia = ref(false)
+const activeTextBlockIndex = ref(0)
+const textBlockRefs = ref<Record<number, NoteTextBlockEditorInstance | null>>({})
+const formatActive = ref<NoteFormatState>(emptyFormatState())
 
-const compiledMarkdown = computed(() => {
-  let md = content.value ?? ''
-  for (const [key, url] of Object.entries(mediaUrlCache.value)) {
-    md = md.split(`(lx-media:${key})`).join(`(${url})`)
+const noteBlocks = computed(() => {
+  const blocks = parseNoteBlocks(content.value)
+  const last = blocks[blocks.length - 1]
+  if (!last || last.type !== 'text') {
+    return [...blocks, { type: 'text' as const, value: '' }]
   }
-  const rawHtml = marked(md) as string
-  return DOMPurify.sanitize(rawHtml, { ADD_TAGS: ['audio'], ADD_ATTR: ['controls', 'src', 'preload'] })
+  return blocks
 })
+
+const parsedBlockCount = computed(() => parseNoteBlocks(content.value).length)
+
+function isVirtualTextBlock(index: number): boolean {
+  return index >= parsedBlockCount.value
+}
+
+function setTextBlockRef(index: number, el: Element | ComponentPublicInstance | null) {
+  if (el && typeof el === 'object' && 'runFormat' in el) {
+    textBlockRefs.value[index] = el as NoteTextBlockEditorInstance
+  } else {
+    delete textBlockRefs.value[index]
+  }
+}
+
+function ensureActiveEditor(): NoteTextBlockEditorInstance | null {
+  let editor = getActiveTextBlockEditor()
+  if (editor) return editor
+  const firstIndex = noteBlocks.value.findIndex(block => block.type === 'text')
+  if (firstIndex < 0) return null
+  activeTextBlockIndex.value = firstIndex
+  editor = textBlockRefs.value[firstIndex] ?? null
+  editor?.focusEnd()
+  return editor
+}
+
+function runFormat(action: NoteFormatAction) {
+  const editor = ensureActiveEditor()
+  if (!editor) return
+  editor.prepareToolbarAction()
+  editor.runFormat(action)
+}
+
+function getActiveTextBlockEditor(): NoteTextBlockEditorInstance | null {
+  return textBlockRefs.value[activeTextBlockIndex.value] ?? Object.values(textBlockRefs.value)[0] ?? null
+}
+
+function onToolbarPointerDown() {
+  ensureActiveEditor()?.prepareToolbarAction()
+}
+
+function onFormatState(index: number, state: NoteFormatState) {
+  if (index === activeTextBlockIndex.value) {
+    formatActive.value = state
+  }
+}
+
+function resolveMediaSrc(ref: string): string {
+  if (/^https?:\/\//i.test(ref)) return ref
+  const key = mediaKeyFromRef(ref)
+  return mediaUrlCache.value[key] || ''
+}
+
+function attachmentHref(ref: string): string {
+  const url = resolveMediaSrc(ref)
+  return url || '#'
+}
+
+function scrollDocumentToEnd() {
+  void nextTick(() => {
+    documentEl.value?.scrollTo({ top: documentEl.value.scrollHeight })
+    getActiveTextBlockEditor()?.focusEnd()
+  })
+}
+
+function onTextBlockValueChange(index: number, value: string) {
+  if (isVirtualTextBlock(index)) {
+    const prefix = content.value && !content.value.endsWith('\n') ? '\n' : ''
+    content.value = content.value + prefix + value
+    return
+  }
+  const blocks = parseNoteBlocks(content.value)
+  const block = blocks[index]
+  if (block?.type !== 'text') return
+  blocks[index] = { type: 'text', value }
+  content.value = serializeNoteBlocks(blocks)
+}
+
+function removeBlockAt(index: number) {
+  if (isVirtualTextBlock(index)) return
+  const blocks = parseNoteBlocks(content.value)
+  const block = blocks[index]
+  if (!block || block.type === 'text') return
+  blocks.splice(index, 1)
+  content.value = serializeNoteBlocks(blocks)
+  pushHistorySnapshot()
+  message.success(t('noteEditor.blockRemoved'))
+}
+
+function focusLastTextBlock() {
+  const blocks = noteBlocks.value
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    if (blocks[i]?.type === 'text') {
+      activeTextBlockIndex.value = i
+      void nextTick(() => {
+        textBlockRefs.value[i]?.focusEnd()
+      })
+      return
+    }
+  }
+}
+
+function insertBlock(text: string) {
+  const prefix = content.value && !content.value.endsWith('\n') ? '\n' : ''
+  const editor = ensureActiveEditor()
+  if (editor) {
+    editor.insertText(prefix + text + '\n')
+    return
+  }
+  const index = activeTextBlockIndex.value
+  const block = noteBlocks.value[index]
+  const current = block?.type === 'text' ? block.value : ''
+  onTextBlockValueChange(index, current + prefix + text + '\n')
+}
 
 watch(
   content,
@@ -88,12 +221,7 @@ const fileInputRef = ref<HTMLInputElement | null>(null)
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 let historyTimer: ReturnType<typeof setTimeout> | null = null
-let noteRecordStart = 0
 let restoringHistory = false
-let noteMediaRecorder: MediaRecorder | null = null
-let noteMediaStream: MediaStream | null = null
-let noteVoiceChunks: BlobPart[] = []
-let noteVoiceMaxTimer: number | null = null
 
 const historyStack = ref<string[]>([''])
 const historyIndex = ref(0)
@@ -113,9 +241,12 @@ const noteListOptions = computed<DropdownOption[]>(() => [
   }))
 ])
 
+const displayTitle = computed(
+  () => deriveNoteTitle(content.value) || t('noteEditor.untitled')
+)
+
 function syncTitleFromContent() {
-  const first = content.value.split('\n').find(line => line.trim())?.trim() ?? ''
-  title.value = first.slice(0, 80) || t('noteEditor.untitled')
+  title.value = deriveNoteTitle(content.value) || t('defaults.untitled')
 }
 
 function scheduleSave() {
@@ -155,6 +286,7 @@ function undo() {
   historyIndex.value -= 1
   content.value = historyStack.value[historyIndex.value] ?? ''
   restoringHistory = false
+  void nextTick(syncAllTextBlocks)
   void noteStore.save()
 }
 
@@ -164,48 +296,8 @@ function redo() {
   historyIndex.value += 1
   content.value = historyStack.value[historyIndex.value] ?? ''
   restoringHistory = false
+  void nextTick(syncAllTextBlocks)
   void noteStore.save()
-}
-
-function wrapSelection(prefix: string, suffix = prefix) {
-  const el = contentRef.value
-  if (!el) {
-    content.value += prefix + suffix
-    return
-  }
-  const start = el.selectionStart ?? content.value.length
-  const end = el.selectionEnd ?? start
-  const selected = content.value.slice(start, end)
-  const next = content.value.slice(0, start) + prefix + selected + suffix + content.value.slice(end)
-  content.value = next
-  pushHistorySnapshot()
-  requestAnimationFrame(() => {
-    el.focus()
-    const cursor = start + prefix.length + selected.length + suffix.length
-    el.setSelectionRange(selected ? cursor : start + prefix.length, selected ? cursor : start + prefix.length)
-  })
-}
-
-function insertAtCursor(text: string) {
-  const el = contentRef.value
-  if (!el) {
-    content.value += text
-    pushHistorySnapshot()
-    return
-  }
-  const start = el.selectionStart ?? content.value.length
-  const end = el.selectionEnd ?? start
-  content.value = content.value.slice(0, start) + text + content.value.slice(end)
-  pushHistorySnapshot()
-  requestAnimationFrame(() => {
-    el.focus()
-    const pos = start + text.length
-    el.setSelectionRange(pos, pos)
-  })
-}
-
-function insertBlock(text: string) {
-  insertAtCursor((content.value && !content.value.endsWith('\n') ? '\n' : '') + text + '\n')
 }
 
 async function togglePin() {
@@ -228,6 +320,7 @@ async function insertImage(e: Event) {
       mediaUrlCache.value = { ...mediaUrlCache.value, [res.data.fileKey]: res.data.url }
     }
     insertBlock(`![${file.name}](lx-media:${res.data.fileKey})`)
+    scrollDocumentToEnd()
     message.success(t('noteEditor.imageInserted'))
   } catch (err) {
     message.error(err instanceof Error ? err.message : t('noteEditor.imageUploadFail'))
@@ -250,7 +343,8 @@ async function insertFile(e: Event) {
     if (res.data.url) {
       mediaUrlCache.value = { ...mediaUrlCache.value, [res.data.fileKey]: res.data.url }
     }
-    insertBlock(`[${t('noteEditor.attachmentMd', { name: file.name })}](lx-media:${res.data.fileKey})`)
+    insertBlock(`[${t('noteEditor.attachmentMd', { name: file.name })} · ${formatFileSize(file.size)}](lx-media:${res.data.fileKey})`)
+    scrollDocumentToEnd()
     message.success(t('noteEditor.attachmentInserted'))
   } catch (err) {
     message.error(err instanceof Error ? err.message : t('noteEditor.attachmentUploadFail'))
@@ -259,99 +353,12 @@ async function insertFile(e: Event) {
   }
 }
 
-function resetNoteVoice() {
-  if (noteVoiceMaxTimer != null) {
-    window.clearTimeout(noteVoiceMaxTimer)
-    noteVoiceMaxTimer = null
-  }
-  noteMediaStream?.getTracks().forEach(t => t.stop())
-  noteMediaStream = null
-  noteMediaRecorder = null
-  noteVoiceChunks = []
-  isRecordingNote.value = false
-  noteRecordStart = 0
-}
-
-async function finishNoteVoice(cancel: boolean) {
-  const recorder = noteMediaRecorder
-  if (!recorder || recorder.state === 'inactive') {
-    resetNoteVoice()
-    return
-  }
-  const mimeType = recorder.mimeType || pickVoiceMimeType() || 'audio/webm'
-  const startedAt = noteRecordStart
-  const blob = await new Promise<Blob>((resolve, reject) => {
-    recorder.ondataavailable = (ev) => {
-      if (ev.data && ev.data.size > 0) noteVoiceChunks.push(ev.data)
-    }
-    recorder.onerror = () => reject(new Error('record_error'))
-    recorder.onstop = () => resolve(new Blob(noteVoiceChunks, { type: mimeType }))
-    try {
-      recorder.stop()
-    } catch (e) {
-      reject(e)
-    }
-  }).catch(() => null)
-
-  const durationSec = Math.round((Date.now() - startedAt) / 1000)
-  resetNoteVoice()
-  if (cancel || !blob || blob.size === 0) return
-  if (!isVoiceDurationValid(durationSec)) {
-    message.warning(t('chat.voiceTooShort'))
-    return
-  }
-
-  const file = blobToVoiceFile(blob, mimeType, durationSec)
-  uploadingMedia.value = true
-  try {
-    const res = await noteApi.uploadNoteFile(file)
-    if (res.code !== 200 || !res.data?.fileKey) {
-      throw new Error(res.message || t('noteEditor.uploadFail'))
-    }
-    if (res.data.url) {
-      mediaUrlCache.value = { ...mediaUrlCache.value, [res.data.fileKey]: res.data.url }
-    }
-    insertBlock(`[${t('noteEditor.voiceMd', { n: durationSec })}](lx-media:${res.data.fileKey})`)
-    message.success(t('noteEditor.voiceInserted'))
-  } catch (err) {
-    message.error(err instanceof Error ? err.message : t('noteEditor.voiceUploadFail'))
-  } finally {
-    uploadingMedia.value = false
-  }
-}
-
-async function toggleNoteVoice() {
-  if (uploadingMedia.value) return
-  if (isRecordingNote.value) {
-    await finishNoteVoice(false)
-    return
-  }
-  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-    message.warning(t('chat.voiceUnsupported'))
-    return
-  }
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    noteMediaStream = stream
-    const mimeType = pickVoiceMimeType()
-    noteMediaRecorder = mimeType
-      ? new MediaRecorder(stream, { mimeType })
-      : new MediaRecorder(stream)
-    noteVoiceChunks = []
-    noteRecordStart = Date.now()
-    isRecordingNote.value = true
-    noteMediaRecorder.ondataavailable = (ev) => {
-      if (ev.data && ev.data.size > 0) noteVoiceChunks.push(ev.data)
-    }
-    noteMediaRecorder.start(200)
-    noteVoiceMaxTimer = window.setTimeout(() => {
-      void finishNoteVoice(false)
-    }, VOICE_MAX_SECONDS * 1000)
-    message.info(t('noteEditor.voiceRecordingHint'))
-  } catch {
-    resetNoteVoice()
-    message.error(t('chat.voiceMicDenied'))
-  }
+async function resetToBlankEditor() {
+  await flushPendingSave()
+  noteStore.prepareBlankEditor()
+  historyStack.value = ['']
+  historyIndex.value = 0
+  mediaUrlCache.value = {}
 }
 
 function onMoreSelect(key: string) {
@@ -375,9 +382,7 @@ function onLocationPicked(location: string) {
 
 function onNoteSelect(key: string) {
   if (key === 'new') {
-    noteStore.newNote()
-    historyStack.value = ['']
-    historyIndex.value = 0
+    void resetToBlankEditor()
   } else {
     const note = notes.value.find(n => n.id === key)
     if (note) {
@@ -399,18 +404,32 @@ async function deleteCurrentNote() {
   }
 }
 
+async function flushPendingSave() {
+  if (saveTimer) {
+    clearTimeout(saveTimer)
+    saveTimer = null
+  }
+  if (!content.value.trim() && !currentNoteId.value) return
+  syncTitleFromContent()
+  await noteStore.save()
+}
+
+let unsubscribeNoteEditorReset: (() => void) | undefined
+
 onMounted(async () => {
   applyDocumentTheme(appStore.theme)
   notifyElectronTheme(appStore.theme)
   await noteStore.init()
-  if (!currentNoteId.value) {
-    noteStore.loadDraft()
-  }
-  historyStack.value = [content.value]
-  historyIndex.value = 0
+  await resetToBlankEditor()
+  unsubscribeNoteEditorReset = window.electronAPI?.onNoteEditorReset?.(() => {
+    void resetToBlankEditor()
+  })
   if (window.electronAPI?.isPinned) {
     isPinned.value = await window.electronAPI.isPinned()
   }
+  requestAnimationFrame(() => {
+    getActiveTextBlockEditor()?.focus()
+  })
 })
 
 watch(theme, t => {
@@ -419,15 +438,9 @@ watch(theme, t => {
 })
 
 onUnmounted(() => {
-  syncTitleFromContent()
-  void noteStore.save()
-  if (saveTimer) clearTimeout(saveTimer)
+  unsubscribeNoteEditorReset?.()
+  void flushPendingSave()
   if (historyTimer) clearTimeout(historyTimer)
-  if (isRecordingNote.value) {
-    void finishNoteVoice(true)
-  } else {
-    resetNoteVoice()
-  }
 })
 </script>
 
@@ -445,16 +458,16 @@ onUnmounted(() => {
           :title="t('noteEditor.pin')"
           @click="togglePin"
         >
-          <PinIcon :size="14" />
+          <PinIcon :size="14" :filled="isPinned" />
         </button>
       </div>
       <div class="bar-center">
-        {{ title || t('noteEditor.untitled') }}
+        {{ displayTitle }}
         <span v-if="saving" class="saving-indicator">{{ t('noteEditor.saving') }}</span>
       </div>
       <div class="bar-side bar-right no-drag">
         <!-- CRUD 操作按钮 -->
-        <button type="button" class="icon-btn" :title="t('noteEditor.newNote')" @click="noteStore.newNote()">
+        <button type="button" class="icon-btn" :title="t('noteEditor.newNote')" @click="() => resetToBlankEditor()">
           <n-icon :component="AddOutline" :size="16" />
         </button>
         <button type="button" class="icon-btn" :title="t('noteEditor.saveNote')" @click="() => noteStore.save()">
@@ -479,99 +492,135 @@ onUnmounted(() => {
         >
           <n-icon :component="TrashOutline" :size="16" />
         </button>
-        <WindowCaptionButtons />
+        <WindowCaptionButtons :before-close="flushPendingSave" />
       </div>
     </header>
 
-    <div class="format-bar no-drag">
+    <div class="format-bar no-drag" @mousedown="onToolbarPointerDown">
       <input ref="imageInputRef" type="file" accept="image/*" hidden @change="insertImage" />
       <input ref="fileInputRef" type="file" hidden @change="insertFile" />
 
-      <button
-        type="button"
-        class="icon-btn"
-        :class="{ recording: isRecordingNote }"
-        :title="t('noteEditor.voiceInput')"
-        @click="toggleNoteVoice"
-      >
-        <n-icon :component="MicOutline" :size="18" />
+      <button type="button" class="icon-btn" :title="t('noteEditor.insertImage')" @mousedown.prevent @click="imageInputRef?.click()">
+        <n-icon :component="ImageOutline" :size="18" />
       </button>
-      <button type="button" class="icon-btn" :title="t('noteEditor.attachment')" @click="fileInputRef?.click()">
+      <button type="button" class="icon-btn" :title="t('noteEditor.attachment')" @mousedown.prevent @click="fileInputRef?.click()">
         <n-icon :component="FolderOpenOutline" :size="18" />
       </button>
 
       <span class="v-sep" />
 
-      <button type="button" class="text-btn" :title="t('noteEditor.bold')" @click="wrapSelection('**')">B</button>
-      <button type="button" class="icon-btn" :title="t('noteEditor.heading')" @click="insertBlock(t('noteEditor.headingSnippet'))">
+      <button type="button" class="text-btn" :class="{ active: formatActive.bold }" :title="t('noteEditor.bold')" @mousedown.prevent @click="runFormat('bold')">B</button>
+      <button type="button" class="icon-btn" :class="{ active: formatActive.heading }" :title="t('noteEditor.heading')" @mousedown.prevent @click="runFormat('heading')">
         <n-icon :component="TextOutline" :size="17" />
       </button>
-      <button type="button" class="text-btn underline" :title="t('noteEditor.underline')" @click="wrapSelection('__')">U</button>
-      <button type="button" class="text-btn italic" :title="t('noteEditor.italic')" @click="wrapSelection('_')">I</button>
+      <button type="button" class="text-btn underline" :class="{ active: formatActive.underline }" :title="t('noteEditor.underline')" @mousedown.prevent @click="runFormat('underline')">U</button>
+      <button type="button" class="text-btn italic" :class="{ active: formatActive.italic }" :title="t('noteEditor.italic')" @mousedown.prevent @click="runFormat('italic')">I</button>
 
       <span class="v-sep" />
 
-      <button type="button" class="icon-btn" :title="t('noteEditor.divider')" @click="insertBlock('---')">
+      <button type="button" class="icon-btn" :title="t('noteEditor.divider')" @mousedown.prevent @click="runFormat('divider')">
         <n-icon :component="ReorderTwoOutline" :size="18" />
       </button>
       <button
         type="button"
         class="icon-btn"
+        :class="{ active: formatActive.unordered }"
         :title="t('noteEditor.unorderedList')"
-        @click="insertBlock(t('noteEditor.unorderedListSnippet'))"
+        @mousedown.prevent
+        @click="runFormat('unordered')"
       >
         <n-icon :component="ListOutline" :size="18" />
       </button>
       <button
         type="button"
         class="icon-btn"
+        :class="{ active: formatActive.ordered }"
         :title="t('noteEditor.orderedList')"
-        @click="insertBlock(t('noteEditor.orderedListSnippet'))"
+        @mousedown.prevent
+        @click="runFormat('ordered')"
       >
         <span class="num-list">1.</span>
       </button>
-      <button type="button" class="icon-btn" :title="t('noteEditor.todoList')" @click="insertBlock(t('noteEditor.todoSnippet'))">
+      <button type="button" class="icon-btn" :title="t('noteEditor.todoList')" @mousedown.prevent @click="runFormat('todo')">
         <n-icon :component="CheckboxOutline" :size="18" />
       </button>
 
       <span class="v-sep" />
 
-      <button type="button" class="icon-btn" :title="t('noteEditor.undo')" @click="undo">
+      <button type="button" class="icon-btn" :title="t('noteEditor.undo')" @mousedown.prevent @click="undo">
         <n-icon :component="ArrowUndoOutline" :size="18" />
       </button>
-      <button type="button" class="icon-btn" :title="t('noteEditor.redo')" @click="redo">
+      <button type="button" class="icon-btn" :title="t('noteEditor.redo')" @mousedown.prevent @click="redo">
         <n-icon :component="ArrowRedoOutline" :size="18" />
-      </button>
-
-      <n-dropdown trigger="click" :options="moreOptions" @select="onMoreSelect">
-        <button type="button" class="icon-btn" :title="t('noteEditor.more')">
-          <n-icon :component="EllipsisHorizontalOutline" :size="18" />
-        </button>
-      </n-dropdown>
-
-      <span class="v-sep" />
-
-      <button
-        type="button"
-        class="icon-btn"
-        :class="{ active: showPreview }"
-        :title="t('noteEditor.livePreview')"
-        @click="showPreview = !showPreview"
-      >
-        <n-icon :component="EyeOutline" :size="18" />
       </button>
     </div>
 
-    <main class="editor-area">
-      <textarea
-        v-show="!showPreview || content"
-        ref="contentRef"
-        v-model="content"
-        class="editor-input"
-        :class="{ 'half-width': showPreview }"
-        :placeholder="t('noteEditor.placeholder')"
-      />
-      <div v-if="showPreview" class="markdown-preview markdown-body" v-html="compiledMarkdown"></div>
+    <main ref="documentEl" class="editor-area" @click="focusLastTextBlock">
+      <div class="note-document">
+        <template v-for="(block, index) in noteBlocks" :key="index">
+          <NoteTextBlockEditor
+            v-if="block.type === 'text'"
+            :ref="el => setTextBlockRef(index, el)"
+            :model-value="block.value"
+            :media-cache="mediaUrlCache"
+            :placeholder="index === 0 && !content.trim() ? t('noteEditor.placeholder') : undefined"
+            @update:model-value="onTextBlockValueChange(index, $event)"
+            @focus="activeTextBlockIndex = index"
+            @format-state="onFormatState(index, $event)"
+          />
+          <figure v-else-if="block.type === 'image'" class="note-image-block" @click.stop>
+            <img :src="resolveMediaSrc(block.ref)" :alt="block.alt" loading="lazy" />
+            <button
+              type="button"
+              class="note-block-remove"
+              :title="t('noteEditor.removeImage')"
+              @click="removeBlockAt(index)"
+            >
+              <n-icon :component="TrashOutline" :size="14" />
+            </button>
+          </figure>
+          <a
+            v-else-if="block.type === 'attachment'"
+            class="note-attach-card"
+            :href="attachmentHref(block.ref)"
+            target="_blank"
+            rel="noopener noreferrer"
+            @click.stop
+          >
+            <span
+              class="note-attach-icon"
+              :class="`note-attach-icon--${fileKindFromName(parseAttachmentMeta(block.label).fileName)}`"
+            >
+              {{ fileKindLabel(fileKindFromName(parseAttachmentMeta(block.label).fileName)) }}
+            </span>
+            <span class="note-attach-meta">
+              <span class="note-attach-name">{{ parseAttachmentMeta(block.label).fileName }}</span>
+              <span v-if="parseAttachmentMeta(block.label).size" class="note-attach-size">
+                {{ parseAttachmentMeta(block.label).size }}
+              </span>
+            </span>
+            <button
+              type="button"
+              class="note-block-remove"
+              :title="t('noteEditor.removeAttachment')"
+              @click.prevent.stop="removeBlockAt(index)"
+            >
+              <n-icon :component="TrashOutline" :size="14" />
+            </button>
+          </a>
+          <span v-else-if="block.type === 'location'" class="note-location-wrap" @click.stop>
+            <span class="note-location-chip">📍 {{ block.place }}</span>
+            <button
+              type="button"
+              class="note-block-remove note-block-remove--inline"
+              :title="t('noteEditor.removeLocation')"
+              @click="removeBlockAt(index)"
+            >
+              <n-icon :component="TrashOutline" :size="12" />
+            </button>
+          </span>
+        </template>
+      </div>
     </main>
   </div>
 </template>
@@ -669,13 +718,8 @@ onUnmounted(() => {
   color: var(--lx-text-body);
 }
 
-.icon-btn.active,
-.icon-btn.recording {
+.icon-btn.active {
   color: var(--lx-accent);
-}
-
-.icon-btn.recording {
-  background: var(--lx-accent-soft);
 }
 
 .icon-btn.delete-btn:hover {
@@ -712,6 +756,12 @@ onUnmounted(() => {
   color: var(--lx-text-body);
 }
 
+.text-btn.active,
+.icon-btn.active {
+  background: var(--lx-accent-soft);
+  color: var(--lx-accent);
+}
+
 .format-bar {
   display: flex;
   align-items: center;
@@ -743,77 +793,175 @@ onUnmounted(() => {
 .editor-area {
   flex: 1;
   min-height: 0;
-  display: flex;
+  overflow-y: auto;
   background: var(--lx-bg-card);
 }
 
-.editor-input {
-  flex: 1;
+.note-document {
+  position: relative;
+  padding: 14px 18px 24px;
+  min-height: 100%;
+  box-sizing: border-box;
+}
+
+.editor-placeholder {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--lx-text-muted);
+  pointer-events: none;
+}
+
+.note-image-block {
+  position: relative;
+  margin: 0 0 12px;
+}
+
+.note-image-block img {
+  display: block;
   width: 100%;
-  border: none;
-  outline: none;
-  resize: none;
-  padding: 14px 18px 20px;
-  font-size: 14px;
-  line-height: 1.65;
-  background: transparent;
-  color: var(--lx-text-body);
-  font-family: inherit;
-}
-
-.editor-input.half-width {
-  width: 50%;
-  flex: 0 0 50%;
-  border-right: 1px solid var(--lx-border-light);
-}
-
-.markdown-preview {
-  flex: 1;
-  width: 50%;
-  padding: 14px 18px 20px;
-  overflow-y: auto;
-  font-size: 14px;
-  line-height: 1.65;
-  color: var(--lx-text-body);
+  max-width: 100%;
+  border-radius: var(--lx-radius);
   background: var(--lx-bg-panel);
 }
 
-.markdown-preview :deep(h1),
-.markdown-preview :deep(h2),
-.markdown-preview :deep(h3) {
-  margin-top: 1em;
-  margin-bottom: 0.5em;
-  font-weight: 600;
-  color: var(--lx-text);
+.note-block-remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.62);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+  z-index: 2;
 }
 
-.markdown-preview :deep(p) {
-  margin-bottom: 1em;
+.note-image-block:hover .note-block-remove,
+.note-attach-card:hover .note-block-remove {
+  opacity: 1;
 }
 
-.markdown-preview :deep(ul),
-.markdown-preview :deep(ol) {
-  padding-left: 2em;
-  margin-bottom: 1em;
+.note-block-remove:hover {
+  background: rgba(220, 38, 38, 0.92);
 }
 
-.markdown-preview :deep(img) {
-  max-width: 100%;
-  border-radius: var(--lx-radius);
-}
-
-.markdown-preview :deep(blockquote) {
-  border-left: 4px solid var(--lx-accent);
-  padding-left: 1em;
-  color: var(--lx-text-secondary);
-  margin-left: 0;
-  background: var(--lx-bg-hover);
-  padding: 8px 12px;
-  border-radius: 0 var(--lx-radius) var(--lx-radius) 0;
-}
-
-.editor-input::placeholder {
+.note-block-remove--inline {
+  position: static;
+  opacity: 1;
+  width: 22px;
+  height: 22px;
+  background: transparent;
   color: var(--lx-text-muted);
+}
+
+.note-block-remove--inline:hover {
+  background: var(--lx-bg-hover);
+  color: #ef4444;
+}
+
+.note-attach-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  margin: 0 0 10px;
+  border-radius: 10px;
+  background: var(--lx-bg-panel);
+  border: 1px solid var(--lx-border-light);
+  text-decoration: none;
+  color: inherit;
+  max-width: 360px;
+}
+
+.note-attach-card:hover {
+  border-color: var(--lx-accent);
+  background: var(--lx-bg-hover);
+}
+
+.note-attach-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  color: #fff;
+}
+
+.note-attach-icon--pdf {
+  background: #ef4444;
+}
+
+.note-attach-icon--word {
+  background: #2563eb;
+}
+
+.note-attach-icon--ppt {
+  background: #f97316;
+}
+
+.note-attach-icon--zip {
+  background: #f59e0b;
+}
+
+.note-attach-icon--audio {
+  background: #a855f7;
+}
+
+.note-attach-icon--text,
+.note-attach-icon--file {
+  background: #64748b;
+}
+
+.note-attach-meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.note-attach-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--lx-text-body);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-attach-size {
+  font-size: 12px;
+  color: var(--lx-text-muted);
+}
+
+.note-location-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 0 10px;
+}
+
+.note-location-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--lx-accent-soft);
+  color: var(--lx-accent);
   font-size: 13px;
 }
 </style>
