@@ -160,7 +160,7 @@ function onReportSubmitted() {
           <!-- 置顶 / 免打扰 / 屏蔽开关 -->
           <div class="row switch-row">
             <span class="switch-label">
-              <PinIcon :size="16" />
+              <PinIcon :size="16" :filled="!!currentSession?.pinned" />
               {{ t('modals.pinSession') }}
             </span>
             <n-switch :value="!!currentSession?.pinned" size="small" @update:value="setPin" />

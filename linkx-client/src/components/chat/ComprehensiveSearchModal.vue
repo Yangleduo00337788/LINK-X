@@ -45,6 +45,7 @@ interface SearchUserItem {
   avatarUrl?: string
   online?: boolean
   isRemote: boolean
+  isSelf?: boolean
 }
 
 const { t } = useI18n()
@@ -55,7 +56,7 @@ const contactsStore = useContactsStore()
 const notificationsStore = useNotificationsStore()
 const { comprehensiveSearchOpen } = storeToRefs(chatModalsStore)
 const { closeComprehensiveSearch } = chatModalsStore
-const { groupSessions, sessions } = storeToRefs(appStore)
+const { groupSessions, sessions, userProfile } = storeToRefs(appStore)
 const { openGroupSession, addFriendSession: addFriendAction, openSessionAtMessage } = appStore
 
 const keyword = ref('')
@@ -153,27 +154,32 @@ async function doSearch() {
 const filteredUsers = computed<SearchUserItem[]>(() => {
   if (!searched.value) return []
 
-  const q = keyword.value.trim().toLowerCase()
+  const q = keyword.value.trim()
+  const qLower = q.toLowerCase()
   const merged = new Map<string, SearchUserItem>()
+  const meId = String(userProfile.value.userId || '')
+  const meUsername = (userProfile.value.username || '').toLowerCase()
 
   for (const user of remoteUsers.value) {
     const name = user.nickname || user.username
-    merged.set(String(user.id), {
-      id: String(user.id),
-      userId: String(user.id),
+    const id = String(user.id)
+    merged.set(id, {
+      id,
+      userId: id,
       name,
       username: user.username,
       avatarText: name.charAt(0) || '?',
       avatarColor: '#12b7f5',
       avatarUrl: user.avatar,
       online: false,
-      isRemote: true
+      isRemote: true,
+      isSelf: meId && id === meId
     })
   }
 
   for (const contact of contactsStore.searchUsers(keyword.value)) {
     if (merged.has(contact.id)) continue
-    if (q && !contact.name.toLowerCase().includes(q)) continue
+    if (qLower && !contact.name.toLowerCase().includes(qLower)) continue
     merged.set(contact.id, {
       id: contact.id,
       userId: contact.userId,
@@ -182,11 +188,42 @@ const filteredUsers = computed<SearchUserItem[]>(() => {
       avatarColor: contact.avatarColor,
       avatarUrl: contact.avatarUrl,
       online: contact.online,
-      isRemote: false
+      isRemote: false,
+      isSelf: meId && String(contact.userId ?? contact.id) === meId
+    })
+  }
+
+  // 搜自己时后端会返回本人；本地再兜底一次
+  if (
+    meId &&
+  (q === meId || (meUsername && qLower === meUsername)) &&
+    !merged.has(meId)
+  ) {
+    const name = userProfile.value.nickname || userProfile.value.username || t('common.me')
+    merged.set(meId, {
+      id: meId,
+      userId: meId,
+      name,
+      username: userProfile.value.username,
+      avatarText: name.charAt(0) || '?',
+      avatarColor: '#12b7f5',
+      avatarUrl: userProfile.value.avatar,
+      online: false,
+      isRemote: true,
+      isSelf: true
     })
   }
 
   return [...merged.values()]
+})
+
+const isLikelySelfKeyword = computed(() => {
+  if (!searched.value) return false
+  const q = keyword.value.trim()
+  if (!q) return false
+  const meId = String(userProfile.value.userId || '')
+  const meUsername = (userProfile.value.username || '').toLowerCase()
+  return q === meId || (meUsername && q.toLowerCase() === meUsername)
 })
 
 const filteredGroups = computed(() => {
@@ -236,6 +273,11 @@ async function enterGroup(group: SearchGroupItem) {
 }
 
 async function handleUserAction(user: SearchUserItem) {
+  if (user.isSelf) {
+    message.info(t('modals.cannotAddSelf'))
+    return
+  }
+
   if (user.isRemote && user.username) {
     try {
       const res = await friendApi.sendFriendRequest({
@@ -328,12 +370,32 @@ async function handleUserAction(user: SearchUserItem) {
                     <span v-else>{{ u.online ? t('chat.online') : t('chat.offline') }}</span>
                   </p>
                 </div>
-                <button type="button" class="join-btn" @click="handleUserAction(u)">
+                <button
+                  v-if="u.isSelf"
+                  type="button"
+                  class="join-btn self-btn"
+                  disabled
+                >
+                  {{ t('modals.selfAccount') }}
+                </button>
+                <button v-else type="button" class="join-btn" @click="handleUserAction(u)">
                   {{ u.isRemote ? t('modals.addFriendBtn') : t('modals.sendMessage') }}
                 </button>
               </article>
-              <p v-if="showUsers && !filteredUsers.length && mainTab !== 'group'" class="empty-tip">
+              <p
+                v-if="showUsers && !filteredUsers.length && isLikelySelfKeyword"
+                class="empty-tip"
+              >
+                {{ t('modals.searchSelfMismatch') }}
+              </p>
+              <p v-else-if="showUsers && !filteredUsers.length && mainTab !== 'group'" class="empty-tip">
                 {{ t('modals.noMatchUser') }}
+              </p>
+              <p
+                v-if="showUsers && !filteredUsers.length && userProfile.username"
+                class="empty-tip sub"
+              >
+                {{ t('modals.searchIdHint', { id: userProfile.username }) }}
               </p>
             </template>
             <template v-if="showGroups">
@@ -571,6 +633,21 @@ async function handleUserAction(user: SearchUserItem) {
 
 .join-btn:hover {
   background: var(--lx-accent-soft);
+}
+
+.join-btn.self-btn,
+.join-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+  color: var(--lx-text-muted);
+  border-color: var(--lx-border-light);
+  background: var(--lx-bg-panel);
+}
+
+.empty-tip.sub {
+  margin-top: -4px;
+  font-size: 12px;
+  color: var(--lx-text-muted);
 }
 
 .close-fab {

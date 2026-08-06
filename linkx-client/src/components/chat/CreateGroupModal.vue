@@ -5,11 +5,10 @@
  * 左栏选择好友（最近聊天 + 分组），右栏展示已选成员，确认后调用 createGroup。
  * </p>
  */
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { NIcon } from 'naive-ui'
 import {
   ChevronDownOutline,
-  ChevronForwardOutline,
   EllipseOutline,
   CheckmarkCircle
 } from '@vicons/ionicons5'
@@ -38,6 +37,16 @@ const selected = ref<Set<string>>(new Set())
 // 「最近聊天」分组是否展开
 const recentExpanded = ref(true)
 
+function defaultFriendGroup() {
+  return t('defaults.myFriends')
+}
+
+/** 解析联系人所属分组名（与通讯录面板逻辑一致） */
+function resolveGroupName(group?: string) {
+  const def = defaultFriendGroup()
+  return (group || def).trim() || def
+}
+
 /** 可选联系人行数据结构（id 必须是真实 userId） */
 type PickRow = {
   id: string
@@ -64,16 +73,14 @@ const recentContacts = computed(() => {
   return fromSessions.filter(c => c.name.toLowerCase().includes(q))
 })
 
-// 联系人分组名称（可折叠）
-const collapsedGroups = ['特别关心', '我的好友', '朋友']
 // 当前展开的分组名，null 表示全部折叠
 const expandedGroup = ref<string | null>(null)
 
 /** 按分组名取联系人，并应用搜索过滤 */
-const groupContacts = (group: string) => {
+function groupContacts(group: string) {
   const q = search.value.trim().toLowerCase()
   let list = contactsStore.items
-    .filter(c => c.group === group)
+    .filter(c => resolveGroupName(c.group) === group)
     .map(c => ({
       id: String(c.userId || c.id),
       name: c.name,
@@ -84,6 +91,23 @@ const groupContacts = (group: string) => {
   if (!q) return list
   return list.filter(c => c.name.toLowerCase().includes(q))
 }
+
+/** 通讯录分组（来自好友实际 group 字段，与 ContactsPanel 一致） */
+const friendGroups = computed(() => {
+  const names = contactsStore.friendGroupNames
+  const q = search.value.trim().toLowerCase()
+  if (!q) return names
+  return names.filter(name => groupContacts(name).length > 0)
+})
+
+watch(createGroupOpen, open => {
+  if (!open) return
+  selected.value = new Set()
+  search.value = ''
+  recentExpanded.value = true
+  expandedGroup.value = null
+  void contactsStore.fetchFriends()
+})
 
 /** 所有可勾选联系人（最近 + 通讯录去重合并） */
 const allPickable = computed(() => {
@@ -160,10 +184,6 @@ function cancel() {
                 :placeholder="t('modals.search')"
               />
             </div>
-            <button type="button" class="category-row" @click="message.info(t('modals.categoryHint'))">
-              <span>{{ t('modals.createByCategory') }}</span>
-              <span class="more-link">{{ t('modals.more') }} <n-icon :component="ChevronForwardOutline" :size="14" /></span>
-            </button>
             <div class="section-hint">{{ t('modals.selectFriends') }}</div>
             <div class="scroll-list">
               <!-- 最近聊天分组 -->
@@ -198,23 +218,21 @@ function cancel() {
                   <span class="c-name">{{ c.name }}</span>
                 </button>
               </template>
-              <!-- 通讯录分组 -->
-              <button
-                v-for="g in collapsedGroups"
-                :key="g"
-                type="button"
-                class="group-head"
-                @click="expandedGroup = expandedGroup === g ? null : g"
-              >
-                <n-icon
-                  :component="ChevronForwardOutline"
-                  :size="16"
-                  class="chev"
-                  :class="{ collapsed: expandedGroup !== g }"
-                />
-                <span>{{ g }}</span>
-              </button>
-              <template v-for="g in collapsedGroups" :key="'items-' + g">
+              <!-- 通讯录分组：标题与成员紧挨展示，避免成员落到所有分组标题下方 -->
+              <template v-for="g in friendGroups" :key="g">
+                <button
+                  type="button"
+                  class="group-head"
+                  @click="expandedGroup = expandedGroup === g ? null : g"
+                >
+                  <n-icon
+                    :component="ChevronDownOutline"
+                    :size="16"
+                    class="chev"
+                    :class="{ collapsed: expandedGroup !== g }"
+                  />
+                  <span>{{ g }}</span>
+                </button>
                 <template v-if="expandedGroup === g">
                   <button
                     v-for="c in groupContacts(g)"
@@ -344,28 +362,6 @@ function cancel() {
 .search-field:focus {
   border-color: var(--lx-accent);
   background: var(--lx-bg-card);
-}
-
-.category-row {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
-  border: none;
-  background: transparent;
-  font-size: 14px;
-  color: var(--lx-text-body);
-  cursor: pointer;
-  border-bottom: 1px solid var(--lx-bg-panel);
-}
-
-.more-link {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  color: var(--lx-text-muted);
-  font-size: 13px;
 }
 
 .section-hint {
