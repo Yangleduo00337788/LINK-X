@@ -64,9 +64,11 @@ import { formatMessageDivider, MESSAGE_TIME_GAP_MS } from '../utils/chatTime'
 import * as chatApi from '../api/chat'
 import * as conferenceApi from '../api/conference'
 import { recoverMediaUrlOnError } from '../utils/mediaUrl'
+import { chatMessagePreviewText } from '../utils/messagePreviewText'
 import ConferenceCreateDialog, {
   type ConferenceCreatePayload
 } from './chat/ConferenceCreateDialog.vue'
+import ForwardPickerModal from './chat/ForwardPickerModal.vue'
 import ConferenceSessionBanner from './chat/ConferenceSessionBanner.vue'
 import type { SessionBannerInfo } from './chat/ConferenceSessionBanner.vue'
 import { useConferenceStore } from '../stores/conference'
@@ -1290,21 +1292,45 @@ function openForwardMessage(msg: ChatMessage) {
   forwardModalShow.value = true
 }
 
-async function confirmForward(targetId: string) {
+async function confirmForward(payload: { targetIds: string[]; leaveMessage: string }) {
   const msg = forwardingMsg.value
-  if (!msg || !targetId) return
+  if (!msg || !payload.targetIds.length) return
   forwardSaving.value = true
+  const sourceSession = currentSessionId.value
   try {
-    await forwardMessageInStore(msg.id, targetId)
+    for (const targetId of payload.targetIds) {
+      if (sourceSession) appStore.currentSessionId = sourceSession
+      await forwardMessageInStore(msg.id, targetId)
+      if (payload.leaveMessage) {
+        appStore.currentSessionId = targetId
+        await appStore.sendMessage(payload.leaveMessage, { type: 'text' })
+      }
+    }
     message.success(t('chat.forwardOk'))
     forwardModalShow.value = false
   } catch (e: unknown) {
     const ax = e as { response?: { data?: { message?: string } }; message?: string }
     message.error(ax.response?.data?.message || ax.message || t('chat.forwardFail'))
   } finally {
+    if (sourceSession) appStore.currentSessionId = sourceSession
     forwardSaving.value = false
   }
 }
+
+function onForwardCreateGroup() {
+  message.info(t('viewer.forwardCreateGroupHint'))
+}
+
+const forwardPreviewText = computed(() => {
+  const msg = forwardingMsg.value
+  return msg ? chatMessagePreviewText(msg) : ''
+})
+
+const forwardPreviewImageUrl = computed(() => {
+  const msg = forwardingMsg.value
+  if (!msg || (msg.type !== 'image' && !msg.isImage)) return ''
+  return msg.fileUrl || ''
+})
 
 async function retryMessage(msg: ChatMessage) {
   try {
@@ -1314,10 +1340,6 @@ async function retryMessage(msg: ChatMessage) {
     message.error(ax.response?.data?.message || ax.message || t('chat.messageSendFail'))
   }
 }
-
-const forwardTargets = computed(() =>
-  sessions.value.filter(s => s.id !== currentSessionId.value && !s.isSystemNotify && !s.isOfficialNotify)
-)
 
 // 是否正在拖拽文件到聊天区
 const isDraggingFile = ref(false)
@@ -1611,28 +1633,15 @@ function onDrop(e: DragEvent) {
       </template>
     </n-modal>
 
-    <n-modal
+    <ForwardPickerModal
       v-model:show="forwardModalShow"
-      preset="card"
-      :title="t('chat.forward')"
-      style="max-width: 420px"
-      :mask-closable="!forwardSaving"
-    >
-      <div class="forward-session-list">
-        <button
-          v-for="s in forwardTargets"
-          :key="s.id"
-          type="button"
-          class="forward-session-row"
-          :disabled="forwardSaving"
-          @click="confirmForward(s.id)"
-        >
-          <span class="forward-session-name">{{ s.name }}</span>
-          <span v-if="s.isGroup" class="forward-session-tag">{{ t('chat.group') }}</span>
-        </button>
-        <p v-if="!forwardTargets.length" class="forward-empty">{{ t('chat.noForwardTarget') }}</p>
-      </div>
-    </n-modal>
+      :exclude-session-id="currentSessionId"
+      :loading="forwardSaving"
+      :preview-text="forwardPreviewText"
+      :preview-image-url="forwardPreviewImageUrl"
+      @confirm="confirmForward"
+      @create-group="onForwardCreateGroup"
+    />
 
     <ConferenceCreateDialog
       :show="conferenceCreateOpen"
@@ -1956,58 +1965,6 @@ function onDrop(e: DragEvent) {
   background: var(--lx-danger-bg);
 }
 
-.forward-session-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-height: 360px;
-  overflow-y: auto;
-}
-
-.forward-session-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
-  border: none;
-  background: transparent;
-  padding: 10px 12px;
-  border-radius: var(--lx-radius);
-  cursor: pointer;
-  text-align: left;
-  color: var(--lx-text);
-}
-
-.forward-session-row:hover:not(:disabled) {
-  background: var(--lx-bg-hover);
-}
-
-.forward-session-row:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.forward-session-name {
-  font-size: 14px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.forward-session-tag {
-  flex-shrink: 0;
-  font-size: 12px;
-  color: var(--lx-text-muted);
-}
-
-.forward-empty {
-  margin: 12px 0;
-  text-align: center;
-  color: var(--lx-text-muted);
-  font-size: 13px;
-}
-
 .lx-modal-btn {
   border: 1px solid var(--lx-border);
   background: var(--lx-bg-card);
@@ -2029,19 +1986,8 @@ function onDrop(e: DragEvent) {
   cursor: not-allowed;
 }
 
-/* 引用消息展示 */
-.lx-bubble-reply {
-  font-size: 12px;
-  color: var(--lx-text-secondary);
-  background: var(--lx-bg-hover);
-  padding: 4px 8px;
-  border-radius: var(--lx-radius);
-  margin-bottom: 6px;
-  border-left: 2px solid var(--lx-accent);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
+.hidden-file-input {
+  display: none;
 }
 
 .lx-bubble-image {
@@ -2058,41 +2004,6 @@ function onDrop(e: DragEvent) {
   background: transparent;
   border: none;
   box-shadow: none;
-}
-
-.hidden-file-input {
-  display: none;
-}
-
-/* 输入框引用预览 */
-.reply-preview {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 10px;
-  background: var(--lx-bg-panel);
-  border-radius: var(--lx-radius);
-  margin-bottom: 8px;
-  border-left: 3px solid var(--lx-accent);
-}
-
-.reply-content {
-  font-size: 12px;
-  color: var(--lx-text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 1;
-}
-
-.reply-close {
-  cursor: pointer;
-  color: var(--lx-text-muted);
-  padding: 2px;
-}
-
-.reply-close:hover {
-  color: var(--lx-danger);
 }
 
 .emoji-grid {

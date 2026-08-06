@@ -11,14 +11,19 @@ import type { ChatMessage } from '../../../types'
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../../../stores/app'
+import { useGroupMetaStore } from '../../../stores/groupMeta'
 import { splitMentionContent } from '../../../utils/messageNotify'
+import { chatMessagePreviewText } from '../../../utils/messagePreviewText'
 import { useI18n } from '../../../i18n'
+import QuoteReplyBar from '../QuoteReplyBar.vue'
 
-useI18n()
+const { t } = useI18n()
 
 const props = defineProps<{ msg: ChatMessage }>()
 
-const { userProfile } = storeToRefs(useAppStore())
+const appStore = useAppStore()
+const { userProfile, currentSession } = storeToRefs(appStore)
+const groupMetaStore = useGroupMetaStore()
 
 /** 是否为链接类消息：type=link、含 http(s) URL 或含「抖音」关键字 */
 const isLinkMsg = computed(() => {
@@ -33,25 +38,79 @@ const contentSegments = computed(() =>
     userProfile.value.username
   ])
 )
+
+const replyPreviewText = computed(() => {
+  const reply = props.msg.replyTo
+  if (!reply) return ''
+  return chatMessagePreviewText(reply)
+})
+
+const replySenderName = computed(() => {
+  const reply = props.msg.replyTo
+  if (!reply) return ''
+  if (reply.senderName?.trim()) return reply.senderName.trim()
+
+  const myId = userProfile.value.userId ? String(userProfile.value.userId) : ''
+  const senderId = reply.senderId ? String(reply.senderId) : ''
+
+  if (senderId && myId && senderId === myId) {
+    return userProfile.value.nickname?.trim() || t('chat.me')
+  }
+
+  if (senderId) {
+    const member = groupMetaStore.membersFor(props.msg.sessionId).find(m => m.id === senderId)
+    if (member?.name) return member.name
+    const session = currentSession.value
+    if (session?.peerUserId && senderId === String(session.peerUserId)) {
+      return session.name || ''
+    }
+  }
+
+  if (reply.isSelf) {
+    return userProfile.value.nickname?.trim() || t('chat.me')
+  }
+
+  return currentSession.value?.name || ''
+})
+
+const hasReply = computed(() => !!props.msg.replyTo)
 </script>
 
 <template>
-  <!-- 文本/链接气泡：自己侧加 self 样式 -->
-  <div class="lx-bubble" :class="{ self: msg.isSelf, link: isLinkMsg }">
-    <!-- 回复引用条 -->
-    <div v-if="msg.replyTo" class="lx-bubble-reply">
-      {{ msg.replyTo.senderName }}: {{ msg.replyTo.content }}
+  <div class="text-message-stack" :class="{ 'text-message-stack--self': msg.isSelf }">
+    <!-- 正文气泡 -->
+    <div class="lx-bubble" :class="{ self: msg.isSelf, link: isLinkMsg }">
+      <p class="lx-bubble-text">
+        <template v-for="(seg, i) in contentSegments" :key="i">
+          <span
+            v-if="seg.mention"
+            class="lx-mention"
+            :class="{ 'lx-mention--me': seg.atMe }"
+          >{{ seg.text }}</span>
+          <template v-else>{{ seg.text }}</template>
+        </template>
+      </p>
+      <n-icon v-if="isLinkMsg" class="lx-link-ico" :component="LinkOutline" :size="14" />
     </div>
-    <p class="lx-bubble-text">
-      <template v-for="(seg, i) in contentSegments" :key="i">
-        <span
-          v-if="seg.mention"
-          class="lx-mention"
-          :class="{ 'lx-mention--me': seg.atMe }"
-        >{{ seg.text }}</span>
-        <template v-else>{{ seg.text }}</template>
-      </template>
-    </p>
-    <n-icon v-if="isLinkMsg" class="lx-link-ico" :component="LinkOutline" :size="14" />
+    <!-- 微信风格：灰条引用预览在气泡下方 -->
+    <QuoteReplyBar
+      v-if="hasReply"
+      variant="below"
+      :sender-name="replySenderName"
+      :content="replyPreviewText"
+    />
   </div>
 </template>
+
+<style scoped>
+.text-message-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 100%;
+}
+
+.text-message-stack--self {
+  align-items: flex-end;
+}
+</style>

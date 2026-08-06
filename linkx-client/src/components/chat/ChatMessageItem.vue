@@ -417,11 +417,6 @@ function onStatusClick() {
 .lx-file-name { font-size: 14px; font-weight: 500; color: var(--lx-text-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lx-file-size { font-size: 12px; color: var(--lx-text-muted); margin-top: 4px; }
 .lx-file-bar { padding: 6px 14px; background: #4a4a4a; color: rgba(255, 255, 255, 0.9); font-size: 12px; }
-.lx-bubble-reply {
-  font-size: 12px; color: var(--lx-text-secondary); background: var(--lx-bg-hover);
-  padding: 4px 8px; border-radius: var(--lx-radius); margin-bottom: 6px;
-  border-left: 2px solid var(--lx-accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
-}
 .lx-bubble-image { max-width: 220px; max-height: 280px; border-radius: 8px; object-fit: cover; cursor: zoom-in; display: block; }
 .image-bubble { padding: 0; background: transparent; border: none; box-shadow: none; }
 .voice-bubble { display: inline-flex; align-items: center; gap: 8px; min-width: 72px; cursor: pointer; }

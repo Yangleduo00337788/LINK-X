@@ -35,6 +35,7 @@ import {
   voicePreviewLabel
 } from '../utils/messagePreviewText'
 import { compareMessageOrder } from '../utils/messageOrder'
+import { enrichMessageReplyQuotes, preserveReplyTo } from '../utils/enrichMessageReply'
 import {
   contentMentionsUser,
   notifyFriendOnline,
@@ -219,7 +220,7 @@ function mapApiProfile(data: ProfileSource) {
   return {
     nickname: data.nickname || data.username || '',
     username: data.username || '',
-    signature: data.signature?.trim() ? data.signature : t('modals.editSignature'),
+    signature: data.signature?.trim() ? data.signature : '',
     avatar: normalizeMediaUrl(data.avatar) || '',
     userId: sanitizeUserId(data.id),
     gender,
@@ -254,7 +255,7 @@ export const useAppStore = defineStore('app', {
     userProfile: {
       nickname: '',
       username: '',
-      signature: t('modals.editSignature'),
+      signature: '',
       avatar: '',
       userId: '',
       gender: PROFILE_GENDER_MALE,
@@ -717,6 +718,7 @@ export const useAppStore = defineStore('app', {
           // 合并：服务端消息 + 本地乐观消息；按雪花 id 升序（与后端游标一致）
           const merged = [...serverMessages, ...localOnlyMessages]
           merged.sort(compareMessageOrder)
+          enrichMessageReplyQuotes(merged)
 
           console.log('[loadSessionMessages]', {
             sessionId,
@@ -776,7 +778,9 @@ export const useAppStore = defineStore('app', {
           const existingIds = new Set(existing.map(m => m.id))
           const unique = older.filter(m => !existingIds.has(m.id))
           if (unique.length) {
-            this.messagesBySession[sessionId] = [...unique, ...existing]
+            const combined = [...unique, ...existing]
+            enrichMessageReplyQuotes(combined)
+            this.messagesBySession[sessionId] = combined
             this.ackHistoryDeliveries(sessionId, unique)
           }
           this.messagesHasMore[sessionId] = res.data.length >= 50
@@ -980,6 +984,9 @@ export const useAppStore = defineStore('app', {
       }
       const exists = this.messagesBySession[sessionId].some(m => m.id === chatMsg.id)
       if (!exists) {
+        if (chatMsg.replyTo) {
+          enrichMessageReplyQuotes([chatMsg, ...this.messagesBySession[sessionId]])
+        }
         this.messagesBySession[sessionId].push(chatMsg)
       }
 
@@ -1094,6 +1101,9 @@ export const useAppStore = defineStore('app', {
       if (message.sensitiveAlert) {
         chatMsg.sensitiveAlert = true
       }
+      const prev = index >= 0 ? this.messagesBySession[sessionId][index] : null
+      preserveReplyTo(chatMsg, prev)
+      if (chatMsg.replyTo) enrichMessageReplyQuotes([chatMsg, ...this.messagesBySession[sessionId]])
 
       if (index >= 0) {
         this.messagesBySession[sessionId].splice(index, 1, chatMsg)
@@ -1725,6 +1735,11 @@ export const useAppStore = defineStore('app', {
           chatMsg.sendStatus = 'sent'
           chatMsg.clientMsgId = clientMsgId
           const idx = this.messagesBySession[id]?.findIndex(m => m.id === clientMsgId) ?? -1
+          const prev = idx >= 0 ? this.messagesBySession[id][idx] : null
+          preserveReplyTo(chatMsg, prev, options.replyTo)
+          if (chatMsg.replyTo) {
+            enrichMessageReplyQuotes([chatMsg, ...(this.messagesBySession[id] || [])])
+          }
           if (idx >= 0) {
             this.messagesBySession[id].splice(idx, 1, chatMsg)
           } else if (!this.messagesBySession[id].some(m => m.id === chatMsg.id)) {
@@ -1936,15 +1951,6 @@ export const useAppStore = defineStore('app', {
       notifyElectronTheme(this.theme)
     },
 
-    /** 更新个性签名（本地+后端） */
-    async updateSignature(text: string) {
-      try {
-        await this.updateProfile({ signature: text })
-      } catch {
-        this.userProfile.signature = text
-      }
-    },
-
     /** 更新昵称（本地+后端） */
     async updateNickname(name: string) {
       try {
@@ -1964,6 +1970,9 @@ export const useAppStore = defineStore('app', {
       if (this.savedLogin.rememberMe) {
         this.savedLogin.avatar = this.userProfile.avatar || ''
         this.savedLogin.nickname = this.userProfile.nickname || ''
+      }
+      if (data.username) {
+        this.savedLogin.username = data.username
       }
     },
 
@@ -2055,7 +2064,7 @@ export const useAppStore = defineStore('app', {
       }
       this.userProfile.nickname = ''
       this.userProfile.username = ''
-      this.userProfile.signature = t('modals.editSignature')
+      this.userProfile.signature = ''
       this.userProfile.avatar = ''
       this.userProfile.userId = ''
       this.userProfile.email = null

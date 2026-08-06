@@ -258,6 +258,7 @@ function mapSendStatus(
 
 function buildReplyTo(message: MessageItem, sessionId: string): ChatMessage | undefined {
   if (message.quoteMessageId == null && !message.quoteContent) return undefined
+  const quoteType = (message.quoteType || 'text') as ChatMessage['type']
   return {
     id: String(message.quoteMessageId ?? ''),
     sessionId,
@@ -266,7 +267,8 @@ function buildReplyTo(message: MessageItem, sessionId: string): ChatMessage | un
     isSelf: false,
     senderId: message.quoteSenderId != null ? String(message.quoteSenderId) : undefined,
     senderName: undefined,
-    type: 'text'
+    type: quoteType,
+    isImage: quoteType === 'image'
   }
 }
 

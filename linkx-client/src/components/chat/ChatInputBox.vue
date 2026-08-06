@@ -51,6 +51,8 @@ import {
 } from '../../utils/voiceRecorder'
 import { useI18n } from '../../i18n'
 import AtMentionPicker from '../common/AtMentionPicker.vue'
+import QuoteReplyBar from './QuoteReplyBar.vue'
+import { chatMessagePreviewText } from '../../utils/messagePreviewText'
 
 /** @全体成员 的伪 ID，写入正文为「@全体成员」供提醒逻辑识别 */
 const AT_ALL_ID = '__all__'
@@ -819,6 +821,20 @@ function cancelReply() {
   emit('update:replyingTo', undefined)
 }
 
+const replyPreviewContent = computed(() =>
+  props.replyingTo ? chatMessagePreviewText(props.replyingTo) : ''
+)
+
+const replySenderLabel = computed(() => {
+  const name = props.replyingTo?.senderName?.trim()
+  return name || t('chat.messageFallback')
+})
+
+/** 有回复预览时压缩输入区，避免工具栏/发送按钮被挤出可视区域 */
+const textareaAutosize = computed(() =>
+  props.replyingTo ? { minRows: 1, maxRows: 5 } : { minRows: 2, maxRows: 8 }
+)
+
 // 暴露给父组件：拖拽/外部调用文件发送
 defineExpose({
   handleFileSend
@@ -849,16 +865,14 @@ defineExpose({
     <div class="input-box">
       <!-- 回复预览 + 多行文本输入 -->
       <div class="input-compose">
-        <div v-if="replyingTo" class="reply-preview">
-          <div class="reply-content">
-            {{
-              t('chat.replyPreview', {
-                name: replyingTo.senderName || '',
-                content: replyingTo.content
-              })
-            }}
+        <div v-if="replyingTo" class="reply-compose">
+          <div class="reply-compose-label">{{ replySenderLabel }}</div>
+          <div class="reply-compose-row">
+            <QuoteReplyBar variant="input" :content="replyPreviewContent" />
+            <button type="button" class="reply-close-btn" :title="t('common.close')" @click="cancelReply">
+              <n-icon :component="CloseOutline" :size="14" />
+            </button>
           </div>
-          <n-icon :component="CloseOutline" class="reply-close" @click="cancelReply" />
         </div>
 
         <div class="input-compose-body">
@@ -866,10 +880,11 @@ defineExpose({
             ref="messageInputRef"
             :value="inputValue"
             type="textarea"
-            :autosize="{ minRows: 3, maxRows: 8 }"
+            :autosize="textareaAutosize"
             :placeholder="inputPlaceholder"
             :disabled="inputDisabled"
             class="message-input"
+            :class="{ 'message-input--with-reply': replyingTo }"
             :bordered="false"
             @update:value="onInputUpdate"
             @keydown="onInputKeyDown"
@@ -999,6 +1014,7 @@ defineExpose({
   background: var(--lx-bg-panel);
   border-top: none;
   box-shadow: inset 0 1px 0 var(--lx-separator-fade, rgba(0, 0, 0, 0.04));
+  max-height: min(220px, 38vh);
 }
 
 .input-box {
@@ -1007,14 +1023,18 @@ defineExpose({
   background: var(--lx-bg-card);
   border: 1px solid var(--lx-border-light);
   border-radius: 10px;
-  overflow: visible;
-  min-height: 148px;
+  overflow: hidden;
+  min-height: 108px;
+  max-height: 100%;
 }
 
 .input-compose {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
-  padding: 10px 14px 4px;
+  max-height: 140px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 12px 4px;
 }
 
 .input-compose-body {
@@ -1096,7 +1116,7 @@ defineExpose({
 .message-input :deep(.n-input__textarea-el),
 .message-input :deep(.n-input__placeholder),
 .message-input :deep(.n-input__textarea-mirror) {
-  min-height: 72px !important;
+  min-height: 56px !important;
   background: transparent !important;
   font-size: 14px;
   line-height: 1.55;
@@ -1104,6 +1124,12 @@ defineExpose({
   padding: 0 !important;
   color: var(--lx-text);
   resize: none;
+}
+
+.message-input--with-reply :deep(.n-input__textarea-el),
+.message-input--with-reply :deep(.n-input__placeholder),
+.message-input--with-reply :deep(.n-input__textarea-mirror) {
+  min-height: 36px !important;
 }
 
 .message-input :deep(.n-input__placeholder) {
@@ -1146,34 +1172,41 @@ defineExpose({
   display: none;
 }
 
-.reply-preview {
+.reply-compose {
+  margin-bottom: 6px;
+}
+
+.reply-compose-label {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--lx-text-body, #1f2329);
+  margin-bottom: 4px;
+}
+
+.reply-compose-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 6px 10px;
-  background: var(--lx-bg-panel);
-  border-radius: var(--lx-radius);
-  margin-bottom: 8px;
-  border-left: 3px solid var(--lx-accent);
+  gap: 8px;
 }
 
-.reply-content {
-  font-size: 12px;
-  color: var(--lx-text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 1;
-}
-
-.reply-close {
+.reply-close-btn {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: #e8e8e8;
+  color: #999;
   cursor: pointer;
-  color: var(--lx-text-muted);
-  padding: 2px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
 }
 
-.reply-close:hover {
-  color: var(--lx-danger);
+.reply-close-btn:hover {
+  background: #ddd;
+  color: #666;
 }
 
 .emoji-grid {
