@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { ref } from 'vue'
 import { NButton, useDialog, useMessage } from 'naive-ui'
 import { APP_CLIENT_CHANNEL, APP_CLIENT_VERSION } from '../../utils/appVersion'
 import * as versionApi from '../../api/version'
 import { useI18n } from '../../i18n'
+import { openLegalPageInBrowser } from '../../utils/legalPage'
 import BrandMarkIcon from '../BrandMarkIcon.vue'
 
 const message = useMessage()
@@ -12,23 +13,13 @@ const { t } = useI18n()
 const checking = ref(false)
 const updating = ref(false)
 const progressText = ref('')
-const supportEmail = ref('')
-const supportPhone = ref('')
 
-const hasSupportContact = computed(
-  () => !!(supportEmail.value.trim() || supportPhone.value.trim())
-)
+function openServiceAgreement() {
+  void openLegalPageInBrowser('service')
+}
 
-async function loadSupportContact() {
-  try {
-    const res = await versionApi.checkUpdate(APP_CLIENT_VERSION, APP_CLIENT_CHANNEL)
-    if (res.code === 200 && res.data) {
-      supportEmail.value = (res.data.supportEmail || '').trim()
-      supportPhone.value = (res.data.supportPhone || '').trim()
-    }
-  } catch (e) {
-    console.warn('[AboutSettings] 加载客服联系方式失败:', e)
-  }
+function openPrivacyPolicy() {
+  void openLegalPageInBrowser('privacy')
 }
 
 /**
@@ -75,7 +66,6 @@ async function startDownloadAndInstall(info: {
       return
     }
 
-    // Web：触发浏览器下载 / 打开安装包地址
     const a = document.createElement('a')
     a.href = url
     a.target = '_blank'
@@ -125,8 +115,6 @@ async function checkUpdate() {
       return
     }
     const info = res.data
-    supportEmail.value = (info.supportEmail || '').trim()
-    supportPhone.value = (info.supportPhone || '').trim()
     if (!info.hasUpdate) {
       message.success(t('about.latest', { version: info.version }))
       return
@@ -139,14 +127,10 @@ async function checkUpdate() {
     checking.value = false
   }
 }
-
-onMounted(() => {
-  void loadSupportContact()
-})
 </script>
 
 <template>
-  <div class="settings-scroll about-scroll">
+  <div class="about-page">
     <section class="about-card">
       <div class="about-glow" />
       <div class="about-logo">
@@ -166,28 +150,29 @@ onMounted(() => {
         </n-button>
       </div>
 
-      <div v-if="hasSupportContact" class="about-support">
-        <p class="about-support-title">{{ t('about.supportContact') }}</p>
-        <p v-if="supportEmail" class="about-support-line">
-          <span class="about-support-label">{{ t('about.supportEmail') }}</span>
-          <a class="about-support-link" :href="`mailto:${supportEmail}`">{{ supportEmail }}</a>
-        </p>
-        <p v-if="supportPhone" class="about-support-line">
-          <span class="about-support-label">{{ t('about.supportPhone') }}</span>
-          <a class="about-support-link" :href="`tel:${supportPhone}`">{{ supportPhone }}</a>
-        </p>
-      </div>
-
-      <p class="about-copy">© 2026 LinkX Team</p>
+      <footer class="about-legal">
+        <div class="about-legal-links">
+          <button type="button" class="about-legal-link" @click="openServiceAgreement">
+            {{ t('about.serviceAgreement') }}
+          </button>
+          <span class="about-legal-sep">·</span>
+          <button type="button" class="about-legal-link" @click="openPrivacyPolicy">
+            {{ t('about.privacyPolicy') }}
+          </button>
+        </div>
+        <p class="about-legal-brand">{{ t('about.companyRights') }}</p>
+        <p class="about-legal-copy">{{ t('about.copyright') }}</p>
+      </footer>
     </section>
   </div>
 </template>
 
 <style scoped>
-@import './settings-common.css';
-
-.about-scroll {
-  justify-content: center;
+.about-page {
+  width: 100%;
+  max-width: 720px;
+  padding: 0 28px 24px;
+  box-sizing: border-box;
 }
 
 .about-card {
@@ -195,9 +180,10 @@ onMounted(() => {
   text-align: center;
   padding: 36px 24px 28px;
   border-radius: 12px;
-  background: var(--lx-bg-panel);
+  background: var(--lx-bg-card);
   border: 1px solid var(--lx-border-light);
   overflow: hidden;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
 }
 
 .about-glow {
@@ -249,50 +235,50 @@ onMounted(() => {
   margin-top: 20px;
 }
 
-.about-support {
+.about-legal {
   position: relative;
-  margin: 22px auto 0;
-  max-width: 320px;
-  padding: 12px 14px;
-  border-radius: 10px;
-  background: var(--lx-bg-soft, rgba(0, 0, 0, 0.03));
-  border: 1px solid var(--lx-border-light);
-  text-align: left;
+  margin-top: 28px;
+  padding-top: 18px;
+  border-top: 1px solid var(--lx-border-light);
 }
 
-.about-support-title {
-  margin: 0 0 8px;
+.about-legal-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.about-legal-link {
+  border: none;
+  background: none;
+  padding: 0;
   font-size: 13px;
-  font-weight: 600;
-  color: var(--lx-text-body);
+  color: var(--lx-accent);
+  cursor: pointer;
 }
 
-.about-support-line {
-  margin: 4px 0 0;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--lx-text-secondary);
-}
-
-.about-support-label {
-  margin-right: 8px;
-  color: var(--lx-text-muted);
-}
-
-.about-support-link {
-  color: var(--lx-accent, #3b82f6);
-  text-decoration: none;
-  word-break: break-all;
-}
-
-.about-support-link:hover {
+.about-legal-link:hover {
   text-decoration: underline;
 }
 
-.about-copy {
-  position: relative;
-  margin: 22px 0 0;
-  font-size: 12px;
+.about-legal-sep {
   color: var(--lx-text-muted);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.about-legal-brand {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: var(--lx-text-secondary);
+}
+
+.about-legal-copy {
+  margin: 0;
+  font-size: 11px;
+  color: var(--lx-text-muted);
+  line-height: 1.5;
 }
 </style>

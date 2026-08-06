@@ -67,7 +67,7 @@ watch(settingsActiveTab, () => {
     <header class="main-head">
       <h2>{{ pageTitle }}</h2>
     </header>
-    <div class="settings-main-body">
+    <div class="settings-main-body" :class="{ 'is-about': settingsActiveTab === 'about' }">
       <AccountSettings v-show="settingsActiveTab === 'account'" />
       <GeneralSettings v-show="settingsActiveTab === 'general'" />
       <NotificationsSettings v-show="settingsActiveTab === 'notifications'" />
@@ -107,5 +107,13 @@ watch(settingsActiveTab, () => {
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-main-body.is-about {
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
 }
 </style>
