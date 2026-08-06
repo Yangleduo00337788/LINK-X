@@ -29,7 +29,7 @@ import { useAppStore } from '../stores/app'
 import { storeToRefs } from 'pinia'
 import { formatFileSize } from '../utils/chatTime'
 import * as chatApi from '../api/chat'
-import { recoverMediaUrlOnError } from '../utils/mediaUrl'
+import { imagePreviewPlaceholder } from '../utils/messagePreviewText'
 
 type ViewerItem = {
   url: string
@@ -908,6 +908,8 @@ watch(
       v-model:show="forwardShow"
       :exclude-session-id="current?.conversationId"
       :loading="forwardSaving"
+      :preview-text="imagePreviewPlaceholder()"
+      :preview-image-url="imageUrl"
       @confirm="confirmForward"
       @create-group="onForwardCreateGroup"
     />
