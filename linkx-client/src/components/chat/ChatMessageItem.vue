@@ -23,6 +23,8 @@ import LocationBubble from './bubbles/LocationBubble.vue'
 import TextBubble from './bubbles/TextBubble.vue'
 import DataCardBubble from './bubbles/DataCardBubble.vue'
 import CallBubble from './bubbles/CallBubble.vue'
+import MessageStatusIcon from './MessageStatusIcon.vue'
+import { groupReadCountLabel } from '../../utils/messageStatus'
 
 const props = defineProps<{
   msg: ChatMessage
@@ -76,8 +78,9 @@ const tipText = computed(() => {
   return props.msg.content || ''
 })
 
+/** 单聊：失败/上传中显示文字；已发送/送达/已读用图标 */
 const statusText = computed(() => {
-  if (!props.msg.isSelf) return ''
+  if (!props.msg.isSelf || isGroupChat.value) return ''
   if (props.msg.sendStatus === 'failed') {
     return props.msg.sendFailReason || t('chat.statusFailed')
   }
@@ -89,11 +92,12 @@ const statusText = computed(() => {
     return t('chat.statusUploading', { n: props.msg.uploadProgress })
   }
   if (props.msg.sendStatus === 'sending') return t('chat.statusSending')
-  if (props.msg.sendStatus === 'read') return t('chat.statusRead')
-  if (props.msg.sendStatus === 'delivered') return t('chat.statusDelivered')
-  if (props.msg.sendStatus === 'sent') return t('chat.statusSent')
   return ''
 })
+
+const showStatusIcon = computed(
+  () => props.msg.isSelf && !isGroupChat.value && props.msg.sendStatus !== 'failed' && props.msg.sendStatus !== 'sending'
+)
 
 const sensitiveAlertText = computed(() => {
   if (!props.msg.isSelf || !props.msg.sensitiveAlert) return ''
@@ -102,13 +106,7 @@ const sensitiveAlertText = computed(() => {
 
 const readCountText = computed(() => {
   if (!props.msg.isSelf || !isGroupChat.value) return ''
-  const read = props.msg.readCount ?? 0
-  const total = props.msg.totalMembers ?? 0
-  if (total === 0) return ''
-  if (props.msg.totalMembers == null) {
-    return t('chat.statusRead')
-  }
-  return t('chat.readCount', { read, total })
+  return groupReadCountLabel(props.msg, t)
 })
 
 const fetchingRead = ref(false)
@@ -123,7 +121,12 @@ async function maybeFetchReadCount() {
   try {
     const res = await chatApi.getMessageReadCount(sessionId, props.msg.id)
     if (res.code === 200 && res.data) {
-      // 消息对象不可变，数据仅作展示备用，不触发响应式更新
+      appStore.setMessageReadCount(
+        sessionId,
+        props.msg.id,
+        Number(res.data.readCount) || 0,
+        Number(res.data.totalMembers) || 0
+      )
     }
   } catch {
     // ignore — 已读统计非关键功能
@@ -221,9 +224,10 @@ function onStatusClick() {
       <DataCardBubble v-else-if="msg.type === 'dataCard'" :msg="msg" />
       <TextBubble v-else :msg="msg" />
       <div
-        v-if="msg.isSelf && (statusText || msg.edited || readCountText || sensitiveAlertText)"
+        v-if="msg.isSelf && (statusText || showStatusIcon || readCountText || msg.edited || sensitiveAlertText)"
         class="msg-meta"
       >
+        <MessageStatusIcon v-if="showStatusIcon" :msg="msg" :group-mode="isGroupChat" />
         <button
           v-if="statusText"
           type="button"
@@ -319,6 +323,7 @@ function onStatusClick() {
 .msg-meta {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
   margin-top: 2px;
   font-size: 11px;

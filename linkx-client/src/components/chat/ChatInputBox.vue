@@ -53,6 +53,7 @@ import { useI18n } from '../../i18n'
 import AtMentionPicker from '../common/AtMentionPicker.vue'
 import QuoteReplyBar from './QuoteReplyBar.vue'
 import { chatMessagePreviewText } from '../../utils/messagePreviewText'
+import { sendTypingIndicator } from '../../utils/chatSocket'
 
 /** @全体成员 的伪 ID，写入正文为「@全体成员」供提醒逻辑识别 */
 const AT_ALL_ID = '__all__'
@@ -294,7 +295,22 @@ function detectMentionTrigger() {
 
 function onInputUpdate(val: string) {
   inputValue.value = val
+  notifyTyping()
   nextTick(() => detectMentionTrigger())
+}
+
+let lastTypingSent = 0
+function notifyTyping() {
+  const sid = currentSessionId.value
+  if (!sid || inputDisabled.value) return
+  const now = Date.now()
+  if (now - lastTypingSent < 2000) return
+  lastTypingSent = now
+  try {
+    sendTypingIndicator(sid)
+  } catch {
+    /* WS 未连接时忽略 */
+  }
 }
 
 function applyMention(id: string | number, name: string) {

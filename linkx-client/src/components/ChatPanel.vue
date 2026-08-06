@@ -65,6 +65,7 @@ import * as chatApi from '../api/chat'
 import * as conferenceApi from '../api/conference'
 import { recoverMediaUrlOnError } from '../utils/mediaUrl'
 import { chatMessagePreviewText } from '../utils/messagePreviewText'
+import { formatLastSeen } from '../utils/messageStatus'
 import ConferenceCreateDialog, {
   type ConferenceCreatePayload
 } from './chat/ConferenceCreateDialog.vue'
@@ -175,7 +176,7 @@ const appSettingsStore = useAppSettingsStore()
 // 获取联系人 Store 实例
 const contactsStore = useContactsStore()
 // 解构当前会话、消息、用户资料、会话 ID、已保存登录信息
-const { currentSession, currentMessages, userProfile, currentSessionId, savedLogin, sessionEnterTick, sessions, pendingFocusMessageId } =
+const { currentSession, currentMessages, userProfile, currentSessionId, savedLogin, sessionEnterTick, sessions, pendingFocusMessageId, typingBySession } =
   storeToRefs(appStore)
 // 解构聊天背景设置
 const { chatBackground } = storeToRefs(appSettingsStore)
@@ -238,6 +239,24 @@ const isGroupChat = computed(
 const isFriendChat = computed(
   () => hasSession.value && !currentSession.value?.isGroup && !isMyPhone.value
 )
+
+const peerLastSeenText = computed(() => {
+  if (!isFriendChat.value || currentSession.value?.online) return ''
+  const at = currentSession.value?.lastSeenAt
+  if (!at) return ''
+  return formatLastSeen(at, t)
+})
+
+const typingHint = computed(() => {
+  const sid = currentSessionId.value
+  if (!sid) return ''
+  const tip = typingBySession.value[sid]
+  if (!tip || tip.until < Date.now()) return ''
+  if (isGroupChat.value) {
+    return t('chat.typingGroup', { name: tip.name || t('chat.messageFallback') })
+  }
+  return t('chat.typingPrivate')
+})
 
 /** 当前用户是否为群主或管理员（可设精华） */
 const isGroupAdmin = computed(() => {
@@ -990,6 +1009,10 @@ function onVirtualScroll(payload: {
   // 值不变不写 ref，避免滚动时整页重渲染
   if (stickToBottom.value !== nextStick) {
     stickToBottom.value = nextStick
+    if (nextStick) {
+      const sid = currentSessionId.value
+      if (sid) void appStore.reportSessionRead(sid)
+    }
   }
   void maybeLoadOlderMessages(payload.scrollTop)
 }
@@ -1400,7 +1423,9 @@ function onDrop(e: DragEvent) {
             class="online-dot"
             :title="t('chat.online')"
           />
+          <span v-else-if="peerLastSeenText" class="peer-last-seen">{{ peerLastSeenText }}</span>
         </div>
+        <div v-if="typingHint" class="chat-typing-hint">{{ typingHint }}</div>
         <div class="chat-header-actions">
           <button
             type="button"
@@ -1796,6 +1821,20 @@ function onDrop(e: DragEvent) {
   background: var(--lx-success);
   flex-shrink: 0;
   box-shadow: 0 0 0 2px rgba(82, 196, 26, 0.25);
+}
+
+.peer-last-seen {
+  font-size: 12px;
+  color: var(--lx-text-muted);
+  white-space: nowrap;
+}
+
+.chat-typing-hint {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--lx-text-muted);
+  padding-left: 4px;
 }
 
 .chat-header-actions {

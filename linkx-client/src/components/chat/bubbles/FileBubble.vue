@@ -5,6 +5,7 @@
 import { computed } from 'vue'
 import type { ChatMessage } from '../../../types'
 import { useI18n } from '../../../i18n'
+import { fileStatusFromSendStatus } from '../../../utils/messageStatus'
 
 const props = defineProps<{ msg: ChatMessage }>()
 const { t } = useI18n()
@@ -31,21 +32,7 @@ const iconTone = computed(() => {
   return 'file'
 })
 
-const barText = computed(() => {
-  const msg = props.msg
-  if (msg.fileStatus) return msg.fileStatus
-  if (msg.isSelf && msg.sendStatus === 'failed') return t('chat.fileStatusFailed')
-  if (
-    msg.isSelf &&
-    msg.sendStatus === 'sending' &&
-    msg.uploadProgress != null &&
-    msg.uploadProgress < 100
-  ) {
-    return t('chat.fileStatusUploading', { n: msg.uploadProgress })
-  }
-  if (msg.isSelf && msg.sendStatus === 'sending') return t('chat.fileStatusSending')
-  return msg.isSelf ? t('chat.fileStatusSent') : t('chat.fileStatusReceived')
-})
+const barText = computed(() => fileStatusFromSendStatus(props.msg, t))
 
 const progressPercent = computed(() => {
   const msg = props.msg

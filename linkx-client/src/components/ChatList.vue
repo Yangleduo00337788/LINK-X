@@ -299,6 +299,11 @@ function onContextMenuSelect(key: string) {
                   "
                 />
                 <div
+                  v-if="!session.isGroup && session.isReal && session.online"
+                  class="session-online-dot"
+                  :title="t('chat.online')"
+                />
+                <div
                   v-if="session.unread && !session.muted"
                   class="unread-badge"
                 >
@@ -433,6 +438,18 @@ function onContextMenuSelect(key: string) {
 .avatar-wrapper {
   position: relative;
   flex-shrink: 0;
+}
+
+.session-online-dot {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--lx-success, #52c41a);
+  border: 2px solid var(--lx-bg-panel);
+  box-shadow: 0 0 0 1px rgba(82, 196, 26, 0.35);
 }
 
 .unread-badge {
