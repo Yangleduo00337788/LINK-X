@@ -6,12 +6,14 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from '../i18n'
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     /** 是否显示最大化（登录/注册等固定窗为 false） */
     showMaximize?: boolean
     /** 是否显示最小化 */
     showMinimize?: boolean
+    /** 关闭前回调（如等待笔记保存完成） */
+    beforeClose?: () => void | Promise<void>
   }>(),
   {
     showMaximize: true,
@@ -49,7 +51,12 @@ function minimize() {
 function maximize() {
   window.electronAPI?.maximize?.()
 }
-function close() {
+async function close() {
+  try {
+    await props.beforeClose?.()
+  } catch {
+    /* ignore */
+  }
   window.electronAPI?.close?.()
 }
 </script>

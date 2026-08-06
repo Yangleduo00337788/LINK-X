@@ -1255,9 +1255,11 @@ function createMomentsWindow(opts?: MomentsOpenPayload) {
 
   momentsWindow = new BrowserWindow({
     ...browserWindowIconOptions(),
-    width: 440,
-    height: 560,
-    resizable: false,
+    width: 500,
+    height: 720,
+    minWidth: 440,
+    minHeight: 560,
+    resizable: true,
     ...framelessChrome(),
     show: false,
     webPreferences: {
@@ -1392,9 +1394,11 @@ ipcMain.on('window-open-moments-media', () => {
 let noteEditorWindow: BrowserWindow | null = null
 
 function createNoteEditorWindow() {
-  if (noteEditorWindow) {
+  if (noteEditorWindow && !noteEditorWindow.isDestroyed()) {
     if (noteEditorWindow.isMinimized()) noteEditorWindow.restore()
+    if (!noteEditorWindow.isVisible()) noteEditorWindow.show()
     noteEditorWindow.focus()
+    noteEditorWindow.webContents.send('note-editor:reset')
     return
   }
 
@@ -1415,8 +1419,18 @@ function createNoteEditorWindow() {
   })
   prepareFramelessWindow(noteEditorWindow)
 
-  noteEditorWindow.once('ready-to-show', () => {
-    noteEditorWindow?.show()
+  let revealed = false
+  const revealNoteEditorWindow = () => {
+    if (revealed || !noteEditorWindow || noteEditorWindow.isDestroyed()) return
+    revealed = true
+    noteEditorWindow.show()
+    noteEditorWindow.focus()
+  }
+
+  noteEditorWindow.once('ready-to-show', revealNoteEditorWindow)
+  noteEditorWindow.webContents.once('did-finish-load', () => {
+    // ready-to-show 偶发不触发时，确保窗口仍能显示
+    setTimeout(revealNoteEditorWindow, 0)
   })
 
   if (isDev && process.env.VITE_DEV_SERVER_URL) {

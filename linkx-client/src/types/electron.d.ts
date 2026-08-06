@@ -13,6 +13,8 @@ declare global {
       openMomentsText: () => void            // 打开友链-发布文字独立窗口
       openMomentsMedia: () => void           // 打开友链-发布图片/视频独立窗口
       openNoteEditor: () => void             // 打开笔记编辑器独立窗口
+      /** 再次打开笔记编辑器时重置为空白 */
+      onNoteEditorReset?: (callback: () => void) => () => void
       openRegister?: () => void               // 打开注册独立窗口
       openHelp?: () => void                   // 打开帮助独立窗口
       openChatHistory?: () => void            // 打开聊天记录管理独立窗口
