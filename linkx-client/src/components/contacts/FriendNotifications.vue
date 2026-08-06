@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { useMessage } from 'naive-ui'
+import { computed, onMounted, ref } from 'vue'
+import { useMessage, NIcon, NDropdown, type DropdownOption } from 'naive-ui'
 import { FilterOutline, TrashOutline } from '@vicons/ionicons5'
-import { NIcon } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import { useNotificationsStore } from '../../stores/notifications'
 import type { FriendNotification } from '../../stores/notifications'
@@ -13,6 +12,9 @@ import { useAppStore } from '../../stores/app'
 import { useI18n } from '../../i18n'
 import Avatar from '../Avatar.vue'
 
+type FilterDirection = 'all' | 'incoming' | 'outgoing'
+type FilterStatus = 'all' | InviteStatus
+
 const message = useMessage()
 const { t } = useI18n()
 const notificationsStore = useNotificationsStore()
@@ -20,14 +22,45 @@ const contactsStore = useContactsStore()
 const appStore = useAppStore()
 
 const { friendNotifs, loading } = storeToRefs(notificationsStore)
-const { fetchFriendRequests, acceptFriendRequest, rejectFriendRequest, clearFriendNotifs } =
+const { fetchFriendRequests, acceptFriendRequest, rejectFriendRequest, clearFriendNotifsRemote } =
   notificationsStore
 const { fetchFriends } = contactsStore
 const { addFriendSession } = appStore
 
+const filterDirection = ref<FilterDirection>('all')
+const filterStatus = ref<FilterStatus>('all')
+const clearing = ref(false)
+
 onMounted(() => {
   void fetchFriendRequests()
 })
+
+const hasActiveFilter = computed(
+  () => filterDirection.value !== 'all' || filterStatus.value !== 'all'
+)
+
+const filteredFriendNotifs = computed(() =>
+  friendNotifs.value.filter(item => {
+    if (filterDirection.value !== 'all' && item.direction !== filterDirection.value) return false
+    if (filterStatus.value !== 'all' && item.status !== filterStatus.value) return false
+    return true
+  })
+)
+
+const clearableCount = computed(
+  () => friendNotifs.value.filter(n => n.status !== INVITE_STATUS.PENDING).length
+)
+
+const filterOptions = computed<DropdownOption[]>(() => [
+  { label: t('contacts.filterAll'), key: 'reset' },
+  { type: 'divider', key: 'd1' },
+  { label: t('contacts.filterIncoming'), key: 'dir:incoming' },
+  { label: t('contacts.filterOutgoing'), key: 'dir:outgoing' },
+  { type: 'divider', key: 'd2' },
+  { label: t('contacts.waiting'), key: 'status:pending' },
+  { label: t('contacts.accepted'), key: 'status:accepted' },
+  { label: t('contacts.rejected'), key: 'status:rejected' }
+])
 
 function statusLabel(status: InviteStatus | string) {
   if (status === INVITE_STATUS.PENDING) return t('contacts.waiting')
@@ -47,6 +80,22 @@ function friendMessageText(item: FriendNotification) {
   if (item.message) return item.message
   if (item.direction === 'outgoing') return t('contacts.defaultOutgoingMessage')
   return t('contacts.none')
+}
+
+function handleFilterSelect(key: string | number) {
+  const k = String(key)
+  if (k === 'reset') {
+    filterDirection.value = 'all'
+    filterStatus.value = 'all'
+    return
+  }
+  if (k.startsWith('dir:')) {
+    filterDirection.value = k.slice(4) as FilterDirection
+    return
+  }
+  if (k.startsWith('status:')) {
+    filterStatus.value = k.slice(7) as FilterStatus
+  }
 }
 
 async function handleAccept(id: string) {
@@ -83,9 +132,29 @@ async function handleReject(id: string) {
   }
 }
 
-function handleClear() {
-  clearFriendNotifs()
-  message.success(t('contacts.clearedNotifs'))
+async function handleClear() {
+  if (clearing.value) return
+  if (clearableCount.value === 0) {
+    message.info(t('contacts.nothingToClearFriend'))
+    return
+  }
+  const ok = window.confirm(t('contacts.clearFriendConfirm', { n: clearableCount.value }))
+  if (!ok) return
+
+  clearing.value = true
+  try {
+    const cleared = await clearFriendNotifsRemote()
+    if (cleared > 0) {
+      message.success(t('contacts.clearedFriendCount', { n: cleared }))
+    } else {
+      message.info(t('contacts.nothingToClearFriend'))
+    }
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || t('errors.clearFriendRequestsFailed'))
+  } finally {
+    clearing.value = false
+  }
 }
 </script>
 
@@ -94,19 +163,33 @@ function handleClear() {
     <div class="header">
       <h2 class="title">{{ t('contacts.friendNotif') }}</h2>
       <div class="actions">
-        <button class="action-btn" :title="t('contacts.clear')" @click="handleClear">
+        <button
+          class="action-btn"
+          :title="t('contacts.clear')"
+          :disabled="clearing"
+          @click="handleClear"
+        >
           <n-icon :component="TrashOutline" :size="20" />
         </button>
-        <button class="action-btn" :title="t('contacts.filter')">
-          <n-icon :component="FilterOutline" :size="20" />
-        </button>
+        <n-dropdown trigger="click" :options="filterOptions" @select="handleFilterSelect">
+          <button
+            class="action-btn"
+            :class="{ active: hasActiveFilter }"
+            :title="t('contacts.filter')"
+          >
+            <n-icon :component="FilterOutline" :size="20" />
+          </button>
+        </n-dropdown>
       </div>
     </div>
     <div class="content">
       <div v-if="loading" class="empty">{{ t('common.loading') }}</div>
       <div v-else-if="!friendNotifs.length" class="empty">{{ t('contacts.emptyFriendNotif') }}</div>
+      <div v-else-if="!filteredFriendNotifs.length" class="empty">
+        {{ t('contacts.emptyFriendNotifFilter') }}
+      </div>
       <div v-else class="notif-list">
-        <div v-for="item in friendNotifs" :key="item.id" class="notif-card">
+        <div v-for="item in filteredFriendNotifs" :key="item.id" class="notif-card">
           <Avatar
             :text="(item.name || '?').charAt(0)"
             color="#12b7f5"
@@ -178,8 +261,18 @@ function handleClear() {
   justify-content: center;
 }
 
-.action-btn:hover {
+.action-btn:hover:not(:disabled) {
   background: var(--lx-bg-hover);
+}
+
+.action-btn.active {
+  color: var(--lx-accent);
+  background: rgba(18, 183, 245, 0.1);
+}
+
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .content {
@@ -207,13 +300,6 @@ function handleClear() {
   background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
   align-items: flex-start;
-}
-
-.avatar {
-  width: 48px;
-  height: 48px;
-  border-radius: var(--lx-avatar-radius);
-  flex-shrink: 0;
 }
 
 .info {

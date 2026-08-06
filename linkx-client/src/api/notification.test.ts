@@ -19,7 +19,8 @@ import {
   markAsRead,
   markAllAsRead,
   deleteNotification,
-  clearAllNotifications
+  clearAllNotifications,
+  clearReadGroupJoinRequests
 } from './notification'
 
 describe('api/notification', () => {
@@ -71,6 +72,12 @@ describe('api/notification', () => {
     vi.mocked(apiClient.delete).mockResolvedValue({ code: 200, data: null } as any)
     await clearAllNotifications()
     expect(apiClient.delete).toHaveBeenCalled()
+  })
+
+  it('clearReadGroupJoinRequests 应调用 apiClient', async () => {
+    vi.mocked(apiClient.delete).mockResolvedValue({ code: 200, data: 0 } as any)
+    await clearReadGroupJoinRequests()
+    expect(apiClient.delete).toHaveBeenCalledWith('/notifications/group-join-requests/clear')
   })
 
 })

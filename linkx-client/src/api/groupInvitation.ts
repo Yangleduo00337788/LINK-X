@@ -42,6 +42,11 @@ export function rejectGroupInvitation(invitationId: string) {
   return apiClient.post<never, ApiResult<null>>(`/group/invitations/${invitationId}/reject`)
 }
 
+/** 清空已处理的群邀请（保留待处理） */
+export function clearProcessedGroupInvitations() {
+  return apiClient.delete<never, ApiResult<number>>('/group/invitations/clear')
+}
+
 /**
  * 群成员邀请新成员入群。
  */

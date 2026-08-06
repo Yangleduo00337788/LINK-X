@@ -33,6 +33,11 @@ export function rejectFriendRequest(requestId: string) {
   return apiClient.post<never, ApiResult<null>>(`/friend/requests/${requestId}/reject`)
 }
 
+/** 清空已处理的好友申请（保留待处理） */
+export function clearProcessedFriendRequests() {
+  return apiClient.delete<never, ApiResult<number>>('/friend/requests/clear')
+}
+
 export function listFriends() {
   return apiClient.get<never, ApiResult<FriendItem[]>>('/friend/list')
 }

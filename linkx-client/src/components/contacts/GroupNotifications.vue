@@ -7,15 +7,19 @@
  * </p>
  */
 import { computed, onMounted, ref } from 'vue'
-import { NIcon, useMessage } from 'naive-ui'
-import { FilterOutline, RefreshOutline } from '@vicons/ionicons5'
+import { NIcon, NDropdown, useMessage, type DropdownOption } from 'naive-ui'
+import { FilterOutline, TrashOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useNotificationsStore } from '../../stores/notifications'
+import type { GroupNotification, MessageNotification } from '../../stores/notifications'
 import { useAppStore } from '../../stores/app'
 import * as groupApi from '../../api/group'
 import { INVITE_STATUS } from '../../types/inviteStatus'
 import type { InviteStatus } from '../../types/inviteStatus'
 import { useI18n } from '../../i18n'
+
+type FilterKind = 'all' | 'invitation' | 'join_request'
+type FilterStatus = 'all' | InviteStatus
 
 const message = useMessage()
 const { t } = useI18n()
@@ -28,19 +32,100 @@ const {
   fetchMessageNotifications,
   acceptGroupInvitationAction,
   rejectGroupInvitationAction,
-  markMessageAsRead
+  markMessageAsRead,
+  clearGroupNotifsRemote
 } = notificationsStore
+
 const submitting = ref(false)
 const joinHandlingId = ref<string | null>(null)
+const loading = ref(false)
+const clearing = ref(false)
+const filterKind = ref<FilterKind>('all')
+const filterStatus = ref<FilterStatus>('all')
 
-const joinRequestNotifs = computed(() =>
-  messageNotifs.value.filter(n => n.type === 'group_join_request' && n.readStatus === 0)
+const allJoinRequests = computed(() =>
+  messageNotifs.value.filter(n => n.type === 'group_join_request')
 )
 
-onMounted(() => {
-  void fetchGroupInvitations()
-  void fetchMessageNotifications()
+const hasActiveFilter = computed(
+  () => filterKind.value !== 'all' || filterStatus.value !== 'all'
+)
+
+const filteredJoinRequests = computed(() =>
+  allJoinRequests.value.filter(item => matchesJoinRequestFilter(item))
+)
+
+const filteredInvitations = computed(() =>
+  groupNotifs.value.filter(item => matchesInvitationFilter(item))
+)
+
+const hasAnyNotifs = computed(
+  () => groupNotifs.value.length > 0 || allJoinRequests.value.length > 0
+)
+
+const hasVisibleNotifs = computed(
+  () => filteredJoinRequests.value.length > 0 || filteredInvitations.value.length > 0
+)
+
+const clearableCount = computed(() => {
+  const invitations = groupNotifs.value.filter(n => n.status !== INVITE_STATUS.PENDING).length
+  const joinRead = allJoinRequests.value.filter(n => n.readStatus !== 0).length
+  return invitations + joinRead
 })
+
+const filterOptions = computed<DropdownOption[]>(() => [
+  { label: t('contacts.filterAll'), key: 'reset' },
+  { type: 'divider', key: 'd1' },
+  { label: t('contacts.filterInvitation'), key: 'kind:invitation' },
+  { label: t('contacts.filterJoinRequest'), key: 'kind:join_request' },
+  { type: 'divider', key: 'd2' },
+  { label: t('contacts.waiting'), key: 'status:pending' },
+  { label: t('contacts.accepted'), key: 'status:accepted' },
+  { label: t('contacts.rejected'), key: 'status:rejected' },
+  { label: t('contacts.expired'), key: 'status:expired' }
+])
+
+onMounted(() => {
+  void reload()
+})
+
+async function reload() {
+  loading.value = true
+  try {
+    await Promise.all([fetchGroupInvitations(), fetchMessageNotifications()])
+  } finally {
+    loading.value = false
+  }
+}
+
+function matchesInvitationFilter(item: GroupNotification) {
+  if (filterKind.value !== 'all' && filterKind.value !== 'invitation') return false
+  if (filterStatus.value === 'all') return true
+  return item.status === filterStatus.value
+}
+
+function matchesJoinRequestFilter(item: MessageNotification) {
+  if (filterKind.value !== 'all' && filterKind.value !== 'join_request') return false
+  if (filterStatus.value === 'all') return true
+  if (filterStatus.value === INVITE_STATUS.PENDING) return item.readStatus === 0
+  return false
+}
+
+function handleFilterSelect(key: string | number) {
+  const k = String(key)
+  if (k === 'reset') {
+    filterKind.value = 'all'
+    filterStatus.value = 'all'
+    return
+  }
+  if (k.startsWith('kind:')) {
+    filterKind.value = k.slice(5) as FilterKind
+    return
+  }
+  if (k.startsWith('status:')) {
+    filterStatus.value = k.slice(7) as FilterStatus
+  }
+}
 
 function statusLabel(status: InviteStatus | string) {
   if (status === INVITE_STATUS.PENDING) return t('contacts.waiting')
@@ -48,6 +133,10 @@ function statusLabel(status: InviteStatus | string) {
   if (status === INVITE_STATUS.REJECTED) return t('contacts.rejected')
   if (status === INVITE_STATUS.EXPIRED) return t('contacts.expired')
   return String(status)
+}
+
+function joinRequestStatusLabel(item: MessageNotification) {
+  return item.readStatus === 0 ? t('contacts.waiting') : t('contacts.processed')
 }
 
 async function handleAccept(id: string) {
@@ -100,11 +189,29 @@ async function handleJoinRequest(notifId: string, conversationId: string, applic
 }
 
 async function handleClear() {
-  await Promise.all([fetchGroupInvitations(), fetchMessageNotifications()])
-  message.success(t('contacts.refreshed'))
-}
+  if (clearing.value) return
+  if (clearableCount.value === 0) {
+    message.info(t('contacts.nothingToClearGroup'))
+    return
+  }
+  const ok = window.confirm(t('contacts.clearGroupConfirm', { n: clearableCount.value }))
+  if (!ok) return
 
-const isEmpty = computed(() => !groupNotifs.value.length && !joinRequestNotifs.value.length)
+  clearing.value = true
+  try {
+    const cleared = await clearGroupNotifsRemote()
+    if (cleared > 0) {
+      message.success(t('contacts.clearedGroupCount', { n: cleared }))
+    } else {
+      message.info(t('contacts.nothingToClearGroup'))
+    }
+  } catch (e) {
+    const err = e as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || t('errors.clearGroupNotificationsFailed'))
+  } finally {
+    clearing.value = false
+  }
+}
 </script>
 
 <template>
@@ -112,18 +219,31 @@ const isEmpty = computed(() => !groupNotifs.value.length && !joinRequestNotifs.v
     <div class="header">
       <h2 class="title">{{ t('contacts.groupNotif') }}</h2>
       <div class="actions">
-        <button class="action-btn" :title="t('contacts.refresh')" @click="handleClear">
-          <n-icon :component="RefreshOutline" :size="20" />
+        <button
+          class="action-btn"
+          :title="t('contacts.clear')"
+          :disabled="clearing"
+          @click="handleClear"
+        >
+          <n-icon :component="TrashOutline" :size="20" />
         </button>
-        <button class="action-btn" :title="t('contacts.filter')">
-          <n-icon :component="FilterOutline" :size="20" />
-        </button>
+        <n-dropdown trigger="click" :options="filterOptions" @select="handleFilterSelect">
+          <button
+            class="action-btn"
+            :class="{ active: hasActiveFilter }"
+            :title="t('contacts.filter')"
+          >
+            <n-icon :component="FilterOutline" :size="20" />
+          </button>
+        </n-dropdown>
       </div>
     </div>
     <div class="content">
-      <div v-if="isEmpty" class="empty">{{ t('contacts.emptyGroupNotif') }}</div>
+      <div v-if="loading" class="empty">{{ t('common.loading') }}</div>
+      <div v-else-if="!hasAnyNotifs" class="empty">{{ t('contacts.emptyGroupNotif') }}</div>
+      <div v-else-if="!hasVisibleNotifs" class="empty">{{ t('contacts.emptyGroupNotifFilter') }}</div>
       <div v-else class="notif-list">
-        <div v-for="item in joinRequestNotifs" :key="'jr-' + item.id" class="notif-card">
+        <div v-for="item in filteredJoinRequests" :key="'jr-' + item.id" class="notif-card">
           <div class="group-icon">{{ t('contacts.joinApplyShort') }}</div>
           <div class="info">
             <div class="title-line">
@@ -134,7 +254,10 @@ const isEmpty = computed(() => !groupNotifs.value.length && !joinRequestNotifs.v
               {{ item.senderName }}：{{ item.content || t('modals.joinRequests') }}
             </div>
           </div>
-          <div class="actions-right">
+          <div
+            v-if="item.readStatus === 0"
+            class="actions-right"
+          >
             <button
               type="button"
               class="btn accept"
@@ -166,9 +289,10 @@ const isEmpty = computed(() => !groupNotifs.value.length && !joinRequestNotifs.v
               {{ t('modals.joinReject') }}
             </button>
           </div>
+          <div v-else class="status">{{ joinRequestStatusLabel(item) }}</div>
         </div>
 
-        <div v-for="item in groupNotifs" :key="item.id" class="notif-card">
+        <div v-for="item in filteredInvitations" :key="item.id" class="notif-card">
           <div class="group-icon">{{ t('contacts.groups').charAt(0) }}</div>
           <div class="info">
             <div class="title-line">
@@ -178,10 +302,10 @@ const isEmpty = computed(() => !groupNotifs.value.length && !joinRequestNotifs.v
             <div class="message">{{ item.inviter }}：{{ item.message }}</div>
           </div>
           <div v-if="item.status === INVITE_STATUS.PENDING" class="actions-right">
-            <button type="button" class="btn accept" @click="handleAccept(item.id)">
+            <button type="button" class="btn accept" :disabled="submitting" @click="handleAccept(item.id)">
               {{ t('contacts.accept') }}
             </button>
-            <button type="button" class="btn reject" @click="handleReject(item.id)">
+            <button type="button" class="btn reject" :disabled="submitting" @click="handleReject(item.id)">
               {{ t('contacts.reject') }}
             </button>
           </div>
@@ -234,8 +358,18 @@ const isEmpty = computed(() => !groupNotifs.value.length && !joinRequestNotifs.v
   justify-content: center;
 }
 
-.action-btn:hover {
+.action-btn:hover:not(:disabled) {
   background: var(--lx-bg-hover);
+}
+
+.action-btn.active {
+  color: var(--lx-accent);
+  background: rgba(18, 183, 245, 0.1);
+}
+
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .content {

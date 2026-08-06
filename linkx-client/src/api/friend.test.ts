@@ -18,6 +18,7 @@ import {
   listOutgoingRequests,
   acceptFriendRequest,
   rejectFriendRequest,
+  clearProcessedFriendRequests,
   listFriends,
   deleteFriend,
   updateFriendRemark,
@@ -63,6 +64,12 @@ describe('api/friend', () => {
     vi.mocked(apiClient.post).mockResolvedValue({ code: 200, data: null } as any)
     await rejectFriendRequest({} as any)
     expect(apiClient.post).toHaveBeenCalled()
+  })
+
+  it('clearProcessedFriendRequests 应调用 apiClient', async () => {
+    vi.mocked(apiClient.delete).mockResolvedValue({ code: 200, data: 0 } as any)
+    await clearProcessedFriendRequests()
+    expect(apiClient.delete).toHaveBeenCalledWith('/friend/requests/clear')
   })
 
   it('listFriends 应调用 apiClient', async () => {

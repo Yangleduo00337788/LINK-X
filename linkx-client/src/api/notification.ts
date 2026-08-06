@@ -78,3 +78,8 @@ export function deleteNotification(notificationId: string | number) {
 export function clearAllNotifications() {
   return apiClient.delete<never, ApiResult<number>>('/notifications/clear')
 }
+
+/** 清空已读入群申请通知 */
+export function clearReadGroupJoinRequests() {
+  return apiClient.delete<never, ApiResult<number>>('/notifications/group-join-requests/clear')
+}

@@ -176,10 +176,11 @@ export const useNotificationsStore = defineStore('notifications', {
       }
       return state.messageNotifs.filter(n => n.readStatus === 0).length
     },
-    /** 友链相关未读（铃铛在友链窗口使用；含日程提醒） */
+    /** 友链相关未读（铃铛在友链窗口使用；仅 moments_*，不含日程/官方/社交等） */
     momentsUnreadCount(state): number {
-      const types = new Set(['moments_like', 'moments_comment', 'moments_mention', 'calendar_remind'])
-      return state.messageNotifs.filter(n => n.readStatus === 0 && types.has(n.type)).length
+      return state.messageNotifs.filter(
+        n => n.readStatus === 0 && typeof n.type === 'string' && n.type.startsWith('moments_')
+      ).length
     },
     /** 日历日程提醒列表（消息页虚拟会话用） */
     calendarRemindNotifs(state): MessageNotification[] {
@@ -535,8 +536,44 @@ export const useNotificationsStore = defineStore('notifications', {
       this.friendNotifs = []
     },
 
+    /** 调用后端清空已处理好友申请，成功后刷新列表 */
+    async clearFriendNotifsRemote() {
+      try {
+        const res = await friendApi.clearProcessedFriendRequests()
+        if (res.code !== 200) {
+          throw new Error(res.message || t('errors.clearFriendRequestsFailed'))
+        }
+        await this.fetchFriendRequests()
+        return res.data ?? 0
+      } catch (error) {
+        console.error('清空好友通知失败:', error)
+        throw error
+      }
+    },
+
     clearGroupNotifs() {
       this.groupNotifs = []
+    },
+
+    /** 调用后端清空已处理群邀请与已读入群申请，成功后刷新列表 */
+    async clearGroupNotifsRemote() {
+      try {
+        const [invRes, joinRes] = await Promise.all([
+          groupInvitationApi.clearProcessedGroupInvitations(),
+          notificationApi.clearReadGroupJoinRequests()
+        ])
+        if (invRes.code !== 200) {
+          throw new Error(invRes.message || t('errors.clearGroupNotificationsFailed'))
+        }
+        if (joinRes.code !== 200) {
+          throw new Error(joinRes.message || t('errors.clearGroupNotificationsFailed'))
+        }
+        await Promise.all([this.fetchGroupInvitations(), this.fetchMessageNotifications()])
+        return (invRes.data ?? 0) + (joinRes.data ?? 0)
+      } catch (error) {
+        console.error('清空群通知失败:', error)
+        throw error
+      }
     },
 
     clearMessageNotifs() {

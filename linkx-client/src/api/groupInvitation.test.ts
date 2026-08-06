@@ -15,6 +15,7 @@ import {
   listGroupInvitations,
   acceptGroupInvitation,
   rejectGroupInvitation,
+  clearProcessedGroupInvitations,
   inviteToGroup
 } from './groupInvitation'
 
@@ -37,6 +38,12 @@ describe('api/groupInvitation', () => {
     vi.mocked(apiClient.post).mockResolvedValue({ code: 200, data: null } as any)
     await rejectGroupInvitation('1')
     expect(apiClient.post).toHaveBeenCalled()
+  })
+
+  it('clearProcessedGroupInvitations 应调用 apiClient', async () => {
+    vi.mocked(apiClient.delete).mockResolvedValue({ code: 200, data: 0 } as any)
+    await clearProcessedGroupInvitations()
+    expect(apiClient.delete).toHaveBeenCalledWith('/group/invitations/clear')
   })
 
   it('inviteToGroup 应调用 apiClient', async () => {
