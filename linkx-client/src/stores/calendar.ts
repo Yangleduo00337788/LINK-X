@@ -57,6 +57,36 @@ function eventStartMs(ev: CalendarEvent): number | null {
   return new Date(y, mo - 1, d, hh, mm || 0, 0, 0).getTime()
 }
 
+function eventEndMs(ev: CalendarEvent): number | null {
+  if (!ev.date || !ev.endTime) return null
+  const [y, mo, d] = ev.date.split('-').map(Number)
+  const [hh, mm] = ev.endTime.split(':').map(Number)
+  if ([y, mo, d, hh].some(n => Number.isNaN(n))) return null
+  return new Date(y, mo - 1, d, hh, mm || 0, 0, 0).getTime()
+}
+
+function timeFromMs(ts: number): string {
+  const d = new Date(ts)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+function clearEventReminderTimeouts(ev: CalendarEvent) {
+  for (const phase of ['ahead', 'start'] as const) {
+    const key = remindKey(ev, phase)
+    const timer = scheduledTimeouts.get(key)
+    if (timer) {
+      clearTimeout(timer)
+      scheduledTimeouts.delete(key)
+    }
+  }
+  const snoozeKey = `snooze:${ev.id}`
+  const snoozeTimer = scheduledTimeouts.get(snoozeKey)
+  if (snoozeTimer) {
+    clearTimeout(snoozeTimer)
+    scheduledTimeouts.delete(snoozeKey)
+  }
+}
+
 function remindKey(ev: CalendarEvent, phase: 'ahead' | 'start' = 'ahead') {
   return `${ev.id}@${ev.date}@${ev.time || 'allday'}@${phase}`
 }
@@ -73,7 +103,7 @@ export const useCalendarStore = defineStore('calendar', {
     remindEventIds: [] as string[],
     /** 已触发过的提醒键，避免重复写入消息 */
     firedRemindKeys: [] as string[],
-    /** 延时提醒：eventId -> 截止时间戳 */
+    /** 仅延迟通知：eventId -> 截止时间戳（日程时间不变） */
     snoozedUntil: {} as Record<string, number>
   }),
 
@@ -486,30 +516,101 @@ export const useCalendarStore = defineStore('calendar', {
       scheduledTimeouts.clear()
     },
 
-    /** 延时提醒若干分钟（仅影响当前日程） */
-    snoozeReminder(eventId: string, minutes = 10) {
+    /** 稍后提醒：仅延迟通知，日程时间不变 */
+    snoozeReminderNotification(eventId: string, minutes = 10): boolean {
       const ev = this.events.find(e => e.id === eventId)
-      if (!ev) return
+      if (!ev) return false
+
       const until = Date.now() + minutes * 60 * 1000
       this.snoozedUntil = { ...this.snoozedUntil, [eventId]: until }
-      this.firedRemindKeys = this.firedRemindKeys.filter(k => !k.startsWith(`${ev.id}@`))
+
+      const key = `snooze:${eventId}`
+      const existing = scheduledTimeouts.get(key)
+      if (existing) clearTimeout(existing)
+
       const delay = until - Date.now()
-      if (delay > 0 && delay <= 2_147_000_000) {
-        const key = `snooze:${eventId}`
-        const existing = scheduledTimeouts.get(key)
-        if (existing) clearTimeout(existing)
-        const t = setTimeout(() => {
-          scheduledTimeouts.delete(key)
-          void this.checkReminders()
-        }, delay)
-        scheduledTimeouts.set(key, t)
+      if (delay <= 0 || delay > 2_147_000_000) return false
+
+      const timer = setTimeout(() => {
+        scheduledTimeouts.delete(key)
+        void this.fireSnoozeNotification(eventId)
+      }, delay)
+      scheduledTimeouts.set(key, timer)
+      return true
+    },
+
+    /** 延时结束后再次写入提醒（不受已触发 ahead 键限制） */
+    async fireSnoozeNotification(eventId: string) {
+      delete this.snoozedUntil[eventId]
+      const ev = this.events.find(e => e.id === eventId)
+      if (!ev || !this.remindEventIds.includes(eventId)) return
+
+      try {
+        const res = await calendarApi.fireReminder(ev.id, 'ahead')
+        if (res.code !== 200) {
+          console.warn('[Calendar] 稍后提醒写入失败:', res.message)
+          return
+        }
+        const timePart = `${ev.date} ${ev.time || ''}`.trim()
+        const body = t('calendar.remindAheadBody', { time: timePart, title: ev.title })
+        void import('./notifications').then(({ useNotificationsStore }) => {
+          void useNotificationsStore().refreshFromSocket({
+            type: 'calendar_remind',
+            phase: 'ahead',
+            content: body,
+            relatedId: ev.id
+          })
+        })
+      } catch (e) {
+        console.warn('[Calendar] 稍后提醒异常:', e)
       }
+    },
+
+    /** 推迟日程：将开始（及结束）时间顺延若干分钟 */
+    async postponeEventByMinutes(eventId: string, minutes = 10): Promise<boolean> {
+      const ev = this.events.find(e => e.id === eventId)
+      if (!ev?.time) return false
+      const start = eventStartMs(ev)
+      if (start == null) return false
+
+      const delta = minutes * 60 * 1000
+      const newStartMs = start + delta
+      const newDate = dateKeyFromTs(newStartMs)
+      const newTime = timeFromMs(newStartMs)
+
+      let newEndTime: string | undefined
+      const endMs = eventEndMs(ev)
+      if (endMs != null) {
+        const newEndMs = endMs + delta
+        newEndTime =
+          dateKeyFromTs(newEndMs) === newDate ? timeFromMs(newEndMs) : '23:59'
+      }
+
+      clearEventReminderTimeouts(ev)
+      this.firedRemindKeys = this.firedRemindKeys.filter(k => !k.startsWith(`${eventId}@`))
+      delete this.snoozedUntil[eventId]
+
+      const ok = await this.updateEvent(eventId, {
+        title: ev.title,
+        date: newDate,
+        time: newTime,
+        endTime: newEndTime ?? ev.endTime,
+        color: ev.color
+      })
+
+      if (ok && this.remindEventIds.includes(eventId)) {
+        const updated = this.events.find(e => e.id === eventId)
+        if (updated) this.scheduleEventReminder(updated)
+      }
+      return ok
     },
 
     /** 取消某日程的提醒开关 */
     async cancelReminderForEvent(eventId: string) {
       await this.setRemindEnabled(eventId, false)
       delete this.snoozedUntil[eventId]
+      const ev = this.events.find(e => e.id === eventId)
+      if (ev) clearEventReminderTimeouts(ev)
     }
   },
 
