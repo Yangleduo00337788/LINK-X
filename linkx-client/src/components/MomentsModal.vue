@@ -70,20 +70,15 @@ const router = useRouter()
 const { userProfile, theme } = storeToRefs(appStore)
 const { posts, hasMore, loadingMore, focusUserId, focusUserName, focusUserPosts, focusUserLoading, isUserFeed } =
   storeToRefs(momentsStore)
-const { unreadMessageCount, momentsUnreadCount } = storeToRefs(notificationsStore)
+const { momentsUnreadCount } = storeToRefs(notificationsStore)
 const { toggleLike, fetchMoments, loadMoreMoments, removePost, deleteComment, updatePost, loadFocusUserFeed, clearFocusUser, setFocusUser } =
   momentsStore
 const { fetchMessageNotifications, fetchNotificationCount } = notificationsStore
 const message = useMessage()
 const { t } = useI18n()
 
-/** 友链窗口铃铛：优先显示友链相关未读，没有时回退总未读 */
-const bellUnreadCount = computed(() => {
-  const moments = momentsUnreadCount.value
-  if (moments > 0) return moments
-  // 列表尚未拉到时，用服务端总未读兜底
-  return unreadMessageCount.value
-})
+/** 友链窗口铃铛：仅统计友链互动未读（点赞/评论/@ 等），不含聊天/日程/官方通知 */
+const bellUnreadCount = computed(() => momentsUnreadCount.value)
 
 // 滚动位置
 const scrollTop = ref(0)
@@ -469,6 +464,7 @@ async function refresh() {
 
 // 选择通知页 / 发布菜单
 const showNotifications = ref(false)
+const bellAnchorRef = ref<HTMLElement | null>(null)
 async function showMessage() {
   showNotifications.value = !showNotifications.value
   if (showNotifications.value) {
@@ -511,7 +507,13 @@ function onComposerPublished() {
 // 跳到动态
 function scrollToPost(notif: { relatedId?: string; type: string }) {
   if (!notif.relatedId) return
-  if (notif.type !== 'moments_like' && notif.type !== 'moments_comment' && notif.type !== 'moments_mention') return
+  if (
+    notif.type !== 'moments_like' &&
+    notif.type !== 'moments_comment' &&
+    notif.type !== 'moments_mention' &&
+    notif.type !== 'moments_at'
+  )
+    return
   showNotifications.value = false
   nextTick(() => {
     const container = document.querySelector('.moments-scroll-container')
@@ -1059,16 +1061,19 @@ const showMomentsOps = ref(false)
         <div class="action-btn" :title="t('common.search')" @click.stop="toggleSearch">
           <n-icon :component="SearchOutline" size="22" />
         </div>
-        <div
-          class="action-btn"
-          :class="{ active: showNotifications }"
-          :title="t('moments.messages')"
-          @click.stop="showMessage"
-        >
-          <n-icon :component="NotificationsOutline" size="22" />
-          <span v-if="bellUnreadCount > 0" class="notif-badge">
-            {{ bellUnreadCount > 99 ? '99+' : bellUnreadCount }}
-          </span>
+        <div class="bell-anchor">
+          <div
+            ref="bellAnchorRef"
+            class="action-btn"
+            :class="{ active: showNotifications }"
+            :title="t('moments.messages')"
+            @click.stop="showMessage"
+          >
+            <n-icon :component="NotificationsOutline" size="22" />
+            <span v-if="bellUnreadCount > 0" class="notif-badge">
+              {{ bellUnreadCount > 99 ? '99+' : bellUnreadCount }}
+            </span>
+          </div>
         </div>
         <!-- 发布按钮:点击弹出菜单(发布文字/发布图片视频) -->
         <div class="action-btn publish-btn" :title="t('moments.publishAction')" @click.stop="showPublishMenu = !showPublishMenu">
@@ -1116,14 +1121,16 @@ const showMomentsOps = ref(false)
       </div>
     </div>
 
-    <!-- 通知抽屉遮罩(点击空白处关闭) -->
-    <Transition name="backdrop-fade">
-      <div v-if="showNotifications" class="notif-backdrop" @click="showNotifications = false" />
-    </Transition>
+    <!-- 点击空白处关闭通知弹层（无遮罩色） -->
+    <div
+      v-if="showNotifications"
+      class="notif-dismiss-layer"
+      @click="showNotifications = false"
+    />
 
-    <!-- 通知抽屉(右侧滑入) -->
     <MomentsNotificationsPage
       :visible="showNotifications"
+      :anchor-el="bellAnchorRef"
       @close="showNotifications = false"
       @select="scrollToPost"
     />
@@ -1209,8 +1216,8 @@ const showMomentsOps = ref(false)
 
 .moments-wrapper {
   position: relative;
-  width: 440px;
-  height: 560px;
+  width: 500px;
+  height: 720px;
   background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
   overflow: hidden;
@@ -1395,21 +1402,16 @@ const showMomentsOps = ref(false)
   z-index: 199;
 }
 
-.notif-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  z-index: 100;
-  cursor: pointer;
+.bell-anchor {
+  position: relative;
 }
 
-.backdrop-fade-enter-active,
-.backdrop-fade-leave-active {
-  transition: opacity 0.2s ease;
-}
-.backdrop-fade-enter-from,
-.backdrop-fade-leave-to {
-  opacity: 0;
+.notif-dismiss-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 10040;
+  background: transparent;
+  cursor: default;
 }
 
 .moments-ops-slot {
