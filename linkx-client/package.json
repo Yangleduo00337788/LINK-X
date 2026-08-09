@@ -8,20 +8,12 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
-    "build:e2e": "vite build",
     "preview": "vite preview",
     "electron:dev": "node ./scripts/run-electron-dev.mjs",
     "electron:build": "vue-tsc --noEmit && vite build --mode electron && electron-builder",
     "electron:preview": "electron dist-electron/main/main.js",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui",
-    "test:e2e:headed": "playwright test --headed",
     "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "icons:generate": "node scripts/icon-generator/generate-icons.mjs && node scripts/icon-generator/generate-ico.mjs"
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@vicons/ionicons5": "^0.12.0",
@@ -34,26 +26,19 @@
     "vueuc": "^0.4.65"
   },
   "devDependencies": {
-    "@playwright/test": "^1.55.0",
     "@types/dompurify": "^3.0.5",
     "@types/marked": "^5.0.2",
     "@vitejs/plugin-vue": "^5.0.4",
-    "@vitest/coverage-v8": "^2.0.0",
-    "@vue/test-utils": "^2.4.6",
     "dompurify": "^3.4.11",
     "electron": "^33.0.0",
     "electron-builder": "^24.13.3",
-    "jsdom": "^24.0.0",
     "marked": "^18.0.5",
-    "png-to-ico": "^3.0.2",
     "prettier": "^3.6.2",
-    "sharp": "^0.35.3",
     "typescript": "^5.4.5",
     "unocss": "^0.59.4",
     "vite": "^5.4.12",
     "vite-plugin-electron": "^0.28.7",
     "vite-plugin-electron-renderer": "^0.14.5",
-    "vitest": "^2.0.0",
     "vue-tsc": "^2.0.11"
   },
   "build": {

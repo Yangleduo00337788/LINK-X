@@ -1,8 +1,0 @@
-# 默认审查人：请按团队实际 GitHub handle 调整
-* @yangleduo
-
-/linkx-server/ @yangleduo
-/linkx-client/ @yangleduo
-/linkx-admin/ @yangleduo
-/.github/ @yangleduo
-/docs/ @yangleduo

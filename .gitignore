@@ -3,6 +3,7 @@ dist/
 dist-electron/
 target/
 coverage/
+release/
 # 本地/生产 env（任意目录下同名文件均忽略）
 .env.local
 .env.prod
@@ -22,20 +23,9 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 *.timestamp-*.mjs
-# Playwright / E2E 产物（各子项目）
-**/playwright-report/
-**/test-results/
-**/blob-report/
-linkx-client/admin-e2e-report/
-scripts/admin-e2e-report/
 
-# 脚本生成的凭据备份（禁止入库）
-scripts/.password_backup.json
-**/.password_backup.json
-
-# IDE（根目录 .idea 勿提交；各子项目可保留自己的 .vscode/extensions.json）
+# IDE
 .idea/
-!.idea/.gitignore
 
 # TypeScript 增量构建缓存
 *.tsbuildinfo

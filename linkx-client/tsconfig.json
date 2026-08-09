@@ -17,6 +17,6 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue"],
-  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts"],
+  "exclude": ["node_modules", "dist", "dist-electron"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
