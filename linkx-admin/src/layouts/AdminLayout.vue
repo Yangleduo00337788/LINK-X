@@ -827,7 +827,8 @@ async function onUserSelect(key: string) {
   align-items: center;
   justify-content: center;
   height: 64px;
-  padding: 0 14px;
+  padding: 0 12px;
+  box-sizing: border-box;
   border-bottom: 1px solid var(--lx-border);
   background: var(--lx-sider-bg, var(--lx-brand-bg));
   overflow: hidden;
