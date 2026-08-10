@@ -48,6 +48,9 @@ function applyVisualPreferences(input: {
   if (rgb) {
     root.style.setProperty('--lx-primary-rgb', `${rgb.r}, ${rgb.g}, ${rgb.b}`)
     root.style.setProperty('--lx-login-grad-1', `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.22)`)
+    root.style.setProperty('--lx-accent-soft-bg', `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.12)`)
+    root.style.setProperty('--lx-accent-soft-border', `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.35)`)
+    root.style.setProperty('--lx-accent-hover-bg', `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.06)`)
   }
 
   root.setAttribute('data-nav-theme', input.navTheme)

@@ -52,6 +52,46 @@ function withPrimary(base: GlobalThemeOverrides, primaryHex: string): GlobalThem
       ...base.DataTable,
       tdColorHover: tdHover,
     },
+    Switch: {
+      ...base.Switch,
+      railColorActive: pal.primary,
+    },
+    Checkbox: {
+      ...base.Checkbox,
+      colorChecked: pal.primary,
+      borderChecked: `1px solid ${pal.primary}`,
+      borderFocus: `1px solid ${pal.primary}`,
+    },
+    Radio: {
+      ...base.Radio,
+      dotColorActive: pal.primary,
+      boxShadowActive: `inset 0 0 0 1px ${pal.primary}`,
+      boxShadowFocus: `inset 0 0 0 1px ${pal.primary}`,
+    },
+    Progress: {
+      ...base.Progress,
+      fillColor: pal.primary,
+      iconColor: pal.primary,
+    },
+    LoadingBar: {
+      ...base.LoadingBar,
+      colorLoading: pal.primary,
+    },
+    Steps: {
+      ...base.Steps,
+      indicatorColorProcess: pal.primary,
+      indicatorTextColorProcess: '#ffffff',
+      splitorColorProcess: pal.primary,
+    },
+    Badge: {
+      ...base.Badge,
+      color: pal.primary,
+    },
+    Slider: {
+      ...base.Slider,
+      fillColor: pal.primary,
+      fillColorHover: pal.hover,
+    },
   }
 }
 

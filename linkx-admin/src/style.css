@@ -15,6 +15,9 @@
   --lx-accent-hover: #40a9ff;
   --lx-accent-pressed: #096dd9;
   --lx-primary-rgb: 24, 144, 255;
+  --lx-accent-soft-bg: rgba(var(--lx-primary-rgb), 0.12);
+  --lx-accent-soft-border: rgba(var(--lx-primary-rgb), 0.35);
+  --lx-accent-hover-bg: rgba(var(--lx-primary-rgb), 0.06);
   --lx-radius: 4px;
 }
 
@@ -602,23 +605,23 @@ a:hover {
  */
 .n-button--primary-type:not(.n-button--secondary):not(.n-button--ghost):not(.n-button--dashed):not([style*='--n-height: initial']) {
   box-shadow: none !important;
-  background-color: var(--lx-oa-green) !important;
-  border-color: var(--lx-oa-green) !important;
+  background-color: var(--lx-oa-blue) !important;
+  border-color: var(--lx-oa-blue) !important;
   color: #ffffff !important;
   --n-text-color: #ffffff;
-  --n-color: var(--lx-oa-green);
-  --n-border: 1px solid var(--lx-oa-green);
+  --n-color: var(--lx-oa-blue);
+  --n-border: 1px solid var(--lx-oa-blue);
 }
 
 .n-button--primary-type:not(.n-button--secondary):not(.n-button--ghost):not(.n-button--dashed):not([style*='--n-height: initial']):not(.n-button--disabled):hover {
-  background-color: #73d13d !important;
-  border-color: #73d13d !important;
+  background-color: var(--lx-accent-hover) !important;
+  border-color: var(--lx-accent-hover) !important;
   color: #ffffff !important;
 }
 
 .n-button--primary-type:not(.n-button--secondary):not(.n-button--ghost):not(.n-button--dashed):not([style*='--n-height: initial']):not(.n-button--disabled):active {
-  background-color: #389e0d !important;
-  border-color: #389e0d !important;
+  background-color: var(--lx-accent-pressed) !important;
+  border-color: var(--lx-accent-pressed) !important;
 }
 
 /* 文字/链接按钮（text prop）：蓝色字、无边框 */
@@ -638,8 +641,8 @@ a:hover {
 }
 
 .n-button.n-button--primary-type[style*='--n-height: initial']:not(.n-button--disabled):hover {
-  color: #40a9ff !important;
-  background: rgba(24, 144, 255, 0.06) !important;
+  color: var(--lx-accent-hover) !important;
+  background: var(--lx-accent-hover-bg) !important;
 }
 
 /* 实心危险按钮 */
@@ -679,12 +682,12 @@ a:hover {
 }
 
 .n-button--info-type.n-button--secondary {
-  color: #096dd9 !important;
-  background: #e6f4ff !important;
-  border-color: #91caff !important;
-  --n-text-color: #096dd9 !important;
-  --n-color: #e6f4ff !important;
-  --n-border: 1px solid #91caff !important;
+  color: var(--lx-accent-pressed) !important;
+  background: var(--lx-accent-soft-bg) !important;
+  border-color: var(--lx-accent-soft-border) !important;
+  --n-text-color: var(--lx-accent-pressed) !important;
+  --n-color: var(--lx-accent-soft-bg) !important;
+  --n-border: 1px solid var(--lx-accent-soft-border) !important;
 }
 
 .n-button--default-type.n-button--secondary {
@@ -695,12 +698,12 @@ a:hover {
 }
 
 .n-button--primary-type.n-button--secondary {
-  color: #389e0d !important;
-  background: #f6ffed !important;
-  border-color: #b7eb8f !important;
-  --n-text-color: #389e0d !important;
-  --n-color: #f6ffed !important;
-  --n-border: 1px solid #b7eb8f !important;
+  color: var(--lx-accent-pressed) !important;
+  background: var(--lx-accent-soft-bg) !important;
+  border-color: var(--lx-accent-soft-border) !important;
+  --n-text-color: var(--lx-accent-pressed) !important;
+  --n-color: var(--lx-accent-soft-bg) !important;
+  --n-border: 1px solid var(--lx-accent-soft-border) !important;
 }
 
 .n-button--warning-type:not(.n-button--secondary):not(.n-button--ghost):not(.n-button--dashed):not([style*='--n-height: initial']) {
@@ -756,9 +759,9 @@ a:hover {
 }
 
 [data-theme='light'] .n-tag.n-tag--info-type {
-  color: #096dd9 !important;
-  background-color: #e6f4ff !important;
-  border: 1px solid #91caff !important;
+  color: var(--lx-accent-pressed) !important;
+  background-color: var(--lx-accent-soft-bg) !important;
+  border: 1px solid var(--lx-accent-soft-border) !important;
 }
 
 /* 输入框占位符 */

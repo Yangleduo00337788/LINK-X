@@ -1030,8 +1030,8 @@ onUnmounted(() => {
 }
 
 .insight-bar--info {
-  border-color: #91caff;
-  background: #e6f4ff;
+  border-color: var(--lx-accent-soft-border);
+  background: var(--lx-accent-soft-bg);
 }
 
 .insight-bar--success {
