@@ -152,12 +152,14 @@ request.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
   }
 
   Object.assign(config.headers, getDeviceHeaders())
-  if (memoryAccessToken) {
-    config.headers.Authorization = `Bearer ${memoryAccessToken}`
-  }
 
   const security = useSecurityStore()
   const url = config.url || ''
+
+  if (memoryAccessToken && shouldSignRequest(url)) {
+    config.headers.Authorization = `Bearer ${memoryAccessToken}`
+  }
+
   const isFormData = typeof FormData !== 'undefined' && config.data instanceof FormData
 
   if (
