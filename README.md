@@ -83,9 +83,15 @@ LinkX 是一套**前后端分离**的企业级即时通讯（IM）解决方案�
 
 <div align="center">
 
+<img src="./assets/admin-login.png" alt="管理端登录页" width="860" />
+
+**图 3 · 管理端登录页**
+
+<br />
+
 <img src="./assets/admin-ui.png" alt="管理端工作台" width="860" />
 
-**图 3 · 管理端工作台**
+**图 4 · 管理端工作台**
 
 </div>
 
@@ -330,6 +336,7 @@ link-x/
 │   ├── logo.png
 │   ├── client-login.png       # 客户端登录页
 │   ├── client-ui.png          # 客户端主界面
+│   ├── admin-login.png        # 管理端登录页
 │   └── admin-ui.png           # 管理端工作台
 ├── linkx-client/              # 桌面客户端
 │   ├── electron/              # Electron 主进程、Preload
