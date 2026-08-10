@@ -35,6 +35,7 @@ public final class AdminApiSecurityPaths {
             return true;
         }
         return uri.contains("/admin/auth/config")
+                || uri.contains("/admin/auth/captcha")
                 || uri.contains("/admin/auth/login")
                 || uri.contains("/admin/auth/login/totp")
                 || uri.contains("/admin/auth/totp/setup-challenge")
