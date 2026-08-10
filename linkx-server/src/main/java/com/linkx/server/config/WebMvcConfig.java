@@ -1,5 +1,9 @@
 package com.linkx.server.config;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.config.interceptor.LoginInterceptor;
 import com.linkx.server.config.interceptor.RateLimitInterceptor;
 import lombok.RequiredArgsConstructor;

@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import { watch } from 'vue'
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'

@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 ﻿<script setup lang="ts">
 /**
  * 中间列友链面板：Electron 开独立窗；Web 仅作提示（主栏渲染 MomentsMainView）。

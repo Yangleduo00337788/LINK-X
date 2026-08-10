@@ -1,5 +1,9 @@
 package com.linkx.server.service.impl;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.service.PresenceService;

@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { htmlToNoteMarkdown } from '../utils/noteHtmlToMarkdown'
@@ -214,10 +215,6 @@ function runFormat(action: NoteFormatAction) {
 
   saveSelection()
   scheduleRerender()
-}
-
-function prepareToolbarAction() {
-  saveSelection()
 }
 
 watch(

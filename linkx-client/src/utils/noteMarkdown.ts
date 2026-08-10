@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import { Marked } from 'marked'
 import DOMPurify from 'dompurify'
 

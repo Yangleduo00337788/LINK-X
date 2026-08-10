@@ -1,5 +1,9 @@
 package com.linkx.server.service;
 
+
+/**
+ * 作者：yangleduo
+ */
 import java.util.List;
 
 public interface LoginAuditService {

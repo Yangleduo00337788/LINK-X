@@ -1,5 +1,9 @@
 package com.linkx.server.service;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.controller.dto.SendFriendRequestDTO;
 import com.linkx.server.controller.vo.FriendItemVO;
 import com.linkx.server.controller.vo.FriendRequestVO;

@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
  * 笔记编辑器独立窗口

@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import logoMark from '../assets/logo-mark-transparent.png'
 import { isDisplayableMediaUrl, normalizeMediaUrl } from './mediaUrl'
 

@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 ﻿<script setup lang="ts">
 /**
  * 群相册弹窗（群聊顶栏「应用」→「群相册」）。

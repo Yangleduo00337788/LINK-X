@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import { contextBridge, ipcRenderer } from 'electron'
 
 type WinAction = 'minimize' | 'maximize' | 'close'

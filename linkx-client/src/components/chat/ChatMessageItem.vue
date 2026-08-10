@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
  * 单条聊天消息行组件。

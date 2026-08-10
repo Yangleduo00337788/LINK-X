@@ -1,5 +1,9 @@
 package com.linkx.server.service;
 
+
+/**
+ * 作者：yangleduo
+ */
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;

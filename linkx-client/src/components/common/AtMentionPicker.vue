@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
  * @ 好友/成员自动补全面板

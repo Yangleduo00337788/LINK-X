@@ -1,4 +1,7 @@
 /**
+ * 作者：yangleduo
+ */
+/**
  * 通话提示音（Web Audio API 合成，无需外部音频文件）
  * - ring：振铃循环（主叫等待 / 被叫来电）
  * - connect：接通短音

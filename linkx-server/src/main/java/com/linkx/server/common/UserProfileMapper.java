@@ -1,5 +1,9 @@
 package com.linkx.server.common;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.controller.vo.UserInfoVO;
 import com.linkx.server.controller.vo.UserProfileVO;
 import com.linkx.server.entity.SysUser;

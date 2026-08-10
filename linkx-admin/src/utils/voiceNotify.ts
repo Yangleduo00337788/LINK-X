@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 /** 浏览器语音朗读（Web Speech API） */
 
 import { usePreferencesStore } from '@/stores/preferences'

@@ -1,6 +1,10 @@
 // 自定义异常包
 package com.linkx.server.exception;
 
+
+/**
+ * 作者：yangleduo
+ */
 // Lombok：为 code 字段生成 getter
 import lombok.Getter;
 

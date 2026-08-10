@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
  * 收藏主视图 — 按设计稿全宽重做（分类侧栏 + 卡片网格）

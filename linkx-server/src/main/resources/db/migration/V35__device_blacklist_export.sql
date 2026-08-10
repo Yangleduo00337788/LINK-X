@@ -1,3 +1,4 @@
+-- 作者：yangleduo
 -- device / blacklist export permissions
 INSERT IGNORE INTO `sys_permission`
 (`id`,`permission_code`,`permission_name`,`resource_type`,`resource_path`,`description`,`status`) VALUES

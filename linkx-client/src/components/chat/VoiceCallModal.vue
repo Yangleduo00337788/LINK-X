@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 ﻿<script setup lang="ts">
 /**
  * 语音通话弹窗：真实 WebRTC，等待对端接听后建立媒体连接。
@@ -94,7 +95,7 @@ watch(errorMessage, msg => {
 
 onUnmounted(() => {
   clearDuration()
-  clearInterval(durationTimer)
+  if (durationTimer) clearInterval(durationTimer)
   durationTimer = null
 })
 

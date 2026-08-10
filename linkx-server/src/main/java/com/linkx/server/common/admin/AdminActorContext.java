@@ -1,5 +1,9 @@
 package com.linkx.server.common.admin;
 
+
+/**
+ * 作者：yangleduo
+ */
 /**
  * 管理端异步任务的操作者上下文（无 HTTP Request 时供 DataScope 等切面使用）。
  */

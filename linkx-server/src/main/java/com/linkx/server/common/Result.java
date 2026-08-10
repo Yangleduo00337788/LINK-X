@@ -1,6 +1,10 @@
 // 统一响应封装类所在包
 package com.linkx.server.common;
 
+
+/**
+ * 作者：yangleduo
+ */
 // Lombok 注解：自动生成 getter/setter/toString/equals/hashCode
 import lombok.Data;
 

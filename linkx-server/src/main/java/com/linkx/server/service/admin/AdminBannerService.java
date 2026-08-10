@@ -1,5 +1,9 @@
 package com.linkx.server.service.admin;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminBannerDTO;
 import com.linkx.server.controller.admin.dto.AdminBannerQueryDTO;

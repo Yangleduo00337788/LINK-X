@@ -1,5 +1,9 @@
 package com.linkx.server.service;
 
+
+/**
+ * 作者：yangleduo
+ */
 /**
  * 设备长期封禁与强绑定校验。
  */

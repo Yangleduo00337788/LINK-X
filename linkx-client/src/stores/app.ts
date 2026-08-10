@@ -1,4 +1,7 @@
 /**
+ * 作者：yangleduo
+ */
+/**
  * 应用核心 Store（app）
  * 全局导航、聊天会话/消息、主题、登录态、锁屏与用户资料等核心业务状态
  */
@@ -49,12 +52,11 @@ import { generateUuidV4 } from '../utils/parseJson'
 import type { MessageItem } from '../types/chat'
 import { normalizeMediaUrl } from '../utils/mediaUrl'
 import { t } from '../i18n'
-import { normalizeProfileGender, PROFILE_GENDER_MALE } from '../types/profileGender'
+import { normalizeProfileGender, PROFILE_GENDER_MALE, type ProfileGender } from '../types/profileGender'
 // 通讯录 Store（加群/加好友后同步联系人）
 import { useContactsStore } from './contacts'
 // 群元数据 Store（邀请成员等）
 import { useGroupMetaStore } from './groupMeta'
-import { useAppSettingsStore } from './appSettings'
 // 主题同步到 document 与 Electron 主进程
 import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
 // 持久化前清理敏感或过大字段
@@ -288,7 +290,7 @@ export const useAppStore = defineStore('app', {
       signature: '',
       avatar: '',
       userId: '',
-      gender: PROFILE_GENDER_MALE,
+      gender: PROFILE_GENDER_MALE as ProfileGender,
       birthday: null as number | null,
       country: t('modals.china'),
       province: '',
@@ -1979,9 +1981,9 @@ export const useAppStore = defineStore('app', {
                 local.fileUrl = displayUrl
                 if (type === 'image') local.content = displayUrl
                 local.fileName = fileName
-                if (fileSizeNum > 0) {
+                if ((fileSizeNum ?? 0) > 0) {
                   const { formatFileSize } = await import('../utils/chatTime')
-                  local.fileSize = formatFileSize(fileSizeNum)
+                  local.fileSize = formatFileSize(fileSizeNum ?? 0)
                 }
                 local.uploadProgress = 100
                 if (type === 'file') local.fileStatus = t('chat.fileStatusSending')

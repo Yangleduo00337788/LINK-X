@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 import PrefSwitcher from '@/components/PrefSwitcher.vue'
 import AuthParticleBackground from '@/components/AuthParticleBackground.vue'

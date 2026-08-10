@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 export interface ConversationItem {
   id: string
   type: number

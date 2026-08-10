@@ -1,5 +1,9 @@
 package com.linkx.server.service.impl;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.common.CaptchaScope;
 import com.linkx.server.common.CaptchaType;
 import com.linkx.server.config.LinkxProperties;

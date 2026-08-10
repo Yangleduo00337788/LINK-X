@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
  * 消息虚拟列表：直接用 vueuc VirtualList + 原生 overflow 滚动

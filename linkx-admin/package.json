@@ -2,6 +2,7 @@
   "name": "linkx-admin",
   "private": true,
   "version": "0.0.0",
+  "author": "yangleduo",
   "type": "module",
   "scripts": {
     "dev": "vite",

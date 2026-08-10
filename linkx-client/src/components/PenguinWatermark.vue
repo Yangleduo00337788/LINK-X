@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 ﻿<script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from '../i18n'

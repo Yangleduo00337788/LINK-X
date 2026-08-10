@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { NButton, NIcon, NTooltip } from 'naive-ui'

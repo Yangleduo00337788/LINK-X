@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 export const API_SIGN_TIMESTAMP_HEADER = 'X-LinkX-Timestamp'
 export const API_SIGN_NONCE_HEADER = 'X-LinkX-Nonce'
 export const API_SIGN_SIGNATURE_HEADER = 'X-LinkX-Signature'

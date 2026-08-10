@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 // Vue Router 工厂函数与 Hash 模式历史 API
 import { createRouter, createWebHashHistory } from 'vue-router'
 

@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 // 消息 / 会话类型
 import type { ChatMessage, ChatSession } from '../types'
 import { isEphemeralMediaUrl, stripEphemeralMediaUrl } from './mediaUrl'

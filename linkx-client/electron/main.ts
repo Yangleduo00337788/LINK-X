@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, globalShortcut, safeStorage, desktopCapturer, dialog, Notification, net, session, clipboard, type IpcMainEvent, type IpcMainInvokeEvent, type WebRequestHeadersReceivedCallbackParams, type OnHeadersReceivedListener } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
@@ -5,7 +8,7 @@ import http from 'node:http'
 import https from 'node:https'
 import { fileURLToPath } from 'node:url'
 import { Buffer } from 'node:buffer'
-import { execSync } from 'node:child_process'
+import { execSync, spawn } from 'node:child_process'
 
 /** 渲染进程发起的受控下载请求 */
 type DownloadFilePayload = {
@@ -724,7 +727,8 @@ function registerWindowIpc() {
 
   /**
    * 检查更新后的自动下载安装：下载安装包到临时目录并拉起系统安装程序。
-   * Windows 上 .exe/.msi 会进入安装向导；完成后由安装程序自行处理覆盖。
+   * Windows：默认静默安装（/S），安装完成后由 NSIS 脚本自动启动 LinkX。
+   * 手动安装包仍走 NSIS 图形向导（可选路径、协议页、快捷方式）。
    *
    * 安全约束：
    * 1. 仅允许 HTTPS（杜绝明文中间人篡改）
@@ -733,7 +737,10 @@ function registerWindowIpc() {
    */
   ipcMain.handle(
     'app:download-and-install-update',
-    async (event, payload: { url?: string; version?: string; fileName?: string } = {}) => {
+    async (
+      event,
+      payload: { url?: string; version?: string; fileName?: string; silent?: boolean } = {}
+    ) => {
       try {
         const url = (payload.url || '').trim()
         if (!/^https:\/\//i.test(url)) {
@@ -794,25 +801,48 @@ function registerWindowIpc() {
 
         win?.webContents.send('app:update-progress', { phase: 'installing', percent: 100 })
 
-        const { shell } = await import('electron')
-        const openErr = await shell.openPath(targetPath)
-        if (openErr) {
-          // 无法直接执行时，至少打开所在目录让用户手动安装
-          await shell.showItemInFolder(targetPath)
-          return {
-            ok: true,
-            path: targetPath,
-            launched: false,
-            message: '已下载，请在打开的文件夹中手动运行安装包'
+        const silent = payload.silent !== false
+        const isWindowsInstaller = process.platform === 'win32' && (ext === '.exe' || ext === '.msi')
+        let launched = false
+        let silentInstall = false
+
+        if (isWindowsInstaller && silent) {
+          try {
+            const child = spawn(targetPath, ['/S'], {
+              detached: true,
+              stdio: 'ignore',
+              windowsHide: true
+            })
+            child.unref()
+            launched = true
+            silentInstall = true
+          } catch (spawnErr) {
+            console.warn('[update] 静默安装启动失败，回退到图形安装:', spawnErr)
           }
+        }
+
+        if (!launched) {
+          const { shell } = await import('electron')
+          const openErr = await shell.openPath(targetPath)
+          if (openErr) {
+            await shell.showItemInFolder(targetPath)
+            return {
+              ok: true,
+              path: targetPath,
+              launched: false,
+              silent: false,
+              message: '已下载，请在打开的文件夹中手动运行安装包'
+            }
+          }
+          launched = true
         }
 
         // 安装程序拉起后退出应用，避免文件占用导致覆盖失败
         setTimeout(() => {
           app.quit()
-        }, 800)
+        }, silentInstall ? 400 : 800)
 
-        return { ok: true, path: targetPath, launched: true }
+        return { ok: true, path: targetPath, launched, silent: silentInstall }
       } catch (e) {
         return { ok: false, message: e instanceof Error ? e.message : '下载安装失败' }
       }
@@ -1086,6 +1116,8 @@ ipcMain.on('theme-changed', (_e, theme: string) => {
 /** 解析 build 目录下的应用资源（开发/打包路径兼容） */
 function resolveBuildAsset(fileName: string): string | null {
   const roots = [
+    path.join(app.getAppPath(), 'build'),
+    path.join(process.resourcesPath, 'build'),
     path.join(__dirname, '../../build'),
     path.join(__dirname, '../build')
   ]

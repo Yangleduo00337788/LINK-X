@@ -1,6 +1,10 @@
 // 声明当前类所在的包路径，对应目录 com/linkx/server/
 package com.linkx.server;
 
+
+/**
+ * 作者：yangleduo
+ */
 // 导入 MyBatis-Flex 提供的 Mapper 扫描注解，用于自动注册 Mapper 接口
 import com.linkx.server.config.ClasspathConfigVerifier;
 import com.linkx.server.config.DotEnvBootstrap;

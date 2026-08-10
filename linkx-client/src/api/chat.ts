@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import { apiClient } from './client'
 import type { ApiResult } from '../types/auth'
 import type { ChatFileUploadResult, ConversationItem, MessageItem } from '../types/chat'

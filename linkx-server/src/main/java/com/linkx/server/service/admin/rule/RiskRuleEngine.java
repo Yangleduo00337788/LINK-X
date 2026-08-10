@@ -1,5 +1,9 @@
 package com.linkx.server.service.admin.rule;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.entity.admin.SysRiskRule;
 import com.linkx.server.mapper.admin.SysRiskRuleMapper;
 import com.mybatisflex.core.query.QueryWrapper;

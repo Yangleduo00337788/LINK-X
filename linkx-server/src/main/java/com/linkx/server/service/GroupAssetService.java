@@ -1,5 +1,9 @@
 package com.linkx.server.service;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.controller.dto.CreateGroupAssetDTO;
 import com.linkx.server.controller.vo.GroupAssetVO;
 import org.springframework.web.multipart.MultipartFile;

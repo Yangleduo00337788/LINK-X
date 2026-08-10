@@ -1,4 +1,7 @@
 /**
+ * 作者：yangleduo
+ */
+/**
  * Windows 下先切 UTF-8 代码页，再启动 Vite Electron 开发态，避免控制台中文乱码。
  */
 import { spawn } from 'node:child_process'

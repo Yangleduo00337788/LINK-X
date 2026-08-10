@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import { getToken, isWebEnvironment } from './tokenStorage'
 import { parseJsonPreservingIds } from './parseJson'
 import type { MessageItem, WsIncomingFrame, WsSendPayload } from '../types/chat'

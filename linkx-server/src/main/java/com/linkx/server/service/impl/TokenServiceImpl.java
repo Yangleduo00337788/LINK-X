@@ -1,5 +1,9 @@
 package com.linkx.server.service.impl;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.TokenType;
 import com.linkx.server.config.LinkxProperties;

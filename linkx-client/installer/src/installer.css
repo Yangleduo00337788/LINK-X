@@ -1,0 +1,497 @@
+/**
+ * 作者：yangleduo
+ */
+:root {
+  --lx-window-radius: 20px;
+  --lx-login-accent: #12b7f5;
+  --lx-login-accent-deep: #0aa6e0;
+  --lx-accent-gradient: linear-gradient(135deg, #39c2f6 0%, #12b7f5 48%, #0aa6e0 100%);
+  --lx-installer-font-size: 15px;
+  --lx-logo-size: 122px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: 'Segoe UI', 'Microsoft YaHei UI', 'PingFang SC', sans-serif;
+  font-size: var(--lx-installer-font-size);
+  color: #1a2332;
+  user-select: none;
+}
+
+html.lx-electron,
+html.lx-electron body {
+  background: transparent !important;
+}
+
+html.lx-electron #app {
+  background: #ffffff;
+  border-radius: var(--lx-window-radius);
+  overflow: hidden;
+  clip-path: inset(0 round var(--lx-window-radius));
+  transform: translateZ(0);
+  isolation: isolate;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.installer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #ffffff;
+  position: relative;
+  font-size: var(--lx-installer-font-size);
+}
+
+.installer__titlebar {
+  position: relative;
+  height: 40px;
+  flex-shrink: 0;
+  z-index: 2;
+}
+
+.installer__drag {
+  position: absolute;
+  inset: 0;
+  -webkit-app-region: drag;
+}
+
+.installer__window-actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+
+.caption-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 100%;
+  min-height: 36px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: #1a2332;
+  cursor: default;
+  transition: background-color 83ms linear, color 83ms linear;
+}
+
+.caption-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.caption-btn:active {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.caption-btn--close {
+  border-top-right-radius: var(--lx-window-radius);
+}
+
+.caption-btn--close:hover {
+  background: #e81123;
+  color: #fff;
+}
+
+.caption-btn--close:active {
+  background: #f1707a;
+  color: #fff;
+}
+
+.installer__main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 40px 20px;
+  overflow: hidden;
+}
+
+.installer__brand-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  width: var(--lx-logo-size);
+  padding-top: 38px;
+}
+
+.installer__brand-block--compact {
+  flex: 1;
+  justify-content: center;
+  padding-top: 0;
+}
+
+.installer__logo-wrap {
+  position: relative;
+  width: var(--lx-logo-size);
+  height: var(--lx-logo-size);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  border-radius: 28px;
+  background: #ffffff;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.07);
+  overflow: hidden;
+}
+
+.installer__logo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 28px;
+}
+
+.installer__brand {
+  display: block;
+  width: var(--lx-logo-size);
+  margin: 0;
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: #000000;
+  text-align: center;
+  line-height: 1;
+  text-indent: 0.14em;
+}
+
+.installer__version {
+  width: var(--lx-logo-size);
+  margin: 8px 0 50px;
+  font-size: var(--lx-installer-font-size);
+  color: #94a3b8;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.installer__install-btn {
+  width: 198px;
+  height: 47px;
+  flex-shrink: 0;
+  margin-top: 0;
+  border: none;
+  border-radius: 24px;
+  background: #d7dce3;
+  color: #ffffff;
+  font-size: var(--lx-installer-font-size);
+  font-weight: 600;
+  letter-spacing: 1px;
+  cursor: not-allowed;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    filter 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.installer__install-btn--ready {
+  background: var(--lx-accent-gradient);
+  cursor: pointer;
+  box-shadow:
+    0 8px 20px rgba(18, 183, 245, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.installer__install-btn--ready:hover {
+  filter: brightness(1.04);
+  transform: translateY(-1px);
+  box-shadow:
+    0 10px 24px rgba(18, 183, 245, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.installer__install-btn--ready:active {
+  transform: translateY(0);
+  filter: brightness(0.98);
+}
+
+.installer__finish-text {
+  margin: 8px 0 0;
+  font-size: var(--lx-installer-font-size);
+  color: #64748b;
+  text-align: center;
+}
+
+.installer__error {
+  margin: 10px 0 0;
+  font-size: var(--lx-installer-font-size);
+  color: #dc2626;
+  text-align: center;
+}
+
+.installer__bottom {
+  width: 100%;
+  margin-top: auto;
+  flex-shrink: 0;
+  padding-top: 16px;
+}
+
+.installer__footer {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.agreement-row {
+  min-width: 0;
+  flex: 1;
+}
+
+.agreement-row :deep(.lx-check__label) {
+  color: #64748b;
+  font-size: var(--lx-installer-font-size);
+}
+
+.agreement-row__text {
+  font-size: var(--lx-installer-font-size);
+  line-height: 1.5;
+}
+
+.agreement-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--lx-login-accent);
+  font: inherit;
+  font-size: var(--lx-installer-font-size);
+  cursor: pointer;
+}
+
+.agreement-link:hover {
+  color: var(--lx-login-accent-deep);
+  text-decoration: underline;
+}
+
+.custom-toggle {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  color: #334155;
+  font-size: var(--lx-installer-font-size);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0;
+  line-height: 1;
+}
+
+.custom-toggle__icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: #64748b;
+}
+
+.custom-toggle__icon--open {
+  transform: rotate(180deg);
+}
+
+.custom-panel {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.path-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  height: 40px;
+  border-radius: 10px;
+  background: #f3f5f8;
+}
+
+.path-field__input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: #334155;
+  font-size: var(--lx-installer-font-size);
+  outline: none;
+}
+
+.path-field__browse {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.path-field__browse:hover {
+  background: #e8edf3;
+  color: var(--lx-login-accent);
+}
+
+.option-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  margin-top: 12px;
+}
+
+.option-row :deep(.lx-check__label) {
+  font-size: var(--lx-installer-font-size);
+}
+
+.installer__progress {
+  width: 100%;
+  margin-top: auto;
+  padding-bottom: 8px;
+}
+
+.installer__progress-text {
+  margin: 0 0 10px;
+  font-size: var(--lx-installer-font-size);
+  color: #334155;
+}
+
+.installer__progress-bar {
+  height: 4px;
+  border-radius: 999px;
+  background: #e8edf3;
+  overflow: hidden;
+}
+
+.installer__progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--lx-accent-gradient);
+  transition: width 0.2s ease;
+}
+
+.installer__progress-status {
+  margin: 8px 0 0;
+  font-size: var(--lx-installer-font-size);
+  color: #94a3b8;
+}
+
+.exit-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.28);
+  border-radius: inherit;
+}
+
+.exit-modal__card {
+  position: relative;
+  width: min(360px, calc(100% - 48px));
+  padding: 28px 28px 24px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.18);
+}
+
+.exit-modal__close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #94a3b8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.exit-modal__close:hover {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.exit-modal__title {
+  margin: 0;
+  font-size: var(--lx-installer-font-size);
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.exit-modal__message {
+  margin: 12px 0 0;
+  font-size: var(--lx-installer-font-size);
+  line-height: 1.6;
+  color: #64748b;
+}
+
+.exit-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.exit-modal__btn {
+  min-width: 88px;
+  height: 36px;
+  padding: 0 20px;
+  border: none;
+  border-radius: 18px;
+  font-size: var(--lx-installer-font-size);
+  font-weight: 500;
+  cursor: pointer;
+  transition: filter 0.15s ease, background 0.15s ease;
+}
+
+.exit-modal__btn--ghost {
+  background: #eef1f5;
+  color: #334155;
+}
+
+.exit-modal__btn--ghost:hover {
+  background: #e2e8f0;
+}
+
+.exit-modal__btn--primary {
+  background: var(--lx-accent-gradient);
+  color: #fff;
+  box-shadow:
+    0 6px 16px rgba(18, 183, 245, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24);
+}
+
+.exit-modal__btn--primary:hover {
+  filter: brightness(1.04);
+}

@@ -1,5 +1,9 @@
 package com.linkx.server.im;
 
+
+/**
+ * 作者：yangleduo
+ */
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;

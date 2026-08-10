@@ -1,5 +1,9 @@
 package com.linkx.server.service;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.controller.dto.SendMessageDTO;
 import com.linkx.server.controller.vo.ChatFileUploadVO;
 import com.linkx.server.controller.vo.ChatSearchHitVO;

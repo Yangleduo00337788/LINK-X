@@ -1,5 +1,9 @@
 package com.linkx.server.config;
 
+
+/**
+ * 作者：yangleduo
+ */
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import java.util.ArrayList;

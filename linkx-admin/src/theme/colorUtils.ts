@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 export function clampByte(n: number) {
   return Math.max(0, Math.min(255, Math.round(n)))
 }

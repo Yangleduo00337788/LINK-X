@@ -1,3 +1,4 @@
+-- 作者：yangleduo
 -- 密码策略配置（管理端与客户端共用）
 SET @has_pwd_min = (
   SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS

@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
  * 图片预览独立窗口：缩放/旋转/系统打开/裁剪/分享/下载/更多。
@@ -29,6 +30,7 @@ import { useAppStore } from '../stores/app'
 import { storeToRefs } from 'pinia'
 import { formatFileSize } from '../utils/chatTime'
 import * as chatApi from '../api/chat'
+import { recoverMediaUrlOnError } from '../utils/mediaUrl'
 import { imagePreviewPlaceholder } from '../utils/messagePreviewText'
 
 type ViewerItem = {

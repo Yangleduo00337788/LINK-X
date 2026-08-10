@@ -1,6 +1,10 @@
 // 视图对象（VO）包
 package com.linkx.server.controller.vo;
 
+
+/**
+ * 作者：yangleduo
+ */
 // Lombok Builder 模式
 import lombok.Builder;
 // Lombok 数据类

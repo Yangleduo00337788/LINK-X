@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
  * 日历主视图 — 按设计稿：顶栏 + 月网格 + 底部日程卡片列表

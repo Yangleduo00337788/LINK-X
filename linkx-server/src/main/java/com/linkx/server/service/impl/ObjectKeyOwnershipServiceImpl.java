@@ -1,5 +1,9 @@
 package com.linkx.server.service.impl;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.entity.SysObjectOwnership;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.SysObjectOwnershipMapper;

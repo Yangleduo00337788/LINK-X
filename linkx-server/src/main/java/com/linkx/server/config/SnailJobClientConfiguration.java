@@ -1,5 +1,9 @@
 package com.linkx.server.config;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.aizuda.snailjob.client.starter.EnableSnailJob;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Configuration;

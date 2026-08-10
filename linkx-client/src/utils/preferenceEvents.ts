@@ -1,4 +1,7 @@
 /**
+ * 作者：yangleduo
+ */
+/**
  * 偏好设置保存事件总线
  * <p>
  * store 在 flush 完成后通过 onPreferenceChange.emit 广播结果；

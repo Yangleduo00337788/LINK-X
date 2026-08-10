@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import { t } from '../i18n'
 
 /** 将时间戳格式化为 HH:mm（兼容后端 Long 字符串） */

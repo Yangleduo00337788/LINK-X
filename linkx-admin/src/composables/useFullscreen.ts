@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import { onMounted, onUnmounted, ref } from 'vue'
 
 type FullscreenDocument = Document & {

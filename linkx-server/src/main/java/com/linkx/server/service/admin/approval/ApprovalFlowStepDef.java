@@ -1,5 +1,9 @@
 package com.linkx.server.service.admin.approval;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 

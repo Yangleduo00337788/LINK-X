@@ -1,5 +1,9 @@
 package com.linkx.server.common.admin;
 
+
+/**
+ * 作者：yangleduo
+ */
 /**
  * 角色数据权限范围。
  * <ul>

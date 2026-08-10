@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
  * 接收主进程 app:in-app-toast，以及好友上线等应用内通知。

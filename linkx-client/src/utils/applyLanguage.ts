@@ -1,4 +1,7 @@
 /**
+ * 作者：yangleduo
+ */
+/**
  * 全局语言切换：更新 i18n、本地偏好、服务端同步、Electron 托盘文案。
  */
 import { useMessage } from 'naive-ui'

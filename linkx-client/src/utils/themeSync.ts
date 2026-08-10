@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 // Pinia app store 持久化使用的 localStorage key，与 stores/app.ts persist.key 一致
 export const APP_STORAGE_KEY = 'linkx-app'
 

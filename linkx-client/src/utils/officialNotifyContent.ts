@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import type { MessageNotification } from '../stores/notifications'
 
 export interface OfficialBodyPart {
@@ -64,7 +67,7 @@ export function formatOfficialFullTime(raw: string): string {
   return `${y}/${m}/${d} ${hh}:${mm}`
 }
 
-export function officialStatusTitle(type?: string, t: Translate): string {
+export function officialStatusTitle(t: Translate, type?: string): string {
   switch (type) {
     case 'feedback_submitted':
       return t('chat.officialNotifyTitleSubmitted')
@@ -85,7 +88,7 @@ export function officialStatusTitle(type?: string, t: Translate): string {
   }
 }
 
-export function officialTypeLabel(type?: string, t: Translate): string {
+export function officialTypeLabel(t: Translate, type?: string): string {
   switch (type) {
     case 'feedback_submitted':
       return t('chat.officialTicket')
@@ -143,7 +146,7 @@ export function buildOfficialNotifyViewModel(
   const textLines = parts.filter(p => p.kind === 'text').map(p => p.text!)
   const imageParts = parts.filter(p => p.kind === 'image')
 
-  let title = officialStatusTitle(notif.type, t)
+  let title = officialStatusTitle(t, notif.type)
   let body: string | undefined
   const fields: OfficialFeedField[] = []
 

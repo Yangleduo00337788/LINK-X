@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 export interface ApiResult<T> {
   code: number
   message: string

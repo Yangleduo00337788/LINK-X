@@ -1,5 +1,9 @@
 package com.linkx.server.util;
 
+
+/**
+ * 作者：yangleduo
+ */
 import org.springframework.util.StringUtils;
 
 import javax.crypto.Cipher;

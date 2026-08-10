@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 type StopAntiDebug = () => void
 
 let activeStop: StopAntiDebug | null = null

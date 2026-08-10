@@ -1,5 +1,9 @@
 package com.linkx.server.service.impl;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.entity.UserPreference;
 import com.linkx.server.mapper.UserPreferenceMapper;
 import com.linkx.server.service.PresenceService;

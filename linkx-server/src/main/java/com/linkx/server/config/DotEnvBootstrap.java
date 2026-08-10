@@ -1,5 +1,9 @@
 package com.linkx.server.config;
 
+
+/**
+ * 作者：yangleduo
+ */
 /**
  * 在 SpringApplication.run 之前把 .env.* 写入 System properties，
  * 保证 IDEA / java -jar 都能解析 application.yml 里的 ${VAR}。

@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
  * 新建 / 编辑日程独立弹窗。
@@ -125,7 +126,7 @@ function syncForm() {
       const endRaw =
         props.editingEvent.endTime ||
         defaultEndTimeFromStartTs(formStartTs.value)
-      formEndTs.value = parseHm(endRaw) ?? defaultEndTimeFromStartTs(formStartTs.value)
+      formEndTs.value = parseHm(String(endRaw)) ?? defaultEndTimeFromStartTs(formStartTs.value)
     } else {
       formEndTs.value = null
     }

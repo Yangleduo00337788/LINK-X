@@ -1,5 +1,9 @@
 package com.linkx.server.service.impl;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.entity.SysDeviceBan;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.entity.SysUserDeviceBinding;

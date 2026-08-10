@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import { del, get, post, put } from './request'
 
 export interface AdminDept {

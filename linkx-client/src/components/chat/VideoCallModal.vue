@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 ﻿<script setup lang="ts">
 /**
  * 视频通话弹窗：真实 WebRTC，本地预览 + 远端画面。

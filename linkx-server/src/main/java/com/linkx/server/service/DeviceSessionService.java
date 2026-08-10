@@ -1,5 +1,9 @@
 package com.linkx.server.service;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.controller.vo.DeviceVO;
 import com.linkx.server.entity.DeviceSession;
 

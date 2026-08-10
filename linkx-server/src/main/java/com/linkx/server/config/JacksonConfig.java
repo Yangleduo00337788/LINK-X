@@ -1,5 +1,9 @@
 package com.linkx.server.config;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.boot.autoconfigure.jackson.Jackson2ObjectMapperBuilderCustomizer;

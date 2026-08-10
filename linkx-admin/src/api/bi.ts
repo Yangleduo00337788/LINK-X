@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import { get, post } from './request'
 import type { BreakdownItem, ChartSeries, TrendData } from './statistics'
 

@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 /** 管理端设备标识，供风控与设备绑定。 */
 const STORAGE_KEY = 'linkx_admin_device_id'
 

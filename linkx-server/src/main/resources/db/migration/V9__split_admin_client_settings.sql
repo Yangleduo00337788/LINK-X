@@ -1,3 +1,4 @@
+-- 作者：yangleduo
 -- 若已执行旧版 V8（仅有 captcha_enabled），拆分为管理端/客户端两套验证码开关
 SET @has_old = (
   SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS

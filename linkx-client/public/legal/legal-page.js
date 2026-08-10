@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 /* global window, document */
 (function () {
   'use strict'

@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import type { MessageNotification } from '../stores/notifications'
 import {
   formatOfficialCardDateLabel,

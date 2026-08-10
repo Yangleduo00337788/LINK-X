@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
  * 聊天主面板组件。
@@ -176,7 +177,7 @@ const appSettingsStore = useAppSettingsStore()
 // 获取联系人 Store 实例
 const contactsStore = useContactsStore()
 // 解构当前会话、消息、用户资料、会话 ID、已保存登录信息
-const { currentSession, currentMessages, userProfile, currentSessionId, savedLogin, sessionEnterTick, sessions, pendingFocusMessageId, typingBySession } =
+const { currentSession, currentMessages, userProfile, currentSessionId, savedLogin, sessionEnterTick, pendingFocusMessageId, typingBySession } =
   storeToRefs(appStore)
 // 解构聊天背景设置
 const { chatBackground } = storeToRefs(appSettingsStore)
@@ -1691,7 +1692,7 @@ function onDrop(e: DragEvent) {
 
     <ForwardPickerModal
       v-model:show="forwardModalShow"
-      :exclude-session-id="currentSessionId"
+      :exclude-session-id="currentSessionId ?? undefined"
       :loading="forwardSaving"
       :preview-text="forwardPreviewText"
       :preview-image-url="forwardPreviewImageUrl"

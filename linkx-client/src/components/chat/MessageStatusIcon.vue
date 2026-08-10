@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
  * 消息发送状态：发送中 / 单勾 / 双勾 / 已读双勾。

@@ -1,5 +1,9 @@
 package com.linkx.server.task;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.entity.ImMessage;
 import com.linkx.server.mapper.ImMessageMapper;

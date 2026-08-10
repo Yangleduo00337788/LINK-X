@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
  * 未选会话时的「发现」主区：推荐位 + 活动列表；

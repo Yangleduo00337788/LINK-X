@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
  * 添加好友/群聊搜索模态框。
@@ -173,7 +174,7 @@ const filteredUsers = computed<SearchUserItem[]>(() => {
       avatarUrl: user.avatar,
       online: false,
       isRemote: true,
-      isSelf: meId && id === meId
+      isSelf: !!(meId && id === meId)
     })
   }
 
@@ -189,7 +190,7 @@ const filteredUsers = computed<SearchUserItem[]>(() => {
       avatarUrl: contact.avatarUrl,
       online: contact.online,
       isRemote: false,
-      isSelf: meId && String(contact.userId ?? contact.id) === meId
+      isSelf: !!(meId && String(contact.userId ?? contact.id) === meId)
     })
   }
 

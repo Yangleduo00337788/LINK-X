@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import { ensureApiSignKey } from './request'
 import { useSecurityStore } from '@/stores/security'
 import { buildApiSignHeaders } from '@/utils/apiSign'

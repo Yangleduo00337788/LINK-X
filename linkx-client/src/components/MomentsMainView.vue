@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
  * Web 主壳内嵌友链主视图（Electron 仍走独立窗）。

@@ -1,5 +1,9 @@
 package com.linkx.server.config;
 
+
+/**
+ * 作者：yangleduo
+ */
 /**
  * 内置邮件 HTML 默认模板（占位符：${USERNAME} ${NICKNAME} ${EMAIL} ${CODE} ${EXPIRE_MINUTES} ${YEAR}）。
  * 管理端另提供多套可视化预设，可一键套用后自定义。

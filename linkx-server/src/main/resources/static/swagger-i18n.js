@@ -1,4 +1,7 @@
 /**
+ * 作者：yangleduo
+ */
+/**
  * Swagger UI：中英文切换条 + 常用按钮中文映射。
  * 依赖 Cookie LINKX_LANG / URL ?lang=zh_CN|en（由后端 Locale 拦截器写入）。
  */

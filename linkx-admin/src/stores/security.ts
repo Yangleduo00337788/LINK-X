@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { startAntiDebug, stopAntiDebug } from '@/utils/antiDebug'

@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 /** 去掉行内 Markdown 标记，保留可读文本 */
 function stripMarkdownInline(text: string): string {
   return text

@@ -1,5 +1,9 @@
 package com.linkx.server.common;
 
+
+/**
+ * 作者：yangleduo
+ */
 /**
  * 人机验证码形态：图形字符码 / 滑块拼图。
  */

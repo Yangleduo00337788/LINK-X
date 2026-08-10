@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import type { GlobalThemeOverrides } from 'naive-ui'
 
 const fontFamily = '"PingFang SC", "Microsoft YaHei", "IBM Plex Sans", "Segoe UI", sans-serif'

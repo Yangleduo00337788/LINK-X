@@ -1,4 +1,7 @@
 /**
+ * 作者：yangleduo
+ */
+/**
  * 主题色预设：写入 document CSS 变量，驱动全局 --lx-accent。
  * 幻彩模式会持续轮换色相，并通过 liveAccent* 同步 Naive UI 主色。
  */

@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import type { ApiResult } from '../types/auth'
 import type {
   FriendItem,

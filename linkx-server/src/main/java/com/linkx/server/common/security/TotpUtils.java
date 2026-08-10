@@ -1,5 +1,9 @@
 package com.linkx.server.common.security;
 
+
+/**
+ * 作者：yangleduo
+ */
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.ByteBuffer;

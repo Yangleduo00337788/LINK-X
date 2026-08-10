@@ -1,6 +1,10 @@
 // 视图对象（VO）包：封装返回给前端的响应数据
 package com.linkx.server.controller.vo;
 
+
+/**
+ * 作者：yangleduo
+ */
 // Lombok：支持 Builder 模式链式构建对象
 import lombok.Builder;
 // Lombok：生成 getter/setter

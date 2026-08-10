@@ -1,5 +1,9 @@
 package com.linkx.server.service.admin.impl;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.controller.admin.dto.AdminDeptDTO;
 import com.linkx.server.controller.admin.vo.AdminDeptVO;
 import com.linkx.server.entity.SysDept;

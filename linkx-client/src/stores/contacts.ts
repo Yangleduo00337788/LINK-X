@@ -1,4 +1,7 @@
 /**
+ * 作者：yangleduo
+ */
+/**
  * 通讯录 Store
  * 管理联系人列表、好友搜索，以及与聊天会话的同步
  */
@@ -8,7 +11,6 @@ import type { ContactItem } from '../types'
 import type { FriendItem } from '../types/friend'
 import * as friendApi from '../api/friend'
 import { resolveUserAvatarUrl } from '../utils/defaultAvatar'
-import { normalizeMediaUrl } from '../utils/mediaUrl'
 import { sanitizeContactsPersistState } from '../utils/persistSanitize'
 import { formatFriendDisplayName, friendAvatarText } from '../utils/friendDisplay'
 import { t } from '../i18n'

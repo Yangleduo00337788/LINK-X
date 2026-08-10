@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import type { AppLocale, AppTheme } from '@/i18n'

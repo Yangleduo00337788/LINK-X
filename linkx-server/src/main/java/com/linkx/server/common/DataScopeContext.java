@@ -1,5 +1,9 @@
 package com.linkx.server.common;
 
+
+/**
+ * 作者：yangleduo
+ */
 import java.util.Collections;
 import java.util.Set;
 

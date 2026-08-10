@@ -1,5 +1,9 @@
 package com.linkx.server.im;
 
+
+/**
+ * 作者：yangleduo
+ */
 import io.netty.util.AttributeKey;
 
 public final class ImChannelAttributes {

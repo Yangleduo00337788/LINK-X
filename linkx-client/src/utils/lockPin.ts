@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import { t } from '../i18n'
 
 const LOCK_PIN_KEY = 'lockPinHash'

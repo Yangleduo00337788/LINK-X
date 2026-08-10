@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
  * 运营推荐位轮播：按 slotCode 拉取已发布内容。

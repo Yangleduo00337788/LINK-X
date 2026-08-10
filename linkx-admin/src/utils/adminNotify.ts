@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import type { AdminRealtimeEvent } from '@/api/realtime'
 import type { Composer } from 'vue-i18n'
 import { usePreferencesStore } from '@/stores/preferences'

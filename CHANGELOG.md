@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 # 更新日志
 
 本文件记录 LinkX 各版本的显著变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。

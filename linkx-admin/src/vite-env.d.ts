@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {

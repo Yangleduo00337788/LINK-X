@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 export type NoteTextBlock = { type: 'text'; value: string }
 export type NoteImageBlock = { type: 'image'; alt: string; ref: string }
 export type NoteAttachmentBlock = { type: 'attachment'; label: string; ref: string }

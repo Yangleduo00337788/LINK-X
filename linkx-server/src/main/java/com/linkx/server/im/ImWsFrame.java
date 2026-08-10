@@ -1,5 +1,9 @@
 package com.linkx.server.im;
 
+
+/**
+ * 作者：yangleduo
+ */
 import lombok.Data;
 
 

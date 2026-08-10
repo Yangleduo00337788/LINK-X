@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import { t } from '../i18n'
 import type { ChatMessage } from '../types'
 

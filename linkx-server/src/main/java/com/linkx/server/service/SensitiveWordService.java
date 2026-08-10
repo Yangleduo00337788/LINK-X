@@ -1,5 +1,9 @@
 package com.linkx.server.service;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.entity.SysSensitiveWord;
 import com.linkx.server.mapper.SensitiveWordMapper;

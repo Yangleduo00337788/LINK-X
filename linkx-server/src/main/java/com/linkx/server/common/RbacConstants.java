@@ -1,5 +1,9 @@
 package com.linkx.server.common;
 
+
+/**
+ * 作者：yangleduo
+ */
 /**
  * RBAC 权限体系常量定义。
  * <p>

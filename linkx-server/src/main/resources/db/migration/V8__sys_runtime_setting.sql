@@ -1,3 +1,4 @@
+-- 作者：yangleduo
 -- 可在管理端热更新的运行时配置（覆盖 application.yml 中的 linkx.* 默认值）
 CREATE TABLE IF NOT EXISTS `sys_runtime_setting` (
   `id`               bigint       NOT NULL COMMENT '固定单行，主键恒为 1',

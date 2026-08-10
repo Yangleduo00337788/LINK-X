@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 /** 保存 / 恢复 contenteditable 内的文本光标位置 */
 export function getCaretTextOffset(root: HTMLElement): number {
   const sel = window.getSelection()

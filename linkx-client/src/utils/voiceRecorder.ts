@@ -1,4 +1,7 @@
 /**
+ * 作者：yangleduo
+ */
+/**
  * 聊天语音录制工具：挑选浏览器支持的 MIME，并封装 MediaRecorder 启停。
  */
 

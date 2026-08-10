@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import * as authApi from '@/api/auth'

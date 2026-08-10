@@ -1,5 +1,9 @@
 package com.linkx.server.service.admin;
 
+
+/**
+ * 作者：yangleduo
+ */
 public interface AdminAccessRiskService {
 
     /** 登录前（匿名）评估：IP 失败次数等 */

@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 (function () {
   window.__LEGAL_DOCS__ = window.__LEGAL_DOCS__ || {}
   window.__LEGAL_DOCS__['service.en-US'] = {

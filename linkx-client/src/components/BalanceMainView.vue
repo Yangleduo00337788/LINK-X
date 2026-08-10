@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
  * 余额主视图 — 全宽展示可用余额、汇总、充值与流水。

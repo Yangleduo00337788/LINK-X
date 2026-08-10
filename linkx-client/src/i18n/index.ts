@@ -1,4 +1,7 @@
 /**
+ * 作者：yangleduo
+ */
+/**
  * 轻量 i18n：设置页与主导航等 UI 文案切换。
  * 不引入 vue-i18n 依赖，避免额外打包体积。
  */
@@ -35,7 +38,7 @@ function resolve(path: string, tree: MessageTree): string | undefined {
   return typeof cur === 'string' ? cur : undefined
 }
 
-export function t(key: MessageKey | string, params?: Record<string, string | number>): string {
+export function t(key: MessageKey | string, params?: Record<string, unknown>): string {
   const catalog = catalogs[localeRef.value] || catalogs['zh-CN']
   let text = resolve(key, catalog) ?? resolve(key, catalogs['zh-CN']) ?? key
   if (params) {

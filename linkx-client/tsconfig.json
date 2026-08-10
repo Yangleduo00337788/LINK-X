@@ -16,7 +16,7 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue", "installer/**/*.ts", "installer/**/*.vue", "shared/**/*.ts"],
   "exclude": ["node_modules", "dist", "dist-electron"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

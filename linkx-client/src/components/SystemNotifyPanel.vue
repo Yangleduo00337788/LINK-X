@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
  * 消息页「日程提醒」主面板：与 LinkX 官方统一的卡片式通知流。

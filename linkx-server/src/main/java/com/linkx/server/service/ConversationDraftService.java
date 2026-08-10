@@ -1,5 +1,9 @@
 package com.linkx.server.service;
 
+
+/**
+ * 作者：yangleduo
+ */
 /**
  * 会话草稿（按用户 + 会话维度，Redis 存储）。
  */

@@ -1,3 +1,4 @@
+-- 作者：yangleduo
 -- V68: 仪表盘菜单/权限更名为工作台
 UPDATE `sys_admin_menu`
 SET `title` = '工作台'

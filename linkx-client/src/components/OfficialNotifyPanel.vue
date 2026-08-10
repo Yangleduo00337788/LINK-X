@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
  * 消息页「LinkX官方」：微信团队式服务通知卡片流。

@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 const { contextBridge, ipcRenderer } = require('electron')
 
 const MAX_CHANGED = 'window-maximized-changed'

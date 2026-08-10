@@ -1,9 +1,10 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
  * 群聊语音/视频电话弹窗：UI 对齐单聊 VoiceCallModal / VideoCallModal，
  * 底层仍用 conference（scene=call）做多人 mesh，与会议室完全分开。
  */
-import { ref, watch, computed, nextTick, onUnmounted } from 'vue'
+import { ref, watch, computed, nextTick, onUnmounted, type ComponentPublicInstance } from 'vue'
 import { NIcon, useMessage } from 'naive-ui'
 import { Mic, MicOff, Videocam, VideocamOff, Call } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
@@ -213,7 +214,7 @@ function hasLocalLiveVideo(): boolean {
 }
 
 function bindRemoteAudio(userId: string) {
-  return (el: Element | null) => {
+  return (el: Element | ComponentPublicInstance | null) => {
     if (!(el instanceof HTMLAudioElement)) return
     const stream = remoteStreamOf(userId)
     if (el.srcObject !== stream) el.srcObject = stream
@@ -225,7 +226,7 @@ function bindRemoteAudio(userId: string) {
 }
 
 function bindRemoteVideo(userId: string) {
-  return (el: Element | null) => {
+  return (el: Element | ComponentPublicInstance | null) => {
     if (!(el instanceof HTMLVideoElement)) return
     const stream = remoteStreamOf(userId)
     if (el.srcObject !== stream) el.srcObject = stream
@@ -233,7 +234,7 @@ function bindRemoteVideo(userId: string) {
   }
 }
 
-function bindLocalVideo(el: Element | null) {
+function bindLocalVideo(el: Element | ComponentPublicInstance | null) {
   if (!(el instanceof HTMLVideoElement)) {
     localVideoRef.value = null
     return

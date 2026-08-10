@@ -1,3 +1,4 @@
+-- 作者：yangleduo
 -- 反馈表增加正式回复字段；从 contact 中的 [admin_reply] 标记迁移历史回复
 SET @sql = (SELECT IF(
   (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS

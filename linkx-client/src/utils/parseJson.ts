@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 const LONG_ID_FIELDS = new Set([
   'id',
   'fromUserId',

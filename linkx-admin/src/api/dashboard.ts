@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import { get } from './request'
 import type { TrendData } from './statistics'
 

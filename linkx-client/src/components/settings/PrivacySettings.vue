@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 import { NSwitch } from 'naive-ui'
 import { storeToRefs } from 'pinia'

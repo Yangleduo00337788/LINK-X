@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
  * 文件消息卡片气泡（图三风格：左侧信息 + 右侧类型图标）。

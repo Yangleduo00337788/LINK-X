@@ -1,5 +1,9 @@
 package com.linkx.server.common;
 
+
+/**
+ * 作者：yangleduo
+ */
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 /**

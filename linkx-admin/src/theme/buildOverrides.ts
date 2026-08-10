@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import type { GlobalThemeOverrides } from 'naive-ui'
 import type { AppTheme } from '@/i18n'
 import { hexToRgb, primaryPalette } from './colorUtils'

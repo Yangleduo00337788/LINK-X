@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import type { ComposerTranslation } from 'vue-i18n'
 
 type TFunc = ComposerTranslation | ((key: string) => string)

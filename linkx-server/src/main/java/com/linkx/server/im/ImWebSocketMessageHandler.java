@@ -1,5 +1,9 @@
 package com.linkx.server.im;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.service.PresenceService;

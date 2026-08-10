@@ -1,5 +1,9 @@
 package com.linkx.server.util;
 
+
+/**
+ * 作者：yangleduo
+ */
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.util.StringUtils;
 

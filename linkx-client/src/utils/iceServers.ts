@@ -1,4 +1,7 @@
 /**
+ * 作者：yangleduo
+ */
+/**
  * WebRTC ICE 服务器解析：支持 VITE_ICE_SERVERS JSON，缺省使用公共 STUN（IP，避开 Electron DNS -105）。
  *
  * 同局域网仅靠 host candidate 即可连通；STUN 失败/超时通常可忽略。

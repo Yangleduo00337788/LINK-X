@@ -1,5 +1,9 @@
 package com.linkx.server.im;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.netty.channel.Channel;
 import io.netty.channel.group.ChannelGroup;

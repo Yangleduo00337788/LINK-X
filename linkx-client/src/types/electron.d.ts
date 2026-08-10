@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 // 空 export 使本文件成为模块，避免全局污染
 export {}
 
@@ -104,10 +107,13 @@ declare global {
         url: string
         version?: string
         fileName?: string
+        /** 默认 true：Windows 下静默安装 */
+        silent?: boolean
       }) => Promise<{
         ok: boolean
         path?: string
         launched?: boolean
+        silent?: boolean
         message?: string
       }>
       onUpdateProgress?: (

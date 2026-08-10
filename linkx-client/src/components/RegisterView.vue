@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
  * 独立注册页（Electron 子窗口 / Web 路由）。
@@ -20,6 +21,7 @@ import { useI18n } from '../i18n'
 import WindowCaptionButtons from './WindowCaptionButtons.vue'
 import BrandMarkIcon from './BrandMarkIcon.vue'
 import SliderCaptcha from './SliderCaptcha.vue'
+import { openLegalPageInBrowser } from '../utils/legalPage'
 
 const message = useMessage()
 const router = useRouter()
@@ -48,6 +50,7 @@ const passwordPolicy = ref({
 })
 const configLoaded = ref(false)
 const submitting = ref(false)
+const acceptedTerms = ref(false)
 const emailCodeSending = ref(false)
 const emailCodeCooldown = ref(0)
 let emailCooldownTimer: ReturnType<typeof setInterval> | null = null
@@ -159,6 +162,10 @@ async function sendEmailCode() {
 async function handleRegister() {
   if (!registerEnabled.value) {
     message.warning(t('register.disabled'))
+    return
+  }
+  if (!acceptedTerms.value) {
+    message.warning(t('register.mustAgree'))
     return
   }
   const user = regUser.value.trim()
@@ -398,6 +405,19 @@ onUnmounted(() => {
             </n-button>
           </template>
         </div>
+
+        <label class="agreement-row">
+          <input v-model="acceptedTerms" type="checkbox" class="agreement-row__checkbox" />
+          <span class="agreement-row__text">
+            {{ t('register.agreePrefix') }}
+            <button type="button" class="agreement-link" @click.stop="openLegalPageInBrowser('service')">
+              {{ t('register.serviceAgreement') }}
+            </button>
+            <button type="button" class="agreement-link" @click.stop="openLegalPageInBrowser('privacy')">
+              {{ t('register.privacyPolicy') }}
+            </button>
+          </span>
+        </label>
 
         <button
           type="button"
@@ -781,6 +801,42 @@ onUnmounted(() => {
 .footer-link:hover {
   color: #088fc4;
   text-decoration: none;
+}
+
+.agreement-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 4px;
+  cursor: pointer;
+}
+
+.agreement-row__checkbox {
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  accent-color: var(--lx-login-accent);
+}
+
+.agreement-row__text {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--lx-login-muted);
+}
+
+.agreement-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--lx-login-accent-deep);
+  font: inherit;
+  cursor: pointer;
+}
+
+.agreement-link:hover {
+  color: #088fc4;
+  text-decoration: underline;
 }
 
 @media (prefers-reduced-motion: reduce) {

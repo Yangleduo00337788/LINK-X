@@ -1,4 +1,7 @@
 /**
+ * 作者：yangleduo
+ */
+/**
  * Pinia 持久化插件类型扩展声明
  * 为 defineStore 的 options 增加 persist 配置项的类型支持
  */

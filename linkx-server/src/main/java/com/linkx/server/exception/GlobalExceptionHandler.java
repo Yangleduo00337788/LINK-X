@@ -1,5 +1,9 @@
 package com.linkx.server.exception;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.common.Result;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;

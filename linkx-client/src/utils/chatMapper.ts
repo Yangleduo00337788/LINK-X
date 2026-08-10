@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import type { ChatMessage, ChatSession } from '../types'
 import type { ConversationItem, MessageItem } from '../types/chat'
 import { formatChatTime, formatFileSize } from './chatTime'

@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
  * 自绘 Win11 风格窗控。关闭键右上角圆角与窗口 --lx-window-radius 一致，

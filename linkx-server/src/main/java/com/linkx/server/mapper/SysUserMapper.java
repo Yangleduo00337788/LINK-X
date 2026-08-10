@@ -1,6 +1,10 @@
 // MyBatis Mapper 接口包
 package com.linkx.server.mapper;
 
+
+/**
+ * 作者：yangleduo
+ */
 // 用户实体类
 import com.linkx.server.entity.SysUser;
 // MyBatis-Flex 基础 Mapper，提供 CRUD 及链式查询

@@ -1,3 +1,4 @@
+-- 作者：yangleduo
 -- 客户端 / 管理端验证码形态：image（图形字符）| slider（滑块拼图）
 SET @has_client_captcha_type = (
   SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS

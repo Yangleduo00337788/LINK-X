@@ -1,3 +1,4 @@
+-- 作者：yangleduo
 -- =============================================================================
 -- V29: 修复 ops_admin / audit_admin 的 sys_role_permission 种子
 -- 原因：sys_role_permission.id 无 AUTO_INCREMENT，V28 未显式写 id 导致插入失败

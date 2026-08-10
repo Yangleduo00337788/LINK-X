@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import type { ChatMessage } from '../types'
 import { chatMessagePreviewText } from './messagePreviewText'
 

@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 /** 将笔记文本块 HTML 转回 Markdown（供 contenteditable 同步） */
 export function htmlToNoteMarkdown(html: string): string {
   const trimmed = (html ?? '').trim()

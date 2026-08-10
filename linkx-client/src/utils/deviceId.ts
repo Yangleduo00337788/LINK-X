@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 /** 持久化本机设备 ID，供踢下线与多端同步。 */
 const STORAGE_KEY = 'linkx_device_id'
 

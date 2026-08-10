@@ -1,6 +1,10 @@
 // 实体类包：与数据库表一一对应的 Java 对象
 package com.linkx.server.entity;
 
+
+/**
+ * 作者：yangleduo
+ */
 // MyBatis-Flex 列注解，可配置逻辑删除等
 import com.mybatisflex.annotation.Column;
 // 主键注解

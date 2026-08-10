@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import { useAppSettingsStore } from '../stores/appSettings'
 import { t } from '../i18n'
 

@@ -1,4 +1,7 @@
 /**
+ * 作者：yangleduo
+ */
+/**
  * 应用偏好设置 Store
  * 管理通知、隐私、语言、聊天背景、提示音等用户可配置项
  * <p>
@@ -43,6 +46,7 @@ type SyncableKey =
   | 'notifySocial'
   | 'notifyMoments'
   | 'notifySystem'
+  | 'notifyFriendOnline'
 
 const SYNCABLE_KEYS: SyncableKey[] = [
   'autoStart',
@@ -65,7 +69,8 @@ const SYNCABLE_KEYS: SyncableKey[] = [
   'notifyChat',
   'notifySocial',
   'notifyMoments',
-  'notifySystem'
+  'notifySystem',
+  'notifyFriendOnline'
 ]
 
 // debounce 800ms：避免快速连续点击导致请求风暴

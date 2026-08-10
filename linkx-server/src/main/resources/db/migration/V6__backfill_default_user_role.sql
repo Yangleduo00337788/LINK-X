@@ -1,3 +1,4 @@
+-- 作者：yangleduo
 -- 为尚未绑定任何角色的用户补发默认「普通用户」角色（role_id=1002）
 INSERT INTO `sys_user_role` (`id`, `user_id`, `role_id`, `create_time`, `create_by`, `deleted`)
 SELECT

@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import { get, post, put } from './request'
 
 export interface RegisterSideSetting {

@@ -1,4 +1,7 @@
 /**
+ * 作者：yangleduo
+ */
+/**
  * 多人会议 Store：进出房、本地媒体、mesh WebRTC 远端音视频。
  */
 import { defineStore } from 'pinia'

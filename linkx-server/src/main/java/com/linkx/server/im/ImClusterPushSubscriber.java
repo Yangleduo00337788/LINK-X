@@ -1,5 +1,9 @@
 package com.linkx.server.im;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.service.PresenceService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;

@@ -1,5 +1,9 @@
 package com.linkx.server.service.admin;
 
+
+/**
+ * 作者：yangleduo
+ */
 import java.util.Collection;
 import java.util.List;
 

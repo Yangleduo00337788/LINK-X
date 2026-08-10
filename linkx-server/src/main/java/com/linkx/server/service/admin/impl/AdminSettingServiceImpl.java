@@ -1,5 +1,9 @@
 package com.linkx.server.service.admin.impl;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.common.CaptchaType;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.config.MailSenderHolder;

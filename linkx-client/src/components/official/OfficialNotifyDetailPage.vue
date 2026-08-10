@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
  * LinkX 官方单条通知详情（完整正文）。
@@ -37,7 +38,7 @@ const viewModel = computed(() => {
 })
 
 const typeLabel = computed(() =>
-  notif.value ? officialTypeLabel(notif.value.type, t) : ''
+  notif.value ? officialTypeLabel(t, notif.value.type) : ''
 )
 
 const feedbackStatusLabel = computed(() => {

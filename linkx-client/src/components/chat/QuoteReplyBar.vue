@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
  * 微信风格引用条：灰底圆角，展示「昵称: 内容」。

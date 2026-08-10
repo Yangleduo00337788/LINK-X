@@ -1,5 +1,9 @@
 package com.linkx.server.service;
 
+
+/**
+ * 作者：yangleduo
+ */
 /**
  * 统一密码策略校验（注册 / 改密 / 重置；管理端与客户端共用）。
  */

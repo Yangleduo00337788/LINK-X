@@ -1,5 +1,9 @@
 package com.linkx.server.service;
 
+
+/**
+ * 作者：yangleduo
+ */
 /**
  * MinIO object key 属主登记：上传时 claim，签发/挂载前 assertOwned，防止任意 key 越权访问。
  */

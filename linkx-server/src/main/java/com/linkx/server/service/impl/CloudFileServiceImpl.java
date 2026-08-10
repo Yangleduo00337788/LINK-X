@@ -1,5 +1,9 @@
 package com.linkx.server.service.impl;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.controller.vo.CloudFileVO;
 import com.linkx.server.entity.GroupAsset;
 import com.linkx.server.entity.ImConversation;

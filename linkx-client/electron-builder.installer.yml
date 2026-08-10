@@ -1,0 +1,26 @@
+# 作者：yangleduo
+appId: com.linkx.installer
+productName: LinkX Installer
+extraMetadata:
+  main: dist-installer-electron/main/main.js
+directories:
+  output: release/installer
+  buildResources: build
+files:
+  - dist-installer/**/*
+  - dist-installer-electron/**/*
+  - '!dist-installer-electron/package.json'
+extraResources:
+  - from: .installer-payload
+    to: app-payload
+    filter:
+      - '**/*'
+  - from: build/icon.ico
+    to: icon.ico
+win:
+  target:
+    - portable
+  icon: build/icon.ico
+  sign: null
+  signAndEditExecutable: false
+artifactName: LinkX-Installer-${version}.${ext}

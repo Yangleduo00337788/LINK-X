@@ -1,5 +1,9 @@
 package com.linkx.server.common.admin;
 
+
+/**
+ * 作者：yangleduo
+ */
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

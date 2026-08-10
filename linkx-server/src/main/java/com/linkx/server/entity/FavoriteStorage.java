@@ -1,5 +1,9 @@
 package com.linkx.server.entity;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.mybatisflex.annotation.Column;
 import com.mybatisflex.annotation.Id;
 import com.mybatisflex.annotation.Table;

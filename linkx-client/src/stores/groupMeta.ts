@@ -1,4 +1,7 @@
 /**
+ * 作者：yangleduo
+ */
+/**
  * 群元数据 Store
  * 按 sessionId 管理群公告、精华、成员、备注、群文件与群相册（对接真实后端）
  */
@@ -15,7 +18,6 @@ import {
   MAX_PUBLISH_IMAGE_BYTES
 } from '../utils/file'
 import { resolveUserAvatarUrl } from '../utils/defaultAvatar'
-import { normalizeMediaUrl } from '../utils/mediaUrl'
 import { t } from '../i18n'
 import axios from 'axios'
 

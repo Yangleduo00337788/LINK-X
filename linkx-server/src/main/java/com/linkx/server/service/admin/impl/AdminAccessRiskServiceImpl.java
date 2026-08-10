@@ -1,5 +1,9 @@
 package com.linkx.server.service.admin.impl;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.entity.admin.SysRiskEvent;
 import com.linkx.server.mapper.admin.SysRiskEventMapper;

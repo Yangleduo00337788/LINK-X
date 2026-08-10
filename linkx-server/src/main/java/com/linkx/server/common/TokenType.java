@@ -1,5 +1,9 @@
 package com.linkx.server.common;
 
+
+/**
+ * 作者：yangleduo
+ */
 public enum TokenType {
     ACCESS("access"),
     REFRESH("refresh");

@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
  * LinkX 官方通知详情独立窗口 / 新标签页。

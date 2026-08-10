@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 export const API_ENCRYPT_HEADER = 'X-LinkX-Content-Encrypted'
 export const API_ENCRYPTED_QUERY_HEADER = 'X-LinkX-Encrypted-Query'
 

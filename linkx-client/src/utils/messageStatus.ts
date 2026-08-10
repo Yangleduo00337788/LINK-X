@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import type { ChatMessage } from '../types'
 
 /** 雪花消息 ID 比较（同长度数字字符串） */

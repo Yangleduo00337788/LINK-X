@@ -1,5 +1,9 @@
 package com.linkx.server.config;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.im.PresenceEventSubscriber;
 import com.linkx.server.service.impl.PresenceServiceImpl;
 import org.springframework.context.annotation.Bean;

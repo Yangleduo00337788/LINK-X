@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 /** Full English UI copy */
 export default {
   settings: {
@@ -557,11 +560,12 @@ export default {
     forceUpdateTitle: 'Update required',
     forceUpdateHint: 'This version is no longer supported. Please update to continue.',
     noNotes: 'No release notes',
-    autoInstallHint: 'LinkX will download the installer and launch it automatically.',
-    downloadInstall: 'Download & install',
+    autoInstallHint: 'LinkX will download and install the update in the background, then restart automatically.',
+    silentInstallHint: 'Installing update in the background. The app will quit shortly…',
+    downloadInstall: 'Update now',
     downloading: 'Downloading update…',
-    installing: 'Starting installer…',
-    installStarted: 'Installer launched. The app will quit shortly.',
+    installing: 'Installing update…',
+    installStarted: 'Installing update. The app will quit shortly.',
     downloadReady: 'Installer downloaded. Please run it to finish updating.',
     webDownloadStarted: 'Download started. Run the installer to finish updating.',
     installFail: 'Failed to download or launch the installer',
@@ -857,7 +861,11 @@ export default {
     submit: 'Register',
     success: 'Registered. Please sign in',
     fail: 'Registration failed',
-    backLogin: 'Back to sign-in'
+    backLogin: 'Back to sign-in',
+    agreePrefix: 'I have read and agree to the',
+    serviceAgreement: 'Terms of Service',
+    privacyPolicy: 'Privacy Policy',
+    mustAgree: 'Please read and agree to the Terms of Service and Privacy Policy'
   },
   lock: {
     title: 'LinkX is locked',

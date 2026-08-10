@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
  * 全局统一的置顶图钉图标（倾斜推钉造型）。

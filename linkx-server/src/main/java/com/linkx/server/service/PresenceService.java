@@ -1,5 +1,9 @@
 package com.linkx.server.service;
 
+
+/**
+ * 作者：yangleduo
+ */
 /**
  * 集群级用户在线状态（Redis presence）。
  * <p>

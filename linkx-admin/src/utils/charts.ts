@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import { computed, nextTick, onBeforeUnmount, onMounted, watch, type Ref } from 'vue'
 import * as echarts from 'echarts/core'
 import { BarChart, HeatmapChart, LineChart, PieChart } from 'echarts/charts'

@@ -1,5 +1,9 @@
 package com.linkx.server.service.impl;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.entity.ImMessageStormEvent;
 import com.linkx.server.entity.SysAuditLog;
 import com.linkx.server.exception.CustomException;

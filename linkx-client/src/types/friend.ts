@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 export interface UserSearchResult {
   id: string
   userId: string | number

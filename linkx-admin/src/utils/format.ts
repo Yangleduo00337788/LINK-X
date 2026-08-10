@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import dayjs from 'dayjs'
 import { tGlobal } from '@/i18n'
 

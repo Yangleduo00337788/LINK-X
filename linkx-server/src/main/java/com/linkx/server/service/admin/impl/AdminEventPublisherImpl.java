@@ -1,5 +1,9 @@
 package com.linkx.server.service.admin.impl;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.service.admin.AdminEventPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

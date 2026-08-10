@@ -1,4 +1,7 @@
 /**
+ * 作者：yangleduo
+ */
+/**
  * 复制文本到剪贴板：优先 Electron 原生 API，其次 Clipboard API，最后 textarea 兜底。
  * 不因权限失败抛错，返回是否复制成功。
  */

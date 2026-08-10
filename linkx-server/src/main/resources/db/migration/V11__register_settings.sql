@@ -1,3 +1,4 @@
+-- 作者：yangleduo
 -- 注册配置：客户端开放注册、忘记密码邮箱验证
 SET @has_register = (
   SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS

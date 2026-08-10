@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import { del, get, post } from './request'
 
 export type RateLimitHit = {

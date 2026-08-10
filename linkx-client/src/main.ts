@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 // 从 Vue 3 导入应用工厂函数
 import { createApp } from 'vue'
 // 导入 Pinia 状态管理库

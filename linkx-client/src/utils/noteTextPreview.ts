@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import { renderNoteMarkdown } from './noteMarkdown'
 
 /** 将笔记文本块 Markdown 渲染为编辑器 HTML，并启用可交互待办 */

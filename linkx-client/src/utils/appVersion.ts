@@ -1,4 +1,7 @@
 /**
+ * 作者：yangleduo
+ */
+/**
  * LinkX 客户端构建版本号与发布渠道。
  * 用于"检查更新"接口的 current / channel 参数；服务端比对后返回 hasUpdate / forceUpdate。
  * <p>

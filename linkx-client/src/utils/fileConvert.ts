@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 /** 将 DataURL 转为 File，用于截图/粘贴图片上传 */
 export function dataUrlToFile(dataUrl: string, fileName = 'image.png'): File {
   const [header, base64] = dataUrl.split(',')

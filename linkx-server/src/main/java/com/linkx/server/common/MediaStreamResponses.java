@@ -1,5 +1,9 @@
 package com.linkx.server.common;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.service.FileStorageService.StoredObject;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;

@@ -1,4 +1,7 @@
 /**
+ * 作者：yangleduo
+ */
+/**
  * 收藏 API（独立 /favorites，与笔记拆分）
  */
 

@@ -1,4 +1,7 @@
 /**
+ * 作者：yangleduo
+ */
+/**
  * 音视频通话 Store：信令状态 + WebRTC PeerConnection
  */
 

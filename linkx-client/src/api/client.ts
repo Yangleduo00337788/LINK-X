@@ -1,4 +1,7 @@
-import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios'
+/**
+ * 作者：yangleduo
+ */
+import axios, { type AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 import type { ApiResult, TokenData } from '../types/auth'
 import { parseJsonPreservingIds } from '../utils/parseJson'
 import { clearTokens, getRefreshToken, getToken, isWebEnvironment, saveTokenPair } from '../utils/tokenStorage'
@@ -143,7 +146,7 @@ apiClient.interceptors.request.use(async config => {
 })
 
 apiClient.interceptors.response.use(
-  response => response.data as ApiResult<unknown>,
+  (response => response.data) as (value: AxiosResponse) => AxiosResponse,
   async (error: AxiosError<ApiResult<unknown>>) => {
     const config = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
     if (isUnauthorized(error) && config && !config._retry) {

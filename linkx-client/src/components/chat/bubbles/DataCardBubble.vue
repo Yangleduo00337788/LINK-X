@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
  * 数据卡片消息气泡（如套餐/流量卡样式）。

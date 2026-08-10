@@ -1,6 +1,10 @@
 // MyBatis Mapper 接口包
 package com.linkx.server.mapper;
 
+
+/**
+ * 作者：yangleduo
+ */
 // 好友关系实体
 import com.linkx.server.entity.SysUserRelation;
 // MyBatis-Flex 通用 Mapper 父接口

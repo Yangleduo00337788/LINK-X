@@ -1,5 +1,9 @@
 package com.linkx.server.service;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.controller.dto.ConferenceCreateDTO;
 import com.linkx.server.controller.dto.ConferenceSignalDTO;
 import com.linkx.server.controller.vo.ConferenceInfoVO;

@@ -1,5 +1,9 @@
 package com.linkx.server.task.snailjob;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.aizuda.snailjob.client.job.core.enums.TriggerTypeEnum;
 
 /**

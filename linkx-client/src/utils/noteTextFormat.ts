@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 export type FormatMutation = {
   value: string
   cursor: number

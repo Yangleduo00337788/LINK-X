@@ -1,4 +1,7 @@
 /**
+ * 作者：yangleduo
+ */
+/**
  * 内置提示音合成（Web Audio API）
  * <p>
  * 不依赖任何外部音频文件：用 OscillatorNode 实时合成 4 种不同音色的提示音，

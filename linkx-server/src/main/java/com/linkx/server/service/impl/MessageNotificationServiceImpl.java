@@ -1,5 +1,9 @@
 package com.linkx.server.service.impl;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.controller.vo.MessageNotificationVO;
 import com.linkx.server.entity.MessageNotification;
 import com.linkx.server.entity.SysUser;

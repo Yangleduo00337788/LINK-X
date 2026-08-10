@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 export type AppearancePreset = 'mixed' | 'light' | 'dark'
 export type LayoutMode = 'side' | 'top' | 'mix'
 export type FormContainerStyle = 'drawer' | 'modal'

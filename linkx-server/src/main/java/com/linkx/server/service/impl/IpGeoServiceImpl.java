@@ -1,5 +1,9 @@
 package com.linkx.server.service.impl;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.service.IpGeoService;
 import jakarta.annotation.PostConstruct;

@@ -3,6 +3,7 @@
   "description": "LinkX — 企业级即时通讯与协同平台桌面客户端",
   "private": true,
   "version": "1.0.0",
+  "author": "yangleduo",
   "type": "module",
   "main": "dist-electron/main/main.js",
   "scripts": {
@@ -10,7 +11,11 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "electron:dev": "node ./scripts/run-electron-dev.mjs",
-    "electron:build": "vue-tsc --noEmit && vite build --mode electron && electron-builder",
+    "installer:assets": "node ./scripts/generate-installer-assets.mjs",
+    "electron:build": "node ./scripts/electron-build.mjs",
+    "installer:build": "node ./scripts/installer-build.mjs",
+    "clean:release": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/clean-release.ps1",
+    "installer:dev": "node ./scripts/run-installer-dev.mjs",
     "electron:preview": "electron dist-electron/main/main.js",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
@@ -34,6 +39,8 @@
     "electron-builder": "^24.13.3",
     "marked": "^18.0.5",
     "prettier": "^3.6.2",
+    "rcedit": "^5.0.1",
+    "sharp": "^0.33.5",
     "typescript": "^5.4.5",
     "unocss": "^0.59.4",
     "vite": "^5.4.12",
@@ -54,8 +61,12 @@
       "dist-electron/**/*"
     ],
     "win": {
-      "target": "nsis"
+      "target": "dir",
+      "icon": "build/icon.ico",
+      "sign": null,
+      "signAndEditExecutable": false
     },
+    "afterPack": "./scripts/after-pack.mjs",
     "mac": {
       "target": "dmg"
     },

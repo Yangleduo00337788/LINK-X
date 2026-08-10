@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import axios from 'axios'
 import type { ApiResult } from '@/types/api'
 import type { AuthConfigVO } from '@/types/api'

@@ -1,4 +1,7 @@
 /**
+ * 作者：yangleduo
+ */
+/**
  * 通话弱网 / ICE 重连策略（纯函数，便于单测模拟）。
  * 真实 RTCPeerConnection 行为由 call store 调用本模块决策后执行。
  */

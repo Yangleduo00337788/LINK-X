@@ -1,4 +1,7 @@
 /**
+ * 作者：yangleduo
+ */
+/**
  * 全站中文文案（设置 + 登录/壳层/聊天/联系人/收藏/文件/日历/友链/锁屏 等）
  */
 export default {
@@ -559,11 +562,12 @@ export default {
     forceUpdateTitle: '必须更新',
     forceUpdateHint: '当前版本已不再支持，请立即更新后继续使用。',
     noNotes: '暂无更新说明',
-    autoInstallHint: '确认后将自动下载安装包并启动安装程序。',
-    downloadInstall: '下载并安装',
+    autoInstallHint: '确认后将自动下载并在后台完成安装，完成后将自动启动 LinkX。',
+    silentInstallHint: '正在后台安装更新，应用即将退出…',
+    downloadInstall: '立即更新',
     downloading: '正在下载更新…',
-    installing: '正在启动安装程序…',
-    installStarted: '安装程序已启动，应用即将退出',
+    installing: '正在安装更新…',
+    installStarted: '正在安装更新，应用即将退出',
     downloadReady: '安装包已下载，请手动运行完成升级',
     webDownloadStarted: '已开始下载，请运行安装包完成升级',
     installFail: '下载或启动安装失败',
@@ -859,7 +863,11 @@ export default {
     submit: '注册',
     success: '注册成功，请登录',
     fail: '注册失败',
-    backLogin: '返回登录'
+    backLogin: '返回登录',
+    agreePrefix: '阅读并同意',
+    serviceAgreement: '用户协议',
+    privacyPolicy: '隐私条款',
+    mustAgree: '请先阅读并同意用户协议和隐私条款'
   },
   lock: {
     title: 'LinkX 已锁定',

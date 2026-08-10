@@ -1,3 +1,6 @@
+/**
+ * 作者：yangleduo
+ */
 import { t } from '../i18n'
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9_]+$/

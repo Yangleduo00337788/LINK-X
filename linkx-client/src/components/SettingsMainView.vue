@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
  * 设置页右侧主内容：按分类切换卡片内容，并统一订阅偏好保存 toast。

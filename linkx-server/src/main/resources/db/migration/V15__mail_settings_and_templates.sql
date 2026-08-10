@@ -1,3 +1,4 @@
+-- 作者：yangleduo
 -- 邮件 SMTP 配置与邮件模板（覆盖 env/yml，管理端可运行时修改）
 SET @has_mail_host = (
   SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS

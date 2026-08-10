@@ -1,3 +1,4 @@
+<!-- 作者：yangleduo -->
 <script setup lang="ts">
 import { ref } from 'vue'
 import { NButton, useDialog, useMessage } from 'naive-ui'
@@ -23,8 +24,7 @@ function openPrivacyPolicy() {
 }
 
 /**
- * 发现新版本后自动下载并拉起安装。
- * Electron：主进程下载到临时目录后 openPath；Web：打开下载链接。
+ * 发现新版本后静默下载并安装（Windows 下 /S），安装完成后由 NSIS 自动启动 LinkX。
  */
 async function startDownloadAndInstall(info: {
   version: string
@@ -41,28 +41,30 @@ async function startDownloadAndInstall(info: {
   progressText.value = t('about.downloading')
 
   const unsub = window.electronAPI?.onUpdateProgress?.(data => {
-    if (data.phase === 'installing') {
-      progressText.value = t('about.installing')
-    } else {
-      progressText.value = t('about.downloading')
-    }
+    progressText.value =
+      data.phase === 'installing' ? t('about.installing') : t('about.downloading')
   })
 
   try {
     if (window.electronAPI?.downloadAndInstallUpdate) {
       const result = await window.electronAPI.downloadAndInstallUpdate({
         url,
-        version: info.version
+        version: info.version,
+        silent: true
       })
       if (!result.ok) {
         message.error(result.message || t('about.installFail'))
         return
       }
-      if (result.launched) {
-        message.success(t('about.installStarted'))
-      } else {
-        message.success(result.message || t('about.downloadReady'))
+      if (result.launched && result.silent) {
+        progressText.value = t('about.silentInstallHint')
+        return
       }
+      if (result.launched) {
+        progressText.value = t('about.installStarted')
+        return
+      }
+      message.info(result.message || t('about.downloadReady'))
       return
     }
 
@@ -80,8 +82,10 @@ async function startDownloadAndInstall(info: {
     message.error(t('about.installFail'))
   } finally {
     unsub?.()
-    updating.value = false
-    progressText.value = ''
+    if (!window.electronAPI?.downloadAndInstallUpdate) {
+      updating.value = false
+      progressText.value = ''
+    }
   }
 }
 

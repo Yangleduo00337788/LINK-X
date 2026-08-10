@@ -1,3 +1,4 @@
+-- 作者：yangleduo
 -- 登录配置：客户端/管理端独立的最大重试与锁定时长；用户临时封禁截止时间
 SET @has_client_max = (
   SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS

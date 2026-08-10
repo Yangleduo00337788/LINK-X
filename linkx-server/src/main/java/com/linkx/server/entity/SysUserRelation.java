@@ -1,6 +1,10 @@
 // 实体类包
 package com.linkx.server.entity;
 
+
+/**
+ * 作者：yangleduo
+ */
 // MyBatis-Flex 列配置注解
 import com.mybatisflex.annotation.Column;
 // 主键注解

@@ -4,6 +4,10 @@ dist-electron/
 target/
 coverage/
 release/
+release-build/
+.installer-payload/
+dist-installer/
+dist-installer-electron/
 # 本地/生产 env（任意目录下同名文件均忽略）
 .env.local
 .env.prod

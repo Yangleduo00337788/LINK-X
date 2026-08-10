@@ -1,5 +1,9 @@
 package com.linkx.server.common;
 
+
+/**
+ * 作者：yangleduo
+ */
 import com.linkx.server.exception.CustomException;
 
 import javax.net.ssl.HttpsURLConnection;

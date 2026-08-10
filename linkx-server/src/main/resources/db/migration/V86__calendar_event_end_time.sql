@@ -1,3 +1,4 @@
+-- 作者：yangleduo
 SET @end_time_exists := (
   SELECT COUNT(*)
   FROM information_schema.COLUMNS
