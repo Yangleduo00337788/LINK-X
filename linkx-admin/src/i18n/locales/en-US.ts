@@ -434,7 +434,7 @@ export default {
     welcomeTitle: 'Welcome to LinkX Admin',
     welcomeHint: 'Please enter your account credentials',
     copyright: '© 2026 LinkX. All rights reserved.',
-    icp: 'ICP 20260001-1',
+    icp: 'Copyright © Yakult Co., Ltd. All rights reserved.',
     rememberMe: 'Remember me',
     forgotPassword: 'Forgot password?',
     orLoginWith: 'Or sign in with',

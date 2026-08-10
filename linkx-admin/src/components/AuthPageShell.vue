@@ -196,9 +196,9 @@ withDefaults(
 }
 
 .auth-page--login .auth-prefs :deep(.n-button--primary-type) {
-  --n-color: #1677ff !important;
-  --n-color-hover: #4096ff !important;
-  --n-color-pressed: #0958d9 !important;
+  --n-color: var(--lx-oa-blue) !important;
+  --n-color-hover: var(--lx-accent-hover) !important;
+  --n-color-pressed: var(--lx-accent-pressed) !important;
   --n-text-color: #fff !important;
 }
 

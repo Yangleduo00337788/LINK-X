@@ -24,10 +24,9 @@ import { useAuthStore } from '@/stores/auth'
 import { useSecurityStore } from '@/stores/security'
 import PrefSwitcher from '@/components/PrefSwitcher.vue'
 import SliderCaptcha from '@/components/SliderCaptcha.vue'
-import AuthParticleBackground from '@/components/AuthParticleBackground.vue'
 import { unlockSpeech } from '@/utils/voiceNotify'
-import linkxLogoMark from '@linkx-client/assets/logo-mark-transparent.png'
-import loginHeroArt from '@/assets/login-hero-3d-lx.png'
+import logoLinkx from '@/assets/logo-linkx.png'
+import loginHeroRobot from '@/assets/login-hero-robot.png'
 
 const auth = useAuthStore()
 const securityStore = useSecurityStore()
@@ -354,38 +353,32 @@ onUnmounted(() => {
 
 <template>
   <div class="login-page">
-    <div class="login-page__bg" aria-hidden="true">
-      <span class="login-page__blob login-page__blob--purple" />
-      <span class="login-page__blob login-page__blob--yellow" />
-      <span class="login-page__blob login-page__blob--pink" />
-      <span class="login-page__dots" />
-      <span class="login-page__arc login-page__arc--left" />
-      <span class="login-page__arc login-page__arc--right" />
-      <AuthParticleBackground palette="colorful" always-animate />
-    </div>
-
     <div class="login-page__prefs">
       <PrefSwitcher />
     </div>
 
-    <main class="login-layout lx-appear-in">
-      <aside class="login-hero">
-        <div class="login-hero__brand">
-          <div class="login-hero__title-row">
-            <span class="login-hero__mark-wrap">
-              <img class="login-hero__mark" :src="linkxLogoMark" alt="LinkX" draggable="false" />
-            </span>
-            <span class="login-hero__name">LinkX</span>
+    <main class="login-split lx-appear-in">
+      <aside class="login-visual">
+        <div class="login-visual__glow" aria-hidden="true" />
+        <div class="login-visual__brand">
+          <div class="login-visual__logo-wrap">
+            <img class="login-visual__logo" :src="logoLinkx" alt="LinkX" draggable="false" />
           </div>
-          <p class="login-hero__slogan">{{ t('login.heroSlogan') }}</p>
-          <p class="login-hero__tagline">{{ t('login.heroTagline') }}</p>
+          <p class="login-visual__slogan">{{ t('login.heroSlogan') }}</p>
+          <p class="login-visual__tagline">{{ t('login.heroTagline') }}</p>
         </div>
-        <div class="login-hero__art-wrap" aria-hidden="true">
-          <img class="login-hero__art" :src="loginHeroArt" alt="" draggable="false" />
+        <div class="login-visual__arts" aria-hidden="true">
+          <img
+            class="login-visual__art"
+            :src="loginHeroRobot"
+            alt=""
+            draggable="false"
+          />
         </div>
       </aside>
 
-      <section class="login-card">
+      <section class="login-panel">
+        <div class="login-card">
         <div class="login-card__inner">
           <header v-if="step === 'password'" class="login-card__head">
             <h1 class="login-card__title">{{ t('login.welcomeTitle') }}</h1>
@@ -495,6 +488,7 @@ onUnmounted(() => {
             <p>{{ t('login.icp') }}</p>
           </footer>
         </div>
+        </div>
       </section>
     </main>
 
@@ -507,7 +501,26 @@ onUnmounted(() => {
         >
           <div class="login-captcha-modal__card" role="dialog" aria-modal="true">
             <header class="login-captcha-modal__head">
-              <h3 class="login-captcha-modal__title">{{ t('login.captchaModalTitle') }}</h3>
+              <div class="login-captcha-modal__title-wrap">
+                <span class="login-captcha-modal__badge" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+                    <path
+                      d="M12 3L4 7v5c0 4.42 3.58 8 8 8s8-3.58 8-8V7l-8-4Z"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                      stroke-linejoin="round"
+                    />
+                    <path
+                      d="M9 12l2 2 4-4"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </span>
+                <h3 class="login-captcha-modal__title">{{ t('login.captchaModalTitle') }}</h3>
+              </div>
               <button
                 type="button"
                 class="login-captcha-modal__close"
@@ -559,7 +572,7 @@ onUnmounted(() => {
               </NSpin>
             </div>
 
-            <footer class="login-captcha-modal__foot">
+            <footer v-if="captchaType !== 'slider'" class="login-captcha-modal__foot">
               <button
                 type="button"
                 class="login-captcha-modal__link"
@@ -580,308 +593,161 @@ onUnmounted(() => {
 .login-page {
   position: relative;
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: center;
-  padding: 16px clamp(48px, 6vw, 96px) 24px;
   overflow: hidden;
   box-sizing: border-box;
+  background: #fff;
 }
 
-/* ── 装饰背景 ── */
-.login-page__bg {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.login-page__blob {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(60px);
-}
-
-.login-page__blob--purple {
-  top: -8%;
-  left: -6%;
-  width: 38%;
-  height: 42%;
-  background: rgba(167, 139, 250, 0.45);
-}
-
-.login-page__blob--yellow {
-  top: 4%;
-  right: -4%;
-  width: 28%;
-  height: 32%;
-  background: rgba(253, 224, 71, 0.5);
-}
-
-.login-page__blob--pink {
-  bottom: -6%;
-  right: 8%;
-  width: 32%;
-  height: 36%;
-  background: rgba(251, 146, 160, 0.35);
-}
-
-.login-page__dots {
-  position: absolute;
-  inset: 0;
-  opacity: 0.22;
-  z-index: 0;
-  background-image:
-    radial-gradient(circle, #a78bfa 1px, transparent 1px),
-    radial-gradient(circle, #fbbf24 1px, transparent 1px),
-    radial-gradient(circle, #60a5fa 1px, transparent 1px),
-    radial-gradient(circle, #f472b6 1px, transparent 1px);
-  background-size: 120px 120px, 180px 180px, 150px 150px, 200px 200px;
-  background-position: 0 0, 40px 60px, 80px 20px, 120px 100px;
-}
-
-.login-page__arc {
-  position: absolute;
-  border: 2px solid rgba(255, 255, 255, 0.55);
-  border-radius: 50%;
-}
-
-.login-page__arc--left {
-  top: 18%;
-  left: 6%;
-  width: 180px;
-  height: 180px;
-  border-color: rgba(255, 255, 255, 0.35);
-}
-
-.login-page__arc--right {
-  bottom: 22%;
-  right: 10%;
-  width: 120px;
-  height: 120px;
-}
-
-/* ── 右上角偏好切换 ── */
 .login-page__prefs {
   position: absolute;
   top: 20px;
-  right: 20px;
+  right: 24px;
   z-index: 5;
 }
 
 .login-page__prefs :deep(.n-button--primary-type) {
-  background-color: #1677ff !important;
-  border-color: #1677ff !important;
+  background-color: var(--lx-oa-blue) !important;
+  border-color: var(--lx-oa-blue) !important;
   color: #fff !important;
-  --n-color: #1677ff !important;
-  --n-color-hover: #4096ff !important;
-  --n-color-pressed: #0958d9 !important;
+  --n-color: var(--lx-oa-blue) !important;
+  --n-color-hover: var(--lx-accent-hover) !important;
+  --n-color-pressed: var(--lx-accent-pressed) !important;
   --n-text-color: #fff !important;
 }
 
 .login-page__prefs :deep(.n-button--primary-type:not(.n-button--disabled):hover) {
-  background-color: #4096ff !important;
-  border-color: #4096ff !important;
+  background-color: var(--lx-accent-hover) !important;
+  border-color: var(--lx-accent-hover) !important;
 }
 
-/* ── 主布局：左品牌 + 右独立卡片 ── */
-.login-layout {
-  position: relative;
-  z-index: 2;
+/* ── 左右分栏（参考 Snowy 登录页） ── */
+.login-split {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
-  align-items: center;
-  gap: 20px clamp(24px, 4vw, 56px);
-  width: 100%;
-  max-width: 1080px;
-  min-height: auto;
-  margin: 0 auto;
+  grid-template-columns: minmax(0, 1.05fr) minmax(380px, 0.95fr);
+  min-height: 100vh;
 }
 
-/* ── 左侧品牌 + 插图 ── */
-.login-hero {
+/* ── 左侧品牌视觉区 ── */
+.login-visual {
   position: relative;
-  min-height: auto;
-  padding: 0;
-  overflow: hidden;
-  isolation: isolate;
-  align-self: center;
-  transform: translateY(-8px);
-}
-
-.login-hero__brand {
-  position: relative;
-  z-index: 2;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  --hero-align: 12px;
-  padding-left: var(--hero-align);
-}
-
-.login-hero__title-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.login-hero__mark-wrap {
-  flex-shrink: 0;
-  width: 52px;
-  height: 76px;
-  margin-left: calc(-1 * var(--hero-align));
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
+  min-height: 100vh;
+  padding: clamp(32px, 5vh, 56px) clamp(28px, 4vw, 56px) 0;
+  box-sizing: border-box;
   overflow: hidden;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 10%, rgba(var(--lx-primary-rgb), 0.45) 0%, transparent 62%),
+    radial-gradient(ellipse 70% 55% at 85% 85%, rgba(var(--lx-primary-rgb), 0.28) 0%, transparent 58%),
+    linear-gradient(
+      145deg,
+      var(--lx-oa-blue) 0%,
+      var(--lx-accent-pressed) 52%,
+      color-mix(in srgb, var(--lx-accent-pressed) 75%, #000) 100%
+    );
 }
 
-.login-hero__mark {
-  width: 80px;
-  height: 80px;
-  margin: 0 -12px 0 0;
-  object-fit: contain;
-  flex-shrink: 0;
+.login-visual__glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.14) 1px, transparent 1px);
+  background-size: 24px 24px;
+  opacity: 0.35;
 }
 
-.login-hero__name {
+.login-visual__brand {
+  position: relative;
+  z-index: 2;
+  max-width: 520px;
+}
+
+.login-visual__logo-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 18px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.2);
+  max-width: 100%;
+}
+
+.login-visual__logo {
   display: block;
-  font-size: 36px;
-  font-weight: 800;
-  color: #1f2937;
-  letter-spacing: -0.02em;
-  line-height: 1;
+  width: min(100%, 420px);
+  height: auto;
+  max-height: clamp(96px, 12vh, 116px);
+  object-fit: contain;
+  object-position: left center;
 }
 
-.login-hero__slogan {
-  margin: 6px 0 0;
+.login-visual__slogan {
+  margin: 24px 0 0;
   padding: 0;
-  font-size: 24px;
+  font-size: clamp(22px, 2.4vw, 30px);
   font-weight: 700;
-  color: #1f2937;
+  color: #fff;
   line-height: 1.35;
+  letter-spacing: 0.01em;
 }
 
-.login-hero__tagline {
-  margin: 6px 0 0;
+.login-visual__tagline {
+  margin: 10px 0 0;
   padding: 0;
   font-size: 15px;
-  color: #8c8c8c;
-  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.82);
+  line-height: 1.65;
+  max-width: 420px;
 }
 
-.login-hero__art-wrap {
-  position: relative;
-  width: 122%;
-  margin: 0 0 0 -12%;
-  height: clamp(360px, 50vh, 480px);
-  pointer-events: none;
-  -webkit-mask-image:
-    radial-gradient(
-      ellipse 112% 108% at 38% 48%,
-      #000 0%,
-      #000 46%,
-      rgba(0, 0, 0, 0.96) 62%,
-      rgba(0, 0, 0, 0.72) 76%,
-      rgba(0, 0, 0, 0.28) 90%,
-      transparent 98%
-    ),
-    linear-gradient(
-      to right,
-      transparent 0%,
-      #000 5%,
-      #000 95%,
-      transparent 100%
-    ),
-    linear-gradient(
-      to top,
-      transparent 0%,
-      #000 4%,
-      #000 92%,
-      transparent 100%
-    );
-  -webkit-mask-composite: source-in, source-in;
-  mask-image:
-    radial-gradient(
-      ellipse 112% 108% at 38% 48%,
-      #000 0%,
-      #000 46%,
-      rgba(0, 0, 0, 0.96) 62%,
-      rgba(0, 0, 0, 0.72) 76%,
-      rgba(0, 0, 0, 0.28) 90%,
-      transparent 98%
-    ),
-    linear-gradient(
-      to right,
-      transparent 0%,
-      #000 5%,
-      #000 95%,
-      transparent 100%
-    ),
-    linear-gradient(
-      to top,
-      transparent 0%,
-      #000 4%,
-      #000 92%,
-      transparent 100%
-    );
-  mask-composite: intersect, intersect;
-}
-
-.login-hero__art-wrap::after {
-  content: '';
+.login-visual__arts {
   position: absolute;
   inset: 0;
   z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(168px, 26vh, 220px) clamp(20px, 4vw, 48px) clamp(20px, 3vh, 36px);
+  box-sizing: border-box;
   pointer-events: none;
-  background:
-    linear-gradient(
-      to right,
-      rgba(232, 237, 248, 0.72) 0%,
-      rgba(238, 242, 251, 0.28) 5%,
-      transparent 12%
-    ),
-    linear-gradient(
-      to top,
-      rgba(238, 242, 251, 0.72) 0%,
-      rgba(240, 244, 252, 0.28) 5%,
-      transparent 11%
-    );
 }
 
-.login-hero__art {
+.login-visual__art {
   display: block;
-  width: 124%;
-  height: 124%;
+  width: min(100%, 560px);
+  height: auto;
+  max-height: 100%;
   object-fit: contain;
-  object-position: 8% 94%;
-  transform: translateY(1%);
+  object-position: center center;
   user-select: none;
-  mix-blend-mode: multiply;
 }
 
-/* ── 右侧登录卡片 ── */
+/* ── 右侧登录区 ── */
+.login-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px clamp(24px, 4vw, 64px);
+  background: #fff;
+  box-sizing: border-box;
+}
+
 .login-card {
   width: 100%;
-  max-width: 360px;
-  justify-self: start;
-  margin-left: 0;
-  background: #fff;
-  border-radius: 16px;
-  box-shadow:
-    0 20px 60px rgba(15, 23, 42, 0.1),
-    0 0 0 1px rgba(255, 255, 255, 0.85) inset;
-  min-height: 580px;
+  max-width: 400px;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  min-height: auto;
 }
 
 .login-card__inner {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  min-height: 580px;
-  padding: 36px 32px 24px;
+  min-height: auto;
+  padding: 0;
   box-sizing: border-box;
 }
 
@@ -924,9 +790,9 @@ onUnmounted(() => {
 }
 
 .login-card__form :deep(.n-input--focus) {
-  --n-border: 1px solid #1677ff;
-  --n-border-hover: 1px solid #1677ff;
-  --n-box-shadow-focus: 0 0 0 2px rgba(22, 119, 255, 0.15);
+  --n-border: 1px solid var(--lx-oa-blue);
+  --n-border-hover: 1px solid var(--lx-oa-blue);
+  --n-box-shadow-focus: 0 0 0 2px var(--lx-accent-hover-bg);
 }
 
 .login-field-icon {
@@ -950,12 +816,12 @@ onUnmounted(() => {
   background: transparent;
   padding: 0;
   font-size: 13px;
-  color: #1677ff;
+  color: var(--lx-oa-blue);
   cursor: pointer;
 }
 
 .login-card__link:hover {
-  color: #4096ff;
+  color: var(--lx-accent-hover);
 }
 
 .login-card__submit {
@@ -966,20 +832,20 @@ onUnmounted(() => {
 }
 
 .login-page :deep(.login-card__submit.n-button) {
-  background-color: #1677ff !important;
-  border-color: #1677ff !important;
+  background-color: var(--lx-oa-blue) !important;
+  border-color: var(--lx-oa-blue) !important;
   color: #ffffff !important;
   --n-text-color: #ffffff !important;
 }
 
 .login-page :deep(.login-card__submit.n-button:not(.n-button--disabled):hover) {
-  background-color: #4096ff !important;
-  border-color: #4096ff !important;
+  background-color: var(--lx-accent-hover) !important;
+  border-color: var(--lx-accent-hover) !important;
 }
 
 .login-page :deep(.login-card__submit.n-button:not(.n-button--disabled):active) {
-  background-color: #0958d9 !important;
-  border-color: #0958d9 !important;
+  background-color: var(--lx-accent-pressed) !important;
+  border-color: var(--lx-accent-pressed) !important;
 }
 
 .login-card__sso {
@@ -1013,7 +879,7 @@ onUnmounted(() => {
   border: 1px solid #f0f0f0;
   border-radius: 8px;
   background: #fff;
-  color: #1677ff;
+  color: var(--lx-oa-blue);
   font-size: 14px;
   cursor: pointer;
   transition: border-color 0.2s, background 0.2s;
@@ -1096,102 +962,37 @@ onUnmounted(() => {
 }
 
 /* ── 主题 ── */
-[data-theme='light'] .login-page {
-  background: linear-gradient(160deg, #e8edf8 0%, #eef2fb 50%, #f0f4fc 100%);
+[data-theme='dark'] .login-page {
+  background: #0f172a;
 }
 
-[data-theme='dark'] .login-page {
-  background: linear-gradient(160deg, #0b1220 0%, #111827 50%, #0f172a 100%);
+[data-theme='dark'] .login-panel {
+  background: #0f172a;
 }
 
 [data-theme='dark'] .login-card {
-  background: rgba(30, 41, 59, 0.96);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  background: transparent;
+  box-shadow: none;
 }
 
-[data-theme='dark'] .login-hero__name,
-[data-theme='dark'] .login-hero__slogan,
 [data-theme='dark'] .login-card__title {
   color: #e5eaf3;
 }
 
-[data-theme='dark'] .login-hero__tagline,
 [data-theme='dark'] .login-card__hint,
 [data-theme='dark'] .login-card__foot {
   color: #8b95a5;
 }
 
-[data-theme='dark'] .login-hero__art {
-  mix-blend-mode: normal;
-  opacity: 0.94;
-}
-
-[data-theme='dark'] .login-hero__art-wrap {
-  -webkit-mask-image:
-    radial-gradient(
-      ellipse 112% 108% at 38% 48%,
-      #000 0%,
-      #000 42%,
-      rgba(0, 0, 0, 0.94) 60%,
-      rgba(0, 0, 0, 0.68) 76%,
-      rgba(0, 0, 0, 0.22) 90%,
-      transparent 98%
-    ),
-    linear-gradient(
-      to right,
-      transparent 0%,
-      #000 5%,
-      #000 95%,
-      transparent 100%
-    ),
-    linear-gradient(
-      to top,
-      transparent 0%,
-      #000 4%,
-      #000 92%,
-      transparent 100%
-    );
-  -webkit-mask-composite: source-in, source-in;
-  mask-image:
-    radial-gradient(
-      ellipse 112% 108% at 38% 48%,
-      #000 0%,
-      #000 42%,
-      rgba(0, 0, 0, 0.94) 60%,
-      rgba(0, 0, 0, 0.68) 76%,
-      rgba(0, 0, 0, 0.22) 90%,
-      transparent 98%
-    ),
-    linear-gradient(
-      to right,
-      transparent 0%,
-      #000 5%,
-      #000 95%,
-      transparent 100%
-    ),
-    linear-gradient(
-      to top,
-      transparent 0%,
-      #000 4%,
-      #000 92%,
-      transparent 100%
-    );
-  mask-composite: intersect, intersect;
-}
-
-[data-theme='dark'] .login-hero__art-wrap::after {
+[data-theme='dark'] .login-visual {
   background:
+    radial-gradient(ellipse 80% 60% at 20% 10%, rgba(var(--lx-primary-rgb), 0.32) 0%, transparent 62%),
+    radial-gradient(ellipse 70% 55% at 85% 85%, rgba(var(--lx-primary-rgb), 0.2) 0%, transparent 58%),
     linear-gradient(
-      to right,
-      rgba(11, 18, 32, 0.72) 0%,
-      rgba(17, 24, 39, 0.28) 5%,
-      transparent 12%
-    ),
-    linear-gradient(
-      to top,
-      rgba(17, 24, 39, 0.72) 0%,
-      rgba(15, 23, 42, 0.28) 5%,
-      transparent 11%
+      145deg,
+      color-mix(in srgb, var(--lx-oa-blue) 70%, #000) 0%,
+      color-mix(in srgb, var(--lx-accent-pressed) 80%, #000) 52%,
+      color-mix(in srgb, var(--lx-accent-pressed) 55%, #000) 100%
     );
 }
 
@@ -1208,67 +1009,43 @@ onUnmounted(() => {
 
 /* ── 响应式 ── */
 @media (max-width: 960px) {
-  .login-layout {
+  .login-split {
     grid-template-columns: 1fr;
-    gap: 32px;
+    min-height: auto;
+  }
+
+  .login-visual {
+    min-height: auto;
+    padding: 40px 24px 48px;
+  }
+
+  .login-visual__arts {
+    position: relative;
+    inset: auto;
+    padding: 24px 12px 0;
+  }
+
+  .login-visual__art {
     width: min(100%, 400px);
-    min-height: auto;
-    margin: 0 auto;
+    max-height: 320px;
   }
 
-  .login-card {
-    max-width: none;
-    justify-self: stretch;
-    margin-left: 0;
+  .login-visual__logo-wrap {
+    padding: 10px 16px;
   }
 
-  .login-hero {
-    min-height: auto;
-    transform: none;
+  .login-visual__logo {
+    width: min(100%, 300px);
+    max-height: 88px;
   }
 
-  .login-hero__art-wrap {
-    width: 100%;
-    margin-left: 0;
-    height: 260px;
+  .login-panel {
+    padding: 28px 24px 40px;
   }
 
-  .login-hero__brand {
-    --hero-align: 9px;
-  }
-
-  .login-hero__mark-wrap {
-    width: 42px;
-    height: 54px;
-  }
-
-  .login-hero__mark {
-    width: 62px;
-    height: 62px;
-    margin-right: -10px;
-  }
-
-  .login-hero__name {
-    font-size: 28px;
-  }
-
-  .login-hero__slogan {
-    font-size: 18px;
-  }
-
-  .login-card,
-  .login-card__inner {
-    min-height: auto;
-  }
-
-  .login-card__inner {
-    padding: 32px 28px 24px;
-  }
-
-  .login-page {
-    align-items: center;
-    padding: 48px 24px 16px;
-    justify-content: flex-start;
+  .login-page__prefs {
+    top: 16px;
+    right: 16px;
   }
 }
 </style>
@@ -1282,18 +1059,18 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(2px);
+  background: rgba(15, 23, 42, 0.48);
+  backdrop-filter: blur(8px);
 }
 
 .login-captcha-fade-enter-active,
 .login-captcha-fade-leave-active {
-  transition: opacity 0.2s ease;
+  transition: opacity 0.22s ease;
 }
 
 .login-captcha-fade-enter-active .login-captcha-modal__card,
 .login-captcha-fade-leave-active .login-captcha-modal__card {
-  transition: transform 0.2s ease, opacity 0.2s ease;
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease;
 }
 
 .login-captcha-fade-enter-from,
@@ -1304,15 +1081,18 @@ onUnmounted(() => {
 .login-captcha-fade-enter-from .login-captcha-modal__card,
 .login-captcha-fade-leave-to .login-captcha-modal__card {
   opacity: 0;
-  transform: scale(0.96) translateY(8px);
+  transform: scale(0.94) translateY(12px);
 }
 
 .login-captcha-modal__card {
-  width: min(100%, 400px);
-  background: #fff;
-  border-radius: 12px;
+  width: min(100%, 380px);
+  background: var(--lx-card);
+  border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--lx-border);
+  box-shadow:
+    0 24px 48px rgba(15, 23, 42, 0.18),
+    0 8px 16px rgba(15, 23, 42, 0.08);
 }
 
 .login-captcha-modal__head {
@@ -1320,33 +1100,59 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 18px 20px 14px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 18px 20px 16px;
+  border-bottom: 1px solid var(--lx-border);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--lx-oa-blue) 6%, var(--lx-card)) 0%,
+    var(--lx-card) 100%
+  );
+}
+
+.login-captcha-modal__title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.login-captcha-modal__badge {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  color: var(--lx-oa-blue);
+  background: var(--lx-accent-soft-bg);
+  border: 1px solid var(--lx-accent-soft-border);
 }
 
 .login-captcha-modal__title {
   margin: 0;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
-  color: #1f2937;
-  line-height: 1.5;
+  color: var(--lx-text);
+  line-height: 1.45;
 }
 
 .login-captcha-modal__close {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
-  color: #8c8c8c;
+  color: var(--lx-text-3);
   font-size: 22px;
   line-height: 1;
   cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
 .login-captcha-modal__close:hover:not(:disabled) {
-  background: rgba(0, 0, 0, 0.05);
-  color: #595959;
+  background: var(--lx-accent-hover-bg);
+  color: var(--lx-text);
 }
 
 .login-captcha-modal__close:disabled {
@@ -1355,7 +1161,7 @@ onUnmounted(() => {
 }
 
 .login-captcha-modal__body {
-  padding: 20px 24px 10px;
+  padding: 20px 24px 24px;
   display: flex;
   justify-content: center;
 }
@@ -1386,12 +1192,12 @@ onUnmounted(() => {
   background: transparent;
   padding: 0;
   font-size: 13px;
-  color: #1677ff;
+  color: var(--lx-oa-blue);
   cursor: pointer;
 }
 
 .login-captcha-modal__link:hover:not(:disabled) {
-  color: #4096ff;
+  color: var(--lx-accent-hover);
 }
 
 .login-captcha-modal__link:disabled {
@@ -1400,15 +1206,12 @@ onUnmounted(() => {
 }
 
 [data-theme='dark'] .login-captcha-modal__card {
-  background: #1e293b;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
-}
-
-[data-theme='dark'] .login-captcha-modal__title {
-  color: #e5eaf3;
+  box-shadow:
+    0 24px 48px rgba(0, 0, 0, 0.42),
+    0 8px 16px rgba(0, 0, 0, 0.24);
 }
 
 [data-theme='dark'] .login-captcha-modal__head {
-  border-bottom-color: rgba(255, 255, 255, 0.08);
+  border-bottom-color: var(--lx-border);
 }
 </style>

@@ -434,7 +434,7 @@ export default {
     welcomeTitle: '欢迎登录 LinkX 管理系统',
     welcomeHint: '请输入您的账号信息',
     copyright: '© 2026 LinkX. All rights reserved.',
-    icp: '浙ICP备 20260001号-1',
+    icp: 'Copyright © Yakult Co., Ltd. All rights reserved.',
     rememberMe: '记住我',
     forgotPassword: '忘记密码？',
     orLoginWith: '或使用以下方式登录',

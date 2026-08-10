@@ -2,7 +2,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { NIcon } from 'naive-ui'
-import { RefreshOutline, ArrowForwardOutline } from '@vicons/ionicons5'
+import { RefreshOutline, ArrowForwardOutline, ShieldCheckmarkOutline } from '@vicons/ionicons5'
 import { useI18n } from 'vue-i18n'
 
 /** 与服务端 SliderCaptchaRenderer 画布尺寸一致 */
@@ -211,6 +211,9 @@ defineExpose({ reset: resetSlider })
         alt=""
         draggable="false"
       />
+      <div v-if="!ready" class="slider-captcha__placeholder">
+        <NIcon :component="ShieldCheckmarkOutline" :size="28" />
+      </div>
       <button
         type="button"
         class="slider-captcha__refresh"
@@ -218,25 +221,31 @@ defineExpose({ reset: resetSlider })
         :title="t('login.refreshCaptcha')"
         @click="onRefresh"
       >
-        <NIcon :component="RefreshOutline" :size="16" />
+        <NIcon :component="RefreshOutline" :size="15" />
       </button>
     </div>
 
     <div
       ref="trackRef"
       class="slider-captcha__track"
-      :class="{ 'slider-captcha__track--dragging': dragging }"
+      :class="{
+        'slider-captcha__track--dragging': dragging,
+        'slider-captcha__track--success': committed,
+      }"
       :style="{ width: `${layoutWidth}px` }"
       @pointerdown="onTrackPointerDown"
     >
       <div class="slider-captcha__track-fill" :style="{ width: trackFillWidth }" />
-      <span class="slider-captcha__hint">
+      <span class="slider-captcha__hint" :class="{ 'slider-captcha__hint--success': committed }">
         {{ committed ? t('captcha.sliderRelease') : t('captcha.sliderHint') }}
       </span>
       <div
         class="slider-captcha__thumb"
-        :class="{ 'slider-captcha__thumb--dragging': dragging }"
-        :style="{ width: `${thumbSize}px`, height: `${thumbSize - 4}px`, transform: thumbTransform }"
+        :class="{
+          'slider-captcha__thumb--dragging': dragging,
+          'slider-captcha__thumb--success': committed,
+        }"
+        :style="{ width: `${thumbSize}px`, height: `${thumbSize - 2}px`, transform: thumbTransform }"
         @pointerdown.stop="onThumbPointerDown"
       >
         <NIcon :component="ArrowForwardOutline" :size="18" />
@@ -253,15 +262,19 @@ defineExpose({ reset: resetSlider })
 }
 
 .slider-captcha--disabled {
-  opacity: 0.65;
+  opacity: 0.6;
   pointer-events: none;
 }
 
 .slider-captcha__panel {
   position: relative;
-  border-radius: 10px;
+  border-radius: 12px;
   overflow: hidden;
-  background: var(--lx-captcha-bg, rgba(0, 0, 0, 0.04));
+  background: var(--lx-captcha-bg, #f5f7fa);
+  border: 1px solid var(--lx-border);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
 }
 
 .slider-captcha__bg {
@@ -275,36 +288,80 @@ defineExpose({ reset: resetSlider })
   top: 0;
   z-index: 1;
   pointer-events: none;
-  filter: drop-shadow(2px 2px 6px rgba(0, 0, 0, 0.45));
+  filter: drop-shadow(0 4px 10px rgba(15, 23, 42, 0.35));
+}
+
+.slider-captcha__placeholder {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--lx-text-3);
+  opacity: 0.45;
 }
 
 .slider-captcha__refresh {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 10px;
+  right: 10px;
   z-index: 3;
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.92);
-  color: #555;
+  color: var(--lx-text-2);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  backdrop-filter: blur(6px);
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.slider-captcha__refresh:hover:not(:disabled) {
+  color: var(--lx-oa-blue);
+  border-color: var(--lx-accent-soft-border);
+  background: #fff;
+  transform: rotate(-20deg);
+}
+
+.slider-captcha__refresh:active:not(:disabled) {
+  transform: rotate(-40deg) scale(0.96);
 }
 
 .slider-captcha__track {
   position: relative;
-  margin-top: 10px;
-  height: 40px;
-  border-radius: 20px;
-  background: var(--lx-captcha-bg, rgba(0, 0, 0, 0.06));
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  margin-top: 14px;
+  height: 44px;
+  border-radius: 22px;
+  background: var(--lx-card);
+  border: 1px solid var(--lx-border);
   overflow: hidden;
   touch-action: none;
   cursor: pointer;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.slider-captcha__track--dragging {
+  border-color: var(--lx-accent-soft-border);
+  box-shadow:
+    inset 0 1px 2px rgba(15, 23, 42, 0.04),
+    0 0 0 3px var(--lx-accent-hover-bg);
+}
+
+.slider-captcha__track--success {
+  border-color: color-mix(in srgb, var(--lx-oa-green) 45%, var(--lx-border));
+  box-shadow:
+    inset 0 1px 2px rgba(15, 23, 42, 0.04),
+    0 0 0 3px color-mix(in srgb, var(--lx-oa-green) 12%, transparent);
 }
 
 .slider-captcha__track-fill {
@@ -312,12 +369,29 @@ defineExpose({ reset: resetSlider })
   left: 0;
   top: 0;
   bottom: 0;
-  background: rgba(24, 160, 88, 0.15);
+  background: linear-gradient(
+    90deg,
+    var(--lx-accent-hover-bg) 0%,
+    var(--lx-accent-soft-bg) 100%
+  );
   pointer-events: none;
+  transition: width 0.05s linear, background 0.25s ease;
 }
 
 .slider-captcha__track--dragging .slider-captcha__track-fill {
-  background: rgba(24, 160, 88, 0.25);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--lx-oa-blue) 18%, transparent) 0%,
+    var(--lx-accent-soft-bg) 100%
+  );
+}
+
+.slider-captcha__track--success .slider-captcha__track-fill {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--lx-oa-green) 22%, transparent) 0%,
+    color-mix(in srgb, var(--lx-oa-green) 10%, transparent) 100%
+  );
 }
 
 .slider-captcha__hint {
@@ -326,10 +400,16 @@ defineExpose({ reset: resetSlider })
   display: flex;
   align-items: center;
   justify-content: center;
-  padding-left: 44px;
-  font-size: 12px;
-  color: var(--n-text-color-3);
+  padding: 0 48px 0 52px;
+  font-size: 13px;
+  color: var(--lx-text-3);
   pointer-events: none;
+  transition: color 0.25s ease, opacity 0.25s ease;
+}
+
+.slider-captcha__hint--success {
+  color: var(--lx-oa-green);
+  font-weight: 500;
 }
 
 .slider-captcha__thumb {
@@ -339,19 +419,56 @@ defineExpose({ reset: resetSlider })
   z-index: 2;
   border-radius: 50%;
   background: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--lx-border);
+  box-shadow:
+    0 2px 8px rgba(15, 23, 42, 0.12),
+    0 1px 2px rgba(15, 23, 42, 0.06);
   cursor: grab;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #18a058;
+  color: var(--lx-oa-blue);
   touch-action: none;
+  transition:
+    box-shadow 0.2s ease,
+    background 0.2s ease,
+    color 0.2s ease,
+    transform 0.05s linear;
 }
 
 .slider-captcha__thumb--dragging {
   cursor: grabbing;
+  background: #fff;
+  border-color: var(--lx-accent-soft-border);
+  box-shadow:
+    0 4px 14px rgba(var(--lx-primary-rgb), 0.28),
+    0 2px 4px rgba(15, 23, 42, 0.08);
+  color: var(--lx-accent-hover);
+}
+
+.slider-captcha__thumb--success {
+  cursor: default;
+  color: var(--lx-oa-green);
   background: #f6ffed;
-  box-shadow: 0 2px 10px rgba(24, 160, 88, 0.25);
+  border-color: color-mix(in srgb, var(--lx-oa-green) 35%, var(--lx-border));
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--lx-oa-green) 22%, transparent);
+}
+
+[data-theme='dark'] .slider-captcha__panel {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+[data-theme='dark'] .slider-captcha__refresh {
+  background: rgba(30, 41, 59, 0.88);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: var(--lx-text-2);
+}
+
+[data-theme='dark'] .slider-captcha__thumb {
+  background: var(--lx-card);
+}
+
+[data-theme='dark'] .slider-captcha__thumb--success {
+  background: color-mix(in srgb, var(--lx-oa-green) 12%, var(--lx-card));
 }
 </style>
