@@ -408,41 +408,96 @@ java -jar target/linkx-server-1.0.0-SNAPSHOT.jar
 
 ### 9.2 桌面客户端
 
+#### 打包前：配置 `.env.electron`
+
+打包使用 `vite build --mode electron`，会读取 **`linkx-client/.env.electron`**（不会自动加载 `.env.production`）。
+
+首次打包前，可复制示例并填入线上地址：
+
+```bash
+cd linkx-client
+copy .env.electron.example .env.electron   # PowerShell 也可用 Copy-Item
+```
+
+`.env.electron` 示例：
+
+```env
+# 后端 API（含 /api）
+VITE_API_BASE_URL=https://你的域名/api
+
+# IM WebSocket
+VITE_WS_BASE_URL=wss://你的域名:8081
+
+# 法律文档（Cloudflare Pages 自定义域）
+VITE_LEGAL_PAGE_BASE_URL=https://mars-studio.asia
+
+# 可选：媒体公网 Origin
+# VITE_MINIO_PUBLIC_ORIGIN=https://media.你的域名
+```
+
+未配置 API/WS 时，安装包会回退到 `127.0.0.1:8080` / `8081`，仅适合本机联调。
+
+发新版前请同步修改 `package.json` 中的 `version` 字段。
+
 #### 打包命令
 
 ```bash
 cd linkx-client
 npm install
-npm run electron:build           # 安装包输出至 release/LinkX-Setup-{version}.exe
+npm run electron:build
 ```
+
+安装包输出路径：
+
+```text
+linkx-client/release/installer/LinkX-Installer-{version}.exe
+```
+
+例如：`release/installer/LinkX-Installer-1.0.0.exe`
 
 `electron:build` 由 `scripts/electron-build.mjs` 统一执行，会自动完成：
 
-1. 生成 NSIS 安装资源（`build/installer-sidebar.bmp`、`installer-header.bmp`、`license.rtf`）
+1. 生成安装向导资源（图标、`installer-sidebar.bmp`、`installer-header.bmp`、`license.rtf`）
 2. TypeScript 类型检查（`vue-tsc`）
-3. Vite 构建（`--mode electron`）
-4. electron-builder 打 Windows NSIS 安装包
+3. Vite 构建主应用（`--mode electron`）
+4. electron-builder 产出 `LinkX.exe`（`win-unpacked` 目录）
+5. 快照至 `.installer-payload`，再打包**自定义图形安装程序**（`LinkX-Installer`）
+6. 清理中间产物，仅保留 `release/installer/LinkX-Installer-*.exe`
 
-单独生成安装向导资源（不打包）：
+单独生成安装向导资源（Logo 变更时使用，不打包）：
 
 ```bash
 npm run installer:assets
 ```
 
+其他相关命令：
+
+| 命令 | 说明 |
+|------|------|
+| `npm run installer:dev` | 开发调试安装向导界面 |
+| `npm run installer:build` | 仅打安装程序（需已有 `.installer-payload`） |
+| `npm run clean:release` | 清理 `release/` 等构建产物 |
+| `npm run electron:dev` | 开发模式运行客户端（非安装包） |
+
 #### 输出产物
 
 | 路径 | 说明 |
 |------|------|
-| `linkx-client/release/LinkX-Setup-1.0.0.exe` | NSIS 安装包（对外分发） |
-| `linkx-client/release/win-unpacked/` | 免安装目录（调试用） |
+| `linkx-client/release/installer/LinkX-Installer-1.0.0.exe` | 对外分发的 Windows 安装包 |
+| `linkx-client/.installer-payload/` | 打包中间目录（完成后会被脚本清理） |
 
 #### 安装包行为（当前配置）
 
-- **图形安装**：中文向导、LinkX Logo 侧边栏、许可协议页、可选安装路径、桌面/开始菜单快捷方式
-- **安装完成**：自动启动 LinkX
-- **应用内更新**：静默安装（`/S`），完成后由 NSIS 脚本自动拉起新版本
+- **图形安装**：Vue 自定义安装向导、许可协议勾选、可选安装路径、桌面/开始菜单快捷方式
+- **协议链接**：注册页、关于页、安装向导中的服务协议/隐私政策均在浏览器打开线上地址（默认 `https://mars-studio.asia`）
+- **安装完成**：可选安装后自动启动 LinkX
+- **协议页源码**：`linkx-client/public/legal/`，更新后上传至 Cloudflare Pages 即可刷新线上内容
 
-相关配置见 `linkx-client/package.json` → `build.nsis`、`build/installer.nsh`。
+相关配置：
+
+- 主应用打包：`linkx-client/package.json` → `build`
+- 安装程序打包：`linkx-client/electron-builder.installer.yml`
+- 法律文档 URL：`linkx-client/shared/legalPage.ts`（默认 `mars-studio.asia`）
 
 #### 国内网络打包（已内置）
 
@@ -451,32 +506,32 @@ npm run installer:assets
 | 变量 | 默认值 | 用途 |
 |------|--------|------|
 | `ELECTRON_MIRROR` | `https://npmmirror.com/mirrors/electron/` | 下载 Electron 运行时 |
-| `ELECTRON_BUILDER_BINARIES_MIRROR` | `https://npmmirror.com/mirrors/electron-builder-binaries/` | 下载 NSIS、winCodeSign 等工具 |
+| `ELECTRON_BUILDER_BINARIES_MIRROR` | `https://npmmirror.com/mirrors/electron-builder-binaries/` | 下载 electron-builder 工具链 |
 | `CSC_IDENTITY_AUTO_DISCOVERY` | `false` | 未配置证书时不尝试代码签名 |
 
-若需覆盖镜像，可在打包前自行 export / `$env:` 设置上述变量。
+若需覆盖镜像，可在打包前自行 `export` / `$env:` 设置上述变量。
 
 #### 本地打包常见问题与处理
 
 | 现象 | 原因 | 处理方法 |
 |------|------|----------|
+| 安装后连不上服务器 | 未配置 `.env.electron` 或地址错误 | 检查 `VITE_API_BASE_URL` / `VITE_WS_BASE_URL` 后重新打包 |
 | `vue-tsc --noEmit` 报大量 TS 错误 | 前端类型问题 | 先执行 `npx vue-tsc --noEmit` 定位；修完后再打包 |
-| 下载 `electron-v*-win32-x64.zip` 失败，DNS 解析 `github.com` / `release-assets.githubusercontent.com` 失败 | 默认从 GitHub 拉 Electron | 使用 `npm run electron:build`（已配 `ELECTRON_MIRROR`）；或手动设置 `$env:ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"` |
-| 下载 `winCodeSign-*.7z` 失败 | electron-builder 工具链默认走 GitHub | 使用 `npm run electron:build`（已配 `ELECTRON_BUILDER_BINARIES_MIRROR`） |
-| 解压 winCodeSign 报错 `Cannot create symbolic link` /「客户端没有所需的特权」 | 7z 内含符号链接，普通用户无权限创建 | **当前方案**：`package.json` 中 `win.signAndEditExecutable: false` 跳过 winCodeSign；**备选**：开启 Windows **开发人员模式**，或以管理员运行终端后再打包 |
-| 安装向导协议页中文乱码 | NSIS 对 `.txt` 许可文件按 ANSI 解析，UTF-8 中文会显示为乱码 | 使用 `build/license.rtf`（Unicode RTF，由 `installer:assets` 自动生成）；修改后需重新 `npm run electron:build` |
-| `makensis` 报错 `MUI_BGCOLOR already defined` | `installer.nsh` 的 `customHeader` 与 electron-builder 内置 MUI 宏重复定义 | 勿在 `customHeader` 中重复 `!define MUI_BGCOLOR` 等；仅保留 `customInstall` / `customFinish` |
-| 安装时 SmartScreen 提示「未知发布者」 | 安装包未做代码签名 | 内测可点「更多信息 → 仍要运行」；正式对外分发需购买 Code Signing 证书（见下方） |
-| `electron:dev` 里测不了安装向导 | 开发模式不走 NSIS | 必须用 `electron:build` 产出 exe 后双击安装测试 |
+| 下载 `electron-v*-win32-x64.zip` 失败 | 默认从 GitHub 拉 Electron | 使用 `npm run electron:build`（已配 `ELECTRON_MIRROR`） |
+| 下载 electron-builder 工具链失败 | 默认走 GitHub | 使用 `npm run electron:build`（已配 `ELECTRON_BUILDER_BINARIES_MIRROR`） |
+| 解压 winCodeSign 报错「客户端没有所需的特权」 | 7z 内含符号链接 | 项目已设 `signAndEditExecutable: false`；或开启 Windows 开发人员模式 |
+| 安装向导许可页中文乱码 | 许可文件编码问题 | 使用 `build/license.rtf`（由 `installer:assets` 生成） |
+| 安装时 SmartScreen「未知发布者」 | 安装包未签名 | 内测可点「更多信息 → 仍要运行」；正式分发需代码签名证书 |
+| `electron:dev` 测不了安装向导 | 开发模式不走安装程序 | 必须 `electron:build` 产出 exe 后安装测试 |
 
 #### 代码签名（可选，正式分发建议）
 
 当前为**未签名**配置（`win.sign: null`、`signAndEditExecutable: false`），适合开发与内测。
 
-正式对外发布需向 CA 购买 **Code Signing** 或 **EV Code Signing** 证书（需付费，无完全免费的等价替代）。配置示例：
+正式对外发布需向 CA 购买 **Code Signing** 或 **EV Code Signing** 证书。配置示例：
 
 ```powershell
-$env:CSC_LINK="D:\certs\linkx.pfx"      # 或 CI 中用 base64
+$env:CSC_LINK="D:\certs\linkx.pfx"
 $env:CSC_KEY_PASSWORD="证书密码"
 $env:CSC_IDENTITY_AUTO_DISCOVERY="true"
 ```
@@ -486,11 +541,17 @@ $env:CSC_IDENTITY_AUTO_DISCOVERY="true"
 #### 安装包测试速查
 
 ```powershell
-# 图形安装（向导、协议、路径、快捷方式、安装后自启）
-.\release\LinkX-Setup-1.0.0.exe
+# 图形安装（向导、协议、路径、快捷方式）
+.\release\installer\LinkX-Installer-1.0.0.exe
+```
 
-# 静默安装（模拟应用内更新）
-.\release\LinkX-Setup-1.0.0.exe /S
+打包检查清单：
+
+```text
+□ Node.js 18+ 已安装
+□ linkx-client/.env.electron 已配置线上 API / WS
+□ npm run electron:build 成功
+□ 安装后注册页/关于页协议链接可打开 mars-studio.asia
 ```
 
 ### 9.3 管理后台
@@ -508,8 +569,10 @@ npm run build                    # 静态资源输出至 dist/
 | server | `docker-compose up -d` | 启动中间件 |
 | server | `docker-compose down` | 停止中间件 |
 | client | `npm run electron:dev` | Electron 热更新开发 |
-| client | `npm run electron:build` | 打 Windows 安装包（`release/`） |
-| client | `npm run installer:assets` | 仅生成 NSIS 侧边栏/协议等资源 |
+| client | `npm run electron:build` | 打 Windows 安装包（`release/installer/`） |
+| client | `npm run installer:assets` | 仅生成安装向导图标/侧边栏/许可协议等资源 |
+| client | `npm run installer:dev` | 开发调试安装向导 |
+| client | `npm run clean:release` | 清理 release 构建产物 |
 | client | `npm run dev` | Web 开发 |
 | admin | `npm run dev` | 管理端开发（:5174） |
 | admin | `npm run lint` | ESLint 检查 |
@@ -561,9 +624,10 @@ npm run build                    # 静态资源输出至 dist/
 **按报错对照处理：**
 
 1. **`vue-tsc` 类型错误** — 先 `npx vue-tsc --noEmit` 修完再打包。
-2. **下载 Electron / GitHub 相关超时** — 使用项目自带的 `npm run electron:build`（已配置国内镜像）；勿单独跑未带镜像的 `electron-builder`。
-3. **`winCodeSign` 符号链接权限错误** — 项目已默认 `signAndEditExecutable: false`；若你改过配置又出现此错，改回该选项或开启 Windows 开发人员模式。
-4. **打包成功但安装有 SmartScreen 警告** — 未签名属正常；正式发版需购买代码签名证书。
+2. **安装后连不上服务器** — 检查 `linkx-client/.env.electron` 中的 `VITE_API_BASE_URL` / `VITE_WS_BASE_URL`。
+3. **下载 Electron / GitHub 相关超时** — 使用项目自带的 `npm run electron:build`（已配置国内镜像）；勿单独跑未带镜像的 `electron-builder`。
+4. **`winCodeSign` 符号链接权限错误** — 项目已默认 `signAndEditExecutable: false`；若你改过配置又出现此错，改回该选项或开启 Windows 开发人员模式。
+5. **打包成功但安装有 SmartScreen 警告** — 未签名属正常；正式发版需购买代码签名证书。
 
 完整说明见 **[九、构建与部署 → 9.2 桌面客户端](#92-桌面客户端)**。
 

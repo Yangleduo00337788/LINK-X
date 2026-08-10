@@ -14,6 +14,7 @@ dist-installer-electron/
 .env.docker
 # 前端本地 env（含本地接口地址/可能的 token）不入库
 linkx-client/.env
+linkx-client/.env.electron
 linkx-admin/.env
 linkx-admin/dist/
 !.env.local.example
