@@ -5,6 +5,7 @@ package com.linkx.server.config;
  * 作者：yangleduo
  */
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linkx.server.storage.ObjectStorageRouter;
 import com.linkx.server.common.Result;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -29,6 +30,7 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
 
     private final LinkxProperties linkxProperties;
     private final ObjectMapper objectMapper;
+    private final ObjectStorageRouter objectStorageRouter;
 
     @Override
     protected void doFilterInternal(
@@ -53,7 +55,7 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
 
         // 媒体代理响应不要套页面级 CSP，避免个别浏览器对子资源策略表现异常
         if (!isMediaProxyPath(request)) {
-            String minioOrigin = linkxProperties.getMinio().getEndpoint();
+            String mediaOrigins = String.join(" ", objectStorageRouter.mediaOriginsForCsp());
             int wsPort = linkxProperties.getIm().getWebsocketPort();
             String wsOrigins = linkxProperties.getSecurity().isRequireHttps()
                     ? ""
@@ -69,8 +71,8 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
                             + "script-src 'self' 'unsafe-inline'; "
                             + "style-src 'self' 'unsafe-inline'; "
                             + "connect-src 'self' %s %s;",
-                    minioOrigin, minioOrigin,
-                    wsOrigins, minioOrigin
+                    mediaOrigins, mediaOrigins,
+                    wsOrigins, mediaOrigins
             );
             response.setHeader("Content-Security-Policy", csp);
         }
@@ -89,6 +91,7 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         }
         // context-path=/api 时为 /api/media/external、/api/media/avatars/...、/api/media/banners/...
         return uri.contains("/media/external")
+                || uri.contains("/media/stored")
                 || uri.contains("/media/avatars/")
                 || uri.contains("/media/banners/")
                 || uri.contains("/media/recommends/")

@@ -21,6 +21,9 @@ public class LinkxProperties {
     private final Cors cors = new Cors();
     private final Security security = new Security();
     private final Minio minio = new Minio();
+    private final Storage storage = new Storage();
+    private final Oss oss = new Oss();
+    private final Local local = new Local();
     private final Im im = new Im();
     private final Proxy proxy = new Proxy();
     private final Mail mail = new Mail();
@@ -48,6 +51,12 @@ public class LinkxProperties {
     }
 
     @Data
+    public static class Storage {
+        /** minio | oss | local */
+        private String provider = "minio";
+    }
+
+    @Data
     public static class Minio {
         private String endpoint = "http://127.0.0.1:9000";
         /** 必填，须通过环境变量注入，禁止硬编码默认值 */
@@ -58,6 +67,21 @@ public class LinkxProperties {
         private long maxFileSize = 10 * 1024 * 1024; // 默认10MB
         /** 预签名 URL 分级过期（秒） */
         private final PresignExpiry presignExpiry = new PresignExpiry();
+    }
+
+    @Data
+    public static class Oss {
+        private String endpoint = "";
+        private String bucketName = "";
+        private String accessKeyId = "";
+        private String accessKeySecret = "";
+        /** 可选自定义 CNAME 域名 */
+        private String cnameDomain = "";
+    }
+
+    @Data
+    public static class Local {
+        private String basePath = "./data/local-storage";
     }
 
     /**

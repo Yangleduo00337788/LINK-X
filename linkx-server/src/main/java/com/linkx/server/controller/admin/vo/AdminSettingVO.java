@@ -37,6 +37,9 @@ public class AdminSettingVO {
     @Schema(description = "安全配置（管理端）")
     private SecuritySide security;
 
+    @Schema(description = "对象存储配置")
+    private StorageSide storage;
+
     @Data
     @Builder
     @Schema(description = "安全配置")
@@ -168,6 +171,30 @@ public class AdminSettingVO {
         private MailTemplate register;
         private MailTemplate reset;
         private MailTemplate welcome;
+    }
+
+    @Data
+    @Builder
+    @Schema(description = "对象存储配置")
+    public static class StorageSide {
+        @Schema(description = "minio | oss | local")
+        private String provider;
+        private String minioEndpoint;
+        private String minioBucketName;
+        private String minioAccessKey;
+        @Schema(description = "MinIO Secret 是否已配置")
+        private Boolean minioSecretConfigured;
+        private String ossEndpoint;
+        private String ossBucketName;
+        private String ossAccessKeyId;
+        @Schema(description = "OSS Secret 是否已配置")
+        private Boolean ossAccessKeySecretConfigured;
+        private String ossCnameDomain;
+        private String localStoragePath;
+        private Long maxUploadBytes;
+        private Integer presignAvatarSeconds;
+        private Integer presignFileSeconds;
+        private Integer presignShareSeconds;
     }
 
     @Data

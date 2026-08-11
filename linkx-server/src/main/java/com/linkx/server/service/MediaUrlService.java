@@ -5,15 +5,13 @@ package com.linkx.server.service;
  * 作者：yangleduo
  */
 import com.linkx.server.config.LinkxProperties;
+import com.linkx.server.storage.ObjectStorageRouter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 /**
- * 将数据库中的对象 key / 旧版完整 MinIO URL 转为浏览器可访问的预签名 URL。
- * <p>
- * 按用途分级过期：头像较长、业务文件较短、分享下载最短，降低链接泄露窗口。
- * 签名 Host 与当前 linkx.minio.endpoint 一致（开发环境为 127.0.0.1）。
+ * 将数据库中的对象 key / 旧版完整存储 URL 转为浏览器可访问的预签名 URL。
  */
 @Service
 @RequiredArgsConstructor
@@ -21,6 +19,7 @@ public class MediaUrlService {
 
     private final FileStorageService fileStorageService;
     private final LinkxProperties linkxProperties;
+    private final ObjectStorageRouter objectStorageRouter;
 
     /** 兼容旧调用：默认按头像时效签发 */
     public String resolve(String keyOrUrl) {
@@ -47,15 +46,12 @@ public class MediaUrlService {
             return null;
         }
         String value = keyOrUrl.trim();
-        // 历史占位路径：客户端并无该静态资源，签发/原样返回都会裂图，改回空让前端走文字头像
         if ("/default-avatar.svg".equals(value) || value.endsWith("/default-avatar.svg")) {
             return null;
         }
-        // 本地静态资源 / data URL 不走 MinIO
         if (value.startsWith("/") || value.startsWith("data:") || value.startsWith("blob:")) {
             return value;
         }
-        // 外部 http(s) 链接（非本系统 MinIO）原样返回，避免被当成 object key 签名
         if (isExternalHttpUrl(value)) {
             return value;
         }
@@ -65,7 +61,7 @@ public class MediaUrlService {
         return fileStorageService.getPresignedUrl(value, seconds);
     }
 
-    /** 第三方 http(s)（非本系统 MinIO）——入库原样保留，不签发、不验属主 */
+    /** 第三方 http(s)（非本系统存储）——入库原样保留，不签发、不验属主 */
     public boolean isExternalHttpUrl(String value) {
         if (value == null || value.isBlank()) {
             return false;
@@ -74,13 +70,32 @@ public class MediaUrlService {
         if (!v.startsWith("http://") && !v.startsWith("https://")) {
             return false;
         }
-        String endpoint = linkxProperties.getMinio().getEndpoint();
-        if (endpoint != null && !endpoint.isBlank() && v.startsWith(endpoint)) {
+        if (isKnownStorageUrl(v)) {
             return false;
         }
-        // 兼容历史 localhost / 127.0.0.1 MinIO 地址
         return !(v.contains("://localhost:9000/")
                 || v.contains("://127.0.0.1:9000/")
                 || v.contains("://[::1]:9000/"));
+    }
+
+    private boolean isKnownStorageUrl(String url) {
+        LinkxProperties.Minio minio = linkxProperties.getMinio();
+        String endpoint = minio.getEndpoint();
+        if (endpoint != null && !endpoint.isBlank() && url.startsWith(endpoint)) {
+            return true;
+        }
+        for (String origin : objectStorageRouter.mediaOriginsForCsp()) {
+            if (StringUtils.hasText(origin) && url.startsWith(origin)) {
+                return true;
+            }
+        }
+        LinkxProperties.Oss oss = linkxProperties.getOss();
+        if (StringUtils.hasText(oss.getBucketName())) {
+            String bucket = oss.getBucketName().trim();
+            if (url.contains(bucket + ".oss-") || url.contains("/" + bucket + "/")) {
+                return true;
+            }
+        }
+        return false;
     }
 }

@@ -17,12 +17,16 @@ import com.linkx.server.controller.admin.dto.MailTemplateSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.PasswordSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.RegisterSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.SecuritySettingUpdateDTO;
+import com.linkx.server.controller.admin.dto.StorageSettingUpdateDTO;
+import com.linkx.server.controller.admin.dto.TestStorageConnectionDTO;
 import com.linkx.server.controller.admin.vo.AdminSettingVO;
 import com.linkx.server.entity.SysRuntimeSetting;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.SysRuntimeSettingMapper;
 import com.linkx.server.service.EmailService;
 import com.linkx.server.service.admin.AdminSettingService;
+import com.linkx.server.storage.ObjectStorageRouter;
+import com.linkx.server.storage.StorageProviderType;
 import com.linkx.server.util.AppVersionUtils;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +46,7 @@ public class AdminSettingServiceImpl implements AdminSettingService {
     private final EmailService emailService;
     private final MailSenderHolder mailSenderHolder;
     private final Environment environment;
+    private final ObjectStorageRouter objectStorageRouter;
 
     @PostConstruct
     public void loadOverridesFromDb() {
@@ -119,6 +124,7 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                         .apiSignEnabled(linkxProperties.getSecurity().isApiSignEnabled())
                         .apiEncryptEnabled(linkxProperties.getSecurity().isApiEncryptEnabled())
                         .build())
+                .storage(buildStorageSide())
                 .build();
     }
 
@@ -152,6 +158,9 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         if (dto.getSecurity() != null) {
             updateSecurity(dto.getSecurity(), operatorId);
         }
+        if (dto.getStorage() != null) {
+            updateStorage(dto.getStorage(), operatorId);
+        }
         return getSettings();
     }
 
@@ -163,7 +172,8 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                 || dto.getClient() != null
                 || dto.getMail() != null
                 || dto.getMailTemplates() != null
-                || dto.getSecurity() != null;
+                || dto.getSecurity() != null
+                || dto.getStorage() != null;
     }
 
     private int resolveFeedbackSlaHours(LinkxProperties.App app) {
@@ -469,6 +479,127 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         }
     }
 
+    @Override
+    @Transactional
+    public AdminSettingVO updateStorage(StorageSettingUpdateDTO dto, Long operatorId) {
+        StorageProviderType provider = StorageProviderType.fromWire(dto.getProvider());
+        if (dto.getMaxUploadBytes() == null || dto.getMaxUploadBytes() <= 0) {
+            throw new CustomException(400, "最大上传大小无效");
+        }
+        SysRuntimeSetting row = loadOrCreateRow(operatorId);
+        row.setStorageProvider(provider.toWire());
+        row.setMinioEndpoint(nullToEmpty(dto.getMinioEndpoint()));
+        row.setMinioBucketName(nullToEmpty(dto.getMinioBucketName()));
+        row.setMinioAccessKey(nullToEmpty(dto.getMinioAccessKey()));
+        if (StringUtils.hasText(dto.getMinioSecretKey())) {
+            row.setMinioSecretKey(dto.getMinioSecretKey().trim());
+        } else if (row.getMinioSecretKey() == null) {
+            row.setMinioSecretKey(nullToEmpty(linkxProperties.getMinio().getSecretKey()));
+        }
+        row.setOssEndpoint(nullToEmpty(dto.getOssEndpoint()));
+        row.setOssBucketName(nullToEmpty(dto.getOssBucketName()));
+        row.setOssAccessKeyId(nullToEmpty(dto.getOssAccessKeyId()));
+        if (StringUtils.hasText(dto.getOssAccessKeySecret())) {
+            row.setOssAccessKeySecret(dto.getOssAccessKeySecret().trim());
+        } else if (row.getOssAccessKeySecret() == null) {
+            row.setOssAccessKeySecret(nullToEmpty(linkxProperties.getOss().getAccessKeySecret()));
+        }
+        row.setOssCnameDomain(nullToEmpty(dto.getOssCnameDomain()));
+        row.setLocalStoragePath(nullToEmpty(dto.getLocalStoragePath()));
+        row.setMaxUploadBytes(dto.getMaxUploadBytes());
+        row.setUpdateBy(operatorId);
+        persist(row);
+        applyStorageSide(row);
+        objectStorageRouter.reloadClients();
+        return getSettings();
+    }
+
+    @Override
+    public String testStorageConnection(TestStorageConnectionDTO dto) {
+        StorageProviderType provider = StorageProviderType.fromWire(dto.getProvider());
+        applyStorageForTest(dto);
+        objectStorageRouter.reloadClients();
+        try {
+            objectStorageRouter.testConnection(provider);
+            return "连接成功：当前提供商 " + provider.toWire();
+        } catch (CustomException e) {
+            throw e;
+        } catch (Exception e) {
+            String msg = e.getMessage() != null ? e.getMessage() : "连接失败";
+            throw new CustomException(500, "测试未通过：" + msg);
+        } finally {
+            SysRuntimeSetting row = runtimeSettingMapper.selectOneById(SysRuntimeSetting.SINGLETON_ID);
+            if (row != null) {
+                applyStorageSide(row);
+            }
+            objectStorageRouter.reloadClients();
+        }
+    }
+
+    private void applyStorageForTest(TestStorageConnectionDTO dto) {
+        StorageProviderType provider = StorageProviderType.fromWire(dto.getProvider());
+        linkxProperties.getStorage().setProvider(provider.toWire());
+        if (provider == StorageProviderType.MINIO) {
+            LinkxProperties.Minio minio = linkxProperties.getMinio();
+            if (StringUtils.hasText(dto.getMinioEndpoint())) {
+                minio.setEndpoint(dto.getMinioEndpoint().trim());
+            }
+            if (StringUtils.hasText(dto.getMinioBucketName())) {
+                minio.setBucketName(dto.getMinioBucketName().trim());
+            }
+            if (StringUtils.hasText(dto.getMinioAccessKey())) {
+                minio.setAccessKey(dto.getMinioAccessKey().trim());
+            }
+            if (StringUtils.hasText(dto.getMinioSecretKey())) {
+                minio.setSecretKey(dto.getMinioSecretKey().trim());
+            }
+        } else if (provider == StorageProviderType.OSS) {
+            LinkxProperties.Oss oss = linkxProperties.getOss();
+            if (StringUtils.hasText(dto.getOssEndpoint())) {
+                oss.setEndpoint(dto.getOssEndpoint().trim());
+            }
+            if (StringUtils.hasText(dto.getOssBucketName())) {
+                oss.setBucketName(dto.getOssBucketName().trim());
+            }
+            if (StringUtils.hasText(dto.getOssAccessKeyId())) {
+                oss.setAccessKeyId(dto.getOssAccessKeyId().trim());
+            }
+            if (StringUtils.hasText(dto.getOssAccessKeySecret())) {
+                oss.setAccessKeySecret(dto.getOssAccessKeySecret().trim());
+            }
+            if (dto.getOssCnameDomain() != null) {
+                oss.setCnameDomain(nullToEmpty(dto.getOssCnameDomain()));
+            }
+        } else {
+            if (StringUtils.hasText(dto.getLocalStoragePath())) {
+                linkxProperties.getLocal().setBasePath(dto.getLocalStoragePath().trim());
+            }
+        }
+    }
+
+    private AdminSettingVO.StorageSide buildStorageSide() {
+        LinkxProperties.Minio minio = linkxProperties.getMinio();
+        LinkxProperties.Oss oss = linkxProperties.getOss();
+        LinkxProperties.Local local = linkxProperties.getLocal();
+        return AdminSettingVO.StorageSide.builder()
+                .provider(objectStorageRouter.activeProvider().toWire())
+                .minioEndpoint(minio.getEndpoint())
+                .minioBucketName(minio.getBucketName())
+                .minioAccessKey(minio.getAccessKey())
+                .minioSecretConfigured(StringUtils.hasText(minio.getSecretKey()))
+                .ossEndpoint(oss.getEndpoint())
+                .ossBucketName(oss.getBucketName())
+                .ossAccessKeyId(oss.getAccessKeyId())
+                .ossAccessKeySecretConfigured(StringUtils.hasText(oss.getAccessKeySecret()))
+                .ossCnameDomain(oss.getCnameDomain())
+                .localStoragePath(local.getBasePath())
+                .maxUploadBytes(minio.getMaxFileSize())
+                .presignAvatarSeconds(minio.getPresignExpiry().getAvatarSeconds())
+                .presignFileSeconds(minio.getPresignExpiry().getFileSeconds())
+                .presignShareSeconds(minio.getPresignExpiry().getShareSeconds())
+                .build();
+    }
+
     private SysRuntimeSetting loadOrCreateRow(Long operatorId) {
         SysRuntimeSetting existing = runtimeSettingMapper.selectOneById(SysRuntimeSetting.SINGLETON_ID);
         if (existing != null) {
@@ -502,6 +633,17 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                 .forceUpdate(app != null && Boolean.TRUE.equals(app.getForceUpdate()))
                 .minSupportedVersion(app != null ? nullToEmpty(app.getMinSupportedVersion()) : "")
                 .maxUploadBytes(linkxProperties.getMinio().getMaxFileSize())
+                .storageProvider(objectStorageRouter.activeProvider().toWire())
+                .minioEndpoint(linkxProperties.getMinio().getEndpoint())
+                .minioBucketName(linkxProperties.getMinio().getBucketName())
+                .minioAccessKey(nullToEmpty(linkxProperties.getMinio().getAccessKey()))
+                .minioSecretKey(nullToEmpty(linkxProperties.getMinio().getSecretKey()))
+                .ossEndpoint(linkxProperties.getOss().getEndpoint())
+                .ossBucketName(linkxProperties.getOss().getBucketName())
+                .ossAccessKeyId(nullToEmpty(linkxProperties.getOss().getAccessKeyId()))
+                .ossAccessKeySecret(nullToEmpty(linkxProperties.getOss().getAccessKeySecret()))
+                .ossCnameDomain(nullToEmpty(linkxProperties.getOss().getCnameDomain()))
+                .localStoragePath(linkxProperties.getLocal().getBasePath())
                 .sensitiveFilterEnabled(app == null || !Boolean.FALSE.equals(app.getSensitiveFilterEnabled()))
                 .supportEmail(app != null ? nullToEmpty(app.getSupportEmail()) : "")
                 .supportPhone(app != null ? nullToEmpty(app.getSupportPhone()) : "")
@@ -550,6 +692,7 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         applyMailSide(row);
         applyMailTemplates(row);
         applySecuritySide(row);
+        applyStorageSide(row);
         if (row.getMailHost() != null) {
             mailSenderHolder.reload();
         }
@@ -798,6 +941,53 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         }
         log.info("Applied security settings: apiSign={}, apiEncrypt={}, disableFrontendDebug={}",
                 security.isApiSignEnabled(), security.isApiEncryptEnabled(), security.isDisableFrontendDebug());
+    }
+
+    private void applyStorageSide(SysRuntimeSetting row) {
+        if (StringUtils.hasText(row.getStorageProvider())) {
+            linkxProperties.getStorage().setProvider(
+                    StorageProviderType.fromWire(row.getStorageProvider()).toWire());
+        }
+        LinkxProperties.Minio minio = linkxProperties.getMinio();
+        if (row.getMinioEndpoint() != null) {
+            minio.setEndpoint(nullToEmpty(row.getMinioEndpoint()));
+        }
+        if (row.getMinioBucketName() != null) {
+            minio.setBucketName(nullToEmpty(row.getMinioBucketName()));
+        }
+        if (row.getMinioAccessKey() != null) {
+            minio.setAccessKey(nullToEmpty(row.getMinioAccessKey()));
+        }
+        if (row.getMinioSecretKey() != null) {
+            minio.setSecretKey(row.getMinioSecretKey());
+        }
+        if (row.getMaxUploadBytes() != null && row.getMaxUploadBytes() > 0) {
+            minio.setMaxFileSize(row.getMaxUploadBytes());
+        }
+        LinkxProperties.Oss oss = linkxProperties.getOss();
+        if (row.getOssEndpoint() != null) {
+            oss.setEndpoint(nullToEmpty(row.getOssEndpoint()));
+        }
+        if (row.getOssBucketName() != null) {
+            oss.setBucketName(nullToEmpty(row.getOssBucketName()));
+        }
+        if (row.getOssAccessKeyId() != null) {
+            oss.setAccessKeyId(nullToEmpty(row.getOssAccessKeyId()));
+        }
+        if (row.getOssAccessKeySecret() != null) {
+            oss.setAccessKeySecret(row.getOssAccessKeySecret());
+        }
+        if (row.getOssCnameDomain() != null) {
+            oss.setCnameDomain(nullToEmpty(row.getOssCnameDomain()));
+        }
+        if (row.getLocalStoragePath() != null) {
+            linkxProperties.getLocal().setBasePath(nullToEmpty(row.getLocalStoragePath()));
+        }
+        log.info("Applied storage settings: provider={}, minioEndpoint={}, ossEndpoint={}, localPath={}",
+                linkxProperties.getStorage().getProvider(),
+                minio.getEndpoint(),
+                oss.getEndpoint(),
+                linkxProperties.getLocal().getBasePath());
     }
 
     private static String nullToEmpty(String s) {

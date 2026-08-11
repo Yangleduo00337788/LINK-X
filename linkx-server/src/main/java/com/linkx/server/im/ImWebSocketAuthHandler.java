@@ -30,6 +30,8 @@ import java.util.UUID;
 public class ImWebSocketAuthHandler extends ChannelInboundHandlerAdapter {
 
     private static final String ACCESS_TOKEN_PROTOCOL = "linkx-access-token";
+    /** Electron 打包后页面为 file://，握手会带 Origin: file://（与 HTTP CORS 无关，鉴权仍走 JWT 子协议） */
+    private static final String ELECTRON_PACKAGED_ORIGIN = "file://";
 
     private final JwtUtils jwtUtils;
     private final TokenService tokenService;
@@ -146,9 +148,15 @@ public class ImWebSocketAuthHandler extends ChannelInboundHandlerAdapter {
 
     private boolean isOriginAllowed(FullHttpRequest request) {
         String origin = request.headers().get("Origin");
-        // null/空 Origin 默认拒绝；桌面客户端应配置明确 Origin 白名单（如 linkx:// 或具体 scheme）
+
+        // Electron 桌面端打包后加载本地资源，Origin 固定为 file://（见 WebMvcConfig CORS 说明）
+        if (ELECTRON_PACKAGED_ORIGIN.equals(origin)) {
+            return true;
+        }
+
+        // null/空 Origin 默认拒绝；Web 客户端应来自已配置的 http(s) Origin
         if (origin == null || origin.isBlank()) {
-            log.warn("WebSocket 拒绝空 Origin：桌面客户端应配置明确 Origin 白名单");
+            log.warn("WebSocket 拒绝空 Origin：Web 客户端应来自已配置的 http(s) Origin");
             return false;
         }
 

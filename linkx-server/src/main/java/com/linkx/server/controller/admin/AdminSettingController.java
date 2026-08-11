@@ -16,7 +16,9 @@ import com.linkx.server.controller.admin.dto.MailSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.MailTemplateSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.RegisterSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.SecuritySettingUpdateDTO;
+import com.linkx.server.controller.admin.dto.StorageSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.TestForgotPasswordEmailDTO;
+import com.linkx.server.controller.admin.dto.TestStorageConnectionDTO;
 import com.linkx.server.controller.admin.vo.AdminSettingVO;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.service.admin.AdminSettingService;
@@ -148,6 +150,24 @@ public class AdminSettingController {
         return Result.success(adminSettingService.updateSecurity(dto, operatorId));
     }
 
+    @Operation(summary = "更新对象存储配置")
+    @AuditAction(operationType = "UPDATE_SETTINGS", description = "更新对象存储配置")
+    @PutMapping("/storage")
+    @RequirePermission("admin:setting:edit")
+    @RequireStepUp("admin:setting:edit")
+    public Result<AdminSettingVO> updateStorage(@Valid @RequestBody StorageSettingUpdateDTO dto,
+                                                HttpServletRequest request) {
+        Long operatorId = (Long) request.getAttribute("userId");
+        return Result.success(adminSettingService.updateStorage(dto, operatorId));
+    }
+
+    @Operation(summary = "测试对象存储连接")
+    @PostMapping("/test-storage-connection")
+    @RequirePermission("admin:setting:edit")
+    public Result<String> testStorageConnection(@Valid @RequestBody TestStorageConnectionDTO dto) {
+        return Result.success(adminSettingService.testStorageConnection(dto));
+    }
+
     @Operation(summary = "测试忘记密码邮件")
     @AuditAction(operationType = "UPDATE_SETTINGS", description = "测试忘记密码邮件")
     @PostMapping("/test-forgot-password-email")
@@ -180,6 +200,6 @@ public class AdminSettingController {
 
     private static boolean requiresSensitiveStepUp(AdminSettingUpdateDTO dto) {
         return dto.getLogin() != null || dto.getPassword() != null || dto.getMail() != null
-                || dto.getSecurity() != null;
+                || dto.getSecurity() != null || dto.getStorage() != null;
     }
 }

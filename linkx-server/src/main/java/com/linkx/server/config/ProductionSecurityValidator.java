@@ -4,6 +4,8 @@ package com.linkx.server.config;
 /**
  * 作者：yangleduo
  */
+import com.linkx.server.storage.ObjectStorageRouter;
+import com.linkx.server.storage.StorageProviderType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
@@ -38,6 +40,7 @@ public class ProductionSecurityValidator implements ApplicationRunner {
 
     private final LinkxProperties linkxProperties;
     private final Environment environment;
+    private final ObjectStorageRouter objectStorageRouter;
 
     @Override
     public void run(ApplicationArguments args) {
@@ -99,17 +102,32 @@ public class ProductionSecurityValidator implements ApplicationRunner {
             errors.add("REDIS_PASSWORD 不能为空、过短（<" + MIN_REDIS_PASSWORD_LENGTH + "）或使用常见弱值/占位符");
         }
 
-        String minioAccess = linkxProperties.getMinio().getAccessKey();
-        String minioSecret = linkxProperties.getMinio().getSecretKey();
-        if (ProductionSecretRules.isBlank(minioAccess)
-                || ProductionSecretRules.isWeakSecret(minioSecret, MIN_MINIO_SECRET_LENGTH)
-                || "minioadmin".equalsIgnoreCase(trim(minioAccess))) {
-            errors.add("MINIO_ACCESS_KEY / MINIO_SECRET_KEY 不能为空、使用默认 minioadmin 或弱密钥");
-        }
-
-        String minioEndpoint = linkxProperties.getMinio().getEndpoint();
-        if (StringUtils.hasText(minioEndpoint) && minioEndpoint.startsWith("http://")) {
-            errors.add("MINIO_ENDPOINT 生产环境应使用 https://");
+        StorageProviderType provider = objectStorageRouter.activeProvider();
+        if (provider == StorageProviderType.MINIO) {
+            String minioAccess = linkxProperties.getMinio().getAccessKey();
+            String minioSecret = linkxProperties.getMinio().getSecretKey();
+            if (ProductionSecretRules.isBlank(minioAccess)
+                    || ProductionSecretRules.isWeakSecret(minioSecret, MIN_MINIO_SECRET_LENGTH)
+                    || "minioadmin".equalsIgnoreCase(trim(minioAccess))) {
+                errors.add("MINIO_ACCESS_KEY / MINIO_SECRET_KEY 不能为空、使用默认 minioadmin 或弱密钥");
+            }
+            String minioEndpoint = linkxProperties.getMinio().getEndpoint();
+            if (StringUtils.hasText(minioEndpoint) && minioEndpoint.startsWith("http://")) {
+                errors.add("MINIO_ENDPOINT 生产环境应使用 https://");
+            }
+        } else if (provider == StorageProviderType.OSS) {
+            LinkxProperties.Oss oss = linkxProperties.getOss();
+            if (ProductionSecretRules.isBlank(oss.getAccessKeyId())
+                    || ProductionSecretRules.isWeakSecret(oss.getAccessKeySecret(), MIN_MINIO_SECRET_LENGTH)) {
+                errors.add("OSS_ACCESS_KEY_ID / OSS_ACCESS_KEY_SECRET 不能为空或弱密钥");
+            }
+            if (ProductionSecretRules.isBlank(oss.getEndpoint()) || ProductionSecretRules.isBlank(oss.getBucketName())) {
+                errors.add("OSS_ENDPOINT / OSS_BUCKET_NAME 生产环境不能为空");
+            }
+        } else if (provider == StorageProviderType.LOCAL) {
+            if (ProductionSecretRules.isBlank(linkxProperties.getLocal().getBasePath())) {
+                errors.add("LOCAL_STORAGE_PATH 生产环境不能为空");
+            }
         }
 
         if (isSnailJobEnabled()) {

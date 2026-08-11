@@ -10,20 +10,9 @@ import com.linkx.server.exception.CustomException;
 import com.linkx.server.service.FileStorageService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.minio.ComposeObjectArgs;
-import io.minio.ComposeSource;
-import io.minio.CopyObjectArgs;
-import io.minio.CopySource;
-import io.minio.GetObjectArgs;
-import io.minio.GetPresignedObjectUrlArgs;
-import io.minio.MinioClient;
-import io.minio.ObjectWriteResponse;
-import io.minio.PutObjectArgs;
-import io.minio.RemoveObjectArgs;
-import io.minio.StatObjectArgs;
-import io.minio.StatObjectResponse;
-import io.minio.http.Method;
-import io.minio.errors.*;
+import com.linkx.server.storage.ObjectStorageBackend;
+import com.linkx.server.storage.ObjectStorageRouter;
+import com.linkx.server.storage.StorageProviderType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -35,7 +24,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.DigestInputStream;
-import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
@@ -104,7 +92,7 @@ public class FileStorageServiceImpl implements FileStorageService {
     private static final String MP_META_PREFIX = "linkx:mp:meta:";
     private static final String MP_PARTS_PREFIX = "linkx:mp:parts:";
 
-    private final MinioClient minioClient;
+    private final ObjectStorageRouter objectStorageRouter;
     private final LinkxProperties linkxProperties;
     private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
@@ -121,9 +109,9 @@ public class FileStorageServiceImpl implements FileStorageService {
         }
         try {
             deleteFile(objectKey);
-            log.debug("异步删除 MinIO 对象完成: {}", objectKey);
+            log.debug("异步删除对象完成: {}", objectKey);
         } catch (Exception e) {
-            log.warn("异步删除 MinIO 对象失败: key={}, err={}", objectKey, e.getMessage());
+            log.warn("异步删除对象失败: key={}, err={}", objectKey, e.getMessage());
         }
     }
 
@@ -171,18 +159,11 @@ public class FileStorageServiceImpl implements FileStorageService {
         String fullObjectName = pathPrefix + objectName;
 
         try {
-            String bucketName = linkxProperties.getMinio().getBucketName();
+            ObjectStorageBackend backend = objectStorageRouter.activeBackend();
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             try (InputStream raw = file.getInputStream();
                  DigestInputStream dis = new DigestInputStream(raw, digest)) {
-                minioClient.putObject(
-                        PutObjectArgs.builder()
-                                .bucket(bucketName)
-                                .object(fullObjectName)
-                                .stream(dis, file.getSize(), -1)
-                                .contentType(contentType)
-                                .build()
-                );
+                backend.putObject(fullObjectName, dis, file.getSize(), contentType);
             }
 
             String contentHash = HexFormat.of().formatHex(digest.digest());
@@ -191,7 +172,7 @@ public class FileStorageServiceImpl implements FileStorageService {
             // 返回对象 key（不返回公开 URL），供 getPresignedUrl 生成带签名的临时链接
             return fullObjectName;
 
-        } catch (MinioException | IOException | NoSuchAlgorithmException | InvalidKeyException e) {
+        } catch (Exception e) {
             log.error("文件上传失败", e);
             // 不向调用方暴露内部异常详情
             throw new RuntimeException("文件上传失败");
@@ -216,16 +197,10 @@ public class FileStorageServiceImpl implements FileStorageService {
         }
 
         try {
-            String bucketName = linkxProperties.getMinio().getBucketName();
-            minioClient.removeObject(
-                    RemoveObjectArgs.builder()
-                            .bucket(bucketName)
-                            .object(objectName)
-                            .build()
-            );
-            log.info("Deleted file from MinIO: {}", objectName);
+            objectStorageRouter.activeBackend().deleteObject(objectName);
+            log.info("Deleted file from storage: {}", objectName);
 
-        } catch (MinioException | IOException | NoSuchAlgorithmException | InvalidKeyException e) {
+        } catch (Exception e) {
             log.error("删除文件失败", e);
             throw new RuntimeException("删除文件失败");
         }
@@ -244,26 +219,21 @@ public class FileStorageServiceImpl implements FileStorageService {
             return urlOrKey;
         }
         String raw = urlOrKey.trim();
+        if (raw.contains("/media/stored?")) {
+            return raw;
+        }
         int q = raw.indexOf('?');
         if (q >= 0) {
             raw = raw.substring(0, q);
         }
-        String bucketName = linkxProperties.getMinio().getBucketName();
-        String endpoint = linkxProperties.getMinio().getEndpoint();
-        String[] prefixes = {
-                endpoint + "/" + bucketName + "/",
-                "http://localhost:9000/" + bucketName + "/",
-                "http://127.0.0.1:9000/" + bucketName + "/",
-                "https://localhost:9000/" + bucketName + "/",
-                "https://127.0.0.1:9000/" + bucketName + "/"
-        };
-        for (String prefix : prefixes) {
-            if (prefix != null && raw.startsWith(prefix)) {
-                return raw.substring(prefix.length());
+        for (StorageProviderType type : StorageProviderType.values()) {
+            for (String prefix : objectStorageRouter.backendFor(type).urlPrefixes()) {
+                if (prefix != null && raw.startsWith(prefix)) {
+                    return raw.substring(prefix.length());
+                }
             }
         }
-        // 否则当作对象 key 直接使用
-        return raw;
+        return objectStorageRouter.activeBackend().extractObjectKey(raw);
     }
 
     /**
@@ -292,21 +262,7 @@ public class FileStorageServiceImpl implements FileStorageService {
             return null;
         }
         int seconds = expiry > 0 ? expiry : DEFAULT_PRESIGN_EXPIRY_SECONDS;
-        try {
-            String bucketName = linkxProperties.getMinio().getBucketName();
-            return minioClient.getPresignedObjectUrl(
-                    GetPresignedObjectUrlArgs.builder()
-                            .method(Method.GET)
-                            .bucket(bucketName)
-                            .object(key)
-                            .expiry(seconds)
-                            .build()
-            );
-        } catch (MinioException | IOException | NoSuchAlgorithmException | InvalidKeyException e) {
-            // 不打印完整签名链，避免日志泄露
-            log.error("生成签名 URL 失败: key={}, err={}", key, e.getMessage());
-            return null;
-        }
+        return objectStorageRouter.activeBackend().presignGet(key, seconds);
     }
 
     /**
@@ -329,20 +285,9 @@ public class FileStorageServiceImpl implements FileStorageService {
             throw new IllegalArgumentException("非法对象 key");
         }
         try {
-            String bucketName = linkxProperties.getMinio().getBucketName();
-            StatObjectResponse stat = minioClient.statObject(
-                    StatObjectArgs.builder().bucket(bucketName).object(key).build()
-            );
-            InputStream stream = minioClient.getObject(
-                    GetObjectArgs.builder().bucket(bucketName).object(key).build()
-            );
-            String contentType = stat.contentType();
-            if (contentType == null || contentType.isBlank()) {
-                contentType = "application/octet-stream";
-            }
-            return new StoredObject(stream, contentType, stat.size(), key);
-        } catch (MinioException | IOException | NoSuchAlgorithmException | InvalidKeyException e) {
-            log.error("打开 MinIO 对象失败: key={}, err={}", key, e.getMessage());
+            return objectStorageRouter.activeBackend().open(key);
+        } catch (Exception e) {
+            log.error("打开存储对象失败: key={}, err={}", key, e.getMessage());
             throw new RuntimeException("读取文件失败");
         }
     }
@@ -429,23 +374,16 @@ public class FileStorageServiceImpl implements FileStorageService {
 
         String partObjectKey = partObjectKey(uploadId, partNumber);
         try {
-            String bucketName = linkxProperties.getMinio().getBucketName();
-            ObjectWriteResponse resp = minioClient.putObject(
-                    PutObjectArgs.builder()
-                            .bucket(bucketName)
-                            .object(partObjectKey)
-                            .stream(data, partSize, -1)
-                            .contentType("application/octet-stream")
-                            .build()
-            );
-            String etag = resp != null && StringUtils.hasText(resp.etag())
-                    ? stripQuotes(resp.etag())
-                    : "fb-".concat(UUID.randomUUID().toString().replace("-", ""));
+            ObjectStorageBackend backend = objectStorageRouter.activeBackend();
+            String etag = backend.uploadPartObject(partObjectKey, data, partSize);
+            if (!StringUtils.hasText(etag)) {
+                etag = "fb-".concat(UUID.randomUUID().toString().replace("-", ""));
+            }
             redisTemplate.opsForHash().put(MP_PARTS_PREFIX + uploadId, String.valueOf(partNumber), etag);
             redisTemplate.expire(MP_PARTS_PREFIX + uploadId, MULTIPART_TTL);
             redisTemplate.expire(MP_META_PREFIX + uploadId, MULTIPART_TTL);
             return etag;
-        } catch (MinioException | IOException | NoSuchAlgorithmException | InvalidKeyException e) {
+        } catch (Exception e) {
             log.error("分片上传失败: uploadId={}, part={}", uploadId, partNumber, e);
             throw new RuntimeException("分片上传失败");
         }
@@ -489,34 +427,22 @@ public class FileStorageServiceImpl implements FileStorageService {
             throw new IllegalArgumentException("分片数超过 ComposeObject 上限(32)，请增大分片大小");
         }
 
-        String bucketName = linkxProperties.getMinio().getBucketName();
+        ObjectStorageBackend backend = objectStorageRouter.activeBackend();
         try {
             // 校验中间片大小（Compose 约束）
             for (int i = 0; i < ordered.size() - 1; i++) {
                 PartETag p = ordered.get(i);
-                StatObjectResponse st = minioClient.statObject(
-                        StatObjectArgs.builder().bucket(bucketName).object(partObjectKey(uploadId, p.partNumber())).build()
-                );
-                if (st.size() < MIN_COMPOSE_PART_BYTES) {
+                long partSize = backend.statPartSize(partObjectKey(uploadId, p.partNumber()));
+                if (partSize < MIN_COMPOSE_PART_BYTES) {
                     throw new IllegalArgumentException("分片 " + p.partNumber() + " 小于 5MB，无法合并（除最后一片外）");
                 }
             }
 
-            List<ComposeSource> sources = new ArrayList<>(ordered.size());
+            List<String> partKeys = new ArrayList<>(ordered.size());
             for (PartETag p : ordered) {
-                sources.add(ComposeSource.builder()
-                        .bucket(bucketName)
-                        .object(partObjectKey(uploadId, p.partNumber()))
-                        .build());
+                partKeys.add(partObjectKey(uploadId, p.partNumber()));
             }
-            minioClient.composeObject(
-                    ComposeObjectArgs.builder()
-                            .bucket(bucketName)
-                            .object(objectName)
-                            .sources(sources)
-                            .headers(Map.of("Content-Type", meta.contentType()))
-                            .build()
-            );
+            backend.composeParts(objectName, partKeys, meta.contentType());
 
             cleanupMultipartTemp(uploadId, ordered);
             return objectName;
@@ -554,13 +480,7 @@ public class FileStorageServiceImpl implements FileStorageService {
             return false;
         }
         try {
-            minioClient.statObject(
-                    StatObjectArgs.builder()
-                            .bucket(linkxProperties.getMinio().getBucketName())
-                            .object(key)
-                            .build()
-            );
-            return true;
+            return objectStorageRouter.activeBackend().exists(key);
         } catch (Exception e) {
             return false;
         }
@@ -597,20 +517,10 @@ public class FileStorageServiceImpl implements FileStorageService {
         }
 
         String destKey = allocateObjectName(fileNameForAlloc);
-        String bucketName = linkxProperties.getMinio().getBucketName();
         try {
-            minioClient.copyObject(
-                    CopyObjectArgs.builder()
-                            .bucket(bucketName)
-                            .object(destKey)
-                            .source(CopySource.builder()
-                                    .bucket(bucketName)
-                                    .object(sourceKey)
-                                    .build())
-                            .build()
-            );
+            objectStorageRouter.activeBackend().copyObject(sourceKey, destKey);
             return destKey;
-        } catch (MinioException | IOException | NoSuchAlgorithmException | InvalidKeyException e) {
+        } catch (Exception e) {
             log.error("复制对象失败: src={}, dest={}, err={}", sourceKey, destKey, e.getMessage());
             throw new RuntimeException("复制附件失败");
         }
@@ -764,20 +674,11 @@ public class FileStorageServiceImpl implements FileStorageService {
         redisTemplate.delete(MP_PARTS_PREFIX + uploadId);
     }
 
-    /** 仅清理 MinIO 临时分片对象（不影响 Redis 会话） */
+    /** 仅清理临时分片对象（不影响 Redis 会话） */
     private void cleanupMultipartTempObjects(String uploadId, List<PartETag> parts) {
-        String bucketName = linkxProperties.getMinio().getBucketName();
+        ObjectStorageBackend backend = objectStorageRouter.activeBackend();
         for (PartETag p : parts) {
-            try {
-                minioClient.removeObject(
-                        RemoveObjectArgs.builder()
-                                .bucket(bucketName)
-                                .object(partObjectKey(uploadId, p.partNumber()))
-                                .build()
-                );
-            } catch (Exception e) {
-                log.warn("清理临时分片失败: uploadId={}, part={}", uploadId, p.partNumber(), e);
-            }
+            backend.deletePartObject(partObjectKey(uploadId, p.partNumber()));
         }
     }
 

@@ -20,6 +20,7 @@ import com.linkx.server.mapper.admin.SysOpsRecommendMapper;
 import com.linkx.server.service.ExternalMediaProxyService;
 import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.MediaUrlService;
+import com.linkx.server.service.StoredMediaProxyService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -50,6 +51,7 @@ public class ExternalMediaController {
     private final SysOpsActivityMapper sysOpsActivityMapper;
     private final FileStorageService fileStorageService;
     private final MediaUrlService mediaUrlService;
+    private final StoredMediaProxyService storedMediaProxyService;
 
     @GetMapping("/external")
     @RateLimit(scope = "media:external", value = 120, window = 60, byUser = false)
@@ -70,6 +72,22 @@ public class ExternalMediaController {
                 .header(HttpHeaders.CACHE_CONTROL, "private, max-age=300")
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
                 .body(image.body());
+    }
+
+    @Operation(summary = "本地存储等媒体对象（HMAC 签名代理）")
+    @GetMapping("/stored")
+    @RateLimit(scope = "media:stored", value = 180, window = 60, byUser = false)
+    public ResponseEntity<?> storedObject(
+            @RequestParam("k") String objectKey,
+            @RequestParam("e") long expiresEpochSec,
+            @RequestParam("s") String signature) {
+        String key = storedMediaProxyService.verifyAndExtractKey(objectKey, expiresEpochSec, signature);
+        try {
+            FileStorageService.StoredObject object = fileStorageService.openObject(key);
+            return MediaStreamResponses.inline(object, "stored");
+        } catch (Exception e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     @Operation(summary = "用户头像（同源流，供 img 标签加载）")

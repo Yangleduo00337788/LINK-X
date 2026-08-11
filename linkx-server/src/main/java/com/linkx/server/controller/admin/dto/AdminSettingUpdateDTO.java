@@ -43,4 +43,8 @@ public class AdminSettingUpdateDTO {
     @Valid
     @Schema(description = "安全配置")
     private SecuritySettingUpdateDTO security;
+
+    @Valid
+    @Schema(description = "对象存储配置")
+    private StorageSettingUpdateDTO storage;
 }
