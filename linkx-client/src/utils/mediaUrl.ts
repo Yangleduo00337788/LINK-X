@@ -54,6 +54,7 @@ export function isEphemeralMediaUrl(url?: string | null): boolean {
   if (/[?&]X-Amz-/i.test(v)) return true
   if (/:\/\/(localhost|127\.0\.0\.1|\[::1\]):9000\//i.test(v)) return true
   if (/\/media\/external(?:\?|$)/i.test(v)) return true
+  if (/\/media\/stored(?:\?|$)/i.test(v)) return true
   return false
 }
 

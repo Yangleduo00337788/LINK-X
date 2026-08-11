@@ -9,6 +9,13 @@ import https from 'node:https'
 import { fileURLToPath } from 'node:url'
 import { Buffer } from 'node:buffer'
 import { execSync, spawn } from 'node:child_process'
+import {
+  connectOriginsForCsp,
+  expandLoopbackOrigins,
+  originFromBaseUrl,
+  resolveApiBaseUrl,
+  resolveWsBaseUrl
+} from '../shared/endpoints'
 
 /** 渲染进程发起的受控下载请求 */
 type DownloadFilePayload = {
@@ -63,12 +70,8 @@ function uniqueSavePath(dir: string, fileName: string): string {
 /** 允许主进程直接拉取的下载源：API + MinIO/CDN 等可信媒体域 */
 function isAllowedDownloadOrigin(urlOrigin: string): boolean {
   const allowed = new Set<string>()
-  const apiBase = process.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
-  try {
-    const u = new URL(apiBase)
-    allowed.add(`${u.protocol}//${u.host}`)
-  } catch {
-    allowed.add('http://localhost:8080')
+  for (const origin of expandLoopbackOrigins(originFromBaseUrl(resolveApiBaseUrl(process.env.VITE_API_BASE_URL)))) {
+    allowed.add(origin)
   }
   for (const part of collectTrustedMediaOrigins().split(/\s+/)) {
     if (part) allowed.add(part)
@@ -111,6 +114,19 @@ const isDev = Boolean(process.env.VITE_DEV_SERVER_URL)
  * CSP 可信媒体源：本机 API/MinIO + 可选环境变量（生产 MinIO/CDN 网关）。
  * 朋友圈外链改走后端 /media/external 代理，故不再需要任意 https:。
  */
+function collectLoopbackMinioOrigins(apiBase: string): string[] {
+  try {
+    const u = new URL(apiBase)
+    if (u.hostname !== 'localhost' && u.hostname !== '127.0.0.1' && u.hostname !== '[::1]') {
+      return []
+    }
+    const host = u.hostname === 'localhost' ? '127.0.0.1' : u.hostname
+    return expandLoopbackOrigins(`${u.protocol}//${host}:9000`)
+  } catch {
+    return []
+  }
+}
+
 function collectTrustedMediaOrigins(): string {
   const origins = new Set<string>()
   if (isDev) {
@@ -121,6 +137,7 @@ function collectTrustedMediaOrigins(): string {
     origins.add('http://127.0.0.1:5173')
     origins.add('http://localhost:5173')
   }
+  const apiBase = resolveApiBaseUrl(process.env.VITE_API_BASE_URL)
   for (const raw of [
     process.env.VITE_API_BASE_URL,
     process.env.VITE_MINIO_PUBLIC_ORIGIN,
@@ -129,10 +146,19 @@ function collectTrustedMediaOrigins(): string {
     if (!raw) continue
     try {
       const u = new URL(raw)
-      origins.add(`${u.protocol}//${u.host}`)
+      for (const origin of expandLoopbackOrigins(`${u.protocol}//${u.host}`)) {
+        origins.add(origin)
+      }
     } catch {
       // ignore invalid
     }
+  }
+  for (const origin of expandLoopbackOrigins(originFromBaseUrl(apiBase))) {
+    origins.add(origin)
+  }
+  // 头像/附件预签名 URL 直连 MinIO（:9000），须写入 CSP img-src，否则 Electron 内裂图
+  for (const origin of collectLoopbackMinioOrigins(apiBase)) {
+    origins.add(origin)
   }
   return [...origins].join(' ')
 }
@@ -1164,7 +1190,7 @@ function browserWindowIconOptions(): Pick<Electron.BrowserWindowConstructorOptio
   return icon ? { icon } : {}
 }
 
-/** 托盘图标：专用圆形 icon-tray.png，缩到任务栏仍显圆润 */
+/** 托盘图标：专用 icon-tray.png（边距更小），HiDPI 下缩放到 32px 更清晰 */
 function createTrayIcon(): Electron.NativeImage {
   const trayPath =
     resolveBuildAsset('icon-tray.png') ??
@@ -1176,6 +1202,10 @@ function createTrayIcon(): Electron.NativeImage {
     try {
       const img = nativeImage.createFromPath(trayPath)
       if (!img.isEmpty()) {
+        const size = img.getSize()
+        if (size.width > 32 || size.height > 32) {
+          return img.resize({ width: 32, height: 32, quality: 'best' })
+        }
         return img
       }
     } catch {
@@ -1893,14 +1923,10 @@ app.whenReady().then(() => {
   // 在窗口创建前设置，应用到所有窗口
   // img-src / media-src：仅本应用、本机 MinIO/API，以及可选的生产媒体源（不再放开任意 http/https）
   const mediaOrigins = collectTrustedMediaOrigins()
-  const apiOrigin = (() => {
-    const raw = process.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
-    try { const u = new URL(raw); return `${u.protocol}//${u.host}` } catch { return 'http://localhost:8080' }
-  })()
-  const wsOrigin = (() => {
-    const raw = process.env.VITE_WS_BASE_URL || 'ws://localhost:8081'
-    try { const u = new URL(raw); return `${u.protocol}//${u.host}` } catch { return 'ws://localhost:8081' }
-  })()
+  const connectOrigins = connectOriginsForCsp(
+    resolveApiBaseUrl(process.env.VITE_API_BASE_URL),
+    resolveWsBaseUrl(process.env.VITE_WS_BASE_URL)
+  )
   // [P2-8-2] CSP 策略强化：
   // - dev mode：Vite HMR 需要内联脚本，保留 'unsafe-inline'
   // - prod mode：构建产物无内联脚本，移除 script-src 'unsafe-inline' 降低 XSS 风险
@@ -1916,7 +1942,7 @@ app.whenReady().then(() => {
     "style-src 'self' 'unsafe-inline';",
     `img-src 'self' data: blob: ${mediaOrigins};`,
     "font-src 'self' data:;",
-    `connect-src 'self' ${apiOrigin} ${wsOrigin};`,
+    `connect-src 'self' ${connectOrigins};`,
     `media-src 'self' blob: mediastream: ${mediaOrigins};`
   ].join(' ')
 

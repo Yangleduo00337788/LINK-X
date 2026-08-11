@@ -1,7 +1,7 @@
 /**
  * 作者：yangleduo
  */
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import UnoCSS from 'unocss/vite'
 import electron from 'vite-plugin-electron'
@@ -20,6 +20,13 @@ function copyPreloadCjs() {
 
 export default defineConfig(({ mode, command }) => {
   const isElectron = mode === 'electron'
+  const env = loadEnv(mode, process.cwd(), '')
+  const electronEnvDefine = {
+    'process.env.VITE_API_BASE_URL': JSON.stringify(env.VITE_API_BASE_URL || ''),
+    'process.env.VITE_WS_BASE_URL': JSON.stringify(env.VITE_WS_BASE_URL || ''),
+    'process.env.VITE_MINIO_PUBLIC_ORIGIN': JSON.stringify(env.VITE_MINIO_PUBLIC_ORIGIN || ''),
+    'process.env.LINKX_MINIO_PUBLIC_ORIGIN': JSON.stringify(env.LINKX_MINIO_PUBLIC_ORIGIN || '')
+  }
 
   return {
     base: './',
@@ -63,6 +70,7 @@ export default defineConfig(({ mode, command }) => {
                 options.startup()
               },
               vite: {
+                define: electronEnvDefine,
                 build: {
                   sourcemap: true,
                   minify: mode === 'electron',
