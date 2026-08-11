@@ -27,6 +27,7 @@ import { useMessage } from 'naive-ui'
 import type { ContactItem } from '../../types'
 import * as userApi from '../../api/user'
 import type { UserProfileData } from '../../api/user'
+import { resolveUserAvatarUrl } from '../../utils/defaultAvatar'
 import { normalizeMediaUrl } from '../../utils/mediaUrl'
 import { useI18n } from '../../i18n'
 import { PROFILE_GENDER_FEMALE, PROFILE_GENDER_MALE } from '../../types/profileGender'
@@ -141,8 +142,11 @@ const displayName = computed(() => {
 
 const displayAvatarUrl = computed(() => {
   if (!contact.value) return undefined
-  if (profileCardIsSelf.value) return userProfile.value.avatar || contact.value.avatarUrl
-  return remoteProfile.value?.avatar || contact.value.avatarUrl
+  if (profileCardIsSelf.value) {
+    return resolveUserAvatarUrl(userProfile.value.avatar, userProfile.value.userId)
+  }
+  const remoteId = remoteProfile.value?.id ?? friendUserId.value
+  return resolveUserAvatarUrl(remoteProfile.value?.avatar || contact.value.avatarUrl, remoteId)
 })
 
 const displayAvatarText = computed(() => {
@@ -749,7 +753,7 @@ async function saveGroup() {
 .avatar-clickable {
   position: relative;
   cursor: pointer;
-  border-radius: 50%;
+  border-radius: var(--lx-avatar-radius);
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -773,7 +777,7 @@ async function saveGroup() {
   color: white;
   opacity: 0;
   transition: opacity var(--lx-duration-md);
-  border-radius: 50%;
+  border-radius: var(--lx-avatar-radius);
 }
 
 .self-status {

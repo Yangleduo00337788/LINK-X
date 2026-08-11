@@ -676,7 +676,7 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
 .user-avatar {
   width: 42px;
   height: 42px;
-  border-radius: 50%;
+  border-radius: var(--lx-avatar-radius);
   object-fit: cover;
   background: var(--lx-bg-panel);
   border: 2px solid var(--lx-bg-card);

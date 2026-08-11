@@ -534,7 +534,7 @@ function onAvatarError(e: Event, notif: typeof messageNotifs.value[0]) {
 .notif-avatar {
   width: 36px;
   height: 36px;
-  border-radius: 50%;
+  border-radius: var(--lx-avatar-radius);
   object-fit: cover;
   flex-shrink: 0;
   background: var(--lx-bg-panel);

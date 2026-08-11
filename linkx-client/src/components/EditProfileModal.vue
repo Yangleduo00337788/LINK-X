@@ -305,7 +305,7 @@ async function handleAvatarChange(e: Event) {
   height: 88px;
   border: none;
   padding: 0;
-  border-radius: 50%;
+  border-radius: var(--lx-avatar-radius);
   overflow: hidden;
   cursor: pointer;
   background: var(--lx-bg-panel);

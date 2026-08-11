@@ -1187,7 +1187,7 @@ async function handleForgot() {
 .avatar-ring {
   position: relative;
   padding: var(--lx-space-2xs);
-  border-radius: 50%;
+  border-radius: var(--lx-avatar-radius);
   background: var(--lx-login-card-gradient);
   box-shadow:
     0 8px 24px rgba(18, 183, 245, 0.2),
@@ -1201,7 +1201,7 @@ async function handleForgot() {
 .avatar-glow {
   position: absolute;
   inset: -18px;
-  border-radius: 50%;
+  border-radius: var(--lx-avatar-radius);
   background: radial-gradient(circle, rgba(18, 183, 245, 0.22) 0%, transparent 68%);
   pointer-events: none;
   z-index: -1;

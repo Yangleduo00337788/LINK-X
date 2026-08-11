@@ -1070,14 +1070,14 @@ async function publish() {
 .friend-avatar {
   width: 40px;
   height: 40px;
-  border-radius: 50%;
+  border-radius: var(--lx-avatar-radius);
   object-fit: cover;
 }
 
 .friend-avatar-placeholder {
   width: 40px;
   height: 40px;
-  border-radius: 50%;
+  border-radius: var(--lx-avatar-radius);
   display: flex;
   align-items: center;
   justify-content: center;

@@ -71,7 +71,7 @@ function onImgError() {
     :style="{
       width: `${size}px`,
       height: `${size}px`,
-      backgroundColor: isLogoDisplay ? 'var(--lx-bg-logo)' : color,
+      backgroundColor: isLogoDisplay ? 'var(--lx-bg-card)' : color,
       fontSize: fontSize
     }"
   >
@@ -95,7 +95,7 @@ function onImgError() {
 
 <style scoped>
 .avatar {
-  border-radius: 50%;
+  border-radius: var(--lx-avatar-radius);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -113,8 +113,6 @@ function onImgError() {
 }
 
 .avatar-img--logo {
-  object-fit: contain;
-  padding: 10%;
-  box-sizing: border-box;
+  object-fit: cover;
 }
 </style>

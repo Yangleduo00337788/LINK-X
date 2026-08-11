@@ -1002,7 +1002,7 @@ void MoveOutline
 .col-time, .col-size { font-size: var(--lx-font-md); color: var(--lx-text-secondary); }
 .col-uploader { display: flex; align-items: center; gap: var(--lx-space); min-width: 0; }
 .avatar {
-  width: 24px; height: 24px; border-radius: 50%; background: var(--lx-accent-soft); color: var(--lx-accent);
+  width: 24px; height: 24px; border-radius: var(--lx-avatar-radius); background: var(--lx-accent-soft); color: var(--lx-accent);
   font-size: var(--lx-font-xs); font-weight: 600; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
 .uploader-name { font-size: var(--lx-font-md); color: var(--lx-text-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

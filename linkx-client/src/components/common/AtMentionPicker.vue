@@ -177,7 +177,7 @@ defineExpose({
 .at-avatar {
   width: 28px;
   height: 28px;
-  border-radius: 50%;
+  border-radius: var(--lx-avatar-radius);
   display: inline-flex;
   align-items: center;
   justify-content: center;

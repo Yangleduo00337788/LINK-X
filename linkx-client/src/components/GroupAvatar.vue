@@ -87,7 +87,7 @@ function onCellError(index: number) {
       v-for="(cell, i) in cells"
       :key="i"
       class="cell"
-      :style="{ backgroundColor: cell.isLogo ? 'var(--lx-bg-logo)' : cell.color }"
+      :style="{ backgroundColor: cell.isLogo ? 'var(--lx-bg-card)' : cell.color }"
     >
       <img
         :src="cell.imageUrl"
@@ -113,7 +113,7 @@ function onCellError(index: number) {
 
 <style scoped>
 .group-avatar {
-  border-radius: 50%;
+  border-radius: var(--lx-avatar-radius);
   overflow: hidden;
   flex-shrink: 0;
   box-sizing: border-box;
@@ -135,8 +135,7 @@ function onCellError(index: number) {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--lx-bg-logo);
-  border-radius: 50%;
+  background: var(--lx-bg-card);
 }
 
 .cell {
@@ -155,16 +154,9 @@ function onCellError(index: number) {
   display: block;
 }
 
-.cell-img--logo {
-  object-fit: contain;
-  padding: 12%;
-  box-sizing: border-box;
-}
-
+.cell-img--logo,
 .full-img--logo {
-  object-fit: contain;
-  padding: 10%;
-  box-sizing: border-box;
+  object-fit: cover;
 }
 
 .n1 {

@@ -1214,7 +1214,7 @@ async function onAdmit(userId: string) {
 .tile-avatar {
   width: 48px;
   height: 48px;
-  border-radius: 50%;
+  border-radius: var(--lx-avatar-radius);
   object-fit: cover;
   box-shadow: var(--lx-shadow-dropdown);
 }
@@ -1466,7 +1466,7 @@ async function onAdmit(userId: string) {
 .member-av {
   width: 36px;
   height: 36px;
-  border-radius: 50%;
+  border-radius: var(--lx-avatar-radius);
   object-fit: cover;
   flex-shrink: 0;
 }

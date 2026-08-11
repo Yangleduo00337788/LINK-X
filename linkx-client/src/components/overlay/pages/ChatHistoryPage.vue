@@ -375,7 +375,7 @@ function clearTimeRange() {
 .history-avatar {
   width: 48px;
   height: 48px;
-  border-radius: var(--lx-radius-card);
+  border-radius: var(--lx-avatar-radius);
   background: var(--lx-bg-card);
   color: var(--lx-accent);
   display: flex;
