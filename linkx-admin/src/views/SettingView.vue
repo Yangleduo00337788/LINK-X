@@ -35,6 +35,8 @@ import {
   updatePasswordSettings,
   updateRegisterSettings,
   updateSecuritySettings,
+  updateStorageSettings,
+  testStorageConnection,
   type AdminSetting,
   type MailTemplateSetting,
 } from '@/api/settings'
@@ -63,6 +65,8 @@ const savingClient = ref(false)
 const savingMail = ref(false)
 const savingMailTemplates = ref(false)
 const savingSecurity = ref(false)
+const savingStorage = ref(false)
+const testingStorage = ref(false)
 const testingEmail = ref(false)
 const showTestEmailModal = ref(false)
 const testEmail = ref('')
@@ -73,6 +77,7 @@ const tabNames = new Set([
   'client',
   'mail',
   'mail-templates',
+  'storage',
   'security',
   'watermark',
   'sound',
@@ -248,6 +253,29 @@ const securityForm = reactive({
   disableFrontendDebug: false,
 })
 
+const storageForm = reactive({
+  provider: 'minio' as 'minio' | 'oss' | 'local',
+  minioEndpoint: '',
+  minioBucketName: '',
+  minioAccessKey: '',
+  minioSecretKey: '',
+  minioSecretConfigured: false,
+  ossEndpoint: '',
+  ossBucketName: '',
+  ossAccessKeyId: '',
+  ossAccessKeySecret: '',
+  ossAccessKeySecretConfigured: false,
+  ossCnameDomain: '',
+  localStoragePath: '',
+  maxUploadMb: 100,
+})
+
+const storageProviderOptions = computed(() => [
+  { label: t('setting.storageProviderMinio'), value: 'minio' },
+  { label: t('setting.storageProviderOss'), value: 'oss' },
+  { label: t('setting.storageProviderLocal'), value: 'local' },
+])
+
 watch(
   () => securityForm.apiEncryptEnabled,
   (enabled) => {
@@ -345,6 +373,23 @@ function applySettings(data: AdminSetting) {
   securityForm.apiEncryptEnabled = data.security?.apiEncryptEnabled === true
   securityForm.disableFrontendDebug = data.security?.disableFrontendDebug === true
   securityStore.applyFromSettings(data.security)
+
+  storageForm.provider = (data.storage?.provider as 'minio' | 'oss' | 'local') || 'minio'
+  storageForm.minioEndpoint = data.storage?.minioEndpoint || ''
+  storageForm.minioBucketName = data.storage?.minioBucketName || ''
+  storageForm.minioAccessKey = data.storage?.minioAccessKey || ''
+  storageForm.minioSecretKey = ''
+  storageForm.minioSecretConfigured = data.storage?.minioSecretConfigured === true
+  storageForm.ossEndpoint = data.storage?.ossEndpoint || ''
+  storageForm.ossBucketName = data.storage?.ossBucketName || ''
+  storageForm.ossAccessKeyId = data.storage?.ossAccessKeyId || ''
+  storageForm.ossAccessKeySecret = ''
+  storageForm.ossAccessKeySecretConfigured = data.storage?.ossAccessKeySecretConfigured === true
+  storageForm.ossCnameDomain = data.storage?.ossCnameDomain || ''
+  storageForm.localStoragePath = data.storage?.localStoragePath || ''
+  storageForm.maxUploadMb = data.storage?.maxUploadBytes
+    ? Math.round((data.storage.maxUploadBytes / (1024 * 1024)) * 10) / 10
+    : clientForm.maxUploadMb
 }
 
 function applyMailTemplate(key: 'register' | 'reset' | 'welcome', tpl?: MailTemplateSetting) {
@@ -514,6 +559,57 @@ async function saveClient() {
       message.success(t('setting.clientSaved'))
     } finally {
       savingClient.value = false
+    }
+  })
+}
+
+function buildStoragePayload() {
+  return {
+    provider: storageForm.provider,
+    minioEndpoint: storageForm.minioEndpoint.trim(),
+    minioBucketName: storageForm.minioBucketName.trim(),
+    minioAccessKey: storageForm.minioAccessKey.trim(),
+    minioSecretKey: storageForm.minioSecretKey.trim() || undefined,
+    ossEndpoint: storageForm.ossEndpoint.trim(),
+    ossBucketName: storageForm.ossBucketName.trim(),
+    ossAccessKeyId: storageForm.ossAccessKeyId.trim(),
+    ossAccessKeySecret: storageForm.ossAccessKeySecret.trim() || undefined,
+    ossCnameDomain: storageForm.ossCnameDomain.trim(),
+    localStoragePath: storageForm.localStoragePath.trim(),
+    maxUploadBytes: Math.round(storageForm.maxUploadMb * 1024 * 1024),
+  }
+}
+
+async function testStorage() {
+  if (!canEdit.value) return
+  if (!storageForm.maxUploadMb || storageForm.maxUploadMb <= 0) {
+    message.warning(t('setting.maxUploadRequired'))
+    return
+  }
+  testingStorage.value = true
+  try {
+    const msg = await testStorageConnection(buildStoragePayload())
+    message.success(msg || t('setting.storageTestOk'))
+  } catch {
+    // request layer shows error
+  } finally {
+    testingStorage.value = false
+  }
+}
+
+async function saveStorage() {
+  if (!canEdit.value) return
+  if (!storageForm.maxUploadMb || storageForm.maxUploadMb <= 0) {
+    message.warning(t('setting.maxUploadRequired'))
+    return
+  }
+  confirmSave(t('setting.saveStorage'), async () => {
+    savingStorage.value = true
+    try {
+      applySettings(await updateStorageSettings(buildStoragePayload()))
+      message.success(t('setting.storageSaved'))
+    } finally {
+      savingStorage.value = false
     }
   })
 }
@@ -1259,6 +1355,133 @@ onMounted(load)
                     :disabled="savingMailTemplates"
                     @click="load"
                   >
+                    {{ t('common.refresh') }}
+                  </NButton>
+                </NSpace>
+              </NFormItem>
+              <p v-else class="readonly-hint">{{ t('setting.readonlyHint') }}</p>
+            </NForm>
+          </NTabPane>
+
+          <NTabPane name="storage" :tab="t('setting.storageTitle')">
+            <p class="section-hint">{{ t('setting.storageHint') }}</p>
+            <NForm label-placement="left" label-width="160" :disabled="!canEdit">
+              <NFormItem :label="t('setting.storageProvider')" required>
+                <NSelect
+                  v-model:value="storageForm.provider"
+                  :options="storageProviderOptions"
+                  style="max-width: 240px"
+                />
+              </NFormItem>
+              <NFormItem :label="t('setting.maxUpload')" required>
+                <div class="upload-row">
+                  <NInputNumber
+                    v-model:value="storageForm.maxUploadMb"
+                    :min="0.1"
+                    :max="10240"
+                    :step="1"
+                    style="width: 160px"
+                  />
+                  <span class="field-hint">MB</span>
+                </div>
+              </NFormItem>
+
+              <template v-if="storageForm.provider === 'minio'">
+                <NFormItem :label="t('setting.minioEndpoint')">
+                  <NInput v-model:value="storageForm.minioEndpoint" style="max-width: 420px" />
+                </NFormItem>
+                <NFormItem :label="t('setting.minioBucket')">
+                  <NInput v-model:value="storageForm.minioBucketName" style="max-width: 240px" />
+                </NFormItem>
+                <NFormItem :label="t('setting.minioAccessKey')">
+                  <NInput v-model:value="storageForm.minioAccessKey" style="max-width: 360px" />
+                </NFormItem>
+                <NFormItem :label="t('setting.minioSecretKey')">
+                  <div class="password-row">
+                    <NInput
+                      v-model:value="storageForm.minioSecretKey"
+                      type="password"
+                      show-password-on="click"
+                      :placeholder="t('setting.storageSecretPh')"
+                      style="max-width: 360px"
+                    />
+                    <span class="field-hint">{{
+                      storageForm.minioSecretConfigured
+                        ? t('setting.mailPasswordConfigured')
+                        : t('setting.mailPasswordMissing')
+                    }}</span>
+                  </div>
+                </NFormItem>
+              </template>
+
+              <template v-if="storageForm.provider === 'oss'">
+                <NFormItem :label="t('setting.ossEndpoint')">
+                  <NInput
+                    v-model:value="storageForm.ossEndpoint"
+                    placeholder="oss-cn-beijing.aliyuncs.com"
+                    style="max-width: 420px"
+                  />
+                </NFormItem>
+                <NFormItem :label="t('setting.ossBucket')">
+                  <NInput v-model:value="storageForm.ossBucketName" style="max-width: 240px" />
+                </NFormItem>
+                <NFormItem :label="t('setting.ossAccessKeyId')">
+                  <NInput v-model:value="storageForm.ossAccessKeyId" style="max-width: 360px" />
+                </NFormItem>
+                <NFormItem :label="t('setting.ossAccessKeySecret')">
+                  <div class="password-row">
+                    <NInput
+                      v-model:value="storageForm.ossAccessKeySecret"
+                      type="password"
+                      show-password-on="click"
+                      :placeholder="t('setting.storageSecretPh')"
+                      style="max-width: 360px"
+                    />
+                    <span class="field-hint">{{
+                      storageForm.ossAccessKeySecretConfigured
+                        ? t('setting.mailPasswordConfigured')
+                        : t('setting.mailPasswordMissing')
+                    }}</span>
+                  </div>
+                </NFormItem>
+                <NFormItem :label="t('setting.ossCnameDomain')">
+                  <NInput
+                    v-model:value="storageForm.ossCnameDomain"
+                    placeholder="cn-beijing.example.com"
+                    style="max-width: 420px"
+                  />
+                </NFormItem>
+              </template>
+
+              <template v-if="storageForm.provider === 'local'">
+                <NFormItem :label="t('setting.localStoragePath')">
+                  <NInput
+                    v-model:value="storageForm.localStoragePath"
+                    placeholder="./data/local-storage"
+                    style="max-width: 420px"
+                  />
+                </NFormItem>
+              </template>
+
+              <NFormItem v-if="canEdit">
+                <NSpace>
+                  <NButton
+                    type="primary"
+                    class="lx-float-btn"
+                    :loading="savingStorage"
+                    @click="saveStorage"
+                  >
+                    {{ t('setting.saveStorage') }}
+                  </NButton>
+                  <NButton
+                    class="lx-float-btn"
+                    :loading="testingStorage"
+                    :disabled="savingStorage"
+                    @click="testStorage"
+                  >
+                    {{ t('setting.testStorageConnection') }}
+                  </NButton>
+                  <NButton class="lx-float-btn" :disabled="savingStorage" @click="load">
                     {{ t('common.refresh') }}
                   </NButton>
                 </NSpace>

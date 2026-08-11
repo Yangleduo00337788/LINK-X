@@ -84,6 +84,24 @@ export interface SecuritySideSetting {
   disableFrontendDebug?: boolean
 }
 
+export interface StorageSideSetting {
+  provider?: 'minio' | 'oss' | 'local'
+  minioEndpoint?: string
+  minioBucketName?: string
+  minioAccessKey?: string
+  minioSecretConfigured?: boolean
+  ossEndpoint?: string
+  ossBucketName?: string
+  ossAccessKeyId?: string
+  ossAccessKeySecretConfigured?: boolean
+  ossCnameDomain?: string
+  localStoragePath?: string
+  maxUploadBytes?: number
+  presignAvatarSeconds?: number
+  presignFileSeconds?: number
+  presignShareSeconds?: number
+}
+
 export interface AdminSetting {
   register?: RegisterSideSetting
   login?: LoginSideSetting
@@ -93,6 +111,7 @@ export interface AdminSetting {
   mail?: MailSideSetting
   mailTemplates?: MailTemplatesSideSetting
   security?: SecuritySideSetting
+  storage?: StorageSideSetting
 }
 
 export type RegisterUpdatePayload = Required<
@@ -164,6 +183,30 @@ export type MailTemplatesUpdatePayload = {
 
 export type SecurityUpdatePayload = Required<SecuritySideSetting>
 
+export type StorageUpdatePayload = Required<
+  Pick<
+    StorageSideSetting,
+  | 'provider'
+  | 'maxUploadBytes'
+  >
+> &
+  Pick<
+    StorageSideSetting,
+    | 'minioEndpoint'
+    | 'minioBucketName'
+    | 'minioAccessKey'
+    | 'ossEndpoint'
+    | 'ossBucketName'
+    | 'ossAccessKeyId'
+    | 'ossCnameDomain'
+    | 'localStoragePath'
+  > & {
+    minioSecretKey?: string
+    ossAccessKeySecret?: string
+  }
+
+export type TestStorageConnectionPayload = StorageUpdatePayload
+
 export type AdminSettingUpdatePayload = {
   register?: RegisterUpdatePayload
   login?: LoginUpdatePayload
@@ -212,4 +255,12 @@ export function updateMailTemplates(payload: MailTemplatesUpdatePayload) {
 
 export function testForgotPasswordEmail(email: string) {
   return post<string>('/admin/settings/test-forgot-password-email', { email })
+}
+
+export function updateStorageSettings(payload: StorageUpdatePayload) {
+  return put<AdminSetting>('/admin/settings/storage', payload)
+}
+
+export function testStorageConnection(payload: TestStorageConnectionPayload) {
+  return post<string>('/admin/settings/test-storage-connection', payload)
 }
