@@ -1,0 +1,7 @@
+# Cloudflare Pages — LinkX 官网
+
+build.command = "cd linkx-website && npm install && npm run build"
+build.output_directory = "linkx-website/dist"
+
+[build.environment]
+NODE_VERSION = "20"
