@@ -18,6 +18,7 @@ interface InstallerDefaults {
   version: string
   defaultDir: string
   appExe: string
+  locale?: string
 }
 
 interface InstallerStartOptions {
@@ -50,6 +51,7 @@ interface UninstallerDefaults {
   version: string
   installDir: string
   appName: string
+  locale?: string
 }
 
 interface UninstallerStartOptions {

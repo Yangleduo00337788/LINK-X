@@ -5,6 +5,7 @@ import { app } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import { execSync, spawn } from 'node:child_process'
+import { installerT, type InstallerLocale } from '../shared/i18n'
 
 export const APP_NAME = 'LinkX'
 export const APP_EXE = 'LinkX.exe'
@@ -94,10 +95,10 @@ export function scheduleInstallDirRemoval(installDir: string): void {
   }).unref()
 }
 
-export function validateInstallDir(installDir: string): void {
+export function validateInstallDir(installDir: string, locale: InstallerLocale = 'zh-CN'): void {
   const exePath = path.join(installDir, APP_EXE)
   if (!fs.existsSync(exePath)) {
-    throw new Error('未找到 LinkX 安装目录，可能已被卸载')
+    throw new Error(installerT(locale, 'installDirNotFound'))
   }
 }
 
@@ -105,31 +106,36 @@ export async function runUninstall(options: {
   installDir: string
   removeUserData: boolean
   onProgress?: UninstallProgress
+  locale?: InstallerLocale
 }): Promise<void> {
   const { installDir, removeUserData, onProgress } = options
-  validateInstallDir(installDir)
+  const locale = options.locale ?? 'zh-CN'
+  const t = (key: string, params?: Record<string, string | number>) =>
+    installerT(locale, key, params)
 
-  onProgress?.(5, '正在关闭 LinkX...')
+  validateInstallDir(installDir, locale)
+
+  onProgress?.(5, t('closingApp'))
   await killRunningApp()
 
-  onProgress?.(25, '正在移除快捷方式...')
+  onProgress?.(25, t('removingShortcuts'))
   removeShortcuts()
 
-  onProgress?.(45, '正在清理启动项...')
+  onProgress?.(45, t('cleaningAutostart'))
   removeAutoStart()
 
-  onProgress?.(60, '正在移除注册表项...')
+  onProgress?.(60, t('removingRegistry'))
   removeUninstallRegistry()
 
   if (removeUserData) {
-    onProgress?.(78, '正在清理用户数据...')
+    onProgress?.(78, t('cleaningUserData'))
     removeUserDataDir()
   }
 
-  onProgress?.(92, '正在删除程序文件...')
+  onProgress?.(92, t('deletingFiles'))
   scheduleInstallDirRemoval(installDir)
 
-  onProgress?.(100, '卸载完成')
+  onProgress?.(100, t('uninstallComplete'))
 }
 
 export function resolveInstallDirFromArgv(argv: string[]): string {

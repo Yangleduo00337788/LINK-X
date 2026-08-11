@@ -9,6 +9,7 @@ import { createRequire } from 'node:module'
 import { execSync, spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { buildLegalPageUrl, resolveLegalPageBaseUrl, type LegalDocKind } from '../../shared/legalPage'
+import { installerT, resolveInstallerLocale, type InstallerLocale } from '../shared/i18n'
 
 const nodeRequire = createRequire(import.meta.url)
 // Electron 会拦截路径中含 app.asar 的 fs 操作；安装复制需使用未打补丁的 fs。
@@ -24,6 +25,11 @@ const APP_VERSION = process.env.LINKX_VERSION || '1.0.0'
 let mainWindow: BrowserWindow | null = null
 let installDir = ''
 let appExePath = ''
+let installerLocale: InstallerLocale = 'zh-CN'
+
+function t(key: string, params?: Record<string, string | number>): string {
+  return installerT(installerLocale, key, params)
+}
 
 interface InstallArgs {
   silent: boolean
@@ -70,7 +76,7 @@ function getPayloadDir(): string {
     return devPayload
   }
 
-  throw new Error('未找到应用安装包，请先执行 npm run electron:build 生成 win-unpacked')
+  throw new Error(t('payloadNotFound'))
 }
 
 function validatePayloadDir(dir: string): boolean {
@@ -82,7 +88,7 @@ function validatePayloadDir(dir: string): boolean {
 
 function assertPayloadReady(payloadDir: string): void {
   if (!validatePayloadDir(payloadDir)) {
-    throw new Error('安装包内容不完整，请重新下载安装程序或联系技术支持')
+    throw new Error(t('payloadIncomplete'))
   }
 }
 
@@ -201,7 +207,7 @@ async function copyPayload(
     await rawFs.promises.copyFile(file.src, destPath)
     copiedBytes += file.size
     const percent = totalBytes > 0 ? Math.min(100, Math.round((copiedBytes / totalBytes) * 100)) : 100
-    onProgress?.(percent, `正在复制：${file.rel}`)
+    onProgress?.(percent, t('copyingFile', { file: file.rel }))
   }
 }
 
@@ -236,7 +242,7 @@ function createShortcut(shortcutPath: string, targetPath: string, iconPath?: str
     description: APP_NAME
   })
   if (!ok) {
-    throw new Error(`创建快捷方式失败: ${shortcutPath}`)
+    throw new Error(t('shortcutFail', { path: shortcutPath }))
   }
 }
 
@@ -269,7 +275,7 @@ function getUninstallerSourcePath(): string {
         return path.join(bundledDir, match)
       }
     }
-    throw new Error('未找到卸载程序资源，请重新下载安装包')
+    throw new Error(t('uninstallerResourceMissing'))
   }
 
   const devCandidates = [
@@ -279,7 +285,7 @@ function getUninstallerSourcePath(): string {
   const found = devCandidates.find(candidate => fs.existsSync(candidate))
   if (found) return found
 
-  throw new Error('未找到卸载程序，请先执行 npm run electron:build 生成卸载程序')
+  throw new Error(t('uninstallerMissing'))
 }
 
 async function deployUninstaller(targetDir: string): Promise<string> {
@@ -311,7 +317,7 @@ function launchInstalledApp(): void {
 
 const LEGAL_PAGE_BASE_URL = resolveLegalPageBaseUrl(process.env.VITE_LEGAL_PAGE_BASE_URL)
 
-function openLegalPage(kind: LegalDocKind, locale = 'zh-CN'): void {
+function openLegalPage(kind: LegalDocKind, locale = installerLocale): void {
   const url = buildLegalPageUrl(kind, locale, LEGAL_PAGE_BASE_URL)
   void shell.openExternal(url)
 }
@@ -334,10 +340,10 @@ async function runInstall(options: {
     ? (percent: number, status: string) => sendProgress(percent, status)
     : undefined
 
-  progress?.(0, '准备安装...')
+  progress?.(0, t('preparingInstall'))
   await copyPayload(payloadDir, installDir, progress)
 
-  progress?.(96, '创建快捷方式...')
+  progress?.(96, t('creatingShortcuts'))
   const iconPath = await copyInstallIcon(payloadDir, installDir)
   if (options.desktopShortcut) {
     const desktop = path.join(app.getPath('desktop'), `${APP_NAME}.lnk`)
@@ -355,14 +361,14 @@ async function runInstall(options: {
     createShortcut(startMenu, appExePath, iconPath)
   }
 
-  progress?.(98, '写入卸载信息...')
+  progress?.(98, t('writingUninstallInfo'))
   const uninstallerPath = await deployUninstaller(installDir)
   registerUninstall(installDir, uninstallerPath, iconPath)
 
-  progress?.(99, '配置启动项...')
+  progress?.(99, t('configuringAutostart'))
   setAutoStartOnBoot(appExePath, options.autoStartOnBoot)
 
-  progress?.(100, '安装完成')
+  progress?.(100, t('installComplete'))
   if (options.launchAfter) {
     launchInstalledApp()
   }
@@ -384,12 +390,13 @@ function registerIpcHandlers(): void {
   ipcMain.handle('installer:get-defaults', () => ({
     version: APP_VERSION,
     defaultDir: defaultInstallDir(),
-    appExe: APP_EXE
+    appExe: APP_EXE,
+    locale: installerLocale
   }))
 
   ipcMain.handle('installer:browse-directory', async (_event, current: string) => {
     const result = await dialog.showOpenDialog(mainWindow!, {
-      title: '选择安装目录',
+      title: t('selectInstallDir'),
       defaultPath: current || defaultInstallDir(),
       properties: ['openDirectory', 'createDirectory']
     })
@@ -412,7 +419,7 @@ function registerIpcHandlers(): void {
       try {
         const targetDir = (options.installDir || defaultInstallDir()).trim()
         if (!targetDir) {
-          return { ok: false, message: '请选择安装目录' }
+          return { ok: false, message: t('selectInstallDirRequired') }
         }
 
         await runInstall({
@@ -427,7 +434,7 @@ function registerIpcHandlers(): void {
       } catch (error) {
         return {
           ok: false,
-          message: error instanceof Error ? error.message : '安装失败'
+          message: error instanceof Error ? error.message : t('installFail')
         }
       }
     }
@@ -473,12 +480,13 @@ function registerIpcHandlers(): void {
 
 async function bootstrap(): Promise<void> {
   if (process.platform !== 'win32') {
-    console.error('LinkX 安装程序仅支持 Windows')
+    console.error(t('windowsOnlyInstall'))
     app.quit()
     return
   }
 
   await app.whenReady()
+  installerLocale = resolveInstallerLocale(app.getLocale())
   registerIpcHandlers()
   const args = parseArgs()
 

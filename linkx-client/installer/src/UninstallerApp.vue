@@ -3,11 +3,15 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import logoUrl from '../../src/assets/logo-mark-transparent.png'
 import InstallerCheckbox from './InstallerCheckbox.vue'
+import { useInstallerI18n } from './useInstallerI18n'
+import { resolveInstallerLocale } from '../shared/i18n'
 
 type StepId = 'main' | 'progress' | 'finish'
 
 const WINDOW_WIDTH = 639
 const WINDOW_HEIGHT = 477
+
+const { t, setLocale } = useInstallerI18n()
 
 const currentStep = ref<StepId>('main')
 const version = ref('1.0.0')
@@ -17,30 +21,35 @@ const showExitConfirm = ref(false)
 const uninstalling = ref(false)
 const uninstallError = ref('')
 const progressPercent = ref(0)
-const progressStatus = ref('准备卸载...')
+const progressStatus = ref('')
 
 const api = window.uninstaller
 
 const canUninstall = computed(() => installDir.value.trim().length > 0 && !uninstalling.value)
 
-const progressLabel = computed(() => {
-  const percent = progressPercent.value.toFixed(2)
-  return `正在卸载 LinkX，请稍候... ${percent}%`
-})
+const progressLabel = computed(() =>
+  t('uninstallingProgress', { percent: progressPercent.value.toFixed(2) })
+)
 
 let removeProgressListener: (() => void) | undefined
 
 onMounted(async () => {
   api?.setWindowSize?.(WINDOW_WIDTH, WINDOW_HEIGHT)
+  progressStatus.value = t('preparingUninstall')
 
   if (!api) {
-    uninstallError.value = '卸载程序接口不可用'
+    uninstallError.value = t('uninstallApiUnavailable')
     return
   }
 
   const defaults = await api.getDefaults()
   version.value = defaults.version
   installDir.value = defaults.installDir
+  if (defaults.locale) {
+    setLocale(resolveInstallerLocale(defaults.locale))
+    progressStatus.value = t('preparingUninstall')
+  }
+  document.title = t('pageTitleUninstall')
 
   removeProgressListener = api.onProgress(progress => {
     progressPercent.value = progress.percent
@@ -73,7 +82,7 @@ async function handleUninstall() {
   uninstallError.value = ''
   currentStep.value = 'progress'
   progressPercent.value = 0
-  progressStatus.value = '准备卸载...'
+  progressStatus.value = t('preparingUninstall')
 
   const result = await api.startUninstall({
     removeUserData: removeUserData.value
@@ -81,7 +90,7 @@ async function handleUninstall() {
 
   uninstalling.value = false
   if (!result.ok) {
-    uninstallError.value = result.message || '卸载失败'
+    uninstallError.value = result.message || t('uninstallFail')
     currentStep.value = 'main'
     return
   }
@@ -99,12 +108,12 @@ function finishAndClose() {
     <header class="installer__titlebar">
       <div class="installer__drag" />
       <div class="installer__window-actions" role="toolbar" aria-label="Window">
-        <button class="caption-btn" type="button" aria-label="最小化" @click="minimizeWindow">
+        <button class="caption-btn" type="button" :aria-label="t('minimize')" @click="minimizeWindow">
           <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
             <path d="M1 5h8" stroke="currentColor" stroke-width="1.1" fill="none" />
           </svg>
         </button>
-        <button class="caption-btn caption-btn--close" type="button" aria-label="关闭" @click="requestClose">
+        <button class="caption-btn caption-btn--close" type="button" :aria-label="t('close')" @click="requestClose">
           <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
             <path
               d="M2 2l6 6M8 2L2 8"
@@ -126,7 +135,7 @@ function finishAndClose() {
           </div>
           <h1 class="installer__brand">LinkX</h1>
           <p class="installer__version">v{{ version }}</p>
-          <p class="installer__uninstall-hint">确定要卸载 LinkX 吗？</p>
+          <p class="installer__uninstall-hint">{{ t('uninstallConfirm') }}</p>
         </div>
 
         <button
@@ -136,16 +145,16 @@ function finishAndClose() {
           :disabled="!canUninstall"
           @click="handleUninstall"
         >
-          立即卸载
+          {{ t('uninstallNow') }}
         </button>
 
         <p v-if="uninstallError" class="installer__error">{{ uninstallError }}</p>
 
         <div class="installer__bottom installer__bottom--compact">
           <div class="installer__footer">
-            <InstallerCheckbox v-model="removeUserData">同时删除本地用户数据（聊天记录缓存等）</InstallerCheckbox>
+            <InstallerCheckbox v-model="removeUserData">{{ t('removeUserData') }}</InstallerCheckbox>
           </div>
-          <p class="installer__path-hint">安装位置：{{ installDir }}</p>
+          <p class="installer__path-hint">{{ t('installPath', { path: installDir }) }}</p>
         </div>
       </template>
 
@@ -172,7 +181,7 @@ function finishAndClose() {
             <img class="installer__logo" :src="logoUrl" alt="LinkX" />
           </div>
           <h1 class="installer__brand">LinkX</h1>
-          <p class="installer__finish-text">卸载完成</p>
+          <p class="installer__finish-text">{{ t('uninstallComplete') }}</p>
         </div>
 
         <button
@@ -180,14 +189,14 @@ function finishAndClose() {
           type="button"
           @click="finishAndClose"
         >
-          完成
+          {{ t('done') }}
         </button>
       </template>
     </main>
 
     <div v-if="showExitConfirm" class="exit-modal" @click.self="showExitConfirm = false">
       <div class="exit-modal__card" role="dialog" aria-modal="true" aria-labelledby="exit-title">
-        <button class="exit-modal__close" type="button" aria-label="关闭" @click="showExitConfirm = false">
+        <button class="exit-modal__close" type="button" :aria-label="t('close')" @click="showExitConfirm = false">
           <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
             <path
               d="M2 2l6 6M8 2L2 8"
@@ -198,14 +207,14 @@ function finishAndClose() {
             />
           </svg>
         </button>
-        <h2 id="exit-title" class="exit-modal__title">退出卸载</h2>
-        <p class="exit-modal__message">确定要退出卸载 LinkX 程序吗？</p>
+        <h2 id="exit-title" class="exit-modal__title">{{ t('exitUninstallTitle') }}</h2>
+        <p class="exit-modal__message">{{ t('exitUninstallMessage') }}</p>
         <div class="exit-modal__actions">
           <button class="exit-modal__btn exit-modal__btn--ghost" type="button" @click="confirmExit">
-            退出
+            {{ t('exit') }}
           </button>
           <button class="exit-modal__btn exit-modal__btn--primary" type="button" @click="showExitConfirm = false">
-            取消
+            {{ t('cancel') }}
           </button>
         </div>
       </div>

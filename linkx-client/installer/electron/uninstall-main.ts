@@ -10,6 +10,7 @@ import {
   resolveUninstallTargetDir,
   runUninstall
 } from './uninstallActions'
+import { installerT, resolveInstallerLocale, type InstallerLocale } from '../shared/i18n'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -17,6 +18,11 @@ const __dirname = path.dirname(__filename)
 const APP_VERSION = process.env.LINKX_VERSION || '1.0.0'
 
 let mainWindow: BrowserWindow | null = null
+let uninstallerLocale: InstallerLocale = 'zh-CN'
+
+function t(key: string, params?: Record<string, string | number>): string {
+  return installerT(uninstallerLocale, key, params)
+}
 
 function getPreloadPath(): string {
   return path.join(__dirname, '../preload/preload.cjs')
@@ -97,7 +103,8 @@ function registerIpcHandlers(installDir: string): void {
   ipcMain.handle('uninstaller:get-defaults', () => ({
     version: APP_VERSION,
     installDir,
-    appName: APP_NAME
+    appName: APP_NAME,
+    locale: uninstallerLocale
   }))
 
   ipcMain.handle(
@@ -107,13 +114,14 @@ function registerIpcHandlers(installDir: string): void {
         await runUninstall({
           installDir,
           removeUserData: options?.removeUserData !== false,
-          onProgress: sendProgress
+          onProgress: sendProgress,
+          locale: uninstallerLocale
         })
         return { ok: true as const }
       } catch (error) {
         return {
           ok: false as const,
-          message: error instanceof Error ? error.message : '卸载失败'
+          message: error instanceof Error ? error.message : t('uninstallFail')
         }
       }
     }
@@ -145,14 +153,15 @@ async function runSilentUninstall(argv: string[]): Promise<void> {
   const installDir = resolveUninstallTargetDir(argv)
   await runUninstall({
     installDir,
-    removeUserData: true
+    removeUserData: true,
+    locale: uninstallerLocale
   })
   app.quit()
 }
 
 async function bootstrap(): Promise<void> {
   if (process.platform !== 'win32') {
-    console.error('LinkX 卸载程序仅支持 Windows')
+    console.error(t('windowsOnlyUninstall'))
     app.quit()
     return
   }
@@ -162,6 +171,7 @@ async function bootstrap(): Promise<void> {
   const installDir = resolveUninstallTargetDir(argv)
 
   await app.whenReady()
+  uninstallerLocale = resolveInstallerLocale(app.getLocale())
   registerIpcHandlers(installDir)
 
   if (silent) {
