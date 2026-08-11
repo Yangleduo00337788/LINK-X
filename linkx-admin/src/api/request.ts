@@ -90,8 +90,8 @@ export async function ensureApiSignKey(): Promise<void> {
   if (!security.apiSignEnabled || security.apiSignKey) {
     return
   }
-  // 未建立会话时不应刷新令牌，避免登录页出现无意义的 400
-  if (!isSessionActive()) {
+  // 登录页且无会话时不刷新，避免未登录时刷 400；刷新后 sessionActive 会丢失，但 Cookie 仍有效
+  if (!isSessionActive() && window.location.pathname.startsWith('/login')) {
     return
   }
   await refreshAccessToken()
@@ -253,6 +253,33 @@ async function handleStepUp(original: RetryConfig, challenge: StepUpChallenge) {
   return request(original)
 }
 
+/** 签名校验等过滤器以 HTTP 200 + JSON code 401 返回，需与 HTTP 401 走同一套 refresh 重试 */
+async function handleUnauthorizedRetry(
+  original: RetryConfig | undefined,
+  rejectMessage?: string
+): Promise<unknown> {
+  if (!original || original._retry || original.url?.includes('/admin/auth/login')) {
+    return Promise.reject(new Error(rejectMessage || tGlobal('common.requestFailed')))
+  }
+  if (!isSessionActive() && window.location.pathname.startsWith('/login')) {
+    return Promise.reject(new Error(rejectMessage || tGlobal('common.requestFailed')))
+  }
+  original._retry = true
+  refreshing =
+    refreshing ||
+    refreshAccessToken().finally(() => {
+      refreshing = null
+    })
+  const ok = await refreshing
+  if (ok) {
+    return request(original)
+  }
+  if (!window.location.pathname.includes('/login')) {
+    window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`
+  }
+  return Promise.reject(new Error(rejectMessage || tGlobal('common.requestFailed')))
+}
+
 request.interceptors.response.use(
   async (response) => {
     const security = useSecurityStore()
@@ -281,6 +308,12 @@ request.interceptors.response.use(
       if (payload.code === 428 && payload.data) {
         return handleStepUp(response.config as RetryConfig, payload.data as StepUpChallenge)
       }
+      if (payload.code === 401) {
+        return handleUnauthorizedRetry(
+          response.config as RetryConfig,
+          payload.message || tGlobal('common.requestFailed')
+        )
+      }
       const fallback = tGlobal('common.requestFailed')
       message.error(payload.message || fallback)
       return Promise.reject(new Error(payload.message || fallback))
@@ -296,29 +329,8 @@ request.interceptors.response.use(
       return handleStepUp(original, payload.data as StepUpChallenge)
     }
 
-    if (
-      status === 401 &&
-      original &&
-      !original._retry &&
-      !original.url?.includes('/admin/auth/login')
-    ) {
-      // 登录页且无会话：跳过 refresh 重试，避免控制台刷 400/401
-      if (!isSessionActive() && window.location.pathname.startsWith('/login')) {
-        return Promise.reject(error)
-      }
-      original._retry = true
-      refreshing =
-        refreshing ||
-        refreshAccessToken().finally(() => {
-          refreshing = null
-        })
-      const ok = await refreshing
-      if (ok) {
-        return request(original)
-      }
-      if (!window.location.pathname.includes('/login')) {
-        window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`
-      }
+    if (status === 401) {
+      return handleUnauthorizedRetry(original, payload?.message || error.message)
     }
     const msg = payload?.message || error.message || tGlobal('common.networkError')
     if (status !== 401 && status !== 428) message.error(msg)
