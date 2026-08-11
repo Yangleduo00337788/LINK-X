@@ -34,6 +34,7 @@ import { SYSTEM_NOTIFY_SESSION_ID, OFFICIAL_NOTIFY_SESSION_ID } from '../types'
 import { DEFAULT_AVATAR_URL } from '../utils/defaultAvatar'
 import { formatChatTime } from '../utils/chatTime'
 import { useI18n } from '../i18n'
+import { isMyPhoneSessionName } from '../utils/myPhoneSession'
 
 const message = useMessage()
 const { t } = useI18n()
@@ -177,7 +178,7 @@ const addOptions = computed(() => [
 ])
 
 function isMyPhoneSession(name?: string): boolean {
-  return name === '我的手机' || name === t('chat.myPhone')
+  return isMyPhoneSessionName(name)
 }
 
 function onSelect(session: ChatSession) {

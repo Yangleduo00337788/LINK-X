@@ -136,7 +136,7 @@ const displayName = computed(() => {
   if (!contact.value) return ''
   if (profileCardIsSelf.value) return userProfile.value.nickname || contact.value.name
   const nickname =
-    contact.value.nickname || remoteProfile.value?.nickname || contact.value.name || '好友'
+    contact.value.nickname || remoteProfile.value?.nickname || contact.value.name || t('defaults.friend')
   return formatFriendDisplayName(nickname, contact.value.remark)
 })
 
@@ -322,7 +322,7 @@ async function saveRemark() {
   try {
     const value = await contactsStore.updateFriendRemark(userId, remarkDraft.value)
     const nickname =
-      contact.value.nickname || remoteProfile.value?.nickname || '好友'
+      contact.value.nickname || remoteProfile.value?.nickname || t('defaults.friend')
     contact.value.remark = value || undefined
     contact.value.nickname = nickname
     contact.value.name = formatFriendDisplayName(nickname, value)

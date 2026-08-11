@@ -1170,6 +1170,17 @@ export default {
     reportNeedEvidence: 'Add details or evidence',
     reportSubmit: 'Submit report',
     reportSubmitting: 'Submitting…',
+    reportBodyGroup: '[Report group]',
+    reportBodyUser: '[Report user]',
+    reportFieldGroupId: 'Group ID: {id}',
+    reportFieldGroupName: 'Group name: {name}',
+    reportFieldUserId: 'User ID: {id}',
+    reportFieldUserName: 'User name: {name}',
+    reportFieldReason: 'Reason: {reason}',
+    reportFieldDetail: 'Details: {detail}',
+    reportFieldEvidenceHeader: 'Evidence images:',
+    reportFieldEvidenceNone: 'Evidence images: none',
+    reportFieldEvidenceItem: '{index}. {url}',
     reportOk: 'Report submitted. Thank you',
     reportFail: 'Failed to submit report',
     moments: 'Moments',
@@ -1386,6 +1397,26 @@ export default {
     nicknameRequired: 'Enter a nickname',
     nicknameLength: 'Nickname must be 1–64 characters',
     lockPinFormat: 'Lock PIN must be 4–6 digits'
+  },
+  profile: {
+    provinces: {
+      beijing: 'Beijing',
+      shanghai: 'Shanghai',
+      guangdong: 'Guangdong',
+      zhejiang: 'Zhejiang',
+      jiangsu: 'Jiangsu',
+      sichuan: 'Sichuan',
+      hubei: 'Hubei',
+      hunan: 'Hunan',
+      fujian: 'Fujian',
+      shandong: 'Shandong'
+    },
+    regions: {
+      urban: 'Urban area',
+      suburb: 'Suburb',
+      hightech: 'High-tech zone',
+      devzone: 'Development zone'
+    }
   },
   noteEditor: {
     untitled: 'Untitled',
@@ -1699,6 +1730,7 @@ export default {
     close: 'Close'
   },
   extra: {
+    opFail: 'Operation failed',
     selectFriend: 'Select friend',
     noFriendsToAt: 'No friends to @. Add friends first.',
     selectMember: 'Select member to @',

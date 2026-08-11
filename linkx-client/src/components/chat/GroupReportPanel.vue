@@ -136,26 +136,29 @@ async function submit() {
   }
 
   const keys = evidenceItems.value.map(i => i.key)
+  const detailLine = text || '-'
+  const evidenceBlock = keys.length
+    ? `${t('modals.reportFieldEvidenceHeader')}\n${keys
+        .map((u, i) => t('modals.reportFieldEvidenceItem', { index: i + 1, url: u }))
+        .join('\n')}`
+    : t('modals.reportFieldEvidenceNone')
+
   const lines = isGroup.value
     ? [
-        `[举报群聊]`,
-        `群ID: ${props.targetId}`,
-        `群名称: ${props.targetName || '-'}`,
-        `原因: ${reasonLabel.value}`,
-        `说明: ${text || '-'}`,
-        keys.length
-          ? `证据图片:\n${keys.map((u, i) => `${i + 1}. ${u}`).join('\n')}`
-          : '证据图片: 无'
+        t('modals.reportBodyGroup'),
+        t('modals.reportFieldGroupId', { id: props.targetId }),
+        t('modals.reportFieldGroupName', { name: props.targetName || '-' }),
+        t('modals.reportFieldReason', { reason: reasonLabel.value }),
+        t('modals.reportFieldDetail', { detail: detailLine }),
+        evidenceBlock
       ]
     : [
-        `[举报用户]`,
-        `用户ID: ${props.targetId}`,
-        `用户名称: ${props.targetName || '-'}`,
-        `原因: ${reasonLabel.value}`,
-        `说明: ${text || '-'}`,
-        keys.length
-          ? `证据图片:\n${keys.map((u, i) => `${i + 1}. ${u}`).join('\n')}`
-          : '证据图片: 无'
+        t('modals.reportBodyUser'),
+        t('modals.reportFieldUserId', { id: props.targetId }),
+        t('modals.reportFieldUserName', { name: props.targetName || '-' }),
+        t('modals.reportFieldReason', { reason: reasonLabel.value }),
+        t('modals.reportFieldDetail', { detail: detailLine }),
+        evidenceBlock
       ]
 
   submitting.value = true

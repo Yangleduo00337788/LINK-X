@@ -21,6 +21,11 @@ import { generateDefaultAvatar } from '../utils/defaultAvatar'
 import { normalizeMediaUrl } from '../utils/mediaUrl'
 import { useI18n } from '../i18n'
 import { LxButton, LxIconButton } from './ui'
+import {
+  PROFILE_COUNTRY_CN,
+  PROFILE_PROVINCES,
+  PROFILE_REGIONS
+} from '../constants/profileLocation'
 
 const { t } = useI18n()
 const message = useMessage()
@@ -33,7 +38,7 @@ const { userProfile } = storeToRefs(appStore)
 const profileNick = ref('')
 const profileGender = ref<'男' | '女'>('男')
 const profileBirthday = ref<number | null>(null)
-const profileCountry = ref('中国')
+const profileCountry = ref(PROFILE_COUNTRY_CN)
 const profileProvince = ref<string | null>(null)
 const profileRegion = ref<string | null>(null)
 const saving = ref(false)
@@ -50,22 +55,28 @@ const genderOptions = computed(() => [
   { label: t('modals.female'), value: '女' }
 ])
 
-const countryOptions = computed(() => [{ label: t('modals.china'), value: '中国' }])
+const countryOptions = computed(() => [{ label: t('modals.china'), value: PROFILE_COUNTRY_CN }])
 
-const provinceOptions = [
-  '北京', '上海', '广东', '浙江', '江苏', '四川', '湖北', '湖南', '福建', '山东'
-].map(p => ({ label: p, value: p }))
+const provinceOptions = computed(() =>
+  PROFILE_PROVINCES.map(p => ({
+    label: t(`profile.provinces.${p.key}`),
+    value: p.value
+  }))
+)
 
 const regionOptions = computed(() => [
-  { label: t('modals.pleaseSelect'), value: '请选择' },
-  ...['城区', '郊区', '高新区', '开发区'].map(r => ({ label: r, value: r }))
+  { label: t('modals.pleaseSelect'), value: '' },
+  ...PROFILE_REGIONS.map(r => ({
+    label: t(`profile.regions.${r.key}`),
+    value: r.value
+  }))
 ])
 
 function syncFromStore() {
   profileNick.value = userProfile.value.nickname
   profileGender.value = userProfile.value.gender
   profileBirthday.value = userProfile.value.birthday
-  profileCountry.value = userProfile.value.country || '中国'
+  profileCountry.value = userProfile.value.country || PROFILE_COUNTRY_CN
   profileProvince.value = userProfile.value.province || null
   profileRegion.value = userProfile.value.region || null
 }
@@ -93,7 +104,7 @@ async function handleSave() {
       birthday: profileBirthday.value,
       country: profileCountry.value,
       province: profileProvince.value || '',
-      region: profileRegion.value === '请选择' ? '' : (profileRegion.value || '')
+      region: profileRegion.value || ''
     })
     message.success(t('modals.profileSaved'))
     closeEditProfile()

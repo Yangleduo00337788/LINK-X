@@ -91,7 +91,7 @@ async function runServerSearch(query: string) {
         map.set(sid, {
           sessionId: sid,
           sessionName:
-            hit.conversationName || sessions.value.find(s => s.id === sid)?.name || '会话',
+            hit.conversationName || sessions.value.find(s => s.id === sid)?.name || t('modals.chat'),
           messages: []
         })
       }

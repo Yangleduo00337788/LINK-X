@@ -14,6 +14,7 @@ import type { ChatMessage } from '../../types'
 import { useAppStore } from '../../stores/app'
 import { storeToRefs } from 'pinia'
 import { useI18n } from '../../i18n'
+import { isMyPhoneSessionName } from '../../utils/myPhoneSession'
 import * as chatApi from '../../api/chat'
 
 import FileBubble from './bubbles/FileBubble.vue'
@@ -53,10 +54,7 @@ const { t } = useI18n()
 const appStore = useAppStore()
 const { currentSession, userProfile } = storeToRefs(appStore)
 
-const isMyPhone = computed(() => {
-  const name = currentSession.value?.name
-  return name === '我的手机' || name === t('chat.myPhone')
-})
+const isMyPhone = computed(() => isMyPhoneSessionName(currentSession.value?.name))
 const hasSession = computed(() => !!currentSession.value)
 const isFriendChat = computed(() => hasSession.value && !currentSession.value?.isGroup && !isMyPhone.value)
 const isGroupChat = computed(() => !!currentSession.value?.isGroup)

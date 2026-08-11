@@ -1172,6 +1172,17 @@ export default {
     reportNeedEvidence: '请填写说明或上传证据',
     reportSubmit: '提交举报',
     reportSubmitting: '提交中…',
+    reportBodyGroup: '[举报群聊]',
+    reportBodyUser: '[举报用户]',
+    reportFieldGroupId: '群ID: {id}',
+    reportFieldGroupName: '群名称: {name}',
+    reportFieldUserId: '用户ID: {id}',
+    reportFieldUserName: '用户名称: {name}',
+    reportFieldReason: '原因: {reason}',
+    reportFieldDetail: '说明: {detail}',
+    reportFieldEvidenceHeader: '证据图片:',
+    reportFieldEvidenceNone: '证据图片: 无',
+    reportFieldEvidenceItem: '{index}. {url}',
     reportOk: '举报已提交，感谢反馈',
     reportFail: '提交举报失败',
     moments: '友链',
@@ -1388,6 +1399,26 @@ export default {
     nicknameRequired: '请输入昵称',
     nicknameLength: '昵称长度为 1-64 个字符',
     lockPinFormat: '锁屏密码须为 4-6 位数字'
+  },
+  profile: {
+    provinces: {
+      beijing: '北京',
+      shanghai: '上海',
+      guangdong: '广东',
+      zhejiang: '浙江',
+      jiangsu: '江苏',
+      sichuan: '四川',
+      hubei: '湖北',
+      hunan: '湖南',
+      fujian: '福建',
+      shandong: '山东'
+    },
+    regions: {
+      urban: '城区',
+      suburb: '郊区',
+      hightech: '高新区',
+      devzone: '开发区'
+    }
   },
   noteEditor: {
     untitled: '无标题',
@@ -1701,6 +1732,7 @@ export default {
     close: '关闭'
   },
   extra: {
+    opFail: '操作失败',
     selectFriend: '选择好友',
     noFriendsToAt: '暂无好友可 @，请先添加好友',
     selectMember: '选择要 @ 的成员',

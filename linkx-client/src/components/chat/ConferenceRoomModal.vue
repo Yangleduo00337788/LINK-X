@@ -294,7 +294,7 @@ function onAvatarError(e: Event, name: string) {
   const img = e.target as HTMLImageElement
   if (!img || img.dataset.fallback === '1') return
   img.dataset.fallback = '1'
-  img.src = generateDefaultAvatar(name || '用户', 160)
+  img.src = generateDefaultAvatar(name || t('defaults.user'), 160)
 }
 
 const roomBusy = computed(() => {

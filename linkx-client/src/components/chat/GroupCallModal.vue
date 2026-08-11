@@ -196,7 +196,7 @@ async function hangUp() {
 }
 
 function avatarText(name: string) {
-  return name?.charAt(0) || '友'
+  return name?.charAt(0) || t('extra.friendChar')
 }
 
 function remoteStreamOf(userId: string): MediaStream | null {

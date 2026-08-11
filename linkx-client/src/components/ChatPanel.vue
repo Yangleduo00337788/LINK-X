@@ -61,6 +61,7 @@ import { useGroupMetaStore } from '../stores/groupMeta'
 // 通话 Store（真实 WebRTC）
 import { useCallStore } from '../stores/call'
 import { useI18n } from '../i18n'
+import { isMyPhoneSessionName } from '../utils/myPhoneSession'
 import { lxChatWallpaperBg } from '../theme/vars'
 import { formatMessageDivider, MESSAGE_TIME_GAP_MS } from '../utils/chatTime'
 import * as chatApi from '../api/chat'
@@ -228,10 +229,7 @@ function onGroupAppClick(key: string) {
 }
 
 // 是否为「我的手机」会话
-const isMyPhone = computed(() => {
-  const name = currentSession.value?.name
-  return name === '我的手机' || name === t('chat.myPhone')
-})
+const isMyPhone = computed(() => isMyPhoneSessionName(currentSession.value?.name))
 // 是否有选中的会话
 const hasSession = computed(() => !!currentSession.value)
 // 是否为群聊（有会话、是群、且非「我的手机」）

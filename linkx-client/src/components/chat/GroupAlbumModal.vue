@@ -14,6 +14,7 @@ import { useOverlayStore } from '../../stores/overlay'
 import { useMessage } from 'naive-ui'
 import { useI18n } from '../../i18n'
 import axios from 'axios'
+import { DEFAULT_GROUP_ALBUM_NAME_ZH } from '../../constants/groupAlbum'
 import { LxButton, LxIconButton } from '../ui'
 
 const message = useMessage()
@@ -31,7 +32,7 @@ const tab = ref<'feed' | 'albums' | 'me'>('feed')
 const uploading = ref(false)
 const createOpen = ref(false)
 const newAlbumName = ref('')
-const selectedAlbum = ref('默认相册')
+const selectedAlbum = ref(DEFAULT_GROUP_ALBUM_NAME_ZH)
 const fileInputRef = ref<HTMLInputElement | null>(null)
 
 const albumFolders = computed(() => {
@@ -48,7 +49,7 @@ const albumItems = computed(() => {
     const myName = userProfile.value.nickname
     list = list.filter(i => (myId && i.uploaderId === myId) || (!!myName && i.user === myName))
   } else if (tab.value === 'feed' && selectedAlbum.value) {
-    list = list.filter(i => (i.albumName || '默认相册') === selectedAlbum.value)
+    list = list.filter(i => (i.albumName || DEFAULT_GROUP_ALBUM_NAME_ZH) === selectedAlbum.value)
   }
   return list
 })
@@ -56,7 +57,7 @@ const albumItems = computed(() => {
 watch(groupAlbumOpen, open => {
   if (open) {
     tab.value = 'feed'
-    selectedAlbum.value = '默认相册'
+    selectedAlbum.value = DEFAULT_GROUP_ALBUM_NAME_ZH
     createOpen.value = false
     newAlbumName.value = ''
     const id = currentSessionId.value
@@ -139,7 +140,7 @@ async function handleFiles(files: File[]) {
     const { ok, error } = await groupMetaStore.uploadAlbumImages(
       sessionId,
       files,
-      selectedAlbum.value || '默认相册'
+      selectedAlbum.value || DEFAULT_GROUP_ALBUM_NAME_ZH
     )
     if (ok > 0) {
       tab.value = 'feed'
