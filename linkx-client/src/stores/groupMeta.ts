@@ -159,7 +159,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
             name: m.nickname || t('defaults.user'),
             avatarText: (m.nickname || t('defaults.user')).charAt(0),
             avatarColor: '#12b7f5',
-            avatarUrl: resolveUserAvatarUrl(m.avatar),
+            avatarUrl: resolveUserAvatarUrl(m.avatar, m.userId),
             role: m.role,
             badge: [
               m.role === 'owner'

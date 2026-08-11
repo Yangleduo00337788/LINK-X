@@ -50,7 +50,9 @@ import { useAppSettingsStore } from './appSettings'
 import { dataUrlToFile } from '../utils/fileConvert'
 import { generateUuidV4 } from '../utils/parseJson'
 import type { MessageItem } from '../types/chat'
+import { resolveUserAvatarUrl } from '../utils/defaultAvatar'
 import { normalizeMediaUrl } from '../utils/mediaUrl'
+import { API_BASE_URL } from '../config/endpoints'
 import { t } from '../i18n'
 import { normalizeProfileGender, PROFILE_GENDER_MALE, type ProfileGender } from '../types/profileGender'
 // 通讯录 Store（加群/加好友后同步联系人）
@@ -252,7 +254,7 @@ function mapApiProfile(data: ProfileSource) {
     nickname: data.nickname || data.username || '',
     username: data.username || '',
     signature: data.signature?.trim() ? data.signature : '',
-    avatar: normalizeMediaUrl(data.avatar) || '',
+    avatar: resolveUserAvatarUrl(data.avatar, sanitizeUserId(data.id)) || '',
     userId: sanitizeUserId(data.id),
     gender,
     birthday,
@@ -1961,7 +1963,8 @@ export const useAppStore = defineStore('app', {
             }
             // 入库/发送用 object key；本地预览用预签名 url
             const objectKey = uploadRes.data.fileKey || uploadRes.data.url
-            const displayUrl = uploadRes.data.url || objectKey
+            const displayUrl =
+              normalizeMediaUrl(uploadRes.data.url) || uploadRes.data.url || objectKey
             fileUrl = objectKey
             fileName = uploadRes.data.fileName || uploadFile.name
             // fileSize 可能是 number 或 string，统一转为 number
@@ -2185,7 +2188,12 @@ export const useAppStore = defineStore('app', {
     async updateAvatar(file: File) {
       const res = await userApi.uploadAvatar(file)
       if (res.code === 200 && res.data) {
-        this.userProfile.avatar = normalizeMediaUrl(res.data)
+        const uid = this.userProfile.userId
+        const proxied =
+          uid && /^\d+$/.test(String(uid))
+            ? `${API_BASE_URL}/media/avatars/${uid}?v=${Date.now()}`
+            : normalizeMediaUrl(res.data)
+        this.userProfile.avatar = proxied || normalizeMediaUrl(res.data) || ''
         if (this.savedLogin.rememberMe) {
           this.savedLogin.avatar = this.userProfile.avatar
         }

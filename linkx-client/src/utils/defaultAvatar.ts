@@ -1,16 +1,44 @@
 /**
  * 作者：yangleduo
  */
-import logoMark from '../assets/logo-mark-transparent.png'
+import defaultAvatarIcon from '../assets/apple-touch-icon.png'
+import { API_BASE_URL } from '../config/endpoints'
 import { isDisplayableMediaUrl, normalizeMediaUrl } from './mediaUrl'
 
-/** 客户端默认头像：项目 Logo */
-export const DEFAULT_AVATAR_URL: string = logoMark
+/** 客户端默认头像：与 apple-touch-icon 一致的大圆角方形 Logo */
+export const DEFAULT_AVATAR_URL: string = defaultAvatarIcon
+
+/** 第三方 CDN 头像（非本系统 OSS/MinIO 存储） */
+function isExternalAvatarCdn(url: string): boolean {
+  if (/[?&]X-Amz-/i.test(url)) return false
+  if (/[?&]Expires=/i.test(url) && /[?&]Signature=/i.test(url)) return false
+  if (/oss-.*\.aliyuncs\.com/i.test(url)) return false
+  if (/:(9000)\//.test(url)) return false
+  if (/\/media\//i.test(url)) return false
+  return /^https?:\/\//i.test(url)
+}
 
 /**
- * 解析用户头像 URL；无有效头像时回退为项目 Logo。
+ * 解析用户头像 URL；有 userId 时优先走同源代理，避免 Electron CSP 拦截 OSS/MinIO 预签名外链。
  */
-export function resolveUserAvatarUrl(url?: string | null): string {
+export function resolveUserAvatarUrl(
+  url?: string | null,
+  userId?: string | number | null
+): string {
+  const v = (url || '').trim()
+  if (v.startsWith('data:') || v.startsWith('blob:')) return v
+
+  const uid = userId != null ? String(userId).trim() : ''
+  if (uid && /^\d+$/.test(uid)) {
+    if (v && isExternalAvatarCdn(v)) {
+      const external = normalizeMediaUrl(v)
+      if (external && isDisplayableMediaUrl(external)) return external
+    }
+    const proxyPath = v.startsWith('/media/avatars/') ? v : `/media/avatars/${uid}`
+    const proxied = normalizeMediaUrl(`${API_BASE_URL}${proxyPath}`)
+    if (proxied && isDisplayableMediaUrl(proxied)) return proxied
+  }
+
   const normalized = normalizeMediaUrl(url)
   if (normalized && isDisplayableMediaUrl(normalized)) return normalized
   return DEFAULT_AVATAR_URL
@@ -52,8 +80,9 @@ export function generateDefaultBanner(seed: string = ''): string {
 export function generatePlaceholderImage(alt: string = '', size = 120): string {
   const color = pickColor(alt || 'placeholder')
   const initial = alt?.charAt(0).toUpperCase() || '?'
+  const corner = Math.round(size * 0.22)
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-    <rect width="${size}" height="${size}" fill="${color}"/>
+    <rect width="${size}" height="${size}" rx="${corner}" ry="${corner}" fill="${color}"/>
     <text x="${size / 2}" y="${size / 2 + size * 0.13}" text-anchor="middle"
           font-family="-apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif"
           font-size="${size * 0.5}" font-weight="600" fill="#ffffff">${escapeXml(initial)}</text>

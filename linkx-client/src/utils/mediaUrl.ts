@@ -66,9 +66,29 @@ export function stripEphemeralMediaUrl(url?: string | null): string {
   return v
 }
 
+/** 将服务端下发的同源媒体代理路径转为可加载的绝对地址 */
+function absolutizeApiMediaPath(url: string): string {
+  const v = url.trim()
+  if (!v.startsWith('/')) return v
+  // 本地存储等：/media/stored?k=... → {API_BASE}/media/stored?...
+  if (v.startsWith('/media/')) {
+    return `${API_BASE_URL}${v}`
+  }
+  // 兼容少数直接带 context-path 的相对路径
+  if (v.startsWith('/api/media/')) {
+    try {
+      const origin = new URL(API_BASE_URL).origin
+      return `${origin}${v}`
+    } catch {
+      return `${API_BASE_URL}${v.replace(/^\/api/, '')}`
+    }
+  }
+  return v
+}
+
 export function normalizeMediaUrl(url?: string | null): string {
   if (!url) return ''
-  const trimmed = url.trim()
+  let trimmed = absolutizeApiMediaPath(url)
   if (!isDisplayableMediaUrl(trimmed)) return ''
   // 预签名：Host 不可改
   if (/[?&]X-Amz-/i.test(trimmed)) {

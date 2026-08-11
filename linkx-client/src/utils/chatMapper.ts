@@ -39,7 +39,7 @@ function mapMemberAvatars(
     return {
       text: name.charAt(0) || '?',
       color: pickColor(name),
-      imageUrl: resolveUserAvatarUrl(m.avatar)
+      imageUrl: resolveUserAvatarUrl(m.avatar, m.userId)
     }
   })
 }
@@ -84,7 +84,7 @@ export function conversationToSession(conv: ConversationItem): ChatSession {
     time: formatChatTime(conv.lastMessageTime),
     avatarText: friendAvatarText(nickname, remark),
     avatarColor: pickColor(nickname),
-    avatarUrl: resolveUserAvatarUrl(conv.peerAvatar),
+    avatarUrl: resolveUserAvatarUrl(conv.peerAvatar, conv.peerUserId),
     peerUserId: conv.peerUserId ? String(conv.peerUserId) : undefined,
     online: !!conv.peerOnline,
     isGroup: false,
@@ -127,10 +127,13 @@ export function messageToChatMessage(message: MessageItem, sessionId: string): C
       content = message.fileName || message.content || t('chat.fileFallback')
       fileStatus = message.isSelf ? t('chat.fileStatusSent') : t('chat.fileStatusReceived')
       break
-    case 'image':
-      content = message.fileUrl || message.content
+    case 'image': {
+      const imageSrc = normalizeMediaUrl(message.fileUrl || message.content) || ''
+      content = imageSrc
+      fileUrl = imageSrc || fileUrl
       isImage = true
       break
+    }
     case 'voice':
       content = voicePreviewLabel()
       fileUrl = message.fileUrl || message.content
@@ -215,7 +218,7 @@ export function messageToChatMessage(message: MessageItem, sessionId: string): C
     isSelf: message.isSelf ?? false,
     senderId: message.senderId ? String(message.senderId) : undefined,
     senderName: message.senderNickname,
-    senderAvatar: resolveUserAvatarUrl(message.senderAvatar),
+    senderAvatar: resolveUserAvatarUrl(message.senderAvatar, message.senderId),
     type,
     fileName,
     fileSize,
