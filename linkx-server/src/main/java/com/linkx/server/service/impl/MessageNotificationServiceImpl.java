@@ -280,7 +280,7 @@ public class MessageNotificationServiceImpl implements MessageNotificationServic
                 .id(notification.getId())
                 .senderId(notification.getSenderId())
                 .senderName(notification.getSenderName())
-                .senderAvatar(mediaUrlService.resolve(avatar))
+                .senderAvatar(mediaUrlService.resolveUserAvatar(notification.getSenderId(), avatar))
                 .type(notification.getType())
                 .category(resolveCategory(notification.getType()))
                 .relatedId(notification.getRelatedId())

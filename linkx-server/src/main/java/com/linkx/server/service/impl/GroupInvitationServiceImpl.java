@@ -136,7 +136,7 @@ public class GroupInvitationServiceImpl implements GroupInvitationService {
             GroupInvitationVO vo = toVO(inv, conv);
             if (inviter != null) {
                 vo.setInviterNickname(inviter.getNickname());
-                vo.setInviterAvatar(mediaUrlService.resolve(inviter.getAvatar()));
+                vo.setInviterAvatar(mediaUrlService.resolveUserAvatar(inviter.getId(), inviter.getAvatar()));
             }
             result.add(vo);
         }
@@ -191,7 +191,7 @@ public class GroupInvitationServiceImpl implements GroupInvitationService {
                                         "conversationId", String.valueOf(conversationId),
                                         "memberId", String.valueOf(userId),
                                         "memberName", inviteeName,
-                                        "memberAvatar", mediaUrlService.resolve(invitee.getAvatar())
+                                        "memberAvatar", mediaUrlService.resolveUserAvatar(invitee.getId(), invitee.getAvatar())
                                 );
                                 // 推送给除新成员外的所有群成员
                                 List<ImConversationMember> members = memberMapper.selectListByQuery(
@@ -417,7 +417,7 @@ public class GroupInvitationServiceImpl implements GroupInvitationService {
                                 ? u.getNickname() : u.getUsername();
                         return GroupMemberAvatarVO.builder()
                                 .nickname(nick)
-                                .avatar(mediaUrlService.resolve(u.getAvatar()))
+                                .avatar(mediaUrlService.resolveUserAvatar(u.getId(), u.getAvatar()))
                                 .build();
                     })
                     .filter(v -> v != null)

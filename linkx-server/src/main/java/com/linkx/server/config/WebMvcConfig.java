@@ -83,6 +83,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/media/banners/**",
                         "/media/recommends/**",
                         "/media/activities/**",
+                        "/media/stored",
                         "/error"
                 );
         // 密码重置三端点保留 Login 排除（匿名可访问），但不排除 RateLimit：

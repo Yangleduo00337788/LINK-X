@@ -420,7 +420,7 @@ public class TokenServiceImpl implements TokenService {
                 .id(user.getId())
                 .username(user.getUsername())
                 .nickname(user.getNickname())
-                .avatar(mediaUrlService.resolve(user.getAvatar()))
+                .avatar(mediaUrlService.resolveUserAvatar(user.getId(), user.getAvatar()))
                 .signature(user.getSignature())
                 .build();
 

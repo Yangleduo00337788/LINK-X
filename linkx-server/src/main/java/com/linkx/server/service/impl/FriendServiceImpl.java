@@ -135,7 +135,7 @@ public class FriendServiceImpl implements FriendService {
                 .id(user.getId())
                 .username(user.getUsername())
                 .nickname(user.getNickname())
-                .avatar(mediaUrlService.resolve(user.getAvatar()))
+                .avatar(mediaUrlService.resolveUserAvatar(user.getId(), user.getAvatar()))
                 .build();
     }
 
@@ -328,7 +328,7 @@ public class FriendServiceImpl implements FriendService {
                     .userId(friend.getId())
                     .username(friend.getUsername())
                     .nickname(friend.getNickname())
-                    .avatar(mediaUrlService.resolve(friend.getAvatar()))
+                    .avatar(mediaUrlService.resolveUserAvatar(friend.getId(), friend.getAvatar()))
                     .remark(remarkMap.get(friend.getId()))
                     .groupName(groupMap.get(friend.getId()))
                     .online(online)
@@ -629,11 +629,11 @@ public class FriendServiceImpl implements FriendService {
                     .toUserId(request.getToUserId())
                     .fromUsername(fromUser != null ? fromUser.getUsername() : "")
                     .fromNickname(fromUser != null ? fromUser.getNickname() : "")
-                    .fromAvatar(fromUser != null ? mediaUrlService.resolve(fromUser.getAvatar()) : null)
+                    .fromAvatar(fromUser != null ? mediaUrlService.resolveUserAvatar(fromUser.getId(), fromUser.getAvatar()) : null)
                     .peerUserId(peerUser != null ? peerUser.getId() : null)
                     .peerUsername(peerUser != null ? peerUser.getUsername() : "")
                     .peerNickname(peerUser != null ? peerUser.getNickname() : "")
-                    .peerAvatar(peerUser != null ? mediaUrlService.resolve(peerUser.getAvatar()) : null)
+                    .peerAvatar(peerUser != null ? mediaUrlService.resolveUserAvatar(peerUser.getId(), peerUser.getAvatar()) : null)
                     .message(request.getMessage())
                     .status(request.getStatus())
                     .direction(direction)

@@ -820,7 +820,7 @@ public class ConferenceServiceImpl implements ConferenceService {
                         ? user.getNickname()
                         : (StringUtils.hasText(user.getUsername()) ? user.getUsername() : "用户");
                 map.put("nickname", nick);
-                map.put("avatar", mediaUrlService.resolve(user.getAvatar()));
+                map.put("avatar", mediaUrlService.resolveUserAvatar(user.getId(), user.getAvatar()));
             } else {
                 map.put("nickname", "用户");
                 map.put("avatar", null);

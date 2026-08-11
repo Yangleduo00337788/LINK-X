@@ -82,7 +82,7 @@ public class CallServiceImpl implements CallService {
         SysUser caller = sysUserMapper.selectOneById(userId);
         SysUser peer = sysUserMapper.selectOneById(peerId);
         String callerName = displayName(caller);
-        String callerAvatar = caller != null ? nullToEmpty(mediaUrlService.resolve(caller.getAvatar())) : "";
+        String callerAvatar = caller != null ? nullToEmpty(mediaUrlService.resolveUserAvatar(caller.getId(), caller.getAvatar())) : "";
 
         String content = "voice".equals(callType) ? "邀请你进行语音通话" : "邀请你进行视频通话";
         // 先写 DB 通知，再写 Redis / 推送：避免「事务回滚但被叫已收到 call_invite」幽灵来电。
@@ -149,7 +149,7 @@ public class CallServiceImpl implements CallService {
                 .status("ringing")
                 .peerUserId(peerId)
                 .peerNickname(displayName(peer))
-                .peerAvatar(peer != null ? nullToEmpty(mediaUrlService.resolve(peer.getAvatar())) : "")
+                .peerAvatar(peer != null ? nullToEmpty(mediaUrlService.resolveUserAvatar(peer.getId(), peer.getAvatar())) : "")
                 .build();
     }
 
@@ -348,7 +348,7 @@ public class CallServiceImpl implements CallService {
                 .fromUserId(fromUserId)
                 .toUserId(toUserId)
                 .fromNickname(displayName(from))
-                .fromAvatar(from != null ? nullToEmpty(mediaUrlService.resolve(from.getAvatar())) : "")
+                .fromAvatar(from != null ? nullToEmpty(mediaUrlService.resolveUserAvatar(from.getId(), from.getAvatar())) : "")
                 .build();
     }
 
@@ -727,7 +727,7 @@ public class CallServiceImpl implements CallService {
                     java.util.Map<String, Object> item = new java.util.HashMap<>();
                     item.put("userId", userId);
                     item.put("nickname", user != null ? displayName(user) : "用户");
-                    item.put("avatar", user != null ? nullToEmpty(mediaUrlService.resolve(user.getAvatar())) : "");
+                    item.put("avatar", user != null ? nullToEmpty(mediaUrlService.resolveUserAvatar(user.getId(), user.getAvatar())) : "");
                     downstream.accept(item);
                 })
                 .toList();

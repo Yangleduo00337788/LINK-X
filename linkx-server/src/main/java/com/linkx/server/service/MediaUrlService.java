@@ -31,6 +31,32 @@ public class MediaUrlService {
         return resolve(keyOrUrl, linkxProperties.getMinio().getPresignExpiry().getAvatarSeconds());
     }
 
+    /**
+     * 用户头像：优先走同源代理 {@code /media/avatars/{userId}}，避免 Electron CSP 拦截 OSS/MinIO 预签名外链。
+     */
+    public String resolveUserAvatar(Long userId, String keyOrUrl) {
+        if (!StringUtils.hasText(keyOrUrl)) {
+            return null;
+        }
+        String value = keyOrUrl.trim();
+        if ("/default-avatar.svg".equals(value) || value.endsWith("/default-avatar.svg")) {
+            return null;
+        }
+        if (value.startsWith("data:") || value.startsWith("blob:")) {
+            return value;
+        }
+        if (isExternalHttpUrl(value)) {
+            return value;
+        }
+        if (value.startsWith("/media/avatars/")) {
+            return value;
+        }
+        if (userId != null && userId > 0) {
+            return "/media/avatars/" + userId;
+        }
+        return resolveAvatar(keyOrUrl);
+    }
+
     /** 聊天附件、群文件、网盘文件等业务文件 */
     public String resolveFile(String keyOrUrl) {
         return resolve(keyOrUrl, linkxProperties.getMinio().getPresignExpiry().getFileSeconds());

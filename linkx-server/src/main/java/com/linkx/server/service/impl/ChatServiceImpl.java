@@ -1322,7 +1322,7 @@ public class ChatServiceImpl implements ChatService {
                 .peerUserId(peer.getId())
                 .peerUsername(peer.getUsername())
                 .peerNickname(peer.getNickname())
-                .peerAvatar(mediaUrlService.resolve(peer.getAvatar()))
+                .peerAvatar(mediaUrlService.resolveUserAvatar(peer.getId(), peer.getAvatar()))
                 .peerRemark(remark)
                 .peerOnline(peerOnline)
                 .lastMessage(conversation.getLastMessageContent())
@@ -1432,7 +1432,7 @@ public class ChatServiceImpl implements ChatService {
                 String nick = StringUtils.hasText(user.getNickname()) ? user.getNickname() : user.getUsername();
                 previews.add(GroupMemberAvatarVO.builder()
                         .nickname(nick)
-                        .avatar(mediaUrlService.resolve(user.getAvatar()))
+                        .avatar(mediaUrlService.resolveUserAvatar(user.getId(), user.getAvatar()))
                         .build());
             }
             result.put(entry.getKey(), previews);
@@ -1463,7 +1463,7 @@ public class ChatServiceImpl implements ChatService {
                 .conversationId(message.getConversationId())
                 .senderId(message.getSenderId())
                 .senderNickname(sender != null ? sender.getNickname() : null)
-                .senderAvatar(sender != null ? mediaUrlService.resolve(sender.getAvatar()) : null)
+                .senderAvatar(sender != null ? mediaUrlService.resolveUserAvatar(sender.getId(), sender.getAvatar()) : null)
                 .type(message.getType())
                 .content(message.getContent())
                 .fileName(message.getFileName())

@@ -201,13 +201,11 @@ public class UserController {
         String objectKey = fileStorageService.uploadFile(file, null);
         objectKeyOwnershipService.claim(userId, objectKey);
 
-        // 按头像时效签发预签名 URL 返回给前端
-        String signedUrl = mediaUrlService.resolveAvatar(objectKey);
-
         // 将对象 key 存入数据库（不存 URL）
         sysUserService.updateAvatar(userId, objectKey);
 
-        return Result.success(signedUrl);
+        // 同源代理地址，避免客户端 CSP 拦截 OSS/MinIO 预签名外链
+        return Result.success(mediaUrlService.resolveUserAvatar(userId, objectKey));
     }
 
     /**
@@ -257,7 +255,7 @@ public class UserController {
     private UserProfileVO buildUserProfileVO(SysUser user) {
         UserProfileVO vo = UserProfileMapper.toProfileVO(user);
         if (vo != null) {
-            vo.setAvatar(mediaUrlService.resolveAvatar(vo.getAvatar()));
+            vo.setAvatar(mediaUrlService.resolveUserAvatar(user.getId(), vo.getAvatar()));
         }
         return vo;
     }
@@ -265,7 +263,7 @@ public class UserController {
     private UserProfileVO buildPrivateUserProfileVO(SysUser user) {
         UserProfileVO vo = UserProfileMapper.toPrivateProfileVO(user);
         if (vo != null) {
-            vo.setAvatar(mediaUrlService.resolveAvatar(vo.getAvatar()));
+            vo.setAvatar(mediaUrlService.resolveUserAvatar(user.getId(), vo.getAvatar()));
         }
         return vo;
     }

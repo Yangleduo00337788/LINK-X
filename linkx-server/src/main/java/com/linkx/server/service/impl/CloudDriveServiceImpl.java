@@ -122,7 +122,7 @@ public class CloudDriveServiceImpl implements CloudDriveService {
         List<CloudFolder> folders = cloudFolderMapper.selectListByQuery(folderQw);
         SysUser me = sysUserMapper.selectOneById(userId);
         String uploader = me != null ? me.getNickname() : null;
-        String uploaderAvatar = me != null ? mediaUrlService.resolve(me.getAvatar()) : null;
+        String uploaderAvatar = me != null ? mediaUrlService.resolveUserAvatar(me.getId(), me.getAvatar()) : null;
         Map<Long, FolderListStats> folderStats = batchFolderListStats(userId, folders);
         for (CloudFolder f : folders) {
             if (q != null && !f.getName().toLowerCase(Locale.ROOT).contains(q)) continue;
@@ -219,7 +219,7 @@ public class CloudDriveServiceImpl implements CloudDriveService {
                 userId,
                 saved != null ? saved : folder,
                 me != null ? me.getNickname() : null,
-                me != null ? mediaUrlService.resolve(me.getAvatar()) : null
+                me != null ? mediaUrlService.resolveUserAvatar(me.getId(), me.getAvatar()) : null
         );
     }
 
@@ -287,7 +287,7 @@ public class CloudDriveServiceImpl implements CloudDriveService {
                 entity,
                 List.of(),
                 me != null ? me.getNickname() : null,
-                me != null ? mediaUrlService.resolve(me.getAvatar()) : null
+                me != null ? mediaUrlService.resolveUserAvatar(me.getId(), me.getAvatar()) : null
         );
     }
 
@@ -300,7 +300,7 @@ public class CloudDriveServiceImpl implements CloudDriveService {
                 file,
                 tags.getOrDefault(fileId, List.of()),
                 me != null ? me.getNickname() : null,
-                me != null ? mediaUrlService.resolve(me.getAvatar()) : null
+                me != null ? mediaUrlService.resolveUserAvatar(me.getId(), me.getAvatar()) : null
         );
     }
 
@@ -378,7 +378,7 @@ public class CloudDriveServiceImpl implements CloudDriveService {
                 userId,
                 folder,
                 me != null ? me.getNickname() : null,
-                me != null ? mediaUrlService.resolve(me.getAvatar()) : null
+                me != null ? mediaUrlService.resolveUserAvatar(me.getId(), me.getAvatar()) : null
         );
     }
 

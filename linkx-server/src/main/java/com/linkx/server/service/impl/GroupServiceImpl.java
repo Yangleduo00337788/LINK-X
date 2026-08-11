@@ -279,7 +279,7 @@ public class GroupServiceImpl implements GroupService {
                 result.add(GroupMemberVO.builder()
                         .userId(user.getId())
                         .nickname(user.getNickname())
-                        .avatar(mediaUrlService.resolve(user.getAvatar()))
+                        .avatar(mediaUrlService.resolveUserAvatar(user.getId(), user.getAvatar()))
                         .role(member.getRole())
                         .joinTime(member.getCreateTime() != null ? member.getCreateTime().getTime() : null)
                         .muted(isMemberMuteActive(member, now))
@@ -366,7 +366,7 @@ public class GroupServiceImpl implements GroupService {
                 result.add(GroupMemberVO.builder()
                         .userId(user.getId())
                         .nickname(user.getNickname())
-                        .avatar(mediaUrlService.resolve(user.getAvatar()))
+                        .avatar(mediaUrlService.resolveUserAvatar(user.getId(), user.getAvatar()))
                         .role(member.getRole())
                         .joinTime(member.getCreateTime() != null ? member.getCreateTime().getTime() : null)
                         .build());
@@ -1214,7 +1214,7 @@ public class GroupServiceImpl implements GroupService {
                 String nick = StringUtils.hasText(user.getNickname()) ? user.getNickname() : user.getUsername();
                 previews.add(GroupMemberAvatarVO.builder()
                         .nickname(nick)
-                        .avatar(mediaUrlService.resolve(user.getAvatar()))
+                        .avatar(mediaUrlService.resolveUserAvatar(user.getId(), user.getAvatar()))
                         .build());
             }
             result.put(entry.getKey(), previews);
@@ -1377,7 +1377,7 @@ public class GroupServiceImpl implements GroupService {
                                     ImConversationMember.ROLE_ADMIN
                             )
             );
-            String avatar = mediaUrlService.resolve(user != null ? user.getAvatar() : null);
+            String avatar = mediaUrlService.resolveUserAvatar(user != null ? user.getId() : null, user != null ? user.getAvatar() : null);
             for (ImConversationMember admin : admins) {
                 // 去重：同一申请人未读申请不重复刷
                 long pending = notificationMapper.selectCountByQuery(
