@@ -2032,7 +2032,7 @@ function onDrop(e: DragEvent) {
 .lx-bubble-image {
   max-width: 220px;
   max-height: 280px;
-  border-radius: var(--lx-radius-sm);
+  border-radius: var(--lx-bubble-radius);
   object-fit: cover;
   cursor: zoom-in;
   display: block;

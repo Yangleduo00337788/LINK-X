@@ -103,7 +103,7 @@ function pickChatBackground(id: ChatBackgroundId) {
 
 .bg-preview-bubble {
   height: 10px;
-  border-radius: var(--lx-radius-pill);
+  border-radius: var(--lx-bubble-radius);
   background: rgba(255, 255, 255, 0.7);
 }
 

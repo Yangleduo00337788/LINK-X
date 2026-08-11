@@ -42,15 +42,16 @@ const mapUrl = computed(() => {
   align-items: flex-start;
   gap: var(--lx-space-md);
   max-width: min(280px, 70vw);
-  padding: var(--lx-space-md) var(--lx-space-lg);
-  border-radius: var(--lx-radius-xl);
-  background: var(--lx-bg-panel);
   color: inherit;
   text-decoration: none;
-  border: 1px solid var(--lx-border-light);
 }
-.location-bubble.self {
-  background: var(--lx-bg-bubble-self);
+.location-bubble.self .loc-ico,
+.location-bubble.self .loc-title,
+.location-bubble.self .loc-addr {
+  color: var(--lx-text-on-accent);
+}
+.location-bubble.self .loc-title {
+  opacity: 0.82;
 }
 .loc-ico {
   color: var(--lx-accent);

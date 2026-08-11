@@ -6,18 +6,22 @@
 import { ref, watch } from 'vue'
 import type { ChatMessage } from '../../../types'
 import * as chatApi from '../../../api/chat'
-import { recoverMediaUrlOnError } from '../../../utils/mediaUrl'
+import { normalizeMediaUrl, recoverMediaUrlOnError } from '../../../utils/mediaUrl'
 import { useI18n } from '../../../i18n'
 
 const props = defineProps<{ msg: ChatMessage }>()
 const emit = defineEmits<{ (e: 'preview', msg: ChatMessage): void }>()
 const { t } = useI18n()
-const displaySrc = ref(props.msg.content || props.msg.fileUrl || '')
+function resolveImageSrc(content?: string, fileUrl?: string): string {
+  return normalizeMediaUrl(content || fileUrl) || content || fileUrl || ''
+}
+
+const displaySrc = ref(resolveImageSrc(props.msg.content, props.msg.fileUrl))
 
 watch(
   () => [props.msg.content, props.msg.fileUrl, props.msg.id] as const,
   ([content, fileUrl]) => {
-    displaySrc.value = content || fileUrl || ''
+    displaySrc.value = resolveImageSrc(content, fileUrl)
   }
 )
 
@@ -67,7 +71,7 @@ function onDblClick(e: MouseEvent) {
 .lx-bubble-image {
   max-width: 220px;
   max-height: 280px;
-  border-radius: var(--lx-radius-sm);
+  border-radius: var(--lx-bubble-radius);
   object-fit: cover;
   cursor: zoom-in;
   display: block;

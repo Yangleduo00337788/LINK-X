@@ -379,7 +379,7 @@ function onStatusClick() {
   20%,
   55% {
     box-shadow: 0 0 0 3px rgba(18, 183, 245, 0.55);
-    border-radius: var(--lx-radius-xl);
+    border-radius: var(--lx-bubble-radius);
   }
 }
 </style>
@@ -387,19 +387,24 @@ function onStatusClick() {
 /* Global styles for bubbles to avoid duplicating them */
 .lx-bubble {
   position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: fit-content;
+  max-width: 100%;
   background: var(--lx-bg-card);
-  padding: var(--lx-space-md) var(--lx-space-lg);
-  border-radius: var(--lx-radius);
+  padding: 10px 14px;
+  border-radius: var(--lx-bubble-radius);
   font-size: var(--lx-font);
   line-height: var(--lx-leading-normal);
   color: var(--lx-text);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--lx-border-light);
 }
 .lx-bubble.self {
-  background: var(--lx-file-link);
+  background: var(--lx-accent);
   color: var(--lx-text-on-accent);
-  box-shadow: 0 1px 2px rgba(79, 172, 254, 0.3);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--lx-accent) 32%, transparent);
   border: none;
 }
 .lx-bubble.self .lx-bubble-text {
@@ -426,7 +431,7 @@ function onStatusClick() {
 .lx-file-card {
   max-width: 300px;
   background: var(--lx-bg-card);
-  border-radius: var(--lx-radius);
+  border-radius: var(--lx-bubble-radius);
   overflow: hidden;
   box-shadow: 0 1px 3px var(--lx-bg-active);
   cursor: pointer;
@@ -437,10 +442,11 @@ function onStatusClick() {
 .lx-file-name { font-size: var(--lx-font); font-weight: 500; color: var(--lx-text-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lx-file-size { font-size: var(--lx-font-sm); color: var(--lx-text-muted); margin-top: var(--lx-space-xs); }
 .lx-file-bar { padding: var(--lx-space-sm) var(--lx-space-xl); background: var(--lx-file-bar); color: rgba(255, 255, 255, 0.9); font-size: var(--lx-font-sm); }
-.lx-bubble-image { max-width: 220px; max-height: 280px; border-radius: var(--lx-radius-sm); object-fit: cover; cursor: zoom-in; display: block; }
+.lx-bubble-image { max-width: 220px; max-height: 280px; border-radius: var(--lx-bubble-radius); object-fit: cover; cursor: zoom-in; display: block; }
 .image-bubble { padding: 0; background: transparent; border: none; box-shadow: none; }
 .voice-bubble { display: inline-flex; align-items: center; gap: var(--lx-space); min-width: 72px; cursor: pointer; }
 .voice-bubble.playing { color: var(--lx-accent); }
+.voice-bubble.self.playing { color: var(--lx-text-on-accent); opacity: 0.92; }
 .voice-ico { flex-shrink: 0; }
 .red-packet-card {
   display: flex; align-items: center; gap: var(--lx-space-md); min-width: 200px; max-width: 260px;
