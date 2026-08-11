@@ -177,7 +177,7 @@ const currentShortcuts = {
  * 两端格式易歧义（例如 #FFFFFF00 会被当成不透明黄）。
  */
 function windowBackgroundColor(theme: string = currentUiTheme) {
-  return theme === 'dark' ? 'rgba(0, 0, 0, 0)' : 'rgba(255, 255, 255, 0)'
+  return theme === 'dark' ? 'rgba(26, 26, 26, 1)' : 'rgba(255, 255, 255, 0)'
 }
 
 /** 无边框；大圆角由渲染层 CSS 绘制；窗控由前端自绘以便裁进圆角 */

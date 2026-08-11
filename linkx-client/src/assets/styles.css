@@ -25,6 +25,7 @@
   --lx-accent-soft: rgba(18, 183, 245, 0.14);
   --lx-accent-bg-soft: #e6f2ff;
   --lx-bg-logo: #f0f4f8;
+  --lx-bg-sidebar: #f5f5f5;
 
   /* 文字 */
   --lx-text: #1a1a1a;
@@ -106,7 +107,8 @@
   --lx-radius-3xl: 20px;
   --lx-radius-4xl: 24px;
   --lx-radius-pill: 999px;
-  --lx-avatar-radius: 12px;
+  --lx-avatar-radius: 22%;
+  --lx-bubble-radius: 16px;
   /* Electron 窗口外轮廓（偏圆，关闭键由自绘按钮裁进此圆角） */
   --lx-window-radius: var(--lx-radius-3xl);
   --lx-sidebar-width: 64px;
@@ -356,18 +358,22 @@
   --lx-official-border-soft: #e5e5e5;
 }
 
-/* 暗色主题 */
+/* 暗色主题：与浅色同一套层级，仅做黑白反转 */
 [data-theme='dark'] {
   --lx-bg-window: #1a1a1a;
-  --lx-bg-panel: #222222;
-  --lx-bg-panel-deep: #2a2a2a;
+  --lx-bg-panel: #1a1a1a;
+  --lx-bg-panel-deep: #333333;
   --lx-bg-card: #2c2c2c;
-  --lx-bg-list: #242426;
+  --lx-bg-list: #222222;
   --lx-bg-input: #383838;
   --lx-bg-hover: rgba(255, 255, 255, 0.06);
   --lx-bg-active: rgba(255, 255, 255, 0.1);
   --lx-bg-overlay: rgba(0, 0, 0, 0.65);
   --lx-separator-fade: rgba(255, 255, 255, 0.06);
+  --lx-bg-sidebar: #1a1a1a;
+  --lx-bg-logo: #2c2c2c;
+  --lx-bg-soft: #242424;
+  --lx-bg-mist: #2a2a2a;
 
   --lx-accent-soft: rgba(18, 183, 245, 0.2);
   --lx-accent-bg-soft: rgba(18, 183, 245, 0.15);
@@ -384,6 +390,27 @@
   --lx-border-light: rgba(255, 255, 255, 0.1);
   --lx-border-strong: #555555;
   --lx-divider: #3a3a3a;
+
+  --lx-slate: #94a3b8;
+  --lx-slate-muted: #64748b;
+  --lx-slate-soft: #2a2f36;
+  --lx-ink-soft: #a8b0bc;
+
+  --lx-login-ink: #e8edf5;
+  --lx-login-muted: #9aa3b2;
+  --lx-login-icon: #7a8494;
+  --lx-login-border: #4a5568;
+  --lx-login-link-hover: #39c2f6;
+  --lx-login-bg-gradient: linear-gradient(165deg, #1a1f28 0%, #1e2430 38%, #222830 72%, #252b33 100%);
+  --lx-login-card-gradient: linear-gradient(145deg, var(--lx-bg-card) 0%, #243040 45%, #1e2a38 100%);
+  --lx-login-text-muted-alt: #8f959e;
+  --lx-login-text-faint: #6b7280;
+  --lx-login-track: #4a5568;
+  --lx-login-panel-gradient: linear-gradient(135deg, #1e2836 0%, #222a36 100%);
+
+  --lx-chat-wallpaper-default: linear-gradient(180deg, #2a2a2c 0%, #1f1f21 100%);
+  --lx-chat-wallpaper-purple: linear-gradient(135deg, #3d2f5c 0%, #2a3d5c 100%);
+  --lx-chat-wallpaper-orange: linear-gradient(135deg, #4a3a28 0%, #3d2e28 100%);
 
   --lx-shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.3);
   --lx-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.35);
@@ -407,6 +434,32 @@
   --lx-icon-image-color: #ff9933;
   --lx-caption-hover-bg: rgba(255, 255, 255, 0.08);
   --lx-caption-active-bg: rgba(255, 255, 255, 0.05);
+
+  --lx-status-muted: #6b6b6b;
+  --lx-lock-border: #444444;
+  --lx-captcha-success-bg: rgba(82, 196, 26, 0.12);
+  --lx-empty-muted: #666670;
+  --lx-quote-muted: #888888;
+  --lx-quote-bg: #333333;
+  --lx-danger-soft-border: rgba(250, 81, 81, 0.35);
+  --lx-picker-bg: #2a2a2a;
+  --lx-picker-muted: #555555;
+  --lx-picker-row-bg: #333333;
+  --lx-picker-text: #c8cdd5;
+  --lx-picker-faint: #666666;
+  --lx-avatar-placeholder: #444850;
+  --lx-bg-bubble-self: rgba(18, 183, 245, 0.22);
+  --lx-official-border: #3a3a3a;
+  --lx-official-border-soft: #333333;
+
+  --lx-file-folder-bg: rgba(245, 166, 35, 0.15);
+  --lx-file-pdf-bg: rgba(250, 81, 81, 0.12);
+  --lx-file-doc-bg: rgba(43, 87, 154, 0.18);
+  --lx-file-xls-bg: rgba(29, 111, 66, 0.18);
+  --lx-file-ppt-bg: rgba(196, 62, 28, 0.15);
+  --lx-file-zip-bg: rgba(142, 68, 173, 0.15);
+  --lx-file-media-bg: rgba(114, 46, 209, 0.15);
+  --lx-file-bubble-track: #3a3f48;
 }
 
 /* ============================================================
@@ -461,6 +514,19 @@ html.lx-electron[data-theme='dark'] #app {
 
 html.lx-electron.is-maximized[data-theme='dark'] #app {
   box-shadow: none;
+}
+
+/* Electron 主壳：与浅色相同结构，背景一律走 token（深色即黑底） */
+html.lx-electron .app-shell,
+html.lx-electron .app-shell .main-panel,
+html.lx-electron .app-shell .top-status,
+html.lx-electron .sidebar,
+html.lx-electron .main-status-bar {
+  background-color: var(--lx-bg-window);
+}
+
+html.lx-electron .content-wrapper {
+  background-color: var(--lx-bg-card);
 }
 
 * {
@@ -586,8 +652,24 @@ html.lx-electron.is-maximized[data-theme='dark'] #app {
   box-shadow: var(--lx-shadow-soft);
 }
 
-/* 头像：圆角方形 */
-.n-avatar {
+/* 头像：大圆角方形（iOS App Icon 风格） */
+.n-avatar,
+.avatar,
+.group-avatar,
+.avatar-clickable,
+.avatar-edit-hint,
+.avatar-btn,
+.avatar-ring,
+.user-avatar,
+.user-avatar-placeholder,
+.notif-avatar,
+.friend-avatar,
+.friend-avatar-placeholder,
+.at-avatar,
+.tile-avatar,
+.member-av,
+.history-avatar,
+.col-uploader .avatar {
   border-radius: var(--lx-avatar-radius) !important;
 }
 
@@ -625,6 +707,9 @@ html.lx-electron.is-maximized[data-theme='dark'] #app {
 .lx-icon-btn {
   width: 32px;
   height: 32px;
+  border: none;
+  padding: 0;
+  outline: none;
   border-radius: var(--lx-radius);
   background: var(--lx-bg-input);
   display: flex;
@@ -634,6 +719,12 @@ html.lx-electron.is-maximized[data-theme='dark'] #app {
   cursor: pointer;
   transition: background 0.18s ease, transform 0.12s ease;
   flex-shrink: 0;
+}
+
+.lx-icon-btn:focus,
+.lx-icon-btn:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 .lx-icon-btn:hover {
