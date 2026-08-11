@@ -13,6 +13,7 @@ import EmptyState from '../../common/EmptyState.vue'
 import { useI18n } from '../../../i18n'
 import DOMPurify from 'dompurify'
 import * as chatApi from '../../../api/chat'
+import { LxButton } from '../../ui'
 
 const appStore = useAppStore()
 const overlayStore = useOverlayStore()
@@ -192,15 +193,15 @@ function clearTimeRange() {
           :end-placeholder="t('overlay.searchTo')"
           class="time-picker"
         />
-        <button
+        <LxButton
           v-if="timeRange"
-          type="button"
+          variant="link-md"
           class="clear-time"
           @click="clearTimeRange"
         >
           <n-icon :component="CloseOutline" :size="12" />
           {{ t('overlay.clearTimeRange') }}
-        </button>
+        </LxButton>
       </div>
     </div>
 
@@ -299,49 +300,49 @@ function clearTimeRange() {
 @import '../overlay-common.css';
 
 .history-page {
-  padding: 18px 4px 4px;
+  padding: var(--lx-space-2xl) var(--lx-space-xs) var(--lx-space-xs);
 }
 
 /* 搜索栏 —— 与上方 hero 同一节奏 */
 .search-bar {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 14px 16px;
+  gap: var(--lx-space-md);
+  padding: var(--lx-space-xl) var(--lx-space-2xl);
   background: var(--lx-bg-card);
   border: 1px solid var(--lx-border-light);
-  border-radius: 14px;
+  border-radius: var(--lx-radius-card);
   box-shadow: var(--lx-shadow-soft, 0 2px 12px rgba(0, 0, 0, 0.03));
 }
 
 .search-input :deep(.n-input__input-el),
 .search-input :deep(.n-input__placeholder) {
-  font-size: 14px;
+  font-size: var(--lx-font);
 }
 
 .time-filters {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--lx-space-md);
   flex-wrap: wrap;
 }
 
 .time-picker :deep(.n-input) {
-  border-radius: 8px;
+  border-radius: var(--lx-radius-sm);
 }
 
 .clear-time {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--lx-space-xs);
   border: none;
   background: var(--lx-bg-panel);
   color: var(--lx-text-secondary);
   cursor: pointer;
-  font-size: 12px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  transition: background 0.15s ease, color 0.15s ease;
+  font-size: var(--lx-font-sm);
+  padding: var(--lx-space-xs) var(--lx-space-md);
+  border-radius: var(--lx-radius-pill);
+  transition: background var(--lx-duration) ease, color var(--lx-duration) ease;
 }
 
 .clear-time:hover {
@@ -361,8 +362,8 @@ function clearTimeRange() {
 .history-hero {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 18px 20px;
+  gap: var(--lx-space-xl);
+  padding: var(--lx-space-2xl) var(--lx-space-3xl);
   background: linear-gradient(
     135deg,
     var(--lx-accent-soft),
@@ -374,7 +375,7 @@ function clearTimeRange() {
 .history-avatar {
   width: 48px;
   height: 48px;
-  border-radius: 14px;
+  border-radius: var(--lx-radius-card);
   background: var(--lx-bg-card);
   color: var(--lx-accent);
   display: flex;
@@ -391,7 +392,7 @@ function clearTimeRange() {
 
 .history-name {
   margin: 0;
-  font-size: 17px;
+  font-size: var(--lx-font-2xl);
   font-weight: 600;
   color: var(--lx-text-body);
   letter-spacing: 0.2px;
@@ -401,27 +402,27 @@ function clearTimeRange() {
 }
 
 .history-sub {
-  margin: 4px 0 0;
+  margin: var(--lx-space-xs) 0 0;
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: 13px;
+  gap: var(--lx-space-xs);
+  font-size: var(--lx-font-md);
   color: var(--lx-text-secondary);
 }
 
 .searching-tag {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-accent);
   background: var(--lx-bg-card);
-  padding: 4px 10px;
-  border-radius: 999px;
+  padding: var(--lx-space-xs) var(--lx-space-md);
+  border-radius: var(--lx-radius-pill);
   flex-shrink: 0;
 }
 
 /* 空状态 */
 .empty-search,
 .empty-history {
-  padding: 48px 20px;
+  padding: var(--lx-space-6xl) var(--lx-space-3xl);
   text-align: center;
 }
 
@@ -430,28 +431,28 @@ function clearTimeRange() {
 .search-results {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 20px;
+  padding: var(--lx-space-2xl) var(--lx-space-3xl);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--lx-space-lg);
 }
 
 /* 搜索结果分组 */
 .result-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--lx-space);
 }
 
 .result-session {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
+  padding: var(--lx-space-md) var(--lx-space-xl);
   background: var(--lx-bg-panel);
-  border-radius: 10px;
+  border-radius: var(--lx-radius-xl);
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.12s ease;
+  transition: background var(--lx-duration) ease, transform var(--lx-duration-fast) ease;
   font-weight: 500;
 }
 
@@ -464,17 +465,17 @@ function clearTimeRange() {
 }
 
 .session-name {
-  font-size: 14px;
+  font-size: var(--lx-font);
   color: var(--lx-text-body);
   font-weight: 500;
 }
 
 .result-count {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
   background: var(--lx-bg-card);
-  padding: 2px 8px;
-  border-radius: 999px;
+  padding: var(--lx-space-2xs) var(--lx-space);
+  border-radius: var(--lx-radius-pill);
   border: 1px solid var(--lx-border-light);
 }
 
@@ -492,12 +493,12 @@ function clearTimeRange() {
 .result-bubble,
 .history-bubble {
   max-width: min(86%, 480px);
-  padding: 10px 14px;
-  border-radius: 12px;
+  padding: var(--lx-space-md) var(--lx-space-xl);
+  border-radius: var(--lx-radius-lg);
   background: var(--lx-bg-panel);
   border: 1px solid var(--lx-border-light);
   cursor: pointer;
-  transition: border-color 0.15s ease, transform 0.12s ease;
+  transition: border-color var(--lx-duration) ease, transform var(--lx-duration-fast) ease;
 }
 
 .result-bubble:hover,
@@ -513,33 +514,33 @@ function clearTimeRange() {
 
 .result-text,
 .history-text {
-  font-size: 14px;
+  font-size: var(--lx-font);
   color: var(--lx-text-body);
   margin: 0;
-  line-height: 1.55;
+  line-height: var(--lx-leading-normal);
   word-break: break-word;
 }
 
 .result-text :deep(mark) {
   background: color-mix(in srgb, var(--lx-accent) 28%, transparent);
   color: inherit;
-  padding: 0 2px;
-  border-radius: 2px;
+  padding: 0 var(--lx-space-2xs);
+  border-radius: var(--lx-radius-hair);
 }
 
 .result-time,
 .history-time {
-  font-size: 11px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-muted);
-  margin-top: 6px;
+  margin-top: var(--lx-space-sm);
   display: block;
   text-align: right;
 }
 
 .result-more {
   text-align: center;
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
-  padding: 4px;
+  padding: var(--lx-space-xs);
 }
 </style>

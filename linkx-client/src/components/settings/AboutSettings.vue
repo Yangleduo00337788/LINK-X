@@ -1,12 +1,13 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
 import { ref } from 'vue'
-import { NButton, useDialog, useMessage } from 'naive-ui'
+import { useDialog, useMessage } from 'naive-ui'
 import { APP_CLIENT_CHANNEL, APP_CLIENT_VERSION } from '../../utils/appVersion'
 import * as versionApi from '../../api/version'
 import { useI18n } from '../../i18n'
 import { openLegalPageInBrowser } from '../../utils/legalPage'
 import BrandMarkIcon from '../BrandMarkIcon.vue'
+import { LxButton } from '../ui'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -144,25 +145,24 @@ async function checkUpdate() {
       <p class="about-ver">Version {{ APP_CLIENT_VERSION }} · {{ APP_CLIENT_CHANNEL }}</p>
       <p class="about-desc">{{ t('about.desc') }}</p>
       <div class="about-actions">
-        <n-button
-          type="primary"
-          :loading="checking || updating"
+        <LxButton
+          variant="primary-comfortable"
           :disabled="checking || updating"
           @click="checkUpdate"
         >
           {{ updating ? progressText || t('about.downloading') : t('about.checkUpdate') }}
-        </n-button>
+        </LxButton>
       </div>
 
       <footer class="about-legal">
         <div class="about-legal-links">
-          <button type="button" class="about-legal-link" @click="openServiceAgreement">
+          <LxButton variant="link-md" class="about-legal-link" @click="openServiceAgreement">
             {{ t('about.serviceAgreement') }}
-          </button>
+          </LxButton>
           <span class="about-legal-sep">·</span>
-          <button type="button" class="about-legal-link" @click="openPrivacyPolicy">
+          <LxButton variant="link-md" class="about-legal-link" @click="openPrivacyPolicy">
             {{ t('about.privacyPolicy') }}
-          </button>
+          </LxButton>
         </div>
         <p class="about-legal-brand">{{ t('about.companyRights') }}</p>
         <p class="about-legal-copy">{{ t('about.copyright') }}</p>
@@ -175,19 +175,19 @@ async function checkUpdate() {
 .about-page {
   width: 100%;
   max-width: 720px;
-  padding: 0 28px 24px;
+  padding: 0 var(--lx-space-5xl-minus) var(--lx-space-4xl);
   box-sizing: border-box;
 }
 
 .about-card {
   position: relative;
   text-align: center;
-  padding: 36px 24px 28px;
-  border-radius: 12px;
+  padding: var(--lx-space-6xl-minus) var(--lx-space-4xl) var(--lx-space-5xl-minus);
+  border-radius: var(--lx-radius-lg);
   background: var(--lx-bg-card);
   border: 1px solid var(--lx-border-light);
   overflow: hidden;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  box-shadow: var(--lx-shadow-xs);
 }
 
 .about-glow {
@@ -207,42 +207,42 @@ async function checkUpdate() {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 12px;
+  margin: 0 auto var(--lx-space-lg);
 }
 
 .about-name {
   position: relative;
   margin: 0;
-  font-size: 22px;
+  font-size: var(--lx-font-5xl);
   font-weight: 700;
   color: var(--lx-text-body);
 }
 
 .about-ver {
   position: relative;
-  margin: 6px 0 0;
-  font-size: 13px;
+  margin: var(--lx-space-sm) 0 0;
+  font-size: var(--lx-font-md);
   color: var(--lx-text-muted);
 }
 
 .about-desc {
   position: relative;
-  margin: 14px auto 0;
+  margin: var(--lx-space-xl) auto 0;
   max-width: 320px;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--lx-font-md);
+  line-height: var(--lx-leading-normal);
   color: var(--lx-text-secondary);
 }
 
 .about-actions {
   position: relative;
-  margin-top: 20px;
+  margin-top: var(--lx-space-3xl);
 }
 
 .about-legal {
   position: relative;
-  margin-top: 28px;
-  padding-top: 18px;
+  margin-top: var(--lx-space-5xl-minus);
+  padding-top: var(--lx-space-2xl);
   border-top: 1px solid var(--lx-border-light);
 }
 
@@ -250,17 +250,12 @@ async function checkUpdate() {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: var(--lx-space-md);
+  margin-bottom: var(--lx-space-lg);
 }
 
 .about-legal-link {
-  border: none;
-  background: none;
-  padding: 0;
-  font-size: 13px;
-  color: var(--lx-accent);
-  cursor: pointer;
+  font-size: var(--lx-font-md);
 }
 
 .about-legal-link:hover {
@@ -269,20 +264,20 @@ async function checkUpdate() {
 
 .about-legal-sep {
   color: var(--lx-text-muted);
-  font-size: 12px;
-  line-height: 1;
+  font-size: var(--lx-font-sm);
+  line-height: var(--lx-leading-none);
 }
 
 .about-legal-brand {
-  margin: 0 0 6px;
-  font-size: 12px;
+  margin: 0 0 var(--lx-space-sm);
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-secondary);
 }
 
 .about-legal-copy {
   margin: 0;
-  font-size: 11px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-muted);
-  line-height: 1.5;
+  line-height: var(--lx-leading-normal);
 }
 </style>

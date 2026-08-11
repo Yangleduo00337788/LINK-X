@@ -15,6 +15,7 @@ import { useOverlayStore } from '../stores/overlay'
 // 主导航键类型
 import type { NavKey } from '../types'
 import { useI18n } from '../i18n'
+import { LxButton } from './ui'
 
 // 接收当前主导航键
 const props = defineProps<{
@@ -99,30 +100,27 @@ function previewActiveFile() {
           <p class="preview">{{ activeFavorite.preview }}</p>
           <p class="meta">{{ t('placeholder.updatedAt', { time: activeFavorite.time }) }}</p>
           <div class="fav-actions">
-            <button
+            <LxButton
               v-if="activeFavorite.type === 'link'"
-              type="button"
-              class="action-btn"
+              variant="primary-comfortable"
               @click="openFavoriteLink"
             >
               {{ t('placeholder.openLink') }}
-            </button>
-            <button
+            </LxButton>
+            <LxButton
               v-if="activeFavorite.type === 'image'"
-              type="button"
-              class="action-btn"
+              variant="primary-comfortable"
               @click="previewFavoriteImage"
             >
               {{ t('placeholder.previewImage') }}
-            </button>
-            <button
+            </LxButton>
+            <LxButton
               v-if="activeFavorite.type === 'note'"
-              type="button"
-              class="action-btn"
+              variant="primary-comfortable"
               @click="openFavoriteNote"
             >
               {{ t('placeholder.openNote') }}
-            </button>
+            </LxButton>
           </div>
         </div>
       </template>
@@ -136,14 +134,13 @@ function previewActiveFile() {
             <img :src="activeFile.fileUrl" :alt="activeFile.title" class="file-preview-img" />
           </div>
           <div class="fav-actions">
-            <button
+            <LxButton
               v-if="activeFile.fileUrl"
-              type="button"
-              class="action-btn"
+              variant="primary-comfortable"
               @click="previewActiveFile"
             >
               {{ t('placeholder.fullscreenPreview') }}
-            </button>
+            </LxButton>
           </div>
         </div>
       </template>
@@ -169,7 +166,7 @@ function previewActiveFile() {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  padding: 24px;
+  padding: var(--lx-space-4xl);
   display: flex;
   flex-direction: column;
   position: relative;
@@ -188,30 +185,30 @@ function previewActiveFile() {
   max-width: 480px;
   background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
-  padding: 24px;
+  padding: var(--lx-space-4xl);
   box-shadow: var(--lx-shadow-card);
 }
 
 .detail-card h2 {
-  margin: 0 0 12px;
-  font-size: 20px;
+  margin: 0 0 var(--lx-space-lg);
+  font-size: var(--lx-font-4xl);
   color: var(--lx-text-body);
 }
 
 .detail-card p {
-  margin: 0 0 8px;
+  margin: 0 0 var(--lx-space);
   color: var(--lx-text-secondary);
-  line-height: 1.6;
+  line-height: var(--lx-leading-relaxed);
 }
 
 .meta {
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   color: var(--lx-text-muted);
 }
 
 .tip {
-  margin-top: 16px !important;
-  font-size: 12px;
+  margin-top: var(--lx-space-2xl) !important;
+  font-size: var(--lx-font-sm);
   color: var(--lx-accent);
 }
 
@@ -220,11 +217,11 @@ function previewActiveFile() {
   height: 72px;
   border-radius: var(--lx-radius);
   color: var(--lx-bg-card);
-  font-size: 32px;
+  font-size: var(--lx-font-7xl);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 16px;
+  margin-bottom: var(--lx-space-2xl);
 }
 
 .preview {
@@ -233,28 +230,14 @@ function previewActiveFile() {
 }
 
 .fav-actions {
-  margin-top: 16px;
+  margin-top: var(--lx-space-2xl);
   display: flex;
-  gap: 8px;
+  gap: var(--lx-space);
   flex-wrap: wrap;
 }
 
-.action-btn {
-  border: none;
-  background: var(--lx-accent);
-  color: #fff;
-  border-radius: var(--lx-radius);
-  padding: 8px 16px;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.action-btn:hover {
-  opacity: 0.9;
-}
-
 .file-preview-wrap {
-  margin: 16px 0;
+  margin: var(--lx-space-2xl) 0;
   border-radius: var(--lx-radius);
   overflow: hidden;
   border: 1px solid var(--lx-border-light);

@@ -61,6 +61,7 @@ import { useGroupMetaStore } from '../stores/groupMeta'
 // 通话 Store（真实 WebRTC）
 import { useCallStore } from '../stores/call'
 import { useI18n } from '../i18n'
+import { lxChatWallpaperBg } from '../theme/vars'
 import { formatMessageDivider, MESSAGE_TIME_GAP_MS } from '../utils/chatTime'
 import * as chatApi from '../api/chat'
 import * as conferenceApi from '../api/conference'
@@ -74,6 +75,7 @@ import ForwardPickerModal from './chat/ForwardPickerModal.vue'
 import ConferenceSessionBanner from './chat/ConferenceSessionBanner.vue'
 import type { SessionBannerInfo } from './chat/ConferenceSessionBanner.vue'
 import { useConferenceStore } from '../stores/conference'
+import { LxButton, LxIconButton } from './ui'
 
 // 获取 Naive UI 消息提示实例
 const message = useMessage()
@@ -419,10 +421,10 @@ const playingVoiceId = ref<string | null>(null)
 const chatBgStyle = computed(() => {
   const id = chatBackground.value
   if (id === 'purple') {
-    return { background: 'linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%)' }
+    return { background: lxChatWallpaperBg.purple }
   }
   if (id === 'orange') {
-    return { background: 'linear-gradient(135deg, #f6d365 0%, #fda085 100%)' }
+    return { background: lxChatWallpaperBg.orange }
   }
   return { background: 'var(--lx-bg-panel)' } // 默认背景
 })
@@ -1454,34 +1456,31 @@ function onDrop(e: DragEvent) {
           </div>
         </div>
         <div class="chat-header-actions">
-          <button
-            type="button"
-            class="hdr-btn"
+          <LxIconButton
+            variant="hdr"
             :title="t('chat.voiceCall')"
             @click="() => startCall('voice')"
           >
             <n-icon :component="CallOutline" :size="20" />
-          </button>
-          <button
-            type="button"
-            class="hdr-btn"
+          </LxIconButton>
+          <LxIconButton
+            variant="hdr"
             :title="t('chat.videoCall')"
             @click="() => startCall('video')"
           >
             <n-icon :component="VideocamOutline" :size="20" />
-          </button>
-          <button
-            type="button"
-            class="hdr-btn"
+          </LxIconButton>
+          <LxIconButton
+            variant="hdr"
             :title="t('modals.startConference')"
             :disabled="conferenceCreating"
             @click="startConference"
           >
             <n-icon :component="PeopleOutline" :size="20" />
-          </button>
-          <button type="button" class="hdr-btn" :title="t('chat.more')" @click="toggleMore">
+          </LxIconButton>
+          <LxIconButton variant="hdr" :title="t('chat.more')" @click="toggleMore">
             <n-icon :component="EllipsisHorizontalOutline" :size="20" />
-          </button>
+          </LxIconButton>
         </div>
       </header>
 
@@ -1491,31 +1490,28 @@ function onDrop(e: DragEvent) {
           <span class="chat-peer-name chat-peer-name--group">{{ currentSession?.name }}</span>
         </div>
         <div class="chat-header-actions">
-          <button
-            type="button"
-            class="hdr-btn"
+          <LxIconButton
+            variant="hdr"
             :title="t('chat.voiceCall')"
             @click="() => startCall('voice')"
           >
             <n-icon :component="CallOutline" :size="20" />
-          </button>
-          <button
-            type="button"
-            class="hdr-btn"
+          </LxIconButton>
+          <LxIconButton
+            variant="hdr"
             :title="t('chat.videoCall')"
             @click="() => startCall('video')"
           >
             <n-icon :component="VideocamOutline" :size="20" />
-          </button>
-          <button
-            type="button"
-            class="hdr-btn"
+          </LxIconButton>
+          <LxIconButton
+            variant="hdr"
             :title="t('modals.startConference')"
             :disabled="conferenceCreating"
             @click="startConference"
           >
             <n-icon :component="PeopleOutline" :size="20" />
-          </button>
+          </LxIconButton>
           <n-popover
             trigger="click"
             placement="bottom-end"
@@ -1524,9 +1520,9 @@ function onDrop(e: DragEvent) {
             class="group-apps-popover"
           >
             <template #trigger>
-              <button type="button" class="hdr-btn" :title="t('chat.groupApps')">
+              <LxIconButton variant="hdr" :title="t('chat.groupApps')">
                 <n-icon :component="GridOutline" :size="20" />
-              </button>
+              </LxIconButton>
             </template>
             <div class="group-grid-menu">
               <button
@@ -1540,12 +1536,12 @@ function onDrop(e: DragEvent) {
               </button>
             </div>
           </n-popover>
-          <button type="button" class="hdr-btn" :title="t('chat.invite')" @click="openAddMembers">
+          <LxIconButton variant="hdr" :title="t('chat.invite')" @click="openAddMembers">
             <n-icon :component="AddOutline" :size="20" />
-          </button>
-          <button type="button" class="hdr-btn" :title="t('chat.more')" @click="toggleGroupInfo">
+          </LxIconButton>
+          <LxIconButton variant="hdr" :title="t('chat.more')" @click="toggleGroupInfo">
             <n-icon :component="EllipsisHorizontalOutline" :size="20" />
-          </button>
+          </LxIconButton>
         </div>
       </header>
 
@@ -1674,18 +1670,17 @@ function onDrop(e: DragEvent) {
         :placeholder="t('chat.inputPlaceholder')"
       />
       <template #footer>
-        <div style="display: flex; justify-content: flex-end; gap: 8px">
-          <button type="button" class="lx-modal-btn" :disabled="editSaving" @click="editModalShow = false">
+        <div style="display: flex; justify-content: flex-end; gap: var(--lx-space)">
+          <LxButton variant="modal" :disabled="editSaving" @click="editModalShow = false">
             {{ t('common.cancel') }}
-          </button>
-          <button
-            type="button"
-            class="lx-modal-btn primary"
+          </LxButton>
+          <LxButton
+            variant="modal-primary"
             :disabled="editSaving || !editContent.trim()"
             @click="confirmEditMessage"
           >
             {{ t('common.confirm') }}
-          </button>
+          </LxButton>
         </div>
       </template>
     </n-modal>
@@ -1736,7 +1731,7 @@ function onDrop(e: DragEvent) {
   bottom: 0;
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(4px);
-  z-index: 999;
+  z-index: var(--lx-z-popover);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1744,14 +1739,14 @@ function onDrop(e: DragEvent) {
 
 .drag-overlay-content {
   background: var(--lx-bg-panel);
-  padding: 32px 48px;
+  padding: var(--lx-space-5xl) var(--lx-space-6xl);
   border-radius: var(--lx-radius);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: var(--lx-space-2xl);
   color: var(--lx-accent);
-  font-size: 18px;
+  font-size: var(--lx-font-3xl);
   font-weight: 600;
   box-shadow: var(--lx-shadow-dropdown);
   pointer-events: none;
@@ -1794,7 +1789,7 @@ function onDrop(e: DragEvent) {
   display: flex;
   flex-direction: column;
   min-width: 148px;
-  padding: 6px;
+  padding: var(--lx-space-sm);
   background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
   box-shadow: var(--lx-shadow-dropdown);
@@ -1805,8 +1800,8 @@ function onDrop(e: DragEvent) {
   border: none;
   background: transparent;
   text-align: left;
-  padding: 10px 14px;
-  font-size: 14px;
+  padding: var(--lx-space-md) var(--lx-space-xl);
+  font-size: var(--lx-font);
   color: var(--lx-text-body);
   cursor: pointer;
   border-radius: var(--lx-radius);
@@ -1821,116 +1816,88 @@ function onDrop(e: DragEvent) {
 .chat-header {
   flex-shrink: 0;
   height: 52px;
-  padding: 0 16px 0 14px;
+  padding: 0 var(--lx-space-2xl) 0 var(--lx-space-xl);
   display: flex;
   align-items: center;
   justify-content: space-between;
   background: var(--lx-bg-panel);
   border-bottom: none;
-  box-shadow: 0 1px 0 var(--lx-separator-fade, rgba(0, 0, 0, 0.04));
+  box-shadow: 0 1px 0 var(--lx-separator-fade);
   position: relative;
-  z-index: 31;
+  z-index: var(--lx-z-dock-plus);
 }
 
 .chat-header-left {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: var(--lx-space-md);
   min-width: 0;
   flex: 1;
-  padding-top: 2px;
+  padding-top: var(--lx-space-2xs);
 }
 
 .peer-meta {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
+  gap: var(--lx-space-2xs);
   min-width: 0;
 }
 
 .peer-status-line {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--lx-space);
   min-width: 0;
-  line-height: 1.2;
+  line-height: var(--lx-leading-tight);
 }
 
 .chat-peer-name {
-  font-size: 15px;
+  font-size: var(--lx-font-lg);
   font-weight: 600;
   color: var(--lx-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
-  line-height: 1.25;
+  line-height: var(--lx-leading-tight);
 }
 
 .peer-online-text {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-success);
-  line-height: 1.2;
+  line-height: var(--lx-leading-tight);
 }
 
 .peer-last-seen {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
   white-space: nowrap;
-  line-height: 1.2;
+  line-height: var(--lx-leading-tight);
 }
 
 .peer-typing {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-accent);
-  line-height: 1.2;
+  line-height: var(--lx-leading-tight);
 }
 
 .chat-header-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
-}
-
-.hdr-btn {
-  width: 36px;
-  height: 36px;
-  border: none;
-  background: transparent;
-  border-radius: var(--lx-radius);
-  color: var(--lx-text-nav);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.hdr-btn:hover {
-  background: var(--lx-border-light);
-  color: var(--lx-text-body);
-}
-
-.hdr-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.hdr-btn:disabled:hover {
-  background: transparent;
-  color: var(--lx-text-nav);
+  gap: var(--lx-space-xs);
 }
 
 .session-subheader {
   flex-shrink: 0;
-  padding: 10px 20px;
+  padding: var(--lx-space-md) var(--lx-space-3xl);
   border-bottom: none;
-  box-shadow: 0 1px 0 var(--lx-separator-fade, rgba(0, 0, 0, 0.04));
+  box-shadow: 0 1px 0 var(--lx-separator-fade);
   background: rgba(255, 255, 255, 0.35);
 }
 
 .session-subheader-title {
-  font-size: 15px;
+  font-size: var(--lx-font-lg);
   font-weight: 500;
   color: var(--lx-text-body);
 }
@@ -1945,7 +1912,7 @@ function onDrop(e: DragEvent) {
 }
 
 .message-area--padded {
-  padding: 12px 16px 16px;
+  padding: var(--lx-space-lg) var(--lx-space-2xl) var(--lx-space-2xl);
 }
 
 .message-list-container {
@@ -1966,17 +1933,17 @@ function onDrop(e: DragEvent) {
   position: absolute;
   top: 10px;
   right: 12px;
-  z-index: 8;
+  z-index: var(--lx-z-raised-8);
   border: none;
   padding: 0;
   margin: 0;
   background: transparent;
   box-shadow: none;
   border-radius: 0;
-  font-size: 16px;
+  font-size: var(--lx-font-xl);
   font-weight: 700;
-  line-height: 1.4;
-  color: var(--lx-danger, #f04040);
+  line-height: var(--lx-leading);
+  color: var(--lx-danger);
   cursor: pointer;
   max-width: calc(100% - 24px);
   white-space: nowrap;
@@ -1985,7 +1952,7 @@ function onDrop(e: DragEvent) {
 }
 
 .at-me-fab:hover {
-  color: #d93636;
+  color: var(--lx-danger-deep-alt);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -1993,12 +1960,12 @@ function onDrop(e: DragEvent) {
 .message-time {
   text-align: center;
   color: var(--lx-text-muted);
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
 }
 
 .message-row {
   display: flex;
-  gap: 8px;
+  gap: var(--lx-space);
   align-items: flex-start;
 }
 
@@ -2035,12 +2002,12 @@ function onDrop(e: DragEvent) {
   background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
   min-width: 100px;
-  padding: 4px;
+  padding: var(--lx-space-xs);
 }
 
 .menu-item {
-  padding: 8px 16px;
-  font-size: 13px;
+  padding: var(--lx-space) var(--lx-space-2xl);
+  font-size: var(--lx-font-md);
   color: var(--lx-text-body);
   cursor: pointer;
   border-radius: var(--lx-radius);
@@ -2058,27 +2025,6 @@ function onDrop(e: DragEvent) {
   background: var(--lx-danger-bg);
 }
 
-.lx-modal-btn {
-  border: 1px solid var(--lx-border);
-  background: var(--lx-bg-card);
-  color: var(--lx-text);
-  border-radius: var(--lx-radius);
-  padding: 6px 14px;
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.lx-modal-btn.primary {
-  background: var(--lx-accent);
-  border-color: var(--lx-accent);
-  color: #fff;
-}
-
-.lx-modal-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
 .hidden-file-input {
   display: none;
 }
@@ -2086,7 +2032,7 @@ function onDrop(e: DragEvent) {
 .lx-bubble-image {
   max-width: 220px;
   max-height: 280px;
-  border-radius: 8px;
+  border-radius: var(--lx-radius-sm);
   object-fit: cover;
   cursor: zoom-in;
   display: block;
@@ -2102,15 +2048,8 @@ function onDrop(e: DragEvent) {
 .emoji-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  padding: 4px;
-}
-
-.emoji-btn {
-  border: none;
-  background: transparent;
-  font-size: 22px;
-  cursor: pointer;
+  gap: var(--lx-space);
+  padding: var(--lx-space-xs);
 }
 
 </style>

@@ -1,7 +1,8 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
-import { NButton, NAvatar, NIcon, NModal, NInput, NTag, useMessage, useDialog } from 'naive-ui'
+import { NAvatar, NIcon, NModal, NInput, NTag, useMessage, useDialog } from 'naive-ui'
+import { LxButton, LxIconButton, LxGroupCard } from '../ui'
 import {
   ChevronForwardOutline,
   CreateOutline,
@@ -610,10 +611,10 @@ onMounted(() => {
 
 <template>
   <div class="settings-scroll">
-    <section class="group-card account-card">
+    <LxGroupCard tag="section" variant="settings" class="account-card">
       <div class="account-card-head">
         <span class="group-title">{{ t('account.infoTitle') }}</span>
-        <n-button size="small" secondary @click="openEditProfile">{{ t('account.editProfile') }}</n-button>
+        <LxButton variant="sm" @click="openEditProfile">{{ t('account.editProfile') }}</LxButton>
       </div>
 
       <div class="profile-block">
@@ -628,12 +629,12 @@ onMounted(() => {
           </div>
           <div class="profile-id-row">
             <span>{{ t('modals.linkxId', { id: displayUsername }) }}</span>
-            <button type="button" class="copy-btn" :title="t('account.copyLinkxId')" @click="copyLinkxId">
+            <LxIconButton class="copy-btn" :title="t('account.copyLinkxId')" @click="copyLinkxId">
               <n-icon :component="CopyOutline" :size="14" />
-            </button>
-            <button type="button" class="copy-btn" :title="t('account.editLinkxId')" @click="openLinkxIdModal">
+            </LxIconButton>
+            <LxIconButton class="copy-btn" :title="t('account.editLinkxId')" @click="openLinkxIdModal">
               <n-icon :component="CreateOutline" :size="14" />
-            </button>
+            </LxIconButton>
           </div>
         </div>
       </div>
@@ -719,7 +720,7 @@ onMounted(() => {
         </div>
         <n-icon :component="ChevronForwardOutline" :size="16" class="link-chevron" />
       </button>
-    </section>
+    </LxGroupCard>
 
     <n-modal
       v-model:show="showPasswordModal"
@@ -772,10 +773,8 @@ onMounted(() => {
       </div>
       <template #footer>
         <div class="modal-footer">
-          <n-button @click="showPasswordModal = false">{{ t('common.cancel') }}</n-button>
-          <n-button type="primary" :loading="passwordLoading" @click="handleChangePassword">
-            {{ t('account.confirmChange') }}
-          </n-button>
+          <LxButton variant="modal" @click="showPasswordModal = false">{{ t('common.cancel') }}</LxButton>
+          <LxButton variant="modal-primary" :disabled="passwordLoading" @click="handleChangePassword">{{ t('account.confirmChange') }}</LxButton>
         </div>
       </template>
     </n-modal>
@@ -799,15 +798,13 @@ onMounted(() => {
               <span v-if="device.current" class="current-badge">{{ t('account.currentDevice') }}</span>
             </div>
           </div>
-          <n-button
+          <LxButton
             v-if="!device.current"
-            size="tiny"
-            type="error"
-            secondary
+            variant="link-danger"
             @click="handleLogoutDevice(device.id)"
           >
             {{ t('account.logoutDevice') }}
-          </n-button>
+          </LxButton>
         </div>
       </div>
     </n-modal>
@@ -837,13 +834,13 @@ onMounted(() => {
             {{ item.reply }}
           </div>
           <div class="feedback-actions">
-            <n-button size="tiny" tertiary @click="toggleFeedbackDetail(item.id)">
+            <LxButton variant="link" @click="toggleFeedbackDetail(item.id)">
               {{
                 expandedFeedbackId === item.id
                   ? t('account.hideConversation')
                   : t('account.viewConversation')
               }}
-            </n-button>
+            </LxButton>
           </div>
           <div v-if="expandedFeedbackId === item.id" class="feedback-thread">
             <div
@@ -865,15 +862,14 @@ onMounted(() => {
                 :rows="2"
                 :placeholder="t('account.followUpPlaceholder')"
               />
-              <n-button
-                size="small"
-                type="primary"
+              <LxButton
+                variant="sm-primary"
                 class="feedback-follow-up-btn"
-                :loading="followUpLoadingId === item.id"
+                :disabled="followUpLoadingId === item.id"
                 @click="submitFollowUp(item.id)"
               >
                 {{ t('account.followUp') }}
-              </n-button>
+              </LxButton>
             </div>
           </div>
         </div>
@@ -910,10 +906,8 @@ onMounted(() => {
       </div>
       <template #footer>
         <div class="modal-footer">
-          <n-button @click="showLinkxIdModal = false">{{ t('common.cancel') }}</n-button>
-          <n-button type="primary" :loading="linkxIdLoading" @click="submitChangeLinkxId">
-            {{ t('account.confirmChange') }}
-          </n-button>
+          <LxButton variant="modal" @click="showLinkxIdModal = false">{{ t('common.cancel') }}</LxButton>
+          <LxButton variant="modal-primary" :disabled="linkxIdLoading" @click="submitChangeLinkxId">{{ t('account.confirmChange') }}</LxButton>
         </div>
       </template>
     </n-modal>
@@ -943,10 +937,8 @@ onMounted(() => {
       </div>
       <template #footer>
         <div class="modal-footer">
-          <n-button @click="showPhoneModal = false">{{ t('common.cancel') }}</n-button>
-          <n-button type="primary" :loading="phoneLoading" @click="submitBindPhone">
-            {{ t('account.confirmBind') }}
-          </n-button>
+          <LxButton variant="modal" @click="showPhoneModal = false">{{ t('common.cancel') }}</LxButton>
+          <LxButton variant="modal-primary" :disabled="phoneLoading" @click="submitBindPhone">{{ t('account.confirmBind') }}</LxButton>
         </div>
       </template>
     </n-modal>
@@ -968,22 +960,20 @@ onMounted(() => {
           <label>{{ t('account.code') }}</label>
           <div class="captcha-row">
             <n-input v-model:value="emailForm.code" :placeholder="t('account.codePh')" />
-            <n-button
-              :loading="emailCodeSending"
-              :disabled="emailCodeCooldown > 0"
+            <LxButton
+              variant="sm"
+              :disabled="emailCodeSending || emailCodeCooldown > 0"
               @click="sendEmailCode"
             >
               {{ emailCodeCooldown > 0 ? `${emailCodeCooldown}s` : t('account.sendCode') }}
-            </n-button>
+            </LxButton>
           </div>
         </div>
       </div>
       <template #footer>
         <div class="modal-footer">
-          <n-button @click="showEmailModal = false">{{ t('common.cancel') }}</n-button>
-          <n-button type="primary" :loading="emailLoading" @click="submitBindEmail">
-            {{ t('account.confirmBind') }}
-          </n-button>
+          <LxButton variant="modal" @click="showEmailModal = false">{{ t('common.cancel') }}</LxButton>
+          <LxButton variant="modal-primary" :disabled="emailLoading" @click="submitBindEmail">{{ t('account.confirmBind') }}</LxButton>
         </div>
       </template>
     </n-modal>
@@ -1008,10 +998,8 @@ onMounted(() => {
       </div>
       <template #footer>
         <div class="modal-footer">
-          <n-button @click="showPurgeModal = false">{{ t('common.cancel') }}</n-button>
-          <n-button type="warning" :loading="purgeLoading" @click="submitPurgeData">
-            {{ t('common.confirm') }}
-          </n-button>
+          <LxButton variant="modal" @click="showPurgeModal = false">{{ t('common.cancel') }}</LxButton>
+          <LxButton variant="modal-danger" :disabled="purgeLoading" @click="submitPurgeData">{{ t('common.confirm') }}</LxButton>
         </div>
       </template>
     </n-modal>
@@ -1036,10 +1024,8 @@ onMounted(() => {
       </div>
       <template #footer>
         <div class="modal-footer">
-          <n-button @click="showDeleteModal = false">{{ t('common.cancel') }}</n-button>
-          <n-button type="error" :loading="deleteLoading" @click="submitDeleteAccount">
-            {{ t('account.confirmDelete') }}
-          </n-button>
+          <LxButton variant="modal" @click="showDeleteModal = false">{{ t('common.cancel') }}</LxButton>
+          <LxButton variant="modal-danger" :disabled="deleteLoading" @click="submitDeleteAccount">{{ t('account.confirmDelete') }}</LxButton>
         </div>
       </template>
     </n-modal>
@@ -1053,12 +1039,12 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 16px 18px 8px;
+  gap: var(--lx-space-lg);
+  padding: var(--lx-space-2xl) var(--lx-space-2xl) var(--lx-space);
 }
 
 .group-title {
-  font-size: 14px;
+  font-size: var(--lx-font);
   font-weight: 600;
   color: var(--lx-text-body);
 }
@@ -1066,8 +1052,8 @@ onMounted(() => {
 .profile-block {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
-  padding: 8px 18px 16px;
+  gap: var(--lx-space-xl);
+  padding: var(--lx-space) var(--lx-space-2xl) var(--lx-space-2xl);
 }
 
 .profile-avatar {
@@ -1080,17 +1066,17 @@ onMounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--lx-space-xs);
 }
 
 .profile-name-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--lx-space);
 }
 
 .profile-name {
-  font-size: 17px;
+  font-size: var(--lx-font-2xl);
   font-weight: 600;
   color: var(--lx-text-body);
 }
@@ -1098,25 +1084,25 @@ onMounted(() => {
 .profile-id-row {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
+  gap: var(--lx-space-sm);
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-secondary);
-  margin-top: 2px;
+  margin-top: var(--lx-space-2xs);
 }
 
 .profile-id-row.muted {
   color: var(--lx-text-muted);
-  font-size: 11px;
+  font-size: var(--lx-font-xs);
 }
 
 .copy-btn {
   border: none;
   background: none;
-  padding: 2px;
+  padding: var(--lx-space-2xs);
   color: var(--lx-text-muted);
   cursor: pointer;
   display: inline-flex;
-  border-radius: 4px;
+  border-radius: var(--lx-radius-2xs);
 }
 
 .copy-btn:hover {
@@ -1127,15 +1113,15 @@ onMounted(() => {
 .link-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--lx-space-lg);
   width: 100%;
-  padding: 14px 18px;
+  padding: var(--lx-space-xl) var(--lx-space-2xl);
   border: none;
   border-top: 1px solid var(--lx-border-light);
   background: transparent;
   cursor: pointer;
   text-align: left;
-  transition: background 0.15s;
+  transition: background var(--lx-duration);
 }
 
 .link-row:hover {
@@ -1143,14 +1129,14 @@ onMounted(() => {
 }
 
 .link-label {
-  font-size: 14px;
+  font-size: var(--lx-font);
   color: var(--lx-text-body);
   font-weight: 500;
 }
 
 .link-value {
   margin-left: auto;
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   color: var(--lx-text-secondary);
 }
 
@@ -1170,14 +1156,14 @@ onMounted(() => {
 .link-text {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--lx-space-xs);
   min-width: 0;
   flex: 1;
 }
 
 .link-text.compact {
   align-items: flex-end;
-  gap: 2px;
+  gap: var(--lx-space-2xs);
 }
 
 .link-text.compact.right {
@@ -1185,7 +1171,7 @@ onMounted(() => {
 }
 
 .link-desc {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
 }
 
@@ -1194,44 +1180,44 @@ onMounted(() => {
 }
 
 .delete-warn {
-  margin: 0 0 16px;
-  font-size: 13px;
+  margin: 0 0 var(--lx-space-2xl);
+  font-size: var(--lx-font-md);
   color: var(--lx-danger);
-  line-height: 1.5;
+  line-height: var(--lx-leading-normal);
 }
 
 .password-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--lx-space-2xl);
 }
 
 .form-item {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--lx-space-sm);
 }
 
 .form-item label {
-  font-size: 14px;
+  font-size: var(--lx-font);
   color: var(--lx-text-secondary);
 }
 
 .field-hint {
-  font-size: 11px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-muted);
-  line-height: 1.4;
+  line-height: var(--lx-leading);
 }
 
 .modal-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
+  gap: var(--lx-space-lg);
 }
 
 .captcha-row {
   display: flex;
-  gap: 8px;
+  gap: var(--lx-space);
   align-items: stretch;
 }
 
@@ -1249,7 +1235,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
   overflow: hidden;
 }
@@ -1261,14 +1247,14 @@ onMounted(() => {
 }
 
 .captcha-tip {
-  font-size: 11px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-muted);
-  margin-top: 4px;
+  margin-top: var(--lx-space-xs);
 }
 
 .loading-state,
 .empty-state {
-  padding: 24px;
+  padding: var(--lx-space-4xl);
   text-align: center;
   color: var(--lx-text-muted);
 }
@@ -1276,47 +1262,47 @@ onMounted(() => {
 .device-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--lx-space-lg);
 }
 
 .device-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px;
+  padding: var(--lx-space-lg);
   border-radius: var(--lx-radius);
   background: var(--lx-bg-panel);
 }
 
 .device-name {
-  font-size: 14px;
+  font-size: var(--lx-font);
   font-weight: 500;
   color: var(--lx-text-body);
 }
 
 .device-meta {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
-  margin-top: 4px;
+  margin-top: var(--lx-space-xs);
 }
 
 .current-badge {
-  margin-left: 8px;
-  padding: 2px 6px;
+  margin-left: var(--lx-space);
+  padding: var(--lx-space-2xs) var(--lx-space-sm);
   background: var(--lx-accent-soft);
   color: var(--lx-accent);
-  border-radius: 4px;
-  font-size: 11px;
+  border-radius: var(--lx-radius-2xs);
+  font-size: var(--lx-font-xs);
 }
 
 .feedback-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--lx-space-lg);
 }
 
 .feedback-item {
-  padding: 12px;
+  padding: var(--lx-space-lg);
   background: var(--lx-bg-panel);
   border-radius: var(--lx-radius);
 }
@@ -1324,51 +1310,51 @@ onMounted(() => {
 .feedback-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: var(--lx-space);
+  margin-bottom: var(--lx-space);
 }
 
 .feedback-time {
   margin-left: auto;
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
 }
 
 .feedback-content {
-  font-size: 14px;
+  font-size: var(--lx-font);
   color: var(--lx-text-body);
-  line-height: 1.5;
+  line-height: var(--lx-leading-normal);
   white-space: pre-wrap;
 }
 .feedback-reply {
-  margin-top: 8px;
-  padding: 8px 10px;
-  border-radius: 8px;
+  margin-top: var(--lx-space);
+  padding: var(--lx-space) var(--lx-space-md);
+  border-radius: var(--lx-radius-sm);
   background: rgba(24, 160, 88, 0.08);
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--lx-font-md);
+  line-height: var(--lx-leading-normal);
 }
 .feedback-reply-label {
   display: block;
-  margin-bottom: 4px;
+  margin-bottom: var(--lx-space-xs);
   color: var(--lx-text-muted);
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
 }
 .feedback-actions {
-  margin-top: 8px;
+  margin-top: var(--lx-space);
 }
 .feedback-thread {
-  margin-top: 10px;
+  margin-top: var(--lx-space-md);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--lx-space);
 }
 .feedback-thread-item {
-  padding: 8px 10px;
-  border-radius: 8px;
+  padding: var(--lx-space) var(--lx-space-md);
+  border-radius: var(--lx-radius-sm);
   background: var(--lx-card-bg, rgba(0, 0, 0, 0.03));
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--lx-font-md);
+  line-height: var(--lx-leading-normal);
 }
 .feedback-thread-item.is-admin {
   background: rgba(24, 160, 88, 0.08);
@@ -1376,15 +1362,15 @@ onMounted(() => {
 .feedback-thread-meta {
   display: flex;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 4px;
+  gap: var(--lx-space);
+  margin-bottom: var(--lx-space-xs);
   color: var(--lx-text-muted);
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
 }
 .feedback-follow-up {
-  margin-top: 4px;
+  margin-top: var(--lx-space-xs);
 }
 .feedback-follow-up-btn {
-  margin-top: 8px;
+  margin-top: var(--lx-space);
 }
 </style>

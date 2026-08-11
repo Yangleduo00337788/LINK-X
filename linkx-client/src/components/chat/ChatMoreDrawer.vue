@@ -209,7 +209,7 @@ function onReportSubmitted() {
 .drawer-root {
   position: absolute;
   inset: 0;
-  z-index: 30;
+  z-index: var(--lx-z-dock);
   background: var(--lx-bg-overlay);
 }
 
@@ -221,7 +221,7 @@ function onReportSubmitted() {
   width: min(320px, 88%);
   max-width: 360px;
   background: var(--lx-bg-card);
-  box-shadow: -4px 0 24px var(--lx-shadow-color);
+  box-shadow: var(--lx-shadow-drawer);
   display: flex;
   flex-direction: column;
   will-change: transform;
@@ -229,7 +229,7 @@ function onReportSubmitted() {
 }
 
 .drawer-inner {
-  padding: 20px 18px 24px;
+  padding: var(--lx-space-3xl) var(--lx-space-2xl) var(--lx-space-4xl);
   overflow-y: auto;
   flex: 1;
 }
@@ -239,9 +239,9 @@ function onReportSubmitted() {
   text-align: left;
   border: none;
   background: none;
-  font-size: 14px;
+  font-size: var(--lx-font);
   color: var(--lx-text-body);
-  padding: 14px 0;
+  padding: var(--lx-space-xl) 0;
   border-bottom: 1px solid var(--lx-border-light);
 }
 
@@ -254,7 +254,7 @@ function onReportSubmitted() {
 .switch-label {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--lx-space);
 }
 
 .link-row {
@@ -269,13 +269,13 @@ function onReportSubmitted() {
 .danger-text {
   cursor: pointer;
   color: var(--lx-danger);
-  font-size: 14px;
+  font-size: var(--lx-font);
 }
 
 .report {
-  margin: 20px 0 0;
+  margin: var(--lx-space-3xl) 0 0;
   text-align: center;
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
 }
 
 .report a {
@@ -285,12 +285,12 @@ function onReportSubmitted() {
 
 .chat-drawer-enter-active,
 .chat-drawer-leave-active {
-  transition: opacity 0.25s ease;
+  transition: opacity var(--lx-duration-md) ease;
 }
 
 .chat-drawer-enter-active .drawer-panel,
 .chat-drawer-leave-active .drawer-panel {
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform var(--lx-duration-slow) cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .chat-drawer-enter-from,

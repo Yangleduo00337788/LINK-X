@@ -83,7 +83,7 @@ async function onLanguageChange(value: string) {
         :key="item.key"
         type="button"
         class="nav-item"
-        :class="{ active: settingsActiveTab === item.key }"
+        :class="{ 'is-active': settingsActiveTab === item.key }"
         @click="selectTab(item.key)"
       >
         <n-icon :component="item.icon" :size="18" class="nav-ico" />
@@ -104,15 +104,15 @@ async function onLanguageChange(value: string) {
 
 .panel-head {
   flex-shrink: 0;
-  padding: 20px 20px 12px;
+  padding: var(--lx-space-3xl) var(--lx-space-3xl) var(--lx-space-lg);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--lx-space-lg);
 }
 
 .panel-title {
   margin: 0;
-  font-size: 22px;
+  font-size: var(--lx-font-5xl);
   font-weight: 700;
   color: var(--lx-text);
   letter-spacing: -0.02em;
@@ -122,11 +122,11 @@ async function onLanguageChange(value: string) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--lx-space);
 }
 
 .lang-label {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
   flex-shrink: 0;
 }
@@ -140,25 +140,25 @@ async function onLanguageChange(value: string) {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 4px 12px 16px;
+  padding: var(--lx-space-xs) var(--lx-space-lg) var(--lx-space-2xl);
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--lx-space-2xs);
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--lx-space-lg);
   width: 100%;
-  padding: 11px 14px;
+  padding: var(--lx-space-md-plus) var(--lx-space-xl);
   border: none;
-  border-radius: 10px;
+  border-radius: var(--lx-radius-xl);
   background: transparent;
   color: var(--lx-text-secondary);
   cursor: pointer;
   text-align: left;
-  transition: background 0.15s, color 0.15s;
+  transition: background var(--lx-duration), color var(--lx-duration);
 }
 
 .nav-item:hover {
@@ -177,6 +177,6 @@ async function onLanguageChange(value: string) {
 }
 
 .nav-label {
-  font-size: 14px;
+  font-size: var(--lx-font);
 }
 </style>

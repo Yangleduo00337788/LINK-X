@@ -99,7 +99,7 @@ defineExpose({
         v-for="(friend, idx) in friends"
         :key="friend.id"
         class="at-item"
-        :class="{ active: idx === activeIndex, 'at-all': friend.id === '__all__' }"
+        :class="{ 'is-active': idx === activeIndex, 'at-all': friend.id === '__all__' }"
         @mouseenter="activeIndex = idx"
         @click="pick(friend)"
       >
@@ -122,17 +122,17 @@ defineExpose({
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
-  z-index: 30;
+  z-index: var(--lx-z-dock);
   background: var(--lx-bg-card);
   border: 1px solid var(--lx-border-light);
   border-radius: var(--lx-radius);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--lx-shadow-float);
   width: 240px;
   max-height: 220px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  font-size: 13px;
+  font-size: var(--lx-font-md);
 }
 
 .at-mention-popover.placement-top {
@@ -141,8 +141,8 @@ defineExpose({
 }
 
 .at-header {
-  padding: 6px 10px;
-  font-size: 12px;
+  padding: var(--lx-space-sm) var(--lx-space-md);
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
   border-bottom: 1px solid var(--lx-border-light);
 }
@@ -150,16 +150,16 @@ defineExpose({
 .at-list {
   list-style: none;
   margin: 0;
-  padding: 4px 0;
+  padding: var(--lx-space-xs) 0;
   overflow-y: auto;
   flex: 1;
 }
 
 .at-item {
   display: flex;
-  gap: 8px;
+  gap: var(--lx-space);
   align-items: center;
-  padding: 6px 10px;
+  padding: var(--lx-space-sm) var(--lx-space-md);
   cursor: pointer;
   user-select: none;
 }
@@ -181,8 +181,8 @@ defineExpose({
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  font-size: 13px;
+  color: var(--lx-text-on-accent);
+  font-size: var(--lx-font-md);
   font-weight: 600;
   overflow: hidden;
   flex-shrink: 0;
@@ -207,14 +207,14 @@ defineExpose({
 }
 
 .at-meta {
-  font-size: 11px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-muted);
 }
 
 .at-empty {
-  padding: 16px 12px;
+  padding: var(--lx-space-2xl) var(--lx-space-lg);
   text-align: center;
   color: var(--lx-text-muted);
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
 }
 </style>

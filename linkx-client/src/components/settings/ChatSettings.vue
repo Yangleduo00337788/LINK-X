@@ -6,6 +6,8 @@ import { storeToRefs } from 'pinia'
 import { useAppSettingsStore } from '../../stores/appSettings'
 import type { ChatBackgroundId } from '../../types'
 import { useI18n } from '../../i18n'
+import { lxChatWallpaperBg } from '../../theme/vars'
+import { LxGroupCard } from '../ui'
 
 const message = useMessage()
 const appSettingsStore = useAppSettingsStore()
@@ -17,17 +19,17 @@ const chatBackgrounds = computed(() => [
   {
     id: 'default' as ChatBackgroundId,
     label: t('chat.bgDefault'),
-    style: 'linear-gradient(180deg, #f5f6f7 0%, #eceff1 100%)'
+    style: lxChatWallpaperBg.default
   },
   {
     id: 'purple' as ChatBackgroundId,
     label: t('chat.bgPurple'),
-    style: 'linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%)'
+    style: lxChatWallpaperBg.purple
   },
   {
     id: 'orange' as ChatBackgroundId,
     label: t('chat.bgOrange'),
-    style: 'linear-gradient(135deg, #f6d365 0%, #fda085 100%)'
+    style: lxChatWallpaperBg.orange
   }
 ])
 
@@ -40,7 +42,7 @@ function pickChatBackground(id: ChatBackgroundId) {
 
 <template>
   <div class="settings-scroll">
-    <section class="group-card">
+    <LxGroupCard tag="section" variant="settings">
       <div class="group-head"><span>{{ t('chat.background') }}</span></div>
       <p class="group-tip">{{ t('chat.tip') }}</p>
       <div class="bg-grid">
@@ -49,7 +51,7 @@ function pickChatBackground(id: ChatBackgroundId) {
           :key="bg.id"
           type="button"
           class="bg-tile"
-          :class="{ active: chatBackground === bg.id }"
+          :class="{ 'is-active': chatBackground === bg.id }"
           @click="pickChatBackground(bg.id)"
         >
           <div class="bg-preview" :style="{ background: bg.style }">
@@ -59,7 +61,7 @@ function pickChatBackground(id: ChatBackgroundId) {
           <span class="bg-label">{{ bg.label }}</span>
         </button>
       </div>
-    </section>
+    </LxGroupCard>
   </div>
 </template>
 
@@ -69,8 +71,8 @@ function pickChatBackground(id: ChatBackgroundId) {
 .bg-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  padding: 0 16px 16px;
+  gap: var(--lx-space-lg);
+  padding: 0 var(--lx-space-2xl) var(--lx-space-2xl);
 }
 
 .bg-tile {
@@ -83,25 +85,25 @@ function pickChatBackground(id: ChatBackgroundId) {
 
 .bg-preview {
   height: 72px;
-  border-radius: 8px;
+  border-radius: var(--lx-radius-sm);
   border: 2px solid var(--lx-border-light);
   overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 6px;
-  padding: 12px;
-  transition: border-color 0.2s;
+  gap: var(--lx-space-sm);
+  padding: var(--lx-space-lg);
+  transition: border-color var(--lx-duration-md);
 }
 
-.bg-tile.active .bg-preview,
+.bg-tile.is-active .bg-preview,
 .bg-tile:hover .bg-preview {
   border-color: var(--lx-accent);
 }
 
 .bg-preview-bubble {
   height: 10px;
-  border-radius: 999px;
+  border-radius: var(--lx-radius-pill);
   background: rgba(255, 255, 255, 0.7);
 }
 
@@ -117,8 +119,8 @@ function pickChatBackground(id: ChatBackgroundId) {
 
 .bg-label {
   display: block;
-  margin-top: 8px;
-  font-size: 12px;
+  margin-top: var(--lx-space);
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-secondary);
 }
 </style>

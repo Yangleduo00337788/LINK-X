@@ -18,6 +18,7 @@ import * as groupApi from '../../api/group'
 import { INVITE_STATUS } from '../../types/inviteStatus'
 import type { InviteStatus } from '../../types/inviteStatus'
 import { useI18n } from '../../i18n'
+import { LxButton, LxIconButton } from '../ui'
 
 type FilterKind = 'all' | 'invitation' | 'join_request'
 type FilterStatus = 'all' | InviteStatus
@@ -220,22 +221,20 @@ async function handleClear() {
     <div class="header">
       <h2 class="title">{{ t('contacts.groupNotif') }}</h2>
       <div class="actions">
-        <button
-          class="action-btn"
+        <LxIconButton
           :title="t('contacts.clear')"
           :disabled="clearing"
           @click="handleClear"
         >
           <n-icon :component="TrashOutline" :size="20" />
-        </button>
+        </LxIconButton>
         <n-dropdown trigger="click" :options="filterOptions" @select="handleFilterSelect">
-          <button
-            class="action-btn"
-            :class="{ active: hasActiveFilter }"
+          <LxIconButton
+            :active="hasActiveFilter"
             :title="t('contacts.filter')"
           >
             <n-icon :component="FilterOutline" :size="20" />
-          </button>
+          </LxIconButton>
         </n-dropdown>
       </div>
     </div>
@@ -259,9 +258,8 @@ async function handleClear() {
             v-if="item.readStatus === 0"
             class="actions-right"
           >
-            <button
-              type="button"
-              class="btn accept"
+            <LxButton
+              variant="notif-accept"
               :disabled="joinHandlingId === item.id"
               @click="
                 handleJoinRequest(
@@ -273,10 +271,9 @@ async function handleClear() {
               "
             >
               {{ t('modals.joinApprove') }}
-            </button>
-            <button
-              type="button"
-              class="btn reject"
+            </LxButton>
+            <LxButton
+              variant="notif-reject"
               :disabled="joinHandlingId === item.id"
               @click="
                 handleJoinRequest(
@@ -288,7 +285,7 @@ async function handleClear() {
               "
             >
               {{ t('modals.joinReject') }}
-            </button>
+            </LxButton>
           </div>
           <div v-else class="status">{{ joinRequestStatusLabel(item) }}</div>
         </div>
@@ -303,12 +300,12 @@ async function handleClear() {
             <div class="message">{{ item.inviter }}：{{ item.message }}</div>
           </div>
           <div v-if="item.status === INVITE_STATUS.PENDING" class="actions-right">
-            <button type="button" class="btn accept" :disabled="submitting" @click="handleAccept(item.id)">
+            <LxButton variant="notif-accept" :disabled="submitting" @click="handleAccept(item.id)">
               {{ t('contacts.accept') }}
-            </button>
-            <button type="button" class="btn reject" :disabled="submitting" @click="handleReject(item.id)">
+            </LxButton>
+            <LxButton variant="notif-reject" :disabled="submitting" @click="handleReject(item.id)">
               {{ t('contacts.reject') }}
-            </button>
+            </LxButton>
           </div>
           <div v-else class="status">{{ statusLabel(item.status) }}</div>
         </div>
@@ -330,12 +327,12 @@ async function handleClear() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
+  padding: 0 var(--lx-space-4xl);
   border-bottom: 1px solid var(--lx-divider);
 }
 
 .title {
-  font-size: 18px;
+  font-size: var(--lx-font-3xl);
   font-weight: 500;
   color: var(--lx-text-body);
   margin: 0;
@@ -343,58 +340,31 @@ async function handleClear() {
 
 .actions {
   display: flex;
-  gap: 8px;
-}
-
-.action-btn {
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: transparent;
-  border-radius: var(--lx-radius);
-  cursor: pointer;
-  color: var(--lx-text-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.action-btn:hover:not(:disabled) {
-  background: var(--lx-bg-hover);
-}
-
-.action-btn.active {
-  color: var(--lx-accent);
-  background: rgba(18, 183, 245, 0.1);
-}
-
-.action-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  gap: var(--lx-space);
 }
 
 .content {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 24px;
+  padding: var(--lx-space-2xl) var(--lx-space-4xl);
 }
 
 .empty {
   text-align: center;
   color: var(--lx-text-muted);
-  padding: 40px;
+  padding: var(--lx-space-section);
 }
 
 .notif-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--lx-space-lg);
 }
 
 .notif-card {
   display: flex;
-  gap: 12px;
-  padding: 16px;
+  gap: var(--lx-space-lg);
+  padding: var(--lx-space-2xl);
   background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
   align-items: flex-start;
@@ -421,8 +391,8 @@ async function handleClear() {
 .title-line {
   display: flex;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 4px;
+  gap: var(--lx-space);
+  margin-bottom: var(--lx-space-xs);
 }
 
 .name {
@@ -431,48 +401,24 @@ async function handleClear() {
 }
 
 .date {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
 }
 
 .message {
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   color: var(--lx-text-secondary);
 }
 
 .actions-right {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--lx-space-sm);
   flex-shrink: 0;
 }
 
-.btn {
-  min-width: 56px;
-  height: 28px;
-  border-radius: var(--lx-radius);
-  border: none;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn.accept {
-  background: var(--lx-accent);
-  color: var(--lx-bg-card);
-}
-
-.btn.reject {
-  background: var(--lx-bg-panel);
-  color: var(--lx-text-secondary);
-}
-
 .status {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
   flex-shrink: 0;
 }

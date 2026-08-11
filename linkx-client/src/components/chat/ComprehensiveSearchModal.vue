@@ -19,6 +19,8 @@ import * as chatApi from '../../api/chat'
 import type { UserSearchResult } from '../../types/friend'
 import type { ConversationSummary } from '../../api/group'
 import { useI18n } from '../../i18n'
+import { LxButton } from '../ui'
+import { lxColorHex } from '../../theme/vars'
 
 interface SearchGroupItem {
   id: string
@@ -170,7 +172,7 @@ const filteredUsers = computed<SearchUserItem[]>(() => {
       name,
       username: user.username,
       avatarText: name.charAt(0) || '?',
-      avatarColor: '#12b7f5',
+      avatarColor: lxColorHex.accent,
       avatarUrl: user.avatar,
       online: false,
       isRemote: true,
@@ -207,7 +209,7 @@ const filteredUsers = computed<SearchUserItem[]>(() => {
       name,
       username: userProfile.value.username,
       avatarText: name.charAt(0) || '?',
-      avatarColor: '#12b7f5',
+      avatarColor: lxColorHex.accent,
       avatarUrl: userProfile.value.avatar,
       online: false,
       isRemote: true,
@@ -334,9 +336,9 @@ async function handleUserAction(user: SearchUserItem) {
             :placeholder="t('modals.searchKeywordPh')"
             @keydown.enter="doSearch"
           />
-          <button type="button" class="search-btn" :disabled="searching" @click="doSearch">
+          <LxButton variant="search" :disabled="searching" @click="doSearch">
             {{ searching ? t('modals.searching') : t('modals.search') }}
-          </button>
+          </LxButton>
         </div>
         <div class="main-tabs">
           <button
@@ -344,7 +346,7 @@ async function handleUserAction(user: SearchUserItem) {
             :key="tab.key"
             type="button"
             class="main-tab"
-            :class="{ active: mainTab === tab.key }"
+            :class="{ 'is-active': mainTab === tab.key }"
             @click="mainTab = tab.key"
           >
             {{ tab.label }}
@@ -371,17 +373,16 @@ async function handleUserAction(user: SearchUserItem) {
                     <span v-else>{{ u.online ? t('chat.online') : t('chat.offline') }}</span>
                   </p>
                 </div>
-                <button
+                <LxButton
                   v-if="u.isSelf"
-                  type="button"
-                  class="join-btn self-btn"
+                  variant="join-self"
                   disabled
                 >
                   {{ t('modals.selfAccount') }}
-                </button>
-                <button v-else type="button" class="join-btn" @click="handleUserAction(u)">
+                </LxButton>
+                <LxButton v-else variant="join" @click="handleUserAction(u)">
                   {{ u.isRemote ? t('modals.addFriendBtn') : t('modals.sendMessage') }}
-                </button>
+                </LxButton>
               </article>
               <p
                 v-if="showUsers && !filteredUsers.length && isLikelySelfKeyword"
@@ -409,7 +410,7 @@ async function handleUserAction(user: SearchUserItem) {
                     <span>{{ g.lastMessage || t('modals.noMessages') }}</span>
                   </p>
                 </div>
-                <button type="button" class="join-btn" @click="enterGroup(g)">{{ t('modals.enter') }}</button>
+                <LxButton variant="join" @click="enterGroup(g)">{{ t('modals.enter') }}</LxButton>
               </article>
               <p v-if="showGroups && !filteredGroups.length && mainTab !== 'user' && mainTab !== 'message'" class="empty-tip">
                 {{ t('modals.noMatchGroup') }}
@@ -433,9 +434,9 @@ async function handleUserAction(user: SearchUserItem) {
                   />
                   <p v-else class="g-meta">{{ m.content || m.type }}</p>
                 </div>
-                <button type="button" class="join-btn" @click.stop="openMessageHit(m)">
+                <LxButton variant="join" @click.stop="openMessageHit(m)">
                   {{ t('modals.locate') }}
-                </button>
+                </LxButton>
               </article>
               <p v-if="showMessages && !messageHits.length && mainTab === 'message'" class="empty-tip">
                 {{ t('modals.noMatchMessage') }}
@@ -453,12 +454,12 @@ async function handleUserAction(user: SearchUserItem) {
 .modal-root {
   position: fixed;
   inset: 0;
-  z-index: 2150;
+  z-index: var(--lx-z-dialog-search);
   background: var(--lx-bg-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: var(--lx-space-3xl);
 }
 
 .search-window {
@@ -475,16 +476,16 @@ async function handleUserAction(user: SearchUserItem) {
 
 .win-title {
   margin: 0;
-  padding: 16px 20px 8px;
-  font-size: 16px;
+  padding: var(--lx-space-2xl) var(--lx-space-3xl) var(--lx-space);
+  font-size: var(--lx-font-xl);
   font-weight: 600;
   color: var(--lx-text-body);
 }
 
 .search-row {
   display: flex;
-  gap: 10px;
-  padding: 8px 20px 12px;
+  gap: var(--lx-space-md);
+  padding: var(--lx-space) var(--lx-space-3xl) var(--lx-space-lg);
 }
 
 .search-input {
@@ -492,8 +493,8 @@ async function handleUserAction(user: SearchUserItem) {
   height: 36px;
   border: 1px solid var(--lx-border-light);
   border-radius: var(--lx-radius);
-  padding: 0 14px;
-  font-size: 14px;
+  padding: 0 var(--lx-space-xl);
+  font-size: var(--lx-font);
   outline: none;
   background: var(--lx-bg-card);
   color: var(--lx-text-body);
@@ -503,34 +504,18 @@ async function handleUserAction(user: SearchUserItem) {
   border-color: var(--lx-accent);
 }
 
-.search-btn {
-  min-width: 72px;
-  height: 36px;
-  border: none;
-  border-radius: var(--lx-radius);
-  background: var(--lx-accent);
-  color: var(--lx-bg-card);
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.search-btn:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
 .main-tabs {
   display: flex;
-  gap: 24px;
-  padding: 0 20px;
+  gap: var(--lx-space-4xl);
+  padding: 0 var(--lx-space-3xl);
   border-bottom: 1px solid var(--lx-border-light);
 }
 
 .main-tab {
   border: none;
   background: none;
-  padding: 10px 0;
-  font-size: 14px;
+  padding: var(--lx-space-md) 0;
+  font-size: var(--lx-font);
   color: var(--lx-text-secondary);
   cursor: pointer;
   position: relative;
@@ -549,26 +534,26 @@ async function handleUserAction(user: SearchUserItem) {
   bottom: 0;
   height: 2px;
   background: var(--lx-accent);
-  border-radius: 1px;
+  border-radius: var(--lx-radius-hair);
 }
 
 .result-list {
   flex: 1;
   overflow-y: auto;
-  padding: 0 20px 20px;
+  padding: 0 var(--lx-space-3xl) var(--lx-space-3xl);
 }
 
 .section-label {
-  margin: 12px 0 8px;
-  font-size: 13px;
+  margin: var(--lx-space-lg) 0 var(--lx-space);
+  font-size: var(--lx-font-md);
   color: var(--lx-text-muted);
   font-weight: 600;
 }
 
 .empty-tip {
-  padding: 32px 0;
+  padding: var(--lx-space-5xl) 0;
   text-align: center;
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   color: var(--lx-text-muted);
 }
 
@@ -579,8 +564,8 @@ async function handleUserAction(user: SearchUserItem) {
 .group-card {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  padding: 14px 0;
+  gap: var(--lx-space-lg);
+  padding: var(--lx-space-xl) 0;
   border-bottom: 1px solid var(--lx-border-light);
 }
 
@@ -590,7 +575,7 @@ async function handleUserAction(user: SearchUserItem) {
   border-radius: var(--lx-radius);
   background: linear-gradient(135deg, var(--lx-accent-light), var(--lx-accent));
   color: var(--lx-bg-card);
-  font-size: 18px;
+  font-size: var(--lx-font-3xl);
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -604,50 +589,25 @@ async function handleUserAction(user: SearchUserItem) {
 }
 
 .g-name {
-  margin: 0 0 6px;
-  font-size: 15px;
+  margin: 0 0 var(--lx-space-sm);
+  font-size: var(--lx-font-lg);
   font-weight: 600;
   color: var(--lx-text-body);
 }
 
 .g-meta {
-  margin: 0 0 4px;
-  font-size: 12px;
+  margin: 0 0 var(--lx-space-xs);
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--lx-space);
   align-items: center;
 }
 
-.join-btn {
-  flex-shrink: 0;
-  min-width: 64px;
-  height: 32px;
-  border: 1px solid var(--lx-accent);
-  border-radius: var(--lx-radius);
-  background: var(--lx-bg-card);
-  color: var(--lx-accent);
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.join-btn:hover {
-  background: var(--lx-accent-soft);
-}
-
-.join-btn.self-btn,
-.join-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.65;
-  color: var(--lx-text-muted);
-  border-color: var(--lx-border-light);
-  background: var(--lx-bg-panel);
-}
-
 .empty-tip.sub {
-  margin-top: -4px;
-  font-size: 12px;
+  margin-top: -var(--lx-space-xs);
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
 }
 
@@ -659,10 +619,10 @@ async function handleUserAction(user: SearchUserItem) {
   height: 32px;
   border: none;
   background: transparent;
-  font-size: 22px;
+  font-size: var(--lx-font-5xl);
   color: var(--lx-text-muted);
   cursor: pointer;
-  line-height: 1;
+  line-height: var(--lx-leading-none);
 }
 
 .close-fab:hover {

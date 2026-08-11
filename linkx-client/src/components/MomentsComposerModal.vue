@@ -24,6 +24,7 @@ import { useContactsStore } from '../stores/contacts'
 import { readFileAsDataUrl, dataUrlToFile, MAX_IMAGE_BYTES } from '../utils/file'
 import AtMentionPicker from './common/AtMentionPicker.vue'
 import { useI18n } from '../i18n'
+import { LxButton, LxIconButton } from './ui'
 
 type Mode = 'text' | 'media'
 
@@ -373,9 +374,9 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
             <n-icon :component="AtCircleOutline" :size="18" />
             <span>{{ t('moments.publishText') }}</span>
           </div>
-          <button type="button" class="close-btn" @click="close">
+          <LxIconButton variant="close" :title="t('common.close')" @click="close">
             <n-icon :component="CloseOutline" :size="18" />
-          </button>
+          </LxIconButton>
         </header>
 
         <div class="text-body">
@@ -423,15 +424,14 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
 
         <footer class="composer-footer">
           <span class="footer-tip">{{ t('extra.atHint') }}</span>
-          <button
-            type="button"
-            class="submit-btn"
+          <LxButton
+            variant="moments-submit"
             :disabled="publishing || isOverLimit || !text.trim()"
             @click="publish"
           >
             <n-icon v-if="!publishing" :component="SendOutline" :size="16" />
             <span>{{ publishing ? t('moments.publishing') : t('moments.publish') }}</span>
-          </button>
+          </LxButton>
         </footer>
       </div>
 
@@ -443,12 +443,12 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
             <span>{{ t('moments.publishMedia') }}</span>
           </div>
           <div class="header-actions">
-            <button type="button" class="mode-switch-btn" @click="switchMode('text')">
+            <LxButton variant="mode-switch" @click="switchMode('text')">
               {{ t('extra.switchToText') }}
-            </button>
-            <button type="button" class="close-btn" @click="close">
+            </LxButton>
+            <LxIconButton variant="close" :title="t('common.close')" @click="close">
               <n-icon :component="CloseOutline" :size="18" />
-            </button>
+            </LxIconButton>
           </div>
         </header>
 
@@ -487,7 +487,7 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
                 <n-icon :component="VideocamOutline" :size="12" />
                 <span>{{ t('moments.video') }}</span>
               </div>
-              <button type="button" class="remove-btn" @click="removeVideo(j)">
+              <button type="button" class="lx-remove-badge--media" @click="removeVideo(j)">
                 <n-icon :component="CloseOutline" :size="12" />
               </button>
             </div>
@@ -506,7 +506,7 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
                 @dragend="onDragEnd"
               >
                 <img :src="img" alt="" />
-                <button type="button" class="remove-btn" @click.stop="removeImage(i)">
+                <button type="button" class="lx-remove-badge--media" @click.stop="removeImage(i)">
                   <n-icon :component="CloseOutline" :size="10" />
                 </button>
                 <div class="drag-hint">
@@ -529,26 +529,25 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
 
         <footer class="composer-footer">
           <div class="tool-buttons">
-            <button type="button" class="tool-btn" @click="imageInputRef?.click()">
+            <LxButton variant="composer-tool" @click="imageInputRef?.click()">
               <n-icon :component="ImageOutline" :size="18" />
               <span>{{ t('chat.image') }}</span>
-            </button>
-            <button type="button" class="tool-btn" @click="videoInputRef?.click()">
+            </LxButton>
+            <LxButton variant="composer-tool" @click="videoInputRef?.click()">
               <n-icon :component="VideocamOutline" :size="18" />
               <span>{{ t('moments.video') }}</span>
-            </button>
+            </LxButton>
             <input ref="imageInputRef" type="file" accept="image/*" multiple hidden @change="onPickImages" />
             <input ref="videoInputRef" type="file" accept="video/*" hidden @change="onPickVideos" />
           </div>
-          <button
-            type="button"
-            class="submit-btn"
+          <LxButton
+            variant="moments-submit"
             :disabled="publishing || !images.length && !videos.length"
             @click="publish"
           >
             <n-icon v-if="!publishing" :component="SendOutline" :size="16" />
             <span>{{ publishing ? t('moments.publishing') : t('moments.publish') }}</span>
-          </button>
+          </LxButton>
         </footer>
       </div>
     </div>
@@ -559,7 +558,7 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
 /* ========== 基础动画 ========== */
 .composer-fade-enter-active,
 .composer-fade-leave-active {
-  transition: opacity 0.25s ease, transform 0.25s ease;
+  transition: opacity var(--lx-duration-md) ease, transform var(--lx-duration-md) ease;
 }
 .composer-fade-enter-from,
 .composer-fade-leave-to {
@@ -569,7 +568,7 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
 
 .success-fade-enter-active,
 .success-fade-leave-active {
-  transition: opacity 0.4s ease, transform 0.4s ease;
+  transition: opacity var(--lx-duration-slower) ease, transform var(--lx-duration-slower) ease;
 }
 .success-fade-enter-from,
 .success-fade-leave-to {
@@ -586,24 +585,24 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 500;
-  border-radius: 20px;
+  z-index: var(--lx-z-modal);
+  border-radius: var(--lx-radius-3xl);
 }
 
 .success-content {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: var(--lx-space-lg);
 }
 
 .success-icon {
-  color: var(--lx-accent, #18a058);
-  animation: bounce 0.6s ease;
+  color: var(--lx-accent, var(--lx-success));
+  animation: bounce var(--lx-duration-slowest) ease;
 }
 
 .success-text {
-  font-size: 18px;
+  font-size: var(--lx-font-3xl);
   font-weight: 600;
   color: var(--lx-text-body);
 }
@@ -621,7 +620,7 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
   inset: 0;
   background: rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(6px);
-  z-index: 400;
+  z-index: var(--lx-z-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -633,15 +632,15 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px;
+  padding: var(--lx-space-xl) var(--lx-space-2xl);
   border-bottom: 1px solid var(--lx-border-light);
 }
 
 .header-title {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 15px;
+  gap: var(--lx-space);
+  font-size: var(--lx-font-lg);
   font-weight: 600;
   color: var(--lx-text-body);
 }
@@ -649,40 +648,7 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.close-btn {
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: transparent;
-  color: var(--lx-text-muted);
-  border-radius: 8px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-}
-.close-btn:hover {
-  background: var(--lx-bg-hover);
-  color: var(--lx-text);
-}
-
-.mode-switch-btn {
-  padding: 6px 12px;
-  border: 1px solid var(--lx-border-light);
-  background: var(--lx-bg-card);
-  color: var(--lx-text-muted);
-  border-radius: 6px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.mode-switch-btn:hover {
-  border-color: var(--lx-accent);
-  color: var(--lx-accent);
+  gap: var(--lx-space);
 }
 
 /* ========== 通用底部 ========== */
@@ -690,61 +656,17 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: var(--lx-space-lg) var(--lx-space-2xl);
   border-top: 1px solid var(--lx-border-light);
   background: var(--lx-bg-card);
-}
-
-.tool-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 7px 12px;
-  border: 1px solid var(--lx-border-light);
-  background: var(--lx-bg-card);
-  border-radius: 8px;
-  font-size: 13px;
-  color: var(--lx-text-muted);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.tool-btn:hover {
-  border-color: var(--lx-accent);
-  color: var(--lx-accent);
-  background: var(--lx-accent-soft);
-}
-
-.submit-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 20px;
-  border: none;
-  background: linear-gradient(135deg, var(--lx-accent) 0%, #4caf50 100%);
-  color: #fff;
-  border-radius: 20px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(24, 160, 88, 0.3);
-}
-.submit-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-.submit-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(24, 160, 88, 0.4);
 }
 
 /* ========== 用户信息 ========== */
 .user-card {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: var(--lx-space-md);
+  margin-bottom: var(--lx-space-lg);
 }
 
 .avatar-wrap {
@@ -764,10 +686,10 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--lx-accent) 0%, #4caf50 100%);
-  color: #fff;
+  background: linear-gradient(135deg, var(--lx-accent) 0%, var(--lx-success) 100%);
+  color: var(--lx-text-on-accent);
   font-weight: 600;
-  font-size: 16px;
+  font-size: var(--lx-font-xl);
 }
 
 .user-info {
@@ -776,7 +698,7 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
 }
 
 .user-name {
-  font-size: 14px;
+  font-size: var(--lx-font);
   font-weight: 500;
   color: var(--lx-text-body);
 }
@@ -790,30 +712,30 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
   width: 100%;
   min-height: 120px;
   border: 1px solid var(--lx-border-light);
-  border-radius: 12px;
-  padding: 12px 14px;
-  padding-bottom: 28px;
-  font-size: 14px;
+  border-radius: var(--lx-radius-lg);
+  padding: var(--lx-space-lg) var(--lx-space-xl);
+  padding-bottom: var(--lx-space-5xl-minus);
+  font-size: var(--lx-font);
   font-family: inherit;
-  line-height: 1.6;
+  line-height: var(--lx-leading-relaxed);
   resize: none;
   background: var(--lx-bg-input);
   color: var(--lx-text);
-  transition: all 0.2s;
+  transition: all var(--lx-duration-md);
   box-sizing: border-box;
 }
 .text-editor.small {
   min-height: 60px;
-  margin-bottom: 12px;
+  margin-bottom: var(--lx-space-lg);
 }
 .text-editor:focus {
   outline: none;
   border-color: var(--lx-accent);
   background: var(--lx-bg-card);
-  box-shadow: 0 0 0 3px var(--lx-accent-soft);
+  box-shadow: var(--lx-shadow-ring-accent);
 }
 .text-editor.over-limit {
-  border-color: var(--lx-danger, #e05454);
+  border-color: var(--lx-danger, var(--lx-danger));
   background: rgba(224, 84, 84, 0.05);
 }
 
@@ -821,14 +743,14 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
   position: absolute;
   bottom: 8px;
   right: 12px;
-  font-size: 11px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-muted);
   display: flex;
-  gap: 2px;
+  gap: var(--lx-space-2xs);
   pointer-events: none;
 }
-.char-counter.warning { color: #ff9800; }
-.char-counter.danger { color: var(--lx-danger, #e05454); font-weight: 600; }
+.char-counter.warning { color: var(--lx-char-warning); }
+.char-counter.danger { color: var(--lx-danger, var(--lx-danger)); font-weight: 600; }
 .sep { opacity: 0.5; }
 
 /* ========== 文字发布模式 ========== */
@@ -836,13 +758,13 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
   width: 480px;
   max-width: 94vw;
   background: var(--lx-bg-card);
-  border-radius: 20px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.25);
+  border-radius: var(--lx-radius-3xl);
+  box-shadow: var(--lx-shadow-heavy);
   overflow: hidden;
 }
 
 .text-body {
-  padding: 16px;
+  padding: var(--lx-space-2xl);
 }
 
 /* ========== 图片/视频发布模式 ========== */
@@ -851,8 +773,8 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
   max-width: 94vw;
   max-height: 88vh;
   background: var(--lx-bg-card);
-  border-radius: 20px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.25);
+  border-radius: var(--lx-radius-3xl);
+  box-shadow: var(--lx-shadow-heavy);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -860,12 +782,12 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
 
 .media-body {
   flex: 1;
-  padding: 16px;
+  padding: var(--lx-space-2xl);
   overflow-y: auto;
 }
 
 .media-preview-area {
-  margin-top: 12px;
+  margin-top: var(--lx-space-lg);
 }
 
 /* 视频预览 */
@@ -873,10 +795,10 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
   position: relative;
   width: 100%;
   max-height: 300px;
-  border-radius: 12px;
+  border-radius: var(--lx-radius-lg);
   overflow: hidden;
-  background: #000;
-  margin-bottom: 12px;
+  background: var(--lx-black);
+  margin-bottom: var(--lx-space-lg);
 }
 .video-preview video {
   width: 100%;
@@ -892,13 +814,13 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
   justify-content: center;
   background: rgba(0, 0, 0, 0.25);
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: opacity var(--lx-duration-md);
 }
 .video-preview:hover .video-overlay {
   opacity: 1;
 }
 .play-icon {
-  color: #fff;
+  color: var(--lx-text-on-accent);
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
 }
 .video-badge {
@@ -906,48 +828,26 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
   bottom: 8px;
   left: 8px;
   background: rgba(0, 0, 0, 0.6);
-  color: #fff;
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 4px;
+  color: var(--lx-text-on-accent);
+  font-size: var(--lx-font-xs);
+  padding: var(--lx-space-2xs) var(--lx-space);
+  border-radius: var(--lx-radius-2xs);
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--lx-space-xs);
 }
 
-/* 删除按钮 */
-.remove-btn {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: none;
-  background: linear-gradient(135deg, #e05454 0%, #c62828 100%);
-  color: #fff;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transform: scale(0.8);
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 6px rgba(224, 84, 84, 0.4);
-}
-.video-preview:hover .remove-btn,
-.image-item:hover .remove-btn {
+/* 删除按钮 hover 显示 */
+.video-preview:hover .lx-remove-badge--media,
+.image-item:hover .lx-remove-badge--media {
   opacity: 1;
   transform: scale(1);
-}
-.remove-btn:hover {
-  transform: scale(1.1);
 }
 
 /* 图片网格 */
 .image-grid {
   display: grid;
-  gap: 6px;
+  gap: var(--lx-space-sm);
 }
 .image-grid.grid-1 { grid-template-columns: 1fr; }
 .image-grid.grid-2 { grid-template-columns: repeat(2, 1fr); }
@@ -965,7 +865,7 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
 
 .image-item {
   position: relative;
-  border-radius: 10px;
+  border-radius: var(--lx-radius-xl);
   overflow: hidden;
   background: var(--lx-bg-input);
   cursor: grab;
@@ -986,7 +886,7 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.3s ease;
+  transition: transform var(--lx-duration-slow) ease;
 }
 .image-item:hover img {
   transform: scale(1.05);
@@ -999,13 +899,13 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
   width: 18px;
   height: 18px;
   background: rgba(0, 0, 0, 0.5);
-  border-radius: 4px;
+  border-radius: var(--lx-radius-2xs);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--lx-text-on-accent);
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: opacity var(--lx-duration-md);
 }
 .image-item:hover .drag-hint {
   opacity: 0.6;
@@ -1017,37 +917,37 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 32px;
+  padding: var(--lx-space-5xl);
   background: var(--lx-bg-input);
-  border-radius: 12px;
+  border-radius: var(--lx-radius-lg);
   border: 2px dashed var(--lx-border-light);
 }
 .empty-icon {
   color: var(--lx-text-muted);
   opacity: 0.5;
-  margin-bottom: 8px;
+  margin-bottom: var(--lx-space);
 }
 .media-empty p {
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   color: var(--lx-text-muted);
   margin: 0;
 }
 
 .tool-buttons {
   display: flex;
-  gap: 6px;
+  gap: var(--lx-space-sm);
 }
 
 .footer-tip {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
 }
 .footer-tip b {
   color: var(--lx-accent);
   font-weight: 600;
-  padding: 1px 6px;
+  padding: var(--lx-space-hair) var(--lx-space-sm);
   border: 1px solid var(--lx-accent-soft);
-  border-radius: 4px;
+  border-radius: var(--lx-radius-2xs);
   background: var(--lx-accent-soft);
 }
 </style>

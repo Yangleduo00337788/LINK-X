@@ -46,8 +46,8 @@ const { t } = useI18n()
 .card-header {
   display: flex;
   align-items: center;
-  padding: 12px 14px;
-  gap: 10px;
+  padding: var(--lx-space-lg) var(--lx-space-xl);
+  gap: var(--lx-space-md);
 }
 .card-icon {
   width: 36px;
@@ -65,40 +65,40 @@ const { t } = useI18n()
   min-width: 0;
 }
 .card-title {
-  font-size: 14px;
+  font-size: var(--lx-font);
   font-weight: 600;
   color: var(--lx-text-body);
 }
 .card-sub {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
-  margin-top: 2px;
+  margin-top: var(--lx-space-2xs);
 }
 .card-tag {
-  font-size: 11px;
-  padding: 2px 6px;
+  font-size: var(--lx-font-xs);
+  padding: var(--lx-space-2xs) var(--lx-space-sm);
   background: var(--lx-accent-soft);
   color: var(--lx-accent);
-  border-radius: 4px;
+  border-radius: var(--lx-radius-2xs);
   flex-shrink: 0;
 }
 .card-divider {
   height: 1px;
   background: var(--lx-border-light);
-  margin: 0 14px;
+  margin: 0 var(--lx-space-xl);
 }
 .card-body {
-  padding: 10px 14px 14px;
+  padding: var(--lx-space-md) var(--lx-space-xl) var(--lx-space-xl);
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 .card-label {
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   color: var(--lx-text-secondary);
 }
 .card-value {
-  font-size: 14px;
+  font-size: var(--lx-font);
   font-weight: 600;
   color: var(--lx-text-body);
 }

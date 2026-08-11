@@ -5,6 +5,7 @@
  */
 import { reactive, watch } from 'vue'
 import { useI18n } from '../../i18n'
+import { LxButton } from '../ui'
 
 export type ConferenceCreatePayload = {
   title: string
@@ -94,7 +95,7 @@ function onConfirm() {
             <button
               type="button"
               class="seg-btn"
-              :class="{ active: form.type === 'video' }"
+              :class="{ 'is-active': form.type === 'video' }"
               @click="form.type = 'video'"
             >
               {{ t('conference.typeVideo') }}
@@ -102,7 +103,7 @@ function onConfirm() {
             <button
               type="button"
               class="seg-btn"
-              :class="{ active: form.type === 'voice' }"
+              :class="{ 'is-active': form.type === 'voice' }"
               @click="form.type = 'voice'"
             >
               {{ t('conference.typeVoice') }}
@@ -146,12 +147,12 @@ function onConfirm() {
         <p v-if="form.lobbyEnabled" class="hint lobby-hint">{{ t('conference.lobbyHint') }}</p>
 
         <div class="actions">
-          <button type="button" class="btn ghost" @click="emit('cancel')">
+          <LxButton variant="conference-ghost" @click="emit('cancel')">
             {{ t('common.cancel') }}
-          </button>
-          <button type="button" class="btn primary" @click="onConfirm">
+          </LxButton>
+          <LxButton variant="conference-primary" @click="onConfirm">
             {{ t('conference.create') }}
-          </button>
+          </LxButton>
         </div>
       </div>
     </div>
@@ -162,7 +163,7 @@ function onConfirm() {
 .create-mask {
   position: fixed;
   inset: 0;
-  z-index: 12000;
+  z-index: var(--lx-z-call);
   background: rgba(0, 0, 0, 0.55);
   display: flex;
   align-items: center;
@@ -170,95 +171,80 @@ function onConfirm() {
 }
 .create-card {
   width: min(400px, 92vw);
-  background: #2b2b2b;
-  border-radius: 12px;
-  padding: 22px;
-  color: #f0f0f0;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  background: var(--lx-conf-panel);
+  border-radius: var(--lx-radius-lg);
+  padding: var(--lx-space-3xl-plus);
+  color: var(--lx-text-primary);
+  box-shadow: var(--lx-shadow-popover);
 }
 .create-card h3 {
-  margin: 0 0 16px;
-  font-size: 17px;
+  margin: 0 0 var(--lx-space-2xl);
+  font-size: var(--lx-font-2xl);
 }
 .field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-bottom: 14px;
+  gap: var(--lx-space-sm);
+  margin-bottom: var(--lx-space-xl);
 }
 .label {
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   color: rgba(255, 255, 255, 0.65);
 }
 .input {
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  background: #1f1f1f;
-  color: #f0f0f0;
-  padding: 9px 12px;
-  font-size: 14px;
+  border-radius: var(--lx-radius-sm);
+  background: var(--lx-conf-bg);
+  color: var(--lx-text-primary);
+  padding: var(--lx-space) var(--lx-space-lg);
+  font-size: var(--lx-font);
   outline: none;
 }
 .input:focus {
-  border-color: #006eff;
+  border-color: var(--lx-conf-accent);
 }
 .hint {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: rgba(255, 255, 255, 0.45);
 }
 .lobby-hint {
-  margin: -8px 0 14px;
+  margin: -var(--lx-space) 0 var(--lx-space-xl);
 }
 .check-row {
   flex-direction: row;
   align-items: center;
-  gap: 8px;
-  font-size: 14px;
+  gap: var(--lx-space);
+  font-size: var(--lx-font);
   cursor: pointer;
 }
 .check-row input {
   width: 16px;
   height: 16px;
-  accent-color: #006eff;
+  accent-color: var(--lx-conf-accent);
 }
 .seg {
   display: flex;
-  gap: 8px;
+  gap: var(--lx-space);
 }
 .seg-btn {
   flex: 1;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  padding: 8px 10px;
-  background: #1f1f1f;
+  border-radius: var(--lx-radius-sm);
+  padding: var(--lx-space) var(--lx-space-md);
+  background: var(--lx-conf-bg);
   color: rgba(255, 255, 255, 0.75);
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--lx-font-md);
 }
 .seg-btn.active {
   background: rgba(0, 110, 255, 0.25);
-  border-color: #006eff;
-  color: #fff;
+  border-color: var(--lx-conf-accent);
+  color: var(--lx-text-on-accent);
 }
 .actions {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  margin-top: 8px;
-}
-.btn {
-  border: none;
-  border-radius: 6px;
-  padding: 8px 16px;
-  cursor: pointer;
-  font-size: 14px;
-}
-.btn.ghost {
-  background: transparent;
-  color: rgba(255, 255, 255, 0.7);
-}
-.btn.primary {
-  background: #006eff;
-  color: #fff;
+  gap: var(--lx-space-md);
+  margin-top: var(--lx-space);
 }
 </style>

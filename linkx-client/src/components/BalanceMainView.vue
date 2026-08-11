@@ -4,7 +4,8 @@
  * 余额主视图 — 全宽展示可用余额、汇总、充值与流水。
  */
 import { computed, ref, onMounted, type Component } from 'vue'
-import { NButton, NIcon, NInput, useMessage } from 'naive-ui'
+import { NIcon, NInput, useMessage } from 'naive-ui'
+import { LxButton, LxIconButton } from './ui'
 import {
   WalletOutline,
   RefreshOutline,
@@ -192,16 +193,14 @@ onMounted(() => {
         </span>
         <span>{{ t('nav.balance') }}</span>
       </div>
-      <button
-        type="button"
-        class="refresh-btn"
+      <LxIconButton
         :class="{ spinning: refreshing }"
         :disabled="balanceLoading || balanceLogsLoading"
         :title="t('balance.refresh')"
         @click="refreshAll"
       >
         <n-icon :component="RefreshOutline" :size="18" />
-      </button>
+      </LxIconButton>
     </header>
 
     <div class="page-body">
@@ -211,7 +210,7 @@ onMounted(() => {
           <n-icon :component="WalletOutline" :size="28" />
         </div>
         <p>{{ t('balance.loadFail') }}</p>
-        <n-button type="primary" size="small" @click="refreshAll">{{ t('balance.refresh') }}</n-button>
+        <LxButton variant="sm-primary" @click="refreshAll">{{ t('balance.refresh') }}</LxButton>
       </div>
 
       <template v-else-if="balance">
@@ -253,7 +252,7 @@ onMounted(() => {
               :key="amt"
               type="button"
               class="quick-chip"
-              :class="{ active: rechargeAmount === String(amt) }"
+              :class="{ 'is-active': rechargeAmount === String(amt) }"
               @click="pickQuickAmount(amt)"
             >
               ¥{{ amt }}
@@ -270,14 +269,14 @@ onMounted(() => {
                 <span class="input-prefix">¥</span>
               </template>
             </n-input>
-            <n-button
-              type="primary"
+            <LxButton
+              variant="toolbar-primary"
               class="recharge-btn"
-              :loading="rechargeLoading"
+              :disabled="rechargeLoading"
               @click="submitRecharge"
             >
               {{ t('balance.rechargeBtn') }}
-            </n-button>
+            </LxButton>
           </div>
         </section>
 
@@ -285,15 +284,14 @@ onMounted(() => {
         <section class="panel-card logs-card">
           <div class="panel-head">
             <span class="panel-title">{{ t('balance.balanceLogs') }}</span>
-            <button
-              type="button"
-              class="logs-refresh"
+            <LxButton
+              variant="link-refresh"
               :disabled="balanceLogsLoading"
               @click="fetchBalanceLogs"
             >
               <n-icon :component="RefreshOutline" :size="14" />
               {{ t('balance.refresh') }}
-            </button>
+            </LxButton>
           </div>
           <div v-if="balanceLogsLoading && !balanceLogs.length" class="logs-empty">
             {{ t('common.loading') }}
@@ -344,7 +342,7 @@ onMounted(() => {
 .page-head {
   flex-shrink: 0;
   height: 52px;
-  padding: 0 24px;
+  padding: 0 var(--lx-space-4xl);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -356,8 +354,8 @@ onMounted(() => {
 .page-title {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 16px;
+  gap: var(--lx-space-md);
+  font-size: var(--lx-font-xl);
   font-weight: 600;
   color: var(--lx-text);
 }
@@ -365,91 +363,57 @@ onMounted(() => {
 .title-badge {
   width: 30px;
   height: 30px;
-  border-radius: 9px;
+  border-radius: var(--lx-radius);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: var(--lx-text-on-accent);
-  background: var(--lx-gradient-accent, linear-gradient(135deg, var(--lx-accent-light, #6eb5ff), var(--lx-accent)));
+  background: var(--lx-gradient-accent, linear-gradient(135deg, var(--lx-accent-light, var(--lx-accent-light)), var(--lx-accent)));
   box-shadow: 0 4px 12px color-mix(in srgb, var(--lx-accent) 28%, transparent);
-}
-
-.refresh-btn {
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--lx-text-secondary);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.15s, color 0.15s;
-}
-
-.refresh-btn:hover:not(:disabled) {
-  background: var(--lx-bg-hover);
-  color: var(--lx-text-body);
-}
-
-.refresh-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.refresh-btn.spinning :deep(svg) {
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 .page-body {
   flex: 1;
   overflow: auto;
-  padding: 20px 28px 36px;
+  padding: var(--lx-space-3xl) var(--lx-space-5xl-minus) var(--lx-space-6xl-minus);
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--lx-space-xl);
   width: 100%;
   box-sizing: border-box;
 }
 
 .state-tip {
-  padding: 64px 16px;
+  padding: var(--lx-space-block-xl) var(--lx-space-2xl);
   text-align: center;
   color: var(--lx-text-muted);
-  font-size: 14px;
+  font-size: var(--lx-font);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: var(--lx-space-lg);
 }
 
 .state-icon {
   width: 56px;
   height: 56px;
-  border-radius: 16px;
+  border-radius: var(--lx-radius-2xl);
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--lx-accent);
   background: var(--lx-accent-soft);
-  margin-bottom: 4px;
+  margin-bottom: var(--lx-space-xs);
 }
 
 /* —— 主余额卡 —— */
 .hero-card {
   position: relative;
   overflow: hidden;
-  border-radius: 16px;
-  padding: 22px 24px 24px;
+  border-radius: var(--lx-radius-2xl);
+  padding: var(--lx-space-3xl-plus) var(--lx-space-4xl) var(--lx-space-4xl);
   color: var(--lx-text-on-accent);
-  background: var(--lx-gradient-accent, linear-gradient(135deg, var(--lx-accent-light, #39c2f6), var(--lx-accent)));
+  background: var(--lx-gradient-accent, linear-gradient(135deg, var(--lx-accent-light, var(--lx-accent-hover)), var(--lx-accent)));
   box-shadow:
     0 10px 28px color-mix(in srgb, var(--lx-accent) 28%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.22);
@@ -471,15 +435,15 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
+  gap: var(--lx-space-lg);
+  margin-bottom: var(--lx-space-xl);
 }
 
 .hero-label {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
+  gap: var(--lx-space-sm);
+  font-size: var(--lx-font-md);
   font-weight: 500;
   opacity: 0.92;
 }
@@ -487,10 +451,10 @@ onMounted(() => {
 .frozen-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 11px;
+  gap: var(--lx-space-xs);
+  padding: var(--lx-space-xs) var(--lx-space-md);
+  border-radius: var(--lx-radius-pill);
+  font-size: var(--lx-font-xs);
   background: rgba(0, 0, 0, 0.14);
   backdrop-filter: blur(4px);
 }
@@ -499,18 +463,18 @@ onMounted(() => {
   position: relative;
   display: flex;
   align-items: baseline;
-  gap: 6px;
-  line-height: 1;
+  gap: var(--lx-space-sm);
+  line-height: var(--lx-leading-none);
 }
 
 .currency {
-  font-size: 22px;
+  font-size: var(--lx-font-5xl);
   font-weight: 600;
   opacity: 0.9;
 }
 
 .digits {
-  font-size: 40px;
+  font-size: var(--lx-font-7xl);
   font-weight: 700;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
@@ -520,27 +484,27 @@ onMounted(() => {
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  gap: var(--lx-space-md);
 }
 
 .summary-item {
-  padding: 14px 12px;
-  border-radius: 12px;
+  padding: var(--lx-space-xl) var(--lx-space-lg);
+  border-radius: var(--lx-radius-lg);
   background: var(--lx-bg-card);
   border: 1px solid var(--lx-border-light);
   box-shadow: var(--lx-shadow-soft);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--lx-space);
   min-width: 0;
 }
 
 .summary-item[data-key='frozen'] .summary-value {
-  color: var(--lx-warning, #faad14);
+  color: var(--lx-warning, var(--lx-warning));
 }
 
 .summary-label {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -548,7 +512,7 @@ onMounted(() => {
 }
 
 .summary-value {
-  font-size: 15px;
+  font-size: var(--lx-font-lg);
   font-weight: 650;
   color: var(--lx-text-body);
   font-variant-numeric: tabular-nums;
@@ -561,8 +525,8 @@ onMounted(() => {
 .panel-card {
   background: var(--lx-bg-card);
   border: 1px solid var(--lx-border-light);
-  border-radius: 14px;
-  padding: 4px 0 14px;
+  border-radius: var(--lx-radius-card);
+  padding: var(--lx-space-xs) 0 var(--lx-space-xl);
   box-shadow: var(--lx-shadow-soft);
   overflow: hidden;
 }
@@ -571,12 +535,12 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 14px 18px 10px;
+  gap: var(--lx-space-lg);
+  padding: var(--lx-space-xl) var(--lx-space-2xl) var(--lx-space-md);
 }
 
 .panel-title {
-  font-size: 14px;
+  font-size: var(--lx-font);
   font-weight: 600;
   color: var(--lx-text-body);
 }
@@ -584,22 +548,22 @@ onMounted(() => {
 .quick-amounts {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  padding: 0 18px 12px;
+  gap: var(--lx-space);
+  padding: 0 var(--lx-space-2xl) var(--lx-space-lg);
 }
 
 .quick-chip {
   min-width: 64px;
   height: 32px;
-  padding: 0 12px;
-  border-radius: 8px;
+  padding: 0 var(--lx-space-lg);
+  border-radius: var(--lx-radius-sm);
   border: 1px solid var(--lx-border-light);
   background: var(--lx-bg-panel);
   color: var(--lx-text-body);
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   font-weight: 500;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  transition: border-color var(--lx-duration), background var(--lx-duration), color var(--lx-duration);
 }
 
 .quick-chip:hover {
@@ -607,7 +571,7 @@ onMounted(() => {
   color: var(--lx-accent);
 }
 
-.quick-chip.active {
+.quick-chip.is-active {
   border-color: var(--lx-accent);
   background: var(--lx-accent-soft);
   color: var(--lx-accent);
@@ -617,8 +581,8 @@ onMounted(() => {
 .recharge-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 18px;
+  gap: var(--lx-space-md);
+  padding: 0 var(--lx-space-2xl);
 }
 
 .recharge-input {
@@ -629,7 +593,7 @@ onMounted(() => {
 .input-prefix {
   color: var(--lx-text-muted);
   font-weight: 600;
-  margin-right: 2px;
+  margin-right: var(--lx-space-2xs);
 }
 
 .recharge-btn {
@@ -643,42 +607,20 @@ onMounted(() => {
   min-height: 220px;
   display: flex;
   flex-direction: column;
-  padding-bottom: 6px;
-}
-
-.logs-refresh {
-  border: none;
-  background: transparent;
-  color: var(--lx-accent);
-  cursor: pointer;
-  font-size: 12px;
-  padding: 4px 6px;
-  border-radius: 6px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.logs-refresh:hover:not(:disabled) {
-  background: var(--lx-accent-soft);
-}
-
-.logs-refresh:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  padding-bottom: var(--lx-space-sm);
 }
 
 .logs-empty {
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   color: var(--lx-text-muted);
-  padding: 28px 18px;
+  padding: var(--lx-space-5xl-minus) var(--lx-space-2xl);
   text-align: center;
 }
 
 .logs-list {
   list-style: none;
   margin: 0;
-  padding: 0 10px 8px;
+  padding: 0 var(--lx-space-md) var(--lx-space);
   flex: 1;
   overflow-y: auto;
 }
@@ -686,10 +628,10 @@ onMounted(() => {
 .log-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 11px 8px;
-  border-radius: 10px;
-  transition: background 0.12s;
+  gap: var(--lx-space-lg);
+  padding: var(--lx-space-md-plus) var(--lx-space);
+  border-radius: var(--lx-radius-xl);
+  transition: background var(--lx-duration-fast);
 }
 
 .log-row:hover {
@@ -699,7 +641,7 @@ onMounted(() => {
 .log-icon {
   width: 36px;
   height: 36px;
-  border-radius: 10px;
+  border-radius: var(--lx-radius-xl);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -707,8 +649,8 @@ onMounted(() => {
 }
 
 .log-icon.income {
-  color: var(--lx-success, #18a058);
-  background: color-mix(in srgb, var(--lx-success, #18a058) 14%, transparent);
+  color: var(--lx-success, var(--lx-success));
+  background: color-mix(in srgb, var(--lx-success, var(--lx-success)) 14%, transparent);
 }
 
 .log-icon.expense {
@@ -719,19 +661,19 @@ onMounted(() => {
 .log-main {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: var(--lx-space-2xs);
   min-width: 0;
   flex: 1;
 }
 
 .log-type {
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   font-weight: 560;
   color: var(--lx-text-body);
 }
 
 .log-remark {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -742,23 +684,23 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 3px;
+  gap: var(--lx-space-2xs);
   flex-shrink: 0;
 }
 
 .log-amount {
-  font-size: 14px;
+  font-size: var(--lx-font);
   font-weight: 650;
   color: var(--lx-text-body);
   font-variant-numeric: tabular-nums;
 }
 
 .log-amount.income {
-  color: var(--lx-success, #18a058);
+  color: var(--lx-success, var(--lx-success));
 }
 
 .log-time {
-  font-size: 11px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-muted);
 }
 
@@ -768,11 +710,11 @@ onMounted(() => {
   }
 
   .digits {
-    font-size: 34px;
+    font-size: var(--lx-font-8xl);
   }
 
   .page-body {
-    padding: 16px 16px 28px;
+    padding: var(--lx-space-2xl) var(--lx-space-2xl) var(--lx-space-5xl-minus);
   }
 }
 </style>

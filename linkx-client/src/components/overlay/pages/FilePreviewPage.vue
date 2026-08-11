@@ -4,12 +4,13 @@
  * 文件 / 图片预览页面（图片参考图二：大图横幅 + 底部信息条）
  */
 import { computed, ref } from 'vue'
-import { NButton, NIcon, useMessage } from 'naive-ui'
+import { NIcon, useMessage } from 'naive-ui'
 import { CloudDownloadOutline, OpenOutline, CloseOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useOverlayStore } from '../../../stores/overlay'
 import { useI18n } from '../../../i18n'
 import { downloadFileWithSettings } from '../../../utils/downloadFile'
+import { LxButton, LxIconButton } from '../../ui'
 
 const overlayStore = useOverlayStore()
 const { close } = overlayStore
@@ -95,9 +96,14 @@ function openFile() {
 <template>
   <div class="page-wrap file-preview-page" :class="{ 'is-image': isImage }">
     <section class="preview-card" :class="{ 'preview-card--image': isImage }">
-      <button type="button" class="close-btn" :aria-label="t('common.close')" @click="close">
+      <LxIconButton
+        variant="close"
+        class="close-btn lx-close-btn--overlay"
+        :title="t('common.close')"
+        @click="close"
+      >
         <n-icon :component="CloseOutline" :size="20" />
-      </button>
+      </LxIconButton>
 
       <!-- 图片：横幅预览 + 底部信息叠层 -->
       <template v-if="filePreview?.fileUrl && isImage">
@@ -109,12 +115,10 @@ function openFile() {
           </div>
         </div>
         <div class="file-actions">
-          <n-button type="primary" round :loading="downloading" :disabled="downloading" @click="downloadFile">
-            <template #icon>
-              <n-icon :component="CloudDownloadOutline" />
-            </template>
+          <LxButton variant="pill-primary" :disabled="downloading" @click="downloadFile">
+            <n-icon :component="CloudDownloadOutline" :size="16" />
             {{ t('overlay.download') }}
-          </n-button>
+          </LxButton>
         </div>
       </template>
 
@@ -128,25 +132,19 @@ function openFile() {
           <p class="file-meta">{{ displayFileSize(filePreview?.fileSize) }}</p>
         </div>
         <div class="file-actions">
-          <n-button
+          <LxButton
             v-if="filePreview?.fileUrl"
-            type="primary"
-            round
-            :loading="downloading"
+            variant="pill-primary"
             :disabled="downloading"
             @click="downloadFile"
           >
-            <template #icon>
-              <n-icon :component="CloudDownloadOutline" />
-            </template>
+            <n-icon :component="CloudDownloadOutline" :size="16" />
             {{ t('overlay.download') }}
-          </n-button>
-          <n-button v-if="filePreview?.fileUrl" secondary round @click="openFile">
-            <template #icon>
-              <n-icon :component="OpenOutline" />
-            </template>
+          </LxButton>
+          <LxButton v-if="filePreview?.fileUrl" variant="outline" class="lx-btn--pill" @click="openFile">
+            <n-icon :component="OpenOutline" :size="16" />
             {{ t('overlay.openBrowser') }}
-          </n-button>
+          </LxButton>
         </div>
       </template>
     </section>
@@ -161,36 +159,36 @@ function openFile() {
   align-items: center;
   justify-content: center;
   min-height: 100%;
-  padding: 24px 20px;
+  padding: var(--lx-space-4xl) var(--lx-space-3xl);
 }
 
 .preview-card {
   width: 100%;
   max-width: 520px;
-  padding: 28px 24px 24px;
+  padding: var(--lx-space-5xl-minus) var(--lx-space-4xl) var(--lx-space-4xl);
   position: relative;
   text-align: center;
   background: var(--lx-bg-card);
   border: 1px solid var(--lx-border-light);
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  border-radius: var(--lx-radius-2xl);
+  box-shadow: var(--lx-shadow-modal);
 }
 
 .preview-card--image {
   max-width: 560px;
-  padding: 16px 16px 20px;
+  padding: var(--lx-space-2xl) var(--lx-space-2xl) var(--lx-space-3xl);
 }
 
 .close-btn {
   position: absolute;
   top: 12px;
   right: 12px;
-  z-index: 2;
+  z-index: var(--lx-z-raised-2);
   width: 32px;
   height: 32px;
   border: none;
   background: rgba(0, 0, 0, 0.35);
-  color: #fff;
+  color: var(--lx-text-on-accent);
   cursor: pointer;
   border-radius: 50%;
   display: flex;
@@ -215,9 +213,9 @@ function openFile() {
 
 .banner {
   position: relative;
-  border-radius: 12px;
+  border-radius: var(--lx-radius-lg);
   overflow: hidden;
-  background: #1a1a1e;
+  background: var(--lx-preview-void);
   min-height: 220px;
   max-height: min(520px, 62vh);
   display: flex;
@@ -240,14 +238,14 @@ function openFile() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 8px 12px;
-  border-radius: 999px;
+  gap: var(--lx-space-lg);
+  padding: var(--lx-space) var(--lx-space-lg);
+  border-radius: var(--lx-radius-pill);
   background: rgba(20, 22, 28, 0.72);
-  color: #fff;
+  color: var(--lx-text-on-accent);
   backdrop-filter: blur(8px);
-  font-size: 12px;
-  line-height: 1.3;
+  font-size: var(--lx-font-sm);
+  line-height: var(--lx-leading-snug);
 }
 
 .banner-name {
@@ -266,7 +264,7 @@ function openFile() {
 }
 
 .preview-box {
-  margin: 20px auto;
+  margin: var(--lx-space-3xl) auto;
 }
 
 .file-icon-large {
@@ -275,36 +273,36 @@ function openFile() {
   margin: 0 auto;
   background: var(--lx-accent-soft);
   color: var(--lx-accent);
-  border-radius: 24px;
+  border-radius: var(--lx-radius-4xl);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
+  font-size: var(--lx-font-display);
   font-weight: 700;
 }
 
 .file-info {
-  margin: 16px 0;
+  margin: var(--lx-space-2xl) 0;
 }
 
 .file-name {
-  font-size: 16px;
+  font-size: var(--lx-font-xl);
   font-weight: 600;
   color: var(--lx-text-body);
-  margin: 0 0 8px;
+  margin: 0 0 var(--lx-space);
   word-break: break-all;
 }
 
 .file-meta {
-  font-size: 14px;
+  font-size: var(--lx-font);
   color: var(--lx-text-muted);
   margin: 0;
 }
 
 .file-actions {
   display: flex;
-  gap: 12px;
+  gap: var(--lx-space-lg);
   justify-content: center;
-  margin-top: 18px;
+  margin-top: var(--lx-space-2xl);
 }
 </style>

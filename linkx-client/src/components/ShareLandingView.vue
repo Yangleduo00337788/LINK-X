@@ -6,11 +6,12 @@
  */
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { NButton, NInput, NSpin, useMessage } from 'naive-ui'
+import { NInput, NSpin, useMessage } from 'naive-ui'
 import { getPublicShare, type DriveShareVO } from '../api/drive'
 import { downloadShareContent } from '../utils/authDownload'
 import { formatFileSize } from '../utils/file'
 import { useI18n } from '../i18n'
+import { LxButton } from './ui'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -151,9 +152,9 @@ watch(
           @keydown.enter="submitPassword"
         />
         <p v-if="errorText" class="error">{{ errorText }}</p>
-        <n-button type="primary" block class="action" :loading="loading" @click="submitPassword">
+        <LxButton variant="submit-block" class="action" :disabled="loading" @click="submitPassword">
           {{ t('shareLanding.unlock') }}
-        </n-button>
+        </LxButton>
       </template>
 
       <template v-else-if="share">
@@ -164,24 +165,22 @@ watch(
           <img :src="share.fileUrl" :alt="share.targetName || ''" referrerpolicy="no-referrer" />
         </div>
 
-        <n-button
-          type="primary"
-          block
+        <LxButton
+          variant="submit-block"
           class="action"
-          :loading="downloading"
-          :disabled="share.shareType === 'folder'"
+          :disabled="downloading || share.shareType === 'folder'"
           @click="handleDownload"
         >
           {{ t('files.downloadFile') }}
-        </n-button>
+        </LxButton>
         <p v-if="share.shareType === 'folder'" class="hint">{{ t('shareLanding.folderNoDownload') }}</p>
       </template>
 
       <template v-else>
         <p class="error">{{ errorText || t('shareLanding.loadFail') }}</p>
-        <n-button quaternary block class="action" @click="goHome">
+        <LxButton variant="block" class="action" @click="goHome">
           {{ t('shareLanding.backHome') }}
-        </n-button>
+        </LxButton>
       </template>
     </div>
   </div>
@@ -193,60 +192,60 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: var(--lx-space-4xl);
   background:
     radial-gradient(ellipse at 20% 0%, rgba(18, 183, 245, 0.12), transparent 50%),
     radial-gradient(ellipse at 80% 100%, rgba(16, 185, 129, 0.1), transparent 45%),
-    var(--lx-bg-app, #f5f7fa);
+    var(--lx-bg-app, var(--lx-bg-soft));
 }
 
 .share-card {
   width: min(420px, 100%);
-  padding: 28px 24px;
-  border-radius: 16px;
-  background: var(--lx-bg-card, #fff);
+  padding: var(--lx-space-5xl-minus) var(--lx-space-4xl);
+  border-radius: var(--lx-radius-2xl);
+  background: var(--lx-bg-card);
   border: 1px solid var(--lx-border-light, rgba(0, 0, 0, 0.06));
   box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
 }
 
 .brand {
   margin: 0;
-  font-size: 28px;
+  font-size: var(--lx-font-6xl);
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: var(--lx-accent, #12b7f5);
+  color: var(--lx-accent, var(--lx-accent));
 }
 
 .subtitle {
-  margin: 6px 0 20px;
-  color: var(--lx-text-secondary, #64748b);
-  font-size: 14px;
+  margin: var(--lx-space-sm) 0 var(--lx-space-3xl);
+  color: var(--lx-text-secondary);
+  font-size: var(--lx-font);
 }
 
 .state {
   display: flex;
   justify-content: center;
-  padding: 32px 0;
+  padding: var(--lx-space-5xl) 0;
 }
 
 .file-name {
-  font-size: 18px;
+  font-size: var(--lx-font-3xl);
   font-weight: 600;
-  color: var(--lx-text-primary, #0f172a);
+  color: var(--lx-text-primary);
   word-break: break-all;
 }
 
 .meta {
-  margin-top: 8px;
-  font-size: 13px;
-  color: var(--lx-text-secondary, #64748b);
+  margin-top: var(--lx-space);
+  font-size: var(--lx-font-md);
+  color: var(--lx-text-secondary);
 }
 
 .preview {
-  margin: 16px 0;
-  border-radius: 10px;
+  margin: var(--lx-space-2xl) 0;
+  border-radius: var(--lx-radius-xl);
   overflow: hidden;
-  background: var(--lx-bg-panel, #f1f5f9);
+  background: var(--lx-bg-panel);
   text-align: center;
 }
 
@@ -258,18 +257,18 @@ watch(
 }
 
 .hint {
-  margin: 0 0 12px;
-  font-size: 13px;
-  color: var(--lx-text-secondary, #64748b);
+  margin: 0 0 var(--lx-space-lg);
+  font-size: var(--lx-font-md);
+  color: var(--lx-text-secondary);
 }
 
 .error {
-  margin: 10px 0 0;
-  font-size: 13px;
-  color: var(--lx-danger, #ef4444);
+  margin: var(--lx-space-md) 0 0;
+  font-size: var(--lx-font-md);
+  color: var(--lx-danger, var(--lx-danger));
 }
 
 .action {
-  margin-top: 16px;
+  margin-top: var(--lx-space-2xl);
 }
 </style>

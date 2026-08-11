@@ -20,12 +20,15 @@
   /* 品牌色 */
   --lx-accent: #12b7f5;
   --lx-accent-hover: #39c2f6;
+  --lx-accent-deep: #0aa6e0;
   --lx-accent-light: #6eb5ff;
   --lx-accent-soft: rgba(18, 183, 245, 0.14);
   --lx-accent-bg-soft: #e6f2ff;
+  --lx-bg-logo: #f0f4f8;
 
   /* 文字 */
   --lx-text: #1a1a1a;
+  --lx-text-primary: #1a1a1a;
   --lx-text-body: #333333;
   --lx-text-secondary: #666666;
   --lx-text-muted: #999999;
@@ -41,36 +44,316 @@
 
   /* 功能色 */
   --lx-success: #52c41a;
+  --lx-success-strong: #07c160;
   --lx-danger: #fa5151;
   --lx-danger-hover: #ff4d4f;
+  --lx-danger-deep: #c0392b;
   --lx-danger-bg: #fff0f0;
   --lx-danger-bg-soft: #fff1f0;
   --lx-warning: #faad14;
   --lx-warning-bg: #fff7e6;
   --lx-icon-image-bg: #fff0e6;
   --lx-icon-image-color: #ff8800;
+  /* 会议 / 通话强调色（深色场景常用） */
+  --lx-conf-accent: #006eff;
+  --lx-conf-accent-hover: #0056cc;
+  /* 会议深色画布（不随浅色主题变白） */
+  --lx-conf-bg: #1f1f1f;
+  --lx-conf-bg-deep: #1e1e1e;
+  --lx-conf-bg-void: #111111;
+  --lx-conf-surface: #1f2329;
 
-  /* 圆角 */
+  /* Slate / 辅助中性 */
+  --lx-slate: #64748b;
+  --lx-slate-muted: #94a3b8;
+  --lx-slate-soft: #f1f5f9;
+  --lx-ink-soft: #5c6370;
+  --lx-bg-soft: #f5f7fa;
+  --lx-bg-mist: #e8eef5;
+
+  /* 登录局部语义（可挂到全局，便于登录/注册共用） */
+  --lx-login-ink: #1a2332;
+  --lx-login-muted: #7a8494;
+  --lx-login-icon: #9aa3b2;
+  --lx-login-border: #c5d0dc;
+  --lx-login-link-hover: #088fc4;
+  --lx-brand-purple: #a855f7;
+  --lx-brand-blue-mid: #5b8cff;
+  --lx-accent-sky: #0ea5e0;
+
+  /* Windows 窗控关闭红（须与 main.ts 中 ui-components.css 同步引入） */
+  --lx-caption-close: #e81123;
+  --lx-caption-close-hover: #f1707a;
+  --lx-caption-hit-size: 32px;
+  --lx-caption-hit-radius: 8px;
+  --lx-caption-hover-bg: rgba(0, 0, 0, 0.06);
+  --lx-caption-active-bg: rgba(0, 0, 0, 0.04);
+
+  /* 纯黑遮罩底（配合 opacity / rgba 使用） */
+  --lx-black: #000000;
+
+  /* 圆角（改此处即可全局生效，见 styles/ui-components.css） */
+  --lx-radius-hair: 2px;
+  --lx-radius-2xs: 4px;
+  --lx-radius-xs: 6px;
+  --lx-radius-sm: 8px;
   --lx-radius: 9px;
-  --lx-radius-sm: 9px;
   --lx-radius-md: 9px;
+  --lx-radius-xl: 10px;
+  --lx-radius-lg: 12px;
+  --lx-radius-card: 14px;
+  --lx-radius-2xl: 16px;
+  --lx-radius-3xl: 20px;
+  --lx-radius-4xl: 24px;
+  --lx-radius-pill: 999px;
   --lx-avatar-radius: 12px;
   /* Electron 窗口外轮廓（偏圆，关闭键由自绘按钮裁进此圆角） */
-  --lx-window-radius: 20px;
+  --lx-window-radius: var(--lx-radius-3xl);
   --lx-sidebar-width: 64px;
 
-  /* 阴影 */
+  /* 字号阶梯（改此处即可全局生效） */
+  --lx-font-2xs: 10px;
+  --lx-font-xs: 11px;
+  --lx-font-sm: 12px;
+  --lx-font-md: 13px;
+  --lx-font: 14px;
+  --lx-font-lg: 15px;
+  --lx-font-xl: 16px;
+  --lx-font-2xl: 17px;
+  --lx-font-3xl: 18px;
+  --lx-font-4xl: 20px;
+  --lx-font-5xl: 22px;
+  --lx-font-6xl: 28px;
+  --lx-font-7xl: 32px;
+  --lx-font-8xl: 34px;
+  --lx-font-display: 24px;
+
+  /* 间距阶梯（padding / gap / margin） */
+  --lx-space-hair: 1px;
+  --lx-space-2xs: 2px;
+  --lx-space-xs: 4px;
+  --lx-space-sm: 6px;
+  --lx-space-sm-plus: 7px;
+  --lx-space: 8px;
+  --lx-space-md: 10px;
+  --lx-space-md-plus: 11px;
+  --lx-space-lg: 12px;
+  --lx-space-xl: 14px;
+  --lx-space-2xl: 16px;
+  --lx-space-3xl: 20px;
+  --lx-space-3xl-plus: 22px;
+  --lx-space-4xl: 24px;
+  --lx-space-4xl-plus: 26px;
+  --lx-space-5xl-minus: 28px;
+  --lx-space-5xl-tight: 30px;
+  --lx-space-5xl: 32px;
+  --lx-space-6xl-minus: 36px;
+  --lx-space-section: 40px;
+  --lx-space-section-plus: 44px;
+  --lx-space-6xl: 48px;
+  --lx-space-block: 54px;
+  --lx-space-block-lg: 60px;
+  --lx-space-block-xl: 64px;
+
+  /* 控件尺寸（表单输入 / 标题栏等） */
+  --lx-size-control: 38px;
+  --lx-size-control-lg: 40px;
+  --lx-size-win-bar: 40px;
+
+  /* 行高 */
+  --lx-leading-none: 1;
+  --lx-leading-tight: 1.2;
+  --lx-leading-snug: 1.3;
+  --lx-leading: 1.4;
+  --lx-leading-normal: 1.5;
+  --lx-leading-relaxed: 1.6;
+  --lx-leading-loose: 1.7;
+
+  /* 层级（保留原数值，避免叠层回归） */
+  --lx-z-base: 0;
+  --lx-z-raised: 1;
+  --lx-z-raised-2: 2;
+  --lx-z-raised-3: 3;
+  --lx-z-raised-4: 4;
+  --lx-z-raised-5: 5;
+  --lx-z-raised-6: 6;
+  --lx-z-raised-7: 7;
+  --lx-z-raised-8: 8;
+  --lx-z-dropdown: 10;
+  --lx-z-sticky: 20;
+  --lx-z-dock: 30;
+  --lx-z-dock-plus: 31;
+  --lx-z-fab: 50;
+  --lx-z-header: 100;
+  --lx-z-sheet-under: 199;
+  --lx-z-sheet: 200;
+  --lx-z-sheet-over: 300;
+  --lx-z-overlay: 400;
+  --lx-z-modal: 500;
+  --lx-z-popover: 999;
+  --lx-z-toast: 1000;
+  --lx-z-dialog-base: 2100;
+  --lx-z-dialog-search: 2150;
+  --lx-z-dialog: 2200;
+  --lx-z-dialog-call-in: 2210;
+  --lx-z-dialog-top: 2250;
+  --lx-z-dialog-packet: 2300;
+  --lx-z-dialog-packet-recv: 2350;
+  --lx-z-dialog-input: 2400;
+  --lx-z-dialog-profile: 3000;
+  --lx-z-moments-top: 10040;
+  --lx-z-critical: 10050;
+  --lx-z-call-backdrop: 11900;
+  --lx-z-call: 12000;
+  --lx-z-system: 20000;
+  --lx-z-lock: 30000;
+
+  /* 动效时长 */
+  --lx-duration-instant: 0.05s;
+  --lx-duration-caption: 83ms;
+  --lx-duration-faster: 0.1s;
+  --lx-duration-fast: 0.12s;
+  --lx-duration: 0.15s;
+  --lx-duration-md: 0.2s;
+  --lx-duration-slow: 0.3s;
+  --lx-duration-slower: 0.4s;
+  --lx-duration-slowest: 0.55s;
+  --lx-duration-emphasis: 0.7s;
   --lx-shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --lx-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.06);
   --lx-shadow-panel: 0 0 0 1px rgba(0, 0, 0, 0.04);
   --lx-shadow-card: 0 2px 8px rgba(0, 0, 0, 0.06);
   --lx-shadow-dropdown: 0 4px 16px rgba(0, 0, 0, 0.12);
+  --lx-shadow-float: 0 8px 24px rgba(0, 0, 0, 0.18);
   --lx-shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.08);
+  --lx-shadow-popover: 0 12px 40px rgba(0, 0, 0, 0.45);
+  --lx-shadow-heavy: 0 24px 64px rgba(0, 0, 0, 0.25);
+  --lx-shadow-drawer: -4px 0 24px var(--lx-shadow-color);
+  --lx-shadow-ring-accent: 0 0 0 3px var(--lx-accent-soft);
+  --lx-shadow-inset-border: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
   --lx-shadow-color: rgba(0, 0, 0, 0.12);
   --lx-shadow-color-heavy: rgba(0, 0, 0, 0.25);
 
   /* 渐变 */
   --lx-gradient-accent: linear-gradient(135deg, var(--lx-accent-light), var(--lx-accent));
   --lx-gradient-brand: linear-gradient(135deg, var(--lx-accent), var(--lx-accent-light));
+
+  /* 登录 / 注册场景 */
+  --lx-login-bg-gradient: linear-gradient(165deg, #d8ecfb 0%, #e8f3fc 38%, #f4f7fb 72%, #fafbfd 100%);
+  --lx-login-card-gradient: linear-gradient(145deg, var(--lx-bg-card) 0%, #e8f7ff 45%, #dce9ff 100%);
+  --lx-login-text-muted-alt: #8f959e;
+  --lx-login-text-faint: #b0b8c0;
+  --lx-login-track: #c5ccd3;
+  --lx-login-panel-gradient: linear-gradient(135deg, #f0f8ff 0%, #f7fbff 100%);
+
+  /* 聊天壁纸 */
+  --lx-chat-wallpaper-default: linear-gradient(180deg, #f5f6f7 0%, #eceff1 100%);
+  --lx-chat-wallpaper-purple: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
+  --lx-chat-wallpaper-orange: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+
+  /* 红包 */
+  --lx-packet-gold: #f5b041;
+  --lx-packet-gold-deep: #f39c12;
+  --lx-packet-text-cream: #fff8e7;
+  --lx-packet-text-parchment: #fff8dc;
+  --lx-packet-muted-gradient: linear-gradient(135deg, #95a5a6, #7f8c8d);
+  --lx-packet-main-gradient: linear-gradient(160deg, var(--lx-packet-gold) 0%, var(--lx-danger) 48%, var(--lx-danger-deep) 100%);
+  --lx-packet-bubble-gradient: linear-gradient(135deg, var(--lx-packet-gold-deep), var(--lx-danger) 55%, var(--lx-danger-deep));
+
+  /* 通话 / 会议深色画布 */
+  --lx-call-surface-top: #3a3a3a;
+  --lx-call-surface-bottom: #2a2a2a;
+  --lx-call-gradient: linear-gradient(180deg, var(--lx-call-surface-top) 0%, var(--lx-call-surface-bottom) 100%);
+  --lx-video-surface-gradient: linear-gradient(145deg, #3d3d3d, #252525);
+  --lx-call-control-bg: #444444;
+  --lx-conf-panel: #2b2b2b;
+  --lx-conf-room-gradient: linear-gradient(160deg, #2e2e2e 0%, #1a1a1a 100%);
+  --lx-preview-void: #1a1a1e;
+  --lx-conf-gold: #ffb454;
+  --lx-conf-gold-light: #ffcf87;
+  --lx-conf-link-blue: #5b8def;
+  --lx-conf-voice: #12b76a;
+  --lx-conf-voice-text: #0f8a52;
+  --lx-conf-video: #1a6bff;
+  --lx-conf-video-text: #1a56db;
+  --lx-conf-meeting: #7c3aed;
+  --lx-conf-meeting-text: #6d28d9;
+
+  /* 品牌水印 */
+  --lx-watermark-gradient: linear-gradient(95deg, #5a9ec8 0%, #6e9fd4 42%, #9a8fd0 100%);
+  --lx-watermark-gradient-light: linear-gradient(95deg, #7eb8e0 0%, #9ab5e8 45%, #c4a8e8 100%);
+
+  /* 文件类型色标 */
+  --lx-file-folder: #f5a623;
+  --lx-file-folder-bg: #fff4d6;
+  --lx-file-pdf-bg: #fdecea;
+  --lx-file-doc: #2b579a;
+  --lx-file-doc-bg: #e8f0fe;
+  --lx-file-xls: #1d6f42;
+  --lx-file-xls-bg: #e8f5ee;
+  --lx-file-ppt: #c43e1c;
+  --lx-file-ppt-bg: #fde8e1;
+  --lx-file-zip: #8e44ad;
+  --lx-file-zip-bg: #f3e8fa;
+  --lx-file-media: #722ed1;
+  --lx-file-media-bg: #f3e8ff;
+  --lx-file-bubble-doc: #2b6cb0;
+  --lx-file-bubble-xls: #2f855a;
+  --lx-file-bubble-ppt: #c05621;
+  --lx-file-bubble-zip: #805ad5;
+  --lx-file-bubble-txt: #4a5568;
+  --lx-file-bubble-muted: #5a6a7a;
+  --lx-file-bubble-track: #e8ecf1;
+  --lx-file-bar: #4a4a4a;
+  --lx-file-preview: #2f2f2f;
+  --lx-file-preview-text: #b8e9ff;
+  --lx-file-apk-gradient: linear-gradient(145deg, #7ed56f 0%, #5cb85c 100%);
+  --lx-file-link: #4facfe;
+
+  /* 主题色彩虹预览 */
+  --lx-accent-rainbow-1: #ff6b6b;
+  --lx-accent-rainbow-2: #feca57;
+  --lx-accent-rainbow-3: #48dbfb;
+  --lx-accent-rainbow-4: #ff9ff3;
+  --lx-accent-rainbow-5: #54a0ff;
+  --lx-gradient-rainbow: conic-gradient(
+    var(--lx-accent-rainbow-1),
+    var(--lx-accent-rainbow-2),
+    var(--lx-accent-rainbow-3),
+    var(--lx-accent-rainbow-4),
+    var(--lx-accent-rainbow-5),
+    var(--lx-accent-rainbow-1)
+  );
+
+  /* 日历事件色 */
+  --lx-event-blue: #3370ff;
+  --lx-event-red: #f54a45;
+  --lx-event-purple: #7b61ff;
+  --lx-event-green: #00b578;
+
+  /* 零散语义色 */
+  --lx-status-muted: #a8a8a8;
+  --lx-lock-border: #2c2c2c;
+  --lx-captcha-success-bg: #f6ffed;
+  --lx-note-blue: #2563eb;
+  --lx-note-orange: #f97316;
+  --lx-note-amber: #f59e0b;
+  --lx-char-warning: #ff9800;
+  --lx-empty-muted: #b0b0b5;
+  --lx-quote-muted: #8a8a8a;
+  --lx-quote-bg: #ececec;
+  --lx-danger-soft-border: #ffccc7;
+  --lx-danger-deep-alt: #d93636;
+  --lx-group-announce: #fa8c16;
+  --lx-picker-bg: #fafafa;
+  --lx-picker-muted: #c8c8c8;
+  --lx-picker-row-bg: #f3f3f3;
+  --lx-picker-text: #4e5969;
+  --lx-picker-faint: #bbb;
+  --lx-avatar-placeholder: #d0d4dc;
+  --lx-bg-bubble-self: #dff6ff;
+  --lx-official-border: #ededed;
+  --lx-official-border-soft: #e5e5e5;
 }
 
 /* 暗色主题 */
@@ -90,6 +373,7 @@
   --lx-accent-bg-soft: rgba(18, 183, 245, 0.15);
 
   --lx-text: #f0f0f0;
+  --lx-text-primary: #f0f0f0;
   --lx-text-body: #e0e0e0;
   --lx-text-secondary: #aaaaaa;
   --lx-text-muted: #777777;
@@ -102,10 +386,17 @@
   --lx-divider: #3a3a3a;
 
   --lx-shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --lx-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.35);
   --lx-shadow-panel: 0 0 0 1px rgba(255, 255, 255, 0.06);
   --lx-shadow-card: 0 2px 8px rgba(0, 0, 0, 0.4);
   --lx-shadow-dropdown: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --lx-shadow-float: 0 8px 24px rgba(0, 0, 0, 0.5);
   --lx-shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.6);
+  --lx-shadow-popover: 0 12px 40px rgba(0, 0, 0, 0.65);
+  --lx-shadow-heavy: 0 24px 64px rgba(0, 0, 0, 0.7);
+  --lx-shadow-drawer: -4px 0 24px var(--lx-shadow-color);
+  --lx-shadow-ring-accent: 0 0 0 3px var(--lx-accent-soft);
+  --lx-shadow-inset-border: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
   --lx-shadow-color: rgba(0, 0, 0, 0.45);
   --lx-shadow-color-heavy: rgba(0, 0, 0, 0.6);
 
@@ -114,6 +405,8 @@
   --lx-warning-bg: rgba(250, 173, 20, 0.12);
   --lx-icon-image-bg: rgba(255, 136, 0, 0.15);
   --lx-icon-image-color: #ff9933;
+  --lx-caption-hover-bg: rgba(255, 255, 255, 0.08);
+  --lx-caption-active-bg: rgba(255, 255, 255, 0.05);
 }
 
 /* ============================================================
@@ -129,6 +422,7 @@ body,
   overflow: hidden;
   color: var(--lx-text-body);
   background: var(--lx-bg-window);
+  font-size: var(--lx-font-md);
   font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -229,6 +523,67 @@ html.lx-electron.is-maximized[data-theme='dark'] #app {
 
 .lx-radius {
   border-radius: var(--lx-radius);
+}
+
+.lx-radius-xs {
+  border-radius: var(--lx-radius-xs);
+}
+
+.lx-radius-sm {
+  border-radius: var(--lx-radius-sm);
+}
+
+.lx-radius-lg {
+  border-radius: var(--lx-radius-lg);
+}
+
+.lx-radius-xl {
+  border-radius: var(--lx-radius-xl);
+}
+
+.lx-radius-card {
+  border-radius: var(--lx-radius-card);
+}
+
+.lx-radius-2xl {
+  border-radius: var(--lx-radius-2xl);
+}
+
+.lx-radius-3xl {
+  border-radius: var(--lx-radius-3xl);
+}
+
+.lx-radius-pill {
+  border-radius: var(--lx-radius-pill);
+}
+
+.lx-font-sm {
+  font-size: var(--lx-font-sm);
+}
+.lx-font-md {
+  font-size: var(--lx-font-md);
+}
+.lx-font {
+  font-size: var(--lx-font);
+}
+.lx-font-lg {
+  font-size: var(--lx-font-lg);
+}
+.lx-font-xl {
+  font-size: var(--lx-font-xl);
+}
+
+.lx-shadow-card {
+  box-shadow: var(--lx-shadow-card);
+}
+.lx-shadow-dropdown {
+  box-shadow: var(--lx-shadow-dropdown);
+}
+.lx-shadow-modal {
+  box-shadow: var(--lx-shadow-modal);
+}
+.lx-shadow-soft {
+  box-shadow: var(--lx-shadow-soft);
 }
 
 /* 头像：圆角方形 */
@@ -332,7 +687,7 @@ html.lx-electron.is-maximized[data-theme='dark'] #app {
 .v-binder-follower-container:has(.n-base-select-menu),
 .v-binder-follower-container:has(.n-cascader-menu),
 .v-binder-follower-container:has(.n-time-picker-panel) {
-  z-index: 20000 !important;
+  z-index: var(--lx-z-system) !important;
 }
 
 /* Naive UI Modal / Card 暗色适配 */

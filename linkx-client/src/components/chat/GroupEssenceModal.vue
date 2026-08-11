@@ -12,6 +12,7 @@ import { useAppStore } from '../../stores/app'
 // 群元数据 Store
 import { useGroupMetaStore } from '../../stores/groupMeta'
 import { useI18n } from '../../i18n'
+import { LxButton, LxIconButton } from '../ui'
 
 const { t } = useI18n()
 const message = useMessage()
@@ -80,7 +81,7 @@ async function removeItem(id: string) {
         <!-- 窗口标题栏 -->
         <header class="win-head">
           <h2>{{ t('extra.groupEssenceTitle', { name: currentSession?.name || t('extra.groupChat') }) }}</h2>
-          <button type="button" class="close-x" @click="close">×</button>
+          <LxIconButton variant="close" :title="t('common.close')" @click="close">×</LxIconButton>
         </header>
         <!-- 精华消息列表 -->
         <div class="list">
@@ -89,15 +90,14 @@ async function removeItem(id: string) {
               <span class="user">{{ item.user }}</span>
               <div class="card-meta">
                 <span class="date">{{ item.date }}</span>
-                <button
+                <LxButton
                   v-if="canManage"
-                  type="button"
-                  class="del-btn"
+                  variant="link-danger"
                   :disabled="removingId === item.id"
                   @click="removeItem(item.id)"
                 >
                   {{ t('extra.removeEssence') }}
-                </button>
+                </LxButton>
               </div>
             </div>
             <p class="content">{{ item.content }}</p>
@@ -113,12 +113,12 @@ async function removeItem(id: string) {
 .modal-root {
   position: fixed;
   inset: 0;
-  z-index: 2250;
+  z-index: var(--lx-z-dialog-top);
   background: var(--lx-bg-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: var(--lx-space-3xl);
 }
 
 .essence-window {
@@ -135,33 +135,25 @@ async function removeItem(id: string) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 18px;
+  padding: var(--lx-space-xl) var(--lx-space-2xl);
   border-bottom: 1px solid var(--lx-border-light);
 }
 
 .win-head h2 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--lx-font-lg);
   font-weight: 600;
   color: var(--lx-text-body);
-}
-
-.close-x {
-  border: none;
-  background: none;
-  font-size: 22px;
-  color: var(--lx-text-muted);
-  cursor: pointer;
 }
 
 .list {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 18px 18px;
+  padding: var(--lx-space-lg) var(--lx-space-2xl) var(--lx-space-2xl);
 }
 
 .essence-card {
-  padding: 12px 0;
+  padding: var(--lx-space-lg) 0;
   border-bottom: 1px solid var(--lx-border-light);
 }
 
@@ -169,49 +161,31 @@ async function removeItem(id: string) {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 6px;
+  gap: var(--lx-space-lg);
+  margin-bottom: var(--lx-space-sm);
 }
 
 .card-meta {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--lx-space-md);
   flex-shrink: 0;
 }
 
 .user {
-  font-size: 14px;
+  font-size: var(--lx-font);
   font-weight: 600;
   color: var(--lx-text-body);
 }
 
 .date {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
-}
-
-.del-btn {
-  border: none;
-  background: none;
-  padding: 0;
-  font-size: 12px;
-  color: var(--lx-danger, #e74c3c);
-  cursor: pointer;
-}
-
-.del-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.del-btn:hover:not(:disabled) {
-  text-decoration: underline;
 }
 
 .content {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   color: var(--lx-text-secondary);
   word-break: break-all;
 }
@@ -219,6 +193,6 @@ async function removeItem(id: string) {
 .empty {
   text-align: center;
   color: var(--lx-text-muted);
-  padding: 32px;
+  padding: var(--lx-space-5xl);
 }
 </style>

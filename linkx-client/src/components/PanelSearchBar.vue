@@ -15,6 +15,7 @@ import { SearchOutline, AddOutline } from '@vicons/ionicons5'
 // 主题 CSS 变量工具
 import { lxVar } from '../theme/vars'
 import { useI18n } from '../i18n'
+import { LxIconButton } from './ui'
 
 const { t } = useI18n()
 
@@ -70,9 +71,9 @@ function onAdd(key: string) {
       class="add-dropdown"
       @select="onAdd"
     >
-      <div class="add-btn lx-icon-btn" :title="addTitle">
+      <LxIconButton variant="filled" :title="addTitle">
         <n-icon :component="AddOutline" :size="18" />
-      </div>
+      </LxIconButton>
     </n-dropdown>
   </div>
 </template>
@@ -82,8 +83,8 @@ function onAdd(key: string) {
   height: 52px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 12px;
+  gap: var(--lx-space);
+  padding: 0 var(--lx-space-lg);
   background: var(--lx-bg-panel);
   flex-shrink: 0;
 }

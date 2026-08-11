@@ -55,6 +55,7 @@ import AtMentionPicker from '../common/AtMentionPicker.vue'
 import QuoteReplyBar from './QuoteReplyBar.vue'
 import { chatMessagePreviewText } from '../../utils/messagePreviewText'
 import { sendTypingIndicator } from '../../utils/chatSocket'
+import { LxButton, LxIconButton } from '../ui'
 
 /** @全体成员 的伪 ID，写入正文为「@全体成员」供提醒逻辑识别 */
 const AT_ALL_ID = '__all__'
@@ -886,7 +887,7 @@ defineExpose({
           <div class="reply-compose-label">{{ replySenderLabel }}</div>
           <div class="reply-compose-row">
             <QuoteReplyBar variant="input" :content="replyPreviewContent" />
-            <button type="button" class="reply-close-btn" :title="t('common.close')" @click="cancelReply">
+            <button type="button" class="lx-close-btn lx-close-btn--reply" :title="t('common.close')" @click="cancelReply">
               <n-icon :component="CloseOutline" :size="14" />
             </button>
           </div>
@@ -925,60 +926,56 @@ defineExpose({
         <div class="toolbar-left">
           <n-popover v-model:show="showEmoji" trigger="click" placement="top-start">
             <template #trigger>
-              <button type="button" class="tool-btn" :title="t('chat.emoji')">
+              <LxIconButton variant="chat-tool" :title="t('chat.emoji')">
                 <n-icon :component="HappyOutline" :size="20" />
-              </button>
+              </LxIconButton>
             </template>
             <div class="emoji-grid">
               <button
                 v-for="e in emojis"
                 :key="e"
                 type="button"
-                class="emoji-btn"
+                class="lx-btn--emoji"
                 @click="pickEmoji(e)"
               >
                 {{ e }}
               </button>
             </div>
           </n-popover>
-          <button
+          <LxIconButton
             v-if="isGroupChat"
-            type="button"
-            class="tool-btn"
+            variant="chat-tool"
             :title="t('extra.atMember')"
             :disabled="inputDisabled"
             @click="triggerAtMention"
           >
             <n-icon :component="AtOutline" :size="20" />
-          </button>
-          <button type="button" class="tool-btn" :title="t('chat.sendFile')" @click="toolFile">
+          </LxIconButton>
+          <LxIconButton variant="chat-tool" :title="t('chat.sendFile')" @click="toolFile">
             <n-icon :component="FolderOutline" :size="20" />
-          </button>
-          <button type="button" class="tool-btn" :title="t('chat.screenshot')" @click="toolScreenshot">
+          </LxIconButton>
+          <LxIconButton variant="chat-tool" :title="t('chat.screenshot')" @click="toolScreenshot">
             <n-icon :component="CutOutline" :size="20" />
-          </button>
-          <button
+          </LxIconButton>
+          <LxIconButton
             v-if="!isMyPhone"
-            type="button"
-            class="tool-btn"
+            variant="chat-tool"
             :title="t('chat.redPacket')"
             @click="toolRedPacket"
           >
             <n-icon :component="GiftOutline" :size="20" />
-          </button>
-          <button
-            type="button"
-            class="tool-btn"
+          </LxIconButton>
+          <LxIconButton
+            variant="chat-tool"
             :title="t('chat.location')"
             :disabled="inputDisabled"
             @click="toolLocation"
           >
             <n-icon :component="LocationOutline" :size="20" />
-          </button>
-          <button
-            type="button"
-            class="tool-btn"
-            :class="{ 'tool-btn--recording': isRecordingVoice }"
+          </LxIconButton>
+          <LxIconButton
+            variant="chat-tool"
+            :class="{ 'is-recording': isRecordingVoice }"
             :title="
               isRecordingVoice
                 ? t('chat.voiceRecording', { n: voiceRecordSeconds })
@@ -990,26 +987,25 @@ defineExpose({
             @click="toggleVoiceRecord"
           >
             <n-icon :component="MicOutline" :size="20" />
-          </button>
+          </LxIconButton>
         </div>
 
         <div class="toolbar-right">
           <template v-if="!isGroupChat">
-            <button type="button" class="tool-btn" :title="t('chat.voiceCall')" @click="startVoiceCall">
+            <LxIconButton variant="chat-tool" :title="t('chat.voiceCall')" @click="startVoiceCall">
               <n-icon :component="VolumeHighOutline" :size="20" />
-            </button>
-            <button type="button" class="tool-btn" :title="t('chat.videoCall')" @click="startVideoCall">
+            </LxIconButton>
+            <LxIconButton variant="chat-tool" :title="t('chat.videoCall')" @click="startVideoCall">
               <n-icon :component="VideocamOutline" :size="20" />
-            </button>
+            </LxIconButton>
           </template>
-          <button
-            type="button"
-            class="send-btn"
+          <LxButton
+            variant="send"
             :disabled="!inputValue.trim()"
             @click="send"
           >
             {{ t('chat.send') }}
-          </button>
+          </LxButton>
         </div>
       </div>
     </div>
@@ -1027,10 +1023,10 @@ defineExpose({
 <style scoped>
 .input-area {
   flex-shrink: 0;
-  padding: 10px 14px 14px;
+  padding: var(--lx-space-md) var(--lx-space-xl) var(--lx-space-xl);
   background: var(--lx-bg-panel);
   border-top: none;
-  box-shadow: inset 0 1px 0 var(--lx-separator-fade, rgba(0, 0, 0, 0.04));
+  box-shadow: inset 0 1px 0 var(--lx-separator-fade);
   max-height: min(220px, 38vh);
 }
 
@@ -1039,7 +1035,7 @@ defineExpose({
   flex-direction: column;
   background: var(--lx-bg-card);
   border: 1px solid var(--lx-border-light);
-  border-radius: 10px;
+  border-radius: var(--lx-radius-xl);
   overflow: hidden;
   min-height: 108px;
   max-height: 100%;
@@ -1051,7 +1047,7 @@ defineExpose({
   max-height: 140px;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 8px 12px 4px;
+  padding: var(--lx-space) var(--lx-space-lg) var(--lx-space-xs);
 }
 
 .input-compose-body {
@@ -1062,50 +1058,20 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 10px 10px;
+  padding: var(--lx-space-xs) var(--lx-space-md) var(--lx-space-md);
   flex-shrink: 0;
 }
 
 .toolbar-left {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--lx-space-2xs);
 }
 
 .toolbar-right {
   display: flex;
   align-items: center;
-  gap: 10px;
-}
-
-.tool-btn {
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: transparent;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--lx-text-nav);
-  cursor: pointer;
-  padding: 0;
-  transition: background 0.15s, color 0.15s;
-}
-
-.tool-btn:hover:not(:disabled) {
-  background: var(--lx-bg-hover);
-  color: var(--lx-text-body);
-}
-
-.tool-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.tool-btn--recording {
-  color: var(--lx-danger) !important;
-  animation: pulse-rec 1s infinite;
+  gap: var(--lx-space-md);
 }
 
 .message-input {
@@ -1135,8 +1101,8 @@ defineExpose({
 .message-input :deep(.n-input__textarea-mirror) {
   min-height: 56px !important;
   background: transparent !important;
-  font-size: 14px;
-  line-height: 1.55;
+  font-size: var(--lx-font);
+  line-height: var(--lx-leading-normal);
   /* 与 textarea 同步去掉 Naive 默认上下 padding，避免光标与占位文字错位 */
   padding: 0 !important;
   color: var(--lx-text);
@@ -1153,108 +1119,49 @@ defineExpose({
   color: var(--n-placeholder-color);
 }
 
-.send-btn {
-  min-width: 64px;
-  height: 28px;
-  padding: 0 14px;
-  border-radius: 6px;
-  border: none;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  background: #e9e9e9;
-  color: #ffffff;
-  transition: background 0.15s;
-}
-
-.send-btn:not(:disabled) {
-  background: var(--lx-accent);
-  color: var(--lx-text-on-accent);
-}
-
-.send-btn:not(:disabled):hover {
-  background: var(--lx-accent-hover);
-}
-
-.send-btn:disabled {
-  cursor: not-allowed;
-}
-
-@keyframes pulse-rec {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.45; }
-}
-
 .hidden-file-input {
   display: none;
 }
 
 .reply-compose {
-  margin-bottom: 6px;
+  margin-bottom: var(--lx-space-sm);
 }
 
 .reply-compose-label {
-  font-size: 12px;
-  line-height: 1.35;
-  color: var(--lx-text-body, #1f2329);
-  margin-bottom: 4px;
+  font-size: var(--lx-font-sm);
+  line-height: var(--lx-leading-snug);
+  color: var(--lx-text-body, var(--lx-conf-surface));
+  margin-bottom: var(--lx-space-xs);
 }
 
 .reply-compose-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.reply-close-btn {
-  width: 22px;
-  height: 22px;
-  border: none;
-  border-radius: 50%;
-  background: #e8e8e8;
-  color: #999;
-  cursor: pointer;
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-}
-
-.reply-close-btn:hover {
-  background: #ddd;
-  color: #666;
+  gap: var(--lx-space);
 }
 
 .emoji-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  padding: 4px;
-}
-
-.emoji-btn {
-  border: none;
-  background: transparent;
-  font-size: 22px;
-  cursor: pointer;
+  gap: var(--lx-space);
+  padding: var(--lx-space-xs);
 }
 
 .location-overlay {
   position: fixed;
   inset: 0;
-  z-index: 2400;
+  z-index: var(--lx-z-dialog-input);
   background: rgba(0, 0, 0, 0.45);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: var(--lx-space-4xl);
 }
 .location-panel {
   width: min(420px, 96vw);
   height: min(640px, 90vh);
   background: var(--lx-bg-card);
-  border-radius: 12px;
+  border-radius: var(--lx-radius-lg);
   overflow: hidden;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.28);
 }

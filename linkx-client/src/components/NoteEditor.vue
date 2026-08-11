@@ -42,6 +42,7 @@ import {
 } from '../utils/noteBlocks'
 import { formatFileSize } from '../utils/file'
 import { emptyFormatState, type NoteFormatAction, type NoteFormatState } from '../utils/noteEditorFormat'
+import { LxIconButton } from './ui'
 
 type NoteTextBlockEditorInstance = ComponentPublicInstance & {
   focus: () => void
@@ -452,15 +453,15 @@ onUnmounted(() => {
     </div>
     <header class="title-bar drag-area">
       <div class="bar-side bar-left no-drag">
-        <button
-          type="button"
-          class="icon-btn pin"
-          :class="{ active: isPinned }"
+        <LxIconButton
+          variant="editor"
+          class="pin"
+          :active="isPinned"
           :title="t('noteEditor.pin')"
           @click="togglePin"
         >
           <PinIcon :size="14" :filled="isPinned" />
-        </button>
+        </LxIconButton>
       </div>
       <div class="bar-center">
         {{ displayTitle }}
@@ -468,31 +469,31 @@ onUnmounted(() => {
       </div>
       <div class="bar-side bar-right no-drag">
         <!-- CRUD 操作按钮 -->
-        <button type="button" class="icon-btn" :title="t('noteEditor.newNote')" @click="() => resetToBlankEditor()">
+        <LxIconButton variant="editor" :title="t('noteEditor.newNote')" @click="() => resetToBlankEditor()">
           <n-icon :component="AddOutline" :size="16" />
-        </button>
-        <button type="button" class="icon-btn" :title="t('noteEditor.saveNote')" @click="() => noteStore.save()">
+        </LxIconButton>
+        <LxIconButton variant="editor" :title="t('noteEditor.saveNote')" @click="() => noteStore.save()">
           <n-icon :component="CloudUploadOutline" :size="16" />
-        </button>
+        </LxIconButton>
         <n-dropdown trigger="click" :options="noteListOptions" @select="onNoteSelect">
-          <button type="button" class="icon-btn" :title="t('noteEditor.openNote')">
+          <LxIconButton variant="editor" :title="t('noteEditor.openNote')">
             <n-icon :component="DocumentTextOutline" :size="16" />
-          </button>
+          </LxIconButton>
         </n-dropdown>
         <n-dropdown trigger="click" :options="moreOptions" @select="onMoreSelect">
-          <button type="button" class="icon-btn" :title="t('noteEditor.moreActions')">
+          <LxIconButton variant="editor" :title="t('noteEditor.moreActions')">
             <n-icon :component="EllipsisHorizontalOutline" :size="16" />
-          </button>
+          </LxIconButton>
         </n-dropdown>
-        <button
+        <LxIconButton
           v-if="currentNoteId"
-          type="button"
-          class="icon-btn delete-btn"
+          variant="editor"
+          class="delete-btn"
           :title="t('noteEditor.deleteNote')"
           @click="deleteCurrentNote"
         >
           <n-icon :component="TrashOutline" :size="16" />
-        </button>
+        </LxIconButton>
         <WindowCaptionButtons :before-close="flushPendingSave" />
       </div>
     </header>
@@ -501,59 +502,57 @@ onUnmounted(() => {
       <input ref="imageInputRef" type="file" accept="image/*" hidden @change="insertImage" />
       <input ref="fileInputRef" type="file" hidden @change="insertFile" />
 
-      <button type="button" class="icon-btn" :title="t('noteEditor.insertImage')" @mousedown.prevent @click="imageInputRef?.click()">
+      <LxIconButton variant="editor" :title="t('noteEditor.insertImage')" @mousedown.prevent @click="imageInputRef?.click()">
         <n-icon :component="ImageOutline" :size="18" />
-      </button>
-      <button type="button" class="icon-btn" :title="t('noteEditor.attachment')" @mousedown.prevent @click="fileInputRef?.click()">
+      </LxIconButton>
+      <LxIconButton variant="editor" :title="t('noteEditor.attachment')" @mousedown.prevent @click="fileInputRef?.click()">
         <n-icon :component="FolderOpenOutline" :size="18" />
-      </button>
+      </LxIconButton>
 
       <span class="v-sep" />
 
-      <button type="button" class="text-btn" :class="{ active: formatActive.bold }" :title="t('noteEditor.bold')" @mousedown.prevent @click="runFormat('bold')">B</button>
-      <button type="button" class="icon-btn" :class="{ active: formatActive.heading }" :title="t('noteEditor.heading')" @mousedown.prevent @click="runFormat('heading')">
+      <button type="button" class="lx-btn--format-text" :class="{ 'is-active': formatActive.bold }" :title="t('noteEditor.bold')" @mousedown.prevent @click="runFormat('bold')">B</button>
+      <LxIconButton variant="editor" :active="formatActive.heading" :title="t('noteEditor.heading')" @mousedown.prevent @click="runFormat('heading')">
         <n-icon :component="TextOutline" :size="17" />
-      </button>
-      <button type="button" class="text-btn underline" :class="{ active: formatActive.underline }" :title="t('noteEditor.underline')" @mousedown.prevent @click="runFormat('underline')">U</button>
-      <button type="button" class="text-btn italic" :class="{ active: formatActive.italic }" :title="t('noteEditor.italic')" @mousedown.prevent @click="runFormat('italic')">I</button>
+      </LxIconButton>
+      <button type="button" class="lx-btn--format-text is-underline" :class="{ 'is-active': formatActive.underline }" :title="t('noteEditor.underline')" @mousedown.prevent @click="runFormat('underline')">U</button>
+      <button type="button" class="lx-btn--format-text is-italic" :class="{ 'is-active': formatActive.italic }" :title="t('noteEditor.italic')" @mousedown.prevent @click="runFormat('italic')">I</button>
 
       <span class="v-sep" />
 
-      <button type="button" class="icon-btn" :title="t('noteEditor.divider')" @mousedown.prevent @click="runFormat('divider')">
+      <LxIconButton variant="editor" :title="t('noteEditor.divider')" @mousedown.prevent @click="runFormat('divider')">
         <n-icon :component="ReorderTwoOutline" :size="18" />
-      </button>
-      <button
-        type="button"
-        class="icon-btn"
-        :class="{ active: formatActive.unordered }"
+      </LxIconButton>
+      <LxIconButton
+        variant="editor"
+        :active="formatActive.unordered"
         :title="t('noteEditor.unorderedList')"
         @mousedown.prevent
         @click="runFormat('unordered')"
       >
         <n-icon :component="ListOutline" :size="18" />
-      </button>
-      <button
-        type="button"
-        class="icon-btn"
-        :class="{ active: formatActive.ordered }"
+      </LxIconButton>
+      <LxIconButton
+        variant="editor"
+        :active="formatActive.ordered"
         :title="t('noteEditor.orderedList')"
         @mousedown.prevent
         @click="runFormat('ordered')"
       >
         <span class="num-list">1.</span>
-      </button>
-      <button type="button" class="icon-btn" :title="t('noteEditor.todoList')" @mousedown.prevent @click="runFormat('todo')">
+      </LxIconButton>
+      <LxIconButton variant="editor" :title="t('noteEditor.todoList')" @mousedown.prevent @click="runFormat('todo')">
         <n-icon :component="CheckboxOutline" :size="18" />
-      </button>
+      </LxIconButton>
 
       <span class="v-sep" />
 
-      <button type="button" class="icon-btn" :title="t('noteEditor.undo')" @mousedown.prevent @click="undo">
+      <LxIconButton variant="editor" :title="t('noteEditor.undo')" @mousedown.prevent @click="undo">
         <n-icon :component="ArrowUndoOutline" :size="18" />
-      </button>
-      <button type="button" class="icon-btn" :title="t('noteEditor.redo')" @mousedown.prevent @click="redo">
+      </LxIconButton>
+      <LxIconButton variant="editor" :title="t('noteEditor.redo')" @mousedown.prevent @click="redo">
         <n-icon :component="ArrowRedoOutline" :size="18" />
-      </button>
+      </LxIconButton>
     </div>
 
     <main ref="documentEl" class="editor-area" @click="focusLastTextBlock">
@@ -642,7 +641,7 @@ onUnmounted(() => {
 .location-overlay {
   position: absolute;
   inset: 0;
-  z-index: 50;
+  z-index: var(--lx-z-fab);
   background: var(--lx-bg-panel);
 }
 
@@ -653,7 +652,7 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: stretch;
-  padding: 0 0 0 8px;
+  padding: 0 0 0 var(--lx-space);
   flex-shrink: 0;
   -webkit-app-region: drag;
   user-select: none;
@@ -663,10 +662,10 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   min-width: 0;
-  gap: 4px;
+  gap: var(--lx-space-xs);
   -webkit-app-region: no-drag;
   position: relative;
-  z-index: 10;
+  z-index: var(--lx-z-dropdown);
 }
 
 .bar-left {
@@ -680,7 +679,7 @@ onUnmounted(() => {
 }
 
 .bar-center {
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   font-weight: 500;
   color: var(--lx-text-body);
   text-align: center;
@@ -688,77 +687,17 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: var(--lx-space);
 }
 
 .saving-indicator {
-  font-size: 11px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-muted);
   font-weight: normal;
 }
 
-.icon-btn {
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: transparent;
-  border-radius: var(--lx-radius);
-  color: var(--lx-text-secondary);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.15s, color 0.15s;
-  flex-shrink: 0;
-  -webkit-app-region: no-drag;
-  pointer-events: auto;
-}
-
-.icon-btn:hover {
-  background: var(--lx-bg-hover);
-  color: var(--lx-text-body);
-}
-
-.icon-btn.active {
-  color: var(--lx-accent);
-}
-
-.icon-btn.delete-btn:hover {
-  color: var(--lx-danger);
-  background: rgba(250, 81, 81, 0.1);
-}
-
-.text-btn {
-  min-width: 28px;
-  height: 32px;
-  padding: 0 6px;
-  border: none;
-  background: transparent;
-  border-radius: var(--lx-radius);
-  color: var(--lx-text-secondary);
-  font-size: 15px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-
-.text-btn.italic {
-  font-style: italic;
-  font-weight: 600;
-}
-
-.text-btn.underline {
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.text-btn:hover {
-  background: var(--lx-bg-hover);
-  color: var(--lx-text-body);
-}
-
-.text-btn.active,
-.icon-btn.active {
+.lx-action-btn--editor.is-active,
+.lx-action-btn--editor.active {
   background: var(--lx-accent-soft);
   color: var(--lx-accent);
 }
@@ -766,28 +705,28 @@ onUnmounted(() => {
 .format-bar {
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 4px 10px;
+  gap: var(--lx-space-2xs);
+  padding: var(--lx-space-xs) var(--lx-space-md);
   flex-shrink: 0;
   overflow-x: auto;
   border-bottom: 1px solid var(--lx-border-light);
   -webkit-app-region: no-drag;
   position: relative;
-  z-index: 10;
+  z-index: var(--lx-z-dropdown);
 }
 
 .v-sep {
   width: 1px;
   height: 18px;
   background: var(--lx-border-light);
-  margin: 0 4px;
+  margin: 0 var(--lx-space-xs);
   flex-shrink: 0;
 }
 
 .num-list {
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   font-weight: 600;
-  line-height: 1;
+  line-height: var(--lx-leading-none);
   font-family: inherit;
 }
 
@@ -800,22 +739,22 @@ onUnmounted(() => {
 
 .note-document {
   position: relative;
-  padding: 14px 18px 24px;
+  padding: var(--lx-space-xl) var(--lx-space-2xl) var(--lx-space-4xl);
   min-height: 100%;
   box-sizing: border-box;
 }
 
 .editor-placeholder {
-  margin: 0 0 8px;
-  font-size: 13px;
-  line-height: 1.65;
+  margin: 0 0 var(--lx-space);
+  font-size: var(--lx-font-md);
+  line-height: var(--lx-leading-relaxed);
   color: var(--lx-text-muted);
   pointer-events: none;
 }
 
 .note-image-block {
   position: relative;
-  margin: 0 0 12px;
+  margin: 0 0 var(--lx-space-lg);
 }
 
 .note-image-block img {
@@ -833,16 +772,16 @@ onUnmounted(() => {
   width: 28px;
   height: 28px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--lx-radius-xs);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: rgba(15, 23, 42, 0.62);
-  color: #fff;
+  color: var(--lx-text-on-accent);
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.15s, background 0.15s;
-  z-index: 2;
+  transition: opacity var(--lx-duration), background var(--lx-duration);
+  z-index: var(--lx-z-raised-2);
 }
 
 .note-image-block:hover .note-block-remove,
@@ -865,17 +804,17 @@ onUnmounted(() => {
 
 .note-block-remove--inline:hover {
   background: var(--lx-bg-hover);
-  color: #ef4444;
+  color: var(--lx-danger);
 }
 
 .note-attach-card {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
-  margin: 0 0 10px;
-  border-radius: 10px;
+  gap: var(--lx-space-lg);
+  padding: var(--lx-space-lg) var(--lx-space-xl);
+  margin: 0 0 var(--lx-space-md);
+  border-radius: var(--lx-radius-xl);
   background: var(--lx-bg-panel);
   border: 1px solid var(--lx-border-light);
   text-decoration: none;
@@ -891,50 +830,50 @@ onUnmounted(() => {
 .note-attach-icon {
   width: 40px;
   height: 40px;
-  border-radius: 8px;
+  border-radius: var(--lx-radius-sm);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: var(--lx-font-xs);
   font-weight: 700;
   flex-shrink: 0;
-  color: #fff;
+  color: var(--lx-text-on-accent);
 }
 
 .note-attach-icon--pdf {
-  background: #ef4444;
+  background: var(--lx-danger);
 }
 
 .note-attach-icon--word {
-  background: #2563eb;
+  background: var(--lx-note-blue);
 }
 
 .note-attach-icon--ppt {
-  background: #f97316;
+  background: var(--lx-note-orange);
 }
 
 .note-attach-icon--zip {
-  background: #f59e0b;
+  background: var(--lx-note-amber);
 }
 
 .note-attach-icon--audio {
-  background: #a855f7;
+  background: var(--lx-brand-purple);
 }
 
 .note-attach-icon--text,
 .note-attach-icon--file {
-  background: #64748b;
+  background: var(--lx-slate);
 }
 
 .note-attach-meta {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--lx-space-xs);
 }
 
 .note-attach-name {
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   font-weight: 500;
   color: var(--lx-text-body);
   overflow: hidden;
@@ -943,26 +882,26 @@ onUnmounted(() => {
 }
 
 .note-attach-size {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
 }
 
 .note-location-wrap {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  margin: 0 0 10px;
+  gap: var(--lx-space-2xs);
+  margin: 0 0 var(--lx-space-md);
 }
 
 .note-location-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
+  gap: var(--lx-space-xs);
+  padding: var(--lx-space-xs) var(--lx-space-md);
   margin: 0;
-  border-radius: 999px;
+  border-radius: var(--lx-radius-pill);
   background: var(--lx-accent-soft);
   color: var(--lx-accent);
-  font-size: 13px;
+  font-size: var(--lx-font-md);
 }
 </style>

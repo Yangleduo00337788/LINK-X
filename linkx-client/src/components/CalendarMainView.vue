@@ -4,7 +4,7 @@
  * 日历主视图 — 按设计稿：顶栏 + 月网格 + 底部日程卡片列表
  */
 import { ref, computed, watch, onMounted } from 'vue'
-import { NButton, NIcon, NDropdown, useMessage, useDialog } from 'naive-ui'
+import { NIcon, NDropdown, useMessage, useDialog } from 'naive-ui'
 import {
   CalendarOutline,
   ChevronBackOutline,
@@ -20,6 +20,8 @@ import { useCalendarStore } from '../stores/calendar'
 import type { CalendarEvent } from '../stores/calendar'
 import CalendarEventModal from './calendar/CalendarEventModal.vue'
 import { useI18n } from '../i18n'
+import { LxButton, LxIconButton } from './ui'
+import { lxEventColors } from '../theme/vars'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -32,7 +34,7 @@ const { setSelectedDate, removeEvent, fetchEvents, toggleRemind, startReminderWa
 /** 与设计稿一致：周日为一周起始 */
 const WEEK_LABELS = computed(() => t('calendar.weekdays').split(','))
 const MAX_CELL_EVENTS = 2
-const EVENT_COLORS = ['#3370ff', '#f54a45', '#ff8800', '#7b61ff', '#00b578', '#12b7f5']
+const EVENT_COLORS = lxEventColors
 
 const panelYear = ref(new Date().getFullYear())
 const panelMonth = ref(new Date().getMonth())
@@ -315,26 +317,24 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
       <div class="toolbar-left">
         <n-icon :component="CalendarOutline" :size="20" class="brand-icon" />
         <span class="page-name">{{ t('calendar.title') }}</span>
-        <n-button type="primary" size="small" class="create-btn" @click="openAddForm">
-          <template #icon>
-            <n-icon :component="AddOutline" />
-          </template>
+        <LxButton variant="sm-primary" class="create-btn" @click="openAddForm">
+          <n-icon :component="AddOutline" />
           {{ t('calendar.newEvent') }}
-        </n-button>
+        </LxButton>
       </div>
       <div class="toolbar-right">
-        <button type="button" class="ghost-btn" @click="goToday">{{ t('calendar.today') }}</button>
-        <button type="button" class="icon-btn" :title="t('calendar.prevMonth')" @click="shiftMonth(-1)">
+        <LxButton variant="outline" @click="goToday">{{ t('calendar.today') }}</LxButton>
+        <LxIconButton variant="calendar-nav" :title="t('calendar.prevMonth')" @click="shiftMonth(-1)">
           <n-icon :component="ChevronBackOutline" :size="16" />
-        </button>
-        <button type="button" class="icon-btn" :title="t('calendar.nextMonth')" @click="shiftMonth(1)">
+        </LxIconButton>
+        <LxIconButton variant="calendar-nav" :title="t('calendar.nextMonth')" @click="shiftMonth(1)">
           <n-icon :component="ChevronForwardOutline" :size="16" />
-        </button>
+        </LxIconButton>
         <n-dropdown :options="viewMenuOptions" trigger="click">
-          <button type="button" class="ghost-btn view-btn">
+          <LxButton variant="outline" class="view-btn">
             {{ t('calendar.monthView') }}
             <n-icon :component="ChevronDownOutline" :size="14" />
-          </button>
+          </LxButton>
         </n-dropdown>
       </div>
     </header>
@@ -384,11 +384,11 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
       <!-- 底部日程列表 -->
       <section class="agenda-section">
         <header class="agenda-toolbar">
-          <button type="button" class="agenda-date-btn" @click="showWeekList = false">
+          <button type="button" class="lx-link-btn lx-link-btn--agenda" @click="showWeekList = false">
             {{ showWeekList ? t('calendar.weekAgenda') : selectedHeading }}
             <n-icon :component="ChevronDownOutline" :size="14" />
           </button>
-          <button type="button" class="manage-btn" @click="showWeekList = !showWeekList">
+          <button type="button" class="lx-link-btn lx-link-btn--manage" @click="showWeekList = !showWeekList">
             {{ showWeekList ? t('calendar.dayAgenda') : t('calendar.manage') }}
           </button>
         </header>
@@ -421,23 +421,22 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
               </div>
             </div>
             <div class="card-actions">
-              <button
-                type="button"
-                class="card-icon-btn"
-                :class="{ active: isRemindOn(event.id) }"
+              <LxIconButton
+                variant="card-icon"
+                :active="isRemindOn(event.id)"
                 :title="isRemindOn(event.id) ? t('calendar.remindOffTitle') : t('calendar.remindOnTitle')"
                 @click="onToggleRemind(event)"
               >
                 <n-icon :component="NotificationsOutline" :size="16" />
-              </button>
+              </LxIconButton>
               <n-dropdown
                 :options="moreOptions"
                 trigger="click"
                 @select="(k: string) => onMoreAction(event, k)"
               >
-                <button type="button" class="card-icon-btn" :title="t('calendar.more')">
+                <LxIconButton variant="card-icon" :title="t('calendar.more')">
                   <n-icon :component="EllipsisHorizontal" :size="16" />
-                </button>
+                </LxIconButton>
               </n-dropdown>
             </div>
           </article>
@@ -447,14 +446,13 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
           <button type="button" class="empty-link" @click="openAddForm">{{ t('calendar.newEvent') }}</button>
         </div>
 
-        <button
+        <LxButton
           v-if="!showWeekList"
-          type="button"
-          class="week-footer-btn"
+          variant="week-footer"
           @click="showWeekList = true"
         >
           {{ t('calendar.viewWeek') }}
-        </button>
+        </LxButton>
       </section>
     </div>
 
@@ -482,11 +480,11 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
 .page-toolbar {
   flex-shrink: 0;
   height: 56px;
-  padding: 0 20px;
+  padding: 0 var(--lx-space-3xl);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--lx-space-lg);
   background: var(--lx-bg-card);
   border-bottom: 1px solid var(--lx-border-light);
 }
@@ -495,7 +493,7 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
 .toolbar-right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--lx-space-md);
 }
 
 .brand-icon {
@@ -503,52 +501,14 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
 }
 
 .page-name {
-  font-size: 16px;
+  font-size: var(--lx-font-xl);
   font-weight: 600;
   color: var(--lx-text-body);
-  margin-right: 4px;
+  margin-right: var(--lx-space-xs);
 }
 
 .create-btn {
-  border-radius: 8px !important;
-}
-
-.ghost-btn {
-  height: 32px;
-  padding: 0 12px;
-  border: 1px solid var(--lx-border-light);
-  background: var(--lx-bg-card);
-  border-radius: 8px;
-  font-size: 13px;
-  color: var(--lx-text-body);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  transition: background 0.15s, border-color 0.15s;
-}
-.ghost-btn:hover {
-  background: var(--lx-bg-hover);
-  border-color: var(--lx-accent);
-  color: var(--lx-accent);
-}
-
-.icon-btn {
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--lx-border-light);
-  background: var(--lx-bg-card);
-  border-radius: 8px;
-  color: var(--lx-text-body);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.icon-btn:hover {
-  background: var(--lx-bg-hover);
-  color: var(--lx-accent);
-  border-color: var(--lx-accent);
+  border-radius: var(--lx-radius-sm) !important;
 }
 
 .view-btn {
@@ -569,7 +529,7 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
   flex: 2 1 0;
   min-height: 380px;
   background: var(--lx-bg-card);
-  padding: 16px 20px 12px;
+  padding: var(--lx-space-2xl) var(--lx-space-3xl) var(--lx-space-lg);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -577,8 +537,8 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
 }
 
 .month-label {
-  margin: 0 0 14px;
-  font-size: 18px;
+  margin: 0 0 var(--lx-space-xl);
+  font-size: var(--lx-font-3xl);
   font-weight: 600;
   color: var(--lx-text-body);
   flex-shrink: 0;
@@ -587,15 +547,15 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
 .weekday-row {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  margin-bottom: 6px;
+  margin-bottom: var(--lx-space-sm);
   flex-shrink: 0;
 }
 
 .weekday {
   text-align: center;
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
-  padding: 2px 0 10px;
+  padding: var(--lx-space-2xs) 0 var(--lx-space-md);
   font-weight: 500;
 }
 
@@ -605,14 +565,14 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   grid-template-rows: repeat(6, minmax(64px, 1fr));
-  gap: 4px;
+  gap: var(--lx-space-xs);
 }
 
 .day-cell {
   border: none;
   background: transparent;
-  border-radius: 10px;
-  padding: 6px 8px 6px;
+  border-radius: var(--lx-radius-xl);
+  padding: var(--lx-space-sm) var(--lx-space) var(--lx-space-sm);
   text-align: left;
   cursor: pointer;
   display: flex;
@@ -621,7 +581,7 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
   min-width: 0;
   min-height: 64px;
   overflow: hidden;
-  transition: background 0.12s;
+  transition: background var(--lx-duration-fast);
 }
 .day-cell:hover {
   background: var(--lx-bg-hover);
@@ -641,16 +601,16 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   font-weight: 500;
   color: var(--lx-text-body);
-  margin-bottom: 6px;
+  margin-bottom: var(--lx-space-sm);
   flex-shrink: 0;
 }
 
 .day-cell.today .day-num {
   background: var(--lx-accent);
-  color: #fff;
+  color: var(--lx-text-on-accent);
   font-weight: 600;
 }
 
@@ -664,7 +624,7 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: var(--lx-space-2xs);
   min-height: 0;
   overflow: hidden;
 }
@@ -672,12 +632,12 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
 .cell-event {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--lx-space-xs);
   min-width: 0;
   height: 18px;
   flex-shrink: 0;
-  font-size: 12px;
-  line-height: 18px;
+  font-size: var(--lx-font-sm);
+  line-height: var(--lx-font-3xl);
   font-weight: 500;
 }
 
@@ -695,10 +655,10 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
 }
 
 .cell-more {
-  font-size: 11px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-muted);
-  padding-left: 9px;
-  line-height: 16px;
+  padding-left: var(--lx-space);
+  line-height: var(--lx-font-xl);
   flex-shrink: 0;
 }
 
@@ -708,7 +668,7 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
   min-height: 180px;
   max-height: 38%;
   background: var(--lx-bg-panel);
-  padding: 12px 20px 16px;
+  padding: var(--lx-space-lg) var(--lx-space-3xl) var(--lx-space-2xl);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -718,34 +678,8 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: var(--lx-space-lg);
   flex-shrink: 0;
-}
-
-.agenda-date-btn {
-  border: none;
-  background: transparent;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--lx-text-body);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0;
-}
-
-.manage-btn {
-  border: none;
-  background: transparent;
-  font-size: 13px;
-  color: var(--lx-accent);
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 6px;
-}
-.manage-btn:hover {
-  background: var(--lx-accent-soft);
 }
 
 .card-list {
@@ -754,20 +688,20 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding-bottom: 8px;
+  gap: var(--lx-space-md);
+  padding-bottom: var(--lx-space);
 }
 
 .event-card {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  padding: 14px 14px 14px 12px;
+  gap: var(--lx-space-lg);
+  padding: var(--lx-space-xl) var(--lx-space-xl) var(--lx-space-xl) var(--lx-space-lg);
   background: var(--lx-bg-card);
-  border-radius: 12px;
+  border-radius: var(--lx-radius-lg);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   border: 1px solid var(--lx-border-light);
-  transition: box-shadow 0.15s;
+  transition: box-shadow var(--lx-duration);
 }
 .event-card:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
@@ -777,7 +711,7 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  margin-top: 6px;
+  margin-top: var(--lx-space-sm);
   flex-shrink: 0;
 }
 
@@ -789,24 +723,24 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
 .card-title-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--lx-space);
   flex-wrap: wrap;
 }
 
 .card-title {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--lx-font);
   font-weight: 600;
   color: var(--lx-text-body);
-  line-height: 1.35;
+  line-height: var(--lx-leading-snug);
 }
 
 .status-pill {
-  font-size: 11px;
+  font-size: var(--lx-font-xs);
   font-weight: 500;
-  padding: 2px 8px;
-  border-radius: 999px;
-  line-height: 1.4;
+  padding: var(--lx-space-2xs) var(--lx-space);
+  border-radius: var(--lx-radius-pill);
+  line-height: var(--lx-leading);
 }
 .status-pill.active {
   background: var(--lx-accent-soft);
@@ -814,7 +748,7 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
 }
 .status-pill.soon {
   background: rgba(51, 112, 255, 0.12);
-  color: #3370ff;
+  color: var(--lx-event-blue);
 }
 .status-pill.done {
   background: rgba(0, 0, 0, 0.05);
@@ -822,11 +756,11 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
 }
 
 .card-meta {
-  margin-top: 4px;
-  font-size: 12px;
+  margin-top: var(--lx-space-xs);
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
   display: flex;
-  gap: 10px;
+  gap: var(--lx-space-md);
   font-variant-numeric: tabular-nums;
 }
 
@@ -835,44 +769,23 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
 }
 
 .card-loc {
-  margin-top: 4px;
+  margin-top: var(--lx-space-xs);
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 12px;
+  gap: var(--lx-space-xs);
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
 }
 
 .card-actions {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--lx-space-2xs);
   flex-shrink: 0;
   opacity: 0.7;
 }
 .event-card:hover .card-actions {
   opacity: 1;
-}
-
-.card-icon-btn {
-  width: 30px;
-  height: 30px;
-  border: none;
-  background: transparent;
-  border-radius: 8px;
-  color: var(--lx-text-muted);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.card-icon-btn:hover {
-  background: var(--lx-bg-hover);
-  color: var(--lx-accent);
-}
-.card-icon-btn.active {
-  color: var(--lx-accent);
-  background: var(--lx-accent-soft);
 }
 
 .agenda-empty {
@@ -881,38 +794,20 @@ const agendaList = computed(() => (showWeekList.value ? weekEvents.value : event
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: var(--lx-space);
   color: var(--lx-text-muted);
   min-height: 80px;
 }
 .agenda-empty p {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--lx-font-md);
 }
 
 .empty-link {
   border: none;
   background: transparent;
   color: var(--lx-accent);
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   cursor: pointer;
-}
-
-.week-footer-btn {
-  flex-shrink: 0;
-  margin-top: 10px;
-  width: 100%;
-  height: 40px;
-  border: none;
-  border-radius: 10px;
-  background: var(--lx-bg-card);
-  color: var(--lx-text-muted);
-  font-size: 13px;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-.week-footer-btn:hover {
-  background: var(--lx-accent-soft);
-  color: var(--lx-accent);
 }
 </style>

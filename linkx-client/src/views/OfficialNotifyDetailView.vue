@@ -14,6 +14,7 @@ import WindowCaptionButtons from '../components/WindowCaptionButtons.vue'
 import { ChevronBackOutline } from '@vicons/ionicons5'
 import { NIcon } from 'naive-ui'
 import { useI18n } from '../i18n'
+import { LxIconButton } from '../components/ui'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -57,15 +58,14 @@ watch(
   <div class="standalone-shell">
     <header class="standalone-header">
       <div class="header-left">
-        <button
+        <LxIconButton
           v-if="showBack"
-          type="button"
           class="back-btn"
           :title="t('common.back')"
           @click="goBack"
         >
           <n-icon :component="ChevronBackOutline" :size="20" />
-        </button>
+        </LxIconButton>
         <div v-else class="header-spacer" aria-hidden="true" />
       </div>
       <h1 class="header-title">{{ t('chat.officialDetail') }}</h1>
@@ -83,14 +83,14 @@ watch(
 .standalone-shell {
   width: 100%;
   height: 100%;
-  background: #ededed;
+  background: var(--lx-bg-panel);
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
 :global([data-theme='dark']) .standalone-shell {
-  background: var(--lx-bg-window, #1a1a1a);
+  background: var(--lx-bg-window);
 }
 
 .standalone-header {
@@ -101,9 +101,9 @@ watch(
   min-height: 40px;
   width: 100%;
   box-sizing: border-box;
-  padding: 0 0 0 14px;
-  border-bottom: 1px solid #e0e0e0;
-  background: #f7f7f7;
+  padding: 0 0 0 var(--lx-space-xl);
+  border-bottom: 1px solid var(--lx-divider);
+  background: var(--lx-bg-panel);
   -webkit-app-region: drag;
 }
 
@@ -128,7 +128,7 @@ watch(
   width: 36px;
   height: 36px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--lx-radius-sm);
   background: transparent;
   color: var(--lx-text-body);
   display: inline-flex;
@@ -147,7 +147,7 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: var(--lx-font);
   font-weight: 500;
   color: var(--lx-text-body);
   pointer-events: none;
@@ -164,7 +164,7 @@ watch(
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 20px 16px 28px;
+  padding: var(--lx-space-3xl) var(--lx-space-2xl) var(--lx-space-5xl-minus);
   box-sizing: border-box;
 }
 </style>

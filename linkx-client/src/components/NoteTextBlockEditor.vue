@@ -293,11 +293,11 @@ defineExpose({
 .note-text-editor {
   width: 100%;
   min-height: 1.65em;
-  margin: 0 0 12px;
+  margin: 0 0 var(--lx-space-lg);
   border: none;
   outline: none;
-  font-size: 14px;
-  line-height: 1.65;
+  font-size: var(--lx-font);
+  line-height: var(--lx-leading-relaxed);
   color: var(--lx-text-body);
   font-family: inherit;
   word-break: break-word;
@@ -343,7 +343,7 @@ defineExpose({
 .note-text-editor :deep(.note-task-checkbox) {
   width: 14px;
   height: 14px;
-  margin: 0 8px 0 2px;
+  margin: 0 var(--lx-space) 0 var(--lx-space-2xs);
   vertical-align: -2px;
   accent-color: var(--lx-accent);
   cursor: pointer;

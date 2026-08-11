@@ -26,6 +26,7 @@ import { setLocale } from './i18n'
 import 'uno.css'
 // 全局 CSS 变量与设计 Token
 import './assets/styles.css'
+import './styles/ui-components.css'
 
 // 创建 Pinia 实例
 const pinia = createPinia()

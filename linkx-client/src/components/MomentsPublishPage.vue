@@ -9,7 +9,7 @@
  * 同一套页面、同一套交互,差异仅在标题与是否渲染媒体区。
  */
 import { computed, nextTick, ref, onMounted, onUnmounted } from 'vue'
-import { NIcon, NModal, NButton, NRadio, NRadioGroup, useMessage } from 'naive-ui'
+import { NIcon, NModal, NRadio, NRadioGroup, useMessage } from 'naive-ui'
 import {
   LocationOutline,
   AtCircleOutline,
@@ -35,6 +35,7 @@ import AtMentionPicker from './common/AtMentionPicker.vue'
 import LocationPickerPage from './LocationPickerPage.vue'
 import WindowCaptionButtons from './WindowCaptionButtons.vue'
 import { useI18n } from '../i18n'
+import { LxButton, LxIconButton } from './ui'
 
 const route = useRoute()
 const momentsStore = useMomentsStore()
@@ -444,14 +445,14 @@ async function publish() {
         {{ mode === 'text' ? t('moments.publishTextTitle') : t('moments.publishMediaTitle') }}
       </h1>
       <div class="header-right">
-        <button
-          type="button"
+        <LxButton
+          variant="sm-primary"
           class="header-btn publish-btn"
           :disabled="!canPublish"
           @click="publish"
         >
           {{ publishing ? t('moments.publishing') : t('moments.publish') }}
-        </button>
+        </LxButton>
         <WindowCaptionButtons />
       </div>
     </header>
@@ -511,9 +512,9 @@ async function publish() {
               <n-icon :component="PlayCircleOutline" :size="36" />
             </div>
             <span class="media-tag">{{ t('moments.video') }}</span>
-            <button type="button" class="cell-remove" @click="removeVideo(j)">
+            <LxIconButton class="cell-remove" :title="t('common.delete')" @click="removeVideo(j)">
               <n-icon :component="TrashOutline" :size="10" />
-            </button>
+            </LxIconButton>
           </div>
 
           <!-- 已选图片(3 列网格,正方形) -->
@@ -523,9 +524,9 @@ async function publish() {
             class="media-cell"
           >
             <img :src="img.preview" alt="" />
-            <button type="button" class="cell-remove" @click="removeImage(i)">
+            <LxIconButton class="cell-remove" :title="t('common.delete')" @click="removeImage(i)">
               <n-icon :component="TrashOutline" :size="10" />
-            </button>
+            </LxIconButton>
           </div>
         </div>
         <input
@@ -569,9 +570,9 @@ async function publish() {
 
     <!-- 底部固定区域 -->
     <footer class="page-footer">
-      <button type="button" class="publish-btn-footer" :disabled="!canPublish" @click="publish">
+      <LxButton variant="confirm-block" class="publish-btn-footer" :disabled="!canPublish" @click="publish">
         {{ publishing ? t('moments.publishing') : t('moments.publish') }}
-      </button>
+      </LxButton>
     </footer>
   </div>
 
@@ -620,8 +621,8 @@ async function publish() {
         <div v-if="!contactsStore.friends.length" class="no-friends">{{ t('moments.noFriends') }}</div>
       </div>
       <div class="modal-actions">
-        <n-button @click="showAtUsersModal = false">{{ t('common.cancel') }}</n-button>
-        <n-button type="primary" @click="confirmAtUsers">{{ t('common.confirm') }}</n-button>
+        <LxButton variant="modal" @click="showAtUsersModal = false">{{ t('common.cancel') }}</LxButton>
+        <LxButton variant="modal-primary" @click="confirmAtUsers">{{ t('common.confirm') }}</LxButton>
       </div>
     </div>
   </n-modal>
@@ -636,8 +637,8 @@ async function publish() {
         </div>
       </n-radio-group>
       <div class="modal-actions">
-        <n-button @click="showVisibilityModal = false">{{ t('common.cancel') }}</n-button>
-        <n-button type="primary" @click="confirmVisibility">{{ t('common.confirm') }}</n-button>
+        <LxButton variant="modal" @click="showVisibilityModal = false">{{ t('common.cancel') }}</LxButton>
+        <LxButton variant="modal-primary" @click="confirmVisibility">{{ t('common.confirm') }}</LxButton>
       </div>
     </div>
   </n-modal>
@@ -647,7 +648,7 @@ async function publish() {
 /* ========== 成功动画 ========== */
 .success-fade-enter-active,
 .success-fade-leave-active {
-  transition: opacity 0.4s ease, transform 0.4s ease;
+  transition: opacity var(--lx-duration-slower) ease, transform var(--lx-duration-slower) ease;
 }
 .success-fade-enter-from,
 .success-fade-leave-to {
@@ -663,23 +664,23 @@ async function publish() {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: var(--lx-z-toast);
 }
 
 .success-content {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: var(--lx-space-2xl);
 }
 
 .success-icon {
-  color: var(--lx-accent, #07c160);
-  animation: bounce 0.6s ease;
+  color: var(--lx-accent, var(--lx-success-strong));
+  animation: bounce var(--lx-duration-slowest) ease;
 }
 
 .success-text {
-  font-size: 20px;
+  font-size: var(--lx-font-4xl);
   font-weight: 600;
   color: var(--lx-text-body);
 }
@@ -706,12 +707,12 @@ async function publish() {
   display: flex;
   align-items: stretch;
   justify-content: space-between;
-  padding: 0 0 0 14px;
+  padding: 0 0 0 var(--lx-space-xl);
   border-bottom: 1px solid var(--lx-border-light);
   -webkit-app-region: drag;
   flex-shrink: 0;
   background: var(--lx-bg-card);
-  gap: 8px;
+  gap: var(--lx-space);
   width: 100%;
   min-height: 48px;
   box-sizing: border-box;
@@ -719,7 +720,7 @@ async function publish() {
 
 .header-left-spacer {
   display: flex;
-  gap: 4px;
+  gap: var(--lx-space-xs);
   -webkit-app-region: no-drag;
   min-width: 60px;
   pointer-events: none;
@@ -731,48 +732,21 @@ async function publish() {
   align-items: stretch;
   flex-shrink: 0;
   -webkit-app-region: no-drag;
-  gap: 4px;
+  gap: var(--lx-space-xs);
 }
 
 .header-btn {
   -webkit-app-region: no-drag;
-  border: none;
-  background: transparent;
-  font-size: 15px;
-  color: var(--lx-text-body);
-  cursor: pointer;
-  padding: 6px 12px;
-  transition: opacity 0.15s ease;
   flex-shrink: 0;
   align-self: center;
 }
-.header-btn:active {
-  opacity: 0.6;
-}
-
-.cancel-btn {
-  font-size: 15px;
-  color: var(--lx-text-body);
-}
 
 .publish-btn {
-  background: var(--lx-accent, #07c160);
-  color: #fff;
-  padding: 6px 14px;
-  border-radius: 6px;
-  font-size: 14px;
   min-width: 56px;
-  text-align: center;
-  font-weight: 500;
-}
-.publish-btn:disabled {
-  background: var(--lx-bg-input);
-  color: var(--lx-text-muted);
-  cursor: not-allowed;
 }
 
 .page-title {
-  font-size: 16px;
+  font-size: var(--lx-font-xl);
   font-weight: 600;
   color: var(--lx-text-body);
   margin: 0;
@@ -793,7 +767,7 @@ async function publish() {
 /* ========== 文字编辑器 ========== */
 .editor-section {
   position: relative;
-  padding: 16px 20px 0;
+  padding: var(--lx-space-2xl) var(--lx-space-3xl) 0;
 }
 
 .text-editor {
@@ -804,8 +778,8 @@ async function publish() {
   resize: none;
   background: transparent;
   color: var(--lx-text);
-  font-size: 17px;
-  line-height: 1.5;
+  font-size: var(--lx-font-2xl);
+  line-height: var(--lx-leading-normal);
   font-family: inherit;
   padding: 0;
 }
@@ -813,21 +787,21 @@ async function publish() {
   color: var(--lx-text-muted);
 }
 .text-editor.over-limit {
-  color: var(--lx-danger, #e05454);
+  color: var(--lx-danger, var(--lx-danger));
 }
 
 /* ========== 媒体上传(媒体模式) ========== */
 .media-section {
-  padding: 12px 20px 8px;
+  padding: var(--lx-space-lg) var(--lx-space-3xl) var(--lx-space);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--lx-space-md);
 }
 
 .media-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--lx-space);
   align-items: flex-start;
 }
 
@@ -835,7 +809,7 @@ async function publish() {
   position: relative;
   width: 68px;
   height: 68px;
-  border-radius: 6px;
+  border-radius: var(--lx-radius-xs);
   overflow: hidden;
   background: var(--lx-bg-input);
 }
@@ -848,7 +822,7 @@ async function publish() {
 }
 
 .video-cell {
-  background: #000;
+  background: var(--lx-black);
 }
 .video-cell video {
   object-fit: contain;
@@ -861,7 +835,7 @@ async function publish() {
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.32);
-  color: #fff;
+  color: var(--lx-text-on-accent);
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
   pointer-events: none;
 }
@@ -871,10 +845,10 @@ async function publish() {
   bottom: 6px;
   left: 6px;
   background: rgba(0, 0, 0, 0.6);
-  color: #fff;
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 4px;
+  color: var(--lx-text-on-accent);
+  font-size: var(--lx-font-xs);
+  padding: var(--lx-space-2xs) var(--lx-space);
+  border-radius: var(--lx-radius-2xs);
 }
 
 .cell-remove {
@@ -886,12 +860,12 @@ async function publish() {
   border-radius: 50%;
   border: none;
   background: rgba(0, 0, 0, 0.55);
-  color: #fff;
+  color: var(--lx-text-on-accent);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s ease;
+  transition: background var(--lx-duration) ease;
 }
 .cell-remove:hover {
   background: rgba(224, 84, 84, 0.85);
@@ -909,8 +883,8 @@ async function publish() {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
-  font-size: 12px;
+  transition: all var(--lx-duration-md) ease;
+  font-size: var(--lx-font-sm);
   align-self: flex-start;
 }
 .add-slot:hover:not(:disabled) {
@@ -937,17 +911,17 @@ async function publish() {
   left: 0;
   height: 100%;
   background: linear-gradient(90deg, var(--lx-accent), var(--lx-accent));
-  transition: width 0.3s ease;
+  transition: width var(--lx-duration-slow) ease;
 }
 .upload-progress-text {
   position: absolute;
   top: 8px;
   right: 12px;
-  font-size: 11px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-muted);
   background: var(--lx-bg-card);
-  padding: 2px 6px;
-  border-radius: 3px;
+  padding: var(--lx-space-2xs) var(--lx-space-sm);
+  border-radius: var(--lx-radius-2xs);
 }
 .options-list {
   list-style: none;
@@ -961,12 +935,12 @@ async function publish() {
 .option-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
+  gap: var(--lx-space-lg);
+  padding: var(--lx-space-md) var(--lx-space-2xl);
   border-bottom: 1px solid var(--lx-border-light);
   background: var(--lx-bg-card);
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background var(--lx-duration) ease;
 }
 .option-row:last-child {
   border-bottom: none;
@@ -985,62 +959,46 @@ async function publish() {
 
 .option-label {
   flex: 1;
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   color: var(--lx-text-body);
 }
 
 .option-value {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
-  margin-right: 4px;
+  margin-right: var(--lx-space-xs);
 }
 
 .option-arrow {
   color: var(--lx-text-muted);
   opacity: 0.6;
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
 }
 
 /* ========== 底部固定区域 ========== */
 .page-footer {
   flex-shrink: 0;
-  padding: 12px 16px;
+  padding: var(--lx-space-lg) var(--lx-space-2xl);
   border-top: 1px solid var(--lx-border-light);
   background: var(--lx-bg-card);
 }
 
 .publish-btn-footer {
   width: 100%;
-  padding: 12px;
-  border: none;
-  background: var(--lx-accent, #07c160);
-  color: #fff;
-  font-size: 15px;
-  font-weight: 500;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: opacity 0.15s ease;
-}
-.publish-btn-footer:hover:not(:disabled) {
-  opacity: 0.9;
-}
-.publish-btn-footer:disabled {
-  background: var(--lx-bg-input);
-  color: var(--lx-text-muted);
-  cursor: not-allowed;
+  margin: 0;
 }
 
 /* ========== 弹窗样式 ========== */
 .location-modal {
-  padding: 8px 0;
+  padding: var(--lx-space) 0;
 }
 
 .location-input {
   width: 100%;
-  padding: 10px 12px;
+  padding: var(--lx-space-md) var(--lx-space-lg);
   border: 1px solid var(--lx-border);
-  border-radius: 8px;
-  font-size: 15px;
+  border-radius: var(--lx-radius-sm);
+  font-size: var(--lx-font-lg);
   background: var(--lx-bg-input);
   color: var(--lx-text);
   outline: none;
@@ -1053,7 +1011,7 @@ async function publish() {
 .at-users-modal {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--lx-space-lg);
   max-height: 400px;
   overflow: hidden;
 }
@@ -1061,22 +1019,22 @@ async function publish() {
 .selected-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  padding: 8px;
+  gap: var(--lx-space);
+  padding: var(--lx-space);
   background: var(--lx-bg-input);
-  border-radius: 8px;
+  border-radius: var(--lx-radius-sm);
   min-height: 40px;
 }
 
 .selected-tag {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
+  gap: var(--lx-space-xs);
+  padding: var(--lx-space-xs) var(--lx-space-md);
   background: var(--lx-accent-soft);
   color: var(--lx-accent);
-  border-radius: 12px;
-  font-size: 13px;
+  border-radius: var(--lx-radius-lg);
+  font-size: var(--lx-font-md);
 }
 
 .tag-close {
@@ -1096,11 +1054,11 @@ async function publish() {
 .friend-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 8px;
-  border-radius: 8px;
+  gap: var(--lx-space-lg);
+  padding: var(--lx-space-md) var(--lx-space);
+  border-radius: var(--lx-radius-sm);
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background var(--lx-duration) ease;
 }
 .friend-item:hover {
   background: var(--lx-bg-hover);
@@ -1123,14 +1081,14 @@ async function publish() {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  font-size: 16px;
+  color: var(--lx-text-on-accent);
+  font-size: var(--lx-font-xl);
   font-weight: 600;
 }
 
 .friend-name {
   flex: 1;
-  font-size: 15px;
+  font-size: var(--lx-font-lg);
   color: var(--lx-text-body);
 }
 
@@ -1140,38 +1098,38 @@ async function publish() {
 
 .no-friends {
   text-align: center;
-  padding: 20px;
+  padding: var(--lx-space-3xl);
   color: var(--lx-text-muted);
 }
 
 .visibility-modal {
-  padding: 8px 0;
+  padding: var(--lx-space) 0;
 }
 
 .visibility-options {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--lx-space-2xl);
 }
 
 .visibility-option {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--lx-space-2xs);
 }
 
 .visibility-desc {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
-  margin-left: 24px;
+  margin-left: var(--lx-space-4xl);
 }
 
 .modal-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
-  margin-top: 16px;
-  padding-top: 16px;
+  gap: var(--lx-space-lg);
+  margin-top: var(--lx-space-2xl);
+  padding-top: var(--lx-space-2xl);
   border-top: 1px solid var(--lx-border-light);
 }
 
@@ -1182,7 +1140,7 @@ async function publish() {
 /* ========== 页面滑动动画 ========== */
 .page-slide-enter-active,
 .page-slide-leave-active {
-  transition: transform 0.25s ease, opacity 0.25s ease;
+  transition: transform var(--lx-duration-md) ease, opacity var(--lx-duration-md) ease;
 }
 .page-slide-enter-from {
   transform: translateX(100%);

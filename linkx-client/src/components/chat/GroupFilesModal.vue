@@ -16,6 +16,7 @@ import { useOverlayStore } from '../../stores/overlay'
 import { useMessage } from 'naive-ui'
 // 文件大小格式化工具
 import { useI18n } from '../../i18n'
+import { LxButton } from '../ui'
 
 const message = useMessage()
 const { t } = useI18n()
@@ -162,7 +163,7 @@ async function onUploadPicked(e: Event) {
         <footer class="win-foot">
           <span>{{ t('extra.fileCount', { n: filteredFiles.length }) }}</span>
           <input ref="uploadInputRef" type="file" hidden @change="onUploadPicked" />
-          <button type="button" class="upload-btn" @click="triggerUpload">{{ t('extra.uploadFile') }}</button>
+          <LxButton variant="upload" @click="triggerUpload">{{ t('extra.uploadFile') }}</LxButton>
         </footer>
       </div>
     </div>
@@ -173,12 +174,12 @@ async function onUploadPicked(e: Event) {
 .modal-root {
   position: fixed;
   inset: 0;
-  z-index: 2200;
+  z-index: var(--lx-z-dialog);
   background: var(--lx-bg-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: var(--lx-space-4xl);
 }
 
 .files-window {
@@ -195,26 +196,26 @@ async function onUploadPicked(e: Event) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
+  padding: var(--lx-space-2xl) var(--lx-space-3xl);
   border-bottom: 1px solid var(--lx-border-light);
 }
 
 .win-head h2 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--lx-font-xl);
   color: var(--lx-text-body);
 }
 
 .close-x {
   border: none;
   background: none;
-  font-size: 22px;
+  font-size: var(--lx-font-5xl);
   cursor: pointer;
   color: var(--lx-text-muted);
 }
 
 .search-row {
-  padding: 12px 20px;
+  padding: var(--lx-space-lg) var(--lx-space-3xl);
 }
 
 .search-field {
@@ -222,7 +223,7 @@ async function onUploadPicked(e: Event) {
   height: 32px;
   border: 1px solid var(--lx-border-light);
   border-radius: var(--lx-radius);
-  padding: 0 12px;
+  padding: 0 var(--lx-space-lg);
   background: var(--lx-bg-card);
   color: var(--lx-text);
 }
@@ -230,19 +231,19 @@ async function onUploadPicked(e: Event) {
 .file-scroll {
   flex: 1;
   overflow-y: auto;
-  padding: 0 20px;
+  padding: 0 var(--lx-space-3xl);
 }
 
 .month-title {
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   color: var(--lx-text-muted);
-  margin: 12px 0 8px;
+  margin: var(--lx-space-lg) 0 var(--lx-space);
 }
 
 .file-row {
   display: flex;
-  gap: 12px;
-  padding: 10px 0;
+  gap: var(--lx-space-lg);
+  padding: var(--lx-space-md) 0;
   border-bottom: 1px solid var(--lx-border-light);
   cursor: pointer;
 }
@@ -252,42 +253,33 @@ async function onUploadPicked(e: Event) {
 }
 
 .file-name {
-  font-size: 14px;
+  font-size: var(--lx-font);
   color: var(--lx-text-body);
 }
 
 .file-meta {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
   display: flex;
-  gap: 8px;
-  margin-top: 4px;
+  gap: var(--lx-space);
+  margin-top: var(--lx-space-xs);
   flex-wrap: wrap;
 }
 
 .empty {
   text-align: center;
   color: var(--lx-text-muted);
-  padding: 32px;
+  padding: var(--lx-space-5xl);
 }
 
 .win-foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 20px;
+  padding: var(--lx-space-lg) var(--lx-space-3xl);
   border-top: 1px solid var(--lx-border-light);
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   color: var(--lx-text-secondary);
 }
 
-.upload-btn {
-  height: 32px;
-  padding: 0 16px;
-  border: none;
-  border-radius: var(--lx-radius);
-  background: var(--lx-accent);
-  color: var(--lx-bg-card);
-  cursor: pointer;
-}
 </style>

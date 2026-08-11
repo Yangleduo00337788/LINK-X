@@ -1,12 +1,13 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
 import { computed } from 'vue'
-import { NSwitch, NIcon, NRadioGroup, NRadio, NButton, NTimePicker } from 'naive-ui'
+import { NSwitch, NIcon, NRadioGroup, NRadio, NTimePicker } from 'naive-ui'
 import { MusicalNotesOutline, PlayCircleOutline, MoonOutline, OptionsOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useAppSettingsStore } from '../../stores/appSettings'
 import { listTones, playTone, unlockAudio, type ToneId } from '../../utils/notifyTone'
 import { useI18n } from '../../i18n'
+import { LxGroupCard, LxButton } from '../ui'
 
 const appSettingsStore = useAppSettingsStore()
 const {
@@ -84,7 +85,7 @@ function onQuietEnd(v: number | null) {
 
 <template>
   <div class="settings-scroll">
-    <section class="group-card">
+    <LxGroupCard tag="section" variant="settings">
       <div class="group-head"><span>{{ t('notifications.title') }}</span></div>
       <div class="setting-row">
         <div class="setting-text">
@@ -130,9 +131,9 @@ function onQuietEnd(v: number | null) {
           @update:value="toggleSwitch('notifySound')"
         />
       </div>
-    </section>
+    </LxGroupCard>
 
-    <section class="group-card">
+    <LxGroupCard tag="section" variant="settings">
       <div class="group-head">
         <n-icon :component="OptionsOutline" :size="16" class="group-ico" />
         <span>{{ t('notifications.channelTitle') }}</span>
@@ -176,9 +177,9 @@ function onQuietEnd(v: number | null) {
         </div>
         <n-switch v-model:value="notifySystem" size="small" @update:value="toggleSwitch('notifySystem')" />
       </div>
-    </section>
+    </LxGroupCard>
 
-    <section class="group-card">
+    <LxGroupCard tag="section" variant="settings">
       <div class="group-head">
         <n-icon :component="MoonOutline" :size="16" class="group-ico" />
         <span>{{ t('notifications.quietTitle') }}</span>
@@ -211,9 +212,9 @@ function onQuietEnd(v: number | null) {
           @update:value="onQuietEnd"
         />
       </div>
-    </section>
+    </LxGroupCard>
 
-    <section class="group-card">
+    <LxGroupCard tag="section" variant="settings">
       <div class="group-head">
         <n-icon :component="MusicalNotesOutline" :size="16" class="group-ico" />
         <span>{{ t('notifications.toneTitle') }}</span>
@@ -233,15 +234,13 @@ function onQuietEnd(v: number | null) {
       </div>
       <p class="local-note">{{ t('notifications.tipSync') }}</p>
       <div class="tone-preview-row">
-        <n-button size="tiny" tertiary @click="playTone(notifyTone)">
-          <template #icon>
-            <n-icon :component="PlayCircleOutline" />
-          </template>
+        <LxButton variant="link-md" @click="playTone(notifyTone)">
+          <n-icon :component="PlayCircleOutline" :size="16" />
           {{ t('notifications.previewTone', { label: activeToneLabel }) }}
-        </n-button>
+        </LxButton>
       </div>
       <p class="local-note">{{ t('notifications.desktopLocalOnly') }}</p>
-    </section>
+    </LxGroupCard>
   </div>
 </template>
 
@@ -251,33 +250,33 @@ function onQuietEnd(v: number | null) {
 .tone-row {
   flex-direction: column;
   align-items: flex-start;
-  gap: 10px;
+  gap: var(--lx-space-md);
 }
 
 .tone-preview-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 16px 8px;
+  gap: var(--lx-space-lg);
+  padding: 0 var(--lx-space-2xl) var(--lx-space);
 }
 
 .quiet-range {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 16px 16px;
+  gap: var(--lx-space-md);
+  padding: 0 var(--lx-space-2xl) var(--lx-space-2xl);
 }
 
 .quiet-sep {
   color: var(--lx-text-muted);
-  font-size: 13px;
+  font-size: var(--lx-font-md);
 }
 
 .local-note {
   margin: 0;
-  padding: 0 16px 16px;
-  font-size: 12px;
+  padding: 0 var(--lx-space-2xl) var(--lx-space-2xl);
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
-  line-height: 1.4;
+  line-height: var(--lx-leading);
 }
 </style>

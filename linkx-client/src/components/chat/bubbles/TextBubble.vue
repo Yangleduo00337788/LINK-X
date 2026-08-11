@@ -107,7 +107,7 @@ const hasReply = computed(() => !!props.msg.replyTo)
 .text-message-stack {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--lx-space-xs);
   max-width: 100%;
 }
 

@@ -24,6 +24,7 @@ import * as groupApi from '../../api/group'
 import * as groupInvitationApi from '../../api/groupInvitation'
 import { useMessage } from 'naive-ui'
 import { useI18n } from '../../i18n'
+import { LxButton } from '../ui'
 
 const { t } = useI18n()
 const message = useMessage()
@@ -198,15 +199,14 @@ watch(addMembersOpen, async (open, prev) => {
             <span class="history-link">{{ t('extra.recent30') }}</span>
           </label>
           <div class="footer-btns">
-            <button type="button" class="btn" :disabled="submitting" @click="cancel">{{ t('common.cancel') }}</button>
-            <button
-              type="button"
-              class="btn primary"
+            <LxButton variant="modal" :disabled="submitting" @click="cancel">{{ t('common.cancel') }}</LxButton>
+            <LxButton
+              variant="modal-primary"
               :disabled="submitting || selectedList.length === 0"
               @click="confirm"
             >
               {{ t('common.confirm') }}
-            </button>
+            </LxButton>
           </div>
         </div>
       </div>
@@ -218,12 +218,12 @@ watch(addMembersOpen, async (open, prev) => {
 .modal-root {
   position: fixed;
   inset: 0;
-  z-index: 2200;
+  z-index: var(--lx-z-dialog);
   background: var(--lx-bg-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: var(--lx-space-4xl);
 }
 
 .modal-card {
@@ -238,8 +238,8 @@ watch(addMembersOpen, async (open, prev) => {
 
 .modal-title {
   margin: 0;
-  padding: 18px 24px;
-  font-size: 17px;
+  padding: var(--lx-space-2xl) var(--lx-space-4xl);
+  font-size: var(--lx-font-2xl);
   font-weight: 600;
   text-align: center;
 }
@@ -248,8 +248,8 @@ watch(addMembersOpen, async (open, prev) => {
   flex: 1;
   display: flex;
   min-height: 0;
-  margin: 0 20px;
-  border: 1px solid #eee;
+  margin: 0 var(--lx-space-3xl);
+  border: 1px solid var(--lx-divider);
   border-radius: var(--lx-radius);
   overflow: hidden;
 }
@@ -258,11 +258,11 @@ watch(addMembersOpen, async (open, prev) => {
   width: 50%;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #eee;
+  border-right: 1px solid var(--lx-divider);
 }
 
 .search-wrap {
-  padding: 12px;
+  padding: var(--lx-space-lg);
 }
 
 .search-field {
@@ -270,8 +270,8 @@ watch(addMembersOpen, async (open, prev) => {
   height: 32px;
   border: 1px solid var(--lx-bg-panel-deep);
   border-radius: var(--lx-radius);
-  padding: 0 12px;
-  font-size: 14px;
+  padding: 0 var(--lx-space-lg);
+  font-size: var(--lx-font);
   outline: none;
   box-sizing: border-box;
 }
@@ -279,18 +279,18 @@ watch(addMembersOpen, async (open, prev) => {
 .scroll-list {
   flex: 1;
   overflow-y: auto;
-  padding: 0 8px 12px;
+  padding: 0 var(--lx-space) var(--lx-space-lg);
 }
 
 .group-head {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 6px;
+  gap: var(--lx-space-sm);
+  padding: var(--lx-space) var(--lx-space-sm);
   border: none;
   background: transparent;
-  font-size: 14px;
+  font-size: var(--lx-font);
   cursor: pointer;
   text-align: left;
 }
@@ -303,13 +303,13 @@ watch(addMembersOpen, async (open, prev) => {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 8px 8px 28px;
+  gap: var(--lx-space-md);
+  padding: var(--lx-space) var(--lx-space) var(--lx-space) var(--lx-space-5xl-minus);
   border: none;
   background: transparent;
   cursor: pointer;
   text-align: left;
-  font-size: 14px;
+  font-size: var(--lx-font);
 }
 
 .contact-row:hover {
@@ -318,12 +318,12 @@ watch(addMembersOpen, async (open, prev) => {
 
 .right-pane {
   flex: 1;
-  padding: 16px;
+  padding: var(--lx-space-2xl);
 }
 
 .right-title {
-  margin: 0 0 12px;
-  font-size: 14px;
+  margin: 0 0 var(--lx-space-lg);
+  font-size: var(--lx-font);
   font-weight: 600;
   color: var(--lx-text-secondary);
 }
@@ -331,41 +331,41 @@ watch(addMembersOpen, async (open, prev) => {
 .selected-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--lx-space-lg);
 }
 
 .chip {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: var(--lx-space-sm);
   width: 72px;
-  font-size: 11px;
+  font-size: var(--lx-font-xs);
   text-align: center;
   color: var(--lx-text-secondary);
 }
 
 .empty-tip {
-  padding: 16px;
+  padding: var(--lx-space-2xl);
   text-align: center;
   color: var(--lx-text-muted);
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
 }
 
 .modal-footer {
-  padding: 12px 24px 20px;
+  padding: var(--lx-space-lg) var(--lx-space-4xl) var(--lx-space-3xl);
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--lx-space-lg);
 }
 
 .history-opt {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  gap: var(--lx-space);
+  font-size: var(--lx-font-md);
   color: var(--lx-text-secondary);
   cursor: pointer;
 }
@@ -376,23 +376,7 @@ watch(addMembersOpen, async (open, prev) => {
 
 .footer-btns {
   display: flex;
-  gap: 12px;
+  gap: var(--lx-space-lg);
   margin-left: auto;
-}
-
-.btn {
-  min-width: 88px;
-  height: 36px;
-  border-radius: var(--lx-radius);
-  border: 1px solid #ddd;
-  background: var(--lx-bg-card);
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.btn.primary {
-  background: var(--lx-accent);
-  border-color: var(--lx-accent);
-  color: var(--lx-bg-card);
 }
 </style>

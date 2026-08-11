@@ -102,8 +102,8 @@ async function togglePin() {
     <div class="status-right">
       <button
         type="button"
-        class="win-caption-btn"
-        :class="{ active: isPinned }"
+        class="lx-win-caption-btn"
+        :class="{ 'is-active': isPinned }"
         :title="pinTitle"
         :aria-pressed="isPinned"
         @click="togglePin"
@@ -124,11 +124,11 @@ async function togglePin() {
   box-sizing: border-box;
   display: flex;
   align-items: stretch;
-  padding: 0 0 0 10px;
+  padding: 0 0 0 var(--lx-space-md);
   background: transparent;
   border-bottom: none;
   position: relative;
-  z-index: 50;
+  z-index: var(--lx-z-fab);
 }
 
 .status-left {
@@ -144,19 +144,19 @@ async function togglePin() {
 .brand-block {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--lx-space-xs);
   flex-shrink: 0;
-  margin-right: 33px;
+  margin-right: var(--lx-space-5xl);
   user-select: none;
 }
 
 .brand-text {
-  font-size: 16px;
+  font-size: var(--lx-font-xl);
   font-weight: 700;
   color: var(--lx-text);
   letter-spacing: -0.02em;
-  line-height: 1;
-  margin-left: -1px;
+  line-height: var(--lx-leading-none);
+  margin-left: -var(--lx-space-hair);
 }
 
 .profile-col {
@@ -166,12 +166,12 @@ async function togglePin() {
   gap: 0;
   min-width: 0;
   max-width: 200px;
-  line-height: 1.2;
-  padding: 2px 0;
+  line-height: var(--lx-leading-tight);
+  padding: var(--lx-space-2xs) 0;
 }
 
 .nickname {
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   font-weight: 600;
   color: var(--lx-text);
   white-space: nowrap;
@@ -180,7 +180,7 @@ async function togglePin() {
 }
 
 .nickname.single {
-  font-size: 14px;
+  font-size: var(--lx-font);
   font-weight: 500;
 }
 
@@ -189,15 +189,15 @@ async function togglePin() {
   background: none;
   padding: 0;
   margin: 0;
-  font-size: 11px;
-  color: #a8a8a8;
+  font-size: var(--lx-font-xs);
+  color: var(--lx-status-muted);
   cursor: pointer;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 200px;
   text-align: left;
-  line-height: 1.3;
+  line-height: var(--lx-leading-snug);
 }
 
 .signature-link:hover {
@@ -215,13 +215,13 @@ async function togglePin() {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 12px;
+  padding: 0 var(--lx-space-lg);
   -webkit-app-region: drag;
   cursor: default;
 }
 
 .session-title {
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   font-weight: 500;
   color: var(--lx-text-body);
   white-space: nowrap;
@@ -239,47 +239,5 @@ async function togglePin() {
   height: 100%;
   padding: 0;
   -webkit-app-region: no-drag;
-}
-
-/* 对齐 Win11 Caption Buttons：46×标题栏高、直角、同色悬停 */
-.win-caption-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 46px;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  color: var(--lx-text);
-  cursor: default;
-  transition: background-color 83ms linear;
-}
-
-.win-caption-btn:hover {
-  background: rgba(0, 0, 0, 0.06);
-}
-
-.win-caption-btn:active {
-  background: rgba(0, 0, 0, 0.04);
-}
-
-.win-caption-btn.active {
-  color: var(--lx-accent);
-}
-
-.win-caption-btn.active:hover {
-  background: rgba(0, 0, 0, 0.06);
-}
-
-:global([data-theme='dark']) .win-caption-btn:hover,
-:global([data-theme='dark']) .win-caption-btn.active:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-:global([data-theme='dark']) .win-caption-btn:active {
-  background: rgba(255, 255, 255, 0.04);
 }
 </style>

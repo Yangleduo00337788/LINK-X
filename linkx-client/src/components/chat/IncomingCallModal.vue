@@ -48,7 +48,7 @@ function avatarText(name: string) {
         <div class="call-center">
           <Avatar
             :text="avatarText(peerName)"
-            color="#07c160"
+            color="var(--lx-success-strong)"
             :image-url="peerAvatar || undefined"
             :size="88"
           />
@@ -76,7 +76,7 @@ function avatarText(name: string) {
 .call-root {
   position: fixed;
   inset: 0;
-  z-index: 2210;
+  z-index: var(--lx-z-dialog-call-in);
   background: var(--lx-bg-overlay);
   display: flex;
   align-items: center;
@@ -85,53 +85,53 @@ function avatarText(name: string) {
 
 .call-window {
   width: min(380px, 90vw);
-  background: linear-gradient(180deg, #3a3a3a 0%, #2a2a2a 100%);
+  background: var(--lx-call-gradient);
   border-radius: var(--lx-radius);
-  padding: 28px 20px 32px;
-  color: #fff;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  padding: var(--lx-space-5xl-minus) var(--lx-space-3xl) var(--lx-space-5xl);
+  color: var(--lx-text-on-accent);
+  box-shadow: var(--lx-shadow-popover);
   text-align: center;
 }
 
 .label {
-  margin: 0 0 20px;
-  font-size: 14px;
+  margin: 0 0 var(--lx-space-3xl);
+  font-size: var(--lx-font);
   color: rgba(255, 255, 255, 0.75);
 }
 
 .call-center :deep(.avatar) {
-  margin: 0 auto 12px;
+  margin: 0 auto var(--lx-space-lg);
 }
 
 .peer {
-  margin: 0 0 6px;
-  font-size: 20px;
+  margin: 0 0 var(--lx-space-sm);
+  font-size: var(--lx-font-4xl);
   font-weight: 600;
 }
 
 .hint {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   color: rgba(255, 255, 255, 0.65);
 }
 
 .call-controls {
-  margin-top: 28px;
+  margin-top: var(--lx-space-5xl-minus);
   display: flex;
   justify-content: center;
-  gap: 48px;
+  gap: var(--lx-space-6xl);
 }
 
 .ctl {
   border: none;
   background: transparent;
-  color: #fff;
+  color: var(--lx-text-on-accent);
   cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
+  gap: var(--lx-space);
+  font-size: var(--lx-font-sm);
 }
 
 .ctl :deep(.n-icon) {
@@ -144,10 +144,10 @@ function avatarText(name: string) {
 }
 
 .ctl.reject :deep(.n-icon) {
-  background: #fa5151;
+  background: var(--lx-danger);
 }
 
 .ctl.accept :deep(.n-icon) {
-  background: #07c160;
+  background: var(--lx-success-strong);
 }
 </style>

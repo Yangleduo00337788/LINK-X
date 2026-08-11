@@ -74,7 +74,7 @@ watch(() => appStore.theme, (theme) => {
   min-height: 40px;
   width: 100%;
   box-sizing: border-box;
-  padding: 0 0 0 14px;
+  padding: 0 0 0 var(--lx-space-xl);
   border-bottom: 1px solid var(--lx-border-light);
   background: var(--lx-bg-card);
   -webkit-app-region: drag;
@@ -91,7 +91,7 @@ watch(() => appStore.theme, (theme) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: var(--lx-font);
   font-weight: 500;
   color: var(--lx-text-body);
   pointer-events: none;
@@ -108,7 +108,7 @@ watch(() => appStore.theme, (theme) => {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 16px 20px 24px;
+  padding: var(--lx-space-2xl) var(--lx-space-3xl) var(--lx-space-4xl);
   box-sizing: border-box;
 }
 </style>

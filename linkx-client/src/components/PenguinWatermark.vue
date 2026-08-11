@@ -46,9 +46,9 @@ const displayHint = computed(() => props.hint ?? t('chat.selectChatHint'))
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: var(--lx-space-lg);
   min-height: 200px;
-  padding: 24px;
+  padding: var(--lx-space-4xl);
   box-sizing: border-box;
 }
 
@@ -59,7 +59,7 @@ const displayHint = computed(() => props.hint ?? t('chat.selectChatHint'))
   height: 100%;
   min-height: 0;
   padding: 0;
-  z-index: 0;
+  z-index: var(--lx-z-base);
   overflow: hidden;
 }
 
@@ -68,7 +68,7 @@ const displayHint = computed(() => props.hint ?? t('chat.selectChatHint'))
   position: absolute;
   inset: -8% -12%;
   pointer-events: none;
-  z-index: 0;
+  z-index: var(--lx-z-base);
   background:
     radial-gradient(
       ellipse 90% 70% at 50% 36%,
@@ -95,12 +95,12 @@ const displayHint = computed(() => props.hint ?? t('chat.selectChatHint'))
 
 .empty-content {
   position: relative;
-  z-index: 1;
+  z-index: var(--lx-z-raised);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 16px;
+  gap: var(--lx-space-2xl);
   width: 100%;
   height: 100%;
 }
@@ -124,30 +124,30 @@ const displayHint = computed(() => props.hint ?? t('chat.selectChatHint'))
   -webkit-mask-image: linear-gradient(
     to right,
     transparent 0%,
-    #000 9%,
-    #000 91%,
+    var(--lx-black) 9%,
+    var(--lx-black) 91%,
     transparent 100%
   );
   mask-image: linear-gradient(
     to right,
     transparent 0%,
-    #000 9%,
-    #000 91%,
+    var(--lx-black) 9%,
+    var(--lx-black) 91%,
     transparent 100%
   );
 }
 
 .hint {
   margin: 0;
-  padding: 0 24px;
+  padding: 0 var(--lx-space-4xl);
   max-width: 360px;
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   font-weight: 400;
-  line-height: 1.7;
+  line-height: var(--lx-leading-loose);
   letter-spacing: normal;
   text-align: center;
   font-family: 'Segoe UI Variable', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  background: linear-gradient(95deg, #5a9ec8 0%, #6e9fd4 42%, #9a8fd0 100%);
+  background: var(--lx-watermark-gradient);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -155,7 +155,7 @@ const displayHint = computed(() => props.hint ?? t('chat.selectChatHint'))
 }
 
 :global([data-theme='dark']) .hint {
-  background: linear-gradient(95deg, #7eb8e0 0%, #9ab5e8 45%, #c4a8e8 100%);
+  background: var(--lx-watermark-gradient-light);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;

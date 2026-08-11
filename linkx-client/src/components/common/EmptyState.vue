@@ -43,14 +43,14 @@ defineProps<{
   align-items: center;
   justify-content: center;
   height: 100%;
-  padding: 32px;
+  padding: var(--lx-space-5xl);
   text-align: center;
   color: var(--lx-text-muted, var(--lx-text-muted));
   background: transparent;
 }
 
 .empty-icon-wrapper {
-  margin-bottom: 16px;
+  margin-bottom: var(--lx-space-2xl);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -61,20 +61,20 @@ defineProps<{
 }
 
 .empty-icon {
-  font-size: 32px;
-  color: #b0b0b5;
+  font-size: var(--lx-font-7xl);
+  color: var(--lx-empty-muted);
 }
 
 .empty-title {
-  font-size: 15px;
+  font-size: var(--lx-font-lg);
   font-weight: 500;
   color: var(--lx-text, var(--lx-text));
-  margin-bottom: 6px;
+  margin-bottom: var(--lx-space-sm);
 }
 
 .empty-description {
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--lx-font-md);
+  line-height: var(--lx-leading-normal);
   max-width: 240px;
 }
 </style>

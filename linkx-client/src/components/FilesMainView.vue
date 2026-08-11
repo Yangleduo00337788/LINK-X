@@ -10,11 +10,11 @@ import {
   NInput,
   NDropdown,
   NModal,
-  NButton,
   NSwitch,
   useMessage,
   useDialog
 } from 'naive-ui'
+import { LxButton, LxIconButton } from './ui'
 import {
   SearchOutline,
   AddOutline,
@@ -45,6 +45,7 @@ import { formatFileSize } from '../utils/file'
 import { generateDefaultAvatar } from '../utils/defaultAvatar'
 import { isDisplayableMediaUrl, normalizeMediaUrl } from '../utils/mediaUrl'
 import { useI18n } from '../i18n'
+import { lxFileTypeHex } from '../theme/vars'
 import { copyText } from '../utils/clipboard'
 import Avatar from './Avatar.vue'
 
@@ -460,15 +461,15 @@ function activityText(action: string, detail?: string) {
 function fileIconMeta(item: DriveItemVO) {
   const ext = (item.ext || '').toLowerCase()
   if (item.kind === 'folder') {
-    return { color: '#f5a623', bg: '#fff4d6', label: 'DIR' }
+    return { color: lxFileTypeHex.folder.color, bg: lxFileTypeHex.folder.bg, label: 'DIR' }
   }
-  if (ext === 'pdf') return { color: '#e74c3c', bg: '#fdecea', label: 'PDF' }
-  if (['doc', 'docx'].includes(ext)) return { color: '#2b579a', bg: '#e8f0fe', label: 'W' }
-  if (['xls', 'xlsx', 'csv'].includes(ext)) return { color: '#1d6f42', bg: '#e8f5ee', label: 'X' }
-  if (['ppt', 'pptx'].includes(ext)) return { color: '#c43e1c', bg: '#fde8e1', label: 'P' }
-  if (['zip', 'rar', '7z'].includes(ext)) return { color: '#8e44ad', bg: '#f3e8fa', label: 'Z' }
-  if (item.category === 'image') return { color: '#ff8800', bg: '#fff0e6', label: 'IMG' }
-  if (item.category === 'media') return { color: '#722ed1', bg: '#f3e8ff', label: 'VID' }
+  if (ext === 'pdf') return { color: lxFileTypeHex.pdf.color, bg: lxFileTypeHex.pdf.bg, label: 'PDF' }
+  if (['doc', 'docx'].includes(ext)) return { color: lxFileTypeHex.doc.color, bg: lxFileTypeHex.doc.bg, label: 'W' }
+  if (['xls', 'xlsx', 'csv'].includes(ext)) return { color: lxFileTypeHex.xls.color, bg: lxFileTypeHex.xls.bg, label: 'X' }
+  if (['ppt', 'pptx'].includes(ext)) return { color: lxFileTypeHex.ppt.color, bg: lxFileTypeHex.ppt.bg, label: 'P' }
+  if (['zip', 'rar', '7z'].includes(ext)) return { color: lxFileTypeHex.zip.color, bg: lxFileTypeHex.zip.bg, label: 'Z' }
+  if (item.category === 'image') return { color: 'var(--lx-icon-image-color)', bg: 'var(--lx-icon-image-bg)', label: 'IMG' }
+  if (item.category === 'media') return { color: lxFileTypeHex.media.color, bg: lxFileTypeHex.media.bg, label: 'VID' }
   return { color: 'var(--lx-accent)', bg: 'var(--lx-accent-soft)', label: (ext || 'FILE').slice(0, 3).toUpperCase() }
 }
 
@@ -553,9 +554,9 @@ void MoveOutline
             <n-icon :component="SearchOutline" :size="16" />
           </template>
         </n-input>
-        <button type="button" class="add-btn" :title="t('files.newFolder')" @click="onNewFolder">
+        <LxIconButton :title="t('files.newFolder')" @click="onNewFolder">
           <n-icon :component="AddOutline" :size="18" />
-        </button>
+        </LxIconButton>
       </div>
     </div>
 
@@ -573,45 +574,45 @@ void MoveOutline
         </nav>
       </div>
       <div class="header-actions">
-        <button type="button" class="btn-primary" :disabled="uploading" @click="triggerUpload">
+        <LxButton variant="toolbar-primary" :disabled="uploading" @click="triggerUpload">
           <n-icon :component="CloudUploadOutline" :size="16" />
           {{ uploading ? t('common.loading') : t('files.upload') }}
-        </button>
-        <button type="button" class="btn-ghost" @click="onNewFolder">
+        </LxButton>
+        <LxButton variant="toolbar-ghost" @click="onNewFolder">
           <n-icon :component="FolderOpenOutline" :size="16" />
           {{ t('files.newFolder') }}
-        </button>
+        </LxButton>
         <div class="view-toggle">
-          <button
-            type="button"
+          <LxIconButton
             class="view-btn"
-            :class="{ active: viewMode === 'grid' }"
+            :active="viewMode === 'grid'"
+            :title="t('files.gridView')"
             @click="viewMode = 'grid'"
           >
             <n-icon :component="GridOutline" :size="18" />
-          </button>
-          <button
-            type="button"
+          </LxIconButton>
+          <LxIconButton
             class="view-btn"
-            :class="{ active: viewMode === 'list' }"
+            :active="viewMode === 'list'"
+            :title="t('files.listView')"
             @click="viewMode = 'list'"
           >
             <n-icon :component="ListOutline" :size="18" />
-          </button>
+          </LxIconButton>
         </div>
         <n-dropdown :options="headerMoreOptions" @select="onHeaderMore">
-          <button type="button" class="icon-more">
+          <LxIconButton :title="t('common.more')">
             <n-icon :component="EllipsisHorizontal" :size="18" />
-          </button>
+          </LxIconButton>
         </n-dropdown>
       </div>
     </div>
 
     <div v-if="selectedIds.length" class="batch-bar">
       <span>{{ t('files.selectedCount', { n: selectedIds.length }) }}</span>
-      <button type="button" class="btn-ghost sm" @click="onBatchDelete">{{ t('files.batchDelete') }}</button>
-      <button type="button" class="btn-ghost sm" @click="onMoveToRoot()">{{ t('files.moveToRoot') }}</button>
-      <button type="button" class="btn-ghost sm" @click="drive.clearSelection()">{{ t('common.cancel') }}</button>
+      <LxButton variant="toolbar-ghost-xs" @click="onBatchDelete">{{ t('files.batchDelete') }}</LxButton>
+      <LxButton variant="toolbar-ghost-xs" @click="onMoveToRoot()">{{ t('files.moveToRoot') }}</LxButton>
+      <LxButton variant="toolbar-ghost-xs" @click="drive.clearSelection()">{{ t('common.cancel') }}</LxButton>
     </div>
 
     <div class="files-body">
@@ -641,7 +642,7 @@ void MoveOutline
               v-for="item in sortedItems"
               :key="item.id"
               class="table-row"
-              :class="{ active: detailItem?.id === item.id }"
+              :class="{ 'is-active': detailItem?.id === item.id }"
               @click="onRowClick(item)"
               @dblclick="onRowDblClick(item)"
             >
@@ -680,9 +681,9 @@ void MoveOutline
               </div>
               <div class="col-more" @click.stop>
                 <n-dropdown :options="rowMenuOptions(item)" @select="(k: string) => onRowMenu(k, item)">
-                  <button type="button" class="row-more">
+                  <LxIconButton class="row-more">
                     <n-icon :component="EllipsisHorizontal" :size="16" />
-                  </button>
+                  </LxIconButton>
                 </n-dropdown>
               </div>
             </div>
@@ -697,7 +698,7 @@ void MoveOutline
             v-for="item in sortedItems"
             :key="'g-' + item.id"
             class="grid-card"
-            :class="{ active: detailItem?.id === item.id }"
+            :class="{ 'is-active': detailItem?.id === item.id }"
             @click="onRowClick(item)"
             @dblclick="onRowDblClick(item)"
           >
@@ -736,9 +737,9 @@ void MoveOutline
       <aside v-if="detailItem" class="detail-pane">
         <div class="detail-head">
           <h3 class="detail-title">{{ detailItem.name }}</h3>
-          <button type="button" class="close-btn" @click="drive.detailItem = null">
+          <LxIconButton class="detail-close" :title="t('common.close')" @click="drive.detailItem = null">
             <n-icon :component="CloseOutline" :size="18" />
-          </button>
+          </LxIconButton>
         </div>
 
         <div class="detail-preview">
@@ -760,13 +761,13 @@ void MoveOutline
         </div>
 
         <div class="detail-tabs">
-          <button type="button" class="tab" :class="{ active: detailTab === 'info' }" @click="detailTab = 'info'">
+          <button type="button" class="tab" :class="{ 'is-active': detailTab === 'info' }" @click="detailTab = 'info'">
             {{ t('files.tabInfo') }}
           </button>
           <button
             type="button"
             class="tab"
-            :class="{ active: detailTab === 'activity' }"
+            :class="{ 'is-active': detailTab === 'activity' }"
             @click="detailTab = 'activity'; drive.fetchActivities(detailItem.kind === 'file' ? detailItem.id : undefined)"
           >
             {{ t('files.tabActivity') }}
@@ -853,23 +854,22 @@ void MoveOutline
         </div>
 
         <div class="detail-actions">
-          <button
+          <LxButton
             v-if="detailItem.kind === 'file'"
-            type="button"
-            class="btn-primary grow"
+            variant="toolbar-primary-grow"
             @click="downloadItem(detailItem)"
           >
             <n-icon :component="CloudDownloadOutline" :size="16" />
             {{ t('files.downloadFile') }}
-          </button>
-          <button type="button" class="btn-ghost" @click="onShare(detailItem)">
+          </LxButton>
+          <LxButton variant="toolbar-ghost" @click="onShare(detailItem)">
             <n-icon :component="ShareOutline" :size="16" />
             {{ t('files.share') }}
-          </button>
+          </LxButton>
           <n-dropdown :options="rowMenuOptions(detailItem)" @select="(k: string) => onRowMenu(k, detailItem!)">
-            <button type="button" class="icon-more">
+            <LxIconButton :title="t('common.more')">
               <n-icon :component="EllipsisHorizontal" :size="18" />
-            </button>
+            </LxIconButton>
           </n-dropdown>
         </div>
       </aside>
@@ -893,8 +893,8 @@ void MoveOutline
       />
       <template #footer>
         <div class="modal-actions">
-          <n-button @click="onTextModalCancel">{{ t('common.cancel') }}</n-button>
-          <n-button type="primary" @click="onTextModalConfirm">{{ t('common.confirm') }}</n-button>
+          <LxButton variant="modal" @click="onTextModalCancel">{{ t('common.cancel') }}</LxButton>
+          <LxButton variant="modal-primary" @click="onTextModalConfirm">{{ t('common.confirm') }}</LxButton>
         </div>
       </template>
     </n-modal>
@@ -916,17 +916,17 @@ void MoveOutline
           <div class="share-pwd-label">{{ t('files.sharePasswordLabel') }}</div>
           <div class="share-pwd-row">
             <n-input v-model:value="sharePassword" maxlength="16" :placeholder="t('files.sharePasswordPrompt')" />
-            <n-button @click="sharePassword = genExtractCode()">{{ t('files.shareRegenCode') }}</n-button>
+            <LxButton variant="sm" @click="sharePassword = genExtractCode()">{{ t('files.shareRegenCode') }}</LxButton>
           </div>
         </div>
         <p class="share-hint">{{ t('files.shareExpireHint') }}</p>
       </div>
       <template #footer>
         <div class="modal-actions">
-          <n-button @click="shareModalShow = false">{{ t('common.cancel') }}</n-button>
-          <n-button type="primary" :loading="shareSubmitting" @click="confirmShare">
+          <LxButton variant="modal" @click="shareModalShow = false">{{ t('common.cancel') }}</LxButton>
+          <LxButton variant="modal-primary" :disabled="shareSubmitting" @click="confirmShare">
             {{ t('files.shareCreate') }}
-          </n-button>
+          </LxButton>
         </div>
       </template>
     </n-modal>
@@ -944,166 +944,146 @@ void MoveOutline
   overflow: hidden;
 }
 .hidden-input { display: none; }
-.files-toolbar { flex-shrink: 0; padding: 12px 20px 0; }
-.search-wrap { display: flex; align-items: center; gap: 8px; max-width: 320px; }
+.files-toolbar { flex-shrink: 0; padding: var(--lx-space-lg) var(--lx-space-3xl) 0; }
+.search-wrap { display: flex; align-items: center; gap: var(--lx-space); max-width: 320px; }
 .search-input { flex: 1; }
-.add-btn {
-  width: 32px; height: 32px; border: none; border-radius: var(--lx-radius);
-  background: var(--lx-bg-input); color: var(--lx-text-secondary);
-  display: flex; align-items: center; justify-content: center; cursor: pointer;
-}
-.add-btn:hover { background: var(--lx-bg-hover); color: var(--lx-text); }
 .files-header {
   flex-shrink: 0; display: flex; align-items: flex-start; justify-content: space-between;
-  gap: 16px; padding: 16px 20px 12px;
+  gap: var(--lx-space-2xl); padding: var(--lx-space-2xl) var(--lx-space-3xl) var(--lx-space-lg);
 }
-.page-title { margin: 0; font-size: 22px; font-weight: 700; color: var(--lx-text); }
-.breadcrumb { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 13px; color: var(--lx-text-muted); flex-wrap: wrap; }
+.page-title { margin: 0; font-size: var(--lx-font-5xl); font-weight: 700; color: var(--lx-text); }
+.breadcrumb { display: flex; align-items: center; gap: var(--lx-space-sm); margin-top: var(--lx-space-sm); font-size: var(--lx-font-md); color: var(--lx-text-muted); flex-wrap: wrap; }
 .crumb { border: none; background: none; padding: 0; color: inherit; font-size: inherit; cursor: default; }
 .crumb.link { cursor: pointer; color: var(--lx-text-secondary); }
 .crumb.link:hover { color: var(--lx-accent); }
 .crumb-sep { color: var(--lx-text-muted); }
-.header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.btn-primary, .btn-ghost {
-  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px;
-  border-radius: var(--lx-radius); font-size: 13px; cursor: pointer; border: 1px solid transparent; white-space: nowrap;
-}
-.btn-primary { background: var(--lx-accent); color: var(--lx-text-on-accent); border-color: var(--lx-accent); }
-.btn-primary:hover:not(:disabled) { background: var(--lx-accent-hover); }
-.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
-.btn-ghost { background: var(--lx-bg-card); color: var(--lx-text-body); border-color: var(--lx-border-strong); }
-.btn-ghost:hover { background: var(--lx-bg-hover); }
-.btn-ghost.sm { height: 28px; padding: 0 10px; font-size: 12px; }
-.btn-primary.grow { flex: 1; justify-content: center; }
+.header-actions { display: flex; align-items: center; gap: var(--lx-space); flex-shrink: 0; }
 .view-toggle { display: flex; border: 1px solid var(--lx-border-light); border-radius: var(--lx-radius); overflow: hidden; }
-.view-btn, .icon-more, .row-more, .close-btn {
-  border: none; background: transparent; color: var(--lx-text-muted); cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
+.view-toggle :deep(.view-btn) {
+  width: 34px;
+  height: 34px;
+  border-radius: 0;
 }
-.view-btn { width: 34px; height: 34px; }
-.view-btn.active { background: var(--lx-accent-soft); color: var(--lx-accent); }
-.icon-more { width: 34px; height: 34px; border-radius: var(--lx-radius); }
-.icon-more:hover, .row-more:hover, .close-btn:hover { background: var(--lx-bg-hover); color: var(--lx-text); }
 .batch-bar {
-  display: flex; align-items: center; gap: 10px; padding: 8px 20px;
-  background: var(--lx-accent-soft); font-size: 13px; color: var(--lx-text-body);
+  display: flex; align-items: center; gap: var(--lx-space-md); padding: var(--lx-space) var(--lx-space-3xl);
+  background: var(--lx-accent-soft); font-size: var(--lx-font-md); color: var(--lx-text-body);
 }
 .files-body { flex: 1; min-height: 0; display: flex; border-top: 1px solid var(--lx-border-light); }
 .list-pane { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.section-head { padding: 14px 20px 8px; }
-.section-head h2 { margin: 0; font-size: 15px; font-weight: 600; color: var(--lx-text); }
-.table-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0 12px; }
+.section-head { padding: var(--lx-space-xl) var(--lx-space-3xl) var(--lx-space); }
+.section-head h2 { margin: 0; font-size: var(--lx-font-lg); font-weight: 600; color: var(--lx-text); }
+.table-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0 var(--lx-space-lg); }
 .table-head, .table-row {
   display: grid; grid-template-columns: 36px minmax(180px, 1.6fr) 150px 90px 140px 40px;
-  align-items: center; gap: 8px; padding: 0 8px;
+  align-items: center; gap: var(--lx-space); padding: 0 var(--lx-space);
 }
-.table-head { height: 36px; color: var(--lx-text-muted); font-size: 12px; border-bottom: 1px solid var(--lx-border-light); }
-.th { display: inline-flex; align-items: center; gap: 2px; border: none; background: none; padding: 0; color: inherit; font-size: inherit; cursor: pointer; text-align: left; }
+.table-head { height: 36px; color: var(--lx-text-muted); font-size: var(--lx-font-sm); border-bottom: 1px solid var(--lx-border-light); }
+.th { display: inline-flex; align-items: center; gap: var(--lx-space-2xs); border: none; background: none; padding: 0; color: inherit; font-size: inherit; cursor: pointer; text-align: left; }
 .th .asc { transform: rotate(180deg); }
 .table-body { flex: 1; overflow-y: auto; }
 .table-row { min-height: 56px; border-radius: var(--lx-radius); cursor: pointer; }
 .table-row:hover { background: var(--lx-bg-hover); }
 .table-row.active { background: var(--lx-bg-active); }
 .checkbox {
-  width: 16px; height: 16px; border: 1.5px solid var(--lx-border-strong); border-radius: 4px; display: inline-block;
+  width: 16px; height: 16px; border: 1.5px solid var(--lx-border-strong); border-radius: var(--lx-radius-2xs); display: inline-block;
 }
-.checkbox.checked { background: var(--lx-accent); border-color: var(--lx-accent); box-shadow: inset 0 0 0 2px #fff; }
-.col-name { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.checkbox.checked { background: var(--lx-accent); border-color: var(--lx-accent); box-shadow: inset 0 0 0 2px var(--lx-text-on-accent); }
+.col-name { display: flex; align-items: center; gap: var(--lx-space-lg); min-width: 0; }
 .file-icon {
-  width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0; font-size: 11px; font-weight: 700; overflow: hidden;
+  width: 40px; height: 40px; border-radius: var(--lx-radius-sm); display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; font-size: var(--lx-font-xs); font-weight: 700; overflow: hidden;
 }
-.file-icon.folder, .grid-icon.folder, .preview-icon.folder { background: #fff4d6; color: #f5a623; }
+.file-icon.folder, .grid-icon.folder, .preview-icon.folder { background: var(--lx-file-folder-bg); color: var(--lx-file-folder); }
 .file-icon.thumb, .grid-icon.thumb { padding: 0; background: var(--lx-bg-input); }
 .thumb-img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.name-block { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.name { font-size: 14px; color: var(--lx-text-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sub { font-size: 12px; color: var(--lx-text-muted); }
-.col-time, .col-size { font-size: 13px; color: var(--lx-text-secondary); }
-.col-uploader { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.name-block { min-width: 0; display: flex; flex-direction: column; gap: var(--lx-space-2xs); }
+.name { font-size: var(--lx-font); color: var(--lx-text-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sub { font-size: var(--lx-font-sm); color: var(--lx-text-muted); }
+.col-time, .col-size { font-size: var(--lx-font-md); color: var(--lx-text-secondary); }
+.col-uploader { display: flex; align-items: center; gap: var(--lx-space); min-width: 0; }
 .avatar {
   width: 24px; height: 24px; border-radius: 50%; background: var(--lx-accent-soft); color: var(--lx-accent);
-  font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  font-size: var(--lx-font-xs); font-weight: 600; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
-.uploader-name { font-size: 13px; color: var(--lx-text-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.row-more { width: 28px; height: 28px; border-radius: 6px; opacity: 0; }
-.table-row:hover .row-more { opacity: 1; }
+.uploader-name { font-size: var(--lx-font-md); color: var(--lx-text-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-more { width: 28px; height: 28px; border-radius: var(--lx-radius-xs); opacity: 0; }
+.table-row:hover :deep(.row-more) { opacity: 1; }
 .grid-wrap {
-  flex: 1; overflow-y: auto; padding: 8px 20px 16px;
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 12px; align-content: start;
+  flex: 1; overflow-y: auto; padding: var(--lx-space) var(--lx-space-3xl) var(--lx-space-2xl);
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: var(--lx-space-lg); align-content: start;
 }
 .grid-card {
-  border: 1px solid var(--lx-border-light); border-radius: var(--lx-radius); padding: 16px 12px 12px;
+  border: 1px solid var(--lx-border-light); border-radius: var(--lx-radius); padding: var(--lx-space-2xl) var(--lx-space-lg) var(--lx-space-lg);
   text-align: center; cursor: pointer;
 }
 .grid-card:hover { background: var(--lx-bg-hover); }
 .grid-card.active { border-color: var(--lx-accent); background: var(--lx-accent-soft); }
 .grid-icon {
-  width: 56px; height: 56px; margin: 0 auto 10px; border-radius: 12px;
-  display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700;
+  width: 56px; height: 56px; margin: 0 auto var(--lx-space-md); border-radius: var(--lx-radius-lg);
+  display: flex; align-items: center; justify-content: center; font-size: var(--lx-font-md); font-weight: 700;
   overflow: hidden;
 }
-.grid-name { font-size: 13px; color: var(--lx-text-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.grid-meta { margin-top: 4px; font-size: 12px; color: var(--lx-text-muted); }
-.empty { text-align: center; color: var(--lx-text-muted); padding: 48px 16px; font-size: 13px; }
+.grid-name { font-size: var(--lx-font-md); color: var(--lx-text-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grid-meta { margin-top: var(--lx-space-xs); font-size: var(--lx-font-sm); color: var(--lx-text-muted); }
+.empty { text-align: center; color: var(--lx-text-muted); padding: var(--lx-space-6xl) var(--lx-space-2xl); font-size: var(--lx-font-md); }
 .list-footer {
   flex-shrink: 0; display: flex; align-items: center; justify-content: flex-end;
-  gap: 16px; padding: 12px 20px 16px; border-top: 1px solid var(--lx-border-light);
+  gap: var(--lx-space-2xl); padding: var(--lx-space-lg) var(--lx-space-3xl) var(--lx-space-2xl); border-top: 1px solid var(--lx-border-light);
 }
-.total-count { font-size: 12px; color: var(--lx-text-muted); }
+.total-count { font-size: var(--lx-font-sm); color: var(--lx-text-muted); }
 .detail-pane {
   width: 300px; min-width: 280px; max-width: 340px; border-left: 1px solid var(--lx-border-light);
   display: flex; flex-direction: column; background: var(--lx-bg-card);
 }
-.detail-head { display: flex; align-items: flex-start; gap: 8px; padding: 16px 16px 8px; }
-.detail-title { flex: 1; margin: 0; font-size: 15px; font-weight: 600; color: var(--lx-text); word-break: break-all; }
-.close-btn { width: 28px; height: 28px; border-radius: 6px; flex-shrink: 0; }
-.detail-preview { display: flex; justify-content: center; padding: 12px 16px 20px; }
+.detail-head { display: flex; align-items: flex-start; gap: var(--lx-space); padding: var(--lx-space-2xl) var(--lx-space-2xl) var(--lx-space); }
+.detail-title { flex: 1; margin: 0; font-size: var(--lx-font-lg); font-weight: 600; color: var(--lx-text); word-break: break-all; }
+.detail-close { width: 28px; height: 28px; border-radius: var(--lx-radius-xs); flex-shrink: 0; }
+.detail-preview { display: flex; justify-content: center; padding: var(--lx-space-lg) var(--lx-space-2xl) var(--lx-space-3xl); }
 .preview-icon {
-  width: 88px; height: 104px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
-  font-size: 22px; font-weight: 800; box-shadow: var(--lx-shadow-card);
+  width: 88px; height: 104px; border-radius: var(--lx-radius-lg); display: flex; align-items: center; justify-content: center;
+  font-size: var(--lx-font-5xl); font-weight: 800; box-shadow: var(--lx-shadow-card);
 }
 .preview-thumb {
-  width: 120px; height: 120px; border-radius: 12px; overflow: hidden;
+  width: 120px; height: 120px; border-radius: var(--lx-radius-lg); overflow: hidden;
   box-shadow: var(--lx-shadow-card); background: var(--lx-bg-input);
 }
 .preview-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.detail-tabs { display: flex; gap: 20px; padding: 0 16px; border-bottom: 1px solid var(--lx-border-light); }
-.tab { border: none; background: none; padding: 10px 0; font-size: 13px; color: var(--lx-text-muted); cursor: pointer; position: relative; }
+.detail-tabs { display: flex; gap: var(--lx-space-3xl); padding: 0 var(--lx-space-2xl); border-bottom: 1px solid var(--lx-border-light); }
+.tab { border: none; background: none; padding: var(--lx-space-md) 0; font-size: var(--lx-font-md); color: var(--lx-text-muted); cursor: pointer; position: relative; }
 .tab.active { color: var(--lx-accent); font-weight: 600; }
 .tab.active::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--lx-accent); }
-.detail-body { flex: 1; overflow-y: auto; padding: 16px; }
-.meta-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; font-size: 13px; }
+.detail-body { flex: 1; overflow-y: auto; padding: var(--lx-space-2xl); }
+.meta-row { display: flex; justify-content: space-between; gap: var(--lx-space-lg); padding: var(--lx-space) 0; font-size: var(--lx-font-md); }
 .meta-label { color: var(--lx-text-muted); flex-shrink: 0; }
 .meta-value { color: var(--lx-text-body); text-align: right; word-break: break-all; }
-.meta-block { margin-top: 14px; }
-.meta-block .meta-label { margin-bottom: 8px; font-size: 13px; display: flex; justify-content: space-between; }
-.link-edit { border: none; background: none; color: var(--lx-accent); cursor: pointer; font-size: 12px; }
-.tags { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.meta-block { margin-top: var(--lx-space-xl); }
+.meta-block .meta-label { margin-bottom: var(--lx-space); font-size: var(--lx-font-md); display: flex; justify-content: space-between; }
+.link-edit { border: none; background: none; color: var(--lx-accent); cursor: pointer; font-size: var(--lx-font-sm); }
+.tags { display: flex; flex-wrap: wrap; gap: var(--lx-space-sm); align-items: center; }
 .tag {
-  display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 99px;
-  background: var(--lx-bg-input); color: var(--lx-text-secondary); font-size: 12px; cursor: pointer;
+  display: inline-flex; align-items: center; height: 24px; padding: 0 var(--lx-space-md); border-radius: var(--lx-radius-pill);
+  background: var(--lx-bg-input); color: var(--lx-text-secondary); font-size: var(--lx-font-sm); cursor: pointer;
 }
 .tag-add {
   width: 24px; height: 24px; border-radius: 50%; border: 1px dashed var(--lx-border-strong);
   background: transparent; color: var(--lx-text-muted); cursor: pointer;
 }
 .tag-input {
-  height: 24px; border: 1px solid var(--lx-border-strong); border-radius: 6px; padding: 0 8px; width: 100px; font-size: 12px;
+  height: 24px; border: 1px solid var(--lx-border-strong); border-radius: var(--lx-radius-xs); padding: 0 var(--lx-space); width: 100px; font-size: var(--lx-font-sm);
 }
-.desc { margin: 0; font-size: 13px; line-height: 1.6; color: var(--lx-text-secondary); }
-.activity-item { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 12px; }
-.activity-item .dot { width: 8px; height: 8px; margin-top: 5px; border-radius: 50%; background: var(--lx-accent); flex-shrink: 0; }
-.act-title { font-size: 13px; color: var(--lx-text-body); }
-.act-meta { margin-top: 4px; font-size: 12px; color: var(--lx-text-muted); }
+.desc { margin: 0; font-size: var(--lx-font-md); line-height: var(--lx-leading-relaxed); color: var(--lx-text-secondary); }
+.activity-item { display: flex; gap: var(--lx-space-md); align-items: flex-start; margin-bottom: var(--lx-space-lg); }
+.activity-item .dot { width: 8px; height: 8px; margin-top: var(--lx-space-xs); border-radius: 50%; background: var(--lx-accent); flex-shrink: 0; }
+.act-title { font-size: var(--lx-font-md); color: var(--lx-text-body); }
+.act-meta { margin-top: var(--lx-space-xs); font-size: var(--lx-font-sm); color: var(--lx-text-muted); }
 .detail-actions {
-  flex-shrink: 0; display: flex; align-items: center; gap: 8px;
-  padding: 12px 16px 16px; border-top: 1px solid var(--lx-border-light);
+  flex-shrink: 0; display: flex; align-items: center; gap: var(--lx-space);
+  padding: var(--lx-space-lg) var(--lx-space-2xl) var(--lx-space-2xl); border-top: 1px solid var(--lx-border-light);
 }
-.modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
-.share-form { display: flex; flex-direction: column; gap: 14px; }
-.share-row { display: flex; align-items: center; justify-content: space-between; font-size: 14px; color: var(--lx-text-body); }
-.share-pwd-label { margin-bottom: 6px; font-size: 13px; color: var(--lx-text-muted); }
-.share-pwd-row { display: flex; gap: 8px; }
-.share-hint { margin: 0; font-size: 12px; color: var(--lx-text-muted); }
+.modal-actions { display: flex; justify-content: flex-end; gap: var(--lx-space); }
+.share-form { display: flex; flex-direction: column; gap: var(--lx-space-xl); }
+.share-row { display: flex; align-items: center; justify-content: space-between; font-size: var(--lx-font); color: var(--lx-text-body); }
+.share-pwd-label { margin-bottom: var(--lx-space-sm); font-size: var(--lx-font-md); color: var(--lx-text-muted); }
+.share-pwd-row { display: flex; gap: var(--lx-space); }
+.share-hint { margin: 0; font-size: var(--lx-font-sm); color: var(--lx-text-muted); }
 </style>

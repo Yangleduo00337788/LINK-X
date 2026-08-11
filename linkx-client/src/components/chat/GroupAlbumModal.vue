@@ -14,6 +14,7 @@ import { useOverlayStore } from '../../stores/overlay'
 import { useMessage } from 'naive-ui'
 import { useI18n } from '../../i18n'
 import axios from 'axios'
+import { LxButton, LxIconButton } from '../ui'
 
 const message = useMessage()
 const { t } = useI18n()
@@ -184,25 +185,27 @@ function previewImage(item: { url: string; name: string }) {
       <div class="album-window" @click.stop>
         <header class="win-head">
           <h2>{{ t('extra.groupAlbumTitle', { name: currentSession?.name || t('extra.groupChat') }) }}</h2>
-          <button type="button" class="close-x" :disabled="uploading" @click="close">×</button>
+          <LxIconButton variant="close" :disabled="uploading" :title="t('common.close')" @click="close">
+            ×
+          </LxIconButton>
         </header>
         <div class="tabs-row">
-          <button type="button" class="tab" :class="{ active: tab === 'feed' }" @click="tab = 'feed'">
+          <button type="button" class="tab" :class="{ 'is-active': tab === 'feed' }" @click="tab = 'feed'">
             {{ t('extra.groupFeed') }}
           </button>
-          <button type="button" class="tab" :class="{ active: tab === 'albums' }" @click="tab = 'albums'">
+          <button type="button" class="tab" :class="{ 'is-active': tab === 'albums' }" @click="tab = 'albums'">
             {{ t('extra.album') }}
           </button>
-          <button type="button" class="tab" :class="{ active: tab === 'me' }" @click="tab = 'me'">
+          <button type="button" class="tab" :class="{ 'is-active': tab === 'me' }" @click="tab = 'me'">
             {{ t('extra.relatedToMe') }}
           </button>
           <div class="tabs-actions">
-            <button type="button" class="link-btn" :disabled="uploading" @click="openCreateAlbum">
+            <LxButton variant="link-muted" :disabled="uploading" @click="openCreateAlbum">
               {{ t('extra.createAlbum') }}
-            </button>
-            <button type="button" class="primary-sm" :disabled="uploading" @click="pickAndUpload">
+            </LxButton>
+            <LxButton variant="primary-sm" :disabled="uploading" @click="pickAndUpload">
               {{ uploading ? t('extra.uploading') : t('extra.uploadToAlbum') }}
-            </button>
+            </LxButton>
             <input
               ref="fileInputRef"
               type="file"
@@ -224,8 +227,8 @@ function previewImage(item: { url: string; name: string }) {
             :placeholder="t('extra.albumNamePh')"
             @keydown.enter.prevent="confirmCreateAlbum"
           />
-          <button type="button" class="primary-sm" @click="confirmCreateAlbum">{{ t('common.confirm') }}</button>
-          <button type="button" class="link-btn" @click="createOpen = false">{{ t('common.cancel') }}</button>
+          <LxButton variant="primary-sm" @click="confirmCreateAlbum">{{ t('common.confirm') }}</LxButton>
+          <LxButton variant="link-muted" @click="createOpen = false">{{ t('common.cancel') }}</LxButton>
         </div>
 
         <p v-if="tab === 'feed'" class="album-hint">
@@ -266,9 +269,9 @@ function previewImage(item: { url: string; name: string }) {
         <div v-else class="empty-area">
           <div class="empty-ico">🖼</div>
           <p>{{ uploading ? t('extra.uploading') : t('extra.uploadPhotosHint') }}</p>
-          <button type="button" class="primary-lg" :disabled="uploading" @click="pickAndUpload">
+          <LxButton variant="primary-lg" :disabled="uploading" @click="pickAndUpload">
             {{ uploading ? t('extra.uploading') : t('extra.uploadToAlbum') }}
-          </button>
+          </LxButton>
         </div>
       </div>
     </div>
@@ -279,12 +282,12 @@ function previewImage(item: { url: string; name: string }) {
 .modal-root {
   position: fixed;
   inset: 0;
-  z-index: 2200;
+  z-index: var(--lx-z-dialog);
   background: var(--lx-bg-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: var(--lx-space-3xl);
 }
 
 .album-window {
@@ -301,35 +304,22 @@ function previewImage(item: { url: string; name: string }) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 18px;
+  padding: var(--lx-space-xl) var(--lx-space-2xl);
   border-bottom: 1px solid var(--lx-border-light);
 }
 
 .win-head h2 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--lx-font-lg);
   font-weight: 600;
   color: var(--lx-text-body);
-}
-
-.close-x {
-  border: none;
-  background: none;
-  font-size: 22px;
-  color: var(--lx-text-muted);
-  cursor: pointer;
-}
-
-.close-x:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 
 .tabs-row {
   display: flex;
   align-items: center;
-  gap: 20px;
-  padding: 0 18px;
+  gap: var(--lx-space-3xl);
+  padding: 0 var(--lx-space-2xl);
   border-bottom: 1px solid var(--lx-border-light);
   flex-wrap: wrap;
 }
@@ -337,19 +327,19 @@ function previewImage(item: { url: string; name: string }) {
 .tab {
   border: none;
   background: none;
-  padding: 12px 0;
-  font-size: 14px;
+  padding: var(--lx-space-lg) 0;
+  font-size: var(--lx-font);
   color: var(--lx-text-secondary);
   cursor: pointer;
   position: relative;
 }
 
-.tab.active {
+.tab.is-active {
   color: var(--lx-accent);
   font-weight: 600;
 }
 
-.tab.active::after {
+.tab.is-active::after {
   content: '';
   position: absolute;
   left: 0;
@@ -362,46 +352,20 @@ function previewImage(item: { url: string; name: string }) {
 .tabs-actions {
   margin-left: auto;
   display: flex;
-  gap: 10px;
+  gap: var(--lx-space-md);
   align-items: center;
-  padding: 8px 0;
+  padding: var(--lx-space) 0;
 }
 
 .hidden-input {
   display: none;
 }
 
-.link-btn {
-  border: none;
-  background: none;
-  color: var(--lx-text-secondary);
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.link-btn:disabled,
-.primary-sm:disabled,
-.primary-lg:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.primary-sm {
-  height: 30px;
-  padding: 0 12px;
-  border: none;
-  border-radius: var(--lx-radius);
-  background: var(--lx-accent);
-  color: var(--lx-bg-card);
-  font-size: 12px;
-  cursor: pointer;
-}
-
 .create-bar {
   display: flex;
-  gap: 8px;
+  gap: var(--lx-space);
   align-items: center;
-  padding: 10px 18px;
+  padding: var(--lx-space-md) var(--lx-space-2xl);
   border-bottom: 1px solid var(--lx-border-light);
 }
 
@@ -410,8 +374,8 @@ function previewImage(item: { url: string; name: string }) {
   height: 32px;
   border: 1px solid var(--lx-border-light);
   border-radius: var(--lx-radius);
-  padding: 0 10px;
-  font-size: 13px;
+  padding: 0 var(--lx-space-md);
+  font-size: var(--lx-font-md);
   outline: none;
   background: var(--lx-bg-panel);
   color: var(--lx-text-body);
@@ -419,18 +383,18 @@ function previewImage(item: { url: string; name: string }) {
 
 .album-hint {
   margin: 0;
-  padding: 8px 18px 0;
-  font-size: 12px;
+  padding: var(--lx-space) var(--lx-space-2xl) 0;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
 }
 
 .folder-grid {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 18px;
+  padding: var(--lx-space-2xl) var(--lx-space-2xl);
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 12px;
+  gap: var(--lx-space-lg);
   align-content: start;
 }
 
@@ -460,14 +424,14 @@ function previewImage(item: { url: string; name: string }) {
 }
 
 .folder-empty {
-  font-size: 36px;
+  font-size: var(--lx-font-7xl);
   opacity: 0.45;
 }
 
 .folder-name {
   display: block;
-  margin-top: 6px;
-  font-size: 13px;
+  margin-top: var(--lx-space-sm);
+  font-size: var(--lx-font-md);
   color: var(--lx-text-body);
   white-space: nowrap;
   overflow: hidden;
@@ -476,17 +440,17 @@ function previewImage(item: { url: string; name: string }) {
 
 .folder-count {
   display: block;
-  font-size: 11px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-muted);
 }
 
 .album-grid {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 18px;
+  padding: var(--lx-space-2xl) var(--lx-space-2xl);
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 10px;
+  gap: var(--lx-space-md);
   align-content: start;
 }
 
@@ -509,9 +473,9 @@ function previewImage(item: { url: string; name: string }) {
 
 .thumb-meta {
   display: block;
-  font-size: 10px;
+  font-size: var(--lx-font-2xs);
   color: var(--lx-text-muted);
-  padding: 4px 6px;
+  padding: var(--lx-space-xs) var(--lx-space-sm);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -524,24 +488,12 @@ function previewImage(item: { url: string; name: string }) {
   align-items: center;
   justify-content: center;
   color: var(--lx-text-muted);
-  font-size: 14px;
+  font-size: var(--lx-font);
 }
 
 .empty-ico {
-  font-size: 64px;
+  font-size: var(--lx-font-7xl);
   opacity: 0.35;
-  margin-bottom: 16px;
-}
-
-.primary-lg {
-  margin-top: 20px;
-  height: 36px;
-  padding: 0 24px;
-  border: none;
-  border-radius: var(--lx-radius);
-  background: var(--lx-accent);
-  color: var(--lx-bg-card);
-  font-size: 14px;
-  cursor: pointer;
+  margin-bottom: var(--lx-space-2xl);
 }
 </style>

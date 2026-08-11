@@ -93,12 +93,12 @@ watch(settingsActiveTab, () => {
 
 .main-head {
   flex-shrink: 0;
-  padding: 20px 28px 12px;
+  padding: var(--lx-space-3xl) var(--lx-space-5xl-minus) var(--lx-space-lg);
 }
 
 .main-head h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--lx-font-3xl);
   font-weight: 600;
   color: var(--lx-text);
 }

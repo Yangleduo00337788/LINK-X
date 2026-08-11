@@ -99,32 +99,32 @@ const toneClass = computed(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--lx-space-lg);
   min-height: 36px;
-  padding: 6px 14px 6px 16px;
+  padding: var(--lx-space-sm) var(--lx-space-xl) var(--lx-space-sm) var(--lx-space-2xl);
   position: relative;
-  z-index: 30;
+  z-index: var(--lx-z-dock);
   border-bottom: 1px solid transparent;
 }
 .conf-banner.is-voice {
   background: linear-gradient(90deg, rgba(18, 183, 106, 0.12), rgba(18, 183, 106, 0.05));
   border-bottom-color: rgba(18, 183, 106, 0.18);
-  color: #0f8a52;
+  color: var(--lx-conf-voice-text);
 }
 .conf-banner.is-video {
   background: linear-gradient(90deg, rgba(26, 107, 255, 0.12), rgba(26, 107, 255, 0.05));
   border-bottom-color: rgba(26, 107, 255, 0.18);
-  color: #1a56db;
+  color: var(--lx-conf-video-text);
 }
 .conf-banner.is-meeting {
   background: linear-gradient(90deg, rgba(124, 58, 237, 0.12), rgba(124, 58, 237, 0.05));
   border-bottom-color: rgba(124, 58, 237, 0.18);
-  color: #6d28d9;
+  color: var(--lx-conf-meeting-text);
 }
 .conf-banner-main {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--lx-space);
   min-width: 0;
   flex: 1;
 }
@@ -136,36 +136,36 @@ const toneClass = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--lx-text-on-accent);
 }
 .conf-banner.is-voice .conf-banner-icon {
-  background: #12b76a;
+  background: var(--lx-conf-voice);
 }
 .conf-banner.is-video .conf-banner-icon {
-  background: #1a6bff;
+  background: var(--lx-conf-video);
 }
 .conf-banner.is-meeting .conf-banner-icon {
-  background: #7c3aed;
+  background: var(--lx-conf-meeting);
 }
 .conf-banner-text {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--lx-space);
   min-width: 0;
   flex-wrap: wrap;
 }
 .conf-banner-status {
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   font-weight: 600;
   white-space: nowrap;
 }
 .conf-banner-count {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   opacity: 0.85;
   white-space: nowrap;
 }
 .conf-banner-title {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   opacity: 0.7;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -175,22 +175,22 @@ const toneClass = computed(() => {
 .conf-banner-btn {
   flex-shrink: 0;
   height: 26px;
-  padding: 0 12px;
+  padding: 0 var(--lx-space-lg);
   border: none;
-  border-radius: 13px;
-  font-size: 12px;
+  border-radius: var(--lx-radius-lg);
+  font-size: var(--lx-font-sm);
   font-weight: 600;
   cursor: pointer;
-  color: #fff;
+  color: var(--lx-text-on-accent);
 }
 .conf-banner.is-voice .conf-banner-btn {
-  background: #12b76a;
+  background: var(--lx-conf-voice);
 }
 .conf-banner.is-video .conf-banner-btn {
-  background: #1a6bff;
+  background: var(--lx-conf-video);
 }
 .conf-banner.is-meeting .conf-banner-btn {
-  background: #7c3aed;
+  background: var(--lx-conf-meeting);
 }
 .conf-banner-btn:hover {
   filter: brightness(1.05);

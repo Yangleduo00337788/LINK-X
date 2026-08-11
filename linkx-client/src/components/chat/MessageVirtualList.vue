@@ -254,11 +254,11 @@ defineExpose({
 }
 
 .msg-vl-item {
-  padding: 7px 0;
+  padding: var(--lx-space-sm-plus) 0;
   box-sizing: border-box;
 }
 
 .msg-vl-item.is-tip {
-  padding: 4px 0;
+  padding: var(--lx-space-xs) 0;
 }
 </style>

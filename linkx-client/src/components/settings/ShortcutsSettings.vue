@@ -1,10 +1,11 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { NButton, NInput, useMessage } from 'naive-ui'
+import { NInput, useMessage } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import { useAppSettingsStore } from '../../stores/appSettings'
 import { useI18n } from '../../i18n'
+import { LxGroupCard, LxButton } from '../ui'
 
 const message = useMessage()
 const appSettingsStore = useAppSettingsStore()
@@ -76,7 +77,7 @@ async function resetDefaults() {
 
 <template>
   <div class="settings-scroll" tabindex="0" @keydown="onKeydown">
-    <section class="group-card">
+    <LxGroupCard tag="section" variant="settings">
       <div class="group-head"><span>{{ t('shortcuts.title') }}</span></div>
       <div class="setting-row">
         <div class="setting-text">
@@ -111,19 +112,14 @@ async function resetDefaults() {
         </div>
       </div>
       <div class="actions-row">
-        <n-button
-          size="small"
-          tertiary
-          :disabled="!isElectron"
-          @click="resetDefaults"
-        >
+        <LxButton variant="sm" :disabled="!isElectron" @click="resetDefaults">
           {{ t('shortcuts.reset') }}
-        </n-button>
-        <n-button size="small" type="primary" :disabled="!isElectron" @click="saveShortcuts">
+        </LxButton>
+        <LxButton variant="sm-primary" :disabled="!isElectron" @click="saveShortcuts">
           {{ t('shortcuts.save') }}
-        </n-button>
+        </LxButton>
       </div>
-    </section>
+    </LxGroupCard>
     <p v-if="!isElectron" class="web-tip">{{ t('shortcuts.webTip') }}</p>
     <p v-if="recording" class="record-tip">{{ t('shortcuts.recording') }}</p>
   </div>
@@ -139,14 +135,14 @@ async function resetDefaults() {
 .actions-row {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  padding: 8px 16px 16px;
+  gap: var(--lx-space);
+  padding: var(--lx-space) var(--lx-space-2xl) var(--lx-space-2xl);
 }
 
 .web-tip,
 .record-tip {
-  margin: 0 4px;
-  font-size: 12px;
+  margin: 0 var(--lx-space-xs);
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
 }
 

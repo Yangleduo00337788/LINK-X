@@ -24,6 +24,7 @@ import {
   formatOfficialDividerTime,
   type CalendarRemindViewModel
 } from '../utils/calendarRemindContent'
+import { LxIconButton } from './ui'
 import '../styles/notifyFeed.css'
 
 const message = useMessage()
@@ -216,9 +217,9 @@ async function onCardMainClick(notifId: string) {
         <h2 class="title">{{ t('chat.calendarRemind') }}</h2>
       </div>
       <div class="actions">
-        <button type="button" class="action-btn" :title="t('chat.markRead')" @click="markAllRead">
+        <LxIconButton variant="feed" :title="t('chat.markRead')" @click="markAllRead">
           <n-icon :component="CheckmarkDoneOutline" :size="18" />
-        </button>
+        </LxIconButton>
       </div>
     </header>
 
@@ -301,7 +302,7 @@ async function onCardMainClick(notifId: string) {
               :options="cardMoreOptions(item)"
               @select="key => onCardMoreSelect(item.notifId, key as string)"
             >
-              <button type="button" class="card-more-btn" :title="t('chat.officialMore')">
+              <button type="button" class="lx-close-btn lx-close-btn--card-more" :title="t('chat.officialMore')">
                 <n-icon :component="EllipsisHorizontalOutline" :size="16" />
               </button>
             </n-dropdown>
@@ -315,35 +316,5 @@ async function onCardMainClick(notifId: string) {
 <style scoped>
 .title-icon {
   color: var(--lx-accent);
-}
-
-.card-more-btn {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border: none;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.9);
-  color: #b2b2b2;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-
-.notify-feed-card:hover .card-more-btn {
-  opacity: 1;
-}
-
-.card-more-btn:hover {
-  color: var(--lx-text-primary);
-}
-
-[data-theme='dark'] .card-more-btn {
-  background: rgba(42, 42, 42, 0.95);
 }
 </style>

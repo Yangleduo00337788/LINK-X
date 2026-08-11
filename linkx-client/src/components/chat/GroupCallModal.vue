@@ -315,7 +315,7 @@ watch(cameraOn, async on => {
             <div v-for="p in displayMembers" :key="p.userId" class="avatar-cell">
               <Avatar
                 :text="avatarText(p.displayName)"
-                color="#07c160"
+                color="var(--lx-success-strong)"
                 :image-url="p.avatar || undefined"
                 :size="64"
               />
@@ -364,7 +364,7 @@ watch(cameraOn, async on => {
             <div v-else class="tile-placeholder">
               <Avatar
                 :text="avatarText(p.displayName)"
-                color="#07c160"
+                color="var(--lx-success-strong)"
                 :image-url="p.avatar || undefined"
                 :size="56"
               />
@@ -408,7 +408,7 @@ watch(cameraOn, async on => {
 .call-root {
   position: fixed;
   inset: 0;
-  z-index: 12000;
+  z-index: var(--lx-z-call);
   background: var(--lx-bg-overlay, rgba(0, 0, 0, 0.45));
   display: flex;
   align-items: center;
@@ -417,53 +417,53 @@ watch(cameraOn, async on => {
 
 .call-window {
   width: min(440px, 92vw);
-  background: linear-gradient(180deg, #3a3a3a 0%, #2a2a2a 100%);
-  border-radius: var(--lx-radius, 10px);
-  padding: 24px 24px 28px;
-  color: #fff;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  background: var(--lx-call-gradient);
+  border-radius: var(--lx-radius);
+  padding: var(--lx-space-4xl) var(--lx-space-4xl) var(--lx-space-5xl-minus);
+  color: var(--lx-text-on-accent);
+  box-shadow: var(--lx-shadow-popover);
 }
 
 .video-window {
   width: min(560px, 94vw);
   padding: 0;
   overflow: hidden;
-  background: #1e1e1e;
+  background: var(--lx-conf-bg-deep);
 }
 
 .call-top {
   text-align: center;
-  margin-bottom: 20px;
+  margin-bottom: var(--lx-space-3xl);
 }
 
 .status {
   margin: 0;
-  padding: 14px;
+  padding: var(--lx-space-xl);
   text-align: center;
-  font-size: 14px;
+  font-size: var(--lx-font);
   color: rgba(255, 255, 255, 0.9);
 }
 
 .call-window:not(.video-window) .status {
   padding: 0;
-  font-size: 15px;
+  font-size: var(--lx-font-lg);
   color: rgba(255, 255, 255, 0.85);
 }
 
 .call-center {
   text-align: center;
-  margin-bottom: 24px;
+  margin-bottom: var(--lx-space-4xl);
 }
 
 .peer {
-  margin: 0 0 16px;
-  font-size: 16px;
+  margin: 0 0 var(--lx-space-2xl);
+  font-size: var(--lx-font-xl);
   font-weight: 500;
 }
 
 .hint {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   color: rgba(255, 255, 255, 0.55);
 }
 
@@ -471,7 +471,7 @@ watch(cameraOn, async on => {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 16px 20px;
+  gap: var(--lx-space-2xl) var(--lx-space-3xl);
   max-height: 280px;
   overflow: auto;
 }
@@ -482,11 +482,11 @@ watch(cameraOn, async on => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: var(--lx-space-sm);
 }
 
 .avatar-cell .name {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: rgba(255, 255, 255, 0.85);
   max-width: 80px;
   overflow: hidden;
@@ -514,30 +514,30 @@ watch(cameraOn, async on => {
 .invite-pwd {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin: 0 0 16px;
-  font-size: 13px;
+  gap: var(--lx-space-sm);
+  margin: 0 0 var(--lx-space-2xl);
+  font-size: var(--lx-font-md);
   color: rgba(255, 255, 255, 0.75);
 }
 
 .invite-pwd input {
   border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
-  padding: 8px 10px;
+  border-radius: var(--lx-radius-xs);
+  padding: var(--lx-space) var(--lx-space-md);
   background: rgba(0, 0, 0, 0.25);
-  color: #fff;
+  color: var(--lx-text-on-accent);
 }
 
 .call-controls {
   display: grid;
   align-items: start;
-  gap: 12px;
-  padding: 0 4px;
+  gap: var(--lx-space-lg);
+  padding: 0 var(--lx-space-xs);
 }
 
 .video-window .call-controls {
-  padding: 16px 16px 20px;
-  background: #2a2a2a;
+  padding: var(--lx-space-2xl) var(--lx-space-2xl) var(--lx-space-3xl);
+  background: var(--lx-bg-panel-deep);
 }
 
 .cols-2 {
@@ -556,11 +556,11 @@ watch(cameraOn, async on => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: var(--lx-space);
   border: none;
   background: transparent;
-  color: #fff;
-  font-size: 11px;
+  color: var(--lx-text-on-accent);
+  font-size: var(--lx-font-xs);
   cursor: pointer;
   min-width: 0;
   padding: 0;
@@ -574,7 +574,7 @@ watch(cameraOn, async on => {
   align-items: center;
   justify-content: center;
   background: rgba(255, 255, 255, 0.22);
-  color: #fff;
+  color: var(--lx-text-on-accent);
 }
 
 .ctl.off :deep(.n-icon) {
@@ -582,15 +582,15 @@ watch(cameraOn, async on => {
 }
 
 .ctl.hangup :deep(.n-icon) {
-  background: #fa5151;
+  background: var(--lx-danger);
 }
 
 .ctl.accept :deep(.n-icon) {
-  background: #07c160;
+  background: var(--lx-success-strong);
 }
 
 .ctl span {
-  line-height: 1.2;
+  line-height: var(--lx-leading-tight);
   text-align: center;
   white-space: nowrap;
   color: rgba(255, 255, 255, 0.92);
@@ -598,10 +598,10 @@ watch(cameraOn, async on => {
 
 .video-grid {
   display: grid;
-  gap: 4px;
+  gap: var(--lx-space-xs);
   height: 340px;
-  background: #2c2c2c;
-  padding: 4px;
+  background: var(--lx-bg-card);
+  padding: var(--lx-space-xs);
 }
 
 .video-grid.n-1 {
@@ -620,8 +620,8 @@ watch(cameraOn, async on => {
 
 .video-tile {
   position: relative;
-  background: #333;
-  border-radius: 6px;
+  background: var(--lx-text-body);
+  border-radius: var(--lx-radius-xs);
   overflow: hidden;
   min-height: 0;
 }
@@ -642,7 +642,7 @@ watch(cameraOn, async on => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(145deg, #3d3d3d, #252525);
+  background: var(--lx-video-surface-gradient);
 }
 
 .tile-label {
@@ -651,9 +651,9 @@ watch(cameraOn, async on => {
   bottom: 8px;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: #fff;
-  text-shadow: 0 1px 2px #000;
+  gap: var(--lx-space-xs);
+  font-size: var(--lx-font-sm);
+  color: var(--lx-text-on-accent);
+  text-shadow: 0 1px 2px var(--lx-black);
 }
 </style>

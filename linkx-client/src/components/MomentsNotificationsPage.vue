@@ -20,6 +20,7 @@ import { generateDefaultAvatar } from '../utils/defaultAvatar'
 import { normalizeMediaUrl } from '../utils/mediaUrl'
 import { useI18n } from '../i18n'
 import { aggregateNotifications } from '../utils/notifyAggregate'
+import { LxIconButton, LxButton } from './ui'
 
 const message = useMessage()
 const { t } = useI18n()
@@ -266,29 +267,28 @@ function onAvatarError(e: Event, notif: typeof messageNotifs.value[0]) {
           <header class="notif-popover-header">
             <h3 class="notif-popover-title">{{ t('moments.allInteractiveMessages') }}</h3>
             <div class="more-menu-wrap">
-              <button
-                type="button"
+              <LxIconButton
                 class="more-btn"
-                :class="{ active: showMoreMenu }"
+                :active="showMoreMenu"
                 :title="t('moments.more')"
                 @click.stop="toggleMoreMenu"
               >
                 <n-icon :component="EllipsisHorizontal" :size="18" />
-              </button>
+              </LxIconButton>
               <Transition name="more-menu">
                 <div v-if="showMoreMenu" class="more-menu" @click.stop>
-                  <button type="button" class="more-menu-item" @click="handleClearAll">
+                  <LxButton variant="ghost" class="more-menu-item" @click="handleClearAll">
                     {{ t('moments.clearAll') }}
-                  </button>
+                  </LxButton>
                   <div class="more-menu-divider" />
-                  <button
-                    type="button"
+                  <LxButton
+                    variant="ghost"
                     class="more-menu-item"
-                    :class="{ active: friendsInteractOnly }"
+                    :class="{ 'is-active': friendsInteractOnly }"
                     @click="toggleFriendsInteractOnly"
                   >
                     {{ t('moments.onlyFriendsInteract') }}
-                  </button>
+                  </LxButton>
                 </div>
               </Transition>
             </div>
@@ -336,7 +336,7 @@ function onAvatarError(e: Event, notif: typeof messageNotifs.value[0]) {
 <style scoped>
 .notif-popover-wrap {
   position: fixed;
-  z-index: 10050;
+  z-index: var(--lx-z-critical);
   transform-origin: top center;
 }
 
@@ -344,7 +344,7 @@ function onAvatarError(e: Event, notif: typeof messageNotifs.value[0]) {
   position: relative;
   width: 100%;
   background: var(--lx-bg-card);
-  border-radius: 12px;
+  border-radius: var(--lx-radius-lg);
   box-shadow:
     0 8px 28px rgba(0, 0, 0, 0.14),
     0 2px 8px rgba(0, 0, 0, 0.06);
@@ -358,7 +358,7 @@ function onAvatarError(e: Event, notif: typeof messageNotifs.value[0]) {
   left: var(--arrow-left, 50%);
   width: 12px;
   height: 12px;
-  margin-left: -6px;
+  margin-left: -var(--lx-space-sm);
   background: var(--lx-bg-card);
   transform: rotate(45deg);
   box-shadow: -2px -2px 4px rgba(0, 0, 0, 0.04);
@@ -369,7 +369,7 @@ function onAvatarError(e: Event, notif: typeof messageNotifs.value[0]) {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 14px 40px 12px;
+  padding: var(--lx-space-xl) var(--lx-space-section) var(--lx-space-lg);
   border-bottom: 1px solid var(--lx-border-light);
 }
 
@@ -386,12 +386,12 @@ function onAvatarError(e: Event, notif: typeof messageNotifs.value[0]) {
   right: 0;
   min-width: 220px;
   background: var(--lx-bg-card);
-  border-radius: 10px;
+  border-radius: var(--lx-radius-xl);
   box-shadow:
     0 8px 24px rgba(0, 0, 0, 0.12),
     0 2px 8px rgba(0, 0, 0, 0.06);
-  padding: 6px 0;
-  z-index: 20;
+  padding: var(--lx-space-sm) 0;
+  z-index: var(--lx-z-sticky);
 }
 
 .more-menu::before {
@@ -408,19 +408,19 @@ function onAvatarError(e: Event, notif: typeof messageNotifs.value[0]) {
 
 .more-menu-divider {
   height: 1px;
-  margin: 4px 0;
+  margin: var(--lx-space-xs) 0;
   background: var(--lx-border-light);
 }
 
 .more-menu-item {
   display: block;
   width: 100%;
-  padding: 10px 16px;
+  padding: var(--lx-space-md) var(--lx-space-2xl);
   border: none;
   background: transparent;
   color: var(--lx-text-body);
-  font-size: 14px;
-  line-height: 1.4;
+  font-size: var(--lx-font);
+  line-height: var(--lx-leading);
   text-align: left;
   cursor: pointer;
   white-space: nowrap;
@@ -437,7 +437,7 @@ function onAvatarError(e: Event, notif: typeof messageNotifs.value[0]) {
 
 .more-menu-enter-active,
 .more-menu-leave-active {
-  transition: opacity 0.14s ease, transform 0.14s ease;
+  transition: opacity var(--lx-duration-fast) ease, transform var(--lx-duration-fast) ease;
 }
 
 .more-menu-enter-from,
@@ -453,11 +453,11 @@ function onAvatarError(e: Event, notif: typeof messageNotifs.value[0]) {
 
 .notif-popover-title {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--lx-font-lg);
   font-weight: 600;
   color: var(--lx-text-body);
   text-align: center;
-  line-height: 1.3;
+  line-height: var(--lx-leading-snug);
 }
 
 .more-btn {
@@ -471,7 +471,7 @@ function onAvatarError(e: Event, notif: typeof messageNotifs.value[0]) {
   justify-content: center;
   color: var(--lx-text-secondary);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background var(--lx-duration);
 }
 
 .more-btn:hover {
@@ -491,8 +491,8 @@ function onAvatarError(e: Event, notif: typeof messageNotifs.value[0]) {
   align-items: center;
   justify-content: center;
   margin: 0;
-  padding: 48px 20px;
-  font-size: 14px;
+  padding: var(--lx-space-6xl) var(--lx-space-3xl);
+  font-size: var(--lx-font);
   color: var(--lx-text-muted);
   text-align: center;
 }
@@ -500,16 +500,16 @@ function onAvatarError(e: Event, notif: typeof messageNotifs.value[0]) {
 .notif-list {
   list-style: none;
   margin: 0;
-  padding: 4px 0 8px;
+  padding: var(--lx-space-xs) 0 var(--lx-space);
 }
 
 .notif-row {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 10px 14px;
+  gap: var(--lx-space-md);
+  padding: var(--lx-space-md) var(--lx-space-xl);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background var(--lx-duration);
 }
 
 .notif-row:hover {
@@ -527,7 +527,7 @@ function onAvatarError(e: Event, notif: typeof messageNotifs.value[0]) {
   height: 6px;
   border-radius: 50%;
   background: var(--lx-danger);
-  margin-left: 6px;
+  margin-left: var(--lx-space-sm);
   vertical-align: middle;
 }
 
@@ -546,11 +546,11 @@ function onAvatarError(e: Event, notif: typeof messageNotifs.value[0]) {
 }
 
 .notif-title {
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   color: var(--lx-text-body);
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--lx-space-2xs);
 }
 
 .notif-name {
@@ -561,16 +561,16 @@ function onAvatarError(e: Event, notif: typeof messageNotifs.value[0]) {
 .notif-text {
   font-weight: 400;
   color: var(--lx-text-secondary);
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
 }
 
 .notif-preview {
-  margin-top: 4px;
-  font-size: 12px;
+  margin-top: var(--lx-space-xs);
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
   background: var(--lx-bg-panel);
-  padding: 4px 8px;
-  border-radius: 6px;
+  padding: var(--lx-space-xs) var(--lx-space);
+  border-radius: var(--lx-radius-xs);
   white-space: pre-wrap;
   word-break: break-word;
   max-height: 48px;
@@ -578,8 +578,8 @@ function onAvatarError(e: Event, notif: typeof messageNotifs.value[0]) {
 }
 
 .notif-time {
-  margin-top: 4px;
-  font-size: 11px;
+  margin-top: var(--lx-space-xs);
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-muted);
 }
 

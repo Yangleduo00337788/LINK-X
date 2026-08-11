@@ -32,6 +32,7 @@ import { formatFileSize } from '../utils/chatTime'
 import * as chatApi from '../api/chat'
 import { recoverMediaUrlOnError } from '../utils/mediaUrl'
 import { imagePreviewPlaceholder } from '../utils/messagePreviewText'
+import { LxButton, LxIconButton } from '../components/ui'
 
 type ViewerItem = {
   url: string
@@ -261,7 +262,7 @@ function onPointerDown(e: PointerEvent) {
   if (cropMode.value || e.button !== 0) return
   const el = e.target as HTMLElement | null
   // 左右切换按钮上的按下不要当成拖拽平移
-  if (el?.closest?.('.nav-btn')) return
+  if (el?.closest?.('.lx-nav-btn')) return
   dragging.value = true
   dragStart.value = { x: e.clientX, y: e.clientY, ox: offsetX.value, oy: offsetY.value }
   ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
@@ -753,7 +754,7 @@ watch(
       <button
         v-show="hasGallery && !cropMode"
         type="button"
-        class="nav-btn nav-prev"
+        class="lx-nav-btn nav-prev"
         :title="t('viewer.prev')"
         @pointerdown.stop
         @click.stop="prev"
@@ -763,7 +764,7 @@ watch(
       <button
         v-show="hasGallery && !cropMode"
         type="button"
-        class="nav-btn nav-next"
+        class="lx-nav-btn nav-next"
         :title="t('viewer.next')"
         @pointerdown.stop
         @click.stop="next"
@@ -841,68 +842,65 @@ watch(
 
     <!-- 裁剪确认条 -->
     <div v-if="cropMode" class="crop-actions">
-      <button type="button" class="crop-action" @click="exitCrop(false)">
+      <LxButton variant="crop-action" @click="exitCrop(false)">
         <n-icon :component="CloseOutline" :size="18" />
         {{ t('common.cancel') }}
-      </button>
-      <button type="button" class="crop-action primary" :disabled="busy" @click="confirmCrop">
+      </LxButton>
+      <LxButton variant="crop-action-primary" :disabled="busy" @click="confirmCrop">
         <n-icon :component="CheckmarkOutline" :size="18" />
         {{ t('viewer.cropConfirm') }}
-      </button>
+      </LxButton>
     </div>
 
     <div v-else class="viewer-toolbar">
-      <button type="button" class="tool-btn" :title="t('viewer.zoomOut')" @click="zoomBy(0.9)">
+      <LxIconButton variant="viewer" :title="t('viewer.zoomOut')" @click="zoomBy(0.9)">
         <n-icon :component="RemoveOutline" :size="18" />
-      </button>
+      </LxIconButton>
       <button type="button" class="tool-pct" :title="t('viewer.fit')" @click="zoomToFit">
         {{ zoomPercent }}%
       </button>
-      <button type="button" class="tool-btn" :title="t('viewer.zoomIn')" @click="zoomBy(1.1)">
+      <LxIconButton variant="viewer" :title="t('viewer.zoomIn')" @click="zoomBy(1.1)">
         <n-icon :component="AddOutline" :size="18" />
-      </button>
-      <button type="button" class="tool-btn tool-text" :title="t('viewer.actual')" @click="zoomToActual">
+      </LxIconButton>
+      <LxIconButton variant="viewer-text" :title="t('viewer.actual')" @click="zoomToActual">
         <span>1:1</span>
-      </button>
+      </LxIconButton>
       <span class="tool-sep" />
-      <button type="button" class="tool-btn" :title="t('viewer.rotate')" @click="rotateCw">
+      <LxIconButton variant="viewer" :title="t('viewer.rotate')" @click="rotateCw">
         <n-icon :component="RefreshOutline" :size="18" />
-      </button>
-      <button
-        type="button"
-        class="tool-btn"
+      </LxIconButton>
+      <LxIconButton
+        variant="viewer"
         :title="t('viewer.openExternal')"
         :disabled="busy || !imageUrl"
         @click="openExternally"
       >
         <n-icon :component="OpenOutline" :size="18" />
-      </button>
-      <button type="button" class="tool-btn" :title="t('viewer.crop')" :disabled="!imageUrl" @click="enterCrop">
+      </LxIconButton>
+      <LxIconButton variant="viewer" :title="t('viewer.crop')" :disabled="!imageUrl" @click="enterCrop">
         <n-icon :component="CropOutline" :size="18" />
-      </button>
+      </LxIconButton>
       <span class="tool-sep" />
-      <button
-        type="button"
-        class="tool-btn"
+      <LxIconButton
+        variant="viewer"
         :title="t('chat.forward')"
         :disabled="busy || !imageUrl"
         @click="openForward"
       >
         <n-icon :component="ArrowRedoOutline" :size="18" />
-      </button>
-      <button
-        type="button"
-        class="tool-btn"
+      </LxIconButton>
+      <LxIconButton
+        variant="viewer"
         :title="t('overlay.download')"
         :disabled="downloading || !imageUrl"
         @click="download"
       >
         <n-icon :component="CloudDownloadOutline" :size="18" />
-      </button>
+      </LxIconButton>
       <n-dropdown trigger="click" placement="top" :options="moreOptions" @select="onMoreSelect">
-        <button type="button" class="tool-btn" :title="t('viewer.more')">
+        <LxIconButton variant="viewer" :title="t('viewer.more')">
           <n-icon :component="EllipsisHorizontalOutline" :size="18" />
-        </button>
+        </LxIconButton>
       </n-dropdown>
     </div>
 
@@ -925,8 +923,8 @@ watch(
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--lx-bg-panel, #f5f5f5);
-  color: var(--lx-text-body, #1f2329);
+  background: var(--lx-bg-panel);
+  color: var(--lx-text-body, var(--lx-conf-surface));
   overflow: hidden;
 }
 
@@ -936,8 +934,8 @@ watch(
   justify-content: space-between;
   flex-shrink: 0;
   min-height: 40px;
-  padding: 0 0 0 14px;
-  background: var(--lx-bg-card, #fff);
+  padding: 0 0 0 var(--lx-space-xl);
+  background: var(--lx-bg-card);
   border-bottom: 1px solid var(--lx-border-light, rgba(0, 0, 0, 0.06));
   -webkit-app-region: drag;
 }
@@ -947,12 +945,12 @@ watch(
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding-right: 12px;
+  gap: var(--lx-space-md);
+  padding-right: var(--lx-space-lg);
 }
 
 .file-title {
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -962,8 +960,8 @@ watch(
 .file-size,
 .file-index {
   flex-shrink: 0;
-  font-size: 12px;
-  color: var(--lx-text-muted, #8f959e);
+  font-size: var(--lx-font-sm);
+  color: var(--lx-text-muted);
 }
 
 .header-right {
@@ -981,7 +979,7 @@ watch(
   justify-content: center;
   touch-action: none;
   user-select: none;
-  background: var(--lx-bg-panel-deep, var(--lx-bg-panel, #eceff3));
+  background: var(--lx-bg-panel-deep, var(--lx-bg-panel));
 }
 
 /*
@@ -991,11 +989,11 @@ watch(
 .viewer-img-frame {
   line-height: 0;
   transform-origin: center center;
-  transition: transform 0.05s linear;
+  transition: transform var(--lx-duration-instant) linear;
   will-change: transform;
   max-width: calc(100% - 48px);
   max-height: calc(100% - 48px);
-  border-radius: 16px;
+  border-radius: var(--lx-radius-2xl);
   box-shadow: 0 0 0 1px var(--lx-border-light, rgba(0, 0, 0, 0.08));
 }
 
@@ -1008,36 +1006,12 @@ watch(
   object-fit: contain;
   pointer-events: none;
   border: none;
-  border-radius: 16px;
+  border-radius: var(--lx-radius-2xl);
 }
 
 .viewer-empty {
-  color: var(--lx-text-muted, #999);
-  font-size: 14px;
-}
-
-.nav-btn {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 4;
-  width: 48px;
-  height: 48px;
-  border: none;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--lx-bg-card, #fff) 88%, transparent);
-  color: var(--lx-text-body, #1f2329);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  -webkit-app-region: no-drag;
-  backdrop-filter: blur(6px);
-}
-
-.nav-btn:hover {
-  background: var(--lx-bg-card, #fff);
+  color: var(--lx-text-muted);
+  font-size: var(--lx-font);
 }
 
 .nav-prev {
@@ -1051,7 +1025,7 @@ watch(
 .crop-layer {
   position: absolute;
   inset: 0;
-  z-index: 6;
+  z-index: var(--lx-z-raised-6);
   -webkit-app-region: no-drag;
 }
 
@@ -1093,9 +1067,9 @@ watch(
   position: absolute;
   width: 12px;
   height: 12px;
-  background: #12b7f5;
-  border: 2px solid #fff;
-  border-radius: 2px;
+  background: var(--lx-accent);
+  border: 2px solid var(--lx-text-on-accent);
+  border-radius: var(--lx-radius-hair);
   box-sizing: border-box;
 }
 
@@ -1128,35 +1102,10 @@ watch(
   left: 50%;
   bottom: 28px;
   transform: translateX(-50%);
-  z-index: 7;
+  z-index: var(--lx-z-raised-7);
   display: flex;
-  gap: 10px;
+  gap: var(--lx-space-md);
   -webkit-app-region: no-drag;
-}
-
-.crop-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 40px;
-  padding: 0 16px;
-  border: none;
-  border-radius: 999px;
-  background: var(--lx-bg-card, #fff);
-  color: var(--lx-text-body, #1f2329);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.crop-action.primary {
-  background: var(--lx-accent, #12b7f5);
-  color: #fff;
-}
-
-.crop-action:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .viewer-toolbar {
@@ -1166,57 +1115,25 @@ watch(
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 8px 14px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--lx-bg-card, #fff) 92%, transparent);
+  gap: var(--lx-space-2xs);
+  padding: var(--lx-space) var(--lx-space-xl);
+  border-radius: var(--lx-radius-pill);
+  background: color-mix(in srgb, var(--lx-bg-card) 92%, transparent);
   border: 1px solid var(--lx-border-light, rgba(0, 0, 0, 0.08));
   backdrop-filter: blur(10px);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
-  z-index: 5;
+  z-index: var(--lx-z-raised-5);
   -webkit-app-region: no-drag;
-}
-
-.tool-btn {
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--lx-text-body, #1f2329);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  gap: 4px;
-}
-
-.tool-btn:hover {
-  background: var(--lx-bg-hover, rgba(0, 0, 0, 0.06));
-}
-
-.tool-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.tool-text {
-  width: auto;
-  min-width: 40px;
-  padding: 0 8px;
-  border-radius: 18px;
-  font-size: 12px;
-  font-weight: 700;
 }
 
 .tool-pct {
   min-width: 52px;
   height: 36px;
   border: none;
-  border-radius: 18px;
+  border-radius: var(--lx-radius-2xl);
   background: transparent;
-  color: var(--lx-text-body, #1f2329);
-  font-size: 13px;
+  color: var(--lx-text-body, var(--lx-conf-surface));
+  font-size: var(--lx-font-md);
   font-variant-numeric: tabular-nums;
   cursor: pointer;
 }
@@ -1228,7 +1145,7 @@ watch(
 .tool-sep {
   width: 1px;
   height: 18px;
-  margin: 0 4px;
+  margin: 0 var(--lx-space-xs);
   background: var(--lx-border-light, rgba(0, 0, 0, 0.12));
 }
 
@@ -1238,6 +1155,6 @@ watch(
 html.lx-image-viewer,
 html.lx-image-viewer body,
 html.lx-image-viewer #app {
-  background: var(--lx-bg-panel, #f5f5f5) !important;
+  background: var(--lx-bg-panel) !important;
 }
 </style>

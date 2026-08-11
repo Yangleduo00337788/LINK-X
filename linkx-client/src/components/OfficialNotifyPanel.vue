@@ -26,6 +26,7 @@ import {
   type OfficialNotifyViewModel
 } from '../utils/officialNotifyContent'
 import { openOfficialNotifyDetail } from '../utils/openOfficialNotifyDetail'
+import { LxIconButton } from './ui'
 import '../styles/notifyFeed.css'
 
 const message = useMessage()
@@ -151,13 +152,13 @@ function onHeaderMoreSelect(key: string) {
         <h2 class="title">{{ t('chat.officialSession') }}</h2>
       </div>
       <div class="actions">
-        <button type="button" class="action-btn" :title="t('chat.markRead')" @click="markAllRead">
+        <LxIconButton variant="feed" :title="t('chat.markRead')" @click="markAllRead">
           <n-icon :component="CheckmarkDoneOutline" :size="18" />
-        </button>
+        </LxIconButton>
         <n-dropdown trigger="click" :options="headerMoreOptions" @select="onHeaderMoreSelect">
-          <button type="button" class="action-btn" :title="t('chat.officialMore')">
+          <LxIconButton variant="feed" :title="t('chat.officialMore')">
             <n-icon :component="EllipsisHorizontalOutline" :size="18" />
-          </button>
+          </LxIconButton>
         </n-dropdown>
       </div>
     </header>

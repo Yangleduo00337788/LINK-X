@@ -3,16 +3,13 @@
 // Vue 计算属性与异步组件
 import { computed, defineAsyncComponent } from 'vue'
 // Naive UI 按钮与图标
-import { NButton, NIcon } from 'naive-ui'
-// Ionicons5 返回箭头图标
+import { NIcon } from 'naive-ui'
 import { ArrowBackOutline } from '@vicons/ionicons5'
-// Pinia 响应式解构工具
 import { storeToRefs } from 'pinia'
-// 全屏覆盖层 Store
 import { useOverlayStore } from '../../stores/overlay'
-// 覆盖层页面类型
 import type { OverlayPage } from '../../types'
 import { useI18n } from '../../i18n'
+import { LxIconButton } from '../ui'
 
 // 覆盖层 Store 实例
 const overlayStore = useOverlayStore()
@@ -42,11 +39,9 @@ const pageTitle = computed(() => {
     <!-- 顶部导航栏：返回按钮、标题（窗控由系统原生提供） -->
     <div class="overlay-header">
       <div class="left">
-        <n-button quaternary circle @click="close">
-          <template #icon>
-            <n-icon :component="ArrowBackOutline" />
-          </template>
-        </n-button>
+        <LxIconButton :title="t('common.back')" @click="close">
+          <n-icon :component="ArrowBackOutline" />
+        </LxIconButton>
         <span class="title">{{ pageTitle }}</span>
       </div>
     </div>
@@ -62,7 +57,7 @@ const pageTitle = computed(() => {
 .overlay-host {
   position: absolute;
   inset: 0;
-  z-index: 100;
+  z-index: var(--lx-z-header);
   background: var(--lx-bg-panel);
   display: flex;
   flex-direction: column;
@@ -72,12 +67,12 @@ const pageTitle = computed(() => {
   height: env(titlebar-area-height, 60px);
   min-height: 48px;
   width: env(titlebar-area-width, 100%);
-  margin-left: env(titlebar-area-x, 0px);
+  margin-left: env(titlebar-area-x, 0);
   box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 8px 0 4px;
+  padding: 0 var(--lx-space) 0 var(--lx-space-xs);
   border-bottom: 1px solid var(--lx-border-light);
   background: var(--lx-bg-panel);
   -webkit-app-region: drag;
@@ -86,12 +81,12 @@ const pageTitle = computed(() => {
 .left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--lx-space);
   -webkit-app-region: no-drag;
 }
 
 .title {
-  font-size: 16px;
+  font-size: var(--lx-font-xl);
   font-weight: 500;
   color: var(--lx-text-body);
 }
@@ -99,7 +94,7 @@ const pageTitle = computed(() => {
 .overlay-body {
   flex: 1;
   overflow-y: auto;
-  padding: 24px;
+  padding: var(--lx-space-4xl);
   background: var(--lx-bg-list, var(--lx-bg-panel));
   display: flex;
   justify-content: center;

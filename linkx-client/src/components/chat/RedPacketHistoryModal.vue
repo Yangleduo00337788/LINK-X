@@ -4,7 +4,8 @@
  * 会话红包记录：列出当前会话发出的红包，可查看详情并领取。
  */
 import { ref, watch, computed } from 'vue'
-import { NModal, NSpin, NEmpty, NButton, useMessage } from 'naive-ui'
+import { NModal, NSpin, NEmpty, useMessage } from 'naive-ui'
+import { LxButton } from '../ui'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
@@ -128,15 +129,14 @@ async function quickReceive(p: RedPacket) {
               <span class="rp-time">{{ p.time }}</span>
             </div>
           </button>
-          <n-button
+          <LxButton
             v-if="!p.isSelf && !p.received && p.status === 'active'"
-            size="tiny"
-            type="warning"
-            :loading="receivingId === p.id"
+            variant="sm-primary"
+            :disabled="receivingId === p.id"
             @click="quickReceive(p)"
           >
             {{ t('modals.rpOpen') }}
-          </n-button>
+          </LxButton>
         </li>
       </ul>
     </n-spin>
@@ -154,8 +154,8 @@ async function quickReceive(p: RedPacket) {
 .rp-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 0;
+  gap: var(--lx-space-md);
+  padding: var(--lx-space-md) 0;
   border-bottom: 1px solid var(--lx-border-light);
 }
 .rp-main {
@@ -171,11 +171,11 @@ async function quickReceive(p: RedPacket) {
 .rp-top {
   display: flex;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 4px;
+  gap: var(--lx-space);
+  margin-bottom: var(--lx-space-xs);
 }
 .rp-greet {
-  font-size: 14px;
+  font-size: var(--lx-font);
   font-weight: 500;
   color: var(--lx-text-body);
   overflow: hidden;
@@ -183,18 +183,18 @@ async function quickReceive(p: RedPacket) {
   white-space: nowrap;
 }
 .rp-status {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
   flex-shrink: 0;
 }
 .rp-status[data-status='active'] {
-  color: var(--lx-warning, #d48806);
+  color: var(--lx-warning);
 }
 .rp-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 12px;
-  font-size: 12px;
+  gap: var(--lx-space) var(--lx-space-lg);
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
 }
 .rp-time {

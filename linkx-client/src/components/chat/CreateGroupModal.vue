@@ -20,6 +20,7 @@ import { useAppStore } from '../../stores/app'
 import { useContactsStore } from '../../stores/contacts'
 import { useMessage } from 'naive-ui'
 import { useI18n } from '../../i18n'
+import { LxButton } from '../ui'
 
 const { t } = useI18n()
 const message = useMessage()
@@ -277,16 +278,15 @@ function cancel() {
         </div>
         <!-- 底部确认/取消 -->
         <div class="modal-footer">
-          <button
-            type="button"
-            class="btn primary"
-            :class="{ disabled: !canConfirm }"
+          <LxButton
+            variant="modal-primary"
+            :class="{ 'is-disabled': !canConfirm }"
             :disabled="!canConfirm"
             @click="confirm"
           >
             {{ t('common.confirm') }}
-          </button>
-          <button type="button" class="btn" @click="cancel">{{ t('common.cancel') }}</button>
+          </LxButton>
+          <LxButton variant="modal" @click="cancel">{{ t('common.cancel') }}</LxButton>
         </div>
       </div>
     </div>
@@ -297,12 +297,12 @@ function cancel() {
 .modal-root {
   position: fixed;
   inset: 0;
-  z-index: 2100;
+  z-index: var(--lx-z-dialog-base);
   background: var(--lx-bg-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: var(--lx-space-4xl);
 }
 
 .modal-card {
@@ -318,8 +318,8 @@ function cancel() {
 
 .modal-title {
   margin: 0;
-  padding: 18px 24px 14px;
-  font-size: 17px;
+  padding: var(--lx-space-2xl) var(--lx-space-4xl) var(--lx-space-xl);
+  font-size: var(--lx-font-2xl);
   font-weight: 600;
   text-align: left;
   color: var(--lx-text-body);
@@ -329,8 +329,8 @@ function cancel() {
   flex: 1;
   display: flex;
   min-height: 0;
-  margin: 0 20px;
-  border: 1px solid #eee;
+  margin: 0 var(--lx-space-3xl);
+  border: 1px solid var(--lx-divider);
   border-radius: var(--lx-radius);
   overflow: hidden;
 }
@@ -340,12 +340,12 @@ function cancel() {
   min-width: 280px;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #eee;
+  border-right: 1px solid var(--lx-divider);
   background: var(--lx-bg-card);
 }
 
 .search-wrap {
-  padding: 12px 12px 8px;
+  padding: var(--lx-space-lg) var(--lx-space-lg) var(--lx-space);
 }
 
 .search-field {
@@ -353,8 +353,8 @@ function cancel() {
   height: 32px;
   border: 1px solid var(--lx-bg-panel-deep);
   border-radius: var(--lx-radius);
-  padding: 0 12px;
-  font-size: 14px;
+  padding: 0 var(--lx-space-lg);
+  font-size: var(--lx-font);
   outline: none;
   background: var(--lx-bg-panel);
   box-sizing: border-box;
@@ -366,33 +366,33 @@ function cancel() {
 }
 
 .section-hint {
-  padding: 10px 14px 4px;
-  font-size: 13px;
+  padding: var(--lx-space-md) var(--lx-space-xl) var(--lx-space-xs);
+  font-size: var(--lx-font-md);
   color: var(--lx-text-secondary);
 }
 
 .scroll-list {
   flex: 1;
   overflow-y: auto;
-  padding: 0 8px 12px;
+  padding: 0 var(--lx-space) var(--lx-space-lg);
 }
 
 .group-head {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 6px;
+  gap: var(--lx-space-sm);
+  padding: var(--lx-space) var(--lx-space-sm);
   border: none;
   background: transparent;
-  font-size: 14px;
+  font-size: var(--lx-font);
   color: var(--lx-text-body);
   cursor: pointer;
   text-align: left;
 }
 
 .chev {
-  transition: transform 0.15s ease;
+  transition: transform var(--lx-duration) ease;
 }
 
 .chev.collapsed {
@@ -403,14 +403,14 @@ function cancel() {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 8px 8px 28px;
+  gap: var(--lx-space-md);
+  padding: var(--lx-space) var(--lx-space) var(--lx-space) var(--lx-space-5xl-minus);
   border: none;
   background: transparent;
   border-radius: var(--lx-radius);
   cursor: pointer;
   text-align: left;
-  font-size: 14px;
+  font-size: var(--lx-font);
 }
 
 .contact-row:hover {
@@ -436,10 +436,10 @@ function cancel() {
 }
 
 .selected-list {
-  padding: 16px;
+  padding: var(--lx-space-2xl);
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--lx-space-lg);
   align-content: flex-start;
 }
 
@@ -447,9 +447,9 @@ function cancel() {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: var(--lx-space-sm);
   width: 64px;
-  font-size: 11px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-secondary);
   text-align: center;
   word-break: break-all;
@@ -458,35 +458,7 @@ function cancel() {
 .modal-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
-  padding: 16px 24px 20px;
-}
-
-.btn {
-  min-width: 88px;
-  height: 36px;
-  border-radius: var(--lx-radius);
-  border: 1px solid #ddd;
-  background: var(--lx-bg-card);
-  font-size: 14px;
-  cursor: pointer;
-  color: var(--lx-text-body);
-}
-
-.btn.primary {
-  background: var(--lx-accent);
-  border-color: var(--lx-accent);
-  color: var(--lx-bg-card);
-}
-
-.btn.primary.disabled {
-  background: #b8e8fa;
-  border-color: #b8e8fa;
-  cursor: not-allowed;
-  color: var(--lx-bg-card);
-}
-
-.btn:hover:not(:disabled) {
-  opacity: 0.92;
+  gap: var(--lx-space-lg);
+  padding: var(--lx-space-2xl) var(--lx-space-4xl) var(--lx-space-3xl);
 }
 </style>

@@ -5,6 +5,7 @@ import { NSwitch, NSelect, useMessage } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import { useAppSettingsStore } from '../../stores/appSettings'
 import { setLocale, useI18n } from '../../i18n'
+import { LxGroupCard } from '../ui'
 import { unlockAudio } from '../../utils/notifyTone'
 
 const appSettingsStore = useAppSettingsStore()
@@ -60,7 +61,7 @@ async function onOpenOnStartupChange() {
 
 <template>
   <div class="settings-scroll">
-    <section class="group-card">
+    <LxGroupCard tag="section" variant="settings">
       <div class="group-head"><span>{{ t('general.title') }}</span></div>
 
       <div class="setting-row">
@@ -112,7 +113,7 @@ async function onOpenOnStartupChange() {
           @update:value="applyAutoStart"
         />
       </div>
-    </section>
+    </LxGroupCard>
   </div>
 </template>
 

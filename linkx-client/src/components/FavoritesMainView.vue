@@ -9,10 +9,10 @@ import {
   NInput,
   NDropdown,
   NModal,
-  NButton,
   useMessage,
   useDialog
 } from 'naive-ui'
+import { LxButton, LxIconButton } from './ui'
 import {
   SearchOutline,
   AddOutline,
@@ -37,6 +37,7 @@ import type { FavoriteItem } from '../types'
 import { formatFileSize } from '../utils/file'
 import { useOverlayStore } from '../stores/overlay'
 import { useI18n } from '../i18n'
+import { lxColorHex } from '../theme/vars'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -77,7 +78,7 @@ const tagModalItem = ref<FavoriteItem | null>(null)
 const tagDraft = ref('')
 const newTagModalShow = ref(false)
 const newTagName = ref('')
-const newTagColor = ref('#94a3b8')
+const newTagColor = ref(lxColorHex.slateMuted)
 
 onMounted(() => {
   void favStore.refreshAll()
@@ -100,7 +101,7 @@ const displayTags = computed(() =>
   (tags.value || []).map(tag => ({
     id: tag.id,
     key: tag.name,
-    color: tag.color || '#94a3b8',
+    color: tag.color || lxColorHex.slateMuted,
     count: tag.count ?? 0,
     preset: !!tag.preset
   }))
@@ -179,14 +180,14 @@ function openNewNote() {
 
 function fileExtIcon(item: FavoriteItem) {
   const name = item.title.toLowerCase()
-  if (name.endsWith('.pdf')) return { label: 'PDF', color: '#ef4444', bg: '#fee2e2' }
+  if (name.endsWith('.pdf')) return { label: 'PDF', color: lxColorHex.danger, bg: 'var(--lx-danger-bg)' }
   if (name.endsWith('.zip') || name.endsWith('.rar') || name.endsWith('.7z')) {
-    return { label: 'ZIP', color: '#f59e0b', bg: '#fef3c7' }
+    return { label: 'ZIP', color: lxColorHex.warning, bg: 'var(--lx-warning-bg)' }
   }
   if (name.endsWith('.mp3') || name.endsWith('.wav') || name.endsWith('.flac')) {
-    return { label: 'MP3', color: '#a855f7', bg: '#f3e8ff', music: true }
+    return { label: 'MP3', color: lxColorHex.brandPurple, bg: lxColorHex.fileMediaBg, music: true }
   }
-  return { label: 'FILE', color: '#64748b', bg: '#f1f5f9' }
+  return { label: 'FILE', color: lxColorHex.slate, bg: lxColorHex.slateSoft }
 }
 
 /** 仅图片、文件展示封面图；笔记等不展示 */
@@ -311,7 +312,7 @@ async function saveTags() {
 
 function openNewTagModal() {
   newTagName.value = ''
-  newTagColor.value = '#94a3b8'
+  newTagColor.value = lxColorHex.slateMuted
   newTagModalShow.value = true
 }
 
@@ -330,7 +331,7 @@ async function confirmNewTag() {
 
 function tagColor(name: string) {
   const hit = displayTags.value.find(p => p.key === name)
-  return hit?.color || '#94a3b8'
+  return hit?.color || lxColorHex.slateMuted
 }
 
 function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset: boolean }) {
@@ -372,7 +373,7 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
           :key="c.key"
           type="button"
           class="cat-item"
-          :class="{ active: category === c.key }"
+          :class="{ 'is-active': category === c.key }"
           @click="setCategory(c.key)"
         >
           <n-icon :component="c.icon" :size="18" />
@@ -383,9 +384,9 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
 
       <div class="side-tags-head">
         <span>{{ t('favorites.tags') }}</span>
-        <button type="button" class="tag-add" :title="t('favorites.addTag')" @click="openNewTagModal">
+        <LxIconButton class="tag-add" :title="t('favorites.addTag')" @click="openNewTagModal">
           <n-icon :component="AddOutline" :size="16" />
-        </button>
+        </LxIconButton>
       </div>
       <div class="side-tags">
         <button
@@ -393,7 +394,7 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
           :key="tag.id"
           type="button"
           class="tag-item"
-          :class="{ active: activeTag === tag.key }"
+          :class="{ 'is-active': activeTag === tag.key }"
           :title="tag.preset ? undefined : t('favorites.tagContextHint')"
           @click="toggleTag(tag.key)"
           @contextmenu="onTagContextMenu($event, tag)"
@@ -419,29 +420,27 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
             <n-icon :component="SearchOutline" :size="16" />
           </template>
         </n-input>
-        <button type="button" class="btn-new" @click="openNewNote">
+        <LxButton variant="pill-primary" @click="openNewNote">
           <n-icon :component="AddOutline" :size="16" />
           {{ t('favorites.newNote') }}
-        </button>
+        </LxButton>
         <div class="view-toggle">
-          <button
-            type="button"
+          <LxIconButton
             class="view-btn"
-            :class="{ active: viewMode === 'grid' }"
+            :active="viewMode === 'grid'"
             :title="t('favorites.gridView')"
             @click="setViewMode('grid')"
           >
             <n-icon :component="GridOutline" :size="18" />
-          </button>
-          <button
-            type="button"
+          </LxIconButton>
+          <LxIconButton
             class="view-btn"
-            :class="{ active: viewMode === 'list' }"
+            :active="viewMode === 'list'"
             :title="t('favorites.listView')"
             @click="setViewMode('list')"
           >
             <n-icon :component="ListOutline" :size="18" />
-          </button>
+          </LxIconButton>
         </div>
       </div>
 
@@ -455,7 +454,7 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
           <span class="sub-count">({{ filteredItems.length }})</span>
         </h3>
         <n-dropdown :options="sortOptions" @select="setSort">
-          <button type="button" class="sort-btn">{{ sortLabel }} ▾</button>
+          <LxButton variant="ghost" class="sort-btn">{{ sortLabel }} ▾</LxButton>
         </n-dropdown>
       </div>
 
@@ -540,9 +539,9 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
                 :options="cardMenuOptions(item)"
                 @select="(k: string) => onCardMenu(k, item)"
               >
-                <button type="button" class="more-btn" @click.stop>
+                <LxIconButton class="more-btn" @click.stop>
                   <n-icon :component="EllipsisHorizontalOutline" :size="16" />
-                </button>
+                </LxIconButton>
               </n-dropdown>
             </div>
           </div>
@@ -584,9 +583,9 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
             <div class="list-sub">{{ item.preview }}</div>
           </div>
           <div class="list-meta">{{ item.time }}</div>
-          <button type="button" class="list-del" @click.stop="confirmDelete(item)">
+          <LxIconButton class="list-del" :title="t('common.delete')" @click.stop="confirmDelete(item)">
             <n-icon :component="TrashOutline" :size="16" />
-          </button>
+          </LxIconButton>
         </div>
       </div>
 
@@ -609,8 +608,8 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
       />
       <template #footer>
         <div class="modal-actions">
-          <n-button @click="tagModalShow = false">{{ t('common.cancel') }}</n-button>
-          <n-button type="primary" @click="saveTags">{{ t('common.save') }}</n-button>
+          <LxButton variant="modal" @click="tagModalShow = false">{{ t('common.cancel') }}</LxButton>
+          <LxButton variant="modal-primary" @click="saveTags">{{ t('common.save') }}</LxButton>
         </div>
       </template>
     </n-modal>
@@ -624,8 +623,8 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
       <n-input v-model:value="newTagName" :placeholder="t('favorites.tagNamePh')" autofocus />
       <template #footer>
         <div class="modal-actions">
-          <n-button @click="newTagModalShow = false">{{ t('common.cancel') }}</n-button>
-          <n-button type="primary" @click="confirmNewTag">{{ t('common.confirm') }}</n-button>
+          <LxButton variant="modal" @click="newTagModalShow = false">{{ t('common.cancel') }}</LxButton>
+          <LxButton variant="modal-primary" @click="confirmNewTag">{{ t('common.confirm') }}</LxButton>
         </div>
       </template>
     </n-modal>
@@ -648,92 +647,84 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
   display: flex;
   flex-direction: column;
   background: var(--lx-bg-card);
-  padding: 16px 12px 12px;
+  padding: var(--lx-space-2xl) var(--lx-space-lg) var(--lx-space-lg);
 }
 .side-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 8px 14px;
+  gap: var(--lx-space);
+  padding: 0 var(--lx-space) var(--lx-space-xl);
 }
 .side-head h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--lx-font-3xl);
   font-weight: 700;
   color: var(--lx-text);
 }
 .side-star { color: var(--lx-accent); }
-.side-cats { display: flex; flex-direction: column; gap: 2px; }
+.side-cats { display: flex; flex-direction: column; gap: var(--lx-space-2xs); }
 .cat-item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--lx-space-md);
   height: 36px;
-  padding: 0 10px;
+  padding: 0 var(--lx-space-md);
   border: none;
-  border-radius: 10px;
+  border-radius: var(--lx-radius-xl);
   background: transparent;
   color: var(--lx-text-secondary);
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--lx-font-md);
 }
 .cat-item:hover { background: var(--lx-bg-hover); }
-.cat-item.active {
+.cat-item.is-active {
   background: var(--lx-accent-soft);
   color: var(--lx-accent);
   font-weight: 600;
 }
 .cat-label { flex: 1; text-align: left; }
-.cat-count { font-size: 12px; opacity: 0.8; }
+.cat-count { font-size: var(--lx-font-sm); opacity: 0.8; }
 .side-tags-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 18px;
-  padding: 0 8px 8px;
-  font-size: 12px;
+  margin-top: var(--lx-space-2xl);
+  padding: 0 var(--lx-space) var(--lx-space);
+  font-size: var(--lx-font-sm);
   font-weight: 600;
   color: var(--lx-text-muted);
 }
 .tag-add {
   width: 24px;
   height: 24px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--lx-text-muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  border-radius: var(--lx-radius-xs);
 }
-.tag-add:hover { background: var(--lx-bg-hover); color: var(--lx-accent); }
 .side-tags {
   flex: 1;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--lx-space-2xs);
 }
 .tag-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--lx-space);
   height: 32px;
-  padding: 0 10px;
+  padding: 0 var(--lx-space-md);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--lx-radius-sm);
   background: transparent;
   color: var(--lx-text-secondary);
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--lx-font-md);
 }
 .tag-item:hover,
-.tag-item.active { background: var(--lx-bg-hover); }
-.tag-item.active { color: var(--lx-text); font-weight: 600; }
+.tag-item.is-active { background: var(--lx-bg-hover); }
+.tag-item.is-active { color: var(--lx-text); font-weight: 600; }
 .tag-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .tag-name { flex: 1; text-align: left; }
-.tag-count { font-size: 12px; color: var(--lx-text-muted); }
+.tag-count { font-size: var(--lx-font-sm); color: var(--lx-text-muted); }
 
 .fav-content {
   flex: 1;
@@ -745,86 +736,61 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
 .fav-toolbar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 16px 20px 8px;
+  gap: var(--lx-space-md);
+  padding: var(--lx-space-2xl) var(--lx-space-3xl) var(--lx-space);
 }
 .fav-search { flex: 1; max-width: 480px; }
-.btn-new {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 36px;
-  padding: 0 16px;
-  border: none;
-  border-radius: 99px;
-  background: var(--lx-accent);
-  color: var(--lx-text-on-accent, #fff);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.btn-new:hover { filter: brightness(1.05); }
 .view-toggle {
   display: flex;
   border: 1px solid var(--lx-border-light);
-  border-radius: 10px;
+  border-radius: var(--lx-radius-xl);
   overflow: hidden;
 }
-.view-btn {
+.view-toggle :deep(.view-btn) {
   width: 34px;
   height: 34px;
-  border: none;
-  background: transparent;
-  color: var(--lx-text-muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.view-btn.active {
-  background: var(--lx-accent-soft);
-  color: var(--lx-accent);
+  border-radius: 0;
 }
 .fav-subhead {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 20px 12px;
+  padding: var(--lx-space) var(--lx-space-3xl) var(--lx-space-lg);
 }
 .fav-subhead h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--lx-font-lg);
   font-weight: 600;
   color: var(--lx-text);
 }
-.sub-count { color: var(--lx-text-muted); font-weight: 500; margin-left: 4px; }
+.sub-count { color: var(--lx-text-muted); font-weight: 500; margin-left: var(--lx-space-xs); }
 .sort-btn {
-  border: none;
-  background: transparent;
+  border: none !important;
+  background: transparent !important;
   color: var(--lx-text-secondary);
-  font-size: 13px;
-  cursor: pointer;
+  font-size: var(--lx-font-md);
+  padding: var(--lx-space-xs) var(--lx-space);
+  height: auto;
 }
 .sort-btn:hover { color: var(--lx-accent); }
 
 .fav-grid {
   flex: 1;
   overflow-y: auto;
-  padding: 4px 20px 24px;
+  padding: var(--lx-space-xs) var(--lx-space-3xl) var(--lx-space-4xl);
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 16px;
+  gap: var(--lx-space-2xl);
   align-content: start;
 }
 .fav-card {
   border: 1px solid var(--lx-border-light);
-  border-radius: 14px;
+  border-radius: var(--lx-radius-card);
   background: var(--lx-bg-card);
   overflow: hidden;
   cursor: pointer;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  transition: box-shadow 0.15s, transform 0.15s;
+  transition: box-shadow var(--lx-duration), transform var(--lx-duration);
   display: flex;
   flex-direction: column;
 }
@@ -850,19 +816,19 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
 .file-badge {
   width: 64px;
   height: 72px;
-  border-radius: 12px;
+  border-radius: var(--lx-radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 800;
-  font-size: 14px;
+  font-size: var(--lx-font);
 }
 .fallback-icon { color: var(--lx-text-muted); }
 .card-body.no-media {
-  padding-top: 14px;
+  padding-top: var(--lx-space-xl);
 }
 .text-type-row {
-  margin-bottom: 8px;
+  margin-bottom: var(--lx-space);
 }
 .type-chip {
   position: absolute;
@@ -870,22 +836,22 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
   top: 10px;
   width: 24px;
   height: 24px;
-  border-radius: 8px;
+  border-radius: var(--lx-radius-sm);
   background: rgba(255, 255, 255, 0.92);
   color: var(--lx-accent);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--lx-shadow-xs);
 }
 .type-chip.inline {
   position: static;
   background: var(--lx-accent-soft);
 }
-.card-body { padding: 12px 14px 12px; flex: 1; display: flex; flex-direction: column; }
+.card-body { padding: var(--lx-space-lg) var(--lx-space-xl) var(--lx-space-lg); flex: 1; display: flex; flex-direction: column; }
 .card-title {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--lx-font);
   font-weight: 650;
   color: var(--lx-text);
   overflow: hidden;
@@ -893,8 +859,8 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
   white-space: nowrap;
 }
 .card-sub {
-  margin: 4px 0 0;
-  font-size: 12px;
+  margin: var(--lx-space-xs) 0 0;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
 }
 .card-sub.url,
@@ -906,58 +872,50 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
 .card-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 10px;
+  gap: var(--lx-space-sm);
+  margin-top: var(--lx-space-md);
 }
 .pill {
   display: inline-flex;
   align-items: center;
   height: 22px;
-  padding: 0 8px;
-  border-radius: 99px;
-  font-size: 11px;
+  padding: 0 var(--lx-space);
+  border-radius: var(--lx-radius-pill);
+  font-size: var(--lx-font-xs);
   font-weight: 600;
 }
 .card-foot {
   margin-top: auto;
-  padding-top: 10px;
+  padding-top: var(--lx-space-md);
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
-.card-time { font-size: 12px; color: var(--lx-text-muted); }
+.card-time { font-size: var(--lx-font-sm); color: var(--lx-text-muted); }
 .more-btn {
   width: 28px;
   height: 28px;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--lx-text-muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  border-radius: var(--lx-radius-sm);
 }
-.more-btn:hover { background: var(--lx-bg-hover); color: var(--lx-text); }
 
 .fav-list {
   flex: 1;
   overflow-y: auto;
-  padding: 0 20px 24px;
+  padding: 0 var(--lx-space-3xl) var(--lx-space-4xl);
 }
 .list-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 10px;
-  border-radius: 10px;
+  gap: var(--lx-space-lg);
+  padding: var(--lx-space-lg) var(--lx-space-md);
+  border-radius: var(--lx-radius-xl);
   cursor: pointer;
 }
 .list-row:hover { background: var(--lx-bg-hover); }
 .list-thumb {
   width: 44px;
   height: 44px;
-  border-radius: 10px;
+  border-radius: var(--lx-radius-xl);
   background: var(--lx-bg-input);
   overflow: hidden;
   display: flex;
@@ -969,7 +927,7 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
 .list-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .list-main { flex: 1; min-width: 0; }
 .list-title {
-  font-size: 14px;
+  font-size: var(--lx-font);
   font-weight: 600;
   color: var(--lx-text);
   overflow: hidden;
@@ -977,29 +935,26 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
   white-space: nowrap;
 }
 .list-sub {
-  margin-top: 2px;
-  font-size: 12px;
+  margin-top: var(--lx-space-2xs);
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.list-meta { font-size: 12px; color: var(--lx-text-muted); flex-shrink: 0; }
+.list-meta { font-size: var(--lx-font-sm); color: var(--lx-text-muted); flex-shrink: 0; }
 .list-del {
-  border: none;
-  background: transparent;
-  color: var(--lx-text-muted);
-  cursor: pointer;
   opacity: 0;
+  color: var(--lx-text-muted);
 }
-.list-row:hover .list-del { opacity: 1; }
-.list-del:hover { color: #ef4444; }
+.list-row:hover :deep(.list-del) { opacity: 1; }
+.list-del:hover { color: var(--lx-danger); }
 
 .empty {
   text-align: center;
   color: var(--lx-text-muted);
-  padding: 64px 16px;
-  font-size: 13px;
+  padding: var(--lx-space-block-xl) var(--lx-space-2xl);
+  font-size: var(--lx-font-md);
 }
-.modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: var(--lx-space); }
 </style>

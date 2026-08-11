@@ -41,17 +41,17 @@ const displayText = computed(() => {
 
 <style scoped>
 .quote-reply-bar {
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: var(--lx-font-md);
+  line-height: var(--lx-leading);
   word-break: break-word;
-  border-radius: 8px;
-  background: #f0f0f0;
-  color: #8a8a8a;
+  border-radius: var(--lx-radius-sm);
+  background: var(--lx-bg-panel);
+  color: var(--lx-quote-muted);
 }
 
 .quote-reply-bar--bubble {
-  padding: 8px 10px;
-  margin-bottom: 6px;
+  padding: var(--lx-space) var(--lx-space-md);
+  margin-bottom: var(--lx-space-sm);
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
@@ -61,12 +61,12 @@ const displayText = computed(() => {
 .quote-reply-bar--below {
   align-self: stretch;
   max-width: 100%;
-  padding: 6px 10px;
-  font-size: 12px;
-  line-height: 1.45;
-  color: #8a8a8a;
-  background: #ececec;
-  border-radius: 6px;
+  padding: var(--lx-space-sm) var(--lx-space-md);
+  font-size: var(--lx-font-sm);
+  line-height: var(--lx-leading);
+  color: var(--lx-quote-muted);
+  background: var(--lx-quote-bg);
+  border-radius: var(--lx-radius-xs);
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -76,7 +76,7 @@ const displayText = computed(() => {
 .quote-reply-bar--input {
   flex: 1;
   min-width: 0;
-  padding: 8px 12px;
+  padding: var(--lx-space) var(--lx-space-lg);
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;

@@ -7,7 +7,6 @@
 import { ref, watch, computed } from 'vue'
 import {
   NModal,
-  NButton,
   NInput,
   NSelect,
   NDatePicker,
@@ -21,6 +20,7 @@ import { useChatModalsStore } from '../stores/chatModals'
 import { generateDefaultAvatar } from '../utils/defaultAvatar'
 import { normalizeMediaUrl } from '../utils/mediaUrl'
 import { useI18n } from '../i18n'
+import { LxButton, LxIconButton } from './ui'
 
 const { t } = useI18n()
 const message = useMessage()
@@ -146,15 +146,20 @@ async function handleAvatarChange(e: Event) {
     :closable="false"
     :mask-closable="true"
     :z-index="10002"
-    style="width: 480px; max-width: 94vw; border-radius: 12px; padding: 0;"
+    style="width: 480px; max-width: 94vw; border-radius: var(--lx-radius-lg); padding: 0;"
     @after-leave="closeEditProfile"
   >
     <div class="edit-profile-shell">
       <div class="modal-header">
         <span class="modal-title">{{ t('modals.editProfile') }}</span>
-        <button type="button" class="close-btn" :aria-label="t('modals.close')" @click="closeEditProfile">
+        <LxIconButton
+          variant="close"
+          class="close-btn"
+          :title="t('modals.close')"
+          @click="closeEditProfile"
+        >
           <n-icon :component="CloseOutline" :size="20" />
-        </button>
+        </LxIconButton>
       </div>
 
       <div class="avatar-section">
@@ -252,8 +257,8 @@ async function handleAvatarChange(e: Event) {
       </div>
 
       <div class="modal-footer">
-        <n-button type="primary" :loading="saving" @click="handleSave">{{ t('common.save') }}</n-button>
-        <n-button @click="closeEditProfile">{{ t('common.cancel') }}</n-button>
+        <LxButton variant="modal-primary" :disabled="saving" @click="handleSave">{{ t('common.save') }}</LxButton>
+        <LxButton variant="modal" @click="closeEditProfile">{{ t('common.cancel') }}</LxButton>
       </div>
     </div>
   </n-modal>
@@ -263,7 +268,7 @@ async function handleAvatarChange(e: Event) {
 .edit-profile-shell {
   background: var(--lx-bg-card);
   color: var(--lx-text-body);
-  border-radius: 12px;
+  border-radius: var(--lx-radius-lg);
   overflow: hidden;
 }
 
@@ -272,12 +277,12 @@ async function handleAvatarChange(e: Event) {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 18px 48px 12px;
+  padding: var(--lx-space-2xl) var(--lx-space-6xl) var(--lx-space-lg);
   border-bottom: 1px solid var(--lx-border-light);
 }
 
 .modal-title {
-  font-size: 16px;
+  font-size: var(--lx-font-xl);
   font-weight: 600;
 }
 
@@ -286,26 +291,12 @@ async function handleAvatarChange(e: Event) {
   right: 16px;
   top: 50%;
   transform: translateY(-50%);
-  border: none;
-  background: transparent;
-  color: var(--lx-text-muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-  border-radius: 6px;
-}
-
-.close-btn:hover {
-  background: var(--lx-bg-panel);
-  color: var(--lx-text-body);
 }
 
 .avatar-section {
   display: flex;
   justify-content: center;
-  padding: 24px 0 8px;
+  padding: var(--lx-space-4xl) 0 var(--lx-space);
 }
 
 .avatar-btn {
@@ -338,9 +329,9 @@ async function handleAvatarChange(e: Event) {
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.45);
-  color: #fff;
+  color: var(--lx-text-on-accent);
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: opacity var(--lx-duration-md);
 }
 
 .avatar-btn:hover .avatar-mask {
@@ -348,14 +339,14 @@ async function handleAvatarChange(e: Event) {
 }
 
 .form-body {
-  padding: 12px 28px 8px;
+  padding: var(--lx-space-lg) var(--lx-space-5xl-minus) var(--lx-space);
 }
 
 .form-row {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-bottom: 16px;
+  gap: var(--lx-space-2xl);
+  margin-bottom: var(--lx-space-2xl);
 }
 
 .form-row-split {
@@ -365,9 +356,9 @@ async function handleAvatarChange(e: Event) {
 .form-label {
   width: 48px;
   flex-shrink: 0;
-  font-size: 14px;
+  font-size: var(--lx-font);
   color: var(--lx-text-body);
-  line-height: 34px;
+  line-height: var(--lx-font-8xl);
 }
 
 .form-control {
@@ -378,7 +369,7 @@ async function handleAvatarChange(e: Event) {
 .split-controls {
   flex: 1;
   display: flex;
-  gap: 12px;
+  gap: var(--lx-space-lg);
   min-width: 0;
 }
 
@@ -390,7 +381,7 @@ async function handleAvatarChange(e: Event) {
 .modal-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
-  padding: 16px 28px 24px;
+  gap: var(--lx-space-lg);
+  padding: var(--lx-space-2xl) var(--lx-space-5xl-minus) var(--lx-space-4xl);
 }
 </style>

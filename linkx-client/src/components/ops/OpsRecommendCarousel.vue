@@ -142,7 +142,7 @@ onMounted(() => {
   height: var(--ops-h);
   overflow: hidden;
   border-radius: var(--ops-r);
-  background: var(--lx-bg-hover, rgba(0, 0, 0, 0.04));
+  background: var(--lx-bg-hover);
 }
 
 .ops-recommend__slide.clickable {
@@ -163,22 +163,22 @@ onMounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  padding: 8px 12px;
-  color: #fff;
+  padding: var(--lx-space) var(--lx-space-lg);
+  color: var(--lx-text-on-accent);
   background: linear-gradient(transparent, rgba(0, 0, 0, 0.55));
   pointer-events: none;
 }
 
 .ops-recommend__title {
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   font-weight: 600;
-  line-height: 1.3;
+  line-height: var(--lx-leading-snug);
 }
 
 .ops-recommend__sub {
-  margin-top: 2px;
-  font-size: 11px;
+  margin-top: var(--lx-space-2xs);
+  font-size: var(--lx-font-xs);
   opacity: 0.9;
-  line-height: 1.3;
+  line-height: var(--lx-leading-snug);
 }
 </style>

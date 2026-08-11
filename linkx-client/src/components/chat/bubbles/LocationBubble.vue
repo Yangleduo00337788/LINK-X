@@ -40,31 +40,31 @@ const mapUrl = computed(() => {
 .location-bubble {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: var(--lx-space-md);
   max-width: min(280px, 70vw);
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: var(--lx-bg-bubble-peer, #f5f5f5);
+  padding: var(--lx-space-md) var(--lx-space-lg);
+  border-radius: var(--lx-radius-xl);
+  background: var(--lx-bg-panel);
   color: inherit;
   text-decoration: none;
   border: 1px solid var(--lx-border-light);
 }
 .location-bubble.self {
-  background: var(--lx-bg-bubble-self, #dff6ff);
+  background: var(--lx-bg-bubble-self);
 }
 .loc-ico {
   color: var(--lx-accent);
   flex-shrink: 0;
-  margin-top: 2px;
+  margin-top: var(--lx-space-2xs);
 }
 .loc-title {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
-  margin-bottom: 2px;
+  margin-bottom: var(--lx-space-2xs);
 }
 .loc-addr {
-  font-size: 14px;
-  line-height: 1.4;
+  font-size: var(--lx-font);
+  line-height: var(--lx-leading);
   word-break: break-word;
 }
 </style>

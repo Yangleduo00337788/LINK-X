@@ -123,7 +123,7 @@ function avatarText(name: string) {
         <div class="call-center">
           <Avatar
             :text="avatarText(peerName)"
-            color="#07c160"
+            color="var(--lx-success-strong)"
             :image-url="peerAvatar || undefined"
             :size="88"
           />
@@ -158,7 +158,7 @@ function avatarText(name: string) {
 .call-root {
   position: fixed;
   inset: 0;
-  z-index: 2200;
+  z-index: var(--lx-z-dialog);
   background: var(--lx-bg-overlay);
   display: flex;
   align-items: center;
@@ -167,78 +167,78 @@ function avatarText(name: string) {
 
 .call-window {
   width: min(420px, 90vw);
-  background: linear-gradient(180deg, #3a3a3a 0%, #2a2a2a 100%);
+  background: var(--lx-call-gradient);
   border-radius: var(--lx-radius);
-  padding: 24px 24px 28px;
-  color: #fff;
-  box-shadow: 0 16px 48px var(--lx-bg-overlay);
+  padding: var(--lx-space-4xl) var(--lx-space-4xl) var(--lx-space-5xl-minus);
+  color: var(--lx-text-on-accent);
+  box-shadow: var(--lx-shadow-popover);
 }
 
 .call-top {
   text-align: center;
-  margin-bottom: 24px;
+  margin-bottom: var(--lx-space-4xl);
 }
 
 .status {
-  font-size: 15px;
+  font-size: var(--lx-font-lg);
   color: rgba(255, 255, 255, 0.85);
 }
 
 .call-center {
   text-align: center;
-  margin-bottom: 28px;
+  margin-bottom: var(--lx-space-5xl-minus);
 }
 
 .call-center :deep(.avatar) {
-  margin: 0 auto 12px;
+  margin: 0 auto var(--lx-space-lg);
 }
 
 .peer {
-  margin: 0 0 10px;
-  font-size: 16px;
+  margin: 0 0 var(--lx-space-md);
+  font-size: var(--lx-font-xl);
   font-weight: 500;
-  color: #fff;
+  color: var(--lx-text-on-accent);
 }
 
 .state-badges {
   display: flex;
   justify-content: center;
-  gap: 8px;
+  gap: var(--lx-space);
 }
 
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
+  gap: var(--lx-space-xs);
+  padding: var(--lx-space-xs) var(--lx-space-md);
+  border-radius: var(--lx-radius-pill);
+  font-size: var(--lx-font-sm);
   background: rgba(7, 193, 96, 0.2);
-  color: #07c160;
+  color: var(--lx-success-strong);
 }
 
 .badge.off {
   background: rgba(250, 81, 81, 0.2);
-  color: #fa5151;
+  color: var(--lx-danger);
 }
 
 .call-controls {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   align-items: start;
-  gap: 12px;
-  padding: 0 4px;
+  gap: var(--lx-space-lg);
+  padding: 0 var(--lx-space-xs);
 }
 
 .ctl {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: var(--lx-space);
   border: none;
   background: transparent;
-  color: #fff;
-  font-size: 11px;
+  color: var(--lx-text-on-accent);
+  font-size: var(--lx-font-xs);
   cursor: pointer;
   min-width: 0;
   padding: 0;
@@ -252,21 +252,21 @@ function avatarText(name: string) {
   align-items: center;
   justify-content: center;
   background: rgba(255, 255, 255, 0.22);
-  color: #fff;
+  color: var(--lx-text-on-accent);
 }
 
 .ctl.off :deep(.n-icon) {
   background: rgba(250, 81, 81, 0.85);
-  color: #fff;
+  color: var(--lx-text-on-accent);
 }
 
 .ctl.hangup :deep(.n-icon) {
-  background: #fa5151;
-  color: #fff;
+  background: var(--lx-danger);
+  color: var(--lx-text-on-accent);
 }
 
 .ctl span {
-  line-height: 1.2;
+  line-height: var(--lx-leading-tight);
   text-align: center;
   white-space: nowrap;
   color: rgba(255, 255, 255, 0.92);

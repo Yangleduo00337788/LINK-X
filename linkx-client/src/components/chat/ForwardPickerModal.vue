@@ -16,6 +16,7 @@ import {
   OptionsOutline
 } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
+import { LxButton, LxIconButton } from '../ui'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../../stores/app'
 import { useI18n } from '../../i18n'
@@ -117,15 +118,15 @@ function onConfirm() {
             type="search"
             :placeholder="t('common.search')"
           />
-          <button type="button" class="fwd-filter-btn" :title="t('common.search')">
+          <LxIconButton class="fwd-filter-btn" :title="t('common.search')">
             <n-icon :component="OptionsOutline" :size="16" />
-          </button>
+          </LxIconButton>
         </div>
 
-        <button type="button" class="fwd-create" :disabled="loading" @click="emit('createGroup')">
+        <LxButton variant="outline" class="fwd-create" :disabled="loading" @click="emit('createGroup')">
           <n-icon :component="AddOutline" :size="17" />
           {{ t('viewer.forwardCreateGroup') }}
-        </button>
+        </LxButton>
 
         <button type="button" class="fwd-section-head" @click="recentExpanded = !recentExpanded">
           <span>{{ t('modals.recentChats') }}</span>
@@ -172,7 +173,14 @@ function onConfirm() {
               :size="32"
             />
             <span class="fwd-chip-name">{{ s.name }}</span>
-            <button type="button" class="fwd-chip-x" @click="removeSelected(s.id)">×</button>
+            <LxIconButton
+              variant="close"
+              class="fwd-chip-x lx-close-btn--sm"
+              :title="t('common.close')"
+              @click="removeSelected(s.id)"
+            >
+              ×
+            </LxIconButton>
           </div>
         </div>
 
@@ -198,17 +206,16 @@ function onConfirm() {
         </div>
 
         <div class="fwd-actions">
-          <button
-            type="button"
-            class="fwd-btn primary"
+          <LxButton
+            variant="modal-primary"
             :disabled="loading || !selectedIds.length"
             @click="onConfirm"
           >
             {{ t('common.confirm') }}
-          </button>
-          <button type="button" class="fwd-btn" :disabled="loading" @click="onClose">
+          </LxButton>
+          <LxButton variant="modal" :disabled="loading" @click="onClose">
             {{ t('common.cancel') }}
-          </button>
+          </LxButton>
         </div>
       </div>
     </div>
@@ -232,10 +239,10 @@ function onConfirm() {
   height: min(480px, 82vh);
   display: grid;
   grid-template-columns: 1fr 1fr;
-  background: #fff;
-  border-radius: 10px;
+  background: var(--lx-bg-card);
+  border-radius: var(--lx-radius-xl);
   overflow: hidden;
-  color: #1f2329;
+  color: var(--lx-conf-surface);
   box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
 }
 
@@ -243,23 +250,23 @@ function onConfirm() {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  border-right: 1px solid #ebebeb;
-  background: #fff;
+  border-right: 1px solid var(--lx-divider);
+  background: var(--lx-bg-card);
 }
 
 .fwd-search {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin: 14px 14px 10px;
-  padding: 7px 10px;
-  border-radius: 6px;
-  background: #f5f5f5;
-  border: 1px solid #ebebeb;
+  gap: var(--lx-space-sm);
+  margin: var(--lx-space-xl) var(--lx-space-xl) var(--lx-space-md);
+  padding: var(--lx-space-sm-plus) var(--lx-space-md);
+  border-radius: var(--lx-radius-xs);
+  background: var(--lx-bg-panel);
+  border: 1px solid var(--lx-divider);
 }
 
 .fwd-search-ico {
-  color: #999;
+  color: var(--lx-text-muted);
   flex-shrink: 0;
 }
 
@@ -269,38 +276,25 @@ function onConfirm() {
   border: none;
   outline: none;
   background: transparent;
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   color: inherit;
 }
 
 .fwd-filter-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  color: #999;
-  cursor: pointer;
-  padding: 2px;
+  width: 28px;
+  height: 28px;
+  color: var(--lx-text-muted);
 }
 
 .fwd-create {
   display: flex;
-  align-items: center;
+  width: calc(100% - 28px);
+  margin: 0 var(--lx-space-xl) var(--lx-space);
   justify-content: center;
-  gap: 6px;
-  margin: 0 14px 8px;
-  height: 34px;
-  border: 1px solid #e5e5e5;
-  border-radius: 6px;
-  background: #fff;
-  color: #666;
-  font-size: 13px;
-  cursor: pointer;
 }
 
 .fwd-create:hover:not(:disabled) {
-  background: #fafafa;
+  background: var(--lx-picker-bg);
 }
 
 .fwd-create:disabled {
@@ -312,28 +306,28 @@ function onConfirm() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 14px 6px;
+  padding: var(--lx-space-xs) var(--lx-space-xl) var(--lx-space-sm);
   border: none;
   background: transparent;
-  color: #888;
-  font-size: 12px;
+  color: var(--lx-text-muted);
+  font-size: var(--lx-font-sm);
   cursor: pointer;
 }
 
 .fwd-list {
   flex: 1;
   overflow: auto;
-  padding: 0 6px 10px;
+  padding: 0 var(--lx-space-sm) var(--lx-space-md);
 }
 
 .fwd-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--lx-space-md);
   width: 100%;
-  padding: 7px 8px;
+  padding: var(--lx-space-sm-plus) var(--lx-space);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--lx-radius-xs);
   background: transparent;
   cursor: pointer;
   text-align: left;
@@ -341,16 +335,16 @@ function onConfirm() {
 }
 
 .fwd-row:hover {
-  background: #f5f5f5;
+  background: var(--lx-bg-panel);
 }
 
 .chk {
-  color: #c8c8c8;
+  color: var(--lx-picker-muted);
   flex-shrink: 0;
 }
 
 .chk.on {
-  color: #12b7f5;
+  color: var(--lx-accent);
 }
 
 .fwd-row-name {
@@ -359,29 +353,29 @@ function onConfirm() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
+  font-size: var(--lx-font);
 }
 
 .fwd-empty {
-  margin: 32px 8px;
+  margin: var(--lx-space-5xl) var(--lx-space);
   text-align: center;
-  font-size: 13px;
-  color: #999;
+  font-size: var(--lx-font-md);
+  color: var(--lx-text-muted);
 }
 
 .fwd-right {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  padding: 16px 18px 14px;
-  background: #fff;
+  padding: var(--lx-space-2xl) var(--lx-space-2xl) var(--lx-space-xl);
+  background: var(--lx-bg-card);
 }
 
 .fwd-send-label {
-  font-size: 14px;
+  font-size: var(--lx-font);
   font-weight: 600;
-  color: #1f2329;
-  margin-bottom: 10px;
+  color: var(--lx-conf-surface);
+  margin-bottom: var(--lx-space-md);
 }
 
 .fwd-selected {
@@ -390,23 +384,23 @@ function onConfirm() {
   overflow: auto;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--lx-space);
   align-content: flex-start;
-  margin-bottom: 12px;
+  margin-bottom: var(--lx-space-lg);
 }
 
 .fwd-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 3px 8px 3px 3px;
-  border-radius: 999px;
-  background: #f5f5f5;
+  gap: var(--lx-space-sm);
+  padding: var(--lx-space-2xs) var(--lx-space) var(--lx-space-2xs) var(--lx-space-2xs);
+  border-radius: var(--lx-radius-pill);
+  background: var(--lx-bg-panel);
   max-width: 100%;
 }
 
 .fwd-chip-name {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   max-width: 100px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -414,20 +408,17 @@ function onConfirm() {
 }
 
 .fwd-chip-x {
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  color: #999;
-  font-size: 15px;
-  line-height: 1;
-  padding: 0 2px;
+  width: 22px;
+  height: 22px;
+  font-size: var(--lx-font);
+  color: var(--lx-text-muted);
 }
 
 .fwd-preview {
-  margin-bottom: 10px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: #f3f3f3;
+  margin-bottom: var(--lx-space-md);
+  padding: var(--lx-space-md) var(--lx-space-lg);
+  border-radius: var(--lx-radius-sm);
+  background: var(--lx-picker-row-bg);
   max-height: 120px;
   overflow: auto;
 }
@@ -436,28 +427,28 @@ function onConfirm() {
   display: block;
   max-width: 100%;
   max-height: 72px;
-  border-radius: 4px;
-  margin-bottom: 6px;
+  border-radius: var(--lx-radius-2xs);
+  margin-bottom: var(--lx-space-sm);
   object-fit: contain;
 }
 
 .fwd-preview-text {
   margin: 0;
-  font-size: 13px;
-  line-height: 1.55;
-  color: #4e5969;
+  font-size: var(--lx-font-md);
+  line-height: var(--lx-leading-normal);
+  color: var(--lx-picker-text);
   word-break: break-word;
 }
 
 .fwd-leave {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border: 1px solid #ebebeb;
-  border-radius: 6px;
-  background: #fff;
-  margin-bottom: 12px;
+  gap: var(--lx-space);
+  padding: var(--lx-space) var(--lx-space-md);
+  border: 1px solid var(--lx-divider);
+  border-radius: var(--lx-radius-xs);
+  background: var(--lx-bg-card);
+  margin-bottom: var(--lx-space-lg);
 }
 
 .fwd-leave-input {
@@ -465,52 +456,25 @@ function onConfirm() {
   min-width: 0;
   border: none;
   outline: none;
-  font-size: 13px;
-  color: #1f2329;
+  font-size: var(--lx-font-md);
+  color: var(--lx-conf-surface);
   background: transparent;
 }
 
 .fwd-leave-input::placeholder {
-  color: #bbb;
+  color: var(--lx-picker-faint);
 }
 
 .fwd-emoji {
-  color: #999;
+  color: var(--lx-text-muted);
   flex-shrink: 0;
 }
 
 .fwd-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
+  gap: var(--lx-space-md);
   margin-top: auto;
-  padding-top: 4px;
-}
-
-.fwd-btn {
-  min-width: 72px;
-  height: 32px;
-  padding: 0 16px;
-  border-radius: 6px;
-  border: 1px solid #dcdfe6;
-  background: #fff;
-  color: #1f2329;
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.fwd-btn.primary {
-  border-color: transparent;
-  background: #12b7f5;
-  color: #fff;
-}
-
-.fwd-btn.primary:hover:not(:disabled) {
-  background: #0fa8e0;
-}
-
-.fwd-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+  padding-top: var(--lx-space-xs);
 }
 </style>

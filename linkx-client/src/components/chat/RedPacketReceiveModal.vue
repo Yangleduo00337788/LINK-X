@@ -9,7 +9,8 @@
  * </p>
  */
 import { computed, watch, ref, nextTick, reactive } from 'vue'
-import { NButton, useMessage } from 'naive-ui'
+import { useMessage } from 'naive-ui'
+import { LxButton } from '../ui'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
@@ -254,11 +255,11 @@ async function openPacket() {
     <div v-if="redPacketReceiveOpen && viewReady" class="modal-root" @click.self="close">
       <div
         class="packet-card"
-        :class="{ lucky: isLucky, spinning: animPhase === 'spinning', revealed: animPhase === 'revealed' }"
+        :class="{ 'is-lucky': isLucky, spinning: animPhase === 'spinning', revealed: animPhase === 'revealed' }"
         @click.stop
       >
         <div class="packet-cover">
-          <span class="type-badge" :class="{ lucky: isLucky }">{{ typeLabel }}</span>
+          <span class="type-badge" :class="{ 'is-lucky': isLucky }">{{ typeLabel }}</span>
           <p class="from">{{ isSelfPacket ? t('modals.rpFromSelf') : t('modals.rpReceived') }}</p>
           <p class="greeting">{{ greeting }}</p>
 
@@ -291,17 +292,16 @@ async function openPacket() {
         </div>
 
         <div class="packet-foot">
-          <button
+          <LxButton
             v-if="!opened && !isSelfPacket && packetStatus === 'active'"
-            type="button"
-            class="open-btn"
-            :class="{ lucky: isLucky, disabled: opening }"
+            variant="redpacket-open"
+            :class="{ 'is-lucky': isLucky, 'is-disabled': opening }"
             :disabled="opening"
             @click="openPacket"
           >
             {{ opening ? t('modals.rpOpening') : t('modals.rpOpen') }}
-          </button>
-          <n-button v-else @click="close">{{ t('modals.close') }}</n-button>
+          </LxButton>
+          <LxButton v-else variant="modal" @click="close">{{ t('modals.close') }}</LxButton>
         </div>
       </div>
     </div>
@@ -312,13 +312,13 @@ async function openPacket() {
 .modal-root {
   position: fixed;
   inset: 0;
-  z-index: 2350;
+  z-index: var(--lx-z-dialog-packet-recv);
   background: rgba(0, 0, 0, 0.55);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
-  animation: fade-in 0.2s ease;
+  padding: var(--lx-space-3xl);
+  animation: fade-in var(--lx-duration-md) ease;
 }
 
 @keyframes fade-in {
@@ -335,11 +335,11 @@ async function openPacket() {
   max-height: 80vh;
   display: flex;
   flex-direction: column;
-  border-radius: 16px;
+  border-radius: var(--lx-radius-2xl);
   overflow: hidden;
-  background: var(--lx-bg-card, #fff);
+  background: var(--lx-bg-card);
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
-  animation: card-in 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: card-in var(--lx-duration-slow) cubic-bezier(0.22, 1, 0.36, 1);
   transform-origin: center center;
 }
 
@@ -355,7 +355,7 @@ async function openPacket() {
 }
 
 .packet-card.spinning {
-  animation: card-shake 0.7s ease;
+  animation: card-shake var(--lx-duration-emphasis) ease;
 }
 
 @keyframes card-shake {
@@ -379,10 +379,10 @@ async function openPacket() {
 
 .packet-cover {
   position: relative;
-  background: linear-gradient(180deg, #e84c3d 0%, #c0392b 100%);
-  color: #fff;
+  background: linear-gradient(180deg, var(--lx-danger) 0%, var(--lx-danger-deep) 100%);
+  color: var(--lx-text-on-accent);
   text-align: center;
-  padding: 40px 24px 28px;
+  padding: var(--lx-space-section) var(--lx-space-4xl) var(--lx-space-5xl-minus);
   flex-shrink: 0;
   min-height: 200px;
   display: flex;
@@ -392,47 +392,47 @@ async function openPacket() {
 }
 
 .packet-card.lucky .packet-cover {
-  background: linear-gradient(160deg, #f5b041 0%, #e74c3c 48%, #c0392b 100%);
+  background: var(--lx-packet-main-gradient);
 }
 
 .type-badge {
   position: absolute;
   top: 12px;
   right: 12px;
-  font-size: 11px;
+  font-size: var(--lx-font-xs);
   font-weight: 600;
-  padding: 4px 8px;
-  border-radius: 999px;
+  padding: var(--lx-space-xs) var(--lx-space);
+  border-radius: var(--lx-radius-pill);
   background: rgba(255, 255, 255, 0.22);
   letter-spacing: 0.04em;
 }
 
 .type-badge.lucky {
   background: rgba(255, 215, 0, 0.4);
-  color: #fff8e7;
+  color: var(--lx-packet-text-cream);
 }
 
 .from {
-  margin: 0 0 8px;
-  font-size: 13px;
+  margin: 0 0 var(--lx-space);
+  font-size: var(--lx-font-md);
   opacity: 0.9;
 }
 
 .greeting {
   margin: 0;
-  font-size: 20px;
+  font-size: var(--lx-font-4xl);
   font-weight: 600;
 }
 
 .amount {
-  margin: 18px 0 0;
-  font-size: 32px;
+  margin: var(--lx-space-2xl) 0 0;
+  font-size: var(--lx-font-7xl);
   font-weight: 700;
   letter-spacing: 0.02em;
 }
 
 .amount.pop {
-  animation: amount-pop 0.55s cubic-bezier(0.22, 1.4, 0.36, 1);
+  animation: amount-pop var(--lx-duration-slowest) cubic-bezier(0.22, 1.4, 0.36, 1);
 }
 
 @keyframes amount-pop {
@@ -450,19 +450,19 @@ async function openPacket() {
 }
 
 .hint {
-  margin: 16px 0 0;
-  font-size: 13px;
+  margin: var(--lx-space-2xl) 0 0;
+  font-size: var(--lx-font-md);
   opacity: 0.85;
 }
 
 .status {
-  margin: 12px 0 0;
-  font-size: 12px;
+  margin: var(--lx-space-lg) 0 0;
+  font-size: var(--lx-font-sm);
   opacity: 0.85;
 }
 
 .open-spinner {
-  margin-top: 20px;
+  margin-top: var(--lx-space-3xl);
   display: flex;
   justify-content: center;
 }
@@ -475,9 +475,9 @@ async function openPacket() {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 26px;
+  font-size: var(--lx-font-5xl);
   font-weight: 700;
-  animation: spin-open 0.7s linear infinite;
+  animation: spin-open var(--lx-duration-emphasis) linear infinite;
   box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.12);
 }
 
@@ -493,18 +493,18 @@ async function openPacket() {
 .record-list {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 16px;
-  background: var(--lx-bg-base, #f5f5f5);
+  padding: var(--lx-space) var(--lx-space-2xl);
+  background: var(--lx-bg-panel);
   max-height: 200px;
 }
 
 .record-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 0;
+  gap: var(--lx-space);
+  padding: var(--lx-space) 0;
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  font-size: 13px;
+  font-size: var(--lx-font-md);
 }
 
 .record-item:last-child {
@@ -513,7 +513,7 @@ async function openPacket() {
 
 .record-name {
   flex: 1;
-  color: var(--lx-text-body, #333);
+  color: var(--lx-text-body);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -521,54 +521,23 @@ async function openPacket() {
 
 .record-amount {
   font-weight: 600;
-  color: var(--lx-danger, #e74c3c);
+  color: var(--lx-danger, var(--lx-danger));
 }
 
 .lucky-tag {
-  background: #f39c12;
-  color: #fff;
-  font-size: 10px;
-  padding: 1px 4px;
-  border-radius: 3px;
+  background: var(--lx-packet-gold-deep);
+  color: var(--lx-text-on-accent);
+  font-size: var(--lx-font-2xs);
+  padding: var(--lx-space-hair) var(--lx-space-xs);
+  border-radius: var(--lx-radius-2xs);
   flex-shrink: 0;
 }
 
 .packet-foot {
-  padding: 16px;
+  padding: var(--lx-space-2xl);
   display: flex;
   justify-content: center;
-  background: var(--lx-bg-card, #fff);
+  background: var(--lx-bg-card);
   flex-shrink: 0;
-}
-
-.open-btn {
-  width: 72px;
-  height: 72px;
-  border: none;
-  border-radius: 50%;
-  background: linear-gradient(145deg, #ffd76a, #f0b429);
-  color: #8b4513;
-  font-size: 28px;
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: 0 6px 16px rgba(240, 180, 41, 0.45);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-.open-btn.lucky {
-  background: linear-gradient(145deg, #ffe566, #f39c12);
-}
-
-.open-btn:hover:not(.disabled) {
-  transform: scale(1.06);
-}
-
-.open-btn:active:not(.disabled) {
-  transform: scale(0.96);
-}
-
-.open-btn.disabled {
-  opacity: 0.75;
-  cursor: wait;
 }
 </style>

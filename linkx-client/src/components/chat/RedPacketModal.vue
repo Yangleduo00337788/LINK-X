@@ -9,12 +9,13 @@
  * </p>
  */
 import { ref, computed, watch } from 'vue'
-import { NInput, NInputNumber, NButton, NRadioGroup, NRadio, useMessage } from 'naive-ui'
+import { NInput, NInputNumber, NRadioGroup, NRadio, useMessage } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
-import * as redPacketApi from '../../api/redPacket'
 import { useI18n } from '../../i18n'
+import { LxButton } from '../ui'
+import * as redPacketApi from '../../api/redPacket'
 
 const message = useMessage()
 const { t } = useI18n()
@@ -146,10 +147,14 @@ async function send() {
           </label>
         </div>
         <div class="packet-foot">
-          <n-button :disabled="submitting" @click="close">{{ t('common.cancel') }}</n-button>
-          <n-button type="primary" :loading="submitting" :disabled="!canSubmit" @click="send">
+          <LxButton variant="modal" :disabled="submitting" @click="close">{{ t('common.cancel') }}</LxButton>
+          <LxButton
+            variant="modal-primary"
+            :disabled="submitting || !canSubmit"
+            @click="send"
+          >
             {{ t('extra.putMoney') }}
-          </n-button>
+          </LxButton>
         </div>
       </div>
     </div>
@@ -160,12 +165,12 @@ async function send() {
 .modal-root {
   position: fixed;
   inset: 0;
-  z-index: 2300;
+  z-index: var(--lx-z-dialog-packet);
   background: var(--lx-bg-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: var(--lx-space-4xl);
 }
 
 .packet-card {
@@ -177,33 +182,33 @@ async function send() {
 }
 
 .packet-head {
-  background: linear-gradient(135deg, #e74c3c, #c0392b);
-  color: #fff;
+  background: linear-gradient(135deg, var(--lx-danger), var(--lx-danger-deep));
+  color: var(--lx-text-on-accent);
   text-align: center;
-  padding: 24px;
-  font-size: 18px;
+  padding: var(--lx-space-4xl);
+  font-size: var(--lx-font-3xl);
   font-weight: 600;
 }
 
 .packet-body {
-  padding: 20px;
+  padding: var(--lx-space-3xl);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--lx-space-2xl);
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  font-size: 13px;
+  gap: var(--lx-space-sm);
+  font-size: var(--lx-font-md);
   color: var(--lx-text-secondary);
 }
 
 .packet-foot {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  padding: 0 20px 20px;
+  gap: var(--lx-space-md);
+  padding: 0 var(--lx-space-3xl) var(--lx-space-3xl);
 }
 </style>

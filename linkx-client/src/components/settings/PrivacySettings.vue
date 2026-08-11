@@ -4,6 +4,7 @@ import { NSwitch } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import { useAppSettingsStore } from '../../stores/appSettings'
 import { useI18n } from '../../i18n'
+import { LxGroupCard } from '../ui'
 
 const appSettingsStore = useAppSettingsStore()
 const {
@@ -17,7 +18,7 @@ const { t } = useI18n()
 
 <template>
   <div class="settings-scroll">
-    <section class="group-card">
+    <LxGroupCard tag="section" variant="settings">
       <div class="group-head"><span>{{ t('privacy.title') }}</span></div>
       <p class="privacy-note">{{ t('privacy.note') }}</p>
       <div class="setting-row">
@@ -64,7 +65,7 @@ const { t } = useI18n()
           @update:value="appSettingsStore.scheduleSave('privacySendReadReceipt')"
         />
       </div>
-    </section>
+    </LxGroupCard>
   </div>
 </template>
 
@@ -72,9 +73,9 @@ const { t } = useI18n()
 @import './settings-common.css';
 
 .privacy-note {
-  margin: 0 16px 8px;
-  font-size: 12px;
-  line-height: 1.5;
+  margin: 0 var(--lx-space-2xl) var(--lx-space);
+  font-size: var(--lx-font-sm);
+  line-height: var(--lx-leading-normal);
   color: var(--lx-text-muted);
 }
 </style>

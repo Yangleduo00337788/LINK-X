@@ -44,15 +44,15 @@ onMounted(() => {
 .empty {
   color: var(--lx-text-muted);
   text-align: center;
-  padding: 16px;
+  padding: var(--lx-space-2xl);
 }
 .empty h3 {
-  font-size: 14px;
-  margin: 0 0 6px;
+  font-size: var(--lx-font);
+  margin: 0 0 var(--lx-space-sm);
 }
 .empty p {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   margin: 0;
-  line-height: 1.5;
+  line-height: var(--lx-leading-normal);
 }
 </style>

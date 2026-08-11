@@ -11,6 +11,7 @@ import { NRadio, NRadioGroup, useMessage } from 'naive-ui'
 import * as feedbackApi from '../../api/feedback'
 import * as momentsApi from '../../api/moments'
 import { useI18n } from '../../i18n'
+import { LxButton, LxIconButton } from '../ui'
 
 const props = withDefaults(
   defineProps<{
@@ -181,7 +182,7 @@ async function submit() {
 <template>
   <div class="report-panel">
     <div class="report-head">
-      <button type="button" class="report-back" @click="emit('back')">‹</button>
+      <LxIconButton class="report-back" :title="t('common.back')" @click="emit('back')">‹</LxIconButton>
       <h3>{{ panelTitle }}</h3>
     </div>
 
@@ -219,7 +220,7 @@ async function submit() {
         <div class="evidence-grid">
           <div v-for="(item, idx) in evidenceItems" :key="item.key" class="evidence-item">
             <img :src="item.previewUrl" alt="" />
-            <button type="button" class="remove-btn" @click="removeEvidence(idx)">×</button>
+            <button type="button" class="lx-remove-badge lx-remove-badge--sm" @click="removeEvidence(idx)">×</button>
           </div>
           <button
             v-if="evidenceItems.length < 6"
@@ -241,14 +242,13 @@ async function submit() {
         />
       </section>
 
-      <button
-        type="button"
-        class="submit-btn"
+      <LxButton
+        variant="submit-block"
         :disabled="submitting || uploading"
         @click="submit"
       >
         {{ submitting ? t('modals.reportSubmitting') : t('modals.reportSubmit') }}
-      </button>
+      </LxButton>
     </div>
   </div>
 </template>
@@ -257,69 +257,66 @@ async function submit() {
 .report-panel {
   position: absolute;
   inset: 0;
-  z-index: 2;
+  z-index: var(--lx-z-raised-2);
   display: flex;
   flex-direction: column;
-  background: var(--lx-bg-card, #fff);
+  background: var(--lx-bg-card);
 }
 
 .report-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--lx-border, #eee);
+  gap: var(--lx-space);
+  padding: var(--lx-space-xl) var(--lx-space-2xl);
+  border-bottom: 1px solid var(--lx-border);
   flex-shrink: 0;
 }
 
 .report-head h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--lx-font-xl);
   font-weight: 600;
 }
 
 .report-back {
-  border: none;
-  background: transparent;
-  font-size: 24px;
-  line-height: 1;
-  cursor: pointer;
-  color: var(--lx-text, #333);
-  padding: 0 4px;
+  font-size: var(--lx-font-5xl);
+  width: 28px;
+  height: 28px;
+  color: var(--lx-text-primary);
 }
 
 .report-scroll {
   flex: 1;
   overflow-y: auto;
-  padding: 14px 16px 24px;
+  padding: var(--lx-space-xl) var(--lx-space-2xl) var(--lx-space-4xl);
 }
 
 .hint {
-  margin: 0 0 16px;
-  font-size: 13px;
-  color: var(--lx-text-muted, #999);
-  line-height: 1.45;
+  margin: 0 0 var(--lx-space-2xl);
+  font-size: var(--lx-font-md);
+  color: var(--lx-text-muted);
+  line-height: var(--lx-leading);
 }
 
 .section {
-  margin-bottom: 18px;
+  margin-bottom: var(--lx-space-2xl);
 }
 
 .section h4 {
-  margin: 0 0 10px;
-  font-size: 14px;
+  margin: 0 0 var(--lx-space-md);
+  font-size: var(--lx-font);
   font-weight: 600;
-  color: var(--lx-text, #333);
+  color: var(--lx-text-primary);
 }
 
 .reason-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--lx-space-md);
 }
 
 .reason-item {
-  font-size: 14px;
+  font-size: var(--lx-font);
 }
 
 .detail-input {
@@ -327,35 +324,35 @@ async function submit() {
   box-sizing: border-box;
   resize: vertical;
   min-height: 88px;
-  padding: 10px 12px;
-  border: 1px solid var(--lx-border, #ddd);
-  border-radius: 8px;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--lx-text, #333);
-  background: var(--lx-bg-card, #fff);
+  padding: var(--lx-space-md) var(--lx-space-lg);
+  border: 1px solid var(--lx-border);
+  border-radius: var(--lx-radius-sm);
+  font-size: var(--lx-font-md);
+  line-height: var(--lx-leading-normal);
+  color: var(--lx-text-primary);
+  background: var(--lx-bg-card);
   font-family: inherit;
 }
 
 .sub-hint {
-  margin: 0 0 10px;
-  font-size: 12px;
-  color: var(--lx-text-muted, #999);
+  margin: 0 0 var(--lx-space-md);
+  font-size: var(--lx-font-sm);
+  color: var(--lx-text-muted);
 }
 
 .evidence-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--lx-space);
 }
 
 .evidence-item {
   position: relative;
   width: 72px;
   height: 72px;
-  border-radius: 8px;
+  border-radius: var(--lx-radius-sm);
   overflow: hidden;
-  background: var(--lx-bg-muted, #f5f5f5);
+  background: var(--lx-bg-panel);
 }
 
 .evidence-item img {
@@ -365,29 +362,14 @@ async function submit() {
   display: block;
 }
 
-.remove-btn {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  width: 20px;
-  height: 20px;
-  border: none;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.55);
-  color: #fff;
-  font-size: 14px;
-  line-height: 1;
-  cursor: pointer;
-}
-
 .add-evidence {
   width: 72px;
   height: 72px;
-  border: 1px dashed var(--lx-border, #ddd);
-  border-radius: 8px;
+  border: 1px dashed var(--lx-border);
+  border-radius: var(--lx-radius-sm);
   background: transparent;
-  color: var(--lx-text-muted, #999);
-  font-size: 28px;
+  color: var(--lx-text-muted);
+  font-size: var(--lx-font-6xl);
   cursor: pointer;
 }
 
@@ -398,22 +380,5 @@ async function submit() {
 
 .hidden-input {
   display: none;
-}
-
-.submit-btn {
-  width: 100%;
-  margin-top: 8px;
-  height: 40px;
-  border: none;
-  border-radius: 8px;
-  background: var(--lx-accent, #12b7f5);
-  color: #fff;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.submit-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 </style>

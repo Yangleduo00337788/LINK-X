@@ -72,20 +72,20 @@ const sizeLine = computed(() => {
   max-width: 280px;
   min-width: 200px;
   background: var(--lx-bg-card);
-  border-radius: 10px;
+  border-radius: var(--lx-radius-xl);
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
   cursor: pointer;
-  transition: filter 0.15s ease;
+  transition: filter var(--lx-duration) ease;
 }
 .lx-file-card:hover {
   filter: brightness(1.03);
 }
 .lx-file-card.self {
-  background: #3a3a3a;
+  background: var(--lx-divider);
 }
 .lx-file-card.self .lx-file-name {
-  color: #fff;
+  color: var(--lx-text-on-accent);
 }
 .lx-file-card.self .lx-file-size {
   color: rgba(255, 255, 255, 0.65);
@@ -93,8 +93,8 @@ const sizeLine = computed(() => {
 .lx-file-main {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
+  gap: var(--lx-space-lg);
+  padding: var(--lx-space-lg) var(--lx-space-xl);
 }
 .lx-file-meta {
   flex: 1;
@@ -104,13 +104,13 @@ const sizeLine = computed(() => {
 .lx-file-icon {
   width: 48px;
   height: 56px;
-  border-radius: 6px;
+  border-radius: var(--lx-radius-xs);
   display: flex;
   align-items: flex-end;
   justify-content: center;
   flex-shrink: 0;
-  background: linear-gradient(180deg, #f5f7fa 0%, #e8ecf1 100%);
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+  background: linear-gradient(180deg, var(--lx-bg-soft) 0%, var(--lx-file-bubble-track) 100%);
+  box-shadow: var(--lx-shadow-inset-border);
   position: relative;
   clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
 }
@@ -124,20 +124,20 @@ const sizeLine = computed(() => {
   background: linear-gradient(135deg, transparent 50%, rgba(0, 0, 0, 0.08) 50%);
 }
 .lx-file-ext {
-  font-size: 11px;
+  font-size: var(--lx-font-xs);
   font-weight: 700;
   letter-spacing: 0.02em;
-  padding-bottom: 8px;
-  color: #5a6a7a;
+  padding-bottom: var(--lx-space);
+  color: var(--lx-file-bubble-muted);
 }
-.lx-file-icon.pdf .lx-file-ext { color: #e34d59; }
-.lx-file-icon.doc .lx-file-ext { color: #2b6cb0; }
-.lx-file-icon.xls .lx-file-ext { color: #2f855a; }
-.lx-file-icon.ppt .lx-file-ext { color: #c05621; }
-.lx-file-icon.zip .lx-file-ext { color: #805ad5; }
-.lx-file-icon.txt .lx-file-ext { color: #4a5568; }
+.lx-file-icon.pdf .lx-file-ext { color: var(--lx-danger); }
+.lx-file-icon.doc .lx-file-ext { color: var(--lx-file-bubble-doc); }
+.lx-file-icon.xls .lx-file-ext { color: var(--lx-file-bubble-xls); }
+.lx-file-icon.ppt .lx-file-ext { color: var(--lx-file-bubble-ppt); }
+.lx-file-icon.zip .lx-file-ext { color: var(--lx-file-bubble-zip); }
+.lx-file-icon.txt .lx-file-ext { color: var(--lx-file-bubble-txt); }
 .lx-file-name {
-  font-size: 14px;
+  font-size: var(--lx-font);
   font-weight: 500;
   color: var(--lx-text-body);
   overflow: hidden;
@@ -145,29 +145,29 @@ const sizeLine = computed(() => {
   white-space: nowrap;
 }
 .lx-file-size {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
-  margin-top: 6px;
+  margin-top: var(--lx-space-sm);
 }
 .lx-file-bar {
   position: relative;
   overflow: hidden;
-  padding: 6px 14px;
-  background: #2f2f2f;
+  padding: var(--lx-space-sm) var(--lx-space-xl);
+  background: var(--lx-file-preview);
   color: rgba(255, 255, 255, 0.9);
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
 }
 .lx-file-progress {
   position: absolute;
   inset: 0 auto 0 0;
   background: rgba(18, 183, 245, 0.35);
-  transition: width 0.2s ease;
+  transition: width var(--lx-duration-md) ease;
 }
 .lx-file-bar-text {
   position: relative;
-  z-index: 1;
+  z-index: var(--lx-z-raised);
 }
 .lx-file-card.uploading .lx-file-bar {
-  color: #b8e9ff;
+  color: var(--lx-file-preview-text);
 }
 </style>

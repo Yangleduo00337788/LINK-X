@@ -24,6 +24,7 @@ import * as groupApi from '../../api/group'
 import * as conferenceApi from '../../api/conference'
 import type { ConferenceInfo } from '../../api/conference'
 import { useI18n } from '../../i18n'
+import { LxButton } from '../ui'
 
 const { t } = useI18n()
 const message = useMessage()
@@ -637,7 +638,7 @@ function reportGroup() {
               <div class="group-hero">
                 <GroupAvatar
                   :text="currentSession?.avatarText || t('modals.groupChar')"
-                  :color="currentSession?.avatarColor || '#e74c3c'"
+                  :color="currentSession?.avatarColor || 'var(--lx-danger)'"
                   :size="56"
                   :image-url="currentSession?.avatarUrl"
                   :faces="currentSession?.memberAvatars || members.slice(0, 9).map(m => ({
@@ -655,7 +656,7 @@ function reportGroup() {
                     {{ t('modals.groupRealName', { name: currentSession.groupName }) }}
                   </p>
                   <p class="g-id">{{ t('modals.groupIdLabel', { id: groupId }) }}</p>
-                  <button type="button" class="share-btn" @click="shareGroup">{{ t('modals.share') }}</button>
+                  <LxButton variant="share" @click="shareGroup">{{ t('modals.share') }}</LxButton>
                 </div>
               </div>
 
@@ -667,7 +668,7 @@ function reportGroup() {
                     <button
                       v-if="isAdminOrOwner"
                       type="button"
-                      class="head-action"
+                      class="lx-link-btn lx-link-btn--head"
                       @click="memberSelectMode = !memberSelectMode; if (!memberSelectMode) selectedMemberIds = []"
                     >
                       {{ memberSelectMode ? t('common.cancel') : t('modals.batchManage') }}
@@ -692,12 +693,12 @@ function reportGroup() {
                   <button type="button" class="av invite" :title="t('chat.invite')" @click="openAddMembers">+</button>
                 </div>
                 <div v-if="memberSelectMode && selectedMemberIds.length" class="batch-bar">
-                  <button type="button" class="action-btn danger" @click="batchRemoveSelected">
+                  <LxButton variant="block-danger" @click="batchRemoveSelected">
                     {{ t('modals.batchRemove', { n: selectedMemberIds.length }) }}
-                  </button>
-                  <button type="button" class="action-btn" @click="batchMuteSelected">
+                  </LxButton>
+                  <LxButton variant="block" @click="batchMuteSelected">
                     {{ t('modals.batchMute', { n: selectedMemberIds.length }) }}
-                  </button>
+                  </LxButton>
                 </div>
               </section>
 
@@ -723,7 +724,7 @@ function reportGroup() {
                 <button type="button" class="announce-row" @click="openAnnouncementManage">
                   <div class="announce-row-main">
                     <h3 class="block-title">{{ t('chat.groupAnnouncement') }}</h3>
-                    <p class="announce" :class="{ empty: announcementEmpty }">{{ announcement }}</p>
+                    <p class="announce" :class="{ 'is-empty': announcementEmpty }">{{ announcement }}</p>
                     <p
                       v-if="!announcementEmpty && announcementReadCount != null"
                       class="announce-read"
@@ -813,7 +814,7 @@ function reportGroup() {
                   <li v-for="req in joinRequests" :key="req.applicantId" class="join-item">
                     <Avatar
                       :text="(req.applicantNickname || '?').charAt(0)"
-                      color="#12b7f5"
+                      color="var(--lx-accent)"
                       :size="36"
                       :image-url="req.applicantAvatar"
                     />
@@ -824,7 +825,7 @@ function reportGroup() {
                     <div class="join-actions">
                       <button
                         type="button"
-                        class="join-btn ok"
+                        class="lx-join-btn lx-join-btn--compact lx-join-btn--ok"
                         :disabled="joinHandlingId === req.applicantId"
                         @click="handleJoin(req.applicantId, true)"
                       >
@@ -832,7 +833,7 @@ function reportGroup() {
                       </button>
                       <button
                         type="button"
-                        class="join-btn no"
+                        class="lx-join-btn lx-join-btn--compact lx-join-btn--no"
                         :disabled="joinHandlingId === req.applicantId"
                         @click="handleJoin(req.applicantId, false)"
                       >
@@ -844,47 +845,42 @@ function reportGroup() {
               </section>
 
               <!-- 危险操作与举报 -->
-              <button type="button" class="action-btn" @click="clearChat">{{ t('modals.clearChatHistory') }}</button>
-              <button
+              <LxButton variant="block" @click="clearChat">{{ t('modals.clearChatHistory') }}</LxButton>
+              <LxButton
                 v-if="isAdminOrOwner"
-                type="button"
-                class="action-btn"
+                variant="block"
                 @click="openMutePanel"
               >
                 {{ t('modals.groupMute') }}
-              </button>
-              <button
+              </LxButton>
+              <LxButton
                 v-if="!isOwner"
-                type="button"
-                class="action-btn danger"
+                variant="block-danger"
                 @click="quitGroup"
               >
                 {{ t('modals.quitGroup') }}
-              </button>
-              <button
+              </LxButton>
+              <LxButton
                 v-if="isOwner"
-                type="button"
-                class="action-btn"
+                variant="block"
                 @click="openManageAdmins"
               >
                 {{ t('modals.manageAdmins') }}
-              </button>
-              <button
+              </LxButton>
+              <LxButton
                 v-if="isOwner"
-                type="button"
-                class="action-btn"
+                variant="block"
                 @click="openTransferOwner"
               >
                 {{ t('modals.transferOwner') }}
-              </button>
-              <button
+              </LxButton>
+              <LxButton
                 v-if="isOwner"
-                type="button"
-                class="action-btn danger"
+                variant="block-danger"
                 @click="dissolve"
               >
                 {{ t('modals.dissolveGroup') }}
-              </button>
+              </LxButton>
               <p class="report">
                 <a href="#" @click.prevent="reportGroup">{{ t('modals.reportGroup') }}</a>
               </p>
@@ -968,7 +964,7 @@ function reportGroup() {
 .drawer-root {
   position: absolute;
   inset: 0;
-  z-index: 30;
+  z-index: var(--lx-z-dock);
   background: var(--lx-bg-overlay);
 }
 
@@ -980,7 +976,7 @@ function reportGroup() {
   width: min(320px, 88%);
   max-width: 360px;
   background: var(--lx-bg-card);
-  box-shadow: -4px 0 24px var(--lx-shadow-color);
+  box-shadow: var(--lx-shadow-drawer);
   display: flex;
   flex-direction: column;
   will-change: transform;
@@ -989,16 +985,16 @@ function reportGroup() {
 .drawer-scroll {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 18px 28px;
+  padding: var(--lx-space-3xl) var(--lx-space-2xl) var(--lx-space-5xl-minus);
 }
 
 .group-hero {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
-  padding-bottom: 16px;
+  gap: var(--lx-space-xl);
+  padding-bottom: var(--lx-space-2xl);
   border-bottom: 1px solid var(--lx-border-light);
-  margin-bottom: 12px;
+  margin-bottom: var(--lx-space-lg);
 }
 
 .group-hero :deep(.avatar),
@@ -1015,11 +1011,11 @@ function reportGroup() {
 }
 
 .g-name {
-  margin: 0 0 6px;
-  font-size: 16px;
+  margin: 0 0 var(--lx-space-sm);
+  font-size: var(--lx-font-xl);
   font-weight: 600;
   color: var(--lx-text-body);
-  line-height: 1.3;
+  line-height: var(--lx-leading-snug);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1027,31 +1023,19 @@ function reportGroup() {
 }
 
 .g-real-name {
-  margin: 0 0 6px;
-  font-size: 12px;
+  margin: 0 0 var(--lx-space-sm);
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
 }
 
 .g-id {
-  margin: 0 0 10px;
-  font-size: 12px;
+  margin: 0 0 var(--lx-space-md);
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
 }
 
-.share-btn {
-  min-width: 72px;
-  height: 28px;
-  padding: 0 14px;
-  border-radius: var(--lx-radius);
-  border: 1px solid var(--lx-border-strong);
-  background: var(--lx-bg-card);
-  font-size: 13px;
-  cursor: pointer;
-  color: var(--lx-text-body);
-}
-
 .block {
-  padding: 12px 0;
+  padding: var(--lx-space-lg) 0;
   border-bottom: 1px solid var(--lx-bg-panel);
 }
 
@@ -1059,25 +1043,16 @@ function reportGroup() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 14px;
+  font-size: var(--lx-font);
   font-weight: 600;
   color: var(--lx-text-body);
-  margin-bottom: 10px;
+  margin-bottom: var(--lx-space-md);
 }
 
 .block-head-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.head-action {
-  border: none;
-  background: transparent;
-  color: var(--lx-accent);
-  font-size: 12px;
-  cursor: pointer;
-  padding: 0;
+  gap: var(--lx-space);
 }
 
 .ico {
@@ -1088,8 +1063,8 @@ function reportGroup() {
 .avatar-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: var(--lx-space-md);
+  margin-bottom: var(--lx-space-md);
 }
 
 .av {
@@ -1104,7 +1079,7 @@ function reportGroup() {
 
 .av.selected {
   outline: 2px solid var(--lx-accent);
-  border-radius: 10px;
+  border-radius: var(--lx-radius-xl);
 }
 
 .av-check {
@@ -1115,9 +1090,9 @@ function reportGroup() {
   height: 16px;
   border-radius: 50%;
   background: var(--lx-accent);
-  color: #fff;
-  font-size: 10px;
-  line-height: 16px;
+  color: var(--lx-text-on-accent);
+  font-size: var(--lx-font-2xs);
+  line-height: var(--lx-font-xl);
   text-align: center;
 }
 
@@ -1125,19 +1100,19 @@ function reportGroup() {
   position: absolute;
   left: 0;
   bottom: -2px;
-  padding: 0 4px;
-  font-size: 10px;
-  line-height: 14px;
-  color: #fff;
+  padding: 0 var(--lx-space-xs);
+  font-size: var(--lx-font-2xs);
+  line-height: var(--lx-font);
+  color: var(--lx-text-on-accent);
   background: rgba(0, 0, 0, 0.55);
-  border-radius: 999px;
+  border-radius: var(--lx-radius-pill);
   transform: scale(0.9);
 }
 
 .batch-bar {
-  margin-top: 8px;
+  margin-top: var(--lx-space);
   display: flex;
-  gap: 8px;
+  gap: var(--lx-space);
 }
 
 .invite {
@@ -1146,7 +1121,7 @@ function reportGroup() {
   border-radius: var(--lx-avatar-radius);
   border: 1px dashed var(--lx-border-strong);
   background: var(--lx-bg-panel);
-  font-size: 22px;
+  font-size: var(--lx-font-5xl);
   color: var(--lx-text-muted);
   cursor: pointer;
   display: flex;
@@ -1156,8 +1131,8 @@ function reportGroup() {
 }
 
 .block-title {
-  margin: 0 0 8px;
-  font-size: 14px;
+  margin: 0 0 var(--lx-space);
+  font-size: var(--lx-font);
   font-weight: 600;
 }
 
@@ -1165,7 +1140,7 @@ function reportGroup() {
   width: 100%;
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--lx-space);
   border: none;
   background: transparent;
   padding: 0;
@@ -1181,8 +1156,8 @@ function reportGroup() {
 
 .announce {
   margin: 0;
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: var(--lx-font-sm);
+  line-height: var(--lx-leading-normal);
   color: var(--lx-text-secondary);
   word-break: break-all;
   min-height: 18px;
@@ -1193,17 +1168,17 @@ function reportGroup() {
 }
 
 .announce-read {
-  margin: 4px 0 0;
-  font-size: 12px;
+  margin: var(--lx-space-xs) 0 0;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
 }
 
 .announce-arrow {
   flex-shrink: 0;
-  font-size: 20px;
-  line-height: 1;
+  font-size: var(--lx-font-4xl);
+  line-height: var(--lx-leading-none);
   color: var(--lx-text-muted);
-  margin-top: 2px;
+  margin-top: var(--lx-space-2xs);
 }
 
 .announce-row:hover .announce-arrow {
@@ -1214,22 +1189,22 @@ function reportGroup() {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 14px;
+  font-size: var(--lx-font);
   color: var(--lx-text-body);
 }
 
 .muted {
   color: var(--lx-text-muted);
-  font-size: 13px;
+  font-size: var(--lx-font-md);
 }
 
 .remark-input {
   width: 100%;
-  margin-top: 8px;
+  margin-top: var(--lx-space);
   height: 36px;
   border: none;
   border-bottom: 1px solid var(--lx-border-light);
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   outline: none;
   color: var(--lx-text-body);
   background: transparent;
@@ -1241,86 +1216,86 @@ function reportGroup() {
 }
 
 .field-hint {
-  margin: 6px 0 0;
-  font-size: 12px;
+  margin: var(--lx-space-sm) 0 0;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
 }
 
 .conf-history-list {
   list-style: none;
-  margin: 8px 0 0;
+  margin: var(--lx-space) 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--lx-space);
 }
 .conf-history-item {
-  padding: 8px 10px;
-  border-radius: 8px;
+  padding: var(--lx-space) var(--lx-space-md);
+  border-radius: var(--lx-radius-sm);
   background: var(--lx-bg-muted, rgba(0, 0, 0, 0.04));
 }
 .conf-history-title {
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   font-weight: 600;
 }
 .conf-history-meta {
-  margin-top: 4px;
-  font-size: 12px;
+  margin-top: var(--lx-space-xs);
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: var(--lx-space-xs);
 }
 
 .switch-block {
-  padding: 8px 0 16px;
+  padding: var(--lx-space) 0 var(--lx-space-2xl);
 }
 
 .switch-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 0;
-  font-size: 14px;
+  padding: var(--lx-space-lg) 0;
+  font-size: var(--lx-font);
   color: var(--lx-text-body);
 }
 
 .switch-label {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--lx-space);
 }
 
 .hint {
-  margin: -4px 0 0;
-  font-size: 12px;
+  margin: -var(--lx-space-xs) 0 0;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
 }
 
 .join-requests {
-  margin-top: 8px;
+  margin-top: var(--lx-space);
 }
 
 .join-requests .row-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: var(--lx-space);
 }
 
 .link-btn {
   border: none;
   background: none;
   color: var(--lx-accent);
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   cursor: pointer;
   padding: 0;
 }
 
 .join-empty {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
-  padding: 8px 0;
+  padding: var(--lx-space) 0;
 }
 
 .join-list {
@@ -1329,13 +1304,13 @@ function reportGroup() {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--lx-space-md);
 }
 
 .join-item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--lx-space-md);
 }
 
 .join-meta {
@@ -1344,7 +1319,7 @@ function reportGroup() {
 }
 
 .join-name {
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   color: var(--lx-text-body);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1352,7 +1327,7 @@ function reportGroup() {
 }
 
 .join-msg {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1361,54 +1336,14 @@ function reportGroup() {
 
 .join-actions {
   display: flex;
-  gap: 6px;
+  gap: var(--lx-space-sm);
   flex-shrink: 0;
-}
-
-.join-btn {
-  border: 1px solid var(--lx-border);
-  background: var(--lx-bg-panel);
-  border-radius: 4px;
-  font-size: 12px;
-  padding: 4px 8px;
-  cursor: pointer;
-}
-
-.join-btn.ok {
-  color: var(--lx-accent);
-  border-color: var(--lx-accent);
-}
-
-.join-btn.no {
-  color: var(--lx-danger);
-}
-
-.join-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.action-btn {
-  width: 100%;
-  height: 40px;
-  border: none;
-  background: var(--lx-bg-panel);
-  border-radius: var(--lx-radius);
-  font-size: 14px;
-  color: var(--lx-text-body);
-  cursor: pointer;
-  margin-bottom: 10px;
-}
-
-.action-btn.danger {
-  background: transparent;
-  color: var(--lx-danger);
 }
 
 .report {
   text-align: center;
-  margin: 16px 0 0;
-  font-size: 12px;
+  margin: var(--lx-space-2xl) 0 0;
+  font-size: var(--lx-font-sm);
 }
 
 .report a {
@@ -1419,23 +1354,23 @@ function reportGroup() {
 .transfer-panel {
   position: absolute;
   inset: 0;
-  z-index: 2;
+  z-index: var(--lx-z-raised-2);
   background: var(--lx-bg-card);
   display: flex;
   flex-direction: column;
-  padding: 16px 14px 20px;
+  padding: var(--lx-space-2xl) var(--lx-space-xl) var(--lx-space-3xl);
 }
 
 .transfer-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: var(--lx-space);
+  margin-bottom: var(--lx-space);
 }
 
 .transfer-head h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--lx-font-lg);
   font-weight: 600;
   color: var(--lx-text-body);
 }
@@ -1445,17 +1380,17 @@ function reportGroup() {
   height: 32px;
   border: none;
   background: transparent;
-  font-size: 22px;
-  line-height: 1;
+  font-size: var(--lx-font-5xl);
+  line-height: var(--lx-leading-none);
   color: var(--lx-text-body);
   cursor: pointer;
 }
 
 .transfer-hint {
-  margin: 0 0 12px;
-  font-size: 12px;
+  margin: 0 0 var(--lx-space-lg);
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
-  line-height: 1.45;
+  line-height: var(--lx-leading);
 }
 
 .transfer-list {
@@ -1467,8 +1402,8 @@ function reportGroup() {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 8px;
+  gap: var(--lx-space-md);
+  padding: var(--lx-space-md) var(--lx-space);
   border: none;
   border-radius: var(--lx-radius);
   background: transparent;
@@ -1488,14 +1423,14 @@ function reportGroup() {
 
 .transfer-name {
   flex: 1;
-  font-size: 14px;
+  font-size: var(--lx-font);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .transfer-badge {
-  font-size: 11px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-muted);
 }
 
@@ -1510,11 +1445,11 @@ function reportGroup() {
 .role-action {
   flex-shrink: 0;
   height: 28px;
-  padding: 0 10px;
+  padding: 0 var(--lx-space-md);
   border: 1px solid var(--lx-border-strong);
   border-radius: var(--lx-radius);
   background: var(--lx-bg-card);
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-accent);
   cursor: pointer;
 }
@@ -1531,12 +1466,12 @@ function reportGroup() {
 
 .chat-drawer-enter-active,
 .chat-drawer-leave-active {
-  transition: opacity 0.25s ease;
+  transition: opacity var(--lx-duration-md) ease;
 }
 
 .chat-drawer-enter-active .drawer-panel,
 .chat-drawer-leave-active .drawer-panel {
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform var(--lx-duration-slow) cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .chat-drawer-enter-from,

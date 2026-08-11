@@ -48,21 +48,21 @@ const showChecks = computed(() => !props.groupMode && props.msg.isSelf && !faile
 .msg-status-icon {
   display: inline-flex;
   align-items: center;
-  line-height: 1;
+  line-height: var(--lx-leading-none);
   vertical-align: middle;
 }
 .msg-status-icon--sent,
 .msg-status-icon--delivered {
-  color: var(--lx-text-muted, #999);
+  color: var(--lx-text-muted);
 }
 .msg-status-icon--read {
-  color: var(--lx-accent, #12b7f5);
+  color: var(--lx-accent, var(--lx-accent));
 }
 .msg-status-icon--sending {
-  color: var(--lx-text-muted, #999);
+  color: var(--lx-text-muted);
   opacity: 0.85;
 }
 .msg-status-icon--failed {
-  color: var(--lx-danger, #e74c3c);
+  color: var(--lx-danger, var(--lx-danger));
 }
 </style>

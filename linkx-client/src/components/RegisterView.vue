@@ -5,7 +5,7 @@
  */
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { NInput, NButton, NIcon, useMessage } from 'naive-ui'
+import { NInput, NIcon, useMessage } from 'naive-ui'
 import {
   RefreshOutline,
   PersonOutline,
@@ -21,6 +21,7 @@ import { useI18n } from '../i18n'
 import WindowCaptionButtons from './WindowCaptionButtons.vue'
 import BrandMarkIcon from './BrandMarkIcon.vue'
 import SliderCaptcha from './SliderCaptcha.vue'
+import { LxButton, LxIconButton } from './ui'
 import { openLegalPageInBrowser } from '../utils/legalPage'
 
 const message = useMessage()
@@ -270,7 +271,15 @@ onUnmounted(() => {
       <div class="reg-title">{{ t('register.title') }}</div>
       <div class="drag-area" />
       <WindowCaptionButtons v-if="isElectron" :show-maximize="false" />
-      <button v-else type="button" class="web-close" :title="t('common.back')" @click="closeOrBack">×</button>
+      <button
+        v-else
+        type="button"
+        class="lx-win-caption-btn lx-win-caption-btn--close"
+        :title="t('common.back')"
+        @click="closeOrBack"
+      >
+        ×
+      </button>
     </div>
 
     <div class="reg-body">
@@ -281,9 +290,9 @@ onUnmounted(() => {
       <p class="reg-desc">{{ registerEnabled ? t('register.subtitle') : t('register.disabled') }}</p>
 
       <div v-if="configLoaded && !registerEnabled" class="reg-disabled">
-        <n-button type="primary" size="large" round block class="submit-btn" @click="closeOrBack">
+        <LxButton variant="login" @click="closeOrBack">
           {{ t('common.back') }}
-        </n-button>
+        </LxButton>
       </div>
 
       <div v-else class="reg-form">
@@ -347,10 +356,10 @@ onUnmounted(() => {
               <n-icon :component="KeyOutline" :size="15" class="field-ico" />
             </template>
           </n-input>
-          <n-button
+          <LxButton
+            variant="ghost"
             class="email-code-btn"
-            :loading="emailCodeSending"
-            :disabled="emailCodeCooldown > 0"
+            :disabled="emailCodeSending || emailCodeCooldown > 0"
             @click="sendEmailCode"
           >
             {{
@@ -358,7 +367,7 @@ onUnmounted(() => {
                 ? t('register.resendIn', { n: emailCodeCooldown })
                 : t('register.sendCode')
             }}
-          </n-button>
+          </LxButton>
         </div>
 
         <div v-if="captchaEnabled" class="captcha-row">
@@ -398,11 +407,13 @@ onUnmounted(() => {
                 <n-icon :component="ShieldCheckmarkOutline" :size="15" class="field-ico" />
               </template>
             </n-input>
-            <n-button quaternary circle class="captcha-refresh" @click="loadCaptcha">
-              <template #icon>
-                <n-icon :component="RefreshOutline" />
-              </template>
-            </n-button>
+            <LxIconButton
+              class="captcha-refresh"
+              :title="t('login.refreshCaptcha')"
+              @click="loadCaptcha"
+            >
+              <n-icon :component="RefreshOutline" />
+            </LxIconButton>
           </template>
         </div>
 
@@ -419,16 +430,15 @@ onUnmounted(() => {
           </span>
         </label>
 
-        <button
-          type="button"
-          class="lx-login-btn"
-          :class="{ loading: submitting }"
+        <LxButton
+          variant="login"
+          :class="{ 'is-loading': submitting }"
           :disabled="submitting"
           @click="handleRegister"
         >
-          <span v-if="submitting" class="btn-spinner" aria-hidden="true" />
+          <span v-if="submitting" class="lx-btn-spinner" aria-hidden="true" />
           <span>{{ submitLabel }}</span>
-        </button>
+        </LxButton>
       </div>
 
       <div class="footer">
@@ -440,10 +450,10 @@ onUnmounted(() => {
 
 <style scoped>
 .register-page {
-  --lx-login-accent: #12b7f5;
-  --lx-login-accent-deep: #0aa6e0;
-  --lx-login-ink: #1a2332;
-  --lx-login-muted: #7a8494;
+  --lx-login-accent: var(--lx-accent);
+  --lx-login-accent-deep: var(--lx-accent-deep);
+  
+  
   position: relative;
   width: 100%;
   height: 100%;
@@ -451,7 +461,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  background: linear-gradient(165deg, #d8ecfb 0%, #e8f3fc 38%, #f4f7fb 72%, #fafbfd 100%);
+  background: var(--lx-login-bg-gradient);
   overflow: hidden;
   color: var(--lx-login-ink);
   font-family: 'Segoe UI Variable', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
@@ -461,7 +471,7 @@ onUnmounted(() => {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 0;
+  z-index: var(--lx-z-base);
   overflow: hidden;
 }
 
@@ -519,28 +529,28 @@ onUnmounted(() => {
 
 .register-page--compact {
   min-height: 520px;
-  border-radius: var(--lx-window-radius, 20px);
+  border-radius: var(--lx-window-radius);
   overflow: hidden;
-  clip-path: inset(0 round var(--lx-window-radius, 20px));
+  clip-path: inset(0 round var(--lx-window-radius));
 }
 
 .reg-win-bar {
   flex-shrink: 0;
-  height: 40px;
+  height: var(--lx-size-win-bar);
   width: 100%;
   box-sizing: border-box;
   display: flex;
   align-items: stretch;
   -webkit-app-region: no-drag;
   position: relative;
-  z-index: 20;
+  z-index: var(--lx-z-sticky);
 }
 
 .reg-title {
-  padding-left: 14px;
-  font-size: 13px;
+  padding-left: var(--lx-space-xl);
+  font-size: var(--lx-font-md);
   font-weight: 500;
-  color: #5c6370;
+  color: var(--lx-ink-soft);
   user-select: none;
   -webkit-app-region: no-drag;
   display: flex;
@@ -553,76 +563,59 @@ onUnmounted(() => {
   -webkit-app-region: drag;
 }
 
-.web-close {
-  width: 36px;
-  height: 36px;
-  border: none;
-  background: transparent;
-  font-size: 20px;
-  color: #5c6370;
-  cursor: pointer;
-  line-height: 1;
-  border-radius: 8px;
-}
-
-.web-close:hover {
-  background: #e81123;
-  color: #fff;
-}
-
 .reg-body {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 4px 28px 18px;
+  padding: var(--lx-space-xs) var(--lx-space-5xl-minus) var(--lx-space-2xl);
   box-sizing: border-box;
   overflow: auto;
   position: relative;
-  z-index: 1;
+  z-index: var(--lx-z-raised);
 }
 
 .brand-title {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  margin-top: 4px;
-  margin-bottom: 8px;
+  gap: var(--lx-space);
+  margin-top: var(--lx-space-xs);
+  margin-bottom: var(--lx-space);
   user-select: none;
-  animation: rise-in 0.45s ease both;
+  animation: rise-in var(--lx-duration-slower) ease both;
 }
 
 .brand-text {
-  font-size: 28px;
+  font-size: var(--lx-font-6xl);
   font-weight: 720;
   letter-spacing: 0.5px;
-  line-height: 1;
-  background: linear-gradient(100deg, #0ea5e0 0%, #12b7f5 35%, #5b8cff 70%, #a855f7 100%);
+  line-height: var(--lx-leading-none);
+  background: linear-gradient(100deg, var(--lx-accent-sky) 0%, var(--lx-accent) 35%, var(--lx-brand-blue-mid) 70%, var(--lx-brand-purple) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
 .reg-desc {
-  margin: 0 0 16px;
-  font-size: 13px;
+  margin: 0 0 var(--lx-space-2xl);
+  font-size: var(--lx-font-md);
   color: var(--lx-login-muted);
-  animation: rise-in 0.5s ease 0.05s both;
+  animation: rise-in var(--lx-duration-slowest) ease var(--lx-duration-instant) both;
 }
 
 .reg-form {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 9px;
-  animation: rise-in 0.55s ease 0.1s both;
+  gap: var(--lx-space);
+  animation: rise-in var(--lx-duration-slowest) ease var(--lx-duration-faster) both;
 }
 
 .reg-disabled {
   width: 100%;
-  margin-top: 12px;
+  margin-top: var(--lx-space-lg);
 }
 
 @keyframes rise-in {
@@ -641,41 +634,41 @@ onUnmounted(() => {
 }
 
 .field-ico {
-  color: #9aa3b2;
+  color: var(--lx-login-icon);
 }
 
 .lx-field :deep(.n-input-wrapper) {
   background: rgba(255, 255, 255, 0.88);
-  border-radius: 12px;
+  border-radius: var(--lx-radius-lg);
   box-shadow:
     0 1px 2px rgba(26, 35, 50, 0.04),
     inset 0 0 0 1px rgba(255, 255, 255, 0.9);
-  padding-left: 12px;
-  padding-right: 12px;
-  min-height: 40px;
-  transition: box-shadow 0.18s ease, background 0.18s ease;
+  padding-left: var(--lx-space-lg);
+  padding-right: var(--lx-space-lg);
+  min-height: var(--lx-size-control);
+  transition: box-shadow var(--lx-duration-md) ease, background var(--lx-duration-md) ease;
 }
 
 .lx-field :deep(.n-input--focus .n-input-wrapper) {
-  background: #fff;
+  background: var(--lx-bg-card);
   box-shadow:
     0 0 0 3px rgba(18, 183, 245, 0.16),
     inset 0 0 0 1px rgba(18, 183, 245, 0.45);
 }
 
 .lx-field :deep(.n-input__input-el) {
-  font-size: 13px;
-  height: 40px;
+  font-size: var(--lx-font-md);
+  height: var(--lx-size-control);
 }
 
 .lx-field :deep(.n-input__prefix) {
-  margin-right: 6px;
+  margin-right: var(--lx-space-sm);
 }
 
 .email-code-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--lx-space);
 }
 
 .email-code-input {
@@ -685,27 +678,27 @@ onUnmounted(() => {
 
 .email-code-btn {
   flex-shrink: 0;
-  height: 40px;
-  border-radius: 12px;
+  height: var(--lx-size-control);
+  border-radius: var(--lx-radius-lg);
 }
 
 .captcha-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--lx-space);
 }
 
 .captcha-img {
   width: 102px;
-  height: 40px;
-  border-radius: 12px;
+  height: var(--lx-size-control);
+  border-radius: var(--lx-radius-lg);
   cursor: pointer;
   border: none;
   background: rgba(255, 255, 255, 0.9);
   box-shadow: inset 0 0 0 1px rgba(18, 183, 245, 0.12);
   flex-shrink: 0;
   object-fit: contain;
-  transition: transform 0.15s ease;
+  transition: transform var(--lx-duration) ease;
 }
 
 .captcha-img:hover {
@@ -713,8 +706,8 @@ onUnmounted(() => {
 }
 
 .captcha-img--placeholder {
-  background: linear-gradient(135deg, #e8eef5 0%, #f5f7fa 100%);
-  border: 1px dashed #c5d0dc;
+  background: linear-gradient(135deg, var(--lx-bg-mist) 0%, var(--lx-bg-soft) 100%);
+  border: 1px dashed var(--lx-login-border);
   box-shadow: none;
 }
 
@@ -727,101 +720,45 @@ onUnmounted(() => {
   color: var(--lx-login-muted) !important;
 }
 
-.lx-login-btn {
-  width: 100%;
-  height: 40px;
-  margin-top: 8px;
-  border: none;
-  border-radius: 20px;
-  background: linear-gradient(135deg, #39c2f6 0%, #12b7f5 48%, #0aa6e0 100%);
-  color: #fff;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: 2px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  box-shadow:
-    0 8px 20px rgba(18, 183, 245, 0.32),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, opacity 0.15s ease;
-}
-
-.lx-login-btn:hover:not(:disabled) {
-  filter: brightness(1.04);
-  transform: translateY(-1px);
-  box-shadow:
-    0 10px 24px rgba(18, 183, 245, 0.38),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3);
-}
-
-.lx-login-btn:active:not(:disabled) {
-  transform: translateY(0);
-  filter: brightness(0.98);
-}
-
-.lx-login-btn:disabled {
-  opacity: 0.9;
-  cursor: default;
-  transform: none;
-}
-
-.btn-spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #fff;
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 .footer {
   margin-top: auto;
-  padding-top: 16px;
+  padding-top: var(--lx-space-2xl);
   display: flex;
   justify-content: center;
-  animation: rise-in 0.55s ease 0.16s both;
+  animation: rise-in var(--lx-duration-slowest) ease var(--lx-duration) both;
 }
 
 .footer-link {
   color: var(--lx-login-accent-deep);
   text-decoration: none;
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   font-weight: 500;
 }
 
 .footer-link:hover {
-  color: #088fc4;
+  color: var(--lx-login-link-hover);
   text-decoration: none;
 }
 
 .agreement-row {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  margin-top: 4px;
+  gap: var(--lx-space);
+  margin-top: var(--lx-space-xs);
   cursor: pointer;
 }
 
 .agreement-row__checkbox {
   width: 15px;
   height: 15px;
-  margin-top: 2px;
+  margin-top: var(--lx-space-2xs);
   flex-shrink: 0;
   accent-color: var(--lx-login-accent);
 }
 
 .agreement-row__text {
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: var(--lx-font-sm);
+  line-height: var(--lx-leading-relaxed);
   color: var(--lx-login-muted);
 }
 
@@ -835,7 +772,7 @@ onUnmounted(() => {
 }
 
 .agreement-link:hover {
-  color: #088fc4;
+  color: var(--lx-login-link-hover);
   text-decoration: underline;
 }
 
@@ -847,5 +784,16 @@ onUnmounted(() => {
   .footer {
     animation: none !important;
   }
+}
+
+.lx-win-caption-btn--close {
+  font-size: var(--lx-font-4xl);
+  line-height: var(--lx-leading-none);
+  color: var(--lx-ink-soft);
+}
+
+.lx-win-caption-btn--close:hover,
+.lx-win-caption-btn--close:active {
+  color: var(--lx-text-on-accent);
 }
 </style>

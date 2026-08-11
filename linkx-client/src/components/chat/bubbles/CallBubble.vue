@@ -58,10 +58,10 @@ const label = computed(() => {
 .call-bubble {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--lx-space-md);
   max-width: min(260px, 70vw);
   min-width: 132px;
-  padding: 12px 14px;
+  padding: var(--lx-space-lg) var(--lx-space-xl);
   cursor: pointer;
   text-align: left;
   font: inherit;
@@ -74,7 +74,7 @@ const label = computed(() => {
   flex: 1;
   word-break: break-word;
   white-space: pre-wrap;
-  line-height: 1.35;
+  line-height: var(--lx-leading-snug);
 }
 .call-bubble:hover {
   filter: brightness(0.98);

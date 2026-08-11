@@ -42,7 +42,7 @@ const subText = computed(() => {
         <span class="rp-title">{{
           msg.redPacketGreeting || msg.content || t('modals.greetingFallback')
         }}</span>
-        <span class="rp-type-tag" :class="{ lucky: isLucky }">{{ typeLabel }}</span>
+        <span class="rp-type-tag" :class="{ 'is-lucky': isLucky }">{{ typeLabel }}</span>
       </div>
       <div class="rp-sub">
         <span>{{ subText }}</span>
@@ -63,23 +63,23 @@ const subText = computed(() => {
 .red-packet-card {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--lx-space-md);
   min-width: 200px;
   max-width: 280px;
-  padding: 12px 14px;
+  padding: var(--lx-space-lg) var(--lx-space-xl);
   border-radius: var(--lx-radius);
-  background: linear-gradient(135deg, #e84c3d, #c0392b);
-  color: var(--lx-text-on-accent, #fff);
+  background: linear-gradient(135deg, var(--lx-danger), var(--lx-danger-deep));
+  color: var(--lx-text-on-accent);
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(232, 76, 61, 0.35);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: transform var(--lx-duration) ease, box-shadow var(--lx-duration) ease;
 }
 .red-packet-card:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(232, 76, 61, 0.45);
 }
 .red-packet-card.lucky:not(.finished):not(.expired) {
-  background: linear-gradient(135deg, #f39c12, #e74c3c 55%, #c0392b);
+  background: var(--lx-packet-bubble-gradient);
   box-shadow: 0 2px 10px rgba(243, 156, 18, 0.4);
 }
 .red-packet-card.opened {
@@ -87,7 +87,7 @@ const subText = computed(() => {
 }
 .red-packet-card.finished,
 .red-packet-card.expired {
-  background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+  background: var(--lx-packet-muted-gradient);
   box-shadow: none;
 }
 .rp-icon {
@@ -99,12 +99,12 @@ const subText = computed(() => {
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 15px;
+  font-size: var(--lx-font-lg);
   flex-shrink: 0;
 }
 .red-packet-card.lucky:not(.finished):not(.expired) .rp-icon {
   background: rgba(255, 215, 0, 0.28);
-  color: #fff8dc;
+  color: var(--lx-packet-text-parchment);
 }
 .rp-text {
   flex: 1;
@@ -113,43 +113,43 @@ const subText = computed(() => {
 .rp-title-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--lx-space-sm);
   min-width: 0;
 }
 .rp-title {
   flex: 1;
   min-width: 0;
-  font-size: 14px;
+  font-size: var(--lx-font);
   font-weight: 600;
-  line-height: 1.3;
+  line-height: var(--lx-leading-snug);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .rp-type-tag {
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: var(--lx-font-2xs);
   font-weight: 600;
-  line-height: 1;
-  padding: 3px 5px;
-  border-radius: 4px;
+  line-height: var(--lx-leading-none);
+  padding: var(--lx-space-2xs) var(--lx-space-xs);
+  border-radius: var(--lx-radius-2xs);
   background: rgba(255, 255, 255, 0.22);
   letter-spacing: 0.02em;
 }
 .rp-type-tag.lucky {
   background: rgba(255, 215, 0, 0.35);
-  color: #fff8e7;
+  color: var(--lx-packet-text-cream);
 }
 .rp-sub {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   opacity: 0.9;
-  margin-top: 3px;
+  margin-top: var(--lx-space-2xs);
   display: flex;
   align-items: baseline;
-  gap: 4px;
+  gap: var(--lx-space-xs);
 }
 .rp-count {
-  font-size: 11px;
+  font-size: var(--lx-font-xs);
   opacity: 0.85;
 }
 </style>

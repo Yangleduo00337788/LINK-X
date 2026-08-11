@@ -31,6 +31,7 @@ import { normalizeMediaUrl } from '../../utils/mediaUrl'
 import { useI18n } from '../../i18n'
 import { PROFILE_GENDER_FEMALE, PROFILE_GENDER_MALE } from '../../types/profileGender'
 import { formatFriendDisplayName, friendAvatarText } from '../../utils/friendDisplay'
+import { LxButton } from '../ui'
 
 const { t } = useI18n()
 const chatModalsStore = useChatModalsStore()
@@ -396,14 +397,14 @@ async function saveGroup() {
               <span>{{ selfOnline ? t('chat.online') : t('chat.offline') }}</span>
             </div>
           </div>
-          <button
+          <LxButton
             v-if="profileCardIsSelf"
-            type="button"
+            variant="outline"
             class="edit-profile-btn"
             @click="handleEditProfile"
           >
             {{ t('modals.editProfile') }}
-          </button>
+          </LxButton>
         </section>
 
         <section v-if="showProfileDetails" class="profile-details">
@@ -484,9 +485,9 @@ async function saveGroup() {
               :placeholder="t('modals.friendRemarkPh')"
               maxlength="64"
             />
-            <button type="button" class="edit-save" :disabled="savingRemark" @click="saveRemark">
+            <LxButton variant="sm-primary" class="edit-save" :disabled="savingRemark" @click="saveRemark">
               {{ t('common.save') }}
-            </button>
+            </LxButton>
           </div>
           <label class="edit-label">{{ t('modals.friendGroup') }}</label>
           <div class="edit-row">
@@ -500,9 +501,9 @@ async function saveGroup() {
             <datalist id="friend-group-suggestions">
               <option v-for="g in existingGroupNames" :key="g" :value="g" />
             </datalist>
-            <button type="button" class="edit-save" :disabled="savingGroup" @click="saveGroup">
+            <LxButton variant="sm-primary" class="edit-save" :disabled="savingGroup" @click="saveGroup">
               {{ t('common.save') }}
-            </button>
+            </LxButton>
           </div>
           <p class="edit-hint">{{ t('modals.friendGroupHint') }}</p>
         </section>
@@ -532,10 +533,10 @@ async function saveGroup() {
           <n-icon :component="ChevronForwardOutline" :size="16" class="moments-arrow" />
         </button>
 
-        <button v-if="!profileCardIsSelf" type="button" class="send-btn" @click="handleSendMessage">
+        <LxButton v-if="!profileCardIsSelf" variant="profile-action" @click="handleSendMessage">
           <n-icon :component="ChatbubbleEllipsesOutline" :size="18" />
           <span>{{ t('modals.sendMessage') }}</span>
-        </button>
+        </LxButton>
 
         <input
           v-if="profileCardIsSelf"
@@ -554,7 +555,7 @@ async function saveGroup() {
 .profile-overlay {
   position: fixed;
   inset: 0;
-  z-index: 3000;
+  z-index: var(--lx-z-dialog-profile);
   background: transparent;
 }
 
@@ -563,13 +564,13 @@ async function saveGroup() {
   width: 320px;
   max-height: min(520px, 80vh);
   background: var(--lx-bg-card);
-  border-radius: 14px;
+  border-radius: var(--lx-radius-card);
   box-shadow: var(--lx-shadow-modal);
   border: 1px solid var(--lx-border-light);
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  animation: card-in 0.18s ease-out;
+  animation: card-in var(--lx-duration-md) ease-out;
 }
 
 @keyframes card-in {
@@ -586,68 +587,54 @@ async function saveGroup() {
 .card-head {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
-  padding: 20px 18px 16px;
+  gap: var(--lx-space-xl);
+  padding: var(--lx-space-3xl) var(--lx-space-2xl) var(--lx-space-2xl);
 }
 
 .head-meta {
   min-width: 0;
   flex: 1;
-  padding-top: 4px;
+  padding-top: var(--lx-space-xs);
 }
 
 .profile-name {
-  font-size: 18px;
+  font-size: var(--lx-font-3xl);
   font-weight: 600;
   color: var(--lx-text-body);
-  line-height: 1.3;
+  line-height: var(--lx-leading-snug);
 }
 
 .profile-id {
-  margin-top: 4px;
-  font-size: 12px;
+  margin-top: var(--lx-space-xs);
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
 }
 
 .profile-loading {
-  margin-left: 6px;
-  font-size: 11px;
+  margin-left: var(--lx-space-sm);
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-muted);
 }
 
 .edit-profile-btn {
   flex-shrink: 0;
-  border: 1px solid var(--lx-border);
-  background: var(--lx-bg-card);
-  color: var(--lx-text-body);
-  font-size: 13px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-  margin-top: 6px;
-}
-
-.edit-profile-btn:hover {
-  background: var(--lx-bg-panel);
-  border-color: var(--lx-accent);
-  color: var(--lx-accent);
+  margin-top: var(--lx-space-sm);
 }
 
 .profile-details {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 4px 18px 14px;
+  gap: var(--lx-space);
+  padding: var(--lx-space-xs) var(--lx-space-2xl) var(--lx-space-xl);
   border-bottom: 1px solid var(--lx-border-light);
 }
 
 .detail-row {
   display: flex;
   align-items: baseline;
-  gap: 12px;
-  font-size: 13px;
-  line-height: 1.4;
+  gap: var(--lx-space-lg);
+  font-size: var(--lx-font-md);
+  line-height: var(--lx-leading);
 }
 
 .detail-label {
@@ -670,9 +657,9 @@ async function saveGroup() {
 .moments-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--lx-space-md);
   width: 100%;
-  padding: 12px 18px;
+  padding: var(--lx-space-lg) var(--lx-space-2xl);
   border: none;
   border-top: 1px solid var(--lx-border-light);
   border-bottom: 1px solid var(--lx-border-light);
@@ -688,7 +675,7 @@ async function saveGroup() {
 }
 
 .moments-label {
-  font-size: 14px;
+  font-size: var(--lx-font);
   color: var(--lx-text-body);
   flex-shrink: 0;
 }
@@ -696,21 +683,21 @@ async function saveGroup() {
 .moments-thumbs {
   flex: 1;
   display: flex;
-  gap: 4px;
+  gap: var(--lx-space-xs);
   justify-content: flex-end;
   align-items: center;
   min-width: 0;
 }
 
 .moments-empty {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
 }
 
 .thumb {
   width: 36px;
   height: 36px;
-  border-radius: 4px;
+  border-radius: var(--lx-radius-2xs);
   object-fit: cover;
   background: var(--lx-bg-panel-deep);
   flex-shrink: 0;
@@ -722,72 +709,41 @@ async function saveGroup() {
 }
 
 .friend-edit {
-  padding: 12px 16px 4px;
+  padding: var(--lx-space-lg) var(--lx-space-2xl) var(--lx-space-xs);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--lx-space-sm);
   border-top: 1px solid var(--lx-border-light);
 }
 .edit-label {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
 }
 .edit-row {
   display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: var(--lx-space);
+  margin-bottom: var(--lx-space);
 }
 .edit-input {
   flex: 1;
   min-width: 0;
   height: 32px;
   border: 1px solid var(--lx-border-light);
-  border-radius: 6px;
-  padding: 0 10px;
+  border-radius: var(--lx-radius-xs);
+  padding: 0 var(--lx-space-md);
   background: var(--lx-bg-panel);
   color: var(--lx-text-body);
-  font-size: 13px;
+  font-size: var(--lx-font-md);
 }
 .edit-save {
   flex-shrink: 0;
   height: 32px;
-  padding: 0 12px;
-  border: none;
-  border-radius: 6px;
-  background: var(--lx-accent);
-  color: #fff;
-  font-size: 12px;
-  cursor: pointer;
-}
-.edit-save:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 .edit-hint {
-  margin: -4px 0 8px;
-  font-size: 11px;
+  margin: -var(--lx-space-xs) 0 var(--lx-space);
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-muted);
-  line-height: 1.4;
-}
-
-.send-btn {
-  width: 100%;
-  border: none;
-  background: var(--lx-bg-card);
-  color: var(--lx-accent);
-  font-size: 15px;
-  font-weight: 500;
-  padding: 14px 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.send-btn:hover {
-  background: var(--lx-accent-soft);
+  line-height: var(--lx-leading);
 }
 
 .avatar-clickable {
@@ -816,16 +772,16 @@ async function saveGroup() {
   justify-content: center;
   color: white;
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: opacity var(--lx-duration-md);
   border-radius: 50%;
 }
 
 .self-status {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  margin-top: 6px;
-  font-size: 12px;
+  gap: var(--lx-space-xs);
+  margin-top: var(--lx-space-sm);
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-secondary);
 }
 
@@ -833,50 +789,50 @@ async function saveGroup() {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--lx-border-strong, #c0c4cc);
+  background: var(--lx-border-strong, var(--lx-border-strong));
   flex-shrink: 0;
 }
 
 .status-dot.on {
-  background: var(--lx-success, #52c41a);
+  background: var(--lx-success, var(--lx-success));
   box-shadow: 0 0 0 2px rgba(82, 196, 26, 0.18);
 }
 
 .online-section {
   border-top: 1px solid var(--lx-border-light);
-  padding: 12px 0 8px;
+  padding: var(--lx-space-lg) 0 var(--lx-space);
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
 .online-section-head {
-  padding: 0 18px 6px;
+  padding: 0 var(--lx-space-2xl) var(--lx-space-sm);
 }
 
 .online-section-title {
   display: block;
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   font-weight: 600;
   color: var(--lx-text-body);
 }
 
 .online-section-hint {
   display: block;
-  margin-top: 2px;
-  font-size: 11px;
+  margin-top: var(--lx-space-2xs);
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-muted);
 }
 
 .notify-hint {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  margin: 0 18px 8px;
+  gap: var(--lx-space-xs);
+  margin: 0 var(--lx-space-2xl) var(--lx-space);
   border: none;
   background: transparent;
   padding: 0;
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-secondary);
   cursor: pointer;
   text-align: left;
@@ -899,8 +855,8 @@ async function saveGroup() {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 18px;
+  gap: var(--lx-space-md);
+  padding: var(--lx-space) var(--lx-space-2xl);
   border: none;
   background: transparent;
   cursor: pointer;
@@ -917,7 +873,7 @@ async function saveGroup() {
 }
 
 .online-row-name {
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   font-weight: 500;
   color: var(--lx-text-body);
   overflow: hidden;
@@ -928,9 +884,9 @@ async function saveGroup() {
 .online-row-status {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  margin-top: 2px;
-  font-size: 11px;
+  gap: var(--lx-space-xs);
+  margin-top: var(--lx-space-2xs);
+  font-size: var(--lx-font-xs);
   color: var(--lx-text-secondary);
 }
 
@@ -944,8 +900,8 @@ async function saveGroup() {
 }
 
 .online-empty {
-  padding: 16px 18px 12px;
-  font-size: 12px;
+  padding: var(--lx-space-2xl) var(--lx-space-2xl) var(--lx-space-lg);
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
   text-align: center;
 }

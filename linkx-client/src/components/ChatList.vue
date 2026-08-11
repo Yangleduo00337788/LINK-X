@@ -28,6 +28,7 @@ import { useChatModalsStore } from '../stores/chatModals'
 import { useNotificationsStore } from '../stores/notifications'
 import { useCalendarStore } from '../stores/calendar'
 import type { CalendarEvent } from '../stores/calendar'
+import { lxColorHex } from '../theme/vars'
 import type { ChatSession } from '../types'
 import { SYSTEM_NOTIFY_SESSION_ID, OFFICIAL_NOTIFY_SESSION_ID } from '../types'
 import { DEFAULT_AVATAR_URL } from '../utils/defaultAvatar'
@@ -114,7 +115,7 @@ const systemNotifySession = computed<ChatSession>(() => {
     lastMessage: preview,
     time: formatNotifListTime(latest?.createTime),
     avatarText: t('chat.remindAvatar'),
-    avatarColor: '#12b7f5',
+    avatarColor: lxColorHex.accent,
     unread: calendarRemindUnreadCount.value || undefined,
     pinned: false,
     isReal: false,
@@ -136,7 +137,7 @@ const officialNotifySession = computed<ChatSession>(() => {
     lastMessage: preview || t('chat.noOfficial'),
     time: formatNotifListTime(latest?.createTime),
     avatarText: t('chat.officialAvatar'),
-    avatarColor: '#f0f4f8',
+    avatarColor: 'var(--lx-bg-logo)',
     avatarUrl: DEFAULT_AVATAR_URL,
     unread: officialUnreadCount.value || undefined,
     pinned: false,
@@ -394,7 +395,7 @@ function onContextMenuSelect(key: string) {
 }
 
 .ops-slot {
-  padding: 0 12px 8px;
+  padding: 0 var(--lx-space-lg) var(--lx-space);
   flex-shrink: 0;
 }
 
@@ -402,31 +403,31 @@ function onContextMenuSelect(key: string) {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: var(--lx-space-sm);
   background: var(--lx-danger-bg-soft);
   color: var(--lx-danger);
-  padding: 8px;
-  font-size: 12px;
-  border-bottom: 1px solid #ffccc7;
+  padding: var(--lx-space);
+  font-size: var(--lx-font-sm);
+  border-bottom: 1px solid var(--lx-danger-soft-border);
 }
 
 .session-list {
   flex: 1;
   overflow-y: auto;
   background: var(--lx-bg-panel);
-  padding: 4px 0;
+  padding: var(--lx-space-xs) 0;
 }
 
 .session-item {
   height: 68px;
   display: flex;
   align-items: center;
-  padding: 0 10px 0 12px;
-  margin: 0 6px;
-  gap: 12px;
+  padding: 0 var(--lx-space-md) 0 var(--lx-space-lg);
+  margin: 0 var(--lx-space-sm);
+  gap: var(--lx-space-lg);
   border-radius: var(--lx-radius);
   cursor: pointer;
-  transition: background 0.16s ease;
+  transition: background var(--lx-duration) ease;
 }
 
 .session-item.pinned {
@@ -465,7 +466,7 @@ function onContextMenuSelect(key: string) {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: var(--lx-success, #52c41a);
+  background: var(--lx-success, var(--lx-success));
   border: 2px solid var(--lx-bg-panel);
   box-shadow: 0 0 0 1px rgba(82, 196, 26, 0.35);
 }
@@ -476,11 +477,11 @@ function onContextMenuSelect(key: string) {
   right: -3px;
   min-width: 18px;
   height: 18px;
-  padding: 0 5px;
+  padding: 0 var(--lx-space-xs);
   border-radius: var(--lx-radius);
   background: var(--lx-danger);
   color: var(--lx-bg-card);
-  font-size: 10px;
+  font-size: var(--lx-font-2xs);
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -508,8 +509,8 @@ function onContextMenuSelect(key: string) {
   grid-template-areas:
     'name meta'
     'msg msg';
-  column-gap: 8px;
-  row-gap: 6px;
+  column-gap: var(--lx-space);
+  row-gap: var(--lx-space-sm);
   align-items: center;
 }
 
@@ -517,7 +518,7 @@ function onContextMenuSelect(key: string) {
   grid-area: name;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--lx-space-xs);
   min-width: 0;
   margin: 0;
   padding: 0;
@@ -532,12 +533,12 @@ function onContextMenuSelect(key: string) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  line-height: 1.3;
+  line-height: var(--lx-leading-snug);
 }
 
 .session-name-text {
   display: block;
-  font-size: 14px;
+  font-size: var(--lx-font);
   font-weight: 500;
   color: var(--lx-text-body);
   overflow: hidden;
@@ -554,14 +555,14 @@ function onContextMenuSelect(key: string) {
 .pin-icon {
   flex-shrink: 0;
   color: var(--lx-accent);
-  margin-right: 2px;
+  margin-right: var(--lx-space-2xs);
 }
 
 .important-mark {
-  color: #faad14;
-  font-size: 12px;
-  line-height: 1;
-  margin-right: 2px;
+  color: var(--lx-warning);
+  font-size: var(--lx-font-sm);
+  line-height: var(--lx-leading-none);
+  margin-right: var(--lx-space-2xs);
   flex-shrink: 0;
 }
 
@@ -569,7 +570,7 @@ function onContextMenuSelect(key: string) {
   grid-area: meta;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--lx-space-xs);
   flex-shrink: 0;
 }
 
@@ -578,44 +579,44 @@ function onContextMenuSelect(key: string) {
 }
 
 .session-time {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-secondary);
 }
 
 .last-message {
   grid-area: msg;
   display: block;
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-secondary);
 }
 
 .last-message .red-packet-preview {
-  color: #e74c3c;
+  color: var(--lx-danger);
   font-weight: 500;
 }
 
 .at-me-hint {
   color: var(--lx-danger);
-  margin-right: 4px;
+  margin-right: var(--lx-space-xs);
   flex-shrink: 0;
 }
 
 .red-packet-preview {
-  color: #e74c3c;
+  color: var(--lx-danger);
 }
 
 .skeleton-item {
   height: 68px;
   display: flex;
   align-items: center;
-  padding: 0 12px;
-  gap: 12px;
+  padding: 0 var(--lx-space-lg);
+  gap: var(--lx-space-lg);
 }
 
 .skeleton-avatar {
   width: 44px !important;
   height: 44px !important;
-  border-radius: 8px;
+  border-radius: var(--lx-radius-sm);
   flex-shrink: 0;
 }
 
@@ -623,7 +624,7 @@ function onContextMenuSelect(key: string) {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--lx-space);
 }
 
 .skeleton-title,

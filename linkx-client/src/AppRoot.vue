@@ -27,7 +27,7 @@ import InAppToastBridge from './components/InAppToastBridge.vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from './stores/app'
 import { useAppSettingsStore } from './stores/appSettings'
-import { naiveThemeColors } from './theme/vars'
+import { naiveThemeColors, lxColorHex } from './theme/vars'
 import {
   applyDocumentTheme,
   notifyElectronTheme,
@@ -62,12 +62,12 @@ const themeOverrides = computed<GlobalThemeOverrides>(() => {
       errorColor: naiveThemeColors.errorColor, // 错误色（影响 n-result 等组件）
       errorColorHover: naiveThemeColors.errorColorHover, // 错误色悬停
       errorColorPressed: naiveThemeColors.errorColorPressed, // 错误色按下
-      bodyColor: isDark ? '#1a1a1a' : '#f5f5f5', // 页面背景色
-      cardColor: isDark ? '#262626' : '#ffffff', // 卡片背景色
-      modalColor: isDark ? '#262626' : '#ffffff', // 弹窗背景色
-      popoverColor: isDark ? '#262626' : '#ffffff', // 气泡背景色
-      textColor1: isDark ? '#e5e5e5' : '#1f2329', // 主文字色
-      textColor2: isDark ? '#a3a3a3' : '#8f959e', // 次文字色
+      bodyColor: isDark ? lxColorHex.bgWindowDark : lxColorHex.bgWindow,
+      cardColor: isDark ? lxColorHex.bgCardDark : lxColorHex.bgCard,
+      modalColor: isDark ? lxColorHex.bgCardDark : lxColorHex.bgCard,
+      popoverColor: isDark ? lxColorHex.bgCardDark : lxColorHex.bgCard,
+      textColor1: isDark ? lxColorHex.textPrimaryDark : lxColorHex.confSurface,
+      textColor2: isDark ? lxColorHex.textSecondaryDark : lxColorHex.textSecondaryLight,
       dividerColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)' // 分割线色
     }
   }

@@ -58,6 +58,7 @@ import WindowCaptionButtons from './WindowCaptionButtons.vue'
 // 偏好 API
 import { getPreference, uploadMomentsBackground } from '../api/preference'
 import { useI18n } from '../i18n'
+import { LxButton, LxIconButton } from './ui'
 
 /** 嵌入 AppShell 主栏时为 true（Web）；独立 Electron 窗为 false */
 const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false })
@@ -859,10 +860,10 @@ const showMomentsOps = ref(false)
             <div v-if="editingPostId === post.id" class="post-edit-box">
               <textarea v-model="editContent" class="post-edit-input" rows="3" />
               <div class="post-edit-actions">
-                <button type="button" class="toolbar-btn" @click="cancelEditPost">{{ t('common.cancel') }}</button>
-                <button type="button" class="toolbar-btn primary" :disabled="editSaving" @click="saveEditPost(post.id)">
+                <LxButton variant="moments-tool" @click="cancelEditPost">{{ t('common.cancel') }}</LxButton>
+                <LxButton variant="sm-primary" :disabled="editSaving" @click="saveEditPost(post.id)">
                   {{ t('common.save') }}
-                </button>
+                </LxButton>
               </div>
             </div>
             <div v-else class="post-text">{{ post.content }}</div>
@@ -924,35 +925,32 @@ const showMomentsOps = ref(false)
             <div class="post-footer">
               <span class="post-time">{{ post.time }}</span>
               <div class="post-toolbar">
-                <button
-                  type="button"
-                  class="toolbar-btn"
-                  :class="{ active: post.liked }"
+                <LxButton
+                  variant="moments-tool"
+                  :class="{ 'is-active': post.liked }"
                   @click="onToggleLike(post.id)"
                 >
                   <n-icon :component="post.liked ? Heart : HeartOutline" :size="15" />
                   <span>{{ post.liked ? t('moments.liked') : t('moments.like') }}</span>
-                </button>
-                <button type="button" class="toolbar-btn" @click="onComment(post)">
+                </LxButton>
+                <LxButton variant="moments-tool" @click="onComment(post)">
                   <n-icon :component="ChatbubbleOutline" :size="15" />
                   <span>{{ t('moments.comment') }}</span>
-                </button>
-                <button
+                </LxButton>
+                <LxButton
                   v-if="post.userId === myUserId"
-                  type="button"
-                  class="toolbar-btn"
+                  variant="moments-tool"
                   @click="startEditPost(post)"
                 >
                   <span>{{ t('moments.editPost') }}</span>
-                </button>
-                <button
+                </LxButton>
+                <LxButton
                   v-if="post.userId === myUserId"
-                  type="button"
-                  class="toolbar-btn danger"
+                  variant="moments-tool-danger"
                   @click="onDeletePost(post.id)"
                 >
                   <span>{{ t('common.delete') }}</span>
-                </button>
+                </LxButton>
               </div>
             </div>
             <div v-if="commentPostId === post.id" class="comment-input-row">
@@ -987,7 +985,7 @@ const showMomentsOps = ref(false)
                   @close="showCommentMention = false"
                 />
               </div>
-              <button type="button" class="comment-send" @click="submitComment(post.id)">{{ t('chat.send') }}</button>
+              <LxButton variant="send" @click="submitComment(post.id)">{{ t('chat.send') }}</LxButton>
             </div>
             <div v-if="post.likedBy.length || post.comments.length" class="post-interactions">
               <div class="interaction-arrow" />
@@ -1042,15 +1040,14 @@ const showMomentsOps = ref(false)
           "
         />
         <div v-else-if="filteredPosts.length && !isUserFeed" class="bottom-tip">
-          <button
+          <LxButton
             v-if="hasMore"
-            type="button"
-            class="load-more-btn"
+            variant="link"
             :disabled="loadingMore"
             @click="loadMoreMoments"
           >
             {{ loadingMore ? t('moments.loadingMore') : t('moments.loadMore') }}
-          </button>
+          </LxButton>
           <span v-else>{{ t('moments.noMore') }}</span>
         </div>
       </div>
@@ -1059,14 +1056,13 @@ const showMomentsOps = ref(false)
     <!-- 固定顶部操作栏 -->
     <div class="fixed-header" :style="{ backgroundColor: headerBgOpacity, color: headerIconColor }">
       <div class="header-left">
-        <div class="action-btn" :title="t('common.search')" @click.stop="toggleSearch">
+        <LxIconButton variant="banner" :title="t('common.search')" @click.stop="toggleSearch">
           <n-icon :component="SearchOutline" size="22" />
-        </div>
-        <div class="bell-anchor">
-          <div
-            ref="bellAnchorRef"
-            class="action-btn"
-            :class="{ active: showNotifications }"
+        </LxIconButton>
+        <div ref="bellAnchorRef" class="bell-anchor">
+          <LxIconButton
+            variant="banner"
+            :active="showNotifications"
             :title="t('moments.messages')"
             @click.stop="showMessage"
           >
@@ -1074,12 +1070,17 @@ const showMomentsOps = ref(false)
             <span v-if="bellUnreadCount > 0" class="notif-badge">
               {{ bellUnreadCount > 99 ? '99+' : bellUnreadCount }}
             </span>
-          </div>
+          </LxIconButton>
         </div>
         <!-- 发布按钮:点击弹出菜单(发布文字/发布图片视频) -->
-        <div class="action-btn publish-btn" :title="t('moments.publishAction')" @click.stop="showPublishMenu = !showPublishMenu">
+        <LxIconButton
+          variant="banner"
+          class="publish-btn"
+          :title="t('moments.publishAction')"
+          @click.stop="showPublishMenu = !showPublishMenu"
+        >
           <n-icon :component="AddCircleOutline" size="22" />
-        </div>
+        </LxIconButton>
         <div v-if="showPublishMenu" class="publish-menu" @click.stop>
           <button
             v-for="opt in publishMenuOptions"
@@ -1094,18 +1095,23 @@ const showMomentsOps = ref(false)
         </div>
         <div v-if="showPublishMenu" class="publish-menu-backdrop" @click="showPublishMenu = false" />
         <!-- 刷新按钮:点击旋转 360° 动画 -->
-        <div class="action-btn" :class="{ refreshing }" :title="t('moments.refresh')" @click.stop="refresh">
+        <LxIconButton
+          variant="banner"
+          :class="{ refreshing }"
+          :title="t('moments.refresh')"
+          @click.stop="refresh"
+        >
           <n-icon :component="RefreshOutline" size="22" class="refresh-icon" />
-        </div>
-        <button
+        </LxIconButton>
+        <LxButton
           v-if="isUserFeed"
-          type="button"
+          variant="ghost"
           class="back-feed-btn"
           :title="t('moments.backToFeed')"
           @click.stop="exitUserFeed"
         >
           {{ t('moments.backToFeed') }}
-        </button>
+        </LxButton>
       </div>
       <div class="header-center" :class="{ visible: showTitle && !showNotifications }">
         <span v-if="!showSearch">{{ t('moments.title') }}</span>
@@ -1252,9 +1258,9 @@ const showMomentsOps = ref(false)
   display: flex;
   align-items: stretch;
   justify-content: space-between;
-  padding: 0 0 0 12px;
-  z-index: 100;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  padding: 0 0 0 var(--lx-space-lg);
+  z-index: var(--lx-z-header);
+  transition: background-color var(--lx-duration-slow) ease, color var(--lx-duration-slow) ease;
   box-sizing: border-box;
   -webkit-app-region: drag;
 }
@@ -1262,7 +1268,7 @@ const showMomentsOps = ref(false)
 .header-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--lx-space);
   -webkit-app-region: no-drag;
   pointer-events: auto;
   align-self: center;
@@ -1275,65 +1281,35 @@ const showMomentsOps = ref(false)
   -webkit-app-region: no-drag;
 }
 
-.action-btn {
-  position: relative;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--lx-radius);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background 0.2s;
-  pointer-events: auto;
-}
-
 .back-feed-btn {
   height: 28px;
-  padding: 0 10px;
+  padding: 0 var(--lx-space-md);
   border: 1px solid currentColor;
-  border-radius: 999px;
+  border-radius: var(--lx-radius-pill);
   background: rgba(255, 255, 255, 0.18);
   color: inherit;
-  font-size: 12px;
-  line-height: 1;
+  font-size: var(--lx-font-sm);
+  line-height: var(--lx-leading-none);
   white-space: nowrap;
   cursor: pointer;
   pointer-events: auto;
-  transition: background 0.2s, opacity 0.2s;
+  transition: background var(--lx-duration-md), opacity var(--lx-duration-md);
 }
 
 .back-feed-btn:hover {
   background: rgba(255, 255, 255, 0.32);
 }
 
-.action-btn:hover {
-  background: var(--lx-bg-active);
-}
-
-.action-btn.active {
-  background: var(--lx-bg-active);
-}
-
-.action-btn.refreshing .refresh-icon {
-  animation: refresh-spin 0.6s linear infinite;
-}
-
-@keyframes refresh-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
 .header-center {
   flex: 1;
   text-align: center;
-  font-size: 16px;
+  font-size: var(--lx-font-xl);
   font-weight: 600;
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transition: opacity var(--lx-duration-slow) ease;
   pointer-events: none;
   min-width: 0;
-  padding: 0 8px;
+  padding: 0 var(--lx-space);
   -webkit-app-region: no-drag;
   align-self: center;
   display: flex;
@@ -1354,15 +1330,8 @@ const showMomentsOps = ref(false)
   background: var(--lx-bg-input);
   color: var(--lx-text-body);
   border-radius: var(--lx-radius);
-  padding: 6px 10px;
-  font-size: 14px;
-}
-
-.publish-btn {
-  /* 与其他 action-btn 保持统一(无背景色,仅 hover 显示) */
-}
-.publish-btn:hover {
-  background: var(--lx-bg-active);
+  padding: var(--lx-space-sm) var(--lx-space-md);
+  font-size: var(--lx-font);
 }
 
 .publish-menu {
@@ -1371,8 +1340,8 @@ const showMomentsOps = ref(false)
   left: 110px;
   background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-  z-index: 200;
+  box-shadow: var(--lx-shadow-float);
+  z-index: var(--lx-z-sheet);
   display: flex;
   flex-direction: column;
   min-width: 180px;
@@ -1382,12 +1351,12 @@ const showMomentsOps = ref(false)
 .publish-menu-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
+  gap: var(--lx-space-md);
+  padding: var(--lx-space-md) var(--lx-space-xl);
   border: none;
   background: transparent;
   color: var(--lx-text-body);
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   text-align: left;
   cursor: pointer;
   -webkit-app-region: no-drag;
@@ -1400,7 +1369,7 @@ const showMomentsOps = ref(false)
 .publish-menu-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 199;
+  z-index: var(--lx-z-sheet-under);
 }
 
 .bell-anchor {
@@ -1410,17 +1379,17 @@ const showMomentsOps = ref(false)
 .notif-dismiss-layer {
   position: fixed;
   inset: 0;
-  z-index: 10040;
+  z-index: var(--lx-z-moments-top);
   background: transparent;
   cursor: default;
 }
 
 .moments-ops-slot {
-  padding: 12px 20px 0;
+  padding: var(--lx-space-lg) var(--lx-space-3xl) 0;
 }
 
 .moments-content {
-  padding: 0 20px 20px;
+  padding: 0 var(--lx-space-3xl) var(--lx-space-3xl);
 }
 
 .moments-scroll-container {
@@ -1467,22 +1436,22 @@ const showMomentsOps = ref(false)
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   color: transparent;
-  transition: background 0.2s, color 0.2s;
+  transition: background var(--lx-duration-md), color var(--lx-duration-md);
   pointer-events: none;
   opacity: 0;
 }
 
 .header-banner:hover .banner-upload-overlay {
   background: rgba(0, 0, 0, 0.35);
-  color: #fff;
+  color: var(--lx-text-on-accent);
   opacity: 1;
 }
 
 .banner-upload-overlay.uploading {
   background: rgba(0, 0, 0, 0.45);
-  color: #fff;
+  color: var(--lx-text-on-accent);
   opacity: 1;
 }
 
@@ -1492,15 +1461,15 @@ const showMomentsOps = ref(false)
   right: 16px;
   display: flex;
   align-items: flex-start;
-  gap: 16px;
+  gap: var(--lx-space-2xl);
 }
 
 .username {
   color: var(--lx-bg-card);
-  font-size: 20px;
+  font-size: var(--lx-font-4xl);
   font-weight: 600;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
-  margin-top: 8px;
+  margin-top: var(--lx-space);
 }
 
 .avatar-img {
@@ -1516,9 +1485,9 @@ const showMomentsOps = ref(false)
 
 .post-item {
   display: flex;
-  padding: 18px 0;
+  padding: var(--lx-space-2xl) 0;
   border-bottom: 1px solid var(--lx-border-light);
-  animation: fadeInUp 0.3s ease;
+  animation: fadeInUp var(--lx-duration-slow) ease;
 }
 
 @keyframes fadeInUp {
@@ -1538,9 +1507,9 @@ const showMomentsOps = ref(false)
   border-radius: var(--lx-avatar-radius);
   object-fit: cover;
   flex-shrink: 0;
-  margin-right: 12px;
+  margin-right: var(--lx-space-lg);
   background: var(--lx-bg-panel);
-  transition: transform 0.2s ease;
+  transition: transform var(--lx-duration-md) ease;
   cursor: pointer;
 }
 .post-avatar:hover {
@@ -1553,22 +1522,22 @@ const showMomentsOps = ref(false)
 }
 
 .post-user {
-  font-size: 15px;
+  font-size: var(--lx-font-lg);
   font-weight: 600;
   color: var(--lx-accent);
-  margin-bottom: 6px;
+  margin-bottom: var(--lx-space-sm);
   cursor: pointer;
-  transition: opacity 0.2s;
+  transition: opacity var(--lx-duration-md);
 }
 .post-user:hover {
   opacity: 0.8;
 }
 
 .post-text {
-  font-size: 14px;
+  font-size: var(--lx-font);
   color: var(--lx-text);
-  line-height: 1.6;
-  margin-bottom: 10px;
+  line-height: var(--lx-leading-relaxed);
+  margin-bottom: var(--lx-space-md);
   word-break: break-all;
   white-space: pre-wrap;
 }
@@ -1577,16 +1546,16 @@ const showMomentsOps = ref(false)
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 14px;
-  margin: -2px 0 10px;
+  gap: var(--lx-space) var(--lx-space-xl);
+  margin: -var(--lx-space-2xs) 0 var(--lx-space-md);
 }
 
 .meta-item {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  line-height: 1.4;
+  gap: var(--lx-space-xs);
+  font-size: var(--lx-font-sm);
+  line-height: var(--lx-leading);
   max-width: 100%;
 }
 
@@ -1610,9 +1579,9 @@ const showMomentsOps = ref(false)
 
 .post-images {
   display: grid;
-  gap: 6px;
-  margin-bottom: 10px;
-  border-radius: 10px;
+  gap: var(--lx-space-sm);
+  margin-bottom: var(--lx-space-md);
+  border-radius: var(--lx-radius-xl);
   overflow: hidden;
   width: 100%;
   max-width: 100%;
@@ -1682,7 +1651,7 @@ const showMomentsOps = ref(false)
   height: 100%;
   object-fit: cover;
   display: block;
-  transition: transform 0.3s ease;
+  transition: transform var(--lx-duration-slow) ease;
 }
 
 .image-overlay {
@@ -1690,11 +1659,11 @@ const showMomentsOps = ref(false)
   inset: 0;
   background: linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, transparent 40%, rgba(0,0,0,0.3) 100%);
   opacity: 0;
-  transition: opacity 0.2s ease;
+  transition: opacity var(--lx-duration-md) ease;
   display: flex;
   align-items: flex-start;
   justify-content: flex-end;
-  padding: 6px;
+  padding: var(--lx-space-sm);
 }
 .post-image-btn:hover .image-overlay {
   opacity: 1;
@@ -1702,22 +1671,22 @@ const showMomentsOps = ref(false)
 
 .image-index {
   background: rgba(0, 0, 0, 0.5);
-  color: #fff;
-  font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 4px;
+  color: var(--lx-text-on-accent);
+  font-size: var(--lx-font-xs);
+  padding: var(--lx-space-2xs) var(--lx-space-sm);
+  border-radius: var(--lx-radius-2xs);
 }
 
 .post-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: var(--lx-space);
+  margin-bottom: var(--lx-space);
 }
 
 .post-time {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
   flex-shrink: 0;
 }
@@ -1725,51 +1694,17 @@ const showMomentsOps = ref(false)
 .post-toolbar {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--lx-space-xs);
   flex-wrap: nowrap;
-}
-
-.toolbar-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border: none;
-  background: transparent;
-  color: var(--lx-text-muted);
-  font-size: 12px;
-  padding: 5px 10px;
-  border-radius: 16px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.2s ease;
-}
-
-.toolbar-btn:hover {
-  background: var(--lx-bg-panel);
-  color: var(--lx-accent);
-}
-
-.toolbar-btn.active {
-  color: var(--lx-danger, #e05454);
-  background: rgba(224, 84, 84, 0.1);
-}
-
-.toolbar-btn.danger {
-  color: var(--lx-text-muted);
-}
-
-.toolbar-btn.danger:hover {
-  background: rgba(224, 84, 84, 0.1);
-  color: var(--lx-danger, #e05454);
 }
 
 .comment-input-row {
   display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: var(--lx-space);
+  margin-bottom: var(--lx-space);
   align-items: center;
   position: relative;
-  animation: slideDown 0.2s ease;
+  animation: slideDown var(--lx-duration-md) ease;
 }
 
 @keyframes slideDown {
@@ -1791,12 +1726,12 @@ const showMomentsOps = ref(false)
 .comment-input {
   width: 100%;
   border: 1px solid var(--lx-border-light);
-  border-radius: 20px;
-  padding: 8px 36px 8px 14px;
-  font-size: 13px;
+  border-radius: var(--lx-radius-3xl);
+  padding: var(--lx-space) var(--lx-space-6xl-minus) var(--lx-space) var(--lx-space-xl);
+  font-size: var(--lx-font-md);
   background: var(--lx-bg-card);
   color: var(--lx-text);
-  transition: all 0.2s ease;
+  transition: all var(--lx-duration-md) ease;
 }
 .comment-input:focus {
   outline: none;
@@ -1819,37 +1754,19 @@ const showMomentsOps = ref(false)
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  transition: all var(--lx-duration-md) ease;
 }
 .comment-at-btn:hover {
   color: var(--lx-accent);
   background: var(--lx-bg-hover);
 }
 
-.comment-send {
-  border: none;
-  background: linear-gradient(135deg, var(--lx-accent) 0%, #4caf50 100%);
-  color: #fff;
-  border-radius: 16px;
-  padding: 0 16px;
-  height: 32px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(24, 160, 88, 0.25);
-}
-.comment-send:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(24, 160, 88, 0.35);
-}
-
 .post-interactions {
   background: var(--lx-bg-panel);
   border-radius: var(--lx-radius);
-  padding: 8px 10px;
+  padding: var(--lx-space) var(--lx-space-md);
   position: relative;
-  margin-top: 10px;
+  margin-top: var(--lx-space-md);
 }
 
 .interaction-arrow {
@@ -1867,56 +1784,56 @@ const showMomentsOps = ref(false)
   display: flex;
   align-items: flex-start;
   color: var(--lx-accent);
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--lx-font-md);
+  line-height: var(--lx-leading-normal);
   word-break: break-all;
 }
 
 .like-icon {
-  margin-top: 3px;
-  margin-right: 6px;
+  margin-top: var(--lx-space-2xs);
+  margin-right: var(--lx-space-sm);
   flex-shrink: 0;
 }
 
 .interaction-divider {
   height: 1px;
   background: var(--lx-bg-hover);
-  margin: 6px 0;
+  margin: var(--lx-space-sm) 0;
 }
 
 .comments-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--lx-space-xs);
 }
 
 .comment-item {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 6px;
-  font-size: 13px;
-  line-height: 1.5;
+  gap: var(--lx-space-sm);
+  font-size: var(--lx-font-md);
+  line-height: var(--lx-leading-normal);
   word-break: break-all;
 }
 
 .comment-item--reply {
-  padding-left: 12px;
+  padding-left: var(--lx-space-lg);
   border-left: 2px solid var(--lx-border-light);
 }
 
 .comment-reply-to {
   color: var(--lx-text-muted);
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
 }
 
 .comment-reply-btn {
   border: none;
   background: transparent;
   color: var(--lx-text-muted);
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   cursor: pointer;
-  padding: 0 4px;
+  padding: 0 var(--lx-space-xs);
 }
 
 .comment-reply-btn:hover {
@@ -1928,10 +1845,10 @@ const showMomentsOps = ref(false)
   border: none;
   background: transparent;
   color: var(--lx-text-muted);
-  font-size: 14px;
+  font-size: var(--lx-font);
   cursor: pointer;
-  padding: 0 4px;
-  line-height: 1;
+  padding: 0 var(--lx-space-xs);
+  line-height: var(--lx-leading-none);
 }
 
 .comment-del-btn:hover {
@@ -1948,9 +1865,9 @@ const showMomentsOps = ref(false)
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
-  margin-bottom: 6px;
+  margin-bottom: var(--lx-space-sm);
 }
 
 .reply-cancel {
@@ -1958,52 +1875,44 @@ const showMomentsOps = ref(false)
   background: transparent;
   color: var(--lx-accent);
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
 }
 
 .post-edit-box {
-  margin: 6px 0 10px;
+  margin: var(--lx-space-sm) 0 var(--lx-space-md);
 }
 
 .post-edit-input {
   width: 100%;
   box-sizing: border-box;
   border: 1px solid var(--lx-border-light);
-  border-radius: 8px;
-  padding: 8px 10px;
+  border-radius: var(--lx-radius-sm);
+  padding: var(--lx-space) var(--lx-space-md);
   background: var(--lx-bg-card);
   color: var(--lx-text);
   resize: vertical;
-  font-size: 14px;
+  font-size: var(--lx-font);
 }
 
 .post-edit-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  margin-top: 6px;
+  gap: var(--lx-space);
+  margin-top: var(--lx-space-sm);
 }
 
 .post-video {
   width: 100%;
   max-height: 280px;
-  border-radius: 6px;
-  background: #000;
-}
-
-.load-more-btn {
-  border: none;
-  background: transparent;
-  color: var(--lx-accent);
-  cursor: pointer;
-  font-size: 13px;
+  border-radius: var(--lx-radius-xs);
+  background: var(--lx-black);
 }
 
 .bottom-tip {
   text-align: center;
   color: var(--lx-text-muted);
-  font-size: 13px;
-  padding: 30px 0;
+  font-size: var(--lx-font-md);
+  padding: var(--lx-space-5xl-tight) 0;
 }
 
 .notif-badge {
@@ -2012,22 +1921,22 @@ const showMomentsOps = ref(false)
   right: -4px;
   min-width: 16px;
   height: 16px;
-  padding: 0 4px;
+  padding: 0 var(--lx-space-xs);
   background: var(--lx-danger);
-  color: #fff;
-  font-size: 10px;
+  color: var(--lx-text-on-accent);
+  font-size: var(--lx-font-2xs);
   font-weight: 600;
-  border-radius: 8px;
+  border-radius: var(--lx-radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
-  line-height: 1;
+  line-height: var(--lx-leading-none);
 }
 
 .image-preview-overlay {
   position: absolute;
   inset: 0;
-  z-index: 300;
+  z-index: var(--lx-z-sheet-over);
   background: rgba(0, 0, 0, 0.88);
   display: flex;
   align-items: center;
@@ -2039,7 +1948,7 @@ const showMomentsOps = ref(false)
   max-width: 92%;
   max-height: 86%;
   object-fit: contain;
-  border-radius: 4px;
+  border-radius: var(--lx-radius-2xs);
   user-select: none;
 }
 
@@ -2052,7 +1961,7 @@ const showMomentsOps = ref(false)
   border: none;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.15);
-  color: #fff;
+  color: var(--lx-text-on-accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2071,11 +1980,11 @@ const showMomentsOps = ref(false)
   height: 48px;
   border: none;
   background: rgba(255, 255, 255, 0.12);
-  color: #fff;
-  font-size: 28px;
-  line-height: 1;
+  color: var(--lx-text-on-accent);
+  font-size: var(--lx-font-6xl);
+  line-height: var(--lx-leading-none);
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: var(--lx-radius-xs);
 }
 
 .preview-nav:hover {
@@ -2096,7 +2005,7 @@ const showMomentsOps = ref(false)
   left: 50%;
   transform: translateX(-50%);
   color: rgba(255, 255, 255, 0.85);
-  font-size: 13px;
+  font-size: var(--lx-font-md);
 }
 
 .hidden-file-input {
@@ -2105,7 +2014,7 @@ const showMomentsOps = ref(false)
 
 .banner-context-menu {
   position: fixed;
-  z-index: 1000;
+  z-index: var(--lx-z-toast);
   background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.22);
@@ -2116,22 +2025,22 @@ const showMomentsOps = ref(false)
 .ctx-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 999;
+  z-index: var(--lx-z-popover);
 }
 
 .ctx-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--lx-space);
   width: 100%;
-  padding: 10px 14px;
+  padding: var(--lx-space-md) var(--lx-space-xl);
   border: none;
   background: transparent;
   color: var(--lx-text-body);
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   text-align: left;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background var(--lx-duration);
 }
 
 .ctx-item:hover {

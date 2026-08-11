@@ -176,12 +176,12 @@ function onTabChange(tab: 'friends' | 'groups') {
     <!-- 好友通知与群通知入口 -->
     <div class="top-actions">
       <div class="action-list">
-        <div class="action-item" :class="{ active: contactsActiveView === 'friend-notifs' }" @click="setView('friend-notifs')">
+        <div class="action-item" :class="{ 'is-active': contactsActiveView === 'friend-notifs' }" @click="setView('friend-notifs')">
           <span>{{ t('contacts.friendNotif') }}</span>
           <span v-if="pendingFriendCount" class="notif-badge">{{ pendingFriendCount }}</span>
           <n-icon :component="ChevronForwardOutline" />
         </div>
-        <div class="action-item" :class="{ active: contactsActiveView === 'group-notifs' }" @click="setView('group-notifs')">
+        <div class="action-item" :class="{ 'is-active': contactsActiveView === 'group-notifs' }" @click="setView('group-notifs')">
           <span>{{ t('contacts.groupNotif') }}</span>
           <span v-if="pendingGroupCount" class="notif-badge">{{ pendingGroupCount }}</span>
           <n-icon :component="ChevronForwardOutline" />
@@ -192,8 +192,8 @@ function onTabChange(tab: 'friends' | 'groups') {
     <!-- 好友/群聊 Tab 切换 -->
     <div class="tabs" :class="activeTab">
       <div class="tab-slider"></div>
-      <div class="tab-item" :class="{ active: activeTab === 'friends' }" @click="onTabChange('friends')">{{ t('contacts.friends') }}</div>
-      <div class="tab-item" :class="{ active: activeTab === 'groups' }" @click="onTabChange('groups')">{{ t('contacts.groups') }}</div>
+      <div class="tab-item" :class="{ 'is-active': activeTab === 'friends' }" @click="onTabChange('friends')">{{ t('contacts.friends') }}</div>
+      <div class="tab-item" :class="{ 'is-active': activeTab === 'groups' }" @click="onTabChange('groups')">{{ t('contacts.groups') }}</div>
     </div>
 
     <!-- 列表容器 -->
@@ -230,7 +230,7 @@ function onTabChange(tab: 'friends' | 'groups') {
               v-for="item in group.items"
               :key="item.id"
               class="contact-row"
-              :class="{ active: currentSessionId === contactSessionId(item) }"
+              :class="{ 'is-active': currentSessionId === contactSessionId(item) }"
               @click="handleContactClick(item, $event)"
               @dblclick="handleContactDblClick(item)"
             >
@@ -266,7 +266,7 @@ function onTabChange(tab: 'friends' | 'groups') {
                 v-for="item in group.items"
                 :key="item.id"
                 class="contact-row"
-                :class="{ active: currentSessionId === item.id }"
+                :class="{ 'is-active': currentSessionId === item.id }"
                 @click="openGroupSession(item)"
               >
                 <GroupAvatar
@@ -304,8 +304,8 @@ function onTabChange(tab: 'friends' | 'groups') {
   height: 60px;
   display: flex;
   align-items: center;
-  padding: 0 12px;
-  gap: 8px;
+  padding: 0 var(--lx-space-lg);
+  gap: var(--lx-space);
 }
 
 .add-btn {
@@ -326,26 +326,26 @@ function onTabChange(tab: 'friends' | 'groups') {
 }
 
 .top-actions {
-  padding: 0 12px;
+  padding: 0 var(--lx-space-lg);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--lx-space-lg);
 }
 
 .action-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--lx-space-xs);
 }
 
 .action-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px;
+  padding: var(--lx-space-md) var(--lx-space-lg);
   border-radius: var(--lx-radius);
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--lx-font);
   color: var(--lx-text-body);
   background: var(--lx-bg-card);
 }
@@ -362,24 +362,24 @@ function onTabChange(tab: 'friends' | 'groups') {
 .notif-badge {
   min-width: 18px;
   height: 18px;
-  padding: 0 5px;
+  padding: 0 var(--lx-space-xs);
   margin-left: auto;
-  margin-right: 6px;
-  border-radius: 9px;
+  margin-right: var(--lx-space-sm);
+  border-radius: var(--lx-radius);
   background: var(--lx-accent);
-  color: #fff;
-  font-size: 11px;
-  line-height: 18px;
+  color: var(--lx-text-on-accent);
+  font-size: var(--lx-font-xs);
+  line-height: var(--lx-font-3xl);
   text-align: center;
 }
 
 .tabs {
   display: flex;
   position: relative;
-  margin: 16px 12px 8px;
+  margin: var(--lx-space-2xl) var(--lx-space-lg) var(--lx-space);
   background: var(--lx-bg-input);
   border-radius: var(--lx-radius);
-  padding: 3px;
+  padding: var(--lx-space-2xs);
 }
 
 .tab-slider {
@@ -391,8 +391,8 @@ function onTabChange(tab: 'friends' | 'groups') {
   background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
   box-shadow: 0 2px 4px var(--lx-border-light);
-  transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-  z-index: 1;
+  transition: transform var(--lx-duration-slow) cubic-bezier(0.25, 0.8, 0.25, 1);
+  z-index: var(--lx-z-raised);
 }
 
 .tabs.groups .tab-slider {
@@ -402,14 +402,14 @@ function onTabChange(tab: 'friends' | 'groups') {
 .tab-item {
   flex: 1;
   text-align: center;
-  padding: 8px 0;
-  font-size: 13px;
+  padding: var(--lx-space) 0;
+  font-size: var(--lx-font-md);
   color: var(--lx-text-secondary);
   cursor: pointer;
   border-radius: var(--lx-radius);
   position: relative;
-  z-index: 2;
-  transition: color 0.3s ease;
+  z-index: var(--lx-z-raised-2);
+  transition: color var(--lx-duration-slow) ease;
 }
 
 .tab-item.active {
@@ -427,25 +427,25 @@ function onTabChange(tab: 'friends' | 'groups') {
 
 .contacts-list,
 .groups-list {
-  padding: 0 12px;
+  padding: 0 var(--lx-space-lg);
 }
 
 .group-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 8px 8px;
-  font-size: 13px;
+  padding: var(--lx-space-lg) var(--lx-space) var(--lx-space);
+  font-size: var(--lx-font-md);
   color: var(--lx-text-muted);
   font-weight: 500;
 }
 
 .group-name {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
 }
 
 .group-count {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
 }
 
@@ -453,12 +453,12 @@ function onTabChange(tab: 'friends' | 'groups') {
   height: 72px;
   display: flex;
   align-items: center;
-  padding: 0 12px;
-  margin-bottom: 4px;
-  gap: 12px;
+  padding: 0 var(--lx-space-lg);
+  margin-bottom: var(--lx-space-xs);
+  gap: var(--lx-space-lg);
   border-radius: var(--lx-radius);
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: background var(--lx-duration-md) ease;
   background: var(--lx-bg-card);
 }
 
@@ -473,17 +473,17 @@ function onTabChange(tab: 'friends' | 'groups') {
 .info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--lx-space-2xs);
 }
 
 .name-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--lx-space-sm);
 }
 
 .name {
-  font-size: 14px;
+  font-size: var(--lx-font);
   color: var(--lx-text);
   font-weight: 500;
 }
@@ -502,14 +502,14 @@ function onTabChange(tab: 'friends' | 'groups') {
 }
 
 .status {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
 }
 
 .skeleton-item {
   display: flex;
-  padding: 12px 16px;
-  gap: 12px;
+  padding: var(--lx-space-lg) var(--lx-space-2xl);
+  gap: var(--lx-space-lg);
   align-items: center;
 }
 
@@ -517,6 +517,6 @@ function onTabChange(tab: 'friends' | 'groups') {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--lx-space);
 }
 </style>

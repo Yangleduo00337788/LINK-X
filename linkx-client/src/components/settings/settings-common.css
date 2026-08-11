@@ -10,28 +10,29 @@
   width: 100%;
   max-width: 720px;
   margin: 0;
-  padding: 8px 28px 32px;
+  padding: var(--lx-space) var(--lx-space-5xl-minus) var(--lx-space-5xl);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--lx-space-2xl);
   box-sizing: border-box;
 }
 
 .group-card {
+  /* 与 LxGroupCard variant=settings 对齐；旧模板可继续用此类名 */
   background: var(--lx-bg-card);
   border: 1px solid var(--lx-border-light);
-  border-radius: 12px;
-  padding: 4px 0;
+  border-radius: var(--lx-radius-lg);
+  padding: var(--lx-space-xs) 0;
   overflow: hidden;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  box-shadow: var(--lx-shadow-xs);
 }
 
 .group-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 14px 18px 10px;
-  font-size: 13px;
+  gap: var(--lx-space);
+  padding: var(--lx-space-xl) var(--lx-space-2xl) var(--lx-space-md);
+  font-size: var(--lx-font-md);
   font-weight: 600;
   color: var(--lx-text-body);
   letter-spacing: 0.01em;
@@ -42,20 +43,20 @@
 }
 
 .group-tip {
-  margin: 0 18px 12px;
-  font-size: 12px;
+  margin: 0 var(--lx-space-2xl) var(--lx-space-lg);
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
-  line-height: 1.5;
+  line-height: var(--lx-leading-normal);
 }
 
 .setting-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 14px 18px;
+  gap: var(--lx-space-2xl);
+  padding: var(--lx-space-xl) var(--lx-space-2xl);
   border-top: 1px solid var(--lx-border-light);
-  transition: background 0.15s;
+  transition: background var(--lx-duration);
 }
 
 .setting-row:first-of-type {
@@ -69,19 +70,19 @@
 .setting-text {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--lx-space-xs);
   min-width: 0;
   flex: 1;
 }
 
 .setting-name {
-  font-size: 14px;
+  font-size: var(--lx-font);
   color: var(--lx-text-body);
   font-weight: 500;
 }
 
 .setting-desc {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
-  line-height: 1.5;
+  line-height: var(--lx-leading-normal);
 }

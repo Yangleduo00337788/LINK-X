@@ -24,6 +24,7 @@ import { useConferenceStore } from '../../stores/conference'
 import { useAppStore } from '../../stores/app'
 import { useGroupMetaStore } from '../../stores/groupMeta'
 import { useI18n } from '../../i18n'
+import { LxButton } from '../ui'
 import { generateDefaultAvatar } from '../../utils/defaultAvatar'
 import { isDisplayableMediaUrl, normalizeMediaUrl } from '../../utils/mediaUrl'
 import type { ChatMessage } from '../../types'
@@ -556,12 +557,12 @@ async function onAdmit(userId: string) {
           />
         </label>
         <div class="invite-actions">
-          <button type="button" class="btn ghost" @click="conferenceStore.dismissInvite()">
+          <LxButton variant="conference-ghost" @click="conferenceStore.dismissInvite()">
             {{ invitePrompt.restore ? t('conference.restoreLater') : t('common.cancel') }}
-          </button>
-          <button type="button" class="btn primary" @click="acceptInvite">
+          </LxButton>
+          <LxButton variant="conference-primary" @click="acceptInvite">
             {{ invitePrompt.restore ? t('conference.rejoin') : t('conference.join') }}
-          </button>
+          </LxButton>
         </div>
       </div>
     </div>
@@ -572,9 +573,9 @@ async function onAdmit(userId: string) {
         <h3>{{ t('conference.waitingTitle') }}</h3>
         <p>{{ title }}</p>
         <p class="waiting-hint">{{ t('conference.waitingHint') }}</p>
-        <button type="button" class="btn primary" @click="leave">
+        <LxButton variant="conference-primary" @click="leave">
           {{ t('conference.leave') }}
-        </button>
+        </LxButton>
       </div>
     </div>
 
@@ -723,11 +724,11 @@ async function onAdmit(userId: string) {
           <div class="tool-item-wrap">
             <button
               type="button"
-              class="tool-btn"
-              :class="{ off: !micOn }"
+              class="lx-conference-tool"
+              :class="{ 'is-off': !micOn }"
               @click="conferenceStore.toggleMic()"
             >
-              <span class="tool-icon">
+              <span class="lx-conference-tool-icon">
                 <n-icon :component="micOn ? Mic : MicOff" :size="22" />
               </span>
               <span class="tool-label">{{ micOn ? t('conference.mute') : t('conference.unmute') }}</span>
@@ -751,7 +752,7 @@ async function onAdmit(userId: string) {
                   :key="opt.value"
                   type="button"
                   class="device-item"
-                  :class="{ active: opt.value === selectedAudioId }"
+                  :class="{ 'is-active': opt.value === selectedAudioId }"
                   @click="conferenceStore.switchAudioDevice(opt.value)"
                 >
                   <n-icon
@@ -769,12 +770,12 @@ async function onAdmit(userId: string) {
           <div v-if="type === 'video'" class="tool-item-wrap">
             <button
               type="button"
-              class="tool-btn"
-              :class="{ off: !cameraOn }"
+              class="lx-conference-tool"
+              :class="{ 'is-off': !cameraOn }"
               :disabled="screenSharing"
               @click="conferenceStore.toggleCamera()"
             >
-              <span class="tool-icon">
+              <span class="lx-conference-tool-icon">
                 <n-icon :component="cameraOn ? Videocam : VideocamOff" :size="22" />
               </span>
               <span class="tool-label">
@@ -800,7 +801,7 @@ async function onAdmit(userId: string) {
                   :key="opt.value"
                   type="button"
                   class="device-item"
-                  :class="{ active: opt.value === selectedVideoId }"
+                  :class="{ 'is-active': opt.value === selectedVideoId }"
                   @click="conferenceStore.switchVideoDevice(opt.value)"
                 >
                   <n-icon
@@ -817,11 +818,11 @@ async function onAdmit(userId: string) {
 
           <button
             type="button"
-            class="tool-btn"
-            :class="{ active: screenSharing }"
+            class="lx-conference-tool"
+            :class="{ 'is-active': screenSharing }"
             @click="onToggleScreenShare"
           >
-            <span class="tool-icon">
+            <span class="lx-conference-tool-icon">
               <n-icon :component="DesktopOutline" :size="22" />
             </span>
             <span class="tool-label">
@@ -831,11 +832,11 @@ async function onAdmit(userId: string) {
 
           <button
             type="button"
-            class="tool-btn"
-            :class="{ active: handRaised }"
+            class="lx-conference-tool"
+            :class="{ 'is-active': handRaised }"
             @click="onToggleRaise"
           >
-            <span class="tool-icon">
+            <span class="lx-conference-tool-icon">
               <n-icon :component="HandLeftOutline" :size="22" />
             </span>
             <span class="tool-label">
@@ -845,11 +846,11 @@ async function onAdmit(userId: string) {
 
           <button
             type="button"
-            class="tool-btn"
-            :class="{ active: chatOpen }"
+            class="lx-conference-tool"
+            :class="{ 'is-active': chatOpen }"
             @click="toggleChat"
           >
-            <span class="tool-icon">
+            <span class="lx-conference-tool-icon">
               <n-icon :component="ChatbubblesOutline" :size="22" />
             </span>
             <span class="tool-label">{{ t('conference.chat') }}</span>
@@ -857,11 +858,11 @@ async function onAdmit(userId: string) {
 
           <button
             type="button"
-            class="tool-btn"
-            :class="{ active: membersPanelOpen }"
+            class="lx-conference-tool"
+            :class="{ 'is-active': membersPanelOpen }"
             @click="openMembers"
           >
-            <span class="tool-icon">
+            <span class="lx-conference-tool-icon">
               <n-icon :component="PeopleOutline" :size="22" />
             </span>
             <span class="tool-label">
@@ -871,15 +872,15 @@ async function onAdmit(userId: string) {
 
           <div class="tool-divider" />
 
-          <button type="button" class="tool-btn hang" @click="leave">
-            <span class="tool-icon hang-icon">
+          <button type="button" class="lx-conference-tool is-hang" @click="leave">
+            <span class="lx-conference-tool-icon hang-icon">
               <n-icon :component="Call" :size="22" />
             </span>
             <span class="tool-label">{{ t('conference.leave') }}</span>
           </button>
 
-          <button v-if="isHost" type="button" class="tool-btn end" @click="endMeeting">
-            <span class="tool-icon end-icon">
+          <button v-if="isHost" type="button" class="lx-conference-tool is-end" @click="endMeeting">
+            <span class="lx-conference-tool-icon end-icon">
               <n-icon :component="CloseOutline" :size="20" />
             </span>
             <span class="tool-label">{{ t('conference.end') }}</span>
@@ -980,9 +981,9 @@ async function onAdmit(userId: string) {
             :placeholder="t('conference.chatPlaceholder')"
             @keyup.enter="sendChatText"
           />
-          <button type="button" class="btn primary chat-send" @click="sendChatText">
+          <LxButton variant="conference-primary" class="chat-send" @click="sendChatText">
             {{ t('conference.chatSend') }}
-          </button>
+          </LxButton>
         </div>
       </aside>
     </div>
@@ -994,7 +995,7 @@ async function onAdmit(userId: string) {
 .waiting-root {
   position: fixed;
   inset: 0;
-  z-index: 12000;
+  z-index: var(--lx-z-call);
   background: rgba(0, 0, 0, 0.55);
   display: flex;
   align-items: center;
@@ -1003,11 +1004,11 @@ async function onAdmit(userId: string) {
 .invite-card,
 .waiting-card {
   width: min(360px, 90vw);
-  background: #2b2b2b;
-  border-radius: 12px;
-  padding: 22px;
-  color: #f0f0f0;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  background: var(--lx-conf-panel);
+  border-radius: var(--lx-radius-lg);
+  padding: var(--lx-space-3xl-plus);
+  color: var(--lx-text-primary);
+  box-shadow: var(--lx-shadow-popover);
   text-align: center;
 }
 .invite-card {
@@ -1015,67 +1016,52 @@ async function onAdmit(userId: string) {
 }
 .invite-card h3,
 .waiting-card h3 {
-  margin: 0 0 8px;
-  font-size: 17px;
+  margin: 0 0 var(--lx-space);
+  font-size: var(--lx-font-2xl);
 }
 .invite-card p,
 .waiting-card p {
-  margin: 0 0 18px;
+  margin: 0 0 var(--lx-space-2xl);
   color: rgba(255, 255, 255, 0.65);
 }
 .invite-card .invite-sub,
 .waiting-hint {
-  margin: -10px 0 18px;
-  font-size: 13px;
+  margin: -var(--lx-space-md) 0 var(--lx-space-2xl);
+  font-size: var(--lx-font-md);
   color: rgba(255, 255, 255, 0.5);
 }
 .invite-pwd {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin: 0 0 16px;
-  font-size: 13px;
+  gap: var(--lx-space-sm);
+  margin: 0 0 var(--lx-space-2xl);
+  font-size: var(--lx-font-md);
   color: rgba(255, 255, 255, 0.65);
 }
 .invite-pwd-input {
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  background: #1f1f1f;
-  color: #f0f0f0;
-  padding: 9px 12px;
-  font-size: 14px;
+  border-radius: var(--lx-radius-sm);
+  background: var(--lx-conf-bg);
+  color: var(--lx-text-primary);
+  padding: var(--lx-space) var(--lx-space-lg);
+  font-size: var(--lx-font);
   outline: none;
 }
 .invite-pwd-input:focus {
-  border-color: #006eff;
+  border-color: var(--lx-conf-accent);
 }
 .invite-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-}
-.btn {
-  border: none;
-  border-radius: 6px;
-  padding: 8px 16px;
-  cursor: pointer;
-  font-size: 14px;
-}
-.btn.ghost {
-  background: transparent;
-  color: rgba(255, 255, 255, 0.7);
-}
-.btn.primary {
-  background: #006eff;
-  color: #fff;
+  gap: var(--lx-space-md);
 }
 
 .room-root {
   position: fixed;
   inset: 0;
-  z-index: 11900;
-  background: #1a1a1a;
-  color: #f5f5f5;
+  z-index: var(--lx-z-call-backdrop);
+  background: var(--lx-bg-window);
+  color: var(--lx-bg-panel);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1084,7 +1070,7 @@ async function onAdmit(userId: string) {
 .room-header {
   flex-shrink: 0;
   height: 52px;
-  padding: 0 16px 0 20px;
+  padding: 0 var(--lx-space-2xl) 0 var(--lx-space-3xl);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1096,9 +1082,9 @@ async function onAdmit(userId: string) {
 }
 .title-block h2 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--lx-font-lg);
   font-weight: 600;
-  line-height: 1.3;
+  line-height: var(--lx-leading-snug);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1106,9 +1092,9 @@ async function onAdmit(userId: string) {
 .meta-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-top: 2px;
-  font-size: 12px;
+  gap: var(--lx-space-sm);
+  margin-top: var(--lx-space-2xs);
+  font-size: var(--lx-font-sm);
   color: rgba(255, 255, 255, 0.55);
 }
 .meta-row .dot {
@@ -1119,8 +1105,8 @@ async function onAdmit(userId: string) {
   color: rgba(255, 255, 255, 0.7);
 }
 .hint {
-  margin-left: 8px;
-  color: #ffb454;
+  margin-left: var(--lx-space);
+  color: var(--lx-conf-gold);
 }
 
 .hint--warn {
@@ -1129,17 +1115,17 @@ async function onAdmit(userId: string) {
 
 .room-notice {
   flex-shrink: 0;
-  padding: 8px 20px;
+  padding: var(--lx-space) var(--lx-space-3xl);
   background: rgba(255, 180, 84, 0.12);
-  color: #ffcf87;
-  font-size: 12px;
+  color: var(--lx-conf-gold-light);
+  font-size: var(--lx-font-sm);
   border-bottom: 1px solid rgba(255, 180, 84, 0.16);
 }
 .header-close {
   width: 36px;
   height: 36px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--lx-radius-sm);
   background: transparent;
   color: rgba(255, 255, 255, 0.7);
   cursor: pointer;
@@ -1149,7 +1135,7 @@ async function onAdmit(userId: string) {
 }
 .header-close:hover {
   background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  color: var(--lx-text-on-accent);
 }
 
 .stage {
@@ -1170,25 +1156,25 @@ async function onAdmit(userId: string) {
 .main-tile {
   position: absolute;
   inset: 0;
-  background: #111;
+  background: var(--lx-conf-bg-void);
   overflow: hidden;
 }
 .main-tile.me {
-  box-shadow: inset 0 0 0 2px #006eff;
+  box-shadow: inset 0 0 0 2px var(--lx-conf-accent);
 }
 .pip-strip {
   position: absolute;
   top: 12px;
   right: 12px;
-  z-index: 5;
+  z-index: var(--lx-z-raised-5);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--lx-space);
   max-height: calc(100% - 24px);
   overflow-y: auto;
   overflow-x: hidden;
-  padding-right: 2px;
-  transition: right 0.2s ease;
+  padding-right: var(--lx-space-2xs);
+  transition: right var(--lx-duration-md) ease;
 }
 .room-root--members-open .pip-strip,
 .room-root--chat-open .pip-strip {
@@ -1198,21 +1184,21 @@ async function onAdmit(userId: string) {
   position: relative;
   width: 168px;
   aspect-ratio: 16 / 10;
-  background: #2a2a2a;
-  border-radius: 8px;
+  background: var(--lx-bg-panel-deep);
+  border-radius: var(--lx-radius-sm);
   overflow: hidden;
   border: 2px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--lx-shadow-popover);
   flex-shrink: 0;
 }
 .pip-tile.me {
-  border-color: #006eff;
+  border-color: var(--lx-conf-accent);
 }
 .tile-video {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  background: #111;
+  background: var(--lx-conf-bg-void);
 }
 .tile-video--local {
   transform: scaleX(-1);
@@ -1223,14 +1209,14 @@ async function onAdmit(userId: string) {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(160deg, #2e2e2e 0%, #1a1a1a 100%);
+  background: var(--lx-conf-room-gradient);
 }
 .tile-avatar {
   width: 48px;
   height: 48px;
   border-radius: 50%;
   object-fit: cover;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--lx-shadow-dropdown);
 }
 .tile-avatar--lg {
   width: min(140px, 22vw);
@@ -1241,27 +1227,27 @@ async function onAdmit(userId: string) {
   left: 0;
   right: 0;
   bottom: 0;
-  padding: 10px 14px;
+  padding: var(--lx-space-md) var(--lx-space-xl);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--lx-space);
   background: linear-gradient(transparent, rgba(0, 0, 0, 0.75));
 }
 .pip-footer {
-  padding: 6px 8px;
+  padding: var(--lx-space-sm) var(--lx-space);
 }
 .tile-name {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--lx-space-xs);
   min-width: 0;
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   font-weight: 500;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 .pip-footer .tile-name {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
 }
 .tile-name span {
   white-space: nowrap;
@@ -1271,36 +1257,36 @@ async function onAdmit(userId: string) {
 .mic-off,
 .cam-off,
 .hand-on {
-  color: #ff6b6b;
+  color: var(--lx-danger);
   flex-shrink: 0;
 }
 .hand-on {
-  color: #ffb454;
+  color: var(--lx-conf-gold);
 }
 .host-badge {
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: var(--lx-font-xs);
   font-weight: 500;
-  padding: 1px 6px;
-  border-radius: 3px;
-  background: #006eff;
-  color: #fff;
+  padding: var(--lx-space-hair) var(--lx-space-sm);
+  border-radius: var(--lx-radius-2xs);
+  background: var(--lx-conf-accent);
+  color: var(--lx-text-on-accent);
 }
 .host-badge.cohost {
-  background: #5b8def;
+  background: var(--lx-conf-link-blue);
 }
 .raised-badge,
 .waiting-badge {
   flex-shrink: 0;
-  font-size: 11px;
-  padding: 1px 6px;
-  border-radius: 3px;
+  font-size: var(--lx-font-xs);
+  padding: var(--lx-space-hair) var(--lx-space-sm);
+  border-radius: var(--lx-radius-2xs);
   background: rgba(255, 180, 84, 0.25);
-  color: #ffb454;
+  color: var(--lx-conf-gold);
 }
 .tile-host-actions {
   display: none;
-  gap: 4px;
+  gap: var(--lx-space-xs);
   flex-shrink: 0;
 }
 .pip-tile:hover .tile-host-actions {
@@ -1308,12 +1294,12 @@ async function onAdmit(userId: string) {
 }
 .tile-host-actions button {
   border: none;
-  border-radius: 4px;
-  padding: 3px 8px;
-  font-size: 11px;
+  border-radius: var(--lx-radius-2xs);
+  padding: var(--lx-space-2xs) var(--lx-space);
+  font-size: var(--lx-font-xs);
   cursor: pointer;
   background: rgba(255, 255, 255, 0.18);
-  color: #fff;
+  color: var(--lx-text-on-accent);
 }
 .tile-host-actions .danger {
   background: rgba(229, 72, 77, 0.85);
@@ -1321,15 +1307,15 @@ async function onAdmit(userId: string) {
 
 .toolbar {
   flex-shrink: 0;
-  padding: 10px 16px 18px;
-  background: #111;
+  padding: var(--lx-space-md) var(--lx-space-2xl) var(--lx-space-2xl);
+  background: var(--lx-conf-bg-void);
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 .toolbar-inner {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  gap: 4px;
+  gap: var(--lx-space-xs);
   flex-wrap: wrap;
 }
 .tool-item-wrap {
@@ -1337,58 +1323,9 @@ async function onAdmit(userId: string) {
   display: flex;
   align-items: flex-end;
 }
-.tool-btn {
-  min-width: 72px;
-  border: none;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.88);
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px 4px;
-  border-radius: 8px;
-}
-.tool-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.06);
-}
-.tool-btn.active .tool-icon {
-  background: rgba(0, 110, 255, 0.35);
-}
-.tool-btn:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-.tool-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.15s ease;
-}
-.tool-btn.off .tool-icon {
-  background: #e5484d;
-  color: #fff;
-}
-.tool-btn.hang .hang-icon {
-  background: #e5484d;
-  color: #fff;
-  border-radius: 50%;
-}
-.tool-btn.hang .hang-icon :deep(svg) {
-  transform: rotate(135deg);
-}
-.tool-btn.end .end-icon {
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
-}
 .tool-label {
-  font-size: 12px;
-  line-height: 1.2;
+  font-size: var(--lx-font-sm);
+  line-height: var(--lx-leading-tight);
   color: rgba(255, 255, 255, 0.75);
   white-space: nowrap;
 }
@@ -1399,7 +1336,7 @@ async function onAdmit(userId: string) {
   width: 20px;
   height: 20px;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--lx-radius-2xs);
   background: rgba(255, 255, 255, 0.12);
   color: rgba(255, 255, 255, 0.85);
   cursor: pointer;
@@ -1407,7 +1344,7 @@ async function onAdmit(userId: string) {
   align-items: center;
   justify-content: center;
   padding: 0;
-  z-index: 1;
+  z-index: var(--lx-z-raised);
 }
 .tool-caret:hover {
   background: rgba(255, 255, 255, 0.22);
@@ -1415,7 +1352,7 @@ async function onAdmit(userId: string) {
 .tool-divider {
   width: 1px;
   height: 40px;
-  margin: 0 10px 18px;
+  margin: 0 var(--lx-space-md) var(--lx-space-2xl);
   background: rgba(255, 255, 255, 0.12);
   align-self: flex-end;
 }
@@ -1423,30 +1360,30 @@ async function onAdmit(userId: string) {
 .device-menu {
   min-width: 260px;
   max-width: 360px;
-  background: #2c2c2c;
-  border-radius: 10px;
-  padding: 8px;
+  background: var(--lx-bg-card);
+  border-radius: var(--lx-radius-xl);
+  padding: var(--lx-space);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 .device-menu-title {
-  padding: 6px 10px 8px;
-  font-size: 12px;
+  padding: var(--lx-space-sm) var(--lx-space-md) var(--lx-space);
+  font-size: var(--lx-font-sm);
   color: rgba(255, 255, 255, 0.5);
 }
 .device-item {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--lx-space);
   border: none;
   background: transparent;
-  color: #f0f0f0;
+  color: var(--lx-text-primary);
   text-align: left;
-  padding: 8px 10px;
-  border-radius: 6px;
+  padding: var(--lx-space) var(--lx-space-md);
+  border-radius: var(--lx-radius-xs);
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--lx-font-md);
 }
 .device-item:hover,
 .device-item.active {
@@ -1469,8 +1406,8 @@ async function onAdmit(userId: string) {
   right: 0;
   bottom: 0;
   width: min(320px, 88vw);
-  z-index: 20;
-  background: #1e1e1e;
+  z-index: var(--lx-z-sticky);
+  background: var(--lx-conf-bg-deep);
   border-left: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
@@ -1480,19 +1417,19 @@ async function onAdmit(userId: string) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 14px 10px;
+  padding: var(--lx-space-xl) var(--lx-space-xl) var(--lx-space-md);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 .members-panel-head h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--lx-font-lg);
   font-weight: 600;
 }
 .members-close {
   width: 32px;
   height: 32px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--lx-radius-sm);
   background: transparent;
   color: rgba(255, 255, 255, 0.7);
   cursor: pointer;
@@ -1502,26 +1439,26 @@ async function onAdmit(userId: string) {
 }
 .members-close:hover {
   background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  color: var(--lx-text-on-accent);
 }
 .members-list {
   list-style: none;
   margin: 0;
-  padding: 8px;
+  padding: var(--lx-space);
   overflow-y: auto;
   flex: 1;
 }
 .waiting-sep {
-  padding: 10px 8px 4px;
-  font-size: 12px;
+  padding: var(--lx-space-md) var(--lx-space) var(--lx-space-xs);
+  font-size: var(--lx-font-sm);
   color: rgba(255, 255, 255, 0.45);
 }
 .member-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 8px;
-  border-radius: 8px;
+  gap: var(--lx-space-md);
+  padding: var(--lx-space-md) var(--lx-space);
+  border-radius: var(--lx-radius-sm);
 }
 .member-row:hover {
   background: rgba(255, 255, 255, 0.05);
@@ -1540,8 +1477,8 @@ async function onAdmit(userId: string) {
 .member-name {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
+  gap: var(--lx-space-sm);
+  font-size: var(--lx-font-md);
   font-weight: 500;
   flex-wrap: wrap;
 }
@@ -1552,67 +1489,67 @@ async function onAdmit(userId: string) {
 }
 .member-status {
   display: flex;
-  gap: 8px;
-  margin-top: 4px;
+  gap: var(--lx-space);
+  margin-top: var(--lx-space-xs);
   color: rgba(255, 255, 255, 0.55);
 }
 .member-status .off {
-  color: #ff6b6b;
+  color: var(--lx-danger);
 }
 .member-actions {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--lx-space-xs);
   flex-shrink: 0;
 }
 .member-actions button {
   border: none;
-  border-radius: 4px;
-  padding: 3px 8px;
-  font-size: 11px;
+  border-radius: var(--lx-radius-2xs);
+  padding: var(--lx-space-2xs) var(--lx-space);
+  font-size: var(--lx-font-xs);
   cursor: pointer;
   background: rgba(255, 255, 255, 0.12);
-  color: #fff;
+  color: var(--lx-text-on-accent);
   white-space: nowrap;
 }
 .member-actions .danger {
   background: rgba(229, 72, 77, 0.85);
 }
 .member-actions .admit {
-  background: #006eff;
+  background: var(--lx-conf-accent);
 }
 
 .chat-list {
   flex: 1;
   overflow-y: auto;
-  padding: 10px 12px;
+  padding: var(--lx-space-md) var(--lx-space-lg);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--lx-space-md);
 }
 .chat-empty {
-  margin: 24px 0;
+  margin: var(--lx-space-4xl) 0;
   text-align: center;
   color: rgba(255, 255, 255, 0.4);
-  font-size: 13px;
+  font-size: var(--lx-font-md);
 }
 .chat-row.self {
   align-self: flex-end;
   text-align: right;
 }
 .chat-sender {
-  font-size: 11px;
+  font-size: var(--lx-font-xs);
   color: rgba(255, 255, 255, 0.45);
-  margin-bottom: 3px;
+  margin-bottom: var(--lx-space-2xs);
 }
 .chat-bubble {
   display: inline-block;
   max-width: 100%;
-  padding: 8px 10px;
-  border-radius: 8px;
+  padding: var(--lx-space) var(--lx-space-md);
+  border-radius: var(--lx-radius-sm);
   background: rgba(255, 255, 255, 0.08);
-  font-size: 13px;
-  line-height: 1.4;
+  font-size: var(--lx-font-md);
+  line-height: var(--lx-leading);
   word-break: break-word;
 }
 .chat-row.self .chat-bubble {
@@ -1620,26 +1557,26 @@ async function onAdmit(userId: string) {
 }
 .chat-compose {
   display: flex;
-  gap: 8px;
-  padding: 10px 12px 14px;
+  gap: var(--lx-space);
+  padding: var(--lx-space-md) var(--lx-space-lg) var(--lx-space-xl);
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 .chat-input {
   flex: 1;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  background: #1f1f1f;
-  color: #f0f0f0;
-  padding: 8px 10px;
-  font-size: 13px;
+  border-radius: var(--lx-radius-sm);
+  background: var(--lx-conf-bg);
+  color: var(--lx-text-primary);
+  padding: var(--lx-space) var(--lx-space-md);
+  font-size: var(--lx-font-md);
   outline: none;
 }
 .chat-input:focus {
-  border-color: #006eff;
+  border-color: var(--lx-conf-accent);
 }
 .chat-send {
   flex-shrink: 0;
-  padding: 8px 12px;
+  padding: var(--lx-space) var(--lx-space-lg);
 }
 
 @media (max-width: 720px) {
@@ -1650,11 +1587,11 @@ async function onAdmit(userId: string) {
   .pip-tile {
     width: 120px;
   }
-  .tool-btn {
+  .lx-conference-tool {
     min-width: 60px;
-    padding: 4px 6px;
+    padding: var(--lx-space-xs) var(--lx-space-sm);
   }
-  .tool-icon {
+  .lx-conference-tool-icon {
     width: 40px;
     height: 40px;
   }

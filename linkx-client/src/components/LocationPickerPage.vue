@@ -14,6 +14,7 @@ import {
 } from '@vicons/ionicons5'
 import { useI18n } from '../i18n'
 import * as locationApi from '../api/location'
+import { LxButton, LxIconButton } from './ui'
 
 const emit = defineEmits<{
   (e: 'select', location: string): void
@@ -131,9 +132,9 @@ onMounted(() => {
   <div class="location-page">
     <!-- 顶部栏 -->
     <header class="page-header">
-      <button type="button" class="back-btn" @click="emit('back')">
+      <LxIconButton class="back-btn" :title="t('common.back')" @click="emit('back')">
         <n-icon :component="ChevronBackOutline" :size="22" />
-      </button>
+      </LxIconButton>
       <h1 class="page-title">{{ t('extra.locationTitle') }}</h1>
       <div class="header-right"></div>
     </header>
@@ -191,14 +192,14 @@ onMounted(() => {
             <div v-else-if="!isLocating" class="item-hint">{{ t('extra.getPreciseLocation') }}</div>
           </div>
         </div>
-        <button
+        <LxButton
           v-if="currentLocation && !isLocating"
-          type="button"
+          variant="confirm-block"
           class="confirm-btn"
           @click="confirmCurrentLocation"
         >
           {{ t('extra.useThisLocation') }}
-        </button>
+        </LxButton>
       </div>
 
       <!-- 热门位置 -->
@@ -227,7 +228,7 @@ onMounted(() => {
   inset: 0;
   width: 100vw;
   height: 100vh;
-  z-index: 1000;
+  z-index: var(--lx-z-toast);
   background: var(--lx-bg-card);
   display: flex;
   flex-direction: column;
@@ -238,10 +239,10 @@ onMounted(() => {
 .page-header {
   display: flex;
   align-items: center;
-  padding: 12px 16px;
+  padding: var(--lx-space-lg) var(--lx-space-2xl);
   border-bottom: 1px solid var(--lx-border-light);
   background: var(--lx-bg-card);
-  gap: 12px;
+  gap: var(--lx-space-lg);
 }
 
 .back-btn {
@@ -252,9 +253,9 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4px;
-  border-radius: 6px;
-  transition: background 0.15s ease;
+  padding: var(--lx-space-xs);
+  border-radius: var(--lx-radius-xs);
+  transition: background var(--lx-duration) ease;
 }
 .back-btn:hover {
   background: var(--lx-bg-hover);
@@ -262,7 +263,7 @@ onMounted(() => {
 
 .page-title {
   flex: 1;
-  font-size: 17px;
+  font-size: var(--lx-font-2xl);
   font-weight: 600;
   color: var(--lx-text-body);
   margin: 0;
@@ -275,17 +276,17 @@ onMounted(() => {
 
 /* ========== 搜索框 ========== */
 .search-section {
-  padding: 12px 16px;
+  padding: var(--lx-space-lg) var(--lx-space-2xl);
   border-bottom: 1px solid var(--lx-border-light);
 }
 
 .search-box {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
+  gap: var(--lx-space-md);
+  padding: var(--lx-space-md) var(--lx-space-xl);
   background: var(--lx-bg-input);
-  border-radius: 10px;
+  border-radius: var(--lx-radius-xl);
 }
 
 .search-icon {
@@ -298,7 +299,7 @@ onMounted(() => {
   border: none;
   outline: none;
   background: transparent;
-  font-size: 15px;
+  font-size: var(--lx-font-lg);
   color: var(--lx-text-body);
 }
 .search-input::placeholder {
@@ -323,18 +324,18 @@ onMounted(() => {
 }
 
 .section-title {
-  padding: 12px 16px 8px;
-  font-size: 13px;
+  padding: var(--lx-space-lg) var(--lx-space-2xl) var(--lx-space);
+  font-size: var(--lx-font-md);
   color: var(--lx-text-muted);
 }
 
 .location-item {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  padding: 12px 16px;
+  gap: var(--lx-space-lg);
+  padding: var(--lx-space-lg) var(--lx-space-2xl);
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background var(--lx-duration) ease;
 }
 .location-item:hover {
   background: var(--lx-bg-hover);
@@ -358,7 +359,7 @@ onMounted(() => {
 .item-icon {
   color: var(--lx-text-muted);
   flex-shrink: 0;
-  margin-top: 2px;
+  margin-top: var(--lx-space-2xs);
 }
 
 .locate-icon {
@@ -371,41 +372,41 @@ onMounted(() => {
 }
 
 .item-name {
-  font-size: 15px;
+  font-size: var(--lx-font-lg);
   color: var(--lx-text-body);
-  line-height: 1.4;
+  line-height: var(--lx-leading);
 }
 
 .item-address {
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   color: var(--lx-text-muted);
-  margin-top: 2px;
+  margin-top: var(--lx-space-2xs);
 }
 
 .item-hint {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-accent);
-  margin-top: 2px;
+  margin-top: var(--lx-space-2xs);
 }
 
 .item-error {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-danger);
-  margin-top: 2px;
+  margin-top: var(--lx-space-2xs);
 }
 
 .confirm-btn {
-  margin: 12px 16px;
+  margin: var(--lx-space-lg) var(--lx-space-2xl);
   width: calc(100% - 32px);
-  padding: 12px;
+  padding: var(--lx-space-lg);
   border: none;
   background: var(--lx-accent);
-  color: #fff;
-  font-size: 15px;
+  color: var(--lx-text-on-accent);
+  font-size: var(--lx-font-lg);
   font-weight: 500;
-  border-radius: 8px;
+  border-radius: var(--lx-radius-sm);
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  transition: opacity var(--lx-duration) ease;
 }
 .confirm-btn:hover {
   opacity: 0.9;
@@ -415,9 +416,9 @@ onMounted(() => {
 }
 
 .no-results {
-  padding: 40px 16px;
+  padding: var(--lx-space-section) var(--lx-space-2xl);
   text-align: center;
   color: var(--lx-text-muted);
-  font-size: 14px;
+  font-size: var(--lx-font);
 }
 </style>

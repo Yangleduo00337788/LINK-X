@@ -1,10 +1,11 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { NButton, NSelect, useMessage } from 'naive-ui'
+import { NSelect, useMessage } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import { useAppSettingsStore } from '../../stores/appSettings'
 import { useI18n } from '../../i18n'
+import { LxGroupCard, LxButton } from '../ui'
 
 const message = useMessage()
 const appSettingsStore = useAppSettingsStore()
@@ -74,7 +75,7 @@ async function clearCache() {
 
 <template>
   <div class="settings-scroll">
-    <section class="group-card">
+    <LxGroupCard tag="section" variant="settings">
       <div class="group-head"><span>{{ t('files.download') }}</span></div>
       <div class="setting-row">
         <div class="setting-text">
@@ -82,21 +83,20 @@ async function clearCache() {
           <span class="setting-desc">{{ downloadDirDesc }}</span>
         </div>
         <div class="row-actions">
-          <n-button size="small" secondary :disabled="!isElectron" @click="pickDownloadPath">
+          <LxButton variant="sm" :disabled="!isElectron" @click="pickDownloadPath">
             {{ t('files.change') }}
-          </n-button>
-          <n-button
+          </LxButton>
+          <LxButton
             v-if="downloadPath"
-            size="small"
-            tertiary
+            variant="compact-ghost"
             :disabled="!isElectron"
             @click="resetDownloadPath"
           >
             {{ t('files.resetDefault') }}
-          </n-button>
-          <n-button size="small" tertiary :disabled="!isElectron" @click="openDownloadFolder">
+          </LxButton>
+          <LxButton variant="compact-ghost" :disabled="!isElectron" @click="openDownloadFolder">
             {{ t('files.open') }}
-          </n-button>
+          </LxButton>
         </div>
       </div>
       <div class="setting-row">
@@ -114,20 +114,20 @@ async function clearCache() {
           :disabled="!isElectron"
         />
       </div>
-    </section>
+    </LxGroupCard>
 
-    <section class="group-card">
+    <LxGroupCard tag="section" variant="settings">
       <div class="group-head"><span>{{ t('files.cache') }}</span></div>
       <div class="setting-row">
         <div class="setting-text">
           <span class="setting-name">{{ t('files.clearCache') }}</span>
           <span class="setting-desc">{{ t('files.clearCacheDesc') }}</span>
         </div>
-        <n-button size="small" secondary :disabled="!isElectron" @click="clearCache">
+        <LxButton variant="sm" :disabled="!isElectron" @click="clearCache">
           {{ t('files.clearNow') }}
-        </n-button>
+        </LxButton>
       </div>
-    </section>
+    </LxGroupCard>
 
     <p v-if="!isElectron" class="web-tip">{{ t('files.webTip') }}</p>
   </div>
@@ -138,13 +138,13 @@ async function clearCache() {
 
 .row-actions {
   display: flex;
-  gap: 8px;
+  gap: var(--lx-space);
   flex-shrink: 0;
 }
 
 .web-tip {
-  margin: 0 4px;
-  font-size: 12px;
+  margin: 0 var(--lx-space-xs);
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
 }
 </style>

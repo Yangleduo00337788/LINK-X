@@ -61,7 +61,7 @@ function onActivityLoaded(payload: { count: number }) {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  padding: 24px 20px;
+  padding: var(--lx-space-4xl) var(--lx-space-3xl);
   box-sizing: border-box;
 }
 
@@ -70,10 +70,10 @@ function onActivityLoaded(payload: { count: number }) {
   max-width: 560px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--lx-space-3xl);
 }
 
 .discover-pane__activities {
-  margin-top: 4px;
+  margin-top: var(--lx-space-xs);
 }
 </style>

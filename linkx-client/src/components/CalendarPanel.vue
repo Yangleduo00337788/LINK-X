@@ -13,6 +13,7 @@ import { storeToRefs } from 'pinia'
 import { useCalendarStore } from '../stores/calendar'
 import type { CalendarEvent } from '../stores/calendar'
 import { useI18n } from '../i18n'
+import { LxButton } from './ui'
 
 const calendarStore = useCalendarStore()
 const { t } = useI18n()
@@ -66,7 +67,7 @@ function isActiveEvent(event: CalendarEvent) {
         <n-icon :component="CalendarOutline" :size="18" />
         <span>{{ t('calendar.title') }}</span>
       </div>
-      <button type="button" class="today-btn" @click="goToday">{{ t('calendar.today') }}</button>
+      <LxButton variant="sm" class="today-btn" @click="goToday">{{ t('calendar.today') }}</LxButton>
     </div>
 
     <div class="month-bar">{{ monthLabel }}</div>
@@ -78,7 +79,7 @@ function isActiveEvent(event: CalendarEvent) {
           :key="event.id"
           type="button"
           class="event-row"
-          :class="{ active: isActiveEvent(event) }"
+          :class="{ 'is-active': isActiveEvent(event) }"
           @click="selectEvent(event)"
         >
           <span class="event-dot" :style="{ background: event.color || 'var(--lx-accent)' }" />
@@ -106,7 +107,7 @@ function isActiveEvent(event: CalendarEvent) {
 
 .panel-head {
   height: 52px;
-  padding: 0 14px;
+  padding: 0 var(--lx-space-xl);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -116,31 +117,28 @@ function isActiveEvent(event: CalendarEvent) {
 .head-title {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 15px;
+  gap: var(--lx-space);
+  font-size: var(--lx-font-lg);
   font-weight: 600;
   color: var(--lx-text-body);
 }
 
 .today-btn {
-  border: none;
-  background: var(--lx-accent-soft);
-  color: var(--lx-accent);
-  font-size: 12px;
+  background: var(--lx-accent-soft) !important;
+  color: var(--lx-accent) !important;
+  border: none !important;
+  font-size: var(--lx-font-sm);
   font-weight: 500;
-  padding: 5px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.15s;
+  padding: var(--lx-space-xs) var(--lx-space-md);
 }
 
-.today-btn:hover {
-  background: rgba(18, 183, 245, 0.22);
+.today-btn:hover:not(:disabled) {
+  background: rgba(18, 183, 245, 0.22) !important;
 }
 
 .month-bar {
-  padding: 0 14px 10px;
-  font-size: 13px;
+  padding: 0 var(--lx-space-xl) var(--lx-space-md);
+  font-size: var(--lx-font-md);
   color: var(--lx-text-muted);
   flex-shrink: 0;
 }
@@ -148,7 +146,7 @@ function isActiveEvent(event: CalendarEvent) {
 .event-list {
   flex: 1;
   overflow-y: auto;
-  padding: 0 8px 12px;
+  padding: 0 var(--lx-space) var(--lx-space-lg);
 }
 
 .event-row {
@@ -159,12 +157,12 @@ function isActiveEvent(event: CalendarEvent) {
   align-items: stretch;
   gap: 0;
   padding: 0;
-  margin-bottom: 6px;
-  border-radius: 8px;
+  margin-bottom: var(--lx-space-sm);
+  border-radius: var(--lx-radius-sm);
   cursor: pointer;
   text-align: left;
   overflow: hidden;
-  transition: background 0.15s;
+  transition: background var(--lx-duration);
 }
 
 .event-row:hover {
@@ -186,26 +184,26 @@ function isActiveEvent(event: CalendarEvent) {
 .event-meta {
   min-width: 0;
   flex: 1;
-  padding: 10px 12px;
+  padding: var(--lx-space-md) var(--lx-space-lg);
 }
 
 .event-title {
-  font-size: 14px;
+  font-size: var(--lx-font);
   color: var(--lx-text-body);
   font-weight: 500;
-  line-height: 1.35;
+  line-height: var(--lx-leading-snug);
 }
 
 .event-sub {
-  margin-top: 2px;
-  font-size: 12px;
+  margin-top: var(--lx-space-2xs);
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
 }
 
 .empty-tip {
-  padding: 24px 14px;
+  padding: var(--lx-space-4xl) var(--lx-space-xl);
   text-align: center;
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   color: var(--lx-text-muted);
 }
 </style>

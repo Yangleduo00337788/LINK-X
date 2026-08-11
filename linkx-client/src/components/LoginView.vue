@@ -2,7 +2,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { NInput, NButton, NIcon, NCheckbox, NModal, NSelect, useMessage } from 'naive-ui'
+import { NInput, NIcon, NCheckbox, NModal, NSelect, useMessage } from 'naive-ui'
 import {
   RefreshOutline,
   MailOutline,
@@ -15,6 +15,7 @@ import Avatar from './Avatar.vue'
 import WindowCaptionButtons from './WindowCaptionButtons.vue'
 import BrandMarkIcon from './BrandMarkIcon.vue'
 import SliderCaptcha from './SliderCaptcha.vue'
+import { LxButton, LxIconButton } from './ui'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
 import * as authApi from '../api/auth'
@@ -569,7 +570,7 @@ async function handleForgot() {
       <div class="login-win-actions" @click.stop>
         <button
           type="button"
-          class="web-menu-btn"
+          class="lx-win-caption-btn lx-win-caption-btn--login-menu"
           :title="t('login.menu')"
           @click="toggleMenu"
         >
@@ -611,7 +612,7 @@ async function handleForgot() {
           <div class="avatar-glow" aria-hidden="true" />
           <Avatar
             :text="displayAvatarText"
-            color="#12b7f5"
+            color="var(--lx-accent)"
             :size="loginMode === 'quick' ? 88 : 68"
             :image-url="displayAvatarUrl"
           />
@@ -638,16 +639,15 @@ async function handleForgot() {
 
       <!-- 快速登录 -->
       <div v-if="loginMode === 'quick'" class="quick-panel lx-panel">
-        <button
-          type="button"
-          class="lx-login-btn"
-          :class="{ loading: isLoading || autoLogging }"
+        <LxButton
+          variant="login"
+          :class="{ 'is-loading': isLoading || autoLogging }"
           :disabled="isLoading || autoLogging"
           @click="handleLogin"
         >
-          <span v-if="autoLogging || isLoading" class="btn-spinner" aria-hidden="true" />
+          <span v-if="autoLogging || isLoading" class="lx-btn-spinner" aria-hidden="true" />
           <span>{{ loginButtonText }}</span>
-        </button>
+        </LxButton>
       </div>
 
       <!-- 账密登录 -->
@@ -720,11 +720,14 @@ async function handleForgot() {
                 <n-icon :component="ShieldCheckmarkOutline" :size="15" class="field-ico" />
               </template>
             </n-input>
-            <n-button quaternary circle class="captcha-refresh" :disabled="autoLogging" @click="loadCaptcha('login')">
-              <template #icon>
-                <n-icon :component="RefreshOutline" />
-              </template>
-            </n-button>
+            <LxIconButton
+              class="captcha-refresh"
+              :title="t('login.refreshCaptcha')"
+              :disabled="autoLogging"
+              @click="loadCaptcha('login')"
+            >
+              <n-icon :component="RefreshOutline" />
+            </LxIconButton>
           </template>
         </div>
 
@@ -737,16 +740,15 @@ async function handleForgot() {
           </n-checkbox>
         </div>
 
-        <button
-          type="button"
-          class="lx-login-btn"
-          :class="{ loading: isLoading }"
+        <LxButton
+          variant="login"
+          :class="{ 'is-loading': isLoading }"
           :disabled="isLoading"
           @click="handleLogin"
         >
-          <span v-if="isLoading" class="btn-spinner" aria-hidden="true" />
+          <span v-if="isLoading" class="lx-btn-spinner" aria-hidden="true" />
           <span>{{ loginButtonText }}</span>
-        </button>
+        </LxButton>
       </div>
 
       <div class="footer">
@@ -754,7 +756,7 @@ async function handleForgot() {
           <a
             href="#"
             class="footer-link"
-            :class="{ disabled: autoLogging }"
+            :class="{ 'is-disabled': autoLogging }"
             @click.prevent="switchToPasswordMode"
           >{{ t('login.passwordLogin') }}</a>
           <template v-if="registerEnabled">
@@ -762,7 +764,7 @@ async function handleForgot() {
             <a
               href="#"
               class="footer-link"
-              :class="{ disabled: autoLogging }"
+              :class="{ 'is-disabled': autoLogging }"
               @click.prevent="openRegister"
             >{{ t('login.register') }}</a>
           </template>
@@ -801,8 +803,10 @@ async function handleForgot() {
         />
       </div>
       <template #action>
-        <n-button @click="showFeedback = false">{{ t('common.cancel') }}</n-button>
-        <n-button type="primary" :loading="feedbackLoading" @click="submitFeedback">{{ t('common.submit') }}</n-button>
+        <LxButton variant="modal" @click="showFeedback = false">{{ t('common.cancel') }}</LxButton>
+        <LxButton variant="modal-primary" :disabled="feedbackLoading" @click="submitFeedback">
+          {{ t('common.submit') }}
+        </LxButton>
       </template>
     </n-modal>
 
@@ -844,7 +848,7 @@ async function handleForgot() {
               v-else
               href="#"
               class="resend-link"
-              :class="{ disabled: forgotSendLoading }"
+              :class="{ 'is-disabled': forgotSendLoading }"
               @click.prevent="handleResendCode"
             >
               {{ t('login.resendCode') }}
@@ -880,31 +884,31 @@ async function handleForgot() {
         </template>
       </div>
       <template #action>
-        <n-button @click="showForgot = false">{{ t('common.cancel') }}</n-button>
-        <n-button
+        <LxButton variant="modal" @click="showForgot = false">{{ t('common.cancel') }}</LxButton>
+        <LxButton
           v-if="forgotStep === 'input'"
-          type="primary"
-          :loading="forgotSendLoading"
+          variant="modal-primary"
+          :disabled="forgotSendLoading"
           @click="handleSendResetCode"
         >
           {{ t('login.sendCode') }}
-        </n-button>
-        <n-button
+        </LxButton>
+        <LxButton
           v-else-if="forgotStep === 'verify'"
-          type="primary"
-          :loading="verifyLoading"
+          variant="modal-primary"
+          :disabled="verifyLoading"
           @click="handleVerifyCode"
         >
           {{ t('login.next') }}
-        </n-button>
-        <n-button
+        </LxButton>
+        <LxButton
           v-else
-          type="primary"
-          :loading="forgotLoading"
+          variant="modal-primary"
+          :disabled="forgotLoading"
           @click="handleForgot"
         >
           {{ t('login.resetPassword') }}
-        </n-button>
+        </LxButton>
       </template>
     </n-modal>
   </div>
@@ -912,10 +916,10 @@ async function handleForgot() {
 
 <style scoped>
 .login-page {
-  --lx-login-accent: #12b7f5;
-  --lx-login-accent-deep: #0aa6e0;
-  --lx-login-ink: #1a2332;
-  --lx-login-muted: #7a8494;
+  --lx-login-accent: var(--lx-accent);
+  --lx-login-accent-deep: var(--lx-accent-deep);
+  
+  
   position: relative;
   width: 100%;
   height: 100%;
@@ -924,7 +928,7 @@ async function handleForgot() {
   flex-direction: column;
   box-sizing: border-box;
   background:
-    linear-gradient(165deg, #d8ecfb 0%, #e8f3fc 38%, #f4f7fb 72%, #fafbfd 100%);
+    var(--lx-login-bg-gradient);
   overflow: hidden;
   color: var(--lx-login-ink);
   font-family: 'Segoe UI Variable', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
@@ -934,7 +938,7 @@ async function handleForgot() {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 0;
+  z-index: var(--lx-z-base);
   overflow: hidden;
 }
 
@@ -994,21 +998,21 @@ async function handleForgot() {
 .login-page--compact {
   min-height: 461px;
   padding: 0;
-  border-radius: var(--lx-window-radius, 20px);
+  border-radius: var(--lx-window-radius);
   overflow: hidden;
-  clip-path: inset(0 round var(--lx-window-radius, 20px));
+  clip-path: inset(0 round var(--lx-window-radius));
 }
 
 .login-win-bar {
   flex-shrink: 0;
-  height: 40px;
+  height: var(--lx-size-win-bar);
   width: 100%;
   box-sizing: border-box;
   display: flex;
   align-items: stretch;
   -webkit-app-region: no-drag;
   position: relative;
-  z-index: 20;
+  z-index: var(--lx-z-sticky);
 }
 
 .drag-area {
@@ -1022,26 +1026,21 @@ async function handleForgot() {
   flex-shrink: 0;
   display: flex;
   align-items: center;
+  gap: var(--lx-space-xs);
   -webkit-app-region: no-drag;
-  padding-right: 4px;
+  padding-right: var(--lx-space-xs);
 }
 
-.web-menu-btn {
-  width: 28px;
-  height: 28px;
-  margin-right: 8px;
-  border: none;
-  border-radius: 8px;
+.lx-win-caption-btn--login-menu {
+  width: 36px;
+}
+
+.lx-win-caption-btn--login-menu::before {
   background: rgba(255, 255, 255, 0.55);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.15s ease, transform 0.15s ease;
 }
 
-.web-menu-btn:hover {
+.lx-win-caption-btn--login-menu:hover::before {
   background: rgba(255, 255, 255, 0.85);
 }
 
@@ -1051,8 +1050,8 @@ async function handleForgot() {
   display: block;
   width: 12px;
   height: 1.5px;
-  background: #5c6370;
-  border-radius: 1px;
+  background: var(--lx-ink-soft);
+  border-radius: var(--lx-radius-hair);
 }
 
 .web-menu-ico {
@@ -1081,12 +1080,12 @@ async function handleForgot() {
   min-width: 128px;
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(12px);
-  border-radius: 10px;
+  border-radius: var(--lx-radius-xl);
   box-shadow: 0 8px 28px rgba(26, 35, 50, 0.14);
   border: 1px solid rgba(255, 255, 255, 0.8);
-  padding: 6px;
-  z-index: 30;
-  animation: menu-in 0.16s ease;
+  padding: var(--lx-space-sm);
+  z-index: var(--lx-z-dock);
+  animation: menu-in var(--lx-duration) ease;
 }
 
 @keyframes menu-in {
@@ -1106,11 +1105,11 @@ async function handleForgot() {
   border: none;
   background: transparent;
   text-align: left;
-  padding: 8px 12px;
-  font-size: 13px;
+  padding: var(--lx-space) var(--lx-space-lg);
+  font-size: var(--lx-font-md);
   color: var(--lx-login-ink);
   cursor: pointer;
-  border-radius: 7px;
+  border-radius: var(--lx-radius-xs);
 }
 
 .login-menu-item:hover {
@@ -1124,79 +1123,79 @@ async function handleForgot() {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 4px 26px 16px;
+  padding: var(--lx-space-xs) var(--lx-space-4xl-plus) var(--lx-space-2xl);
   position: relative;
-  z-index: 1;
+  z-index: var(--lx-z-raised);
   box-sizing: border-box;
 }
 
 .login-body--password {
-  padding: 0 22px 12px;
+  padding: 0 var(--lx-space-3xl-plus) var(--lx-space-lg);
 }
 
 .brand-title {
   position: relative;
-  z-index: 1;
+  z-index: var(--lx-z-raised);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  margin-top: 4px;
-  margin-bottom: 18px;
+  gap: var(--lx-space);
+  margin-top: var(--lx-space-xs);
+  margin-bottom: var(--lx-space-2xl);
   user-select: none;
-  animation: rise-in 0.45s ease both;
+  animation: rise-in var(--lx-duration-slower) ease both;
 }
 
 .brand-title--compact {
   margin-top: 0;
-  margin-bottom: 8px;
-  gap: 6px;
+  margin-bottom: var(--lx-space);
+  gap: var(--lx-space-sm);
 }
 
 .brand-text {
-  font-size: 30px;
+  font-size: var(--lx-font-6xl);
   font-weight: 720;
   letter-spacing: 0.5px;
-  line-height: 1;
-  background: linear-gradient(100deg, #0ea5e0 0%, #12b7f5 35%, #5b8cff 70%, #a855f7 100%);
+  line-height: var(--lx-leading-none);
+  background: linear-gradient(100deg, var(--lx-accent-sky) 0%, var(--lx-accent) 35%, var(--lx-brand-blue-mid) 70%, var(--lx-brand-purple) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
 .brand-title--compact .brand-text {
-  font-size: 20px;
+  font-size: var(--lx-font-4xl);
 }
 
 .profile-block {
   position: relative;
-  z-index: 1;
+  z-index: var(--lx-z-raised);
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 18px;
-  gap: 14px;
-  animation: rise-in 0.5s ease 0.05s both;
+  margin-bottom: var(--lx-space-2xl);
+  gap: var(--lx-space-xl);
+  animation: rise-in var(--lx-duration-slowest) ease var(--lx-duration-instant) both;
 }
 
 .profile-block--password {
-  margin-top: 2px;
-  margin-bottom: 14px;
+  margin-top: var(--lx-space-2xs);
+  margin-bottom: var(--lx-space-xl);
   gap: 0;
 }
 
 .avatar-ring {
   position: relative;
-  padding: 3px;
+  padding: var(--lx-space-2xs);
   border-radius: 50%;
-  background: linear-gradient(145deg, #fff 0%, #e8f7ff 45%, #dce9ff 100%);
+  background: var(--lx-login-card-gradient);
   box-shadow:
     0 8px 24px rgba(18, 183, 245, 0.2),
     0 0 0 1px rgba(255, 255, 255, 0.8);
 }
 
 .avatar-ring--lg {
-  padding: 4px;
+  padding: var(--lx-space-xs);
 }
 
 .avatar-glow {
@@ -1212,26 +1211,26 @@ async function handleForgot() {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: var(--lx-space-2xs);
   max-width: 220px;
-  margin-top: 2px;
+  margin-top: var(--lx-space-2xs);
 }
 
 .nickname-text {
-  font-size: 16px;
+  font-size: var(--lx-font-xl);
   font-weight: 600;
   color: var(--lx-login-ink);
-  line-height: 1.3;
+  line-height: var(--lx-leading-snug);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .nickname-chevron {
-  color: #8f959e;
+  color: var(--lx-login-text-muted-alt);
   cursor: pointer;
   flex-shrink: 0;
-  transition: color 0.15s ease, transform 0.15s ease;
+  transition: color var(--lx-duration) ease, transform var(--lx-duration) ease;
 }
 
 .nickname-chevron:hover {
@@ -1242,15 +1241,15 @@ async function handleForgot() {
 .lx-panel {
   width: 100%;
   position: relative;
-  z-index: 1;
-  animation: rise-in 0.55s ease 0.1s both;
+  z-index: var(--lx-z-raised);
+  animation: rise-in var(--lx-duration-slowest) ease var(--lx-duration-faster) both;
 }
 
 .password-panel {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 8px;
+  gap: var(--lx-space);
   flex: 1;
   min-height: 0;
 }
@@ -1259,7 +1258,7 @@ async function handleForgot() {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 10px;
+  gap: var(--lx-space-md);
 }
 
 @keyframes rise-in {
@@ -1277,18 +1276,18 @@ async function handleForgot() {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 2px 2px 0;
+  padding: var(--lx-space-2xs) var(--lx-space-2xs) 0;
 }
 
 .options--quick {
   justify-content: center;
   width: 100%;
   margin: 0;
-  padding-top: 2px;
+  padding-top: var(--lx-space-2xs);
 }
 
 .options :deep(.n-checkbox .n-checkbox__label) {
-  font-size: 12.5px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-login-muted);
 }
 
@@ -1302,54 +1301,54 @@ async function handleForgot() {
 }
 
 .field-ico {
-  color: #9aa3b2;
+  color: var(--lx-login-icon);
 }
 
 .lx-field :deep(.n-input-wrapper) {
   background: rgba(255, 255, 255, 0.88);
-  border-radius: 12px;
+  border-radius: var(--lx-radius-lg);
   box-shadow:
     0 1px 2px rgba(26, 35, 50, 0.04),
     inset 0 0 0 1px rgba(255, 255, 255, 0.9);
-  padding-left: 12px;
-  padding-right: 12px;
-  min-height: 38px;
-  transition: box-shadow 0.18s ease, background 0.18s ease;
+  padding-left: var(--lx-space-lg);
+  padding-right: var(--lx-space-lg);
+  min-height: var(--lx-size-control);
+  transition: box-shadow var(--lx-duration-md) ease, background var(--lx-duration-md) ease;
 }
 
 .lx-field :deep(.n-input--focus .n-input-wrapper) {
-  background: #fff;
+  background: var(--lx-bg-card);
   box-shadow:
     0 0 0 3px rgba(18, 183, 245, 0.16),
     inset 0 0 0 1px rgba(18, 183, 245, 0.45);
 }
 
 .lx-field :deep(.n-input__input-el) {
-  font-size: 13px;
-  height: 38px;
+  font-size: var(--lx-font-md);
+  height: var(--lx-size-control);
 }
 
 .lx-field :deep(.n-input__prefix) {
-  margin-right: 6px;
+  margin-right: var(--lx-space-sm);
 }
 
 .captcha-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--lx-space);
 }
 
 .captcha-img {
   width: 102px;
-  height: 38px;
-  border-radius: 12px;
+  height: var(--lx-size-control);
+  border-radius: var(--lx-radius-lg);
   cursor: pointer;
   border: none;
   background: rgba(255, 255, 255, 0.9);
   box-shadow: inset 0 0 0 1px rgba(18, 183, 245, 0.12);
   flex-shrink: 0;
   object-fit: contain;
-  transition: transform 0.15s ease;
+  transition: transform var(--lx-duration) ease;
 }
 
 .captcha-img:hover {
@@ -1357,8 +1356,8 @@ async function handleForgot() {
 }
 
 .captcha-img--placeholder {
-  background: linear-gradient(135deg, #e8eef5 0%, #f5f7fa 100%);
-  border: 1px dashed #c5d0dc;
+  background: linear-gradient(135deg, var(--lx-bg-mist) 0%, var(--lx-bg-soft) 100%);
+  border: 1px dashed var(--lx-login-border);
   box-shadow: none;
 }
 
@@ -1371,92 +1370,34 @@ async function handleForgot() {
   color: var(--lx-login-muted) !important;
 }
 
-.lx-login-btn {
-  width: 100%;
-  height: 40px;
-  margin-top: 8px;
-  border: none;
-  border-radius: 20px;
-  background: linear-gradient(135deg, #39c2f6 0%, #12b7f5 48%, #0aa6e0 100%);
-  color: #fff;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: 2px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  box-shadow:
-    0 8px 20px rgba(18, 183, 245, 0.32),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, opacity 0.15s ease;
-  -webkit-app-region: no-drag;
-}
-
-.lx-login-btn:hover:not(:disabled) {
-  filter: brightness(1.04);
-  transform: translateY(-1px);
-  box-shadow:
-    0 10px 24px rgba(18, 183, 245, 0.38),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3);
-}
-
-.lx-login-btn:active:not(:disabled) {
-  transform: translateY(0);
-  filter: brightness(0.98);
-}
-
-.lx-login-btn:disabled,
-.lx-login-btn.loading {
-  cursor: default;
-  opacity: 0.9;
-  transform: none;
-}
-
-.btn-spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #fff;
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 .footer {
   margin-top: auto;
-  padding-top: 10px;
+  padding-top: var(--lx-space-md);
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  font-size: 13px;
+  gap: var(--lx-space-lg);
+  font-size: var(--lx-font-md);
   position: relative;
-  z-index: 1;
-  animation: rise-in 0.55s ease 0.16s both;
+  z-index: var(--lx-z-raised);
+  animation: rise-in var(--lx-duration-slowest) ease var(--lx-duration) both;
 }
 
 .footer-link {
   color: var(--lx-login-accent-deep);
   text-decoration: none;
   font-weight: 500;
-  transition: color 0.15s ease;
+  transition: color var(--lx-duration) ease;
 }
 
 .footer-link:hover {
-  color: #088fc4;
+  color: var(--lx-login-link-hover);
   text-decoration: none;
 }
 
 .footer-link.disabled {
-  color: #b0b8c0;
+  color: var(--lx-login-text-faint);
   pointer-events: none;
   text-decoration: none;
 }
@@ -1465,15 +1406,15 @@ async function handleForgot() {
   width: 3px;
   height: 3px;
   border-radius: 50%;
-  background: #c5ccd3;
+  background: var(--lx-login-track);
   user-select: none;
 }
 
 .dialog-tip {
   margin: 0;
-  font-size: 13px;
-  color: #555;
-  line-height: 1.6;
+  font-size: var(--lx-font-md);
+  color: var(--lx-text-secondary);
+  line-height: var(--lx-leading-relaxed);
 }
 
 .feedback-form {
@@ -1484,29 +1425,29 @@ async function handleForgot() {
 .forgot-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--lx-space-2xl);
 }
 
 .forgot-form .form-item {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--lx-space-sm);
 }
 
 .forgot-form .form-item label {
-  font-size: 14px;
-  color: #666;
+  font-size: var(--lx-font);
+  color: var(--lx-text-secondary);
 }
 
 .forgot-tip {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
-  background: linear-gradient(135deg, #f0f8ff 0%, #f7fbff 100%);
+  gap: var(--lx-space);
+  padding: var(--lx-space-lg) var(--lx-space-2xl);
+  background: var(--lx-login-panel-gradient);
   border-left: 3px solid var(--lx-login-accent);
-  border-radius: 8px;
-  margin-bottom: 8px;
+  border-radius: var(--lx-radius-sm);
+  margin-bottom: var(--lx-space);
 }
 
 .forgot-tip-icon {
@@ -1516,20 +1457,20 @@ async function handleForgot() {
 
 .forgot-tip p {
   margin: 0;
-  color: #555;
-  font-size: 13px;
-  line-height: 1.5;
+  color: var(--lx-text-secondary);
+  font-size: var(--lx-font-md);
+  line-height: var(--lx-leading-normal);
 }
 
 .resend-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  gap: var(--lx-space);
+  font-size: var(--lx-font-md);
 }
 
 .resend-tips {
-  color: #999;
+  color: var(--lx-text-muted);
 }
 
 .resend-link {
@@ -1543,13 +1484,13 @@ async function handleForgot() {
 }
 
 .resend-link.disabled {
-  color: #ccc;
+  color: var(--lx-border-strong);
   cursor: not-allowed;
   pointer-events: none;
 }
 
 .resend-sep {
-  color: #ddd;
+  color: var(--lx-border-strong);
 }
 
 @media (prefers-reduced-motion: reduce) {

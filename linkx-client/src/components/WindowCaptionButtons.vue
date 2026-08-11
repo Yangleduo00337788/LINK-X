@@ -1,8 +1,7 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
- * 自绘 Win11 风格窗控。关闭键右上角圆角与窗口 --lx-window-radius 一致，
- * 悬停红底可被裁进 20px 圆角（系统 titleBarOverlay 做不到）。
+ * 自绘 Win11 风格窗控。悬停为居中圆角块；关闭键 hover 红底白字。
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from '../i18n'
@@ -67,7 +66,7 @@ async function close() {
     <button
       v-if="showMinimize"
       type="button"
-      class="caption-btn"
+      class="lx-win-caption-btn"
       :title="t('shell.minimize')"
       @click="minimize"
     >
@@ -78,7 +77,7 @@ async function close() {
     <button
       v-if="showMaximize"
       type="button"
-      class="caption-btn"
+      class="lx-win-caption-btn"
       :title="isMaximized ? t('shell.restore') : t('shell.maximize')"
       @click="maximize"
     >
@@ -94,7 +93,12 @@ async function close() {
         />
       </svg>
     </button>
-    <button type="button" class="caption-btn caption-btn--close" :title="t('shell.close')" @click="close">
+    <button
+      type="button"
+      class="lx-win-caption-btn lx-win-caption-btn--close"
+      :title="t('shell.close')"
+      @click="close"
+    >
       <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
         <path d="M2 2l6 6M8 2L2 8" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" />
       </svg>
@@ -108,58 +112,5 @@ async function close() {
   align-items: stretch;
   flex-shrink: 0;
   height: 100%;
-  -webkit-app-region: no-drag;
-}
-
-.caption-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 46px;
-  height: 100%;
-  min-height: 36px;
-  margin: 0;
-  padding: 0;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  color: var(--lx-text);
-  cursor: default;
-  transition: background-color 83ms linear, color 83ms linear;
-}
-
-.caption-btn:hover {
-  background: rgba(0, 0, 0, 0.06);
-}
-
-.caption-btn:active {
-  background: rgba(0, 0, 0, 0.04);
-}
-
-/* 关闭键：右上角与窗口圆角一致，红底不会穿出 20px 弧线 */
-.caption-btn--close {
-  border-top-right-radius: var(--lx-window-radius, 20px);
-}
-
-.caption-btn--close:hover {
-  background: #e81123;
-  color: #fff;
-}
-
-.caption-btn--close:active {
-  background: #f1707a;
-  color: #fff;
-}
-
-:global([data-theme='dark']) .caption-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-:global([data-theme='dark']) .caption-btn:active {
-  background: rgba(255, 255, 255, 0.04);
-}
-
-:global(html.is-maximized) .caption-btn--close {
-  border-top-right-radius: 0;
 }
 </style>

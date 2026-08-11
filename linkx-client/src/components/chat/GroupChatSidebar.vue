@@ -22,6 +22,7 @@ import { useAppStore } from '../../stores/app'
 import { useGroupMetaStore } from '../../stores/groupMeta'
 import { useI18n } from '../../i18n'
 import type { GroupMember } from '../../stores/groupMeta'
+import { LxIconButton } from '../ui'
 
 const COLLAPSE_KEY = 'linkx.groupSidebar.collapsed'
 
@@ -159,7 +160,7 @@ function onMemberClick(m: GroupMember) {
     <!-- 左缘中部折叠按钮：默认隐藏，侧栏/命中区悬停时显示 -->
     <button
       type="button"
-      class="collapse-btn"
+      class="lx-collapse-handle"
       :title="collapsed ? t('extra.expandGroupSide') : t('extra.collapseGroupSide')"
       @click="toggleCollapsed"
     >
@@ -174,14 +175,14 @@ function onMemberClick(m: GroupMember) {
       <section class="announce-block">
         <div class="announce-head">
           <h3 class="side-title">{{ t('chat.groupAnnouncement') }}</h3>
-          <button type="button" class="arrow-btn" :title="t('extra.viewAnnouncement')" @click="openGroupAnnouncement">
+          <button type="button" class="lx-link-btn lx-link-btn--plain" :title="t('extra.viewAnnouncement')" @click="openGroupAnnouncement">
             <n-icon :component="ChevronForwardOutline" :size="18" />
           </button>
         </div>
         <button
           type="button"
-          class="announce-text-btn"
-          :class="{ empty: announcementIsEmpty }"
+          class="lx-link-btn lx-link-btn--announce"
+          :class="{ 'is-empty': announcementIsEmpty }"
           @click="openGroupAnnouncement"
         >
           {{ announcementText }}
@@ -191,9 +192,9 @@ function onMemberClick(m: GroupMember) {
       <section class="members-block">
         <div class="members-head">
           <span class="side-title">{{ t('extra.groupMembersCount', { n: memberCount }) }}</span>
-          <button type="button" class="icon-btn" :title="t('extra.searchMembers')" @click="toggleMemberSearch">
+          <LxIconButton :title="t('extra.searchMembers')" @click="toggleMemberSearch">
             <n-icon :component="showMemberSearch ? CloseOutline : SearchOutline" :size="18" />
-          </button>
+          </LxIconButton>
         </div>
         <div v-if="showMemberSearch" class="member-search">
           <input
@@ -262,7 +263,7 @@ function onMemberClick(m: GroupMember) {
   top: 0;
   width: 20px;
   height: 100%;
-  z-index: 4;
+  z-index: var(--lx-z-raised-4);
 }
 
 .group-side.collapsed .collapse-hover-zone {
@@ -270,55 +271,16 @@ function onMemberClick(m: GroupMember) {
   width: 18px;
 }
 
-.collapse-btn {
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 5;
-  width: 16px;
-  height: 48px;
-  padding: 0;
-  border: 1px solid var(--lx-border-light);
-  border-radius: 8px;
-  background: var(--lx-bg-card);
-  color: var(--lx-text-muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 1px 4px var(--lx-shadow-color);
-  opacity: 0;
-  pointer-events: none;
-  transition:
-    opacity 0.15s ease,
-    color 0.15s ease,
-    background 0.15s ease,
-    border-color 0.15s ease;
-}
-
-.group-side:hover .collapse-btn,
-.collapse-btn:focus-visible {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.collapse-btn:hover {
-  color: var(--lx-accent);
-  border-color: var(--lx-accent);
-  background: var(--lx-bg-card);
-}
-
-.group-side.collapsed .collapse-btn {
+.group-side.collapsed .lx-collapse-handle {
   left: 0;
   transform: translate(-100%, -50%);
-  border-radius: 8px 0 0 8px;
+  border-radius: var(--lx-radius-sm) 0 0 var(--lx-radius-sm);
   border-right: none;
 }
 
 .announce-block {
   flex-shrink: 0;
-  padding: 14px 12px;
+  padding: var(--lx-space-xl) var(--lx-space-lg);
   border-bottom: 1px solid var(--lx-bg-panel-deep);
   background: var(--lx-bg-panel);
 }
@@ -327,53 +289,14 @@ function onMemberClick(m: GroupMember) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: var(--lx-space);
 }
 
 .side-title {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   font-weight: 600;
   color: var(--lx-text-body);
-}
-
-.arrow-btn,
-.icon-btn {
-  border: none;
-  background: transparent;
-  color: var(--lx-text-muted);
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-}
-
-.arrow-btn:hover,
-.icon-btn:hover {
-  color: var(--lx-accent);
-}
-
-.announce-text-btn {
-  width: 100%;
-  text-align: left;
-  border: none;
-  background: transparent;
-  padding: 0;
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--lx-text-secondary);
-  word-break: break-all;
-  cursor: pointer;
-  min-height: 18px;
-}
-
-.announce-text-btn.empty {
-  color: var(--lx-text-muted);
-}
-
-.announce-text-btn:hover {
-  color: var(--lx-accent);
 }
 
 .members-block {
@@ -387,12 +310,12 @@ function onMemberClick(m: GroupMember) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 12px 8px;
+  padding: var(--lx-space-lg) var(--lx-space-lg) var(--lx-space);
   flex-shrink: 0;
 }
 
 .member-search {
-  padding: 0 12px 8px;
+  padding: 0 var(--lx-space-lg) var(--lx-space);
   flex-shrink: 0;
 }
 
@@ -401,8 +324,8 @@ function onMemberClick(m: GroupMember) {
   height: 30px;
   border: 1px solid var(--lx-border-light);
   border-radius: var(--lx-radius);
-  padding: 0 10px;
-  font-size: 12px;
+  padding: 0 var(--lx-space-md);
+  font-size: var(--lx-font-sm);
   outline: none;
   background: var(--lx-bg-card);
   color: var(--lx-text-body);
@@ -415,21 +338,21 @@ function onMemberClick(m: GroupMember) {
 .member-list {
   flex: 1;
   overflow-y: auto;
-  padding: 0 8px 12px;
+  padding: 0 var(--lx-space) var(--lx-space-lg);
 }
 
 .member-empty {
-  padding: 16px 8px;
+  padding: var(--lx-space-2xl) var(--lx-space);
   text-align: center;
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
 }
 
 .member-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 4px;
+  gap: var(--lx-space-md);
+  padding: var(--lx-space) var(--lx-space-xs);
   border-radius: var(--lx-radius);
 }
 
@@ -446,11 +369,11 @@ function onMemberClick(m: GroupMember) {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--lx-space-2xs);
 }
 
 .m-name {
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   color: var(--lx-text-body);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -458,7 +381,7 @@ function onMemberClick(m: GroupMember) {
 }
 
 .m-badge {
-  font-size: 11px;
+  font-size: var(--lx-font-xs);
   color: var(--lx-accent);
 }
 

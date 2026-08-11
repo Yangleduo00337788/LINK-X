@@ -1,7 +1,7 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { NButton, NIcon, NInput, NSelect, useMessage } from 'naive-ui'
+import { NIcon, NInput, NSelect, useMessage } from 'naive-ui'
 import {
   HelpCircleOutline,
   CloudOutline,
@@ -18,6 +18,7 @@ import * as feedbackApi from '../../../api/feedback'
 import * as versionApi from '../../../api/version'
 import { APP_CLIENT_CHANNEL, APP_CLIENT_VERSION } from '../../../utils/appVersion'
 import { useI18n } from '../../../i18n'
+import { LxButton } from '../../ui'
 
 const message = useMessage()
 const overlayStore = useOverlayStore()
@@ -225,19 +226,15 @@ async function submitFeedback() {
         </div>
       </div>
       <div class="feedback-actions">
-        <n-button
-          type="primary"
-          size="medium"
-          :loading="submitting"
-          :disabled="submitting"
+        <LxButton
+          variant="primary-comfortable"
           class="submit-btn"
+          :disabled="submitting"
           @click="submitFeedback"
         >
-          <template #icon>
-            <n-icon :component="SendOutline" />
-          </template>
+          <n-icon :component="SendOutline" :size="16" />
           {{ t('overlay.submitFeedback') }}
-        </n-button>
+        </LxButton>
       </div>
     </section>
 
@@ -250,28 +247,28 @@ async function submitFeedback() {
 @import '../overlay-common.css';
 
 .help-page {
-  padding: 18px 4px 4px;
+  padding: var(--lx-space-2xl) var(--lx-space-xs) var(--lx-space-xs);
 }
 
 /* 顶部 hero —— 微信欢迎语风 */
 .help-hero {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 18px 20px;
+  gap: var(--lx-space-xl);
+  padding: var(--lx-space-2xl) var(--lx-space-3xl);
   background: linear-gradient(
     135deg,
     var(--lx-accent-soft),
     color-mix(in srgb, var(--lx-accent-soft) 60%, transparent)
   );
-  border-radius: 14px;
+  border-radius: var(--lx-radius-card);
   border: 1px solid color-mix(in srgb, var(--lx-accent) 18%, transparent);
 }
 
 .help-hero-icon {
   width: 48px;
   height: 48px;
-  border-radius: 14px;
+  border-radius: var(--lx-radius-card);
   background: var(--lx-bg-card);
   color: var(--lx-accent);
   display: flex;
@@ -288,30 +285,30 @@ async function submitFeedback() {
 
 .help-hero-title {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--lx-font-3xl);
   font-weight: 600;
   color: var(--lx-text-body);
   letter-spacing: 0.2px;
 }
 
 .help-hero-sub {
-  margin: 4px 0 0;
-  font-size: 13px;
+  margin: var(--lx-space-xs) 0 0;
+  font-size: var(--lx-font-md);
   color: var(--lx-text-secondary);
-  line-height: 1.5;
+  line-height: var(--lx-leading-normal);
 }
 
 /* FAQ 行 —— 头尾留白一致，展开时柔顺过渡 */
 .faq-row {
   border: 1px solid var(--lx-border-light);
-  border-radius: 10px;
+  border-radius: var(--lx-radius-xl);
   background: var(--lx-bg-panel);
   overflow: hidden;
-  transition: border-color 0.18s ease, background 0.18s ease;
+  transition: border-color var(--lx-duration-md) ease, background var(--lx-duration-md) ease;
 }
 
 .faq-row + .faq-row {
-  margin-top: 8px;
+  margin-top: var(--lx-space);
 }
 
 .faq-row:hover {
@@ -326,9 +323,9 @@ async function submitFeedback() {
 .faq-row-trigger {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--lx-space-lg);
   width: 100%;
-  padding: 12px 14px;
+  padding: var(--lx-space-lg) var(--lx-space-xl);
   border: none;
   background: transparent;
   cursor: pointer;
@@ -340,7 +337,7 @@ async function submitFeedback() {
 .faq-ico {
   width: 28px;
   height: 28px;
-  border-radius: 8px;
+  border-radius: var(--lx-radius-sm);
   background: var(--lx-accent-soft);
   color: var(--lx-accent);
   display: inline-flex;
@@ -351,10 +348,10 @@ async function submitFeedback() {
 
 .faq-q {
   flex: 1;
-  font-size: 14px;
+  font-size: var(--lx-font);
   font-weight: 500;
   color: var(--lx-text-body);
-  line-height: 1.4;
+  line-height: var(--lx-leading);
 }
 
 .faq-chevron {
@@ -362,7 +359,7 @@ async function submitFeedback() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.2s ease, color 0.18s ease;
+  transition: transform var(--lx-duration-md) ease, color var(--lx-duration-md) ease;
 }
 
 .faq-row.open .faq-chevron {
@@ -371,11 +368,11 @@ async function submitFeedback() {
 }
 
 .faq-a {
-  padding: 0 14px 14px 54px;
-  font-size: 13px;
-  line-height: 1.65;
+  padding: 0 var(--lx-space-xl) var(--lx-space-xl) var(--lx-space-block);
+  font-size: var(--lx-font-md);
+  line-height: var(--lx-leading-relaxed);
   color: var(--lx-text-secondary);
-  animation: faq-slide 0.2s ease;
+  animation: faq-slide var(--lx-duration-md) ease;
 }
 
 @keyframes faq-slide {
@@ -392,19 +389,19 @@ async function submitFeedback() {
 .support-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 0 2px;
+  gap: var(--lx-space);
+  padding: 0 var(--lx-space-2xs);
 }
 
 .support-line {
   margin: 0;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--lx-font-md);
+  line-height: var(--lx-leading-normal);
   color: var(--lx-text-secondary);
 }
 
 .support-label {
-  margin-right: 8px;
+  margin-right: var(--lx-space);
   color: var(--lx-text-muted);
 }
 
@@ -427,37 +424,37 @@ async function submitFeedback() {
 .feedback-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--lx-space-2xl);
 }
 
 .form-row {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--lx-space-sm);
 }
 
 .form-label {
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   font-weight: 500;
   color: var(--lx-text-secondary);
 }
 
 .form-control :deep(.n-base-selection),
 .form-control :deep(.n-input) {
-  border-radius: 10px;
+  border-radius: var(--lx-radius-xl);
 }
 
 .feedback-input :deep(textarea) {
-  border-radius: 10px;
-  padding: 10px 12px;
-  line-height: 1.6;
+  border-radius: var(--lx-radius-xl);
+  padding: var(--lx-space-md) var(--lx-space-lg);
+  line-height: var(--lx-leading-relaxed);
 }
 
 .feedback-actions {
   display: flex;
   justify-content: flex-end;
-  margin-top: 18px;
-  padding-top: 16px;
+  margin-top: var(--lx-space-2xl);
+  padding-top: var(--lx-space-2xl);
   border-top: 1px dashed var(--lx-border-light);
 }
 
@@ -467,9 +464,9 @@ async function submitFeedback() {
 
 /* 底部细字版权 */
 .help-footer {
-  margin: 4px 0 8px;
+  margin: var(--lx-space-xs) 0 var(--lx-space);
   text-align: center;
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
 }
 </style>

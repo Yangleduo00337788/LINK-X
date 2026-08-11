@@ -294,7 +294,7 @@ function handleSelfAvatarClick(e: MouseEvent) {
         :key="item.key"
         type="button"
         class="nav-item"
-        :class="{ active: navKey === item.key }"
+        :class="{ 'is-active': navKey === item.key }"
         :title="item.label"
         :aria-label="item.label"
         @click="handleClick(item.key)"
@@ -332,7 +332,7 @@ function handleSelfAvatarClick(e: MouseEvent) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 12px 0 10px;
+  padding: var(--lx-space-lg) 0 var(--lx-space-md);
   border-right: none;
   flex-shrink: 0;
 }
@@ -340,7 +340,7 @@ function handleSelfAvatarClick(e: MouseEvent) {
 .sidebar-avatar {
   border: none;
   padding: 0;
-  margin: 0 0 12px;
+  margin: 0 0 var(--lx-space-lg);
   background: transparent;
   cursor: pointer;
   flex-shrink: 0;
@@ -350,7 +350,7 @@ function handleSelfAvatarClick(e: MouseEvent) {
   align-items: center;
   justify-content: center;
   position: relative;
-  transition: transform 0.15s ease, opacity 0.15s ease;
+  transition: transform var(--lx-duration) ease, opacity var(--lx-duration) ease;
 }
 
 .sidebar-avatar:hover {
@@ -365,21 +365,21 @@ function handleSelfAvatarClick(e: MouseEvent) {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: var(--lx-border-strong, #c0c4cc);
-  border: 2px solid var(--lx-bg-panel, #fff);
+  background: var(--lx-border-strong, var(--lx-border-strong));
+  border: 2px solid var(--lx-bg-panel);
   box-sizing: border-box;
   pointer-events: none;
 }
 
 .self-online-dot.on {
-  background: var(--lx-success, #52c41a);
+  background: var(--lx-success, var(--lx-success));
 }
 
 .nav-top {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--lx-space);
   width: 100%;
   align-items: center;
   justify-content: flex-start;
@@ -389,11 +389,11 @@ function handleSelfAvatarClick(e: MouseEvent) {
 .nav-bottom {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--lx-space-xs);
   width: 100%;
   align-items: center;
   justify-content: center;
-  padding-top: 8px;
+  padding-top: var(--lx-space);
 }
 
 .nav-item {
@@ -408,7 +408,7 @@ function handleSelfAvatarClick(e: MouseEvent) {
   justify-content: center;
   color: var(--lx-text-nav);
   cursor: pointer;
-  transition: background 0.18s ease, color 0.18s ease, transform 0.12s ease;
+  transition: background var(--lx-duration-md) ease, color var(--lx-duration-md) ease, transform var(--lx-duration-fast) ease;
   flex-shrink: 0;
   margin: 0 auto;
   -webkit-app-region: no-drag;
@@ -421,13 +421,13 @@ function handleSelfAvatarClick(e: MouseEvent) {
   right: 2px;
   min-width: 16px;
   height: 16px;
-  padding: 0 4px;
-  border-radius: 8px;
-  background: var(--lx-danger, #f04040);
-  color: #fff;
-  font-size: 10px;
+  padding: 0 var(--lx-space-xs);
+  border-radius: var(--lx-radius-sm);
+  background: var(--lx-danger);
+  color: var(--lx-text-on-accent);
+  font-size: var(--lx-font-2xs);
   font-weight: 700;
-  line-height: 16px;
+  line-height: var(--lx-font-xl);
   text-align: center;
   box-sizing: border-box;
   pointer-events: none;

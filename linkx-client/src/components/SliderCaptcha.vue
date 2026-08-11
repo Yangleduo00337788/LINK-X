@@ -167,7 +167,7 @@ defineExpose({ reset: resetSlider })
   position: relative;
   width: 300px;
   height: 150px;
-  border-radius: 10px;
+  border-radius: var(--lx-radius-xl);
   overflow: hidden;
   background: rgba(0, 0, 0, 0.06);
 }
@@ -183,7 +183,7 @@ defineExpose({ reset: resetSlider })
   position: absolute;
   left: 0;
   top: 0;
-  z-index: 1;
+  z-index: var(--lx-z-raised);
   pointer-events: none;
   filter: drop-shadow(2px 2px 6px rgba(0, 0, 0, 0.45));
 }
@@ -192,13 +192,13 @@ defineExpose({ reset: resetSlider })
   position: absolute;
   top: 8px;
   right: 8px;
-  z-index: 3;
+  z-index: var(--lx-z-raised-3);
   width: 28px;
   height: 28px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--lx-radius-sm);
   background: rgba(255, 255, 255, 0.92);
-  color: #555;
+  color: var(--lx-text-secondary);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -207,10 +207,10 @@ defineExpose({ reset: resetSlider })
 
 .slider-captcha__track {
   position: relative;
-  margin-top: 10px;
+  margin-top: var(--lx-space-md);
   width: 300px;
   height: 40px;
-  border-radius: 20px;
+  border-radius: var(--lx-radius-3xl);
   background: rgba(0, 0, 0, 0.06);
   border: 1px solid rgba(0, 0, 0, 0.06);
   overflow: hidden;
@@ -236,8 +236,8 @@ defineExpose({ reset: resetSlider })
   display: flex;
   align-items: center;
   justify-content: center;
-  padding-left: 44px;
-  font-size: 12px;
+  padding-left: var(--lx-space-section-plus);
+  font-size: var(--lx-font-sm);
   color: rgba(0, 0, 0, 0.45);
   pointer-events: none;
 }
@@ -246,23 +246,23 @@ defineExpose({ reset: resetSlider })
   position: absolute;
   top: 2px;
   left: 0;
-  z-index: 2;
+  z-index: var(--lx-z-raised-2);
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--lx-bg-card);
   border: 1px solid rgba(0, 0, 0, 0.08);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
   cursor: grab;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #18a058;
+  color: var(--lx-success);
   touch-action: none;
 }
 
 .slider-captcha__thumb--dragging {
   cursor: grabbing;
-  background: #f6ffed;
+  background: var(--lx-captcha-success-bg);
 }
 </style>

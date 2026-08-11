@@ -29,7 +29,7 @@ withDefaults(
   justify-content: center;
   flex-shrink: 0;
   overflow: hidden;
-  border-radius: 5px;
+  border-radius: var(--lx-radius-2xs);
   background: transparent;
 }
 
@@ -43,7 +43,7 @@ withDefaults(
 }
 
 :global([data-theme='dark']) .brand-mark-wrap {
-  border-radius: 7px;
+  border-radius: var(--lx-radius-xs);
   background: rgba(255, 255, 255, 0.06);
 }
 

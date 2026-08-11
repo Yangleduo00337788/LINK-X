@@ -174,7 +174,7 @@ async function hangUp() {
 .call-root {
   position: fixed;
   inset: 0;
-  z-index: 2200;
+  z-index: var(--lx-z-dialog);
   background: var(--lx-bg-overlay);
   display: flex;
   align-items: center;
@@ -183,17 +183,17 @@ async function hangUp() {
 
 .call-window {
   width: min(480px, 92vw);
-  background: #1e1e1e;
+  background: var(--lx-conf-bg-deep);
   border-radius: var(--lx-radius);
   overflow: hidden;
-  box-shadow: 0 16px 48px var(--lx-bg-overlay);
+  box-shadow: var(--lx-shadow-popover);
 }
 
 .status {
   margin: 0;
-  padding: 14px;
+  padding: var(--lx-space-xl);
   text-align: center;
-  font-size: 14px;
+  font-size: var(--lx-font);
   color: rgba(255, 255, 255, 0.9);
   background: rgba(0, 0, 0, 0.3);
 }
@@ -201,7 +201,7 @@ async function hangUp() {
 .video-stage {
   position: relative;
   height: 320px;
-  background: #2c2c2c;
+  background: var(--lx-bg-card);
 }
 
 .remote-video {
@@ -216,12 +216,12 @@ async function hangUp() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(145deg, #3d3d3d, #252525);
+  background: var(--lx-video-surface-gradient);
 }
 
 .ph-text {
   color: rgba(255, 255, 255, 0.55);
-  font-size: 13px;
+  font-size: var(--lx-font-md);
 }
 
 .state-badges {
@@ -229,8 +229,8 @@ async function hangUp() {
   top: 12px;
   right: 12px;
   display: flex;
-  gap: 8px;
-  z-index: 2;
+  gap: var(--lx-space);
+  z-index: var(--lx-z-raised-2);
 }
 
 .badge {
@@ -241,7 +241,7 @@ async function hangUp() {
   align-items: center;
   justify-content: center;
   background: rgba(7, 193, 96, 0.9);
-  color: #fff;
+  color: var(--lx-text-on-accent);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 
@@ -255,7 +255,7 @@ async function hangUp() {
   bottom: 12px;
   width: 112px;
   height: 80px;
-  background: #444;
+  background: var(--lx-call-control-bg);
   border-radius: var(--lx-radius);
   border: 2px solid rgba(255, 255, 255, 0.2);
   overflow: hidden;
@@ -275,31 +275,31 @@ async function hangUp() {
 
 .pip-name {
   position: relative;
-  z-index: 1;
-  font-size: 10px;
-  color: #fff;
-  text-shadow: 0 1px 2px #000;
-  padding: 4px 6px;
+  z-index: var(--lx-z-raised);
+  font-size: var(--lx-font-2xs);
+  color: var(--lx-text-on-accent);
+  text-shadow: 0 1px 2px var(--lx-black);
+  padding: var(--lx-space-xs) var(--lx-space-sm);
 }
 
 .call-controls {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   align-items: start;
-  gap: 12px;
-  padding: 16px 16px 20px;
-  background: #2a2a2a;
+  gap: var(--lx-space-lg);
+  padding: var(--lx-space-2xl) var(--lx-space-2xl) var(--lx-space-3xl);
+  background: var(--lx-bg-panel-deep);
 }
 
 .ctl {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: var(--lx-space);
   border: none;
   background: transparent;
-  color: #fff;
-  font-size: 11px;
+  color: var(--lx-text-on-accent);
+  font-size: var(--lx-font-xs);
   cursor: pointer;
   min-width: 0;
   padding: 0;
@@ -313,21 +313,21 @@ async function hangUp() {
   align-items: center;
   justify-content: center;
   background: rgba(255, 255, 255, 0.22);
-  color: #fff;
+  color: var(--lx-text-on-accent);
 }
 
 .ctl.off :deep(.n-icon) {
   background: rgba(250, 81, 81, 0.85);
-  color: #fff;
+  color: var(--lx-text-on-accent);
 }
 
 .ctl.hangup :deep(.n-icon) {
-  background: #fa5151;
-  color: #fff;
+  background: var(--lx-danger);
+  color: var(--lx-text-on-accent);
 }
 
 .ctl span {
-  line-height: 1.2;
+  line-height: var(--lx-leading-tight);
   text-align: center;
   white-space: nowrap;
   color: rgba(255, 255, 255, 0.92);

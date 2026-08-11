@@ -9,6 +9,7 @@
 import { ref, computed, watch } from 'vue'
 import { NSwitch, useMessage, useDialog } from 'naive-ui'
 import Avatar from '../Avatar.vue'
+import { LxButton, LxIconButton } from '../ui'
 import { useAppStore } from '../../stores/app'
 import { useGroupMetaStore } from '../../stores/groupMeta'
 import { useI18n } from '../../i18n'
@@ -224,7 +225,7 @@ function toggleMemberMute(memberId: string, memberName: string, muted: boolean) 
 <template>
   <div class="mute-panel">
     <div class="mute-head">
-      <button type="button" class="mute-back" @click="emit('back')">‹</button>
+      <LxIconButton class="mute-back" :title="t('common.back')" @click="emit('back')">‹</LxIconButton>
       <h3>{{ t('modals.groupMute') }}</h3>
     </div>
 
@@ -252,17 +253,17 @@ function toggleMemberMute(memberId: string, memberName: string, muted: boolean) 
           <div v-if="activeSchedule" class="schedule-card">
             <p class="schedule-text">{{ scheduleStatusText }}</p>
             <div class="schedule-ops">
-              <button type="button" class="link-btn" :disabled="muteSaving" @click="startEditSchedule">
+              <LxButton variant="link-md" :disabled="muteSaving" @click="startEditSchedule">
                 {{ t('common.edit') }}
-              </button>
-              <button type="button" class="link-btn danger" :disabled="muteSaving" @click="clearSchedule">
+              </LxButton>
+              <LxButton variant="link-danger" :disabled="muteSaving" @click="clearSchedule">
                 {{ t('modals.scheduleMuteClear') }}
-              </button>
+              </LxButton>
             </div>
           </div>
-          <button v-else type="button" class="add-btn" @click="startCreateSchedule">
+          <LxButton v-else variant="add-dashed" @click="startCreateSchedule">
             {{ t('modals.scheduleMuteAdd') }}
-          </button>
+          </LxButton>
         </template>
 
         <div v-else class="schedule-form">
@@ -271,12 +272,12 @@ function toggleMemberMute(memberId: string, memberName: string, muted: boolean) 
           <label class="field-label">{{ t('modals.scheduleMuteEnd') }}</label>
           <input v-model="scheduleEnd" type="datetime-local" class="field-input" />
           <div class="form-actions">
-            <button type="button" class="ghost-btn" :disabled="muteSaving" @click="cancelScheduleEdit">
+            <LxButton variant="ghost" :disabled="muteSaving" @click="cancelScheduleEdit">
               {{ t('common.cancel') }}
-            </button>
-            <button type="button" class="primary-btn" :disabled="muteSaving" @click="saveSchedule">
+            </LxButton>
+            <LxButton variant="primary" :disabled="muteSaving" @click="saveSchedule">
               {{ t('common.save') }}
-            </button>
+            </LxButton>
           </div>
         </div>
       </section>
@@ -285,16 +286,16 @@ function toggleMemberMute(memberId: string, memberName: string, muted: boolean) 
       <section class="mute-section">
         <h4 class="section-title">{{ t('modals.muteMembers') }}</h4>
         <p class="section-hint">{{ t('modals.muteMembersHint') }}</p>
-        <button type="button" class="add-btn" @click="openMemberPage">
+        <LxButton variant="add-dashed" @click="openMemberPage">
           {{ t('modals.muteMembersOpen') }}
-        </button>
+        </LxButton>
       </section>
     </div>
 
     <!-- 指定成员禁言子页：全部群成员 -->
     <div v-if="memberPageOpen" class="member-page">
       <div class="mute-head">
-        <button type="button" class="mute-back" @click="closeMemberPage">‹</button>
+        <LxIconButton class="mute-back" :title="t('common.back')" @click="closeMemberPage">‹</LxIconButton>
         <h3>{{ t('modals.muteMembers') }}</h3>
       </div>
       <div class="mute-scroll">
@@ -308,16 +309,16 @@ function toggleMemberMute(memberId: string, memberName: string, muted: boolean) 
               <span v-if="m.badge" class="member-badge">{{ m.badge }}</span>
             </div>
             <span v-if="m.muted" class="muted-badge">{{ t('modals.mutedBadge') }}</span>
-            <button
+            <LxButton
               v-if="canMuteMember(m)"
-              type="button"
+              variant="sm"
               class="role-action"
               :class="{ danger: !m.muted }"
               :disabled="muteSaving"
               @click="toggleMemberMute(m.id, m.name, !!m.muted)"
             >
               {{ m.muted ? t('modals.unmuteMember') : t('modals.muteMember') }}
-            </button>
+            </LxButton>
             <span v-else class="muted-hint">{{ memberMuteDisabledReason(m) }}</span>
           </div>
         </div>
@@ -332,201 +333,140 @@ function toggleMemberMute(memberId: string, memberName: string, muted: boolean) 
   inset: 0;
   display: flex;
   flex-direction: column;
-  background: var(--lx-bg-elevated, var(--lx-bg-card, #fff));
-  z-index: 2;
+  background: var(--lx-bg-elevated, var(--lx-bg-card));
+  z-index: var(--lx-z-raised-2);
 }
 
 .mute-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--lx-border, #eee);
+  gap: var(--lx-space);
+  padding: var(--lx-space-xl) var(--lx-space-2xl);
+  border-bottom: 1px solid var(--lx-border);
   flex-shrink: 0;
 }
 
 .mute-head h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--lx-font-xl);
   font-weight: 600;
 }
 
 .mute-back {
-  border: none;
-  background: transparent;
-  font-size: 24px;
-  line-height: 1;
-  cursor: pointer;
-  color: var(--lx-text, #333);
-  padding: 0 4px;
+  font-size: var(--lx-font-5xl);
+  width: 28px;
+  height: 28px;
+  color: var(--lx-text-primary);
 }
 
 .mute-scroll {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 16px 24px;
+  padding: var(--lx-space-lg) var(--lx-space-2xl) var(--lx-space-4xl);
 }
 
 .mute-section {
-  margin-bottom: 22px;
+  margin-bottom: var(--lx-space-3xl-plus);
 }
 
 .section-title {
-  margin: 0 0 8px;
-  font-size: 14px;
+  margin: 0 0 var(--lx-space);
+  font-size: var(--lx-font);
   font-weight: 600;
-  color: var(--lx-text, #333);
+  color: var(--lx-text-primary);
 }
 
 .section-hint {
-  margin: 0 0 10px;
-  font-size: 12px;
-  color: var(--lx-text-muted, #999);
-  line-height: 1.45;
+  margin: 0 0 var(--lx-space-md);
+  font-size: var(--lx-font-sm);
+  color: var(--lx-text-muted);
+  line-height: var(--lx-leading);
 }
 
 .switch-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--lx-space-lg);
 }
 
 .switch-desc {
-  font-size: 13px;
-  color: var(--lx-text-secondary, #666);
-  line-height: 1.4;
+  font-size: var(--lx-font-md);
+  color: var(--lx-text-secondary);
+  line-height: var(--lx-leading);
 }
 
 .schedule-card {
-  padding: 12px;
-  border-radius: 8px;
+  padding: var(--lx-space-lg);
+  border-radius: var(--lx-radius-sm);
   background: var(--lx-bg-muted, rgba(0, 0, 0, 0.04));
 }
 
 .schedule-text {
-  margin: 0 0 10px;
-  font-size: 13px;
-  color: var(--lx-text, #333);
-  line-height: 1.45;
+  margin: 0 0 var(--lx-space-md);
+  font-size: var(--lx-font-md);
+  color: var(--lx-text-primary);
+  line-height: var(--lx-leading);
 }
 
 .schedule-ops {
   display: flex;
-  gap: 14px;
-}
-
-.link-btn {
-  border: none;
-  padding: 0;
-  background: transparent;
-  color: var(--lx-accent, #12b7f5);
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.link-btn.danger {
-  color: var(--lx-danger, #e74c3c);
-}
-
-.link-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.add-btn {
-  width: 100%;
-  border: 1px dashed var(--lx-border, #ddd);
-  background: transparent;
-  border-radius: 8px;
-  padding: 12px;
-  font-size: 13px;
-  color: var(--lx-accent, #12b7f5);
-  cursor: pointer;
-}
-
-.add-btn:hover {
-  background: var(--lx-bg-muted, rgba(0, 0, 0, 0.03));
+  gap: var(--lx-space-xl);
 }
 
 .schedule-form {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--lx-space-sm);
 }
 
 .field-label {
-  font-size: 12px;
-  color: var(--lx-text-muted, #999);
-  margin-top: 4px;
+  font-size: var(--lx-font-sm);
+  color: var(--lx-text-muted);
+  margin-top: var(--lx-space-xs);
 }
 
 .field-input {
   width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--lx-border, #ddd);
-  border-radius: 6px;
-  font-size: 13px;
-  background: var(--lx-bg-card, #fff);
-  color: var(--lx-text, #333);
+  padding: var(--lx-space) var(--lx-space-md);
+  border: 1px solid var(--lx-border);
+  border-radius: var(--lx-radius-xs);
+  font-size: var(--lx-font-md);
+  background: var(--lx-bg-card);
+  color: var(--lx-text-primary);
   box-sizing: border-box;
 }
 
 .form-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.ghost-btn,
-.primary-btn {
-  border: none;
-  border-radius: 6px;
-  padding: 8px 14px;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.ghost-btn {
-  background: var(--lx-bg-muted, rgba(0, 0, 0, 0.06));
-  color: var(--lx-text, #333);
-}
-
-.primary-btn {
-  background: var(--lx-accent, #12b7f5);
-  color: #fff;
-}
-
-.ghost-btn:disabled,
-.primary-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
+  gap: var(--lx-space);
+  margin-top: var(--lx-space-md);
 }
 
 .empty {
-  font-size: 13px;
-  color: var(--lx-text-muted, #999);
-  padding: 8px 0;
+  font-size: var(--lx-font-md);
+  color: var(--lx-text-muted);
+  padding: var(--lx-space) 0;
 }
 
 .member-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--lx-space-xs);
 }
 
 .member-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 0;
+  gap: var(--lx-space-md);
+  padding: var(--lx-space) 0;
 }
 
 .member-name {
   flex: 1;
   min-width: 0;
-  font-size: 14px;
+  font-size: var(--lx-font);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -537,7 +477,7 @@ function toggleMemberMute(memberId: string, memberName: string, muted: boolean) 
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--lx-space-2xs);
 }
 
 .member-meta .member-name {
@@ -545,47 +485,40 @@ function toggleMemberMute(memberId: string, memberName: string, muted: boolean) 
 }
 
 .member-badge {
-  font-size: 11px;
-  color: var(--lx-text-muted, #999);
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-muted);
 }
 
 .muted-badge {
-  font-size: 11px;
-  color: var(--lx-danger, #e74c3c);
+  font-size: var(--lx-font-xs);
+  color: var(--lx-danger, var(--lx-danger));
   flex-shrink: 0;
 }
 
 .muted-hint {
-  font-size: 12px;
-  color: var(--lx-text-muted, #999);
+  font-size: var(--lx-font-sm);
+  color: var(--lx-text-muted);
   flex-shrink: 0;
 }
 
 .member-page {
   position: absolute;
   inset: 0;
-  z-index: 3;
+  z-index: var(--lx-z-raised-3);
   display: flex;
   flex-direction: column;
-  background: var(--lx-bg-elevated, var(--lx-bg-card, #fff));
+  background: var(--lx-bg-elevated, var(--lx-bg-card));
 }
 
 .role-action {
-  border: none;
-  background: transparent;
-  color: var(--lx-accent, #12b7f5);
-  font-size: 13px;
-  cursor: pointer;
+  border: none !important;
+  background: transparent !important;
+  color: var(--lx-accent, var(--lx-accent));
   flex-shrink: 0;
-  padding: 4px 0;
+  padding: var(--lx-space-xs) 0;
+  height: auto;
 }
-
 .role-action.danger {
-  color: var(--lx-danger, #e74c3c);
-}
-
-.role-action:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  color: var(--lx-danger, var(--lx-danger));
 }
 </style>

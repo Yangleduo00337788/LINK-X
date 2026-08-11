@@ -300,7 +300,7 @@ const showMiddleList = computed(
   height: 40px;
   min-height: 40px;
   width: 100%;
-  z-index: 2;
+  z-index: var(--lx-z-raised-2);
   position: relative;
   background: transparent;
 }
@@ -315,7 +315,7 @@ const showMiddleList = computed(
   border-radius: 0;
   box-shadow: none;
   background: transparent;
-  padding: 0 8px 8px 0;
+  padding: 0 var(--lx-space) var(--lx-space) 0;
 }
 
 .content-wrapper {
@@ -360,8 +360,8 @@ const showMiddleList = computed(
   background: transparent;
   cursor: col-resize;
   position: relative;
-  z-index: 10;
-  transition: background 0.2s;
+  z-index: var(--lx-z-dropdown);
+  transition: background var(--lx-duration-md);
 }
 
 .resizer::after {

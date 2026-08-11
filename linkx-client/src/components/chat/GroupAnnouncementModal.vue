@@ -1,13 +1,14 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { NInput, NButton, NCheckbox, useMessage } from 'naive-ui'
+import { NInput, NCheckbox, useMessage } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
 import { useGroupMetaStore } from '../../stores/groupMeta'
 import Avatar from '../Avatar.vue'
 import PinIcon from '../icons/PinIcon.vue'
+import { LxButton, LxIconButton } from '../ui'
 import { useI18n } from '../../i18n'
 
 const message = useMessage()
@@ -158,7 +159,7 @@ function roleLabel(role: string) {
       <div class="announce-window" @click.stop>
         <header class="win-head">
           <h2>{{ t('extra.groupAnnouncementTitle', { name: currentSession?.name || t('extra.groupChat') }) }}</h2>
-          <button type="button" class="close-x" @click="close">×</button>
+          <LxIconButton variant="close" :title="t('common.close')" @click="close">×</LxIconButton>
         </header>
 
         <div class="body">
@@ -178,15 +179,15 @@ function roleLabel(role: string) {
               </n-checkbox>
             </div>
             <div class="compose-actions">
-              <n-button size="small" :disabled="saving" @click="cancelCompose">{{ t('common.cancel') }}</n-button>
-              <n-button size="small" type="primary" :loading="saving" @click="save">{{ t('common.save') }}</n-button>
+              <LxButton variant="sm" :disabled="saving" @click="cancelCompose">{{ t('common.cancel') }}</LxButton>
+              <LxButton variant="sm-primary" :disabled="saving" @click="save">{{ t('common.save') }}</LxButton>
             </div>
           </div>
 
           <div v-else class="toolbar">
-            <n-button v-if="canEdit" size="small" type="primary" @click="startCreate">
+            <LxButton v-if="canEdit" variant="sm-primary" @click="startCreate">
               {{ t('extra.publishAnnouncement') }}
-            </n-button>
+            </LxButton>
             <p v-else class="view-only">{{ t('extra.announcementAdminOnly') }}</p>
           </div>
 
@@ -208,30 +209,27 @@ function roleLabel(role: string) {
               </div>
               <pre class="content">{{ item.content }}</pre>
               <div v-if="canEdit" class="card-actions">
-                <button
-                  type="button"
-                  class="link-btn"
+                <LxButton
+                  variant="link"
                   :disabled="busyId === item.id"
                   @click="togglePin(item.id, item.pinned)"
                 >
                   {{ item.pinned ? t('extra.unpinAnnouncement') : t('extra.pinAnnouncement') }}
-                </button>
-                <button
-                  type="button"
-                  class="link-btn"
+                </LxButton>
+                <LxButton
+                  variant="link"
                   :disabled="busyId === item.id"
                   @click="startEdit(item.id, item.content)"
                 >
                   {{ t('common.edit') }}
-                </button>
-                <button
-                  type="button"
-                  class="link-btn danger"
+                </LxButton>
+                <LxButton
+                  variant="link-danger"
                   :disabled="busyId === item.id"
                   @click="removeItem(item.id)"
                 >
                   {{ t('common.delete') }}
-                </button>
+                </LxButton>
               </div>
             </article>
             <p v-if="!items.length" class="empty">{{ t('extra.noAnnouncement') }}</p>
@@ -246,12 +244,12 @@ function roleLabel(role: string) {
 .modal-root {
   position: fixed;
   inset: 0;
-  z-index: 2250;
+  z-index: var(--lx-z-dialog-top);
   background: var(--lx-bg-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: var(--lx-space-3xl);
 }
 
 .announce-window {
@@ -269,80 +267,71 @@ function roleLabel(role: string) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 18px;
+  padding: var(--lx-space-xl) var(--lx-space-2xl);
   border-bottom: 1px solid var(--lx-border-light);
 }
 
 .win-head h2 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--lx-font-lg);
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding-right: 12px;
+  padding-right: var(--lx-space-lg);
   color: var(--lx-text-body);
-}
-
-.close-x {
-  border: none;
-  background: none;
-  font-size: 22px;
-  color: var(--lx-text-muted);
-  cursor: pointer;
-  flex-shrink: 0;
 }
 
 .body {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 18px 18px;
+  padding: var(--lx-space-lg) var(--lx-space-2xl) var(--lx-space-2xl);
 }
 
 .hint {
-  margin: 0 0 12px;
-  font-size: 12px;
+  margin: 0 0 var(--lx-space-lg);
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
 }
 
 .toolbar {
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 12px;
+  margin-bottom: var(--lx-space-lg);
 }
 
 .view-only {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
 }
 
 .compose {
-  margin-bottom: 14px;
-  padding: 12px;
+  margin-bottom: var(--lx-space-xl);
+  padding: var(--lx-space-lg);
   background: var(--lx-bg-panel);
   border-radius: var(--lx-radius);
 }
 
 .compose-pin {
-  margin-top: 8px;
+  margin-top: var(--lx-space);
 }
 
 .compose-actions {
-  margin-top: 10px;
+  margin-top: var(--lx-space-md);
   display: flex;
-  gap: 8px;
+  gap: var(--lx-space);
   justify-content: flex-end;
 }
 
 .list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--lx-space-lg);
 }
 
 .card {
-  padding: 12px;
+  padding: var(--lx-space-lg);
   border: 1px solid var(--lx-border-light);
   border-radius: var(--lx-radius);
 }
@@ -354,8 +343,8 @@ function roleLabel(role: string) {
 
 .card-head {
   display: flex;
-  gap: 10px;
-  margin-bottom: 8px;
+  gap: var(--lx-space-md);
+  margin-bottom: var(--lx-space);
 }
 
 .meta {
@@ -367,80 +356,62 @@ function roleLabel(role: string) {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: var(--lx-space-sm);
 }
 
 .author {
-  font-size: 14px;
+  font-size: var(--lx-font);
   font-weight: 600;
   color: var(--lx-text-body);
 }
 
 .role {
-  font-size: 11px;
-  color: #fa8c16;
+  font-size: var(--lx-font-xs);
+  color: var(--lx-group-announce);
   background: var(--lx-warning-bg);
-  padding: 1px 6px;
+  padding: var(--lx-space-hair) var(--lx-space-sm);
   border-radius: var(--lx-radius);
 }
 
 .pin-tag {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  font-size: 11px;
+  gap: var(--lx-space-2xs);
+  font-size: var(--lx-font-xs);
   color: var(--lx-accent);
   background: var(--lx-bg-card);
-  padding: 1px 6px;
+  padding: var(--lx-space-hair) var(--lx-space-sm);
   border-radius: var(--lx-radius);
 }
 
 .time {
   display: block;
-  margin-top: 2px;
-  font-size: 12px;
+  margin-top: var(--lx-space-2xs);
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
 }
 
 .content {
   margin: 0;
   font-family: inherit;
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: var(--lx-font);
+  line-height: var(--lx-leading-relaxed);
   color: var(--lx-text-body);
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .card-actions {
-  margin-top: 10px;
+  margin-top: var(--lx-space-md);
   display: flex;
-  gap: 12px;
+  gap: var(--lx-space-lg);
   justify-content: flex-end;
-}
-
-.link-btn {
-  border: none;
-  background: none;
-  padding: 0;
-  font-size: 12px;
-  color: var(--lx-accent);
-  cursor: pointer;
-}
-
-.link-btn.danger {
-  color: var(--lx-danger, #e74c3c);
-}
-
-.link-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 
 .empty {
   text-align: center;
   color: var(--lx-text-muted);
-  padding: 28px 12px;
+  padding: var(--lx-space-5xl-minus) var(--lx-space-lg);
   margin: 0;
 }
 </style>

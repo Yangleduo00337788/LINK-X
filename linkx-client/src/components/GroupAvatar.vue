@@ -39,7 +39,7 @@ const cells = computed(() => {
     return {
       imageUrl: hasCustom ? raw : DEFAULT_AVATAR_URL,
       isLogo: !hasCustom,
-      color: f.color || '#f0f4f8'
+      color: f.color || 'var(--lx-bg-logo)'
     }
   })
 })
@@ -87,7 +87,7 @@ function onCellError(index: number) {
       v-for="(cell, i) in cells"
       :key="i"
       class="cell"
-      :style="{ backgroundColor: cell.isLogo ? '#f0f4f8' : cell.color }"
+      :style="{ backgroundColor: cell.isLogo ? 'var(--lx-bg-logo)' : cell.color }"
     >
       <img
         :src="cell.imageUrl"
@@ -128,14 +128,14 @@ function onCellError(index: number) {
 
 .group-avatar.collage {
   display: grid;
-  background: #d0d4dc;
+  background: var(--lx-avatar-placeholder);
 }
 
 .group-avatar.fallback {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f0f4f8;
+  background: var(--lx-bg-logo);
   border-radius: 50%;
 }
 

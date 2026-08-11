@@ -71,7 +71,7 @@ function onImgError() {
     :style="{
       width: `${size}px`,
       height: `${size}px`,
-      backgroundColor: isLogoDisplay ? '#f0f4f8' : color,
+      backgroundColor: isLogoDisplay ? 'var(--lx-bg-logo)' : color,
       fontSize: fontSize
     }"
   >

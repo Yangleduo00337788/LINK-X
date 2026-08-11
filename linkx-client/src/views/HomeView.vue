@@ -97,6 +97,6 @@ watch(isLoggedIn, syncWindowMode, { immediate: true, flush: 'post' })
 .auth-loading {
   width: 100%;
   height: 100%;
-  background: var(--lx-bg-panel, #f5f5f5);
+  background: var(--lx-bg-panel);
 }
 </style>

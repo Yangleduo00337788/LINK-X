@@ -13,6 +13,8 @@ import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { NIcon, useMessage } from 'naive-ui'
 import { CloseOutline, CheckmarkOutline } from '@vicons/ionicons5'
 import { useI18n } from '../../i18n'
+import { LxButton, LxIconButton } from '../ui'
+import { lxColorHex } from '../../theme/vars'
 
 const { t } = useI18n()
 
@@ -118,7 +120,7 @@ function drawCanvas() {
     ctx.drawImage(img, ix, iy, iw, ih, cx, cy, cw, ch)
 
     // 边框
-    ctx.strokeStyle = '#fff'
+    ctx.strokeStyle = lxColorHex.white
     ctx.lineWidth = 2
     ctx.strokeRect(cx, cy, cw, ch)
 
@@ -134,7 +136,7 @@ function drawCanvas() {
 
     // 四个角（稍微突出）
     const corner = 6
-    ctx.strokeStyle = '#fff'
+    ctx.strokeStyle = lxColorHex.white
     ctx.lineWidth = 3
     // 左上
     ctx.beginPath(); ctx.moveTo(cx - corner, cy); ctx.lineTo(cx, cy); ctx.lineTo(cx, cy - corner); ctx.stroke()
@@ -311,9 +313,9 @@ watch(() => props.imageUrl, async () => {
         <div class="crop-header">
           <span class="crop-title">{{ t('extra.cropBannerTitle') }}</span>
           <span class="crop-ratio">{{ t('extra.cropRatio', { w: targetW, h: targetH }) }}</span>
-          <button class="close-btn" @click="onClose">
+          <LxIconButton variant="close" class="close-btn" :title="t('common.close')" @click="onClose">
             <n-icon :component="CloseOutline" :size="18" />
-          </button>
+          </LxIconButton>
         </div>
 
         <!-- 裁剪画布 -->
@@ -340,13 +342,13 @@ watch(() => props.imageUrl, async () => {
 
         <!-- 底部按钮 -->
         <div class="crop-footer">
-          <button class="btn-skip" @click="emit('skip', props.file!)">{{ t('extra.skipCrop') }}</button>
+          <LxButton variant="skip" @click="emit('skip', props.file!)">{{ t('extra.skipCrop') }}</LxButton>
           <div class="footer-right">
-            <button class="btn-cancel" @click="onClose">{{ t('common.cancel') }}</button>
-            <button class="btn-confirm" @click="confirmCrop">
+            <LxButton variant="crop-action" @click="onClose">{{ t('common.cancel') }}</LxButton>
+            <LxButton variant="crop-action-primary" @click="confirmCrop">
               <n-icon :component="CheckmarkOutline" :size="16" />
               {{ t('extra.confirmUpload') }}
-            </button>
+            </LxButton>
           </div>
         </div>
       </div>
@@ -358,12 +360,12 @@ watch(() => props.imageUrl, async () => {
 .crop-overlay {
   position: fixed;
   inset: 0;
-  z-index: 500;
+  z-index: var(--lx-z-modal);
   background: rgba(0, 0, 0, 0.72);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: var(--lx-space-3xl);
 }
 
 .crop-modal {
@@ -380,59 +382,44 @@ watch(() => props.imageUrl, async () => {
 .crop-header {
   display: flex;
   align-items: center;
-  padding: 14px 16px;
+  padding: var(--lx-space-xl) var(--lx-space-2xl);
   border-bottom: 1px solid var(--lx-border-light);
-  gap: 10px;
+  gap: var(--lx-space-md);
 }
 
 .crop-title {
-  font-size: 15px;
+  font-size: var(--lx-font-lg);
   font-weight: 600;
   color: var(--lx-text);
 }
 
 .crop-ratio {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
   background: var(--lx-bg-panel);
-  padding: 2px 8px;
-  border-radius: 10px;
+  padding: var(--lx-space-2xs) var(--lx-space);
+  border-radius: var(--lx-radius-xl);
 }
 
 .close-btn {
   margin-left: auto;
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: transparent;
-  border-radius: var(--lx-radius);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: var(--lx-text-muted);
-  transition: all 0.2s;
-}
-.close-btn:hover {
-  background: var(--lx-bg-hover);
-  color: var(--lx-text);
 }
 
 .crop-body {
-  padding: 20px;
+  padding: var(--lx-space-3xl);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: var(--lx-space-lg);
 }
 
 .canvas-wrap {
   position: relative;
   width: 100%;
   max-width: 800px;
-  border-radius: 8px;
+  border-radius: var(--lx-radius-sm);
   overflow: hidden;
-  background: #000;
+  background: var(--lx-black);
 }
 
 .crop-source {
@@ -452,7 +439,7 @@ watch(() => props.imageUrl, async () => {
 }
 
 .crop-hint {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
   margin: 0;
 }
@@ -461,68 +448,19 @@ watch(() => props.imageUrl, async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 12px 16px;
+  gap: var(--lx-space-md);
+  padding: var(--lx-space-lg) var(--lx-space-2xl);
   border-top: 1px solid var(--lx-border-light);
 }
 
 .footer-right {
   display: flex;
   align-items: center;
-  gap: 10px;
-}
-
-.btn-skip {
-  border: none;
-  background: transparent;
-  color: var(--lx-text-muted);
-  font-size: 13px;
-  cursor: pointer;
-  padding: 8px 12px;
-  border-radius: var(--lx-radius);
-  transition: all 0.2s;
-}
-.btn-skip:hover {
-  background: var(--lx-bg-hover);
-  color: var(--lx-text);
-}
-
-.btn-cancel {
-  border: 1px solid var(--lx-border-light);
-  background: transparent;
-  color: var(--lx-text-muted);
-  padding: 8px 20px;
-  border-radius: var(--lx-radius);
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.btn-cancel:hover {
-  background: var(--lx-bg-hover);
-  color: var(--lx-text);
-}
-
-.btn-confirm {
-  border: none;
-  background: var(--lx-accent);
-  color: #fff;
-  padding: 8px 20px;
-  border-radius: var(--lx-radius);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 0.2s;
-}
-.btn-confirm:hover {
-  opacity: 0.88;
-  transform: translateY(-1px);
+  gap: var(--lx-space-md);
 }
 
 .fade-enter-active, .fade-leave-active {
-  transition: opacity 0.2s ease;
+  transition: opacity var(--lx-duration-md) ease;
 }
 .fade-enter-from, .fade-leave-to {
   opacity: 0;

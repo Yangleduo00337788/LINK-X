@@ -12,6 +12,7 @@ import { useContactsStore } from '../../stores/contacts'
 import { useAppStore } from '../../stores/app'
 import { useI18n } from '../../i18n'
 import Avatar from '../Avatar.vue'
+import { LxButton, LxIconButton } from '../ui'
 
 type FilterDirection = 'all' | 'incoming' | 'outgoing'
 type FilterStatus = 'all' | InviteStatus
@@ -164,22 +165,20 @@ async function handleClear() {
     <div class="header">
       <h2 class="title">{{ t('contacts.friendNotif') }}</h2>
       <div class="actions">
-        <button
-          class="action-btn"
+        <LxIconButton
           :title="t('contacts.clear')"
           :disabled="clearing"
           @click="handleClear"
         >
           <n-icon :component="TrashOutline" :size="20" />
-        </button>
+        </LxIconButton>
         <n-dropdown trigger="click" :options="filterOptions" @select="handleFilterSelect">
-          <button
-            class="action-btn"
-            :class="{ active: hasActiveFilter }"
+          <LxIconButton
+            :active="hasActiveFilter"
             :title="t('contacts.filter')"
           >
             <n-icon :component="FilterOutline" :size="20" />
-          </button>
+          </LxIconButton>
         </n-dropdown>
       </div>
     </div>
@@ -193,7 +192,7 @@ async function handleClear() {
         <div v-for="item in filteredFriendNotifs" :key="item.id" class="notif-card">
           <Avatar
             :text="(item.name || '?').charAt(0)"
-            color="#12b7f5"
+            color="var(--lx-accent)"
             :image-url="item.avatar || undefined"
             :size="44"
           />
@@ -210,8 +209,8 @@ async function handleClear() {
             v-if="item.status === INVITE_STATUS.PENDING && item.direction === 'incoming'"
             class="actions-right"
           >
-            <button type="button" class="btn accept" @click="handleAccept(item.id)">{{ t('contacts.accept') }}</button>
-            <button type="button" class="btn reject" @click="handleReject(item.id)">{{ t('contacts.reject') }}</button>
+            <LxButton variant="notif-accept" @click="handleAccept(item.id)">{{ t('contacts.accept') }}</LxButton>
+            <LxButton variant="notif-reject" @click="handleReject(item.id)">{{ t('contacts.reject') }}</LxButton>
           </div>
           <div v-else class="status">{{ statusLabel(item.status) }}</div>
         </div>
@@ -233,12 +232,12 @@ async function handleClear() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
+  padding: 0 var(--lx-space-4xl);
   border-bottom: 1px solid var(--lx-divider);
 }
 
 .title {
-  font-size: 18px;
+  font-size: var(--lx-font-3xl);
   font-weight: 500;
   color: var(--lx-text-body);
   margin: 0;
@@ -246,58 +245,31 @@ async function handleClear() {
 
 .actions {
   display: flex;
-  gap: 8px;
-}
-
-.action-btn {
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: transparent;
-  border-radius: var(--lx-radius);
-  cursor: pointer;
-  color: var(--lx-text-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.action-btn:hover:not(:disabled) {
-  background: var(--lx-bg-hover);
-}
-
-.action-btn.active {
-  color: var(--lx-accent);
-  background: rgba(18, 183, 245, 0.1);
-}
-
-.action-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  gap: var(--lx-space);
 }
 
 .content {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 24px;
+  padding: var(--lx-space-2xl) var(--lx-space-4xl);
 }
 
 .empty {
   text-align: center;
   color: var(--lx-text-muted);
-  padding: 40px;
+  padding: var(--lx-space-section);
 }
 
 .notif-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--lx-space-lg);
 }
 
 .notif-card {
   display: flex;
-  gap: 12px;
-  padding: 16px;
+  gap: var(--lx-space-lg);
+  padding: var(--lx-space-2xl);
   background: var(--lx-bg-card);
   border-radius: var(--lx-radius);
   align-items: flex-start;
@@ -311,9 +283,9 @@ async function handleClear() {
 .title-line {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--lx-space-sm);
   align-items: baseline;
-  margin-bottom: 4px;
+  margin-bottom: var(--lx-space-xs);
 }
 
 .name {
@@ -322,51 +294,32 @@ async function handleClear() {
 }
 
 .action-text {
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   color: var(--lx-text-secondary);
 }
 
 .date {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
   margin-left: auto;
 }
 
 .message,
 .source {
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   color: var(--lx-text-secondary);
-  margin-top: 2px;
+  margin-top: var(--lx-space-2xs);
 }
 
 .actions-right {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--lx-space-sm);
   flex-shrink: 0;
 }
 
-.btn {
-  min-width: 56px;
-  height: 28px;
-  border-radius: var(--lx-radius);
-  border: none;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.btn.accept {
-  background: var(--lx-accent);
-  color: var(--lx-bg-card);
-}
-
-.btn.reject {
-  background: var(--lx-bg-panel);
-  color: var(--lx-text-secondary);
-}
-
 .status {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
   flex-shrink: 0;
 }

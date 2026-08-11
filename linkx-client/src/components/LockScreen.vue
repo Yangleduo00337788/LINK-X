@@ -1,8 +1,9 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
 import { ref } from 'vue'
-import { NInput, NButton, NAvatar, NIcon, useMessage } from 'naive-ui'
+import { NInput, NAvatar, NIcon, useMessage } from 'naive-ui'
 import { LockClosedOutline, ArrowForwardOutline } from '@vicons/ionicons5'
+import { LxIconButton } from './ui'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
 import { useI18n } from '../i18n'
@@ -59,9 +60,9 @@ async function handleUnlock() {
           @keyup.enter="handleUnlock"
         >
           <template #suffix>
-            <n-button text @click="handleUnlock">
+            <LxIconButton :title="t('lock.title')" @click="handleUnlock">
               <n-icon :component="ArrowForwardOutline" />
-            </n-button>
+            </LxIconButton>
           </template>
         </n-input>
         <div v-if="errorMsg" class="error-msg">{{ errorMsg }}</div>
@@ -75,7 +76,7 @@ async function handleUnlock() {
 .lock-screen {
   position: fixed;
   inset: 0;
-  z-index: 30000;
+  z-index: var(--lx-z-lock);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -86,51 +87,51 @@ async function handleUnlock() {
 
 .lock-content {
   position: relative;
-  z-index: 1;
+  z-index: var(--lx-z-raised);
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: #ffffff;
-  padding: 40px 60px;
-  border-radius: 16px;
+  background: var(--lx-bg-card);
+  padding: var(--lx-space-section) var(--lx-space-block-lg);
+  border-radius: var(--lx-radius-2xl);
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35);
   min-width: 320px;
 }
 
 [data-theme='dark'] .lock-content {
-  background: #2c2c2c;
+  background: var(--lx-bg-card);
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
 }
 
 .lock-icon-wrapper {
-  margin-bottom: 24px;
-  color: var(--lx-accent, #12b7f5);
+  margin-bottom: var(--lx-space-4xl);
+  color: var(--lx-accent, var(--lx-accent));
 }
 
 .avatar {
-  margin-bottom: 16px;
-  border: 2px solid #ffffff;
+  margin-bottom: var(--lx-space-2xl);
+  border: 2px solid var(--lx-text-on-accent)fff;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-  background: var(--lx-accent, #12b7f5);
-  color: #fff;
-  font-size: 28px;
+  background: var(--lx-accent, var(--lx-accent));
+  color: var(--lx-text-on-accent);
+  font-size: var(--lx-font-6xl);
 }
 
 [data-theme='dark'] .avatar {
-  border-color: #2c2c2c;
+  border-color: var(--lx-lock-border);
 }
 
 .nickname {
-  margin: 0 0 8px;
-  font-size: 20px;
+  margin: 0 0 var(--lx-space);
+  font-size: var(--lx-font-4xl);
   font-weight: 500;
-  color: var(--lx-text-body, #333333);
+  color: var(--lx-text-body);
 }
 
 .status {
-  margin: 0 0 32px;
-  font-size: 14px;
-  color: var(--lx-text-secondary, #666666);
+  margin: 0 0 var(--lx-space-5xl);
+  font-size: var(--lx-font);
+  color: var(--lx-text-secondary);
 }
 
 .unlock-form {
@@ -141,20 +142,20 @@ async function handleUnlock() {
 }
 
 .password-input {
-  border-radius: var(--lx-radius, 8px);
+  border-radius: var(--lx-radius);
 }
 
 .error-msg {
-  margin-top: 12px;
-  color: var(--lx-danger, #ff4d4f);
-  font-size: 12px;
+  margin-top: var(--lx-space-lg);
+  color: var(--lx-danger, var(--lx-danger-hover));
+  font-size: var(--lx-font-sm);
   text-align: center;
 }
 
 .hint {
-  margin-top: 12px;
-  font-size: 12px;
-  color: var(--lx-text-secondary, #666666);
+  margin-top: var(--lx-space-lg);
+  font-size: var(--lx-font-sm);
+  color: var(--lx-text-secondary);
   text-align: center;
 }
 </style>

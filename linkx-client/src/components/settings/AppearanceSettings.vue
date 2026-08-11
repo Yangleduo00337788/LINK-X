@@ -18,6 +18,7 @@ import {
   resolveThemePreference
 } from '../../utils/themeSync'
 import { useI18n } from '../../i18n'
+import { LxGroupCard } from '../ui'
 
 const appStore = useAppStore()
 const appSettingsStore = useAppSettingsStore()
@@ -49,13 +50,13 @@ function pickAccent(id: string) {
 
 <template>
   <div class="settings-scroll">
-    <section class="group-card">
+    <LxGroupCard tag="section" variant="settings">
       <div class="group-head"><span>{{ t('appearance.themeMode') }}</span></div>
       <div class="theme-mode-row">
         <button
           type="button"
           class="theme-mode"
-          :class="{ active: themeMode === 'system' }"
+          :class="{ 'is-active': themeMode === 'system' }"
           @click="applyThemeMode('system')"
         >
           <n-icon :component="DesktopOutline" :size="20" />
@@ -64,7 +65,7 @@ function pickAccent(id: string) {
         <button
           type="button"
           class="theme-mode"
-          :class="{ active: themeMode === 'light' }"
+          :class="{ 'is-active': themeMode === 'light' }"
           @click="applyThemeMode('light')"
         >
           <n-icon :component="SunnyOutline" :size="20" />
@@ -73,16 +74,16 @@ function pickAccent(id: string) {
         <button
           type="button"
           class="theme-mode"
-          :class="{ active: themeMode === 'dark' }"
+          :class="{ 'is-active': themeMode === 'dark' }"
           @click="applyThemeMode('dark')"
         >
           <n-icon :component="MoonOutline" :size="20" />
           <span>{{ t('appearance.dark') }}</span>
         </button>
       </div>
-    </section>
+    </LxGroupCard>
 
-    <section class="group-card">
+    <LxGroupCard tag="section" variant="settings">
       <div class="group-head"><span>{{ t('appearance.accent') }}</span></div>
       <div class="accent-row">
         <button
@@ -90,7 +91,7 @@ function pickAccent(id: string) {
           :key="c.id"
           type="button"
           class="accent-dot"
-          :class="{ active: accentColor === c.id, rainbow: c.id === 'rainbow' }"
+          :class="{ 'is-active': accentColor === c.id, rainbow: c.id === 'rainbow' }"
           :style="c.id === 'rainbow' ? undefined : { background: c.color }"
           :title="c.label"
           @click="pickAccent(c.id)"
@@ -103,7 +104,7 @@ function pickAccent(id: string) {
           />
         </button>
       </div>
-    </section>
+    </LxGroupCard>
   </div>
 </template>
 
@@ -113,22 +114,22 @@ function pickAccent(id: string) {
 .theme-mode-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  padding: 4px 16px 16px;
+  gap: var(--lx-space-md);
+  padding: var(--lx-space-xs) var(--lx-space-2xl) var(--lx-space-2xl);
 }
 
 .theme-mode {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 14px 8px;
+  gap: var(--lx-space);
+  padding: var(--lx-space-xl) var(--lx-space);
   border: 1.5px solid var(--lx-border-light);
-  border-radius: 10px;
+  border-radius: var(--lx-radius-xl);
   background: var(--lx-bg-card);
   color: var(--lx-text-secondary);
   cursor: pointer;
-  transition: border-color 0.2s, color 0.2s, box-shadow 0.2s;
+  transition: border-color var(--lx-duration-md), color var(--lx-duration-md), box-shadow var(--lx-duration-md);
 }
 
 .theme-mode:hover {
@@ -136,22 +137,22 @@ function pickAccent(id: string) {
   color: var(--lx-text-body);
 }
 
-.theme-mode.active {
+.theme-mode.is-active {
   border-color: var(--lx-accent);
   color: var(--lx-accent);
-  box-shadow: 0 0 0 3px var(--lx-accent-soft);
+  box-shadow: var(--lx-shadow-ring-accent);
 }
 
 .theme-mode span {
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   font-weight: 500;
 }
 
 .accent-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  padding: 4px 18px 18px;
+  gap: var(--lx-space-lg);
+  padding: var(--lx-space-xs) var(--lx-space-2xl) var(--lx-space-2xl);
 }
 
 .accent-dot {
@@ -164,30 +165,23 @@ function pickAccent(id: string) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.15s, box-shadow 0.15s;
+  transition: transform var(--lx-duration), box-shadow var(--lx-duration);
 }
 
 .accent-dot:hover {
   transform: scale(1.08);
 }
 
-.accent-dot.active {
+.accent-dot.is-active {
   box-shadow: 0 0 0 2px var(--lx-bg-card), 0 0 0 4px var(--lx-accent);
 }
 
 .accent-dot.rainbow {
-  background: conic-gradient(
-    #ff6b6b,
-    #feca57,
-    #48dbfb,
-    #ff9ff3,
-    #54a0ff,
-    #ff6b6b
-  );
+  background: var(--lx-gradient-rainbow);
 }
 
 .accent-check {
-  color: #fff;
+  color: var(--lx-text-on-accent);
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
 }
 </style>

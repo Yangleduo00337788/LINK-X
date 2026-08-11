@@ -7,7 +7,6 @@ import { ref, watch, computed } from 'vue'
 import {
   NModal,
   NInput,
-  NButton,
   NDatePicker,
   NTimePicker,
   NIcon,
@@ -19,8 +18,10 @@ import { storeToRefs } from 'pinia'
 import { useCalendarStore } from '../../stores/calendar'
 import type { CalendarEvent } from '../../stores/calendar'
 import { useI18n } from '../../i18n'
+import { LxButton, LxIconButton } from '../ui'
+import { lxEventColors } from '../../theme/vars'
 
-const EVENT_COLORS = ['#3370ff', '#f54a45', '#ff8800', '#7b61ff', '#00b578', '#12b7f5']
+const EVENT_COLORS = lxEventColors
 
 const props = defineProps<{
   show: boolean
@@ -255,21 +256,21 @@ async function saveEvent() {
     :closable="false"
     :mask-closable="!saving"
     :z-index="10002"
-    style="width: 440px; max-width: 94vw; border-radius: 12px; padding: 0;"
+    style="width: 440px; max-width: 94vw; border-radius: var(--lx-radius-lg); padding: 0;"
     @update:show="emit('update:show', $event)"
   >
     <div class="modal-shell">
       <header class="modal-header">
         <h2 class="modal-title">{{ modalTitle }}</h2>
-        <button
-          type="button"
+        <LxIconButton
+          variant="close"
           class="close-btn"
-          :aria-label="t('modals.close')"
+          :title="t('modals.close')"
           :disabled="saving"
           @click="closeModal"
         >
           <n-icon :component="CloseOutline" :size="20" />
-        </button>
+        </LxIconButton>
       </header>
 
       <div class="form-body">
@@ -334,10 +335,10 @@ async function saveEvent() {
       </div>
 
       <footer class="modal-footer">
-        <n-button :disabled="saving" @click="closeModal">{{ t('common.cancel') }}</n-button>
-        <n-button type="primary" :loading="saving" @click="saveEvent">
+        <LxButton variant="modal" :disabled="saving" @click="closeModal">{{ t('common.cancel') }}</LxButton>
+        <LxButton variant="modal-primary" :disabled="saving" @click="saveEvent">
           {{ t('common.save') }}
-        </n-button>
+        </LxButton>
       </footer>
     </div>
   </n-modal>
@@ -345,20 +346,20 @@ async function saveEvent() {
 
 <style scoped>
 .modal-shell {
-  padding: 0 4px 4px;
+  padding: 0 var(--lx-space-xs) var(--lx-space-xs);
 }
 
 .modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 4px 16px;
+  padding: var(--lx-space-xs) var(--lx-space-xs) var(--lx-space-2xl);
   border-bottom: 1px solid var(--lx-border-light);
 }
 
 .modal-title {
   margin: 0;
-  font-size: 17px;
+  font-size: var(--lx-font-2xl);
   font-weight: 600;
   color: var(--lx-text-body);
 }
@@ -368,7 +369,7 @@ async function saveEvent() {
   height: 32px;
   border: none;
   background: transparent;
-  border-radius: 8px;
+  border-radius: var(--lx-radius-sm);
   color: var(--lx-text-muted);
   cursor: pointer;
   display: inline-flex;
@@ -387,20 +388,20 @@ async function saveEvent() {
 }
 
 .form-body {
-  padding: 20px 4px 8px;
+  padding: var(--lx-space-3xl) var(--lx-space-xs) var(--lx-space);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--lx-space-2xl);
 }
 
 .form-row {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--lx-space);
 }
 
 .form-label {
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   font-weight: 500;
   color: var(--lx-text-body);
 }
@@ -411,15 +412,15 @@ async function saveEvent() {
 
 .form-hint {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--lx-font-sm);
   color: var(--lx-text-muted);
-  line-height: 1.45;
+  line-height: var(--lx-leading);
 }
 
 .time-range {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--lx-space-md);
 }
 
 .time-picker {
@@ -429,7 +430,7 @@ async function saveEvent() {
 
 .time-sep {
   flex-shrink: 0;
-  font-size: 13px;
+  font-size: var(--lx-font-md);
   color: var(--lx-text-muted);
 }
 
@@ -437,13 +438,13 @@ async function saveEvent() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--lx-space-lg);
 }
 
 .remind-label-wrap {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--lx-space-xs);
   min-width: 0;
 }
 
@@ -454,8 +455,8 @@ async function saveEvent() {
 .modal-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  padding: 12px 4px 0;
+  gap: var(--lx-space);
+  padding: var(--lx-space-lg) var(--lx-space-xs) 0;
   border-top: 1px solid var(--lx-border-light);
 }
 </style>

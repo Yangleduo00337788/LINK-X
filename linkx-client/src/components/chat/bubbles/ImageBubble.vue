@@ -67,7 +67,7 @@ function onDblClick(e: MouseEvent) {
 .lx-bubble-image {
   max-width: 220px;
   max-height: 280px;
-  border-radius: 8px;
+  border-radius: var(--lx-radius-sm);
   object-fit: cover;
   cursor: zoom-in;
   display: block;
