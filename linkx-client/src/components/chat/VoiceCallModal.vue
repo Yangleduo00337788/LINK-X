@@ -30,13 +30,13 @@ let durationTimer: ReturnType<typeof setInterval> | null = null
 const remoteAudioRef = ref<HTMLAudioElement | null>(null)
 
 const statusText = computed(() => {
-  if (phase.value === 'outgoing') return t('modals.waitPeerAnswer')
-  if (phase.value === 'connecting') return t('modals.connectingCall')
+  if (phase.value === 'outgoing') return t('extra.waitPeerAnswer')
+  if (phase.value === 'connecting') return t('extra.connectingCall')
   const m = Math.floor(seconds.value / 60)
     .toString()
     .padStart(2, '0')
   const s = (seconds.value % 60).toString().padStart(2, '0')
-  return t('modals.inCallDuration', { time: `${m}:${s}` })
+  return t('extra.inCallDuration', { time: `${m}:${s}` })
 })
 
 function clearDuration() {
@@ -104,11 +104,11 @@ async function hangUp() {
 }
 
 async function switchToVideo() {
-  message.info(t('modals.switchToVideoHint'))
+  message.info(t('extra.switchToVideoHint'))
 }
 
 function avatarText(name: string) {
-  return name?.charAt(0) || t('modals.friendChar')
+  return name?.charAt(0) || t('extra.friendChar')
 }
 </script>
 
@@ -127,18 +127,18 @@ function avatarText(name: string) {
             :image-url="peerAvatar || undefined"
             :size="88"
           />
-          <p class="peer">{{ peerName || t('modals.friend') }}</p>
+          <p class="peer">{{ peerName || t('extra.friend') }}</p>
           <div class="state-badges">
             <span class="badge" :class="{ off: !micOn }">
               <n-icon :component="micOn ? Mic : MicOff" :size="14" />
-              {{ micOn ? t('modals.micOnShort') : t('modals.micOffShort') }}
+              {{ micOn ? t('extra.micOnShort') : t('extra.micOffShort') }}
             </span>
           </div>
         </div>
         <div class="call-controls">
           <button type="button" class="ctl" :class="{ off: !micOn }" @click="callStore.toggleMic()">
             <n-icon :component="micOn ? Mic : MicOff" :size="28" />
-            <span>{{ micOn ? t('modals.muteMic') : t('modals.unmuteMic') }}</span>
+            <span>{{ micOn ? t('extra.muteMic') : t('extra.unmuteMic') }}</span>
           </button>
           <button type="button" class="ctl" @click="switchToVideo">
             <n-icon :component="Videocam" :size="28" />

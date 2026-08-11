@@ -22,14 +22,14 @@ const { t } = useI18n()
         <n-icon :component="PhonePortraitOutline" :size="20" />
       </div>
       <div class="card-info">
-        <div class="card-title">{{ msg.dataCardTitle || t('modals.dataCardTitle') }}</div>
-        <div class="card-sub">{{ msg.dataCardSub || t('modals.dataCardSub') }}</div>
+        <div class="card-title">{{ msg.dataCardTitle || t('extra.dataCardTitle') }}</div>
+        <div class="card-sub">{{ msg.dataCardSub || t('extra.dataCardSub') }}</div>
       </div>
-      <div class="card-tag">{{ t('modals.dataCardTag') }}</div>
+      <div class="card-tag">{{ t('extra.dataCardTag') }}</div>
     </div>
     <div class="card-divider" />
     <div class="card-body">
-      <div class="card-label">{{ msg.dataCardLabel || t('modals.dataCardLabel') }}</div>
+      <div class="card-label">{{ msg.dataCardLabel || t('extra.dataCardLabel') }}</div>
       <div class="card-value">{{ msg.dataCardValue || '-' }}</div>
     </div>
   </div>

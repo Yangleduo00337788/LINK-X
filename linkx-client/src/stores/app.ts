@@ -1828,7 +1828,7 @@ export const useAppStore = defineStore('app', {
             : type === 'voice'
               ? t('chat.voiceMessageTag')
               : type === 'redPacket'
-                ? (options.redPacketGreeting || trimmed || t('modals.greetingFallback'))
+                ? (options.redPacketGreeting || trimmed || t('extra.greetingFallback'))
                 : (trimmed || content),
         time,
         createTime: Date.now(),

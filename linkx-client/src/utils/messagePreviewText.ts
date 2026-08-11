@@ -22,7 +22,7 @@ export function locationPreviewLabel(content?: string): string {
 }
 
 export function redPacketPreviewLabel(greeting?: string): string {
-  return t('chat.preview.redPacket', { greeting: greeting || t('modals.greetingFallback') })
+  return t('chat.preview.redPacket', { greeting: greeting || t('extra.greetingFallback') })
 }
 
 export function voiceCallPreviewLabel(): string {

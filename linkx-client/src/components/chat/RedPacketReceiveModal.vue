@@ -61,7 +61,7 @@ const isLucky = computed(
     packetMsg.value?.redPacketType === 'lucky' ||
     standalone.type === 'lucky'
 )
-const typeLabel = computed(() => (isLucky.value ? t('modals.luckyPacket') : t('modals.normalPacket')))
+const typeLabel = computed(() => (isLucky.value ? t('extra.luckyPacket') : t('extra.normalPacket')))
 const opened = computed(
   () =>
     !!packetMsg.value?.redPacketOpened ||
@@ -82,15 +82,15 @@ const remaining = computed(() => {
 })
 const packetStatus = computed(() => packetMsg.value?.redPacketStatus || standalone.status)
 const greeting = computed(
-  () => packetMsg.value?.redPacketGreeting || standalone.greeting || t('modals.greetingFallback')
+  () => packetMsg.value?.redPacketGreeting || standalone.greeting || t('extra.greetingFallback')
 )
 const statusText = computed(() => {
   const s = packetStatus.value
-  if (s === 'finished') return t('modals.rpStatusFinished')
-  if (s === 'expired') return t('modals.rpStatusExpired')
-  if (isSelfPacket.value) return t('modals.rpStatusSent')
-  if (opened.value) return t('modals.rpStatusClaimed')
-  return t('modals.rpStatusPending')
+  if (s === 'finished') return t('extra.rpStatusFinished')
+  if (s === 'expired') return t('extra.rpStatusExpired')
+  if (isSelfPacket.value) return t('extra.rpStatusSent')
+  if (opened.value) return t('extra.rpStatusClaimed')
+  return t('extra.rpStatusPending')
 })
 const displayAmount = computed(() => {
   const raw =
@@ -188,15 +188,15 @@ async function openPacket() {
     standalone.redPacketId ||
     redPacketReceivePacketId.value
   if (!redPacketId) {
-    message.warning(t('modals.rpInfoMissing'))
+    message.warning(t('extra.rpInfoMissing'))
     return
   }
   if (isSelfPacket.value) {
-    message.info(t('modals.rpOwnPacket'))
+    message.info(t('extra.rpOwnPacket'))
     return
   }
   if (msg?.redPacketReceived || msg?.redPacketOpened || standalone.received || standalone.opened) {
-    message.info(t('modals.rpAlreadyReceived'))
+    message.info(t('extra.rpAlreadyReceived'))
     return
   }
   if (packetStatus.value === 'finished') {
@@ -238,12 +238,12 @@ async function openPacket() {
       animPhase.value = 'revealed'
     } else {
       animPhase.value = 'idle'
-      message.warning(res.message || t('modals.rpReceiveFail'))
+      message.warning(res.message || t('extra.rpReceiveFail'))
     }
   } catch (e) {
     animPhase.value = 'idle'
     const err = e as { response?: { data?: { message?: string } }; message?: string }
-    message.error(err.response?.data?.message || err.message || t('modals.rpReceiveFail'))
+    message.error(err.response?.data?.message || err.message || t('extra.rpReceiveFail'))
   } finally {
     opening.value = false
   }
@@ -260,7 +260,7 @@ async function openPacket() {
       >
         <div class="packet-cover">
           <span class="type-badge" :class="{ 'is-lucky': isLucky }">{{ typeLabel }}</span>
-          <p class="from">{{ isSelfPacket ? t('modals.rpFromSelf') : t('modals.rpReceived') }}</p>
+          <p class="from">{{ isSelfPacket ? t('extra.rpFromSelf') : t('modals.rpReceived') }}</p>
           <p class="greeting">{{ greeting }}</p>
 
           <div v-if="animPhase === 'spinning'" class="open-spinner" aria-hidden="true">
@@ -277,17 +277,17 @@ async function openPacket() {
           <p v-else-if="isSelfPacket" class="amount">¥{{ displayAmount }}</p>
           <p v-else-if="packetStatus === 'finished'" class="hint">{{ t('modals.rpFinished') }}</p>
           <p v-else-if="packetStatus === 'expired'" class="hint">{{ t('modals.rpExpired') }}</p>
-          <p v-else-if="!isSelfPacket" class="hint">{{ t('modals.rpTapOpen') }}</p>
-          <p v-else class="hint">{{ t('modals.rpWaitPeer') }}</p>
+          <p v-else-if="!isSelfPacket" class="hint">{{ t('extra.rpTapOpen') }}</p>
+          <p v-else class="hint">{{ t('extra.rpWaitPeer') }}</p>
 
-          <p class="status">{{ t('modals.rpStatusRemain', { status: statusText, n: remaining }) }}</p>
+          <p class="status">{{ t('extra.rpStatusRemain', { status: statusText, n: remaining }) }}</p>
         </div>
 
         <div v-if="redPacketRecords.length > 0 && (isSelfPacket || opened)" class="record-list">
           <div v-for="record in redPacketRecords" :key="record.id" class="record-item">
-            <span class="record-name">{{ record.nickname || t('modals.rpUserFallback') }}</span>
+            <span class="record-name">{{ record.nickname || t('extra.rpUserFallback') }}</span>
             <span class="record-amount">¥{{ Number(record.amount).toFixed(2) }}</span>
-            <span v-if="record.isLucky" class="lucky-tag">{{ t('modals.rpLuckyBest') }}</span>
+            <span v-if="record.isLucky" class="lucky-tag">{{ t('extra.rpLuckyBest') }}</span>
           </div>
         </div>
 
@@ -299,7 +299,7 @@ async function openPacket() {
             :disabled="opening"
             @click="openPacket"
           >
-            {{ opening ? t('modals.rpOpening') : t('modals.rpOpen') }}
+            {{ opening ? t('extra.rpOpening') : t('modals.rpOpen') }}
           </LxButton>
           <LxButton v-else variant="modal" @click="close">{{ t('modals.close') }}</LxButton>
         </div>

@@ -13,15 +13,15 @@ const { t } = useI18n()
 const isLucky = computed(() => props.msg.redPacketType === 'lucky')
 
 const typeLabel = computed(() =>
-  isLucky.value ? t('modals.luckyShort') : t('modals.normalPacket')
+  isLucky.value ? t('extra.luckyShort') : t('extra.normalPacket')
 )
 
 const subText = computed(() => {
-  if (props.msg.redPacketStatus === 'expired') return t('modals.rpStatusExpired')
-  if (props.msg.redPacketStatus === 'finished') return t('modals.rpStatusFinished')
-  if (props.msg.redPacketReceived || props.msg.redPacketOpened) return t('modals.rpStatusClaimed')
+  if (props.msg.redPacketStatus === 'expired') return t('extra.rpStatusExpired')
+  if (props.msg.redPacketStatus === 'finished') return t('extra.rpStatusFinished')
+  if (props.msg.redPacketReceived || props.msg.redPacketOpened) return t('extra.rpStatusClaimed')
   if (props.msg.isSelf) return typeLabel.value
-  return t('modals.openRedPacket')
+  return t('extra.openRedPacket')
 })
 </script>
 
@@ -36,11 +36,11 @@ const subText = computed(() => {
       expired: msg.redPacketStatus === 'expired'
     }"
   >
-    <div class="rp-icon">{{ isLucky ? t('modals.rpLuckyChar') : t('modals.rpNormalChar') }}</div>
+    <div class="rp-icon">{{ isLucky ? t('extra.rpLuckyChar') : t('extra.rpNormalChar') }}</div>
     <div class="rp-text">
       <div class="rp-title-row">
         <span class="rp-title">{{
-          msg.redPacketGreeting || msg.content || t('modals.greetingFallback')
+          msg.redPacketGreeting || msg.content || t('extra.greetingFallback')
         }}</span>
         <span class="rp-type-tag" :class="{ 'is-lucky': isLucky }">{{ typeLabel }}</span>
       </div>
@@ -48,7 +48,7 @@ const subText = computed(() => {
         <span>{{ subText }}</span>
         <span v-if="msg.redPacketTotalCount && msg.redPacketTotalCount > 1" class="rp-count">
           {{
-            t('modals.rpBubbleRemain', {
+            t('extra.rpBubbleRemain', {
               remain: msg.redPacketRemainingCount ?? msg.redPacketTotalCount,
               total: msg.redPacketTotalCount
             })

@@ -383,12 +383,12 @@ async function publish() {
     }
 
     if (videos.value.length) {
-      message.info(t('moments.uploadingVideos') || '正在上传视频…')
+      message.info(t('moments.uploadingVideos'))
       for (let i = 0; i < videos.value.length; i++) {
         const item = videos.value[i]
         const res = await uploadMomentsMedia(item.file)
         if (res.code !== 200 || !res.data) {
-          throw new Error(res.message || t('moments.videoUploadFail') || '视频上传失败')
+          throw new Error(res.message || t('moments.videoUploadFail'))
         }
         uploaded.push(res.data)
         done++
@@ -398,7 +398,7 @@ async function publish() {
 
     uploadProgress.value = 100
     const finalContent = trimmed
-      || (videos.value.length ? (t('moments.shareVideo') || '分享视频') : '')
+      || (videos.value.length ? t('moments.shareVideo') : '')
       || (mode.value === 'media' ? t('moments.shareImage') : '')
     const atUserIds = atUsers.value.map(u => u.id)
     const result = await momentsStore.addPost(finalContent, uploaded, {

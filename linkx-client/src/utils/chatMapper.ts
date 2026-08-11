@@ -154,7 +154,7 @@ export function messageToChatMessage(message: MessageItem, sessionId: string): C
     case 'redPacket': {
       // 服务端下行时已经把红包专属字段填到 message 上；若未填，从通用字段反推
       redPacketId = message.redPacketId ?? message.fileUrl ?? undefined
-      redPacketGreeting = message.redPacketGreeting ?? message.fileName ?? t('modals.greetingFallback')
+      redPacketGreeting = message.redPacketGreeting ?? message.fileName ?? t('extra.greetingFallback')
       const rawTotal = message.redPacketTotalAmount ?? message.fileSize
       // 后端约定 fileSize 为「分」，totalAmount 也可能是「分」；用 toYuan 统一展示
       redPacketAmount = rawTotal != null ? formatYuan(rawTotal) : ''

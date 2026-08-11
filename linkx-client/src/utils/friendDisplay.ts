@@ -5,7 +5,7 @@
 import { t } from '../i18n'
 
 export function formatFriendDisplayName(nickname?: string | null, remark?: string | null): string {
-  const nick = (nickname || '').trim() || t('modals.friend')
+  const nick = (nickname || '').trim() || t('extra.friend')
   const r = (remark || '').trim()
   return r ? `（${nick}）${r}` : nick
 }

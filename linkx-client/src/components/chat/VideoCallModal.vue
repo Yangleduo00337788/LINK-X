@@ -31,16 +31,16 @@ const localVideoRef = ref<HTMLVideoElement | null>(null)
 const remoteVideoRef = ref<HTMLVideoElement | null>(null)
 
 const statusText = computed(() => {
-  const peer = peerName.value || t('modals.friend')
-  if (phase.value === 'outgoing') return t('modals.callingPeer', { name: peer })
-  if (phase.value === 'connecting') return t('modals.connectingCall')
-  return t('modals.videoWithPeer', { name: peer })
+  const peer = peerName.value || t('extra.friend')
+  if (phase.value === 'outgoing') return t('extra.callingPeer', { name: peer })
+  if (phase.value === 'connecting') return t('extra.connectingCall')
+  return t('extra.videoWithPeer', { name: peer })
 })
 
 const placeholderText = computed(() => {
-  if (phase.value === 'outgoing') return t('modals.waitAnswer')
-  if (phase.value === 'connecting') return t('modals.connectingCall')
-  return t('modals.waitingRemoteVideo')
+  if (phase.value === 'outgoing') return t('extra.waitAnswer')
+  if (phase.value === 'connecting') return t('extra.connectingCall')
+  return t('extra.waitingRemoteVideo')
 })
 
 watch(errorMessage, msg => {
@@ -125,14 +125,14 @@ async function hangUp() {
             <span
               class="badge"
               :class="{ off: !micOn }"
-              :title="micOn ? t('modals.micOnTitle') : t('modals.micOffTitle')"
+              :title="micOn ? t('extra.micOnTitle') : t('extra.micOffTitle')"
             >
               <n-icon :component="micOn ? Mic : MicOff" :size="16" />
             </span>
             <span
               class="badge"
               :class="{ off: !cameraOn }"
-              :title="cameraOn ? t('modals.cameraOnTitle') : t('modals.cameraOffTitle')"
+              :title="cameraOn ? t('extra.cameraOnTitle') : t('extra.cameraOffTitle')"
             >
               <n-icon :component="cameraOn ? Videocam : VideocamOff" :size="16" />
             </span>
@@ -146,19 +146,19 @@ async function hangUp() {
               muted
               playsinline
             />
-            <span v-if="!localStream" class="pip-name">{{ t('modals.openingCamera') }}</span>
-            <span v-else-if="!cameraOn" class="pip-name">{{ t('modals.cameraOffLabel') }}</span>
+            <span v-if="!localStream" class="pip-name">{{ t('extra.openingCamera') }}</span>
+            <span v-else-if="!cameraOn" class="pip-name">{{ t('extra.cameraOffLabel') }}</span>
             <span v-else class="pip-name">{{ userProfile.nickname }}</span>
           </div>
         </div>
         <div class="call-controls">
           <button type="button" class="ctl" :class="{ off: !micOn }" @click="callStore.toggleMic()">
             <n-icon :component="micOn ? Mic : MicOff" :size="26" />
-            <span>{{ micOn ? t('modals.muteMic') : t('modals.unmuteMic') }}</span>
+            <span>{{ micOn ? t('extra.muteMic') : t('extra.unmuteMic') }}</span>
           </button>
           <button type="button" class="ctl" :class="{ off: !cameraOn }" @click="callStore.toggleCamera()">
             <n-icon :component="cameraOn ? Videocam : VideocamOff" :size="26" />
-            <span>{{ cameraOn ? t('modals.muteVideo') : t('modals.unmuteVideo') }}</span>
+            <span>{{ cameraOn ? t('extra.muteVideo') : t('extra.unmuteVideo') }}</span>
           </button>
           <button type="button" class="ctl hangup" @click="hangUp">
             <n-icon :component="Call" :size="26" />
