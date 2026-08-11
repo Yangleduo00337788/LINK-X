@@ -166,7 +166,7 @@ async function onLanguageChange(value: string) {
   color: var(--lx-text);
 }
 
-.nav-item.active {
+.nav-item.is-active {
   background: var(--lx-accent-soft);
   color: var(--lx-accent);
   font-weight: 600;
