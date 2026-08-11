@@ -16,6 +16,7 @@ import {
   resolveApiBaseUrl,
   resolveWsBaseUrl
 } from '../shared/endpoints'
+import { mainT } from './mainI18n'
 
 /** 渲染进程发起的受控下载请求 */
 type DownloadFilePayload = {
@@ -85,7 +86,7 @@ async function readDownloadBytes(payload: DownloadFilePayload): Promise<Buffer> 
   }
   const url = (payload.url || '').trim()
   if (!url) {
-    throw new Error('缺少下载内容')
+    throw new Error(mainT(desktopPrefs.language, 'downloadMissingContent'))
   }
   if (/^https?:\/\//i.test(url)) {
     // 限制下载源为可信 API / MinIO 域，防 SSRF / 任意 URL 下载到磁盘
@@ -93,18 +94,18 @@ async function readDownloadBytes(payload: DownloadFilePayload): Promise<Buffer> 
     try {
       urlOrigin = new URL(url).origin
     } catch {
-      throw new Error('下载地址格式错误')
+      throw new Error(mainT(desktopPrefs.language, 'downloadBadUrl'))
     }
     if (!isAllowedDownloadOrigin(urlOrigin)) {
-      throw new Error('仅允许下载本应用可信源的文件')
+      throw new Error(mainT(desktopPrefs.language, 'downloadUntrustedSource'))
     }
     const res = await net.fetch(url)
     if (!res.ok) {
-      throw new Error(`下载失败 (${res.status})`)
+      throw new Error(mainT(desktopPrefs.language, 'downloadFailStatus', { status: res.status }))
     }
     return Buffer.from(await res.arrayBuffer())
   }
-  throw new Error('不支持的下载地址，请由渲染进程传入文件数据')
+  throw new Error(mainT(desktopPrefs.language, 'downloadUnsupportedUrl'))
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -348,10 +349,10 @@ function syncLoginItemHidden() {
 }
 
 function trayMenuLabels() {
-  if (desktopPrefs.language === 'en-US') {
-    return { show: 'Show LinkX', quit: 'Quit' }
+  return {
+    show: mainT(desktopPrefs.language, 'trayShow'),
+    quit: mainT(desktopPrefs.language, 'trayQuit')
   }
-  return { show: '显示主窗口', quit: '退出' }
 }
 
 function rebuildTrayMenu() {
@@ -639,7 +640,7 @@ function registerWindowIpc() {
     const win = winFromSender(event)
     const { dialog } = await import('electron')
     const result = await dialog.showOpenDialog(win ?? undefined, {
-      title: '选择图片',
+      title: mainT(desktopPrefs.language, 'pickImagesTitle'),
       properties: ['openFile', 'multiSelections'],
       filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }]
     })
@@ -703,9 +704,12 @@ function registerWindowIpc() {
       await session.defaultSession.clearStorageData({
         storages: ['cachestorage', 'shadercache', 'serviceworkers']
       })
-      return { ok: true, message: '缓存已清理' }
+      return { ok: true, message: mainT(desktopPrefs.language, 'cacheCleared') }
     } catch (e) {
-      return { ok: false, message: e instanceof Error ? e.message : '清理失败' }
+      return {
+        ok: false,
+        message: e instanceof Error ? e.message : mainT(desktopPrefs.language, 'cacheClearFail')
+      }
     }
   })
 
@@ -747,7 +751,10 @@ function registerWindowIpc() {
       }
       return { ok: true, path: targetPath }
     } catch (e) {
-      return { ok: false, message: e instanceof Error ? e.message : '下载失败' }
+      return {
+        ok: false,
+        message: e instanceof Error ? e.message : mainT(desktopPrefs.language, 'downloadFail')
+      }
     }
   })
 
@@ -770,7 +777,7 @@ function registerWindowIpc() {
       try {
         const url = (payload.url || '').trim()
         if (!/^https:\/\//i.test(url)) {
-          return { ok: false, message: '仅支持 HTTPS 下载地址' }
+          return { ok: false, message: mainT(desktopPrefs.language, 'downloadHttpsOnly') }
         }
 
         // 域名白名单校验，防止渲染进程被 XSS 后下载执行任意来源 exe
@@ -782,10 +789,10 @@ function registerWindowIpc() {
         try {
           parsedUrl = new URL(url)
         } catch {
-          return { ok: false, message: '无效的下载地址' }
+          return { ok: false, message: mainT(desktopPrefs.language, 'downloadInvalidUrl') }
         }
         if (!allowedHosts.includes(parsedUrl.hostname.toLowerCase())) {
-          return { ok: false, message: '下载源不在允许的白名单内' }
+          return { ok: false, message: mainT(desktopPrefs.language, 'downloadNotWhitelisted') }
         }
 
         let fileName = sanitizeFileName(payload.fileName || '')
@@ -806,7 +813,7 @@ function registerWindowIpc() {
         const allowedExts = ['.exe', '.msi', '.dmg', '.AppImage', '.deb', '.rpm']
         const ext = path.extname(fileName).toLowerCase()
         if (!allowedExts.includes(ext)) {
-          return { ok: false, message: '仅允许下载安装包格式(.exe/.msi/.dmg/.AppImage)' }
+          return { ok: false, message: mainT(desktopPrefs.language, 'downloadInstallerOnly') }
         }
 
         const dir = path.join(app.getPath('temp'), 'LinkX-Update')
@@ -820,7 +827,10 @@ function registerWindowIpc() {
 
         const res = await net.fetch(url)
         if (!res.ok) {
-          return { ok: false, message: `下载失败 (${res.status})` }
+          return {
+            ok: false,
+            message: mainT(desktopPrefs.language, 'downloadFailStatus', { status: res.status })
+          }
         }
         const bytes = Buffer.from(await res.arrayBuffer())
         await fs.promises.writeFile(targetPath, bytes)
@@ -857,7 +867,7 @@ function registerWindowIpc() {
               path: targetPath,
               launched: false,
               silent: false,
-              message: '已下载，请在打开的文件夹中手动运行安装包'
+              message: mainT(desktopPrefs.language, 'downloadInstallerReady')
             }
           }
           launched = true
@@ -870,7 +880,10 @@ function registerWindowIpc() {
 
         return { ok: true, path: targetPath, launched, silent: silentInstall }
       } catch (e) {
-        return { ok: false, message: e instanceof Error ? e.message : '下载安装失败' }
+        return {
+          ok: false,
+          message: e instanceof Error ? e.message : mainT(desktopPrefs.language, 'downloadInstallerFail')
+        }
       }
     }
   )
@@ -1015,11 +1028,14 @@ function registerWindowIpc() {
       if (!win) return null
       const result = await dialog.showMessageBox(win, {
         type: 'question',
-        buttons: ['允许', '取消'],
+        buttons: [
+          mainT(desktopPrefs.language, 'screenshotAllow'),
+          mainT(desktopPrefs.language, 'screenshotCancel')
+        ],
         defaultId: 1,
-        title: '屏幕截图授权',
-        message: 'LinkX 请求进行屏幕截图，是否允许？',
-        detail: '截图将用于发送给聊天对象。'
+        title: mainT(desktopPrefs.language, 'screenshotTitle'),
+        message: mainT(desktopPrefs.language, 'screenshotMessage'),
+        detail: mainT(desktopPrefs.language, 'screenshotDetail')
       })
       if (result.response !== 0) return null
       screenshotAllowed = true
