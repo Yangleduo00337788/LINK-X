@@ -1,0 +1,22 @@
+# 作者：yangleduo
+appId: com.linkx.uninstaller
+productName: Uninstall LinkX
+extraMetadata:
+  main: dist-uninstaller-electron/main/uninstall-main.js
+directories:
+  output: release/uninstaller
+  buildResources: build
+files:
+  - dist-installer/**/*
+  - dist-uninstaller-electron/**/*
+  - '!dist-uninstaller-electron/package.json'
+extraResources:
+  - from: build/icon.ico
+    to: icon.ico
+win:
+  target:
+    - portable
+  icon: build/icon.ico
+  sign: null
+  signAndEditExecutable: false
+artifactName: Uninstall LinkX.${ext}

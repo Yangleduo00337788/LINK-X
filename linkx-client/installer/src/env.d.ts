@@ -46,6 +46,26 @@ interface InstallerApi {
   onProgress: (callback: (progress: InstallerProgress) => void) => () => void
 }
 
+interface UninstallerDefaults {
+  version: string
+  installDir: string
+  appName: string
+}
+
+interface UninstallerStartOptions {
+  removeUserData?: boolean
+}
+
+interface UninstallerApi {
+  getDefaults: () => Promise<UninstallerDefaults>
+  startUninstall: (options: UninstallerStartOptions) => Promise<{ ok: boolean; message?: string }>
+  close: () => void
+  minimize: () => void
+  setWindowSize?: (width: number, height: number) => void
+  onProgress: (callback: (progress: InstallerProgress) => void) => () => void
+}
+
 interface Window {
   installer?: InstallerApi
+  uninstaller?: UninstallerApi
 }

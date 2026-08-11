@@ -60,6 +60,18 @@
       "dist/**/*",
       "dist-electron/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "build",
+        "to": "build",
+        "filter": [
+          "icon.ico",
+          "icon.png",
+          "icon-tray.png",
+          "icon-*.png"
+        ]
+      }
+    ],
     "win": {
       "target": "dir",
       "icon": "build/icon.ico",

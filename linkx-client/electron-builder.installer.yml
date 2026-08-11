@@ -17,6 +17,10 @@ extraResources:
       - '**/*'
   - from: build/icon.ico
     to: icon.ico
+  - from: release/uninstaller
+    to: uninstaller
+    filter:
+      - 'Uninstall LinkX.exe'
 win:
   target:
     - portable

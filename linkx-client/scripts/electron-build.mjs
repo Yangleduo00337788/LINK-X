@@ -45,7 +45,8 @@ function pruneIntermediateArtifacts() {
 
   const removableDirs = [
     path.join(releaseRoot, 'win-unpacked'),
-    path.join(releaseRoot, 'installer', 'win-unpacked')
+    path.join(releaseRoot, 'installer', 'win-unpacked'),
+    path.join(releaseRoot, 'uninstaller', 'win-unpacked')
   ]
   for (const dir of removableDirs) {
     if (fs.existsSync(dir)) {
@@ -69,6 +70,17 @@ function pruneIntermediateArtifacts() {
       if (!entry.name.startsWith('LinkX-Installer-') || !entry.name.endsWith('.exe')) {
         fs.rmSync(path.join(installerDir, entry.name), { force: true })
         console.log(`[electron:build] 已清理: ${path.relative(rootDir, path.join(installerDir, entry.name))}`)
+      }
+    }
+  }
+
+  const uninstallerDir = path.join(releaseRoot, 'uninstaller')
+  if (fs.existsSync(uninstallerDir)) {
+    for (const entry of fs.readdirSync(uninstallerDir, { withFileTypes: true })) {
+      if (!entry.isFile()) continue
+      if (entry.name !== 'Uninstall LinkX.exe') {
+        fs.rmSync(path.join(uninstallerDir, entry.name), { force: true })
+        console.log(`[electron:build] 已清理: ${path.relative(rootDir, path.join(uninstallerDir, entry.name))}`)
       }
     }
   }

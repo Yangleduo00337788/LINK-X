@@ -22,3 +22,21 @@ const installer: InstallerApi = {
 }
 
 contextBridge.exposeInMainWorld('installer', installer)
+
+const uninstaller: UninstallerApi = {
+  getDefaults: () => ipcRenderer.invoke('uninstaller:get-defaults'),
+  startUninstall: (options: UninstallerStartOptions) => ipcRenderer.invoke('uninstaller:start', options),
+  close: () => ipcRenderer.send('uninstaller:close'),
+  minimize: () => ipcRenderer.send('uninstaller:minimize'),
+  setWindowSize: (width: number, height: number) =>
+    ipcRenderer.send('uninstaller:set-window-size', { width, height }),
+  onProgress: (callback: (progress: InstallerProgress) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: InstallerProgress) => {
+      callback(progress)
+    }
+    ipcRenderer.on('uninstaller:progress', handler)
+    return () => ipcRenderer.removeListener('uninstaller:progress', handler)
+  }
+}
+
+contextBridge.exposeInMainWorld('uninstaller', uninstaller)

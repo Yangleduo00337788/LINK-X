@@ -3,6 +3,7 @@
  */
 /**
  * 打包自定义图形安装程序（需先由 electron-build 生成 .installer-payload）。
+ * 顺序：安装/卸载前端 → 卸载程序 exe → 安装程序 exe（内嵌卸载程序）。
  */
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
@@ -35,6 +36,23 @@ function run(command, args) {
   }
 }
 
+function removeNestedElectronPackageJson(dirName) {
+  const nestedPkg = path.join(rootDir, dirName, 'package.json')
+  if (fs.existsSync(nestedPkg)) {
+    fs.unlinkSync(nestedPkg)
+  }
+}
+
+function runElectronBuilder(configFile) {
+  const pkgPath = path.join(rootDir, 'package.json')
+  const pkgBackup = fs.readFileSync(pkgPath, 'utf8')
+  try {
+    run('npx', ['electron-builder', '--projectDir', rootDir, '--config', configFile])
+  } finally {
+    fs.writeFileSync(pkgPath, pkgBackup, 'utf8')
+  }
+}
+
 if (!fs.existsSync(path.join(stagingDir, 'LinkX.exe'))) {
   console.error(`[installer:build] 未找到安装包内容: ${stagingDir}`)
   console.error('请先执行 npm run electron:build')
@@ -42,26 +60,21 @@ if (!fs.existsSync(path.join(stagingDir, 'LinkX.exe'))) {
 }
 
 run('npx', ['vite', 'build', '--config', 'vite.installer.config.ts', '--mode', 'production'])
+removeNestedElectronPackageJson('dist-installer-electron')
+removeNestedElectronPackageJson('dist-uninstaller-electron')
 
-// 勿写入 dist-installer-electron/package.json：会覆盖根 package.json 的 type:module，
-// 导致 main.js 被当作 CommonJS 加载而报 "Cannot use import statement outside a module"。
-const nestedPkg = path.join(rootDir, 'dist-installer-electron', 'package.json')
-if (fs.existsSync(nestedPkg)) {
-  fs.unlinkSync(nestedPkg)
+const uninstallerExe = path.join(rootDir, releaseDir, 'uninstaller', 'Uninstall LinkX.exe')
+if (fs.existsSync(uninstallerExe)) {
+  fs.rmSync(uninstallerExe, { force: true })
 }
 
-const pkgPath = path.join(rootDir, 'package.json')
-const pkgBackup = fs.readFileSync(pkgPath, 'utf8')
-try {
-  run('npx', [
-    'electron-builder',
-    '--projectDir',
-    rootDir,
-    '--config',
-    'electron-builder.installer.yml'
-  ])
-} finally {
-  fs.writeFileSync(pkgPath, pkgBackup, 'utf8')
+runElectronBuilder('electron-builder.uninstaller.yml')
+
+if (!fs.existsSync(uninstallerExe)) {
+  console.error(`[installer:build] 未生成卸载程序: ${uninstallerExe}`)
+  process.exit(1)
 }
+
+runElectronBuilder('electron-builder.installer.yml')
 
 console.log(`[installer:build] 完成，输出见 ${releaseDir}/installer/LinkX-Installer-*.exe`)

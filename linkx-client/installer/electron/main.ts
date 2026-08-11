@@ -205,28 +205,42 @@ async function copyPayload(
   }
 }
 
-function escapePowerShell(value: string): string {
-  return value.replace(/'/g, "''")
+function resolveInstalledIconPath(targetDir: string, payloadDir: string): string {
+  const candidates = [
+    path.join(targetDir, 'icon.ico'),
+    path.join(targetDir, 'resources', 'build', 'icon.ico'),
+    path.join(payloadDir, 'resources', 'build', 'icon.ico'),
+    path.join(targetDir, APP_EXE)
+  ]
+  return candidates.find(candidate => fs.existsSync(candidate)) || path.join(targetDir, APP_EXE)
+}
+
+async function copyInstallIcon(payloadDir: string, targetDir: string): Promise<string> {
+  const src = path.join(payloadDir, 'resources', 'build', 'icon.ico')
+  const dest = path.join(targetDir, 'icon.ico')
+  if (rawFs.existsSync(src)) {
+    await rawFs.promises.copyFile(src, dest)
+    return dest
+  }
+  return resolveInstalledIconPath(targetDir, payloadDir)
 }
 
 function createShortcut(shortcutPath: string, targetPath: string, iconPath?: string): void {
   const workingDir = path.dirname(targetPath)
   const icon = iconPath || targetPath
-  const script = `
-$ws = New-Object -ComObject WScript.Shell
-$s = $ws.CreateShortcut('${escapePowerShell(shortcutPath)}')
-$s.TargetPath = '${escapePowerShell(targetPath)}'
-$s.WorkingDirectory = '${escapePowerShell(workingDir)}'
-$s.IconLocation = '${escapePowerShell(icon)},0'
-$s.Description = '${APP_NAME}'
-$s.Save()
-`
-  execSync(`powershell -NoProfile -ExecutionPolicy Bypass -Command "${script.replace(/"/g, '\\"')}"`, {
-    stdio: 'pipe'
+  const ok = shell.writeShortcutLink(shortcutPath, {
+    target: targetPath,
+    cwd: workingDir,
+    icon,
+    iconIndex: 0,
+    description: APP_NAME
   })
+  if (!ok) {
+    throw new Error(`创建快捷方式失败: ${shortcutPath}`)
+  }
 }
 
-function registerUninstall(targetDir: string, uninstallerPath: string): void {
+function registerUninstall(targetDir: string, uninstallerPath: string, iconPath?: string): void {
   const key = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\LinkX'
   const setValue = (name: string, type: string, value: string) => {
     execSync(`reg add "${key}" /v "${name}" /t ${type} /d "${value.replace(/"/g, '\\"')}" /f`, {
@@ -238,30 +252,41 @@ function registerUninstall(targetDir: string, uninstallerPath: string): void {
   setValue('DisplayVersion', 'REG_SZ', APP_VERSION)
   setValue('Publisher', 'REG_SZ', 'LinkX')
   setValue('InstallLocation', 'REG_SZ', targetDir)
-  setValue('UninstallString', 'REG_SZ', `"${uninstallerPath}"`)
-  setValue('DisplayIcon', 'REG_SZ', path.join(targetDir, APP_EXE))
+  setValue('UninstallString', 'REG_SZ', `"${uninstallerPath}" /D="${targetDir}"`)
+  setValue('DisplayIcon', 'REG_SZ', iconPath || path.join(targetDir, APP_EXE))
   setValue('NoModify', 'REG_DWORD', '1')
   setValue('NoRepair', 'REG_DWORD', '1')
 }
 
-function writeUninstaller(targetDir: string): string {
-  const uninstallPath = path.join(targetDir, 'Uninstall LinkX.bat')
-  const content = `@echo off
-chcp 65001 >nul
-echo 正在卸载 ${APP_NAME}...
-taskkill /F /IM ${APP_EXE} 2>nul
-timeout /t 1 /nobreak >nul
-del "%USERPROFILE%\\Desktop\\${APP_NAME}.lnk" 2>nul
-del "%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\${APP_NAME}.lnk" 2>nul
-reg delete "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v "${APP_NAME}" /f 2>nul
-reg delete "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\LinkX" /f 2>nul
-cd /d "%TEMP%"
-rd /s /q "${targetDir.replace(/\\/g, '\\\\')}"
-echo 卸载完成。
-pause
-`
-  fs.writeFileSync(uninstallPath, content, 'utf8')
-  return uninstallPath
+function getUninstallerSourcePath(): string {
+  if (app.isPackaged) {
+    const bundledDir = path.join(process.resourcesPath, 'uninstaller')
+    if (fs.existsSync(bundledDir)) {
+      const match = fs
+        .readdirSync(bundledDir)
+        .find(name => /^Uninstall LinkX.*\.exe$/i.test(name))
+      if (match) {
+        return path.join(bundledDir, match)
+      }
+    }
+    throw new Error('未找到卸载程序资源，请重新下载安装包')
+  }
+
+  const devCandidates = [
+    path.resolve(__dirname, '../../../release/uninstaller/Uninstall LinkX.exe'),
+    path.resolve(__dirname, '../../../release/uninstaller/Uninstall LinkX-1.0.0.exe')
+  ]
+  const found = devCandidates.find(candidate => fs.existsSync(candidate))
+  if (found) return found
+
+  throw new Error('未找到卸载程序，请先执行 npm run electron:build 生成卸载程序')
+}
+
+async function deployUninstaller(targetDir: string): Promise<string> {
+  const src = getUninstallerSourcePath()
+  const dest = path.join(targetDir, 'Uninstall LinkX.exe')
+  await rawFs.promises.copyFile(src, dest)
+  return dest
 }
 
 function setAutoStartOnBoot(exePath: string, enabled: boolean): void {
@@ -313,27 +338,26 @@ async function runInstall(options: {
   await copyPayload(payloadDir, installDir, progress)
 
   progress?.(96, '创建快捷方式...')
+  const iconPath = await copyInstallIcon(payloadDir, installDir)
   if (options.desktopShortcut) {
-    const desktop = path.join(os.homedir(), 'Desktop', `${APP_NAME}.lnk`)
-    createShortcut(desktop, appExePath)
+    const desktop = path.join(app.getPath('desktop'), `${APP_NAME}.lnk`)
+    createShortcut(desktop, appExePath, iconPath)
   }
   if (options.startMenuShortcut) {
     const startMenu = path.join(
-      os.homedir(),
-      'AppData',
-      'Roaming',
+      app.getPath('appData'),
       'Microsoft',
       'Windows',
       'Start Menu',
       'Programs',
       `${APP_NAME}.lnk`
     )
-    createShortcut(startMenu, appExePath)
+    createShortcut(startMenu, appExePath, iconPath)
   }
 
   progress?.(98, '写入卸载信息...')
-  const uninstallerPath = writeUninstaller(installDir)
-  registerUninstall(installDir, uninstallerPath)
+  const uninstallerPath = await deployUninstaller(installDir)
+  registerUninstall(installDir, uninstallerPath, iconPath)
 
   progress?.(99, '配置启动项...')
   setAutoStartOnBoot(appExePath, options.autoStartOnBoot)

@@ -22,4 +22,20 @@ const installer = {
   }
 }
 
+const uninstaller = {
+  getDefaults: () => ipcRenderer.invoke('uninstaller:get-defaults'),
+  startUninstall: options => ipcRenderer.invoke('uninstaller:start', options),
+  close: () => ipcRenderer.send('uninstaller:close'),
+  minimize: () => ipcRenderer.send('uninstaller:minimize'),
+  setWindowSize: (width, height) => ipcRenderer.send('uninstaller:set-window-size', { width, height }),
+  onProgress: callback => {
+    const handler = (_event, progress) => {
+      callback(progress)
+    }
+    ipcRenderer.on('uninstaller:progress', handler)
+    return () => ipcRenderer.removeListener('uninstaller:progress', handler)
+  }
+}
+
 contextBridge.exposeInMainWorld('installer', installer)
+contextBridge.exposeInMainWorld('uninstaller', uninstaller)

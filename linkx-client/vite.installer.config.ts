@@ -13,13 +13,18 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const rootDir = path.resolve(__dirname)
 const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8'))
 
-function copyInstallerPreload() {
+function copyInstallerPreload(targetRelativeDir: string) {
   const src = path.resolve(rootDir, 'installer/electron/preload.cjs')
-  const dir = path.resolve(rootDir, 'dist-installer-electron/preload')
+  const dir = path.resolve(rootDir, targetRelativeDir)
   const dest = path.join(dir, 'preload.cjs')
   if (!fs.existsSync(src)) return
   fs.mkdirSync(dir, { recursive: true })
   fs.copyFileSync(src, dest)
+}
+
+function copyAllInstallerPreloads() {
+  copyInstallerPreload('dist-installer-electron/preload')
+  copyInstallerPreload('dist-uninstaller-electron/preload')
 }
 
 export default defineConfig({
@@ -38,21 +43,27 @@ export default defineConfig({
   },
   build: {
     outDir: path.resolve(rootDir, 'dist-installer'),
-    emptyOutDir: true
+    emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        main: path.resolve(rootDir, 'installer/index.html'),
+        uninstall: path.resolve(rootDir, 'installer/uninstall.html')
+      }
+    }
   },
   plugins: [
     vue(),
     {
       name: 'copy-installer-preload',
       buildStart() {
-        copyInstallerPreload()
+        copyAllInstallerPreloads()
       }
     },
     electron([
       {
         entry: path.resolve(rootDir, 'installer/electron/main.ts'),
         onstart(options) {
-          copyInstallerPreload()
+          copyAllInstallerPreloads()
           options.startup()
         },
         vite: {
@@ -64,6 +75,20 @@ export default defineConfig({
           },
           build: {
             outDir: path.resolve(rootDir, 'dist-installer-electron/main'),
+            rollupOptions: {
+              external: ['electron']
+            }
+          }
+        }
+      },
+      {
+        entry: path.resolve(rootDir, 'installer/electron/uninstall-main.ts'),
+        vite: {
+          define: {
+            'process.env.LINKX_VERSION': JSON.stringify(pkg.version)
+          },
+          build: {
+            outDir: path.resolve(rootDir, 'dist-uninstaller-electron/main'),
             rollupOptions: {
               external: ['electron']
             }

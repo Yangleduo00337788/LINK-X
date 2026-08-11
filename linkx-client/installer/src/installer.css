@@ -495,3 +495,37 @@ input {
 .exit-modal__btn--primary:hover {
   filter: brightness(1.04);
 }
+
+.installer__uninstall-hint {
+  margin: 10px 0 0;
+  font-size: var(--lx-installer-font-size);
+  color: #64748b;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.installer__path-hint {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: #94a3b8;
+  text-align: center;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+.installer__bottom--compact {
+  padding-bottom: 28px;
+}
+
+.installer__install-btn--danger.installer__install-btn--ready {
+  background: linear-gradient(135deg, #fb7185 0%, #ef4444 48%, #dc2626 100%);
+  box-shadow:
+    0 8px 20px rgba(239, 68, 68, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24);
+}
+
+.installer__install-btn--danger.installer__install-btn--ready:hover {
+  box-shadow:
+    0 10px 24px rgba(239, 68, 68, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}

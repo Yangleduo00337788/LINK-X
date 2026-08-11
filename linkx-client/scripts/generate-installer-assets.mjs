@@ -20,7 +20,10 @@ const servicePath = path.join(rootDir, 'public/legal/data/service.zh-CN.js')
 const BRAND_COLOR = '#12b7f5'
 const BRAND_COLOR_DARK = '#0d8ec4'
 const ICON_CORNER_RADIUS_RATIO = 0.22
-const ICON_PADDING_RATIO = 0.12
+/** 桌面快捷方式 / .ico：留白过大会导致图标在任务栏里显得很小 */
+const ICON_PADDING_RATIO = 0.04
+/** 托盘专用：再收紧边距，小尺寸下 Logo 更易辨认 */
+const ICON_TRAY_PADDING_RATIO = 0.02
 
 async function createRoundedAppIcon(sharp, size, options = {}) {
   const {
@@ -68,7 +71,9 @@ async function generateAppIcons(sharp) {
     }
   }
 
-  const trayBuffer = await createRoundedAppIcon(sharp, 64)
+  const trayBuffer = await createRoundedAppIcon(sharp, 64, {
+    paddingRatio: ICON_TRAY_PADDING_RATIO
+  })
   fs.writeFileSync(path.join(buildDir, 'icon-tray.png'), trayBuffer)
 
   const toIco = (await import('to-ico')).default
