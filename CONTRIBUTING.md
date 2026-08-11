@@ -3,7 +3,7 @@
 
 感谢你对 LinkX 的关注。本文说明如何参与本仓库的开发协作。
 
-> 本仓库为私有项目。外部协作者须先获得仓库访问权限，方可提交代码。
+> 本仓库在 Gitee 公开托管，遵循 MIT 协议；参与代码贡献请通过 Issue / Pull Request。
 
 ---
 
@@ -91,7 +91,8 @@ docs: 更新 README 快速上手章节
 |----|------|
 | 状态管理 | 全局状态使用 Pinia，放 `src/stores/` |
 | 类型 | 业务类型集中在 `types/`，开启 TypeScript 严格模式 |
-| 样式 | 优先 UnoCSS / Design Token；组件 scoped 样式保持 BEM 习惯 |
+| 样式 | 客户端优先 `var(--lx-*)` Design Token 与 `components/ui` 公共组件；详见 README **8.4 客户端 UI 与样式规范** |
+| 样式入口 | `main.ts` 须同时引入 `assets/styles.css` 与 `styles/ui-components.css` |
 | 国际化 | 用户可见文案走 i18n，避免硬编码中文（管理端已接入 vue-i18n） |
 | Electron | 禁止开启 `nodeIntegration`，仅通过 Preload 暴露 API |
 

@@ -1,10 +1,11 @@
 <!-- 作者：yangleduo -->
-<div align="center">
+<div align="center" style="padding: 32px 0;">
 
-<div style="line-height:1;">
-<img src="./assets/logo.png" alt="LinkX Logo" width="128" style="display:block;margin:0 auto;padding:0;border:0;vertical-align:bottom;" />
-<h1 style="margin:-10px 0 10px;padding:0;border:0;font-size:2em;line-height:1;">LinkX</h1>
-</div>
+<img src="./linkx-client/public/apple-touch-icon.png" alt="LinkX Logo" width="192" style="display: block; margin: 0 auto;" />
+
+# LinkX
+
+**企业级即时通讯与协同平台**
 
 [![JDK](https://img.shields.io/badge/JDK-21-blue?logo=openjdk&logoColor=white)](https://openjdk.org/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.0-6DB33F?logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
@@ -16,9 +17,7 @@
 [![MinIO](https://img.shields.io/badge/MinIO-8.5.7-C72C48)](https://min.io/)
 [![Redis](https://img.shields.io/badge/Redis-7.2-DC382D?logo=redis&logoColor=white)](https://redis.io/)
 [![MySQL](https://img.shields.io/badge/MySQL-8.4-4479A1?logo=mysql&logoColor=white)](https://www.mysql.com/)
-[![License](https://img.shields.io/badge/License-Private-red)](https://gitee.com/yangleduo7788/link-x)
-
-**企业级即时通讯与协同平台**
+[![License](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
 
 https://gitee.com/yangleduo7788/link-x
 
@@ -34,6 +33,7 @@ https://gitee.com/yangleduo7788/link-x
 - [六、快速上手](#六快速上手)
 - [七、目录结构](#七目录结构)
 - [八、配置说明](#八配置说明)
+  - [8.4 客户端 UI 与样式规范](#84-客户端-ui-与样式规范)
 - [九、构建与部署](#九构建与部署)
 - [十、常见问题](#十常见问题)
 - [十一、贡献指南](#十一贡献指南)
@@ -48,7 +48,7 @@ LinkX 是一套**前后端分离**的企业级即时通讯（IM）解决方案�
 
 | 子工程 | 定位 | 技术栈 |
 |--------|------|--------|
-| `linkx-client` | 跨平台桌面 IM 客户端 | Vue 3、Electron、Pinia、Naive UI |
+| `linkx-client` | 跨平台桌面 IM 客户端 | Vue 3、Electron、Pinia、Naive UI、UnoCSS、统一 Design Token |
 | `linkx-admin` | Web 运营管理后台 | Vue 3、Vite、ECharts、RBAC |
 | `linkx-server` | 业务与实时消息服务 | Spring Boot 3.5、Netty、MyBatis-Flex |
 
@@ -104,6 +104,7 @@ LinkX 是一套**前后端分离**的企业级即时通讯（IM）解决方案�
 - **音视频会议**：WebRTC 单聊通话；多人 Mesh 会议（无 SFU）
 - **社交协作**：朋友圈、日历、笔记与收藏
 - **文件能力**：聊天文件、群文件 / 群相册、个人网盘（MinIO 对象存储）
+- **统一 UI 体系**：Design Token（`--lx-*`）、公共组件（`LxButton` / `LxIconButton` / `LxGroupCard`）、全站样式与窗控交互收拢
 - **账户安全**：双 Token 鉴权、图形验证码、登录风控、敏感词过滤、操作审计
 - **管理运营**：用户 / 角色 / 权限、内容审核、风控策略、统计大屏、系统监控
 
@@ -115,7 +116,7 @@ LinkX 是一套**前后端分离**的企业级即时通讯（IM）解决方案�
 flowchart TB
     subgraph 展现层["展现层（客户端 / 管理端）"]
         direction LR
-        C["linkx-client 桌面客户端<br/>Electron 主进程 · Vue3 渲染层<br/>Pinia · Naive UI · WebRTC"]
+        C["linkx-client 桌面客户端<br/>Electron 主进程 · Vue3 渲染层<br/>Pinia · Naive UI · UnoCSS · Design Token"]
         A["linkx-admin 运营管理后台<br/>RBAC 权限 · 风控审核 · 统计大屏<br/>ECharts · vue-i18n"]
     end
 
@@ -190,6 +191,7 @@ flowchart TB
 | Electron | 33.4.11 |
 | Pinia | 2.3.1 |
 | Naive UI | 2.44.1 |
+| UnoCSS | 0.59.4 |
 
 #### linkx-admin（package-lock）
 
@@ -338,14 +340,23 @@ link-x/
 │   ├── client-ui.png          # 客户端主界面
 │   ├── admin-login.png        # 管理端登录页
 │   └── admin-ui.png           # 管理端工作台
-├── linkx-client/              # 桌面客户端
-│   ├── electron/              # Electron 主进程、Preload
-│   ├── build/                 # 应用图标（electron-builder）
-│   ├── scripts/               # 开发脚本
-│   └── src/                   # Vue 渲染进程
-│       ├── api/               # 接口封装
-│       ├── components/        # 业务组件
-│       └── stores/            # Pinia 状态
+├── scripts/                   # 仓库级工具脚本（如作者信息戳记）
+├── linkx-client/               # 桌面客户端
+│   ├── electron/                # Electron 主进程、Preload
+│   ├── installer/               # 自定义图形安装 / 卸载向导（Vue）
+│   ├── build/                   # 应用图标、许可协议 RTF（electron-builder）
+│   ├── shared/                  # 主进程与渲染进程共用（API 基址、法律页 URL）
+│   ├── scripts/                 # 开发 / 打包 / 样式迁移辅助脚本
+│   └── src/                     # Vue 渲染进程
+│       ├── api/                 # 接口封装
+│       ├── assets/styles.css    # 全局 Design Token（--lx-*）
+│       ├── styles/              # ui-components.css、notifyFeed.css 等
+│       ├── theme/vars.ts        # Token 脚本侧引用（lxVar、lxColorHex）
+│       ├── components/          # 业务组件
+│       │   └── ui/              # LxButton、LxIconButton、LxGroupCard
+│       ├── stores/              # Pinia 状态
+│       ├── i18n/                # 国际化
+│       └── views/               # 路由级页面
 ├── linkx-admin/               # 管理后台
 │   └── src/
 │       ├── views/             # 页面
@@ -400,6 +411,32 @@ VITE_WS_BASE_URL=ws://localhost:8081
 | 自动登录 | 客户端勾选后使用 Refresh Token 静默换票 |
 | 安全存储 | Electron 下 Token / 锁屏 PIN 使用 OS 级 `safeStorage` 加密 |
 | 401 处理 | 前端自动 Refresh 并重试原请求 |
+
+### 8.4 客户端 UI 与样式规范
+
+客户端已建立统一的设计 Token 与公共组件体系。新增或改版页面须遵循下列约定，避免散落硬编码样式导致视觉不一致。
+
+| 层级 | 路径 | 说明 |
+|------|------|------|
+| Design Token | `linkx-client/src/assets/styles.css` | 定义 `--lx-*` 颜色、间距、圆角、字号、阴影、动效等 |
+| 脚本侧引用 | `linkx-client/src/theme/vars.ts` | `lxVar`、`lxColorHex`、`lxChatWallpaperBg` 等，供 JS / 内联样式使用 |
+| 公共样式 | `linkx-client/src/styles/ui-components.css` | `.lx-btn`、`.lx-action-btn`、`.lx-win-caption-btn` 等 |
+| 公共组件 | `linkx-client/src/components/ui/` | `LxButton`、`LxIconButton`、`LxGroupCard`（统一从此处导出） |
+| 样式入口 | `linkx-client/src/main.ts` | 须同时 `import` `assets/styles.css` 与 `styles/ui-components.css` |
+
+**开发约定：**
+
+| 序号 | 约定 |
+|------|------|
+| 1 | 按钮优先使用 `LxButton` / `LxIconButton`，或已有 `.lx-btn` / `.lx-action-btn` 类名 |
+| 2 | 颜色、间距、圆角优先使用 `var(--lx-*)`；场景色（渐变、文件色标等）须沉淀为 Token |
+| 3 | 调整全局主色、圆角、窗控悬停时，改 `styles.css` + `ui-components.css`，并同步 `theme/vars.ts` 中的 hex 镜像 |
+| 4 | Electron 窗控与状态栏置顶统一使用 `.lx-win-caption-btn`（圆角块悬停，关闭键红底白字） |
+| 5 | 用户可见文案走 `src/i18n/`，禁止在组件内硬编码中文（管理端同理） |
+
+**样式迁移脚本（维护用，非运行时依赖）：**
+
+`linkx-client/scripts/migrate-*.mjs` 用于批量将历史硬编码颜色 / 间距迁移至 Token，日常开发无需执行。
 
 ---
 
@@ -638,6 +675,19 @@ npm run build                    # 静态资源输出至 dist/
 
 完整说明见 **[九、构建与部署 → 9.2 桌面客户端](#92-桌面客户端)**。
 
+### Q7：客户端按钮样式异常（灰底黑边框、窗控无悬停）
+
+**原因：** `ui-components.css` 未正确加载。该文件不可放在 `styles.css` 末尾 `@import`（Vite 会报错并跳过），须在 `main.ts` 中显式引入。
+
+**处理：**
+
+1. 确认 `linkx-client/src/main.ts` 包含：
+   ```ts
+   import './assets/styles.css'
+   import './styles/ui-components.css'
+   ```
+2. 重启 `npm run electron:dev`，控制台不应再出现 `@import must precede` 报错。
+
 ---
 
 ## 十一、贡献指南
@@ -682,13 +732,13 @@ npm run build                    # 静态资源输出至 dist/
 
 | 版本 | 日期 | 摘要 |
 |------|------|------|
-| Unreleased | — | README 规范重构；仓库精简（移除 CI / 测试 / 独立文档目录） |
+| Unreleased | — | 客户端全面统一 UI 布局、样式与设计 Token；README 与项目结构对齐 |
 | **1.0.0** | 2026-08-09 | 首个稳定基线：IM 核心链路、WebRTC 会议、管理端 RBAC、双 Token 鉴权 |
 
 <details>
 <summary>1.0.0 主要能力（点击展开）</summary>
 
-- **客户端**：单聊 / 群聊、消息状态与已读回执、朋友圈、日历、笔记、网盘、Electron 桌面端
+- **客户端**：单聊 / 群聊、消息状态与已读回执、朋友圈、日历、笔记、网盘、Electron 桌面端、统一 Design Token 与公共 UI 组件
 - **管理端**：用户权限、风控审核、统计大屏、系统监控
 - **服务端**：REST + Netty WebSocket、MinIO 存储、Flyway 迁移、敏感词与审计
 
@@ -698,12 +748,14 @@ npm run build                    # 静态资源输出至 dist/
 
 ## 十三、许可证
 
-本项目为**私有仓库**，未经授权不得对外分发。
+本项目采用 **[MIT License](./LICENSE)** 开源协议。
 
 | 项目 | 信息 |
 |------|------|
 | 代码托管 | https://gitee.com/yangleduo7788/link-x |
-| 许可证 | Private（保留所有权利） |
+| 许可证 | MIT — 可自由使用、修改与分发，须保留版权声明 |
+
+使用、复制、修改或分发本软件时，请在副本中保留 `LICENSE` 文件及版权声明。
 
 ---
 

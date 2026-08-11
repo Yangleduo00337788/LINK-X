@@ -11,12 +11,17 @@
 
 ### 新增
 
-- README 按腾讯开源文档规范重构，补充贡献指南与更新日志
-- 仓库根目录 `assets/logo.png` 用于文档展示
+- 客户端 Design Token 体系（`--lx-*`）与 `ui-components.css` 公共样式
+- 公共 UI 组件：`LxButton`、`LxIconButton`、`LxGroupCard`
+- 样式迁移辅助脚本 `linkx-client/scripts/migrate-*.mjs`
 
 ### 变更
 
-- 精简仓库结构：移除 CI 流水线、测试套件与独立文档目录（不影响客户端 / 管理端 / 服务端运行）
+- `linkx-client` 全站迁移至统一按钮、间距、圆角与场景色 Token
+- 窗控与状态栏置顶统一 `.lx-win-caption-btn` 圆角块悬停交互
+- `ui-components.css` 改由 `main.ts` 显式引入（修复 `@import` 顺序导致的样式未加载）
+- README 与目录结构、客户端 UI 开发规范对齐
+- 文档与 MIT 许可证说明对齐（README / CONTRIBUTING）
 
 ---
 
