@@ -125,7 +125,7 @@ async function togglePin() {
   display: flex;
   align-items: stretch;
   padding: 0 0 0 var(--lx-space-md);
-  background: transparent;
+  background: var(--lx-bg-window);
   border-bottom: none;
   position: relative;
   z-index: var(--lx-z-fab);

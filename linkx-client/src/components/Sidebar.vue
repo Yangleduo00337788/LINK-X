@@ -27,8 +27,7 @@ import {
 } from '@vicons/ionicons5'
 import Avatar from './Avatar.vue'
 import { storeToRefs } from 'pinia'
-import { generateDefaultAvatar } from '../utils/defaultAvatar'
-import { isDisplayableMediaUrl, normalizeMediaUrl } from '../utils/mediaUrl'
+import { resolveUserAvatarUrl } from '../utils/defaultAvatar'
 import { useAppStore } from '../stores/app'
 import { useChatModalsStore } from '../stores/chatModals'
 import { useSettingsStore } from '../stores/settings'
@@ -74,9 +73,7 @@ const menuDropdownShow = ref(false)
 
 /** 侧栏头像：可展示的真实图，否则用本地默认图（避免 avatar 有值但不可加载时透明底+文字看不见） */
 const sidebarAvatarUrl = computed(() => {
-  const raw = normalizeMediaUrl(userProfile.value.avatar)
-  if (raw && isDisplayableMediaUrl(raw)) return raw
-  return generateDefaultAvatar(userProfile.value.nickname || t('nav.me'))
+  return resolveUserAvatarUrl(userProfile.value.avatar, userProfile.value.userId)
 })
 
 // 渲染下拉菜单项图标的工厂函数
@@ -328,7 +325,7 @@ function handleSelfAvatarClick(e: MouseEvent) {
 .sidebar {
   width: var(--lx-sidebar-width);
   height: 100%;
-  background: transparent;
+  background: var(--lx-bg-sidebar);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -439,13 +436,13 @@ function handleSelfAvatarClick(e: MouseEvent) {
   color: var(--lx-text-body);
 }
 
-.nav-item.active {
+.nav-item.is-active {
   color: var(--lx-accent);
   background: transparent;
   box-shadow: none;
 }
 
-.nav-item.active:hover {
+.nav-item.is-active:hover {
   background: var(--lx-bg-hover);
   color: var(--lx-accent);
 }

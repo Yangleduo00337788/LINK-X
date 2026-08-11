@@ -284,15 +284,14 @@ const showMiddleList = computed(
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: transparent;
+  background: var(--lx-bg-window);
   border-radius: 0;
   overflow: hidden;
   position: relative;
 }
 
 .app-shell.is-focused {
-  /* 使用 Windows 官方 Mica 材质，不再使用 CSS 模拟 */
-  background: transparent;
+  background: var(--lx-bg-window);
 }
 
 .top-status {
@@ -302,7 +301,7 @@ const showMiddleList = computed(
   width: 100%;
   z-index: var(--lx-z-raised-2);
   position: relative;
-  background: transparent;
+  background: var(--lx-bg-window);
 }
 
 .main-panel {
@@ -314,7 +313,7 @@ const showMiddleList = computed(
   align-items: stretch;
   border-radius: 0;
   box-shadow: none;
-  background: transparent;
+  background: var(--lx-bg-window);
   padding: 0 var(--lx-space) var(--lx-space) 0;
 }
 
