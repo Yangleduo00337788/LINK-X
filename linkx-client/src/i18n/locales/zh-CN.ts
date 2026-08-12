@@ -574,6 +574,7 @@ export default {
     noDownloadUrl: '发现新版本，但服务端未配置下载地址',
     serviceAgreement: '服务协议',
     privacyPolicy: '隐私协议',
+    helpCenter: '帮助中心',
     companyRights: '养乐多 版权所有',
     copyright: 'Copyright © 2026 Yangleduo All Rights Reserved'
   },

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <title>LinkX</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500&family=Questrial&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <section class="hero" id="hero">
+      <div class="hero__bg" aria-hidden="true"></div>
+      <canvas class="hero__mask" id="heroMask" aria-hidden="true"></canvas>
+      <img class="hero__figure" src="assets/hero-spokesperson-transparent.png" alt="" aria-hidden="true" />
+
+      <a class="hero__logo-link" id="navHome" href="#" aria-label="LinkX">
+        <img class="hero__logo" src="assets/logo-linkx-transparent.png" alt="LinkX" />
+      </a>
+
+      <div class="hero__divider" aria-hidden="true"></div>
+
+      <div class="hero__bar">
+        <nav class="hero__nav" aria-label="Main navigation">
+          <div class="hero__nav-dropdown">
+            <button type="button" class="hero__nav-link hero__nav-dropdown-trigger">
+              <span data-i18n="navProduct">产品</span>
+              <svg class="hero__nav-caret" width="1em" height="1em" viewBox="0 0 32 32" aria-hidden="true">
+                <path fill="currentColor" d="M16 22 6 12l1.4-1.4 8.6 8.6 8.6-8.6L26 12z"></path>
+              </svg>
+            </button>
+            <div class="hero__nav-menu" role="menu">
+              <a class="hero__nav-menu-item" id="navLinkX" href="#" role="menuitem"> LinkX </a>
+            </div>
+          </div>
+          <a
+            class="hero__nav-link"
+            id="navDocs"
+            href="docs.html"
+            data-i18n="navDocs"
+            >文档</a
+          >
+          <a
+            class="hero__nav-link"
+            id="navChangelog"
+            href="changelog.html"
+            data-i18n="navChangelog"
+            >版本日志</a
+          >
+          <a
+            class="hero__nav-link"
+            id="navJoinUs"
+            href="join.html"
+            data-i18n="navJoinUs"
+            >加入我们</a
+          >
+        </nav>
+
+        <div class="hero__lang hero__nav-dropdown">
+          <button type="button" class="hero__lang-trigger hero__nav-dropdown-trigger" aria-label="Language">
+            <img class="hero__lang-icon" src="assets/icon-translate.svg" alt="" />
+            <svg class="hero__nav-caret" width="1em" height="1em" viewBox="0 0 32 32" aria-hidden="true">
+              <path fill="currentColor" d="M16 22 6 12l1.4-1.4 8.6 8.6 8.6-8.6L26 12z"></path>
+            </svg>
+          </button>
+          <div class="hero__nav-menu hero__lang-menu" role="menu">
+            <button type="button" class="hero__nav-menu-item hero__lang-option is-active" data-lang="zh" role="menuitem">
+              简体中文
+            </button>
+            <button type="button" class="hero__nav-menu-item hero__lang-option" data-lang="en" role="menuitem">
+              English
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero__content">
+        <div class="hero__heading">
+          <h1 class="hero__title">LinkX</h1>
+          <p class="hero__subtitle" data-i18n="heroSubtitle">
+            面向团队的新一代企业级即时通讯方案，支持多端协同与实时消息，帮助你更高效地沟通、协作与管理。
+          </p>
+        </div>
+
+        <div class="install">
+          <div class="platform-switch" role="group" aria-label="安装平台">
+            <button type="button" class="platform-switch__option is-active" data-platform="linux" aria-pressed="true">
+              Linux
+            </button>
+            <button type="button" class="platform-switch__option" data-platform="macos" aria-pressed="false">
+              macOS
+            </button>
+            <button type="button" class="platform-switch__option" data-platform="windows" aria-pressed="false">
+              Windows
+            </button>
+            <button type="button" class="platform-switch__option" data-platform="android" aria-pressed="false">
+              Android
+            </button>
+            <button type="button" class="platform-switch__option" data-platform="ios" aria-pressed="false">
+              iOS
+            </button>
+          </div>
+
+          <div class="platform-panel" id="platformPanel">
+            <div class="platform-panel__info">
+              <img class="platform-panel__logo" id="platformLogo" src="assets/icon-linux.svg" alt="" />
+              <div class="platform-panel__meta">
+                <span class="platform-panel__name" id="platformName">Linux</span>
+                <span class="platform-panel__version" id="platformVersion">v1.0.0 · x64</span>
+              </div>
+            </div>
+            <a class="platform-panel__download" id="platformDownload" href="#" download>
+              <img class="platform-panel__download-icon" src="assets/icon-download.svg" alt="" />
+              <span data-i18n="downloadBtn">下载</span>
+            </a>
+            <span class="platform-panel__coming" id="platformComing" hidden data-i18n="comingSoon">敬请期待</span>
+          </div>
+        </div>
+
+        <div class="ctas">
+          <a class="btn" id="giteeBtn" href="https://gitee.com/yangleduo7788/link-x" target="_blank" rel="noreferrer noopener">
+            Gitee
+            <svg class="btn__arrow" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
+              <path
+                d="M6.3333 3.66665H12.3333V9.66665"
+                stroke="currentColor"
+                stroke-width="1.33333"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              ></path>
+              <path
+                d="M3.848 12.152L12.3333 3.66665"
+                stroke="currentColor"
+                stroke-width="1.33333"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              ></path>
+            </svg>
+          </a>
+          <a class="btn" id="docsBtn" href="docs.html">
+            <span data-i18n="navDocs">文档</span>
+            <svg class="btn__arrow" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
+              <path
+                d="M6.3333 3.66665H12.3333V9.66665"
+                stroke="currentColor"
+                stroke-width="1.33333"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              ></path>
+              <path
+                d="M3.848 12.152L12.3333 3.66665"
+                stroke="currentColor"
+                stroke-width="1.33333"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              ></path>
+            </svg>
+          </a>
+          <a class="btn btn--primary" id="blogBtn" href="blog.html">
+            Blog
+            <svg class="btn__arrow" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
+              <path
+                d="M6.3333 3.66665H12.3333V9.66665"
+                stroke="currentColor"
+                stroke-width="1.33333"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              ></path>
+              <path
+                d="M3.848 12.152L12.3333 3.66665"
+                stroke="currentColor"
+                stroke-width="1.33333"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              ></path>
+            </svg>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <section class="features">
+      <h2 class="features__title" data-i18n="featuresTitle">为什么选择 LinkX</h2>
+      <div class="features__list">
+        <article class="card card--1">
+          <div class="card__art" aria-hidden="true">
+            <img src="assets/feature-illust-1.png" alt="" />
+          </div>
+          <div class="card__text">
+            <h3 data-i18n="card1Title">即时消息</h3>
+            <p data-i18n="card1Body">单聊与群聊齐备，支持文本、图片、文件与语音，引用、编辑、撤回、转发一应俱全。</p>
+          </div>
+        </article>
+
+        <article class="card card--2">
+          <div class="card__art" aria-hidden="true">
+            <img src="assets/feature-illust-2.png" alt="" />
+          </div>
+          <div class="card__text">
+            <h3 data-i18n="card2Title">实时推送</h3>
+            <p data-i18n="card2Body">HTTP 拉取历史消息，WebSocket 毫秒级推送，在线状态与消息送达实时同步。</p>
+          </div>
+        </article>
+
+        <article class="card card--3">
+          <div class="card__art" aria-hidden="true">
+            <img src="assets/feature-illust-3.png" alt="" />
+          </div>
+          <div class="card__text">
+            <h3 data-i18n="card3Title">音视频会议</h3>
+            <p data-i18n="card3Body">WebRTC 单聊通话与多人 Mesh 会议，通话信令经 WebSocket 实时下发，协作无延迟。</p>
+          </div>
+        </article>
+
+        <article class="card card--4">
+          <div class="card__art" aria-hidden="true">
+            <img src="assets/feature-illust-4.png" alt="" />
+          </div>
+          <div class="card__text">
+            <h3 data-i18n="card4Title">文件与网盘</h3>
+            <p data-i18n="card4Body">聊天文件、群文件/群相册与个人网盘统一接入 MinIO，团队资料集中沉淀、随时取用。</p>
+          </div>
+        </article>
+
+        <article class="card card--5">
+          <div class="card__art" aria-hidden="true">
+            <img src="assets/feature-illust-5.png" alt="" />
+          </div>
+          <div class="card__text">
+            <h3 data-i18n="card5Title">管理运营</h3>
+            <p data-i18n="card5Body">用户权限、内容审核、风控策略与统计大屏，后台运营一站搞定。</p>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <div class="footer__inner">
+        <span>Copyright © 2026 Yangleduo. All Rights Reserved</span>
+        <span class="footer__space" aria-hidden="true">&nbsp;&nbsp;</span>
+        <span data-contact-developer data-contact-prefix="联系开发者 QQ："></span>
+        <span class="footer__space" aria-hidden="true">&nbsp;&nbsp;</span>
+        <a class="footer__link" href="legal/privacy.html">隐私政策</a>
+        <span class="footer__space" aria-hidden="true">&nbsp;&nbsp;</span>
+        <a class="footer__link" href="legal/service.html">服务协议</a>
+      </div>
+    </footer>
+
+    <script src="shared/contact-developer.js"></script>
+    <script src="main.js"></script>
+  </body>
+</html>

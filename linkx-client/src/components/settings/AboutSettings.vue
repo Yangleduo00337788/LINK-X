@@ -6,6 +6,7 @@ import { APP_CLIENT_CHANNEL, APP_CLIENT_VERSION } from '../../utils/appVersion'
 import * as versionApi from '../../api/version'
 import { useI18n } from '../../i18n'
 import { openLegalPageInBrowser } from '../../utils/legalPage'
+import { openHelpPageInBrowser } from '../../utils/helpPage'
 import BrandMarkIcon from '../BrandMarkIcon.vue'
 import { LxButton } from '../ui'
 
@@ -22,6 +23,10 @@ function openServiceAgreement() {
 
 function openPrivacyPolicy() {
   void openLegalPageInBrowser('privacy')
+}
+
+function openHelpCenter() {
+  void openHelpPageInBrowser()
 }
 
 /**
@@ -162,6 +167,10 @@ async function checkUpdate() {
           <span class="about-legal-sep">·</span>
           <LxButton variant="link-md" class="about-legal-link" @click="openPrivacyPolicy">
             {{ t('about.privacyPolicy') }}
+          </LxButton>
+          <span class="about-legal-sep">·</span>
+          <LxButton variant="link-md" class="about-legal-link" @click="openHelpCenter">
+            {{ t('about.helpCenter') }}
           </LxButton>
         </div>
         <p class="about-legal-brand">{{ t('about.companyRights') }}</p>

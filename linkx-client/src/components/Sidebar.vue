@@ -216,8 +216,7 @@ function handleMenuSelect(key: string | number) {
     case 'help':
       runMenuAction(() => {
         prepareMenuAction()
-        // 打开帮助独立窗口
-        window.electronAPI?.openHelp?.()
+        void import('../utils/helpPage').then(({ openHelpPageInBrowser }) => openHelpPageInBrowser())
       })
       break
     case 'lock':

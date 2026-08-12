@@ -572,6 +572,7 @@ export default {
     noDownloadUrl: 'A new version is available, but no download URL is configured',
     serviceAgreement: 'Terms of Service',
     privacyPolicy: 'Privacy Policy',
+    helpCenter: 'Help Center',
     companyRights: 'Yakult. All rights reserved.',
     copyright: 'Copyright © 2026 Yangleduo All Rights Reserved'
   },

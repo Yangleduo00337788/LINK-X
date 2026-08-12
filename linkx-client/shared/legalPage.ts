@@ -3,8 +3,11 @@
  */
 export type LegalDocKind = 'service' | 'privacy'
 
-/** 线上法律文档默认根地址（Cloudflare Pages 自定义域） */
-export const DEFAULT_LEGAL_PAGE_BASE_URL = 'https://mars-studio.asia'
+/** LinkX 官网根地址（Cloudflare Pages 自定义域） */
+export const DEFAULT_OFFICIAL_WEBSITE_URL = 'https://mars-studio.asia'
+
+/** 线上法律文档默认根地址（与官网同域） */
+export const DEFAULT_LEGAL_PAGE_BASE_URL = DEFAULT_OFFICIAL_WEBSITE_URL
 
 export function resolveLegalPageBaseUrl(envValue?: string): string {
   const value = (envValue || '').trim()
@@ -17,7 +20,7 @@ export function buildLegalPageUrl(
   baseUrl?: string
 ): string {
   const remoteBase = resolveLegalPageBaseUrl(baseUrl)
-  const file = kind === 'service' ? 'service.html' : 'privacy.html'
+  const file = kind === 'service' ? 'legal/service.html' : 'legal/privacy.html'
   const url = new URL(file, remoteBase.endsWith('/') ? remoteBase : `${remoteBase}/`)
   url.searchParams.set('lang', locale === 'en-US' ? 'en-US' : 'zh-CN')
   return url.href

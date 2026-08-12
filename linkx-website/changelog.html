@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <title>LinkX 版本日志</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500&family=Questrial&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="docs.css" />
+    <link rel="stylesheet" href="changelog.css" />
+  </head>
+  <body class="changelog-page docs-page">
+    <header class="site-header">
+      <a class="hero__logo-link" href="index.html" aria-label="LinkX">
+        <img class="hero__logo" src="assets/logo-linkx-transparent.png" alt="LinkX" />
+      </a>
+
+      <div class="hero__divider" aria-hidden="true"></div>
+
+      <div class="hero__bar">
+        <nav class="hero__nav" aria-label="Main navigation">
+          <div class="hero__nav-dropdown">
+            <button type="button" class="hero__nav-link hero__nav-dropdown-trigger">
+              <span data-i18n="navProduct">产品</span>
+              <svg class="hero__nav-caret" width="1em" height="1em" viewBox="0 0 32 32" aria-hidden="true">
+                <path fill="currentColor" d="M16 22 6 12l1.4-1.4 8.6 8.6 8.6-8.6L26 12z"></path>
+              </svg>
+            </button>
+            <div class="hero__nav-menu" role="menu">
+              <a class="hero__nav-menu-item" href="index.html" role="menuitem">LinkX</a>
+            </div>
+          </div>
+          <a class="hero__nav-link" id="navDocs" href="docs.html" data-i18n="navDocs">文档</a>
+          <a class="hero__nav-link is-active" id="navChangelog" href="changelog.html" data-i18n="navChangelog">版本日志</a>
+          <a class="hero__nav-link" id="navJoinUs" href="join.html" data-i18n="navJoinUs">加入我们</a>
+        </nav>
+
+        <div class="hero__lang hero__nav-dropdown">
+          <button type="button" class="hero__lang-trigger hero__nav-dropdown-trigger" aria-label="Language">
+            <img class="hero__lang-icon" src="assets/icon-translate.svg" alt="" />
+            <svg class="hero__nav-caret" width="1em" height="1em" viewBox="0 0 32 32" aria-hidden="true">
+              <path fill="currentColor" d="M16 22 6 12l1.4-1.4 8.6 8.6 8.6-8.6L26 12z"></path>
+            </svg>
+          </button>
+          <div class="hero__nav-menu hero__lang-menu" role="menu">
+            <button type="button" class="hero__nav-menu-item hero__lang-option is-active" data-lang="zh" role="menuitem">
+              简体中文
+            </button>
+            <button type="button" class="hero__nav-menu-item hero__lang-option" data-lang="en" role="menuitem">
+              English
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="docs-hero">
+      <h1 class="docs-hero__title" data-i18n="changelogTitle">LinkX 版本日志</h1>
+      <p class="docs-hero__subtitle" data-i18n="changelogSubtitle">
+        查看各平台最新版本与历史更新记录，了解每一次功能迭代与体验优化。
+      </p>
+    </div>
+
+    <div class="changelog-shell">
+      <div class="changelog-toolbar">
+        <div class="platform-switch" id="changelogPlatformSwitch" role="group" aria-label="平台">
+          <button type="button" class="platform-switch__option is-active" data-platform="linux" aria-pressed="true">
+            Linux
+          </button>
+          <button type="button" class="platform-switch__option" data-platform="macos" aria-pressed="false">
+            macOS
+          </button>
+          <button type="button" class="platform-switch__option" data-platform="windows" aria-pressed="false">
+            Windows
+          </button>
+          <button type="button" class="platform-switch__option" data-platform="android" aria-pressed="false">
+            Android
+          </button>
+          <button type="button" class="platform-switch__option" data-platform="ios" aria-pressed="false">
+            iOS
+          </button>
+        </div>
+
+        <div class="platform-panel" id="changelogPlatformPanel">
+          <div class="platform-panel__info">
+            <img class="platform-panel__logo" id="changelogPlatformLogo" src="assets/icon-linux.svg" alt="" />
+            <div class="platform-panel__meta">
+              <span class="platform-panel__name" id="changelogPlatformName">Linux</span>
+              <span class="platform-panel__version" id="changelogPlatformVersion">v1.0.0 · x64 · AppImage</span>
+            </div>
+          </div>
+          <a class="platform-panel__download" id="changelogPlatformDownload" href="#" download>
+            <img class="platform-panel__download-icon" src="assets/icon-download.svg" alt="" />
+            <span data-i18n="downloadBtn">下载</span>
+          </a>
+          <span class="platform-panel__coming" id="changelogPlatformComing" data-i18n="comingSoon">敬请期待</span>
+        </div>
+      </div>
+
+      <div id="changelogHighlights" class="changelog-highlights" aria-label="版本亮点"></div>
+
+      <div class="changelog-list" id="changelogList" aria-live="polite"></div>
+    </div>
+
+    <footer class="footer">
+      <div class="footer__inner">
+        <span>Copyright © 2026 Yangleduo. All Rights Reserved</span>
+        <span class="footer__space" aria-hidden="true">&nbsp;&nbsp;</span>
+        <span data-contact-developer data-contact-prefix="联系开发者 QQ："></span>
+        <span class="footer__space" aria-hidden="true">&nbsp;&nbsp;</span>
+        <a class="footer__link" href="legal/privacy.html">隐私政策</a>
+        <span class="footer__space" aria-hidden="true">&nbsp;&nbsp;</span>
+        <a class="footer__link" href="legal/service.html">服务协议</a>
+      </div>
+    </footer>
+
+    <script src="shared/changelog-data.js"></script>
+    <script src="shared/contact-developer.js"></script>
+    <script src="changelog.js"></script>
+  </body>
+</html>

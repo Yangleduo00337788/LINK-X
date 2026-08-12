@@ -47,11 +47,6 @@ const router = createRouter({
       component: () => import('../components/ShareLandingView.vue')
     },
     {
-      path: '/help',           // 帮助中心新页面（从左下角菜单进入）
-      name: 'help',
-      component: () => import('../views/HelpView.vue')
-    },
-    {
       path: '/official-notify/:id',
       name: 'official-notify-detail',
       component: () => import('../views/OfficialNotifyDetailView.vue')

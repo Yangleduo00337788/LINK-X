@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <title>加入我们 - LinkX</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500&family=Questrial&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="docs.css" />
+  </head>
+  <body class="docs-page">
+    <header class="site-header">
+      <a class="hero__logo-link" href="index.html" aria-label="LinkX">
+        <img class="hero__logo" src="assets/logo-linkx-transparent.png" alt="LinkX" />
+      </a>
+
+      <div class="hero__divider" aria-hidden="true"></div>
+
+      <div class="hero__bar">
+        <nav class="hero__nav" aria-label="Main navigation">
+          <div class="hero__nav-dropdown">
+            <button type="button" class="hero__nav-link hero__nav-dropdown-trigger">
+              <span data-i18n="navProduct">产品</span>
+              <svg class="hero__nav-caret" width="1em" height="1em" viewBox="0 0 32 32" aria-hidden="true">
+                <path fill="currentColor" d="M16 22 6 12l1.4-1.4 8.6 8.6 8.6-8.6L26 12z"></path>
+              </svg>
+            </button>
+            <div class="hero__nav-menu" role="menu">
+              <a class="hero__nav-menu-item" href="index.html" role="menuitem">LinkX</a>
+            </div>
+          </div>
+          <a class="hero__nav-link" id="navDocs" href="docs.html" data-i18n="navDocs">文档</a>
+          <a class="hero__nav-link" id="navChangelog" href="changelog.html" data-i18n="navChangelog">版本日志</a>
+          <a class="hero__nav-link is-active" id="navJoinUs" href="join.html" data-i18n="navJoinUs">加入我们</a>
+        </nav>
+
+        <div class="hero__lang hero__nav-dropdown">
+          <button type="button" class="hero__lang-trigger hero__nav-dropdown-trigger" aria-label="Language">
+            <img class="hero__lang-icon" src="assets/icon-translate.svg" alt="" />
+            <svg class="hero__nav-caret" width="1em" height="1em" viewBox="0 0 32 32" aria-hidden="true">
+              <path fill="currentColor" d="M16 22 6 12l1.4-1.4 8.6 8.6 8.6-8.6L26 12z"></path>
+            </svg>
+          </button>
+          <div class="hero__nav-menu hero__lang-menu" role="menu">
+            <button type="button" class="hero__nav-menu-item hero__lang-option is-active" data-lang="zh" role="menuitem">
+              简体中文
+            </button>
+            <button type="button" class="hero__nav-menu-item hero__lang-option" data-lang="en" role="menuitem">
+              English
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="docs-hero">
+      <h1 class="docs-hero__title" data-i18n="joinTitle">加入我们</h1>
+      <p class="docs-hero__subtitle" data-i18n="joinSubtitle">
+        LinkX 是开源的企业级即时通讯项目，欢迎开发者、设计师与产品爱好者一起共建。无论你是提交代码、完善文档还是反馈问题，都是对社区的重要贡献。
+      </p>
+    </div>
+
+    <div class="docs-shell">
+      <aside class="docs-sidebar" aria-label="目录">
+        <div class="docs-sidebar__group">
+          <a class="docs-sidebar__link" href="#welcome" data-i18n="navWelcome">欢迎加入</a>
+          <a class="docs-sidebar__link" href="#ways" data-i18n="navWays">参与方式</a>
+          <a class="docs-sidebar__link" href="#contribute" data-i18n="navContribute">代码贡献</a>
+        </div>
+        <div class="docs-sidebar__group">
+          <p class="docs-sidebar__label" data-i18n="navGroupMore">更多</p>
+          <a class="docs-sidebar__link" href="#issues" data-i18n="navIssues">问题反馈</a>
+          <a class="docs-sidebar__link" href="#contact" data-i18n="navContact">联系我们</a>
+        </div>
+      </aside>
+
+      <main class="docs-main">
+        <section class="docs-section" id="welcome">
+          <h2 data-i18n="secWelcomeTitle">欢迎加入 LinkX 社区</h2>
+          <p data-i18n="secWelcomeP1">
+            LinkX 由 Yangleduo 发起并维护，采用 MIT 开源协议。项目涵盖桌面客户端、运营管理后台与 Spring Boot 后端，适合学习现代 IM 架构、全栈开发与团队协作实践。
+          </p>
+          <div class="docs-card-grid">
+            <article class="docs-card">
+              <h4 data-i18n="cardOpenTitle">开源开放</h4>
+              <p data-i18n="cardOpenBody">源码托管于 Gitee，欢迎 Fork、Star 与 Pull Request。</p>
+            </article>
+            <article class="docs-card">
+              <h4 data-i18n="cardLearnTitle">技术成长</h4>
+              <p data-i18n="cardLearnBody">涵盖 Vue 3、Electron、Netty WebSocket、WebRTC 等主流技术栈。</p>
+            </article>
+            <article class="docs-card">
+              <h4 data-i18n="cardTeamTitle">协作共建</h4>
+              <p data-i18n="cardTeamBody">Issue 讨论、代码评审与文档共建，与社区一起成长。</p>
+            </article>
+            <article class="docs-card">
+              <h4 data-i18n="cardImpactTitle">真实场景</h4>
+              <p data-i18n="cardImpactBody">面向企业 IM 真实需求，功能完整、可本地部署联调。</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="docs-section" id="ways">
+          <h2 data-i18n="secWaysTitle">你可以这样参与</h2>
+          <ul>
+            <li data-i18n="secWaysL1"><strong>代码开发</strong>：修复 Bug、实现新功能、优化性能与体验。</li>
+            <li data-i18n="secWaysL2"><strong>文档完善</strong>：补充使用说明、架构文档、部署指南与 FAQ。</li>
+            <li data-i18n="secWaysL3"><strong>测试反馈</strong>：在不同平台安装体验，提交复现步骤与改进建议。</li>
+            <li data-i18n="secWaysL4"><strong>设计贡献</strong>：UI/UX 优化、图标与视觉资源、交互原型建议。</li>
+            <li data-i18n="secWaysL5"><strong>社区运营</strong>：回答问题、整理 Issue、推广项目与撰写技术文章。</li>
+          </ul>
+          <p data-i18n="secWaysP1">没有编程经验也可以参与——清晰的 Bug 报告、文档纠错和功能建议同样非常有价值。</p>
+        </section>
+
+        <section class="docs-section" id="contribute">
+          <h2 data-i18n="secContributeTitle">代码贡献流程</h2>
+          <ol>
+            <li data-i18n="secContributeL1">访问 <a href="https://gitee.com/yangleduo7788/link-x" target="_blank" rel="noreferrer noopener">Gitee 仓库</a>，Fork 项目到你的账号。</li>
+            <li data-i18n="secContributeL2">克隆 Fork 后的仓库到本地，创建功能分支（如 <code>feature/xxx</code> 或 <code>fix/xxx</code>）。</li>
+            <li data-i18n="secContributeL3">按照项目规范完成开发与自测，确保现有功能不受影响。</li>
+            <li data-i18n="secContributeL4">提交 Pull Request，描述变更内容与测试情况，等待维护者 Review。</li>
+            <li data-i18n="secContributeL5">根据 Review 意见修改后合并，你的贡献将出现在 CHANGELOG 与贡献者列表中。</li>
+          </ol>
+          <div class="docs-callout">
+            <strong data-i18n="calloutContributeTitle">提交规范</strong>
+            <p data-i18n="calloutContributeBody">Commit 信息请简洁明确；PR 尽量保持单一职责、变更范围可控。涉及数据库变更请通过 Flyway 脚本管理，勿手改生产库。</p>
+          </div>
+          <h3 data-i18n="secContributeH1">子项目说明</h3>
+          <div class="docs-table-wrap">
+            <table class="docs-table">
+              <thead>
+                <tr>
+                  <th data-i18n="thProject">目录</th>
+                  <th data-i18n="thStack">技术栈</th>
+                  <th data-i18n="thEntry">本地启动</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>linkx-client</td>
+                  <td>Vue 3 · Electron</td>
+                  <td><code>npm run electron:dev</code></td>
+                </tr>
+                <tr>
+                  <td>linkx-admin</td>
+                  <td>Vue 3 · Vite</td>
+                  <td><code>npm run dev</code></td>
+                </tr>
+                <tr>
+                  <td>linkx-server</td>
+                  <td>Spring Boot 3.5</td>
+                  <td><code>mvn spring-boot:run</code></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="docs-section" id="issues">
+          <h2 data-i18n="secIssuesTitle">问题反馈</h2>
+          <p data-i18n="secIssuesP1">遇到 Bug 或有功能建议，请通过 Gitee Issues 提交，便于跟踪与协作。</p>
+          <ul>
+            <li data-i18n="secIssuesL1">描述问题现象与期望行为，附上截图或录屏（如适用）。</li>
+            <li data-i18n="secIssuesL2">说明复现步骤、操作系统与 LinkX 版本号。</li>
+            <li data-i18n="secIssuesL3">安全问题请勿公开 Issue，请通过下方联系方式私下反馈。</li>
+          </ul>
+          <p>
+            <a href="https://gitee.com/yangleduo7788/link-x/issues" target="_blank" rel="noreferrer noopener" data-i18n="secIssuesLink"
+              >前往 Gitee Issues →</a
+            >
+          </p>
+        </section>
+
+        <section class="docs-section" id="contact">
+          <h2 data-i18n="secContactTitle">联系我们</h2>
+          <p data-i18n="secContactP1">如有合作意向、深度参与或一般咨询，可通过以下方式联系：</p>
+          <ul>
+            <li>
+              <span data-i18n="secContactL1">项目仓库：</span>
+              <a href="https://gitee.com/yangleduo7788/link-x" target="_blank" rel="noreferrer noopener">gitee.com/yangleduo7788/link-x</a>
+            </li>
+            <li>
+              <span data-i18n="secContactL2">联系开发者 QQ：</span>
+              <span data-contact-developer data-contact-prefix=""></span>
+            </li>
+            <li data-i18n="secContactL3">客户端内：「设置」→「关于」→ 问题反馈</li>
+          </ul>
+        </section>
+      </main>
+    </div>
+
+    <footer class="footer">
+      <div class="footer__inner">
+        <span>Copyright © 2026 Yangleduo. All Rights Reserved</span>
+        <span class="footer__space" aria-hidden="true">&nbsp;&nbsp;</span>
+        <span data-contact-developer data-contact-prefix="联系开发者 QQ："></span>
+        <span class="footer__space" aria-hidden="true">&nbsp;&nbsp;</span>
+        <a class="footer__link" href="legal/privacy.html">隐私政策</a>
+        <span class="footer__space" aria-hidden="true">&nbsp;&nbsp;</span>
+        <a class="footer__link" href="legal/service.html">服务协议</a>
+      </div>
+    </footer>
+
+    <script src="shared/contact-developer.js"></script>
+    <script src="join.js"></script>
+  </body>
+</html>

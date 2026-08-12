@@ -64,6 +64,10 @@
           <strong id="privacy-title">隐私政策</strong>
           <span id="privacy-desc">LinkX 隐私政策</span>
         </a>
+        <a id="help-link" href="../help/index.html">
+          <strong id="help-title">帮助中心</strong>
+          <span id="help-desc">LinkX 使用说明与常见问题</span>
+        </a>
       </div>
     </main>
     <script>
@@ -76,7 +80,9 @@
             serviceTitle: '服务协议',
             serviceDesc: 'LinkX 软件许可及服务协议',
             privacyTitle: '隐私政策',
-            privacyDesc: 'LinkX 隐私政策'
+            privacyDesc: 'LinkX 隐私政策',
+            helpTitle: '帮助中心',
+            helpDesc: 'LinkX 使用说明与常见问题'
           },
           'en-US': {
             title: 'LinkX Legal',
@@ -84,7 +90,9 @@
             serviceTitle: 'Terms of Service',
             serviceDesc: 'LinkX Software License and Service Agreement',
             privacyTitle: 'Privacy Policy',
-            privacyDesc: 'LinkX Privacy Policy'
+            privacyDesc: 'LinkX Privacy Policy',
+            helpTitle: 'Help Center',
+            helpDesc: 'LinkX user guide and FAQ'
           }
         }
         var text = copy[lang]
@@ -95,8 +103,11 @@
         document.getElementById('service-desc').textContent = text.serviceDesc
         document.getElementById('privacy-title').textContent = text.privacyTitle
         document.getElementById('privacy-desc').textContent = text.privacyDesc
+        document.getElementById('help-title').textContent = text.helpTitle
+        document.getElementById('help-desc').textContent = text.helpDesc
         document.getElementById('service-link').href = './service.html?lang=' + lang
         document.getElementById('privacy-link').href = './privacy.html?lang=' + lang
+        document.getElementById('help-link').href = '../help/index.html?lang=' + lang
       })()
     </script>
   </body>

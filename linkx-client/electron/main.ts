@@ -1,7 +1,7 @@
 /**
  * 作者：yangleduo
  */
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, globalShortcut, safeStorage, desktopCapturer, dialog, Notification, net, session, clipboard, type IpcMainEvent, type IpcMainInvokeEvent, type WebRequestHeadersReceivedCallbackParams, type OnHeadersReceivedListener } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, globalShortcut, safeStorage, desktopCapturer, dialog, Notification, net, session, clipboard, shell, type IpcMainEvent, type IpcMainInvokeEvent, type WebRequestHeadersReceivedCallbackParams, type OnHeadersReceivedListener } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import http from 'node:http'
@@ -17,6 +17,7 @@ import {
   resolveWsBaseUrl
 } from '../shared/endpoints'
 import { mainT } from './mainI18n'
+import { buildHelpPageUrl, resolveHelpPageBaseUrl } from '../shared/helpPage'
 
 /** 渲染进程发起的受控下载请求 */
 type DownloadFilePayload = {
@@ -1603,15 +1604,10 @@ ipcMain.on('window-open-register', () => {
 })
 
 /**
- * 帮助 / 聊天记录管理 独立窗口。
- *
- * 这两个页面与友链/笔记编辑器等"独立窗口"性质相同：
- *  - 复用主窗口的同一个 Vite 入口（dist/index.html + hash 路由）
- *  - 已有则 focus，否则 new BrowserWindow
- *  - 主题跟着主窗口走
+ * 聊天记录管理独立窗口（帮助文档已改为浏览器打开线上地址）。
  */
-function createHelpStandaloneWindow(hashPath: 'help' | 'chat-history', size: { width: number; height: number }) {
-  const stateRef = hashPath === 'help' ? helpWindowState : chatHistoryWindowState
+function createChatHistoryStandaloneWindow(size: { width: number; height: number }) {
+  const stateRef = chatHistoryWindowState
   let win = stateRef.win
   if (win && !win.isDestroyed()) {
     if (win.isMinimized()) win.restore()
@@ -1642,9 +1638,9 @@ function createHelpStandaloneWindow(hashPath: 'help' | 'chat-history', size: { w
   })
 
   if (isDev && process.env.VITE_DEV_SERVER_URL) {
-    win.loadURL(process.env.VITE_DEV_SERVER_URL + '#/' + hashPath)
+    win.loadURL(process.env.VITE_DEV_SERVER_URL + '#/chat-history')
   } else {
-    win.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: '/' + hashPath })
+    win.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: '/chat-history' })
   }
 
   win.on('closed', () => {
@@ -1658,16 +1654,18 @@ interface StandaloneWindowState {
   win: BrowserWindow | null
 }
 
-const helpWindowState: StandaloneWindowState = { win: null }
 const chatHistoryWindowState: StandaloneWindowState = { win: null }
 const officialNotifyDetailWindowState: StandaloneWindowState = { win: null }
 
+const HELP_PAGE_BASE_URL = resolveHelpPageBaseUrl(process.env.VITE_HELP_PAGE_BASE_URL)
+
 ipcMain.on('window-open-help', () => {
-  createHelpStandaloneWindow('help', { width: 720, height: 760 })
+  const url = buildHelpPageUrl(desktopPrefs.language, undefined, HELP_PAGE_BASE_URL)
+  void shell.openExternal(url)
 })
 
 ipcMain.on('window-open-chat-history', () => {
-  createHelpStandaloneWindow('chat-history', { width: 820, height: 760 })
+  createChatHistoryStandaloneWindow({ width: 820, height: 760 })
 })
 
 ipcMain.on('window-open-official-notify-detail', (_event, notifId: unknown) => {

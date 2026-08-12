@@ -1,0 +1,9 @@
+.docs-section a {
+  color: var(--color-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.docs-section a:hover {
+  color: var(--color-ink-soft);
+}

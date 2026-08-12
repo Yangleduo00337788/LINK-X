@@ -1,7 +1,7 @@
 /**
  * 作者：yangleduo
  */
-export type { LegalDocKind } from '../../shared/legalPage'
+export type { LegalDocKind, DEFAULT_OFFICIAL_WEBSITE_URL } from '../../shared/legalPage'
 export {
   DEFAULT_LEGAL_PAGE_BASE_URL,
   buildLegalPageUrl,

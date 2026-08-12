@@ -19,7 +19,9 @@
 [![MySQL](https://img.shields.io/badge/MySQL-8.4-4479A1?logo=mysql&logoColor=white)](https://www.mysql.com/)
 [![License](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
 
-https://gitee.com/yangleduo7788/link-x
+**官网** https://mars-studio.asia
+
+**代码仓库** https://gitee.com/yangleduo7788/link-x
 
 </div>
 
@@ -48,6 +50,7 @@ LinkX 是一套**前后端分离**的企业级即时通讯（IM）解决方案�
 
 | 子工程 | 定位 | 技术栈 |
 |--------|------|--------|
+| `linkx-website` | 产品官网（文档、法律页、帮助中心） | 静态 HTML/CSS/JS，托管于 Cloudflare Pages |
 | `linkx-client` | 跨平台桌面 IM 客户端 | Vue 3、Electron、Pinia、Naive UI、UnoCSS、统一 Design Token |
 | `linkx-admin` | Web 运营管理后台 | Vue 3、Vite、ECharts、RBAC |
 | `linkx-server` | 业务与实时消息服务 | Spring Boot 3.5、Netty、MyBatis-Flex |
@@ -341,6 +344,12 @@ link-x/
 │   ├── admin-login.png        # 管理端登录页
 │   └── admin-ui.png           # 管理端工作台
 ├── scripts/                   # 仓库级工具脚本（如作者信息戳记）
+├── linkx-website/             # 产品官网（Cloudflare Pages → mars-studio.asia）
+│   ├── index.html             # 首页
+│   ├── docs.html / changelog.html / join.html / blog.html
+│   ├── legal/                 # 隐私政策、服务协议
+│   ├── help/                  # 帮助中心
+│   └── assets/                # 图片、字体、图标
 ├── linkx-client/               # 桌面客户端
 │   ├── electron/                # Electron 主进程、Preload
 │   ├── installer/               # 自定义图形安装 / 卸载向导（Vue）
@@ -472,8 +481,9 @@ VITE_API_BASE_URL=https://你的域名/api
 # IM WebSocket
 VITE_WS_BASE_URL=wss://你的域名:8081
 
-# 法律文档（Cloudflare Pages 自定义域）
+# 官网（法律文档、帮助中心，客户端外链默认指向此处）
 VITE_LEGAL_PAGE_BASE_URL=https://mars-studio.asia
+VITE_HELP_PAGE_BASE_URL=https://mars-studio.asia/help
 
 # 可选：媒体公网 Origin
 # VITE_MINIO_PUBLIC_ORIGIN=https://media.你的域名
@@ -533,15 +543,17 @@ npm run installer:assets
 #### 安装包行为（当前配置）
 
 - **图形安装**：Vue 自定义安装向导、许可协议勾选、可选安装路径、桌面/开始菜单快捷方式
-- **协议链接**：注册页、关于页、安装向导中的服务协议/隐私政策均在浏览器打开线上地址（默认 `https://mars-studio.asia`）
+- **协议链接**：注册页、关于页、安装向导中的服务协议/隐私政策在浏览器打开 [https://mars-studio.asia/legal/](https://mars-studio.asia/legal/)
+- **帮助文档**：左下角菜单与关于页中的「帮助中心」打开 [https://mars-studio.asia/help/](https://mars-studio.asia/help/)
 - **安装完成**：可选安装后自动启动 LinkX
-- **协议页源码**：`linkx-client/public/legal/`，更新后上传至 Cloudflare Pages 即可刷新线上内容
+- **官网源码**：`linkx-website/`（部署至 Cloudflare Pages 自定义域 `mars-studio.asia`）
 
 相关配置：
 
 - 主应用打包：`linkx-client/package.json` → `build`
 - 安装程序打包：`linkx-client/electron-builder.installer.yml`
-- 法律文档 URL：`linkx-client/shared/legalPage.ts`（默认 `mars-studio.asia`）
+- 官网与法律页 URL：`linkx-client/shared/legalPage.ts`（默认 `https://mars-studio.asia`）
+- 帮助中心 URL：`linkx-client/shared/helpPage.ts`（默认 `https://mars-studio.asia/help`）
 
 #### 国内网络打包（已内置）
 
@@ -595,17 +607,41 @@ $env:CSC_IDENTITY_AUTO_DISCOVERY="true"
 □ Node.js 18+ 已安装
 □ linkx-client/.env.electron 已配置线上 API / WS
 □ npm run electron:build 成功
-□ 安装后注册页/关于页协议链接可打开 mars-studio.asia
+□ 安装后注册页/关于页协议链接可打开 https://mars-studio.asia/legal/
+□ 帮助中心链接可打开 https://mars-studio.asia/help/
 ```
 
-### 9.3 管理后台
+### 9.3 产品官网（Cloudflare Pages）
+
+官网源码位于 `linkx-website/`，为纯静态站点，**无需构建**，部署至 Cloudflare Pages 并绑定自定义域 `mars-studio.asia`。
+
+| 页面 | 线上地址 |
+|------|----------|
+| 首页 | https://mars-studio.asia/ |
+| 文档 | https://mars-studio.asia/docs.html |
+| 隐私政策 | https://mars-studio.asia/legal/privacy.html |
+| 服务协议 | https://mars-studio.asia/legal/service.html |
+| 帮助中心 | https://mars-studio.asia/help/ |
+
+部署步骤：Cloudflare Dashboard → Workers 和 Pages → 上传 `linkx-website` 目录内全部文件 → 绑定自定义域。
+
+本地预览：
+
+```bash
+cd linkx-website
+npx serve .
+```
+
+更新官网后重新上传部署；客户端通过 `VITE_LEGAL_PAGE_BASE_URL` / `VITE_HELP_PAGE_BASE_URL` 自动指向线上地址，**无需重新打包**（除非修改了这两个环境变量）。
+
+### 9.4 管理后台
 
 ```bash
 cd linkx-admin
 npm run build                    # 静态资源输出至 dist/
 ```
 
-### 9.4 常用命令速查
+### 9.5 常用命令速查
 
 | 子工程 | 命令 | 说明 |
 |--------|------|------|
@@ -752,6 +788,7 @@ npm run build                    # 静态资源输出至 dist/
 
 | 项目 | 信息 |
 |------|------|
+| 官网 | https://mars-studio.asia |
 | 代码托管 | https://gitee.com/yangleduo7788/link-x |
 | 许可证 | MIT — 可自由使用、修改与分发，须保留版权声明 |
 
