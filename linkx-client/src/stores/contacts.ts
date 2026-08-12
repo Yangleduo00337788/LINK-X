@@ -35,7 +35,7 @@ function friendToContact(friend: FriendItem): ContactItem {
     avatarText: friendAvatarText(nickname, remark),
     avatarColor: DEFAULT_AVATAR_COLOR,
     group,
-    avatarUrl: resolveUserAvatarUrl(friend.avatar, friend.userId ?? friend.id),
+    avatarUrl: resolveUserAvatarUrl(friend.avatar, friend.userId),
     online: !!friend.online
   }
 }

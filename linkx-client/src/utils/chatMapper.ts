@@ -31,7 +31,7 @@ function pickColor(seed: string): string {
 }
 
 function mapMemberAvatars(
-  list?: Array<{ nickname?: string; avatar?: string }>
+  list?: Array<{ nickname?: string; avatar?: string; userId?: string | number }>
 ): Array<{ text: string; color: string; imageUrl?: string }> | undefined {
   if (!list?.length) return undefined
   return list.slice(0, 9).map(m => {
