@@ -16,6 +16,12 @@
 server:
   # HTTP 监听端口 ← SERVER_PORT
   port: ${SERVER_PORT}
+  tomcat:
+    # 大文件上传（安装包）时避免连接被提前断开；-1 表示不限制
+    max-swallow-size: ${TOMCAT_MAX_SWALLOW_SIZE:-1}
+    # 与 spring.servlet.multipart 不同层：Tomcat 默认仅 2MB，未调高会在 ~220MB 安装包上传时直接断连
+    max-http-form-post-size: ${TOMCAT_MAX_HTTP_FORM_POST_SIZE:310MB}
+    max-part-count: ${TOMCAT_MAX_PART_COUNT:-1}
   servlet:
     # API 统一前缀（固定，一般不必进 env）
     context-path: /api
@@ -31,10 +37,10 @@ spring:
 
   servlet:
     multipart:
-      # 单文件上传上限 ← MULTIPART_MAX_FILE_SIZE
-      max-file-size: ${MULTIPART_MAX_FILE_SIZE}
+      # 单文件上传上限 ← MULTIPART_MAX_FILE_SIZE（桌面安装包约 220MB，默认 300MB）
+      max-file-size: ${MULTIPART_MAX_FILE_SIZE:300MB}
       # 整次 multipart 请求上限 ← MULTIPART_MAX_REQUEST_SIZE
-      max-request-size: ${MULTIPART_MAX_REQUEST_SIZE}
+      max-request-size: ${MULTIPART_MAX_REQUEST_SIZE:310MB}
 
   datasource:
     # MySQL 完整 JDBC URL ← DB_URL

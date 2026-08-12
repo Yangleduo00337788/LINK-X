@@ -13,3 +13,17 @@ export const APP_CLIENT_VERSION = '1.0.0'
 
 /** 客户端订阅渠道：stable | beta | dev */
 export const APP_CLIENT_CHANNEL = 'stable'
+
+export type AppClientPlatform = 'windows' | 'macos' | 'linux'
+
+/** 当前客户端平台（Electron 优先） */
+export function getClientPlatform(): AppClientPlatform {
+  const fromElectron = window.electronAPI?.getPlatform?.()
+  if (fromElectron === 'windows' || fromElectron === 'macos' || fromElectron === 'linux') {
+    return fromElectron
+  }
+  const ua = navigator.userAgent
+  if (/Win/i.test(ua)) return 'windows'
+  if (/Mac/i.test(ua)) return 'macos'
+  return 'linux'
+}

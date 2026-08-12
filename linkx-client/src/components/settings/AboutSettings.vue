@@ -7,6 +7,7 @@ import * as versionApi from '../../api/version'
 import { useI18n } from '../../i18n'
 import { openLegalPageInBrowser } from '../../utils/legalPage'
 import { openHelpPageInBrowser } from '../../utils/helpPage'
+import { resolveAppDownloadUrl } from '../../utils/resolveAppDownloadUrl'
 import BrandMarkIcon from '../BrandMarkIcon.vue'
 import { LxButton } from '../ui'
 
@@ -36,8 +37,10 @@ async function startDownloadAndInstall(info: {
   version: string
   downloadUrl: string
   releaseNotes?: string
+  packageSha256?: string
+  packageFileName?: string
 }) {
-  const url = (info.downloadUrl || '').trim()
+  const url = resolveAppDownloadUrl(info.downloadUrl || '')
   if (!url) {
     message.warning(t('about.noDownloadUrl'))
     return
@@ -56,6 +59,8 @@ async function startDownloadAndInstall(info: {
       const result = await window.electronAPI.downloadAndInstallUpdate({
         url,
         version: info.version,
+        fileName: info.packageFileName,
+        sha256: info.packageSha256,
         silent: true
       })
       if (!result.ok) {

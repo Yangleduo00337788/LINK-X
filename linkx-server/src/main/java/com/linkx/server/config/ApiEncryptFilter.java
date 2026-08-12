@@ -55,6 +55,9 @@ public class ApiEncryptFilter extends OncePerRequestFilter {
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             return true;
         }
+        if (isMultipart(request)) {
+            return true;
+        }
         String uri = request.getRequestURI();
         if (!AdminApiSecurityPaths.isAdminApi(uri)) {
             return true;

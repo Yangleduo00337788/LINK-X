@@ -125,36 +125,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
+        // 跨域由 {@link LinkxCorsFilter} 统一处理（含 OPTIONS 预检与分片上传直连 8080）
         var origins = linkxProperties.getCors().getAllowedOrigins();
         if (CollectionUtils.isEmpty(origins)) {
-            // 未配置白名单时：拒绝所有跨域请求，避免误放行。
-            // Electron 桌面客户端走 file:// 协议不受 CORS 限制；
-            // 开发时可通过 linkx.cors.allowed-origins 显式配置本地开发地址。
-            log.warn("CORS allowed-origins 未配置，所有跨域请求将被拒绝（仅同源 / Electron 客户端可用）");
-            return;
+            log.warn("CORS allowed-origins 未配置，LinkxCorsFilter 仅放行 local 下 localhost/127.0.0.1 任意端口");
         }
-        registry.addMapping("/**")
-                .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
-                // 严格限制 Headers，避免通配
-                .allowedHeaders(
-                        "Authorization",
-                        "Content-Type",
-                        "Accept",
-                        "Origin",
-                        "User-Agent",
-                        "X-Requested-With",
-                        // 客户端 apiClient 拦截器对每个请求都会带上设备头，须放行否则预检失败（验证码等匿名接口也会挂）
-                        "X-Device-Id",
-                        "X-Device-Name",
-                        "X-Device-Type",
-                        "X-LinkX-Timestamp",
-                        "X-LinkX-Nonce",
-                        "X-LinkX-Signature",
-                        "X-Step-Up-Token"
-                )
-                .exposedHeaders("Authorization", "X-LinkX-Timestamp", "X-LinkX-Nonce", "X-LinkX-Signature")
-                .allowCredentials(true)
-                .maxAge(3600)
-                .allowedOrigins(origins.toArray(String[]::new));
     }
 }

@@ -8,10 +8,17 @@ import com.linkx.server.common.admin.AdminConstants;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminVersionDTO;
 import com.linkx.server.controller.admin.dto.AdminVersionQueryDTO;
+import com.linkx.server.controller.admin.dto.AdminVersionMultipartCompleteDTO;
+import com.linkx.server.controller.admin.dto.AdminVersionMultipartInitDTO;
+import com.linkx.server.controller.admin.vo.AdminVersionMultipartInitVO;
+import com.linkx.server.controller.admin.vo.AdminVersionUploadVO;
 import com.linkx.server.controller.admin.vo.AdminVersionVO;
 import com.linkx.server.entity.admin.SysAppVersion;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.admin.SysAppVersionMapper;
+import com.linkx.server.service.AppDownloadUrlResolver;
+import com.linkx.server.service.FileStorageService;
+import com.linkx.server.service.ObjectKeyOwnershipService;
 import com.linkx.server.service.admin.AdminSettingService;
 import com.linkx.server.service.admin.AdminVersionService;
 import com.linkx.server.util.AppVersionUtils;
@@ -20,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Date;
 import java.util.List;
@@ -39,6 +47,9 @@ public class AdminVersionServiceImpl implements AdminVersionService {
 
     private final SysAppVersionMapper versionMapper;
     private final AdminSettingService adminSettingService;
+    private final FileStorageService fileStorageService;
+    private final ObjectKeyOwnershipService objectKeyOwnershipService;
+    private final AppDownloadUrlResolver appDownloadUrlResolver;
 
     @Override
     public PageResultVO<AdminVersionVO> list(AdminVersionQueryDTO query) {
@@ -63,6 +74,10 @@ public class AdminVersionServiceImpl implements AdminVersionService {
         if (StringUtils.hasText(query.getChannel())) {
             String channel = AppVersionUtils.normalizeChannel(query.getChannel().trim());
             qw.and(SysAppVersion::getChannel).eq(channel);
+        }
+        if (StringUtils.hasText(query.getPlatform())) {
+            String platform = AppVersionUtils.normalizePlatform(query.getPlatform().trim());
+            qw.and(SysAppVersion::getPlatform).eq(platform);
         }
         if (query.getStartTime() != null) {
             qw.and(SysAppVersion::getCreateTime).ge(new Date(query.getStartTime()));
@@ -92,8 +107,12 @@ public class AdminVersionServiceImpl implements AdminVersionService {
         SysAppVersion entity = SysAppVersion.builder()
                 .version(normalizeVersion(dto.getVersion()))
                 .channel(AppVersionUtils.normalizeChannel(dto.getChannel()))
+                .platform(AppVersionUtils.normalizePlatform(dto.getPlatform()))
                 .releaseNotes(nullToEmpty(dto.getReleaseNotes()))
                 .downloadUrl(nullToEmpty(dto.getDownloadUrl()))
+                .packageSha256(nullToEmpty(dto.getPackageSha256()))
+                .packageFileName(nullToEmpty(dto.getPackageFileName()))
+                .packageSize(dto.getPackageSize())
                 .forceUpdate(Boolean.TRUE.equals(dto.getForceUpdate()))
                 .minSupportedVersion(nullToEmpty(dto.getMinSupportedVersion()))
                 .status(SysAppVersion.STATUS_DRAFT)
@@ -117,8 +136,12 @@ public class AdminVersionServiceImpl implements AdminVersionService {
         }
         row.setVersion(normalizeVersion(dto.getVersion()));
         row.setChannel(AppVersionUtils.normalizeChannel(dto.getChannel()));
+        row.setPlatform(AppVersionUtils.normalizePlatform(dto.getPlatform()));
         row.setReleaseNotes(nullToEmpty(dto.getReleaseNotes()));
         row.setDownloadUrl(nullToEmpty(dto.getDownloadUrl()));
+        row.setPackageSha256(nullToEmpty(dto.getPackageSha256()));
+        row.setPackageFileName(nullToEmpty(dto.getPackageFileName()));
+        row.setPackageSize(dto.getPackageSize());
         row.setForceUpdate(Boolean.TRUE.equals(dto.getForceUpdate()));
         row.setMinSupportedVersion(nullToEmpty(dto.getMinSupportedVersion()));
         row.setUpdatedBy(operatorId);
@@ -151,10 +174,14 @@ public class AdminVersionServiceImpl implements AdminVersionService {
             throw new CustomException(400, "仅草稿版本可发布");
         }
         Date now = new Date();
+        String platform = AppVersionUtils.normalizePlatform(row.getPlatform());
+        String channel = AppVersionUtils.normalizeChannel(row.getChannel());
         List<SysAppVersion> published = versionMapper.selectListByQuery(
                 QueryWrapper.create()
                         .where(SysAppVersion::getDeleted).eq(0)
-                        .and(SysAppVersion::getStatus).eq(SysAppVersion.STATUS_PUBLISHED));
+                        .and(SysAppVersion::getStatus).eq(SysAppVersion.STATUS_PUBLISHED)
+                        .and(SysAppVersion::getPlatform).eq(platform)
+                        .and(SysAppVersion::getChannel).eq(channel));
         for (SysAppVersion prev : published) {
             prev.setStatus(SysAppVersion.STATUS_ARCHIVED);
             prev.setUpdateTime(now);
@@ -178,6 +205,77 @@ public class AdminVersionServiceImpl implements AdminVersionService {
         return toVO(row);
     }
 
+    @Override
+    public AdminVersionUploadVO uploadPackage(MultipartFile file, Long operatorId) {
+        FileStorageService.InstallerUploadResult uploaded = fileStorageService.uploadInstaller(file);
+        if (operatorId != null) {
+            objectKeyOwnershipService.claim(operatorId, uploaded.objectKey());
+        }
+        return AdminVersionUploadVO.builder()
+                .objectKey(uploaded.objectKey())
+                .url(appDownloadUrlResolver.resolveForAdmin(uploaded.objectKey()))
+                .sha256(uploaded.sha256())
+                .fileName(uploaded.fileName())
+                .fileSize(uploaded.size())
+                .build();
+    }
+
+    @Override
+    public AdminVersionMultipartInitVO initInstallerMultipart(AdminVersionMultipartInitDTO dto, Long operatorId) {
+        FileStorageService.InstallerMultipartSession session =
+                fileStorageService.initiateInstallerMultipart(dto.getFileName());
+        if (operatorId != null) {
+            objectKeyOwnershipService.claim(operatorId, session.objectKey());
+        }
+        return AdminVersionMultipartInitVO.builder()
+                .uploadId(session.uploadId())
+                .objectKey(session.objectKey())
+                .build();
+    }
+
+    @Override
+    public void uploadInstallerPart(MultipartFile file, String uploadId, String objectKey, int partNumber, Long operatorId) {
+        if (file == null || file.isEmpty()) {
+            throw new CustomException(400, "分片不能为空");
+        }
+        if (partNumber < 1) {
+            throw new CustomException(400, "分片序号无效");
+        }
+        long maxChunk = 16L * 1024 * 1024;
+        if (file.getSize() > maxChunk) {
+            throw new CustomException(400, "单片不能超过 16MB");
+        }
+        try {
+            fileStorageService.uploadPart(objectKey, uploadId, partNumber, file.getInputStream(), file.getSize());
+        } catch (CustomException e) {
+            throw e;
+        } catch (IllegalArgumentException e) {
+            throw new CustomException(400, e.getMessage());
+        } catch (Exception e) {
+            throw new CustomException(500, "分片上传失败");
+        }
+    }
+
+    @Override
+    public AdminVersionUploadVO completeInstallerMultipart(AdminVersionMultipartCompleteDTO dto, Long operatorId) {
+        FileStorageService.InstallerUploadResult uploaded = fileStorageService.completeInstallerMultipart(
+                dto.getObjectKey(),
+                dto.getUploadId(),
+                dto.getFileName(),
+                dto.getFileSize(),
+                dto.getPackageSha256());
+        if (operatorId != null) {
+            objectKeyOwnershipService.claim(operatorId, uploaded.objectKey());
+        }
+        return AdminVersionUploadVO.builder()
+                .objectKey(uploaded.objectKey())
+                .url(appDownloadUrlResolver.resolveForAdmin(uploaded.objectKey()))
+                .sha256(uploaded.sha256())
+                .fileName(uploaded.fileName())
+                .fileSize(uploaded.size())
+                .build();
+    }
+
     private SysAppVersion requireVersion(Long id) {
         SysAppVersion row = versionMapper.selectOneById(id);
         if (row == null || Integer.valueOf(1).equals(row.getDeleted())) {
@@ -195,6 +293,9 @@ public class AdminVersionServiceImpl implements AdminVersionService {
         if (StringUtils.hasText(minSupported) && AppVersionUtils.compare(minSupported, version) > 0) {
             throw new CustomException(400, "最低支持版本不能高于应用版本");
         }
+        if (!AppVersionUtils.isValidPlatform(dto.getPlatform())) {
+            throw new CustomException(400, "目标平台无效，可选：windows / macos / linux");
+        }
     }
 
     private String normalizeVersion(String version) {
@@ -205,12 +306,18 @@ public class AdminVersionServiceImpl implements AdminVersionService {
     }
 
     private AdminVersionVO toVO(SysAppVersion row) {
+        String stored = row.getDownloadUrl();
         return AdminVersionVO.builder()
                 .id(row.getId())
                 .version(row.getVersion())
                 .channel(row.getChannel())
+                .platform(row.getPlatform())
                 .releaseNotes(row.getReleaseNotes())
-                .downloadUrl(row.getDownloadUrl())
+                .downloadKey(stored)
+                .downloadUrl(appDownloadUrlResolver.resolveForAdmin(stored))
+                .packageSha256(row.getPackageSha256())
+                .packageFileName(row.getPackageFileName())
+                .packageSize(row.getPackageSize())
                 .forceUpdate(row.getForceUpdate())
                 .minSupportedVersion(row.getMinSupportedVersion())
                 .status(row.getStatus())

@@ -120,5 +120,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   clipboardWriteText: text => ipcRenderer.invoke('clipboard:write-text', text),
   clipboardWriteImage: payload => ipcRenderer.invoke('clipboard:write-image', payload || {}),
   openExternal: url => ipcRenderer.invoke('shell:open-external', url),
-  openPath: filePath => ipcRenderer.invoke('shell:open-path', filePath)
+  openPath: filePath => ipcRenderer.invoke('shell:open-path', filePath),
+  getPlatform: () => {
+    if (process.platform === 'win32') return 'windows'
+    if (process.platform === 'darwin') return 'macos'
+    return 'linux'
+  }
 })

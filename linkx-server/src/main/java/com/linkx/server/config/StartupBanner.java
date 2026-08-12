@@ -39,6 +39,15 @@ public class StartupBanner implements ApplicationRunner {
     @Value("${management.endpoints.web.exposure.include:health,info,metrics,prometheus}")
     private String actuatorEndpoints;
 
+    @Value("${spring.servlet.multipart.max-file-size:300MB}")
+    private String multipartMaxFileSize;
+
+    @Value("${spring.servlet.multipart.max-request-size:310MB}")
+    private String multipartMaxRequestSize;
+
+    @Value("${server.tomcat.max-http-form-post-size:310MB}")
+    private String tomcatMaxHttpFormPostSize;
+
     @Override
     public void run(ApplicationArguments args) throws UnknownHostException {
         printBanner();
@@ -69,6 +78,11 @@ public class StartupBanner implements ApplicationRunner {
         log.info("  " + bold + "📍 服务地址" + reset);
         log.info("    本地访问:  " + green + baseUrl + reset);
         log.info("    网络访问:  " + yellow + externalUrl + reset);
+        long storageMaxMb = linkxProperties.getMinio().getMaxFileSize() / 1024 / 1024;
+        log.info("    上传限制:  multipart 单文件 " + yellow + multipartMaxFileSize + reset
+                + " / 整请求 " + yellow + multipartMaxRequestSize + reset
+                + "，Tomcat POST " + yellow + tomcatMaxHttpFormPostSize + reset
+                + "，存储业务上限 " + yellow + storageMaxMb + "MB" + reset);
         log.info("");
 
         // API 文档

@@ -18,4 +18,7 @@ public class AdminVersionQueryDTO extends AdminPageQueryDTO {
 
     @Schema(description = "发布渠道：stable/beta/dev")
     private String channel;
+
+    @Schema(description = "目标平台：windows/macos/linux")
+    private String platform;
 }

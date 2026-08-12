@@ -14,6 +14,9 @@
     "electron:dev": "node ./scripts/run-electron-dev.mjs",
     "installer:assets": "node ./scripts/generate-installer-assets.mjs",
     "electron:build": "node ./scripts/electron-build.mjs",
+    "electron:build:win": "node ./scripts/electron-build.mjs",
+    "electron:build:mac": "node ./scripts/electron-build-desktop.mjs mac",
+    "electron:build:linux": "node ./scripts/electron-build-desktop.mjs linux",
     "installer:build": "node ./scripts/installer-build.mjs",
     "clean:release": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/clean-release.ps1",
     "installer:dev": "node ./scripts/run-installer-dev.mjs",
@@ -42,6 +45,7 @@
     "prettier": "^3.6.2",
     "rcedit": "^5.0.1",
     "sharp": "^0.33.5",
+    "to-ico": "^1.1.5",
     "typescript": "^5.4.5",
     "unocss": "^0.59.4",
     "vite": "^5.4.12",
@@ -81,10 +85,14 @@
     },
     "afterPack": "./scripts/after-pack.mjs",
     "mac": {
-      "target": "dmg"
+      "target": "dmg",
+      "icon": "build/icon.png",
+      "category": "public.app-category.social-networking"
     },
     "linux": {
-      "target": "AppImage"
+      "target": "AppImage",
+      "icon": "build/icon.png",
+      "category": "Network"
     }
   }
 }

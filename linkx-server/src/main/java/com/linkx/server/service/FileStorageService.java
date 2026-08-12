@@ -34,6 +34,14 @@ public interface FileStorageService {
     }
 
     /**
+     * 上传客户端安装包（管理端版本发布专用，路径前缀 releases/）。
+     */
+    InstallerUploadResult uploadInstaller(MultipartFile file);
+
+    record InstallerUploadResult(String objectKey, String sha256, String fileName, long size) {
+    }
+
+    /**
      * 删除对象
      *
      * @param objectName 对象 key（uploadFile 返回值）
@@ -98,6 +106,17 @@ public interface FileStorageService {
 
     /** 按日期路径分配对象 key（不含实际上传） */
     String allocateObjectName(String originalFilename);
+
+    /** 管理端安装包分片上传会话 */
+    record InstallerMultipartSession(String uploadId, String objectKey) {
+    }
+
+    /** 初始化安装包分片上传（releases/ 路径） */
+    InstallerMultipartSession initiateInstallerMultipart(String originalFileName);
+
+    /** 完成安装包分片上传；packageSha256 可选，提供则跳过从 OSS 回拉整包算哈希 */
+    InstallerUploadResult completeInstallerMultipart(
+            String objectKey, String uploadId, String fileName, long fileSize, String packageSha256);
 
     /** 初始化分片上传，返回 uploadId + objectName */
     MultipartSession initiateMultipartUpload(String objectName, String contentType);

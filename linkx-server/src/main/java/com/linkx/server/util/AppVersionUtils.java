@@ -4,7 +4,10 @@ package com.linkx.server.util;
 /**
  * 作者：yangleduo
  */
+import com.linkx.server.entity.admin.SysAppVersion;
 import org.springframework.util.StringUtils;
+
+import java.util.Locale;
 
 /**
  * 客户端版本比较与发布渠道可见性判断。
@@ -58,6 +61,29 @@ public final class AppVersionUtils {
             return true;
         }
         return release.equals(normalizeChannel(clientChannel));
+    }
+
+    /**
+     * 规范化客户端平台：windows / macos / linux。
+     */
+    public static String normalizePlatform(String platform) {
+        if (!StringUtils.hasText(platform)) {
+            return SysAppVersion.PLATFORM_WINDOWS;
+        }
+        String p = platform.trim().toLowerCase(Locale.ROOT);
+        return switch (p) {
+            case "win", "win32", "windows" -> SysAppVersion.PLATFORM_WINDOWS;
+            case "mac", "darwin", "macos", "osx" -> SysAppVersion.PLATFORM_MACOS;
+            case "linux", "appimage" -> SysAppVersion.PLATFORM_LINUX;
+            default -> p;
+        };
+    }
+
+    public static boolean isValidPlatform(String platform) {
+        String p = normalizePlatform(platform);
+        return SysAppVersion.PLATFORM_WINDOWS.equals(p)
+                || SysAppVersion.PLATFORM_MACOS.equals(p)
+                || SysAppVersion.PLATFORM_LINUX.equals(p);
     }
 
     public static String normalizeChannel(String channel) {

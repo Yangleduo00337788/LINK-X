@@ -29,13 +29,21 @@ public class SysAppVersion implements Serializable {
     public static final String STATUS_PUBLISHED = "published";
     public static final String STATUS_ARCHIVED = "archived";
 
+    public static final String PLATFORM_WINDOWS = "windows";
+    public static final String PLATFORM_MACOS = "macos";
+    public static final String PLATFORM_LINUX = "linux";
+
     @Id(keyType = KeyType.Generator, value = KeyGenerators.snowFlakeId)
     private Long id;
 
     private String version;
     private String channel;
+    private String platform;
     private String releaseNotes;
     private String downloadUrl;
+    private String packageSha256;
+    private String packageFileName;
+    private Long packageSize;
     private Boolean forceUpdate;
     private String minSupportedVersion;
     private String status;

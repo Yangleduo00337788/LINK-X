@@ -24,13 +24,29 @@ public class AdminVersionDTO {
     @Schema(description = "发布渠道：stable / beta / dev")
     private String channel;
 
+    @NotBlank
+    @Size(max = 16)
+    @Schema(description = "目标平台：windows / macos / linux")
+    private String platform;
+
     @Size(max = 2000)
     @Schema(description = "更新说明")
     private String releaseNotes;
 
     @Size(max = 512)
-    @Schema(description = "下载地址")
+    @Schema(description = "下载地址（对象 key 或外链）")
     private String downloadUrl;
+
+    @Size(max = 64)
+    @Schema(description = "安装包 SHA-256")
+    private String packageSha256;
+
+    @Size(max = 255)
+    @Schema(description = "安装包文件名")
+    private String packageFileName;
+
+    @Schema(description = "安装包大小（字节）")
+    private Long packageSize;
 
     @NotNull
     @Schema(description = "有可用更新时是否强制升级")

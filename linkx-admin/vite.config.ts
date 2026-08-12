@@ -25,6 +25,8 @@ export default defineConfig({
       '/api': {
         target: 'http://127.0.0.1:8080',
         changeOrigin: true,
+        timeout: 600_000,
+        proxyTimeout: 600_000,
         // SSE 长连接勿缓冲
         configure: (proxy) => {
           proxy.on('proxyReq', (proxyReq, req) => {

@@ -107,6 +107,7 @@ declare global {
         url: string
         version?: string
         fileName?: string
+        sha256?: string
         /** 默认 true：Windows 下静默安装 */
         silent?: boolean
       }) => Promise<{
@@ -123,6 +124,7 @@ declare global {
       setShortcuts?: (payload: { toggleWindow?: string; lock?: string }) => Promise<boolean>
       onShortcutLock?: (callback: () => void) => () => void
       isElectron?: boolean
+      getPlatform?: () => 'windows' | 'macos' | 'linux'
       hasNativeTitleBarOverlay?: boolean
       /** Windows/Linux：自绘窗控（关闭键可裁进窗口圆角） */
       showCustomCaptionButtons?: boolean

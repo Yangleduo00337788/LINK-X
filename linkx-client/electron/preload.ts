@@ -182,7 +182,12 @@ const api = {
   clipboardWriteImage: (payload: { dataUrl?: string; url?: string }) =>
     ipcRenderer.invoke('clipboard:write-image', payload || {}) as Promise<boolean>,
   openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url) as Promise<boolean>,
-  openPath: (filePath: string) => ipcRenderer.invoke('shell:open-path', filePath) as Promise<boolean>
+  openPath: (filePath: string) => ipcRenderer.invoke('shell:open-path', filePath) as Promise<boolean>,
+  getPlatform: (): 'windows' | 'macos' | 'linux' => {
+    if (process.platform === 'win32') return 'windows'
+    if (process.platform === 'darwin') return 'macos'
+    return 'linux'
+  }
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)

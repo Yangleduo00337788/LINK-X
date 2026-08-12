@@ -773,16 +773,28 @@ function registerWindowIpc() {
     'app:download-and-install-update',
     async (
       event,
-      payload: { url?: string; version?: string; fileName?: string; silent?: boolean } = {}
+      payload: { url?: string; version?: string; fileName?: string; sha256?: string; silent?: boolean } = {}
     ) => {
       try {
         const url = (payload.url || '').trim()
-        if (!/^https:\/\//i.test(url)) {
+        const isHttps = /^https:\/\//i.test(url)
+        const isLocalHttp =
+          /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?\//i.test(url) && isDev
+        if (!isHttps && !isLocalHttp) {
           return { ok: false, message: mainT(desktopPrefs.language, 'downloadHttpsOnly') }
         }
 
         // 域名白名单校验，防止渲染进程被 XSS 后下载执行任意来源 exe
-        const allowedHosts = (process.env.LINKX_UPDATE_HOSTS || 'github.com,objects.githubusercontent.com')
+        let apiHost = ''
+        try {
+          apiHost = new URL(resolveApiBaseUrl(process.env.VITE_API_BASE_URL)).hostname.toLowerCase()
+        } catch {
+          apiHost = ''
+        }
+        const defaultHosts = ['github.com', 'objects.githubusercontent.com', apiHost]
+          .filter(Boolean)
+          .join(',')
+        const allowedHosts = (process.env.LINKX_UPDATE_HOSTS || defaultHosts)
           .split(',')
           .map(h => h.trim().toLowerCase())
           .filter(Boolean)
@@ -834,6 +846,16 @@ function registerWindowIpc() {
           }
         }
         const bytes = Buffer.from(await res.arrayBuffer())
+
+        const expectedSha = (payload.sha256 || '').trim().toLowerCase()
+        if (expectedSha) {
+          const { createHash } = await import('crypto')
+          const actualSha = createHash('sha256').update(bytes).digest('hex')
+          if (actualSha !== expectedSha) {
+            return { ok: false, message: mainT(desktopPrefs.language, 'downloadChecksumMismatch') }
+          }
+        }
+
         await fs.promises.writeFile(targetPath, bytes)
 
         win?.webContents.send('app:update-progress', { phase: 'installing', percent: 100 })

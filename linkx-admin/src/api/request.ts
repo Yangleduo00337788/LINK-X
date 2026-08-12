@@ -220,8 +220,8 @@ request.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
     security.apiSignEnabled &&
     isSessionActive() &&
     security.apiSignKey &&
-    shouldSignRequest(url) &&
-    !isFormData
+    shouldSignRequest(url)
+  // FormData（安装包/分片）不参与 body 哈希，与后端 multipart 签名校验一致（空 body）
 
   if (needsSign) {
     const signHeaders = await buildApiSignHeaders(
@@ -343,8 +343,8 @@ export async function get<T>(url: string, params?: Record<string, unknown>) {
   return data.data
 }
 
-export async function post<T>(url: string, body?: unknown) {
-  const { data } = await request.post<ApiResult<T>>(url, body)
+export async function post<T>(url: string, body?: unknown, config?: AxiosRequestConfig) {
+  const { data } = await request.post<ApiResult<T>>(url, body, config)
   return data.data
 }
 

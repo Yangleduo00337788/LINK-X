@@ -37,8 +37,13 @@ public class AppVersionVO implements Serializable {
     private boolean hasUpdate;
     private boolean forceUpdate;
     private String channel;
+    private String platform;
     private String releaseNotes;
     private String downloadUrl;
+    /** 安装包 SHA-256（用于下载后校验） */
+    private String packageSha256;
+    /** 安装包文件名 */
+    private String packageFileName;
     /** 客服邮箱（可空） */
     private String supportEmail;
     /** 客服电话（可空） */

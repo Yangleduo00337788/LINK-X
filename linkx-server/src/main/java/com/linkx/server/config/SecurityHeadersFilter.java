@@ -24,7 +24,7 @@ import java.nio.charset.StandardCharsets;
  * HTTPS 强制与安全响应头。
  */
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE)
+@Order(Ordered.HIGHEST_PRECEDENCE + 1)
 @RequiredArgsConstructor
 public class SecurityHeadersFilter extends OncePerRequestFilter {
 

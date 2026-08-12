@@ -5,6 +5,7 @@ package com.linkx.server.service.impl;
  * 作者：yangleduo
  */
 import com.linkx.server.common.FileExtensionValidator;
+import com.linkx.server.common.InstallerUploadValidator;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.service.FileStorageService;
@@ -87,6 +88,10 @@ public class FileStorageServiceImpl implements FileStorageService {
 
     /** ComposeObject 除最后一片外，单片至少 5MiB（S3 约束） */
     private static final long MIN_COMPOSE_PART_BYTES = 5L * 1024 * 1024;
+
+    private static final Set<String> INSTALLER_EXTENSIONS = Set.of(
+            ".exe", ".msi", ".dmg", ".deb", ".rpm", ".appimage"
+    );
 
     private static final String HASH_KEY_PREFIX = "linkx:filehash:";
     private static final String MP_META_PREFIX = "linkx:mp:meta:";
@@ -177,6 +182,154 @@ public class FileStorageServiceImpl implements FileStorageService {
             // 不向调用方暴露内部异常详情
             throw new RuntimeException("文件上传失败");
         }
+    }
+
+    @Override
+    public InstallerUploadResult uploadInstaller(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("安装包不能为空");
+        }
+        try {
+            InstallerUploadValidator.assertInstallerFile(file);
+        } catch (IllegalArgumentException e) {
+            throw new CustomException(400, e.getMessage());
+        }
+
+        long maxSize = linkxProperties.getMinio().getMaxFileSize();
+        if (file.getSize() > maxSize) {
+            throw new CustomException(400, "安装包大小超过限制: " + (maxSize / 1024 / 1024) + "MB");
+        }
+
+        String originalFilename = file.getOriginalFilename();
+        if (originalFilename != null) {
+            originalFilename = sanitizeFilename(originalFilename);
+        }
+        String extension = extractExtension(originalFilename);
+        String baseName = originalFilename != null && originalFilename.length() > extension.length()
+                ? originalFilename.substring(0, originalFilename.length() - extension.length())
+                : UUID.randomUUID().toString().replace("-", "");
+        if (!StringUtils.hasText(baseName)) {
+            baseName = UUID.randomUUID().toString().replace("-", "");
+        }
+        String objectName = "releases/"
+                + LocalDate.now().toString().replace("-", "/")
+                + "/"
+                + baseName
+                + extension;
+
+        String contentType = normalizeContentType(file.getContentType());
+        if (contentType == null) {
+            contentType = "application/octet-stream";
+        }
+
+        try {
+            ObjectStorageBackend backend = objectStorageRouter.activeBackend();
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            try (InputStream raw = file.getInputStream();
+                 DigestInputStream dis = new DigestInputStream(raw, digest)) {
+                backend.putObject(objectName, dis, file.getSize(), contentType);
+            }
+            String contentHash = HexFormat.of().formatHex(digest.digest());
+            saveContentHash(contentHash, objectName);
+            String displayName = originalFilename != null ? originalFilename : objectName;
+            return new InstallerUploadResult(objectName, contentHash, displayName, file.getSize());
+        } catch (Exception e) {
+            log.error("安装包上传失败", e);
+            throw new RuntimeException("安装包上传失败");
+        }
+    }
+
+    @Override
+    public InstallerMultipartSession initiateInstallerMultipart(String originalFileName) {
+        assertInstallerFileName(originalFileName);
+        String objectName = buildInstallerObjectName(originalFileName);
+        String uploadId = UUID.randomUUID().toString().replace("-", "");
+        Map<String, String> meta = new LinkedHashMap<>();
+        meta.put("objectName", objectName);
+        meta.put("contentType", "application/octet-stream");
+        meta.put("installer", "true");
+        try {
+            redisTemplate.opsForValue().set(MP_META_PREFIX + uploadId, objectMapper.writeValueAsString(meta), MULTIPART_TTL);
+            redisTemplate.expire(MP_PARTS_PREFIX + uploadId, MULTIPART_TTL);
+        } catch (Exception e) {
+            log.error("初始化安装包分片会话失败: objectName={}", objectName, e);
+            throw new RuntimeException("初始化安装包分片上传失败");
+        }
+        return new InstallerMultipartSession(uploadId, objectName);
+    }
+
+    @Override
+    public InstallerUploadResult completeInstallerMultipart(
+            String objectKey, String uploadId, String fileName, long fileSize, String packageSha256) {
+        if (!StringUtils.hasText(objectKey) || !objectKey.startsWith("releases/")) {
+            throw new CustomException(400, "非法安装包对象路径");
+        }
+        long maxSize = linkxProperties.getMinio().getMaxFileSize();
+        if (fileSize > maxSize) {
+            throw new CustomException(400, "安装包大小超过限制: " + (maxSize / 1024 / 1024) + "MB");
+        }
+        List<PartETag> parts = listUploadedParts(uploadId);
+        String mergedKey = completeMultipartUpload(objectKey, uploadId, parts);
+        try {
+            String contentHash = resolveInstallerSha256(mergedKey, packageSha256);
+            saveContentHash(contentHash, mergedKey);
+            String displayName = StringUtils.hasText(fileName) ? sanitizeFilename(fileName) : mergedKey;
+            return new InstallerUploadResult(mergedKey, contentHash, displayName, fileSize);
+        } catch (CustomException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("完成安装包分片上传失败: uploadId={}, objectKey={}", uploadId, objectKey, e);
+            throw new RuntimeException("完成安装包分片上传失败");
+        }
+    }
+
+    private String resolveInstallerSha256(String mergedKey, String packageSha256) throws Exception {
+        if (StringUtils.hasText(packageSha256)) {
+            String normalized = packageSha256.trim().toLowerCase(Locale.ROOT);
+            if (normalized.matches("[a-f0-9]{64}")) {
+                return normalized;
+            }
+            throw new CustomException(400, "packageSha256 格式无效");
+        }
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        try (StoredObject stored = openObject(mergedKey);
+             InputStream in = stored.stream()) {
+            byte[] buffer = new byte[256 * 1024];
+            int read;
+            while ((read = in.read(buffer)) >= 0) {
+                if (read > 0) {
+                    digest.update(buffer, 0, read);
+                }
+            }
+        }
+        return HexFormat.of().formatHex(digest.digest());
+    }
+
+    private void assertInstallerFileName(String originalFileName) {
+        if (!StringUtils.hasText(originalFileName)) {
+            throw new CustomException(400, "安装包文件名不能为空");
+        }
+        String cleaned = sanitizeFilename(originalFileName.trim());
+        String ext = extractExtension(cleaned).toLowerCase(Locale.ROOT);
+        if (!INSTALLER_EXTENSIONS.contains(ext)) {
+            throw new CustomException(400, "仅支持 .exe / .msi / .dmg / .deb / .rpm / .AppImage 安装包");
+        }
+    }
+
+    private String buildInstallerObjectName(String originalFileName) {
+        String cleaned = sanitizeFilename(originalFileName.trim());
+        String extension = extractExtension(cleaned);
+        String baseName = cleaned.length() > extension.length()
+                ? cleaned.substring(0, cleaned.length() - extension.length())
+                : UUID.randomUUID().toString().replace("-", "");
+        if (!StringUtils.hasText(baseName)) {
+            baseName = UUID.randomUUID().toString().replace("-", "");
+        }
+        return "releases/"
+                + LocalDate.now().toString().replace("-", "/")
+                + "/"
+                + baseName
+                + extension;
     }
 
     @Override
