@@ -185,7 +185,7 @@
   }
 
   function applyPlatform(platformKey) {
-    const platform = data.platforms[platformKey] || data.platforms.linux;
+    const platform = data.platforms[platformKey] || data.platforms.windows;
     logo.src = platform.icon;
     nameEl.textContent = platform.name[lang];
 
@@ -216,5 +216,5 @@
 
   const initial = new URLSearchParams(window.location.search).get("platform");
   renderHighlights();
-  applyPlatform(initial && data.platforms[initial] ? initial : "linux");
+  applyPlatform(initial && data.platforms[initial] ? initial : "windows");
 })();

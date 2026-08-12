@@ -166,23 +166,19 @@
     linux: {
       icon: "assets/icon-linux.svg",
       name: { zh: "Linux", en: "Linux" },
-      version: { zh: "v1.0.0 · x64 · AppImage", en: "v1.0.0 · x64 · AppImage" },
-      url: "https://gitee.com/yangleduo7788/link-x/releases/download/v1.0.0/LinkX-1.0.0-linux-x64.AppImage",
-      file: "LinkX-1.0.0-linux-x64.AppImage",
+      comingSoon: true,
     },
     macos: {
       icon: "assets/icon-macos.svg",
       name: { zh: "macOS", en: "macOS" },
-      version: { zh: "v1.0.0 · Apple Silicon / Intel", en: "v1.0.0 · Apple Silicon / Intel" },
-      url: "https://gitee.com/yangleduo7788/link-x/releases/download/v1.0.0/LinkX-1.0.0-mac-universal.dmg",
-      file: "LinkX-1.0.0-mac-universal.dmg",
+      comingSoon: true,
     },
     windows: {
       icon: "assets/icon-windows.svg",
       name: { zh: "Windows", en: "Windows" },
       version: { zh: "v1.0.0 · x64 · 安装包", en: "v1.0.0 · x64 · Installer" },
-      url: "https://gitee.com/yangleduo7788/link-x/releases/download/v1.0.0/LinkX-1.0.0-win-x64.exe",
-      file: "LinkX-1.0.0-win-x64.exe",
+      url: "https://yangleduo1.oss-cn-beijing.aliyuncs.com/releases/2026/08/12/LinkX-Installer-1.0.0.exe",
+      file: "LinkX-Installer-1.0.0.exe",
     },
     android: {
       icon: "assets/icon-android.svg",
@@ -207,7 +203,7 @@
   }
 
   function applyPlatform(platform) {
-    const info = platforms[platform] || platforms.linux;
+    const info = platforms[platform] || platforms.windows;
     const lang = getLang();
     logo.src = info.icon;
     nameEl.textContent = info.name[lang];
@@ -215,11 +211,13 @@
     if (info.comingSoon) {
       panel.classList.add("is-coming-soon");
       versionEl.textContent = getComingSoonText();
+      comingEl.hidden = false;
     } else {
       panel.classList.remove("is-coming-soon");
       versionEl.textContent = info.version[lang];
       downloadEl.href = info.url;
       downloadEl.setAttribute("download", info.file);
+      comingEl.hidden = true;
     }
 
     options.forEach((opt) => {
@@ -240,7 +238,7 @@
     });
   });
 
-  applyPlatform("linux");
+  applyPlatform("windows");
 })();
 
 (function () {

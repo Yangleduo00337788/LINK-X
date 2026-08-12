@@ -50,150 +50,22 @@ window.ChangelogData = {
     linux: {
       icon: "assets/icon-linux.svg",
       name: { zh: "Linux", en: "Linux" },
-      versionLabel: { zh: "v1.0.0 · x64 · AppImage", en: "v1.0.0 · x64 · AppImage" },
-      download: {
-        url: "https://gitee.com/yangleduo7788/link-x/releases/download/v1.0.0/LinkX-1.0.0-linux-x64.AppImage",
-        file: "LinkX-1.0.0-linux-x64.AppImage",
-      },
-      releases: [
-        {
-          version: "Unreleased",
-          date: null,
-          badge: { zh: "开发中", en: "In Progress" },
-          sections: [
-            {
-              title: { zh: "新增", en: "Added" },
-              items: {
-                zh: [
-                  "客户端 Design Token 体系（--lx-*）与 ui-components.css 公共样式",
-                  "公共 UI 组件：LxButton、LxIconButton、LxGroupCard",
-                  "样式迁移辅助脚本 migrate-*.mjs",
-                ],
-                en: [
-                  "Client Design Token system (--lx-*) and shared ui-components.css",
-                  "Shared UI components: LxButton, LxIconButton, LxGroupCard",
-                  "Style migration helper scripts migrate-*.mjs",
-                ],
-              },
-            },
-            {
-              title: { zh: "变更", en: "Changed" },
-              items: {
-                zh: [
-                  "linkx-client 全站迁移至统一按钮、间距、圆角与场景色 Token",
-                  "窗控与状态栏置顶统一 .lx-win-caption-btn 圆角块悬停交互",
-                  "README 与目录结构、客户端 UI 开发规范对齐",
-                ],
-                en: [
-                  "linkx-client migrated to unified button, spacing, radius, and scene color tokens",
-                  "Window controls and status bar use unified .lx-win-caption-btn hover interaction",
-                  "README and project structure aligned with client UI development guidelines",
-                ],
-              },
-            },
-          ],
-        },
-        {
-          version: "1.0.0",
-          date: "2026-08-09",
-          badge: { zh: "稳定版", en: "Stable" },
-          sections: [
-            {
-              title: { zh: "新增", en: "Added" },
-              items: {
-                zh: [
-                  "Electron 跨平台桌面客户端，支持 Web / 桌面双模式开发",
-                  "单聊 / 群聊、多媒体消息、引用 / 编辑 / 撤回 / 转发",
-                  "消息状态机、已读回执、在线状态与正在输入",
-                  "朋友圈、日历、笔记编辑器（Markdown 块编辑）",
-                  "个人网盘、收藏、锁屏、系统浏览器打开外链",
-                  "WebRTC 单聊音视频与多人 Mesh 会议",
-                  "Linux x64 AppImage 安装包发布",
-                ],
-                en: [
-                  "Electron cross-platform desktop client with Web / desktop dev modes",
-                  "One-on-one and group chat, rich media, quote / edit / recall / forward",
-                  "Message state machine, read receipts, online status, typing indicators",
-                  "Moments, calendar, note editor (Markdown blocks)",
-                  "Personal cloud drive, favorites, lock screen, open links in system browser",
-                  "WebRTC one-on-one audio/video and multi-party Mesh conferences",
-                  "Linux x64 AppImage release",
-                ],
-              },
-            },
-          ],
-        },
-      ],
+      comingSoon: true,
+      releases: [],
     },
     macos: {
       icon: "assets/icon-macos.svg",
       name: { zh: "macOS", en: "macOS" },
-      versionLabel: { zh: "v1.0.0 · Apple Silicon / Intel", en: "v1.0.0 · Apple Silicon / Intel" },
-      download: {
-        url: "https://gitee.com/yangleduo7788/link-x/releases/download/v1.0.0/LinkX-1.0.0-mac-universal.dmg",
-        file: "LinkX-1.0.0-mac-universal.dmg",
-      },
-      releases: [
-        {
-          version: "Unreleased",
-          date: null,
-          badge: { zh: "开发中", en: "In Progress" },
-          sections: [
-            {
-              title: { zh: "新增", en: "Added" },
-              items: {
-                zh: [
-                  "客户端 Design Token 体系与公共 UI 组件库",
-                  "统一窗控与状态栏交互样式",
-                ],
-                en: [
-                  "Client Design Token system and shared UI component library",
-                  "Unified window controls and status bar interaction styles",
-                ],
-              },
-            },
-            {
-              title: { zh: "变更", en: "Changed" },
-              items: {
-                zh: ["全站 UI 迁移至统一 Design Token", "文档与 MIT 许可证说明对齐"],
-                en: ["Site-wide UI migrated to unified Design Tokens", "Documentation and MIT license notes aligned"],
-              },
-            },
-          ],
-        },
-        {
-          version: "1.0.0",
-          date: "2026-08-09",
-          badge: { zh: "稳定版", en: "Stable" },
-          sections: [
-            {
-              title: { zh: "新增", en: "Added" },
-              items: {
-                zh: [
-                  "macOS 通用安装包（Apple Silicon / Intel）",
-                  "单聊 / 群聊与完整 IM 核心链路",
-                  "WebRTC 音视频通话与多人会议",
-                  "文件网盘、日历、笔记等协作工具",
-                ],
-                en: [
-                  "macOS universal installer (Apple Silicon / Intel)",
-                  "One-on-one / group chat with full IM core flows",
-                  "WebRTC audio/video calls and multi-party meetings",
-                  "Cloud drive, calendar, notes, and collaboration tools",
-                ],
-              },
-            },
-          ],
-        },
-      ],
+      comingSoon: true,
+      releases: [],
     },
     windows: {
       icon: "assets/icon-windows.svg",
       name: { zh: "Windows", en: "Windows" },
       versionLabel: { zh: "v1.0.0 · x64 · 安装包", en: "v1.0.0 · x64 · Installer" },
       download: {
-        url: "https://gitee.com/yangleduo7788/link-x/releases/download/v1.0.0/LinkX-1.0.0-win-x64.exe",
-        file: "LinkX-1.0.0-win-x64.exe",
+        url: "https://yangleduo1.oss-cn-beijing.aliyuncs.com/releases/2026/08/12/LinkX-Installer-1.0.0.exe",
+        file: "LinkX-Installer-1.0.0.exe",
       },
       releases: [
         {
@@ -202,40 +74,60 @@ window.ChangelogData = {
           badge: { zh: "开发中", en: "In Progress" },
           sections: [
             {
-              title: { zh: "新增", en: "Added" },
+              title: { zh: "计划", en: "Planned" },
               items: {
-                zh: ["客户端 Design Token 与公共组件库", "样式迁移辅助脚本"],
-                en: ["Client Design Tokens and shared component library", "Style migration helper scripts"],
-              },
-            },
-            {
-              title: { zh: "变更", en: "Changed" },
-              items: {
-                zh: ["全站 UI 统一至 Design Token 体系", "Electron 窗控交互优化"],
-                en: ["Site-wide UI unified under Design Token system", "Electron window control interaction improvements"],
+                zh: [
+                  "AI 功能：支持调用 AI 能力（大大提高效率）",
+                  "优化界面 UI",
+                  "提升流畅度，减少卡顿",
+                  "减小安装包体积",
+                ],
+                en: [
+                  "AI features: support invoking multiple AI capabilities",
+                  "UI refinements",
+                  "Improved smoothness and reduced lag",
+                  "Smaller installer package size",
+                ],
               },
             },
           ],
         },
         {
           version: "1.0.0",
-          date: "2026-08-09",
+          date: "2026-08-12",
           badge: { zh: "稳定版", en: "Stable" },
           sections: [
             {
               title: { zh: "新增", en: "Added" },
               items: {
                 zh: [
+                  "客户端 Design Token 与公共组件库",
+                  "样式迁移辅助脚本",
                   "Windows x64 安装包（LinkX-Installer）",
                   "单聊 / 群聊、消息状态与已读回执",
                   "WebRTC 音视频与多人会议",
                   "通知卡片流、锁屏与系统浏览器外链",
                 ],
                 en: [
+                  "Client Design Tokens and shared component library",
+                  "Style migration helper scripts",
                   "Windows x64 installer (LinkX-Installer)",
                   "One-on-one / group chat, message status and read receipts",
                   "WebRTC audio/video and multi-party meetings",
                   "Notification feed, lock screen, and system browser for external links",
+                ],
+              },
+            },
+            {
+              title: { zh: "变更", en: "Changed" },
+              items: {
+                zh: [
+                  "全站 UI 统一至 Design Token 体系",
+                  "Electron 窗控交互优化",
+                ],
+                en: [
+                  "Site-wide UI unified under Design Token system",
+                  "Electron window control interaction improvements",
                 ],
               },
             },
