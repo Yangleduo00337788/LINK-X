@@ -7,11 +7,64 @@
 
 import { getToken, isWebEnvironment } from './tokenStorage'
 import { useAppSettingsStore } from '../stores/appSettings'
-import type { DownloadResult } from './downloadFile'
+import type { DownloadOptions, DownloadResult } from './downloadFile'
 import { API_BASE_URL } from '../config/endpoints'
 import { t } from '../i18n'
 
 const apiBase = API_BASE_URL
+
+async function authFetch(apiPath: string): Promise<Response | null> {
+  const isWeb = isWebEnvironment()
+  const token = await getToken('accessToken')
+  if (!isWeb && !token) {
+    return null
+  }
+  const path = apiPath.startsWith('/') ? apiPath : `/${apiPath}`
+  const url = new URL(`${apiBase}${path}`)
+  const headers: Record<string, string> = {}
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+  try {
+    const res = await fetch(url.toString(), {
+      headers,
+      credentials: isWeb ? 'include' : 'same-origin'
+    })
+    return res
+  } catch {
+    return null
+  }
+}
+
+/** 鉴权拉取二进制并返回 blob URL（调用方负责 revoke） */
+export async function fetchAuthenticatedApiBlobUrl(apiPath: string): Promise<string | null> {
+  const res = await authFetch(apiPath)
+  if (!res || !res.ok) return null
+  try {
+    const blob = await res.blob()
+    return URL.createObjectURL(blob)
+  } catch {
+    return null
+  }
+}
+
+/** 聊天消息附件鉴权 URL（Web Cookie / Electron fetch+blob） */
+export function buildChatMessageMediaApiUrl(messageId: string): string {
+  return `${apiBase}/chat/messages/${encodeURIComponent(messageId)}/file`
+}
+
+export async function fetchChatMessageMediaBlobUrl(messageId: string): Promise<string | null> {
+  return fetchAuthenticatedApiBlobUrl(`/chat/messages/${messageId}/file`)
+}
+
+/** 网盘文件鉴权 URL */
+export function buildDriveFileMediaApiUrl(fileId: string): string {
+  return `${apiBase}/cloud/files/${encodeURIComponent(fileId)}/content`
+}
+
+export async function fetchDriveFileMediaBlobUrl(fileId: string): Promise<string | null> {
+  return fetchAuthenticatedApiBlobUrl(`/cloud/files/${fileId}/content`)
+}
 
 /**
  * 下载需鉴权的后端中转地址，例如 `/cloud/files/{id}/content`。
@@ -19,7 +72,8 @@ const apiBase = API_BASE_URL
 export async function downloadAuthenticatedApi(
   apiPath: string,
   fileName: string,
-  query?: Record<string, string | undefined>
+  query?: Record<string, string | undefined>,
+  options: DownloadOptions = {}
 ): Promise<DownloadResult> {
   const isWeb = isWebEnvironment()
   const token = await getToken('accessToken')
@@ -55,7 +109,7 @@ export async function downloadAuthenticatedApi(
     try {
       const settings = useAppSettingsStore()
       const directory = (settings.downloadPath || '').trim() || undefined
-      const askEveryTime = !!settings.downloadAskEveryTime
+      const askEveryTime = options.openAfter ? false : !!settings.downloadAskEveryTime
       const name = (fileName || 'download').trim() || 'download'
       const api = window.electronAPI?.downloadFile
       if (api) {
@@ -65,8 +119,13 @@ export async function downloadAuthenticatedApi(
           data: buf,
           fileName: name,
           directory,
-          askEveryTime
+          askEveryTime,
+          openAfter: options.openAfter
         })
+      }
+      if (options.openAfter) {
+        window.open(objectUrl, '_blank', 'noopener,noreferrer')
+        return { ok: true }
       }
       const a = document.createElement('a')
       a.href = objectUrl
@@ -87,11 +146,37 @@ export function downloadDriveFileContent(fileId: string, fileName: string) {
 }
 
 /** 聊天消息附件中转下载 */
-export function downloadChatMessageFile(messageId: string, fileName: string) {
-  return downloadAuthenticatedApi(`/chat/messages/${messageId}/file`, fileName)
+export function downloadChatMessageFile(
+  messageId: string,
+  fileName: string,
+  options?: DownloadOptions
+) {
+  return downloadAuthenticatedApi(`/chat/messages/${messageId}/file`, fileName, undefined, options)
 }
 
 /** 群资源中转下载 */
+export function buildGroupAssetMediaApiUrl(conversationId: string, assetId: string): string {
+  return `${apiBase}/group/${encodeURIComponent(conversationId)}/assets/${encodeURIComponent(assetId)}/content`
+}
+
+export async function fetchGroupAssetMediaBlobUrl(
+  conversationId: string,
+  assetId: string
+): Promise<string | null> {
+  return fetchAuthenticatedApiBlobUrl(
+    `/group/${conversationId}/assets/${assetId}/content`
+  )
+}
+
+/** 朋友圈图片鉴权 URL */
+export function buildMomentsImageMediaApiUrl(imageId: string): string {
+  return `${apiBase}/moments/images/${encodeURIComponent(imageId)}/content`
+}
+
+export async function fetchMomentsImageMediaBlobUrl(imageId: string): Promise<string | null> {
+  return fetchAuthenticatedApiBlobUrl(`/moments/images/${imageId}/content`)
+}
+
 export function downloadGroupAssetContent(
   conversationId: string,
   assetId: string,
