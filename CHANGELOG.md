@@ -14,6 +14,7 @@
 - 客户端 Design Token 体系（`--lx-*`）与 `ui-components.css` 公共样式
 - 公共 UI 组件：`LxButton`、`LxIconButton`、`LxGroupCard`
 - 样式迁移辅助脚本 `linkx-client/scripts/migrate-*.mjs`
+- 服务端消息落库加密（AES-256-GCM，可选开启，见 README 8.4）
 
 ### 变更
 
@@ -22,10 +23,11 @@
 - `ui-components.css` 改由 `main.ts` 显式引入（修复 `@import` 顺序导致的样式未加载）
 - README 与目录结构、客户端 UI 开发规范对齐
 - 文档与 MIT 许可证说明对齐（README / CONTRIBUTING）
+- 官网 `docs.html` 补充消息落库加密说明，与 README 8.4 对齐
 
 ---
 
-## [1.0.0] - 2026-08-09
+## [1.0.0] - 2026-08-12
 
 首个可本地完整联调的稳定基线，涵盖 IM 核心链路与管理运营能力。
 

@@ -21,7 +21,7 @@
 
 **官网** https://mars-studio.asia
 
-**代码仓库** https://gitee.com/yangleduo7788/link-x
+**代码仓库** https://gitee.com/yangleduo7788/link-x · [GitHub 镜像](https://github.com/Yangleduo00337788/LINK-X)
 
 </div>
 
@@ -137,7 +137,7 @@ flowchart TB
         M7["朋友圈/日历/笔记"] --- M8["红包余额"]
         M9["Netty WS 实时推送"] --- M10["Snail Job 定时任务"]
         M11["安全合规 审计/敏感词"]
-        FW["基础框架：Spring Security · MyBatis-Flex · Flyway · SpringDoc · Actuator"]
+        FW["基础框架：MyBatis-Flex · Flyway · SpringDoc · Actuator<br/>（密码 BCrypt 使用 spring-security-crypto）"]
     end
 
     subgraph 数据层["数据层（中间件 / 持久化）"]
@@ -215,6 +215,7 @@ flowchart TB
 
 > 以下架构图由设计工具按 C4 模型生成，源文件见 [`assets/architecture/`](./assets/architecture/)。
 > 采用三级（上下文 / 容器 / 组件）分层；实线表示同步调用，虚线表示异步（Redis Stream 集群广播）。若托管平台不渲染 SVG，可直接打开对应的 `.svg` 文件查看。
+> 另有总览与分端架构图：`overview.svg`、`client-architecture.svg`、`admin-architecture.svg`（与 C4 图互补，可直接打开查看）。
 
 ### 系统上下文图（C4 Level 1）
 
@@ -375,13 +376,13 @@ link-x/
 │   ├── admin-login.png        # 管理端登录页
 │   └── admin-ui.png           # 管理端工作台
 ├── scripts/                   # 仓库级工具脚本（如作者信息戳记）
-├── linkx-website/             # 产品官网（Cloudflare Pages → mars-studio.asia）
+├── linkx-website/             # 产品官网（Cloudflare Pages → mars-studio.asia）→ README.md
 │   ├── index.html             # 首页
 │   ├── docs.html / changelog.html / join.html / blog.html
 │   ├── legal/                 # 隐私政策、服务协议
 │   ├── help/                  # 帮助中心
 │   └── assets/                # 图片、字体、图标
-├── linkx-client/               # 桌面客户端
+├── linkx-client/               # 桌面客户端 → README.md
 │   ├── electron/                # Electron 主进程、Preload
 │   ├── installer/               # 自定义图形安装 / 卸载向导（Vue）
 │   ├── build/                   # 应用图标、许可协议 RTF（electron-builder）
@@ -397,12 +398,12 @@ link-x/
 │       ├── stores/              # Pinia 状态
 │       ├── i18n/                # 国际化
 │       └── views/               # 路由级页面
-├── linkx-admin/               # 管理后台
+├── linkx-admin/               # 管理后台 → README.md
 │   └── src/
 │       ├── views/             # 页面
 │       ├── router/            # 路由
 │       └── stores/            # 状态
-└── linkx-server/              # 后端服务
+└── linkx-server/              # 后端服务 → README.md
     ├── docker/                # 数据库初始化脚本
     ├── docker-compose.yml     # 本地中间件编排
     ├── pom.xml
@@ -429,6 +430,18 @@ link-x/
 VITE_API_BASE_URL=http://localhost:8080/api
 VITE_WS_BASE_URL=ws://localhost:8081
 ```
+
+### 8.1-B 管理端环境变量
+
+文件：`linkx-admin/.env`（参考 `.env.example`，开发可选）
+
+```properties
+VITE_API_BASE_URL=/api
+# 可选：大文件上传直连接后端
+# VITE_API_DIRECT_URL=http://localhost:8080/api
+```
+
+开发模式下 Vite 将 `/api` 代理至 `http://127.0.0.1:8080`，一般无需修改。详见 `linkx-admin/README.md`。
 
 ### 8.2 后端环境变量
 
@@ -641,6 +654,16 @@ npm run installer:assets
 | `linkx-client/release/installer/LinkX-Installer-1.0.0.exe` | 对外分发的 Windows 安装包 |
 | `linkx-client/.installer-payload/` | 打包中间目录（完成后会被脚本清理） |
 
+#### macOS / Linux 桌面包
+
+```bash
+cd linkx-client
+npm run electron:build:mac      # 产出 macOS DMG
+npm run electron:build:linux    # 产出 Linux AppImage
+```
+
+同样须先配置 `.env.electron`。当前对外主要分发 Windows 图形安装包（`LinkX-Installer`）；macOS / Linux 为 electron-builder 标准产物，无自定义安装向导。
+
 #### 安装包行为（当前配置）
 
 - **图形安装**：Vue 自定义安装向导、许可协议勾选、可选安装路径、桌面/开始菜单快捷方式
@@ -724,6 +747,8 @@ $env:CSC_IDENTITY_AUTO_DISCOVERY="true"
 | 服务协议 | https://mars-studio.asia/legal/service.html |
 | 帮助中心 | https://mars-studio.asia/help/ |
 
+在线文档 `docs.html` 涵盖消息落库加密（非 E2EE）、部署与 FAQ，与仓库 README 8.4 对齐。
+
 部署步骤：Cloudflare Dashboard → Workers 和 Pages → 上传 `linkx-website` 目录内全部文件 → 绑定自定义域。
 
 本地预览：
@@ -751,6 +776,8 @@ npm run build                    # 静态资源输出至 dist/
 | server | `docker-compose down` | 停止中间件 |
 | client | `npm run electron:dev` | Electron 热更新开发 |
 | client | `npm run electron:build` | 打 Windows 安装包（`release/installer/`） |
+| client | `npm run electron:build:mac` | 打 macOS DMG |
+| client | `npm run electron:build:linux` | 打 Linux AppImage |
 | client | `npm run installer:assets` | 仅生成安装向导图标/侧边栏/许可协议等资源 |
 | client | `npm run installer:dev` | 开发调试安装向导 |
 | client | `npm run clean:release` | 清理 release 构建产物 |
@@ -881,7 +908,7 @@ npm run build                    # 静态资源输出至 dist/
 | 版本 | 日期 | 摘要 |
 |------|------|------|
 | Unreleased | — | 客户端全面统一 UI 布局、样式与设计 Token；README 与项目结构对齐 |
-| **1.0.0** | 2026-08-09 | 首个稳定基线：IM 核心链路、WebRTC 会议、管理端 RBAC、双 Token 鉴权 |
+| **1.0.0** | 2026-08-12 | 首个稳定基线：IM 核心链路、WebRTC 会议、管理端 RBAC、双 Token 鉴权 |
 
 <details>
 <summary>1.0.0 主要能力（点击展开）</summary>
@@ -901,7 +928,7 @@ npm run build                    # 静态资源输出至 dist/
 | 项目 | 信息 |
 |------|------|
 | 官网 | https://mars-studio.asia |
-| 代码托管 | https://gitee.com/yangleduo7788/link-x |
+| 代码托管 | Gitee：https://gitee.com/yangleduo7788/link-x · GitHub：https://github.com/Yangleduo00337788/LINK-X |
 | 许可证 | MIT — 可自由使用、修改与分发，须保留版权声明 |
 
 使用、复制、修改或分发本软件时，请在副本中保留 `LICENSE` 文件及版权声明。

@@ -85,6 +85,7 @@
         <div class="docs-sidebar__group">
           <p class="docs-sidebar__label" data-i18n="navGroupTech">技术</p>
           <a class="docs-sidebar__link" href="#architecture" data-i18n="navArchitecture">技术架构</a>
+          <a class="docs-sidebar__link" href="#message-encrypt" data-i18n="navMessageEncrypt">消息落库加密</a>
           <a class="docs-sidebar__link" href="#deploy" data-i18n="navDeploy">部署说明</a>
           <a class="docs-sidebar__link" href="#faq" data-i18n="navFaq">常见问题</a>
         </div>
@@ -279,7 +280,36 @@ npm run dev</pre>
             <li data-i18n="secArchL2">图形验证码与登录风控</li>
             <li data-i18n="secArchL3">敏感词过滤与操作审计</li>
             <li data-i18n="secArchL4">Electron 渲染进程不开启 nodeIntegration，仅通过 Preload 暴露有限 API</li>
+            <li data-i18n="secArchL5">可选消息落库加密（AES-256-GCM，默认关闭，非端到端加密）</li>
           </ul>
+        </section>
+
+        <section class="docs-section" id="message-encrypt">
+          <h2 data-i18n="secMessageEncryptTitle">消息落库加密</h2>
+          <p data-i18n="secMessageEncryptP1">
+            LinkX 服务端支持将 IM 消息等内容在写入 MySQL 前使用 AES-256-GCM 加密存储。该能力<strong>默认关闭</strong>，对客户端透明：客户端仍通过 HTTPS / WSS 传输，无需改动。
+          </p>
+          <h3 data-i18n="secMessageEncryptH1">加密范围</h3>
+          <ul>
+            <li data-i18n="secMessageEncryptL1">单聊 / 群聊消息正文与引用内容（<code>im_message</code>）</li>
+            <li data-i18n="secMessageEncryptL2">朋友圈动态正文与位置、评论内容（<code>moments_*</code>）</li>
+          </ul>
+          <h3 data-i18n="secMessageEncryptH2">与端到端加密（E2EE）的区别</h3>
+          <p data-i18n="secMessageEncryptP2">
+            落库加密由<strong>服务端持有密钥</strong>并在应用层加解密，属于存储层保护，<strong>不是</strong>端到端加密。管理端的敏感词过滤、内容审核、举报与审计等能力在开启后仍可正常工作。
+          </p>
+          <div class="docs-callout">
+            <strong data-i18n="calloutEncryptTitle">部署者须知</strong>
+            <p data-i18n="calloutEncryptBody">
+              密钥（<code>MESSAGE_KEK</code>）须与 <code>JWT_SECRET</code> 独立配置并离线备份；丢失密钥将导致历史密文无法恢复。完整环境变量与 KEK 轮换说明见仓库 README「8.4 消息落库加密」。
+            </p>
+          </div>
+          <h3 data-i18n="secMessageEncryptH3">如何开启（自托管）</h3>
+          <p data-i18n="secMessageEncryptP3">在 <code>linkx-server/.env.prod</code> 或 <code>.env.local</code> 中配置：</p>
+          <pre class="docs-code">MESSAGE_CONTENT_ENCRYPT_ENABLED=true
+MESSAGE_KEK=&lt;openssl rand -base64 32 生成的值&gt;
+MESSAGE_KEK_KEY_ID=default</pre>
+          <p data-i18n="secMessageEncryptP4">重启后端后，Snail Job 会分批将历史明文转为密文；KEK 轮换可通过 <code>MESSAGE_KEK_LEGACY_MAP</code> 保留旧密钥用于解密。</p>
         </section>
 
         <section class="docs-section" id="deploy">
@@ -306,8 +336,8 @@ npm run dev</pre>
           <pre class="docs-code"># 后端
 cd linkx-server && mvn clean package -DskipTests
 
-# 客户端桌面版
-cd linkx-client && npm run build:electron
+# 客户端桌面版（须先配置 .env.electron）
+cd linkx-client && npm run electron:build
 
 # 管理端
 cd linkx-admin && npm run build</pre>
@@ -323,7 +353,17 @@ cd linkx-admin && npm run build</pre>
           <h3 data-i18n="faqQ3">忘记密码怎么办？</h3>
           <p data-i18n="faqA3">在登录页使用找回密码流程，或联系管理员在后台重置密码。</p>
           <h3 data-i18n="faqQ4">如何提交问题反馈？</h3>
-          <p data-i18n="faqA4">可在客户端「设置 → 关于」中提交 Bug 或建议，也可前往 <a href="https://gitee.com/yangleduo7788/link-x/issues" target="_blank" rel="noreferrer noopener">Gitee Issues</a> 创建工单。</p>
+          <p>
+            可在客户端「设置 → 关于」中提交 Bug 或建议，也可前往
+            <a href="https://gitee.com/yangleduo7788/link-x/issues" target="_blank" rel="noreferrer noopener">Gitee Issues</a>
+            或
+            <a href="https://github.com/Yangleduo00337788/LINK-X/issues" target="_blank" rel="noreferrer noopener">GitHub Issues</a>
+            创建工单。
+          </p>
+          <h3 data-i18n="faqQ5">消息在数据库里是明文吗？</h3>
+          <p data-i18n="faqA5">
+            默认情况下消息以应用层可读形式落库；自托管部署者可选择开启 AES-256-GCM 落库加密（见上文「消息落库加密」）。无论是否开启，传输层均使用 HTTPS / WSS；落库加密不是端到端加密，服务端在业务需要时仍可解密内容用于审核与审计。
+          </p>
         </section>
       </main>
     </div>

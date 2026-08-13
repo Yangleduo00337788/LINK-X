@@ -74,19 +74,36 @@ window.ChangelogData = {
           badge: { zh: "开发中", en: "In Progress" },
           sections: [
             {
-              title: { zh: "计划", en: "Planned" },
+              title: { zh: "新增", en: "Added" },
               items: {
                 zh: [
-                  "AI 功能：支持调用 AI 能力（大大提高效率）",
-                  "优化界面 UI",
-                  "提升流畅度，减少卡顿",
-                  "减小安装包体积",
+                  "客户端 Design Token（--lx-*）与 ui-components.css",
+                  "公共 UI 组件：LxButton、LxIconButton、LxGroupCard",
+                  "样式迁移辅助脚本",
+                  "服务端消息落库加密（可选，AES-256-GCM）",
                 ],
                 en: [
-                  "AI features: support invoking multiple AI capabilities",
-                  "UI refinements",
-                  "Improved smoothness and reduced lag",
-                  "Smaller installer package size",
+                  "Client Design Tokens (--lx-*) and ui-components.css",
+                  "Shared UI components: LxButton, LxIconButton, LxGroupCard",
+                  "Style migration helper scripts",
+                  "Optional server-side message content encryption (AES-256-GCM)",
+                ],
+              },
+            },
+            {
+              title: { zh: "变更", en: "Changed" },
+              items: {
+                zh: [
+                  "全站 UI 迁移至统一 Design Token 体系",
+                  "窗控与状态栏统一 .lx-win-caption-btn 交互",
+                  "ui-components.css 改由 main.ts 显式引入",
+                  "README / CONTRIBUTING 文档对齐",
+                ],
+                en: [
+                  "Site-wide UI migrated to unified Design Token system",
+                  "Window controls unified under .lx-win-caption-btn",
+                  "ui-components.css explicitly imported in main.ts",
+                  "README and CONTRIBUTING documentation aligned",
                 ],
               },
             },
@@ -101,16 +118,12 @@ window.ChangelogData = {
               title: { zh: "新增", en: "Added" },
               items: {
                 zh: [
-                  "客户端 Design Token 与公共组件库",
-                  "样式迁移辅助脚本",
                   "Windows x64 安装包（LinkX-Installer）",
                   "单聊 / 群聊、消息状态与已读回执",
                   "WebRTC 音视频与多人会议",
                   "通知卡片流、锁屏与系统浏览器外链",
                 ],
                 en: [
-                  "Client Design Tokens and shared component library",
-                  "Style migration helper scripts",
                   "Windows x64 installer (LinkX-Installer)",
                   "One-on-one / group chat, message status and read receipts",
                   "WebRTC audio/video and multi-party meetings",
@@ -122,11 +135,9 @@ window.ChangelogData = {
               title: { zh: "变更", en: "Changed" },
               items: {
                 zh: [
-                  "全站 UI 统一至 Design Token 体系",
                   "Electron 窗控交互优化",
                 ],
                 en: [
-                  "Site-wide UI unified under Design Token system",
                   "Electron window control interaction improvements",
                 ],
               },

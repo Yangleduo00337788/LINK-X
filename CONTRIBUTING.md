@@ -31,7 +31,7 @@ Fork / 拉分支 → 本地开发 → 自测通过 → 提交 PR → Code Review
 | 缺陷修复 | `fix/<简述>` | `fix/ws-reconnect` |
 | 重构 | `refactor/<简述>` | `refactor/chat-store` |
 | 文档 | `docs/<简述>` | `docs/readme-update` |
-|  chores | `chore/<简述>` | `chore/deps-bump` |
+| chore | `chore/<简述>` | `chore/deps-bump` |
 
 ---
 
@@ -91,7 +91,7 @@ docs: 更新 README 快速上手章节
 |----|------|
 | 状态管理 | 全局状态使用 Pinia，放 `src/stores/` |
 | 类型 | 业务类型集中在 `types/`，开启 TypeScript 严格模式 |
-| 样式 | 客户端优先 `var(--lx-*)` Design Token 与 `components/ui` 公共组件；详见 README **8.4 客户端 UI 与样式规范** |
+| 样式 | 客户端优先 `var(--lx-*)` Design Token 与 `components/ui` 公共组件；详见 README **8.5 客户端 UI 与样式规范** |
 | 样式入口 | `main.ts` 须同时引入 `assets/styles.css` 与 `styles/ui-components.css` |
 | 国际化 | 用户可见文案走 i18n，避免硬编码中文（管理端已接入 vue-i18n） |
 | Electron | 禁止开启 `nodeIntegration`，仅通过 Preload 暴露 API |
@@ -149,7 +149,7 @@ cd linkx-admin && npm run lint && npm run format:check
 
 ## 七、问题反馈
 
-- **缺陷 / 需求**：在 Gitee 仓库提交 [Issue](https://gitee.com/yangleduo7788/link-x/issues)
+- **缺陷 / 需求**：Gitee [Issue](https://gitee.com/yangleduo7788/link-x/issues) · GitHub [Issue](https://github.com/Yangleduo00337788/LINK-X/issues)
 - **安全问题**：请勿公开 Issue，通过仓库维护者私下联系
 
 ---
