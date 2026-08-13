@@ -190,6 +190,10 @@ export interface FavoriteItem {
   sourceType?: string
   /** 来源 ID：会话收藏为 sessionId，或 sessionId#messageId */
   sourceId?: string
+  /** 解析自 sourceId 的会话 id */
+  sessionId?: string
+  /** 解析自 sourceId 的消息 id（用于鉴权加载与跳转） */
+  messageId?: string
 }
 
 // 聊天背景预设 ID

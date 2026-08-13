@@ -38,6 +38,7 @@ import { formatFileSize } from '../utils/file'
 import { useOverlayStore } from '../stores/overlay'
 import { useI18n } from '../i18n'
 import { lxColorHex } from '../theme/vars'
+import FavoriteCoverImage from './favorites/FavoriteCoverImage.vue'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -190,9 +191,9 @@ function fileExtIcon(item: FavoriteItem) {
   return { label: 'FILE', color: lxColorHex.slate, bg: lxColorHex.slateSoft }
 }
 
-/** 仅图片、文件展示封面图；笔记等不展示 */
+/** 仅图片、文件展示封面图；有 messageId 时走鉴权加载 */
 function showCover(item: FavoriteItem): boolean {
-  return (item.type === 'image' || item.type === 'file') && !!item.coverUrl
+  return (item.type === 'image' || item.type === 'file') && !!(item.coverUrl || item.messageId)
 }
 
 /** 仅媒体类展示顶部预览区；聊天记录/笔记不展示文本块 */
@@ -227,6 +228,14 @@ function onCardMenu(key: string, item: FavoriteItem) {
 }
 
 function openItem(item: FavoriteItem) {
+  const sessionId = item.sessionId || parseFavoriteSourceId(item).sessionId
+  const messageId = item.messageId || parseFavoriteSourceId(item).messageId
+
+  if (sessionId && messageId) {
+    openConversationFavorite(item, sessionId, messageId)
+    return
+  }
+
   if (item.type === 'link' && item.content) {
     const url = item.content.trim().split(/\s|\n/)[0]
     if (/^https?:\/\//i.test(url)) {
@@ -234,19 +243,20 @@ function openItem(item: FavoriteItem) {
       return
     }
   }
-  if (item.type === 'image' && item.coverUrl) {
+  if (item.type === 'image' && (item.coverUrl || item.messageId)) {
     overlayStore.open('file-preview', {
       filePreview: {
         fileName: item.title,
         fileSize: item.fileSize != null ? formatFileSize(item.fileSize) : '',
-        fileUrl: item.coverUrl,
-        isImage: true
+        fileUrl: item.coverUrl || item.content || '',
+        isImage: true,
+        messageId: item.messageId
       }
     })
     return
   }
   if (item.type === 'message' || (item.sourceType === 'conversation' && item.sourceId)) {
-    openConversationFavorite(item)
+    openConversationFavorite(item, sessionId, messageId)
     return
   }
   if (item.type === 'note') {
@@ -256,22 +266,42 @@ function openItem(item: FavoriteItem) {
   message.info(t('favorites.openHint'))
 }
 
-/** 跳转到收藏消息所属会话 */
-function openConversationFavorite(item: FavoriteItem) {
+function parseFavoriteSourceId(item: FavoriteItem) {
   const raw = (item.sourceId || '').trim()
-  const sessionId = raw.includes('#') ? raw.split('#')[0] : raw
-  if (!sessionId) {
+  if (!raw) return { sessionId: undefined, messageId: undefined }
+  if (raw.includes('#')) {
+    const [sessionId, messageId] = raw.split('#', 2)
+    return { sessionId: sessionId?.trim(), messageId: messageId?.trim() }
+  }
+  return { sessionId: raw, messageId: undefined }
+}
+
+/** 跳转到收藏消息所属会话，并定位高亮原消息 */
+function openConversationFavorite(
+  item: FavoriteItem,
+  sessionId?: string,
+  messageId?: string
+) {
+  const sid = (sessionId || '').trim()
+  if (!sid) {
     message.warning(t('favorites.sessionMissing'))
     return
   }
-  const session = sessions.value.find(s => s.id === sessionId)
+  const session = sessions.value.find(s => s.id === sid)
   if (!session) {
     message.warning(t('favorites.sessionMissing'))
     return
   }
+  const mid = (messageId || '').trim()
+  if (mid) {
+    const ok = appStore.openSessionAtMessage(sid, mid)
+    if (!ok) {
+      message.warning(t('favorites.sessionMissing'))
+    }
+    return
+  }
   appStore.setNav('chat')
   appStore.selectSession(session)
-  message.success(t('overlay.jumpedToSession'))
 }
 
 function confirmDelete(item: FavoriteItem) {
@@ -467,8 +497,15 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
           @dblclick="openItem(item)"
         >
           <div v-if="showMedia(item)" class="card-media" :class="item.type">
+            <FavoriteCoverImage
+              v-if="showCover(item) && item.messageId"
+              :message-id="item.messageId"
+              :fallback-url="item.coverUrl"
+              img-class="card-cover"
+              @error="onCoverError(item)"
+            />
             <img
-              v-if="showCover(item)"
+              v-else-if="showCover(item)"
               :src="item.coverUrl"
               alt=""
               class="card-cover"
@@ -556,8 +593,14 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
           @click="openItem(item)"
         >
           <div class="list-thumb">
+            <FavoriteCoverImage
+              v-if="showCover(item) && item.messageId"
+              :message-id="item.messageId"
+              :fallback-url="item.coverUrl"
+              @error="onCoverError(item)"
+            />
             <img
-              v-if="showCover(item)"
+              v-else-if="showCover(item)"
               :src="item.coverUrl"
               alt=""
               loading="lazy"

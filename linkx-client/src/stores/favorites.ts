@@ -47,6 +47,19 @@ function looksLikeUrl(s: string): boolean {
   return /^https?:\/\//i.test(s.trim()) || s.trim().startsWith('data:image') || s.trim().startsWith('blob:')
 }
 
+function parseFavoriteSource(sourceId?: string | null): { sessionId?: string; messageId?: string } {
+  const raw = (sourceId || '').trim()
+  if (!raw) return {}
+  if (raw.includes('#')) {
+    const [sessionId, messageId] = raw.split('#', 2)
+    return {
+      sessionId: sessionId?.trim() || undefined,
+      messageId: messageId?.trim() || undefined
+    }
+  }
+  return { sessionId: raw }
+}
+
 function isImagePath(s: string): boolean {
   return /\.(png|jpe?g|gif|webp|bmp|svg)(\?|#|$)/i.test(s)
 }
@@ -63,7 +76,13 @@ function resolveCoverUrl(type: FavoriteItem['type'], content: string, _title: st
     : (content || '').trim().split(/\s|\n/)[0] || ''
   if (!raw || !looksLikeUrl(raw)) return undefined
   // 历史 bug：收藏时把 URL 截成约 80 字，几乎必然无法加载
-  if (/^https?:\/\//i.test(raw) && raw.length < 96 && !isImagePath(raw) && !/[?&]X-Amz-Signature=/i.test(raw)) {
+  if (
+    /^https?:\/\//i.test(raw) &&
+    raw.length < 96 &&
+    !isImagePath(raw) &&
+    !/[?&]X-Amz-Signature=/i.test(raw) &&
+    !/[?&]Signature=/i.test(raw)
+  ) {
     return undefined
   }
   const url = normalizeMediaUrl(raw)
@@ -76,6 +95,7 @@ function resolveCoverUrl(type: FavoriteItem['type'], content: string, _title: st
 function mapVo(f: FavoriteVO): FavoriteItem {
   const content = f.content || ''
   const type = mapFavoriteType(f.type)
+  const { sessionId, messageId } = parseFavoriteSource(f.sourceId)
   const coverUrl = resolveCoverUrl(type, content, f.title || '')
   let createTimeMs: number | undefined
   if (f.createTime) {
@@ -94,7 +114,9 @@ function mapVo(f: FavoriteVO): FavoriteItem {
     createTimeMs,
     time: f.createTime || f.updateTime || nowLabel(),
     sourceType: f.sourceType || undefined,
-    sourceId: f.sourceId || undefined
+    sourceId: f.sourceId || undefined,
+    sessionId,
+    messageId
   }
 }
 
