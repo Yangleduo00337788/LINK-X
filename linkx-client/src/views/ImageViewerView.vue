@@ -24,6 +24,7 @@ import WindowCaptionButtons from '../components/WindowCaptionButtons.vue'
 import ForwardPickerModal from '../components/chat/ForwardPickerModal.vue'
 import { useI18n } from '../i18n'
 import { downloadFileWithSettings } from '../utils/downloadFile'
+import { downloadChatMessageFile } from '../utils/authDownload'
 import { copyText } from '../utils/clipboard'
 import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
 import { useAppStore } from '../stores/app'
@@ -31,6 +32,7 @@ import { storeToRefs } from 'pinia'
 import { formatFileSize } from '../utils/chatTime'
 import * as chatApi from '../api/chat'
 import { recoverMediaUrlOnError } from '../utils/mediaUrl'
+import { resolveChatImageViewerItemUrl } from '../utils/chatMediaAccess'
 import { imagePreviewPlaceholder } from '../utils/messagePreviewText'
 import { LxButton, LxIconButton } from '../components/ui'
 
@@ -67,6 +69,24 @@ const downloading = ref(false)
 const busy = ref(false)
 /** 裁剪/本地生成的 blob，下载时直接用，避免 fetch(blob:) 失败 */
 const localBlobByUrl = new Map<string, Blob>()
+/** 鉴权懒加载的 blob URL（按 messageId 缓存，关闭时统一 revoke） */
+const authBlobByMessageId = new Map<string, string>()
+
+function revokeAuthViewerBlob(messageId?: string) {
+  if (!messageId) return
+  const blob = authBlobByMessageId.get(messageId)
+  if (blob) {
+    URL.revokeObjectURL(blob)
+    authBlobByMessageId.delete(messageId)
+  }
+}
+
+function revokeAllAuthViewerBlobs() {
+  for (const blob of authBlobByMessageId.values()) {
+    URL.revokeObjectURL(blob)
+  }
+  authBlobByMessageId.clear()
+}
 
 /** 裁剪模式 */
 const cropMode = ref(false)
@@ -140,13 +160,15 @@ function applyPayload(
 ) {
   if (!data?.url && !(data?.items && data.items.length)) return
   if (data.items && data.items.length) {
-    items.value = data.items.filter(i => !!i?.url).map(i => ({
-      url: i.url,
-      fileName: i.fileName,
-      fileSize: i.fileSize,
-      messageId: i.messageId,
-      conversationId: i.conversationId
-    }))
+    items.value = data.items
+      .filter(i => !!i?.url || !!i?.messageId)
+      .map(i => ({
+        url: i.url || '',
+        fileName: i.fileName,
+        fileSize: i.fileSize,
+        messageId: i.messageId,
+        conversationId: i.conversationId
+      }))
     const idx = typeof data.index === 'number' ? data.index : 0
     index.value = Math.max(0, Math.min(idx, items.value.length - 1))
     // 打开时已刷新的当前 URL 写回列表，保证与展示一致
@@ -164,27 +186,34 @@ function applyPayload(
     index.value = 0
   }
   resetView()
+  void ensureItemUrl(index.value)
 }
 
 async function ensureItemUrl(i: number) {
   const item = items.value[i]
-  if (!item?.url) return
-  if (
-    /^https?:\/\//i.test(item.url) ||
-    item.url.startsWith('blob:') ||
-    item.url.startsWith('data:')
-  ) {
+  if (!item) return
+
+  const resolved = await resolveChatImageViewerItemUrl(item)
+  if (!resolved.url) {
+    const mid = item.messageId
+    if (!mid) return
+    const next = await recoverMediaUrlOnError(item.url, async () => {
+      const res = await chatApi.refreshMessageMediaUrl(mid)
+      if (res.code === 200 && res.data?.url) return res.data.url
+      return null
+    })
+    if (next) {
+      items.value[i] = { ...item, url: next }
+    }
     return
   }
-  const mid = item.messageId
-  if (!mid) return
-  const next = await recoverMediaUrlOnError(item.url, async () => {
-    const res = await chatApi.refreshMessageMediaUrl(mid)
-    if (res.code === 200 && res.data?.url) return res.data.url
-    return null
-  })
-  if (next) {
-    items.value[i] = { ...item, url: next }
+
+  if (resolved.blobUrlToRevoke && item.messageId) {
+    revokeAuthViewerBlob(item.messageId)
+    authBlobByMessageId.set(item.messageId, resolved.blobUrlToRevoke)
+  }
+  if (resolved.url !== item.url) {
+    items.value[i] = { ...item, url: resolved.url }
   }
 }
 
@@ -220,6 +249,24 @@ function computeFitScale() {
   scale.value = fitScale.value
   offsetX.value = 0
   offsetY.value = 0
+}
+
+async function onImgError() {
+  const item = current.value
+  if (!item) return
+  const mid = item.messageId
+  if (mid) {
+    const next = await recoverMediaUrlOnError(imageUrl.value, async () => {
+      const res = await chatApi.refreshMessageMediaUrl(mid)
+      if (res.code === 200 && res.data?.url) return res.data.url
+      return null
+    })
+    if (next && next !== imageUrl.value) {
+      items.value[index.value] = { ...item, url: next }
+      return
+    }
+  }
+  await ensureItemUrl(index.value)
 }
 
 function onImgLoad(e: Event) {
@@ -314,12 +361,28 @@ async function openExternally() {
   if (!imageUrl.value || busy.value) return
   busy.value = true
   try {
-    // 优先：下载到本机并用系统默认程序打开
-    const result = await downloadFileWithSettings(
-      imageUrl.value,
-      fileName.value || t('overlay.downloadName'),
-      { openAfter: true }
-    )
+    const item = current.value
+    const name = fileName.value || t('overlay.downloadName')
+    if (
+      item?.messageId &&
+      !rotation.value &&
+      !flipH.value &&
+      !flipV.value &&
+      !imageUrl.value.startsWith('blob:')
+    ) {
+      const result = await downloadChatMessageFile(item.messageId, name, { openAfter: true })
+      if (result.canceled) return
+      if (result.ok) {
+        if (result.path && window.electronAPI?.openPath) {
+          await window.electronAPI.openPath(result.path)
+        }
+        return
+      }
+      message.error(result.message || t('viewer.openFail'))
+      return
+    }
+
+    const result = await downloadFileWithSettings(imageUrl.value, name, { openAfter: true })
     if (result.canceled) return
     if (result.ok && result.path && window.electronAPI?.openPath) {
       await window.electronAPI.openPath(result.path)
@@ -625,9 +688,20 @@ async function download() {
       }
     }
 
+    const item = current.value
+    const canAuthDownload =
+      item?.messageId &&
+      !data &&
+      !rotation.value &&
+      !flipH.value &&
+      !flipV.value &&
+      !imageUrl.value.startsWith('blob:')
+
     const result = data
       ? await downloadFileWithSettings(imageUrl.value || 'download.png', name, { data })
-      : await downloadFileWithSettings(imageUrl.value, name)
+      : canAuthDownload
+        ? await downloadChatMessageFile(item!.messageId!, name)
+        : await downloadFileWithSettings(imageUrl.value, name)
 
     if (result.canceled) return
     if (result.ok) {
@@ -711,6 +785,7 @@ onBeforeUnmount(() => {
     }
   }
   localBlobByUrl.clear()
+  revokeAllAuthViewerBlobs()
   applyDocumentTheme(appStore.theme)
 })
 
@@ -786,8 +861,10 @@ watch(
           draggable="false"
           referrerpolicy="no-referrer"
           @load="onImgLoad"
+          @error="onImgError"
         />
       </div>
+      <div v-else-if="current?.messageId" class="viewer-empty">{{ t('common.loading') }}</div>
       <div v-else class="viewer-empty">{{ t('overlay.unknownFile') }}</div>
 
       <!-- 裁剪遮罩 -->

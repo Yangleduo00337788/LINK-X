@@ -93,6 +93,7 @@ export interface GroupAlbumItem {
 export interface GroupAlbumFolder {
   name: string
   coverUrl?: string
+  coverAssetId?: string
   count: number
 }
 
@@ -725,9 +726,12 @@ export const useGroupMetaStore = defineStore('groupMeta', {
         const cur = map.get(name)
         if (cur) {
           cur.count += 1
-          if (!cur.coverUrl && p.url) cur.coverUrl = p.url
+          if (!cur.coverUrl && p.url) {
+            cur.coverUrl = p.url
+            cur.coverAssetId = p.id
+          }
         } else {
-          map.set(name, { name, count: 1, coverUrl: p.url })
+          map.set(name, { name, count: 1, coverUrl: p.url, coverAssetId: p.id })
         }
       }
       const albumKey = defaultAlbumLabel()

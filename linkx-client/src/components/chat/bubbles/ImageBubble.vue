@@ -2,28 +2,61 @@
 <script setup lang="ts">
 /**
  * 图片消息气泡：无边框直出，双击进入预览。
+ * 已入库消息优先鉴权加载（Web Cookie / Electron blob），减少预签名 URL 暴露。
  */
-import { ref, watch } from 'vue'
+import { ref, watch, onBeforeUnmount } from 'vue'
 import type { ChatMessage } from '../../../types'
 import * as chatApi from '../../../api/chat'
 import { normalizeMediaUrl, recoverMediaUrlOnError } from '../../../utils/mediaUrl'
+import { resolveChatImageDisplaySrc } from '../../../utils/chatMediaAccess'
 import { useI18n } from '../../../i18n'
 
 const props = defineProps<{ msg: ChatMessage }>()
-const emit = defineEmits<{ (e: 'preview', msg: ChatMessage): void }>()
+const emit = defineEmits<{
+  (e: 'preview', msg: ChatMessage): void
+  (e: 'contentLoaded'): void
+}>()
 const { t } = useI18n()
-function resolveImageSrc(content?: string, fileUrl?: string): string {
-  return normalizeMediaUrl(content || fileUrl) || content || fileUrl || ''
+
+const displaySrc = ref('')
+let authBlobUrl: string | null = null
+let loadSeq = 0
+
+function revokeAuthBlob() {
+  if (authBlobUrl) {
+    URL.revokeObjectURL(authBlobUrl)
+    authBlobUrl = null
+  }
 }
 
-const displaySrc = ref(resolveImageSrc(props.msg.content, props.msg.fileUrl))
+async function loadDisplaySrc() {
+  const seq = ++loadSeq
+  revokeAuthBlob()
+  const resolved = await resolveChatImageDisplaySrc(props.msg)
+  if (seq !== loadSeq) {
+    if (resolved.blobUrlToRevoke) {
+      URL.revokeObjectURL(resolved.blobUrlToRevoke)
+    }
+    return
+  }
+  if (resolved.blobUrlToRevoke) {
+    authBlobUrl = resolved.blobUrlToRevoke
+  }
+  displaySrc.value = resolved.src
+}
 
 watch(
-  () => [props.msg.content, props.msg.fileUrl, props.msg.id] as const,
-  ([content, fileUrl]) => {
-    displaySrc.value = resolveImageSrc(content, fileUrl)
-  }
+  () => [props.msg.id, props.msg.content, props.msg.fileUrl, props.msg.sendStatus] as const,
+  () => {
+    void loadDisplaySrc()
+  },
+  { immediate: true }
 )
+
+onBeforeUnmount(() => {
+  loadSeq += 1
+  revokeAuthBlob()
+})
 
 async function onImgError() {
   const next = await recoverMediaUrlOnError(displaySrc.value, async () => {
@@ -32,7 +65,8 @@ async function onImgError() {
     return null
   })
   if (next) {
-    displaySrc.value = next
+    revokeAuthBlob()
+    displaySrc.value = normalizeMediaUrl(next) || next
   }
 }
 
@@ -46,6 +80,7 @@ function onDblClick(e: MouseEvent) {
 <template>
   <div class="image-bubble" :class="{ self: msg.isSelf }" @dblclick="onDblClick">
     <img
+      v-if="displaySrc"
       :src="displaySrc"
       class="lx-bubble-image"
       :alt="msg.fileName || t('chat.imageMessage')"
@@ -55,6 +90,7 @@ function onDblClick(e: MouseEvent) {
       referrerpolicy="no-referrer"
       draggable="false"
       @error="onImgError"
+      @load="emit('contentLoaded')"
       @dblclick="onDblClick"
     />
   </div>

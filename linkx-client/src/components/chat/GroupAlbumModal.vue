@@ -15,6 +15,7 @@ import { useMessage } from 'naive-ui'
 import { useI18n } from '../../i18n'
 import axios from 'axios'
 import { DEFAULT_GROUP_ALBUM_NAME_ZH } from '../../constants/groupAlbum'
+import GroupAlbumAuthImage from './GroupAlbumAuthImage.vue'
 import { LxButton, LxIconButton } from '../ui'
 
 const message = useMessage()
@@ -169,12 +170,16 @@ function openFolder(name: string) {
   tab.value = 'feed'
 }
 
-function previewImage(item: { url: string; name: string }) {
+function previewImage(item: { id: string; url: string; name: string }) {
+  const sessionId = currentSessionId.value
+  if (!sessionId) return
   openOverlay('file-preview', {
     filePreview: {
       fileName: item.name,
       fileUrl: item.url,
-      isImage: true
+      isImage: true,
+      conversationId: sessionId,
+      assetId: item.id
     }
   })
 }
@@ -246,7 +251,14 @@ function previewImage(item: { url: string; name: string }) {
             @click="openFolder(folder.name)"
           >
             <div class="folder-cover">
-              <img v-if="folder.coverUrl" :src="folder.coverUrl" :alt="folder.name" />
+              <GroupAlbumAuthImage
+                v-if="folder.coverAssetId && currentSessionId"
+                :conversation-id="currentSessionId"
+                :asset-id="folder.coverAssetId"
+                :fallback-url="folder.coverUrl"
+                :alt="folder.name"
+              />
+              <img v-else-if="folder.coverUrl" :src="folder.coverUrl" :alt="folder.name" />
               <span v-else class="folder-empty">📁</span>
             </div>
             <span class="folder-name">{{ folder.name }}</span>
@@ -263,7 +275,13 @@ function previewImage(item: { url: string; name: string }) {
             class="album-thumb"
             @click="previewImage(item)"
           >
-            <img :src="item.url" :alt="item.name" />
+            <GroupAlbumAuthImage
+              v-if="currentSessionId"
+              :conversation-id="currentSessionId"
+              :asset-id="item.id"
+              :fallback-url="item.url"
+              :alt="item.name"
+            />
             <span class="thumb-meta">{{ item.user }} · {{ item.time }}</span>
           </button>
         </div>

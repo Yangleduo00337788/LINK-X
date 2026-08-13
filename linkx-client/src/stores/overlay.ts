@@ -17,6 +17,11 @@ export interface FilePreviewPayload {
   fileUrl?: string   // 文件访问 URL（可选）
   fileSize?: string  // 人类可读的文件大小（可选）
   isImage?: boolean  // 是否为图片类型（可选）
+  messageId?: string // 聊天消息 id（鉴权下载/预览）
+  conversationId?: string // 群会话 id（群资源鉴权）
+  assetId?: string // 群资源 id
+  imageId?: string // 朋友圈图片 id
+  driveFileId?: string // 网盘文件 id
 }
 
 // 定义并导出 overlay Store

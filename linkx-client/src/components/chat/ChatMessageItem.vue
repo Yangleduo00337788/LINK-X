@@ -29,15 +29,12 @@ import { groupReadCountLabel, privateStatusLabel } from '../../utils/messageStat
 
 const props = defineProps<{
   msg: ChatMessage
-  /** 当前是否正在播放该条语音 */
-  playing?: boolean
   /** 跳转到 @我 时短暂高亮 */
   highlight?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'contextmenu', event: MouseEvent, msg: ChatMessage): void
-  (e: 'playVoice', msg: ChatMessage): void
   (e: 'openFileView', msg: ChatMessage): void
   (e: 'openChatFile', msg: ChatMessage): void
   (e: 'openImageView', msg: ChatMessage): void
@@ -46,6 +43,7 @@ const emit = defineEmits<{
   (e: 'openPeerProfile', event: MouseEvent): void
   (e: 'openSelfProfile', event: MouseEvent): void
   (e: 'retry', msg: ChatMessage): void
+  (e: 'messageContentLoaded', msg: ChatMessage): void
 }>()
 
 const fileHover = ref(false)
@@ -219,8 +217,9 @@ function onStatusClick() {
         v-else-if="msg.type === 'image' || msg.isImage"
         :msg="msg"
         @preview="emit('openImageView', msg)"
+        @content-loaded="emit('messageContentLoaded', msg)"
       />
-      <VoiceBubble v-else-if="msg.type === 'voice'" :msg="msg" :playing="!!props.playing" @click="emit('playVoice', msg)" />
+      <VoiceBubble v-else-if="msg.type === 'voice'" :msg="msg" />
       <RedPacketBubble v-else-if="msg.type === 'redPacket'" :msg="msg" @click="emit('clickRedPacket', msg)" />
       <LocationBubble v-else-if="msg.type === 'location'" :msg="msg" />
       <CallBubble v-else-if="msg.type === 'conference'" :msg="msg" @click="emit('clickConference', msg)" />
@@ -369,6 +368,9 @@ function onStatusClick() {
 .message-row.is-at-me-flash .bubble-wrapper {
   animation: at-me-flash 1.6s ease;
 }
+.message-row.is-at-me-flash {
+  animation: at-me-row-flash 1.6s ease;
+}
 @keyframes at-me-flash {
   0%,
   100% {
@@ -378,6 +380,17 @@ function onStatusClick() {
   55% {
     box-shadow: 0 0 0 3px rgba(18, 183, 245, 0.55);
     border-radius: var(--lx-bubble-radius);
+  }
+}
+@keyframes at-me-row-flash {
+  0%,
+  100% {
+    background: transparent;
+  }
+  20%,
+  55% {
+    background: rgba(18, 183, 245, 0.12);
+    border-radius: var(--lx-radius-md);
   }
 }
 </style>

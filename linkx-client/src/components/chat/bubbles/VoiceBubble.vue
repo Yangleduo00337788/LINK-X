@@ -1,35 +1,39 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
- * 语音消息气泡。
- * <p>
- * 展示麦克风图标与时长；playing 为 true 时高亮播放态。
- * </p>
+ * 语音消息气泡：内置鉴权播放逻辑。
  */
-import { NIcon } from 'naive-ui'
+import { computed } from 'vue'
+import { NIcon, useMessage } from 'naive-ui'
 import { MicOutline } from '@vicons/ionicons5'
 import type { ChatMessage } from '../../../types'
-import { useI18n } from '../../../i18n'
+import { useChatVoicePlayer } from '../../../utils/useChatVoicePlayer'
 
-useI18n()
+const props = defineProps<{ msg: ChatMessage }>()
+const message = useMessage()
+const { playingVoiceId, playVoice } = useChatVoicePlayer({
+  onInfo: text => message.info(text),
+  onError: text => message.error(text)
+})
 
-defineProps<{ msg: ChatMessage; playing: boolean }>()
+const playing = computed(() => playingVoiceId.value === props.msg.id)
 
-/**
- * 格式化语音时长显示。
- *
- * @param sec 秒数，缺省为 0
- * @returns 小于 60 秒显示 3" 形式，否则分秒形式
- */
 function formatVoiceDuration(sec?: number) {
   const s = sec ?? 0
   return s < 60 ? `${s}"` : `${Math.floor(s / 60)}'${s % 60}"`
 }
+
+function onClick() {
+  void playVoice(props.msg)
+}
 </script>
 
 <template>
-  <!-- 语音气泡：播放中附加 playing 类 -->
-  <div class="lx-bubble voice-bubble" :class="{ self: msg.isSelf, playing }">
+  <div
+    class="lx-bubble voice-bubble"
+    :class="{ self: msg.isSelf, playing }"
+    @click="onClick"
+  >
     <n-icon :component="MicOutline" :size="16" class="voice-ico" />
     <span>{{ formatVoiceDuration(msg.voiceDuration) }}</span>
   </div>

@@ -3,13 +3,22 @@
 /**
  * 文件 / 图片预览页面（图片参考图二：大图横幅 + 底部信息条）
  */
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { NIcon, useMessage } from 'naive-ui'
 import { CloudDownloadOutline, OpenOutline, CloseOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useOverlayStore } from '../../../stores/overlay'
 import { useI18n } from '../../../i18n'
 import { downloadFileWithSettings } from '../../../utils/downloadFile'
+import {
+  downloadChatMessageAttachment,
+  resolveChatImageViewerItemUrl
+} from '../../../utils/chatMediaAccess'
+import { downloadDriveFileContent } from '../../../utils/authDownload'
+import { downloadGroupAssetAttachment, resolveGroupAssetDisplaySrc } from '../../../utils/groupMediaAccess'
+import { downloadMomentsImageAttachment, resolveMomentsImageDisplaySrc } from '../../../utils/momentsMediaAccess'
+import { resolveDriveImageDisplaySrc } from '../../../utils/driveMediaAccess'
+import type { ChatMessage } from '../../../types'
 import { LxButton, LxIconButton } from '../../ui'
 
 const overlayStore = useOverlayStore()
@@ -18,6 +27,68 @@ const { filePreview } = storeToRefs(overlayStore)
 const { t } = useI18n()
 const message = useMessage()
 const downloading = ref(false)
+const displayImageSrc = ref('')
+let previewBlobUrl: string | null = null
+
+function revokePreviewBlob() {
+  if (previewBlobUrl) {
+    URL.revokeObjectURL(previewBlobUrl)
+    previewBlobUrl = null
+  }
+}
+
+async function refreshImageSrc() {
+  revokePreviewBlob()
+  displayImageSrc.value = ''
+  const preview = filePreview.value
+  if (!preview?.isImage) return
+
+  if (preview.conversationId && preview.assetId) {
+    const resolved = await resolveGroupAssetDisplaySrc(
+      preview.conversationId,
+      preview.assetId,
+      preview.fileUrl
+    )
+    if (resolved.blobUrlToRevoke) {
+      previewBlobUrl = resolved.blobUrlToRevoke
+    }
+    displayImageSrc.value = resolved.src
+    return
+  }
+
+  if (preview.driveFileId) {
+    const resolved = await resolveDriveImageDisplaySrc(preview.driveFileId, preview.fileUrl)
+    if (resolved.blobUrlToRevoke) {
+      previewBlobUrl = resolved.blobUrlToRevoke
+    }
+    displayImageSrc.value = resolved.src
+    return
+  }
+
+  if (preview.imageId) {
+    const resolved = await resolveMomentsImageDisplaySrc(preview.imageId, preview.fileUrl)
+    if (resolved.blobUrlToRevoke) {
+      previewBlobUrl = resolved.blobUrlToRevoke
+    }
+    displayImageSrc.value = resolved.src
+    return
+  }
+
+  const resolved = await resolveChatImageViewerItemUrl({
+    url: preview.fileUrl,
+    messageId: preview.messageId
+  })
+  if (resolved.blobUrlToRevoke) {
+    previewBlobUrl = resolved.blobUrlToRevoke
+  }
+  displayImageSrc.value = resolved.url
+}
+
+watch(filePreview, () => {
+  void refreshImageSrc()
+}, { immediate: true })
+
+onBeforeUnmount(revokePreviewBlob)
 
 /** 已是人类可读则原样展示；纯数字按字节格式化 */
 function displayFileSize(raw: number | string | undefined): string {
@@ -25,7 +96,6 @@ function displayFileSize(raw: number | string | undefined): string {
   if (typeof raw === 'string') {
     const trimmed = raw.trim()
     if (!trimmed) return t('overlay.unknownSize')
-    // 已格式化：含单位字母
     if (/[a-zA-Z]/.test(trimmed) && !/^\d+(\.\d+)?$/.test(trimmed)) {
       return trimmed
     }
@@ -59,16 +129,60 @@ const fileIcon = computed(() => {
   return t('overlay.fileLabel')
 })
 
+function previewAsChatMessage(): ChatMessage | null {
+  const preview = filePreview.value
+  if (!preview?.messageId) return null
+  return {
+    id: preview.messageId,
+    sessionId: '',
+    content: preview.fileUrl || preview.fileName || '',
+    time: '',
+    isSelf: false,
+    type: preview.isImage ? 'image' : 'file',
+    fileName: preview.fileName,
+    fileSize: preview.fileSize,
+    fileUrl: preview.fileUrl,
+    isImage: preview.isImage,
+    sendStatus: 'sent'
+  }
+}
+
 async function downloadFile() {
-  const url = filePreview.value?.fileUrl
-  if (!url || downloading.value) return
+  if (downloading.value) return
+  const preview = filePreview.value
+  if (!preview) return
 
   downloading.value = true
   try {
-    const result = await downloadFileWithSettings(
-      url,
-      filePreview.value?.fileName || t('overlay.downloadName')
-    )
+    const chatMsg = previewAsChatMessage()
+    let result
+    if (chatMsg) {
+      result = await downloadChatMessageAttachment(chatMsg)
+    } else if (preview.conversationId && preview.assetId) {
+      result = await downloadGroupAssetAttachment(
+        preview.conversationId,
+        preview.assetId,
+        preview.fileName || t('overlay.downloadName')
+      )
+    } else if (preview.driveFileId) {
+      result = await downloadDriveFileContent(
+        preview.driveFileId,
+        preview.fileName || t('overlay.downloadName')
+      )
+    } else if (preview.imageId) {
+      result = await downloadMomentsImageAttachment(
+        preview.imageId,
+        preview.fileName || t('overlay.downloadName')
+      )
+    } else if (preview.fileUrl) {
+      result = await downloadFileWithSettings(
+        preview.fileUrl,
+        preview.fileName || t('overlay.downloadName')
+      )
+    } else {
+      result = { ok: false, message: t('chat.fileOpenMissing') }
+    }
+
     if (result.canceled) return
     if (result.ok) {
       message.success(
@@ -82,8 +196,48 @@ async function downloadFile() {
   }
 }
 
-function openFile() {
-  const url = filePreview.value?.fileUrl
+async function openFile() {
+  const preview = filePreview.value
+  const chatMsg = previewAsChatMessage()
+  if (chatMsg) {
+    const result = await downloadChatMessageAttachment(chatMsg, { openAfter: true })
+    if (!result.ok && !result.canceled) {
+      message.error(result.message || t('files.downloadFail'))
+    }
+    return
+  }
+  if (preview?.conversationId && preview.assetId) {
+    const result = await downloadGroupAssetAttachment(
+      preview.conversationId,
+      preview.assetId,
+      preview.fileName || t('overlay.downloadName')
+    )
+    if (!result.ok && !result.canceled) {
+      message.error(result.message || t('files.downloadFail'))
+    }
+    return
+  }
+  if (preview?.driveFileId) {
+    const result = await downloadDriveFileContent(
+      preview.driveFileId,
+      preview.fileName || t('overlay.downloadName')
+    )
+    if (!result.ok && !result.canceled) {
+      message.error(result.message || t('files.downloadFail'))
+    }
+    return
+  }
+  if (preview?.imageId) {
+    const result = await downloadMomentsImageAttachment(
+      preview.imageId,
+      preview.fileName || t('overlay.downloadName')
+    )
+    if (!result.ok && !result.canceled) {
+      message.error(result.message || t('files.downloadFail'))
+    }
+    return
+  }
+  const url = preview?.fileUrl
   if (!url) return
   if (!/^https?:\/\//i.test(url)) {
     console.warn('[FilePreviewPage] 拒绝非 HTTP(S) URL:', url)
@@ -106,12 +260,12 @@ function openFile() {
       </LxIconButton>
 
       <!-- 图片：横幅预览 + 底部信息叠层 -->
-      <template v-if="filePreview?.fileUrl && isImage">
+      <template v-if="displayImageSrc && isImage">
         <div class="banner">
-          <img :src="filePreview.fileUrl" :alt="filePreview.fileName" class="banner-img" />
+          <img :src="displayImageSrc" :alt="filePreview?.fileName" class="banner-img" />
           <div class="banner-meta">
-            <span class="banner-name">{{ filePreview.fileName || t('overlay.unknownFile') }}</span>
-            <span class="banner-size">{{ displayFileSize(filePreview.fileSize) }}</span>
+            <span class="banner-name">{{ filePreview?.fileName || t('overlay.unknownFile') }}</span>
+            <span class="banner-size">{{ displayFileSize(filePreview?.fileSize) }}</span>
           </div>
         </div>
         <div class="file-actions">
@@ -123,7 +277,7 @@ function openFile() {
       </template>
 
       <!-- 普通文件 -->
-      <template v-else>
+      <template v-else-if="!isImage">
         <div class="preview-box">
           <div class="file-icon-large">{{ fileIcon }}</div>
         </div>
@@ -133,7 +287,7 @@ function openFile() {
         </div>
         <div class="file-actions">
           <LxButton
-            v-if="filePreview?.fileUrl"
+            v-if="filePreview?.fileUrl || filePreview?.messageId || filePreview?.assetId || filePreview?.imageId || filePreview?.driveFileId"
             variant="pill-primary"
             :disabled="downloading"
             @click="downloadFile"
@@ -141,9 +295,14 @@ function openFile() {
             <n-icon :component="CloudDownloadOutline" :size="16" />
             {{ t('overlay.download') }}
           </LxButton>
-          <LxButton v-if="filePreview?.fileUrl" variant="outline" class="lx-btn--pill" @click="openFile">
+          <LxButton
+            v-if="filePreview?.fileUrl || filePreview?.messageId || filePreview?.assetId || filePreview?.imageId || filePreview?.driveFileId"
+            variant="outline"
+            class="lx-btn--pill"
+            @click="openFile"
+          >
             <n-icon :component="OpenOutline" :size="16" />
-            {{ t('overlay.openBrowser') }}
+            {{ t('chat.openFile') }}
           </LxButton>
         </div>
       </template>
