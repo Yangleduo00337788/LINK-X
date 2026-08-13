@@ -7,37 +7,68 @@
  * 并在 Electron 环境下同步窗口尺寸模式。
  * </p>
  */
-// Vue 挂载钩子、侦听器、异步组件与 nextTick
-import { onMounted, onUnmounted, watch, nextTick, defineAsyncComponent } from 'vue'
-// Pinia 响应式解构
+import {
+  onMounted,
+  onUnmounted,
+  watch,
+  nextTick,
+  ref,
+  shallowRef,
+  type Component
+} from 'vue'
 import { storeToRefs } from 'pinia'
-// 应用全局状态 Store
 import { useAppStore } from '../stores/app'
-// 文档主题同步工具
 import { applyDocumentTheme } from '../utils/themeSync'
 import { isChatSocketConnected } from '../utils/chatSocket'
-// 登录页同步导入：自动登录需先画出登录窗再 loading，异步会先闪空白再跳主界面
+// 登录页同步导入：自动登录需先画出登录窗再 loading
 import LoginView from '../components/LoginView.vue'
-import { useI18n } from '../i18n'
 
-const { t } = useI18n()
-
-// 主界面懒加载，缩短登录态首屏体积
-const AppShell = defineAsyncComponent(() => import('../components/AppShell.vue'))
-
-// 获取应用 Store 实例
 const appStore = useAppStore()
-// 解构登录状态的响应式引用（自动登录期间仍展示登录页，由登录按钮 loading 表达进度）
 const { isLoggedIn } = storeToRefs(appStore)
 
-// 根据登录状态同步 Electron 窗口模式（login / main）
-async function syncWindowMode(loggedIn: boolean) {
-  await nextTick()
-  // 等一帧再改窗口尺寸，避免与主界面首屏渲染抢主线程
-  await new Promise<void>(resolve => {
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+/** 主界面 chunk 预加载（登录页停留期间后台拉取，避免登录成功后白屏） */
+const AppShellDef = shallowRef<Component | null>(null)
+let appShellImport: Promise<Component> | null = null
+
+function preloadAppShell(): Promise<Component> {
+  if (AppShellDef.value) return Promise.resolve(AppShellDef.value)
+  if (!appShellImport) {
+    appShellImport = import('../components/AppShell.vue').then(m => {
+      AppShellDef.value = m.default
+      return m.default
+    })
+  }
+  return appShellImport
+}
+
+/** 是否挂载主壳（登录成功后先挂壳再放大窗口） */
+const showMainShell = ref(false)
+
+function waitFrames(count = 2): Promise<void> {
+  return new Promise<void>(resolve => {
+    let left = count
+    const step = () => {
+      left -= 1
+      if (left <= 0) resolve()
+      else requestAnimationFrame(step)
+    }
+    requestAnimationFrame(step)
   })
-  await window.electronAPI?.setWindowMode?.(loggedIn ? 'main' : 'login')
+}
+
+async function syncWindowModeMain() {
+  await window.electronAPI?.setWindowMode?.('main')
+}
+
+async function syncWindowModeLogin() {
+  await nextTick()
+  await waitFrames(2)
+  await window.electronAPI?.setWindowMode?.('login')
+}
+
+function onMainShellMounted() {
+  if (!isLoggedIn.value) return
+  void waitFrames(2).then(() => syncWindowModeMain())
 }
 
 function retryWsIfNeeded() {
@@ -50,10 +81,9 @@ function onVisibilityChange() {
   if (document.visibilityState === 'visible') retryWsIfNeeded()
 }
 
-// 组件挂载：应用主题（自动登录由 LoginView 首帧后触发）
 onMounted(() => {
   applyDocumentTheme(appStore.theme)
-  // 后端恢复 / 从后台切回时强制再连，避免桌面端停在「永久离线」
+  void preloadAppShell()
   window.addEventListener('online', retryWsIfNeeded)
   document.addEventListener('visibilitychange', onVisibilityChange)
 })
@@ -63,20 +93,33 @@ onUnmounted(() => {
   document.removeEventListener('visibilitychange', onVisibilityChange)
 })
 
-// 登录状态变化时同步窗口模式，immediate 确保首次渲染也执行
-watch(isLoggedIn, syncWindowMode, { immediate: true, flush: 'post' })
+watch(
+  isLoggedIn,
+  async loggedIn => {
+    if (!loggedIn) {
+      showMainShell.value = false
+      await syncWindowModeLogin()
+      return
+    }
+
+    await preloadAppShell()
+    showMainShell.value = true
+  },
+  { immediate: true, flush: 'post' }
+)
 </script>
 
 <template>
   <div class="home-root">
-    <!-- 直接切换，不用 transition，避免登出时父容器高度塌陷导致白屏 -->
-    <Suspense v-if="isLoggedIn">
-      <AppShell />
-      <template #fallback>
-        <div class="auth-loading" aria-busy="true" :aria-label="t('common.enteringMain')" />
-      </template>
-    </Suspense>
-    <LoginView v-else />
+    <component
+      v-if="showMainShell && AppShellDef"
+      :is="AppShellDef"
+      class="main-shell-layer"
+      @vue:mounted="onMainShellMounted"
+    />
+    <Transition name="login-leave">
+      <LoginView v-if="!isLoggedIn" class="login-layer" />
+    </Transition>
   </div>
 </template>
 
@@ -89,14 +132,37 @@ watch(isLoggedIn, syncWindowMode, { immediate: true, flush: 'post' })
   border-radius: inherit;
 }
 
+.main-shell-layer {
+  width: 100%;
+  height: 100%;
+}
+
+.login-layer {
+  width: 100%;
+  height: 100%;
+}
+
 :deep(.app-shell) {
   width: 100%;
   height: 100%;
 }
 
-.auth-loading {
-  width: 100%;
-  height: 100%;
-  background: var(--lx-bg-panel);
+.login-leave-active {
+  transition:
+    opacity var(--lx-duration-slow) ease,
+    transform var(--lx-duration-slow) cubic-bezier(0.4, 0, 1, 1);
+}
+
+.login-leave-to {
+  opacity: 0;
+  transform: scale(0.97);
+}
+
+.login-enter-active {
+  transition: opacity var(--lx-duration-slow) cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.login-enter-from {
+  opacity: 0;
 }
 </style>

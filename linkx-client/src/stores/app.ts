@@ -2342,8 +2342,6 @@ export const useAppStore = defineStore('app', {
 
       this.authInitializing = true
       this.isLoading = true
-      const startedAt = Date.now()
-      const minLoadingMs = 1000
       let outcome: 'ok' | 'offline' | 'failed' = 'failed'
       try {
         const isWeb = isWebEnvironment()
@@ -2393,12 +2391,6 @@ export const useAppStore = defineStore('app', {
         this.isLoggedIn = false
         this.savedLogin.autoLogin = false
       } finally {
-        const elapsed = Date.now() - startedAt
-        if (elapsed < minLoadingMs) {
-          await new Promise<void>(resolve => {
-            setTimeout(resolve, minLoadingMs - elapsed)
-          })
-        }
         if (outcome === 'ok') {
           this.isLoggedIn = true
         }

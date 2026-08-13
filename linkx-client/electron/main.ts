@@ -517,6 +517,49 @@ function pushMaximizedState(win: BrowserWindow) {
   win.webContents.send(MAX_CHANGED, win.isMaximized())
 }
 
+const LOGIN_WINDOW_WIDTH = 319
+const LOGIN_WINDOW_HEIGHT = 461
+const MAIN_WINDOW_WIDTH = 1200
+const MAIN_WINDOW_HEIGHT = 800
+const WINDOW_MODE_ANIM_MS = 380
+
+function easeOutCubic(t: number): number {
+  return 1 - Math.pow(1 - t, 3)
+}
+
+function animateWindowSize(
+  win: BrowserWindow,
+  targetWidth: number,
+  targetHeight: number,
+  durationMs = WINDOW_MODE_ANIM_MS
+): Promise<void> {
+  const [startW, startH] = win.getSize()
+  if (startW === targetWidth && startH === targetHeight) return Promise.resolve()
+
+  return new Promise(resolve => {
+    const startTime = Date.now()
+    const tick = () => {
+      if (win.isDestroyed()) {
+        resolve()
+        return
+      }
+      const elapsed = Date.now() - startTime
+      const progress = Math.min(elapsed / durationMs, 1)
+      const eased = easeOutCubic(progress)
+      const w = Math.round(startW + (targetWidth - startW) * eased)
+      const h = Math.round(startH + (targetHeight - startH) * eased)
+      win.setSize(w, h, false)
+      if (progress < 1) {
+        setTimeout(tick, 16)
+      } else {
+        win.center()
+        resolve()
+      }
+    }
+    tick()
+  })
+}
+
 function registerWindowIpc() {
   ipcMain.removeHandler('window:minimize')
   ipcMain.removeHandler('window:maximize')
@@ -620,28 +663,32 @@ function registerWindowIpc() {
     }
   )
 
-  ipcMain.handle('window:set-mode', (event, mode: 'login' | 'main') => {
+  ipcMain.handle('window:set-mode', async (event, mode: 'login' | 'main') => {
     const win = winFromSender(event)
     if (!win) return
     if (mode === 'login') {
       if (win.isMaximized()) win.unmaximize()
       win.setMaximizable(false)
+      win.setMaximumSize(99999, 99999)
+      win.setMinimumSize(100, 100)
+      win.setResizable(true)
+      await animateWindowSize(win, LOGIN_WINDOW_WIDTH, LOGIN_WINDOW_HEIGHT)
       win.setResizable(false)
-      win.setMinimumSize(319, 461)
-      win.setMaximumSize(319, 461)
-      win.setSize(319, 461, false)
+      win.setMinimumSize(LOGIN_WINDOW_WIDTH, LOGIN_WINDOW_HEIGHT)
+      win.setMaximumSize(LOGIN_WINDOW_WIDTH, LOGIN_WINDOW_HEIGHT)
       win.center()
       return
     }
     // 登录窗创建时因 maxSize 锁定会关掉可最大化；切主界面需显式恢复
     win.setMaximumSize(99999, 99999)
-    win.setMinimumSize(1200, 800)
+    win.setMinimumSize(LOGIN_WINDOW_WIDTH, LOGIN_WINDOW_HEIGHT)
     win.setResizable(true)
     win.setMaximizable(true)
     if (!win.isMaximized()) {
-      win.setSize(1200, 800, false)
+      await animateWindowSize(win, MAIN_WINDOW_WIDTH, MAIN_WINDOW_HEIGHT)
       win.center()
     }
+    win.setMinimumSize(MAIN_WINDOW_WIDTH, MAIN_WINDOW_HEIGHT)
   })
 
   ipcMain.handle('app:get-download-path', () => {

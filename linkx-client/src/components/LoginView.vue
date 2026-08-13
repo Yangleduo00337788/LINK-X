@@ -283,7 +283,6 @@ async function runAutoLoginFlow() {
 
   // 1) 先扫描是否离线
   autoLoginPhase.value = 'checking'
-  await new Promise<void>(resolve => setTimeout(resolve, 280))
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     autoLoginPhase.value = 'idle'
     autoLogin.value = false
