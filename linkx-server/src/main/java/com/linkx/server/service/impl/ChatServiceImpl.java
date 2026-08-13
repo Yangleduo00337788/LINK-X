@@ -24,7 +24,7 @@ import com.linkx.server.entity.SysUserRelation;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.ImConversationMapper;
 import com.linkx.server.mapper.ImConversationMemberMapper;
-import com.linkx.server.mapper.ImMessageMapper;
+import com.linkx.server.repository.ImMessageRepository;
 import com.linkx.server.mapper.RedPacketMapper;
 import com.linkx.server.mapper.RedPacketRecordMapper;
 import com.linkx.server.mapper.SysUserMapper;
@@ -61,6 +61,7 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -84,7 +85,7 @@ public class ChatServiceImpl implements ChatService {
 
     private final ImConversationMapper conversationMapper;
     private final ImConversationMemberMapper memberMapper;
-    private final ImMessageMapper messageMapper;
+    private final ImMessageRepository imMessageRepository;
     private final SysUserMapper sysUserMapper;
     private final SysUserRelationMapper sysUserRelationMapper;
     private final FileStorageService fileStorageService;
@@ -271,7 +272,7 @@ public class ChatServiceImpl implements ChatService {
             query.and(ImMessage::getId).lt(beforeMessageId);
         }
 
-        List<ImMessage> messages = messageMapper.selectListByQuery(query);
+        List<ImMessage> messages = imMessageRepository.selectListByQuery(query);
         if (messages.isEmpty()) {
             return List.of();
         }
@@ -303,7 +304,7 @@ public class ChatServiceImpl implements ChatService {
             Boolean firstTime = redisTemplate.opsForValue().setIfAbsent(
                     dedupKey, "1", Duration.ofMinutes(10));
             if (firstTime == null || !firstTime) {
-                ImMessage existing = messageMapper.selectOneByQuery(
+                ImMessage existing = imMessageRepository.selectOneByQuery(
                         QueryWrapper.create()
                                 .where(ImMessage::getSenderId).eq(userId)
                                 .and(ImMessage::getClientMsgId).eq(dto.getClientMsgId())
@@ -409,7 +410,7 @@ public class ChatServiceImpl implements ChatService {
                 .voiceDuration(dto.getVoiceDuration())
                 .deleted(0)
                 .build();
-        messageMapper.insert(message);
+        imMessageRepository.insert(message);
 
         if (sensitiveFailReason != null && !"blocked".equals(sensitiveFailReason)) {
             enqueueSensitiveReview(
@@ -441,7 +442,7 @@ public class ChatServiceImpl implements ChatService {
     public MessageVO recallMessage(Long userId, Long conversationId, Long messageId) {
         assertConversationMember(userId, conversationId);
 
-        ImMessage message = messageMapper.selectOneById(messageId);
+        ImMessage message = imMessageRepository.selectOneById(messageId);
         if (message == null || !conversationId.equals(message.getConversationId())) {
             throw new CustomException(404, "消息不存在");
         }
@@ -464,7 +465,7 @@ public class ChatServiceImpl implements ChatService {
     @Override
     @Transactional
     public MessageVO adminForceRecallMessage(Long messageId) {
-        ImMessage message = messageMapper.selectOneById(messageId);
+        ImMessage message = imMessageRepository.selectOneById(messageId);
         if (message == null) {
             throw new CustomException(404, "消息不存在");
         }
@@ -482,7 +483,7 @@ public class ChatServiceImpl implements ChatService {
         message.setFileSize(0L);
         message.setFileUrl("");
         message.setVoiceDuration(0);
-        messageMapper.update(message);
+        imMessageRepository.update(message);
 
         refreshConversationLastMessage(message.getConversationId());
 
@@ -533,7 +534,7 @@ public class ChatServiceImpl implements ChatService {
                 .createTime(now)
                 .deleted(0)
                 .build();
-        messageMapper.insert(message);
+        imMessageRepository.insert(message);
         if (message.getCreateTime() == null) {
             message.setCreateTime(now);
         }
@@ -596,7 +597,7 @@ public class ChatServiceImpl implements ChatService {
                 .createTime(now)
                 .deleted(0)
                 .build();
-        messageMapper.insert(message);
+        imMessageRepository.insert(message);
         if (message.getCreateTime() == null) {
             message.setCreateTime(now);
         }
@@ -646,7 +647,7 @@ public class ChatServiceImpl implements ChatService {
                 .createTime(now)
                 .deleted(0)
                 .build();
-        messageMapper.insert(message);
+        imMessageRepository.insert(message);
         if (message.getCreateTime() == null) {
             message.setCreateTime(now);
         }
@@ -664,7 +665,7 @@ public class ChatServiceImpl implements ChatService {
         if (conversationId == null || !StringUtils.hasText(callId) || !StringUtils.hasText(content)) {
             return null;
         }
-        ImMessage message = messageMapper.selectOneByQuery(
+        ImMessage message = imMessageRepository.selectOneByQuery(
                 QueryWrapper.create()
                         .where(ImMessage::getConversationId).eq(conversationId)
                         .and(ImMessage::getType).eq(ImMessage.TYPE_CONFERENCE)
@@ -677,7 +678,7 @@ public class ChatServiceImpl implements ChatService {
             return null;
         }
         message.setContent(content.trim());
-        messageMapper.update(message);
+        imMessageRepository.update(message);
 
         ImConversation conversation = conversationMapper.selectOneById(conversationId);
         if (conversation != null) {
@@ -719,7 +720,7 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public FileStorageService.StoredObject openMessageFile(Long userId, Long messageId) {
-        ImMessage message = messageMapper.selectOneById(messageId);
+        ImMessage message = imMessageRepository.selectOneById(messageId);
         if (message == null) {
             throw new CustomException(404, "消息不存在");
         }
@@ -739,7 +740,7 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public String getMessageFileName(Long userId, Long messageId) {
-        ImMessage message = messageMapper.selectOneById(messageId);
+        ImMessage message = imMessageRepository.selectOneById(messageId);
         if (message == null) {
             throw new CustomException(404, "消息不存在");
         }
@@ -752,7 +753,7 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public String refreshMessageMediaUrl(Long userId, Long messageId) {
-        ImMessage message = messageMapper.selectOneById(messageId);
+        ImMessage message = imMessageRepository.selectOneById(messageId);
         if (message == null) {
             throw new CustomException(404, "消息不存在");
         }
@@ -806,30 +807,34 @@ public class ChatServiceImpl implements ChatService {
             allowedIds = Set.of(conversationId);
         }
 
-        QueryWrapper qw = QueryWrapper.create()
-                .where(ImMessage::getConversationId).in(allowedIds)
-                .and(ImMessage::getType).ne(ImMessage.TYPE_RECALL)
-                .and(ImMessage::getContent).like(q)
-                .orderBy(ImMessage::getCreateTime, false)
-                .limit(cap);
-        if (StringUtils.hasText(type)) {
-            qw.and(ImMessage::getType).eq(type.trim());
-        }
-        applySearchTimeRange(qw, fromTime, toTime);
-
-        List<ImMessage> messages = messageMapper.selectListByQuery(qw);
-        if (messages.isEmpty()) {
-            QueryWrapper fileQw = QueryWrapper.create()
+        List<ImMessage> messages;
+        if (linkxProperties.getMessageEncryption().isEnabled()) {
+            messages = searchMessagesInMemory(allowedIds, q, type, fromTime, toTime, cap);
+        } else {
+            QueryWrapper qw = QueryWrapper.create()
                     .where(ImMessage::getConversationId).in(allowedIds)
                     .and(ImMessage::getType).ne(ImMessage.TYPE_RECALL)
-                    .and(ImMessage::getFileName).like(q)
+                    .and(ImMessage::getContent).like(q)
                     .orderBy(ImMessage::getCreateTime, false)
                     .limit(cap);
             if (StringUtils.hasText(type)) {
-                fileQw.and(ImMessage::getType).eq(type.trim());
+                qw.and(ImMessage::getType).eq(type.trim());
             }
-            applySearchTimeRange(fileQw, fromTime, toTime);
-            messages = messageMapper.selectListByQuery(fileQw);
+            applySearchTimeRange(qw, fromTime, toTime);
+            messages = imMessageRepository.selectListByQuery(qw);
+            if (messages.isEmpty()) {
+                QueryWrapper fileQw = QueryWrapper.create()
+                        .where(ImMessage::getConversationId).in(allowedIds)
+                        .and(ImMessage::getType).ne(ImMessage.TYPE_RECALL)
+                        .and(ImMessage::getFileName).like(q)
+                        .orderBy(ImMessage::getCreateTime, false)
+                        .limit(cap);
+                if (StringUtils.hasText(type)) {
+                    fileQw.and(ImMessage::getType).eq(type.trim());
+                }
+                applySearchTimeRange(fileQw, fromTime, toTime);
+                messages = imMessageRepository.selectListByQuery(fileQw);
+            }
         }
 
         Set<Long> convIds = messages.stream().map(ImMessage::getConversationId).collect(Collectors.toSet());
@@ -867,6 +872,41 @@ public class ChatServiceImpl implements ChatService {
                     .build());
         }
         return hits;
+    }
+
+    /**
+     * 消息落库加密开启时：无法在 SQL 对 content 做 LIKE，改为拉取候选后在内存匹配。
+     */
+    private List<ImMessage> searchMessagesInMemory(Set<Long> allowedIds, String keyword, String type,
+                                                   Long fromTime, Long toTime, int cap) {
+        int scanLimit = linkxProperties.getMessageEncryption().getSearchScanLimit();
+        QueryWrapper qw = QueryWrapper.create()
+                .where(ImMessage::getConversationId).in(allowedIds)
+                .and(ImMessage::getType).ne(ImMessage.TYPE_RECALL)
+                .orderBy(ImMessage::getCreateTime, false)
+                .limit(scanLimit);
+        if (StringUtils.hasText(type)) {
+            qw.and(ImMessage::getType).eq(type.trim());
+        }
+        applySearchTimeRange(qw, fromTime, toTime);
+        List<ImMessage> candidates = imMessageRepository.selectListByQuery(qw);
+        String qLower = keyword.toLowerCase(Locale.ROOT);
+        List<ImMessage> matched = new ArrayList<>();
+        for (ImMessage msg : candidates) {
+            if (matched.size() >= cap) {
+                break;
+            }
+            String content = msg.getContent();
+            if (content != null && content.toLowerCase(Locale.ROOT).contains(qLower)) {
+                matched.add(msg);
+                continue;
+            }
+            String fileName = msg.getFileName();
+            if (fileName != null && fileName.toLowerCase(Locale.ROOT).contains(qLower)) {
+                matched.add(msg);
+            }
+        }
+        return matched;
     }
 
     private void applySearchTimeRange(QueryWrapper qw, Long fromTime, Long toTime) {
@@ -969,7 +1009,7 @@ public class ChatServiceImpl implements ChatService {
         if (lastReadMessageId != null) {
             qw.and(ImMessage::getId).gt(lastReadMessageId);
         }
-        return messageMapper.selectCountByQuery(qw);
+        return imMessageRepository.selectCountByQuery(qw);
     }
 
     private void refreshConversationLastMessage(Long conversationId) {
@@ -977,7 +1017,7 @@ public class ChatServiceImpl implements ChatService {
         if (conversation == null) {
             return;
         }
-        ImMessage latest = messageMapper.selectOneByQuery(
+        ImMessage latest = imMessageRepository.selectOneByQuery(
                 QueryWrapper.create()
                         .where(ImMessage::getConversationId).eq(conversationId)
                         .orderBy(ImMessage::getCreateTime, false)
@@ -1745,7 +1785,7 @@ public class ChatServiceImpl implements ChatService {
     public MessageVO editMessage(Long userId, Long conversationId, Long messageId, String newContent) {
         assertConversationMember(userId, conversationId);
 
-        ImMessage message = messageMapper.selectOneById(messageId);
+        ImMessage message = imMessageRepository.selectOneById(messageId);
         if (message == null || !conversationId.equals(message.getConversationId())) {
             throw new CustomException(404, "消息不存在");
         }
@@ -1813,7 +1853,7 @@ public class ChatServiceImpl implements ChatService {
         message.setContent(sanitized);
         message.setEdited(true);
         message.setEditedTime(new Date());
-        messageMapper.update(message);
+        imMessageRepository.update(message);
 
         // 刷新会话预览
         refreshConversationLastMessage(conversationId);
@@ -1832,7 +1872,7 @@ public class ChatServiceImpl implements ChatService {
         assertConversationMember(userId, sourceConversationId);
         assertConversationMember(userId, targetConversationId);
 
-        ImMessage source = messageMapper.selectOneById(sourceMessageId);
+        ImMessage source = imMessageRepository.selectOneById(sourceMessageId);
         if (source == null || !sourceConversationId.equals(source.getConversationId())) {
             throw new CustomException(404, "源消息不存在");
         }
@@ -1891,15 +1931,15 @@ public class ChatServiceImpl implements ChatService {
         MessageVO sent = sendMessage(userId, dto);
 
         // 标记转发来源
-        ImMessage forwarded = messageMapper.selectOneById(sent.getId());
+        ImMessage forwarded = imMessageRepository.selectOneById(sent.getId());
         if (forwarded != null) {
             forwarded.setForwardFromMessageId(sourceMessageId);
             forwarded.setForwardFromConversationId(sourceConversationId);
-            messageMapper.update(forwarded);
+            imMessageRepository.update(forwarded);
         }
 
         SysUser sender = sysUserMapper.selectOneById(userId);
-        return toMessageVO(forwarded != null ? forwarded : messageMapper.selectOneById(sent.getId()),
+        return toMessageVO(forwarded != null ? forwarded : imMessageRepository.selectOneById(sent.getId()),
                 sender, userId, loadLastReadMessageId(userId, targetConversationId));
     }
 
@@ -1914,7 +1954,7 @@ public class ChatServiceImpl implements ChatService {
     public MessageVO quoteMessage(Long userId, Long conversationId, Long quoteMessageId, SendMessageDTO dto) {
         assertConversationMember(userId, conversationId);
 
-        ImMessage quoted = messageMapper.selectOneById(quoteMessageId);
+        ImMessage quoted = imMessageRepository.selectOneById(quoteMessageId);
         if (quoted == null || !conversationId.equals(quoted.getConversationId())) {
             throw new CustomException(404, "引用的消息不存在");
         }
@@ -1935,18 +1975,18 @@ public class ChatServiceImpl implements ChatService {
         MessageVO sent = sendMessage(userId, dto);
 
         // 标记引用来源
-        ImMessage msg = messageMapper.selectOneById(sent.getId());
+        ImMessage msg = imMessageRepository.selectOneById(sent.getId());
         if (msg != null) {
             msg.setQuoteMessageId(quoteMessageId);
             msg.setQuoteConversationId(conversationId);
             msg.setQuoteSenderId(quoted.getSenderId());
             msg.setQuoteContent(quoted.getContent());
             msg.setQuoteType(quoted.getType());
-            messageMapper.update(msg);
+            imMessageRepository.update(msg);
         }
 
         SysUser sender = sysUserMapper.selectOneById(userId);
-        return toMessageVO(msg != null ? msg : messageMapper.selectOneById(sent.getId()),
+        return toMessageVO(msg != null ? msg : imMessageRepository.selectOneById(sent.getId()),
                 sender, userId, loadLastReadMessageId(userId, conversationId));
     }
 

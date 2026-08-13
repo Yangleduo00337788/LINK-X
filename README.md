@@ -35,7 +35,8 @@
 - [六、快速上手](#六快速上手)
 - [七、目录结构](#七目录结构)
 - [八、配置说明](#八配置说明)
-  - [8.4 客户端 UI 与样式规范](#84-客户端-ui-与样式规范)
+  - [8.4 消息落库加密](#84-消息落库加密)
+  - [8.5 客户端 UI 与样式规范](#85-客户端-ui-与样式规范)
 - [九、构建与部署](#九构建与部署)
 - [十、常见问题](#十常见问题)
 - [十一、贡献指南](#十一贡献指南)
@@ -209,6 +210,36 @@ flowchart TB
 </details>
 
 ---
+
+## 四-B、架构可视化（分层架构图）
+
+> 以下架构图由设计工具按 C4 模型生成，源文件见 [`assets/architecture/`](./assets/architecture/)。
+> 采用三级（上下文 / 容器 / 组件）分层；实线表示同步调用，虚线表示异步（Redis Stream 集群广播）。若托管平台不渲染 SVG，可直接打开对应的 `.svg` 文件查看。
+
+### 系统上下文图（C4 Level 1）
+
+> 描述 LinkX 与终端用户、运营管理员及官网 / 邮件服务等外部系统的边界关系。
+
+![LinkX C4 系统上下文图（Level 1）](./assets/architecture/c4-context.svg)
+
+### 容器图（C4 Level 2）
+
+> 拆出桌面客户端、管理后台两个应用容器与后端服务、MySQL / Redis / MinIO 三类数据容器，标注协议（REST :8080 / WS :8081 / JDBC / S3）与同步·异步语义。
+
+![LinkX C4 容器图（Level 2）](./assets/architecture/c4-container.svg)
+
+### 组件图（C4 Level 3 · 后端服务内部）
+
+> 聚焦后端服务单体内部：Tomcat REST 与 Netty WS 双入口、自研双 Token 鉴权（未用 Spring Security 过滤器链）、业务服务层、Redis Stream 集群推送、雪花 ID 及三类数据存储依赖。
+
+![LinkX C4 组件图（Level 3）](./assets/architecture/c4-component.svg)
+
+### 附：Netty WebSocket 集群推送（Redis Stream）时序
+
+> 跨实例消息广播 + 雪花 id 离线游标的完整时序，对应组件图中「Redis Stream 集群推送」与「业务服务层 · IM 消息」。
+
+![Netty WebSocket 集群推送时序](./assets/architecture/netty-cluster-push.svg)
+
 
 ## 五、环境要求
 
@@ -421,7 +452,76 @@ VITE_WS_BASE_URL=ws://localhost:8081
 | 安全存储 | Electron 下 Token / 锁屏 PIN 使用 OS 级 `safeStorage` 加密 |
 | 401 处理 | 前端自动 Refresh 并重试原请求 |
 
-### 8.4 客户端 UI 与样式规范
+### 8.4 消息落库加密
+
+IM 消息在写入 MySQL 前由服务端使用 **AES-256-GCM** 加密，读取时在应用层解密后供业务逻辑使用（敏感词、举报、审计等管理端能力不受影响）。
+
+| 说明 | 内容 |
+|------|------|
+| 加密范围 | `im_message.content`、`im_message.quote_content` |
+| 默认状态 | **关闭**（`MESSAGE_CONTENT_ENCRYPT_ENABLED=false`），现有部署无需改动即可升级 |
+| 客户端改动 | **无需**；仍依赖 HTTPS / WSS 传输，落库加密对客户端透明 |
+| 非 E2EE | 服务端持有密钥，**不是**端到端加密；丢失 KEK 将导致历史密文无法恢复 |
+
+#### 环境变量
+
+| 变量 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
+| `MESSAGE_CONTENT_ENCRYPT_ENABLED` | 开启时 | `false` | 是否启用消息落库加密 |
+| `MESSAGE_KEK` | 开启时 | — | 当前主密钥，**须与 `JWT_SECRET` 独立** |
+| `MESSAGE_KEK_KEY_ID` | 否 | `default` | 当前密钥标识，写入密文前缀 `lxenc:v1:{keyId}:...` |
+| `MESSAGE_KEK_LEGACY_MAP` | 轮换时 | — | 历史密钥 JSON，如 `{"default":"<旧KEK>"}`，仅用于解密 |
+| `MESSAGE_SEARCH_SCAN_LIMIT` | 否 | `500` | 开启加密后消息搜索内存扫描上限（条） |
+| `MESSAGE_REENCRYPT_BATCH_SIZE` | 否 | `500` | 历史明文补加密每批条数 |
+| `MESSAGE_KEY_ROTATE_BATCH_SIZE` | 否 | `500` | KEK 轮换重加密每批条数 |
+
+模板见 `linkx-server/.env.local.example`、`.env.prod.example`、`.env.docker.example`。
+
+#### 密钥生成与首次启用
+
+```bash
+# 生成 32 字节随机密钥（推荐）
+openssl rand -base64 32
+```
+
+在 `linkx-server/.env.local` 或 `.env.prod` 中配置：
+
+```env
+MESSAGE_CONTENT_ENCRYPT_ENABLED=true
+MESSAGE_KEK=<上一步生成的值>
+MESSAGE_KEK_KEY_ID=default
+```
+
+重启后端。启动日志应出现 `[消息加密] 已加载密钥 keyIds=[default]`。
+
+**注意：**
+
+- `MESSAGE_KEK` 支持 **Base64（解码后 32 字节）** 或 **UTF-8 明文（≥32 字符）**；过短会启动失败。
+- 务必将 KEK **离线备份**（密码管理器 / 密钥管理系统）；**丢失 KEK = 永久无法解密历史消息**。
+- 首次开启后，Snail Job 任务 `message_content_reencrypt` 会分批将历史明文转为密文；可在日志中关注 `remaining` 直至为 0。
+
+#### KEK 轮换流程
+
+1. 生成新密钥：`openssl rand -base64 32`
+2. 更新环境变量（**先不要删除旧 KEK**）：
+
+```env
+MESSAGE_KEK=<新密钥>
+MESSAGE_KEK_KEY_ID=v2
+MESSAGE_KEK_LEGACY_MAP={"default":"<旧 MESSAGE_KEK 的值>"}
+```
+
+3. 重启服务；Snail Job `message_content_key_rotate` 会将旧 `keyId` 密文重加密为 `v2`。
+4. 确认日志中 `remaining=0` 后，可从 `MESSAGE_KEK_LEGACY_MAP` 移除已轮换完毕的条目。
+
+#### 相关 Snail Job
+
+| 任务名 | 周期 | 作用 |
+|--------|------|------|
+| `message_content_reencrypt` | 每 5 分钟 | 历史明文 → 密文 |
+| `message_content_key_rotate` | 每 5 分钟 | 旧 keyId 密文 → 当前 keyId |
+
+### 8.5 客户端 UI 与样式规范
 
 客户端已建立统一的设计 Token 与公共组件体系。新增或改版页面须遵循下列约定，避免散落硬编码样式导致视觉不一致。
 
@@ -455,6 +555,7 @@ VITE_WS_BASE_URL=ws://localhost:8081
 
 ```bash
 cd linkx-server
+mvn test                         # 运行单元测试（消息加密等）
 mvn -DskipTests package          # 产出 target/linkx-server-*.jar
 java -jar target/linkx-server-1.0.0-SNAPSHOT.jar
 ```
@@ -724,6 +825,17 @@ npm run build                    # 静态资源输出至 dist/
    ```
 2. 重启 `npm run electron:dev`，控制台不应再出现 `@import must precede` 报错。
 
+### Q8：开启消息加密后启动失败或历史消息乱码
+
+**常见原因：**
+
+1. **`MESSAGE_CONTENT_ENCRYPT_ENABLED=true` 但未配置 `MESSAGE_KEK`** — 补全密钥后重启。
+2. **KEK 过短** — 须 Base64 解码后 32 字节，或 UTF-8 明文 ≥32 字符；推荐 `openssl rand -base64 32`。
+3. **轮换后旧消息无法解密** — 检查 `MESSAGE_KEK_LEGACY_MAP` 是否包含对应 `keyId` 的旧 KEK；在 `remaining=0` 前勿删除 legacy 条目。
+4. **误用 `JWT_SECRET` 作为 `MESSAGE_KEK`** — 两者应独立配置，轮换 JWT 不影响消息密文。
+
+完整配置见 **[八、配置说明 → 8.4 消息落库加密](#84-消息落库加密)**。
+
 ---
 
 ## 十一、贡献指南
@@ -748,7 +860,7 @@ npm run build                    # 静态资源输出至 dist/
 
 | 子工程 | 最低验证 |
 |--------|----------|
-| server | `mvn -DskipTests compile` |
+| server | `mvn test` 或至少 `mvn -DskipTests compile` |
 | client | `npm run electron:dev` 或 `npm run dev` 可启动 |
 | admin | `npm run dev` 可启动 |
 | 数据库 | 新增 Flyway 脚本 `V{n}__*.sql`，禁止手改生产库 |

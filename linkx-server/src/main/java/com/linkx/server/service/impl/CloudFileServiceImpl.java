@@ -13,7 +13,7 @@ import com.linkx.server.entity.SysUser;
 import com.linkx.server.mapper.GroupAssetMapper;
 import com.linkx.server.mapper.ImConversationMapper;
 import com.linkx.server.mapper.ImConversationMemberMapper;
-import com.linkx.server.mapper.ImMessageMapper;
+import com.linkx.server.repository.ImMessageRepository;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.CloudFileService;
 import com.linkx.server.service.MediaUrlService;
@@ -37,7 +37,7 @@ public class CloudFileServiceImpl implements CloudFileService {
 
     private final ImConversationMemberMapper memberMapper;
     private final ImConversationMapper conversationMapper;
-    private final ImMessageMapper messageMapper;
+    private final ImMessageRepository imMessageRepository;
     private final GroupAssetMapper groupAssetMapper;
     private final SysUserMapper sysUserMapper;
     private final MediaUrlService mediaUrlService;
@@ -64,7 +64,7 @@ public class CloudFileServiceImpl implements CloudFileService {
         int sqlLimit = StringUtils.hasText(category) ? cap * 3 : cap;
         boolean onlyImage = "image".equals(category);
 
-        List<ImMessage> messages = messageMapper.selectListByQuery(
+        List<ImMessage> messages = imMessageRepository.selectListByQuery(
                 QueryWrapper.create()
                         .where(ImMessage::getConversationId).in(convIds)
                         .and(ImMessage::getType).in(onlyImage

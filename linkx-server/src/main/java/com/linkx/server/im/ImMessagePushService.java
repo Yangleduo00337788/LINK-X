@@ -12,7 +12,7 @@ import com.linkx.server.entity.ImConversationMember;
 import com.linkx.server.entity.ImMessage;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.ImConversationMemberMapper;
-import com.linkx.server.mapper.ImMessageMapper;
+import com.linkx.server.repository.ImMessageRepository;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.ChatService;
 import com.linkx.server.service.MessageStormService;
@@ -55,7 +55,7 @@ public class ImMessagePushService {
 
     private final ChatService chatService;
     private final ImConversationMemberMapper memberMapper;
-    private final ImMessageMapper messageMapper;
+    private final ImMessageRepository imMessageRepository;
     private final SysUserMapper sysUserMapper;
     private final ImChannelManager channelManager;
     private final ObjectMapper objectMapper;
@@ -246,10 +246,10 @@ public class ImMessagePushService {
      */
     private void updateDeliveryStatus(Long messageId, String status) {
         try {
-            ImMessage msg = messageMapper.selectOneById(messageId);
+            ImMessage msg = imMessageRepository.selectOneById(messageId);
             if (msg != null && !status.equals(msg.getDeliveryStatus())) {
                 msg.setDeliveryStatus(status);
-                messageMapper.update(msg);
+                imMessageRepository.update(msg);
             }
         } catch (Exception e) {
             log.warn("更新消息投递状态失败: messageId={}, status={}", messageId, status, e);
@@ -419,7 +419,7 @@ public class ImMessagePushService {
             sendErrorToSender(userId, new CustomException(400, "消息 ID 不能为空"));
             return;
         }
-        ImMessage msg = messageMapper.selectOneById(messageId);
+        ImMessage msg = imMessageRepository.selectOneById(messageId);
         if (msg == null) {
             sendErrorToSender(userId, new CustomException(404, "消息不存在"));
             return;
@@ -675,7 +675,7 @@ public class ImMessagePushService {
         // 游标与排序统一用 id（雪花），避免 createTime 排序 + id 游标导致漏/重
         qw.orderBy(ImMessage::getId, true).limit(batchSize + 1);
 
-        List<ImMessage> offlineMessages = messageMapper.selectListByQuery(qw);
+        List<ImMessage> offlineMessages = imMessageRepository.selectListByQuery(qw);
 
         // 通过多取的 1 条判断 hasMore，客户端可基于本批最后一条 id 继续发起 sync 拉取剩余
         boolean hasMore = offlineMessages.size() > batchSize;

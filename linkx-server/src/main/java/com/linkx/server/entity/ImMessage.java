@@ -65,6 +65,10 @@ public class ImMessage implements Serializable {
 
     private String content;
 
+    /** 0=明文(历史) 1=lxenc:v1 加密 */
+    @Builder.Default
+    private Byte contentEncVersion = 0;
+
     private String fileName;
 
     private Long fileSize;
@@ -109,6 +113,11 @@ public class ImMessage implements Serializable {
     private Long quoteSenderId;
     /** 引用消息内容快照 */
     private String quoteContent;
+
+    /** 0=明文 1=lxenc:v1 加密 */
+    @Builder.Default
+    private Byte quoteContentEncVersion = 0;
+
     /** 引用消息类型 */
     private String quoteType;
 

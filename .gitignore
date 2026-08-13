@@ -29,6 +29,10 @@ pnpm-debug.log*
 Thumbs.db
 *.timestamp-*.mjs
 
+# Python
+__pycache__/
+*.pyc
+
 # IDE
 .idea/
 

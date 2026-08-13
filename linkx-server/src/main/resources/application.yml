@@ -2,96 +2,64 @@
 # =============================================================================
 # LinkX 唯一主配置（application.yml）
 # -----------------------------------------------------------------------------
-# 本文件只写「结构」和 ${变量名}，不写具体业务值。
+# 本文件只写「结构」和 ${变量名}，不写具体业务值，也不写 :default 回退。
 # 所有取值来自：
 #   .env.local  ← SPRING_PROFILES_ACTIVE=local
 #   .env.prod   ← SPRING_PROFILES_ACTIVE=prod
 # 或操作系统/容器环境变量（优先级高于 .env 文件）。
-# 写法说明：敏感项只用 ${NAME}，由 .env.* 注入。
-# 以下带 :默认 的占位符仅为非敏感行为开关/策略回退（如 ADMIN_TOTP_REQUIRED:false）。
 # 改 env 或本文件后需重启后端
 # =============================================================================
 
 # ---------- 内嵌 Tomcat（HTTP API）----------
 server:
-  # HTTP 监听端口 ← SERVER_PORT
   port: ${SERVER_PORT}
   tomcat:
-    # 大文件上传（安装包）时避免连接被提前断开；-1 表示不限制
-    max-swallow-size: ${TOMCAT_MAX_SWALLOW_SIZE:-1}
-    # 与 spring.servlet.multipart 不同层：Tomcat 默认仅 2MB，未调高会在 ~220MB 安装包上传时直接断连
-    max-http-form-post-size: ${TOMCAT_MAX_HTTP_FORM_POST_SIZE:310MB}
-    max-part-count: ${TOMCAT_MAX_PART_COUNT:-1}
+    max-swallow-size: ${TOMCAT_MAX_SWALLOW_SIZE}
+    max-http-form-post-size: ${TOMCAT_MAX_HTTP_FORM_POST_SIZE}
+    max-part-count: ${TOMCAT_MAX_PART_COUNT}
   servlet:
-    # API 统一前缀（固定，一般不必进 env）
     context-path: /api
 
 # ---------- Spring Boot 核心 ----------
 spring:
   application:
-    # 应用名（固定）
     name: linkx-server
   profiles:
-    # 仅用于选择加载哪个 .env.*；未设置时默认 local
-    active: ${SPRING_PROFILES_ACTIVE:local}
+    active: ${SPRING_PROFILES_ACTIVE}
 
   servlet:
     multipart:
-      # 单文件上传上限 ← MULTIPART_MAX_FILE_SIZE（桌面安装包约 220MB，默认 300MB）
-      max-file-size: ${MULTIPART_MAX_FILE_SIZE:300MB}
-      # 整次 multipart 请求上限 ← MULTIPART_MAX_REQUEST_SIZE
-      max-request-size: ${MULTIPART_MAX_REQUEST_SIZE:310MB}
+      max-file-size: ${MULTIPART_MAX_FILE_SIZE}
+      max-request-size: ${MULTIPART_MAX_REQUEST_SIZE}
 
   datasource:
-    # MySQL 完整 JDBC URL ← DB_URL
     url: ${DB_URL}
-    # 数据库用户名 ← DB_USERNAME
     username: ${DB_USERNAME}
-    # 数据库密码 ← DB_PASSWORD
     password: ${DB_PASSWORD}
-    # MySQL 8 驱动（固定）
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
-      # 最大连接数 ← HIKARI_MAX_POOL_SIZE
       maximum-pool-size: ${HIKARI_MAX_POOL_SIZE}
-      # 最小空闲 ← HIKARI_MIN_IDLE
       minimum-idle: ${HIKARI_MIN_IDLE}
-      # 获取连接超时（毫秒）← HIKARI_CONNECTION_TIMEOUT
       connection-timeout: ${HIKARI_CONNECTION_TIMEOUT}
-      # 空闲超时（毫秒）← HIKARI_IDLE_TIMEOUT
       idle-timeout: ${HIKARI_IDLE_TIMEOUT}
-      # 连接最大存活（毫秒）← HIKARI_MAX_LIFETIME
       max-lifetime: ${HIKARI_MAX_LIFETIME}
       pool-name: linkx-hikari
 
   data:
     redis:
-      # Redis 主机 ← REDIS_HOST
       host: ${REDIS_HOST}
-      # Redis 端口 ← REDIS_PORT
       port: ${REDIS_PORT}
-      # Redis 密码（无密码在 env 写 REDIS_PASSWORD=）← REDIS_PASSWORD
       password: ${REDIS_PASSWORD}
-      # Redis DB 编号 ← REDIS_DATABASE
       database: ${REDIS_DATABASE}
-      # 命令超时 ← REDIS_TIMEOUT
       timeout: ${REDIS_TIMEOUT}
-      # 连接超时 ← REDIS_CONNECT_TIMEOUT
       connect-timeout: ${REDIS_CONNECT_TIMEOUT}
       lettuce:
         pool:
-          # 最大活跃连接 ← REDIS_LETTUCE_MAX_ACTIVE
           max-active: ${REDIS_LETTUCE_MAX_ACTIVE}
-          # 最大空闲 ← REDIS_LETTUCE_MAX_IDLE
           max-idle: ${REDIS_LETTUCE_MAX_IDLE}
-          # 最小空闲 ← REDIS_LETTUCE_MIN_IDLE
           min-idle: ${REDIS_LETTUCE_MIN_IDLE}
-          # 获取连接最大等待 ← REDIS_LETTUCE_MAX_WAIT
           max-wait: ${REDIS_LETTUCE_MAX_WAIT}
 
-  # ---------- Flyway Schema 迁移 ----------
-  # 存量库：baseline-on-migrate=true，将当前结构记为版本 1，再执行 V2+。
-  # 新库：docker init.sql 建全量表后同样 baseline；后续变更只走 db/migration。
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -112,177 +80,118 @@ mybatis-flex:
 # ---------- LinkX 业务（LinkxProperties）----------
 linkx:
   jwt:
-    # 签名密钥（≥32 字节）← JWT_SECRET
     secret: ${JWT_SECRET}
-    # access 有效期（毫秒）← JWT_ACCESS_EXPIRE
     access-expire: ${JWT_ACCESS_EXPIRE}
-    # refresh 有效期（毫秒）← JWT_REFRESH_EXPIRE
     refresh-expire: ${JWT_REFRESH_EXPIRE}
 
   auth:
-    # 客户端图形验证码开关 ← CAPTCHA_ENABLED
     captcha-enabled: ${CAPTCHA_ENABLED}
-    # 管理端图形验证码开关（默认跟随客户端）← ADMIN_CAPTCHA_ENABLED
-    admin-captcha-enabled: ${ADMIN_CAPTCHA_ENABLED:${CAPTCHA_ENABLED}}
-    client-captcha-type: ${CLIENT_CAPTCHA_TYPE:image}
-    admin-captcha-type: ${ADMIN_CAPTCHA_TYPE:image}
-    # 客户端是否开放注册 ← REGISTER_ENABLED
+    admin-captcha-enabled: ${ADMIN_CAPTCHA_ENABLED}
+    client-captcha-type: ${CLIENT_CAPTCHA_TYPE}
+    admin-captcha-type: ${ADMIN_CAPTCHA_TYPE}
     register-enabled: ${REGISTER_ENABLED}
-    # 忘记密码邮箱验证 ← FORGOT_PASSWORD_EMAIL_ENABLED
     forgot-password-email-enabled: ${FORGOT_PASSWORD_EMAIL_ENABLED}
-    # 客户端登录失败锁定次数 ← AUTH_LOGIN_MAX_ATTEMPTS
     login-max-attempts: ${AUTH_LOGIN_MAX_ATTEMPTS}
-    # 管理端登录失败锁定次数（默认跟随客户端）← AUTH_ADMIN_LOGIN_MAX_ATTEMPTS
-    admin-login-max-attempts: ${AUTH_ADMIN_LOGIN_MAX_ATTEMPTS:${AUTH_LOGIN_MAX_ATTEMPTS}}
-    # 客户端锁定时长（分钟）← AUTH_LOCK_DURATION_MINUTES
+    admin-login-max-attempts: ${AUTH_ADMIN_LOGIN_MAX_ATTEMPTS}
     lock-duration-minutes: ${AUTH_LOCK_DURATION_MINUTES}
-    # 管理端锁定时长（分钟，默认跟随客户端）← AUTH_ADMIN_LOCK_DURATION_MINUTES
-    admin-lock-duration-minutes: ${AUTH_ADMIN_LOCK_DURATION_MINUTES:${AUTH_LOCK_DURATION_MINUTES}}
-    # 管理端强制 TOTP（生产建议 true）← ADMIN_TOTP_REQUIRED
-    admin-totp-required: ${ADMIN_TOTP_REQUIRED:false}
-    # 密码最小长度 ← AUTH_PASSWORD_MIN_LENGTH
-    password-min-length: ${AUTH_PASSWORD_MIN_LENGTH:8}
-    # 密码最大长度 ← AUTH_PASSWORD_MAX_LENGTH
-    password-max-length: ${AUTH_PASSWORD_MAX_LENGTH:64}
-    # 是否必须同时包含大小写字母 ← AUTH_PASSWORD_REQUIRE_UPPER_LOWER
-    password-require-upper-lower: ${AUTH_PASSWORD_REQUIRE_UPPER_LOWER:false}
-    # 是否必须包含数字 ← AUTH_PASSWORD_REQUIRE_DIGIT
-    password-require-digit: ${AUTH_PASSWORD_REQUIRE_DIGIT:true}
-    # 是否必须包含特殊字符 ← AUTH_PASSWORD_REQUIRE_SPECIAL
-    password-require-special: ${AUTH_PASSWORD_REQUIRE_SPECIAL:false}
-    # 登录限流（次/分钟/IP）← AUTH_RATE_LIMIT_LOGIN
+    admin-lock-duration-minutes: ${AUTH_ADMIN_LOCK_DURATION_MINUTES}
+    admin-totp-required: ${ADMIN_TOTP_REQUIRED}
+    password-min-length: ${AUTH_PASSWORD_MIN_LENGTH}
+    password-max-length: ${AUTH_PASSWORD_MAX_LENGTH}
+    password-require-upper-lower: ${AUTH_PASSWORD_REQUIRE_UPPER_LOWER}
+    password-require-digit: ${AUTH_PASSWORD_REQUIRE_DIGIT}
+    password-require-special: ${AUTH_PASSWORD_REQUIRE_SPECIAL}
     rate-limit-login-per-minute: ${AUTH_RATE_LIMIT_LOGIN}
-    # 注册限流（次/分钟/IP）← AUTH_RATE_LIMIT_REGISTER
     rate-limit-register-per-minute: ${AUTH_RATE_LIMIT_REGISTER}
 
   cors:
-    # 跨域白名单（逗号分隔）← CORS_ALLOWED_ORIGINS
     allowed-origins: ${CORS_ALLOWED_ORIGINS}
 
   security:
-    # 强制 HTTPS ← REQUIRE_HTTPS
     require-https: ${REQUIRE_HTTPS}
 
+  message-encryption:
+    enabled: ${MESSAGE_CONTENT_ENCRYPT_ENABLED}
+    kek: ${MESSAGE_KEK}
+    legacy-kek-map: ${MESSAGE_KEK_LEGACY_MAP}
+    key-id: ${MESSAGE_KEK_KEY_ID}
+    search-scan-limit: ${MESSAGE_SEARCH_SCAN_LIMIT}
+    reencrypt-batch-size: ${MESSAGE_REENCRYPT_BATCH_SIZE}
+    key-rotate-batch-size: ${MESSAGE_KEY_ROTATE_BATCH_SIZE}
+
   proxy:
-    # 信任反代 X-Forwarded-* ← TRUST_PROXY
     trust-proxy: ${TRUST_PROXY}
 
   im:
-    # WebSocket 端口 ← IM_WS_PORT
     websocket-port: ${IM_WS_PORT}
 
   minio:
-    # 对象存储地址 ← MINIO_ENDPOINT
     endpoint: ${MINIO_ENDPOINT}
-    # Access Key ← MINIO_ACCESS_KEY
     access-key: ${MINIO_ACCESS_KEY}
-    # Secret Key ← MINIO_SECRET_KEY
     secret-key: ${MINIO_SECRET_KEY}
-    # 桶名 ← MINIO_BUCKET_NAME
     bucket-name: ${MINIO_BUCKET_NAME}
-    # 业务单文件上限（字节）← MINIO_MAX_FILE_SIZE
     max-file-size: ${MINIO_MAX_FILE_SIZE}
     presign-expiry:
-      # 头像预签名秒数 ← MINIO_PRESIGN_AVATAR_SECONDS
       avatar-seconds: ${MINIO_PRESIGN_AVATAR_SECONDS}
-      # 文件预签名秒数 ← MINIO_PRESIGN_FILE_SECONDS
       file-seconds: ${MINIO_PRESIGN_FILE_SECONDS}
-      # 分享预签名秒数 ← MINIO_PRESIGN_SHARE_SECONDS
       share-seconds: ${MINIO_PRESIGN_SHARE_SECONDS}
 
   storage:
-    # 对象存储提供商 minio|oss|local ← STORAGE_PROVIDER
-    provider: ${STORAGE_PROVIDER:minio}
+    provider: ${STORAGE_PROVIDER}
 
   oss:
-    # OSS Endpoint ← OSS_ENDPOINT
-    endpoint: ${OSS_ENDPOINT:}
-    # 桶名 ← OSS_BUCKET_NAME
-    bucket-name: ${OSS_BUCKET_NAME:}
-    # AccessKeyId ← OSS_ACCESS_KEY_ID
-    access-key-id: ${OSS_ACCESS_KEY_ID:}
-    # AccessKeySecret ← OSS_ACCESS_KEY_SECRET
-    access-key-secret: ${OSS_ACCESS_KEY_SECRET:}
-    # 自定义 CNAME ← OSS_CNAME_DOMAIN
-    cname-domain: ${OSS_CNAME_DOMAIN:}
+    endpoint: ${OSS_ENDPOINT}
+    bucket-name: ${OSS_BUCKET_NAME}
+    access-key-id: ${OSS_ACCESS_KEY_ID}
+    access-key-secret: ${OSS_ACCESS_KEY_SECRET}
+    cname-domain: ${OSS_CNAME_DOMAIN}
 
   local:
-    # 本地存储根目录 ← LOCAL_STORAGE_PATH
-    base-path: ${LOCAL_STORAGE_PATH:./data/local-storage}
+    base-path: ${LOCAL_STORAGE_PATH}
 
   mail:
-    # SMTP 主机 ← MAIL_HOST
     host: ${MAIL_HOST}
-    # SMTP 端口 ← MAIL_PORT
     port: ${MAIL_PORT}
-    # 发信账号 ← MAIL_USERNAME
     username: ${MAIL_USERNAME}
-    # 授权码 ← MAIL_PASSWORD
     password: ${MAIL_PASSWORD}
-    # 发件人地址 ← MAIL_FROM
     from: ${MAIL_FROM}
-    # 发件人显示名 ← MAIL_FROM_NAME
     from-name: ${MAIL_FROM_NAME}
-    # STARTTLS ← MAIL_START_TLS
     start-tls: ${MAIL_START_TLS}
-    # SSL ← MAIL_SSL
     ssl: ${MAIL_SSL}
-    # 验证码有效分钟 ← MAIL_CODE_EXPIRE_MINUTES
     code-expire-minutes: ${MAIL_CODE_EXPIRE_MINUTES}
 
   app:
-    # 检查更新版本号 ← APP_VERSION
     version: ${APP_VERSION}
-    # 发布渠道 ← APP_CHANNEL
     channel: ${APP_CHANNEL}
-    # 更新说明 ← APP_RELEASE_NOTES
     release-notes: ${APP_RELEASE_NOTES}
-    # 下载地址 ← APP_DOWNLOAD_URL
     download-url: ${APP_DOWNLOAD_URL}
-    # 有更新时是否强制升级 ← APP_FORCE_UPDATE
-    force-update: ${APP_FORCE_UPDATE:false}
-    # 最低支持版本（低于则强更；空表示不额外按最低版本强更）← APP_MIN_SUPPORTED_VERSION
-    min-supported-version: ${APP_MIN_SUPPORTED_VERSION:}
-    # 开发模式（允许 localhost WS）；生产必须 false ← DEV_MODE_ENABLED
+    force-update: ${APP_FORCE_UPDATE}
+    min-supported-version: ${APP_MIN_SUPPORTED_VERSION}
     dev-mode-enabled: ${DEV_MODE_ENABLED}
 
   retention:
-    # 消息保留天数 ← MESSAGE_RETENTION_DAYS
     message-days: ${MESSAGE_RETENTION_DAYS}
 
   ip-geo:
-    # 可选：外部 ip2region.xdb 路径（也可放 classpath:ip2region/ip2region.xdb）
-    xdb-path: ${IP_GEO_XDB_PATH:}
+    xdb-path: ${IP_GEO_XDB_PATH}
 
   snail-job:
-    # SnailJob 控制台地址（管理端只读页跳转）← SNAIL_JOB_ADMIN_URL
     admin-console-url: ${SNAIL_JOB_ADMIN_URL}
-    # 启动时通过 OpenAPI 注册内置任务（已存在则跳过）← SNAIL_JOB_SYNC_JOBS
     sync-jobs-on-startup: ${SNAIL_JOB_SYNC_JOBS}
 
 # ---------- SnailJob 客户端 ----------
 snail-job:
-  # 是否启用客户端 ← SNAIL_JOB_ENABLED
   enabled: ${SNAIL_JOB_ENABLED}
   server:
-    # gRPC 主机 ← SNAIL_JOB_SERVER_HOST
     host: ${SNAIL_JOB_SERVER_HOST}
-    # gRPC 端口 ← SNAIL_JOB_SERVER_PORT
     port: ${SNAIL_JOB_SERVER_PORT}
-  # 命名空间 ← SNAIL_JOB_NAMESPACE
   namespace: ${SNAIL_JOB_NAMESPACE}
-  # 客户端组 ← SNAIL_JOB_GROUP
   group: ${SNAIL_JOB_GROUP}
-  # 客户端 Token（须在 SnailJob 控制台创建，禁止写入 yml 默认值）← SNAIL_JOB_TOKEN
   token: ${SNAIL_JOB_TOKEN}
-  # 客户端对外 host（多实例可留空）← SNAIL_JOB_CLIENT_HOST
   host: ${SNAIL_JOB_CLIENT_HOST}
-  # 客户端端口 ← SNAIL_JOB_CLIENT_PORT
   port: ${SNAIL_JOB_CLIENT_PORT}
   openapi:
-    # OpenAPI 主机 ← SNAIL_JOB_OPENAPI_HOST
     host: ${SNAIL_JOB_OPENAPI_HOST}
-    # OpenAPI 端口 ← SNAIL_JOB_OPENAPI_PORT
     port: ${SNAIL_JOB_OPENAPI_PORT}
     prefix: snail-job
 
@@ -291,12 +200,10 @@ management:
   endpoints:
     web:
       exposure:
-        # 暴露端点列表 ← MANAGEMENT_ENDPOINTS
         include: ${MANAGEMENT_ENDPOINTS}
       base-path: /actuator
   endpoint:
     health:
-      # 健康详情策略 ← MANAGEMENT_HEALTH_SHOW_DETAILS
       show-details: ${MANAGEMENT_HEALTH_SHOW_DETAILS}
       probes:
         enabled: true
@@ -315,32 +222,25 @@ management:
 
 # ---------- OpenAPI / Swagger ----------
 springdoc:
-  # 文档内容 i18n（配合 i18n/openapi*.properties 与 ?lang=）
   disable-i18n: false
   allowed-locales: zh_CN,en
   api-docs:
-    # 是否启用 ← SPRINGDOC_ENABLED
     enabled: ${SPRINGDOC_ENABLED}
     path: /v3/api-docs
   swagger-ui:
-    # 是否启用（与上共用）← SPRINGDOC_ENABLED
     enabled: ${SPRINGDOC_ENABLED}
     path: /swagger-ui.html
     operations-sorter: method
     tags-sorter: alpha
     display-request-duration: true
-    # 便于通过 ?lang= 切换后刷新文档
     query-config-enabled: true
   show-actuator: false
 
 # ---------- 日志 ----------
 logging:
   level:
-    # 全局级别 ← LOG_LEVEL_ROOT
     root: ${LOG_LEVEL_ROOT}
-    # 业务包级别 ← LOG_LEVEL_LINKX
     com.linkx.server: ${LOG_LEVEL_LINKX}
-    # Security 级别 ← LOG_LEVEL_SECURITY
     org.springframework.security: ${LOG_LEVEL_SECURITY}
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"

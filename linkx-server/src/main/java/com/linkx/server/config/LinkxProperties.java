@@ -32,6 +32,40 @@ public class LinkxProperties {
     private final Retention retention = new Retention();
     private final IpGeo ipGeo = new IpGeo();
     private final RiskPolicy riskPolicy = new RiskPolicy();
+    private final MessageEncryption messageEncryption = new MessageEncryption();
+
+    @Data
+    public static class MessageEncryption {
+        /** 是否对 im_message.content / quote_content 落库加密 */
+        private boolean enabled = false;
+        /** 主密钥 KEK（环境变量 MESSAGE_KEK） */
+        private String kek;
+        /**
+         * 历史 KEK JSON：{"oldKeyId":"base64-or-plain-kek",...}，仅用于解密旧密文。
+         * 轮换时把旧密钥写入此字段，并更新 kek + keyId。
+         */
+        private String legacyKekMap;
+        /** 密钥版本标识，写入密文前缀 */
+        private String keyId = "default";
+        /** 加密开启时，聊天记录关键词搜索单次扫描上限 */
+        private int searchScanLimit = 500;
+        /** 历史明文重加密每批条数（Snail Job） */
+        private int reencryptBatchSize = 500;
+        /** 密钥轮换重加密每批条数（Snail Job） */
+        private int keyRotateBatchSize = 500;
+
+        public void setSearchScanLimit(int searchScanLimit) {
+            this.searchScanLimit = Math.max(100, Math.min(5000, searchScanLimit));
+        }
+
+        public void setReencryptBatchSize(int reencryptBatchSize) {
+            this.reencryptBatchSize = Math.max(50, Math.min(5000, reencryptBatchSize));
+        }
+
+        public void setKeyRotateBatchSize(int keyRotateBatchSize) {
+            this.keyRotateBatchSize = Math.max(50, Math.min(5000, keyRotateBatchSize));
+        }
+    }
 
     @Data
     public static class Im {

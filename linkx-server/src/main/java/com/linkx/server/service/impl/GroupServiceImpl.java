@@ -80,7 +80,7 @@ public class GroupServiceImpl implements GroupService {
     private final GroupAnnouncementMapper groupAnnouncementMapper;
     private final GroupAssetMapper groupAssetMapper;
     private final GroupInvitationMapper groupInvitationMapper;
-    private final com.linkx.server.mapper.ImMessageMapper messageMapper;
+    private final com.linkx.server.repository.ImMessageRepository imMessageRepository;
     private final com.linkx.server.service.FileStorageService fileStorageService;
 
     private static final String NOTIFY_TYPE_GROUP_JOIN_REQUEST = "group_join_request";
@@ -563,7 +563,9 @@ public class GroupServiceImpl implements GroupService {
         msgPatch.setFileUrl(null);
         msgPatch.setFileName(null);
         msgPatch.setDeleted(1);
-        messageMapper.updateByQuery(msgPatch,
+        msgPatch.setContentEncVersion((byte) 0);
+        msgPatch.setQuoteContentEncVersion((byte) 0);
+        imMessageRepository.updateByQuery(msgPatch,
                 QueryWrapper.create().where(com.linkx.server.entity.ImMessage::getConversationId).eq(conversationId));
 
         // 先推送解散事件，再删成员关系

@@ -20,7 +20,7 @@ import com.linkx.server.exception.CustomException;
 import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.mapper.ImConversationMapper;
 import com.linkx.server.mapper.ImConversationMemberMapper;
-import com.linkx.server.mapper.ImMessageMapper;
+import com.linkx.server.repository.ImMessageRepository;
 import com.linkx.server.mapper.SysFriendRequestMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.mapper.SysUserRelationMapper;
@@ -60,7 +60,7 @@ public class FriendServiceImpl implements FriendService {
     private final SysFriendRequestMapper sysFriendRequestMapper;
     private final ImConversationMapper conversationMapper;
     private final ImConversationMemberMapper memberMapper;
-    private final ImMessageMapper messageMapper;
+    private final ImMessageRepository imMessageRepository;
     private final MediaUrlService mediaUrlService;
     private final UserPreferenceService userPreferenceService;
     private final PresenceService presenceService;
@@ -503,7 +503,9 @@ public class FriendServiceImpl implements FriendService {
         msgPatch.setFileUrl(null);
         msgPatch.setFileName(null);
         msgPatch.setDeleted(1);
-        messageMapper.updateByQuery(msgPatch,
+        msgPatch.setContentEncVersion((byte) 0);
+        msgPatch.setQuoteContentEncVersion((byte) 0);
+        imMessageRepository.updateByQuery(msgPatch,
                 QueryWrapper.create().where(ImMessage::getConversationId).eq(conversationId));
 
         conversationMapper.deleteById(conversationId);

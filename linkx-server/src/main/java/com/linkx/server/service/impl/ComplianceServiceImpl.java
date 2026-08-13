@@ -52,7 +52,8 @@ import com.linkx.server.mapper.FavoriteTagMapper;
 import com.linkx.server.mapper.FeedbackMapper;
 import com.linkx.server.mapper.GroupInvitationMapper;
 import com.linkx.server.mapper.ImConversationMemberMapper;
-import com.linkx.server.mapper.ImMessageMapper;
+import com.linkx.server.repository.ImMessageRepository;
+import com.linkx.server.security.crypto.MessageContentCipher;
 import com.linkx.server.mapper.MessageNotificationMapper;
 import com.linkx.server.mapper.MomentsCommentMapper;
 import com.linkx.server.mapper.MomentsImageMapper;
@@ -104,7 +105,8 @@ public class ComplianceServiceImpl implements ComplianceService {
     private final SysUserMapper userMapper;
     private final SysUserRelationMapper relationMapper;
     private final ImConversationMemberMapper memberMapper;
-    private final ImMessageMapper messageMapper;
+    private final ImMessageRepository imMessageRepository;
+    private final MessageContentCipher messageContentCipher;
     private final DeviceSessionMapper deviceSessionMapper;
     private final NoteMapper noteMapper;
     private final CloudFileMapper cloudFileMapper;
@@ -170,7 +172,7 @@ public class ComplianceServiceImpl implements ComplianceService {
                 .collect(Collectors.toList());
         List<Map<String, Object>> messages = (conversationIds.isEmpty()
                 ? java.util.Collections.<ImMessage>emptyList()
-                : messageMapper.selectListByQuery(
+                : imMessageRepository.selectListByQuery(
                 QueryWrapper.create()
                         .where(ImMessage::getConversationId).in(conversationIds)
                         .orderBy(ImMessage::getCreateTime, false)
@@ -266,8 +268,14 @@ public class ComplianceServiceImpl implements ComplianceService {
         }
 
         // 本人发送消息：脱敏保留结构，不破坏会话连贯性
+        ImMessage scrubPatch = new ImMessage();
+        scrubPatch.setContent("[该用户已注销，消息已清除]");
+        messageContentCipher.encryptMessageFields(scrubPatch);
         UpdateChain.of(ImMessage.class)
-                .set(ImMessage::getContent, "[该用户已注销，消息已清除]")
+                .set(ImMessage::getContent, scrubPatch.getContent())
+                .set(ImMessage::getContentEncVersion, scrubPatch.getContentEncVersion())
+                .set(ImMessage::getQuoteContent, null)
+                .set(ImMessage::getQuoteContentEncVersion, (byte) 0)
                 .set(ImMessage::getFileUrl, null)
                 .set(ImMessage::getFileName, null)
                 .where(ImMessage::getSenderId).eq(userId)

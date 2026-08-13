@@ -12,6 +12,8 @@ import com.linkx.server.task.AdminExportJobCleanupTask;
 import com.linkx.server.task.AutoUnlockTask;
 import com.linkx.server.task.FeedbackEscalationTask;
 import com.linkx.server.task.GroupMuteTask;
+import com.linkx.server.task.MessageContentKeyRotationTask;
+import com.linkx.server.task.MessageContentReencryptTask;
 import com.linkx.server.task.MessageRetentionTask;
 import com.linkx.server.task.PresenceHeartbeatTask;
 import com.linkx.server.task.ReviewEscalationTask;
@@ -61,6 +63,38 @@ public final class LinkxSnailJobExecutors {
         public ExecuteResult jobExecute(JobArgs jobArgs) {
             delegate.expireRedPackets();
             return ExecuteResult.success();
+        }
+    }
+
+    @Component
+    @JobExecutor(name = "message_content_key_rotate")
+    @RequiredArgsConstructor
+    public static class MessageContentKeyRotationJobExecutor {
+        private final MessageContentKeyRotationTask delegate;
+
+        public ExecuteResult jobExecute(JobArgs jobArgs) {
+            MessageContentKeyRotationTask.RotationResult result = delegate.rotateBatch();
+            if (result.wasSkipped()) {
+                return ExecuteResult.success("skipped: encryption disabled");
+            }
+            return ExecuteResult.success(
+                    "updated=" + result.updated() + ", remaining=" + result.remaining());
+        }
+    }
+
+    @Component
+    @JobExecutor(name = "message_content_reencrypt")
+    @RequiredArgsConstructor
+    public static class MessageContentReencryptJobExecutor {
+        private final MessageContentReencryptTask delegate;
+
+        public ExecuteResult jobExecute(JobArgs jobArgs) {
+            MessageContentReencryptTask.ReencryptResult result = delegate.reencryptBatch();
+            if (result.wasSkipped()) {
+                return ExecuteResult.success("skipped: encryption disabled");
+            }
+            return ExecuteResult.success(
+                    "updated=" + result.updated() + ", remaining=" + result.remaining());
         }
     }
 

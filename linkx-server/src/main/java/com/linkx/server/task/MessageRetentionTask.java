@@ -6,7 +6,7 @@ package com.linkx.server.task;
  */
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.entity.ImMessage;
-import com.linkx.server.mapper.ImMessageMapper;
+import com.linkx.server.repository.ImMessageRepository;
 import com.linkx.server.service.ComplianceService;
 import com.linkx.server.service.FileStorageService;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -32,7 +32,7 @@ public class MessageRetentionTask {
     /** 单次任务最多循环轮次，防止异常数据导致死循环 */
     private static final int MAX_ROUNDS = 50;
 
-    private final ImMessageMapper messageMapper;
+    private final ImMessageRepository imMessageRepository;
     private final LinkxProperties linkxProperties;
     private final ComplianceService complianceService;
     private final FileStorageService fileStorageService;
@@ -51,7 +51,7 @@ public class MessageRetentionTask {
 
         int total = 0;
         for (int round = 0; round < MAX_ROUNDS; round++) {
-            List<ImMessage> expired = messageMapper.selectListByQuery(
+            List<ImMessage> expired = imMessageRepository.selectListByQueryWithoutDecrypt(
                     QueryWrapper.create()
                             .where(ImMessage::getCreateTime).lt(cutoff)
                             .and(ImMessage::getDeleted).eq(0)
@@ -76,10 +76,13 @@ public class MessageRetentionTask {
             // 批量 UPDATE：清空内容并标记删除，避免逐条往返
             ImMessage patch = new ImMessage();
             patch.setContent(null);
+            patch.setContentEncVersion((byte) 0);
+            patch.setQuoteContent(null);
+            patch.setQuoteContentEncVersion((byte) 0);
             patch.setFileUrl(null);
             patch.setFileName(null);
             patch.setDeleted(1);
-            messageMapper.updateByQuery(patch,
+            imMessageRepository.updateByQuery(patch,
                     QueryWrapper.create().where(ImMessage::getId).in(ids));
 
             // 提交后异步删 MinIO（失败仅打日志，依赖下次任务/合规清理兜底）
