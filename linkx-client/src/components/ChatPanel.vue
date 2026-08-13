@@ -9,7 +9,7 @@
  * </p>
  */
 // Vue 响应式、计算属性、生命周期、侦听器与 nextTick
-import { ref, computed, onUnmounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 // Naive UI 图标、气泡、下拉菜单与消息提示
 import { NIcon, NPopover, NDropdown, NModal, NInput, useMessage, type DropdownOption } from 'naive-ui'
 // Ionicons5 通话、视频、网格、添加、更多、手机、图片图标
@@ -64,9 +64,12 @@ import { useI18n } from '../i18n'
 import { isMyPhoneSessionName } from '../utils/myPhoneSession'
 import { lxChatWallpaperBg } from '../theme/vars'
 import { formatMessageDivider, MESSAGE_TIME_GAP_MS } from '../utils/chatTime'
-import * as chatApi from '../api/chat'
 import * as conferenceApi from '../api/conference'
-import { recoverMediaUrlOnError } from '../utils/mediaUrl'
+import {
+  downloadChatMessageAttachment,
+  buildChatImageViewerItem
+} from '../utils/chatMediaAccess'
+import { useChatVoicePlayer } from '../utils/useChatVoicePlayer'
 import { chatMessagePreviewText } from '../utils/messagePreviewText'
 import { formatLastSeen } from '../utils/messageStatus'
 import ConferenceCreateDialog, {
@@ -347,7 +350,7 @@ watch(
   () => chatMessages.value.length,
   (newLen, oldLen) => {
     if (newLen > oldLen && hasSession.value && stickToBottom.value && !loadingMore.value) {
-      scrollToBottom()
+      scrollToBottom(true)
     }
   }
 )
@@ -378,7 +381,14 @@ watch(sessionEnterTick, () => {
     run()
     requestAnimationFrame(() => {
       run()
-      requestAnimationFrame(finish)
+      requestAnimationFrame(() => {
+        run()
+        window.setTimeout(() => {
+          run()
+          finish()
+        }, 120)
+        window.setTimeout(run, 400)
+      })
     })
   })
 })
@@ -413,7 +423,7 @@ watch(currentSessionId, () => {
 })
 
 // 当前正在播放的语音消息 ID
-const playingVoiceId = ref<string | null>(null)
+const { playingVoiceId, stopVoicePlayback } = useChatVoicePlayer()
 
 // 根据聊天背景设置计算消息区背景样式
 const chatBgStyle = computed(() => {
@@ -426,10 +436,6 @@ const chatBgStyle = computed(() => {
   }
   return { background: 'var(--lx-bg-panel)' } // 默认背景
 })
-
-// 语音播放 Audio 实例引用
-let voiceAudio: HTMLAudioElement | null = null
-
 
 // 生成对方头像组件 props
 function peerAvatarProps(size = 36) {
@@ -497,101 +503,30 @@ watch(currentSessionId, () => {
 
 
 
-// 播放或暂停语音消息（预签名过期时自动刷新）
-async function playVoice(msg: ChatMessage) {
-  if (!msg.voiceUrl && !msg.fileUrl) {
-    message.info(`${t('chat.voice')} ${formatVoiceDuration(msg.voiceDuration)}`) // 无 URL 时仅提示时长
-    return
-  }
-  if (playingVoiceId.value === msg.id) {
-    voiceAudio?.pause() // 再次点击则暂停
-    playingVoiceId.value = null
-    return
-  }
-  voiceAudio?.pause() // 停止上一段语音
-  let src = msg.voiceUrl || msg.fileUrl || ''
-  const tryPlay = (url: string) => {
-    voiceAudio = new Audio(url)
-    playingVoiceId.value = msg.id
-    voiceAudio.onended = () => {
-      playingVoiceId.value = null
-    }
-    voiceAudio.onerror = () => {
-      void (async () => {
-        const next = await recoverMediaUrlOnError(url, async () => {
-          const res = await chatApi.refreshMessageMediaUrl(msg.id)
-          if (res.code === 200 && res.data?.url) return res.data.url
-          return null
-        })
-        if (next && next !== url) {
-          msg.voiceUrl = next
-          msg.fileUrl = next
-          tryPlay(next)
-        } else {
-          playingVoiceId.value = null
-          message.error(t('chat.voicePlayFail'))
-        }
-      })()
-    }
-    voiceAudio.play().catch(() => {
-      playingVoiceId.value = null
-      message.error(t('chat.voicePlayFail'))
-    })
-  }
-  tryPlay(src)
-}
-
 // 双击图片：Electron 开独立预览窗；Web 回退 Overlay
 async function openImageView(msg: ChatMessage) {
-  let fileUrl = msg.content || msg.fileUrl || ''
-  if (!fileUrl) {
-    message.warning(t('chat.fileOpenMissing'))
-    return
-  }
-  // object key 等非 http 地址先刷新为可访问 URL
-  if (!/^https?:\/\//i.test(fileUrl) && !fileUrl.startsWith('blob:') && !fileUrl.startsWith('data:')) {
-    const next = await recoverMediaUrlOnError(fileUrl, async () => {
-      const res = await chatApi.refreshMessageMediaUrl(msg.id)
-      if (res.code === 200 && res.data?.url) return res.data.url
-      return null
-    })
-    if (next) fileUrl = next
-  }
-
   const conversationId = currentSessionId.value || msg.sessionId || ''
   const gallery = (currentMessages.value || [])
     .filter(m => m.type === 'image' || m.isImage)
-    .map(m => ({
-      url: m.content || m.fileUrl || '',
-      fileName: m.fileName || t('chat.imageMessage'),
-      fileSize: m.fileSize,
-      messageId: m.id,
-      conversationId: m.sessionId || conversationId
-    }))
-    .filter(i => !!i.url)
-  let index = msg.id ? gallery.findIndex(i => i.messageId === msg.id) : -1
-  if (index < 0) index = gallery.findIndex(i => i.url === fileUrl)
-  if (index < 0) index = 0
-  // 当前张使用已刷新的可访问 URL
-  if (gallery[index]) {
-    gallery[index] = { ...gallery[index], url: fileUrl }
+    .map(m => buildChatImageViewerItem(m, conversationId, t('chat.imageMessage')))
+    .filter(i => !!i.url || !!i.messageId)
+
+  if (!gallery.length && !msg.id) {
+    message.warning(t('chat.fileOpenMissing'))
+    return
   }
 
+  let index = msg.id ? gallery.findIndex(i => i.messageId === msg.id) : -1
+  if (index < 0) index = 0
+
+  const currentItem = gallery[index] || buildChatImageViewerItem(msg, conversationId, t('chat.imageMessage'))
   const payload = {
-    url: fileUrl,
-    fileName: msg.fileName || t('chat.imageMessage'),
-    fileSize: msg.fileSize,
+    url: currentItem.url,
+    fileName: currentItem.fileName || msg.fileName || t('chat.imageMessage'),
+    fileSize: currentItem.fileSize || msg.fileSize,
     items: gallery.length
       ? gallery
-      : [
-          {
-            url: fileUrl,
-            fileName: msg.fileName,
-            fileSize: msg.fileSize,
-            messageId: msg.id,
-            conversationId
-          }
-        ],
+      : [buildChatImageViewerItem(msg, conversationId, t('chat.imageMessage'))],
     index: gallery.length ? index : 0
   }
 
@@ -605,14 +540,15 @@ async function openImageView(msg: ChatMessage) {
       fileName: payload.fileName,
       fileUrl: payload.url,
       fileSize: payload.fileSize,
-      isImage: true
+      isImage: true,
+      messageId: msg.id
     }
   })
 }
 
 // 组件卸载时停止语音播放
 onUnmounted(() => {
-  voiceAudio?.pause()
+  stopVoicePlayback()
   if (highlightAtMeTimer) {
     window.clearTimeout(highlightAtMeTimer)
     highlightAtMeTimer = 0
@@ -627,30 +563,15 @@ function openFileView(msg?: ChatMessage) {
       fileName,
       fileUrl: msg?.fileUrl || msg?.content,
       fileSize: msg?.fileSize,
-      isImage: msg?.type === 'image' || msg?.isImage
+      isImage: msg?.type === 'image' || msg?.isImage,
+      messageId: msg?.id
     }
   })
 }
 
-/** 聊天文件：点击 / 左侧图标 → 下载并用系统默认程序打开 */
+/** 聊天文件：点击 / 左侧图标 → 鉴权下载并用系统默认程序打开 */
 async function openChatFile(msg: ChatMessage) {
-  let url = msg.fileUrl || (msg.type === 'file' ? '' : msg.content) || ''
-  if (!url) {
-    message.error(t('chat.fileOpenMissing'))
-    return
-  }
-  if (!/^https?:\/\//i.test(url) && !url.startsWith('blob:') && !url.startsWith('data:')) {
-    const next = await recoverMediaUrlOnError(url, async () => {
-      const res = await chatApi.refreshMessageMediaUrl(msg.id)
-      if (res.code === 200 && res.data?.url) return res.data.url
-      return null
-    })
-    if (next) url = next
-  }
-  const { downloadFileWithSettings } = await import('../utils/downloadFile')
-  const result = await downloadFileWithSettings(url, msg.fileName || msg.content || 'file', {
-    openAfter: true
-  })
+  const result = await downloadChatMessageAttachment(msg, { openAfter: true })
   if (result.canceled) return
   if (!result.ok) {
     message.error(result.message || t('files.downloadFail'))
@@ -891,12 +812,6 @@ watch(
   { immediate: true }
 )
 
-// 格式化语音时长显示
-function formatVoiceDuration(sec?: number) {
-  const s = sec ?? 0
-  return s < 60 ? `${s}"` : `${Math.floor(s / 60)}'${s % 60}"`
-}
-
 // 当前正在回复的消息
 const replyingTo = ref<ChatMessage | undefined>()
 // 虚拟消息列表
@@ -906,9 +821,23 @@ const messageListContainer = ref<HTMLElement | null>(null)
 // 聊天输入框组件引用
 const chatInputRef = ref<InstanceType<typeof ChatInputBox> | null>(null)
 
+function onMessageContentLoaded(msg: ChatMessage) {
+  if (!stickToBottom.value) return
+  const last = chatMessages.value[chatMessages.value.length - 1]
+  if (!last || last.id !== msg.id) return
+  scrollToBottom(true)
+}
+
 function scrollToBottom(force = false) {
   stickToBottom.value = true
-  messageListRef.value?.scrollToBottom(force)
+  const run = () => messageListRef.value?.scrollToBottom(force)
+  nextTick(() => {
+    run()
+    requestAnimationFrame(() => {
+      run()
+      requestAnimationFrame(run)
+    })
+  })
   const sid = currentSessionId.value
   if (sid) {
     void appStore.reportSessionRead(sid)
@@ -978,47 +907,84 @@ async function jumpToAtMeMessage() {
 }
 
 /** 搜索/收藏跳转：定位 pendingFocusMessageId */
+let focusJumpInFlight = false
+
+async function scrollMessageIntoView(targetId: string) {
+  const tryScroll = () => messageListRef.value?.scrollToKey(targetId)
+  tryScroll()
+  await nextTick()
+  tryScroll()
+  requestAnimationFrame(() => {
+    tryScroll()
+    requestAnimationFrame(tryScroll)
+  })
+  await new Promise<void>(resolve => window.setTimeout(resolve, 80))
+  tryScroll()
+}
+
 async function jumpToPendingFocusMessage() {
+  if (focusJumpInFlight) return
   const sid = currentSessionId.value
   const targetId = pendingFocusMessageId.value
   if (!sid || !targetId) return
 
-  let idx = chatMessages.value.findIndex(m => m.id === targetId)
-  let attempts = 0
-  while (idx < 0 && attempts < 20 && appStore.messagesHasMore[sid] !== false) {
-    attempts++
-    await loadMoreMessages(sid)
-    await nextTick()
-    idx = chatMessages.value.findIndex(m => m.id === targetId)
-  }
+  focusJumpInFlight = true
+  try {
+    let idx = chatMessages.value.findIndex(m => m.id === targetId)
+    let attempts = 0
+    while (idx < 0 && attempts < 20 && appStore.messagesHasMore[sid] !== false) {
+      attempts++
+      await loadMoreMessages(sid)
+      await nextTick()
+      idx = chatMessages.value.findIndex(m => m.id === targetId)
+    }
 
-  if (idx < 0) {
+    if (idx < 0) {
+      clearPendingFocusMessage()
+      message.info(t('overlay.messageNotFound'))
+      return
+    }
+
+    stickToBottom.value = false
+    await scrollMessageIntoView(targetId)
+    highlightAtMeId.value = targetId
+    if (highlightAtMeTimer) window.clearTimeout(highlightAtMeTimer)
+    highlightAtMeTimer = window.setTimeout(() => {
+      highlightAtMeId.value = null
+      highlightAtMeTimer = 0
+    }, 1800)
     clearPendingFocusMessage()
-    message.info(t('overlay.messageNotFound'))
-    return
+    message.success(t('overlay.jumpedToMessage'))
+  } finally {
+    focusJumpInFlight = false
   }
-
-  stickToBottom.value = false
-  await nextTick()
-  messageListRef.value?.scrollToKey(targetId)
-  highlightAtMeId.value = targetId
-  if (highlightAtMeTimer) window.clearTimeout(highlightAtMeTimer)
-  highlightAtMeTimer = window.setTimeout(() => {
-    highlightAtMeId.value = null
-    highlightAtMeTimer = 0
-  }, 1800)
-  clearPendingFocusMessage()
-  message.success(t('overlay.jumpedToMessage'))
 }
 
+async function schedulePendingFocusJump() {
+  const sid = currentSessionId.value
+  const targetId = pendingFocusMessageId.value
+  if (!sid || !targetId) return
+  if (appStore.messagesLoading[sid]) return
+  await nextTick()
+  await jumpToPendingFocusMessage()
+}
+
+onMounted(() => {
+  void schedulePendingFocusJump()
+})
+
 watch(
-  [pendingFocusMessageId, currentSessionId, () => chatMessages.value.length, sessionEnterTick],
-  async ([msgId, sid]) => {
-    if (!msgId || !sid) return
-    // 等首屏历史加载完成再跳
-    if (appStore.messagesLoading[sid]) return
-    await nextTick()
-    await jumpToPendingFocusMessage()
+  () => ({
+    msgId: pendingFocusMessageId.value,
+    sid: currentSessionId.value,
+    len: chatMessages.value.length,
+    tick: sessionEnterTick.value,
+    loading: currentSessionId.value ? !!appStore.messagesLoading[currentSessionId.value] : false
+  }),
+  async state => {
+    if (!state.msgId || !state.sid) return
+    if (state.loading) return
+    await schedulePendingFocusJump()
   }
 )
 
@@ -1585,10 +1551,8 @@ function onDrop(e: DragEvent) {
                     >
                       <ChatMessageItem
                         :msg="msg"
-                        :playing="playingVoiceId === msg.id"
                         :highlight="highlightAtMeId === msg.id"
                         @contextmenu="onMsgContext"
-                        @play-voice="playVoice"
                         @open-file-view="openFileView"
                         @open-chat-file="openChatFile"
                         @open-image-view="openImageView"
@@ -1597,6 +1561,7 @@ function onDrop(e: DragEvent) {
                         @open-peer-profile="openPeerProfile"
                         @open-self-profile="openSelfProfileClick"
                         @retry="retryMessage"
+                        @message-content-loaded="onMessageContentLoaded"
                       />
                     </div>
                   </template>
@@ -1629,7 +1594,7 @@ function onDrop(e: DragEvent) {
               :is-friend-chat="isFriendChat"
               :is-group-chat="isGroupChat"
               v-model:replying-to="replyingTo"
-              @scroll-to-bottom="scrollToBottom"
+              @scroll-to-bottom="() => scrollToBottom(true)"
             />
           </div>
           <!-- 好友聊天更多抽屉 -->

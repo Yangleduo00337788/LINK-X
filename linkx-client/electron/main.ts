@@ -38,6 +38,28 @@ function sanitizeFileName(name: string): string {
   return base.slice(0, 180) || 'download'
 }
 
+/** openAfter 禁止自动打开的可执行/脚本扩展名（防钓鱼文件静默执行） */
+const DANGEROUS_OPEN_EXTENSIONS = new Set([
+  '.exe',
+  '.msi',
+  '.bat',
+  '.cmd',
+  '.com',
+  '.ps1',
+  '.vbs',
+  '.js',
+  '.jar',
+  '.scr',
+  '.pif',
+  '.reg',
+  '.dll'
+])
+
+function isDangerousOpenExtension(filePath: string): boolean {
+  const ext = path.extname(filePath).toLowerCase()
+  return DANGEROUS_OPEN_EXTENSIONS.has(ext)
+}
+
 function resolveDownloadDir(custom?: string): string {
   const trimmed = (custom || '').trim()
   if (trimmed) {
@@ -613,11 +635,11 @@ function registerWindowIpc() {
     }
     // 登录窗创建时因 maxSize 锁定会关掉可最大化；切主界面需显式恢复
     win.setMaximumSize(99999, 99999)
-    win.setMinimumSize(966, 676)
+    win.setMinimumSize(1200, 800)
     win.setResizable(true)
     win.setMaximizable(true)
     if (!win.isMaximized()) {
-      win.setSize(1083, 833, false)
+      win.setSize(1200, 800, false)
       win.center()
     }
   })
@@ -742,8 +764,15 @@ function registerWindowIpc() {
       const bytes = await readDownloadBytes(payload)
       await fs.promises.writeFile(targetPath, bytes)
 
-      // 聊天「打开文件」：保存后用系统默认程序打开
+      // 聊天「打开文件」：保存后用系统默认程序打开（可执行类扩展名仅保存不自动打开）
       if (payload.openAfter) {
+        if (isDangerousOpenExtension(targetPath)) {
+          return {
+            ok: true,
+            path: targetPath,
+            message: mainT(desktopPrefs.language, 'downloadSavedNoAutoOpen')
+          }
+        }
         const { shell } = await import('electron')
         const openErr = await shell.openPath(targetPath)
         if (openErr) {
@@ -1747,13 +1776,22 @@ function createOfficialNotifyDetailWindow(notifId: string) {
 
 function createImageViewerWindow(payload: ImageViewerPayload) {
   const url = (payload.url || '').trim()
-  if (!url) return
+  const rawItems = Array.isArray(payload.items) ? payload.items : undefined
+  const hasResolvableItem = rawItems?.some(
+    i => i && ((typeof i.url === 'string' && i.url.trim()) || i.messageId)
+  )
+  if (!url && !hasResolvableItem) return
 
-  const items = Array.isArray(payload.items)
-    ? payload.items
-        .filter(i => i && typeof i.url === 'string' && i.url.trim())
+  const items = rawItems
+    ? rawItems
+        .filter(
+          i =>
+            i &&
+            ((typeof i.url === 'string' && i.url.trim()) ||
+              (i.messageId != null && String(i.messageId).trim()))
+        )
         .map(i => ({
-          url: String(i.url).trim(),
+          url: typeof i.url === 'string' ? i.url.trim() : '',
           fileName: i.fileName ? String(i.fileName) : undefined,
           fileSize: i.fileSize ? String(i.fileSize) : undefined,
           messageId: i.messageId ? String(i.messageId) : undefined,
@@ -1761,8 +1799,14 @@ function createImageViewerWindow(payload: ImageViewerPayload) {
         }))
     : undefined
 
+  const resolvedUrl =
+    url ||
+    (typeof payload.index === 'number' && items?.[payload.index]?.url) ||
+    items?.[0]?.url ||
+    ''
+
   imageViewerPayload = {
-    url,
+    url: resolvedUrl,
     fileName: payload.fileName ? String(payload.fileName) : undefined,
     fileSize: payload.fileSize ? String(payload.fileSize) : undefined,
     items,

@@ -765,6 +765,10 @@ function send() {
     try {
       if (inputValue.value.startsWith('/img ')) {
         const url = inputValue.value.replace('/img ', '').trim()
+        if (!/^https?:\/\//i.test(url)) {
+          message.warning(t('chat.imageUrlInvalid'))
+          return
+        }
         let imgName = t('chat.imageMessage')
         try {
           const path = new URL(url).pathname
