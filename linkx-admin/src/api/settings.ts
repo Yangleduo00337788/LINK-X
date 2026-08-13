@@ -102,6 +102,17 @@ export interface StorageSideSetting {
   presignShareSeconds?: number
 }
 
+export interface LinkMateSideSetting {
+  enabled?: boolean
+  baseUrl?: string
+  model?: string
+  maxTokens?: number
+  temperature?: number
+  dailyTokenLimit?: number
+  apiKeyConfigured?: boolean
+  systemPrompt?: string
+}
+
 export interface AdminSetting {
   register?: RegisterSideSetting
   login?: LoginSideSetting
@@ -112,6 +123,7 @@ export interface AdminSetting {
   mailTemplates?: MailTemplatesSideSetting
   security?: SecuritySideSetting
   storage?: StorageSideSetting
+  linkmate?: LinkMateSideSetting
 }
 
 export type RegisterUpdatePayload = Required<
@@ -207,6 +219,18 @@ export type StorageUpdatePayload = Required<
 
 export type TestStorageConnectionPayload = StorageUpdatePayload
 
+export type LinkMateUpdatePayload = Required<
+  Pick<
+    LinkMateSideSetting,
+    'enabled' | 'baseUrl' | 'model' | 'maxTokens' | 'temperature' | 'dailyTokenLimit'
+  >
+> &
+  Pick<LinkMateSideSetting, 'systemPrompt'> & {
+    apiKey?: string
+  }
+
+export type TestLinkMateConnectionPayload = LinkMateUpdatePayload
+
 export type AdminSettingUpdatePayload = {
   register?: RegisterUpdatePayload
   login?: LoginUpdatePayload
@@ -263,4 +287,12 @@ export function updateStorageSettings(payload: StorageUpdatePayload) {
 
 export function testStorageConnection(payload: TestStorageConnectionPayload) {
   return post<string>('/admin/settings/test-storage-connection', payload)
+}
+
+export function updateLinkMateSettings(payload: LinkMateUpdatePayload) {
+  return put<AdminSetting>('/admin/settings/linkmate', payload)
+}
+
+export function testLinkMateConnection(payload: TestLinkMateConnectionPayload) {
+  return post<string>('/admin/settings/test-linkmate-connection', payload)
 }

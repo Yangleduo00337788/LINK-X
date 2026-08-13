@@ -37,6 +37,8 @@ import {
   updateSecuritySettings,
   updateStorageSettings,
   testStorageConnection,
+  updateLinkMateSettings,
+  testLinkMateConnection,
   type AdminSetting,
   type MailTemplateSetting,
 } from '@/api/settings'
@@ -66,7 +68,9 @@ const savingMail = ref(false)
 const savingMailTemplates = ref(false)
 const savingSecurity = ref(false)
 const savingStorage = ref(false)
+const savingLinkMate = ref(false)
 const testingStorage = ref(false)
+const testingLinkMate = ref(false)
 const testingEmail = ref(false)
 const showTestEmailModal = ref(false)
 const testEmail = ref('')
@@ -78,6 +82,7 @@ const tabNames = new Set([
   'mail',
   'mail-templates',
   'storage',
+  'linkmate',
   'security',
   'watermark',
   'sound',
@@ -270,6 +275,18 @@ const storageForm = reactive({
   maxUploadMb: 100,
 })
 
+const linkmateForm = reactive({
+  enabled: false,
+  apiKey: '',
+  apiKeyConfigured: false,
+  baseUrl: 'https://api.deepseek.com',
+  model: 'deepseek-chat',
+  maxTokens: 4096,
+  temperature: 0.7,
+  dailyTokenLimit: 100000,
+  systemPrompt: '',
+})
+
 const storageProviderOptions = computed(() => [
   { label: t('setting.storageProviderMinio'), value: 'minio' },
   { label: t('setting.storageProviderOss'), value: 'oss' },
@@ -390,6 +407,16 @@ function applySettings(data: AdminSetting) {
   storageForm.maxUploadMb = data.storage?.maxUploadBytes
     ? Math.round((data.storage.maxUploadBytes / (1024 * 1024)) * 10) / 10
     : clientForm.maxUploadMb
+
+  linkmateForm.enabled = data.linkmate?.enabled === true
+  linkmateForm.apiKey = ''
+  linkmateForm.apiKeyConfigured = data.linkmate?.apiKeyConfigured === true
+  linkmateForm.baseUrl = data.linkmate?.baseUrl || 'https://api.deepseek.com'
+  linkmateForm.model = data.linkmate?.model || 'deepseek-chat'
+  linkmateForm.maxTokens = data.linkmate?.maxTokens ?? 4096
+  linkmateForm.temperature = data.linkmate?.temperature ?? 0.7
+  linkmateForm.dailyTokenLimit = data.linkmate?.dailyTokenLimit ?? 100000
+  linkmateForm.systemPrompt = data.linkmate?.systemPrompt || ''
 }
 
 function applyMailTemplate(key: 'register' | 'reset' | 'welcome', tpl?: MailTemplateSetting) {
@@ -595,6 +622,65 @@ async function testStorage() {
   } finally {
     testingStorage.value = false
   }
+}
+
+function buildLinkMatePayload() {
+  return {
+    enabled: linkmateForm.enabled,
+    apiKey: linkmateForm.apiKey.trim() || undefined,
+    baseUrl: linkmateForm.baseUrl.trim(),
+    model: linkmateForm.model.trim(),
+    maxTokens: linkmateForm.maxTokens,
+    temperature: linkmateForm.temperature,
+    dailyTokenLimit: linkmateForm.dailyTokenLimit,
+    systemPrompt: linkmateForm.systemPrompt.trim() || undefined,
+  }
+}
+
+async function testLinkMate() {
+  if (!canEdit.value) return
+  if (!linkmateForm.enabled) {
+    message.warning(t('setting.linkmateEnableFirst'))
+    return
+  }
+  if (!linkmateForm.baseUrl.trim() || !linkmateForm.model.trim()) {
+    message.warning(t('setting.linkmateBaseUrlRequired'))
+    return
+  }
+  testingLinkMate.value = true
+  try {
+    const msg = await testLinkMateConnection(buildLinkMatePayload())
+    message.success(msg || t('setting.linkmateTestOk'))
+  } catch {
+    // request layer shows error
+  } finally {
+    testingLinkMate.value = false
+  }
+}
+
+async function saveLinkMate() {
+  if (!canEdit.value) return
+  if (!linkmateForm.baseUrl.trim()) {
+    message.warning(t('setting.linkmateBaseUrlRequired'))
+    return
+  }
+  if (!linkmateForm.model.trim()) {
+    message.warning(t('setting.linkmateModelRequired'))
+    return
+  }
+  if (linkmateForm.enabled && !linkmateForm.apiKey.trim() && !linkmateForm.apiKeyConfigured) {
+    message.warning(t('setting.linkmateApiKeyRequired'))
+    return
+  }
+  confirmSave(t('setting.saveLinkMate'), async () => {
+    savingLinkMate.value = true
+    try {
+      applySettings(await updateLinkMateSettings(buildLinkMatePayload()))
+      message.success(t('setting.linkmateSaved'))
+    } finally {
+      savingLinkMate.value = false
+    }
+  })
 }
 
 async function saveStorage() {
@@ -1355,6 +1441,112 @@ onMounted(load)
                     :disabled="savingMailTemplates"
                     @click="load"
                   >
+                    {{ t('common.refresh') }}
+                  </NButton>
+                </NSpace>
+              </NFormItem>
+              <p v-else class="readonly-hint">{{ t('setting.readonlyHint') }}</p>
+            </NForm>
+          </NTabPane>
+
+          <NTabPane name="linkmate" :tab="t('setting.linkmateTitle')">
+            <p class="section-hint">{{ t('setting.linkmateHint') }}</p>
+            <NForm label-placement="left" label-width="160" :disabled="!canEdit">
+              <NFormItem :label="t('setting.linkmateEnabled')">
+                <NSwitch v-model:value="linkmateForm.enabled" />
+              </NFormItem>
+              <NFormItem :label="t('setting.linkmateBaseUrl')" required>
+                <NInput
+                  v-model:value="linkmateForm.baseUrl"
+                  placeholder="https://api.deepseek.com"
+                  style="max-width: 420px"
+                />
+              </NFormItem>
+              <NFormItem :label="t('setting.linkmateModel')" required>
+                <NInput
+                  v-model:value="linkmateForm.model"
+                  placeholder="deepseek-chat"
+                  style="max-width: 280px"
+                />
+              </NFormItem>
+              <NFormItem :label="t('setting.linkmateApiKey')">
+                <div class="secret-row">
+                  <NInput
+                    v-model:value="linkmateForm.apiKey"
+                    type="password"
+                    show-password-on="click"
+                    :placeholder="t('setting.linkmateApiKeyPh')"
+                    style="max-width: 420px"
+                  />
+                  <NTag
+                    size="small"
+                    :type="linkmateForm.apiKeyConfigured ? 'success' : 'warning'"
+                    :bordered="false"
+                  >
+                    {{
+                      linkmateForm.apiKeyConfigured
+                        ? t('setting.mailPasswordConfigured')
+                        : t('setting.mailPasswordMissing')
+                    }}
+                  </NTag>
+                </div>
+              </NFormItem>
+              <NFormItem :label="t('setting.linkmateMaxTokens')">
+                <NInputNumber
+                  v-model:value="linkmateForm.maxTokens"
+                  :min="256"
+                  :max="32768"
+                  :step="256"
+                  style="width: 160px"
+                />
+              </NFormItem>
+              <NFormItem :label="t('setting.linkmateTemperature')">
+                <NInputNumber
+                  v-model:value="linkmateForm.temperature"
+                  :min="0"
+                  :max="2"
+                  :step="0.1"
+                  style="width: 160px"
+                />
+              </NFormItem>
+              <NFormItem :label="t('setting.linkmateDailyLimit')">
+                <NInputNumber
+                  v-model:value="linkmateForm.dailyTokenLimit"
+                  :min="0"
+                  :max="10000000"
+                  :step="1000"
+                  style="width: 200px"
+                />
+                <span class="field-hint">{{ t('setting.linkmateDailyLimitHint') }}</span>
+              </NFormItem>
+              <NFormItem :label="t('setting.linkmateSystemPrompt')">
+                <NInput
+                  v-model:value="linkmateForm.systemPrompt"
+                  type="textarea"
+                  :rows="5"
+                  :placeholder="t('setting.linkmateSystemPromptPh')"
+                  style="max-width: 640px"
+                />
+              </NFormItem>
+              <NFormItem v-if="canEdit">
+                <NSpace>
+                  <NButton
+                    type="primary"
+                    class="lx-float-btn"
+                    :loading="savingLinkMate"
+                    @click="saveLinkMate"
+                  >
+                    {{ t('setting.saveLinkMate') }}
+                  </NButton>
+                  <NButton
+                    class="lx-float-btn"
+                    :loading="testingLinkMate"
+                    :disabled="savingLinkMate"
+                    @click="testLinkMate"
+                  >
+                    {{ t('setting.testLinkMateConnection') }}
+                  </NButton>
+                  <NButton class="lx-float-btn" :disabled="savingLinkMate" @click="load">
                     {{ t('common.refresh') }}
                   </NButton>
                 </NSpace>
