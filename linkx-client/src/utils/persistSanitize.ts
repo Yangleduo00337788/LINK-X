@@ -6,9 +6,6 @@ import type { ChatMessage, ChatSession } from '../types'
 import { isEphemeralMediaUrl, stripEphemeralMediaUrl } from './mediaUrl'
 import { imagePreviewPlaceholder } from './messagePreviewText'
 
-// 持久化时单条图片 data URL 最大字符数，超出则替换为占位符
-const MAX_PERSIST_IMAGE_CHARS = 120_000
-
 /**
  * 持久化前清理消息中的大体积/临时/预签名 URL，防止 localStorage 超限与过期裂图。
  *
@@ -28,12 +25,8 @@ export function sanitizeMessagesForPersist(
 function sanitizeMessageForPersist(msg: ChatMessage): ChatMessage {
   const next = { ...msg }
 
-  // 过大的 base64 图片不持久化，改为文字占位
-  if (
-    (next.type === 'image' || next.isImage) &&
-    next.content.startsWith('data:') &&
-    next.content.length > MAX_PERSIST_IMAGE_CHARS
-  ) {
+  // base64 图片一律不持久化（截图/小图避免明文落盘）；过大时同样占位
+  if ((next.type === 'image' || next.isImage) && next.content.startsWith('data:')) {
     next.content = imagePreviewPlaceholder()
     next.isImage = true
   }

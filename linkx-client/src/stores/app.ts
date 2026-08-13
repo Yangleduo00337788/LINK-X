@@ -63,6 +63,7 @@ import { useGroupMetaStore } from './groupMeta'
 import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
 // 持久化前清理敏感或过大字段
 import { sanitizeAppPersistState } from '../utils/persistSanitize'
+import { useAppSettingsStore } from './appSettings'
 // 登出时重置其它 UI Store
 import { resetSessionUi, resetSessionStores, cleanupNaiveUiOverlays } from '../utils/resetSessionUi'
 import { useNotificationsStore } from './notifications'
@@ -1937,14 +1938,21 @@ export const useAppStore = defineStore('app', {
 
         if (type === 'image' || type === 'file' || type === 'voice') {
           let uploadFile: File | null = options.rawFile ?? null
-          console.log('[发送消息] 准备上传文件:', { type, hasRawFile: !!uploadFile, rawFileSize: uploadFile?.size, rawFileName: uploadFile?.name, contentLength: content.length, contentPrefix: content.substring(0, 50) })
+          if (import.meta.env.DEV) {
+            console.log('[发送消息] 准备上传文件:', {
+              type,
+              hasRawFile: !!uploadFile,
+              rawFileSize: uploadFile?.size,
+              rawFileName: uploadFile?.name
+            })
+          }
           if (!uploadFile && type === 'image' && content.startsWith('data:')) {
             uploadFile = dataUrlToFile(content, 'image.png')
-            console.log('[发送消息] 从 data URL 创建文件')
           }
-          // 注意：不再从 blob URL 重建 File，直接使用 rawFile，避免 blob 失效导致 size=0
           if (uploadFile) {
-            console.log('[发送消息] 上传文件:', uploadFile.name, uploadFile.size, uploadFile.type, 'lastModified:', uploadFile.lastModified)
+            if (import.meta.env.DEV) {
+              console.log('[发送消息] 上传文件:', uploadFile.name, uploadFile.size, uploadFile.type)
+            }
             const applyUploadProgress = (percent: number) => {
               const local = this.messagesBySession[id]?.find(m => m.id === clientMsgId)
               if (!local) return
@@ -1957,7 +1965,13 @@ export const useAppStore = defineStore('app', {
               }
             }
             const uploadRes = await chatApi.uploadChatFileSmart(id, uploadFile, applyUploadProgress)
-            console.log('[发送消息] 上传结果:', uploadRes)
+            if (import.meta.env.DEV) {
+              console.log('[发送消息] 上传完成:', {
+                code: uploadRes.code,
+                fileName: uploadRes.data?.fileName,
+                fileSize: uploadRes.data?.fileSize
+              })
+            }
             if (uploadRes.code !== 200 || !uploadRes.data) {
               throw new Error(uploadRes.message || t('errors.uploadFailed'))
             }
@@ -2233,6 +2247,7 @@ export const useAppStore = defineStore('app', {
 
       resetSessionUi()
       await resetSessionStores()
+      this.clearLocalChatCache()
       this.resetChatState()
       this.isLocked = false
       this.isLoggedIn = false
@@ -2413,14 +2428,34 @@ export const useAppStore = defineStore('app', {
       return verifyLockPinHash(pin)
     },
 
-    /** 进入锁屏 */
+/** 进入锁屏：清空本地聊天缓存，解锁后按会话重新拉取 */
     lock() {
       this.isLocked = true
+      this.clearLocalChatCache()
     },
 
     /** 解除锁屏 */
-    unlock() {
+    async unlock() {
       this.isLocked = false
+      const sessionId = this.currentSessionId
+      if (sessionId) {
+        await this.loadSessionMessages(sessionId)
+      }
+    },
+
+    /**
+     * 清除 sessionStorage 中的聊天记录与内存缓存（锁屏/登出加固）。
+     * 不删除服务端消息；解锁或切换会话时会重新拉取。
+     */
+    clearLocalChatCache() {
+      this.messagesBySession = {}
+      this.messagesLoaded = {}
+      this.messagesLoading = {}
+      try {
+        sessionStorage.removeItem('linkx-app-msgs')
+      } catch {
+        /* ignore */
+      }
     },
 
     /** 切换离线模式开关 */
@@ -2660,12 +2695,18 @@ export const useAppStore = defineStore('app', {
       storage: sessionStorage,
       paths: ['messagesBySession'],
       serializer: {
-        serialize: value =>
-          JSON.stringify(
-            sanitizeAppPersistState(value as Record<string, unknown>)
-          ),
-        deserialize: value =>
-          sanitizeAppPersistState(JSON.parse(value) as Record<string, unknown>)
+        serialize: value => {
+          if (!useAppSettingsStore().retainChatCache) {
+            return JSON.stringify({ messagesBySession: {} })
+          }
+          return JSON.stringify(sanitizeAppPersistState(value as Record<string, unknown>))
+        },
+        deserialize: value => {
+          if (!useAppSettingsStore().retainChatCache) {
+            return { messagesBySession: {} }
+          }
+          return sanitizeAppPersistState(JSON.parse(value) as Record<string, unknown>)
+        }
       }
     }
   ]

@@ -111,7 +111,12 @@ export default {
     showOnline: 'Show online status',
     showOnlineDesc: 'When off, friends will not see your online indicator',
     sendReadReceipt: 'Send read receipts',
-    sendReadReceiptDesc: 'When off, others cannot see whether you have read their messages'
+    sendReadReceiptDesc: 'When off, others cannot see whether you have read their messages',
+    localTitle: 'Local & device',
+    localNote: 'These options are stored on this device only and are not synced to the cloud.',
+    retainChatCache: 'Keep local chat history cache',
+    retainChatCacheDesc:
+      'When off, chat messages are not cached locally; lock screen and sign-out also clear cache'
   },
   presence: {
     peopleOnline: '{count} online',
@@ -357,6 +362,7 @@ export default {
     featureComingSoon: '{feature} is coming soon',
     cannotReadFile: 'Cannot read file. Reselect or drag and drop instead.',
     imageTooLarge: 'Image must be under {size}',
+    imageUrlInvalid: 'Only http/https image URLs are allowed',
     imageSent: 'Image sent',
     imageSendFail: 'Failed to send image',
     fileSent: 'File sent',

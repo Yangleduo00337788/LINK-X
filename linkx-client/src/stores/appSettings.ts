@@ -120,6 +120,8 @@ function defaultState() {
     downloadPath: '' as string,
     /** 每次下载是否询问保存位置（仅本地） */
     downloadAskEveryTime: true,
+    /** 是否在本地保留聊天记录缓存（sessionStorage，仅本地） */
+    retainChatCache: true,
     /** 显示/隐藏主窗口快捷键（仅本地） */
     shortcutToggleWindow: 'CommandOrControl+Shift+L',
     /** 锁定应用快捷键（仅本地） */
@@ -305,6 +307,7 @@ export const useAppSettingsStore = defineStore('appSettings', {
       'themeMode',
       'downloadPath',
       'downloadAskEveryTime',
+      'retainChatCache',
       'shortcutToggleWindow',
       'shortcutLock',
       '_hydrated',

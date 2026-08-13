@@ -112,7 +112,11 @@ export default {
     showOnline: '在线状态可见',
     showOnlineDesc: '关闭后，好友侧不展示你的在线绿点',
     sendReadReceipt: '发送已读回执',
-    sendReadReceiptDesc: '关闭后，对方将看不到你是否已读消息'
+    sendReadReceiptDesc: '关闭后，对方将看不到你是否已读消息',
+    localTitle: '本地与设备',
+    localNote: '以下选项仅保存在本设备，不会同步到云端。',
+    retainChatCache: '保留本地聊天记录',
+    retainChatCacheDesc: '关闭后不在浏览器/客户端缓存聊天内容；锁屏与登出时也会清空'
   },
   presence: {
     peopleOnline: '{count}人在线',
@@ -359,6 +363,7 @@ export default {
     featureComingSoon: '{feature}功能正在开发中，敬请期待',
     cannotReadFile: '无法读取文件内容，请尝试重新选择或直接拖拽文件',
     imageTooLarge: '图片不能超过 {size}',
+    imageUrlInvalid: '仅支持 http/https 图片链接',
     imageSent: '图片已发送',
     imageSendFail: '图片发送失败',
     fileSent: '文件已发送',

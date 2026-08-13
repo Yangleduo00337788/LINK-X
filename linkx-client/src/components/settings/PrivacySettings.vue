@@ -3,17 +3,27 @@
 import { NSwitch } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import { useAppSettingsStore } from '../../stores/appSettings'
+import { useAppStore } from '../../stores/app'
 import { useI18n } from '../../i18n'
 import { LxGroupCard } from '../ui'
 
 const appSettingsStore = useAppSettingsStore()
+const appStore = useAppStore()
 const {
   privacyVerifyFriend,
   privacyAllowStranger,
   privacyShowOnline,
-  privacySendReadReceipt
+  privacySendReadReceipt,
+  retainChatCache
 } = storeToRefs(appSettingsStore)
 const { t } = useI18n()
+
+function onRetainChatCacheChange(value: boolean) {
+  retainChatCache.value = value
+  if (!value) {
+    appStore.clearLocalChatCache()
+  }
+}
 </script>
 
 <template>
@@ -63,6 +73,22 @@ const { t } = useI18n()
           v-model:value="privacySendReadReceipt"
           size="small"
           @update:value="appSettingsStore.scheduleSave('privacySendReadReceipt')"
+        />
+      </div>
+    </LxGroupCard>
+
+    <LxGroupCard tag="section" variant="settings" class="local-privacy-card">
+      <div class="group-head"><span>{{ t('privacy.localTitle') }}</span></div>
+      <p class="privacy-note">{{ t('privacy.localNote') }}</p>
+      <div class="setting-row">
+        <div class="setting-text">
+          <span class="setting-name">{{ t('privacy.retainChatCache') }}</span>
+          <span class="setting-desc">{{ t('privacy.retainChatCacheDesc') }}</span>
+        </div>
+        <n-switch
+          v-model:value="retainChatCache"
+          size="small"
+          @update:value="onRetainChatCacheChange"
         />
       </div>
     </LxGroupCard>
