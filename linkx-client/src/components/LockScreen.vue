@@ -25,7 +25,7 @@ async function handleUnlock() {
 
   const ok = await verifyLockPin(pin.value)
   if (ok) {
-    unlock()
+    void unlock()
     pin.value = ''
     errorMsg.value = ''
   } else {

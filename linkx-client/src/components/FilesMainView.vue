@@ -47,7 +47,7 @@ import { isDisplayableMediaUrl, normalizeMediaUrl } from '../utils/mediaUrl'
 import { useI18n } from '../i18n'
 import { lxFileTypeHex } from '../theme/vars'
 import { copyText } from '../utils/clipboard'
-import Avatar from './Avatar.vue'
+import DriveThumbImage from './drive/DriveThumbImage.vue'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -284,16 +284,14 @@ async function downloadItem(item: DriveItemVO) {
 }
 
 function openPreview(item: DriveItemVO) {
-  if (!item.fileUrl) {
-    message.info(t('files.noPreview', { title: item.name }))
-    return
-  }
+  if (item.kind !== 'file') return
   overlayStore.open('file-preview', {
     filePreview: {
       fileName: item.name,
       fileSize: item.fileSize != null ? formatFileSize(item.fileSize) : '',
       fileUrl: item.fileUrl,
-      isImage: item.category === 'image'
+      isImage: item.category === 'image',
+      driveFileId: item.id
     }
   })
 }
@@ -474,11 +472,7 @@ function fileIconMeta(item: DriveItemVO) {
 }
 
 function isImageItem(item: DriveItemVO) {
-  return item.kind === 'file' && item.category === 'image' && !!normalizeMediaUrl(item.fileUrl)
-}
-
-function thumbUrl(item: DriveItemVO) {
-  return normalizeMediaUrl(item.fileUrl)
+  return item.kind === 'file' && item.category === 'image'
 }
 
 function uploaderAvatarUrl(item: DriveItemVO) {
@@ -660,7 +654,12 @@ void MoveOutline
                   "
                 >
                   <n-icon v-if="item.kind === 'folder'" :component="FolderOutline" :size="22" />
-                  <img v-else-if="isImageItem(item)" :src="thumbUrl(item)" alt="" class="thumb-img" referrerpolicy="no-referrer" />
+                  <DriveThumbImage
+                    v-else-if="isImageItem(item)"
+                    :file-id="item.id"
+                    :fallback-url="item.fileUrl"
+                    img-class="thumb-img"
+                  />
                   <span v-else class="ext-badge">{{ fileIconMeta(item).label }}</span>
                 </div>
                 <div class="name-block">
@@ -712,7 +711,12 @@ void MoveOutline
               "
             >
               <n-icon v-if="item.kind === 'folder'" :component="FolderOutline" :size="36" />
-              <img v-else-if="isImageItem(item)" :src="thumbUrl(item)" alt="" class="thumb-img" referrerpolicy="no-referrer" />
+              <DriveThumbImage
+                v-else-if="isImageItem(item)"
+                :file-id="item.id"
+                :fallback-url="item.fileUrl"
+                img-class="thumb-img"
+              />
               <span v-else>{{ fileIconMeta(item).label }}</span>
             </div>
             <div class="grid-name">{{ item.name }}</div>
@@ -747,7 +751,10 @@ void MoveOutline
             v-if="isImageItem(detailItem)"
             class="preview-thumb"
           >
-            <img :src="thumbUrl(detailItem)" alt="" referrerpolicy="no-referrer" />
+            <DriveThumbImage
+              :file-id="detailItem.id"
+              :fallback-url="detailItem.fileUrl"
+            />
           </div>
           <div
             v-else

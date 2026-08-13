@@ -45,6 +45,30 @@ export function resolveUserAvatarUrl(
 }
 
 /**
+ * 解析朋友圈背景图 URL；有 userId 时优先走同源代理，避免 Electron CSP 拦截 OSS/MinIO 预签名外链。
+ */
+export function resolveMomentsBackgroundUrl(
+  url?: string | null,
+  userId?: string | number | null
+): string {
+  const v = (url || '').trim()
+  if (v.startsWith('data:') || v.startsWith('blob:')) return v
+
+  const uid = userId != null ? String(userId).trim() : ''
+  if (uid && /^\d+$/.test(uid)) {
+    const proxyPath = v.startsWith('/media/moments-background/')
+      ? v
+      : `/media/moments-background/${uid}`
+    const proxied = normalizeMediaUrl(`${API_BASE_URL}${proxyPath}`)
+    if (proxied && isDisplayableMediaUrl(proxied)) return proxied
+  }
+
+  const normalized = normalizeMediaUrl(url)
+  if (normalized && isDisplayableMediaUrl(normalized)) return normalized
+  return ''
+}
+
+/**
  * 默认头像（项目 Logo）。
  * @param _name 保留参数以兼容既有调用
  * @param _size 保留参数以兼容既有调用

@@ -34,6 +34,7 @@ export interface MomentPost {
   avatar: string          // 头像 URL
   content: string         // 文字内容
   images?: string[]       // 可选图片 URL 列表
+  imageIds?: string[]     // 与 images 同序；本系统图片 id
   location?: string       // 所在位置
   atUsers?: string        // 提醒谁看，用户 ID 列表（JSON 字符串）
   atUserNames?: string[]  // 提醒谁看的昵称列表
@@ -47,13 +48,20 @@ export interface MomentPost {
 
 function mapPost(p: momentsApi.MomentsPost): MomentPost {
   const userId = String(p.userId)
+  const mediaPairs = (p.images || []).map((url, index) => {
+    const displayUrl = toDisplayableMediaUrl(url)
+    const rawId = p.imageIds?.[index]
+    const imageId = rawId != null && String(rawId).trim() ? String(rawId) : undefined
+    return { displayUrl, imageId }
+  }).filter(pair => !!pair.displayUrl)
   return {
     id: String(p.id),
     userId,
     user: p.nickname || t('defaults.user'),
     avatar: resolveAuthorAvatar(userId, p.avatar),
     content: p.content,
-    images: (p.images || []).map(url => toDisplayableMediaUrl(url)).filter(Boolean),
+    images: mediaPairs.map(pair => pair.displayUrl),
+    imageIds: mediaPairs.map(pair => pair.imageId || ''),
     location: p.location,
     atUsers: p.atUsers,
     atUserNames: Array.isArray(p.atUserNames) ? p.atUserNames : undefined,

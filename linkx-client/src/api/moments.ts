@@ -11,6 +11,7 @@ export interface MomentsPost {
   avatar?: string
   content: string
   images?: string[]
+  imageIds?: (string | null)[]
   location?: string
   atUsers?: string
   atUserNames?: string[]

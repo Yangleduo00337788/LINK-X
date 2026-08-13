@@ -45,7 +45,12 @@ import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
 // 媒体地址规范化
 import { normalizeMediaUrl, isEphemeralMediaUrl } from '../utils/mediaUrl'
 // 本地生成默认头像/封面
-import { generateDefaultAvatar, generateDefaultBanner } from '../utils/defaultAvatar'
+import {
+  generateDefaultAvatar,
+  generateDefaultBanner,
+  resolveMomentsBackgroundUrl,
+  resolveUserAvatarUrl
+} from '../utils/defaultAvatar'
 // 空状态组件
 import EmptyState from './common/EmptyState.vue'
 import OpsRecommendCarousel from './ops/OpsRecommendCarousel.vue'
@@ -54,7 +59,10 @@ import AtMentionPicker from './common/AtMentionPicker.vue'
 // 通知独立页
 import MomentsNotificationsPage from './MomentsNotificationsPage.vue'
 import MomentsComposerModal from './MomentsComposerModal.vue'
+import MomentsPostImage from './moments/MomentsPostImage.vue'
 import WindowCaptionButtons from './WindowCaptionButtons.vue'
+import { resolveMomentsImageDisplaySrc } from '../utils/momentsMediaAccess'
+import type { MomentPost } from '../stores/moments'
 // 偏好 API
 import { getPreference, uploadMomentsBackground } from '../api/preference'
 import { useI18n } from '../i18n'
@@ -102,7 +110,7 @@ const defaultAvatar = computed(() =>
   generateDefaultAvatar(userProfile.value.nickname || t('common.me'))
 )
 const profileAvatar = computed(() =>
-  normalizeMediaUrl(userProfile.value.avatar) || defaultAvatar.value
+  resolveUserAvatarUrl(userProfile.value.avatar, userProfile.value.userId) || defaultAvatar.value
 )
 const defaultBanner = computed(() =>
   generateDefaultBanner(userProfile.value.nickname || 'banner')
@@ -111,8 +119,8 @@ const defaultBanner = computed(() =>
 /** 头像加载失败的帖子 id（只记本地，不改写 store，避免清掉刚刷新的真实 URL） */
 const failedAvatars = ref<Record<string, string>>({})
 
-function postAvatarSrc(post: { id: string; avatar?: string; user: string }): string {
-  const url = normalizeMediaUrl(post.avatar)
+function postAvatarSrc(post: { id: string; avatar?: string; user: string; userId?: string }): string {
+  const url = resolveUserAvatarUrl(post.avatar, post.userId)
   // 仅当「当前 URL」曾失败时才回退，URL 已刷新则继续尝试
   if (url && failedAvatars.value[post.id] === url) {
     return generateDefaultAvatar(post.user || '?', 88)
@@ -120,8 +128,8 @@ function postAvatarSrc(post: { id: string; avatar?: string; user: string }): str
   return url || generateDefaultAvatar(post.user || '?', 88)
 }
 
-function onPostAvatarError(post: { id: string; avatar?: string }) {
-  const url = normalizeMediaUrl(post.avatar)
+function onPostAvatarError(post: { id: string; avatar?: string; userId?: string }) {
+  const url = resolveUserAvatarUrl(post.avatar, post.userId)
   if (!url) return
   failedAvatars.value = { ...failedAvatars.value, [post.id]: url }
   // 预签名/代理头像过期：合并刷新列表换新签名
@@ -150,12 +158,6 @@ function recoverEphemeralMomentsMedia() {
   }, 400)
 }
 
-function onPostImageError(imgUrl: string) {
-  if (isEphemeralMediaUrl(imgUrl)) {
-    void recoverEphemeralMomentsMedia()
-  }
-}
-
 // ============================================================
 // 友链背景图
 // ============================================================
@@ -175,9 +177,12 @@ async function loadMomentsBanner() {
   }
 }
 
-const bannerUrl = computed(() =>
-  momentsBanner.value || defaultBanner.value
-)
+const bannerUrl = computed(() => {
+  if (!bannerLoaded.value && !momentsBanner.value) {
+    return defaultBanner.value
+  }
+  return resolveMomentsBackgroundUrl(momentsBanner.value, myUserId.value) || defaultBanner.value
+})
 
 // ============================================================
 // 背景图右键菜单
@@ -202,7 +207,7 @@ function closeBannerMenu() {
 function handleBannerMenuAction(action: 'change' | 'preview') {
   closeBannerMenu()
   if (action === 'preview') {
-    openImagePreview([bannerUrl.value], 0)
+    openRawImagePreview([bannerUrl.value], 0)
   } else if (action === 'change') {
     triggerBannerUpload()
   }
@@ -275,8 +280,9 @@ const headerDisplayName = computed(() => {
 
 const headerAvatar = computed(() => {
   if (isUserFeed.value) {
-    const fromPost = focusUserPosts.value[0]?.avatar
-    return normalizeMediaUrl(fromPost) || generateDefaultAvatar(focusUserName.value || '?', 88)
+    const post = focusUserPosts.value[0]
+    const url = resolveUserAvatarUrl(post?.avatar, post?.userId || focusUserId.value)
+    return url || generateDefaultAvatar(focusUserName.value || '?', 88)
   }
   return profileAvatar.value
 })
@@ -353,29 +359,80 @@ const headerIconColor = computed(() =>
 )
 
 // 图片预览
-const previewImages = ref<string[]>([])
+type PreviewItem = { url: string; imageId?: string }
+const previewItems = ref<PreviewItem[]>([])
 const previewIndex = ref(0)
-const previewVisible = computed(() => previewImages.value.length > 0)
+const previewDisplaySrc = ref('')
+let previewBlobUrl: string | null = null
+const previewVisible = computed(() => previewItems.value.length > 0)
 
-function openImagePreview(images: string[], index: number) {
-  if (!images?.length) return
-  previewImages.value = images
-  previewIndex.value = Math.max(0, Math.min(index, images.length - 1))
+function revokePreviewBlob() {
+  if (previewBlobUrl) {
+    URL.revokeObjectURL(previewBlobUrl)
+    previewBlobUrl = null
+  }
+}
+
+async function refreshPreviewDisplaySrc() {
+  revokePreviewBlob()
+  previewDisplaySrc.value = ''
+  const item = previewItems.value[previewIndex.value]
+  if (!item) return
+  const resolved = await resolveMomentsImageDisplaySrc(item.imageId, item.url)
+  if (resolved.blobUrlToRevoke) {
+    previewBlobUrl = resolved.blobUrlToRevoke
+  }
+  previewDisplaySrc.value = resolved.src
+}
+
+watch([previewItems, previewIndex], () => {
+  void refreshPreviewDisplaySrc()
+})
+
+function openRawImagePreview(images: string[], index = 0) {
+  const items: PreviewItem[] = images.map(url => ({ url }))
+  if (!items.length) return
+  previewItems.value = items
+  previewIndex.value = Math.max(0, Math.min(index, items.length - 1))
+}
+
+function openImagePreview(post: MomentPost, index: number) {
+  const items: PreviewItem[] = []
+  post.images?.forEach((url, i) => {
+    if (!isVideoUrl(url)) {
+      const imageId = post.imageIds?.[i]
+      items.push({
+        url,
+        imageId: imageId?.trim() ? imageId : undefined
+      })
+    }
+  })
+  if (!items.length) return
+  const clickedUrl = post.images?.[index]
+  let start = 0
+  if (clickedUrl && !isVideoUrl(clickedUrl)) {
+    const found = items.findIndex(it => it.url === clickedUrl)
+    if (found >= 0) start = found
+  }
+  previewItems.value = items
+  previewIndex.value = start
 }
 
 function closeImagePreview() {
-  previewImages.value = []
+  previewItems.value = []
   previewIndex.value = 0
+  revokePreviewBlob()
+  previewDisplaySrc.value = ''
 }
 
 function previewPrev() {
-  if (previewImages.value.length <= 1) return
-  previewIndex.value = (previewIndex.value - 1 + previewImages.value.length) % previewImages.value.length
+  if (previewItems.value.length <= 1) return
+  previewIndex.value = (previewIndex.value - 1 + previewItems.value.length) % previewItems.value.length
 }
 
 function previewNext() {
-  if (previewImages.value.length <= 1) return
-  previewIndex.value = (previewIndex.value + 1) % previewImages.value.length
+  if (previewItems.value.length <= 1) return
+  previewIndex.value = (previewIndex.value + 1) % previewItems.value.length
 }
 
 function onPreviewKeydown(e: KeyboardEvent) {
@@ -432,6 +489,7 @@ watch(
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onPreviewKeydown)
   window.removeEventListener('click', closeBannerMenu)
+  revokePreviewBlob()
   if (mediaRecoverTimer) {
     clearTimeout(mediaRecoverTimer)
     mediaRecoverTimer = null
@@ -819,7 +877,7 @@ const showMomentsOps = ref(false)
             alt="Banner"
             class="banner-img"
             referrerpolicy="no-referrer"
-            @error="(e) => (e.target as HTMLImageElement).src = defaultBanner"
+            @error="(e) => { const img = e.target as HTMLImageElement; if (img.src !== defaultBanner) img.src = defaultBanner }"
             @click="handleBannerMenuAction('preview')"
           />
           <!-- 上传遮罩 hover 提示 -->
@@ -881,15 +939,11 @@ const showMomentsOps = ref(false)
                   v-else
                   type="button"
                   class="post-image-btn"
-                  @click="openImagePreview(post.images!.filter(u => !isVideoUrl(u)), Math.max(0, post.images!.filter(u => !isVideoUrl(u)).indexOf(img)))"
+                  @click="openImagePreview(post, index)"
                 >
-                  <img
-                    :src="img"
-                    alt=""
-                    class="post-image"
-                    loading="lazy"
-                    referrerpolicy="no-referrer"
-                    @error="onPostImageError(img)"
+                  <MomentsPostImage
+                    :url="img"
+                    :image-id="post.imageIds?.[index]"
                   />
                   <div class="image-overlay">
                     <span v-if="post.images.length > 1" class="image-index">{{ index + 1 }}</span>
@@ -1148,7 +1202,7 @@ const showMomentsOps = ref(false)
         <n-icon :component="CloseOutline" :size="22" />
       </button>
       <button
-        v-if="previewImages.length > 1"
+        v-if="previewItems.length > 1"
         type="button"
         class="preview-nav prev"
         :title="t('moments.prevImage')"
@@ -1157,14 +1211,15 @@ const showMomentsOps = ref(false)
         ‹
       </button>
       <img
-        :src="previewImages[previewIndex]"
+        v-if="previewDisplaySrc"
+        :src="previewDisplaySrc"
         alt=""
         class="preview-full-img"
         referrerpolicy="no-referrer"
         @click.stop
       />
       <button
-        v-if="previewImages.length > 1"
+        v-if="previewItems.length > 1"
         type="button"
         class="preview-nav next"
         :title="t('moments.nextImage')"
@@ -1172,8 +1227,8 @@ const showMomentsOps = ref(false)
       >
         ›
       </button>
-      <div v-if="previewImages.length > 1" class="preview-counter">
-        {{ previewIndex + 1 }} / {{ previewImages.length }}
+      <div v-if="previewItems.length > 1" class="preview-counter">
+        {{ previewIndex + 1 }} / {{ previewItems.length }}
       </div>
     </div>
 
