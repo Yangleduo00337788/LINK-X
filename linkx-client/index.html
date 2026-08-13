@@ -8,6 +8,25 @@
     <!-- 外链图（CDN 防盗链）不带 Referer；API 鉴权不依赖 Referer -->
     <meta name="referrer" content="no-referrer" />
     <title>LinkX</title>
+    <style>
+      /* 首屏关键样式：在 Vite 打包 JS/CSS 到达前先铺底，避免 Electron 透明窗白闪 */
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #f5f5f5;
+      }
+      #app {
+        min-height: 100%;
+        background: linear-gradient(
+          165deg,
+          #d8ecfb 0%,
+          #e8f3fc 38%,
+          #f4f7fb 72%,
+          #fafbfd 100%
+        );
+      }
+    </style>
   </head>
   <body>
     <div id="app"></div>

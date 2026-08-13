@@ -1,7 +1,7 @@
 /**
  * 作者：yangleduo
  */
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, globalShortcut, safeStorage, desktopCapturer, dialog, Notification, net, session, clipboard, shell, type IpcMainEvent, type IpcMainInvokeEvent, type WebRequestHeadersReceivedCallbackParams, type OnHeadersReceivedListener } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, globalShortcut, safeStorage, desktopCapturer, dialog, Notification, net, session, clipboard, shell, screen, type IpcMainEvent, type IpcMainInvokeEvent, type WebRequestHeadersReceivedCallbackParams, type OnHeadersReceivedListener } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import http from 'node:http'
@@ -318,12 +318,16 @@ interface DesktopPrefs {
   minimizeToTray: boolean
   openOnStartup: OpenOnStartup
   language: AppLanguage
+  linkMatePetEnabled: boolean
+  linkMatePetX?: number
+  linkMatePetY?: number
 }
 
 const DEFAULT_DESKTOP_PREFS: DesktopPrefs = {
   minimizeToTray: true,
   openOnStartup: 'main',
-  language: 'zh-CN'
+  language: 'zh-CN',
+  linkMatePetEnabled: false
 }
 
 let desktopPrefs: DesktopPrefs = { ...DEFAULT_DESKTOP_PREFS }
@@ -342,7 +346,15 @@ function loadDesktopPrefs(): DesktopPrefs {
           ? parsed.minimizeToTray
           : DEFAULT_DESKTOP_PREFS.minimizeToTray,
       openOnStartup: parsed.openOnStartup === 'tray' ? 'tray' : 'main',
-      language: parsed.language === 'en-US' ? 'en-US' : 'zh-CN'
+      language: parsed.language === 'en-US' ? 'en-US' : 'zh-CN',
+      linkMatePetEnabled:
+        typeof parsed.linkMatePetEnabled === 'boolean'
+          ? parsed.linkMatePetEnabled
+          : DEFAULT_DESKTOP_PREFS.linkMatePetEnabled,
+      linkMatePetX:
+        typeof parsed.linkMatePetX === 'number' ? parsed.linkMatePetX : undefined,
+      linkMatePetY:
+        typeof parsed.linkMatePetY === 'number' ? parsed.linkMatePetY : undefined
     }
   } catch {
     return { ...DEFAULT_DESKTOP_PREFS }
@@ -597,6 +609,10 @@ function registerWindowIpc() {
   ipcMain.removeHandler('shell:open-external')
   ipcMain.removeHandler('shell:open-path')
   ipcMain.removeHandler('image-viewer:get-payload')
+  ipcMain.removeHandler('linkmate-pet:set-expanded')
+  ipcMain.removeAllListeners('window-open-linkmate-pet')
+  ipcMain.removeAllListeners('linkmate-pet:close')
+  ipcMain.removeAllListeners('linkmate-pet:open-main')
 
   ipcMain.on('window-minimize', onMinimize)
   ipcMain.on('window-maximize', onMaximize)
@@ -654,11 +670,22 @@ function registerWindowIpc() {
             ? 'en-US'
             : patch?.language === 'zh-CN'
               ? 'zh-CN'
-              : desktopPrefs.language
+              : desktopPrefs.language,
+        linkMatePetEnabled:
+          typeof patch?.linkMatePetEnabled === 'boolean'
+            ? patch.linkMatePetEnabled
+            : desktopPrefs.linkMatePetEnabled,
+        linkMatePetX:
+          typeof patch?.linkMatePetX === 'number' ? patch.linkMatePetX : desktopPrefs.linkMatePetX,
+        linkMatePetY:
+          typeof patch?.linkMatePetY === 'number' ? patch.linkMatePetY : desktopPrefs.linkMatePetY
       }
       saveDesktopPrefs(next)
       rebuildTrayMenu()
       syncLoginItemHidden()
+      if (!next.linkMatePetEnabled) {
+        closeLinkMatePetWindow()
+      }
       return { ...desktopPrefs }
     }
   )
@@ -1120,6 +1147,22 @@ function registerWindowIpc() {
   })
 
   ipcMain.handle('image-viewer:get-payload', () => imageViewerPayload)
+
+  ipcMain.on('window-open-linkmate-pet', () => {
+    createLinkMatePetWindow()
+  })
+  ipcMain.on('linkmate-pet:close', () => {
+    closeLinkMatePetWindow()
+  })
+  ipcMain.handle('linkmate-pet:set-expanded', (_event, expanded: boolean) => {
+    resizeLinkMatePetWindow(!!expanded)
+  })
+  ipcMain.on('linkmate-pet:open-main', () => {
+    showMainWindow()
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('app:open-linkmate')
+    }
+  })
 
   ipcMain.handle('screen:capture', async (event) => {
     if (!screenshotAllowed) {
@@ -1910,6 +1953,111 @@ ipcMain.on('window-open-image-viewer', (_event, payload?: ImageViewerPayload) =>
   createImageViewerWindow(payload)
 })
 
+let linkMatePetWindow: BrowserWindow | null = null
+
+const LINKMATE_PET_COLLAPSED = { width: 88, height: 104 }
+const LINKMATE_PET_EXPANDED = { width: 300, height: 400 }
+
+function defaultLinkMatePetPosition(width: number, height: number) {
+  const area = screen.getPrimaryDisplay().workArea
+  return {
+    x: area.x + area.width - width - 24,
+    y: area.y + area.height - height - 24
+  }
+}
+
+function saveLinkMatePetPosition(win: BrowserWindow) {
+  if (win.isDestroyed()) return
+  const [x, y] = win.getPosition()
+  saveDesktopPrefs({
+    ...desktopPrefs,
+    linkMatePetX: x,
+    linkMatePetY: y
+  })
+}
+
+function resizeLinkMatePetWindow(expanded: boolean) {
+  if (!linkMatePetWindow || linkMatePetWindow.isDestroyed()) return
+  const win = linkMatePetWindow
+  const target = expanded ? LINKMATE_PET_EXPANDED : LINKMATE_PET_COLLAPSED
+  const [x, y] = win.getPosition()
+  const [cw, ch] = win.getSize()
+  const newX = x + cw - target.width
+  const newY = y + ch - target.height
+  win.setBounds(
+    { x: newX, y: newY, width: target.width, height: target.height },
+    false
+  )
+}
+
+function closeLinkMatePetWindow() {
+  if (linkMatePetWindow && !linkMatePetWindow.isDestroyed()) {
+    linkMatePetWindow.close()
+  }
+  linkMatePetWindow = null
+}
+
+function createLinkMatePetWindow() {
+  if (!desktopPrefs.linkMatePetEnabled) return
+
+  if (linkMatePetWindow && !linkMatePetWindow.isDestroyed()) {
+    linkMatePetWindow.show()
+    return
+  }
+
+  const w = LINKMATE_PET_COLLAPSED.width
+  const h = LINKMATE_PET_COLLAPSED.height
+  let pos = defaultLinkMatePetPosition(w, h)
+  if (
+    typeof desktopPrefs.linkMatePetX === 'number' &&
+    typeof desktopPrefs.linkMatePetY === 'number'
+  ) {
+    pos = { x: desktopPrefs.linkMatePetX, y: desktopPrefs.linkMatePetY }
+  }
+
+  linkMatePetWindow = new BrowserWindow({
+    width: w,
+    height: h,
+    x: pos.x,
+    y: pos.y,
+    ...browserWindowIconOptions(),
+    ...framelessChrome(),
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    resizable: false,
+    focusable: true,
+    show: false,
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
+    }
+  })
+  prepareFramelessWindow(linkMatePetWindow)
+  linkMatePetWindow.setBackgroundColor('rgba(0, 0, 0, 0)')
+
+  linkMatePetWindow.on('moved', () => {
+    if (linkMatePetWindow) saveLinkMatePetPosition(linkMatePetWindow)
+  })
+
+  linkMatePetWindow.once('ready-to-show', () => {
+    linkMatePetWindow?.show()
+  })
+
+  if (isDev && process.env.VITE_DEV_SERVER_URL) {
+    linkMatePetWindow.loadURL(process.env.VITE_DEV_SERVER_URL + '#/linkmate-pet')
+  } else {
+    linkMatePetWindow.loadFile(path.join(__dirname, '../../dist/index.html'), {
+      hash: '/linkmate-pet'
+    })
+  }
+
+  linkMatePetWindow.on('closed', () => {
+    linkMatePetWindow = null
+  })
+}
+
 /** [P1-E2] 判断 URL 是否为应用自身源（开发环境为 Vite Dev Server，生产环境为 file://） */
 function isSelfOrigin(url: string): boolean {
   try {
@@ -1955,12 +2103,18 @@ function createWindow() {
   })
   prepareFramelessWindow(mainWindow)
 
-  mainWindow.once('ready-to-show', () => {
-    // 「启动时打开 = 托盘」：仅驻留托盘，不弹出主窗口
-    if (desktopPrefs.openOnStartup === 'tray') {
-      return
-    }
-    mainWindow?.show()
+  let mainWindowRevealed = false
+  const revealMainWindow = () => {
+    if (mainWindowRevealed || !mainWindow || mainWindow.isDestroyed()) return
+    if (desktopPrefs.openOnStartup === 'tray') return
+    mainWindowRevealed = true
+    mainWindow.show()
+  }
+
+  mainWindow.once('ready-to-show', revealMainWindow)
+  // 开发态 Vite 首包较慢：ready-to-show 可能早于 JS 执行，补一次 did-finish-load 展示
+  mainWindow.webContents.once('did-finish-load', () => {
+    setTimeout(revealMainWindow, 0)
   })
 
   if (isDev && process.env.VITE_DEV_SERVER_URL) {

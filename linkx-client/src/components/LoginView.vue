@@ -143,6 +143,25 @@ let forgotCountdownTimer: ReturnType<typeof setInterval> | null = null
 
 const compact = computed(() => isElectron)
 
+/** 开启自动登录时，登录页至少展示时长（毫秒），避免秒进主界面 */
+const AUTO_LOGIN_MIN_DISPLAY_MS = 2500
+let autoLoginScheduleTimer: ReturnType<typeof setTimeout> | null = null
+
+function cancelAutoLoginSchedule() {
+  if (autoLoginScheduleTimer) {
+    clearTimeout(autoLoginScheduleTimer)
+    autoLoginScheduleTimer = null
+  }
+}
+
+function scheduleAutoLoginAfterMinDisplay() {
+  cancelAutoLoginSchedule()
+  autoLoginScheduleTimer = setTimeout(() => {
+    autoLoginScheduleTimer = null
+    void runAutoLoginFlow()
+  }, AUTO_LOGIN_MIN_DISPLAY_MS)
+}
+
 const showMenu = ref(false)
 const showNetworkTip = ref(false)
 const showFeedback = ref(false)
@@ -280,6 +299,7 @@ function onWindowFocus() {
 
 async function runAutoLoginFlow() {
   if (autoLoginPhase.value !== 'idle') return
+  cancelAutoLoginSchedule()
 
   // 1) 先扫描是否离线
   autoLoginPhase.value = 'checking'
@@ -331,12 +351,12 @@ onMounted(() => {
       }
     }
 
-    // 自动登录：先检网络，再登录（文案：检测网络中 → 自动登录中）
+    // 自动登录：先展示登录页数秒，再检网络并登录
     if (!fromRegister && autoLogin.value && rememberMe.value && username.value) {
       loginMode.value = 'quick'
       void nextTick().then(() => {
         requestAnimationFrame(() => {
-          void runAutoLoginFlow()
+          scheduleAutoLoginAfterMinDisplay()
         })
       })
     }
@@ -344,6 +364,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  cancelAutoLoginSchedule()
   document.removeEventListener('click', onDocClick)
   window.removeEventListener('focus', onWindowFocus)
 })
@@ -364,6 +385,7 @@ async function handleLogin() {
     if (await hasRefreshToken()) {
       autoLogin.value = true
       rememberMe.value = true
+      cancelAutoLoginSchedule()
       void runAutoLoginFlow()
       return
     }
