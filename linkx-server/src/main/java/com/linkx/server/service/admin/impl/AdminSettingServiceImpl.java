@@ -11,6 +11,7 @@ import com.linkx.server.config.MailTemplateDefaults;
 import com.linkx.server.controller.admin.dto.AdminSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.AdminSideSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.ClientSideSettingUpdateDTO;
+import com.linkx.server.controller.admin.dto.LinkMateSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.LoginSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.MailSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.MailTemplateSettingUpdateDTO;
@@ -25,6 +26,8 @@ import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.SysRuntimeSettingMapper;
 import com.linkx.server.service.EmailService;
 import com.linkx.server.service.admin.AdminSettingService;
+import com.linkx.server.service.linkmate.LinkMateLlmClient;
+import com.linkx.server.service.linkmate.LinkMateLlmClient.LlmMessage;
 import com.linkx.server.storage.ObjectStorageRouter;
 import com.linkx.server.storage.StorageProviderType;
 import com.linkx.server.util.AppVersionUtils;
@@ -35,6 +38,8 @@ import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+
+import java.util.List;
 
 @Slf4j
 @Service
@@ -47,6 +52,7 @@ public class AdminSettingServiceImpl implements AdminSettingService {
     private final MailSenderHolder mailSenderHolder;
     private final Environment environment;
     private final ObjectStorageRouter objectStorageRouter;
+    private final LinkMateLlmClient linkMateLlmClient;
 
     @PostConstruct
     public void loadOverridesFromDb() {
@@ -125,6 +131,7 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                         .apiEncryptEnabled(linkxProperties.getSecurity().isApiEncryptEnabled())
                         .build())
                 .storage(buildStorageSide())
+                .linkmate(buildLinkMateSide())
                 .build();
     }
 
@@ -161,6 +168,9 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         if (dto.getStorage() != null) {
             updateStorage(dto.getStorage(), operatorId);
         }
+        if (dto.getLinkmate() != null) {
+            updateLinkMate(dto.getLinkmate(), operatorId);
+        }
         return getSettings();
     }
 
@@ -173,7 +183,8 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                 || dto.getMail() != null
                 || dto.getMailTemplates() != null
                 || dto.getSecurity() != null
-                || dto.getStorage() != null;
+                || dto.getStorage() != null
+                || dto.getLinkmate() != null;
     }
 
     private int resolveFeedbackSlaHours(LinkxProperties.App app) {
@@ -414,6 +425,62 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         persist(row);
         applyMailTemplates(row);
         return getSettings();
+    }
+
+    @Override
+    @Transactional
+    public AdminSettingVO updateLinkMate(LinkMateSettingUpdateDTO dto, Long operatorId) {
+        SysRuntimeSetting row = loadOrCreateRow(operatorId);
+        boolean apiConfigured = StringUtils.hasText(row.getLinkmateApiKey())
+                || StringUtils.hasText(linkxProperties.getLinkmate().getApiKey());
+        if (Boolean.TRUE.equals(dto.getEnabled())
+                && !StringUtils.hasText(dto.getApiKey())
+                && !apiConfigured) {
+            throw new CustomException(400, "启用灵伴需配置 API Key");
+        }
+        row.setLinkmateEnabled(Boolean.TRUE.equals(dto.getEnabled()));
+        row.setLinkmateBaseUrl(dto.getBaseUrl().trim());
+        row.setLinkmateModel(dto.getModel().trim());
+        row.setLinkmateMaxTokens(dto.getMaxTokens());
+        row.setLinkmateTemperature(dto.getTemperature());
+        row.setLinkmateDailyTokenLimit(dto.getDailyTokenLimit());
+        row.setLinkmateSystemPrompt(dto.getSystemPrompt() == null ? null : dto.getSystemPrompt().trim());
+        if (StringUtils.hasText(dto.getApiKey())) {
+            row.setLinkmateApiKey(dto.getApiKey().trim());
+        } else if (row.getLinkmateApiKey() == null) {
+            row.setLinkmateApiKey(nullToEmpty(linkxProperties.getLinkmate().getApiKey()));
+        }
+        row.setUpdateBy(operatorId);
+        persist(row);
+        applyLinkMateSide(row);
+        return getSettings();
+    }
+
+    @Override
+    public String testLinkMateConnection(LinkMateSettingUpdateDTO dto) {
+        if (!Boolean.TRUE.equals(dto.getEnabled())) {
+            throw new CustomException(400, "请先开启灵伴服务再测试连接");
+        }
+        boolean hasKey = StringUtils.hasText(dto.getApiKey())
+                || StringUtils.hasText(linkxProperties.getLinkmate().getApiKey());
+        if (!hasKey) {
+            throw new CustomException(400, "请填写 API Key");
+        }
+        applyLinkMateForTest(dto);
+        try {
+            linkMateLlmClient.chat(List.of(new LlmMessage("user", "ping")));
+            return "连接成功：模型 " + linkxProperties.getLinkmate().getModel() + " 可正常响应";
+        } catch (CustomException e) {
+            throw e;
+        } catch (Exception e) {
+            String msg = e.getMessage() != null ? e.getMessage() : "连接失败";
+            throw new CustomException(500, "测试未通过：" + msg);
+        } finally {
+            SysRuntimeSetting row = runtimeSettingMapper.selectOneById(SysRuntimeSetting.SINGLETON_ID);
+            if (row != null) {
+                applyLinkMateSide(row);
+            }
+        }
     }
 
     @Override
@@ -669,6 +736,14 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                 .mailTplResetHtml(trimOrNull(linkxProperties.getMailTemplates().getResetHtml()))
                 .mailTplWelcomeSubject(trimOrNull(linkxProperties.getMailTemplates().getWelcomeSubject()))
                 .mailTplWelcomeHtml(trimOrNull(linkxProperties.getMailTemplates().getWelcomeHtml()))
+                .linkmateEnabled(linkxProperties.getLinkmate().isEnabled())
+                .linkmateApiKey(nullToEmpty(linkxProperties.getLinkmate().getApiKey()))
+                .linkmateBaseUrl(nullToEmpty(linkxProperties.getLinkmate().getBaseUrl()))
+                .linkmateModel(linkxProperties.getLinkmate().getModel())
+                .linkmateMaxTokens(linkxProperties.getLinkmate().getMaxTokens())
+                .linkmateTemperature(linkxProperties.getLinkmate().getTemperature())
+                .linkmateDailyTokenLimit(linkxProperties.getLinkmate().getDailyTokenLimit())
+                .linkmateSystemPrompt(trimOrNull(linkxProperties.getLinkmate().getSystemPrompt()))
                 .updateBy(operatorId)
                 .build();
     }
@@ -693,6 +768,7 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         applyMailTemplates(row);
         applySecuritySide(row);
         applyStorageSide(row);
+        applyLinkMateSide(row);
         if (row.getMailHost() != null) {
             mailSenderHolder.reload();
         }
@@ -988,6 +1064,71 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                 minio.getEndpoint(),
                 oss.getEndpoint(),
                 linkxProperties.getLocal().getBasePath());
+    }
+
+    private AdminSettingVO.LinkMateSide buildLinkMateSide() {
+        LinkxProperties.LinkMate cfg = linkxProperties.getLinkmate();
+        return AdminSettingVO.LinkMateSide.builder()
+                .enabled(cfg.isEnabled())
+                .baseUrl(cfg.getBaseUrl())
+                .model(cfg.getModel())
+                .maxTokens(cfg.getMaxTokens())
+                .temperature(cfg.getTemperature())
+                .dailyTokenLimit(cfg.getDailyTokenLimit())
+                .apiKeyConfigured(StringUtils.hasText(cfg.getApiKey()))
+                .systemPrompt(cfg.getSystemPrompt())
+                .build();
+    }
+
+    private void applyLinkMateSide(SysRuntimeSetting row) {
+        LinkxProperties.LinkMate cfg = linkxProperties.getLinkmate();
+        if (row.getLinkmateEnabled() != null) {
+            cfg.setEnabled(row.getLinkmateEnabled());
+        }
+        if (row.getLinkmateBaseUrl() != null) {
+            cfg.setBaseUrl(nullToEmpty(row.getLinkmateBaseUrl()));
+        }
+        if (row.getLinkmateModel() != null) {
+            cfg.setModel(nullToEmpty(row.getLinkmateModel()));
+        }
+        if (row.getLinkmateMaxTokens() != null && row.getLinkmateMaxTokens() > 0) {
+            cfg.setMaxTokens(row.getLinkmateMaxTokens());
+        }
+        if (row.getLinkmateTemperature() != null) {
+            cfg.setTemperature(row.getLinkmateTemperature());
+        }
+        if (row.getLinkmateDailyTokenLimit() != null) {
+            cfg.setDailyTokenLimit(row.getLinkmateDailyTokenLimit());
+        }
+        if (row.getLinkmateApiKey() != null) {
+            cfg.setApiKey(row.getLinkmateApiKey());
+        }
+        if (row.getLinkmateSystemPrompt() != null) {
+            cfg.setSystemPrompt(row.getLinkmateSystemPrompt());
+        }
+        log.info("Applied linkmate settings: enabled={}, model={}, baseUrl={}",
+                cfg.isEnabled(), cfg.getModel(), cfg.getBaseUrl());
+    }
+
+    private void applyLinkMateForTest(LinkMateSettingUpdateDTO dto) {
+        LinkxProperties.LinkMate cfg = linkxProperties.getLinkmate();
+        cfg.setEnabled(Boolean.TRUE.equals(dto.getEnabled()));
+        cfg.setBaseUrl(dto.getBaseUrl().trim());
+        cfg.setModel(dto.getModel().trim());
+        cfg.setMaxTokens(dto.getMaxTokens());
+        cfg.setTemperature(dto.getTemperature());
+        cfg.setDailyTokenLimit(dto.getDailyTokenLimit());
+        if (dto.getSystemPrompt() != null) {
+            cfg.setSystemPrompt(dto.getSystemPrompt().trim());
+        }
+        if (StringUtils.hasText(dto.getApiKey())) {
+            cfg.setApiKey(dto.getApiKey().trim());
+        } else {
+            SysRuntimeSetting persisted = runtimeSettingMapper.selectOneById(SysRuntimeSetting.SINGLETON_ID);
+            if (persisted != null && StringUtils.hasText(persisted.getLinkmateApiKey())) {
+                cfg.setApiKey(persisted.getLinkmateApiKey());
+            }
+        }
     }
 
     private static String nullToEmpty(String s) {

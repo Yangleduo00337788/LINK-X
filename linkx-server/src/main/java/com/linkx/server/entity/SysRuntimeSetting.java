@@ -163,6 +163,16 @@ public class SysRuntimeSetting implements Serializable {
     private String mailTplWelcomeSubject;
     private String mailTplWelcomeHtml;
 
+    /** 灵伴 AI 是否启用 */
+    private Boolean linkmateEnabled;
+    private String linkmateApiKey;
+    private String linkmateBaseUrl;
+    private String linkmateModel;
+    private Integer linkmateMaxTokens;
+    private Double linkmateTemperature;
+    private Integer linkmateDailyTokenLimit;
+    private String linkmateSystemPrompt;
+
     private Long updateBy;
 
     @Column(onInsertValue = "NOW()")

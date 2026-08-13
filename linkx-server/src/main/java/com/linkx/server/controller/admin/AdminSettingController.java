@@ -12,6 +12,7 @@ import com.linkx.server.config.aspect.AuditAction;
 import com.linkx.server.controller.admin.dto.AdminSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.AdminSideSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.ClientSideSettingUpdateDTO;
+import com.linkx.server.controller.admin.dto.LinkMateSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.MailSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.MailTemplateSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.RegisterSettingUpdateDTO;
@@ -161,6 +162,24 @@ public class AdminSettingController {
         return Result.success(adminSettingService.updateStorage(dto, operatorId));
     }
 
+    @Operation(summary = "更新灵伴 AI 配置")
+    @AuditAction(operationType = "UPDATE_SETTINGS", description = "更新灵伴配置")
+    @PutMapping("/linkmate")
+    @RequirePermission("admin:setting:edit")
+    @RequireStepUp("admin:setting:edit")
+    public Result<AdminSettingVO> updateLinkMate(@Valid @RequestBody LinkMateSettingUpdateDTO dto,
+                                                 HttpServletRequest request) {
+        Long operatorId = (Long) request.getAttribute("userId");
+        return Result.success(adminSettingService.updateLinkMate(dto, operatorId));
+    }
+
+    @Operation(summary = "测试灵伴 AI 连接")
+    @PostMapping("/test-linkmate-connection")
+    @RequirePermission("admin:setting:edit")
+    public Result<String> testLinkMateConnection(@Valid @RequestBody LinkMateSettingUpdateDTO dto) {
+        return Result.success(adminSettingService.testLinkMateConnection(dto));
+    }
+
     @Operation(summary = "测试对象存储连接")
     @PostMapping("/test-storage-connection")
     @RequirePermission("admin:setting:edit")
@@ -200,6 +219,6 @@ public class AdminSettingController {
 
     private static boolean requiresSensitiveStepUp(AdminSettingUpdateDTO dto) {
         return dto.getLogin() != null || dto.getPassword() != null || dto.getMail() != null
-                || dto.getSecurity() != null || dto.getStorage() != null;
+                || dto.getSecurity() != null || dto.getStorage() != null || dto.getLinkmate() != null;
     }
 }

@@ -47,4 +47,8 @@ public class AdminSettingUpdateDTO {
     @Valid
     @Schema(description = "对象存储配置")
     private StorageSettingUpdateDTO storage;
+
+    @Valid
+    @Schema(description = "灵伴 AI 配置")
+    private LinkMateSettingUpdateDTO linkmate;
 }

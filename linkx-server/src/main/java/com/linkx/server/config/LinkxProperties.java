@@ -33,6 +33,39 @@ public class LinkxProperties {
     private final IpGeo ipGeo = new IpGeo();
     private final RiskPolicy riskPolicy = new RiskPolicy();
     private final MessageEncryption messageEncryption = new MessageEncryption();
+    private final LinkMate linkmate = new LinkMate();
+
+    /**
+     * 灵伴（LinkMate）AI 助手配置。
+     */
+    @Data
+    public static class LinkMate {
+        private boolean enabled = false;
+        /** OpenAI 兼容 API Key */
+        private String apiKey;
+        /** API 基址，如 https://api.deepseek.com */
+        private String baseUrl;
+        private String model = "deepseek-chat";
+        private int maxTokens = 4096;
+        private double temperature = 0.7;
+        /** 单用户每日 token 估算上限 */
+        private int dailyTokenLimit = 100000;
+        private String systemPrompt = "你是「灵伴」（LinkMate），LinkX 企业即时通讯平台的智能伙伴。"
+                + "你负责陪伴用户完成对话、知识检索、任务执行和各类 AI 助手功能。"
+                + "回答请简洁、专业、友好，使用用户使用的语言回复。";
+
+        public void setMaxTokens(int maxTokens) {
+            this.maxTokens = Math.max(256, Math.min(32768, maxTokens));
+        }
+
+        public void setTemperature(double temperature) {
+            this.temperature = Math.max(0, Math.min(2, temperature));
+        }
+
+        public void setDailyTokenLimit(int dailyTokenLimit) {
+            this.dailyTokenLimit = Math.max(0, dailyTokenLimit);
+        }
+    }
 
     @Data
     public static class MessageEncryption {

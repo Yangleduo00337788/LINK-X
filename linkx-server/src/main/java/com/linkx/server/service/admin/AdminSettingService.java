@@ -7,6 +7,7 @@ package com.linkx.server.service.admin;
 import com.linkx.server.controller.admin.dto.AdminSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.AdminSideSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.ClientSideSettingUpdateDTO;
+import com.linkx.server.controller.admin.dto.LinkMateSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.LoginSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.MailSettingUpdateDTO;
 import com.linkx.server.controller.admin.dto.MailTemplateSettingUpdateDTO;
@@ -40,6 +41,10 @@ public interface AdminSettingService {
     AdminSettingVO updateSecurity(SecuritySettingUpdateDTO dto, Long operatorId);
 
     AdminSettingVO updateStorage(StorageSettingUpdateDTO dto, Long operatorId);
+
+    AdminSettingVO updateLinkMate(LinkMateSettingUpdateDTO dto, Long operatorId);
+
+    String testLinkMateConnection(LinkMateSettingUpdateDTO dto);
 
     /**
      * 发送一封测试用的「忘记密码」邮件，用于校验 SMTP 是否可用。

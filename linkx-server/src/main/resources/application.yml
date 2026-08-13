@@ -110,6 +110,16 @@ linkx:
   security:
     require-https: ${REQUIRE_HTTPS}
 
+  linkmate:
+    enabled: ${LINKMATE_ENABLED}
+    api-key: ${LINKMATE_API_KEY}
+    base-url: ${LINKMATE_BASE_URL}
+    model: ${LINKMATE_MODEL}
+    max-tokens: ${LINKMATE_MAX_TOKENS}
+    temperature: ${LINKMATE_TEMPERATURE}
+    daily-token-limit: ${LINKMATE_DAILY_TOKEN_LIMIT}
+    system-prompt: ${LINKMATE_SYSTEM_PROMPT}
+
   message-encryption:
     enabled: ${MESSAGE_CONTENT_ENCRYPT_ENABLED}
     kek: ${MESSAGE_KEK}

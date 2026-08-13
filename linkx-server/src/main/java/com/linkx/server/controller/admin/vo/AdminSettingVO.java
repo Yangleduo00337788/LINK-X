@@ -40,6 +40,31 @@ public class AdminSettingVO {
     @Schema(description = "对象存储配置")
     private StorageSide storage;
 
+    @Schema(description = "灵伴（LinkMate）AI 配置")
+    private LinkMateSide linkmate;
+
+    @Data
+    @Builder
+    @Schema(description = "灵伴 AI 配置")
+    public static class LinkMateSide {
+        @Schema(description = "是否启用")
+        private Boolean enabled;
+        @Schema(description = "API 基址")
+        private String baseUrl;
+        @Schema(description = "模型名称")
+        private String model;
+        @Schema(description = "单次最大生成 token")
+        private Integer maxTokens;
+        @Schema(description = "采样温度")
+        private Double temperature;
+        @Schema(description = "单用户每日 token 上限")
+        private Integer dailyTokenLimit;
+        @Schema(description = "API Key 是否已配置（不回传明文）")
+        private Boolean apiKeyConfigured;
+        @Schema(description = "系统提示词")
+        private String systemPrompt;
+    }
+
     @Data
     @Builder
     @Schema(description = "安全配置")
