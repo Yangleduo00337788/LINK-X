@@ -812,7 +812,7 @@ watch(
         <span v-if="items.length > 1" class="file-index">{{ index + 1 }} / {{ items.length }}</span>
       </div>
       <div class="header-right">
-        <WindowCaptionButtons />
+        <WindowCaptionButtons show-pin />
       </div>
     </header>
 

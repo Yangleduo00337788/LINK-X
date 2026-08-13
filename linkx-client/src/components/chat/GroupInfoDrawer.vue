@@ -15,7 +15,6 @@ import Avatar from '../Avatar.vue'
 import GroupAvatar from '../GroupAvatar.vue'
 import GroupMutePanel from './GroupMutePanel.vue'
 import GroupReportPanel from './GroupReportPanel.vue'
-import PinIcon from '../icons/PinIcon.vue'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
@@ -779,10 +778,7 @@ function reportGroup() {
               <!-- 置顶与免打扰 -->
               <div class="switch-block">
                 <div class="switch-row">
-                  <span class="switch-label">
-                    <PinIcon :size="16" :filled="!!currentSession?.pinned" />
-                    {{ t('modals.pinSession') }}
-                  </span>
+                  <span>{{ t('modals.pinSession') }}</span>
                   <n-switch :value="!!currentSession?.pinned" size="small" @update:value="setPin" />
                 </div>
                 <div class="switch-row">

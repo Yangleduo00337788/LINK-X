@@ -12,7 +12,6 @@ import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
 import { useContactsStore } from '../../stores/contacts'
-import PinIcon from '../icons/PinIcon.vue'
 import GroupReportPanel from './GroupReportPanel.vue'
 import { useI18n } from '../../i18n'
 
@@ -160,10 +159,7 @@ function onReportSubmitted() {
         <div class="drawer-inner">
           <!-- 置顶 / 免打扰 / 屏蔽开关 -->
           <div class="row switch-row">
-            <span class="switch-label">
-              <PinIcon :size="16" :filled="!!currentSession?.pinned" />
-              {{ t('modals.pinSession') }}
-            </span>
+            <span>{{ t('modals.pinSession') }}</span>
             <n-switch :value="!!currentSession?.pinned" size="small" @update:value="setPin" />
           </div>
           <div class="row switch-row">

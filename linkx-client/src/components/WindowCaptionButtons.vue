@@ -5,6 +5,7 @@
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from '../i18n'
+import WindowPinButton from './WindowPinButton.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -12,12 +13,15 @@ const props = withDefaults(
     showMaximize?: boolean
     /** 是否显示最小化 */
     showMinimize?: boolean
+    /** 是否显示窗口置顶（与 minimize 同列） */
+    showPin?: boolean
     /** 关闭前回调（如等待笔记保存完成） */
     beforeClose?: () => void | Promise<void>
   }>(),
   {
     showMaximize: true,
-    showMinimize: true
+    showMinimize: true,
+    showPin: false
   }
 )
 
@@ -63,6 +67,7 @@ async function close() {
 
 <template>
   <div v-if="showCustom" class="caption-btns" role="toolbar" aria-label="Window">
+    <WindowPinButton v-if="showPin" />
     <button
       v-if="showMinimize"
       type="button"

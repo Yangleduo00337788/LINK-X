@@ -1178,7 +1178,7 @@ const showMomentsOps = ref(false)
         />
       </div>
       <div v-if="!embedded" class="header-right">
-        <WindowCaptionButtons />
+        <WindowCaptionButtons show-pin />
       </div>
     </div>
 

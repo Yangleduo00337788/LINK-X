@@ -1,17 +1,17 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
- * 全局统一的置顶图钉图标（倾斜推钉造型）。
- * 用于窗口置顶、会话置顶、公告置顶等所有「置顶」入口。
+ * 置顶图钉（Material push_pin 造型：扁头 + 竖针 + 底叉）。
+ * 列表为灰色线框感；窗口置顶激活时 filled 实心 + 主题色。
  */
 withDefaults(
   defineProps<{
     size?: number
-    /** 置顶激活态：实心钉头 */
+    /** 置顶激活态（窗口置顶已开启） */
     filled?: boolean
   }>(),
   {
-    size: 16,
+    size: 10,
     filled: false
   }
 )
@@ -23,29 +23,15 @@ withDefaults(
     :class="{ 'pin-icon-svg--filled': filled }"
     :width="size"
     :height="size"
-    viewBox="0 0 16 16"
-    fill="none"
+    viewBox="0 0 24 24"
     xmlns="http://www.w3.org/2000/svg"
     aria-hidden="true"
   >
-    <g class="pin-glyph">
-      <path
-        class="pin-head"
-        d="M10.42 3.58a1.55 1.55 0 0 0-2.19 0L5.17 6.64a1.55 1.55 0 0 0 0 2.19l.72.72-2.24 3.88a.58.58 0 0 0 .71.88l3.88-2.24.72.72a1.55 1.55 0 0 0 2.19 0l3.06-3.06a1.55 1.55 0 0 0 0-2.19L10.42 3.58Z"
-        :fill="filled ? 'currentColor' : 'none'"
-        stroke="currentColor"
-        stroke-width="1.12"
-        stroke-linejoin="round"
-      />
-      <path
-        class="pin-needle"
-        d="M7.35 9.55 5.75 13.15"
-        stroke="currentColor"
-        stroke-width="1.12"
-        stroke-linecap="round"
-      />
-      <circle class="pin-tip" cx="5.75" cy="13.15" r="0.55" fill="currentColor" />
-    </g>
+    <path
+      fill="currentColor"
+      :opacity="filled ? 1 : 0.92"
+      d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z"
+    />
   </svg>
 </template>
 
@@ -53,14 +39,5 @@ withDefaults(
 .pin-icon-svg {
   display: block;
   flex-shrink: 0;
-}
-
-.pin-glyph {
-  transform-origin: 8px 8px;
-  transform: rotate(-6deg);
-}
-
-.pin-icon-svg--filled .pin-needle {
-  opacity: 0.92;
 }
 </style>

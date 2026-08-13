@@ -7,8 +7,7 @@
  * 关闭键右上角圆角与窗口 --lx-window-radius 一致。
  * </p>
  */
-import { ref, computed, onMounted } from 'vue'
-import PinIcon from './icons/PinIcon.vue'
+import { computed } from 'vue'
 import WindowCaptionButtons from './WindowCaptionButtons.vue'
 import BrandMarkIcon from './BrandMarkIcon.vue'
 import { storeToRefs } from 'pinia'
@@ -37,9 +36,6 @@ const { t } = useI18n()
 // 解构当前导航键与会话信息的响应式引用
 const { navKey, currentSession } = storeToRefs(appStore)
 
-// 窗口是否置顶的状态
-const isPinned = ref(false)
-
 // 计算中间标题栏：聊天主区已有顶栏时不重复显示会话名
 const centerTitle = computed(() => {
   if (navKey.value !== 'chat' || !currentSession.value) return ''
@@ -48,22 +44,7 @@ const centerTitle = computed(() => {
   return ''
 })
 
-const pinTitle = computed(() => (isPinned.value ? t('shell.unpin') : t('shell.pin')))
 const selectSessionHint = computed(() => t('chat.selectSession'))
-
-// 挂载时从 Electron API 读取窗口置顶状态
-onMounted(async () => {
-  if (window.electronAPI && window.electronAPI.isPinned) {
-    isPinned.value = await window.electronAPI.isPinned() // 异步获取置顶状态
-  }
-})
-
-// 切换窗口置顶状态
-async function togglePin() {
-  if (window.electronAPI && window.electronAPI.togglePin) {
-    isPinned.value = await window.electronAPI.togglePin() // 调用 API 切换并更新本地状态
-  }
-}
 </script>
 
 <template>
@@ -100,17 +81,7 @@ async function togglePin() {
 
     <!-- 右侧：置顶 + 自绘窗控（关闭键圆角与窗口一致） -->
     <div class="status-right">
-      <button
-        type="button"
-        class="lx-win-caption-btn"
-        :class="{ 'is-active': isPinned }"
-        :title="pinTitle"
-        :aria-pressed="isPinned"
-        @click="togglePin"
-      >
-        <PinIcon :size="14" :filled="isPinned" />
-      </button>
-      <WindowCaptionButtons />
+      <WindowCaptionButtons show-pin />
     </div>
   </header>
 </template>

@@ -46,7 +46,7 @@ watch(() => appStore.theme, (theme) => {
       <div class="header-spacer" aria-hidden="true" />
       <h1 class="header-title">{{ t('nav.history') }}</h1>
       <div class="header-right">
-        <WindowCaptionButtons />
+        <WindowCaptionButtons show-pin />
       </div>
     </header>
     <div class="standalone-content">

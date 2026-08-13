@@ -21,7 +21,6 @@ import {
   DocumentTextOutline,
   CloudUploadOutline
 } from '@vicons/ionicons5'
-import PinIcon from './icons/PinIcon.vue'
 import NoteTextBlockEditor from './NoteTextBlockEditor.vue'
 import WindowCaptionButtons from './WindowCaptionButtons.vue'
 import { storeToRefs } from 'pinia'
@@ -67,7 +66,6 @@ const { title, content, notes, currentNoteId, saving } = storeToRefs(noteStore)
 const { theme } = storeToRefs(appStore)
 
 const documentEl = ref<HTMLElement | null>(null)
-const isPinned = ref(false)
 const showNoteList = ref(false)
 const showLocationPicker = ref(false)
 const mediaUrlCache = ref<Record<string, string>>({})
@@ -302,11 +300,6 @@ function redo() {
   void noteStore.save()
 }
 
-async function togglePin() {
-  if (!window.electronAPI?.togglePin) return
-  isPinned.value = await window.electronAPI.togglePin()
-}
-
 async function insertImage(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
@@ -426,9 +419,6 @@ onMounted(async () => {
   unsubscribeNoteEditorReset = window.electronAPI?.onNoteEditorReset?.(() => {
     void resetToBlankEditor()
   })
-  if (window.electronAPI?.isPinned) {
-    isPinned.value = await window.electronAPI.isPinned()
-  }
   requestAnimationFrame(() => {
     getActiveTextBlockEditor()?.focus()
   })
@@ -452,17 +442,7 @@ onUnmounted(() => {
       <LocationPickerPage @select="onLocationPicked" @back="showLocationPicker = false" />
     </div>
     <header class="title-bar drag-area">
-      <div class="bar-side bar-left no-drag">
-        <LxIconButton
-          variant="editor"
-          class="pin"
-          :active="isPinned"
-          :title="t('noteEditor.pin')"
-          @click="togglePin"
-        >
-          <PinIcon :size="14" :filled="isPinned" />
-        </LxIconButton>
-      </div>
+      <div class="bar-side bar-left no-drag" />
       <div class="bar-center">
         {{ displayTitle }}
         <span v-if="saving" class="saving-indicator">{{ t('noteEditor.saving') }}</span>
@@ -494,7 +474,7 @@ onUnmounted(() => {
         >
           <n-icon :component="TrashOutline" :size="16" />
         </LxIconButton>
-        <WindowCaptionButtons :before-close="flushPendingSave" />
+        <WindowCaptionButtons show-pin :before-close="flushPendingSave" />
       </div>
     </header>
 

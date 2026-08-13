@@ -453,7 +453,7 @@ async function publish() {
         >
           {{ publishing ? t('moments.publishing') : t('moments.publish') }}
         </LxButton>
-        <WindowCaptionButtons />
+        <WindowCaptionButtons show-pin />
       </div>
     </header>
 

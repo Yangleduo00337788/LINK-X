@@ -200,7 +200,7 @@ function roleLabel(role: string) {
                     <span class="author">{{ item.author }}</span>
                     <span v-if="item.role" class="role">{{ roleLabel(item.role) }}</span>
                     <span v-if="item.pinned" class="pin-tag">
-                      <PinIcon :size="11" filled />
+                      <PinIcon :size="10" filled />
                       {{ t('extra.pinned') }}
                     </span>
                   </div>

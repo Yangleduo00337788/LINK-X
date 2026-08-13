@@ -1556,6 +1556,10 @@
   color: var(--lx-accent);
 }
 
+.lx-win-caption-btn--pin.is-active::before {
+  background: rgba(18, 183, 245, 0.14);
+}
+
 .lx-win-caption-btn--close:hover {
   color: var(--lx-text-on-accent);
 }

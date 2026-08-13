@@ -70,7 +70,7 @@ watch(
       </div>
       <h1 class="header-title">{{ t('chat.officialDetail') }}</h1>
       <div class="header-right">
-        <WindowCaptionButtons v-if="!showBack" />
+        <WindowCaptionButtons v-if="!showBack" show-pin />
       </div>
     </header>
     <div class="standalone-content">

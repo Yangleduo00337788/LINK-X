@@ -340,11 +340,11 @@ function onContextMenuSelect(key: string) {
                 <div class="session-name">
                   <span class="session-name-text">
                     <span v-if="session.important" class="important-mark" :title="t('chat.important')">★</span>
-                    <PinIcon v-if="session.pinned" :size="12" filled class="pin-icon" />
                     {{ session.name }}
                   </span>
                 </div>
                 <span class="session-meta">
+                  <PinIcon v-if="session.pinned" :size="10" class="pin-icon" />
                   <n-icon
                     v-if="session.muted"
                     :component="NotificationsOffOutline"
@@ -431,16 +431,12 @@ function onContextMenuSelect(key: string) {
   transition: background var(--lx-duration) ease;
 }
 
-.session-item.pinned {
-  background: rgba(18, 183, 245, 0.06);
-}
-
 .session-item.important {
   background: linear-gradient(90deg, rgba(250, 173, 20, 0.12), transparent 72%);
 }
 
 .session-item.important.pinned {
-  background: linear-gradient(90deg, rgba(250, 173, 20, 0.16), rgba(18, 183, 245, 0.06) 55%);
+  background: linear-gradient(90deg, rgba(250, 173, 20, 0.16), transparent 72%);
 }
 
 .session-item:hover {
@@ -555,8 +551,8 @@ function onContextMenuSelect(key: string) {
 
 .pin-icon {
   flex-shrink: 0;
-  color: var(--lx-accent);
-  margin-right: var(--lx-space-2xs);
+  color: var(--lx-text-tertiary, var(--lx-text-secondary));
+  opacity: 0.88;
 }
 
 .important-mark {
