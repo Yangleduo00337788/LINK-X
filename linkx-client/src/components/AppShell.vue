@@ -39,6 +39,8 @@ import SettingsPanel from './SettingsPanel.vue'
 import SettingsMainView from './SettingsMainView.vue'
 // 余额主视图（全宽）
 import BalanceMainView from './BalanceMainView.vue'
+// 灵伴 AI 右侧对话面板
+import LinkMateSidePanel from './LinkMateSidePanel.vue'
 // 通用占位主视图
 import PlaceholderMainView from './PlaceholderMainView.vue'
 // 消息页站内「日程提醒」面板
@@ -71,14 +73,17 @@ const EditProfileModal = defineAsyncComponent(() => import('./EditProfileModal.v
 import { storeToRefs } from 'pinia'
 // 应用全局状态 Store
 import { useAppStore } from '../stores/app'
+import { useLinkMateStore } from '../stores/linkmate'
 import { useI18n } from '../i18n'
 
 useI18n()
 
 // 获取应用 Store 实例
 const appStore = useAppStore()
+const linkMateStore = useLinkMateStore()
 // 解构当前导航键与当前会话
 const { navKey, currentSessionId } = storeToRefs(appStore)
+const { panelExpanded } = storeToRefs(linkMateStore)
 
 // 中间列表列宽度（可拖拽调整）
 const listWidth = ref(260)
@@ -173,6 +178,7 @@ const showFavoritesMain = computed(() => navKey.value === 'favorites')
 const showMomentsMain = computed(() => navKey.value === 'moments')
 const showBalanceMain = computed(() => navKey.value === 'balance')
 const showPlaceholder = computed(() => navKey.value === 'contacts')
+const showLinkMatePanel = computed(() => navKey.value === 'chat' && panelExpanded.value)
 
 /** 设置页中间列固定略宽，且不显示拖拽条 */
 const settingsListWidth = 220
@@ -241,17 +247,20 @@ const showMiddleList = computed(
             'col-chat--files': showFilesMain || showFavoritesMain || showMomentsMain || showBalanceMain
           }"
         >
-          <SystemNotifyPanel v-if="showSystemNotify" />
-          <OfficialNotifyPanel v-else-if="showOfficialNotify" />
-          <ChatPanel v-else-if="showChatPanel" />
-          <CalendarMainView v-else-if="showCalendarMain" />
-          <FilesMainView v-else-if="showFilesMain" />
-          <FavoritesMainView v-else-if="showFavoritesMain" />
-          <MomentsMainView v-else-if="showMomentsMain" />
-          <BalanceMainView v-else-if="showBalanceMain" />
-          <SettingsMainView v-else-if="showSettingsMain" />
-          <ContactsMainView v-else-if="navKey === 'contacts'" />
-          <PlaceholderMainView v-else-if="showPlaceholder" :nav="navKey" />
+          <div class="col-chat-body">
+            <SystemNotifyPanel v-if="showSystemNotify" />
+            <OfficialNotifyPanel v-else-if="showOfficialNotify" />
+            <ChatPanel v-else-if="showChatPanel" />
+            <CalendarMainView v-else-if="showCalendarMain" />
+            <FilesMainView v-else-if="showFilesMain" />
+            <FavoritesMainView v-else-if="showFavoritesMain" />
+            <MomentsMainView v-else-if="showMomentsMain" />
+            <BalanceMainView v-else-if="showBalanceMain" />
+            <SettingsMainView v-else-if="showSettingsMain" />
+            <ContactsMainView v-else-if="navKey === 'contacts'" />
+            <PlaceholderMainView v-else-if="showPlaceholder" :nav="navKey" />
+          </div>
+          <LinkMateSidePanel v-if="showLinkMatePanel" />
         </main>
       </div>
     </div>
@@ -383,10 +392,19 @@ const showMiddleList = computed(
   min-width: 0;
   height: 100%;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   position: relative;
   background: var(--lx-bg-card);
   --lx-bg-panel: var(--lx-bg-card);
+}
+
+.col-chat-body {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
 }
 
 .col-chat--calendar {

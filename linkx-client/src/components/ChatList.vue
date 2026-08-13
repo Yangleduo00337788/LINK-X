@@ -8,8 +8,8 @@
  * 列表中插入「日程提醒」「LinkX官方」站内通知虚拟会话（默认不置顶）。
  * </p>
  */
-import { ref, computed, onMounted } from 'vue'
-import { NIcon, NSkeleton, NDropdown, NVirtualList, useMessage, type DropdownOption } from 'naive-ui'
+import { ref, computed, onMounted, nextTick } from 'vue'
+import { NIcon, NSkeleton, NDropdown, NVirtualList, NPopover, useMessage, type DropdownOption } from 'naive-ui'
 import {
   PhonePortraitOutline,
   NotificationsOffOutline,
@@ -22,8 +22,12 @@ import Avatar from './Avatar.vue'
 import GroupAvatar from './GroupAvatar.vue'
 import EmptyState from './common/EmptyState.vue'
 import OpsRecommendCarousel from './ops/OpsRecommendCarousel.vue'
+import LinkMateLogoMark from './LinkMateLogoMark.vue'
+
+const LINKMATE_INTRO_KEY = 'linkx-linkmate-intro-shown'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
+import { useLinkMateStore } from '../stores/linkmate'
 import { useChatModalsStore } from '../stores/chatModals'
 import { useNotificationsStore } from '../stores/notifications'
 import { useCalendarStore } from '../stores/calendar'
@@ -40,6 +44,7 @@ const message = useMessage()
 const { t } = useI18n()
 const showSidebarOps = ref(false)
 const appStore = useAppStore()
+const linkMateStore = useLinkMateStore()
 const chatModalsStore = useChatModalsStore()
 const notificationsStore = useNotificationsStore()
 const calendarStore = useCalendarStore()
@@ -58,6 +63,7 @@ const { openCreateGroup, openComprehensiveSearch } = chatModalsStore
 const { fetchMessageNotifications } = notificationsStore
 
 const searchValue = ref('')
+const showLinkMateIntro = ref(false)
 
 const contextSession = ref<ChatSession | null>(null)
 const contextMenuShow = ref(false)
@@ -67,7 +73,36 @@ const contextMenuY = ref(0)
 onMounted(() => {
   void fetchMessageNotifications()
   void calendarStore.ensureReminderWatch()
+  try {
+    if (localStorage.getItem(LINKMATE_INTRO_KEY) !== '1') {
+      void nextTick().then(() => {
+        window.setTimeout(() => {
+          showLinkMateIntro.value = true
+        }, 800)
+      })
+    }
+  } catch {
+    /* ignore */
+  }
 })
+
+function dismissLinkMateIntro() {
+  showLinkMateIntro.value = false
+  try {
+    localStorage.setItem(LINKMATE_INTRO_KEY, '1')
+  } catch {
+    /* ignore */
+  }
+}
+
+function openLinkMate() {
+  dismissLinkMateIntro()
+  if (appStore.navKey !== 'chat') {
+    appStore.setNav('chat')
+  }
+  void linkMateStore.ensurePanelReady()
+  linkMateStore.openPanel()
+}
 
 function formatUpcomingEventPreview(ev: CalendarEvent): string {
   const timePart = `${ev.date} ${ev.time || ''}`.trim()
@@ -243,7 +278,36 @@ function onContextMenuSelect(key: string) {
       :placeholder="t('chat.search')"
       :add-options="addOptions"
       @add-select="onAddSelect"
-    />
+    >
+      <template #after-add>
+        <NPopover
+          :show="showLinkMateIntro"
+          trigger="manual"
+          placement="bottom-end"
+          :show-arrow="true"
+          raw
+          @clickoutside="dismissLinkMateIntro"
+        >
+          <template #trigger>
+            <button
+              type="button"
+              class="linkmate-entry-btn"
+              :title="t('linkmate.name')"
+              :aria-label="t('linkmate.name')"
+              @click="openLinkMate"
+            >
+              <LinkMateLogoMark :size="28" />
+            </button>
+          </template>
+          <div class="linkmate-intro-pop">
+            <p class="linkmate-intro-text">{{ t('linkmate.introHint') }}</p>
+            <button type="button" class="linkmate-intro-ok" @click="dismissLinkMateIntro">
+              {{ t('linkmate.introOk') }}
+            </button>
+          </div>
+        </NPopover>
+      </template>
+    </PanelSearchBar>
 
     <div v-show="showSidebarOps" class="ops-slot">
       <OpsRecommendCarousel
@@ -627,5 +691,56 @@ function onContextMenuSelect(key: string) {
 .skeleton-title,
 .skeleton-desc {
   margin: 0;
+}
+
+.linkmate-entry-btn {
+  padding: 0;
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform var(--lx-duration-fast) ease;
+}
+
+.linkmate-entry-btn:hover {
+  transform: scale(1.05);
+}
+
+.linkmate-entry-btn:active {
+  transform: scale(0.98);
+}
+
+.linkmate-intro-pop {
+  padding: 12px 14px;
+  max-width: 240px;
+  background: var(--lx-bg-card);
+  border: 1px solid var(--lx-border-subtle);
+  border-radius: var(--lx-radius-lg);
+  box-shadow: var(--lx-shadow-elevated);
+}
+
+.linkmate-intro-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--lx-text-primary);
+}
+
+.linkmate-intro-ok {
+  margin-top: 10px;
+  border: none;
+  border-radius: var(--lx-radius-md);
+  background: var(--lx-accent);
+  color: #fff;
+  font-size: 12px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.linkmate-intro-ok:hover {
+  filter: brightness(1.05);
 }
 </style>

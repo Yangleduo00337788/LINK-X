@@ -75,6 +75,7 @@ function onAdd(key: string) {
         <n-icon :component="AddOutline" :size="18" />
       </LxIconButton>
     </n-dropdown>
+    <slot name="after-add" />
   </div>
 </template>
 
@@ -91,5 +92,12 @@ function onAdd(key: string) {
 
 .search-input {
   flex: 1;
+  min-width: 0;
+  max-width: calc(100% - 76px);
+}
+
+.add-dropdown,
+:slotted(.linkmate-entry-btn) {
+  flex-shrink: 0;
 }
 </style>

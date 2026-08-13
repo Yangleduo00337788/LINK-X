@@ -27,6 +27,7 @@ import InAppToastBridge from './components/InAppToastBridge.vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from './stores/app'
 import { useAppSettingsStore } from './stores/appSettings'
+import { useLinkMateStore } from './stores/linkmate'
 import { naiveThemeColors, lxColorHex } from './theme/vars'
 import {
   applyDocumentTheme,
@@ -80,6 +81,7 @@ function syncHtmlTheme() {
 }
 
 let unsubShortcutLock: (() => void) | null = null
+let unsubOpenLinkMate: (() => void) | null = null
 
 onMounted(() => {
   const settings = useAppSettingsStore()
@@ -111,11 +113,19 @@ onMounted(() => {
       appStore.lock()
     }
   }) ?? null
+  unsubOpenLinkMate =
+    window.electronAPI?.onOpenLinkMate?.(() => {
+      const linkMate = useLinkMateStore()
+      appStore.setNav('chat')
+      void linkMate.ensurePanelReady()
+      linkMate.openPanel()
+    }) ?? null
 })
 
 onBeforeUnmount(() => {
   stopSystemThemeSync()
   if (unsubShortcutLock) unsubShortcutLock()
+  if (unsubOpenLinkMate) unsubOpenLinkMate()
 })
 watch(theme, syncHtmlTheme)
 </script>

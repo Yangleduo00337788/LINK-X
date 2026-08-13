@@ -26,6 +26,7 @@ import {
   LogOutOutline
 } from '@vicons/ionicons5'
 import Avatar from './Avatar.vue'
+import LinkMateLogoMark from './LinkMateLogoMark.vue'
 import { storeToRefs } from 'pinia'
 import { resolveUserAvatarUrl } from '../utils/defaultAvatar'
 import { useAppStore } from '../stores/app'
@@ -38,6 +39,7 @@ import { useContactsStore } from '../stores/contacts'
 import { useMomentsStore } from '../stores/moments'
 import { useCalendarStore } from '../stores/calendar'
 import { useNotificationsStore } from '../stores/notifications'
+import { useLinkMateStore } from '../stores/linkmate'
 import type { NavKey } from '../types'
 import { useI18n } from '../i18n'
 
@@ -52,10 +54,12 @@ const contactsStore = useContactsStore()
 const momentsStore = useMomentsStore()
 const calendarStore = useCalendarStore()
 const notificationsStore = useNotificationsStore()
+const linkMateStore = useLinkMateStore()
 const { t } = useI18n()
 // 解构导航键、用户资料、已保存登录信息、会话列表
 const { navKey, userProfile, savedLogin, sessions, isOffline } = storeToRefs(appStore)
 const { calendarRemindUnreadCount, officialUnreadCount, contactsBadgeCount } = storeToRefs(notificationsStore)
+const { panelCollapsed } = storeToRefs(linkMateStore)
 // 解构导航切换、登出、锁定方法
 const { setNav, logout, lock } = appStore
 // 解构打开个人资料方法
@@ -184,6 +188,14 @@ function handleFilesClick() {
   setNav('files')
 }
 
+function restoreLinkMatePanel() {
+  if (navKey.value !== 'chat') {
+    setNav('chat')
+  }
+  void linkMateStore.ensurePanelReady()
+  linkMateStore.expandPanel()
+}
+
 // 执行菜单动作前清理 Overlay 与聊天弹窗
 function prepareMenuAction() {
   closeOverlay()
@@ -302,8 +314,18 @@ function handleSelfAvatarClick(e: MouseEvent) {
       </button>
     </div>
 
-    <!-- 底部：更多菜单（含聊天记录管理、帮助等） -->
+    <!-- 底部：灵伴折叠恢复 + 更多菜单 -->
     <div class="nav-bottom">
+      <button
+        v-if="panelCollapsed"
+        type="button"
+        class="nav-item linkmate-restore-btn"
+        :title="t('linkmate.expandPanel')"
+        :aria-label="t('linkmate.expandPanel')"
+        @click="restoreLinkMatePanel"
+      >
+        <LinkMateLogoMark :size="22" />
+      </button>
       <n-dropdown
         v-model:show="menuDropdownShow"
         trigger="click"
@@ -444,5 +466,9 @@ function handleSelfAvatarClick(e: MouseEvent) {
 .nav-item.is-active:hover {
   background: var(--lx-bg-hover);
   color: var(--lx-accent);
+}
+
+.linkmate-restore-btn {
+  padding: 0;
 }
 </style>
