@@ -35,6 +35,8 @@ public class MomentsComment implements Serializable {
 
     private String content;
 
+    private Byte contentEncVersion;
+
     private Long parentId;
 
     /**

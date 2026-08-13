@@ -6,6 +6,8 @@ package com.linkx.server.task;
  */
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.repository.ImMessageRepository;
+import com.linkx.server.repository.MomentsCommentRepository;
+import com.linkx.server.repository.MomentsPostRepository;
 import com.linkx.server.security.crypto.MessageContentCipher;
 import com.linkx.server.security.crypto.MessageKekProvider;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +23,8 @@ import org.springframework.stereotype.Component;
 public class MessageContentKeyRotationTask {
 
     private final ImMessageRepository imMessageRepository;
+    private final MomentsPostRepository momentsPostRepository;
+    private final MomentsCommentRepository momentsCommentRepository;
     private final MessageContentCipher messageContentCipher;
     private final MessageKekProvider messageKekProvider;
     private final LinkxProperties linkxProperties;
@@ -31,14 +35,20 @@ public class MessageContentKeyRotationTask {
             return RotationResult.skipped();
         }
         int batchSize = linkxProperties.getMessageEncryption().getKeyRotateBatchSize();
-        long pendingBefore = imMessageRepository.countPendingKeyRotation();
+        long pendingBefore = imMessageRepository.countPendingKeyRotation()
+                + momentsPostRepository.countPendingKeyRotation()
+                + momentsCommentRepository.countPendingKeyRotation();
         if (pendingBefore == 0) {
-            log.debug("无待轮换密钥的消息，跳过");
+            log.debug("无待轮换密钥的内容，跳过");
             return new RotationResult(0, 0, 0);
         }
-        int updated = imMessageRepository.rotateEncryptedKeyBatch(batchSize);
-        long remaining = imMessageRepository.countPendingKeyRotation();
-        log.info("消息密钥轮换批次完成: updated={}, remaining={}, batchSize={}, currentKeyId={}",
+        int updated = imMessageRepository.rotateEncryptedKeyBatch(batchSize)
+                + momentsPostRepository.rotateEncryptedKeyBatch(batchSize)
+                + momentsCommentRepository.rotateEncryptedKeyBatch(batchSize);
+        long remaining = imMessageRepository.countPendingKeyRotation()
+                + momentsPostRepository.countPendingKeyRotation()
+                + momentsCommentRepository.countPendingKeyRotation();
+        log.info("内容密钥轮换批次完成: updated={}, remaining={}, batchSize={}, currentKeyId={}",
                 updated, remaining, batchSize, messageKekProvider.currentKeyId());
         return new RotationResult(updated, remaining, pendingBefore);
     }

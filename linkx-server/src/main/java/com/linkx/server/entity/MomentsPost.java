@@ -33,7 +33,11 @@ public class MomentsPost implements Serializable {
 
     private String content;
 
+    private Byte contentEncVersion;
+
     private String location;
+
+    private Byte locationEncVersion;
 
     private String atUsers;
 

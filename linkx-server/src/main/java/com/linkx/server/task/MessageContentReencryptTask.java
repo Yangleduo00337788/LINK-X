@@ -6,6 +6,8 @@ package com.linkx.server.task;
  */
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.repository.ImMessageRepository;
+import com.linkx.server.repository.MomentsCommentRepository;
+import com.linkx.server.repository.MomentsPostRepository;
 import com.linkx.server.security.crypto.MessageContentCipher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +22,8 @@ import org.springframework.stereotype.Component;
 public class MessageContentReencryptTask {
 
     private final ImMessageRepository imMessageRepository;
+    private final MomentsPostRepository momentsPostRepository;
+    private final MomentsCommentRepository momentsCommentRepository;
     private final MessageContentCipher messageContentCipher;
     private final LinkxProperties linkxProperties;
 
@@ -29,14 +33,20 @@ public class MessageContentReencryptTask {
             return ReencryptResult.skipped();
         }
         int batchSize = linkxProperties.getMessageEncryption().getReencryptBatchSize();
-        long pendingBefore = imMessageRepository.countPendingReencrypt();
+        long pendingBefore = imMessageRepository.countPendingReencrypt()
+                + momentsPostRepository.countPendingReencrypt()
+                + momentsCommentRepository.countPendingReencrypt();
         if (pendingBefore == 0) {
-            log.debug("无待重加密消息，跳过");
+            log.debug("无待重加密消息/朋友圈内容，跳过");
             return new ReencryptResult(0, 0, 0);
         }
-        int updated = imMessageRepository.reencryptPlaintextBatch(batchSize);
-        long remaining = imMessageRepository.countPendingReencrypt();
-        log.info("消息历史重加密批次完成: updated={}, remaining={}, batchSize={}", updated, remaining, batchSize);
+        int updated = imMessageRepository.reencryptPlaintextBatch(batchSize)
+                + momentsPostRepository.reencryptPlaintextBatch(batchSize)
+                + momentsCommentRepository.reencryptPlaintextBatch(batchSize);
+        long remaining = imMessageRepository.countPendingReencrypt()
+                + momentsPostRepository.countPendingReencrypt()
+                + momentsCommentRepository.countPendingReencrypt();
+        log.info("内容历史重加密批次完成: updated={}, remaining={}, batchSize={}", updated, remaining, batchSize);
         return new ReencryptResult(updated, remaining, pendingBefore);
     }
 

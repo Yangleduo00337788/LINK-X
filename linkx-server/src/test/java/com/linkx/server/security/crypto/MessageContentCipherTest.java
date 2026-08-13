@@ -5,6 +5,8 @@ package com.linkx.server.security.crypto;
  * 作者：yangleduo
  */
 import com.linkx.server.entity.ImMessage;
+import com.linkx.server.entity.MomentsComment;
+import com.linkx.server.entity.MomentsPost;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -81,6 +83,28 @@ class MessageContentCipherTest {
                 .build();
         rotationCipher.decryptMessageFields(message);
         assertEquals("rotate-me", message.getContent());
+    }
+
+    @Test
+    void momentsPostAndComment_roundTrip() {
+        MessageContentCipher cipher = new MessageContentCipher(MessageEncryptionTestSupport.activeOnlyProvider());
+
+        MomentsPost post = MomentsPost.builder()
+                .content("朋友圈正文")
+                .location("北京")
+                .build();
+        cipher.encryptMomentsPostFields(post);
+        assertTrue(post.getContent().startsWith(MessageContentCipher.PREFIX + "default:"));
+        cipher.decryptMomentsPostFields(post);
+        assertEquals("朋友圈正文", post.getContent());
+        assertEquals("北京", post.getLocation());
+
+        MomentsComment comment = MomentsComment.builder()
+                .content("评论内容")
+                .build();
+        cipher.encryptMomentsCommentFields(comment);
+        cipher.decryptMomentsCommentFields(comment);
+        assertEquals("评论内容", comment.getContent());
     }
 
     private static MessageKekProvider legacyDefaultProvider() {

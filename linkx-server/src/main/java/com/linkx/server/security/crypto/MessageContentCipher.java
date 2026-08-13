@@ -5,13 +5,17 @@ package com.linkx.server.security.crypto;
  * 作者：yangleduo
  */
 import com.linkx.server.entity.ImMessage;
+import com.linkx.server.entity.MomentsComment;
+import com.linkx.server.entity.MomentsPost;
 import com.linkx.server.util.ApiEncryptUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.util.function.Consumer;
+
 /**
- * IM 消息 {@code content} / {@code quote_content} 落库加解密。
+ * IM 消息与朋友圈文本字段落库加解密。
  * <p>
  * 密文格式：{@code lxenc:v1:{keyId}:{base64(iv+ciphertext+tag)}}
  * </p>
@@ -70,6 +74,59 @@ public class MessageContentCipher {
         for (ImMessage message : messages) {
             decryptMessageFields(message);
         }
+    }
+
+    public void encryptMomentsPostFields(MomentsPost post) {
+        if (!isEnabled() || post == null) {
+            return;
+        }
+        encryptTextField(post.getContent(), post::setContent, post.getContentEncVersion(), post::setContentEncVersion);
+        encryptTextField(post.getLocation(), post::setLocation, post.getLocationEncVersion(), post::setLocationEncVersion);
+    }
+
+    public void decryptMomentsPostFields(MomentsPost post) {
+        if (post == null) {
+            return;
+        }
+        decryptTextField(post.getContent(), post.getContentEncVersion(), post::setContent);
+        decryptTextField(post.getLocation(), post.getLocationEncVersion(), post::setLocation);
+    }
+
+    public void decryptMomentsPostFields(Iterable<MomentsPost> posts) {
+        if (posts == null) {
+            return;
+        }
+        for (MomentsPost post : posts) {
+            decryptMomentsPostFields(post);
+        }
+    }
+
+    public void encryptMomentsCommentFields(MomentsComment comment) {
+        if (!isEnabled() || comment == null) {
+            return;
+        }
+        encryptTextField(comment.getContent(), comment::setContent,
+                comment.getContentEncVersion(), comment::setContentEncVersion);
+    }
+
+    public void decryptMomentsCommentFields(MomentsComment comment) {
+        if (comment == null) {
+            return;
+        }
+        decryptTextField(comment.getContent(), comment.getContentEncVersion(), comment::setContent);
+    }
+
+    public void decryptMomentsCommentFields(Iterable<MomentsComment> comments) {
+        if (comments == null) {
+            return;
+        }
+        for (MomentsComment comment : comments) {
+            decryptMomentsCommentFields(comment);
+        }
+    }
+
+    public boolean needsLocationReencrypt(String stored, Byte version) {
+        return needsContentReencrypt(stored, version);
     }
 
     public boolean isEncryptedContent(String stored, Byte version) {
@@ -161,6 +218,22 @@ public class MessageContentCipher {
             throw new IllegalStateException("invalid encrypted message format");
         }
         return stored.substring(thirdColon + 1);
+    }
+
+    private void encryptTextField(String value, Consumer<String> valueSetter,
+                                  Byte version, Consumer<Byte> versionSetter) {
+        if (shouldEncryptValue(value)) {
+            valueSetter.accept(encryptPlaintext(value));
+            versionSetter.accept(ENC_VERSION);
+        } else if (value == null) {
+            versionSetter.accept((byte) 0);
+        }
+    }
+
+    private void decryptTextField(String value, Byte version, Consumer<String> valueSetter) {
+        if (isEncryptedContent(value, version)) {
+            valueSetter.accept(decryptCiphertext(value));
+        }
     }
 
     private static boolean shouldEncryptValue(String value) {

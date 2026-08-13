@@ -6,6 +6,7 @@ package com.linkx.server.service.impl;
  */
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.controller.dto.CommentMomentsDTO;
 import com.linkx.server.controller.dto.PublishMomentsDTO;
 import com.linkx.server.controller.dto.UpdateMomentsDTO;
@@ -15,6 +16,9 @@ import com.linkx.server.entity.*;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.mapper.*;
+import com.linkx.server.repository.MomentsCommentRepository;
+import com.linkx.server.repository.MomentsPostRepository;
+import com.linkx.server.security.crypto.MessageContentCipher;
 import com.linkx.server.service.ExternalMediaProxyService;
 import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.MediaUrlService;
@@ -46,9 +50,11 @@ public class MomentsServiceImpl implements MomentsService {
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     private final MomentsPostMapper postMapper;
+    private final MomentsPostRepository postRepository;
     private final MomentsImageMapper imageMapper;
     private final MomentsLikeMapper likeMapper;
     private final MomentsCommentMapper commentMapper;
+    private final MomentsCommentRepository commentRepository;
     private final SysUserMapper userMapper;
     private final SysUserRelationMapper sysUserRelationMapper;
     private final FileStorageService fileStorageService;
@@ -61,6 +67,8 @@ public class MomentsServiceImpl implements MomentsService {
     private final ObjectMapper objectMapper;
     private final SensitiveWordService sensitiveWordService;
     private final ObjectProvider<AdminReviewService> adminReviewService;
+    private final MessageContentCipher messageContentCipher;
+    private final LinkxProperties linkxProperties;
 
     @Override
     @Transactional
@@ -98,7 +106,7 @@ public class MomentsServiceImpl implements MomentsService {
                 .atUsers(atUsersJson)
                 .visibility(visibility)
                 .build();
-        postMapper.insert(post);
+        postRepository.insert(post);
         enqueueSensitiveAfterPersist(userId, SysReviewTask.TARGET_MOMENT, String.valueOf(post.getId()), hit);
 
         List<MomentsImage> savedImages = new ArrayList<>();
@@ -166,7 +174,7 @@ public class MomentsServiceImpl implements MomentsService {
     @Override
     @Transactional
     public MomentsPostVO update(Long userId, Long postId, UpdateMomentsDTO dto) {
-        MomentsPost post = postMapper.selectOneByQuery(
+        MomentsPost post = postRepository.selectOneByQuery(
                 QueryWrapper.create().eq("id", postId).eq("deleted", 0)
         );
         if (post == null) {
@@ -200,7 +208,7 @@ public class MomentsServiceImpl implements MomentsService {
             List<Long> atUserIds = sanitizeMentions(dto.getAtUsers(), userId);
             post.setAtUsers(atUserIds.isEmpty() ? null : toJsonString(atUserIds));
         }
-        postMapper.update(post);
+        postRepository.update(post);
 
         List<MomentsImage> savedImages;
         if (touchImages) {
@@ -229,7 +237,7 @@ public class MomentsServiceImpl implements MomentsService {
         List<MomentsLike> likes = likeMapper.selectListByQuery(
                 QueryWrapper.create().eq("post_id", postId)
         );
-        List<MomentsComment> comments = commentMapper.selectListByQuery(
+        List<MomentsComment> comments = commentRepository.selectListByQuery(
                 QueryWrapper.create().eq("post_id", postId).eq("deleted", 0).orderBy("create_time", true)
         );
         return toPostVO(post, user, savedImages, likes, comments, userId);
@@ -240,6 +248,7 @@ public class MomentsServiceImpl implements MomentsService {
         Set<Long> friendIds = getFriendIds(userId);
         friendIds.add(userId);
         int pageSize = normalizeLimit(limit);
+        boolean searching = q != null && !q.isBlank();
 
         QueryWrapper qw = QueryWrapper.create()
                 .in("user_id", new ArrayList<>(friendIds))
@@ -247,13 +256,14 @@ public class MomentsServiceImpl implements MomentsService {
                 .and("(IFNULL(visibility, 0) <> 2 OR user_id = ?)", userId)
                 .orderBy("create_time", false)
                 .orderBy("id", false)
-                .limit(pageSize);
+                .limit(resolveFetchLimit(pageSize, searching));
         if (beforeId != null) {
             qw.and("id < ?", beforeId);
         }
         applyContentSearch(qw, q);
 
-        return buildPostList(qw, userId, null);
+        List<MomentsPostVO> result = buildPostList(qw, userId, null);
+        return filterSearchResults(result, q, pageSize);
     }
 
     @Override
@@ -276,16 +286,19 @@ public class MomentsServiceImpl implements MomentsService {
         }
         qw.orderBy("create_time", false)
                 .orderBy("id", false)
-                .limit(pageSize);
+                .limit(resolveFetchLimit(pageSize, q != null && !q.isBlank()));
         if (beforeId != null) {
             qw.and("id < ?", beforeId);
         }
         applyContentSearch(qw, q);
 
         SysUser targetUser = userMapper.selectOneById(targetUserId);
-        List<MomentsPost> posts = postMapper.selectListByQuery(qw);
+        List<MomentsPost> posts = postRepository.selectListByQuery(qw);
         if (posts.isEmpty()) {
             return Collections.emptyList();
+        }
+        if (q != null && !q.isBlank() && messageContentCipher.isEnabled()) {
+            posts = filterPostsByKeyword(posts, q, pageSize);
         }
         Map<Long, List<MomentsImage>> imagesMap = loadImages(posts);
         Map<Long, List<MomentsLike>> likesMap = loadLikes(posts);
@@ -313,7 +326,7 @@ public class MomentsServiceImpl implements MomentsService {
     }
 
     private void applyContentSearch(QueryWrapper qw, String q) {
-        if (q == null || q.isBlank()) {
+        if (q == null || q.isBlank() || messageContentCipher.isEnabled()) {
             return;
         }
         String keyword = q.trim();
@@ -323,8 +336,41 @@ public class MomentsServiceImpl implements MomentsService {
         qw.and("content LIKE ?", "%" + escapeLike(keyword) + "%");
     }
 
+    private int resolveFetchLimit(int pageSize, boolean searching) {
+        if (searching && messageContentCipher.isEnabled()) {
+            return linkxProperties.getMessageEncryption().getSearchScanLimit();
+        }
+        return pageSize;
+    }
+
+    private List<MomentsPostVO> filterSearchResults(List<MomentsPostVO> posts, String q, int pageSize) {
+        if (q == null || q.isBlank() || !messageContentCipher.isEnabled()) {
+            return posts;
+        }
+        String keyword = q.trim().toLowerCase();
+        return posts.stream()
+                .filter(vo -> matchesMomentsKeyword(vo.getContent(), vo.getLocation(), keyword))
+                .limit(pageSize)
+                .toList();
+    }
+
+    private List<MomentsPost> filterPostsByKeyword(List<MomentsPost> posts, String q, int pageSize) {
+        String keyword = q.trim().toLowerCase();
+        return posts.stream()
+                .filter(post -> matchesMomentsKeyword(post.getContent(), post.getLocation(), keyword))
+                .limit(pageSize)
+                .toList();
+    }
+
+    private static boolean matchesMomentsKeyword(String content, String location, String keyword) {
+        if (content != null && content.toLowerCase().contains(keyword)) {
+            return true;
+        }
+        return location != null && location.toLowerCase().contains(keyword);
+    }
+
     private List<MomentsPostVO> buildPostList(QueryWrapper qw, Long userId, SysUser fixedAuthor) {
-        List<MomentsPost> posts = postMapper.selectListByQuery(qw);
+        List<MomentsPost> posts = postRepository.selectListByQuery(qw);
         if (posts.isEmpty()) {
             return Collections.emptyList();
         }
@@ -375,7 +421,7 @@ public class MomentsServiceImpl implements MomentsService {
 
     /** 点赞/评论前校验：动态须存在且当前用户可见 */
     private MomentsPost assertCanInteract(Long userId, Long postId) {
-        MomentsPost post = postMapper.selectOneByQuery(
+        MomentsPost post = postRepository.selectOneByQuery(
                 QueryWrapper.create()
                         .eq("id", postId)
                         .eq("deleted", 0)
@@ -474,7 +520,7 @@ public class MomentsServiceImpl implements MomentsService {
 
         // 引用父评论时校验 parentId 属于同一动态，防止跨动态越权读取父评论
         if (dto.getParentId() != null) {
-            MomentsComment parent = commentMapper.selectOneById(dto.getParentId());
+            MomentsComment parent = commentRepository.selectOneById(dto.getParentId());
             if (parent == null) {
                 throw new CustomException(404, "引用的父评论不存在");
             }
@@ -494,7 +540,7 @@ public class MomentsServiceImpl implements MomentsService {
                 .parentId(dto.getParentId())
                 .mentions(mentionJson)
                 .build();
-        commentMapper.insert(comment);
+        commentRepository.insert(comment);
         enqueueSensitiveAfterPersist(
                 userId, SysReviewTask.TARGET_MOMENT_COMMENT, String.valueOf(comment.getId()), commentHit);
 
@@ -545,7 +591,7 @@ public class MomentsServiceImpl implements MomentsService {
     @Override
     @Transactional
     public void deleteComment(Long userId, Long commentId) {
-        MomentsComment comment = commentMapper.selectOneById(commentId);
+        MomentsComment comment = commentRepository.selectOneById(commentId);
         if (comment == null) {
             throw new CustomException(404, "评论不存在");
         }
@@ -564,7 +610,7 @@ public class MomentsServiceImpl implements MomentsService {
     @Override
     @Transactional
     public void adminDeleteComment(Long commentId) {
-        MomentsComment comment = commentMapper.selectOneById(commentId);
+        MomentsComment comment = commentRepository.selectOneById(commentId);
         if (comment == null) {
             throw new CustomException(404, "评论不存在");
         }
@@ -574,7 +620,7 @@ public class MomentsServiceImpl implements MomentsService {
     @Override
     @Transactional
     public void delete(Long userId, Long postId) {
-        MomentsPost post = postMapper.selectOneByQuery(
+        MomentsPost post = postRepository.selectOneByQuery(
                 QueryWrapper.create()
                         .eq("id", postId)
                         .eq("deleted", 0)
@@ -591,7 +637,7 @@ public class MomentsServiceImpl implements MomentsService {
     @Override
     @Transactional
     public void adminDeletePost(Long postId) {
-        MomentsPost post = postMapper.selectOneByQuery(
+        MomentsPost post = postRepository.selectOneByQuery(
                 QueryWrapper.create().eq("id", postId).eq("deleted", 0)
         );
         if (post == null) {
@@ -684,7 +730,7 @@ public class MomentsServiceImpl implements MomentsService {
 
     private Map<Long, List<MomentsComment>> loadComments(List<MomentsPost> posts) {
         List<Long> postIds = posts.stream().map(MomentsPost::getId).collect(Collectors.toList());
-        List<MomentsComment> comments = commentMapper.selectListByQuery(
+        List<MomentsComment> comments = commentRepository.selectListByQuery(
                 QueryWrapper.create().in("post_id", postIds).orderBy("create_time", true)
         );
         return comments.stream().collect(Collectors.groupingBy(MomentsComment::getPostId));
@@ -725,7 +771,7 @@ public class MomentsServiceImpl implements MomentsService {
                 .map(MomentsComment::getParentId)
                 .collect(Collectors.toSet());
         Map<Long, MomentsComment> parentCommentMap = parentIds.isEmpty() ? Collections.emptyMap() :
-                commentMapper.selectListByQuery(
+                commentRepository.selectListByQuery(
                         QueryWrapper.create().in("id", new ArrayList<>(parentIds))
                 ).stream().collect(Collectors.toMap(MomentsComment::getId, c -> c));
         parentCommentMap.values().forEach(p -> involvedUserIds.add(p.getUserId()));
@@ -806,7 +852,7 @@ public class MomentsServiceImpl implements MomentsService {
         String replyToNickname = null;
         if (comment.getParentId() != null) {
             MomentsComment parent = parentCache.isEmpty()
-                    ? commentMapper.selectOneById(comment.getParentId())
+                    ? commentRepository.selectOneById(comment.getParentId())
                     : parentCache.get(comment.getParentId());
             if (parent != null) {
                 SysUser parentUser = userCache.isEmpty()

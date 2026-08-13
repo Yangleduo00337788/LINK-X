@@ -458,7 +458,7 @@ IM 消息在写入 MySQL 前由服务端使用 **AES-256-GCM** 加密，读取�
 
 | 说明 | 内容 |
 |------|------|
-| 加密范围 | `im_message.content`、`im_message.quote_content` |
+| 加密范围 | `im_message.content`、`im_message.quote_content`；`moments_post.content`、`moments_post.location`；`moments_comment.content` |
 | 默认状态 | **关闭**（`MESSAGE_CONTENT_ENCRYPT_ENABLED=false`），现有部署无需改动即可升级 |
 | 客户端改动 | **无需**；仍依赖 HTTPS / WSS 传输，落库加密对客户端透明 |
 | 非 E2EE | 服务端持有密钥，**不是**端到端加密；丢失 KEK 将导致历史密文无法恢复 |
