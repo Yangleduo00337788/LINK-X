@@ -93,6 +93,7 @@ public class ChatController {
     /** 鉴权中转下载聊天附件（会话成员） */
     @Operation(summary = "下载聊天附件")
     @GetMapping("/messages/{messageId}/file")
+    @RateLimit(scope = "chat:file-download", value = 30, window = 60)
     public ResponseEntity<InputStreamResource> downloadMessageFile(
             @PathVariable String messageId,
             HttpServletRequest request) {
@@ -106,6 +107,7 @@ public class ChatController {
     /** 重新签发消息媒体预签名 URL（过期自愈） */
     @Operation(summary = "刷新消息媒体 URL")
     @GetMapping("/messages/{messageId}/media-url")
+    @RateLimit(scope = "chat:media-url", value = 60, window = 60)
     public Result<java.util.Map<String, String>> refreshMessageMediaUrl(
             @PathVariable String messageId,
             HttpServletRequest request) {

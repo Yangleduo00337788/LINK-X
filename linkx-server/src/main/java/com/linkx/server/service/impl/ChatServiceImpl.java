@@ -6,7 +6,7 @@ package com.linkx.server.service.impl;
  */
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.config.metrics.LinkxMetrics;
-import com.linkx.server.common.ImageUploadValidator;
+import com.linkx.server.common.ChatUploadValidator;
 import com.linkx.server.common.InputSanitizer;
 import com.linkx.server.controller.dto.SendMessageDTO;
 import com.linkx.server.controller.vo.ChatFileUploadVO;
@@ -697,10 +697,7 @@ public class ChatServiceImpl implements ChatService {
     public ChatFileUploadVO uploadChatFile(Long userId, Long conversationId, MultipartFile file) {
         assertConversationMember(userId, conversationId);
         try {
-            String contentType = file.getContentType();
-            if (contentType != null && contentType.startsWith("image/")) {
-                ImageUploadValidator.assertSupportedImage(file);
-            }
+            ChatUploadValidator.assertBeforeUpload(file);
             String objectKey = fileStorageService.uploadFile(file, null);
             objectKeyOwnershipService.claim(userId, objectKey);
             String signedUrl = mediaUrlService.resolveFile(objectKey);
@@ -2106,16 +2103,22 @@ public class ChatServiceImpl implements ChatService {
         assertMultipartInitiator(userId, conversationId, uploadId);
         try {
             String finalKey = fileStorageService.completeMultipartUpload(objectName, uploadId, parts);
+            String name = fileName;
+            if (name == null || name.isBlank()) {
+                name = objectName.contains("/") ? objectName.substring(objectName.lastIndexOf('/') + 1) : objectName;
+            }
+            try {
+                ChatUploadValidator.assertComposedObject(fileStorageService, finalKey, name, contentType);
+            } catch (IllegalArgumentException e) {
+                fileStorageService.deleteFileAsync(finalKey);
+                throw e;
+            }
             objectKeyOwnershipService.claim(userId, finalKey);
             clearMultipartInitiator(uploadId);
             if (contentHash != null && contentHash.matches("(?i)^[a-f0-9]{64}$")) {
                 fileStorageService.saveContentHash(contentHash, finalKey);
             }
             String signedUrl = mediaUrlService.resolveFile(finalKey);
-            String name = fileName;
-            if (name == null || name.isBlank()) {
-                name = objectName.contains("/") ? objectName.substring(objectName.lastIndexOf('/') + 1) : objectName;
-            }
             return ChatFileUploadVO.builder()
                     .url(signedUrl)
                     .fileKey(finalKey)

@@ -120,7 +120,7 @@ ENV_ENTRIES: list[tuple[str | None, str, list[str], str, str]] = [
     (None, "MINIO_BUCKET_NAME", ["桶名"], "linkx", "linkx"),
     (None, "MINIO_MAX_FILE_SIZE", ["单文件字节上限；对应 yml：linkx.minio.max-file-size"], "104857600", "5242880"),
     (None, "MINIO_PRESIGN_AVATAR_SECONDS", ["头像预签名秒数"], "7200", "7200"),
-    (None, "MINIO_PRESIGN_FILE_SECONDS", ["文件预签名秒数"], "3600", "1800"),
+    (None, "MINIO_PRESIGN_FILE_SECONDS", ["文件预签名秒数"], "1800", "900"),
     (None, "MINIO_PRESIGN_SHARE_SECONDS", ["分享预签名秒数"], "600", "300"),
 
     ("对象存储切换", "STORAGE_PROVIDER", ["当前提供商 minio|oss|local；管理端可热切换"], "minio", "minio"),

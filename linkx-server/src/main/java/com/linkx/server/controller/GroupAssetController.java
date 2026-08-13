@@ -82,6 +82,7 @@ public class GroupAssetController {
     /** 鉴权中转下载群文件/相册（群成员） */
     @Operation(summary = "下载群资源内容")
     @GetMapping("/{assetId}/content")
+    @RateLimit(scope = "group:asset-content", value = 60, window = 60)
     public ResponseEntity<InputStreamResource> downloadContent(
             @PathVariable String conversationId,
             @PathVariable String assetId,

@@ -109,108 +109,99 @@ public final class FileExtensionValidator {
     public static boolean hasSafeContentSignature(MultipartFile file) {
         try (InputStream input = file.getInputStream()) {
             byte[] header = input.readNBytes(16);
-            if (header.length < 2) {
-                return true;
-            }
-
-            String ext = extOf(file.getOriginalFilename()).toLowerCase(Locale.ROOT);
-
-            // 文本类无稳定文件头：扩展名已在白名单内时放行，仅拦截可执行伪装
-            if (TEXT_LIKE_EXTENSIONS.contains(ext)) {
-                return !hasExecutableSignature(header);
-            }
-
-            // PNG
-            if (header[0] == (byte) 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47) {
-                return true;
-            }
-            // JPEG
-            if (header[0] == (byte) 0xFF && header[1] == (byte) 0xD8) {
-                return true;
-            }
-            // GIF
-            if (header[0] == 0x47 && header[1] == 0x49 && header[2] == 0x46) {
-                return true;
-            }
-            // BMP
-            if (header[0] == 0x42 && header[1] == 0x4D) {
-                return true;
-            }
-            // WebP
-            if (header.length >= 12
-                    && header[0] == 0x52 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x46
-                    && header[8] == 0x57 && header[9] == 0x45 && header[10] == 0x42 && header[11] == 0x50) {
-                return true;
-            }
-            // ZIP / Office OOXML / APK (PK header)
-            if (header[0] == 0x50 && header[1] == 0x4B) {
-                return true;
-            }
-            // 旧版 Office（doc/xls/ppt）OLE Compound File
-            if (header.length >= 8
-                    && (header[0] & 0xFF) == 0xD0 && (header[1] & 0xFF) == 0xCF
-                    && (header[2] & 0xFF) == 0x11 && (header[3] & 0xFF) == 0xE0) {
-                return true;
-            }
-            // PDF
-            if (header.length >= 4 && header[0] == 0x25 && header[1] == 0x50 && header[2] == 0x44 && header[3] == 0x46) {
-                return true;
-            }
-            // 7z
-            if (header.length >= 6 && header[0] == 0x37 && header[1] == 0x7A && header[2] == (byte) 0xBC && header[3] == (byte) 0xAF && header[4] == 0x27 && header[5] == 0x1C) {
-                return true;
-            }
-            // RAR
-            if (header.length >= 4
-                    && header[0] == 0x52 && header[1] == 0x61 && header[2] == 0x72 && header[3] == 0x21) {
-                return true;
-            }
-            // GZIP
-            if (header[0] == (byte) 0x1F && header[1] == (byte) 0x8B) {
-                return true;
-            }
-            // MP4 / M4A / MOV (ftyp box)
-            if (header.length >= 8 && header[4] == 0x66 && header[5] == 0x74 && header[6] == 0x79 && header[7] == 0x70) {
-                return true;
-            }
-            // FLAC
-            if (header.length >= 4 && header[0] == 0x66 && header[1] == 0x4C && header[2] == 0x61 && header[3] == 0x43) {
-                return true;
-            }
-            // WebM / Matroska（EBML）— 浏览器语音消息常用
-            if (header.length >= 4
-                    && header[0] == 0x1A && header[1] == 0x45
-                    && header[2] == (byte) 0xDF && header[3] == (byte) 0xA3) {
-                return true;
-            }
-            // Ogg（含 Opus）
-            if (header.length >= 4
-                    && header[0] == 0x4F && header[1] == 0x67
-                    && header[2] == 0x67 && header[3] == 0x53) {
-                return true;
-            }
-            // WAV（RIFF....WAVE）
-            if (header.length >= 12
-                    && header[0] == 0x52 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x46
-                    && header[8] == 0x57 && header[9] == 0x41 && header[10] == 0x56 && header[11] == 0x45) {
-                return true;
-            }
-            // MP3：ID3 标签或帧同步
-            if (header.length >= 3
-                    && header[0] == 0x49 && header[1] == 0x44 && header[2] == 0x33) {
-                return true;
-            }
-            if (header.length >= 2
-                    && (header[0] & 0xFF) == 0xFF
-                    && (header[1] & 0xE0) == 0xE0) {
-                return true;
-            }
-
-            // 未知签名默认 return false（fail-safe）：避免伪装扩展名的可执行/脚本文件绕过校验
-            return false;
+            return matchesSafeContentSignature(header, file.getOriginalFilename());
         } catch (IOException e) {
             return false;
         }
+    }
+
+    /** 分片合并后对已落盘对象做文件头校验 */
+    public static void assertHeaderSafe(byte[] header, String originalFilename) {
+        if (!matchesSafeContentSignature(header, originalFilename)) {
+            throw new IllegalArgumentException("文件内容与扩展名不匹配");
+        }
+    }
+
+    private static boolean matchesSafeContentSignature(byte[] header, String originalFilename) {
+        if (header == null || header.length < 2) {
+            return true;
+        }
+
+        String ext = extOf(originalFilename).toLowerCase(Locale.ROOT);
+
+        if (TEXT_LIKE_EXTENSIONS.contains(ext)) {
+            return !hasExecutableSignature(header);
+        }
+
+        if (header[0] == (byte) 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47) {
+            return true;
+        }
+        if (header[0] == (byte) 0xFF && header[1] == (byte) 0xD8) {
+            return true;
+        }
+        if (header[0] == 0x47 && header[1] == 0x49 && header[2] == 0x46) {
+            return true;
+        }
+        if (header[0] == 0x42 && header[1] == 0x4D) {
+            return true;
+        }
+        if (header.length >= 12
+                && header[0] == 0x52 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x46
+                && header[8] == 0x57 && header[9] == 0x45 && header[10] == 0x42 && header[11] == 0x50) {
+            return true;
+        }
+        if (header[0] == 0x50 && header[1] == 0x4B) {
+            return true;
+        }
+        if (header.length >= 8
+                && (header[0] & 0xFF) == 0xD0 && (header[1] & 0xFF) == 0xCF
+                && (header[2] & 0xFF) == 0x11 && (header[3] & 0xFF) == 0xE0) {
+            return true;
+        }
+        if (header.length >= 4 && header[0] == 0x25 && header[1] == 0x50 && header[2] == 0x44 && header[3] == 0x46) {
+            return true;
+        }
+        if (header.length >= 6 && header[0] == 0x37 && header[1] == 0x7A && header[2] == (byte) 0xBC && header[3] == (byte) 0xAF && header[4] == 0x27 && header[5] == 0x1C) {
+            return true;
+        }
+        if (header.length >= 4
+                && header[0] == 0x52 && header[1] == 0x61 && header[2] == 0x72 && header[3] == 0x21) {
+            return true;
+        }
+        if (header[0] == (byte) 0x1F && header[1] == (byte) 0x8B) {
+            return true;
+        }
+        if (header.length >= 8 && header[4] == 0x66 && header[5] == 0x74 && header[6] == 0x79 && header[7] == 0x70) {
+            return true;
+        }
+        if (header.length >= 4 && header[0] == 0x66 && header[1] == 0x4C && header[2] == 0x61 && header[3] == 0x43) {
+            return true;
+        }
+        if (header.length >= 4
+                && header[0] == 0x1A && header[1] == 0x45
+                && header[2] == (byte) 0xDF && header[3] == (byte) 0xA3) {
+            return true;
+        }
+        if (header.length >= 4
+                && header[0] == 0x4F && header[1] == 0x67
+                && header[2] == 0x67 && header[3] == 0x53) {
+            return true;
+        }
+        if (header.length >= 12
+                && header[0] == 0x52 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x46
+                && header[8] == 0x57 && header[9] == 0x41 && header[10] == 0x56 && header[11] == 0x45) {
+            return true;
+        }
+        if (header.length >= 3
+                && header[0] == 0x49 && header[1] == 0x44 && header[2] == 0x33) {
+            return true;
+        }
+        if (header.length >= 2
+                && (header[0] & 0xFF) == 0xFF
+                && (header[1] & 0xE0) == 0xE0) {
+            return true;
+        }
+        return false;
     }
 
     /** PE/ELF 等可执行文件头，用于文本类扩展名的伪装拦截 */

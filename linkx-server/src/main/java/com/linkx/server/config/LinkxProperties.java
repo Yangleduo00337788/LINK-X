@@ -125,8 +125,8 @@ public class LinkxProperties {
     public static class PresignExpiry {
         /** 头像 / 封面 / 友链配图，默认 24 小时 */
         private int avatarSeconds = 24 * 3600;
-        /** 聊天/群/网盘业务文件，默认 1 小时 */
-        private int fileSeconds = 3600;
+        /** 聊天/群/网盘业务文件，默认 30 分钟（展示用预签名；下载建议走鉴权中转） */
+        private int fileSeconds = 1800;
         /** 外部分享下载，默认 10 分钟 */
         private int shareSeconds = 600;
     }
