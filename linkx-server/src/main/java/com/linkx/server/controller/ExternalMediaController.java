@@ -17,10 +17,12 @@ import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.mapper.admin.SysBannerMapper;
 import com.linkx.server.mapper.admin.SysOpsActivityMapper;
 import com.linkx.server.mapper.admin.SysOpsRecommendMapper;
+import com.linkx.server.entity.UserPreference;
 import com.linkx.server.service.ExternalMediaProxyService;
 import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.StoredMediaProxyService;
+import com.linkx.server.service.UserPreferenceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -52,6 +54,7 @@ public class ExternalMediaController {
     private final FileStorageService fileStorageService;
     private final MediaUrlService mediaUrlService;
     private final StoredMediaProxyService storedMediaProxyService;
+    private final UserPreferenceService userPreferenceService;
 
     @GetMapping("/external")
     @RateLimit(scope = "media:external", value = 120, window = 60, byUser = false)
@@ -117,6 +120,17 @@ public class ExternalMediaController {
             }
             return ResponseEntity.notFound().build();
         }
+    }
+
+    @Operation(summary = "朋友圈背景图（同源流，供 img 标签加载）")
+    @GetMapping("/moments-background/{userId}")
+    @RateLimit(scope = "media:moments-background", value = 180, window = 60, byUser = false)
+    public ResponseEntity<?> momentsBackground(@PathVariable Long userId) {
+        UserPreference pref = userPreferenceService.getOrDefault(userId);
+        if (pref == null || !StringUtils.hasText(pref.getMomentsBackground())) {
+            return ResponseEntity.notFound().build();
+        }
+        return streamStoredImage(pref.getMomentsBackground().trim(), "moments-background");
     }
 
     @Operation(summary = "运营 Banner 图片（同源流，供 img 标签加载）")

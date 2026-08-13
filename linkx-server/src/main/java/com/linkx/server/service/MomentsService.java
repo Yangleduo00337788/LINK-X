@@ -79,4 +79,9 @@ public interface MomentsService {
      * @return MinIO 对象 key（发布时写入 moments_image.url；展示时再签发预签名 URL）
      */
     String uploadImage(Long userId, org.springframework.web.multipart.MultipartFile file);
+
+    /** 鉴权读取朋友圈图片内容（群成员/可见性校验） */
+    com.linkx.server.service.FileStorageService.StoredObject openImageContent(Long userId, Long imageId);
+
+    String getImageFileName(Long userId, Long imageId);
 }

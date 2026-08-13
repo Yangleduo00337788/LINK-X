@@ -57,6 +57,29 @@ public class MediaUrlService {
         return resolveAvatar(keyOrUrl);
     }
 
+    /**
+     * 朋友圈背景：优先走同源代理 {@code /media/moments-background/{userId}}，避免 Electron CSP 拦截预签名外链。
+     */
+    public String resolveMomentsBackground(Long userId, String keyOrUrl) {
+        if (!StringUtils.hasText(keyOrUrl)) {
+            return null;
+        }
+        String value = keyOrUrl.trim();
+        if (value.startsWith("data:") || value.startsWith("blob:")) {
+            return value;
+        }
+        if (isExternalHttpUrl(value)) {
+            return value;
+        }
+        if (value.startsWith("/media/moments-background/")) {
+            return value;
+        }
+        if (userId != null && userId > 0) {
+            return "/media/moments-background/" + userId;
+        }
+        return resolveAvatar(keyOrUrl);
+    }
+
     /** 聊天附件、群文件、网盘文件等业务文件 */
     public String resolveFile(String keyOrUrl) {
         return resolve(keyOrUrl, linkxProperties.getMinio().getPresignExpiry().getFileSeconds());

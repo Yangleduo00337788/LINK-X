@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.linkx.server.common.AuthUtils;
 import com.linkx.server.common.JwtUtils;
+import com.linkx.server.common.MediaStreamResponses;
 import com.linkx.server.common.RateLimit;
 import com.linkx.server.common.Result;
 import com.linkx.server.controller.dto.CommentMomentsDTO;
@@ -22,6 +23,8 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -161,5 +164,18 @@ public class MomentsController {
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         return Result.success(momentsService.uploadImage(userId, file));
+    }
+
+    @Operation(summary = "鉴权读取朋友圈图片内容")
+    @GetMapping("/images/{imageId}/content")
+    @RateLimit(scope = "moments:image-content", value = 60, window = 60)
+    public ResponseEntity<InputStreamResource> imageContent(
+            @PathVariable String imageId,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        Long id = parseId(imageId);
+        String name = momentsService.getImageFileName(userId, id);
+        var object = momentsService.openImageContent(userId, id);
+        return MediaStreamResponses.download(object, name);
     }
 }

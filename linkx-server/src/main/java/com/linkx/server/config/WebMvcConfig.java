@@ -80,6 +80,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         // 外链 / 头像媒体代理（签名或公开读，供 <img> 无 Authorization 加载）
                         "/media/external",
                         "/media/avatars/**",
+                        "/media/moments-background/**",
                         "/media/banners/**",
                         "/media/recommends/**",
                         "/media/activities/**",

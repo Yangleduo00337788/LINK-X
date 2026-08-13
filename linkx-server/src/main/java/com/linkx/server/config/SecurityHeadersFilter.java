@@ -93,6 +93,7 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         return uri.contains("/media/external")
                 || uri.contains("/media/stored")
                 || uri.contains("/media/avatars/")
+                || uri.contains("/media/moments-background/")
                 || uri.contains("/media/banners/")
                 || uri.contains("/media/recommends/")
                 || uri.contains("/media/activities/");

@@ -33,6 +33,9 @@ public class MomentsPostVO {
 
     private List<String> images;
 
+    /** 与 images 同序；本系统 MinIO 图片 id，外链为 null */
+    private List<Long> imageIds;
+
     private String location;
 
     /** 提醒谁看：用户 ID JSON 字符串 */

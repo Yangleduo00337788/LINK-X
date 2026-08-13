@@ -411,7 +411,7 @@ public class UserController {
                 .language(p.getLanguage())
                 .chatBackground(p.getChatBackground())
                 .notifyTone(p.getNotifyTone())
-                .momentsBackground(mediaUrlService.resolveAvatar(p.getMomentsBackground()))
+                .momentsBackground(mediaUrlService.resolveMomentsBackground(p.getUserId(), p.getMomentsBackground()))
                 .favoritesViewMode(p.getFavoritesViewMode() != null ? p.getFavoritesViewMode() : "grid")
                 .favoritesSort(p.getFavoritesSort() != null ? p.getFavoritesSort() : "newest")
                 .quietHoursEnabled(p.getQuietHoursEnabled() != null ? p.getQuietHoursEnabled() : false)

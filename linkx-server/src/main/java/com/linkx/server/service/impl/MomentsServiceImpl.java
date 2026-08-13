@@ -753,12 +753,19 @@ public class MomentsServiceImpl implements MomentsService {
                                    List<MomentsComment> comments,
                                    Long currentUserId) {
         // 库中存 object key 或外链；MinIO 签发预签名，外链走 HMAC 代理降低追踪面
-        List<String> imageUrls = images.stream()
+        List<MomentsImage> sortedImages = images.stream()
                 .sorted(Comparator.comparingInt(MomentsImage::getSortOrder))
-                .map(img -> resolveMomentsImageUrl(img.getUrl()))
-                .filter(Objects::nonNull)
-                .filter(url -> !url.isBlank())
                 .collect(Collectors.toList());
+        List<String> imageUrls = new ArrayList<>();
+        List<Long> imageIds = new ArrayList<>();
+        for (MomentsImage img : sortedImages) {
+            String url = resolveMomentsImageUrl(img.getUrl());
+            if (url == null || url.isBlank()) {
+                continue;
+            }
+            imageUrls.add(url);
+            imageIds.add(mediaUrlService.isExternalHttpUrl(img.getUrl()) ? null : img.getId());
+        }
 
         boolean liked = likes.stream().anyMatch(l -> l.getUserId().equals(currentUserId));
 
@@ -807,6 +814,7 @@ public class MomentsServiceImpl implements MomentsService {
                 .avatar(user != null ? mediaUrlService.resolveUserAvatar(user.getId(), user.getAvatar()) : null)
                 .content(post.getContent())
                 .images(imageUrls)
+                .imageIds(imageIds)
                 .location(post.getLocation())
                 .atUsers(post.getAtUsers())
                 .atUserNames(atUserNames)
@@ -1009,6 +1017,64 @@ public class MomentsServiceImpl implements MomentsService {
         } catch (RuntimeException e) {
             throw new CustomException(500, "媒体上传失败");
         }
+    }
+
+    @Override
+    public FileStorageService.StoredObject openImageContent(Long userId, Long imageId) {
+        MomentsImage image = imageMapper.selectOneById(imageId);
+        if (image == null) {
+            throw new CustomException(404, "图片不存在");
+        }
+        MomentsPost post = postRepository.selectOneByQuery(
+                QueryWrapper.create()
+                        .eq("id", image.getPostId())
+                        .eq("deleted", 0)
+        );
+        if (post == null) {
+            throw new CustomException(404, "动态不存在");
+        }
+        if (!canViewPost(post, userId)) {
+            throw new CustomException(403, "无权查看该动态");
+        }
+        String stored = image.getUrl();
+        if (stored == null || stored.isBlank()) {
+            throw new CustomException(400, "无效的媒体引用");
+        }
+        if (mediaUrlService.isExternalHttpUrl(stored)) {
+            throw new CustomException(400, "外链图片请使用原始地址");
+        }
+        String key = fileStorageService.extractObjectKey(stored);
+        if (key == null || key.isBlank()) {
+            throw new CustomException(400, "无效的媒体引用");
+        }
+        return fileStorageService.openObject(key);
+    }
+
+    @Override
+    public String getImageFileName(Long userId, Long imageId) {
+        MomentsImage image = imageMapper.selectOneById(imageId);
+        if (image == null) {
+            throw new CustomException(404, "图片不存在");
+        }
+        MomentsPost post = postRepository.selectOneByQuery(
+                QueryWrapper.create()
+                        .eq("id", image.getPostId())
+                        .eq("deleted", 0)
+        );
+        if (post == null) {
+            throw new CustomException(404, "动态不存在");
+        }
+        if (!canViewPost(post, userId)) {
+            throw new CustomException(403, "无权查看该动态");
+        }
+        String key = fileStorageService.extractObjectKey(image.getUrl());
+        if (key != null && key.contains("/")) {
+            String name = key.substring(key.lastIndexOf('/') + 1);
+            if (!name.isBlank()) {
+                return name;
+            }
+        }
+        return "image.jpg";
     }
 
     /**
