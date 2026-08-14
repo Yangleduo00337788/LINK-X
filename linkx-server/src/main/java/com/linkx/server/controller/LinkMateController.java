@@ -10,6 +10,7 @@ import com.linkx.server.common.RateLimit;
 import com.linkx.server.common.Result;
 import com.linkx.server.controller.dto.LinkMateChatDTO;
 import com.linkx.server.controller.dto.LinkMateGroupReplyDTO;
+import com.linkx.server.controller.dto.LinkMateSessionRenameDTO;
 import com.linkx.server.controller.vo.LinkMateMessageVO;
 import com.linkx.server.controller.vo.LinkMateSessionVO;
 import com.linkx.server.controller.vo.LinkMateStatusVO;
@@ -23,6 +24,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
@@ -74,13 +77,26 @@ public class LinkMateController {
         return Result.success(null);
     }
 
-    @Operation(summary = "对话消息历史")
+    @Operation(summary = "重命名对话")
+    @PatchMapping("/sessions/{sessionId}")
+    public Result<LinkMateSessionVO> renameSession(
+            @PathVariable String sessionId,
+            @Valid @RequestBody LinkMateSessionRenameDTO dto,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(linkMateService.renameSession(userId, parseId(sessionId), dto.getTitle()));
+    }
+
+    @Operation(summary = "对话消息历史（分页）")
     @GetMapping("/sessions/{sessionId}/messages")
     public Result<List<LinkMateMessageVO>> listMessages(
             @PathVariable String sessionId,
+            @RequestParam(required = false) String before,
+            @RequestParam(defaultValue = "50") @Min(value = 1, message = "limit 必须 ≥1") @Max(value = 100, message = "limit 必须 ≤100") int limit,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        return Result.success(linkMateService.listMessages(userId, parseId(sessionId)));
+        Long beforeId = before != null && !before.isBlank() ? parseId(before) : null;
+        return Result.success(linkMateService.listMessages(userId, parseId(sessionId), beforeId, limit));
     }
 
     @Operation(summary = "发送消息（非流式）")

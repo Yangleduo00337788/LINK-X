@@ -23,6 +23,7 @@ import {
   MicOutline,
   CloseOutline,
   AtOutline,
+  BulbOutline,
   LocationOutline
 } from '@vicons/ionicons5'
 // Pinia 响应式解构
@@ -42,6 +43,8 @@ import * as linkmateApi from '../../api/linkmate'
 import axios from 'axios'
 import { preloadLinkMateLogo } from '../../utils/linkmateLogo'
 import { extractLinkMateQuestion, hasLinkMateMention } from '../../utils/linkmateMention'
+import { createStringRafBatcher } from '../../utils/linkmateRafBatch'
+import { resolveLinkMateErrorMessage } from '../../utils/linkmateErrors'
 // 消息类型定义
 import type { ChatMessage, ContactItem } from '../../types'
 import LocationPickerPage from '../LocationPickerPage.vue'
@@ -90,7 +93,7 @@ const chatModalsStore = useChatModalsStore()
 const filesStore = useFilesStore()
 const groupMetaStore = useGroupMetaStore()
 const linkMateStore = useLinkMateStore()
-const { enabled: linkMateEnabled, deepThinking: linkMateDeepThinking, deepThinkingSupported: linkMateDeepThinkingSupported } = storeToRefs(linkMateStore)
+const { enabled: linkMateEnabled, deepThinking: linkMateDeepThinking, deepThinkingSupported: linkMateDeepThinkingSupported, dailyQuotaExhausted: linkMateQuotaExhausted } = storeToRefs(linkMateStore)
 
 // 从 appStore 解构响应式会话与用户信息
 const { currentSession, currentSessionId, userProfile } = storeToRefs(appStore)
@@ -867,6 +870,26 @@ function mentionExtractLinkMateQuestion(text: string): string | null {
   return extractLinkMateQuestion(text, t('linkmate.atName'))
 }
 
+function buildLinkMateQuestion(text: string): string | null {
+  const base = mentionExtractLinkMateQuestion(text)
+  if (!base) return null
+  if (props.replyingTo) {
+    const quote = chatMessagePreviewText(props.replyingTo)
+    if (quote) {
+      return `${base}\n\n${t('linkmate.quotePrefix')}\n${quote}`
+    }
+  }
+  return base
+}
+
+function toggleLinkMateDeepThinking() {
+  if (!linkMateDeepThinkingSupported.value) {
+    message.info(t('linkmate.deepThinkingUnsupported'))
+    return
+  }
+  linkMateStore.setDeepThinking(!linkMateDeepThinking.value)
+}
+
 let linkMateReplyAbort: AbortController | null = null
 const linkMateImStreaming = ref(false)
 
@@ -875,6 +898,10 @@ function stopLinkMateImReply() {
 }
 
 async function requestLinkMateImReply(conversationId: string, question: string) {
+  if (linkMateQuotaExhausted.value) {
+    message.warning(t('linkmate.dailyQuotaExhausted'))
+    return
+  }
   linkMateReplyAbort?.abort()
   const abortController = new AbortController()
   linkMateReplyAbort = abortController
@@ -882,6 +909,16 @@ async function requestLinkMateImReply(conversationId: string, question: string) 
   const tempId = `temp-linkmate-${Date.now()}`
   let content = ''
   let assistantReasoning = ''
+  const batchReasoning = createStringRafBatcher(chunk => {
+    assistantReasoning += chunk
+    appStore.updateStreamingLinkMateReasoning(conversationId, tempId, assistantReasoning)
+    emit('scrollToBottom')
+  })
+  const batchContent = createStringRafBatcher(chunk => {
+    content += chunk
+    appStore.updateStreamingLinkMateMessage(conversationId, tempId, content)
+    emit('scrollToBottom')
+  })
 
   appStore.ensureStreamingLinkMateMessage(conversationId, tempId)
   emit('scrollToBottom')
@@ -892,22 +929,20 @@ async function requestLinkMateImReply(conversationId: string, question: string) 
       question,
       {
         onReasoningDelta: chunk => {
-          assistantReasoning += chunk
-          appStore.updateStreamingLinkMateReasoning(conversationId, tempId, assistantReasoning)
-          emit('scrollToBottom')
+          batchReasoning.push(chunk)
         },
         onDelta: chunk => {
-          content += chunk
-          appStore.updateStreamingLinkMateMessage(conversationId, tempId, content)
-          emit('scrollToBottom')
+          batchContent.push(chunk)
         },
         onDone: (messageId, _conversationId) => {
+          batchReasoning.flush()
+          batchContent.flush()
           appStore.finalizeStreamingLinkMateMessage(conversationId, tempId, messageId, content)
           emit('scrollToBottom')
         },
         onError: errMsg => {
           appStore.removeStreamingLinkMateMessage(conversationId, tempId)
-          message.error(errMsg)
+          message.error(resolveLinkMateErrorMessage(errMsg, t))
         }
       },
       abortController.signal,
@@ -925,12 +960,15 @@ async function requestLinkMateImReply(conversationId: string, question: string) 
     } else if (error instanceof Error && error.message) {
       errMsg = error.message
     }
-    message.error(errMsg)
+    message.error(resolveLinkMateErrorMessage(errMsg, t))
   } finally {
+    batchReasoning.flush()
+    batchContent.flush()
     linkMateImStreaming.value = false
     if (linkMateReplyAbort === abortController) {
       linkMateReplyAbort = null
     }
+    void linkMateStore.loadStatus()
   }
 }
 
@@ -941,6 +979,10 @@ async function requestLinkMateImReply(conversationId: string, question: string) 
 function send() {
   if (!inputValue.value.trim()) return
   if (!ensureCanSend()) return
+  if (linkMateImStreaming.value) {
+    message.warning(t('linkmate.streamingBusy'))
+    return
+  }
 
   void (async () => {
     try {
@@ -970,11 +1012,12 @@ function send() {
           message.warning(t('linkmate.emptyAtPrompt'))
           return
         }
-        const linkMateQuestion = mentionExtractLinkMateQuestion(text)
+        const linkMateQuestion = buildLinkMateQuestion(text)
         await sendMessage(text, { type: 'text', replyTo: props.replyingTo })
         if (
           linkMateQuestion &&
           linkMateEnabled.value &&
+          !linkMateQuotaExhausted.value &&
           (props.isGroupChat || props.isFriendChat) &&
           currentSessionId.value
         ) {
@@ -1034,6 +1077,10 @@ function onInputKeyDown(e: KeyboardEvent) {
   // Enter 发送，Shift+Enter 换行
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
+    if (linkMateImStreaming.value) {
+      message.warning(t('linkmate.streamingBusy'))
+      return
+    }
     send()
   }
 }
@@ -1154,6 +1201,19 @@ defineExpose({
               </button>
             </div>
           </n-popover>
+          <LxIconButton
+            v-if="canAtMention && linkMateDeepThinkingSupported"
+            variant="chat-tool"
+            class="linkmate-deep-tool"
+            :class="{ 'is-active': linkMateDeepThinking }"
+            :title="
+              linkMateDeepThinking ? t('linkmate.deepThinkingOn') : t('linkmate.deepThinkingOff')
+            "
+            :disabled="inputDisabled || linkMateImStreaming"
+            @click="toggleLinkMateDeepThinking"
+          >
+            <n-icon :component="BulbOutline" :size="20" />
+          </LxIconButton>
           <LxIconButton
             v-if="canAtMention"
             variant="chat-tool"
@@ -1288,6 +1348,10 @@ defineExpose({
   justify-content: space-between;
   padding: var(--lx-space-xs) var(--lx-space-md) var(--lx-space-md);
   flex-shrink: 0;
+}
+
+.linkmate-deep-tool.is-active {
+  color: var(--lx-accent);
 }
 
 .toolbar-left {

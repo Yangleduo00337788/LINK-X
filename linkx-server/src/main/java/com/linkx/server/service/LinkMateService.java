@@ -24,7 +24,9 @@ public interface LinkMateService {
 
     void deleteSession(Long userId, Long sessionId);
 
-    List<LinkMateMessageVO> listMessages(Long userId, Long sessionId);
+    LinkMateSessionVO renameSession(Long userId, Long sessionId, String title);
+
+    List<LinkMateMessageVO> listMessages(Long userId, Long sessionId, Long beforeMessageId, int limit);
 
     LinkMateMessageVO chat(Long userId, LinkMateChatDTO dto);
 

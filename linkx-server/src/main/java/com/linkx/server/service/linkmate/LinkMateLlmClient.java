@@ -38,6 +38,8 @@ public class LinkMateLlmClient {
 
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(30);
     private static final Duration REQUEST_TIMEOUT = Duration.ofMinutes(3);
+    private static final int LLM_MAX_ATTEMPTS = 2;
+    private static final long LLM_RETRY_DELAY_MS = 800L;
 
     private final LinkxProperties linkxProperties;
     private final ObjectMapper objectMapper;
@@ -68,22 +70,35 @@ public class LinkMateLlmClient {
         ObjectNode body = buildRequestBody(cfg, messages, false, deepThinking);
         HttpRequest request = buildHttpRequest(cfg, body);
 
-        try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                log.warn("LinkMate LLM error status={} body={}", response.statusCode(), abbreviate(response.body()));
-                throw new CustomException(502, "AI 服务暂时不可用，请稍后重试");
+        for (int attempt = 1; attempt <= LLM_MAX_ATTEMPTS; attempt++) {
+            try {
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                    log.warn("LinkMate LLM error attempt={} status={} body={}",
+                            attempt, response.statusCode(), abbreviate(response.body()));
+                    if (attempt < LLM_MAX_ATTEMPTS && isTransientHttpStatus(response.statusCode())) {
+                        sleepBeforeRetry();
+                        continue;
+                    }
+                    throw new CustomException(502, "AI 服务暂时不可用，请稍后重试");
+                }
+                JsonNode root = objectMapper.readTree(response.body());
+                String content = extractContent(root);
+                int tokens = extractTotalTokens(root, estimateTokens(messages, content));
+                return new LlmResult(content, tokens);
+            } catch (CustomException ex) {
+                throw ex;
+            } catch (Exception ex) {
+                if (attempt < LLM_MAX_ATTEMPTS) {
+                    log.warn("LinkMate LLM request failed attempt={}", attempt, ex);
+                    sleepBeforeRetry();
+                    continue;
+                }
+                log.error("LinkMate LLM request failed", ex);
+                throw new CustomException(502, "AI 服务请求失败");
             }
-            JsonNode root = objectMapper.readTree(response.body());
-            String content = extractContent(root);
-            int tokens = extractTotalTokens(root, estimateTokens(messages, content));
-            return new LlmResult(content, tokens);
-        } catch (CustomException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            log.error("LinkMate LLM request failed", ex);
-            throw new CustomException(502, "AI 服务请求失败");
         }
+        throw new CustomException(502, "AI 服务请求失败");
     }
 
   /**
@@ -98,79 +113,100 @@ public class LinkMateLlmClient {
         ObjectNode body = buildRequestBody(cfg, messages, true, deepThinking);
         HttpRequest request = buildHttpRequest(cfg, body);
 
-        try {
-            HttpResponse<InputStream> response = httpClient.send(
-                    request, HttpResponse.BodyHandlers.ofInputStream());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                String err = readAll(response.body());
-                log.warn("LinkMate LLM stream error status={} body={}", response.statusCode(), abbreviate(err));
-                throw new CustomException(502, "AI 服务暂时不可用，请稍后重试");
-            }
-
-            StringBuilder reasoning = new StringBuilder();
-            StringBuilder content = new StringBuilder();
-            int totalTokens = 0;
-            boolean usageReported = false;
-
-            try (InputStream bodyStream = response.body();
-                 BufferedReader reader = new BufferedReader(
-                         new InputStreamReader(bodyStream, StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    if (cancelled != null && cancelled.getAsBoolean()) {
-                        bodyStream.close();
-                        break;
-                    }
-                    if (!line.startsWith("data:")) {
+        for (int attempt = 1; attempt <= LLM_MAX_ATTEMPTS; attempt++) {
+            try {
+                HttpResponse<InputStream> response = httpClient.send(
+                        request, HttpResponse.BodyHandlers.ofInputStream());
+                if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                    String err = readAll(response.body());
+                    log.warn("LinkMate LLM stream error attempt={} status={} body={}",
+                            attempt, response.statusCode(), abbreviate(err));
+                    if (attempt < LLM_MAX_ATTEMPTS && isTransientHttpStatus(response.statusCode())) {
+                        sleepBeforeRetry();
                         continue;
                     }
-                    String data = line.substring(5).trim();
-                    if ("[DONE]".equals(data)) {
-                        break;
+                    throw new CustomException(502, "AI 服务暂时不可用，请稍后重试");
+                }
+
+                return readStreamResponse(response.body(), messages, handlers, cancelled);
+            } catch (CustomException ex) {
+                throw ex;
+            } catch (Exception ex) {
+                if (attempt < LLM_MAX_ATTEMPTS) {
+                    log.warn("LinkMate LLM stream failed attempt={}", attempt, ex);
+                    sleepBeforeRetry();
+                    continue;
+                }
+                log.error("LinkMate LLM stream failed", ex);
+                throw new CustomException(502, "AI 服务请求失败");
+            }
+        }
+        throw new CustomException(502, "AI 服务请求失败");
+    }
+
+    private StreamResult readStreamResponse(
+            InputStream bodyStream,
+            List<LlmMessage> messages,
+            StreamDeltaHandlers handlers,
+            BooleanSupplier cancelled) throws Exception {
+        StringBuilder reasoning = new StringBuilder();
+        StringBuilder content = new StringBuilder();
+        int totalTokens = 0;
+        boolean usageReported = false;
+
+        try (InputStream stream = bodyStream;
+             BufferedReader reader = new BufferedReader(
+                     new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (cancelled != null && cancelled.getAsBoolean()) {
+                    stream.close();
+                    break;
+                }
+                if (!line.startsWith("data:")) {
+                    continue;
+                }
+                String data = line.substring(5).trim();
+                if ("[DONE]".equals(data)) {
+                    break;
+                }
+                JsonNode root = objectMapper.readTree(data);
+                int reported = extractTotalTokens(root, 0);
+                if (reported > 0) {
+                    totalTokens = reported;
+                    usageReported = true;
+                }
+                JsonNode delta = root.path("choices").path(0).path("delta");
+                String reasoningChunk = delta.path("reasoning_content").asText(null);
+                String contentChunk = delta.path("content").asText(null);
+                if (StringUtils.hasText(reasoningChunk)) {
+                    reasoning.append(reasoningChunk);
+                    if (handlers.onReasoningDelta() != null) {
+                        handlers.onReasoningDelta().accept(reasoningChunk);
                     }
-                    JsonNode root = objectMapper.readTree(data);
-                    int reported = extractTotalTokens(root, 0);
-                    if (reported > 0) {
-                        totalTokens = reported;
-                        usageReported = true;
-                    }
-                    JsonNode delta = root.path("choices").path(0).path("delta");
-                    String reasoningChunk = delta.path("reasoning_content").asText(null);
-                    String contentChunk = delta.path("content").asText(null);
-                    if (StringUtils.hasText(reasoningChunk)) {
-                        reasoning.append(reasoningChunk);
-                        if (handlers.onReasoningDelta() != null) {
-                            handlers.onReasoningDelta().accept(reasoningChunk);
-                        }
-                    }
-                    if (StringUtils.hasText(contentChunk)) {
-                        content.append(contentChunk);
-                        if (handlers.onContentDelta() != null) {
-                            handlers.onContentDelta().accept(contentChunk);
-                        }
+                }
+                if (StringUtils.hasText(contentChunk)) {
+                    content.append(contentChunk);
+                    if (handlers.onContentDelta() != null) {
+                        handlers.onContentDelta().accept(contentChunk);
                     }
                 }
             }
-
-            boolean wasCancelled = cancelled != null && cancelled.getAsBoolean();
-            if (wasCancelled) {
-                String partial = content.length() > 0 ? content.toString() : reasoning.toString();
-                int tokens = usageReported ? totalTokens : estimateTokens(messages, partial);
-                return new StreamResult(partial, reasoning.toString(), tokens, true);
-            }
-
-            String full = content.length() > 0 ? content.toString() : reasoning.toString();
-            if (!StringUtils.hasText(full)) {
-                throw new CustomException(502, "AI 未返回有效内容");
-            }
-            int tokens = usageReported ? totalTokens : estimateTokens(messages, full);
-            return new StreamResult(full, reasoning.toString(), tokens, false);
-        } catch (CustomException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            log.error("LinkMate LLM stream failed", ex);
-            throw new CustomException(502, "AI 服务请求失败");
         }
+
+        boolean wasCancelled = cancelled != null && cancelled.getAsBoolean();
+        if (wasCancelled) {
+            String partial = content.length() > 0 ? content.toString() : reasoning.toString();
+            int tokens = usageReported ? totalTokens : estimateTokens(messages, partial);
+            return new StreamResult(partial, reasoning.toString(), tokens, true);
+        }
+
+        String full = content.length() > 0 ? content.toString() : reasoning.toString();
+        if (!StringUtils.hasText(full)) {
+            throw new CustomException(502, "AI 未返回有效内容");
+        }
+        int tokens = usageReported ? totalTokens : estimateTokens(messages, full);
+        return new StreamResult(full, reasoning.toString(), tokens, false);
     }
 
     /** 兼容旧调用 */
@@ -272,6 +308,18 @@ public class LinkMateLlmClient {
             return "";
         }
         return text.length() > 200 ? text.substring(0, 200) + "..." : text;
+    }
+
+    private static boolean isTransientHttpStatus(int statusCode) {
+        return statusCode == 429 || statusCode == 502 || statusCode == 503 || statusCode == 504;
+    }
+
+    private static void sleepBeforeRetry() {
+        try {
+            Thread.sleep(LLM_RETRY_DELAY_MS);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private static String readAll(InputStream stream) {

@@ -5,12 +5,18 @@ import { defineStore } from 'pinia'
 import * as linkmateApi from '../api/linkmate'
 import type { LinkMateMessage, LinkMateSession, LinkMateStatus } from '../api/linkmate'
 import { buildImChatContext, isRealImChatSession, refreshSnapshotMessages, type LinkMateImContext } from '../utils/buildImChatContext'
+import { createStringRafBatcher } from '../utils/linkmateRafBatch'
+import { resolveLinkMateErrorMessage } from '../utils/linkmateErrors'
 import { useAppStore } from '../stores/app'
+import { t } from '../i18n'
 
 export type LinkMatePanelState = 'closed' | 'open' | 'collapsed'
 
 const PANEL_WIDTH_STORAGE_KEY = 'linkx-linkmate-panel-width'
 const DEEP_THINKING_STORAGE_KEY = 'linkx-linkmate-deep-thinking'
+const INPUT_DRAFT_STORAGE_KEY = 'linkx-linkmate-input-drafts'
+const NEW_SESSION_DRAFT_KEY = '__new__'
+export const LINKMATE_MESSAGE_PAGE_SIZE = 50
 export const LINKMATE_PANEL_WIDTH_MIN = 280
 export const LINKMATE_PANEL_WIDTH_MAX = 640
 export const LINKMATE_PANEL_WIDTH_DEFAULT = 380
@@ -56,6 +62,42 @@ function persistDeepThinking(enabled: boolean) {
   }
 }
 
+function loadDraftMap(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(INPUT_DRAFT_STORAGE_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw) as Record<string, string>
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function persistDraftMap(map: Record<string, string>) {
+  try {
+    localStorage.setItem(INPUT_DRAFT_STORAGE_KEY, JSON.stringify(map))
+  } catch {
+    /* ignore */
+  }
+}
+
+function draftKeyForSession(sessionId: string) {
+  return sessionId || NEW_SESSION_DRAFT_KEY
+}
+
+function mapApiMessage(row: linkmateApi.LinkMateMessage): LinkMateMessage {
+  return {
+    id: String(row.id),
+    sessionId: String(row.sessionId),
+    role: row.role as LinkMateMessage['role'],
+    content: row.content,
+    createTime: row.createTime,
+    reasoningContent: row.reasoningContent,
+    responseDurationMs: row.responseDurationMs,
+    reasoningDurationMs: row.reasoningDurationMs
+  }
+}
+
 export const useLinkMateStore = defineStore('linkmate', {
   state: () => ({
     status: null as LinkMateStatus | null,
@@ -64,6 +106,8 @@ export const useLinkMateStore = defineStore('linkmate', {
     messagesBySession: {} as Record<string, LinkMateMessage[]>,
     loadingSessions: false,
     loadingMessages: false,
+    hasMoreBySession: {} as Record<string, boolean>,
+    loadingMoreBySession: {} as Record<string, boolean>,
     streaming: false,
     streamAbort: null as AbortController | null,
     inputDraft: '',
@@ -99,17 +143,26 @@ export const useLinkMateStore = defineStore('linkmate', {
     },
     attachedImContext(state): LinkMateImContext | null {
       return state.imContextSnapshot
+    },
+    dailyQuotaExhausted(state): boolean {
+      const limit = state.status?.dailyTokenLimit ?? 0
+      if (limit <= 0) return false
+      return (state.status?.dailyTokenUsed ?? 0) >= limit
     }
   },
 
   actions: {
     /** 进入群聊/单聊时关闭灵伴侧栏，避免与 IM 同时展示 */
     closePanelForImChat() {
+      const previousSessionId = this.activeSessionId
       if (this.streaming) {
         this.abortStream()
       }
       this.panelState = 'closed'
       this.imContextSnapshot = null
+      if (previousSessionId) {
+        void this.cleanupEmptySessionIfNeeded(previousSessionId)
+      }
     },
 
     snapshotImContext() {
@@ -162,6 +215,33 @@ export const useLinkMateStore = defineStore('linkmate', {
     setDeepThinking(enabled: boolean) {
       this.deepThinking = enabled
       persistDeepThinking(enabled)
+    },
+
+    persistInputDraft() {
+      const key = draftKeyForSession(this.activeSessionId)
+      const map = loadDraftMap()
+      const text = this.inputDraft
+      if (text.trim()) {
+        map[key] = text
+      } else {
+        delete map[key]
+      }
+      persistDraftMap(map)
+    },
+
+    restoreInputDraft(sessionId = this.activeSessionId) {
+      const map = loadDraftMap()
+      this.inputDraft = map[draftKeyForSession(sessionId)] ?? ''
+    },
+
+    setInputDraft(text: string) {
+      this.inputDraft = text
+      this.persistInputDraft()
+    },
+
+    clearInputDraft() {
+      this.inputDraft = ''
+      this.persistInputDraft()
     },
 
     isSessionEmpty(sessionId: string): boolean {
@@ -309,14 +389,26 @@ export const useLinkMateStore = defineStore('linkmate', {
         this.showHistory = false
         return this.sessions.find(s => s.id === this.activeSessionId) ?? null
       }
+      this.persistInputDraft()
+      const previousSessionId = this.activeSessionId
       const session = await this.createSession()
+      if (previousSessionId) {
+        void this.cleanupEmptySessionIfNeeded(previousSessionId)
+      }
+      this.restoreInputDraft(session.id)
       this.showHistory = false
       return session
     },
 
     async selectSession(sessionId: string) {
       if (this.streaming) return
+      const previousSessionId = this.activeSessionId
+      if (previousSessionId && previousSessionId !== sessionId) {
+        this.persistInputDraft()
+        void this.cleanupEmptySessionIfNeeded(previousSessionId)
+      }
       this.activeSessionId = sessionId
+      this.restoreInputDraft(sessionId)
       this.showHistory = false
       if (!this.messagesBySession[sessionId]) {
         await this.loadMessages(sessionId)
@@ -326,24 +418,54 @@ export const useLinkMateStore = defineStore('linkmate', {
     async loadMessages(sessionId: string) {
       this.loadingMessages = true
       try {
-        const res = await linkmateApi.listMessages(sessionId)
+        const res = await linkmateApi.listMessages(sessionId, undefined, LINKMATE_MESSAGE_PAGE_SIZE)
         if (res.code === 200 && Array.isArray(res.data)) {
-          this.patchSessionMessages(
-            sessionId,
-            res.data.map(row => ({
-              id: String(row.id),
-              sessionId: String(row.sessionId),
-              role: row.role as LinkMateMessage['role'],
-              content: row.content,
-              createTime: row.createTime,
-              reasoningContent: row.reasoningContent,
-              responseDurationMs: row.responseDurationMs,
-              reasoningDurationMs: row.reasoningDurationMs
-            }))
-          )
+          const rows = res.data.map(mapApiMessage)
+          this.patchSessionMessages(sessionId, rows)
+          this.hasMoreBySession = {
+            ...this.hasMoreBySession,
+            [sessionId]: rows.length >= LINKMATE_MESSAGE_PAGE_SIZE
+          }
         }
       } finally {
         this.loadingMessages = false
+      }
+    },
+
+    async loadMoreMessages(sessionId: string) {
+      if (this.loadingMoreBySession[sessionId] || !this.hasMoreBySession[sessionId]) return
+      const existing = this.messagesBySession[sessionId] ?? []
+      const beforeId = existing[0]?.id
+      if (!beforeId) return
+
+      this.loadingMoreBySession = { ...this.loadingMoreBySession, [sessionId]: true }
+      try {
+        const res = await linkmateApi.listMessages(sessionId, beforeId, LINKMATE_MESSAGE_PAGE_SIZE)
+        if (res.code !== 200 || !Array.isArray(res.data)) return
+        const rows = res.data.map(mapApiMessage)
+        this.hasMoreBySession = {
+          ...this.hasMoreBySession,
+          [sessionId]: rows.length >= LINKMATE_MESSAGE_PAGE_SIZE
+        }
+        this.patchSessionMessages(sessionId, [...rows, ...existing])
+      } finally {
+        this.loadingMoreBySession = { ...this.loadingMoreBySession, [sessionId]: false }
+      }
+    },
+
+    async renameSession(sessionId: string, title: string) {
+      if (this.streaming) return
+      const res = await linkmateApi.renameSession(sessionId, title.trim())
+      if (res.code !== 200 || !res.data) {
+        throw new Error(res.message || '重命名失败')
+      }
+      const idx = this.sessions.findIndex(s => s.id === sessionId)
+      if (idx >= 0) {
+        this.sessions[idx] = {
+          ...this.sessions[idx],
+          title: res.data.title,
+          updateTime: res.data.updateTime
+        }
       }
     },
 
@@ -356,11 +478,34 @@ export const useLinkMateStore = defineStore('linkmate', {
       this.sessions = this.sessions.filter(s => s.id !== sessionId)
       const { [sessionId]: _, ...rest } = this.messagesBySession
       this.messagesBySession = rest
+      const { [sessionId]: __, ...restHasMore } = this.hasMoreBySession
+      this.hasMoreBySession = restHasMore
+      const map = loadDraftMap()
+      delete map[draftKeyForSession(sessionId)]
+      persistDraftMap(map)
       if (this.activeSessionId === sessionId) {
         this.activeSessionId = this.sessions[0]?.id ?? ''
+        this.restoreInputDraft(this.activeSessionId)
         if (this.activeSessionId && !this.messagesBySession[this.activeSessionId]) {
           await this.loadMessages(this.activeSessionId)
         }
+      }
+    },
+
+    bumpSessionOrder(sessionId: string) {
+      const idx = this.sessions.findIndex(s => s.id === sessionId)
+      if (idx <= 0) return
+      const [session] = this.sessions.splice(idx, 1)
+      this.sessions.unshift(session)
+    },
+
+    async cleanupEmptySessionIfNeeded(sessionId: string) {
+      if (!this.isSessionEmpty(sessionId) || this.streaming) return
+      if (!this.sessions.some(s => s.id === sessionId)) return
+      try {
+        await this.deleteSession(sessionId)
+      } catch {
+        /* ignore */
       }
     },
 
@@ -387,6 +532,14 @@ export const useLinkMateStore = defineStore('linkmate', {
       let reasoningEndedAt = 0
       let aborted = false
       let failed = false
+      const batchReasoning = createStringRafBatcher(chunk => {
+        assistantReasoning += chunk
+        this.updateAssistantReasoning(sessionId, assistantId, assistantReasoning)
+      })
+      const batchContent = createStringRafBatcher(chunk => {
+        assistantContent += chunk
+        this.updateAssistantContent(sessionId, assistantId, assistantContent)
+      })
 
       try {
         await linkmateApi.streamChat(
@@ -406,8 +559,7 @@ export const useLinkMateStore = defineStore('linkmate', {
               }
             },
             onReasoningDelta: chunk => {
-              assistantReasoning += chunk
-              this.updateAssistantReasoning(sessionId, assistantId, assistantReasoning)
+              batchReasoning.push(chunk)
             },
             onDelta: chunk => {
               if (assistantReasoning && !reasoningEndedAt) {
@@ -422,19 +574,22 @@ export const useLinkMateStore = defineStore('linkmate', {
                   )
                 }
               }
-              assistantContent += chunk
-              this.updateAssistantContent(sessionId, assistantId, assistantContent)
+              batchContent.push(chunk)
             },
             onDone: (messageId, sid, totalTokens) => {
+              batchReasoning.flush()
+              batchContent.flush()
               this.finalizeMessageMetrics(sessionId, assistantId, reasoningEndedAt)
               this.finalizeAssistantMessage(sessionId, assistantId, messageId, sid, totalTokens)
               this.activeSessionId = sid
-              void this.loadSessions()
+              this.bumpSessionOrder(sid)
+              void this.loadStatus()
             },
             onError: message => {
               failed = true
-              this.updateAssistantContent(sessionId, assistantId, message)
-              throw new Error(message)
+              const localized = resolveLinkMateErrorMessage(message, t)
+              this.updateAssistantContent(sessionId, assistantId, localized)
+              throw new Error(localized)
             }
           },
           abortController.signal
@@ -446,22 +601,27 @@ export const useLinkMateStore = defineStore('linkmate', {
           aborted = true
         } else if (!assistantContent) {
           failed = true
+          const raw = err instanceof Error ? err.message : '发送失败，请稍后重试'
           this.updateAssistantContent(
             sessionId,
             assistantId,
-            err instanceof Error ? err.message : '发送失败，请稍后重试'
+            resolveLinkMateErrorMessage(raw, t)
           )
         } else {
           failed = true
         }
       } finally {
+        batchReasoning.flush()
+        batchContent.flush()
         if (!aborted && !failed) {
           this.finalizeMessageMetrics(sessionId, assistantId, reasoningEndedAt)
         }
         if (aborted && sessionId) {
           await this.loadMessages(sessionId)
+          await this.cleanupEmptySessionIfNeeded(sessionId)
         } else if ((aborted || failed) && options?.reloadOnFailure) {
           await this.loadMessages(sessionId)
+          await this.cleanupEmptySessionIfNeeded(sessionId)
         }
         this.streaming = false
         if (this.streamAbort === abortController) {
@@ -474,12 +634,18 @@ export const useLinkMateStore = defineStore('linkmate', {
     async sendMessage(text: string) {
       const content = text.trim()
       if (!content || this.streaming) return
+      if (this.dailyQuotaExhausted) {
+        throw new Error(t('linkmate.dailyQuotaExhausted'))
+      }
 
       let sessionId = this.activeSessionId
       if (!sessionId) {
         const session = await this.createSession()
         sessionId = session.id
+        this.restoreInputDraft(sessionId)
       }
+
+      this.clearInputDraft()
 
       const userMsg: LinkMateMessage = {
         id: `temp-user-${Date.now()}`,
@@ -510,6 +676,9 @@ export const useLinkMateStore = defineStore('linkmate', {
 
     async regenerateMessage(assistantMessageId: string) {
       if (this.streaming) return
+      if (this.dailyQuotaExhausted) {
+        throw new Error(t('linkmate.dailyQuotaExhausted'))
+      }
       const sessionId = this.activeSessionId
       if (!sessionId) return
 

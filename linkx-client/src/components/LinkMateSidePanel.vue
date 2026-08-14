@@ -3,7 +3,7 @@
 /**
  * 灵伴右侧内嵌对话面板（消息页主内容区右缘）。
  */
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, h, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { NInput, NIcon, NPopover, useMessage, useDialog } from 'naive-ui'
 import {
   AddOutline,
@@ -12,7 +12,9 @@ import {
   ChevronForwardOutline,
   ChevronDownOutline,
   TrashOutline,
-  RefreshOutline
+  RefreshOutline,
+  CopyOutline,
+  CreateOutline
 } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useLinkMateStore } from '../stores/linkmate'
@@ -39,7 +41,10 @@ const {
   deepThinking,
   deepThinkingSupported,
   showHistory,
-  attachedImContext
+  attachedImContext,
+  dailyQuotaExhausted,
+  hasMoreBySession,
+  loadingMoreBySession
 } = storeToRefs(linkMate)
 
 const inputRef = ref<InstanceType<typeof NInput> | null>(null)
@@ -123,7 +128,7 @@ function shouldShowResponseDuration(msg: LinkMateMessage): boolean {
 }
 
 const panelStyle = computed(() => ({ width: `${panelWidth.value}px` }))
-const canChat = computed(() => enabled.value)
+const canChat = computed(() => enabled.value && !dailyQuotaExhausted.value)
 const canUseDeepThinking = computed(() => deepThinkingSupported.value && !streaming.value)
 
 const streamingAssistant = computed(() => {
@@ -148,6 +153,7 @@ const statusHintText = computed(() => {
 
 const tokenUsageText = computed(() => {
   if (!status.value?.enabled) return ''
+  if (dailyQuotaExhausted.value) return t('linkmate.dailyQuotaExhausted')
   const limit = status.value.dailyTokenLimit
   if (!limit || limit <= 0) return ''
   return t('linkmate.tokenUsage', {
@@ -165,6 +171,16 @@ const starterPrompts = computed(() => [
 const showWelcome = computed(
   () => booted.value && !loadingMessages.value && activeMessages.value.length === 0
 )
+
+const hasMoreMessages = computed(() => {
+  const sid = activeSessionId.value
+  return sid ? !!hasMoreBySession.value[sid] : false
+})
+
+const loadingMoreMessages = computed(() => {
+  const sid = activeSessionId.value
+  return sid ? !!loadingMoreBySession.value[sid] : false
+})
 
 const imContextPreview = computed(() => attachedImContext.value)
 
@@ -189,6 +205,17 @@ function isLastAssistantMessage(msg: LinkMateMessage, index: number) {
 
 function canRegenerate(msg: LinkMateMessage, index: number) {
   return !streaming.value && isLastAssistantMessage(msg, index) && !!msg.content.trim()
+}
+
+async function handleCopyAssistant(msg: LinkMateMessage) {
+  const text = msg.content?.trim()
+  if (!text) return
+  try {
+    await navigator.clipboard.writeText(text)
+    message.success(t('linkmate.messageCopied'))
+  } catch {
+    message.error(t('linkmate.copyCodeFailed'))
+  }
 }
 
 async function handleRegenerate(msg: LinkMateMessage) {
@@ -331,6 +358,63 @@ function handleDeleteSession(sessionId: string, title: string) {
   })
 }
 
+function handleRenameSession(sessionId: string, currentTitle: string) {
+  if (streaming.value) return
+  const titleRef = ref(currentTitle || '')
+  dialog.create({
+    title: t('linkmate.renameChat'),
+    content: () =>
+      h(NInput, {
+        value: titleRef.value,
+        maxlength: 80,
+        placeholder: t('linkmate.renameChatPrompt'),
+        onUpdateValue: (value: string) => {
+          titleRef.value = value
+        }
+      }),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      const next = titleRef.value.trim()
+      if (!next) {
+        message.warning(t('linkmate.renameChatEmpty'))
+        return false
+      }
+      try {
+        await linkMate.renameSession(sessionId, next)
+        message.success(t('linkmate.renameChatOk'))
+      } catch (err) {
+        message.error(err instanceof Error ? err.message : t('linkmate.renameChatFailed'))
+        return false
+      }
+    }
+  })
+}
+
+async function handleMessageListScroll() {
+  const el = messageListRef.value
+  const sessionId = activeSessionId.value
+  if (!el || !sessionId || loadingMoreMessages.value || !hasMoreMessages.value) return
+  if (el.scrollTop > 80) return
+  await handleLoadMoreClick()
+}
+
+async function handleLoadMoreClick() {
+  const sessionId = activeSessionId.value
+  if (!sessionId || loadingMoreMessages.value || !hasMoreMessages.value) return
+  const el = messageListRef.value
+  const prevHeight = el?.scrollHeight ?? 0
+  await linkMate.loadMoreMessages(sessionId)
+  await nextTick()
+  if (el && prevHeight) {
+    el.scrollTop = el.scrollHeight - prevHeight
+  }
+}
+
+function onInputDraftUpdate(value: string) {
+  linkMate.setInputDraft(value)
+}
+
 function toggleDeepThinking() {
   if (!canUseDeepThinking.value) return
   linkMate.setDeepThinking(!deepThinking.value)
@@ -348,7 +432,6 @@ function handleDeepThinkingClick() {
 async function handleSend() {
   const text = inputDraft.value.trim()
   if (!text || streaming.value) return
-  inputDraft.value = ''
   try {
     await linkMate.sendMessage(text)
   } catch (err) {
@@ -422,6 +505,7 @@ watch(loadingMessages, (loading, wasLoading) => {
 })
 
 onMounted(async () => {
+  linkMate.restoreInputDraft()
   await ensureReady()
   await nextTick()
   scrollToBottom()
@@ -503,6 +587,15 @@ onUnmounted(() => {
                   </button>
                   <button
                     type="button"
+                    class="linkmate-history-rename"
+                    :title="t('linkmate.renameChat')"
+                    :disabled="streaming"
+                    @click.stop="handleRenameSession(session.id, session.title)"
+                  >
+                    <NIcon :component="CreateOutline" :size="14" />
+                  </button>
+                  <button
+                    type="button"
                     class="linkmate-history-del"
                     :title="t('linkmate.deleteChat')"
                     :disabled="streaming"
@@ -531,7 +624,7 @@ onUnmounted(() => {
       </div>
 
       <template v-else>
-        <div ref="messageListRef" class="linkmate-side-messages">
+        <div ref="messageListRef" class="linkmate-side-messages" @scroll="handleMessageListScroll">
           <div v-if="loadingMessages || !booted" class="linkmate-side-empty">
             {{ t('common.loading') }}
           </div>
@@ -553,6 +646,16 @@ onUnmounted(() => {
             </div>
           </div>
           <template v-else>
+            <div v-if="hasMoreMessages" class="linkmate-load-more">
+              <button
+                type="button"
+                class="linkmate-load-more-btn"
+                :disabled="loadingMoreMessages"
+                @click="handleLoadMoreClick"
+              >
+                {{ loadingMoreMessages ? t('common.loading') : t('linkmate.loadOlderMessages') }}
+              </button>
+            </div>
             <template v-for="(msg, msgIndex) in activeMessages" :key="msg.id">
               <div v-if="msg.role === 'user'" class="linkmate-side-msg is-user">
                 <div class="linkmate-side-msg-content">{{ msg.content }}</div>
@@ -611,10 +714,21 @@ onUnmounted(() => {
                   {{ t('linkmate.aiDisclaimer') }}
                 </p>
                 <div
-                  v-if="canRegenerate(msg, msgIndex)"
+                  v-if="canRegenerate(msg, msgIndex) || (!isStreamingMessage(msg) && msg.content.trim())"
                   class="linkmate-msg-actions"
                 >
                   <button
+                    v-if="!isStreamingMessage(msg) && msg.content.trim()"
+                    type="button"
+                    class="linkmate-action-btn"
+                    :title="t('linkmate.copyMessage')"
+                    @click="handleCopyAssistant(msg)"
+                  >
+                    <NIcon :component="CopyOutline" :size="14" />
+                    <span>{{ t('linkmate.copyMessage') }}</span>
+                  </button>
+                  <button
+                    v-if="canRegenerate(msg, msgIndex)"
                     type="button"
                     class="linkmate-action-btn"
                     :title="t('linkmate.regenerate')"
@@ -668,11 +782,12 @@ onUnmounted(() => {
             <div class="linkmate-side-input-wrap">
               <NInput
                 ref="inputRef"
-                v-model:value="inputDraft"
+                :value="inputDraft"
                 type="textarea"
                 :autosize="{ minRows: 1, maxRows: 4 }"
                 :placeholder="t('linkmate.inputPlaceholder')"
                 :disabled="streaming || !canChat"
+                @update:value="onInputDraftUpdate"
                 @keydown="handleKeydown"
               />
             </div>
@@ -1370,6 +1485,7 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
+.linkmate-history-rename,
 .linkmate-history-del {
   flex-shrink: 0;
   width: 28px;
@@ -1377,11 +1493,16 @@ onUnmounted(() => {
   border: none;
   border-radius: var(--lx-radius-sm);
   background: transparent;
-  color: var(--lx-text-muted);
+  color: var(--lx-text-secondary);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.linkmate-history-rename:hover:not(:disabled) {
+  background: var(--lx-bg-hover);
+  color: var(--lx-text-primary);
 }
 
 .linkmate-history-del:hover:not(:disabled) {
@@ -1389,8 +1510,35 @@ onUnmounted(() => {
   background: rgba(255, 77, 79, 0.08);
 }
 
+.linkmate-history-rename:disabled,
 .linkmate-history-del:disabled {
-  opacity: 0.4;
+  opacity: 0.45;
   cursor: not-allowed;
+}
+
+.linkmate-load-more {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 12px;
+}
+
+.linkmate-load-more-btn {
+  border: 1px solid var(--lx-border-light);
+  border-radius: var(--lx-radius-md);
+  background: var(--lx-bg-panel);
+  color: var(--lx-text-secondary);
+  font-size: var(--lx-font-xs);
+  padding: 4px 12px;
+  cursor: pointer;
+}
+
+.linkmate-load-more-btn:hover:not(:disabled) {
+  color: var(--lx-accent);
+  border-color: var(--lx-accent-soft);
+}
+
+.linkmate-load-more-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
 }
 </style>

@@ -1040,7 +1040,7 @@ export const useAppStore = defineStore('app', {
         time: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
         isSelf: false,
         senderId: '0',
-        senderName: '灵伴 LinkMate',
+        senderName: t('linkmate.atName'),
         type: 'text',
         streaming: true
       })
@@ -1079,7 +1079,7 @@ export const useAppStore = defineStore('app', {
         time: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
         isSelf: false,
         senderId: '0',
-        senderName: '灵伴 LinkMate',
+        senderName: t('linkmate.atName'),
         type: 'text',
         streaming: false
       }

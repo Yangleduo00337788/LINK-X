@@ -1,6 +1,7 @@
 /**
  * 作者：yangleduo
  */
+/// <reference types="vitest/config" />
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import UnoCSS from 'unocss/vite'
@@ -84,6 +85,10 @@ export default defineConfig(({ mode, command }) => {
           ])
         : null,
       isElectron ? renderer() : null
-    ].filter(Boolean)
+    ].filter(Boolean),
+    test: {
+      environment: 'node',
+      include: ['src/**/*.test.ts']
+    }
   }
 })

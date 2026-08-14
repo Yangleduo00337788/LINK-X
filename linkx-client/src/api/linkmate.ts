@@ -7,7 +7,7 @@ import { API_BASE_URL } from '../config/endpoints'
 import { getToken, isWebEnvironment } from '../utils/tokenStorage'
 import { getDeviceName, getDeviceType, getOrCreateDeviceId } from '../utils/deviceId'
 import type { LinkMateImContext } from '../utils/buildImChatContext'
-import type { MessageItem } from '../types/chat'
+import { readLinkMateSseStream } from '../utils/linkmateSse'
 
 export interface LinkMateStatus {
   enabled: boolean
@@ -61,14 +61,6 @@ export function getStatus() {
   return apiClient.get<unknown, ApiResult<LinkMateStatus>>('/linkmate/status')
 }
 
-/** 群聊/单聊 @灵伴：AI 回复落入 IM 消息时间线（非流式，保留兼容） */
-export function replyInGroup(conversationId: string, question: string) {
-  return apiClient.post<unknown, ApiResult<MessageItem>>('/linkmate/group/reply', {
-    conversationId,
-    question
-  })
-}
-
 /** 群聊/单聊 @灵伴：SSE 流式回复 */
 export async function streamImReply(
   conversationId: string,
@@ -113,80 +105,20 @@ export async function streamImReply(
     return
   }
 
-  const reader = response.body?.getReader()
-  if (!reader) {
-    handlers.onError?.('无法读取响应流')
-    return
-  }
-
-  const decoder = new TextDecoder()
-  let buffer = ''
-
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    buffer = buffer.replace(/\r\n/g, '\n')
-
-    let boundary = buffer.indexOf('\n\n')
-    while (boundary >= 0) {
-      const rawEvent = buffer.slice(0, boundary)
-      buffer = buffer.slice(boundary + 2)
-      parseImSseEvent(rawEvent, handlers)
-      boundary = buffer.indexOf('\n\n')
-    }
-  }
-
-  if (buffer.trim()) {
-    parseImSseEvent(buffer.replace(/\r\n/g, '\n'), handlers)
-  }
-}
-
-function parseImSseEvent(raw: string, handlers: LinkMateImStreamHandlers) {
-  let eventName = 'message'
-  let data = ''
-  for (const line of raw.split('\n')) {
-    if (line.startsWith('event:')) {
-      eventName = line.slice(6).trim()
-    } else if (line.startsWith('data:')) {
-      const piece = line.slice(5).trimStart()
-      data += data ? '\n' + piece : piece
-    }
-  }
-  if (!data) return
-
-  try {
-    let payload = JSON.parse(data) as Record<string, string>
-    if (typeof payload === 'string') {
-      payload = JSON.parse(payload) as Record<string, string>
-    }
-    switch (eventName) {
-      case 'start':
-        if (payload.conversationId) handlers.onStart?.(payload.conversationId)
-        break
-      case 'delta':
-        if (payload.content != null && payload.content !== '') handlers.onDelta?.(payload.content)
-        break
-      case 'reasoning_delta':
-        if (payload.content != null && payload.content !== '')
-          handlers.onReasoningDelta?.(payload.content)
-        break
-      case 'done': {
-        if (payload.messageId && payload.conversationId) {
-          const totalTokens = payload.totalTokens ? Number(payload.totalTokens) : undefined
-          handlers.onDone?.(payload.messageId, payload.conversationId, totalTokens)
-        }
-        break
+  await readLinkMateSseStream(response.body, {
+    onStart: payload => {
+      if (payload.conversationId) handlers.onStart?.(payload.conversationId)
+    },
+    onDelta: handlers.onDelta,
+    onReasoningDelta: handlers.onReasoningDelta,
+    onDone: payload => {
+      if (payload.messageId && payload.conversationId) {
+        const totalTokens = payload.totalTokens ? Number(payload.totalTokens) : undefined
+        handlers.onDone?.(payload.messageId, payload.conversationId, totalTokens)
       }
-      case 'error':
-        handlers.onError?.(payload.message || 'AI 服务错误')
-        break
-      default:
-        break
-    }
-  } catch {
-    // 非 JSON data 忽略
-  }
+    },
+    onError: handlers.onError
+  })
 }
 
 export function listSessions() {
@@ -201,9 +133,21 @@ export function deleteSession(sessionId: string) {
   return apiClient.delete<unknown, ApiResult<null>>(`/linkmate/sessions/${sessionId}`)
 }
 
-export function listMessages(sessionId: string) {
+export function renameSession(sessionId: string, title: string) {
+  return apiClient.patch<unknown, ApiResult<LinkMateSession>>(`/linkmate/sessions/${sessionId}`, {
+    title
+  })
+}
+
+export function listMessages(sessionId: string, before?: string, limit = 50) {
   return apiClient.get<unknown, ApiResult<LinkMateMessage[]>>(
-    `/linkmate/sessions/${sessionId}/messages`
+    `/linkmate/sessions/${sessionId}/messages`,
+    {
+      params: {
+        ...(before ? { before } : {}),
+        limit
+      }
+    }
   )
 }
 
@@ -266,78 +210,18 @@ export async function streamChat(
     return
   }
 
-  const reader = response.body?.getReader()
-  if (!reader) {
-    handlers.onError?.('无法读取响应流')
-    return
-  }
-
-  const decoder = new TextDecoder()
-  let buffer = ''
-
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    buffer = buffer.replace(/\r\n/g, '\n')
-
-    let boundary = buffer.indexOf('\n\n')
-    while (boundary >= 0) {
-      const rawEvent = buffer.slice(0, boundary)
-      buffer = buffer.slice(boundary + 2)
-      parseSseEvent(rawEvent, handlers)
-      boundary = buffer.indexOf('\n\n')
-    }
-  }
-
-  if (buffer.trim()) {
-    parseSseEvent(buffer.replace(/\r\n/g, '\n'), handlers)
-  }
-}
-
-function parseSseEvent(raw: string, handlers: LinkMateStreamHandlers) {
-  let eventName = 'message'
-  let data = ''
-  for (const line of raw.split('\n')) {
-    if (line.startsWith('event:')) {
-      eventName = line.slice(6).trim()
-    } else if (line.startsWith('data:')) {
-      const piece = line.slice(5).trimStart()
-      data += data ? '\n' + piece : piece
-    }
-  }
-  if (!data) return
-
-  try {
-    let payload = JSON.parse(data) as Record<string, string>
-    if (typeof payload === 'string') {
-      payload = JSON.parse(payload) as Record<string, string>
-    }
-    switch (eventName) {
-      case 'start':
-        if (payload.sessionId) handlers.onStart?.(payload.sessionId)
-        break
-      case 'delta':
-        if (payload.content != null && payload.content !== '') handlers.onDelta?.(payload.content)
-        break
-      case 'reasoning_delta':
-        if (payload.content != null && payload.content !== '')
-          handlers.onReasoningDelta?.(payload.content)
-        break
-      case 'done': {
-        if (payload.messageId && payload.sessionId) {
-          const totalTokens = payload.totalTokens ? Number(payload.totalTokens) : undefined
-          handlers.onDone?.(payload.messageId, payload.sessionId, totalTokens)
-        }
-        break
+  await readLinkMateSseStream(response.body, {
+    onStart: payload => {
+      if (payload.sessionId) handlers.onStart?.(payload.sessionId)
+    },
+    onDelta: handlers.onDelta,
+    onReasoningDelta: handlers.onReasoningDelta,
+    onDone: payload => {
+      if (payload.messageId && payload.sessionId) {
+        const totalTokens = payload.totalTokens ? Number(payload.totalTokens) : undefined
+        handlers.onDone?.(payload.messageId, payload.sessionId, totalTokens)
       }
-      case 'error':
-        handlers.onError?.(payload.message || 'AI 服务错误')
-        break
-      default:
-        break
-    }
-  } catch {
-    // 非 JSON data 忽略
-  }
+    },
+    onError: handlers.onError
+  })
 }

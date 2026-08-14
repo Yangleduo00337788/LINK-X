@@ -36,6 +36,7 @@ import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -52,7 +53,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -65,13 +68,74 @@ import com.linkx.server.service.linkmate.LinkMateLlmClient.StreamDeltaHandlers;
 public class LinkMateServiceImpl implements LinkMateService {
 
     private static final int HISTORY_LIMIT = 20;
+    private static final int MESSAGE_PAGE_DEFAULT = 50;
+    private static final int MESSAGE_PAGE_MAX = 100;
+    private static final long DAILY_TOKEN_TTL_SECONDS = Duration.ofDays(2).getSeconds();
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
     private static final Duration SSE_TIMEOUT = Duration.ofMinutes(5);
-    private static final ExecutorService STREAM_EXECUTOR = Executors.newCachedThreadPool(r -> {
-        Thread t = new Thread(r, "linkmate-stream");
-        t.setDaemon(true);
-        return t;
-    });
+    private static final int MAX_CONCURRENT_STREAMS_PER_USER = 2;
+    private static final Duration STREAM_SLOT_TTL = Duration.ofMinutes(10);
+    private static final int STREAM_POOL_MAX = 32;
+    private static final int STREAM_POOL_QUEUE = 64;
+    private static final ExecutorService STREAM_EXECUTOR = new ThreadPoolExecutor(
+            0,
+            STREAM_POOL_MAX,
+            60L,
+            TimeUnit.SECONDS,
+            new LinkedBlockingQueue<>(STREAM_POOL_QUEUE),
+            r -> {
+                Thread t = new Thread(r, "linkmate-stream");
+                t.setDaemon(true);
+                return t;
+            },
+            new ThreadPoolExecutor.CallerRunsPolicy());
+
+    private static final String RESERVE_DAILY_TOKENS_LUA = """
+            local key = KEYS[1]
+            local limit = tonumber(ARGV[1])
+            local amount = tonumber(ARGV[2])
+            local ttl = tonumber(ARGV[3])
+            if limit <= 0 then return 1 end
+            if amount <= 0 then return tonumber(redis.call('GET', key) or '0') end
+            local current = tonumber(redis.call('GET', key) or '0')
+            if current + amount > limit then return -1 end
+            local newVal = redis.call('INCRBY', key, amount)
+            if newVal == amount then redis.call('EXPIRE', key, ttl) end
+            return newVal
+            """;
+
+    private static final String ADJUST_DAILY_TOKENS_LUA = """
+            local key = KEYS[1]
+            local delta = tonumber(ARGV[1])
+            local ttl = tonumber(ARGV[2])
+            if delta == 0 then return tonumber(redis.call('GET', key) or '0') end
+            local newVal = redis.call('INCRBY', key, delta)
+            if newVal < 0 then
+                redis.call('SET', key, '0')
+                newVal = 0
+            end
+            if redis.call('TTL', key) < 0 then redis.call('EXPIRE', key, ttl) end
+            return newVal
+            """;
+
+    private static final String RELEASE_DAILY_TOKENS_LUA = """
+            local key = KEYS[1]
+            local amount = tonumber(ARGV[1])
+            if amount <= 0 then return tonumber(redis.call('GET', key) or '0') end
+            local newVal = redis.call('DECRBY', key, amount)
+            if newVal <= 0 then
+                redis.call('DEL', key)
+                return 0
+            end
+            return newVal
+            """;
+
+    private static final DefaultRedisScript<Long> RESERVE_DAILY_TOKENS_SCRIPT =
+            new DefaultRedisScript<>(RESERVE_DAILY_TOKENS_LUA, Long.class);
+    private static final DefaultRedisScript<Long> ADJUST_DAILY_TOKENS_SCRIPT =
+            new DefaultRedisScript<>(ADJUST_DAILY_TOKENS_LUA, Long.class);
+    private static final DefaultRedisScript<Long> RELEASE_DAILY_TOKENS_SCRIPT =
+            new DefaultRedisScript<>(RELEASE_DAILY_TOKENS_LUA, Long.class);
 
     private final LinkxProperties linkxProperties;
     private final AiChatSessionMapper sessionMapper;
@@ -129,14 +193,41 @@ public class LinkMateServiceImpl implements LinkMateService {
     }
 
     @Override
-    public List<LinkMateMessageVO> listMessages(Long userId, Long sessionId) {
+    @Transactional
+    public LinkMateSessionVO renameSession(Long userId, Long sessionId, String title) {
+        AiChatSession session = requireSession(userId, sessionId);
+        String trimmed = trimMessage(title);
+        if (!StringUtils.hasText(trimmed)) {
+            throw new CustomException(400, "对话标题不能为空");
+        }
+        if (trimmed.length() > 80) {
+            trimmed = trimmed.substring(0, 80);
+        }
+        session.setTitle(trimmed);
+        touchSession(session);
+        return toSessionVO(session);
+    }
+
+    @Override
+    public List<LinkMateMessageVO> listMessages(Long userId, Long sessionId, Long beforeMessageId, int limit) {
         requireSession(userId, sessionId);
-        List<AiChatMessage> messages = messageMapper.selectListByQuery(
-                QueryWrapper.create()
-                        .eq("session_id", sessionId)
-                        .orderBy("create_time", true)
-        );
-        return messages.stream().map(this::toMessageVO).collect(Collectors.toList());
+        int pageSize = Math.min(Math.max(limit > 0 ? limit : MESSAGE_PAGE_DEFAULT, 1), MESSAGE_PAGE_MAX);
+        QueryWrapper query = QueryWrapper.create()
+                .eq("session_id", sessionId)
+                .orderBy("create_time", false)
+                .limit(pageSize);
+        if (beforeMessageId != null) {
+            AiChatMessage before = messageMapper.selectOneById(beforeMessageId);
+            if (before != null && sessionId.equals(before.getSessionId()) && before.getCreateTime() != null) {
+                query.lt("create_time", before.getCreateTime());
+            }
+        }
+        List<AiChatMessage> messages = messageMapper.selectListByQuery(query);
+        List<LinkMateMessageVO> result = new ArrayList<>(messages.size());
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            result.add(toMessageVO(messages.get(i)));
+        }
+        return result;
     }
 
     @Override
@@ -155,15 +246,20 @@ public class LinkMateServiceImpl implements LinkMateService {
             saveUserMessage(userId, session, userMessage);
         }
         List<LlmMessage> context = buildLlmContext(session.getId(), dto.getImContext());
-        checkDailyLimit(userId, estimatePromptTokens(context));
-
-        LlmResult result = llmClient.chat(context, Boolean.TRUE.equals(dto.getDeepThinking()));
-        recordTokenUsage(userId, result.totalTokens());
-        AiChatMessage assistant = saveAssistantMessage(userId, session, result.content(), result.totalTokens(), null, null, null);
-        if (!regenerate) {
-            maybeUpdateTitle(session, userMessage);
+        int estimatedTokens = estimatePromptTokens(context);
+        int reservedTokens = reserveDailyTokens(userId, estimatedTokens);
+        try {
+            LlmResult result = llmClient.chat(context, Boolean.TRUE.equals(dto.getDeepThinking()));
+            finalizeDailyTokens(userId, reservedTokens, result.totalTokens());
+            AiChatMessage assistant = saveAssistantMessage(userId, session, result.content(), result.totalTokens(), null, null, null);
+            if (!regenerate) {
+                maybeUpdateTitle(session, userMessage);
+            }
+            return toMessageVO(assistant);
+        } catch (RuntimeException ex) {
+            releaseDailyTokens(userId, reservedTokens);
+            throw ex;
         }
-        return toMessageVO(assistant);
     }
 
     @Override
@@ -182,7 +278,30 @@ public class LinkMateServiceImpl implements LinkMateService {
             userMessageId = saveUserMessage(userId, session, userMessage).getId();
         }
         List<LlmMessage> context = buildLlmContext(session.getId(), dto.getImContext());
-        checkDailyLimit(userId, estimatePromptTokens(context));
+        int estimatedTokens = estimatePromptTokens(context);
+        int reservedTokens;
+        try {
+            reservedTokens = reserveDailyTokens(userId, estimatedTokens);
+        } catch (CustomException ex) {
+            if (userMessageId != null) {
+                messageMapper.deleteById(userMessageId);
+            }
+            SseEmitter rejected = new SseEmitter(SSE_TIMEOUT.toMillis());
+            sendError(rejected, ex.getMessage());
+            return rejected;
+        }
+
+        try {
+            acquireStreamSlot(userId);
+        } catch (CustomException ex) {
+            releaseDailyTokens(userId, reservedTokens);
+            if (userMessageId != null) {
+                messageMapper.deleteById(userMessageId);
+            }
+            SseEmitter rejected = new SseEmitter(SSE_TIMEOUT.toMillis());
+            sendError(rejected, ex.getMessage());
+            return rejected;
+        }
 
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT.toMillis());
         Long sessionId = session.getId();
@@ -191,10 +310,12 @@ public class LinkMateServiceImpl implements LinkMateService {
         emitter.onCompletion(() -> cancelled.set(true));
         emitter.onTimeout(() -> cancelled.set(true));
         emitter.onError(ex -> cancelled.set(true));
+        final int tokensReserved = reservedTokens;
 
         STREAM_EXECUTOR.execute(() -> {
             long streamStartedAt = System.currentTimeMillis();
             AtomicLong reasoningEndedAt = new AtomicLong(0);
+            boolean tokensFinalized = false;
             try {
                 java.util.Map<String, Object> startPayload = new java.util.LinkedHashMap<>();
                 startPayload.put("sessionId", String.valueOf(sessionId));
@@ -233,7 +354,8 @@ public class LinkMateServiceImpl implements LinkMateService {
                     emitter.complete();
                     return;
                 }
-                recordTokenUsage(userId, result.totalTokens());
+                finalizeDailyTokens(userId, tokensReserved, result.totalTokens());
+                tokensFinalized = true;
                 int responseDurationMs = (int) Math.max(1, System.currentTimeMillis() - streamStartedAt);
                 Integer reasoningDurationMs = null;
                 if (StringUtils.hasText(result.reasoning())) {
@@ -270,6 +392,11 @@ public class LinkMateServiceImpl implements LinkMateService {
                 }
                 log.error("LinkMate stream error sessionId={}", sessionId, ex);
                 sendError(emitter, "AI 服务请求失败");
+            } finally {
+                if (!tokensFinalized) {
+                    releaseDailyTokens(userId, tokensReserved);
+                }
+                releaseStreamSlot(userId);
             }
         });
 
@@ -291,11 +418,16 @@ public class LinkMateServiceImpl implements LinkMateService {
         }
 
         List<LlmMessage> context = buildImMentionLlmContext(dto.getConversationId(), userId, conversation, question);
-        checkDailyLimit(userId, estimatePromptTokens(context));
-
-        LlmResult result = llmClient.chat(context, resolveDeepThinking(dto.getDeepThinking()));
-        recordTokenUsage(userId, result.totalTokens());
-        return chatService.postLinkMateImMessage(dto.getConversationId(), result.content());
+        int estimatedTokens = estimatePromptTokens(context);
+        int reservedTokens = reserveDailyTokens(userId, estimatedTokens);
+        try {
+            LlmResult result = llmClient.chat(context, resolveDeepThinking(dto.getDeepThinking()));
+            finalizeDailyTokens(userId, reservedTokens, result.totalTokens());
+            return chatService.postLinkMateImMessage(dto.getConversationId(), result.content());
+        } catch (RuntimeException ex) {
+            releaseDailyTokens(userId, reservedTokens);
+            throw ex;
+        }
     }
 
     @Override
@@ -312,7 +444,24 @@ public class LinkMateServiceImpl implements LinkMateService {
         }
 
         List<LlmMessage> context = buildImMentionLlmContext(dto.getConversationId(), userId, conversation, question);
-        checkDailyLimit(userId, estimatePromptTokens(context));
+        int estimatedTokens = estimatePromptTokens(context);
+        int reservedTokens;
+        try {
+            reservedTokens = reserveDailyTokens(userId, estimatedTokens);
+        } catch (CustomException ex) {
+            SseEmitter rejected = new SseEmitter(SSE_TIMEOUT.toMillis());
+            sendError(rejected, ex.getMessage());
+            return rejected;
+        }
+
+        try {
+            acquireStreamSlot(userId);
+        } catch (CustomException ex) {
+            releaseDailyTokens(userId, reservedTokens);
+            SseEmitter rejected = new SseEmitter(SSE_TIMEOUT.toMillis());
+            sendError(rejected, ex.getMessage());
+            return rejected;
+        }
 
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT.toMillis());
         Long conversationId = dto.getConversationId();
@@ -320,8 +469,10 @@ public class LinkMateServiceImpl implements LinkMateService {
         emitter.onCompletion(() -> cancelled.set(true));
         emitter.onTimeout(() -> cancelled.set(true));
         emitter.onError(ex -> cancelled.set(true));
+        final int tokensReserved = reservedTokens;
 
         STREAM_EXECUTOR.execute(() -> {
+            boolean tokensFinalized = false;
             try {
                 sendSse(emitter, "start", Map.of("conversationId", String.valueOf(conversationId)));
                 boolean deepThinking = resolveDeepThinking(dto.getDeepThinking());
@@ -352,7 +503,8 @@ public class LinkMateServiceImpl implements LinkMateService {
                     sendError(emitter, "AI 未返回有效内容");
                     return;
                 }
-                recordTokenUsage(userId, result.totalTokens());
+                finalizeDailyTokens(userId, tokensReserved, result.totalTokens());
+                tokensFinalized = true;
                 MessageVO message = chatService.postLinkMateImMessage(conversationId, result.content());
                 imMessagePushService.pushToConversationMembers(message, LinkMateConstants.BOT_SENDER_ID, null);
                 sendSse(emitter, "done", Map.of(
@@ -365,6 +517,11 @@ public class LinkMateServiceImpl implements LinkMateService {
             } catch (Exception ex) {
                 log.error("LinkMate IM stream error conversationId={}", conversationId, ex);
                 sendError(emitter, "AI 服务请求失败");
+            } finally {
+                if (!tokensFinalized) {
+                    releaseDailyTokens(userId, tokensReserved);
+                }
+                releaseStreamSlot(userId);
             }
         });
 
@@ -434,10 +591,8 @@ public class LinkMateServiceImpl implements LinkMateService {
                 .collect(Collectors.toMap(SysUser::getId, Function.identity(), (a, b) -> a));
 
         for (ImMessage msg : recent) {
-            if (!ImMessage.TYPE_TEXT.equals(msg.getType()) && !ImMessage.TYPE_LOCATION.equals(msg.getType())) {
-                continue;
-            }
-            if (!StringUtils.hasText(msg.getContent())) {
+            String preview = formatImMessagePreview(msg);
+            if (!StringUtils.hasText(preview)) {
                 continue;
             }
             String senderName;
@@ -454,12 +609,48 @@ public class LinkMateServiceImpl implements LinkMateService {
                 }
             }
             String prefix = userId.equals(msg.getSenderId()) ? senderName + "（提问者）" : senderName;
-            groupCtx.append(prefix).append("：").append(msg.getContent().trim()).append('\n');
+            groupCtx.append(prefix).append("：").append(preview.trim()).append('\n');
         }
 
         messages.add(new LlmMessage("system", groupCtx.toString().trim()));
         messages.add(new LlmMessage("user", question));
         return messages;
+    }
+
+    private String formatImMessagePreview(ImMessage msg) {
+        if (msg == null || ImMessage.TYPE_RECALL.equals(msg.getType()) || ImMessage.TYPE_SYSTEM.equals(msg.getType())) {
+            return null;
+        }
+        String type = msg.getType();
+        if (ImMessage.TYPE_TEXT.equals(type)) {
+            return StringUtils.hasText(msg.getContent()) ? msg.getContent().trim() : null;
+        }
+        if (ImMessage.TYPE_LOCATION.equals(type)) {
+            return StringUtils.hasText(msg.getContent())
+                    ? "[位置] " + msg.getContent().trim()
+                    : "[位置]";
+        }
+        if (ImMessage.TYPE_IMAGE.equals(type)) {
+            return "[图片]";
+        }
+        if (ImMessage.TYPE_FILE.equals(type)) {
+            if (StringUtils.hasText(msg.getFileName())) {
+                return "[文件] " + msg.getFileName().trim();
+            }
+            return StringUtils.hasText(msg.getContent()) ? "[文件] " + msg.getContent().trim() : "[文件]";
+        }
+        if (ImMessage.TYPE_VOICE.equals(type)) {
+            return "[语音]";
+        }
+        if (ImMessage.TYPE_RED_PACKET.equals(type)) {
+            return StringUtils.hasText(msg.getFileName())
+                    ? "[红包] " + msg.getFileName().trim()
+                    : "[红包]";
+        }
+        if (ImMessage.TYPE_CONFERENCE.equals(type)) {
+            return StringUtils.hasText(msg.getContent()) ? msg.getContent().trim() : "[会议]";
+        }
+        return StringUtils.hasText(msg.getContent()) ? msg.getContent().trim() : null;
     }
 
     private void sendError(SseEmitter emitter, String message) {
@@ -681,27 +872,76 @@ public class LinkMateServiceImpl implements LinkMateService {
         return userMessage.getContent();
     }
 
-    private void checkDailyLimit(Long userId, int estimatedTokens) {
+    private int reserveDailyTokens(Long userId, int estimatedTokens) {
         LinkxProperties.LinkMate cfg = linkxProperties.getLinkmate();
         int limit = cfg.getDailyTokenLimit();
         if (limit <= 0) {
+            return 0;
+        }
+        int amount = Math.max(1, estimatedTokens);
+        Long result = redisTemplate.execute(
+                RESERVE_DAILY_TOKENS_SCRIPT,
+                List.of(dailyTokenKey(userId)),
+                String.valueOf(limit),
+                String.valueOf(amount),
+                String.valueOf(DAILY_TOKEN_TTL_SECONDS));
+        if (result == null || result < 0) {
+            throw new CustomException(429, "今日灵伴使用额度已用尽，请明天再试");
+        }
+        return amount;
+    }
+
+    private void finalizeDailyTokens(Long userId, int reserved, int actual) {
+        if (reserved <= 0 && actual <= 0) {
             return;
         }
-        int used = getDailyTokenUsed(userId);
-        if (used + estimatedTokens > limit) {
-            throw new CustomException(429, "今日灵伴使用额度已用尽，请明天再试");
+        if (actual <= 0) {
+            releaseDailyTokens(userId, reserved);
+            return;
+        }
+        int delta = actual - reserved;
+        if (delta == 0) {
+            return;
+        }
+        redisTemplate.execute(
+                ADJUST_DAILY_TOKENS_SCRIPT,
+                List.of(dailyTokenKey(userId)),
+                String.valueOf(delta),
+                String.valueOf(DAILY_TOKEN_TTL_SECONDS));
+    }
+
+    private void releaseDailyTokens(Long userId, int reserved) {
+        if (reserved <= 0) {
+            return;
+        }
+        redisTemplate.execute(
+                RELEASE_DAILY_TOKENS_SCRIPT,
+                List.of(dailyTokenKey(userId)),
+                String.valueOf(reserved));
+    }
+
+    private void acquireStreamSlot(Long userId) {
+        String key = streamSlotKey(userId);
+        Long count = redisTemplate.opsForValue().increment(key);
+        if (count != null && count == 1) {
+            redisTemplate.expire(key, STREAM_SLOT_TTL);
+        }
+        if (count != null && count > MAX_CONCURRENT_STREAMS_PER_USER) {
+            redisTemplate.opsForValue().decrement(key);
+            throw new CustomException(429, "灵伴请求过于频繁，请稍后再试");
         }
     }
 
-    private void recordTokenUsage(Long userId, int tokens) {
-        if (tokens <= 0) {
-            return;
+    private void releaseStreamSlot(Long userId) {
+        String key = streamSlotKey(userId);
+        Long value = redisTemplate.opsForValue().decrement(key);
+        if (value != null && value <= 0) {
+            redisTemplate.delete(key);
         }
-        String key = dailyTokenKey(userId);
-        Long total = redisTemplate.opsForValue().increment(key, tokens);
-        if (total != null && total == tokens) {
-            redisTemplate.expire(key, Duration.ofDays(2));
-        }
+    }
+
+    private String streamSlotKey(Long userId) {
+        return "linkmate:active_stream:" + userId;
     }
 
     private int getDailyTokenUsed(Long userId) {

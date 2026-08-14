@@ -3,8 +3,9 @@
 /**
  * 群聊内灵伴 AI 回复气泡：Markdown 渲染 + AI 免责声明。
  */
-import { computed } from 'vue'
-import { useMessage } from 'naive-ui'
+import { computed, reactive, watch } from 'vue'
+import { NIcon, useMessage } from 'naive-ui'
+import { ChevronDownOutline } from '@vicons/ionicons5'
 import type { ChatMessage } from '../../../types'
 import { renderLinkMateMarkdown, copyCodeFromButton } from '../../../utils/linkmateMarkdown'
 import { useI18n } from '../../../i18n'
@@ -13,11 +14,29 @@ const props = defineProps<{ msg: ChatMessage }>()
 
 const { t } = useI18n()
 const message = useMessage()
+const collapsedReasoning = reactive<Record<string, boolean>>({})
 
 const renderedHtml = computed(() => {
   if (props.msg.streaming) return ''
   return renderLinkMateMarkdown(props.msg.content || '')
 })
+
+function isReasoningCollapsed(id: string) {
+  return collapsedReasoning[id] ?? false
+}
+
+function toggleReasoning(id: string) {
+  collapsedReasoning[id] = !isReasoningCollapsed(id)
+}
+
+watch(
+  () => props.msg.content,
+  content => {
+    if (props.msg.streaming && content?.trim() && props.msg.reasoningContent?.trim()) {
+      collapsedReasoning[props.msg.id] = true
+    }
+  }
+)
 
 async function handleMarkdownClick(e: MouseEvent) {
   const btn = (e.target as HTMLElement | null)?.closest('.lm-code-copy') as HTMLElement | null
@@ -31,13 +50,35 @@ async function handleMarkdownClick(e: MouseEvent) {
     message.error(t('linkmate.copyCodeFailed'))
   }
 }
+
+async function copyContent() {
+  const text = props.msg.content?.trim()
+  if (!text) return
+  try {
+    await navigator.clipboard.writeText(text)
+    message.success(t('linkmate.messageCopied'))
+  } catch {
+    message.error(t('linkmate.copyCodeFailed'))
+  }
+}
 </script>
 
 <template>
   <div class="linkmate-chat-stack">
     <div class="lx-bubble linkmate-chat-bubble" @click="handleMarkdownClick">
-      <div v-if="msg.streaming && msg.reasoningContent" class="linkmate-reasoning-stream">
-        {{ msg.reasoningContent }}
+      <div v-if="msg.reasoningContent?.trim()" class="linkmate-reasoning-block">
+        <button type="button" class="linkmate-reasoning-toggle" @click.stop="toggleReasoning(msg.id)">
+          <NIcon
+            :component="ChevronDownOutline"
+            :size="12"
+            class="linkmate-reasoning-chev"
+            :class="{ collapsed: isReasoningCollapsed(msg.id) }"
+          />
+          <span>{{ t('linkmate.deepThinking') }}</span>
+        </button>
+        <div v-show="!isReasoningCollapsed(msg.id)" class="linkmate-reasoning-stream">
+          {{ msg.reasoningContent }}
+        </div>
       </div>
       <div v-if="msg.streaming" class="linkmate-stream-text">
         {{ msg.content || (msg.reasoningContent ? t('linkmate.deepThinkingGenerating') : t('linkmate.thinking')) }}
@@ -46,6 +87,14 @@ async function handleMarkdownClick(e: MouseEvent) {
       <div v-else class="linkmate-md" v-html="renderedHtml" />
     </div>
     <p v-if="!msg.streaming" class="linkmate-ai-disclaimer">{{ t('linkmate.aiDisclaimer') }}</p>
+    <button
+      v-if="!msg.streaming && msg.content?.trim()"
+      type="button"
+      class="linkmate-copy-btn"
+      @click="copyContent"
+    >
+      {{ t('linkmate.copyMessage') }}
+    </button>
   </div>
 </template>
 
@@ -69,6 +118,46 @@ async function handleMarkdownClick(e: MouseEvent) {
   user-select: none;
 }
 
+.linkmate-copy-btn {
+  align-self: flex-start;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--lx-text-secondary);
+  font-size: var(--lx-font-xs);
+  cursor: pointer;
+}
+
+.linkmate-copy-btn:hover {
+  color: var(--lx-accent);
+}
+
+.linkmate-reasoning-block {
+  margin-bottom: 0.5em;
+}
+
+.linkmate-reasoning-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--lx-text-secondary);
+  font-size: var(--lx-font-xs);
+  cursor: pointer;
+}
+
+.linkmate-reasoning-chev {
+  transition: transform var(--lx-duration);
+}
+
+.linkmate-reasoning-chev.collapsed {
+  transform: rotate(-90deg);
+}
+
 .linkmate-stream-text {
   white-space: pre-wrap;
   word-break: break-word;
@@ -76,7 +165,6 @@ async function handleMarkdownClick(e: MouseEvent) {
 }
 
 .linkmate-reasoning-stream {
-  margin-bottom: 0.5em;
   padding: 8px 10px;
   border-radius: var(--lx-radius-md);
   background: var(--lx-bg-hover);
