@@ -550,7 +550,7 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     @Transactional
-    public MessageVO postLinkMateGroupMessage(Long conversationId, String content) {
+    public MessageVO postLinkMateImMessage(Long conversationId, String content) {
         if (!StringUtils.hasText(content)) {
             throw new CustomException(400, "回复内容不能为空");
         }
@@ -558,8 +558,9 @@ public class ChatServiceImpl implements ChatService {
         if (conversation == null) {
             throw new CustomException(404, "会话不存在");
         }
-        if (conversation.getType() != ImConversation.TYPE_GROUP) {
-            throw new CustomException(400, "仅支持群聊");
+        if (conversation.getType() != ImConversation.TYPE_GROUP
+                && conversation.getType() != ImConversation.TYPE_PRIVATE) {
+            throw new CustomException(400, "不支持的会话类型");
         }
 
         String text = InputSanitizer.limitPlainText(content.trim(), 8000);

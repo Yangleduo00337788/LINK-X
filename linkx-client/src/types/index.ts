@@ -153,6 +153,8 @@ export interface ChatMessage {
   sensitiveAlert?: boolean
   /** 业务发送失败原因（如违禁拦截），有值时不自动重试 */
   sendFailReason?: string
+  /** 灵伴流式回复中（IM @灵伴） */
+  streaming?: boolean
 }
 
 /** 通讯录联系人项 */

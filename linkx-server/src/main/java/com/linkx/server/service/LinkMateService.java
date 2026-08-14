@@ -31,7 +31,12 @@ public interface LinkMateService {
     SseEmitter streamChat(Long userId, LinkMateChatDTO dto);
 
     /**
-     * 群聊 @灵伴：生成回复并落入群消息时间线。
+     * 群聊/单聊 @灵伴：生成回复并落入 IM 消息时间线。
      */
-    MessageVO replyInGroup(Long userId, LinkMateGroupReplyDTO dto);
+    MessageVO replyInImChat(Long userId, LinkMateGroupReplyDTO dto);
+
+    /**
+     * 群聊/单聊 @灵伴：SSE 流式回复，完成后落入 IM 消息时间线。
+     */
+    SseEmitter streamReplyInImChat(Long userId, LinkMateGroupReplyDTO dto);
 }

@@ -1024,6 +1024,69 @@ export const useAppStore = defineStore('app', {
       this.isOffline = false
     },
 
+    /** IM @灵伴：插入流式占位消息 */
+    ensureStreamingLinkMateMessage(sessionId: string, tempId: string) {
+      if (!this.messagesBySession[sessionId]) {
+        this.messagesBySession[sessionId] = []
+      }
+      const list = this.messagesBySession[sessionId]
+      if (list.some(m => m.id === tempId)) return
+      const now = new Date()
+      list.push({
+        id: tempId,
+        sessionId,
+        content: '',
+        time: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+        isSelf: false,
+        senderId: '0',
+        senderName: '灵伴 LinkMate',
+        type: 'text',
+        streaming: true
+      })
+    },
+
+    /** IM @灵伴：更新流式内容 */
+    updateStreamingLinkMateMessage(sessionId: string, tempId: string, content: string) {
+      const msg = this.messagesBySession[sessionId]?.find(m => m.id === tempId)
+      if (msg) msg.content = content
+    },
+
+    /** IM @灵伴：流式完成，替换为正式消息 */
+    finalizeStreamingLinkMateMessage(
+      sessionId: string,
+      tempId: string,
+      messageId: string,
+      content: string
+    ) {
+      const list = this.messagesBySession[sessionId]
+      if (!list) return
+      const idx = list.findIndex(m => m.id === tempId)
+      const now = new Date()
+      const finalized: ChatMessage = {
+        id: messageId,
+        sessionId,
+        content,
+        time: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+        isSelf: false,
+        senderId: '0',
+        senderName: '灵伴 LinkMate',
+        type: 'text',
+        streaming: false
+      }
+      if (idx >= 0) {
+        list[idx] = finalized
+      } else if (!list.some(m => m.id === messageId)) {
+        list.push(finalized)
+      }
+    },
+
+    /** IM @灵伴：移除流式占位 */
+    removeStreamingLinkMateMessage(sessionId: string, tempId: string) {
+      const list = this.messagesBySession[sessionId]
+      if (!list) return
+      this.messagesBySession[sessionId] = list.filter(m => m.id !== tempId)
+    },
+
     /** 处理 WebSocket 推送的新消息 */
     handleIncomingWsMessage(message: MessageItem) {
       // 后端 MessageVO.conversationId 是 Long 类型，JSON 反序列化后是数字

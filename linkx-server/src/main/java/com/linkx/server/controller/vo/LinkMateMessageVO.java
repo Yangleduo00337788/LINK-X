@@ -31,5 +31,7 @@ public class LinkMateMessageVO {
 
     private Integer responseDurationMs;
 
+    private Integer reasoningDurationMs;
+
     private String createTime;
 }

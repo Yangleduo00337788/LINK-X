@@ -14,7 +14,10 @@ const props = defineProps<{ msg: ChatMessage }>()
 const { t } = useI18n()
 const message = useMessage()
 
-const renderedHtml = computed(() => renderLinkMateMarkdown(props.msg.content || ''))
+const renderedHtml = computed(() => {
+  if (props.msg.streaming) return ''
+  return renderLinkMateMarkdown(props.msg.content || '')
+})
 
 async function handleMarkdownClick(e: MouseEvent) {
   const btn = (e.target as HTMLElement | null)?.closest('.lm-code-copy') as HTMLElement | null
@@ -33,7 +36,8 @@ async function handleMarkdownClick(e: MouseEvent) {
 <template>
   <div class="linkmate-chat-stack">
     <div class="lx-bubble linkmate-chat-bubble" @click="handleMarkdownClick">
-      <div class="linkmate-md" v-html="renderedHtml" />
+      <div v-if="msg.streaming" class="linkmate-stream-text">{{ msg.content || t('linkmate.thinking') }}</div>
+      <div v-else class="linkmate-md" v-html="renderedHtml" />
     </div>
     <p class="linkmate-ai-disclaimer">{{ t('linkmate.aiDisclaimer') }}</p>
   </div>
@@ -57,6 +61,12 @@ async function handleMarkdownClick(e: MouseEvent) {
   line-height: var(--lx-leading-normal);
   color: var(--lx-text-muted);
   user-select: none;
+}
+
+.linkmate-stream-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: var(--lx-leading-normal);
 }
 
 .linkmate-md :deep(p) {

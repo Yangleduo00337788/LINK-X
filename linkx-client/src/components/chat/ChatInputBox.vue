@@ -297,10 +297,23 @@ function getTextareaEl(): HTMLTextAreaElement | null {
   return inst?.textareaElRef ?? null
 }
 
-/** 群成员候选（含灵伴、置顶的「全体成员」） */
+/** 群成员候选（含灵伴、置顶的「全体成员」）；单聊仅灵伴 */
 const mentionCandidates = computed<ContactItem[]>(() => {
-  if (!props.isGroupChat || !currentSessionId.value) return []
+  if (!currentSessionId.value) return []
+  if (!props.isGroupChat && !props.isFriendChat) return []
   const q = mentionQuery.value.trim().toLowerCase()
+  const linkMate: ContactItem = {
+    id: LINKMATE_AT_ID,
+    name: t('linkmate.atName'),
+    avatarText: '',
+    avatarColor: 'transparent',
+    group: props.isGroupChat ? t('linkmate.atHint') : t('linkmate.atHintPrivate')
+  }
+  if (props.isFriendChat) {
+    if (!linkMateEnabled.value) return []
+    if (q && !linkMate.name.toLowerCase().includes(q)) return []
+    return [linkMate]
+  }
   const me = userProfile.value.userId
   const atAllName = t('extra.atAllMembers')
   const atAll: ContactItem = {
@@ -309,13 +322,6 @@ const mentionCandidates = computed<ContactItem[]>(() => {
     avatarText: '@',
     avatarColor: 'var(--lx-accent)',
     group: t('extra.atAllHint')
-  }
-  const linkMate: ContactItem = {
-    id: LINKMATE_AT_ID,
-    name: t('linkmate.atName'),
-    avatarText: '',
-    avatarColor: 'transparent',
-    group: t('linkmate.atHint')
   }
   const members: ContactItem[] = groupMetaStore
     .membersFor(currentSessionId.value)
@@ -338,8 +344,15 @@ const mentionCandidates = computed<ContactItem[]>(() => {
   return list.slice(0, 30)
 })
 
+const canAtMention = computed(
+  () =>
+    !inputDisabled.value &&
+    linkMateEnabled.value &&
+    (props.isGroupChat || props.isFriendChat)
+)
+
 function detectMentionTrigger() {
-  if (!props.isGroupChat || inputDisabled.value) {
+  if (!canAtMention.value) {
     showMentionPicker.value = false
     return
   }
@@ -355,7 +368,9 @@ function detectMentionTrigger() {
         mentionStartIndex.value = i
         mentionQuery.value = segment
         showMentionPicker.value = true
-        if (currentSessionId.value) void groupMetaStore.fetchMembers(currentSessionId.value)
+        if (props.isGroupChat && currentSessionId.value) {
+          void groupMetaStore.fetchMembers(currentSessionId.value)
+        }
         scheduleMentionAnchorSync()
       } else {
         showMentionPicker.value = false
@@ -417,7 +432,7 @@ function applyMention(id: string | number, name: string) {
 
 /** 工具栏 @：插入 @ 并弹出成员列表 */
 function triggerAtMention() {
-  if (!props.isGroupChat || inputDisabled.value) return
+  if (!canAtMention.value) return
   const ta = getTextareaEl()
   ta?.focus()
   const cursor = ta?.selectionStart ?? inputValue.value.length
@@ -812,6 +827,8 @@ watch(currentSessionId, () => {
 })
 
 onUnmounted(() => {
+  linkMateReplyAbort?.abort()
+  linkMateReplyAbort = null
   unbindMentionAnchorListeners()
   if (mentionAnchorRaf) cancelAnimationFrame(mentionAnchorRaf)
   if (draftSaveTimer) clearTimeout(draftSaveTimer)
@@ -836,28 +853,66 @@ function pickEmoji(e: string) {
   showEmoji.value = false
 }
 
+function hasLinkMateMention(text: string): boolean {
+  return LINKMATE_MENTION_RE.test(text)
+}
+
 function extractLinkMateQuestion(text: string): string | null {
   if (!LINKMATE_MENTION_RE.test(text)) return null
   const question = text.replace(LINKMATE_MENTION_RE, ' ').replace(/\s+/g, ' ').trim()
   return question || null
 }
 
-async function requestLinkMateGroupReply(conversationId: string, question: string) {
-  const loading = message.loading(t('linkmate.thinking'), { duration: 0 })
+let linkMateReplyAbort: AbortController | null = null
+
+async function requestLinkMateImReply(conversationId: string, question: string) {
+  linkMateReplyAbort?.abort()
+  const abortController = new AbortController()
+  linkMateReplyAbort = abortController
+  const tempId = `temp-linkmate-${Date.now()}`
+  let content = ''
+
+  appStore.ensureStreamingLinkMateMessage(conversationId, tempId)
+  emit('scrollToBottom')
+
   try {
-    const res = await linkmateApi.replyInGroup(conversationId, question)
-    if (res.data) {
-      appStore.handleIncomingWsMessage(res.data)
-      emit('scrollToBottom')
-    }
+    await linkmateApi.streamImReply(
+      conversationId,
+      question,
+      {
+        onDelta: chunk => {
+          content += chunk
+          appStore.updateStreamingLinkMateMessage(conversationId, tempId, content)
+          emit('scrollToBottom')
+        },
+        onDone: (messageId, _conversationId) => {
+          appStore.finalizeStreamingLinkMateMessage(conversationId, tempId, messageId, content)
+          emit('scrollToBottom')
+        },
+        onError: errMsg => {
+          appStore.removeStreamingLinkMateMessage(conversationId, tempId)
+          message.error(errMsg)
+        }
+      },
+      abortController.signal
+    )
   } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      appStore.removeStreamingLinkMateMessage(conversationId, tempId)
+      return
+    }
+    appStore.removeStreamingLinkMateMessage(conversationId, tempId)
     let errMsg = t('linkmate.sendFailed')
     if (axios.isAxiosError(error)) {
       errMsg = (error.response?.data as { message?: string } | undefined)?.message || errMsg
+    } else if (error instanceof Error && error.message) {
+      errMsg = error.message
     }
     message.error(errMsg)
   } finally {
-    loading.destroy()
+    if (linkMateReplyAbort === abortController) {
+      linkMateReplyAbort = null
+    }
   }
 }
 
@@ -888,15 +943,24 @@ function send() {
         await sendMessage(url, { type: 'image', isImage: true, fileName: imgName })
       } else {
         const text = inputValue.value
+        if (
+          hasLinkMateMention(text) &&
+          linkMateEnabled.value &&
+          (props.isGroupChat || props.isFriendChat) &&
+          !extractLinkMateQuestion(text)
+        ) {
+          message.warning(t('linkmate.emptyAtPrompt'))
+          return
+        }
         const linkMateQuestion = extractLinkMateQuestion(text)
         await sendMessage(text, { type: 'text', replyTo: props.replyingTo })
         if (
           linkMateQuestion &&
           linkMateEnabled.value &&
-          props.isGroupChat &&
+          (props.isGroupChat || props.isFriendChat) &&
           currentSessionId.value
         ) {
-          void requestLinkMateGroupReply(currentSessionId.value, linkMateQuestion)
+          void requestLinkMateImReply(currentSessionId.value, linkMateQuestion)
         }
       }
       inputValue.value = ''
@@ -1073,9 +1137,9 @@ defineExpose({
             </div>
           </n-popover>
           <LxIconButton
-            v-if="isGroupChat"
+            v-if="canAtMention"
             variant="chat-tool"
-            :title="t('extra.atMember')"
+            :title="isGroupChat ? t('extra.atMember') : t('linkmate.atName')"
             :disabled="inputDisabled"
             @click="triggerAtMention"
           >

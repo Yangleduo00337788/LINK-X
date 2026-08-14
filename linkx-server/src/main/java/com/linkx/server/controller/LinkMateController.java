@@ -107,16 +107,30 @@ public class LinkMateController {
         return linkMateService.streamChat(userId, dto);
     }
 
-    @Operation(summary = "群聊 @灵伴 回复（消息落入群聊时间线）")
+    @Operation(summary = "群聊/单聊 @灵伴 回复（消息落入 IM 时间线）")
     @PostMapping("/group/reply")
     @RateLimit(scope = "linkmate:group", value = 20, window = 60)
     public Result<MessageVO> replyInGroup(
             @Valid @RequestBody LinkMateGroupReplyDTO dto,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        MessageVO vo = linkMateService.replyInGroup(userId, dto);
+        MessageVO vo = linkMateService.replyInImChat(userId, dto);
         imMessagePushService.pushToConversationMembers(vo, LinkMateConstants.BOT_SENDER_ID, null);
         return Result.success(vo);
+    }
+
+    @Operation(summary = "群聊/单聊 @灵伴 回复（SSE 流式，完成后落入 IM 时间线）")
+    @PostMapping(value = "/group/reply/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @RateLimit(scope = "linkmate:group", value = 20, window = 60)
+    public SseEmitter streamReplyInGroup(
+            @Valid @RequestBody LinkMateGroupReplyDTO dto,
+            HttpServletRequest request,
+            HttpServletResponse response) {
+        response.setHeader("Cache-Control", "no-cache, no-transform");
+        response.setHeader("X-Accel-Buffering", "no");
+        response.setHeader("Connection", "keep-alive");
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return linkMateService.streamReplyInImChat(userId, dto);
     }
 
     private Long parseId(String id) {

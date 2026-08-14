@@ -799,6 +799,8 @@ export default {
     imContextGroup: 'Using current group chat: {title}',
     atName: 'LinkMate',
     atHint: 'Group AI assistant',
+    atHintPrivate: 'Private chat AI assistant',
+    emptyAtPrompt: 'Please enter a question after @LinkMate',
     aiDisclaimer: 'Content is AI-generated. Please verify before use.'
   },
   nav: {

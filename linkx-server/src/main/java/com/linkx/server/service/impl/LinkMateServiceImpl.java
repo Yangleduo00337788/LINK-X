@@ -19,6 +19,7 @@ import com.linkx.server.entity.ImConversation;
 import com.linkx.server.entity.ImMessage;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.exception.CustomException;
+import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.mapper.AiChatMessageMapper;
 import com.linkx.server.mapper.AiChatSessionMapper;
 import com.linkx.server.mapper.ImConversationMapper;
@@ -53,6 +54,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import com.linkx.server.service.linkmate.LinkMateLlmClient.StreamDeltaHandlers;
@@ -78,6 +80,7 @@ public class LinkMateServiceImpl implements LinkMateService {
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final ChatService chatService;
+    private final ImMessagePushService imMessagePushService;
     private final ImConversationMapper conversationMapper;
     private final ImMessageRepository imMessageRepository;
     private final SysUserMapper sysUserMapper;
@@ -156,7 +159,7 @@ public class LinkMateServiceImpl implements LinkMateService {
 
         LlmResult result = llmClient.chat(context, Boolean.TRUE.equals(dto.getDeepThinking()));
         recordTokenUsage(userId, result.totalTokens());
-        AiChatMessage assistant = saveAssistantMessage(userId, session, result.content(), result.totalTokens(), null, null);
+        AiChatMessage assistant = saveAssistantMessage(userId, session, result.content(), result.totalTokens(), null, null, null);
         if (!regenerate) {
             maybeUpdateTitle(session, userMessage);
         }
@@ -169,19 +172,21 @@ public class LinkMateServiceImpl implements LinkMateService {
         boolean regenerate = Boolean.TRUE.equals(dto.getRegenerate());
         AiChatSession session;
         String userMessage;
+        Long userMessageId = null;
         if (regenerate) {
             session = requireSession(userId, parseId(dto.getSessionId()));
             userMessage = prepareRegenerate(userId, session.getId(), dto.getRegenerateMessageId());
         } else {
             session = resolveSession(userId, dto.getSessionId(), dto.getMessage());
             userMessage = trimMessage(dto.getMessage());
-            saveUserMessage(userId, session, userMessage);
+            userMessageId = saveUserMessage(userId, session, userMessage).getId();
         }
         List<LlmMessage> context = buildLlmContext(session.getId(), dto.getImContext());
         checkDailyLimit(userId, estimatePromptTokens(context));
 
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT.toMillis());
         Long sessionId = session.getId();
+        Long rollbackUserMessageId = userMessageId;
         AtomicBoolean cancelled = new AtomicBoolean(false);
         emitter.onCompletion(() -> cancelled.set(true));
         emitter.onTimeout(() -> cancelled.set(true));
@@ -189,8 +194,14 @@ public class LinkMateServiceImpl implements LinkMateService {
 
         STREAM_EXECUTOR.execute(() -> {
             long streamStartedAt = System.currentTimeMillis();
+            AtomicLong reasoningEndedAt = new AtomicLong(0);
             try {
-                sendSse(emitter, "start", Map.of("sessionId", String.valueOf(sessionId)));
+                java.util.Map<String, Object> startPayload = new java.util.LinkedHashMap<>();
+                startPayload.put("sessionId", String.valueOf(sessionId));
+                if (rollbackUserMessageId != null) {
+                    startPayload.put("userMessageId", String.valueOf(rollbackUserMessageId));
+                }
+                sendSse(emitter, "start", startPayload);
                 boolean deepThinking = Boolean.TRUE.equals(dto.getDeepThinking())
                         && linkxProperties.getLinkmate().isReasoningSupported();
                 StreamResult result = llmClient.streamChat(
@@ -205,6 +216,9 @@ public class LinkMateServiceImpl implements LinkMateService {
                                     }
                                 },
                                 chunk -> {
+                                    if (reasoningEndedAt.get() == 0 && deepThinking) {
+                                        reasoningEndedAt.set(System.currentTimeMillis());
+                                    }
                                     try {
                                         sendSse(emitter, "delta", Map.of("content", chunk));
                                     } catch (Exception sendEx) {
@@ -213,11 +227,21 @@ public class LinkMateServiceImpl implements LinkMateService {
                                 }),
                         cancelled::get);
                 if (result.cancelled() || cancelled.get()) {
+                    if (rollbackUserMessageId != null) {
+                        messageMapper.deleteById(rollbackUserMessageId);
+                    }
                     emitter.complete();
                     return;
                 }
                 recordTokenUsage(userId, result.totalTokens());
                 int responseDurationMs = (int) Math.max(1, System.currentTimeMillis() - streamStartedAt);
+                Integer reasoningDurationMs = null;
+                if (StringUtils.hasText(result.reasoning())) {
+                    long reasoningEnd = reasoningEndedAt.get() > 0
+                            ? reasoningEndedAt.get()
+                            : System.currentTimeMillis();
+                    reasoningDurationMs = (int) Math.max(1, reasoningEnd - streamStartedAt);
+                }
                 String reasoningContent = StringUtils.hasText(result.reasoning()) ? result.reasoning() : null;
                 AiChatMessage assistant = saveAssistantMessage(
                         userId,
@@ -225,7 +249,8 @@ public class LinkMateServiceImpl implements LinkMateService {
                         result.content(),
                         result.totalTokens(),
                         reasoningContent,
-                        responseDurationMs);
+                        responseDurationMs,
+                        reasoningDurationMs);
                 if (!regenerate) {
                     maybeUpdateTitle(session, userMessage);
                 }
@@ -235,8 +260,14 @@ public class LinkMateServiceImpl implements LinkMateService {
                         "totalTokens", String.valueOf(result.totalTokens())));
                 emitter.complete();
             } catch (CustomException ex) {
+                if (rollbackUserMessageId != null) {
+                    messageMapper.deleteById(rollbackUserMessageId);
+                }
                 sendError(emitter, ex.getMessage());
             } catch (Exception ex) {
+                if (rollbackUserMessageId != null) {
+                    messageMapper.deleteById(rollbackUserMessageId);
+                }
                 log.error("LinkMate stream error sessionId={}", sessionId, ex);
                 sendError(emitter, "AI 服务请求失败");
             }
@@ -247,34 +278,112 @@ public class LinkMateServiceImpl implements LinkMateService {
 
     @Override
     @Transactional
-    public MessageVO replyInGroup(Long userId, LinkMateGroupReplyDTO dto) {
+    public MessageVO replyInImChat(Long userId, LinkMateGroupReplyDTO dto) {
         LinkxProperties.LinkMate cfg = linkxProperties.getLinkmate();
         if (!cfg.isEnabled() || !StringUtils.hasText(cfg.getApiKey())) {
             throw new CustomException(503, "灵伴服务未启用");
         }
-        chatService.assertConversationMember(userId, dto.getConversationId());
-        ImConversation conversation = conversationMapper.selectOneById(dto.getConversationId());
-        if (conversation == null) {
-            throw new CustomException(404, "会话不存在");
-        }
-        if (conversation.getType() != ImConversation.TYPE_GROUP) {
-            throw new CustomException(400, "仅支持在群聊中 @灵伴");
-        }
+        ImConversation conversation = requireImMentionConversation(userId, dto.getConversationId());
 
         String question = trimMessage(dto.getQuestion());
         if (!StringUtils.hasText(question)) {
             throw new CustomException(400, "提问内容不能为空");
         }
 
-        List<LlmMessage> context = buildGroupLlmContext(dto.getConversationId(), userId, conversation, question);
+        List<LlmMessage> context = buildImMentionLlmContext(dto.getConversationId(), userId, conversation, question);
         checkDailyLimit(userId, estimatePromptTokens(context));
 
         LlmResult result = llmClient.chat(context, false);
         recordTokenUsage(userId, result.totalTokens());
-        return chatService.postLinkMateGroupMessage(dto.getConversationId(), result.content());
+        return chatService.postLinkMateImMessage(dto.getConversationId(), result.content());
     }
 
-    private List<LlmMessage> buildGroupLlmContext(
+    @Override
+    public SseEmitter streamReplyInImChat(Long userId, LinkMateGroupReplyDTO dto) {
+        LinkxProperties.LinkMate cfg = linkxProperties.getLinkmate();
+        if (!cfg.isEnabled() || !StringUtils.hasText(cfg.getApiKey())) {
+            throw new CustomException(503, "灵伴服务未启用");
+        }
+        ImConversation conversation = requireImMentionConversation(userId, dto.getConversationId());
+
+        String question = trimMessage(dto.getQuestion());
+        if (!StringUtils.hasText(question)) {
+            throw new CustomException(400, "提问内容不能为空");
+        }
+
+        List<LlmMessage> context = buildImMentionLlmContext(dto.getConversationId(), userId, conversation, question);
+        checkDailyLimit(userId, estimatePromptTokens(context));
+
+        SseEmitter emitter = new SseEmitter(SSE_TIMEOUT.toMillis());
+        Long conversationId = dto.getConversationId();
+        AtomicBoolean cancelled = new AtomicBoolean(false);
+        emitter.onCompletion(() -> cancelled.set(true));
+        emitter.onTimeout(() -> cancelled.set(true));
+        emitter.onError(ex -> cancelled.set(true));
+
+        STREAM_EXECUTOR.execute(() -> {
+            try {
+                sendSse(emitter, "start", Map.of("conversationId", String.valueOf(conversationId)));
+                StreamResult result = llmClient.streamChat(
+                        context,
+                        false,
+                        new StreamDeltaHandlers(
+                                chunk -> {
+                                    try {
+                                        sendSse(emitter, "reasoning_delta", Map.of("content", chunk));
+                                    } catch (Exception sendEx) {
+                                        log.debug("LinkMate IM SSE client disconnected");
+                                    }
+                                },
+                                chunk -> {
+                                    try {
+                                        sendSse(emitter, "delta", Map.of("content", chunk));
+                                    } catch (Exception sendEx) {
+                                        log.debug("LinkMate IM SSE client disconnected");
+                                    }
+                                }),
+                        cancelled::get);
+                if (result.cancelled() || cancelled.get()) {
+                    emitter.complete();
+                    return;
+                }
+                if (!StringUtils.hasText(result.content())) {
+                    sendError(emitter, "AI 未返回有效内容");
+                    return;
+                }
+                recordTokenUsage(userId, result.totalTokens());
+                MessageVO message = chatService.postLinkMateImMessage(conversationId, result.content());
+                imMessagePushService.pushToConversationMembers(message, LinkMateConstants.BOT_SENDER_ID, null);
+                sendSse(emitter, "done", Map.of(
+                        "messageId", String.valueOf(message.getId()),
+                        "conversationId", String.valueOf(conversationId),
+                        "totalTokens", String.valueOf(result.totalTokens())));
+                emitter.complete();
+            } catch (CustomException ex) {
+                sendError(emitter, ex.getMessage());
+            } catch (Exception ex) {
+                log.error("LinkMate IM stream error conversationId={}", conversationId, ex);
+                sendError(emitter, "AI 服务请求失败");
+            }
+        });
+
+        return emitter;
+    }
+
+    private ImConversation requireImMentionConversation(Long userId, Long conversationId) {
+        chatService.assertConversationMember(userId, conversationId);
+        ImConversation conversation = conversationMapper.selectOneById(conversationId);
+        if (conversation == null) {
+            throw new CustomException(404, "会话不存在");
+        }
+        if (conversation.getType() != ImConversation.TYPE_GROUP
+                && conversation.getType() != ImConversation.TYPE_PRIVATE) {
+            throw new CustomException(400, "仅支持在群聊或单聊中 @灵伴");
+        }
+        return conversation;
+    }
+
+    private List<LlmMessage> buildImMentionLlmContext(
             Long conversationId,
             Long userId,
             ImConversation conversation,
@@ -291,12 +400,17 @@ public class LinkMateServiceImpl implements LinkMateService {
 
         String groupTitle = StringUtils.hasText(conversation.getName())
                 ? conversation.getName().trim()
-                : "群聊";
+                : (conversation.getType() == ImConversation.TYPE_GROUP ? "群聊" : "单聊");
         StringBuilder groupCtx = new StringBuilder();
-        groupCtx.append("你正在群聊「").append(groupTitle).append("」中被 @提及。");
-        groupCtx.append("你的回复将作为一条群消息发送给所有群成员，请简洁、专业、友好。");
+        if (conversation.getType() == ImConversation.TYPE_GROUP) {
+            groupCtx.append("你正在群聊「").append(groupTitle).append("」中被 @提及。");
+            groupCtx.append("你的回复将作为一条群消息发送给所有群成员，请简洁、专业、友好。");
+        } else {
+            groupCtx.append("你正在与用户的单聊「").append(groupTitle).append("」中被 @提及。");
+            groupCtx.append("你的回复将作为一条单聊消息发送给对方，请简洁、专业、友好。");
+        }
         groupCtx.append("使用提问者使用的语言回复。\n");
-        groupCtx.append("群聊最近消息：\n");
+        groupCtx.append("最近消息：\n");
 
         List<ImMessage> recent = imMessageRepository.selectListByQuery(
                 QueryWrapper.create()
@@ -388,7 +502,7 @@ public class LinkMateServiceImpl implements LinkMateService {
         return session;
     }
 
-    private void saveUserMessage(Long userId, AiChatSession session, String content) {
+    private AiChatMessage saveUserMessage(Long userId, AiChatSession session, String content) {
         AiChatMessage msg = AiChatMessage.builder()
                 .sessionId(session.getId())
                 .userId(userId)
@@ -398,6 +512,7 @@ public class LinkMateServiceImpl implements LinkMateService {
                 .build();
         messageMapper.insert(msg);
         touchSession(session);
+        return msg;
     }
 
     private AiChatMessage saveAssistantMessage(
@@ -406,7 +521,8 @@ public class LinkMateServiceImpl implements LinkMateService {
             String content,
             int tokens,
             String reasoningContent,
-            Integer responseDurationMs) {
+            Integer responseDurationMs,
+            Integer reasoningDurationMs) {
         AiChatMessage msg = AiChatMessage.builder()
                 .sessionId(session.getId())
                 .userId(userId)
@@ -414,6 +530,7 @@ public class LinkMateServiceImpl implements LinkMateService {
                 .content(content)
                 .reasoningContent(StringUtils.hasText(reasoningContent) ? reasoningContent : null)
                 .responseDurationMs(responseDurationMs)
+                .reasoningDurationMs(reasoningDurationMs)
                 .tokenCount(tokens)
                 .build();
         messageMapper.insert(msg);
@@ -607,6 +724,7 @@ public class LinkMateServiceImpl implements LinkMateService {
                 .content(message.getContent())
                 .reasoningContent(message.getReasoningContent())
                 .responseDurationMs(message.getResponseDurationMs())
+                .reasoningDurationMs(message.getReasoningDurationMs())
                 .createTime(formatTime(message.getCreateTime()))
                 .build();
     }

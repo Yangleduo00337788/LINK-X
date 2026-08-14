@@ -800,6 +800,8 @@ export default {
     imContextGroup: '已接入当前群聊：{title}',
     atName: '灵伴 LinkMate',
     atHint: '群聊 AI 助手',
+    atHintPrivate: '单聊 AI 助手',
+    emptyAtPrompt: '@灵伴 后请输入您的问题',
     aiDisclaimer: '内容由AI生成，请注意甄别！'
   },
   nav: {

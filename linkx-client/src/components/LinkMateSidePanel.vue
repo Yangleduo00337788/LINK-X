@@ -20,15 +20,11 @@ import type { LinkMateMessage } from '../api/linkmate'
 import { useI18n } from '../i18n'
 import LinkMateLogoMark from './LinkMateLogoMark.vue'
 import { renderLinkMateMarkdown, copyCodeFromButton } from '../utils/linkmateMarkdown'
-import { getActiveImSession } from '../utils/buildImChatContext'
-import { useAppStore } from '../stores/app'
 
 const { t } = useI18n()
 const message = useMessage()
 const dialog = useDialog()
 const linkMate = useLinkMateStore()
-const appStore = useAppStore()
-const { currentSessionId } = storeToRefs(appStore)
 const {
   activeMessages,
   activeSessionId,
@@ -42,7 +38,8 @@ const {
   sessions,
   deepThinking,
   deepThinkingSupported,
-  showHistory
+  showHistory,
+  attachedImContext
 } = storeToRefs(linkMate)
 
 const inputRef = ref<InstanceType<typeof NInput> | null>(null)
@@ -53,19 +50,21 @@ const resizeStartX = ref(0)
 const resizeStartWidth = ref(0)
 const collapsedReasoning = reactive<Record<string, boolean>>({})
 const statusNow = ref(Date.now())
-let statusTickTimer = 0
+let statusTickRaf = 0
 
 function startStatusTick() {
-  if (statusTickTimer) return
-  statusTickTimer = window.setInterval(() => {
+  if (statusTickRaf) return
+  const tick = () => {
     statusNow.value = Date.now()
-  }, 100)
+    statusTickRaf = window.requestAnimationFrame(tick)
+  }
+  statusTickRaf = window.requestAnimationFrame(tick)
 }
 
 function stopStatusTick() {
-  if (!statusTickTimer) return
-  clearInterval(statusTickTimer)
-  statusTickTimer = 0
+  if (!statusTickRaf) return
+  window.cancelAnimationFrame(statusTickRaf)
+  statusTickRaf = 0
 }
 
 function formatResponseDuration(msg: LinkMateMessage): string {
@@ -138,10 +137,7 @@ const showWelcome = computed(
   () => booted.value && !loadingMessages.value && activeMessages.value.length === 0
 )
 
-const imContextPreview = computed(() => {
-  void currentSessionId.value
-  return getActiveImSession()
-})
+const imContextPreview = computed(() => attachedImContext.value)
 
 const imContextHint = computed(() => {
   if (!imContextPreview.value) return ''

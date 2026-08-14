@@ -4,7 +4,7 @@
 import { defineStore } from 'pinia'
 import * as linkmateApi from '../api/linkmate'
 import type { LinkMateMessage, LinkMateSession, LinkMateStatus } from '../api/linkmate'
-import { buildImChatContext, isRealImChatSession } from '../utils/buildImChatContext'
+import { buildImChatContext, isRealImChatSession, type LinkMateImContext } from '../utils/buildImChatContext'
 import { useAppStore } from '../stores/app'
 
 export type LinkMatePanelState = 'closed' | 'open' | 'collapsed'
@@ -72,7 +72,9 @@ export const useLinkMateStore = defineStore('linkmate', {
     /** 右侧对话面板：closed 未打开 / open 展开 / collapsed 已折叠（侧栏可恢复） */
     panelState: 'closed' as LinkMatePanelState,
     /** 侧栏宽度（px），持久化至 localStorage */
-    panelWidth: loadPanelWidth()
+    panelWidth: loadPanelWidth(),
+    /** 打开侧栏时快照的 IM 上下文（detach 会话后仍可注入模型） */
+    imContextSnapshot: null as LinkMateImContext | null
   }),
 
   getters: {
@@ -94,6 +96,9 @@ export const useLinkMateStore = defineStore('linkmate', {
     },
     deepThinkingSupported(state): boolean {
       return state.status?.deepThinkingSupported ?? false
+    },
+    attachedImContext(state): LinkMateImContext | null {
+      return state.imContextSnapshot
     }
   },
 
@@ -104,6 +109,15 @@ export const useLinkMateStore = defineStore('linkmate', {
         this.abortStream()
       }
       this.panelState = 'closed'
+      this.imContextSnapshot = null
+    },
+
+    snapshotImContext() {
+      this.imContextSnapshot = buildImChatContext() ?? null
+    },
+
+    getImContextForRequest(): LinkMateImContext | undefined {
+      return this.imContextSnapshot ?? buildImChatContext()
     },
 
     /** 打开灵伴前退出当前 IM 会话，保证不与聊天主区同时展示 */
@@ -115,6 +129,7 @@ export const useLinkMateStore = defineStore('linkmate', {
     },
 
     openPanel() {
+      this.snapshotImContext()
       this.detachImChatSession()
       this.panelState = 'open'
     },
@@ -126,6 +141,7 @@ export const useLinkMateStore = defineStore('linkmate', {
     },
 
     expandPanel() {
+      this.snapshotImContext()
       this.detachImChatSession()
       if (this.panelState === 'collapsed') {
         this.panelState = 'open'
@@ -192,64 +208,51 @@ export const useLinkMateStore = defineStore('linkmate', {
       this.messagesBySession = { ...this.messagesBySession, [sessionId]: messages }
     },
 
-    updateAssistantContent(sessionId: string, assistantId: string, content: string) {
+    patchAssistantField(
+      sessionId: string,
+      assistantId: string,
+      patch: Partial<LinkMateMessage>
+    ) {
       const msgs = this.messagesBySession[sessionId]
       if (!msgs) return
       const idx = msgs.findIndex(m => m.id === assistantId)
       if (idx < 0) return
-      const next = [...msgs]
-      next[idx] = { ...next[idx], content }
-      this.patchSessionMessages(sessionId, next)
+      Object.assign(msgs[idx], patch)
+    },
+
+    updateAssistantContent(sessionId: string, assistantId: string, content: string) {
+      this.patchAssistantField(sessionId, assistantId, { content })
     },
 
     updateAssistantReasoning(sessionId: string, assistantId: string, reasoningContent: string) {
       const msgs = this.messagesBySession[sessionId]
-      if (!msgs) return
-      const idx = msgs.findIndex(m => m.id === assistantId)
-      if (idx < 0) return
-      const next = [...msgs]
-      const current = next[idx]
-      next[idx] = {
-        ...current,
+      const msg = msgs?.find(m => m.id === assistantId)
+      this.patchAssistantField(sessionId, assistantId, {
         reasoningContent,
-        responseStartedAt: current.responseStartedAt ?? Date.now()
-      }
-      this.patchSessionMessages(sessionId, next)
+        responseStartedAt: msg?.responseStartedAt ?? Date.now()
+      })
     },
 
     setAssistantResponseDuration(sessionId: string, assistantId: string, durationMs: number) {
-      const msgs = this.messagesBySession[sessionId]
-      if (!msgs) return
-      const idx = msgs.findIndex(m => m.id === assistantId)
-      if (idx < 0) return
-      const next = [...msgs]
-      next[idx] = { ...next[idx], responseDurationMs: durationMs }
-      this.patchSessionMessages(sessionId, next)
+      this.patchAssistantField(sessionId, assistantId, { responseDurationMs: durationMs })
     },
 
     setAssistantReasoningDuration(sessionId: string, assistantId: string, durationMs: number) {
-      const msgs = this.messagesBySession[sessionId]
-      if (!msgs) return
-      const idx = msgs.findIndex(m => m.id === assistantId)
-      if (idx < 0) return
-      const next = [...msgs]
-      next[idx] = { ...next[idx], reasoningDurationMs: durationMs }
-      this.patchSessionMessages(sessionId, next)
+      this.patchAssistantField(sessionId, assistantId, { reasoningDurationMs: durationMs })
     },
 
     finalizeAssistantMessage(
       sessionId: string,
       assistantId: string,
       messageId: string,
-      sid: string
+      sid: string,
+      totalTokens?: number
     ) {
-      const msgs = this.messagesBySession[sessionId]
-      if (!msgs) return
-      const idx = msgs.findIndex(m => m.id === assistantId)
-      if (idx < 0) return
-      const next = [...msgs]
-      next[idx] = { ...next[idx], id: messageId, sessionId: sid }
-      this.patchSessionMessages(sessionId, next)
+      const patch: Partial<LinkMateMessage> = { id: messageId, sessionId: sid }
+      if (totalTokens != null && totalTokens > 0) {
+        patch.tokenCount = totalTokens
+      }
+      this.patchAssistantField(sessionId, assistantId, patch)
     },
 
     async loadStatus() {
@@ -329,7 +332,8 @@ export const useLinkMateStore = defineStore('linkmate', {
               content: row.content,
               createTime: row.createTime,
               reasoningContent: row.reasoningContent,
-              responseDurationMs: row.responseDurationMs
+              responseDurationMs: row.responseDurationMs,
+              reasoningDurationMs: row.reasoningDurationMs
             }))
           )
         }
@@ -356,19 +360,7 @@ export const useLinkMateStore = defineStore('linkmate', {
     },
 
     abortStream() {
-      const sessionId = this.activeSessionId
       const controller = this.streamAbort
-      if (sessionId && controller) {
-        const msgs = this.messagesBySession[sessionId]
-        const last = msgs?.at(-1)
-        if (last?.role === 'assistant' && last.id.startsWith('temp-assistant')) {
-          const withoutPartial = msgs!.slice(0, -1)
-          const partial = last.content.trim() || last.reasoningContent?.trim()
-          if (!partial) {
-            this.patchSessionMessages(sessionId, withoutPartial)
-          }
-        }
-      }
       controller?.abort()
       this.streaming = false
       if (this.streamAbort === controller) {
@@ -428,9 +420,9 @@ export const useLinkMateStore = defineStore('linkmate', {
               assistantContent += chunk
               this.updateAssistantContent(sessionId, assistantId, assistantContent)
             },
-            onDone: (messageId, sid) => {
+            onDone: (messageId, sid, totalTokens) => {
               this.finalizeMessageMetrics(sessionId, assistantId, reasoningEndedAt)
-              this.finalizeAssistantMessage(sessionId, assistantId, messageId, sid)
+              this.finalizeAssistantMessage(sessionId, assistantId, messageId, sid, totalTokens)
               this.activeSessionId = sid
               void this.loadSessions()
             },
@@ -461,7 +453,9 @@ export const useLinkMateStore = defineStore('linkmate', {
         if (!aborted && !failed) {
           this.finalizeMessageMetrics(sessionId, assistantId, reasoningEndedAt)
         }
-        if ((aborted || failed) && options?.reloadOnFailure) {
+        if (aborted && sessionId) {
+          await this.loadMessages(sessionId)
+        } else if ((aborted || failed) && options?.reloadOnFailure) {
           await this.loadMessages(sessionId)
         }
         this.streaming = false
@@ -505,7 +499,7 @@ export const useLinkMateStore = defineStore('linkmate', {
         sessionId,
         message: content,
         deepThinking: this.deepThinking && this.deepThinkingSupported,
-        imContext: buildImChatContext()
+        imContext: this.getImContextForRequest()
       }, { titleHint: content })
     },
 
@@ -539,7 +533,7 @@ export const useLinkMateStore = defineStore('linkmate', {
         regenerate: true,
         regenerateMessageId: assistantMessageId,
         deepThinking: this.deepThinking && this.deepThinkingSupported,
-        imContext: buildImChatContext()
+        imContext: this.getImContextForRequest()
       }, { reloadOnFailure: true })
     }
   }
