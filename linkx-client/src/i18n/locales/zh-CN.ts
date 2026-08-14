@@ -790,7 +790,17 @@ export default {
     historyChat: '历史对话',
     openHistory: '查看历史对话',
     loadFailed: '加载失败',
-    deletedOk: '已删除对话'
+    deletedOk: '已删除对话',
+    regenerate: '重新生成',
+    regenerateFailed: '重新生成失败',
+    copyCode: '复制代码',
+    codeCopied: '已复制',
+    copyCodeFailed: '复制失败，请手动选择代码',
+    imContextActive: '已接入当前会话：{title}',
+    imContextGroup: '已接入当前群聊：{title}',
+    atName: '灵伴 LinkMate',
+    atHint: '群聊 AI 助手',
+    aiDisclaimer: '内容由AI生成，请注意甄别！'
   },
   nav: {
     chat: '消息',

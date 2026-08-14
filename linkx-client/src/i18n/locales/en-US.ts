@@ -789,7 +789,17 @@ export default {
     historyChat: 'Chat history',
     openHistory: 'View chat history',
     loadFailed: 'Failed to load',
-    deletedOk: 'Chat deleted'
+    deletedOk: 'Chat deleted',
+    regenerate: 'Regenerate',
+    regenerateFailed: 'Regenerate failed',
+    copyCode: 'Copy code',
+    codeCopied: 'Copied',
+    copyCodeFailed: 'Copy failed — select the code manually',
+    imContextActive: 'Using current chat: {title}',
+    imContextGroup: 'Using current group chat: {title}',
+    atName: 'LinkMate',
+    atHint: 'Group AI assistant',
+    aiDisclaimer: 'Content is AI-generated. Please verify before use.'
   },
   nav: {
     chat: 'Chats',

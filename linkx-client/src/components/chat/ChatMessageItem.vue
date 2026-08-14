@@ -23,9 +23,12 @@ import VoiceBubble from './bubbles/VoiceBubble.vue'
 import RedPacketBubble from './bubbles/RedPacketBubble.vue'
 import LocationBubble from './bubbles/LocationBubble.vue'
 import TextBubble from './bubbles/TextBubble.vue'
+import LinkMateChatBubble from './bubbles/LinkMateChatBubble.vue'
 import DataCardBubble from './bubbles/DataCardBubble.vue'
 import CallBubble from './bubbles/CallBubble.vue'
 import { groupReadCountLabel, privateStatusLabel } from '../../utils/messageStatus'
+import LinkMateLogoMark from '../LinkMateLogoMark.vue'
+import { isLinkMateBotSender } from '../../utils/linkmateLogo'
 
 const props = defineProps<{
   msg: ChatMessage
@@ -56,6 +59,7 @@ const isMyPhone = computed(() => isMyPhoneSessionName(currentSession.value?.name
 const hasSession = computed(() => !!currentSession.value)
 const isFriendChat = computed(() => hasSession.value && !currentSession.value?.isGroup && !isMyPhone.value)
 const isGroupChat = computed(() => !!currentSession.value?.isGroup)
+const isLinkMateBot = computed(() => isLinkMateBotSender(props.msg.senderId))
 
 const isRecall = computed(() => props.msg.type === 'recall')
 const isSystemTip = computed(
@@ -189,6 +193,7 @@ function onStatusClick() {
     <button v-if="!msg.isSelf && isFriendChat" type="button" class="avatar-btn" @click="emit('openPeerProfile', $event)">
       <Avatar v-bind="peerAvatarProps" />
     </button>
+    <LinkMateLogoMark v-else-if="!msg.isSelf && isLinkMateBot" size="msg" />
     <Avatar v-else-if="!msg.isSelf" v-bind="peerAvatarProps" />
 
     <div
@@ -224,6 +229,7 @@ function onStatusClick() {
       <LocationBubble v-else-if="msg.type === 'location'" :msg="msg" />
       <CallBubble v-else-if="msg.type === 'conference'" :msg="msg" @click="emit('clickConference', msg)" />
       <DataCardBubble v-else-if="msg.type === 'dataCard'" :msg="msg" />
+      <LinkMateChatBubble v-else-if="isLinkMateBot" :msg="msg" />
       <TextBubble v-else :msg="msg" />
       <div
         v-if="msg.isSelf && (statusLabel || readCountText || msg.edited || sensitiveAlertText)"

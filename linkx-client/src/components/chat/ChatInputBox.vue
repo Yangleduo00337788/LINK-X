@@ -9,7 +9,7 @@
  * </p>
  */
 // Vue 响应式 API
-import { ref, computed, nextTick, watch, onUnmounted } from 'vue'
+import { ref, computed, nextTick, watch, onUnmounted, onMounted } from 'vue'
 // Naive UI 组件与消息提示
 import { NIcon, NInput, NPopover, useMessage } from 'naive-ui'
 // 工具栏图标（Ionicons5）
@@ -37,6 +37,10 @@ import { useCallStore } from '../../stores/call'
 import { useFilesStore } from '../../stores/files'
 // 群元数据：群文件列表
 import { useGroupMetaStore } from '../../stores/groupMeta'
+import { useLinkMateStore } from '../../stores/linkmate'
+import * as linkmateApi from '../../api/linkmate'
+import axios from 'axios'
+import { preloadLinkMateLogo } from '../../utils/linkmateLogo'
 // 消息类型定义
 import type { ChatMessage, ContactItem } from '../../types'
 import LocationPickerPage from '../LocationPickerPage.vue'
@@ -59,6 +63,9 @@ import { LxButton, LxIconButton } from '../ui'
 
 /** @全体成员 的伪 ID，写入正文为「@全体成员」供提醒逻辑识别 */
 const AT_ALL_ID = '__all__'
+/** @灵伴 的伪 ID */
+const LINKMATE_AT_ID = '__linkmate__'
+const LINKMATE_MENTION_RE = /@灵伴(?:\s*LinkMate)?/i
 
 // 组件入参：会话类型与可选的回复目标消息
 const props = defineProps<{
@@ -82,6 +89,8 @@ const appStore = useAppStore()
 const chatModalsStore = useChatModalsStore()
 const filesStore = useFilesStore()
 const groupMetaStore = useGroupMetaStore()
+const linkMateStore = useLinkMateStore()
+const { enabled: linkMateEnabled } = storeToRefs(linkMateStore)
 
 // 从 appStore 解构响应式会话与用户信息
 const { currentSession, currentSessionId, userProfile } = storeToRefs(appStore)
@@ -184,6 +193,59 @@ const showMentionPicker = ref(false)
 const mentionQuery = ref('')
 const mentionStartIndex = ref(0)
 const mentionPickerRef = ref<InstanceType<typeof AtMentionPicker> | null>(null)
+const mentionAnchorStyle = ref<Record<string, string>>({ visibility: 'hidden' })
+let mentionAnchorRaf = 0
+
+function syncMentionAnchor() {
+  if (!showMentionPicker.value) return
+  const ta = getTextareaEl()
+  if (!ta) return
+  const rect = ta.getBoundingClientRect()
+  mentionAnchorStyle.value = {
+    position: 'fixed',
+    left: `${Math.max(8, rect.left)}px`,
+    top: `${Math.max(8, rect.top - 8)}px`,
+    transform: 'translateY(-100%)',
+    zIndex: '10000',
+    width: '240px'
+  }
+}
+
+function scheduleMentionAnchorSync() {
+  if (!showMentionPicker.value) return
+  if (mentionAnchorRaf) cancelAnimationFrame(mentionAnchorRaf)
+  mentionAnchorRaf = requestAnimationFrame(() => {
+    mentionAnchorRaf = 0
+    syncMentionAnchor()
+  })
+}
+
+function bindMentionAnchorListeners() {
+  window.addEventListener('resize', scheduleMentionAnchorSync)
+  window.addEventListener('scroll', scheduleMentionAnchorSync, true)
+}
+
+function unbindMentionAnchorListeners() {
+  window.removeEventListener('resize', scheduleMentionAnchorSync)
+  window.removeEventListener('scroll', scheduleMentionAnchorSync, true)
+}
+
+watch(showMentionPicker, (open) => {
+  if (open) {
+    bindMentionAnchorListeners()
+    nextTick(scheduleMentionAnchorSync)
+  } else {
+    unbindMentionAnchorListeners()
+    mentionAnchorStyle.value = { visibility: 'hidden' }
+  }
+})
+
+onMounted(() => {
+  if (props.isGroupChat) {
+    void linkMateStore.loadStatus()
+    preloadLinkMateLogo()
+  }
+})
 
 const { draftBySession } = storeToRefs(appStore)
 let draftSaveTimer: ReturnType<typeof setTimeout> | null = null
@@ -235,7 +297,7 @@ function getTextareaEl(): HTMLTextAreaElement | null {
   return inst?.textareaElRef ?? null
 }
 
-/** 群成员候选（含置顶的「全体成员」） */
+/** 群成员候选（含灵伴、置顶的「全体成员」） */
 const mentionCandidates = computed<ContactItem[]>(() => {
   if (!props.isGroupChat || !currentSessionId.value) return []
   const q = mentionQuery.value.trim().toLowerCase()
@@ -248,7 +310,15 @@ const mentionCandidates = computed<ContactItem[]>(() => {
     avatarColor: 'var(--lx-accent)',
     group: t('extra.atAllHint')
   }
-  const members: ContactItem[] = (groupMetaStore.members[currentSessionId.value] || [])
+  const linkMate: ContactItem = {
+    id: LINKMATE_AT_ID,
+    name: t('linkmate.atName'),
+    avatarText: '',
+    avatarColor: 'transparent',
+    group: t('linkmate.atHint')
+  }
+  const members: ContactItem[] = groupMetaStore
+    .membersFor(currentSessionId.value)
     .filter(m => !me || m.id !== me)
     .map(m => ({
       id: m.id,
@@ -259,7 +329,9 @@ const mentionCandidates = computed<ContactItem[]>(() => {
       avatarUrl: m.avatarUrl,
       group: m.badge || t('extra.groupMember')
     }))
-  let list = [atAll, ...members]
+  let list: ContactItem[] = []
+  if (linkMateEnabled.value) list.push(linkMate)
+  list.push(atAll, ...members)
   if (q) {
     list = list.filter(f => f.name.toLowerCase().includes(q))
   }
@@ -284,6 +356,7 @@ function detectMentionTrigger() {
         mentionQuery.value = segment
         showMentionPicker.value = true
         if (currentSessionId.value) void groupMetaStore.fetchMembers(currentSessionId.value)
+        scheduleMentionAnchorSync()
       } else {
         showMentionPicker.value = false
       }
@@ -298,7 +371,10 @@ function detectMentionTrigger() {
 function onInputUpdate(val: string) {
   inputValue.value = val
   notifyTyping()
-  nextTick(() => detectMentionTrigger())
+  nextTick(() => {
+    detectMentionTrigger()
+    scheduleMentionAnchorSync()
+  })
 }
 
 let lastTypingSent = 0
@@ -320,7 +396,12 @@ function applyMention(id: string | number, name: string) {
   const before = inputValue.value.slice(0, mentionStartIndex.value)
   const cursor = ta?.selectionStart ?? mentionStartIndex.value
   const after = inputValue.value.slice(cursor)
-  const displayName = String(id) === AT_ALL_ID ? t('extra.atAllMembers') : name
+  const displayName =
+    String(id) === AT_ALL_ID
+      ? t('extra.atAllMembers')
+      : String(id) === LINKMATE_AT_ID
+        ? t('linkmate.atName')
+        : name
   const inserted = `@${displayName} `
   inputValue.value = before + inserted + after
   showMentionPicker.value = false
@@ -731,6 +812,8 @@ watch(currentSessionId, () => {
 })
 
 onUnmounted(() => {
+  unbindMentionAnchorListeners()
+  if (mentionAnchorRaf) cancelAnimationFrame(mentionAnchorRaf)
   if (draftSaveTimer) clearTimeout(draftSaveTimer)
   // [P2-1] 释放未清理的 Object URL（如发送失败后组件卸载）
   for (const url of objectUrls) {
@@ -751,6 +834,31 @@ onUnmounted(() => {
 function pickEmoji(e: string) {
   inputValue.value += e
   showEmoji.value = false
+}
+
+function extractLinkMateQuestion(text: string): string | null {
+  if (!LINKMATE_MENTION_RE.test(text)) return null
+  const question = text.replace(LINKMATE_MENTION_RE, ' ').replace(/\s+/g, ' ').trim()
+  return question || null
+}
+
+async function requestLinkMateGroupReply(conversationId: string, question: string) {
+  const loading = message.loading(t('linkmate.thinking'), { duration: 0 })
+  try {
+    const res = await linkmateApi.replyInGroup(conversationId, question)
+    if (res.data) {
+      appStore.handleIncomingWsMessage(res.data)
+      emit('scrollToBottom')
+    }
+  } catch (error) {
+    let errMsg = t('linkmate.sendFailed')
+    if (axios.isAxiosError(error)) {
+      errMsg = (error.response?.data as { message?: string } | undefined)?.message || errMsg
+    }
+    message.error(errMsg)
+  } finally {
+    loading.destroy()
+  }
 }
 
 /**
@@ -779,7 +887,17 @@ function send() {
         }
         await sendMessage(url, { type: 'image', isImage: true, fileName: imgName })
       } else {
-        await sendMessage(inputValue.value, { type: 'text', replyTo: props.replyingTo })
+        const text = inputValue.value
+        const linkMateQuestion = extractLinkMateQuestion(text)
+        await sendMessage(text, { type: 'text', replyTo: props.replyingTo })
+        if (
+          linkMateQuestion &&
+          linkMateEnabled.value &&
+          props.isGroupChat &&
+          currentSessionId.value
+        ) {
+          void requestLinkMateGroupReply(currentSessionId.value, linkMateQuestion)
+        }
       }
       inputValue.value = ''
       showMentionPicker.value = false
@@ -912,8 +1030,16 @@ defineExpose({
             @keydown="onInputKeyDown"
             @paste="onPaste"
           />
+        </div>
+      </div>
+
+      <Teleport to="body">
+        <div
+          v-if="isGroupChat && showMentionPicker"
+          class="chat-mention-anchor"
+          :style="mentionAnchorStyle"
+        >
           <AtMentionPicker
-            v-if="isGroupChat && showMentionPicker"
             ref="mentionPickerRef"
             placement="top"
             :friends="mentionCandidates"
@@ -923,7 +1049,7 @@ defineExpose({
             @close="showMentionPicker = false"
           />
         </div>
-      </div>
+      </Teleport>
 
       <!-- 工具栏：表情、应用、文件、截图、红包、语音、通话、发送 -->
       <div class="input-toolbar">
@@ -1056,6 +1182,14 @@ defineExpose({
 
 .input-compose-body {
   position: relative;
+}
+
+.chat-mention-anchor :deep(.at-mention-popover) {
+  position: relative;
+  top: auto;
+  bottom: auto;
+  left: 0;
+  width: 100%;
 }
 
 .input-toolbar {

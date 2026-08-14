@@ -12,6 +12,9 @@
 import { computed, ref, watch } from 'vue'
 import type { ContactItem } from '../../types'
 import { useI18n } from '../../i18n'
+import LinkMateLogoMark from '../LinkMateLogoMark.vue'
+
+const LINKMATE_AT_ID = '__linkmate__'
 
 const { t } = useI18n()
 
@@ -99,11 +102,12 @@ defineExpose({
         v-for="(friend, idx) in friends"
         :key="friend.id"
         class="at-item"
-        :class="{ 'is-active': idx === activeIndex, 'at-all': friend.id === '__all__' }"
+        :class="{ 'is-active': idx === activeIndex, 'at-all': friend.id === '__all__', 'at-linkmate': friend.id === '__linkmate__' }"
         @mouseenter="activeIndex = idx"
         @click="pick(friend)"
       >
-        <span class="at-avatar" :style="{ background: friend.avatarColor || 'var(--lx-accent)' }">
+        <LinkMateLogoMark v-if="friend.id === LINKMATE_AT_ID" size="sm" />
+        <span v-else class="at-avatar" :style="{ background: friend.avatarColor || 'var(--lx-accent)' }">
           <img v-if="friend.avatarUrl" :src="friend.avatarUrl" alt="" referrerpolicy="no-referrer" />
           <span v-else>{{ (friend.avatarText || friend.name || '?').charAt(0).toUpperCase() }}</span>
         </span>
@@ -170,6 +174,11 @@ defineExpose({
 }
 
 .at-item.at-all .at-name {
+  color: var(--lx-accent);
+  font-weight: 600;
+}
+
+.at-item.at-linkmate .at-name {
   color: var(--lx-accent);
   font-weight: 600;
 }
