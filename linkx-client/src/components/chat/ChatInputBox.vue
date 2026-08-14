@@ -41,6 +41,7 @@ import { useLinkMateStore } from '../../stores/linkmate'
 import * as linkmateApi from '../../api/linkmate'
 import axios from 'axios'
 import { preloadLinkMateLogo } from '../../utils/linkmateLogo'
+import { extractLinkMateQuestion, hasLinkMateMention } from '../../utils/linkmateMention'
 // 消息类型定义
 import type { ChatMessage, ContactItem } from '../../types'
 import LocationPickerPage from '../LocationPickerPage.vue'
@@ -65,7 +66,6 @@ import { LxButton, LxIconButton } from '../ui'
 const AT_ALL_ID = '__all__'
 /** @灵伴 的伪 ID */
 const LINKMATE_AT_ID = '__linkmate__'
-const LINKMATE_MENTION_RE = /@灵伴(?:\s*LinkMate)?/i
 
 // 组件入参：会话类型与可选的回复目标消息
 const props = defineProps<{
@@ -241,7 +241,7 @@ watch(showMentionPicker, (open) => {
 })
 
 onMounted(() => {
-  if (props.isGroupChat) {
+  if (props.isGroupChat || props.isFriendChat) {
     void linkMateStore.loadStatus()
     preloadLinkMateLogo()
   }
@@ -853,14 +853,12 @@ function pickEmoji(e: string) {
   showEmoji.value = false
 }
 
-function hasLinkMateMention(text: string): boolean {
-  return LINKMATE_MENTION_RE.test(text)
+function mentionHasLinkMate(text: string): boolean {
+  return hasLinkMateMention(text, t('linkmate.atName'))
 }
 
-function extractLinkMateQuestion(text: string): string | null {
-  if (!LINKMATE_MENTION_RE.test(text)) return null
-  const question = text.replace(LINKMATE_MENTION_RE, ' ').replace(/\s+/g, ' ').trim()
-  return question || null
+function mentionExtractLinkMateQuestion(text: string): string | null {
+  return extractLinkMateQuestion(text, t('linkmate.atName'))
 }
 
 let linkMateReplyAbort: AbortController | null = null
@@ -944,15 +942,15 @@ function send() {
       } else {
         const text = inputValue.value
         if (
-          hasLinkMateMention(text) &&
+          mentionHasLinkMate(text) &&
           linkMateEnabled.value &&
           (props.isGroupChat || props.isFriendChat) &&
-          !extractLinkMateQuestion(text)
+          !mentionExtractLinkMateQuestion(text)
         ) {
           message.warning(t('linkmate.emptyAtPrompt'))
           return
         }
-        const linkMateQuestion = extractLinkMateQuestion(text)
+        const linkMateQuestion = mentionExtractLinkMateQuestion(text)
         await sendMessage(text, { type: 'text', replyTo: props.replyingTo })
         if (
           linkMateQuestion &&
@@ -1099,7 +1097,7 @@ defineExpose({
 
       <Teleport to="body">
         <div
-          v-if="isGroupChat && showMentionPicker"
+          v-if="showMentionPicker && canAtMention"
           class="chat-mention-anchor"
           :style="mentionAnchorStyle"
         >

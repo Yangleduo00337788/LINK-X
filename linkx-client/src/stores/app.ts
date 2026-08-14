@@ -51,6 +51,7 @@ import { dataUrlToFile } from '../utils/fileConvert'
 import { generateUuidV4 } from '../utils/parseJson'
 import type { MessageItem } from '../types/chat'
 import { resolveUserAvatarUrl } from '../utils/defaultAvatar'
+import { isLinkMateBotSender } from '../utils/linkmateLogo'
 import { normalizeMediaUrl } from '../utils/mediaUrl'
 import { API_BASE_URL } from '../config/endpoints'
 import { t } from '../i18n'
@@ -1060,7 +1061,6 @@ export const useAppStore = defineStore('app', {
     ) {
       const list = this.messagesBySession[sessionId]
       if (!list) return
-      const idx = list.findIndex(m => m.id === tempId)
       const now = new Date()
       const finalized: ChatMessage = {
         id: messageId,
@@ -1073,11 +1073,15 @@ export const useAppStore = defineStore('app', {
         type: 'text',
         streaming: false
       }
-      if (idx >= 0) {
-        list[idx] = finalized
-      } else if (!list.some(m => m.id === messageId)) {
-        list.push(finalized)
-      }
+      const withoutPlaceholders = list.filter(
+        m =>
+          m.id !== tempId &&
+          m.id !== messageId &&
+          !m.id.startsWith('temp-linkmate-') &&
+          !(m.streaming && isLinkMateBotSender(m.senderId))
+      )
+      withoutPlaceholders.push(finalized)
+      this.messagesBySession[sessionId] = withoutPlaceholders
     },
 
     /** IM @灵伴：移除流式占位 */
@@ -1105,6 +1109,15 @@ export const useAppStore = defineStore('app', {
       if (!this.messagesBySession[sessionId]) {
         this.messagesBySession[sessionId] = []
       }
+
+      if (isLinkMateBotSender(message.senderId)) {
+        this.messagesBySession[sessionId] = this.messagesBySession[sessionId].filter(
+          m =>
+            !m.id.startsWith('temp-linkmate-') &&
+            !(m.streaming && isLinkMateBotSender(m.senderId))
+        )
+      }
+
       const exists = this.messagesBySession[sessionId].some(m => m.id === chatMsg.id)
       if (!exists) {
         if (chatMsg.replyTo) {
