@@ -9,11 +9,15 @@ import com.linkx.server.common.JwtUtils;
 import com.linkx.server.common.RateLimit;
 import com.linkx.server.common.Result;
 import com.linkx.server.controller.dto.LinkMateChatDTO;
+import com.linkx.server.controller.dto.LinkMateGroupReplyDTO;
 import com.linkx.server.controller.vo.LinkMateMessageVO;
 import com.linkx.server.controller.vo.LinkMateSessionVO;
 import com.linkx.server.controller.vo.LinkMateStatusVO;
+import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.exception.CustomException;
+import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.service.LinkMateService;
+import com.linkx.server.service.linkmate.LinkMateConstants;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -36,6 +40,7 @@ import java.util.List;
 public class LinkMateController {
 
     private final LinkMateService linkMateService;
+    private final ImMessagePushService imMessagePushService;
     private final JwtUtils jwtUtils;
 
     @Operation(summary = "灵伴服务状态")
@@ -100,6 +105,18 @@ public class LinkMateController {
         response.setHeader("Connection", "keep-alive");
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         return linkMateService.streamChat(userId, dto);
+    }
+
+    @Operation(summary = "群聊 @灵伴 回复（消息落入群聊时间线）")
+    @PostMapping("/group/reply")
+    @RateLimit(scope = "linkmate:group", value = 20, window = 60)
+    public Result<MessageVO> replyInGroup(
+            @Valid @RequestBody LinkMateGroupReplyDTO dto,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        MessageVO vo = linkMateService.replyInGroup(userId, dto);
+        imMessagePushService.pushToConversationMembers(vo, LinkMateConstants.BOT_SENDER_ID, null);
+        return Result.success(vo);
     }
 
     private Long parseId(String id) {

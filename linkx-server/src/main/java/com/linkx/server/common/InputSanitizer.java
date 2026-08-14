@@ -53,10 +53,6 @@ public final class InputSanitizer {
         return sanitizeText(value, DEFAULT_MAX_LENGTH);
     }
 
-    /**
-     * 转义 HTML 特殊字符（命名历史原因叫 stripHtml，实际为 escape，不剥离标签）。
-     * 用于标题/正文等需入库展示的文本字段。
-     */
     public static String stripHtml(String value, int maxLen) {
         if (value == null) {
             return null;
@@ -69,5 +65,22 @@ public final class InputSanitizer {
             trimmed = trimmed.substring(0, maxLen);
         }
         return HtmlUtils.htmlEscape(trimmed);
+    }
+
+    /**
+     * 仅裁剪长度，不做 HTML 转义（用于服务端生成的灵伴回复，由客户端 Markdown + DOMPurify 渲染）。
+     */
+    public static String limitPlainText(String value, int maxLen) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.strip();
+        if (trimmed.isEmpty()) {
+            return trimmed;
+        }
+        if (trimmed.length() > maxLen) {
+            return trimmed.substring(0, maxLen);
+        }
+        return trimmed;
     }
 }

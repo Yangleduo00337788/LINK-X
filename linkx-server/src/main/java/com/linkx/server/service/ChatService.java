@@ -39,6 +39,11 @@ public interface ChatService {
     MessageVO postSystemMessage(Long operatorId, Long conversationId, String content);
 
     /**
+     * 写入灵伴群聊回复（虚拟发送者，供群聊 @灵伴 场景）。
+     */
+    MessageVO postLinkMateGroupMessage(Long conversationId, String content);
+
+    /**
      * 写入会议邀请消息（服务端内部调用，创建会议成功后落库）。
      *
      * @param hasPassword true 时 fileSize=1，前端据此提示输密码

@@ -37,6 +37,7 @@ import com.linkx.server.service.MessageStormService;
 import com.linkx.server.service.ObjectKeyOwnershipService;
 import com.linkx.server.service.SensitiveWordService;
 import com.linkx.server.service.UserPreferenceService;
+import com.linkx.server.service.linkmate.LinkMateConstants;
 import com.linkx.server.service.AuditLogService;
 import com.linkx.server.service.admin.AdminRiskEventService;
 import com.linkx.server.service.admin.AdminReviewService;
@@ -545,6 +546,44 @@ public class ChatServiceImpl implements ChatService {
 
         SysUser sender = operatorId != null ? sysUserMapper.selectOneById(operatorId) : null;
         return toMessageVO(message, sender, operatorId, loadLastReadMessageId(operatorId, conversationId));
+    }
+
+    @Override
+    @Transactional
+    public MessageVO postLinkMateGroupMessage(Long conversationId, String content) {
+        if (!StringUtils.hasText(content)) {
+            throw new CustomException(400, "回复内容不能为空");
+        }
+        ImConversation conversation = conversationMapper.selectOneById(conversationId);
+        if (conversation == null) {
+            throw new CustomException(404, "会话不存在");
+        }
+        if (conversation.getType() != ImConversation.TYPE_GROUP) {
+            throw new CustomException(400, "仅支持群聊");
+        }
+
+        String text = InputSanitizer.limitPlainText(content.trim(), 8000);
+        Date now = new Date();
+        ImMessage message = ImMessage.builder()
+                .conversationId(conversationId)
+                .senderId(LinkMateConstants.BOT_SENDER_ID)
+                .type(ImMessage.TYPE_TEXT)
+                .content(text)
+                .deliveryStatus("delivered")
+                .readStatus(0)
+                .createTime(now)
+                .deleted(0)
+                .build();
+        imMessageRepository.insert(message);
+        if (message.getCreateTime() == null) {
+            message.setCreateTime(now);
+        }
+
+        conversation.setLastMessageContent(text);
+        conversation.setLastMessageTime(message.getCreateTime());
+        conversationMapper.update(conversation);
+
+        return toMessageVO(message, null, null, null);
     }
 
     @Override
@@ -1495,12 +1534,23 @@ public class ChatServiceImpl implements ChatService {
                 && !ImMessage.TYPE_CONFERENCE.equals(message.getType())) {
             fileUrl = mediaUrlService.resolveFile(fileUrl);
         }
+        String senderNickname = sender != null ? sender.getNickname() : null;
+        String senderAvatar = sender != null
+                ? mediaUrlService.resolveUserAvatar(sender.getId(), sender.getAvatar())
+                : null;
+        if (LinkMateConstants.BOT_SENDER_ID.equals(message.getSenderId())) {
+            senderNickname = LinkMateConstants.BOT_NICKNAME;
+            senderAvatar = null;
+        }
+        boolean isSelf = currentUserId != null
+                && message.getSenderId().equals(currentUserId)
+                && !LinkMateConstants.BOT_SENDER_ID.equals(message.getSenderId());
         MessageVO.MessageVOBuilder builder = MessageVO.builder()
                 .id(message.getId())
                 .conversationId(message.getConversationId())
                 .senderId(message.getSenderId())
-                .senderNickname(sender != null ? sender.getNickname() : null)
-                .senderAvatar(sender != null ? mediaUrlService.resolveUserAvatar(sender.getId(), sender.getAvatar()) : null)
+                .senderNickname(senderNickname)
+                .senderAvatar(senderAvatar)
                 .type(message.getType())
                 .content(message.getContent())
                 .fileName(message.getFileName())
@@ -1508,7 +1558,7 @@ public class ChatServiceImpl implements ChatService {
                 .fileUrl(fileUrl)
                 .voiceDuration(message.getVoiceDuration())
                 .createTime(message.getCreateTime() != null ? message.getCreateTime().getTime() : null)
-                .isSelf(message.getSenderId().equals(currentUserId))
+                .isSelf(isSelf)
                 .clientMsgId(message.getClientMsgId())
                 .deliveryStatus(message.getDeliveryStatus())
                 .readStatus(isRead(message, currentUserId, lastReadMessageId))

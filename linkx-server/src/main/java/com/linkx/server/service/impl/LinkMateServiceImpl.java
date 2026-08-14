@@ -7,20 +7,30 @@ package com.linkx.server.service.impl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.controller.dto.LinkMateChatDTO;
+import com.linkx.server.controller.dto.LinkMateGroupReplyDTO;
+import com.linkx.server.controller.dto.LinkMateImContextDTO;
 import com.linkx.server.controller.vo.LinkMateMessageVO;
 import com.linkx.server.controller.vo.LinkMateSessionVO;
 import com.linkx.server.controller.vo.LinkMateStatusVO;
+import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.entity.AiChatMessage;
 import com.linkx.server.entity.AiChatSession;
+import com.linkx.server.entity.ImConversation;
+import com.linkx.server.entity.ImMessage;
+import com.linkx.server.entity.SysUser;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.mapper.AiChatMessageMapper;
 import com.linkx.server.mapper.AiChatSessionMapper;
+import com.linkx.server.mapper.ImConversationMapper;
+import com.linkx.server.mapper.SysUserMapper;
+import com.linkx.server.repository.ImMessageRepository;
+import com.linkx.server.service.ChatService;
 import com.linkx.server.service.LinkMateService;
+import com.linkx.server.service.linkmate.LinkMateConstants;
 import com.linkx.server.service.linkmate.LinkMateLlmClient;
 import com.linkx.server.service.linkmate.LinkMateLlmClient.LlmMessage;
 import com.linkx.server.service.linkmate.LinkMateLlmClient.LlmResult;
-import com.linkx.server.service.linkmate.LinkMateLlmClient.StreamDeltaHandlers;
-import com.linkx.server.service.linkmate.LinkMateModelCapability;
+import com.linkx.server.service.linkmate.LinkMateLlmClient.StreamResult;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,12 +45,17 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import com.linkx.server.service.linkmate.LinkMateLlmClient.StreamDeltaHandlers;
 
 @Slf4j
 @Service
@@ -62,6 +77,10 @@ public class LinkMateServiceImpl implements LinkMateService {
     private final LinkMateLlmClient llmClient;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
+    private final ChatService chatService;
+    private final ImConversationMapper conversationMapper;
+    private final ImMessageRepository imMessageRepository;
+    private final SysUserMapper sysUserMapper;
 
     @Override
     public LinkMateStatusVO status(Long userId) {
@@ -120,43 +139,65 @@ public class LinkMateServiceImpl implements LinkMateService {
     @Override
     @Transactional
     public LinkMateMessageVO chat(Long userId, LinkMateChatDTO dto) {
-        AiChatSession session = resolveSession(userId, dto.getSessionId(), dto.getMessage());
-        saveUserMessage(userId, session, dto.getMessage());
-        List<LlmMessage> context = buildLlmContext(session.getId());
+        validateChatDto(dto);
+        boolean regenerate = Boolean.TRUE.equals(dto.getRegenerate());
+        AiChatSession session;
+        String userMessage;
+        if (regenerate) {
+            session = requireSession(userId, parseId(dto.getSessionId()));
+            userMessage = prepareRegenerate(userId, session.getId(), dto.getRegenerateMessageId());
+        } else {
+            session = resolveSession(userId, dto.getSessionId(), dto.getMessage());
+            userMessage = trimMessage(dto.getMessage());
+            saveUserMessage(userId, session, userMessage);
+        }
+        List<LlmMessage> context = buildLlmContext(session.getId(), dto.getImContext());
         checkDailyLimit(userId, estimatePromptTokens(context));
 
         LlmResult result = llmClient.chat(context, Boolean.TRUE.equals(dto.getDeepThinking()));
         recordTokenUsage(userId, result.totalTokens());
         AiChatMessage assistant = saveAssistantMessage(userId, session, result.content(), result.totalTokens(), null, null);
-        maybeUpdateTitle(session, dto.getMessage());
+        if (!regenerate) {
+            maybeUpdateTitle(session, userMessage);
+        }
         return toMessageVO(assistant);
     }
 
     @Override
     public SseEmitter streamChat(Long userId, LinkMateChatDTO dto) {
-        AiChatSession session = resolveSession(userId, dto.getSessionId(), dto.getMessage());
-        saveUserMessage(userId, session, dto.getMessage());
-        List<LlmMessage> context = buildLlmContext(session.getId());
+        validateChatDto(dto);
+        boolean regenerate = Boolean.TRUE.equals(dto.getRegenerate());
+        AiChatSession session;
+        String userMessage;
+        if (regenerate) {
+            session = requireSession(userId, parseId(dto.getSessionId()));
+            userMessage = prepareRegenerate(userId, session.getId(), dto.getRegenerateMessageId());
+        } else {
+            session = resolveSession(userId, dto.getSessionId(), dto.getMessage());
+            userMessage = trimMessage(dto.getMessage());
+            saveUserMessage(userId, session, userMessage);
+        }
+        List<LlmMessage> context = buildLlmContext(session.getId(), dto.getImContext());
         checkDailyLimit(userId, estimatePromptTokens(context));
 
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT.toMillis());
         Long sessionId = session.getId();
-        String userMessage = dto.getMessage();
+        AtomicBoolean cancelled = new AtomicBoolean(false);
+        emitter.onCompletion(() -> cancelled.set(true));
+        emitter.onTimeout(() -> cancelled.set(true));
+        emitter.onError(ex -> cancelled.set(true));
 
         STREAM_EXECUTOR.execute(() -> {
             long streamStartedAt = System.currentTimeMillis();
             try {
                 sendSse(emitter, "start", Map.of("sessionId", String.valueOf(sessionId)));
-                StringBuilder full = new StringBuilder();
-                StringBuilder reasoning = new StringBuilder();
                 boolean deepThinking = Boolean.TRUE.equals(dto.getDeepThinking())
                         && linkxProperties.getLinkmate().isReasoningSupported();
-                int tokens = llmClient.streamChat(
+                StreamResult result = llmClient.streamChat(
                         context,
                         deepThinking,
                         new StreamDeltaHandlers(
                                 chunk -> {
-                                    reasoning.append(chunk);
                                     try {
                                         sendSse(emitter, "reasoning_delta", Map.of("content", chunk));
                                     } catch (Exception sendEx) {
@@ -164,27 +205,34 @@ public class LinkMateServiceImpl implements LinkMateService {
                                     }
                                 },
                                 chunk -> {
-                                    full.append(chunk);
                                     try {
                                         sendSse(emitter, "delta", Map.of("content", chunk));
                                     } catch (Exception sendEx) {
                                         log.debug("LinkMate SSE client disconnected");
                                     }
-                                }));
-                recordTokenUsage(userId, tokens);
+                                }),
+                        cancelled::get);
+                if (result.cancelled() || cancelled.get()) {
+                    emitter.complete();
+                    return;
+                }
+                recordTokenUsage(userId, result.totalTokens());
                 int responseDurationMs = (int) Math.max(1, System.currentTimeMillis() - streamStartedAt);
-                String reasoningContent = reasoning.length() > 0 ? reasoning.toString() : null;
+                String reasoningContent = StringUtils.hasText(result.reasoning()) ? result.reasoning() : null;
                 AiChatMessage assistant = saveAssistantMessage(
                         userId,
                         session,
-                        full.toString(),
-                        tokens,
+                        result.content(),
+                        result.totalTokens(),
                         reasoningContent,
                         responseDurationMs);
-                maybeUpdateTitle(session, userMessage);
+                if (!regenerate) {
+                    maybeUpdateTitle(session, userMessage);
+                }
                 sendSse(emitter, "done", Map.of(
                         "messageId", String.valueOf(assistant.getId()),
-                        "sessionId", String.valueOf(sessionId)));
+                        "sessionId", String.valueOf(sessionId),
+                        "totalTokens", String.valueOf(result.totalTokens())));
                 emitter.complete();
             } catch (CustomException ex) {
                 sendError(emitter, ex.getMessage());
@@ -194,9 +242,109 @@ public class LinkMateServiceImpl implements LinkMateService {
             }
         });
 
-        emitter.onTimeout(emitter::complete);
-        emitter.onError(ex -> emitter.complete());
         return emitter;
+    }
+
+    @Override
+    @Transactional
+    public MessageVO replyInGroup(Long userId, LinkMateGroupReplyDTO dto) {
+        LinkxProperties.LinkMate cfg = linkxProperties.getLinkmate();
+        if (!cfg.isEnabled() || !StringUtils.hasText(cfg.getApiKey())) {
+            throw new CustomException(503, "灵伴服务未启用");
+        }
+        chatService.assertConversationMember(userId, dto.getConversationId());
+        ImConversation conversation = conversationMapper.selectOneById(dto.getConversationId());
+        if (conversation == null) {
+            throw new CustomException(404, "会话不存在");
+        }
+        if (conversation.getType() != ImConversation.TYPE_GROUP) {
+            throw new CustomException(400, "仅支持在群聊中 @灵伴");
+        }
+
+        String question = trimMessage(dto.getQuestion());
+        if (!StringUtils.hasText(question)) {
+            throw new CustomException(400, "提问内容不能为空");
+        }
+
+        List<LlmMessage> context = buildGroupLlmContext(dto.getConversationId(), userId, conversation, question);
+        checkDailyLimit(userId, estimatePromptTokens(context));
+
+        LlmResult result = llmClient.chat(context, false);
+        recordTokenUsage(userId, result.totalTokens());
+        return chatService.postLinkMateGroupMessage(dto.getConversationId(), result.content());
+    }
+
+    private List<LlmMessage> buildGroupLlmContext(
+            Long conversationId,
+            Long userId,
+            ImConversation conversation,
+            String question) {
+        LinkxProperties.LinkMate cfg = linkxProperties.getLinkmate();
+        String systemPrompt = cfg.getSystemPrompt();
+        if (!StringUtils.hasText(systemPrompt)) {
+            systemPrompt = "你是「灵伴」（LinkMate），LinkX 企业即时通讯平台的智能伙伴。"
+                    + "你负责陪伴用户完成对话、知识检索、任务执行和各类 AI 助手功能。"
+                    + "回答请简洁、专业、友好，使用用户使用的语言回复。";
+        }
+        List<LlmMessage> messages = new ArrayList<>();
+        messages.add(new LlmMessage("system", systemPrompt));
+
+        String groupTitle = StringUtils.hasText(conversation.getName())
+                ? conversation.getName().trim()
+                : "群聊";
+        StringBuilder groupCtx = new StringBuilder();
+        groupCtx.append("你正在群聊「").append(groupTitle).append("」中被 @提及。");
+        groupCtx.append("你的回复将作为一条群消息发送给所有群成员，请简洁、专业、友好。");
+        groupCtx.append("使用提问者使用的语言回复。\n");
+        groupCtx.append("群聊最近消息：\n");
+
+        List<ImMessage> recent = imMessageRepository.selectListByQuery(
+                QueryWrapper.create()
+                        .eq("conversation_id", conversationId)
+                        .ne("type", ImMessage.TYPE_SYSTEM)
+                        .ne("type", ImMessage.TYPE_RECALL)
+                        .orderBy("id", false)
+                        .limit(HISTORY_LIMIT)
+        );
+        recent.sort(Comparator.comparing(ImMessage::getId));
+
+        Set<Long> senderIds = recent.stream()
+                .map(ImMessage::getSenderId)
+                .filter(id -> id != null && !LinkMateConstants.BOT_SENDER_ID.equals(id))
+                .collect(Collectors.toSet());
+        Map<Long, SysUser> senderMap = senderIds.isEmpty()
+                ? Map.of()
+                : sysUserMapper.selectListByQuery(QueryWrapper.create().in("id", senderIds))
+                .stream()
+                .collect(Collectors.toMap(SysUser::getId, Function.identity(), (a, b) -> a));
+
+        for (ImMessage msg : recent) {
+            if (!ImMessage.TYPE_TEXT.equals(msg.getType()) && !ImMessage.TYPE_LOCATION.equals(msg.getType())) {
+                continue;
+            }
+            if (!StringUtils.hasText(msg.getContent())) {
+                continue;
+            }
+            String senderName;
+            if (LinkMateConstants.BOT_SENDER_ID.equals(msg.getSenderId())) {
+                senderName = LinkMateConstants.BOT_NICKNAME;
+            } else {
+                SysUser sender = senderMap.get(msg.getSenderId());
+                if (sender != null) {
+                    senderName = StringUtils.hasText(sender.getNickname())
+                            ? sender.getNickname()
+                            : (StringUtils.hasText(sender.getUsername()) ? sender.getUsername() : "用户");
+                } else {
+                    senderName = "用户";
+                }
+            }
+            String prefix = userId.equals(msg.getSenderId()) ? senderName + "（提问者）" : senderName;
+            groupCtx.append(prefix).append("：").append(msg.getContent().trim()).append('\n');
+        }
+
+        messages.add(new LlmMessage("system", groupCtx.toString().trim()));
+        messages.add(new LlmMessage("user", question));
+        return messages;
     }
 
     private void sendError(SseEmitter emitter, String message) {
@@ -285,7 +433,7 @@ public class LinkMateServiceImpl implements LinkMateService {
         }
     }
 
-    private List<LlmMessage> buildLlmContext(Long sessionId) {
+    private List<LlmMessage> buildLlmContext(Long sessionId, LinkMateImContextDTO imContext) {
         LinkxProperties.LinkMate cfg = linkxProperties.getLinkmate();
         String systemPrompt = cfg.getSystemPrompt();
         if (!StringUtils.hasText(systemPrompt)) {
@@ -295,6 +443,11 @@ public class LinkMateServiceImpl implements LinkMateService {
         }
         List<LlmMessage> messages = new ArrayList<>();
         messages.add(new LlmMessage("system", systemPrompt));
+
+        String imPreamble = formatImContext(imContext);
+        if (StringUtils.hasText(imPreamble)) {
+            messages.add(new LlmMessage("system", imPreamble));
+        }
 
         List<AiChatMessage> history = messageMapper.selectListByQuery(
                 QueryWrapper.create()
@@ -308,6 +461,94 @@ public class LinkMateServiceImpl implements LinkMateService {
             messages.add(new LlmMessage(msg.getRole(), msg.getContent()));
         }
         return messages;
+    }
+
+    private String formatImContext(LinkMateImContextDTO imContext) {
+        if (imContext == null) {
+            return null;
+        }
+        if (!StringUtils.hasText(imContext.getTitle()) && !StringUtils.hasText(imContext.getConversationId())) {
+            return null;
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("用户当前正在 LinkX 中查看以下 IM 会话，可作为回答参考（勿编造未出现的消息）：\n");
+        String title = StringUtils.hasText(imContext.getTitle()) ? imContext.getTitle().trim() : "未命名会话";
+        boolean group = Boolean.TRUE.equals(imContext.getGroup());
+        sb.append("会话：").append(title).append(group ? "（群聊）" : "（单聊）").append('\n');
+        if (StringUtils.hasText(imContext.getConversationId())) {
+            sb.append("会话ID：").append(imContext.getConversationId().trim()).append('\n');
+        }
+        if (imContext.getMessages() == null || imContext.getMessages().isEmpty()) {
+            sb.append("最近消息：暂无已加载文本消息，请结合会话名称作答。\n");
+            return sb.toString().trim();
+        }
+        sb.append("最近消息：\n");
+        for (LinkMateImContextDTO.ImMessageItem item : imContext.getMessages()) {
+            if (item == null || !StringUtils.hasText(item.getContent())) {
+                continue;
+            }
+            String sender = StringUtils.hasText(item.getSender()) ? item.getSender().trim() : "未知";
+            String time = StringUtils.hasText(item.getTime()) ? item.getTime().trim() : "";
+            String prefix = Boolean.TRUE.equals(item.getSelf()) ? sender + "（我）" : sender;
+            if (StringUtils.hasText(time)) {
+                sb.append('[').append(time).append("] ");
+            }
+            sb.append(prefix).append("：").append(item.getContent().trim()).append('\n');
+        }
+        return sb.toString().trim();
+    }
+
+    private void validateChatDto(LinkMateChatDTO dto) {
+        if (Boolean.TRUE.equals(dto.getRegenerate())) {
+            if (!StringUtils.hasText(dto.getSessionId())) {
+                throw new CustomException(400, "重新生成需要指定会话");
+            }
+            if (!StringUtils.hasText(dto.getRegenerateMessageId())) {
+                throw new CustomException(400, "请指定要重新生成的消息");
+            }
+            return;
+        }
+        if (!StringUtils.hasText(dto.getMessage())) {
+            throw new CustomException(400, "消息内容不能为空");
+        }
+    }
+
+    @Transactional
+    protected String prepareRegenerate(Long userId, Long sessionId, String assistantMessageIdStr) {
+        Long assistantId = parseId(assistantMessageIdStr);
+        AiChatMessage assistant = messageMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .eq("id", assistantId)
+                        .eq("session_id", sessionId)
+                        .eq("user_id", userId)
+                        .eq("role", "assistant")
+        );
+        if (assistant == null) {
+            throw new CustomException(404, "要重新生成的消息不存在");
+        }
+        AiChatMessage lastAssistant = messageMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .eq("session_id", sessionId)
+                        .eq("role", "assistant")
+                        .orderBy("create_time", false)
+                        .limit(1)
+        );
+        if (lastAssistant == null || !lastAssistant.getId().equals(assistantId)) {
+            throw new CustomException(400, "只能重新生成最后一条助手回复");
+        }
+        AiChatMessage userMessage = messageMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .eq("session_id", sessionId)
+                        .eq("role", "user")
+                        .lt("create_time", assistant.getCreateTime())
+                        .orderBy("create_time", false)
+                        .limit(1)
+        );
+        if (userMessage == null || !StringUtils.hasText(userMessage.getContent())) {
+            throw new CustomException(400, "找不到对应的用户提问");
+        }
+        messageMapper.deleteById(assistantId);
+        return userMessage.getContent();
     }
 
     private void checkDailyLimit(Long userId, int estimatedTokens) {

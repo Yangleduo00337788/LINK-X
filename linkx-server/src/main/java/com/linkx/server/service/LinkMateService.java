@@ -5,7 +5,9 @@ package com.linkx.server.service;
  * 作者：yangleduo
  */
 import com.linkx.server.controller.dto.LinkMateChatDTO;
+import com.linkx.server.controller.dto.LinkMateGroupReplyDTO;
 import com.linkx.server.controller.vo.LinkMateMessageVO;
+import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.controller.vo.LinkMateSessionVO;
 import com.linkx.server.controller.vo.LinkMateStatusVO;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -27,4 +29,9 @@ public interface LinkMateService {
     LinkMateMessageVO chat(Long userId, LinkMateChatDTO dto);
 
     SseEmitter streamChat(Long userId, LinkMateChatDTO dto);
+
+    /**
+     * 群聊 @灵伴：生成回复并落入群消息时间线。
+     */
+    MessageVO replyInGroup(Long userId, LinkMateGroupReplyDTO dto);
 }

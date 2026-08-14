@@ -25,6 +25,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /**
@@ -50,6 +51,9 @@ public class LinkMateLlmClient {
     public record LlmResult(String content, int totalTokens) {
     }
 
+    public record StreamResult(String content, String reasoning, int totalTokens, boolean cancelled) {
+    }
+
     public record StreamDeltaHandlers(
             Consumer<String> onReasoningDelta,
             Consumer<String> onContentDelta) {
@@ -72,7 +76,7 @@ public class LinkMateLlmClient {
             }
             JsonNode root = objectMapper.readTree(response.body());
             String content = extractContent(root);
-            int tokens = root.path("usage").path("total_tokens").asInt(estimateTokens(messages, content));
+            int tokens = extractTotalTokens(root, estimateTokens(messages, content));
             return new LlmResult(content, tokens);
         } catch (CustomException ex) {
             throw ex;
@@ -83,13 +87,13 @@ public class LinkMateLlmClient {
     }
 
   /**
-   * 流式对话；返回估算 token 总量。
+   * 流式对话；优先使用 SSE 中的 usage.total_tokens，否则估算。
    */
-    public int streamChat(List<LlmMessage> messages, Consumer<String> onDelta) {
-        return streamChat(messages, false, new StreamDeltaHandlers(null, onDelta));
-    }
-
-    public int streamChat(List<LlmMessage> messages, boolean deepThinking, StreamDeltaHandlers handlers) {
+    public StreamResult streamChat(
+            List<LlmMessage> messages,
+            boolean deepThinking,
+            StreamDeltaHandlers handlers,
+            BooleanSupplier cancelled) {
         LinkxProperties.LinkMate cfg = requireConfig();
         ObjectNode body = buildRequestBody(cfg, messages, true, deepThinking);
         HttpRequest request = buildHttpRequest(cfg, body);
@@ -105,10 +109,18 @@ public class LinkMateLlmClient {
 
             StringBuilder reasoning = new StringBuilder();
             StringBuilder content = new StringBuilder();
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
+            int totalTokens = 0;
+            boolean usageReported = false;
+
+            try (InputStream bodyStream = response.body();
+                 BufferedReader reader = new BufferedReader(
+                         new InputStreamReader(bodyStream, StandardCharsets.UTF_8))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
+                    if (cancelled != null && cancelled.getAsBoolean()) {
+                        bodyStream.close();
+                        break;
+                    }
                     if (!line.startsWith("data:")) {
                         continue;
                     }
@@ -117,6 +129,11 @@ public class LinkMateLlmClient {
                         break;
                     }
                     JsonNode root = objectMapper.readTree(data);
+                    int reported = extractTotalTokens(root, 0);
+                    if (reported > 0) {
+                        totalTokens = reported;
+                        usageReported = true;
+                    }
                     JsonNode delta = root.path("choices").path(0).path("delta");
                     String reasoningChunk = delta.path("reasoning_content").asText(null);
                     String contentChunk = delta.path("content").asText(null);
@@ -134,17 +151,31 @@ public class LinkMateLlmClient {
                     }
                 }
             }
+
+            boolean wasCancelled = cancelled != null && cancelled.getAsBoolean();
+            if (wasCancelled) {
+                String partial = content.length() > 0 ? content.toString() : reasoning.toString();
+                int tokens = usageReported ? totalTokens : estimateTokens(messages, partial);
+                return new StreamResult(partial, reasoning.toString(), tokens, true);
+            }
+
             String full = content.length() > 0 ? content.toString() : reasoning.toString();
             if (!StringUtils.hasText(full)) {
                 throw new CustomException(502, "AI 未返回有效内容");
             }
-            return estimateTokens(messages, full);
+            int tokens = usageReported ? totalTokens : estimateTokens(messages, full);
+            return new StreamResult(full, reasoning.toString(), tokens, false);
         } catch (CustomException ex) {
             throw ex;
         } catch (Exception ex) {
             log.error("LinkMate LLM stream failed", ex);
             throw new CustomException(502, "AI 服务请求失败");
         }
+    }
+
+    /** 兼容旧调用 */
+    public int streamChat(List<LlmMessage> messages, Consumer<String> onDelta) {
+        return streamChat(messages, false, new StreamDeltaHandlers(null, onDelta), null).totalTokens();
     }
 
     private LinkxProperties.LinkMate requireConfig() {
@@ -171,6 +202,10 @@ public class LinkMateLlmClient {
         body.put("temperature", cfg.getTemperature());
         body.put("max_tokens", cfg.getMaxTokens());
         body.put("stream", stream);
+        if (stream) {
+            ObjectNode streamOptions = body.putObject("stream_options");
+            streamOptions.put("include_usage", true);
+        }
 
         ArrayNode msgArray = body.putArray("messages");
         for (LlmMessage msg : messages) {
@@ -202,6 +237,15 @@ public class LinkMateLlmClient {
             throw new CustomException(502, "AI 未返回有效内容");
         }
         return content.asText();
+    }
+
+    private static int extractTotalTokens(JsonNode root, int fallback) {
+        JsonNode usage = root.path("usage");
+        if (usage.isMissingNode()) {
+            return fallback;
+        }
+        int total = usage.path("total_tokens").asInt(0);
+        return total > 0 ? total : fallback;
     }
 
     private static String normalizeBaseUrl(String baseUrl) {
