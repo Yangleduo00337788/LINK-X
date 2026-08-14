@@ -172,6 +172,8 @@ public class SysRuntimeSetting implements Serializable {
     private Double linkmateTemperature;
     private Integer linkmateDailyTokenLimit;
     private String linkmateSystemPrompt;
+    /** 当前模型是否支持深度思考（保存配置时自动检测） */
+    private Boolean linkmateReasoningSupported;
 
     private Long updateBy;
 

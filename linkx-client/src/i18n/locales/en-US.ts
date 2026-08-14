@@ -776,8 +776,20 @@ export default {
     expandPanel: 'Expand LinkMate',
     chatHint: 'Ask me anything',
     thinking: 'LinkMate is thinking…',
+    deepThinking: 'Deep thinking',
+    deepThinkingUnsupported: 'Current model does not support deep thinking',
+    deepThinkingOn: 'Deep thinking enabled',
+    deepThinkingOff: 'Enable deep thinking',
+    responseDuration: '· {n}s',
+    deepThinkingThinking: 'LinkMate is thinking deeply…',
+    deepThinkingReasoning: 'Reasoning in progress…',
+    deepThinkingGenerating: 'Organizing the answer…',
     generating: 'Generating response…',
-    resizePanel: 'Drag to resize width'
+    resizePanel: 'Drag to resize width',
+    historyChat: 'Chat history',
+    openHistory: 'View chat history',
+    loadFailed: 'Failed to load',
+    deletedOk: 'Chat deleted'
   },
   nav: {
     chat: 'Chats',

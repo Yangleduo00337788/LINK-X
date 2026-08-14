@@ -50,9 +50,18 @@ public class LinkMateLlmClient {
     public record LlmResult(String content, int totalTokens) {
     }
 
+    public record StreamDeltaHandlers(
+            Consumer<String> onReasoningDelta,
+            Consumer<String> onContentDelta) {
+    }
+
     public LlmResult chat(List<LlmMessage> messages) {
+        return chat(messages, false);
+    }
+
+    public LlmResult chat(List<LlmMessage> messages, boolean deepThinking) {
         LinkxProperties.LinkMate cfg = requireConfig();
-        ObjectNode body = buildRequestBody(cfg, messages, false);
+        ObjectNode body = buildRequestBody(cfg, messages, false, deepThinking);
         HttpRequest request = buildHttpRequest(cfg, body);
 
         try {
@@ -77,8 +86,12 @@ public class LinkMateLlmClient {
    * 流式对话；返回估算 token 总量。
    */
     public int streamChat(List<LlmMessage> messages, Consumer<String> onDelta) {
+        return streamChat(messages, false, new StreamDeltaHandlers(null, onDelta));
+    }
+
+    public int streamChat(List<LlmMessage> messages, boolean deepThinking, StreamDeltaHandlers handlers) {
         LinkxProperties.LinkMate cfg = requireConfig();
-        ObjectNode body = buildRequestBody(cfg, messages, true);
+        ObjectNode body = buildRequestBody(cfg, messages, true, deepThinking);
         HttpRequest request = buildHttpRequest(cfg, body);
 
         try {
@@ -90,7 +103,8 @@ public class LinkMateLlmClient {
                 throw new CustomException(502, "AI 服务暂时不可用，请稍后重试");
             }
 
-            StringBuilder full = new StringBuilder();
+            StringBuilder reasoning = new StringBuilder();
+            StringBuilder content = new StringBuilder();
             try (BufferedReader reader = new BufferedReader(
                     new InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
                 String line;
@@ -104,20 +118,27 @@ public class LinkMateLlmClient {
                     }
                     JsonNode root = objectMapper.readTree(data);
                     JsonNode delta = root.path("choices").path(0).path("delta");
-                    String chunk = delta.path("content").asText(null);
-                    if (chunk == null) {
-                        chunk = delta.path("reasoning_content").asText(null);
+                    String reasoningChunk = delta.path("reasoning_content").asText(null);
+                    String contentChunk = delta.path("content").asText(null);
+                    if (StringUtils.hasText(reasoningChunk)) {
+                        reasoning.append(reasoningChunk);
+                        if (handlers.onReasoningDelta() != null) {
+                            handlers.onReasoningDelta().accept(reasoningChunk);
+                        }
                     }
-                    if (StringUtils.hasText(chunk)) {
-                        full.append(chunk);
-                        onDelta.accept(chunk);
+                    if (StringUtils.hasText(contentChunk)) {
+                        content.append(contentChunk);
+                        if (handlers.onContentDelta() != null) {
+                            handlers.onContentDelta().accept(contentChunk);
+                        }
                     }
                 }
             }
+            String full = content.length() > 0 ? content.toString() : reasoning.toString();
             if (!StringUtils.hasText(full)) {
                 throw new CustomException(502, "AI 未返回有效内容");
             }
-            return estimateTokens(messages, full.toString());
+            return estimateTokens(messages, full);
         } catch (CustomException ex) {
             throw ex;
         } catch (Exception ex) {
@@ -140,9 +161,13 @@ public class LinkMateLlmClient {
         return cfg;
     }
 
-    private ObjectNode buildRequestBody(LinkxProperties.LinkMate cfg, List<LlmMessage> messages, boolean stream) {
+    private ObjectNode buildRequestBody(
+            LinkxProperties.LinkMate cfg,
+            List<LlmMessage> messages,
+            boolean stream,
+            boolean deepThinking) {
         ObjectNode body = objectMapper.createObjectNode();
-        body.put("model", cfg.getModel());
+        body.put("model", LinkMateModelCapability.resolveModel(cfg.getModel(), deepThinking));
         body.put("temperature", cfg.getTemperature());
         body.put("max_tokens", cfg.getMaxTokens());
         body.put("stream", stream);

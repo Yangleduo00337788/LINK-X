@@ -27,5 +27,9 @@ public class LinkMateMessageVO {
 
     private String content;
 
+    private String reasoningContent;
+
+    private Integer responseDurationMs;
+
     private String createTime;
 }

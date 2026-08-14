@@ -281,6 +281,7 @@ const linkmateForm = reactive({
   apiKeyConfigured: false,
   baseUrl: 'https://api.deepseek.com',
   model: 'deepseek-chat',
+  reasoningSupported: false,
   maxTokens: 4096,
   temperature: 0.7,
   dailyTokenLimit: 100000,
@@ -413,6 +414,7 @@ function applySettings(data: AdminSetting) {
   linkmateForm.apiKeyConfigured = data.linkmate?.apiKeyConfigured === true
   linkmateForm.baseUrl = data.linkmate?.baseUrl || 'https://api.deepseek.com'
   linkmateForm.model = data.linkmate?.model || 'deepseek-chat'
+  linkmateForm.reasoningSupported = data.linkmate?.reasoningSupported === true
   linkmateForm.maxTokens = data.linkmate?.maxTokens ?? 4096
   linkmateForm.temperature = data.linkmate?.temperature ?? 0.7
   linkmateForm.dailyTokenLimit = data.linkmate?.dailyTokenLimit ?? 100000
@@ -1463,11 +1465,24 @@ onMounted(load)
                 />
               </NFormItem>
               <NFormItem :label="t('setting.linkmateModel')" required>
-                <NInput
-                  v-model:value="linkmateForm.model"
-                  placeholder="deepseek-chat"
-                  style="max-width: 280px"
-                />
+                <div class="secret-row">
+                  <NInput
+                    v-model:value="linkmateForm.model"
+                    placeholder="deepseek-chat"
+                    style="max-width: 280px"
+                  />
+                  <NTag
+                    size="small"
+                    :type="linkmateForm.reasoningSupported ? 'success' : 'default'"
+                    :bordered="false"
+                  >
+                    {{
+                      linkmateForm.reasoningSupported
+                        ? t('setting.linkmateReasoningSupported')
+                        : t('setting.linkmateReasoningUnsupported')
+                    }}
+                  </NTag>
+                </div>
               </NFormItem>
               <NFormItem :label="t('setting.linkmateApiKey')">
                 <div class="secret-row">

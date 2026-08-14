@@ -8,6 +8,7 @@ import type { LinkMateMessage, LinkMateSession, LinkMateStatus } from '../api/li
 export type LinkMatePanelState = 'closed' | 'open' | 'collapsed'
 
 const PANEL_WIDTH_STORAGE_KEY = 'linkx-linkmate-panel-width'
+const DEEP_THINKING_STORAGE_KEY = 'linkx-linkmate-deep-thinking'
 export const LINKMATE_PANEL_WIDTH_MIN = 280
 export const LINKMATE_PANEL_WIDTH_MAX = 640
 export const LINKMATE_PANEL_WIDTH_DEFAULT = 380
@@ -37,6 +38,22 @@ function persistPanelWidth(width: number) {
   }
 }
 
+function loadDeepThinking(): boolean {
+  try {
+    return localStorage.getItem(DEEP_THINKING_STORAGE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function persistDeepThinking(enabled: boolean) {
+  try {
+    localStorage.setItem(DEEP_THINKING_STORAGE_KEY, enabled ? '1' : '0')
+  } catch {
+    /* ignore */
+  }
+}
+
 export const useLinkMateStore = defineStore('linkmate', {
   state: () => ({
     status: null as LinkMateStatus | null,
@@ -48,6 +65,8 @@ export const useLinkMateStore = defineStore('linkmate', {
     streaming: false,
     streamAbort: null as AbortController | null,
     inputDraft: '',
+    deepThinking: loadDeepThinking(),
+    showHistory: false,
     /** 右侧对话面板：closed 未打开 / open 展开 / collapsed 已折叠（侧栏可恢复） */
     panelState: 'closed' as LinkMatePanelState,
     /** 侧栏宽度（px），持久化至 localStorage */
@@ -70,6 +89,9 @@ export const useLinkMateStore = defineStore('linkmate', {
     },
     enabled(state): boolean {
       return state.status?.enabled ?? false
+    },
+    deepThinkingSupported(state): boolean {
+      return state.status?.deepThinkingSupported ?? false
     }
   },
 
@@ -96,6 +118,47 @@ export const useLinkMateStore = defineStore('linkmate', {
       persistPanelWidth(next)
     },
 
+    setDeepThinking(enabled: boolean) {
+      this.deepThinking = enabled
+      persistDeepThinking(enabled)
+    },
+
+    isSessionEmpty(sessionId: string): boolean {
+      const msgs = this.messagesBySession[sessionId]
+      return !msgs || msgs.length === 0
+    },
+
+    finalizeMessageMetrics(sessionId: string, assistantId: string, reasoningEndedAt = 0) {
+      const msgs = this.messagesBySession[sessionId]
+      const msg = msgs?.find(m => m.id === assistantId)
+      if (!msg?.responseStartedAt) return
+
+      if (msg.reasoningContent?.trim() && msg.reasoningDurationMs == null) {
+        const end = reasoningEndedAt > 0 ? reasoningEndedAt : Date.now()
+        this.setAssistantReasoningDuration(sessionId, assistantId, end - msg.responseStartedAt)
+      }
+
+      if (msg.responseDurationMs == null) {
+        this.setAssistantResponseDuration(
+          sessionId,
+          assistantId,
+          Date.now() - msg.responseStartedAt
+        )
+      }
+    },
+
+    finalizeActiveStreamMetrics() {
+      const sessionId = this.activeSessionId
+      if (!sessionId) return
+      const msgs = this.messagesBySession[sessionId]
+      if (!msgs) return
+      const assistant = [...msgs].reverse().find(
+        m => m.role === 'assistant' && m.id.startsWith('temp-assistant')
+      )
+      if (!assistant) return
+      this.finalizeMessageMetrics(sessionId, assistant.id)
+    },
+
     async ensurePanelReady() {
       await this.loadStatus()
       if (!this.enabled) return
@@ -116,6 +179,41 @@ export const useLinkMateStore = defineStore('linkmate', {
       if (idx < 0) return
       const next = [...msgs]
       next[idx] = { ...next[idx], content }
+      this.patchSessionMessages(sessionId, next)
+    },
+
+    updateAssistantReasoning(sessionId: string, assistantId: string, reasoningContent: string) {
+      const msgs = this.messagesBySession[sessionId]
+      if (!msgs) return
+      const idx = msgs.findIndex(m => m.id === assistantId)
+      if (idx < 0) return
+      const next = [...msgs]
+      const current = next[idx]
+      next[idx] = {
+        ...current,
+        reasoningContent,
+        responseStartedAt: current.responseStartedAt ?? Date.now()
+      }
+      this.patchSessionMessages(sessionId, next)
+    },
+
+    setAssistantResponseDuration(sessionId: string, assistantId: string, durationMs: number) {
+      const msgs = this.messagesBySession[sessionId]
+      if (!msgs) return
+      const idx = msgs.findIndex(m => m.id === assistantId)
+      if (idx < 0) return
+      const next = [...msgs]
+      next[idx] = { ...next[idx], responseDurationMs: durationMs }
+      this.patchSessionMessages(sessionId, next)
+    },
+
+    setAssistantReasoningDuration(sessionId: string, assistantId: string, durationMs: number) {
+      const msgs = this.messagesBySession[sessionId]
+      if (!msgs) return
+      const idx = msgs.findIndex(m => m.id === assistantId)
+      if (idx < 0) return
+      const next = [...msgs]
+      next[idx] = { ...next[idx], reasoningDurationMs: durationMs }
       this.patchSessionMessages(sessionId, next)
     },
 
@@ -141,7 +239,7 @@ export const useLinkMateStore = defineStore('linkmate', {
           this.status = res.data
         }
       } catch {
-        this.status = { enabled: false, model: '', dailyTokenLimit: 0, dailyTokenUsed: 0 }
+        this.status = { enabled: false, model: '', dailyTokenLimit: 0, dailyTokenUsed: 0, deepThinkingSupported: false }
       }
     },
 
@@ -177,8 +275,21 @@ export const useLinkMateStore = defineStore('linkmate', {
       return session
     },
 
+    async startNewChat() {
+      if (this.streaming) return
+      if (this.activeSessionId && this.isSessionEmpty(this.activeSessionId)) {
+        this.showHistory = false
+        return this.sessions.find(s => s.id === this.activeSessionId) ?? null
+      }
+      const session = await this.createSession()
+      this.showHistory = false
+      return session
+    },
+
     async selectSession(sessionId: string) {
+      if (this.streaming) return
       this.activeSessionId = sessionId
+      this.showHistory = false
       if (!this.messagesBySession[sessionId]) {
         await this.loadMessages(sessionId)
       }
@@ -196,7 +307,9 @@ export const useLinkMateStore = defineStore('linkmate', {
               sessionId: String(row.sessionId),
               role: row.role as LinkMateMessage['role'],
               content: row.content,
-              createTime: row.createTime
+              createTime: row.createTime,
+              reasoningContent: row.reasoningContent,
+              responseDurationMs: row.responseDurationMs
             }))
           )
         }
@@ -206,6 +319,7 @@ export const useLinkMateStore = defineStore('linkmate', {
     },
 
     async deleteSession(sessionId: string) {
+      if (this.streaming) return
       const res = await linkmateApi.deleteSession(sessionId)
       if (res.code !== 200) {
         throw new Error(res.message || '删除失败')
@@ -215,10 +329,14 @@ export const useLinkMateStore = defineStore('linkmate', {
       this.messagesBySession = rest
       if (this.activeSessionId === sessionId) {
         this.activeSessionId = this.sessions[0]?.id ?? ''
+        if (this.activeSessionId && !this.messagesBySession[this.activeSessionId]) {
+          await this.loadMessages(this.activeSessionId)
+        }
       }
     },
 
     abortStream() {
+      this.finalizeActiveStreamMetrics()
       if (this.streamAbort) {
         this.streamAbort.abort()
         this.streamAbort = null
@@ -243,13 +361,15 @@ export const useLinkMateStore = defineStore('linkmate', {
         content,
         createTime: ''
       }
+      const useDeepThinking = this.deepThinking && this.deepThinkingSupported
       const assistantId = `temp-assistant-${Date.now()}`
       const assistantMsg: LinkMateMessage = {
         id: assistantId,
         sessionId,
         role: 'assistant',
         content: '',
-        createTime: ''
+        createTime: '',
+        responseStartedAt: Date.now()
       }
       const list = [...(this.messagesBySession[sessionId] ?? []), userMsg, assistantMsg]
       this.patchSessionMessages(sessionId, list)
@@ -257,6 +377,8 @@ export const useLinkMateStore = defineStore('linkmate', {
       this.streaming = true
       this.streamAbort = new AbortController()
       let assistantContent = ''
+      let assistantReasoning = ''
+      let reasoningEndedAt = 0
 
       try {
         await linkmateApi.streamChat(
@@ -276,11 +398,28 @@ export const useLinkMateStore = defineStore('linkmate', {
                 })
               }
             },
+            onReasoningDelta: chunk => {
+              assistantReasoning += chunk
+              this.updateAssistantReasoning(sessionId, assistantId, assistantReasoning)
+            },
             onDelta: chunk => {
+              if (assistantReasoning && !reasoningEndedAt) {
+                reasoningEndedAt = Date.now()
+                const msgs = this.messagesBySession[sessionId]
+                const msg = msgs?.find(m => m.id === assistantId)
+                if (msg?.responseStartedAt) {
+                  this.setAssistantReasoningDuration(
+                    sessionId,
+                    assistantId,
+                    reasoningEndedAt - msg.responseStartedAt
+                  )
+                }
+              }
               assistantContent += chunk
               this.updateAssistantContent(sessionId, assistantId, assistantContent)
             },
             onDone: (messageId, sid) => {
+              this.finalizeMessageMetrics(sessionId, assistantId, reasoningEndedAt)
               this.finalizeAssistantMessage(sessionId, assistantId, messageId, sid)
               this.activeSessionId = sid
               void this.loadSessions()
@@ -290,7 +429,8 @@ export const useLinkMateStore = defineStore('linkmate', {
               throw new Error(message)
             }
           },
-          this.streamAbort.signal
+          this.streamAbort.signal,
+          useDeepThinking
         )
       } catch (err) {
         if (!assistantContent) {
@@ -301,6 +441,7 @@ export const useLinkMateStore = defineStore('linkmate', {
           )
         }
       } finally {
+        this.finalizeMessageMetrics(sessionId, assistantId, reasoningEndedAt)
         this.streaming = false
         this.streamAbort = null
         void this.loadStatus()

@@ -2044,6 +2044,8 @@ export default {
     linkmateEnableFirst: 'Enable LinkMate before testing',
     linkmateBaseUrlRequired: 'API base URL is required',
     linkmateModelRequired: 'Model name is required',
+    linkmateReasoningSupported: 'Deep thinking supported',
+    linkmateReasoningUnsupported: 'Deep thinking not supported',
     linkmateApiKeyRequired: 'API Key is required when LinkMate is enabled',
     securityTitle: 'Security',
     securityHint: 'Controls admin API request signing, payload encryption, and frontend debug protection. Applies immediately.',

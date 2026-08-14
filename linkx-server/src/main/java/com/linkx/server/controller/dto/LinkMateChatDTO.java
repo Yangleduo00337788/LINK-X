@@ -17,4 +17,7 @@ public class LinkMateChatDTO {
   @NotBlank(message = "消息内容不能为空")
   @Size(max = 8000, message = "消息内容过长")
   private String message;
+
+  /** 是否开启深度思考（仅模型支持时生效） */
+  private Boolean deepThinking;
 }

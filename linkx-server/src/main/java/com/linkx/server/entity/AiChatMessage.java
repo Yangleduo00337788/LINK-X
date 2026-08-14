@@ -38,6 +38,10 @@ public class AiChatMessage implements Serializable {
 
     private String content;
 
+    private String reasoningContent;
+
+    private Integer responseDurationMs;
+
     private Integer tokenCount;
 
     @Column(onInsertValue = "NOW()")

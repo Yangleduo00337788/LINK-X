@@ -63,6 +63,8 @@ public class AdminSettingVO {
         private Boolean apiKeyConfigured;
         @Schema(description = "系统提示词")
         private String systemPrompt;
+        @Schema(description = "当前模型是否支持深度思考")
+        private Boolean reasoningSupported;
     }
 
     @Data

@@ -19,6 +19,8 @@ import com.linkx.server.service.LinkMateService;
 import com.linkx.server.service.linkmate.LinkMateLlmClient;
 import com.linkx.server.service.linkmate.LinkMateLlmClient.LlmMessage;
 import com.linkx.server.service.linkmate.LinkMateLlmClient.LlmResult;
+import com.linkx.server.service.linkmate.LinkMateLlmClient.StreamDeltaHandlers;
+import com.linkx.server.service.linkmate.LinkMateModelCapability;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -70,6 +72,7 @@ public class LinkMateServiceImpl implements LinkMateService {
                 .model(cfg.getModel())
                 .dailyTokenLimit(cfg.getDailyTokenLimit())
                 .dailyTokenUsed(getDailyTokenUsed(userId))
+                .deepThinkingSupported(cfg.isReasoningSupported())
                 .build();
     }
 
@@ -122,9 +125,9 @@ public class LinkMateServiceImpl implements LinkMateService {
         List<LlmMessage> context = buildLlmContext(session.getId());
         checkDailyLimit(userId, estimatePromptTokens(context));
 
-        LlmResult result = llmClient.chat(context);
+        LlmResult result = llmClient.chat(context, Boolean.TRUE.equals(dto.getDeepThinking()));
         recordTokenUsage(userId, result.totalTokens());
-        AiChatMessage assistant = saveAssistantMessage(userId, session, result.content(), result.totalTokens());
+        AiChatMessage assistant = saveAssistantMessage(userId, session, result.content(), result.totalTokens(), null, null);
         maybeUpdateTitle(session, dto.getMessage());
         return toMessageVO(assistant);
     }
@@ -141,19 +144,43 @@ public class LinkMateServiceImpl implements LinkMateService {
         String userMessage = dto.getMessage();
 
         STREAM_EXECUTOR.execute(() -> {
+            long streamStartedAt = System.currentTimeMillis();
             try {
                 sendSse(emitter, "start", Map.of("sessionId", String.valueOf(sessionId)));
                 StringBuilder full = new StringBuilder();
-                int tokens = llmClient.streamChat(context, chunk -> {
-                    full.append(chunk);
-                    try {
-                        sendSse(emitter, "delta", Map.of("content", chunk));
-                    } catch (Exception sendEx) {
-                        log.debug("LinkMate SSE client disconnected");
-                    }
-                });
+                StringBuilder reasoning = new StringBuilder();
+                boolean deepThinking = Boolean.TRUE.equals(dto.getDeepThinking())
+                        && linkxProperties.getLinkmate().isReasoningSupported();
+                int tokens = llmClient.streamChat(
+                        context,
+                        deepThinking,
+                        new StreamDeltaHandlers(
+                                chunk -> {
+                                    reasoning.append(chunk);
+                                    try {
+                                        sendSse(emitter, "reasoning_delta", Map.of("content", chunk));
+                                    } catch (Exception sendEx) {
+                                        log.debug("LinkMate SSE client disconnected");
+                                    }
+                                },
+                                chunk -> {
+                                    full.append(chunk);
+                                    try {
+                                        sendSse(emitter, "delta", Map.of("content", chunk));
+                                    } catch (Exception sendEx) {
+                                        log.debug("LinkMate SSE client disconnected");
+                                    }
+                                }));
                 recordTokenUsage(userId, tokens);
-                AiChatMessage assistant = saveAssistantMessage(userId, session, full.toString(), tokens);
+                int responseDurationMs = (int) Math.max(1, System.currentTimeMillis() - streamStartedAt);
+                String reasoningContent = reasoning.length() > 0 ? reasoning.toString() : null;
+                AiChatMessage assistant = saveAssistantMessage(
+                        userId,
+                        session,
+                        full.toString(),
+                        tokens,
+                        reasoningContent,
+                        responseDurationMs);
                 maybeUpdateTitle(session, userMessage);
                 sendSse(emitter, "done", Map.of(
                         "messageId", String.valueOf(assistant.getId()),
@@ -225,12 +252,20 @@ public class LinkMateServiceImpl implements LinkMateService {
         touchSession(session);
     }
 
-    private AiChatMessage saveAssistantMessage(Long userId, AiChatSession session, String content, int tokens) {
+    private AiChatMessage saveAssistantMessage(
+            Long userId,
+            AiChatSession session,
+            String content,
+            int tokens,
+            String reasoningContent,
+            Integer responseDurationMs) {
         AiChatMessage msg = AiChatMessage.builder()
                 .sessionId(session.getId())
                 .userId(userId)
                 .role("assistant")
                 .content(content)
+                .reasoningContent(StringUtils.hasText(reasoningContent) ? reasoningContent : null)
+                .responseDurationMs(responseDurationMs)
                 .tokenCount(tokens)
                 .build();
         messageMapper.insert(msg);
@@ -329,6 +364,8 @@ public class LinkMateServiceImpl implements LinkMateService {
                 .sessionId(message.getSessionId())
                 .role(message.getRole())
                 .content(message.getContent())
+                .reasoningContent(message.getReasoningContent())
+                .responseDurationMs(message.getResponseDurationMs())
                 .createTime(formatTime(message.getCreateTime()))
                 .build();
     }

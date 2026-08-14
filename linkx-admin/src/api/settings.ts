@@ -111,6 +111,7 @@ export interface LinkMateSideSetting {
   dailyTokenLimit?: number
   apiKeyConfigured?: boolean
   systemPrompt?: string
+  reasoningSupported?: boolean
 }
 
 export interface AdminSetting {

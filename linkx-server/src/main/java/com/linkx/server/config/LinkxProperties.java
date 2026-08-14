@@ -53,6 +53,8 @@ public class LinkxProperties {
         private String systemPrompt = "你是「灵伴」（LinkMate），LinkX 企业即时通讯平台的智能伙伴。"
                 + "你负责陪伴用户完成对话、知识检索、任务执行和各类 AI 助手功能。"
                 + "回答请简洁、专业、友好，使用用户使用的语言回复。";
+        /** 当前模型是否支持深度思考（管理端保存时检测） */
+        private boolean reasoningSupported;
 
         public void setMaxTokens(int maxTokens) {
             this.maxTokens = Math.max(256, Math.min(32768, maxTokens));

@@ -777,8 +777,20 @@ export default {
     expandPanel: '展开灵伴',
     chatHint: '有什么想聊的？',
     thinking: '灵伴正在思考…',
+    deepThinking: '深度思考',
+    deepThinkingUnsupported: '当前模型不支持深度思考',
+    deepThinkingOn: '已开启深度思考',
+    deepThinkingOff: '开启深度思考',
+    responseDuration: '· {n}s',
+    deepThinkingThinking: '灵伴正在深度思考…',
+    deepThinkingReasoning: '正在深度推理…',
+    deepThinkingGenerating: '正在整理回答…',
     generating: '正在生成回答…',
-    resizePanel: '拖动调整宽度'
+    resizePanel: '拖动调整宽度',
+    historyChat: '历史对话',
+    openHistory: '查看历史对话',
+    loadFailed: '加载失败',
+    deletedOk: '已删除对话'
   },
   nav: {
     chat: '消息',

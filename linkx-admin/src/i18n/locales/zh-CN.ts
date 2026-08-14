@@ -2016,6 +2016,8 @@ export default {
     linkmateEnableFirst: '请先开启灵伴再测试',
     linkmateBaseUrlRequired: '请填写 API 基址',
     linkmateModelRequired: '请填写模型名称',
+    linkmateReasoningSupported: '支持深度思考',
+    linkmateReasoningUnsupported: '不支持深度思考',
     linkmateApiKeyRequired: '启用灵伴需配置 API Key',
     securityTitle: '安全配置',
     securityHint: '控制管理端 API 请求签名、数据加密与前端调试防护，保存后立即生效。',

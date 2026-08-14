@@ -12,6 +12,7 @@ export interface LinkMateStatus {
   model: string
   dailyTokenLimit: number
   dailyTokenUsed: number
+  deepThinkingSupported: boolean
 }
 
 export interface LinkMateSession {
@@ -26,6 +27,13 @@ export interface LinkMateMessage {
   role: 'user' | 'assistant' | 'system'
   content: string
   createTime: string
+  reasoningContent?: string
+  /** 回复开始时间戳（流式中用于实时计时） */
+  responseStartedAt?: number
+  /** 回复总耗时（毫秒） */
+  responseDurationMs?: number
+  /** 深度思考阶段耗时（毫秒），仅深度思考时有值 */
+  reasoningDurationMs?: number
 }
 
 export function getStatus() {
@@ -53,6 +61,7 @@ export function listMessages(sessionId: string) {
 export interface LinkMateStreamHandlers {
   onStart?: (sessionId: string) => void
   onDelta?: (content: string) => void
+  onReasoningDelta?: (content: string) => void
   onDone?: (messageId: string, sessionId: string) => void
   onError?: (message: string) => void
 }
@@ -64,7 +73,8 @@ export async function streamChat(
   message: string,
   sessionId: string | undefined,
   handlers: LinkMateStreamHandlers,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  deepThinking?: boolean
 ): Promise<void> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -85,7 +95,7 @@ export async function streamChat(
   const response = await fetch(`${API_BASE_URL}/linkmate/chat/stream`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ sessionId, message }),
+    body: JSON.stringify({ sessionId, message, deepThinking: !!deepThinking }),
     credentials: isWebEnvironment() ? 'include' : 'omit',
     signal
   })
@@ -155,6 +165,10 @@ function parseSseEvent(raw: string, handlers: LinkMateStreamHandlers) {
         break
       case 'delta':
         if (payload.content != null && payload.content !== '') handlers.onDelta?.(payload.content)
+        break
+      case 'reasoning_delta':
+        if (payload.content != null && payload.content !== '')
+          handlers.onReasoningDelta?.(payload.content)
         break
       case 'done':
         if (payload.messageId && payload.sessionId) {

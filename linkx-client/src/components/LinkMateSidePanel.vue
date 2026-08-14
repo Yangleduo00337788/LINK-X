@@ -2,31 +2,42 @@
 <script setup lang="ts">
 /**
  * 灵伴右侧内嵌对话面板（消息页主内容区右缘）。
- * <p>
- * 由聊天列表 AI 按钮打开；左侧中部折叠按钮可收起，
- * 收起后可在左侧导航栏底部恢复。左缘可拖拽调整宽度。
- * </p>
  */
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { NInput, NIcon, NSpin, useMessage } from 'naive-ui'
-import { ChevronForwardOutline } from '@vicons/ionicons5'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { NInput, NIcon, NPopover, useMessage, useDialog } from 'naive-ui'
+import {
+  AddOutline,
+  TimeOutline,
+  BulbOutline,
+  ChevronForwardOutline,
+  ChevronDownOutline,
+  TrashOutline
+} from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useLinkMateStore } from '../stores/linkmate'
 import type { LinkMateMessage } from '../api/linkmate'
 import { useI18n } from '../i18n'
 import LinkMateLogoMark from './LinkMateLogoMark.vue'
+import { renderLinkMateMarkdown } from '../utils/linkmateMarkdown'
 
 const { t } = useI18n()
 const message = useMessage()
+const dialog = useDialog()
 const linkMate = useLinkMateStore()
 const {
   activeMessages,
+  activeSessionId,
   loadingMessages,
+  loadingSessions,
   streaming,
   inputDraft,
   enabled,
   status,
-  panelWidth
+  panelWidth,
+  sessions,
+  deepThinking,
+  deepThinkingSupported,
+  showHistory
 } = storeToRefs(linkMate)
 
 const inputRef = ref<InstanceType<typeof NInput> | null>(null)
@@ -35,10 +46,52 @@ const booted = ref(false)
 const isResizing = ref(false)
 const resizeStartX = ref(0)
 const resizeStartWidth = ref(0)
+const collapsedReasoning = reactive<Record<string, boolean>>({})
+const statusNow = ref(Date.now())
+let statusTickTimer = 0
+
+function startStatusTick() {
+  if (statusTickTimer) return
+  statusTickTimer = window.setInterval(() => {
+    statusNow.value = Date.now()
+  }, 100)
+}
+
+function stopStatusTick() {
+  if (!statusTickTimer) return
+  clearInterval(statusTickTimer)
+  statusTickTimer = 0
+}
+
+function formatResponseDuration(msg: LinkMateMessage): string {
+  let ms = msg.responseDurationMs
+  if (
+    ms == null &&
+    msg.responseStartedAt &&
+    streaming.value &&
+    streamingAssistant.value?.id === msg.id
+  ) {
+    ms = statusNow.value - msg.responseStartedAt
+  }
+  if (ms == null || ms <= 0) return ''
+  const sec = ms / 1000
+  return sec < 10 ? sec.toFixed(1) : String(Math.round(sec))
+}
+
+function responseDurationLabel(msg: LinkMateMessage | null | undefined): string {
+  if (!msg) return ''
+  const duration = formatResponseDuration(msg)
+  if (!duration) return ''
+  return t('linkmate.responseDuration', { n: duration })
+}
+
+function shouldShowResponseDuration(msg: LinkMateMessage): boolean {
+  return !!formatResponseDuration(msg)
+}
 
 const panelStyle = computed(() => ({ width: `${panelWidth.value}px` }))
-
 const canChat = computed(() => enabled.value)
+const canUseDeepThinking = computed(() => deepThinkingSupported.value && !streaming.value)
 
 const streamingAssistant = computed(() => {
   if (!streaming.value) return null
@@ -47,21 +100,73 @@ const streamingAssistant = computed(() => {
   return last
 })
 
-const showThinking = computed(
-  () => !!streamingAssistant.value && !streamingAssistant.value.content.trim()
+const statusHintText = computed(() => {
+  if (!streamingAssistant.value) return ''
+  const hasReasoning = !!streamingAssistant.value.reasoningContent?.trim()
+  const hasContent = !!streamingAssistant.value.content.trim()
+  if (deepThinking.value) {
+    if (!hasReasoning && !hasContent) return t('linkmate.deepThinkingThinking')
+    if (hasReasoning && !hasContent) return t('linkmate.deepThinkingReasoning')
+    return t('linkmate.deepThinkingGenerating')
+  }
+  if (!hasContent) return t('linkmate.thinking')
+  return t('linkmate.generating')
+})
+
+const tokenUsageText = computed(() => {
+  if (!status.value?.enabled) return ''
+  const limit = status.value.dailyTokenLimit
+  if (!limit || limit <= 0) return ''
+  return t('linkmate.tokenUsage', {
+    used: status.value.dailyTokenUsed.toLocaleString(),
+    limit: limit.toLocaleString()
+  })
+})
+
+const starterPrompts = computed(() => [
+  t('linkmate.promptSummary'),
+  t('linkmate.promptEmail'),
+  t('linkmate.promptTranslate')
+])
+
+const showWelcome = computed(
+  () => booted.value && !loadingMessages.value && activeMessages.value.length === 0
 )
 
-const showGeneratingHint = computed(
-  () => !!streamingAssistant.value && !!streamingAssistant.value.content.trim()
-)
+function isStreamingMessage(msg: LinkMateMessage) {
+  return streaming.value && msg.role === 'assistant' && msg.id.startsWith('temp-assistant')
+}
 
-function isThinkingMessage(msg: LinkMateMessage) {
+function renderAssistantContent(content: string) {
+  return renderLinkMateMarkdown(content)
+}
+
+function isWaitingAssistant(msg: LinkMateMessage) {
   return (
     streaming.value &&
     msg.role === 'assistant' &&
     msg.id.startsWith('temp-assistant') &&
+    !msg.content.trim() &&
+    !msg.reasoningContent?.trim()
+  )
+}
+
+function isReasoningStream(msg: LinkMateMessage) {
+  return (
+    streaming.value &&
+    msg.role === 'assistant' &&
+    msg.id.startsWith('temp-assistant') &&
+    !!msg.reasoningContent?.trim() &&
     !msg.content.trim()
   )
+}
+
+function isReasoningCollapsed(msgId: string) {
+  return collapsedReasoning[msgId] === true
+}
+
+function toggleReasoning(msgId: string) {
+  collapsedReasoning[msgId] = !isReasoningCollapsed(msgId)
 }
 
 function collapse() {
@@ -102,10 +207,68 @@ function stopResize() {
   document.body.style.userSelect = ''
 }
 
+async function handleNewChat() {
+  if (streaming.value) return
+  try {
+    await linkMate.startNewChat()
+    await nextTick()
+    scrollToBottom()
+    inputRef.value?.focus()
+  } catch (err) {
+    message.error(err instanceof Error ? err.message : t('linkmate.createFailed'))
+  }
+}
+
+async function handleSelectSession(sessionId: string) {
+  if (sessionId === activeSessionId.value) {
+    showHistory.value = false
+    return
+  }
+  try {
+    await linkMate.selectSession(sessionId)
+    await nextTick()
+    scrollToBottom()
+  } catch (err) {
+    message.error(err instanceof Error ? err.message : t('linkmate.loadFailed'))
+  }
+}
+
+function handleDeleteSession(sessionId: string, title: string) {
+  if (streaming.value) return
+  dialog.warning({
+    title: t('linkmate.deleteChat'),
+    content: title,
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      try {
+        await linkMate.deleteSession(sessionId)
+        message.success(t('linkmate.deletedOk'))
+      } catch (err) {
+        message.error(err instanceof Error ? err.message : t('linkmate.deleteFailed'))
+      }
+    }
+  })
+}
+
+function toggleDeepThinking() {
+  if (!canUseDeepThinking.value) return
+  linkMate.setDeepThinking(!deepThinking.value)
+}
+
 async function handleSend() {
   const text = inputDraft.value.trim()
   if (!text || streaming.value) return
   inputDraft.value = ''
+  try {
+    await linkMate.sendMessage(text)
+  } catch (err) {
+    message.error(err instanceof Error ? err.message : t('linkmate.sendFailed'))
+  }
+}
+
+async function applyStarterPrompt(text: string) {
+  if (!text || streaming.value || !canChat.value) return
   try {
     await linkMate.sendMessage(text)
   } catch (err) {
@@ -129,7 +292,10 @@ watch(
 )
 
 watch(
-  () => activeMessages.value.at(-1)?.content,
+  () => [
+    activeMessages.value.at(-1)?.content,
+    activeMessages.value.at(-1)?.reasoningContent
+  ],
   async () => {
     if (streaming.value) {
       await nextTick()
@@ -138,10 +304,31 @@ watch(
   }
 )
 
-watch(showThinking, async visible => {
-  if (visible) {
-    await nextTick()
-    scrollToBottom()
+watch(streaming, (val, oldVal) => {
+  if (val) {
+    startStatusTick()
+  } else {
+    stopStatusTick()
+  }
+  if (oldVal && !val) {
+    const last = activeMessages.value.at(-1)
+    if (last?.role === 'assistant' && last.reasoningContent?.trim()) {
+      collapsedReasoning[last.id] = true
+    }
+  }
+})
+
+watch(deepThinkingSupported, supported => {
+  if (!supported) linkMate.setDeepThinking(false)
+})
+
+watch(loadingMessages, (loading, wasLoading) => {
+  if (wasLoading && !loading) {
+    for (const msg of activeMessages.value) {
+      if (msg.reasoningContent?.trim()) {
+        collapsedReasoning[msg.id] = true
+      }
+    }
   }
 })
 
@@ -154,6 +341,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   stopResize()
+  stopStatusTick()
 })
 </script>
 
@@ -183,7 +371,69 @@ onUnmounted(() => {
           <div>
             <div class="linkmate-side-title">{{ t('linkmate.dialogTitle') }}</div>
             <div v-if="status" class="linkmate-side-sub">{{ status.model }}</div>
+            <div v-if="tokenUsageText" class="linkmate-side-token">{{ tokenUsageText }}</div>
           </div>
+        </div>
+        <div v-if="enabled" class="linkmate-side-hdr-actions">
+          <NPopover
+            v-model:show="showHistory"
+            trigger="click"
+            placement="bottom-end"
+            :width="280"
+            raw
+          >
+            <template #trigger>
+              <button
+                type="button"
+                class="linkmate-hdr-btn"
+                :title="t('linkmate.openHistory')"
+                :disabled="streaming"
+              >
+                <NIcon :component="TimeOutline" :size="18" />
+              </button>
+            </template>
+            <div class="linkmate-history-pop">
+              <div class="linkmate-history-title">{{ t('linkmate.historyChat') }}</div>
+              <div v-if="loadingSessions" class="linkmate-history-empty">{{ t('common.loading') }}</div>
+              <div v-else-if="sessions.length === 0" class="linkmate-history-empty">
+                {{ t('linkmate.noSessions') }}
+              </div>
+              <div v-else class="linkmate-history-list">
+                <div
+                  v-for="session in sessions"
+                  :key="session.id"
+                  class="linkmate-history-item"
+                  :class="{ active: session.id === activeSessionId }"
+                >
+                  <button
+                    type="button"
+                    class="linkmate-history-main"
+                    @click="handleSelectSession(session.id)"
+                  >
+                    <span class="linkmate-history-name">{{ session.title || t('linkmate.newChat') }}</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="linkmate-history-del"
+                    :title="t('linkmate.deleteChat')"
+                    :disabled="streaming"
+                    @click.stop="handleDeleteSession(session.id, session.title)"
+                  >
+                    <NIcon :component="TrashOutline" :size="14" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </NPopover>
+          <button
+            type="button"
+            class="linkmate-hdr-btn"
+            :title="t('linkmate.newChat')"
+            :disabled="streaming"
+            @click="handleNewChat"
+          >
+            <NIcon :component="AddOutline" :size="18" />
+          </button>
         </div>
       </header>
 
@@ -196,27 +446,85 @@ onUnmounted(() => {
           <div v-if="loadingMessages || !booted" class="linkmate-side-empty">
             {{ t('common.loading') }}
           </div>
-          <div v-else-if="activeMessages.length === 0" class="linkmate-side-empty">
-            {{ t('linkmate.chatHint') }}
+          <div v-else-if="showWelcome" class="linkmate-welcome">
+            <LinkMateLogoMark size="lg" />
+            <h3 class="linkmate-welcome-title">{{ t('linkmate.welcomeTitle') }}</h3>
+            <p class="linkmate-welcome-sub">{{ t('linkmate.welcomeSub') }}</p>
+            <div class="linkmate-starter-prompts">
+              <button
+                v-for="prompt in starterPrompts"
+                :key="prompt"
+                type="button"
+                class="linkmate-starter-btn"
+                :disabled="streaming || !canChat"
+                @click="applyStarterPrompt(prompt)"
+              >
+                {{ prompt }}
+              </button>
+            </div>
           </div>
           <template v-else>
             <template v-for="msg in activeMessages" :key="msg.id">
               <div v-if="msg.role === 'user'" class="linkmate-side-msg is-user">
-                <div class="linkmate-side-msg-content">
-                  {{ msg.content }}
+                <div class="linkmate-side-msg-content">{{ msg.content }}</div>
+              </div>
+              <div v-else class="linkmate-assistant-turn">
+                <div
+                  v-if="isWaitingAssistant(msg) || isReasoningStream(msg)"
+                  class="linkmate-status-hint"
+                >
+                  <span class="linkmate-status-text">{{ statusHintText }}</span>
                 </div>
-              </div>
-              <div v-else-if="isThinkingMessage(msg)" class="linkmate-status-hint">
-                <NSpin :size="16" />
-                <span>{{ t('linkmate.thinking') }}</span>
-              </div>
-              <div v-else-if="msg.content" class="linkmate-side-msg is-assistant">
-                <div class="linkmate-side-msg-content">
-                  {{ msg.content }}
-                  <span
-                    v-if="streaming && msg.id.startsWith('temp-assistant')"
-                    class="linkmate-cursor"
-                  >▍</span>
+                <div
+                  v-if="msg.reasoningContent?.trim()"
+                  class="linkmate-reasoning-block"
+                >
+                  <button
+                    type="button"
+                    class="linkmate-reasoning-toggle"
+                    @click="toggleReasoning(msg.id)"
+                  >
+                    <span class="linkmate-reasoning-chev-wrap">
+                      <NIcon
+                        :component="ChevronDownOutline"
+                        :size="12"
+                        class="linkmate-reasoning-chev"
+                        :class="{ collapsed: isReasoningCollapsed(msg.id) }"
+                      />
+                    </span>
+                    <span class="linkmate-reasoning-label">{{ t('linkmate.deepThinking') }}</span>
+                  </button>
+                  <div
+                    v-show="!isReasoningCollapsed(msg.id)"
+                    class="linkmate-reasoning-content"
+                  >
+                    {{ msg.reasoningContent }}
+                  </div>
+                </div>
+                <div v-if="msg.content" class="linkmate-side-msg is-assistant">
+                  <div class="linkmate-side-msg-content">
+                    <template v-if="isStreamingMessage(msg)">
+                      {{ msg.content }}
+                      <span class="linkmate-cursor">▍</span>
+                    </template>
+                    <div
+                      v-else
+                      class="linkmate-md"
+                      v-html="renderAssistantContent(msg.content)"
+                    />
+                  </div>
+                </div>
+                <div
+                  v-if="isStreamingMessage(msg) && msg.content.trim()"
+                  class="linkmate-status-hint linkmate-status-hint--tail"
+                >
+                  <span class="linkmate-status-text">{{ statusHintText }}</span>
+                </div>
+                <div
+                  v-if="shouldShowResponseDuration(msg)"
+                  class="linkmate-response-duration linkmate-response-duration--end"
+                >
+                  {{ responseDurationLabel(msg) }}
                 </div>
               </div>
             </template>
@@ -224,9 +532,24 @@ onUnmounted(() => {
         </div>
 
         <footer class="linkmate-side-footer">
-          <div v-if="showGeneratingHint" class="linkmate-generating-hint">
-            <NSpin :size="14" />
-            <span>{{ t('linkmate.generating') }}</span>
+          <div class="linkmate-footer-tools">
+            <button
+              type="button"
+              class="linkmate-deep-btn"
+              :class="{ active: deepThinking, disabled: !deepThinkingSupported }"
+              :disabled="!canUseDeepThinking && !deepThinkingSupported"
+              :title="
+                deepThinkingSupported
+                  ? deepThinking
+                    ? t('linkmate.deepThinkingOn')
+                    : t('linkmate.deepThinkingOff')
+                  : t('linkmate.deepThinkingUnsupported')
+              "
+              @click="toggleDeepThinking"
+            >
+              <NIcon :component="BulbOutline" :size="14" />
+              <span>{{ t('linkmate.deepThinking') }}</span>
+            </button>
           </div>
           <div class="linkmate-side-input-row">
             <div class="linkmate-side-input-wrap">
@@ -342,6 +665,38 @@ onUnmounted(() => {
   align-items: center;
   gap: 10px;
   min-width: 0;
+  flex: 1;
+}
+
+.linkmate-side-hdr-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.linkmate-hdr-btn {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: var(--lx-radius-md);
+  background: transparent;
+  color: var(--lx-text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--lx-duration), color var(--lx-duration);
+}
+
+.linkmate-hdr-btn:hover:not(:disabled) {
+  background: var(--lx-bg-hover);
+  color: var(--lx-accent);
+}
+
+.linkmate-hdr-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .linkmate-side-title {
@@ -353,6 +708,12 @@ onUnmounted(() => {
 .linkmate-side-sub {
   font-size: 11px;
   color: var(--lx-text-secondary);
+  margin-top: 2px;
+}
+
+.linkmate-side-token {
+  font-size: 10px;
+  color: var(--lx-text-muted);
   margin-top: 2px;
 }
 
@@ -389,6 +750,74 @@ onUnmounted(() => {
   padding: 24px;
 }
 
+.linkmate-welcome {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 28px 20px;
+  gap: 10px;
+}
+
+.linkmate-welcome-title {
+  margin: 8px 0 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--lx-text-primary);
+}
+
+.linkmate-welcome-sub {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--lx-text-secondary);
+  max-width: 280px;
+}
+
+.linkmate-starter-prompts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 300px;
+  margin-top: 12px;
+}
+
+.linkmate-starter-btn {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--lx-border-light);
+  border-radius: var(--lx-radius-lg);
+  background: var(--lx-bg-card);
+  color: var(--lx-text-primary);
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--lx-duration),
+    background var(--lx-duration);
+}
+
+.linkmate-starter-btn:hover:not(:disabled) {
+  border-color: var(--lx-border);
+  background: var(--lx-bg-hover);
+}
+
+.linkmate-starter-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.linkmate-assistant-turn {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .linkmate-side-msg.is-user {
   align-self: flex-end;
   max-width: 88%;
@@ -420,12 +849,54 @@ onUnmounted(() => {
   color: var(--lx-text-primary);
 }
 
+.linkmate-md :deep(p) {
+  margin: 0 0 0.6em;
+}
+
+.linkmate-md :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.linkmate-md :deep(ul),
+.linkmate-md :deep(ol) {
+  margin: 0.4em 0;
+  padding-left: 1.4em;
+}
+
+.linkmate-md :deep(pre) {
+  margin: 0.5em 0;
+  padding: 10px 12px;
+  border-radius: var(--lx-radius-md);
+  background: var(--lx-bg-hover);
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.linkmate-md :deep(code) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+.linkmate-md :deep(:not(pre) > code) {
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: var(--lx-bg-hover);
+}
+
+.linkmate-md :deep(a) {
+  color: var(--lx-accent);
+  text-decoration: none;
+}
+
+.linkmate-md :deep(a:hover) {
+  text-decoration: underline;
+}
+
 .linkmate-status-hint,
 .linkmate-generating-hint {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 8px;
-  color: var(--lx-text-secondary);
   font-size: 13px;
 }
 
@@ -434,8 +905,80 @@ onUnmounted(() => {
   padding: 4px 0;
 }
 
-.linkmate-generating-hint {
-  margin-bottom: 8px;
+.linkmate-status-hint--tail {
+  padding: 2px 0 0;
+}
+
+.linkmate-status-text {
+  color: var(--lx-text-secondary);
+}
+
+.linkmate-response-duration--end {
+  margin-top: 2px;
+  padding-bottom: 2px;
+}
+
+.linkmate-reasoning-block {
+  align-self: stretch;
+  border-left: 2px solid var(--lx-accent-soft);
+  padding-left: 10px;
+}
+
+.linkmate-reasoning-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  color: var(--lx-text-secondary);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 6px;
+  min-height: 18px;
+}
+
+.linkmate-reasoning-toggle:hover {
+  color: var(--lx-accent);
+}
+
+.linkmate-reasoning-chev-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.linkmate-reasoning-label {
+  line-height: 1;
+}
+
+.linkmate-response-duration {
+  line-height: 1;
+  color: var(--lx-text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.linkmate-reasoning-chev {
+  display: block;
+  transition: transform var(--lx-duration);
+}
+
+.linkmate-reasoning-chev.collapsed {
+  transform: rotate(-90deg);
+}
+
+.linkmate-reasoning-content {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--lx-text-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding-bottom: 4px;
 }
 
 .linkmate-cursor {
@@ -453,6 +996,44 @@ onUnmounted(() => {
   border-top: 1px solid var(--lx-border-light);
   background: var(--lx-bg-card);
   flex-shrink: 0;
+}
+
+.linkmate-footer-tools {
+  margin-bottom: 8px;
+}
+
+.linkmate-deep-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--lx-radius-lg);
+  border: 1px solid var(--lx-border-light);
+  background: var(--lx-bg-panel);
+  color: var(--lx-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    border-color var(--lx-duration),
+    color var(--lx-duration),
+    background var(--lx-duration);
+}
+
+.linkmate-deep-btn:hover:not(:disabled) {
+  border-color: var(--lx-accent);
+  color: var(--lx-accent);
+}
+
+.linkmate-deep-btn.active {
+  border-color: var(--lx-accent);
+  background: var(--lx-accent-soft);
+  color: var(--lx-accent);
+}
+
+.linkmate-deep-btn.disabled,
+.linkmate-deep-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .linkmate-side-input-row {
@@ -535,5 +1116,90 @@ onUnmounted(() => {
 
 .linkmate-side-btn--stop:hover {
   filter: brightness(1.06);
+}
+
+.linkmate-history-pop {
+  padding: 10px;
+  background: var(--lx-bg-card);
+  border: 1px solid var(--lx-border-light);
+  border-radius: var(--lx-radius-lg);
+  box-shadow: var(--lx-shadow-elevated);
+}
+
+.linkmate-history-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lx-text-primary);
+  margin-bottom: 8px;
+  padding: 0 4px;
+}
+
+.linkmate-history-empty {
+  padding: 16px 8px;
+  text-align: center;
+  color: var(--lx-text-muted);
+  font-size: 12px;
+}
+
+.linkmate-history-list {
+  max-height: 280px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.linkmate-history-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: var(--lx-radius-md);
+}
+
+.linkmate-history-item.active {
+  background: var(--lx-accent-soft);
+}
+
+.linkmate-history-main {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 8px 10px;
+  cursor: pointer;
+  color: var(--lx-text-primary);
+  font-size: 13px;
+}
+
+.linkmate-history-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.linkmate-history-del {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--lx-radius-sm);
+  background: transparent;
+  color: var(--lx-text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.linkmate-history-del:hover:not(:disabled) {
+  color: var(--lx-danger);
+  background: rgba(255, 77, 79, 0.08);
+}
+
+.linkmate-history-del:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 </style>

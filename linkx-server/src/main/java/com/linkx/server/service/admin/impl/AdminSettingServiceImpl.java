@@ -28,6 +28,7 @@ import com.linkx.server.service.EmailService;
 import com.linkx.server.service.admin.AdminSettingService;
 import com.linkx.server.service.linkmate.LinkMateLlmClient;
 import com.linkx.server.service.linkmate.LinkMateLlmClient.LlmMessage;
+import com.linkx.server.service.linkmate.LinkMateModelCapability;
 import com.linkx.server.storage.ObjectStorageRouter;
 import com.linkx.server.storage.StorageProviderType;
 import com.linkx.server.util.AppVersionUtils;
@@ -445,6 +446,8 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         row.setLinkmateTemperature(dto.getTemperature());
         row.setLinkmateDailyTokenLimit(dto.getDailyTokenLimit());
         row.setLinkmateSystemPrompt(dto.getSystemPrompt() == null ? null : dto.getSystemPrompt().trim());
+        row.setLinkmateReasoningSupported(
+                LinkMateModelCapability.supportsDeepThinking(dto.getModel()));
         if (StringUtils.hasText(dto.getApiKey())) {
             row.setLinkmateApiKey(dto.getApiKey().trim());
         } else if (row.getLinkmateApiKey() == null) {
@@ -1077,6 +1080,7 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                 .dailyTokenLimit(cfg.getDailyTokenLimit())
                 .apiKeyConfigured(StringUtils.hasText(cfg.getApiKey()))
                 .systemPrompt(cfg.getSystemPrompt())
+                .reasoningSupported(cfg.isReasoningSupported())
                 .build();
     }
 
@@ -1106,6 +1110,11 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         if (row.getLinkmateSystemPrompt() != null) {
             cfg.setSystemPrompt(row.getLinkmateSystemPrompt());
         }
+        if (row.getLinkmateReasoningSupported() != null) {
+            cfg.setReasoningSupported(Boolean.TRUE.equals(row.getLinkmateReasoningSupported()));
+        } else if (StringUtils.hasText(cfg.getModel())) {
+            cfg.setReasoningSupported(LinkMateModelCapability.supportsDeepThinking(cfg.getModel()));
+        }
         log.info("Applied linkmate settings: enabled={}, model={}, baseUrl={}",
                 cfg.isEnabled(), cfg.getModel(), cfg.getBaseUrl());
     }
@@ -1129,6 +1138,7 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                 cfg.setApiKey(persisted.getLinkmateApiKey());
             }
         }
+        cfg.setReasoningSupported(LinkMateModelCapability.supportsDeepThinking(dto.getModel()));
     }
 
     private static String nullToEmpty(String s) {

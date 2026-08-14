@@ -22,4 +22,7 @@ public class LinkMateStatusVO {
     private int dailyTokenLimit;
 
     private int dailyTokenUsed;
+
+    /** 当前模型是否支持深度思考 */
+    private boolean deepThinkingSupported;
 }
