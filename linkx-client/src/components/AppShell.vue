@@ -8,7 +8,7 @@
  * </p>
  */
 // Vue 组合式 API：计算属性、响应式、生命周期、异步组件
-import { computed, ref, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
+import { computed, ref, onMounted, onUnmounted, defineAsyncComponent, watch } from 'vue'
 // 顶部状态栏
 import MainStatusBar from './MainStatusBar.vue'
 // 左侧导航栏
@@ -75,6 +75,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
 import { useLinkMateStore } from '../stores/linkmate'
 import { useI18n } from '../i18n'
+import { isRealImChatSession } from '../utils/buildImChatContext'
 
 useI18n()
 
@@ -82,8 +83,18 @@ useI18n()
 const appStore = useAppStore()
 const linkMateStore = useLinkMateStore()
 // 解构当前导航键与当前会话
-const { navKey, currentSessionId } = storeToRefs(appStore)
+const { navKey, currentSessionId, currentSession } = storeToRefs(appStore)
 const { panelExpanded } = storeToRefs(linkMateStore)
+
+watch(
+  () => currentSessionId.value,
+  () => {
+    if (isRealImChatSession(currentSession.value)) {
+      linkMateStore.closePanelForImChat()
+    }
+  },
+  { immediate: true }
+)
 
 // 中间列表列宽度（可拖拽调整）
 const listWidth = ref(260)

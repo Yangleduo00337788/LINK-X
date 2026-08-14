@@ -4,6 +4,7 @@
 import defaultAvatarIcon from '../assets/apple-touch-icon.png'
 import { API_BASE_URL } from '../config/endpoints'
 import { isDisplayableMediaUrl, normalizeMediaUrl } from './mediaUrl'
+import { getLinkMateLogoUrl, isLinkMateBotSender } from './linkmateLogo'
 
 /** 客户端默认头像：与 apple-touch-icon 一致的大圆角方形 Logo */
 export const DEFAULT_AVATAR_URL: string = defaultAvatarIcon
@@ -25,6 +26,10 @@ export function resolveUserAvatarUrl(
   url?: string | null,
   userId?: string | number | null
 ): string {
+  if (isLinkMateBotSender(userId)) {
+    return getLinkMateLogoUrl()
+  }
+
   const v = (url || '').trim()
   if (v.startsWith('data:') || v.startsWith('blob:')) return v
 
