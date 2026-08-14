@@ -6,6 +6,8 @@ import type { ApiResult } from '../types/auth'
 import { API_BASE_URL } from '../config/endpoints'
 import { getToken, isWebEnvironment } from '../utils/tokenStorage'
 import { getDeviceName, getDeviceType, getOrCreateDeviceId } from '../utils/deviceId'
+import type { LinkMateImContext } from '../utils/buildImChatContext'
+import type { MessageItem } from '../types/chat'
 
 export interface LinkMateStatus {
   enabled: boolean
@@ -36,8 +38,25 @@ export interface LinkMateMessage {
   reasoningDurationMs?: number
 }
 
+export interface LinkMateStreamRequest {
+  sessionId?: string
+  message?: string
+  deepThinking?: boolean
+  regenerate?: boolean
+  regenerateMessageId?: string
+  imContext?: LinkMateImContext
+}
+
 export function getStatus() {
   return apiClient.get<unknown, ApiResult<LinkMateStatus>>('/linkmate/status')
+}
+
+/** 群聊 @灵伴：AI 回复落入群消息时间线 */
+export function replyInGroup(conversationId: string, question: string) {
+  return apiClient.post<unknown, ApiResult<MessageItem>>('/linkmate/group/reply', {
+    conversationId,
+    question
+  })
 }
 
 export function listSessions() {
@@ -62,7 +81,7 @@ export interface LinkMateStreamHandlers {
   onStart?: (sessionId: string) => void
   onDelta?: (content: string) => void
   onReasoningDelta?: (content: string) => void
-  onDone?: (messageId: string, sessionId: string) => void
+  onDone?: (messageId: string, sessionId: string, totalTokens?: number) => void
   onError?: (message: string) => void
 }
 
@@ -70,11 +89,9 @@ export interface LinkMateStreamHandlers {
  * SSE 流式对话（fetch + ReadableStream，axios 不适合 event-stream）。
  */
 export async function streamChat(
-  message: string,
-  sessionId: string | undefined,
+  request: LinkMateStreamRequest,
   handlers: LinkMateStreamHandlers,
-  signal?: AbortSignal,
-  deepThinking?: boolean
+  signal?: AbortSignal
 ): Promise<void> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -95,7 +112,14 @@ export async function streamChat(
   const response = await fetch(`${API_BASE_URL}/linkmate/chat/stream`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ sessionId, message, deepThinking: !!deepThinking }),
+    body: JSON.stringify({
+      sessionId: request.sessionId,
+      message: request.message,
+      deepThinking: !!request.deepThinking,
+      regenerate: !!request.regenerate,
+      regenerateMessageId: request.regenerateMessageId,
+      imContext: request.imContext
+    }),
     credentials: isWebEnvironment() ? 'include' : 'omit',
     signal
   })
@@ -170,11 +194,13 @@ function parseSseEvent(raw: string, handlers: LinkMateStreamHandlers) {
         if (payload.content != null && payload.content !== '')
           handlers.onReasoningDelta?.(payload.content)
         break
-      case 'done':
+      case 'done': {
         if (payload.messageId && payload.sessionId) {
-          handlers.onDone?.(payload.messageId, payload.sessionId)
+          const totalTokens = payload.totalTokens ? Number(payload.totalTokens) : undefined
+          handlers.onDone?.(payload.messageId, payload.sessionId, totalTokens)
         }
         break
+      }
       case 'error':
         handlers.onError?.(payload.message || 'AI 服务错误')
         break

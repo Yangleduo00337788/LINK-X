@@ -4,6 +4,8 @@
 import { defineStore } from 'pinia'
 import * as linkmateApi from '../api/linkmate'
 import type { LinkMateMessage, LinkMateSession, LinkMateStatus } from '../api/linkmate'
+import { buildImChatContext, isRealImChatSession } from '../utils/buildImChatContext'
+import { useAppStore } from '../stores/app'
 
 export type LinkMatePanelState = 'closed' | 'open' | 'collapsed'
 
@@ -96,7 +98,24 @@ export const useLinkMateStore = defineStore('linkmate', {
   },
 
   actions: {
+    /** 进入群聊/单聊时关闭灵伴侧栏，避免与 IM 同时展示 */
+    closePanelForImChat() {
+      if (this.streaming) {
+        this.abortStream()
+      }
+      this.panelState = 'closed'
+    },
+
+    /** 打开灵伴前退出当前 IM 会话，保证不与聊天主区同时展示 */
+    detachImChatSession() {
+      const app = useAppStore()
+      if (isRealImChatSession(app.currentSession)) {
+        app.currentSessionId = null
+      }
+    },
+
     openPanel() {
+      this.detachImChatSession()
       this.panelState = 'open'
     },
 
@@ -107,6 +126,7 @@ export const useLinkMateStore = defineStore('linkmate', {
     },
 
     expandPanel() {
+      this.detachImChatSession()
       if (this.panelState === 'collapsed') {
         this.panelState = 'open'
       }
@@ -336,54 +356,44 @@ export const useLinkMateStore = defineStore('linkmate', {
     },
 
     abortStream() {
-      this.finalizeActiveStreamMetrics()
-      if (this.streamAbort) {
-        this.streamAbort.abort()
+      const sessionId = this.activeSessionId
+      const controller = this.streamAbort
+      if (sessionId && controller) {
+        const msgs = this.messagesBySession[sessionId]
+        const last = msgs?.at(-1)
+        if (last?.role === 'assistant' && last.id.startsWith('temp-assistant')) {
+          const withoutPartial = msgs!.slice(0, -1)
+          const partial = last.content.trim() || last.reasoningContent?.trim()
+          if (!partial) {
+            this.patchSessionMessages(sessionId, withoutPartial)
+          }
+        }
+      }
+      controller?.abort()
+      this.streaming = false
+      if (this.streamAbort === controller) {
         this.streamAbort = null
       }
-      this.streaming = false
     },
 
-    async sendMessage(text: string) {
-      const content = text.trim()
-      if (!content || this.streaming) return
-
-      let sessionId = this.activeSessionId
-      if (!sessionId) {
-        const session = await this.createSession()
-        sessionId = session.id
-      }
-
-      const userMsg: LinkMateMessage = {
-        id: `temp-user-${Date.now()}`,
-        sessionId,
-        role: 'user',
-        content,
-        createTime: ''
-      }
-      const useDeepThinking = this.deepThinking && this.deepThinkingSupported
-      const assistantId = `temp-assistant-${Date.now()}`
-      const assistantMsg: LinkMateMessage = {
-        id: assistantId,
-        sessionId,
-        role: 'assistant',
-        content: '',
-        createTime: '',
-        responseStartedAt: Date.now()
-      }
-      const list = [...(this.messagesBySession[sessionId] ?? []), userMsg, assistantMsg]
-      this.patchSessionMessages(sessionId, list)
-
+    async runStream(
+      sessionId: string,
+      assistantId: string,
+      request: linkmateApi.LinkMateStreamRequest,
+      options?: { titleHint?: string; reloadOnFailure?: boolean }
+    ) {
       this.streaming = true
-      this.streamAbort = new AbortController()
+      const abortController = new AbortController()
+      this.streamAbort = abortController
       let assistantContent = ''
       let assistantReasoning = ''
       let reasoningEndedAt = 0
+      let aborted = false
+      let failed = false
 
       try {
         await linkmateApi.streamChat(
-          content,
-          sessionId,
+          request,
           {
             onStart: id => {
               if (!this.activeSessionId) {
@@ -393,7 +403,7 @@ export const useLinkMateStore = defineStore('linkmate', {
               if (idx === -1) {
                 this.sessions.unshift({
                   id,
-                  title: content.slice(0, 40),
+                  title: (options?.titleHint || request.message || '').slice(0, 40) || '新对话',
                   updateTime: ''
                 })
               }
@@ -425,27 +435,112 @@ export const useLinkMateStore = defineStore('linkmate', {
               void this.loadSessions()
             },
             onError: message => {
+              failed = true
               this.updateAssistantContent(sessionId, assistantId, message)
               throw new Error(message)
             }
           },
-          this.streamAbort.signal,
-          useDeepThinking
+          abortController.signal
         )
       } catch (err) {
-        if (!assistantContent) {
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          aborted = true
+        } else if (abortController.signal.aborted) {
+          aborted = true
+        } else if (!assistantContent) {
+          failed = true
           this.updateAssistantContent(
             sessionId,
             assistantId,
             err instanceof Error ? err.message : '发送失败，请稍后重试'
           )
+        } else {
+          failed = true
         }
       } finally {
-        this.finalizeMessageMetrics(sessionId, assistantId, reasoningEndedAt)
+        if (!aborted && !failed) {
+          this.finalizeMessageMetrics(sessionId, assistantId, reasoningEndedAt)
+        }
+        if ((aborted || failed) && options?.reloadOnFailure) {
+          await this.loadMessages(sessionId)
+        }
         this.streaming = false
-        this.streamAbort = null
+        if (this.streamAbort === abortController) {
+          this.streamAbort = null
+        }
         void this.loadStatus()
       }
+    },
+
+    async sendMessage(text: string) {
+      const content = text.trim()
+      if (!content || this.streaming) return
+
+      let sessionId = this.activeSessionId
+      if (!sessionId) {
+        const session = await this.createSession()
+        sessionId = session.id
+      }
+
+      const userMsg: LinkMateMessage = {
+        id: `temp-user-${Date.now()}`,
+        sessionId,
+        role: 'user',
+        content,
+        createTime: ''
+      }
+      const assistantId = `temp-assistant-${Date.now()}`
+      const assistantMsg: LinkMateMessage = {
+        id: assistantId,
+        sessionId,
+        role: 'assistant',
+        content: '',
+        createTime: '',
+        responseStartedAt: Date.now()
+      }
+      const list = [...(this.messagesBySession[sessionId] ?? []), userMsg, assistantMsg]
+      this.patchSessionMessages(sessionId, list)
+
+      await this.runStream(sessionId, assistantId, {
+        sessionId,
+        message: content,
+        deepThinking: this.deepThinking && this.deepThinkingSupported,
+        imContext: buildImChatContext()
+      }, { titleHint: content })
+    },
+
+    async regenerateMessage(assistantMessageId: string) {
+      if (this.streaming) return
+      const sessionId = this.activeSessionId
+      if (!sessionId) return
+
+      const msgs = this.messagesBySession[sessionId] ?? []
+      const idx = msgs.findIndex(m => m.id === assistantMessageId)
+      if (idx < 0 || msgs[idx].role !== 'assistant') return
+
+      const lastAssistantIdx = [...msgs].reverse().findIndex(m => m.role === 'assistant')
+      const lastAssistant = lastAssistantIdx >= 0 ? msgs[msgs.length - 1 - lastAssistantIdx] : null
+      if (!lastAssistant || lastAssistant.id !== assistantMessageId) return
+
+      const trimmed = msgs.slice(0, idx)
+      const assistantId = `temp-assistant-${Date.now()}`
+      const assistantMsg: LinkMateMessage = {
+        id: assistantId,
+        sessionId,
+        role: 'assistant',
+        content: '',
+        createTime: '',
+        responseStartedAt: Date.now()
+      }
+      this.patchSessionMessages(sessionId, [...trimmed, assistantMsg])
+
+      await this.runStream(sessionId, assistantId, {
+        sessionId,
+        regenerate: true,
+        regenerateMessageId: assistantMessageId,
+        deepThinking: this.deepThinking && this.deepThinkingSupported,
+        imContext: buildImChatContext()
+      }, { reloadOnFailure: true })
     }
   }
 })

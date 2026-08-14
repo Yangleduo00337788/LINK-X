@@ -11,19 +11,24 @@ import {
   BulbOutline,
   ChevronForwardOutline,
   ChevronDownOutline,
-  TrashOutline
+  TrashOutline,
+  RefreshOutline
 } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useLinkMateStore } from '../stores/linkmate'
 import type { LinkMateMessage } from '../api/linkmate'
 import { useI18n } from '../i18n'
 import LinkMateLogoMark from './LinkMateLogoMark.vue'
-import { renderLinkMateMarkdown } from '../utils/linkmateMarkdown'
+import { renderLinkMateMarkdown, copyCodeFromButton } from '../utils/linkmateMarkdown'
+import { getActiveImSession } from '../utils/buildImChatContext'
+import { useAppStore } from '../stores/app'
 
 const { t } = useI18n()
 const message = useMessage()
 const dialog = useDialog()
 const linkMate = useLinkMateStore()
+const appStore = useAppStore()
+const { currentSessionId } = storeToRefs(appStore)
 const {
   activeMessages,
   activeSessionId,
@@ -132,6 +137,56 @@ const starterPrompts = computed(() => [
 const showWelcome = computed(
   () => booted.value && !loadingMessages.value && activeMessages.value.length === 0
 )
+
+const imContextPreview = computed(() => {
+  void currentSessionId.value
+  return getActiveImSession()
+})
+
+const imContextHint = computed(() => {
+  if (!imContextPreview.value) return ''
+  const { title, group } = imContextPreview.value
+  return group
+    ? t('linkmate.imContextGroup', { title })
+    : t('linkmate.imContextActive', { title })
+})
+
+function isLastAssistantMessage(msg: LinkMateMessage, index: number) {
+  if (msg.role !== 'assistant' || msg.id.startsWith('temp-assistant')) return false
+  for (let i = activeMessages.value.length - 1; i >= 0; i--) {
+    const m = activeMessages.value[i]
+    if (m.role === 'assistant' && !m.id.startsWith('temp-assistant')) {
+      return i === index
+    }
+  }
+  return false
+}
+
+function canRegenerate(msg: LinkMateMessage, index: number) {
+  return !streaming.value && isLastAssistantMessage(msg, index) && !!msg.content.trim()
+}
+
+async function handleRegenerate(msg: LinkMateMessage) {
+  if (!canRegenerate(msg, activeMessages.value.indexOf(msg))) return
+  try {
+    await linkMate.regenerateMessage(msg.id)
+  } catch (err) {
+    message.error(err instanceof Error ? err.message : t('linkmate.regenerateFailed'))
+  }
+}
+
+async function handleMarkdownClick(e: MouseEvent) {
+  const btn = (e.target as HTMLElement | null)?.closest('.lm-code-copy') as HTMLElement | null
+  if (!btn) return
+  e.preventDefault()
+  e.stopPropagation()
+  const ok = await copyCodeFromButton(btn)
+  if (ok) {
+    message.success(t('linkmate.codeCopied'))
+  } else {
+    message.error(t('linkmate.copyCodeFailed'))
+  }
+}
 
 function isStreamingMessage(msg: LinkMateMessage) {
   return streaming.value && msg.role === 'assistant' && msg.id.startsWith('temp-assistant')
@@ -254,6 +309,15 @@ function handleDeleteSession(sessionId: string, title: string) {
 function toggleDeepThinking() {
   if (!canUseDeepThinking.value) return
   linkMate.setDeepThinking(!deepThinking.value)
+}
+
+function handleDeepThinkingClick() {
+  if (!deepThinkingSupported.value) {
+    message.info(t('linkmate.deepThinkingUnsupported'))
+    return
+  }
+  if (streaming.value) return
+  toggleDeepThinking()
 }
 
 async function handleSend() {
@@ -464,7 +528,7 @@ onUnmounted(() => {
             </div>
           </div>
           <template v-else>
-            <template v-for="msg in activeMessages" :key="msg.id">
+            <template v-for="(msg, msgIndex) in activeMessages" :key="msg.id">
               <div v-if="msg.role === 'user'" class="linkmate-side-msg is-user">
                 <div class="linkmate-side-msg-content">{{ msg.content }}</div>
               </div>
@@ -511,8 +575,29 @@ onUnmounted(() => {
                       v-else
                       class="linkmate-md"
                       v-html="renderAssistantContent(msg.content)"
+                      @click.capture="handleMarkdownClick"
                     />
                   </div>
+                </div>
+                <p
+                  v-if="msg.content && !isStreamingMessage(msg)"
+                  class="linkmate-ai-disclaimer"
+                >
+                  {{ t('linkmate.aiDisclaimer') }}
+                </p>
+                <div
+                  v-if="canRegenerate(msg, msgIndex)"
+                  class="linkmate-msg-actions"
+                >
+                  <button
+                    type="button"
+                    class="linkmate-action-btn"
+                    :title="t('linkmate.regenerate')"
+                    @click="handleRegenerate(msg)"
+                  >
+                    <NIcon :component="RefreshOutline" :size="14" />
+                    <span>{{ t('linkmate.regenerate') }}</span>
+                  </button>
                 </div>
                 <div
                   v-if="isStreamingMessage(msg) && msg.content.trim()"
@@ -532,12 +617,14 @@ onUnmounted(() => {
         </div>
 
         <footer class="linkmate-side-footer">
+          <div v-if="imContextPreview" class="linkmate-im-context">
+            {{ imContextHint }}
+          </div>
           <div class="linkmate-footer-tools">
             <button
               type="button"
               class="linkmate-deep-btn"
               :class="{ active: deepThinking, disabled: !deepThinkingSupported }"
-              :disabled="!canUseDeepThinking && !deepThinkingSupported"
               :title="
                 deepThinkingSupported
                   ? deepThinking
@@ -545,7 +632,7 @@ onUnmounted(() => {
                     : t('linkmate.deepThinkingOff')
                   : t('linkmate.deepThinkingUnsupported')
               "
-              @click="toggleDeepThinking"
+              @click="handleDeepThinkingClick"
             >
               <NIcon :component="BulbOutline" :size="14" />
               <span>{{ t('linkmate.deepThinking') }}</span>
@@ -891,6 +978,84 @@ onUnmounted(() => {
 
 .linkmate-md :deep(a:hover) {
   text-decoration: underline;
+}
+
+.linkmate-md :deep(.lm-code-wrap) {
+  position: relative;
+  margin: 0.5em 0;
+}
+
+.linkmate-md :deep(.lm-code-wrap pre) {
+  margin: 0;
+}
+
+.linkmate-md :deep(.lm-code-copy) {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  padding: 2px 8px;
+  border: 1px solid var(--lx-border-light);
+  border-radius: var(--lx-radius-sm);
+  background: var(--lx-bg-panel);
+  color: var(--lx-text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--lx-duration);
+}
+
+.linkmate-md :deep(.lm-code-wrap:hover .lm-code-copy),
+.linkmate-md :deep(.lm-code-copy:focus-visible) {
+  opacity: 1;
+}
+
+.linkmate-ai-disclaimer {
+  margin: 4px 0 0;
+  padding: 0 2px;
+  font-size: var(--lx-font-xs);
+  line-height: var(--lx-leading-normal);
+  color: var(--lx-text-muted);
+  user-select: none;
+}
+
+.linkmate-msg-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.linkmate-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border: none;
+  border-radius: var(--lx-radius-sm);
+  background: transparent;
+  color: var(--lx-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: color var(--lx-duration), background var(--lx-duration);
+}
+
+.linkmate-action-btn:hover {
+  color: var(--lx-text-primary);
+  background: var(--lx-bg-hover);
+}
+
+.linkmate-im-context {
+  margin-bottom: 6px;
+  padding: 4px 8px;
+  border-radius: var(--lx-radius-sm);
+  background: var(--lx-bg-hover);
+  color: var(--lx-text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .linkmate-status-hint,
