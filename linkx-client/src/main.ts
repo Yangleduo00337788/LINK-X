@@ -27,6 +27,8 @@ import 'uno.css'
 // 全局 CSS 变量与设计 Token
 import './assets/styles.css'
 import './styles/ui-components.css'
+import { debouncedSessionStorage } from './utils/debouncedStorage'
+import { showBootSplashError } from './utils/bootSplash'
 
 // 创建 Pinia 实例
 const pinia = createPinia()
@@ -35,6 +37,10 @@ pinia.use(piniaPluginPersistedstate)
 
 // 以 AppRoot 为根创建 Vue 应用
 const app = createApp(AppRoot)
+app.config.errorHandler = (err, _instance, info) => {
+  console.error('[vue]', err, info)
+  showBootSplashError(err instanceof Error ? err.message : String(err))
+}
 // 挂载 Pinia
 app.use(pinia)
 // 挂载路由
@@ -80,6 +86,7 @@ initCrossWindowThemeSync(theme => {
 if (typeof document !== 'undefined') {
   const flushReadOnHide = () => {
     if (document.visibilityState !== 'hidden') return
+    debouncedSessionStorage.flushAll()
     void useAppStore().flushReportSessionRead()
   }
   document.addEventListener('visibilitychange', flushReadOnHide)
@@ -92,4 +99,17 @@ router.beforeEach(() => {
 })
 
 // 挂载到 index.html 中的 #app 节点
-app.mount('#app')
+try {
+  app.mount('#app')
+} catch (error) {
+  console.error('[boot] mount failed', error)
+  showBootSplashError(error instanceof Error ? error.message : String(error))
+}
+
+if (typeof window !== 'undefined') {
+  window.setTimeout(() => {
+    if (!document.documentElement.classList.contains('app-ready')) {
+      showBootSplashError('界面加载超时，请完全退出后重新启动客户端')
+    }
+  }, 12000)
+}

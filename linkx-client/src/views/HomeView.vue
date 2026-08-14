@@ -22,23 +22,21 @@ import { applyDocumentTheme } from '../utils/themeSync'
 import { isChatSocketConnected } from '../utils/chatSocket'
 // 登录页同步导入：自动登录需先画出登录窗再 loading
 import LoginView from '../components/LoginView.vue'
+import { dismissBootSplash } from '../utils/bootSplash'
+import { preloadAppShellComponent, preloadClientResources } from '../utils/preloadClientResources'
 
 const appStore = useAppStore()
 const { isLoggedIn } = storeToRefs(appStore)
 
 /** 主界面 chunk 预加载（登录页停留期间后台拉取，避免登录成功后白屏） */
 const AppShellDef = shallowRef<Component | null>(null)
-let appShellImport: Promise<Component> | null = null
 
 function preloadAppShell(): Promise<Component> {
   if (AppShellDef.value) return Promise.resolve(AppShellDef.value)
-  if (!appShellImport) {
-    appShellImport = import('../components/AppShell.vue').then(m => {
-      AppShellDef.value = m.default
-      return m.default
-    })
-  }
-  return appShellImport
+  return preloadAppShellComponent().then(m => {
+    AppShellDef.value = m.default
+    return m.default
+  })
 }
 
 /** 是否挂载主壳（登录成功后先挂壳再放大窗口） */
@@ -67,6 +65,7 @@ async function syncWindowModeLogin() {
 }
 
 function onMainShellMounted() {
+  dismissBootSplash()
   if (!isLoggedIn.value) return
   void waitFrames(2).then(() => syncWindowModeMain())
 }
@@ -83,9 +82,11 @@ function onVisibilityChange() {
 
 onMounted(() => {
   applyDocumentTheme(appStore.theme)
-  void preloadAppShell()
+  void preloadClientResources()
   window.addEventListener('online', retryWsIfNeeded)
   document.addEventListener('visibilitychange', onVisibilityChange)
+  // 兜底：登录页未挂载时（异常路径）8s 后仍移除启动占位
+  window.setTimeout(() => dismissBootSplash(), 8000)
 })
 
 onUnmounted(() => {

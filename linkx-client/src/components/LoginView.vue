@@ -24,6 +24,8 @@ import { sendResetCode, verifyResetCode, resetPasswordByEmail } from '../api/acc
 import { validateUsername, validatePassword } from '../utils/validation'
 import { hasRefreshToken } from '../utils/tokenStorage'
 import { useI18n } from '../i18n'
+import { dismissBootSplash } from '../utils/bootSplash'
+import { preloadClientResources } from '../utils/preloadClientResources'
 
 const message = useMessage()
 const router = useRouter()
@@ -45,13 +47,19 @@ const autoLogin = ref(false)
 /** 自动登录阶段：先检网络，再自动登录 */
 const autoLoginPhase = ref<'idle' | 'checking' | 'logging-in'>('idle')
 
-/** 自动登录进行中 */
-const autoLogging = computed(
+/** auto：启动/勾选自动登录；manual：快速登录页手动点登录 */
+const loginFlowKind = ref<'none' | 'auto' | 'manual'>('none')
+
+/** 登录/自动登录进行中（用于禁用按钮与展示 loading） */
+const loginInProgress = computed(
   () =>
     autoLoginPhase.value !== 'idle' ||
     authInitializing.value ||
-    (isLoading.value && autoLogin.value)
+    isLoading.value
 )
+
+/** @deprecated 保留别名，模板仍可用 */
+const autoLogging = loginInProgress
 
 const matchedSavedAccount = computed(() => {
   const user = username.value.trim()
@@ -80,7 +88,9 @@ const displayAvatarText = computed(() => displayNickname.value.charAt(0) || '?')
 
 const loginButtonText = computed(() => {
   if (autoLoginPhase.value === 'checking') return t('login.checkingNetwork')
-  if (autoLoginPhase.value === 'logging-in' || authInitializing.value) return t('login.autoLogging')
+  if (autoLoginPhase.value === 'logging-in' || authInitializing.value) {
+    return loginFlowKind.value === 'manual' ? t('login.loggingIn') : t('login.autoLogging')
+  }
   if (isLoading.value) return t('login.loggingIn')
   return t('login.login')
 })
@@ -142,25 +152,6 @@ const forgotCountdown = ref(0)
 let forgotCountdownTimer: ReturnType<typeof setInterval> | null = null
 
 const compact = computed(() => isElectron)
-
-/** 开启自动登录时，登录页至少展示时长（毫秒），避免秒进主界面 */
-const AUTO_LOGIN_MIN_DISPLAY_MS = 2500
-let autoLoginScheduleTimer: ReturnType<typeof setTimeout> | null = null
-
-function cancelAutoLoginSchedule() {
-  if (autoLoginScheduleTimer) {
-    clearTimeout(autoLoginScheduleTimer)
-    autoLoginScheduleTimer = null
-  }
-}
-
-function scheduleAutoLoginAfterMinDisplay() {
-  cancelAutoLoginSchedule()
-  autoLoginScheduleTimer = setTimeout(() => {
-    autoLoginScheduleTimer = null
-    void runAutoLoginFlow()
-  }, AUTO_LOGIN_MIN_DISPLAY_MS)
-}
 
 const showMenu = ref(false)
 const showNetworkTip = ref(false)
@@ -297,14 +288,24 @@ function onWindowFocus() {
   applyRegisteredUsername()
 }
 
-async function runAutoLoginFlow() {
+function syncLoginPrefsToStore() {
+  const user = username.value.trim() || savedLogin.value.username || ''
+  savedLogin.value.rememberMe = rememberMe.value
+  savedLogin.value.autoLogin = autoLogin.value
+  if (user) savedLogin.value.username = user
+}
+
+async function runAutoLoginFlow(kind: 'auto' | 'manual' = 'auto') {
   if (autoLoginPhase.value !== 'idle') return
-  cancelAutoLoginSchedule()
+  syncLoginPrefsToStore()
+  loginFlowKind.value = kind
+  void preloadClientResources()
 
   // 1) 先扫描是否离线
   autoLoginPhase.value = 'checking'
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     autoLoginPhase.value = 'idle'
+    loginFlowKind.value = 'none'
     autoLogin.value = false
     message.warning(t('login.offlineAutoLogin'))
     showNetworkTip.value = true
@@ -314,7 +315,7 @@ async function runAutoLoginFlow() {
   // 2) 在线：进入自动登录
   autoLoginPhase.value = 'logging-in'
   try {
-    const result = await appStore.tryAutoLogin()
+    const result = await appStore.tryAutoLogin({ manual: kind === 'manual' })
     if (result === 'offline') {
       autoLogin.value = false
       message.warning(t('login.offlineAutoLogin'))
@@ -325,13 +326,21 @@ async function runAutoLoginFlow() {
       if (loginMode.value === 'quick') {
         switchToPasswordMode()
       }
+    } else if (result === 'skipped') {
+      message.warning(t('login.autoLoginFail'))
+      if (loginMode.value === 'quick') {
+        switchToPasswordMode()
+      }
     }
   } finally {
     autoLoginPhase.value = 'idle'
+    loginFlowKind.value = 'none'
   }
 }
 
 onMounted(() => {
+  dismissBootSplash()
+  void preloadClientResources()
   username.value = savedLogin.value.username || ''
   rememberMe.value = savedLogin.value.rememberMe ?? true
   autoLogin.value = savedLogin.value.autoLogin ?? false
@@ -340,31 +349,26 @@ onMounted(() => {
 
   void loadAuthConfig().then(() => {
     const fromRegister = applyRegisteredUsername()
-    if (!fromRegister) {
-      if (username.value) {
-        loginMode.value = 'quick'
-      } else {
-        loginMode.value = 'password'
-        requestAnimationFrame(() => {
-          void loadCaptcha('login')
-        })
-      }
+    if (fromRegister) return
+
+    const shouldAutoLogin = autoLogin.value && rememberMe.value && !!username.value.trim()
+    if (shouldAutoLogin) {
+      loginMode.value = 'quick'
+      void nextTick(() => {
+        void runAutoLoginFlow('auto')
+      })
+      return
     }
 
-    // 自动登录：先展示登录页数秒，再检网络并登录
-    if (!fromRegister && autoLogin.value && rememberMe.value && username.value) {
-      loginMode.value = 'quick'
-      void nextTick().then(() => {
-        requestAnimationFrame(() => {
-          scheduleAutoLoginAfterMinDisplay()
-        })
-      })
-    }
+    // 未勾选自动登录：账密表单，账号可预填，需手动点登录
+    loginMode.value = 'password'
+    requestAnimationFrame(() => {
+      void loadCaptcha('login')
+    })
   })
 })
 
 onUnmounted(() => {
-  cancelAutoLoginSchedule()
   document.removeEventListener('click', onDocClick)
   window.removeEventListener('focus', onWindowFocus)
 })
@@ -378,19 +382,17 @@ watch(autoLogin, val => {
 })
 
 async function handleLogin() {
-  if (autoLogging.value || isLoading.value) return
+  if (loginInProgress.value) return
 
-  // 快速登录：有 refreshToken 则走自动登录，否则切到账密
+  // 快速登录：有 refreshToken 则走 token 刷新，否则切到账密
   if (loginMode.value === 'quick') {
-    if (await hasRefreshToken()) {
-      autoLogin.value = true
-      rememberMe.value = true
-      cancelAutoLoginSchedule()
-      void runAutoLoginFlow()
+    if (!(await hasRefreshToken())) {
+      switchToPasswordMode()
+      message.info(t('login.enterPassword'))
       return
     }
-    switchToPasswordMode()
-    message.info(t('login.enterPassword'))
+    syncLoginPrefsToStore()
+    void runAutoLoginFlow('manual')
     return
   }
 
@@ -414,6 +416,8 @@ async function handleLogin() {
     return
   }
 
+  syncLoginPrefsToStore()
+  void preloadClientResources()
   try {
     await login(user, pass, {
       rememberMe: rememberMe.value,
@@ -662,11 +666,11 @@ async function handleForgot() {
       <div v-if="loginMode === 'quick'" class="quick-panel lx-panel">
         <LxButton
           variant="login"
-          :class="{ 'is-loading': isLoading || autoLogging }"
-          :disabled="isLoading || autoLogging"
+          :class="{ 'is-loading': loginInProgress }"
+          :disabled="loginInProgress"
           @click="handleLogin"
         >
-          <span v-if="autoLogging || isLoading" class="lx-btn-spinner" aria-hidden="true" />
+          <span v-if="loginInProgress" class="lx-btn-spinner" aria-hidden="true" />
           <span>{{ loginButtonText }}</span>
         </LxButton>
       </div>
@@ -763,11 +767,11 @@ async function handleForgot() {
 
         <LxButton
           variant="login"
-          :class="{ 'is-loading': isLoading }"
-          :disabled="isLoading"
+          :class="{ 'is-loading': loginInProgress }"
+          :disabled="loginInProgress"
           @click="handleLogin"
         >
-          <span v-if="isLoading" class="lx-btn-spinner" aria-hidden="true" />
+          <span v-if="loginInProgress" class="lx-btn-spinner" aria-hidden="true" />
           <span>{{ loginButtonText }}</span>
         </LxButton>
       </div>
