@@ -16,6 +16,7 @@ const PANEL_WIDTH_STORAGE_KEY = 'linkx-linkmate-panel-width'
 const DEEP_THINKING_STORAGE_KEY = 'linkx-linkmate-deep-thinking'
 const INPUT_DRAFT_STORAGE_KEY = 'linkx-linkmate-input-drafts'
 const NEW_SESSION_DRAFT_KEY = '__new__'
+let draftPersistTimer: ReturnType<typeof setTimeout> | null = null
 export const LINKMATE_MESSAGE_PAGE_SIZE = 50
 export const LINKMATE_PANEL_WIDTH_MIN = 280
 export const LINKMATE_PANEL_WIDTH_MAX = 640
@@ -236,10 +237,18 @@ export const useLinkMateStore = defineStore('linkmate', {
 
     setInputDraft(text: string) {
       this.inputDraft = text
-      this.persistInputDraft()
+      if (draftPersistTimer) clearTimeout(draftPersistTimer)
+      draftPersistTimer = setTimeout(() => {
+        draftPersistTimer = null
+        this.persistInputDraft()
+      }, 500)
     },
 
     clearInputDraft() {
+      if (draftPersistTimer) {
+        clearTimeout(draftPersistTimer)
+        draftPersistTimer = null
+      }
       this.inputDraft = ''
       this.persistInputDraft()
     },

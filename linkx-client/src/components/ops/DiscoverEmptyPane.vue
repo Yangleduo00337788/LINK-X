@@ -33,7 +33,7 @@ function onActivityLoaded(payload: { count: number }) {
 
 <template>
   <div class="discover-pane">
-    <div v-show="!allReady || showOps" class="discover-pane__ops">
+    <div v-if="allReady && showOps" class="discover-pane__ops">
       <OpsRecommendCarousel
         slot-code="discover"
         :height="168"
@@ -47,6 +47,7 @@ function onActivityLoaded(payload: { count: number }) {
       v-if="allReady && !showOps"
       :hint="t('chat.selectChatHint')"
     />
+    <div v-else-if="!allReady" class="discover-pane__loading" aria-busy="true" />
   </div>
 </template>
 
@@ -75,5 +76,11 @@ function onActivityLoaded(payload: { count: number }) {
 
 .discover-pane__activities {
   margin-top: var(--lx-space-xs);
+}
+
+.discover-pane__loading {
+  width: 100%;
+  max-width: 560px;
+  min-height: 200px;
 }
 </style>

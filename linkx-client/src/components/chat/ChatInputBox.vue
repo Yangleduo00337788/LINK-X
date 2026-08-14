@@ -346,7 +346,9 @@ const mentionCandidates = computed<ContactItem[]>(() => {
   let list: ContactItem[] = []
   const groupLinkmateOn =
     !props.isGroupChat ||
-    groupMetaStore.linkmateEnabledFor(currentSessionId.value)
+    (groupMetaStore.linkmateStateLoaded(currentSessionId.value || '')
+      ? groupMetaStore.linkmateEnabledFor(currentSessionId.value || '')
+      : false)
   if (linkMateEnabled.value && groupLinkmateOn) list.push(linkMate)
   list.push(atAll, ...members)
   if (q) {
@@ -367,7 +369,9 @@ const showDeepThinkingWhenAt = computed(
     showMentionPicker.value &&
     linkMateEnabled.value &&
     linkMateDeepThinkingSupported.value &&
-    (!props.isGroupChat || groupMetaStore.linkmateEnabledFor(currentSessionId.value || ''))
+    (!props.isGroupChat ||
+      (groupMetaStore.linkmateStateLoaded(currentSessionId.value || '') &&
+        groupMetaStore.linkmateEnabledFor(currentSessionId.value || '')))
 )
 
 function detectMentionTrigger() {

@@ -56,21 +56,19 @@ const resizeStartX = ref(0)
 const resizeStartWidth = ref(0)
 const collapsedReasoning = reactive<Record<string, boolean>>({})
 const statusNow = ref(Date.now())
-let statusTickRaf = 0
+let statusTickTimer: number | null = null
 
 function startStatusTick() {
-  if (statusTickRaf) return
-  const tick = () => {
+  if (statusTickTimer != null) return
+  statusTickTimer = window.setInterval(() => {
     statusNow.value = Date.now()
-    statusTickRaf = window.requestAnimationFrame(tick)
-  }
-  statusTickRaf = window.requestAnimationFrame(tick)
+  }, 200)
 }
 
 function stopStatusTick() {
-  if (!statusTickRaf) return
-  window.cancelAnimationFrame(statusTickRaf)
-  statusTickRaf = 0
+  if (statusTickTimer == null) return
+  window.clearInterval(statusTickTimer)
+  statusTickTimer = null
 }
 
 function formatResponseDuration(msg: LinkMateMessage): string {

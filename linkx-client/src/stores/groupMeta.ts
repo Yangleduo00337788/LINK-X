@@ -187,11 +187,12 @@ export const useGroupMetaStore = defineStore('groupMeta', {
             const app = useAppStore()
             const session = app.sessions.find(s => s.id === sessionId && s.isGroup)
             if (session) {
-              session.memberAvatars = this.members[sessionId].slice(0, 9).map(m => ({
-                text: m.avatarText,
-                color: m.avatarColor,
-                imageUrl: m.avatarUrl
-              }))
+              const owner = this.members[sessionId].find(m => m.role === 'owner')
+              if (owner) {
+                session.ownerUserId = owner.id
+                session.ownerAvatarUrl =
+                  resolveUserAvatarUrl(owner.avatarUrl, owner.id) || undefined
+              }
               app.enrichGroupSelfMessageReadMeta(sessionId, this.members[sessionId].length)
             }
           } catch {
@@ -229,6 +230,21 @@ export const useGroupMetaStore = defineStore('groupMeta', {
         if (res.code === 200 && res.data) {
           this.applyMuteFromGroupInfo(sessionId, res.data)
           this.applyLinkmateFromGroupInfo(sessionId, res.data)
+          if (res.data.ownerId) {
+            try {
+              const { useAppStore } = await import('./app')
+              const app = useAppStore()
+              const session = app.sessions.find(s => s.id === sessionId && s.isGroup)
+              if (session) {
+                session.ownerUserId = String(res.data.ownerId)
+                const preview = res.data.memberAvatars?.[0]?.avatar
+                session.ownerAvatarUrl =
+                  resolveUserAvatarUrl(preview, res.data.ownerId) || undefined
+              }
+            } catch {
+              /* ignore */
+            }
+          }
           if (res.data.myRemark != null) {
             this.remarks[sessionId] = res.data.myRemark
             try {
@@ -290,7 +306,12 @@ export const useGroupMetaStore = defineStore('groupMeta', {
 
     linkmateEnabledFor(sessionId: string): boolean {
       const state = this.linkmateState[sessionId]
-      return state == null || state.enabled
+      if (!state) return false
+      return state.enabled
+    },
+
+    linkmateStateLoaded(sessionId: string): boolean {
+      return Object.prototype.hasOwnProperty.call(this.linkmateState, sessionId)
     },
 
     async updateLinkmateEnabled(sessionId: string, enabled: boolean) {
@@ -868,10 +889,15 @@ export const useGroupMetaStore = defineStore('groupMeta', {
       delete this.members[sessionId]
       delete this.remarks[sessionId]
       delete this.muteState[sessionId]
+      delete this.linkmateState[sessionId]
       delete this.files[sessionId]
       delete this.albums[sessionId]
       delete this.albumFolders[sessionId]
       delete this.albumFetchSeq[sessionId]
     }
+  },
+  persist: {
+    key: 'linkx-group-linkmate',
+    paths: ['linkmateState']
   }
 })
