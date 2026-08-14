@@ -135,4 +135,7 @@ public interface GroupService {
 
     /** 设置群聊邀请策略：ownerApprove = 需群主审批，anyMember = 任何人可邀请 */
     void setInvitePolicy(Long userId, Long conversationId, String policy);
+
+    /** 设置群聊灵伴接入开关（群主/管理员） */
+    GroupConversationVO updateLinkmateEnabled(Long userId, Long conversationId, boolean enabled);
 }

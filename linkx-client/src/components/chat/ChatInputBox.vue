@@ -22,7 +22,6 @@ import {
   GiftOutline,
   MicOutline,
   CloseOutline,
-  AtOutline,
   BulbOutline,
   LocationOutline
 } from '@vicons/ionicons5'
@@ -345,7 +344,10 @@ const mentionCandidates = computed<ContactItem[]>(() => {
       group: m.badge || t('extra.groupMember')
     }))
   let list: ContactItem[] = []
-  if (linkMateEnabled.value) list.push(linkMate)
+  const groupLinkmateOn =
+    !props.isGroupChat ||
+    groupMetaStore.linkmateEnabledFor(currentSessionId.value)
+  if (linkMateEnabled.value && groupLinkmateOn) list.push(linkMate)
   list.push(atAll, ...members)
   if (q) {
     list = list.filter(f => f.name.toLowerCase().includes(q))
@@ -353,11 +355,19 @@ const mentionCandidates = computed<ContactItem[]>(() => {
   return list.slice(0, 30)
 })
 
-const canAtMention = computed(
+const canAtMention = computed(() => {
+  if (inputDisabled.value) return false
+  if (props.isGroupChat) return true
+  return props.isFriendChat && linkMateEnabled.value
+})
+
+/** 输入 @ 触发提及面板时，在输入框内展示深度思考开关 */
+const showDeepThinkingWhenAt = computed(
   () =>
-    !inputDisabled.value &&
+    showMentionPicker.value &&
     linkMateEnabled.value &&
-    (props.isGroupChat || props.isFriendChat)
+    linkMateDeepThinkingSupported.value &&
+    (!props.isGroupChat || groupMetaStore.linkmateEnabledFor(currentSessionId.value || ''))
 )
 
 function detectMentionTrigger() {
@@ -436,27 +446,6 @@ function applyMention(id: string | number, name: string) {
     const newPos = before.length + inserted.length
     el.focus()
     el.setSelectionRange(newPos, newPos)
-  })
-}
-
-/** 工具栏 @：插入 @ 并弹出成员列表 */
-function triggerAtMention() {
-  if (!canAtMention.value) return
-  const ta = getTextareaEl()
-  ta?.focus()
-  const cursor = ta?.selectionStart ?? inputValue.value.length
-  const before = inputValue.value.slice(0, cursor)
-  const after = inputValue.value.slice(cursor)
-  const prefix = before.length && !/[\s\u3000]$/.test(before) ? ' ' : ''
-  const inserted = `${prefix}@`
-  inputValue.value = before + inserted + after
-  nextTick(() => {
-    const el = getTextareaEl()
-    if (!el) return
-    const newPos = before.length + inserted.length
-    el.focus()
-    el.setSelectionRange(newPos, newPos)
-    detectMentionTrigger()
   })
 }
 
@@ -897,6 +886,15 @@ function stopLinkMateImReply() {
   linkMateReplyAbort?.abort()
 }
 
+let linkMateScrollRaf = 0
+function scheduleLinkMateScroll() {
+  if (linkMateScrollRaf) return
+  linkMateScrollRaf = requestAnimationFrame(() => {
+    linkMateScrollRaf = 0
+    emit('scrollToBottom')
+  })
+}
+
 async function requestLinkMateImReply(conversationId: string, question: string) {
   if (linkMateQuotaExhausted.value) {
     message.warning(t('linkmate.dailyQuotaExhausted'))
@@ -912,12 +910,12 @@ async function requestLinkMateImReply(conversationId: string, question: string) 
   const batchReasoning = createStringRafBatcher(chunk => {
     assistantReasoning += chunk
     appStore.updateStreamingLinkMateReasoning(conversationId, tempId, assistantReasoning)
-    emit('scrollToBottom')
+    scheduleLinkMateScroll()
   })
   const batchContent = createStringRafBatcher(chunk => {
     content += chunk
     appStore.updateStreamingLinkMateMessage(conversationId, tempId, content)
-    emit('scrollToBottom')
+    scheduleLinkMateScroll()
   })
 
   appStore.ensureStreamingLinkMateMessage(conversationId, tempId)
@@ -1005,6 +1003,15 @@ function send() {
         const text = inputValue.value
         if (
           mentionHasLinkMate(text) &&
+          props.isGroupChat &&
+          currentSessionId.value &&
+          !groupMetaStore.linkmateEnabledFor(currentSessionId.value)
+        ) {
+          message.warning(t('linkmate.groupDisabled'))
+          return
+        }
+        if (
+          mentionHasLinkMate(text) &&
           linkMateEnabled.value &&
           (props.isGroupChat || props.isFriendChat) &&
           !mentionExtractLinkMateQuestion(text)
@@ -1019,7 +1026,8 @@ function send() {
           linkMateEnabled.value &&
           !linkMateQuotaExhausted.value &&
           (props.isGroupChat || props.isFriendChat) &&
-          currentSessionId.value
+          currentSessionId.value &&
+          (!props.isGroupChat || groupMetaStore.linkmateEnabledFor(currentSessionId.value))
         ) {
           void requestLinkMateImReply(currentSessionId.value, linkMateQuestion)
         }
@@ -1145,6 +1153,20 @@ defineExpose({
         </div>
 
         <div class="input-compose-body">
+          <button
+            v-if="showDeepThinkingWhenAt"
+            type="button"
+            class="mention-deep-toggle"
+            :class="{ 'is-active': linkMateDeepThinking }"
+            :title="
+              linkMateDeepThinking ? t('linkmate.deepThinkingOn') : t('linkmate.deepThinkingOff')
+            "
+            :disabled="inputDisabled || linkMateImStreaming"
+            @click="toggleLinkMateDeepThinking"
+          >
+            <n-icon :component="BulbOutline" :size="16" />
+            <span>{{ t('linkmate.deepThinking') }}</span>
+          </button>
           <n-input
             ref="messageInputRef"
             :value="inputValue"
@@ -1153,7 +1175,10 @@ defineExpose({
             :placeholder="inputPlaceholder"
             :disabled="inputDisabled"
             class="message-input"
-            :class="{ 'message-input--with-reply': replyingTo }"
+            :class="{
+              'message-input--with-reply': replyingTo,
+              'message-input--with-deep': showDeepThinkingWhenAt
+            }"
             :bordered="false"
             @update:value="onInputUpdate"
             @keydown="onInputKeyDown"
@@ -1201,28 +1226,6 @@ defineExpose({
               </button>
             </div>
           </n-popover>
-          <LxIconButton
-            v-if="canAtMention && linkMateDeepThinkingSupported"
-            variant="chat-tool"
-            class="linkmate-deep-tool"
-            :class="{ 'is-active': linkMateDeepThinking }"
-            :title="
-              linkMateDeepThinking ? t('linkmate.deepThinkingOn') : t('linkmate.deepThinkingOff')
-            "
-            :disabled="inputDisabled || linkMateImStreaming"
-            @click="toggleLinkMateDeepThinking"
-          >
-            <n-icon :component="BulbOutline" :size="20" />
-          </LxIconButton>
-          <LxIconButton
-            v-if="canAtMention"
-            variant="chat-tool"
-            :title="isGroupChat ? t('extra.atMember') : t('linkmate.atName')"
-            :disabled="inputDisabled"
-            @click="triggerAtMention"
-          >
-            <n-icon :component="AtOutline" :size="20" />
-          </LxIconButton>
           <LxIconButton variant="chat-tool" :title="t('chat.sendFile')" @click="toolFile">
             <n-icon :component="FolderOutline" :size="20" />
           </LxIconButton>
@@ -1332,6 +1335,40 @@ defineExpose({
 
 .input-compose-body {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lx-space-xs);
+}
+
+.mention-deep-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lx-space-2xs);
+  padding: var(--lx-space-2xs) var(--lx-space-sm);
+  border: 1px solid var(--lx-border-light);
+  border-radius: var(--lx-radius-full);
+  background: var(--lx-bg-panel);
+  color: var(--lx-text-secondary);
+  font-size: var(--lx-font-sm);
+  line-height: 1.2;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.mention-deep-toggle:hover:not(:disabled) {
+  color: var(--lx-accent);
+  border-color: var(--lx-accent-soft);
+}
+
+.mention-deep-toggle.is-active {
+  color: var(--lx-accent);
+  border-color: var(--lx-accent-soft);
+  background: var(--lx-accent-bg);
+}
+
+.mention-deep-toggle:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .chat-mention-anchor :deep(.at-mention-popover) {
@@ -1348,10 +1385,6 @@ defineExpose({
   justify-content: space-between;
   padding: var(--lx-space-xs) var(--lx-space-md) var(--lx-space-md);
   flex-shrink: 0;
-}
-
-.linkmate-deep-tool.is-active {
-  color: var(--lx-accent);
 }
 
 .toolbar-left {
@@ -1405,6 +1438,12 @@ defineExpose({
 .message-input--with-reply :deep(.n-input__placeholder),
 .message-input--with-reply :deep(.n-input__textarea-mirror) {
   min-height: 36px !important;
+}
+
+.message-input--with-deep :deep(.n-input__textarea-el),
+.message-input--with-deep :deep(.n-input__placeholder),
+.message-input--with-deep :deep(.n-input__textarea-mirror) {
+  min-height: 44px !important;
 }
 
 .message-input :deep(.n-input__placeholder) {

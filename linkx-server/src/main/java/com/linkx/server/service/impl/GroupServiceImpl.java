@@ -127,6 +127,7 @@ public class GroupServiceImpl implements GroupService {
                 .name(dto.getName())
                 .ownerId(userId)
                 .muteAll(0)
+                .linkmateEnabled(1)
                 .deleted(0)
                 .build();
         conversationMapper.insert(group);
@@ -1069,6 +1070,7 @@ public class GroupServiceImpl implements GroupService {
                 .meMuteUntil(meMuteUntil)
                 .joinApproval(group.getJoinApproval() != null && group.getJoinApproval() == 1)
                 .invitePolicy(group.getInvitePolicy() != null ? group.getInvitePolicy() : "anyMember")
+                .linkmateEnabled(group.getLinkmateEnabled() == null || group.getLinkmateEnabled() == 1)
                 .build();
     }
 
@@ -1496,5 +1498,30 @@ public class GroupServiceImpl implements GroupService {
         }
         group.setInvitePolicy(policy);
         conversationMapper.update(group);
+    }
+
+    @Override
+    @Transactional
+    public GroupConversationVO updateLinkmateEnabled(Long userId, Long conversationId, boolean enabled) {
+        ImConversation group = assertGroupAdmin(userId, conversationId);
+        group.setLinkmateEnabled(enabled ? 1 : 0);
+        conversationMapper.update(group);
+
+        SysUser owner = sysUserMapper.selectOneById(group.getOwnerId());
+        SysUser operator = sysUserMapper.selectOneById(userId);
+        String opName = displayName(operator);
+        emitSystemTip(
+                userId,
+                conversationId,
+                opName + (enabled ? " 开启了灵伴接入" : " 关闭了灵伴接入")
+        );
+
+        Map<String, Object> payload = Map.of(
+                "conversationId", String.valueOf(conversationId),
+                "linkmateEnabled", enabled
+        );
+        imPushService.pushActionToConversationMembers(conversationId, "group_linkmate_changed", payload);
+
+        return toGroupConversationVO(group, owner, userId);
     }
 }

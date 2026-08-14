@@ -22,6 +22,7 @@ import type { LinkMateMessage } from '../api/linkmate'
 import { useI18n } from '../i18n'
 import LinkMateLogoMark from './LinkMateLogoMark.vue'
 import { renderLinkMateMarkdown, copyCodeFromButton } from '../utils/linkmateMarkdown'
+import { copyText } from '../utils/clipboard'
 
 const { t } = useI18n()
 const message = useMessage()
@@ -210,10 +211,10 @@ function canRegenerate(msg: LinkMateMessage, index: number) {
 async function handleCopyAssistant(msg: LinkMateMessage) {
   const text = msg.content?.trim()
   if (!text) return
-  try {
-    await navigator.clipboard.writeText(text)
+  const ok = await copyText(text)
+  if (ok) {
     message.success(t('linkmate.messageCopied'))
-  } catch {
+  } else {
     message.error(t('linkmate.copyCodeFailed'))
   }
 }

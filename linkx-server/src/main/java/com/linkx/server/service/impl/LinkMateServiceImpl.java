@@ -538,6 +538,10 @@ public class LinkMateServiceImpl implements LinkMateService {
                 && conversation.getType() != ImConversation.TYPE_PRIVATE) {
             throw new CustomException(400, "仅支持在群聊或单聊中 @灵伴");
         }
+        if (conversation.getType() == ImConversation.TYPE_GROUP
+                && (conversation.getLinkmateEnabled() == null || conversation.getLinkmateEnabled() == 0)) {
+            throw new CustomException(403, "本群已关闭灵伴接入");
+        }
         return conversation;
     }
 

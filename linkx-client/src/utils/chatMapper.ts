@@ -69,7 +69,10 @@ export function conversationToSession(conv: ConversationItem): ChatSession {
       pinned: !!conv.pinned,
       important: !!conv.important,
       muted: !!conv.muted,
-      unread: conv.unreadCount != null ? Number(conv.unreadCount) || undefined : undefined
+      unread:
+        conv.unreadCount != null
+          ? Math.max(0, Number(conv.unreadCount) || 0)
+          : undefined
     }
   }
 
@@ -93,7 +96,10 @@ export function conversationToSession(conv: ConversationItem): ChatSession {
     important: !!conv.important,
     muted: !!conv.muted,
     blocked: !!conv.blocked,
-    unread: conv.unreadCount != null ? Number(conv.unreadCount) || undefined : undefined
+    unread:
+      conv.unreadCount != null
+        ? Math.max(0, Number(conv.unreadCount) || 0)
+        : undefined
   }
 }
 

@@ -83,6 +83,12 @@ public class ImConversation implements Serializable {
     @Builder.Default
     private String invitePolicy = "anyMember";
 
+    /**
+     * 群聊灵伴接入：0 关闭，1 开启（仅群聊有效）
+     */
+    @Builder.Default
+    private Integer linkmateEnabled = 1;
+
     private String lastMessageContent;
 
     private Date lastMessageTime;

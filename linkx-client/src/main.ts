@@ -76,6 +76,16 @@ initCrossWindowThemeSync(theme => {
   }
 })
 
+// 切后台/关闭前立即同步已读游标，避免仅本地清未读、服务端未更新
+if (typeof document !== 'undefined') {
+  const flushReadOnHide = () => {
+    if (document.visibilityState !== 'hidden') return
+    void useAppStore().flushReportSessionRead()
+  }
+  document.addEventListener('visibilitychange', flushReadOnHide)
+  window.addEventListener('pagehide', flushReadOnHide)
+}
+
 // 路由切换前重新应用主题，防止个别页面样式漂移
 router.beforeEach(() => {
   applyDocumentTheme(useAppStore().theme)

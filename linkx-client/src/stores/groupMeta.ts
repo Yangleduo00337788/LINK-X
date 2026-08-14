@@ -65,6 +65,11 @@ export interface GroupMuteState {
   meMuteUntil?: number
 }
 
+/** 群灵伴接入状态 */
+export interface GroupLinkmateState {
+  enabled: boolean
+}
+
 /** 群共享文件项 */
 export interface GroupFileItem {
   id: string
@@ -123,6 +128,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
     members: {} as Record<string, GroupMember[]>,
     remarks: {} as Record<string, string>,
     muteState: {} as Record<string, GroupMuteState>,
+    linkmateState: {} as Record<string, GroupLinkmateState>,
     files: {} as Record<string, GroupFileItem[]>,
     albums: {} as Record<string, GroupAlbumItem[]>,
     /** 用户创建的空相册名（尚无图片时也要展示） */
@@ -222,6 +228,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
         const res = await groupApi.getGroupInfo(sessionId)
         if (res.code === 200 && res.data) {
           this.applyMuteFromGroupInfo(sessionId, res.data)
+          this.applyLinkmateFromGroupInfo(sessionId, res.data)
           if (res.data.myRemark != null) {
             this.remarks[sessionId] = res.data.myRemark
             try {
@@ -273,6 +280,26 @@ export const useGroupMetaStore = defineStore('groupMeta', {
         meMuted: !!data.meMuted,
         meMuteUntil: data.meMuteUntil != null ? Number(data.meMuteUntil) : undefined
       }
+    },
+
+    applyLinkmateFromGroupInfo(sessionId: string, data: groupApi.GroupInfo) {
+      this.linkmateState[sessionId] = {
+        enabled: data.linkmateEnabled == null || data.linkmateEnabled === true
+      }
+    },
+
+    linkmateEnabledFor(sessionId: string): boolean {
+      const state = this.linkmateState[sessionId]
+      return state == null || state.enabled
+    },
+
+    async updateLinkmateEnabled(sessionId: string, enabled: boolean) {
+      const res = await groupApi.updateGroupLinkmateEnabled(sessionId, enabled)
+      if (res.code === 200 && res.data) {
+        this.applyLinkmateFromGroupInfo(sessionId, res.data)
+        return true
+      }
+      throw new Error(res.message || t('modals.groupLinkmateUpdateFail'))
     },
 
     muteStateFor(sessionId: string): GroupMuteState {

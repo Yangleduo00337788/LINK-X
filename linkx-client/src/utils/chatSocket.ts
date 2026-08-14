@@ -199,6 +199,7 @@ function handleFrame(raw: string) {
     case 'group_member_role_changed':
     case 'group_mute_changed':
     case 'group_mute_all_changed':
+    case 'group_linkmate_changed':
       if (frame.data) {
         handlers?.onCustomAction?.(frame.action, frame.data as Record<string, unknown>)
       }

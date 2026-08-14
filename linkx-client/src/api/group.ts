@@ -27,6 +27,8 @@ export interface GroupInfo {
   joinApproval?: boolean
   /** 邀请策略 anyMember / ownerApprove */
   invitePolicy?: string
+  /** 群聊是否允许 @灵伴 */
+  linkmateEnabled?: boolean
 }
 
 export interface GroupMember {
@@ -160,6 +162,14 @@ export function updateMuteAll(
   }
 ) {
   return apiClient.put<never, ApiResult<GroupInfo>>(`/group/${conversationId}/mute-all`, payload)
+}
+
+/** 设置群聊灵伴接入（群主/管理员） */
+export function updateGroupLinkmateEnabled(conversationId: string, enabled: boolean) {
+  return apiClient.put<never, ApiResult<GroupInfo>>(
+    `/group/${conversationId}/linkmate-enabled`,
+    { enabled }
+  )
 }
 
 /**

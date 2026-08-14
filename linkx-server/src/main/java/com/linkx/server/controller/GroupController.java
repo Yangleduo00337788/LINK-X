@@ -15,6 +15,7 @@ import com.linkx.server.controller.dto.BatchMuteMembersDTO;
 import com.linkx.server.controller.dto.BatchRemoveMembersDTO;
 import com.linkx.server.controller.dto.CreateGroupDTO;
 import com.linkx.server.controller.dto.HandleJoinRequestDTO;
+import com.linkx.server.controller.dto.LinkMateGroupEnabledDTO;
 import com.linkx.server.controller.dto.MuteAllDTO;
 import com.linkx.server.controller.dto.MuteMemberDTO;
 import com.linkx.server.controller.dto.RequestJoinDTO;
@@ -198,6 +199,21 @@ public class GroupController {
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         return Result.success(groupService.updateMuteAll(userId, parseId(conversationId), dto));
+    }
+
+    /**
+     * 群聊灵伴接入开关（群主或管理员）
+     */
+    @Operation(summary = "设置群聊灵伴接入")
+    @PutMapping("/{conversationId}/linkmate-enabled")
+    public Result<GroupConversationVO> updateLinkmateEnabled(
+            @PathVariable String conversationId,
+            @Valid @RequestBody LinkMateGroupEnabledDTO dto,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(
+                groupService.updateLinkmateEnabled(userId, parseId(conversationId), dto.getEnabled())
+        );
     }
 
     /**

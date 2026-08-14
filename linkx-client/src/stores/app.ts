@@ -53,6 +53,21 @@ import type { MessageItem } from '../types/chat'
 import { resolveUserAvatarUrl } from '../utils/defaultAvatar'
 import { isLinkMateBotSender } from '../utils/linkmateLogo'
 import { normalizeMediaUrl } from '../utils/mediaUrl'
+
+let reportSessionReadTimer: ReturnType<typeof setTimeout> | null = null
+const sessionMessagesLoadTasks = new Map<string, Promise<void>>()
+
+function findLastReadableMessageId(messages: ChatMessage[]): string {
+  let lastId = ''
+  for (const m of messages) {
+    if (!m?.id || m.type === 'time' || m.type === 'system') continue
+    if (!/^\d+$/.test(m.id)) continue
+    if (!lastId || BigInt(m.id) > BigInt(lastId)) {
+      lastId = m.id
+    }
+  }
+  return lastId
+}
 import { API_BASE_URL } from '../config/endpoints'
 import { t } from '../i18n'
 import { normalizeProfileGender, PROFILE_GENDER_MALE, type ProfileGender } from '../types/profileGender'
@@ -397,14 +412,14 @@ export const useAppStore = defineStore('app', {
         if (session.isReal) {
           void this.loadSessionMessages(session.id).then(() => {
             if (needRecover) this.recoverAtMeMessageId(session.id)
-            void this.reportSessionRead(session.id)
+            void this.reportSessionRead(session.id, { immediate: true })
           })
         } else if (needRecover) {
           this.recoverAtMeMessageId(session.id)
         }
       } else if (session.isReal) {
         void this.loadSessionMessages(session.id).then(() => {
-          void this.reportSessionRead(session.id)
+          void this.reportSessionRead(session.id, { immediate: true })
         })
       }
       if (session.isReal) {
@@ -412,26 +427,53 @@ export const useAppStore = defineStore('app', {
       }
     },
 
-    /** 向服务端上报已读游标（清服务端未读并广播 readReceipt） */
-    async reportSessionRead(sessionId: string) {
+    /** 向服务端同步已读游标（清本端未读）；是否向对方推送 readReceipt 由服务端按隐私设置决定 */
+    async reportSessionRead(
+      sessionId: string,
+      options?: { immediate?: boolean; lastMessageId?: string }
+    ) {
       if (!sessionId) return
-      if (!useAppSettingsStore().privacySendReadReceipt) return
-      const msgs = this.messagesBySession[sessionId] || []
-      let lastId = ''
-      for (let i = msgs.length - 1; i >= 0; i--) {
-        const m = msgs[i]
-        if (!m?.id || m.type === 'time' || m.type === 'system') continue
-        // 仅雪花数字 ID 可上报；乐观 UUID 跳过
-        if (!/^\d+$/.test(m.id)) continue
-        lastId = m.id
-        break
+
+      const flush = async () => {
+        const msgs = this.messagesBySession[sessionId] || []
+        const lastId = options?.lastMessageId || findLastReadableMessageId(msgs)
+        if (!lastId) return
+        try {
+          const res = await chatApi.markAsRead(sessionId, lastId)
+          if (res.code === 200) {
+            const session = this.sessions.find(s => s.id === sessionId)
+            if (session) session.unread = 0
+          }
+        } catch (e) {
+          console.warn('上报已读失败:', e)
+        }
       }
-      if (!lastId) return
-      try {
-        await chatApi.markAsRead(sessionId, lastId)
-      } catch (e) {
-        console.warn('上报已读失败:', e)
+
+      if (options?.immediate) {
+        if (reportSessionReadTimer) {
+          clearTimeout(reportSessionReadTimer)
+          reportSessionReadTimer = null
+        }
+        await flush()
+        return
       }
+
+      if (reportSessionReadTimer) clearTimeout(reportSessionReadTimer)
+      reportSessionReadTimer = setTimeout(() => {
+        reportSessionReadTimer = null
+        void flush()
+      }, 280)
+    },
+
+    /** 退出/切后台前立即上报当前会话已读，避免 debounce 未落库导致重启后红点复现 */
+    async flushReportSessionRead() {
+      if (reportSessionReadTimer) {
+        clearTimeout(reportSessionReadTimer)
+        reportSessionReadTimer = null
+      }
+      const sessionId = this.currentSessionId
+      if (!sessionId) return
+      await this.reportSessionRead(sessionId, { immediate: true })
     },
 
     /**
@@ -708,7 +750,12 @@ export const useAppStore = defineStore('app', {
           return {
             ...s,
             lastSeenAt,
-            unread: s.unread ?? prev.unread,
+            unread:
+              s.unread != null
+                ? s.unread
+                : prev.unread != null
+                  ? prev.unread
+                  : undefined,
             atMe: prev.atMe,
             atMeMessageId: prev.atMeMessageId,
             atMeNeedAck: prev.atMeNeedAck,
@@ -747,73 +794,86 @@ export const useAppStore = defineStore('app', {
 
     /** 拉取指定会话的历史消息（首屏） */
     async loadSessionMessages(sessionId: string) {
-      if (this.messagesLoaded[sessionId] || this.messagesLoading[sessionId]) return
-      this.messagesLoading[sessionId] = true
-      try {
-        const res = await chatApi.listMessages(sessionId)
-        if (res.code === 200 && res.data) {
-          const serverMessages = res.data.map(m => messageToChatMessage(m, sessionId))
-
-          // 获取本地已有的消息（可能是用户刚发的乐观消息，还没收到 ack）
-          const localMessages = this.messagesBySession[sessionId] || []
-
-          // 合并逻辑：
-          // 1. 用 Set 记录服务端消息 ID（都是数字格式）
-          // 2. 保留本地不在服务端列表中的消息（乐观消息的 ID 是 UUID 格式）
-          // 3. 合并后按时间排序
-          const serverIds = new Set(serverMessages.map(m => m.id))
-          const localOnlyMessages = localMessages.filter(m => !serverIds.has(m.id))
-
-          // 合并：服务端消息 + 本地乐观消息；按雪花 id 升序（与后端游标一致）
-          const merged = [...serverMessages, ...localOnlyMessages]
-          merged.sort(compareMessageOrder)
-          enrichMessageReplyQuotes(merged)
-
-          const session = this.sessions.find(s => s.id === sessionId)
-          if (session?.isGroup) {
-            const members = useGroupMetaStore().membersFor(sessionId)
-            if (members.length) {
-              this.enrichGroupSelfMessageReadMeta(sessionId, members.length)
-            }
-          }
-
-          console.log('[loadSessionMessages]', {
-            sessionId,
-            serverCount: serverMessages.length,
-            localCount: localMessages.length,
-            localOnlyCount: localOnlyMessages.length,
-            mergedCount: merged.length,
-            currentSessionId: this.currentSessionId
-          })
-
-          this.messagesBySession[sessionId] = merged
-          this.messagesLoaded[sessionId] = true
-          this.messagesHasMore[sessionId] = res.data.length >= 50
-          this.ackHistoryDeliveries(sessionId, serverMessages)
-
-          // 历史里若有会议邀请，同步聊天顶栏进行中状态
-          for (let i = merged.length - 1; i >= 0; i--) {
-            const m = merged[i]
-            if (m.type === 'conference' && (m.conferenceId || m.fileUrl)) {
-              void import('./conference').then(({ useConferenceStore }) => {
-                useConferenceStore().noteConferenceInviteMessage({
-                  conversationId: sessionId,
-                  conferenceId: String(m.conferenceId || m.fileUrl),
-                  title: m.conferenceTitle || m.fileName,
-                  type: m.conferenceType,
-                  scene: m.conferenceScene,
-                  hasPassword: !!m.conferenceHasPassword
-                })
-              })
-              break
-            }
-          }
-        }
-      } catch (e) {
-        console.error('加载历史消息失败:', e)
-      } finally {
-        this.messagesLoading[sessionId] = false
+      if (this.messagesLoaded[sessionId]) return
+      const pending = sessionMessagesLoadTasks.get(sessionId)
+      if (pending) {
+        await pending
+        return
       }
+
+      const task = (async () => {
+        if (this.messagesLoaded[sessionId]) return
+        this.messagesLoading[sessionId] = true
+        try {
+          const res = await chatApi.listMessages(sessionId)
+          if (res.code === 200 && res.data) {
+            const serverMessages = res.data.map(m => messageToChatMessage(m, sessionId))
+
+            // 获取本地已有的消息（可能是用户刚发的乐观消息，还没收到 ack）
+            const localMessages = this.messagesBySession[sessionId] || []
+
+            // 合并逻辑：
+            // 1. 用 Set 记录服务端消息 ID（都是数字格式）
+            // 2. 保留本地不在服务端列表中的消息（乐观消息的 ID 是 UUID 格式）
+            // 3. 合并后按时间排序
+            const serverIds = new Set(serverMessages.map(m => m.id))
+            const localOnlyMessages = localMessages.filter(m => !serverIds.has(m.id))
+
+            // 合并：服务端消息 + 本地乐观消息；按雪花 id 升序（与后端游标一致）
+            const merged = [...serverMessages, ...localOnlyMessages]
+            merged.sort(compareMessageOrder)
+            enrichMessageReplyQuotes(merged)
+
+            const session = this.sessions.find(s => s.id === sessionId)
+            if (session?.isGroup) {
+              const members = useGroupMetaStore().membersFor(sessionId)
+              if (members.length) {
+                this.enrichGroupSelfMessageReadMeta(sessionId, members.length)
+              }
+            }
+
+            console.log('[loadSessionMessages]', {
+              sessionId,
+              serverCount: serverMessages.length,
+              localCount: localMessages.length,
+              localOnlyCount: localOnlyMessages.length,
+              mergedCount: merged.length,
+              currentSessionId: this.currentSessionId
+            })
+
+            this.messagesBySession[sessionId] = merged
+            this.messagesLoaded[sessionId] = true
+            this.messagesHasMore[sessionId] = res.data.length >= 50
+            this.ackHistoryDeliveries(sessionId, serverMessages)
+
+            // 历史里若有会议邀请，同步聊天顶栏进行中状态
+            for (let i = merged.length - 1; i >= 0; i--) {
+              const m = merged[i]
+              if (m.type === 'conference' && (m.conferenceId || m.fileUrl)) {
+                void import('./conference').then(({ useConferenceStore }) => {
+                  useConferenceStore().noteConferenceInviteMessage({
+                    conversationId: sessionId,
+                    conferenceId: String(m.conferenceId || m.fileUrl),
+                    title: m.conferenceTitle || m.fileName,
+                    type: m.conferenceType,
+                    scene: m.conferenceScene,
+                    hasPassword: !!m.conferenceHasPassword
+                  })
+                })
+                break
+              }
+            }
+          }
+        } catch (e) {
+          console.error('加载历史消息失败:', e)
+        } finally {
+          this.messagesLoading[sessionId] = false
+          sessionMessagesLoadTasks.delete(sessionId)
+        }
+      })()
+
+      sessionMessagesLoadTasks.set(sessionId, task)
+      await task
     },
 
     /** 加载更早的历史消息（向上翻页） */
@@ -985,6 +1045,10 @@ export const useAppStore = defineStore('app', {
             void this.handleGroupMuteChanged(data)
             return
           }
+          if (action === 'group_linkmate_changed') {
+            void this.handleGroupLinkmateChanged(data)
+            return
+          }
           // 朋友圈新动态推送
           if (action === 'moments_new_post') {
             void this.handleMomentsNewPost(data)
@@ -1092,6 +1156,9 @@ export const useAppStore = defineStore('app', {
       )
       withoutPlaceholders.push(finalized)
       this.messagesBySession[sessionId] = withoutPlaceholders
+      if (this.currentSessionId === sessionId && /^\d+$/.test(messageId)) {
+        void this.reportSessionRead(sessionId, { lastMessageId: messageId, immediate: true })
+      }
     },
 
     /** IM @灵伴：移除流式占位 */
@@ -1134,6 +1201,13 @@ export const useAppStore = defineStore('app', {
           enrichMessageReplyQuotes([chatMsg, ...this.messagesBySession[sessionId]])
         }
         this.messagesBySession[sessionId].push(chatMsg)
+      } else if (
+        isLinkMateBotSender(message.senderId) &&
+        this.currentSessionId === sessionId &&
+        /^\d+$/.test(chatMsg.id)
+      ) {
+        // 流式占位已 finalize 时 WS 会重复推送，仍需推进已读游标
+        void this.reportSessionRead(sessionId, { lastMessageId: chatMsg.id, immediate: true })
       }
 
       if (chatMsg.type === 'conference' && (chatMsg.conferenceId || chatMsg.fileUrl)) {
@@ -1184,8 +1258,11 @@ export const useAppStore = defineStore('app', {
               session.unread = (session.unread || 0) + 1
             }
           } else if (!fromSelf) {
-            // 当前会话在看：同步上报已读
-            void this.reportSessionRead(sessionId)
+            const lastMessageId = /^\d+$/.test(chatMsg.id) ? chatMsg.id : undefined
+            void this.reportSessionRead(sessionId, {
+              lastMessageId,
+              immediate: isLinkMateBotSender(message.senderId)
+            })
           }
         }
       } else {
@@ -2671,6 +2748,19 @@ export const useAppStore = defineStore('app', {
         console.log('[handleGroupMuteChanged] 已更新群禁言状态:', conversationId)
       } catch (e) {
         console.warn('[handleGroupMuteChanged] 更新禁言状态失败:', e)
+      }
+    },
+
+    /** 群灵伴接入开关变更 */
+    async handleGroupLinkmateChanged(data: Record<string, unknown>) {
+      const conversationId = data.conversationId != null ? String(data.conversationId) : ''
+      if (!conversationId) return
+      const enabled = data.linkmateEnabled === true || data.linkmateEnabled === 1
+      try {
+        const { useGroupMetaStore } = await import('./groupMeta')
+        useGroupMetaStore().linkmateState[conversationId] = { enabled }
+      } catch (e) {
+        console.warn('[handleGroupLinkmateChanged] 更新灵伴接入状态失败:', e)
       }
     },
 

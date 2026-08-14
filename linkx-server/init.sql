@@ -166,6 +166,7 @@ CREATE TABLE IF NOT EXISTS `im_conversation` (
   `mute_all_end` datetime DEFAULT NULL COMMENT '定时全体禁言结束时间',
   `join_approval` tinyint(1) NOT NULL DEFAULT 0 COMMENT '入群审批(0不需要1需要)',
   `invite_policy` varchar(20) DEFAULT 'anyMember' COMMENT '邀请策略(ownerApprove/anyMember)',
+  `linkmate_enabled` tinyint(1) NOT NULL DEFAULT 1 COMMENT '群聊灵伴接入(0关1开)',
   `last_message_content` varchar(500) DEFAULT NULL COMMENT '最后一条消息预览',
   `last_message_time` datetime DEFAULT NULL COMMENT '最后一条消息时间',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',

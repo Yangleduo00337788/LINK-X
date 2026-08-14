@@ -8,7 +8,10 @@ import { NIcon, useMessage } from 'naive-ui'
 import { ChevronDownOutline } from '@vicons/ionicons5'
 import type { ChatMessage } from '../../../types'
 import { renderLinkMateMarkdown, copyCodeFromButton } from '../../../utils/linkmateMarkdown'
+import { copyText } from '../../../utils/clipboard'
 import { useI18n } from '../../../i18n'
+
+const COPY_PIN_MIN_LENGTH = 120
 
 const props = defineProps<{ msg: ChatMessage }>()
 
@@ -19,6 +22,12 @@ const collapsedReasoning = reactive<Record<string, boolean>>({})
 const renderedHtml = computed(() => {
   if (props.msg.streaming) return ''
   return renderLinkMateMarkdown(props.msg.content || '')
+})
+
+const shouldPinCopy = computed(() => {
+  const text = props.msg.content?.trim() || ''
+  if (!text) return false
+  return text.length >= COPY_PIN_MIN_LENGTH || /```/.test(text) || text.includes('\n')
 })
 
 function isReasoningCollapsed(id: string) {
@@ -54,10 +63,10 @@ async function handleMarkdownClick(e: MouseEvent) {
 async function copyContent() {
   const text = props.msg.content?.trim()
   if (!text) return
-  try {
-    await navigator.clipboard.writeText(text)
+  const ok = await copyText(text)
+  if (ok) {
     message.success(t('linkmate.messageCopied'))
-  } catch {
+  } else {
     message.error(t('linkmate.copyCodeFailed'))
   }
 }
@@ -86,15 +95,17 @@ async function copyContent() {
       </div>
       <div v-else class="linkmate-md" v-html="renderedHtml" />
     </div>
-    <p v-if="!msg.streaming" class="linkmate-ai-disclaimer">{{ t('linkmate.aiDisclaimer') }}</p>
-    <button
-      v-if="!msg.streaming && msg.content?.trim()"
-      type="button"
-      class="linkmate-copy-btn"
-      @click="copyContent"
-    >
-      {{ t('linkmate.copyMessage') }}
-    </button>
+    <div v-if="!msg.streaming && msg.content?.trim()" class="linkmate-chat-footer">
+      <p class="linkmate-ai-disclaimer">{{ t('linkmate.aiDisclaimer') }}</p>
+      <button
+        type="button"
+        class="linkmate-copy-btn"
+        :class="{ 'is-pinned': shouldPinCopy }"
+        @click="copyContent"
+      >
+        {{ t('linkmate.copyMessage') }}
+      </button>
+    </div>
   </div>
 </template>
 
@@ -110,8 +121,18 @@ async function copyContent() {
   max-width: 100%;
 }
 
+.linkmate-chat-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 18px;
+}
+
 .linkmate-ai-disclaimer {
   margin: 0;
+  flex: 1;
+  min-width: 0;
   font-size: var(--lx-font-xs);
   line-height: var(--lx-leading-normal);
   color: var(--lx-text-muted);
@@ -119,7 +140,7 @@ async function copyContent() {
 }
 
 .linkmate-copy-btn {
-  align-self: flex-start;
+  flex-shrink: 0;
   margin: 0;
   padding: 0;
   border: none;
@@ -127,6 +148,15 @@ async function copyContent() {
   color: var(--lx-text-secondary);
   font-size: var(--lx-font-xs);
   cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--lx-duration), color var(--lx-duration);
+}
+
+.linkmate-chat-stack:hover .linkmate-copy-btn,
+.linkmate-copy-btn.is-pinned {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .linkmate-copy-btn:hover {

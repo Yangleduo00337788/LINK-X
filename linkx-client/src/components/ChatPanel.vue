@@ -11,7 +11,7 @@
 // Vue 响应式、计算属性、生命周期、侦听器与 nextTick
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 // Naive UI 图标、气泡、下拉菜单与消息提示
-import { NIcon, NPopover, NDropdown, NModal, NInput, useMessage, type DropdownOption } from 'naive-ui'
+import { NIcon, NPopover, NDropdown, NModal, NInput, NSwitch, useMessage, type DropdownOption } from 'naive-ui'
 // Ionicons5 通话、视频、网格、添加、更多、手机、图片图标
 import {
   CallOutline,
@@ -79,6 +79,7 @@ import ForwardPickerModal from './chat/ForwardPickerModal.vue'
 import ConferenceSessionBanner from './chat/ConferenceSessionBanner.vue'
 import type { SessionBannerInfo } from './chat/ConferenceSessionBanner.vue'
 import { useConferenceStore } from '../stores/conference'
+import { useLinkMateStore } from '../stores/linkmate'
 import { LxButton, LxIconButton } from './ui'
 
 // 获取 Naive UI 消息提示实例
@@ -286,6 +287,32 @@ const isGroupAdmin = computed(() => {
   const members = groupMetaStore.membersFor(currentSessionId.value)
   return members.some(m => m.id === me && (m.role === 'owner' || m.role === 'admin'))
 })
+
+const linkMateStore = useLinkMateStore()
+const { enabled: linkMateGlobalEnabled } = storeToRefs(linkMateStore)
+
+const groupLinkmateEnabled = computed(() => {
+  const sid = currentSessionId.value
+  if (!sid || !isGroupChat.value) return true
+  return groupMetaStore.linkmateEnabledFor(sid)
+})
+
+const groupLinkmateSwitchLoading = ref(false)
+
+async function onGroupLinkmateToggle(enabled: boolean) {
+  const sid = currentSessionId.value
+  if (!sid || !isGroupAdmin.value || groupLinkmateSwitchLoading.value) return
+  groupLinkmateSwitchLoading.value = true
+  try {
+    await groupMetaStore.updateLinkmateEnabled(sid, enabled)
+    message.success(enabled ? t('modals.linkmateInGroupOn') : t('modals.linkmateInGroupOff'))
+  } catch (e) {
+    const err = e as { response?: { data?: { message?: string } }; message?: string }
+    message.error(err.response?.data?.message || err.message || t('modals.groupLinkmateUpdateFail'))
+  } finally {
+    groupLinkmateSwitchLoading.value = false
+  }
+}
 
 // 进入群聊时预加载成员与禁言状态
 watch(
@@ -1451,7 +1478,23 @@ function onDrop(e: DragEvent) {
       <!-- 群聊顶栏 -->
       <header v-else-if="isGroupChat" class="chat-header chat-header--group">
         <div class="chat-header-left">
-          <span class="chat-peer-name chat-peer-name--group">{{ currentSession?.name }}</span>
+          <div class="chat-header-title-row">
+            <span class="chat-peer-name chat-peer-name--group">{{ currentSession?.name }}</span>
+            <div
+              v-if="linkMateGlobalEnabled"
+              class="chat-header-linkmate"
+              :title="t('modals.linkmateInGroupDesc')"
+            >
+              <span class="chat-header-linkmate-label">{{ t('modals.linkmateInGroup') }}</span>
+              <n-switch
+                size="small"
+                :value="groupLinkmateEnabled"
+                :disabled="!isGroupAdmin || groupLinkmateSwitchLoading"
+                :loading="groupLinkmateSwitchLoading"
+                @update:value="onGroupLinkmateToggle"
+              />
+            </div>
+          </div>
         </div>
         <div class="chat-header-actions">
           <LxIconButton
@@ -1745,7 +1788,10 @@ function onDrop(e: DragEvent) {
 .chat-peer-name--group {
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: min(420px, 45vw);
+  max-width: min(320px, 38vw);
+  line-height: 1.25;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .group-grid-menu {
@@ -1797,6 +1843,34 @@ function onDrop(e: DragEvent) {
   min-width: 0;
   flex: 1;
   padding-top: var(--lx-space-2xs);
+}
+
+.chat-header--group .chat-header-left {
+  align-items: center;
+  padding-top: 0;
+  min-width: 0;
+}
+
+.chat-header-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--lx-space-lg);
+  min-width: 0;
+  flex: 1;
+}
+
+.chat-header-linkmate {
+  display: flex;
+  align-items: center;
+  gap: var(--lx-space-sm);
+  flex-shrink: 0;
+}
+
+.chat-header-linkmate-label {
+  font-size: var(--lx-font-sm);
+  line-height: 1;
+  color: var(--lx-text-secondary);
+  white-space: nowrap;
 }
 
 .peer-meta {

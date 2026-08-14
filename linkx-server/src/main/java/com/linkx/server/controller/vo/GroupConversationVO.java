@@ -66,4 +66,7 @@ public class GroupConversationVO {
 
     /** 邀请策略：anyMember / ownerApprove */
     private String invitePolicy;
+
+    /** 群聊是否允许 @灵伴（AI 接入） */
+    private Boolean linkmateEnabled;
 }
