@@ -8,7 +8,7 @@
  * </p>
  */
 import { ref, computed, watch } from 'vue'
-import { NIcon, useDialog, useMessage } from 'naive-ui'
+import { NIcon, NVirtualList, useDialog, useMessage } from 'naive-ui'
 import {
   SearchOutline,
   ChevronForwardOutline,
@@ -63,15 +63,7 @@ const members = computed(() => {
   return groupMetaStore.members[id] || []
 })
 
-watch(
-  currentSessionId,
-  id => {
-    if (!id) return
-    void groupMetaStore.fetchMembers(id)
-    void groupMetaStore.fetchAnnouncementDisplay(id)
-  },
-  { immediate: true }
-)
+/** 成员与公告由 ChatPanel 统一预加载，侧栏只读缓存 */
 
 /** 按昵称或 badge 过滤后的成员列表 */
 const filteredMembers = computed(() => {
@@ -204,25 +196,36 @@ function onMemberClick(m: GroupMember) {
             :placeholder="t('extra.searchMembersPh')"
           />
         </div>
-        <div class="member-list">
-          <div v-if="showMemberSearch && !filteredMembers.length" class="member-empty">
-            {{ t('extra.noMatchMembers') }}
-          </div>
-          <div
-            v-for="m in filteredMembers"
-            :key="m.id"
-            class="member-row"
-            :class="{ clickable: canManageMember(m) }"
-            @click="onMemberClick(m)"
-          >
-            <Avatar :text="m.avatarText" :color="m.avatarColor" :image-url="m.avatarUrl" :size="36" />
-            <div class="m-info">
-              <span class="m-name">{{ m.name }}</span>
-              <span v-if="m.badge" class="m-badge">{{ m.badge }}</span>
-              <span v-else-if="m.muted" class="m-badge muted-badge">{{ t('modals.mutedBadge') }}</span>
-            </div>
-          </div>
+        <div v-if="showMemberSearch && !filteredMembers.length" class="member-empty">
+          {{ t('extra.noMatchMembers') }}
         </div>
+        <n-virtual-list
+          v-else
+          class="member-list"
+          :items="filteredMembers"
+          :item-size="48"
+          key-field="id"
+        >
+          <template #default="{ item }">
+            <div
+              class="member-row"
+              :class="{ clickable: canManageMember(item as GroupMember) }"
+              @click="onMemberClick(item as GroupMember)"
+            >
+              <Avatar
+                :text="(item as GroupMember).avatarText"
+                :color="(item as GroupMember).avatarColor"
+                :image-url="(item as GroupMember).avatarUrl"
+                :size="36"
+              />
+              <div class="m-info">
+                <span class="m-name">{{ (item as GroupMember).name }}</span>
+                <span v-if="(item as GroupMember).badge" class="m-badge">{{ (item as GroupMember).badge }}</span>
+                <span v-else-if="(item as GroupMember).muted" class="m-badge muted-badge">{{ t('modals.mutedBadge') }}</span>
+              </div>
+            </div>
+          </template>
+        </n-virtual-list>
       </section>
     </div>
   </aside>

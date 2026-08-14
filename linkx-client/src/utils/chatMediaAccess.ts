@@ -14,6 +14,33 @@ import { downloadFileWithSettings, type DownloadOptions, type DownloadResult } f
 import { normalizeMediaUrl } from './mediaUrl'
 import { isWebEnvironment } from './tokenStorage'
 import { t } from '../i18n'
+import {
+  getCachedMediaPath,
+  saveMediaBytes,
+  toMediaFileUrl
+} from '../services/chatMessageStore'
+
+/** Electron 鉴权图片 blob 缓存，避免切换会话时重复下载 */
+const electronMediaBlobCache = new Map<string, string>()
+
+export function getCachedElectronMediaBlob(messageId: string): string | undefined {
+  return electronMediaBlobCache.get(messageId)
+}
+
+export function cacheElectronMediaBlob(messageId: string, blobUrl: string) {
+  electronMediaBlobCache.set(messageId, blobUrl)
+}
+
+export function clearElectronMediaBlobCache() {
+  for (const url of electronMediaBlobCache.values()) {
+    try {
+      URL.revokeObjectURL(url)
+    } catch {
+      /* ignore */
+    }
+  }
+  electronMediaBlobCache.clear()
+}
 
 /** 是否可走服务端鉴权中转（已入库消息，非发送中/失败乐观项） */
 export function canUseAuthenticatedMessageMedia(
@@ -53,9 +80,28 @@ export async function resolveChatMediaSrcByMessageId(
     if (isWebEnvironment()) {
       return { src: buildChatMessageMediaApiUrl(messageId) }
     }
+    const cached = electronMediaBlobCache.get(messageId)
+    if (cached) {
+      return { src: cached }
+    }
+    const disk = await getCachedMediaPath(messageId, 'thumb')
+    if (disk) {
+      return { src: toMediaFileUrl(disk) }
+    }
     const blobUrl = await fetchChatMessageMediaBlobUrl(messageId)
     if (blobUrl) {
-      return { src: blobUrl, blobUrlToRevoke: blobUrl }
+      electronMediaBlobCache.set(messageId, blobUrl)
+      try {
+        const res = await fetch(blobUrl)
+        const buf = await res.arrayBuffer()
+        const saved = await saveMediaBytes(messageId, buf, { kind: 'thumb', ext: 'jpg' })
+        if (saved) {
+          return { src: toMediaFileUrl(saved) }
+        }
+      } catch {
+        /* fallback blob */
+      }
+      return { src: blobUrl }
     }
   }
   if (fallback) {
@@ -170,9 +216,14 @@ export async function resolveChatImageDisplaySrc(msg: ChatMessage): Promise<{
     if (isWebEnvironment()) {
       return { src: buildChatMessageMediaApiUrl(msg.id) }
     }
+    const cached = electronMediaBlobCache.get(msg.id)
+    if (cached) {
+      return { src: cached }
+    }
     const blobUrl = await fetchChatMessageMediaBlobUrl(msg.id)
     if (blobUrl) {
-      return { src: blobUrl, blobUrlToRevoke: blobUrl }
+      electronMediaBlobCache.set(msg.id, blobUrl)
+      return { src: blobUrl }
     }
   }
   const fallback = resolveFallbackMediaUrl(msg) || resolveImagePlaceholderSrc(msg)

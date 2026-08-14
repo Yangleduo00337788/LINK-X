@@ -50,8 +50,8 @@ watch(
     listItems.value = items
 
     if (sessionChanged) {
+      padTop.value = PAD_TOP_MIN
       scrollToBottom(true)
-      scheduleAlignBottom()
       return
     }
 
@@ -68,6 +68,11 @@ watch(
       prevFirst && nextFirst && prevFirst !== nextFirst && items.length >= prevItems.length
     const isTailAppend =
       items.length > prevItems.length && prevFirst === nextFirst && prevLast !== nextLast
+    const isInPlaceUpdate =
+      items.length === prevItems.length &&
+      prevFirst === nextFirst &&
+      prevLast === nextLast &&
+      items.length > 0
 
     if (isPrepend) {
       scheduleAlignBottom()
@@ -76,6 +81,11 @@ watch(
 
     if (isTailAppend) {
       scheduleAlignBottom()
+      return
+    }
+
+    // 流式输出 / 编辑：仅内容变更，跳过 padding 重算与 layout 测量
+    if (isInPlaceUpdate) {
       return
     }
 
@@ -157,7 +167,7 @@ function onListResize() {
  */
 function scrollToBottom(force = false) {
   const token = ++scrollBottomToken
-  if (force) programmaticBottomUntil = Date.now() + 400
+  if (force) programmaticBottomUntil = Date.now() + 280
   nextTick(() => {
     if (token !== scrollBottomToken) return
     if (listItems.value.length === 0) return
@@ -172,10 +182,9 @@ function scrollToBottom(force = false) {
       const box = getScrollElement()
       if (!box) return
       const dist = box.scrollHeight - box.scrollTop - box.clientHeight
-      // 非强制：仅在已接近底部时微调，避免打断用户上翻
       if (!force && dist > 80) return
       box.scrollTop = box.scrollHeight
-      scheduleAlignBottom()
+      alignBottomIfNeeded()
     })
   })
 }
@@ -201,6 +210,15 @@ function restoreAfterPrepend(prevScrollHeight: number, prevScrollTop: number) {
   })
 }
 
+function setScrollTop(scrollTop: number) {
+  scrollBottomToken++
+  programmaticBottomUntil = 0
+  nextTick(() => {
+    const box = getScrollElement()
+    if (box) box.scrollTop = Math.max(0, scrollTop)
+  })
+}
+
 onBeforeUnmount(() => {
   if (scrollRaf) cancelAnimationFrame(scrollRaf)
   if (alignRaf) cancelAnimationFrame(alignRaf)
@@ -209,6 +227,7 @@ onBeforeUnmount(() => {
 defineExpose({
   scrollToBottom,
   scrollToKey,
+  setScrollTop,
   getScrollElement,
   restoreAfterPrepend
 })

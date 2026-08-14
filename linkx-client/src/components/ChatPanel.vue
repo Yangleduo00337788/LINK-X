@@ -44,6 +44,7 @@ import ChatInputBox from './chat/ChatInputBox.vue'
 import { storeToRefs } from 'pinia'
 // 应用全局状态 Store
 import { useAppStore } from '../stores/app'
+import { getSessionScrollTop, saveSessionScrollTop } from '../services/chatMessageStore'
 // 全屏 Overlay Store
 import { useOverlayStore } from '../stores/overlay'
 // 聊天弹窗 Store
@@ -184,7 +185,7 @@ const appSettingsStore = useAppSettingsStore()
 // 获取联系人 Store 实例
 const contactsStore = useContactsStore()
 // 解构当前会话、消息、用户资料、会话 ID、已保存登录信息
-const { currentSession, currentMessages, userProfile, currentSessionId, savedLogin, sessionEnterTick, pendingFocusMessageId, typingBySession } =
+const { currentSession, currentMessages, userProfile, currentSessionId, savedLogin, sessionEnterTick, pendingFocusMessageId, typingBySession, messagesLoading } =
   storeToRefs(appStore)
 // 解构聊天背景设置
 const { chatBackground } = storeToRefs(appSettingsStore)
@@ -291,9 +292,14 @@ const isGroupAdmin = computed(() => {
 const linkMateStore = useLinkMateStore()
 const { enabled: linkMateGlobalEnabled } = storeToRefs(linkMateStore)
 
+const groupLinkmateLoaded = computed(() => {
+  const sid = currentSessionId.value
+  return !!sid && groupMetaStore.linkmateStateLoaded(sid)
+})
+
 const groupLinkmateEnabled = computed(() => {
   const sid = currentSessionId.value
-  if (!sid || !isGroupChat.value) return true
+  if (!sid || !isGroupChat.value) return false
   return groupMetaStore.linkmateEnabledFor(sid)
 })
 
@@ -314,13 +320,19 @@ async function onGroupLinkmateToggle(enabled: boolean) {
   }
 }
 
-// 进入群聊时预加载成员与禁言状态
+// 进入群聊时预加载成员与群资料（延后到空闲，避免阻塞首帧）
 watch(
   () => (isGroupChat.value ? currentSessionId.value : null),
-  (id) => {
-    if (id) {
+  id => {
+    if (!id) return
+    const run = () => {
       void groupMetaStore.fetchMembers(id)
       void groupMetaStore.fetchAnnouncement(id)
+    }
+    if (typeof requestIdleCallback !== 'undefined') {
+      requestIdleCallback(run, { timeout: 1000 })
+    } else {
+      window.setTimeout(run, 0)
     }
   },
   { immediate: true }
@@ -364,6 +376,25 @@ const chatMessages = computed(() => {
   return result
 })
 
+/** 群聊最新一条己方消息 id（避免每条消息组件 O(n) 扫描） */
+const latestSelfMessageId = computed(() => {
+  if (!isGroupChat.value) return ''
+  const list = currentMessages.value
+  for (let i = list.length - 1; i >= 0; i--) {
+    const m = list[i]
+    if (!m.isSelf) continue
+    if (m.type === 'time' || m.type === 'system' || m.type === 'recall') continue
+    return m.id
+  }
+  return ''
+})
+
+/** 当前会话首屏历史是否在加载（避免加载中误显示企鹅空态图） */
+const sessionMessagesLoading = computed(() => {
+  const sid = currentSessionId.value
+  return !!(sid && messagesLoading.value[sid])
+})
+
 /** 是否贴底：仅贴底时新消息才自动滚到底，避免上拉历史被拽回底部 */
 const stickToBottom = ref(true)
 const loadingMore = ref(false)
@@ -382,45 +413,46 @@ watch(
   }
 )
 
-/** 切换会话贴底完成前隐藏列表，避免从顶部闪到底部 */
-const messageEntering = ref(false)
+let sessionReadReportTimer: ReturnType<typeof setTimeout> | null = null
+let sessionScrollSaveTimer: ReturnType<typeof setTimeout> | null = null
 
-/** 每次点选会话（含重复点同一会话）都进入最新消息位置 */
+function scheduleSessionReadReport(sessionId: string) {
+  if (sessionReadReportTimer) clearTimeout(sessionReadReportTimer)
+  sessionReadReportTimer = setTimeout(() => {
+    sessionReadReportTimer = null
+    void appStore.reportSessionRead(sessionId)
+  }, 400)
+}
+
+/** 每次点选会话（含重复点同一会话）都进入最新消息位置或恢复滚动 */
 watch(sessionEnterTick, () => {
   if (!hasSession.value) return
-  // 搜索/收藏跳转优先，不要强制贴底盖掉定位
   if (pendingFocusMessageId.value) return
-  stickToBottom.value = true
   loadingMore.value = false
-  // 进会话短暂锁定上拉，避免 VirtualList 挂载在顶部时误触发 load-more 把视口钉在旧消息
-  loadMoreLockUntil = Date.now() + 500
+  loadMoreLockUntil = Date.now() + 400
   highlightAtMeId.value = null
   if (highlightAtMeTimer) {
     window.clearTimeout(highlightAtMeTimer)
     highlightAtMeTimer = 0
   }
-  messageEntering.value = true
-  const finish = () => {
-    messageEntering.value = false
-  }
-  const run = () => scrollToBottom(true)
-  nextTick(() => {
-    run()
-    requestAnimationFrame(() => {
-      run()
-      requestAnimationFrame(() => {
-        run()
-        window.setTimeout(() => {
-          run()
-          finish()
-        }, 120)
-        window.setTimeout(run, 400)
+
+  const sid = currentSessionId.value
+  if (!sid) return
+
+  void getSessionScrollTop(sid).then(savedTop => {
+    if (savedTop > 24) {
+      stickToBottom.value = false
+      nextTick(() => {
+        messageListRef.value?.setScrollTop(savedTop)
       })
-    })
+      return
+    }
+    stickToBottom.value = true
+    nextTick(() => scrollToBottom(true))
   })
 })
 
-/** 首屏历史从 loading → 完成后再强制贴底（缓存命中时 length 不变，仅靠 sessionEnterTick 可能早于列表挂载） */
+/** 首屏历史从 loading → 完成后再贴底 */
 watch(
   () => {
     const sid = currentSessionId.value
@@ -428,14 +460,7 @@ watch(
   },
   (loading, wasLoading) => {
     if (wasLoading && !loading && hasSession.value && stickToBottom.value && !pendingFocusMessageId.value) {
-      messageEntering.value = true
-      nextTick(() => {
-        scrollToBottom(true)
-        requestAnimationFrame(() => {
-          scrollToBottom(true)
-          messageEntering.value = false
-        })
-      })
+      nextTick(() => scrollToBottom(true))
     }
   }
 )
@@ -815,7 +840,7 @@ const sessionConferenceInRoom = computed(() => {
   )
 })
 
-// 切换会话 / 消息变化时同步顶栏进行中会议
+// 切换会话 / 消息变化时同步顶栏进行中会议（延后，不挡消息列表首帧）
 watch(
   [currentSessionId, () => chatMessages.value.length],
   () => {
@@ -826,7 +851,6 @@ watch(
     for (let i = msgs.length - 1; i >= 0; i--) {
       const m = msgs[i]
       if (m.type !== 'conference' || !(m.conferenceId || m.fileUrl)) continue
-      // 结束类系统文案不要当「进行中」hint；且须为数字会议 ID
       const text = m.content || ''
       if (/结束了/.test(text)) continue
       const id = String(m.conferenceId || m.fileUrl)
@@ -834,7 +858,12 @@ watch(
       hint = id
       break
     }
-    void conferenceStore.fetchSessionActive(sid, hint)
+    const run = () => void conferenceStore.fetchSessionActive(sid, hint)
+    if (typeof requestIdleCallback !== 'undefined') {
+      requestIdleCallback(run, { timeout: 1200 })
+    } else {
+      window.setTimeout(run, 0)
+    }
   },
   { immediate: true }
 )
@@ -857,18 +886,9 @@ function onMessageContentLoaded(msg: ChatMessage) {
 
 function scrollToBottom(force = false) {
   stickToBottom.value = true
-  const run = () => messageListRef.value?.scrollToBottom(force)
-  nextTick(() => {
-    run()
-    requestAnimationFrame(() => {
-      run()
-      requestAnimationFrame(run)
-    })
-  })
+  messageListRef.value?.scrollToBottom(force)
   const sid = currentSessionId.value
-  if (sid) {
-    void appStore.reportSessionRead(sid)
-  }
+  if (sid) scheduleSessionReadReport(sid)
 }
 
 /** 是否展示对话框内「有人@我」浮层 */
@@ -1034,6 +1054,14 @@ function onVirtualScroll(payload: {
       const sid = currentSessionId.value
       if (sid) void appStore.reportSessionRead(sid)
     }
+  }
+  const sid = currentSessionId.value
+  if (sid && !stickToBottom.value) {
+    if (sessionScrollSaveTimer) clearTimeout(sessionScrollSaveTimer)
+    sessionScrollSaveTimer = setTimeout(() => {
+      sessionScrollSaveTimer = null
+      void saveSessionScrollTop(sid, payload.scrollTop)
+    }, 300)
   }
   void maybeLoadOlderMessages(payload.scrollTop)
 }
@@ -1481,7 +1509,7 @@ function onDrop(e: DragEvent) {
           <div class="chat-header-title-row">
             <span class="chat-peer-name chat-peer-name--group">{{ currentSession?.name }}</span>
             <div
-              v-if="linkMateGlobalEnabled"
+              v-if="linkMateGlobalEnabled && groupLinkmateLoaded"
               class="chat-header-linkmate"
               :title="t('modals.linkmateInGroupDesc')"
             >
@@ -1577,12 +1605,10 @@ function onDrop(e: DragEvent) {
               <div
                 class="message-list-container"
                 ref="messageListContainer"
-                :class="{ 'is-entering': messageEntering }"
               >
 
                 <MessageVirtualList
                   v-if="hasSession"
-                  v-show="chatMessages.length"
                   :session-id="currentSessionId || ''"
                   ref="messageListRef"
                   :items="chatMessages"
@@ -1590,11 +1616,12 @@ function onDrop(e: DragEvent) {
                 >
                   <template #default="{ msg }">
                       <div
-                      v-memo="[msg.id, msg.content, msg.type, msg.sendStatus, msg.uploadProgress, msg.fileStatus, msg.edited, msg.readCount, msg.totalMembers, playingVoiceId === msg.id, msg.senderAvatar, msg.isSelf, highlightAtMeId === msg.id]"
+                      v-memo="[msg.id, msg.content, msg.reasoningContent, msg.streaming, msg.type, msg.sendStatus, msg.uploadProgress, msg.fileStatus, msg.edited, msg.readCount, msg.totalMembers, playingVoiceId === msg.id, msg.senderAvatar, msg.isSelf, highlightAtMeId === msg.id, latestSelfMessageId]"
                     >
                       <ChatMessageItem
                         :msg="msg"
                         :highlight="highlightAtMeId === msg.id"
+                        :show-group-read-count="isGroupChat && latestSelfMessageId === msg.id"
                         @contextmenu="onMsgContext"
                         @open-file-view="openFileView"
                         @open-chat-file="openChatFile"
@@ -1610,7 +1637,6 @@ function onDrop(e: DragEvent) {
                   </template>
                 </MessageVirtualList>
 
-                <!-- 群聊：有人@我浮层（右上角红字），点击跳转 -->
                 <button
                   v-if="showAtMeFab"
                   type="button"
@@ -1620,12 +1646,16 @@ function onDrop(e: DragEvent) {
                   {{ t('chat.someoneAtMeFab') }}
                 </button>
 
-                <!-- 未选会话：发现区（推荐位 + 活动）；已选但无消息：水印 -->
-                <DiscoverEmptyPane v-else-if="!hasSession" />
+                <div
+                  v-if="hasSession && !chatMessages.length && sessionMessagesLoading"
+                  class="messages-loading-hint"
+                  aria-busy="true"
+                />
                 <PenguinWatermark
-                  v-else-if="!chatMessages.length"
+                  v-else-if="hasSession && !chatMessages.length"
                   :hint="t('chat.emptyChat')"
                 />
+                <DiscoverEmptyPane v-else-if="!hasSession" />
               </div>
             </div>
 
@@ -1962,8 +1992,15 @@ function onDrop(e: DragEvent) {
   position: relative;
 }
 
-.message-list-container.is-entering :deep(.msg-vl) {
-  visibility: hidden;
+.messages-loading-hint {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  min-height: 120px;
 }
 
 .at-me-fab {
