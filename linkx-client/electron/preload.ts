@@ -187,7 +187,9 @@ const api = {
     if (process.platform === 'win32') return 'windows'
     if (process.platform === 'darwin') return 'macos'
     return 'linux'
-  }
+  },
+  /** 渲染进程首屏就绪后通知主进程展示窗口（避免空白灰窗） */
+  notifyWindowReady: () => ipcRenderer.send('window:content-ready')
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)

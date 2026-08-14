@@ -18,6 +18,8 @@ import {
 } from '../shared/endpoints'
 import { mainT } from './mainI18n'
 import { buildHelpPageUrl, resolveHelpPageBaseUrl } from '../shared/helpPage'
+import { registerChatDbIpc } from './registerChatDbIpc'
+import { closeChatDatabase } from './chatDb'
 
 /** 渲染进程发起的受控下载请求 */
 type DownloadFilePayload = {
@@ -201,6 +203,7 @@ const currentShortcuts = {
  * 两端格式易歧义（例如 #FFFFFF00 会被当成不透明黄）。
  */
 function windowBackgroundColor(theme: string = currentUiTheme) {
+  // 浅色须透明，圆角由 #app 的 clip-path 绘制；不透明底会导致方角灰边
   return theme === 'dark' ? 'rgba(26, 26, 26, 1)' : 'rgba(255, 255, 255, 0)'
 }
 
@@ -1963,11 +1966,10 @@ function createWindow() {
     mainWindow.show()
   }
 
-  mainWindow.once('ready-to-show', revealMainWindow)
-  // 开发态 Vite 首包较慢：ready-to-show 可能早于 JS 执行，补一次 did-finish-load 展示
-  mainWindow.webContents.once('did-finish-load', () => {
-    setTimeout(revealMainWindow, 0)
-  })
+  // Vue 登录页首帧绘制完成后再展示窗口（避免先看到 HTML 启动占位）
+  ipcMain.once('window:content-ready', revealMainWindow)
+  // 极端情况下渲染进程未回调，避免窗口永久隐藏
+  setTimeout(revealMainWindow, 8000)
 
   if (isDev && process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL)
@@ -2093,6 +2095,7 @@ app.whenReady().then(() => {
   })
 
   registerWindowIpc()
+  registerChatDbIpc()
   // 先建托盘，确保「启动到托盘 / 关窗进托盘」可用
   createTray()
   createWindow()
@@ -2113,6 +2116,7 @@ app.on('before-quit', () => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
+  closeChatDatabase()
 })
 
 app.on('window-all-closed', () => {

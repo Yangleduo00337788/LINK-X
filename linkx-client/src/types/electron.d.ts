@@ -147,6 +147,8 @@ declare global {
         body?: string
         silent?: boolean
       }) => Promise<boolean>
+      /** 渲染进程首屏绘制完成，通知主进程展示窗口 */
+      notifyWindowReady?: () => void
       /** 订阅应用内 toast 兜底 */
       onInAppToast?: (callback: (data: { title?: string; body?: string }) => void) => () => void
       /** OS 级加密存储（Token、锁屏 PIN 等敏感数据） */
@@ -155,6 +157,42 @@ declare global {
         get: (key: string) => Promise<string | null>
         set: (key: string, value: string) => Promise<boolean>
         remove: (key: string) => Promise<boolean>
+      }
+      /** 聊天消息本地 SQLite（主进程读写） */
+      chatDb?: {
+        upsertMessages: (
+          sessionId: string,
+          rows: Array<{ id: string; payload: string; createTime?: number }>
+        ) => Promise<boolean>
+        getRecent: (sessionId: string, limit?: number) => Promise<string[]>
+        getBefore: (sessionId: string, beforeId: string, limit?: number) => Promise<string[]>
+        getLastId: (sessionId: string) => Promise<string | null>
+        count: (sessionId?: string) => Promise<number>
+        getPath: () => Promise<string>
+        hasOlder: (sessionId: string, oldestId: string) => Promise<boolean>
+        getSessionMeta: (sessionId: string) => Promise<{
+          sessionId: string
+          scrollTop: number
+          lastSyncId: string | null
+          updatedAt: number
+        }>
+        setSessionMeta: (
+          sessionId: string,
+          patch: { scrollTop?: number; lastSyncId?: string | null }
+        ) => Promise<boolean>
+        clearSession: (sessionId: string) => Promise<boolean>
+        clearAll: () => Promise<boolean>
+        migrateLegacy: (map: Record<string, Array<Record<string, unknown>>>) => Promise<number>
+      }
+      /** 聊天图片磁盘缓存 */
+      chatMedia?: {
+        getPath: (messageId: string, kind?: 'thumb' | 'full') => Promise<string | null>
+        saveBytes: (payload: {
+          messageId: string
+          kind?: 'thumb' | 'full'
+          bytes: ArrayBuffer | Uint8Array
+          ext?: string
+        }) => Promise<string | null>
       }
     }
   }

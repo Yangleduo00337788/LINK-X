@@ -125,5 +125,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
     if (process.platform === 'win32') return 'windows'
     if (process.platform === 'darwin') return 'macos'
     return 'linux'
+  },
+  /** 渲染进程首屏绘制完成，通知主进程展示窗口 */
+  notifyWindowReady: () => ipcRenderer.send('window:content-ready'),
+  chatDb: {
+    upsertMessages: (sessionId, rows) => ipcRenderer.invoke('chat-db:upsert-messages', sessionId, rows),
+    getRecent: (sessionId, limit) => ipcRenderer.invoke('chat-db:get-recent', sessionId, limit),
+    getBefore: (sessionId, beforeId, limit) => ipcRenderer.invoke('chat-db:get-before', sessionId, beforeId, limit),
+    getLastId: sessionId => ipcRenderer.invoke('chat-db:get-last-id', sessionId),
+    count: sessionId => ipcRenderer.invoke('chat-db:count', sessionId),
+    getPath: () => ipcRenderer.invoke('chat-db:get-path'),
+    hasOlder: (sessionId, oldestId) => ipcRenderer.invoke('chat-db:has-older', sessionId, oldestId),
+    getSessionMeta: sessionId => ipcRenderer.invoke('chat-db:get-session-meta', sessionId),
+    setSessionMeta: (sessionId, patch) => ipcRenderer.invoke('chat-db:set-session-meta', sessionId, patch),
+    clearSession: sessionId => ipcRenderer.invoke('chat-db:clear-session', sessionId),
+    clearAll: () => ipcRenderer.invoke('chat-db:clear-all'),
+    migrateLegacy: map => ipcRenderer.invoke('chat-db:migrate-legacy', map)
+  },
+  chatMedia: {
+    getPath: (messageId, kind) => ipcRenderer.invoke('chat-media:get-path', messageId, kind),
+    saveBytes: payload => ipcRenderer.invoke('chat-media:save-bytes', payload)
   }
 })

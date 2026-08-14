@@ -77,7 +77,7 @@ export default defineConfig(({ mode, command }) => {
                   minify: mode === 'electron',
                   outDir: 'dist-electron/main',
                   rollupOptions: {
-                    external: ['electron']
+                    external: ['electron', 'sql.js']
                   }
                 }
               }
