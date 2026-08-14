@@ -18,4 +18,7 @@ public class LinkMateGroupReplyDTO {
     @NotBlank(message = "提问内容不能为空")
     @Size(max = 4000, message = "提问内容过长")
     private String question;
+
+    /** 是否开启深度思考（需模型支持） */
+    private Boolean deepThinking;
 }

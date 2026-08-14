@@ -782,6 +782,7 @@ export default {
     deepThinkingOn: '已开启深度思考',
     deepThinkingOff: '开启深度思考',
     responseDuration: '· {n}s',
+    reasoningDuration: '思考 {n}s',
     deepThinkingThinking: '灵伴正在深度思考…',
     deepThinkingReasoning: '正在深度推理…',
     deepThinkingGenerating: '正在整理回答…',

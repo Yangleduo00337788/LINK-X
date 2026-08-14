@@ -73,3 +73,25 @@ export function buildImChatContext(): LinkMateImContext | undefined {
     messages: recent
   }
 }
+
+/** 用内存中缓存的消息刷新快照（侧栏 detach 后发送前调用） */
+export function refreshSnapshotMessages(snapshot: LinkMateImContext): LinkMateImContext {
+  const app = useAppStore()
+  const sessionId = snapshot.conversationId
+  const cached = app.messagesBySession[sessionId]
+  if (!cached?.length) return snapshot
+
+  const session = app.sessions.find(s => s.id === sessionId)
+  const title = session?.name ?? snapshot.title
+  const recent = cached
+    .slice(-MAX_CONTEXT_MESSAGES)
+    .map(msg => ({
+      sender: msg.isSelf ? t('linkmate.you') : (msg.senderName || title),
+      content: chatMessagePreviewText(msg),
+      time: msg.time,
+      self: !!msg.isSelf
+    }))
+    .filter(item => item.content.trim())
+
+  return { ...snapshot, title, messages: recent }
+}

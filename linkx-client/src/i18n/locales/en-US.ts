@@ -781,6 +781,7 @@ export default {
     deepThinkingOn: 'Deep thinking enabled',
     deepThinkingOff: 'Enable deep thinking',
     responseDuration: '· {n}s',
+    reasoningDuration: 'Thought {n}s',
     deepThinkingThinking: 'LinkMate is thinking deeply…',
     deepThinkingReasoning: 'Reasoning in progress…',
     deepThinkingGenerating: 'Organizing the answer…',

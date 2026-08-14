@@ -90,7 +90,7 @@ const chatModalsStore = useChatModalsStore()
 const filesStore = useFilesStore()
 const groupMetaStore = useGroupMetaStore()
 const linkMateStore = useLinkMateStore()
-const { enabled: linkMateEnabled } = storeToRefs(linkMateStore)
+const { enabled: linkMateEnabled, deepThinking: linkMateDeepThinking, deepThinkingSupported: linkMateDeepThinkingSupported } = storeToRefs(linkMateStore)
 
 // 从 appStore 解构响应式会话与用户信息
 const { currentSession, currentSessionId, userProfile } = storeToRefs(appStore)
@@ -229,6 +229,12 @@ function unbindMentionAnchorListeners() {
   window.removeEventListener('resize', scheduleMentionAnchorSync)
   window.removeEventListener('scroll', scheduleMentionAnchorSync, true)
 }
+
+watch(currentSessionId, () => {
+  if (linkMateImStreaming.value) {
+    stopLinkMateImReply()
+  }
+})
 
 watch(showMentionPicker, (open) => {
   if (open) {
@@ -862,13 +868,20 @@ function mentionExtractLinkMateQuestion(text: string): string | null {
 }
 
 let linkMateReplyAbort: AbortController | null = null
+const linkMateImStreaming = ref(false)
+
+function stopLinkMateImReply() {
+  linkMateReplyAbort?.abort()
+}
 
 async function requestLinkMateImReply(conversationId: string, question: string) {
   linkMateReplyAbort?.abort()
   const abortController = new AbortController()
   linkMateReplyAbort = abortController
+  linkMateImStreaming.value = true
   const tempId = `temp-linkmate-${Date.now()}`
   let content = ''
+  let assistantReasoning = ''
 
   appStore.ensureStreamingLinkMateMessage(conversationId, tempId)
   emit('scrollToBottom')
@@ -878,6 +891,11 @@ async function requestLinkMateImReply(conversationId: string, question: string) 
       conversationId,
       question,
       {
+        onReasoningDelta: chunk => {
+          assistantReasoning += chunk
+          appStore.updateStreamingLinkMateReasoning(conversationId, tempId, assistantReasoning)
+          emit('scrollToBottom')
+        },
         onDelta: chunk => {
           content += chunk
           appStore.updateStreamingLinkMateMessage(conversationId, tempId, content)
@@ -892,7 +910,8 @@ async function requestLinkMateImReply(conversationId: string, question: string) 
           message.error(errMsg)
         }
       },
-      abortController.signal
+      abortController.signal,
+      linkMateDeepThinking.value && linkMateDeepThinkingSupported.value
     )
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
@@ -908,6 +927,7 @@ async function requestLinkMateImReply(conversationId: string, question: string) 
     }
     message.error(errMsg)
   } finally {
+    linkMateImStreaming.value = false
     if (linkMateReplyAbort === abortController) {
       linkMateReplyAbort = null
     }
@@ -1192,6 +1212,14 @@ defineExpose({
             </LxIconButton>
           </template>
           <LxButton
+            v-if="linkMateImStreaming"
+            variant="send"
+            @click="stopLinkMateImReply"
+          >
+            {{ t('linkmate.stop') }}
+          </LxButton>
+          <LxButton
+            v-else
             variant="send"
             :disabled="!inputValue.trim()"
             @click="send"

@@ -82,6 +82,35 @@ function formatResponseDuration(msg: LinkMateMessage): string {
   return sec < 10 ? sec.toFixed(1) : String(Math.round(sec))
 }
 
+function formatReasoningDuration(msg: LinkMateMessage): string {
+  let ms = msg.reasoningDurationMs
+  if (
+    ms == null &&
+    msg.reasoningContent?.trim() &&
+    msg.responseStartedAt &&
+    streaming.value &&
+    streamingAssistant.value?.id === msg.id &&
+    !msg.content.trim()
+  ) {
+    ms = statusNow.value - msg.responseStartedAt
+  }
+  if (ms == null || ms <= 0) return ''
+  const sec = ms / 1000
+  return sec < 10 ? sec.toFixed(1) : String(Math.round(sec))
+}
+
+function reasoningDurationLabel(msg: LinkMateMessage | null | undefined): string {
+  if (!msg) return ''
+  const duration = formatReasoningDuration(msg)
+  if (!duration) return ''
+  return t('linkmate.reasoningDuration', { n: duration })
+}
+
+function shouldShowReasoningDuration(msg: LinkMateMessage): boolean {
+  if (formatReasoningDuration(msg)) return true
+  return !!(msg.reasoningDurationMs && msg.reasoningDurationMs > 0)
+}
+
 function responseDurationLabel(msg: LinkMateMessage | null | undefined): string {
   if (!msg) return ''
   const duration = formatResponseDuration(msg)
@@ -602,10 +631,11 @@ onUnmounted(() => {
                   <span class="linkmate-status-text">{{ statusHintText }}</span>
                 </div>
                 <div
-                  v-if="shouldShowResponseDuration(msg)"
+                  v-if="shouldShowReasoningDuration(msg) || shouldShowResponseDuration(msg)"
                   class="linkmate-response-duration linkmate-response-duration--end"
                 >
-                  {{ responseDurationLabel(msg) }}
+                  <span v-if="shouldShowReasoningDuration(msg)">{{ reasoningDurationLabel(msg) }}</span>
+                  <span v-if="shouldShowResponseDuration(msg)">{{ responseDurationLabel(msg) }}</span>
                 </div>
               </div>
             </template>

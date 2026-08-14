@@ -1052,6 +1052,16 @@ export const useAppStore = defineStore('app', {
       if (msg) msg.content = content
     },
 
+    /** IM @灵伴：更新流式推理内容 */
+    updateStreamingLinkMateReasoning(
+      sessionId: string,
+      tempId: string,
+      reasoningContent: string
+    ) {
+      const msg = this.messagesBySession[sessionId]?.find(m => m.id === tempId)
+      if (msg) msg.reasoningContent = reasoningContent
+    },
+
     /** IM @灵伴：流式完成，替换为正式消息 */
     finalizeStreamingLinkMateMessage(
       sessionId: string,

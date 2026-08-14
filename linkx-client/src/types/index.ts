@@ -155,6 +155,8 @@ export interface ChatMessage {
   sendFailReason?: string
   /** 灵伴流式回复中（IM @灵伴） */
   streaming?: boolean
+  /** 灵伴深度思考推理过程（流式阶段） */
+  reasoningContent?: string
 }
 
 /** 通讯录联系人项 */

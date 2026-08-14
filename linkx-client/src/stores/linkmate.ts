@@ -4,7 +4,7 @@
 import { defineStore } from 'pinia'
 import * as linkmateApi from '../api/linkmate'
 import type { LinkMateMessage, LinkMateSession, LinkMateStatus } from '../api/linkmate'
-import { buildImChatContext, isRealImChatSession, type LinkMateImContext } from '../utils/buildImChatContext'
+import { buildImChatContext, isRealImChatSession, refreshSnapshotMessages, type LinkMateImContext } from '../utils/buildImChatContext'
 import { useAppStore } from '../stores/app'
 
 export type LinkMatePanelState = 'closed' | 'open' | 'collapsed'
@@ -117,7 +117,12 @@ export const useLinkMateStore = defineStore('linkmate', {
     },
 
     getImContextForRequest(): LinkMateImContext | undefined {
-      return this.imContextSnapshot ?? buildImChatContext()
+      const live = buildImChatContext()
+      if (live) return live
+      if (this.imContextSnapshot) {
+        return refreshSnapshotMessages(this.imContextSnapshot)
+      }
+      return undefined
     },
 
     /** 打开灵伴前退出当前 IM 会话，保证不与聊天主区同时展示 */

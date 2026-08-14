@@ -36,10 +36,16 @@ async function handleMarkdownClick(e: MouseEvent) {
 <template>
   <div class="linkmate-chat-stack">
     <div class="lx-bubble linkmate-chat-bubble" @click="handleMarkdownClick">
-      <div v-if="msg.streaming" class="linkmate-stream-text">{{ msg.content || t('linkmate.thinking') }}</div>
+      <div v-if="msg.streaming && msg.reasoningContent" class="linkmate-reasoning-stream">
+        {{ msg.reasoningContent }}
+      </div>
+      <div v-if="msg.streaming" class="linkmate-stream-text">
+        {{ msg.content || (msg.reasoningContent ? t('linkmate.deepThinkingGenerating') : t('linkmate.thinking')) }}
+        <span v-if="msg.content" class="linkmate-cursor">▍</span>
+      </div>
       <div v-else class="linkmate-md" v-html="renderedHtml" />
     </div>
-    <p class="linkmate-ai-disclaimer">{{ t('linkmate.aiDisclaimer') }}</p>
+    <p v-if="!msg.streaming" class="linkmate-ai-disclaimer">{{ t('linkmate.aiDisclaimer') }}</p>
   </div>
 </template>
 
@@ -67,6 +73,30 @@ async function handleMarkdownClick(e: MouseEvent) {
   white-space: pre-wrap;
   word-break: break-word;
   line-height: var(--lx-leading-normal);
+}
+
+.linkmate-reasoning-stream {
+  margin-bottom: 0.5em;
+  padding: 8px 10px;
+  border-radius: var(--lx-radius-md);
+  background: var(--lx-bg-hover);
+  color: var(--lx-text-secondary);
+  font-size: var(--lx-font-xs);
+  line-height: var(--lx-leading-normal);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.linkmate-cursor {
+  animation: linkmate-blink 1s step-end infinite;
+}
+
+@keyframes linkmate-blink {
+  50% {
+    opacity: 0;
+  }
 }
 
 .linkmate-md :deep(p) {

@@ -74,7 +74,8 @@ export async function streamImReply(
   conversationId: string,
   question: string,
   handlers: LinkMateImStreamHandlers,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  deepThinking = false
 ): Promise<void> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -95,7 +96,7 @@ export async function streamImReply(
   const response = await fetch(`${API_BASE_URL}/linkmate/group/reply/stream`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ conversationId, question }),
+    body: JSON.stringify({ conversationId, question, deepThinking: !!deepThinking }),
     credentials: isWebEnvironment() ? 'include' : 'omit',
     signal
   })

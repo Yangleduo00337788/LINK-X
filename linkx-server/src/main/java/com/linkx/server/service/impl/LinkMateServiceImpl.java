@@ -293,7 +293,7 @@ public class LinkMateServiceImpl implements LinkMateService {
         List<LlmMessage> context = buildImMentionLlmContext(dto.getConversationId(), userId, conversation, question);
         checkDailyLimit(userId, estimatePromptTokens(context));
 
-        LlmResult result = llmClient.chat(context, false);
+        LlmResult result = llmClient.chat(context, resolveDeepThinking(dto.getDeepThinking()));
         recordTokenUsage(userId, result.totalTokens());
         return chatService.postLinkMateImMessage(dto.getConversationId(), result.content());
     }
@@ -324,9 +324,10 @@ public class LinkMateServiceImpl implements LinkMateService {
         STREAM_EXECUTOR.execute(() -> {
             try {
                 sendSse(emitter, "start", Map.of("conversationId", String.valueOf(conversationId)));
+                boolean deepThinking = resolveDeepThinking(dto.getDeepThinking());
                 StreamResult result = llmClient.streamChat(
                         context,
-                        false,
+                        deepThinking,
                         new StreamDeltaHandlers(
                                 chunk -> {
                                     try {
@@ -575,9 +576,21 @@ public class LinkMateServiceImpl implements LinkMateService {
         // 按时间正序送入模型
         for (int i = history.size() - 1; i >= 0; i--) {
             AiChatMessage msg = history.get(i);
-            messages.add(new LlmMessage(msg.getRole(), msg.getContent()));
+            messages.add(new LlmMessage(msg.getRole(), formatHistoryMessageContent(msg)));
         }
         return messages;
+    }
+
+    private boolean resolveDeepThinking(Boolean requested) {
+        return Boolean.TRUE.equals(requested)
+                && linkxProperties.getLinkmate().isReasoningSupported();
+    }
+
+    private String formatHistoryMessageContent(AiChatMessage msg) {
+        if (!"assistant".equals(msg.getRole()) || !StringUtils.hasText(msg.getReasoningContent())) {
+            return msg.getContent();
+        }
+        return "[思考过程]\n" + msg.getReasoningContent().trim() + "\n[回答]\n" + msg.getContent();
     }
 
     private String formatImContext(LinkMateImContextDTO imContext) {
