@@ -636,15 +636,12 @@ function reportGroup() {
               <!-- 群头部：左侧头像，右侧名称/群号/分享 -->
               <div class="group-hero">
                 <GroupAvatar
-                  :text="currentSession?.avatarText || t('modals.groupChar')"
-                  :color="currentSession?.avatarColor || 'var(--lx-danger)'"
                   :size="56"
                   :image-url="currentSession?.avatarUrl"
-                  :faces="currentSession?.memberAvatars || members.slice(0, 9).map(m => ({
-                    text: m.avatarText,
-                    color: m.avatarColor,
-                    imageUrl: m.avatarUrl
-                  }))"
+                  :default-image-url="
+                    currentSession?.ownerAvatarUrl ||
+                    members.find(m => m.role === 'owner')?.avatarUrl
+                  "
                 />
                 <div class="hero-meta">
                   <h2 class="g-name">{{ currentSession?.name || t('modals.groupChat') }}</h2>

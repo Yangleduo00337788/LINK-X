@@ -270,11 +270,9 @@ function onTabChange(tab: 'friends' | 'groups') {
                 @click="openGroupSession(item)"
               >
                 <GroupAvatar
-                  :text="item.avatarText"
-                  :color="item.avatarColor"
                   :size="46"
                   :image-url="item.avatarUrl"
-                  :faces="item.memberAvatars"
+                  :default-image-url="item.ownerAvatarUrl"
                 />
                 <div class="info">
                   <span class="name">{{ item.name }}</span>

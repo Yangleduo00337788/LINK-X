@@ -34,6 +34,8 @@ const props = defineProps<{
   msg: ChatMessage
   /** 跳转到 @我 时短暂高亮 */
   highlight?: boolean
+  /** 群聊：由父级传入，避免每条消息 O(n) 判断是否为最新己方消息 */
+  showGroupReadCount?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -91,6 +93,9 @@ const sensitiveAlertText = computed(() => {
 
 /** 群聊仅在最新一条己方消息展示已读人数 */
 const isLatestSelfMessage = computed(() => {
+  if (props.showGroupReadCount != null) {
+    return props.showGroupReadCount && props.msg.isSelf && isGroupChat.value
+  }
   if (!props.msg.isSelf || !isGroupChat.value) return false
   const sessionId = props.msg.sessionId || currentSession.value?.id
   if (!sessionId) return true
@@ -148,29 +153,27 @@ const peerAvatarProps = computed(() => {
   const s = currentSession.value
   const size = 36
   if (s?.isGroup) {
-    const name = props.msg.senderName || s.avatarText || '?'
     return {
-      text: name.charAt(0),
-      color: s.avatarColor || 'var(--lx-accent)',
+      color: 'var(--lx-bg-card)',
       size,
       imageUrl: props.msg.senderAvatar || undefined,
-      icon: undefined as undefined
+      fallback: 'logo' as const
     }
   }
   return {
-    text: s?.avatarText || '?',
-    color: s?.avatarColor || 'var(--lx-accent)',
+    color: 'var(--lx-bg-card)',
     size,
     imageUrl: s?.avatarUrl,
-    icon: isMyPhone.value ? PhonePortraitOutline : undefined
+    icon: isMyPhone.value ? PhonePortraitOutline : undefined,
+    fallback: 'logo' as const
   }
 })
 
 const selfAvatarProps = computed(() => ({
-  text: t('chat.me'),
-  color: 'var(--lx-success)',
+  color: 'var(--lx-bg-card)',
   size: 36,
-  imageUrl: userProfile.value.avatar || undefined
+  imageUrl: userProfile.value.avatar || undefined,
+  fallback: 'logo' as const
 }))
 
 function onStatusClick() {

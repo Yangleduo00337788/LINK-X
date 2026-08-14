@@ -2,94 +2,114 @@
 <script setup lang="ts">
 /**
  * 通用头像组件。
- * <p>
- * 支持文字头像、图标头像、图片头像三种展示方式，
- * 可自定义尺寸与背景色。
- * </p>
+ * 无自定义头像时统一展示项目 Logo；有 URL 时加载完成后淡入（已缓存则立即展示）。
  */
-// Naive UI 图标组件
 import { NIcon } from 'naive-ui'
-// Vue 计算属性 / 响应式
 import { computed, ref, watch } from 'vue'
-// Vue 组件类型定义
 import type { Component } from 'vue'
 import { DEFAULT_AVATAR_URL } from '../utils/defaultAvatar'
 import { isDisplayableMediaUrl, normalizeMediaUrl } from '../utils/mediaUrl'
+import {
+  isAvatarImageCached,
+  markAvatarImageCached,
+  primeAvatarImageCache
+} from '../utils/avatarImageCache'
 import { useI18n } from '../i18n'
 
 useI18n()
 
-// 定义组件属性：文字、背景色、尺寸、图标、图片 URL
 const props = defineProps<{
-  text?: string // 文字头像显示的字符
-  color: string // 背景色（CSS 颜色值）
-  size?: number // 头像尺寸（像素），默认 44
-  icon?: Component // 可选图标组件
-  imageUrl?: string // 可选图片 URL，优先级高于 icon 和 text
-  /** logo：无头像时用项目 Logo；initial：用首字/图标 */
+  text?: string
+  color: string
+  size?: number
+  icon?: Component
+  imageUrl?: string
+  /** logo：无头像时用项目 Logo（默认）；initial：用首字（仅特殊场景） */
   fallback?: 'logo' | 'initial'
 }>()
 
-// 计算实际尺寸，未传入时使用默认值 44
 const size = computed(() => props.size ?? 44)
-// 根据尺寸计算文字字号（约为尺寸的 38%）
 const fontSize = computed(() => `${size.value * 0.38}px`)
 const imgFailed = ref(false)
-const useLogoFallback = computed(() => (props.fallback ?? 'logo') === 'logo' && !props.icon)
+const imgLoaded = ref(false)
 
-watch(
-  () => props.imageUrl,
-  () => {
-    imgFailed.value = false
-  }
+const effectiveFallback = computed<'logo' | 'initial'>(() => props.fallback ?? 'logo')
+
+const showInitialFallback = computed(
+  () => effectiveFallback.value === 'initial' && !!props.text && !props.icon
 )
 
-const hasCustomImage = computed(() => {
+const customImageUrl = computed(() => {
   const url = normalizeMediaUrl(props.imageUrl)
-  return !!url && isDisplayableMediaUrl(url) && !imgFailed.value
+  if (!url || !isDisplayableMediaUrl(url) || url === DEFAULT_AVATAR_URL) return ''
+  return url
 })
 
-const displayImageUrl = computed(() => {
-  if (hasCustomImage.value) return normalizeMediaUrl(props.imageUrl)
-  if (useLogoFallback.value) return DEFAULT_AVATAR_URL
-  return ''
-})
+const hasCustomImage = computed(() => !!customImageUrl.value && !imgFailed.value)
+const showLoadedImage = computed(() => hasCustomImage.value && imgLoaded.value)
 
-const showImage = computed(() => !!displayImageUrl.value)
-const isLogoDisplay = computed(() => showImage.value && !hasCustomImage.value)
+function syncImageLoadedState() {
+  imgFailed.value = false
+  const url = customImageUrl.value
+  if (!url) {
+    imgLoaded.value = false
+    return
+  }
+  imgLoaded.value = isAvatarImageCached(url) || primeAvatarImageCache(url)
+}
+
+watch(() => props.imageUrl, syncImageLoadedState, { immediate: true })
+
+function onImgLoad() {
+  imgLoaded.value = true
+  markAvatarImageCached(customImageUrl.value)
+}
 
 function onImgError() {
   imgFailed.value = true
+  imgLoaded.value = false
 }
+
+const containerBg = computed(() => {
+  if (hasCustomImage.value && showLoadedImage.value) return props.color
+  if (!hasCustomImage.value || !showLoadedImage.value) return 'var(--lx-bg-card)'
+  return props.color
+})
 </script>
 
 <template>
-  <!-- 头像容器，动态设置宽高、背景色、字号 -->
   <div
     class="avatar"
-    :class="{ 'avatar--logo': isLogoDisplay }"
     :style="{
       width: `${size}px`,
       height: `${size}px`,
-      backgroundColor: isLogoDisplay ? 'var(--lx-bg-card)' : color,
+      backgroundColor: containerBg,
       fontSize: fontSize
     }"
   >
-    <!-- 优先展示图片；无头像或加载失败时回退项目 Logo -->
+    <n-icon v-if="icon && !showLoadedImage" :component="icon" :size="size * 0.45" />
+    <template v-else-if="showInitialFallback && !showLoadedImage">{{ text }}</template>
+
     <img
-      v-if="showImage"
-      :src="displayImageUrl"
+      v-if="!hasCustomImage || !showLoadedImage"
+      :src="DEFAULT_AVATAR_URL"
       alt=""
-      class="avatar-img"
-      :class="{ 'avatar-img--logo': isLogoDisplay }"
+      class="avatar-img avatar-img--logo"
       decoding="async"
       referrerpolicy="no-referrer"
+    />
+
+    <img
+      v-if="hasCustomImage"
+      :src="customImageUrl"
+      alt=""
+      class="avatar-img"
+      :class="{ 'avatar-img--loaded': showLoadedImage }"
+      decoding="async"
+      referrerpolicy="no-referrer"
+      @load="onImgLoad"
       @error="onImgError"
     />
-    <!-- 其次展示图标 -->
-    <n-icon v-else-if="icon" :component="icon" :size="size * 0.45" />
-    <!-- 最后展示文字 -->
-    <template v-else>{{ text }}</template>
   </div>
 </template>
 
@@ -103,13 +123,23 @@ function onImgError() {
   font-weight: 500;
   flex-shrink: 0;
   overflow: hidden;
+  position: relative;
 }
 
 .avatar-img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.avatar-img--loaded,
+.avatar-img--logo {
+  opacity: 1;
 }
 
 .avatar-img--logo {

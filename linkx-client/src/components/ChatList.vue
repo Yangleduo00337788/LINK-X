@@ -73,17 +73,6 @@ const contextMenuY = ref(0)
 onMounted(() => {
   void fetchMessageNotifications()
   void calendarStore.ensureReminderWatch()
-  try {
-    if (localStorage.getItem(LINKMATE_INTRO_KEY) !== '1') {
-      void nextTick().then(() => {
-        window.setTimeout(() => {
-          showLinkMateIntro.value = true
-        }, 800)
-      })
-    }
-  } catch {
-    /* ignore */
-  }
 })
 
 function dismissLinkMateIntro() {
@@ -96,7 +85,19 @@ function dismissLinkMateIntro() {
 }
 
 function openLinkMate() {
+  try {
+    if (localStorage.getItem(LINKMATE_INTRO_KEY) !== '1') {
+      showLinkMateIntro.value = true
+      return
+    }
+  } catch {
+    /* ignore */
+  }
   dismissLinkMateIntro()
+  openLinkMatePanel()
+}
+
+function openLinkMatePanel() {
   if (appStore.navKey !== 'chat') {
     appStore.setNav('chat')
   }
@@ -301,7 +302,16 @@ function onContextMenuSelect(key: string) {
           </template>
           <div class="linkmate-intro-pop">
             <p class="linkmate-intro-text">{{ t('linkmate.introHint') }}</p>
-            <button type="button" class="linkmate-intro-ok" @click="dismissLinkMateIntro">
+            <button
+              type="button"
+              class="linkmate-intro-ok"
+              @click="
+                () => {
+                  dismissLinkMateIntro()
+                  openLinkMatePanel()
+                }
+              "
+            >
               {{ t('linkmate.introOk') }}
             </button>
           </div>
@@ -360,15 +370,12 @@ function onContextMenuSelect(key: string) {
               <div class="avatar-wrapper">
                 <GroupAvatar
                   v-if="session.isGroup"
-                  :text="session.avatarText"
-                  :color="session.avatarColor"
                   :size="44"
                   :image-url="session.avatarUrl"
-                  :faces="session.memberAvatars"
+                  :default-image-url="session.ownerAvatarUrl"
                 />
                 <Avatar
                   v-else
-                  :text="session.avatarText"
                   :color="session.avatarColor"
                   :size="44"
                   :image-url="session.avatarUrl"

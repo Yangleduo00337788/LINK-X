@@ -46,7 +46,7 @@ export function resolveUserAvatarUrl(
 
   const normalized = normalizeMediaUrl(url)
   if (normalized && isDisplayableMediaUrl(normalized)) return normalized
-  return DEFAULT_AVATAR_URL
+  return ''
 }
 
 /**
