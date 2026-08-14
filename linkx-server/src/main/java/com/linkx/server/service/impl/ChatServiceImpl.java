@@ -259,9 +259,22 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
-    public List<MessageVO> listMessages(Long userId, Long conversationId, Long beforeMessageId, int limit) {
+    public List<MessageVO> listMessages(Long userId, Long conversationId, Long beforeMessageId, Long afterMessageId, int limit) {
         assertConversationMember(userId, conversationId);
         int pageSize = limit <= 0 ? DEFAULT_MESSAGE_LIMIT : Math.min(limit, MAX_MESSAGE_LIMIT);
+
+        if (afterMessageId != null) {
+            QueryWrapper query = QueryWrapper.create()
+                    .where(ImMessage::getConversationId).eq(conversationId)
+                    .and(ImMessage::getId).gt(afterMessageId)
+                    .orderBy(ImMessage::getId, true)
+                    .limit(pageSize);
+            List<ImMessage> messages = imMessageRepository.selectListByQuery(query);
+            if (messages.isEmpty()) {
+                return List.of();
+            }
+            return buildMessageVoList(userId, conversationId, messages);
+        }
 
         // 雪花 ID 单调递增：用 id 游标避免同秒 create_time 导致漏页/重页
         QueryWrapper query = QueryWrapper.create()
@@ -279,6 +292,10 @@ public class ChatServiceImpl implements ChatService {
         }
 
         messages.sort(Comparator.comparing(ImMessage::getId));
+        return buildMessageVoList(userId, conversationId, messages);
+    }
+
+    private List<MessageVO> buildMessageVoList(Long userId, Long conversationId, List<ImMessage> messages) {
         Set<Long> senderIds = messages.stream().map(ImMessage::getSenderId).collect(Collectors.toSet());
         Map<Long, SysUser> senderMap = sysUserMapper.selectListByQuery(
                 QueryWrapper.create().where(SysUser::getId).in(senderIds)

@@ -72,11 +72,16 @@ public class ChatController {
     public Result<List<MessageVO>> listMessages(
             @PathVariable String conversationId,
             @RequestParam(required = false) String before,
+            @RequestParam(required = false) String after,
             @RequestParam(defaultValue = "50") @Min(value = 1, message = "limit 必须 ≥1") @Max(value = 100, message = "limit 必须 ≤100") int limit,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         Long beforeId = before != null && !before.isBlank() ? parseId(before) : null;
-        return Result.success(chatService.listMessages(userId, parseId(conversationId), beforeId, limit));
+        Long afterId = after != null && !after.isBlank() ? parseId(after) : null;
+        if (beforeId != null && afterId != null) {
+            return Result.error(400, "before 与 after 不能同时使用");
+        }
+        return Result.success(chatService.listMessages(userId, parseId(conversationId), beforeId, afterId, limit));
     }
 
     @Operation(summary = "上传聊天附件")

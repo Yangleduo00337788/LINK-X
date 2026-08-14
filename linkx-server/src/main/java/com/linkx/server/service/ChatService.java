@@ -19,7 +19,7 @@ public interface ChatService {
 
     ConversationVO getOrCreatePrivateConversation(Long userId, Long friendId);
 
-    List<MessageVO> listMessages(Long userId, Long conversationId, Long beforeMessageId, int limit);
+    List<MessageVO> listMessages(Long userId, Long conversationId, Long beforeMessageId, Long afterMessageId, int limit);
 
     MessageVO sendMessage(Long userId, SendMessageDTO dto);
 
