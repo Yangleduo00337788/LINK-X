@@ -7,6 +7,36 @@ import type { LinkMateMessage, LinkMateSession, LinkMateStatus } from '../api/li
 
 export type LinkMatePanelState = 'closed' | 'open' | 'collapsed'
 
+const PANEL_WIDTH_STORAGE_KEY = 'linkx-linkmate-panel-width'
+export const LINKMATE_PANEL_WIDTH_MIN = 280
+export const LINKMATE_PANEL_WIDTH_MAX = 640
+export const LINKMATE_PANEL_WIDTH_DEFAULT = 380
+
+function clampPanelWidth(width: number): number {
+  return Math.min(LINKMATE_PANEL_WIDTH_MAX, Math.max(LINKMATE_PANEL_WIDTH_MIN, width))
+}
+
+function loadPanelWidth(): number {
+  try {
+    const raw = localStorage.getItem(PANEL_WIDTH_STORAGE_KEY)
+    const parsed = raw ? Number(raw) : NaN
+    if (Number.isFinite(parsed)) {
+      return clampPanelWidth(parsed)
+    }
+  } catch {
+    /* ignore */
+  }
+  return LINKMATE_PANEL_WIDTH_DEFAULT
+}
+
+function persistPanelWidth(width: number) {
+  try {
+    localStorage.setItem(PANEL_WIDTH_STORAGE_KEY, String(width))
+  } catch {
+    /* ignore */
+  }
+}
+
 export const useLinkMateStore = defineStore('linkmate', {
   state: () => ({
     status: null as LinkMateStatus | null,
@@ -19,7 +49,9 @@ export const useLinkMateStore = defineStore('linkmate', {
     streamAbort: null as AbortController | null,
     inputDraft: '',
     /** 右侧对话面板：closed 未打开 / open 展开 / collapsed 已折叠（侧栏可恢复） */
-    panelState: 'closed' as LinkMatePanelState
+    panelState: 'closed' as LinkMatePanelState,
+    /** 侧栏宽度（px），持久化至 localStorage */
+    panelWidth: loadPanelWidth()
   }),
 
   getters: {
@@ -56,6 +88,12 @@ export const useLinkMateStore = defineStore('linkmate', {
       if (this.panelState === 'collapsed') {
         this.panelState = 'open'
       }
+    },
+
+    setPanelWidth(width: number) {
+      const next = clampPanelWidth(width)
+      this.panelWidth = next
+      persistPanelWidth(next)
     },
 
     async ensurePanelReady() {

@@ -774,7 +774,10 @@ export default {
     dialogTitle: 'LinkMate',
     collapsePanel: 'Collapse LinkMate',
     expandPanel: 'Expand LinkMate',
-    chatHint: 'Ask me anything'
+    chatHint: 'Ask me anything',
+    thinking: 'LinkMate is thinking…',
+    generating: 'Generating response…',
+    resizePanel: 'Drag to resize width'
   },
   nav: {
     chat: 'Chats',

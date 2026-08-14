@@ -4,14 +4,15 @@
  * 灵伴右侧内嵌对话面板（消息页主内容区右缘）。
  * <p>
  * 由聊天列表 AI 按钮打开；左侧中部折叠按钮可收起，
- * 收起后可在左侧导航栏底部恢复。
+ * 收起后可在左侧导航栏底部恢复。左缘可拖拽调整宽度。
  * </p>
  */
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { NInput, NIcon, useMessage } from 'naive-ui'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { NInput, NIcon, NSpin, useMessage } from 'naive-ui'
 import { ChevronForwardOutline } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useLinkMateStore } from '../stores/linkmate'
+import type { LinkMateMessage } from '../api/linkmate'
 import { useI18n } from '../i18n'
 import LinkMateLogoMark from './LinkMateLogoMark.vue'
 
@@ -24,14 +25,44 @@ const {
   streaming,
   inputDraft,
   enabled,
-  status
+  status,
+  panelWidth
 } = storeToRefs(linkMate)
 
 const inputRef = ref<InstanceType<typeof NInput> | null>(null)
 const messageListRef = ref<HTMLElement | null>(null)
 const booted = ref(false)
+const isResizing = ref(false)
+const resizeStartX = ref(0)
+const resizeStartWidth = ref(0)
+
+const panelStyle = computed(() => ({ width: `${panelWidth.value}px` }))
 
 const canChat = computed(() => enabled.value)
+
+const streamingAssistant = computed(() => {
+  if (!streaming.value) return null
+  const last = activeMessages.value.at(-1)
+  if (!last || last.role !== 'assistant' || !last.id.startsWith('temp-assistant')) return null
+  return last
+})
+
+const showThinking = computed(
+  () => !!streamingAssistant.value && !streamingAssistant.value.content.trim()
+)
+
+const showGeneratingHint = computed(
+  () => !!streamingAssistant.value && !!streamingAssistant.value.content.trim()
+)
+
+function isThinkingMessage(msg: LinkMateMessage) {
+  return (
+    streaming.value &&
+    msg.role === 'assistant' &&
+    msg.id.startsWith('temp-assistant') &&
+    !msg.content.trim()
+  )
+}
 
 function collapse() {
   linkMate.collapsePanel()
@@ -45,6 +76,30 @@ async function ensureReady() {
 function scrollToBottom() {
   const el = messageListRef.value
   if (el) el.scrollTop = el.scrollHeight
+}
+
+function startResize(e: MouseEvent) {
+  isResizing.value = true
+  resizeStartX.value = e.clientX
+  resizeStartWidth.value = panelWidth.value
+  document.addEventListener('mousemove', onResize)
+  document.addEventListener('mouseup', stopResize)
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+}
+
+function onResize(e: MouseEvent) {
+  if (!isResizing.value) return
+  const delta = resizeStartX.value - e.clientX
+  linkMate.setPanelWidth(resizeStartWidth.value + delta)
+}
+
+function stopResize() {
+  isResizing.value = false
+  document.removeEventListener('mousemove', onResize)
+  document.removeEventListener('mouseup', stopResize)
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
 }
 
 async function handleSend() {
@@ -83,16 +138,34 @@ watch(
   }
 )
 
+watch(showThinking, async visible => {
+  if (visible) {
+    await nextTick()
+    scrollToBottom()
+  }
+})
+
 onMounted(async () => {
   await ensureReady()
   await nextTick()
   scrollToBottom()
   inputRef.value?.focus()
 })
+
+onUnmounted(() => {
+  stopResize()
+})
 </script>
 
 <template>
-  <aside class="linkmate-side">
+  <aside class="linkmate-side" :style="panelStyle">
+    <div
+      class="linkmate-resizer"
+      :class="{ dragging: isResizing }"
+      :title="t('linkmate.resizePanel')"
+      @mousedown="startResize"
+    />
+
     <div class="collapse-hover-zone" aria-hidden="true" />
     <button
       type="button"
@@ -127,24 +200,34 @@ onMounted(async () => {
             {{ t('linkmate.chatHint') }}
           </div>
           <template v-else>
-            <div
-              v-for="msg in activeMessages"
-              :key="msg.id"
-              class="linkmate-side-msg"
-              :class="msg.role === 'user' ? 'is-user' : 'is-assistant'"
-            >
-              <div class="linkmate-side-msg-content">
-                {{ msg.content }}
-                <span
-                  v-if="streaming && msg.id.startsWith('temp-assistant')"
-                  class="linkmate-cursor"
-                >▍</span>
+            <template v-for="msg in activeMessages" :key="msg.id">
+              <div v-if="msg.role === 'user'" class="linkmate-side-msg is-user">
+                <div class="linkmate-side-msg-content">
+                  {{ msg.content }}
+                </div>
               </div>
-            </div>
+              <div v-else-if="isThinkingMessage(msg)" class="linkmate-status-hint">
+                <NSpin :size="16" />
+                <span>{{ t('linkmate.thinking') }}</span>
+              </div>
+              <div v-else-if="msg.content" class="linkmate-side-msg is-assistant">
+                <div class="linkmate-side-msg-content">
+                  {{ msg.content }}
+                  <span
+                    v-if="streaming && msg.id.startsWith('temp-assistant')"
+                    class="linkmate-cursor"
+                  >▍</span>
+                </div>
+              </div>
+            </template>
           </template>
         </div>
 
         <footer class="linkmate-side-footer">
+          <div v-if="showGeneratingHint" class="linkmate-generating-hint">
+            <NSpin :size="14" />
+            <span>{{ t('linkmate.generating') }}</span>
+          </div>
           <div class="linkmate-side-input-row">
             <div class="linkmate-side-input-wrap">
               <NInput
@@ -184,7 +267,6 @@ onMounted(async () => {
 <style scoped>
 .linkmate-side {
   position: relative;
-  width: 380px;
   flex-shrink: 0;
   height: 100%;
   background: var(--lx-bg-panel);
@@ -195,12 +277,38 @@ onMounted(async () => {
 }
 
 .linkmate-side-body {
-  width: 380px;
+  width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   background: var(--lx-bg-panel);
+}
+
+.linkmate-resizer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: var(--lx-z-dropdown);
+  transition: background var(--lx-duration-md);
+}
+
+.linkmate-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  right: -3px;
+  cursor: col-resize;
+}
+
+.linkmate-resizer:hover,
+.linkmate-resizer.dragging {
+  background: var(--lx-separator-fade, rgba(0, 0, 0, 0.06));
 }
 
 .collapse-hover-zone {
@@ -266,7 +374,7 @@ onMounted(async () => {
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   background: var(--lx-bg-panel);
 }
 
@@ -281,35 +389,53 @@ onMounted(async () => {
   padding: 24px;
 }
 
-.linkmate-side-msg {
+.linkmate-side-msg.is-user {
+  align-self: flex-end;
   max-width: 88%;
 }
 
-.linkmate-side-msg.is-user {
-  align-self: flex-end;
-}
-
 .linkmate-side-msg.is-assistant {
-  align-self: flex-start;
+  align-self: stretch;
+  max-width: 100%;
 }
 
 .linkmate-side-msg-content {
-  padding: 8px 12px;
-  border-radius: var(--lx-radius-lg);
-  font-size: 13px;
-  line-height: 1.5;
   word-break: break-word;
   white-space: pre-wrap;
 }
 
 .linkmate-side-msg.is-user .linkmate-side-msg-content {
+  padding: 8px 12px;
+  border-radius: var(--lx-radius-lg);
+  font-size: 13px;
+  line-height: 1.5;
   background: var(--lx-accent);
   color: #fff;
 }
 
 .linkmate-side-msg.is-assistant .linkmate-side-msg-content {
-  background: var(--lx-bg-soft);
+  padding: 2px 0;
+  font-size: 14px;
+  line-height: 1.65;
   color: var(--lx-text-primary);
+}
+
+.linkmate-status-hint,
+.linkmate-generating-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--lx-text-secondary);
+  font-size: 13px;
+}
+
+.linkmate-status-hint {
+  align-self: flex-start;
+  padding: 4px 0;
+}
+
+.linkmate-generating-hint {
+  margin-bottom: 8px;
 }
 
 .linkmate-cursor {

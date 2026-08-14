@@ -775,7 +775,10 @@ export default {
     dialogTitle: '灵伴 LinkMate',
     collapsePanel: '收起灵伴',
     expandPanel: '展开灵伴',
-    chatHint: '有什么想聊的？'
+    chatHint: '有什么想聊的？',
+    thinking: '灵伴正在思考…',
+    generating: '正在生成回答…',
+    resizePanel: '拖动调整宽度'
   },
   nav: {
     chat: '消息',
