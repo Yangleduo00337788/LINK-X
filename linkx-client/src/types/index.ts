@@ -57,8 +57,12 @@ export interface ChatSession {
   /** 对方最后在线时间戳（客户端 presence 离线时记录） */
   lastSeenAt?: number
   avatarUrl?: string      // 远程头像 URL（单聊或自定义群头像）
-  /** 群成员头像拼图（群聊默认头像） */
-  memberAvatars?: Array<{ text: string; color?: string; imageUrl?: string }>
+  /** 群主用户 ID（群聊默认头像用） */
+  ownerUserId?: string
+  /** 群主头像 URL（无自定义群头像时展示） */
+  ownerAvatarUrl?: string
+  /** @deprecated 群成员拼图已废弃，保留兼容旧缓存 */
+  memberAvatars?: Array<{ text: string; color?: string; imageUrl?: string; userId?: string }>
   /** 单聊对方用户 ID */
   peerUserId?: string
   /** 是否为后端真实会话（非 Mock） */

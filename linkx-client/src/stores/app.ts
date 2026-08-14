@@ -53,6 +53,18 @@ import type { MessageItem } from '../types/chat'
 import { resolveUserAvatarUrl } from '../utils/defaultAvatar'
 import { isLinkMateBotSender } from '../utils/linkmateLogo'
 import { normalizeMediaUrl } from '../utils/mediaUrl'
+import {
+  clearLocalChatDb,
+  getLastSyncMessageId,
+  hasOlderLocal,
+  isChatLocalDbEnabled,
+  loadOlderMessagesLocal,
+  loadRecentMessages,
+  migrateLegacySessionStorageIfNeeded,
+  persistMessage,
+  persistMessages,
+  trimHotMessages
+} from '../services/chatMessageStore'
 
 let reportSessionReadTimer: ReturnType<typeof setTimeout> | null = null
 const sessionMessagesLoadTasks = new Map<string, Promise<void>>()
@@ -78,8 +90,9 @@ import { useGroupMetaStore } from './groupMeta'
 // 主题同步到 document 与 Electron 主进程
 import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
 // 持久化前清理敏感或过大字段
-import { sanitizeAppPersistState } from '../utils/persistSanitize'
-import { useAppSettingsStore } from './appSettings'
+import { sanitizeAppPersistState, rehydrateSessionAvatar } from '../utils/persistSanitize'
+import { debouncedSessionStorage } from '../utils/debouncedStorage'
+import { primeAvatarImageCache } from '../utils/avatarImageCache'
 // 登出时重置其它 UI Store
 import { resetSessionUi, resetSessionStores, cleanupNaiveUiOverlays } from '../utils/resetSessionUi'
 import { useNotificationsStore } from './notifications'
@@ -405,22 +418,31 @@ export const useAppStore = defineStore('app', {
       if (!this.messagesBySession[session.id]) {
         this.messagesBySession[session.id] = []
       }
+      // 本地已有历史缓存时直接展示，避免重复拉取导致 loading 卡顿
+      const cachedCount = this.messagesBySession[session.id]?.length ?? 0
+      if (cachedCount > 0 && !this.messagesLoaded[session.id]) {
+        this.messagesLoaded[session.id] = true
+      }
 
       // 有未读 @：进会话后保留提示，需点浮层确认，避免贴底后「只剩普通消息」
       if (hadAtMe && s) {
         const needRecover = !s.atMeMessageId
         if (session.isReal) {
-          void this.loadSessionMessages(session.id).then(() => {
-            if (needRecover) this.recoverAtMeMessageId(session.id)
-            void this.reportSessionRead(session.id, { immediate: true })
-          })
+          void this.hydrateSessionFromLocalDb(session.id).then(() =>
+            this.loadSessionMessages(session.id).then(() => {
+              if (needRecover) this.recoverAtMeMessageId(session.id)
+              void this.reportSessionRead(session.id, { immediate: true })
+            })
+          )
         } else if (needRecover) {
           this.recoverAtMeMessageId(session.id)
         }
       } else if (session.isReal) {
-        void this.loadSessionMessages(session.id).then(() => {
-          void this.reportSessionRead(session.id, { immediate: true })
-        })
+        void this.hydrateSessionFromLocalDb(session.id).then(() =>
+          this.loadSessionMessages(session.id).then(() => {
+            void this.reportSessionRead(session.id, { immediate: true })
+          })
+        )
       }
       if (session.isReal) {
         void this.loadSessionDraft(session.id)
@@ -594,30 +616,7 @@ export const useAppStore = defineStore('app', {
 
         if (res.code === 200 && res.data) {
           const groupConv = res.data
-          const memberAvatars = (groupConv.memberAvatars || []).slice(0, 9).map(m => {
-            const nick = m.nickname || '?'
-            return {
-              text: nick.charAt(0) || '?',
-              color: pickGroupColor(nick),
-              imageUrl: normalizeMediaUrl(m.avatar) || undefined
-            }
-          })
-          // 创建时后端可能尚未返回拼图数据，用本地已选成员兜底
-          const faces =
-            memberAvatars.length > 0
-              ? memberAvatars
-              : [
-                  {
-                    text: this.userProfile.nickname?.charAt(0) || t('defaults.me'),
-                    color: pickGroupColor(this.userProfile.nickname || 'me'),
-                    imageUrl: this.userProfile.avatar || undefined
-                  },
-                  ...members.slice(0, 8).map(m => ({
-                    text: m.name.charAt(0) || '?',
-                    color: pickGroupColor(m.name),
-                    imageUrl: m.avatarUrl
-                  }))
-                ]
+          const ownerId = String(this.userProfile.userId || groupConv.ownerId || '')
           const session: ChatSession = {
             id: String(groupConv.id),
             name: groupConv.name || name,
@@ -627,7 +626,10 @@ export const useAppStore = defineStore('app', {
             avatarText: (groupConv.name || name).charAt(0) || t('defaults.groupChar'),
             avatarColor: pickGroupColor(groupConv.name || name),
             avatarUrl: normalizeMediaUrl(groupConv.avatar) || undefined,
-            memberAvatars: faces,
+            ownerUserId: ownerId || undefined,
+            ownerAvatarUrl: ownerId
+              ? resolveUserAvatarUrl(this.userProfile.avatar, ownerId) || undefined
+              : undefined,
             isGroup: true,
             isReal: true
           }
@@ -681,6 +683,15 @@ export const useAppStore = defineStore('app', {
     /** 登录后拉取好友、通知与聊天会话，并连接 WebSocket */
     async loadSocialData() {
       this.isOffline = false
+      await migrateLegacySessionStorageIfNeeded()
+      if (isChatLocalDbEnabled()) {
+        try {
+          const dbPath = await window.electronAPI?.chatDb?.getPath?.()
+          if (dbPath) console.info('[chatDb] 本地消息库:', dbPath)
+        } catch {
+          /* ignore */
+        }
+      }
       // 立刻建连：会话列表可能来自本地缓存，用户可马上操作；不能等偏好/好友接口结束才连 WS
       void this.connectChatWebSocket()
 
@@ -714,6 +725,7 @@ export const useAppStore = defineStore('app', {
         // 确保登录后不自动选中任何会话
         this.currentSessionId = null
         await this.loadChatSessions()
+        this.prefetchTopSessionMessages()
         // 刷新后若仍在会中，提示重新加入
         const uid = String(this.userProfile.userId || '')
         if (uid) {
@@ -792,9 +804,109 @@ export const useAppStore = defineStore('app', {
       }
     },
 
+    /** 登录后空闲时预拉最近会话历史，减轻首次点进卡顿 */
+    prefetchTopSessionMessages(limit = 5) {
+      const run = () => {
+        const targets = this.sortedSessions
+          .filter(s => s.isReal && !this.messagesLoaded[s.id])
+          .slice(0, limit)
+        for (const s of targets) {
+          void this.loadSessionMessages(s.id)
+        }
+      }
+      if (typeof requestIdleCallback !== 'undefined') {
+        requestIdleCallback(run, { timeout: 2500 })
+      } else {
+        window.setTimeout(run, 800)
+      }
+    },
+
+    /** 从本地 SQLite 水合会话热数据（毫秒级展示） */
+    async hydrateSessionFromLocalDb(sessionId: string): Promise<boolean> {
+      if (!isChatLocalDbEnabled()) return false
+      const local = await loadRecentMessages(sessionId)
+      if (!local.length) return false
+      this.messagesBySession[sessionId] = trimHotMessages(local)
+      this.messagesLoaded[sessionId] = true
+      const oldest = local[0]
+      this.messagesHasMore[sessionId] = oldest ? await hasOlderLocal(sessionId, oldest.id) : false
+      return true
+    },
+
+    /** 增量同步：after 游标拉取新消息并落盘 */
+    async syncSessionMessagesIncremental(sessionId: string) {
+      const afterId = await getLastSyncMessageId(sessionId)
+      if (afterId && /^\d+$/.test(afterId)) {
+        try {
+          const res = await chatApi.listMessages(sessionId, { after: afterId, limit: 50 })
+          if (res.code === 200 && res.data?.length) {
+            const incoming = res.data.map(m => messageToChatMessage(m, sessionId))
+            const existing = this.messagesBySession[sessionId] || []
+            const ids = new Set(existing.map(m => m.id))
+            const unique = incoming.filter(m => !ids.has(m.id))
+            if (unique.length) {
+              const merged = [...existing, ...unique]
+              merged.sort(compareMessageOrder)
+              enrichMessageReplyQuotes(merged)
+              this.messagesBySession[sessionId] = trimHotMessages(merged)
+              await persistMessages(sessionId, unique)
+            }
+          }
+        } catch (e) {
+          console.warn('[syncSessionMessagesIncremental]', sessionId, e)
+        }
+        return
+      }
+
+      const res = await chatApi.listMessages(sessionId)
+      if (res.code !== 200 || !res.data) return
+
+      const serverMessages = res.data.map(m => messageToChatMessage(m, sessionId))
+      const localMessages = this.messagesBySession[sessionId] || []
+      const serverIds = new Set(serverMessages.map(m => m.id))
+      const localOnlyMessages = localMessages.filter(m => !serverIds.has(m.id))
+      const merged = [...serverMessages, ...localOnlyMessages]
+      merged.sort(compareMessageOrder)
+      enrichMessageReplyQuotes(merged)
+
+      const session = this.sessions.find(s => s.id === sessionId)
+      if (session?.isGroup) {
+        const members = useGroupMetaStore().membersFor(sessionId)
+        if (members.length) {
+          this.enrichGroupSelfMessageReadMeta(sessionId, members.length)
+        }
+      }
+
+      this.messagesBySession[sessionId] = trimHotMessages(merged)
+      this.messagesLoaded[sessionId] = true
+      this.messagesHasMore[sessionId] = res.data.length >= 50
+      await persistMessages(sessionId, merged)
+      this.ackHistoryDeliveries(sessionId, serverMessages)
+
+      for (let i = merged.length - 1; i >= 0; i--) {
+        const m = merged[i]
+        if (m.type === 'conference' && (m.conferenceId || m.fileUrl)) {
+          void import('./conference').then(({ useConferenceStore }) => {
+            useConferenceStore().noteConferenceInviteMessage({
+              conversationId: sessionId,
+              conferenceId: String(m.conferenceId || m.fileUrl),
+              title: m.conferenceTitle || m.fileName,
+              type: m.conferenceType,
+              scene: m.conferenceScene,
+              hasPassword: !!m.conferenceHasPassword
+            })
+          })
+          break
+        }
+      }
+    },
+
     /** 拉取指定会话的历史消息（首屏） */
     async loadSessionMessages(sessionId: string) {
-      if (this.messagesLoaded[sessionId]) return
+      if (this.messagesLoaded[sessionId]) {
+        void this.syncSessionMessagesIncremental(sessionId)
+        return
+      }
       const pending = sessionMessagesLoadTasks.get(sessionId)
       if (pending) {
         await pending
@@ -803,67 +915,13 @@ export const useAppStore = defineStore('app', {
 
       const task = (async () => {
         if (this.messagesLoaded[sessionId]) return
-        this.messagesLoading[sessionId] = true
+        await this.hydrateSessionFromLocalDb(sessionId)
+        const needsNetwork = !this.messagesLoaded[sessionId]
+        if (needsNetwork) {
+          this.messagesLoading[sessionId] = true
+        }
         try {
-          const res = await chatApi.listMessages(sessionId)
-          if (res.code === 200 && res.data) {
-            const serverMessages = res.data.map(m => messageToChatMessage(m, sessionId))
-
-            // 获取本地已有的消息（可能是用户刚发的乐观消息，还没收到 ack）
-            const localMessages = this.messagesBySession[sessionId] || []
-
-            // 合并逻辑：
-            // 1. 用 Set 记录服务端消息 ID（都是数字格式）
-            // 2. 保留本地不在服务端列表中的消息（乐观消息的 ID 是 UUID 格式）
-            // 3. 合并后按时间排序
-            const serverIds = new Set(serverMessages.map(m => m.id))
-            const localOnlyMessages = localMessages.filter(m => !serverIds.has(m.id))
-
-            // 合并：服务端消息 + 本地乐观消息；按雪花 id 升序（与后端游标一致）
-            const merged = [...serverMessages, ...localOnlyMessages]
-            merged.sort(compareMessageOrder)
-            enrichMessageReplyQuotes(merged)
-
-            const session = this.sessions.find(s => s.id === sessionId)
-            if (session?.isGroup) {
-              const members = useGroupMetaStore().membersFor(sessionId)
-              if (members.length) {
-                this.enrichGroupSelfMessageReadMeta(sessionId, members.length)
-              }
-            }
-
-            console.log('[loadSessionMessages]', {
-              sessionId,
-              serverCount: serverMessages.length,
-              localCount: localMessages.length,
-              localOnlyCount: localOnlyMessages.length,
-              mergedCount: merged.length,
-              currentSessionId: this.currentSessionId
-            })
-
-            this.messagesBySession[sessionId] = merged
-            this.messagesLoaded[sessionId] = true
-            this.messagesHasMore[sessionId] = res.data.length >= 50
-            this.ackHistoryDeliveries(sessionId, serverMessages)
-
-            // 历史里若有会议邀请，同步聊天顶栏进行中状态
-            for (let i = merged.length - 1; i >= 0; i--) {
-              const m = merged[i]
-              if (m.type === 'conference' && (m.conferenceId || m.fileUrl)) {
-                void import('./conference').then(({ useConferenceStore }) => {
-                  useConferenceStore().noteConferenceInviteMessage({
-                    conversationId: sessionId,
-                    conferenceId: String(m.conferenceId || m.fileUrl),
-                    title: m.conferenceTitle || m.fileName,
-                    type: m.conferenceType,
-                    scene: m.conferenceScene,
-                    hasPassword: !!m.conferenceHasPassword
-                  })
-                })
-                break
-              }
-            }
-          }
+          await this.syncSessionMessagesIncremental(sessionId)
         } catch (e) {
           console.error('加载历史消息失败:', e)
         } finally {
@@ -889,7 +947,25 @@ export const useAppStore = defineStore('app', {
 
       this.messagesLoading[sessionId] = true
       try {
-        const res = await chatApi.listMessages(sessionId, oldestId)
+        if (isChatLocalDbEnabled()) {
+          const olderLocal = await loadOlderMessagesLocal(sessionId, oldestId, 50)
+          if (olderLocal.length) {
+            const existingIds = new Set(existing.map(m => m.id))
+            const unique = olderLocal.filter(m => !existingIds.has(m.id))
+            if (unique.length) {
+              const combined = [...unique, ...existing]
+              enrichMessageReplyQuotes(combined)
+              this.messagesBySession[sessionId] = combined
+            }
+            const newOldest = this.messagesBySession[sessionId][0]
+            this.messagesHasMore[sessionId] = newOldest
+              ? await hasOlderLocal(sessionId, newOldest.id)
+              : false
+            return
+          }
+        }
+
+        const res = await chatApi.listMessages(sessionId, { before: oldestId })
         if (res.code === 200 && res.data?.length) {
           const older = res.data.map(m => messageToChatMessage(m, sessionId))
           const existingIds = new Set(existing.map(m => m.id))
@@ -898,6 +974,7 @@ export const useAppStore = defineStore('app', {
             const combined = [...unique, ...existing]
             enrichMessageReplyQuotes(combined)
             this.messagesBySession[sessionId] = combined
+            await persistMessages(sessionId, unique)
             this.ackHistoryDeliveries(sessionId, unique)
           }
           this.messagesHasMore[sessionId] = res.data.length >= 50
@@ -1201,6 +1278,8 @@ export const useAppStore = defineStore('app', {
           enrichMessageReplyQuotes([chatMsg, ...this.messagesBySession[sessionId]])
         }
         this.messagesBySession[sessionId].push(chatMsg)
+        this.messagesBySession[sessionId] = trimHotMessages(this.messagesBySession[sessionId])
+        void persistMessage(sessionId, chatMsg)
       } else if (
         isLinkMateBotSender(message.senderId) &&
         this.currentSessionId === sessionId &&
@@ -2490,10 +2569,15 @@ export const useAppStore = defineStore('app', {
      * 启动时用 Refresh Token 恢复会话。
      * 先判断离线；在线再刷 token。返回结果供登录页展示文案/提示。
      */
-    async tryAutoLogin(): Promise<'ok' | 'offline' | 'failed' | 'skipped'> {
+  async tryAutoLogin(opts?: { manual?: boolean }): Promise<'ok' | 'offline' | 'failed' | 'skipped'> {
       if (this.isLoggedIn) return 'skipped'
       if (this.authInitializing) return 'skipped'
-      if (!this.savedLogin.autoLogin || !this.savedLogin.rememberMe || !this.savedLogin.username) {
+      const manual = opts?.manual === true
+      if (!manual) {
+        if (!this.savedLogin.autoLogin || !this.savedLogin.rememberMe || !this.savedLogin.username) {
+          return 'skipped'
+        }
+      } else if (!this.savedLogin.rememberMe || !this.savedLogin.username) {
         return 'skipped'
       }
 
@@ -2611,6 +2695,7 @@ export const useAppStore = defineStore('app', {
       } catch {
         /* ignore */
       }
+      void clearLocalChatDb()
     },
 
     /** 切换离线模式开关 */
@@ -2633,6 +2718,7 @@ export const useAppStore = defineStore('app', {
         id?: number | string
         name?: string
         avatar?: string
+        ownerId?: number | string
         memberAvatars?: Array<{ nickname?: string; avatar?: string }>
       } | undefined
       if (!conversationId || !groupData) return
@@ -2642,6 +2728,8 @@ export const useAppStore = defineStore('app', {
       if (existing) return
 
       // 构建群会话对象
+      const ownerId =
+        groupData.ownerId != null ? String(groupData.ownerId) : undefined
       const session: ChatSession = {
         id: String(groupData.id ?? conversationId),
         name: groupData.name || t('defaults.group'),
@@ -2651,11 +2739,10 @@ export const useAppStore = defineStore('app', {
         avatarText: (groupData.name || t('defaults.groupChar')).charAt(0) || t('defaults.groupChar'),
         avatarColor: pickGroupColor(groupData.name || t('defaults.groupChar')),
         avatarUrl: normalizeMediaUrl(groupData.avatar),
-        memberAvatars: (groupData.memberAvatars || []).slice(0, 9).map((m, i) => ({
-          text: (m.nickname || '?').charAt(0) || '?',
-          color: pickGroupColor(m.nickname || String(i)),
-          imageUrl: normalizeMediaUrl(m.avatar)
-        })),
+        ownerUserId: ownerId,
+        ownerAvatarUrl: ownerId
+          ? resolveUserAvatarUrl(groupData.memberAvatars?.[0]?.avatar, ownerId) || undefined
+          : undefined,
         isGroup: true,
         isReal: true
       }
@@ -2856,14 +2943,34 @@ export const useAppStore = defineStore('app', {
       afterRestore: ({ store }) => {
         // 兼容历史脏数据：旧版误持久化的离线标记一律清掉
         store.isOffline = false
+        if (Array.isArray(store.sessions)) {
+          store.sessions = store.sessions.map((s: ChatSession) => rehydrateSessionAvatar(s))
+        }
+        const profile = store.userProfile as { userId?: string | number; avatar?: string }
+        if (profile?.userId) {
+          const url = resolveUserAvatarUrl(profile.avatar, profile.userId)
+          if (url) {
+            profile.avatar = url
+            primeAvatarImageCache(url)
+          }
+        }
+        if (Array.isArray(store.sessions)) {
+          for (const s of store.sessions as ChatSession[]) {
+            primeAvatarImageCache(s.avatarUrl)
+            primeAvatarImageCache(s.ownerAvatarUrl)
+          }
+        }
       }
     },
     {
       key: 'linkx-app-msgs',
-      storage: sessionStorage,
+      storage: debouncedSessionStorage,
       paths: ['messagesBySession'],
       serializer: {
         serialize: value => {
+          if (isChatLocalDbEnabled()) {
+            return JSON.stringify({ messagesBySession: {} })
+          }
           if (!useAppSettingsStore().retainChatCache) {
             return JSON.stringify({ messagesBySession: {} })
           }
@@ -2874,6 +2981,15 @@ export const useAppStore = defineStore('app', {
             return { messagesBySession: {} }
           }
           return sanitizeAppPersistState(JSON.parse(value) as Record<string, unknown>)
+        }
+      },
+      afterRestore: ({ store }) => {
+        const bySession = store.messagesBySession as Record<string, unknown[]>
+        for (const sid of Object.keys(bySession)) {
+          const list = bySession[sid]
+          if (Array.isArray(list) && list.length > 0) {
+            store.messagesLoaded[sid] = true
+          }
         }
       }
     }

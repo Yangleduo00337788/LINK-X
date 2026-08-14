@@ -11,7 +11,9 @@ export interface ConversationItem {
   /** 群头像（type=2 时使用；自定义上传时才有） */
   avatar?: string
   /** 群成员头像预览（拼图用） */
-  memberAvatars?: Array<{ nickname?: string; avatar?: string }>
+  memberAvatars?: Array<{ nickname?: string; avatar?: string; userId?: string | number }>
+  /** 群主 ID（群聊） */
+  ownerId?: string | number
   peerUserId?: string
   peerUsername?: string
   peerNickname?: string

@@ -30,28 +30,15 @@ function pickColor(seed: string): string {
   return GROUP_COLORS[hash % GROUP_COLORS.length]
 }
 
-function mapMemberAvatars(
-  list?: Array<{ nickname?: string; avatar?: string; userId?: string | number }>
-): Array<{ text: string; color: string; imageUrl?: string }> | undefined {
-  if (!list?.length) return undefined
-  return list.slice(0, 9).map(m => {
-    const name = m.nickname || '?'
-    return {
-      text: name.charAt(0) || '?',
-      color: pickColor(name),
-      imageUrl: resolveUserAvatarUrl(m.avatar, m.userId)
-    }
-  })
-}
-
 export function conversationToSession(conv: ConversationItem): ChatSession {
-  // 判断是否为群聊
   const isGroup = conv.type === 2
 
   if (isGroup) {
     const groupName = conv.name || t('modals.groupChat')
     const remark = conv.myRemark?.trim() || ''
     const name = remark || groupName
+    const ownerId = conv.ownerId != null ? String(conv.ownerId) : undefined
+    const ownerPreview = conv.memberAvatars?.[0]?.avatar
     return {
       id: String(conv.id),
       name,
@@ -61,9 +48,11 @@ export function conversationToSession(conv: ConversationItem): ChatSession {
       time: formatChatTime(conv.lastMessageTime),
       avatarText: name.charAt(0) || t('defaults.groupChar'),
       avatarColor: pickColor(groupName),
-      // 仅自定义群头像；默认用 memberAvatars 拼图
       avatarUrl: normalizeMediaUrl(conv.avatar) || undefined,
-      memberAvatars: mapMemberAvatars(conv.memberAvatars),
+      ownerUserId: ownerId,
+      ownerAvatarUrl: ownerId
+        ? resolveUserAvatarUrl(ownerPreview, ownerId) || undefined
+        : undefined,
       isGroup: true,
       isReal: true,
       pinned: !!conv.pinned,

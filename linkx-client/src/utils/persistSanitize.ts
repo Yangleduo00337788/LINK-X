@@ -3,6 +3,7 @@
  */
 // 消息 / 会话类型
 import type { ChatMessage, ChatSession } from '../types'
+import { resolveUserAvatarUrl } from './defaultAvatar'
 import { isEphemeralMediaUrl, stripEphemeralMediaUrl } from './mediaUrl'
 import { imagePreviewPlaceholder } from './messagePreviewText'
 
@@ -42,7 +43,11 @@ function sanitizeMessageForPersist(msg: ChatMessage): ChatMessage {
   if (next.fileUrl?.startsWith('blob:') || isEphemeralMediaUrl(next.fileUrl)) {
     delete next.fileUrl
   }
-  if (isEphemeralMediaUrl(next.senderAvatar)) {
+  if (next.senderId) {
+    const stable = resolveUserAvatarUrl(next.senderAvatar, next.senderId)
+    if (stable) next.senderAvatar = stable
+    else if (isEphemeralMediaUrl(next.senderAvatar)) delete next.senderAvatar
+  } else if (isEphemeralMediaUrl(next.senderAvatar)) {
     delete next.senderAvatar
   }
 
@@ -53,16 +58,66 @@ function sanitizeMessageForPersist(msg: ChatMessage): ChatMessage {
   return next
 }
 
+/** 从 peerUserId / userId 还原稳定头像代理 URL，避免冷启动先显示 Logo 再换图 */
+export function rehydrateSessionAvatar(session: ChatSession): ChatSession {
+  const next = { ...session }
+  if (!next.isGroup && next.peerUserId) {
+    const url = resolveUserAvatarUrl(next.avatarUrl, next.peerUserId)
+    if (url) next.avatarUrl = url
+  } else if (next.isGroup) {
+    if (next.ownerUserId) {
+      const ownerUrl = resolveUserAvatarUrl(next.ownerAvatarUrl, next.ownerUserId)
+      if (ownerUrl) next.ownerAvatarUrl = ownerUrl
+    }
+    if (next.avatarUrl) {
+      const url = resolveUserAvatarUrl(next.avatarUrl)
+      if (url) next.avatarUrl = url
+    }
+  } else if (next.avatarUrl) {
+    const url = resolveUserAvatarUrl(next.avatarUrl)
+    if (url) next.avatarUrl = url
+  }
+  if (next.memberAvatars?.length) {
+    next.memberAvatars = next.memberAvatars.map(m => {
+      const member = m as { userId?: string }
+      const url = resolveUserAvatarUrl(m.imageUrl, member.userId)
+      return url ? { ...m, imageUrl: url } : m
+    })
+  }
+  return next
+}
+
+function stableSessionAvatarUrl(session: ChatSession): string | undefined {
+  if (!session.isGroup && session.peerUserId) {
+    return resolveUserAvatarUrl(session.avatarUrl, session.peerUserId) || undefined
+  }
+  const stripped = stripEphemeralMediaUrl(session.avatarUrl)
+  if (stripped) return stripped
+  if (session.avatarUrl) {
+    return resolveUserAvatarUrl(session.avatarUrl) || undefined
+  }
+  return undefined
+}
+
+function stableOwnerAvatarUrl(session: ChatSession): string | undefined {
+  if (!session.isGroup || !session.ownerUserId) return undefined
+  return resolveUserAvatarUrl(session.ownerAvatarUrl, session.ownerUserId) || undefined
+}
+
 function sanitizeSessionForPersist(session: ChatSession): ChatSession {
   const next: ChatSession = {
     ...session,
-    avatarUrl: stripEphemeralMediaUrl(session.avatarUrl) || undefined
+    avatarUrl: stableSessionAvatarUrl(session),
+    ownerAvatarUrl: stableOwnerAvatarUrl(session)
   }
   if (session.memberAvatars?.length) {
-    next.memberAvatars = session.memberAvatars.map(m => ({
-      ...m,
-      imageUrl: stripEphemeralMediaUrl(m.imageUrl) || undefined
-    }))
+    next.memberAvatars = session.memberAvatars.map(m => {
+      const member = m as { userId?: string }
+      const imageUrl =
+        resolveUserAvatarUrl(stripEphemeralMediaUrl(m.imageUrl) || m.imageUrl, member.userId) ||
+        undefined
+      return { ...m, imageUrl }
+    })
   }
   return next
 }
@@ -88,7 +143,17 @@ export function sanitizeAppPersistState(state: Record<string, unknown>): Record<
 
   if (next.userProfile && typeof next.userProfile === 'object') {
     const profile = { ...(next.userProfile as Record<string, unknown>) }
-    if (typeof profile.avatar === 'string') {
+    const uid = profile.userId != null ? String(profile.userId) : ''
+    if (uid) {
+      const stable = resolveUserAvatarUrl(
+        typeof profile.avatar === 'string' ? profile.avatar : '',
+        uid
+      )
+      if (stable) profile.avatar = stable
+      else if (typeof profile.avatar === 'string') {
+        profile.avatar = stripEphemeralMediaUrl(profile.avatar)
+      }
+    } else if (typeof profile.avatar === 'string') {
       profile.avatar = stripEphemeralMediaUrl(profile.avatar)
     }
     // PII 脱敏：email/phone 不持久化到 localStorage，登录后由接口重新拉取

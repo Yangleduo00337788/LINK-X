@@ -14,9 +14,15 @@ export function openPrivateChat(friendId: string) {
   return apiClient.post<unknown, ApiResult<ConversationItem>>(`/chat/private/${friendId}`)
 }
 
-export function listMessages(conversationId: string, before?: string, limit = 50) {
+export function listMessages(
+  conversationId: string,
+  opts?: { before?: string; after?: string; limit?: number }
+) {
+  const params: Record<string, string | number> = { limit: opts?.limit ?? 50 }
+  if (opts?.before) params.before = opts.before
+  if (opts?.after) params.after = opts.after
   return apiClient.get<unknown, ApiResult<MessageItem[]>>(`/chat/sessions/${conversationId}/messages`, {
-    params: { before, limit }
+    params
   })
 }
 
