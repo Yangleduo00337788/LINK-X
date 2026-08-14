@@ -60,11 +60,6 @@ const router = createRouter({
       path: '/image-viewer',   // 图片预览独立窗口（聊天双击图片）
       name: 'image-viewer',
       component: () => import('../views/ImageViewerView.vue')
-    },
-    {
-      path: '/linkmate-pet',   // 灵伴桌面宠物
-      name: 'linkmate-pet',
-      component: () => import('../views/LinkMatePetView.vue')
     }
   ]
 })

@@ -504,20 +504,7 @@ html.lx-electron.is-maximized[data-theme='dark'] #app {
   border-radius: 0;
 }
 
-/* 灵伴桌面宠物：全透明 HWND，仅显示角色与气泡 */
-html.lx-pet-window,
-html.lx-pet-window body,
-html.lx-pet-window #app {
-  background: transparent !important;
-  border-radius: 0 !important;
-  clip-path: none !important;
-  box-shadow: none !important;
-}
-
-html.lx-pet-window.lx-electron #app {
-  background: transparent !important;
-}
-
+/* 最大化时去掉圆角与阴影 */
 html.lx-electron.is-maximized #app {
   border-radius: 0;
   clip-path: none;

@@ -188,7 +188,7 @@ async function checkUpdate() {
 <style scoped>
 .about-page {
   width: 100%;
-  max-width: 720px;
+  min-width: 0;
   padding: 0 var(--lx-space-5xl-minus) var(--lx-space-4xl);
   box-sizing: border-box;
 }

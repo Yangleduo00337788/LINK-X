@@ -2251,7 +2251,6 @@ export const useAppStore = defineStore('app', {
       this.resetChatState()
       this.isLocked = false
       this.isLoggedIn = false
-      window.electronAPI?.closeLinkMatePet?.()
       // 记住账号时先把头像/昵称写入登录缓存，再清空运行时资料
       if (this.savedLogin.rememberMe) {
         this.savedLogin.avatar = this.userProfile.avatar || this.savedLogin.avatar || ''

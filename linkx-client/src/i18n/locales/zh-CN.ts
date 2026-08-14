@@ -54,8 +54,6 @@ export default {
     openTray: '托盘',
     minimizeToTray: '最小化到托盘',
     minimizeToTrayDesc: '关闭窗口时隐藏到系统托盘，而不是退出应用',
-    linkMatePet: '灵伴桌面宠物',
-    linkMatePetDesc: '透明浮动小宠物，点击弹出对话气泡（类似 Codex Pets）',
     autoStart: '开机自启动',
     autoStartDesc: '登录系统后自动打开 LinkX',
     autoStartFail: '设置开机自启失败，请检查系统权限',
@@ -776,14 +774,8 @@ export default {
     introOk: '知道了',
     dialogTitle: '灵伴 LinkMate',
     collapsePanel: '收起灵伴',
-    expandPanel: '展开灵伴'
-  },
-  linkmatePet: {
-    tapToChat: '点击对话',
-    chatHint: '有什么想聊的？',
-    openMain: '打开主界面',
-    loginRequired: '请先在主窗口登录',
-    inputShort: '说点什么…'
+    expandPanel: '展开灵伴',
+    chatHint: '有什么想聊的？'
   },
   nav: {
     chat: '消息',

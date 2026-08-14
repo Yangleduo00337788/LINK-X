@@ -49,16 +49,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('image-viewer:payload', listener)
     return () => ipcRenderer.removeListener('image-viewer:payload', listener)
   },
-  openLinkMate: () => ipcRenderer.send('linkmate-pet:open-main'),
-  openLinkMatePet: () => ipcRenderer.send('window-open-linkmate-pet'),
-  closeLinkMatePet: () => ipcRenderer.send('linkmate-pet:close'),
-  setLinkMatePetExpanded: expanded => ipcRenderer.invoke('linkmate-pet:set-expanded', expanded),
-  onOpenLinkMate: callback => {
-    if (typeof callback !== 'function') return () => {}
-    const listener = () => callback()
-    ipcRenderer.on('app:open-linkmate', listener)
-    return () => ipcRenderer.removeListener('app:open-linkmate', listener)
-  },
   isMaximized: () => ipcRenderer.invoke('window:is-maximized'),
   isPinned: () => ipcRenderer.invoke('window:is-pinned'),
   togglePin: () => ipcRenderer.invoke('window:toggle-pin'),

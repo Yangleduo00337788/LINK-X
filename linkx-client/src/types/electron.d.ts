@@ -75,26 +75,16 @@ declare global {
         minimizeToTray: boolean
         openOnStartup: 'main' | 'tray'
         language: 'zh-CN' | 'en-US'
-        linkMatePetEnabled: boolean
       }>
       setDesktopPrefs?: (prefs: {
         minimizeToTray?: boolean
         openOnStartup?: 'main' | 'tray'
         language?: 'zh-CN' | 'en-US'
-        linkMatePetEnabled?: boolean
       }) => Promise<{
         minimizeToTray: boolean
         openOnStartup: 'main' | 'tray'
         language: 'zh-CN' | 'en-US'
-        linkMatePetEnabled: boolean
       }>
-      /** 打开灵伴桌面宠物 */
-      openLinkMatePet?: () => void
-      closeLinkMatePet?: () => void
-      setLinkMatePetExpanded?: (expanded: boolean) => Promise<void>
-      /** 主窗口打开灵伴页 */
-      openLinkMate?: () => void
-      onOpenLinkMate?: (callback: () => void) => () => void
       notifyThemeChange?: (theme: 'light' | 'dark') => void
       setWindowMode?: (mode: 'login' | 'main') => Promise<void>
       pickDownloadPath?: () => Promise<string | null>

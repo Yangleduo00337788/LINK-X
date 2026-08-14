@@ -52,8 +52,6 @@ export default {
     openTray: 'System tray',
     minimizeToTray: 'Minimize to tray',
     minimizeToTrayDesc: 'Hide to the system tray when closing the window instead of quitting',
-    linkMatePet: 'LinkMate desktop pet',
-    linkMatePetDesc: 'Transparent floating companion; click for a chat bubble (Codex Pets style)',
     autoStart: 'Launch at login',
     autoStartDesc: 'Open LinkX automatically when you sign in to your computer',
     autoStartFail: 'Failed to set launch at login. Check system permissions.',
@@ -775,14 +773,8 @@ export default {
     introOk: 'Got it',
     dialogTitle: 'LinkMate',
     collapsePanel: 'Collapse LinkMate',
-    expandPanel: 'Expand LinkMate'
-  },
-  linkmatePet: {
-    tapToChat: 'Click to chat',
-    chatHint: 'Ask me anything',
-    openMain: 'Open in main window',
-    loginRequired: 'Sign in in the main window first',
-    inputShort: 'Say something…'
+    expandPanel: 'Expand LinkMate',
+    chatHint: 'Ask me anything'
   },
   nav: {
     chat: 'Chats',

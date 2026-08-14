@@ -85,6 +85,7 @@ watch(settingsActiveTab, () => {
 <style scoped>
 .settings-main {
   height: 100%;
+  width: 100%;
   display: flex;
   flex-direction: column;
   background: var(--lx-bg-panel);
@@ -106,6 +107,8 @@ watch(settingsActiveTab, () => {
 .settings-main-body {
   flex: 1;
   min-height: 0;
+  min-width: 0;
+  width: 100%;
   overflow-y: auto;
   overflow-x: hidden;
   display: flex;

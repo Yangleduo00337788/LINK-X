@@ -124,7 +124,7 @@ onMounted(async () => {
             {{ t('common.loading') }}
           </div>
           <div v-else-if="activeMessages.length === 0" class="linkmate-side-empty">
-            {{ t('linkmatePet.chatHint') }}
+            {{ t('linkmate.chatHint') }}
           </div>
           <template v-else>
             <div
@@ -152,7 +152,7 @@ onMounted(async () => {
                 v-model:value="inputDraft"
                 type="textarea"
                 :autosize="{ minRows: 1, maxRows: 4 }"
-                :placeholder="t('linkmatePet.inputShort')"
+                :placeholder="t('linkmate.inputPlaceholder')"
                 :disabled="streaming || !canChat"
                 @keydown="handleKeydown"
               />
