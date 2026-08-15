@@ -1,7 +1,7 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
- * 灵伴右侧内嵌对话面板（消息页主内容区右缘）。
+ * 灵伴对话面板（主导航全屏 / 旧版侧栏嵌入）。
  */
 import { computed, h, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { NInput, NIcon, NPopover, useMessage, useDialog } from 'naive-ui'
@@ -9,7 +9,6 @@ import {
   AddOutline,
   TimeOutline,
   BulbOutline,
-  ChevronForwardOutline,
   ChevronDownOutline,
   TrashOutline,
   RefreshOutline,
@@ -23,6 +22,17 @@ import { useI18n } from '../i18n'
 import LinkMateLogoMark from './LinkMateLogoMark.vue'
 import { renderLinkMateMarkdown, copyCodeFromButton } from '../utils/linkmateMarkdown'
 import { copyText } from '../utils/clipboard'
+
+const props = withDefaults(
+  defineProps<{
+    layout?: 'page' | 'side'
+  }>(),
+  {
+    layout: 'page'
+  }
+)
+
+const isPageLayout = computed(() => props.layout === 'page')
 
 const { t } = useI18n()
 const message = useMessage()
@@ -126,7 +136,9 @@ function shouldShowResponseDuration(msg: LinkMateMessage): boolean {
   return !!formatResponseDuration(msg)
 }
 
-const panelStyle = computed(() => ({ width: `${panelWidth.value}px` }))
+const panelStyle = computed(() =>
+  isPageLayout.value ? undefined : { width: `${panelWidth.value}px` }
+)
 const canChat = computed(() => enabled.value && !dailyQuotaExhausted.value)
 const canUseDeepThinking = computed(() => deepThinkingSupported.value && !streaming.value)
 
@@ -273,10 +285,6 @@ function isReasoningCollapsed(msgId: string) {
 
 function toggleReasoning(msgId: string) {
   collapsedReasoning[msgId] = !isReasoningCollapsed(msgId)
-}
-
-function collapse() {
-  linkMate.collapsePanel()
 }
 
 async function ensureReady() {
@@ -518,23 +526,14 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <aside class="linkmate-side" :style="panelStyle">
+  <aside class="linkmate-side" :class="{ 'linkmate-side--page': isPageLayout }" :style="panelStyle">
     <div
+      v-if="!isPageLayout"
       class="linkmate-resizer"
       :class="{ dragging: isResizing }"
       :title="t('linkmate.resizePanel')"
       @mousedown="startResize"
     />
-
-    <div class="collapse-hover-zone" aria-hidden="true" />
-    <button
-      type="button"
-      class="lx-collapse-handle"
-      :title="t('linkmate.collapsePanel')"
-      @click="collapse"
-    >
-      <NIcon :component="ChevronForwardOutline" :size="14" />
-    </button>
 
     <div class="linkmate-side-body">
       <header class="linkmate-side-hdr">
@@ -824,6 +823,13 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   overflow: visible;
+}
+
+.linkmate-side--page {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  border-left: none;
 }
 
 .linkmate-side-body {

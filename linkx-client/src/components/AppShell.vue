@@ -84,7 +84,6 @@ const appStore = useAppStore()
 const linkMateStore = useLinkMateStore()
 // 解构当前导航键与当前会话
 const { navKey, currentSessionId, currentSession } = storeToRefs(appStore)
-const { panelExpanded } = storeToRefs(linkMateStore)
 
 watch(
   () => currentSessionId.value,
@@ -188,8 +187,8 @@ const showFilesMain = computed(() => navKey.value === 'files')
 const showFavoritesMain = computed(() => navKey.value === 'favorites')
 const showMomentsMain = computed(() => navKey.value === 'moments')
 const showBalanceMain = computed(() => navKey.value === 'balance')
+const showLinkMateMain = computed(() => navKey.value === 'linkmate')
 const showPlaceholder = computed(() => navKey.value === 'contacts')
-const showLinkMatePanel = computed(() => navKey.value === 'chat' && panelExpanded.value)
 
 /** 设置页中间列固定略宽，且不显示拖拽条 */
 const settingsListWidth = 220
@@ -203,7 +202,8 @@ const showListResizer = computed(
     !showFilesMain.value &&
     !showFavoritesMain.value &&
     !showMomentsMain.value &&
-    !showBalanceMain.value
+    !showBalanceMain.value &&
+    !showLinkMateMain.value
 )
 const showMiddleList = computed(
   () =>
@@ -211,7 +211,8 @@ const showMiddleList = computed(
     !showFilesMain.value &&
     !showFavoritesMain.value &&
     !showMomentsMain.value &&
-    !showBalanceMain.value
+    !showBalanceMain.value &&
+    !showLinkMateMain.value
 )
 </script>
 
@@ -255,10 +256,12 @@ const showMiddleList = computed(
           :class="{
             'col-chat--calendar': showCalendarMain,
             'col-chat--settings': showSettingsMain,
-            'col-chat--files': showFilesMain || showFavoritesMain || showMomentsMain || showBalanceMain
+            'col-chat--files': showFilesMain || showFavoritesMain || showMomentsMain || showBalanceMain,
+            'col-chat--linkmate': showLinkMateMain
           }"
         >
-          <div class="col-chat-body">
+          <LinkMateSidePanel v-if="showLinkMateMain" layout="page" />
+          <div v-else class="col-chat-body">
             <SystemNotifyPanel v-if="showSystemNotify" />
             <OfficialNotifyPanel v-else-if="showOfficialNotify" />
             <ChatPanel v-else-if="showChatPanel" />
@@ -271,7 +274,6 @@ const showMiddleList = computed(
             <ContactsMainView v-else-if="navKey === 'contacts'" />
             <PlaceholderMainView v-else-if="showPlaceholder" :nav="navKey" />
           </div>
-          <LinkMateSidePanel v-if="showLinkMatePanel" />
         </main>
       </div>
     </div>
@@ -427,6 +429,11 @@ const showMiddleList = computed(
 }
 
 .col-chat--settings {
+  background: var(--lx-bg-panel);
+  --lx-bg-panel: var(--lx-bg-panel);
+}
+
+.col-chat--linkmate {
   background: var(--lx-bg-panel);
   --lx-bg-panel: var(--lx-bg-panel);
 }

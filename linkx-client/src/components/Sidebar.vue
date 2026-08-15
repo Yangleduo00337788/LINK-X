@@ -23,10 +23,10 @@ import {
   HelpCircleOutline,
   LockClosedOutline,
   SettingsOutline,
-  LogOutOutline
+  LogOutOutline,
+  SparklesOutline
 } from '@vicons/ionicons5'
 import Avatar from './Avatar.vue'
-import LinkMateLogoMark from './LinkMateLogoMark.vue'
 import { storeToRefs } from 'pinia'
 import { resolveUserAvatarUrl } from '../utils/defaultAvatar'
 import { useAppStore } from '../stores/app'
@@ -59,7 +59,6 @@ const { t } = useI18n()
 // 解构导航键、用户资料、已保存登录信息、会话列表
 const { navKey, userProfile, savedLogin, sessions, isOffline } = storeToRefs(appStore)
 const { calendarRemindUnreadCount, officialUnreadCount, contactsBadgeCount } = storeToRefs(notificationsStore)
-const { panelCollapsed } = storeToRefs(linkMateStore)
 // 解构导航切换、登出、锁定方法
 const { setNav, logout, lock } = appStore
 // 解构打开个人资料方法
@@ -103,6 +102,7 @@ const menuOptions = computed<DropdownOption[]>(() => [
 // 主导航项配置：键、图标、标签（随语言切换）
 const mainNav = computed(() => [
   { key: 'chat' as NavKey, icon: ChatbubbleEllipsesOutline, label: t('nav.chat') },
+  { key: 'linkmate' as NavKey, icon: SparklesOutline, label: t('nav.linkmate') },
   { key: 'contacts' as NavKey, icon: PersonOutline, label: t('nav.contacts') },
   { key: 'favorites' as NavKey, icon: BookmarkOutline, label: t('nav.favorites') },
   { key: 'files' as NavKey, icon: FolderOutline, label: t('nav.files') },
@@ -131,6 +131,13 @@ function navBadge(key: NavKey): number {
 function handleClick(key: NavKey | 'menu') {
   if (key === 'menu') {
     return
+  }
+  if (key === 'linkmate') {
+    openLinkMateNav()
+    return
+  }
+  if (navKey.value === 'linkmate') {
+    linkMateStore.closePanelForNav()
   }
   if (key === 'moments') {
     if (window.electronAPI) {
@@ -188,12 +195,10 @@ function handleFilesClick() {
   setNav('files')
 }
 
-function restoreLinkMatePanel() {
-  if (navKey.value !== 'chat') {
-    setNav('chat')
-  }
+function openLinkMateNav() {
+  setNav('linkmate')
   void linkMateStore.ensurePanelReady()
-  linkMateStore.expandPanel()
+  linkMateStore.openPanel()
 }
 
 // 执行菜单动作前清理 Overlay 与聊天弹窗
@@ -314,18 +319,8 @@ function handleSelfAvatarClick(e: MouseEvent) {
       </button>
     </div>
 
-    <!-- 底部：灵伴折叠恢复 + 更多菜单 -->
+    <!-- 底部：更多菜单 -->
     <div class="nav-bottom">
-      <button
-        v-if="panelCollapsed"
-        type="button"
-        class="nav-item linkmate-restore-btn"
-        :title="t('linkmate.expandPanel')"
-        :aria-label="t('linkmate.expandPanel')"
-        @click="restoreLinkMatePanel"
-      >
-        <LinkMateLogoMark :size="22" />
-      </button>
       <n-dropdown
         v-model:show="menuDropdownShow"
         trigger="click"
@@ -466,9 +461,5 @@ function handleSelfAvatarClick(e: MouseEvent) {
 .nav-item.is-active:hover {
   background: var(--lx-bg-hover);
   color: var(--lx-accent);
-}
-
-.linkmate-restore-btn {
-  padding: 0;
 }
 </style>

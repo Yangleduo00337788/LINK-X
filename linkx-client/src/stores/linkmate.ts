@@ -166,6 +166,11 @@ export const useLinkMateStore = defineStore('linkmate', {
       }
     },
 
+    /** 离开灵伴主导航时关闭面板 */
+    closePanelForNav() {
+      this.closePanelForImChat()
+    },
+
     snapshotImContext() {
       this.imContextSnapshot = buildImChatContext() ?? null
     },
