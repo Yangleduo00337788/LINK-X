@@ -65,7 +65,7 @@ export interface ChatSession {
   memberAvatars?: Array<{ text: string; color?: string; imageUrl?: string; userId?: string }>
   /** 单聊对方用户 ID */
   peerUserId?: string
-  /** 单聊对方登录名（如 linkx_cs） */
+  /** 单聊对方登录名 */
   peerUsername?: string
   /** 是否为后端真实会话（非 Mock） */
   isReal?: boolean

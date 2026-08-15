@@ -120,12 +120,6 @@ linkx:
     daily-token-limit: ${LINKMATE_DAILY_TOKEN_LIMIT}
     system-prompt: ${LINKMATE_SYSTEM_PROMPT}
 
-  customer-service:
-    enabled: ${CS_BOT_ENABLED:true}
-    username: linkx_cs
-    nickname: LinkX客服
-    auto-pin: true
-
   message-encryption:
     enabled: ${MESSAGE_CONTENT_ENCRYPT_ENABLED}
     kek: ${MESSAGE_KEK}

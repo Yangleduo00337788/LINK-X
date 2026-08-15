@@ -21,7 +21,6 @@ import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.service.ChatService;
 import com.linkx.server.service.ConversationDraftService;
 import com.linkx.server.service.UserPreferenceService;
-import com.linkx.server.service.customerservice.CustomerServiceService;
 import lombok.extern.slf4j.Slf4j;
 import com.linkx.server.entity.UserPreference;
 import jakarta.servlet.http.HttpServletRequest;
@@ -52,20 +51,12 @@ public class ChatController {
     private final ImMessagePushService imMessagePushService;
     private final ConversationDraftService conversationDraftService;
     private final UserPreferenceService userPreferenceService;
-    private final CustomerServiceService customerServiceService;
     private final JwtUtils jwtUtils;
 
     @Operation(summary = "获取会话列表")
     @GetMapping("/sessions")
     public Result<List<ConversationVO>> listSessions(HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        if (customerServiceService.isEnabled()) {
-            try {
-                customerServiceService.ensureSession(userId);
-            } catch (Exception e) {
-                log.warn("自动确保 LinkX 客服会话失败 userId={}: {}", userId, e.toString());
-            }
-        }
         return Result.success(chatService.listConversations(userId));
     }
 
@@ -76,13 +67,6 @@ public class ChatController {
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         return Result.success(chatService.getOrCreatePrivateConversation(userId, parseId(friendId)));
-    }
-
-    @Operation(summary = "确保 LinkX 客服会话存在")
-    @PostMapping("/customer-service/session")
-    public Result<ConversationVO> ensureCustomerServiceSession(HttpServletRequest request) {
-        Long userId = AuthUtils.requireUserId(request, jwtUtils);
-        return Result.success(customerServiceService.ensureSession(userId));
     }
 
     @Operation(summary = "分页获取会话消息")

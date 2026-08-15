@@ -14,11 +14,6 @@ export function openPrivateChat(friendId: string) {
   return apiClient.post<unknown, ApiResult<ConversationItem>>(`/chat/private/${friendId}`)
 }
 
-/** 确保 LinkX 客服会话存在（自动加好友并发送欢迎语） */
-export function ensureCustomerServiceSession() {
-  return apiClient.post<unknown, ApiResult<ConversationItem>>('/chat/customer-service/session')
-}
-
 export function listMessages(
   conversationId: string,
   opts?: { before?: string; after?: string; limit?: number }

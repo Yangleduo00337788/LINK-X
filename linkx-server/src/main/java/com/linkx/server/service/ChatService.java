@@ -45,11 +45,6 @@ public interface ChatService {
     MessageVO postLinkMateImMessage(Long conversationId, String content);
 
     /**
-     * 写入 LinkX 客服机器人回复（系统客服账号发送）。
-     */
-    MessageVO postCustomerServiceMessage(Long conversationId, String content);
-
-    /**
      * 按 ID 查询会话（内部服务用）。
      */
     ImConversation findConversationById(Long conversationId);

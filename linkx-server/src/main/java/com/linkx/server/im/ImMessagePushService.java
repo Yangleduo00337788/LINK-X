@@ -17,14 +17,12 @@ import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.ChatService;
 import com.linkx.server.service.MessageStormService;
 import com.linkx.server.service.PresenceService;
-import com.linkx.server.service.customerservice.CustomerServiceService;
 import com.mybatisflex.core.query.QueryWrapper;
 import io.netty.channel.Channel;
 import io.netty.channel.group.ChannelGroup;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -67,7 +65,6 @@ public class ImMessagePushService {
     private final MessageStormService messageStormService;
     private final PresenceService presenceService;
     private final LinkxProperties linkxProperties;
-    private final ObjectProvider<CustomerServiceService> customerServiceServiceProvider;
 
     /**
      * 处理发送消息（异步，event-loop 立即返回）。
@@ -145,9 +142,6 @@ public class ImMessagePushService {
         MessageVO message = chatService.sendMessage(senderId, dto);
         // 推送扇出
         pushToConversationMembers(message, senderId, clientMsgId);
-        customerServiceServiceProvider.ifAvailable(
-                cs -> cs.onUserTextMessageAsync(senderId, message)
-        );
         return message;
     }
 

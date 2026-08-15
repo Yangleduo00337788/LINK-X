@@ -63,7 +63,6 @@ const recentSessions = computed(() => {
   const q = search.value.trim().toLowerCase()
   return (sessions.value || [])
     .filter(s => !s.isSystemNotify && !s.isOfficialNotify)
-    .filter(s => s.peerUsername !== 'linkx_cs')
     .filter(s => !props.excludeSessionId || s.id !== props.excludeSessionId)
     .filter(s => !q || s.name.toLowerCase().includes(q))
 })
