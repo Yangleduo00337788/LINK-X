@@ -9,7 +9,7 @@
  * </p>
  */
 // Vue 响应式、计算属性、生命周期、侦听器与 nextTick
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, computed, shallowRef, onMounted, onUnmounted, watch, nextTick } from 'vue'
 // Naive UI 图标、气泡、下拉菜单与消息提示
 import { NIcon, NPopover, NDropdown, NModal, NInput, NSwitch, useMessage, type DropdownOption } from 'naive-ui'
 // Ionicons5 通话、视频、网格、添加、更多、手机、图片图标
@@ -64,7 +64,7 @@ import { useCallStore } from '../stores/call'
 import { useI18n } from '../i18n'
 import { isMyPhoneSessionName } from '../utils/myPhoneSession'
 import { lxChatWallpaperBg } from '../theme/vars'
-import { formatMessageDivider, MESSAGE_TIME_GAP_MS } from '../utils/chatTime'
+import { buildMessagesWithTimeDividers } from '../utils/chatTime'
 import * as conferenceApi from '../api/conference'
 import {
   downloadChatMessageAttachment,
@@ -338,43 +338,24 @@ watch(
   { immediate: true }
 )
 
-// 插入时间分割线（首条 + 间隔超过 5 分钟）
-const chatMessages = computed(() => {
-  const list = currentMessages.value
-  const result: ChatMessage[] = []
-  let lastMs = 0
-  for (const m of list) {
-    const ms = m.createTime || 0
-    if (m.type !== 'time' && ms && lastMs && ms - lastMs >= MESSAGE_TIME_GAP_MS) {
-      result.push({
-        id: `time-${m.id}`,
-        sessionId: m.sessionId,
-        content: formatMessageDivider(ms),
-        time: m.time,
-        createTime: ms,
-        isSelf: false,
-        type: 'time'
-      })
-    }
-    result.push(m)
-    if (ms) lastMs = ms
-  }
-  if (result.length > 0 && result[0].type !== 'time') {
-    const first = result.find(m => m.type !== 'time')
-    if (first?.createTime) {
-      result.unshift({
-        id: `time-start-${first.id}`,
-        sessionId: first.sessionId,
-        content: formatMessageDivider(first.createTime),
-        time: first.time,
-        createTime: first.createTime,
-        isSelf: false,
-        type: 'time'
-      })
-    }
-  }
-  return result
-})
+// 插入时间分割线：仅在会话切换 / 首尾消息变化时重建，流式内容变更不重算
+const chatMessages = shallowRef<ChatMessage[]>([])
+
+watch(
+  () => {
+    const list = currentMessages.value
+    return [
+      currentSessionId.value,
+      list.length,
+      list[0]?.id,
+      list[list.length - 1]?.id
+    ] as const
+  },
+  () => {
+    chatMessages.value = buildMessagesWithTimeDividers(currentMessages.value)
+  },
+  { immediate: true }
+)
 
 /** 群聊最新一条己方消息 id（避免每条消息组件 O(n) 扫描） */
 const latestSelfMessageId = computed(() => {

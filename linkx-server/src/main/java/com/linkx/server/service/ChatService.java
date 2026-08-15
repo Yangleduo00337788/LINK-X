@@ -9,6 +9,7 @@ import com.linkx.server.controller.vo.ChatFileUploadVO;
 import com.linkx.server.controller.vo.ChatSearchHitVO;
 import com.linkx.server.controller.vo.ConversationVO;
 import com.linkx.server.controller.vo.MessageVO;
+import com.linkx.server.entity.ImConversation;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -42,6 +43,16 @@ public interface ChatService {
      * 写入灵伴 IM 回复（虚拟发送者，供群聊/单聊 @灵伴 场景）。
      */
     MessageVO postLinkMateImMessage(Long conversationId, String content);
+
+    /**
+     * 写入 LinkX 客服机器人回复（系统客服账号发送）。
+     */
+    MessageVO postCustomerServiceMessage(Long conversationId, String content);
+
+    /**
+     * 按 ID 查询会话（内部服务用）。
+     */
+    ImConversation findConversationById(Long conversationId);
 
     /**
      * 写入会议邀请消息（服务端内部调用，创建会议成功后落库）。

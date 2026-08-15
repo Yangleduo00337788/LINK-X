@@ -34,6 +34,18 @@ public class LinkxProperties {
     private final RiskPolicy riskPolicy = new RiskPolicy();
     private final MessageEncryption messageEncryption = new MessageEncryption();
     private final LinkMate linkmate = new LinkMate();
+    private final CustomerService customerService = new CustomerService();
+
+    /**
+     * LinkX 客服机器人配置。
+     */
+    @Data
+    public static class CustomerService {
+        private boolean enabled = true;
+        private String username = "linkx_cs";
+        private String nickname = "LinkX客服";
+        private boolean autoPin = true;
+    }
 
     /**
      * 灵伴（LinkMate）AI 助手配置。

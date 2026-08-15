@@ -3,15 +3,19 @@
 /**
  * 应用路由根组件。
  * <p>
- * 作为 Vue Router 的出口，负责渲染当前路由对应的页面组件，
- * 并在路由切换时应用淡入淡出过渡动画。
+ * 作为 Vue Router 的出口，负责渲染当前路由对应的页面组件。
  * </p>
  */
-// Vue Router 路由视图组件，用于渲染匹配的路由页面
+import { onMounted } from 'vue'
 import { RouterView } from 'vue-router'
 import { useI18n } from './i18n'
+import { scheduleNotifyElectronWindowReady } from './utils/bootSplash'
 
 useI18n()
+
+onMounted(() => {
+  scheduleNotifyElectronWindowReady()
+})
 </script>
 
 <template>

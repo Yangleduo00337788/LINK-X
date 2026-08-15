@@ -93,7 +93,7 @@ const hasReply = computed(() => !!props.msg.replyTo)
       </p>
       <n-icon v-if="isLinkMsg" class="lx-link-ico" :component="LinkOutline" :size="14" />
     </div>
-    <!-- 微信风格：灰条引用预览在气泡下方 -->
+    <!-- 灰条引用预览在气泡下方 -->
     <QuoteReplyBar
       v-if="hasReply"
       variant="below"

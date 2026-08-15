@@ -38,6 +38,8 @@ import com.linkx.server.service.ObjectKeyOwnershipService;
 import com.linkx.server.service.SensitiveWordService;
 import com.linkx.server.service.UserPreferenceService;
 import com.linkx.server.service.linkmate.LinkMateConstants;
+import com.linkx.server.service.customerservice.CustomerServiceConstants;
+import com.linkx.server.service.customerservice.CustomerServiceRegistry;
 import com.linkx.server.service.AuditLogService;
 import com.linkx.server.service.admin.AdminRiskEventService;
 import com.linkx.server.service.admin.AdminReviewService;
@@ -349,7 +351,7 @@ public class ChatServiceImpl implements ChatService {
             if (isBlockedEitherWay(userId, peerId)) {
                 throw new CustomException(403, "已屏蔽该联系人，无法发送消息");
             }
-            if (!isFriend(userId, peerId)) {
+            if (!CustomerServiceRegistry.isBot(peerId) && !isFriend(userId, peerId)) {
                 throw new CustomException(403, "对方已不是好友，无法发送消息");
             }
         } else if (conversation.getType() == ImConversation.TYPE_GROUP) {
@@ -602,6 +604,63 @@ public class ChatServiceImpl implements ChatService {
         conversationMapper.update(conversation);
 
         return toMessageVO(message, null, null, null);
+    }
+
+    @Override
+    @Transactional
+    public MessageVO postCustomerServiceMessage(Long conversationId, String content) {
+        if (!StringUtils.hasText(content)) {
+            throw new CustomException(400, "回复内容不能为空");
+        }
+        Long botId = CustomerServiceRegistry.botUserId();
+        if (botId == null) {
+            botId = resolveCustomerServiceBotUserId();
+            if (botId != null) {
+                CustomerServiceRegistry.setBotUserId(botId);
+            }
+        }
+        if (botId == null) {
+            throw new CustomException(503, "客服机器人未就绪");
+        }
+        ImConversation conversation = conversationMapper.selectOneById(conversationId);
+        if (conversation == null) {
+            throw new CustomException(404, "会话不存在");
+        }
+        if (conversation.getType() != ImConversation.TYPE_PRIVATE) {
+            throw new CustomException(400, "不支持的会话类型");
+        }
+
+        String text = InputSanitizer.limitPlainText(content.trim(), 8000);
+        Date now = new Date();
+        ImMessage message = ImMessage.builder()
+                .conversationId(conversationId)
+                .senderId(botId)
+                .type(ImMessage.TYPE_TEXT)
+                .content(text)
+                .deliveryStatus("delivered")
+                .readStatus(0)
+                .createTime(now)
+                .deleted(0)
+                .build();
+        imMessageRepository.insert(message);
+        if (message.getCreateTime() == null) {
+            message.setCreateTime(now);
+        }
+
+        conversation.setLastMessageContent(text);
+        conversation.setLastMessageTime(message.getCreateTime());
+        conversationMapper.update(conversation);
+
+        SysUser sender = sysUserMapper.selectOneById(botId);
+        return toMessageVO(message, sender, null, null);
+    }
+
+    @Override
+    public ImConversation findConversationById(Long conversationId) {
+        if (conversationId == null) {
+            return null;
+        }
+        return conversationMapper.selectOneById(conversationId);
     }
 
     @Override
@@ -1282,6 +1341,12 @@ public class ChatServiceImpl implements ChatService {
     }
 
     private void assertCanPrivateChat(Long userId, Long peerId) {
+        if (CustomerServiceRegistry.isBot(peerId) || CustomerServiceRegistry.isBot(userId)) {
+            return;
+        }
+        if (isConfiguredCustomerServiceUser(peerId) || isConfiguredCustomerServiceUser(userId)) {
+            return;
+        }
         if (isFriend(userId, peerId)) {
             return;
         }
@@ -1290,6 +1355,32 @@ public class ChatServiceImpl implements ChatService {
             return;
         }
         throw new CustomException(403, "只能与好友聊天，或对方需开启允许陌生人会话");
+    }
+
+    private boolean isConfiguredCustomerServiceUser(Long userId) {
+        if (!linkxProperties.getCustomerService().isEnabled() || userId == null) {
+            return false;
+        }
+        String username = linkxProperties.getCustomerService().getUsername();
+        if (!StringUtils.hasText(username)) {
+            username = CustomerServiceConstants.BOT_USERNAME;
+        }
+        SysUser user = sysUserMapper.selectOneById(userId);
+        return user != null && username.equalsIgnoreCase(user.getUsername());
+    }
+
+    private Long resolveCustomerServiceBotUserId() {
+        if (!linkxProperties.getCustomerService().isEnabled()) {
+            return null;
+        }
+        String username = linkxProperties.getCustomerService().getUsername();
+        if (!StringUtils.hasText(username)) {
+            username = CustomerServiceConstants.BOT_USERNAME;
+        }
+        SysUser bot = sysUserMapper.selectOneByQuery(
+                QueryWrapper.create().where(SysUser::getUsername).eq(username).limit(1)
+        );
+        return bot != null ? bot.getId() : null;
     }
 
     private boolean resolvePeerOnline(Long peerUserId) {

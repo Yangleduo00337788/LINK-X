@@ -21,6 +21,11 @@ import {
   voiceCallPreviewLabel,
   voicePreviewLabel
 } from './messagePreviewText'
+import {
+  customerServiceAvatarUrl,
+  customerServiceDisplayName,
+  isCustomerServiceUsername
+} from './customerService'
 
 const GROUP_COLORS = ['#12b7f5', '#52c41a', '#722ed1', '#fa8c16', '#eb2f96', '#13c2c2']
 
@@ -66,18 +71,24 @@ export function conversationToSession(conv: ConversationItem): ChatSession {
   }
 
   // 单聊
-  const nickname = conv.peerNickname || conv.peerUsername || t('defaults.friend')
+  const isCs = isCustomerServiceUsername(conv.peerUsername)
+  const nickname = isCs
+    ? customerServiceDisplayName()
+    : conv.peerNickname || conv.peerUsername || t('defaults.friend')
   const remark = conv.peerRemark?.trim() || ''
-  const name = formatFriendDisplayName(nickname, remark)
+  const name = isCs ? nickname : formatFriendDisplayName(nickname, remark)
   return {
     id: String(conv.id),
     name,
     lastMessage: conv.lastMessage || '',
     time: formatChatTime(conv.lastMessageTime),
-    avatarText: friendAvatarText(nickname, remark),
-    avatarColor: pickColor(nickname),
-    avatarUrl: resolveUserAvatarUrl(conv.peerAvatar, conv.peerUserId),
+    avatarText: isCs ? t('chat.customerServiceAvatar') : friendAvatarText(nickname, remark),
+    avatarColor: isCs ? 'var(--lx-bg-logo)' : pickColor(nickname),
+    avatarUrl: isCs
+      ? customerServiceAvatarUrl()
+      : resolveUserAvatarUrl(conv.peerAvatar, conv.peerUserId),
     peerUserId: conv.peerUserId ? String(conv.peerUserId) : undefined,
+    peerUsername: conv.peerUsername,
     online: !!conv.peerOnline,
     isGroup: false,
     isReal: true,

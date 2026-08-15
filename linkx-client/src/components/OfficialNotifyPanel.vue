@@ -1,7 +1,7 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
- * 消息页「LinkX官方」：微信团队式服务通知卡片流。
+ * 消息页「LinkX官方」：服务通知卡片流。
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import { NIcon, NDropdown, useMessage, useDialog, type DropdownOption } from 'naive-ui'

@@ -85,17 +85,20 @@ export function resetChatSocketReconnect() {
 
 // 近期消息 ID 缓存，用于在前端层面做去重。
 // 容量限制避免内存膨胀；FIFO 淘汰。
-const recentMessageIds: string[] = []
+const recentMessageIdSet = new Set<string>()
+const recentMessageIdOrder: string[] = []
 const MAX_RECENT_IDS = 200
 
 function rememberMessageId(id: string): boolean {
   if (!id) return true  // 无 ID 的消息无法去重，直接放行
-  if (recentMessageIds.includes(id)) {
+  if (recentMessageIdSet.has(id)) {
     return false  // 重复
   }
-  recentMessageIds.push(id)
-  if (recentMessageIds.length > MAX_RECENT_IDS) {
-    recentMessageIds.shift()
+  recentMessageIdSet.add(id)
+  recentMessageIdOrder.push(id)
+  if (recentMessageIdOrder.length > MAX_RECENT_IDS) {
+    const evicted = recentMessageIdOrder.shift()
+    if (evicted) recentMessageIdSet.delete(evicted)
   }
   return true
 }
@@ -294,7 +297,8 @@ export async function connectChatSocket(nextHandlers: ChatSocketHandlers) {
       console.log('[WebSocket] 连接关闭, code:', event.code, 'reason:', event.reason)
       clearTimers()
       // 重连前清空去重缓存，避免旧连接的消息 ID 阻塞新连接的去重判断
-      recentMessageIds.length = 0
+      recentMessageIdSet.clear()
+      recentMessageIdOrder.length = 0
       handlers?.onClose()
       socket = null
       if (shouldReconnect) {

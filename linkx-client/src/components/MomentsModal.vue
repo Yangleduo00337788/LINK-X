@@ -43,10 +43,9 @@ import { useContactsStore } from '../stores/contacts'
 // 主题同步工具
 import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
 // 媒体地址规范化
-import { normalizeMediaUrl, isEphemeralMediaUrl } from '../utils/mediaUrl'
+import { isEphemeralMediaUrl } from '../utils/mediaUrl'
 // 本地生成默认头像/封面
 import {
-  generateDefaultAvatar,
   generateDefaultBanner,
   resolveMomentsBackgroundUrl,
   resolveUserAvatarUrl
@@ -60,6 +59,7 @@ import AtMentionPicker from './common/AtMentionPicker.vue'
 import MomentsNotificationsPage from './MomentsNotificationsPage.vue'
 import MomentsComposerModal from './MomentsComposerModal.vue'
 import MomentsPostImage from './moments/MomentsPostImage.vue'
+import Avatar from './Avatar.vue'
 import WindowCaptionButtons from './WindowCaptionButtons.vue'
 import { resolveMomentsImageDisplaySrc } from '../utils/momentsMediaAccess'
 import type { MomentPost } from '../stores/moments'
@@ -106,34 +106,13 @@ const editContent = ref('')
 const editSaving = ref(false)
 // 当前登录用户
 const myUserId = computed(() => userProfile.value.userId || '')
-const defaultAvatar = computed(() =>
-  generateDefaultAvatar(userProfile.value.nickname || t('common.me'))
-)
-const profileAvatar = computed(() =>
-  resolveUserAvatarUrl(userProfile.value.avatar, userProfile.value.userId) || defaultAvatar.value
-)
 const defaultBanner = computed(() =>
   generateDefaultBanner(userProfile.value.nickname || 'banner')
 )
 
-/** 头像加载失败的帖子 id（只记本地，不改写 store，避免清掉刚刷新的真实 URL） */
-const failedAvatars = ref<Record<string, string>>({})
-
-function postAvatarSrc(post: { id: string; avatar?: string; user: string; userId?: string }): string {
+function onPostAvatarError(post: { avatar?: string; userId?: string }) {
   const url = resolveUserAvatarUrl(post.avatar, post.userId)
-  // 仅当「当前 URL」曾失败时才回退，URL 已刷新则继续尝试
-  if (url && failedAvatars.value[post.id] === url) {
-    return generateDefaultAvatar(post.user || '?', 88)
-  }
-  return url || generateDefaultAvatar(post.user || '?', 88)
-}
-
-function onPostAvatarError(post: { id: string; avatar?: string; userId?: string }) {
-  const url = resolveUserAvatarUrl(post.avatar, post.userId)
-  if (!url) return
-  failedAvatars.value = { ...failedAvatars.value, [post.id]: url }
-  // 预签名/代理头像过期：合并刷新列表换新签名
-  if (isEphemeralMediaUrl(url)) {
+  if (url && isEphemeralMediaUrl(url)) {
     void recoverEphemeralMomentsMedia()
   }
 }
@@ -151,7 +130,6 @@ function recoverEphemeralMomentsMedia() {
     mediaRecoverInFlight = true
     try {
       await fetchMoments({ q: searchQuery.value.trim() || undefined })
-      failedAvatars.value = {}
     } finally {
       mediaRecoverInFlight = false
     }
@@ -170,18 +148,18 @@ async function loadMomentsBanner() {
     const res = await getPreference()
     if (res.code === 200 && res.data?.momentsBackground) {
       momentsBanner.value = res.data.momentsBackground
-      bannerLoaded.value = true
     }
   } catch {
     // ignore
+  } finally {
+    bannerLoaded.value = true
   }
 }
 
 const bannerUrl = computed(() => {
-  if (!bannerLoaded.value && !momentsBanner.value) {
-    return defaultBanner.value
-  }
-  return resolveMomentsBackgroundUrl(momentsBanner.value, myUserId.value) || defaultBanner.value
+  const resolved = resolveMomentsBackgroundUrl(momentsBanner.value, myUserId.value)
+  if (resolved) return resolved
+  return bannerLoaded.value ? defaultBanner.value : ''
 })
 
 // ============================================================
@@ -278,13 +256,12 @@ const headerDisplayName = computed(() => {
   return userProfile.value.nickname
 })
 
-const headerAvatar = computed(() => {
+const headerAvatarUrl = computed(() => {
   if (isUserFeed.value) {
     const post = focusUserPosts.value[0]
-    const url = resolveUserAvatarUrl(post?.avatar, post?.userId || focusUserId.value)
-    return url || generateDefaultAvatar(focusUserName.value || '?', 88)
+    return resolveUserAvatarUrl(post?.avatar, post?.userId || focusUserId.value)
   }
-  return profileAvatar.value
+  return resolveUserAvatarUrl(userProfile.value.avatar, userProfile.value.userId)
 })
 
 /** 从路由或 store 同步「查看某人友链」焦点 */
@@ -467,8 +444,6 @@ onMounted(() => {
         if (!focusUserId.value) await fetchMoments()
       })
     ])
-    // 刷新后清掉失败标记，让新签名 URL 有机会重新加载
-    failedAvatars.value = {}
     void fetchNotificationCount()
   })()
   window.addEventListener('keydown', onPreviewKeydown)
@@ -515,7 +490,6 @@ async function refresh() {
   } else {
     await Promise.all([fetchMoments(), fetchMessageNotifications()])
   }
-  failedAvatars.value = {}
   message.success(t('moments.refreshOk'))
   // 旋转动画保持至少 600ms,让用户感知到
   await new Promise(r => setTimeout(r, 600))
@@ -873,6 +847,7 @@ const showMomentsOps = ref(false)
       <div class="moments-header">
         <div class="header-banner" @contextmenu="onBannerContextMenu">
           <img
+            v-if="bannerUrl"
             :src="bannerUrl"
             alt="Banner"
             class="banner-img"
@@ -889,7 +864,13 @@ const showMomentsOps = ref(false)
           <div class="user-info-text">
             <span class="username">{{ headerDisplayName }}</span>
           </div>
-          <img :src="headerAvatar" alt="Avatar" class="avatar-img" referrerpolicy="no-referrer" />
+          <Avatar
+            :size="88"
+            color="var(--lx-accent)"
+            :text="headerDisplayName || '?'"
+            :image-url="headerAvatarUrl || undefined"
+            class="avatar-img"
+          />
         </div>
       </div>
 
@@ -906,12 +887,13 @@ const showMomentsOps = ref(false)
       <!-- 动态列表(发布编辑器已迁移至独立 Modal) -->
       <div class="moments-content">
         <div v-for="post in filteredPosts" :key="post.id" class="post-item">
-          <img
-            :src="postAvatarSrc(post)"
-            alt=""
+          <Avatar
+            :size="44"
+            color="var(--lx-accent)"
+            :text="post.user"
+            :image-url="resolveUserAvatarUrl(post.avatar, post.userId) || undefined"
             class="post-avatar"
-            referrerpolicy="no-referrer"
-            @error="onPostAvatarError(post)"
+            @image-error="onPostAvatarError(post)"
           />
           <div class="post-main">
             <div class="post-user">{{ post.user }}</div>

@@ -4,7 +4,7 @@
  * 图片消息气泡：无边框直出，双击进入预览。
  * 已入库消息优先鉴权加载（Web Cookie / Electron blob），减少预签名 URL 暴露。
  */
-import { ref, watch, onBeforeUnmount, computed } from 'vue'
+import { ref, watch, onBeforeUnmount } from 'vue'
 import type { ChatMessage } from '../../../types'
 import * as chatApi from '../../../api/chat'
 import { normalizeMediaUrl, recoverMediaUrlOnError } from '../../../utils/mediaUrl'
@@ -31,7 +31,6 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const displaySrc = ref('')
-const imageReady = ref(false)
 let authBlobUrl: string | null = null
 let loadSeq = 0
 
@@ -51,11 +50,6 @@ function getImmediateSrc(msg: ChatMessage): string {
   return normalizeMediaUrl(raw) || raw
 }
 
-const showPlaceholder = computed(() => {
-  const immediate = getImmediateSrc(props.msg)
-  return !imageReady.value && !immediate
-})
-
 function revokeAuthBlob() {
   if (authBlobUrl) {
     URL.revokeObjectURL(authBlobUrl)
@@ -70,16 +64,11 @@ async function loadDisplaySrc() {
     : null
   if (disk) {
     displaySrc.value = toMediaFileUrl(disk)
-    imageReady.value = true
     return
   }
   const immediate = getImmediateSrc(props.msg)
   if (immediate) {
     displaySrc.value = immediate
-    imageReady.value = true
-  } else {
-    displaySrc.value = ''
-    imageReady.value = false
   }
   revokeAuthBlob()
   const resolved = await resolveChatImageDisplaySrc(props.msg)
@@ -98,7 +87,6 @@ async function loadDisplaySrc() {
       if (saved) {
         revokeAuthBlob()
         displaySrc.value = toMediaFileUrl(saved)
-        imageReady.value = true
         return
       }
     } catch {
@@ -107,9 +95,16 @@ async function loadDisplaySrc() {
   }
   if (resolved.src) {
     displaySrc.value = resolved.src
-    imageReady.value = true
   }
 }
+
+watch(
+  () => props.msg.id,
+  () => {
+    displaySrc.value = getImmediateSrc(props.msg)
+    revokeAuthBlob()
+  }
+)
 
 watch(
   () => [props.msg.id, props.msg.content, props.msg.fileUrl, props.msg.sendStatus] as const,
@@ -141,16 +136,18 @@ function onDblClick(e: MouseEvent) {
   e.stopPropagation()
   emit('preview', props.msg)
 }
+
+function onImgLoad() {
+  emit('contentLoaded')
+}
 </script>
 
 <template>
   <div class="image-bubble" :class="{ self: msg.isSelf }" @dblclick="onDblClick">
-    <div v-if="showPlaceholder" class="image-bubble__placeholder" aria-hidden="true" />
     <img
       v-if="displaySrc"
       :src="displaySrc"
       class="lx-bubble-image"
-      :class="{ 'lx-bubble-image--ready': imageReady }"
       :alt="msg.fileName || t('chat.imageMessage')"
       :title="t('chat.imageDblClickHint')"
       loading="lazy"
@@ -158,7 +155,7 @@ function onDblClick(e: MouseEvent) {
       referrerpolicy="no-referrer"
       draggable="false"
       @error="onImgError"
-      @load="imageReady = true; emit('contentLoaded')"
+      @load="onImgLoad"
       @dblclick="onDblClick"
     />
   </div>
@@ -171,16 +168,6 @@ function onDblClick(e: MouseEvent) {
   border: none;
   box-shadow: none;
   line-height: 0;
-  position: relative;
-  min-width: 120px;
-  min-height: 80px;
-}
-
-.image-bubble__placeholder {
-  width: 160px;
-  height: 120px;
-  border-radius: var(--lx-bubble-radius);
-  background: var(--lx-bg-hover);
 }
 
 .lx-bubble-image {
@@ -191,17 +178,5 @@ function onDblClick(e: MouseEvent) {
   cursor: zoom-in;
   display: block;
   user-select: none;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-
-.lx-bubble-image--ready {
-  opacity: 1;
-}
-
-.image-bubble__placeholder + .lx-bubble-image {
-  position: absolute;
-  left: 0;
-  top: 0;
 }
 </style>

@@ -84,14 +84,25 @@ function decodeHtmlEntities(text: string): string {
 }
 
 /** 渲染灵伴回复 Markdown 为安全 HTML */
+const markdownHtmlCache = new Map<string, string>()
+const MAX_MARKDOWN_CACHE = 100
+
 export function renderLinkMateMarkdown(markdown: string): string {
   const source = decodeHtmlEntities(markdown?.trim() ?? '')
   if (!source) return ''
+  const cached = markdownHtmlCache.get(source)
+  if (cached !== undefined) return cached
   const rawHtml = linkmateMarked.parse(source) as string
-  return DOMPurify.sanitize(rawHtml, {
+  const html = DOMPurify.sanitize(rawHtml, {
     ADD_TAGS: ['pre', 'code', 'button', 'span'],
     ADD_ATTR: ['class', 'target', 'rel', 'type', 'data-lm-copy']
   })
+  if (markdownHtmlCache.size >= MAX_MARKDOWN_CACHE) {
+    const oldest = markdownHtmlCache.keys().next().value
+    if (oldest) markdownHtmlCache.delete(oldest)
+  }
+  markdownHtmlCache.set(source, html)
+  return html
 }
 
 /** 从代码块复制按钮获取源码文本 */

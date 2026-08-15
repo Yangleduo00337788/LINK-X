@@ -120,6 +120,12 @@ linkx:
     daily-token-limit: ${LINKMATE_DAILY_TOKEN_LIMIT}
     system-prompt: ${LINKMATE_SYSTEM_PROMPT}
 
+  customer-service:
+    enabled: ${CS_BOT_ENABLED:true}
+    username: linkx_cs
+    nickname: LinkX客服
+    auto-pin: true
+
   message-encryption:
     enabled: ${MESSAGE_CONTENT_ENCRYPT_ENABLED}
     kek: ${MESSAGE_KEK}
@@ -252,5 +258,7 @@ logging:
     root: ${LOG_LEVEL_ROOT}
     com.linkx.server: ${LOG_LEVEL_LINKX}
     org.springframework.security: ${LOG_LEVEL_SECURITY}
+    # SnailJob 客户端心跳/调度默认 INFO，本地开发易刷屏
+    com.aizuda.snailjob: ${LOG_LEVEL_SNAIL_JOB:WARN}
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"

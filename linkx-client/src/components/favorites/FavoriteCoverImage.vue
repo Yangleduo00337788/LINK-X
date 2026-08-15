@@ -3,9 +3,8 @@
 /**
  * 收藏封面图：有 messageId 时走聊天鉴权加载，避免 OSS/MinIO 外链在 Electron 下失败。
  */
-import { ref, watch, onBeforeUnmount } from 'vue'
 import { resolveChatMediaSrcByMessageId } from '../../utils/chatMediaAccess'
-import { normalizeMediaUrl } from '../../utils/mediaUrl'
+import { useAuthDisplayImage } from '../../utils/authDisplayImage'
 
 const props = defineProps<{
   messageId: string
@@ -15,54 +14,14 @@ const props = defineProps<{
 
 const emit = defineEmits<{ (e: 'error'): void }>()
 
-const displaySrc = ref('')
-let authBlobUrl: string | null = null
-let loadSeq = 0
-
-function revokeAuthBlob() {
-  if (authBlobUrl) {
-    URL.revokeObjectURL(authBlobUrl)
-    authBlobUrl = null
-  }
-}
-
-async function loadDisplaySrc() {
-  const seq = ++loadSeq
-  revokeAuthBlob()
-  const resolved = await resolveChatMediaSrcByMessageId(props.messageId, props.fallbackUrl)
-  if (seq !== loadSeq) {
-    if (resolved.blobUrlToRevoke) {
-      URL.revokeObjectURL(resolved.blobUrlToRevoke)
-    }
-    return
-  }
-  if (resolved.blobUrlToRevoke) {
-    authBlobUrl = resolved.blobUrlToRevoke
-  }
-  displaySrc.value = resolved.src
-}
-
-watch(
-  () => [props.messageId, props.fallbackUrl] as const,
-  () => {
-    void loadDisplaySrc()
-  },
-  { immediate: true }
-)
-
-onBeforeUnmount(() => {
-  loadSeq += 1
-  revokeAuthBlob()
+const { displaySrc, onImgErrorApplyFallback } = useAuthDisplayImage({
+  watchKeys: () => [props.messageId, props.fallbackUrl] as const,
+  getFallbackUrl: () => props.fallbackUrl,
+  resolveSrc: () => resolveChatMediaSrcByMessageId(props.messageId, props.fallbackUrl)
 })
 
 function onImgError() {
-  const fallback = normalizeMediaUrl(props.fallbackUrl || '') || props.fallbackUrl || ''
-  if (fallback && fallback !== displaySrc.value) {
-    revokeAuthBlob()
-    displaySrc.value = fallback
-    return
-  }
-  emit('error')
+  if (!onImgErrorApplyFallback()) emit('error')
 }
 </script>
 

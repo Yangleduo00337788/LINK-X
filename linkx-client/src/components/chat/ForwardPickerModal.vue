@@ -1,7 +1,7 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
- * 转发选人弹窗（QQ 桌面版风格）：左栏最近聊天多选，右栏发送给 + 预览 + 留言。
+ * 转发选人弹窗：左栏最近聊天多选，右栏发送给 + 预览 + 留言。
  */
 import { computed, ref, watch } from 'vue'
 import { NIcon, NModal } from 'naive-ui'
@@ -63,6 +63,7 @@ const recentSessions = computed(() => {
   const q = search.value.trim().toLowerCase()
   return (sessions.value || [])
     .filter(s => !s.isSystemNotify && !s.isOfficialNotify)
+    .filter(s => s.peerUsername !== 'linkx_cs')
     .filter(s => !props.excludeSessionId || s.id !== props.excludeSessionId)
     .filter(s => !q || s.name.toLowerCase().includes(q))
 })

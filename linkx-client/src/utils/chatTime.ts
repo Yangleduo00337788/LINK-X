@@ -2,6 +2,7 @@
  * 作者：yangleduo
  */
 import { t } from '../i18n'
+import type { ChatMessage } from '../types'
 
 /** 将时间戳格式化为 HH:mm（兼容后端 Long 字符串） */
 export function formatChatTime(timestamp?: string | number | null): string {
@@ -46,6 +47,43 @@ export function formatMessageDivider(timestamp?: string | number | null): string
 
 /** 两条消息间隔超过此时长则插入时间分割线（毫秒） */
 export const MESSAGE_TIME_GAP_MS = 5 * 60 * 1000
+
+/** 为消息列表插入时间分割线（首条 + 间隔超过 5 分钟） */
+export function buildMessagesWithTimeDividers(list: ChatMessage[]): ChatMessage[] {
+  const result: ChatMessage[] = []
+  let lastMs = 0
+  for (const m of list) {
+    const ms = m.createTime || 0
+    if (m.type !== 'time' && ms && lastMs && ms - lastMs >= MESSAGE_TIME_GAP_MS) {
+      result.push({
+        id: `time-${m.id}`,
+        sessionId: m.sessionId,
+        content: formatMessageDivider(ms),
+        time: m.time,
+        createTime: ms,
+        isSelf: false,
+        type: 'time'
+      })
+    }
+    result.push(m)
+    if (ms) lastMs = ms
+  }
+  if (result.length > 0 && result[0].type !== 'time') {
+    const first = result.find(m => m.type !== 'time')
+    if (first?.createTime) {
+      result.unshift({
+        id: `time-start-${first.id}`,
+        sessionId: first.sessionId,
+        content: formatMessageDivider(first.createTime),
+        time: first.time,
+        createTime: first.createTime,
+        isSelf: false,
+        type: 'time'
+      })
+    }
+  }
+  return result
+}
 
 /**
  * 将时间戳格式化为相对时间描述。

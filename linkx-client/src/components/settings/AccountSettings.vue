@@ -1,7 +1,8 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
-import { NAvatar, NIcon, NModal, NInput, NTag, useMessage, useDialog } from 'naive-ui'
+import type { AxiosError } from 'axios'
+import { NIcon, NModal, NInput, NTag, useMessage, useDialog } from 'naive-ui'
 import { LxButton, LxIconButton, LxGroupCard } from '../ui'
 import {
   ChevronForwardOutline,
@@ -15,11 +16,11 @@ import * as accountApi from '../../api/account'
 import * as authApi from '../../api/auth'
 import * as feedbackApi from '../../api/feedback'
 import * as complianceApi from '../../api/compliance'
-import { generateDefaultAvatar } from '../../utils/defaultAvatar'
 import { validatePassword, validateUsername } from '../../utils/validation'
 import { copyText } from '../../utils/clipboard'
 import { useI18n } from '../../i18n'
 import SliderCaptcha from '../SliderCaptcha.vue'
+import Avatar from '../Avatar.vue'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -31,9 +32,6 @@ const { userProfile, savedLogin } = storeToRefs(appStore)
 
 const displayUsername = computed(
   () => userProfile.value.username || savedLogin.value.username || '—'
-)
-const defaultAvatar = computed(() =>
-  generateDefaultAvatar(userProfile.value.nickname || t('common.me'))
 )
 
 const phoneDisplay = computed(() =>
@@ -82,6 +80,28 @@ async function copyLinkxId() {
   const ok = await copyText(text)
   if (ok) message.success(t('account.linkxIdCopied'))
   else message.error(t('account.copyFail'))
+}
+
+const customerServiceOpening = ref(false)
+
+async function openCustomerService() {
+  if (customerServiceOpening.value) return
+  customerServiceOpening.value = true
+  try {
+    await appStore.openCustomerServiceChat()
+  } catch (e) {
+    const axiosErr = e as AxiosError<{ message?: string }>
+    const status = axiosErr.response?.status
+    if (status === 404 || status === 503 || status === 500) {
+      message.error(t('account.contactCustomerServiceFail'))
+      return
+    }
+    const apiMsg = axiosErr.response?.data?.message
+    const errMsg = apiMsg || (e instanceof Error ? e.message : '')
+    message.error(errMsg || t('account.contactCustomerServiceFail'))
+  } finally {
+    customerServiceOpening.value = false
+  }
 }
 
 function openEditProfile() {
@@ -618,9 +638,11 @@ onMounted(() => {
       </div>
 
       <div class="profile-block">
-        <n-avatar
+        <Avatar
           :size="56"
-          :src="userProfile.avatar || defaultAvatar"
+          color="var(--lx-accent)"
+          :text="userProfile.nickname || t('common.me')"
+          :image-url="userProfile.avatar"
           class="profile-avatar"
         />
         <div class="profile-meta">
@@ -644,6 +666,19 @@ onMounted(() => {
         <div class="link-text compact">
           <span class="link-value">{{ displayUsername }}</span>
           <span class="link-desc">{{ t('account.linkxIdDesc') }}</span>
+        </div>
+        <n-icon :component="ChevronForwardOutline" :size="16" class="link-chevron" />
+      </button>
+
+      <button
+        type="button"
+        class="link-row"
+        :disabled="customerServiceOpening"
+        @click="openCustomerService"
+      >
+        <span class="link-label">{{ t('account.contactCustomerService') }}</span>
+        <div class="link-text compact">
+          <span class="link-desc">{{ t('account.contactCustomerServiceDesc') }}</span>
         </div>
         <n-icon :component="ChevronForwardOutline" :size="16" class="link-chevron" />
       </button>

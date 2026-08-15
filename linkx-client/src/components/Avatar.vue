@@ -2,13 +2,13 @@
 <script setup lang="ts">
 /**
  * 通用头像组件。
- * 无自定义头像时统一展示项目 Logo；有 URL 时加载完成后淡入（已缓存则立即展示）。
+ * 有真实头像 URL 时直接展示；仅无头像时展示项目 Logo 或首字。
  */
 import { NIcon } from 'naive-ui'
 import { computed, ref, watch } from 'vue'
 import type { Component } from 'vue'
 import { DEFAULT_AVATAR_URL } from '../utils/defaultAvatar'
-import { isDisplayableMediaUrl, normalizeMediaUrl } from '../utils/mediaUrl'
+import { pickDisplayableImageUrl } from '../utils/displayImage'
 import {
   isAvatarImageCached,
   markAvatarImageCached,
@@ -28,10 +28,11 @@ const props = defineProps<{
   fallback?: 'logo' | 'initial'
 }>()
 
+const emit = defineEmits<{ (e: 'image-error'): void }>()
+
 const size = computed(() => props.size ?? 44)
 const fontSize = computed(() => `${size.value * 0.38}px`)
 const imgFailed = ref(false)
-const imgLoaded = ref(false)
 
 const effectiveFallback = computed<'logo' | 'initial'>(() => props.fallback ?? 'logo')
 
@@ -40,40 +41,43 @@ const showInitialFallback = computed(
 )
 
 const customImageUrl = computed(() => {
-  const url = normalizeMediaUrl(props.imageUrl)
-  if (!url || !isDisplayableMediaUrl(url) || url === DEFAULT_AVATAR_URL) return ''
+  const url = pickDisplayableImageUrl(props.imageUrl)
+  if (!url || url === DEFAULT_AVATAR_URL) return ''
   return url
 })
 
 const hasCustomImage = computed(() => !!customImageUrl.value && !imgFailed.value)
-const showLoadedImage = computed(() => hasCustomImage.value && imgLoaded.value)
+const showLogoFallback = computed(
+  () =>
+    effectiveFallback.value === 'logo' &&
+    !hasCustomImage.value &&
+    !showInitialFallback.value &&
+    !props.icon
+)
 
-function syncImageLoadedState() {
+function primeCustomImageCache() {
   imgFailed.value = false
   const url = customImageUrl.value
-  if (!url) {
-    imgLoaded.value = false
-    return
-  }
-  imgLoaded.value = isAvatarImageCached(url) || primeAvatarImageCache(url)
+  if (!url) return
+  if (isAvatarImageCached(url)) return
+  primeAvatarImageCache(url)
 }
 
-watch(() => props.imageUrl, syncImageLoadedState, { immediate: true })
+watch(() => props.imageUrl, primeCustomImageCache, { immediate: true })
 
 function onImgLoad() {
-  imgLoaded.value = true
   markAvatarImageCached(customImageUrl.value)
 }
 
 function onImgError() {
   imgFailed.value = true
-  imgLoaded.value = false
+  emit('image-error')
 }
 
 const containerBg = computed(() => {
-  if (hasCustomImage.value && showLoadedImage.value) return props.color
-  if (!hasCustomImage.value || !showLoadedImage.value) return 'var(--lx-bg-card)'
-  return props.color
+  if (hasCustomImage.value) return props.color
+  if (showInitialFallback.value) return props.color
+  return 'var(--lx-bg-card)'
 })
 </script>
 
@@ -87,11 +91,11 @@ const containerBg = computed(() => {
       fontSize: fontSize
     }"
   >
-    <n-icon v-if="icon && !showLoadedImage" :component="icon" :size="size * 0.45" />
-    <template v-else-if="showInitialFallback && !showLoadedImage">{{ text }}</template>
+    <n-icon v-if="icon && !hasCustomImage" :component="icon" :size="size * 0.45" />
+    <template v-else-if="showInitialFallback && !hasCustomImage">{{ text }}</template>
 
     <img
-      v-if="!hasCustomImage || !showLoadedImage"
+      v-if="showLogoFallback"
       :src="DEFAULT_AVATAR_URL"
       alt=""
       class="avatar-img avatar-img--logo"
@@ -104,7 +108,6 @@ const containerBg = computed(() => {
       :src="customImageUrl"
       alt=""
       class="avatar-img"
-      :class="{ 'avatar-img--loaded': showLoadedImage }"
       decoding="async"
       referrerpolicy="no-referrer"
       @load="onImgLoad"
@@ -133,13 +136,6 @@ const containerBg = computed(() => {
   height: 100%;
   object-fit: cover;
   display: block;
-  opacity: 0;
-  transition: opacity 0.12s ease;
-}
-
-.avatar-img--loaded,
-.avatar-img--logo {
-  opacity: 1;
 }
 
 .avatar-img--logo {

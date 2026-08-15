@@ -1,7 +1,7 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
- * 音视频通话 / 会议提示气泡（微信风格：图标 + 文案，可点击回拨或入会）。
+ * 音视频通话 / 会议提示气泡（图标 + 文案，可点击回拨或入会）。
  */
 import { computed } from 'vue'
 import { NIcon } from 'naive-ui'

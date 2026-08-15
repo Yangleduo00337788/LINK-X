@@ -22,12 +22,29 @@ import {
 
 /** Electron 鉴权图片 blob 缓存，避免切换会话时重复下载 */
 const electronMediaBlobCache = new Map<string, string>()
+const MAX_ELECTRON_MEDIA_BLOB_CACHE = 50
 
 export function getCachedElectronMediaBlob(messageId: string): string | undefined {
   return electronMediaBlobCache.get(messageId)
 }
 
 export function cacheElectronMediaBlob(messageId: string, blobUrl: string) {
+  if (electronMediaBlobCache.has(messageId)) {
+    electronMediaBlobCache.delete(messageId)
+  } else if (electronMediaBlobCache.size >= MAX_ELECTRON_MEDIA_BLOB_CACHE) {
+    const oldest = electronMediaBlobCache.keys().next().value
+    if (oldest) {
+      const oldUrl = electronMediaBlobCache.get(oldest)
+      if (oldUrl) {
+        try {
+          URL.revokeObjectURL(oldUrl)
+        } catch {
+          /* ignore */
+        }
+      }
+      electronMediaBlobCache.delete(oldest)
+    }
+  }
   electronMediaBlobCache.set(messageId, blobUrl)
 }
 

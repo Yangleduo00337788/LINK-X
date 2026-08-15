@@ -5,7 +5,7 @@
  */
 import { computed } from 'vue'
 import Avatar from './Avatar.vue'
-import { isDisplayableMediaUrl, normalizeMediaUrl } from '../utils/mediaUrl'
+import { pickDisplayableImageUrl } from '../utils/displayImage'
 
 const props = defineProps<{
   size?: number
@@ -18,11 +18,9 @@ const props = defineProps<{
 const size = computed(() => props.size ?? 44)
 
 const displayImageUrl = computed(() => {
-  const custom = normalizeMediaUrl(props.imageUrl)
-  if (custom && isDisplayableMediaUrl(custom)) return custom
-  const fallback = normalizeMediaUrl(props.defaultImageUrl)
-  if (fallback && isDisplayableMediaUrl(fallback)) return fallback
-  return ''
+  const custom = pickDisplayableImageUrl(props.imageUrl)
+  if (custom) return custom
+  return pickDisplayableImageUrl(props.defaultImageUrl)
 })
 </script>
 

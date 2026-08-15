@@ -1,6 +1,6 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch, nextTick, inject, type ComputedRef } from 'vue'
 import { useRouter } from 'vue-router'
 import { NInput, NIcon, NCheckbox, NModal, NSelect, useMessage } from 'naive-ui'
 import {
@@ -24,20 +24,33 @@ import { sendResetCode, verifyResetCode, resetPasswordByEmail } from '../api/acc
 import { validateUsername, validatePassword } from '../utils/validation'
 import { hasRefreshToken } from '../utils/tokenStorage'
 import { useI18n } from '../i18n'
-import { dismissBootSplash } from '../utils/bootSplash'
 import { preloadClientResources } from '../utils/preloadClientResources'
 
 const message = useMessage()
 const router = useRouter()
 const appStore = useAppStore()
-const { savedLogin, isLoading, authInitializing, userProfile } = storeToRefs(appStore)
+const { savedLogin, isLoading, authInitializing, userProfile, isLoggedIn } = storeToRefs(appStore)
 const { login } = appStore
 const { t } = useI18n()
 
 const isElectron = !!window.electronAPI?.isElectron
 
+function shouldAutoLoginOnBoot(): boolean {
+  return !!(
+    savedLogin.value.autoLogin &&
+    savedLogin.value.rememberMe &&
+    savedLogin.value.username?.trim()
+  )
+}
+
+/** 主界面是否已挂载（由 HomeView provide） */
+const loginShellReady = inject<ComputedRef<boolean>>(
+  'loginShellReady',
+  computed(() => false)
+)
+
 /** quick：快速登录（头像+昵称）；password：账密登录 */
-const loginMode = ref<'quick' | 'password'>('password')
+const loginMode = ref<'quick' | 'password'>(shouldAutoLoginOnBoot() ? 'quick' : 'password')
 
 const username = ref('')
 const password = ref('')
@@ -50,12 +63,13 @@ const autoLoginPhase = ref<'idle' | 'checking' | 'logging-in'>('idle')
 /** auto：启动/勾选自动登录；manual：快速登录页手动点登录 */
 const loginFlowKind = ref<'none' | 'auto' | 'manual'>('none')
 
-/** 登录/自动登录进行中（用于禁用按钮与展示 loading） */
+/** 登录/自动登录进行中（含主界面 chunk 加载，按钮转圈直到主界面就绪） */
 const loginInProgress = computed(
   () =>
     autoLoginPhase.value !== 'idle' ||
     authInitializing.value ||
-    isLoading.value
+    isLoading.value ||
+    (isLoggedIn.value && !loginShellReady.value)
 )
 
 /** @deprecated 保留别名，模板仍可用 */
@@ -87,6 +101,7 @@ const displayAvatarUrl = computed(() => {
 const displayAvatarText = computed(() => displayNickname.value.charAt(0) || '?')
 
 const loginButtonText = computed(() => {
+  if (isLoggedIn.value && !loginShellReady.value) return t('login.autoLogging')
   if (autoLoginPhase.value === 'checking') return t('login.checkingNetwork')
   if (autoLoginPhase.value === 'logging-in' || authInitializing.value) {
     return loginFlowKind.value === 'manual' ? t('login.loggingIn') : t('login.autoLogging')
@@ -339,7 +354,6 @@ async function runAutoLoginFlow(kind: 'auto' | 'manual' = 'auto') {
 }
 
 onMounted(() => {
-  dismissBootSplash()
   void preloadClientResources()
   username.value = savedLogin.value.username || ''
   rememberMe.value = savedLogin.value.rememberMe ?? true
@@ -347,25 +361,26 @@ onMounted(() => {
   document.addEventListener('click', onDocClick)
   window.addEventListener('focus', onWindowFocus)
 
-  void loadAuthConfig().then(() => {
+  const shouldAutoLogin = shouldAutoLoginOnBoot()
+  if (shouldAutoLogin) {
+    loginMode.value = 'quick'
+  }
+
+  void (async () => {
+    await loadAuthConfig()
     const fromRegister = applyRegisteredUsername()
     if (fromRegister) return
 
-    const shouldAutoLogin = autoLogin.value && rememberMe.value && !!username.value.trim()
     if (shouldAutoLogin) {
-      loginMode.value = 'quick'
-      void nextTick(() => {
-        void runAutoLoginFlow('auto')
-      })
+      await runAutoLoginFlow('auto')
       return
     }
 
-    // 未勾选自动登录：账密表单，账号可预填，需手动点登录
     loginMode.value = 'password'
     requestAnimationFrame(() => {
       void loadCaptcha('login')
     })
-  })
+  })()
 })
 
 onUnmounted(() => {

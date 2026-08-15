@@ -3,9 +3,8 @@
 /**
  * 群相册缩略图：优先鉴权加载群资源内容。
  */
-import { ref, watch, onBeforeUnmount } from 'vue'
 import { resolveGroupAssetDisplaySrc } from '../../utils/groupMediaAccess'
-import { normalizeMediaUrl } from '../../utils/mediaUrl'
+import { useAuthDisplayImage } from '../../utils/authDisplayImage'
 
 const props = defineProps<{
   conversationId: string
@@ -14,56 +13,15 @@ const props = defineProps<{
   alt?: string
 }>()
 
-const displaySrc = ref('')
-let authBlobUrl: string | null = null
-let loadSeq = 0
-
-function revokeAuthBlob() {
-  if (authBlobUrl) {
-    URL.revokeObjectURL(authBlobUrl)
-    authBlobUrl = null
-  }
-}
-
-async function loadDisplaySrc() {
-  const seq = ++loadSeq
-  revokeAuthBlob()
-  const resolved = await resolveGroupAssetDisplaySrc(
-    props.conversationId,
-    props.assetId,
-    props.fallbackUrl
-  )
-  if (seq !== loadSeq) {
-    if (resolved.blobUrlToRevoke) {
-      URL.revokeObjectURL(resolved.blobUrlToRevoke)
-    }
-    return
-  }
-  if (resolved.blobUrlToRevoke) {
-    authBlobUrl = resolved.blobUrlToRevoke
-  }
-  displaySrc.value = resolved.src
-}
-
-watch(
-  () => [props.conversationId, props.assetId, props.fallbackUrl] as const,
-  () => {
-    void loadDisplaySrc()
-  },
-  { immediate: true }
-)
-
-onBeforeUnmount(() => {
-  loadSeq += 1
-  revokeAuthBlob()
+const { displaySrc, onImgErrorApplyFallback } = useAuthDisplayImage({
+  watchKeys: () => [props.conversationId, props.assetId, props.fallbackUrl] as const,
+  getFallbackUrl: () => props.fallbackUrl,
+  resolveSrc: () =>
+    resolveGroupAssetDisplaySrc(props.conversationId, props.assetId, props.fallbackUrl)
 })
 
 function onImgError() {
-  const fallback = normalizeMediaUrl(props.fallbackUrl || '') || props.fallbackUrl || ''
-  if (fallback && fallback !== displaySrc.value) {
-    revokeAuthBlob()
-    displaySrc.value = fallback
-  }
+  onImgErrorApplyFallback()
 }
 </script>
 

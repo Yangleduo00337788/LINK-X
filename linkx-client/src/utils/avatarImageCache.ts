@@ -21,6 +21,10 @@ export function primeAvatarImageCache(url?: string | null): boolean {
   if (loadedUrls.has(normalized)) return true
   if (typeof Image === 'undefined') return false
   const img = new Image()
+  img.referrerPolicy = 'no-referrer'
+  img.onload = () => {
+    loadedUrls.add(normalized)
+  }
   img.src = normalized
   if (img.complete) {
     loadedUrls.add(normalized)

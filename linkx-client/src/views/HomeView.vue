@@ -14,6 +14,8 @@ import {
   nextTick,
   ref,
   shallowRef,
+  computed,
+  provide,
   type Component
 } from 'vue'
 import { storeToRefs } from 'pinia'
@@ -22,7 +24,6 @@ import { applyDocumentTheme } from '../utils/themeSync'
 import { isChatSocketConnected } from '../utils/chatSocket'
 // 登录页同步导入：自动登录需先画出登录窗再 loading
 import LoginView from '../components/LoginView.vue'
-import { dismissBootSplash } from '../utils/bootSplash'
 import { preloadAppShellComponent, preloadClientResources } from '../utils/preloadClientResources'
 
 const appStore = useAppStore()
@@ -41,6 +42,11 @@ function preloadAppShell(): Promise<Component> {
 
 /** 是否挂载主壳（登录成功后先挂壳再放大窗口） */
 const showMainShell = ref(false)
+
+provide(
+  'loginShellReady',
+  computed(() => showMainShell.value)
+)
 
 function waitFrames(count = 2): Promise<void> {
   return new Promise<void>(resolve => {
@@ -65,7 +71,6 @@ async function syncWindowModeLogin() {
 }
 
 function onMainShellMounted() {
-  dismissBootSplash()
   if (!isLoggedIn.value) return
   void waitFrames(2).then(() => syncWindowModeMain())
 }
@@ -83,10 +88,9 @@ function onVisibilityChange() {
 onMounted(() => {
   applyDocumentTheme(appStore.theme)
   void preloadClientResources()
+  void preloadAppShell()
   window.addEventListener('online', retryWsIfNeeded)
   document.addEventListener('visibilitychange', onVisibilityChange)
-  // 兜底：登录页未挂载时（异常路径）8s 后仍移除启动占位
-  window.setTimeout(() => dismissBootSplash(), 8000)
 })
 
 onUnmounted(() => {
@@ -119,26 +123,33 @@ watch(
       @vue:mounted="onMainShellMounted"
     />
     <Transition name="login-leave">
-      <LoginView v-if="!isLoggedIn" class="login-layer" />
+      <LoginView v-if="!showMainShell" class="login-layer" />
     </Transition>
   </div>
 </template>
 
 <style scoped>
 .home-root {
+  position: relative;
   width: 100%;
   height: 100%;
   min-height: 100%;
   overflow: hidden;
   border-radius: inherit;
+  background: var(--lx-login-bg-gradient);
 }
 
 .main-shell-layer {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: 100%;
 }
 
 .login-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
   width: 100%;
   height: 100%;
 }

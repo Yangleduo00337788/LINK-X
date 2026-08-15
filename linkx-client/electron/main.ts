@@ -276,6 +276,35 @@ function resolvePreloadPath(): string {
 
 const preloadPath = resolvePreloadPath()
 
+/** 统一 webPreferences：关闭拼写检查；主窗口可关闭后台节流以保持 IM 实时性 */
+function defaultWebPreferences(opts?: { backgroundThrottling?: boolean }): Electron.WebPreferences {
+  return {
+    preload: preloadPath,
+    contextIsolation: true,
+    nodeIntegration: false,
+    sandbox: true,
+    spellcheck: false,
+    backgroundThrottling: opts?.backgroundThrottling ?? true
+  }
+}
+
+let cspHeadersRegistered = false
+
+/** CSP 只注册一次，避免每开一个窗口就多一层 onHeadersReceived */
+function registerCspHeaders(csp: string) {
+  if (cspHeadersRegistered) return
+  cspHeadersRegistered = true
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [csp],
+        'Referrer-Policy': ['no-referrer']
+      }
+    })
+  })
+}
+
 // Windows 控制台默认多为 GBK，Node 日志按 UTF-8 写出易乱码；尽量切到 UTF-8
 if (process.platform === 'win32') {
   try {
@@ -1243,8 +1272,6 @@ async function showDesktopNotice(title: string, body: string, silent = false): P
   return true
 }
 
-registerWindowIpc()
-
 function applyAllWindowBackgrounds(theme: string) {
   const color = windowBackgroundColor(theme)
   BrowserWindow.getAllWindows().forEach(win => win.setBackgroundColor(color))
@@ -1457,12 +1484,7 @@ function createMomentsWindow(opts?: MomentsOpenPayload) {
     resizable: true,
     ...framelessChrome(),
     show: false,
-    webPreferences: {
-      preload: preloadPath,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true
-    }
+    webPreferences: defaultWebPreferences()
   })
   prepareFramelessWindow(momentsWindow)
 
@@ -1513,12 +1535,7 @@ function createMomentsTextWindow() {
     resizable: false,
     ...framelessChrome(),
     show: false,
-    webPreferences: {
-      preload: preloadPath,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true
-    }
+    webPreferences: defaultWebPreferences()
   })
   prepareFramelessWindow(momentsTextWindow)
 
@@ -1558,12 +1575,7 @@ function createMomentsMediaWindow() {
     resizable: false,
     ...framelessChrome(),
     show: false,
-    webPreferences: {
-      preload: preloadPath,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true
-    }
+    webPreferences: defaultWebPreferences()
   })
   prepareFramelessWindow(momentsMediaWindow)
 
@@ -1605,12 +1617,7 @@ function createNoteEditorWindow() {
     minHeight: 400,
     ...framelessChrome(),
     show: false,
-    webPreferences: {
-      preload: preloadPath,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true
-    }
+    webPreferences: defaultWebPreferences()
   })
   prepareFramelessWindow(noteEditorWindow)
 
@@ -1667,12 +1674,7 @@ function createRegisterWindow() {
     ...framelessChrome(),
     show: false,
     // 不挂 parent，避免盖住登录窗；作为独立弹窗并列显示
-    webPreferences: {
-      preload: preloadPath,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true
-    }
+    webPreferences: defaultWebPreferences()
   })
   prepareFramelessWindow(registerWindow)
 
@@ -1725,12 +1727,7 @@ function createChatHistoryStandaloneWindow(size: { width: number; height: number
     resizable: true,
     ...framelessChrome(),
     show: false,
-    webPreferences: {
-      preload: preloadPath,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true
-    }
+    webPreferences: defaultWebPreferences()
   })
   prepareFramelessWindow(win)
 
@@ -1798,12 +1795,7 @@ function createOfficialNotifyDetailWindow(notifId: string) {
     resizable: true,
     ...framelessChrome(),
     show: false,
-    webPreferences: {
-      preload: preloadPath,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true
-    }
+    webPreferences: defaultWebPreferences()
   })
   prepareFramelessWindow(win)
 
@@ -1881,12 +1873,7 @@ function createImageViewerWindow(payload: ImageViewerPayload) {
     // 跟随当前 UI 主题，避免亮色主题下先闪黑底
     backgroundColor: currentUiTheme === 'dark' ? '#1a1a1a' : '#f5f5f5',
     show: false,
-    webPreferences: {
-      preload: preloadPath,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true
-    }
+    webPreferences: defaultWebPreferences()
   })
   prepareFramelessWindow(imageViewerWindow)
 
@@ -1949,10 +1936,7 @@ function createWindow() {
     ...framelessChrome(),
     show: false,
     webPreferences: {
-      preload: preloadPath,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
+      ...defaultWebPreferences({ backgroundThrottling: false }),
       webviewTag: false
     }
   })
@@ -2081,18 +2065,7 @@ app.whenReady().then(() => {
     `media-src 'self' blob: mediastream: ${mediaOrigins};`
   ].join(' ')
 
-  app.on('web-contents-created', (_event, contents) => {
-    contents.session.webRequest.onHeadersReceived((details, callback) => {
-      callback({
-        responseHeaders: {
-          ...details.responseHeaders,
-          'Content-Security-Policy': [csp],
-          // 与 index.html meta 对齐，降低外链 CDN 防盗链 403
-          'Referrer-Policy': ['no-referrer']
-        }
-      })
-    })
-  })
+  registerCspHeaders(csp)
 
   registerWindowIpc()
   registerChatDbIpc()

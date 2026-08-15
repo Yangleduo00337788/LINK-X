@@ -29,6 +29,10 @@ pnpm-debug.log*
 Thumbs.db
 *.timestamp-*.mjs
 
+dist-uninstaller-electron/
+.playwright-mcp/
+.workbuddy/
+
 # Python
 __pycache__/
 *.pyc

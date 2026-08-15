@@ -6,6 +6,9 @@ import { sanitizeMessagesForPersist } from '../utils/persistSanitize'
 
 export const HOT_MESSAGE_LIMIT = 200
 
+/** 单会话内存中最多持有的消息条数（含向上翻页加载的历史） */
+export const IN_MEMORY_MESSAGE_LIMIT = 800
+
 type ChatDbApi = NonNullable<Window['electronAPI']>['chatDb']
 
 function api(): ChatDbApi | undefined {
@@ -19,6 +22,18 @@ export function isChatLocalDbEnabled(): boolean {
 export function trimHotMessages(messages: ChatMessage[]): ChatMessage[] {
   if (messages.length <= HOT_MESSAGE_LIMIT) return messages
   return messages.slice(-HOT_MESSAGE_LIMIT)
+}
+
+/** 向上翻页后限制内存：丢弃较新的一段（可从本地库/服务端恢复） */
+export function trimInMemoryHistory(messages: ChatMessage[]): ChatMessage[] {
+  if (messages.length <= IN_MEMORY_MESSAGE_LIMIT) return messages
+  return messages.slice(0, IN_MEMORY_MESSAGE_LIMIT)
+}
+
+/** 收到新消息时限制内存：丢弃较旧的历史，保留最新一段 */
+export function trimInMemoryTail(messages: ChatMessage[]): ChatMessage[] {
+  if (messages.length <= IN_MEMORY_MESSAGE_LIMIT) return messages
+  return messages.slice(-IN_MEMORY_MESSAGE_LIMIT)
 }
 
 function serializeMessage(msg: ChatMessage): string {

@@ -26,6 +26,7 @@ import {
   messageToChatMessage,
   messagePreviewFromItem
 } from '../utils/chatMapper'
+import { findCustomerServiceSession } from '../utils/customerService'
 import {
   filePreviewLabel,
   imagePreviewPlaceholder,
@@ -63,7 +64,9 @@ import {
   migrateLegacySessionStorageIfNeeded,
   persistMessage,
   persistMessages,
-  trimHotMessages
+  trimHotMessages,
+  trimInMemoryHistory,
+  trimInMemoryTail
 } from '../services/chatMessageStore'
 
 let reportSessionReadTimer: ReturnType<typeof setTimeout> | null = null
@@ -93,6 +96,7 @@ import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
 import { sanitizeAppPersistState, rehydrateSessionAvatar } from '../utils/persistSanitize'
 import { debouncedSessionStorage } from '../utils/debouncedStorage'
 import { primeAvatarImageCache } from '../utils/avatarImageCache'
+import { clearElectronMediaBlobCache } from '../utils/chatMediaAccess'
 // 登出时重置其它 UI Store
 import { resetSessionUi, resetSessionStores, cleanupNaiveUiOverlays } from '../utils/resetSessionUi'
 import { useNotificationsStore } from './notifications'
@@ -106,6 +110,9 @@ import { hasLockPin as isLockPinConfigured, verifyLockPin as verifyLockPinHash, 
 import type { UserInfo } from '../types/auth'
 import type { UserProfileData } from '../api/user'
 import { validateLockPin } from '../utils/validation'
+
+/** 避免并发重复调用客服初始化接口 */
+let ensureCustomerServiceInflight: Promise<void> | null = null
 
 /** sendMessage 可选参数：扩展消息类型与附件字段 */
 export interface SendMessageOptions {
@@ -546,6 +553,31 @@ export const useAppStore = defineStore('app', {
     },
 
     /**
+     * 合并会话到列表（不自动选中），用于后台初始化 LinkX 客服等场景。
+     */
+    mergeChatSession(session: ChatSession) {
+      const idx = this.sessions.findIndex(
+        s =>
+          s.id === session.id ||
+          (!session.isGroup && s.peerUsername === 'linkx_cs' && session.peerUsername === 'linkx_cs')
+      )
+      if (idx >= 0) {
+        const prev = this.sessions[idx]
+        this.sessions[idx] = {
+          ...session,
+          id: session.id || prev.id,
+          atMe: prev.atMe,
+          atMeMessageId: prev.atMeMessageId,
+          atMeNeedAck: prev.atMeNeedAck,
+          lastSeenAt: prev.lastSeenAt
+        }
+        return this.sessions[idx]
+      }
+      this.sessions.push(session)
+      return session
+    },
+
+    /**
      * 确保会话存在于列表中；已存在则选中，否则插入并选中
      * @param session 目标会话
      * @returns 最终使用的会话对象
@@ -725,6 +757,7 @@ export const useAppStore = defineStore('app', {
         // 确保登录后不自动选中任何会话
         this.currentSessionId = null
         await this.loadChatSessions()
+        await this.ensureCustomerServiceSession()
         this.prefetchTopSessionMessages()
         // 刷新后若仍在会中，提示重新加入
         const uid = String(this.userProfile.userId || '')
@@ -739,6 +772,61 @@ export const useAppStore = defineStore('app', {
         // 再确保一次（首连若因时序失败，这里补连）
         void this.connectChatWebSocket()
       }
+    },
+
+    /** 登录后确保 LinkX 客服会话存在（置顶、欢迎语由服务端处理） */
+    async ensureCustomerServiceSession() {
+      if (ensureCustomerServiceInflight) {
+        return ensureCustomerServiceInflight
+      }
+      ensureCustomerServiceInflight = (async () => {
+        try {
+          const res = await chatApi.ensureCustomerServiceSession()
+          if (res.code === 200 && res.data) {
+            this.mergeChatSession(conversationToSession(res.data))
+            return
+          }
+          console.warn('[app] 初始化 LinkX 客服会话失败:', res.message)
+        } catch (e) {
+          console.warn('[app] 初始化 LinkX 客服会话失败:', e)
+        }
+      })()
+      try {
+        await ensureCustomerServiceInflight
+      } finally {
+        ensureCustomerServiceInflight = null
+      }
+    },
+
+    /** 打开 LinkX 客服会话 */
+    async openCustomerServiceChat() {
+      const { useSettingsStore } = await import('./settings')
+      const settingsStore = useSettingsStore()
+
+      let session = findCustomerServiceSession(this.sessions)
+      if (!session) {
+        await this.ensureCustomerServiceSessionOrThrow()
+        session = findCustomerServiceSession(this.sessions)
+      }
+      if (!session) {
+        throw new Error(t('account.contactCustomerServiceFail'))
+      }
+      settingsStore.closeSettings()
+      this.selectSession(session)
+      this.setNav('chat')
+      if (!this.messagesBySession[session.id]?.length) {
+        await this.loadSessionMessages(session.id)
+      }
+      return session
+    },
+
+    async ensureCustomerServiceSessionOrThrow() {
+      const res = await chatApi.ensureCustomerServiceSession()
+      if (res.code === 200 && res.data) {
+        this.mergeChatSession(conversationToSession(res.data))
+        return
+      }
+      throw new Error(res.message || t('account.contactCustomerServiceFail'))
     },
 
     /** 从后端拉取真实单聊会话列表 */
@@ -778,6 +866,9 @@ export const useAppStore = defineStore('app', {
           }
         })
         this.chatInitialized = true
+        if (!findCustomerServiceSession(this.sessions)) {
+          await this.ensureCustomerServiceSession()
+        }
       } catch (e) {
         console.error('加载会话列表失败:', e)
       }
@@ -953,7 +1044,7 @@ export const useAppStore = defineStore('app', {
             const existingIds = new Set(existing.map(m => m.id))
             const unique = olderLocal.filter(m => !existingIds.has(m.id))
             if (unique.length) {
-              const combined = [...unique, ...existing]
+              const combined = trimInMemoryHistory([...unique, ...existing])
               enrichMessageReplyQuotes(combined)
               this.messagesBySession[sessionId] = combined
             }
@@ -971,7 +1062,7 @@ export const useAppStore = defineStore('app', {
           const existingIds = new Set(existing.map(m => m.id))
           const unique = older.filter(m => !existingIds.has(m.id))
           if (unique.length) {
-            const combined = [...unique, ...existing]
+            const combined = trimInMemoryHistory([...unique, ...existing])
             enrichMessageReplyQuotes(combined)
             this.messagesBySession[sessionId] = combined
             await persistMessages(sessionId, unique)
@@ -1278,7 +1369,7 @@ export const useAppStore = defineStore('app', {
           enrichMessageReplyQuotes([chatMsg, ...this.messagesBySession[sessionId]])
         }
         this.messagesBySession[sessionId].push(chatMsg)
-        this.messagesBySession[sessionId] = trimHotMessages(this.messagesBySession[sessionId])
+        this.messagesBySession[sessionId] = trimInMemoryTail(this.messagesBySession[sessionId])
         void persistMessage(sessionId, chatMsg)
       } else if (
         isLinkMateBotSender(message.senderId) &&
@@ -2690,6 +2781,7 @@ export const useAppStore = defineStore('app', {
       this.messagesBySession = {}
       this.messagesLoaded = {}
       this.messagesLoading = {}
+      clearElectronMediaBlobCache()
       try {
         sessionStorage.removeItem('linkx-app-msgs')
       } catch {

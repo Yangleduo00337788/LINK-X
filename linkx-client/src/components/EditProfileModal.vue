@@ -18,7 +18,7 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
 import { useChatModalsStore } from '../stores/chatModals'
 import { generateDefaultAvatar } from '../utils/defaultAvatar'
-import { normalizeMediaUrl } from '../utils/mediaUrl'
+import { pickDisplayableImageUrl } from '../utils/displayImage'
 import { useI18n } from '../i18n'
 import { LxButton, LxIconButton } from './ui'
 import {
@@ -46,9 +46,7 @@ const uploading = ref(false)
 const avatarInputRef = ref<HTMLInputElement | null>(null)
 
 const defaultAvatarUrl = computed(() => generateDefaultAvatar(profileNick.value || t('common.me')))
-const avatarSrc = computed(
-  () => normalizeMediaUrl(userProfile.value.avatar) || defaultAvatarUrl.value
-)
+const realAvatarUrl = computed(() => pickDisplayableImageUrl(userProfile.value.avatar))
 
 const genderOptions = computed(() => [
   { label: t('modals.male'), value: '男' },
@@ -182,7 +180,14 @@ async function handleAvatarChange(e: Event) {
           @click="triggerAvatarUpload"
         >
           <img
-            :src="avatarSrc"
+            v-if="realAvatarUrl"
+            :src="realAvatarUrl"
+            :alt="t('modals.avatar')"
+            class="avatar-img"
+          />
+          <img
+            v-else
+            :src="defaultAvatarUrl"
             :alt="t('modals.avatar')"
             class="avatar-img"
           />

@@ -1,7 +1,7 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
- * 微信风格引用条：灰底圆角，展示「昵称: 内容」。
+ * 引用回复条：灰底圆角，展示「昵称: 内容」。
  */
 import { computed } from 'vue'
 import { useI18n } from '../../i18n'

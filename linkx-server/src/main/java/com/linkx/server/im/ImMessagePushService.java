@@ -17,12 +17,14 @@ import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.service.ChatService;
 import com.linkx.server.service.MessageStormService;
 import com.linkx.server.service.PresenceService;
+import com.linkx.server.service.customerservice.CustomerServiceService;
 import com.mybatisflex.core.query.QueryWrapper;
 import io.netty.channel.Channel;
 import io.netty.channel.group.ChannelGroup;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -45,8 +47,6 @@ import java.util.concurrent.RejectedExecutionException;
 @Service
 @RequiredArgsConstructor
 public class ImMessagePushService {
-
-    /** 跨实例 IM 帧投递 Redis Stream（替代 Pub/Sub，支持断线续读） */
     public static final String CLUSTER_PUSH_STREAM = "linkx:im:push:stream";
     /** @deprecated 兼容旧常量名，请使用 {@link #CLUSTER_PUSH_STREAM} */
     @Deprecated
@@ -67,6 +67,7 @@ public class ImMessagePushService {
     private final MessageStormService messageStormService;
     private final PresenceService presenceService;
     private final LinkxProperties linkxProperties;
+    private final ObjectProvider<CustomerServiceService> customerServiceServiceProvider;
 
     /**
      * 处理发送消息（异步，event-loop 立即返回）。
@@ -144,6 +145,9 @@ public class ImMessagePushService {
         MessageVO message = chatService.sendMessage(senderId, dto);
         // 推送扇出
         pushToConversationMembers(message, senderId, clientMsgId);
+        customerServiceServiceProvider.ifAvailable(
+                cs -> cs.onUserTextMessageAsync(senderId, message)
+        );
         return message;
     }
 

@@ -28,7 +28,7 @@ import 'uno.css'
 import './assets/styles.css'
 import './styles/ui-components.css'
 import { debouncedSessionStorage } from './utils/debouncedStorage'
-import { showBootSplashError } from './utils/bootSplash'
+import { reportBootError } from './utils/bootSplash'
 
 // 创建 Pinia 实例
 const pinia = createPinia()
@@ -39,7 +39,7 @@ pinia.use(piniaPluginPersistedstate)
 const app = createApp(AppRoot)
 app.config.errorHandler = (err, _instance, info) => {
   console.error('[vue]', err, info)
-  showBootSplashError(err instanceof Error ? err.message : String(err))
+  reportBootError(err instanceof Error ? err.message : String(err))
 }
 // 挂载 Pinia
 app.use(pinia)
@@ -103,13 +103,5 @@ try {
   app.mount('#app')
 } catch (error) {
   console.error('[boot] mount failed', error)
-  showBootSplashError(error instanceof Error ? error.message : String(error))
-}
-
-if (typeof window !== 'undefined') {
-  window.setTimeout(() => {
-    if (!document.documentElement.classList.contains('app-ready')) {
-      showBootSplashError('界面加载超时，请完全退出后重新启动客户端')
-    }
-  }, 12000)
+  reportBootError(error instanceof Error ? error.message : String(error))
 }
