@@ -3,6 +3,7 @@
 /**
  * 图片消息气泡：无边框直出，双击进入预览。
  * 已入库消息优先鉴权加载（Web Cookie / Electron blob），减少预签名 URL 暴露。
+ * 虚拟列表会回收节点，展示地址写入内存缓存以避免滚动时灰块闪烁。
  */
 import { ref, watch, onBeforeUnmount } from 'vue'
 import type { ChatMessage } from '../../../types'
@@ -13,7 +14,8 @@ import {
   getCachedElectronMediaBlob,
   canUseAuthenticatedChatMedia,
   isLocalChatMediaPreview,
-  resolveChatImageDisplaySrc
+  resolveChatImageDisplaySrc,
+  cacheElectronMediaBlob
 } from '../../../utils/chatMediaAccess'
 import {
   getCachedMediaPath,
@@ -22,6 +24,10 @@ import {
 } from '../../../services/chatMessageStore'
 import { isWebEnvironment } from '../../../utils/tokenStorage'
 import { useI18n } from '../../../i18n'
+import {
+  getChatImageDisplayCache,
+  setChatImageDisplayCache
+} from '../../../utils/chatImageDisplayCache'
 
 const props = defineProps<{ msg: ChatMessage }>()
 const emit = defineEmits<{
@@ -30,47 +36,57 @@ const emit = defineEmits<{
 }>()
 const { t } = useI18n()
 
-const displaySrc = ref('')
-let authBlobUrl: string | null = null
 let loadSeq = 0
 
-function getImmediateSrc(msg: ChatMessage): string {
+function getSyncDisplaySrc(msg: ChatMessage): string {
+  const cached = getChatImageDisplayCache(msg.id)
+  if (cached) return cached
+
   if (isLocalChatMediaPreview(msg)) {
     return (msg.fileUrl || msg.content || '').trim()
   }
+  if (canUseAuthenticatedChatMedia(msg)) {
+    const blob = getCachedElectronMediaBlob(msg.id)
+    if (blob) return blob
+  }
   if (canUseAuthenticatedChatMedia(msg) && isWebEnvironment()) {
     return buildChatMessageMediaApiUrl(msg.id)
-  }
-  if (canUseAuthenticatedChatMedia(msg)) {
-    const cached = getCachedElectronMediaBlob(msg.id)
-    if (cached) return cached
   }
   const raw = (msg.fileUrl || msg.content || '').trim()
   if (!raw || raw.startsWith('blob:') || raw.startsWith('data:')) return raw
   return normalizeMediaUrl(raw) || raw
 }
 
-function revokeAuthBlob() {
-  if (authBlobUrl) {
-    URL.revokeObjectURL(authBlobUrl)
-    authBlobUrl = null
+const displaySrc = ref(getSyncDisplaySrc(props.msg))
+
+function commitDisplaySrc(src: string) {
+  const trimmed = src?.trim()
+  if (!trimmed) return
+  displaySrc.value = trimmed
+  setChatImageDisplayCache(props.msg.id, trimmed)
+  if (trimmed.startsWith('blob:')) {
+    cacheElectronMediaBlob(props.msg.id, trimmed)
   }
 }
 
 async function loadDisplaySrc() {
   const seq = ++loadSeq
+
   const disk = canUseAuthenticatedChatMedia(props.msg)
     ? await getCachedMediaPath(props.msg.id, 'thumb')
     : null
   if (disk) {
-    displaySrc.value = toMediaFileUrl(disk)
+    if (seq !== loadSeq) return
+    commitDisplaySrc(toMediaFileUrl(disk))
     return
   }
-  const immediate = getImmediateSrc(props.msg)
-  if (immediate) {
-    displaySrc.value = immediate
+
+  const syncSrc = getSyncDisplaySrc(props.msg)
+  if (syncSrc) {
+    commitDisplaySrc(syncSrc)
+    if (isLocalChatMediaPreview(props.msg)) return
   }
-  revokeAuthBlob()
+
   const resolved = await resolveChatImageDisplaySrc(props.msg)
   if (seq !== loadSeq) {
     if (resolved.blobUrlToRevoke) {
@@ -78,31 +94,42 @@ async function loadDisplaySrc() {
     }
     return
   }
-  if (resolved.blobUrlToRevoke) {
-    authBlobUrl = resolved.blobUrlToRevoke
-    try {
-      const res = await fetch(resolved.src)
-      const buf = await res.arrayBuffer()
-      const saved = await saveMediaBytes(props.msg.id, buf, { kind: 'thumb', ext: 'jpg' })
-      if (saved) {
-        revokeAuthBlob()
-        displaySrc.value = toMediaFileUrl(saved)
-        return
-      }
-    } catch {
-      /* keep blob url */
-    }
-  }
+
   if (resolved.src) {
-    displaySrc.value = resolved.src
+    commitDisplaySrc(resolved.src)
+    if (resolved.blobUrlToRevoke) {
+      const msgId = props.msg.id
+      const src = resolved.src
+      const persistThumb = async () => {
+        if (seq !== loadSeq) return
+        try {
+          const res = await fetch(src)
+          const buf = await res.arrayBuffer()
+          const saved = await saveMediaBytes(msgId, buf, { kind: 'thumb', ext: 'jpg' })
+          if (saved && seq === loadSeq) {
+            commitDisplaySrc(toMediaFileUrl(saved))
+          }
+        } catch {
+          /* keep blob / current src */
+        }
+      }
+      if (typeof requestIdleCallback !== 'undefined') {
+        requestIdleCallback(() => {
+          void persistThumb()
+        }, { timeout: 2500 })
+      } else {
+        window.setTimeout(() => {
+          void persistThumb()
+        }, 0)
+      }
+    }
   }
 }
 
 watch(
   () => props.msg.id,
   () => {
-    displaySrc.value = getImmediateSrc(props.msg)
-    revokeAuthBlob()
+    displaySrc.value = getSyncDisplaySrc(props.msg)
   }
 )
 
@@ -116,7 +143,6 @@ watch(
 
 onBeforeUnmount(() => {
   loadSeq += 1
-  revokeAuthBlob()
 })
 
 async function onImgError() {
@@ -126,8 +152,7 @@ async function onImgError() {
     return null
   })
   if (next) {
-    revokeAuthBlob()
-    displaySrc.value = normalizeMediaUrl(next) || next
+    commitDisplaySrc(normalizeMediaUrl(next) || next)
   }
 }
 
@@ -150,7 +175,6 @@ function onImgLoad() {
       class="lx-bubble-image"
       :alt="msg.fileName || t('chat.imageMessage')"
       :title="t('chat.imageDblClickHint')"
-      loading="lazy"
       decoding="async"
       referrerpolicy="no-referrer"
       draggable="false"

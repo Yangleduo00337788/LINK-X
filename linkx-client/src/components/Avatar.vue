@@ -46,11 +46,18 @@ const customImageUrl = computed(() => {
   return url
 })
 
-const hasCustomImage = computed(() => !!customImageUrl.value && !imgFailed.value)
+const hasCustomImage = computed(
+  () => !!customImageUrl.value && !imgFailed.value
+)
+const showCustomImageTag = computed(
+  () =>
+    hasCustomImage.value ||
+    (!!customImageUrl.value && isAvatarImageCached(customImageUrl.value) && !imgFailed.value)
+)
 const showLogoFallback = computed(
   () =>
     effectiveFallback.value === 'logo' &&
-    !hasCustomImage.value &&
+    !showCustomImageTag.value &&
     !showInitialFallback.value &&
     !props.icon
 )
@@ -75,7 +82,7 @@ function onImgError() {
 }
 
 const containerBg = computed(() => {
-  if (hasCustomImage.value) return props.color
+  if (showCustomImageTag.value) return props.color
   if (showInitialFallback.value) return props.color
   return 'var(--lx-bg-card)'
 })
@@ -91,8 +98,8 @@ const containerBg = computed(() => {
       fontSize: fontSize
     }"
   >
-    <n-icon v-if="icon && !hasCustomImage" :component="icon" :size="size * 0.45" />
-    <template v-else-if="showInitialFallback && !hasCustomImage">{{ text }}</template>
+    <n-icon v-if="icon && !showCustomImageTag" :component="icon" :size="size * 0.45" />
+    <template v-else-if="showInitialFallback && !showCustomImageTag">{{ text }}</template>
 
     <img
       v-if="showLogoFallback"
@@ -104,7 +111,7 @@ const containerBg = computed(() => {
     />
 
     <img
-      v-if="hasCustomImage"
+      v-if="showCustomImageTag"
       :src="customImageUrl"
       alt=""
       class="avatar-img"
