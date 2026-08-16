@@ -1441,11 +1441,6 @@ const showMomentsOps = ref(false)
   -webkit-overflow-scrolling: touch;
 }
 
-.moments-scroll-container::-webkit-scrollbar {
-  width: 0;
-  background: transparent;
-}
-
 .moments-header {
   position: relative;
   height: 320px;

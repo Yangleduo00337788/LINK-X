@@ -29,6 +29,7 @@ import './assets/styles.css'
 import './styles/ui-components.css'
 import { debouncedSessionStorage } from './utils/debouncedStorage'
 import { reportBootError } from './utils/bootSplash'
+import { installGlobalWheelScrollDamping } from './utils/wheelScrollDamping'
 
 // 创建 Pinia 实例
 const pinia = createPinia()
@@ -58,6 +59,12 @@ applyDocumentTheme(bootTheme)
 // Electron：标记大圆角壳层，并随最大化取消圆角
 if (window.electronAPI?.isElectron) {
   document.documentElement.classList.add('lx-electron')
+  if (window.electronAPI.getPlatform?.() === 'windows') {
+    document.documentElement.classList.add('lx-electron-win32')
+  }
+  if (window.electronAPI.useNativeWindowFrame) {
+    document.documentElement.classList.add('lx-native-frame')
+  }
   const syncMaximized = (maximized: boolean) => {
     document.documentElement.classList.toggle('is-maximized', maximized)
   }
@@ -97,6 +104,9 @@ if (typeof document !== 'undefined') {
 router.beforeEach(() => {
   applyDocumentTheme(useAppStore().theme)
 })
+
+// 全局降低滚轮滚动速度，便于阅读长列表
+installGlobalWheelScrollDamping()
 
 // 挂载到 index.html 中的 #app 节点
 try {

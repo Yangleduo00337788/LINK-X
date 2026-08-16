@@ -7,7 +7,7 @@
  * 左侧中部提供折叠按钮，可收起整块侧栏以扩大聊天区。
  * </p>
  */
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { NIcon, NVirtualList, useDialog, useMessage } from 'naive-ui'
 import {
   SearchOutline,
@@ -23,6 +23,7 @@ import { useGroupMetaStore } from '../../stores/groupMeta'
 import { useI18n } from '../../i18n'
 import type { GroupMember } from '../../stores/groupMeta'
 import { LxIconButton } from '../ui'
+import { virtualListScrollbarProps, useNaiveVirtualListNativeScrollbar } from '../../utils/virtualListScrollbar'
 
 const COLLAPSE_KEY = 'linkx.groupSidebar.collapsed'
 
@@ -37,6 +38,8 @@ const { currentSessionId, userProfile } = storeToRefs(appStore)
 
 // 成员搜索关键词
 const memberSearch = ref('')
+const memberListRef = ref<InstanceType<typeof NVirtualList> | null>(null)
+useNaiveVirtualListNativeScrollbar(memberListRef)
 // 是否显示成员搜索框
 const showMemberSearch = ref(false)
 /** 侧栏是否折叠（记住用户偏好） */
@@ -201,10 +204,12 @@ function onMemberClick(m: GroupMember) {
         </div>
         <n-virtual-list
           v-else
+          ref="memberListRef"
           class="member-list"
           :items="filteredMembers"
           :item-size="48"
-          key-field="id"
+          item-key="id"
+          :scrollbar-props="virtualListScrollbarProps"
         >
           <template #default="{ item }">
             <div
@@ -340,7 +345,8 @@ function onMemberClick(m: GroupMember) {
 
 .member-list {
   flex: 1;
-  overflow-y: auto;
+  min-height: 0;
+  overflow: hidden;
   padding: 0 var(--lx-space) var(--lx-space-lg);
 }
 

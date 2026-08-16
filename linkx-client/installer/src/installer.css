@@ -1,6 +1,8 @@
 /**
  * 作者：yangleduo
  */
+@import '../../src/styles/scrollbar.css';
+
 :root {
   --lx-window-radius: 20px;
   --lx-login-accent: #12b7f5;

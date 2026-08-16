@@ -1,17 +1,19 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
- * 消息虚拟列表：直接用 vueuc VirtualList + 原生 overflow 滚动
- *（比 NVirtualList 外包的 NxScrollbar 更跟手）。
+ * 消息虚拟列表：Naive UI NVirtualList（NxScrollbar + vueuc VirtualList）。
  * <p>
  * 内容高度不足一屏时，通过动态 paddingTop 将消息贴底，避免下方大块空白。
  * </p>
  */
 import { nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
-import { VirtualList } from 'vueuc'
+import { NVirtualList } from 'naive-ui'
 import type { ChatMessage } from '../../types'
-import type { VirtualListInst } from 'vueuc'
 import { useI18n } from '../../i18n'
+import {
+  useNaiveVirtualListNativeScrollbar,
+  virtualListScrollbarProps
+} from '../../utils/virtualListScrollbar'
 
 useI18n()
 
@@ -30,7 +32,8 @@ const ITEM_SIZE = 40
 const PAD_BOTTOM = 8
 const PAD_TOP_MIN = 4
 
-const listRef = ref<VirtualListInst | null>(null)
+const listRef = ref<InstanceType<typeof NVirtualList> | null>(null)
+const { refreshVirtualListScrollbar } = useNaiveVirtualListNativeScrollbar(listRef)
 /** shallow：避免滚动时深度追踪大数组 */
 const listItems = shallowRef<ChatMessage[]>(props.items)
 const padTop = ref(PAD_TOP_MIN)
@@ -52,6 +55,7 @@ watch(
     if (sessionChanged) {
       padTop.value = PAD_TOP_MIN
       scrollToBottom(true)
+      nextTick(refreshVirtualListScrollbar)
       return
     }
 
@@ -97,11 +101,11 @@ watch(
 )
 
 function getScrollElement(): HTMLElement | null {
-  return listRef.value?.listElRef ?? null
+  return listRef.value?.getScrollContainer() ?? null
 }
 
 function getItemsElement(): HTMLElement | null {
-  return listRef.value?.itemsElRef ?? null
+  return listRef.value?.getScrollContent() ?? null
 }
 
 /**
@@ -158,6 +162,12 @@ function onScroll(e: Event) {
 }
 
 function onListResize() {
+  // 浏览历史时图片撑高不反复改 paddingTop，避免滚动卡顿
+  const el = getScrollElement()
+  if (el) {
+    const dist = el.scrollHeight - el.scrollTop - el.clientHeight
+    if (dist > 80) return
+  }
   scheduleAlignBottom()
 }
 
@@ -234,16 +244,16 @@ defineExpose({
 </script>
 
 <template>
-  <VirtualList
+  <n-virtual-list
     ref="listRef"
     class="msg-vl"
     :items="listItems"
     :item-size="ITEM_SIZE"
     :item-resizable="true"
-    key-field="id"
+    item-key="id"
     :padding-top="padTop"
     :padding-bottom="PAD_BOTTOM"
-    :show-scrollbar="true"
+    :scrollbar-props="virtualListScrollbarProps"
     @scroll="onScroll"
     @resize="onListResize"
   >
@@ -260,16 +270,33 @@ defineExpose({
         <slot :msg="(item as ChatMessage)" />
       </div>
     </template>
-  </VirtualList>
+  </n-virtual-list>
 </template>
 
 <style scoped>
 .msg-vl {
   flex: 1;
   min-height: 0;
+  width: 100%;
   height: 100%;
-  overflow: auto !important;
   overscroll-behavior: contain;
+}
+
+.msg-vl :deep(.n-scrollbar) {
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+}
+
+.msg-vl :deep(.v-vl) {
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+  scrollbar-width: auto !important;
+}
+
+.msg-vl :deep(.v-vl--show-scrollbar) {
+  overflow-y: auto !important;
 }
 
 .msg-vl-item {

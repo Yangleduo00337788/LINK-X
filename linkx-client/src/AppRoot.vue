@@ -24,6 +24,8 @@ import {
 import App from './App.vue'
 import LockScreen from './components/LockScreen.vue'
 import InAppToastBridge from './components/InAppToastBridge.vue'
+import WindowResizeEdges from './components/WindowResizeEdges.vue'
+import { useNativeWindowFrame } from './utils/electronChrome'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from './stores/app'
 import { useAppSettingsStore } from './stores/appSettings'
@@ -38,9 +40,8 @@ import {
 import { applyAccentColor, liveAccentColor, liveAccentHover } from './utils/accentColor'
 import { setLocale, localeRef } from './i18n'
 
-// 获取应用 Store 实例
 const appStore = useAppStore()
-// 解构主题、登录状态、锁屏状态的响应式引用
+const useNativeFrame = useNativeWindowFrame()
 const { theme, isLoggedIn, isLocked } = storeToRefs(appStore)
 
 // 根据当前主题选择 Naive UI 暗色主题或 null（跟随系统亮色）
@@ -69,6 +70,14 @@ const themeOverrides = computed<GlobalThemeOverrides>(() => {
       textColor1: isDark ? lxColorHex.textPrimaryDark : lxColorHex.confSurface,
       textColor2: isDark ? lxColorHex.textSecondaryDark : lxColorHex.textSecondaryLight,
       dividerColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)' // 分割线色
+    },
+    Scrollbar: {
+      width: 'var(--lx-scrollbar-size)',
+      height: 'var(--lx-scrollbar-size)',
+      borderRadius: 'var(--lx-radius-pill, 999px)',
+      color: 'var(--lx-scrollbar-thumb)',
+      colorHover: 'var(--lx-scrollbar-thumb-hover)',
+      railColor: 'transparent'
     }
   }
 })
@@ -134,6 +143,9 @@ watch(theme, syncHtmlTheme)
       <n-dialog-provider>
         <n-notification-provider placement="top-right" :max="4">
           <InAppToastBridge />
+          <Teleport to="body">
+            <WindowResizeEdges v-if="!useNativeFrame" />
+          </Teleport>
           <App />
           <Teleport to="body">
             <LockScreen v-if="isLoggedIn && isLocked" />

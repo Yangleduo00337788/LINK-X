@@ -8,7 +8,7 @@
  * 列表中插入「日程提醒」「LinkX官方」站内通知虚拟会话（默认不置顶）。
  * </p>
  */
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { NIcon, NSkeleton, NDropdown, NVirtualList, useMessage, type DropdownOption } from 'naive-ui'
 import {
   PhonePortraitOutline,
@@ -36,6 +36,7 @@ import { DEFAULT_AVATAR_URL } from '../utils/defaultAvatar'
 import { formatChatTime } from '../utils/chatTime'
 import { useI18n } from '../i18n'
 import { isMyPhoneSessionName } from '../utils/myPhoneSession'
+import { virtualListScrollbarProps, useNaiveVirtualListNativeScrollbar } from '../utils/virtualListScrollbar'
 
 const message = useMessage()
 const { t } = useI18n()
@@ -59,6 +60,8 @@ const { openCreateGroup, openComprehensiveSearch } = chatModalsStore
 const { fetchMessageNotifications } = notificationsStore
 
 const searchValue = ref('')
+const sessionListRef = ref<InstanceType<typeof NVirtualList> | null>(null)
+useNaiveVirtualListNativeScrollbar(sessionListRef)
 
 const contextSession = ref<ChatSession | null>(null)
 const contextMenuShow = ref(false)
@@ -278,10 +281,13 @@ function onContextMenuSelect(key: string) {
 
       <template v-else>
         <n-virtual-list
+          ref="sessionListRef"
+          class="session-vl"
           style="max-height: 100%; height: 100%"
           :item-size="68"
           :items="filteredSessions"
           item-key="id"
+          :scrollbar-props="virtualListScrollbarProps"
         >
           <template #default="{ item: session }">
             <div
@@ -412,9 +418,19 @@ function onContextMenuSelect(key: string) {
 
 .session-list {
   flex: 1;
-  overflow-y: auto;
+  min-height: 0;
+  overflow: hidden;
   background: var(--lx-bg-panel);
   padding: var(--lx-space-xs) 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.session-vl {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .session-item {

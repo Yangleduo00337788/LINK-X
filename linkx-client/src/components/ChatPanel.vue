@@ -862,7 +862,8 @@ function onMessageContentLoaded(msg: ChatMessage) {
   if (!stickToBottom.value) return
   const last = chatMessages.value[chatMessages.value.length - 1]
   if (!last || last.id !== msg.id) return
-  scrollToBottom(true)
+  // 图片撑高时轻量贴底即可，force 会触发多次 layout 导致滚动发涩
+  scrollToBottom(false)
 }
 
 function scrollToBottom(force = false) {
@@ -1971,6 +1972,7 @@ function onDrop(e: DragEvent) {
   display: flex;
   flex-direction: column;
   position: relative;
+  box-sizing: border-box;
 }
 
 .messages-loading-hint {
