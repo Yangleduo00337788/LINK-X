@@ -18,6 +18,8 @@
 
 ### 变更
 
+- 客户端 Electron 升级至 **43**（`electron-builder` 26、`vite-plugin-electron` 1.x），开发态增加国内镜像与 `electron:install` 脚本
+- 桌面端体积与性能优化：裁剪 Chromium 语言包、剔除 sourcemap、Markdown 高亮懒加载、托盘隐藏时降低渲染占用
 - `linkx-client` 全站迁移至统一按钮、间距、圆角与场景色 Token
 - 窗控与状态栏置顶统一 `.lx-win-caption-btn` 圆角块悬停交互
 - `ui-components.css` 改由 `main.ts` 显式引入（修复 `@import` 顺序导致的样式未加载）
@@ -63,7 +65,7 @@
 | 模块 | 核心版本 |
 |------|----------|
 | 后端 | JDK 21、Spring Boot 3.5.0、MyBatis-Flex 1.9.3、Netty 4.1.115 |
-| 客户端 | Vue 3.5、Electron 33、Vite 5.4、Pinia 2.3 |
+| 客户端 | Vue 3.5、Electron 43、Vite 5.4、Pinia 2.3 |
 | 管理端 | Vue 3.5、Vite 8.1、ECharts 6.1、vue-i18n 9.14 |
 | 中间件 | MySQL 8.4、Redis 7.2、MinIO 2024-05 |
 

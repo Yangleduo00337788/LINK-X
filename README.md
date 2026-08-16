@@ -10,7 +10,7 @@
 [![JDK](https://img.shields.io/badge/JDK-21-blue?logo=openjdk&logoColor=white)](https://openjdk.org/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.0-6DB33F?logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
 [![Vue](https://img.shields.io/badge/Vue-3.5-4FC08D?logo=vue.js&logoColor=white)](https://vuejs.org/)
-[![Electron](https://img.shields.io/badge/Electron-33-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
+[![Electron](https://img.shields.io/badge/Electron-43-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
 [![MyBatis-Flex](https://img.shields.io/badge/MyBatis--Flex-1.9.3-FF6B35)](https://mybatis-flex.com/)
 [![Netty](https://img.shields.io/badge/Netty-4.1.115-000000)](https://netty.io/)
 [![Snail Job](https://img.shields.io/badge/Snail%20Job-1.9.0-006EFF)](https://snailjob.opensnail.com/)
@@ -646,6 +646,7 @@ npm run installer:assets
 | `npm run installer:build` | 仅打安装程序（需已有 `.installer-payload`） |
 | `npm run clean:release` | 清理 `release/` 等构建产物 |
 | `npm run electron:dev` | 开发模式运行客户端（非安装包） |
+| `npm run electron:install` | 下载/校验 Electron 运行时（国内镜像，43+ 首次开发前可能需要） |
 
 #### 输出产物
 
@@ -697,7 +698,8 @@ npm run electron:build:linux    # 产出 Linux AppImage
 |------|------|----------|
 | 安装后连不上服务器 | 未配置 `.env.electron` 或地址错误 | 检查 `VITE_API_BASE_URL` / `VITE_WS_BASE_URL` 后重新打包 |
 | `vue-tsc --noEmit` 报大量 TS 错误 | 前端类型问题 | 先执行 `npx vue-tsc --noEmit` 定位；修完后再打包 |
-| 下载 `electron-v*-win32-x64.zip` 失败 | 默认从 GitHub 拉 Electron | 使用 `npm run electron:build`（已配 `ELECTRON_MIRROR`） |
+| 下载 `electron-v*-win32-x64.zip` 失败 | 默认从 GitHub 拉 Electron | `npm run electron:install` 或 `npm run electron:build`（已配 `.npmrc` / `ELECTRON_MIRROR`） |
+| `electron:dev` 报 `fetch failed` / `Unable to resolve electron` | Electron 43+ 首次运行才下载二进制 | 执行 `npm run electron:install` 后重试 `npm run electron:dev` |
 | 下载 electron-builder 工具链失败 | 默认走 GitHub | 使用 `npm run electron:build`（已配 `ELECTRON_BUILDER_BINARIES_MIRROR`） |
 | 解压 winCodeSign 报错「客户端没有所需的特权」 | 7z 内含符号链接 | 项目已设 `signAndEditExecutable: false`；或开启 Windows 开发人员模式 |
 | 安装向导许可页中文乱码 | 许可文件编码问题 | 使用 `build/license.rtf`（由 `installer:assets` 生成） |
@@ -706,7 +708,7 @@ npm run electron:build:linux    # 产出 Linux AppImage
 
 #### 代码签名（可选，正式分发建议）
 
-当前为**未签名**配置（`win.sign: null`、`signAndEditExecutable: false`），适合开发与内测。
+当前为**未签名**配置（`win.signExecutable: false`、`signAndEditExecutable: false`），适合开发与内测。
 
 正式对外发布需向 CA 购买 **Code Signing** 或 **EV Code Signing** 证书。配置示例：
 
@@ -716,7 +718,7 @@ $env:CSC_KEY_PASSWORD="证书密码"
 $env:CSC_IDENTITY_AUTO_DISCOVERY="true"
 ```
 
-并在 `package.json` 的 `build.win` 中移除 `sign: null`，将 `signAndEditExecutable` 设为 `true` 后重新 `npm run electron:build`。
+并在 `package.json` 的 `build.win` 中将 `signExecutable`、`signAndEditExecutable` 设为 `true` 后重新 `npm run electron:build`。
 
 #### 安装包测试速查
 
@@ -833,7 +835,7 @@ npm run build                    # 静态资源输出至 dist/
 
 1. **`vue-tsc` 类型错误** — 先 `npx vue-tsc --noEmit` 修完再打包。
 2. **安装后连不上服务器** — 检查 `linkx-client/.env.electron` 中的 `VITE_API_BASE_URL` / `VITE_WS_BASE_URL`。
-3. **下载 Electron / GitHub 相关超时** — 使用项目自带的 `npm run electron:build`（已配置国内镜像）；勿单独跑未带镜像的 `electron-builder`。
+3. **下载 Electron / GitHub 相关超时** — 执行 `npm run electron:install`，或使用 `npm run electron:build` / `npm run electron:dev`（已配置 `.npmrc` 国内镜像）；勿单独跑未带镜像的 `electron-builder`。
 4. **`winCodeSign` 符号链接权限错误** — 项目已默认 `signAndEditExecutable: false`；若你改过配置又出现此错，改回该选项或开启 Windows 开发人员模式。
 5. **打包成功但安装有 SmartScreen 警告** — 未签名属正常；正式发版需购买代码签名证书。
 
