@@ -37,7 +37,7 @@ import {
   voiceCallPreviewLabel,
   voicePreviewLabel
 } from '../utils/messagePreviewText'
-import { compareMessageOrder } from '../utils/messageOrder'
+import { compareMessageOrder, insertMessageInOrder, sortMessagesInOrder } from '../utils/messageOrder'
 import { enrichMessageReplyQuotes, preserveReplyTo } from '../utils/enrichMessageReply'
 import { isMessageIdAtOrBefore } from '../utils/messageStatus'
 import {
@@ -150,6 +150,9 @@ const GROUP_COLORS = ['#12b7f5', '#52c41a', '#722ed1', '#fa8c16', '#eb2f96', '#1
 
 function preserveMessageSendMeta(next: ChatMessage, prev: ChatMessage | null | undefined) {
   if (!prev) return
+  if (prev.listKey) next.listKey = prev.listKey
+  else if (next.clientMsgId) next.listKey = next.clientMsgId
+  if (prev.createTime) next.createTime = prev.createTime
   if (prev.readCount != null) next.readCount = prev.readCount
   if (prev.totalMembers != null) next.totalMembers = prev.totalMembers
   next.uploadProgress = undefined
@@ -213,6 +216,18 @@ function messagePreview(msg: ChatMessage): string {
 function nowTime(): string {
   const now = new Date()
   return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`
+}
+
+function bumpSessionPreview(
+  session: { lastMessage: string; time: string; lastActiveAt?: number } | undefined,
+  preview: string,
+  time?: string,
+  at?: number
+) {
+  if (!session) return
+  session.lastMessage = preview
+  session.time = time || nowTime()
+  session.lastActiveAt = at || Date.now()
 }
 
 /**
@@ -373,7 +388,7 @@ export const useAppStore = defineStore('app', {
       return [...state.sessions].sort((a, b) => {
         if (!!a.important !== !!b.important) return a.important ? -1 : 1
         if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1
-        return 0
+        return (b.lastActiveAt || 0) - (a.lastActiveAt || 0)
       })
     },
     /** 仅群聊会话 */
@@ -421,6 +436,10 @@ export const useAppStore = defineStore('app', {
       if (!this.messagesBySession[session.id]) {
         this.messagesBySession[session.id] = []
       }
+      if (this.messagesBySession[session.id].length > 1) {
+        sortMessagesInOrder(this.messagesBySession[session.id])
+      }
+      this.syncSessionListPreview(session.id)
       // 本地已有历史缓存时直接展示，避免重复拉取导致 loading 卡顿
       const cachedCount = this.messagesBySession[session.id]?.length ?? 0
       if (cachedCount > 0 && !this.messagesLoaded[session.id]) {
@@ -449,6 +468,19 @@ export const useAppStore = defineStore('app', {
       }
       if (session.isReal) {
         void this.loadSessionDraft(session.id)
+      }
+    },
+
+    /** 用当前消息列表最后一条，校正左侧会话预览（避免服务端摘要与本地历史不一致） */
+    syncSessionListPreview(sessionId: string) {
+      const session = this.sessions.find(s => s.id === sessionId)
+      const msgs = this.messagesBySession[sessionId]
+      if (!session || !msgs?.length) return
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        const m = msgs[i]
+        if (m.type === 'time') continue
+        bumpSessionPreview(session, messagePreview(m), m.time, m.createTime)
+        return
       }
     },
 
@@ -848,12 +880,13 @@ export const useAppStore = defineStore('app', {
     /** 从本地 SQLite 水合会话热数据（毫秒级展示） */
     async hydrateSessionFromLocalDb(sessionId: string): Promise<boolean> {
       if (!isChatLocalDbEnabled()) return false
-      const local = await loadRecentMessages(sessionId)
+      const local = sortMessagesInOrder(await loadRecentMessages(sessionId))
       if (!local.length) return false
       this.messagesBySession[sessionId] = trimHotMessages(local)
       this.messagesLoaded[sessionId] = true
       const oldest = local[0]
       this.messagesHasMore[sessionId] = oldest ? await hasOlderLocal(sessionId, oldest.id) : false
+      this.syncSessionListPreview(sessionId)
       return true
     },
 
@@ -879,6 +912,7 @@ export const useAppStore = defineStore('app', {
         } catch (e) {
           console.warn('[syncSessionMessagesIncremental]', sessionId, e)
         }
+        this.syncSessionListPreview(sessionId)
         return
       }
 
@@ -905,6 +939,7 @@ export const useAppStore = defineStore('app', {
       this.messagesLoaded[sessionId] = true
       this.messagesHasMore[sessionId] = res.data.length >= 50
       await persistMessages(sessionId, merged)
+      this.syncSessionListPreview(sessionId)
       this.ackHistoryDeliveries(sessionId, serverMessages)
 
       for (let i = merged.length - 1; i >= 0; i--) {
@@ -977,7 +1012,7 @@ export const useAppStore = defineStore('app', {
             const existingIds = new Set(existing.map(m => m.id))
             const unique = olderLocal.filter(m => !existingIds.has(m.id))
             if (unique.length) {
-              const combined = trimInMemoryHistory([...unique, ...existing])
+              const combined = sortMessagesInOrder(trimInMemoryHistory([...unique, ...existing]))
               enrichMessageReplyQuotes(combined)
               this.messagesBySession[sessionId] = combined
             }
@@ -995,7 +1030,7 @@ export const useAppStore = defineStore('app', {
           const existingIds = new Set(existing.map(m => m.id))
           const unique = older.filter(m => !existingIds.has(m.id))
           if (unique.length) {
-            const combined = trimInMemoryHistory([...unique, ...existing])
+            const combined = sortMessagesInOrder(trimInMemoryHistory([...unique, ...existing]))
             enrichMessageReplyQuotes(combined)
             this.messagesBySession[sessionId] = combined
             await persistMessages(sessionId, unique)
@@ -1296,14 +1331,26 @@ export const useAppStore = defineStore('app', {
         )
       }
 
-      const exists = this.messagesBySession[sessionId].some(m => m.id === chatMsg.id)
+      const list = this.messagesBySession[sessionId]
+      const exists = list.some(
+        m =>
+          m.id === chatMsg.id ||
+          (!!message.clientMsgId &&
+            (m.clientMsgId === message.clientMsgId || m.id === message.clientMsgId))
+      )
       if (!exists) {
-        if (chatMsg.replyTo) {
-          enrichMessageReplyQuotes([chatMsg, ...this.messagesBySession[sessionId]])
+        const waitLocalAck =
+          fromSelf &&
+          !!message.clientMsgId &&
+          list.some(m => m.clientMsgId === message.clientMsgId || m.id === message.clientMsgId)
+        if (!waitLocalAck) {
+          if (chatMsg.replyTo) {
+            enrichMessageReplyQuotes([chatMsg, ...list])
+          }
+          insertMessageInOrder(list, chatMsg)
+          this.messagesBySession[sessionId] = trimInMemoryTail(list)
+          void persistMessage(sessionId, chatMsg)
         }
-        this.messagesBySession[sessionId].push(chatMsg)
-        this.messagesBySession[sessionId] = trimInMemoryTail(this.messagesBySession[sessionId])
-        void persistMessage(sessionId, chatMsg)
       } else if (
         isLinkMateBotSender(message.senderId) &&
         this.currentSessionId === sessionId &&
@@ -1331,6 +1378,7 @@ export const useAppStore = defineStore('app', {
       if (session) {
         session.lastMessage = messagePreviewFromItem(message)
         session.time = chatMsg.time
+        session.lastActiveAt = chatMsg.createTime || Date.now()
         // 系统提示不计未读、不响铃
         if (!exists && message.type !== 'system') {
           const mentioned =
@@ -1446,6 +1494,7 @@ export const useAppStore = defineStore('app', {
       if (session) {
         session.lastMessage = messagePreviewFromItem(message)
         session.time = chatMsg.time
+        session.lastActiveAt = chatMsg.createTime || Date.now()
       }
       if (session?.isGroup) {
         this.scheduleLatestSelfGroupReadCountRefresh(sessionId)
@@ -1473,6 +1522,7 @@ export const useAppStore = defineStore('app', {
             const last = [...list].reverse().find(m => m.sendStatus !== 'failed')
             session.lastMessage = last ? messagePreview(last) : ''
             session.time = last?.time || session.time
+            if (last) session.lastActiveAt = last.createTime || Date.now()
           }
         } else {
           const local = list[index]
@@ -1816,6 +1866,7 @@ export const useAppStore = defineStore('app', {
       if (session && index === msgs.length - 1) {
         session.lastMessage = messagePreviewFromItem(message)
         session.time = next.time
+        session.lastActiveAt = next.createTime || Date.now()
       }
     },
 
@@ -1858,6 +1909,7 @@ export const useAppStore = defineStore('app', {
         if (session) {
           session.lastMessage = messagePreviewFromItem(res.data)
           session.time = chatMsg.time
+          session.lastActiveAt = chatMsg.createTime || Date.now()
         }
         return true
       } catch (e) {
@@ -2115,6 +2167,7 @@ export const useAppStore = defineStore('app', {
         sendStatus: 'sending',
         uploadProgress: type === 'image' || type === 'file' || type === 'voice' ? 0 : undefined,
         clientMsgId,
+        listKey: clientMsgId,
         ...(options.autoRetryCount != null ? { _autoRetry: options.autoRetryCount } : {})
       } as ChatMessage & { _autoRetry?: number }
 
@@ -2139,6 +2192,7 @@ export const useAppStore = defineStore('app', {
       if (session) {
         session.lastMessage = messagePreview(optimistic)
         session.time = time
+        session.lastActiveAt = Date.now()
       }
 
       const markFailed = () => {
@@ -2193,6 +2247,7 @@ export const useAppStore = defineStore('app', {
           if (session) {
             session.lastMessage = messagePreviewFromItem(res.data)
             session.time = chatMsg.time
+            session.lastActiveAt = chatMsg.createTime || Date.now()
           }
           void this.clearSessionDraft(id)
           return
@@ -2382,9 +2437,11 @@ export const useAppStore = defineStore('app', {
         if (last) {
           session.lastMessage = messagePreview(last)
           session.time = last.time
+          session.lastActiveAt = last.createTime || Date.now()
         } else {
           session.lastMessage = messagePreview(chatMsg)
           if (chatMsg.time) session.time = chatMsg.time
+          session.lastActiveAt = chatMsg.createTime || Date.now()
         }
       }
     },
