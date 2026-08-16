@@ -13,7 +13,6 @@ import {
 } from '@vicons/ionicons5'
 import Avatar from './Avatar.vue'
 import WindowCaptionButtons from './WindowCaptionButtons.vue'
-import BrandMarkIcon from './BrandMarkIcon.vue'
 import SliderCaptcha from './SliderCaptcha.vue'
 import { LxButton, LxIconButton } from './ui'
 import { storeToRefs } from 'pinia'
@@ -647,15 +646,6 @@ async function handleForgot() {
     </div>
 
     <div class="login-body" :class="{ 'login-body--password': loginMode === 'password' }">
-      <div
-        class="brand-title"
-        :class="{ 'brand-title--compact': loginMode === 'password' }"
-        aria-label="LinkX"
-      >
-        <BrandMarkIcon :size="loginMode === 'password' ? 34 : 40" />
-        <span class="brand-text">LinkX</span>
-      </div>
-
       <div class="profile-block" :class="{ 'profile-block--password': loginMode === 'password' }">
         <div class="avatar-ring" :class="{ 'avatar-ring--lg': loginMode === 'quick' }">
           <div class="avatar-glow" aria-hidden="true" />
@@ -1052,12 +1042,7 @@ async function handleForgot() {
 }
 
 .login-page--compact .login-body {
-  padding: 0 var(--lx-space-3xl) var(--lx-space-md);
-}
-
-.login-page--compact .brand-title {
-  margin-top: 0;
-  margin-bottom: var(--lx-space-lg);
+  padding: var(--lx-space-lg) var(--lx-space-3xl) var(--lx-space-md);
 }
 
 .login-page--compact .profile-block {
@@ -1205,41 +1190,7 @@ async function handleForgot() {
 }
 
 .login-body--password {
-  padding: 0 var(--lx-space-3xl-plus) var(--lx-space-lg);
-}
-
-.brand-title {
-  position: relative;
-  z-index: var(--lx-z-raised);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--lx-space);
-  margin-top: var(--lx-space-xs);
-  margin-bottom: var(--lx-space-2xl);
-  user-select: none;
-  animation: rise-in var(--lx-duration-slower) ease both;
-}
-
-.brand-title--compact {
-  margin-top: 0;
-  margin-bottom: var(--lx-space);
-  gap: var(--lx-space-sm);
-}
-
-.brand-text {
-  font-size: var(--lx-font-6xl);
-  font-weight: 720;
-  letter-spacing: 0.5px;
-  line-height: var(--lx-leading-none);
-  background: linear-gradient(100deg, var(--lx-accent-sky) 0%, var(--lx-accent) 35%, var(--lx-brand-blue-mid) 70%, var(--lx-brand-purple) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-.brand-title--compact .brand-text {
-  font-size: var(--lx-font-4xl);
+  padding: var(--lx-space-lg) var(--lx-space-3xl-plus) var(--lx-space-lg);
 }
 
 .profile-block {
@@ -1570,7 +1521,6 @@ async function handleForgot() {
 
 @media (prefers-reduced-motion: reduce) {
   .orb,
-  .brand-title,
   .profile-block,
   .lx-panel,
   .footer,
