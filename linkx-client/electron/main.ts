@@ -221,6 +221,16 @@ function windowBackgroundColor(theme: string = currentUiTheme, mode: 'login' | '
 /** Win32：登录窗无边框自绘顶栏；主界面/子窗口系统原生边框 */
 let desktopChromeKind: 'login' | 'main' = 'login'
 const POST_LOGIN_ENTER_KEY = 'lx-post-login-enter'
+const NATIVE_CAPTION_OVERLAY_HEIGHT = 40
+
+function nativeCaptionOverlay(): Electron.TitleBarOverlay {
+  const isDark = currentUiTheme === 'dark'
+  return {
+    color: isDark ? '#1a1a1a' : '#f5f5f5',
+    symbolColor: isDark ? '#f3f3f3' : '#1a1a1a',
+    height: NATIVE_CAPTION_OVERLAY_HEIGHT
+  }
+}
 
 function windowChrome(
   title = 'LinkX',
@@ -240,6 +250,8 @@ function windowChrome(
     }
     return {
       frame: true,
+      titleBarStyle: 'hidden',
+      titleBarOverlay: nativeCaptionOverlay(),
       transparent: false,
       backgroundColor: windowBackgroundColor(currentUiTheme, 'main'),
       roundedCorners: true,
@@ -1584,7 +1596,15 @@ async function showDesktopNotice(title: string, body: string, silent = false): P
 
 function applyAllWindowBackgrounds(theme: string) {
   const color = windowBackgroundColor(theme)
-  BrowserWindow.getAllWindows().forEach(win => win.setBackgroundColor(color))
+  BrowserWindow.getAllWindows().forEach(win => {
+    win.setBackgroundColor(color)
+    if (process.platform !== 'win32') return
+    try {
+      win.setTitleBarOverlay(nativeCaptionOverlay())
+    } catch {
+      /* 登录无边框窗没有 overlay */
+    }
+  })
 }
 
 ipcMain.on('theme-changed', (_e, theme: string) => {

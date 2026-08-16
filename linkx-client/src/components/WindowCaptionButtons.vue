@@ -35,6 +35,7 @@ const showCustom = computed(
     isElectron &&
     (!!window.electronAPI?.showCustomCaptionButtons || props.forceShow)
 )
+const showToolbar = computed(() => showCustom.value || (isElectron && props.showPin))
 const isMaximized = ref(false)
 let offMaximized: (() => void) | undefined
 
@@ -71,10 +72,10 @@ async function close() {
 </script>
 
 <template>
-  <div v-if="showCustom" class="caption-btns" role="toolbar" aria-label="Window">
+  <div v-if="showToolbar" class="caption-btns" role="toolbar" aria-label="Window">
     <WindowPinButton v-if="showPin" />
     <button
-      v-if="showMinimize"
+      v-if="showCustom && showMinimize"
       type="button"
       class="lx-win-caption-btn"
       :title="t('shell.minimize')"
@@ -85,7 +86,7 @@ async function close() {
       </svg>
     </button>
     <button
-      v-if="showMaximize"
+      v-if="showCustom && showMaximize"
       type="button"
       class="lx-win-caption-btn"
       :title="isMaximized ? t('shell.restore') : t('shell.maximize')"
@@ -104,6 +105,7 @@ async function close() {
       </svg>
     </button>
     <button
+      v-if="showCustom"
       type="button"
       class="lx-win-caption-btn lx-win-caption-btn--close"
       :title="t('shell.close')"

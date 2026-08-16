@@ -93,7 +93,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showCustomCaptionButtons: process.platform === 'linux',
   /** Win32 登录窗自绘顶栏；主界面/子窗口为系统原生边框 */
   useNativeWindowFrame: process.platform === 'win32',
-  hasNativeTitleBarOverlay: false,
+  hasNativeTitleBarOverlay: process.platform === 'win32',
   captureScreen,
   fetchIPLocation,
   /** 发布成功后通知友链列表窗口刷新 */

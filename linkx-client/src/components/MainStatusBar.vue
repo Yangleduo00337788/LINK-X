@@ -3,13 +3,12 @@
 /**
  * 顶部主状态栏组件。
  * <p>
- * 显示品牌标识、会话标题、窗口置顶；最小化/最大化/关闭为自绘 Win11 风格窗控，
+ * 显示会话标题、窗口置顶；最小化/最大化/关闭为自绘 Win11 风格窗控，
  * 关闭键右上角圆角与窗口 --lx-window-radius 一致。
  * </p>
  */
 import { computed } from 'vue'
 import WindowCaptionButtons from './WindowCaptionButtons.vue'
-import BrandMarkIcon from './BrandMarkIcon.vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
 import { useI18n } from '../i18n'
@@ -50,13 +49,8 @@ const selectSessionHint = computed(() => t('chat.selectSession'))
 <template>
   <!-- 顶部状态栏 -->
   <header class="main-status-bar">
-    <!-- 左侧：品牌与标题 -->
-    <div class="status-left">
-      <div class="brand-block" title="LinkX">
-        <BrandMarkIcon :size="38" />
-        <span class="brand-text">LinkX</span>
-      </div>
-
+    <!-- 左侧：可拖拽留白与标题 -->
+    <div class="status-left title-bar-drag">
       <!-- chat 变体标题区 -->
       <template v-if="variant === 'chat'">
         <div class="profile-col">
@@ -96,6 +90,7 @@ const selectSessionHint = computed(() => t('chat.selectSession'))
   display: flex;
   align-items: stretch;
   padding: 0 0 0 var(--lx-space-md);
+  padding-right: calc(100% - env(titlebar-area-width, 100%));
   background: var(--lx-bg-window);
   border-bottom: none;
   position: relative;
@@ -106,28 +101,10 @@ const selectSessionHint = computed(() => t('chat.selectSession'))
   display: flex;
   align-items: center;
   gap: 0;
-  min-width: 0;
+  min-width: 12px;
   flex-shrink: 0;
   height: 40px;
-  -webkit-app-region: no-drag;
-}
-
-.brand-block {
-  display: flex;
-  align-items: center;
-  gap: var(--lx-space-xs);
-  flex-shrink: 0;
-  margin-right: var(--lx-space-5xl);
-  user-select: none;
-}
-
-.brand-text {
-  font-size: var(--lx-font-xl);
-  font-weight: 700;
-  color: var(--lx-text);
-  letter-spacing: -0.02em;
-  line-height: var(--lx-leading-none);
-  margin-left: -var(--lx-space-hair);
+  -webkit-app-region: drag;
 }
 
 .profile-col {

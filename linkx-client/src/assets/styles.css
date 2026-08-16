@@ -536,6 +536,15 @@ html.lx-electron.lx-native-frame #app {
   overflow: hidden;
 }
 
+/* Win32 系统窗控 overlay：给顶栏右侧留出原生 min/max/close 占位 */
+html.lx-electron-win32.lx-native-frame .title-bar,
+html.lx-electron-win32.lx-native-frame .standalone-header,
+html.lx-electron-win32.lx-native-frame .viewer-header,
+html.lx-electron-win32.lx-native-frame .fixed-header {
+  padding-right: calc(100% - env(titlebar-area-width, 100%));
+  box-sizing: border-box;
+}
+
 html.lx-electron-win32:not(.lx-native-frame) #app {
   border-radius: 8px;
   clip-path: none;
