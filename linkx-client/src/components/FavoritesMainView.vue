@@ -278,7 +278,7 @@ function parseFavoriteSourceId(item: FavoriteItem) {
 
 /** 跳转到收藏消息所属会话，并定位高亮原消息 */
 function openConversationFavorite(
-  item: FavoriteItem,
+  _item: FavoriteItem,
   sessionId?: string,
   messageId?: string
 ) {

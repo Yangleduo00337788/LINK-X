@@ -2,7 +2,7 @@
  * 聊天消息本地存储门面：Electron 走 SQLite IPC，Web 降级 sessionStorage。
  */
 import type { ChatMessage } from '../types'
-import { sanitizeMessagesForPersist } from '../utils/persistSanitize'
+import { sanitizeMessageForPersist } from '../utils/persistSanitize'
 
 export const HOT_MESSAGE_LIMIT = 200
 
@@ -37,8 +37,7 @@ export function trimInMemoryTail(messages: ChatMessage[]): ChatMessage[] {
 }
 
 function serializeMessage(msg: ChatMessage): string {
-  const [sanitized] = sanitizeMessagesForPersist([msg])
-  return JSON.stringify(sanitized ?? msg)
+  return JSON.stringify(sanitizeMessageForPersist(msg))
 }
 
 function parsePayloads(payloads: string[]): ChatMessage[] {
@@ -62,7 +61,9 @@ export async function migrateLegacySessionStorageIfNeeded(): Promise<void> {
     const parsed = JSON.parse(raw) as { messagesBySession?: Record<string, ChatMessage[]> }
     const map = parsed?.messagesBySession
     if (!map || !Object.keys(map).length) return
-    const count = await chatDb.migrateLegacy(map as Record<string, Array<Record<string, unknown>>>)
+    const count = await chatDb.migrateLegacy(
+      map as unknown as Record<string, Array<Record<string, unknown>>>
+    )
     if (count > 0) {
       sessionStorage.removeItem('linkx-app-msgs')
     }

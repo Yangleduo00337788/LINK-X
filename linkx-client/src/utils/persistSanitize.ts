@@ -23,7 +23,7 @@ export function sanitizeMessagesForPersist(
   return out
 }
 
-function sanitizeMessageForPersist(msg: ChatMessage): ChatMessage {
+export function sanitizeMessageForPersist(msg: ChatMessage): ChatMessage {
   const next = { ...msg }
 
   // base64 图片一律不持久化（截图/小图避免明文落盘）；过大时同样占位

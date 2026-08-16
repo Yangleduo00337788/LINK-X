@@ -235,9 +235,10 @@ export const useLinkMateStore = defineStore('linkmate', {
       persistDraftMap(map)
     },
 
-    restoreInputDraft(sessionId = this.activeSessionId) {
+    restoreInputDraft(sessionId?: string) {
+      const id = sessionId ?? this.activeSessionId
       const map = loadDraftMap()
-      this.inputDraft = map[draftKeyForSession(sessionId)] ?? ''
+      this.inputDraft = map[draftKeyForSession(id)] ?? ''
     },
 
     setInputDraft(text: string) {

@@ -1,10 +1,13 @@
 /**
  * 作者：yangleduo
  */
-import type { ComposerTranslation } from 'vue-i18n'
+import type { MessageKey } from '../i18n'
 
 /** 将服务端中文错误映射为当前语言文案 */
-export function resolveLinkMateErrorMessage(raw: string, t: ComposerTranslation): string {
+export function resolveLinkMateErrorMessage(
+  raw: string,
+  t: (key: MessageKey | string) => string
+): string {
   const msg = raw.trim()
   if (!msg) return t('linkmate.sendFailed')
 
