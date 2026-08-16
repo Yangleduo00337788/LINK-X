@@ -187,6 +187,8 @@ const selectSessionHint = computed(() => t('chat.selectSession'))
   align-items: center;
   justify-content: center;
   padding: 0 var(--lx-space-lg);
+  margin-top: 6px;
+  height: calc(100% - 6px);
   -webkit-app-region: drag;
   cursor: default;
 }

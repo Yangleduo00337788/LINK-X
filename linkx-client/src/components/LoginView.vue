@@ -1,6 +1,6 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, watch, nextTick, inject, type ComputedRef } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch, inject, type ComputedRef } from 'vue'
 import { useRouter } from 'vue-router'
 import { NInput, NIcon, NCheckbox, NModal, NSelect, useMessage } from 'naive-ui'
 import {
@@ -25,6 +25,9 @@ import { validateUsername, validatePassword } from '../utils/validation'
 import { hasRefreshToken } from '../utils/tokenStorage'
 import { useI18n } from '../i18n'
 import { preloadClientResources } from '../utils/preloadClientResources'
+import { useNativeWindowFrame } from '../utils/electronChrome'
+
+const useNativeFrame = useNativeWindowFrame()
 
 const message = useMessage()
 const router = useRouter()
@@ -605,8 +608,8 @@ async function handleForgot() {
       <span class="mesh" />
     </div>
 
-    <div class="login-win-bar">
-      <div class="drag-area" />
+    <div class="login-win-bar" :class="{ 'login-win-bar--native': useNativeFrame }">
+      <div v-if="!useNativeFrame" class="drag-area" />
       <div class="login-win-actions" @click.stop>
         <button
           type="button"
@@ -634,7 +637,7 @@ async function handleForgot() {
           </button>
         </div>
       </div>
-      <WindowCaptionButtons :show-maximize="false" />
+      <WindowCaptionButtons v-if="!useNativeFrame" :show-maximize="false" />
     </div>
 
     <div class="login-body" :class="{ 'login-body--password': loginMode === 'password' }">
@@ -1053,6 +1056,13 @@ async function handleForgot() {
   -webkit-app-region: no-drag;
   position: relative;
   z-index: var(--lx-z-sticky);
+}
+
+.login-win-bar--native {
+  height: auto;
+  min-height: 0;
+  padding: var(--lx-space-xs) var(--lx-space-xs) 0;
+  justify-content: flex-end;
 }
 
 .drag-area {

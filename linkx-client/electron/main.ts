@@ -136,6 +136,11 @@ async function readDownloadBytes(payload: DownloadFilePayload): Promise<Buffer> 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL)
 
+/** 生产环境限制 Chromium 磁盘缓存，降低长期挂机内存与磁盘占用 */
+if (app.isPackaged) {
+  app.commandLine.appendSwitch('disk-cache-size', String(80 * 1024 * 1024))
+}
+
 /**
  * CSP 可信媒体源：本机 API/MinIO + 可选环境变量（生产 MinIO/CDN 网关）。
  * 朋友圈外链改走后端 /media/external 代理，故不再需要任意 https:。
@@ -203,20 +208,27 @@ const currentShortcuts = {
  * 两端格式易歧义（例如 #FFFFFF00 会被当成不透明黄）。
  */
 function windowBackgroundColor(theme: string = currentUiTheme) {
-  // 浅色须透明，圆角由 #app 的 clip-path 绘制；不透明底会导致方角灰边
-  return theme === 'dark' ? 'rgba(26, 26, 26, 1)' : 'rgba(255, 255, 255, 0)'
+  const isDark = theme === 'dark'
+  if (process.platform === 'win32') {
+    return isDark ? '#1a1a1a' : '#ffffff'
+  }
+  return isDark ? 'rgba(26, 26, 26, 1)' : 'rgba(255, 255, 255, 0)'
 }
 
-/** 无边框；大圆角由渲染层 CSS 绘制；窗控由前端自绘以便裁进圆角 */
-function framelessChrome(): {
-  frame: false
-  titleBarStyle: 'hidden' | 'hiddenInset'
-  transparent: true
-  backgroundColor: string
-  roundedCorners: false
-  /** 系统阴影跟矩形 HWND，会在 CSS 圆角外露脏角；轮廓改由 CSS inset 描边 */
-  hasShadow: false
-} {
+function usesNativeWinFrame(): boolean {
+  return process.platform === 'win32'
+}
+
+/** Win32 用系统原生边框；macOS/Linux 保持无边框 + CSS 圆角 */
+function windowChrome(title = 'LinkX'): Electron.BrowserWindowConstructorOptions {
+  if (usesNativeWinFrame()) {
+    return {
+      frame: true,
+      transparent: false,
+      backgroundColor: windowBackgroundColor(),
+      title
+    }
+  }
   return {
     frame: false,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden',
@@ -227,8 +239,12 @@ function framelessChrome(): {
   }
 }
 
-/** 透明大圆角窗：同步清空色，并在 focus/blur 时重刷，避免 Win DWM 把四角画脏 */
-function prepareFramelessWindow(win: BrowserWindow) {
+/** 无边框透明窗：同步背景色；原生边框窗仅设一次 */
+function prepareWindowChrome(win: BrowserWindow) {
+  if (usesNativeWinFrame()) {
+    win.setBackgroundColor(windowBackgroundColor())
+    return
+  }
   const refreshBg = () => {
     if (win.isDestroyed()) return
     win.setBackgroundColor(windowBackgroundColor())
@@ -550,10 +566,25 @@ function pushMaximizedState(win: BrowserWindow) {
 }
 
 const LOGIN_WINDOW_WIDTH = 319
-const LOGIN_WINDOW_HEIGHT = 461
+const LOGIN_WINDOW_HEIGHT = usesNativeWinFrame() ? 500 : 461
 const MAIN_WINDOW_WIDTH = 1200
 const MAIN_WINDOW_HEIGHT = 800
+const MAIN_WINDOW_MIN_WIDTH = 960
+const MAIN_WINDOW_MIN_HEIGHT = 640
 const WINDOW_MODE_ANIM_MS = 380
+
+/** 避免重复 set-mode main 时把用户已调整的窗口尺寸重置为默认 */
+let desktopWindowMode: 'login' | 'main' = 'login'
+
+/** 主界面：可拖拽缩放（登录窗会锁死 min=max，未清掉会显示禁止光标） */
+function applyMainWindowConstraints(win: BrowserWindow) {
+  win.setResizable(true)
+  win.setMaximizable(true)
+  // Win32 上 (0,0) 偶发不生效，先放宽再还原为无上限
+  win.setMaximumSize(100000, 100000)
+  win.setMaximumSize(0, 0)
+  win.setMinimumSize(MAIN_WINDOW_MIN_WIDTH, MAIN_WINDOW_MIN_HEIGHT)
+}
 
 function easeOutCubic(t: number): number {
   return 1 - Math.pow(1 - t, 3)
@@ -608,6 +639,8 @@ function registerWindowIpc() {
   ipcMain.removeHandler('app:get-desktop-prefs')
   ipcMain.removeHandler('app:set-desktop-prefs')
   ipcMain.removeHandler('window:set-mode')
+  ipcMain.removeHandler('window:get-bounds')
+  ipcMain.removeHandler('window:set-bounds')
   ipcMain.removeHandler('fetch-ip-location')
   ipcMain.removeHandler('secure-storage:is-available')
   ipcMain.removeHandler('secure-storage:get')
@@ -699,6 +732,7 @@ function registerWindowIpc() {
     const win = winFromSender(event)
     if (!win) return
     if (mode === 'login') {
+      desktopWindowMode = 'login'
       if (win.isMaximized()) win.unmaximize()
       win.setMaximizable(false)
       win.setMaximumSize(99999, 99999)
@@ -711,17 +745,45 @@ function registerWindowIpc() {
       win.center()
       return
     }
-    // 登录窗创建时因 maxSize 锁定会关掉可最大化；切主界面需显式恢复
-    win.setMaximumSize(99999, 99999)
-    win.setMinimumSize(LOGIN_WINDOW_WIDTH, LOGIN_WINDOW_HEIGHT)
-    win.setResizable(true)
-    win.setMaximizable(true)
-    if (!win.isMaximized()) {
+    const enteringMain = desktopWindowMode === 'login'
+    desktopWindowMode = 'main'
+    applyMainWindowConstraints(win)
+    const [curW, curH] = win.getSize()
+    const stillLoginSize =
+      curW <= LOGIN_WINDOW_WIDTH + 2 && curH <= LOGIN_WINDOW_HEIGHT + 2
+    // 登录后默认 1200×800；之后用户可自行拖拽调整，不再强制重置
+    if ((enteringMain || stillLoginSize) && !win.isMaximized()) {
       await animateWindowSize(win, MAIN_WINDOW_WIDTH, MAIN_WINDOW_HEIGHT)
       win.center()
     }
-    win.setMinimumSize(MAIN_WINDOW_WIDTH, MAIN_WINDOW_HEIGHT)
+    applyMainWindowConstraints(win)
   })
+
+  ipcMain.handle('window:get-bounds', event => {
+    const win = winFromSender(event)
+    if (!win) return null
+    return win.getBounds()
+  })
+
+  ipcMain.handle(
+    'window:set-bounds',
+    (event, bounds: { x?: number; y?: number; width?: number; height?: number }) => {
+      const win = winFromSender(event)
+      if (!win || win.isDestroyed() || !win.isResizable() || desktopWindowMode !== 'main') {
+        return false
+      }
+      if (!bounds || typeof bounds !== 'object') return false
+      const width = Math.max(MAIN_WINDOW_MIN_WIDTH, Math.round(bounds.width ?? win.getBounds().width))
+      const height = Math.max(
+        MAIN_WINDOW_MIN_HEIGHT,
+        Math.round(bounds.height ?? win.getBounds().height)
+      )
+      const x = Math.round(bounds.x ?? win.getBounds().x)
+      const y = Math.round(bounds.y ?? win.getBounds().y)
+      win.setBounds({ x, y, width, height })
+      return true
+    }
+  )
 
   ipcMain.handle('app:get-download-path', () => {
     return app.getPath('downloads')
@@ -1482,11 +1544,11 @@ function createMomentsWindow(opts?: MomentsOpenPayload) {
     minWidth: 440,
     minHeight: 560,
     resizable: true,
-    ...framelessChrome(),
+    ...windowChrome(),
     show: false,
     webPreferences: defaultWebPreferences()
   })
-  prepareFramelessWindow(momentsWindow)
+  prepareWindowChrome(momentsWindow)
 
   momentsWindow.once('ready-to-show', () => {
     momentsWindow?.show()
@@ -1533,11 +1595,11 @@ function createMomentsTextWindow() {
     width: 420,
     height: 520,
     resizable: false,
-    ...framelessChrome(),
+    ...windowChrome(),
     show: false,
     webPreferences: defaultWebPreferences()
   })
-  prepareFramelessWindow(momentsTextWindow)
+  prepareWindowChrome(momentsTextWindow)
 
   momentsTextWindow.once('ready-to-show', () => {
     momentsTextWindow?.show()
@@ -1573,11 +1635,11 @@ function createMomentsMediaWindow() {
     width: 480,
     height: 600,
     resizable: false,
-    ...framelessChrome(),
+    ...windowChrome(),
     show: false,
     webPreferences: defaultWebPreferences()
   })
-  prepareFramelessWindow(momentsMediaWindow)
+  prepareWindowChrome(momentsMediaWindow)
 
   momentsMediaWindow.once('ready-to-show', () => {
     momentsMediaWindow?.show()
@@ -1615,11 +1677,11 @@ function createNoteEditorWindow() {
     height: 600,
     minWidth: 600,
     minHeight: 400,
-    ...framelessChrome(),
+    ...windowChrome(),
     show: false,
     webPreferences: defaultWebPreferences()
   })
-  prepareFramelessWindow(noteEditorWindow)
+  prepareWindowChrome(noteEditorWindow)
 
   let revealed = false
   const revealNoteEditorWindow = () => {
@@ -1671,12 +1733,12 @@ function createRegisterWindow() {
     width: 360,
     height: 560,
     resizable: false,
-    ...framelessChrome(),
+    ...windowChrome(),
     show: false,
     // 不挂 parent，避免盖住登录窗；作为独立弹窗并列显示
     webPreferences: defaultWebPreferences()
   })
-  prepareFramelessWindow(registerWindow)
+  prepareWindowChrome(registerWindow)
 
   // 放在登录窗右侧，登录页保持可见
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -1725,11 +1787,11 @@ function createChatHistoryStandaloneWindow(size: { width: number; height: number
     minWidth: size.width,
     minHeight: size.height,
     resizable: true,
-    ...framelessChrome(),
+    ...windowChrome(),
     show: false,
     webPreferences: defaultWebPreferences()
   })
-  prepareFramelessWindow(win)
+  prepareWindowChrome(win)
 
   win.once('ready-to-show', () => {
     win?.show()
@@ -1793,11 +1855,11 @@ function createOfficialNotifyDetailWindow(notifId: string) {
     minWidth: 400,
     minHeight: 480,
     resizable: true,
-    ...framelessChrome(),
+    ...windowChrome(),
     show: false,
     webPreferences: defaultWebPreferences()
   })
-  prepareFramelessWindow(win)
+  prepareWindowChrome(win)
 
   win.once('ready-to-show', () => {
     win?.show()
@@ -1869,13 +1931,13 @@ function createImageViewerWindow(payload: ImageViewerPayload) {
     minWidth: 640,
     minHeight: 480,
     resizable: true,
-    ...framelessChrome(),
+    ...windowChrome(),
     // 跟随当前 UI 主题，避免亮色主题下先闪黑底
     backgroundColor: currentUiTheme === 'dark' ? '#1a1a1a' : '#f5f5f5',
     show: false,
     webPreferences: defaultWebPreferences()
   })
-  prepareFramelessWindow(imageViewerWindow)
+  prepareWindowChrome(imageViewerWindow)
 
   imageViewerWindow.once('ready-to-show', () => {
     imageViewerWindow?.show()
@@ -1933,14 +1995,14 @@ function createWindow() {
     maxWidth: 319,
     maxHeight: 461,
     resizable: false,
-    ...framelessChrome(),
+    ...windowChrome(),
     show: false,
     webPreferences: {
       ...defaultWebPreferences({ backgroundThrottling: false }),
       webviewTag: false
     }
   })
-  prepareFramelessWindow(mainWindow)
+  prepareWindowChrome(mainWindow)
 
   let mainWindowRevealed = false
   const revealMainWindow = () => {
@@ -2001,6 +2063,16 @@ function createWindow() {
     if (!desktopPrefs.minimizeToTray || !tray) return
     e.preventDefault()
     mainWindow?.hide()
+  })
+
+  // 最小化到托盘后降低主窗口渲染优先级，节省内存；重新显示时恢复 IM 实时性
+  mainWindow.on('hide', () => {
+    if (isQuitting || !mainWindow || mainWindow.isDestroyed()) return
+    mainWindow.webContents.setBackgroundThrottling(true)
+  })
+  mainWindow.on('show', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    mainWindow.webContents.setBackgroundThrottling(false)
   })
 
   mainWindow.on('closed', () => {

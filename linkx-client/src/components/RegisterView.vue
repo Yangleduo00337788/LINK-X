@@ -23,6 +23,9 @@ import BrandMarkIcon from './BrandMarkIcon.vue'
 import SliderCaptcha from './SliderCaptcha.vue'
 import { LxButton, LxIconButton } from './ui'
 import { openLegalPageInBrowser } from '../utils/legalPage'
+import { useNativeWindowFrame } from '../utils/electronChrome'
+
+const useNativeFrame = useNativeWindowFrame()
 
 const message = useMessage()
 const router = useRouter()
@@ -267,7 +270,7 @@ onUnmounted(() => {
       <span class="mesh" />
     </div>
 
-    <div class="reg-win-bar">
+    <div v-if="!useNativeFrame" class="reg-win-bar">
       <div class="reg-title">{{ t('register.title') }}</div>
       <div class="drag-area" />
       <WindowCaptionButtons v-if="isElectron" :show-maximize="false" />

@@ -64,6 +64,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setDesktopPrefs: prefs => ipcRenderer.invoke('app:set-desktop-prefs', prefs),
   notifyThemeChange: theme => ipcRenderer.send('theme-changed', theme),
   setWindowMode: mode => ipcRenderer.invoke('window:set-mode', mode),
+  getWindowBounds: () => ipcRenderer.invoke('window:get-bounds'),
+  setWindowBounds: bounds => ipcRenderer.invoke('window:set-bounds', bounds),
   pickDownloadPath: () => ipcRenderer.invoke('app:pick-download-path'),
   pickImages: () => ipcRenderer.invoke('app:pick-images'),
   openDownloadPath: customPath => ipcRenderer.invoke('app:open-download-path', customPath),
@@ -88,7 +90,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   isElectron: true,
   /** 使用自绘窗控（可裁进窗口圆角）；macOS 用系统红绿灯 */
-  showCustomCaptionButtons: process.platform === 'win32' || process.platform === 'linux',
+  showCustomCaptionButtons: process.platform === 'linux',
+  useNativeWindowFrame: process.platform === 'win32',
   hasNativeTitleBarOverlay: false,
   captureScreen,
   fetchIPLocation,

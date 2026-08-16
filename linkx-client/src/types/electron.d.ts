@@ -87,6 +87,13 @@ declare global {
       }>
       notifyThemeChange?: (theme: 'light' | 'dark') => void
       setWindowMode?: (mode: 'login' | 'main') => Promise<void>
+      getWindowBounds?: () => Promise<{ x: number; y: number; width: number; height: number } | null>
+      setWindowBounds?: (bounds: {
+        x: number
+        y: number
+        width: number
+        height: number
+      }) => Promise<boolean>
       pickDownloadPath?: () => Promise<string | null>
       /** 原生多选图片，返回二进制供构造成 File */
       pickImages?: () => Promise<Array<{ name: string; mimeType: string; data: ArrayBuffer | Uint8Array }>>
@@ -128,6 +135,8 @@ declare global {
       hasNativeTitleBarOverlay?: boolean
       /** Windows/Linux：自绘窗控（关闭键可裁进窗口圆角） */
       showCustomCaptionButtons?: boolean
+      /** Win32 使用系统原生标题栏与边框 */
+      useNativeWindowFrame?: boolean
       /** 屏幕截图，返回截图数据或 null */
       captureScreen?: () => Promise<{ dataURL: string; width: number; height: number } | null>
       /** 通过 IP 获取地理位置，返回位置字符串或 null */

@@ -16,7 +16,8 @@ import {
   shallowRef,
   computed,
   provide,
-  type Component
+  type Component,
+  type ShallowRef
 } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
@@ -30,13 +31,13 @@ const appStore = useAppStore()
 const { isLoggedIn } = storeToRefs(appStore)
 
 /** 主界面 chunk 预加载（登录页停留期间后台拉取，避免登录成功后白屏） */
-const AppShellDef = shallowRef<Component | null>(null)
+const AppShellDef = shallowRef(null) as ShallowRef<Component | null>
 
 function preloadAppShell(): Promise<Component> {
   if (AppShellDef.value) return Promise.resolve(AppShellDef.value)
   return preloadAppShellComponent().then(m => {
-    AppShellDef.value = m.default
-    return m.default
+    AppShellDef.value = m.default as Component
+    return m.default as Component
   })
 }
 
@@ -72,6 +73,7 @@ async function syncWindowModeLogin() {
 
 function onMainShellMounted() {
   if (!isLoggedIn.value) return
+  // 窗口放大已在 isLoggedIn watch 中触发，此处仅作兜底
   void waitFrames(2).then(() => syncWindowModeMain())
 }
 
@@ -109,6 +111,9 @@ watch(
 
     await preloadAppShell()
     showMainShell.value = true
+    await nextTick()
+    await waitFrames(2)
+    await syncWindowModeMain()
   },
   { immediate: true, flush: 'post' }
 )
