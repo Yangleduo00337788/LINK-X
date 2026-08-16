@@ -3,11 +3,11 @@
 /**
  * 群聊内灵伴 AI 回复气泡：Markdown 渲染 + AI 免责声明。
  */
-import { computed, reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { NIcon, useMessage } from 'naive-ui'
 import { ChevronDownOutline } from '@vicons/ionicons5'
 import type { ChatMessage } from '../../../types'
-import { renderLinkMateMarkdown, copyCodeFromButton } from '../../../utils/linkmateMarkdown'
+import { renderLinkMateMarkdownLazy, copyCodeFromButtonLazy } from '../../../utils/linkmateMarkdownLazy'
 import { copyText } from '../../../utils/clipboard'
 import { useI18n } from '../../../i18n'
 
@@ -19,10 +19,19 @@ const { t } = useI18n()
 const message = useMessage()
 const collapsedReasoning = reactive<Record<string, boolean>>({})
 
-const renderedHtml = computed(() => {
-  if (props.msg.streaming) return ''
-  return renderLinkMateMarkdown(props.msg.content || '')
-})
+const renderedHtml = ref('')
+
+watch(
+  () => [props.msg.content, props.msg.streaming] as const,
+  async ([content, streaming]) => {
+    if (streaming) {
+      renderedHtml.value = ''
+      return
+    }
+    renderedHtml.value = await renderLinkMateMarkdownLazy(content || '')
+  },
+  { immediate: true }
+)
 
 const shouldPinCopy = computed(() => {
   const text = props.msg.content?.trim() || ''
@@ -52,7 +61,7 @@ async function handleMarkdownClick(e: MouseEvent) {
   if (!btn) return
   e.preventDefault()
   e.stopPropagation()
-  const ok = await copyCodeFromButton(btn)
+  const ok = await copyCodeFromButtonLazy(btn)
   if (ok) {
     message.success(t('linkmate.codeCopied'))
   } else {

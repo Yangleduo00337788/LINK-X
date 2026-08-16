@@ -3,7 +3,7 @@
 /**
  * 灵伴对话面板（主导航全屏 / 旧版侧栏嵌入）。
  */
-import { computed, h, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, h, nextTick, onMounted, onUnmounted, reactive, ref, shallowRef, watch } from 'vue'
 import { NInput, NIcon, NPopover, useMessage, useDialog } from 'naive-ui'
 import {
   AddOutline,
@@ -20,7 +20,7 @@ import { useLinkMateStore } from '../stores/linkmate'
 import type { LinkMateMessage } from '../api/linkmate'
 import { useI18n } from '../i18n'
 import LinkMateLogoMark from './LinkMateLogoMark.vue'
-import { renderLinkMateMarkdown, copyCodeFromButton } from '../utils/linkmateMarkdown'
+import { loadLinkMateMarkdown, copyCodeFromButtonLazy } from '../utils/linkmateMarkdownLazy'
 import { copyText } from '../utils/clipboard'
 
 const props = withDefaults(
@@ -31,6 +31,8 @@ const props = withDefaults(
     layout: 'page'
   }
 )
+
+const mdRenderer = shallowRef<((content: string) => string) | null>(null)
 
 const isPageLayout = computed(() => props.layout === 'page')
 
@@ -243,7 +245,7 @@ async function handleMarkdownClick(e: MouseEvent) {
   if (!btn) return
   e.preventDefault()
   e.stopPropagation()
-  const ok = await copyCodeFromButton(btn)
+  const ok = await copyCodeFromButtonLazy(btn)
   if (ok) {
     message.success(t('linkmate.codeCopied'))
   } else {
@@ -256,7 +258,9 @@ function isStreamingMessage(msg: LinkMateMessage) {
 }
 
 function renderAssistantContent(content: string) {
-  return renderLinkMateMarkdown(content)
+  const render = mdRenderer.value
+  if (!render) return ''
+  return render(content)
 }
 
 function isWaitingAssistant(msg: LinkMateMessage) {
@@ -512,6 +516,9 @@ watch(loadingMessages, (loading, wasLoading) => {
 })
 
 onMounted(async () => {
+  void loadLinkMateMarkdown().then(m => {
+    mdRenderer.value = m.renderLinkMateMarkdown
+  })
   linkMate.restoreInputDraft()
   await ensureReady()
   await nextTick()
