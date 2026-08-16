@@ -6,6 +6,7 @@
  */
 import { spawn } from 'node:child_process'
 import { execSync } from 'node:child_process'
+import { electronMirrorEnv, ensureElectronBinary } from './ensure-electron-binary.mjs'
 
 if (process.platform === 'win32') {
   try {
@@ -15,11 +16,16 @@ if (process.platform === 'win32') {
   }
 }
 
+if (!ensureElectronBinary()) {
+  process.exit(1)
+}
+
 const child = spawn('npx', ['vite', '--mode', 'electron'], {
   stdio: 'inherit',
   shell: true,
   env: {
     ...process.env,
+    ...electronMirrorEnv,
     // 提示 Node 使用 UTF-8（部分终端会读取）
     PYTHONIOENCODING: 'utf-8'
   }

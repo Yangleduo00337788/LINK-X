@@ -25,6 +25,6 @@ win:
   target:
     - portable
   icon: build/icon.ico
-  sign: null
+  signExecutable: false
   signAndEditExecutable: false
 artifactName: LinkX-Installer-${version}.${ext}

@@ -6,7 +6,6 @@ import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import UnoCSS from 'unocss/vite'
 import electron from 'vite-plugin-electron'
-import renderer from 'vite-plugin-electron-renderer'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -35,12 +34,37 @@ export default defineConfig(({ mode, command }) => {
     // esbuild drop 仅在 minify 生效时实际剥离，dev serve 不受影响
     esbuild: command === 'build' ? { drop: ['console', 'debugger'] } : undefined,
     build: {
+      // Electron 打包不产出 sourcemap，减小 asar 体积
+      sourcemap: command === 'build' && isElectron ? false : undefined,
+      target: isElectron ? 'chrome130' : 'es2020',
       chunkSizeWarningLimit: 2000,
       rollupOptions: {
         output: {
-          manualChunks: {
-            'naive-ui': ['naive-ui'],
-            'vue-vendor': ['vue', 'vue-router', 'pinia']
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return
+            if (id.includes('highlight.js') || id.includes('/marked/')) return 'markdown-vendor'
+            // vueuc 单独分包，避免与 naive-ui 核心绑死
+            if (id.includes('vueuc')) return 'vueuc'
+            if (id.includes('naive-ui')) {
+              // 重型组件随 AppShell/聊天页懒加载，登录首屏不拉 virtual-list 等
+              if (
+                /naive-ui[\\/]es[\\/](data-table|virtual-list|tree|cascader|date-picker|time-picker|calendar|transfer|legacy-grid)/.test(
+                  id
+                )
+              ) {
+                return 'naive-ui-heavy'
+              }
+              return 'naive-ui'
+            }
+            if (id.includes('@vicons/')) return 'vicons'
+            if (
+              id.includes('/vue/') ||
+              id.includes('vue-router') ||
+              id.includes('pinia') ||
+              id.includes('@vue/')
+            ) {
+              return 'vue-vendor'
+            }
           }
         }
       }
@@ -73,7 +97,7 @@ export default defineConfig(({ mode, command }) => {
               vite: {
                 define: electronEnvDefine,
                 build: {
-                  sourcemap: true,
+                  sourcemap: false,
                   minify: mode === 'electron',
                   outDir: 'dist-electron/main',
                   rollupOptions: {
@@ -83,8 +107,7 @@ export default defineConfig(({ mode, command }) => {
               }
             }
           ])
-        : null,
-      isElectron ? renderer() : null
+        : null
     ].filter(Boolean),
     test: {
       environment: 'node',

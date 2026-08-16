@@ -12,6 +12,8 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "electron:dev": "node ./scripts/run-electron-dev.mjs",
+    "electron:install": "node ./scripts/ensure-electron-binary.mjs",
+    "postinstall": "node ./scripts/ensure-electron-binary.mjs",
     "installer:assets": "node ./scripts/generate-installer-assets.mjs",
     "electron:build": "node ./scripts/electron-build.mjs",
     "electron:build:win": "node ./scripts/electron-build.mjs",
@@ -43,8 +45,8 @@
     "@types/marked": "^5.0.2",
     "@vitejs/plugin-vue": "^5.0.4",
     "dompurify": "^3.4.11",
-    "electron": "^33.0.0",
-    "electron-builder": "^24.13.3",
+    "electron": "^43.4.0",
+    "electron-builder": "^26.15.3",
     "marked": "^18.0.5",
     "prettier": "^3.6.2",
     "rcedit": "^5.0.1",
@@ -53,8 +55,7 @@
     "typescript": "^5.4.5",
     "unocss": "^0.59.4",
     "vite": "^5.4.12",
-    "vite-plugin-electron": "^0.28.7",
-    "vite-plugin-electron-renderer": "^0.14.5",
+    "vite-plugin-electron": "^1.1.1",
     "vitest": "^2.1.9",
     "vue-tsc": "^2.0.11"
   },
@@ -68,8 +69,18 @@
     },
     "files": [
       "dist/**/*",
-      "dist-electron/**/*"
+      "dist-electron/**/*",
+      "!**/*.map"
     ],
+    "asar": true,
+    "asarUnpack": [
+      "**/node_modules/sql.js/**"
+    ],
+    "electronLanguages": [
+      "en-US",
+      "zh-CN"
+    ],
+    "compression": "maximum",
     "extraResources": [
       {
         "from": "build",
@@ -85,7 +96,7 @@
     "win": {
       "target": "dir",
       "icon": "build/icon.ico",
-      "sign": null,
+      "signExecutable": false,
       "signAndEditExecutable": false
     },
     "afterPack": "./scripts/after-pack.mjs",
