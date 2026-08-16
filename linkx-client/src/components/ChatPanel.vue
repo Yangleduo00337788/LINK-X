@@ -44,7 +44,7 @@ import ChatInputBox from './chat/ChatInputBox.vue'
 import { storeToRefs } from 'pinia'
 // 应用全局状态 Store
 import { useAppStore } from '../stores/app'
-import { getSessionScrollTop, saveSessionScrollTop } from '../services/chatMessageStore'
+import { saveSessionScrollTop } from '../services/chatMessageStore'
 // 全屏 Overlay Store
 import { useOverlayStore } from '../stores/overlay'
 // 聊天弹窗 Store
@@ -348,11 +348,22 @@ watch(
       currentSessionId.value,
       list.length,
       list[0]?.id,
-      list[list.length - 1]?.id
+      list[list.length - 1]?.listKey || list[list.length - 1]?.id
     ] as const
   },
   () => {
-    chatMessages.value = buildMessagesWithTimeDividers(currentMessages.value)
+    const sid = currentSessionId.value
+    const raw = currentMessages.value
+    const seen = new Set<string>()
+    const deduped: typeof raw = []
+    for (const m of raw) {
+      if (sid && m.sessionId && m.sessionId !== sid) continue
+      if (seen.has(m.id) || (m.listKey && seen.has(m.listKey))) continue
+      seen.add(m.id)
+      if (m.listKey) seen.add(m.listKey)
+      deduped.push(m)
+    }
+    chatMessages.value = buildMessagesWithTimeDividers(deduped)
   },
   { immediate: true }
 )
@@ -384,18 +395,52 @@ let loadMoreLockUntil = 0
 const highlightAtMeId = ref<string | null>(null)
 let highlightAtMeTimer = 0
 
-// 监听消息数量变化：贴底时才自动滚到底（发送/收到新消息）
+// 监听消息变化：自己发送必贴底；收到新消息仅在贴底时跟随
 watch(
-  () => chatMessages.value.length,
-  (newLen, oldLen) => {
-    if (newLen > oldLen && hasSession.value && stickToBottom.value && !loadingMore.value) {
-      scrollToBottom(true)
+  () => {
+    const list = chatMessages.value
+    if (!list.length) return ''
+    const last = list[list.length - 1]
+    return `${list.length}:${last.listKey || last.id}`
+  },
+  (key, prevKey) => {
+    if (!key || key === prevKey || !hasSession.value) return
+    const prevLen = Number(String(prevKey || '0').split(':')[0] || 0)
+    const nextLen = chatMessages.value.length
+    if (nextLen <= prevLen) return
+    const last = chatMessages.value[chatMessages.value.length - 1]
+    if (last?.isSelf) {
+      lastTailAppendAt = Date.now()
+      sessionScrollRestoreGen++
+      scheduleScrollToBottom(true)
+      return
     }
+    if (loadingMore.value) return
+    if (stickToBottom.value) scheduleScrollToBottom(false)
   }
 )
 
 let sessionReadReportTimer: ReturnType<typeof setTimeout> | null = null
 let sessionScrollSaveTimer: ReturnType<typeof setTimeout> | null = null
+let lastMessageScrollTop = 0
+/** 最近一次尾部追加（发送/收到新消息），此期间禁止误拉历史 */
+let lastTailAppendAt = 0
+/** 会话滚动恢复代数：发送/贴底时递增，取消未完成的异步 restore */
+let sessionScrollRestoreGen = 0
+/** 进入会话后的贴底保护窗口（ms） */
+let sessionEnterUntil = 0
+const enterScrollTimers: number[] = []
+
+function clearEnterScrollTimers() {
+  while (enterScrollTimers.length) {
+    clearTimeout(enterScrollTimers.pop()!)
+  }
+}
+
+function ensureScrollToBottomOnEnter() {
+  clearEnterScrollTimers()
+  scheduleScrollToBottom(true)
+}
 
 function scheduleSessionReadReport(sessionId: string) {
   if (sessionReadReportTimer) clearTimeout(sessionReadReportTimer)
@@ -410,27 +455,22 @@ watch(sessionEnterTick, () => {
   if (!hasSession.value) return
   if (pendingFocusMessageId.value) return
   loadingMore.value = false
-  loadMoreLockUntil = Date.now() + 400
+  loadMoreLockUntil = Date.now() + 1500
   highlightAtMeId.value = null
   if (highlightAtMeTimer) {
     window.clearTimeout(highlightAtMeTimer)
     highlightAtMeTimer = 0
   }
+  lastMessageScrollTop = 0
 
   const sid = currentSessionId.value
   if (!sid) return
 
-  void getSessionScrollTop(sid).then(savedTop => {
-    if (savedTop > 24) {
-      stickToBottom.value = false
-      nextTick(() => {
-        messageListRef.value?.setScrollTop(savedTop)
-      })
-      return
-    }
-    stickToBottom.value = true
-    nextTick(() => scrollToBottom(true))
-  })
+  sessionScrollRestoreGen++
+  stickToBottom.value = true
+  sessionEnterUntil = Date.now() + 1500
+  void saveSessionScrollTop(sid, 0)
+  nextTick(() => ensureScrollToBottomOnEnter())
 })
 
 /** 首屏历史从 loading → 完成后再贴底 */
@@ -441,7 +481,7 @@ watch(
   },
   (loading, wasLoading) => {
     if (wasLoading && !loading && hasSession.value && stickToBottom.value && !pendingFocusMessageId.value) {
-      nextTick(() => scrollToBottom(true))
+      ensureScrollToBottomOnEnter()
     }
   }
 )
@@ -449,6 +489,7 @@ watch(
 // 切换会话时重置高亮（sessionEnterTick 已负责贴底）
 watch(currentSessionId, () => {
   highlightAtMeId.value = null
+  lastMessageScrollTop = 0
   if (highlightAtMeTimer) {
     window.clearTimeout(highlightAtMeTimer)
     highlightAtMeTimer = 0
@@ -582,6 +623,7 @@ async function openImageView(msg: ChatMessage) {
 // 组件卸载时停止语音播放
 onUnmounted(() => {
   stopVoicePlayback()
+  clearEnterScrollTimers()
   if (highlightAtMeTimer) {
     window.clearTimeout(highlightAtMeTimer)
     highlightAtMeTimer = 0
@@ -863,14 +905,35 @@ function onMessageContentLoaded(msg: ChatMessage) {
   const last = chatMessages.value[chatMessages.value.length - 1]
   if (!last || last.id !== msg.id) return
   // 图片撑高时轻量贴底即可，force 会触发多次 layout 导致滚动发涩
-  scrollToBottom(false)
+  scheduleScrollToBottom(false)
+}
+
+let scrollBottomRaf = 0
+
+function scheduleScrollToBottom(force = false) {
+  // 取消尚未完成的会话滚动恢复，避免发送后被异步 restore 拽回历史位置
+  sessionScrollRestoreGen++
+  // 贴底滚动态期间禁止误触顶加载历史（paddingTop 贴底时 scrollTop≈0 会误判）
+  loadMoreLockUntil = Date.now() + (force ? 1500 : 1200)
+  stickToBottom.value = true
+  lastTailAppendAt = Date.now()
+  if (scrollBottomRaf) cancelAnimationFrame(scrollBottomRaf)
+  scrollBottomRaf = requestAnimationFrame(() => {
+    scrollBottomRaf = 0
+    scrollToBottom(force)
+  })
 }
 
 function scrollToBottom(force = false) {
   stickToBottom.value = true
+  loadMoreLockUntil = Date.now() + (force ? 1200 : 600)
   messageListRef.value?.scrollToBottom(force)
   const sid = currentSessionId.value
-  if (sid) scheduleSessionReadReport(sid)
+  if (sid) {
+    // 主动贴底后清除历史滚动位置，避免下次发送又被恢复到老位置
+    void saveSessionScrollTop(sid, 0)
+    scheduleSessionReadReport(sid)
+  }
 }
 
 /** 是否展示对话框内「有人@我」浮层 */
@@ -1022,20 +1085,22 @@ function onVirtualScroll(payload: {
   scrollHeight: number
   clientHeight: number
 }) {
+  const distanceFromBottom = payload.scrollHeight - payload.scrollTop - payload.clientHeight
+  const scrolledUp = payload.scrollTop < lastMessageScrollTop - 2
+  lastMessageScrollTop = payload.scrollTop
+
   // 进会话强制贴底窗口内：保持 stickToBottom，且不拉更早消息
-  if (Date.now() < loadMoreLockUntil) {
+  if (Date.now() < loadMoreLockUntil || Date.now() < sessionEnterUntil) {
     if (!stickToBottom.value) stickToBottom.value = true
     return
   }
-  const distanceFromBottom = payload.scrollHeight - payload.scrollTop - payload.clientHeight
-  const nextStick = distanceFromBottom < 24
-  // 值不变不写 ref，避免滚动时整页重渲染
-  if (stickToBottom.value !== nextStick) {
-    stickToBottom.value = nextStick
-    if (nextStick) {
-      const sid = currentSessionId.value
-      if (sid) void appStore.reportSessionRead(sid)
-    }
+  // 仅用户上滑时取消贴底；新消息撑高导致离底变远时不要误关贴底
+  if (distanceFromBottom < 24) {
+    if (!stickToBottom.value) stickToBottom.value = true
+    const sid = currentSessionId.value
+    if (sid) void appStore.reportSessionRead(sid)
+  } else if (scrolledUp) {
+    if (stickToBottom.value) stickToBottom.value = false
   }
   const sid = currentSessionId.value
   if (sid && !stickToBottom.value) {
@@ -1045,22 +1110,43 @@ function onVirtualScroll(payload: {
       void saveSessionScrollTop(sid, payload.scrollTop)
     }, 300)
   }
-  void maybeLoadOlderMessages(payload.scrollTop)
+  void maybeLoadOlderMessages(payload)
 }
 
-async function maybeLoadOlderMessages(scrollTop: number) {
+async function maybeLoadOlderMessages(payload: {
+  scrollTop: number
+  scrollHeight: number
+  clientHeight: number
+}) {
+  const { scrollTop, scrollHeight, clientHeight } = payload
+  const distFromBottom = scrollHeight - scrollTop - clientHeight
+
   const sessionId = currentSessionId.value
   if (!sessionId || !currentSession.value?.isReal) return
+  if (Date.now() - lastTailAppendAt < 2000) return
+  // 贴底、靠 paddingTop 视觉贴底、程序化滚底窗口内：不拉历史
+  if (stickToBottom.value) return
+  if (distFromBottom < 96) return
   if (scrollTop > 12) return
   if (loadingMore.value || Date.now() < loadMoreLockUntil) return
   if (appStore.messagesHasMore[sessionId] === false) return
   if (appStore.messagesLoading[sessionId]) return
+  if (sessionMessagesLoading.value) return
 
   const el = messageListRef.value?.getScrollElement()
   if (!el) return
 
+  // 二次确认：排除发送/布局抖动时 scrollTop 瞬间归零的误报
+  await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+  const top2 = el.scrollTop
+  const dist2 = el.scrollHeight - top2 - el.clientHeight
+  if (top2 > 12) return
+  if (dist2 < 96) return
+  if (stickToBottom.value || Date.now() < loadMoreLockUntil) return
+  if (Date.now() - lastTailAppendAt < 2000) return
+
   loadingMore.value = true
-  loadMoreLockUntil = Date.now() + 400
+  loadMoreLockUntil = Date.now() + 600
   const prevHeight = el.scrollHeight
   const prevTop = el.scrollTop
   try {
@@ -1591,9 +1677,11 @@ function onDrop(e: DragEvent) {
 
                 <MessageVirtualList
                   v-if="hasSession"
+                  :key="currentSessionId || ''"
                   :session-id="currentSessionId || ''"
                   ref="messageListRef"
                   :items="chatMessages"
+                  :stick-to-bottom="stickToBottom"
                   @scroll="onVirtualScroll"
                 >
                   <template #default="{ msg }">
@@ -1649,7 +1737,7 @@ function onDrop(e: DragEvent) {
               :is-friend-chat="isFriendChat"
               :is-group-chat="isGroupChat"
               v-model:replying-to="replyingTo"
-              @scroll-to-bottom="() => scrollToBottom(true)"
+              @scroll-to-bottom="() => scheduleScrollToBottom(false)"
             />
           </div>
           <!-- 好友聊天更多抽屉 -->
@@ -1973,6 +2061,11 @@ function onDrop(e: DragEvent) {
   flex-direction: column;
   position: relative;
   box-sizing: border-box;
+}
+
+.message-list-container :deep(.msg-vl-host) {
+  flex: 1;
+  min-height: 0;
 }
 
 .messages-loading-hint {

@@ -1,47 +1,40 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
- * 消息虚拟列表：Naive UI NVirtualList（NxScrollbar + vueuc VirtualList）。
+ * 消息列表：底部锚定。
  * <p>
- * 内容高度不足一屏时，通过动态 paddingTop 将消息贴底，避免下方大块空白。
+ * 内容不足一屏时用 min-height + flex-end 把消息贴在输入框上方；
+ * 超出一屏时正常滚动，贴底时 scrollTop 跟到内容底部。
+ * 发送只追加，不重排；确认回包不改变位置。
  * </p>
  */
-import { nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
-import { NVirtualList } from 'naive-ui'
+import { nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import type { ChatMessage } from '../../types'
 import { useI18n } from '../../i18n'
-import {
-  useNaiveVirtualListNativeScrollbar,
-  virtualListScrollbarProps
-} from '../../utils/virtualListScrollbar'
 
 useI18n()
 
 const props = defineProps<{
   items: ChatMessage[]
-  /** 当前会话 id，用于区分换会话 vs 同会话消息增量 */
   sessionId?: string
+  stickToBottom?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'scroll', payload: { scrollTop: number; scrollHeight: number; clientHeight: number }): void
 }>()
 
-/** 默认行高：按系统提示/时间分割线偏小估计，气泡由 itemResizable 撑开 */
-const ITEM_SIZE = 40
-const PAD_BOTTOM = 8
-const PAD_TOP_MIN = 4
+function ensureListKey(items: ChatMessage[]) {
+  for (const m of items) {
+    if (!m.listKey) m.listKey = m.clientMsgId || m.id
+  }
+}
 
-const listRef = ref<InstanceType<typeof NVirtualList> | null>(null)
-const { refreshVirtualListScrollbar } = useNaiveVirtualListNativeScrollbar(listRef)
-/** shallow：避免滚动时深度追踪大数组 */
+const scrollerRef = ref<HTMLElement | null>(null)
 const listItems = shallowRef<ChatMessage[]>(props.items)
-const padTop = ref(PAD_TOP_MIN)
-let scrollBottomToken = 0
-/** 程序化滚到底期间忽略 onScroll 的 token 打断，避免挂载在顶部时取消贴底 */
-let programmaticBottomUntil = 0
 let scrollRaf = 0
-let alignRaf = 0
+let pinTimer = 0
+let pinToken = 0
 
 watch(
   () => [props.sessionId, props.items] as const,
@@ -51,168 +44,73 @@ watch(
     const sessionChanged = sid !== prevSid
 
     listItems.value = items
+    ensureListKey(items)
 
     if (sessionChanged) {
-      padTop.value = PAD_TOP_MIN
       scrollToBottom(true)
-      nextTick(refreshVirtualListScrollbar)
       return
     }
-
-    if (items.length === 0) {
-      padTop.value = PAD_TOP_MIN
-      return
-    }
+    if (items.length === 0) return
 
     const prevFirst = prevItems[0]?.id
     const nextFirst = items[0]?.id
-    const prevLast = prevItems[prevItems.length - 1]?.id
-    const nextLast = items[items.length - 1]?.id
+    const prevLast = prevItems[prevItems.length - 1]
+    const nextLast = items[items.length - 1]
     const isPrepend =
       prevFirst && nextFirst && prevFirst !== nextFirst && items.length >= prevItems.length
     const isTailAppend =
-      items.length > prevItems.length && prevFirst === nextFirst && prevLast !== nextLast
-    const isInPlaceUpdate =
-      items.length === prevItems.length &&
-      prevFirst === nextFirst &&
-      prevLast === nextLast &&
-      items.length > 0
+      items.length > prevItems.length && prevFirst === nextFirst && prevLast?.id !== nextLast?.id
 
-    if (isPrepend) {
-      scheduleAlignBottom()
-      return
+    if (isPrepend) return
+    if (isTailAppend && props.stickToBottom !== false) {
+      scrollToBottom(true)
     }
-
-    if (isTailAppend) {
-      scheduleAlignBottom()
-      return
-    }
-
-    // 流式输出 / 编辑：仅内容变更，跳过 padding 重算与 layout 测量
-    if (isInPlaceUpdate) {
-      return
-    }
-
-    if (prevFirst !== nextFirst || items.length < prevItems.length) {
-      padTop.value = PAD_TOP_MIN
-    }
-    scheduleAlignBottom()
   }
 )
 
+onMounted(() => {
+  scrollToBottom(true)
+})
+
 function getScrollElement(): HTMLElement | null {
-  return listRef.value?.getScrollContainer() ?? null
+  return scrollerRef.value
 }
 
-function getItemsElement(): HTMLElement | null {
-  return listRef.value?.getScrollContent() ?? null
+function stickNow() {
+  const el = scrollerRef.value
+  if (!el || listItems.value.length === 0) return
+  el.scrollTop = el.scrollHeight
 }
 
-/**
- * 内容不足一屏时增大 paddingTop，把消息推到可视区域底部。
- */
-function alignBottomIfNeeded() {
-  const listEl = getScrollElement()
-  const itemsEl = getItemsElement()
-  if (!listEl || !itemsEl || listItems.value.length === 0) {
-    padTop.value = PAD_TOP_MIN
-    return
+function scrollToBottom(_force = false) {
+  const token = ++pinToken
+  if (pinTimer) window.clearTimeout(pinTimer)
+
+  const run = () => {
+    if (token !== pinToken) return
+    stickNow()
   }
-  const viewport = listEl.clientHeight
-  if (viewport <= 0) return
 
-  // content-box：offsetHeight = minHeight(内容) + paddingTop + paddingBottom
-  const contentH = Math.max(0, itemsEl.offsetHeight - padTop.value - PAD_BOTTOM)
-  const nextPad = contentH + PAD_BOTTOM < viewport
-    ? Math.max(PAD_TOP_MIN, viewport - contentH - PAD_BOTTOM)
-    : PAD_TOP_MIN
-
-  if (Math.abs(nextPad - padTop.value) > 1) {
-    padTop.value = nextPad
-  }
-}
-
-function scheduleAlignBottom() {
-  if (alignRaf) cancelAnimationFrame(alignRaf)
-  alignRaf = requestAnimationFrame(() => {
-    alignRaf = 0
-    nextTick(() => {
-      alignBottomIfNeeded()
-      // 二次校正：itemResizable 测量后再贴一次
-      requestAnimationFrame(() => alignBottomIfNeeded())
-    })
-  })
-}
-
-function onScroll(e: Event) {
-  if (scrollRaf) return
-  scrollRaf = requestAnimationFrame(() => {
-    scrollRaf = 0
-    const el = (e.target as HTMLElement) || getScrollElement()
-    if (!el) return
-    const dist = el.scrollHeight - el.scrollTop - el.clientHeight
-    // 进会话强制贴底时不要用「离底」打断，否则会卡在最新一页的顶部
-    if (dist > 24 && Date.now() >= programmaticBottomUntil) scrollBottomToken++
-    emit('scroll', {
-      scrollTop: el.scrollTop,
-      scrollHeight: el.scrollHeight,
-      clientHeight: el.clientHeight
-    })
-  })
-}
-
-function onListResize() {
-  // 浏览历史时图片撑高不反复改 paddingTop，避免滚动卡顿
-  const el = getScrollElement()
-  if (el) {
-    const dist = el.scrollHeight - el.scrollTop - el.clientHeight
-    if (dist > 80) return
-  }
-  scheduleAlignBottom()
-}
-
-/**
- * 滚到最新消息。
- * @param force 进入会话时强制贴底；即使当前离底很远也继续设 scrollTop
- */
-function scrollToBottom(force = false) {
-  const token = ++scrollBottomToken
-  if (force) programmaticBottomUntil = Date.now() + 280
   nextTick(() => {
-    if (token !== scrollBottomToken) return
-    if (listItems.value.length === 0) return
-    try {
-      listRef.value?.scrollTo({ position: 'bottom', debounce: false })
-    } catch {
-      const box = getScrollElement()
-      if (box) box.scrollTop = box.scrollHeight
-    }
-    requestAnimationFrame(() => {
-      if (token !== scrollBottomToken) return
-      const box = getScrollElement()
-      if (!box) return
-      const dist = box.scrollHeight - box.scrollTop - box.clientHeight
-      if (!force && dist > 80) return
-      box.scrollTop = box.scrollHeight
-      alignBottomIfNeeded()
-    })
+    run()
+    requestAnimationFrame(run)
   })
+  pinTimer = window.setTimeout(run, 50)
 }
 
-/** 滚动到指定消息 key（消息 id） */
 function scrollToKey(key: string | number) {
-  scrollBottomToken++
+  pinToken++
+  const keyStr = String(key)
   nextTick(() => {
-    try {
-      listRef.value?.scrollTo({ key, debounce: false })
-    } catch {
-      /* ignore */
-    }
+    const root = scrollerRef.value
+    if (!root) return
+    const node = root.querySelector(`[data-msg-key="${CSS.escape(keyStr)}"]`) as HTMLElement | null
+    node?.scrollIntoView({ block: 'center', inline: 'nearest' })
   })
 }
 
 function restoreAfterPrepend(prevScrollHeight: number, prevScrollTop: number) {
-  const el = getScrollElement()
+  const el = scrollerRef.value
   if (!el) return
   nextTick(() => {
     const delta = el.scrollHeight - prevScrollHeight
@@ -221,17 +119,30 @@ function restoreAfterPrepend(prevScrollHeight: number, prevScrollTop: number) {
 }
 
 function setScrollTop(scrollTop: number) {
-  scrollBottomToken++
-  programmaticBottomUntil = 0
+  pinToken++
   nextTick(() => {
-    const box = getScrollElement()
-    if (box) box.scrollTop = Math.max(0, scrollTop)
+    const el = scrollerRef.value
+    if (el) el.scrollTop = Math.max(0, scrollTop)
+  })
+}
+
+function onScroll() {
+  if (scrollRaf) return
+  scrollRaf = requestAnimationFrame(() => {
+    scrollRaf = 0
+    const el = scrollerRef.value
+    if (!el) return
+    emit('scroll', {
+      scrollTop: el.scrollTop,
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight
+    })
   })
 }
 
 onBeforeUnmount(() => {
   if (scrollRaf) cancelAnimationFrame(scrollRaf)
-  if (alignRaf) cancelAnimationFrame(alignRaf)
+  if (pinTimer) window.clearTimeout(pinTimer)
 })
 
 defineExpose({
@@ -244,67 +155,50 @@ defineExpose({
 </script>
 
 <template>
-  <n-virtual-list
-    ref="listRef"
-    class="msg-vl"
-    :items="listItems"
-    :item-size="ITEM_SIZE"
-    :item-resizable="true"
-    item-key="id"
-    :padding-top="padTop"
-    :padding-bottom="PAD_BOTTOM"
-    :scrollbar-props="virtualListScrollbarProps"
-    @scroll="onScroll"
-    @resize="onListResize"
-  >
-    <template #default="{ item }">
+  <div ref="scrollerRef" class="msg-scroller" @scroll="onScroll">
+    <div class="msg-inner">
       <div
-        class="msg-vl-item"
+        v-for="item in listItems"
+        :key="item.listKey || item.id"
+        class="msg-item"
         :class="{
-          'is-tip':
-            (item as ChatMessage).type === 'system' ||
-            (item as ChatMessage).type === 'time' ||
-            (item as ChatMessage).type === 'recall'
+          'is-tip': item.type === 'system' || item.type === 'time' || item.type === 'recall'
         }"
+        :data-msg-key="item.listKey || item.id"
       >
-        <slot :msg="(item as ChatMessage)" />
+        <slot :msg="item" />
       </div>
-    </template>
-  </n-virtual-list>
+    </div>
+  </div>
 </template>
 
 <style scoped>
-.msg-vl {
+.msg-scroller {
   flex: 1;
   min-height: 0;
   width: 100%;
   height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
   overscroll-behavior: contain;
 }
 
-.msg-vl :deep(.n-scrollbar) {
-  height: 100%;
-  min-height: 0;
-  width: 100%;
+.msg-inner {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  box-sizing: border-box;
+  padding-bottom: 8px;
 }
 
-.msg-vl :deep(.v-vl) {
-  height: 100%;
-  min-height: 0;
-  width: 100%;
-  scrollbar-width: auto !important;
-}
-
-.msg-vl :deep(.v-vl--show-scrollbar) {
-  overflow-y: auto !important;
-}
-
-.msg-vl-item {
+.msg-item {
   padding: var(--lx-space-sm-plus) 0;
   box-sizing: border-box;
+  flex-shrink: 0;
 }
 
-.msg-vl-item.is-tip {
+.msg-item.is-tip {
   padding: var(--lx-space-xs) 0;
 }
 </style>

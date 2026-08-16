@@ -524,7 +524,6 @@ async function toolScreenshot() {
       fileSize: formatFileSize(Math.round(dataUrl.length * 0.75))
     })
     message.success(t('chat.screenshotSent'))
-    emit('scrollToBottom')
   } catch (e) {
     console.error('[截图] 失败:', e)
     message.info(t('chat.screenshotCancel'))
@@ -550,7 +549,6 @@ async function onLocationSelect(location: string) {
   if (!text) return
   try {
     await sendMessage(text, { type: 'location' })
-    emit('scrollToBottom')
   } catch (e) {
     const err = e as { message?: string }
     message.error(err.message || t('common.fail'))
@@ -602,7 +600,6 @@ async function handleFileSend(file: File) {
         fileSize: formatFileSize(file.size)
       })
       message.success(t('chat.imageSent'))
-      emit('scrollToBottom')
     } catch {
       message.error(t('chat.imageSendFail'))
     }
@@ -629,7 +626,6 @@ async function handleFileSend(file: File) {
         })
       }
       message.success(t('chat.fileSent'))
-      emit('scrollToBottom')
       // [P2-1] 发送成功后释放 Object URL，避免内存泄漏
       URL.revokeObjectURL(fileUrl)
     } catch {
@@ -755,7 +751,6 @@ async function finishVoiceRecord(cancel: boolean) {
       rawFile: file
     })
     message.success(t('chat.voiceSent'))
-    emit('scrollToBottom')
     // [P2-2] 发送成功后释放语音 Object URL，避免内存泄漏
     URL.revokeObjectURL(voiceUrl)
   } catch {
@@ -1039,7 +1034,6 @@ function send() {
       inputValue.value = ''
       showMentionPicker.value = false
       emit('update:replyingTo', undefined)
-      emit('scrollToBottom')
       const sid = currentSessionId.value
       if (sid) void appStore.clearSessionDraft(sid)
     } catch {
