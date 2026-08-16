@@ -56,14 +56,11 @@ if (appStore.theme !== bootTheme) {
 }
 applyDocumentTheme(bootTheme)
 
-// Electron：标记大圆角壳层，并随最大化取消圆角
+// Electron：标记桌面壳层（Win32 登录窗无边框，登录后切原生边框）
 if (window.electronAPI?.isElectron) {
   document.documentElement.classList.add('lx-electron')
   if (window.electronAPI.getPlatform?.() === 'windows') {
     document.documentElement.classList.add('lx-electron-win32')
-  }
-  if (window.electronAPI.useNativeWindowFrame) {
-    document.documentElement.classList.add('lx-native-frame')
   }
   const syncMaximized = (maximized: boolean) => {
     document.documentElement.classList.toggle('is-maximized', maximized)
@@ -75,10 +72,14 @@ if (window.electronAPI?.isElectron) {
 // 从本地偏好恢复界面语言（pinia persist 已在 use 后可读）
 setLocale(settingsStore.language || 'zh-CN')
 
-// 兼容历史脏持久化：曾误把 isLoggedIn/isOffline 整包写入 localStorage。
-// 启动时作废脏登录态；自动登录改由登录页首帧绘制后再触发，避免「看不见 loading 就进主界面」。
 appStore.isOffline = false
-appStore.isLoggedIn = false
+const postLoginEnter =
+  typeof localStorage !== 'undefined' &&
+  localStorage.getItem('lx-post-login-enter') === '1'
+if (postLoginEnter) {
+  localStorage.removeItem('lx-post-login-enter')
+}
+appStore.isLoggedIn = !!postLoginEnter
 
 // 监听 localStorage 变化，实现多窗口（主窗口 / 友链 / 笔记）主题联动
 initCrossWindowThemeSync(theme => {

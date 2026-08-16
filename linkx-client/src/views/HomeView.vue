@@ -3,8 +3,7 @@
 /**
  * 首页视图组件。
  * <p>
- * 应用主入口页面，根据登录状态切换主壳层与登录页，
- * 并在 Electron 环境下同步窗口尺寸模式。
+ * 登录成功：先关闭登录页 → 放大窗口 → 再挂载主界面（不叠在一起）。
  * </p>
  */
 import {
@@ -23,14 +22,16 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '../stores/app'
 import { applyDocumentTheme } from '../utils/themeSync'
 import { isChatSocketConnected } from '../utils/chatSocket'
-// 登录页同步导入：自动登录需先画出登录窗再 loading
 import LoginView from '../components/LoginView.vue'
 import { preloadAppShellComponent, preloadClientResources } from '../utils/preloadClientResources'
+import { syncDesktopChromeMode } from '../utils/electronChrome'
+
+const AWAITING_MAIN_SHELL_KEY = 'lx-awaiting-main-shell'
 
 const appStore = useAppStore()
 const { isLoggedIn } = storeToRefs(appStore)
 
-/** 主界面 chunk 预加载（登录页停留期间后台拉取，避免登录成功后白屏） */
+/** 主界面 chunk 预加载（登录页停留期间后台拉取） */
 const AppShellDef = shallowRef(null) as ShallowRef<Component | null>
 
 function preloadAppShell(): Promise<Component> {
@@ -41,40 +42,65 @@ function preloadAppShell(): Promise<Component> {
   })
 }
 
-/** 是否挂载主壳（登录成功后先挂壳再放大窗口） */
+const initialAwaitingMain =
+  typeof sessionStorage !== 'undefined' &&
+  sessionStorage.getItem(AWAITING_MAIN_SHELL_KEY) === '1'
+
+const showLoginPage = ref(!initialAwaitingMain)
 const showMainShell = ref(false)
+/** 登录页已关、主界面未出（窗口放大等过渡） */
+const bridgingToMain = computed(
+  () => isLoggedIn.value && !showLoginPage.value && !showMainShell.value
+)
 
 provide(
   'loginShellReady',
   computed(() => showMainShell.value)
 )
 
-function waitFrames(count = 2): Promise<void> {
-  return new Promise<void>(resolve => {
-    let left = count
-    const step = () => {
-      left -= 1
-      if (left <= 0) resolve()
-      else requestAnimationFrame(step)
-    }
-    requestAnimationFrame(step)
-  })
+function waitMs(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 async function syncWindowModeMain() {
+  syncDesktopChromeMode(true)
   await window.electronAPI?.setWindowMode?.('main')
 }
 
 async function syncWindowModeLogin() {
+  syncDesktopChromeMode(false)
   await nextTick()
-  await waitFrames(2)
   await window.electronAPI?.setWindowMode?.('login')
 }
 
-function onMainShellMounted() {
-  if (!isLoggedIn.value) return
-  // 窗口放大已在 isLoggedIn watch 中触发，此处仅作兜底
-  void waitFrames(2).then(() => syncWindowModeMain())
+let loginRevealGen = 0
+let pendingLoginReveal = false
+let revealingMain = false
+
+async function revealMainAfterLoginClosed() {
+  if (revealingMain || !pendingLoginReveal) return
+  const gen = loginRevealGen
+  if (!isLoggedIn.value || gen !== loginRevealGen) return
+
+  revealingMain = true
+  pendingLoginReveal = false
+  try {
+    sessionStorage.setItem(AWAITING_MAIN_SHELL_KEY, '1')
+    await syncWindowModeMain()
+    if (sessionStorage.getItem(AWAITING_MAIN_SHELL_KEY)) {
+      sessionStorage.removeItem(AWAITING_MAIN_SHELL_KEY)
+      if (!isLoggedIn.value || gen !== loginRevealGen) return
+      showMainShell.value = true
+      await nextTick()
+      void appStore.connectChatWebSocket()
+    }
+  } finally {
+    revealingMain = false
+  }
+}
+
+function onLoginPageLeft() {
+  void revealMainAfterLoginClosed()
 }
 
 function retryWsIfNeeded() {
@@ -89,6 +115,7 @@ function onVisibilityChange() {
 
 onMounted(() => {
   applyDocumentTheme(appStore.theme)
+  syncDesktopChromeMode(isLoggedIn.value)
   void preloadClientResources()
   void preloadAppShell()
   window.addEventListener('online', retryWsIfNeeded)
@@ -102,33 +129,65 @@ onUnmounted(() => {
 
 watch(
   isLoggedIn,
-  async loggedIn => {
+  async (loggedIn, previous) => {
     if (!loggedIn) {
+      loginRevealGen += 1
+      pendingLoginReveal = false
       showMainShell.value = false
-      await syncWindowModeLogin()
+      if (previous === true) {
+        showLoginPage.value = false
+        await syncWindowModeLogin()
+        showLoginPage.value = true
+      } else {
+        syncDesktopChromeMode(false)
+        showLoginPage.value = true
+      }
       return
     }
 
+    loginRevealGen += 1
+    const gen = loginRevealGen
+
     await preloadAppShell()
-    showMainShell.value = true
+    if (!isLoggedIn.value || gen !== loginRevealGen) return
+
+    if (sessionStorage.getItem(AWAITING_MAIN_SHELL_KEY)) {
+      sessionStorage.removeItem(AWAITING_MAIN_SHELL_KEY)
+      showLoginPage.value = false
+      syncDesktopChromeMode(true)
+      await syncWindowModeMain()
+      showMainShell.value = true
+      void appStore.connectChatWebSocket()
+      return
+    }
+
+    showMainShell.value = false
+    pendingLoginReveal = true
+    showLoginPage.value = false
+
+    // 登录页未挂载时（极端情况）直接进主界面
     await nextTick()
-    await waitFrames(2)
-    await syncWindowModeMain()
+    if (pendingLoginReveal && !showLoginPage.value) {
+      await waitMs(200)
+      if (pendingLoginReveal) void revealMainAfterLoginClosed()
+    }
   },
   { immediate: true, flush: 'post' }
 )
 </script>
 
 <template>
-  <div class="home-root">
-    <component
-      v-if="showMainShell && AppShellDef"
-      :is="AppShellDef"
-      class="main-shell-layer"
-      @vue:mounted="onMainShellMounted"
-    />
-    <Transition name="login-leave">
-      <LoginView v-if="!showMainShell" class="login-layer" />
+  <div class="home-root" :class="{ 'home-root--bridge': bridgingToMain }">
+    <Transition name="main-enter">
+      <component
+        v-if="showMainShell && AppShellDef"
+        :is="AppShellDef"
+        class="main-shell-layer"
+      />
+    </Transition>
+
+    <Transition name="login-leave" @after-leave="onLoginPageLeft">
+      <LoginView v-if="showLoginPage" class="login-layer" />
     </Transition>
   </div>
 </template>
@@ -142,6 +201,10 @@ watch(
   overflow: hidden;
   border-radius: inherit;
   background: var(--lx-login-bg-gradient);
+}
+
+.home-root--bridge {
+  background: var(--lx-bg-window);
 }
 
 .main-shell-layer {
@@ -165,21 +228,18 @@ watch(
 }
 
 .login-leave-active {
-  transition:
-    opacity var(--lx-duration-slow) ease,
-    transform var(--lx-duration-slow) cubic-bezier(0.4, 0, 1, 1);
+  transition: opacity 180ms ease;
 }
 
 .login-leave-to {
   opacity: 0;
-  transform: scale(0.97);
 }
 
-.login-enter-active {
-  transition: opacity var(--lx-duration-slow) cubic-bezier(0.22, 1, 0.36, 1);
+.main-enter-active {
+  transition: opacity 220ms ease;
 }
 
-.login-enter-from {
+.main-enter-from {
   opacity: 0;
 }
 </style>
