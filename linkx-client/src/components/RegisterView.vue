@@ -19,7 +19,6 @@ import * as authApi from '../api/auth'
 import { validateUsername, validatePassword, validateNickname } from '../utils/validation'
 import { useI18n } from '../i18n'
 import WindowCaptionButtons from './WindowCaptionButtons.vue'
-import BrandMarkIcon from './BrandMarkIcon.vue'
 import SliderCaptcha from './SliderCaptcha.vue'
 import { LxButton, LxIconButton } from './ui'
 import { openLegalPageInBrowser } from '../utils/legalPage'
@@ -286,10 +285,6 @@ onUnmounted(() => {
     </div>
 
     <div class="reg-body">
-      <div class="brand-title" aria-label="LinkX">
-        <BrandMarkIcon :size="36" />
-        <span class="brand-text">LinkX</span>
-      </div>
       <p class="reg-desc">{{ registerEnabled ? t('register.subtitle') : t('register.disabled') }}</p>
 
       <div v-if="configLoaded && !registerEnabled" class="reg-disabled">
@@ -572,33 +567,11 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: var(--lx-space-xs) var(--lx-space-5xl-minus) var(--lx-space-2xl);
+  padding: var(--lx-space-lg) var(--lx-space-5xl-minus) var(--lx-space-2xl);
   box-sizing: border-box;
   overflow: auto;
   position: relative;
   z-index: var(--lx-z-raised);
-}
-
-.brand-title {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--lx-space);
-  margin-top: var(--lx-space-xs);
-  margin-bottom: var(--lx-space);
-  user-select: none;
-  animation: rise-in var(--lx-duration-slower) ease both;
-}
-
-.brand-text {
-  font-size: var(--lx-font-6xl);
-  font-weight: 720;
-  letter-spacing: 0.5px;
-  line-height: var(--lx-leading-none);
-  background: linear-gradient(100deg, var(--lx-accent-sky) 0%, var(--lx-accent) 35%, var(--lx-brand-blue-mid) 70%, var(--lx-brand-purple) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
 }
 
 .reg-desc {
@@ -781,7 +754,6 @@ onUnmounted(() => {
 
 @media (prefers-reduced-motion: reduce) {
   .orb,
-  .brand-title,
   .reg-desc,
   .reg-form,
   .footer {
