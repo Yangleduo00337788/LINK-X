@@ -135,7 +135,7 @@ declare global {
       hasNativeTitleBarOverlay?: boolean
       /** Windows/Linux：自绘窗控（关闭键可裁进窗口圆角） */
       showCustomCaptionButtons?: boolean
-      /** Win32 使用系统原生标题栏与边框 */
+      /** Win32 主界面及子窗口为系统原生边框 */
       useNativeWindowFrame?: boolean
       /** 屏幕截图，返回截图数据或 null */
       captureScreen?: () => Promise<{ dataURL: string; width: number; height: number } | null>

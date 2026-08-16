@@ -89,8 +89,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('app:shortcut-lock', listener)
   },
   isElectron: true,
-  /** 使用自绘窗控（可裁进窗口圆角）；macOS 用系统红绿灯 */
+  /** 使用自绘窗控（macOS/Linux 无边框窗）；Win32 全窗原生边框 */
   showCustomCaptionButtons: process.platform === 'linux',
+  /** Win32 登录窗自绘顶栏；主界面/子窗口为系统原生边框 */
   useNativeWindowFrame: process.platform === 'win32',
   hasNativeTitleBarOverlay: false,
   captureScreen,

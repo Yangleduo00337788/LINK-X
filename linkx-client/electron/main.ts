@@ -207,25 +207,42 @@ const currentShortcuts = {
  * 必须用 rgba()，勿用 #RRGGBBAA / #AARRGGBB——八位 hex 在 Electron/Chromium
  * 两端格式易歧义（例如 #FFFFFF00 会被当成不透明黄）。
  */
-function windowBackgroundColor(theme: string = currentUiTheme) {
+function windowBackgroundColor(theme: string = currentUiTheme, mode: 'login' | 'main' = desktopWindowMode) {
   const isDark = theme === 'dark'
+  if (process.platform === 'win32' && mode === 'login') {
+    return isDark ? '#1a1a1a' : '#ffffff'
+  }
   if (process.platform === 'win32') {
     return isDark ? '#1a1a1a' : '#ffffff'
   }
   return isDark ? 'rgba(26, 26, 26, 1)' : 'rgba(255, 255, 255, 0)'
 }
 
-function usesNativeWinFrame(): boolean {
-  return process.platform === 'win32'
-}
+/** Win32：登录窗无边框自绘顶栏；主界面/子窗口系统原生边框 */
+let desktopChromeKind: 'login' | 'main' = 'login'
+const POST_LOGIN_ENTER_KEY = 'lx-post-login-enter'
 
-/** Win32 用系统原生边框；macOS/Linux 保持无边框 + CSS 圆角 */
-function windowChrome(title = 'LinkX'): Electron.BrowserWindowConstructorOptions {
-  if (usesNativeWinFrame()) {
+function windowChrome(
+  title = 'LinkX',
+  chrome: 'login' | 'main' = 'main'
+): Electron.BrowserWindowConstructorOptions {
+  if (process.platform === 'win32') {
+    if (chrome === 'login') {
+      return {
+        frame: false,
+        titleBarStyle: 'hidden',
+        transparent: false,
+        backgroundColor: windowBackgroundColor(currentUiTheme, 'login'),
+        roundedCorners: true,
+        hasShadow: true,
+        title
+      }
+    }
     return {
       frame: true,
       transparent: false,
-      backgroundColor: windowBackgroundColor(),
+      backgroundColor: windowBackgroundColor(currentUiTheme, 'main'),
+      roundedCorners: true,
       title
     }
   }
@@ -233,25 +250,201 @@ function windowChrome(title = 'LinkX'): Electron.BrowserWindowConstructorOptions
     frame: false,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden',
     transparent: true,
-    backgroundColor: windowBackgroundColor(),
+    backgroundColor: windowBackgroundColor(currentUiTheme, 'main'),
     roundedCorners: false,
-    hasShadow: false
+    hasShadow: false,
+    title
   }
 }
 
-/** 无边框透明窗：同步背景色；原生边框窗仅设一次 */
-function prepareWindowChrome(win: BrowserWindow) {
-  if (usesNativeWinFrame()) {
-    win.setBackgroundColor(windowBackgroundColor())
+/** 无边框登录窗同步背景；Win32 原生边框窗仅设一次 */
+function prepareWindowChrome(win: BrowserWindow, chrome: 'login' | 'main' = 'main') {
+  if (process.platform === 'win32' && chrome === 'main') {
+    win.setBackgroundColor(windowBackgroundColor(currentUiTheme, 'main'))
     return
   }
   const refreshBg = () => {
     if (win.isDestroyed()) return
-    win.setBackgroundColor(windowBackgroundColor())
+    win.setBackgroundColor(windowBackgroundColor(currentUiTheme, chrome))
   }
   refreshBg()
   win.on('focus', refreshBg)
   win.on('blur', refreshBg)
+}
+
+const LOGIN_WINDOW_WIDTH = 319
+const LOGIN_WINDOW_HEIGHT = 461
+
+/** Electron loadURL 对带 # 的地址易失败，重建窗口时只加载 origin+pathname */
+function resolveMainWindowReloadUrl(raw?: string): string | undefined {
+  if (!raw || raw === 'about:blank') return undefined
+  try {
+    const parsed = new URL(raw)
+    if (parsed.protocol === 'file:') {
+      return parsed.href.split('#')[0]
+    }
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      const devUrl = process.env.VITE_DEV_SERVER_URL
+      if (isDev && devUrl) {
+        try {
+          if (parsed.origin === new URL(devUrl).origin) {
+            return devUrl
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      return `${parsed.origin}${parsed.pathname || '/'}`
+    }
+  } catch {
+    /* ignore */
+  }
+  return undefined
+}
+
+async function loadMainWindowEntry(win: BrowserWindow, previousUrl?: string) {
+  const preferred = resolveMainWindowReloadUrl(previousUrl)
+  if (preferred) {
+    try {
+      await win.loadURL(preferred)
+      return
+    } catch (err) {
+      console.warn('[electron] loadURL failed, fallback:', preferred, err)
+    }
+  }
+  if (isDev && process.env.VITE_DEV_SERVER_URL) {
+    await win.loadURL(process.env.VITE_DEV_SERVER_URL)
+    return
+  }
+  await win.loadFile(path.join(__dirname, '../../dist/index.html'))
+}
+
+function attachMainWindowHandlers(win: BrowserWindow, options?: { revealOnReady?: boolean }) {
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+
+  win.webContents.on('will-navigate', (e, url) => {
+    if (url.startsWith('http') && !isSelfOrigin(url)) {
+      e.preventDefault()
+    }
+  })
+
+  win.webContents.on('preload-error', (_e, preloadFile, err) => {
+    console.error('[electron] preload-error:', preloadFile, err)
+  })
+
+  win.on('maximize', () => {
+    if (!win.isDestroyed()) pushMaximizedState(win)
+  })
+  win.on('unmaximize', () => {
+    if (!win.isDestroyed()) pushMaximizedState(win)
+  })
+
+  win.webContents.on('did-finish-load', () => {
+    if (!win.isDestroyed()) pushMaximizedState(win)
+    win.webContents
+      .executeJavaScript('typeof window.electronAPI !== "undefined"')
+      .then(ok => {
+        if (!ok) {
+          console.error('[electron] window.electronAPI missing, preload:', preloadPath)
+        }
+      })
+      .catch(() => {})
+  })
+
+  win.on('close', e => {
+    if (isQuitting || process.platform === 'darwin') return
+    if (!desktopPrefs.minimizeToTray || !tray) return
+    e.preventDefault()
+    if (!win.isDestroyed()) win.hide()
+  })
+
+  win.on('hide', () => {
+    if (isQuitting || win.isDestroyed()) return
+    win.webContents.setBackgroundThrottling(true)
+  })
+  win.on('show', () => {
+    if (win.isDestroyed()) return
+    win.webContents.setBackgroundThrottling(false)
+  })
+
+  win.on('closed', () => {
+    if (mainWindow === win) mainWindow = null
+  })
+
+  if (options?.revealOnReady === false) return
+
+  let revealed = false
+  const reveal = () => {
+    if (revealed || win.isDestroyed()) return
+    if (desktopPrefs.openOnStartup === 'tray') return
+    revealed = true
+    win.show()
+  }
+  const onContentReady = (event: IpcMainEvent) => {
+    if (BrowserWindow.fromWebContents(event.sender) !== win) return
+    reveal()
+    ipcMain.removeListener('window:content-ready', onContentReady)
+  }
+  ipcMain.on('window:content-ready', onContentReady)
+  setTimeout(reveal, 8000)
+}
+
+/** Win32 登录↔主界面需切换 frame，只能重建窗口 */
+let swappingMainWindowChrome = false
+
+async function swapMainWindowChrome(
+  win: BrowserWindow,
+  chrome: 'login' | 'main'
+): Promise<BrowserWindow> {
+  if (process.platform !== 'win32' || desktopChromeKind === chrome) return win
+
+  const bounds = win.getBounds()
+  const visible = win.isVisible()
+  const maximized = win.isMaximized()
+  const previousUrl = win.webContents.getURL()
+  const oldWin = win
+
+  desktopChromeKind = chrome
+  swappingMainWindowChrome = true
+  const loginChrome = chrome === 'login'
+
+  const nextWin = new BrowserWindow({
+    ...browserWindowIconOptions(),
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
+    minWidth: loginChrome ? LOGIN_WINDOW_WIDTH : MAIN_WINDOW_MIN_WIDTH,
+    minHeight: loginChrome ? LOGIN_WINDOW_HEIGHT : MAIN_WINDOW_MIN_HEIGHT,
+    maxWidth: loginChrome ? LOGIN_WINDOW_WIDTH : undefined,
+    maxHeight: loginChrome ? LOGIN_WINDOW_HEIGHT : undefined,
+    resizable: !loginChrome,
+    ...windowChrome('LinkX', chrome),
+    show: false,
+    webPreferences: {
+      ...defaultWebPreferences({ backgroundThrottling: false }),
+      webviewTag: false
+    }
+  })
+
+  mainWindow = nextWin
+  prepareWindowChrome(nextWin, chrome)
+  attachMainWindowHandlers(nextWin, { revealOnReady: visible })
+
+  try {
+    await loadMainWindowEntry(nextWin, previousUrl)
+    if (!loginChrome) {
+      desktopWindowMode = 'main'
+      await resizeWindowToMain(nextWin)
+    }
+  } finally {
+    if (!oldWin.isDestroyed()) oldWin.destroy()
+    swappingMainWindowChrome = false
+  }
+
+  if (visible) nextWin.show()
+  if (maximized) nextWin.maximize()
+  return nextWin
 }
 
 const SECURE_DIR = () => path.join(app.getPath('userData'), 'secure')
@@ -521,7 +714,10 @@ async function tryIPService(url: string): Promise<string | null> {
 }
 
 function winFromSender(event: IpcMainEvent | IpcMainInvokeEvent): BrowserWindow | null {
-  return BrowserWindow.fromWebContents(event.sender) ?? mainWindow
+  const fromSender = BrowserWindow.fromWebContents(event.sender)
+  if (fromSender && !fromSender.isDestroyed()) return fromSender
+  if (mainWindow && !mainWindow.isDestroyed()) return mainWindow
+  return null
 }
 
 /** 图片预览独立窗口载荷（URL 可能很长，不走 hash query） */
@@ -565,8 +761,6 @@ function pushMaximizedState(win: BrowserWindow) {
   win.webContents.send(MAX_CHANGED, win.isMaximized())
 }
 
-const LOGIN_WINDOW_WIDTH = 319
-const LOGIN_WINDOW_HEIGHT = usesNativeWinFrame() ? 500 : 461
 const MAIN_WINDOW_WIDTH = 1200
 const MAIN_WINDOW_HEIGHT = 800
 const MAIN_WINDOW_MIN_WIDTH = 960
@@ -575,6 +769,14 @@ const WINDOW_MODE_ANIM_MS = 380
 
 /** 避免重复 set-mode main 时把用户已调整的窗口尺寸重置为默认 */
 let desktopWindowMode: 'login' | 'main' = 'login'
+/** 串行化 set-mode，避免登录/主界面切换并发导致操作已销毁窗口 */
+let setWindowModeTask: Promise<void> = Promise.resolve()
+
+function liveMainWindow(event?: IpcMainInvokeEvent): BrowserWindow | null {
+  if (mainWindow && !mainWindow.isDestroyed()) return mainWindow
+  if (!event) return null
+  return winFromSender(event)
+}
 
 /** 主界面：可拖拽缩放（登录窗会锁死 min=max，未清掉会显示禁止光标） */
 function applyMainWindowConstraints(win: BrowserWindow) {
@@ -584,6 +786,26 @@ function applyMainWindowConstraints(win: BrowserWindow) {
   win.setMaximumSize(100000, 100000)
   win.setMaximumSize(0, 0)
   win.setMinimumSize(MAIN_WINDOW_MIN_WIDTH, MAIN_WINDOW_MIN_HEIGHT)
+}
+
+/** 解除登录窗固定尺寸，暂不施加主界面 min（避免 319→960 瞬间跳变） */
+function releaseLoginWindowLocks(win: BrowserWindow) {
+  win.setResizable(true)
+  win.setMaximizable(true)
+  win.setMaximumSize(0, 0)
+  win.setMinimumSize(LOGIN_WINDOW_WIDTH, LOGIN_WINDOW_HEIGHT)
+}
+
+async function resizeWindowToMain(win: BrowserWindow) {
+  releaseLoginWindowLocks(win)
+  if (process.platform === 'win32') {
+    win.setSize(MAIN_WINDOW_WIDTH, MAIN_WINDOW_HEIGHT, false)
+    win.center()
+  } else {
+    await animateWindowSize(win, MAIN_WINDOW_WIDTH, MAIN_WINDOW_HEIGHT)
+    win.center()
+  }
+  applyMainWindowConstraints(win)
 }
 
 function easeOutCubic(t: number): number {
@@ -728,35 +950,61 @@ function registerWindowIpc() {
     }
   )
 
-  ipcMain.handle('window:set-mode', async (event, mode: 'login' | 'main') => {
-    const win = winFromSender(event)
-    if (!win) return
-    if (mode === 'login') {
-      desktopWindowMode = 'login'
-      if (win.isMaximized()) win.unmaximize()
-      win.setMaximizable(false)
-      win.setMaximumSize(99999, 99999)
-      win.setMinimumSize(100, 100)
-      win.setResizable(true)
-      await animateWindowSize(win, LOGIN_WINDOW_WIDTH, LOGIN_WINDOW_HEIGHT)
-      win.setResizable(false)
-      win.setMinimumSize(LOGIN_WINDOW_WIDTH, LOGIN_WINDOW_HEIGHT)
-      win.setMaximumSize(LOGIN_WINDOW_WIDTH, LOGIN_WINDOW_HEIGHT)
-      win.center()
-      return
+  ipcMain.handle('window:set-mode', (event, mode: 'login' | 'main') => {
+    const run = async () => {
+      let win = liveMainWindow(event)
+      if (!win) return
+      if (mode === 'login') {
+        desktopWindowMode = 'login'
+        if (win.isMaximized()) win.unmaximize()
+        if (process.platform === 'win32' && desktopChromeKind === 'main') {
+          win = await swapMainWindowChrome(win, 'login')
+          win = liveMainWindow(event) ?? win
+          if (!win || win.isDestroyed()) return
+        }
+        win.setMaximizable(false)
+        win.setMaximumSize(99999, 99999)
+        win.setMinimumSize(100, 100)
+        win.setResizable(true)
+        await animateWindowSize(win, LOGIN_WINDOW_WIDTH, LOGIN_WINDOW_HEIGHT)
+        win = liveMainWindow(event) ?? win
+        if (!win || win.isDestroyed()) return
+        win.setResizable(false)
+        win.setMinimumSize(LOGIN_WINDOW_WIDTH, LOGIN_WINDOW_HEIGHT)
+        win.setMaximumSize(LOGIN_WINDOW_WIDTH, LOGIN_WINDOW_HEIGHT)
+        win.center()
+        return
+      }
+      const enteringMain = desktopWindowMode === 'login'
+      desktopWindowMode = 'main'
+      win = liveMainWindow(event) ?? win
+      if (!win || win.isDestroyed()) return
+      if (process.platform === 'win32' && desktopChromeKind === 'login') {
+        await win.webContents
+          .executeJavaScript(`localStorage.setItem(${JSON.stringify(POST_LOGIN_ENTER_KEY)}, '1')`)
+          .catch(() => {})
+        await swapMainWindowChrome(win, 'main')
+        return
+      }
+      if (enteringMain) {
+        await resizeWindowToMain(win)
+        return
+      }
+      const [curW, curH] = win.getSize()
+      const stillLoginSize =
+        curW <= LOGIN_WINDOW_WIDTH + 2 && curH <= LOGIN_WINDOW_HEIGHT + 2
+      if (stillLoginSize && !win.isMaximized()) {
+        await resizeWindowToMain(win)
+      } else {
+        applyMainWindowConstraints(win)
+      }
     }
-    const enteringMain = desktopWindowMode === 'login'
-    desktopWindowMode = 'main'
-    applyMainWindowConstraints(win)
-    const [curW, curH] = win.getSize()
-    const stillLoginSize =
-      curW <= LOGIN_WINDOW_WIDTH + 2 && curH <= LOGIN_WINDOW_HEIGHT + 2
-    // 登录后默认 1200×800；之后用户可自行拖拽调整，不再强制重置
-    if ((enteringMain || stillLoginSize) && !win.isMaximized()) {
-      await animateWindowSize(win, MAIN_WINDOW_WIDTH, MAIN_WINDOW_HEIGHT)
-      win.center()
-    }
-    applyMainWindowConstraints(win)
+
+    const job = setWindowModeTask.then(run, run)
+    setWindowModeTask = job.catch(err => {
+      console.error('[electron] window:set-mode failed:', err)
+    })
+    return job
   })
 
   ipcMain.handle('window:get-bounds', event => {
@@ -1544,7 +1792,7 @@ function createMomentsWindow(opts?: MomentsOpenPayload) {
     minWidth: 440,
     minHeight: 560,
     resizable: true,
-    ...windowChrome(),
+    ...windowChrome('LinkX', 'main'),
     show: false,
     webPreferences: defaultWebPreferences()
   })
@@ -1595,7 +1843,7 @@ function createMomentsTextWindow() {
     width: 420,
     height: 520,
     resizable: false,
-    ...windowChrome(),
+    ...windowChrome('LinkX', 'main'),
     show: false,
     webPreferences: defaultWebPreferences()
   })
@@ -1635,7 +1883,7 @@ function createMomentsMediaWindow() {
     width: 480,
     height: 600,
     resizable: false,
-    ...windowChrome(),
+    ...windowChrome('LinkX', 'main'),
     show: false,
     webPreferences: defaultWebPreferences()
   })
@@ -1677,7 +1925,7 @@ function createNoteEditorWindow() {
     height: 600,
     minWidth: 600,
     minHeight: 400,
-    ...windowChrome(),
+    ...windowChrome('LinkX', 'main'),
     show: false,
     webPreferences: defaultWebPreferences()
   })
@@ -1733,7 +1981,7 @@ function createRegisterWindow() {
     width: 360,
     height: 560,
     resizable: false,
-    ...windowChrome(),
+    ...windowChrome('LinkX', 'main'),
     show: false,
     // 不挂 parent，避免盖住登录窗；作为独立弹窗并列显示
     webPreferences: defaultWebPreferences()
@@ -1787,7 +2035,7 @@ function createChatHistoryStandaloneWindow(size: { width: number; height: number
     minWidth: size.width,
     minHeight: size.height,
     resizable: true,
-    ...windowChrome(),
+    ...windowChrome('LinkX', 'main'),
     show: false,
     webPreferences: defaultWebPreferences()
   })
@@ -1855,7 +2103,7 @@ function createOfficialNotifyDetailWindow(notifId: string) {
     minWidth: 400,
     minHeight: 480,
     resizable: true,
-    ...windowChrome(),
+    ...windowChrome('LinkX', 'main'),
     show: false,
     webPreferences: defaultWebPreferences()
   })
@@ -1931,7 +2179,7 @@ function createImageViewerWindow(payload: ImageViewerPayload) {
     minWidth: 640,
     minHeight: 480,
     resizable: true,
-    ...windowChrome(),
+    ...windowChrome('LinkX', 'main'),
     // 跟随当前 UI 主题，避免亮色主题下先闪黑底
     backgroundColor: currentUiTheme === 'dark' ? '#1a1a1a' : '#f5f5f5',
     show: false,
@@ -1986,98 +2234,28 @@ function createWindow() {
     console.log('[electron] preload:', preloadPath, 'exists:', fs.existsSync(preloadPath))
   }
 
+  desktopChromeKind = 'login'
+  desktopWindowMode = 'login'
+
   mainWindow = new BrowserWindow({
     ...browserWindowIconOptions(),
-    width: 319,
-    height: 461,
-    minWidth: 319,
-    minHeight: 461,
-    maxWidth: 319,
-    maxHeight: 461,
+    width: LOGIN_WINDOW_WIDTH,
+    height: LOGIN_WINDOW_HEIGHT,
+    minWidth: LOGIN_WINDOW_WIDTH,
+    minHeight: LOGIN_WINDOW_HEIGHT,
+    maxWidth: LOGIN_WINDOW_WIDTH,
+    maxHeight: LOGIN_WINDOW_HEIGHT,
     resizable: false,
-    ...windowChrome(),
+    ...windowChrome('LinkX', 'login'),
     show: false,
     webPreferences: {
       ...defaultWebPreferences({ backgroundThrottling: false }),
       webviewTag: false
     }
   })
-  prepareWindowChrome(mainWindow)
-
-  let mainWindowRevealed = false
-  const revealMainWindow = () => {
-    if (mainWindowRevealed || !mainWindow || mainWindow.isDestroyed()) return
-    if (desktopPrefs.openOnStartup === 'tray') return
-    mainWindowRevealed = true
-    mainWindow.show()
-  }
-
-  // Vue 登录页首帧绘制完成后再展示窗口（避免先看到 HTML 启动占位）
-  ipcMain.once('window:content-ready', revealMainWindow)
-  // 极端情况下渲染进程未回调，避免窗口永久隐藏
-  setTimeout(revealMainWindow, 8000)
-
-  if (isDev && process.env.VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL)
-  } else {
-    mainWindow.loadFile(path.join(__dirname, '../../dist/index.html'))
-  }
-
-  // [P1-E1] 拒绝所有 window.open 新窗口，防止渲染进程被 XSS 后弹出恶意页面
-  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
-
-  // [P1-E2] 限制页面导航：仅允许同源或 file:// 内部导航，阻止跳转到外部站点
-  mainWindow.webContents.on('will-navigate', (e, url) => {
-    if (url.startsWith('http') && !isSelfOrigin(url)) {
-      e.preventDefault()
-    }
-  })
-
-  mainWindow.webContents.on('preload-error', (_e, preloadFile, err) => {
-    console.error('[electron] preload-error:', preloadFile, err)
-  })
-
-  mainWindow.on('maximize', () => {
-    if (mainWindow) pushMaximizedState(mainWindow)
-  })
-  mainWindow.on('unmaximize', () => {
-    if (mainWindow) pushMaximizedState(mainWindow)
-  })
-
-  mainWindow.webContents.on('did-finish-load', () => {
-    if (mainWindow) pushMaximizedState(mainWindow)
-    mainWindow?.webContents
-      .executeJavaScript('typeof window.electronAPI !== "undefined"')
-      .then(ok => {
-        if (!ok) {
-          console.error('[electron] window.electronAPI missing, preload:', preloadPath)
-        } else {
-          console.log('[electron] electronAPI OK')
-        }
-      })
-      .catch(() => {})
-  })
-
-  mainWindow.on('close', (e) => {
-    if (isQuitting || process.platform === 'darwin') return
-    if (!desktopPrefs.minimizeToTray || !tray) return
-    e.preventDefault()
-    mainWindow?.hide()
-  })
-
-  // 最小化到托盘后降低主窗口渲染优先级，节省内存；重新显示时恢复 IM 实时性
-  mainWindow.on('hide', () => {
-    if (isQuitting || !mainWindow || mainWindow.isDestroyed()) return
-    mainWindow.webContents.setBackgroundThrottling(true)
-  })
-  mainWindow.on('show', () => {
-    if (!mainWindow || mainWindow.isDestroyed()) return
-    mainWindow.webContents.setBackgroundThrottling(false)
-  })
-
-  mainWindow.on('closed', () => {
-    mainWindow = null
-  })
+  prepareWindowChrome(mainWindow, 'login')
+  attachMainWindowHandlers(mainWindow)
+  void loadMainWindowEntry(mainWindow)
 }
 
 app.whenReady().then(() => {
@@ -2165,8 +2343,7 @@ app.on('will-quit', () => {
 })
 
 app.on('window-all-closed', () => {
-  // 最小化到托盘时主窗口仍在（仅 hide），不会走到这里；
-  // 关闭即退出时正常结束进程。
+  if (swappingMainWindowChrome) return
   if (process.platform !== 'darwin') {
     app.quit()
   }
