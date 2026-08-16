@@ -55,8 +55,10 @@ export function buildMessagesWithTimeDividers(list: ChatMessage[]): ChatMessage[
   for (const m of list) {
     const ms = m.createTime || 0
     if (m.type !== 'time' && ms && lastMs && ms - lastMs >= MESSAGE_TIME_GAP_MS) {
+      const dividerId = `time-${m.id}`
       result.push({
-        id: `time-${m.id}`,
+        id: dividerId,
+        listKey: dividerId,
         sessionId: m.sessionId,
         content: formatMessageDivider(ms),
         time: m.time,
@@ -71,8 +73,10 @@ export function buildMessagesWithTimeDividers(list: ChatMessage[]): ChatMessage[
   if (result.length > 0 && result[0].type !== 'time') {
     const first = result.find(m => m.type !== 'time')
     if (first?.createTime) {
+      const dividerId = `time-start-${first.id}`
       result.unshift({
-        id: `time-start-${first.id}`,
+        id: dividerId,
+        listKey: dividerId,
         sessionId: first.sessionId,
         content: formatMessageDivider(first.createTime),
         time: first.time,

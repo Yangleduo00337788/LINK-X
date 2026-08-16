@@ -30,6 +30,14 @@ function pickColor(seed: string): string {
   return GROUP_COLORS[hash % GROUP_COLORS.length]
 }
 
+function conversationLastActiveAt(raw?: string | number | null): number {
+  if (raw == null || raw === '') return 0
+  const n = typeof raw === 'number' ? raw : Number(raw)
+  if (Number.isFinite(n) && n > 0) return n < 1e12 ? n * 1000 : n
+  const parsed = Date.parse(String(raw))
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
 export function conversationToSession(conv: ConversationItem): ChatSession {
   const isGroup = conv.type === 2
 
@@ -46,6 +54,7 @@ export function conversationToSession(conv: ConversationItem): ChatSession {
       groupRemark: remark || undefined,
       lastMessage: conv.lastMessage || '',
       time: formatChatTime(conv.lastMessageTime),
+      lastActiveAt: conversationLastActiveAt(conv.lastMessageTime),
       avatarText: name.charAt(0) || t('defaults.groupChar'),
       avatarColor: pickColor(groupName),
       avatarUrl: normalizeMediaUrl(conv.avatar) || undefined,
@@ -74,6 +83,7 @@ export function conversationToSession(conv: ConversationItem): ChatSession {
     name,
     lastMessage: conv.lastMessage || '',
     time: formatChatTime(conv.lastMessageTime),
+    lastActiveAt: conversationLastActiveAt(conv.lastMessageTime),
     avatarText: friendAvatarText(nickname, remark),
     avatarColor: pickColor(nickname),
     avatarUrl: resolveUserAvatarUrl(conv.peerAvatar, conv.peerUserId),
@@ -244,6 +254,7 @@ export function messageToChatMessage(message: MessageItem, sessionId: string): C
     deliveryStatus: message.deliveryStatus,
     edited: message.edited,
     clientMsgId: message.clientMsgId,
+    listKey: message.clientMsgId || String(message.id),
     sensitiveAlert: !!message.sensitiveAlert,
     sendStatus: (message.isSelf ?? false) ? mapSendStatus(message.deliveryStatus) : undefined,
     replyTo: buildReplyTo(message, sessionId)

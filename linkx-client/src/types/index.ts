@@ -31,6 +31,8 @@ export interface ChatSession {
   name: string            // 显示名称（好友备注/群备注优先，否则昵称或群名）
   lastMessage: string     // 列表预览的最后一条消息摘要
   time: string            // 最后消息时间 HH:mm
+  /** 最后一条消息时间戳，用于会话列表按最近活跃排序 */
+  lastActiveAt?: number
   avatarText: string      // 无头像 URL 时的文字头像
   avatarColor: string     // 文字头像背景色
   unread?: number         // 未读消息数
@@ -155,6 +157,8 @@ export interface ChatMessage {
   readCount?: number
   totalMembers?: number
   clientMsgId?: string
+  /** 虚拟列表稳定 key（发送 ack 后 id 会变，listKey 保持 clientMsgId） */
+  listKey?: string
   /** 仅告警敏感词命中提示（发送端） */
   sensitiveAlert?: boolean
   /** 业务发送失败原因（如违禁拦截），有值时不自动重试 */
