@@ -1,16 +1,13 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
- * 未选会话时的「发现」主区：推荐位 + 活动列表；
- * 若均无内容则回退到原有企鹅水印提示。
+ * 未选会话时的主区：有运营内容则展示推荐/活动；
+ * 否则仅居中放大灰色品牌标（彩色 logo 仍用于列表头像、登录页等）。
  */
 import { computed, ref } from 'vue'
 import OpsRecommendCarousel from './OpsRecommendCarousel.vue'
 import OpsActivityList from './OpsActivityList.vue'
-import PenguinWatermark from '../PenguinWatermark.vue'
-import { useI18n } from '../../i18n'
-
-const { t } = useI18n()
+import BrandMarkIcon from '../BrandMarkIcon.vue'
 
 const recommendCount = ref(0)
 const activityCount = ref(0)
@@ -33,7 +30,7 @@ function onActivityLoaded(payload: { count: number }) {
 
 <template>
   <div class="discover-pane">
-    <div v-if="allReady && showOps" class="discover-pane__ops">
+    <div v-show="allReady && showOps" class="discover-pane__ops">
       <OpsRecommendCarousel
         slot-code="discover"
         :height="168"
@@ -43,26 +40,28 @@ function onActivityLoaded(payload: { count: number }) {
       />
       <OpsActivityList class="discover-pane__activities" @loaded="onActivityLoaded" />
     </div>
-    <PenguinWatermark
+    <div
       v-if="allReady && !showOps"
-      :hint="t('chat.selectChatHint')"
-    />
-    <div v-else-if="!allReady" class="discover-pane__loading" aria-busy="true" />
+      class="discover-pane__brand"
+      aria-hidden="true"
+    >
+      <BrandMarkIcon :size="220" tone="silver" />
+    </div>
   </div>
 </template>
 
 <style scoped>
 .discover-pane {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   min-height: 0;
-  flex: 1;
-  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  padding: var(--lx-space-4xl) var(--lx-space-3xl);
+  padding: 0;
   box-sizing: border-box;
 }
 
@@ -72,15 +71,20 @@ function onActivityLoaded(payload: { count: number }) {
   display: flex;
   flex-direction: column;
   gap: var(--lx-space-3xl);
+  padding: var(--lx-space-4xl) var(--lx-space-3xl);
+  box-sizing: border-box;
 }
 
 .discover-pane__activities {
   margin-top: var(--lx-space-xs);
 }
 
-.discover-pane__loading {
+.discover-pane__brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
-  max-width: 560px;
-  min-height: 200px;
+  height: 100%;
+  min-height: 0;
 }
 </style>
