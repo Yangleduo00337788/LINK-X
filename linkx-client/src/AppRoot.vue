@@ -25,7 +25,6 @@ import App from './App.vue'
 import LockScreen from './components/LockScreen.vue'
 import InAppToastBridge from './components/InAppToastBridge.vue'
 import WindowResizeEdges from './components/WindowResizeEdges.vue'
-import { useNativeWindowFrame } from './utils/electronChrome'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from './stores/app'
 import { useAppSettingsStore } from './stores/appSettings'
@@ -39,10 +38,16 @@ import {
 } from './utils/themeSync'
 import { applyAccentColor, liveAccentColor, liveAccentHover } from './utils/accentColor'
 import { setLocale, localeRef } from './i18n'
+import { useNativeWindowFrame } from './utils/electronChrome'
 
 const appStore = useAppStore()
-const useNativeFrame = useNativeWindowFrame()
 const { theme, isLoggedIn, isLocked } = storeToRefs(appStore)
+const useNativeFrame = computed(
+  () =>
+    !!window.electronAPI?.isElectron &&
+    !!window.electronAPI?.useNativeWindowFrame &&
+    useNativeWindowFrame()
+)
 
 // 根据当前主题选择 Naive UI 暗色主题或 null（跟随系统亮色）
 const naiveTheme = computed(() => (theme.value === 'dark' ? darkTheme : null))

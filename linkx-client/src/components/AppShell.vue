@@ -76,16 +76,19 @@ import { useAppStore } from '../stores/app'
 import { useLinkMateStore } from '../stores/linkmate'
 import { useI18n } from '../i18n'
 import { isRealImChatSession } from '../utils/buildImChatContext'
+import { useNativeWindowFrame } from '../utils/electronChrome'
 
 useI18n()
 
-import { useNativeWindowFrame } from '../utils/electronChrome'
-
 const appStore = useAppStore()
-const useNativeFrame = useNativeWindowFrame()
-const linkMateStore = useLinkMateStore()
-// 解构当前导航键与当前会话
 const { navKey, currentSessionId, currentSession } = storeToRefs(appStore)
+const useNativeFrame = computed(
+  () =>
+    !!window.electronAPI?.isElectron &&
+    !!window.electronAPI?.useNativeWindowFrame &&
+    useNativeWindowFrame()
+)
+const linkMateStore = useLinkMateStore()
 
 watch(
   () => currentSessionId.value,
@@ -221,7 +224,7 @@ const showMiddleList = computed(
 <template>
   <!-- 应用壳层根容器，焦点态用于原生材质 -->
   <div class="app-shell" :class="{ 'is-focused': isWindowFocused }">
-    <!-- 顶部状态栏（Win32 原生边框下由系统标题栏负责窗控） -->
+    <!-- 顶部状态栏（Win32 原生边框由系统标题栏负责窗控） -->
     <header v-if="!useNativeFrame" class="top-status">
       <MainStatusBar variant="profile" />
     </header>

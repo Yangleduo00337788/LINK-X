@@ -484,7 +484,7 @@ body,
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Electron：macOS 透明 HWND + CSS 大圆角；Win32 原生边框无圆角 */
+/* Electron：macOS 透明 HWND + CSS 大圆角；Win32 登录窗不透明白底 */
 html.lx-electron:not(.lx-native-frame),
 html.lx-electron:not(.lx-native-frame) body {
   background: transparent !important;
@@ -492,27 +492,41 @@ html.lx-electron:not(.lx-native-frame) body {
 
 html.lx-electron-win32:not(.lx-native-frame),
 html.lx-electron-win32:not(.lx-native-frame) body {
-  background: var(--lx-bg-window) !important;
+  background: #ffffff !important;
+}
+
+html.lx-electron[data-theme='dark'].lx-electron-win32:not(.lx-native-frame),
+html.lx-electron[data-theme='dark'].lx-electron-win32:not(.lx-native-frame) body {
+  background: #1a1a1a !important;
 }
 
 html.lx-electron #app {
   background: var(--lx-bg-window);
   border-radius: var(--lx-window-radius);
   overflow: hidden;
-  /* clip-path 比 overflow+radius 更稳，避免子层（登录渐变）方角漏出 */
   clip-path: inset(0 round var(--lx-window-radius));
-  /* 独立合成层，减轻透明窗圆角预乘脏边 */
   transform: translateZ(0);
   isolation: isolate;
-  /* 系统 hasShadow 已关（矩形阴影会露黑角）；用细描边保持轮廓 */
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+
+/* 登录/注册：细描边 + 外阴影（类 QQ 自绘窗） */
+html.lx-electron:not(.lx-native-frame) #app {
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.14),
+    0 10px 32px rgba(15, 23, 42, 0.14);
+}
+
+html.lx-electron[data-theme='dark']:not(.lx-native-frame) #app {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 12px 36px rgba(0, 0, 0, 0.42);
 }
 
 html.lx-electron.is-maximized[data-theme='dark'] #app {
   border-radius: 0;
 }
 
-/* Win32 原生边框：去掉 CSS 圆角壳层 */
+/* Win32 主界面：直角铺满，无圆角壳层 */
 html.lx-electron.lx-native-frame #app {
   border-radius: 0;
   clip-path: none;
@@ -522,7 +536,16 @@ html.lx-electron.lx-native-frame #app {
   overflow: hidden;
 }
 
-html.lx-electron.lx-native-frame .login-page--compact {
+html.lx-electron-win32:not(.lx-native-frame) #app {
+  border-radius: 8px;
+  clip-path: none;
+  box-shadow: none;
+  transform: none;
+  overflow: hidden;
+}
+
+html.lx-electron.lx-native-frame .login-page--compact,
+html.lx-electron.lx-native-frame .register-page--compact {
   border-radius: 0;
   clip-path: none;
 }
