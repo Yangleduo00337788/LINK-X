@@ -15,20 +15,25 @@ const props = withDefaults(
     showMinimize?: boolean
     /** 是否显示窗口置顶（与 minimize 同列） */
     showPin?: boolean
+    /** Win32 无边框登录窗等场景强制显示自绘窗控 */
+    forceShow?: boolean
     /** 关闭前回调（如等待笔记保存完成） */
     beforeClose?: () => void | Promise<void>
   }>(),
   {
     showMaximize: true,
     showMinimize: true,
-    showPin: false
+    showPin: false,
+    forceShow: false
   }
 )
 
 const { t } = useI18n()
 const isElectron = !!window.electronAPI?.isElectron
 const showCustom = computed(
-  () => isElectron && !!window.electronAPI?.showCustomCaptionButtons
+  () =>
+    isElectron &&
+    (!!window.electronAPI?.showCustomCaptionButtons || props.forceShow)
 )
 const isMaximized = ref(false)
 let offMaximized: (() => void) | undefined

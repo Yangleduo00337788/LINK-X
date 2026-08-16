@@ -25,9 +25,6 @@ import { validateUsername, validatePassword } from '../utils/validation'
 import { hasRefreshToken } from '../utils/tokenStorage'
 import { useI18n } from '../i18n'
 import { preloadClientResources } from '../utils/preloadClientResources'
-import { useNativeWindowFrame } from '../utils/electronChrome'
-
-const useNativeFrame = useNativeWindowFrame()
 
 const message = useMessage()
 const router = useRouter()
@@ -66,7 +63,7 @@ const autoLoginPhase = ref<'idle' | 'checking' | 'logging-in'>('idle')
 /** auto：启动/勾选自动登录；manual：快速登录页手动点登录 */
 const loginFlowKind = ref<'none' | 'auto' | 'manual'>('none')
 
-/** 登录/自动登录进行中（含主界面 chunk 加载，按钮转圈直到主界面就绪） */
+/** 登录/自动登录进行中（含切主界面过渡） */
 const loginInProgress = computed(
   () =>
     autoLoginPhase.value !== 'idle' ||
@@ -345,9 +342,11 @@ async function runAutoLoginFlow(kind: 'auto' | 'manual' = 'auto') {
         switchToPasswordMode()
       }
     } else if (result === 'skipped') {
-      message.warning(t('login.autoLoginFail'))
-      if (loginMode.value === 'quick') {
-        switchToPasswordMode()
+      if (!appStore.isLoggedIn) {
+        message.warning(t('login.autoLoginFail'))
+        if (loginMode.value === 'quick') {
+          switchToPasswordMode()
+        }
       }
     }
   } finally {
@@ -373,6 +372,13 @@ onMounted(() => {
     await loadAuthConfig()
     const fromRegister = applyRegisteredUsername()
     if (fromRegister) return
+
+    if (
+      sessionStorage.getItem('lx-awaiting-main-shell') === '1' ||
+      appStore.isLoggedIn
+    ) {
+      return
+    }
 
     if (shouldAutoLogin) {
       await runAutoLoginFlow('auto')
@@ -608,8 +614,8 @@ async function handleForgot() {
       <span class="mesh" />
     </div>
 
-    <div class="login-win-bar" :class="{ 'login-win-bar--native': useNativeFrame }">
-      <div v-if="!useNativeFrame" class="drag-area" />
+    <div v-if="isElectron" class="login-win-bar">
+      <div class="drag-area" />
       <div class="login-win-actions" @click.stop>
         <button
           type="button"
@@ -637,7 +643,7 @@ async function handleForgot() {
           </button>
         </div>
       </div>
-      <WindowCaptionButtons v-if="!useNativeFrame" :show-maximize="false" />
+      <WindowCaptionButtons :show-maximize="false" force-show />
     </div>
 
     <div class="login-body" :class="{ 'login-body--password': loginMode === 'password' }">
@@ -1041,9 +1047,31 @@ async function handleForgot() {
 .login-page--compact {
   min-height: 461px;
   padding: 0;
-  border-radius: var(--lx-window-radius);
+  border-radius: 8px;
   overflow: hidden;
-  clip-path: inset(0 round var(--lx-window-radius));
+}
+
+.login-page--compact .login-body {
+  padding: 0 var(--lx-space-3xl) var(--lx-space-md);
+}
+
+.login-page--compact .brand-title {
+  margin-top: 0;
+  margin-bottom: var(--lx-space-lg);
+}
+
+.login-page--compact .profile-block {
+  margin-bottom: var(--lx-space-md);
+  gap: var(--lx-space-md);
+}
+
+.login-page--compact .quick-panel {
+  flex-shrink: 0;
+}
+
+.login-page--compact .footer {
+  padding-top: var(--lx-space-sm);
+  padding-bottom: var(--lx-space-2xs);
 }
 
 .login-win-bar {
@@ -1058,11 +1086,8 @@ async function handleForgot() {
   z-index: var(--lx-z-sticky);
 }
 
-.login-win-bar--native {
-  height: auto;
-  min-height: 0;
-  padding: var(--lx-space-xs) var(--lx-space-xs) 0;
-  justify-content: flex-end;
+.login-win-bar :deep(.caption-btns) {
+  flex-shrink: 0;
 }
 
 .drag-area {

@@ -25,12 +25,12 @@ import { LxButton, LxIconButton } from './ui'
 import { openLegalPageInBrowser } from '../utils/legalPage'
 import { useNativeWindowFrame } from '../utils/electronChrome'
 
-const useNativeFrame = useNativeWindowFrame()
-
 const message = useMessage()
 const router = useRouter()
 const { t } = useI18n()
 const isElectron = !!window.electronAPI?.isElectron
+const showCustomCaption = computed(() => !!window.electronAPI?.showCustomCaptionButtons)
+const useNativeFrame = computed(() => isElectron && useNativeWindowFrame())
 
 const regUser = ref('')
 const regPass = ref('')
@@ -273,7 +273,7 @@ onUnmounted(() => {
     <div v-if="!useNativeFrame" class="reg-win-bar">
       <div class="reg-title">{{ t('register.title') }}</div>
       <div class="drag-area" />
-      <WindowCaptionButtons v-if="isElectron" :show-maximize="false" />
+      <WindowCaptionButtons v-if="showCustomCaption" :show-maximize="false" />
       <button
         v-else
         type="button"
