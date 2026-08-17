@@ -114,7 +114,7 @@ function avatarText(name: string) {
 
 <template>
   <Teleport to="body">
-    <div v-if="showVoiceUi" class="call-root">
+    <div v-if="showVoiceUi" class="call-root lx-call-skin">
       <audio ref="remoteAudioRef" autoplay playsinline />
       <div class="call-window">
         <div class="call-top">

@@ -1,0 +1,46 @@
+/**
+ * 作者：yangleduo
+ * 通话 / 会议固定深色 UI：不随 data-theme 浅色/深色切换。
+ * 挂载在语音、视频、群电话、会议室、来电等根节点（.lx-call-skin）。
+ */
+.lx-call-skin {
+  color: #ffffff;
+
+  /* 遮罩与阴影 */
+  --lx-bg-overlay: rgba(0, 0, 0, 0.55);
+  --lx-shadow-popover: 0 12px 40px rgba(0, 0, 0, 0.65);
+  --lx-shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.6);
+  --lx-shadow-dropdown: 0 4px 16px rgba(0, 0, 0, 0.5);
+
+  /* 功能色 */
+  --lx-danger: #fa5151;
+  --lx-success-strong: #07c160;
+  --lx-text-on-accent: #ffffff;
+  --lx-black: #000000;
+
+  /* 单聊通话 */
+  --lx-call-surface-top: #3a3a3a;
+  --lx-call-surface-bottom: #2a2a2a;
+  --lx-call-gradient: linear-gradient(180deg, #3a3a3a 0%, #2a2a2a 100%);
+  --lx-video-surface-gradient: linear-gradient(145deg, #3d3d3d, #252525);
+  --lx-call-control-bg: #444444;
+
+  /* 会议 / 群电话深色画布 */
+  --lx-conf-accent: #006eff;
+  --lx-conf-accent-hover: #0056cc;
+  --lx-conf-bg: #1f1f1f;
+  --lx-conf-bg-deep: #1e1e1e;
+  --lx-conf-bg-void: #111111;
+  --lx-conf-surface: #1f2329;
+  --lx-conf-panel: #2b2b2b;
+  --lx-conf-room-gradient: linear-gradient(160deg, #2e2e2e 0%, #1a1a1a 100%);
+  --lx-conf-gold: #ffb454;
+  --lx-conf-gold-light: #ffcf87;
+  --lx-conf-link-blue: #5b8def;
+  --lx-conf-voice: #12b76a;
+  --lx-conf-voice-text: #0f8a52;
+  --lx-conf-video: #1a6bff;
+  --lx-conf-video-text: #1a56db;
+  --lx-conf-meeting: #7c3aed;
+  --lx-conf-meeting-text: #6d28d9;
+}

@@ -107,7 +107,7 @@ async function hangUp() {
 
 <template>
   <Teleport to="body">
-    <div v-if="showVideoUi" class="call-root">
+    <div v-if="showVideoUi" class="call-root lx-call-skin">
       <div class="call-window">
         <p class="status">{{ statusText }}</p>
         <div class="video-stage">
@@ -201,7 +201,7 @@ async function hangUp() {
 .video-stage {
   position: relative;
   height: 320px;
-  background: var(--lx-bg-card);
+  background: var(--lx-conf-bg-void);
 }
 
 .remote-video {
@@ -288,7 +288,7 @@ async function hangUp() {
   align-items: start;
   gap: var(--lx-space-lg);
   padding: var(--lx-space-2xl) var(--lx-space-2xl) var(--lx-space-3xl);
-  background: var(--lx-bg-panel-deep);
+  background: var(--lx-conf-panel);
 }
 
 .ctl {

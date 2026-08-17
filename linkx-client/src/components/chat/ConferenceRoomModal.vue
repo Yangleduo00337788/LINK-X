@@ -540,7 +540,7 @@ async function onAdmit(userId: string) {
 <template>
   <Teleport to="body">
     <!-- 被邀请：轻量确认层（仅会议；群电话走 GroupCallModal） -->
-    <div v-if="showMeetingUi && invitePrompt && phase === 'lobby'" class="invite-mask">
+    <div v-if="showMeetingUi && invitePrompt && phase === 'lobby'" class="invite-mask lx-call-skin">
       <div class="invite-card">
         <h3>{{ invitePrompt.restore ? t('conference.restoreTitle') : t('conference.inviteTitle') }}</h3>
         <p>{{ invitePrompt.title }}</p>
@@ -568,7 +568,7 @@ async function onAdmit(userId: string) {
     </div>
 
     <!-- 等候室 -->
-    <div v-if="showMeetingUi && phase === 'waiting'" class="waiting-root">
+    <div v-if="showMeetingUi && phase === 'waiting'" class="waiting-root lx-call-skin">
       <div class="waiting-card">
         <h3>{{ t('conference.waitingTitle') }}</h3>
         <p>{{ title }}</p>
@@ -581,7 +581,7 @@ async function onAdmit(userId: string) {
 
     <div
       v-if="showMeetingUi && phase === 'in_room'"
-      class="room-root"
+      class="room-root lx-call-skin"
       :class="{
         'room-root--members-open': membersPanelOpen,
         'room-root--chat-open': chatOpen
@@ -1007,7 +1007,7 @@ async function onAdmit(userId: string) {
   background: var(--lx-conf-panel);
   border-radius: var(--lx-radius-lg);
   padding: var(--lx-space-3xl-plus);
-  color: var(--lx-text-primary);
+  color: var(--lx-text-on-accent);
   box-shadow: var(--lx-shadow-popover);
   text-align: center;
 }
@@ -1042,7 +1042,7 @@ async function onAdmit(userId: string) {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--lx-radius-sm);
   background: var(--lx-conf-bg);
-  color: var(--lx-text-primary);
+  color: rgba(255, 255, 255, 0.92);
   padding: var(--lx-space) var(--lx-space-lg);
   font-size: var(--lx-font);
   outline: none;
@@ -1060,8 +1060,8 @@ async function onAdmit(userId: string) {
   position: fixed;
   inset: 0;
   z-index: var(--lx-z-call-backdrop);
-  background: var(--lx-bg-window);
-  color: var(--lx-bg-panel);
+  background: var(--lx-conf-bg-void);
+  color: var(--lx-text-on-accent);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1144,6 +1144,7 @@ async function onAdmit(userId: string) {
   position: relative;
   padding: 0;
   overflow: hidden;
+  background: var(--lx-conf-bg-deep);
 }
 
 .stage--busy {
@@ -1184,7 +1185,7 @@ async function onAdmit(userId: string) {
   position: relative;
   width: 168px;
   aspect-ratio: 16 / 10;
-  background: var(--lx-bg-panel-deep);
+  background: var(--lx-conf-surface);
   border-radius: var(--lx-radius-sm);
   overflow: hidden;
   border: 2px solid rgba(255, 255, 255, 0.12);
@@ -1360,7 +1361,7 @@ async function onAdmit(userId: string) {
 .device-menu {
   min-width: 260px;
   max-width: 360px;
-  background: var(--lx-bg-card);
+  background: var(--lx-conf-surface);
   border-radius: var(--lx-radius-xl);
   padding: var(--lx-space);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
@@ -1378,7 +1379,7 @@ async function onAdmit(userId: string) {
   gap: var(--lx-space);
   border: none;
   background: transparent;
-  color: var(--lx-text-primary);
+  color: rgba(255, 255, 255, 0.92);
   text-align: left;
   padding: var(--lx-space) var(--lx-space-md);
   border-radius: var(--lx-radius-xs);
@@ -1566,7 +1567,7 @@ async function onAdmit(userId: string) {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--lx-radius-sm);
   background: var(--lx-conf-bg);
-  color: var(--lx-text-primary);
+  color: rgba(255, 255, 255, 0.92);
   padding: var(--lx-space) var(--lx-space-md);
   font-size: var(--lx-font-md);
   outline: none;

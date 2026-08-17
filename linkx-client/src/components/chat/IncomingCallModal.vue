@@ -94,7 +94,7 @@ function avatarText(name: string) {
 
 <template>
   <Teleport to="body">
-    <div v-if="showIncomingUi" class="incoming-root">
+    <div v-if="showIncomingUi" class="incoming-root lx-call-skin">
       <div class="incoming-window" :class="{ video: callType === 'video' }">
         <template v-if="callType === 'video'">
           <div class="video-stage">
