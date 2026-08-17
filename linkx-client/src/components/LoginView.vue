@@ -24,6 +24,7 @@ import { hasRefreshToken } from '../utils/tokenStorage'
 import { useI18n } from '../i18n'
 import { preloadClientResources } from '../utils/preloadClientResources'
 import { openLegalPageInBrowser } from '../utils/legalPage'
+import { CHROME_BRAND_LOGO_URL } from '../utils/projectLogo'
 
 const message = useMessage()
 const router = useRouter()
@@ -644,6 +645,9 @@ async function handleForgot() {
     </div>
 
     <div v-if="isElectron" class="login-win-bar">
+      <div class="login-brand" aria-label="LinkX">
+        <img class="login-brand-logo" :src="CHROME_BRAND_LOGO_URL" alt="" draggable="false" />
+      </div>
       <div class="drag-area" />
       <div class="login-win-actions" @click.stop>
         <button
@@ -675,6 +679,9 @@ async function handleForgot() {
         </div>
       </div>
       <WindowCaptionButtons :show-maximize="false" force-show />
+    </div>
+    <div v-else class="login-brand login-brand--standalone" aria-label="LinkX">
+      <img class="login-brand-logo" :src="CHROME_BRAND_LOGO_URL" alt="" draggable="false" />
     </div>
 
     <div
@@ -1196,6 +1203,39 @@ async function handleForgot() {
   -webkit-app-region: no-drag;
   position: relative;
   z-index: var(--lx-z-sticky);
+}
+
+.login-brand {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  height: var(--lx-size-win-bar);
+  padding: 0 var(--lx-space-2xl);
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+.login-brand-logo {
+  display: block;
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  flex-shrink: 0;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  filter: brightness(0.58) contrast(1.32) saturate(0.9);
+}
+
+.login-brand--standalone {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: calc(var(--lx-z-sticky) + 1);
+  pointer-events: none;
+}
+
+.login-page--compact .login-brand {
+  padding-left: var(--lx-space-xl);
 }
 
 .login-win-bar :deep(.caption-btns) {
