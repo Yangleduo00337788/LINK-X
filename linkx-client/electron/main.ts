@@ -319,7 +319,9 @@ function prepareWindowChrome(win: BrowserWindow, chrome: 'login' | 'main' = 'mai
 }
 
 const LOGIN_WINDOW_WIDTH = 319
-const LOGIN_WINDOW_HEIGHT = 461
+const LOGIN_WINDOW_HEIGHT = 468
+const REGISTER_WINDOW_WIDTH = 380
+const REGISTER_WINDOW_HEIGHT = 576
 
 /** Electron loadURL 对带 # 的地址易失败，重建窗口时只加载 origin+pathname */
 function resolveMainWindowReloadUrl(raw?: string): string | undefined {
@@ -2114,15 +2116,19 @@ function createRegisterWindow() {
 
   registerWindow = new BrowserWindow({
     ...browserWindowIconOptions(),
-    width: 360,
-    height: 560,
+    width: REGISTER_WINDOW_WIDTH,
+    height: REGISTER_WINDOW_HEIGHT,
+    minWidth: REGISTER_WINDOW_WIDTH,
+    minHeight: REGISTER_WINDOW_HEIGHT,
+    maxWidth: REGISTER_WINDOW_WIDTH,
+    maxHeight: REGISTER_WINDOW_HEIGHT,
     resizable: false,
-    ...windowChrome('LinkX', 'main'),
+    ...windowChrome('LinkX', 'login'),
     show: false,
     // 不挂 parent，避免盖住登录窗；作为独立弹窗并列显示
     webPreferences: defaultWebPreferences()
   })
-  prepareWindowChrome(registerWindow)
+  prepareWindowChrome(registerWindow, 'login')
 
   // 放在登录窗右侧，登录页保持可见
   if (mainWindow && !mainWindow.isDestroyed()) {
