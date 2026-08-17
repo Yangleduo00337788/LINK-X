@@ -92,7 +92,9 @@ export default defineConfig(({ mode, command }) => {
               entry: 'electron/main.ts',
               onstart: options => {
                 copyPreloadCjs()
-                options.startup()
+                const electronLauncher =
+                  process.platform === 'win32' ? './electron/dev-path.cjs' : 'electron'
+                options.startup(['.', '--no-sandbox'], {}, electronLauncher)
               },
               vite: {
                 define: electronEnvDefine,

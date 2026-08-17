@@ -16,7 +16,8 @@ if (process.platform === 'win32') {
   }
 }
 
-if (!ensureElectronBinary()) {
+const ready = await ensureElectronBinary()
+if (!ready) {
   process.exit(1)
 }
 
