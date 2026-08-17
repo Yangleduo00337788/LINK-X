@@ -97,7 +97,7 @@ watch(
 const listWidth = ref(260)
 // 是否正在拖拽调整列宽
 const isDragging = ref(false)
-// 窗口是否获得焦点（用于 Mica 等原生材质效果）
+// 窗口是否获得焦点（用于原生材质等状态）
 const isWindowFocused = ref(document.hasFocus())
 
 // 窗口获得焦点时更新状态

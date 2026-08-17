@@ -155,7 +155,57 @@ declare global {
         title?: string
         body?: string
         silent?: boolean
+        action?: {
+          kind: 'session' | 'official' | 'contacts' | 'calendar' | 'focus'
+          sessionId?: string
+          notificationId?: string
+          avatarUrl?: string
+        }
       }) => Promise<boolean>
+      /** Win32 唤起主窗口 */
+      showMainWindow?: () => Promise<boolean>
+      /** Win32 任务栏未读徽章（已弃用，保留兼容） */
+      setTaskbarBadge?: (count: number) => Promise<boolean>
+      /** Win32 任务栏进度条；-1 清除，0–1 为进度 */
+      setWindowProgress?: (progress: number) => Promise<boolean>
+      /** Win32 任务栏闪动提醒 */
+      flashWindow?: (flash?: boolean) => Promise<boolean>
+      /** Win32 通话缩略图工具栏 */
+      syncCallToolbar?: (payload: { phase?: string }) => Promise<boolean>
+      onNotificationAction?: (
+        callback: (payload: {
+          kind?: string
+          sessionId?: string
+          notificationId?: string
+        }) => void
+      ) => () => void
+      onJumpListAction?: (callback: (action: string) => void) => () => void
+      onCallToolbarAction?: (
+        callback: (action: 'accept' | 'reject' | 'hangup') => void
+      ) => () => void
+      getTrayMessagePayload?: () => Promise<{
+        title?: string
+        body?: string
+        avatarUrl?: string
+        unreadCount?: number
+        action?: {
+          kind?: string
+          sessionId?: string
+          notificationId?: string
+          avatarUrl?: string
+        }
+      } | null>
+      openTrayMessage?: () => Promise<boolean>
+      ignoreTrayMessages?: () => Promise<boolean>
+      setTrayPopupHover?: (hovering: boolean) => Promise<boolean>
+      onTrayMessageData?: (
+        callback: (data: {
+          title?: string
+          body?: string
+          avatarUrl?: string
+          unreadCount?: number
+        }) => void
+      ) => () => void
       /** 渲染进程首屏绘制完成，通知主进程展示窗口 */
       notifyWindowReady?: () => void
       /** 订阅应用内 toast 兜底 */

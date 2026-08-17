@@ -107,6 +107,39 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   /** 弹出系统桌面通知 */
   showNotification: (payload) => ipcRenderer.invoke('app:show-notification', payload),
+  showMainWindow: () => ipcRenderer.invoke('window:show-main'),
+  setTaskbarBadge: count => ipcRenderer.invoke('window:set-taskbar-badge', count),
+  setWindowProgress: progress => ipcRenderer.invoke('window:set-progress-bar', progress),
+  flashWindow: flash => ipcRenderer.invoke('window:flash-frame', flash),
+  syncCallToolbar: payload => ipcRenderer.invoke('window:sync-call-toolbar', payload || {}),
+  onNotificationAction: callback => {
+    if (typeof callback !== 'function') return () => {}
+    const listener = (_event, data) => callback(data || {})
+    ipcRenderer.on('app:notification-action', listener)
+    return () => ipcRenderer.removeListener('app:notification-action', listener)
+  },
+  onJumpListAction: callback => {
+    if (typeof callback !== 'function') return () => {}
+    const listener = (_event, action) => callback(String(action || ''))
+    ipcRenderer.on('app:jump-list-action', listener)
+    return () => ipcRenderer.removeListener('app:jump-list-action', listener)
+  },
+  getTrayMessagePayload: () => ipcRenderer.invoke('tray-message:get-payload'),
+  openTrayMessage: () => ipcRenderer.invoke('tray-message:open'),
+  ignoreTrayMessages: () => ipcRenderer.invoke('tray-message:ignore-all'),
+  setTrayPopupHover: hovering => ipcRenderer.invoke('tray-message:popup-hover', hovering),
+  onTrayMessageData: callback => {
+    if (typeof callback !== 'function') return () => {}
+    const listener = (_event, data) => callback(data || {})
+    ipcRenderer.on('tray-message:data', listener)
+    return () => ipcRenderer.removeListener('tray-message:data', listener)
+  },
+  onCallToolbarAction: callback => {
+    if (typeof callback !== 'function') return () => {}
+    const listener = (_event, action) => callback(action)
+    ipcRenderer.on('app:call-toolbar-action', listener)
+    return () => ipcRenderer.removeListener('app:call-toolbar-action', listener)
+  },
   /** 订阅应用内 toast（主进程桌面通知失败时的兜底） */
   onInAppToast: callback => {
     if (typeof callback !== 'function') return () => {}

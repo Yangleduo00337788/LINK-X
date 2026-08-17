@@ -20,6 +20,30 @@ import { mainT } from './mainI18n'
 import { buildHelpPageUrl, resolveHelpPageBaseUrl } from '../shared/helpPage'
 import { registerChatDbIpc } from './registerChatDbIpc'
 import { closeChatDatabase } from './chatDb'
+import {
+  parseJumpListArgv,
+  type JumpListAction,
+  type DesktopNotificationAction,
+  type CallToolbarPhase,
+  disableWinAccentBorder,
+  setTaskbarProgress,
+  flashWindowFrame,
+  syncCallThumbnailToolbar,
+  clearWinJumpList,
+  fetchUrlToFileWithProgress
+} from './win11Native'
+import {
+  initTrayNotifyWindow,
+  queueTrayMessage,
+  hideTrayMessagePopup,
+  openTrayMessageFromPopup,
+  getTrayMessagePayload,
+  ignoreAllTrayMessages,
+  registerTrayBalloonHandlers,
+  bindTrayForNotify,
+  createTrayFlashIcon,
+  setTrayPopupHovering
+} from './trayNotifyWindow'
 
 /** 渲染进程发起的受控下载请求 */
 type DownloadFilePayload = {
@@ -141,6 +165,12 @@ if (app.isPackaged) {
   app.commandLine.appendSwitch('disk-cache-size', String(80 * 1024 * 1024))
 }
 
+let pendingJumpListAction: JumpListAction | null = parseJumpListArgv(process.argv)
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
+if (!gotSingleInstanceLock) {
+  app.quit()
+}
+
 /**
  * CSP 可信媒体源：本机 API/MinIO + 可选环境变量（生产 MinIO/CDN 网关）。
  * 朋友圈外链改走后端 /media/external 代理，故不再需要任意 https:。
@@ -213,7 +243,7 @@ function windowBackgroundColor(theme: string = currentUiTheme, mode: 'login' | '
     return isDark ? '#1a1a1a' : '#ffffff'
   }
   if (process.platform === 'win32') {
-    return isDark ? '#1a1a1a' : '#ffffff'
+    return isDark ? '#202020' : '#f3f3f3'
   }
   return isDark ? 'rgba(26, 26, 26, 1)' : 'rgba(255, 255, 255, 0)'
 }
@@ -226,7 +256,7 @@ const NATIVE_CAPTION_OVERLAY_HEIGHT = 40
 function nativeCaptionOverlay(): Electron.TitleBarOverlay {
   const isDark = currentUiTheme === 'dark'
   return {
-    color: isDark ? '#1a1a1a' : '#f5f5f5',
+    color: isDark ? '#202020' : '#f3f3f3',
     symbolColor: isDark ? '#f3f3f3' : '#1a1a1a',
     height: NATIVE_CAPTION_OVERLAY_HEIGHT
   }
@@ -273,7 +303,11 @@ function windowChrome(
 function prepareWindowChrome(win: BrowserWindow, chrome: 'login' | 'main' = 'main') {
   if (process.platform === 'win32' && chrome === 'main') {
     win.setBackgroundColor(windowBackgroundColor(currentUiTheme, 'main'))
+    disableWinAccentBorder(win)
     return
+  }
+  if (process.platform === 'win32' && chrome === 'login') {
+    disableWinAccentBorder(win)
   }
   const refreshBg = () => {
     if (win.isDestroyed()) return
@@ -372,10 +406,12 @@ function attachMainWindowHandlers(win: BrowserWindow, options?: { revealOnReady?
 
   win.on('hide', () => {
     if (isQuitting || win.isDestroyed()) return
+    syncMainWindowTaskbarVisibility(win, false)
     win.webContents.setBackgroundThrottling(true)
   })
   win.on('show', () => {
     if (win.isDestroyed()) return
+    syncMainWindowTaskbarVisibility(win, true)
     win.webContents.setBackgroundThrottling(false)
   })
 
@@ -395,6 +431,11 @@ function attachMainWindowHandlers(win: BrowserWindow, options?: { revealOnReady?
   const onContentReady = (event: IpcMainEvent) => {
     if (BrowserWindow.fromWebContents(event.sender) !== win) return
     reveal()
+    if (pendingJumpListAction) {
+      showMainWindow()
+      win.webContents.send('app:jump-list-action', pendingJumpListAction)
+      pendingJumpListAction = null
+    }
     ipcMain.removeListener('window:content-ready', onContentReady)
   }
   ipcMain.on('window:content-ready', onContentReady)
@@ -537,9 +578,16 @@ if (process.platform === 'win32') {
 
 // Windows 通知：开发态（未打包）必须用 execPath 作为 AUMID，否则 Toast 会 HRESULT 失败
 if (process.platform === 'win32') {
-  const unpackaged = !app.isPackaged || process.defaultApp || /electron\.exe$/i.test(process.execPath)
+  const unpackaged =
+    !app.isPackaged ||
+    process.defaultApp ||
+    /electron\.exe$/i.test(process.execPath) ||
+    /LinkX-dev\.exe$/i.test(process.execPath)
   app.setAppUserModelId(unpackaged ? process.execPath : 'com.linkx.app')
 }
+
+// 开发态 electron.exe 元数据可能仍为 Electron；统一显示为 LinkX
+app.setName('LinkX')
 
 if (isDev) {
   app.commandLine.appendSwitch('--disable-software-rasterizer')
@@ -875,6 +923,15 @@ function registerWindowIpc() {
   ipcMain.removeHandler('window:set-mode')
   ipcMain.removeHandler('window:get-bounds')
   ipcMain.removeHandler('window:set-bounds')
+  ipcMain.removeHandler('window:set-taskbar-badge')
+  ipcMain.removeHandler('window:set-progress-bar')
+  ipcMain.removeHandler('window:flash-frame')
+  ipcMain.removeHandler('window:sync-call-toolbar')
+  ipcMain.removeHandler('window:show-main')
+  ipcMain.removeHandler('tray-message:get-payload')
+  ipcMain.removeHandler('tray-message:open')
+  ipcMain.removeHandler('tray-message:ignore-all')
+  ipcMain.removeHandler('tray-message:popup-hover')
   ipcMain.removeHandler('fetch-ip-location')
   ipcMain.removeHandler('secure-storage:is-available')
   ipcMain.removeHandler('secure-storage:get')
@@ -922,6 +979,62 @@ function registerWindowIpc() {
     return false
   })
 
+  ipcMain.handle('window:set-taskbar-badge', (_event, _count: number) => {
+    // QQ 风格：不使用 overlay 角标，保留 IPC 兼容
+    return true
+  })
+
+  ipcMain.handle('window:show-main', () => {
+    showMainWindow()
+    flashWindowFrame(mainWindow, false)
+    hideTrayMessagePopup()
+    return true
+  })
+
+  ipcMain.handle('tray-message:get-payload', () => getTrayMessagePayload())
+  ipcMain.handle('tray-message:open', () => {
+    openTrayMessageFromPopup()
+    return true
+  })
+  ipcMain.handle('tray-message:ignore-all', () => {
+    ignoreAllTrayMessages()
+    return true
+  })
+  ipcMain.handle('tray-message:popup-hover', (_event, hovering: boolean) => {
+    setTrayPopupHovering(!!hovering)
+    return true
+  })
+
+  ipcMain.handle('window:set-progress-bar', (_event, progress: number) => {
+    setTaskbarProgress(mainWindow, Number(progress))
+    return true
+  })
+
+  ipcMain.handle('window:flash-frame', (_event, flash?: boolean) => {
+    flashWindowFrame(mainWindow, flash !== false)
+    if (flash === false) flashWindowFrame(mainWindow, false)
+    return true
+  })
+
+  ipcMain.handle('window:sync-call-toolbar', (_event, payload: { phase?: string } = {}) => {
+    const validPhases: CallToolbarPhase[] = [
+      'incoming',
+      'outgoing',
+      'connecting',
+      'connected',
+      'idle'
+    ]
+    const phase = validPhases.includes(payload.phase as CallToolbarPhase)
+      ? (payload.phase as CallToolbarPhase)
+      : 'idle'
+    syncCallThumbnailToolbar(mainWindow, phase, desktopPrefs.language, toolbarAction => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('app:call-toolbar-action', toolbarAction)
+      }
+    })
+    return true
+  })
+
   ipcMain.handle('app:set-auto-start', (_event, enabled: boolean) => {
     app.setLoginItemSettings({
       openAtLogin: !!enabled,
@@ -957,6 +1070,7 @@ function registerWindowIpc() {
       }
       saveDesktopPrefs(next)
       rebuildTrayMenu()
+      rebuildJumpList()
       syncLoginItemHidden()
       return { ...desktopPrefs }
     }
@@ -1267,15 +1381,15 @@ function registerWindowIpc() {
 
         const win = winFromSender(event)
         win?.webContents.send('app:update-progress', { phase: 'downloading', percent: 0 })
+        setTaskbarProgress(win, 0)
 
-        const res = await net.fetch(url)
-        if (!res.ok) {
-          return {
-            ok: false,
-            message: mainT(desktopPrefs.language, 'downloadFailStatus', { status: res.status })
-          }
+        const reportDownloadProgress = (ratio: number) => {
+          const pct = Math.round(Math.min(1, Math.max(0, ratio)) * 100)
+          win?.webContents.send('app:update-progress', { phase: 'downloading', percent: pct })
+          setTaskbarProgress(win, ratio)
         }
-        const bytes = Buffer.from(await res.arrayBuffer())
+
+        const bytes = await fetchUrlToFileWithProgress(url, reportDownloadProgress)
 
         const expectedSha = (payload.sha256 || '').trim().toLowerCase()
         if (expectedSha) {
@@ -1289,6 +1403,7 @@ function registerWindowIpc() {
         await fs.promises.writeFile(targetPath, bytes)
 
         win?.webContents.send('app:update-progress', { phase: 'installing', percent: 100 })
+        setTaskbarProgress(win, 1)
 
         const silent = payload.silent !== false
         const isWindowsInstaller = process.platform === 'win32' && (ext === '.exe' || ext === '.msi')
@@ -1327,12 +1442,15 @@ function registerWindowIpc() {
         }
 
         // 安装程序拉起后退出应用，避免文件占用导致覆盖失败
+        setTaskbarProgress(win, -1)
         setTimeout(() => {
           app.quit()
         }, silentInstall ? 400 : 800)
 
         return { ok: true, path: targetPath, launched, silent: silentInstall }
       } catch (e) {
+        const win = mainWindow
+        setTaskbarProgress(win, -1)
         return {
           ok: false,
           message: e instanceof Error ? e.message : mainT(desktopPrefs.language, 'downloadInstallerFail')
@@ -1408,11 +1526,20 @@ function registerWindowIpc() {
   // 系统桌面通知（日程提醒、新消息等）
   ipcMain.handle(
     'app:show-notification',
-    async (_event, payload: { title?: string; body?: string; silent?: boolean }) => {
+    async (
+      _event,
+      payload: {
+        title?: string
+        body?: string
+        silent?: boolean
+        action?: DesktopNotificationAction
+      }
+    ) => {
       const title = (payload?.title || 'LinkX').trim() || 'LinkX'
       const body = (payload?.body || '').trim()
       const silent = !!payload?.silent
-      return showDesktopNotice(title, body, silent)
+      const action = payload?.action
+      return showDesktopNotice(title, body, silent, action)
     }
   )
 
@@ -1521,83 +1648,36 @@ function broadcastInAppToast(title: string, body: string) {
   }
 }
 
-/**
- * 可靠桌面提醒：
- * - 开发态 Windows：跳过 Electron Toast（常 HRESULT 失败），用托盘气球 + 应用内 toast
- * - 打包后：优先系统 Toast，失败再托盘气球
- * - 始终推送应用内 toast
- */
-function isUnpackagedWindows(): boolean {
-  return (
-    process.platform === 'win32' &&
-    (!app.isPackaged || !!process.defaultApp || /electron\.exe$/i.test(process.execPath))
-  )
-}
+async function showDesktopNotice(
+  title: string,
+  body: string,
+  _silent = false,
+  action?: DesktopNotificationAction
+): Promise<boolean> {
+  const inBackground =
+    !mainWindow || mainWindow.isDestroyed() || !mainWindow.isFocused()
 
-async function showDesktopNotice(title: string, body: string, silent = false): Promise<boolean> {
-  broadcastInAppToast(title, body)
-
-  // 未打包 Windows 上 Notification 几乎必定失败（缺少 Start Menu 快捷方式），直接跳过避免误报日志
-  const tryNativeToast = Notification.isSupported() && !isUnpackagedWindows()
-
-  if (tryNativeToast) {
-    const toastOk = await new Promise<boolean>(resolve => {
-      try {
-        const n = new Notification({
-          title,
-          body,
-          silent,
-          icon: createTrayIcon()
-        })
-        let settled = false
-        let showTimer: NodeJS.Timeout | null = null
-        const done = (ok: boolean) => {
-          if (settled) return
-          settled = true
-          if (showTimer) clearTimeout(showTimer)
-          resolve(ok)
-        }
-        n.on('failed', (_e, err) => {
-          console.warn('[Main] Notification failed:', err)
-          done(false)
-        })
-        // 不信任 show：Windows 上可能 show 后又 failed
-        n.show()
-        // 800ms 兜底完成 Promise；failed 提前触发时 done 内清理 timer 避免事件循环残留
-        showTimer = setTimeout(() => done(true), 800)
-      } catch (e) {
-        console.error('[Main] Notification error:', e)
-        resolve(false)
-      }
+  if (inBackground) {
+    queueTrayMessage({
+      title,
+      body,
+      avatarUrl: action?.avatarUrl,
+      action
     })
-    if (toastOk) {
-      console.log('[Main] Notification OK')
-      return true
-    }
+    console.log('[Main] Remind via tray flash (hover icon to preview)')
+    return true
   }
 
-  if (tray && !tray.isDestroyed()) {
-    try {
-      tray.displayBalloon({
-        title,
-        content: body || ' ',
-        iconType: 'info'
-      })
-      console.log('[Main] Remind via tray balloon + in-app toast')
-      return true
-    } catch (e) {
-      console.error('[Main] Tray balloon failed:', e)
-    }
-  }
-
+  broadcastInAppToast(title, body)
   console.log('[Main] Remind via in-app toast only')
   return true
 }
 
 function applyAllWindowBackgrounds(theme: string) {
-  const color = windowBackgroundColor(theme)
   BrowserWindow.getAllWindows().forEach(win => {
-    win.setBackgroundColor(color)
+    if (win.isDestroyed()) return
+    const isLoginMain = win === mainWindow && desktopChromeKind === 'login'
+    win.setBackgroundColor(windowBackgroundColor(theme, isLoginMain ? 'login' : 'main'))
     if (process.platform !== 'win32') return
     try {
       win.setTitleBarOverlay(nativeCaptionOverlay())
@@ -1644,13 +1724,12 @@ function resolveAppIconPath(): string | undefined {
 }
 
 function createAppIconImage(): Electron.NativeImage | undefined {
-  // Windows 任务栏/窗口图标：优先 PNG（透明圆角），.ico 在部分 DPI 下圆角不明显
+  // Windows 任务栏需要多尺寸 .ico；开发态 electron.exe 也会通过 rcedit 写入同一图标
   if (process.platform === 'win32') {
-    for (const file of ['icon-256.png', 'icon-128.png', 'icon.png']) {
-      const pngPath = resolveBuildAsset(file)
-      if (!pngPath) continue
-      const pngImg = nativeImage.createFromPath(pngPath)
-      if (!pngImg.isEmpty()) return pngImg
+    const icoPath = resolveBuildAsset('icon.ico')
+    if (icoPath) {
+      const icoImg = nativeImage.createFromPath(icoPath)
+      if (!icoImg.isEmpty()) return icoImg
     }
   }
 
@@ -1658,6 +1737,20 @@ function createAppIconImage(): Electron.NativeImage | undefined {
   if (!iconPath) return undefined
   const img = nativeImage.createFromPath(iconPath)
   return img.isEmpty() ? undefined : img
+}
+
+/** 最小化到托盘时从任务栏隐藏主窗口按钮，避免残留 Electron 默认图标 */
+function syncMainWindowTaskbarVisibility(win: BrowserWindow, visible: boolean) {
+  if (process.platform !== 'win32' || win.isDestroyed()) return
+  if (!desktopPrefs.minimizeToTray || !tray) {
+    win.setSkipTaskbar(false)
+    return
+  }
+  win.setSkipTaskbar(!visible)
+  if (visible) {
+    const icon = createAppIconImage()
+    if (icon) win.setIcon(icon)
+  }
 }
 
 function browserWindowIconOptions(): Pick<Electron.BrowserWindowConstructorOptions, 'icon'> {
@@ -1711,8 +1804,27 @@ function showMainWindow() {
     return
   }
   if (mainWindow.isMinimized()) mainWindow.restore()
+  syncMainWindowTaskbarVisibility(mainWindow, true)
   mainWindow.show()
   mainWindow.focus()
+}
+
+function sendJumpListActionToRenderer(action: JumpListAction) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('app:jump-list-action', action)
+  } else {
+    pendingJumpListAction = action
+  }
+}
+
+function sendNotificationActionToRenderer(action: DesktopNotificationAction) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('app:notification-action', action)
+  }
+}
+
+function rebuildJumpList() {
+  clearWinJumpList()
 }
 
 function createTray() {
@@ -1720,6 +1832,10 @@ function createTray() {
   tray = new Tray(createTrayIcon())
   tray.setToolTip('LinkX')
   rebuildTrayMenu()
+  bindTrayForNotify(tray)
+  registerTrayBalloonHandlers(tray, () => {
+    openTrayMessageFromPopup()
+  })
   tray.on('double-click', () => showMainWindow())
 }
 
@@ -2275,6 +2391,7 @@ function createWindow() {
   })
   prepareWindowChrome(mainWindow, 'login')
   attachMainWindowHandlers(mainWindow)
+  syncMainWindowTaskbarVisibility(mainWindow, false)
   void loadMainWindowEntry(mainWindow)
 }
 
@@ -2336,6 +2453,36 @@ app.whenReady().then(() => {
   ].join(' ')
 
   registerCspHeaders(csp)
+
+  if (gotSingleInstanceLock) {
+    app.on('second-instance', (_event, argv) => {
+      const action = parseJumpListArgv(argv)
+      showMainWindow()
+      if (action) {
+        sendJumpListActionToRenderer(action)
+      }
+    })
+  }
+
+  rebuildJumpList()
+
+  initTrayNotifyWindow({
+    isDev,
+    devServerUrl: process.env.VITE_DEV_SERVER_URL,
+    distHtml: path.join(__dirname, '../../dist/index.html'),
+    defaultWebPreferences,
+    getTrayIcon: () => createTrayIcon(),
+    getTrayFlashIcon: () => createTrayFlashIcon(createTrayIcon()),
+  getWindowBackgroundColor: () => {
+    const isDark = currentUiTheme === 'dark'
+    return isDark ? '#2c2c2c' : '#f9f9f9'
+  },
+    onOpen: action => {
+      showMainWindow()
+      flashWindowFrame(mainWindow, false)
+      if (action) sendNotificationActionToRenderer(action)
+    }
+  })
 
   registerWindowIpc()
   registerChatDbIpc()

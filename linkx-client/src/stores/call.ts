@@ -314,6 +314,11 @@ export const useCallStore = defineStore('call', {
       this.errorMessage = ''
       startCallRing()
       this.armRingTimeout()
+      if (event.callType === 'video') {
+        void this.ensureLocalMedia().catch(() => {
+          /* 预览失败仍可语音接听 */
+        })
+      }
     },
 
     armRingTimeout() {

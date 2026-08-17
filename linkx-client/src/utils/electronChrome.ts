@@ -7,4 +7,5 @@ export function syncDesktopChromeMode(loggedIn: boolean) {
   if (!window.electronAPI?.isElectron) return
   const isWin32 = window.electronAPI.getPlatform?.() === 'windows'
   document.documentElement.classList.toggle('lx-native-frame', isWin32 && loggedIn)
+  document.documentElement.classList.remove('lx-win-mica')
 }

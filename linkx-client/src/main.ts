@@ -31,6 +31,10 @@ import { debouncedSessionStorage } from './utils/debouncedStorage'
 import { reportBootError } from './utils/bootSplash'
 import { installGlobalWheelScrollDamping } from './utils/wheelScrollDamping'
 
+if (typeof location !== 'undefined' && /tray-message/.test(location.hash)) {
+  document.documentElement.classList.add('lx-tray-popup')
+}
+
 // 创建 Pinia 实例
 const pinia = createPinia()
 // 注册持久化插件，使配置了 persist 的 store 自动落盘
@@ -102,7 +106,8 @@ if (typeof document !== 'undefined') {
 }
 
 // 路由切换前重新应用主题，防止个别页面样式漂移
-router.beforeEach(() => {
+router.beforeEach(to => {
+  document.documentElement.classList.toggle('lx-tray-popup', to.name === 'tray-message')
   applyDocumentTheme(useAppStore().theme)
 })
 

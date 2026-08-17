@@ -102,6 +102,11 @@ export default {
       pop: { label: '气泡', description: '轻快短促' }
     }
   },
+  trayMessage: {
+    view: '查看消息',
+    viewAll: '查看全部',
+    ignoreAll: '忽略全部'
+  },
   privacy: {
     title: '隐私设置',
     note: '以下选项会同步到云端，影响他人能否加你为好友、发起会话，以及是否看到你的在线状态。',
@@ -1930,6 +1935,7 @@ export default {
     friend: '好友',
     inviteVideoCall: '邀请你进行视频通话',
     inviteVoiceCall: '邀请你进行语音通话',
+    acceptVoiceOnly: '语音接听',
     reject: '拒绝',
     accept: '接听',
     acceptFail: '接听失败',

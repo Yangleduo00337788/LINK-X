@@ -101,6 +101,11 @@ export default {
       pop: { label: 'Pop', description: 'Quick bubble pop' }
     }
   },
+  trayMessage: {
+    view: 'View message',
+    viewAll: 'View all',
+    ignoreAll: 'Ignore all'
+  },
   privacy: {
     title: 'Privacy',
     note: 'These options sync to the cloud and control friend requests, stranger chats, and online visibility.',
@@ -1930,6 +1935,7 @@ export default {
     friend: 'Friend',
     inviteVideoCall: 'Invites you to a video call',
     inviteVoiceCall: 'Invites you to a voice call',
+    acceptVoiceOnly: 'Voice only',
     reject: 'Decline',
     accept: 'Accept',
     acceptFail: 'Failed to answer',

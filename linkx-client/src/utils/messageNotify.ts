@@ -20,6 +20,13 @@ import { useAppSettingsStore } from '../stores/appSettings'
 import { isInQuietHours } from './notifyAggregate'
 import { t } from '../i18n'
 
+export type DesktopNotificationAction = {
+  kind: 'session' | 'official' | 'contacts' | 'calendar' | 'focus'
+  sessionId?: string
+  notificationId?: string
+  avatarUrl?: string
+}
+
 export interface IncomingNotifyContext {
   message: MessageItem
   session: ChatSession | undefined
@@ -160,7 +167,11 @@ export function notifyIncomingMessage(ctx: IncomingNotifyContext): void {
     ? preview || t('notifications.newMessageGeneric')
     : t('notifications.newMessageGeneric')
 
-  void showChatDesktopNotification(title, body, !settings.notifySound)
+  void showChatDesktopNotification(title, body, !settings.notifySound, {
+    kind: 'session',
+    sessionId,
+    avatarUrl: session?.avatarUrl || undefined
+  })
 }
 
 /**
@@ -190,7 +201,7 @@ export function notifySocialEvent(kind: 'friend_request' | 'group_invitation'): 
     kind === 'friend_request'
       ? t('notifications.friendRequestAlert')
       : t('notifications.groupInviteAlert')
-  void showChatDesktopNotification(title, body, !settings.notifySound)
+  void showChatDesktopNotification(title, body, !settings.notifySound, { kind: 'contacts' })
 }
 
 /** LinkX 官方反馈进度：声音 + 后台桌面通知 */
@@ -239,12 +250,8 @@ export async function notifyOfficialFeedback(type: string, content?: string): Pr
 
   if (!isWindowInBackground()) return
 
-  void showChatDesktopNotification(title, body, !settings.notifySound)
+  void showChatDesktopNotification(title, body, !settings.notifySound, { kind: 'official' })
 }
-
-/**
- * 好友上线提醒：前台应用内 toast + 后台桌面通知；受本地「好友上线提醒」开关约束。
- */
 export function notifyFriendOnline(friendName: string, avatarUrl?: string): void {
   const settings = useAppSettingsStore()
   if (settings.notifyFriendOnline === false) return
@@ -278,7 +285,7 @@ export function notifyFriendOnline(friendName: string, avatarUrl?: string): void
     return
   }
 
-  void showChatDesktopNotification(name, body, !settings.notifySound)
+  void showChatDesktopNotification(name, body, !settings.notifySound, { kind: 'contacts' })
 }
 
 /** 日程提醒：应用内 toast + 提示音；后台时桌面通知 */
@@ -326,17 +333,18 @@ export function notifyCalendarRemind(body: string, phase: 'ahead' | 'start' = 'a
     return
   }
 
-  void showChatDesktopNotification(title, content, !settings.notifySound)
+  void showChatDesktopNotification(title, content, !settings.notifySound, { kind: 'calendar' })
 }
 
 async function showChatDesktopNotification(
   title: string,
   body: string,
-  silent: boolean
+  silent: boolean,
+  action?: DesktopNotificationAction
 ): Promise<void> {
   try {
     if (window.electronAPI?.showNotification) {
-      await window.electronAPI.showNotification({ title, body, silent })
+      await window.electronAPI.showNotification({ title, body, silent, action })
       return
     }
   } catch (e) {

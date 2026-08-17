@@ -29,7 +29,15 @@ const catalogs: Record<MainLocale, Record<string, string>> = {
     screenshotCancel: '取消',
     screenshotTitle: '屏幕截图授权',
     screenshotMessage: 'LinkX 请求进行屏幕截图，是否允许？',
-    screenshotDetail: '截图将用于发送给聊天对象。'
+    screenshotDetail: '截图将用于发送给聊天对象。',
+    jumpOpen: '打开 LinkX',
+    jumpChat: '消息',
+    jumpContacts: '通讯录',
+    jumpCalendar: '日历',
+    jumpSettings: '设置',
+    toolbarAccept: '接听',
+    toolbarReject: '拒绝',
+    toolbarHangup: '挂断'
   },
   'en-US': {
     trayShow: 'Show LinkX',
@@ -55,7 +63,15 @@ const catalogs: Record<MainLocale, Record<string, string>> = {
     screenshotCancel: 'Cancel',
     screenshotTitle: 'Screen capture permission',
     screenshotMessage: 'LinkX wants to capture your screen. Allow?',
-    screenshotDetail: 'The screenshot will be sent in chat.'
+    screenshotDetail: 'The screenshot will be sent in chat.',
+    jumpOpen: 'Open LinkX',
+    jumpChat: 'Messages',
+    jumpContacts: 'Contacts',
+    jumpCalendar: 'Calendar',
+    jumpSettings: 'Settings',
+    toolbarAccept: 'Accept',
+    toolbarReject: 'Decline',
+    toolbarHangup: 'Hang up'
   }
 }
 

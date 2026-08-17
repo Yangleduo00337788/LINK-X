@@ -495,6 +495,54 @@ html.lx-electron-win32:not(.lx-native-frame) body {
   background: #ffffff !important;
 }
 
+/* 托盘消息预览：整窗透明，圆角只画在内层卡片上（避开 .route-view 的方角覆盖） */
+html.lx-tray-popup,
+html.lx-tray-popup body,
+html.lx-tray-popup #app,
+html.lx-tray-popup #app > *,
+html.lx-tray-popup .n-config-provider,
+html.lx-tray-popup .n-message-provider,
+html.lx-tray-popup .n-dialog-provider,
+html.lx-tray-popup .n-notification-provider,
+html.lx-tray-popup .route-view,
+html.lx-tray-popup .tray-popup-shell {
+  background: transparent !important;
+  box-shadow: none !important;
+  clip-path: none !important;
+}
+
+html.lx-tray-popup,
+html.lx-tray-popup body,
+html.lx-tray-popup #app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: visible !important;
+  border-radius: 0 !important;
+}
+
+html.lx-tray-popup.lx-electron #app,
+html.lx-tray-popup.lx-electron.lx-native-frame #app,
+html.lx-tray-popup.lx-electron-win32 body,
+html.lx-tray-popup.lx-electron-win32:not(.lx-native-frame) body {
+  background: transparent !important;
+  border-radius: 0 !important;
+  clip-path: none !important;
+  overflow: visible !important;
+}
+
+html.lx-tray-popup[data-theme='dark'] .tray-popup-card {
+  background: #2c2c2c;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+html.lx-tray-popup[data-theme='dark'] .tray-popup-card__foot {
+  border-top-color: rgba(255, 255, 255, 0.1);
+}
+
 html.lx-electron[data-theme='dark'].lx-electron-win32:not(.lx-native-frame),
 html.lx-electron[data-theme='dark'].lx-electron-win32:not(.lx-native-frame) body {
   background: #1a1a1a !important;
@@ -574,6 +622,20 @@ html.lx-electron[data-theme='dark'] #app {
 
 html.lx-electron.is-maximized[data-theme='dark'] #app {
   box-shadow: none;
+}
+
+html.lx-electron-win32.lx-native-frame {
+  --lx-bg-window: #f3f3f3;
+  --lx-bg-sidebar: #f3f3f3;
+  --lx-bg-panel: #f3f3f3;
+  --lx-bg-list: #eeeeee;
+}
+
+html.lx-electron-win32.lx-native-frame[data-theme='dark'] {
+  --lx-bg-window: #202020;
+  --lx-bg-sidebar: #202020;
+  --lx-bg-panel: #202020;
+  --lx-bg-list: #2a2a2a;
 }
 
 /* Electron 主壳：与浅色相同结构，背景一律走 token（深色即黑底） */
@@ -848,4 +910,19 @@ html.lx-electron .content-wrapper {
 
 [data-theme='dark'] .n-card__content {
   background-color: var(--lx-bg-card) !important;
+}
+
+/* 托盘预览：压过 Win32 全局白底，只留内层圆角卡片 */
+html.lx-tray-popup.lx-electron-win32:not(.lx-native-frame),
+html.lx-tray-popup.lx-electron-win32:not(.lx-native-frame) body,
+html.lx-tray-popup.lx-electron[data-theme='dark'].lx-electron-win32:not(.lx-native-frame),
+html.lx-tray-popup.lx-electron[data-theme='dark'].lx-electron-win32:not(.lx-native-frame) body,
+html.lx-tray-popup.lx-electron #app,
+html.lx-tray-popup.lx-electron.lx-native-frame #app,
+html.lx-tray-popup.lx-electron:not(.lx-native-frame) #app {
+  background: transparent !important;
+  box-shadow: none !important;
+  clip-path: none !important;
+  overflow: visible !important;
+  border-radius: 0 !important;
 }

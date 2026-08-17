@@ -39,6 +39,7 @@ import {
 import { applyAccentColor, liveAccentColor, liveAccentHover } from './utils/accentColor'
 import { setLocale, localeRef } from './i18n'
 import { useNativeWindowFrame } from './utils/electronChrome'
+import { initWinNativeBridge } from './utils/winNativeBridge'
 
 const appStore = useAppStore()
 const { theme, isLoggedIn, isLocked } = storeToRefs(appStore)
@@ -125,6 +126,7 @@ onMounted(() => {
       appStore.lock()
     }
   }) ?? null
+  initWinNativeBridge()
 })
 
 onBeforeUnmount(() => {
