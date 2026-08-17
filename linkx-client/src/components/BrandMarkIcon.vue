@@ -1,16 +1,13 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
-import logoMark from '../assets/logo-mark-transparent.png'
+import { PROJECT_LOGO_URL } from '../utils/projectLogo'
 
 withDefaults(
   defineProps<{
     size?: number
-    /** 未选会话主区水印：浅灰银色；其它位置保持默认彩色 */
-    tone?: 'default' | 'silver'
   }>(),
   {
-    size: 38,
-    tone: 'default'
+    size: 38
   }
 )
 </script>
@@ -18,11 +15,10 @@ withDefaults(
 <template>
   <span
     class="brand-mark-wrap"
-    :class="{ 'is-silver': tone === 'silver' }"
     :style="{ width: `${size}px`, height: `${size}px` }"
     aria-hidden="true"
   >
-    <img class="brand-mark" :src="logoMark" alt="" draggable="false" />
+    <img class="brand-mark" :src="PROJECT_LOGO_URL" alt="" draggable="false" />
   </span>
 </template>
 
@@ -33,7 +29,7 @@ withDefaults(
   justify-content: center;
   flex-shrink: 0;
   overflow: hidden;
-  border-radius: var(--lx-radius-2xs);
+  border-radius: var(--lx-radius-xs);
   background: transparent;
 }
 
@@ -43,23 +39,5 @@ withDefaults(
   height: 100%;
   object-fit: contain;
   object-position: center;
-  filter: saturate(1.1) contrast(1.06);
-}
-
-.brand-mark-wrap.is-silver .brand-mark {
-  filter: grayscale(1) brightness(1.18) contrast(0.88);
-}
-
-:global([data-theme='dark']) .brand-mark-wrap:not(.is-silver) {
-  border-radius: var(--lx-radius-xs);
-  background: rgba(255, 255, 255, 0.06);
-}
-
-:global([data-theme='dark']) .brand-mark {
-  filter: saturate(1.12) brightness(1.08);
-}
-
-:global([data-theme='dark']) .brand-mark-wrap.is-silver .brand-mark {
-  filter: grayscale(1) brightness(1.28) contrast(0.9);
 }
 </style>

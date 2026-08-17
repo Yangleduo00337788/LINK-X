@@ -1,13 +1,13 @@
 /**
  * 作者：yangleduo
  */
-import defaultAvatarIcon from '../assets/apple-touch-icon.png'
+import { PROJECT_LOGO_URL } from './projectLogo'
 import { API_BASE_URL } from '../config/endpoints'
 import { isDisplayableMediaUrl, normalizeMediaUrl } from './mediaUrl'
 import { getLinkMateLogoUrl, isLinkMateBotSender } from './linkmateLogo'
 
-/** 客户端默认头像：与 apple-touch-icon 一致的大圆角方形 Logo */
-export const DEFAULT_AVATAR_URL: string = defaultAvatarIcon
+/** 客户端默认头像：无头像时展示项目 Logo */
+export const DEFAULT_AVATAR_URL: string = PROJECT_LOGO_URL
 
 /** 第三方 CDN 头像（非本系统 OSS/MinIO 存储） */
 function isExternalAvatarCdn(url: string): boolean {
