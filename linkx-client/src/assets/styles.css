@@ -605,6 +605,7 @@ html.lx-electron.lx-native-frame .login-page--compact,
 html.lx-electron.lx-native-frame .register-page--compact {
   border-radius: 0;
   clip-path: none;
+  overflow: visible;
 }
 
 /* 最大化时去掉圆角与阴影 */

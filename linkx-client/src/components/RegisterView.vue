@@ -22,14 +22,11 @@ import WindowCaptionButtons from './WindowCaptionButtons.vue'
 import SliderCaptcha from './SliderCaptcha.vue'
 import { LxButton, LxIconButton } from './ui'
 import { openLegalPageInBrowser } from '../utils/legalPage'
-import { useNativeWindowFrame } from '../utils/electronChrome'
 
 const message = useMessage()
 const router = useRouter()
 const { t } = useI18n()
 const isElectron = !!window.electronAPI?.isElectron
-const showCustomCaption = computed(() => !!window.electronAPI?.showCustomCaptionButtons)
-const useNativeFrame = computed(() => isElectron && useNativeWindowFrame())
 
 const regUser = ref('')
 const regPass = ref('')
@@ -269,22 +266,13 @@ onUnmounted(() => {
       <span class="mesh" />
     </div>
 
-    <div v-if="!useNativeFrame" class="reg-win-bar">
-      <div class="reg-title">{{ t('register.title') }}</div>
+    <div v-if="isElectron" class="login-win-bar">
       <div class="drag-area" />
-      <WindowCaptionButtons v-if="showCustomCaption" :show-maximize="false" />
-      <button
-        v-else
-        type="button"
-        class="lx-win-caption-btn lx-win-caption-btn--close"
-        :title="t('common.back')"
-        @click="closeOrBack"
-      >
-        ×
-      </button>
+      <WindowCaptionButtons :show-maximize="false" force-show />
     </div>
 
     <div class="reg-body">
+      <div class="reg-body-main">
       <p class="reg-desc">{{ registerEnabled ? t('register.subtitle') : t('register.disabled') }}</p>
 
       <div v-if="configLoaded && !registerEnabled" class="reg-disabled">
@@ -439,6 +427,8 @@ onUnmounted(() => {
         </LxButton>
       </div>
 
+      </div>
+
       <div class="footer">
         <a href="#" class="footer-link" @click.prevent="closeOrBack">{{ t('register.backLogin') }}</a>
       </div>
@@ -450,8 +440,8 @@ onUnmounted(() => {
 .register-page {
   --lx-login-accent: var(--lx-accent);
   --lx-login-accent-deep: var(--lx-accent-deep);
-  
-  
+
+
   position: relative;
   width: 100%;
   height: 100%;
@@ -463,6 +453,13 @@ onUnmounted(() => {
   overflow: hidden;
   color: var(--lx-login-ink);
   font-family: 'Segoe UI Variable', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+.register-page--compact {
+  min-height: 576px;
+  padding: 0;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .reg-atmosphere {
@@ -525,14 +522,39 @@ onUnmounted(() => {
   }
 }
 
-.register-page--compact {
-  min-height: 520px;
-  border-radius: var(--lx-window-radius);
-  overflow: hidden;
-  clip-path: inset(0 round var(--lx-window-radius));
+.register-page--compact .reg-body {
+  padding: 0 var(--lx-space-2xl) var(--lx-space-xs);
+  justify-content: flex-start;
 }
 
-.reg-win-bar {
+.register-page--compact .reg-body-main {
+  flex: 0 1 auto;
+  min-height: 0;
+  justify-content: flex-start;
+  padding-top: var(--lx-space-md);
+  overflow-y: auto;
+}
+
+.register-page--compact .reg-body-main::before,
+.register-page--compact .reg-body-main::after {
+  display: none;
+}
+
+.register-page--compact .reg-desc {
+  margin-bottom: var(--lx-space-3xl);
+}
+
+.register-page--compact .reg-form {
+  gap: var(--lx-space-lg);
+}
+
+.register-page--compact .footer {
+  margin-top: var(--lx-space-lg);
+  padding-top: var(--lx-space-xs);
+  padding-bottom: var(--lx-space-2xs);
+}
+
+.login-win-bar {
   flex-shrink: 0;
   height: var(--lx-size-win-bar);
   width: 100%;
@@ -544,15 +566,8 @@ onUnmounted(() => {
   z-index: var(--lx-z-sticky);
 }
 
-.reg-title {
-  padding-left: var(--lx-space-xl);
-  font-size: var(--lx-font-md);
-  font-weight: 500;
-  color: var(--lx-ink-soft);
-  user-select: none;
-  -webkit-app-region: no-drag;
-  display: flex;
-  align-items: center;
+.login-win-bar :deep(.caption-btns) {
+  flex-shrink: 0;
 }
 
 .drag-area {
@@ -566,18 +581,38 @@ onUnmounted(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: var(--lx-space-lg) var(--lx-space-5xl-minus) var(--lx-space-2xl);
+  align-items: stretch;
+  padding: 0 var(--lx-space-3xl-plus) var(--lx-space-sm);
   box-sizing: border-box;
-  overflow: auto;
+  overflow: hidden;
   position: relative;
   z-index: var(--lx-z-raised);
 }
 
+.reg-body-main {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  overflow-y: auto;
+  padding: var(--lx-space-md) 0 0;
+  box-sizing: border-box;
+}
+
+.reg-body-main::before,
+.reg-body-main::after {
+  display: none;
+}
+
 .reg-desc {
-  margin: 0 0 var(--lx-space-2xl);
+  margin: 0 0 var(--lx-space-3xl);
+  width: 100%;
   font-size: var(--lx-font-md);
   color: var(--lx-login-muted);
+  text-align: center;
   animation: rise-in var(--lx-duration-slowest) ease var(--lx-duration-instant) both;
 }
 
@@ -585,8 +620,17 @@ onUnmounted(() => {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: var(--lx-space);
+  gap: var(--lx-space-lg);
+  flex-shrink: 0;
   animation: rise-in var(--lx-duration-slowest) ease var(--lx-duration-faster) both;
+}
+
+.reg-form .agreement-row {
+  margin-top: var(--lx-space-xs);
+}
+
+.reg-form .lx-btn--login {
+  margin-top: var(--lx-space-md);
 }
 
 .reg-disabled {
@@ -697,8 +741,10 @@ onUnmounted(() => {
 }
 
 .footer {
-  margin-top: auto;
-  padding-top: var(--lx-space-2xl);
+  margin-top: var(--lx-space-lg);
+  padding-top: var(--lx-space-xs);
+  padding-bottom: var(--lx-space-xs);
+  flex-shrink: 0;
   display: flex;
   justify-content: center;
   animation: rise-in var(--lx-duration-slowest) ease var(--lx-duration) both;
@@ -720,7 +766,7 @@ onUnmounted(() => {
   display: flex;
   align-items: flex-start;
   gap: var(--lx-space);
-  margin-top: var(--lx-space-xs);
+  margin-top: 0;
   cursor: pointer;
 }
 

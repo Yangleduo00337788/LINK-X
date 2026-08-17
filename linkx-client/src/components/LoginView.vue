@@ -8,7 +8,6 @@ import {
   MailOutline,
   ChevronDownOutline,
   PersonOutline,
-  LockClosedOutline,
   ShieldCheckmarkOutline
 } from '@vicons/ionicons5'
 import Avatar from './Avatar.vue'
@@ -24,6 +23,7 @@ import { validateUsername, validatePassword } from '../utils/validation'
 import { hasRefreshToken } from '../utils/tokenStorage'
 import { useI18n } from '../i18n'
 import { preloadClientResources } from '../utils/preloadClientResources'
+import { openLegalPageInBrowser } from '../utils/legalPage'
 
 const message = useMessage()
 const router = useRouter()
@@ -55,6 +55,7 @@ const username = ref('')
 const password = ref('')
 const rememberMe = ref(true)
 const autoLogin = ref(false)
+const acceptedTerms = ref(false)
 
 /** 自动登录阶段：先检网络，再自动登录 */
 const autoLoginPhase = ref<'idle' | 'checking' | 'logging-in'>('idle')
@@ -96,6 +97,10 @@ const displayAvatarUrl = computed(() => {
   if (!matchedSavedAccount.value) return undefined
   return savedLogin.value.avatar || userProfile.value.avatar || undefined
 })
+
+const passwordModeAvatarUrl = computed(() =>
+  matchedSavedAccount.value ? displayAvatarUrl.value : undefined
+)
 
 const displayAvatarText = computed(() => displayNickname.value.charAt(0) || '?')
 
@@ -168,6 +173,7 @@ let forgotCountdownTimer: ReturnType<typeof setInterval> | null = null
 const compact = computed(() => isElectron)
 
 const showMenu = ref(false)
+const showAccountMenu = ref(false)
 const showNetworkTip = ref(false)
 const showFeedback = ref(false)
 const feedbackText = ref('')
@@ -187,6 +193,25 @@ function toggleMenu() {
 
 function closeMenu() {
   showMenu.value = false
+}
+
+function toggleAccountMenu() {
+  if (autoLogging.value) return
+  showAccountMenu.value = !showAccountMenu.value
+}
+
+function closeAccountMenu() {
+  showAccountMenu.value = false
+}
+
+function pickSavedAccount() {
+  username.value = savedLogin.value.username || ''
+  closeAccountMenu()
+}
+
+function onAccountMenuQuick() {
+  closeAccountMenu()
+  switchToQuickMode()
 }
 
 function onMenuAction(key: 'network' | 'forgot' | 'feedback') {
@@ -238,6 +263,7 @@ async function submitFeedback() {
 
 function onDocClick() {
   if (showMenu.value) closeMenu()
+  if (showAccountMenu.value) closeAccountMenu()
 }
 
 function onSliderSuccess(offset: number) {
@@ -438,6 +464,10 @@ async function handleLogin() {
     )
     return
   }
+  if (!acceptedTerms.value) {
+    message.warning(t('login.mustAgree'))
+    return
+  }
 
   syncLoginPrefsToStore()
   void preloadClientResources()
@@ -469,7 +499,7 @@ function openRegister() {
   }
   // Web：新开标签/窗口，不替换当前登录页
   const url = `${window.location.origin}${window.location.pathname}${window.location.search}#/register`
-  const popup = window.open(url, 'linkx-register', 'width=360,height=640,menubar=no,toolbar=no,location=no,status=no')
+  const popup = window.open(url, 'linkx-register', 'width=380,height=576,menubar=no,toolbar=no,location=no,status=no')
   if (!popup) {
     void router.push('/register')
   }
@@ -622,7 +652,9 @@ async function handleForgot() {
           :title="t('login.menu')"
           @click="toggleMenu"
         >
-          <span class="web-menu-ico" />
+          <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+            <path d="M1.5 2.2h7M1.5 5h7M1.5 7.8h7" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" />
+          </svg>
         </button>
         <div v-if="showMenu" class="login-menu" role="menu">
           <button type="button" class="login-menu-item" role="menuitem" @click="onMenuAction('network')">
@@ -645,15 +677,30 @@ async function handleForgot() {
       <WindowCaptionButtons :show-maximize="false" force-show />
     </div>
 
-    <div class="login-body" :class="{ 'login-body--password': loginMode === 'password' }">
+    <div
+      class="login-body"
+      :class="{
+        'login-body--password': loginMode === 'password',
+        'login-body--quick': loginMode === 'quick'
+      }"
+    >
+      <div class="login-body-main">
       <div class="profile-block" :class="{ 'profile-block--password': loginMode === 'password' }">
-        <div class="avatar-ring" :class="{ 'avatar-ring--lg': loginMode === 'quick' }">
+        <div
+          class="avatar-ring"
+          :class="{
+            'avatar-ring--lg': loginMode === 'quick',
+            'avatar-ring--password': loginMode === 'password'
+          }"
+        >
           <div class="avatar-glow" aria-hidden="true" />
           <Avatar
             :text="displayAvatarText"
             color="var(--lx-accent)"
-            :size="loginMode === 'quick' ? 88 : 68"
-            :image-url="displayAvatarUrl"
+            :size="loginMode === 'quick' ? 88 : 76"
+            :icon="loginMode === 'password' && !passwordModeAvatarUrl ? PersonOutline : undefined"
+            :image-url="loginMode === 'quick' ? displayAvatarUrl : passwordModeAvatarUrl"
+            :fallback="loginMode === 'password' ? 'initial' : 'logo'"
           />
         </div>
         <!-- 快速登录：头像下方昵称 + 居中自动登录 -->
@@ -691,34 +738,62 @@ async function handleForgot() {
 
       <!-- 账密登录 -->
       <div v-else class="password-panel lx-panel">
-        <n-input
-          v-model:value="username"
-          size="large"
-          :placeholder="t('login.accountPh')"
-          class="lx-field"
-          :bordered="false"
-          :disabled="autoLogging"
-          @keyup.enter="handleLogin"
-        >
-          <template #prefix>
-            <n-icon :component="PersonOutline" :size="16" class="field-ico" />
-          </template>
-        </n-input>
+        <div class="account-field-wrap">
+          <n-input
+            v-model:value="username"
+            size="large"
+            :placeholder="t('login.accountPh')"
+            class="lx-field lx-field--plain"
+            :bordered="false"
+            :disabled="autoLogging"
+            @keyup.enter="handleLogin"
+          >
+            <template #suffix>
+              <button
+                type="button"
+                class="account-picker-btn"
+                :title="t('login.switchAccount')"
+                :disabled="autoLogging"
+                @click.stop="toggleAccountMenu"
+              >
+                <n-icon :component="ChevronDownOutline" :size="16" />
+              </button>
+            </template>
+          </n-input>
+          <div v-if="showAccountMenu" class="account-menu" role="menu" @click.stop>
+            <button
+              v-if="savedLogin.username"
+              type="button"
+              class="account-menu-item"
+              role="menuitem"
+              @click="pickSavedAccount"
+            >
+              <span class="account-menu-name">{{ savedLogin.username }}</span>
+              <span v-if="savedLogin.nickname" class="account-menu-sub">{{ savedLogin.nickname }}</span>
+            </button>
+            <button
+              v-if="savedLogin.username"
+              type="button"
+              class="account-menu-item"
+              role="menuitem"
+              @click="onAccountMenuQuick"
+            >
+              {{ t('login.quickLogin') }}
+            </button>
+            <p v-if="!savedLogin.username" class="account-menu-empty">{{ t('login.noSavedAccount') }}</p>
+          </div>
+        </div>
         <n-input
           v-model:value="password"
           type="password"
           show-password-on="click"
           size="large"
           :placeholder="t('login.passwordPh')"
-          class="lx-field"
+          class="lx-field lx-field--plain"
           :bordered="false"
           :disabled="autoLogging"
           @keyup.enter="handleLogin"
-        >
-          <template #prefix>
-            <n-icon :component="LockClosedOutline" :size="16" class="field-ico" />
-          </template>
-        </n-input>
+        />
 
         <div v-if="captchaEnabled" class="captcha-row">
           <SliderCaptcha
@@ -775,7 +850,7 @@ async function handleForgot() {
             {{ t('login.autoLogin') }}
           </n-checkbox>
           <n-checkbox v-model:checked="rememberMe" size="small" :disabled="autoLogging">
-            {{ t('login.rememberAccount') }}
+            {{ t('login.rememberPassword') }}
           </n-checkbox>
         </div>
 
@@ -788,6 +863,22 @@ async function handleForgot() {
           <span v-if="loginInProgress" class="lx-btn-spinner" aria-hidden="true" />
           <span>{{ loginButtonText }}</span>
         </LxButton>
+
+        <label class="agreement-row">
+          <input v-model="acceptedTerms" type="checkbox" class="agreement-row__checkbox" />
+          <span class="agreement-row__text">
+            {{ t('login.agreePrefix') }}
+            <button type="button" class="agreement-link" @click.stop="openLegalPageInBrowser('service')">
+              {{ t('register.serviceAgreement') }}
+            </button>
+            {{ t('login.agreeAnd') }}
+            <button type="button" class="agreement-link" @click.stop="openLegalPageInBrowser('privacy')">
+              {{ t('register.privacyPolicy') }}
+            </button>
+          </span>
+        </label>
+      </div>
+
       </div>
 
       <div class="footer">
@@ -810,13 +901,20 @@ async function handleForgot() {
         </template>
         <template v-else>
           <a
-            v-if="username.trim()"
             href="#"
             class="footer-link"
+            :class="{ 'is-disabled': autoLogging }"
             @click.prevent="switchToQuickMode"
           >{{ t('login.quickLogin') }}</a>
-          <span v-if="username.trim() && registerEnabled" class="footer-sep" />
-          <a v-if="registerEnabled" href="#" class="footer-link" @click.prevent="openRegister">{{ t('login.register') }}</a>
+          <template v-if="registerEnabled">
+            <span class="footer-sep" />
+            <a
+              href="#"
+              class="footer-link"
+              :class="{ 'is-disabled': autoLogging }"
+              @click.prevent="openRegister"
+            >{{ t('login.register') }}</a>
+          </template>
         </template>
       </div>
     </div>
@@ -1035,14 +1133,14 @@ async function handleForgot() {
 }
 
 .login-page--compact {
-  min-height: 461px;
+  min-height: 468px;
   padding: 0;
   border-radius: 8px;
   overflow: hidden;
 }
 
 .login-page--compact .login-body {
-  padding: var(--lx-space-lg) var(--lx-space-3xl) var(--lx-space-md);
+  padding: 0 var(--lx-space-3xl) var(--lx-space-sm);
 }
 
 .login-page--compact .profile-block {
@@ -1055,8 +1153,37 @@ async function handleForgot() {
 }
 
 .login-page--compact .footer {
-  padding-top: var(--lx-space-sm);
+  margin-top: auto;
+  padding-top: var(--lx-space-lg);
   padding-bottom: var(--lx-space-2xs);
+}
+
+.login-page--compact .login-body-main::before,
+.login-page--compact .login-body-main::after {
+  display: none;
+}
+
+.login-page--compact .login-body-main {
+  flex: 1;
+  min-height: 0;
+}
+
+.login-page--compact .login-body--quick .login-body-main {
+  justify-content: center;
+}
+
+.login-page--compact .login-body--password .login-body-main {
+  justify-content: flex-start;
+  padding-top: var(--lx-space-md);
+}
+
+.login-page--compact .login-body--password .profile-block--password {
+  margin-top: 0;
+  margin-bottom: var(--lx-space-3xl);
+}
+
+.login-page--compact .login-body--password .password-panel {
+  gap: var(--lx-space-lg);
 }
 
 .login-win-bar {
@@ -1085,52 +1212,8 @@ async function handleForgot() {
   position: relative;
   flex-shrink: 0;
   display: flex;
-  align-items: center;
-  gap: var(--lx-space-xs);
+  align-items: stretch;
   -webkit-app-region: no-drag;
-  padding-right: var(--lx-space-xs);
-}
-
-.lx-win-caption-btn--login-menu {
-  width: 36px;
-}
-
-.lx-win-caption-btn--login-menu::before {
-  background: rgba(255, 255, 255, 0.55);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7);
-}
-
-.lx-win-caption-btn--login-menu:hover::before {
-  background: rgba(255, 255, 255, 0.85);
-}
-
-.web-menu-ico,
-.web-menu-ico::before,
-.web-menu-ico::after {
-  display: block;
-  width: 12px;
-  height: 1.5px;
-  background: var(--lx-ink-soft);
-  border-radius: var(--lx-radius-hair);
-}
-
-.web-menu-ico {
-  position: relative;
-}
-
-.web-menu-ico::before,
-.web-menu-ico::after {
-  content: '';
-  position: absolute;
-  left: 0;
-}
-
-.web-menu-ico::before {
-  top: -4px;
-}
-
-.web-menu-ico::after {
-  top: 4px;
 }
 
 .login-menu {
@@ -1182,15 +1265,43 @@ async function handleForgot() {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: var(--lx-space-xs) var(--lx-space-4xl-plus) var(--lx-space-2xl);
+  align-items: stretch;
+  padding: 0 var(--lx-space-4xl-plus) var(--lx-space-lg);
   position: relative;
   z-index: var(--lx-z-raised);
   box-sizing: border-box;
 }
 
+.login-body-main {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  overflow-y: auto;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.login-body-main::before,
+.login-body-main::after {
+  content: '';
+  flex: 1 1 0;
+  width: 100%;
+  min-height: 0;
+  pointer-events: none;
+}
+
 .login-body--password {
-  padding: var(--lx-space-lg) var(--lx-space-3xl-plus) var(--lx-space-lg);
+  padding-left: var(--lx-space-3xl-plus);
+  padding-right: var(--lx-space-3xl-plus);
+}
+
+.login-body--password .login-body-main::before,
+.login-body--password .login-body-main::after {
+  display: none;
 }
 
 .profile-block {
@@ -1205,9 +1316,149 @@ async function handleForgot() {
 }
 
 .profile-block--password {
-  margin-top: var(--lx-space-2xs);
-  margin-bottom: var(--lx-space-xl);
+  margin-top: 0;
+  margin-bottom: var(--lx-space-3xl);
   gap: 0;
+}
+
+.avatar-ring--password {
+  padding: 3px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 6px 18px rgba(18, 183, 245, 0.16),
+    0 0 0 1px rgba(255, 255, 255, 0.95);
+}
+
+.avatar-ring--password :deep(.avatar) {
+  border-radius: 50%;
+}
+
+.account-field-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.account-picker-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--lx-radius-sm);
+  background: transparent;
+  color: var(--lx-login-text-muted-alt);
+  cursor: pointer;
+  transition: background var(--lx-duration) ease, color var(--lx-duration) ease;
+}
+
+.account-picker-btn:hover:not(:disabled) {
+  background: rgba(18, 183, 245, 0.08);
+  color: var(--lx-login-accent);
+}
+
+.account-picker-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.account-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: var(--lx-z-dock);
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(12px);
+  border-radius: var(--lx-radius-xl);
+  box-shadow: 0 8px 28px rgba(26, 35, 50, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  padding: var(--lx-space-sm);
+  animation: menu-in var(--lx-duration) ease;
+}
+
+.account-menu-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: var(--lx-space-sm) var(--lx-space-md);
+  border: none;
+  border-radius: var(--lx-radius-sm);
+  background: transparent;
+  color: var(--lx-login-ink);
+  font-size: var(--lx-font-md);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--lx-duration) ease;
+}
+
+.account-menu-item:hover {
+  background: rgba(18, 183, 245, 0.08);
+}
+
+.account-menu-name {
+  font-weight: 500;
+}
+
+.account-menu-sub {
+  font-size: var(--lx-font-sm);
+  color: var(--lx-login-muted);
+}
+
+.account-menu-empty {
+  margin: 0;
+  padding: var(--lx-space-sm) var(--lx-space-md);
+  font-size: var(--lx-font-sm);
+  color: var(--lx-login-muted);
+}
+
+.lx-field--plain :deep(.n-input-wrapper) {
+  padding-left: var(--lx-space-xl);
+}
+
+.lx-field--plain :deep(.n-input__suffix) {
+  margin-left: var(--lx-space-xs);
+}
+
+.agreement-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--lx-space);
+  margin-top: 0;
+  cursor: pointer;
+}
+
+.agreement-row__checkbox {
+  width: 15px;
+  height: 15px;
+  margin-top: var(--lx-space-2xs);
+  flex-shrink: 0;
+  accent-color: var(--lx-login-accent);
+}
+
+.agreement-row__text {
+  font-size: var(--lx-font-sm);
+  line-height: var(--lx-leading-relaxed);
+  color: var(--lx-login-muted);
+}
+
+.agreement-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--lx-login-accent-deep);
+  font: inherit;
+  cursor: pointer;
+}
+
+.agreement-link:hover {
+  color: var(--lx-login-link-hover);
+  text-decoration: underline;
 }
 
 .avatar-ring {
@@ -1275,9 +1526,22 @@ async function handleForgot() {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: var(--lx-space);
-  flex: 1;
-  min-height: 0;
+  gap: var(--lx-space-lg);
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.password-panel .options {
+  padding: var(--lx-space-sm) 0 0;
+  margin-top: var(--lx-space-xs);
+}
+
+.password-panel .lx-btn--login {
+  margin-top: var(--lx-space-md);
+}
+
+.password-panel .agreement-row {
+  margin-top: var(--lx-space-lg);
 }
 
 .quick-panel {
@@ -1398,7 +1662,8 @@ async function handleForgot() {
 
 .footer {
   margin-top: auto;
-  padding-top: var(--lx-space-md);
+  padding-top: var(--lx-space-lg);
+  padding-bottom: var(--lx-space-xs);
   flex-shrink: 0;
   display: flex;
   align-items: center;

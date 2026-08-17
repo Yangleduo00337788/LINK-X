@@ -1420,7 +1420,7 @@
   height: 40px;
   margin-top: var(--lx-space);
   border: none;
-  border-radius: var(--lx-radius-3xl);
+  border-radius: var(--lx-radius-lg);
   background: linear-gradient(135deg, var(--lx-accent-hover) 0%, var(--lx-accent) 48%, var(--lx-accent-deep) 100%);
   color: var(--lx-text-on-accent);
   font-size: var(--lx-font-lg);
