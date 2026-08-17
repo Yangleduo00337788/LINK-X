@@ -2,12 +2,12 @@
 <script setup lang="ts">
 /**
  * 未选会话时的主区：有运营内容则展示推荐/活动；
- * 否则仅居中放大灰色品牌标（彩色 logo 仍用于列表头像、登录页等）。
+ * 否则仅居中放大灰色 chrome 品牌标（彩色 logo 仍用于列表头像、登录页等）。
  */
 import { computed, ref } from 'vue'
 import OpsRecommendCarousel from './OpsRecommendCarousel.vue'
 import OpsActivityList from './OpsActivityList.vue'
-import BrandMarkIcon from '../BrandMarkIcon.vue'
+import { CHROME_BRAND_LOGO_URL } from '../../utils/projectLogo'
 
 const recommendCount = ref(0)
 const activityCount = ref(0)
@@ -45,7 +45,12 @@ function onActivityLoaded(payload: { count: number }) {
       class="discover-pane__brand"
       aria-hidden="true"
     >
-      <BrandMarkIcon :size="220" tone="silver" />
+      <img
+        class="discover-pane__brand-img"
+        :src="CHROME_BRAND_LOGO_URL"
+        alt=""
+        draggable="false"
+      />
     </div>
   </div>
 </template>
@@ -86,5 +91,21 @@ function onActivityLoaded(payload: { count: number }) {
   width: 100%;
   height: 100%;
   min-height: 0;
+}
+
+.discover-pane__brand-img {
+  display: block;
+  width: min(240px, 44vw);
+  height: auto;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  opacity: 0.8;
+  filter: brightness(0.7) contrast(1.1);
+}
+
+:global([data-theme='dark']) .discover-pane__brand-img {
+  opacity: 0.62;
+  filter: brightness(1.2) contrast(1.05);
 }
 </style>
