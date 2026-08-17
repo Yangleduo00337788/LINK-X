@@ -147,10 +147,10 @@ function onConfirm() {
         <p v-if="form.lobbyEnabled" class="hint lobby-hint">{{ t('conference.lobbyHint') }}</p>
 
         <div class="actions">
-          <LxButton variant="conference-ghost" @click="emit('cancel')">
+          <LxButton variant="modal" @click="emit('cancel')">
             {{ t('common.cancel') }}
           </LxButton>
-          <LxButton variant="conference-primary" @click="onConfirm">
+          <LxButton variant="modal-primary" @click="onConfirm">
             {{ t('conference.create') }}
           </LxButton>
         </div>
@@ -164,83 +164,111 @@ function onConfirm() {
   position: fixed;
   inset: 0;
   z-index: var(--lx-z-call);
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--lx-bg-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: var(--lx-space-4xl);
 }
+
 .create-card {
   width: min(400px, 92vw);
-  background: var(--lx-conf-panel);
-  border-radius: var(--lx-radius-lg);
-  padding: var(--lx-space-3xl-plus);
-  color: var(--lx-text-primary);
-  box-shadow: var(--lx-shadow-popover);
+  background: var(--lx-bg-card);
+  border-radius: var(--lx-radius);
+  padding: var(--lx-space-3xl);
+  color: var(--lx-text-body);
+  box-shadow: var(--lx-shadow-modal);
 }
+
 .create-card h3 {
   margin: 0 0 var(--lx-space-2xl);
   font-size: var(--lx-font-2xl);
+  font-weight: 600;
+  color: var(--lx-text-body);
 }
+
 .field {
   display: flex;
   flex-direction: column;
   gap: var(--lx-space-sm);
   margin-bottom: var(--lx-space-xl);
 }
+
 .label {
   font-size: var(--lx-font-md);
-  color: rgba(255, 255, 255, 0.65);
+  color: var(--lx-text-secondary);
 }
+
 .input {
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: var(--lx-radius-sm);
-  background: var(--lx-conf-bg);
-  color: var(--lx-text-primary);
+  border: 1px solid var(--lx-border-strong);
+  border-radius: var(--lx-radius);
+  background: var(--lx-bg-input);
+  color: var(--lx-text-body);
   padding: var(--lx-space) var(--lx-space-lg);
   font-size: var(--lx-font);
   outline: none;
+  box-sizing: border-box;
 }
+
 .input:focus {
-  border-color: var(--lx-conf-accent);
+  border-color: var(--lx-accent);
 }
+
 .hint {
   font-size: var(--lx-font-sm);
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--lx-text-muted);
 }
+
 .lobby-hint {
   margin: -var(--lx-space) 0 var(--lx-space-xl);
 }
+
 .check-row {
   flex-direction: row;
   align-items: center;
   gap: var(--lx-space);
   font-size: var(--lx-font);
+  color: var(--lx-text-body);
   cursor: pointer;
 }
+
 .check-row input {
   width: 16px;
   height: 16px;
-  accent-color: var(--lx-conf-accent);
+  accent-color: var(--lx-accent);
 }
+
 .seg {
   display: flex;
   gap: var(--lx-space);
 }
+
 .seg-btn {
   flex: 1;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: var(--lx-radius-sm);
+  border: 1px solid var(--lx-border-strong);
+  border-radius: var(--lx-radius);
   padding: var(--lx-space) var(--lx-space-md);
-  background: var(--lx-conf-bg);
-  color: rgba(255, 255, 255, 0.75);
+  background: var(--lx-bg-input);
+  color: var(--lx-text-secondary);
   cursor: pointer;
   font-size: var(--lx-font-md);
+  transition:
+    background var(--lx-duration) ease,
+    border-color var(--lx-duration) ease,
+    color var(--lx-duration) ease;
 }
-.seg-btn.active {
-  background: rgba(0, 110, 255, 0.25);
-  border-color: var(--lx-conf-accent);
-  color: var(--lx-text-on-accent);
+
+.seg-btn:hover {
+  background: var(--lx-bg-hover);
 }
+
+.seg-btn.is-active {
+  background: var(--lx-accent-soft);
+  border-color: var(--lx-accent);
+  color: var(--lx-accent-deep);
+  font-weight: 500;
+}
+
 .actions {
   display: flex;
   justify-content: flex-end;
