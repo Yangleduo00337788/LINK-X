@@ -29,8 +29,6 @@ import Avatar from './Avatar.vue'
 import PenguinWatermark from './PenguinWatermark.vue'
 // 未选会话时的运营发现区（推荐位 + 活动）
 import DiscoverEmptyPane from './ops/DiscoverEmptyPane.vue'
-// 群聊侧边栏
-import GroupChatSidebar from './chat/GroupChatSidebar.vue'
 import GroupSmartSummaryTab from './chat/GroupSmartSummaryTab.vue'
 // 好友聊天更多抽屉
 import ChatMoreDrawer from './chat/ChatMoreDrawer.vue'
@@ -1710,8 +1708,6 @@ function onDrop(e: DragEvent) {
           <!-- 好友聊天更多抽屉 -->
           <ChatMoreDrawer v-if="isFriendChat" />
         </div>
-        <!-- 群聊右侧成员侧栏 -->
-        <GroupChatSidebar v-if="isGroupChat" />
         <!-- 群信息抽屉 -->
         <GroupInfoDrawer v-if="isGroupChat" />
       </div>
