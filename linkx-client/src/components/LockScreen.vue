@@ -1,73 +1,128 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
-import { ref } from 'vue'
-import { NInput, NAvatar, NIcon, useMessage } from 'naive-ui'
-import { LockClosedOutline, ArrowForwardOutline } from '@vicons/ionicons5'
-import { LxIconButton } from './ui'
-import { storeToRefs } from 'pinia'
+import { computed, nextTick, ref } from 'vue'
+import { NInput, useMessage } from 'naive-ui'
+import WindowCaptionButtons from './WindowCaptionButtons.vue'
+import BrandMarkIcon from './BrandMarkIcon.vue'
+import { LxButton } from './ui'
 import { useAppStore } from '../stores/app'
+import { useSettingsStore } from '../stores/settings'
 import { useI18n } from '../i18n'
 
 const message = useMessage()
 const appStore = useAppStore()
-const { userProfile } = storeToRefs(appStore)
+const settingsStore = useSettingsStore()
 const { unlock, verifyLockPin, hasLockPin } = appStore
 const { t } = useI18n()
 
+const showUnlockForm = ref(false)
 const pin = ref('')
 const errorMsg = ref('')
+const unlocking = ref(false)
+const pinInputRef = ref<{ focus: () => void } | null>(null)
 
-async function handleUnlock() {
-  if (!hasLockPin()) {
+const isElectron = computed(() => !!window.electronAPI?.isElectron)
+const pinConfigured = computed(() => hasLockPin())
+
+async function openUnlockForm() {
+  if (!pinConfigured.value) {
     message.warning(t('lock.setPinFirst'))
     return
   }
+  pin.value = ''
+  errorMsg.value = ''
+  showUnlockForm.value = true
+  await nextTick()
+  pinInputRef.value?.focus()
+}
 
-  const ok = await verifyLockPin(pin.value)
-  if (ok) {
-    void unlock()
-    pin.value = ''
-    errorMsg.value = ''
-  } else {
-    errorMsg.value = t('lock.pinWrong')
-    message.error(t('lock.pinIncorrect'))
+function closeUnlockForm() {
+  showUnlockForm.value = false
+  pin.value = ''
+  errorMsg.value = ''
+}
+
+async function handleUnlock() {
+  if (!pinConfigured.value) {
+    message.warning(t('lock.setPinFirst'))
+    return
   }
+  if (!pin.value.trim()) {
+    errorMsg.value = t('lock.pinPh')
+    return
+  }
+
+  unlocking.value = true
+  try {
+    const ok = await verifyLockPin(pin.value)
+    if (ok) {
+      closeUnlockForm()
+      void unlock()
+    } else {
+      errorMsg.value = t('lock.pinWrong')
+      message.error(t('lock.pinIncorrect'))
+    }
+  } finally {
+    unlocking.value = false
+  }
+}
+
+function goSettings() {
+  closeUnlockForm()
+  void unlock()
+  settingsStore.openSettings('privacy')
 }
 </script>
 
 <template>
-  <div class="lock-screen" role="dialog" aria-modal="true" :aria-label="t('lock.title')">
-    <div class="lock-content">
-      <div class="lock-icon-wrapper">
-        <n-icon :component="LockClosedOutline" :size="32" class="lock-icon" />
+  <div class="lock-screen" role="dialog" aria-modal="true" :aria-label="t('lock.lockedTitle')">
+    <header v-if="isElectron" class="lock-caption">
+      <WindowCaptionButtons show-pin />
+    </header>
+
+    <div class="lock-body">
+      <div class="lock-logo" aria-hidden="true">
+        <BrandMarkIcon :size="72" />
       </div>
 
-      <n-avatar :size="80" class="avatar">
-        {{ userProfile.nickname?.charAt(0) || 'U' }}
-      </n-avatar>
+      <h1 class="lock-title">{{ t('lock.lockedTitle') }}</h1>
+      <p class="lock-hint">
+        {{ pinConfigured ? t('lock.unlockHint') : t('lock.noPinHint') }}
+      </p>
 
-      <h2 class="nickname">{{ userProfile.nickname }}</h2>
-      <p class="status">{{ t('lock.title') }}</p>
-
-      <div class="unlock-form">
+      <div v-if="showUnlockForm" class="unlock-form">
         <n-input
+          ref="pinInputRef"
           v-model:value="pin"
           type="password"
+          class="unlock-input"
           :placeholder="t('lock.pinPh')"
-          class="password-input"
           maxlength="6"
-          autofocus
+          show-password-on="click"
           @keyup.enter="handleUnlock"
-        >
-          <template #suffix>
-            <LxIconButton :title="t('lock.title')" @click="handleUnlock">
-              <n-icon :component="ArrowForwardOutline" />
-            </LxIconButton>
-          </template>
-        </n-input>
-        <div v-if="errorMsg" class="error-msg">{{ errorMsg }}</div>
-        <p v-if="!hasLockPin()" class="hint">{{ t('lock.noPinHint') }}</p>
+        />
+        <p v-if="errorMsg" class="unlock-error">{{ errorMsg }}</p>
+        <div class="unlock-actions">
+          <LxButton variant="ghost" @click="closeUnlockForm">{{ t('common.cancel') }}</LxButton>
+          <LxButton variant="primary-comfortable" :disabled="unlocking" @click="handleUnlock">
+            {{ t('lock.unlockConfirm') }}
+          </LxButton>
+        </div>
       </div>
+
+      <template v-else>
+        <LxButton
+          v-if="pinConfigured"
+          variant="primary-comfortable"
+          class="unlock-main-btn"
+          @click="openUnlockForm"
+        >
+          {{ t('lock.unlockButton') }}
+        </LxButton>
+        <LxButton v-else variant="primary-comfortable" class="unlock-main-btn" @click="goSettings">
+          {{ t('lock.goSettings') }}
+        </LxButton>
+      </template>
     </div>
   </div>
 </template>
@@ -78,84 +133,83 @@ async function handleUnlock() {
   inset: 0;
   z-index: var(--lx-z-lock);
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
   overflow: hidden;
-  background: rgba(18, 18, 22, 0.92);
+  background: var(--lx-bg-window);
+  color: var(--lx-text-body);
   -webkit-app-region: no-drag;
 }
 
-.lock-content {
+.lock-caption {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  -webkit-app-region: no-drag;
+}
+
+.lock-body {
   position: relative;
-  z-index: var(--lx-z-raised);
+  z-index: 2;
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: var(--lx-bg-card);
-  padding: var(--lx-space-section) var(--lx-space-block-lg);
-  border-radius: var(--lx-radius-2xl);
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35);
-  min-width: 320px;
+  justify-content: center;
+  padding: var(--lx-space-6xl) var(--lx-space-4xl);
+  box-sizing: border-box;
 }
 
-[data-theme='dark'] .lock-content {
-  background: var(--lx-bg-card);
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
-}
-
-.lock-icon-wrapper {
+.lock-logo {
   margin-bottom: var(--lx-space-4xl);
-  color: var(--lx-accent, var(--lx-accent));
 }
 
-.avatar {
-  margin-bottom: var(--lx-space-2xl);
-  border: 2px solid var(--lx-text-on-accent)fff;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-  background: var(--lx-accent, var(--lx-accent));
-  color: var(--lx-text-on-accent);
-  font-size: var(--lx-font-6xl);
-}
-
-[data-theme='dark'] .avatar {
-  border-color: var(--lx-lock-border);
-}
-
-.nickname {
-  margin: 0 0 var(--lx-space);
+.lock-title {
+  margin: 0;
   font-size: var(--lx-font-4xl);
-  font-weight: 500;
+  font-weight: 600;
+  line-height: var(--lx-leading-tight);
   color: var(--lx-text-body);
+  text-align: center;
 }
 
-.status {
-  margin: 0 0 var(--lx-space-5xl);
-  font-size: var(--lx-font);
-  color: var(--lx-text-secondary);
+.lock-hint {
+  margin: var(--lx-space-xl) 0 var(--lx-space-5xl);
+  max-width: 360px;
+  font-size: var(--lx-font-md);
+  line-height: var(--lx-leading-normal);
+  color: var(--lx-text-muted);
+  text-align: center;
+}
+
+.unlock-main-btn {
+  min-width: 200px;
 }
 
 .unlock-form {
-  width: 280px;
+  width: min(320px, 100%);
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
+  gap: var(--lx-space-lg);
 }
 
-.password-input {
-  border-radius: var(--lx-radius);
+.unlock-input {
+  width: 100%;
 }
 
-.error-msg {
-  margin-top: var(--lx-space-lg);
-  color: var(--lx-danger, var(--lx-danger-hover));
+.unlock-error {
+  margin: 0;
   font-size: var(--lx-font-sm);
+  color: var(--lx-danger);
   text-align: center;
 }
 
-.hint {
-  margin-top: var(--lx-space-lg);
-  font-size: var(--lx-font-sm);
-  color: var(--lx-text-secondary);
-  text-align: center;
+.unlock-actions {
+  display: flex;
+  justify-content: center;
+  gap: var(--lx-space);
 }
 </style>

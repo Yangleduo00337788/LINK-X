@@ -105,7 +105,7 @@ import * as userApi from '../api/user'
 import * as groupApi from '../api/group'
 import type { UpdateProfileRequest } from '../api/user'
 import { clearTokens, getRefreshToken, hasRefreshToken, isWebEnvironment, saveTokenPair } from '../utils/tokenStorage'
-import { hasLockPin as isLockPinConfigured, verifyLockPin as verifyLockPinHash, saveLockPinHash } from '../utils/lockPin'
+import { hasLockPin as isLockPinConfigured, verifyLockPin as verifyLockPinHash, saveLockPinHash, clearLockPin as removeLockPinHash } from '../utils/lockPin'
 import type { UserInfo } from '../types/auth'
 import type { UserProfileData } from '../api/user'
 import { validateLockPin } from '../utils/validation'
@@ -2758,6 +2758,11 @@ export const useAppStore = defineStore('app', {
       const err = validateLockPin(pin)
       if (err) throw new Error(err)
       await saveLockPinHash(pin)
+    },
+
+    /** 清除锁屏 PIN */
+    async clearLockPin() {
+      await removeLockPinHash()
     },
 
     /** 是否已设置锁屏 PIN */

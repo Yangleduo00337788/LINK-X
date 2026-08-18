@@ -124,7 +124,21 @@ export default {
     localNote: 'These options are stored on this device only and are not synced to the cloud.',
     retainChatCache: 'Keep local chat history cache',
     retainChatCacheDesc:
-      'When off, chat messages are not cached locally; lock screen and sign-out also clear cache'
+      'When off, chat messages are not cached locally; lock screen and sign-out also clear cache',
+    lockPin: 'Lock PIN',
+    lockPinDesc: 'Used by More → Lock and the lock shortcut; 4–6 digits',
+    lockPinConfigured: 'Configured',
+    lockPinNotConfigured: 'Not set',
+    lockPinCurrent: 'Current PIN',
+    lockPinNew: 'New PIN',
+    lockPinConfirm: 'Confirm PIN',
+    lockPinSave: 'Save PIN',
+    lockPinClear: 'Clear PIN',
+    lockPinSaved: 'Lock PIN saved',
+    lockPinCleared: 'Lock PIN cleared',
+    lockPinMismatch: 'PIN entries do not match',
+    lockPinCurrentWrong: 'Current PIN is incorrect',
+    lockPinDesktopOnly: 'Lock PIN can only be set in the desktop client (requires secure storage).'
   },
   presence: {
     peopleOnline: '{count} online',
@@ -162,6 +176,7 @@ export default {
     deleteSession: 'Delete chat',
     createGroup: 'New group',
     addFriendGroup: 'Add friend / group',
+    openLinkmate: 'LinkMate',
     calendarRemind: 'Reminders',
     noRemind: 'No reminders',
     remindAt: 'At {time}',
@@ -782,6 +797,10 @@ export default {
     dialogTitle: 'LinkMate',
     collapsePanel: 'Collapse LinkMate',
     expandPanel: 'Expand LinkMate',
+    closeTab: 'Close tab',
+    openStandalone: 'Open in standalone window',
+    closeAllTabs: 'Close all tabs',
+    closeAllTabsConfirm: 'Close all LinkMate tabs?',
     chatHint: 'Ask me anything',
     thinking: 'LinkMate is thinking…',
     deepThinking: 'Deep thinking',
@@ -986,11 +1005,17 @@ export default {
   },
   lock: {
     title: 'LinkX is locked',
+    lockedTitle: 'LinkX is locked',
+    unlockHint: 'Tap the button below and enter your lock PIN to unlock',
+    unlockButton: 'Unlock to continue',
+    unlockDialogTitle: 'Enter lock PIN',
+    unlockConfirm: 'Unlock',
+    goSettings: 'Open settings',
     pinPh: 'Enter 4–6 digit lock PIN',
     setPinFirst: 'Set a lock PIN in Settings first',
     pinWrong: 'Wrong PIN. Try again',
     pinIncorrect: 'Incorrect lock PIN',
-    noPinHint: 'No lock PIN set. Configure it in Settings.'
+    noPinHint: 'No lock PIN set. Go to Settings → Privacy to configure one'
   },
   contacts: {
     friends: 'Friends',
