@@ -131,7 +131,6 @@ public class LinkMateController {
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         MessageVO vo = linkMateService.replyInImChat(userId, dto);
-        imMessagePushService.pushToConversationMembers(vo, LinkMateConstants.BOT_SENDER_ID, null);
         return Result.success(vo);
     }
 

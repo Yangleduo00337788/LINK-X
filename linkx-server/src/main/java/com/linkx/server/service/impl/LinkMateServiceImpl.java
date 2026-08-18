@@ -28,7 +28,9 @@ import com.linkx.server.repository.ImMessageRepository;
 import com.linkx.server.service.ChatService;
 import com.linkx.server.service.LinkMateService;
 import com.linkx.server.service.linkmate.LinkMateConstants;
+import com.linkx.server.service.linkmate.LinkMateImReplyFormatter;
 import com.linkx.server.service.linkmate.LinkMateLlmClient;
+import com.linkx.server.service.linkmate.LinkMatePromptTemplate;
 import com.linkx.server.service.linkmate.LinkMateLlmClient.LlmMessage;
 import com.linkx.server.service.linkmate.LinkMateLlmClient.LlmResult;
 import com.linkx.server.service.linkmate.LinkMateLlmClient.StreamResult;
@@ -77,6 +79,7 @@ public class LinkMateServiceImpl implements LinkMateService {
     private static final Duration STREAM_SLOT_TTL = Duration.ofMinutes(10);
     private static final int STREAM_POOL_MAX = 32;
     private static final int STREAM_POOL_QUEUE = 64;
+    private static final long GROUP_REPLY_BUBBLE_DELAY_MS = 350L;
     private static final ExecutorService STREAM_EXECUTOR = new ThreadPoolExecutor(
             0,
             STREAM_POOL_MAX,
@@ -423,7 +426,8 @@ public class LinkMateServiceImpl implements LinkMateService {
         try {
             LlmResult result = llmClient.chat(context, resolveDeepThinking(dto.getDeepThinking()));
             finalizeDailyTokens(userId, reservedTokens, result.totalTokens());
-            return chatService.postLinkMateImMessage(dto.getConversationId(), result.content());
+            List<MessageVO> posted = postFormattedImReplies(userId, conversation, dto.getConversationId(), result.content());
+            return posted.get(posted.size() - 1);
         } catch (RuntimeException ex) {
             releaseDailyTokens(userId, reservedTokens);
             throw ex;
@@ -505,12 +509,20 @@ public class LinkMateServiceImpl implements LinkMateService {
                 }
                 finalizeDailyTokens(userId, tokensReserved, result.totalTokens());
                 tokensFinalized = true;
-                MessageVO message = chatService.postLinkMateImMessage(conversationId, result.content());
-                imMessagePushService.pushToConversationMembers(message, LinkMateConstants.BOT_SENDER_ID, null);
-                sendSse(emitter, "done", Map.of(
-                        "messageId", String.valueOf(message.getId()),
-                        "conversationId", String.valueOf(conversationId),
-                        "totalTokens", String.valueOf(result.totalTokens())));
+                List<MessageVO> posted = postFormattedImReplies(userId, conversation, conversationId, result.content());
+                MessageVO lastMessage = posted.get(posted.size() - 1);
+                List<Map<String, String>> messageItems = new ArrayList<>();
+                for (MessageVO vo : posted) {
+                    messageItems.add(Map.of(
+                            "id", String.valueOf(vo.getId()),
+                            "content", vo.getContent() != null ? vo.getContent() : ""));
+                }
+                Map<String, Object> donePayload = new java.util.HashMap<>();
+                donePayload.put("messageId", String.valueOf(lastMessage.getId()));
+                donePayload.put("conversationId", String.valueOf(conversationId));
+                donePayload.put("totalTokens", String.valueOf(result.totalTokens()));
+                donePayload.put("messages", messageItems);
+                sendSse(emitter, "done", donePayload);
                 emitter.complete();
             } catch (CustomException ex) {
                 sendError(emitter, ex.getMessage());
@@ -545,18 +557,20 @@ public class LinkMateServiceImpl implements LinkMateService {
         return conversation;
     }
 
+    private String resolveSystemPrompt(LinkxProperties.LinkMate cfg) {
+        if (cfg != null && StringUtils.hasText(cfg.getSystemPrompt())) {
+            return cfg.getSystemPrompt().trim();
+        }
+        return LinkMatePromptTemplate.DEFAULT_SYSTEM.getTemplate();
+    }
+
     private List<LlmMessage> buildImMentionLlmContext(
             Long conversationId,
             Long userId,
             ImConversation conversation,
             String question) {
         LinkxProperties.LinkMate cfg = linkxProperties.getLinkmate();
-        String systemPrompt = cfg.getSystemPrompt();
-        if (!StringUtils.hasText(systemPrompt)) {
-            systemPrompt = "你是「灵伴」（LinkMate），LinkX 企业即时通讯平台的智能伙伴。"
-                    + "你负责陪伴用户完成对话、知识检索、任务执行和各类 AI 助手功能。"
-                    + "回答请简洁、专业、友好，使用用户使用的语言回复。";
-        }
+        String systemPrompt = resolveSystemPrompt(cfg);
         List<LlmMessage> messages = new ArrayList<>();
         messages.add(new LlmMessage("system", systemPrompt));
 
@@ -565,14 +579,13 @@ public class LinkMateServiceImpl implements LinkMateService {
                 : (conversation.getType() == ImConversation.TYPE_GROUP ? "群聊" : "单聊");
         StringBuilder groupCtx = new StringBuilder();
         if (conversation.getType() == ImConversation.TYPE_GROUP) {
-            groupCtx.append("你正在群聊「").append(groupTitle).append("」中被 @提及。");
-            groupCtx.append("你的回复将作为一条群消息发送给所有群成员，请简洁、专业、友好。");
+            groupCtx.append(LinkMatePromptTemplate.IM_MENTION_GROUP_SCENE.format(
+                    Map.of("conversationTitle", groupTitle)));
         } else {
-            groupCtx.append("你正在与用户的单聊「").append(groupTitle).append("」中被 @提及。");
-            groupCtx.append("你的回复将作为一条单聊消息发送给对方，请简洁、专业、友好。");
+            groupCtx.append(LinkMatePromptTemplate.IM_MENTION_PRIVATE_SCENE.format(
+                    Map.of("conversationTitle", groupTitle)));
         }
-        groupCtx.append("使用提问者使用的语言回复。\n");
-        groupCtx.append("最近消息：\n");
+        groupCtx.append(LinkMatePromptTemplate.IM_MENTION_SCENE_SUFFIX.getTemplate());
 
         List<ImMessage> recent = imMessageRepository.selectListByQuery(
                 QueryWrapper.create()
@@ -601,7 +614,9 @@ public class LinkMateServiceImpl implements LinkMateService {
             }
             String senderName;
             if (LinkMateConstants.BOT_SENDER_ID.equals(msg.getSenderId())) {
-                senderName = LinkMateConstants.BOT_NICKNAME;
+                senderName = conversation.getType() == ImConversation.TYPE_GROUP
+                        ? LinkMateConstants.GROUP_ASSISTANT_NICKNAME
+                        : LinkMateConstants.BOT_NICKNAME;
             } else {
                 SysUser sender = senderMap.get(msg.getSenderId());
                 if (sender != null) {
@@ -619,6 +634,59 @@ public class LinkMateServiceImpl implements LinkMateService {
         messages.add(new LlmMessage("system", groupCtx.toString().trim()));
         messages.add(new LlmMessage("user", question));
         return messages;
+    }
+
+    private List<MessageVO> postFormattedImReplies(
+            Long userId,
+            ImConversation conversation,
+            Long conversationId,
+            String rawContent) {
+        if (!StringUtils.hasText(rawContent)) {
+            throw new CustomException(400, "回复内容不能为空");
+        }
+        boolean isGroup = conversation.getType() == ImConversation.TYPE_GROUP;
+        List<String> parts;
+        if (isGroup) {
+            parts = LinkMateImReplyFormatter.splitGroupBubbles(rawContent);
+            String senderName = resolveUserDisplayName(userId);
+            parts = parts.stream()
+                    .map(part -> LinkMateImReplyFormatter.withMentionPrefix(part, senderName))
+                    .toList();
+        } else {
+            parts = List.of(rawContent.trim());
+        }
+        List<MessageVO> posted = new ArrayList<>();
+        for (int i = 0; i < parts.size(); i++) {
+            if (i > 0) {
+                try {
+                    Thread.sleep(GROUP_REPLY_BUBBLE_DELAY_MS);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+            MessageVO vo = chatService.postLinkMateImMessage(conversationId, parts.get(i));
+            imMessagePushService.pushToConversationMembers(vo, LinkMateConstants.BOT_SENDER_ID, null);
+            posted.add(vo);
+        }
+        return posted;
+    }
+
+    private String resolveUserDisplayName(Long userId) {
+        if (userId == null) {
+            return "用户";
+        }
+        SysUser user = sysUserMapper.selectOneById(userId);
+        if (user == null) {
+            return "用户";
+        }
+        if (StringUtils.hasText(user.getNickname())) {
+            return user.getNickname().trim();
+        }
+        if (StringUtils.hasText(user.getUsername())) {
+            return user.getUsername().trim();
+        }
+        return "用户";
     }
 
     private String formatImMessagePreview(ImMessage msg) {
@@ -748,12 +816,7 @@ public class LinkMateServiceImpl implements LinkMateService {
 
     private List<LlmMessage> buildLlmContext(Long sessionId, LinkMateImContextDTO imContext) {
         LinkxProperties.LinkMate cfg = linkxProperties.getLinkmate();
-        String systemPrompt = cfg.getSystemPrompt();
-        if (!StringUtils.hasText(systemPrompt)) {
-            systemPrompt = "你是「灵伴」（LinkMate），LinkX 企业即时通讯平台的智能伙伴。"
-                    + "你负责陪伴用户完成对话、知识检索、任务执行和各类 AI 助手功能。"
-                    + "回答请简洁、专业、友好，使用用户使用的语言回复。";
-        }
+        String systemPrompt = resolveSystemPrompt(cfg);
         List<LlmMessage> messages = new ArrayList<>();
         messages.add(new LlmMessage("system", systemPrompt));
 

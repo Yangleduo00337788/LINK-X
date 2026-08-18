@@ -1599,7 +1599,7 @@ public class ChatServiceImpl implements ChatService {
                 ? mediaUrlService.resolveUserAvatar(sender.getId(), sender.getAvatar())
                 : null;
         if (LinkMateConstants.BOT_SENDER_ID.equals(message.getSenderId())) {
-            senderNickname = LinkMateConstants.BOT_NICKNAME;
+            senderNickname = resolveBotNickname(message.getConversationId());
             senderAvatar = null;
         }
         boolean isSelf = currentUserId != null
@@ -1638,6 +1638,17 @@ public class ChatServiceImpl implements ChatService {
         }
 
         return builder.build();
+    }
+
+    private String resolveBotNickname(Long conversationId) {
+        if (conversationId == null) {
+            return LinkMateConstants.BOT_NICKNAME;
+        }
+        ImConversation conversation = conversationMapper.selectOneById(conversationId);
+        if (conversation != null && conversation.getType() == ImConversation.TYPE_GROUP) {
+            return LinkMateConstants.GROUP_ASSISTANT_NICKNAME;
+        }
+        return LinkMateConstants.BOT_NICKNAME;
     }
 
     private void fillRedPacketFields(MessageVO.MessageVOBuilder builder, ImMessage message, Long currentUserId) {
