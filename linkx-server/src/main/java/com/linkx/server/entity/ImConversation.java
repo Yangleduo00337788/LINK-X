@@ -89,6 +89,29 @@ public class ImConversation implements Serializable {
     @Builder.Default
     private Integer linkmateEnabled = 1;
 
+    /** 群聊主动发言：0 关闭，1 开启 */
+    @Builder.Default
+    private Integer groupAiProactiveEnabled = 0;
+
+    /** 主动发言关注话题 */
+    private String groupAiInterestTopics;
+
+    /** 群聊智能总结：0 关闭，1 开启 */
+    @Builder.Default
+    private Integer groupAiSmartSummaryEnabled = 0;
+
+    /** 智能总结指令 */
+    private String groupAiSummaryInstruction;
+
+    /** 上次主动发言时间 */
+    private Date groupAiLastProactiveAt;
+
+    /** 上次智能总结时间 */
+    private Date groupAiLastSummaryAt;
+
+    /** 上次总结覆盖到的消息 ID */
+    private Long groupAiLastSummaryMsgId;
+
     private String lastMessageContent;
 
     private Date lastMessageTime;

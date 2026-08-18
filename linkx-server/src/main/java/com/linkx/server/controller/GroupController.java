@@ -16,6 +16,7 @@ import com.linkx.server.controller.dto.BatchRemoveMembersDTO;
 import com.linkx.server.controller.dto.CreateGroupDTO;
 import com.linkx.server.controller.dto.HandleJoinRequestDTO;
 import com.linkx.server.controller.dto.LinkMateGroupEnabledDTO;
+import com.linkx.server.controller.dto.UpdateGroupAiFeaturesDTO;
 import com.linkx.server.controller.dto.MuteAllDTO;
 import com.linkx.server.controller.dto.MuteMemberDTO;
 import com.linkx.server.controller.dto.RequestJoinDTO;
@@ -27,6 +28,8 @@ import com.linkx.server.controller.dto.UpdateMemberRoleDTO;
 import com.linkx.server.controller.vo.ConversationVO;
 import com.linkx.server.controller.vo.GroupConversationVO;
 import com.linkx.server.controller.vo.GroupMemberVO;
+import com.linkx.server.controller.vo.MessageVO;
+import com.linkx.server.service.GroupAiAutomationService;
 import com.linkx.server.service.GroupService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -45,6 +48,7 @@ import java.util.List;
 public class GroupController {
 
     private final GroupService groupService;
+    private final GroupAiAutomationService groupAiAutomationService;
     private final JwtUtils jwtUtils;
 
     /**
@@ -213,6 +217,35 @@ public class GroupController {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         return Result.success(
                 groupService.updateLinkmateEnabled(userId, parseId(conversationId), dto.getEnabled())
+        );
+    }
+
+    /**
+     * 群聊 AI 功能设置：主动发言、智能总结（群主或管理员）
+     */
+    @Operation(summary = "设置群聊 AI 功能")
+    @PutMapping("/{conversationId}/group-ai-features")
+    public Result<GroupConversationVO> updateGroupAiFeatures(
+            @PathVariable String conversationId,
+            @RequestBody UpdateGroupAiFeaturesDTO dto,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(
+                groupService.updateGroupAiFeatures(userId, parseId(conversationId), dto)
+        );
+    }
+
+    /**
+     * 手动触发群聊智能总结（群成员，需已开启智能总结）
+     */
+    @Operation(summary = "触发群聊智能总结")
+    @PostMapping("/{conversationId}/group-ai-summary")
+    public Result<MessageVO> triggerGroupAiSummary(
+            @PathVariable String conversationId,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(
+                groupAiAutomationService.triggerSmartSummary(userId, parseId(conversationId))
         );
     }
 

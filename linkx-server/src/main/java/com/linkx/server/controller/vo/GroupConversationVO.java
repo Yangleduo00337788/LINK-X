@@ -69,4 +69,16 @@ public class GroupConversationVO {
 
     /** 群聊是否允许 @灵伴（AI 接入） */
     private Boolean linkmateEnabled;
+
+    /** 群聊主动发言 */
+    private Boolean groupAiProactiveEnabled;
+
+    /** 主动发言关注话题 */
+    private String groupAiInterestTopics;
+
+    /** 群聊智能总结 */
+    private Boolean groupAiSmartSummaryEnabled;
+
+    /** 智能总结指令 */
+    private String groupAiSummaryInstruction;
 }

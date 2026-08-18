@@ -1071,6 +1071,10 @@ public class GroupServiceImpl implements GroupService {
                 .joinApproval(group.getJoinApproval() != null && group.getJoinApproval() == 1)
                 .invitePolicy(group.getInvitePolicy() != null ? group.getInvitePolicy() : "anyMember")
                 .linkmateEnabled(group.getLinkmateEnabled() == null || group.getLinkmateEnabled() == 1)
+                .groupAiProactiveEnabled(Integer.valueOf(1).equals(group.getGroupAiProactiveEnabled()))
+                .groupAiInterestTopics(group.getGroupAiInterestTopics())
+                .groupAiSmartSummaryEnabled(Integer.valueOf(1).equals(group.getGroupAiSmartSummaryEnabled()))
+                .groupAiSummaryInstruction(group.getGroupAiSummaryInstruction())
                 .build();
     }
 
@@ -1505,6 +1509,10 @@ public class GroupServiceImpl implements GroupService {
     public GroupConversationVO updateLinkmateEnabled(Long userId, Long conversationId, boolean enabled) {
         ImConversation group = assertGroupAdmin(userId, conversationId);
         group.setLinkmateEnabled(enabled ? 1 : 0);
+        if (!enabled) {
+            group.setGroupAiProactiveEnabled(0);
+            group.setGroupAiSmartSummaryEnabled(0);
+        }
         conversationMapper.update(group);
 
         SysUser owner = sysUserMapper.selectOneById(group.getOwnerId());
@@ -1516,12 +1524,67 @@ public class GroupServiceImpl implements GroupService {
                 opName + (enabled ? " 开启了灵伴接入" : " 关闭了灵伴接入")
         );
 
-        Map<String, Object> payload = Map.of(
-                "conversationId", String.valueOf(conversationId),
-                "linkmateEnabled", enabled
-        );
+        Map<String, Object> payload = new java.util.HashMap<>();
+        payload.put("conversationId", String.valueOf(conversationId));
+        payload.put("linkmateEnabled", enabled);
+        if (!enabled) {
+            payload.put("groupAiProactiveEnabled", false);
+            payload.put("groupAiInterestTopics", "");
+            payload.put("groupAiSmartSummaryEnabled", false);
+            payload.put("groupAiSummaryInstruction", "");
+        }
         imPushService.pushActionToConversationMembers(conversationId, "group_linkmate_changed", payload);
 
+        return toGroupConversationVO(group, owner, userId);
+    }
+
+    private static final int GROUP_AI_INTEREST_TOPICS_MAX = 200;
+    private static final int GROUP_AI_SUMMARY_INSTRUCTION_MAX = 500;
+
+    @Override
+    @Transactional
+    public GroupConversationVO updateGroupAiFeatures(Long userId, Long conversationId,
+                                                     com.linkx.server.controller.dto.UpdateGroupAiFeaturesDTO dto) {
+        ImConversation group = assertGroupAdmin(userId, conversationId);
+        if (dto.getProactiveEnabled() != null) {
+            if (dto.getProactiveEnabled()
+                    && (group.getLinkmateEnabled() == null || group.getLinkmateEnabled() == 0)) {
+                throw new CustomException(400, "请先开启群聊小助手");
+            }
+            group.setGroupAiProactiveEnabled(dto.getProactiveEnabled() ? 1 : 0);
+        }
+        if (dto.getInterestTopics() != null) {
+            String topics = dto.getInterestTopics().trim();
+            group.setGroupAiInterestTopics(
+                    topics.isEmpty() ? null : com.linkx.server.common.InputSanitizer.limitPlainText(
+                            topics, GROUP_AI_INTEREST_TOPICS_MAX));
+        }
+        if (dto.getSmartSummaryEnabled() != null) {
+            if (dto.getSmartSummaryEnabled()
+                    && (group.getLinkmateEnabled() == null || group.getLinkmateEnabled() == 0)) {
+                throw new CustomException(400, "请先开启群聊小助手");
+            }
+            group.setGroupAiSmartSummaryEnabled(dto.getSmartSummaryEnabled() ? 1 : 0);
+        }
+        if (dto.getSummaryInstruction() != null) {
+            String instruction = dto.getSummaryInstruction().trim();
+            group.setGroupAiSummaryInstruction(
+                    instruction.isEmpty() ? null : com.linkx.server.common.InputSanitizer.limitPlainText(
+                            instruction, GROUP_AI_SUMMARY_INSTRUCTION_MAX));
+        }
+        conversationMapper.update(group);
+
+        Map<String, Object> payload = Map.of(
+                "conversationId", String.valueOf(conversationId),
+                "groupAiProactiveEnabled", Integer.valueOf(1).equals(group.getGroupAiProactiveEnabled()),
+                "groupAiInterestTopics", group.getGroupAiInterestTopics() != null ? group.getGroupAiInterestTopics() : "",
+                "groupAiSmartSummaryEnabled", Integer.valueOf(1).equals(group.getGroupAiSmartSummaryEnabled()),
+                "groupAiSummaryInstruction",
+                group.getGroupAiSummaryInstruction() != null ? group.getGroupAiSummaryInstruction() : ""
+        );
+        imPushService.pushActionToConversationMembers(conversationId, "group_ai_features_changed", payload);
+
+        SysUser owner = sysUserMapper.selectOneById(group.getOwnerId());
         return toGroupConversationVO(group, owner, userId);
     }
 }

@@ -31,6 +31,7 @@ import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.mapper.SysUserRelationMapper;
 import com.linkx.server.service.PresenceService;
 import com.linkx.server.service.ChatService;
+import com.linkx.server.service.GroupAiAutomationService;
 import com.linkx.server.service.FileStorageService;
 import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.MessageStormService;
@@ -103,6 +104,7 @@ public class ChatServiceImpl implements ChatService {
     private final AuditLogService auditLogService;
     private final AdminRiskEventService adminRiskEventService;
     private final ObjectProvider<AdminReviewService> adminReviewService;
+    private final ObjectProvider<GroupAiAutomationService> groupAiAutomationService;
     private final LinkxMetrics linkxMetrics;
 
     @Override
@@ -452,7 +454,39 @@ public class ChatServiceImpl implements ChatService {
         if (sensitiveAlert) {
             vo.setSensitiveAlert(Boolean.TRUE);
         }
+        scheduleGroupAiProactiveCheck(conversation, message);
         return vo;
+    }
+
+    private void scheduleGroupAiProactiveCheck(ImConversation conversation, ImMessage message) {
+        if (conversation == null || message == null
+                || conversation.getType() != ImConversation.TYPE_GROUP) {
+            return;
+        }
+        Long conversationId = conversation.getId();
+        ImMessage snapshot = ImMessage.builder()
+                .id(message.getId())
+                .conversationId(message.getConversationId())
+                .senderId(message.getSenderId())
+                .type(message.getType())
+                .content(message.getContent())
+                .build();
+        Runnable task = () -> {
+            GroupAiAutomationService automation = groupAiAutomationService.getIfAvailable();
+            if (automation != null) {
+                automation.onGroupUserMessage(conversationId, snapshot);
+            }
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    task.run();
+                }
+            });
+        } else {
+            task.run();
+        }
     }
 
     @Override

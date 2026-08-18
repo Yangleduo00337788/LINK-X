@@ -108,4 +108,19 @@ public class ImAsyncConfig {
         executor.initialize();
         return executor;
     }
+
+    /**
+     * 群聊 AI 自动化（主动发言）专用线程池。
+     */
+    @Bean(name = "linkmateAutomationExecutor")
+    public java.util.concurrent.Executor linkmateAutomationExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(8);
+        executor.setQueueCapacity(200);
+        executor.setThreadNamePrefix("linkmate-auto-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.DiscardPolicy());
+        executor.initialize();
+        return executor;
+    }
 }

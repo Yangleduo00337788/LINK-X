@@ -138,4 +138,8 @@ public interface GroupService {
 
     /** 设置群聊灵伴接入开关（群主/管理员） */
     GroupConversationVO updateLinkmateEnabled(Long userId, Long conversationId, boolean enabled);
+
+    /** 设置群聊 AI 功能：主动发言、智能总结（群主/管理员） */
+    GroupConversationVO updateGroupAiFeatures(Long userId, Long conversationId,
+                                            com.linkx.server.controller.dto.UpdateGroupAiFeaturesDTO dto);
 }
