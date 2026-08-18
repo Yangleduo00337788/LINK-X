@@ -7,10 +7,15 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-/** 构建 @灵伴 提及正则（兼容中英文 locale 及历史写法） */
+/** 构建 @小助手 提及正则（兼容中英文 locale 及历史写法） */
 export function buildLinkMateMentionRegExp(atName?: string): RegExp {
   const name = (atName ?? t('linkmate.atName')).trim()
-  const alts = new Set<string>(['灵伴(?:\\s*LinkMate)?', 'LinkMate'])
+  const alts = new Set<string>([
+    '灵伴(?:\\s*LinkMate)?',
+    'LinkMate',
+    '群聊小助手',
+    'Group\\s+assistant'
+  ])
   if (name && name !== 'LinkMate') {
     alts.add(escapeRegExp(name))
   }

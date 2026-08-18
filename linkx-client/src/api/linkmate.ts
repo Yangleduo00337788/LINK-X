@@ -40,11 +40,23 @@ export interface LinkMateMessage {
   tokenCount?: number
 }
 
+export interface LinkMateImReplyMessage {
+  id: string
+  content: string
+}
+
+export interface LinkMateImStreamDonePayload {
+  messageId: string
+  conversationId: string
+  totalTokens?: number
+  messages?: LinkMateImReplyMessage[]
+}
+
 export interface LinkMateImStreamHandlers {
   onStart?: (conversationId: string) => void
   onDelta?: (content: string) => void
   onReasoningDelta?: (content: string) => void
-  onDone?: (messageId: string, conversationId: string, totalTokens?: number) => void
+  onDone?: (payload: LinkMateImStreamDonePayload) => void
   onError?: (message: string) => void
 }
 
@@ -107,15 +119,31 @@ export async function streamImReply(
 
   await readLinkMateSseStream(response.body, {
     onStart: payload => {
-      if (payload.conversationId) handlers.onStart?.(payload.conversationId)
+      const conversationId = payload.conversationId
+      if (typeof conversationId === 'string' && conversationId) {
+        handlers.onStart?.(conversationId)
+      }
     },
     onDelta: handlers.onDelta,
     onReasoningDelta: handlers.onReasoningDelta,
     onDone: payload => {
-      if (payload.messageId && payload.conversationId) {
-        const totalTokens = payload.totalTokens ? Number(payload.totalTokens) : undefined
-        handlers.onDone?.(payload.messageId, payload.conversationId, totalTokens)
+      const conversationId =
+        typeof payload.conversationId === 'string' ? payload.conversationId : ''
+      const messageId = typeof payload.messageId === 'string' ? payload.messageId : ''
+      if (!messageId || !conversationId) return
+      const totalTokens =
+        payload.totalTokens != null ? Number(payload.totalTokens) : undefined
+      let messages: LinkMateImReplyMessage[] | undefined
+      if (Array.isArray(payload.messages)) {
+        messages = payload.messages
+          .filter((item): item is Record<string, unknown> => item != null && typeof item === 'object')
+          .map(item => ({
+            id: String(item.id ?? ''),
+            content: String(item.content ?? '')
+          }))
+          .filter(item => item.id && item.content)
       }
+      handlers.onDone?.({ messageId, conversationId, totalTokens, messages })
     },
     onError: handlers.onError
   })
@@ -212,14 +240,18 @@ export async function streamChat(
 
   await readLinkMateSseStream(response.body, {
     onStart: payload => {
-      if (payload.sessionId) handlers.onStart?.(payload.sessionId)
+      const sessionId = payload.sessionId
+      if (typeof sessionId === 'string' && sessionId) handlers.onStart?.(sessionId)
     },
     onDelta: handlers.onDelta,
     onReasoningDelta: handlers.onReasoningDelta,
     onDone: payload => {
-      if (payload.messageId && payload.sessionId) {
-        const totalTokens = payload.totalTokens ? Number(payload.totalTokens) : undefined
-        handlers.onDone?.(payload.messageId, payload.sessionId, totalTokens)
+      const sessionId = typeof payload.sessionId === 'string' ? payload.sessionId : ''
+      const messageId = typeof payload.messageId === 'string' ? payload.messageId : ''
+      if (messageId && sessionId) {
+        const totalTokens =
+          payload.totalTokens != null ? Number(payload.totalTokens) : undefined
+        handlers.onDone?.(messageId, sessionId, totalTokens)
       }
     },
     onError: handlers.onError

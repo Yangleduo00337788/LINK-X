@@ -35,6 +35,10 @@ describe('linkmateMention', () => {
     expect(extractLinkMateQuestion('@LinkMate   ', AT_NAME)).toBeNull()
   })
 
+  it('detects group assistant @ mention', () => {
+    expect(hasLinkMateMention('@群聊小助手 你好', AT_NAME)).toBe(true)
+  })
+
   it('builds case-insensitive regexp', () => {
     const re = buildLinkMateMentionRegExp(AT_NAME)
     expect(re.test('@linkmate hello')).toBe(true)

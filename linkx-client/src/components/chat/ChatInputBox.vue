@@ -94,6 +94,11 @@ const groupMetaStore = useGroupMetaStore()
 const linkMateStore = useLinkMateStore()
 const { enabled: linkMateEnabled, deepThinking: linkMateDeepThinking, deepThinkingSupported: linkMateDeepThinkingSupported, dailyQuotaExhausted: linkMateQuotaExhausted } = storeToRefs(linkMateStore)
 
+/** 群聊用「群聊小助手」，单聊仍用灵伴 */
+const linkMateAtName = computed(() =>
+  props.isGroupChat ? t('groupAi.assistantName') : t('linkmate.atName')
+)
+
 // 从 appStore 解构响应式会话与用户信息
 const { currentSession, currentSessionId, userProfile } = storeToRefs(appStore)
 // 从 appStore 解构方法（非响应式）
@@ -312,10 +317,10 @@ const mentionCandidates = computed<ContactItem[]>(() => {
   const q = mentionQuery.value.trim().toLowerCase()
   const linkMate: ContactItem = {
     id: LINKMATE_AT_ID,
-    name: t('linkmate.atName'),
+    name: linkMateAtName.value,
     avatarText: '',
     avatarColor: 'transparent',
-    group: props.isGroupChat ? t('linkmate.atHint') : t('linkmate.atHintPrivate')
+    group: props.isGroupChat ? t('groupAi.assistantName') : t('linkmate.atHintPrivate')
   }
   if (props.isFriendChat) {
     if (!linkMateEnabled.value) return []
@@ -438,7 +443,7 @@ function applyMention(id: string | number, name: string) {
     String(id) === AT_ALL_ID
       ? t('extra.atAllMembers')
       : String(id) === LINKMATE_AT_ID
-        ? t('linkmate.atName')
+        ? linkMateAtName.value
         : name
   const inserted = `@${displayName} `
   inputValue.value = before + inserted + after
@@ -851,11 +856,11 @@ function pickEmoji(e: string) {
 }
 
 function mentionHasLinkMate(text: string): boolean {
-  return hasLinkMateMention(text, t('linkmate.atName'))
+  return hasLinkMateMention(text, linkMateAtName.value)
 }
 
 function mentionExtractLinkMateQuestion(text: string): string | null {
-  return extractLinkMateQuestion(text, t('linkmate.atName'))
+  return extractLinkMateQuestion(text, linkMateAtName.value)
 }
 
 function buildLinkMateQuestion(text: string): string | null {
@@ -917,7 +922,7 @@ async function requestLinkMateImReply(conversationId: string, question: string) 
     scheduleLinkMateScroll()
   })
 
-  appStore.ensureStreamingLinkMateMessage(conversationId, tempId)
+  appStore.ensureStreamingLinkMateMessage(conversationId, tempId, linkMateAtName.value)
   emit('scrollToBottom')
 
   try {
@@ -931,10 +936,19 @@ async function requestLinkMateImReply(conversationId: string, question: string) 
         onDelta: chunk => {
           batchContent.push(chunk)
         },
-        onDone: (messageId, _conversationId) => {
+        onDone: payload => {
           batchReasoning.flush()
           batchContent.flush()
-          appStore.finalizeStreamingLinkMateMessage(conversationId, tempId, messageId, content)
+          const messages =
+            payload.messages && payload.messages.length > 0
+              ? payload.messages
+              : [{ id: payload.messageId, content }]
+          appStore.finalizeStreamingLinkMateMessages(
+            conversationId,
+            tempId,
+            messages,
+            linkMateAtName.value
+          )
           emit('scrollToBottom')
         },
         onError: errMsg => {

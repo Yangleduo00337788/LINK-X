@@ -1229,14 +1229,15 @@ export const useAppStore = defineStore('app', {
       this.isOffline = false
     },
 
-    /** IM @灵伴：插入流式占位消息 */
-    ensureStreamingLinkMateMessage(sessionId: string, tempId: string) {
+    /** IM @小助手：插入流式占位消息 */
+    ensureStreamingLinkMateMessage(sessionId: string, tempId: string, senderName?: string) {
       if (!this.messagesBySession[sessionId]) {
         this.messagesBySession[sessionId] = []
       }
       const list = this.messagesBySession[sessionId]
       if (list.some(m => m.id === tempId)) return
       const now = new Date()
+      const displayName = senderName ?? t('linkmate.atName')
       list.push({
         id: tempId,
         sessionId,
@@ -1244,7 +1245,7 @@ export const useAppStore = defineStore('app', {
         time: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
         isSelf: false,
         senderId: '0',
-        senderName: t('linkmate.atName'),
+        senderName: displayName,
         type: 'text',
         streaming: true
       })
@@ -1266,39 +1267,59 @@ export const useAppStore = defineStore('app', {
       if (msg) msg.reasoningContent = reasoningContent
     },
 
-    /** IM @灵伴：流式完成，替换为正式消息 */
+    /** IM @小助手：流式完成，替换为正式消息（支持多条） */
+    finalizeStreamingLinkMateMessages(
+      sessionId: string,
+      tempId: string,
+      messages: Array<{ id: string; content: string }>,
+      senderName?: string
+    ) {
+      const list = this.messagesBySession[sessionId]
+      if (!list || messages.length === 0) return
+      const now = new Date()
+      const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+      const displayName = senderName ?? t('linkmate.atName')
+      const finalized: ChatMessage[] = messages.map(m => ({
+        id: m.id,
+        sessionId,
+        content: m.content,
+        time,
+        isSelf: false,
+        senderId: '0',
+        senderName: displayName,
+        type: 'text',
+        streaming: false
+      }))
+      const messageIds = new Set(messages.map(m => m.id))
+      const withoutPlaceholders = list.filter(
+        m =>
+          m.id !== tempId &&
+          !messageIds.has(m.id) &&
+          !m.id.startsWith('temp-linkmate-') &&
+          !(m.streaming && isLinkMateBotSender(m.senderId))
+      )
+      withoutPlaceholders.push(...finalized)
+      this.messagesBySession[sessionId] = withoutPlaceholders
+      const lastId = messages[messages.length - 1]?.id
+      if (this.currentSessionId === sessionId && lastId && /^\d+$/.test(lastId)) {
+        void this.reportSessionRead(sessionId, { lastMessageId: lastId, immediate: true })
+      }
+    },
+
+    /** IM @小助手：流式完成，单条消息（兼容） */
     finalizeStreamingLinkMateMessage(
       sessionId: string,
       tempId: string,
       messageId: string,
-      content: string
+      content: string,
+      senderName?: string
     ) {
-      const list = this.messagesBySession[sessionId]
-      if (!list) return
-      const now = new Date()
-      const finalized: ChatMessage = {
-        id: messageId,
+      this.finalizeStreamingLinkMateMessages(
         sessionId,
-        content,
-        time: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
-        isSelf: false,
-        senderId: '0',
-        senderName: t('linkmate.atName'),
-        type: 'text',
-        streaming: false
-      }
-      const withoutPlaceholders = list.filter(
-        m =>
-          m.id !== tempId &&
-          m.id !== messageId &&
-          !m.id.startsWith('temp-linkmate-') &&
-          !(m.streaming && isLinkMateBotSender(m.senderId))
+        tempId,
+        [{ id: messageId, content }],
+        senderName
       )
-      withoutPlaceholders.push(finalized)
-      this.messagesBySession[sessionId] = withoutPlaceholders
-      if (this.currentSessionId === sessionId && /^\d+$/.test(messageId)) {
-        void this.reportSessionRead(sessionId, { lastMessageId: messageId, immediate: true })
-      }
     },
 
     /** IM @灵伴：移除流式占位 */

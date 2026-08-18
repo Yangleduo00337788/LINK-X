@@ -1,15 +1,17 @@
 /**
  * 作者：yangleduo
  */
+export type LinkMateSsePayload = Record<string, unknown>
+
 export interface LinkMateSseHandlers {
-  onStart?: (payload: Record<string, string>) => void
+  onStart?: (payload: LinkMateSsePayload) => void
   onDelta?: (content: string) => void
   onReasoningDelta?: (content: string) => void
-  onDone?: (payload: Record<string, string>) => void
+  onDone?: (payload: LinkMateSsePayload) => void
   onError?: (message: string) => void
 }
 
-function parseSsePayload(raw: string): { eventName: string; payload: Record<string, string> } | null {
+function parseSsePayload(raw: string): { eventName: string; payload: LinkMateSsePayload } | null {
   let eventName = 'message'
   let data = ''
   for (const line of raw.split('\n')) {
@@ -23,9 +25,9 @@ function parseSsePayload(raw: string): { eventName: string; payload: Record<stri
   if (!data) return null
 
   try {
-    let payload = JSON.parse(data) as Record<string, string>
+    let payload = JSON.parse(data) as LinkMateSsePayload
     if (typeof payload === 'string') {
-      payload = JSON.parse(payload) as Record<string, string>
+      payload = JSON.parse(payload) as LinkMateSsePayload
     }
     return { eventName, payload }
   } catch {
@@ -33,23 +35,25 @@ function parseSsePayload(raw: string): { eventName: string; payload: Record<stri
   }
 }
 
-export function dispatchLinkMateSseEvent(eventName: string, payload: Record<string, string>, handlers: LinkMateSseHandlers) {
+export function dispatchLinkMateSseEvent(eventName: string, payload: LinkMateSsePayload, handlers: LinkMateSseHandlers) {
   switch (eventName) {
     case 'start':
       handlers.onStart?.(payload)
       break
     case 'delta':
-      if (payload.content != null && payload.content !== '') handlers.onDelta?.(payload.content)
+      if (typeof payload.content === 'string' && payload.content !== '') handlers.onDelta?.(payload.content)
       break
     case 'reasoning_delta':
-      if (payload.content != null && payload.content !== '')
+      if (typeof payload.content === 'string' && payload.content !== '')
         handlers.onReasoningDelta?.(payload.content)
       break
     case 'done':
       handlers.onDone?.(payload)
       break
     case 'error':
-      handlers.onError?.(payload.message || 'AI 服务错误')
+      handlers.onError?.(
+        (typeof payload.message === 'string' && payload.message) || 'AI 服务错误'
+      )
       break
     default:
       break
