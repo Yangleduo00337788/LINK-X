@@ -29,10 +29,10 @@ import {
   TrashOutline
 } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
-import { useRouter } from 'vue-router'
 import { useFavoritesStore } from '../stores/favorites'
 import { useAppSettingsStore } from '../stores/appSettings'
 import { useAppStore } from '../stores/app'
+import { useNoteStore } from '../stores/note'
 import type { FavoriteItem } from '../types'
 import { formatFileSize } from '../utils/file'
 import { useOverlayStore } from '../stores/overlay'
@@ -42,9 +42,9 @@ import FavoriteCoverImage from './favorites/FavoriteCoverImage.vue'
 
 const message = useMessage()
 const dialog = useDialog()
-const router = useRouter()
 const { t } = useI18n()
 const favStore = useFavoritesStore()
+const noteStore = useNoteStore()
 const appStore = useAppStore()
 const appSettings = useAppSettingsStore()
 const overlayStore = useOverlayStore()
@@ -172,11 +172,18 @@ function setViewMode(mode: 'grid' | 'list') {
 }
 
 function openNewNote() {
-  if (window.electronAPI) {
-    window.electronAPI.openNoteEditor()
-  } else {
-    router.push('/note-editor')
+  void noteStore.ensurePanelReady()
+  noteStore.openPanel()
+}
+
+function openNoteFavorite(item: FavoriteItem) {
+  const noteId = (item.sourceId || item.id || '').trim()
+  if (noteId) {
+    void noteStore.ensurePanelReady({ noteId })
+    noteStore.openPanel({ noteId })
+    return
   }
+  openNewNote()
 }
 
 function fileExtIcon(item: FavoriteItem) {
@@ -260,7 +267,7 @@ function openItem(item: FavoriteItem) {
     return
   }
   if (item.type === 'note') {
-    openNewNote()
+    openNoteFavorite(item)
     return
   }
   message.info(t('favorites.openHint'))

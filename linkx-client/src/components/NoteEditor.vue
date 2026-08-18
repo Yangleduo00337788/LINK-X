@@ -43,6 +43,24 @@ import { formatFileSize } from '../utils/file'
 import { emptyFormatState, type NoteFormatAction, type NoteFormatState } from '../utils/noteEditorFormat'
 import { LxIconButton } from './ui'
 
+const props = withDefaults(
+  defineProps<{
+    embedded?: boolean
+    standalone?: boolean
+    dockEmbed?: boolean
+  }>(),
+  {
+    embedded: false,
+    standalone: false,
+    dockEmbed: false
+  }
+)
+
+const isEmbedded = computed(() => props.embedded)
+const isDockEmbed = computed(() => props.dockEmbed)
+const showTitleBar = computed(() => !props.dockEmbed && !(props.embedded && props.standalone))
+const showActionBar = computed(() => !showTitleBar.value)
+
 type NoteTextBlockEditorInstance = ComponentPublicInstance & {
   focus: () => void
   focusEnd: () => void
@@ -62,7 +80,7 @@ const message = useMessage()
 const { t } = useI18n()
 const noteStore = useNoteStore()
 const appStore = useAppStore()
-const { title, content, notes, currentNoteId, saving } = storeToRefs(noteStore)
+const { title, content, notes, currentNoteId, saving, activeTabId } = storeToRefs(noteStore)
 const { theme } = storeToRefs(appStore)
 
 const documentEl = ref<HTMLElement | null>(null)
@@ -377,7 +395,10 @@ function onLocationPicked(location: string) {
 
 function onNoteSelect(key: string) {
   if (key === 'new') {
-    void resetToBlankEditor()
+    void handleNewNote()
+  } else if (isEmbedded.value) {
+    noteStore.registerOpenTab(key)
+    void noteStore.selectTab(key)
   } else {
     const note = notes.value.find(n => n.id === key)
     if (note) {
@@ -404,44 +425,96 @@ async function flushPendingSave() {
     clearTimeout(saveTimer)
     saveTimer = null
   }
+  syncAllTextBlocks()
   if (!content.value.trim() && !currentNoteId.value) return
   syncTitleFromContent()
   await noteStore.save()
 }
 
-let unsubscribeNoteEditorReset: (() => void) | undefined
+async function handleNewNote() {
+  if (isEmbedded.value) {
+    await flushPendingSave()
+    noteStore.openNewTab()
+    return
+  }
+  void resetToBlankEditor()
+}
+
+async function handleSaveNote() {
+  await flushPendingSave()
+}
+
+async function loadActiveTabContent() {
+  const tabId = activeTabId.value
+  if (!tabId || tabId === 'new') {
+    if (currentNoteId.value !== null || content.value.trim()) {
+      noteStore.newNote()
+    }
+    historyStack.value = [content.value || '']
+    historyIndex.value = 0
+    mediaUrlCache.value = {}
+    return
+  }
+  if (currentNoteId.value !== tabId) {
+    await noteStore.openNoteById(tabId)
+    historyStack.value = [content.value]
+    historyIndex.value = 0
+    mediaUrlCache.value = {}
+  }
+}
+
 
 onMounted(async () => {
-  applyDocumentTheme(appStore.theme)
-  notifyElectronTheme(appStore.theme)
+  if (!isEmbedded.value) {
+    applyDocumentTheme(appStore.theme)
+    notifyElectronTheme(appStore.theme)
+  }
   await noteStore.init()
-  await resetToBlankEditor()
-  unsubscribeNoteEditorReset = window.electronAPI?.onNoteEditorReset?.(() => {
-    void resetToBlankEditor()
+  if (isEmbedded.value) {
+    await loadActiveTabContent()
+  } else {
+    await resetToBlankEditor()
+  }
+  requestAnimationFrame(() => {
+    getActiveTextBlockEditor()?.focus()
   })
+})
+
+watch(activeTabId, async (tabId, prev) => {
+  if (!isEmbedded.value || !prev || tabId === prev) return
+  await flushPendingSave()
+  await loadActiveTabContent()
   requestAnimationFrame(() => {
     getActiveTextBlockEditor()?.focus()
   })
 })
 
 watch(theme, t => {
-  applyDocumentTheme(t)
-  notifyElectronTheme(t)
+  if (!isEmbedded.value) {
+    applyDocumentTheme(t)
+    notifyElectronTheme(t)
+  }
 })
 
 onUnmounted(() => {
-  unsubscribeNoteEditorReset?.()
   void flushPendingSave()
   if (historyTimer) clearTimeout(historyTimer)
 })
 </script>
 
 <template>
-  <div class="note-editor standalone-window">
+  <div
+    class="note-editor"
+    :class="{
+      'standalone-window': !isEmbedded,
+      'note-editor--embedded': isEmbedded,
+      'note-editor--dock': isDockEmbed
+    }"
+  >
     <div v-if="showLocationPicker" class="location-overlay">
       <LocationPickerPage @select="onLocationPicked" @back="showLocationPicker = false" />
     </div>
-    <header class="title-bar drag-area">
+    <header v-if="showTitleBar" class="title-bar drag-area">
       <div class="bar-side bar-left no-drag" />
       <div class="bar-center">
         {{ displayTitle }}
@@ -449,10 +522,10 @@ onUnmounted(() => {
       </div>
       <div class="bar-side bar-right no-drag">
         <!-- CRUD 操作按钮 -->
-        <LxIconButton variant="editor" :title="t('noteEditor.newNote')" @click="() => resetToBlankEditor()">
+        <LxIconButton variant="editor" :title="t('noteEditor.newNote')" @click="handleNewNote">
           <n-icon :component="AddOutline" :size="16" />
         </LxIconButton>
-        <LxIconButton variant="editor" :title="t('noteEditor.saveNote')" @click="() => noteStore.save()">
+        <LxIconButton variant="editor" :title="t('noteEditor.saveNote')" @click="handleSaveNote">
           <n-icon :component="CloudUploadOutline" :size="16" />
         </LxIconButton>
         <n-dropdown trigger="click" :options="noteListOptions" @select="onNoteSelect">
@@ -474,9 +547,43 @@ onUnmounted(() => {
         >
           <n-icon :component="TrashOutline" :size="16" />
         </LxIconButton>
-        <WindowCaptionButtons show-pin :before-close="flushPendingSave" />
+        <WindowCaptionButtons v-if="!isEmbedded" show-pin :before-close="flushPendingSave" />
       </div>
     </header>
+
+    <div v-if="showActionBar" class="note-action-bar no-drag">
+      <button type="button" class="note-action-btn" :title="t('noteEditor.newNote')" @click="handleNewNote">
+        <n-icon :component="AddOutline" :size="15" />
+        <span>{{ t('noteEditor.newNote') }}</span>
+      </button>
+      <button type="button" class="note-action-btn" :title="t('noteEditor.saveNote')" @click="handleSaveNote">
+        <n-icon :component="CloudUploadOutline" :size="15" />
+        <span>{{ t('noteEditor.saveNote') }}</span>
+      </button>
+      <n-dropdown trigger="click" :options="noteListOptions" @select="onNoteSelect">
+        <button type="button" class="note-action-btn" :title="t('noteEditor.openNote')">
+          <n-icon :component="DocumentTextOutline" :size="15" />
+          <span>{{ t('noteEditor.openNote') }}</span>
+        </button>
+      </n-dropdown>
+      <n-dropdown trigger="click" :options="moreOptions" @select="onMoreSelect">
+        <button type="button" class="note-action-btn note-action-btn--icon" :title="t('noteEditor.moreActions')">
+          <n-icon :component="EllipsisHorizontalOutline" :size="16" />
+        </button>
+      </n-dropdown>
+      <button
+        v-if="currentNoteId"
+        type="button"
+        class="note-action-btn note-action-btn--icon note-action-btn--danger"
+        :title="t('noteEditor.deleteNote')"
+        @click="deleteCurrentNote"
+      >
+        <n-icon :component="TrashOutline" :size="15" />
+      </button>
+      <span class="note-action-spacer" />
+      <span class="note-action-title">{{ displayTitle }}</span>
+      <span v-if="saving" class="saving-indicator">{{ t('noteEditor.saving') }}</span>
+    </div>
 
     <div class="format-bar no-drag" @mousedown="onToolbarPointerDown">
       <input ref="imageInputRef" type="file" accept="image/*" hidden @change="insertImage" />
@@ -618,6 +725,12 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
+.note-editor--embedded {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+
 .location-overlay {
   position: absolute;
   inset: 0;
@@ -667,7 +780,62 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--lx-space);
+}
+
+.note-action-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 40px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--lx-border-light);
+  background: var(--lx-bg-card);
+}
+
+.note-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--lx-radius-sm, 6px);
+  background: transparent;
+  color: var(--lx-text-secondary);
+  font-size: var(--lx-font-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.note-action-btn:hover {
+  background: var(--lx-bg-hover);
+  color: var(--lx-text-body);
+}
+
+.note-action-btn--icon {
+  width: 28px;
+  padding: 0;
+  justify-content: center;
+}
+
+.note-action-btn--danger:hover {
+  color: var(--lx-danger);
+  background: var(--lx-danger-bg);
+}
+
+.note-action-spacer {
+  flex: 1;
+  min-width: 8px;
+}
+
+.note-action-title {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--lx-font-sm);
+  color: var(--lx-text-muted);
 }
 
 .saving-indicator {

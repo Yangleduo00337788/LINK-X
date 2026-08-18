@@ -2,8 +2,6 @@
 <script setup lang="ts">
 // Vue 计算属性
 import { computed } from 'vue'
-// Vue Router
-import { useRouter } from 'vue-router'
 // 空状态 Logo 占位组件
 import PenguinWatermark from './PenguinWatermark.vue'
 // Pinia 响应式解构工具
@@ -12,6 +10,7 @@ import { storeToRefs } from 'pinia'
 import { useSecondaryViewStore } from '../stores/secondaryView'
 // 全屏覆盖层 Store
 import { useOverlayStore } from '../stores/overlay'
+import { useNoteStore } from '../stores/note'
 // 主导航键类型
 import type { NavKey } from '../types'
 import { useI18n } from '../i18n'
@@ -23,10 +22,9 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-// 路由实例
-const router = useRouter()
 // 次级视图 Store 实例
 const secondaryViewStore = useSecondaryViewStore()
+const noteStore = useNoteStore()
 // 覆盖层 Store 实例
 const overlayStore = useOverlayStore()
 // 当前选中的收藏、文件
@@ -64,13 +62,18 @@ function previewFavoriteImage() {
   })
 }
 
-// 打开笔记编辑器（Electron 独立窗口或路由跳转）
+// 打开笔记（扩展坞侧栏或独立窗口）
 function openFavoriteNote() {
-  if (window.electronAPI?.openNoteEditor) {
-    window.electronAPI.openNoteEditor()
-  } else {
-    router.push('/note-editor')
+  const fav = activeFavorite.value
+  if (!fav || fav.type !== 'note') return
+  const noteId = (fav.sourceId || fav.id || '').trim()
+  if (noteId) {
+    void noteStore.ensurePanelReady({ noteId })
+    noteStore.openPanel({ noteId })
+    return
   }
+  void noteStore.ensurePanelReady()
+  noteStore.openPanel()
 }
 
 // 全屏预览当前选中的文件

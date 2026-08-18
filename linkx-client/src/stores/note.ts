@@ -9,10 +9,18 @@
 import { defineStore } from 'pinia'
 import * as noteApi from '../api/note'
 import { useFavoritesStore } from './favorites'
+import { useExtensionDockStore } from './extensionDock'
 import { t } from '../i18n'
 
 /** 后端笔记类型 */
 export type NoteType = 'note' | 'image' | 'link' | 'file'
+
+/** 笔记扩展面板标签 ID：'new' 表示未保存草稿 */
+export type NotePanelTabId = 'new' | string
+
+const NEW_TAB_ID = 'new' as const
+
+let ensurePanelReadyTask: Promise<void> | null = null
 
 /** 笔记实体 */
 export interface Note {
@@ -42,7 +50,9 @@ export const useNoteStore = defineStore('note', {
     noteType: 'note' as NoteType,    // 当前笔记类型
     loading: false,                  // 加载状态
     saving: false,                   // 保存状态
-    initialized: false               // 是否已从后端加载
+    initialized: false,              // 是否已从后端加载
+    openTabIds: [] as NotePanelTabId[],
+    activeTabId: '' as NotePanelTabId | ''
   }),
 
   getters: {
@@ -61,10 +71,159 @@ export const useNoteStore = defineStore('note', {
       return [...state.notes].sort((a, b) =>
         new Date(b.updateTime).getTime() - new Date(a.updateTime).getTime()
       )
+    },
+
+    openTabs(state): Array<{ id: NotePanelTabId; title: string }> {
+      return state.openTabIds.map(id => {
+        if (id === NEW_TAB_ID) {
+          return { id, title: t('noteEditor.newNote') }
+        }
+        const note = state.notes.find(n => n.id === id)
+        return { id, title: note?.title || t('defaults.untitled') }
+      })
     }
   },
 
   actions: {
+    registerOpenTab(tabId: NotePanelTabId) {
+      if (!tabId) return
+      if (tabId === NEW_TAB_ID) {
+        if (!this.openTabIds.includes(NEW_TAB_ID)) {
+          this.openTabIds.push(NEW_TAB_ID)
+        }
+        return
+      }
+      if (this.openTabIds.includes(tabId)) return
+      this.openTabIds.push(tabId)
+    },
+
+    async ensurePanelReady(opts?: { noteId?: string }) {
+      if (ensurePanelReadyTask) return ensurePanelReadyTask
+
+      ensurePanelReadyTask = (async () => {
+        if (!this.initialized) {
+          await this.fetchNotes()
+        }
+        if (opts?.noteId) {
+          this.registerOpenTab(opts.noteId)
+          this.activeTabId = opts.noteId
+          await this.openNoteById(opts.noteId)
+          return
+        }
+        if (this.openTabIds.length === 0) {
+          this.registerOpenTab(NEW_TAB_ID)
+          this.activeTabId = NEW_TAB_ID
+          this.newNote()
+        } else if (!this.activeTabId) {
+          this.activeTabId = this.openTabIds[this.openTabIds.length - 1]
+        }
+      })().finally(() => {
+        ensurePanelReadyTask = null
+      })
+
+      return ensurePanelReadyTask
+    },
+
+    openPanel(opts?: { noteId?: string }) {
+      if (opts?.noteId) {
+        this.registerOpenTab(opts.noteId)
+        this.activeTabId = opts.noteId
+        void this.openNoteById(opts.noteId)
+      } else if (!this.openTabIds.length) {
+        this.registerOpenTab(NEW_TAB_ID)
+        this.activeTabId = NEW_TAB_ID
+        this.newNote()
+      } else if (!this.activeTabId) {
+        this.activeTabId = this.openTabIds[this.openTabIds.length - 1]
+      }
+      const tabId = (opts?.noteId || this.activeTabId || NEW_TAB_ID) as NotePanelTabId
+      const dock = useExtensionDockStore()
+      if (dock.panelCollapsed) {
+        dock.expandPanel()
+      }
+      dock.activateTab(`notes:${tabId}`)
+    },
+
+    collapsePanel() {
+      useExtensionDockStore().collapsePanel()
+    },
+
+    expandPanel() {
+      useExtensionDockStore().expandPanel()
+      if (this.openTabIds.length === 0) {
+        void this.ensurePanelReady()
+      }
+    },
+
+    closePanel() {
+      this.openTabIds = []
+      this.activeTabId = ''
+      this.newNote()
+      useExtensionDockStore().syncAfterTabsChanged()
+    },
+
+    async selectTab(tabId: NotePanelTabId) {
+      if (!this.openTabIds.includes(tabId)) return
+      if (this.activeTabId === tabId) return
+      this.activeTabId = tabId
+      useExtensionDockStore().activateTab(`notes:${tabId}`)
+    },
+
+    async closeTab(tabId: NotePanelTabId) {
+      const wasActive = this.activeTabId === tabId
+      if (wasActive) {
+        await this.save()
+      }
+      const remaining = this.openTabIds.filter(id => id !== tabId)
+      this.openTabIds = remaining
+      if (remaining.length === 0) {
+        this.activeTabId = ''
+        this.newNote()
+        useExtensionDockStore().syncAfterTabsChanged()
+        return
+      }
+      if (wasActive) {
+        const next = remaining[remaining.length - 1]
+        await this.selectTab(next)
+      }
+      useExtensionDockStore().syncAfterTabsChanged()
+    },
+
+    closeAllTabs() {
+      this.openTabIds = []
+      this.activeTabId = ''
+      this.newNote()
+      useExtensionDockStore().syncAfterTabsChanged()
+    },
+
+    openNewTab() {
+      if (this.openTabIds.includes(NEW_TAB_ID)) {
+        this.activeTabId = NEW_TAB_ID
+        this.newNote()
+        useExtensionDockStore().activateTab(`notes:${NEW_TAB_ID}`)
+        return
+      }
+      this.registerOpenTab(NEW_TAB_ID)
+      this.activeTabId = NEW_TAB_ID
+      this.newNote()
+      useExtensionDockStore().activateTab(`notes:${NEW_TAB_ID}`)
+    },
+
+    setPanelWidth(width: number) {
+      useExtensionDockStore().setPanelWidth(width)
+    },
+
+    promoteNewTabAfterSave(noteId: string) {
+      const idx = this.openTabIds.indexOf(NEW_TAB_ID)
+      if (idx < 0) return
+      this.openTabIds[idx] = noteId
+      if (this.activeTabId === NEW_TAB_ID) {
+        this.activeTabId = noteId
+      }
+      useExtensionDockStore().activateTab(`notes:${noteId}`)
+      useExtensionDockStore().syncAfterTabsChanged()
+    },
+
     /** 从后端加载笔记列表 */
     async fetchNotes() {
       this.loading = true
@@ -207,6 +366,7 @@ export const useNoteStore = defineStore('note', {
     async save() {
       const title = this.title.trim() || t('defaults.untitled')
       const content = this.content
+      const wasNewTab = this.activeTabId === NEW_TAB_ID
 
       if (this.currentNoteId) {
         await this.updateNote(this.currentNoteId, title, content)
@@ -214,6 +374,9 @@ export const useNoteStore = defineStore('note', {
         const note = await this.createNote(title, content)
         if (note) {
           this.currentNoteId = note.id
+          if (wasNewTab) {
+            this.promoteNewTabAfterSave(note.id)
+          }
         }
       }
       this.saveDraft()
