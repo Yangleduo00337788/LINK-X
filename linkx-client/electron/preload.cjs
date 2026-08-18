@@ -63,6 +63,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getDesktopPrefs: () => ipcRenderer.invoke('app:get-desktop-prefs'),
   setDesktopPrefs: prefs => ipcRenderer.invoke('app:set-desktop-prefs', prefs),
   notifyThemeChange: theme => ipcRenderer.send('theme-changed', theme),
+  setTitleBarOverlay: opts => ipcRenderer.invoke('window:set-titlebar-overlay', opts || {}),
   setWindowMode: mode => ipcRenderer.invoke('window:set-mode', mode),
   getWindowBounds: () => ipcRenderer.invoke('window:get-bounds'),
   setWindowBounds: bounds => ipcRenderer.invoke('window:set-bounds', bounds),

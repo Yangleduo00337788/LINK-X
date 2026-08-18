@@ -30,7 +30,6 @@ import {
   SearchOutline,
   AddCircleOutline,
   AtCircleOutline,
-  ImageOutline,
   LocationOutline,
   LockClosedOutline,
   PeopleOutline
@@ -335,6 +334,19 @@ const headerIconColor = computed(() =>
   scrollTop.value > 200 || showSearch.value ? 'var(--lx-text)' : 'var(--lx-text-on-accent)'
 )
 
+const titleBarOnCover = computed(
+  () => !props.embedded && scrollTop.value <= 200 && !showSearch.value
+)
+
+function syncMomentsTitleBarOverlay() {
+  if (props.embedded) return
+  const onCover = titleBarOnCover.value
+  void window.electronAPI?.setTitleBarOverlay?.({
+    color: '#00000000',
+    symbolColor: onCover ? '#ffffff' : theme.value === 'dark' ? '#f3f3f3' : '#1a1a1a'
+  })
+}
+
 // 图片预览
 type PreviewItem = { url: string; imageId?: string }
 const previewItems = ref<PreviewItem[]>([])
@@ -426,6 +438,7 @@ onMounted(() => {
   if (!props.embedded) {
     applyDocumentTheme(appStore.theme)
     notifyElectronTheme(appStore.theme)
+    syncMomentsTitleBarOverlay()
   }
   window.addEventListener('click', closeBannerMenu)
   // 独立窗口不走 HomeView，需自行恢复会话并连接 WS；嵌入模式由 AppShell 已登录
@@ -476,6 +489,11 @@ onBeforeUnmount(() => {
 watch(theme, t => {
   applyDocumentTheme(t)
   notifyElectronTheme(t)
+  syncMomentsTitleBarOverlay()
+})
+
+watch(titleBarOnCover, () => {
+  syncMomentsTitleBarOverlay()
 })
 
 // 顶部刷新按钮 - 旋转动画状态
@@ -511,8 +529,8 @@ const showPublishMenu = ref(false)
 const showComposer = ref(false)
 const composerMode = ref<'text' | 'media'>('text')
 const publishMenuOptions = computed(() => [
-  { label: t('moments.publishText'), key: 'text', icon: AtCircleOutline },
-  { label: t('moments.publishMedia'), key: 'media', icon: ImageOutline }
+  { label: t('moments.publishText'), key: 'text' },
+  { label: t('moments.publishMedia'), key: 'media' }
 ])
 function handlePublishMenuSelect(key: string | number) {
   showPublishMenu.value = false
@@ -1125,7 +1143,6 @@ const showMomentsOps = ref(false)
             type="button"
             @click="handlePublishMenuSelect(opt.key)"
           >
-            <n-icon :component="opt.icon" :size="18" />
             <span>{{ opt.label }}</span>
           </button>
         </div>
@@ -1453,6 +1470,17 @@ const showMomentsOps = ref(false)
   overflow: hidden;
   cursor: context-menu;
   position: relative;
+}
+
+.header-banner::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 88px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.42) 0%, transparent 100%);
+  pointer-events: none;
 }
 
 .banner-img {

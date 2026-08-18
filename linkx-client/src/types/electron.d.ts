@@ -86,6 +86,7 @@ declare global {
         language: 'zh-CN' | 'en-US'
       }>
       notifyThemeChange?: (theme: 'light' | 'dark') => void
+      setTitleBarOverlay?: (opts: { color?: string; symbolColor?: string }) => Promise<boolean>
       setWindowMode?: (mode: 'login' | 'main') => Promise<void>
       getWindowBounds?: () => Promise<{ x: number; y: number; width: number; height: number } | null>
       setWindowBounds?: (bounds: {

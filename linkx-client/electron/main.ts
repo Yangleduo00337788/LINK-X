@@ -262,6 +262,28 @@ function nativeCaptionOverlay(): Electron.TitleBarOverlay {
   }
 }
 
+/** 友链等沉浸封面：窗控底透明，避免右侧一块实心底挡住封面 */
+const TRANSPARENT_CAPTION_OVERLAY: Electron.TitleBarOverlay = {
+  color: '#00000000',
+  symbolColor: '#ffffff',
+  height: NATIVE_CAPTION_OVERLAY_HEIGHT
+}
+
+const titleBarOverlayOverride = new WeakMap<BrowserWindow, Partial<Electron.TitleBarOverlay>>()
+
+function applyWinTitleBarOverlay(win: BrowserWindow) {
+  if (process.platform !== 'win32' || win.isDestroyed()) return
+  try {
+    win.setTitleBarOverlay({
+      ...nativeCaptionOverlay(),
+      ...titleBarOverlayOverride.get(win),
+      height: NATIVE_CAPTION_OVERLAY_HEIGHT
+    })
+  } catch {
+    /* 无边框登录窗没有 overlay */
+  }
+}
+
 function windowChrome(
   title = 'LinkX',
   chrome: 'login' | 'main' = 'main'
@@ -593,6 +615,14 @@ app.setName('LinkX')
 
 if (isDev) {
   app.commandLine.appendSwitch('--disable-software-rasterizer')
+}
+
+if (process.platform === 'win32') {
+  // 关掉 Fluent 叠加条，只保留 ::-webkit-scrollbar（系统条拖动时会带上下箭头）
+  app.commandLine.appendSwitch(
+    'disable-features',
+    'FluentOverlayScrollbar,OverlayScrollbar'
+  )
 }
 
 // 启用地理位置支持
@@ -980,6 +1010,21 @@ function registerWindowIpc() {
     }
     return false
   })
+  ipcMain.handle(
+    'window:set-titlebar-overlay',
+    (event, opts?: { color?: string; symbolColor?: string }) => {
+      const win = winFromSender(event)
+      if (!win || process.platform !== 'win32') return false
+      const next: Partial<Electron.TitleBarOverlay> = {}
+      if (typeof opts?.color === 'string' && opts.color) next.color = opts.color
+      if (typeof opts?.symbolColor === 'string' && opts.symbolColor) {
+        next.symbolColor = opts.symbolColor
+      }
+      titleBarOverlayOverride.set(win, next)
+      applyWinTitleBarOverlay(win)
+      return true
+    }
+  )
 
   ipcMain.handle('window:set-taskbar-badge', (_event, _count: number) => {
     // QQ 风格：不使用 overlay 角标，保留 IPC 兼容
@@ -1680,12 +1725,7 @@ function applyAllWindowBackgrounds(theme: string) {
     if (win.isDestroyed()) return
     const isLoginMain = win === mainWindow && desktopChromeKind === 'login'
     win.setBackgroundColor(windowBackgroundColor(theme, isLoginMain ? 'login' : 'main'))
-    if (process.platform !== 'win32') return
-    try {
-      win.setTitleBarOverlay(nativeCaptionOverlay())
-    } catch {
-      /* 登录无边框窗没有 overlay */
-    }
+    applyWinTitleBarOverlay(win)
   })
 }
 
@@ -1931,10 +1971,13 @@ function createMomentsWindow(opts?: MomentsOpenPayload) {
     minHeight: 560,
     resizable: true,
     ...windowChrome('LinkX', 'main'),
+    titleBarOverlay: TRANSPARENT_CAPTION_OVERLAY,
     show: false,
     webPreferences: defaultWebPreferences()
   })
   prepareWindowChrome(momentsWindow)
+  titleBarOverlayOverride.set(momentsWindow, TRANSPARENT_CAPTION_OVERLAY)
+  applyWinTitleBarOverlay(momentsWindow)
 
   momentsWindow.once('ready-to-show', () => {
     momentsWindow?.show()
