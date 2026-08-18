@@ -4,6 +4,7 @@ package com.linkx.server.config;
 /**
  * 作者：yangleduo
  */
+import com.linkx.server.service.linkmate.LinkMatePromptTemplate;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import java.util.ArrayList;
@@ -50,9 +51,7 @@ public class LinkxProperties {
         private double temperature = 0.7;
         /** 单用户每日 token 估算上限 */
         private int dailyTokenLimit = 100000;
-        private String systemPrompt = "你是「灵伴」（LinkMate），LinkX 企业即时通讯平台的智能伙伴。"
-                + "你负责陪伴用户完成对话、知识检索、任务执行和各类 AI 助手功能。"
-                + "回答请简洁、专业、友好，使用用户使用的语言回复。";
+        private String systemPrompt = LinkMatePromptTemplate.DEFAULT_SYSTEM.getTemplate();
         /** 当前模型是否支持深度思考（管理端保存时检测） */
         private boolean reasoningSupported;
 

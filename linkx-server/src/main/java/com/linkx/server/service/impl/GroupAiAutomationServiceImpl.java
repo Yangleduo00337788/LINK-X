@@ -18,6 +18,7 @@ import com.linkx.server.service.ChatService;
 import com.linkx.server.service.GroupAiAutomationService;
 import com.linkx.server.service.linkmate.LinkMateConstants;
 import com.linkx.server.service.linkmate.LinkMateLlmClient;
+import com.linkx.server.service.linkmate.LinkMatePromptTemplate;
 import com.linkx.server.service.linkmate.LinkMateLlmClient.LlmMessage;
 import com.linkx.server.service.linkmate.LinkMateLlmClient.LlmResult;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -47,9 +48,6 @@ import java.util.stream.Collectors;
 public class GroupAiAutomationServiceImpl implements GroupAiAutomationService {
 
     private static final int CONTEXT_LIMIT = 30;
-    private static final String SKIP_MARKER = "[SKIP]";
-    private static final String SUMMARY_PREFIX = "【智能总结】\n";
-    /** 连发消息合并：静默这么久后才回复一次 */
     private static final long PROACTIVE_DEBOUNCE_MS = Duration.ofSeconds(4).toMillis();
     /** 同一群内两次主动回复的最小间隔 */
     private static final long PROACTIVE_COOLDOWN_MS = Duration.ofSeconds(60).toMillis();
@@ -188,7 +186,7 @@ public class GroupAiAutomationServiceImpl implements GroupAiAutomationService {
 
         String content = summary.trim().startsWith("【")
                 ? summary.trim()
-                : SUMMARY_PREFIX + summary.trim();
+                : LinkMateConstants.SUMMARY_MESSAGE_PREFIX + summary.trim();
         MessageVO vo = postAndPushBotMessage(group, content);
 
         ImMessage latest = messages.get(messages.size() - 1);
@@ -217,7 +215,7 @@ public class GroupAiAutomationServiceImpl implements GroupAiAutomationService {
     private String generateProactiveReply(ImConversation group, ImMessage triggerMessage) {
         String topics = StringUtils.hasText(group.getGroupAiInterestTopics())
                 ? group.getGroupAiInterestTopics().trim()
-                : "群聊讨论的相关话题";
+                : LinkMateConstants.DEFAULT_GROUP_AI_INTEREST_TOPICS;
         String groupName = StringUtils.hasText(group.getName()) ? group.getName().trim() : "群聊";
         String userText = triggerMessage.getContent().trim();
 
@@ -228,35 +226,41 @@ public class GroupAiAutomationServiceImpl implements GroupAiAutomationService {
                 ? sender.getNickname()
                 : (sender != null && StringUtils.hasText(sender.getUsername()) ? sender.getUsername() : "用户");
 
-        StringBuilder system = new StringBuilder();
-        system.append("你是「灵伴」（LinkMate），正在企业 IM 群聊「").append(groupName).append("」中回复成员消息。");
-        system.append("群主/管理员已开启主动发言，关注话题：").append(topics).append("。");
-        system.append("请结合最近群聊上下文，对成员「").append(senderName).append("」的最新发言给出自然、简洁、有帮助的回复；");
-        system.append("使用与用户相同的语言，不要 @ 任何人，不要加引号或前缀。");
+        String system = LinkMatePromptTemplate.GROUP_AI_PROACTIVE_SYSTEM.format(Map.of(
+                "groupName", groupName,
+                "topics", topics,
+                "senderName", senderName
+        ));
+        String user = LinkMatePromptTemplate.GROUP_AI_PROACTIVE_USER.format(Map.of(
+                "recentMessages", buildRecentMessagesContext(group.getId(), null),
+                "senderName", senderName,
+                "userMessage", userText
+        ));
 
         List<LlmMessage> messages = new ArrayList<>();
-        messages.add(new LlmMessage("system", system.toString()));
-        messages.add(new LlmMessage("user",
-                "最近群消息：\n" + buildRecentMessagesContext(group.getId(), null)
-                        + "\n\n请回复「" + senderName + "」刚才说的：\n" + userText));
+        messages.add(new LlmMessage("system", system));
+        messages.add(new LlmMessage("user", user));
         return callLlm(messages);
     }
 
     private String generateSummary(ImConversation group, List<ImMessage> scopedMessages) {
         String instruction = StringUtils.hasText(group.getGroupAiSummaryInstruction())
                 ? group.getGroupAiSummaryInstruction().trim()
-                : "提炼讨论要点、待办与结论";
+                : LinkMateConstants.DEFAULT_GROUP_AI_SUMMARY_INSTRUCTION;
         String groupName = StringUtils.hasText(group.getName()) ? group.getName().trim() : "群聊";
 
-        StringBuilder system = new StringBuilder();
-        system.append("你是「灵伴」（LinkMate），请为群聊「").append(groupName).append("」生成智能总结。");
-        system.append("总结要求：").append(instruction).append("。");
-        system.append("使用简洁条目或短段落，保留关键决策与待办，避免逐条复述闲聊。");
-        system.append("若消息过少或没有可总结内容，只回复 ").append(SKIP_MARKER).append("。");
+        String system = LinkMatePromptTemplate.GROUP_AI_SUMMARY_SYSTEM.format(Map.of(
+                "groupName", groupName,
+                "instruction", instruction,
+                "skipMarker", LinkMateConstants.SKIP_REPLY_MARKER
+        ));
+        String user = LinkMatePromptTemplate.GROUP_AI_SUMMARY_USER.format(Map.of(
+                "messages", buildMessagesContext(scopedMessages)
+        ));
 
         List<LlmMessage> messages = new ArrayList<>();
-        messages.add(new LlmMessage("system", system.toString()));
-        messages.add(new LlmMessage("user", "待总结消息：\n" + buildMessagesContext(scopedMessages)));
+        messages.add(new LlmMessage("system", system));
+        messages.add(new LlmMessage("user", user));
         return callLlm(messages);
     }
 
@@ -334,7 +338,7 @@ public class GroupAiAutomationServiceImpl implements GroupAiAutomationService {
             }
             String senderName;
             if (LinkMateConstants.BOT_SENDER_ID.equals(msg.getSenderId())) {
-                senderName = LinkMateConstants.BOT_NICKNAME;
+                senderName = LinkMateConstants.GROUP_ASSISTANT_NICKNAME;
             } else {
                 SysUser sender = senderMap.get(msg.getSenderId());
                 senderName = sender != null && StringUtils.hasText(sender.getNickname())
@@ -382,6 +386,7 @@ public class GroupAiAutomationServiceImpl implements GroupAiAutomationService {
 
     private static boolean isSkipReply(String reply) {
         String trimmed = reply.trim();
-        return SKIP_MARKER.equals(trimmed) || trimmed.startsWith(SKIP_MARKER);
+        return LinkMateConstants.SKIP_REPLY_MARKER.equals(trimmed)
+                || trimmed.startsWith(LinkMateConstants.SKIP_REPLY_MARKER);
     }
 }
