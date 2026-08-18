@@ -1185,6 +1185,10 @@ export const useAppStore = defineStore('app', {
             void this.handleGroupLinkmateChanged(data)
             return
           }
+          if (action === 'group_ai_features_changed') {
+            void this.handleGroupAiFeaturesChanged(data)
+            return
+          }
           // 朋友圈新动态推送
           if (action === 'moments_new_post') {
             void this.handleMomentsNewPost(data)
@@ -2927,9 +2931,60 @@ export const useAppStore = defineStore('app', {
       const enabled = data.linkmateEnabled === true || data.linkmateEnabled === 1
       try {
         const { useGroupMetaStore } = await import('./groupMeta')
-        useGroupMetaStore().linkmateState[conversationId] = { enabled }
+        const groupMeta = useGroupMetaStore()
+        groupMeta.linkmateState[conversationId] = { enabled }
+        if (!enabled) {
+          groupMeta.groupAiState[conversationId] = {
+            proactiveSpeak: false,
+            smartSummary: false,
+            interestTopics: '',
+            summaryInstruction: ''
+          }
+        } else if (
+          data.groupAiProactiveEnabled != null ||
+          data.groupAiSmartSummaryEnabled != null
+        ) {
+          const current = groupMeta.groupAiPrefsFor(conversationId)
+          groupMeta.groupAiState[conversationId] = {
+            proactiveSpeak:
+              data.groupAiProactiveEnabled === true || data.groupAiProactiveEnabled === 1,
+            smartSummary:
+              data.groupAiSmartSummaryEnabled === true || data.groupAiSmartSummaryEnabled === 1,
+            interestTopics:
+              typeof data.groupAiInterestTopics === 'string'
+                ? data.groupAiInterestTopics
+                : current.interestTopics,
+            summaryInstruction:
+              typeof data.groupAiSummaryInstruction === 'string'
+                ? data.groupAiSummaryInstruction
+                : current.summaryInstruction
+          }
+        }
       } catch (e) {
         console.warn('[handleGroupLinkmateChanged] 更新灵伴接入状态失败:', e)
+      }
+    },
+
+    /** 群 AI 功能设置变更 */
+    async handleGroupAiFeaturesChanged(data: Record<string, unknown>) {
+      const conversationId = data.conversationId != null ? String(data.conversationId) : ''
+      if (!conversationId) return
+      try {
+        const { useGroupMetaStore } = await import('./groupMeta')
+        useGroupMetaStore().groupAiState[conversationId] = {
+          proactiveSpeak:
+            data.groupAiProactiveEnabled === true || data.groupAiProactiveEnabled === 1,
+          smartSummary:
+            data.groupAiSmartSummaryEnabled === true || data.groupAiSmartSummaryEnabled === 1,
+          interestTopics:
+            typeof data.groupAiInterestTopics === 'string' ? data.groupAiInterestTopics : '',
+          summaryInstruction:
+            typeof data.groupAiSummaryInstruction === 'string'
+              ? data.groupAiSummaryInstruction
+              : ''
+        }
+      } catch (e) {
+        console.warn('[handleGroupAiFeaturesChanged] 更新群 AI 设置失败:', e)
       }
     },
 

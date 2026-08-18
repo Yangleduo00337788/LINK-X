@@ -144,6 +144,9 @@ function stopDrag() {
 onMounted(() => {
   window.addEventListener('focus', onWindowFocus)
   window.addEventListener('blur', onWindowBlur)
+  if ((navKey.value as string) === 'groupAi') {
+    appStore.setNav('chat')
+  }
 })
 
 // 卸载时清理拖拽与焦点监听

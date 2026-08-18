@@ -203,6 +203,7 @@ function handleFrame(raw: string) {
     case 'group_mute_changed':
     case 'group_mute_all_changed':
     case 'group_linkmate_changed':
+    case 'group_ai_features_changed':
       if (frame.data) {
         handlers?.onCustomAction?.(frame.action, frame.data as Record<string, unknown>)
       }

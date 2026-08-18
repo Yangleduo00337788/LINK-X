@@ -11,7 +11,7 @@
 // Vue 响应式、计算属性、生命周期、侦听器与 nextTick
 import { ref, computed, shallowRef, onMounted, onUnmounted, watch, nextTick } from 'vue'
 // Naive UI 图标、气泡、下拉菜单与消息提示
-import { NIcon, NPopover, NDropdown, NModal, NInput, NSwitch, useMessage, type DropdownOption } from 'naive-ui'
+import { NIcon, NPopover, NDropdown, NModal, NInput, useMessage, type DropdownOption } from 'naive-ui'
 // Ionicons5 通话、视频、网格、添加、更多、手机、图片图标
 import {
   CallOutline,
@@ -31,6 +31,7 @@ import PenguinWatermark from './PenguinWatermark.vue'
 import DiscoverEmptyPane from './ops/DiscoverEmptyPane.vue'
 // 群聊侧边栏
 import GroupChatSidebar from './chat/GroupChatSidebar.vue'
+import GroupSmartSummaryTab from './chat/GroupSmartSummaryTab.vue'
 // 好友聊天更多抽屉
 import ChatMoreDrawer from './chat/ChatMoreDrawer.vue'
 // 群信息抽屉
@@ -80,7 +81,6 @@ import ForwardPickerModal from './chat/ForwardPickerModal.vue'
 import ConferenceSessionBanner from './chat/ConferenceSessionBanner.vue'
 import type { SessionBannerInfo } from './chat/ConferenceSessionBanner.vue'
 import { useConferenceStore } from '../stores/conference'
-import { useLinkMateStore } from '../stores/linkmate'
 import { LxButton, LxIconButton } from './ui'
 
 // 获取 Naive UI 消息提示实例
@@ -246,6 +246,15 @@ const isFriendChat = computed(
   () => hasSession.value && !currentSession.value?.isGroup && !isMyPhone.value
 )
 
+/** 群聊已开启智能总结时显示侧边装饰条 */
+const showSmartSummaryTab = computed(() => {
+  const sid = currentSessionId.value
+  if (!isGroupChat.value || !sid) return false
+  if (!groupMetaStore.linkmateStateLoaded(sid)) return false
+  if (!groupMetaStore.linkmateEnabledFor(sid)) return false
+  return groupMetaStore.groupAiPrefsFor(sid).smartSummary
+})
+
 const peerOnline = computed(() => {
   const session = currentSession.value
   if (!isFriendChat.value || !session) return false
@@ -288,37 +297,6 @@ const isGroupAdmin = computed(() => {
   const members = groupMetaStore.membersFor(currentSessionId.value)
   return members.some(m => m.id === me && (m.role === 'owner' || m.role === 'admin'))
 })
-
-const linkMateStore = useLinkMateStore()
-const { enabled: linkMateGlobalEnabled } = storeToRefs(linkMateStore)
-
-const groupLinkmateLoaded = computed(() => {
-  const sid = currentSessionId.value
-  return !!sid && groupMetaStore.linkmateStateLoaded(sid)
-})
-
-const groupLinkmateEnabled = computed(() => {
-  const sid = currentSessionId.value
-  if (!sid || !isGroupChat.value) return false
-  return groupMetaStore.linkmateEnabledFor(sid)
-})
-
-const groupLinkmateSwitchLoading = ref(false)
-
-async function onGroupLinkmateToggle(enabled: boolean) {
-  const sid = currentSessionId.value
-  if (!sid || !isGroupAdmin.value || groupLinkmateSwitchLoading.value) return
-  groupLinkmateSwitchLoading.value = true
-  try {
-    await groupMetaStore.updateLinkmateEnabled(sid, enabled)
-    message.success(enabled ? t('modals.linkmateInGroupOn') : t('modals.linkmateInGroupOff'))
-  } catch (e) {
-    const err = e as { response?: { data?: { message?: string } }; message?: string }
-    message.error(err.response?.data?.message || err.message || t('modals.groupLinkmateUpdateFail'))
-  } finally {
-    groupLinkmateSwitchLoading.value = false
-  }
-}
 
 // 进入群聊时预加载成员与群资料（延后到空闲，避免阻塞首帧）
 watch(
@@ -1574,23 +1552,7 @@ function onDrop(e: DragEvent) {
       <!-- 群聊顶栏 -->
       <header v-else-if="isGroupChat" class="chat-header chat-header--group">
         <div class="chat-header-left">
-          <div class="chat-header-title-row">
             <span class="chat-peer-name chat-peer-name--group">{{ currentSession?.name }}</span>
-            <div
-              v-if="linkMateGlobalEnabled && groupLinkmateLoaded"
-              class="chat-header-linkmate"
-              :title="t('modals.linkmateInGroupDesc')"
-            >
-              <span class="chat-header-linkmate-label">{{ t('modals.linkmateInGroup') }}</span>
-              <n-switch
-                size="small"
-                :value="groupLinkmateEnabled"
-                :disabled="!isGroupAdmin || groupLinkmateSwitchLoading"
-                :loading="groupLinkmateSwitchLoading"
-                @update:value="onGroupLinkmateToggle"
-              />
-            </div>
-          </div>
         </div>
         <div class="chat-header-actions">
           <LxIconButton
@@ -1715,6 +1677,11 @@ function onDrop(e: DragEvent) {
                 >
                   {{ t('chat.someoneAtMeFab') }}
                 </button>
+
+                <GroupSmartSummaryTab
+                  v-if="showSmartSummaryTab && currentSessionId"
+                  :session-id="currentSessionId"
+                />
 
                 <div
                   v-if="hasSession && !chatMessages.length && sessionMessagesLoading"
@@ -1951,28 +1918,6 @@ function onDrop(e: DragEvent) {
   min-width: 0;
 }
 
-.chat-header-title-row {
-  display: flex;
-  align-items: center;
-  gap: var(--lx-space-lg);
-  min-width: 0;
-  flex: 1;
-}
-
-.chat-header-linkmate {
-  display: flex;
-  align-items: center;
-  gap: var(--lx-space-sm);
-  flex-shrink: 0;
-}
-
-.chat-header-linkmate-label {
-  font-size: var(--lx-font-sm);
-  line-height: 1;
-  color: var(--lx-text-secondary);
-  white-space: nowrap;
-}
-
 .peer-meta {
   display: flex;
   flex-direction: column;
@@ -2053,6 +1998,7 @@ function onDrop(e: DragEvent) {
 }
 
 .message-list-container {
+  position: relative;
   flex: 1;
   min-height: 0;
   height: 100%;

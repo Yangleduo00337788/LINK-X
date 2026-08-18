@@ -23,6 +23,7 @@ import { useGroupMetaStore } from '../../stores/groupMeta'
 import { useI18n } from '../../i18n'
 import type { GroupMember } from '../../stores/groupMeta'
 import { LxIconButton } from '../ui'
+import GroupAiSidebarBlock from './GroupAiSidebarBlock.vue'
 import { virtualListScrollbarProps, useNaiveVirtualListNativeScrollbar } from '../../utils/virtualListScrollbar'
 
 const COLLAPSE_KEY = 'linkx.groupSidebar.collapsed'
@@ -183,6 +184,7 @@ function onMemberClick(m: GroupMember) {
           {{ announcementText }}
         </button>
       </section>
+      <GroupAiSidebarBlock :can-manage="isAdminOrOwner" />
       <!-- 群成员列表 -->
       <section class="members-block">
         <div class="members-head">
