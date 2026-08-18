@@ -18,6 +18,7 @@ import {
 } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useLinkMateStore } from '../stores/linkmate'
+import { useExtensionDockStore } from '../stores/extensionDock'
 import type { LinkMateMessage } from '../api/linkmate'
 import { useI18n } from '../i18n'
 import LinkMateLogoMark from './LinkMateLogoMark.vue'
@@ -29,10 +30,13 @@ const props = withDefaults(
     layout?: 'page' | 'side'
     /** 独立窗口模式：隐藏收起与弹出按钮 */
     standalone?: boolean
+    /** 嵌入统一扩展坞：隐藏标签栏与拖拽条 */
+    dockEmbed?: boolean
   }>(),
   {
     layout: 'page',
-    standalone: false
+    standalone: false,
+    dockEmbed: false
   }
 )
 
@@ -40,11 +44,14 @@ const mdRenderer = shallowRef<((content: string) => string) | null>(null)
 
 const isPageLayout = computed(() => props.layout === 'page')
 const isStandalone = computed(() => props.standalone)
+const isDockEmbed = computed(() => props.dockEmbed)
 
 const { t } = useI18n()
 const message = useMessage()
 const dialog = useDialog()
 const linkMate = useLinkMateStore()
+const extensionDock = useExtensionDockStore()
+const { panelWidth } = storeToRefs(extensionDock)
 const {
   activeMessages,
   activeSessionId,
@@ -54,7 +61,6 @@ const {
   inputDraft,
   enabled,
   status,
-  panelWidth,
   sessions,
   openTabs,
   deepThinking,
@@ -196,7 +202,7 @@ function shouldShowResponseDuration(msg: LinkMateMessage): boolean {
 }
 
 const panelStyle = computed(() =>
-  isPageLayout.value ? undefined : { width: `${panelWidth.value}px` }
+  isPageLayout.value || isDockEmbed.value ? undefined : { width: `${panelWidth.value}px` }
 )
 const canChat = computed(() => enabled.value && !dailyQuotaExhausted.value)
 const canUseDeepThinking = computed(() => deepThinkingSupported.value && !streaming.value)
@@ -578,9 +584,11 @@ onMounted(async () => {
   })
   linkMate.restoreInputDraft()
   await ensureReady()
-  await nextTick()
-  scrollToBottom()
-  inputRef.value?.focus()
+  if (!isDockEmbed.value) {
+    await nextTick()
+    scrollToBottom()
+    inputRef.value?.focus()
+  }
 })
 
 onUnmounted(() => {
@@ -599,7 +607,7 @@ onUnmounted(() => {
     :style="panelStyle"
   >
     <div
-      v-if="!isPageLayout"
+      v-if="!isPageLayout && !isDockEmbed"
       class="linkmate-resizer"
       :class="{ dragging: isResizing }"
       :title="t('linkmate.resizePanel')"
@@ -607,7 +615,7 @@ onUnmounted(() => {
     />
 
     <div class="linkmate-side-body">
-      <header class="linkmate-tabbar">
+      <header v-if="!isDockEmbed && !isStandalone" class="linkmate-tabbar">
         <button
           v-if="!isStandalone"
           type="button"

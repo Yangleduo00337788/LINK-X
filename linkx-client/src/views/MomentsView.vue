@@ -1,24 +1,25 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
 /**
- * 灵伴独立窗口全屏视图。
+ * 友链独立窗口全屏视图。
  */
 import { onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAppStore } from '../stores/app'
-import { useLinkMateStore } from '../stores/linkmate'
+import { useMomentsStore } from '../stores/moments'
 import { useOverlayStore } from '../stores/overlay'
 import { useChatModalsStore } from '../stores/chatModals'
 import { applyDocumentTheme, notifyElectronTheme } from '../utils/themeSync'
-import LinkMateSidePanel from '../components/LinkMateSidePanel.vue'
+import MomentsSidePanel from '../components/MomentsSidePanel.vue'
 import WindowCaptionButtons from '../components/WindowCaptionButtons.vue'
 import { syncDesktopChromeMode } from '../utils/electronChrome'
 import { useI18n } from '../i18n'
 
 const { t } = useI18n()
+
 const route = useRoute()
 const appStore = useAppStore()
-const linkMate = useLinkMateStore()
+const moments = useMomentsStore()
 const overlayStore = useOverlayStore()
 const chatModalsStore = useChatModalsStore()
 
@@ -32,17 +33,14 @@ onMounted(async () => {
   overlayStore.close()
   chatModalsStore.closeAllModals()
 
-  const sessionId = String(route.params.sessionId ?? '').trim()
-  await linkMate.loadStatus()
-  if (!linkMate.enabled) return
-
-  await linkMate.loadSessions()
-  if (sessionId) {
-    await linkMate.selectSession(sessionId)
+  const userId = typeof route.query.userId === 'string' ? route.query.userId.trim() : ''
+  const userName = typeof route.query.name === 'string' ? route.query.name : ''
+  if (userId) {
+    await moments.ensurePanelReady({ userId, userName })
   } else {
-    await linkMate.ensurePanelReady()
+    await moments.ensurePanelReady()
   }
-  linkMate.openPanel()
+  moments.openPanel(userId ? { userId, userName } : undefined)
 })
 
 onBeforeUnmount(() => {
@@ -61,13 +59,13 @@ watch(
 <template>
   <div class="standalone-shell">
     <header class="standalone-header">
-      <h1 class="header-title">{{ t('nav.linkmate') }}</h1>
+      <h1 class="header-title">{{ t('nav.moments') }}</h1>
       <div class="header-right">
         <WindowCaptionButtons show-pin />
       </div>
     </header>
-    <div class="standalone-content linkmate-standalone-content">
-      <LinkMateSidePanel layout="page" standalone />
+    <div class="standalone-content">
+      <MomentsSidePanel layout="page" standalone />
     </div>
   </div>
 </template>
@@ -128,7 +126,7 @@ watch(
   overflow: hidden;
 }
 
-.linkmate-standalone-content :deep(.linkmate-side--page) {
+.standalone-content :deep(.moments-side--page) {
   width: 100%;
   height: 100%;
   max-width: none;

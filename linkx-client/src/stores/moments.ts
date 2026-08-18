@@ -10,9 +10,51 @@ import { defineStore } from 'pinia'
 import * as momentsApi from '../api/moments'
 import { useAppStore } from './app'
 import { useContactsStore } from './contacts'
+import { useExtensionDockStore } from './extensionDock'
 import { normalizeMediaUrl, stripEphemeralMediaUrl } from '../utils/mediaUrl'
 import { API_BASE_URL } from '../config/endpoints'
 import { t } from '../i18n'
+
+export type MomentsPanelState = 'closed' | 'open' | 'collapsed'
+export type MomentsPanelTabId = 'main' | `user:${string}`
+
+const PANEL_WIDTH_STORAGE_KEY = 'linkx-moments-panel-width'
+export const MOMENTS_PANEL_WIDTH_MIN = 320
+export const MOMENTS_PANEL_WIDTH_MAX = 560
+export const MOMENTS_PANEL_WIDTH_DEFAULT = 420
+
+let ensurePanelReadyTask: Promise<void> | null = null
+
+function clampPanelWidth(width: number): number {
+  return Math.min(MOMENTS_PANEL_WIDTH_MAX, Math.max(MOMENTS_PANEL_WIDTH_MIN, width))
+}
+
+function loadPanelWidth(): number {
+  try {
+    const raw = localStorage.getItem(PANEL_WIDTH_STORAGE_KEY)
+    const parsed = raw ? Number(raw) : NaN
+    if (Number.isFinite(parsed)) {
+      return clampPanelWidth(parsed)
+    }
+  } catch {
+    /* ignore */
+  }
+  return MOMENTS_PANEL_WIDTH_DEFAULT
+}
+
+function persistPanelWidth(width: number) {
+  try {
+    localStorage.setItem(PANEL_WIDTH_STORAGE_KEY, String(width))
+  } catch {
+    /* ignore */
+  }
+}
+
+export function parseMomentsTabUserId(tabId: string): string | null {
+  if (!tabId.startsWith('user:')) return null
+  const id = tabId.slice(5).trim()
+  return id || null
+}
 
 /** 单条评论 */
 export interface MomentComment {
@@ -157,10 +199,27 @@ export const useMomentsStore = defineStore('moments', {
     focusUserId: null as string | null,
     focusUserName: null as string | null,
     focusUserPosts: [] as MomentPost[],
-    focusUserLoading: false
+    focusUserLoading: false,
+    openTabIds: [] as MomentsPanelTabId[],
+    activeTabId: '' as MomentsPanelTabId | ''
   }),
 
   getters: {
+    openTabs(state): Array<{ id: MomentsPanelTabId; title: string }> {
+      return state.openTabIds.map(id => {
+        if (id === 'main') {
+          return { id, title: t('nav.moments') }
+        }
+        const userId = parseMomentsTabUserId(id)
+        if (userId && state.focusUserId === userId && state.focusUserName) {
+          return { id, title: state.focusUserName }
+        }
+        const friend = useContactsStore().items.find(
+          c => String(c.userId ?? c.id) === userId
+        )
+        return { id, title: friend?.name || t('nav.moments') }
+      })
+    },
     /** 当前列表：焦点用户动态 或 全站好友动态 */
     displayPosts(state): MomentPost[] {
       return state.focusUserId ? state.focusUserPosts : state.posts
@@ -171,6 +230,126 @@ export const useMomentsStore = defineStore('moments', {
   },
 
   actions: {
+    registerOpenTab(tabId: MomentsPanelTabId) {
+      if (!tabId || this.openTabIds.includes(tabId)) return
+      this.openTabIds.push(tabId)
+    },
+
+    async ensurePanelReady(opts?: { userId?: string; userName?: string }) {
+      if (ensurePanelReadyTask) return ensurePanelReadyTask
+
+      ensurePanelReadyTask = (async () => {
+        if (opts?.userId) {
+          const tabId = `user:${opts.userId}` as MomentsPanelTabId
+          this.registerOpenTab(tabId)
+          this.activeTabId = tabId
+          this.setFocusUser(opts.userId, opts.userName)
+          await this.loadFocusUserFeed()
+          return
+        }
+        if (this.openTabIds.length === 0) {
+          this.registerOpenTab('main')
+          this.activeTabId = 'main'
+          this.clearFocusUser()
+        } else if (!this.activeTabId) {
+          this.activeTabId = this.openTabIds[this.openTabIds.length - 1]
+        }
+        if (this.activeTabId === 'main') {
+          await this.fetchMoments()
+        } else {
+          const userId = parseMomentsTabUserId(this.activeTabId)
+          if (userId) {
+            this.setFocusUser(userId, this.focusUserName)
+            await this.loadFocusUserFeed()
+          }
+        }
+      })().finally(() => {
+        ensurePanelReadyTask = null
+      })
+
+      return ensurePanelReadyTask
+    },
+
+    openPanel(opts?: { userId?: string; userName?: string }) {
+      useAppStore().setNav('chat')
+      if (opts?.userId) {
+        const tabId = `user:${opts.userId}` as MomentsPanelTabId
+        this.registerOpenTab(tabId)
+        this.activeTabId = tabId
+        this.setFocusUser(opts.userId, opts.userName)
+        void this.loadFocusUserFeed()
+      } else if (!this.openTabIds.length) {
+        this.registerOpenTab('main')
+        this.activeTabId = 'main'
+        this.clearFocusUser()
+        void this.fetchMoments()
+      } else if (!this.activeTabId) {
+        this.activeTabId = this.openTabIds[this.openTabIds.length - 1]
+      }
+      const tabId = (opts?.userId
+        ? `user:${opts.userId}`
+        : this.activeTabId || 'main') as MomentsPanelTabId
+      useExtensionDockStore().activateTab(`moments:${tabId}`)
+    },
+
+    collapsePanel() {
+      useExtensionDockStore().collapsePanel()
+    },
+
+    expandPanel() {
+      useExtensionDockStore().expandPanel()
+      if (this.openTabIds.length === 0) {
+        void this.ensurePanelReady()
+      }
+    },
+
+    closePanel() {
+      this.openTabIds = []
+      this.activeTabId = ''
+      this.clearFocusUser()
+      useExtensionDockStore().syncAfterTabsChanged()
+    },
+
+    async selectTab(tabId: MomentsPanelTabId) {
+      if (!this.openTabIds.includes(tabId)) return
+      this.activeTabId = tabId
+      if (tabId === 'main') {
+        this.clearFocusUser()
+        await this.fetchMoments()
+        return
+      }
+      const userId = parseMomentsTabUserId(tabId)
+      if (!userId) return
+      this.setFocusUser(userId, this.focusUserName)
+      await this.loadFocusUserFeed()
+    },
+
+    closeTab(tabId: MomentsPanelTabId) {
+      const remaining = this.openTabIds.filter(id => id !== tabId)
+      this.openTabIds = remaining
+      if (remaining.length === 0) {
+        this.activeTabId = ''
+        this.clearFocusUser()
+        useExtensionDockStore().syncAfterTabsChanged()
+        return
+      }
+      if (this.activeTabId === tabId) {
+        const next = remaining[remaining.length - 1]
+        void this.selectTab(next)
+      }
+    },
+
+    closeAllTabs() {
+      this.openTabIds = []
+      this.activeTabId = ''
+      this.clearFocusUser()
+      useExtensionDockStore().syncAfterTabsChanged()
+    },
+
+    setPanelWidth(width: number) {
+      useExtensionDockStore().setPanelWidth(width)
+    },
+
     setFocusUser(userId: string | null, userName?: string | null) {
       this.focusUserId = userId
       this.focusUserName = userName?.trim() || null

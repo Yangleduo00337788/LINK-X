@@ -237,19 +237,17 @@ const showProfileDetails = computed(
 /** 友链缩略图：仅展示真实图片，无图时留空由 UI 提示 */
 const momentPreviews = computed(() => momentPreviewImages.value)
 
-/** 打开对方友链：Electron 独立窗带 userId；Web 切主栏 moments */
+/** 打开对方友链：侧栏扩展面板；独立窗通过标签弹出 */
 function openContactMoments() {
   const userId = friendUserId.value
   if (!userId || !contact.value) return
   const name = displayName.value
   closeContactProfile()
-  if (window.electronAPI?.openMoments) {
-    window.electronAPI.openMoments({ userId, name })
-    return
-  }
-  setFocusUser(userId, name)
-  void loadFocusUserFeed()
-  appStore.setNav('moments')
+  appStore.setNav('chat')
+  void (async () => {
+    await momentsStore.ensurePanelReady({ userId, name })
+    momentsStore.openPanel({ userId, name })
+  })()
 }
 
 /** 从资料卡发起与该联系人的聊天 */

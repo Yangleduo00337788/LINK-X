@@ -59,7 +59,6 @@ import MomentsNotificationsPage from './MomentsNotificationsPage.vue'
 import MomentsComposerModal from './MomentsComposerModal.vue'
 import MomentsPostImage from './moments/MomentsPostImage.vue'
 import Avatar from './Avatar.vue'
-import WindowCaptionButtons from './WindowCaptionButtons.vue'
 import { resolveMomentsImageDisplaySrc } from '../utils/momentsMediaAccess'
 import type { MomentPost } from '../stores/moments'
 // 偏好 API
@@ -321,8 +320,10 @@ function handleScroll(e: Event) {
 }
 
 const showTitle = computed(() => scrollTop.value > 250 || showSearch.value)
+const onCoverHeader = computed(() => scrollTop.value <= 200 && !showSearch.value)
 const headerBgOpacity = computed(() => {
-  if (showSearch.value) {
+  if (showSearch.value || onCoverHeader.value) {
+    if (onCoverHeader.value) return 'transparent'
     const rgb = theme.value === 'dark' ? '34, 34, 34' : '245, 245, 245'
     return `rgba(${rgb}, 1)`
   }
@@ -331,21 +332,8 @@ const headerBgOpacity = computed(() => {
   return `rgba(${rgb}, ${opacity})`
 })
 const headerIconColor = computed(() =>
-  scrollTop.value > 200 || showSearch.value ? 'var(--lx-text)' : 'var(--lx-text-on-accent)'
+  onCoverHeader.value ? '#ffffff' : 'var(--lx-text)'
 )
-
-const titleBarOnCover = computed(
-  () => !props.embedded && scrollTop.value <= 200 && !showSearch.value
-)
-
-function syncMomentsTitleBarOverlay() {
-  if (props.embedded) return
-  const onCover = titleBarOnCover.value
-  void window.electronAPI?.setTitleBarOverlay?.({
-    color: '#00000000',
-    symbolColor: onCover ? '#ffffff' : theme.value === 'dark' ? '#f3f3f3' : '#1a1a1a'
-  })
-}
 
 // 图片预览
 type PreviewItem = { url: string; imageId?: string }
@@ -438,7 +426,6 @@ onMounted(() => {
   if (!props.embedded) {
     applyDocumentTheme(appStore.theme)
     notifyElectronTheme(appStore.theme)
-    syncMomentsTitleBarOverlay()
   }
   window.addEventListener('click', closeBannerMenu)
   // 独立窗口不走 HomeView，需自行恢复会话并连接 WS；嵌入模式由 AppShell 已登录
@@ -489,11 +476,6 @@ onBeforeUnmount(() => {
 watch(theme, t => {
   applyDocumentTheme(t)
   notifyElectronTheme(t)
-  syncMomentsTitleBarOverlay()
-})
-
-watch(titleBarOnCover, () => {
-  syncMomentsTitleBarOverlay()
 })
 
 // 顶部刷新按钮 - 旋转动画状态
@@ -1108,7 +1090,14 @@ const showMomentsOps = ref(false)
     </div>
 
     <!-- 固定顶部操作栏 -->
-    <div class="fixed-header" :style="{ backgroundColor: headerBgOpacity, color: headerIconColor }">
+    <div
+      class="fixed-header"
+      :class="{
+        'fixed-header--on-cover': onCoverHeader,
+        'fixed-header--standalone': !embedded
+      }"
+      :style="{ backgroundColor: headerBgOpacity, color: headerIconColor }"
+    >
       <div class="header-left">
         <LxIconButton variant="banner" :title="t('common.search')" @click.stop="toggleSearch">
           <n-icon :component="SearchOutline" size="22" />
@@ -1166,8 +1155,11 @@ const showMomentsOps = ref(false)
           {{ t('moments.backToFeed') }}
         </LxButton>
       </div>
-      <div class="header-center" :class="{ visible: showTitle && !showNotifications }">
-        <span v-if="!showSearch">{{ t('moments.title') }}</span>
+      <div
+        class="header-center"
+        :class="{ visible: showSearch || (embedded && showTitle && !showNotifications) }"
+      >
+        <span v-if="embedded && !showSearch">{{ t('moments.title') }}</span>
         <input
           v-else
           v-model="searchQuery"
@@ -1175,9 +1167,6 @@ const showMomentsOps = ref(false)
           :placeholder="t('moments.searchPh')"
           @click.stop
         />
-      </div>
-      <div v-if="!embedded" class="header-right">
-        <WindowCaptionButtons show-pin />
       </div>
     </div>
 
@@ -1287,10 +1276,22 @@ const showMomentsOps = ref(false)
 }
 
 .standalone-window.moments-wrapper {
-  width: 100vw !important;
-  height: 100vh !important;
+  width: 100% !important;
+  height: 100% !important;
   border-radius: 0 !important;
   margin: 0 !important;
+}
+
+.standalone-window.moments-wrapper .fixed-header--standalone {
+  display: flex;
+  height: 48px !important;
+  min-height: 48px;
+  align-items: stretch;
+}
+
+.standalone-window.moments-wrapper .fixed-header--standalone .header-left,
+.standalone-window.moments-wrapper .fixed-header--standalone .header-center {
+  align-self: center;
 }
 
 .moments-wrapper.embedded {
@@ -1317,6 +1318,29 @@ const showMomentsOps = ref(false)
   transition: background-color var(--lx-duration-slow) ease, color var(--lx-duration-slow) ease;
   box-sizing: border-box;
   -webkit-app-region: drag;
+}
+
+.fixed-header--on-cover {
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.5) 0%,
+    rgba(0, 0, 0, 0.22) 58%,
+    rgba(0, 0, 0, 0) 100%
+  ) !important;
+}
+
+.fixed-header--on-cover .lx-action-btn--banner {
+  background: rgba(0, 0, 0, 0.22);
+  border-radius: 50%;
+}
+
+.fixed-header--on-cover .lx-action-btn--banner:hover {
+  background: rgba(0, 0, 0, 0.36);
+}
+
+.fixed-header--on-cover .header-center.visible {
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
 }
 
 .header-left {

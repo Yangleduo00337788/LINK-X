@@ -39,6 +39,7 @@ import { useMomentsStore } from '../stores/moments'
 import { useCalendarStore } from '../stores/calendar'
 import { useNotificationsStore } from '../stores/notifications'
 import { useLinkMateStore } from '../stores/linkmate'
+import { useExtensionDockStore } from '../stores/extensionDock'
 import type { NavKey } from '../types'
 import { useI18n } from '../i18n'
 import { checkAppUpdate } from '../utils/appUpdate'
@@ -55,11 +56,12 @@ const momentsStore = useMomentsStore()
 const calendarStore = useCalendarStore()
 const notificationsStore = useNotificationsStore()
 const linkMateStore = useLinkMateStore()
+const extensionDock = useExtensionDockStore()
 const { t } = useI18n()
 // 解构导航键、用户资料、已保存登录信息、会话列表
 const { navKey, userProfile, savedLogin, sessions, isOffline } = storeToRefs(appStore)
 const { calendarRemindUnreadCount, officialUnreadCount, contactsBadgeCount } = storeToRefs(notificationsStore)
-const { panelCollapsed } = storeToRefs(linkMateStore)
+const { panelCollapsed } = storeToRefs(extensionDock)
 // 解构导航切换、登出、锁定方法
 const { setNav, logout, lock } = appStore
 // 解构打开个人资料方法
@@ -134,11 +136,12 @@ function handleClick(key: NavKey | 'menu') {
     return
   }
   if (key === 'moments') {
-    if (window.electronAPI) {
-      window.electronAPI.openMoments()
-    } else {
-      setNav('moments')
+    setNav('chat')
+    if (extensionDock.panelCollapsed) {
+      extensionDock.expandPanel()
     }
+    void momentsStore.ensurePanelReady()
+    momentsStore.openPanel()
     return
   }
   if (key === 'files') {
@@ -316,15 +319,15 @@ function handleSelfAvatarClick(e: MouseEvent) {
       </button>
     </div>
 
-    <!-- 底部：灵伴收起入口 + 更多菜单 -->
+    <!-- 底部：扩展面板收起入口 + 更多菜单 -->
     <div class="nav-bottom">
       <button
         v-if="panelCollapsed && navKey === 'chat'"
         type="button"
-        class="nav-item linkmate-dock-btn"
-        :title="t('linkmate.expandPanel')"
-        :aria-label="t('linkmate.expandPanel')"
-        @click="linkMateStore.expandPanel()"
+        class="nav-item extension-dock-btn"
+        :title="t('extensionDock.expandPanel')"
+        :aria-label="t('extensionDock.expandPanel')"
+        @click="extensionDock.expandPanel()"
       >
         <svg class="linkmate-expand-ico" viewBox="0 0 20 20" aria-hidden="true">
           <rect x="3.5" y="3.5" width="13" height="13" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4" />
@@ -427,6 +430,10 @@ function handleSelfAvatarClick(e: MouseEvent) {
 }
 
 .linkmate-dock-btn {
+  color: var(--lx-text-nav);
+}
+
+.moments-dock-btn {
   color: var(--lx-text-nav);
 }
 
