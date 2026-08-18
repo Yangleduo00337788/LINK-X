@@ -1,42 +1,19 @@
 /**
- * 全局统一滚动条样式（主应用 + 安装向导共用）。
- * Chromium/Electron 仅使用 ::-webkit-scrollbar*，勿与 scrollbar-width/color 同用。
+ * 全局滚动条：与聊天消息区同一套 ::-webkit-scrollbar（圆角滑块、无轨道、无箭头）。
+ * 勿写 scrollbar-width:thin —— Win11 会换成系统条，拖动时冒出箭头。
+ * Win11 Fluent 叠加条由 Electron 关闭，避免和 webkit 叠成两条。
  */
 :root {
-  --lx-scrollbar-size: 10px;
-  /* 滑块沿轨道方向的固定长度（各区域一致，不随内容多少大幅变化） */
-  --lx-scrollbar-thumb-length: 72px;
+  --lx-scrollbar-size: 8px;
+  --lx-scrollbar-thumb-min: 32px;
   --lx-scrollbar-thumb: rgba(0, 0, 0, 0.22);
   --lx-scrollbar-thumb-hover: rgba(0, 0, 0, 0.36);
-  --lx-scrollbar-track: rgba(0, 0, 0, 0.05);
+  --lx-scrollbar-track: transparent;
 }
 
 [data-theme='dark'] {
   --lx-scrollbar-thumb: rgba(255, 255, 255, 0.24);
   --lx-scrollbar-thumb-hover: rgba(255, 255, 255, 0.4);
-  --lx-scrollbar-track: rgba(255, 255, 255, 0.06);
-}
-
-/* 共用：滑块外观 + 固定长度 */
-::-webkit-scrollbar-thumb {
-  background-color: var(--lx-scrollbar-thumb);
-  border-radius: var(--lx-radius-pill, 999px);
-  border: 2px solid transparent;
-  background-clip: padding-box;
-}
-
-::-webkit-scrollbar-thumb:vertical {
-  min-height: var(--lx-scrollbar-thumb-length);
-  max-height: var(--lx-scrollbar-thumb-length);
-}
-
-::-webkit-scrollbar-thumb:horizontal {
-  min-width: var(--lx-scrollbar-thumb-length);
-  max-width: var(--lx-scrollbar-thumb-length);
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background-color: var(--lx-scrollbar-thumb-hover);
 }
 
 ::-webkit-scrollbar {
@@ -48,6 +25,25 @@
   background: var(--lx-scrollbar-track);
 }
 
+::-webkit-scrollbar-thumb {
+  background-color: var(--lx-scrollbar-thumb);
+  border-radius: var(--lx-radius-pill, 999px);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:vertical {
+  min-height: var(--lx-scrollbar-thumb-min);
+}
+
+::-webkit-scrollbar-thumb:horizontal {
+  min-width: var(--lx-scrollbar-thumb-min);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--lx-scrollbar-thumb-hover);
+}
+
 ::-webkit-scrollbar-corner {
   background: transparent;
 }
@@ -56,85 +52,74 @@
 ::-webkit-scrollbar-button:single-button,
 ::-webkit-scrollbar-button:double-button,
 ::-webkit-scrollbar-button:vertical:start:decrement,
+::-webkit-scrollbar-button:vertical:start:increment,
+::-webkit-scrollbar-button:vertical:end:decrement,
 ::-webkit-scrollbar-button:vertical:end:increment,
 ::-webkit-scrollbar-button:horizontal:start:decrement,
+::-webkit-scrollbar-button:horizontal:start:increment,
+::-webkit-scrollbar-button:horizontal:end:decrement,
 ::-webkit-scrollbar-button:horizontal:end:increment {
-  display: none;
-  width: 0;
-  height: 0;
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
   -webkit-appearance: none;
   appearance: none;
 }
 
-/* vueuc 在 showScrollbar:false 时会设 scrollbar-width:none，Win 上会退化成带箭头的系统滚动条 */
-.v-vl {
-  scrollbar-width: auto !important;
+/*
+ * Naive / vueuc 会 scrollbar-width:none + 把 webkit 条宽设为 0，再画自定义轨道。
+ * 统一关掉自定义轨道，把原生条拉回上面这套 webkit 样式。
+ */
+.n-scrollbar-container,
+.n-scrollbar-content,
+.n-input__textarea-el,
+.n-base-select-menu,
+.n-dropdown-menu,
+.n-drawer-body-content-wrapper,
+.n-modal-body-wrapper,
+.n-internal-select-menu,
+.v-vl,
+.v-scrollbar,
+.v-scrollbar-container {
+  scrollbar-width: unset !important;
+  -ms-overflow-style: auto !important;
 }
 
-.v-vl::-webkit-scrollbar {
+.n-scrollbar-container::-webkit-scrollbar,
+.n-input__textarea-el::-webkit-scrollbar,
+.v-vl::-webkit-scrollbar,
+.v-scrollbar-container::-webkit-scrollbar {
   width: var(--lx-scrollbar-size) !important;
   height: var(--lx-scrollbar-size) !important;
   display: block !important;
 }
 
-.v-vl::-webkit-scrollbar-button,
-.v-vl::-webkit-scrollbar-button:single-button,
-.v-vl::-webkit-scrollbar-button:double-button {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
-}
-
-.v-vl::-webkit-scrollbar-track {
-  background: transparent !important;
-}
-
-.v-vl::-webkit-scrollbar-track-piece,
-.v-vl::-webkit-scrollbar-thumb {
-  display: block !important;
-}
-
-.v-vl::-webkit-scrollbar-thumb {
+.n-scrollbar-container::-webkit-scrollbar-thumb,
+.n-input__textarea-el::-webkit-scrollbar-thumb,
+.v-vl::-webkit-scrollbar-thumb,
+.v-scrollbar-container::-webkit-scrollbar-thumb {
   background-color: var(--lx-scrollbar-thumb) !important;
   border-radius: var(--lx-radius-pill, 999px);
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 
-.v-vl::-webkit-scrollbar-thumb:vertical {
-  min-height: var(--lx-scrollbar-thumb-length) !important;
-  max-height: var(--lx-scrollbar-thumb-length) !important;
-}
-
-.v-vl::-webkit-scrollbar-thumb:horizontal {
-  min-width: var(--lx-scrollbar-thumb-length) !important;
-  max-width: var(--lx-scrollbar-thumb-length) !important;
-}
-
-.v-vl::-webkit-scrollbar-thumb:hover {
-  background-color: var(--lx-scrollbar-thumb-hover) !important;
-}
-
-/* NVirtualList 内层 .v-vl 为真实滚动容器 */
-.v-vl.v-vl--show-scrollbar {
-  overflow-y: auto !important;
-}
-
-/* 避免与 .v-vl 原生滚动条重复 */
-.n-scrollbar-rail {
+.n-scrollbar-rail,
+.n-scrollbar-rail--vertical,
+.n-scrollbar-rail--horizontal,
+.v-scrollbar-rail {
   display: none !important;
 }
 
-.n-scrollbar-rail__scrollbar {
-  border: 2px solid transparent;
-  background-clip: padding-box;
-  box-sizing: border-box;
+.v-vl.v-vl--show-scrollbar {
+  overflow-y: auto !important;
 }
 
 @supports not selector(::-webkit-scrollbar) {
   * {
     scrollbar-width: thin;
-    scrollbar-color: var(--lx-scrollbar-thumb) var(--lx-scrollbar-track);
+    scrollbar-color: var(--lx-scrollbar-thumb) transparent;
   }
 }
 

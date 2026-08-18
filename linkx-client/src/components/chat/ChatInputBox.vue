@@ -1340,8 +1340,7 @@ defineExpose({
   flex: 1 1 auto;
   min-height: 0;
   max-height: 140px;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
   padding: var(--lx-space) var(--lx-space-lg) var(--lx-space-xs);
 }
 

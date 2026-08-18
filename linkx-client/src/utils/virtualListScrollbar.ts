@@ -17,7 +17,7 @@ export function refreshNaiveVirtualListScrollbar(
   if (!el) return
   el.classList.add('v-vl--show-scrollbar')
   el.style.overflowY = 'auto'
-  el.style.scrollbarWidth = 'auto'
+  el.style.removeProperty('scrollbar-width')
 }
 
 /** 挂载后自动为 NVirtualList 打开原生滚动条 */
