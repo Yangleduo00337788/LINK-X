@@ -262,13 +262,6 @@ function nativeCaptionOverlay(): Electron.TitleBarOverlay {
   }
 }
 
-/** 友链等沉浸封面：窗控底透明，避免右侧一块实心底挡住封面 */
-const TRANSPARENT_CAPTION_OVERLAY: Electron.TitleBarOverlay = {
-  color: '#00000000',
-  symbolColor: '#ffffff',
-  height: NATIVE_CAPTION_OVERLAY_HEIGHT
-}
-
 const titleBarOverlayOverride = new WeakMap<BrowserWindow, Partial<Electron.TitleBarOverlay>>()
 
 function applyWinTitleBarOverlay(win: BrowserWindow) {
@@ -1971,13 +1964,10 @@ function createMomentsWindow(opts?: MomentsOpenPayload) {
     minHeight: 560,
     resizable: true,
     ...windowChrome('LinkX', 'main'),
-    titleBarOverlay: TRANSPARENT_CAPTION_OVERLAY,
     show: false,
     webPreferences: defaultWebPreferences()
   })
   prepareWindowChrome(momentsWindow)
-  titleBarOverlayOverride.set(momentsWindow, TRANSPARENT_CAPTION_OVERLAY)
-  applyWinTitleBarOverlay(momentsWindow)
 
   momentsWindow.once('ready-to-show', () => {
     momentsWindow?.show()
@@ -2091,12 +2081,32 @@ ipcMain.on('window-open-moments-media', () => {
 
 let noteEditorWindow: BrowserWindow | null = null
 
-function createNoteEditorWindow() {
+type NotesOpenPayload = { noteId?: string }
+
+function buildNotesHash(opts?: NotesOpenPayload): string {
+  const noteId = opts?.noteId?.trim()
+  return noteId ? `/notes/${encodeURIComponent(noteId)}` : '/notes'
+}
+
+function loadNotesHash(win: BrowserWindow, hashPath: string) {
+  if (isDev && process.env.VITE_DEV_SERVER_URL) {
+    win.loadURL(process.env.VITE_DEV_SERVER_URL + '#' + hashPath)
+  } else {
+    win.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: hashPath })
+  }
+}
+
+function createNotesWindow(opts?: NotesOpenPayload) {
+  const hashPath = buildNotesHash(opts)
+
   if (noteEditorWindow && !noteEditorWindow.isDestroyed()) {
     if (noteEditorWindow.isMinimized()) noteEditorWindow.restore()
     if (!noteEditorWindow.isVisible()) noteEditorWindow.show()
     noteEditorWindow.focus()
-    noteEditorWindow.webContents.send('note-editor:reset')
+    const hash = '#' + hashPath
+    noteEditorWindow.webContents
+      .executeJavaScript(`window.location.hash = ${JSON.stringify(hash)}`)
+      .catch(() => loadNotesHash(noteEditorWindow!, hashPath))
     return
   }
 
@@ -2113,24 +2123,19 @@ function createNoteEditorWindow() {
   prepareWindowChrome(noteEditorWindow)
 
   let revealed = false
-  const revealNoteEditorWindow = () => {
+  const revealNotesWindow = () => {
     if (revealed || !noteEditorWindow || noteEditorWindow.isDestroyed()) return
     revealed = true
     noteEditorWindow.show()
     noteEditorWindow.focus()
   }
 
-  noteEditorWindow.once('ready-to-show', revealNoteEditorWindow)
+  noteEditorWindow.once('ready-to-show', revealNotesWindow)
   noteEditorWindow.webContents.once('did-finish-load', () => {
-    // ready-to-show 偶发不触发时，确保窗口仍能显示
-    setTimeout(revealNoteEditorWindow, 0)
+    setTimeout(revealNotesWindow, 0)
   })
 
-  if (isDev && process.env.VITE_DEV_SERVER_URL) {
-    noteEditorWindow.loadURL(process.env.VITE_DEV_SERVER_URL + '#/note-editor')
-  } else {
-    noteEditorWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: 'note-editor' })
-  }
+  loadNotesHash(noteEditorWindow, hashPath)
 
   noteEditorWindow.on('maximize', () => {
     if (noteEditorWindow) pushMaximizedState(noteEditorWindow)
@@ -2144,8 +2149,16 @@ function createNoteEditorWindow() {
   })
 }
 
+ipcMain.on('window-open-notes', (_event, payload?: NotesOpenPayload) => {
+  const opts =
+    payload && typeof payload === 'object' && payload.noteId
+      ? { noteId: String(payload.noteId) }
+      : undefined
+  createNotesWindow(opts)
+})
+
 ipcMain.on('window-open-note-editor', () => {
-  createNoteEditorWindow()
+  createNotesWindow()
 })
 
 let registerWindow: BrowserWindow | null = null

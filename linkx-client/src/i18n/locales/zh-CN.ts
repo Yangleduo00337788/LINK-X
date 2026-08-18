@@ -177,6 +177,7 @@ export default {
     createGroup: '发起群聊',
     addFriendGroup: '添加好友/群聊',
     openLinkmate: '灵伴 LinkMate',
+    openMoments: '友链',
     calendarRemind: '日程提醒',
     noRemind: '暂无日程提醒',
     remindAt: '将于 {time}',
@@ -874,6 +875,7 @@ export default {
     linkmate: '灵伴',
     contacts: '联系人',
     favorites: '收藏',
+    notes: '笔记',
     files: '文件',
     calendar: '日历',
     moments: '友链',
@@ -1618,6 +1620,18 @@ export default {
     removeLocation: '删除位置',
     blockRemoved: '已删除'
   },
+  extensionDock: {
+    collapsePanel: '收起扩展页',
+    expandPanel: '展开扩展页',
+    closeTab: '关闭标签',
+    openStandalone: '在独立窗口中打开',
+    resizePanel: '拖动调整宽度'
+  },
+  notes: {
+    resizePanel: '拖动调整宽度',
+    closeAllTabs: '关闭所有标签页',
+    closeAllTabsConfirm: '将关闭所有笔记标签，未保存内容会先自动保存，是否继续？'
+  },
   ops: {
     activitiesTitle: '热门活动',
     noActivities: '暂无活动',
@@ -1625,6 +1639,13 @@ export default {
   },
   moments: {
     title: '友链',
+    collapsePanel: '收起友链',
+    expandPanel: '展开友链',
+    closeTab: '关闭标签',
+    openStandalone: '在独立窗口中打开',
+    closeAllTabs: '关闭所有标签页',
+    closeAllTabsConfirm: '将关闭所有友链标签，是否继续？',
+    resizePanel: '拖动调整宽度',
     publishText: '发布文字',
     publishMedia: '发布图片/视频',
     publishTextTitle: '发表文字',

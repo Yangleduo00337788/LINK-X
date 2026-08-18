@@ -28,13 +28,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openMoments: (opts) => ipcRenderer.send('window-open-moments', opts || {}),
   openMomentsText: () => ipcRenderer.send('window-open-moments-text'),
   openMomentsMedia: () => ipcRenderer.send('window-open-moments-media'),
-  openNoteEditor: () => ipcRenderer.send('window-open-note-editor'),
-  onNoteEditorReset: callback => {
-    if (typeof callback !== 'function') return () => {}
-    const listener = () => callback()
-    ipcRenderer.on('note-editor:reset', listener)
-    return () => ipcRenderer.removeListener('note-editor:reset', listener)
-  },
+  openNotes: (noteId) =>
+    ipcRenderer.send('window-open-notes', noteId ? { noteId: String(noteId) } : {}),
+  openNoteEditor: () => ipcRenderer.send('window-open-notes'),
   openRegister: () => ipcRenderer.send('window-open-register'),
   openHelp: () => ipcRenderer.send('window-open-help'),
   openChatHistory: () => ipcRenderer.send('window-open-chat-history'),

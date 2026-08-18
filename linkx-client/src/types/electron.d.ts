@@ -15,9 +15,8 @@ declare global {
       openMoments: (opts?: { userId?: string; name?: string }) => void // 打开友链独立窗口（可指定用户）
       openMomentsText: () => void            // 打开友链-发布文字独立窗口
       openMomentsMedia: () => void           // 打开友链-发布图片/视频独立窗口
-      openNoteEditor: () => void             // 打开笔记编辑器独立窗口
-      /** 再次打开笔记编辑器时重置为空白 */
-      onNoteEditorReset?: (callback: () => void) => () => void
+      openNotes: (noteId?: string) => void  // 打开笔记独立窗口（可指定笔记 ID）
+      openNoteEditor: () => void             // 兼容旧 API：打开笔记独立窗口
       openRegister?: () => void               // 打开注册独立窗口
       openHelp?: () => void                   // 打开帮助独立窗口
       openChatHistory?: () => void            // 打开聊天记录管理独立窗口

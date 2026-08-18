@@ -19,7 +19,7 @@ const router = createRouter({
     {
       path: '/moments',        // 友链独立窗口路由
       name: 'moments',
-      component: () => import('../components/MomentsModal.vue')
+      component: () => import('../views/MomentsView.vue')
     },
     {
       path: '/moments/text',   // 友链-发布文字独立窗口(纯文字模式)
@@ -32,9 +32,13 @@ const router = createRouter({
       component: () => import('../components/MomentsPublishPage.vue')
     },
     {
-      path: '/note-editor',    // 笔记编辑器独立窗口路由
-      name: 'note-editor',
-      component: () => import('../components/NoteEditor.vue')
+      path: '/notes/:noteId?',
+      name: 'notes',
+      component: () => import('../views/NotesView.vue')
+    },
+    {
+      path: '/note-editor',
+      redirect: '/notes'
     },
     {
       path: '/register',       // 注册独立窗口 / 页面

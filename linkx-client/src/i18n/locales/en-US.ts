@@ -177,6 +177,7 @@ export default {
     createGroup: 'New group',
     addFriendGroup: 'Add friend / group',
     openLinkmate: 'LinkMate',
+    openMoments: 'Moments',
     calendarRemind: 'Reminders',
     noRemind: 'No reminders',
     remindAt: 'At {time}',
@@ -874,6 +875,7 @@ export default {
     linkmate: 'LinkMate',
     contacts: 'Contacts',
     favorites: 'Favorites',
+    notes: 'Notes',
     files: 'Files',
     calendar: 'Calendar',
     moments: 'Moments',
@@ -1618,6 +1620,18 @@ export default {
     removeLocation: 'Remove location',
     blockRemoved: 'Removed'
   },
+  extensionDock: {
+    collapsePanel: 'Collapse extension',
+    expandPanel: 'Expand extension',
+    closeTab: 'Close tab',
+    openStandalone: 'Open in standalone window',
+    resizePanel: 'Drag to resize'
+  },
+  notes: {
+    resizePanel: 'Drag to resize',
+    closeAllTabs: 'Close all tabs',
+    closeAllTabsConfirm: 'All note tabs will be closed. Unsaved content will be saved first. Continue?'
+  },
   ops: {
     activitiesTitle: 'Campaigns',
     noActivities: 'No campaigns yet',
@@ -1625,6 +1639,13 @@ export default {
   },
   moments: {
     title: 'Moments',
+    collapsePanel: 'Collapse Moments',
+    expandPanel: 'Expand Moments',
+    closeTab: 'Close tab',
+    openStandalone: 'Open in standalone window',
+    closeAllTabs: 'Close all tabs',
+    closeAllTabsConfirm: 'Close all Moments tabs?',
+    resizePanel: 'Drag to resize',
     publishText: 'Text post',
     publishMedia: 'Photo / video',
     publishTextTitle: 'New text',
