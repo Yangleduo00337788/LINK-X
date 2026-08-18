@@ -445,14 +445,6 @@ async function publish() {
         {{ mode === 'text' ? t('moments.publishTextTitle') : t('moments.publishMediaTitle') }}
       </h1>
       <div class="header-right">
-        <LxButton
-          variant="sm-primary"
-          class="header-btn publish-btn"
-          :disabled="!canPublish"
-          @click="publish"
-        >
-          {{ publishing ? t('moments.publishing') : t('moments.publish') }}
-        </LxButton>
         <WindowCaptionButtons show-pin />
       </div>
     </header>
@@ -732,17 +724,6 @@ async function publish() {
   align-items: stretch;
   flex-shrink: 0;
   -webkit-app-region: no-drag;
-  gap: var(--lx-space-xs);
-}
-
-.header-btn {
-  -webkit-app-region: no-drag;
-  flex-shrink: 0;
-  align-self: center;
-}
-
-.publish-btn {
-  min-width: 56px;
 }
 
 .page-title {
