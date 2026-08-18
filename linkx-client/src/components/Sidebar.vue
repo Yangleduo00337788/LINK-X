@@ -8,7 +8,7 @@
  */
 // Vue 渲染函数与组件类型
 import { h, ref, computed, type Component } from 'vue'
-import { NIcon, NDropdown, useMessage, type DropdownOption } from 'naive-ui'
+import { NIcon, NDropdown, useDialog, useMessage, type DropdownOption } from 'naive-ui'
 import {
   ChatbubbleEllipsesOutline,
   PersonOutline,
@@ -23,8 +23,7 @@ import {
   HelpCircleOutline,
   LockClosedOutline,
   SettingsOutline,
-  LogOutOutline,
-  SparklesOutline
+  LogOutOutline
 } from '@vicons/ionicons5'
 import Avatar from './Avatar.vue'
 import { storeToRefs } from 'pinia'
@@ -42,6 +41,7 @@ import { useNotificationsStore } from '../stores/notifications'
 import { useLinkMateStore } from '../stores/linkmate'
 import type { NavKey } from '../types'
 import { useI18n } from '../i18n'
+import { checkAppUpdate } from '../utils/appUpdate'
 
 // 获取各 Store 实例
 const appStore = useAppStore()
@@ -59,6 +59,7 @@ const { t } = useI18n()
 // 解构导航键、用户资料、已保存登录信息、会话列表
 const { navKey, userProfile, savedLogin, sessions, isOffline } = storeToRefs(appStore)
 const { calendarRemindUnreadCount, officialUnreadCount, contactsBadgeCount } = storeToRefs(notificationsStore)
+const { panelCollapsed } = storeToRefs(linkMateStore)
 // 解构导航切换、登出、锁定方法
 const { setNav, logout, lock } = appStore
 // 解构打开个人资料方法
@@ -68,8 +69,9 @@ const { openSettings } = settingsStore
 // 解构 Overlay 关闭全部方法
 const { closeAll: closeOverlay } = overlayStore
 
-// 获取 Naive UI 消息提示实例
+// 获取 Naive UI 消息提示与对话框实例
 const message = useMessage()
+const dialog = useDialog()
 
 // 更多菜单下拉显隐（受控，登出前先关闭避免残留遮罩）
 const menuDropdownShow = ref(false)
@@ -102,7 +104,6 @@ const menuOptions = computed<DropdownOption[]>(() => [
 // 主导航项配置：键、图标、标签（随语言切换）
 const mainNav = computed(() => [
   { key: 'chat' as NavKey, icon: ChatbubbleEllipsesOutline, label: t('nav.chat') },
-  { key: 'linkmate' as NavKey, icon: SparklesOutline, label: t('nav.linkmate') },
   { key: 'contacts' as NavKey, icon: PersonOutline, label: t('nav.contacts') },
   { key: 'favorites' as NavKey, icon: BookmarkOutline, label: t('nav.favorites') },
   { key: 'files' as NavKey, icon: FolderOutline, label: t('nav.files') },
@@ -131,13 +132,6 @@ function navBadge(key: NavKey): number {
 function handleClick(key: NavKey | 'menu') {
   if (key === 'menu') {
     return
-  }
-  if (key === 'linkmate') {
-    openLinkMateNav()
-    return
-  }
-  if (navKey.value === 'linkmate') {
-    linkMateStore.closePanelForNav()
   }
   if (key === 'moments') {
     if (window.electronAPI) {
@@ -195,12 +189,6 @@ function handleFilesClick() {
   setNav('files')
 }
 
-function openLinkMateNav() {
-  setNav('linkmate')
-  void linkMateStore.ensurePanelReady()
-  linkMateStore.openPanel()
-}
-
 // 执行菜单动作前清理 Overlay 与聊天弹窗
 function prepareMenuAction() {
   closeOverlay()
@@ -221,13 +209,17 @@ function handleMenuSelect(key: string | number) {
     case 'history':
       runMenuAction(() => {
         prepareMenuAction()
-        // 打开聊天记录管理独立窗口
-        window.electronAPI?.openChatHistory?.()
+        if (window.electronAPI?.openChatHistory) {
+          window.electronAPI.openChatHistory()
+          return
+        }
+        const base = window.location.href.split('#')[0]
+        window.open(`${base}#/chat-history`, '_blank', 'noopener,noreferrer')
       })
       break
     case 'update':
       runMenuAction(() => {
-        message.success(t('nav.latestVersion'))
+        void checkAppUpdate({ message, dialog, t })
       })
       break
     case 'help':
@@ -240,7 +232,12 @@ function handleMenuSelect(key: string | number) {
       runMenuAction(() => {
         prepareMenuAction()
         settingsStore.closeSettings()
-        lock() // 锁定应用
+        if (!appStore.hasLockPin()) {
+          message.warning(t('lock.setPinFirst'))
+          openSettings('privacy')
+          return
+        }
+        lock()
         message.info(t('nav.locked'))
       })
       break
@@ -319,8 +316,28 @@ function handleSelfAvatarClick(e: MouseEvent) {
       </button>
     </div>
 
-    <!-- 底部：更多菜单 -->
+    <!-- 底部：灵伴收起入口 + 更多菜单 -->
     <div class="nav-bottom">
+      <button
+        v-if="panelCollapsed && navKey === 'chat'"
+        type="button"
+        class="nav-item linkmate-dock-btn"
+        :title="t('linkmate.expandPanel')"
+        :aria-label="t('linkmate.expandPanel')"
+        @click="linkMateStore.expandPanel()"
+      >
+        <svg class="linkmate-expand-ico" viewBox="0 0 20 20" aria-hidden="true">
+          <rect x="3.5" y="3.5" width="13" height="13" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4" />
+          <path
+            d="M7.5 12.5 L10.5 9.5 M10.5 9.5 H7.5 M10.5 9.5 V12.5"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </button>
       <n-dropdown
         v-model:show="menuDropdownShow"
         trigger="click"
@@ -407,6 +424,16 @@ function handleSelfAvatarClick(e: MouseEvent) {
   align-items: center;
   justify-content: center;
   padding-top: var(--lx-space);
+}
+
+.linkmate-dock-btn {
+  color: var(--lx-text-nav);
+}
+
+.linkmate-expand-ico {
+  width: 20px;
+  height: 20px;
+  display: block;
 }
 
 .nav-item {
