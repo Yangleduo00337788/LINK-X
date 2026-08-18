@@ -8,13 +8,16 @@
  * 列表中插入「日程提醒」「LinkX官方」站内通知虚拟会话（默认不置顶）。
  * </p>
  */
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, h, type Component } from 'vue'
 import { NIcon, NSkeleton, NDropdown, NVirtualList, useMessage, type DropdownOption } from 'naive-ui'
 import {
   PhonePortraitOutline,
   NotificationsOffOutline,
   WarningOutline,
-  CalendarOutline
+  CalendarOutline,
+  SparklesOutline,
+  PeopleOutline,
+  PersonAddOutline
 } from '@vicons/ionicons5'
 import PinIcon from './icons/PinIcon.vue'
 import PanelSearchBar from './PanelSearchBar.vue'
@@ -28,6 +31,7 @@ import { useAppStore } from '../stores/app'
 import { useChatModalsStore } from '../stores/chatModals'
 import { useNotificationsStore } from '../stores/notifications'
 import { useCalendarStore } from '../stores/calendar'
+import { useLinkMateStore } from '../stores/linkmate'
 import type { CalendarEvent } from '../stores/calendar'
 import { lxColorHex } from '../theme/vars'
 import type { ChatSession } from '../types'
@@ -45,6 +49,7 @@ const appStore = useAppStore()
 const chatModalsStore = useChatModalsStore()
 const notificationsStore = useNotificationsStore()
 const calendarStore = useCalendarStore()
+const linkMateStore = useLinkMateStore()
 
 const { sortedSessions, currentSessionId, isLoading, isOffline } = storeToRefs(appStore)
 const {
@@ -54,7 +59,7 @@ const {
   officialUnreadCount
 } = storeToRefs(notificationsStore)
 const { remindedUpcomingEvents } = storeToRefs(calendarStore)
-const { selectSession, toggleSessionPin, toggleSessionImportant, toggleSessionMute, deleteSession } =
+const { selectSession, toggleSessionPin, toggleSessionImportant, toggleSessionMute, deleteSession, setNav } =
   appStore
 const { openCreateGroup, openComprehensiveSearch } = chatModalsStore
 const { fetchMessageNotifications } = notificationsStore
@@ -176,9 +181,14 @@ const contextMenuOptions = computed<DropdownOption[]>(() => {
   ]
 })
 
+function renderAddIcon(icon: Component) {
+  return () => h(NIcon, { size: 16 }, { default: () => h(icon) })
+}
+
 const addOptions = computed(() => [
-  { label: t('chat.createGroup'), key: 'group' },
-  { label: t('chat.addFriendGroup'), key: 'friend' }
+  { label: t('chat.createGroup'), key: 'group', icon: renderAddIcon(PeopleOutline) },
+  { label: t('chat.addFriendGroup'), key: 'friend', icon: renderAddIcon(PersonAddOutline) },
+  { label: t('chat.openLinkmate'), key: 'linkmate', icon: renderAddIcon(SparklesOutline) }
 ])
 
 function isMyPhoneSession(name?: string): boolean {
@@ -204,6 +214,14 @@ function onAddSelect(key: string) {
   }
   if (key === 'friend') {
     openComprehensiveSearch()
+    return
+  }
+  if (key === 'linkmate') {
+    setNav('chat')
+    void (async () => {
+      await linkMateStore.ensurePanelReady()
+      linkMateStore.openPanel()
+    })()
   }
 }
 

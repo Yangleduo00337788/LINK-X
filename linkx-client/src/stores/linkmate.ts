@@ -17,6 +17,7 @@ const DEEP_THINKING_STORAGE_KEY = 'linkx-linkmate-deep-thinking'
 const INPUT_DRAFT_STORAGE_KEY = 'linkx-linkmate-input-drafts'
 const NEW_SESSION_DRAFT_KEY = '__new__'
 let draftPersistTimer: ReturnType<typeof setTimeout> | null = null
+let ensurePanelReadyTask: Promise<void> | null = null
 export const LINKMATE_MESSAGE_PAGE_SIZE = 50
 export const LINKMATE_PANEL_WIDTH_MIN = 280
 export const LINKMATE_PANEL_WIDTH_MAX = 640
@@ -119,7 +120,9 @@ export const useLinkMateStore = defineStore('linkmate', {
     /** 侧栏宽度（px），持久化至 localStorage */
     panelWidth: loadPanelWidth(),
     /** 打开侧栏时快照的 IM 上下文（detach 会话后仍可注入模型） */
-    imContextSnapshot: null as LinkMateImContext | null
+    imContextSnapshot: null as LinkMateImContext | null,
+    /** 拓展面板中已打开的标签（会话 ID，按打开顺序） */
+    openTabIds: [] as string[]
   }),
 
   getters: {
@@ -149,6 +152,11 @@ export const useLinkMateStore = defineStore('linkmate', {
       const limit = state.status?.dailyTokenLimit ?? 0
       if (limit <= 0) return false
       return (state.status?.dailyTokenUsed ?? 0) >= limit
+    },
+    openTabs(state): LinkMateSession[] {
+      return state.openTabIds
+        .map(id => state.sessions.find(s => s.id === id))
+        .filter((s): s is LinkMateSession => !!s)
     }
   },
 
@@ -194,8 +202,48 @@ export const useLinkMateStore = defineStore('linkmate', {
 
     openPanel() {
       this.snapshotImContext()
-      this.detachImChatSession()
       this.panelState = 'open'
+    },
+
+    registerOpenTab(sessionId: string) {
+      if (!sessionId || this.openTabIds.includes(sessionId)) return
+      this.openTabIds.push(sessionId)
+    },
+
+    async closeTab(sessionId: string) {
+      if (!sessionId || this.streaming) return
+      const remaining = this.openTabIds.filter(id => id !== sessionId)
+      this.openTabIds = remaining
+      try {
+        await this.deleteSession(sessionId)
+      } catch {
+        /* ignore */
+      }
+      if (remaining.length === 0) {
+        this.activeSessionId = ''
+        this.panelState = 'closed'
+        return
+      }
+      if (!remaining.includes(this.activeSessionId)) {
+        await this.selectSession(remaining[remaining.length - 1])
+      }
+    },
+
+    async closeAllTabs() {
+      if (this.streaming) {
+        this.abortStream()
+      }
+      const ids = [...this.openTabIds]
+      this.openTabIds = []
+      for (const id of ids) {
+        try {
+          await this.deleteSession(id)
+        } catch {
+          /* ignore */
+        }
+      }
+      this.activeSessionId = ''
+      this.panelState = 'closed'
     },
 
     collapsePanel() {
@@ -206,9 +254,11 @@ export const useLinkMateStore = defineStore('linkmate', {
 
     expandPanel() {
       this.snapshotImContext()
-      this.detachImChatSession()
       if (this.panelState === 'collapsed') {
         this.panelState = 'open'
+        if (this.openTabIds.length === 0) {
+          void this.ensurePanelReady()
+        }
       }
     },
 
@@ -296,12 +346,30 @@ export const useLinkMateStore = defineStore('linkmate', {
     },
 
     async ensurePanelReady() {
-      await this.loadStatus()
-      if (!this.enabled) return
-      await this.loadSessions()
-      if (!this.activeSessionId && this.sessions.length > 0) {
-        await this.selectSession(this.sessions[0].id)
-      }
+      if (ensurePanelReadyTask) return ensurePanelReadyTask
+
+      ensurePanelReadyTask = (async () => {
+        await this.loadStatus()
+        if (!this.enabled) return
+        await this.loadSessions()
+        if (this.openTabIds.length === 0) {
+          if (this.activeSessionId) {
+            this.registerOpenTab(this.activeSessionId)
+          } else if (this.sessions.length > 0) {
+            await this.selectSession(this.sessions[0].id)
+          } else {
+            await this.createSession()
+          }
+          return
+        }
+        if (!this.activeSessionId && this.openTabIds.length > 0) {
+          await this.selectSession(this.openTabIds[this.openTabIds.length - 1])
+        }
+      })().finally(() => {
+        ensurePanelReadyTask = null
+      })
+
+      return ensurePanelReadyTask
     },
 
     patchSessionMessages(sessionId: string, messages: LinkMateMessage[]) {
@@ -394,6 +462,7 @@ export const useLinkMateStore = defineStore('linkmate', {
       }
       this.sessions.unshift(session)
       this.activeSessionId = session.id
+      this.registerOpenTab(session.id)
       this.patchSessionMessages(session.id, [])
       return session
     },
@@ -423,6 +492,7 @@ export const useLinkMateStore = defineStore('linkmate', {
         void this.cleanupEmptySessionIfNeeded(previousSessionId)
       }
       this.activeSessionId = sessionId
+      this.registerOpenTab(sessionId)
       this.restoreInputDraft(sessionId)
       this.showHistory = false
       if (!this.messagesBySession[sessionId]) {
@@ -491,6 +561,7 @@ export const useLinkMateStore = defineStore('linkmate', {
         throw new Error(res.message || '删除失败')
       }
       this.sessions = this.sessions.filter(s => s.id !== sessionId)
+      this.openTabIds = this.openTabIds.filter(id => id !== sessionId)
       const { [sessionId]: _, ...rest } = this.messagesBySession
       this.messagesBySession = rest
       const { [sessionId]: __, ...restHasMore } = this.hasMoreBySession
@@ -499,7 +570,9 @@ export const useLinkMateStore = defineStore('linkmate', {
       delete map[draftKeyForSession(sessionId)]
       persistDraftMap(map)
       if (this.activeSessionId === sessionId) {
-        this.activeSessionId = this.sessions[0]?.id ?? ''
+        const nextFromTabs = this.openTabIds.filter(id => id !== sessionId).at(-1)
+        const nextFromList = this.sessions.find(s => s.id !== sessionId)?.id
+        this.activeSessionId = nextFromTabs || nextFromList || ''
         this.restoreInputDraft(this.activeSessionId)
         if (this.activeSessionId && !this.messagesBySession[this.activeSessionId]) {
           await this.loadMessages(this.activeSessionId)
@@ -572,6 +645,7 @@ export const useLinkMateStore = defineStore('linkmate', {
                   updateTime: ''
                 })
               }
+              this.registerOpenTab(sessionId)
             },
             onReasoningDelta: chunk => {
               batchReasoning.push(chunk)

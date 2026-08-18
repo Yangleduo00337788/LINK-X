@@ -4,16 +4,17 @@
  * 灵伴对话面板（主导航全屏 / 旧版侧栏嵌入）。
  */
 import { computed, h, nextTick, onMounted, onUnmounted, reactive, ref, shallowRef, watch } from 'vue'
-import { NInput, NIcon, NPopover, useMessage, useDialog } from 'naive-ui'
+import { NInput, NIcon, NDropdown, useMessage, useDialog, type DropdownOption } from 'naive-ui'
 import {
-  AddOutline,
-  TimeOutline,
   BulbOutline,
   ChevronDownOutline,
   TrashOutline,
   RefreshOutline,
   CopyOutline,
-  CreateOutline
+  CreateOutline,
+  CloseOutline,
+  EllipsisHorizontalOutline,
+  OpenOutline
 } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useLinkMateStore } from '../stores/linkmate'
@@ -26,15 +27,19 @@ import { copyText } from '../utils/clipboard'
 const props = withDefaults(
   defineProps<{
     layout?: 'page' | 'side'
+    /** 独立窗口模式：隐藏收起与弹出按钮 */
+    standalone?: boolean
   }>(),
   {
-    layout: 'page'
+    layout: 'page',
+    standalone: false
   }
 )
 
 const mdRenderer = shallowRef<((content: string) => string) | null>(null)
 
 const isPageLayout = computed(() => props.layout === 'page')
+const isStandalone = computed(() => props.standalone)
 
 const { t } = useI18n()
 const message = useMessage()
@@ -51,6 +56,7 @@ const {
   status,
   panelWidth,
   sessions,
+  openTabs,
   deepThinking,
   deepThinkingSupported,
   showHistory,
@@ -68,7 +74,58 @@ const resizeStartX = ref(0)
 const resizeStartWidth = ref(0)
 const collapsedReasoning = reactive<Record<string, boolean>>({})
 const statusNow = ref(Date.now())
+const tabMoreShow = ref(false)
 let statusTickTimer: number | null = null
+
+const tabMoreOptions = computed<DropdownOption[]>(() => [
+  { label: t('linkmate.newChat'), key: 'newChat' },
+  { label: t('linkmate.openHistory'), key: 'history' },
+  { type: 'divider', key: 'd1' },
+  { label: t('linkmate.closeAllTabs'), key: 'closeAll' }
+])
+
+function handleCloseTab(sessionId: string) {
+  if (streaming.value) return
+  void linkMate.closeTab(sessionId)
+}
+
+function handleOpenStandalone(sessionId: string) {
+  if (window.electronAPI?.openLinkMate) {
+    window.electronAPI.openLinkMate(sessionId)
+    return
+  }
+  const base = window.location.href.split('#')[0]
+  const hash = `#/linkmate/${encodeURIComponent(sessionId)}`
+  window.open(`${base}${hash}`, '_blank', 'noopener')
+}
+
+function handleCloseAllTabs() {
+  if (streaming.value) return
+  dialog.warning({
+    title: t('linkmate.closeAllTabs'),
+    content: t('linkmate.closeAllTabsConfirm'),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: () => {
+      void linkMate.closeAllTabs()
+    }
+  })
+}
+
+function onTabMoreSelect(key: string) {
+  tabMoreShow.value = false
+  if (key === 'newChat') {
+    void handleNewChat()
+    return
+  }
+  if (key === 'history') {
+    showHistory.value = true
+    return
+  }
+  if (key === 'closeAll') {
+    handleCloseAllTabs()
+  }
+}
 
 function startStatusTick() {
   if (statusTickTimer != null) return
@@ -533,7 +590,14 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <aside class="linkmate-side" :class="{ 'linkmate-side--page': isPageLayout }" :style="panelStyle">
+  <aside
+    class="linkmate-side"
+    :class="{
+      'linkmate-side--page': isPageLayout,
+      'linkmate-side--standalone': isStandalone
+    }"
+    :style="panelStyle"
+  >
     <div
       v-if="!isPageLayout"
       class="linkmate-resizer"
@@ -543,92 +607,138 @@ onUnmounted(() => {
     />
 
     <div class="linkmate-side-body">
-      <header class="linkmate-side-hdr">
-        <div class="linkmate-side-hdr-left">
-          <LinkMateLogoMark size="hdr" />
-          <div>
-            <div class="linkmate-side-title">{{ t('linkmate.dialogTitle') }}</div>
-            <div v-if="status" class="linkmate-side-sub">{{ status.model }}</div>
-            <div v-if="tokenUsageText" class="linkmate-side-token">{{ tokenUsageText }}</div>
-          </div>
-        </div>
-        <div v-if="enabled" class="linkmate-side-hdr-actions">
-          <NPopover
-            v-model:show="showHistory"
-            trigger="click"
-            placement="bottom-end"
-            :width="280"
-            raw
-          >
-            <template #trigger>
-              <button
-                type="button"
-                class="linkmate-hdr-btn"
-                :title="t('linkmate.openHistory')"
-                :disabled="streaming"
-              >
-                <NIcon :component="TimeOutline" :size="18" />
-              </button>
-            </template>
-            <div class="linkmate-history-pop">
-              <div class="linkmate-history-title">{{ t('linkmate.historyChat') }}</div>
-              <div v-if="loadingSessions" class="linkmate-history-empty">{{ t('common.loading') }}</div>
-              <div v-else-if="sessions.length === 0" class="linkmate-history-empty">
-                {{ t('linkmate.noSessions') }}
-              </div>
-              <div v-else class="linkmate-history-list">
-                <div
-                  v-for="session in sessions"
-                  :key="session.id"
-                  class="linkmate-history-item"
-                  :class="{ active: session.id === activeSessionId }"
-                >
-                  <button
-                    type="button"
-                    class="linkmate-history-main"
-                    @click="handleSelectSession(session.id)"
-                  >
-                    <span class="linkmate-history-name">{{ session.title || t('linkmate.newChat') }}</span>
-                  </button>
-                  <button
-                    type="button"
-                    class="linkmate-history-rename"
-                    :title="t('linkmate.renameChat')"
-                    :disabled="streaming"
-                    @click.stop="handleRenameSession(session.id, session.title)"
-                  >
-                    <NIcon :component="CreateOutline" :size="14" />
-                  </button>
-                  <button
-                    type="button"
-                    class="linkmate-history-del"
-                    :title="t('linkmate.deleteChat')"
-                    :disabled="streaming"
-                    @click.stop="handleDeleteSession(session.id, session.title)"
-                  >
-                    <NIcon :component="TrashOutline" :size="14" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </NPopover>
+      <header class="linkmate-tabbar">
+        <button
+          v-if="!isStandalone"
+          type="button"
+          class="linkmate-tabbar-btn"
+          :title="t('linkmate.collapsePanel')"
+          :disabled="streaming"
+          @click="linkMate.collapsePanel()"
+        >
+          <svg class="linkmate-collapse-ico" viewBox="0 0 20 20" aria-hidden="true">
+            <rect x="3.5" y="3.5" width="13" height="13" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4" />
+            <path
+              d="M12.5 7.5 L9.5 10.5 M9.5 10.5 H12.5 M9.5 10.5 V7.5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.4"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
+
+        <div v-if="!isStandalone" class="linkmate-tabbar-divider" aria-hidden="true" />
+
+        <div class="linkmate-tabbar-tabs">
           <button
+            v-for="tab in openTabs"
+            :key="tab.id"
             type="button"
-            class="linkmate-hdr-btn"
-            :title="t('linkmate.newChat')"
-            :disabled="streaming"
-            @click="handleNewChat"
+            class="linkmate-tab"
+            :class="{ active: tab.id === activeSessionId }"
+            @click="handleSelectSession(tab.id)"
           >
-            <NIcon :component="AddOutline" :size="18" />
+            <LinkMateLogoMark size="sm" />
+            <span class="linkmate-tab-title">{{ tab.title || t('linkmate.newChat') }}</span>
+            <span
+              class="linkmate-tab-close"
+              role="button"
+              tabindex="0"
+              :title="t('linkmate.closeTab')"
+              @click.stop="handleCloseTab(tab.id)"
+              @keydown.enter.stop.prevent="handleCloseTab(tab.id)"
+            >
+              <NIcon :component="CloseOutline" :size="14" />
+            </span>
+            <span
+              v-if="!isStandalone"
+              class="linkmate-tab-popout"
+              role="button"
+              tabindex="0"
+              :title="t('linkmate.openStandalone')"
+              @click.stop="handleOpenStandalone(tab.id)"
+              @keydown.enter.stop.prevent="handleOpenStandalone(tab.id)"
+            >
+              <NIcon :component="OpenOutline" :size="13" />
+            </span>
           </button>
         </div>
+
+        <div class="linkmate-tabbar-divider" aria-hidden="true" />
+
+        <n-dropdown
+          v-model:show="tabMoreShow"
+          trigger="click"
+          placement="bottom-end"
+          :options="tabMoreOptions"
+          @select="onTabMoreSelect"
+        >
+          <button type="button" class="linkmate-tabbar-btn" :title="t('common.more')">
+            <NIcon :component="EllipsisHorizontalOutline" :size="18" />
+          </button>
+        </n-dropdown>
       </header>
 
-      <div v-if="!enabled" class="linkmate-side-disabled">
+      <div v-if="showHistory" class="linkmate-history-layer">
+        <div class="linkmate-history-pop linkmate-history-pop--layer">
+          <div class="linkmate-history-head">
+            <span class="linkmate-history-title">{{ t('linkmate.historyChat') }}</span>
+            <button type="button" class="linkmate-history-close" @click="showHistory = false">
+              <NIcon :component="CloseOutline" :size="16" />
+            </button>
+          </div>
+          <div v-if="loadingSessions" class="linkmate-history-empty">{{ t('common.loading') }}</div>
+          <div v-else-if="sessions.length === 0" class="linkmate-history-empty">
+            {{ t('linkmate.noSessions') }}
+          </div>
+          <div v-else class="linkmate-history-list">
+            <div
+              v-for="session in sessions"
+              :key="session.id"
+              class="linkmate-history-item"
+              :class="{ active: session.id === activeSessionId }"
+            >
+              <button
+                type="button"
+                class="linkmate-history-main"
+                @click="handleSelectSession(session.id)"
+              >
+                <span class="linkmate-history-name">{{ session.title || t('linkmate.newChat') }}</span>
+              </button>
+              <button
+                type="button"
+                class="linkmate-history-rename"
+                :title="t('linkmate.renameChat')"
+                :disabled="streaming"
+                @click.stop="handleRenameSession(session.id, session.title)"
+              >
+                <NIcon :component="CreateOutline" :size="14" />
+              </button>
+              <button
+                type="button"
+                class="linkmate-history-del"
+                :title="t('linkmate.deleteChat')"
+                :disabled="streaming"
+                @click.stop="handleDeleteSession(session.id, session.title)"
+              >
+                <NIcon :component="TrashOutline" :size="14" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="!enabled" class="linkmate-side-disabled" :class="{ 'linkmate-standalone-slot': isStandalone }">
         <p>{{ t('linkmate.disabledHint') }}</p>
       </div>
 
-      <template v-else>
+      <div
+        v-else
+        class="linkmate-side-main"
+        :class="{ 'linkmate-standalone-column': isStandalone }"
+      >
         <div ref="messageListRef" class="linkmate-side-messages" @scroll="handleMessageListScroll">
           <div v-if="loadingMessages || !booted" class="linkmate-side-empty">
             {{ t('common.loading') }}
@@ -815,7 +925,7 @@ onUnmounted(() => {
             </button>
           </div>
         </footer>
-      </template>
+      </div>
     </div>
   </aside>
 </template>
@@ -839,6 +949,44 @@ onUnmounted(() => {
   border-left: none;
 }
 
+.linkmate-side--standalone .linkmate-tabbar,
+.linkmate-side--standalone .linkmate-history-layer {
+  align-self: stretch;
+  width: 100%;
+}
+
+.linkmate-side-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.linkmate-standalone-column,
+.linkmate-standalone-slot {
+  width: min(100%, 720px);
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
+}
+
+.linkmate-standalone-column {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.linkmate-side--standalone .linkmate-side-messages {
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+.linkmate-side--standalone .linkmate-side-footer {
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
 .linkmate-side-body {
   width: 100%;
   height: 100%;
@@ -846,6 +994,173 @@ onUnmounted(() => {
   flex-direction: column;
   overflow: hidden;
   background: var(--lx-bg-panel);
+  position: relative;
+}
+
+.linkmate-tabbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: stretch;
+  min-height: 40px;
+  border-bottom: 1px solid var(--lx-border-light);
+  background: var(--lx-bg-card);
+}
+
+.linkmate-tabbar-btn {
+  flex-shrink: 0;
+  width: 40px;
+  border: none;
+  background: transparent;
+  color: var(--lx-text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--lx-duration), color var(--lx-duration);
+}
+
+.linkmate-tabbar-btn:hover:not(:disabled) {
+  background: var(--lx-bg-hover);
+  color: var(--lx-text-body);
+}
+
+.linkmate-tabbar-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.linkmate-collapse-ico {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.linkmate-tabbar-divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--lx-border-light);
+  flex-shrink: 0;
+}
+
+.linkmate-tabbar-tabs {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.linkmate-tabbar-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.linkmate-tab {
+  flex-shrink: 0;
+  max-width: 200px;
+  border: none;
+  background: transparent;
+  color: var(--lx-text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px 0 12px;
+  font-size: var(--lx-font-md);
+  transition: background var(--lx-duration), color var(--lx-duration);
+}
+
+.linkmate-tab:hover {
+  background: var(--lx-bg-hover);
+  color: var(--lx-text-body);
+}
+
+.linkmate-tab.active {
+  color: var(--lx-text-body);
+  background: var(--lx-bg-hover);
+}
+
+.linkmate-tab-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.linkmate-tab-close {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--lx-text-muted);
+  transition: background var(--lx-duration), color var(--lx-duration);
+}
+
+.linkmate-tab-close:hover {
+  background: var(--lx-bg-panel-deep, var(--lx-bg-hover));
+  color: var(--lx-text-body);
+}
+
+.linkmate-tab-popout {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--lx-text-muted);
+  transition: background var(--lx-duration), color var(--lx-duration);
+}
+
+.linkmate-tab-popout:hover {
+  background: var(--lx-bg-panel-deep, var(--lx-bg-hover));
+  color: var(--lx-text-body);
+}
+
+.linkmate-history-layer {
+  position: absolute;
+  top: 40px;
+  right: 8px;
+  z-index: var(--lx-z-dropdown);
+}
+
+.linkmate-history-pop--layer {
+  box-shadow: var(--lx-shadow-dropdown);
+  border: 1px solid var(--lx-border-light);
+  border-radius: var(--lx-radius-md);
+  background: var(--lx-bg-card);
+  max-height: 320px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.linkmate-history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--lx-border-light);
+}
+
+.linkmate-history-close {
+  border: none;
+  background: transparent;
+  color: var(--lx-text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  padding: 2px;
+  border-radius: var(--lx-radius-xs);
+}
+
+.linkmate-history-close:hover {
+  background: var(--lx-bg-hover);
+  color: var(--lx-text-body);
 }
 
 .linkmate-resizer {

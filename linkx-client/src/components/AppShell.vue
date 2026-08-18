@@ -39,7 +39,7 @@ import SettingsPanel from './SettingsPanel.vue'
 import SettingsMainView from './SettingsMainView.vue'
 // 余额主视图（全宽）
 import BalanceMainView from './BalanceMainView.vue'
-// 灵伴 AI 右侧对话面板
+// 灵伴 AI 主区折叠面板
 import LinkMateSidePanel from './LinkMateSidePanel.vue'
 // 通用占位主视图
 import PlaceholderMainView from './PlaceholderMainView.vue'
@@ -77,17 +77,21 @@ import { useLinkMateStore } from '../stores/linkmate'
 import { useI18n } from '../i18n'
 import { isRealImChatSession } from '../utils/buildImChatContext'
 
-useI18n()
+const { t } = useI18n()
 
 const appStore = useAppStore()
 const { navKey, currentSessionId, currentSession } = storeToRefs(appStore)
 const linkMateStore = useLinkMateStore()
+const { panelExpanded } = storeToRefs(linkMateStore)
 
 watch(
   () => currentSessionId.value,
   () => {
-    if (isRealImChatSession(currentSession.value)) {
-      linkMateStore.closePanelForImChat()
+    if (
+      (linkMateStore.panelExpanded || linkMateStore.panelCollapsed) &&
+      isRealImChatSession(currentSession.value)
+    ) {
+      linkMateStore.snapshotImContext()
     }
   },
   { immediate: true }
@@ -147,6 +151,11 @@ onMounted(() => {
   if ((navKey.value as string) === 'groupAi') {
     appStore.setNav('chat')
   }
+  if (navKey.value === 'linkmate') {
+    appStore.setNav('chat')
+    void linkMateStore.ensurePanelReady()
+    linkMateStore.openPanel()
+  }
 })
 
 // 卸载时清理拖拽与焦点监听
@@ -188,7 +197,7 @@ const showFilesMain = computed(() => navKey.value === 'files')
 const showFavoritesMain = computed(() => navKey.value === 'favorites')
 const showMomentsMain = computed(() => navKey.value === 'moments')
 const showBalanceMain = computed(() => navKey.value === 'balance')
-const showLinkMateMain = computed(() => navKey.value === 'linkmate')
+const showLinkMatePanel = computed(() => panelExpanded.value)
 const showPlaceholder = computed(() => navKey.value === 'contacts')
 
 /** 设置页中间列固定略宽，且不显示拖拽条 */
@@ -203,8 +212,7 @@ const showListResizer = computed(
     !showFilesMain.value &&
     !showFavoritesMain.value &&
     !showMomentsMain.value &&
-    !showBalanceMain.value &&
-    !showLinkMateMain.value
+    !showBalanceMain.value
 )
 const showMiddleList = computed(
   () =>
@@ -212,8 +220,7 @@ const showMiddleList = computed(
     !showFilesMain.value &&
     !showFavoritesMain.value &&
     !showMomentsMain.value &&
-    !showBalanceMain.value &&
-    !showLinkMateMain.value
+    !showBalanceMain.value
 )
 </script>
 
@@ -257,23 +264,24 @@ const showMiddleList = computed(
           :class="{
             'col-chat--calendar': showCalendarMain,
             'col-chat--settings': showSettingsMain,
-            'col-chat--files': showFilesMain || showFavoritesMain || showMomentsMain || showBalanceMain,
-            'col-chat--linkmate': showLinkMateMain
+            'col-chat--files': showFilesMain || showFavoritesMain || showMomentsMain || showBalanceMain
           }"
         >
-          <LinkMateSidePanel v-if="showLinkMateMain" layout="page" />
-          <div v-else class="col-chat-body">
-            <SystemNotifyPanel v-if="showSystemNotify" />
-            <OfficialNotifyPanel v-else-if="showOfficialNotify" />
-            <ChatPanel v-else-if="showChatPanel" />
-            <CalendarMainView v-else-if="showCalendarMain" />
-            <FilesMainView v-else-if="showFilesMain" />
-            <FavoritesMainView v-else-if="showFavoritesMain" />
-            <MomentsMainView v-else-if="showMomentsMain" />
-            <BalanceMainView v-else-if="showBalanceMain" />
-            <SettingsMainView v-else-if="showSettingsMain" />
-            <ContactsMainView v-else-if="navKey === 'contacts'" />
-            <PlaceholderMainView v-else-if="showPlaceholder" :nav="navKey" />
+          <div class="col-chat-body">
+            <div class="col-chat-main">
+              <SystemNotifyPanel v-if="showSystemNotify" />
+              <OfficialNotifyPanel v-else-if="showOfficialNotify" />
+              <ChatPanel v-else-if="showChatPanel" />
+              <CalendarMainView v-else-if="showCalendarMain" />
+              <FilesMainView v-else-if="showFilesMain" />
+              <FavoritesMainView v-else-if="showFavoritesMain" />
+              <MomentsMainView v-else-if="showMomentsMain" />
+              <BalanceMainView v-else-if="showBalanceMain" />
+              <SettingsMainView v-else-if="showSettingsMain" />
+              <ContactsMainView v-else-if="navKey === 'contacts'" />
+              <PlaceholderMainView v-else-if="showPlaceholder" :nav="navKey" />
+            </div>
+            <LinkMateSidePanel v-if="showLinkMatePanel" layout="side" />
           </div>
         </main>
       </div>
@@ -417,8 +425,20 @@ const showMiddleList = computed(
   min-width: 0;
   height: 100%;
   display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  position: relative;
+  overflow: hidden;
+}
+
+.col-chat-main {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
   flex-direction: column;
   position: relative;
+  overflow: hidden;
 }
 
 .col-chat--calendar {
@@ -430,11 +450,6 @@ const showMiddleList = computed(
 }
 
 .col-chat--settings {
-  background: var(--lx-bg-panel);
-  --lx-bg-panel: var(--lx-bg-panel);
-}
-
-.col-chat--linkmate {
   background: var(--lx-bg-panel);
   --lx-bg-panel: var(--lx-bg-panel);
 }
