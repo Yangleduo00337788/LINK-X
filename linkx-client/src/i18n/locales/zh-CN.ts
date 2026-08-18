@@ -824,6 +824,30 @@ export default {
     loadOlderMessages: '加载更早的消息',
     aiDisclaimer: '内容由AI生成，请注意甄别！'
   },
+  groupAi: {
+    official: '官方 AI',
+    assistantName: '群聊小助手',
+    sectionTitle: '群聊 AI',
+    assistantIntro: '在本群协助讨论、主动补充有用信息，并按指令提炼要点。',
+    enableTitle: '开启群聊小助手',
+    enableDesc: '开启后可在本群 @灵伴，并使用主动发言与智能总结',
+    memberReadonly: '仅群主或管理员可设置',
+    proactiveTitle: '主动发言',
+    proactiveDesc: '成员发言后自动回复；连发合并为一次，同一群约 1 分钟内最多回复一次',
+    topicsPh: '感兴趣的主题，例如：项目进度、技术讨论',
+    summaryTitle: '智能总结',
+    summaryDesc: '开启后，群聊右侧出现智能总结入口，点击即可生成总结',
+    summaryPh: '总结指令，例如：提炼待办、结论与未决议题',
+    summaryTabLabel: '智能总结',
+    summaryTabHint: '点击生成当前群聊总结',
+    summaryTriggered: '智能总结已生成',
+    summaryTriggerFail: '生成智能总结失败',
+    groupOn: '已开启群聊小助手',
+    groupOff: '已关闭群聊小助手',
+    groupUpdateFail: '更新群聊小助手失败',
+    settingsSaved: '设置已保存',
+    settingsUpdateFail: '更新群聊 AI 设置失败'
+  },
   nav: {
     chat: '消息',
     linkmate: '灵伴',
@@ -1158,6 +1182,7 @@ export default {
     joinApproval: '入群需审批',
     inviteOwnerOnly: '仅群主/管理员可邀请',
     batchManage: '批量管理',
+    batchManageHint: '点选成员后可批量移出或禁言',
     batchRemove: '移除所选 ({n})',
     batchRemoveTitle: '批量移除成员',
     batchRemoveContent: '确定移除选中的 {n} 名成员？',
@@ -1478,7 +1503,9 @@ export default {
     reusedOpened: '已有进行中会议，已为你打开',
     historyTitle: '会议历史',
     historyHint: '仅展示元数据，不含音视频回放（需独立媒体服务）',
-    historyEmpty: '暂无已结束的会议'
+    historyEmpty: '暂无已结束的会议',
+    historyViewMore: '查看更多',
+    historyCollapse: '收起'
   },
   validation: {
     usernameRequired: '请输入用户名',

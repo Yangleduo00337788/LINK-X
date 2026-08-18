@@ -70,6 +70,17 @@ export interface GroupLinkmateState {
   enabled: boolean
 }
 
+/** 群 AI 功能偏好 */
+export interface GroupAiFeatureState {
+  proactiveSpeak: boolean
+  smartSummary: boolean
+  interestTopics: string
+  summaryInstruction: string
+}
+
+const GROUP_AI_INTEREST_TOPICS_MAX = 200
+const GROUP_AI_SUMMARY_INSTRUCTION_MAX = 500
+
 /** 群共享文件项 */
 export interface GroupFileItem {
   id: string
@@ -129,6 +140,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
     remarks: {} as Record<string, string>,
     muteState: {} as Record<string, GroupMuteState>,
     linkmateState: {} as Record<string, GroupLinkmateState>,
+    groupAiState: {} as Record<string, GroupAiFeatureState>,
     files: {} as Record<string, GroupFileItem[]>,
     albums: {} as Record<string, GroupAlbumItem[]>,
     /** 用户创建的空相册名（尚无图片时也要展示） */
@@ -230,6 +242,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
         if (res.code === 200 && res.data) {
           this.applyMuteFromGroupInfo(sessionId, res.data)
           this.applyLinkmateFromGroupInfo(sessionId, res.data)
+          this.applyGroupAiFromGroupInfo(sessionId, res.data)
           if (res.data.ownerId) {
             try {
               const { useAppStore } = await import('./app')
@@ -312,6 +325,69 @@ export const useGroupMetaStore = defineStore('groupMeta', {
 
     linkmateStateLoaded(sessionId: string): boolean {
       return Object.prototype.hasOwnProperty.call(this.linkmateState, sessionId)
+    },
+
+    applyGroupAiFromGroupInfo(sessionId: string, data: groupApi.GroupInfo) {
+      this.groupAiState[sessionId] = {
+        proactiveSpeak: data.groupAiProactiveEnabled === true,
+        smartSummary: data.groupAiSmartSummaryEnabled === true,
+        interestTopics: data.groupAiInterestTopics || '',
+        summaryInstruction: data.groupAiSummaryInstruction || ''
+      }
+    },
+
+    groupAiPrefsFor(sessionId: string): GroupAiFeatureState {
+      return (
+        this.groupAiState[sessionId] || {
+          proactiveSpeak: false,
+          smartSummary: false,
+          interestTopics: '',
+          summaryInstruction: ''
+        }
+      )
+    },
+
+    groupAiStateLoaded(sessionId: string): boolean {
+      return Object.prototype.hasOwnProperty.call(this.groupAiState, sessionId)
+    },
+
+    interestTopicsLimit(): number {
+      return GROUP_AI_INTEREST_TOPICS_MAX
+    },
+
+    summaryInstructionLimit(): number {
+      return GROUP_AI_SUMMARY_INSTRUCTION_MAX
+    },
+
+    async updateGroupAiFeatures(
+      sessionId: string,
+      patch: Partial<{
+        proactiveSpeak: boolean
+        smartSummary: boolean
+        interestTopics: string
+        summaryInstruction: string
+      }>
+    ) {
+      const payload: groupApi.UpdateGroupAiFeaturesPayload = {}
+      if (patch.proactiveSpeak != null) payload.proactiveEnabled = patch.proactiveSpeak
+      if (patch.smartSummary != null) payload.smartSummaryEnabled = patch.smartSummary
+      if (patch.interestTopics != null) {
+        payload.interestTopics = patch.interestTopics.trimStart().slice(0, GROUP_AI_INTEREST_TOPICS_MAX)
+      }
+      if (patch.summaryInstruction != null) {
+        payload.summaryInstruction = patch.summaryInstruction
+          .trimStart()
+          .slice(0, GROUP_AI_SUMMARY_INSTRUCTION_MAX)
+      }
+      const res = await groupApi.updateGroupAiFeatures(sessionId, payload)
+      if (res.code === 200 && res.data) {
+        this.applyGroupAiFromGroupInfo(sessionId, res.data)
+        if (res.data.linkmateEnabled != null) {
+          this.applyLinkmateFromGroupInfo(sessionId, res.data)
+        }
+        return true
+      }
+      throw new Error(res.message || t('groupAi.settingsUpdateFail'))
     },
 
     async updateLinkmateEnabled(sessionId: string, enabled: boolean) {
@@ -890,6 +966,7 @@ export const useGroupMetaStore = defineStore('groupMeta', {
       delete this.remarks[sessionId]
       delete this.muteState[sessionId]
       delete this.linkmateState[sessionId]
+      delete this.groupAiState[sessionId]
       delete this.files[sessionId]
       delete this.albums[sessionId]
       delete this.albumFolders[sessionId]
@@ -898,6 +975,6 @@ export const useGroupMetaStore = defineStore('groupMeta', {
   },
   persist: {
     key: 'linkx-group-linkmate',
-    paths: ['linkmateState']
+    paths: ['linkmateState', 'groupAiState']
   }
 })

@@ -8,9 +8,9 @@
  * 群主可修改群名称；任意成员可设置仅自己可见的群备注。
  * </p>
  */
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { NIcon, NSwitch, useMessage, useDialog } from 'naive-ui'
-import { SearchOutline } from '@vicons/ionicons5'
+import { SearchOutline, CloseOutline } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
 import GroupAvatar from '../GroupAvatar.vue'
 import GroupMutePanel from './GroupMutePanel.vue'
@@ -23,7 +23,9 @@ import * as groupApi from '../../api/group'
 import * as conferenceApi from '../../api/conference'
 import type { ConferenceInfo } from '../../api/conference'
 import { useI18n } from '../../i18n'
-import { LxButton } from '../ui'
+import type { GroupMember } from '../../stores/groupMeta'
+import { LxButton, LxIconButton } from '../ui'
+import GroupAiSidebarBlock from './GroupAiSidebarBlock.vue'
 
 const { t } = useI18n()
 const message = useMessage()
@@ -62,10 +64,15 @@ const announcementEmpty = computed(() => {
 const joinApproval = ref(false)
 const inviteOwnerOnly = ref(false)
 const announcementReadCount = ref<number | null>(null)
+const CONFERENCE_HISTORY_PREVIEW_COUNT = 3
 const conferenceHistory = ref<ConferenceInfo[]>([])
 const conferenceHistoryLoading = ref(false)
+const conferenceHistoryExpanded = ref(false)
 const memberSelectMode = ref(false)
 const selectedMemberIds = ref<string[]>([])
+const memberSearch = ref('')
+const showMemberSearch = ref(false)
+const memberSearchInputRef = ref<HTMLInputElement | null>(null)
 const joinRequests = ref<groupApi.GroupJoinRequestItem[]>([])
 const joinRequestsLoading = ref(false)
 const joinHandlingId = ref<string | null>(null)
@@ -150,6 +157,7 @@ async function refreshAnnouncementRead() {
 
 async function loadConferenceHistory() {
   const id = currentSessionId.value
+  conferenceHistoryExpanded.value = false
   if (!id) {
     conferenceHistory.value = []
     return
@@ -163,6 +171,19 @@ async function loadConferenceHistory() {
   } finally {
     conferenceHistoryLoading.value = false
   }
+}
+
+const visibleConferenceHistory = computed(() => {
+  if (conferenceHistoryExpanded.value) return conferenceHistory.value
+  return conferenceHistory.value.slice(0, CONFERENCE_HISTORY_PREVIEW_COUNT)
+})
+
+const conferenceHistoryHasMore = computed(
+  () => conferenceHistory.value.length > CONFERENCE_HISTORY_PREVIEW_COUNT
+)
+
+function toggleConferenceHistory() {
+  conferenceHistoryExpanded.value = !conferenceHistoryExpanded.value
 }
 
 function formatConferenceTime(raw?: string) {
@@ -214,16 +235,53 @@ async function setInviteOwnerOnly(val: boolean) {
   }
 }
 
+function canSelectMember(m: GroupMember): boolean {
+  const me = userProfile.value.userId
+  if (!me || m.id === me || m.role === 'owner') return false
+  if (isOwner.value) return true
+  return isAdminOrOwner.value && m.role !== 'admin'
+}
+
 function toggleMemberSelect(memberId: string) {
   if (!memberSelectMode.value || !isAdminOrOwner.value) return
+  const target = members.value.find(m => m.id === memberId)
+  if (!target || !canSelectMember(target)) return
   const idx = selectedMemberIds.value.indexOf(memberId)
   if (idx >= 0) selectedMemberIds.value.splice(idx, 1)
   else selectedMemberIds.value.push(memberId)
 }
 
+function toggleMemberSelectMode() {
+  if (memberSelectMode.value) {
+    exitMemberSelect()
+    return
+  }
+  memberSelectMode.value = true
+  selectedMemberIds.value = []
+}
+
 function exitMemberSelect() {
   memberSelectMode.value = false
   selectedMemberIds.value = []
+}
+
+function toggleMemberSearch() {
+  showMemberSearch.value = !showMemberSearch.value
+  if (!showMemberSearch.value) {
+    memberSearch.value = ''
+    return
+  }
+  void nextTick(() => memberSearchInputRef.value?.focus())
+}
+
+function onMemberAvatarClick(member: GroupMember) {
+  if (memberSelectMode.value) {
+    toggleMemberSelect(member.id)
+    return
+  }
+  if (isAdminOrOwner.value && canSelectMember(member)) {
+    void removeOneMember(member.id)
+  }
 }
 
 async function batchRemoveSelected() {
@@ -364,6 +422,20 @@ const members = computed(() => {
   if (!id) return []
   void groupMetaStore.membersRefreshSeq[id]
   return groupMetaStore.membersFor(id)
+})
+
+const filteredMembers = computed(() => {
+  const q = memberSearch.value.trim().toLowerCase()
+  if (!q) return members.value
+  return members.value.filter(
+    m => m.name.toLowerCase().includes(q) || m.badge?.toLowerCase().includes(q)
+  )
+})
+
+const displayedMembers = computed(() => {
+  const list = filteredMembers.value
+  if (showMemberSearch.value || memberSelectMode.value) return list
+  return list.slice(0, 14)
 })
 
 /** 设置群会话置顶 */
@@ -604,6 +676,10 @@ watch(groupInfoDrawerOpen, open => {
     adminPanelOpen.value = false
     mutePanelOpen.value = false
     reportPanelOpen.value = false
+    conferenceHistoryExpanded.value = false
+    exitMemberSelect()
+    showMemberSearch.value = false
+    memberSearch.value = ''
   }
 }, { immediate: true })
 
@@ -665,34 +741,75 @@ function reportGroup() {
                       v-if="isAdminOrOwner"
                       type="button"
                       class="lx-link-btn lx-link-btn--head"
-                      @click="memberSelectMode = !memberSelectMode; if (!memberSelectMode) selectedMemberIds = []"
+                      @click.stop="toggleMemberSelectMode"
                     >
                       {{ memberSelectMode ? t('common.cancel') : t('modals.batchManage') }}
                     </button>
-                    <n-icon :component="SearchOutline" :size="18" class="ico" />
+                    <LxIconButton
+                      :title="t('extra.searchMembers')"
+                      @click.stop="toggleMemberSearch"
+                    >
+                      <n-icon :component="showMemberSearch ? CloseOutline : SearchOutline" :size="18" />
+                    </LxIconButton>
                   </div>
                 </div>
-                <div class="avatar-grid">
+                <div v-if="showMemberSearch" class="member-search">
+                  <input
+                    ref="memberSearchInputRef"
+                    v-model="memberSearch"
+                    type="text"
+                    class="member-search-input"
+                    :placeholder="t('extra.searchMembersPh')"
+                  />
+                </div>
+                <p v-if="memberSelectMode" class="field-hint">{{ t('modals.batchManageHint') }}</p>
+                <p v-if="showMemberSearch && displayedMembers.length === 0" class="muted">
+                  {{ t('extra.noMatchMembers') }}
+                </p>
+                <div v-else class="avatar-grid" :class="{ 'is-selecting': memberSelectMode }">
                   <button
-                    v-for="m in members.slice(0, 14)"
+                    v-for="m in displayedMembers"
                     :key="m.id"
                     type="button"
                     class="av"
-                    :class="{ selected: selectedMemberIds.includes(m.id) }"
-                    :disabled="!memberSelectMode && !(isAdminOrOwner && m.role !== 'owner' && m.id !== userProfile.userId)"
-                    @click="memberSelectMode ? toggleMemberSelect(m.id) : (isAdminOrOwner && m.role !== 'owner' && m.id !== userProfile.userId ? removeOneMember(m.id) : undefined)"
+                    :class="{
+                      selected: selectedMemberIds.includes(m.id),
+                      selectable: memberSelectMode && canSelectMember(m)
+                    }"
+                    :disabled="memberSelectMode ? !canSelectMember(m) : !(isAdminOrOwner && canSelectMember(m))"
+                    :title="m.name"
+                    @click.stop="onMemberAvatarClick(m)"
                   >
                     <Avatar :text="m.avatarText" :color="m.avatarColor" :image-url="m.avatarUrl" :size="40" />
-                    <span v-if="memberSelectMode && selectedMemberIds.includes(m.id)" class="av-check">✓</span>
+                    <span v-if="memberSelectMode && canSelectMember(m)" class="av-check" :class="{ on: selectedMemberIds.includes(m.id) }">
+                      {{ selectedMemberIds.includes(m.id) ? '✓' : '' }}
+                    </span>
                     <span v-if="m.badge" class="member-badge">{{ m.badge }}</span>
+                    <span class="av-name">{{ m.name }}</span>
                   </button>
-                  <button type="button" class="av invite" :title="t('chat.invite')" @click="openAddMembers">+</button>
+                  <button
+                    v-if="!memberSelectMode"
+                    type="button"
+                    class="av invite"
+                    :title="t('chat.invite')"
+                    @click.stop="openAddMembers"
+                  >
+                    +
+                  </button>
                 </div>
-                <div v-if="memberSelectMode && selectedMemberIds.length" class="batch-bar">
-                  <LxButton variant="block-danger" @click="batchRemoveSelected">
+                <div v-if="memberSelectMode" class="batch-bar">
+                  <LxButton
+                    variant="block-danger"
+                    :disabled="selectedMemberIds.length === 0"
+                    @click="batchRemoveSelected"
+                  >
                     {{ t('modals.batchRemove', { n: selectedMemberIds.length }) }}
                   </LxButton>
-                  <LxButton variant="block" @click="batchMuteSelected">
+                  <LxButton
+                    variant="block"
+                    :disabled="selectedMemberIds.length === 0"
+                    @click="batchMuteSelected"
+                  >
                     {{ t('modals.batchMute', { n: selectedMemberIds.length }) }}
                   </LxButton>
                 </div>
@@ -732,6 +849,12 @@ function reportGroup() {
                 </button>
               </section>
 
+              <!-- 群聊小助手（群主/管理员可开启） -->
+              <section class="block">
+                <h3 class="block-title">{{ t('groupAi.sectionTitle') }}</h3>
+                <GroupAiSidebarBlock embedded :can-manage="isAdminOrOwner" />
+              </section>
+
               <!-- 会议历史（元数据，无回放） -->
               <section class="block">
                 <h3 class="block-title">{{ t('conference.historyTitle') }}</h3>
@@ -739,7 +862,7 @@ function reportGroup() {
                 <p v-if="conferenceHistoryLoading" class="muted">{{ t('common.loading') }}</p>
                 <p v-else-if="conferenceHistory.length === 0" class="muted">{{ t('conference.historyEmpty') }}</p>
                 <ul v-else class="conf-history-list">
-                  <li v-for="c in conferenceHistory" :key="String(c.id)" class="conf-history-item">
+                  <li v-for="c in visibleConferenceHistory" :key="String(c.id)" class="conf-history-item">
                     <div class="conf-history-title">{{ c.title || t('conference.defaultTitle') }}</div>
                     <div class="conf-history-meta">
                       <span>{{ c.type === 'voice' ? t('conference.typeVoice') : t('conference.typeVideo') }}</span>
@@ -749,6 +872,18 @@ function reportGroup() {
                     </div>
                   </li>
                 </ul>
+                <button
+                  v-if="!conferenceHistoryLoading && conferenceHistoryHasMore"
+                  type="button"
+                  class="conf-history-more"
+                  @click="toggleConferenceHistory"
+                >
+                  {{
+                    conferenceHistoryExpanded
+                      ? t('conference.historyCollapse')
+                      : t('conference.historyViewMore')
+                  }}
+                </button>
               </section>
 
               <!-- 本群昵称（只读） -->
@@ -959,6 +1094,7 @@ function reportGroup() {
   inset: 0;
   z-index: var(--lx-z-dock);
   background: var(--lx-bg-overlay);
+  -webkit-app-region: no-drag;
 }
 
 .drawer-panel {
@@ -973,6 +1109,7 @@ function reportGroup() {
   display: flex;
   flex-direction: column;
   will-change: transform;
+  -webkit-app-region: no-drag;
 }
 
 .drawer-scroll {
@@ -1048,9 +1185,24 @@ function reportGroup() {
   gap: var(--lx-space);
 }
 
-.ico {
-  color: var(--lx-text-muted);
-  cursor: pointer;
+.member-search {
+  margin: 0 0 var(--lx-space-md);
+}
+
+.member-search-input {
+  width: 100%;
+  height: 32px;
+  border: 1px solid var(--lx-border-light);
+  border-radius: var(--lx-radius);
+  padding: 0 var(--lx-space-md);
+  font-size: var(--lx-font-sm);
+  outline: none;
+  background: var(--lx-bg-card);
+  color: var(--lx-text-body);
+}
+
+.member-search-input:focus {
+  border-color: var(--lx-accent);
 }
 
 .avatar-grid {
@@ -1063,11 +1215,18 @@ function reportGroup() {
 .av {
   position: relative;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--lx-space-xs);
   border: none;
   background: transparent;
   padding: 0;
   cursor: pointer;
+}
+
+.av:disabled {
+  cursor: default;
+  opacity: 0.72;
 }
 
 .av.selected {
@@ -1075,18 +1234,35 @@ function reportGroup() {
   border-radius: var(--lx-radius-xl);
 }
 
+.av-name {
+  max-width: 56px;
+  font-size: var(--lx-font-2xs);
+  line-height: var(--lx-leading-snug);
+  color: var(--lx-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+
 .av-check {
   position: absolute;
-  right: 0;
-  bottom: 0;
+  right: 2px;
+  top: 24px;
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: var(--lx-accent);
+  border: 1px solid var(--lx-border-strong);
+  background: var(--lx-bg-card);
   color: var(--lx-text-on-accent);
   font-size: var(--lx-font-2xs);
-  line-height: var(--lx-font-xl);
+  line-height: 14px;
   text-align: center;
+}
+
+.av-check.on {
+  border-color: var(--lx-accent);
+  background: var(--lx-accent);
 }
 
 .member-badge {
@@ -1238,6 +1414,21 @@ function reportGroup() {
   display: flex;
   flex-wrap: wrap;
   gap: var(--lx-space-xs);
+}
+.conf-history-more {
+  display: block;
+  width: 100%;
+  margin-top: var(--lx-space);
+  padding: var(--lx-space) 0;
+  border: none;
+  background: none;
+  color: var(--lx-accent);
+  font-size: var(--lx-font-sm);
+  cursor: pointer;
+  text-align: center;
+}
+.conf-history-more:hover {
+  opacity: 0.85;
 }
 
 .switch-block {

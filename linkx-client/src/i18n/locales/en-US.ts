@@ -824,6 +824,30 @@ export default {
     loadOlderMessages: 'Load earlier messages',
     aiDisclaimer: 'Content is AI-generated. Please verify before use.'
   },
+  groupAi: {
+    official: 'Official AI',
+    assistantName: 'Group assistant',
+    sectionTitle: 'Group AI',
+    assistantIntro: 'Helps this group discuss, share useful replies, and summarize from your instructions.',
+    enableTitle: 'Enable group assistant',
+    enableDesc: 'Allows @LinkMate in this group, plus proactive messages and summaries',
+    memberReadonly: 'Only the owner or admins can change this',
+    proactiveTitle: 'Proactive messages',
+    proactiveDesc: 'Auto-replies after member messages; bursts merge into one reply, ~1/min per group',
+    topicsPh: 'Topics of interest, e.g. project progress, tech discussion',
+    summaryTitle: 'Smart summary',
+    summaryDesc: 'When enabled, a summary tab appears on the chat edge; click to generate',
+    summaryPh: 'Summary instructions, e.g. extract to-dos and conclusions',
+    summaryTabLabel: 'Summary',
+    summaryTabHint: 'Click to summarize this group chat',
+    summaryTriggered: 'Summary posted to the chat',
+    summaryTriggerFail: 'Failed to generate summary',
+    groupOn: 'Group assistant enabled',
+    groupOff: 'Group assistant disabled',
+    groupUpdateFail: 'Failed to update group assistant',
+    settingsSaved: 'Settings saved',
+    settingsUpdateFail: 'Failed to update group AI settings'
+  },
   nav: {
     chat: 'Chats',
     linkmate: 'LinkMate',
@@ -1158,6 +1182,7 @@ export default {
     joinApproval: 'Require join approval',
     inviteOwnerOnly: 'Only owner/admin can invite',
     batchManage: 'Batch manage',
+    batchManageHint: 'Select members to remove or mute in bulk',
     batchRemove: 'Remove selected ({n})',
     batchRemoveTitle: 'Remove members',
     batchRemoveContent: 'Remove {n} selected members?',
@@ -1478,7 +1503,9 @@ export default {
     waitingOthers: 'Waiting for others…',
     historyTitle: 'Meeting history',
     historyHint: 'Metadata only — no recording playback (needs a media server)',
-    historyEmpty: 'No ended meetings yet'
+    historyEmpty: 'No ended meetings yet',
+    historyViewMore: 'View more',
+    historyCollapse: 'Show less'
   },
   validation: {
     usernameRequired: 'Enter a username',

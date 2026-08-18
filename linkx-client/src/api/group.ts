@@ -29,6 +29,14 @@ export interface GroupInfo {
   invitePolicy?: string
   /** 群聊是否允许 @灵伴 */
   linkmateEnabled?: boolean
+  /** 群聊主动发言 */
+  groupAiProactiveEnabled?: boolean
+  /** 主动发言关注话题 */
+  groupAiInterestTopics?: string
+  /** 群聊智能总结 */
+  groupAiSmartSummaryEnabled?: boolean
+  /** 智能总结指令 */
+  groupAiSummaryInstruction?: string
 }
 
 export interface GroupMember {
@@ -169,6 +177,28 @@ export function updateGroupLinkmateEnabled(conversationId: string, enabled: bool
   return apiClient.put<never, ApiResult<GroupInfo>>(
     `/group/${conversationId}/linkmate-enabled`,
     { enabled }
+  )
+}
+
+export interface UpdateGroupAiFeaturesPayload {
+  proactiveEnabled?: boolean
+  interestTopics?: string
+  smartSummaryEnabled?: boolean
+  summaryInstruction?: string
+}
+
+/** 设置群聊 AI 功能：主动发言、智能总结（群主/管理员） */
+export function updateGroupAiFeatures(conversationId: string, payload: UpdateGroupAiFeaturesPayload) {
+  return apiClient.put<never, ApiResult<GroupInfo>>(
+    `/group/${conversationId}/group-ai-features`,
+    payload
+  )
+}
+
+/** 手动触发群聊智能总结 */
+export function triggerGroupAiSummary(conversationId: string) {
+  return apiClient.post<never, ApiResult<{ id: string; content?: string }>>(
+    `/group/${conversationId}/group-ai-summary`
   )
 }
 
