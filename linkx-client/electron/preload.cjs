@@ -38,6 +38,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openRegister: () => ipcRenderer.send('window-open-register'),
   openHelp: () => ipcRenderer.send('window-open-help'),
   openChatHistory: () => ipcRenderer.send('window-open-chat-history'),
+  openLinkMate: sessionId => ipcRenderer.send('window-open-linkmate', sessionId || ''),
   openOfficialNotifyDetail: (notifId) =>
     ipcRenderer.send('window-open-official-notify-detail', notifId),
   /** 打开图片预览独立窗口（深色查看器） */

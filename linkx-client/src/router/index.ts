@@ -57,6 +57,11 @@ const router = createRouter({
       component: () => import('../views/ChatHistoryView.vue')
     },
     {
+      path: '/linkmate/:sessionId?',
+      name: 'linkmate-standalone',
+      component: () => import('../views/LinkMateView.vue')
+    },
+    {
       path: '/image-viewer',   // 图片预览独立窗口（聊天双击图片）
       name: 'image-viewer',
       component: () => import('../views/ImageViewerView.vue')

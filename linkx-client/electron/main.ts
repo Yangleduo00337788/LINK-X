@@ -2248,6 +2248,7 @@ interface StandaloneWindowState {
 }
 
 const chatHistoryWindowState: StandaloneWindowState = { win: null }
+const linkMateWindowState: StandaloneWindowState = { win: null }
 const officialNotifyDetailWindowState: StandaloneWindowState = { win: null }
 
 const HELP_PAGE_BASE_URL = resolveHelpPageBaseUrl(process.env.VITE_HELP_PAGE_BASE_URL)
@@ -2259,6 +2260,57 @@ ipcMain.on('window-open-help', () => {
 
 ipcMain.on('window-open-chat-history', () => {
   createChatHistoryStandaloneWindow({ width: 820, height: 760 })
+})
+
+function createLinkMateStandaloneWindow(sessionId: string) {
+  const hashPath = sessionId
+    ? `linkmate/${encodeURIComponent(sessionId)}`
+    : 'linkmate'
+  let win = linkMateWindowState.win
+  if (win && !win.isDestroyed()) {
+    if (isDev && process.env.VITE_DEV_SERVER_URL) {
+      win.loadURL(process.env.VITE_DEV_SERVER_URL + '#/' + hashPath)
+    } else {
+      win.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: '/' + hashPath })
+    }
+    if (win.isMinimized()) win.restore()
+    win.focus()
+    return
+  }
+
+  win = new BrowserWindow({
+    ...browserWindowIconOptions(),
+    width: 440,
+    height: 720,
+    minWidth: 360,
+    minHeight: 480,
+    resizable: true,
+    ...windowChrome('LinkX', 'main'),
+    show: false,
+    webPreferences: defaultWebPreferences()
+  })
+  prepareWindowChrome(win)
+
+  win.once('ready-to-show', () => {
+    win?.show()
+  })
+
+  if (isDev && process.env.VITE_DEV_SERVER_URL) {
+    win.loadURL(process.env.VITE_DEV_SERVER_URL + '#/' + hashPath)
+  } else {
+    win.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: '/' + hashPath })
+  }
+
+  win.on('closed', () => {
+    linkMateWindowState.win = null
+  })
+
+  linkMateWindowState.win = win
+}
+
+ipcMain.on('window-open-linkmate', (_event, sessionId: unknown) => {
+  const id = String(sessionId ?? '').trim()
+  createLinkMateStandaloneWindow(id)
 })
 
 ipcMain.on('window-open-official-notify-detail', (_event, notifId: unknown) => {

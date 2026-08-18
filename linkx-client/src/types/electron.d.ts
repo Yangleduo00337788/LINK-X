@@ -21,6 +21,7 @@ declare global {
       openRegister?: () => void               // 打开注册独立窗口
       openHelp?: () => void                   // 打开帮助独立窗口
       openChatHistory?: () => void            // 打开聊天记录管理独立窗口
+      openLinkMate?: (sessionId?: string) => void // 打开灵伴独立窗口（可指定会话）
       openOfficialNotifyDetail?: (notifId: string) => void // 打开官方通知详情独立窗口
       /** 打开图片预览独立窗口 */
       openImageViewer?: (payload: {
