@@ -3,11 +3,10 @@
 import { ref } from 'vue'
 import { useDialog, useMessage } from 'naive-ui'
 import { APP_CLIENT_CHANNEL, APP_CLIENT_VERSION } from '../../utils/appVersion'
-import * as versionApi from '../../api/version'
 import { useI18n } from '../../i18n'
 import { openLegalPageInBrowser } from '../../utils/legalPage'
 import { openHelpPageInBrowser } from '../../utils/helpPage'
-import { resolveAppDownloadUrl } from '../../utils/resolveAppDownloadUrl'
+import { checkAppUpdate } from '../../utils/appUpdate'
 import BrandMarkIcon from '../BrandMarkIcon.vue'
 import { LxButton } from '../ui'
 
@@ -30,114 +29,19 @@ function openHelpCenter() {
   void openHelpPageInBrowser()
 }
 
-/**
- * 发现新版本后静默下载并安装（Windows 下 /S），安装完成后由 NSIS 自动启动 LinkX。
- */
-async function startDownloadAndInstall(info: {
-  version: string
-  downloadUrl: string
-  releaseNotes?: string
-  packageSha256?: string
-  packageFileName?: string
-}) {
-  const url = resolveAppDownloadUrl(info.downloadUrl || '')
-  if (!url) {
-    message.warning(t('about.noDownloadUrl'))
-    return
-  }
-
-  updating.value = true
-  progressText.value = t('about.downloading')
-
-  const unsub = window.electronAPI?.onUpdateProgress?.(data => {
-    progressText.value =
-      data.phase === 'installing' ? t('about.installing') : t('about.downloading')
-  })
-
-  try {
-    if (window.electronAPI?.downloadAndInstallUpdate) {
-      const result = await window.electronAPI.downloadAndInstallUpdate({
-        url,
-        version: info.version,
-        fileName: info.packageFileName,
-        sha256: info.packageSha256,
-        silent: true
-      })
-      if (!result.ok) {
-        message.error(result.message || t('about.installFail'))
-        return
-      }
-      if (result.launched && result.silent) {
-        progressText.value = t('about.silentInstallHint')
-        return
-      }
-      if (result.launched) {
-        progressText.value = t('about.installStarted')
-        return
-      }
-      message.info(result.message || t('about.downloadReady'))
-      return
-    }
-
-    const a = document.createElement('a')
-    a.href = url
-    a.target = '_blank'
-    a.rel = 'noopener'
-    a.download = ''
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    message.success(t('about.webDownloadStarted'))
-  } catch (e) {
-    console.warn('[AboutSettings] 下载安装失败:', e)
-    message.error(t('about.installFail'))
-  } finally {
-    unsub?.()
-    if (!window.electronAPI?.downloadAndInstallUpdate) {
-      updating.value = false
-      progressText.value = ''
-    }
-  }
-}
-
-function showUpdateDialog(info: versionApi.AppVersion) {
-  const notes = (info.releaseNotes || '').trim()
-  const force = info.forceUpdate === true
-  dialog.warning({
-    title: force ? t('about.forceUpdateTitle') : t('about.updateTitle'),
-    content:
-      t('about.found', { version: info.version, notes: notes || t('about.noNotes') }) +
-      '\n\n' +
-      (force ? t('about.forceUpdateHint') : t('about.autoInstallHint')),
-    positiveText: t('about.downloadInstall'),
-    negativeText: force ? undefined : t('common.cancel'),
-    closable: !force,
-    maskClosable: !force,
-    closeOnEsc: !force,
-    onPositiveClick: () => {
-      void startDownloadAndInstall(info)
-    }
-  })
-}
-
 async function checkUpdate() {
   if (checking.value || updating.value) return
   checking.value = true
   try {
-    const res = await versionApi.checkUpdate(APP_CLIENT_VERSION, APP_CLIENT_CHANNEL)
-    if (res.code !== 200 || !res.data) {
-      message.error(res.message || t('about.checkFail'))
-      return
-    }
-    const info = res.data
-    if (!info.hasUpdate) {
-      message.success(t('about.latest', { version: info.version }))
-      return
-    }
-    showUpdateDialog(info)
-  } catch (e) {
-    console.warn('[AboutSettings] 检查更新失败:', e)
-    message.error(t('about.checkFailRetry'))
+    await checkAppUpdate({
+      message,
+      dialog,
+      t,
+      onProgress: (active, text) => {
+        updating.value = active
+        progressText.value = text || ''
+      }
+    })
   } finally {
     checking.value = false
   }
