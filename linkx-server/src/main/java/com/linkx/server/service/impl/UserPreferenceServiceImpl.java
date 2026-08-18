@@ -142,6 +142,7 @@ public class UserPreferenceServiceImpl
         if (patch.getNotifySocial() != null) target.setNotifySocial(patch.getNotifySocial());
         if (patch.getNotifyMoments() != null) target.setNotifyMoments(patch.getNotifyMoments());
         if (patch.getNotifySystem() != null) target.setNotifySystem(patch.getNotifySystem());
+        if (patch.getNotifyFriendOnline() != null) target.setNotifyFriendOnline(patch.getNotifyFriendOnline());
     }
 
     /** 生成与表默认值一致的偏好对象（不包含时间戳，由 MyBatis-Flex 填充） */
@@ -169,6 +170,7 @@ public class UserPreferenceServiceImpl
                 .notifySocial(true)
                 .notifyMoments(true)
                 .notifySystem(true)
+                .notifyFriendOnline(true)
                 .build();
     }
 }

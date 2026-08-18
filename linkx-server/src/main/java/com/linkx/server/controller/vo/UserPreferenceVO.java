@@ -48,4 +48,5 @@ public class UserPreferenceVO implements Serializable {
     private Boolean notifySocial;
     private Boolean notifyMoments;
     private Boolean notifySystem;
+    private Boolean notifyFriendOnline;
 }

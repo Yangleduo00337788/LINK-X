@@ -48,4 +48,5 @@ public class UserPreferenceDTO {
     private Boolean notifySocial;
     private Boolean notifyMoments;
     private Boolean notifySystem;
+    private Boolean notifyFriendOnline;
 }

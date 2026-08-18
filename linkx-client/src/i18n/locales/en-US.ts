@@ -41,7 +41,8 @@ export default {
       notifyChat: 'Chat notifications',
       notifySocial: 'Social notifications',
       notifyMoments: 'Moments notifications',
-      notifySystem: 'System notifications'
+      notifySystem: 'System notifications',
+      notifyFriendOnline: 'Friend online alerts'
     }
   },
   general: {
@@ -84,10 +85,11 @@ export default {
     notifyMoments: 'Moments alerts',
     notifyMomentsDesc: 'Likes, comments, and other Moments interactions',
     notifySystem: 'System alerts',
-    notifySystemDesc: 'System announcements and account/security notices',
+    notifySystemDesc: 'System announcements, official updates, and calendar reminders',
     notifyFriendOnline: 'Friend online alerts',
     notifyFriendOnlineDesc: 'Play a sound and show a notification when a friend comes online',
     friendOnlineAlert: '{name} is online',
+    momentsAlertTitle: 'Moments',
     quietTitle: 'Quiet hours',
     quietEnabled: 'Enable quiet hours',
     quietDesc: 'No sound or desktop notifications during this window',

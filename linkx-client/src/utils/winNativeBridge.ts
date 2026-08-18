@@ -11,7 +11,7 @@ import { OFFICIAL_NOTIFY_SESSION_ID } from '../types'
 import { isWindowInBackground } from './messageNotify'
 
 export type NotificationActionPayload = {
-  kind: 'session' | 'official' | 'contacts' | 'calendar' | 'focus'
+  kind: 'session' | 'official' | 'contacts' | 'calendar' | 'moments' | 'focus'
   sessionId?: string
   notificationId?: string
 }
@@ -41,6 +41,13 @@ function handleNotificationAction(
       break
     case 'calendar':
       appStore.setNav('calendar')
+      break
+    case 'moments':
+      if (window.electronAPI?.openMoments) {
+        window.electronAPI.openMoments()
+      } else {
+        appStore.setNav('moments')
+      }
       break
     case 'focus':
       break

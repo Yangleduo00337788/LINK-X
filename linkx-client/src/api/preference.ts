@@ -32,6 +32,7 @@ export interface UserPreference {
   notifySocial?: boolean
   notifyMoments?: boolean
   notifySystem?: boolean
+  notifyFriendOnline?: boolean
 }
 
 /**

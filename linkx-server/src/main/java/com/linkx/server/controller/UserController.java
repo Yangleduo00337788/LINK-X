@@ -387,6 +387,7 @@ public class UserController {
                 .notifySocial(dto.getNotifySocial())
                 .notifyMoments(dto.getNotifyMoments())
                 .notifySystem(dto.getNotifySystem())
+                .notifyFriendOnline(dto.getNotifyFriendOnline())
                 .build();
         UserPreference saved = userPreferenceService.upsert(userId, patch);
         return Result.success(toPreferenceVO(saved));
@@ -421,6 +422,7 @@ public class UserController {
                 .notifySocial(p.getNotifySocial() != null ? p.getNotifySocial() : true)
                 .notifyMoments(p.getNotifyMoments() != null ? p.getNotifyMoments() : true)
                 .notifySystem(p.getNotifySystem() != null ? p.getNotifySystem() : true)
+                .notifyFriendOnline(p.getNotifyFriendOnline() != null ? p.getNotifyFriendOnline() : true)
                 .build();
     }
 

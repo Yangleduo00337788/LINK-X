@@ -94,8 +94,11 @@ public class UserPreference implements Serializable {
     /** 友链（点赞/评论/@）提醒 */
     private Boolean notifyMoments;
 
-    /** 系统（日程等）提醒 */
+    /** 系统（公告 / 官方反馈 / 日程）提醒 */
     private Boolean notifySystem;
+
+    /** 好友上线提醒 */
+    private Boolean notifyFriendOnline;
 
     @Column(onInsertValue = "NOW()")
     private Date createTime;

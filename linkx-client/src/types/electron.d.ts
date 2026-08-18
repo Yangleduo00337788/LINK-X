@@ -157,7 +157,7 @@ declare global {
         body?: string
         silent?: boolean
         action?: {
-          kind: 'session' | 'official' | 'contacts' | 'calendar' | 'focus'
+          kind: 'session' | 'official' | 'contacts' | 'calendar' | 'moments' | 'focus'
           sessionId?: string
           notificationId?: string
           avatarUrl?: string

@@ -11,7 +11,7 @@ export const JUMP_ARG_PREFIX = '--lx-jump='
 export type JumpListAction = 'open' | 'chat' | 'contacts' | 'calendar' | 'settings'
 
 export type DesktopNotificationAction = {
-  kind: 'session' | 'official' | 'contacts' | 'calendar' | 'focus'
+  kind: 'session' | 'official' | 'contacts' | 'calendar' | 'moments' | 'focus'
   sessionId?: string
   notificationId?: string
   avatarUrl?: string

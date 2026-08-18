@@ -481,6 +481,10 @@ export const useNotificationsStore = defineStore('notifications', {
         const { notifySocialEvent } = await import('../utils/messageNotify')
         notifySocialEvent(type === 'group_join_request' ? 'group_invitation' : type)
       }
+      if (type.startsWith('moments_')) {
+        const { notifyMomentsEvent } = await import('../utils/messageNotify')
+        notifyMomentsEvent(type)
+      }
       if (type === 'calendar_remind') {
         const { notifyCalendarRemind } = await import('../utils/messageNotify')
         const content = typeof data?.content === 'string' ? data.content : ''

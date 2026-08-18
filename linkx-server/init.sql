@@ -566,6 +566,7 @@ CREATE TABLE IF NOT EXISTS `user_preference` (
   `notify_social` tinyint(1) NOT NULL DEFAULT 1 COMMENT '社交提醒',
   `notify_moments` tinyint(1) NOT NULL DEFAULT 1 COMMENT '友链提醒',
   `notify_system` tinyint(1) NOT NULL DEFAULT 1 COMMENT '系统提醒',
+  `notify_friend_online` tinyint(1) NOT NULL DEFAULT 1 COMMENT '好友上线提醒',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`user_id`)

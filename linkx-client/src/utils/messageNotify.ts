@@ -21,7 +21,7 @@ import { isInQuietHours } from './notifyAggregate'
 import { t } from '../i18n'
 
 export type DesktopNotificationAction = {
-  kind: 'session' | 'official' | 'contacts' | 'calendar' | 'focus'
+  kind: 'session' | 'official' | 'contacts' | 'calendar' | 'moments' | 'focus'
   sessionId?: string
   notificationId?: string
   avatarUrl?: string
@@ -112,6 +112,15 @@ export function isWindowInBackground(): boolean {
   return document.visibilityState === 'hidden' || !document.hasFocus()
 }
 
+function isQuietNow(settings: ReturnType<typeof useAppSettingsStore>): boolean {
+  return isInQuietHours(
+    new Date(),
+    !!settings.quietHoursEnabled,
+    settings.quietHoursStart || '22:00',
+    settings.quietHoursEnd || '08:00'
+  )
+}
+
 /**
  * 免打扰会话是否仍应提醒（群聊 @ 我）。
  * 非静音会话恒为 true。
@@ -133,16 +142,7 @@ export function notifyIncomingMessage(ctx: IncomingNotifyContext): void {
 
   const settings = useAppSettingsStore()
   if (settings.notifyChat === false) return
-  if (
-    isInQuietHours(
-      new Date(),
-      !!settings.quietHoursEnabled,
-      settings.quietHoursStart || '22:00',
-      settings.quietHoursEnd || '08:00'
-    )
-  ) {
-    return
-  }
+  if (isQuietNow(settings)) return
   if (
     !shouldAlertForSession(session, message, {
       notifyAtMe: settings.notifyAtMe,
@@ -180,16 +180,7 @@ export function notifyIncomingMessage(ctx: IncomingNotifyContext): void {
 export function notifySocialEvent(kind: 'friend_request' | 'group_invitation'): void {
   const settings = useAppSettingsStore()
   if (settings.notifySocial === false) return
-  if (
-    isInQuietHours(
-      new Date(),
-      !!settings.quietHoursEnabled,
-      settings.quietHoursStart || '22:00',
-      settings.quietHoursEnd || '08:00'
-    )
-  ) {
-    return
-  }
+  if (isQuietNow(settings)) return
   if (settings.soundNotify) {
     playTone((settings.notifyTone || 'default') as ToneId)
   }
@@ -204,20 +195,47 @@ export function notifySocialEvent(kind: 'friend_request' | 'group_invitation'): 
   void showChatDesktopNotification(title, body, !settings.notifySound, { kind: 'contacts' })
 }
 
+const MOMENTS_NOTIFY_TYPES = new Set([
+  'moments_like',
+  'moments_comment',
+  'moments_mention',
+  'moments_at'
+])
+
+/**
+ * 友链点赞 / 评论 / @：按「友链提醒」偏好播提示音，后台时桌面通知。
+ * 列表与角标仍由 notifications store 刷新，本函数只控制声音与桌面弹窗。
+ */
+export function notifyMomentsEvent(type: string): void {
+  if (!MOMENTS_NOTIFY_TYPES.has(type)) return
+  const settings = useAppSettingsStore()
+  if (settings.notifyMoments === false) return
+  if (isQuietNow(settings)) return
+
+  if (settings.soundNotify) {
+    playTone((settings.notifyTone || 'default') as ToneId)
+  }
+
+  if (!isWindowInBackground()) return
+
+  const bodyByType: Record<string, string> = {
+    moments_like: t('moments.likedYour'),
+    moments_comment: t('moments.commentedYour'),
+    moments_mention: t('moments.mentionedYou'),
+    moments_at: t('moments.mentionedYou')
+  }
+  const title = t('notifications.momentsAlertTitle')
+  const body = settings.messageDetail
+    ? bodyByType[type] || t('moments.newNotif')
+    : t('moments.newNotif')
+  void showChatDesktopNotification(title, body, !settings.notifySound, { kind: 'moments' })
+}
+
 /** LinkX 官方反馈进度：声音 + 后台桌面通知 */
 export async function notifyOfficialFeedback(type: string, content?: string): Promise<void> {
   const settings = useAppSettingsStore()
-  if (settings.notifyChat === false) return
-  if (
-    isInQuietHours(
-      new Date(),
-      !!settings.quietHoursEnabled,
-      settings.quietHoursStart || '22:00',
-      settings.quietHoursEnd || '08:00'
-    )
-  ) {
-    return
-  }
+  if (settings.notifySystem === false) return
+  if (isQuietNow(settings)) return
 
   try {
     const { useAppStore } = await import('../stores/app')
@@ -252,19 +270,11 @@ export async function notifyOfficialFeedback(type: string, content?: string): Pr
 
   void showChatDesktopNotification(title, body, !settings.notifySound, { kind: 'official' })
 }
+
 export function notifyFriendOnline(friendName: string, avatarUrl?: string): void {
   const settings = useAppSettingsStore()
   if (settings.notifyFriendOnline === false) return
-  if (
-    isInQuietHours(
-      new Date(),
-      !!settings.quietHoursEnabled,
-      settings.quietHoursStart || '22:00',
-      settings.quietHoursEnd || '08:00'
-    )
-  ) {
-    return
-  }
+  if (isQuietNow(settings)) return
 
   const name = (friendName || '').trim() || t('chat.me')
   const body = t('notifications.friendOnlineAlert', { name })
@@ -302,17 +312,8 @@ export function notifyCalendarRemind(body: string, phase: 'ahead' | 'start' = 'a
   lastCalendarNotifyAt = now
 
   const settings = useAppSettingsStore()
-  if (settings.notifyChat === false) return
-  if (
-    isInQuietHours(
-      new Date(),
-      !!settings.quietHoursEnabled,
-      settings.quietHoursStart || '22:00',
-      settings.quietHoursEnd || '08:00'
-    )
-  ) {
-    return
-  }
+  if (settings.notifySystem === false) return
+  if (isQuietNow(settings)) return
 
   if (settings.soundNotify) {
     playTone((settings.notifyTone || 'default') as ToneId)

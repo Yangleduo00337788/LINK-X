@@ -106,7 +106,7 @@ function defaultState() {
     notifySocial: true,
     notifyMoments: true,
     notifySystem: true,
-    /** 好友上线提醒（仅本地，不走服务端偏好） */
+    /** 好友上线提醒（云端同步） */
     notifyFriendOnline: true,
     /** 关闭窗口时最小化到托盘（本地 + Electron 主进程） */
     minimizeToTray: true,
@@ -247,6 +247,7 @@ export const useAppSettingsStore = defineStore('appSettings', {
       if (typeof data.notifySocial === 'boolean') this.notifySocial = data.notifySocial
       if (typeof data.notifyMoments === 'boolean') this.notifyMoments = data.notifyMoments
       if (typeof data.notifySystem === 'boolean') this.notifySystem = data.notifySystem
+      if (typeof data.notifyFriendOnline === 'boolean') this.notifyFriendOnline = data.notifyFriendOnline
     },
 
     /**

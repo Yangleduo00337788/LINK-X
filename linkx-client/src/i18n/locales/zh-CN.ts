@@ -43,7 +43,8 @@ export default {
       notifyChat: '聊天消息提醒',
       notifySocial: '社交提醒',
       notifyMoments: '友链提醒',
-      notifySystem: '系统提醒'
+      notifySystem: '系统提醒',
+      notifyFriendOnline: '好友上线提醒'
     }
   },
   general: {
@@ -86,10 +87,11 @@ export default {
     notifyMoments: '友链提醒',
     notifyMomentsDesc: '友链点赞、评论等互动提醒',
     notifySystem: '系统提醒',
-    notifySystemDesc: '系统公告、安全与账号相关提醒',
+    notifySystemDesc: '系统公告、官方反馈进度与日程提醒',
     notifyFriendOnline: '好友上线提醒',
     notifyFriendOnlineDesc: '好友上线时播放提示音并弹出通知',
     friendOnlineAlert: '{name} 上线了',
+    momentsAlertTitle: '友链',
     quietTitle: '免打扰时段',
     quietEnabled: '启用免打扰',
     quietDesc: '时段内不播放提示音、不弹出桌面通知',
