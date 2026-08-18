@@ -58,7 +58,9 @@ export async function resetSessionStores() {
     { useCalendarStore },
     { useNoteStore },
     { useGroupMetaStore },
-    { useAppSettingsStore }
+    { useAppSettingsStore },
+    { useExtensionDockStore },
+    { useLinkMateStore }
   ] = await Promise.all([
     import('../stores/contacts'),
     import('../stores/notifications'),
@@ -69,7 +71,9 @@ export async function resetSessionStores() {
     import('../stores/calendar'),
     import('../stores/note'),
     import('../stores/groupMeta'),
-    import('../stores/appSettings')
+    import('../stores/appSettings'),
+    import('../stores/extensionDock'),
+    import('../stores/linkmate')
   ])
 
   useContactsStore().reset()
@@ -83,4 +87,6 @@ export async function resetSessionStores() {
   useNoteStore().$reset()
   useGroupMetaStore().$reset()
   useAppSettingsStore().reset()
+  useExtensionDockStore().$reset()
+  useLinkMateStore().$reset()
 }

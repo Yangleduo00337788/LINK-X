@@ -25,10 +25,8 @@ import ContactsMainView from './ContactsMainView.vue'
 import FavoritesMainView from './FavoritesMainView.vue'
 // 文件主视图（全宽，与日历一致）
 import FilesMainView from './FilesMainView.vue'
-// 友链面板
-import MomentsPanel from './MomentsPanel.vue'
-// 友链主视图（Web 内嵌）
-import MomentsMainView from './MomentsMainView.vue'
+// 友链右侧扩展面板
+import ExtensionDock from './ExtensionDock.vue'
 // 日历列表面板
 import CalendarPanel from './CalendarPanel.vue'
 // 日历主视图
@@ -39,8 +37,6 @@ import SettingsPanel from './SettingsPanel.vue'
 import SettingsMainView from './SettingsMainView.vue'
 // 余额主视图（全宽）
 import BalanceMainView from './BalanceMainView.vue'
-// 灵伴 AI 主区折叠面板
-import LinkMateSidePanel from './LinkMateSidePanel.vue'
 // 通用占位主视图
 import PlaceholderMainView from './PlaceholderMainView.vue'
 // 消息页站内「日程提醒」面板
@@ -74,6 +70,8 @@ import { storeToRefs } from 'pinia'
 // 应用全局状态 Store
 import { useAppStore } from '../stores/app'
 import { useLinkMateStore } from '../stores/linkmate'
+import { useExtensionDockStore } from '../stores/extensionDock'
+import { useMomentsStore } from '../stores/moments'
 import { useI18n } from '../i18n'
 import { isRealImChatSession } from '../utils/buildImChatContext'
 
@@ -82,13 +80,14 @@ const { t } = useI18n()
 const appStore = useAppStore()
 const { navKey, currentSessionId, currentSession } = storeToRefs(appStore)
 const linkMateStore = useLinkMateStore()
-const { panelExpanded } = storeToRefs(linkMateStore)
+const extensionDock = useExtensionDockStore()
+const { panelExpanded, panelCollapsed } = storeToRefs(extensionDock)
 
 watch(
   () => currentSessionId.value,
   () => {
     if (
-      (linkMateStore.panelExpanded || linkMateStore.panelCollapsed) &&
+      (panelExpanded.value || panelCollapsed.value) &&
       isRealImChatSession(currentSession.value)
     ) {
       linkMateStore.snapshotImContext()
@@ -156,6 +155,11 @@ onMounted(() => {
     void linkMateStore.ensurePanelReady()
     linkMateStore.openPanel()
   }
+  if (navKey.value === 'moments') {
+    appStore.setNav('chat')
+    void useMomentsStore().ensurePanelReady()
+    useMomentsStore().openPanel()
+  }
 })
 
 // 卸载时清理拖拽与焦点监听
@@ -175,8 +179,6 @@ const middleComponent = computed(() => {
       return ContactsPanel
     case 'calendar':
       return CalendarPanel
-    case 'moments':
-      return MomentsPanel
     case 'settings':
       return SettingsPanel
     default:
@@ -195,9 +197,8 @@ const showCalendarMain = computed(() => navKey.value === 'calendar')
 const showSettingsMain = computed(() => navKey.value === 'settings')
 const showFilesMain = computed(() => navKey.value === 'files')
 const showFavoritesMain = computed(() => navKey.value === 'favorites')
-const showMomentsMain = computed(() => navKey.value === 'moments')
 const showBalanceMain = computed(() => navKey.value === 'balance')
-const showLinkMatePanel = computed(() => panelExpanded.value)
+const showExtensionDock = computed(() => panelExpanded.value)
 const showPlaceholder = computed(() => navKey.value === 'contacts')
 
 /** 设置页中间列固定略宽，且不显示拖拽条 */
@@ -211,15 +212,14 @@ const showListResizer = computed(
     !showSettingsMain.value &&
     !showFilesMain.value &&
     !showFavoritesMain.value &&
-    !showMomentsMain.value &&
     !showBalanceMain.value
 )
 const showMiddleList = computed(
   () =>
     !showCalendarMain.value &&
+    !showSettingsMain.value &&
     !showFilesMain.value &&
     !showFavoritesMain.value &&
-    !showMomentsMain.value &&
     !showBalanceMain.value
 )
 </script>
@@ -264,10 +264,10 @@ const showMiddleList = computed(
           :class="{
             'col-chat--calendar': showCalendarMain,
             'col-chat--settings': showSettingsMain,
-            'col-chat--files': showFilesMain || showFavoritesMain || showMomentsMain || showBalanceMain
+            'col-chat--files': showFilesMain || showFavoritesMain || showBalanceMain
           }"
         >
-          <div class="col-chat-body">
+          <div class="col-chat-body" :class="{ 'has-extension-dock': showExtensionDock }">
             <div class="col-chat-main">
               <SystemNotifyPanel v-if="showSystemNotify" />
               <OfficialNotifyPanel v-else-if="showOfficialNotify" />
@@ -275,13 +275,12 @@ const showMiddleList = computed(
               <CalendarMainView v-else-if="showCalendarMain" />
               <FilesMainView v-else-if="showFilesMain" />
               <FavoritesMainView v-else-if="showFavoritesMain" />
-              <MomentsMainView v-else-if="showMomentsMain" />
               <BalanceMainView v-else-if="showBalanceMain" />
               <SettingsMainView v-else-if="showSettingsMain" />
               <ContactsMainView v-else-if="navKey === 'contacts'" />
               <PlaceholderMainView v-else-if="showPlaceholder" :nav="navKey" />
             </div>
-            <LinkMateSidePanel v-if="showLinkMatePanel" layout="side" />
+            <ExtensionDock v-if="showExtensionDock" />
           </div>
         </main>
       </div>
@@ -439,6 +438,15 @@ const showMiddleList = computed(
   flex-direction: column;
   position: relative;
   overflow: hidden;
+}
+
+.col-chat-body.has-extension-dock .col-chat-main {
+  flex: 1;
+  min-width: 240px;
+}
+
+.col-chat-body.has-extension-dock {
+  min-width: 0;
 }
 
 .col-chat--calendar {

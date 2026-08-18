@@ -593,6 +593,10 @@ html.lx-electron-win32.lx-native-frame .fixed-header {
   box-sizing: border-box;
 }
 
+html.lx-electron-win32.lx-native-frame .standalone-header {
+  background: var(--lx-bg-window);
+}
+
 html.lx-electron-win32:not(.lx-native-frame) #app {
   border-radius: 8px;
   clip-path: none;

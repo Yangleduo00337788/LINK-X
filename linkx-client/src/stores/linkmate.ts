@@ -8,6 +8,7 @@ import { buildImChatContext, isRealImChatSession, refreshSnapshotMessages, type 
 import { createStringRafBatcher } from '../utils/linkmateRafBatch'
 import { resolveLinkMateErrorMessage } from '../utils/linkmateErrors'
 import { useAppStore } from '../stores/app'
+import { useExtensionDockStore } from './extensionDock'
 import { t } from '../i18n'
 
 export type LinkMatePanelState = 'closed' | 'open' | 'collapsed'
@@ -115,10 +116,6 @@ export const useLinkMateStore = defineStore('linkmate', {
     inputDraft: '',
     deepThinking: loadDeepThinking(),
     showHistory: false,
-    /** 右侧对话面板：closed 未打开 / open 展开 / collapsed 已折叠（侧栏可恢复） */
-    panelState: 'closed' as LinkMatePanelState,
-    /** 侧栏宽度（px），持久化至 localStorage */
-    panelWidth: loadPanelWidth(),
     /** 打开侧栏时快照的 IM 上下文（detach 会话后仍可注入模型） */
     imContextSnapshot: null as LinkMateImContext | null,
     /** 拓展面板中已打开的标签（会话 ID，按打开顺序） */
@@ -126,12 +123,6 @@ export const useLinkMateStore = defineStore('linkmate', {
   }),
 
   getters: {
-    panelExpanded(state): boolean {
-      return state.panelState === 'open'
-    },
-    panelCollapsed(state): boolean {
-      return state.panelState === 'collapsed'
-    },
     activeSession(state): LinkMateSession | null {
       return state.sessions.find(s => s.id === state.activeSessionId) ?? null
     },
@@ -167,7 +158,6 @@ export const useLinkMateStore = defineStore('linkmate', {
       if (this.streaming) {
         this.abortStream()
       }
-      this.panelState = 'closed'
       this.imContextSnapshot = null
       if (previousSessionId) {
         void this.cleanupEmptySessionIfNeeded(previousSessionId)
@@ -202,7 +192,26 @@ export const useLinkMateStore = defineStore('linkmate', {
 
     openPanel() {
       this.snapshotImContext()
-      this.panelState = 'open'
+      const dock = useExtensionDockStore()
+      const tabKey = this.activeSessionId
+        ? (`linkmate:${this.activeSessionId}` as const)
+        : null
+      if (tabKey) {
+        dock.activateTab(tabKey)
+      } else if (this.openTabIds.length > 0) {
+        dock.activateTab(`linkmate:${this.openTabIds[this.openTabIds.length - 1]}`)
+      }
+    },
+
+    collapsePanel() {
+      useExtensionDockStore().collapsePanel()
+    },
+
+    expandPanel() {
+      useExtensionDockStore().expandPanel()
+      if (this.openTabIds.length === 0) {
+        void this.ensurePanelReady()
+      }
     },
 
     registerOpenTab(sessionId: string) {
@@ -221,7 +230,7 @@ export const useLinkMateStore = defineStore('linkmate', {
       }
       if (remaining.length === 0) {
         this.activeSessionId = ''
-        this.panelState = 'closed'
+        useExtensionDockStore().syncAfterTabsChanged()
         return
       }
       if (!remaining.includes(this.activeSessionId)) {
@@ -243,29 +252,11 @@ export const useLinkMateStore = defineStore('linkmate', {
         }
       }
       this.activeSessionId = ''
-      this.panelState = 'closed'
-    },
-
-    collapsePanel() {
-      if (this.panelState === 'open') {
-        this.panelState = 'collapsed'
-      }
-    },
-
-    expandPanel() {
-      this.snapshotImContext()
-      if (this.panelState === 'collapsed') {
-        this.panelState = 'open'
-        if (this.openTabIds.length === 0) {
-          void this.ensurePanelReady()
-        }
-      }
+      useExtensionDockStore().syncAfterTabsChanged()
     },
 
     setPanelWidth(width: number) {
-      const next = clampPanelWidth(width)
-      this.panelWidth = next
-      persistPanelWidth(next)
+      useExtensionDockStore().setPanelWidth(width)
     },
 
     setDeepThinking(enabled: boolean) {

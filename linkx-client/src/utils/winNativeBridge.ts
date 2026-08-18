@@ -7,6 +7,7 @@
 import { watch } from 'vue'
 import { useAppStore } from '../stores/app'
 import { useCallStore } from '../stores/call'
+import { useMomentsStore } from '../stores/moments'
 import { OFFICIAL_NOTIFY_SESSION_ID } from '../types'
 import { isWindowInBackground } from './messageNotify'
 
@@ -43,11 +44,10 @@ function handleNotificationAction(
       appStore.setNav('calendar')
       break
     case 'moments':
-      if (window.electronAPI?.openMoments) {
-        window.electronAPI.openMoments()
-      } else {
-        appStore.setNav('moments')
-      }
+      appStore.setNav('chat')
+      void useMomentsStore().ensurePanelReady().then(() => {
+        useMomentsStore().openPanel()
+      })
       break
     case 'focus':
       break
