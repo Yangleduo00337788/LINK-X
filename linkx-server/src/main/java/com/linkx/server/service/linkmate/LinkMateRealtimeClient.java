@@ -13,8 +13,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -24,7 +26,7 @@ import java.util.HexFormat;
 import java.util.UUID;
 
 /**
- * OpenAI Realtime：服务端签发 ephemeral client secret，浏览器直连 WebRTC。
+ * 灵伴 Realtime 语音：OpenAI（ephemeral + 浏览器直连）或百炼 DashScope（服务端 SDP 代理）。
  */
 @Slf4j
 @Service
@@ -33,8 +35,14 @@ public class LinkMateRealtimeClient {
 
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(20);
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
-    private static final String DEFAULT_MODEL = "gpt-realtime";
-    private static final String DEFAULT_VOICE = "marin";
+    private static final String DEFAULT_OPENAI_MODEL = "gpt-realtime";
+    private static final String DEFAULT_OPENAI_VOICE = "marin";
+
+    public enum RealtimeProvider {
+        OPENAI,
+        DASHSCOPE,
+        UNSUPPORTED
+    }
 
     private final LinkxProperties linkxProperties;
     private final ObjectMapper objectMapper;
@@ -47,33 +55,69 @@ public class LinkMateRealtimeClient {
             String realtimeCallsUrl,
             String model,
             String voice,
-            long expiresAtEpochSec
+            long expiresAtEpochSec,
+            RealtimeProvider provider
     ) {
     }
 
     public boolean isConfigured() {
         LinkxProperties.LinkMate cfg = linkxProperties.getLinkmate();
-        // 显式配置了 Realtime Key；或单独写了 Realtime 基址并可用主 Key 回退
-        if (StringUtils.hasText(cfg.getRealtimeApiKey())) {
-            return true;
+        if (!cfg.isEnabled()) {
+            return false;
         }
-        return StringUtils.hasText(cfg.getRealtimeBaseUrl())
-                && StringUtils.hasText(cfg.getApiKey());
+        RealtimeProvider provider = detectProvider(cfg);
+        if (provider == RealtimeProvider.UNSUPPORTED) {
+            return false;
+        }
+        if (!StringUtils.hasText(resolveRealtimeApiKey(cfg))) {
+            return false;
+        }
+        // 必须显式配置 Realtime Key 或 Realtime 基址，避免 DeepSeek / 硅基主 Key 误亮按钮
+        if (!StringUtils.hasText(cfg.getRealtimeApiKey()) && !StringUtils.hasText(cfg.getRealtimeBaseUrl())) {
+            return false;
+        }
+        if (provider == RealtimeProvider.DASHSCOPE && !StringUtils.hasText(cfg.getRealtimeModel())) {
+            return false;
+        }
+        return true;
     }
 
-    public ClientSecretResult createClientSecret(Long userId, String instructions) {
+    public RealtimeProvider detectProvider(LinkxProperties.LinkMate cfg) {
+        if (cfg == null) {
+            return RealtimeProvider.UNSUPPORTED;
+        }
+        String explicitBase = normalizeForDetect(cfg.getRealtimeBaseUrl());
+        if (isDashScopeUrl(explicitBase)) {
+            return RealtimeProvider.DASHSCOPE;
+        }
+        if (isIncompatibleRealtimeUrl(explicitBase)) {
+            return RealtimeProvider.UNSUPPORTED;
+        }
+        if (StringUtils.hasText(explicitBase) && isOpenAiRealtimeUrl(explicitBase)) {
+            return RealtimeProvider.OPENAI;
+        }
+        if (StringUtils.hasText(cfg.getRealtimeApiKey()) && !StringUtils.hasText(explicitBase)) {
+            return RealtimeProvider.OPENAI;
+        }
+        if (StringUtils.hasText(explicitBase)) {
+            // 显式写了基址但非百炼/OpenAI，视为不兼容
+            return RealtimeProvider.UNSUPPORTED;
+        }
+        return RealtimeProvider.UNSUPPORTED;
+    }
+
+    public ClientSecretResult createOpenAiClientSecret(Long userId, String instructions) {
         LinkxProperties.LinkMate cfg = requireConfig();
+        if (detectProvider(cfg) != RealtimeProvider.OPENAI) {
+            throw new CustomException(503, "当前 Realtime 配置不是 OpenAI 兼容接口");
+        }
         String apiKey = resolveRealtimeApiKey(cfg);
         if (!StringUtils.hasText(apiKey)) {
             throw new CustomException(503, "灵伴语音通话未配置 Realtime API Key");
         }
-        String baseUrl = normalizeBaseUrl(resolveRealtimeBaseUrl(cfg));
-        String model = StringUtils.hasText(cfg.getRealtimeModel())
-                ? cfg.getRealtimeModel().trim()
-                : DEFAULT_MODEL;
-        String voice = StringUtils.hasText(cfg.getRealtimeVoice())
-                ? cfg.getRealtimeVoice().trim()
-                : DEFAULT_VOICE;
+        String baseUrl = normalizeOpenAiBaseUrl(resolveRealtimeBaseUrl(cfg));
+        String model = resolveOpenAiModel(cfg);
+        String voice = resolveVoice(cfg);
 
         ObjectNode root = objectMapper.createObjectNode();
         ObjectNode session = root.putObject("session");
@@ -105,7 +149,7 @@ public class LinkMateRealtimeClient {
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                log.warn("LinkMate Realtime client_secrets error status={} body={}",
+                log.warn("LinkMate OpenAI client_secrets error status={} body={}",
                         response.statusCode(), abbreviate(response.body()));
                 throw new CustomException(mapHttpStatus(response.statusCode()),
                         "创建语音会话失败：" + extractErrorMessage(response.body()));
@@ -131,13 +175,81 @@ public class LinkMateRealtimeClient {
                     baseUrl + "/realtime/calls",
                     model,
                     voice,
-                    expiresAt
+                    expiresAt,
+                    RealtimeProvider.OPENAI
             );
         } catch (CustomException ex) {
             throw ex;
         } catch (Exception ex) {
-            log.error("LinkMate Realtime client_secrets failed", ex);
+            log.error("LinkMate OpenAI client_secrets failed", ex);
             throw new CustomException(502, "连接 Realtime 服务失败");
+        }
+    }
+
+    public ClientSecretResult createDashScopeProxySession(String callId) {
+        LinkxProperties.LinkMate cfg = requireConfig();
+        if (detectProvider(cfg) != RealtimeProvider.DASHSCOPE) {
+            throw new CustomException(503, "当前 Realtime 配置不是百炼 DashScope");
+        }
+        String model = StringUtils.hasText(cfg.getRealtimeModel())
+                ? cfg.getRealtimeModel().trim()
+                : "qwen-audio-3.0-realtime-flash";
+        String voice = resolveVoice(cfg);
+        String proxyPath = "/linkmate/voice-call/webrtc?callId=" + URLEncoder.encode(callId, StandardCharsets.UTF_8);
+        return new ClientSecretResult(
+                "",
+                proxyPath,
+                model,
+                voice,
+                0L,
+                RealtimeProvider.DASHSCOPE
+        );
+    }
+
+    public String exchangeDashScopeSdp(String offerSdp) {
+        if (!StringUtils.hasText(offerSdp)) {
+            throw new CustomException(400, "SDP offer 不能为空");
+        }
+        LinkxProperties.LinkMate cfg = requireConfig();
+        if (detectProvider(cfg) != RealtimeProvider.DASHSCOPE) {
+            throw new CustomException(503, "当前未配置百炼 Realtime");
+        }
+        String apiKey = resolveRealtimeApiKey(cfg);
+        if (!StringUtils.hasText(apiKey)) {
+            throw new CustomException(503, "灵伴语音通话未配置 Realtime API Key");
+        }
+        String webrtcUrl = buildDashScopeWebrtcUrl(cfg);
+        String model = resolveDashScopeModel(cfg);
+        String workspaceId = extractWorkspaceId(resolveRealtimeBaseUrl(cfg));
+        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
+                .uri(URI.create(webrtcUrl))
+                .timeout(REQUEST_TIMEOUT)
+                .header("Authorization", "Bearer " + apiKey)
+                .header("Content-Type", "application/sdp");
+        if (StringUtils.hasText(workspaceId)) {
+            requestBuilder.header("X-DashScope-WorkSpace", workspaceId);
+        }
+        HttpRequest request = requestBuilder
+                .POST(HttpRequest.BodyPublishers.ofString(offerSdp.trim(), StandardCharsets.UTF_8))
+                .build();
+        try {
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                log.warn("LinkMate DashScope webrtc error url={} status={} body={}",
+                        abbreviateUrl(webrtcUrl), response.statusCode(), abbreviate(response.body()));
+                throw new CustomException(mapHttpStatus(response.statusCode()),
+                        "百炼 SDP 交换失败：" + extractDashScopeErrorMessage(response.statusCode(), response.body(), model));
+            }
+            String answer = response.body();
+            if (!StringUtils.hasText(answer)) {
+                throw new CustomException(502, "百炼未返回 SDP answer");
+            }
+            return answer.trim();
+        } catch (CustomException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            log.error("LinkMate DashScope webrtc failed", ex);
+            throw new CustomException(502, "连接百炼 Realtime 失败");
         }
     }
 
@@ -160,13 +272,22 @@ public class LinkMateRealtimeClient {
         if (StringUtils.hasText(cfg.getRealtimeBaseUrl())) {
             return cfg.getRealtimeBaseUrl().trim();
         }
-        if (StringUtils.hasText(cfg.getBaseUrl())) {
-            return cfg.getBaseUrl().trim();
-        }
         return "https://api.openai.com";
     }
 
-    private static String normalizeBaseUrl(String baseUrl) {
+    private static String resolveOpenAiModel(LinkxProperties.LinkMate cfg) {
+        return StringUtils.hasText(cfg.getRealtimeModel())
+                ? cfg.getRealtimeModel().trim()
+                : DEFAULT_OPENAI_MODEL;
+    }
+
+    private static String resolveVoice(LinkxProperties.LinkMate cfg) {
+        return StringUtils.hasText(cfg.getRealtimeVoice())
+                ? cfg.getRealtimeVoice().trim()
+                : DEFAULT_OPENAI_VOICE;
+    }
+
+    private static String normalizeOpenAiBaseUrl(String baseUrl) {
         String trimmed = baseUrl.trim();
         if (trimmed.endsWith("/")) {
             trimmed = trimmed.substring(0, trimmed.length() - 1);
@@ -177,9 +298,162 @@ public class LinkMateRealtimeClient {
         return trimmed;
     }
 
+    private String buildDashScopeWebrtcUrl(LinkxProperties.LinkMate cfg) {
+        String model = resolveDashScopeModel(cfg);
+        validateDashScopeRealtimeModel(model);
+
+        String configuredBase = resolveRealtimeBaseUrl(cfg).trim();
+        if (configuredBase.endsWith("/")) {
+            configuredBase = configuredBase.substring(0, configuredBase.length() - 1);
+        }
+        String lower = configuredBase.toLowerCase();
+
+        if (lower.contains("/webrtc/realtime")) {
+            if (lower.contains("model=")) {
+                return configuredBase;
+            }
+            return UriComponentsBuilder.fromUriString(configuredBase)
+                    .queryParam("model", model)
+                    .build(true)
+                    .toUriString();
+        }
+
+        // qwen-audio / livetranslate：WebRTC 信令走 dashscope 中心域名（Workspace 域名主要用于 WebSocket）
+        if (usesCentralDashScopeSignaling(model)) {
+            String host = lower.contains("dashscope-intl")
+                    ? "https://dashscope-intl.aliyuncs.com"
+                    : "https://dashscope.aliyuncs.com";
+            return host + "/api/v1/webrtc/realtime?model=" + URLEncoder.encode(model, StandardCharsets.UTF_8);
+        }
+
+        if (lower.contains("maas.aliyuncs.com") && hasWorkspaceSubdomain(lower)) {
+            String base = configuredBase;
+            if (!lower.endsWith("/api")) {
+                if (lower.endsWith("/api/v1")) {
+                    base = base.substring(0, base.length() - 3);
+                } else {
+                    base = base + "/api";
+                }
+            }
+            return base + "/v1/webrtc/realtime?model=" + URLEncoder.encode(model, StandardCharsets.UTF_8);
+        }
+
+        if (lower.contains("dashscope")) {
+            if (!lower.endsWith("/api")) {
+                configuredBase = configuredBase + "/api";
+            }
+            return configuredBase + "/v1/webrtc/realtime?model=" + URLEncoder.encode(model, StandardCharsets.UTF_8);
+        }
+
+        return "https://dashscope.aliyuncs.com/api/v1/webrtc/realtime?model="
+                + URLEncoder.encode(model, StandardCharsets.UTF_8);
+    }
+
+    private static String resolveDashScopeModel(LinkxProperties.LinkMate cfg) {
+        return StringUtils.hasText(cfg.getRealtimeModel())
+                ? cfg.getRealtimeModel().trim()
+                : "qwen-audio-3.0-realtime-flash";
+    }
+
+    private static void validateDashScopeRealtimeModel(String model) {
+        String lower = model.toLowerCase();
+        if (lower.contains("gpt-realtime") || lower.startsWith("gpt-")) {
+            throw new CustomException(400,
+                    "百炼 Realtime 模型应使用 qwen-audio-3.0-realtime-flash 等，当前配置为 OpenAI 模型名");
+        }
+    }
+
+    private static boolean usesCentralDashScopeSignaling(String model) {
+        String lower = model.toLowerCase();
+        return lower.startsWith("qwen-audio") || lower.contains("livetranslate");
+    }
+
+    private static boolean hasWorkspaceSubdomain(String lowerUrl) {
+        return lowerUrl.contains(".cn-beijing.maas.aliyuncs.com")
+                || lowerUrl.contains(".ap-southeast-1.maas.aliyuncs.com");
+    }
+
+    private static String extractWorkspaceId(String baseUrl) {
+        if (!StringUtils.hasText(baseUrl)) {
+            return null;
+        }
+        String trimmed = baseUrl.trim();
+        int schemeEnd = trimmed.indexOf("//");
+        if (schemeEnd < 0) {
+            return null;
+        }
+        int hostStart = schemeEnd + 2;
+        int hostEnd = trimmed.indexOf('/', hostStart);
+        String host = hostEnd > hostStart ? trimmed.substring(hostStart, hostEnd) : trimmed.substring(hostStart);
+        String lowerHost = host.toLowerCase();
+        if (!lowerHost.contains(".maas.aliyuncs.com")) {
+            return null;
+        }
+        int dot = host.indexOf('.');
+        if (dot <= 0) {
+            return null;
+        }
+        String workspace = host.substring(0, dot);
+        if (!StringUtils.hasText(workspace) || "cn-beijing".equalsIgnoreCase(workspace)
+                || "ap-southeast-1".equalsIgnoreCase(workspace)) {
+            return null;
+        }
+        return workspace;
+    }
+
+    private String extractDashScopeErrorMessage(int statusCode, String body, String model) {
+        if (!StringUtils.hasText(body)) {
+            if (statusCode == 404) {
+                return "信令地址不存在(404)。qwen-audio 模型 WebRTC 请使用 https://dashscope.aliyuncs.com 或仅填 Workspace 作业务空间；"
+                        + "模型请设为 " + model;
+            }
+            return "上游未返回错误详情(status=" + statusCode + ")";
+        }
+        return extractErrorMessage(body);
+    }
+
+    private static String abbreviateUrl(String url) {
+        if (url == null) {
+            return "";
+        }
+        int q = url.indexOf('?');
+        return q > 0 ? url.substring(0, q) + "?..." : url;
+    }
+
+    private static boolean isDashScopeUrl(String url) {
+        if (!StringUtils.hasText(url)) {
+            return false;
+        }
+        String lower = url.toLowerCase();
+        return lower.contains("aliyuncs.com") || lower.contains("dashscope");
+    }
+
+    private static boolean isOpenAiRealtimeUrl(String url) {
+        if (!StringUtils.hasText(url)) {
+            return false;
+        }
+        String lower = url.toLowerCase();
+        return lower.contains("openai.com") || lower.contains("openai.azure");
+    }
+
+    private static boolean isIncompatibleRealtimeUrl(String url) {
+        if (!StringUtils.hasText(url)) {
+            return false;
+        }
+        String lower = url.toLowerCase();
+        return lower.contains("siliconflow")
+                || lower.contains("deepseek")
+                || lower.contains("api.deepseek.com");
+    }
+
+    private static String normalizeForDetect(String url) {
+        return StringUtils.hasText(url) ? url.trim().toLowerCase() : "";
+    }
+
     private static String safetyIdentifier(Long userId) {
         String raw = "linkx-user-" + (userId != null ? userId : "anon") + "-" + UUID.randomUUID();
-        return HexFormat.of().formatHex(raw.getBytes(StandardCharsets.UTF_8)).substring(0, Math.min(64, raw.length() * 2));
+        return HexFormat.of().formatHex(raw.getBytes(StandardCharsets.UTF_8))
+                .substring(0, Math.min(64, raw.length() * 2));
     }
 
     private String extractErrorMessage(String body) {

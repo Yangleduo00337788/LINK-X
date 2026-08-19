@@ -32,6 +32,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -190,7 +191,7 @@ public class LinkMateController {
 
     @Operation(summary = "发起灵伴 Realtime 语音通话")
     @PostMapping("/voice-call/start")
-    @RateLimit(scope = "linkmate:voice-call", value = 10, time = 60)
+    @RateLimit(scope = "linkmate:voice-call", value = 10, window = 60)
     public Result<LinkMateVoiceCallStartVO> startVoiceCall(HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         return Result.success(linkMateService.startVoiceCall(userId));
@@ -198,13 +199,27 @@ public class LinkMateController {
 
     @Operation(summary = "结束灵伴 Realtime 语音通话")
     @PostMapping("/voice-call/hangup")
-    @RateLimit(scope = "linkmate:voice-call", value = 30, time = 60)
+    @RateLimit(scope = "linkmate:voice-call", value = 30, window = 60)
     public Result<Void> hangupVoiceCall(
             @Valid @RequestBody LinkMateVoiceCallHangupDTO dto,
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         linkMateService.hangupVoiceCall(userId, dto);
         return Result.success(null);
+    }
+
+    @Operation(summary = "百炼 Realtime WebRTC SDP 交换（服务端代理）")
+    @PostMapping(value = "/voice-call/webrtc", consumes = "application/sdp", produces = "application/sdp")
+    @RateLimit(scope = "linkmate:voice-call", value = 30, window = 60)
+    public ResponseEntity<String> exchangeVoiceCallWebrtc(
+            @RequestParam("callId") String callId,
+            @RequestBody String offerSdp,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        String answer = linkMateService.exchangeVoiceCallWebrtc(userId, callId, offerSdp);
+        return ResponseEntity.ok()
+                .header("Content-Type", "application/sdp")
+                .body(answer);
     }
 
     private Long parseId(String id) {

@@ -31,4 +31,7 @@ public class LinkMateVoiceCallStartVO {
 
     /** ephemeral 过期时间（epoch 秒，可能为 0） */
     private Long expiresAt;
+
+    /** openai | dashscope */
+    private String provider;
 }

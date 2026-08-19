@@ -670,8 +670,13 @@ public class LinkMateServiceImpl implements LinkMateService {
         String callId = UUID.randomUUID().toString().replace("-", "");
         try {
             String instructions = buildVoiceCallInstructions(cfg);
-            LinkMateRealtimeClient.ClientSecretResult secret =
-                    realtimeClient.createClientSecret(userId, instructions);
+            LinkMateRealtimeClient.RealtimeProvider provider = realtimeClient.detectProvider(cfg);
+            LinkMateRealtimeClient.ClientSecretResult secret;
+            if (provider == LinkMateRealtimeClient.RealtimeProvider.DASHSCOPE) {
+                secret = realtimeClient.createDashScopeProxySession(callId);
+            } else {
+                secret = realtimeClient.createOpenAiClientSecret(userId, instructions);
+            }
 
             Boolean locked = redisTemplate.opsForValue()
                     .setIfAbsent(voiceCallUserKey(userId), callId, VOICE_CALL_TTL);
@@ -696,6 +701,7 @@ public class LinkMateServiceImpl implements LinkMateService {
                     .voice(secret.voice())
                     .peerNickname("灵伴 LinkMate")
                     .expiresAt(secret.expiresAtEpochSec())
+                    .provider(secret.provider().name().toLowerCase())
                     .build();
         } catch (CustomException ex) {
             releaseDailyTokens(userId, reservedTokens);
@@ -745,6 +751,24 @@ public class LinkMateServiceImpl implements LinkMateService {
         if (callId.equals(current)) {
             redisTemplate.delete(userKey);
         }
+    }
+
+    @Override
+    public String exchangeVoiceCallWebrtc(Long userId, String callId, String offerSdp) {
+        if (!StringUtils.hasText(callId)) {
+            throw new CustomException(400, "callId 不能为空");
+        }
+        String trimmedCallId = callId.trim();
+        String callKey = voiceCallKey(trimmedCallId);
+        Map<Object, Object> fields = redisTemplate.opsForHash().entries(callKey);
+        if (fields == null || fields.isEmpty()) {
+            throw new CustomException(404, "通话不存在或已结束");
+        }
+        String owner = String.valueOf(fields.getOrDefault("userId", ""));
+        if (!String.valueOf(userId).equals(owner)) {
+            throw new CustomException(403, "无权操作该通话");
+        }
+        return realtimeClient.exchangeDashScopeSdp(offerSdp);
     }
 
     private String buildVoiceCallInstructions(LinkxProperties.LinkMate cfg) {

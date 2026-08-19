@@ -153,8 +153,26 @@ apiClient.interceptors.response.use(
       config._retry = true
       return processUnauthorized(config)
     }
+    const message = error.response?.data?.message
+    if (typeof message === 'string' && message.trim()) {
+      return Promise.reject(new Error(message.trim()))
+    }
     return Promise.reject(error)
   }
 )
 
 export { clearTokens, saveTokenPair }
+
+/** 从 Axios / 业务错误中提取可读 message */
+export function resolveApiErrorMessage(error: unknown, fallback = '请求失败'): string {
+  if (axios.isAxiosError(error)) {
+    const msg = error.response?.data?.message
+    if (typeof msg === 'string' && msg.trim()) {
+      return msg.trim()
+    }
+  }
+  if (error instanceof Error && error.message && !/^Request failed with status code \d+$/.test(error.message)) {
+    return error.message
+  }
+  return fallback
+}

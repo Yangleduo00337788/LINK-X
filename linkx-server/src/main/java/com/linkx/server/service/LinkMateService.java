@@ -66,4 +66,9 @@ public interface LinkMateService {
      * 结束灵伴语音通话并结算额度估算。
      */
     void hangupVoiceCall(Long userId, LinkMateVoiceCallHangupDTO dto);
+
+    /**
+     * 百炼 DashScope WebRTC：浏览器 SDP offer 经服务端代理交换 answer。
+     */
+    String exchangeVoiceCallWebrtc(Long userId, String callId, String offerSdp);
 }

@@ -10,6 +10,7 @@ import { markRaw } from 'vue'
 import * as callApi from '../api/call'
 import type { CallEventPayload } from '../api/call'
 import * as linkmateApi from '../api/linkmate'
+import { resolveApiErrorMessage } from '../api/client'
 import { startCallRing, stopCallRing, playCallConnect, playCallEnd } from '../utils/callSounds'
 import {
   decideIceRestart,
@@ -186,8 +187,17 @@ export const useCallStore = defineStore('call', {
       if (this.isActive) {
         throw new Error(t('errors.callInProgress'))
       }
-      const res = await linkmateApi.startVoiceCall()
-      if (res.code !== 200 || !res.data?.callId || !res.data.ephemeralKey || !res.data.realtimeCallsUrl) {
+      let res: Awaited<ReturnType<typeof linkmateApi.startVoiceCall>>
+      try {
+        res = await linkmateApi.startVoiceCall()
+      } catch (err) {
+        throw new Error(resolveApiErrorMessage(err, t('linkmate.voiceCallFail')))
+      }
+      if (res.code !== 200 || !res.data?.callId || !res.data.realtimeCallsUrl) {
+        throw new Error(res.message || t('linkmate.voiceCallFail'))
+      }
+      const provider = res.data.provider
+      if (provider !== 'dashscope' && !res.data.ephemeralKey) {
         throw new Error(res.message || t('linkmate.voiceCallFail'))
       }
 
@@ -231,6 +241,8 @@ export const useCallStore = defineStore('call', {
         const bridge = await connectLinkMateRealtime({
           ephemeralKey: res.data.ephemeralKey,
           realtimeCallsUrl: res.data.realtimeCallsUrl,
+          provider: provider === 'dashscope' ? 'dashscope' : 'openai',
+          voice: res.data.voice,
           localStream: local,
           onRemoteStream: stream => {
             if (token !== linkMateConnectToken) return
