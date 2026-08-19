@@ -21,6 +21,7 @@ import {
   VideocamOutline,
   GiftOutline,
   MicOutline,
+  LanguageOutline,
   CloseOutline,
   BulbOutline,
   LocationOutline
@@ -38,7 +39,9 @@ import { useFilesStore } from '../../stores/files'
 // 群元数据：群文件列表
 import { useGroupMetaStore } from '../../stores/groupMeta'
 import { useLinkMateStore } from '../../stores/linkmate'
+import { useAppSettingsStore } from '../../stores/appSettings'
 import * as linkmateApi from '../../api/linkmate'
+import { resolveSpeechLanguageHint } from '../../utils/speechLang'
 import axios from 'axios'
 import { preloadLinkMateLogo } from '../../utils/linkmateLogo'
 import { extractLinkMateQuestion, hasLinkMateMention } from '../../utils/linkmateMention'
@@ -54,6 +57,7 @@ import { formatFileSize, MAX_IMAGE_BYTES } from '../../utils/file'
 import {
   VOICE_MAX_SECONDS,
   blobToVoiceFile,
+  elapsedVoiceSeconds,
   isVoiceDurationValid,
   pickVoiceMimeType
 } from '../../utils/voiceRecorder'
@@ -92,6 +96,7 @@ const chatModalsStore = useChatModalsStore()
 const filesStore = useFilesStore()
 const groupMetaStore = useGroupMetaStore()
 const linkMateStore = useLinkMateStore()
+const appSettingsStore = useAppSettingsStore()
 const { enabled: linkMateEnabled, deepThinking: linkMateDeepThinking, deepThinkingSupported: linkMateDeepThinkingSupported, dailyQuotaExhausted: linkMateQuotaExhausted } = storeToRefs(linkMateStore)
 
 /** 群聊用「群聊小助手」，单聊仍用灵伴 */
@@ -665,16 +670,32 @@ function onPaste(e: ClipboardEvent) {
   }
 }
 
-// —— 语音录制 ——
+// —— 语音录制 / 语音转文字 ——
 const isRecordingVoice = ref(false)
 const voiceRecordSeconds = ref(0)
 const voiceSending = ref(false)
+const isDictating = ref(false)
+const dictatingSeconds = ref(0)
+const dictatingBusy = ref(false)
+/** 听写进行中：边录边分段调用服务端转写，把文字持续写入输入框 */
+const dictateStreaming = ref(false)
 let mediaRecorder: MediaRecorder | null = null
 let mediaStream: MediaStream | null = null
 let voiceChunks: BlobPart[] = []
 let voiceStartedAt = 0
 let voiceTickTimer: number | null = null
 let voiceMaxTimer: number | null = null
+let dictatePartialTimer: number | null = null
+let recordMode: 'voice' | 'dictate' = 'voice'
+/** 开始听写前输入框已有内容 */
+let dictateBaseText = ''
+/** 本轮听写已识别出的全文（随分段转写刷新） */
+let dictateFinalText = ''
+/** 分段转写序号，用于丢弃过期响应 */
+let dictateTranscribeSeq = 0
+let dictatePartialInFlight = false
+const DICTATE_PARTIAL_INTERVAL_MS = 1800
+const DICTATE_PARTIAL_MIN_BYTES = 1200
 
 function clearVoiceTimers() {
   if (voiceTickTimer != null) {
@@ -685,11 +706,30 @@ function clearVoiceTimers() {
     window.clearTimeout(voiceMaxTimer)
     voiceMaxTimer = null
   }
+  if (dictatePartialTimer != null) {
+    window.clearInterval(dictatePartialTimer)
+    dictatePartialTimer = null
+  }
 }
 
 function stopMediaTracks() {
   mediaStream?.getTracks().forEach(track => track.stop())
   mediaStream = null
+}
+
+function joinDictateParts(base: string, spoken: string): string {
+  const part = spoken.trim()
+  if (!part) return base
+  if (!base) return part
+  if (base.endsWith(' ') || base.endsWith('\n') || base.endsWith('\u3000')) {
+    return base + part
+  }
+  const needSpace = /[A-Za-z0-9]$/.test(base) && /^[A-Za-z0-9]/.test(part)
+  return needSpace ? `${base} ${part}` : base + part
+}
+
+function applyStreamingDictateText() {
+  inputValue.value = joinDictateParts(dictateBaseText, dictateFinalText)
 }
 
 function resetVoiceRecorderState() {
@@ -698,8 +738,15 @@ function resetVoiceRecorderState() {
   mediaRecorder = null
   voiceChunks = []
   isRecordingVoice.value = false
+  isDictating.value = false
+  dictateStreaming.value = false
   voiceRecordSeconds.value = 0
+  dictatingSeconds.value = 0
   voiceStartedAt = 0
+  dictateBaseText = ''
+  dictateFinalText = ''
+  dictateTranscribeSeq = 0
+  dictatePartialInFlight = false
 }
 
 /**
@@ -707,6 +754,8 @@ function resetVoiceRecorderState() {
  */
 async function finishVoiceRecord(cancel: boolean) {
   const recorder = mediaRecorder
+  const mode = recordMode
+  const progressive = dictateStreaming.value
   if (!recorder || recorder.state === 'inactive') {
     resetVoiceRecorderState()
     return
@@ -714,6 +763,13 @@ async function finishVoiceRecord(cancel: boolean) {
 
   const mimeType = recorder.mimeType || pickVoiceMimeType() || 'audio/webm'
   const startedAt = voiceStartedAt
+  const baseSnapshot = dictateBaseText
+
+  // 停止分段转写定时器，避免 stop 前后并发
+  if (dictatePartialTimer != null) {
+    window.clearInterval(dictatePartialTimer)
+    dictatePartialTimer = null
+  }
 
   const blob = await new Promise<Blob>((resolve, reject) => {
     recorder.ondataavailable = (ev) => {
@@ -730,15 +786,45 @@ async function finishVoiceRecord(cancel: boolean) {
     }
   }).catch(() => null)
 
-  const durationSec = Math.round((Date.now() - startedAt) / 1000)
-  resetVoiceRecorderState()
+  const durationSec = elapsedVoiceSeconds(startedAt)
+  // 先清录音资源，但保留 progressive 听写时已写入的 base/识别文本语义
+  clearVoiceTimers()
+  stopMediaTracks()
+  mediaRecorder = null
+  voiceChunks = []
+  isRecordingVoice.value = false
+  voiceRecordSeconds.value = 0
+  dictatingSeconds.value = 0
+  voiceStartedAt = 0
 
   if (cancel || !blob || blob.size === 0) {
+    if (mode === 'dictate') {
+      inputValue.value = baseSnapshot
+    }
+    isDictating.value = false
+    dictateStreaming.value = false
+    dictateBaseText = ''
+    dictateFinalText = ''
     if (!cancel) message.warning(t('chat.voiceRecordEmpty'))
     return
   }
   if (!isVoiceDurationValid(durationSec)) {
+    if (mode === 'dictate') {
+      inputValue.value = baseSnapshot
+    }
+    isDictating.value = false
+    dictateStreaming.value = false
+    dictateBaseText = ''
+    dictateFinalText = ''
     message.warning(t('chat.voiceTooShort'))
+    return
+  }
+
+  if (mode === 'dictate') {
+    await finishDictation(blob, mimeType, durationSec, {
+      progressive,
+      baseText: baseSnapshot
+    })
     return
   }
 
@@ -756,7 +842,6 @@ async function finishVoiceRecord(cancel: boolean) {
       rawFile: file
     })
     message.success(t('chat.voiceSent'))
-    // [P2-2] 发送成功后释放语音 Object URL，避免内存泄漏
     URL.revokeObjectURL(voiceUrl)
   } catch {
     URL.revokeObjectURL(voiceUrl)
@@ -766,11 +851,105 @@ async function finishVoiceRecord(cancel: boolean) {
   }
 }
 
+async function finishDictation(
+  blob: Blob,
+  mimeType: string,
+  durationSec: number,
+  opts?: { progressive?: boolean; baseText?: string }
+) {
+  dictatingBusy.value = true
+  const progressive = opts?.progressive === true
+  const baseText = opts?.baseText ?? ''
+  try {
+    const file = blobToVoiceFile(blob, mimeType, durationSec)
+    const language = resolveSpeechLanguageHint(appSettingsStore.translateTargetLang)
+    const res = await linkmateApi.transcribeAudio(file, language, file.name)
+    if (res.code !== 200 || !res.data?.text?.trim()) {
+      throw new Error(res.message || t('chat.transcribeFail'))
+    }
+    const text = res.data.text.trim()
+    if (progressive) {
+      inputValue.value = joinDictateParts(baseText, text)
+    } else {
+      const current = inputValue.value
+      inputValue.value = current
+        ? current.endsWith(' ') || current.endsWith('\n')
+          ? current + text
+          : `${current} ${text}`
+        : text
+    }
+    message.success(t('chat.dictateDone'))
+    await nextTick()
+    document.querySelector<HTMLTextAreaElement>('.message-input textarea')?.focus()
+  } catch (err) {
+    const ax = err as { response?: { data?: { message?: string } }; message?: string }
+    const raw = ax.response?.data?.message || ax.message || ''
+    // 分段听写过程中若已有文字，结束时失败则保留已填内容
+    if (!(progressive && dictateFinalText.trim())) {
+      if (progressive) inputValue.value = baseText
+      message.error(resolveLinkMateErrorMessage(raw, t) || t('chat.transcribeFail'))
+    } else {
+      message.success(t('chat.dictateDone'))
+    }
+  } finally {
+    isDictating.value = false
+    dictateStreaming.value = false
+    dictateBaseText = ''
+    dictateFinalText = ''
+    dictateTranscribeSeq = 0
+    dictatePartialInFlight = false
+    dictatingBusy.value = false
+  }
+}
+
+/** 听写中周期性把当前录音送到服务端转写，刷新输入框 */
+async function flushDictatePartial() {
+  if (!isDictating.value || !dictateStreaming.value || dictatePartialInFlight) return
+  const recorder = mediaRecorder
+  if (!recorder || recorder.state !== 'recording') return
+
+  try {
+    recorder.requestData()
+  } catch {
+    /* ignore */
+  }
+  // 等一次 timeslice 回调把数据推进 voiceChunks
+  await new Promise<void>((resolve) => window.setTimeout(resolve, 80))
+
+  const mimeType = recorder.mimeType || pickVoiceMimeType() || 'audio/webm'
+  const blob = new Blob(voiceChunks, { type: mimeType })
+  if (blob.size < DICTATE_PARTIAL_MIN_BYTES) return
+
+  const seq = ++dictateTranscribeSeq
+  dictatePartialInFlight = true
+  try {
+    const durationSec = Math.max(1, Math.floor((Date.now() - voiceStartedAt) / 1000))
+    const file = blobToVoiceFile(blob, mimeType, durationSec)
+    const language = resolveSpeechLanguageHint(appSettingsStore.translateTargetLang)
+    const res = await linkmateApi.transcribeAudio(file, language, file.name)
+    if (seq !== dictateTranscribeSeq) return
+    if (!isDictating.value || !dictateStreaming.value) return
+    const text = res.data?.text?.trim()
+    if (res.code === 200 && text) {
+      dictateFinalText = text
+      applyStreamingDictateText()
+    }
+  } catch (err) {
+    // 分段失败不打断听写，等下一次或结束时最终转写
+    console.warn('[听写] 分段转写失败', err)
+  } finally {
+    if (seq === dictateTranscribeSeq) {
+      dictatePartialInFlight = false
+    }
+  }
+}
+
 /**
- * 开始麦克风录音；再次点击结束并发送，超时自动发送。
+ * 边录边转写：用已配置的 Whisper 兼容服务，边说边更新输入框。
  */
-async function startVoiceRecord() {
-  if (!ensureCanSend() || voiceSending.value) return
+async function startProgressiveDictation() {
+  if (!ensureCanSend() || voiceSending.value || dictatingBusy.value) return
+  if (isRecordingVoice.value || isDictating.value) return
   if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
     message.warning(t('chat.voiceUnsupported'))
     return
@@ -783,10 +962,17 @@ async function startVoiceRecord() {
     mediaRecorder = mimeType
       ? new MediaRecorder(stream, { mimeType })
       : new MediaRecorder(stream)
+    recordMode = 'dictate'
     voiceChunks = []
     voiceStartedAt = Date.now()
     voiceRecordSeconds.value = 0
-    isRecordingVoice.value = true
+    dictatingSeconds.value = 0
+    dictateBaseText = inputValue.value
+    dictateFinalText = ''
+    dictateTranscribeSeq = 0
+    dictatePartialInFlight = false
+    dictateStreaming.value = true
+    isDictating.value = true
 
     mediaRecorder.ondataavailable = (ev) => {
       if (ev.data && ev.data.size > 0) voiceChunks.push(ev.data)
@@ -794,11 +980,71 @@ async function startVoiceRecord() {
     mediaRecorder.start(200)
 
     voiceTickTimer = window.setInterval(() => {
-      voiceRecordSeconds.value = Math.min(
-        VOICE_MAX_SECONDS,
-        Math.floor((Date.now() - voiceStartedAt) / 1000)
-      )
-    }, 200)
+      dictatingSeconds.value = elapsedVoiceSeconds(voiceStartedAt)
+    }, 100)
+
+    dictatePartialTimer = window.setInterval(() => {
+      void flushDictatePartial()
+    }, DICTATE_PARTIAL_INTERVAL_MS)
+
+    // 稍等首段音频再立刻转一次，减少「说了半天没字」的感觉
+    window.setTimeout(() => {
+      void flushDictatePartial()
+    }, 1100)
+
+    voiceMaxTimer = window.setTimeout(() => {
+      void finishVoiceRecord(false)
+    }, VOICE_MAX_SECONDS * 1000)
+  } catch (e) {
+    console.error('[听写] 无法开始录音:', e)
+    resetVoiceRecorderState()
+    message.error(t('chat.voiceMicDenied'))
+  }
+}
+
+/**
+ * 开始麦克风录音；再次点击结束并发送，超时自动发送。
+ */
+async function startVoiceRecord(mode: 'voice' | 'dictate' = 'voice') {
+  if (!ensureCanSend() || voiceSending.value || dictatingBusy.value) return
+  if (isRecordingVoice.value || isDictating.value) return
+  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+    message.warning(t('chat.voiceUnsupported'))
+    return
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    mediaStream = stream
+    const mimeType = pickVoiceMimeType()
+    mediaRecorder = mimeType
+      ? new MediaRecorder(stream, { mimeType })
+      : new MediaRecorder(stream)
+    recordMode = mode
+    voiceChunks = []
+    voiceStartedAt = Date.now()
+    voiceRecordSeconds.value = 0
+    dictatingSeconds.value = 0
+    dictateStreaming.value = false
+    if (mode === 'dictate') {
+      isDictating.value = true
+    } else {
+      isRecordingVoice.value = true
+    }
+
+    mediaRecorder.ondataavailable = (ev) => {
+      if (ev.data && ev.data.size > 0) voiceChunks.push(ev.data)
+    }
+    mediaRecorder.start(200)
+
+    voiceTickTimer = window.setInterval(() => {
+      const sec = elapsedVoiceSeconds(voiceStartedAt)
+      if (mode === 'dictate') {
+        dictatingSeconds.value = sec
+      } else {
+        voiceRecordSeconds.value = sec
+      }
+    }, 100)
 
     voiceMaxTimer = window.setTimeout(() => {
       void finishVoiceRecord(false)
@@ -814,16 +1060,26 @@ async function startVoiceRecord() {
  * 切换语音录制：未录制时开始，录制中再点则停止并发送。
  */
 async function toggleVoiceRecord() {
-  if (voiceSending.value) return
+  if (voiceSending.value || dictatingBusy.value || isDictating.value) return
   if (isRecordingVoice.value) {
     await finishVoiceRecord(false)
     return
   }
-  await startVoiceRecord()
+  await startVoiceRecord('voice')
+}
+
+/** 语音转文字：边说边填入；再次点击结束并做最终转写 */
+async function toggleDictation() {
+  if (voiceSending.value || dictatingBusy.value || isRecordingVoice.value) return
+  if (isDictating.value) {
+    await finishVoiceRecord(false)
+    return
+  }
+  await startProgressiveDictation()
 }
 
 watch(currentSessionId, () => {
-  if (isRecordingVoice.value) {
+  if (isRecordingVoice.value || isDictating.value) {
     void finishVoiceRecord(true)
   }
 })
@@ -839,7 +1095,7 @@ onUnmounted(() => {
     URL.revokeObjectURL(url)
   }
   objectUrls.length = 0
-  if (isRecordingVoice.value && mediaRecorder && mediaRecorder.state !== 'inactive') {
+  if ((isRecordingVoice.value || isDictating.value) && mediaRecorder && mediaRecorder.state !== 'inactive') {
     try {
       mediaRecorder.stop()
     } catch {
@@ -1270,10 +1526,25 @@ defineExpose({
                   ? t('chat.voiceSending')
                   : t('chat.voice')
             "
-            :disabled="inputDisabled || voiceSending"
+            :disabled="inputDisabled || voiceSending || dictatingBusy || isDictating"
             @click="toggleVoiceRecord"
           >
             <n-icon :component="MicOutline" :size="20" />
+          </LxIconButton>
+          <LxIconButton
+            variant="chat-tool"
+            :class="{ 'is-recording': isDictating }"
+            :title="
+              isDictating
+                ? t('chat.dictateRecording', { n: dictatingSeconds })
+                : dictatingBusy
+                  ? t('chat.transcribing')
+                  : t('chat.dictate')
+            "
+            :disabled="inputDisabled || voiceSending || dictatingBusy || isRecordingVoice"
+            @click="toggleDictation"
+          >
+            <n-icon :component="LanguageOutline" :size="20" />
           </LxIconButton>
         </div>
 

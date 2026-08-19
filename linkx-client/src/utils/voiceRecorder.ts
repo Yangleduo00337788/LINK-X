@@ -63,3 +63,23 @@ export function blobToVoiceFile(blob: Blob, mimeType: string, durationSec: numbe
 export function isVoiceDurationValid(durationSec: number): boolean {
   return Number.isFinite(durationSec) && durationSec >= VOICE_MIN_SECONDS
 }
+
+/** 录音已进行时长（秒，保留一位小数，上限 VOICE_MAX_SECONDS） */
+export function elapsedVoiceSeconds(startedAt: number): number {
+  if (!startedAt) return 0
+  const sec = (Date.now() - startedAt) / 1000
+  return Math.min(VOICE_MAX_SECONDS, Math.round(sec * 10) / 10)
+}
+
+/** 气泡/提示中展示语音时长 */
+export function formatVoiceDurationLabel(sec?: number): string {
+  const s = sec ?? 0
+  if (s < 60) {
+    const text = Number.isInteger(s) ? String(s) : s.toFixed(1)
+    return `${text}"`
+  }
+  const min = Math.floor(s / 60)
+  const rest = Math.round((s - min * 60) * 10) / 10
+  const restText = Number.isInteger(rest) ? String(rest) : rest.toFixed(1)
+  return `${min}'${restText}"`
+}

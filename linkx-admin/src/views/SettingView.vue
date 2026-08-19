@@ -286,6 +286,10 @@ const linkmateForm = reactive({
   temperature: 0.7,
   dailyTokenLimit: 100000,
   systemPrompt: '',
+  sttApiKey: '',
+  sttApiKeyConfigured: false,
+  sttBaseUrl: '',
+  sttModel: 'whisper-1',
 })
 
 const storageProviderOptions = computed(() => [
@@ -419,6 +423,10 @@ function applySettings(data: AdminSetting) {
   linkmateForm.temperature = data.linkmate?.temperature ?? 0.7
   linkmateForm.dailyTokenLimit = data.linkmate?.dailyTokenLimit ?? 100000
   linkmateForm.systemPrompt = data.linkmate?.systemPrompt || ''
+  linkmateForm.sttApiKey = ''
+  linkmateForm.sttApiKeyConfigured = data.linkmate?.sttApiKeyConfigured === true
+  linkmateForm.sttBaseUrl = data.linkmate?.sttBaseUrl || ''
+  linkmateForm.sttModel = data.linkmate?.sttModel || 'whisper-1'
 }
 
 function applyMailTemplate(key: 'register' | 'reset' | 'welcome', tpl?: MailTemplateSetting) {
@@ -636,6 +644,9 @@ function buildLinkMatePayload() {
     temperature: linkmateForm.temperature,
     dailyTokenLimit: linkmateForm.dailyTokenLimit,
     systemPrompt: linkmateForm.systemPrompt.trim() || undefined,
+    sttApiKey: linkmateForm.sttApiKey.trim() || undefined,
+    sttBaseUrl: linkmateForm.sttBaseUrl.trim(),
+    sttModel: linkmateForm.sttModel.trim() || 'whisper-1',
   }
 }
 
@@ -1543,6 +1554,46 @@ onMounted(load)
                   style="max-width: 640px"
                 />
               </NFormItem>
+
+              <NDivider title-placement="left">{{ t('setting.linkmateSttSection') }}</NDivider>
+              <p class="section-hint">{{ t('setting.linkmateSttHint') }}</p>
+              <NFormItem :label="t('setting.linkmateSttBaseUrl')">
+                <NInput
+                  v-model:value="linkmateForm.sttBaseUrl"
+                  :placeholder="t('setting.linkmateSttBaseUrlPh')"
+                  style="max-width: 420px"
+                />
+              </NFormItem>
+              <NFormItem :label="t('setting.linkmateSttModel')">
+                <NInput
+                  v-model:value="linkmateForm.sttModel"
+                  placeholder="whisper-1"
+                  style="max-width: 280px"
+                />
+              </NFormItem>
+              <NFormItem :label="t('setting.linkmateSttApiKey')">
+                <div class="secret-row">
+                  <NInput
+                    v-model:value="linkmateForm.sttApiKey"
+                    type="password"
+                    show-password-on="click"
+                    :placeholder="t('setting.linkmateSttApiKeyPh')"
+                    style="max-width: 420px"
+                  />
+                  <NTag
+                    size="small"
+                    :type="linkmateForm.sttApiKeyConfigured ? 'success' : 'warning'"
+                    :bordered="false"
+                  >
+                    {{
+                      linkmateForm.sttApiKeyConfigured
+                        ? t('setting.mailPasswordConfigured')
+                        : t('setting.mailPasswordMissing')
+                    }}
+                  </NTag>
+                </div>
+              </NFormItem>
+
               <NFormItem v-if="canEdit">
                 <NSpace>
                   <NButton

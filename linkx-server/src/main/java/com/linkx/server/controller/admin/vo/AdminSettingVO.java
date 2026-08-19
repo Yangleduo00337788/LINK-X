@@ -65,6 +65,12 @@ public class AdminSettingVO {
         private String systemPrompt;
         @Schema(description = "当前模型是否支持深度思考")
         private Boolean reasoningSupported;
+        @Schema(description = "语音转写 API 基址")
+        private String sttBaseUrl;
+        @Schema(description = "语音转写模型")
+        private String sttModel;
+        @Schema(description = "语音转写 API Key 是否已配置（不回传明文）")
+        private Boolean sttApiKeyConfigured;
     }
 
     @Data

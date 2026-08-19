@@ -453,6 +453,16 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         } else if (row.getLinkmateApiKey() == null) {
             row.setLinkmateApiKey(nullToEmpty(linkxProperties.getLinkmate().getApiKey()));
         }
+        if (dto.getSttBaseUrl() != null) {
+            row.setLinkmateSttBaseUrl(dto.getSttBaseUrl().trim());
+        }
+        if (dto.getSttModel() != null) {
+            String sttModel = dto.getSttModel().trim();
+            row.setLinkmateSttModel(StringUtils.hasText(sttModel) ? sttModel : "whisper-1");
+        }
+        if (StringUtils.hasText(dto.getSttApiKey())) {
+            row.setLinkmateSttApiKey(dto.getSttApiKey().trim());
+        }
         row.setUpdateBy(operatorId);
         persist(row);
         applyLinkMateSide(row);
@@ -747,6 +757,11 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                 .linkmateTemperature(linkxProperties.getLinkmate().getTemperature())
                 .linkmateDailyTokenLimit(linkxProperties.getLinkmate().getDailyTokenLimit())
                 .linkmateSystemPrompt(trimOrNull(linkxProperties.getLinkmate().getSystemPrompt()))
+                .linkmateSttApiKey(nullToEmpty(linkxProperties.getLinkmate().getSttApiKey()))
+                .linkmateSttBaseUrl(nullToEmpty(linkxProperties.getLinkmate().getSttBaseUrl()))
+                .linkmateSttModel(StringUtils.hasText(linkxProperties.getLinkmate().getSttModel())
+                        ? linkxProperties.getLinkmate().getSttModel()
+                        : "whisper-1")
                 .updateBy(operatorId)
                 .build();
     }
@@ -1081,6 +1096,10 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                 .apiKeyConfigured(StringUtils.hasText(cfg.getApiKey()))
                 .systemPrompt(cfg.getSystemPrompt())
                 .reasoningSupported(cfg.isReasoningSupported())
+                .sttBaseUrl(cfg.getSttBaseUrl())
+                .sttModel(StringUtils.hasText(cfg.getSttModel()) ? cfg.getSttModel() : "whisper-1")
+                .sttApiKeyConfigured(StringUtils.hasText(cfg.getSttApiKey())
+                        || StringUtils.hasText(cfg.getApiKey()))
                 .build();
     }
 
@@ -1115,8 +1134,19 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         } else if (StringUtils.hasText(cfg.getModel())) {
             cfg.setReasoningSupported(LinkMateModelCapability.supportsDeepThinking(cfg.getModel()));
         }
-        log.info("Applied linkmate settings: enabled={}, model={}, baseUrl={}",
-                cfg.isEnabled(), cfg.getModel(), cfg.getBaseUrl());
+        if (row.getLinkmateSttApiKey() != null) {
+            cfg.setSttApiKey(row.getLinkmateSttApiKey());
+        }
+        if (row.getLinkmateSttBaseUrl() != null) {
+            cfg.setSttBaseUrl(nullToEmpty(row.getLinkmateSttBaseUrl()));
+        }
+        if (row.getLinkmateSttModel() != null) {
+            cfg.setSttModel(StringUtils.hasText(row.getLinkmateSttModel())
+                    ? row.getLinkmateSttModel().trim()
+                    : "whisper-1");
+        }
+        log.info("Applied linkmate settings: enabled={}, model={}, baseUrl={}, sttBaseUrl={}",
+                cfg.isEnabled(), cfg.getModel(), cfg.getBaseUrl(), cfg.getSttBaseUrl());
     }
 
     private void applyLinkMateForTest(LinkMateSettingUpdateDTO dto) {

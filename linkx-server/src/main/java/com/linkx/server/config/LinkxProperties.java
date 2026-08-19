@@ -47,6 +47,12 @@ public class LinkxProperties {
         /** API 基址，如 https://api.deepseek.com */
         private String baseUrl;
         private String model = "deepseek-chat";
+        /** 语音转写专用 API Key；空则回退到 apiKey */
+        private String sttApiKey;
+        /** 语音转写专用 API 基址；空则回退到 baseUrl */
+        private String sttBaseUrl;
+        /** 语音转写模型（OpenAI 兼容 /audio/transcriptions） */
+        private String sttModel = "whisper-1";
         private int maxTokens = 4096;
         private double temperature = 0.7;
         /** 单用户每日 token 估算上限 */

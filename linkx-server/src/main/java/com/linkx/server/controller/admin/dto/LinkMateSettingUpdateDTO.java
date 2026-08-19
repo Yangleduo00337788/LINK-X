@@ -52,4 +52,13 @@ public class LinkMateSettingUpdateDTO {
 
     @Schema(description = "系统提示词；留空使用内置默认")
     private String systemPrompt;
+
+    @Schema(description = "语音转写 API Key；留空表示不修改；未配置则回退到灵伴 LLM Key")
+    private String sttApiKey;
+
+    @Schema(description = "语音转写 API 基址；留空则回退到灵伴 LLM 基址（DeepSeek 不支持转写）")
+    private String sttBaseUrl;
+
+    @Schema(description = "语音转写模型，如 whisper-1")
+    private String sttModel;
 }

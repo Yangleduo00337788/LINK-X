@@ -115,6 +115,9 @@ linkx:
     api-key: ${LINKMATE_API_KEY}
     base-url: ${LINKMATE_BASE_URL}
     model: ${LINKMATE_MODEL}
+    stt-api-key: ${LINKMATE_STT_API_KEY:}
+    stt-base-url: ${LINKMATE_STT_BASE_URL:}
+    stt-model: ${LINKMATE_STT_MODEL:whisper-1}
     max-tokens: ${LINKMATE_MAX_TOKENS}
     temperature: ${LINKMATE_TEMPERATURE}
     daily-token-limit: ${LINKMATE_DAILY_TOKEN_LIMIT}

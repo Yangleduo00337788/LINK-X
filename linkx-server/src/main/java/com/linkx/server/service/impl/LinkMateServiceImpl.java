@@ -14,6 +14,7 @@ import com.linkx.server.controller.vo.LinkMateMessageVO;
 import com.linkx.server.controller.vo.LinkMateSessionVO;
 import com.linkx.server.controller.vo.LinkMateStatusVO;
 import com.linkx.server.controller.vo.LinkMateTranslateVO;
+import com.linkx.server.controller.vo.LinkMateTranscribeVO;
 import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.entity.AiChatMessage;
 import com.linkx.server.entity.AiChatSession;
@@ -21,18 +22,20 @@ import com.linkx.server.entity.ImConversation;
 import com.linkx.server.entity.ImMessage;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.exception.CustomException;
+import com.linkx.server.service.ChatService;
 import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.mapper.AiChatMessageMapper;
 import com.linkx.server.mapper.AiChatSessionMapper;
 import com.linkx.server.mapper.ImConversationMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.repository.ImMessageRepository;
-import com.linkx.server.service.ChatService;
 import com.linkx.server.service.LinkMateService;
 import com.linkx.server.service.linkmate.LinkMateConstants;
 import com.linkx.server.service.linkmate.LinkMateImReplyFormatter;
 import com.linkx.server.service.linkmate.LinkMateLlmClient;
 import com.linkx.server.service.linkmate.LinkMatePromptTemplate;
+import com.linkx.server.service.linkmate.LinkMateSttClient;
+import com.linkx.server.service.linkmate.LinkMateSttClient.TranscribeResult;
 import com.linkx.server.service.linkmate.LinkMateLlmClient.LlmMessage;
 import com.linkx.server.service.linkmate.LinkMateLlmClient.LlmResult;
 import com.linkx.server.service.linkmate.LinkMateLlmClient.StreamResult;
@@ -82,6 +85,7 @@ public class LinkMateServiceImpl implements LinkMateService {
     private static final int STREAM_POOL_MAX = 32;
     private static final int STREAM_POOL_QUEUE = 64;
     private static final long GROUP_REPLY_BUBBLE_DELAY_MS = 350L;
+    private static final int VOICE_TRANSCRIBE_MAX_SECONDS = 60;
     private static final ExecutorService STREAM_EXECUTOR = new ThreadPoolExecutor(
             0,
             STREAM_POOL_MAX,
@@ -146,6 +150,7 @@ public class LinkMateServiceImpl implements LinkMateService {
     private final AiChatSessionMapper sessionMapper;
     private final AiChatMessageMapper messageMapper;
     private final LinkMateLlmClient llmClient;
+    private final LinkMateSttClient sttClient;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final ChatService chatService;
@@ -590,6 +595,61 @@ public class LinkMateServiceImpl implements LinkMateService {
             case "ja", "japanese" -> "日本語";
             case "ko", "korean" -> "한국어";
             default -> targetLang.trim();
+        };
+    }
+
+    @Override
+    public LinkMateTranscribeVO transcribeAudio(
+            Long userId,
+            byte[] audioBytes,
+            String filename,
+            String contentType,
+            String languageHint) {
+        LinkxProperties.LinkMate cfg = linkxProperties.getLinkmate();
+        if (!cfg.isEnabled() || !StringUtils.hasText(cfg.getApiKey())) {
+            throw new CustomException(503, "灵伴服务未启用");
+        }
+        if (audioBytes == null || audioBytes.length == 0) {
+            throw new CustomException(400, "语音文件为空");
+        }
+        // 粗估：约每 50KB 对应 1 秒语音
+        int estimatedSeconds = Math.max(1, audioBytes.length / (50 * 1024));
+        if (estimatedSeconds > VOICE_TRANSCRIBE_MAX_SECONDS) {
+            throw new CustomException(400, "语音过长，暂不支持转写");
+        }
+        int estimatedTokens = Math.max(200, estimatedSeconds * 20);
+        int reservedTokens = reserveDailyTokens(userId, estimatedTokens);
+        try {
+            TranscribeResult result = sttClient.transcribe(
+                    audioBytes,
+                    StringUtils.hasText(filename) ? filename.trim() : "voice.webm",
+                    StringUtils.hasText(contentType) ? contentType : "application/octet-stream",
+                    normalizeSttLanguageHint(languageHint));
+            finalizeDailyTokens(userId, reservedTokens, estimatedTokens);
+            return LinkMateTranscribeVO.builder()
+                    .text(result.text())
+                    .language(result.language())
+                    .build();
+        } catch (CustomException ex) {
+            releaseDailyTokens(userId, reservedTokens);
+            throw ex;
+        } catch (Exception ex) {
+            releaseDailyTokens(userId, reservedTokens);
+            log.error("LinkMate audio transcribe failed", ex);
+            throw new CustomException(502, "语音转写失败");
+        }
+    }
+
+    private String normalizeSttLanguageHint(String language) {
+        if (!StringUtils.hasText(language)) {
+            return null;
+        }
+        return switch (language.trim().toLowerCase()) {
+            case "zh", "zh-cn", "zh_cn" -> "zh";
+            case "en", "en-us", "en_us" -> "en";
+            case "ja", "japanese" -> "ja";
+            case "ko", "korean" -> "ko";
+            default -> language.trim().toLowerCase();
         };
     }
 

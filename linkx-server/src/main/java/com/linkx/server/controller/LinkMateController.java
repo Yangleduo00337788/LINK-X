@@ -16,11 +16,11 @@ import com.linkx.server.controller.vo.LinkMateMessageVO;
 import com.linkx.server.controller.vo.LinkMateSessionVO;
 import com.linkx.server.controller.vo.LinkMateStatusVO;
 import com.linkx.server.controller.vo.LinkMateTranslateVO;
+import com.linkx.server.controller.vo.LinkMateTranscribeVO;
 import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.im.ImMessagePushService;
 import com.linkx.server.service.LinkMateService;
-import com.linkx.server.service.linkmate.LinkMateConstants;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -31,6 +31,7 @@ import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
@@ -158,6 +159,31 @@ public class LinkMateController {
             HttpServletRequest request) {
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         return Result.success(linkMateService.translate(userId, dto));
+    }
+
+    @Operation(summary = "AI 语音转文字（上传录音）")
+    @PostMapping(value = "/transcribe", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @RateLimit(scope = "linkmate:transcribe", value = 30, window = 60)
+    public Result<LinkMateTranscribeVO> transcribe(
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(value = "language", required = false) String language,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        if (file == null || file.isEmpty()) {
+            throw new CustomException(400, "请上传语音文件");
+        }
+        try {
+            return Result.success(linkMateService.transcribeAudio(
+                    userId,
+                    file.getBytes(),
+                    file.getOriginalFilename(),
+                    file.getContentType(),
+                    language));
+        } catch (CustomException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new CustomException(400, "读取语音文件失败");
+        }
     }
 
     private Long parseId(String id) {

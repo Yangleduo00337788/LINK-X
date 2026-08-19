@@ -85,6 +85,24 @@ export function translateText(text: string, targetLang?: string) {
   })
 }
 
+export interface LinkMateTranscribeResult {
+  text: string
+  language?: string
+}
+
+/** 上传录音做语音转文字（填入输入框用） */
+export function transcribeAudio(file: File | Blob, language?: string, filename = 'voice.webm') {
+  const form = new FormData()
+  form.append('file', file, filename)
+  if (language) {
+    form.append('language', language)
+  }
+  return apiClient.post<unknown, ApiResult<LinkMateTranscribeResult>>('/linkmate/transcribe', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 120000
+  })
+}
+
 /** 群聊/单聊 @灵伴：SSE 流式回复 */
 export async function streamImReply(
   conversationId: string,

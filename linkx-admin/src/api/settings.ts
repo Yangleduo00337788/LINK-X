@@ -112,6 +112,9 @@ export interface LinkMateSideSetting {
   apiKeyConfigured?: boolean
   systemPrompt?: string
   reasoningSupported?: boolean
+  sttBaseUrl?: string
+  sttModel?: string
+  sttApiKeyConfigured?: boolean
 }
 
 export interface AdminSetting {

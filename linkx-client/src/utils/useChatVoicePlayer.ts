@@ -10,15 +10,11 @@ import * as chatApi from '../api/chat'
 import { recoverMediaUrlOnError } from './mediaUrl'
 import { resolveChatVoicePlaySrc } from './chatMediaAccess'
 import { t } from '../i18n'
+import { formatVoiceDurationLabel } from './voiceRecorder'
 
 const playingVoiceId = ref<string | null>(null)
 let voiceAudio: HTMLAudioElement | null = null
 let voicePlaybackBlobUrl: string | null = null
-
-function formatVoiceDuration(sec?: number) {
-  const s = sec ?? 0
-  return s < 60 ? `${s}"` : `${Math.floor(s / 60)}'${s % 60}"`
-}
 
 function revokeVoicePlaybackBlob() {
   if (voicePlaybackBlobUrl) {
@@ -43,7 +39,7 @@ export function useChatVoicePlayer(options?: {
 
   async function playVoice(msg: ChatMessage) {
     if (!msg.voiceUrl && !msg.fileUrl) {
-      notifyInfo?.(`${t('chat.voice')} ${formatVoiceDuration(msg.voiceDuration)}`)
+      notifyInfo?.(`${t('chat.voice')} ${formatVoiceDurationLabel(msg.voiceDuration)}`)
       return
     }
     if (playingVoiceId.value === msg.id) {

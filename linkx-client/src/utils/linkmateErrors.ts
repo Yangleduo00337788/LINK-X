@@ -20,5 +20,8 @@ export function resolveLinkMateErrorMessage(
   if (msg.includes('未启用') || /not enabled/i.test(msg)) {
     return t('linkmate.serviceDisabled')
   }
+  if (msg.includes('转写') || /transcri/i.test(msg)) {
+    return t('chat.transcribeFail')
+  }
   return msg
 }

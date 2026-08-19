@@ -175,6 +175,13 @@ public class SysRuntimeSetting implements Serializable {
     /** 当前模型是否支持深度思考（保存配置时自动检测） */
     private Boolean linkmateReasoningSupported;
 
+    /** 语音转写（STT）独立 API Key；空则回退到灵伴 LLM Key */
+    private String linkmateSttApiKey;
+    /** 语音转写 API 基址；空则回退到灵伴 LLM 基址 */
+    private String linkmateSttBaseUrl;
+    /** 语音转写模型，如 whisper-1 */
+    private String linkmateSttModel;
+
     private Long updateBy;
 
     @Column(onInsertValue = "NOW()")

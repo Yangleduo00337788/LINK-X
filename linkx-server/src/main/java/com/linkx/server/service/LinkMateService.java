@@ -12,6 +12,7 @@ import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.controller.vo.LinkMateSessionVO;
 import com.linkx.server.controller.vo.LinkMateStatusVO;
 import com.linkx.server.controller.vo.LinkMateTranslateVO;
+import com.linkx.server.controller.vo.LinkMateTranscribeVO;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
@@ -48,4 +49,9 @@ public interface LinkMateService {
      * AI 翻译（复用灵伴 LLM 配置与每日额度）。
      */
     LinkMateTranslateVO translate(Long userId, LinkMateTranslateDTO dto);
+
+    /**
+     * AI 语音转文字（上传录音 → Whisper 兼容接口 → 文本）。
+     */
+    LinkMateTranscribeVO transcribeAudio(Long userId, byte[] audioBytes, String filename, String contentType, String languageHint);
 }
