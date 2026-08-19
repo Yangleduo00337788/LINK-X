@@ -463,6 +463,20 @@ public class AdminSettingServiceImpl implements AdminSettingService {
         if (StringUtils.hasText(dto.getSttApiKey())) {
             row.setLinkmateSttApiKey(dto.getSttApiKey().trim());
         }
+        if (dto.getRealtimeBaseUrl() != null) {
+            row.setLinkmateRealtimeBaseUrl(dto.getRealtimeBaseUrl().trim());
+        }
+        if (dto.getRealtimeModel() != null) {
+            String realtimeModel = dto.getRealtimeModel().trim();
+            row.setLinkmateRealtimeModel(StringUtils.hasText(realtimeModel) ? realtimeModel : "gpt-realtime");
+        }
+        if (dto.getRealtimeVoice() != null) {
+            String realtimeVoice = dto.getRealtimeVoice().trim();
+            row.setLinkmateRealtimeVoice(StringUtils.hasText(realtimeVoice) ? realtimeVoice : "marin");
+        }
+        if (StringUtils.hasText(dto.getRealtimeApiKey())) {
+            row.setLinkmateRealtimeApiKey(dto.getRealtimeApiKey().trim());
+        }
         row.setUpdateBy(operatorId);
         persist(row);
         applyLinkMateSide(row);
@@ -762,6 +776,14 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                 .linkmateSttModel(StringUtils.hasText(linkxProperties.getLinkmate().getSttModel())
                         ? linkxProperties.getLinkmate().getSttModel()
                         : "whisper-1")
+                .linkmateRealtimeApiKey(nullToEmpty(linkxProperties.getLinkmate().getRealtimeApiKey()))
+                .linkmateRealtimeBaseUrl(nullToEmpty(linkxProperties.getLinkmate().getRealtimeBaseUrl()))
+                .linkmateRealtimeModel(StringUtils.hasText(linkxProperties.getLinkmate().getRealtimeModel())
+                        ? linkxProperties.getLinkmate().getRealtimeModel()
+                        : "gpt-realtime")
+                .linkmateRealtimeVoice(StringUtils.hasText(linkxProperties.getLinkmate().getRealtimeVoice())
+                        ? linkxProperties.getLinkmate().getRealtimeVoice()
+                        : "marin")
                 .updateBy(operatorId)
                 .build();
     }
@@ -1100,6 +1122,12 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                 .sttModel(StringUtils.hasText(cfg.getSttModel()) ? cfg.getSttModel() : "whisper-1")
                 .sttApiKeyConfigured(StringUtils.hasText(cfg.getSttApiKey())
                         || StringUtils.hasText(cfg.getApiKey()))
+                .realtimeBaseUrl(cfg.getRealtimeBaseUrl())
+                .realtimeModel(StringUtils.hasText(cfg.getRealtimeModel()) ? cfg.getRealtimeModel() : "gpt-realtime")
+                .realtimeVoice(StringUtils.hasText(cfg.getRealtimeVoice()) ? cfg.getRealtimeVoice() : "marin")
+                .realtimeApiKeyConfigured(StringUtils.hasText(cfg.getRealtimeApiKey())
+                        || (StringUtils.hasText(cfg.getRealtimeBaseUrl())
+                        && StringUtils.hasText(cfg.getApiKey())))
                 .build();
     }
 
@@ -1145,8 +1173,24 @@ public class AdminSettingServiceImpl implements AdminSettingService {
                     ? row.getLinkmateSttModel().trim()
                     : "whisper-1");
         }
-        log.info("Applied linkmate settings: enabled={}, model={}, baseUrl={}, sttBaseUrl={}",
-                cfg.isEnabled(), cfg.getModel(), cfg.getBaseUrl(), cfg.getSttBaseUrl());
+        if (row.getLinkmateRealtimeApiKey() != null) {
+            cfg.setRealtimeApiKey(row.getLinkmateRealtimeApiKey());
+        }
+        if (row.getLinkmateRealtimeBaseUrl() != null) {
+            cfg.setRealtimeBaseUrl(nullToEmpty(row.getLinkmateRealtimeBaseUrl()));
+        }
+        if (row.getLinkmateRealtimeModel() != null) {
+            cfg.setRealtimeModel(StringUtils.hasText(row.getLinkmateRealtimeModel())
+                    ? row.getLinkmateRealtimeModel().trim()
+                    : "gpt-realtime");
+        }
+        if (row.getLinkmateRealtimeVoice() != null) {
+            cfg.setRealtimeVoice(StringUtils.hasText(row.getLinkmateRealtimeVoice())
+                    ? row.getLinkmateRealtimeVoice().trim()
+                    : "marin");
+        }
+        log.info("Applied linkmate settings: enabled={}, model={}, baseUrl={}, sttBaseUrl={}, realtimeBaseUrl={}",
+                cfg.isEnabled(), cfg.getModel(), cfg.getBaseUrl(), cfg.getSttBaseUrl(), cfg.getRealtimeBaseUrl());
     }
 
     private void applyLinkMateForTest(LinkMateSettingUpdateDTO dto) {

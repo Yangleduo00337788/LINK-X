@@ -15,6 +15,8 @@ export interface LinkMateStatus {
   dailyTokenLimit: number
   dailyTokenUsed: number
   deepThinkingSupported: boolean
+  /** 是否已配置 Realtime，可发起灵伴语音通话 */
+  voiceCallSupported?: boolean
 }
 
 export interface LinkMateSession {
@@ -100,6 +102,29 @@ export function transcribeAudio(file: File | Blob, language?: string, filename =
   return apiClient.post<unknown, ApiResult<LinkMateTranscribeResult>>('/linkmate/transcribe', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
     timeout: 120000
+  })
+}
+
+export interface LinkMateVoiceCallStart {
+  callId: string
+  ephemeralKey: string
+  realtimeCallsUrl: string
+  model?: string
+  voice?: string
+  peerNickname?: string
+  expiresAt?: number
+}
+
+/** 发起灵伴 Realtime 语音通话（服务端签发 ephemeral key） */
+export function startVoiceCall() {
+  return apiClient.post<unknown, ApiResult<LinkMateVoiceCallStart>>('/linkmate/voice-call/start')
+}
+
+/** 结束灵伴语音通话 */
+export function hangupVoiceCall(callId: string, durationSec?: number) {
+  return apiClient.post<unknown, ApiResult<null>>('/linkmate/voice-call/hangup', {
+    callId,
+    durationSec
   })
 }
 

@@ -115,6 +115,10 @@ export interface LinkMateSideSetting {
   sttBaseUrl?: string
   sttModel?: string
   sttApiKeyConfigured?: boolean
+  realtimeBaseUrl?: string
+  realtimeModel?: string
+  realtimeVoice?: string
+  realtimeApiKeyConfigured?: boolean
 }
 
 export interface AdminSetting {
@@ -229,8 +233,10 @@ export type LinkMateUpdatePayload = Required<
     'enabled' | 'baseUrl' | 'model' | 'maxTokens' | 'temperature' | 'dailyTokenLimit'
   >
 > &
-  Pick<LinkMateSideSetting, 'systemPrompt'> & {
+  Pick<LinkMateSideSetting, 'systemPrompt' | 'sttBaseUrl' | 'sttModel' | 'realtimeBaseUrl' | 'realtimeModel' | 'realtimeVoice'> & {
     apiKey?: string
+    sttApiKey?: string
+    realtimeApiKey?: string
   }
 
 export type TestLinkMateConnectionPayload = LinkMateUpdatePayload

@@ -9,6 +9,7 @@ import { defineStore } from 'pinia'
 import { markRaw } from 'vue'
 import * as callApi from '../api/call'
 import type { CallEventPayload } from '../api/call'
+import * as linkmateApi from '../api/linkmate'
 import { startCallRing, stopCallRing, playCallConnect, playCallEnd } from '../utils/callSounds'
 import {
   decideIceRestart,
@@ -16,11 +17,17 @@ import {
   shouldFallbackToVoiceOnCameraDenied
 } from '../utils/callNetworkPolicy'
 import { resolveIceServers } from '../utils/iceServers'
+import {
+  connectLinkMateRealtime,
+  type LinkMateRealtimeBridgeHandle
+} from '../utils/linkmateRealtimeBridge'
+import { getLinkMateLogoUrl } from '../utils/linkmateLogo'
 import { t } from '../i18n'
 
 export type CallPhase = 'idle' | 'outgoing' | 'incoming' | 'connecting' | 'connected' | 'ended'
 export type CallRole = 'caller' | 'callee' | null
 export type CallType = 'voice' | 'video'
+export type CallPeerKind = 'human' | 'linkmate'
 
 /** PeerConnection 不适合放入 Pinia 响应式 state，用模块变量持有 */
 let peerConnection: RTCPeerConnection | null = null
@@ -35,11 +42,26 @@ let statsTimer: ReturnType<typeof setInterval> | null = null
 /** 振铃超时：超时后主叫按未接听取消，被叫按拒绝 */
 let ringTimer: ReturnType<typeof setTimeout> | null = null
 const RING_TIMEOUT_MS = 55_000
+/** 呼叫灵伴时短振铃，模拟接听感 */
+const LINKMATE_RING_MS = 900
+let linkMateBridge: LinkMateRealtimeBridgeHandle | null = null
+let linkMateConnectToken = 0
 
 function clearRingTimer() {
   if (ringTimer) {
     clearTimeout(ringTimer)
     ringTimer = null
+  }
+}
+
+function stopLinkMateBridge() {
+  if (linkMateBridge) {
+    try {
+      linkMateBridge.stop()
+    } catch {
+      /* ignore */
+    }
+    linkMateBridge = null
   }
 }
 
@@ -76,6 +98,7 @@ export const useCallStore = defineStore('call', {
     callId: null as string | null,
     conversationId: null as string | null,
     callType: 'voice' as CallType,
+    peerKind: 'human' as CallPeerKind,
     peerName: '',
     peerAvatar: '',
     peerUserId: '' as string,
@@ -134,6 +157,7 @@ export const useCallStore = defineStore('call', {
       this.callId = res.data.callId
       this.conversationId = String(res.data.conversationId ?? opts.conversationId)
       this.callType = opts.callType
+      this.peerKind = 'human'
       this.peerName = res.data.peerNickname || opts.peerName
       this.peerAvatar = res.data.peerAvatar || opts.peerAvatar || ''
       this.peerUserId = String(res.data.peerUserId || opts.peerUserId || '')
@@ -153,6 +177,103 @@ export const useCallStore = defineStore('call', {
               ? t('errors.mediaDeviceBusy')
               : (e as Error).message || t('errors.mediaOpenFail')
       })
+    },
+
+    /**
+     * 打给灵伴：复用 VoiceCallModal，媒体走 OpenAI Realtime WebRTC。
+     */
+    async startLinkMateVoiceCall() {
+      if (this.isActive) {
+        throw new Error(t('errors.callInProgress'))
+      }
+      const res = await linkmateApi.startVoiceCall()
+      if (res.code !== 200 || !res.data?.callId || !res.data.ephemeralKey || !res.data.realtimeCallsUrl) {
+        throw new Error(res.message || t('linkmate.voiceCallFail'))
+      }
+
+      const token = ++linkMateConnectToken
+      this.role = 'caller'
+      this.callId = res.data.callId
+      this.conversationId = null
+      this.callType = 'voice'
+      this.peerKind = 'linkmate'
+      this.peerName = res.data.peerNickname || t('linkmate.name')
+      this.peerAvatar = getLinkMateLogoUrl()
+      this.peerUserId = '0'
+      this.phase = 'outgoing'
+      this.errorMessage = ''
+      this.micOn = true
+      this.cameraOn = false
+      this.connectedAt = 0
+      startCallRing()
+
+      try {
+        await this.ensureLocalMedia()
+        if (token !== linkMateConnectToken || this.callId !== res.data.callId) {
+          return
+        }
+        await new Promise<void>(resolve => {
+          window.setTimeout(resolve, LINKMATE_RING_MS)
+        })
+        if (token !== linkMateConnectToken || this.callId !== res.data.callId) {
+          return
+        }
+        clearRingTimer()
+        stopCallRing()
+        this.phase = 'connecting'
+        playCallConnect()
+
+        const local = this.localStream
+        if (!local) {
+          throw new Error(t('errors.mediaOpenFail'))
+        }
+
+        const bridge = await connectLinkMateRealtime({
+          ephemeralKey: res.data.ephemeralKey,
+          realtimeCallsUrl: res.data.realtimeCallsUrl,
+          localStream: local,
+          onRemoteStream: stream => {
+            if (token !== linkMateConnectToken) return
+            this.remoteStream = markRaw(stream)
+            this.phase = 'connected'
+            if (!this.connectedAt) this.connectedAt = Date.now()
+          },
+          onConnected: () => {
+            if (token !== linkMateConnectToken) return
+            this.phase = 'connected'
+            if (!this.connectedAt) this.connectedAt = Date.now()
+          },
+          onError: message => {
+            if (token !== linkMateConnectToken) return
+            this.errorMessage = message || t('linkmate.voiceCallFail')
+          },
+          onDisconnected: () => {
+            if (token !== linkMateConnectToken) return
+            if (this.peerKind === 'linkmate' && this.isActive) {
+              void this.hangup()
+            }
+          }
+        })
+        if (token !== linkMateConnectToken) {
+          bridge.stop()
+          return
+        }
+        linkMateBridge = bridge
+        if (this.phase !== 'connected') {
+          this.phase = 'connected'
+          if (!this.connectedAt) this.connectedAt = Date.now()
+        }
+      } catch (e) {
+        const callId = this.callId
+        this.errorMessage = (e as Error).message || t('linkmate.voiceCallFail')
+        if (callId) {
+          void linkmateApi.hangupVoiceCall(callId, 0).catch(() => {
+            /* ignore */
+          })
+        }
+        this.cleanupLocal()
+        throw e
+      }
     },
 
     handleRemoteEvent(action: string, raw: CallEventPayload) {
@@ -247,10 +368,15 @@ export const useCallStore = defineStore('call', {
 
     async hangup() {
       const callId = this.callId
+      const peerKind = this.peerKind
       const wasRingingCaller = this.role === 'caller' && this.phase === 'outgoing'
+      const durationSec =
+        this.connectedAt > 0 ? Math.max(1, Math.floor((Date.now() - this.connectedAt) / 1000)) : 0
       if (callId) {
         try {
-          if (wasRingingCaller) {
+          if (peerKind === 'linkmate') {
+            await linkmateApi.hangupVoiceCall(callId, durationSec || undefined)
+          } else if (wasRingingCaller) {
             await callApi.cancelCall(callId)
           } else {
             await callApi.hangupCall(callId)
@@ -267,6 +393,7 @@ export const useCallStore = defineStore('call', {
       this.localStream?.getAudioTracks().forEach(t => {
         t.enabled = this.micOn
       })
+      if (this.peerKind === 'linkmate') return
       if (this.callId && this.phase === 'connected') {
         void callApi.switchCallDevice(this.callId, 'audio', this.micOn).catch(() => {
           /* ignore */
@@ -305,6 +432,7 @@ export const useCallStore = defineStore('call', {
       this.callId = event.callId
       this.conversationId = event.conversationId
       this.callType = event.callType
+      this.peerKind = 'human'
       this.peerName = event.fromNickname || t('defaults.friend')
       this.peerAvatar = event.fromAvatar || ''
       this.peerUserId = event.fromUserId
@@ -677,8 +805,10 @@ export const useCallStore = defineStore('call', {
 
     cleanupLocal() {
       const shouldPlayEnd = this.phase !== 'idle'
+      linkMateConnectToken += 1
       clearRingTimer()
       stopCallRing()
+      stopLinkMateBridge()
       if (shouldPlayEnd) playCallEnd()
       this.stopWeakNetWatch()
       iceRestartAttempts = 0
@@ -703,6 +833,7 @@ export const useCallStore = defineStore('call', {
       this.role = null
       this.callId = null
       this.conversationId = null
+      this.peerKind = 'human'
       this.connectedAt = 0
     },
 

@@ -53,6 +53,14 @@ public class LinkxProperties {
         private String sttBaseUrl;
         /** 语音转写模型（OpenAI 兼容 /audio/transcriptions） */
         private String sttModel = "whisper-1";
+        /** Realtime 语音通话专用 API Key；空则回退到 apiKey（DeepSeek 等不支持） */
+        private String realtimeApiKey;
+        /** Realtime API 基址；空则回退到 baseUrl */
+        private String realtimeBaseUrl;
+        /** Realtime 模型，如 gpt-realtime */
+        private String realtimeModel = "gpt-realtime";
+        /** Realtime 输出音色 */
+        private String realtimeVoice = "marin";
         private int maxTokens = 4096;
         private double temperature = 0.7;
         /** 单用户每日 token 估算上限 */

@@ -182,6 +182,15 @@ public class SysRuntimeSetting implements Serializable {
     /** 语音转写模型，如 whisper-1 */
     private String linkmateSttModel;
 
+    /** Realtime 语音通话独立 API Key；空则回退到灵伴 LLM Key */
+    private String linkmateRealtimeApiKey;
+    /** Realtime API 基址；空则回退到灵伴 LLM 基址 */
+    private String linkmateRealtimeBaseUrl;
+    /** Realtime 模型，如 gpt-realtime */
+    private String linkmateRealtimeModel;
+    /** Realtime 音色 */
+    private String linkmateRealtimeVoice;
+
     private Long updateBy;
 
     @Column(onInsertValue = "NOW()")

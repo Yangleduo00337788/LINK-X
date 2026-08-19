@@ -19,6 +19,7 @@ const {
   phase,
   peerName,
   peerAvatar,
+  peerKind,
   micOn,
   errorMessage,
   connectedAt,
@@ -30,7 +31,11 @@ let durationTimer: ReturnType<typeof setInterval> | null = null
 const remoteAudioRef = ref<HTMLAudioElement | null>(null)
 
 const statusText = computed(() => {
-  if (phase.value === 'outgoing') return t('extra.waitPeerAnswer')
+  if (phase.value === 'outgoing') {
+    return peerKind.value === 'linkmate'
+      ? t('linkmate.callingLinkMate')
+      : t('extra.waitPeerAnswer')
+  }
   if (phase.value === 'connecting') return t('extra.connectingCall')
   const m = Math.floor(seconds.value / 60)
     .toString()

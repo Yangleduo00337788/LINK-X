@@ -290,6 +290,11 @@ const linkmateForm = reactive({
   sttApiKeyConfigured: false,
   sttBaseUrl: '',
   sttModel: 'whisper-1',
+  realtimeApiKey: '',
+  realtimeApiKeyConfigured: false,
+  realtimeBaseUrl: '',
+  realtimeModel: 'gpt-realtime',
+  realtimeVoice: 'marin',
 })
 
 const storageProviderOptions = computed(() => [
@@ -427,6 +432,11 @@ function applySettings(data: AdminSetting) {
   linkmateForm.sttApiKeyConfigured = data.linkmate?.sttApiKeyConfigured === true
   linkmateForm.sttBaseUrl = data.linkmate?.sttBaseUrl || ''
   linkmateForm.sttModel = data.linkmate?.sttModel || 'whisper-1'
+  linkmateForm.realtimeApiKey = ''
+  linkmateForm.realtimeApiKeyConfigured = data.linkmate?.realtimeApiKeyConfigured === true
+  linkmateForm.realtimeBaseUrl = data.linkmate?.realtimeBaseUrl || ''
+  linkmateForm.realtimeModel = data.linkmate?.realtimeModel || 'gpt-realtime'
+  linkmateForm.realtimeVoice = data.linkmate?.realtimeVoice || 'marin'
 }
 
 function applyMailTemplate(key: 'register' | 'reset' | 'welcome', tpl?: MailTemplateSetting) {
@@ -647,6 +657,10 @@ function buildLinkMatePayload() {
     sttApiKey: linkmateForm.sttApiKey.trim() || undefined,
     sttBaseUrl: linkmateForm.sttBaseUrl.trim(),
     sttModel: linkmateForm.sttModel.trim() || 'whisper-1',
+    realtimeApiKey: linkmateForm.realtimeApiKey.trim() || undefined,
+    realtimeBaseUrl: linkmateForm.realtimeBaseUrl.trim(),
+    realtimeModel: linkmateForm.realtimeModel.trim() || 'gpt-realtime',
+    realtimeVoice: linkmateForm.realtimeVoice.trim() || 'marin',
   }
 }
 
@@ -1587,6 +1601,52 @@ onMounted(load)
                   >
                     {{
                       linkmateForm.sttApiKeyConfigured
+                        ? t('setting.mailPasswordConfigured')
+                        : t('setting.mailPasswordMissing')
+                    }}
+                  </NTag>
+                </div>
+              </NFormItem>
+
+              <NDivider title-placement="left">{{ t('setting.linkmateRealtimeSection') }}</NDivider>
+              <p class="section-hint">{{ t('setting.linkmateRealtimeHint') }}</p>
+              <NFormItem :label="t('setting.linkmateRealtimeBaseUrl')">
+                <NInput
+                  v-model:value="linkmateForm.realtimeBaseUrl"
+                  :placeholder="t('setting.linkmateRealtimeBaseUrlPh')"
+                  style="max-width: 420px"
+                />
+              </NFormItem>
+              <NFormItem :label="t('setting.linkmateRealtimeModel')">
+                <NInput
+                  v-model:value="linkmateForm.realtimeModel"
+                  placeholder="gpt-realtime"
+                  style="max-width: 280px"
+                />
+              </NFormItem>
+              <NFormItem :label="t('setting.linkmateRealtimeVoice')">
+                <NInput
+                  v-model:value="linkmateForm.realtimeVoice"
+                  placeholder="marin"
+                  style="max-width: 280px"
+                />
+              </NFormItem>
+              <NFormItem :label="t('setting.linkmateRealtimeApiKey')">
+                <div class="secret-row">
+                  <NInput
+                    v-model:value="linkmateForm.realtimeApiKey"
+                    type="password"
+                    show-password-on="click"
+                    :placeholder="t('setting.linkmateRealtimeApiKeyPh')"
+                    style="max-width: 420px"
+                  />
+                  <NTag
+                    size="small"
+                    :type="linkmateForm.realtimeApiKeyConfigured ? 'success' : 'warning'"
+                    :bordered="false"
+                  >
+                    {{
+                      linkmateForm.realtimeApiKeyConfigured
                         ? t('setting.mailPasswordConfigured')
                         : t('setting.mailPasswordMissing')
                     }}

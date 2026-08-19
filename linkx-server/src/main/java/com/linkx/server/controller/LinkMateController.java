@@ -12,11 +12,13 @@ import com.linkx.server.controller.dto.LinkMateChatDTO;
 import com.linkx.server.controller.dto.LinkMateGroupReplyDTO;
 import com.linkx.server.controller.dto.LinkMateSessionRenameDTO;
 import com.linkx.server.controller.dto.LinkMateTranslateDTO;
+import com.linkx.server.controller.dto.LinkMateVoiceCallHangupDTO;
 import com.linkx.server.controller.vo.LinkMateMessageVO;
 import com.linkx.server.controller.vo.LinkMateSessionVO;
 import com.linkx.server.controller.vo.LinkMateStatusVO;
 import com.linkx.server.controller.vo.LinkMateTranslateVO;
 import com.linkx.server.controller.vo.LinkMateTranscribeVO;
+import com.linkx.server.controller.vo.LinkMateVoiceCallStartVO;
 import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.im.ImMessagePushService;
@@ -184,6 +186,25 @@ public class LinkMateController {
         } catch (Exception ex) {
             throw new CustomException(400, "读取语音文件失败");
         }
+    }
+
+    @Operation(summary = "发起灵伴 Realtime 语音通话")
+    @PostMapping("/voice-call/start")
+    @RateLimit(scope = "linkmate:voice-call", value = 10, time = 60)
+    public Result<LinkMateVoiceCallStartVO> startVoiceCall(HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(linkMateService.startVoiceCall(userId));
+    }
+
+    @Operation(summary = "结束灵伴 Realtime 语音通话")
+    @PostMapping("/voice-call/hangup")
+    @RateLimit(scope = "linkmate:voice-call", value = 30, time = 60)
+    public Result<Void> hangupVoiceCall(
+            @Valid @RequestBody LinkMateVoiceCallHangupDTO dto,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        linkMateService.hangupVoiceCall(userId, dto);
+        return Result.success(null);
     }
 
     private Long parseId(String id) {

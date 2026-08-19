@@ -25,4 +25,7 @@ public class LinkMateStatusVO {
 
     /** 当前模型是否支持深度思考 */
     private boolean deepThinkingSupported;
+
+    /** 是否已配置 Realtime，可发起灵伴语音通话 */
+    private boolean voiceCallSupported;
 }

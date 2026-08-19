@@ -61,4 +61,16 @@ public class LinkMateSettingUpdateDTO {
 
     @Schema(description = "语音转写模型，如 whisper-1")
     private String sttModel;
+
+    @Schema(description = "Realtime API Key；留空表示不修改；未配置则回退到灵伴 LLM Key")
+    private String realtimeApiKey;
+
+    @Schema(description = "Realtime API 基址；留空则回退到灵伴 LLM 基址（需 OpenAI Realtime 兼容服务）")
+    private String realtimeBaseUrl;
+
+    @Schema(description = "Realtime 模型，如 gpt-realtime")
+    private String realtimeModel;
+
+    @Schema(description = "Realtime 输出音色，如 marin")
+    private String realtimeVoice;
 }

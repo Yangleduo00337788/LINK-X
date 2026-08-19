@@ -71,6 +71,14 @@ public class AdminSettingVO {
         private String sttModel;
         @Schema(description = "语音转写 API Key 是否已配置（不回传明文）")
         private Boolean sttApiKeyConfigured;
+        @Schema(description = "Realtime API 基址")
+        private String realtimeBaseUrl;
+        @Schema(description = "Realtime 模型")
+        private String realtimeModel;
+        @Schema(description = "Realtime 音色")
+        private String realtimeVoice;
+        @Schema(description = "Realtime API Key 是否已配置（不回传明文）")
+        private Boolean realtimeApiKeyConfigured;
     }
 
     @Data

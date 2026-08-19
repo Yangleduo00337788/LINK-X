@@ -7,12 +7,14 @@ package com.linkx.server.service;
 import com.linkx.server.controller.dto.LinkMateChatDTO;
 import com.linkx.server.controller.dto.LinkMateGroupReplyDTO;
 import com.linkx.server.controller.dto.LinkMateTranslateDTO;
+import com.linkx.server.controller.dto.LinkMateVoiceCallHangupDTO;
 import com.linkx.server.controller.vo.LinkMateMessageVO;
 import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.controller.vo.LinkMateSessionVO;
 import com.linkx.server.controller.vo.LinkMateStatusVO;
 import com.linkx.server.controller.vo.LinkMateTranslateVO;
 import com.linkx.server.controller.vo.LinkMateTranscribeVO;
+import com.linkx.server.controller.vo.LinkMateVoiceCallStartVO;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
@@ -54,4 +56,14 @@ public interface LinkMateService {
      * AI 语音转文字（上传录音 → Whisper 兼容接口 → 文本）。
      */
     LinkMateTranscribeVO transcribeAudio(Long userId, byte[] audioBytes, String filename, String contentType, String languageHint);
+
+    /**
+     * 发起灵伴 Realtime 语音通话：校验额度并签发 ephemeral token。
+     */
+    LinkMateVoiceCallStartVO startVoiceCall(Long userId);
+
+    /**
+     * 结束灵伴语音通话并结算额度估算。
+     */
+    void hangupVoiceCall(Long userId, LinkMateVoiceCallHangupDTO dto);
 }

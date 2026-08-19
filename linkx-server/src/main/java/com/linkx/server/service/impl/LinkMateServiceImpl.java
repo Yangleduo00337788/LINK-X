@@ -10,11 +10,13 @@ import com.linkx.server.controller.dto.LinkMateChatDTO;
 import com.linkx.server.controller.dto.LinkMateGroupReplyDTO;
 import com.linkx.server.controller.dto.LinkMateImContextDTO;
 import com.linkx.server.controller.dto.LinkMateTranslateDTO;
+import com.linkx.server.controller.dto.LinkMateVoiceCallHangupDTO;
 import com.linkx.server.controller.vo.LinkMateMessageVO;
 import com.linkx.server.controller.vo.LinkMateSessionVO;
 import com.linkx.server.controller.vo.LinkMateStatusVO;
 import com.linkx.server.controller.vo.LinkMateTranslateVO;
 import com.linkx.server.controller.vo.LinkMateTranscribeVO;
+import com.linkx.server.controller.vo.LinkMateVoiceCallStartVO;
 import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.entity.AiChatMessage;
 import com.linkx.server.entity.AiChatSession;
@@ -34,6 +36,7 @@ import com.linkx.server.service.linkmate.LinkMateConstants;
 import com.linkx.server.service.linkmate.LinkMateImReplyFormatter;
 import com.linkx.server.service.linkmate.LinkMateLlmClient;
 import com.linkx.server.service.linkmate.LinkMatePromptTemplate;
+import com.linkx.server.service.linkmate.LinkMateRealtimeClient;
 import com.linkx.server.service.linkmate.LinkMateSttClient;
 import com.linkx.server.service.linkmate.LinkMateSttClient.TranscribeResult;
 import com.linkx.server.service.linkmate.LinkMateLlmClient.LlmMessage;
@@ -59,6 +62,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -78,6 +82,12 @@ public class LinkMateServiceImpl implements LinkMateService {
     private static final int MESSAGE_PAGE_DEFAULT = 50;
     private static final int MESSAGE_PAGE_MAX = 100;
     private static final long DAILY_TOKEN_TTL_SECONDS = Duration.ofDays(2).getSeconds();
+    /** 灵伴语音通话会话 Redis TTL */
+    private static final Duration VOICE_CALL_TTL = Duration.ofMinutes(30);
+    /** 发起通话时预扣额度（估算） */
+    private static final int VOICE_CALL_RESERVE_TOKENS = 3000;
+    /** 按通话分钟结算的估算 token（Realtime 音频计费粗估） */
+    private static final int VOICE_CALL_TOKENS_PER_MINUTE = 2500;
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
     private static final Duration SSE_TIMEOUT = Duration.ofMinutes(5);
     private static final int MAX_CONCURRENT_STREAMS_PER_USER = 2;
@@ -151,6 +161,7 @@ public class LinkMateServiceImpl implements LinkMateService {
     private final AiChatMessageMapper messageMapper;
     private final LinkMateLlmClient llmClient;
     private final LinkMateSttClient sttClient;
+    private final LinkMateRealtimeClient realtimeClient;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final ChatService chatService;
@@ -169,6 +180,7 @@ public class LinkMateServiceImpl implements LinkMateService {
                 .dailyTokenLimit(cfg.getDailyTokenLimit())
                 .dailyTokenUsed(getDailyTokenUsed(userId))
                 .deepThinkingSupported(cfg.isReasoningSupported())
+                .voiceCallSupported(enabled && realtimeClient.isConfigured())
                 .build();
     }
 
@@ -637,6 +649,133 @@ public class LinkMateServiceImpl implements LinkMateService {
             releaseDailyTokens(userId, reservedTokens);
             log.error("LinkMate audio transcribe failed", ex);
             throw new CustomException(502, "语音转写失败");
+        }
+    }
+
+    @Override
+    public LinkMateVoiceCallStartVO startVoiceCall(Long userId) {
+        LinkxProperties.LinkMate cfg = linkxProperties.getLinkmate();
+        if (!cfg.isEnabled() || !StringUtils.hasText(cfg.getApiKey())) {
+            throw new CustomException(503, "灵伴服务未启用");
+        }
+        if (!realtimeClient.isConfigured()) {
+            throw new CustomException(503, "灵伴语音通话未配置 Realtime");
+        }
+        String existing = redisTemplate.opsForValue().get(voiceCallUserKey(userId));
+        if (StringUtils.hasText(existing)) {
+            throw new CustomException(409, "已有进行中的灵伴语音通话");
+        }
+
+        int reservedTokens = reserveDailyTokens(userId, VOICE_CALL_RESERVE_TOKENS);
+        String callId = UUID.randomUUID().toString().replace("-", "");
+        try {
+            String instructions = buildVoiceCallInstructions(cfg);
+            LinkMateRealtimeClient.ClientSecretResult secret =
+                    realtimeClient.createClientSecret(userId, instructions);
+
+            Boolean locked = redisTemplate.opsForValue()
+                    .setIfAbsent(voiceCallUserKey(userId), callId, VOICE_CALL_TTL);
+            if (!Boolean.TRUE.equals(locked)) {
+                throw new CustomException(409, "已有进行中的灵伴语音通话");
+            }
+
+            String callKey = voiceCallKey(callId);
+            redisTemplate.opsForHash().putAll(callKey, Map.of(
+                    "userId", String.valueOf(userId),
+                    "startedAt", String.valueOf(System.currentTimeMillis()),
+                    "reservedTokens", String.valueOf(reservedTokens),
+                    "status", "active"
+            ));
+            redisTemplate.expire(callKey, VOICE_CALL_TTL);
+
+            return LinkMateVoiceCallStartVO.builder()
+                    .callId(callId)
+                    .ephemeralKey(secret.ephemeralKey())
+                    .realtimeCallsUrl(secret.realtimeCallsUrl())
+                    .model(secret.model())
+                    .voice(secret.voice())
+                    .peerNickname("灵伴 LinkMate")
+                    .expiresAt(secret.expiresAtEpochSec())
+                    .build();
+        } catch (CustomException ex) {
+            releaseDailyTokens(userId, reservedTokens);
+            redisTemplate.delete(voiceCallUserKey(userId));
+            redisTemplate.delete(voiceCallKey(callId));
+            throw ex;
+        } catch (Exception ex) {
+            releaseDailyTokens(userId, reservedTokens);
+            redisTemplate.delete(voiceCallUserKey(userId));
+            redisTemplate.delete(voiceCallKey(callId));
+            log.error("LinkMate voice call start failed", ex);
+            throw new CustomException(502, "发起灵伴语音通话失败");
+        }
+    }
+
+    @Override
+    public void hangupVoiceCall(Long userId, LinkMateVoiceCallHangupDTO dto) {
+        if (dto == null || !StringUtils.hasText(dto.getCallId())) {
+            throw new CustomException(400, "callId 不能为空");
+        }
+        String callId = dto.getCallId().trim();
+        String callKey = voiceCallKey(callId);
+        Map<Object, Object> fields = redisTemplate.opsForHash().entries(callKey);
+        if (fields == null || fields.isEmpty()) {
+            redisTemplate.delete(voiceCallUserKey(userId));
+            return;
+        }
+        String owner = String.valueOf(fields.getOrDefault("userId", ""));
+        if (!String.valueOf(userId).equals(owner)) {
+            throw new CustomException(403, "无权结束该通话");
+        }
+
+        int reserved = parseIntSafe(String.valueOf(fields.getOrDefault("reservedTokens", "0")), 0);
+        long startedAt = parseLongSafe(String.valueOf(fields.getOrDefault("startedAt", "0")), 0L);
+        int durationSec = dto.getDurationSec() != null && dto.getDurationSec() > 0
+                ? dto.getDurationSec()
+                : (startedAt > 0
+                ? (int) Math.max(1, (System.currentTimeMillis() - startedAt) / 1000L)
+                : 1);
+        int minutes = Math.max(1, (int) Math.ceil(durationSec / 60.0));
+        int actualTokens = Math.min(Math.max(minutes * VOICE_CALL_TOKENS_PER_MINUTE, 500), 200_000);
+        finalizeDailyTokens(userId, reserved, actualTokens);
+
+        redisTemplate.delete(callKey);
+        String userKey = voiceCallUserKey(userId);
+        String current = redisTemplate.opsForValue().get(userKey);
+        if (callId.equals(current)) {
+            redisTemplate.delete(userKey);
+        }
+    }
+
+    private String buildVoiceCallInstructions(LinkxProperties.LinkMate cfg) {
+        String base = StringUtils.hasText(cfg.getSystemPrompt())
+                ? cfg.getSystemPrompt().trim()
+                : LinkMatePromptTemplate.DEFAULT_SYSTEM.getTemplate();
+        return base + "\n\n你正在与用户进行实时语音通话。请用自然口语简短回应，避免长篇列表与复杂 Markdown。"
+                + "用户打断时立即停下并倾听。默认使用用户正在说的语言回复。";
+    }
+
+    private String voiceCallKey(String callId) {
+        return "linkmate:voice_call:" + callId;
+    }
+
+    private String voiceCallUserKey(Long userId) {
+        return "linkmate:voice_call:user:" + userId;
+    }
+
+    private static int parseIntSafe(String raw, int fallback) {
+        try {
+            return Integer.parseInt(raw);
+        } catch (Exception e) {
+            return fallback;
+        }
+    }
+
+    private static long parseLongSafe(String raw, long fallback) {
+        try {
+            return Long.parseLong(raw);
+        } catch (Exception e) {
+            return fallback;
         }
     }
 

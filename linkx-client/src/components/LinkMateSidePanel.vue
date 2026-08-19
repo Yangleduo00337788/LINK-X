@@ -7,6 +7,7 @@ import { computed, h, nextTick, onMounted, onUnmounted, reactive, ref, shallowRe
 import { NInput, NIcon, NDropdown, useMessage, useDialog, type DropdownOption } from 'naive-ui'
 import {
   BulbOutline,
+  CallOutline,
   ChevronDownOutline,
   TrashOutline,
   RefreshOutline,
@@ -18,6 +19,7 @@ import {
 } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useLinkMateStore } from '../stores/linkmate'
+import { useCallStore } from '../stores/call'
 import { useExtensionDockStore } from '../stores/extensionDock'
 import type { LinkMateMessage } from '../api/linkmate'
 import { useI18n } from '../i18n'
@@ -50,6 +52,7 @@ const { t } = useI18n()
 const message = useMessage()
 const dialog = useDialog()
 const linkMate = useLinkMateStore()
+const callStore = useCallStore()
 const extensionDock = useExtensionDockStore()
 const { panelWidth } = storeToRefs(extensionDock)
 const {
@@ -65,6 +68,7 @@ const {
   openTabs,
   deepThinking,
   deepThinkingSupported,
+  voiceCallSupported,
   showHistory,
   attachedImContext,
   dailyQuotaExhausted,
@@ -503,6 +507,30 @@ function handleDeepThinkingClick() {
   toggleDeepThinking()
 }
 
+async function handleVoiceCallClick() {
+  if (!enabled.value) {
+    message.warning(t('linkmate.serviceDisabled'))
+    return
+  }
+  if (dailyQuotaExhausted.value) {
+    message.warning(t('linkmate.dailyQuotaExhausted'))
+    return
+  }
+  if (!voiceCallSupported.value) {
+    message.warning(t('linkmate.voiceCallUnsupported'))
+    return
+  }
+  if (callStore.isActive) {
+    message.warning(t('errors.callInProgress'))
+    return
+  }
+  try {
+    await callStore.startLinkMateVoiceCall()
+  } catch (err) {
+    message.error(err instanceof Error ? err.message : t('linkmate.voiceCallFail'))
+  }
+}
+
 async function handleSend() {
   const text = inputDraft.value.trim()
   if (!text || streaming.value) return
@@ -899,6 +927,21 @@ onUnmounted(() => {
             >
               <NIcon :component="BulbOutline" :size="14" />
               <span>{{ t('linkmate.deepThinking') }}</span>
+            </button>
+            <button
+              type="button"
+              class="linkmate-deep-btn"
+              :class="{ disabled: !canChat || !voiceCallSupported || callStore.isActive }"
+              :title="
+                voiceCallSupported
+                  ? t('linkmate.voiceCall')
+                  : t('linkmate.voiceCallUnsupported')
+              "
+              :disabled="!canChat || callStore.isActive"
+              @click="handleVoiceCallClick"
+            >
+              <NIcon :component="CallOutline" :size="14" />
+              <span>{{ t('linkmate.voiceCall') }}</span>
             </button>
           </div>
           <div class="linkmate-side-input-row">
@@ -1641,6 +1684,9 @@ onUnmounted(() => {
 
 .linkmate-footer-tools {
   margin-bottom: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .linkmate-deep-btn {

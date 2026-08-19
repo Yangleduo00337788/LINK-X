@@ -136,6 +136,9 @@ export const useLinkMateStore = defineStore('linkmate', {
     deepThinkingSupported(state): boolean {
       return state.status?.deepThinkingSupported ?? false
     },
+    voiceCallSupported(state): boolean {
+      return state.status?.voiceCallSupported === true
+    },
     attachedImContext(state): LinkMateImContext | null {
       return state.imContextSnapshot
     },
@@ -421,7 +424,14 @@ export const useLinkMateStore = defineStore('linkmate', {
           this.status = res.data
         }
       } catch {
-        this.status = { enabled: false, model: '', dailyTokenLimit: 0, dailyTokenUsed: 0, deepThinkingSupported: false }
+        this.status = {
+          enabled: false,
+          model: '',
+          dailyTokenLimit: 0,
+          dailyTokenUsed: 0,
+          deepThinkingSupported: false,
+          voiceCallSupported: false
+        }
       }
     },
 
