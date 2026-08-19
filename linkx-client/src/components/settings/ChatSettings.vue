@@ -1,17 +1,25 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useMessage } from 'naive-ui'
+import { useMessage, NSelect } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import { useAppSettingsStore } from '../../stores/appSettings'
+import { useMessageTranslationStore } from '../../stores/messageTranslation'
 import type { ChatBackgroundId } from '../../types'
 import { useI18n } from '../../i18n'
 import { lxChatWallpaperBg } from '../../theme/vars'
+import {
+  TRANSLATE_TARGET_PREFS,
+  normalizeTranslateTargetPref,
+  translateTargetPrefLabel,
+  type TranslateTargetPref
+} from '../../utils/translateLang'
 import { LxGroupCard } from '../ui'
 
 const message = useMessage()
 const appSettingsStore = useAppSettingsStore()
-const { chatBackground } = storeToRefs(appSettingsStore)
+const translationStore = useMessageTranslationStore()
+const { chatBackground, translateTargetLang } = storeToRefs(appSettingsStore)
 const { setChatBackground, scheduleSave } = appSettingsStore
 const { t } = useI18n()
 
@@ -38,6 +46,20 @@ function pickChatBackground(id: ChatBackgroundId) {
   scheduleSave('chatBackground')
   message.success(t('chat.updated'))
 }
+
+const translateTargetOptions = computed(() =>
+  TRANSLATE_TARGET_PREFS.map(value => ({
+    label: translateTargetPrefLabel(value, t),
+    value
+  }))
+)
+
+function onTranslateTargetChange(value: string) {
+  translateTargetLang.value = normalizeTranslateTargetPref(value) as TranslateTargetPref
+  scheduleSave('translateTargetLang')
+  translationStore.clearAll()
+  message.success(t('chatSettings.translateTargetUpdated'))
+}
 </script>
 
 <template>
@@ -62,11 +84,29 @@ function pickChatBackground(id: ChatBackgroundId) {
         </button>
       </div>
     </LxGroupCard>
+
+    <LxGroupCard tag="section" variant="settings">
+      <div class="group-head"><span>{{ t('chatSettings.translateTargetLang') }}</span></div>
+      <p class="group-tip">{{ t('chatSettings.translateTargetLangDesc') }}</p>
+      <div class="setting-row translate-row">
+        <n-select
+          :value="translateTargetLang"
+          :options="translateTargetOptions"
+          size="small"
+          style="width: 220px"
+          @update:value="onTranslateTargetChange"
+        />
+      </div>
+    </LxGroupCard>
   </div>
 </template>
 
 <style scoped>
 @import './settings-common.css';
+
+.translate-row {
+  padding: 0 var(--lx-space-2xl) var(--lx-space-2xl);
+}
 
 .bg-grid {
   display: grid;

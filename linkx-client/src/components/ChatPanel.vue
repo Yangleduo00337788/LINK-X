@@ -48,6 +48,7 @@ import { saveSessionScrollTop } from '../services/chatMessageStore'
 import { useOverlayStore } from '../stores/overlay'
 // 聊天弹窗 Store
 import { useChatModalsStore } from '../stores/chatModals'
+import { useMessageTranslationStore } from '../stores/messageTranslation'
 // 应用设置 Store
 import { useAppSettingsStore } from '../stores/appSettings'
 // 联系人 Store
@@ -178,6 +179,7 @@ const appStore = useAppStore()
 const overlayStore = useOverlayStore()
 // 获取聊天弹窗 Store 实例
 const chatModalsStore = useChatModalsStore()
+const translationStore = useMessageTranslationStore()
 // 获取应用设置 Store 实例
 const appSettingsStore = useAppSettingsStore()
 // 获取联系人 Store 实例
@@ -1219,6 +1221,12 @@ const ctxShow = ref(false) // 是否显示菜单
 const ctxX = ref(0) // 菜单 X 坐标
 const ctxY = ref(0) // 菜单 Y 坐标
 
+function canTranslateMessage(msg: ChatMessage) {
+  if (msg.type !== 'text' && msg.type !== 'link') return false
+  if (msg.sendStatus === 'failed') return false
+  return !!(msg.content || '').trim()
+}
+
 // 根据消息类型与是否自己发送动态生成右键菜单选项
 const ctxOptions = computed<DropdownOption[]>(() => {
   const msg = ctxMsg.value
@@ -1235,6 +1243,13 @@ const ctxOptions = computed<DropdownOption[]>(() => {
   ]
   if (msg.type !== 'conference' && msg.type !== 'redPacket') {
     opts.push({ label: t('chat.replyAction'), key: 'reply' })
+  }
+  if (canTranslateMessage(msg)) {
+    const entry = translationStore.getEntry(msg.id)
+    opts.push({
+      label: entry?.visible && entry.text ? t('chat.hideTranslation') : t('chat.translate'),
+      key: 'translate'
+    })
   }
   if (canSetEssence(msg)) {
     opts.push({ label: t('chat.setAsEssence'), key: 'essence' })
@@ -1299,6 +1314,7 @@ function onCtxSelect(key: string) {
   if (key === 'copy') copyMessage(msg)
   else if (key === 'fav') favoriteMessage(msg)
   else if (key === 'reply') replyMessage(msg)
+  else if (key === 'translate') void translateMessage(msg)
   else if (key === 'essence') void setMessageAsEssence(msg)
   else if (key === 'recall') recallMessage(msg)
   else if (key === 'edit') openEditMessage(msg)
@@ -1311,6 +1327,16 @@ function onCtxSelect(key: string) {
 function replyMessage(msg: ChatMessage) {
   replyingTo.value = msg
   document.querySelector<HTMLTextAreaElement>('.message-input textarea')?.focus()
+}
+
+async function translateMessage(msg: ChatMessage) {
+  if (!canTranslateMessage(msg)) return
+  const entry = translationStore.getEntry(msg.id)
+  if (entry?.visible && entry.text) {
+    translationStore.hide(msg.id)
+    return
+  }
+  await translationStore.translateMessage(msg.id, msg.content || '')
 }
 
 /** 将消息设为群精华 */
@@ -1646,7 +1672,7 @@ function onDrop(e: DragEvent) {
                 >
                   <template #default="{ msg }">
                       <div
-                      v-memo="[msg.id, msg.content, msg.reasoningContent, msg.streaming, msg.type, msg.sendStatus, msg.uploadProgress, msg.fileStatus, msg.edited, msg.readCount, msg.totalMembers, playingVoiceId === msg.id, msg.senderAvatar, msg.isSelf, highlightAtMeId === msg.id, latestSelfMessageId]"
+                      v-memo="[msg.id, msg.content, msg.reasoningContent, msg.streaming, msg.type, msg.sendStatus, msg.uploadProgress, msg.fileStatus, msg.edited, msg.readCount, msg.totalMembers, playingVoiceId === msg.id, msg.senderAvatar, msg.isSelf, highlightAtMeId === msg.id, latestSelfMessageId, translationStore.byMessageId[msg.id]?.text, translationStore.byMessageId[msg.id]?.loading, translationStore.byMessageId[msg.id]?.visible, translationStore.byMessageId[msg.id]?.error]"
                     >
                       <ChatMessageItem
                         :msg="msg"

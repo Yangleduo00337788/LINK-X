@@ -6,10 +6,12 @@ package com.linkx.server.service;
  */
 import com.linkx.server.controller.dto.LinkMateChatDTO;
 import com.linkx.server.controller.dto.LinkMateGroupReplyDTO;
+import com.linkx.server.controller.dto.LinkMateTranslateDTO;
 import com.linkx.server.controller.vo.LinkMateMessageVO;
 import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.controller.vo.LinkMateSessionVO;
 import com.linkx.server.controller.vo.LinkMateStatusVO;
+import com.linkx.server.controller.vo.LinkMateTranslateVO;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
@@ -41,4 +43,9 @@ public interface LinkMateService {
      * 群聊/单聊 @灵伴：SSE 流式回复，完成后落入 IM 消息时间线。
      */
     SseEmitter streamReplyInImChat(Long userId, LinkMateGroupReplyDTO dto);
+
+    /**
+     * AI 翻译（复用灵伴 LLM 配置与每日额度）。
+     */
+    LinkMateTranslateVO translate(Long userId, LinkMateTranslateDTO dto);
 }

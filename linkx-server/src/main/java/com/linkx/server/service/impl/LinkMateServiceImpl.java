@@ -9,9 +9,11 @@ import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.controller.dto.LinkMateChatDTO;
 import com.linkx.server.controller.dto.LinkMateGroupReplyDTO;
 import com.linkx.server.controller.dto.LinkMateImContextDTO;
+import com.linkx.server.controller.dto.LinkMateTranslateDTO;
 import com.linkx.server.controller.vo.LinkMateMessageVO;
 import com.linkx.server.controller.vo.LinkMateSessionVO;
 import com.linkx.server.controller.vo.LinkMateStatusVO;
+import com.linkx.server.controller.vo.LinkMateTranslateVO;
 import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.entity.AiChatMessage;
 import com.linkx.server.entity.AiChatSession;
@@ -538,6 +540,57 @@ public class LinkMateServiceImpl implements LinkMateService {
         });
 
         return emitter;
+    }
+
+    @Override
+    public LinkMateTranslateVO translate(Long userId, LinkMateTranslateDTO dto) {
+        LinkxProperties.LinkMate cfg = linkxProperties.getLinkmate();
+        if (!cfg.isEnabled() || !StringUtils.hasText(cfg.getApiKey())) {
+            throw new CustomException(503, "灵伴服务未启用");
+        }
+        String sourceText = trimMessage(dto.getText());
+        if (!StringUtils.hasText(sourceText)) {
+            throw new CustomException(400, "待翻译内容不能为空");
+        }
+        String targetLang = resolveTranslateTargetLang(dto.getTargetLang());
+        List<LlmMessage> messages = List.of(
+                new LlmMessage("system", LinkMatePromptTemplate.TRANSLATE_SYSTEM.getTemplate()),
+                new LlmMessage("user", LinkMatePromptTemplate.TRANSLATE_USER.format(Map.of(
+                        "targetLang", targetLang,
+                        "text", sourceText
+                )))
+        );
+        int estimatedTokens = estimatePromptTokens(messages);
+        int reservedTokens = reserveDailyTokens(userId, estimatedTokens);
+        try {
+            LlmResult result = llmClient.chat(messages, false);
+            finalizeDailyTokens(userId, reservedTokens, result.totalTokens());
+            String translated = trimMessage(result.content());
+            if (!StringUtils.hasText(translated)) {
+                throw new CustomException(502, "翻译结果为空，请重试");
+            }
+            return LinkMateTranslateVO.builder()
+                    .translatedText(translated)
+                    .targetLang(targetLang)
+                    .build();
+        } catch (RuntimeException ex) {
+            releaseDailyTokens(userId, reservedTokens);
+            throw ex;
+        }
+    }
+
+    private String resolveTranslateTargetLang(String targetLang) {
+        if (!StringUtils.hasText(targetLang)) {
+            return "English";
+        }
+        String normalized = targetLang.trim().toLowerCase();
+        return switch (normalized) {
+            case "zh", "zh-cn", "zh_cn", "chinese" -> "简体中文";
+            case "en", "en-us", "en_us", "english" -> "English";
+            case "ja", "japanese" -> "日本語";
+            case "ko", "korean" -> "한국어";
+            default -> targetLang.trim();
+        };
     }
 
     private ImConversation requireImMentionConversation(Long userId, Long conversationId) {

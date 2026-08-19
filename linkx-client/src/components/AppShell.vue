@@ -214,10 +214,10 @@ const showListResizer = computed(
     !showFavoritesMain.value &&
     !showBalanceMain.value
 )
+/** 日历/文件/收藏/余额为主区全宽；设置页仍保留中间分类导航 */
 const showMiddleList = computed(
   () =>
     !showCalendarMain.value &&
-    !showSettingsMain.value &&
     !showFilesMain.value &&
     !showFavoritesMain.value &&
     !showBalanceMain.value

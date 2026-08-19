@@ -35,6 +35,7 @@ public class UserPreferenceVO implements Serializable {
     private Boolean privacySendReadReceipt;
 
     private String language;
+    private String translateTargetLang;
     private String chatBackground;
     private String notifyTone;
     private String momentsBackground;

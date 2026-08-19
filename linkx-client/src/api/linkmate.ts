@@ -73,6 +73,18 @@ export function getStatus() {
   return apiClient.get<unknown, ApiResult<LinkMateStatus>>('/linkmate/status')
 }
 
+export interface LinkMateTranslateResult {
+  translatedText: string
+  targetLang: string
+}
+
+export function translateText(text: string, targetLang?: string) {
+  return apiClient.post<unknown, ApiResult<LinkMateTranslateResult>>('/linkmate/translate', {
+    text,
+    targetLang
+  })
+}
+
 /** 群聊/单聊 @灵伴：SSE 流式回复 */
 export async function streamImReply(
   conversationId: string,

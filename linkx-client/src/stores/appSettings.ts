@@ -22,6 +22,7 @@ import type { ChatBackgroundId } from '../types'
 import * as preferenceApi from '../api/preference'
 import { onPreferenceChange } from '../utils/preferenceEvents'
 import { setLocale, t } from '../i18n'
+import { normalizeTranslateTargetPref, type TranslateTargetPref } from '../utils/translateLang'
 
 // 服务端偏好字段 → 本地 state 字段 一一对应
 type SyncableKey =
@@ -35,6 +36,7 @@ type SyncableKey =
   | 'privacyShowOnline'
   | 'privacySendReadReceipt'
   | 'language'
+  | 'translateTargetLang'
   | 'chatBackground'
   | 'notifyTone'
   | 'favoritesViewMode'
@@ -59,6 +61,7 @@ const SYNCABLE_KEYS: SyncableKey[] = [
   'privacyShowOnline',
   'privacySendReadReceipt',
   'language',
+  'translateTargetLang',
   'chatBackground',
   'notifyTone',
   'favoritesViewMode',
@@ -92,6 +95,7 @@ function defaultState() {
     privacyShowOnline: true,
     privacySendReadReceipt: true,
     language: 'zh-CN' as string,
+    translateTargetLang: 'auto' as TranslateTargetPref,
     chatBackground: 'default' as ChatBackgroundId,
     notifyTone: 'default' as NotifyToneId,
     momentsBackground: '' as string,
@@ -221,6 +225,9 @@ export const useAppSettingsStore = defineStore('appSettings', {
         this.privacySendReadReceipt = data.privacySendReadReceipt
       }
       if (typeof data.language === 'string' && data.language) this.language = data.language
+      if (typeof data.translateTargetLang === 'string' && data.translateTargetLang) {
+        this.translateTargetLang = normalizeTranslateTargetPref(data.translateTargetLang)
+      }
       if (typeof data.chatBackground === 'string' && data.chatBackground) this.chatBackground = data.chatBackground as ChatBackgroundId
       if (typeof (data as { notifyTone?: unknown }).notifyTone === 'string') {
         const tone = (data as { notifyTone: string }).notifyTone
@@ -289,6 +296,7 @@ export const useAppSettingsStore = defineStore('appSettings', {
       'privacyShowOnline',
       'privacySendReadReceipt',
       'language',
+      'translateTargetLang',
       'chatBackground',
       'notifyTone',
       'momentsBackground',

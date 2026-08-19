@@ -28,6 +28,11 @@ public class UserPreferenceDTO {
 
     @Size(max = 16, message = "语言代码最长16字符")
     private String language;
+
+    @Pattern(regexp = "^(auto|zh|en|ja|ko)$", message = "翻译目标语言仅支持 auto/zh/en/ja/ko")
+    @Size(max = 16, message = "翻译目标语言最长16字符")
+    private String translateTargetLang;
+
     @Size(max = 512, message = "聊天背景最长512字符")
     private String chatBackground;
     @Size(max = 128, message = "通知铃声最长128字符")

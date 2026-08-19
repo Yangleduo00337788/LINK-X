@@ -19,6 +19,7 @@ export interface UserPreference {
   privacyShowOnline: boolean
   privacySendReadReceipt: boolean
   language: string
+  translateTargetLang?: string
   chatBackground: string
   notifyTone: string
   /** 友链背景图签名 URL */

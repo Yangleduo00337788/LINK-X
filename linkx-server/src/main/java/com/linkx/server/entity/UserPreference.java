@@ -61,6 +61,9 @@ public class UserPreference implements Serializable {
     /** 界面语言 */
     private String language;
 
+    /** AI 翻译目标语言：auto / zh / en / ja / ko */
+    private String translateTargetLang;
+
     /** 聊天背景主题 */
     private String chatBackground;
 

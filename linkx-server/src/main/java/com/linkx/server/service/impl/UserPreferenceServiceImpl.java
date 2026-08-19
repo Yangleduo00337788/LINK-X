@@ -130,6 +130,7 @@ public class UserPreferenceServiceImpl
         if (patch.getPrivacyShowOnline() != null) target.setPrivacyShowOnline(patch.getPrivacyShowOnline());
         if (patch.getPrivacySendReadReceipt() != null) target.setPrivacySendReadReceipt(patch.getPrivacySendReadReceipt());
         if (patch.getLanguage() != null) target.setLanguage(patch.getLanguage());
+        if (patch.getTranslateTargetLang() != null) target.setTranslateTargetLang(patch.getTranslateTargetLang());
         if (patch.getChatBackground() != null) target.setChatBackground(patch.getChatBackground());
         if (patch.getNotifyTone() != null) target.setNotifyTone(patch.getNotifyTone());
         if (patch.getMomentsBackground() != null) target.setMomentsBackground(patch.getMomentsBackground());
@@ -159,6 +160,7 @@ public class UserPreferenceServiceImpl
                 .privacyShowOnline(true)
                 .privacySendReadReceipt(true)
                 .language("zh-CN")
+                .translateTargetLang("auto")
                 .chatBackground("default")
                 .notifyTone("default")
                 .favoritesViewMode("grid")

@@ -61,6 +61,19 @@ public enum LinkMatePromptTemplate {
     /** 群聊智能总结 user */
     GROUP_AI_SUMMARY_USER(
             "待总结消息：\n{messages}"
+    ),
+
+    /** AI 翻译 system */
+    TRANSLATE_SYSTEM(
+            "你是专业翻译引擎。将用户给出的文本翻译成指定的目标语言。"
+                    + "只输出译文，不要解释、不要加引号或前后缀。"
+                    + "保留原文中的 @提及、链接、表情符号与换行结构。"
+                    + "若原文已是目标语言，原样输出。"
+    ),
+
+    /** AI 翻译 user */
+    TRANSLATE_USER(
+            "目标语言：{targetLang}\n\n原文：\n{text}"
     );
 
     private final String template;

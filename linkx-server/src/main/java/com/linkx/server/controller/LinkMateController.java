@@ -11,9 +11,11 @@ import com.linkx.server.common.Result;
 import com.linkx.server.controller.dto.LinkMateChatDTO;
 import com.linkx.server.controller.dto.LinkMateGroupReplyDTO;
 import com.linkx.server.controller.dto.LinkMateSessionRenameDTO;
+import com.linkx.server.controller.dto.LinkMateTranslateDTO;
 import com.linkx.server.controller.vo.LinkMateMessageVO;
 import com.linkx.server.controller.vo.LinkMateSessionVO;
 import com.linkx.server.controller.vo.LinkMateStatusVO;
+import com.linkx.server.controller.vo.LinkMateTranslateVO;
 import com.linkx.server.controller.vo.MessageVO;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.im.ImMessagePushService;
@@ -146,6 +148,16 @@ public class LinkMateController {
         response.setHeader("Connection", "keep-alive");
         Long userId = AuthUtils.requireUserId(request, jwtUtils);
         return linkMateService.streamReplyInImChat(userId, dto);
+    }
+
+    @Operation(summary = "AI 翻译")
+    @PostMapping("/translate")
+    @RateLimit(scope = "linkmate:translate", value = 60, window = 60)
+    public Result<LinkMateTranslateVO> translate(
+            @Valid @RequestBody LinkMateTranslateDTO dto,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(linkMateService.translate(userId, dto));
     }
 
     private Long parseId(String id) {

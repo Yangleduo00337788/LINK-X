@@ -16,9 +16,11 @@ import { useGroupMetaStore } from '../../../stores/groupMeta'
 import { splitMentionContent } from '../../../utils/messageNotify'
 import { chatMessagePreviewText } from '../../../utils/messagePreviewText'
 import { useI18n } from '../../../i18n'
+import { useMessageTranslationStore } from '../../../stores/messageTranslation'
 import QuoteReplyBar from '../QuoteReplyBar.vue'
 
 const { t } = useI18n()
+const translationStore = useMessageTranslationStore()
 
 const props = defineProps<{ msg: ChatMessage }>()
 
@@ -75,6 +77,14 @@ const replySenderName = computed(() => {
 })
 
 const hasReply = computed(() => !!props.msg.replyTo)
+
+const translationEntry = computed(() => translationStore.getEntry(props.msg.id))
+
+const showTranslation = computed(
+  () =>
+    !!translationEntry.value?.visible &&
+    (!!translationEntry.value.loading || !!translationEntry.value.text || !!translationEntry.value.error)
+)
 </script>
 
 <template>
@@ -100,6 +110,20 @@ const hasReply = computed(() => !!props.msg.replyTo)
       :sender-name="replySenderName"
       :content="replyPreviewText"
     />
+    <div
+      v-if="showTranslation"
+      class="lx-translation"
+      :class="{ 'lx-translation--self': msg.isSelf }"
+    >
+      <div class="lx-translation-label">{{ t('chat.translationLabel') }}</div>
+      <p v-if="translationEntry?.loading" class="lx-translation-text is-loading">
+        {{ t('chat.translating') }}
+      </p>
+      <p v-else-if="translationEntry?.error" class="lx-translation-text is-error">
+        {{ translationEntry.error }}
+      </p>
+      <p v-else class="lx-translation-text">{{ translationEntry?.text }}</p>
+    </div>
   </div>
 </template>
 
@@ -113,5 +137,40 @@ const hasReply = computed(() => !!props.msg.replyTo)
 
 .text-message-stack--self {
   align-items: flex-end;
+}
+
+.lx-translation {
+  max-width: 100%;
+  padding: var(--lx-space-sm) var(--lx-space);
+  border-radius: var(--lx-radius-md);
+  background: var(--lx-quote-bg);
+  border: 1px solid var(--lx-border-subtle);
+}
+
+.lx-translation--self {
+  align-self: flex-end;
+}
+
+.lx-translation-label {
+  margin-bottom: var(--lx-space-xs);
+  font-size: var(--lx-font-xs);
+  color: var(--lx-text-muted);
+}
+
+.lx-translation-text {
+  margin: 0;
+  font-size: var(--lx-font-sm);
+  line-height: var(--lx-leading-relaxed);
+  color: var(--lx-text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.lx-translation-text.is-loading {
+  color: var(--lx-text-muted);
+}
+
+.lx-translation-text.is-error {
+  color: var(--lx-danger);
 }
 </style>
