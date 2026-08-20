@@ -22,6 +22,10 @@ import {
   connectLinkMateRealtime,
   type LinkMateRealtimeBridgeHandle
 } from '../utils/linkmateRealtimeBridge'
+import {
+  connectLinkMateRealtimeWs,
+  type LinkMateVoiceActivity
+} from '../utils/linkmateRealtimeWsBridge'
 import { getLinkMateLogoUrl } from '../utils/linkmateLogo'
 import { t } from '../i18n'
 
@@ -108,7 +112,9 @@ export const useCallStore = defineStore('call', {
     errorMessage: '' as string,
     connectedAt: 0,
     localStream: null as MediaStream | null,
-    remoteStream: null as MediaStream | null
+    remoteStream: null as MediaStream | null,
+    /** 灵伴语音通话活动状态（仅 peerKind=linkmate） */
+    linkmateActivity: '' as LinkMateVoiceActivity | ''
   }),
 
   getters: {
@@ -197,7 +203,7 @@ export const useCallStore = defineStore('call', {
         throw new Error(res.message || t('linkmate.voiceCallFail'))
       }
       const provider = res.data.provider
-      if (provider !== 'dashscope' && !res.data.ephemeralKey) {
+      if (provider !== 'dashscope' && provider !== 'dashscope-ws' && !res.data.ephemeralKey) {
         throw new Error(res.message || t('linkmate.voiceCallFail'))
       }
 
@@ -215,6 +221,7 @@ export const useCallStore = defineStore('call', {
       this.micOn = true
       this.cameraOn = false
       this.connectedAt = 0
+      this.linkmateActivity = ''
       startCallRing()
 
       try {
@@ -238,13 +245,9 @@ export const useCallStore = defineStore('call', {
           throw new Error(t('errors.mediaOpenFail'))
         }
 
-        const bridge = await connectLinkMateRealtime({
-          ephemeralKey: res.data.ephemeralKey,
-          realtimeCallsUrl: res.data.realtimeCallsUrl,
-          provider: provider === 'dashscope' ? 'dashscope' : 'openai',
-          voice: res.data.voice,
+        const connectOpts = {
           localStream: local,
-          onRemoteStream: stream => {
+          onRemoteStream: (stream: MediaStream) => {
             if (token !== linkMateConnectToken) return
             this.remoteStream = markRaw(stream)
             this.phase = 'connected'
@@ -255,7 +258,7 @@ export const useCallStore = defineStore('call', {
             this.phase = 'connected'
             if (!this.connectedAt) this.connectedAt = Date.now()
           },
-          onError: message => {
+          onError: (message: string) => {
             if (token !== linkMateConnectToken) return
             this.errorMessage = message || t('linkmate.voiceCallFail')
           },
@@ -265,7 +268,25 @@ export const useCallStore = defineStore('call', {
               void this.hangup()
             }
           }
-        })
+        }
+
+        const bridge =
+          provider === 'dashscope-ws'
+            ? await connectLinkMateRealtimeWs({
+                callId: res.data.callId,
+                ...connectOpts,
+                onActivityChange: activity => {
+                  if (token !== linkMateConnectToken) return
+                  this.linkmateActivity = activity
+                }
+              })
+            : await connectLinkMateRealtime({
+                ephemeralKey: res.data.ephemeralKey,
+                realtimeCallsUrl: res.data.realtimeCallsUrl,
+                provider: provider === 'dashscope' ? 'dashscope' : 'openai',
+                voice: res.data.voice,
+                ...connectOpts
+              })
         if (token !== linkMateConnectToken) {
           bridge.stop()
           return
@@ -847,6 +868,7 @@ export const useCallStore = defineStore('call', {
       this.conversationId = null
       this.peerKind = 'human'
       this.connectedAt = 0
+      this.linkmateActivity = ''
     },
 
     clearError() {

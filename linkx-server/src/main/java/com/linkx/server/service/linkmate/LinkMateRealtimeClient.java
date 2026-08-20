@@ -40,7 +40,10 @@ public class LinkMateRealtimeClient {
 
     public enum RealtimeProvider {
         OPENAI,
+        /** 百炼 Omni 等 WebRTC SDP 交换 */
         DASHSCOPE,
+        /** 百炼 qwen-audio 等 WebSocket 实时对话 */
+        DASHSCOPE_WS,
         UNSUPPORTED
     }
 
@@ -186,15 +189,41 @@ public class LinkMateRealtimeClient {
         }
     }
 
+    public ClientSecretResult createDashScopeWsSession(String callId) {
+        if (!StringUtils.hasText(callId)) {
+            throw new CustomException(400, "callId 不能为空");
+        }
+        LinkxProperties.LinkMate cfg = requireConfig();
+        if (detectProvider(cfg) != RealtimeProvider.DASHSCOPE) {
+            throw new CustomException(503, "当前 Realtime 配置不是百炼 DashScope");
+        }
+        String model = resolveDashScopeModel(cfg);
+        validateDashScopeRealtimeModel(model);
+        if (!usesWebSocketBridge(model)) {
+            throw new CustomException(400, "当前模型应使用 WebRTC 接入，请使用 qwen3.5-omni-* 系列");
+        }
+        String voice = resolveDashScopeVoice(cfg);
+        String streamPath = "im";
+        return new ClientSecretResult(
+                "",
+                streamPath,
+                model,
+                voice,
+                0L,
+                RealtimeProvider.DASHSCOPE_WS
+        );
+    }
+
     public ClientSecretResult createDashScopeProxySession(String callId) {
         LinkxProperties.LinkMate cfg = requireConfig();
         if (detectProvider(cfg) != RealtimeProvider.DASHSCOPE) {
             throw new CustomException(503, "当前 Realtime 配置不是百炼 DashScope");
         }
-        String model = StringUtils.hasText(cfg.getRealtimeModel())
-                ? cfg.getRealtimeModel().trim()
-                : "qwen-audio-3.0-realtime-flash";
-        String voice = resolveVoice(cfg);
+        String model = resolveDashScopeModel(cfg);
+        if (usesWebSocketBridge(model)) {
+            throw new CustomException(400, "qwen-audio 模型请使用 WebSocket 接入，无需 WebRTC SDP");
+        }
+        String voice = resolveDashScopeVoice(cfg);
         String proxyPath = "/linkmate/voice-call/webrtc?callId=" + URLEncoder.encode(callId, StandardCharsets.UTF_8);
         return new ClientSecretResult(
                 "",
@@ -261,6 +290,10 @@ public class LinkMateRealtimeClient {
         return cfg;
     }
 
+    public LinkxProperties.LinkMate requireConfigPublic() {
+        return requireConfig();
+    }
+
     private String resolveRealtimeApiKey(LinkxProperties.LinkMate cfg) {
         if (StringUtils.hasText(cfg.getRealtimeApiKey())) {
             return cfg.getRealtimeApiKey().trim();
@@ -298,6 +331,61 @@ public class LinkMateRealtimeClient {
         return trimmed;
     }
 
+    public String buildDashScopeWebSocketUrl(LinkxProperties.LinkMate cfg) {
+        String model = resolveDashScopeModel(cfg);
+        String configuredBase = StringUtils.hasText(cfg.getRealtimeBaseUrl())
+                ? cfg.getRealtimeBaseUrl().trim()
+                : "";
+        if (configuredBase.endsWith("/")) {
+            configuredBase = configuredBase.substring(0, configuredBase.length() - 1);
+        }
+        String lower = configuredBase.toLowerCase();
+        if (lower.contains("maas.aliyuncs.com") && hasWorkspaceSubdomain(lower)) {
+            String host = extractMaasHost(configuredBase);
+            if (StringUtils.hasText(host)) {
+                return "wss://" + host + "/api-ws/v1/realtime?model="
+                        + URLEncoder.encode(model, StandardCharsets.UTF_8);
+            }
+        }
+        if (lower.contains("dashscope-intl")) {
+            return "wss://dashscope-intl.aliyuncs.com/api-ws/v1/realtime?model="
+                    + URLEncoder.encode(model, StandardCharsets.UTF_8);
+        }
+        return "wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model="
+                + URLEncoder.encode(model, StandardCharsets.UTF_8);
+    }
+
+    public String buildSessionUpdateJson(String voice, String instructions) {
+        ObjectNode root = objectMapper.createObjectNode();
+        root.put("type", "session.update");
+        ObjectNode session = root.putObject("session");
+        session.putArray("modalities").add("text").add("audio");
+        session.put("voice", StringUtils.hasText(voice) ? voice : "longanqian");
+        session.put("input_audio_format", "pcm");
+        session.put("output_audio_format", "pcm");
+        if (StringUtils.hasText(instructions)) {
+            session.put("instructions", instructions.trim());
+        }
+        ObjectNode turn = session.putObject("turn_detection");
+        turn.put("type", "server_vad");
+        turn.put("threshold", 0.5);
+        turn.put("prefix_padding_ms", 500);
+        turn.put("silence_duration_ms", 800);
+        try {
+            return objectMapper.writeValueAsString(root);
+        } catch (Exception e) {
+            throw new CustomException(500, "构建 session.update 失败");
+        }
+    }
+
+    public String resolveDashScopeApiKey() {
+        return resolveRealtimeApiKey(requireConfig());
+    }
+
+    public String resolveDashScopeWorkspaceId() {
+        return extractWorkspaceId(resolveRealtimeBaseUrl(requireConfig()));
+    }
+
     private String buildDashScopeWebrtcUrl(LinkxProperties.LinkMate cfg) {
         String model = resolveDashScopeModel(cfg);
         validateDashScopeRealtimeModel(model);
@@ -318,14 +406,7 @@ public class LinkMateRealtimeClient {
                     .toUriString();
         }
 
-        // qwen-audio / livetranslate：WebRTC 信令走 dashscope 中心域名（Workspace 域名主要用于 WebSocket）
-        if (usesCentralDashScopeSignaling(model)) {
-            String host = lower.contains("dashscope-intl")
-                    ? "https://dashscope-intl.aliyuncs.com"
-                    : "https://dashscope.aliyuncs.com";
-            return host + "/api/v1/webrtc/realtime?model=" + URLEncoder.encode(model, StandardCharsets.UTF_8);
-        }
-
+        // Omni 等 WebRTC 模型：优先 Workspace 信令地址
         if (lower.contains("maas.aliyuncs.com") && hasWorkspaceSubdomain(lower)) {
             String base = configuredBase;
             if (!lower.endsWith("/api")) {
@@ -338,11 +419,9 @@ public class LinkMateRealtimeClient {
             return base + "/v1/webrtc/realtime?model=" + URLEncoder.encode(model, StandardCharsets.UTF_8);
         }
 
-        if (lower.contains("dashscope")) {
-            if (!lower.endsWith("/api")) {
-                configuredBase = configuredBase + "/api";
-            }
-            return configuredBase + "/v1/webrtc/realtime?model=" + URLEncoder.encode(model, StandardCharsets.UTF_8);
+        if (lower.contains("dashscope-intl")) {
+            return "https://dashscope-intl.aliyuncs.com/api/v1/webrtc/realtime?model="
+                    + URLEncoder.encode(model, StandardCharsets.UTF_8);
         }
 
         return "https://dashscope.aliyuncs.com/api/v1/webrtc/realtime?model="
@@ -363,9 +442,30 @@ public class LinkMateRealtimeClient {
         }
     }
 
-    private static boolean usesCentralDashScopeSignaling(String model) {
-        String lower = model.toLowerCase();
+    private static String resolveDashScopeVoice(LinkxProperties.LinkMate cfg) {
+        String voice = StringUtils.hasText(cfg.getRealtimeVoice()) ? cfg.getRealtimeVoice().trim() : "longanqian";
+        if ("marin".equalsIgnoreCase(voice) || "alloy".equalsIgnoreCase(voice)) {
+            return "longanqian";
+        }
+        return voice;
+    }
+
+    public static boolean usesWebSocketBridge(String model) {
+        if (!StringUtils.hasText(model)) {
+            return true;
+        }
+        String lower = model.trim().toLowerCase();
         return lower.startsWith("qwen-audio") || lower.contains("livetranslate");
+    }
+
+    private static String extractMaasHost(String baseUrl) {
+        try {
+            URI uri = URI.create(baseUrl);
+            String host = uri.getHost();
+            return StringUtils.hasText(host) ? host : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private static boolean hasWorkspaceSubdomain(String lowerUrl) {

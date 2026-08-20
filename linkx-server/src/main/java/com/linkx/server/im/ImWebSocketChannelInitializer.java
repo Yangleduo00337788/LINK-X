@@ -10,6 +10,7 @@ import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.service.DeviceSessionService;
 import com.linkx.server.service.PresenceService;
 import com.linkx.server.service.TokenService;
+import com.linkx.server.service.linkmate.LinkMateDashScopeWsBridge;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.socket.SocketChannel;
@@ -30,6 +31,7 @@ public class ImWebSocketChannelInitializer extends ChannelInitializer<SocketChan
     private final ObjectMapper objectMapper;
     private final DeviceSessionService deviceSessionService;
     private final PresenceService presenceService;
+    private final LinkMateDashScopeWsBridge linkMateDashScopeWsBridge;
 
     @Override
     protected void initChannel(SocketChannel ch) {
@@ -45,8 +47,10 @@ public class ImWebSocketChannelInitializer extends ChannelInitializer<SocketChan
                 jwtUtils, tokenService, channelManager, linkxProperties,
                 deviceSessionService, presenceService));
         // 接受命名子协议；浏览器可不带该头（仅 query 鉴权）。checkStartsWith 兼容 /ws?token=...
+        // 灵伴语音 PCM base64 帧可能较大，放宽到 256KB
         pipeline.addLast(new WebSocketServerProtocolHandler(
-                wsPath, "linkx-access-token", true, 65536, false, true));
-        pipeline.addLast(new ImWebSocketMessageHandler(pushService, objectMapper, presenceService));
+                wsPath, "linkx-access-token", true, 262144, false, true));
+        pipeline.addLast(new ImWebSocketMessageHandler(
+                pushService, objectMapper, presenceService, linkMateDashScopeWsBridge));
     }
 }

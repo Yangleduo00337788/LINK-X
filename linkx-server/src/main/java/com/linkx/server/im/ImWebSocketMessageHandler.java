@@ -7,12 +7,14 @@ package com.linkx.server.im;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.service.PresenceService;
+import com.linkx.server.service.linkmate.LinkMateDashScopeWsBridge;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.StringUtils;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -21,6 +23,7 @@ public class ImWebSocketMessageHandler extends SimpleChannelInboundHandler<TextW
     private final ImMessagePushService pushService;
     private final ObjectMapper objectMapper;
     private final PresenceService presenceService;
+    private final LinkMateDashScopeWsBridge linkMateDashScopeWsBridge;
 
     @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
@@ -58,6 +61,9 @@ public class ImWebSocketMessageHandler extends SimpleChannelInboundHandler<TextW
                 case "recall" -> pushService.handleRecall(userId, wsFrame);
                 case "edit" -> pushService.handleEdit(userId, wsFrame);
                 case "typing" -> pushService.handleTyping(userId, wsFrame);
+                case "linkmate_voice_open" -> handleLinkMateVoiceOpen(userId, wsFrame, ctx);
+                case "linkmate_voice_forward" -> handleLinkMateVoiceForward(wsFrame);
+                case "linkmate_voice_close" -> handleLinkMateVoiceClose(wsFrame);
                 default -> pushService.sendError(ctx.channel(), 400, "不支持的 action: " + wsFrame.getAction());
             }
         } catch (CustomException e) {
@@ -66,6 +72,55 @@ public class ImWebSocketMessageHandler extends SimpleChannelInboundHandler<TextW
             log.error("处理 WebSocket 消息失败", e);
             pushService.sendError(ctx.channel(), 500, "消息处理失败");
         }
+    }
+
+    private void handleLinkMateVoiceOpen(Long userId, ImWsFrame wsFrame, ChannelHandlerContext ctx) {
+        String callId = firstText(wsFrame.getContent(), wsFrame.getConversationId());
+        if (!StringUtils.hasText(callId) && wsFrame.getData() instanceof java.util.Map<?, ?> map) {
+            Object id = map.get("callId");
+            if (id != null) {
+                callId = String.valueOf(id);
+            }
+        }
+        linkMateDashScopeWsBridge.attachImClient(userId, callId, ctx.channel());
+        log.info("灵伴语音 IM 桥已打开: userId={}, callId={}", userId, callId);
+    }
+
+    private void handleLinkMateVoiceForward(ImWsFrame wsFrame) {
+        String callId = firstText(wsFrame.getConversationId(), null);
+        String payload = wsFrame.getContent();
+        if (!StringUtils.hasText(callId) && wsFrame.getData() instanceof java.util.Map<?, ?> map) {
+            Object id = map.get("callId");
+            if (id != null) {
+                callId = String.valueOf(id);
+            }
+            Object p = map.get("payload");
+            if (p != null) {
+                payload = String.valueOf(p);
+            }
+        }
+        linkMateDashScopeWsBridge.forwardFromClient(callId, payload);
+    }
+
+    private void handleLinkMateVoiceClose(ImWsFrame wsFrame) {
+        String callId = firstText(wsFrame.getContent(), wsFrame.getConversationId());
+        if (!StringUtils.hasText(callId) && wsFrame.getData() instanceof java.util.Map<?, ?> map) {
+            Object id = map.get("callId");
+            if (id != null) {
+                callId = String.valueOf(id);
+            }
+        }
+        linkMateDashScopeWsBridge.close(callId);
+    }
+
+    private static String firstText(String primary, String fallback) {
+        if (StringUtils.hasText(primary)) {
+            return primary.trim();
+        }
+        if (StringUtils.hasText(fallback)) {
+            return fallback.trim();
+        }
+        return null;
     }
 
     @Override

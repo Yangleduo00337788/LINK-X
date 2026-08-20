@@ -23,7 +23,8 @@ const {
   micOn,
   errorMessage,
   connectedAt,
-  remoteStream
+  remoteStream,
+  linkmateActivity
 } = storeToRefs(callStore)
 
 const seconds = ref(0)
@@ -42,6 +43,22 @@ const statusText = computed(() => {
     .padStart(2, '0')
   const s = (seconds.value % 60).toString().padStart(2, '0')
   return t('extra.inCallDuration', { time: `${m}:${s}` })
+})
+
+const linkmateStatusText = computed(() => {
+  if (peerKind.value !== 'linkmate') return ''
+  switch (linkmateActivity.value) {
+    case 'connecting':
+      return t('linkmate.voiceConnecting')
+    case 'thinking':
+      return t('linkmate.voiceThinking')
+    case 'speaking':
+      return t('linkmate.voiceSpeaking')
+    case 'listening':
+      return t('linkmate.voiceListening')
+    default:
+      return ''
+  }
 })
 
 function clearDuration() {
@@ -134,18 +151,26 @@ function avatarText(name: string) {
           />
           <p class="peer">{{ peerName || t('extra.friend') }}</p>
           <div class="state-badges">
+            <span v-if="linkmateStatusText" class="badge linkmate-activity">
+              {{ linkmateStatusText }}
+            </span>
             <span class="badge" :class="{ off: !micOn }">
               <n-icon :component="micOn ? Mic : MicOff" :size="14" />
               {{ micOn ? t('extra.micOnShort') : t('extra.micOffShort') }}
             </span>
           </div>
         </div>
-        <div class="call-controls">
+        <div class="call-controls" :class="{ 'two-btns': peerKind === 'linkmate' }">
           <button type="button" class="ctl" :class="{ off: !micOn }" @click="callStore.toggleMic()">
             <n-icon :component="micOn ? Mic : MicOff" :size="28" />
             <span>{{ micOn ? t('extra.muteMic') : t('extra.unmuteMic') }}</span>
           </button>
-          <button type="button" class="ctl" @click="switchToVideo">
+          <button
+            v-if="peerKind !== 'linkmate'"
+            type="button"
+            class="ctl"
+            @click="switchToVideo"
+          >
             <n-icon :component="Videocam" :size="28" />
             <span>{{ t('chat.videoCall') }}</span>
           </button>
@@ -227,12 +252,21 @@ function avatarText(name: string) {
   color: var(--lx-danger);
 }
 
+.badge.linkmate-activity {
+  background: rgba(64, 158, 255, 0.25);
+  color: #7ec8ff;
+}
+
 .call-controls {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   align-items: start;
   gap: var(--lx-space-lg);
   padding: 0 var(--lx-space-xs);
+}
+
+.call-controls.two-btns {
+  grid-template-columns: repeat(2, 1fr);
 }
 
 .ctl {

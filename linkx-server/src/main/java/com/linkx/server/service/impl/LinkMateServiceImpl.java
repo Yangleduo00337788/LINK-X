@@ -36,6 +36,7 @@ import com.linkx.server.service.linkmate.LinkMateConstants;
 import com.linkx.server.service.linkmate.LinkMateImReplyFormatter;
 import com.linkx.server.service.linkmate.LinkMateLlmClient;
 import com.linkx.server.service.linkmate.LinkMatePromptTemplate;
+import com.linkx.server.service.linkmate.LinkMateDashScopeWsBridge;
 import com.linkx.server.service.linkmate.LinkMateRealtimeClient;
 import com.linkx.server.service.linkmate.LinkMateSttClient;
 import com.linkx.server.service.linkmate.LinkMateSttClient.TranscribeResult;
@@ -162,6 +163,7 @@ public class LinkMateServiceImpl implements LinkMateService {
     private final LinkMateLlmClient llmClient;
     private final LinkMateSttClient sttClient;
     private final LinkMateRealtimeClient realtimeClient;
+    private final LinkMateDashScopeWsBridge dashScopeWsBridge;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final ChatService chatService;
@@ -673,7 +675,11 @@ public class LinkMateServiceImpl implements LinkMateService {
             LinkMateRealtimeClient.RealtimeProvider provider = realtimeClient.detectProvider(cfg);
             LinkMateRealtimeClient.ClientSecretResult secret;
             if (provider == LinkMateRealtimeClient.RealtimeProvider.DASHSCOPE) {
-                secret = realtimeClient.createDashScopeProxySession(callId);
+                if (LinkMateRealtimeClient.usesWebSocketBridge(cfg.getRealtimeModel())) {
+                    secret = realtimeClient.createDashScopeWsSession(callId);
+                } else {
+                    secret = realtimeClient.createDashScopeProxySession(callId);
+                }
             } else {
                 secret = realtimeClient.createOpenAiClientSecret(userId, instructions);
             }
@@ -689,7 +695,9 @@ public class LinkMateServiceImpl implements LinkMateService {
                     "userId", String.valueOf(userId),
                     "startedAt", String.valueOf(System.currentTimeMillis()),
                     "reservedTokens", String.valueOf(reservedTokens),
-                    "status", "active"
+                    "status", "active",
+                    "voice", secret.voice(),
+                    "instructions", instructions
             ));
             redisTemplate.expire(callKey, VOICE_CALL_TTL);
 
@@ -701,7 +709,7 @@ public class LinkMateServiceImpl implements LinkMateService {
                     .voice(secret.voice())
                     .peerNickname("灵伴 LinkMate")
                     .expiresAt(secret.expiresAtEpochSec())
-                    .provider(secret.provider().name().toLowerCase())
+                    .provider(mapVoiceCallProvider(secret.provider()))
                     .build();
         } catch (CustomException ex) {
             releaseDailyTokens(userId, reservedTokens);
@@ -745,6 +753,7 @@ public class LinkMateServiceImpl implements LinkMateService {
         int actualTokens = Math.min(Math.max(minutes * VOICE_CALL_TOKENS_PER_MINUTE, 500), 200_000);
         finalizeDailyTokens(userId, reserved, actualTokens);
 
+        dashScopeWsBridge.close(callId);
         redisTemplate.delete(callKey);
         String userKey = voiceCallUserKey(userId);
         String current = redisTemplate.opsForValue().get(userKey);
@@ -776,7 +785,15 @@ public class LinkMateServiceImpl implements LinkMateService {
                 ? cfg.getSystemPrompt().trim()
                 : LinkMatePromptTemplate.DEFAULT_SYSTEM.getTemplate();
         return base + "\n\n你正在与用户进行实时语音通话。请用自然口语简短回应，避免长篇列表与复杂 Markdown。"
-                + "用户打断时立即停下并倾听。默认使用用户正在说的语言回复。";
+                + "用户打断时立即停下并倾听。默认使用用户正在说的语言回复。"
+                + "用户接通后，请先说一句简短自然的中文问候并邀请对方开口说话。";
+    }
+
+    private static String mapVoiceCallProvider(LinkMateRealtimeClient.RealtimeProvider provider) {
+        if (provider == LinkMateRealtimeClient.RealtimeProvider.DASHSCOPE_WS) {
+            return "dashscope-ws";
+        }
+        return provider.name().toLowerCase();
     }
 
     private String voiceCallKey(String callId) {

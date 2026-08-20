@@ -213,6 +213,12 @@ function handleFrame(raw: string) {
         handlers?.onCustomAction?.('moments_new_post', frame.data as Record<string, unknown>)
       }
       break
+    case 'linkmate_voice_event':
+      if (frame.data) {
+        dispatchLinkMateVoiceEvent(frame.data as Record<string, unknown>)
+        handlers?.onCustomAction?.('linkmate_voice_event', frame.data as Record<string, unknown>)
+      }
+      break
     case 'group_member_added':
       if (frame.data) {
         handlers?.onCustomAction?.('group_member_added', frame.data as Record<string, unknown>)
@@ -419,4 +425,50 @@ export function sendTypingIndicator(conversationId: string) {
 
 export function isChatSocketConnected() {
   return socket?.readyState === WebSocket.OPEN
+}
+
+type LinkMateVoiceEventHandler = (event: Record<string, unknown>) => void
+const linkMateVoiceListeners = new Set<LinkMateVoiceEventHandler>()
+
+function dispatchLinkMateVoiceEvent(event: Record<string, unknown>) {
+  linkMateVoiceListeners.forEach(listener => {
+    try {
+      listener(event)
+    } catch {
+      /* ignore */
+    }
+  })
+}
+
+/** 订阅灵伴语音中继事件（百炼 Realtime） */
+export function onLinkMateVoiceEvent(handler: LinkMateVoiceEventHandler): () => void {
+  linkMateVoiceListeners.add(handler)
+  return () => {
+    linkMateVoiceListeners.delete(handler)
+  }
+}
+
+export function sendLinkMateVoiceOpen(callId: string) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    throw new Error(t('errors.wsDisconnected'))
+  }
+  socket.send(JSON.stringify({ action: 'linkmate_voice_open', content: callId }))
+}
+
+export function sendLinkMateVoiceForward(callId: string, payload: string) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    throw new Error(t('errors.wsDisconnected'))
+  }
+  socket.send(
+    JSON.stringify({
+      action: 'linkmate_voice_forward',
+      conversationId: callId,
+      content: payload
+    })
+  )
+}
+
+export function sendLinkMateVoiceClose(callId: string) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) return
+  socket.send(JSON.stringify({ action: 'linkmate_voice_close', content: callId }))
 }

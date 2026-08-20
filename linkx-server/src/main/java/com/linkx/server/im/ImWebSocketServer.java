@@ -10,6 +10,7 @@ import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.service.DeviceSessionService;
 import com.linkx.server.service.PresenceService;
 import com.linkx.server.service.TokenService;
+import com.linkx.server.service.linkmate.LinkMateDashScopeWsBridge;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -36,6 +37,7 @@ public class ImWebSocketServer implements ApplicationRunner {
     private final ObjectMapper objectMapper;
     private final DeviceSessionService deviceSessionService;
     private final PresenceService presenceService;
+    private final LinkMateDashScopeWsBridge linkMateDashScopeWsBridge;
 
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
@@ -57,7 +59,8 @@ public class ImWebSocketServer implements ApplicationRunner {
                 .channel(NioServerSocketChannel.class)
                 .childHandler(new ImWebSocketChannelInitializer(
                         linkxProperties, jwtUtils, tokenService, channelManager,
-                        pushService, objectMapper, deviceSessionService, presenceService));
+                        pushService, objectMapper, deviceSessionService, presenceService,
+                        linkMateDashScopeWsBridge));
 
         ChannelFuture future = bootstrap.bind(port);
         future.syncUninterruptibly();

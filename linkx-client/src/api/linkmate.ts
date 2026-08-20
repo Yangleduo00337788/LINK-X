@@ -113,7 +113,7 @@ export interface LinkMateVoiceCallStart {
   voice?: string
   peerNickname?: string
   expiresAt?: number
-  provider?: 'openai' | 'dashscope'
+  provider?: 'openai' | 'dashscope' | 'dashscope-ws'
 }
 
 /** 发起灵伴 Realtime 语音通话（服务端签发 ephemeral key） */
