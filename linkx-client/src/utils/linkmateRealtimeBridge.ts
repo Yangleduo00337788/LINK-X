@@ -8,6 +8,7 @@
 import { API_BASE_URL } from '../config/endpoints'
 import { getToken, isWebEnvironment } from '../utils/tokenStorage'
 import { getDeviceName, getDeviceType, getOrCreateDeviceId } from '../utils/deviceId'
+import { t } from '../i18n'
 
 export type LinkMateRealtimeProvider = 'openai' | 'dashscope'
 
@@ -56,7 +57,7 @@ async function buildAuthHeaders(
     return headers
   }
   if (!ephemeralKey) {
-    throw new Error('缺少 Realtime 临时密钥')
+    throw new Error(t('linkmate.realtimeMissingEphemeralKey'))
   }
   headers.Authorization = `Bearer ${ephemeralKey}`
   return headers
@@ -93,7 +94,7 @@ async function waitForIceGathering(pc: RTCPeerConnection, timeoutMs = 8000): Pro
 function parseSdpExchangeError(text: string, status: number): string {
   const trimmed = text.trim()
   if (!trimmed) {
-    return `Realtime SDP 交换失败 (${status})`
+    return t('linkmate.realtimeSdpExchangeFailed', { status })
   }
   try {
     const json = JSON.parse(trimmed) as { message?: string }
@@ -168,10 +169,10 @@ export async function connectLinkMateRealtime(
     if (state === 'connected') {
       options.onConnected?.()
     } else if (state === 'failed') {
-      options.onError?.(`Realtime 连接${state}`)
+      options.onError?.(t('linkmate.realtimeConnectionState', { state }))
       options.onDisconnected?.()
     } else if (state === 'disconnected') {
-      options.onError?.(`Realtime 连接${state}`)
+      options.onError?.(t('linkmate.realtimeConnectionState', { state }))
     } else if (state === 'closed') {
       options.onDisconnected?.()
     }
@@ -180,7 +181,7 @@ export async function connectLinkMateRealtime(
   const audioTrack = options.localStream.getAudioTracks()[0]
   if (!audioTrack) {
     stop()
-    throw new Error('缺少麦克风音轨')
+    throw new Error(t('linkmate.realtimeMissingMicTrack'))
   }
   pc.addTrack(audioTrack, options.localStream)
 
@@ -208,7 +209,7 @@ export async function connectLinkMateRealtime(
   const localSdp = pc.localDescription?.sdp
   if (!localSdp) {
     stop()
-    throw new Error('创建 SDP offer 失败')
+    throw new Error(t('linkmate.realtimeCreateOfferFailed'))
   }
 
   const callsUrl = resolveCallsUrl(options.realtimeCallsUrl, options.provider)
@@ -230,7 +231,7 @@ export async function connectLinkMateRealtime(
   const answerSdp = await response.text()
   if (!answerSdp.trim()) {
     stop()
-    throw new Error('Realtime 未返回 SDP answer')
+    throw new Error(t('linkmate.realtimeNoSdpAnswer'))
   }
   await pc.setRemoteDescription({ type: 'answer', sdp: normalizeSdp(answerSdp) })
 

@@ -4,6 +4,7 @@ dist-electron/
 target/
 coverage/
 release/
+release-measure/
 release-build/
 .installer-payload/
 dist-installer/

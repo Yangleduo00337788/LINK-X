@@ -11,12 +11,14 @@ New-Item -ItemType Directory -Force -Path $empty | Out-Null
 
 $targets = @(
   'release',
+  'release-measure',
   'release-build',
   '.installer-payload',
   'dist',
   'dist-electron',
   'dist-installer',
   'dist-installer-electron',
+  'dist-uninstaller-electron',
   '_asar_extract',
   '.tmp-handle'
 )

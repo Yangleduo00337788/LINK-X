@@ -79,7 +79,7 @@ export const useMessageTranslationStore = defineStore('messageTranslation', () =
     try {
       const res = await linkmateApi.translateText(trimmed, lang)
       if (res.code !== 200 || !res.data?.translatedText) {
-        throw new Error(res.message || '翻译失败')
+        throw new Error(res.message || t('errors.translateFailed'))
       }
       byMessageId.value = {
         ...byMessageId.value,

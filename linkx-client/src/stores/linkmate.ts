@@ -454,7 +454,7 @@ export const useLinkMateStore = defineStore('linkmate', {
     async createSession() {
       const res = await linkmateApi.createSession()
       if (res.code !== 200 || !res.data) {
-        throw new Error(res.message || '创建对话失败')
+        throw new Error(res.message || t('linkmate.createFailed'))
       }
       const session: LinkMateSession = {
         id: String(res.data.id),
@@ -543,7 +543,7 @@ export const useLinkMateStore = defineStore('linkmate', {
       if (this.streaming) return
       const res = await linkmateApi.renameSession(sessionId, title.trim())
       if (res.code !== 200 || !res.data) {
-        throw new Error(res.message || '重命名失败')
+        throw new Error(res.message || t('linkmate.renameChatFailed'))
       }
       const idx = this.sessions.findIndex(s => s.id === sessionId)
       if (idx >= 0) {
@@ -559,7 +559,7 @@ export const useLinkMateStore = defineStore('linkmate', {
       if (this.streaming) return
       const res = await linkmateApi.deleteSession(sessionId)
       if (res.code !== 200) {
-        throw new Error(res.message || '删除失败')
+        throw new Error(res.message || t('linkmate.deleteFailed'))
       }
       this.sessions = this.sessions.filter(s => s.id !== sessionId)
       this.openTabIds = this.openTabIds.filter(id => id !== sessionId)

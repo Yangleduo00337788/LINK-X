@@ -556,9 +556,7 @@ MESSAGE_KEK_LEGACY_MAP={"default":"<旧 MESSAGE_KEK 的值>"}
 | 4 | Electron 窗控与状态栏置顶统一使用 `.lx-win-caption-btn`（圆角块悬停，关闭键红底白字） |
 | 5 | 用户可见文案走 `src/i18n/`，禁止在组件内硬编码中文（管理端同理） |
 
-**样式迁移脚本（维护用，非运行时依赖）：**
-
-`linkx-client/scripts/migrate-*.mjs` 用于批量将历史硬编码颜色 / 间距迁移至 Token，日常开发无需执行。
+**样式迁移：** Token 迁移已完成；历史 `migrate-*.mjs` 脚本已移除，日常开发无需额外步骤。
 
 ---
 

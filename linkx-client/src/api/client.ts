@@ -164,7 +164,8 @@ apiClient.interceptors.response.use(
 export { clearTokens, saveTokenPair }
 
 /** 从 Axios / 业务错误中提取可读 message */
-export function resolveApiErrorMessage(error: unknown, fallback = '请求失败'): string {
+export function resolveApiErrorMessage(error: unknown, fallback?: string): string {
+  const fb = fallback ?? t('errors.requestFailed')
   if (axios.isAxiosError(error)) {
     const msg = error.response?.data?.message
     if (typeof msg === 'string' && msg.trim()) {
@@ -174,5 +175,5 @@ export function resolveApiErrorMessage(error: unknown, fallback = '请求失败'
   if (error instanceof Error && error.message && !/^Request failed with status code \d+$/.test(error.message)) {
     return error.message
   }
-  return fallback
+  return fb
 }

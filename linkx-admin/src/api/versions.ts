@@ -4,6 +4,7 @@
 import { del, get, post, put } from './request'
 import request from './request'
 import type { PageQuery, PageResult } from '@/types/api'
+import { tGlobal } from '@/i18n'
 
 export type VersionPlatform = 'windows' | 'macos' | 'linux'
 
@@ -137,7 +138,7 @@ async function uploadVersionPackageSingle(file: File): Promise<VersionUploadResu
     }
   )
   if (data.code !== 200 || !data.data) {
-    throw new Error(data.message || 'upload failed')
+    throw new Error(data.message || tGlobal('version.packageUploadFail'))
   }
   return data.data
 }
@@ -158,7 +159,7 @@ async function uploadInstallerPart(
   formData.append('partNumber', String(partNumber))
   const data = await postMultipart('/admin/versions/upload/multipart/part', formData, { direct: true })
   if (data.code !== 200) {
-    throw new Error(data.message || `分片 ${partNumber}/${totalParts} 上传失败`)
+    throw new Error(data.message || tGlobal('version.uploadPartFailed', { part: partNumber, total: totalParts }))
   }
 }
 
@@ -211,15 +212,11 @@ export async function uploadVersionPackage(file: File) {
     }
     const sizeMb = Math.round((file.size / (1024 * 1024)) * 10) / 10
     if (err.code === 'ECONNABORTED' || err.message?.toLowerCase().includes('timeout')) {
-      throw new Error(
-        `上传超时（安装包约 ${sizeMb}MB）。请检查网络与 OSS 连通性后重试；慢速网络下 220MB 可能需要数分钟。`
-      )
+      throw new Error(tGlobal('version.uploadTimeout', { sizeMb }))
     }
     if (err.message?.includes('CORS') || err.code === 'ERR_NETWORK') {
-      throw new Error(
-        `上传失败（安装包约 ${sizeMb}MB）。分片会直连 8080，请确认 linkx-server 已启动且 CORS 已生效。`
-      )
+      throw new Error(tGlobal('version.uploadNetworkFail', { sizeMb }))
     }
-    throw new Error(err.response?.data?.message || err.message || 'upload failed')
+    throw new Error(err.response?.data?.message || err.message || tGlobal('version.packageUploadFail'))
   }
 }

@@ -14,6 +14,7 @@ import {
   sendLinkMateVoiceOpen
 } from './chatSocket'
 import type { LinkMateRealtimeBridgeHandle } from './linkmateRealtimeBridge'
+import { t } from '../i18n'
 
 export type LinkMateVoiceActivity =
   | 'connecting'
@@ -85,7 +86,7 @@ function extractRealtimeErrorMessage(event: Record<string, unknown>): string {
   if (typeof event.message === 'string' && event.message.trim()) {
     return event.message.trim()
   }
-  return '灵伴语音异常'
+  return t('linkmate.realtimeVoiceError')
 }
 
 function shouldReportRealtimeError(event: Record<string, unknown>, sessionReady: boolean): boolean {
@@ -209,7 +210,7 @@ export async function connectLinkMateRealtimeWs(
       item: {
         type: 'message',
         role: 'user',
-        content: [{ type: 'input_text', text: '你好' }]
+        content: [{ type: 'input_text', text: t('linkmate.voiceGreeting') }]
       }
     })
     forwardToUpstream({
@@ -272,7 +273,7 @@ export async function connectLinkMateRealtimeWs(
   setActivity('connecting')
   await ensureChatSocketConnected()
   if (!isChatSocketConnected()) {
-    throw new Error('IM WebSocket 未连接，无法发起灵伴语音通话')
+    throw new Error(t('linkmate.voiceWsNotConnected'))
   }
 
   if (playbackCtx.state === 'suspended') {

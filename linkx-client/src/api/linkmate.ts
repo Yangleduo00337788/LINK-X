@@ -7,7 +7,7 @@ import { API_BASE_URL } from '../config/endpoints'
 import { getToken, isWebEnvironment } from '../utils/tokenStorage'
 import { getDeviceName, getDeviceType, getOrCreateDeviceId } from '../utils/deviceId'
 import type { LinkMateImContext } from '../utils/buildImChatContext'
-import { readLinkMateSseStream } from '../utils/linkmateSse'
+import { t } from '../i18n'
 
 export interface LinkMateStatus {
   enabled: boolean
@@ -162,7 +162,7 @@ export async function streamImReply(
   })
 
   if (!response.ok) {
-    let errMsg = '请求失败'
+    let errMsg = t('errors.requestFailed')
     try {
       const json = await response.json()
       errMsg = json.message || errMsg
@@ -283,7 +283,7 @@ export async function streamChat(
   })
 
   if (!response.ok) {
-    let errMsg = '请求失败'
+    let errMsg = t('errors.requestFailed')
     try {
       const json = await response.json()
       errMsg = json.message || errMsg

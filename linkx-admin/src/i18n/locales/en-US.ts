@@ -65,6 +65,9 @@ export default {
     confirmAction: 'Confirm {action}',
     actionSuccess: '{action} succeeded',
     deleted: 'Deleted',
+    confirmDelete: 'Confirm delete?',
+    deleteSuccess: 'Deleted',
+    saveSuccess: 'Saved',
     updateSuccess: 'Updated',
     createSuccess: 'Created',
     admin: 'Admin',
@@ -2101,6 +2104,11 @@ export default {
       'Supports .exe / .msi / .dmg / .deb / .rpm / .AppImage. Windows installers are ~200MB+; set server upload limit and storage max to at least 300MB.',
     packageUploadSuccess: 'Installer uploaded',
     packageUploadFail: 'Installer upload failed',
+    uploadPartFailed: 'Chunk {part}/{total} upload failed',
+    uploadTimeout:
+      'Upload timed out (package ~{sizeMb}MB). Check network and OSS connectivity; a 220MB package on a slow link may take several minutes.',
+    uploadNetworkFail:
+      'Upload failed (package ~{sizeMb}MB). Multipart uploads hit port 8080 directly — ensure linkx-server is running and CORS is configured.',
     packageTypeInvalid: 'Please choose a valid installer file',
     view: 'View',
     viewTitle: 'Version details',

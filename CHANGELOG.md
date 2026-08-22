@@ -13,7 +13,7 @@
 
 - 客户端 Design Token 体系（`--lx-*`）与 `ui-components.css` 公共样式
 - 公共 UI 组件：`LxButton`、`LxIconButton`、`LxGroupCard`
-- 样式迁移辅助脚本 `linkx-client/scripts/migrate-*.mjs`
+- 客户端全站迁移至统一 Design Token（`migrate-*.mjs` 一次性脚本已移除）
 - 服务端消息落库加密（AES-256-GCM，可选开启，见 README 8.4）
 
 ### 变更
