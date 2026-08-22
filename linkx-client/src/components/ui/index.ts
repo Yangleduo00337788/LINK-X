@@ -5,3 +5,4 @@
 export { default as LxButton } from './LxButton.vue'
 export { default as LxIconButton } from './LxIconButton.vue'
 export { default as LxGroupCard } from './LxGroupCard.vue'
+export { default as LxModal } from './LxModal.vue'
