@@ -7,6 +7,7 @@ import { API_BASE_URL } from '../config/endpoints'
 import { getToken, isWebEnvironment } from '../utils/tokenStorage'
 import { getDeviceName, getDeviceType, getOrCreateDeviceId } from '../utils/deviceId'
 import type { LinkMateImContext } from '../utils/buildImChatContext'
+import { readLinkMateSseStream } from '../utils/linkmateSse'
 import { t } from '../i18n'
 
 export interface LinkMateStatus {
