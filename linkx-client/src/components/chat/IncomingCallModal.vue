@@ -11,6 +11,7 @@ import { storeToRefs } from 'pinia'
 import { useCallStore } from '../../stores/call'
 import { useAppStore } from '../../stores/app'
 import { useI18n } from '../../i18n'
+import ModalOverlayCaption from '../ModalOverlayCaption.vue'
 
 const message = useMessage()
 const { t } = useI18n()
@@ -95,6 +96,7 @@ function avatarText(name: string) {
 <template>
   <Teleport to="body">
     <div v-if="showIncomingUi" class="incoming-root lx-call-skin">
+      <ModalOverlayCaption />
       <div class="incoming-window" :class="{ video: callType === 'video' }">
         <template v-if="callType === 'video'">
           <div class="video-stage">

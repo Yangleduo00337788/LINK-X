@@ -16,7 +16,8 @@ import { useI18n } from '../../i18n'
 import axios from 'axios'
 import { DEFAULT_GROUP_ALBUM_NAME_ZH } from '../../constants/groupAlbum'
 import GroupAlbumAuthImage from './GroupAlbumAuthImage.vue'
-import { LxButton, LxIconButton } from '../ui'
+import { LxButton } from '../ui'
+import ModalWinHeadActions from '../ModalWinHeadActions.vue'
 
 const message = useMessage()
 const { t } = useI18n()
@@ -189,11 +190,9 @@ function previewImage(item: { id: string; url: string; name: string }) {
   <Teleport to="body">
     <div v-if="groupAlbumOpen" class="modal-root" @click.self="close">
       <div class="album-window" @click.stop>
-        <header class="win-head">
+        <header class="lx-modal-win-head">
           <h2>{{ t('extra.groupAlbumTitle', { name: currentSession?.name || t('extra.groupChat') }) }}</h2>
-          <LxIconButton variant="close" :disabled="uploading" :title="t('common.close')" @click="close">
-            ×
-          </LxIconButton>
+          <ModalWinHeadActions :close-disabled="uploading" @close="close" />
         </header>
         <div class="tabs-row">
           <button type="button" class="tab" :class="{ 'is-active': tab === 'feed' }" @click="tab = 'feed'">
@@ -317,21 +316,6 @@ function previewImage(item: { id: string; url: string; name: string }) {
   display: flex;
   flex-direction: column;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
-}
-
-.win-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--lx-space-xl) var(--lx-space-2xl);
-  border-bottom: 1px solid var(--lx-border-light);
-}
-
-.win-head h2 {
-  margin: 0;
-  font-size: var(--lx-font-lg);
-  font-weight: 600;
-  color: var(--lx-text-body);
 }
 
 .tabs-row {

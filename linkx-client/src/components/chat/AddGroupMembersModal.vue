@@ -25,6 +25,7 @@ import * as groupInvitationApi from '../../api/groupInvitation'
 import { useMessage } from 'naive-ui'
 import { useI18n } from '../../i18n'
 import { LxButton } from '../ui'
+import ModalOverlayCaption from '../ModalOverlayCaption.vue'
 
 const { t } = useI18n()
 const message = useMessage()
@@ -135,6 +136,7 @@ watch(addMembersOpen, async (open, prev) => {
   <!-- 添加群成员弹窗：Teleport 挂载到 body -->
   <Teleport to="body">
     <div v-if="addMembersOpen" class="modal-root" @click.self="cancel">
+      <ModalOverlayCaption />
       <div class="modal-card" @click.stop>
         <!-- 弹窗标题 -->
         <h2 class="modal-title">{{ t('extra.addMembers') }}</h2>

@@ -25,6 +25,7 @@ import { useAppStore } from '../../stores/app'
 import { useGroupMetaStore } from '../../stores/groupMeta'
 import { useI18n } from '../../i18n'
 import { LxButton } from '../ui'
+import ModalOverlayCaption from '../ModalOverlayCaption.vue'
 import { generateDefaultAvatar } from '../../utils/defaultAvatar'
 import { isDisplayableMediaUrl, normalizeMediaUrl } from '../../utils/mediaUrl'
 import type { ChatMessage } from '../../types'
@@ -541,6 +542,7 @@ async function onAdmit(userId: string) {
   <Teleport to="body">
     <!-- 被邀请：轻量确认层（仅会议；群电话走 GroupCallModal） -->
     <div v-if="showMeetingUi && invitePrompt && phase === 'lobby'" class="invite-mask lx-call-skin">
+      <ModalOverlayCaption />
       <div class="invite-card">
         <h3>{{ invitePrompt.restore ? t('conference.restoreTitle') : t('conference.inviteTitle') }}</h3>
         <p>{{ invitePrompt.title }}</p>
@@ -569,6 +571,7 @@ async function onAdmit(userId: string) {
 
     <!-- 等候室 -->
     <div v-if="showMeetingUi && phase === 'waiting'" class="waiting-root lx-call-skin">
+      <ModalOverlayCaption />
       <div class="waiting-card">
         <h3>{{ t('conference.waitingTitle') }}</h3>
         <p>{{ title }}</p>
@@ -587,6 +590,7 @@ async function onAdmit(userId: string) {
         'room-root--chat-open': chatOpen
       }"
     >
+      <ModalOverlayCaption />
       <!-- 顶栏：会议名 / 人数 / 时长 -->
       <header class="room-header">
         <div class="header-left">

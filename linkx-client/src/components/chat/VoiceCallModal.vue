@@ -10,6 +10,7 @@ import Avatar from '../Avatar.vue'
 import { storeToRefs } from 'pinia'
 import { useCallStore } from '../../stores/call'
 import { useI18n } from '../../i18n'
+import ModalOverlayCaption from '../ModalOverlayCaption.vue'
 
 const message = useMessage()
 const { t } = useI18n()
@@ -137,6 +138,7 @@ function avatarText(name: string) {
 <template>
   <Teleport to="body">
     <div v-if="showVoiceUi" class="call-root lx-call-skin">
+      <ModalOverlayCaption />
       <audio ref="remoteAudioRef" autoplay playsinline />
       <div class="call-window">
         <div class="call-top">

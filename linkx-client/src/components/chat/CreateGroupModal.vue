@@ -21,6 +21,7 @@ import { useContactsStore } from '../../stores/contacts'
 import { useMessage } from 'naive-ui'
 import { useI18n } from '../../i18n'
 import { LxButton } from '../ui'
+import ModalOverlayCaption from '../ModalOverlayCaption.vue'
 
 const { t } = useI18n()
 const message = useMessage()
@@ -173,6 +174,7 @@ function cancel() {
   <!-- 全屏模态：创建群聊 -->
   <Teleport to="body">
     <div v-if="createGroupOpen" class="modal-root" @click.self="cancel">
+      <ModalOverlayCaption />
       <div class="modal-card" @click.stop>
         <h2 class="modal-title">{{ t('modals.createGroupTitle') }}</h2>
         <div class="modal-body">

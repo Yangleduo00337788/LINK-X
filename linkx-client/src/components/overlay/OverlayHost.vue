@@ -10,6 +10,7 @@ import { useOverlayStore } from '../../stores/overlay'
 import type { OverlayPage } from '../../types'
 import { useI18n } from '../../i18n'
 import { LxIconButton } from '../ui'
+import ModalOverlayCaption from '../ModalOverlayCaption.vue'
 
 // 覆盖层 Store 实例
 const overlayStore = useOverlayStore()
@@ -36,6 +37,7 @@ const pageTitle = computed(() => {
 <template>
   <!-- 全屏覆盖层容器：有页面时显示 -->
   <div v-if="currentPage" class="overlay-host">
+    <ModalOverlayCaption />
     <!-- 顶部导航栏：返回按钮、标题（窗控由系统原生提供） -->
     <div class="overlay-header">
       <div class="left">

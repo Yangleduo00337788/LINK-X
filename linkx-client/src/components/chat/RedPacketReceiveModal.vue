@@ -11,6 +11,7 @@
 import { computed, watch, ref, nextTick, reactive } from 'vue'
 import { useMessage } from 'naive-ui'
 import { LxButton } from '../ui'
+import ModalOverlayCaption from '../ModalOverlayCaption.vue'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
@@ -253,6 +254,7 @@ async function openPacket() {
 <template>
   <Teleport to="body">
     <div v-if="redPacketReceiveOpen && viewReady" class="modal-root" @click.self="close">
+      <ModalOverlayCaption />
       <div
         class="packet-card"
         :class="{ 'is-lucky': isLucky, spinning: animPhase === 'spinning', revealed: animPhase === 'revealed' }"

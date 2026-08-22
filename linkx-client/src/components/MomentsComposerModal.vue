@@ -25,6 +25,7 @@ import { readFileAsDataUrl, dataUrlToFile, MAX_IMAGE_BYTES } from '../utils/file
 import AtMentionPicker from './common/AtMentionPicker.vue'
 import { useI18n } from '../i18n'
 import { LxButton, LxIconButton } from './ui'
+import ModalOverlayCaption from './ModalOverlayCaption.vue'
 
 type Mode = 'text' | 'media'
 
@@ -366,6 +367,7 @@ const showMediaEmpty = computed(() => mode.value === 'media' && images.value.len
 
   <transition name="composer-fade">
     <div v-if="visible" class="moments-composer-mask" @click.self="close">
+      <ModalOverlayCaption />
       
       <!-- ========== 文字发布模式 ========== -->
       <div v-if="mode === 'text'" class="composer-text-mode" role="dialog">

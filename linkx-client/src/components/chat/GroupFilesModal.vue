@@ -17,6 +17,7 @@ import { useMessage } from 'naive-ui'
 // 文件大小格式化工具
 import { useI18n } from '../../i18n'
 import { LxButton } from '../ui'
+import ModalWinHeadActions from '../ModalWinHeadActions.vue'
 
 const message = useMessage()
 const { t } = useI18n()
@@ -130,9 +131,9 @@ async function onUploadPicked(e: Event) {
   <Teleport to="body">
     <div v-if="groupFilesOpen" class="modal-root" @click.self="close">
       <div class="files-window" @click.stop>
-        <header class="win-head">
+        <header class="lx-modal-win-head">
           <h2>{{ t('extra.groupFilesTitle', { name: currentSession?.name || t('extra.groupChat') }) }}</h2>
-          <button type="button" class="close-x" @click="close">×</button>
+          <ModalWinHeadActions @close="close" />
         </header>
         <div class="search-row">
           <input v-model="search" type="text" class="search-field" :placeholder="t('common.search')" />
@@ -190,28 +191,6 @@ async function onUploadPicked(e: Event) {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-}
-
-.win-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--lx-space-2xl) var(--lx-space-3xl);
-  border-bottom: 1px solid var(--lx-border-light);
-}
-
-.win-head h2 {
-  margin: 0;
-  font-size: var(--lx-font-xl);
-  color: var(--lx-text-body);
-}
-
-.close-x {
-  border: none;
-  background: none;
-  font-size: var(--lx-font-5xl);
-  cursor: pointer;
-  color: var(--lx-text-muted);
 }
 
 .search-row {

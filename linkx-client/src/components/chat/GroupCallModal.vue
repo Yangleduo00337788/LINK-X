@@ -15,6 +15,7 @@ import { useGroupMetaStore } from '../../stores/groupMeta'
 import { useI18n } from '../../i18n'
 import { generateDefaultAvatar } from '../../utils/defaultAvatar'
 import { isDisplayableMediaUrl, normalizeMediaUrl } from '../../utils/mediaUrl'
+import ModalOverlayCaption from '../ModalOverlayCaption.vue'
 
 const message = useMessage()
 const { t } = useI18n()
@@ -272,6 +273,7 @@ watch(cameraOn, async on => {
   <Teleport to="body">
     <!-- 来电 / 重连确认（通话风格） -->
     <div v-if="showGroupCallUi && invitePrompt && phase === 'lobby'" class="call-root lx-call-skin">
+      <ModalOverlayCaption />
       <div class="call-window invite-window">
         <p class="status">
           {{ invitePrompt.restore ? t('conference.restoreTitle') : t('conference.inviteCallTitle') }}
@@ -305,6 +307,7 @@ watch(cameraOn, async on => {
 
     <!-- 群语音电话 -->
     <div v-else-if="showGroupVoiceUi && (phase === 'in_room' || phase === 'waiting')" class="call-root lx-call-skin">
+      <ModalOverlayCaption />
       <div class="call-window">
         <div class="call-top">
           <span class="status">{{ statusText }}</span>
@@ -342,6 +345,7 @@ watch(cameraOn, async on => {
 
     <!-- 群视频电话 -->
     <div v-else-if="showGroupVideoUi && (phase === 'in_room' || phase === 'waiting')" class="call-root lx-call-skin">
+      <ModalOverlayCaption />
       <div class="call-window video-window">
         <p class="status">{{ statusText }} · {{ callTitle }}</p>
         <div class="video-grid" :class="`n-${Math.min(displayMembers.length, 4)}`">

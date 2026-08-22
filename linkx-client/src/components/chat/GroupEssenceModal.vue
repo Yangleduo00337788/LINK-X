@@ -12,7 +12,8 @@ import { useAppStore } from '../../stores/app'
 // 群元数据 Store
 import { useGroupMetaStore } from '../../stores/groupMeta'
 import { useI18n } from '../../i18n'
-import { LxButton, LxIconButton } from '../ui'
+import { LxButton } from '../ui'
+import ModalWinHeadActions from '../ModalWinHeadActions.vue'
 
 const { t } = useI18n()
 const message = useMessage()
@@ -79,9 +80,9 @@ async function removeItem(id: string) {
     <div v-if="groupEssenceOpen" class="modal-root" @click.self="close">
       <div class="essence-window" @click.stop>
         <!-- 窗口标题栏 -->
-        <header class="win-head">
+        <header class="lx-modal-win-head">
           <h2>{{ t('extra.groupEssenceTitle', { name: currentSession?.name || t('extra.groupChat') }) }}</h2>
-          <LxIconButton variant="close" :title="t('common.close')" @click="close">×</LxIconButton>
+          <ModalWinHeadActions @close="close" />
         </header>
         <!-- 精华消息列表 -->
         <div class="list">
@@ -129,21 +130,6 @@ async function removeItem(id: string) {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-}
-
-.win-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--lx-space-xl) var(--lx-space-2xl);
-  border-bottom: 1px solid var(--lx-border-light);
-}
-
-.win-head h2 {
-  margin: 0;
-  font-size: var(--lx-font-lg);
-  font-weight: 600;
-  color: var(--lx-text-body);
 }
 
 .list {

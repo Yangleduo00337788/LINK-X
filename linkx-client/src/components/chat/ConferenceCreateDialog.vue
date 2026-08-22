@@ -6,6 +6,7 @@
 import { reactive, watch } from 'vue'
 import { useI18n } from '../../i18n'
 import { LxButton } from '../ui'
+import ModalOverlayCaption from '../ModalOverlayCaption.vue'
 
 export type ConferenceCreatePayload = {
   title: string
@@ -75,6 +76,7 @@ function onConfirm() {
 <template>
   <Teleport to="body">
     <div v-if="show" class="create-mask" @click.self="emit('cancel')">
+      <ModalOverlayCaption />
       <div class="create-card" role="dialog" aria-modal="true">
         <h3>{{ t('conference.createTitle') }}</h3>
 

@@ -8,7 +8,8 @@ import { useAppStore } from '../../stores/app'
 import { useGroupMetaStore } from '../../stores/groupMeta'
 import Avatar from '../Avatar.vue'
 import PinIcon from '../icons/PinIcon.vue'
-import { LxButton, LxIconButton } from '../ui'
+import ModalWinHeadActions from '../ModalWinHeadActions.vue'
+import { LxButton } from '../ui'
 import { useI18n } from '../../i18n'
 
 const message = useMessage()
@@ -157,9 +158,9 @@ function roleLabel(role: string) {
   <Teleport to="body">
     <div v-if="groupAnnouncementOpen" class="modal-root" @click.self="close">
       <div class="announce-window" @click.stop>
-        <header class="win-head">
+        <header class="lx-modal-win-head">
           <h2>{{ t('extra.groupAnnouncementTitle', { name: currentSession?.name || t('extra.groupChat') }) }}</h2>
-          <LxIconButton variant="close" :title="t('common.close')" @click="close">×</LxIconButton>
+          <ModalWinHeadActions @close="close" />
         </header>
 
         <div class="body">
@@ -261,25 +262,6 @@ function roleLabel(role: string) {
   flex-direction: column;
   overflow: hidden;
   box-shadow: var(--lx-shadow-modal);
-}
-
-.win-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--lx-space-xl) var(--lx-space-2xl);
-  border-bottom: 1px solid var(--lx-border-light);
-}
-
-.win-head h2 {
-  margin: 0;
-  font-size: var(--lx-font-lg);
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding-right: var(--lx-space-lg);
-  color: var(--lx-text-body);
 }
 
 .body {

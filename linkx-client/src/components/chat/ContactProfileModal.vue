@@ -33,6 +33,7 @@ import { useI18n } from '../../i18n'
 import { PROFILE_GENDER_FEMALE, PROFILE_GENDER_MALE } from '../../types/profileGender'
 import { formatFriendDisplayName, friendAvatarText } from '../../utils/friendDisplay'
 import { LxButton } from '../ui'
+import ModalOverlayCaption from '../ModalOverlayCaption.vue'
 
 const { t } = useI18n()
 const chatModalsStore = useChatModalsStore()
@@ -366,6 +367,7 @@ async function saveGroup() {
       class="profile-overlay"
       @click.self="closeContactProfile"
     >
+      <ModalOverlayCaption />
       <div
         class="profile-card"
         :style="{ left: `${profileCardPos.x}px`, top: `${profileCardPos.y}px` }"

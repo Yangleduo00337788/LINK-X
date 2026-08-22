@@ -10,6 +10,7 @@ import { storeToRefs } from 'pinia'
 import { useCallStore } from '../../stores/call'
 import { useAppStore } from '../../stores/app'
 import { useI18n } from '../../i18n'
+import ModalOverlayCaption from '../ModalOverlayCaption.vue'
 
 const message = useMessage()
 const { t } = useI18n()
@@ -108,6 +109,7 @@ async function hangUp() {
 <template>
   <Teleport to="body">
     <div v-if="showVideoUi" class="call-root lx-call-skin">
+      <ModalOverlayCaption />
       <div class="call-window">
         <p class="status">{{ statusText }}</p>
         <div class="video-stage">

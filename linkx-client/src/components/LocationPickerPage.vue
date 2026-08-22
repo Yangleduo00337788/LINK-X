@@ -15,6 +15,7 @@ import {
 import { useI18n } from '../i18n'
 import * as locationApi from '../api/location'
 import { LxButton, LxIconButton } from './ui'
+import ModalOverlayCaption from './ModalOverlayCaption.vue'
 
 const emit = defineEmits<{
   (e: 'select', location: string): void
@@ -130,6 +131,7 @@ onMounted(() => {
 
 <template>
   <div class="location-page">
+    <ModalOverlayCaption />
     <!-- 顶部栏 -->
     <header class="page-header">
       <LxIconButton class="back-btn" :title="t('common.back')" @click="emit('back')">

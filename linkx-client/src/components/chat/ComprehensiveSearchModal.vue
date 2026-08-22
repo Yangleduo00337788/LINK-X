@@ -20,6 +20,7 @@ import type { UserSearchResult } from '../../types/friend'
 import type { ConversationSummary } from '../../api/group'
 import { useI18n } from '../../i18n'
 import { LxButton } from '../ui'
+import ModalOverlayCaption from '../ModalOverlayCaption.vue'
 import { lxColorHex } from '../../theme/vars'
 
 interface SearchGroupItem {
@@ -326,6 +327,7 @@ async function handleUserAction(user: SearchUserItem) {
 <template>
   <Teleport to="body">
     <div v-if="comprehensiveSearchOpen" class="modal-root" @click.self="close">
+      <ModalOverlayCaption />
       <div class="search-window" @click.stop>
         <header class="win-title">{{ t('modals.addFriend') }}</header>
         <div class="search-row">

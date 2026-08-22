@@ -15,6 +15,7 @@ import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
 import { useI18n } from '../../i18n'
 import { LxButton } from '../ui'
+import ModalOverlayCaption from '../ModalOverlayCaption.vue'
 import * as redPacketApi from '../../api/redPacket'
 
 const message = useMessage()
@@ -117,6 +118,7 @@ async function send() {
 <template>
   <Teleport to="body">
     <div v-if="redPacketOpen" class="modal-root" @click.self="close">
+      <ModalOverlayCaption />
       <div class="packet-card" @click.stop>
         <div class="packet-head">{{ t('extra.sendRedPacket') }}</div>
         <div class="packet-body">
