@@ -540,6 +540,34 @@ function openSelfProfileClick(e: MouseEvent) {
   )
 }
 
+// 群聊：点击发送者昵称打开成员资料卡
+function openGroupMemberProfile(e: MouseEvent, msg: ChatMessage) {
+  e.stopPropagation()
+  if (!currentSession.value?.isGroup) return
+  const senderId = msg.senderId ? String(msg.senderId) : ''
+  if (!senderId) return
+
+  const sessionId = msg.sessionId || currentSession.value.id
+  const member = groupMetaStore.membersFor(sessionId).find(m => m.id === senderId)
+  const name =
+    msg.senderName?.trim() ||
+    member?.name?.trim() ||
+    t('extra.rpUserFallback')
+
+  const found = contactsStore.items.find(c => String(c.userId ?? c.id) === senderId)
+  const contact: ContactItem =
+    found ?? {
+      id: senderId,
+      userId: senderId,
+      name,
+      avatarText: member?.avatarText || name.charAt(0) || '?',
+      avatarColor: member?.avatarColor || 'var(--lx-accent)',
+      avatarUrl: msg.senderAvatar || member?.avatarUrl,
+      group: t('chat.myFriends')
+    }
+  openContactProfile(contact, e)
+}
+
 // 切换会话时关闭更多抽屉与群信息抽屉
 watch(currentSessionId, () => {
   closeMore()
@@ -1672,7 +1700,7 @@ function onDrop(e: DragEvent) {
                 >
                   <template #default="{ msg }">
                       <div
-                      v-memo="[msg.id, msg.content, msg.reasoningContent, msg.streaming, msg.type, msg.sendStatus, msg.uploadProgress, msg.fileStatus, msg.edited, msg.readCount, msg.totalMembers, playingVoiceId === msg.id, msg.senderAvatar, msg.isSelf, highlightAtMeId === msg.id, latestSelfMessageId, translationStore.byMessageId[msg.id]?.text, translationStore.byMessageId[msg.id]?.loading, translationStore.byMessageId[msg.id]?.visible, translationStore.byMessageId[msg.id]?.error]"
+                      v-memo="[msg.id, msg.content, msg.reasoningContent, msg.streaming, msg.type, msg.sendStatus, msg.uploadProgress, msg.fileStatus, msg.edited, msg.readCount, msg.totalMembers, playingVoiceId === msg.id, msg.senderAvatar, msg.senderName, msg.isSelf, highlightAtMeId === msg.id, latestSelfMessageId, translationStore.byMessageId[msg.id]?.text, translationStore.byMessageId[msg.id]?.loading, translationStore.byMessageId[msg.id]?.visible, translationStore.byMessageId[msg.id]?.error]"
                     >
                       <ChatMessageItem
                         :msg="msg"
@@ -1686,6 +1714,7 @@ function onDrop(e: DragEvent) {
                         @click-conference="onConferenceClick"
                         @open-peer-profile="openPeerProfile"
                         @open-self-profile="openSelfProfileClick"
+                        @open-group-member-profile="openGroupMemberProfile"
                         @retry="retryMessage"
                         @message-content-loaded="onMessageContentLoaded"
                       />
