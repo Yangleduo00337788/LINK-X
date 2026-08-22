@@ -12,6 +12,7 @@ import { FolderOutline, PhonePortraitOutline } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
 import type { ChatMessage } from '../../types'
 import { useAppStore } from '../../stores/app'
+import { useGroupMetaStore } from '../../stores/groupMeta'
 import { storeToRefs } from 'pinia'
 import { useI18n } from '../../i18n'
 import { isMyPhoneSessionName } from '../../utils/myPhoneSession'
@@ -47,6 +48,7 @@ const emit = defineEmits<{
   (e: 'clickConference', msg: ChatMessage): void
   (e: 'openPeerProfile', event: MouseEvent): void
   (e: 'openSelfProfile', event: MouseEvent): void
+  (e: 'openGroupMemberProfile', event: MouseEvent, msg: ChatMessage): void
   (e: 'retry', msg: ChatMessage): void
   (e: 'messageContentLoaded', msg: ChatMessage): void
 }>()
@@ -55,6 +57,7 @@ const fileHover = ref(false)
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const groupMetaStore = useGroupMetaStore()
 const { currentSession, userProfile } = storeToRefs(appStore)
 
 const isMyPhone = computed(() => isMyPhoneSessionName(currentSession.value?.name))
@@ -62,6 +65,33 @@ const hasSession = computed(() => !!currentSession.value)
 const isFriendChat = computed(() => hasSession.value && !currentSession.value?.isGroup && !isMyPhone.value)
 const isGroupChat = computed(() => !!currentSession.value?.isGroup)
 const isLinkMateBot = computed(() => isLinkMateBotSender(props.msg.senderId))
+
+/** 群聊消息：气泡上方展示发送者昵称（含自己） */
+const groupSenderName = computed(() => {
+  if (!isGroupChat.value) return ''
+  if (props.msg.isSelf) {
+    return (
+      props.msg.senderName?.trim() ||
+      userProfile.value.nickname?.trim() ||
+      userProfile.value.username?.trim() ||
+      t('chat.me')
+    )
+  }
+  const fromMsg = props.msg.senderName?.trim()
+  if (fromMsg) return fromMsg
+  const senderId = props.msg.senderId ? String(props.msg.senderId) : ''
+  if (senderId) {
+    const sessionId = props.msg.sessionId || currentSession.value?.id || ''
+    if (sessionId) {
+      const member = groupMetaStore.membersFor(sessionId).find(m => m.id === senderId)
+      if (member?.name?.trim()) return member.name.trim()
+    }
+  }
+  return t('extra.rpUserFallback')
+})
+
+const showGroupSenderName = computed(() => !!groupSenderName.value)
+const groupSenderClickable = computed(() => showGroupSenderName.value && !isLinkMateBot.value)
 
 const isRecall = computed(() => props.msg.type === 'recall')
 const isSystemTip = computed(
@@ -182,6 +212,21 @@ function onStatusClick() {
   if (props.msg.sendFailReason) return
   emit('retry', props.msg)
 }
+
+function onGroupSenderClick(e: MouseEvent) {
+  e.stopPropagation()
+  if (!groupSenderClickable.value) return
+  if (props.msg.isSelf) {
+    emit('openSelfProfile', e)
+    return
+  }
+  emit('openGroupMemberProfile', e, props.msg)
+}
+
+function onGroupMemberAvatarClick(e: MouseEvent) {
+  e.stopPropagation()
+  emit('openGroupMemberProfile', e, props.msg)
+}
 </script>
 
 <template>
@@ -197,6 +242,14 @@ function onStatusClick() {
       <Avatar v-bind="peerAvatarProps" />
     </button>
     <LinkMateLogoMark v-else-if="!msg.isSelf && isLinkMateBot" size="msg" />
+    <button
+      v-else-if="!msg.isSelf && isGroupChat"
+      type="button"
+      class="avatar-btn"
+      @click="onGroupMemberAvatarClick"
+    >
+      <Avatar v-bind="peerAvatarProps" />
+    </button>
     <Avatar v-else-if="!msg.isSelf" v-bind="peerAvatarProps" />
 
     <div
@@ -204,6 +257,15 @@ function onStatusClick() {
       @contextmenu="emit('contextmenu', $event, msg)"
       @mouseenter="maybeFetchReadCount"
     >
+      <button
+        v-if="groupSenderClickable"
+        type="button"
+        class="msg-sender msg-sender-btn"
+        @click="onGroupSenderClick"
+      >
+        {{ groupSenderName }}
+      </button>
+      <div v-else-if="showGroupSenderName" class="msg-sender">{{ groupSenderName }}</div>
       <div
         v-if="msg.type === 'file'"
         class="file-msg-wrap"
@@ -303,6 +365,31 @@ function onStatusClick() {
 }
 .message-row.left .bubble-wrapper {
   align-items: flex-start;
+}
+.msg-sender {
+  font-size: var(--lx-font-xs);
+  line-height: var(--lx-leading-snug);
+  color: var(--lx-text-muted);
+  margin-bottom: var(--lx-space-2xs);
+  user-select: none;
+}
+.msg-sender-btn {
+  border: none;
+  padding: 0;
+  margin: 0 0 var(--lx-space-2xs);
+  background: transparent;
+  font: inherit;
+  color: var(--lx-text-muted);
+  cursor: pointer;
+  text-align: inherit;
+}
+.msg-sender-btn:hover {
+  color: var(--lx-accent);
+}
+.msg-sender-btn:focus-visible {
+  outline: 2px solid var(--lx-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 .file-msg-wrap {
   position: relative;
