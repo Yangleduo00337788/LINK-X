@@ -26,6 +26,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.HashMap;
 import java.util.List;
@@ -727,7 +728,7 @@ public class ImMessagePushService {
                 .id(msg.getId())
                 .conversationId(msg.getConversationId())
                 .senderId(msg.getSenderId())
-                .senderNickname(sender != null ? sender.getNickname() : null)
+                .senderNickname(resolveSenderNickname(sender))
                 .senderAvatar(sender != null ? sender.getAvatar() : null)
                 .type(msg.getType())
                 .content(msg.getContent())
@@ -738,6 +739,19 @@ public class ImMessagePushService {
                 .createTime(msg.getCreateTime() != null ? msg.getCreateTime().getTime() : null)
                 .isSelf(msg.getSenderId().equals(viewerId))
                 .build();
+    }
+
+    private String resolveSenderNickname(com.linkx.server.entity.SysUser sender) {
+        if (sender == null) {
+            return null;
+        }
+        if (StringUtils.hasText(sender.getNickname())) {
+            return sender.getNickname();
+        }
+        if (StringUtils.hasText(sender.getUsername())) {
+            return sender.getUsername();
+        }
+        return null;
     }
 
     public String buildPong() {

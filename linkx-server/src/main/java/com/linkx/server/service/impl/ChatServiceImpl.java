@@ -1594,7 +1594,7 @@ public class ChatServiceImpl implements ChatService {
                 && !ImMessage.TYPE_CONFERENCE.equals(message.getType())) {
             fileUrl = mediaUrlService.resolveFile(fileUrl);
         }
-        String senderNickname = sender != null ? sender.getNickname() : null;
+        String senderNickname = resolveSenderNickname(sender);
         String senderAvatar = sender != null
                 ? mediaUrlService.resolveUserAvatar(sender.getId(), sender.getAvatar())
                 : null;
@@ -1638,6 +1638,19 @@ public class ChatServiceImpl implements ChatService {
         }
 
         return builder.build();
+    }
+
+    private String resolveSenderNickname(SysUser sender) {
+        if (sender == null) {
+            return null;
+        }
+        if (StringUtils.hasText(sender.getNickname())) {
+            return sender.getNickname();
+        }
+        if (StringUtils.hasText(sender.getUsername())) {
+            return sender.getUsername();
+        }
+        return null;
     }
 
     private String resolveBotNickname(Long conversationId) {
