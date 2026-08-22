@@ -144,6 +144,7 @@ public class LinkMateSttClient {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         writePart(out, boundary, "model", null, model.getBytes(StandardCharsets.UTF_8));
         writePart(out, boundary, "response_format", null, "json".getBytes(StandardCharsets.UTF_8));
+        writePart(out, boundary, "temperature", null, "0".getBytes(StandardCharsets.UTF_8));
         if (StringUtils.hasText(languageHint)) {
             writePart(out, boundary, "language", null, languageHint.trim().getBytes(StandardCharsets.UTF_8));
         }
