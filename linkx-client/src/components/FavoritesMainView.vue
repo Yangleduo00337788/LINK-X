@@ -8,11 +8,10 @@ import {
   NIcon,
   NInput,
   NDropdown,
-  NModal,
   useMessage,
   useDialog
 } from 'naive-ui'
-import { LxButton, LxIconButton } from './ui'
+import { LxButton, LxIconButton, LxModal } from './ui'
 import {
   SearchOutline,
   AddOutline,
@@ -643,7 +642,7 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
       <div v-if="loading" class="empty">{{ t('common.loading') }}</div>
     </section>
 
-    <n-modal
+    <LxModal
       v-model:show="tagModalShow"
       preset="card"
       :title="t('favorites.editTags')"
@@ -662,9 +661,9 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
           <LxButton variant="modal-primary" @click="saveTags">{{ t('common.save') }}</LxButton>
         </div>
       </template>
-    </n-modal>
+    </LxModal>
 
-    <n-modal
+    <LxModal
       v-model:show="newTagModalShow"
       preset="card"
       :title="t('favorites.addTag')"
@@ -677,7 +676,7 @@ function onTagContextMenu(e: MouseEvent, tag: { id: string; key: string; preset:
           <LxButton variant="modal-primary" @click="confirmNewTag">{{ t('common.confirm') }}</LxButton>
         </div>
       </template>
-    </n-modal>
+    </LxModal>
   </div>
 </template>
 

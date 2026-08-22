@@ -9,7 +9,7 @@
  * 同一套页面、同一套交互,差异仅在标题与是否渲染媒体区。
  */
 import { computed, nextTick, ref, onMounted, onUnmounted } from 'vue'
-import { NIcon, NModal, NRadio, NRadioGroup, useMessage } from 'naive-ui'
+import { NIcon, NRadio, NRadioGroup, useMessage } from 'naive-ui'
 import {
   LocationOutline,
   AtCircleOutline,
@@ -35,7 +35,7 @@ import AtMentionPicker from './common/AtMentionPicker.vue'
 import LocationPickerPage from './LocationPickerPage.vue'
 import WindowCaptionButtons from './WindowCaptionButtons.vue'
 import { useI18n } from '../i18n'
-import { LxButton, LxIconButton } from './ui'
+import { LxButton, LxIconButton, LxModal } from './ui'
 
 const route = useRoute()
 const momentsStore = useMomentsStore()
@@ -580,7 +580,7 @@ async function publish() {
   </Teleport>
 
   <!-- ========== 提醒谁看弹窗 ========== -->
-  <n-modal v-model:show="showAtUsersModal" preset="card" :title="t('moments.remindWho')" style="max-width: 360px;">
+  <LxModal v-model:show="showAtUsersModal" preset="card" :title="t('moments.remindWho')" style="max-width: 360px;">
     <div class="at-users-modal">
       <!-- 已选择的好友标签 -->
       <div v-if="atUsers.length" class="selected-tags">
@@ -617,10 +617,10 @@ async function publish() {
         <LxButton variant="modal-primary" @click="confirmAtUsers">{{ t('common.confirm') }}</LxButton>
       </div>
     </div>
-  </n-modal>
+  </LxModal>
 
   <!-- ========== 谁可以看弹窗 ========== -->
-  <n-modal v-model:show="showVisibilityModal" preset="card" :title="t('moments.whoCanSee')" style="max-width: 320px;">
+  <LxModal v-model:show="showVisibilityModal" preset="card" :title="t('moments.whoCanSee')" style="max-width: 320px;">
     <div class="visibility-modal">
       <n-radio-group v-model:value="visibility" class="visibility-options">
         <div v-for="opt in visibilityOptions" :key="opt.value" class="visibility-option">
@@ -633,7 +633,7 @@ async function publish() {
         <LxButton variant="modal-primary" @click="confirmVisibility">{{ t('common.confirm') }}</LxButton>
       </div>
     </div>
-  </n-modal>
+  </LxModal>
 </template>
 
 <style scoped>
@@ -706,7 +706,7 @@ async function publish() {
   background: var(--lx-bg-card);
   gap: var(--lx-space);
   width: 100%;
-  min-height: 48px;
+  min-height: var(--lx-size-win-bar);
   box-sizing: border-box;
 }
 

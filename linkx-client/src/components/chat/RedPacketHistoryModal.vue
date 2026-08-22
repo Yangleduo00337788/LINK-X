@@ -4,8 +4,8 @@
  * 会话红包记录：列出当前会话发出的红包，可查看详情并领取。
  */
 import { ref, watch, computed } from 'vue'
-import { NModal, NSpin, NEmpty, useMessage } from 'naive-ui'
-import { LxButton } from '../ui'
+import { NSpin, NEmpty, useMessage } from 'naive-ui'
+import { LxButton, LxModal } from '../ui'
 import { storeToRefs } from 'pinia'
 import { useChatModalsStore } from '../../stores/chatModals'
 import { useAppStore } from '../../stores/app'
@@ -104,7 +104,7 @@ async function quickReceive(p: RedPacket) {
 </script>
 
 <template>
-  <n-modal
+  <LxModal
     :show="redPacketHistoryOpen"
     preset="card"
     :title="title"
@@ -140,7 +140,7 @@ async function quickReceive(p: RedPacket) {
         </li>
       </ul>
     </n-spin>
-  </n-modal>
+  </LxModal>
 </template>
 
 <style scoped>

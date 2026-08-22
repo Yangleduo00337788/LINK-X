@@ -6,7 +6,6 @@
  */
 import { ref, watch, computed } from 'vue'
 import {
-  NModal,
   NInput,
   NSelect,
   NDatePicker,
@@ -20,7 +19,7 @@ import { useChatModalsStore } from '../stores/chatModals'
 import { generateDefaultAvatar } from '../utils/defaultAvatar'
 import { pickDisplayableImageUrl } from '../utils/displayImage'
 import { useI18n } from '../i18n'
-import { LxButton, LxIconButton } from './ui'
+import { LxButton, LxIconButton, LxModal } from './ui'
 import {
   PROFILE_COUNTRY_CN,
   PROFILE_PROVINCES,
@@ -145,7 +144,7 @@ async function handleAvatarChange(e: Event) {
 </script>
 
 <template>
-  <n-modal
+  <LxModal
     v-model:show="editProfileOpen"
     class="edit-profile-modal"
     preset="card"
@@ -277,7 +276,7 @@ async function handleAvatarChange(e: Event) {
         <LxButton variant="modal" @click="closeEditProfile">{{ t('common.cancel') }}</LxButton>
       </div>
     </div>
-  </n-modal>
+  </LxModal>
 </template>
 
 <style scoped>

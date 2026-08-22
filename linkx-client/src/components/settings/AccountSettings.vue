@@ -1,8 +1,8 @@
 <!-- 作者：yangleduo -->
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
-import { NIcon, NModal, NInput, NTag, useMessage, useDialog } from 'naive-ui'
-import { LxButton, LxIconButton, LxGroupCard } from '../ui'
+import { NIcon, NInput, NTag, useMessage, useDialog } from 'naive-ui'
+import { LxButton, LxIconButton, LxGroupCard, LxModal } from '../ui'
 import {
   ChevronForwardOutline,
   CreateOutline,
@@ -721,7 +721,7 @@ onMounted(() => {
       </button>
     </LxGroupCard>
 
-    <n-modal
+    <LxModal
       v-model:show="showPasswordModal"
       preset="card"
       :title="t('account.changePassword')"
@@ -776,9 +776,9 @@ onMounted(() => {
           <LxButton variant="modal-primary" :disabled="passwordLoading" @click="handleChangePassword">{{ t('account.confirmChange') }}</LxButton>
         </div>
       </template>
-    </n-modal>
+    </LxModal>
 
-    <n-modal
+    <LxModal
       v-model:show="showDeviceModal"
       preset="card"
       :title="t('account.devicesTitle')"
@@ -806,9 +806,9 @@ onMounted(() => {
           </LxButton>
         </div>
       </div>
-    </n-modal>
+    </LxModal>
 
-    <n-modal
+    <LxModal
       v-model:show="showFeedbackHistory"
       preset="card"
       :title="t('account.feedbackTitle')"
@@ -873,9 +873,9 @@ onMounted(() => {
           </div>
         </div>
       </div>
-    </n-modal>
+    </LxModal>
 
-    <n-modal
+    <LxModal
       v-model:show="showLinkxIdModal"
       preset="card"
       :title="t('account.changeLinkxId')"
@@ -909,9 +909,9 @@ onMounted(() => {
           <LxButton variant="modal-primary" :disabled="linkxIdLoading" @click="submitChangeLinkxId">{{ t('account.confirmChange') }}</LxButton>
         </div>
       </template>
-    </n-modal>
+    </LxModal>
 
-    <n-modal
+    <LxModal
       v-model:show="showPhoneModal"
       preset="card"
       :title="userProfile.phoneBound ? t('account.changePhone') : t('account.bindPhone')"
@@ -940,9 +940,9 @@ onMounted(() => {
           <LxButton variant="modal-primary" :disabled="phoneLoading" @click="submitBindPhone">{{ t('account.confirmBind') }}</LxButton>
         </div>
       </template>
-    </n-modal>
+    </LxModal>
 
-    <n-modal
+    <LxModal
       v-model:show="showEmailModal"
       preset="card"
       :title="userProfile.emailBound ? t('account.changeEmail') : t('account.bindEmail')"
@@ -975,9 +975,9 @@ onMounted(() => {
           <LxButton variant="modal-primary" :disabled="emailLoading" @click="submitBindEmail">{{ t('account.confirmBind') }}</LxButton>
         </div>
       </template>
-    </n-modal>
+    </LxModal>
 
-    <n-modal
+    <LxModal
       v-model:show="showPurgeModal"
       preset="card"
       :title="t('account.purgeData')"
@@ -1001,9 +1001,9 @@ onMounted(() => {
           <LxButton variant="modal-danger" :disabled="purgeLoading" @click="submitPurgeData">{{ t('common.confirm') }}</LxButton>
         </div>
       </template>
-    </n-modal>
+    </LxModal>
 
-    <n-modal
+    <LxModal
       v-model:show="showDeleteModal"
       preset="card"
       :title="t('account.deleteTitle')"
@@ -1027,7 +1027,7 @@ onMounted(() => {
           <LxButton variant="modal-danger" :disabled="deleteLoading" @click="submitDeleteAccount">{{ t('account.confirmDelete') }}</LxButton>
         </div>
       </template>
-    </n-modal>
+    </LxModal>
   </div>
 </template>
 

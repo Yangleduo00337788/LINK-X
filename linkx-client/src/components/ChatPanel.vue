@@ -11,7 +11,7 @@
 // Vue 响应式、计算属性、生命周期、侦听器与 nextTick
 import { ref, computed, shallowRef, onMounted, onUnmounted, watch, nextTick } from 'vue'
 // Naive UI 图标、气泡、下拉菜单与消息提示
-import { NIcon, NPopover, NDropdown, NModal, NInput, useMessage, type DropdownOption } from 'naive-ui'
+import { NIcon, NPopover, NDropdown, NInput, useMessage, type DropdownOption } from 'naive-ui'
 // Ionicons5 通话、视频、网格、添加、更多、手机、图片图标
 import {
   CallOutline,
@@ -80,7 +80,7 @@ import ForwardPickerModal from './chat/ForwardPickerModal.vue'
 import ConferenceSessionBanner from './chat/ConferenceSessionBanner.vue'
 import type { SessionBannerInfo } from './chat/ConferenceSessionBanner.vue'
 import { useConferenceStore } from '../stores/conference'
-import { LxButton, LxIconButton } from './ui'
+import { LxButton, LxIconButton, LxModal } from './ui'
 
 // 获取 Naive UI 消息提示实例
 const message = useMessage()
@@ -1780,7 +1780,7 @@ function onDrop(e: DragEvent) {
       @clickoutside="ctxShow = false"
     />
 
-    <n-modal
+    <LxModal
       v-model:show="editModalShow"
       preset="card"
       :title="t('chat.edit')"
@@ -1807,7 +1807,7 @@ function onDrop(e: DragEvent) {
           </LxButton>
         </div>
       </template>
-    </n-modal>
+    </LxModal>
 
     <ForwardPickerModal
       v-model:show="forwardModalShow"

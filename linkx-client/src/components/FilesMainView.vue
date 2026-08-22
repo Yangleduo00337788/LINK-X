@@ -9,12 +9,11 @@ import {
   NIcon,
   NInput,
   NDropdown,
-  NModal,
   NSwitch,
   useMessage,
   useDialog
 } from 'naive-ui'
-import { LxButton, LxIconButton } from './ui'
+import { LxButton, LxIconButton, LxModal } from './ui'
 import {
   SearchOutline,
   AddOutline,
@@ -883,7 +882,7 @@ void MoveOutline
     </div>
 
     <!-- 文本输入弹窗（新建/重命名/描述） -->
-    <n-modal
+    <LxModal
       v-model:show="textModalShow"
       preset="card"
       :title="textModalTitle"
@@ -904,10 +903,10 @@ void MoveOutline
           <LxButton variant="modal-primary" @click="onTextModalConfirm">{{ t('common.confirm') }}</LxButton>
         </div>
       </template>
-    </n-modal>
+    </LxModal>
 
     <!-- 分享设置 -->
-    <n-modal
+    <LxModal
       v-model:show="shareModalShow"
       preset="card"
       :title="t('files.shareSettings')"
@@ -936,7 +935,7 @@ void MoveOutline
           </LxButton>
         </div>
       </template>
-    </n-modal>
+    </LxModal>
   </div>
 </template>
 

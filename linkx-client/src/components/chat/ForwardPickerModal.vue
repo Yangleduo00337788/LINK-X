@@ -4,7 +4,7 @@
  * 转发选人弹窗：左栏最近聊天多选，右栏发送给 + 预览 + 留言。
  */
 import { computed, ref, watch } from 'vue'
-import { NIcon, NModal } from 'naive-ui'
+import { NIcon } from 'naive-ui'
 import {
   AddOutline,
   ChevronDownOutline,
@@ -16,7 +16,7 @@ import {
   OptionsOutline
 } from '@vicons/ionicons5'
 import Avatar from '../Avatar.vue'
-import { LxButton, LxIconButton } from '../ui'
+import { LxButton, LxIconButton, LxModal } from '../ui'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '../../stores/app'
 import { useI18n } from '../../i18n'
@@ -100,7 +100,7 @@ function onConfirm() {
 </script>
 
 <template>
-  <n-modal
+  <LxModal
     :show="show"
     :mask-closable="!loading"
     :auto-focus="false"
@@ -219,7 +219,7 @@ function onConfirm() {
         </div>
       </div>
     </div>
-  </n-modal>
+  </LxModal>
 </template>
 
 <style scoped>

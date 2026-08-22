@@ -5,7 +5,6 @@
  */
 import { ref, watch, computed } from 'vue'
 import {
-  NModal,
   NInput,
   NDatePicker,
   NTimePicker,
@@ -18,7 +17,7 @@ import { storeToRefs } from 'pinia'
 import { useCalendarStore } from '../../stores/calendar'
 import type { CalendarEvent } from '../../stores/calendar'
 import { useI18n } from '../../i18n'
-import { LxButton, LxIconButton } from '../ui'
+import { LxButton, LxIconButton, LxModal } from '../ui'
 import { lxEventColors } from '../../theme/vars'
 
 const EVENT_COLORS = lxEventColors
@@ -246,7 +245,7 @@ async function saveEvent() {
 </script>
 
 <template>
-  <n-modal
+  <LxModal
     :show="show"
     class="calendar-event-modal"
     preset="card"
@@ -341,7 +340,7 @@ async function saveEvent() {
         </LxButton>
       </footer>
     </div>
-  </n-modal>
+  </LxModal>
 </template>
 
 <style scoped>
