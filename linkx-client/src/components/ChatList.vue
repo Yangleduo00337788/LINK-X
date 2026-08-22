@@ -366,7 +366,7 @@ function onContextMenuSelect(key: string) {
                   </span>
                 </div>
                 <span class="session-meta">
-                  <PinIcon v-if="session.pinned" :size="10" class="pin-icon" />
+                  <PinIcon v-if="session.pinned" :size="10" filled class="pin-icon" />
                   <n-icon
                     v-if="session.muted"
                     :component="NotificationsOffOutline"

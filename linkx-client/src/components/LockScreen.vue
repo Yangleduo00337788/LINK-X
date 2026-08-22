@@ -146,6 +146,7 @@ function goSettings() {
   right: 0;
   z-index: 1;
   display: flex;
+  align-items: stretch;
   justify-content: flex-end;
   -webkit-app-region: no-drag;
 }

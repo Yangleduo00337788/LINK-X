@@ -656,7 +656,7 @@ async function handleForgot() {
           :title="t('login.menu')"
           @click="toggleMenu"
         >
-          <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+          <svg viewBox="0 0 10 10" aria-hidden="true">
             <path d="M1.5 2.2h7M1.5 5h7M1.5 7.8h7" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" />
           </svg>
         </button>

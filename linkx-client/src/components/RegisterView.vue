@@ -808,8 +808,6 @@ onUnmounted(() => {
 }
 
 .lx-win-caption-btn--close {
-  font-size: var(--lx-font-4xl);
-  line-height: var(--lx-leading-none);
   color: var(--lx-ink-soft);
 }
 

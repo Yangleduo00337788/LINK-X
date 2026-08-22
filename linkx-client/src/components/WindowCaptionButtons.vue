@@ -6,6 +6,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from '../i18n'
 import WindowPinButton from './WindowPinButton.vue'
+import { WIN_CAPTION_GLYPH, isWindowsElectron } from '../utils/windowCaptionGlyphs'
 
 const props = withDefaults(
   defineProps<{
@@ -29,6 +30,7 @@ const props = withDefaults(
 )
 
 const { t } = useI18n()
+const useFluentGlyph = isWindowsElectron()
 const isElectron = !!window.electronAPI?.isElectron
 const showCustom = computed(
   () =>
@@ -78,10 +80,14 @@ async function close() {
       v-if="showCustom && showMinimize"
       type="button"
       class="lx-win-caption-btn"
+      :class="{ 'lx-win-caption-btn--fluent': useFluentGlyph }"
       :title="t('shell.minimize')"
       @click="minimize"
     >
-      <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+      <span v-if="useFluentGlyph" class="lx-win-caption-glyph" aria-hidden="true">{{
+        WIN_CAPTION_GLYPH.minimize
+      }}</span>
+      <svg v-else viewBox="0 0 10 10" aria-hidden="true">
         <path d="M1 5h8" stroke="currentColor" stroke-width="1.1" fill="none" />
       </svg>
     </button>
@@ -89,29 +95,41 @@ async function close() {
       v-if="showCustom && showMaximize"
       type="button"
       class="lx-win-caption-btn"
+      :class="{ 'lx-win-caption-btn--fluent': useFluentGlyph }"
       :title="isMaximized ? t('shell.restore') : t('shell.maximize')"
       @click="maximize"
     >
-      <svg v-if="!isMaximized" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-        <rect x="1.2" y="1.2" width="7.6" height="7.6" rx="0.6" stroke="currentColor" stroke-width="1.1" fill="none" />
-      </svg>
-      <svg v-else width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-        <path
-          d="M3 3.2h4.2V7.4H3zM2.2 4.5V2.2H6.5"
-          stroke="currentColor"
-          stroke-width="1.1"
-          fill="none"
-        />
-      </svg>
+      <template v-if="useFluentGlyph">
+        <span class="lx-win-caption-glyph" aria-hidden="true">{{
+          isMaximized ? WIN_CAPTION_GLYPH.restore : WIN_CAPTION_GLYPH.maximize
+        }}</span>
+      </template>
+      <template v-else>
+        <svg v-if="!isMaximized" viewBox="0 0 10 10" aria-hidden="true">
+          <rect x="1.2" y="1.2" width="7.6" height="7.6" rx="0.6" stroke="currentColor" stroke-width="1.1" fill="none" />
+        </svg>
+        <svg v-else viewBox="0 0 10 10" aria-hidden="true">
+          <path
+            d="M3 3.2h4.2V7.4H3zM2.2 4.5V2.2H6.5"
+            stroke="currentColor"
+            stroke-width="1.1"
+            fill="none"
+          />
+        </svg>
+      </template>
     </button>
     <button
       v-if="showCustom"
       type="button"
       class="lx-win-caption-btn lx-win-caption-btn--close"
+      :class="{ 'lx-win-caption-btn--fluent': useFluentGlyph }"
       :title="t('shell.close')"
       @click="close"
     >
-      <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+      <span v-if="useFluentGlyph" class="lx-win-caption-glyph" aria-hidden="true">{{
+        WIN_CAPTION_GLYPH.close
+      }}</span>
+      <svg v-else viewBox="0 0 10 10" aria-hidden="true">
         <path d="M2 2l6 6M8 2L2 8" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" />
       </svg>
     </button>

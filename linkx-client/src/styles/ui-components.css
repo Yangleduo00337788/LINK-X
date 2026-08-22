@@ -1513,9 +1513,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 46px;
+  width: var(--lx-caption-btn-width);
   height: 100%;
-  min-height: 36px;
+  min-height: var(--lx-size-win-bar);
   margin: 0;
   padding: 0;
   border: none;
@@ -1528,15 +1528,67 @@
   transition: color var(--lx-duration-caption) linear;
 }
 
+.lx-win-caption-btn svg {
+  display: block;
+  width: var(--lx-caption-icon-size);
+  height: var(--lx-caption-icon-size);
+  flex-shrink: 0;
+}
+
+.lx-win-caption-glyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--lx-caption-icon-size);
+  height: var(--lx-caption-icon-size);
+  flex-shrink: 0;
+  font-family: 'Segoe Fluent Icons', 'Segoe MDL2 Assets', sans-serif;
+  font-size: var(--lx-caption-icon-size);
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
 .lx-win-caption-btn::before {
   content: '';
   position: absolute;
+  left: 50%;
+  top: 50%;
   width: var(--lx-caption-hit-size);
   height: var(--lx-caption-hit-size);
   border-radius: var(--lx-caption-hit-radius);
   background: transparent;
   pointer-events: none;
+  transform: translate(-50%, -50%);
   transition: background-color var(--lx-duration-caption) linear;
+}
+
+/* 置顶：仅图标变色，不要整块 hover/active 底色 */
+.lx-win-caption-btn--pin::before {
+  display: none;
+}
+
+.lx-win-caption-btn--pin:hover,
+.lx-win-caption-btn--pin:active {
+  color: var(--lx-text);
+}
+
+.lx-win-caption-btn--pin.is-active,
+.lx-win-caption-btn--pin.is-active:hover,
+.lx-win-caption-btn--pin.is-active:active {
+  color: var(--lx-accent);
+}
+
+html.lx-electron-win32.lx-native-frame .lx-win-caption-btn--fluent::before {
+  inset: 0;
+  left: 0;
+  top: 0;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  transform: none;
 }
 
 .lx-win-caption-btn:hover::before {
@@ -1552,12 +1604,13 @@
   z-index: var(--lx-z-raised);
 }
 
-.lx-win-caption-btn.is-active {
-  color: var(--lx-accent);
+.lx-win-caption-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
-.lx-win-caption-btn--pin.is-active::before {
-  background: rgba(18, 183, 245, 0.14);
+.lx-win-caption-btn:disabled::before {
+  display: none;
 }
 
 .lx-win-caption-btn--close:hover {
@@ -1574,4 +1627,73 @@
 
 .lx-win-caption-btn--close:active::before {
   background: var(--lx-caption-close-hover);
+}
+
+/* 弹窗标题栏：高度与主窗标题栏一致，右侧窗控同列 */
+.lx-modal-win-head {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  height: var(--lx-size-win-bar);
+  min-height: var(--lx-size-win-bar);
+  padding: 0 var(--lx-space-2xl);
+  border-bottom: 1px solid var(--lx-border-light);
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.lx-modal-win-head > h2 {
+  align-self: center;
+  margin: 0;
+  min-width: 0;
+  font-size: var(--lx-font-lg);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: var(--lx-space-lg);
+  color: var(--lx-text-body);
+}
+
+.modal-win-head-actions {
+  display: flex;
+  align-items: stretch;
+  align-self: stretch;
+  flex-shrink: 0;
+  height: 100%;
+  margin-right: calc(-1 * var(--lx-space-2xl));
+  -webkit-app-region: no-drag;
+}
+
+.modal-win-head-actions .lx-win-caption-btn--pin {
+  height: 100%;
+}
+
+/* 全屏遮罩弹窗：右上角窗口置顶（遮罩挡住主界面标题栏时） */
+.modal-overlay-caption {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  align-items: stretch;
+  height: var(--lx-size-win-bar);
+  min-height: var(--lx-size-win-bar);
+  pointer-events: none;
+  -webkit-app-region: no-drag;
+}
+
+.modal-overlay-caption .lx-win-caption-btn--pin {
+  pointer-events: auto;
+  height: 100%;
+}
+
+html.lx-electron-win32.lx-native-frame .modal-overlay-caption {
+  padding-right: calc(100% - env(titlebar-area-width, 100%));
+  box-sizing: border-box;
+}
+
+.modal-overlay-caption--fixed {
+  position: fixed;
+  z-index: var(--lx-z-system);
 }
