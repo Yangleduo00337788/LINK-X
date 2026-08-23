@@ -6,7 +6,9 @@ package com.linkx.server.service.impl;
  */
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.config.metrics.LinkxMetrics;
+import com.linkx.server.common.SqlLikeUtils;
 import com.linkx.server.common.ChatUploadValidator;
+import com.linkx.server.common.ImMessageSearchSupport;
 import com.linkx.server.common.InputSanitizer;
 import com.linkx.server.controller.dto.SendMessageDTO;
 import com.linkx.server.controller.vo.ChatFileUploadVO;
@@ -22,6 +24,7 @@ import com.linkx.server.entity.RedPacketRecord;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.entity.SysUserRelation;
 import com.linkx.server.exception.CustomException;
+import com.linkx.server.mapper.ChatSqlMapper;
 import com.linkx.server.mapper.ImConversationMapper;
 import com.linkx.server.mapper.ImConversationMemberMapper;
 import com.linkx.server.repository.ImMessageRepository;
@@ -86,6 +89,7 @@ public class ChatServiceImpl implements ChatService {
     private static final Duration MP_OWNER_TTL = Duration.ofHours(24);
 
     private final ImConversationMapper conversationMapper;
+    private final ChatSqlMapper chatSqlMapper;
     private final ImConversationMemberMapper memberMapper;
     private final ImMessageRepository imMessageRepository;
     private final SysUserMapper sysUserMapper;
@@ -157,6 +161,7 @@ public class ChatServiceImpl implements ChatService {
                 .collect(Collectors.toSet());
         Map<Long, List<GroupMemberAvatarVO>> groupMemberAvatars = loadGroupMemberAvatarPreviews(groupIds);
         Map<Long, String> groupRemarkMap = loadGroupRemarkMap(userId, groupIds);
+        Map<Long, Long> unreadCountMap = loadUnreadCountMap(userId);
 
         List<ConversationVO> result = new ArrayList<>();
         for (ImConversation conversation : conversations) {
@@ -182,13 +187,13 @@ public class ChatServiceImpl implements ChatService {
                 boolean showOnline = !Boolean.FALSE.equals(showOnlineMap.get(peer.getId()));
                 boolean peerOnline = showOnline && presenceService.isOnline(peer.getId());
                 result.add(toConversationVO(conversation, peer, remarkMap.get(peer.getId()), peerOnline,
-                        getUnreadCount(userId, conversation.getId()), pinned, important, muted, blocked));
+                        unreadCountMap.getOrDefault(conversation.getId(), 0L), pinned, important, muted, blocked));
             } else if (conversation.getType() == ImConversation.TYPE_GROUP) {
                 result.add(toGroupConversationVO(
                         conversation,
                         groupMemberAvatars.getOrDefault(conversation.getId(), List.of()),
                         groupRemarkMap.get(conversation.getId()),
-                        getUnreadCount(userId, conversation.getId()), pinned, important, muted
+                        unreadCountMap.getOrDefault(conversation.getId(), 0L), pinned, important, muted
                 ));
             }
         }
@@ -904,33 +909,42 @@ public class ChatServiceImpl implements ChatService {
         }
 
         List<ImMessage> messages;
-        if (linkxProperties.getMessageEncryption().isEnabled()) {
-            messages = searchMessagesInMemory(allowedIds, q, type, fromTime, toTime, cap);
-        } else {
-            QueryWrapper qw = QueryWrapper.create()
+        boolean encryptionEnabled = linkxProperties.getMessageEncryption().isEnabled();
+        QueryWrapper qw = QueryWrapper.create()
+                .where(ImMessage::getConversationId).in(allowedIds)
+                .and(ImMessage::getType).ne(ImMessage.TYPE_RECALL);
+        ImMessageSearchSupport.applyContentSearch(qw, q, encryptionEnabled);
+        qw.orderBy(ImMessage::getCreateTime, false)
+                .limit(cap);
+        if (StringUtils.hasText(type)) {
+            qw.and(ImMessage::getType).eq(type.trim());
+        }
+        applySearchTimeRange(qw, fromTime, toTime);
+        messages = imMessageRepository.selectListByQuery(qw);
+        if (messages.isEmpty() && ImMessageSearchSupport.preferFulltext(encryptionEnabled)) {
+            QueryWrapper fileQw = QueryWrapper.create()
+                    .where(ImMessage::getConversationId).in(allowedIds)
+                    .and(ImMessage::getType).ne(ImMessage.TYPE_RECALL);
+            ImMessageSearchSupport.applyFileNameSearch(fileQw, q);
+            fileQw.orderBy(ImMessage::getCreateTime, false)
+                    .limit(cap);
+            if (StringUtils.hasText(type)) {
+                fileQw.and(ImMessage::getType).eq(type.trim());
+            }
+            applySearchTimeRange(fileQw, fromTime, toTime);
+            messages = imMessageRepository.selectListByQuery(fileQw);
+        } else if (messages.isEmpty()) {
+            QueryWrapper fileQw = QueryWrapper.create()
                     .where(ImMessage::getConversationId).in(allowedIds)
                     .and(ImMessage::getType).ne(ImMessage.TYPE_RECALL)
-                    .and(ImMessage::getContent).like(q)
+                    .and(ImMessage::getFileName).like(SqlLikeUtils.escapeLike(q))
                     .orderBy(ImMessage::getCreateTime, false)
                     .limit(cap);
             if (StringUtils.hasText(type)) {
-                qw.and(ImMessage::getType).eq(type.trim());
+                fileQw.and(ImMessage::getType).eq(type.trim());
             }
-            applySearchTimeRange(qw, fromTime, toTime);
-            messages = imMessageRepository.selectListByQuery(qw);
-            if (messages.isEmpty()) {
-                QueryWrapper fileQw = QueryWrapper.create()
-                        .where(ImMessage::getConversationId).in(allowedIds)
-                        .and(ImMessage::getType).ne(ImMessage.TYPE_RECALL)
-                        .and(ImMessage::getFileName).like(q)
-                        .orderBy(ImMessage::getCreateTime, false)
-                        .limit(cap);
-                if (StringUtils.hasText(type)) {
-                    fileQw.and(ImMessage::getType).eq(type.trim());
-                }
-                applySearchTimeRange(fileQw, fromTime, toTime);
-                messages = imMessageRepository.selectListByQuery(fileQw);
-            }
+            applySearchTimeRange(fileQw, fromTime, toTime);
+            messages = imMessageRepository.selectListByQuery(fileQw);
         }
 
         Set<Long> convIds = messages.stream().map(ImMessage::getConversationId).collect(Collectors.toSet());
@@ -970,44 +984,16 @@ public class ChatServiceImpl implements ChatService {
         return hits;
     }
 
-    /**
-     * 消息落库加密开启时：无法在 SQL 对 content 做 LIKE，改为拉取候选后在内存匹配。
-     */
-    private List<ImMessage> searchMessagesInMemory(Set<Long> allowedIds, String keyword, String type,
-                                                   Long fromTime, Long toTime, int cap) {
-        int scanLimit = linkxProperties.getMessageEncryption().getSearchScanLimit();
-        QueryWrapper qw = QueryWrapper.create()
-                .where(ImMessage::getConversationId).in(allowedIds)
-                .and(ImMessage::getType).ne(ImMessage.TYPE_RECALL)
-                .orderBy(ImMessage::getCreateTime, false)
-                .limit(scanLimit);
-        if (StringUtils.hasText(type)) {
-            qw.and(ImMessage::getType).eq(type.trim());
-        }
-        applySearchTimeRange(qw, fromTime, toTime);
-        List<ImMessage> candidates = imMessageRepository.selectListByQuery(qw);
-        String qLower = keyword.toLowerCase(Locale.ROOT);
-        List<ImMessage> matched = new ArrayList<>();
-        for (ImMessage msg : candidates) {
-            if (matched.size() >= cap) {
-                break;
-            }
-            String content = msg.getContent();
-            if (content != null && content.toLowerCase(Locale.ROOT).contains(qLower)) {
-                matched.add(msg);
-                continue;
-            }
-            String fileName = msg.getFileName();
-            if (fileName != null && fileName.toLowerCase(Locale.ROOT).contains(qLower)) {
-                matched.add(msg);
-            }
-        }
-        return matched;
-    }
-
     private void applySearchTimeRange(QueryWrapper qw, Long fromTime, Long toTime) {
-        if (fromTime != null && fromTime > 0) {
-            qw.and(ImMessage::getCreateTime).ge(new java.util.Date(fromTime));
+        Long effectiveFrom = fromTime;
+        if ((effectiveFrom == null || effectiveFrom <= 0)
+                && linkxProperties.getRetention().getMessageDays() > 0) {
+            java.util.Calendar cal = java.util.Calendar.getInstance();
+            cal.add(java.util.Calendar.DAY_OF_YEAR, -linkxProperties.getRetention().getMessageDays());
+            effectiveFrom = cal.getTimeInMillis();
+        }
+        if (effectiveFrom != null && effectiveFrom > 0) {
+            qw.and(ImMessage::getCreateTime).ge(new java.util.Date(effectiveFrom));
         }
         if (toTime != null && toTime > 0) {
             qw.and(ImMessage::getCreateTime).le(new java.util.Date(toTime));
@@ -1040,6 +1026,10 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public void assertConversationMember(Long userId, Long conversationId) {
+        requireMembership(userId, conversationId);
+    }
+
+    private ImConversationMember requireMembership(Long userId, Long conversationId) {
         ImConversationMember member = memberMapper.selectOneByQuery(
                 QueryWrapper.create()
                         .where(ImConversationMember::getConversationId).eq(conversationId)
@@ -1048,6 +1038,15 @@ public class ChatServiceImpl implements ChatService {
         if (member == null) {
             throw new CustomException(403, "无权访问该会话");
         }
+        return member;
+    }
+
+    private Map<Long, Long> loadUnreadCountMap(Long userId) {
+        return chatSqlMapper.batchUnreadCounts(userId).stream()
+                .collect(Collectors.toMap(
+                        row -> row.getConversationId(),
+                        row -> row.getUnreadCount() != null ? row.getUnreadCount() : 0L,
+                        (a, b) -> a));
     }
 
     @Override
@@ -1075,25 +1074,13 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public long getUnreadCount(Long userId, Long conversationId) {
-        assertConversationMember(userId, conversationId);
-        Long lastRead = loadLastReadMessageId(userId, conversationId);
-        return calcUnread(userId, conversationId, lastRead);
+        ImConversationMember member = requireMembership(userId, conversationId);
+        return calcUnread(userId, conversationId, member.getLastReadMessageId());
     }
 
     @Override
     public long getTotalUnreadCount(Long userId) {
-        List<ImConversationMember> memberships = memberMapper.selectListByQuery(
-                QueryWrapper.create().where(ImConversationMember::getUserId).eq(userId)
-        );
-        if (memberships.isEmpty()) {
-            return 0;
-        }
-        long total = 0;
-        for (ImConversationMember m : memberships) {
-            Long lastRead = loadLastReadMessageId(userId, m.getConversationId());
-            total += calcUnread(userId, m.getConversationId(), lastRead);
-        }
-        return total;
+        return chatSqlMapper.totalUnreadCount(userId);
     }
 
     private long calcUnread(Long userId, Long conversationId, Long lastReadMessageId) {
