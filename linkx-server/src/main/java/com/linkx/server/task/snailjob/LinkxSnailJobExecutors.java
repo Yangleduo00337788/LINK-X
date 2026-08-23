@@ -18,6 +18,7 @@ import com.linkx.server.task.MessageRetentionTask;
 import com.linkx.server.task.PresenceHeartbeatTask;
 import com.linkx.server.task.ReviewEscalationTask;
 import com.linkx.server.task.RedPacketTask;
+import com.linkx.server.task.SearchTextBackfillTask;
 import com.linkx.server.task.StatisticSnapshotTask;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -93,6 +94,19 @@ public final class LinkxSnailJobExecutors {
             if (result.wasSkipped()) {
                 return ExecuteResult.success("skipped: encryption disabled");
             }
+            return ExecuteResult.success(
+                    "updated=" + result.updated() + ", remaining=" + result.remaining());
+        }
+    }
+
+    @Component
+    @JobExecutor(name = "search_text_backfill")
+    @RequiredArgsConstructor
+    public static class SearchTextBackfillJobExecutor {
+        private final SearchTextBackfillTask delegate;
+
+        public ExecuteResult jobExecute(JobArgs jobArgs) {
+            SearchTextBackfillTask.BackfillResult result = delegate.backfillBatch();
             return ExecuteResult.success(
                     "updated=" + result.updated() + ", remaining=" + result.remaining());
         }
@@ -178,6 +192,29 @@ public final class LinkxSnailJobExecutors {
 
         public ExecuteResult jobExecute(JobArgs jobArgs) {
             delegate.captureDailySnapshots();
+            return ExecuteResult.success();
+        }
+    }
+
+    @Component
+    @JobExecutor(name = "statistic_snapshot_backfill")
+    @RequiredArgsConstructor
+    public static class StatisticSnapshotBackfillJobExecutor {
+        private final StatisticSnapshotTask delegate;
+
+        public ExecuteResult jobExecute(JobArgs jobArgs) {
+            int days = 30;
+            if (jobArgs != null && jobArgs.getJobParams() != null) {
+                String params = String.valueOf(jobArgs.getJobParams()).trim();
+                if (!params.isEmpty()) {
+                    try {
+                        days = Integer.parseInt(params);
+                    } catch (NumberFormatException ignored) {
+                        // 使用默认 30 天
+                    }
+                }
+            }
+            delegate.backfillSnapshots(days);
             return ExecuteResult.success();
         }
     }
