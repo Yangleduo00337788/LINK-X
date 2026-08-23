@@ -5,6 +5,7 @@ package com.linkx.server.service.admin.impl;
  * 作者：yangleduo
  */
 import com.linkx.server.common.admin.AdminConstants;
+import com.linkx.server.common.admin.AdminKeywordQuery;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminReviewBatchDTO;
 import com.linkx.server.controller.admin.dto.AdminReviewQueryDTO;
@@ -167,14 +168,18 @@ public class AdminReviewServiceImpl implements AdminReviewService {
 
     private QueryWrapper buildListQuery(AdminReviewQueryDTO query) {
         QueryWrapper qw = QueryWrapper.create();
-        if (StringUtils.hasText(query.getKeyword())) {
-            String kw = query.getKeyword().trim();
+        String kw = AdminKeywordQuery.forLike(query.getKeyword());
+        if (kw != null) {
             qw.and((QueryWrapper w) -> {
                 w.where(SysReviewTask::getTitle).like(kw)
                         .or(SysReviewTask::getContentSnapshot).like(kw)
                         .or(SysReviewTask::getReporterUsername).like(kw)
                         .or(SysReviewTask::getTargetId).like(kw);
             });
+        }
+        Date keywordFloor = AdminKeywordQuery.createTimeFloorOrNull(query.getStartTime(), query.getKeyword());
+        if (keywordFloor != null) {
+            qw.and(SysReviewTask::getCreateTime).ge(keywordFloor);
         }
         if (StringUtils.hasText(query.getReviewStatus())) {
             qw.and(SysReviewTask::getStatus).eq(query.getReviewStatus().trim());

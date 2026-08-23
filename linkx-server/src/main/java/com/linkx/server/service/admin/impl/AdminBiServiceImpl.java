@@ -16,6 +16,7 @@ import com.linkx.server.controller.admin.vo.AdminTrendVO;
 import com.linkx.server.exception.CustomException;
 import com.linkx.server.service.admin.AdminBiService;
 import com.linkx.server.service.admin.AdminDashboardService;
+import com.linkx.server.service.admin.AdminStatisticSnapshotQueryService;
 import com.linkx.server.service.admin.AdminStatisticsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -46,6 +47,7 @@ public class AdminBiServiceImpl implements AdminBiService {
     private final JdbcTemplate jdbcTemplate;
     private final AdminStatisticsService adminStatisticsService;
     private final AdminDashboardService adminDashboardService;
+    private final AdminStatisticSnapshotQueryService snapshotQueryService;
 
     @Override
     public List<AdminBiMetricVO> listMetrics() {
@@ -134,60 +136,61 @@ public class AdminBiServiceImpl implements AdminBiService {
 
     private List<Long> sparkFromMetric(String metric, int days) {
         Date start = startOfDaysAgo(days);
-        return fillSparkDays(dailyCounts(metric, start, null), days);
+        LocalDate startDate = start.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+        LocalDate yesterday = LocalDate.now().minusDays(1);
+        Map<LocalDate, Long> map = new LinkedHashMap<>();
+        if (!startDate.isAfter(yesterday)) {
+            map.putAll(snapshotQueryService.loadDailyMetrics(metric, startDate, yesterday));
+        }
+        jdbcTemplate.query(
+                trendSql(metric, false),
+                rs -> {
+                    java.sql.Date d = rs.getDate("d");
+                    if (d != null) {
+                        map.put(d.toLocalDate(), rs.getLong("c"));
+                    }
+                },
+                Date.from(LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant()));
+        return fillSparkDays(map, days);
     }
 
     private List<Long> sparkCumulativeUsers(int days) {
-        List<Long> points = new ArrayList<>(days);
-        LocalDate end = LocalDate.now();
-        for (int i = days - 1; i >= 0; i--) {
-            LocalDate day = end.minusDays(i);
-            Date dayEnd = Date.from(day.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant());
-            Long n = jdbcTemplate.queryForObject(
-                    "SELECT COUNT(*) FROM sys_user WHERE deleted = 0 AND create_time < ?",
-                    Long.class,
-                    dayEnd);
-            points.add(n == null ? 0L : n);
-        }
-        return points;
+        return sparkFromSnapshotScalar(days, "total_users_eod",
+                "SELECT COUNT(*) FROM sys_user WHERE deleted = 0 AND create_time < ?",
+                endOfTomorrow());
     }
 
     private List<Long> sparkDailyDistinctLogins(int days) {
-        Date start = startOfDaysAgo(days);
-        Map<LocalDate, Long> map = new LinkedHashMap<>();
-        jdbcTemplate.query(
-                """
-                SELECT DATE(create_time) AS d, COUNT(DISTINCT user_id) AS c
-                FROM sys_login_audit WHERE success = 1 AND create_time >= ?
-                GROUP BY DATE(create_time)
-                """,
-                rs -> {
-                    java.sql.Date d = rs.getDate("d");
-                    if (d != null) {
-                        map.put(d.toLocalDate(), rs.getLong("c"));
-                    }
-                },
-                start);
-        return fillSparkDays(map, days);
+        return sparkFromSnapshotScalar(days, "distinct_logins",
+                "SELECT COUNT(DISTINCT user_id) FROM sys_login_audit WHERE success = 1 AND create_time >= ?",
+                startOfToday());
     }
 
     private List<Long> sparkDailyActiveDevices(int days) {
+        return sparkFromSnapshotScalar(days, "active_devices",
+                "SELECT COUNT(*) FROM sys_device_session WHERE last_active >= ?",
+                startOfToday());
+    }
+
+    private List<Long> sparkFromSnapshotScalar(int days, String metricKey, String todaySql, Date todayArg) {
         Date start = startOfDaysAgo(days);
+        LocalDate startDate = start.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+        LocalDate yesterday = LocalDate.now().minusDays(1);
         Map<LocalDate, Long> map = new LinkedHashMap<>();
-        jdbcTemplate.query(
-                """
-                SELECT DATE(last_active) AS d, COUNT(*) AS c
-                FROM sys_device_session WHERE last_active >= ?
-                GROUP BY DATE(last_active)
-                """,
-                rs -> {
-                    java.sql.Date d = rs.getDate("d");
-                    if (d != null) {
-                        map.put(d.toLocalDate(), rs.getLong("c"));
-                    }
-                },
-                start);
+        if (!startDate.isAfter(yesterday)) {
+            map.putAll(snapshotQueryService.loadDailyMetrics(metricKey, startDate, yesterday));
+        }
+        Long todayVal = jdbcTemplate.queryForObject(todaySql, Long.class, todayArg);
+        map.put(LocalDate.now(), todayVal == null ? 0L : todayVal);
         return fillSparkDays(map, days);
+    }
+
+    private Date endOfTomorrow() {
+        return Date.from(LocalDate.now().plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant());
+    }
+
+    private Date startOfToday() {
+        return Date.from(LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant());
     }
 
     private static List<Long> fillSparkDays(Map<LocalDate, Long> counts, int days) {
@@ -354,15 +357,30 @@ public class AdminBiServiceImpl implements AdminBiService {
     }
 
     private Map<LocalDate, Long> dailyCounts(String metric, Date start, Date end) {
-        String sql = trendSql(metric, end != null);
+        if (end != null) {
+            String sql = trendSql(metric, true);
+            Map<LocalDate, Long> map = new LinkedHashMap<>();
+            jdbcTemplate.query(sql, rs -> {
+                java.sql.Date d = rs.getDate("d");
+                if (d != null) {
+                    map.put(d.toLocalDate(), rs.getLong("c"));
+                }
+            }, start, end);
+            return map;
+        }
         Map<LocalDate, Long> map = new LinkedHashMap<>();
-        Object[] args = end != null ? new Object[] {start, end} : new Object[] {start};
-        jdbcTemplate.query(sql, rs -> {
+        LocalDate startDate = start.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+        LocalDate yesterday = LocalDate.now().minusDays(1);
+        if (!startDate.isAfter(yesterday)) {
+            map.putAll(snapshotQueryService.loadDailyMetrics(metric, startDate, yesterday));
+        }
+        Date todayStart = Date.from(LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant());
+        jdbcTemplate.query(trendSql(metric, false), rs -> {
             java.sql.Date d = rs.getDate("d");
             if (d != null) {
                 map.put(d.toLocalDate(), rs.getLong("c"));
             }
-        }, args);
+        }, todayStart);
         return map;
     }
 
@@ -373,7 +391,7 @@ public class AdminBiServiceImpl implements AdminBiService {
                     + timeClause + " GROUP BY DATE(create_time)";
             case "logins" -> "SELECT DATE(create_time) AS d, COUNT(*) AS c FROM sys_login_audit WHERE success = 1 AND "
                     + timeClause + " GROUP BY DATE(create_time)";
-            case "messages" -> "SELECT DATE(create_time) AS d, COUNT(*) AS c FROM im_message WHERE "
+            case "messages" -> "SELECT DATE(create_time) AS d, COUNT(*) AS c FROM im_message WHERE deleted = 0 AND "
                     + timeClause + " GROUP BY DATE(create_time)";
             case "feedback" -> "SELECT DATE(create_time) AS d, COUNT(*) AS c FROM sys_feedback WHERE "
                     + timeClause + " GROUP BY DATE(create_time)";
@@ -386,16 +404,16 @@ public class AdminBiServiceImpl implements AdminBiService {
     }
 
     private long countTodayMessages() {
-        Date todayStart = Date.from(LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant());
+        Date todayStart = startOfToday();
         Long n = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM im_message WHERE create_time >= ?",
+                "SELECT COUNT(*) FROM im_message WHERE deleted = 0 AND create_time >= ?",
                 Long.class,
                 todayStart);
         return n == null ? 0L : n;
     }
 
     private long countTodayLogins() {
-        Date todayStart = Date.from(LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant());
+        Date todayStart = startOfToday();
         Long n = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM sys_login_audit WHERE success = 1 AND create_time >= ?",
                 Long.class,

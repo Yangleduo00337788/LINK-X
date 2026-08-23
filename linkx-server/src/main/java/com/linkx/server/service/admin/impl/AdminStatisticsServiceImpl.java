@@ -30,7 +30,10 @@ import com.linkx.server.mapper.SysLoginAuditMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.mapper.admin.SysReviewTaskMapper;
 import com.linkx.server.mapper.admin.SysRiskEventMapper;
+import com.linkx.server.mapper.AdminStatisticsSqlMapper;
+import com.linkx.server.mapper.row.AdminOverviewCountRow;
 import com.linkx.server.service.admin.AdminReviewService;
+import com.linkx.server.service.admin.AdminStatisticSnapshotQueryService;
 import com.linkx.server.service.admin.AdminStatisticsService;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
@@ -43,7 +46,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -55,6 +58,20 @@ public class AdminStatisticsServiceImpl implements AdminStatisticsService {
     private static final int MIN_DAYS = 7;
     private static final int MAX_DAYS = 90;
     private static final int DEFAULT_DAYS = 14;
+    private static final int HEATMAP_MAX_DAYS_MESSAGES = 30;
+
+    private static final String MESSAGE_HEATMAP_LIVE_SQL = """
+            SELECT MOD(DAYOFWEEK(create_time) + 5, 7) AS wd, HOUR(create_time) AS h, COUNT(*) AS c
+            FROM im_message
+            WHERE deleted = 0 AND create_time >= ?
+            GROUP BY wd, h
+            """;
+    private static final String LOGIN_HEATMAP_LIVE_SQL = """
+            SELECT MOD(DAYOFWEEK(create_time) + 5, 7) AS wd, HOUR(create_time) AS h, COUNT(*) AS c
+            FROM sys_login_audit
+            WHERE success = 1 AND create_time >= ?
+            GROUP BY wd, h
+            """;
 
     private final JdbcTemplate jdbcTemplate;
     private final SysUserMapper sysUserMapper;
@@ -66,35 +83,32 @@ public class AdminStatisticsServiceImpl implements AdminStatisticsService {
     private final SysReviewTaskMapper sysReviewTaskMapper;
     private final SysRiskEventMapper sysRiskEventMapper;
     private final AdminReviewService adminReviewService;
+    private final AdminStatisticSnapshotQueryService snapshotQueryService;
+    private final AdminStatisticsSqlMapper adminStatisticsSqlMapper;
 
     @Override
     public AdminStatisticOverviewVO overview(int days) {
         normalizeDays(days);
         Date todayStart = startOfToday();
         Date dayAgo = startOfDaysAgo(1);
-
-        long totalUsers = sysUserMapper.selectCountByQuery(QueryWrapper.create());
         Calendar cal = Calendar.getInstance();
         cal.add(Calendar.DAY_OF_MONTH, -7);
-        long activeUsers = sysUserMapper.selectCountByQuery(
-                QueryWrapper.create().where(SysUser::getUpdateTime).ge(cal.getTime()));
+        Date weekAgo = cal.getTime();
+
+        AdminOverviewCountRow counts = adminStatisticsSqlMapper.selectOverviewCounts(todayStart, weekAgo);
+        long totalUsers = counts != null && counts.getTotalUsers() != null ? counts.getTotalUsers() : 0L;
+        long activeUsers = counts != null && counts.getActiveUsers() != null ? counts.getActiveUsers() : 0L;
+        long pendingFeedback = counts != null && counts.getPendingFeedback() != null ? counts.getPendingFeedback() : 0L;
+        long todayNewUsers = counts != null && counts.getTodayNewUsers() != null ? counts.getTodayNewUsers() : 0L;
+        long todayMessages = counts != null && counts.getTodayMessages() != null ? counts.getTodayMessages() : 0L;
+        long todayLogins = counts != null && counts.getTodayLogins() != null ? counts.getTodayLogins() : 0L;
+        long totalMessages = counts != null && counts.getTotalMessages() != null ? counts.getTotalMessages() : 0L;
+        long totalUploads = counts != null && counts.getTotalUploads() != null ? counts.getTotalUploads() : 0L;
+        long closedFeedback = counts != null && counts.getClosedFeedback() != null ? counts.getClosedFeedback() : 0L;
+
         long onlineDevices = countOnlineDevices();
-        long pendingFeedback = feedbackMapper.selectCountByQuery(
-                QueryWrapper.create().where(Feedback::getStatus).eq("pending"));
         long pendingReviews = adminReviewService.countPending();
         long riskEvents = countRiskEventsSince(dayAgo);
-        long todayNewUsers = sysUserMapper.selectCountByQuery(
-                QueryWrapper.create().where(SysUser::getCreateTime).ge(todayStart));
-        long todayMessages = imMessageMapper.selectCountByQuery(
-                QueryWrapper.create().where(ImMessage::getCreateTime).ge(todayStart));
-        long todayLogins = sysLoginAuditMapper.selectCountByQuery(
-                QueryWrapper.create()
-                        .where(SysLoginAudit::getCreateTime).ge(todayStart)
-                        .and(SysLoginAudit::getSuccess).eq(1));
-        long totalMessages = imMessageMapper.selectCountByQuery(QueryWrapper.create());
-        long totalUploads = cloudFileMapper.selectCountByQuery(QueryWrapper.create());
-        long closedFeedback = feedbackMapper.selectCountByQuery(
-                QueryWrapper.create().where(Feedback::getStatus).eq("closed"));
 
         return AdminStatisticOverviewVO.builder()
                 .totalUsers(totalUsers)
@@ -119,11 +133,13 @@ public class AdminStatisticsServiceImpl implements AdminStatisticsService {
 
         AdminTrendVO trend = buildTrend(range,
                 series("newUsers", "新增用户",
-                        dailyCounts("SELECT DATE(create_time) AS d, COUNT(*) AS c FROM sys_user "
-                                + "WHERE deleted = 0 AND create_time >= ? GROUP BY DATE(create_time)", start)),
+                        dailyCountsWithSnapshot("new_users",
+                                "SELECT DATE(create_time) AS d, COUNT(*) AS c FROM sys_user "
+                                        + "WHERE deleted = 0 AND create_time >= ? GROUP BY DATE(create_time)", start)),
                 series("loginSuccess", "登录成功",
-                        dailyCounts("SELECT DATE(create_time) AS d, COUNT(*) AS c FROM sys_login_audit "
-                                + "WHERE success = 1 AND create_time >= ? GROUP BY DATE(create_time)", start)),
+                        dailyCountsWithSnapshot("logins",
+                                "SELECT DATE(create_time) AS d, COUNT(*) AS c FROM sys_login_audit "
+                                        + "WHERE success = 1 AND create_time >= ? GROUP BY DATE(create_time)", start)),
                 series("loginFail", "登录失败",
                         dailyCounts("SELECT DATE(create_time) AS d, COUNT(*) AS c FROM sys_login_audit "
                                 + "WHERE success = 0 AND create_time >= ? GROUP BY DATE(create_time)", start)));
@@ -157,11 +173,12 @@ public class AdminStatisticsServiceImpl implements AdminStatisticsService {
 
         AdminTrendVO trend = buildTrend(range,
                 series("messages", "消息量",
-                        dailyCounts("SELECT DATE(create_time) AS d, COUNT(*) AS c FROM im_message "
-                                + "WHERE deleted = 0 AND create_time >= ? GROUP BY DATE(create_time)", start)),
+                        dailyCountsWithSnapshot("messages",
+                                "SELECT DATE(create_time) AS d, COUNT(*) AS c FROM im_message "
+                                        + "WHERE deleted = 0 AND create_time >= ? GROUP BY DATE(create_time)", start)),
                 series("moments", "朋友圈",
                         dailyCounts("SELECT DATE(create_time) AS d, COUNT(*) AS c FROM moments_post "
-                                + "WHERE create_time >= ? GROUP BY DATE(create_time)", start)),
+                                + "WHERE deleted = 0 AND create_time >= ? GROUP BY DATE(create_time)", start)),
                 series("uploads", "文件上传",
                         dailyCounts("SELECT DATE(create_time) AS d, COUNT(*) AS c FROM cloud_file "
                                 + "WHERE deleted = 0 AND create_time >= ? GROUP BY DATE(create_time)", start)));
@@ -197,8 +214,9 @@ public class AdminStatisticsServiceImpl implements AdminStatisticsService {
                                 + "WHERE event_type = ? AND create_time >= ? GROUP BY DATE(create_time)",
                                 SysRiskEvent.TYPE_RATE_LIMIT, start)),
                 series("reviews", "审核任务",
-                        dailyCounts("SELECT DATE(create_time) AS d, COUNT(*) AS c FROM sys_review_task "
-                                + "WHERE create_time >= ? GROUP BY DATE(create_time)", start)));
+                        dailyCountsWithSnapshot("reviews",
+                                "SELECT DATE(create_time) AS d, COUNT(*) AS c FROM sys_review_task "
+                                        + "WHERE create_time >= ? GROUP BY DATE(create_time)", start)));
 
         long pending = sysReviewTaskMapper.selectCountByQuery(
                 QueryWrapper.create().where(SysReviewTask::getStatus).eq(SysReviewTask.STATUS_PENDING));
@@ -258,8 +276,9 @@ public class AdminStatisticsServiceImpl implements AdminStatisticsService {
 
         AdminTrendVO trend = buildTrend(range,
                 series("created", "新增反馈",
-                        dailyCounts("SELECT DATE(create_time) AS d, COUNT(*) AS c FROM sys_feedback "
-                                + "WHERE create_time >= ? GROUP BY DATE(create_time)", start)),
+                        dailyCountsWithSnapshot("feedback",
+                                "SELECT DATE(create_time) AS d, COUNT(*) AS c FROM sys_feedback "
+                                        + "WHERE create_time >= ? GROUP BY DATE(create_time)", start)),
                 series("replied", "已回复",
                         dailyCounts("SELECT DATE(reply_time) AS d, COUNT(*) AS c FROM sys_feedback "
                                 + "WHERE reply_time IS NOT NULL AND reply_time >= ? GROUP BY DATE(reply_time)", start)));
@@ -294,10 +313,15 @@ public class AdminStatisticsServiceImpl implements AdminStatisticsService {
                 "SELECT COUNT(*) FROM im_conversation WHERE type = ? AND deleted = 0",
                 ImConversation.TYPE_GROUP);
         Long activeGroups = jdbcTemplate.queryForObject(
-                "SELECT COUNT(DISTINCT m.conversation_id) FROM im_message m "
-                        + "INNER JOIN im_conversation c ON c.id = m.conversation_id "
-                        + "WHERE c.type = ? AND c.deleted = 0 AND m.deleted = 0 AND m.create_time >= ?",
-                Long.class, ImConversation.TYPE_GROUP, start);
+                """
+                SELECT COUNT(DISTINCT m.conversation_id) FROM im_message m
+                WHERE m.deleted = 0 AND m.create_time >= ?
+                AND EXISTS (
+                    SELECT 1 FROM im_conversation c
+                    WHERE c.id = m.conversation_id AND c.type = ? AND c.deleted = 0
+                )
+                """,
+                Long.class, start, ImConversation.TYPE_GROUP);
 
         AdminTrendVO trend = buildTrend(range,
                 series("newGroups", "新建群",
@@ -305,25 +329,36 @@ public class AdminStatisticsServiceImpl implements AdminStatisticsService {
                                 + "WHERE type = ? AND deleted = 0 AND create_time >= ? GROUP BY DATE(create_time)",
                                 ImConversation.TYPE_GROUP, start)),
                 series("groupMessages", "群消息",
-                        dailyCounts("SELECT DATE(m.create_time) AS d, COUNT(*) AS c FROM im_message m "
-                                + "INNER JOIN im_conversation c ON c.id = m.conversation_id "
-                                + "WHERE c.type = ? AND c.deleted = 0 AND m.deleted = 0 AND m.create_time >= ? "
-                                + "GROUP BY DATE(m.create_time)",
-                                ImConversation.TYPE_GROUP, start)));
+                        dailyCountsWithSnapshot("group_messages",
+                                "SELECT DATE(m.create_time) AS d, COUNT(*) AS c FROM im_message m "
+                                        + "INNER JOIN im_conversation c ON c.id = m.conversation_id "
+                                        + "WHERE c.type = ? AND c.deleted = 0 AND m.deleted = 0 AND m.create_time >= ? "
+                                        + "GROUP BY DATE(m.create_time)",
+                                start, ImConversation.TYPE_GROUP)));
 
         List<AdminGroupActivityItemVO> topGroups = new ArrayList<>();
         jdbcTemplate.query(
-                "SELECT c.id AS id, c.name AS name, c.last_message_time AS last_msg, "
-                        + "COUNT(m.id) AS msg_cnt, "
-                        + "(SELECT COUNT(*) FROM im_conversation_member cm "
-                        + " WHERE cm.conversation_id = c.id AND cm.deleted = 0) AS member_cnt "
-                        + "FROM im_conversation c "
-                        + "LEFT JOIN im_message m ON m.conversation_id = c.id "
-                        + " AND m.deleted = 0 AND m.create_time >= ? "
-                        + "WHERE c.type = ? AND c.deleted = 0 "
-                        + "GROUP BY c.id, c.name, c.last_message_time "
-                        + "ORDER BY msg_cnt DESC, c.id DESC "
-                        + "LIMIT 10",
+                """
+                        SELECT c.id AS id, c.name AS name, c.last_message_time AS last_msg,
+                               COALESCE(mc.msg_cnt, 0) AS msg_cnt,
+                               COALESCE(mem.member_cnt, 0) AS member_cnt
+                        FROM im_conversation c
+                        LEFT JOIN (
+                            SELECT conversation_id, COUNT(*) AS msg_cnt
+                            FROM im_message
+                            WHERE deleted = 0 AND create_time >= ?
+                            GROUP BY conversation_id
+                        ) mc ON mc.conversation_id = c.id
+                        LEFT JOIN (
+                            SELECT conversation_id, COUNT(*) AS member_cnt
+                            FROM im_conversation_member
+                            WHERE deleted = 0
+                            GROUP BY conversation_id
+                        ) mem ON mem.conversation_id = c.id
+                        WHERE c.type = ? AND c.deleted = 0
+                        ORDER BY msg_cnt DESC, c.id DESC
+                        LIMIT 10
+                        """,
                 rs -> {
                     topGroups.add(AdminGroupActivityItemVO.builder()
                             .id(rs.getLong("id"))
@@ -347,25 +382,24 @@ public class AdminStatisticsServiceImpl implements AdminStatisticsService {
 
     @Override
     public AdminActivityHeatmapVO activityHeatmap(int days, String metric) {
-        int range = normalizeDays(days);
-        Date start = startOfDaysAgo(range);
         String m = normalizeHeatmapMetric(metric);
-        // MySQL DAYOFWEEK: 1=周日..7=周六 → 周一=0..周日=6
-        String sql = "messages".equals(m)
-                ? "SELECT MOD(DAYOFWEEK(create_time) + 5, 7) AS wd, HOUR(create_time) AS h, COUNT(*) AS c "
-                + "FROM im_message WHERE deleted = 0 AND create_time >= ? GROUP BY wd, h"
-                : "SELECT MOD(DAYOFWEEK(create_time) + 5, 7) AS wd, HOUR(create_time) AS h, COUNT(*) AS c "
-                + "FROM sys_login_audit WHERE success = 1 AND create_time >= ? GROUP BY wd, h";
+        int range = normalizeHeatmapDays(days, m);
+        LocalDate startDate = LocalDate.now().minusDays(range - 1L);
+        LocalDate yesterday = LocalDate.now().minusDays(1);
 
         long[][] matrix = new long[7][24];
-        jdbcTemplate.query(sql, rs -> {
-            int wd = rs.getInt("wd");
-            int h = rs.getInt("h");
-            long c = rs.getLong("c");
-            if (wd >= 0 && wd < 7 && h >= 0 && h < 24) {
-                matrix[wd][h] = c;
+        boolean usedSnapshot = false;
+        if (!startDate.isAfter(yesterday)) {
+            long[][] fromSnapshot = snapshotQueryService.loadHeatmap(m, startDate, yesterday);
+            if (heatmapHasData(fromSnapshot)) {
+                mergeHeatmap(matrix, fromSnapshot);
+                mergeHeatmap(matrix, queryHeatmapLive(m, startOfToday()));
+                usedSnapshot = true;
             }
-        }, start);
+        }
+        if (!usedSnapshot) {
+            mergeHeatmap(matrix, queryHeatmapLive(m, startOfDaysAgo(range)));
+        }
 
         List<List<Long>> cells = new ArrayList<>(7 * 24);
         long max = 0L;
@@ -395,14 +429,17 @@ public class AdminStatisticsServiceImpl implements AdminStatisticsService {
         Date start = startOfDaysAgo(range);
         return buildTrend(range,
                 series("newUsers", "新增用户",
-                        dailyCounts("SELECT DATE(create_time) AS d, COUNT(*) AS c FROM sys_user "
-                                + "WHERE deleted = 0 AND create_time >= ? GROUP BY DATE(create_time)", start)),
+                        dailyCountsWithSnapshot("new_users",
+                                "SELECT DATE(create_time) AS d, COUNT(*) AS c FROM sys_user "
+                                        + "WHERE deleted = 0 AND create_time >= ? GROUP BY DATE(create_time)", start)),
                 series("messages", "消息量",
-                        dailyCounts("SELECT DATE(create_time) AS d, COUNT(*) AS c FROM im_message "
-                                + "WHERE deleted = 0 AND create_time >= ? GROUP BY DATE(create_time)", start)),
+                        dailyCountsWithSnapshot("messages",
+                                "SELECT DATE(create_time) AS d, COUNT(*) AS c FROM im_message "
+                                        + "WHERE deleted = 0 AND create_time >= ? GROUP BY DATE(create_time)", start)),
                 series("logins", "登录成功",
-                        dailyCounts("SELECT DATE(create_time) AS d, COUNT(*) AS c FROM sys_login_audit "
-                                + "WHERE success = 1 AND create_time >= ? GROUP BY DATE(create_time)", start)));
+                        dailyCountsWithSnapshot("logins",
+                                "SELECT DATE(create_time) AS d, COUNT(*) AS c FROM sys_login_audit "
+                                        + "WHERE success = 1 AND create_time >= ? GROUP BY DATE(create_time)", start)));
     }
 
     @Override
@@ -436,6 +473,47 @@ public class AdminStatisticsServiceImpl implements AdminStatisticsService {
         return "logins";
     }
 
+    private int normalizeHeatmapDays(int days, String metric) {
+        int cap = "messages".equals(metric) ? HEATMAP_MAX_DAYS_MESSAGES : MAX_DAYS;
+        if (days <= 0) {
+            days = DEFAULT_DAYS;
+        }
+        return Math.min(cap, Math.max(MIN_DAYS, days));
+    }
+
+    private long[][] queryHeatmapLive(String metric, Date since) {
+        String sql = "messages".equals(metric) ? MESSAGE_HEATMAP_LIVE_SQL : LOGIN_HEATMAP_LIVE_SQL;
+        long[][] matrix = new long[7][24];
+        jdbcTemplate.query(sql, rs -> {
+            int wd = rs.getInt("wd");
+            int h = rs.getInt("h");
+            long c = rs.getLong("c");
+            if (wd >= 0 && wd < 7 && h >= 0 && h < 24) {
+                matrix[wd][h] = c;
+            }
+        }, since);
+        return matrix;
+    }
+
+    private static void mergeHeatmap(long[][] target, long[][] source) {
+        for (int wd = 0; wd < 7; wd++) {
+            for (int h = 0; h < 24; h++) {
+                target[wd][h] += source[wd][h];
+            }
+        }
+    }
+
+    private static boolean heatmapHasData(long[][] matrix) {
+        for (int wd = 0; wd < 7; wd++) {
+            for (int h = 0; h < 24; h++) {
+                if (matrix[wd][h] > 0) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private long countLong(String sql, Object... args) {
         Long n = jdbcTemplate.queryForObject(sql, Long.class, args);
         return n == null ? 0L : n;
@@ -443,28 +521,18 @@ public class AdminStatisticsServiceImpl implements AdminStatisticsService {
 
     /** 区间内已结案审核的平均处理时长（分钟）。 */
     private Double avgReviewHandleMinutes(Date since) {
-        List<SysReviewTask> rows = sysReviewTaskMapper.selectListByQuery(
-                QueryWrapper.create()
-                        .where(SysReviewTask::getResolvedAt).ge(since)
-                        .and(SysReviewTask::getStatus).in(
-                                SysReviewTask.STATUS_APPROVED, SysReviewTask.STATUS_REJECTED));
-        double sum = 0;
-        int n = 0;
-        for (SysReviewTask t : rows) {
-            if (t.getCreateTime() == null || t.getResolvedAt() == null) {
-                continue;
-            }
-            long minutes = (t.getResolvedAt().getTime() - t.getCreateTime().getTime()) / 60_000L;
-            if (minutes < 0) {
-                continue;
-            }
-            sum += minutes;
-            n++;
-        }
-        if (n == 0) {
+        Double avg = jdbcTemplate.queryForObject(
+                "SELECT AVG(TIMESTAMPDIFF(MINUTE, create_time, resolved_at)) FROM sys_review_task "
+                        + "WHERE resolved_at >= ? AND resolved_at IS NOT NULL "
+                        + "AND status IN (?, ?)",
+                Double.class,
+                since,
+                SysReviewTask.STATUS_APPROVED,
+                SysReviewTask.STATUS_REJECTED);
+        if (avg == null) {
             return null;
         }
-        return Math.round((sum / n) * 10.0) / 10.0;
+        return Math.round(avg * 10.0) / 10.0;
     }
 
     private Date startOfToday() {
@@ -476,14 +544,38 @@ public class AdminStatisticsServiceImpl implements AdminStatisticsService {
                 .atStartOfDay(ZoneId.systemDefault()).toInstant());
     }
 
-    private Map<LocalDate, Long> dailyCounts(String sql, Object... args) {
-        Map<LocalDate, Long> map = new HashMap<>();
+    private Map<LocalDate, Long> dailyCounts(String sql, Object... sqlArgs) {
+        Map<LocalDate, Long> map = new LinkedHashMap<>();
         jdbcTemplate.query(sql, rs -> {
             java.sql.Date d = rs.getDate("d");
             if (d != null) {
                 map.put(d.toLocalDate(), rs.getLong("c"));
             }
-        }, args);
+        }, sqlArgs);
+        return map;
+    }
+
+    private Map<LocalDate, Long> dailyCountsWithSnapshot(String metricKey, String sql, Date rangeStart) {
+        return dailyCountsWithSnapshot(metricKey, sql, rangeStart, new Object[0]);
+    }
+
+    private Map<LocalDate, Long> dailyCountsWithSnapshot(String metricKey, String sql, Date rangeStart,
+                                                         Object... prefixArgs) {
+        Map<LocalDate, Long> map = new LinkedHashMap<>();
+        LocalDate startDate = rangeStart.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+        LocalDate yesterday = LocalDate.now().minusDays(1);
+        if (!startDate.isAfter(yesterday)) {
+            map.putAll(snapshotQueryService.loadDailyMetrics(metricKey, startDate, yesterday));
+        }
+        Object[] liveArgs = new Object[prefixArgs.length + 1];
+        System.arraycopy(prefixArgs, 0, liveArgs, 0, prefixArgs.length);
+        liveArgs[prefixArgs.length] = startOfToday();
+        jdbcTemplate.query(sql, rs -> {
+            java.sql.Date d = rs.getDate("d");
+            if (d != null) {
+                map.put(d.toLocalDate(), rs.getLong("c"));
+            }
+        }, liveArgs);
         return map;
     }
 

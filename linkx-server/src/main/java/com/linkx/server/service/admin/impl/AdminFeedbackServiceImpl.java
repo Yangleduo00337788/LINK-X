@@ -5,6 +5,7 @@ package com.linkx.server.service.admin.impl;
  * 作者：yangleduo
  */
 import com.linkx.server.common.admin.AdminConstants;
+import com.linkx.server.common.admin.AdminKeywordQuery;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.config.LinkxProperties;
 import com.linkx.server.controller.admin.dto.AdminFeedbackAssignDTO;
@@ -74,13 +75,17 @@ public class AdminFeedbackServiceImpl implements AdminFeedbackService {
 
     private QueryWrapper buildListQuery(AdminFeedbackQueryDTO query) {
         QueryWrapper qw = QueryWrapper.create();
-        if (StringUtils.hasText(query.getKeyword())) {
-            String kw = query.getKeyword().trim();
+        String kw = AdminKeywordQuery.forLike(query.getKeyword());
+        if (kw != null) {
             qw.and((QueryWrapper w) -> {
                 w.where(Feedback::getUsername).like(kw)
                         .or(Feedback::getContent).like(kw)
                         .or(Feedback::getType).like(kw);
             });
+        }
+        Date keywordFloor = AdminKeywordQuery.createTimeFloorOrNull(query.getStartTime(), query.getKeyword());
+        if (keywordFloor != null) {
+            qw.and(Feedback::getCreateTime).ge(keywordFloor);
         }
         if (StringUtils.hasText(query.getFeedbackStatus())) {
             qw.and(Feedback::getStatus).eq(query.getFeedbackStatus().trim());

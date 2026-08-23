@@ -6,6 +6,7 @@ package com.linkx.server.service.admin.impl;
  */
 import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.common.admin.AdminConstants;
+import com.linkx.server.common.admin.AdminKeywordQuery;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminRiskEventBatchDTO;
 import com.linkx.server.controller.admin.dto.AdminRiskEventHandleDTO;
@@ -330,14 +331,18 @@ public class AdminRiskEventServiceImpl implements AdminRiskEventService {
 
     private QueryWrapper buildQuery(AdminRiskEventQueryDTO query) {
         QueryWrapper qw = QueryWrapper.create();
-        if (StringUtils.hasText(query.getKeyword())) {
-            String kw = query.getKeyword().trim();
+        String kw = AdminKeywordQuery.forLike(query.getKeyword());
+        if (kw != null) {
             qw.and((QueryWrapper w) -> {
                 w.where(SysRiskEvent::getTitle).like(kw)
                         .or(SysRiskEvent::getDetail).like(kw)
                         .or(SysRiskEvent::getUsername).like(kw)
                         .or(SysRiskEvent::getEventType).like(kw);
             });
+        }
+        Date keywordFloor = AdminKeywordQuery.createTimeFloorOrNull(query.getStartTime(), query.getKeyword());
+        if (keywordFloor != null) {
+            qw.and(SysRiskEvent::getCreateTime).ge(keywordFloor);
         }
         if (StringUtils.hasText(query.getEventStatus())) {
             qw.and(SysRiskEvent::getStatus).eq(query.getEventStatus().trim());

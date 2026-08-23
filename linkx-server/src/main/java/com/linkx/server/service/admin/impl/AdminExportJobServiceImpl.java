@@ -6,6 +6,7 @@ package com.linkx.server.service.admin.impl;
  */
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linkx.server.common.admin.AdminExportModule;
+import com.linkx.server.common.admin.AdminKeywordQuery;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminExportJobCreateDTO;
 import com.linkx.server.controller.admin.dto.AdminPageQueryDTO;
@@ -97,8 +98,9 @@ public class AdminExportJobServiceImpl implements AdminExportJobService {
 
         QueryWrapper qw = QueryWrapper.create()
                 .where(SysAdminExportJob::getRequesterId).eq(requesterId);
-        if (StringUtils.hasText(query.getKeyword())) {
-            qw.and(SysAdminExportJob::getModule).like(query.getKeyword().trim());
+        String kw = AdminKeywordQuery.forLike(query.getKeyword());
+        if (kw != null) {
+            qw.and(SysAdminExportJob::getModule).like(kw);
         }
         long total = exportJobMapper.selectCountByQuery(qw);
         qw.orderBy(SysAdminExportJob::getCreateTime, false);

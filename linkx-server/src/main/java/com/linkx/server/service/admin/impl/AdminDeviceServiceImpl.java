@@ -9,6 +9,7 @@ import com.linkx.server.common.DataScope;
 import com.linkx.server.common.DataScopeContext;
 import com.linkx.server.common.InputSanitizer;
 import com.linkx.server.common.admin.AdminConstants;
+import com.linkx.server.common.admin.AdminKeywordQuery;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminDeviceQueryDTO;
 import com.linkx.server.controller.admin.vo.AdminDeviceVO;
@@ -292,8 +293,8 @@ public class AdminDeviceServiceImpl implements AdminDeviceService {
         if (query.getEndTime() != null) {
             qw.and(DeviceSession::getLastActive).le(new Date(query.getEndTime()));
         }
-        if (StringUtils.hasText(query.getKeyword())) {
-            String kw = query.getKeyword().trim();
+        String kw = AdminKeywordQuery.forLike(query.getKeyword());
+        if (kw != null) {
             Set<Long> matchedUserIds = findUserIdsByKeyword(kw);
             qw.and((QueryWrapper w) -> {
                 w.where(DeviceSession::getDeviceId).like(kw)
@@ -303,6 +304,10 @@ public class AdminDeviceServiceImpl implements AdminDeviceService {
                     w.or(DeviceSession::getUserId).in(matchedUserIds);
                 }
             });
+        }
+        Date keywordFloor = AdminKeywordQuery.createTimeFloorOrNull(query.getStartTime(), query.getKeyword());
+        if (keywordFloor != null) {
+            qw.and(DeviceSession::getLastActive).ge(keywordFloor);
         }
         return qw;
     }

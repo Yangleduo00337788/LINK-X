@@ -6,6 +6,7 @@ package com.linkx.server.service.admin.impl;
  */
 import com.linkx.server.common.ImageUploadValidator;
 import com.linkx.server.common.admin.AdminConstants;
+import com.linkx.server.common.admin.AdminKeywordQuery;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminBannerDTO;
 import com.linkx.server.controller.admin.dto.AdminBannerQueryDTO;
@@ -57,8 +58,8 @@ public class AdminBannerServiceImpl implements AdminBannerService {
         int size = normalizeSize(query.getSize());
         QueryWrapper qw = QueryWrapper.create()
                 .where(SysBanner::getDeleted).eq(0);
-        if (StringUtils.hasText(query.getKeyword())) {
-            String kw = query.getKeyword().trim();
+        String kw = AdminKeywordQuery.forLike(query.getKeyword());
+        if (kw != null) {
             qw.and((QueryWrapper w) -> {
                 w.where(SysBanner::getTitle).like(kw)
                         .or(SysBanner::getImageUrl).like(kw)

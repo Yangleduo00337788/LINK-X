@@ -20,4 +20,9 @@ public class StatisticSnapshotTask {
         int rows = statisticSnapshotService.captureYesterdaySnapshots();
         log.info("Captured {} admin statistic/dashboard snapshots for yesterday", rows);
     }
+
+    public void backfillSnapshots(int days) {
+        int rows = statisticSnapshotService.backfillSnapshots(days);
+        log.info("Backfilled {} admin statistic snapshot rows for last {} days", rows, days);
+    }
 }

@@ -8,6 +8,7 @@ import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.common.DataScope;
 import com.linkx.server.common.DataScopeContext;
 import com.linkx.server.common.admin.AdminConstants;
+import com.linkx.server.common.admin.AdminKeywordQuery;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminAuditLogQueryDTO;
 import com.linkx.server.controller.admin.dto.AdminPageQueryDTO;
@@ -121,13 +122,16 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
     private QueryWrapper buildAuditQuery(AdminAuditLogQueryDTO query) {
         QueryWrapper qw = QueryWrapper.create();
         applyOperatorScope(qw);
-        if (StringUtils.hasText(query.getKeyword())) {
-            String kw = query.getKeyword().trim();
+        String kw = AdminKeywordQuery.forLike(query.getKeyword());
+        if (kw != null) {
             qw.and((QueryWrapper w) -> {
                 w.where(SysAuditLog::getUsername).like(kw)
                         .or(SysAuditLog::getDescription).like(kw)
                         .or(SysAuditLog::getOperationType).like(kw);
             });
+            if (query.getStartTime() == null) {
+                qw.and(SysAuditLog::getCreateTime).ge(AdminKeywordQuery.keywordSearchEarliestTime());
+            }
         }
         if (StringUtils.hasText(query.getOperationType())) {
             qw.and(SysAuditLog::getOperationType).eq(query.getOperationType().trim());
@@ -147,13 +151,16 @@ public class AdminAuditLogServiceImpl implements AdminAuditLogService {
     private QueryWrapper buildLoginQuery(AdminPageQueryDTO query) {
         QueryWrapper qw = QueryWrapper.create();
         applyLoginUserScope(qw);
-        if (StringUtils.hasText(query.getKeyword())) {
-            String kw = query.getKeyword().trim();
+        String kw = AdminKeywordQuery.forLike(query.getKeyword());
+        if (kw != null) {
             qw.and((QueryWrapper w) -> {
                 w.where(SysLoginAudit::getUsername).like(kw)
                         .or(SysLoginAudit::getIp).like(kw)
                         .or(SysLoginAudit::getReason).like(kw);
             });
+            if (query.getStartTime() == null) {
+                qw.and(SysLoginAudit::getCreateTime).ge(AdminKeywordQuery.keywordSearchEarliestTime());
+            }
         }
         if (query.getStatus() != null) {
             qw.and(SysLoginAudit::getSuccess).eq(query.getStatus());

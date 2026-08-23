@@ -6,6 +6,7 @@ package com.linkx.server.service.admin.impl;
  */
 import com.linkx.server.common.ImageUploadValidator;
 import com.linkx.server.common.admin.AdminConstants;
+import com.linkx.server.common.admin.AdminKeywordQuery;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminRecommendDTO;
 import com.linkx.server.controller.admin.dto.AdminRecommendQueryDTO;
@@ -58,8 +59,8 @@ public class AdminRecommendServiceImpl implements AdminRecommendService {
         int size = normalizeSize(query.getSize());
         QueryWrapper qw = QueryWrapper.create()
                 .where(SysOpsRecommend::getDeleted).eq(0);
-        if (StringUtils.hasText(query.getKeyword())) {
-            String kw = query.getKeyword().trim();
+        String kw = AdminKeywordQuery.forLike(query.getKeyword());
+        if (kw != null) {
             qw.and((QueryWrapper w) -> {
                 w.where(SysOpsRecommend::getTitle).like(kw)
                         .or(SysOpsRecommend::getSubtitle).like(kw)

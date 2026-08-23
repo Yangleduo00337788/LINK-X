@@ -98,7 +98,12 @@ public class AdminSnailJobMonitorServiceImpl implements AdminSnailJobMonitorServ
                                    TIMESTAMPDIFF(MICROSECOND, t.create_dt, t.update_dt) / 1000 AS duration_ms
                             FROM snail_job.sj_job_task_batch b
                             JOIN snail_job.sj_job j ON j.id = b.job_id
-                            LEFT JOIN snail_job.sj_job_task t ON t.task_batch_id = b.id
+                            LEFT JOIN (
+                                SELECT task_batch_id, MAX(id) AS max_task_id
+                                FROM snail_job.sj_job_task
+                                GROUP BY task_batch_id
+                            ) lt ON lt.task_batch_id = b.id
+                            LEFT JOIN snail_job.sj_job_task t ON t.id = lt.max_task_id
                             WHERE b.job_id = ? AND b.deleted = 0
                             ORDER BY b.id DESC
                             LIMIT ? OFFSET ?
@@ -171,7 +176,12 @@ public class AdminSnailJobMonitorServiceImpl implements AdminSnailJobMonitorServ
                                 GROUP BY job_id
                             ) lb ON lb.job_id = j.id
                             LEFT JOIN snail_job.sj_job_task_batch b ON b.id = lb.max_id
-                            LEFT JOIN snail_job.sj_job_task t ON t.task_batch_id = b.id
+                            LEFT JOIN (
+                                SELECT task_batch_id, MAX(id) AS max_task_id
+                                FROM snail_job.sj_job_task
+                                GROUP BY task_batch_id
+                            ) lt ON lt.task_batch_id = b.id
+                            LEFT JOIN snail_job.sj_job_task t ON t.id = lt.max_task_id
                             WHERE j.namespace_id = ? AND j.group_name = ? AND j.deleted = 0
                             """,
                     (rs, rowNum) -> new JobRuntimeRow(

@@ -69,6 +69,14 @@ public interface RbacService {
     boolean hasPermission(Long userId, String permCode);
 
     /**
+     * 查询拥有指定权限的用户 ID（含通配符 {@code *} 角色与未过期的临时授权）。
+     *
+     * @param permCode 权限编码
+     * @return 去重后的用户 ID 列表
+     */
+    List<Long> listUserIdsWithPermission(String permCode);
+
+    /**
      * 创建角色（角色编码不可重复）。
      *
      * @param roleCode    角色编码

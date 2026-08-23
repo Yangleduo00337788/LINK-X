@@ -6,6 +6,7 @@ package com.linkx.server.service.admin.impl;
  */
 import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.common.admin.AdminConstants;
+import com.linkx.server.common.admin.AdminKeywordQuery;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminAbnormalAccessQueryDTO;
 import com.linkx.server.controller.admin.vo.AdminAbnormalAccessSummaryVO;
@@ -175,16 +176,17 @@ public class AdminAbnormalAccessServiceImpl implements AdminAbnormalAccessServic
     private QueryWrapper buildLoginFailQuery(AdminAbnormalAccessQueryDTO query) {
         QueryWrapper qw = QueryWrapper.create().where(SysLoginAudit::getSuccess).eq(0);
         applyCommonFilters(qw, query, true);
-        if (StringUtils.hasText(query.getIp())) {
-            qw.and(SysLoginAudit::getIp).like(query.getIp().trim());
+        String ipLike = AdminKeywordQuery.forLikeLoose(query.getIp());
+        if (ipLike != null) {
+            qw.and(SysLoginAudit::getIp).like(ipLike);
         }
         return qw;
     }
 
     private QueryWrapper buildRiskEventQuery(AdminAbnormalAccessQueryDTO query) {
         QueryWrapper qw = QueryWrapper.create().where(SysRiskEvent::getEventType).in(ACCESS_RISK_TYPES);
-        if (StringUtils.hasText(query.getKeyword())) {
-            String kw = query.getKeyword().trim();
+        String kw = AdminKeywordQuery.forLike(query.getKeyword());
+        if (kw != null) {
             qw.and((QueryWrapper w) -> {
                 w.where(SysRiskEvent::getTitle).like(kw)
                         .or(SysRiskEvent::getDetail).like(kw)
@@ -192,8 +194,13 @@ public class AdminAbnormalAccessServiceImpl implements AdminAbnormalAccessServic
                         .or(SysRiskEvent::getIp).like(kw);
             });
         }
-        if (StringUtils.hasText(query.getIp())) {
-            qw.and(SysRiskEvent::getIp).like(query.getIp().trim());
+        String ipLike = AdminKeywordQuery.forLikeLoose(query.getIp());
+        if (ipLike != null) {
+            qw.and(SysRiskEvent::getIp).like(ipLike);
+        }
+        Date keywordFloor = AdminKeywordQuery.createTimeFloorOrNull(query.getStartTime(), query.getKeyword());
+        if (keywordFloor != null) {
+            qw.and(SysRiskEvent::getCreateTime).ge(keywordFloor);
         }
         if (query.getStartTime() != null) {
             qw.and(SysRiskEvent::getCreateTime).ge(new Date(query.getStartTime()));
@@ -205,14 +212,17 @@ public class AdminAbnormalAccessServiceImpl implements AdminAbnormalAccessServic
     }
 
     private void applyCommonFilters(QueryWrapper qw, AdminAbnormalAccessQueryDTO query, boolean loginAudit) {
-        if (StringUtils.hasText(query.getKeyword())) {
-            String kw = query.getKeyword().trim();
+        String kw = AdminKeywordQuery.forLike(query.getKeyword());
+        if (kw != null) {
             if (loginAudit) {
                 qw.and((QueryWrapper w) -> {
                     w.where(SysLoginAudit::getUsername).like(kw)
                             .or(SysLoginAudit::getIp).like(kw)
                             .or(SysLoginAudit::getReason).like(kw);
                 });
+            }
+            if (query.getStartTime() == null) {
+                qw.and(SysLoginAudit::getCreateTime).ge(AdminKeywordQuery.keywordSearchEarliestTime());
             }
         }
         if (query.getStartTime() != null) {
@@ -278,10 +288,11 @@ public class AdminAbnormalAccessServiceImpl implements AdminAbnormalAccessServic
     }
 
     private static boolean matchesKeyword(String keyword, AdminAbnormalAccessVO item) {
-        if (!StringUtils.hasText(keyword) || item == null) {
+        String normalized = AdminKeywordQuery.normalize(keyword);
+        if (normalized == null || item == null) {
             return true;
         }
-        String kw = keyword.trim().toLowerCase(Locale.ROOT);
+        String kw = normalized.toLowerCase(Locale.ROOT);
         return containsIgnoreCase(item.getTitle(), kw)
                 || containsIgnoreCase(item.getDetail(), kw)
                 || containsIgnoreCase(item.getUsername(), kw)

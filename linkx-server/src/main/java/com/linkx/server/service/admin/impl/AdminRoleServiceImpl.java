@@ -5,6 +5,7 @@ package com.linkx.server.service.admin.impl;
  * 作者：yangleduo
  */
 import com.linkx.server.common.admin.AdminConstants;
+import com.linkx.server.common.admin.AdminKeywordQuery;
 import com.linkx.server.common.admin.DataScopeType;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminPageQueryDTO;
@@ -67,8 +68,8 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         int page = normalizePage(query.getPage());
         int size = normalizeSize(query.getSize());
         QueryWrapper qw = QueryWrapper.create();
-        if (StringUtils.hasText(query.getKeyword())) {
-            String kw = query.getKeyword().trim();
+        String kw = AdminKeywordQuery.forLike(query.getKeyword());
+        if (kw != null) {
             qw.and((QueryWrapper w) -> {
                 w.where(SysRole::getRoleCode).like(kw)
                         .or(SysRole::getRoleName).like(kw);
@@ -333,8 +334,8 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         int page = normalizePage(query.getPage());
         int size = normalizeSize(query.getSize());
         QueryWrapper qw = QueryWrapper.create();
-        if (StringUtils.hasText(query.getKeyword())) {
-            String kw = query.getKeyword().trim();
+        String kw = AdminKeywordQuery.forLike(query.getKeyword());
+        if (kw != null) {
             qw.and((QueryWrapper w) -> {
                 w.where(SysPermission::getPermissionCode).like(kw)
                         .or(SysPermission::getPermissionName).like(kw);

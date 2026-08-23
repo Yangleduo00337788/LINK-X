@@ -5,6 +5,7 @@ package com.linkx.server.service.admin.impl;
  * 作者：yangleduo
  */
 import com.linkx.server.common.admin.AdminConstants;
+import com.linkx.server.common.admin.AdminKeywordQuery;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminDutyScheduleDTO;
 import com.linkx.server.controller.admin.dto.AdminPageQueryDTO;
@@ -48,8 +49,9 @@ public class AdminDutyScheduleServiceImpl implements AdminDutyScheduleService {
         int page = normalizePage(query.getPage());
         int size = normalizeSize(query.getSize());
         QueryWrapper qw = QueryWrapper.create().where(SysDutySchedule::getDeleted).eq(0);
-        if (StringUtils.hasText(query.getKeyword())) {
-            qw.and(SysDutySchedule::getName).like(query.getKeyword().trim());
+        String kw = AdminKeywordQuery.forLike(query.getKeyword());
+        if (kw != null) {
+            qw.and(SysDutySchedule::getName).like(kw);
         }
         if (query.getStatus() != null) {
             qw.and(SysDutySchedule::getEnabled).eq(query.getStatus() == 1);

@@ -29,7 +29,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * RBAC 角色权限服务实现。
@@ -149,6 +152,58 @@ public class RbacServiceImpl implements RbacService {
         }
         List<String> perms = getUserPermissionCodes(userId);
         return perms.contains(permCode) || perms.contains(RbacConstants.PERM_ALL);
+    }
+
+    @Override
+    public List<Long> listUserIdsWithPermission(String permCode) {
+        if (permCode == null || permCode.isBlank()) {
+            return List.of();
+        }
+        Set<Long> userIds = new LinkedHashSet<>();
+
+        List<Long> permissionIds = new ArrayList<>();
+        SysPermission permission = sysPermissionMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(SysPermission::getPermissionCode).eq(permCode)
+                        .and(SysPermission::getStatus).eq(1));
+        if (permission != null) {
+            permissionIds.add(permission.getId());
+        }
+        SysPermission wildcard = sysPermissionMapper.selectOneByQuery(
+                QueryWrapper.create()
+                        .where(SysPermission::getPermissionCode).eq(RbacConstants.PERM_ALL)
+                        .and(SysPermission::getStatus).eq(1));
+        if (wildcard != null) {
+            permissionIds.add(wildcard.getId());
+        }
+        if (!permissionIds.isEmpty()) {
+            List<Long> roleIds = sysRolePermissionMapper.selectListByQuery(
+                            QueryWrapper.create().where(SysRolePermission::getPermissionId).in(permissionIds))
+                    .stream()
+                    .map(SysRolePermission::getRoleId)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .toList();
+            if (!roleIds.isEmpty()) {
+                sysUserRoleMapper.selectListByQuery(
+                                QueryWrapper.create().where(SysUserRole::getRoleId).in(roleIds))
+                        .stream()
+                        .map(SysUserRole::getUserId)
+                        .filter(Objects::nonNull)
+                        .forEach(userIds::add);
+            }
+        }
+
+        approvalTempGrantMapper.selectListByQuery(
+                        QueryWrapper.create()
+                                .where(SysApprovalTempGrant::getPermissionCode).eq(permCode)
+                                .and(SysApprovalTempGrant::getRevokedAt).isNull())
+                .stream()
+                .map(SysApprovalTempGrant::getUserId)
+                .filter(Objects::nonNull)
+                .forEach(userIds::add);
+
+        return new ArrayList<>(userIds);
     }
 
     @Override
@@ -292,9 +347,13 @@ public class RbacServiceImpl implements RbacService {
 
     @Override
     public void evictAllUserCaches() {
-        List<Long> userIds = sysUserRoleMapper.selectListByQuery(QueryWrapper.create())
+        List<Long> userIds = sysUserRoleMapper.selectListByQuery(
+                        QueryWrapper.create()
+                                .select(SysUserRole::getUserId)
+                                .groupBy(SysUserRole::getUserId))
                 .stream()
                 .map(SysUserRole::getUserId)
+                .filter(Objects::nonNull)
                 .distinct()
                 .toList();
         for (Long userId : userIds) {

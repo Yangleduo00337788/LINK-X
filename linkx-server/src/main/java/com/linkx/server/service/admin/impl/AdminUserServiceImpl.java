@@ -9,6 +9,7 @@ import com.linkx.server.common.DataScopeContext;
 import com.linkx.server.common.InputSanitizer;
 import com.linkx.server.common.PasswordEncoderHolder;
 import com.linkx.server.common.admin.AdminConstants;
+import com.linkx.server.common.admin.AdminKeywordQuery;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.common.ClientIpResolver;
 import com.linkx.server.config.LinkxProperties;
@@ -110,14 +111,18 @@ public class AdminUserServiceImpl implements AdminUserService {
     private QueryWrapper buildListQuery(AdminUserQueryDTO query) {
         QueryWrapper qw = QueryWrapper.create();
         applyDataScopeUserFilter(qw);
-        if (StringUtils.hasText(query.getKeyword())) {
-            String kw = query.getKeyword().trim();
+        String kw = AdminKeywordQuery.forLike(query.getKeyword());
+        if (kw != null) {
             qw.and((QueryWrapper w) -> {
                 w.where(SysUser::getUsername).like(kw)
                         .or(SysUser::getNickname).like(kw)
                         .or(SysUser::getEmail).like(kw)
                         .or(SysUser::getPhone).like(kw);
             });
+        }
+        Date keywordFloor = AdminKeywordQuery.createTimeFloorOrNull(query.getStartTime(), query.getKeyword());
+        if (keywordFloor != null) {
+            qw.and(SysUser::getCreateTime).ge(keywordFloor);
         }
         if (query.getStatus() != null) {
             qw.and(SysUser::getStatus).eq(query.getStatus());

@@ -37,6 +37,7 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.ThreadMXBean;
 import java.net.InetAddress;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -63,6 +64,16 @@ public class AdminSystemMonitorMetricsServiceImpl implements AdminSystemMonitorM
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
     private static final long SNAIL_JOB_TIMEOUT_MS = 2_000;
     private static final long REDIS_QPS_BASELINE_INTERVAL_MS = 60_000;
+
+    /** 拉取范围内批次状态，在应用层按日聚合，避免 DATE(FROM_UNIXTIME(...)) 导致无法走 execution_at 索引 */
+    private static final String TASK_BATCH_STATUS_IN_RANGE_SQL = """
+            SELECT execution_at, task_batch_status
+            FROM snail_job.sj_job_task_batch
+            WHERE deleted = 0
+              AND execution_at > 0
+              AND execution_at >= ?
+              AND execution_at < ?
+            """;
 
     /** Redis total_commands_processed 基准，用于跨请求估算 QPS */
     private final AtomicLong redisCommandsBaseline = new AtomicLong(-1);
@@ -349,28 +360,10 @@ public class AdminSystemMonitorMetricsServiceImpl implements AdminSystemMonitorM
             byDay.put(d, new long[]{0, 0});
             labels.add(d.format(fmt));
         }
-        long sinceEpochMs = LocalDate.now(ZONE).minusDays(days - 1).atStartOfDay(ZONE).toInstant().toEpochMilli();
+        long rangeStartMs = LocalDate.now(ZONE).minusDays(days - 1).atStartOfDay(ZONE).toInstant().toEpochMilli();
+        long rangeEndMs = LocalDate.now(ZONE).plusDays(1).atStartOfDay(ZONE).toInstant().toEpochMilli();
         try {
-            jdbcTemplate.query(
-                    """
-                            SELECT DATE(FROM_UNIXTIME(b.execution_at / 1000)) AS d,
-                                   SUM(CASE WHEN b.task_batch_status = 3 THEN 1 ELSE 0 END) AS success_cnt,
-                                   SUM(CASE WHEN b.task_batch_status = 4 THEN 1 ELSE 0 END) AS fail_cnt
-                            FROM snail_job.sj_job_task_batch b
-                            WHERE b.deleted = 0
-                              AND b.execution_at > 0
-                              AND b.execution_at >= ?
-                            GROUP BY DATE(FROM_UNIXTIME(b.execution_at / 1000))
-                            """,
-                    rs -> {
-                        LocalDate d = rs.getDate("d").toLocalDate();
-                        long[] arr = byDay.get(d);
-                        if (arr != null) {
-                            arr[0] = rs.getLong("success_cnt");
-                            arr[1] = rs.getLong("fail_cnt");
-                        }
-                    },
-                    sinceEpochMs);
+            aggregateTaskBatchesByDay(byDay, rangeStartMs, rangeEndMs);
         } catch (DataAccessException ex) {
             log.debug("Task daily trend unavailable: {}", ex.getMessage());
         }
@@ -389,30 +382,51 @@ public class AdminSystemMonitorMetricsServiceImpl implements AdminSystemMonitorM
     /** 近 N 日批次成功/失败次数（execution_at 为毫秒时间戳） */
     private long[] countTaskBatches(int days) {
         long sinceEpochMs = LocalDate.now(ZONE).minusDays(days - 1).atStartOfDay(ZONE).toInstant().toEpochMilli();
+        long untilEpochMs = LocalDate.now(ZONE).plusDays(1).atStartOfDay(ZONE).toInstant().toEpochMilli();
+        long[] counts = new long[]{0, 0};
         try {
-            long[] counts = new long[]{0, 0};
             jdbcTemplate.query(
-                    """
-                            SELECT
-                                COALESCE(SUM(CASE WHEN task_batch_status = 3 THEN 1 ELSE 0 END), 0) AS success_cnt,
-                                COALESCE(SUM(CASE WHEN task_batch_status = 4 THEN 1 ELSE 0 END), 0) AS fail_cnt
-                            FROM snail_job.sj_job_task_batch
-                            WHERE deleted = 0
-                              AND execution_at > 0
-                              AND execution_at >= ?
-                            """,
+                    TASK_BATCH_STATUS_IN_RANGE_SQL,
                     rs -> {
-                        if (rs.next()) {
-                            counts[0] = rs.getLong("success_cnt");
-                            counts[1] = rs.getLong("fail_cnt");
+                        while (rs.next()) {
+                            int status = rs.getInt("task_batch_status");
+                            if (status == 3) {
+                                counts[0]++;
+                            } else if (status == 4) {
+                                counts[1]++;
+                            }
                         }
                     },
-                    sinceEpochMs);
+                    sinceEpochMs,
+                    untilEpochMs);
             return counts;
         } catch (DataAccessException ex) {
             log.debug("Task batch count unavailable: {}", ex.getMessage());
             return new long[]{0, 0};
         }
+    }
+
+    private void aggregateTaskBatchesByDay(Map<LocalDate, long[]> byDay, long startEpochMs, long endEpochMs) {
+        jdbcTemplate.query(
+                TASK_BATCH_STATUS_IN_RANGE_SQL,
+                rs -> {
+                    while (rs.next()) {
+                        long executionAt = rs.getLong("execution_at");
+                        int status = rs.getInt("task_batch_status");
+                        LocalDate day = Instant.ofEpochMilli(executionAt).atZone(ZONE).toLocalDate();
+                        long[] arr = byDay.get(day);
+                        if (arr == null) {
+                            continue;
+                        }
+                        if (status == 3) {
+                            arr[0]++;
+                        } else if (status == 4) {
+                            arr[1]++;
+                        }
+                    }
+                },
+                startEpochMs,
+                endEpochMs);
     }
 
     private AdminMonitorTrendVO buildHttpDailyTrend(int days) {

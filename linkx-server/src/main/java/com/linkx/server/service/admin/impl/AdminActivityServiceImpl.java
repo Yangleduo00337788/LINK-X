@@ -6,6 +6,7 @@ package com.linkx.server.service.admin.impl;
  */
 import com.linkx.server.common.ImageUploadValidator;
 import com.linkx.server.common.admin.AdminConstants;
+import com.linkx.server.common.admin.AdminKeywordQuery;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminActivityDTO;
 import com.linkx.server.controller.admin.dto.AdminActivityQueryDTO;
@@ -53,8 +54,8 @@ public class AdminActivityServiceImpl implements AdminActivityService {
         int size = normalizeSize(query.getSize());
         QueryWrapper qw = QueryWrapper.create()
                 .where(SysOpsActivity::getDeleted).eq(0);
-        if (StringUtils.hasText(query.getKeyword())) {
-            String kw = query.getKeyword().trim();
+        String kw = AdminKeywordQuery.forLike(query.getKeyword());
+        if (kw != null) {
             qw.and((QueryWrapper w) -> {
                 w.where(SysOpsActivity::getTitle).like(kw)
                         .or(SysOpsActivity::getDescription).like(kw)

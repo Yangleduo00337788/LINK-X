@@ -5,6 +5,7 @@ package com.linkx.server.service.admin.impl;
  * 作者：yangleduo
  */
 import com.linkx.server.common.admin.AdminConstants;
+import com.linkx.server.common.admin.AdminKeywordQuery;
 import com.linkx.server.common.admin.PageResultVO;
 import com.linkx.server.controller.admin.dto.AdminApprovalFlowDTO;
 import com.linkx.server.controller.admin.dto.AdminPageQueryDTO;
@@ -37,10 +38,12 @@ public class AdminApprovalFlowServiceImpl implements AdminApprovalFlowService {
         int page = normalizePage(query.getPage());
         int size = normalizeSize(query.getSize());
         QueryWrapper qw = QueryWrapper.create().where(SysApprovalFlow::getDeleted).eq(0);
-        if (StringUtils.hasText(query.getKeyword())) {
-            String kw = query.getKeyword().trim();
-            qw.and(SysApprovalFlow::getName).like(kw)
-                    .or(SysApprovalFlow::getBizType).like(kw);
+        String kw = AdminKeywordQuery.forLike(query.getKeyword());
+        if (kw != null) {
+            qw.and((QueryWrapper w) -> {
+                w.where(SysApprovalFlow::getName).like(kw)
+                        .or(SysApprovalFlow::getBizType).like(kw);
+            });
         }
         if (query.getStatus() != null) {
             qw.and(SysApprovalFlow::getEnabled).eq(query.getStatus() == 1);
