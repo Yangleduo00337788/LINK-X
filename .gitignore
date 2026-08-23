@@ -49,4 +49,6 @@ linkx-server/docker/mysql/data/
 linkx-server/docker/redis/data/
 linkx-server/docker/minio/data/
 linkx-server/backups/
+linkx-server/k6/k6.env
+linkx-server/k6/results/*.json
 linkx-server/.env.docker

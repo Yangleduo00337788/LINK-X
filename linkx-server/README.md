@@ -73,3 +73,4 @@ mvn -DskipTests package         # 产出 target/linkx-server-1.0.0-SNAPSHOT.jar
 | `docker-compose up -d` | 启动中间件 |
 | `docker-compose down` | 停止中间件 |
 | `mvn spring-boot:run` | 开发启动 |
+| `k6/run.ps1 -Scenario smoke` | API 冒烟压测（需 k6） |
