@@ -38,8 +38,11 @@ dist-uninstaller-electron/
 __pycache__/
 *.pyc
 
-# IDE
+# IDE（若目录曾被提交过，需 git rm -r --cached .idea 才会停止跟踪）
 .idea/
+.vscode/
+!.vscode/extensions.json
+*.iml
 
 # TypeScript 增量构建缓存
 *.tsbuildinfo
@@ -51,4 +54,12 @@ linkx-server/docker/minio/data/
 linkx-server/backups/
 linkx-server/k6/k6.env
 linkx-server/k6/results/*.json
+linkx-server/k6/results/*.log
 linkx-server/.env.docker
+
+# SQL benchmark 本地报告产物
+linkx-server/scripts/sql-benchmark*.txt
+
+# JVM 崩溃日志
+hs_err_pid*.log
+replay_pid*.log
