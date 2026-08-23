@@ -40,8 +40,8 @@ export interface FavoriteTagVO {
 
 export type FavoriteType = 'note' | 'image' | 'link' | 'file' | 'message'
 
-export function listFavorites() {
-  return apiClient.get<never, ApiResult<FavoriteVO[]>>('/favorites')
+export function listFavorites(params?: { beforeId?: string; limit?: number }) {
+  return apiClient.get<never, ApiResult<FavoriteVO[]>>('/favorites', { params })
 }
 
 export function getFavoriteStorage() {

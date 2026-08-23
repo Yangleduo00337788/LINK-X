@@ -162,10 +162,28 @@ export const useFavoritesStore = defineStore('favorites', {
       if (this.loading) return
       this.loading = true
       try {
-        const res = await favoriteApi.listFavorites()
-        if (res.code === 200 && res.data) {
-          this.items = res.data.map(mapVo)
+        const merged: FavoriteItem[] = []
+        let beforeId: string | undefined
+        const pageLimit = 100
+        for (let guard = 0; guard < 200; guard++) {
+          const res = await favoriteApi.listFavorites({ beforeId, limit: pageLimit })
+          if (res.code !== 200 || !res.data) {
+            break
+          }
+          const batch = res.data.map(mapVo)
+          if (batch.length === 0) {
+            break
+          }
+          merged.push(...batch)
+          if (batch.length < pageLimit) {
+            break
+          }
+          beforeId = batch[batch.length - 1]?.id
+          if (!beforeId) {
+            break
+          }
         }
+        this.items = merged
       } catch (e) {
         console.error('加载收藏列表失败:', e)
       } finally {
