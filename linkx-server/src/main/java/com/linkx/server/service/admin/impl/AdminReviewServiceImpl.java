@@ -39,6 +39,7 @@ import com.linkx.server.service.GroupService;
 import com.linkx.server.service.MediaUrlService;
 import com.linkx.server.service.MessageNotificationService;
 import com.linkx.server.service.MomentsService;
+import com.linkx.server.service.ShortVideoService;
 import com.linkx.server.service.RbacService;
 import com.linkx.server.service.admin.AdminAudienceService;
 import com.linkx.server.service.admin.AdminEventPublisher;
@@ -89,6 +90,7 @@ public class AdminReviewServiceImpl implements AdminReviewService {
     private final RbacService rbacService;
     private final ChatService chatService;
     private final MomentsService momentsService;
+    private final ShortVideoService shortVideoService;
     private final GroupAnnouncementService groupAnnouncementService;
     private final GroupAssetService groupAssetService;
     private final FavoriteService favoriteService;
@@ -114,6 +116,7 @@ public class AdminReviewServiceImpl implements AdminReviewService {
             RbacService rbacService,
             @Lazy ChatService chatService,
             @Lazy MomentsService momentsService,
+            @Lazy ShortVideoService shortVideoService,
             @Lazy GroupAnnouncementService groupAnnouncementService,
             @Lazy GroupAssetService groupAssetService,
             @Lazy FavoriteService favoriteService,
@@ -137,6 +140,7 @@ public class AdminReviewServiceImpl implements AdminReviewService {
         this.rbacService = rbacService;
         this.chatService = chatService;
         this.momentsService = momentsService;
+        this.shortVideoService = shortVideoService;
         this.groupAnnouncementService = groupAnnouncementService;
         this.groupAssetService = groupAssetService;
         this.favoriteService = favoriteService;
@@ -675,6 +679,14 @@ public class AdminReviewServiceImpl implements AdminReviewService {
                     momentsService.adminDeleteComment(Long.parseLong(targetId.trim()));
                     return "delete_moment_comment";
                 }
+                case SysReviewTask.TARGET_SHORT_VIDEO -> {
+                    shortVideoService.adminDeletePost(Long.parseLong(targetId.trim()));
+                    return "delete_short_video";
+                }
+                case SysReviewTask.TARGET_SHORT_VIDEO_COMMENT -> {
+                    shortVideoService.adminDeleteComment(Long.parseLong(targetId.trim()));
+                    return "delete_short_video_comment";
+                }
                 case SysReviewTask.TARGET_ANNOUNCEMENT -> {
                     groupAnnouncementService.adminDelete(Long.parseLong(targetId.trim()));
                     return "delete_announcement";
@@ -709,6 +721,10 @@ public class AdminReviewServiceImpl implements AdminReviewService {
             suffixes.add("[已删除动态]");
         } else if ("delete_moment_comment".equals(appliedContent)) {
             suffixes.add("[已删除评论]");
+        } else if ("delete_short_video".equals(appliedContent)) {
+            suffixes.add("[已删除短视频]");
+        } else if ("delete_short_video_comment".equals(appliedContent)) {
+            suffixes.add("[已删除短视频评论]");
         } else if ("delete_announcement".equals(appliedContent)) {
             suffixes.add("[已删除公告]");
         } else if ("delete_group_file".equals(appliedContent)) {

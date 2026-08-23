@@ -40,6 +40,8 @@ public class SysReviewTask implements Serializable {
     public static final String TARGET_CONVERSATION = "conversation";
     public static final String TARGET_MOMENT = "moment";
     public static final String TARGET_MOMENT_COMMENT = "moment_comment";
+    public static final String TARGET_SHORT_VIDEO = "short_video";
+    public static final String TARGET_SHORT_VIDEO_COMMENT = "short_video_comment";
     public static final String TARGET_ANNOUNCEMENT = "announcement";
     /** 群文件 / 群相册 / 群精华（group_asset） */
     public static final String TARGET_GROUP_FILE = "group_file";

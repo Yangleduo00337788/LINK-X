@@ -54,7 +54,7 @@ public class ObjectKeyOwnershipServiceImpl implements ObjectKeyOwnershipService 
             existing.setUpdateTime(now);
             ownershipMapper.update(existing);
         } else {
-            // 全新认领：insert，并发时 catch DuplicateKey 忽略（他人已认领）
+            // 全新认领：insert，并发时 catch DuplicateKey 后从 DB 回填属主
             SysObjectOwnership row = SysObjectOwnership.builder()
                     .objectKey(key)
                     .userId(userId)
@@ -63,11 +63,14 @@ public class ObjectKeyOwnershipServiceImpl implements ObjectKeyOwnershipService 
                     .build();
             try {
                 ownershipMapper.insert(row);
+                existing = row;
             } catch (org.springframework.dao.DuplicateKeyException e) {
-                log.debug("对象 {} 并发认领，已被他人抢先登记", key);
+                log.debug("对象 {} 并发认领，从数据库回填属主", key);
+                existing = ownershipMapper.selectOneById(key);
             }
         }
-        redisTemplate.opsForValue().set(KEY_PREFIX + key, String.valueOf(userId), TTL);
+        Long ownerId = existing != null && existing.getUserId() != null ? existing.getUserId() : userId;
+        redisTemplate.opsForValue().set(KEY_PREFIX + key, String.valueOf(ownerId), TTL);
     }
 
     @Override

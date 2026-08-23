@@ -46,7 +46,8 @@ public final class MediaStreamResponses {
 
     private static final Set<String> SAFE_INLINE_TYPES = Set.of(
             "image/jpeg", "image/png", "image/gif", "image/webp",
-            "image/apng", "image/avif", "image/bmp"
+            "image/apng", "image/avif", "image/bmp",
+            "video/mp4", "video/webm", "video/quicktime"
     );
 
     public static ResponseEntity<InputStreamResource> inline(StoredObject object, String fileName) {

@@ -170,6 +170,14 @@ public class MessageContentCipher {
         return encryptPlaintext(plaintext);
     }
 
+    /** 从落库格式解密为明文；非加密内容原样返回。 */
+    public String decryptTextFromStorage(String stored, Byte version) {
+        if (isEncryptedContent(stored, version)) {
+            return decryptCiphertext(stored);
+        }
+        return stored;
+    }
+
     /** 用旧 keyId 解密后用当前 keyId 重加密；无需轮换则原样返回。 */
     public String rotateCiphertextForStorage(String stored) {
         if (!needsKeyRotation(stored)) {
