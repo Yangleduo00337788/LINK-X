@@ -5,7 +5,9 @@ import { defineStore } from 'pinia'
 import {
   commentShortVideo,
   deleteShortVideo,
+  deleteShortVideoComment,
   followShortVideoAuthor,
+  getShortVideo,
   likeShortVideo,
   listFollowingShortVideos,
   listFriendsShortVideos,
@@ -15,6 +17,7 @@ import {
   recordShortVideoPlay,
   unfollowShortVideoAuthor,
   unlikeShortVideo,
+  updateShortVideo,
   uploadShortVideoMedia,
   type ShortVideoPost
 } from '../api/shortVideo'
@@ -27,6 +30,11 @@ export type ShortVideoFeedTab = 'live' | 'following' | 'friends' | 'recommend'
 export type ShortVideoPanelTabId = 'main'
 
 let ensurePanelReadyTask: Promise<void> | null = null
+let fetchFeedTask: Promise<void> | null = null
+
+function normalizeShortVideoList(data: unknown): ShortVideoPost[] {
+  return Array.isArray(data) ? data : []
+}
 
 export const useShortVideoStore = defineStore('shortVideo', {
   state: () => ({
@@ -40,7 +48,8 @@ export const useShortVideoStore = defineStore('shortVideo', {
     openTabIds: [] as ShortVideoPanelTabId[],
     activeTabId: '' as ShortVideoPanelTabId | '',
     myPosts: [] as ShortVideoPost[],
-    myPostsLoading: false
+    myPostsLoading: false,
+    feedError: '' as string
   }),
 
   getters: {
@@ -53,6 +62,18 @@ export const useShortVideoStore = defineStore('shortVideo', {
   },
 
   actions: {
+    async ensureAuthReady() {
+      const appStore = useAppStore()
+      if (appStore.isLoggedIn && appStore.userProfile.userId) return
+      if (!appStore.authInitializing) {
+        await appStore.tryAutoLogin()
+      }
+      const deadline = Date.now() + 15000
+      while (appStore.authInitializing && Date.now() < deadline) {
+        await new Promise<void>(resolve => setTimeout(resolve, 50))
+      }
+    },
+
     registerOpenTab(tabId: ShortVideoPanelTabId) {
       if (!tabId || this.openTabIds.includes(tabId)) return
       this.openTabIds.push(tabId)
@@ -62,13 +83,14 @@ export const useShortVideoStore = defineStore('shortVideo', {
       if (ensurePanelReadyTask) return ensurePanelReadyTask
 
       ensurePanelReadyTask = (async () => {
+        await this.ensureAuthReady()
         if (this.openTabIds.length === 0) {
           this.registerOpenTab('main')
           this.activeTabId = 'main'
         } else if (!this.activeTabId) {
           this.activeTabId = this.openTabIds[this.openTabIds.length - 1]
         }
-        if (!this.initialized) {
+        if (!this.initialized || this.posts.length === 0) {
           await this.fetchFeed(true)
         }
       })().finally(() => {
@@ -83,10 +105,10 @@ export const useShortVideoStore = defineStore('shortVideo', {
       if (!this.openTabIds.length) {
         this.registerOpenTab('main')
         this.activeTabId = 'main'
-        void this.fetchFeed(true)
       } else if (!this.activeTabId) {
         this.activeTabId = this.openTabIds[this.openTabIds.length - 1]
       }
+      void this.ensurePanelReady()
       const tabId = (this.activeTabId || 'main') as ShortVideoPanelTabId
       useExtensionDockStore().activateTab(`shortVideo:${tabId}`)
     },
@@ -111,7 +133,7 @@ export const useShortVideoStore = defineStore('shortVideo', {
     async selectTab(tabId: ShortVideoPanelTabId) {
       if (!this.openTabIds.includes(tabId)) return
       this.activeTabId = tabId
-      if (!this.initialized) {
+      if (!this.initialized || this.posts.length === 0) {
         await this.fetchFeed(true)
       }
     },
@@ -150,7 +172,11 @@ export const useShortVideoStore = defineStore('shortVideo', {
     },
 
     async fetchFeed(reset = false) {
-      if (this.loading) return
+      if (fetchFeedTask) {
+        await fetchFeedTask
+        if (!reset) return
+      }
+
       if (this.feedTab === 'live') {
         if (reset) {
           this.posts = []
@@ -161,26 +187,45 @@ export const useShortVideoStore = defineStore('shortVideo', {
         return
       }
       if (!reset && !this.hasMore) return
-      this.loading = true
-      try {
-        const beforeId = reset ? undefined : this.posts[this.posts.length - 1]?.id
-        const res = this.feedTab === 'following'
-          ? await listFollowingShortVideos({ beforeId, limit: 20 })
-          : this.feedTab === 'friends'
-            ? await listFriendsShortVideos({ beforeId, limit: 20 })
-            : await listShortVideos({ beforeId, limit: 20 })
-        const rows = res.data || []
-        if (reset) {
-          this.posts = rows
-          this.activeIndex = 0
-        } else {
-          this.posts.push(...rows)
+
+      fetchFeedTask = (async () => {
+        this.loading = true
+        this.feedError = ''
+        try {
+          await this.ensureAuthReady()
+          const beforeId = reset ? undefined : this.posts[this.posts.length - 1]?.id
+          const res = this.feedTab === 'following'
+            ? await listFollowingShortVideos({ beforeId, limit: 20 })
+            : this.feedTab === 'friends'
+              ? await listFriendsShortVideos({ beforeId, limit: 20 })
+              : await listShortVideos({ beforeId, limit: 20 })
+          if (res.code !== 200) {
+            throw new Error(res.message || 'fetch feed failed')
+          }
+          const rows = normalizeShortVideoList(res.data)
+          if (reset) {
+            this.posts = rows
+            this.activeIndex = 0
+          } else {
+            this.posts.push(...rows)
+          }
+          this.hasMore = rows.length >= 20
+          this.initialized = true
+        } catch (e) {
+          this.feedError = e instanceof Error ? e.message : String(e)
+          if (reset) {
+            this.posts = []
+            this.activeIndex = 0
+          }
+          throw e
+        } finally {
+          this.loading = false
         }
-        this.hasMore = rows.length >= 20
-        this.initialized = true
-      } finally {
-        this.loading = false
-      }
+      })().finally(() => {
+        fetchFeedTask = null
+      })
+
+      return fetchFeedTask
     },
 
     async publish(file: File, description: string, visibility = 0) {
@@ -250,6 +295,7 @@ export const useShortVideoStore = defineStore('shortVideo', {
     },
 
     async fetchMyPosts() {
+      await this.ensureAuthReady()
       const userId = String(useAppStore().userProfile.userId || '')
       if (!userId) {
         this.myPosts = []
@@ -258,7 +304,11 @@ export const useShortVideoStore = defineStore('shortVideo', {
       this.myPostsLoading = true
       try {
         const res = await listUserShortVideos(userId, { limit: 50 })
-        this.myPosts = res.data || []
+        if (res.code === 200) {
+          this.myPosts = normalizeShortVideoList(res.data)
+        } else {
+          this.myPosts = []
+        }
       } finally {
         this.myPostsLoading = false
       }
@@ -279,8 +329,46 @@ export const useShortVideoStore = defineStore('shortVideo', {
       }
     },
 
-    async addComment(postId: string, content: string) {
-      const res = await commentShortVideo(postId, { content })
+    async openPostById(postId: string) {
+      await this.ensureAuthReady()
+      const res = await getShortVideo(postId)
+      if (res.code !== 200 || !res.data) {
+        throw new Error(res.message || 'post not found')
+      }
+      const post = res.data
+      const existingIdx = this.posts.findIndex(p => p.id === postId)
+      if (existingIdx >= 0) {
+        this.posts[existingIdx] = post
+        this.activeIndex = existingIdx
+      } else {
+        this.posts = [post, ...this.posts.filter(p => p.id !== postId)]
+        this.activeIndex = 0
+      }
+      this.feedTab = 'recommend'
+      this.hasMore = true
+      this.initialized = true
+      return post
+    },
+
+    async updatePost(postId: string, payload: { description?: string; visibility?: number }) {
+      const res = await updateShortVideo(postId, payload)
+      if (res.code !== 200 || !res.data) {
+        throw new Error(res.message || 'update failed')
+      }
+      const updated = res.data
+      const apply = (list: ShortVideoPost[]) => {
+        const idx = list.findIndex(p => p.id === postId)
+        if (idx >= 0) {
+          list[idx] = { ...list[idx], ...updated }
+        }
+      }
+      apply(this.posts)
+      apply(this.myPosts)
+      return updated
+    },
+
+    async addComment(postId: string, content: string, parentId?: string) {
+      const res = await commentShortVideo(postId, { content, parentId })
       const post = this.posts.find(p => p.id === postId)
       if (post && res.data) {
         if (isEncryptedShortVideoText(res.data.content)) {
@@ -290,6 +378,14 @@ export const useShortVideoStore = defineStore('shortVideo', {
         }
       }
       return res.data
+    },
+
+    async removeComment(postId: string, commentId: string) {
+      await deleteShortVideoComment(commentId)
+      const post = this.posts.find(p => p.id === postId)
+      if (post) {
+        post.comments = post.comments.filter(c => c.id !== commentId)
+      }
     },
 
     async markPlayed(postId: string) {
@@ -309,10 +405,16 @@ export const useShortVideoStore = defineStore('shortVideo', {
       if (!q) {
         return this.fetchFeed(true)
       }
+      if (fetchFeedTask) {
+        await fetchFeedTask
+      }
       this.loading = true
       try {
         const res = await listShortVideos({ limit: 20, q })
-        this.posts = res.data || []
+        if (res.code !== 200) {
+          throw new Error(res.message || 'search failed')
+        }
+        this.posts = normalizeShortVideoList(res.data)
         this.activeIndex = 0
         this.hasMore = false
         this.initialized = true

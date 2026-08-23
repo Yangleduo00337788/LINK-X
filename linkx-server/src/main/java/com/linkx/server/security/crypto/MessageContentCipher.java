@@ -9,6 +9,7 @@ import com.linkx.server.entity.MomentsComment;
 import com.linkx.server.entity.MomentsPost;
 import com.linkx.server.util.ApiEncryptUtils;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -22,6 +23,7 @@ import java.util.function.Consumer;
  */
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class MessageContentCipher {
 
     public static final String PREFIX = "lxenc:v1:";
@@ -170,12 +172,17 @@ public class MessageContentCipher {
         return encryptPlaintext(plaintext);
     }
 
-    /** 从落库格式解密为明文；非加密内容原样返回。 */
+    /** 从落库格式解密为明文；非加密内容原样返回；密文损坏时返回空串避免接口失败。 */
     public String decryptTextFromStorage(String stored, Byte version) {
-        if (isEncryptedContent(stored, version)) {
-            return decryptCiphertext(stored);
+        if (!isEncryptedContent(stored, version)) {
+            return stored;
         }
-        return stored;
+        try {
+            return decryptCiphertext(stored);
+        } catch (Exception ex) {
+            log.warn("decrypt text from storage failed: {}", ex.getMessage());
+            return "";
+        }
     }
 
     /** 用旧 keyId 解密后用当前 keyId 重加密；无需轮换则原样返回。 */
@@ -240,7 +247,12 @@ public class MessageContentCipher {
 
     private void decryptTextField(String value, Byte version, Consumer<String> valueSetter) {
         if (isEncryptedContent(value, version)) {
-            valueSetter.accept(decryptCiphertext(value));
+            try {
+                valueSetter.accept(decryptCiphertext(value));
+            } catch (Exception ex) {
+                log.warn("decrypt text field failed: {}", ex.getMessage());
+                valueSetter.accept("");
+            }
         }
     }
 

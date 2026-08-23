@@ -4,7 +4,8 @@
  * 短视频主视图：竖屏滑动 Feed（抖音 / 视频号风格）
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { NIcon, NInput, NDropdown, useDialog, useMessage, type DropdownOption } from 'naive-ui'
+import { useRoute, useRouter } from 'vue-router'
+import { NIcon, NInput, NDropdown, NRadio, NRadioGroup, useDialog, useMessage, type DropdownOption } from 'naive-ui'
 import {
   ArrowDown,
   ArrowUp,
@@ -33,14 +34,16 @@ import { resolveUserAvatarUrl } from '../utils/defaultAvatar'
 import { resolveShortVideoDisplaySrc } from '../utils/shortVideoMediaAccess'
 import { readableShortVideoText } from '../utils/shortVideoText'
 import { copyText } from '../utils/clipboard'
-import type { ShortVideoPost } from '../api/shortVideo'
+import type { ShortVideoComment, ShortVideoPost } from '../api/shortVideo'
 
 const { t } = useI18n()
 const message = useMessage()
 const dialog = useDialog()
+const route = useRoute()
+const router = useRouter()
 const store = useShortVideoStore()
 const appStore = useAppStore()
-const { feedTab, posts, loading, publishing, activeIndex, myPosts, myPostsLoading } = storeToRefs(store)
+const { feedTab, posts, loading, publishing, activeIndex, myPosts, myPostsLoading, feedError } = storeToRefs(store)
 
 const feedRef = ref<HTMLElement | null>(null)
 const videoRefs = ref<Record<string, HTMLVideoElement | null>>({})
@@ -59,6 +62,11 @@ const pendingFile = ref<File | null>(null)
 const searchOpen = ref(false)
 const searchText = ref('')
 const mineOpen = ref(false)
+const editOpen = ref(false)
+const editTarget = ref<ShortVideoPost | null>(null)
+const editDesc = ref('')
+const editVisibility = ref(0)
+const replyToComment = ref<ShortVideoComment | null>(null)
 const mediaSyncToken = ref(0)
 const playbackRate = ref(1)
 const PLAYBACK_RATES = [1, 1.5, 2, 0.75]
@@ -75,14 +83,78 @@ const showFeed = computed(() => posts.value.length > 0)
 const isLiveTab = computed(() => feedTab.value === 'live')
 const currentUserId = computed(() => String(appStore.userProfile.userId || ''))
 
+const visibilityOptions = computed(() => [
+  { value: 0, label: t('moments.public'), desc: t('moments.publicDesc') },
+  { value: 1, label: t('moments.friendsOnly'), desc: t('moments.friendsOnlyDesc') },
+  { value: 2, label: t('moments.private'), desc: t('moments.privateDesc') }
+])
+
+const commentPlaceholder = computed(() => {
+  if (!replyToComment.value) return t('shortVideo.commentPh')
+  return t('moments.replyTo', {
+    name: replyToComment.value.nickname || t('shortVideo.author')
+  })
+})
+
 function isOwnPost(post: ShortVideoPost) {
   return Boolean(post.userId && currentUserId.value && post.userId === currentUserId.value)
 }
 
-onMounted(async () => {
-  await store.fetchFeed(true)
-  await syncMediaSources()
+function isOwnComment(comment: ShortVideoComment) {
+  return Boolean(comment.userId && currentUserId.value && comment.userId === currentUserId.value)
+}
+
+async function bootstrapFeed() {
+  const deepLinkPostId = String(route.query.post || '').trim()
+  try {
+    if (deepLinkPostId) {
+      await store.ensureAuthReady()
+      await store.openPostById(deepLinkPostId)
+    } else {
+      await store.ensurePanelReady()
+    }
+    await syncMediaSources()
+    if (deepLinkPostId) {
+      await nextTick()
+      scrollToIndex(store.activeIndex)
+      void router.replace({ path: route.path })
+    }
+  } catch (e) {
+    message.error(resolveApiErrorMessage(e, t('shortVideo.loadFail')))
+  }
+}
+
+async function retryFeed() {
+  try {
+    await store.fetchFeed(true)
+    await syncMediaSources()
+  } catch (e) {
+    message.error(resolveApiErrorMessage(e, t('shortVideo.loadFail')))
+  }
+}
+
+onMounted(() => {
+  void bootstrapFeed()
 })
+
+watch(
+  () => route.query.post,
+  postId => {
+    const id = String(postId || '').trim()
+    if (!id) return
+    void (async () => {
+      try {
+        await store.openPostById(id)
+        await syncMediaSources()
+        await nextTick()
+        scrollToIndex(store.activeIndex)
+        void router.replace({ path: route.path })
+      } catch {
+        message.error(t('shortVideo.postNotFound'))
+      }
+    })()
+  }
+)
 
 onBeforeUnmount(() => {
   revokeBlobUrls()
@@ -101,6 +173,7 @@ watch(activeIndex, () => {
 
 watch(feedTab, () => {
   commentOpenFor.value = null
+  replyToComment.value = null
 })
 
 function revokeBlobUrls() {
@@ -288,6 +361,7 @@ function moreOptions(post: ShortVideoPost): DropdownOption[] {
   ]
   if (isOwnPost(post)) {
     options.push({ type: 'divider', key: 'divider' })
+    options.push({ label: t('moments.editPost'), key: 'edit' })
     options.push({ label: t('shortVideo.deletePost'), key: 'delete' })
   }
   return options
@@ -298,8 +372,34 @@ function onMoreSelect(key: string, post: ShortVideoPost) {
     void sharePost(post)
     return
   }
+  if (key === 'edit') {
+    openEdit(post)
+    return
+  }
   if (key === 'delete') {
     confirmDeletePost(post)
+  }
+}
+
+function openEdit(post: ShortVideoPost) {
+  editTarget.value = post
+  editDesc.value = readableShortVideoText(post.description)
+  editVisibility.value = post.visibility ?? 0
+  editOpen.value = true
+  mineOpen.value = false
+}
+
+async function submitEdit() {
+  if (!editTarget.value) return
+  try {
+    await store.updatePost(editTarget.value.id, {
+      description: editDesc.value.trim(),
+      visibility: editVisibility.value
+    })
+    message.success(t('moments.editPostOk'))
+    editOpen.value = false
+  } catch (e) {
+    message.error(resolveApiErrorMessage(e, t('moments.editPostFail')))
   }
 }
 
@@ -375,14 +475,42 @@ async function toggleFollow(post: ShortVideoPost) {
 function openComments(post: ShortVideoPost) {
   commentOpenFor.value = post.id
   commentText.value = ''
+  replyToComment.value = null
+}
+
+function startReply(comment: ShortVideoComment) {
+  replyToComment.value = comment
+  commentText.value = ''
+}
+
+function cancelReply() {
+  replyToComment.value = null
+}
+
+function confirmDeleteComment(post: ShortVideoPost, comment: ShortVideoComment) {
+  dialog.warning({
+    title: t('shortVideo.deleteComment'),
+    content: t('shortVideo.deleteCommentConfirm'),
+    positiveText: t('common.confirm'),
+    negativeText: t('common.cancel'),
+    onPositiveClick: async () => {
+      try {
+        await store.removeComment(post.id, comment.id)
+        message.success(t('shortVideo.deleteCommentOk'))
+      } catch (e) {
+        message.error(resolveApiErrorMessage(e, t('shortVideo.deleteCommentFail')))
+      }
+    }
+  })
 }
 
 async function submitComment(post: ShortVideoPost) {
   const text = commentText.value.trim()
   if (!text) return
   try {
-    await store.addComment(post.id, text)
+    await store.addComment(post.id, text, replyToComment.value?.id)
     commentText.value = ''
+    replyToComment.value = null
     message.success(t('shortVideo.commentOk'))
   } catch {
     message.error(t('shortVideo.commentFail'))
@@ -421,10 +549,18 @@ function videoSrc(post: ShortVideoPost) {
       </div>
 
       <div v-else-if="posts.length === 0" class="short-video-empty">
-        <p>{{ t('shortVideo.empty') }}</p>
+        <p>{{ feedError || t('shortVideo.empty') }}</p>
         <button type="button" class="short-video-empty-publish" @click="openPublish">
           <NIcon :component="VideocamOutline" :size="18" />
           {{ t('shortVideo.publish') }}
+        </button>
+        <button
+          v-if="feedError"
+          type="button"
+          class="short-video-empty-retry"
+          @click="retryFeed"
+        >
+          {{ t('shortVideo.retryLoad') }}
         </button>
       </div>
 
@@ -573,17 +709,41 @@ function videoSrc(post: ShortVideoPost) {
           <div v-if="commentOpenFor === post.id" class="short-video-comment-panel">
             <div class="short-video-comment-list">
               <div v-for="c in post.comments" :key="c.id" class="short-video-comment-item">
-                <strong>{{ c.nickname || t('shortVideo.author') }}</strong>
-                <span>{{ readableShortVideoText(c.content) }}</span>
+                <div class="short-video-comment-body">
+                  <strong>{{ c.nickname || t('shortVideo.author') }}</strong>
+                  <span v-if="c.replyToNickname" class="short-video-comment-reply">
+                    {{ t('moments.reply') }} {{ c.replyToNickname }}
+                  </span>
+                  <span>{{ readableShortVideoText(c.content) }}</span>
+                </div>
+                <div class="short-video-comment-actions">
+                  <button type="button" class="short-video-comment-btn" @click="startReply(c)">
+                    {{ t('moments.reply') }}
+                  </button>
+                  <button
+                    v-if="isOwnComment(c)"
+                    type="button"
+                    class="short-video-comment-btn short-video-comment-btn--danger"
+                    @click="confirmDeleteComment(post, c)"
+                  >
+                    {{ t('common.delete') }}
+                  </button>
+                </div>
               </div>
               <p v-if="post.comments.length === 0" class="short-video-comment-empty">
                 {{ t('shortVideo.noComments') }}
               </p>
             </div>
+            <div v-if="replyToComment" class="short-video-reply-hint">
+              <span>{{ t('moments.replyTo', { name: replyToComment.nickname || t('shortVideo.author') }) }}</span>
+              <button type="button" class="short-video-comment-btn" @click="cancelReply">
+                {{ t('common.cancel') }}
+              </button>
+            </div>
             <div class="short-video-comment-input">
               <NInput
                 v-model:value="commentText"
-                :placeholder="t('shortVideo.commentPh')"
+                :placeholder="commentPlaceholder"
                 size="small"
                 @keyup.enter="submitComment(post)"
               />
@@ -668,9 +828,14 @@ function videoSrc(post: ShortVideoPost) {
                 {{ t('shortVideo.playCount', { n: item.playCount || 0 }) }} · {{ formatCount(item.likes) }} {{ t('moments.like') }}
               </span>
             </div>
-            <LxButton size="small" variant="sm" @click="confirmDeletePost(item)">
-              {{ t('shortVideo.deletePost') }}
-            </LxButton>
+            <div class="short-video-mine-item__actions">
+              <LxButton size="small" variant="sm" @click="openEdit(item)">
+                {{ t('moments.editPost') }}
+              </LxButton>
+              <LxButton size="small" variant="sm" @click="confirmDeletePost(item)">
+                {{ t('shortVideo.deletePost') }}
+              </LxButton>
+            </div>
           </div>
         </div>
         <div class="short-video-modal-actions">
@@ -690,10 +855,46 @@ function videoSrc(post: ShortVideoPost) {
           :placeholder="t('shortVideo.descPh')"
           :autosize="{ minRows: 3, maxRows: 6 }"
         />
+        <div class="short-video-visibility">
+          <span class="short-video-visibility__label">{{ t('moments.whoCanSee') }}</span>
+          <n-radio-group v-model:value="publishVisibility" class="short-video-visibility__options">
+            <div v-for="opt in visibilityOptions" :key="opt.value" class="short-video-visibility__option">
+              <n-radio :value="opt.value">{{ opt.label }}</n-radio>
+              <span class="short-video-visibility__desc">{{ opt.desc }}</span>
+            </div>
+          </n-radio-group>
+        </div>
         <div class="short-video-modal-actions">
           <LxButton @click="publishOpen = false">{{ t('common.cancel') }}</LxButton>
           <LxButton variant="modal-primary" :loading="publishing" @click="submitPublish">
             {{ t('shortVideo.publish') }}
+          </LxButton>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="editOpen" class="short-video-modal" @click.self="editOpen = false">
+      <div class="short-video-modal-card">
+        <h3>{{ t('shortVideo.editTitle') }}</h3>
+        <NInput
+          v-model:value="editDesc"
+          type="textarea"
+          :placeholder="t('shortVideo.descPh')"
+          :autosize="{ minRows: 3, maxRows: 6 }"
+        />
+        <div class="short-video-visibility">
+          <span class="short-video-visibility__label">{{ t('moments.whoCanSee') }}</span>
+          <n-radio-group v-model:value="editVisibility" class="short-video-visibility__options">
+            <div v-for="opt in visibilityOptions" :key="opt.value" class="short-video-visibility__option">
+              <n-radio :value="opt.value">{{ opt.label }}</n-radio>
+              <span class="short-video-visibility__desc">{{ opt.desc }}</span>
+            </div>
+          </n-radio-group>
+        </div>
+        <div class="short-video-modal-actions">
+          <LxButton @click="editOpen = false">{{ t('common.cancel') }}</LxButton>
+          <LxButton variant="modal-primary" @click="submitEdit">
+            {{ t('common.save') }}
           </LxButton>
         </div>
       </div>
@@ -1090,9 +1291,51 @@ function videoSrc(post: ShortVideoPost) {
 
 .short-video-comment-item {
   display: flex;
+  justify-content: space-between;
   gap: 8px;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   font-size: 13px;
+}
+
+.short-video-comment-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.short-video-comment-reply {
+  opacity: 0.75;
+}
+
+.short-video-comment-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+}
+
+.short-video-comment-btn {
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.short-video-comment-btn--danger {
+  color: #ff8a8a;
+}
+
+.short-video-reply-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  opacity: 0.85;
 }
 
 .short-video-comment-empty {
@@ -1136,6 +1379,19 @@ function videoSrc(post: ShortVideoPost) {
   font-weight: 600;
   padding: 10px 20px;
   cursor: pointer;
+}
+
+.short-video-empty-retry {
+  border: none;
+  background: transparent;
+  color: var(--lx-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.short-video-empty-retry:hover {
+  color: var(--lx-accent);
 }
 
 .short-video-modal {
@@ -1194,10 +1450,16 @@ function videoSrc(post: ShortVideoPost) {
 .short-video-mine-item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 10px;
   border-radius: var(--lx-radius-md);
   background: var(--lx-bg-hover);
+}
+
+.short-video-mine-item__actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
 }
 
 .short-video-mine-item__main {
@@ -1228,6 +1490,36 @@ function videoSrc(post: ShortVideoPost) {
 .short-video-publish-hint {
   font-size: 13px;
   color: var(--lx-text-secondary);
+}
+
+.short-video-visibility {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.short-video-visibility__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lx-text-body);
+}
+
+.short-video-visibility__options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.short-video-visibility__option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.short-video-visibility__desc {
+  font-size: 12px;
+  color: var(--lx-text-secondary);
+  padding-left: 24px;
 }
 
 .short-video-modal-actions {

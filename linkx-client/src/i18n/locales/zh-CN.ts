@@ -1720,7 +1720,15 @@ export default {
     closeAllTabs: '关闭所有标签页',
     closeAllTabsConfirm: '将关闭所有短视频标签，是否继续？',
     collapsePanel: '收起短视频',
-    resizePanel: '拖动调整宽度'
+    resizePanel: '拖动调整宽度',
+    editTitle: '编辑短视频',
+    postNotFound: '作品不存在或无权查看',
+    deleteComment: '删除评论',
+    deleteCommentConfirm: '确定删除这条评论？',
+    deleteCommentOk: '评论已删除',
+    deleteCommentFail: '删除评论失败',
+    loadFail: '加载短视频失败，请稍后重试',
+    retryLoad: '重新加载'
   },
   moments: {
     title: '友链',

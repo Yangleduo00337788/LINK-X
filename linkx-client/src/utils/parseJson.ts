@@ -10,7 +10,9 @@ const LONG_ID_FIELDS = new Set([
   'friendId',
   'requestId',
   'conversationId',
-  'senderId'
+  'senderId',
+  'parentId',
+  'postId'
 ])
 
 // Number.MAX_SAFE_INTEGER = 9007199254740991（16 位）

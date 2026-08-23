@@ -111,13 +111,7 @@ function stopResize() {
 }
 
 onMounted(() => {
-  if (!isDockEmbed.value) {
-    void shortVideo.ensurePanelReady()
-    return
-  }
-  if (!shortVideo.initialized) {
-    void shortVideo.fetchFeed(true)
-  }
+  void shortVideo.ensurePanelReady()
 })
 
 onUnmounted(() => {

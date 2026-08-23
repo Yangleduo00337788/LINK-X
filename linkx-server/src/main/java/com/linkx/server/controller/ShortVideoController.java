@@ -50,6 +50,16 @@ public class ShortVideoController {
         return Result.success(shortVideoService.publish(userId, dto));
     }
 
+    @Operation(summary = "获取单条短视频")
+    @GetMapping("/{postId}")
+    @RateLimit(scope = "short-video:get", value = 60, window = 60)
+    public Result<ShortVideoPostVO> get(
+            @PathVariable String postId,
+            HttpServletRequest request) {
+        Long userId = AuthUtils.requireUserId(request, jwtUtils);
+        return Result.success(shortVideoService.getPost(userId, parseId(postId)));
+    }
+
     @Operation(summary = "发现流短视频列表")
     @GetMapping
     @RateLimit(scope = "short-video:list", value = 60, window = 60)

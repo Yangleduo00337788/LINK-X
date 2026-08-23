@@ -197,7 +197,7 @@ function refreshNavData(key: NavKey) {
       void momentsStore.fetchMoments()
       break
     case 'shortVideo':
-      void shortVideoStore.fetchFeed(true)
+      void shortVideoStore.ensurePanelReady()
       break
   }
 }

@@ -1720,7 +1720,15 @@ export default {
     closeAllTabs: 'Close all tabs',
     closeAllTabsConfirm: 'Close all Short Video tabs?',
     collapsePanel: 'Collapse Short Video',
-    resizePanel: 'Drag to resize'
+    resizePanel: 'Drag to resize',
+    editTitle: 'Edit short video',
+    postNotFound: 'Video not found or access denied',
+    deleteComment: 'Delete comment',
+    deleteCommentConfirm: 'Delete this comment?',
+    deleteCommentOk: 'Comment deleted',
+    deleteCommentFail: 'Failed to delete comment',
+    loadFail: 'Failed to load short videos. Please try again.',
+    retryLoad: 'Reload'
   },
   moments: {
     title: 'Moments',

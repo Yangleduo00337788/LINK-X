@@ -113,6 +113,17 @@ public class ShortVideoServiceImpl implements ShortVideoService {
     }
 
     @Override
+    public ShortVideoPostVO getPost(Long viewerId, Long postId) {
+        ShortVideoPost post = assertCanView(viewerId, postId);
+        SysUser author = requireUser(post.getUserId());
+        List<ShortVideoLike> likes = loadLikes(postId);
+        List<ShortVideoComment> comments = loadComments(postId);
+        boolean followingAuthor = loadFollowingSet(viewerId, Set.of(post.getUserId()))
+                .contains(post.getUserId());
+        return toPostVO(post, author, likes, comments, viewerId, followingAuthor);
+    }
+
+    @Override
     @Transactional
     public void delete(Long userId, Long postId) {
         ShortVideoPost post = postMapper.selectOneByQuery(

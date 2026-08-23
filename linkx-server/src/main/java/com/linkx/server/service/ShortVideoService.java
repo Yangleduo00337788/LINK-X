@@ -22,6 +22,8 @@ public interface ShortVideoService {
 
     void delete(Long userId, Long postId);
 
+    ShortVideoPostVO getPost(Long userId, Long postId);
+
     List<ShortVideoPostVO> listDiscover(Long userId, Long beforeId, Integer limit, String q);
 
     List<ShortVideoPostVO> listFriends(Long userId, Long beforeId, Integer limit);

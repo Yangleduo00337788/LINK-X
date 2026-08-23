@@ -42,6 +42,12 @@ export interface PublishShortVideoPayload {
   visibility?: number
 }
 
+export interface UpdateShortVideoPayload {
+  description?: string
+  coverKey?: string
+  visibility?: number
+}
+
 export interface CommentShortVideoPayload {
   content: string
   parentId?: string
@@ -70,12 +76,20 @@ export function listUserShortVideos(userId: string, params?: Omit<ListShortVideo
   return apiClient.get<never, ApiResult<ShortVideoPost[]>>(`/short-video/user/${userId}`, { params })
 }
 
+export function getShortVideo(postId: string) {
+  return apiClient.get<never, ApiResult<ShortVideoPost>>(`/short-video/${postId}`)
+}
+
 export function publishShortVideo(payload: PublishShortVideoPayload) {
   return apiClient.post<never, ApiResult<ShortVideoPost>>('/short-video', payload)
 }
 
 export function deleteShortVideo(postId: string) {
   return apiClient.delete<never, ApiResult<null>>(`/short-video/${postId}`)
+}
+
+export function updateShortVideo(postId: string, payload: UpdateShortVideoPayload) {
+  return apiClient.put<never, ApiResult<ShortVideoPost>>(`/short-video/${postId}`, payload)
 }
 
 export function likeShortVideo(postId: string) {
@@ -88,6 +102,10 @@ export function unlikeShortVideo(postId: string) {
 
 export function commentShortVideo(postId: string, payload: CommentShortVideoPayload) {
   return apiClient.post<never, ApiResult<ShortVideoComment>>(`/short-video/${postId}/comment`, payload)
+}
+
+export function deleteShortVideoComment(commentId: string) {
+  return apiClient.delete<never, ApiResult<null>>(`/short-video/comment/${commentId}`)
 }
 
 export function followShortVideoAuthor(userId: string) {
