@@ -32,7 +32,8 @@ CREATE TABLE IF NOT EXISTS `sys_user` (
   `phone` varchar(32) DEFAULT NULL COMMENT '手机号，用于账号安全绑定',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_username` (`username`),
-  UNIQUE KEY `uk_email` (`email`)
+  UNIQUE KEY `uk_email` (`email`),
+  KEY `idx_sys_user_status_deleted` (`status`,`deleted`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统用户表';
 
 -- ================================================
@@ -85,7 +86,8 @@ CREATE TABLE IF NOT EXISTS `sys_login_audit` (
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '记录时间',
   PRIMARY KEY (`id`),
   KEY `idx_username` (`username`),
-  KEY `idx_create_time` (`create_time`)
+  KEY `idx_create_time` (`create_time`),
+  KEY `idx_login_success_create_time` (`success`,`create_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='登录审计日志';
 
 -- ================================================
@@ -173,7 +175,8 @@ CREATE TABLE IF NOT EXISTS `im_conversation` (
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted` tinyint(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除(0:未删除 1:已删除)',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_private_key` (`private_key`)
+  UNIQUE KEY `uk_private_key` (`private_key`),
+  KEY `idx_im_conv_type_deleted` (`type`,`deleted`,`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='IM会话表';
 
 -- ================================================
@@ -197,7 +200,8 @@ CREATE TABLE IF NOT EXISTS `im_conversation_member` (
   `deleted` tinyint(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除(0:未删除 1:已删除)',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_conv_user` (`conversation_id`,`user_id`),
-  KEY `idx_user_id` (`user_id`)
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_icm_conv_deleted` (`conversation_id`,`deleted`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='IM会话成员表';
 
 -- ================================================
@@ -233,6 +237,11 @@ CREATE TABLE IF NOT EXISTS `im_message` (
   PRIMARY KEY (`id`),
   KEY `idx_conv_time` (`conversation_id`,`create_time`),
   KEY `idx_im_message_conv_id` (`conversation_id`,`id`),
+  KEY `idx_im_message_deleted_create_time` (`deleted`,`create_time`),
+  KEY `idx_im_message_active_conv` (`deleted`,`create_time`,`conversation_id`),
+  KEY `idx_im_message_content_enc` (`content_enc_version`,`id`),
+  KEY `idx_im_message_quote_enc` (`quote_content_enc_version`,`id`),
+  FULLTEXT KEY `ft_im_message_search` (`content`, `file_name`) WITH PARSER ngram,
   UNIQUE KEY `uk_sender_client_msg` (`sender_id`,`client_msg_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='IM消息表';
 
@@ -251,7 +260,9 @@ CREATE TABLE IF NOT EXISTS `moments_post` (
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '发布时间',
   `deleted` tinyint(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除',
   PRIMARY KEY (`id`),
-  KEY `idx_user_time` (`user_id`,`create_time`)
+  KEY `idx_user_time` (`user_id`,`create_time`),
+  KEY `idx_moments_post_content_enc` (`content_enc_version`,`id`),
+  FULLTEXT KEY `ft_moments_post_search` (`content`, `location`) WITH PARSER ngram
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='朋友圈动态表';
 
 -- ================================================
@@ -294,7 +305,8 @@ CREATE TABLE IF NOT EXISTS `moments_comment` (
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '评论时间',
   `deleted` tinyint(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除',
   PRIMARY KEY (`id`),
-  KEY `idx_post_time` (`post_id`,`create_time`)
+  KEY `idx_post_time` (`post_id`,`create_time`),
+  KEY `idx_moments_comment_content_enc` (`content_enc_version`,`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='朋友圈评论表';
 
 -- 兼容老库:为已存在的 moments_comment 增加 mentions 列(幂等)
@@ -709,7 +721,8 @@ CREATE TABLE IF NOT EXISTS `cloud_folder` (
   `update_time`  datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `deleted`      tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
-  KEY `idx_cf_user_parent` (`user_id`, `parent_id`, `deleted`)
+  KEY `idx_cf_user_parent` (`user_id`, `parent_id`, `deleted`),
+  KEY `idx_cf_user_path` (`user_id`, `path`(191))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='个人网盘文件夹';
 
 CREATE TABLE IF NOT EXISTS `cloud_file` (
