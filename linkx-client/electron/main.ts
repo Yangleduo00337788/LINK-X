@@ -1991,6 +1991,52 @@ ipcMain.on('window-open-moments', (_event, payload?: MomentsOpenPayload) => {
   createMomentsWindow(opts)
 })
 
+let shortVideoWindow: BrowserWindow | null = null
+
+function loadShortVideoHash(win: BrowserWindow) {
+  const hashPath = '/short-video'
+  if (isDev && process.env.VITE_DEV_SERVER_URL) {
+    win.loadURL(process.env.VITE_DEV_SERVER_URL + '#' + hashPath)
+  } else {
+    win.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: hashPath })
+  }
+}
+
+function createShortVideoWindow() {
+  if (shortVideoWindow && !shortVideoWindow.isDestroyed()) {
+    if (shortVideoWindow.isMinimized()) shortVideoWindow.restore()
+    shortVideoWindow.focus()
+    return
+  }
+
+  shortVideoWindow = new BrowserWindow({
+    ...browserWindowIconOptions(),
+    width: 480,
+    height: 760,
+    minWidth: 400,
+    minHeight: 560,
+    resizable: true,
+    ...windowChrome('LinkX', 'main'),
+    show: false,
+    webPreferences: defaultWebPreferences()
+  })
+  prepareWindowChrome(shortVideoWindow)
+
+  shortVideoWindow.once('ready-to-show', () => {
+    shortVideoWindow?.show()
+  })
+
+  loadShortVideoHash(shortVideoWindow)
+
+  shortVideoWindow.on('closed', () => {
+    shortVideoWindow = null
+  })
+}
+
+ipcMain.on('window-open-short-video', () => {
+  createShortVideoWindow()
+})
+
 /** 发布窗口通知：友链列表窗口刷新 */
 ipcMain.on('moments:published', () => {
   if (momentsWindow && !momentsWindow.isDestroyed()) {

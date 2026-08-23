@@ -22,6 +22,11 @@ const router = createRouter({
       component: () => import('../views/MomentsView.vue')
     },
     {
+      path: '/short-video',    // 短视频独立窗口路由
+      name: 'short-video',
+      component: () => import('../views/ShortVideoView.vue')
+    },
+    {
       path: '/moments/text',   // 友链-发布文字独立窗口(纯文字模式)
       name: 'moments-text',
       component: () => import('../components/MomentsPublishPage.vue')

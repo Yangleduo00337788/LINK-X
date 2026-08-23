@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   maximize: () => ipcRenderer.invoke('window:maximize'),
   close: () => ipcRenderer.invoke('window:close'),
   openMoments: (opts) => ipcRenderer.send('window-open-moments', opts || {}),
+  openShortVideo: () => ipcRenderer.send('window-open-short-video'),
   openMomentsText: () => ipcRenderer.send('window-open-moments-text'),
   openMomentsMedia: () => ipcRenderer.send('window-open-moments-media'),
   openNotes: (noteId) =>

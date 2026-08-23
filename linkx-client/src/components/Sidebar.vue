@@ -18,6 +18,7 @@ import {
   FolderOutline,
   CalendarOutline,
   WalletOutline,
+  FilmOutline,
   TimeOutline,
   RefreshOutline,
   HelpCircleOutline,
@@ -36,6 +37,7 @@ import { useFavoritesStore } from '../stores/favorites'
 import { useDriveStore } from '../stores/drive'
 import { useContactsStore } from '../stores/contacts'
 import { useMomentsStore } from '../stores/moments'
+import { useShortVideoStore } from '../stores/shortVideo'
 import { useCalendarStore } from '../stores/calendar'
 import { useNotificationsStore } from '../stores/notifications'
 import { useLinkMateStore } from '../stores/linkmate'
@@ -53,6 +55,7 @@ const favoritesStore = useFavoritesStore()
 const driveStore = useDriveStore()
 const contactsStore = useContactsStore()
 const momentsStore = useMomentsStore()
+const shortVideoStore = useShortVideoStore()
 const calendarStore = useCalendarStore()
 const notificationsStore = useNotificationsStore()
 const linkMateStore = useLinkMateStore()
@@ -111,6 +114,7 @@ const mainNav = computed(() => [
   { key: 'files' as NavKey, icon: FolderOutline, label: t('nav.files') },
   { key: 'calendar' as NavKey, icon: CalendarOutline, label: t('nav.calendar') },
   { key: 'moments' as NavKey, icon: ApertureOutline, label: t('nav.moments') },
+  { key: 'shortVideo' as NavKey, icon: FilmOutline, label: t('nav.shortVideo') },
   { key: 'balance' as NavKey, icon: WalletOutline, label: t('nav.balance') },
   { key: 'settings' as NavKey, icon: SettingsOutline, label: t('nav.settings') }
 ])
@@ -142,6 +146,15 @@ function handleClick(key: NavKey | 'menu') {
     }
     void momentsStore.ensurePanelReady()
     momentsStore.openPanel()
+    return
+  }
+  if (key === 'shortVideo') {
+    setNav('chat')
+    if (extensionDock.panelCollapsed) {
+      extensionDock.expandPanel()
+    }
+    void shortVideoStore.ensurePanelReady()
+    shortVideoStore.openPanel()
     return
   }
   if (key === 'files') {
@@ -181,8 +194,10 @@ function refreshNavData(key: NavKey) {
       void calendarStore.fetchEvents()
       break
     case 'moments':
-      // 刷新朋友圈/友链
       void momentsStore.fetchMoments()
+      break
+    case 'shortVideo':
+      void shortVideoStore.fetchFeed(true)
       break
   }
 }

@@ -4,6 +4,7 @@
 import { defineStore } from 'pinia'
 import { useLinkMateStore } from './linkmate'
 import { useMomentsStore, type MomentsPanelTabId } from './moments'
+import { useShortVideoStore, type ShortVideoPanelTabId } from './shortVideo'
 import { useNoteStore, type NotePanelTabId } from './note'
 import { t } from '../i18n'
 
@@ -11,6 +12,7 @@ export type ExtensionDockState = 'closed' | 'open' | 'collapsed'
 export type ExtensionTabKey =
   | `linkmate:${string}`
   | `moments:${MomentsPanelTabId}`
+  | `shortVideo:${ShortVideoPanelTabId}`
   | `notes:${NotePanelTabId}`
 
 const PANEL_WIDTH_STORAGE_KEY = 'linkx-extension-dock-width'
@@ -45,7 +47,7 @@ function persistPanelWidth(width: number) {
 
 export interface ExtensionDockTab {
   key: ExtensionTabKey
-  kind: 'linkmate' | 'moments' | 'notes'
+  kind: 'linkmate' | 'moments' | 'shortVideo' | 'notes'
   title: string
   tabId: string
 }
@@ -70,6 +72,7 @@ export const useExtensionDockStore = defineStore('extensionDock', {
     allTabs(): ExtensionDockTab[] {
       const linkMate = useLinkMateStore()
       const moments = useMomentsStore()
+      const shortVideo = useShortVideoStore()
       const notes = useNoteStore()
       const tabs: ExtensionDockTab[] = []
       for (const id of linkMate.openTabIds) {
@@ -89,6 +92,14 @@ export const useExtensionDockStore = defineStore('extensionDock', {
           tabId: tab.id
         })
       }
+      for (const tab of shortVideo.openTabs) {
+        tabs.push({
+          key: `shortVideo:${tab.id}`,
+          kind: 'shortVideo',
+          title: tab.title,
+          tabId: tab.id
+        })
+      }
       for (const tab of notes.openTabs) {
         tabs.push({
           key: `notes:${tab.id}`,
@@ -99,20 +110,23 @@ export const useExtensionDockStore = defineStore('extensionDock', {
       }
       return tabs
     },
-    activeKind(state): 'linkmate' | 'moments' | 'notes' | null {
+    activeKind(state): 'linkmate' | 'moments' | 'shortVideo' | 'notes' | null {
       if (!state.activeTabKey) return null
       if (state.activeTabKey.startsWith('linkmate:')) return 'linkmate'
       if (state.activeTabKey.startsWith('moments:')) return 'moments'
+      if (state.activeTabKey.startsWith('shortVideo:')) return 'shortVideo'
       if (state.activeTabKey.startsWith('notes:')) return 'notes'
       return null
     },
     hasOpenTabs(): boolean {
       const linkMate = useLinkMateStore()
       const moments = useMomentsStore()
+      const shortVideo = useShortVideoStore()
       const notes = useNoteStore()
       return (
         linkMate.openTabIds.length > 0 ||
         moments.openTabIds.length > 0 ||
+        shortVideo.openTabIds.length > 0 ||
         notes.openTabIds.length > 0
       )
     }
@@ -169,6 +183,11 @@ export const useExtensionDockStore = defineStore('extensionDock', {
       if (key.startsWith('moments:')) {
         const tabId = key.slice('moments:'.length) as MomentsPanelTabId
         await useMomentsStore().selectTab(tabId)
+        return
+      }
+      if (key.startsWith('shortVideo:')) {
+        const tabId = key.slice('shortVideo:'.length) as ShortVideoPanelTabId
+        await useShortVideoStore().selectTab(tabId)
         return
       }
       const tabId = key.slice('notes:'.length) as NotePanelTabId

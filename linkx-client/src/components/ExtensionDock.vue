@@ -10,15 +10,18 @@ import {
   CloseOutline,
   DocumentTextOutline,
   EllipsisHorizontalOutline,
+  FilmOutline,
   OpenOutline
 } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { useExtensionDockStore, type ExtensionTabKey } from '../stores/extensionDock'
 import { useLinkMateStore } from '../stores/linkmate'
 import { useMomentsStore, type MomentsPanelTabId } from '../stores/moments'
+import { useShortVideoStore, type ShortVideoPanelTabId } from '../stores/shortVideo'
 import { useNoteStore, type NotePanelTabId } from '../stores/note'
 import LinkMateSidePanel from './LinkMateSidePanel.vue'
 import MomentsSidePanel from './MomentsSidePanel.vue'
+import ShortVideoSidePanel from './ShortVideoSidePanel.vue'
 import NotesSidePanel from './NotesSidePanel.vue'
 import LinkMateLogoMark from './LinkMateLogoMark.vue'
 import { useI18n } from '../i18n'
@@ -28,6 +31,7 @@ const dialog = useDialog()
 const dock = useExtensionDockStore()
 const linkMate = useLinkMateStore()
 const moments = useMomentsStore()
+const shortVideo = useShortVideoStore()
 const notes = useNoteStore()
 const { panelWidth, activeTabKey, activeKind, allTabs } = storeToRefs(dock)
 const { streaming } = storeToRefs(linkMate)
@@ -44,6 +48,12 @@ const tabMoreOptions = computed<DropdownOption[]>(() => {
       { label: t('moments.publishMedia'), key: 'publishMedia' },
       { type: 'divider', key: 'd1' },
       { label: t('moments.closeAllTabs'), key: 'closeAll' }
+    ]
+  }
+  if (activeKind.value === 'shortVideo') {
+    return [
+      { type: 'divider', key: 'd1' },
+      { label: t('shortVideo.closeAllTabs'), key: 'closeAll' }
     ]
   }
   if (activeKind.value === 'notes') {
@@ -76,6 +86,10 @@ function handleCloseTab(key: ExtensionTabKey) {
     moments.closeTab(key.slice('moments:'.length) as MomentsPanelTabId)
     return
   }
+  if (key.startsWith('shortVideo:')) {
+    shortVideo.closeTab(key.slice('shortVideo:'.length) as ShortVideoPanelTabId)
+    return
+  }
   void notes.closeTab(key.slice('notes:'.length) as NotePanelTabId)
 }
 
@@ -105,6 +119,15 @@ function handleOpenStandalone(key: ExtensionTabKey) {
     window.open(`${base}${hash}`, '_blank', 'noopener')
     return
   }
+  if (key.startsWith('shortVideo:')) {
+    if (window.electronAPI?.openShortVideo) {
+      window.electronAPI.openShortVideo()
+      return
+    }
+    const base = window.location.href.split('#')[0]
+    window.open(`${base}#/short-video`, '_blank', 'noopener')
+    return
+  }
   const noteTabId = key.slice('notes:'.length) as NotePanelTabId
   const noteId = noteTabId === 'new' ? undefined : noteTabId
   if (window.electronAPI?.openNotes) {
@@ -120,15 +143,19 @@ function handleCloseAllTabs() {
   const title =
     activeKind.value === 'moments'
       ? t('moments.closeAllTabs')
-      : activeKind.value === 'notes'
-        ? t('notes.closeAllTabs')
-        : t('linkmate.closeAllTabs')
+      : activeKind.value === 'shortVideo'
+        ? t('shortVideo.closeAllTabs')
+        : activeKind.value === 'notes'
+          ? t('notes.closeAllTabs')
+          : t('linkmate.closeAllTabs')
   const content =
     activeKind.value === 'moments'
       ? t('moments.closeAllTabsConfirm')
-      : activeKind.value === 'notes'
-        ? t('notes.closeAllTabsConfirm')
-        : t('linkmate.closeAllTabsConfirm')
+      : activeKind.value === 'shortVideo'
+        ? t('shortVideo.closeAllTabsConfirm')
+        : activeKind.value === 'notes'
+          ? t('notes.closeAllTabsConfirm')
+          : t('linkmate.closeAllTabsConfirm')
   dialog.warning({
     title,
     content,
@@ -137,6 +164,8 @@ function handleCloseAllTabs() {
     onPositiveClick: () => {
       if (activeKind.value === 'moments') {
         moments.closeAllTabs()
+      } else if (activeKind.value === 'shortVideo') {
+        shortVideo.closeAllTabs()
       } else if (activeKind.value === 'notes') {
         void notes.save().then(() => notes.closeAllTabs())
       } else {
@@ -250,6 +279,7 @@ onUnmounted(() => {
           >
             <LinkMateLogoMark v-if="tab.kind === 'linkmate'" size="sm" />
             <NIcon v-else-if="tab.kind === 'moments'" :component="ApertureOutline" :size="16" />
+            <NIcon v-else-if="tab.kind === 'shortVideo'" :component="FilmOutline" :size="16" />
             <NIcon v-else :component="DocumentTextOutline" :size="16" />
             <span class="extension-tab-title">{{ tab.title }}</span>
             <span
@@ -298,6 +328,11 @@ onUnmounted(() => {
         />
         <MomentsSidePanel
           v-if="activeKind === 'moments'"
+          layout="side"
+          dock-embed
+        />
+        <ShortVideoSidePanel
+          v-if="activeKind === 'shortVideo'"
           layout="side"
           dock-embed
         />

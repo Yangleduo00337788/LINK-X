@@ -72,6 +72,7 @@ import { useAppStore } from '../stores/app'
 import { useLinkMateStore } from '../stores/linkmate'
 import { useExtensionDockStore } from '../stores/extensionDock'
 import { useMomentsStore } from '../stores/moments'
+import { useShortVideoStore } from '../stores/shortVideo'
 import { useI18n } from '../i18n'
 import { isRealImChatSession } from '../utils/buildImChatContext'
 
@@ -159,6 +160,11 @@ onMounted(() => {
     appStore.setNav('chat')
     void useMomentsStore().ensurePanelReady()
     useMomentsStore().openPanel()
+  }
+  if ((navKey.value as string) === 'shortVideo') {
+    appStore.setNav('chat')
+    void useShortVideoStore().ensurePanelReady()
+    useShortVideoStore().openPanel()
   }
 })
 
